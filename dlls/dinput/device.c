@@ -360,12 +360,26 @@ static DWORD semantic_to_obj_id( struct dinput_device *This, DWORD dwSemantic )
     return type | (0x0000ff00 & (instance << 8));
 }
 
+static void del_mapping_key(const WCHAR *device, const WCHAR *username, const WCHAR *guid) {
+    static const WCHAR subkey[] = L"Software\\Wine\\DirectInput\\Mappings\\%s\\%s\\%s";
+    DWORD len = wcslen(subkey) + wcslen(username) + wcslen(device) + wcslen(guid);
+    WCHAR *keyname;
+
+    keyname = malloc(len * sizeof(WCHAR));
+    swprintf(keyname, len, subkey, username, device, guid);
+
+    /* Remove old key mappings so there will be no overlapping mappings */
+    RegDeleteKeyW(HKEY_CURRENT_USER, keyname);
+
+    free(keyname);
+}
+
 /*
  * get_mapping_key
  * Retrieves an open registry key to save the mapping, parametrized for an username,
  * specific device and specific action mapping guid.
  */
-static HKEY get_mapping_key(const WCHAR *device, const WCHAR *username, const WCHAR *guid)
+static HKEY get_mapping_key(const WCHAR *device, const WCHAR *username, const WCHAR *guid, BOOL create)
 {
     static const WCHAR *subkey = L"Software\\Wine\\DirectInput\\Mappings\\%s\\%s\\%s";
     HKEY hkey;
@@ -376,8 +390,11 @@ static HKEY get_mapping_key(const WCHAR *device, const WCHAR *username, const WC
     swprintf( keyname, len, subkey, username, device, guid );
 
     /* The key used is HKCU\Software\Wine\DirectInput\Mappings\[username]\[device]\[mapping_guid] */
-    if (RegCreateKeyW(HKEY_CURRENT_USER, keyname, &hkey))
-        hkey = 0;
+    if (create) {
+        if (RegCreateKeyW(HKEY_CURRENT_USER, keyname, &hkey))
+            hkey = 0;
+    } else if (RegOpenKeyW(HKEY_CURRENT_USER, keyname, &hkey))
+            hkey = 0;
 
     free( keyname );
 
@@ -397,7 +414,9 @@ static HRESULT save_mapping_settings(IDirectInputDevice8W *iface, LPDIACTIONFORM
     if (StringFromCLSID(&lpdiaf->guidActionMap, &guid_str) != S_OK)
         return DI_SETTINGSNOTSAVED;
 
-    hkey = get_mapping_key(didev.tszInstanceName, lpszUsername, guid_str);
+    del_mapping_key(didev.tszInstanceName, lpszUsername, guid_str);
+
+    hkey = get_mapping_key(didev.tszInstanceName, lpszUsername, guid_str, TRUE);
 
     if (!hkey)
     {
@@ -432,7 +451,7 @@ static BOOL load_mapping_settings( struct dinput_device *This, LPDIACTIONFORMATW
     HKEY hkey;
     WCHAR *guid_str;
     DIDEVICEINSTANCEW didev;
-    int i, mapped = 0;
+    int i;
 
     didev.dwSize = sizeof(didev);
     IDirectInputDevice8_GetDeviceInfo(&This->IDirectInputDevice8W_iface, &didev);
@@ -440,7 +459,7 @@ static BOOL load_mapping_settings( struct dinput_device *This, LPDIACTIONFORMATW
     if (StringFromCLSID(&lpdiaf->guidActionMap, &guid_str) != S_OK)
         return FALSE;
 
-    hkey = get_mapping_key(didev.tszInstanceName, username, guid_str);
+    hkey = get_mapping_key(didev.tszInstanceName, username, guid_str, FALSE);
 
     if (!hkey)
     {
@@ -460,15 +479,20 @@ static BOOL load_mapping_settings( struct dinput_device *This, LPDIACTIONFORMATW
         {
             lpdiaf->rgoAction[i].dwObjID = id;
             lpdiaf->rgoAction[i].guidInstance = didev.guidInstance;
-            lpdiaf->rgoAction[i].dwHow = DIAH_DEFAULT;
-            mapped += 1;
+            lpdiaf->rgoAction[i].dwHow = DIAH_USERCONFIG;
+        }
+        else
+        {
+            memset(&lpdiaf->rgoAction[i].guidInstance, 0, sizeof(GUID));
+            lpdiaf->rgoAction[i].dwHow = DIAH_UNMAPPED;
         }
     }
 
     RegCloseKey(hkey);
     CoTaskMemFree(guid_str);
 
-    return mapped > 0;
+    /* On Windows BuildActionMap can open empty mapping, so always return TRUE if get_mapping_key is success */
+    return TRUE;
 }
 
 static BOOL set_app_data( struct dinput_device *dev, int offset, UINT_PTR app_data )
@@ -1897,13 +1921,18 @@ static HRESULT WINAPI dinput_device_BuildActionMap( IDirectInputDevice8W *iface,
         load_success = load_mapping_settings( impl, format, username_buf );
     }
 
-    if (load_success) return DI_OK;
+    if (load_success) {
+        /* Update dwCRC to track if action format has changed */
+        for (i=0; i < format->dwNumActions; i++)
+        {
+            format->dwCRC ^= (format->rgoAction[i].dwObjID << i * 2) | (format->rgoAction[i].dwObjID >> (sizeof(format->dwCRC) * 8 - i * 2));
+            format->dwCRC ^= (format->rgoAction[i].dwSemantic << (i * 2 + 5)) | (format->rgoAction[i].dwSemantic >> (sizeof(format->dwCRC) * 8 - (i * 2 + 5)));
+        }
+        return DI_OK;
+    }
 
     for (i = 0; i < format->dwNumActions; i++)
     {
-        /* Don't touch a user configured action */
-        if (format->rgoAction[i].dwHow == DIAH_USERCONFIG) continue;
-
         genre = format->rgoAction[i].dwSemantic & DIGENRE_ANY;
         if (devMask == genre || (devMask == DIGENRE_ANY && genre != DIMOUSE_MASK && genre != DIKEYBOARD_MASK))
         {
@@ -1935,6 +1964,14 @@ static HRESULT WINAPI dinput_device_BuildActionMap( IDirectInputDevice8W *iface,
         }
     }
 
+    /* Update dwCRC to track if action format has changed */
+    format->dwCRC = 0;
+    for (i=0; i < format->dwNumActions; i++)
+    {
+        format->dwCRC ^= (format->rgoAction[i].dwObjID << i * 2) | (format->rgoAction[i].dwObjID >> (sizeof(format->dwCRC) * 8 - i * 2));
+        format->dwCRC ^= (format->rgoAction[i].dwSemantic << (i * 2 + 5)) | (format->rgoAction[i].dwSemantic >> (sizeof(format->dwCRC) * 8 - (i * 2 + 5)));
+    }
+
     if (!has_actions) return DI_NOEFFECT;
     if (flags & (DIDBAM_DEFAULT|DIDBAM_PRESERVE|DIDBAM_INITIALIZE|DIDBAM_HWDEFAULTS))
         FIXME("Unimplemented flags %#x\n", flags);
@@ -1952,6 +1989,7 @@ static HRESULT WINAPI dinput_device_SetActionMap( IDirectInputDevice8W *iface, D
     DIPROPSTRING dps;
     WCHAR username_buf[MAX_PATH];
     DWORD username_len = MAX_PATH;
+    DWORD new_crc = 0;
     int i, action = 0, num_actions = 0;
     unsigned int offset = 0;
     const DIDATAFORMAT *df;
@@ -1984,12 +2022,23 @@ static HRESULT WINAPI dinput_device_SetActionMap( IDirectInputDevice8W *iface, D
     data_format.dwFlags = DIDF_RELAXIS;
     data_format.dwDataSize = format->dwDataSize;
 
+    /* Calculate checksum for actionformat */
+    for (i=0; i < format->dwNumActions; i++)
+    {
+        new_crc ^= (format->rgoAction[i].dwObjID << i * 2) | (format->rgoAction[i].dwObjID >> (sizeof(format->dwCRC) * 8 - i * 2));
+        new_crc ^= (format->rgoAction[i].dwSemantic << (i * 2 + 5)) | (format->rgoAction[i].dwSemantic >> (sizeof(format->dwCRC) * 8 - (i * 2 + 5)));
+    }
+
     /* Count the actions */
     for (i = 0; i < format->dwNumActions; i++)
         if (IsEqualGUID( &impl->guid, &format->rgoAction[i].guidInstance ))
             num_actions++;
 
-    if (num_actions == 0) return DI_NOEFFECT;
+    /* Should return DI_NOEFFECT if we dont have any actions and actionformat has not changed */
+    if (num_actions == 0 && format->dwCRC == new_crc && !(flags & DIDSAM_FORCESAVE)) return DI_NOEFFECT;
+
+    /* update dwCRC to track if action format has changed */
+    format->dwCRC = new_crc;
 
     /* Construct the dataformat and actionmap */
     obj_df = malloc( sizeof(DIOBJECTDATAFORMAT) * num_actions );
