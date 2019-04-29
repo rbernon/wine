@@ -401,7 +401,7 @@ static HKEY get_mapping_key(const WCHAR *device, const WCHAR *username, const WC
     return hkey;
 }
 
-static HRESULT save_mapping_settings(IDirectInputDevice8W *iface, LPDIACTIONFORMATW lpdiaf, LPCWSTR lpszUsername)
+HRESULT save_mapping_settings(IDirectInputDevice8W *iface, LPDIACTIONFORMATW lpdiaf, LPCWSTR lpszUsername)
 {
     WCHAR *guid_str = NULL;
     DIDEVICEINSTANCEW didev;
