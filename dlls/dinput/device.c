@@ -2031,8 +2031,15 @@ static HRESULT WINAPI dinput_device_SetActionMap( IDirectInputDevice8W *iface, D
 
     /* Count the actions */
     for (i = 0; i < format->dwNumActions; i++)
-        if (IsEqualGUID( &impl->guid, &format->rgoAction[i].guidInstance ))
+    {
+        if (IsEqualGUID(&impl->guid, &format->rgoAction[i].guidInstance) ||
+                (IsEqualGUID(&IID_NULL, &format->rgoAction[i].guidInstance) &&
+                  ((format->rgoAction[i].dwSemantic & format->dwGenre) == format->dwGenre ||
+                   (format->rgoAction[i].dwSemantic & 0xff000000) == 0xff000000 /* Any Axis */) ))
+        {
             num_actions++;
+        }
+    }
 
     /* Should return DI_NOEFFECT if we dont have any actions and actionformat has not changed */
     if (num_actions == 0 && format->dwCRC == new_crc && !(flags & DIDSAM_FORCESAVE)) return DI_NOEFFECT;
@@ -2069,7 +2076,39 @@ static HRESULT WINAPI dinput_device_SetActionMap( IDirectInputDevice8W *iface, D
 
             action++;
         }
+        else if ((format->rgoAction[i].dwSemantic & format->dwGenre) == format->dwGenre ||
+                 (format->rgoAction[i].dwSemantic & 0xff000000) == 0xff000000 /* Any Axis */)
+        {
+            DWORD obj_id = semantic_to_obj_id(impl, format->rgoAction[i].dwSemantic);
+            DWORD type = DIDFT_GETTYPE(obj_id);
+            DWORD inst = DIDFT_GETINSTANCE(obj_id);
+            LPDIOBJECTDATAFORMAT obj;
+
+            if (type == DIDFT_PSHBUTTON) type = DIDFT_BUTTON;
+            else if (type == DIDFT_RELAXIS) type = DIDFT_AXIS;
+
+            obj = dataformat_to_odf_by_type(df, inst, type);
+            TRACE("obj %p, inst 0x%08x, type 0x%08x\n", obj, inst, type);
+            if(obj)
+            {
+                memcpy(&obj_df[action], obj, df->dwObjSize);
+
+                impl->action_map[action].uAppData = format->rgoAction[i].uAppData;
+                impl->action_map[action].offset = offset;
+                obj_df[action].dwOfs = offset;
+                offset += (type & DIDFT_BUTTON) ? 1 : 4;
+
+                action++;
+            }
+        }
     }
+
+    if (action == 0)
+    {
+        free( obj_df );
+        return DI_NOEFFECT;
+    }
+    data_format.dwNumObjs = action;
 
     IDirectInputDevice8_SetDataFormat( iface, &data_format );
 
