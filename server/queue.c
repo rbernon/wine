@@ -1805,8 +1805,8 @@ static int queue_mouse_message( struct desktop *desktop, user_handle_t win, cons
         msg_data->size                = sizeof(*msg_data);
         msg_data->flags               = flags;
         msg_data->rawinput.type       = RIM_TYPEMOUSE;
-        msg_data->rawinput.mouse.x    = x - desktop->cursor.x;
-        msg_data->rawinput.mouse.y    = y - desktop->cursor.y;
+        msg_data->rawinput.mouse.x    = input->mouse.x;
+        msg_data->rawinput.mouse.y    = input->mouse.y;
         msg_data->rawinput.mouse.data = input->mouse.data;
 
         enum_processes( queue_rawinput_message, &raw_msg );

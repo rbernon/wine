@@ -32,6 +32,9 @@
 #include <X11/Xresource.h>
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
+#ifdef HAVE_X11_EXTENSIONS_XINPUT2_H
+#include <X11/extensions/XInput2.h>
+#endif
 
 #define BOOL X_BOOL
 #define BYTE X_BYTE
@@ -319,13 +322,6 @@ struct x11drv_escape_flush_gl_drawable
  * X11 USER driver
  */
 
-struct x11drv_valuator_data
-{
-    double min;
-    double max;
-    int number;
-};
-
 enum xi2_state
 {
     xi_unavailable = -1,
@@ -348,11 +344,13 @@ struct x11drv_thread_data
     Window   clip_window;          /* window used for cursor clipping */
     HWND     clip_hwnd;            /* message window stored in desktop while clipping is active */
     DWORD    clip_reset;           /* time when clipping was last reset */
+#ifdef HAVE_X11_EXTENSIONS_XINPUT2_H
     enum xi2_state xi2_state;      /* XInput2 state */
-    struct x11drv_valuator_data x_rel_valuator;
-    struct x11drv_valuator_data y_rel_valuator;
+    XIValuatorClassInfo x_pos_valuator;
+    XIValuatorClassInfo y_pos_valuator;
     int      xi2_core_pointer;     /* XInput2 core pointer id */
     int      xi2_rawinput_only;
+#endif
 };
 
 extern struct x11drv_thread_data *x11drv_init_thread_data(void) DECLSPEC_HIDDEN;
@@ -437,6 +435,8 @@ enum x11drv_atoms
     XATOM_RAW_CAP_HEIGHT,
     XATOM_Rel_X,
     XATOM_Rel_Y,
+    XATOM_Abs_X,
+    XATOM_Abs_Y,
     XATOM_WM_PROTOCOLS,
     XATOM_WM_DELETE_WINDOW,
     XATOM_WM_STATE,

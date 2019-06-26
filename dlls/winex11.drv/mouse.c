@@ -331,32 +331,40 @@ static void update_relative_valuators(XIAnyClassInfo **valuators, int n_valuator
     struct x11drv_thread_data *thread_data = x11drv_thread_data();
     int i;
 
-    thread_data->x_rel_valuator.number = -1;
-    thread_data->y_rel_valuator.number = -1;
+    thread_data->x_pos_valuator.number = -1;
+    thread_data->y_pos_valuator.number = -1;
 
     for (i = 0; i < n_valuators; i++)
     {
         XIValuatorClassInfo *class = (XIValuatorClassInfo *)valuators[i];
-        struct x11drv_valuator_data *valuator_data = NULL;
 
-        if (valuators[i]->type != XIValuatorClass) continue;
-        if (class->label == x11drv_atom( Rel_X ) ||
-            (!class->label && class->number == 0 && class->mode == XIModeRelative))
-        {
-            valuator_data = &thread_data->x_rel_valuator;
-        }
+        if (valuators[i]->type != XIValuatorClass)
+            continue;
+        else if (class->label == x11drv_atom( Rel_X ) ||
+                 class->label == x11drv_atom( Abs_X ) ||
+                 (!class->label && class->number == 0))
+            thread_data->x_pos_valuator = *class;
         else if (class->label == x11drv_atom( Rel_Y ) ||
-                 (!class->label && class->number == 1 && class->mode == XIModeRelative))
-        {
-            valuator_data = &thread_data->y_rel_valuator;
-        }
-
-        if (valuator_data) {
-            valuator_data->number = class->number;
-            valuator_data->min = class->min;
-            valuator_data->max = class->max;
-        }
+                 class->label == x11drv_atom( Abs_Y ) ||
+                 (!class->label && class->number == 1))
+            thread_data->y_pos_valuator = *class;
     }
+
+    if (thread_data->x_pos_valuator.number < 0 || thread_data->y_pos_valuator.number < 0)
+    {
+        WARN("Only one X/Y axis found, ignoring RawMotion events\n");
+    }
+    else if (thread_data->x_pos_valuator.mode != thread_data->y_pos_valuator.mode)
+    {
+        WARN("Relative/Absolute mismatch between X/Y axis, ignoring RawMotion events\n");
+        thread_data->y_pos_valuator.number = -1;
+        thread_data->y_pos_valuator.number = -1;
+    }
+
+    if (thread_data->x_pos_valuator.min >= thread_data->x_pos_valuator.max)
+        thread_data->x_pos_valuator.min = thread_data->x_pos_valuator.max = 0;
+    if (thread_data->y_pos_valuator.min >= thread_data->y_pos_valuator.max)
+        thread_data->y_pos_valuator.min = thread_data->y_pos_valuator.max = 0;
 }
 #endif
 
@@ -478,8 +486,8 @@ void x11drv_xinput_disable( Display *display, Window window, long event_mask )
     pXISelectEvents( display, DefaultRootWindow( display ), &mask, 1 );
 
     if (!data) return;
-    data->x_rel_valuator.number = -1;
-    data->y_rel_valuator.number = -1;
+    data->x_pos_valuator.number = -1;
+    data->y_pos_valuator.number = -1;
     data->xi2_core_pointer = 0;
     data->xi2_state = xi_disabled;
 #endif
@@ -1950,16 +1958,22 @@ static BOOL X11DRV_RawMotion( XGenericEventCookie *xev )
     INPUT input;
     int i;
     double dx = 0, dy = 0, val;
+    double x_scale = 1, y_scale = 1;
     struct x11drv_thread_data *thread_data = x11drv_thread_data();
-    struct x11drv_valuator_data *x_rel, *y_rel;
+    XIValuatorClassInfo *x_pos, *y_pos;
 
-    if (thread_data->x_rel_valuator.number < 0 || thread_data->y_rel_valuator.number < 0) return FALSE;
+    if (thread_data->x_pos_valuator.number < 0 || thread_data->y_pos_valuator.number < 0) return FALSE;
+    if (thread_data->x_pos_valuator.mode != thread_data->y_pos_valuator.mode)
+    {
+        FIXME("Unsupported relative/absolute X/Y axis mismatch\n.");
+        return FALSE;
+    }
     if (!event->valuators.mask_len) return FALSE;
     if (thread_data->xi2_state != xi_enabled) return FALSE;
     if (event->deviceid != thread_data->xi2_core_pointer) return FALSE;
 
-    x_rel = &thread_data->x_rel_valuator;
-    y_rel = &thread_data->y_rel_valuator;
+    x_pos = &thread_data->x_pos_valuator;
+    y_pos = &thread_data->y_pos_valuator;
 
     input.type             = INPUT_MOUSE;
     input.u.mi.mouseData   = 0;
@@ -1970,24 +1984,34 @@ static BOOL X11DRV_RawMotion( XGenericEventCookie *xev )
     input.u.mi.dy          = 0;
 
     virtual_rect = get_virtual_screen_rect();
+    if (x_pos->min < x_pos->max)
+        x_scale = (x_pos->mode == XIModeAbsolute ? 65535 : (virtual_rect.right - virtual_rect.left)) /
+                  (x_pos->max - x_pos->min);
+    if (y_pos->min < y_pos->max)
+        y_scale = (y_pos->mode == XIModeAbsolute ? 65535 : (virtual_rect.bottom - virtual_rect.top)) /
+                  (y_pos->max - y_pos->min);
 
-    for (i = 0; i <= max ( x_rel->number, y_rel->number ); i++)
+    for (i = 0; i <= max( x_pos->number, y_pos->number ); i++)
     {
         if (!XIMaskIsSet( event->valuators.mask, i )) continue;
         val = *values++;
-        if (i == x_rel->number)
+        if (i == x_pos->number)
         {
-            input.u.mi.dx = dx = val;
-            if (x_rel->min < x_rel->max)
-                input.u.mi.dx = val * (virtual_rect.right - virtual_rect.left)
-                                    / (x_rel->max - x_rel->min);
+            dx = val;
+            input.u.mi.dwFlags |= (x_pos->mode == XIModeAbsolute ? MOUSEEVENTF_ABSOLUTE : 0);
+            if (x_pos->mode == XIModeAbsolute)
+                input.u.mi.dx = (dx - x_pos->min) * x_scale;
+            else
+                input.u.mi.dx = dx * x_scale;
         }
-        if (i == y_rel->number)
+        if (i == y_pos->number)
         {
-            input.u.mi.dy = dy = val;
-            if (y_rel->min < y_rel->max)
-                input.u.mi.dy = val * (virtual_rect.bottom - virtual_rect.top)
-                                    / (y_rel->max - y_rel->min);
+            dy = val;
+            input.u.mi.dwFlags |= (y_pos->mode == XIModeAbsolute ? MOUSEEVENTF_ABSOLUTE : 0);
+            if (y_pos->mode == XIModeAbsolute)
+                input.u.mi.dy = (dy - y_pos->min) * y_scale;
+            else
+                input.u.mi.dy = dy * y_scale;
         }
     }
 
