@@ -11081,6 +11081,40 @@ static LRESULT WINAPI ShowWindowProcA(HWND hwnd, UINT message, WPARAM wParam, LP
     return ret;
 }
 
+static LRESULT WINAPI SetActiveWindowProcA(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    static LONG defwndproc_counter = 0;
+    struct recvd_message msg;
+    LRESULT ret;
+
+    switch (message)
+    {
+    /* log only specific messages we are interested in */
+    case WM_NCACTIVATE:
+    case WM_ACTIVATE:
+    case WM_SETFOCUS:
+    case WM_KILLFOCUS:
+        break;
+    default:
+        return DefWindowProcA(hwnd, message, wParam, lParam);
+    }
+
+    msg.hwnd = hwnd;
+    msg.message = message;
+    msg.flags = sent|wparam|lparam;
+    if (defwndproc_counter) msg.flags |= defwinproc;
+    msg.wParam = wParam;
+    msg.lParam = lParam;
+    msg.descr = "activation";
+    add_message(&msg);
+
+    defwndproc_counter++;
+    ret = DefWindowProcA(hwnd, message, wParam, lParam);
+    defwndproc_counter--;
+
+    return ret;
+}
+
 static LRESULT WINAPI PaintLoopProcA(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
@@ -11178,6 +11212,10 @@ static void register_classes(void)
     cls.lpszClassName = "ShowWindowClass";
     register_class(&cls);
 
+    cls.lpfnWndProc = SetActiveWindowProcA;
+    cls.lpszClassName = "SetActiveWindowClass";
+    register_class(&cls);
+
     cls.lpfnWndProc = PopupMsgCheckProcA;
     cls.lpszClassName = "TestPopupClass";
     register_class(&cls);
@@ -11236,6 +11274,7 @@ static BOOL is_our_logged_class(HWND hwnd)
     {
 	if (!lstrcmpiA(buf, "TestWindowClass") ||
 	    !lstrcmpiA(buf, "ShowWindowClass") ||
+	    !lstrcmpiA(buf, "SetActiveWindowClass") ||
 	    !lstrcmpiA(buf, "TestParentClass") ||
 	    !lstrcmpiA(buf, "TestPopupClass") ||
 	    !lstrcmpiA(buf, "SimpleWindowClass") ||
@@ -16242,10 +16281,46 @@ static const struct message SetActiveWindowSeq4[] =
     { 0 }
 };
 
+static LRESULT WINAPI test_recursive_set_active_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
+{
+    if (message == WM_ACTIVATE && LOWORD(wparam) != WA_INACTIVE)
+    {
+        SetActiveWindow((HWND)lparam);
+        SetActiveWindow(hwnd);
+        return 0;
+    }
+
+    return DefWindowProcA(hwnd, message, wparam, lparam);
+}
+
+static void test_set_active_window_recursive(HWND hwnd, HWND hwnd2)
+{
+    const struct message RecursiveActivationSeq[] =
+    {
+        { HCBT_ACTIVATE, hook|wparam, (WPARAM)hwnd },
+        { WM_NCACTIVATE, sent|wparam|lparam, FALSE, (LPARAM)hwnd },
+        { WM_ACTIVATE, sent|wparam|lparam, WA_INACTIVE, (LPARAM)hwnd },
+        { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+        { HCBT_ACTIVATE, hook|wparam, (WPARAM)hwnd2 },
+        { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+        { WM_NCACTIVATE, sent|wparam|lparam, FALSE, (LPARAM)hwnd },
+        { WM_ACTIVATE, sent|wparam|lparam, WA_ACTIVE, (LPARAM)hwnd },
+        { 0 }
+    };
+    SetActiveWindow(hwnd2);
+
+    flush_sequence();
+    SetActiveWindow(hwnd);
+    ok_sequence(RecursiveActivationSeq, "recursive activation", TRUE);
+
+    DestroyWindow(hwnd2);
+    DestroyWindow(hwnd);
+    flush_sequence();
+}
 
 static void test_SetActiveWindow(void)
 {
-    HWND hwnd, popup, ret;
+    HWND hwnd, hwnd2, popup, ret;
 
     hwnd = CreateWindowExA(0, "TestWindowClass", "Test SetActiveWindow",
                            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
@@ -16295,6 +16370,20 @@ static void test_SetActiveWindow(void)
 
     if (winetest_debug > 1) trace("done\n");
 
+    DestroyWindow(hwnd);
+
+    hwnd = CreateWindowExA(0, "SimpleWindowClass", NULL, WS_OVERLAPPED|WS_VISIBLE,
+                              100, 100, 200, 200, 0, 0, 0, NULL);
+    ok(hwnd != 0, "Failed to create simple window\n");
+    SetWindowLongPtrA(hwnd, GWLP_WNDPROC, (LONG_PTR)test_recursive_set_active_window_proc);
+
+    hwnd2 = CreateWindowExA(0, "SetActiveWindowClass", NULL, WS_OVERLAPPED|WS_VISIBLE,
+                                10, 10, 50, 50, hwnd, 0, 0, NULL);
+    ok(hwnd2 != 0, "Failed to create recursive activation window\n");
+
+    test_set_active_window_recursive(hwnd, hwnd2);
+
+    DestroyWindow(hwnd2);
     DestroyWindow(hwnd);
 }
 
