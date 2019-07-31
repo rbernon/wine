@@ -82,6 +82,7 @@
 #define FILE_DEVICE_SERENUM             0x00000037
 #define FILE_DEVICE_TERMSRV             0x00000038
 #define FILE_DEVICE_KSEC                0x00000039
+#define FILE_DEVICE_XUSB                0x00008000
 
 #define METHOD_BUFFERED                 0
 #define METHOD_IN_DIRECT                1
