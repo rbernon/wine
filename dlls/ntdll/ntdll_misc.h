@@ -115,6 +115,13 @@ extern enum loadorder get_load_order( const WCHAR *app_name, const UNICODE_STRIN
 static inline TEB64 *NtCurrentTeb64(void) { return (TEB64 *)NtCurrentTeb()->GdiBatchCount; }
 #endif
 
+struct tagHEAP;
+void   *HEAP_std_allocate( struct tagHEAP *heap, ULONG flags, SIZE_T size );
+BOOLEAN HEAP_std_free( struct tagHEAP *heap, ULONG flags, void *ptr );
+void   *HEAP_std_reallocate( struct tagHEAP *heap, ULONG flags, void *ptr, SIZE_T size );
+SIZE_T  HEAP_std_get_allocated_size( struct tagHEAP *heap, ULONG flags, const void *ptr );
+BOOLEAN HEAP_std_validate( struct tagHEAP *heap, ULONG flags, const void *ptr );
+
 #define HASH_STRING_ALGORITHM_DEFAULT  0
 #define HASH_STRING_ALGORITHM_X65599   1
 #define HASH_STRING_ALGORITHM_INVALID  0xffffffff
