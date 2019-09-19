@@ -325,6 +325,24 @@ static enum event_merge_action merge_raw_motion_events( XIRawEvent *prev, XIRawE
 }
 #endif
 
+static int try_grab_pointer( Display *display )
+{
+    if (!grab_pointer)
+        return 1;
+
+    /* if we are already clipping the cursor in the current thread, we should not
+     * call XGrabPointer here or it would change the confine-to window. */
+    if (clipping_cursor)
+        return 1;
+
+    if (XGrabPointer( display, root_window, False, 0, GrabModeAsync, GrabModeAsync,
+                      None, None, CurrentTime ) != GrabSuccess)
+        return 0;
+
+    XUngrabPointer( display, CurrentTime );
+    return 1;
+}
+
 /***********************************************************************
  *           merge_events
  *
@@ -704,8 +722,18 @@ static void set_focus( XEvent *xev, HWND hwnd, Time time )
     Window win;
     GUITHREADINFO threadinfo;
 
-    TRACE( "setting foreground window to %p\n", hwnd );
-    __wine_set_foreground_window( hwnd, EVENT_x11_time_to_win32_time( time ) );
+    if (!try_grab_pointer( xev->xany.display ))
+    {
+        /* ask the desktop window to release its grab before trying to get ours */
+        SendMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_RELEASE_CURSOR, 0, 0 );
+        XSendEvent( xev->xany.display, xev->xany.window, False, 0, xev );
+        return;
+    }
+    else
+    {
+        TRACE( "setting foreground window to %p\n", hwnd );
+        __wine_set_foreground_window( hwnd, EVENT_x11_time_to_win32_time( time ) );
+    }
 
     threadinfo.cbSize = sizeof(threadinfo);
     GetGUIThreadInfo(0, &threadinfo);
@@ -881,6 +909,14 @@ BOOL x11drv_handle_focus_in_event( HWND hwnd, XEvent *xev, Time time )
         x11drv_global_focus_in( event->display );
     if (hwnd == GetDesktopWindow()) return FALSE;
 
+    if (!try_grab_pointer( event->display ))
+    {
+        /* ask the desktop window to release its grab before trying to get ours */
+        SendMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_RELEASE_CURSOR, 0, 0 );
+        XSendEvent( event->display, event->window, False, 0, xev );
+        return FALSE;
+    }
+
     switch (event->mode)
     {
     case NotifyGrab:
@@ -1007,6 +1043,8 @@ BOOL x11drv_handle_focus_out_event( HWND hwnd, XEvent *xev, Time time )
         SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, TRUE );
         break;
     }
+
+    if (hwnd == GetForegroundWindow()) SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_RELEASE_CURSOR, 0, 0 );
 
     /* ignore wm specific NotifyUngrab / NotifyGrab events w.r.t focus */
     if (event->mode == NotifyGrab || event->mode == NotifyUngrab) return FALSE;

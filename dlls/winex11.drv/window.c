@@ -2867,6 +2867,9 @@ LRESULT CDECL X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
     case WM_X11DRV_DESKTOP_CLIP_CURSOR:
         x11drv_desktop_clip_cursor( (BOOL)wp, (BOOL)lp );
         return 0;
+    case WM_X11DRV_DESKTOP_RELEASE_CURSOR:
+        ungrab_clipping_window();
+        return 0;
     default:
         FIXME( "got window msg %x hwnd %p wp %lx lp %lx\n", msg, hwnd, wp, lp );
         return 0;
