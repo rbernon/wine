@@ -604,6 +604,7 @@ enum x11drv_window_messages
     WM_X11DRV_DESKTOP_SET_HICON_CURSOR,
     WM_X11DRV_DESKTOP_SET_WINDOW_CURSOR,
     WM_X11DRV_DESKTOP_CLIP_CURSOR,
+    WM_X11DRV_DESKTOP_RELEASE_CURSOR,
 };
 
 /* _NET_WM_STATE properties that we keep track of */
