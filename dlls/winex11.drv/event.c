@@ -363,6 +363,27 @@ static Bool filter_event( Display *display, XEvent *event, char *arg )
     }
 }
 
+static void wait_grab_pointer( Display *display )
+{
+    RECT rect;
+
+    /* release cursor grab held by any Wine process */
+    NtUserGetClipCursor( &rect );
+    NtUserClipCursor( NULL );
+
+    while (XGrabPointer( display, root_window, False, 0, GrabModeAsync, GrabModeAsync,
+                         None, None, CurrentTime ) != GrabSuccess)
+    {
+        LARGE_INTEGER timeout = {.QuadPart = -10 * (ULONGLONG)10000};
+        NtDelayExecution( FALSE, &timeout );
+    }
+
+    XUngrabPointer( display, CurrentTime );
+    XFlush( display );
+
+    /* restore the previously used clipping rect */
+    NtUserClipCursor( &rect );
+}
 
 enum event_merge_action
 {
