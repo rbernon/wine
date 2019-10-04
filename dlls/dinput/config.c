@@ -89,6 +89,7 @@ static BOOL CALLBACK collect_devices(LPCDIDEVICEINSTANCEW lpddi, IDirectInputDev
         for (j = 0; j < user_af->dwNumActions; j++)
         {
             user_af->rgoAction[j].dwSemantic = data->original_lpdiaf->rgoAction[j].dwSemantic;
+            user_af->rgoAction[j].dwFlags = data->original_lpdiaf->rgoAction[j].dwFlags;
             user_af->rgoAction[j].u.lptszActionName = data->original_lpdiaf->rgoAction[j].u.lptszActionName;
         }
         IDirectInputDevice8_BuildActionMap(lpdid, user_af, data->usernames[i], 0);
@@ -331,6 +332,8 @@ static void assign_action(HWND dialog)
 
     if (old_action == action) return;
     if (obj < 0) return;
+    if (lpdiaf->rgoAction[old_action].dwFlags & DIA_APPFIXED) return;
+
     type = device->ddo[obj].dwType;
 
     /* Clear old action */
