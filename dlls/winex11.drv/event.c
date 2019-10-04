@@ -155,9 +155,6 @@ static const char * event_names[MAX_EVENT_HANDLERS] =
     "SelectionNotify", "ColormapNotify", "ClientMessage", "MappingNotify", "GenericEvent"
 };
 
-/* is someone else grabbing the keyboard, for example the WM, when manipulating the window */
-BOOL keyboard_grabbed = FALSE;
-
 int xinput2_opcode = 0;
 
 /* return the name of an X event */
@@ -917,25 +914,6 @@ BOOL x11drv_handle_focus_in_event( HWND hwnd, XEvent *xev, Time time )
         return FALSE;
     }
 
-    switch (event->mode)
-    {
-    case NotifyGrab:
-        /* these are received when moving undecorated managed windows on mutter */
-        keyboard_grabbed = TRUE;
-        break;
-    case NotifyWhileGrabbed:
-        keyboard_grabbed = TRUE;
-        break;
-    case NotifyNormal:
-        keyboard_grabbed = FALSE;
-        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, FALSE );
-        break;
-    case NotifyUngrab:
-        keyboard_grabbed = FALSE;
-        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, FALSE );
-        break;
-    }
-
     /* ask the desktop window to re-apply the current ClipCursor rect */
     SendMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, FALSE );
 
@@ -1027,25 +1005,6 @@ BOOL x11drv_handle_focus_out_event( HWND hwnd, XEvent *xev, Time time )
     if (!hwnd) return FALSE;
     if (is_virtual_desktop() && event->window == root_window && event->detail != NotifyInferior)
         x11drv_global_focus_out( event->display );
-
-    switch (event->mode)
-    {
-    case NotifyUngrab:
-        /* these are received when moving undecorated managed windows on mutter */
-        keyboard_grabbed = FALSE;
-        break;
-    case NotifyNormal:
-        keyboard_grabbed = FALSE;
-        break;
-    case NotifyWhileGrabbed:
-        keyboard_grabbed = TRUE;
-        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, TRUE );
-        break;
-    case NotifyGrab:
-        keyboard_grabbed = TRUE;
-        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, TRUE );
-        break;
-    }
 
     if (hwnd == GetForegroundWindow()) SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_RELEASE_CURSOR, 0, 0 );
 
