@@ -886,7 +886,7 @@ BOOL x11drv_handle_focus_in_event( HWND hwnd, XEvent *xev, Time time )
     case NotifyGrab:
         /* these are received when moving undecorated managed windows on mutter */
         keyboard_grabbed = TRUE;
-        return FALSE;
+        break;
     case NotifyWhileGrabbed:
         keyboard_grabbed = TRUE;
         break;
@@ -897,8 +897,11 @@ BOOL x11drv_handle_focus_in_event( HWND hwnd, XEvent *xev, Time time )
     case NotifyUngrab:
         keyboard_grabbed = FALSE;
         SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, FALSE );
-        return TRUE; /* ignore wm specific NotifyUngrab / NotifyGrab events w.r.t focus */
+        break;
     }
+
+    /* ignore wm specific NotifyUngrab / NotifyGrab events w.r.t focus */
+    if (event->mode == NotifyGrab || event->mode == NotifyUngrab) return FALSE;
 
     if ((xic = X11DRV_get_ic( hwnd ))) XSetICFocus( xic );
     if (use_take_focus)
@@ -991,7 +994,7 @@ BOOL x11drv_handle_focus_out_event( HWND hwnd, XEvent *xev, Time time )
     case NotifyUngrab:
         /* these are received when moving undecorated managed windows on mutter */
         keyboard_grabbed = FALSE;
-        return FALSE;
+        break;
     case NotifyNormal:
         keyboard_grabbed = FALSE;
         break;
@@ -1002,8 +1005,11 @@ BOOL x11drv_handle_focus_out_event( HWND hwnd, XEvent *xev, Time time )
     case NotifyGrab:
         keyboard_grabbed = TRUE;
         SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, TRUE );
-        return TRUE; /* ignore wm specific NotifyUngrab / NotifyGrab events w.r.t focus */
+        break;
     }
+
+    /* ignore wm specific NotifyUngrab / NotifyGrab events w.r.t focus */
+    if (event->mode == NotifyGrab || event->mode == NotifyUngrab) return FALSE;
 
     focus_out( event->display, hwnd, time );
     return TRUE;
