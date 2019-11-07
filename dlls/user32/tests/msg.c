@@ -9889,7 +9889,10 @@ static void run_in_temp_desktop_(const char *file, int line, const char *name, v
 struct wnd_event
 {
     HWND hwnd;
+    HWND child_hwnd;
+    HANDLE child;
     HANDLE grand_child;
+    HANDLE ready_event;
     HANDLE start_event;
     HANDLE stop_event;
     HANDLE getmessage_complete;
@@ -9921,37 +9924,45 @@ static DWORD CALLBACK create_grand_child_thread( void *param )
 {
     struct wnd_event *wnd_event = param;
     HWND hchild;
+    DWORD ret;
 
     hchild = CreateWindowExA(0, "TestWindowClass", "Test child",
-                             WS_CHILD | WS_VISIBLE, 0, 0, 10, 10, wnd_event->hwnd, 0, 0, NULL);
+                             WS_CHILD | WS_VISIBLE, 0, 0, 10, 10, wnd_event->child_hwnd, 0, 0, NULL);
     ok (hchild != 0, "Failed to create child window\n");
     flush_events();
     flush_sequence();
     SetEvent( wnd_event->start_event );
 
-    for (;;)
-    {
-        wait_for_events( 0, NULL, 1000 );
-        if (!IsWindow( hchild )) break;  /* will be destroyed when parent thread exits */
-    }
+    /* wait for wnd_event->child to be set */
+    ret = WaitForSingleObject( wnd_event->ready_event, 1000 );
+    ok( !ret, "WaitForSingleObject failed %lx\n", ret );
+
+    /* wait for parent window thread to exit */
+    ret = WaitForSingleObject( wnd_event->child, 1000 );
+    ok( !ret, "WaitForSingleObject returned %lx, error: %lu\n", ret, GetLastError() );
+    ok( IsWindow( hchild ), "Child window already destroyed\n" );
+    flush_events();
+    todo_wine ok( !IsWindow( hchild ), "Child window not destroyed\n" );
+
     return 0;
 }
 
 static DWORD CALLBACK create_child_thread( void *param )
 {
     struct wnd_event *wnd_event = param;
-    struct wnd_event child_event;
     DWORD ret, tid;
 
-    child_event.hwnd = CreateWindowExA(0, "TestWindowClass", "Test child",
-                             WS_CHILD | WS_VISIBLE, 0, 0, 10, 10, wnd_event->hwnd, 0, 0, NULL);
-    ok (child_event.hwnd != 0, "Failed to create child window\n");
-    SetFocus( child_event.hwnd );
+    wnd_event->child_hwnd = CreateWindowExA( 0, "TestWindowClass", "Test child", WS_CHILD | WS_VISIBLE,
+                                             0, 0, 10, 10, wnd_event->hwnd, 0, 0, NULL );
+    ok( wnd_event->child_hwnd != 0, "Failed to create child windows\n" );
+    SetFocus( wnd_event->child_hwnd );
+
+    wnd_event->grand_child = CreateThread( NULL, 0, create_grand_child_thread, wnd_event, 0, &tid );
+    ok( wnd_event->grand_child != 0, "CreateThread failed, error %lu\n", GetLastError() );
+
     flush_events();
     flush_sequence();
-    child_event.start_event = wnd_event->start_event;
-    wnd_event->grand_child = CreateThread(NULL, 0, create_grand_child_thread, &child_event, 0, &tid);
-    ret = wait_for_events( 1, &child_event.start_event, 1000 );
+    ret = wait_for_events( 1, &wnd_event->start_event, 1000 );
     ok( !ret, "wait_for_events returned %lx\n", ret );
     ret = WaitForSingleObject( wnd_event->stop_event, 5000 );
     ok( !ret, "WaitForSingleObject failed %lx\n", ret );
@@ -10089,25 +10100,26 @@ static void test_interthread_messages(void)
     flush_events();
     flush_sequence();
     log_all_parent_messages++;
+    wnd_event.ready_event = CreateEventA( NULL, TRUE, FALSE, NULL );
     wnd_event.start_event = CreateEventA( NULL, TRUE, FALSE, NULL );
     wnd_event.stop_event = CreateEventA( NULL, TRUE, FALSE, NULL );
-    hThread = CreateThread( NULL, 0, create_child_thread, &wnd_event, 0, &tid );
+    wnd_event.child = CreateThread( NULL, 0, create_child_thread, &wnd_event, 0, &tid );
+    SetEvent( wnd_event.ready_event );
     ret = wait_for_events( 1, &wnd_event.start_event, 1000 );
     ok( !ret, "wait_for_events returned %x\n", ret );
     /* now wait for the thread without processing messages; this shouldn't deadlock */
     SetEvent( wnd_event.stop_event );
-    ret = WaitForSingleObject( hThread, 5000 );
-    ok( !ret, "WaitForSingleObject failed %x\n", ret );
-    CloseHandle( hThread );
 
     ret = WaitForSingleObject( wnd_event.grand_child, 5000 );
     ok( !ret, "WaitForSingleObject failed %x\n", ret );
     CloseHandle( wnd_event.grand_child );
+    CloseHandle( wnd_event.child );
 
     CloseHandle( wnd_event.start_event );
     CloseHandle( wnd_event.stop_event );
+    CloseHandle( wnd_event.ready_event );
     flush_events();
-    ok_sequence(WmExitThreadSeq, "destroy child on thread exit", FALSE);
+    ok_sequence( WmExitThreadSeq, "destroy child on thread exit", TRUE );
     log_all_parent_messages--;
     DestroyWindow( wnd_event.hwnd );
 
