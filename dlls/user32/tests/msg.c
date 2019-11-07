@@ -8843,7 +8843,7 @@ static DWORD CALLBACK create_grand_child_thread( void *param )
     ok( !ret, "WaitForSingleObject returned %x, error: %u\n", ret, GetLastError() );
     ok( IsWindow( hchild ), "Child window already destroyed\n" );
     flush_events();
-    todo_wine ok( !IsWindow( hchild ), "Child window not destroyed\n" );
+    ok( !IsWindow( hchild ), "Child window not destroyed\n" );
 
     return 0;
 }
@@ -9030,7 +9030,7 @@ static void test_interthread_messages(void)
     CloseHandle( wnd_event.stop_event );
     CloseHandle( wnd_event.ready_event );
     flush_events();
-    ok_sequence( WmExitThreadSeq, "destroy child on thread exit", TRUE );
+    ok_sequence( WmExitThreadSeq, "destroy child on thread exit", FALSE );
     log_all_parent_messages--;
     DestroyWindow( wnd_event.hwnd );
 

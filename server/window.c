@@ -1890,9 +1890,17 @@ void destroy_window( struct window *win )
 
     /* destroy all children */
     while (!list_empty(&win->children))
-        destroy_window( LIST_ENTRY( list_head(&win->children), struct window, entry ));
+    {
+        struct window *child = LIST_ENTRY( list_head( &win->children ), struct window, entry );
+        if (!child->thread || child->thread == win->thread) destroy_window( child );
+        else list_remove( &child->entry );
+    }
     while (!list_empty(&win->unlinked))
-        destroy_window( LIST_ENTRY( list_head(&win->unlinked), struct window, entry ));
+    {
+        struct window *child = LIST_ENTRY( list_head( &win->unlinked ), struct window, entry );
+        if (!child->thread || child->thread == win->thread) destroy_window( child );
+        else list_remove( &child->entry );
+    }
 
     /* reset global window pointers, if the corresponding window is destroyed */
     if (win == shell_window) shell_window = NULL;
