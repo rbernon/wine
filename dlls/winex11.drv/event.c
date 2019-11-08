@@ -822,6 +822,7 @@ static void focus_out( Display *display , HWND hwnd )
  {
     HWND hwnd_tmp;
     Window focus_win;
+    GUITHREADINFO threadinfo;
     int revert;
     XIC xic;
 
@@ -836,7 +837,12 @@ static void focus_out( Display *display , HWND hwnd )
         return;
     }
     if (hwnd != GetForegroundWindow()) return;
-    SendMessageW( hwnd, WM_CANCELMODE, 0, 0 );
+
+    threadinfo.cbSize = sizeof(threadinfo);
+    GetGUIThreadInfo(0, &threadinfo);
+
+    if (threadinfo.flags & (GUI_INMENUMODE|GUI_INMOVESIZE|GUI_POPUPMENUMODE|GUI_SYSTEMMENUMODE))
+        SendMessageW( hwnd, WM_CANCELMODE, 0, 0 );
 
     /* don't reset the foreground window, if the window which is
        getting the focus is a Wine window */
