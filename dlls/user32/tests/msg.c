@@ -19019,7 +19019,7 @@ static void test_WaitForInputIdle( char *argv0 )
         ok( ret, "CreateProcess '%s' failed err %lu.\n", path, GetLastError() );
         if (ret)
         {
-            ret = WaitForSingleObject( start_event, 5000 );
+            ret = WaitForSingleObject( start_event, INFINITE );
             ok( ret == WAIT_OBJECT_0, "%u: WaitForSingleObject failed\n", i );
             if (ret == WAIT_OBJECT_0)
             {
