@@ -13843,7 +13843,8 @@ static void test_PeekMessage(void)
     PostMessageA(info.hwnd, WM_CHAR, 'z', 0);
     qstatus = GetQueueStatus(qs_all_input);
     ok(qstatus == MAKELONG(QS_POSTMESSAGE, QS_POSTMESSAGE|QS_KEY) ||
-       qstatus == MAKELONG(QS_POSTMESSAGE, QS_POSTMESSAGE|QS_KEY|QS_SENDMESSAGE),
+       qstatus == MAKELONG(QS_POSTMESSAGE, QS_POSTMESSAGE|QS_KEY|QS_SENDMESSAGE) ||
+       broken(qstatus == MAKELONG(QS_POSTMESSAGE|QS_SENDMESSAGE, QS_POSTMESSAGE|QS_KEY|QS_SENDMESSAGE)) /* sometimes on non-us w1064v1809 */,
        "wrong qstatus %08lx\n", qstatus);
 
     InvalidateRect(info.hwnd, NULL, FALSE);
@@ -13924,6 +13925,10 @@ static void test_PeekMessage(void)
 
     msg.message = 0;
     ret = PeekMessageA(&msg, 0, 0, 0, PM_REMOVE | PM_QS_PAINT);
+    /* GetQueueStatus documentation says that it's not a guarantee that PeekMessage will succeed,
+     * it indeed fails from time to time on the non-us w1064v1809 testbot VMs, let's try again */
+    if (!ret && GetQueueStatus(qs_all_input) == MAKELONG(0, QS_PAINT|QS_KEY))
+        ret = PeekMessageA(&msg, 0, 0, 0, PM_REMOVE | PM_QS_PAINT);
     ok(ret && msg.message == WM_PAINT,
        "got %d and %04x instead of TRUE and WM_PAINT\n", ret, msg.message);
     DispatchMessageA(&msg);
