@@ -11556,6 +11556,7 @@ static void test_scrollwindowex(void)
     ok_sequence(WmEmptySeq, "ScrollWindowEx", FALSE);
     trace("end scroll\n");
     flush_sequence();
+    MsgWaitForMultipleObjects( 0, NULL, FALSE, 1000, QS_ALLINPUT );
     flush_events();
     ok_sequence(ScrollWindowPaint1, "ScrollWindowEx", FALSE);
     flush_events();
@@ -11567,6 +11568,7 @@ static void test_scrollwindowex(void)
     ok_sequence(WmEmptySeq, "ScrollWindowEx", FALSE);
     trace("end scroll\n");
     flush_sequence();
+    MsgWaitForMultipleObjects( 0, NULL, FALSE, 1000, QS_ALLINPUT );
     flush_events();
     ok_sequence(ScrollWindowPaint2, "ScrollWindowEx", FALSE);
     flush_events();
@@ -11581,6 +11583,7 @@ static void test_scrollwindowex(void)
     ok_sequence(WmEmptySeq, "ScrollWindowEx", TRUE);
     trace("end scroll\n");
     flush_sequence();
+    MsgWaitForMultipleObjects( 0, NULL, FALSE, 1000, QS_ALLINPUT );
     flush_events();
     ok_sequence(ScrollWindowPaint1, "ScrollWindowEx", FALSE);
     flush_events();
@@ -11591,6 +11594,7 @@ static void test_scrollwindowex(void)
     ScrollWindow( hwnd, 5, 5, NULL, NULL);
     trace("end scroll\n");
     flush_sequence();
+    MsgWaitForMultipleObjects( 0, NULL, FALSE, 1000, QS_ALLINPUT );
     flush_events();
     ok_sequence(ScrollWindowPaint1, "ScrollWindow", FALSE);
 
