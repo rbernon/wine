@@ -2373,13 +2373,18 @@ void macdrv_window_got_focus(HWND hwnd, const macdrv_event *event)
  */
 void macdrv_window_lost_focus(HWND hwnd, const macdrv_event *event)
 {
+    GUITHREADINFO threadinfo;
     if (!hwnd) return;
 
     TRACE("win %p/%p fg %p\n", hwnd, event->window, GetForegroundWindow());
 
     if (hwnd == GetForegroundWindow())
     {
-        SendMessageW(hwnd, WM_CANCELMODE, 0, 0);
+        threadinfo.cbSize = sizeof(threadinfo);
+        GetGUIThreadInfo(0, &threadinfo);
+        if (threadinfo.flags & (GUI_INMENUMODE|GUI_INMOVESIZE|GUI_POPUPMENUMODE|GUI_SYSTEMMENUMODE))
+            SendMessageW(hwnd, WM_CANCELMODE, 0, 0);
+
         if (hwnd == GetForegroundWindow())
             SetForegroundWindow(GetDesktopWindow());
     }
