@@ -914,6 +914,14 @@ BOOL x11drv_handle_focus_in_event( HWND hwnd, XEvent *xev, Time time )
         return FALSE;
     }
 
+    /* Focus was just restored but it can be right after super was
+     * pressed and gnome-shell needs a bit of time to respond and
+     * toggle the activity view. If we grab the cursor right away
+     * it will cancel it and super key will do nothing.
+     */
+    if (event->mode == NotifyUngrab && wm_is_mutter(event->display))
+        Sleep(100);
+
     /* ask the desktop window to re-apply the current ClipCursor rect */
     SendMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, FALSE );
 
