@@ -678,6 +678,7 @@ extern void update_systray_balloon_position(void) DECLSPEC_HIDDEN;
 extern HWND create_foreign_window( Display *display, Window window ) DECLSPEC_HIDDEN;
 extern BOOL update_clipboard( HWND hwnd ) DECLSPEC_HIDDEN;
 
+extern void set_wm_hints( struct x11drv_win_data *data ) DECLSPEC_HIDDEN;
 static inline void mirror_rect( const RECT *window_rect, RECT *rect )
 {
     int width = window_rect->right - window_rect->left;
