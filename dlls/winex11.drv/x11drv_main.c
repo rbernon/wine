@@ -194,6 +194,7 @@ static const char * const atom_names[NB_XATOMS - FIRST_XATOM] =
     "_GTK_WORKAREAS_D0",
     "_XEMBED",
     "_XEMBED_INFO",
+    "_WINE_HWND",
     "XdndAware",
     "XdndEnter",
     "XdndPosition",
@@ -651,7 +652,6 @@ static BOOL process_attach(void)
 
     XInternAtoms( display, (char **)atom_names, NB_XATOMS - FIRST_XATOM, False, X11DRV_Atoms );
 
-    winContext = XUniqueContext();
     win_data_context = XUniqueContext();
     cursor_context = XUniqueContext();
 
