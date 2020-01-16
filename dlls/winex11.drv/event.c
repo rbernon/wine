@@ -590,6 +590,59 @@ static inline BOOL can_activate_window( HWND hwnd )
 }
 
 
+static int x11drv_get_active_window_error( Display *dpy, XErrorEvent *event, void *arg )
+{
+    return 1;
+}
+
+
+/***********************************************************************
+ *      x11drv_get_active_window
+ */
+static HWND x11drv_get_active_window( Display *display, Window root, BOOL *is_foreign )
+{
+    unsigned long count, remaining;
+    Window *active;
+    HWND *active_hwnd, hwnd = NULL;
+    Atom type;
+    int format;
+
+    *is_foreign = FALSE;
+    if (!ewmh.has__net_active_window) return NULL;
+
+    X11DRV_expect_error( display, x11drv_get_active_window_error, NULL );
+    XGetWindowProperty( display, root, x11drv_atom(_NET_ACTIVE_WINDOW),
+                        0, ~0UL, False, XA_WINDOW,
+                        &type, &format, &count, &remaining,
+                        (unsigned char **)&active);
+
+    if (X11DRV_check_error()) return NULL;
+    if (!active || !*active)
+    {
+        /* no X11 active window -yet- let's pretend we are still active */
+        if (active) XFree(active);
+        return GetForegroundWindow();
+    }
+
+    X11DRV_expect_error( display, x11drv_get_active_window_error, NULL );
+    XGetWindowProperty( display, *active, x11drv_atom(_WINE_HWND),
+                        0, ~0UL, False, XA_CARDINAL,
+                        &type, &format, &count, &remaining,
+                        (unsigned char **)&active_hwnd);
+    XFree(active);
+
+    if (X11DRV_check_error()) return NULL;
+    if (!active_hwnd) *is_foreign = TRUE;
+    else
+    {
+        hwnd = *active_hwnd;
+        XFree(active_hwnd);
+    }
+
+    return hwnd;
+}
+
+
 /**********************************************************************
  *              set_input_focus
  *
@@ -1381,6 +1434,23 @@ done:
 static BOOL X11DRV_PropertyNotify( HWND hwnd, XEvent *xev )
 {
     XPropertyEvent *event = &xev->xproperty;
+    DWORD time = EVENT_x11_time_to_win32_time( event->time );
+    HWND active_window;
+    BOOL foreign;
+
+    if (event->atom == x11drv_atom(_NET_ACTIVE_WINDOW))
+    {
+        /* virtual desktop uses focus events to track global focus instead */
+        if (is_virtual_desktop() || GetWindowThreadProcessId( GetDesktopWindow(), NULL ) != GetCurrentThreadId())
+            return FALSE;
+
+        if (!(active_window = x11drv_get_active_window( event->display, event->window, &foreign )) && foreign)
+            __wine_set_foreground_window( GetDesktopWindow(), time );
+        else
+            __wine_set_foreground_window( active_window, time );
+
+        return FALSE;
+    }
 
     if (!hwnd) return FALSE;
     if (event->atom == x11drv_atom(WM_STATE)) handle_wm_state_notify( hwnd, event, TRUE );
