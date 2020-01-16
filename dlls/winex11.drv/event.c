@@ -1549,6 +1549,32 @@ void CDECL X11DRV_SetFocus( HWND hwnd )
 }
 
 
+/***********************************************************************
+ *      SetForegroundWindow  (X11DRV.@)
+ */
+BOOL CDECL X11DRV_SetForegroundWindow( HWND hwnd )
+{
+    struct x11drv_win_data *data;
+    BOOL foreign;
+    if (is_virtual_desktop()) return TRUE;
+    if (!hwnd || hwnd == GetDesktopWindow()) return TRUE;
+
+    TRACE("%p\n", hwnd);
+
+    if (!x11drv_get_active_window( gdi_display, DefaultRootWindow( gdi_display ), &foreign ) && foreign)
+    {
+        WARN( "refusing to set window foreground while not already in foreground\n" );
+        return FALSE;
+    }
+
+    if ((data = get_win_data( hwnd )) && data->managed && !data->mapped)
+        FIXME( "cannot set hidden window %p/%lx foreground\n", hwnd, data->whole_window );
+    if (data) release_win_data( data );
+
+    return TRUE;
+}
+
+
 static HWND find_drop_window( HWND hQueryWnd, LPPOINT lpPt )
 {
     RECT tempRect;

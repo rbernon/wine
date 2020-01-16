@@ -26,6 +26,7 @@
 @ cdecl ScrollDC(long long long long) X11DRV_ScrollDC
 @ cdecl SetCapture(long long) X11DRV_SetCapture
 @ cdecl SetFocus(long) X11DRV_SetFocus
+@ cdecl SetForegroundWindow(long) X11DRV_SetForegroundWindow
 @ cdecl SetLayeredWindowAttributes(long long long long) X11DRV_SetLayeredWindowAttributes
 @ cdecl SetParent(long long long) X11DRV_SetParent
 @ cdecl SetWindowIcon(long long long) X11DRV_SetWindowIcon
