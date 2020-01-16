@@ -2145,6 +2145,11 @@ BOOL X11DRV_CreateWindow( HWND hwnd )
         struct x11drv_thread_data *data = x11drv_init_thread_data();
         XSetWindowAttributes attr;
 
+        if (ewmh.has__net_active_window)
+            XSelectInput( data->display, DefaultRootWindow( data->display ), PropertyChangeMask );
+        else if (!is_virtual_desktop())
+            ERR("_NET_ACTIVE_WINDOW is not supported, and virtual desktop not enabled, unable to track focus globally!\n");
+
         /* create the cursor clipping window */
         attr.override_redirect = TRUE;
         attr.event_mask = StructureNotifyMask | FocusChangeMask;

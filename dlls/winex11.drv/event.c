@@ -1348,6 +1348,23 @@ done:
 static BOOL X11DRV_PropertyNotify( HWND hwnd, XEvent *xev )
 {
     XPropertyEvent *event = &xev->xproperty;
+    HWND active_window;
+
+    x11drv_time_to_ticks( event->time );
+
+    if (event->atom == x11drv_atom(_NET_ACTIVE_WINDOW))
+    {
+        /* virtual desktop uses focus events to track global focus instead */
+        if (is_virtual_desktop() || NtUserGetWindowThread( NtUserGetDesktopWindow(), NULL ) != GetCurrentThreadId())
+            return FALSE;
+
+        if (!(active_window = get_foreground_window( event->display, NULL )))
+            set_foreground_window( NtUserGetDesktopWindow() );
+        else
+            set_foreground_window( active_window );
+
+        return FALSE;
+    }
 
     /* sync with the X server time */
     x11drv_time_to_ticks( event->time );
