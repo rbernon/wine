@@ -4408,6 +4408,7 @@ WORD        WINAPI SYSTEM_KillSystemTimer( WORD );
 
 #ifdef __WINESRC__
 WINUSERAPI BOOL CDECL __wine_send_input( HWND hwnd, const INPUT *input, const RAWINPUT *rawinput );
+WINUSERAPI BOOL CDECL __wine_set_foreground_window( HWND hwnd, DWORD time );
 
 /* Uxtheme hook functions and struct */
 
