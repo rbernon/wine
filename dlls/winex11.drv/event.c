@@ -410,8 +410,7 @@ static inline BOOL call_event_handler( Display *display, XEvent *event )
 #ifdef GenericEvent
     if (event->type == GenericEvent) hwnd = 0; else
 #endif
-    if (XFindContext( display, event->xany.window, winContext, (char **)&hwnd ) != 0)
-        hwnd = 0;  /* not for a registered window */
+    hwnd = x11drv_get_hwnd_for_window( display, event->xany.window, TRUE, NULL );
     if (!hwnd && event->xany.window == root_window) hwnd = GetDesktopWindow();
 
     TRACE( "%lu %s for hwnd/window %p/%lx\n",
@@ -855,7 +854,6 @@ static BOOL X11DRV_FocusIn( HWND hwnd, XEvent *xev )
  */
 static void focus_out( Display *display , HWND hwnd, Time time )
  {
-    HWND hwnd_tmp;
     Window focus_win;
     int revert;
     XIC xic;
@@ -877,11 +875,8 @@ static void focus_out( Display *display , HWND hwnd, Time time )
        getting the focus is a Wine window */
 
     XGetInputFocus( display, &focus_win, &revert );
-    if (focus_win)
-    {
-        if (XFindContext( display, focus_win, winContext, (char **)&hwnd_tmp ) != 0)
-            focus_win = 0;
-    }
+    if (focus_win && !x11drv_get_hwnd_for_window( display, focus_win, TRUE, NULL ))
+        focus_win = 0;
 
     if (!focus_win)
     {
@@ -1788,7 +1783,7 @@ static void handle_dnd_protocol( HWND hwnd, XClientMessageEvent *event )
     /* query window (drag&drop event contains only drag window) */
     XQueryPointer( event->display, root_window, &root, &child,
                    &root_x, &root_y, &child_x, &child_y, &u);
-    if (XFindContext( event->display, child, winContext, (char **)&hwnd ) != 0) hwnd = 0;
+    hwnd = x11drv_get_hwnd_for_window( event->display, child, TRUE, NULL );
     if (!hwnd) return;
     if (event->data.l[0] == DndFile || event->data.l[0] == DndFiles)
         EVENT_DropFromOffiX(hwnd, event);

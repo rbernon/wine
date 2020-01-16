@@ -491,6 +491,7 @@ enum x11drv_atoms
     XATOM__GTK_WORKAREAS_D0,
     XATOM__XEMBED,
     XATOM__XEMBED_INFO,
+    XATOM__WINE_HWND,
     XATOM_XdndAware,
     XATOM_XdndEnter,
     XATOM_XdndPosition,
@@ -615,6 +616,9 @@ extern void release_win_data( struct x11drv_win_data *data ) DECLSPEC_HIDDEN;
 extern Window X11DRV_get_whole_window( HWND hwnd ) DECLSPEC_HIDDEN;
 extern XIC X11DRV_get_ic( HWND hwnd ) DECLSPEC_HIDDEN;
 
+extern HWND x11drv_get_hwnd_for_window( Display *display, Window window, BOOL same_process, BOOL *is_foreign ) DECLSPEC_HIDDEN;
+extern void x11drv_set_hwnd_for_window( Display *display, Window window, HWND hwnd ) DECLSPEC_HIDDEN;
+
 extern void sync_gl_drawable( HWND hwnd, BOOL known_child ) DECLSPEC_HIDDEN;
 extern void set_gl_drawable_parent( HWND hwnd, HWND parent ) DECLSPEC_HIDDEN;
 extern void destroy_gl_drawable( HWND hwnd ) DECLSPEC_HIDDEN;
@@ -642,8 +646,6 @@ static inline void mirror_rect( const RECT *window_rect, RECT *rect )
     rect->right = width - tmp;
 }
 
-/* X context to associate a hwnd to an X window */
-extern XContext winContext DECLSPEC_HIDDEN;
 /* X context to associate a struct x11drv_win_data to an hwnd */
 extern XContext win_data_context DECLSPEC_HIDDEN;
 /* X context to associate an X cursor to a Win32 cursor handle */

@@ -2077,8 +2077,7 @@ static BOOL X11DRV_XIEnterEvent( XGenericEventCookie *xev )
     XEvent event;
     HWND hwnd;
 
-    if (XFindContext( xiev->display, xiev->event, winContext, (char **)&hwnd ) != 0)
-        hwnd = 0;
+    hwnd = x11drv_get_hwnd_for_window( xiev->display, xiev->event, TRUE, NULL );
     if (!hwnd && xiev->event == root_window)
         hwnd = GetDesktopWindow();
 
