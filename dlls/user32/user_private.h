@@ -96,6 +96,7 @@ typedef struct tagUSER_DRIVER {
     BOOL   (CDECL *pScrollDC)(HDC,INT,INT,HRGN);
     void   (CDECL *pSetCapture)(HWND,UINT);
     void   (CDECL *pSetFocus)(HWND);
+    BOOL   (CDECL *pSetForegroundWindow)(HWND);
     void   (CDECL *pSetLayeredWindowAttributes)(HWND,COLORREF,BYTE,DWORD);
     void   (CDECL *pSetParent)(HWND,HWND,HWND);
     void   (CDECL *pSetWindowRgn)(HWND,HRGN,BOOL);

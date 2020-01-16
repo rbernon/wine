@@ -348,6 +348,9 @@ BOOL WINAPI SetForegroundWindow( HWND hwnd )
     TRACE( "%p\n", hwnd );
 
     hwnd = WIN_GetFullHandle( hwnd );
+    if (!USER_Driver->pSetForegroundWindow(hwnd))
+        return FALSE;
+
     return set_foreground_window( hwnd, FALSE, GetTickCount() );
 }
 
