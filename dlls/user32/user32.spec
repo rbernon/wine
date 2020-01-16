@@ -837,3 +837,4 @@
 #
 @ cdecl __wine_send_input(long ptr ptr)
 @ cdecl __wine_set_pixel_format(long long)
+@ cdecl __wine_set_foreground_window(long long)

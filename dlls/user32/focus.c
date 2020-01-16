@@ -325,6 +325,22 @@ HWND WINAPI SetFocus( HWND hwnd )
 
 
 /*******************************************************************
+ *      __wine_set_foreground_window  (USER32.@)
+ *
+ * Internal SetForegroundWindow function to let the graphics driver
+ * update the foreground window.
+ */
+BOOL CDECL __wine_set_foreground_window( HWND hwnd, DWORD time )
+{
+    TRACE( "%p\n", hwnd );
+
+    hwnd = WIN_GetFullHandle( hwnd );
+
+    return set_foreground_window( hwnd, FALSE, time );
+}
+
+
+/*******************************************************************
  *		SetForegroundWindow  (USER32.@)
  */
 BOOL WINAPI SetForegroundWindow( HWND hwnd )
