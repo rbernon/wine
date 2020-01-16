@@ -1602,7 +1602,7 @@ static void detach_client_window( struct x11drv_win_data *data, Window client_wi
 
     XSelectInput( data->display, client_window, 0 );
     XFlush( data->display ); /* make sure XSelectInput is disabled for client_window after this point */
-    XDeleteContext( data->display, client_window, winContext );
+    set_hwnd_for_window( data->display, data->client_window, 0 );
 
     if (reparent) XReparentWindow( gdi_display, client_window, get_dummy_parent(), 0, 0 );
     TRACE( "%p/%lx detached client window %lx\n", data->hwnd, data->whole_window, client_window );
@@ -1620,7 +1620,7 @@ static void attach_client_window( struct x11drv_win_data *data, Window client_wi
 
     if (!data->whole_window) return;
 
-    XSaveContext( data->display, client_window, winContext, (char *)data->hwnd );
+    set_hwnd_for_window( data->display, data->client_window, data->hwnd );
     XSelectInput( data->display, client_window, ExposureMask );
     XFlush( data->display ); /* make sure XSelectInput is enabled for client_window after this point */
 
@@ -1767,7 +1767,7 @@ static void create_whole_window( struct x11drv_win_data *data )
     set_initial_wm_hints( data->display, data->whole_window );
     set_wm_hints( data );
 
-    XSaveContext( data->display, data->whole_window, winContext, (char *)data->hwnd );
+    set_hwnd_for_window( data->display, data->whole_window, data->hwnd );
     NtUserSetProp( data->hwnd, whole_window_prop, (HANDLE)data->whole_window );
 
     /* set the window text */
@@ -1808,7 +1808,7 @@ static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_des
             if (xwin)
             {
                 if (!already_destroyed) XSelectInput( data->display, xwin, 0 );
-                XDeleteContext( data->display, xwin, winContext );
+                set_hwnd_for_window( data->display, xwin, 0 );
                 NtUserRemoveProp( data->hwnd, foreign_window_prop );
             }
             return;
@@ -2207,7 +2207,7 @@ HWND create_foreign_window( Display *display, Window xwin )
         class_registered = TRUE;
     }
 
-    if (XFindContext( display, xwin, winContext, (char **)&hwnd )) hwnd = 0;
+    hwnd = get_hwnd_for_window( display, xwin );
     if (hwnd) return hwnd;  /* already created */
 
     XSelectInput( display, xwin, StructureNotifyMask );
@@ -2250,7 +2250,7 @@ HWND create_foreign_window( Display *display, Window xwin )
     data->mapped = TRUE;
 
     NtUserSetProp( hwnd, foreign_window_prop, (HANDLE)xwin );
-    XSaveContext( display, xwin, winContext, (char *)data->hwnd );
+    set_hwnd_for_window( display, xwin, data->hwnd );
 
     TRACE( "win %lx parent %p style %08x %s -> hwnd %p\n",
            xwin, parent, style, wine_dbgstr_rect(&data->window_rect), hwnd );
@@ -3287,4 +3287,29 @@ void init_win_context(void)
     winContext = XUniqueContext();
     win_data_context = XUniqueContext();
     cursor_context = XUniqueContext();
+}
+
+HWND get_hwnd_for_window( Display *display, Window window )
+{
+    HWND hwnd;
+
+    if (!window) return 0;
+    if (window == root_window) return NtUserGetDesktopWindow();
+
+    TRACE( "display %p, window %lx\n", display, window );
+
+    if (!XFindContext( display, window, winContext, (char **)&hwnd )) return hwnd;
+
+    WARN( "Failed to find HWND for window %lx\n", window );
+    return 0;
+}
+
+void set_hwnd_for_window( Display *display, Window window, HWND hwnd )
+{
+    if (!window || window == root_window) return;
+
+    TRACE( "display %p, window %lx, hwnd %p\n", display, window, hwnd );
+
+    if (!hwnd) XDeleteContext( display, window, winContext );
+    else XSaveContext( display, window, winContext, (char *)hwnd );
 }

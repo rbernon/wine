@@ -387,9 +387,7 @@ static inline BOOL call_event_handler( Display *display, XEvent *event )
 #ifdef GenericEvent
     if (event->type == GenericEvent) hwnd = 0; else
 #endif
-    if (XFindContext( display, event->xany.window, winContext, (char **)&hwnd ) != 0)
-        hwnd = 0;  /* not for a registered window */
-    if (!hwnd && event->xany.window == root_window) hwnd = NtUserGetDesktopWindow();
+    hwnd = get_hwnd_for_window( display, event->xany.window );
 
     TRACE( "%lu %s for hwnd/window %p/%lx\n",
            event->xany.serial, dbgstr_event( event->type ), hwnd, event->xany.window );
@@ -1663,7 +1661,7 @@ static void handle_dnd_protocol( HWND hwnd, XClientMessageEvent *event )
     /* query window (drag&drop event contains only drag window) */
     XQueryPointer( event->display, root_window, &root, &child,
                    &root_x, &root_y, &child_x, &child_y, &u);
-    if (XFindContext( event->display, child, winContext, (char **)&hwnd ) != 0) hwnd = 0;
+    hwnd = get_hwnd_for_window( event->display, child );
     if (!hwnd) return;
     if (event->data.l[0] == DndFile || event->data.l[0] == DndFiles)
         EVENT_DropFromOffiX(hwnd, event);
