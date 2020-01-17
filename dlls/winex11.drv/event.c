@@ -522,39 +522,41 @@ DWORD CDECL X11DRV_MsgWaitForMultipleObjectsEx( DWORD count, const HANDLE *handl
     return ret;
 }
 
+static DWORD time_to_tick_diff = 0;
+
 /***********************************************************************
  *           EVENT_x11_time_to_win32_time
  *
- * Make our timer and the X timer line up as best we can
- *  Pass 0 to retrieve the current adjustment value (times -1)
+ * Make our timer and the X timer line up as best we can.
  */
 DWORD EVENT_x11_time_to_win32_time(Time time)
 {
-  static DWORD adjust = 0;
-  DWORD now = GetTickCount();
-  DWORD ret;
+    DWORD now = GetTickCount();
+    DWORD diff = time - now;
+    DWORD ret;
 
-  if (! adjust && time != 0)
-  {
-    ret = now;
-    adjust = time - now;
-  }
-  else
-  {
-      /* If we got an event in the 'future', then our clock is clearly wrong. 
-         If we got it more than 10000 ms in the future, then it's most likely
-         that the clock has wrapped.  */
+    if (time == CurrentTime)
+        return now;
 
-      ret = time - adjust;
-      if (ret > now && ((ret - now) < 10000) && time != 0)
-      {
-        adjust += ret - now;
-        ret    -= ret - now;
-      }
-  }
+    if (!time_to_tick_diff)
+    {
+        time_to_tick_diff = diff;
+        ret = now;
+    }
+    else
+    {
+        /* If we got an event in the 'future', then our clock is clearly wrong.
+         * If we got it more than 10000 ms in the future, then it's most likely
+         * that the clock has wrapped. */
+        ret = time - time_to_tick_diff;
+        if (ret > now && ((ret - now) < 10000))
+        {
+            time_to_tick_diff += ret - now;
+            ret               -= ret - now;
+        }
+    }
 
-  return ret;
-
+    return ret;
 }
 
 /*******************************************************************
@@ -589,10 +591,10 @@ static void set_input_focus( struct x11drv_win_data *data )
 
     if (!data->whole_window) return;
 
-    if (EVENT_x11_time_to_win32_time(0))
+    if (time_to_tick_diff)
         /* ICCCM says don't use CurrentTime, so try to use last message time if possible */
         /* FIXME: this is not entirely correct */
-        timestamp = GetMessageTime() - EVENT_x11_time_to_win32_time(0);
+        timestamp = GetMessageTime() + time_to_tick_diff;
     else
         timestamp = CurrentTime;
 
