@@ -250,6 +250,10 @@ static Bool filter_event( Display *display, XEvent *event, char *arg )
             (event->xcookie.evtype == XI_RawMotion ||
              event->xcookie.evtype == XI_DeviceChanged))
             return (mask & QS_MOUSEMOVE) != 0;
+        if (event->xcookie.extension == xinput2_opcode &&
+            (event->xcookie.evtype == XI_FocusIn ||
+             event->xcookie.evtype == XI_FocusOut))
+            return (mask & QS_POSTMESSAGE) != 0;
 #endif
         return (mask & QS_SENDMESSAGE) != 0;
 #endif

@@ -411,6 +411,13 @@ void x11drv_xinput_enable( Display *display, Window window, long event_mask )
         mask.deviceid = XIAllMasterDevices;
         memset( mask_bits, 0, sizeof(mask_bits) );
 
+        if ((event_mask & FocusChangeMask))
+        {
+            event_mask &= ~FocusChangeMask;
+            XISetMask( mask_bits, XI_FocusIn );
+            XISetMask( mask_bits, XI_FocusOut );
+        }
+
         pXISelectEvents( display, window, &mask, 1 );
         XSelectInput( display, window, event_mask );
         return;
@@ -2064,6 +2071,62 @@ void x11drv_xinput_load(void)
 }
 
 
+static BOOL X11DRV_XIEnterEvent( XGenericEventCookie *xev )
+{
+    XIEnterEvent *xiev = xev->data;
+    XEvent event;
+    HWND hwnd;
+
+    if (XFindContext( xiev->display, xiev->event, winContext, (char **)&hwnd ) != 0)
+        hwnd = 0;
+    if (!hwnd && xiev->event == root_window)
+        hwnd = GetDesktopWindow();
+
+    TRACE( "hwnd/window %p/%lx\n", hwnd, xiev->event );
+
+    event.xfocus.serial = xiev->serial;
+    event.xfocus.send_event = xiev->send_event;
+    event.xfocus.display = xiev->display;
+    event.xfocus.window = xiev->event;
+
+    switch (xiev->mode)
+    {
+    case XINotifyNormal: event.xfocus.mode = NotifyNormal; break;
+    case XINotifyGrab: event.xfocus.mode = NotifyGrab; break;
+    case XINotifyUngrab: event.xfocus.mode = NotifyUngrab; break;
+    case XINotifyWhileGrabbed: event.xfocus.mode = NotifyWhileGrabbed; break;
+    default:
+        TRACE( "Ignoring event with mode %d.\n", xiev->mode);
+        return FALSE;
+    }
+
+    switch (xiev->detail)
+    {
+    case XINotifyAncestor: event.xfocus.detail = NotifyAncestor; break;
+    case XINotifyVirtual: event.xfocus.detail = NotifyVirtual; break;
+    case XINotifyInferior: event.xfocus.detail = NotifyInferior; break;
+    case XINotifyNonlinear: event.xfocus.detail = NotifyNonlinear; break;
+    case XINotifyNonlinearVirtual: event.xfocus.detail = NotifyNonlinearVirtual; break;
+    case XINotifyPointer: event.xfocus.detail = NotifyPointer; break;
+    case XINotifyPointerRoot: event.xfocus.detail = NotifyPointerRoot; break;
+    case XINotifyDetailNone: event.xfocus.detail = NotifyDetailNone; break;
+    }
+
+    switch (xiev->evtype)
+    {
+    case XI_FocusIn:
+        event.xfocus.type = FocusIn;
+        return x11drv_handle_focus_in_event( hwnd, &event, xiev->time );
+    case XI_FocusOut:
+        event.xfocus.type = FocusOut;
+        return x11drv_handle_focus_out_event( hwnd, &event, xiev->time );
+    default:
+        TRACE( "Ignoring event with type %d.\n", xiev->evtype);
+        return FALSE;
+    }
+}
+
+
 /***********************************************************************
  *           X11DRV_GenericEvent
  */
@@ -2078,6 +2141,10 @@ BOOL X11DRV_GenericEvent( HWND hwnd, XEvent *xev )
 
     switch (event->evtype)
     {
+    case XI_FocusIn:
+    case XI_FocusOut:
+        ret = X11DRV_XIEnterEvent( event );
+        break;
     case XI_DeviceChanged:
         ret = X11DRV_DeviceChanged( event );
         break;
