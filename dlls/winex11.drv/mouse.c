@@ -1532,7 +1532,7 @@ BOOL X11DRV_ButtonPress( HWND hwnd, XEvent *xev )
     input.mi.dy          = event->y;
     input.mi.mouseData   = button_down_data[buttonNum];
     input.mi.dwFlags     = button_down_flags[buttonNum] | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE;
-    input.mi.time        = EVENT_x11_time_to_win32_time( event->time );
+    input.mi.time        = x11drv_time_to_ticks( event->time );
     input.mi.dwExtraInfo = 0;
 
     update_user_time( event->time );
@@ -1559,7 +1559,7 @@ BOOL X11DRV_ButtonRelease( HWND hwnd, XEvent *xev )
     input.mi.dy          = event->y;
     input.mi.mouseData   = button_up_data[buttonNum];
     input.mi.dwFlags     = button_up_flags[buttonNum] | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE;
-    input.mi.time        = EVENT_x11_time_to_win32_time( event->time );
+    input.mi.time        = x11drv_time_to_ticks( event->time );
     input.mi.dwExtraInfo = 0;
 
     map_event_coords( hwnd, event->window, event->root, event->x_root, event->y_root, &input );
@@ -1583,7 +1583,7 @@ BOOL X11DRV_MotionNotify( HWND hwnd, XEvent *xev )
     input.mi.dy          = event->y;
     input.mi.mouseData   = 0;
     input.mi.dwFlags     = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
-    input.mi.time        = EVENT_x11_time_to_win32_time( event->time );
+    input.mi.time        = x11drv_time_to_ticks( event->time );
     input.mi.dwExtraInfo = 0;
 
     if (!hwnd && is_old_motion_event( event->serial ))
@@ -1616,7 +1616,7 @@ BOOL X11DRV_EnterNotify( HWND hwnd, XEvent *xev )
     input.mi.dy          = event->y;
     input.mi.mouseData   = 0;
     input.mi.dwFlags     = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
-    input.mi.time        = EVENT_x11_time_to_win32_time( event->time );
+    input.mi.time        = x11drv_time_to_ticks( event->time );
     input.mi.dwExtraInfo = 0;
 
     if (is_old_motion_event( event->serial ))
@@ -1716,7 +1716,7 @@ static BOOL X11DRV_RawMotion( XGenericEventCookie *xev )
     input.type = INPUT_MOUSE;
     input.mi.mouseData   = 0;
     input.mi.dwFlags     = MOUSEEVENTF_MOVE;
-    input.mi.time        = EVENT_x11_time_to_win32_time( event->time );
+    input.mi.time        = x11drv_time_to_ticks( event->time );
     input.mi.dwExtraInfo = 0;
     input.mi.dx          = 0;
     input.mi.dy          = 0;
