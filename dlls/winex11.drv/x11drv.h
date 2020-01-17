@@ -249,6 +249,9 @@ extern void X11DRV_XInput2_Load(void) DECLSPEC_HIDDEN;
 extern void X11DRV_XInput2_Init(void) DECLSPEC_HIDDEN;
 extern void X11DRV_XInput2_Enable( Display *display, Window window, long event_mask ) DECLSPEC_HIDDEN;
 
+BOOL x11drv_handle_focus_in_event( HWND hwnd, XEvent *xev, Time time );
+BOOL x11drv_handle_focus_out_event( HWND hwnd, XEvent *xev, Time time );
+
 extern DWORD copy_image_bits( BITMAPINFO *info, BOOL is_r8g8b8, XImage *image,
                               const struct gdi_image_bits *src_bits, struct gdi_image_bits *dst_bits,
                               struct bitblt_coords *coords, const int *mapping, unsigned int zeropad_mask ) DECLSPEC_HIDDEN;

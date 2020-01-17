@@ -780,10 +780,7 @@ static const char * const focus_modes[] =
     "NotifyWhileGrabbed"
 };
 
-/**********************************************************************
- *              X11DRV_FocusIn
- */
-static BOOL X11DRV_FocusIn( HWND hwnd, XEvent *xev )
+BOOL x11drv_handle_focus_in_event( HWND hwnd, XEvent *xev, Time time )
 {
     XFocusChangeEvent *event = &xev->xfocus;
     XIC xic;
@@ -826,16 +823,24 @@ static BOOL X11DRV_FocusIn( HWND hwnd, XEvent *xev )
         if (hwnd) hwnd = GetAncestor( hwnd, GA_ROOT );
         if (!hwnd) hwnd = GetActiveWindow();
         if (!hwnd) hwnd = x11drv_thread_data()->last_focus;
-        if (hwnd && can_activate_window(hwnd)) set_focus( event->display, hwnd, CurrentTime );
+        if (hwnd && can_activate_window(hwnd)) set_focus( event->display, hwnd, time );
     }
-    else __wine_set_foreground_window( hwnd, GetTickCount() );
+    else __wine_set_foreground_window( hwnd, EVENT_x11_time_to_win32_time( time ) );
     return TRUE;
+}
+
+/**********************************************************************
+ *              X11DRV_FocusIn
+ */
+static BOOL X11DRV_FocusIn( HWND hwnd, XEvent *xev )
+{
+    return x11drv_handle_focus_in_event( hwnd, xev, CurrentTime );
 }
 
 /**********************************************************************
  *              focus_out
  */
-static void focus_out( Display *display , HWND hwnd )
+static void focus_out( Display *display , HWND hwnd, Time time )
  {
     HWND hwnd_tmp;
     Window focus_win;
@@ -874,17 +879,13 @@ static void focus_out( Display *display , HWND hwnd )
         if (hwnd == GetForegroundWindow())
         {
             TRACE( "lost focus, setting fg to desktop\n" );
-            __wine_set_foreground_window( GetDesktopWindow(), GetTickCount() );
+            __wine_set_foreground_window( GetDesktopWindow(), EVENT_x11_time_to_win32_time( time ) );
         }
     }
  }
 
-/**********************************************************************
- *              X11DRV_FocusOut
- *
- * Note: only top-level windows get FocusOut events.
- */
-static BOOL X11DRV_FocusOut( HWND hwnd, XEvent *xev )
+
+BOOL x11drv_handle_focus_out_event( HWND hwnd, XEvent *xev, Time time )
 {
     XFocusChangeEvent *event = &xev->xfocus;
 
@@ -921,8 +922,19 @@ static BOOL X11DRV_FocusOut( HWND hwnd, XEvent *xev )
         return TRUE; /* ignore wm specific NotifyUngrab / NotifyGrab events w.r.t focus */
     }
 
-    focus_out( event->display, hwnd );
+    focus_out( event->display, hwnd, time );
     return TRUE;
+}
+
+
+/**********************************************************************
+ *              X11DRV_FocusOut
+ *
+ * Note: only top-level windows get FocusOut events.
+ */
+static BOOL X11DRV_FocusOut( HWND hwnd, XEvent *xev )
+{
+    return x11drv_handle_focus_out_event( hwnd, xev, CurrentTime );
 }
 
 
@@ -1703,6 +1715,8 @@ static void EVENT_DropURLs( HWND hWnd, XClientMessageEvent *event )
  */
 static void handle_xembed_protocol( HWND hwnd, XClientMessageEvent *event )
 {
+    Time time = event->data.l[0];
+
     switch (event->data.l[1])
     {
     case XEMBED_EMBEDDED_NOTIFY:
@@ -1728,12 +1742,12 @@ static void handle_xembed_protocol( HWND hwnd, XClientMessageEvent *event )
 
     case XEMBED_WINDOW_DEACTIVATE:
         TRACE( "win %p/%lx XEMBED_WINDOW_DEACTIVATE message\n", hwnd, event->window );
-        focus_out( event->display, GetAncestor( hwnd, GA_ROOT ) );
+        focus_out( event->display, GetAncestor( hwnd, GA_ROOT ), time );
         break;
 
     case XEMBED_FOCUS_OUT:
         TRACE( "win %p/%lx XEMBED_FOCUS_OUT message\n", hwnd, event->window );
-        focus_out( event->display, GetAncestor( hwnd, GA_ROOT ) );
+        focus_out( event->display, GetAncestor( hwnd, GA_ROOT ), time );
         break;
 
     case XEMBED_MODALITY_ON:
