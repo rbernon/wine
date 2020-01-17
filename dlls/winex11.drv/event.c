@@ -246,6 +246,9 @@ static Bool filter_event( Display *display, XEvent *event, char *arg )
             case XI_RawMotion:
             case XI_DeviceChanged:
                 return (mask & QS_INPUT) != 0;
+            case XI_FocusIn:
+            case XI_FocusOut:
+                return (mask & QS_POSTMESSAGE) != 0;
             }
         }
 #endif
