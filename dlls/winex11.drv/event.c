@@ -538,6 +538,14 @@ DWORD EVENT_x11_time_to_win32_time(Time time)
     if (time == CurrentTime)
         return now;
 
+    /* Sometimes the first events timestamps are completely off. This
+     * is happening for instance on TestBot runs. */
+    if (time_to_tick_diff && (int)time_to_tick_diff < (int)diff && diff - time_to_tick_diff > 10000)
+    {
+        FIXME( "unexpectedly large time skew detected, reajusting time.\n" );
+        time_to_tick_diff = 0;
+    }
+
     if (!time_to_tick_diff)
     {
         time_to_tick_diff = diff;
