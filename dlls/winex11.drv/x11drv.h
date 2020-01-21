@@ -424,6 +424,11 @@ static inline size_t get_property_size( int format, unsigned long count )
     return count * (format / 8);
 }
 
+struct x11drv_ewmh_data
+{
+    int has__net_wm_moveresize : 1;
+};
+
 extern XVisualInfo default_visual DECLSPEC_HIDDEN;
 extern XVisualInfo argb_visual DECLSPEC_HIDDEN;
 extern Colormap default_colormap DECLSPEC_HIDDEN;
@@ -453,6 +458,7 @@ extern int xrender_error_base DECLSPEC_HIDDEN;
 extern HMODULE x11drv_module DECLSPEC_HIDDEN;
 extern char *process_name DECLSPEC_HIDDEN;
 extern Display *clipboard_display DECLSPEC_HIDDEN;
+extern struct x11drv_ewmh_data ewmh DECLSPEC_HIDDEN;
 
 /* atoms */
 
