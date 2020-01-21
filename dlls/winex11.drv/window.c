@@ -2844,35 +2844,6 @@ LRESULT CDECL X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
 
 
 /***********************************************************************
- *              is_netwm_supported
- */
-static BOOL is_netwm_supported( Display *display, Atom atom )
-{
-    static Atom *net_supported;
-    static int net_supported_count = -1;
-    int i;
-
-    if (net_supported_count == -1)
-    {
-        Atom type;
-        int format;
-        unsigned long count, remaining;
-
-        if (!XGetWindowProperty( display, DefaultRootWindow(display), x11drv_atom(_NET_SUPPORTED), 0,
-                                 ~0UL, False, XA_ATOM, &type, &format, &count,
-                                 &remaining, (unsigned char **)&net_supported ))
-            net_supported_count = get_property_size( format, count ) / sizeof(Atom);
-        else
-            net_supported_count = 0;
-    }
-
-    for (i = 0; i < net_supported_count; i++)
-        if (net_supported[i] == atom) return TRUE;
-    return FALSE;
-}
-
-
-/***********************************************************************
  *              start_screensaver
  */
 static LRESULT start_screensaver(void)
@@ -2950,7 +2921,7 @@ LRESULT CDECL X11DRV_SysCommand( HWND hwnd, WPARAM wparam, LPARAM lparam )
 
     if (IsZoomed(hwnd)) goto failed;
 
-    if (!is_netwm_supported( data->display, x11drv_atom(_NET_WM_MOVERESIZE) ))
+    if (!ewmh.has__net_wm_moveresize)
     {
         TRACE( "_NET_WM_MOVERESIZE not supported\n" );
         goto failed;

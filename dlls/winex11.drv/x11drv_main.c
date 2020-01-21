@@ -89,6 +89,7 @@ DWORD thread_data_tls_index = TLS_OUT_OF_INDEXES;
 int xrender_error_base = 0;
 HMODULE x11drv_module = 0;
 char *process_name = NULL;
+struct x11drv_ewmh_data ewmh = { 0 };
 
 static x11drv_error_callback err_callback;   /* current callback for error */
 static Display *err_callback_display;        /* display callback is set for */
@@ -456,6 +457,37 @@ static void setup_options(void)
     if (hkey) RegCloseKey( hkey );
 }
 
+
+/***********************************************************************
+ *              x11drv_ewmh_init
+ */
+static void x11drv_ewmh_init(void)
+{
+    Atom type, *supported;
+    unsigned long count, remaining;
+    char *atom_name;
+    int format, i, supported_count = 0;
+
+    if (!XGetWindowProperty( gdi_display, DefaultRootWindow(gdi_display), x11drv_atom(_NET_SUPPORTED), 0,
+                             ~0UL, False, XA_ATOM, &type, &format, &count, &remaining,
+                             (unsigned char **)&supported ))
+        supported_count = get_property_size( format, count ) / sizeof(Atom);
+
+    TRACE( "EWMH _NET_SUPPORTED:\n" );
+    for (i = 0; i < supported_count; ++i)
+    {
+        if (supported[i] == x11drv_atom(_NET_WM_MOVERESIZE))
+            ewmh.has__net_wm_moveresize = 1;
+
+        atom_name = XGetAtomName( gdi_display, supported[i] );
+        TRACE( "  %s\n", atom_name );
+        XFree( atom_name );
+    }
+
+    if (supported) XFree( supported );
+}
+
+
 #ifdef SONAME_LIBXCOMPOSITE
 
 #define MAKE_FUNCPTR(f) typeof(f) * p##f;
@@ -625,6 +657,8 @@ static BOOL process_attach(void)
     X11DRV_XComposite_Init();
 #endif
     x11drv_xinput_load();
+
+    x11drv_ewmh_init();
 
 #ifdef HAVE_XKB
     if (use_xkb) use_xkb = XkbUseExtension( gdi_display, NULL, NULL );
