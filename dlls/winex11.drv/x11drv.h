@@ -427,6 +427,7 @@ extern HMODULE x11drv_module DECLSPEC_HIDDEN;
 extern char *process_name DECLSPEC_HIDDEN;
 extern Display *clipboard_display DECLSPEC_HIDDEN;
 extern struct x11drv_ewmh_data ewmh DECLSPEC_HIDDEN;
+extern Time last_user_time DECLSPEC_HIDDEN;
 
 /* atoms */
 

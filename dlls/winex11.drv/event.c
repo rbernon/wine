@@ -541,6 +541,8 @@ DWORD EVENT_x11_time_to_win32_time(Time time)
     if (time == CurrentTime)
         return now;
 
+    if (last_user_time == 0) update_user_time( time );
+
     /* Sometimes the first events timestamps are completely off. This
      * is happening for instance on TestBot runs. */
     if (time_to_tick_diff && (int)time_to_tick_diff < (int)diff && diff - time_to_tick_diff > 10000)
@@ -1524,6 +1526,79 @@ void wait_for_withdrawn_state( HWND hwnd, BOOL set )
 }
 
 
+/***********************************************************************
+ *      x11drv_activate_window
+ */
+static void x11drv_activate_window( HWND hwnd, struct x11drv_win_data *data )
+{
+    struct x11drv_win_data *active_data;
+    HWND active_hwnd = GetActiveWindow();
+    Window active_window = None;
+    XEvent event;
+
+    if (!data || !data->managed) return;
+
+    if (!data->mapped)
+    {
+        FIXME( "cannot activate hidden window %p/%lx, hacking focus\n", hwnd, data->whole_window );
+        XSetInputFocus( gdi_display, None, RevertToPointerRoot, last_user_time );
+        XFlush( gdi_display );
+        return;
+    }
+
+    if (!ewmh.has__net_active_window)
+    {
+        FIXME( "no support for _NET_ACTIVE_WINDOW, cannot activate window %p/%lx\n", hwnd, data->whole_window );
+        return;
+    }
+
+    if ((active_data = get_win_data( active_hwnd )))
+        active_window = active_data->whole_window;
+    release_win_data( active_data );
+
+    TRACE("Sending _NET_ACTIVE_WINDOW to %p/%lx, current active %p/%lx\n",
+        hwnd, data->whole_window, active_hwnd, active_window );
+
+    event.xclient.type = ClientMessage;
+    event.xclient.window = data->whole_window;
+    event.xclient.message_type = x11drv_atom(_NET_ACTIVE_WINDOW);
+    event.xclient.serial = 0;
+    event.xclient.display = gdi_display;
+    event.xclient.send_event = True;
+    event.xclient.format = 32;
+
+    event.xclient.data.l[0] = 1; /* source: application */
+    event.xclient.data.l[1] = last_user_time;
+    event.xclient.data.l[2] = active_window;
+    event.xclient.data.l[3] = 0;
+    event.xclient.data.l[4] = 0;
+    XSendEvent( gdi_display, DefaultRootWindow( gdi_display ), False,
+                SubstructureRedirectMask | SubstructureNotifyMask, &event );
+    XFlush( gdi_display );
+}
+
+
+/***********************************************************************
+ *      SetActiveWindow  (X11DRV.@)
+ */
+void CDECL X11DRV_SetActiveWindow( HWND hwnd )
+{
+    struct x11drv_thread_data *thread_data = x11drv_thread_data();
+    struct x11drv_win_data *data;
+
+    if (thread_data->current_event) return;
+    if (is_virtual_desktop()) return;
+    if (!hwnd || hwnd == GetDesktopWindow()) return;
+    if (!(data = get_win_data( hwnd ))) return;
+
+    TRACE("%p/%lx\n", hwnd, data->whole_window);
+
+    x11drv_activate_window( hwnd, data );
+
+    release_win_data( data );
+}
+
+
 /*****************************************************************
  *		SetFocus   (X11DRV.@)
  *
@@ -1554,7 +1629,6 @@ void CDECL X11DRV_SetFocus( HWND hwnd )
  */
 BOOL CDECL X11DRV_SetForegroundWindow( HWND hwnd )
 {
-    struct x11drv_win_data *data;
     BOOL foreign;
     if (is_virtual_desktop()) return TRUE;
     if (!hwnd || hwnd == GetDesktopWindow()) return TRUE;
@@ -1566,10 +1640,6 @@ BOOL CDECL X11DRV_SetForegroundWindow( HWND hwnd )
         WARN( "refusing to set window foreground while not already in foreground\n" );
         return FALSE;
     }
-
-    if ((data = get_win_data( hwnd )) && data->managed && !data->mapped)
-        FIXME( "cannot set hidden window %p/%lx foreground\n", hwnd, data->whole_window );
-    if (data) release_win_data( data );
 
     return TRUE;
 }

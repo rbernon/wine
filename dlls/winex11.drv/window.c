@@ -87,7 +87,7 @@ BOOL clipping_cursor = FALSE;
 XContext win_data_context = 0;
 
 /* time of last user event and window where it's stored */
-static Time last_user_time;
+Time last_user_time;
 static Window user_time_window;
 
 static const char foreign_window_prop[] = "__wine_x11_foreign_window";
