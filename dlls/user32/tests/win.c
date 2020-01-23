@@ -4666,6 +4666,8 @@ static void test_mouse_input(void)
        msg.hwnd, popup, msg.message);
 
     ret = wait_for_message( &msg );
+    if (broken(msg.message >= WM_USER) /* on w1064v1809 */)
+        ret = wait_for_message( &msg );
     ok(ret, "no message available\n");
     ok(msg.hwnd == popup && msg.message == WM_LBUTTONUP, "hwnd %p/%p message %04x\n",
        msg.hwnd, popup, msg.message);
