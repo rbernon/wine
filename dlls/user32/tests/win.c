@@ -3546,7 +3546,17 @@ static void test_SetActiveWindow(HWND hwnd)
     ShowWindow(hwnd, SW_HIDE);
     SetFocus(0);
     SetActiveWindow(0);
-    check_wnd_state(0, 0, 0, 0);
+
+    /* On w1064v1809, ShowWindow(hwnd, SW_HIDE) / SetActiveWindow(0)
+     * does not change active window to 0, and then focus is not
+     * restored either when window is activated. */
+    if (broken(GetActiveWindow() != 0))
+    {
+        check_wnd_state(hwnd, 0, 0, 0);
+        SetFocus(hwnd);
+    }
+    else
+        check_wnd_state(0, 0, 0, 0);
 
     ShowWindow(hwnd, SW_SHOW);
     check_wnd_state(hwnd, hwnd, hwnd, 0);
@@ -3570,7 +3580,17 @@ static void test_SetActiveWindow(HWND hwnd)
     check_wnd_state(hwnd, hwnd, hwnd, 0);
 
     ShowWindow(hwnd, SW_HIDE);
-    check_wnd_state(0, 0, 0, 0);
+
+    /* On w1064v1809, ShowWindow(hwnd, SW_HIDE) / SetActiveWindow(0)
+     * does not change active window to 0, and then focus is not
+     * restored either when window is activated. */
+    if (broken(GetActiveWindow() != 0))
+    {
+        check_wnd_state(hwnd, 0, 0, 0);
+        SetFocus(hwnd);
+    }
+    else
+        check_wnd_state(0, 0, 0, 0);
 
     /* Invisible window. */
     SetActiveWindow(hwnd);
