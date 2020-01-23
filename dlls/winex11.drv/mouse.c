@@ -313,21 +313,33 @@ void x11drv_xinput_init(void)
 
 
 /***********************************************************************
- *              enable_xinput2
+ *              x11drv_xinput_enable
  */
-static void enable_xinput2(void)
+void x11drv_xinput_enable( Display *display, Window window, long event_mask )
 {
 #ifdef HAVE_X11_EXTENSIONS_XINPUT2_H
     struct x11drv_thread_data *data = x11drv_thread_data();
     XIEventMask mask;
     XIDeviceInfo *pointer_info;
     unsigned char mask_bits[XIMaskLen(XI_LASTEVENT)];
+    enum xi2_state xi2_state = data ? data->xi2_state : xi_unknown;
     int count;
 
-    TRACE( "state:%d\n", data->xi2_state );
-    if (data->xi2_state != xi_disabled) return;
+    TRACE( "state:%d window:%lx event_mask:%lx\n", xi2_state, window, event_mask );
 
-    if (!pXIGetClientPointer( data->display, None, &data->xi2_core_pointer )) return;
+    if (xi2_state == xi_unavailable) return;
+
+    if (window != DefaultRootWindow( display ))
+    {
+        mask.mask     = mask_bits;
+        mask.mask_len = sizeof(mask_bits);
+        mask.deviceid = XIAllMasterDevices;
+        memset( mask_bits, 0, sizeof(mask_bits) );
+
+        pXISelectEvents( display, window, &mask, 1 );
+        XSelectInput( display, window, event_mask );
+        return;
+    }
 
     mask.mask     = mask_bits;
     mask.mask_len = sizeof(mask_bits);
@@ -337,8 +349,9 @@ static void enable_xinput2(void)
     XISetMask( mask_bits, XI_RawMotion );
     XISetMask( mask_bits, XI_ButtonPress );
 
-    pXISelectEvents( data->display, DefaultRootWindow( data->display ), &mask, 1 );
+    pXISelectEvents( display, DefaultRootWindow( display ), &mask, 1 );
 
+    if (!data || !pXIGetClientPointer( data->display, None, &data->xi2_core_pointer )) return;
     pointer_info = pXIQueryDevice( data->display, data->xi2_core_pointer, &count );
     update_relative_valuators( pointer_info->classes, pointer_info->num_classes );
     pXIFreeDeviceInfo( pointer_info );
@@ -347,7 +360,7 @@ static void enable_xinput2(void)
      * no XI_DeviceChanged events happened. If any hierarchy change occurred that
      * might be relevant here (eg. user switching mice after (un)plugging), a
      * XI_DeviceChanged event will point us to the right slave. So this list is
-     * safe to be obtained statically at enable_xinput2() time.
+     * safe to be obtained statically at x11drv_xinput_enable() time.
      */
     if (data->xi2_devices) pXIFreeDeviceInfo( data->xi2_devices );
     data->xi2_devices = pXIQueryDevice( data->display, XIAllDevices, &data->xi2_device_count );
@@ -358,30 +371,44 @@ static void enable_xinput2(void)
 }
 
 /***********************************************************************
- *              disable_xinput2
+ *              x11drv_xinput_disable
  */
-static void disable_xinput2(void)
+void x11drv_xinput_disable( Display *display, Window window, long event_mask )
 {
 #ifdef HAVE_X11_EXTENSIONS_XINPUT2_H
     struct x11drv_thread_data *data = x11drv_thread_data();
+    enum xi2_state xi2_state = data ? data->xi2_state : xi_unknown;
     XIEventMask mask;
 
-    TRACE( "state:%d\n", data->xi2_state );
-    if (data->xi2_state != xi_enabled) return;
+    TRACE( "state:%d window:%lx event_mask:%lx\n", xi2_state, window, event_mask );
 
-    data->xi2_state = xi_disabled;
+    if (xi2_state == xi_unavailable) return;
+
+    if (window != DefaultRootWindow( display ))
+    {
+        mask.mask     = NULL;
+        mask.mask_len = 0;
+        mask.deviceid = XIAllMasterDevices;
+
+        pXISelectEvents( display, window, &mask, 1 );
+        XSelectInput( display, window, event_mask );
+        return;
+    }
 
     mask.mask = NULL;
     mask.mask_len = 0;
     mask.deviceid = XIAllDevices;
 
-    pXISelectEvents( data->display, DefaultRootWindow( data->display ), &mask, 1 );
+    pXISelectEvents( display, DefaultRootWindow( display ), &mask, 1 );
+
+    if (!data) return;
     pXIFreeDeviceInfo( data->xi2_devices );
     data->x_rel_valuator.number = -1;
     data->y_rel_valuator.number = -1;
     data->xi2_devices = NULL;
     data->xi2_core_pointer = 0;
     data->xi2_current_slave = 0;
+    data->xi2_state = xi_disabled;
 #endif
 }
 
@@ -423,7 +450,7 @@ static BOOL grab_clipping_window( const RECT *clip )
     }
 
     /* enable XInput2 unless we are already clipping */
-    if (!data->clip_hwnd) enable_xinput2();
+    if (!data->clip_hwnd) x11drv_xinput_enable( data->display, DefaultRootWindow( data->display ), PointerMotionMask );
 
     if (data->xi2_state != xi_enabled)
     {
@@ -453,7 +480,7 @@ static BOOL grab_clipping_window( const RECT *clip )
 
     if (!clipping_cursor)
     {
-        disable_xinput2();
+        x11drv_xinput_disable( data->display, DefaultRootWindow( data->display ), PointerMotionMask );
         DestroyWindow( msg_hwnd );
         return FALSE;
     }
@@ -532,7 +559,7 @@ LRESULT clip_cursor_notify( HWND hwnd, HWND prev_clip_hwnd, HWND new_clip_hwnd )
         TRACE( "clip hwnd reset from %p\n", hwnd );
         data->clip_hwnd = 0;
         data->clip_reset = GetTickCount();
-        disable_xinput2();
+        x11drv_xinput_disable( data->display, DefaultRootWindow( data->display ), PointerMotionMask );
         DestroyWindow( hwnd );
     }
     else if (prev_clip_hwnd)
