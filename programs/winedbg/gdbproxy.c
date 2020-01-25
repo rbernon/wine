@@ -1121,6 +1121,24 @@ static enum packet_return packet_verbose_cont(struct gdb_context* gdbctx)
     return packet_reply_status(gdbctx);
 }
 
+static enum packet_return packet_verbose_file(struct gdb_context* gdbctx)
+{
+    char *tmp, filename[MAX_PATH];
+    unsigned int flags, mode;
+
+    if (strncmp(gdbctx->in_packet + 5, "setfs:", 5) == 0)
+        return packet_reply(gdbctx, "F0");
+
+    if (strncmp(gdbctx->in_packet + 5, "open:", 5) == 0 &&
+        (tmp = strchr(gdbctx->in_packet, ',')))
+    {
+        sscanf(tmp, ",%x,%x", &flags, &mode);
+        hex_from(filename, gdbctx->in_packet + 10, (tmp - gdbctx->in_packet - 10) / 2);
+    }
+
+    return packet_error;
+}
+
 static enum packet_return packet_verbose(struct gdb_context* gdbctx)
 {
     if (gdbctx->in_packet_len >= 4 && !memcmp(gdbctx->in_packet, "Cont", 4))
@@ -1130,6 +1148,9 @@ static enum packet_return packet_verbose(struct gdb_context* gdbctx)
 
     if (gdbctx->in_packet_len == 14 && !memcmp(gdbctx->in_packet, "MustReplyEmpty", 14))
         return packet_reply(gdbctx, "");
+
+    if (strncmp(gdbctx->in_packet, "File:", 5) == 0)
+        return packet_verbose_file(gdbctx);
 
     return packet_error;
 }
