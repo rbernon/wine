@@ -2183,23 +2183,32 @@ static BOOL gdb_exec(unsigned port, unsigned flags)
     fd = mkstemps(buf, 0);
     if (fd == -1) return FALSE;
     if ((f = fdopen(fd, "w+")) == NULL) return FALSE;
-    fprintf(f, "target remote localhost:%d\n", ntohs(port));
-    fprintf(f, "set prompt Wine-gdb>\\ \n");
-    /* gdb 5.1 seems to require it, won't hurt anyway */
-    fprintf(f, "sharedlibrary\n");
-    /* This is needed (but not a decent & final fix)
-     * Without this, gdb would skip our inter-DLL relay code (because
-     * we don't have any line number information for the relay code)
-     * With this, we will stop on first instruction of the stub, and
-     * reusing step, will get us through the relay stub at the actual
-     * function we're looking at.
-     */
-    fprintf(f, "set step-mode on\n");
-    /* tell gdb to delete this file when done handling it... */
-    fprintf(f, "shell rm -f \"%s\"\n", buf);
+    if (strstr(gdb_path, "lldb"))
+    {
+        fprintf(f, "gdb-remote localhost:%d\n", ntohs(port));
+    }
+    else
+    {
+        fprintf(f, "target remote localhost:%d\n", ntohs(port));
+        fprintf(f, "set prompt Wine-gdb>\\ \n");
+        /* gdb 5.1 seems to require it, won't hurt anyway */
+        fprintf(f, "sharedlibrary\n");
+        /* This is needed (but not a decent & final fix)
+         * Without this, gdb would skip our inter-DLL relay code (because
+         * we don't have any line number information for the relay code)
+         * With this, we will stop on first instruction of the stub, and
+         * reusing step, will get us through the relay stub at the actual
+         * function we're looking at.
+         */
+        fprintf(f, "set step-mode on\n");
+        /* tell gdb to delete this file when done handling it... */
+        fprintf(f, "shell rm -f \"%s\"\n", buf);
+    }
     fclose(f);
     if (flags & FLAG_WITH_XTERM)
         execlp("xterm", "xterm", "-e", gdb_path, "-x", buf, NULL);
+    else if (strstr(gdb_path, "lldb"))
+        execlp(gdb_path, gdb_path, "-S", buf, NULL);
     else
         execlp(gdb_path, gdb_path, "-x", buf, NULL);
     assert(0); /* never reached */
