@@ -1158,6 +1158,9 @@ static enum packet_return packet_verbose_file(struct gdb_context* gdbctx)
 
 static enum packet_return packet_verbose(struct gdb_context* gdbctx)
 {
+    struct dbg_process *process;
+    int pid;
+
     if (gdbctx->in_packet_len >= 4 && !memcmp(gdbctx->in_packet, "Cont", 4))
     {
         return packet_verbose_cont(gdbctx);
@@ -1168,6 +1171,17 @@ static enum packet_return packet_verbose(struct gdb_context* gdbctx)
 
     if (strncmp(gdbctx->in_packet, "File:", 5) == 0)
         return packet_verbose_file(gdbctx);
+
+    if (snscanf(gdbctx->in_packet, gdbctx->in_packet_len, "Kill;%x", &pid) == 1)
+    {
+        if (!(process = dbg_get_process(pid)))
+            return packet_reply(gdbctx, "E2");
+
+        process->be_cpu->single_step(&gdbctx->context, FALSE);
+        resume_debuggee_process(gdbctx, DBG_CONTINUE, process);
+        dbg_del_process(process);
+        return packet_ok | packet_last_f;
+    }
 
     return packet_error;
 }
