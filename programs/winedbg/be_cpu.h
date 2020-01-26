@@ -42,19 +42,19 @@ struct backend_cpu
     /* Linearizes an address. Only CPUs with segmented address model need this.
      * Otherwise, implementation is straightforward (be_cpu_linearize will do)
      */
-    void*               (*linearize)(HANDLE hThread, const ADDRESS64*);
+    void*               (*linearize)(struct dbg_thread* thread, const ADDRESS64*);
     /* Fills in an ADDRESS64 structure from a segment & an offset. CPUs without
      * segment address model should use 0 as seg. Required method to fill
      * in an ADDRESS64 (except an linear one).
      * Non segmented CPU shall use be_cpu_build_addr
      */
-    BOOL                (*build_addr)(HANDLE hThread, const dbg_ctx_t *ctx,
+    BOOL                (*build_addr)(struct dbg_thread* thread, const dbg_ctx_t *ctx,
                                       ADDRESS64* addr, unsigned seg,
                                       unsigned long offset);
     /* Retrieves in addr an address related to the context (program counter, stack
      * pointer, frame pointer)
      */
-    BOOL                (*get_addr)(HANDLE hThread, const dbg_ctx_t *ctx,
+    BOOL                (*get_addr)(struct dbg_thread* thread, const dbg_ctx_t *ctx,
                                     enum be_cpu_addr, ADDRESS64* addr);
 
     /* returns which kind of information a given register number refers to */
@@ -66,11 +66,11 @@ struct backend_cpu
     /* Enables/disables CPU single step mode (depending on enable) */
     void                (*single_step)(dbg_ctx_t *ctx, BOOL enable);
     /* Dumps out the content of the context */
-    void                (*print_context)(HANDLE hThread, const dbg_ctx_t *ctx, int all_regs);
+    void                (*print_context)(struct dbg_thread* thread, const dbg_ctx_t *ctx, int all_regs);
     /* Prints information about segments. Non segmented CPU should leave this
      * function empty
      */
-    void                (*print_segment_info)(HANDLE hThread, const dbg_ctx_t *ctx);
+    void                (*print_segment_info)(struct dbg_thread* thread, const dbg_ctx_t *ctx);
     /* all the CONTEXT's relative variables, bound to this CPU */
     const struct dbg_internal_var* context_vars;
 
@@ -88,9 +88,9 @@ struct backend_cpu
      */
     BOOL                (*is_break_insn)(const void*);
     /* Check whether instruction at 'addr' is a function call */
-    BOOL                (*is_function_call)(const void* insn, ADDRESS64* callee);
+    BOOL                (*is_function_call)(struct dbg_thread* thread, const void* insn, ADDRESS64* callee);
     /* Check whether instruction at 'addr' is a jump */
-    BOOL                (*is_jump)(const void* insn, ADDRESS64* jumpee);
+    BOOL                (*is_jump)(struct dbg_thread* thread, const void* insn, ADDRESS64* jumpee);
     /* Ask for disassembling one instruction. If display is true, assembly code
      * will be printed. In all cases, 'addr' is advanced at next instruction
      */
@@ -134,6 +134,6 @@ struct backend_cpu
 };
 
 /* some handy functions for non segmented CPUs */
-void*    be_cpu_linearize(HANDLE hThread, const ADDRESS64*);
-BOOL be_cpu_build_addr(HANDLE hThread, const dbg_ctx_t *ctx, ADDRESS64* addr,
+void*    be_cpu_linearize(struct dbg_thread* thread, const ADDRESS64*);
+BOOL be_cpu_build_addr(struct dbg_thread* thread, const dbg_ctx_t *ctx, ADDRESS64* addr,
                        unsigned seg, unsigned long offset);

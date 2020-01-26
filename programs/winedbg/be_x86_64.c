@@ -31,7 +31,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(winedbg);
 
 #define STEP_FLAG 0x00000100 /* single step flag */
 
-static BOOL be_x86_64_get_addr(HANDLE hThread, const dbg_ctx_t *ctx,
+static BOOL be_x86_64_get_addr(struct dbg_thread *thread, const dbg_ctx_t *ctx,
                                enum be_cpu_addr bca, ADDRESS64* addr)
 {
     addr->Mode = AddrModeFlat;
@@ -81,7 +81,7 @@ static inline long double m128a_to_longdouble(const M128A m)
     return *(long double*)&m;
 }
 
-static void be_x86_64_print_context(HANDLE hThread, const dbg_ctx_t *pctx,
+static void be_x86_64_print_context(struct dbg_thread *thread, const dbg_ctx_t *pctx,
                                     int all_regs)
 {
     static const char mxcsr_flags[16][4] = { "IE", "DE", "ZE", "OE", "UE", "PE", "DAZ", "IM",
@@ -184,7 +184,7 @@ static void be_x86_64_print_context(HANDLE hThread, const dbg_ctx_t *pctx,
     }
 }
 
-static void be_x86_64_print_segment_info(HANDLE hThread, const dbg_ctx_t *ctx)
+static void be_x86_64_print_segment_info(struct dbg_thread *thread, const dbg_ctx_t *ctx)
 {
 }
 
@@ -449,7 +449,7 @@ static BOOL load_indirect_target(DWORD64* dst)
     return dbg_read_memory(memory_to_linear_addr(&addr), &dst, sizeof(dst));
 }
 
-static BOOL be_x86_64_is_func_call(const void* insn, ADDRESS64* callee)
+static BOOL be_x86_64_is_func_call(struct dbg_thread* thread, const void* insn, ADDRESS64* callee)
 {
     BYTE                ch;
     LONG                delta;
@@ -545,7 +545,7 @@ static BOOL be_x86_64_is_func_call(const void* insn, ADDRESS64* callee)
     }
 }
 
-static BOOL be_x86_64_is_jump(const void* insn, ADDRESS64* jumpee)
+static BOOL be_x86_64_is_jump(struct dbg_thread* thread, const void* insn, ADDRESS64* jumpee)
 {
     return FALSE;
 }

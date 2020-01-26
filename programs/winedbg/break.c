@@ -899,7 +899,7 @@ void break_restart_execution(int count)
      * FIXME - we need to check for things like thunks or trampolines,
      * as the actual function may in fact have debug info.
      */
-    if (dbg_curr_process->be_cpu->is_function_call(linear, &callee))
+    if (dbg_curr_process->be_cpu->is_function_call(dbg_curr_thread, linear, &callee))
     {
 	status = symbol_get_function_line_status(&callee);
 #if 0

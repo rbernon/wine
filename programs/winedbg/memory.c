@@ -33,13 +33,13 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(winedbg);
 
-void* be_cpu_linearize(HANDLE hThread, const ADDRESS64* addr)
+void* be_cpu_linearize(struct dbg_thread* thread, const ADDRESS64* addr)
 {
     assert(addr->Mode == AddrModeFlat);
     return (void*)(DWORD_PTR)addr->Offset;
 }
 
-BOOL be_cpu_build_addr(HANDLE hThread, const dbg_ctx_t *ctx, ADDRESS64* addr,
+BOOL be_cpu_build_addr(struct dbg_thread* thread, const dbg_ctx_t *ctx, ADDRESS64* addr,
                        unsigned seg, unsigned long offset)
 {
     addr->Mode    = AddrModeFlat;

@@ -22,7 +22,7 @@
 
 #if defined(__aarch64__) && !defined(__AARCH64EB__)
 
-static BOOL be_arm64_get_addr(HANDLE hThread, const dbg_ctx_t *ctx,
+static BOOL be_arm64_get_addr(struct dbg_thread *thread, const dbg_ctx_t *ctx,
                               enum be_cpu_addr bca, ADDRESS64* addr)
 {
     switch (bca)
@@ -54,7 +54,7 @@ static void be_arm64_single_step(dbg_ctx_t *ctx, BOOL enable)
     dbg_printf("be_arm64_single_step: not done\n");
 }
 
-static void be_arm64_print_context(HANDLE hThread, const dbg_ctx_t *ctx, int all_regs)
+static void be_arm64_print_context(struct dbg_thread *thread, const dbg_ctx_t *ctx, int all_regs)
 {
     static const char condflags[] = "NZCV";
     int i;
@@ -98,7 +98,7 @@ static void be_arm64_print_context(HANDLE hThread, const dbg_ctx_t *ctx, int all
     if (all_regs) dbg_printf( "Floating point ARM64 dump not implemented\n" );
 }
 
-static void be_arm64_print_segment_info(HANDLE hThread, const dbg_ctx_t *ctx)
+static void be_arm64_print_segment_info(struct dbg_thread *thread, const dbg_ctx_t *ctx)
 {
 }
 
@@ -159,12 +159,12 @@ static BOOL be_arm64_is_break_insn(const void* insn)
     return FALSE;
 }
 
-static BOOL be_arm64_is_func_call(const void* insn, ADDRESS64* callee)
+static BOOL be_arm64_is_func_call(struct dbg_thread* thread, const void* insn, ADDRESS64* callee)
 {
     return FALSE;
 }
 
-static BOOL be_arm64_is_jump(const void* insn, ADDRESS64* jumpee)
+static BOOL be_arm64_is_jump(struct dbg_thread* thread, const void* insn, ADDRESS64* jumpee)
 {
     return FALSE;
 }

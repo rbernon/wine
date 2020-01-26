@@ -33,20 +33,20 @@ extern void             be_i386_disasm_one_insn(ADDRESS64* addr, int display);
 
 #define IS_VM86_MODE(ctx) (ctx->EFlags & V86_FLAG)
 
-static ADDRESS_MODE get_selector_type(HANDLE hThread, const WOW64_CONTEXT *ctx, WORD sel)
+static ADDRESS_MODE get_selector_type(struct dbg_thread* thread, const WOW64_CONTEXT *ctx, WORD sel)
 {
     LDT_ENTRY	le;
 
     if (IS_VM86_MODE(ctx)) return AddrModeReal;
     /* null or system selector */
     if (!(sel & 4) || ((sel >> 3) < 17)) return AddrModeFlat;
-    if (dbg_curr_process->process_io->get_selector(hThread, sel, &le))
+    if (thread->process->process_io->get_selector(thread->handle, sel, &le))
         return le.HighWord.Bits.Default_Big ? AddrMode1632 : AddrMode1616;
     /* selector doesn't exist */
     return -1;
 }
 
-static void* be_i386_linearize(HANDLE hThread, const ADDRESS64* addr)
+static void* be_i386_linearize(struct dbg_thread* thread, const ADDRESS64* addr)
 {
     LDT_ENTRY	le;
 
@@ -59,7 +59,7 @@ static void* be_i386_linearize(HANDLE hThread, const ADDRESS64* addr)
             return (void*)(DWORD_PTR)addr->Offset;
         /* fall through */
     case AddrMode1616:
-        if (!dbg_curr_process->process_io->get_selector(hThread, addr->Segment, &le)) return NULL;
+        if (!thread->process->process_io->get_selector(thread->handle, addr->Segment, &le)) return NULL;
         return (void*)((le.HighWord.Bits.BaseHi << 24) + 
                        (le.HighWord.Bits.BaseMid << 16) + le.BaseLow +
                        (DWORD_PTR)addr->Offset);
@@ -69,7 +69,7 @@ static void* be_i386_linearize(HANDLE hThread, const ADDRESS64* addr)
     return NULL;
 }
 
-static BOOL be_i386_build_addr(HANDLE hThread, const dbg_ctx_t *ctx, ADDRESS64* addr,
+static BOOL be_i386_build_addr(struct dbg_thread* thread, const dbg_ctx_t *ctx, ADDRESS64* addr,
                                unsigned seg, unsigned long offset)
 {
     addr->Mode    = AddrModeFlat;
@@ -77,7 +77,7 @@ static BOOL be_i386_build_addr(HANDLE hThread, const dbg_ctx_t *ctx, ADDRESS64* 
     addr->Offset  = offset;
     if (seg)
     {
-        addr->Mode = get_selector_type(hThread, &ctx->x86, seg);
+        addr->Mode = get_selector_type(thread, &ctx->x86, seg);
         switch (addr->Mode)
         {
         case AddrModeReal:
@@ -95,17 +95,17 @@ static BOOL be_i386_build_addr(HANDLE hThread, const dbg_ctx_t *ctx, ADDRESS64* 
     return TRUE;
 }
 
-static BOOL be_i386_get_addr(HANDLE hThread, const dbg_ctx_t *ctx,
+static BOOL be_i386_get_addr(struct dbg_thread* thread, const dbg_ctx_t *ctx,
                              enum be_cpu_addr bca, ADDRESS64* addr)
 {
     switch (bca)
     {
     case be_cpu_addr_pc:
-        return be_i386_build_addr(hThread, ctx, addr, ctx->x86.SegCs, ctx->x86.Eip);
+        return be_i386_build_addr(thread, ctx, addr, ctx->x86.SegCs, ctx->x86.Eip);
     case be_cpu_addr_stack:
-        return be_i386_build_addr(hThread, ctx, addr, ctx->x86.SegSs, ctx->x86.Esp);
+        return be_i386_build_addr(thread, ctx, addr, ctx->x86.SegSs, ctx->x86.Esp);
     case be_cpu_addr_frame:
-        return be_i386_build_addr(hThread, ctx, addr, ctx->x86.SegSs, ctx->x86.Ebp);
+        return be_i386_build_addr(thread, ctx, addr, ctx->x86.SegSs, ctx->x86.Ebp);
     }
     return FALSE;
 }
@@ -127,7 +127,7 @@ static void be_i386_single_step(dbg_ctx_t *ctx, BOOL enable)
     else ctx->x86.EFlags &= ~STEP_FLAG;
 }
 
-static void be_i386_all_print_context(HANDLE hThread, const dbg_ctx_t *pctx)
+static void be_i386_all_print_context(struct dbg_thread* thread, const dbg_ctx_t *pctx)
 {
     static const char mxcsr_flags[16][4] = { "IE", "DE", "ZE", "OE", "UE", "PE", "DAZ", "IM",
                                              "DM", "ZM", "OM", "UM", "PM", "R-", "R+", "FZ" };
@@ -222,7 +222,7 @@ static void be_i386_all_print_context(HANDLE hThread, const dbg_ctx_t *pctx)
     dbg_printf("\n");
 }
 
-static void be_i386_print_context(HANDLE hThread, const dbg_ctx_t *pctx, int all_regs)
+static void be_i386_print_context(struct dbg_thread* thread, const dbg_ctx_t *pctx, int all_regs)
 {
     static const char flags[] = "aVR-N--ODITSZ-A-P-C";
     const WOW64_CONTEXT *ctx = &pctx->x86;
@@ -242,7 +242,7 @@ static void be_i386_print_context(HANDLE hThread, const dbg_ctx_t *pctx, int all
         if (buf[i] != '-' && !(ctx->EFlags & (1 << (sizeof(flags) - 2 - i))))
             buf[i] = ' ';
 
-    switch (get_selector_type(hThread, ctx, ctx->SegCs))
+    switch (get_selector_type(thread, ctx, ctx->SegCs))
     {
     case AddrMode1616:
     case AddrModeReal:
@@ -265,13 +265,13 @@ static void be_i386_print_context(HANDLE hThread, const dbg_ctx_t *pctx, int all
         break;
     }
 
-    if (all_regs) be_i386_all_print_context(hThread, pctx);
+    if (all_regs) be_i386_all_print_context(thread, pctx);
 
 }
 
-static void be_i386_print_segment_info(HANDLE hThread, const dbg_ctx_t *ctx)
+static void be_i386_print_segment_info(struct dbg_thread* thread, const dbg_ctx_t *ctx)
 {
-    if (get_selector_type(hThread, &ctx->x86, ctx->x86.SegCs) == AddrMode1616)
+    if (get_selector_type(thread, &ctx->x86, ctx->x86.SegCs) == AddrMode1616)
     {
         info_win32_segments(ctx->x86.SegDs >> 3, 1);
         if (ctx->x86.SegEs != ctx->x86.SegDs)
@@ -447,7 +447,7 @@ static BOOL fetch_value(const char* addr, unsigned sz, int* value)
     return TRUE;
 }
 
-static BOOL be_i386_is_func_call(const void* insn, ADDRESS64* callee)
+static BOOL be_i386_is_func_call(struct dbg_thread* thread, const void* insn, ADDRESS64* callee)
 {
     BYTE                ch;
     int                 delta;
@@ -456,8 +456,7 @@ static BOOL be_i386_is_func_call(const void* insn, ADDRESS64* callee)
     unsigned            operand_size;
     ADDRESS_MODE        cs_addr_mode;
 
-    cs_addr_mode = get_selector_type(dbg_curr_thread->handle, &dbg_context.x86,
-                                     dbg_context.x86.SegCs);
+    cs_addr_mode = get_selector_type(thread, &dbg_context.x86, dbg_context.x86.SegCs);
     operand_size = get_size(cs_addr_mode);
 
     /* get operand_size (also getting rid of the various prefixes */
@@ -485,8 +484,7 @@ static BOOL be_i386_is_func_call(const void* insn, ADDRESS64* callee)
         if (!dbg_read_memory((const char*)insn + 1 + operand_size / 8,
                              &segment, sizeof(segment)))
             return FALSE;
-        callee->Mode = get_selector_type(dbg_curr_thread->handle, &dbg_context.x86,
-                                         segment);
+        callee->Mode = get_selector_type(thread, &dbg_context.x86, segment);
         if (!fetch_value((const char*)insn + 1, operand_size, &delta))
             return FALSE;
         callee->Segment = segment;
@@ -537,7 +535,7 @@ static BOOL be_i386_is_func_call(const void* insn, ADDRESS64* callee)
                 else segment = dbg_context.x86.SegCs;
                 if (!dbg_read_memory((const char*)addr, &dst, sizeof(dst)))
                     return FALSE;
-                callee->Mode = get_selector_type(dbg_curr_thread->handle, &dbg_context.x86, segment);
+                callee->Mode = get_selector_type(thread, &dbg_context.x86, segment);
                 callee->Segment = segment;
                 callee->Offset = dst;
                 return TRUE;
@@ -571,8 +569,7 @@ static BOOL be_i386_is_func_call(const void* insn, ADDRESS64* callee)
                 else segment = dbg_context.x86.SegCs;
                 if (!dbg_read_memory((const char*)(UINT_PTR)dst, &delta, sizeof(delta)))
                     return FALSE;
-                callee->Mode = get_selector_type(dbg_curr_thread->handle, &dbg_context.x86,
-                                                 segment);
+                callee->Mode = get_selector_type(thread, &dbg_context.x86, segment);
                 callee->Segment = segment;
                 callee->Offset = delta;
             }
@@ -590,15 +587,14 @@ static BOOL be_i386_is_func_call(const void* insn, ADDRESS64* callee)
     }
 }
 
-static BOOL be_i386_is_jump(const void* insn, ADDRESS64* jumpee)
+static BOOL be_i386_is_jump(struct dbg_thread* thread, const void* insn, ADDRESS64* jumpee)
 {
     BYTE                ch;
     int                 delta;
     unsigned            operand_size;
     ADDRESS_MODE        cs_addr_mode;
 
-    cs_addr_mode = get_selector_type(dbg_curr_thread->handle, &dbg_context.x86,
-                                     dbg_context.x86.SegCs);
+    cs_addr_mode = get_selector_type(thread, &dbg_context.x86, dbg_context.x86.SegCs);
     operand_size = get_size(cs_addr_mode);
 
     /* get operand_size (also getting rid of the various prefixes */
