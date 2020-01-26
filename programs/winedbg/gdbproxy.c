@@ -230,6 +230,38 @@ static void hex_to(char* dst, const void* src, size_t len)
     }
 }
 
+static void bin_to(char* dst, const void* src, size_t len)
+{
+    const unsigned char *p = src;
+    while (len--)
+    {
+        if (*p == '#' || *p == '$' || *p == '}' || *p == '*')
+        {
+            *dst++ = '}';
+            *dst++ = *p++ ^ 0x20;
+        }
+        else
+        {
+            *dst++ = *p++;
+        }
+    }
+}
+
+static size_t bin_len(const void* src, size_t len)
+{
+    const unsigned char *p = src;
+    size_t out = 0;
+    while (len--)
+    {
+        if (*p == '#' || *p == '$' || *p == '}' || *p == '*')
+            out += 2;
+        else
+            out += 1;
+        p++;
+    }
+    return out;
+}
+
 static void bin_from(void* dst, const char* src, size_t len)
 {
     unsigned char *p = dst;
@@ -755,6 +787,19 @@ static void packet_reply_hex_to(struct gdb_context* gdbctx, const void* src, int
 static inline void packet_reply_hex_to_str(struct gdb_context* gdbctx, const char* src)
 {
     packet_reply_hex_to(gdbctx, src, strlen(src));
+}
+
+static void packet_reply_bin_to(struct gdb_context* gdbctx, const void* src, int len)
+{
+    size_t blen = bin_len(src, len);
+    packet_reply_grow(gdbctx, blen);
+    bin_to(&gdbctx->out_buf[gdbctx->out_len], src, len);
+    gdbctx->out_len += blen;
+}
+
+static inline void packet_reply_bin_to_str(struct gdb_context* gdbctx, const char* src)
+{
+    packet_reply_bin_to(gdbctx, src, strlen(src));
 }
 
 static void packet_reply_val(struct gdb_context* gdbctx, unsigned long val, int len)
@@ -1320,6 +1365,39 @@ static enum packet_return packet_write_memory(struct gdb_context* gdbctx)
         ptr += blk_len;
     }
     return packet_ok; /* FIXME: error while writing ? */
+}
+
+static enum packet_return packet_read_memory_binary(struct gdb_context* gdbctx)
+{
+    const struct be_process_io* io;
+    unsigned int len;
+    void *addr;
+    char *buffer;
+    SIZE_T read;
+
+    if (!gdbctx->process || !(io = gdbctx->process->process_io))
+        return packet_error;
+    if (sscanf(gdbctx->in_packet, "%p,%x", &addr, &len) != 2)
+        return packet_error;
+    if (len == 0)
+        return packet_ok;
+
+    TRACE("Read %u bytes at %p\n", len, addr);
+    if (!(buffer = HeapAlloc(GetProcessHeap(), 0, len)))
+        return packet_error;
+
+    if (!io->read(gdbctx->process->handle, addr, buffer, len, &read) ||
+        read != len)
+    {
+        HeapFree( GetProcessHeap(), 0, buffer );
+        return packet_error;
+    }
+
+    packet_reply_open(gdbctx);
+    packet_reply_bin_to(gdbctx, buffer, len);
+    packet_reply_close(gdbctx);
+    HeapFree( GetProcessHeap(), 0, buffer );
+    return packet_done;
 }
 
 static enum packet_return packet_write_memory_binary(struct gdb_context* gdbctx)
@@ -2102,6 +2180,7 @@ static struct packet_entry packet_entries[] =
         {'s', packet_step},        
         {'T', packet_thread_alive},
         {'v', packet_verbose},
+        {'x', packet_read_memory_binary},
         {'X', packet_write_memory_binary},
         {'z', packet_delete_breakpoint},
         {'Z', packet_insert_breakpoint},
