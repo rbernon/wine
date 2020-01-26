@@ -229,6 +229,23 @@ static void hex_to(char* dst, const void* src, size_t len)
     }
 }
 
+static void bin_from(void* dst, const char* src, size_t len)
+{
+    unsigned char *p = dst;
+    while (len--)
+    {
+        if (*src == '}')
+        {
+            src++;
+            *p++ = *src++ ^ 0x20;
+        }
+        else
+        {
+            *p++ = *src++;
+        }
+    }
+}
+
 static unsigned char checksum(const char* ptr, int len)
 {
     unsigned cksum = 0;
@@ -1268,6 +1285,41 @@ static enum packet_return packet_write_memory(struct gdb_context* gdbctx)
     return packet_ok; /* FIXME: error while writing ? */
 }
 
+static enum packet_return packet_write_memory_binary(struct gdb_context* gdbctx)
+{
+    const struct be_process_io* io;
+    unsigned int len;
+    void *addr;
+    char *ptr, *buffer;
+    SIZE_T written;
+
+    if (!gdbctx->process || !(io = gdbctx->process->process_io))
+        return packet_error;
+
+    if (!(ptr = memchr(gdbctx->in_packet, ':', gdbctx->in_packet_len)))
+        return packet_error;
+    *ptr = '\0';
+    if (sscanf(gdbctx->in_packet, "%p,%x", &addr, &len) != 2)
+        return packet_error;
+    if (len == 0)
+        return packet_ok;
+
+    TRACE("Write %u bytes at %p\n", len, addr);
+    if (!(buffer = HeapAlloc(GetProcessHeap(), 0, len)))
+        return packet_error;
+
+    bin_from(buffer, ptr + 1, len);
+    if (!io->write(gdbctx->process->handle, addr, buffer, len, &written) ||
+        written != len)
+    {
+        HeapFree( GetProcessHeap(), 0, buffer );
+        return packet_error;
+    }
+
+    HeapFree( GetProcessHeap(), 0, buffer );
+    return packet_ok;
+}
+
 static enum packet_return packet_read_register(struct gdb_context* gdbctx)
 {
     struct dbg_thread *thread = dbg_thread_from_tid(gdbctx, gdbctx->other_tid);
@@ -2000,6 +2052,7 @@ static struct packet_entry packet_entries[] =
         {'s', packet_step},        
         {'T', packet_thread_alive},
         {'v', packet_verbose},
+        {'X', packet_write_memory_binary},
         {'z', packet_delete_breakpoint},
         {'Z', packet_insert_breakpoint},
 };
