@@ -2038,6 +2038,29 @@ static enum packet_return packet_query(struct gdb_context* gdbctx)
             return packet_reply(gdbctx, buf);
         }
         break;
+    case 'P':
+        if (strncmp(gdbctx->in_packet, "ProcessInfo", gdbctx->in_packet_len) == 0)
+        {
+            if (!gdbctx->process || !(cpu = gdbctx->process->be_cpu))
+                return packet_error;
+
+            packet_reply_open(gdbctx);
+            packet_reply_add(gdbctx, "pid:");
+            packet_reply_val(gdbctx, gdbctx->process->pid, 4);
+            packet_reply_add(gdbctx, ";triple:");
+            switch (cpu->machine)
+            {
+            case IMAGE_FILE_MACHINE_AMD64: packet_reply_hex_to_str(gdbctx, "x86_64-w64-mingw32"); break;
+            case IMAGE_FILE_MACHINE_I386: packet_reply_hex_to_str(gdbctx, "i686-w64-mingw32"); break;
+            case IMAGE_FILE_MACHINE_POWERPC: packet_reply_hex_to_str(gdbctx, "powerpc-w64-mingw32"); break;
+            case IMAGE_FILE_MACHINE_ARMNT: packet_reply_hex_to_str(gdbctx, "arm-w64-mingw32"); break;
+            case IMAGE_FILE_MACHINE_ARM64: packet_reply_hex_to_str(gdbctx, "aarch64-w64-mingw32"); break;
+            }
+            packet_reply_add(gdbctx, ";");
+            packet_reply_close(gdbctx);
+            return packet_done;
+        }
+        break;
     case 'R':
         if (gdbctx->in_packet_len > 5 && strncmp(gdbctx->in_packet, "Rcmd,", 5) == 0)
         {
