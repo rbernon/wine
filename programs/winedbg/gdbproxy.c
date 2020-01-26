@@ -109,6 +109,7 @@ struct gdb_context
     BOOL                        no_ack_mode;
     BOOL                        thread_events;
     BOOL                        list_threads_in_stop_reply;
+    BOOL                        multiprocess;
 };
 
 static void gdbctx_delete_xpoint(struct gdb_context *gdbctx, struct dbg_thread *thread,
@@ -832,6 +833,17 @@ static inline void packet_reply_add(struct gdb_context* gdbctx, const char* str)
     gdbctx->out_len += len;
 }
 
+static void packet_reply_tid(struct gdb_context* gdbctx, struct dbg_process *process, struct dbg_thread *thread)
+{
+    if (gdbctx->multiprocess)
+    {
+        packet_reply_add(gdbctx, "p");
+        packet_reply_val(gdbctx, process->pid, 4);
+        packet_reply_add(gdbctx, ".");
+    }
+    packet_reply_val(gdbctx, thread->tid, 4);
+}
+
 static void packet_reply_open(struct gdb_context* gdbctx)
 {
     assert(gdbctx->out_curr_packet == -1);
@@ -956,6 +968,7 @@ static void packet_reply_status_threads(struct gdb_context* gdbctx)
         return;
 
     packet_reply_add(gdbctx, "threads:");
+    LIST_FOR_EACH_ENTRY(proc, &dbg_process_list, struct dbg_process, entry)
     LIST_FOR_EACH_ENTRY(thread, &process->threads, struct dbg_thread, entry)
     {
         packet_reply_val(gdbctx, thread->tid, 4);
@@ -965,6 +978,7 @@ static void packet_reply_status_threads(struct gdb_context* gdbctx)
     packet_reply_add(gdbctx, ";");
 
     packet_reply_add(gdbctx, "thread-pcs:");
+    LIST_FOR_EACH_ENTRY(proc, &dbg_process_list, struct dbg_process, entry)
     LIST_FOR_EACH_ENTRY(thread, &process->threads, struct dbg_thread, entry)
     {
         if (cpu->get_context(thread->handle, &ctx))
@@ -1073,6 +1087,7 @@ static enum packet_return packet_continue(struct gdb_context* gdbctx)
 
 static enum packet_return packet_verbose_cont(struct gdb_context* gdbctx)
 {
+    struct dbg_process *proc;
     char *buf = gdbctx->in_packet, *end = gdbctx->in_packet + gdbctx->in_packet_len;
 
     if (gdbctx->in_packet[4] == '?')
@@ -1087,6 +1102,7 @@ static enum packet_return packet_verbose_cont(struct gdb_context* gdbctx)
         return packet_done;
     }
 
+    LIST_FOR_EACH_ENTRY(proc, &dbg_process_list, struct dbg_process, entry)
     while (buf < end && (buf = memchr(buf + 1, ';', end - buf - 1)))
     {
         int tid = -1, sig = -1;
@@ -1114,6 +1130,7 @@ static enum packet_return packet_verbose_cont(struct gdb_context* gdbctx)
         if (buf < end && *buf == ':' && (n = sscanf(buf, ":%x", &tid)) <= 0)
             return packet_error;
 
+        LIST_FOR_EACH_ENTRY(proc, &dbg_process_list, struct dbg_process, entry)
         handle_step_or_continue(gdbctx, tid, action == 's' || action == 'S', sig);
     }
 
@@ -2030,14 +2047,16 @@ static enum packet_return packet_query(struct gdb_context* gdbctx)
     case 'f':
         if (strncmp(gdbctx->in_packet + 1, "ThreadInfo", gdbctx->in_packet_len - 1) == 0)
         {
-            struct dbg_thread*  thd;
+            struct dbg_process* proc;
+            struct dbg_thread* thd;
 
             packet_reply_open(gdbctx);
             packet_reply_add(gdbctx, "m");
-            LIST_FOR_EACH_ENTRY(thd, &gdbctx->process->threads, struct dbg_thread, entry)
+            LIST_FOR_EACH_ENTRY(proc, &dbg_process_list, struct dbg_process, entry)
+            LIST_FOR_EACH_ENTRY(thd, &proc->threads, struct dbg_thread, entry)
             {
-                packet_reply_val(gdbctx, thd->tid, 4);
-                if (list_next(&gdbctx->process->threads, &thd->entry) != NULL)
+                packet_reply_tid(gdbctx, proc, thd);
+                if (list_next(&proc->threads, &thd->entry) != NULL)
                     packet_reply_add(gdbctx, ",");
             }
             packet_reply_close(gdbctx);
@@ -2081,7 +2100,7 @@ static enum packet_return packet_query(struct gdb_context* gdbctx)
             thd = LIST_ENTRY(list_tail(&gdbctx->process->threads), struct dbg_thread, entry);
             packet_reply_open(gdbctx);
             packet_reply_add(gdbctx, "QC");
-            packet_reply_val(gdbctx, thd->tid, 4);
+            packet_reply_tid(gdbctx, thd->process, thd);
             packet_reply_close(gdbctx);
             return packet_done;
         }
@@ -2155,12 +2174,26 @@ static enum packet_return packet_query(struct gdb_context* gdbctx)
             return packet_ok;
         if (strncmp(gdbctx->in_packet, "Supported", 9) == 0)
         {
+            char *tmp = memchr(gdbctx->in_packet, ':', gdbctx->in_len);
+            char *end = gdbctx->in_packet + gdbctx->in_len;
+
             packet_reply_open(gdbctx);
             packet_reply_add(gdbctx, "QStartNoAckMode+;");
             packet_reply_add(gdbctx, "QThreadEvents+;");
             packet_reply_add(gdbctx, "qXfer:libraries:read+;");
             packet_reply_add(gdbctx, "qXfer:threads:read+;");
             packet_reply_add(gdbctx, "qXfer:features:read+;");
+
+            do
+            {
+                if (strncmp(tmp + 1, "multiprocess+", 13) == 0)
+                {
+                    packet_reply_add(gdbctx, "multiprocess+;");
+                    gdbctx->multiprocess = TRUE;
+                }
+            }
+            while ((tmp = memchr(tmp, ';', end - tmp)));
+
             packet_reply_close(gdbctx);
             return packet_done;
         }
@@ -2170,12 +2203,10 @@ static enum packet_return packet_query(struct gdb_context* gdbctx)
             strncmp(gdbctx->in_packet, "ThreadExtraInfo", 15) == 0 &&
             gdbctx->in_packet[15] == ',')
         {
-            unsigned    tid;
-            char*       end;
+            unsigned    pid,tid;
             char        result[128];
 
-            tid = strtol(gdbctx->in_packet + 16, &end, 16);
-            if (end == NULL) break;
+            if (snscanf(gdbctx->in_packet + 16, gdbctx->in_packet_len - 16, "p%x.%x", &pid, &tid) < 2) break;
             get_thread_info(gdbctx, tid, result, sizeof(result));
             packet_reply_open(gdbctx);
             packet_reply_hex_to_str(gdbctx, result);
@@ -2570,6 +2601,7 @@ static BOOL gdb_init_context(struct gdb_context* gdbctx, unsigned flags, unsigne
     gdbctx->process = NULL;
     gdbctx->no_ack_mode = FALSE;
     gdbctx->list_threads_in_stop_reply = FALSE;
+    gdbctx->multiprocess = FALSE;
     for (i = 0; i < ARRAY_SIZE(gdbctx->wine_segs); i++)
         gdbctx->wine_segs[i] = 0;
 

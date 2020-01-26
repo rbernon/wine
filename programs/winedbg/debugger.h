@@ -468,6 +468,8 @@ extern void             dbg_set_option(const char*, const char*);
 extern void             dbg_start_interactive(HANDLE hFile);
 extern void             dbg_init_console(void);
 
+extern struct list      dbg_process_list;
+
   /* gdbproxy.c */
 extern int              gdb_main(int argc, char* argv[]);
 
