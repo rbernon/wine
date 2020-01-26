@@ -108,6 +108,7 @@ struct gdb_context
     unsigned long               wine_segs[3];   /* load addresses of the ELF wine exec segments (text, bss and data) */
     BOOL                        no_ack_mode;
     BOOL                        thread_events;
+    BOOL                        list_threads_in_stop_reply;
 };
 
 static void gdbctx_delete_xpoint(struct gdb_context *gdbctx, struct dbg_thread *thread,
@@ -889,6 +890,41 @@ static void packet_reply_status_xpoints(struct gdb_context* gdbctx, struct dbg_t
     }
 }
 
+static void packet_reply_status_threads(struct gdb_context* gdbctx)
+{
+    struct dbg_process *process = gdbctx->process;
+    struct dbg_thread *thread;
+    struct backend_cpu *cpu = process->be_cpu;
+    dbg_ctx_t ctx;
+    ADDRESS64 addr;
+
+    if (!gdbctx->list_threads_in_stop_reply)
+        return;
+
+    packet_reply_add(gdbctx, "threads:");
+    LIST_FOR_EACH_ENTRY(thread, &process->threads, struct dbg_thread, entry)
+    {
+        packet_reply_val(gdbctx, thread->tid, 4);
+        if (list_next(&process->threads, &thread->entry) != NULL)
+            packet_reply_add(gdbctx, ",");
+    }
+    packet_reply_add(gdbctx, ";");
+
+    packet_reply_add(gdbctx, "thread-pcs:");
+    LIST_FOR_EACH_ENTRY(thread, &process->threads, struct dbg_thread, entry)
+    {
+        if (cpu->get_context(thread->handle, &ctx))
+            cpu->get_addr(thread->handle, &ctx, be_cpu_addr_pc, &addr);
+        else
+            addr.Offset = -1;
+
+        packet_reply_val(gdbctx, addr.Offset, 8);
+        if (list_next(&process->threads, &thread->entry) != NULL)
+            packet_reply_add(gdbctx, ",");
+    }
+    packet_reply_add(gdbctx, ";");
+}
+
 static enum packet_return packet_reply_status(struct gdb_context* gdbctx)
 {
     struct dbg_process *process = gdbctx->process;
@@ -924,6 +960,7 @@ static enum packet_return packet_reply_status(struct gdb_context* gdbctx)
             packet_reply_add(gdbctx, ";");
         }
 
+        packet_reply_status_threads(gdbctx);
         packet_reply_close(gdbctx);
         return packet_done;
 
@@ -2000,6 +2037,12 @@ static enum packet_return packet_set(struct gdb_context* gdbctx)
         return packet_ok;
     }
 
+    if (strncmp(gdbctx->in_packet, "ListThreadsInStopReply", 22) == 0)
+    {
+        gdbctx->list_threads_in_stop_reply = TRUE;
+        return packet_ok;
+    }
+
     return packet_error;
 }
 
@@ -2322,6 +2365,7 @@ static BOOL gdb_init_context(struct gdb_context* gdbctx, unsigned flags, unsigne
     list_init(&gdbctx->xpoint_list);
     gdbctx->process = NULL;
     gdbctx->no_ack_mode = FALSE;
+    gdbctx->list_threads_in_stop_reply = FALSE;
     for (i = 0; i < ARRAY_SIZE(gdbctx->wine_segs); i++)
         gdbctx->wine_segs[i] = 0;
 
