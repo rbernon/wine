@@ -447,7 +447,7 @@ static BOOL fetch_value(const char* addr, unsigned sz, int* value)
     return TRUE;
 }
 
-static BOOL be_i386_is_func_call(struct dbg_thread* thread, const void* insn, ADDRESS64* callee)
+static BOOL be_i386_is_func_call(struct dbg_thread* thread, const dbg_ctx_t* ctx, const void* insn, ADDRESS64* callee)
 {
     BYTE                ch;
     int                 delta;
@@ -456,7 +456,7 @@ static BOOL be_i386_is_func_call(struct dbg_thread* thread, const void* insn, AD
     unsigned            operand_size;
     ADDRESS_MODE        cs_addr_mode;
 
-    cs_addr_mode = get_selector_type(thread, &dbg_context.x86, dbg_context.x86.SegCs);
+    cs_addr_mode = get_selector_type(thread, &ctx->x86, ctx->x86.SegCs);
     operand_size = get_size(cs_addr_mode);
 
     /* get operand_size (also getting rid of the various prefixes */
@@ -476,7 +476,7 @@ static BOOL be_i386_is_func_call(struct dbg_thread* thread, const void* insn, AD
         callee->Mode = cs_addr_mode;
         if (!fetch_value((const char*)insn + 1, operand_size, &delta))
             return FALSE;
-        callee->Segment = dbg_context.x86.SegCs;
+        callee->Segment = ctx->x86.SegCs;
         callee->Offset = (DWORD_PTR)insn + 1 + (operand_size / 8) + delta;
         return TRUE;
 
@@ -484,7 +484,7 @@ static BOOL be_i386_is_func_call(struct dbg_thread* thread, const void* insn, AD
         if (!dbg_read_memory((const char*)insn + 1 + operand_size / 8,
                              &segment, sizeof(segment)))
             return FALSE;
-        callee->Mode = get_selector_type(thread, &dbg_context.x86, segment);
+        callee->Mode = get_selector_type(thread, &ctx->x86, segment);
         if (!fetch_value((const char*)insn + 1, operand_size, &delta))
             return FALSE;
         callee->Segment = segment;
@@ -498,7 +498,7 @@ static BOOL be_i386_is_func_call(struct dbg_thread* thread, const void* insn, AD
         switch ((ch >> 3) & 0x07)
         {
         case 0x02:
-            segment = dbg_context.x86.SegCs;
+            segment = ctx->x86.SegCs;
             break;
         case 0x03:
             if (!dbg_read_memory((const char*)insn + 1 + operand_size / 8,
@@ -532,10 +532,10 @@ static BOOL be_i386_is_func_call(struct dbg_thread* thread, const void* insn, AD
                     if (!dbg_read_memory((const char*)addr + operand_size, &segment, sizeof(segment)))
                         return FALSE;
                 }
-                else segment = dbg_context.x86.SegCs;
+                else segment = ctx->x86.SegCs;
                 if (!dbg_read_memory((const char*)addr, &dst, sizeof(dst)))
                     return FALSE;
-                callee->Mode = get_selector_type(thread, &dbg_context.x86, segment);
+                callee->Mode = get_selector_type(thread, &ctx->x86, segment);
                 callee->Segment = segment;
                 callee->Offset = dst;
                 return TRUE;
@@ -544,14 +544,14 @@ static BOOL be_i386_is_func_call(struct dbg_thread* thread, const void* insn, AD
         default:
             switch (ch & 0x07)
             {
-            case 0x00: dst = dbg_context.x86.Eax; break;
-            case 0x01: dst = dbg_context.x86.Ecx; break;
-            case 0x02: dst = dbg_context.x86.Edx; break;
-            case 0x03: dst = dbg_context.x86.Ebx; break;
-            case 0x04: dst = dbg_context.x86.Esp; break;
-            case 0x05: dst = dbg_context.x86.Ebp; break;
-            case 0x06: dst = dbg_context.x86.Esi; break;
-            case 0x07: dst = dbg_context.x86.Edi; break;
+            case 0x00: dst = ctx->x86.Eax; break;
+            case 0x01: dst = ctx->x86.Ecx; break;
+            case 0x02: dst = ctx->x86.Edx; break;
+            case 0x03: dst = ctx->x86.Ebx; break;
+            case 0x04: dst = ctx->x86.Esp; break;
+            case 0x05: dst = ctx->x86.Ebp; break;
+            case 0x06: dst = ctx->x86.Esi; break;
+            case 0x07: dst = ctx->x86.Edi; break;
             }
             if ((ch >> 6) != 0x03) /* indirect address */
             {
@@ -566,17 +566,17 @@ static BOOL be_i386_is_func_call(struct dbg_thread* thread, const void* insn, AD
                     if (!dbg_read_memory((const char*)(UINT_PTR)dst + operand_size, &segment, sizeof(segment)))
                         return FALSE;
                 }
-                else segment = dbg_context.x86.SegCs;
+                else segment = ctx->x86.SegCs;
                 if (!dbg_read_memory((const char*)(UINT_PTR)dst, &delta, sizeof(delta)))
                     return FALSE;
-                callee->Mode = get_selector_type(thread, &dbg_context.x86, segment);
+                callee->Mode = get_selector_type(thread, &ctx->x86, segment);
                 callee->Segment = segment;
                 callee->Offset = delta;
             }
             else
             {
                 callee->Mode = cs_addr_mode;
-                callee->Segment = dbg_context.x86.SegCs;
+                callee->Segment = ctx->x86.SegCs;
                 callee->Offset = dst;
             }
         }
@@ -587,14 +587,14 @@ static BOOL be_i386_is_func_call(struct dbg_thread* thread, const void* insn, AD
     }
 }
 
-static BOOL be_i386_is_jump(struct dbg_thread* thread, const void* insn, ADDRESS64* jumpee)
+static BOOL be_i386_is_jump(struct dbg_thread* thread, const dbg_ctx_t* ctx, const void* insn, ADDRESS64* jumpee)
 {
     BYTE                ch;
     int                 delta;
     unsigned            operand_size;
     ADDRESS_MODE        cs_addr_mode;
 
-    cs_addr_mode = get_selector_type(thread, &dbg_context.x86, dbg_context.x86.SegCs);
+    cs_addr_mode = get_selector_type(thread, &ctx->x86, ctx->x86.SegCs);
     operand_size = get_size(cs_addr_mode);
 
     /* get operand_size (also getting rid of the various prefixes */
@@ -614,7 +614,7 @@ static BOOL be_i386_is_jump(struct dbg_thread* thread, const void* insn, ADDRESS
         jumpee->Mode = cs_addr_mode;
         if (!fetch_value((const char*)insn + 1, operand_size, &delta))
             return FALSE;
-        jumpee->Segment = dbg_context.x86.SegCs;
+        jumpee->Segment = ctx->x86.SegCs;
         jumpee->Offset = (DWORD_PTR)insn + 1 + (operand_size / 8) + delta;
         return TRUE;
     default: WINE_FIXME("unknown %x\n", ch); return FALSE;

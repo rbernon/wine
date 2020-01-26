@@ -392,7 +392,7 @@ static BOOL add_fixed_displacement(const void* insn, BYTE mod, DWORD64* addr)
     return TRUE;
 }
 
-static BOOL evaluate_sib_address(const void* insn, BYTE mod, DWORD64* addr)
+static BOOL evaluate_sib_address(const dbg_ctx_t* ctx, const void* insn, BYTE mod, DWORD64* addr)
 {
     BYTE    ch;
     BYTE    scale;
@@ -402,34 +402,34 @@ static BOOL evaluate_sib_address(const void* insn, BYTE mod, DWORD64* addr)
 
     switch (f_sib_b(ch))
     {
-    case 0x00: loc = dbg_context.ctx.Rax; break;
-    case 0x01: loc = dbg_context.ctx.Rcx; break;
-    case 0x02: loc = dbg_context.ctx.Rdx; break;
-    case 0x03: loc = dbg_context.ctx.Rbx; break;
-    case 0x04: loc = dbg_context.ctx.Rsp; break;
+    case 0x00: loc = ctx->ctx.Rax; break;
+    case 0x01: loc = ctx->ctx.Rcx; break;
+    case 0x02: loc = ctx->ctx.Rdx; break;
+    case 0x03: loc = ctx->ctx.Rbx; break;
+    case 0x04: loc = ctx->ctx.Rsp; break;
     case 0x05:
-        loc = dbg_context.ctx.Rbp;
+        loc = ctx->ctx.Rbp;
         if (mod == 0)
         {
             loc = 0;
             mod = 2;
         }
         break;
-    case 0x06: loc = dbg_context.ctx.Rsi; break;
-    case 0x07: loc = dbg_context.ctx.Rdi; break;
+    case 0x06: loc = ctx->ctx.Rsi; break;
+    case 0x07: loc = ctx->ctx.Rdi; break;
     }
 
     scale = f_sib_s(ch);
     switch (f_sib_i(ch))
     {
-    case 0x00: loc += dbg_context.ctx.Rax << scale; break;
-    case 0x01: loc += dbg_context.ctx.Rcx << scale; break;
-    case 0x02: loc += dbg_context.ctx.Rdx << scale; break;
-    case 0x03: loc += dbg_context.ctx.Rbx << scale; break;
+    case 0x00: loc += ctx->ctx.Rax << scale; break;
+    case 0x01: loc += ctx->ctx.Rcx << scale; break;
+    case 0x02: loc += ctx->ctx.Rdx << scale; break;
+    case 0x03: loc += ctx->ctx.Rbx << scale; break;
     case 0x04: break;
-    case 0x05: loc += dbg_context.ctx.Rbp << scale; break;
-    case 0x06: loc += dbg_context.ctx.Rsi << scale; break;
-    case 0x07: loc += dbg_context.ctx.Rdi << scale; break;
+    case 0x05: loc += ctx->ctx.Rbp << scale; break;
+    case 0x06: loc += ctx->ctx.Rsi << scale; break;
+    case 0x07: loc += ctx->ctx.Rdi << scale; break;
     }
 
     if (!add_fixed_displacement((const char*)insn + 1, mod, &loc))
@@ -439,17 +439,17 @@ static BOOL evaluate_sib_address(const void* insn, BYTE mod, DWORD64* addr)
     return TRUE;
 }
 
-static BOOL load_indirect_target(DWORD64* dst)
+static BOOL load_indirect_target(const dbg_ctx_t *ctx, DWORD64* dst)
 {
     ADDRESS64 addr;
 
     addr.Mode = AddrModeFlat;
-    addr.Segment = dbg_context.ctx.SegDs;
+    addr.Segment = ctx->ctx.SegDs;
     addr.Offset = *dst;
     return dbg_read_memory(memory_to_linear_addr(&addr), &dst, sizeof(dst));
 }
 
-static BOOL be_x86_64_is_func_call(struct dbg_thread* thread, const void* insn, ADDRESS64* callee)
+static BOOL be_x86_64_is_func_call(struct dbg_thread* thread, const dbg_ctx_t* ctx, const void* insn, ADDRESS64* callee)
 {
     BYTE                ch;
     LONG                delta;
@@ -469,7 +469,7 @@ static BOOL be_x86_64_is_func_call(struct dbg_thread* thread, const void* insn, 
 
     /* that's the only mode we support anyway */
     callee->Mode = AddrModeFlat;
-    callee->Segment = dbg_context.ctx.SegCs;
+    callee->Segment = ctx->ctx.SegCs;
 
     switch (ch)
     {
@@ -497,8 +497,8 @@ static BOOL be_x86_64_is_func_call(struct dbg_thread* thread, const void* insn, 
         case 0x44:
         case 0x84:
         {
-            evaluate_sib_address((const char*)insn + 2, f_mod(ch), &dst);
-            if (!load_indirect_target(&dst)) return FALSE;
+            evaluate_sib_address(ctx, (const char*)insn + 2, f_mod(ch), &dst);
+            if (!load_indirect_target(ctx, &dst)) return FALSE;
             callee->Offset = dst;
             return TRUE;
         }
@@ -518,20 +518,20 @@ static BOOL be_x86_64_is_func_call(struct dbg_thread* thread, const void* insn, 
         default:
             switch (f_rm(ch))
             {
-            case 0x00: dst = dbg_context.ctx.Rax; break;
-            case 0x01: dst = dbg_context.ctx.Rcx; break;
-            case 0x02: dst = dbg_context.ctx.Rdx; break;
-            case 0x03: dst = dbg_context.ctx.Rbx; break;
-            case 0x04: dst = dbg_context.ctx.Rsp; break;
-            case 0x05: dst = dbg_context.ctx.Rbp; break;
-            case 0x06: dst = dbg_context.ctx.Rsi; break;
-            case 0x07: dst = dbg_context.ctx.Rdi; break;
+            case 0x00: dst = ctx->ctx.Rax; break;
+            case 0x01: dst = ctx->ctx.Rcx; break;
+            case 0x02: dst = ctx->ctx.Rdx; break;
+            case 0x03: dst = ctx->ctx.Rbx; break;
+            case 0x04: dst = ctx->ctx.Rsp; break;
+            case 0x05: dst = ctx->ctx.Rbp; break;
+            case 0x06: dst = ctx->ctx.Rsi; break;
+            case 0x07: dst = ctx->ctx.Rdi; break;
             }
             if (f_mod(ch) != 0x03)
             {
                 if (!add_fixed_displacement((const char*)insn + 2, f_mod(ch), &dst))
                     return FALSE;
-                if (!load_indirect_target(&dst)) return FALSE;
+                if (!load_indirect_target(ctx, &dst)) return FALSE;
             }
             callee->Offset = dst;
             return TRUE;
@@ -545,7 +545,7 @@ static BOOL be_x86_64_is_func_call(struct dbg_thread* thread, const void* insn, 
     }
 }
 
-static BOOL be_x86_64_is_jump(struct dbg_thread* thread, const void* insn, ADDRESS64* jumpee)
+static BOOL be_x86_64_is_jump(struct dbg_thread* thread, const dbg_ctx_t* ctx, const void* insn, ADDRESS64* jumpee)
 {
     return FALSE;
 }

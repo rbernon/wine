@@ -88,9 +88,9 @@ struct backend_cpu
      */
     BOOL                (*is_break_insn)(const void*);
     /* Check whether instruction at 'addr' is a function call */
-    BOOL                (*is_function_call)(struct dbg_thread* thread, const void* insn, ADDRESS64* callee);
+    BOOL                (*is_function_call)(struct dbg_thread* thread, const dbg_ctx_t* ctx, const void* insn, ADDRESS64* callee);
     /* Check whether instruction at 'addr' is a jump */
-    BOOL                (*is_jump)(struct dbg_thread* thread, const void* insn, ADDRESS64* jumpee);
+    BOOL                (*is_jump)(struct dbg_thread* thread, const dbg_ctx_t* ctx, const void* insn, ADDRESS64* jumpee);
     /* Ask for disassembling one instruction. If display is true, assembly code
      * will be printed. In all cases, 'addr' is advanced at next instruction
      */

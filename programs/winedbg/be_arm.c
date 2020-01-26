@@ -1760,12 +1760,12 @@ static BOOL be_arm_is_break_insn(const void* insn)
     return FALSE;
 }
 
-static BOOL be_arm_is_func_call(struct dbg_thread* thread, const void* insn, ADDRESS64* callee)
+static BOOL be_arm_is_func_call(struct dbg_thread* thread, const dbg_ctx_t* ctx, const void* insn, ADDRESS64* callee)
 {
     return FALSE;
 }
 
-static BOOL be_arm_is_jump(struct dbg_thread* thread, const void* insn, ADDRESS64* jumpee)
+static BOOL be_arm_is_jump(struct dbg_thread* thread, const dbg_ctx_t* ctx, const void* insn, ADDRESS64* jumpee)
 {
     return FALSE;
 }
