@@ -2004,6 +2004,28 @@ static enum packet_return packet_query(struct gdb_context* gdbctx)
             return packet_done;
         }
         break;
+    case 'H':
+        if (strncmp(gdbctx->in_packet, "HostInfo", 8) == 0)
+        {
+            packet_reply_open(gdbctx);
+            packet_reply_add(gdbctx, "triple:");
+#ifdef __i386__
+            packet_reply_hex_to_str(gdbctx, "i686-w64-mingw32");
+#elif defined(__powerpc__)
+            packet_reply_hex_to_str(gdbctx, "powerpc-w64-mingw32");
+#elif defined(__x86_64__)
+            packet_reply_hex_to_str(gdbctx, "x86_64-w64-mingw32");
+#elif defined(__arm__)
+            packet_reply_hex_to_str(gdbctx, "arm-w64-mingw32");
+#elif defined(__aarch64__)
+            packet_reply_hex_to_str(gdbctx, "aarch64-w64-mingw32");
+#else
+#error Define the HostInfo reply for your CPU
+#endif
+            packet_reply_add(gdbctx, ";");
+            packet_reply_close(gdbctx);
+            return packet_done;
+        }
     case 'O':
         if (strncmp(gdbctx->in_packet, "Offsets", gdbctx->in_packet_len) == 0)
         {
