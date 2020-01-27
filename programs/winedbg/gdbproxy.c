@@ -450,6 +450,7 @@ static BOOL handle_debug_event(struct gdb_context* gdbctx)
 {
     DEBUG_EVENT *de = &gdbctx->de;
     struct dbg_thread *thread;
+    dbg_ctx_t ctx;
 
     union {
         char                bufferA[256];
@@ -489,10 +490,12 @@ static BOOL handle_debug_event(struct gdb_context* gdbctx)
         fprintf(stderr, "%04x:%04x: create thread I @%p\n", de->dwProcessId,
             de->dwThreadId, de->u.CreateProcessInfo.lpStartAddress);
 
-        dbg_add_thread(gdbctx->process, de->dwThreadId,
-                       de->u.CreateProcessInfo.hThread,
-                       de->u.CreateProcessInfo.lpThreadLocalBase);
-        return TRUE;
+        thread = dbg_add_thread(gdbctx->process, de->dwThreadId,
+                              de->u.CreateProcessInfo.hThread,
+                              de->u.CreateProcessInfo.lpThreadLocalBase);
+        if (!gdbctx->process->be_cpu->get_context(thread->handle, &ctx))
+            return TRUE;
+        break;
 
     case LOAD_DLL_DEBUG_EVENT:
         memory_get_string_indirect(gdbctx->process,
@@ -507,14 +510,20 @@ static BOOL handle_debug_event(struct gdb_context* gdbctx)
                 de->u.LoadDll.nDebugInfoSize);
         dbg_load_module(gdbctx->process->handle, de->u.LoadDll.hFile, u.buffer,
                         (DWORD_PTR)de->u.LoadDll.lpBaseOfDll, 0);
-        return TRUE;
+        if (!(thread = dbg_get_thread(gdbctx->process, de->dwThreadId)) ||
+            !gdbctx->process->be_cpu->get_context(thread->handle, &ctx))
+            return TRUE;
+        break;
 
     case UNLOAD_DLL_DEBUG_EVENT:
         fprintf(stderr, "%08x:%08x: unload DLL @%p\n",
                 de->dwProcessId, de->dwThreadId, de->u.UnloadDll.lpBaseOfDll);
         SymUnloadModule(gdbctx->process->handle,
                         (DWORD_PTR)de->u.UnloadDll.lpBaseOfDll);
-        return TRUE;
+        if (!(thread = dbg_get_thread(gdbctx->process, de->dwThreadId)) ||
+            !gdbctx->process->be_cpu->get_context(thread->handle, &ctx))
+            return TRUE;
+        break;
 
     case EXCEPTION_DEBUG_EVENT:
         TRACE("%08x:%08x: exception code=0x%08x\n", de->dwProcessId,
@@ -980,6 +989,22 @@ static enum packet_return packet_reply_status(struct gdb_context* gdbctx)
 
     switch (gdbctx->de.dwDebugEventCode)
     {
+    case CREATE_PROCESS_DEBUG_EVENT:
+        packet_reply_open(gdbctx);
+        packet_reply_add(gdbctx, "S");
+        packet_reply_val(gdbctx, signal_from_debug_event(&gdbctx->de), 1);
+        packet_reply_close(gdbctx);
+        return packet_done;
+
+    case LOAD_DLL_DEBUG_EVENT:
+    case UNLOAD_DLL_DEBUG_EVENT:
+        packet_reply_open(gdbctx);
+        packet_reply_add(gdbctx, "T");
+        packet_reply_val(gdbctx, signal_from_debug_event(&gdbctx->de), 1);
+        packet_reply_add(gdbctx, "library:;");
+        packet_reply_close(gdbctx);
+        return packet_done;
+
     default:
         if (!process) return packet_error;
         if (!(backend = process->be_cpu)) return packet_error;
@@ -2413,10 +2438,7 @@ static BOOL gdb_startup(struct gdb_context* gdbctx, unsigned flags, unsigned por
     if (listen(sock, 1) == -1 || getsockname(sock, (struct sockaddr*)&s_addrs, &s_len) == -1)
         goto cleanup;
 
-    /* step 2: do the process internal creation */
-    handle_debug_event(gdbctx);
-
-    /* step 3: fire up gdb (if requested) */
+    /* step 2: fire up gdb (if requested) */
     if (flags & FLAG_NO_START)
         fprintf(stderr, "target remote localhost:%d\n", ntohs(s_addrs.sin_port));
     else
@@ -2434,7 +2456,7 @@ static BOOL gdb_startup(struct gdb_context* gdbctx, unsigned flags, unsigned por
             goto cleanup;
         }
 
-    /* step 4: wait for gdb to connect actually */
+    /* step 3: wait for gdb to connect actually */
     pollfd.fd = sock;
     pollfd.events = POLLIN;
     pollfd.revents = 0;
@@ -2493,18 +2515,13 @@ static BOOL gdb_init_context(struct gdb_context* gdbctx, unsigned flags, unsigne
     for (i = 0; i < ARRAY_SIZE(gdbctx->wine_segs); i++)
         gdbctx->wine_segs[i] = 0;
 
-    /* wait for first trap */
     while (WaitForDebugEvent(&gdbctx->de, INFINITE))
     {
-        if (gdbctx->de.dwDebugEventCode == CREATE_PROCESS_DEBUG_EVENT)
-        {
-            /* this should be the first event we get,
-             * and the only one of this type  */
-            assert(gdbctx->process == NULL && gdbctx->de.dwProcessId == dbg_curr_pid);
-            /* gdbctx->dwProcessId = pid; */
-            if (!gdb_startup(gdbctx, flags, port)) return FALSE;
-        }
-        else if (!handle_debug_event(gdbctx))
+        if (gdbctx->de.dwDebugEventCode == CREATE_PROCESS_DEBUG_EVENT &&
+            !gdb_startup(gdbctx, flags, port))
+            return FALSE;
+
+        if (!handle_debug_event(gdbctx))
             break;
         ContinueDebugEvent(gdbctx->de.dwProcessId, gdbctx->de.dwThreadId, DBG_CONTINUE);
     }
