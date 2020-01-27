@@ -2012,7 +2012,7 @@ static enum packet_return packet_query(struct gdb_context* gdbctx)
         break;
     case 'A':
         if (strncmp(gdbctx->in_packet, "Attached", gdbctx->in_packet_len) == 0)
-            return packet_reply(gdbctx, "1");
+            return packet_reply(gdbctx, "0");
         break;
     case 'C':
         if (gdbctx->in_packet_len == 1)
