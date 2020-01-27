@@ -107,6 +107,7 @@ struct gdb_context
     /* Unix environment */
     unsigned long               wine_segs[3];   /* load addresses of the ELF wine exec segments (text, bss and data) */
     BOOL                        no_ack_mode;
+    BOOL                        thread_events;
 };
 
 static void gdbctx_delete_xpoint(struct gdb_context *gdbctx, struct dbg_thread *thread,
@@ -481,14 +482,18 @@ static BOOL handle_debug_event(struct gdb_context* gdbctx)
                        de->dwThreadId,
                        de->u.CreateThread.hThread,
                        de->u.CreateThread.lpThreadLocalBase);
-        return TRUE;
+        if (!gdbctx->thread_events)
+            return TRUE;
+        break;
 
     case EXIT_THREAD_DEBUG_EVENT:
         fprintf(stderr, "%08x:%08x: exit thread (%u)\n",
                 de->dwProcessId, de->dwThreadId, de->u.ExitThread.dwExitCode);
         if ((thread = dbg_get_thread(gdbctx->process, de->dwThreadId)))
             dbg_del_thread(thread);
-        return TRUE;
+        if (!gdbctx->thread_events)
+            return TRUE;
+        break;
 
     case EXIT_PROCESS_DEBUG_EVENT:
         fprintf(stderr, "%08x:%08x: exit process (%u)\n",
@@ -887,6 +892,8 @@ static enum packet_return packet_reply_status(struct gdb_context* gdbctx)
         packet_reply_open(gdbctx);
         packet_reply_add(gdbctx, "T");
         packet_reply_val(gdbctx, signal_from_debug_event(&gdbctx->de), 1);
+        if (gdbctx->de.dwDebugEventCode == CREATE_THREAD_DEBUG_EVENT)
+            packet_reply_add(gdbctx, "create:;");
         packet_reply_add(gdbctx, "thread:");
         packet_reply_val(gdbctx, gdbctx->de.dwThreadId, 4);
         packet_reply_add(gdbctx, ";");
@@ -900,6 +907,15 @@ static enum packet_return packet_reply_status(struct gdb_context* gdbctx)
             packet_reply_add(gdbctx, ";");
         }
 
+        packet_reply_close(gdbctx);
+        return packet_done;
+
+    case EXIT_THREAD_DEBUG_EVENT:
+        packet_reply_open(gdbctx);
+        packet_reply_add(gdbctx, "w");
+        packet_reply_val(gdbctx, gdbctx->de.u.ExitThread.dwExitCode, 4);
+        packet_reply_add(gdbctx, ";");
+        packet_reply_val(gdbctx, gdbctx->de.dwThreadId, 4);
         packet_reply_close(gdbctx);
         return packet_done;
 
@@ -1840,6 +1856,7 @@ static enum packet_return packet_query(struct gdb_context* gdbctx)
         {
             packet_reply_open(gdbctx);
             packet_reply_add(gdbctx, "QStartNoAckMode+;");
+            packet_reply_add(gdbctx, "QThreadEvents+;");
             packet_reply_add(gdbctx, "qXfer:libraries:read+;");
             packet_reply_add(gdbctx, "qXfer:threads:read+;");
             packet_reply_add(gdbctx, "qXfer:features:read+;");
@@ -1914,6 +1931,13 @@ static enum packet_return packet_set(struct gdb_context* gdbctx)
     if (strncmp(gdbctx->in_packet, "StartNoAckMode", 14) == 0)
     {
         gdbctx->no_ack_mode = TRUE;
+        return packet_ok;
+    }
+
+    if (strncmp(gdbctx->in_packet, "ThreadEvents:", 13) == 0)
+    {
+        if (sscanf(gdbctx->in_packet, "ThreadEvents:%d", &gdbctx->thread_events) != 1)
+            return packet_error;
         return packet_ok;
     }
 
