@@ -1298,6 +1298,42 @@ static enum packet_return packet_write_registers(struct gdb_context* gdbctx)
     return packet_ok;
 }
 
+static enum packet_return packet_json_query(struct gdb_context* gdbctx)
+{
+    struct dbg_process *proc = gdbctx->process;
+    struct dbg_thread *thrd;
+    dbg_ctx_t ctx;
+    char buffer[256];
+    int i;
+
+    if (strncmp(gdbctx->in_packet, "ThreadsInfo", 11) == 0)
+    {
+        packet_reply_add(gdbctx, "[");
+        LIST_FOR_EACH_ENTRY(thrd, &proc->threads, struct dbg_thread, entry)
+        {
+            if (!proc || !proc->be_cpu->get_context(thrd->handle, &ctx))
+                continue;
+
+            snprintf(buffer, 256, "{\"tid\":%d,\"reason\":\"exception\",\"registers\":{", thrd->tid);
+            packet_reply_add(gdbctx, buffer);
+            for (i = 0; i < proc->be_cpu->gdb_num_regs; i++)
+            {
+                snprintf(buffer, 256, "\"%d\":\"", i);
+                packet_reply_add(gdbctx, buffer);
+                packet_reply_register_hex_to(gdbctx, &ctx, i);
+                packet_reply_add(gdbctx, "\",");
+            }
+            gdbctx->out_len -= 1;
+            packet_reply_add(gdbctx, "}},");
+        }
+        gdbctx->out_len -= 1;
+        packet_reply_add(gdbctx, "]");
+        return packet_done;
+    }
+
+    return packet_error;
+}
+
 static enum packet_return packet_kill(struct gdb_context* gdbctx)
 {
     detach_debuggee(gdbctx, TRUE);
@@ -2239,6 +2275,7 @@ static struct packet_entry packet_entries[] =
         {'D', packet_detach},
         {'g', packet_read_registers},
         {'G', packet_write_registers},
+        {'j', packet_json_query},
         {'k', packet_kill},
         {'H', packet_thread},
         {'m', packet_read_memory},
