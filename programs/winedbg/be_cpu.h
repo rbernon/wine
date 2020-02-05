@@ -27,6 +27,7 @@ struct gdb_register
     const char *feature;
     const char *name;
     const char *type;
+    const char *generic;
     size_t      offset;
     size_t      length;
 };

@@ -1809,6 +1809,13 @@ static void packet_query_target_xml(struct gdb_context* gdbctx, struct backend_c
             packet_reply_add(gdbctx, "\"");
         }
 
+        if (cpu->gdb_register_map[i].generic)
+        {
+            packet_reply_add(gdbctx, " generic=\"");
+            packet_reply_add(gdbctx, cpu->gdb_register_map[i].generic);
+            packet_reply_add(gdbctx, "\"");
+        }
+
         packet_reply_add(gdbctx, "/>");
     }
 
