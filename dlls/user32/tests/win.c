@@ -4175,7 +4175,9 @@ static BOOL wait_for_message( MSG *msg )
         ret = peek_message(msg);
         if (ret)
         {
-            if (msg->message == WM_PAINT) DispatchMessageA(msg);
+            if (msg->message == WM_PAINT ||
+                msg->message == WM_IME_NOTIFY)
+                DispatchMessageA(msg);
             else break;
         }
         else if (MsgWaitForMultipleObjects( 0, NULL, FALSE, 100, QS_ALLINPUT ) == WAIT_TIMEOUT) break;
