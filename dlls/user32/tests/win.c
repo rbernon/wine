@@ -9568,7 +9568,7 @@ static LRESULT WINAPI static_hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
 
 static void window_from_point_proc(HWND parent)
 {
-    HANDLE start_event, end_event;
+    HANDLE start_event, end_event, done_event;
     HANDLE win, child_static, child_button;
     BOOL got_click;
     DWORD ret;
@@ -9579,6 +9579,8 @@ static void window_from_point_proc(HWND parent)
     ok(start_event != 0, "OpenEvent failed\n");
     end_event = OpenEventA(EVENT_ALL_ACCESS, FALSE, "test_wfp_end");
     ok(end_event != 0, "OpenEvent failed\n");
+    done_event = OpenEventA(EVENT_ALL_ACCESS, FALSE, "test_wfp_done");
+    ok(done_event != 0, "OpenEvent failed\n");
 
     child_static = CreateWindowExA(0, "static", "static", WS_CHILD | WS_VISIBLE,
             0, 0, 100, 100, parent, 0, NULL, NULL);
@@ -9619,6 +9621,8 @@ static void window_from_point_proc(HWND parent)
     ret = WaitForSingleObject(end_event, 5000);
     ok(ret == WAIT_OBJECT_0, "WaitForSingleObject returned %x\n", ret);
 
+    SetEvent(done_event);
+    CloseHandle(done_event);
     CloseHandle(start_event);
     CloseHandle(end_event);
 }
@@ -9630,7 +9634,7 @@ static void test_window_from_point(const char *argv0)
     PROCESS_INFORMATION info;
     STARTUPINFOA startup;
     char cmd[MAX_PATH];
-    HANDLE start_event, end_event;
+    HANDLE start_event, end_event, done_event;
 
     hwnd = CreateWindowExA(0, "MainWindowClass", NULL, WS_POPUP | WS_VISIBLE,
             100, 100, 200, 100, 0, 0, NULL, NULL);
@@ -9665,7 +9669,9 @@ static void test_window_from_point(const char *argv0)
     start_event = CreateEventA(NULL, FALSE, FALSE, "test_wfp_start");
     ok(start_event != 0, "CreateEvent failed\n");
     end_event = CreateEventA(NULL, FALSE, FALSE, "test_wfp_end");
-    ok(start_event != 0, "CreateEvent failed\n");
+    ok(end_event != 0, "CreateEvent failed\n");
+    done_event = CreateEventA(NULL, FALSE, FALSE, "test_wfp_done");
+    ok(done_event != 0, "CreateEvent failed\n");
 
     sprintf(cmd, "%s win create_children %p\n", argv0, hwnd);
     memset(&startup, 0, sizeof(startup));
@@ -9687,13 +9693,14 @@ static void test_window_from_point(const char *argv0)
     ok(win == child, "WindowFromPoint returned %p, expected %p\n", win, child);
 
     SetEvent(end_event);
+    ok(wait_for_event(done_event, 1000), "timedout waiting for child to complete\n");
+    DestroyWindow(hwnd);
     wait_child_process(info.hProcess);
+    CloseHandle(done_event);
     CloseHandle(start_event);
     CloseHandle(end_event);
     CloseHandle(info.hProcess);
     CloseHandle(info.hThread);
-
-    DestroyWindow(hwnd);
 }
 
 static void test_map_points(void)
