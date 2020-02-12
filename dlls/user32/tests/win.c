@@ -4121,8 +4121,18 @@ static void test_keyboard_input(HWND hwnd)
         skip( "keybd_event didn't work, skipping keyboard test\n" );
         return;
     }
+
+    if (broken(msg.message == WM_USER+0x338) && /* w1064v1809_he/w1064v1809_ja have an unknown message here */
+        !peek_message(&msg))
+    {
+        skip( "keybd_event didn't work, skipping keyboard test\n" );
+        return;
+    }
+
     ok(msg.hwnd == hwnd && msg.message == WM_KEYDOWN, "hwnd %p message %04x\n", msg.hwnd, msg.message);
     ret = peek_message(&msg);
+    if (broken(msg.message == WM_USER+0x338)) /* w1064v1809_ja have an unknown message here */
+        ret = peek_message(&msg);
     ok( !ret, "message %04x available\n", msg.message);
 
     SetFocus(0);
