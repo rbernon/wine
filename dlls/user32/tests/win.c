@@ -3947,7 +3947,8 @@ static BOOL wait_for_message( MSG *msg )
         if (ret)
         {
             if (msg->message == WM_PAINT ||
-                msg->message == WM_IME_NOTIFY)
+                msg->message == WM_IME_NOTIFY ||
+                msg->message == WM_APP-1)
                 DispatchMessageA(msg);
             else break;
         }
