@@ -4283,6 +4283,12 @@ static void test_mouse_input(HWND hwnd)
         ok(ret, "no message available\n");
     }
 
+    if (broken(msg.message == WM_USER+0x337)) /* w1064v1809_2scr has an unknown message here */
+    {
+        ret = wait_for_message( &msg );
+        ok(ret, "no message available\n");
+    }
+
     ok(msg.hwnd == popup && msg.message == WM_LBUTTONDOWN, "hwnd %p/%p message %04x\n",
        msg.hwnd, popup, msg.message);
 
