@@ -202,7 +202,11 @@ HRESULT CDECL wined3d_swapchain_present(struct wined3d_swapchain *swapchain,
 
     if (!dst_rect)
     {
-        GetClientRect(swapchain->win_handle, &d);
+        if (swapchain->state.desc.windowed)
+            GetClientRect(swapchain->win_handle, &d);
+        else
+            SetRect(&d, 0, 0, swapchain->state.desc.backbuffer_width,
+                    swapchain->state.desc.backbuffer_height);
         dst_rect = &d;
     }
 
@@ -898,9 +902,9 @@ static HRESULT wined3d_swapchain_init(struct wined3d_swapchain *swapchain, struc
     swapchain->swap_interval = WINED3D_SWAP_INTERVAL_DEFAULT;
     swapchain_set_max_frame_latency(swapchain, device);
 
-    GetClientRect(window, &client_rect);
     if (desc->windowed)
     {
+        GetClientRect(window, &client_rect);
         TRACE("Client rect %s.\n", wine_dbgstr_rect(&client_rect));
 
         if (!desc->backbuffer_width)

@@ -89,7 +89,10 @@ void wined3d_texture_translate_drawable_coords(const struct wined3d_texture *tex
         OffsetRect(rect, offset.x, offset.y);
     }
 
-    GetClientRect(window, &windowsize);
+    if (texture->swapchain->state.desc.windowed)
+        GetClientRect(window, &windowsize);
+    else
+        GetWindowRect(window, &windowsize);
     drawable_height = windowsize.bottom - windowsize.top;
 
     rect->top = drawable_height - rect->top;

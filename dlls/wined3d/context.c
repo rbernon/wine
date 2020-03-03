@@ -2701,7 +2701,10 @@ static void wined3d_context_gl_get_rt_size(const struct wined3d_context_gl *cont
     {
         RECT window_size;
 
-        GetClientRect(context_gl->window, &window_size);
+        if (rt->swapchain->state.desc.windowed)
+            GetClientRect(context_gl->window, &window_size);
+        else
+            GetWindowRect(context_gl->window, &window_size);
         size->cx = window_size.right - window_size.left;
         size->cy = window_size.bottom - window_size.top;
 
