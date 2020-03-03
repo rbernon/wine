@@ -658,8 +658,8 @@ static BOOL swapchain_gl_set_fullscreen_exclusive(struct wined3d_swapchain *swap
 {
     const struct wined3d_output *output;
     const struct wined3d_gl_info *gl_info;
-    DWORD window_pos_flags = SWP_FRAMECHANGED | SWP_NOACTIVATE;
-    HWND window_pos_after = 0;
+    DWORD window_pos_flags;
+    HWND window_pos_after;
     BOOL filter;
     RECT rect = {0};
 
@@ -690,15 +690,20 @@ static BOOL swapchain_gl_set_fullscreen_exclusive(struct wined3d_swapchain *swap
         return FALSE;
     }
 
-    if (fullscreen_exclusive)
+    if ((swapchain->state.desc.flags & WINED3D_SWAPCHAIN_NO_WINDOW_CHANGES))
+    {
+        window_pos_flags = SWP_FRAMECHANGED | SWP_NOACTIVATE;
+        window_pos_after = 0;
+    }
+    else if (fullscreen_exclusive)
     {
         window_pos_after = HWND_TOPMOST;
-        window_pos_flags |= SWP_SHOWWINDOW;
+        window_pos_flags = SWP_FRAMECHANGED | SWP_NOACTIVATE | SWP_SHOWWINDOW;
     }
     else
     {
         window_pos_after = 0;
-        window_pos_flags |= SWP_NOZORDER;
+        window_pos_flags = SWP_FRAMECHANGED | SWP_NOACTIVATE | SWP_NOZORDER;
     }
 
     if (window_rect)
@@ -974,6 +979,9 @@ static HRESULT wined3d_swapchain_init(struct wined3d_swapchain *swapchain, struc
     swapchain->swap_interval = WINED3D_SWAP_INTERVAL_DEFAULT;
     swapchain_set_max_frame_latency(swapchain, device);
 
+    if ((device->create_parms.flags & WINED3DCREATE_NOWINDOWCHANGES))
+        desc->flags |= WINED3D_SWAPCHAIN_NO_WINDOW_CHANGES;
+
     if (desc->windowed)
     {
         GetClientRect(window, &client_rect);
@@ -995,13 +1003,15 @@ static HRESULT wined3d_swapchain_init(struct wined3d_swapchain *swapchain, struc
             desc->backbuffer_format = swapchain->state.original_mode.format_id;
             TRACE("Updating format to %s.\n", debug_d3dformat(swapchain->state.original_mode.format_id));
         }
+
+        swapchain->state.desc = *desc;
     }
     else
     {
+        swapchain->state.desc = *desc;
         wined3d_swapchain_state_setup_fullscreen(&swapchain->state,
                 window, desc->backbuffer_width, desc->backbuffer_height, swapchain);
     }
-    swapchain->state.desc = *desc;
     wined3d_swapchain_apply_sample_count_override(swapchain, swapchain->state.desc.backbuffer_format,
             &swapchain->state.desc.multisample_type, &swapchain->state.desc.multisample_quality);
     swapchain_update_render_to_fbo(swapchain);
@@ -1646,7 +1656,10 @@ HRESULT wined3d_swapchain_state_setup_fullscreen(struct wined3d_swapchain_state 
 
     SetWindowLongW(window, GWL_STYLE, style);
     SetWindowLongW(window, GWL_EXSTYLE, exstyle);
-    SetWindowPos(window, HWND_TOPMOST, 0, 0, w, h, SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+    if (!(state->desc.flags & WINED3D_SWAPCHAIN_NO_WINDOW_CHANGES))
+        SetWindowPos(window, HWND_TOPMOST, 0, 0, w, h, SWP_FRAMECHANGED | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    else
+        SetWindowPos(window, NULL, 0, 0, w, h, SWP_FRAMECHANGED | SWP_NOACTIVATE);
 
     wined3d_filter_messages(window, filter);
 
@@ -1698,6 +1711,10 @@ void wined3d_swapchain_state_restore_from_fullscreen(struct wined3d_swapchain_st
         rect = *window_rect;
     else
         window_pos_flags |= (SWP_NOMOVE | SWP_NOSIZE);
+
+    if (!(state->desc.flags & WINED3D_SWAPCHAIN_NO_WINDOW_CHANGES))
+        window_pos_flags |= SWP_SHOWWINDOW;
+
     SetWindowPos(window, 0, rect.left, rect.top,
             rect.right - rect.left, rect.bottom - rect.top, window_pos_flags);
 

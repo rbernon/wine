@@ -4859,14 +4859,12 @@ static void test_window_style(void)
 
         style = GetWindowLongA(device_window, GWL_STYLE);
         expected_style = device_style | tests[i].style;
-        todo_wine_if (tests[i].device_flags & CREATE_DEVICE_NOWINDOWCHANGES)
-            ok(style == expected_style || broken(style == (expected_style & ~WS_OVERLAPPEDWINDOW)) /* w1064v1809 */,
+        ok(style == expected_style || broken(style == (expected_style & ~WS_OVERLAPPEDWINDOW)) /* w1064v1809 */,
                 "Expected device window style %#x, got %#x, i=%u.\n",
                 expected_style, style, i);
         style = GetWindowLongA(device_window, GWL_EXSTYLE);
         expected_style = device_exstyle | tests[i].exstyle;
-        todo_wine_if (tests[i].device_flags & CREATE_DEVICE_NOWINDOWCHANGES)
-            ok(style == expected_style || broken(style == (expected_style & ~WS_EX_OVERLAPPEDWINDOW)) /* w1064v1809 */,
+        ok(style == expected_style || broken(style == (expected_style & ~WS_EX_OVERLAPPEDWINDOW)) /* w1064v1809 */,
                 "Expected device window extended style %#x, got %#x, i=%u.\n",
                 expected_style, style, i);
 
@@ -4897,14 +4895,12 @@ static void test_window_style(void)
 
         style = GetWindowLongA(device_window, GWL_STYLE);
         expected_style = device_style | tests[i].style;
-        todo_wine_if (tests[i].device_flags & CREATE_DEVICE_NOWINDOWCHANGES)
-            ok(style == expected_style, "Expected device window style %#x, got %#x, i=%u.\n",
-                    expected_style, style, i);
+        ok(style == expected_style, "Expected device window style %#x, got %#x, i=%u.\n",
+                expected_style, style, i);
         style = GetWindowLongA(device_window, GWL_EXSTYLE);
         expected_style = device_exstyle | tests[i].exstyle;
-        todo_wine_if (tests[i].device_flags & CREATE_DEVICE_NOWINDOWCHANGES)
-            ok(style == expected_style, "Expected device window extended style %#x, got %#x, i=%u.\n",
-                    expected_style, style, i);
+        ok(style == expected_style, "Expected device window extended style %#x, got %#x, i=%u.\n",
+                expected_style, style, i);
 
         style = GetWindowLongA(focus_window, GWL_STYLE);
         ok(style == focus_style, "Expected focus window style %#x, got %#x, i=%u.\n",
@@ -4922,13 +4918,13 @@ static void test_window_style(void)
         style = GetWindowLongA(device_window, GWL_STYLE);
         expected_style = device_style | tests[i].focus_loss_style | tests[i].style;
         todo_wine_if (tests[i].device_flags & CREATE_DEVICE_NOWINDOWCHANGES)
-        ok(style == expected_style, "Expected device window style %#x, got %#x, i=%u.\n",
-                expected_style, style, i);
+            ok(style == expected_style, "Expected device window style %#x, got %#x, i=%u.\n",
+                    expected_style, style, i);
         style = GetWindowLongA(device_window, GWL_EXSTYLE);
         expected_style = device_exstyle | tests[i].exstyle;
         todo_wine_if (tests[i].device_flags & CREATE_DEVICE_NOWINDOWCHANGES)
-        ok(style == expected_style, "Expected device window extended style %#x, got %#x, i=%u.\n",
-                expected_style, style, i);
+            ok(style == expected_style, "Expected device window extended style %#x, got %#x, i=%u.\n",
+                    expected_style, style, i);
 
         style = GetWindowLongA(focus_window, GWL_STYLE);
         ok(style == focus_style, "Expected focus window style %#x, got %#x, i=%u.\n",
