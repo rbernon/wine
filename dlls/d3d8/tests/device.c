@@ -9844,6 +9844,7 @@ START_TEST(device)
     }
     IDirect3D8_Release(d3d8);
 
+#if 0
     test_fpu_setup();
     test_display_formats();
     test_display_modes();
@@ -9867,8 +9868,10 @@ START_TEST(device)
     test_depth_stencil_reset();
     test_wndproc();
     test_wndproc_windowed();
-    test_depth_stencil_size();
+#endif
     test_window_style();
+#if 0
+    test_depth_stencil_size();
     test_unsupported_shaders();
     test_mode_change();
     test_device_window_reset();
@@ -9922,6 +9925,7 @@ START_TEST(device)
     test_draw_primitive();
     test_get_display_mode();
     test_multi_adapter();
+#endif
 
     UnregisterClassA("d3d8_test_wc", GetModuleHandleA(NULL));
 }

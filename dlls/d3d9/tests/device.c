@@ -13541,6 +13541,7 @@ START_TEST(device)
 
     Direct3DShaderValidatorCreate9 = (void *)GetProcAddress(d3d9_handle, "Direct3DShaderValidatorCreate9");
 
+#if 0
     test_get_set_vertex_declaration();
     test_get_declaration();
     test_fvf_decl_conversion();
@@ -13571,7 +13572,9 @@ START_TEST(device)
     test_scissor_size();
     test_wndproc();
     test_wndproc_windowed();
+#endif
     test_window_style();
+#if 0
     test_mode_change();
     test_device_window_reset();
     test_reset_resources();
@@ -13641,6 +13644,7 @@ START_TEST(device)
     test_get_display_mode();
     test_multi_adapter();
     test_shader_validator();
+#endif
 
     UnregisterClassA("d3d9_test_wc", GetModuleHandleA(NULL));
 }

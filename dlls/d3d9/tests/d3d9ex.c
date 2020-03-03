@@ -4942,6 +4942,7 @@ START_TEST(d3d9ex)
     wc.lpszClassName = "d3d9_test_wc";
     RegisterClassA(&wc);
 
+#if 0
     test_qi_base_to_ex();
     test_qi_ex_to_base();
     test_swapchain_get_displaymode_ex();
@@ -4958,7 +4959,9 @@ START_TEST(d3d9ex)
     test_unsupported_shaders();
     test_wndproc();
     test_wndproc_windowed();
+#endif
     test_window_style();
+#if 0
     test_swapchain_parameters();
     test_backbuffer_resize();
     test_format_unknown();
@@ -4967,6 +4970,7 @@ START_TEST(d3d9ex)
     test_resource_access();
     test_sysmem_draw();
     test_pinned_buffers();
+#endif
 
     UnregisterClassA("d3d9_test_wc", GetModuleHandleA(NULL));
 }
