@@ -144,6 +144,7 @@ struct macdrv_win_data
     unsigned int        per_pixel_alpha : 1;    /* is window using per-pixel alpha? */
     unsigned int        minimized : 1;          /* is window minimized? */
     unsigned int        swap_interval : 1;      /* GL swap interval for window */
+    unsigned int        fullscreen_exclusive : 1; /* is window fullscreen exclusive? */
     struct window_surface *surface;
     struct window_surface *unminimized_surface;
 };

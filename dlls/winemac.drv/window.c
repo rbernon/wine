@@ -37,7 +37,6 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(macdrv);
 
-
 static CRITICAL_SECTION win_data_section;
 static CRITICAL_SECTION_DEBUG critsect_debug =
 {
@@ -63,6 +62,7 @@ static void get_cocoa_window_features(struct macdrv_win_data *data,
 
     if (disable_window_decorations) return;
     if (IsRectEmpty(&data->window_rect)) return;
+    if (data->fullscreen_exclusive) return;
 
     if ((style & WS_CAPTION) == WS_CAPTION && !(ex_style & WS_EX_LAYERED))
     {
@@ -541,7 +541,10 @@ static void sync_window_min_max_info(HWND hwnd)
     primary_monitor_rect.left = primary_monitor_rect.top = 0;
     primary_monitor_rect.right = GetSystemMetrics(SM_CXSCREEN);
     primary_monitor_rect.bottom = GetSystemMetrics(SM_CYSCREEN);
-    AdjustWindowRectEx(&primary_monitor_rect, adjustedStyle, ((style & WS_POPUP) && GetMenu(hwnd)), exstyle);
+
+    if (!(data = get_win_data(hwnd)) || !data->fullscreen_exclusive)
+        AdjustWindowRectEx(&primary_monitor_rect, adjustedStyle, ((style & WS_POPUP) && GetMenu(hwnd)), exstyle);
+    release_win_data(data);
 
     xinc = -primary_monitor_rect.left;
     yinc = -primary_monitor_rect.top;
