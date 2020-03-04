@@ -13488,6 +13488,7 @@ static const struct message WmMinimize_3[] = {
     { HCBT_ACTIVATE, hook|optional },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED, 0, SWP_NOACTIVATE },
+    { WM_WINDOWPOSCHANGED, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|wparam|lparam|defwinproc, SIZE_MINIMIZED, 0 },
     { 0 }
