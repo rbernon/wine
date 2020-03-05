@@ -391,6 +391,7 @@ my %supported_wgl_extensions =
     "WGL_NV_render_depth_texture" => 1,
     "WGL_NV_render_texture_rectangle" => 1,
     "WGL_NV_vertex_array_range" => 1,
+    "WGL_WINE_fullscreen_exclusive" => 1,
     "WGL_WINE_pixel_format_passthrough" => 1,
     "WGL_WINE_query_renderer" => 1,
    );
