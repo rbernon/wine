@@ -81,6 +81,7 @@ static VkResult (*pvkCreateXlibSurfaceKHR)(VkInstance, const VkXlibSurfaceCreate
 static void (*pvkDestroyInstance)(VkInstance, const VkAllocationCallbacks *);
 static void (*pvkDestroySurfaceKHR)(VkInstance, VkSurfaceKHR, const VkAllocationCallbacks *);
 static void (*pvkDestroySwapchainKHR)(VkDevice, VkSwapchainKHR, const VkAllocationCallbacks *);
+static VkResult (*pvkEnumerateDeviceExtensionProperties)(VkPhysicalDevice, const char *, uint32_t *, VkExtensionProperties *);
 static VkResult (*pvkEnumerateInstanceExtensionProperties)(const char *, uint32_t *, VkExtensionProperties *);
 static VkResult (*pvkGetDeviceGroupSurfacePresentModesKHR)(VkDevice, VkSurfaceKHR, VkDeviceGroupPresentModeFlagsKHR *);
 static void * (*pvkGetDeviceProcAddr)(VkDevice, const char *);
@@ -120,6 +121,7 @@ static BOOL WINAPI wine_vk_init(INIT_ONCE *once, void *param, void **context)
     LOAD_FUNCPTR(vkDestroyInstance)
     LOAD_FUNCPTR(vkDestroySurfaceKHR)
     LOAD_FUNCPTR(vkDestroySwapchainKHR)
+    LOAD_FUNCPTR(vkEnumerateDeviceExtensionProperties)
     LOAD_FUNCPTR(vkEnumerateInstanceExtensionProperties)
     LOAD_FUNCPTR(vkGetDeviceProcAddr)
     LOAD_FUNCPTR(vkGetInstanceProcAddr)
@@ -250,6 +252,11 @@ static VkResult X11DRV_vkAcquireFullScreenExclusiveModeEXT(VkDevice device, VkSw
     release_win_data(data);
     return VK_SUCCESS;
 }
+
+static VkExtensionProperties builtin_device_extensions[] =
+{
+    { VK_EXT_FULL_SCREEN_EXCLUSIVE_EXTENSION_NAME, VK_EXT_FULL_SCREEN_EXCLUSIVE_SPEC_VERSION },
+};
 
 static VkResult X11DRV_vkCreateInstance(const VkInstanceCreateInfo *create_info,
         const VkAllocationCallbacks *allocator, VkInstance *instance)
@@ -420,6 +427,41 @@ static void X11DRV_vkDestroySwapchainKHR(VkDevice device, VkSwapchainKHR swapcha
     LeaveCriticalSection(&context_section);
 
     pvkDestroySwapchainKHR(device, swapchain, NULL /* allocator */);
+}
+
+static VkResult X11DRV_vkEnumerateDeviceExtensionProperties(VkPhysicalDevice phys_dev, const char *layer_name,
+        uint32_t *count, VkExtensionProperties* properties)
+{
+    unsigned int i;
+    VkResult res;
+
+    TRACE("phys_dev %p layer_name %s, count %p, properties %p\n", phys_dev, debugstr_a(layer_name), count, properties);
+
+    /* This shouldn't get called with layer_name set, the ICD loader prevents it. */
+    if (layer_name)
+    {
+        ERR("Layer enumeration not supported from ICD.\n");
+        return VK_ERROR_LAYER_NOT_PRESENT;
+    }
+
+    /* We will return the same number of instance extensions reported by the host back to
+     * winevulkan. Along the way we may replace xlib extensions with their win32 equivalents.
+     * Winevulkan will perform more detailed filtering as it knows whether it has thunks
+     * for a particular extension.
+     */
+    res = pvkEnumerateDeviceExtensionProperties(phys_dev, layer_name, count, properties);
+    if (!properties || res < 0)
+    {
+        if (count) *count += ARRAY_SIZE(wine_device_extensions);
+        return res;
+    }
+
+    for (i = 0; i < ARRAY_SIZE(wine_device_extensions); i++)
+        properties[*count + i] = wine_device_extensions[i];
+    *count += ARRAY_SIZE(wine_device_extensions);
+
+    TRACE("Returning %u extensions.\n", *count);
+    return res;
 }
 
 static VkResult X11DRV_vkEnumerateInstanceExtensionProperties(const char *layer_name,
@@ -711,6 +753,7 @@ static const struct vulkan_funcs vulkan_funcs =
     X11DRV_vkDestroyInstance,
     X11DRV_vkDestroySurfaceKHR,
     X11DRV_vkDestroySwapchainKHR,
+    X11DRV_vkEnumerateDeviceExtensionProperties,
     X11DRV_vkEnumerateInstanceExtensionProperties,
     NULL,
     X11DRV_vkGetDeviceGroupSurfacePresentModesKHR,

@@ -54,6 +54,7 @@ struct vulkan_funcs
     void (*p_vkDestroyInstance)(VkInstance, const VkAllocationCallbacks *);
     void (*p_vkDestroySurfaceKHR)(VkInstance, VkSurfaceKHR, const VkAllocationCallbacks *);
     void (*p_vkDestroySwapchainKHR)(VkDevice, VkSwapchainKHR, const VkAllocationCallbacks *);
+    VkResult (*p_vkEnumerateDeviceExtensionProperties)(VkPhysicalDevice, const char *, uint32_t *, VkExtensionProperties *);
     VkResult (*p_vkEnumerateInstanceExtensionProperties)(const char *, uint32_t *, VkExtensionProperties *);
     VkResult (*p_vkGetDeviceGroupSurfacePresentModes2EXT)(VkDevice, const VkPhysicalDeviceSurfaceInfo2KHR *, VkDeviceGroupPresentModeFlagsKHR *);
     VkResult (*p_vkGetDeviceGroupSurfacePresentModesKHR)(VkDevice, VkSurfaceKHR, VkDeviceGroupPresentModeFlagsKHR *);
@@ -124,6 +125,8 @@ static inline void *get_vulkan_driver_instance_proc_addr(
         return vulkan_funcs->p_vkDestroyInstance;
     if (!strcmp(name, "DestroySurfaceKHR"))
         return vulkan_funcs->p_vkDestroySurfaceKHR;
+    if (!strcmp(name, "EnumerateDeviceExtensionProperties"))
+        return vulkan_funcs->p_vkEnumerateDeviceExtensionProperties;
     if (!strcmp(name, "GetInstanceProcAddr"))
         return vulkan_funcs->p_vkGetInstanceProcAddr;
     if (!strcmp(name, "GetPhysicalDevicePresentRectanglesKHR"))
