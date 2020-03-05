@@ -222,18 +222,18 @@ static struct x11drv_win_data *alloc_win_data( Display *display, HWND hwnd )
  *
  * Check if a given window should be managed
  */
-static BOOL is_window_managed( HWND hwnd, UINT swp_flags, const RECT *window_rect )
+static BOOL is_window_managed( struct x11drv_win_data *data, UINT swp_flags, const RECT *window_rect )
 {
     DWORD style, ex_style;
 
     if (!managed_mode) return FALSE;
 
     /* child windows are not managed */
-    style = GetWindowLongW( hwnd, GWL_STYLE );
+    style = GetWindowLongW( data->hwnd, GWL_STYLE );
     if ((style & (WS_CHILD|WS_POPUP)) == WS_CHILD) return FALSE;
     /* activated windows are managed */
     if (!(swp_flags & (SWP_NOACTIVATE|SWP_HIDEWINDOW))) return TRUE;
-    if (hwnd == GetActiveWindow()) return TRUE;
+    if (data->hwnd == GetActiveWindow()) return TRUE;
     /* windows with caption are managed */
     if ((style & WS_CAPTION) == WS_CAPTION) return TRUE;
     /* windows with thick frame are managed */
@@ -246,7 +246,7 @@ static BOOL is_window_managed( HWND hwnd, UINT swp_flags, const RECT *window_rec
         /* popup with sysmenu == caption are managed */
         if (style & WS_SYSMENU) return TRUE;
         /* full-screen popup windows are managed */
-        hmon = MonitorFromWindow( hwnd, MONITOR_DEFAULTTOPRIMARY );
+        hmon = MonitorFromWindow( data->hwnd, MONITOR_DEFAULTTOPRIMARY );
         mi.cbSize = sizeof( mi );
         GetMonitorInfoW( hmon, &mi );
         if (window_rect->left <= mi.rcWork.left && window_rect->right >= mi.rcWork.right &&
@@ -254,10 +254,10 @@ static BOOL is_window_managed( HWND hwnd, UINT swp_flags, const RECT *window_rec
             return TRUE;
     }
     /* application windows are managed */
-    ex_style = GetWindowLongW( hwnd, GWL_EXSTYLE );
+    ex_style = GetWindowLongW( data->hwnd, GWL_EXSTYLE );
     if (ex_style & WS_EX_APPWINDOW) return TRUE;
     /* windows that own popups are managed */
-    if (has_owned_popups( hwnd )) return TRUE;
+    if (has_owned_popups( data->hwnd )) return TRUE;
     /* default: not managed */
     return FALSE;
 }
@@ -1516,7 +1516,7 @@ static void create_whole_window( struct x11drv_win_data *data )
     HRGN win_rgn;
     POINT pos;
 
-    if (!data->managed && is_window_managed( data->hwnd, SWP_NOACTIVATE, &data->window_rect ))
+    if (!data->managed && is_window_managed( data, SWP_NOACTIVATE, &data->window_rect ))
     {
         TRACE( "making win %p/%lx managed\n", data->hwnd, data->whole_window );
         data->managed = TRUE;
@@ -2285,7 +2285,7 @@ void CDECL X11DRV_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
     if (!data && !(data = X11DRV_create_win_data( hwnd, window_rect, client_rect ))) return;
 
     /* check if we need to switch the window to managed */
-    if (!data->managed && data->whole_window && is_window_managed( hwnd, swp_flags, window_rect ))
+    if (!data->managed && data->whole_window && is_window_managed( data, swp_flags, window_rect ))
     {
         TRACE( "making win %p/%lx managed\n", hwnd, data->whole_window );
         release_win_data( data );
