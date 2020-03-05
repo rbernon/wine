@@ -47,6 +47,7 @@ struct vulkan_funcs
      * needs to provide. Other function calls will be provided indirectly by dispatch
      * tables part of dispatchable Vulkan objects such as VkInstance or vkDevice.
      */
+    VkResult (*p_vkAcquireFullScreenExclusiveModeEXT)(VkDevice, VkSwapchainKHR);
     VkResult (*p_vkCreateInstance)(const VkInstanceCreateInfo *, const VkAllocationCallbacks *, VkInstance *);
     VkResult (*p_vkCreateSwapchainKHR)(VkDevice, const VkSwapchainCreateInfoKHR *, const VkAllocationCallbacks *, VkSwapchainKHR *);
     VkResult (*p_vkCreateWin32SurfaceKHR)(VkInstance, const VkWin32SurfaceCreateInfoKHR *, const VkAllocationCallbacks *, VkSurfaceKHR *);
@@ -54,6 +55,7 @@ struct vulkan_funcs
     void (*p_vkDestroySurfaceKHR)(VkInstance, VkSurfaceKHR, const VkAllocationCallbacks *);
     void (*p_vkDestroySwapchainKHR)(VkDevice, VkSwapchainKHR, const VkAllocationCallbacks *);
     VkResult (*p_vkEnumerateInstanceExtensionProperties)(const char *, uint32_t *, VkExtensionProperties *);
+    VkResult (*p_vkGetDeviceGroupSurfacePresentModes2EXT)(VkDevice, const VkPhysicalDeviceSurfaceInfo2KHR *, VkDeviceGroupPresentModeFlagsKHR *);
     VkResult (*p_vkGetDeviceGroupSurfacePresentModesKHR)(VkDevice, VkSurfaceKHR, VkDeviceGroupPresentModeFlagsKHR *);
     void * (*p_vkGetDeviceProcAddr)(VkDevice, const char *);
     void * (*p_vkGetInstanceProcAddr)(VkInstance, const char *);
@@ -62,11 +64,13 @@ struct vulkan_funcs
     VkResult (*p_vkGetPhysicalDeviceSurfaceCapabilitiesKHR)(VkPhysicalDevice, VkSurfaceKHR, VkSurfaceCapabilitiesKHR *);
     VkResult (*p_vkGetPhysicalDeviceSurfaceFormats2KHR)(VkPhysicalDevice, const VkPhysicalDeviceSurfaceInfo2KHR *, uint32_t *, VkSurfaceFormat2KHR *);
     VkResult (*p_vkGetPhysicalDeviceSurfaceFormatsKHR)(VkPhysicalDevice, VkSurfaceKHR, uint32_t *, VkSurfaceFormatKHR *);
+    VkResult (*p_vkGetPhysicalDeviceSurfacePresentModes2EXT)(VkPhysicalDevice, const VkPhysicalDeviceSurfaceInfo2KHR *, uint32_t *, VkPresentModeKHR *);
     VkResult (*p_vkGetPhysicalDeviceSurfacePresentModesKHR)(VkPhysicalDevice, VkSurfaceKHR, uint32_t *, VkPresentModeKHR *);
     VkResult (*p_vkGetPhysicalDeviceSurfaceSupportKHR)(VkPhysicalDevice, uint32_t, VkSurfaceKHR, VkBool32 *);
     VkBool32 (*p_vkGetPhysicalDeviceWin32PresentationSupportKHR)(VkPhysicalDevice, uint32_t);
     VkResult (*p_vkGetSwapchainImagesKHR)(VkDevice, VkSwapchainKHR, uint32_t *, VkImage *);
     VkResult (*p_vkQueuePresentKHR)(VkQueue, const VkPresentInfoKHR *);
+    VkResult (*p_vkReleaseFullScreenExclusiveModeEXT)(VkDevice, VkSwapchainKHR);
 };
 
 extern const struct vulkan_funcs * CDECL __wine_get_vulkan_driver(HDC hdc, UINT version);
@@ -78,10 +82,14 @@ static inline void *get_vulkan_driver_device_proc_addr(
 
     name += 2;
 
+    if (!strcmp(name, "AcquireFullScreenExclusiveModeEXT"))
+        return vulkan_funcs->p_vkAcquireFullScreenExclusiveModeEXT;
     if (!strcmp(name, "CreateSwapchainKHR"))
         return vulkan_funcs->p_vkCreateSwapchainKHR;
     if (!strcmp(name, "DestroySwapchainKHR"))
         return vulkan_funcs->p_vkDestroySwapchainKHR;
+    if (!strcmp(name, "GetDeviceGroupSurfacePresentModes2EXT"))
+        return vulkan_funcs->p_vkGetDeviceGroupSurfacePresentModes2EXT;
     if (!strcmp(name, "GetDeviceGroupSurfacePresentModesKHR"))
         return vulkan_funcs->p_vkGetDeviceGroupSurfacePresentModesKHR;
     if (!strcmp(name, "GetDeviceProcAddr"))
@@ -90,6 +98,8 @@ static inline void *get_vulkan_driver_device_proc_addr(
         return vulkan_funcs->p_vkGetSwapchainImagesKHR;
     if (!strcmp(name, "QueuePresentKHR"))
         return vulkan_funcs->p_vkQueuePresentKHR;
+    if (!strcmp(name, "ReleaseFullScreenExclusiveModeEXT"))
+        return vulkan_funcs->p_vkReleaseFullScreenExclusiveModeEXT;
 
     return NULL;
 }
@@ -126,6 +136,8 @@ static inline void *get_vulkan_driver_instance_proc_addr(
         return vulkan_funcs->p_vkGetPhysicalDeviceSurfaceFormats2KHR;
     if (!strcmp(name, "GetPhysicalDeviceSurfaceFormatsKHR"))
         return vulkan_funcs->p_vkGetPhysicalDeviceSurfaceFormatsKHR;
+    if (!strcmp(name, "GetPhysicalDeviceSurfacePresentModes2EXT"))
+        return vulkan_funcs->p_vkGetPhysicalDeviceSurfacePresentModes2EXT;
     if (!strcmp(name, "GetPhysicalDeviceSurfacePresentModesKHR"))
         return vulkan_funcs->p_vkGetPhysicalDeviceSurfacePresentModesKHR;
     if (!strcmp(name, "GetPhysicalDeviceSurfaceSupportKHR"))

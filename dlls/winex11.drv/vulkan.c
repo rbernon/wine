@@ -546,6 +546,7 @@ static VkResult X11DRV_vkQueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *
 
 static const struct vulkan_funcs vulkan_funcs =
 {
+    NULL,
     X11DRV_vkCreateInstance,
     X11DRV_vkCreateSwapchainKHR,
     X11DRV_vkCreateWin32SurfaceKHR,
@@ -553,6 +554,7 @@ static const struct vulkan_funcs vulkan_funcs =
     X11DRV_vkDestroySurfaceKHR,
     X11DRV_vkDestroySwapchainKHR,
     X11DRV_vkEnumerateInstanceExtensionProperties,
+    NULL,
     X11DRV_vkGetDeviceGroupSurfacePresentModesKHR,
     X11DRV_vkGetDeviceProcAddr,
     X11DRV_vkGetInstanceProcAddr,
@@ -561,11 +563,13 @@ static const struct vulkan_funcs vulkan_funcs =
     X11DRV_vkGetPhysicalDeviceSurfaceCapabilitiesKHR,
     NULL,
     X11DRV_vkGetPhysicalDeviceSurfaceFormatsKHR,
+    NULL,
     X11DRV_vkGetPhysicalDeviceSurfacePresentModesKHR,
     X11DRV_vkGetPhysicalDeviceSurfaceSupportKHR,
     X11DRV_vkGetPhysicalDeviceWin32PresentationSupportKHR,
     X11DRV_vkGetSwapchainImagesKHR,
     X11DRV_vkQueuePresentKHR,
+    NULL,
 };
 
 static void *X11DRV_get_vk_device_proc_addr(const char *name)

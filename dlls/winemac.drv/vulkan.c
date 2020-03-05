@@ -531,6 +531,7 @@ static VkResult macdrv_vkQueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *
 
 static const struct vulkan_funcs vulkan_funcs =
 {
+    NULL,
     macdrv_vkCreateInstance,
     macdrv_vkCreateSwapchainKHR,
     macdrv_vkCreateWin32SurfaceKHR,
@@ -539,6 +540,7 @@ static const struct vulkan_funcs vulkan_funcs =
     macdrv_vkDestroySwapchainKHR,
     macdrv_vkEnumerateInstanceExtensionProperties,
     NULL,
+    NULL,
     macdrv_vkGetDeviceProcAddr,
     macdrv_vkGetInstanceProcAddr,
     NULL,
@@ -546,11 +548,13 @@ static const struct vulkan_funcs vulkan_funcs =
     macdrv_vkGetPhysicalDeviceSurfaceCapabilitiesKHR,
     NULL,
     macdrv_vkGetPhysicalDeviceSurfaceFormatsKHR,
+    NULL,
     macdrv_vkGetPhysicalDeviceSurfacePresentModesKHR,
     macdrv_vkGetPhysicalDeviceSurfaceSupportKHR,
     macdrv_vkGetPhysicalDeviceWin32PresentationSupportKHR,
     macdrv_vkGetSwapchainImagesKHR,
     macdrv_vkQueuePresentKHR,
+    NULL,
 };
 
 static void *macdrv_get_vk_device_proc_addr(const char *name)
