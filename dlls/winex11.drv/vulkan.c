@@ -55,6 +55,7 @@ static CRITICAL_SECTION_DEBUG critsect_debug =
 static CRITICAL_SECTION context_section = { &critsect_debug, -1, 0, 0, 0, 0 };
 
 static XContext vulkan_hwnd_context;
+static XContext vulkan_swapchain_context;
 
 #define VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR 1000004000
 
@@ -135,6 +136,7 @@ static BOOL WINAPI wine_vk_init(INIT_ONCE *once, void *param, void **context)
 #undef LOAD_OPTIONAL_FUNCPTR
 
     vulkan_hwnd_context = XUniqueContext();
+    vulkan_swapchain_context = XUniqueContext();
 
     return TRUE;
 
@@ -221,6 +223,34 @@ void wine_vk_surface_destroy(HWND hwnd)
     LeaveCriticalSection(&context_section);
 }
 
+static VkResult X11DRV_vkAcquireFullScreenExclusiveModeEXT(VkDevice device, VkSwapchainKHR swapchain)
+{
+    struct x11drv_win_data *data;
+    HWND hwnd;
+
+    ERR("%p, 0x%s\n", device, wine_dbgstr_longlong(swapchain));
+
+    EnterCriticalSection(&context_section);
+    if (XFindContext(gdi_display, (XID)swapchain, vulkan_swapchain_context, (char **)&hwnd))
+    {
+        ERR("Couldn't find hwnd for device %p, swapchain 0x%s\n",
+                device, wine_dbgstr_longlong(swapchain));
+        LeaveCriticalSection(&context_section);
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+    LeaveCriticalSection(&context_section);
+    if (!(data = get_win_data(hwnd)))
+    {
+        ERR("Invalid window %p for device %p, swapchain 0x%s\n",
+                hwnd, device, wine_dbgstr_longlong(swapchain));
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+
+    data->fullscreen_exclusive = 1;
+    release_win_data(data);
+    return VK_SUCCESS;
+}
+
 static VkResult X11DRV_vkCreateInstance(const VkInstanceCreateInfo *create_info,
         const VkAllocationCallbacks *allocator, VkInstance *instance)
 {
@@ -252,16 +282,33 @@ static VkResult X11DRV_vkCreateSwapchainKHR(VkDevice device,
         const VkSwapchainCreateInfoKHR *create_info,
         const VkAllocationCallbacks *allocator, VkSwapchainKHR *swapchain)
 {
+    struct wine_vk_surface *x11_surface;
     VkSwapchainCreateInfoKHR create_info_host;
+    VkResult res;
+    HWND hwnd;
+
     TRACE("%p %p %p %p\n", device, create_info, allocator, swapchain);
 
     if (allocator)
         FIXME("Support for allocation callbacks not implemented yet\n");
 
+    x11_surface = surface_from_handle(create_info->surface);
     create_info_host = *create_info;
-    create_info_host.surface = surface_from_handle(create_info->surface)->surface;
+    create_info_host.surface = x11_surface->surface;
+    create_info_host.pNext = NULL;
 
-    return pvkCreateSwapchainKHR(device, &create_info_host, NULL /* allocator */, swapchain);
+    res = pvkCreateSwapchainKHR(device, &create_info_host, NULL /* allocator */, swapchain);
+    if (res != VK_SUCCESS)
+        return res;
+
+    EnterCriticalSection(&context_section);
+    if (!XFindContext(gdi_display, (XID)x11_surface->window, winContext, (char **)&hwnd))
+    {
+        XSaveContext(gdi_display, (XID)*swapchain, vulkan_swapchain_context, (char *)hwnd);
+        ERR("Saving hwnd %p for device %p, swapchain 0x%s\n", hwnd, device, wine_dbgstr_longlong(*swapchain));
+    }
+    LeaveCriticalSection(&context_section);
+    return VK_SUCCESS;
 }
 
 static VkResult X11DRV_vkCreateWin32SurfaceKHR(VkInstance instance,
@@ -367,6 +414,10 @@ static void X11DRV_vkDestroySwapchainKHR(VkDevice device, VkSwapchainKHR swapcha
 
     if (allocator)
         FIXME("Support for allocation callbacks not implemented yet\n");
+
+    EnterCriticalSection(&context_section);
+    XDeleteContext(gdi_display, (XID)swapchain, vulkan_swapchain_context);
+    LeaveCriticalSection(&context_section);
 
     pvkDestroySwapchainKHR(device, swapchain, NULL /* allocator */);
 }
@@ -589,9 +640,37 @@ static VkResult X11DRV_vkQueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *
     return res;
 }
 
+static VkResult X11DRV_vkReleaseFullScreenExclusiveModeEXT(VkDevice device, VkSwapchainKHR swapchain)
+{
+    struct x11drv_win_data *data;
+    HWND hwnd;
+
+    ERR("%p, 0x%s\n", device, wine_dbgstr_longlong(swapchain));
+
+    EnterCriticalSection(&context_section);
+    if (XFindContext(gdi_display, (XID)swapchain, vulkan_swapchain_context, (char **)&hwnd))
+    {
+        ERR("Couldn't find hwnd for device %p, swapchain 0x%s\n",
+                device, wine_dbgstr_longlong(swapchain));
+        LeaveCriticalSection(&context_section);
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+    LeaveCriticalSection(&context_section);
+    if (!(data = get_win_data(hwnd)))
+    {
+        ERR("Invalid window %p for device %p, swapchain 0x%s\n",
+                hwnd, device, wine_dbgstr_longlong(swapchain));
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+
+    data->fullscreen_exclusive = 0;
+    release_win_data(data);
+    return VK_SUCCESS;
+}
+
 static const struct vulkan_funcs vulkan_funcs =
 {
-    NULL,
+    X11DRV_vkAcquireFullScreenExclusiveModeEXT,
     X11DRV_vkCreateInstance,
     X11DRV_vkCreateSwapchainKHR,
     X11DRV_vkCreateWin32SurfaceKHR,
@@ -614,7 +693,7 @@ static const struct vulkan_funcs vulkan_funcs =
     X11DRV_vkGetPhysicalDeviceWin32PresentationSupportKHR,
     X11DRV_vkGetSwapchainImagesKHR,
     X11DRV_vkQueuePresentKHR,
-    NULL,
+    X11DRV_vkReleaseFullScreenExclusiveModeEXT,
 };
 
 static void *X11DRV_get_vk_device_proc_addr(const char *name)
