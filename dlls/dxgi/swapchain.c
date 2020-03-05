@@ -1114,6 +1114,8 @@ struct d3d12_swapchain
     unsigned int vk_swapchain_width;
     unsigned int vk_swapchain_height;
     VkPresentModeKHR present_mode;
+    VkBool32 fullscreen_exclusive_supported;
+    HMONITOR fullscreen_exclusive_monitor;
 
     uint32_t vk_image_index;
     unsigned int current_buffer_index;
@@ -1752,6 +1754,8 @@ static HRESULT d3d12_swapchain_create_vulkan_swapchain(struct d3d12_swapchain *s
 {
     VkPhysicalDevice vk_physical_device = swapchain->vk_physical_device;
     const struct dxgi_vk_funcs *vk_funcs = &swapchain->vk_funcs;
+    VkSurfaceFullScreenExclusiveWin32InfoEXT fse_info_win32;
+    VkSurfaceFullScreenExclusiveInfoEXT fse_info;
     VkSwapchainCreateInfoKHR vk_swapchain_desc;
     VkDevice vk_device = swapchain->vk_device;
     VkFormat vk_format, vk_swapchain_format;
@@ -1759,6 +1763,7 @@ static HRESULT d3d12_swapchain_create_vulkan_swapchain(struct d3d12_swapchain *s
     VkSurfaceCapabilitiesKHR surface_caps;
     VkSwapchainKHR vk_swapchain;
     VkImageUsageFlags usage;
+    DXGI_OUTPUT_DESC output_desc;
     VkResult vr;
     HRESULT hr;
 
@@ -1772,17 +1777,37 @@ static HRESULT d3d12_swapchain_create_vulkan_swapchain(struct d3d12_swapchain *s
             swapchain->vk_surface, &swapchain->desc, &vk_swapchain_format)))
         return hr;
 
+    fse_info_win32.sType = VK_STRUCTURE_TYPE_SURFACE_FULL_SCREEN_EXCLUSIVE_WIN32_INFO_EXT;
+    fse_info_win32.pNext = NULL;
+
+    if (swapchain->target && SUCCEEDED(hr = IDXGIOutput_GetDesc(swapchain->target, &output_desc)))
+        fse_info_win32.hmonitor = output_desc.Monitor;
+    else
+        fse_info_win32.hmonitor = MonitorFromWindow(swapchain->window, MONITOR_DEFAULTTONEAREST);
+
+    fse_info.sType = VK_STRUCTURE_TYPE_SURFACE_FULL_SCREEN_EXCLUSIVE_INFO_EXT;
+    fse_info.pNext = &fse_info_win32;
+    fse_info.fullScreenExclusive = VK_FULL_SCREEN_EXCLUSIVE_APPLICATION_CONTROLLED_EXT;
+
+    swapchain->fullscreen_exclusive_supported = 0;
+    swapchain->fullscreen_exclusive_monitor = INVALID_HANDLE_VALUE;
+
     if (vk_funcs->p_vkGetPhysicalDeviceSurfaceCapabilities2KHR)
     {
+        VkSurfaceCapabilitiesFullScreenExclusiveEXT fse_caps;
         VkPhysicalDeviceSurfaceInfo2KHR surface_info2;
         VkSurfaceCapabilities2KHR surface_caps2;
 
+        fse_caps.sType = VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_FULL_SCREEN_EXCLUSIVE_EXT;
+        fse_caps.pNext = NULL;
+        fse_caps.fullScreenExclusiveSupported = VK_TRUE;
+
         surface_info2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;
-        surface_info2.pNext = NULL;
+        surface_info2.pNext = &fse_info;
         surface_info2.surface = swapchain->vk_surface;
 
         surface_caps2.sType = VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR;
-        surface_caps2.pNext = NULL;
+        surface_caps2.pNext = &fse_caps;
 
         if ((vr = vk_funcs->p_vkGetPhysicalDeviceSurfaceCapabilities2KHR(vk_physical_device,
             &surface_info2, &surface_caps2)) < 0)
@@ -1792,6 +1817,8 @@ static HRESULT d3d12_swapchain_create_vulkan_swapchain(struct d3d12_swapchain *s
         }
 
         surface_caps = surface_caps2.surfaceCapabilities;
+        swapchain->fullscreen_exclusive_supported = fse_caps.fullScreenExclusiveSupported;
+        swapchain->fullscreen_exclusive_monitor = fse_info_win32.hmonitor;
     }
     else if ((vr = vk_funcs->p_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk_physical_device,
             swapchain->vk_surface, &surface_caps)) < 0)
@@ -1859,6 +1886,10 @@ static HRESULT d3d12_swapchain_create_vulkan_swapchain(struct d3d12_swapchain *s
     vk_swapchain_desc.presentMode = swapchain->present_mode;
     vk_swapchain_desc.clipped = VK_TRUE;
     vk_swapchain_desc.oldSwapchain = swapchain->vk_swapchain;
+
+    if (swapchain->fullscreen_exclusive_supported)
+        vk_swapchain_desc.pNext = &fse_info;
+
     if ((vr = vk_funcs->p_vkCreateSwapchainKHR(vk_device, &vk_swapchain_desc, NULL, &vk_swapchain)) < 0)
     {
         WARN("Failed to create Vulkan swapchain, vr %d.\n", vr);
