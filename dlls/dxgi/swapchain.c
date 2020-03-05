@@ -1056,6 +1056,7 @@ struct dxgi_vk_funcs
     PFN_vkGetImageMemoryRequirements p_vkGetImageMemoryRequirements;
     PFN_vkGetInstanceProcAddr p_vkGetInstanceProcAddr;
     PFN_vkGetPhysicalDeviceMemoryProperties p_vkGetPhysicalDeviceMemoryProperties;
+    PFN_vkGetPhysicalDeviceSurfaceCapabilities2KHR p_vkGetPhysicalDeviceSurfaceCapabilities2KHR;
     PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR p_vkGetPhysicalDeviceSurfaceCapabilitiesKHR;
     PFN_vkGetPhysicalDeviceSurfaceFormatsKHR p_vkGetPhysicalDeviceSurfaceFormatsKHR;
     PFN_vkGetPhysicalDeviceSurfacePresentModesKHR p_vkGetPhysicalDeviceSurfacePresentModesKHR;
@@ -1771,7 +1772,28 @@ static HRESULT d3d12_swapchain_create_vulkan_swapchain(struct d3d12_swapchain *s
             swapchain->vk_surface, &swapchain->desc, &vk_swapchain_format)))
         return hr;
 
-    if ((vr = vk_funcs->p_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk_physical_device,
+    if (vk_funcs->p_vkGetPhysicalDeviceSurfaceCapabilities2KHR)
+    {
+        VkPhysicalDeviceSurfaceInfo2KHR surface_info2;
+        VkSurfaceCapabilities2KHR surface_caps2;
+
+        surface_info2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;
+        surface_info2.pNext = NULL;
+        surface_info2.surface = swapchain->vk_surface;
+
+        surface_caps2.sType = VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR;
+        surface_caps2.pNext = NULL;
+
+        if ((vr = vk_funcs->p_vkGetPhysicalDeviceSurfaceCapabilities2KHR(vk_physical_device,
+            &surface_info2, &surface_caps2)) < 0)
+        {
+            WARN("Failed to get surface capabilities, vr %d.\n", vr);
+            return hresult_from_vk_result(vr);
+        }
+
+        surface_caps = surface_caps2.surfaceCapabilities;
+    }
+    else if ((vr = vk_funcs->p_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk_physical_device,
             swapchain->vk_surface, &surface_caps)) < 0)
     {
         WARN("Failed to get surface capabilities, vr %d.\n", vr);
@@ -2823,14 +2845,17 @@ static BOOL init_vk_funcs(struct dxgi_vk_funcs *dxgi, VkInstance vk_instance, Vk
         close_library(dxgi->vulkan_module); \
         return FALSE; \
     }
+#define LOAD_OPTIONAL_INSTANCE_PFN(name) dxgi->p_##name = (void *)vkGetInstanceProcAddr(vk_instance, #name);
     LOAD_INSTANCE_PFN(vkCreateWin32SurfaceKHR)
     LOAD_INSTANCE_PFN(vkDestroySurfaceKHR)
     LOAD_INSTANCE_PFN(vkGetPhysicalDeviceMemoryProperties)
+    LOAD_OPTIONAL_INSTANCE_PFN(vkGetPhysicalDeviceSurfaceCapabilities2KHR)
     LOAD_INSTANCE_PFN(vkGetPhysicalDeviceSurfaceCapabilitiesKHR)
     LOAD_INSTANCE_PFN(vkGetPhysicalDeviceSurfaceFormatsKHR)
     LOAD_INSTANCE_PFN(vkGetPhysicalDeviceSurfacePresentModesKHR)
     LOAD_INSTANCE_PFN(vkGetPhysicalDeviceSurfaceSupportKHR)
     LOAD_INSTANCE_PFN(vkGetPhysicalDeviceWin32PresentationSupportKHR)
+#undef LOAD_OPTIONAL_INSTANCE_PFN
 #undef LOAD_INSTANCE_PFN
 
 #define LOAD_DEVICE_PFN(name) \
