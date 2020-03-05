@@ -227,6 +227,7 @@ static BOOL is_window_managed( struct x11drv_win_data *data, UINT swp_flags, con
     DWORD style, ex_style;
 
     if (!managed_mode) return FALSE;
+    if (data->fullscreen_exclusive) return TRUE;
 
     /* child windows are not managed */
     style = GetWindowLongW( data->hwnd, GWL_STYLE );
@@ -272,7 +273,8 @@ static inline BOOL is_window_resizable( struct x11drv_win_data *data, DWORD styl
 {
     if (style & WS_THICKFRAME) return TRUE;
     /* Metacity needs the window to be resizable to make it fullscreen */
-    return is_window_rect_fullscreen( &data->whole_rect );
+    return is_window_rect_fullscreen( &data->whole_rect ) ||
+           data->fullscreen_exclusive;
 }
 
 
@@ -285,7 +287,6 @@ static unsigned long get_mwm_decorations( struct x11drv_win_data *data,
     unsigned long ret = 0;
 
     if (!decorated_mode) return 0;
-    if (is_window_rect_fullscreen( &data->whole_rect )) return 0;
 
     if (IsRectEmpty( &data->window_rect )) return 0;
     if (data->shaped) return 0;
@@ -945,7 +946,9 @@ void update_net_wm_states( struct x11drv_win_data *data )
     style = GetWindowLongW( data->hwnd, GWL_STYLE );
     if (style & WS_MINIMIZE)
         new_state |= data->net_wm_state & ((1 << NET_WM_STATE_FULLSCREEN)|(1 << NET_WM_STATE_MAXIMIZED));
-    if (is_window_rect_fullscreen( &data->whole_rect ))
+    if (data->fullscreen_exclusive)
+        new_state |= (1 << NET_WM_STATE_FULLSCREEN);
+    else if (is_window_rect_fullscreen( &data->whole_rect ))
     {
         if ((style & WS_MAXIMIZE) && (style & WS_CAPTION) == WS_CAPTION)
             new_state |= (1 << NET_WM_STATE_MAXIMIZED);

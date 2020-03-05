@@ -3043,6 +3043,30 @@ static BOOL X11DRV_wglSwapIntervalEXT(int interval)
     return ret;
 }
 
+
+/**
+ * X11DRV_wglSetFullscreenExclusiveWINE
+ *
+ * WGL_WINE_fullscreen_exclusive: wglSetFullscreenExclusiveWINE
+ */
+static BOOL X11DRV_wglSetFullscreenExclusiveWINE(HWND hwnd, int fullscreen_exclusive)
+{
+    struct x11drv_win_data *data;
+
+    TRACE("(%p,%d)\n", hwnd, fullscreen_exclusive);
+
+    if (!(data = get_win_data( hwnd )))
+    {
+        WARN("not a proper window %p\n", hwnd);
+        return FALSE;
+    }
+
+    data->fullscreen_exclusive = fullscreen_exclusive;
+    release_win_data( data );
+    return TRUE;
+}
+
+
 /**
  * X11DRV_wglSetPixelFormatWINE
  *
@@ -3212,6 +3236,10 @@ static void X11DRV_WineGL_LoadExtensions(void)
         has_swap_method = TRUE;
 
     /* WINE-specific WGL Extensions */
+
+    /* In WineD3D we need the ability to make a window fullscreen exclusive. */
+    register_extension( "WGL_WINE_fullscreen_exclusive" );
+    opengl_funcs.ext.p_wglSetFullscreenExclusiveWINE = X11DRV_wglSetFullscreenExclusiveWINE;
 
     /* In WineD3D we need the ability to set the pixel format more than once (e.g. after a device reset).
      * The default wglSetPixelFormat doesn't allow this, so add our own which allows it.

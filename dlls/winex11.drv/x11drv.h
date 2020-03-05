@@ -565,6 +565,7 @@ struct x11drv_win_data
     RECT        whole_rect;     /* X window rectangle for the whole window relative to parent */
     RECT        client_rect;    /* client area relative to parent */
     XIC         xic;            /* X input context */
+    BOOL        fullscreen_exclusive : 1; /* is window fullscreen exclusive? */
     BOOL        managed : 1;    /* is window managed? */
     BOOL        mapped : 1;     /* is window mapped? (in either normal or iconic state) */
     BOOL        iconic : 1;     /* is window in iconic state? */
