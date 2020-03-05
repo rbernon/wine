@@ -653,10 +653,73 @@ static void swapchain_frontbuffer_updated(struct wined3d_swapchain *swapchain)
     SetRectEmpty(&swapchain->front_buffer_update);
 }
 
+static BOOL swapchain_gl_set_fullscreen_exclusive(struct wined3d_swapchain *swapchain,
+        BOOL fullscreen_exclusive, HWND window, const RECT *window_rect)
+{
+    const struct wined3d_output *output;
+    const struct wined3d_gl_info *gl_info;
+    DWORD window_pos_flags = SWP_FRAMECHANGED | SWP_NOACTIVATE;
+    HWND window_pos_after = 0;
+    BOOL filter;
+    RECT rect = {0};
+
+    TRACE("swapchain %p fullscreen %d window %p rect %s\n",
+            swapchain, fullscreen_exclusive, window, wine_dbgstr_rect(window_rect));
+
+    if (!(output = get_output_from_window(swapchain->device->wined3d, window)) ||
+        !output->adapter)
+    {
+        WARN("Failed to %s fullscreen exclusive for window %p, unable to find output.\n",
+                fullscreen_exclusive ? "set" : "unset", window);
+        return FALSE;
+    }
+
+    gl_info = &output->adapter->gl_info;
+    if (!gl_info->supported[WGL_WINE_FULLSCREEN_EXCLUSIVE])
+    {
+        WARN("Failed to %s fullscreen exclusive for window %p,"
+                "WGL_WINE_fullscreen_exclusive extension is not supported.\n",
+                fullscreen_exclusive ? "set" : "unset", window);
+        return FALSE;
+    }
+
+    if (!GL_EXTCALL(wglSetFullscreenExclusiveWINE(window, fullscreen_exclusive)))
+    {
+        WARN("Failed to %s fullscreen exclusive for window %p, last error %#x.\n",
+                fullscreen_exclusive ? "set" : "unset", window, GetLastError());
+        return FALSE;
+    }
+
+    if (fullscreen_exclusive)
+    {
+        window_pos_after = HWND_TOPMOST;
+        window_pos_flags |= SWP_SHOWWINDOW;
+    }
+    else
+    {
+        window_pos_after = 0;
+        window_pos_flags |= SWP_NOZORDER;
+    }
+
+    if (window_rect)
+        rect = *window_rect;
+    else
+        window_pos_flags |= (SWP_NOMOVE | SWP_NOSIZE);
+
+    filter = wined3d_filter_messages(window, TRUE);
+    SetWindowPos(window, window_pos_after, rect.left, rect.top,
+        rect.right - rect.left, rect.bottom - rect.top, window_pos_flags);
+    wined3d_filter_messages(window, filter);
+
+    swapchain->state.fullscreen_exclusive = fullscreen_exclusive;
+    return TRUE;
+}
+
 static const struct wined3d_swapchain_ops swapchain_gl_ops =
 {
     swapchain_gl_present,
     swapchain_frontbuffer_updated,
+    swapchain_gl_set_fullscreen_exclusive,
 };
 
 static void swapchain_vk_present(struct wined3d_swapchain *swapchain, const RECT *src_rect,
@@ -665,10 +728,18 @@ static void swapchain_vk_present(struct wined3d_swapchain *swapchain, const RECT
     FIXME("Not implemented.\n");
 }
 
+static BOOL swapchain_vk_set_fullscreen_exclusive(struct wined3d_swapchain *swapchain,
+        BOOL fullscreen_exclusive, HWND window, const RECT *window_rect)
+{
+    FIXME("Not implemented.\n");
+    return FALSE;
+}
+
 static const struct wined3d_swapchain_ops swapchain_vk_ops =
 {
     swapchain_vk_present,
     swapchain_frontbuffer_updated,
+    swapchain_vk_set_fullscreen_exclusive,
 };
 
 static void swapchain_gdi_frontbuffer_updated(struct wined3d_swapchain *swapchain)
@@ -1543,6 +1614,7 @@ HRESULT wined3d_swapchain_state_setup_fullscreen(struct wined3d_swapchain_state 
 {
     LONG style, exstyle;
     BOOL filter;
+    RECT rect = {0, 0, w, h};
 
     TRACE("Setting up window %p for fullscreen mode.\n", window);
 
@@ -1551,6 +1623,9 @@ HRESULT wined3d_swapchain_state_setup_fullscreen(struct wined3d_swapchain_state 
         WARN("%p is not a valid window.\n", window);
         return WINED3DERR_NOTAVAILABLE;
     }
+
+    if (swapchain && swapchain->swapchain_ops->swapchain_set_fullscreen_exclusive(swapchain, TRUE, window, &rect))
+        return WINED3D_OK;
 
     if (state->style || state->exstyle)
     {
@@ -1585,6 +1660,9 @@ void wined3d_swapchain_state_restore_from_fullscreen(struct wined3d_swapchain_st
     LONG style, exstyle;
     RECT rect = {0};
     BOOL filter;
+
+    if (swapchain && swapchain->swapchain_ops->swapchain_set_fullscreen_exclusive(swapchain, FALSE, window, window_rect))
+        return;
 
     if (!state->style && !state->exstyle)
         return;

@@ -209,6 +209,7 @@ enum wined3d_gl_extension
     /* WGL extensions */
     WGL_ARB_PIXEL_FORMAT,
     WGL_EXT_SWAP_CONTROL,
+    WGL_WINE_FULLSCREEN_EXCLUSIVE,
     WGL_WINE_PIXEL_FORMAT_PASSTHROUGH,
     WGL_WINE_QUERY_RENDERER,
     /* Internally used */

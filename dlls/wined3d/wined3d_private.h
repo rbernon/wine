@@ -4458,6 +4458,8 @@ struct wined3d_swapchain_ops
     void (*swapchain_present)(struct wined3d_swapchain *swapchain,
             const RECT *src_rect, const RECT *dst_rect, unsigned int swap_interval, DWORD flags);
     void (*swapchain_frontbuffer_updated)(struct wined3d_swapchain *swapchain);
+    BOOL (*swapchain_set_fullscreen_exclusive)(struct wined3d_swapchain *swapchain, BOOL fullscreen_exclusive,
+            HWND window, const RECT *window_rect);
 };
 
 struct wined3d_swapchain

@@ -236,6 +236,7 @@ static const struct wined3d_extension_map wgl_extension_map[] =
 {
     {"WGL_ARB_pixel_format",                WGL_ARB_PIXEL_FORMAT             },
     {"WGL_EXT_swap_control",                WGL_EXT_SWAP_CONTROL             },
+    {"WGL_WINE_fullscreen_exclusive",       WGL_WINE_FULLSCREEN_EXCLUSIVE    },
     {"WGL_WINE_pixel_format_passthrough",   WGL_WINE_PIXEL_FORMAT_PASSTHROUGH},
     {"WGL_WINE_query_renderer",             WGL_WINE_QUERY_RENDERER          },
 };
@@ -2663,6 +2664,7 @@ static void load_gl_funcs(struct wined3d_gl_info *gl_info)
     USE_GL_FUNC(wglQueryCurrentRendererStringWINE)
     USE_GL_FUNC(wglQueryRendererIntegerWINE)
     USE_GL_FUNC(wglQueryRendererStringWINE)
+    USE_GL_FUNC(wglSetFullscreenExclusiveWINE)
     USE_GL_FUNC(wglSetPixelFormatWINE)
     USE_GL_FUNC(wglSwapIntervalEXT)
 
