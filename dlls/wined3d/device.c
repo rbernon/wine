@@ -5156,7 +5156,7 @@ HRESULT CDECL wined3d_device_reset(struct wined3d_device *device,
             return E_FAIL;
         }
         if (FAILED(hr = wined3d_swapchain_state_set_fullscreen(&swapchain->state,
-                swapchain_desc, output, mode)))
+                swapchain_desc, output, mode, swapchain)))
             return hr;
 
         /* Switch from fullscreen to windowed. */
@@ -5174,7 +5174,7 @@ HRESULT CDECL wined3d_device_reset(struct wined3d_device *device,
         swapchain_state->style = 0;
         swapchain_state->exstyle = 0;
         wined3d_swapchain_state_setup_fullscreen(swapchain_state, swapchain_state->device_window,
-                swapchain_desc->backbuffer_width, swapchain_desc->backbuffer_height);
+                swapchain_desc->backbuffer_width, swapchain_desc->backbuffer_height, swapchain);
         swapchain_state->style = style;
         swapchain_state->exstyle = exstyle;
     }

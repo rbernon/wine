@@ -2765,7 +2765,7 @@ HRESULT __cdecl wined3d_swapchain_state_resize_target(struct wined3d_swapchain_s
         struct wined3d_output *output, const struct wined3d_display_mode *mode);
 HRESULT __cdecl wined3d_swapchain_state_set_fullscreen(struct wined3d_swapchain_state *state,
         const struct wined3d_swapchain_desc *desc, struct wined3d_output *output,
-        const struct wined3d_display_mode *mode);
+        const struct wined3d_display_mode *mode, struct wined3d_swapchain *swapchain);
 
 HRESULT __cdecl wined3d_texture_add_dirty_region(struct wined3d_texture *texture,
         UINT layer, const struct wined3d_box *dirty_region);

@@ -4449,9 +4449,9 @@ struct wined3d_swapchain_state
 };
 
 void wined3d_swapchain_state_restore_from_fullscreen(struct wined3d_swapchain_state *state,
-        HWND window, const RECT *window_rect) DECLSPEC_HIDDEN;
+        HWND window, const RECT *window_rect, struct wined3d_swapchain *swapchain) DECLSPEC_HIDDEN;
 HRESULT wined3d_swapchain_state_setup_fullscreen(struct wined3d_swapchain_state *state,
-        HWND window, unsigned int w, unsigned int h) DECLSPEC_HIDDEN;
+        HWND window, unsigned int w, unsigned int h, struct wined3d_swapchain *swapchain) DECLSPEC_HIDDEN;
 
 struct wined3d_swapchain_ops
 {
