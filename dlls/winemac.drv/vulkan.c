@@ -86,6 +86,7 @@ static void (*pvkDestroySwapchainKHR)(VkDevice, VkSwapchainKHR, const VkAllocati
 static VkResult (*pvkEnumerateInstanceExtensionProperties)(const char *, uint32_t *, VkExtensionProperties *);
 static void * (*pvkGetDeviceProcAddr)(VkDevice, const char *);
 static void * (*pvkGetInstanceProcAddr)(VkInstance, const char *);
+static VkResult (*pvkGetPhysicalDeviceSurfaceCapabilities2KHR)(VkPhysicalDevice, const VkPhysicalDeviceSurfaceInfo2KHR *, VkSurfaceCapabilities2KHR *);
 static VkResult (*pvkGetPhysicalDeviceSurfaceCapabilitiesKHR)(VkPhysicalDevice, VkSurfaceKHR, VkSurfaceCapabilitiesKHR *);
 static VkResult (*pvkGetPhysicalDeviceSurfaceFormatsKHR)(VkPhysicalDevice, VkSurfaceKHR, uint32_t *, VkSurfaceFormatKHR *);
 static VkResult (*pvkGetPhysicalDeviceSurfacePresentModesKHR)(VkPhysicalDevice, VkSurfaceKHR, uint32_t *, VkPresentModeKHR *);
@@ -122,6 +123,7 @@ static BOOL WINAPI wine_vk_init(INIT_ONCE *once, void *param, void **context)
     LOAD_FUNCPTR(vkEnumerateInstanceExtensionProperties)
     LOAD_FUNCPTR(vkGetDeviceProcAddr)
     LOAD_FUNCPTR(vkGetInstanceProcAddr)
+    LOAD_FUNCPTR(vkGetPhysicalDeviceSurfaceCapabilities2KHR)
     LOAD_FUNCPTR(vkGetPhysicalDeviceSurfaceCapabilitiesKHR)
     LOAD_FUNCPTR(vkGetPhysicalDeviceSurfaceFormatsKHR)
     LOAD_FUNCPTR(vkGetPhysicalDeviceSurfacePresentModesKHR)
@@ -441,6 +443,21 @@ static void *macdrv_vkGetInstanceProcAddr(VkInstance instance, const char *name)
     return pvkGetInstanceProcAddr(instance, name);
 }
 
+static VkResult macdrv_vkGetPhysicalDeviceSurfaceCapabilities2KHR(VkPhysicalDevice phys_dev,
+        const VkPhysicalDeviceSurfaceInfo2KHR *info, VkSurfaceCapabilities2KHR *capabilities)
+{
+    VkPhysicalDeviceSurfaceInfo2KHR info_host;
+
+    TRACE("%p, %p, %p\n", phys_dev, info, capabilities);
+
+    info_host = *info;
+    info_host.pNext = NULL;
+    info_host.surface = surface_from_handle(info->surface)->surface;
+
+    return pvkGetPhysicalDeviceSurfaceCapabilities2KHR(phys_dev, &info_host,
+            capabilities);
+}
+
 static VkResult macdrv_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(VkPhysicalDevice phys_dev,
         VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR *capabilities)
 {
@@ -544,7 +561,7 @@ static const struct vulkan_funcs vulkan_funcs =
     macdrv_vkGetDeviceProcAddr,
     macdrv_vkGetInstanceProcAddr,
     NULL,
-    NULL,
+    macdrv_vkGetPhysicalDeviceSurfaceCapabilities2KHR,
     macdrv_vkGetPhysicalDeviceSurfaceCapabilitiesKHR,
     NULL,
     macdrv_vkGetPhysicalDeviceSurfaceFormatsKHR,
