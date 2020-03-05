@@ -456,6 +456,51 @@ static VkResult X11DRV_vkGetPhysicalDevicePresentRectanglesKHR(VkPhysicalDevice 
     return pvkGetPhysicalDevicePresentRectanglesKHR(phys_dev, x11_surface->surface, count, rects);
 }
 
+static VkResult X11DRV_vkGetPhysicalDeviceSurfaceCapabilities2KHR(VkPhysicalDevice phys_dev,
+        const VkPhysicalDeviceSurfaceInfo2KHR *info, VkSurfaceCapabilities2KHR *capabilities)
+{
+    const VkSurfaceFullScreenExclusiveWin32InfoEXT *fse_info_win32 = NULL;
+    VkSurfaceCapabilitiesFullScreenExclusiveEXT *fse_caps = NULL;
+    const VkSurfaceFullScreenExclusiveInfoEXT *fse_info = NULL;
+    const VkBaseInStructure *ext_in = info->pNext;
+    struct wine_vk_surface *x11_surface = surface_from_handle(info->surface);
+    VkBaseOutStructure *ext_out = capabilities->pNext;
+    VkResult res;
+
+    TRACE("%p, %p, %p\n", phys_dev, info, capabilities);
+
+    res = pvkGetPhysicalDeviceSurfaceCapabilitiesKHR(phys_dev, x11_surface->surface, &capabilities->surfaceCapabilities);
+    if (res != VK_SUCCESS || !info->pNext)
+        return res;
+
+    while (ext_in && (!fse_info_win32 || !fse_info))
+    {
+        if (ext_in->sType == VK_STRUCTURE_TYPE_SURFACE_FULL_SCREEN_EXCLUSIVE_WIN32_INFO_EXT)
+            fse_info_win32 = (VkSurfaceFullScreenExclusiveWin32InfoEXT *)ext_in;
+        else if (ext_in->sType == VK_STRUCTURE_TYPE_SURFACE_FULL_SCREEN_EXCLUSIVE_INFO_EXT)
+            fse_info = (VkSurfaceFullScreenExclusiveInfoEXT *)ext_in;
+        else
+            FIXME( "Unsupported type in VkPhysicalDeviceSurfaceInfo2KHR chain: %d.\n", ext_in->sType );
+        ext_in = ext_in->pNext;
+    }
+
+    while (ext_out && !fse_caps)
+    {
+        if (ext_out->sType == VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_FULL_SCREEN_EXCLUSIVE_EXT)
+            fse_caps = (VkSurfaceCapabilitiesFullScreenExclusiveEXT *)ext_out;
+        else
+            FIXME( "Unsupported type in VkSurfaceCapabilities2KHR chain: %d.\n", ext_out->sType );
+        ext_out = ext_out->pNext;
+    }
+
+    if (fse_info && fse_info_win32 && fse_caps)
+        fse_caps->fullScreenExclusiveSupported = TRUE;
+    else if (fse_caps)
+        fse_caps->fullScreenExclusiveSupported = FALSE;
+
+    return VK_SUCCESS;
+}
+
 static VkResult X11DRV_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(VkPhysicalDevice phys_dev,
         VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR *capabilities)
 {
@@ -559,7 +604,7 @@ static const struct vulkan_funcs vulkan_funcs =
     X11DRV_vkGetDeviceProcAddr,
     X11DRV_vkGetInstanceProcAddr,
     X11DRV_vkGetPhysicalDevicePresentRectanglesKHR,
-    NULL,
+    X11DRV_vkGetPhysicalDeviceSurfaceCapabilities2KHR,
     X11DRV_vkGetPhysicalDeviceSurfaceCapabilitiesKHR,
     NULL,
     X11DRV_vkGetPhysicalDeviceSurfaceFormatsKHR,
