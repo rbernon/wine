@@ -1031,6 +1031,7 @@ static PFN_vkd3d_resource_incref vkd3d_resource_incref;
 
 struct dxgi_vk_funcs
 {
+    PFN_vkAcquireFullScreenExclusiveModeEXT p_vkAcquireFullScreenExclusiveModeEXT;
     PFN_vkAcquireNextImageKHR p_vkAcquireNextImageKHR;
     PFN_vkAllocateCommandBuffers p_vkAllocateCommandBuffers;
     PFN_vkAllocateMemory p_vkAllocateMemory;
@@ -1066,6 +1067,7 @@ struct dxgi_vk_funcs
     PFN_vkQueuePresentKHR p_vkQueuePresentKHR;
     PFN_vkQueueSubmit p_vkQueueSubmit;
     PFN_vkQueueWaitIdle p_vkQueueWaitIdle;
+    PFN_vkReleaseFullScreenExclusiveModeEXT p_vkReleaseFullScreenExclusiveModeEXT;
     PFN_vkResetFences p_vkResetFences;
     PFN_vkWaitForFences p_vkWaitForFences;
 
@@ -2297,7 +2299,11 @@ static HRESULT STDMETHODCALLTYPE DECLSPEC_HOTPATCH d3d12_swapchain_SetFullscreen
     DXGI_SWAP_CHAIN_FULLSCREEN_DESC *fullscreen_desc = &swapchain->fullscreen_desc;
     const DXGI_SWAP_CHAIN_DESC1 *swapchain_desc = &swapchain->desc;
     struct wined3d_swapchain_desc wined3d_desc;
+    const struct dxgi_vk_funcs *vk_funcs = &swapchain->vk_funcs;
     HWND window = swapchain->window;
+    DXGI_OUTPUT_DESC desc;
+    HMONITOR monitor;
+    VkResult res;
     HRESULT hr;
 
     TRACE("iface %p, fullscreen %#x, target %p.\n", iface, fullscreen, target);
@@ -2318,19 +2324,44 @@ static HRESULT STDMETHODCALLTYPE DECLSPEC_HOTPATCH d3d12_swapchain_SetFullscreen
         return hr;
     }
 
-    if (FAILED(hr = wined3d_swapchain_desc_from_dxgi(&wined3d_desc, window, swapchain_desc, fullscreen_desc)))
-        goto fail;
-
     dxgi_swapchain_set_fullscreen_style(&swapchain->window_state, window, fullscreen);
 
-    wined3d_mutex_lock();
-    wined3d_desc.windowed = !fullscreen;
-    hr = dxgi_swapchain_set_fullscreen_state(swapchain->state, &wined3d_desc, target, NULL);
-    wined3d_mutex_unlock();
-    if (FAILED(hr))
-        goto fail;
+    if (SUCCEEDED(hr = IDXGIOutput_GetDesc(target, &desc)))
+        monitor = desc.Monitor;
+    else
+        monitor = MonitorFromWindow(swapchain->window, MONITOR_DEFAULTTONEAREST);
 
-    fullscreen_desc->Windowed = wined3d_desc.windowed;
+    if (swapchain->fullscreen_exclusive_supported && swapchain->fullscreen_exclusive_monitor != monitor)
+        FIXME("Unimplemented fullscreen monitor change.\n");
+
+    if (swapchain->fullscreen_exclusive_supported &&
+        vk_funcs->p_vkAcquireFullScreenExclusiveModeEXT &&
+        vk_funcs->p_vkReleaseFullScreenExclusiveModeEXT)
+    {
+        if (fullscreen)
+            res = vk_funcs->p_vkAcquireFullScreenExclusiveModeEXT(swapchain->vk_device, swapchain->vk_swapchain);
+        else
+            res = vk_funcs->p_vkReleaseFullScreenExclusiveModeEXT(swapchain->vk_device, swapchain->vk_swapchain);
+
+        if (res != VK_SUCCESS)
+            goto fail;
+
+        fullscreen_desc->Windowed = !fullscreen;
+    }
+    else
+    {
+        if (FAILED(hr = wined3d_swapchain_desc_from_dxgi(&wined3d_desc, window, swapchain_desc, fullscreen_desc)))
+            goto fail;
+        wined3d_mutex_lock();
+        wined3d_desc.windowed = !fullscreen;
+        hr = dxgi_swapchain_set_fullscreen_state(swapchain->state, &wined3d_desc, target, NULL);
+        wined3d_mutex_unlock();
+        if (FAILED(hr))
+            goto fail;
+
+        fullscreen_desc->Windowed = wined3d_desc.windowed;
+    }
+
     if (!fullscreen)
     {
         IDXGIOutput_Release(target);
@@ -2877,6 +2908,7 @@ static BOOL init_vk_funcs(struct dxgi_vk_funcs *dxgi, VkInstance vk_instance, Vk
         return FALSE; \
     }
 #define LOAD_OPTIONAL_INSTANCE_PFN(name) dxgi->p_##name = (void *)vkGetInstanceProcAddr(vk_instance, #name);
+    LOAD_OPTIONAL_INSTANCE_PFN(vkAcquireFullScreenExclusiveModeEXT)
     LOAD_INSTANCE_PFN(vkCreateWin32SurfaceKHR)
     LOAD_INSTANCE_PFN(vkDestroySurfaceKHR)
     LOAD_INSTANCE_PFN(vkGetPhysicalDeviceMemoryProperties)
@@ -2886,6 +2918,7 @@ static BOOL init_vk_funcs(struct dxgi_vk_funcs *dxgi, VkInstance vk_instance, Vk
     LOAD_INSTANCE_PFN(vkGetPhysicalDeviceSurfacePresentModesKHR)
     LOAD_INSTANCE_PFN(vkGetPhysicalDeviceSurfaceSupportKHR)
     LOAD_INSTANCE_PFN(vkGetPhysicalDeviceWin32PresentationSupportKHR)
+    LOAD_OPTIONAL_INSTANCE_PFN(vkReleaseFullScreenExclusiveModeEXT)
 #undef LOAD_OPTIONAL_INSTANCE_PFN
 #undef LOAD_INSTANCE_PFN
 
