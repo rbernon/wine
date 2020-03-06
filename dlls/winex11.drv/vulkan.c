@@ -75,6 +75,7 @@ typedef struct VkXlibSurfaceCreateInfoKHR
     Window window;
 } VkXlibSurfaceCreateInfoKHR;
 
+static VkResult (*pvkCreateDevice)(VkPhysicalDevice, const VkDeviceCreateInfo *, const VkAllocationCallbacks *, VkDevice *);
 static VkResult (*pvkCreateInstance)(const VkInstanceCreateInfo *, const VkAllocationCallbacks *, VkInstance *);
 static VkResult (*pvkCreateSwapchainKHR)(VkDevice, const VkSwapchainCreateInfoKHR *, const VkAllocationCallbacks *, VkSwapchainKHR *);
 static VkResult (*pvkCreateXlibSurfaceKHR)(VkInstance, const VkXlibSurfaceCreateInfoKHR *, const VkAllocationCallbacks *, VkSurfaceKHR *);
@@ -115,6 +116,7 @@ static BOOL WINAPI wine_vk_init(INIT_ONCE *once, void *param, void **context)
 
 #define LOAD_FUNCPTR(f) if (!(p##f = wine_dlsym(vulkan_handle, #f, NULL, 0))) goto fail;
 #define LOAD_OPTIONAL_FUNCPTR(f) p##f = wine_dlsym(vulkan_handle, #f, NULL, 0);
+    LOAD_FUNCPTR(vkCreateDevice)
     LOAD_FUNCPTR(vkCreateInstance)
     LOAD_FUNCPTR(vkCreateSwapchainKHR)
     LOAD_FUNCPTR(vkCreateXlibSurfaceKHR)
@@ -146,6 +148,61 @@ fail:
     wine_dlclose(vulkan_handle, NULL, 0);
     vulkan_handle = NULL;
     return TRUE;
+}
+
+static VkExtensionProperties wine_device_extensions[] =
+{
+    { VK_EXT_FULL_SCREEN_EXCLUSIVE_EXTENSION_NAME, VK_EXT_FULL_SCREEN_EXCLUSIVE_SPEC_VERSION },
+};
+
+/* Helper function for converting between win32 and X11 compatible VkDeviceCreateInfo.
+ * Caller is responsible for allocation and cleanup of 'dst'.
+ */
+static VkResult wine_vk_device_convert_create_info(const VkDeviceCreateInfo *src,
+        VkDeviceCreateInfo *dst)
+{
+    unsigned int i, j;
+    const char **enabled_extensions = NULL;
+
+    *dst = *src;
+    dst->enabledLayerCount = 0;
+    dst->ppEnabledLayerNames = NULL;
+    dst->enabledExtensionCount = 0;
+    dst->ppEnabledExtensionNames = NULL;
+
+    if (src->enabledExtensionCount > 0)
+    {
+        enabled_extensions = heap_calloc(src->enabledExtensionCount, sizeof(*src->ppEnabledExtensionNames));
+        if (!enabled_extensions)
+        {
+            ERR("Failed to allocate memory for enabled extensions\n");
+            return VK_ERROR_OUT_OF_HOST_MEMORY;
+        }
+
+        for (i = 0; i < src->enabledExtensionCount; i++)
+        {
+            enabled_extensions[i] = src->ppEnabledExtensionNames[i];
+            dst->enabledExtensionCount++;
+        }
+
+        for (i = 0; i < dst->enabledExtensionCount; i++)
+        {
+            for (j = 0; j < ARRAY_SIZE(wine_device_extensions); j++)
+            {
+                if (!strcmp(enabled_extensions[i], wine_device_extensions[j].extensionName))
+                {
+                    enabled_extensions[i] = enabled_extensions[dst->enabledExtensionCount - 1];
+                    dst->enabledExtensionCount--;
+                    i--;
+                    break;
+                }
+            }
+        }
+
+        dst->ppEnabledExtensionNames = enabled_extensions;
+    }
+
+    return VK_SUCCESS;
 }
 
 /* Helper function for converting between win32 and X11 compatible VkInstanceCreateInfo.
@@ -253,10 +310,28 @@ static VkResult X11DRV_vkAcquireFullScreenExclusiveModeEXT(VkDevice device, VkSw
     return VK_SUCCESS;
 }
 
-static VkExtensionProperties builtin_device_extensions[] =
+static VkResult X11DRV_vkCreateDevice(VkPhysicalDevice phys_dev, const VkDeviceCreateInfo *create_info,
+        const VkAllocationCallbacks *allocator, VkDevice *device)
 {
-    { VK_EXT_FULL_SCREEN_EXCLUSIVE_EXTENSION_NAME, VK_EXT_FULL_SCREEN_EXCLUSIVE_SPEC_VERSION },
-};
+    VkDeviceCreateInfo create_info_host;
+    VkResult res;
+    TRACE("phys_dev %p, create_info %p, allocator %p, device %p\n", phys_dev, create_info, allocator, device);
+
+    if (allocator)
+        FIXME("Support for allocation callbacks not implemented yet\n");
+
+    res = wine_vk_device_convert_create_info(create_info, &create_info_host);
+    if (res != VK_SUCCESS)
+    {
+        ERR("Failed to convert device create info, res=%d\n", res);
+        return res;
+    }
+
+    res = pvkCreateDevice(phys_dev, &create_info_host, NULL /* allocator */, device);
+
+    heap_free((void *)create_info_host.ppEnabledExtensionNames);
+    return res;
+}
 
 static VkResult X11DRV_vkCreateInstance(const VkInstanceCreateInfo *create_info,
         const VkAllocationCallbacks *allocator, VkInstance *instance)
@@ -747,6 +822,7 @@ static VkResult X11DRV_vkReleaseFullScreenExclusiveModeEXT(VkDevice device, VkSw
 static const struct vulkan_funcs vulkan_funcs =
 {
     X11DRV_vkAcquireFullScreenExclusiveModeEXT,
+    X11DRV_vkCreateDevice,
     X11DRV_vkCreateInstance,
     X11DRV_vkCreateSwapchainKHR,
     X11DRV_vkCreateWin32SurfaceKHR,

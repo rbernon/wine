@@ -154,7 +154,7 @@ FUNCTION_OVERRIDES = {
     "vkGetInstanceProcAddr": {"dispatch" : False, "driver" : True, "thunk" : False},
 
     # Instance functions
-    "vkCreateDevice" : {"dispatch" : True, "driver" : False, "thunk" : False},
+    "vkCreateDevice" : {"dispatch" : True, "driver" : True, "thunk" : False},
     "vkDestroyInstance" : {"dispatch" : False, "driver" : True, "thunk" : False },
     "vkEnumerateDeviceExtensionProperties" : {"dispatch" : True, "driver" : True, "thunk" : False},
     "vkEnumeratePhysicalDeviceGroups" : {"dispatch" : True, "driver" : False, "thunk" : False},

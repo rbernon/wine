@@ -48,6 +48,7 @@ struct vulkan_funcs
      * tables part of dispatchable Vulkan objects such as VkInstance or vkDevice.
      */
     VkResult (*p_vkAcquireFullScreenExclusiveModeEXT)(VkDevice, VkSwapchainKHR);
+    VkResult (*p_vkCreateDevice)(VkPhysicalDevice, const VkDeviceCreateInfo *, const VkAllocationCallbacks *, VkDevice *);
     VkResult (*p_vkCreateInstance)(const VkInstanceCreateInfo *, const VkAllocationCallbacks *, VkInstance *);
     VkResult (*p_vkCreateSwapchainKHR)(VkDevice, const VkSwapchainCreateInfoKHR *, const VkAllocationCallbacks *, VkSwapchainKHR *);
     VkResult (*p_vkCreateWin32SurfaceKHR)(VkInstance, const VkWin32SurfaceCreateInfoKHR *, const VkAllocationCallbacks *, VkSurfaceKHR *);
@@ -119,6 +120,8 @@ static inline void *get_vulkan_driver_instance_proc_addr(
 
     if (!instance) return NULL;
 
+    if (!strcmp(name, "CreateDevice"))
+        return vulkan_funcs->p_vkCreateDevice;
     if (!strcmp(name, "CreateWin32SurfaceKHR"))
         return vulkan_funcs->p_vkCreateWin32SurfaceKHR;
     if (!strcmp(name, "DestroyInstance"))
