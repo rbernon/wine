@@ -562,6 +562,30 @@ static VkResult X11DRV_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(VkPhysicalDevic
     return pvkGetPhysicalDeviceSurfaceCapabilitiesKHR(phys_dev, x11_surface->surface, capabilities);
 }
 
+static VkResult X11DRV_vkGetPhysicalDeviceSurfaceFormats2KHR(VkPhysicalDevice phys_dev,
+        const VkPhysicalDeviceSurfaceInfo2KHR *info, uint32_t *count, VkSurfaceFormat2KHR *formats)
+{
+    struct wine_vk_surface *x11_surface = surface_from_handle(info->surface);
+    VkSurfaceFormatKHR *surface_formats = NULL;
+    VkResult res;
+    uint32_t i;
+
+    TRACE("%p, %p, %p, %p\n", phys_dev, info, count, formats);
+
+    if (formats && !(surface_formats = heap_calloc(*count, sizeof(*surface_formats))))
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+
+    res = pvkGetPhysicalDeviceSurfaceFormatsKHR(phys_dev, x11_surface->surface, count, surface_formats);
+    if (formats && res == VK_SUCCESS)
+    {
+        for (i = 0; i < *count; ++i)
+            formats[i].surfaceFormat = surface_formats[i];
+    }
+
+    if (surface_formats) heap_free(surface_formats);
+    return res;
+}
+
 static VkResult X11DRV_vkGetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice phys_dev,
         VkSurfaceKHR surface, uint32_t *count, VkSurfaceFormatKHR *formats)
 {
@@ -570,6 +594,16 @@ static VkResult X11DRV_vkGetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice phy
     TRACE("%p, 0x%s, %p, %p\n", phys_dev, wine_dbgstr_longlong(surface), count, formats);
 
     return pvkGetPhysicalDeviceSurfaceFormatsKHR(phys_dev, x11_surface->surface, count, formats);
+}
+
+static VkResult X11DRV_vkGetPhysicalDeviceSurfacePresentModes2EXT(VkPhysicalDevice phys_dev,
+        const VkPhysicalDeviceSurfaceInfo2KHR *info, uint32_t *count, VkPresentModeKHR *modes)
+{
+    struct wine_vk_surface *x11_surface = surface_from_handle(info->surface);
+
+    TRACE("%p, %p, %p, %p\n", phys_dev, info, count, modes);
+
+    return pvkGetPhysicalDeviceSurfacePresentModesKHR(phys_dev, x11_surface->surface, count, modes);
 }
 
 static VkResult X11DRV_vkGetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice phys_dev,
@@ -685,9 +719,9 @@ static const struct vulkan_funcs vulkan_funcs =
     X11DRV_vkGetPhysicalDevicePresentRectanglesKHR,
     X11DRV_vkGetPhysicalDeviceSurfaceCapabilities2KHR,
     X11DRV_vkGetPhysicalDeviceSurfaceCapabilitiesKHR,
-    NULL,
+    X11DRV_vkGetPhysicalDeviceSurfaceFormats2KHR,
     X11DRV_vkGetPhysicalDeviceSurfaceFormatsKHR,
-    NULL,
+    X11DRV_vkGetPhysicalDeviceSurfacePresentModes2EXT,
     X11DRV_vkGetPhysicalDeviceSurfacePresentModesKHR,
     X11DRV_vkGetPhysicalDeviceSurfaceSupportKHR,
     X11DRV_vkGetPhysicalDeviceWin32PresentationSupportKHR,
