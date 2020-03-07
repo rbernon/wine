@@ -5997,6 +5997,7 @@ START_TEST(dxgi)
             use_mt = FALSE;
     }
 
+#if 0
     queue_test(test_adapter_desc);
     queue_test(test_adapter_luid);
     queue_test(test_query_video_memory_info);
@@ -6015,15 +6016,18 @@ START_TEST(dxgi)
     queue_test(test_multi_adapter);
 
     run_queued_tests();
-
+// #endif
     /* These tests use full-screen swapchains, so shouldn't run in parallel. */
     test_create_swapchain();
+// #if 0
     test_default_fullscreen_target_output();
     test_inexact_modes();
     test_gamma_control();
     test_swapchain_parameters();
     test_swapchain_window_messages();
+#endif
     test_swapchain_window_styles();
+#if 0
     test_window_association();
     run_on_d3d10(test_set_fullscreen);
     run_on_d3d10(test_resize_target);
@@ -6057,4 +6061,5 @@ START_TEST(dxgi)
     run_on_d3d12(test_output_ownership);
 
     FreeLibrary(d3d12_module);
+#endif
 }
