@@ -8,7 +8,7 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(opengl);
 
-const int extension_registry_size = 2679;
+const int extension_registry_size = 2680;
 
 static void WINAPI glAccumxOES( GLenum op, GLfixed value )
 {
@@ -18650,6 +18650,13 @@ static const GLchar * WINAPI wglQueryRendererStringWINE( HDC dc, GLint renderer,
   return funcs->ext.p_wglQueryRendererStringWINE( dc, renderer, attribute );
 }
 
+static BOOL WINAPI wglSetFullscreenExclusiveWINE( HWND hwnd, int fullscreen_exclusive )
+{
+  const struct opengl_funcs *funcs = NtCurrentTeb()->glTable;
+  TRACE( "(%d)\n", fullscreen_exclusive );
+  return funcs->ext.p_wglSetFullscreenExclusiveWINE( hwnd, fullscreen_exclusive );
+}
+
 static BOOL WINAPI wglSetPixelFormatWINE( HDC hdc, int format )
 {
   const struct opengl_funcs *funcs = get_dc_funcs( hdc );
@@ -18681,7 +18688,7 @@ extern int WINAPI wglReleasePbufferDCARB( HPBUFFERARB hPbuffer, HDC hDC ) DECLSP
 extern BOOL WINAPI wglReleaseTexImageARB( HPBUFFERARB hPbuffer, int iBuffer ) DECLSPEC_HIDDEN;
 extern BOOL WINAPI wglSetPbufferAttribARB( HPBUFFERARB hPbuffer, const int *piAttribList ) DECLSPEC_HIDDEN;
 
-const OpenGL_extension extension_registry[2679] = {
+const OpenGL_extension extension_registry[2680] = {
   { "glAccumxOES", "GL_OES_fixed_point", glAccumxOES },
   { "glAcquireKeyedMutexWin32EXT", "GL_EXT_win32_keyed_mutex", glAcquireKeyedMutexWin32EXT },
   { "glActiveProgramEXT", "GL_EXT_separate_shader_objects", glActiveProgramEXT },
@@ -21358,6 +21365,7 @@ const OpenGL_extension extension_registry[2679] = {
   { "wglQueryRendererStringWINE", "WGL_WINE_query_renderer", wglQueryRendererStringWINE },
   { "wglReleasePbufferDCARB", "WGL_ARB_pbuffer", wglReleasePbufferDCARB },
   { "wglReleaseTexImageARB", "WGL_ARB_render_texture", wglReleaseTexImageARB },
+  { "wglSetFullscreenExclusiveWINE", "WGL_WINE_fullscreen_exclusive", wglSetFullscreenExclusiveWINE },
   { "wglSetPbufferAttribARB", "WGL_ARB_render_texture", wglSetPbufferAttribARB },
   { "wglSetPixelFormatWINE", "WGL_WINE_pixel_format_passthrough", wglSetPixelFormatWINE },
   { "wglSwapIntervalEXT", "WGL_EXT_swap_control", wglSwapIntervalEXT }

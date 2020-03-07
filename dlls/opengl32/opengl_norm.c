@@ -5368,6 +5368,7 @@ static BOOL null_wglQueryRendererIntegerWINE( HDC dc, GLint renderer, GLenum att
 static const GLchar * null_wglQueryRendererStringWINE( HDC dc, GLint renderer, GLenum attribute ) { return 0; }
 static int null_wglReleasePbufferDCARB( struct wgl_pbuffer * hPbuffer, HDC hDC ) { return 0; }
 static BOOL null_wglReleaseTexImageARB( struct wgl_pbuffer * hPbuffer, int iBuffer ) { return 0; }
+static BOOL null_wglSetFullscreenExclusiveWINE( HWND hwnd, int fullscreen_exclusive ) { return 0; }
 static BOOL null_wglSetPbufferAttribARB( struct wgl_pbuffer * hPbuffer, const int *piAttribList ) { return 0; }
 static BOOL null_wglSetPixelFormatWINE( HDC hdc, int format ) { return 0; }
 static BOOL null_wglSwapIntervalEXT( int interval ) { return 0; }
@@ -8401,6 +8402,7 @@ struct opengl_funcs null_opengl_funcs =
         null_wglQueryRendererStringWINE,
         null_wglReleasePbufferDCARB,
         null_wglReleaseTexImageARB,
+        null_wglSetFullscreenExclusiveWINE,
         null_wglSetPbufferAttribARB,
         null_wglSetPixelFormatWINE,
         null_wglSwapIntervalEXT,

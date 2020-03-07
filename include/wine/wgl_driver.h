@@ -3046,6 +3046,7 @@ struct opengl_funcs
         const GLchar * (WINE_GLAPI *p_wglQueryRendererStringWINE)( HDC dc, GLint renderer, GLenum attribute );
         int        (WINE_GLAPI *p_wglReleasePbufferDCARB)( struct wgl_pbuffer * hPbuffer, HDC hDC );
         BOOL       (WINE_GLAPI *p_wglReleaseTexImageARB)( struct wgl_pbuffer * hPbuffer, int iBuffer );
+        BOOL       (WINE_GLAPI *p_wglSetFullscreenExclusiveWINE)( HWND hwnd, int fullscreen_exclusive );
         BOOL       (WINE_GLAPI *p_wglSetPbufferAttribARB)( struct wgl_pbuffer * hPbuffer, const int *piAttribList );
         BOOL       (WINE_GLAPI *p_wglSetPixelFormatWINE)( HDC hdc, int format );
         BOOL       (WINE_GLAPI *p_wglSwapIntervalEXT)( int interval );
