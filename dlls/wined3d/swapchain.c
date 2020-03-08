@@ -692,8 +692,8 @@ static BOOL swapchain_gl_set_fullscreen_exclusive(struct wined3d_swapchain *swap
 
     if ((swapchain->state.desc.flags & WINED3D_SWAPCHAIN_NO_WINDOW_CHANGES))
     {
+        window_pos_after = HWND_NOTOPMOST;
         window_pos_flags = SWP_FRAMECHANGED | SWP_NOACTIVATE;
-        window_pos_after = 0;
     }
     else if (fullscreen_exclusive)
     {
@@ -702,7 +702,7 @@ static BOOL swapchain_gl_set_fullscreen_exclusive(struct wined3d_swapchain *swap
     }
     else
     {
-        window_pos_after = 0;
+        window_pos_after = HWND_NOTOPMOST;
         window_pos_flags = SWP_FRAMECHANGED | SWP_NOACTIVATE | SWP_NOZORDER;
     }
 

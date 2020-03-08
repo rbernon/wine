@@ -168,6 +168,12 @@ HRESULT dxgi_adapter_create(struct dxgi_factory *factory, UINT ordinal,
         struct dxgi_adapter **adapter) DECLSPEC_HIDDEN;
 struct dxgi_adapter *unsafe_impl_from_IDXGIAdapter(IDXGIAdapter *iface) DECLSPEC_HIDDEN;
 
+struct dxgi_window_state
+{
+    DWORD style;
+    DWORD exstyle;
+};
+
 /* IDXGISwapChain */
 struct d3d11_swapchain
 {
@@ -179,6 +185,7 @@ struct d3d11_swapchain
     IDXGIFactory *factory;
 
     IDXGIOutput *target;
+    struct dxgi_window_state window_state;
 };
 
 HRESULT d3d11_swapchain_init(struct d3d11_swapchain *swapchain, struct dxgi_device *device,

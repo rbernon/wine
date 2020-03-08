@@ -152,8 +152,35 @@ static HRESULT dxgi_get_output_from_window(IDXGIAdapter *adapter, HWND window, I
     return DXGI_ERROR_NOT_FOUND;
 }
 
+static void dxgi_swapchain_set_fullscreen_style(struct dxgi_window_state *state, HWND hwnd, BOOL fullscreen)
+{
+    DWORD style, exstyle;
+
+    if (!state->style && !state->exstyle)
+    {
+        state->style = GetWindowLongW(hwnd, GWL_STYLE);
+        state->exstyle = GetWindowLongW(hwnd, GWL_EXSTYLE);
+    }
+
+    if (fullscreen)
+    {
+        style = state->style & ~(WS_POPUP | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_THICKFRAME | WS_SYSMENU | WS_DLGFRAME | WS_BORDER);
+        exstyle = state->exstyle & ~(WS_EX_DLGMODALFRAME | WS_EX_TOOLWINDOW | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_CONTEXTHELP);
+        SetWindowLongW(hwnd, GWL_STYLE, style | WS_VISIBLE);
+        SetWindowLongW(hwnd, GWL_EXSTYLE, exstyle);
+    }
+    else
+    {
+        SetWindowLongW(hwnd, GWL_STYLE, state->style);
+        SetWindowLongW(hwnd, GWL_EXSTYLE, state->exstyle);
+        state->style = 0;
+        state->exstyle = 0;
+    }
+}
+
 static HRESULT dxgi_swapchain_set_fullscreen_state(struct wined3d_swapchain_state *state,
-        const struct wined3d_swapchain_desc *swapchain_desc, IDXGIOutput *output)
+        const struct wined3d_swapchain_desc *swapchain_desc, IDXGIOutput *output,
+        struct wined3d_swapchain *swapchain)
 {
     struct dxgi_output *dxgi_output;
     HRESULT hr;
@@ -162,7 +189,7 @@ static HRESULT dxgi_swapchain_set_fullscreen_state(struct wined3d_swapchain_stat
 
     wined3d_mutex_lock();
     hr = wined3d_swapchain_state_set_fullscreen(state, swapchain_desc,
-            dxgi_output->wined3d_output, NULL, NULL);
+            dxgi_output->wined3d_output, NULL, swapchain);
     wined3d_mutex_unlock();
 
     return hr;
@@ -427,11 +454,13 @@ static HRESULT STDMETHODCALLTYPE DECLSPEC_HOTPATCH d3d11_swapchain_SetFullscreen
         return hr;
     }
 
+    dxgi_swapchain_set_fullscreen_style(&swapchain->window_state, d3d11_swapchain_get_hwnd(swapchain), fullscreen);
+
     wined3d_mutex_lock();
     state = wined3d_swapchain_get_state(swapchain->wined3d_swapchain);
     wined3d_swapchain_get_desc(swapchain->wined3d_swapchain, &swapchain_desc);
     swapchain_desc.windowed = !fullscreen;
-    hr = dxgi_swapchain_set_fullscreen_state(state, &swapchain_desc, target);
+    hr = dxgi_swapchain_set_fullscreen_state(state, &swapchain_desc, target, swapchain->wined3d_swapchain);
     wined3d_mutex_unlock();
     if (FAILED(hr))
     {
@@ -899,7 +928,9 @@ HRESULT d3d11_swapchain_init(struct d3d11_swapchain *swapchain, struct dxgi_devi
             goto cleanup;
         }
 
-        if (FAILED(hr = dxgi_swapchain_set_fullscreen_state(state, desc, swapchain->target)))
+        dxgi_swapchain_set_fullscreen_style(&swapchain->window_state, d3d11_swapchain_get_hwnd(swapchain), fullscreen);
+
+        if (FAILED(hr = dxgi_swapchain_set_fullscreen_state(state, desc, swapchain->target, swapchain->wined3d_swapchain)))
         {
             WARN("Failed to set fullscreen state, hr %#x.\n", hr);
             IDXGIOutput_Release(swapchain->target);
@@ -1095,6 +1126,7 @@ struct d3d12_swapchain
     IDXGIOutput *target;
     DXGI_SWAP_CHAIN_DESC1 desc;
     DXGI_SWAP_CHAIN_FULLSCREEN_DESC fullscreen_desc;
+    struct dxgi_window_state window_state;
 };
 
 static DXGI_FORMAT dxgi_format_from_vk_format(VkFormat vk_format)
@@ -2235,9 +2267,12 @@ static HRESULT STDMETHODCALLTYPE DECLSPEC_HOTPATCH d3d12_swapchain_SetFullscreen
 
     if (FAILED(hr = wined3d_swapchain_desc_from_dxgi(&wined3d_desc, window, swapchain_desc, fullscreen_desc)))
         goto fail;
+
+    dxgi_swapchain_set_fullscreen_style(&swapchain->window_state, window, fullscreen);
+
     wined3d_mutex_lock();
     wined3d_desc.windowed = !fullscreen;
-    hr = dxgi_swapchain_set_fullscreen_state(swapchain->state, &wined3d_desc, target);
+    hr = dxgi_swapchain_set_fullscreen_state(swapchain->state, &wined3d_desc, target, NULL);
     wined3d_mutex_unlock();
     if (FAILED(hr))
         goto fail;

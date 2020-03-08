@@ -352,7 +352,6 @@ static void capture_fullscreen_state_(unsigned int line, struct fullscreen_state
 static void check_fullscreen_state_(unsigned int line, const struct fullscreen_state *state,
         const struct fullscreen_state *expected_state, BOOL windowed)
 {
-    todo_wine_if(!windowed)
     ok_(__FILE__, line)((state->style & ~WS_VISIBLE) == (expected_state->style & ~WS_VISIBLE),
             "Got style %x, expected %x.\n", (DWORD)(state->style & ~WS_VISIBLE), (DWORD)(expected_state->style & ~WS_VISIBLE));
     ok_(__FILE__, line)((state->exstyle & ~WS_EX_TOPMOST) == (expected_state->exstyle & ~WS_EX_TOPMOST),
@@ -5239,7 +5238,6 @@ static void test_swapchain_window_messages(void)
         goto done;
     }
     flush_events();
-    todo_wine
     ok(!expect_messages->message || broken(!expect_messages_broken->message),
             "Expected message %#x or %#x.\n",
             expect_messages->message, expect_messages_broken->message);
@@ -5270,7 +5268,6 @@ static void test_swapchain_window_messages(void)
     hr = IDXGIFactory_CreateSwapChain(factory, (IUnknown *)device, &swapchain_desc, &swapchain);
     ok(hr == S_OK, "Failed to create swapchain, hr %#x.\n", hr);
     flush_events();
-    todo_wine
     ok(!expect_messages->message || broken(!expect_messages_broken->message),
             "Expected message %#x or %#x.\n",
             expect_messages->message, expect_messages_broken->message);
@@ -5403,7 +5400,7 @@ static void test_swapchain_window_styles(void)
         {
             style = GetWindowLongA(swapchain_desc.OutputWindow, GWL_STYLE);
             exstyle = GetWindowLongA(swapchain_desc.OutputWindow, GWL_EXSTYLE);
-            todo_wine
+            todo_wine_if(!(tests[i].expected_style & WS_VISIBLE))
             ok(style == fullscreen_style, "Test %u: Got style %#x, expected %#x.\n",
                     i, style, fullscreen_style);
             ok(exstyle == fullscreen_exstyle, "Test %u: Got exstyle %#x, expected %#x.\n",
@@ -5419,7 +5416,6 @@ static void test_swapchain_window_styles(void)
 
         style = GetWindowLongA(swapchain_desc.OutputWindow, GWL_STYLE);
         exstyle = GetWindowLongA(swapchain_desc.OutputWindow, GWL_EXSTYLE);
-        todo_wine_if(!(tests[i].expected_style & WS_VISIBLE))
         ok(style == tests[i].expected_style, "Test %u: Got style %#x, expected %#x.\n",
                 i, style, tests[i].expected_style);
         todo_wine_if(!(tests[i].expected_exstyle & WS_EX_TOPMOST))
@@ -5434,7 +5430,7 @@ static void test_swapchain_window_styles(void)
         {
             style = GetWindowLongA(swapchain_desc.OutputWindow, GWL_STYLE);
             exstyle = GetWindowLongA(swapchain_desc.OutputWindow, GWL_EXSTYLE);
-            todo_wine
+            todo_wine_if(!(tests[i].expected_style & WS_VISIBLE))
             ok(style == fullscreen_style, "Test %u: Got style %#x, expected %#x.\n",
                     i, style, fullscreen_style);
             ok(exstyle == fullscreen_exstyle, "Test %u: Got exstyle %#x, expected %#x.\n",
@@ -5448,10 +5444,9 @@ static void test_swapchain_window_styles(void)
 
             style = GetWindowLongA(swapchain_desc.OutputWindow, GWL_STYLE);
             exstyle = GetWindowLongA(swapchain_desc.OutputWindow, GWL_EXSTYLE);
-            todo_wine
             ok(style == tests[i].expected_style, "Test %u: Got style %#x, expected %#x.\n",
                     i, style, tests[i].expected_style);
-            todo_wine
+            todo_wine_if(!(tests[i].expected_exstyle & WS_EX_TOPMOST))
             ok(exstyle == tests[i].expected_exstyle, "Test %u: Got exstyle %#x, expected %#x.\n",
                     i, exstyle, tests[i].expected_exstyle);
         }
@@ -5465,10 +5460,9 @@ static void test_swapchain_window_styles(void)
 
         style = GetWindowLongA(swapchain_desc.OutputWindow, GWL_STYLE);
         exstyle = GetWindowLongA(swapchain_desc.OutputWindow, GWL_EXSTYLE);
-        todo_wine
         ok(style == tests[i].expected_style, "Test %u: Got style %#x, expected %#x.\n",
                 i, style, tests[i].expected_style);
-        todo_wine
+        todo_wine_if(!(tests[i].expected_exstyle & WS_EX_TOPMOST))
         ok(exstyle == tests[i].expected_exstyle, "Test %u: Got exstyle %#x, expected %#x.\n",
                 i, exstyle, tests[i].expected_exstyle);
 
