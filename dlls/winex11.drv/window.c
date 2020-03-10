@@ -285,6 +285,7 @@ static unsigned long get_mwm_decorations( struct x11drv_win_data *data,
     unsigned long ret = 0;
 
     if (!decorated_mode) return 0;
+    if (is_window_rect_fullscreen( &data->whole_rect )) return 0;
 
     if (IsRectEmpty( &data->window_rect )) return 0;
     if (data->shaped) return 0;
@@ -1298,10 +1299,20 @@ static void sync_client_position( struct x11drv_win_data *data,
 
     if (!data->client_window) return;
 
-    changes.x      = data->client_rect.left - data->whole_rect.left;
-    changes.y      = data->client_rect.top - data->whole_rect.top;
-    changes.width  = min( max( 1, data->client_rect.right - data->client_rect.left ), 65535 );
-    changes.height = min( max( 1, data->client_rect.bottom - data->client_rect.top ), 65535 );
+    if (is_window_rect_fullscreen( &data->whole_rect ))
+    {
+        changes.x      = data->whole_rect.left;
+        changes.y      = data->whole_rect.top;
+        changes.width  = min( max( 1, data->whole_rect.right - data->whole_rect.left ), 65535 );
+        changes.height = min( max( 1, data->whole_rect.bottom - data->whole_rect.top ), 65535 );
+    }
+    else
+    {
+        changes.x      = data->client_rect.left - data->whole_rect.left;
+        changes.y      = data->client_rect.top - data->whole_rect.top;
+        changes.width  = min( max( 1, data->client_rect.right - data->client_rect.left ), 65535 );
+        changes.height = min( max( 1, data->client_rect.bottom - data->client_rect.top ), 65535 );
+    }
 
     if (changes.x != old_client_rect->left - old_whole_rect->left) mask |= CWX;
     if (changes.y != old_client_rect->top  - old_whole_rect->top)  mask |= CWY;
@@ -1456,10 +1467,20 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual )
     attr.backing_store = NotUseful;
     attr.border_pixel = 0;
 
-    x = data->client_rect.left - data->whole_rect.left;
-    y = data->client_rect.top - data->whole_rect.top;
-    cx = min( max( 1, data->client_rect.right - data->client_rect.left ), 65535 );
-    cy = min( max( 1, data->client_rect.bottom - data->client_rect.top ), 65535 );
+    if (is_window_rect_fullscreen( &data->whole_rect ))
+    {
+        x = data->whole_rect.left;
+        y = data->whole_rect.top;
+        cx = min( max( 1, data->whole_rect.right - data->whole_rect.left ), 65535 );
+        cy = min( max( 1, data->whole_rect.bottom - data->whole_rect.top ), 65535 );
+    }
+    else
+    {
+        x = data->client_rect.left - data->whole_rect.left;
+        y = data->client_rect.top - data->whole_rect.top;
+        cx = min( max( 1, data->client_rect.right - data->client_rect.left ), 65535 );
+        cy = min( max( 1, data->client_rect.bottom - data->client_rect.top ), 65535 );
+    }
 
     ret = data->client_window = XCreateWindow( gdi_display,
                                                data->whole_window ? data->whole_window : dummy_parent,
