@@ -2252,7 +2252,6 @@ void wined3d_swapchain_state_restore_from_fullscreen(struct wined3d_swapchain_st
 {
     unsigned int window_pos_flags = SWP_NOZORDER | SWP_NOACTIVATE;
     HWND window_pos_after = NULL;
-    LONG style, exstyle;
     RECT rect = {0};
     BOOL filter;
 
@@ -2267,26 +2266,9 @@ void wined3d_swapchain_state_restore_from_fullscreen(struct wined3d_swapchain_st
         window_pos_flags &= ~SWP_NOZORDER;
     }
 
-    style = GetWindowLongW(window, GWL_STYLE);
-    exstyle = GetWindowLongW(window, GWL_EXSTYLE);
-
-    /* These flags are set by wined3d_device_setup_fullscreen_window, not the
-     * application, and we want to ignore them in the test below, since it's
-     * not the application's fault that they changed. Additionally, we want to
-     * preserve the current status of these flags (i.e. don't restore them) to
-     * more closely emulate the behavior of Direct3D, which leaves these flags
-     * alone when returning to windowed mode. */
-    state->style ^= (state->style ^ style) & WS_VISIBLE;
-    state->exstyle ^= (state->exstyle ^ exstyle) & WS_EX_TOPMOST;
-
     filter = wined3d_filter_messages(window, TRUE);
 
-    /* Only restore the style if the application didn't modify it during the
-     * fullscreen phase. Some applications change it before calling Reset()
-     * when switching between windowed and fullscreen modes (HL2), some
-     * depend on the original style (Eve Online). */
-    if (!(state->desc.flags & WINED3D_SWAPCHAIN_NO_STYLE_CHANGES) &&
-        style == fullscreen_style(state->style) && exstyle == fullscreen_exstyle(state->exstyle))
+    if (!(state->desc.flags & WINED3D_SWAPCHAIN_NO_STYLE_CHANGES))
     {
         TRACE("Restoring window style of window %p to %08x, %08x.\n",
                 window, state->style, state->exstyle);
