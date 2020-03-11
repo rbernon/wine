@@ -2591,7 +2591,7 @@ static void test_window_style(void)
     ok(EqualRect(&r, &fullscreen_rect), "Expected %s, got %s.\n",
             wine_dbgstr_rect(&fullscreen_rect), wine_dbgstr_rect(&r));
     GetClientRect(window, &r);
-    todo_wine ok(!EqualRect(&r, &fullscreen_rect), "Client rect and window rect are equal.\n");
+    ok(!EqualRect(&r, &fullscreen_rect), "Client rect and window rect are equal.\n");
 
     ret = SetForegroundWindow(GetDesktopWindow());
     ok(ret, "Failed to set foreground window.\n");
@@ -2624,16 +2624,16 @@ static void test_window_style(void)
     todo_wine ok(tmp == expected_style, "Expected window style %#x, got %#x.\n", expected_style, tmp);
     tmp = GetWindowLongA(window, GWL_EXSTYLE);
     expected_style = exstyle | WS_EX_TOPMOST;
-    todo_wine ok(tmp == expected_style, "Expected window extended style %#x, got %#x.\n", expected_style, tmp);
+    ok(tmp == expected_style, "Expected window extended style %#x, got %#x.\n", expected_style, tmp);
 
     ret = SetForegroundWindow(GetDesktopWindow());
     ok(ret, "Failed to set foreground window.\n");
     tmp = GetWindowLongA(window, GWL_STYLE);
     expected_style = style | WS_VISIBLE | WS_MINIMIZE;
-    todo_wine ok(tmp == expected_style, "Expected window style %#x, got %#x.\n", expected_style, tmp);
+    ok(tmp == expected_style, "Expected window style %#x, got %#x.\n", expected_style, tmp);
     tmp = GetWindowLongA(window, GWL_EXSTYLE);
     expected_style = exstyle | WS_EX_TOPMOST;
-    todo_wine ok(tmp == expected_style, "Expected window extended style %#x, got %#x.\n", expected_style, tmp);
+    ok(tmp == expected_style, "Expected window extended style %#x, got %#x.\n", expected_style, tmp);
 
     ref = IDirectDraw7_Release(ddraw);
     ok(ref == 0, "The ddraw object was not properly freed: refcount %u.\n", ref);
