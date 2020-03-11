@@ -2179,28 +2179,10 @@ HRESULT CDECL wined3d_swapchain_state_resize_target(struct wined3d_swapchain_sta
     return WINED3D_OK;
 }
 
-static LONG fullscreen_style(LONG style)
-{
-    /* Make sure the window is managed, otherwise we won't get keyboard input. */
-    style |= WS_POPUP | WS_SYSMENU;
-    style &= ~(WS_CAPTION | WS_THICKFRAME);
-
-    return style;
-}
-
-static LONG fullscreen_exstyle(LONG exstyle)
-{
-    /* Filter out window decorations. */
-    exstyle &= ~(WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE);
-
-    return exstyle;
-}
-
 HRESULT wined3d_swapchain_state_setup_fullscreen(struct wined3d_swapchain_state *state,
         HWND window, int x, int y, int width, int height)
 {
     unsigned int window_pos_flags = SWP_NOACTIVATE;
-    LONG style, exstyle;
     BOOL filter;
 
     TRACE("Setting up window %p for fullscreen mode.\n", window);
@@ -2229,8 +2211,8 @@ HRESULT wined3d_swapchain_state_setup_fullscreen(struct wined3d_swapchain_state 
 
     if (!(state->desc.flags & WINED3D_SWAPCHAIN_NO_STYLE_CHANGES))
     {
-        style = fullscreen_style(state->style);
-        exstyle = fullscreen_exstyle(state->exstyle);
+        LONG style = state->style & ~(WS_POPUP | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_THICKFRAME | WS_SYSMENU | WS_DLGFRAME | WS_BORDER);
+        LONG exstyle = state->exstyle & ~(WS_EX_DLGMODALFRAME | WS_EX_TOOLWINDOW | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_CONTEXTHELP);
 
         TRACE("Old style was %08x, %08x, setting to %08x, %08x.\n",
                 state->style, state->exstyle, style, exstyle);

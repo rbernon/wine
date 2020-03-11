@@ -6152,7 +6152,7 @@ static void test_swapchain_window_styles(void)
         {
             style = GetWindowLongA(swapchain_desc.OutputWindow, GWL_STYLE);
             exstyle = GetWindowLongA(swapchain_desc.OutputWindow, GWL_EXSTYLE);
-            todo_wine
+            todo_wine_if(!(tests[i].expected_style & WS_VISIBLE))
             ok(style == fullscreen_style, "Test %u: Got style %#x, expected %#x.\n",
                     i, style, fullscreen_style);
             ok(exstyle == fullscreen_exstyle, "Test %u: Got exstyle %#x, expected %#x.\n",
@@ -6181,7 +6181,7 @@ static void test_swapchain_window_styles(void)
         {
             style = GetWindowLongA(swapchain_desc.OutputWindow, GWL_STYLE);
             exstyle = GetWindowLongA(swapchain_desc.OutputWindow, GWL_EXSTYLE);
-            todo_wine
+            todo_wine_if(!(tests[i].expected_style & WS_VISIBLE))
             ok(style == fullscreen_style, "Test %u: Got style %#x, expected %#x.\n",
                     i, style, fullscreen_style);
             ok(exstyle == fullscreen_exstyle, "Test %u: Got exstyle %#x, expected %#x.\n",
