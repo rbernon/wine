@@ -350,11 +350,15 @@ void read_request( struct thread *thread )
                          sizeof(thread->req) )) != sizeof(thread->req)) goto error;
         if (!(thread->req_toread = thread->req.request_header.request_size))
             goto done;
-        if (!(thread->req_data = malloc( thread->req_toread )))
+        if (thread->req_data_size < thread->req_toread)
         {
-            fatal_protocol_error( thread, "no memory for %u bytes request %d\n",
-                                  thread->req_toread, thread->req.request_header.req );
-            return;
+            thread->req_data_size = thread->req_toread;
+            if (!(thread->req_data = realloc( thread->req_data, thread->req_data_size )))
+            {
+                fatal_protocol_error( thread, "no memory for %u bytes request %d\n",
+                                      thread->req_toread, thread->req.request_header.req );
+                return;
+            }
         }
     }
 
@@ -384,8 +388,6 @@ done:
     PROF_SCOPE_END();
 
     call_req_handler( thread );
-    free( thread->req_data );
-    thread->req_data = NULL;
 }
 
 /* receive a file descriptor on the process socket */
