@@ -231,6 +231,7 @@ static inline void init_thread_structure( struct thread *thread )
     thread->wait            = NULL;
     thread->error           = 0;
     thread->req_data        = NULL;
+    thread->req_data_size   = 0;
     thread->req_toread      = 0;
     thread->reply_data      = NULL;
     thread->reply_towrite   = 0;
