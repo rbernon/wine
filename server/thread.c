@@ -233,6 +233,8 @@ static inline void init_thread_structure( struct thread *thread )
     thread->req_data        = NULL;
     thread->req_data_size   = 0;
     thread->req_toread      = 0;
+    thread->rep_data        = NULL;
+    thread->rep_data_size   = 0;
     thread->reply_data      = NULL;
     thread->reply_towrite   = 0;
     thread->request_fd      = NULL;
@@ -413,7 +415,8 @@ static void cleanup_thread( struct thread *thread )
     clear_apc_queue( &thread->system_apc );
     clear_apc_queue( &thread->user_apc );
     free( thread->req_data );
-    free( thread->reply_data );
+    free( thread->rep_data );
+    if (thread->reply_data != thread->rep_data) free( thread->reply_data );
     if (thread->request_fd) release_object( thread->request_fd );
     if (thread->reply_fd) release_object( thread->reply_fd );
     if (thread->wait_fd) release_object( thread->wait_fd );
@@ -431,6 +434,7 @@ static void cleanup_thread( struct thread *thread )
     }
     free( thread->desc );
     thread->req_data = NULL;
+    thread->rep_data = NULL;
     thread->reply_data = NULL;
     thread->request_fd = NULL;
     thread->reply_fd = NULL;

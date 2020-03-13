@@ -159,7 +159,12 @@ void fatal_error( const char *err, ... )
 void *set_reply_data_size( data_size_t size )
 {
     assert( size <= get_reply_max_size() );
-    if (size && !(current->reply_data = mem_alloc( size ))) size = 0;
+    if (size > current->rep_data_size)
+    {
+        if (!(current->rep_data = mem_alloc( size ))) size = 0;
+        current->rep_data_size = size;
+    }
+    current->reply_data = current->rep_data;
     current->reply_size = size;
     return current->reply_data;
 }
@@ -236,7 +241,7 @@ void write_reply( struct thread *thread )
     {
         if (!(thread->reply_towrite -= ret))
         {
-            free( thread->reply_data );
+            if (thread->reply_data != thread->rep_data) free( thread->reply_data );
             thread->reply_data = NULL;
             /* sent everything, can go back to waiting for requests */
             set_fd_events( thread->request_fd, POLLIN );
@@ -285,7 +290,7 @@ static void send_reply( union generic_reply *reply )
             goto done;
         }
     }
-    free( current->reply_data );
+    if (current->reply_data != current->rep_data) free( current->reply_data );
     current->reply_data = NULL;
 
 done:
