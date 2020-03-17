@@ -64,6 +64,7 @@ struct thread
     union generic_request  req;           /* current request */
     void                  *req_data;      /* variable-size data for request */
     unsigned int           req_toread;    /* amount of data still to read in request */
+    union generic_reply    reply;         /* current reply */
     void                  *reply_data;    /* variable-size data for reply */
     unsigned int           reply_size;    /* size of reply data */
     unsigned int           reply_towrite; /* amount of data still to write in reply */

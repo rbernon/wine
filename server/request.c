@@ -295,18 +295,17 @@ static void send_reply( union generic_reply *reply )
 /* call a request handler */
 static void call_req_handler( struct thread *thread )
 {
-    union generic_reply reply;
     enum request req = thread->req.request_header.req;
 
     current = thread;
     current->reply_size = 0;
     clear_error();
-    memset( &reply, 0, sizeof(reply) );
+    memset( &current->reply, 0, sizeof(current->reply) );
 
     if (debug_level) trace_request();
 
     if (req < REQ_NB_REQUESTS)
-        req_handlers[req]( &current->req, &reply );
+        req_handlers[req]( &current->req, &current->reply );
     else
         set_error( STATUS_NOT_IMPLEMENTED );
 
@@ -314,10 +313,10 @@ static void call_req_handler( struct thread *thread )
     {
         if (current->reply_fd)
         {
-            reply.reply_header.error = current->error;
-            reply.reply_header.reply_size = current->reply_size;
-            if (debug_level) trace_reply( req, &reply );
-            send_reply( &reply );
+            current->reply.reply_header.error = current->error;
+            current->reply.reply_header.reply_size = current->reply_size;
+            if (debug_level) trace_reply( req, &current->reply );
+            send_reply( &current->reply );
         }
         else
         {
