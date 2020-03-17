@@ -225,71 +225,19 @@ const void *get_req_data_after_objattr( const struct object_attributes *attr, da
     return (const char *)get_req_data() + size;
 }
 
-/* write the remaining part of the reply */
-void write_reply( struct thread *thread )
-{
-    int ret;
-
-    if ((ret = write( get_unix_fd( thread->reply_fd ),
-                      (char *)thread->reply_data + thread->reply_size - thread->reply_towrite,
-                      thread->reply_towrite )) >= 0)
-    {
-        if (!(thread->reply_towrite -= ret))
-        {
-            free( thread->reply_data );
-            thread->reply_data = NULL;
-            /* sent everything, can go back to waiting for requests */
-            set_fd_events( thread->request_fd, POLLIN );
-            set_fd_events( thread->reply_fd, 0 );
-        }
-        return;
-    }
-    if (errno == EPIPE)
-        kill_thread( thread, 0 );  /* normal death */
-    else if (errno != EWOULDBLOCK && (EWOULDBLOCK == EAGAIN || errno != EAGAIN))
-        fatal_protocol_error( thread, "reply write: %s\n", strerror( errno ));
-}
-
 /* send a reply to the current thread */
 static void send_reply( union generic_reply *reply )
 {
-    int ret;
+    struct iovec iov[2];
 
-    if (!current->reply_size)
-    {
-        if ((ret = write( get_unix_fd( current->reply_fd ),
-                          reply, sizeof(*reply) )) != sizeof(*reply)) goto error;
-    }
-    else
-    {
-        struct iovec vec[2];
+    iov[0].iov_base = (void*)reply;
+    iov[0].iov_len = sizeof(*reply);
+    iov[1].iov_base = current->reply_data;
+    iov[1].iov_len = current->reply_size;
 
-        vec[0].iov_base = (void *)reply;
-        vec[0].iov_len  = sizeof(*reply);
-        vec[1].iov_base = current->reply_data;
-        vec[1].iov_len  = current->reply_size;
-
-        if ((ret = writev( get_unix_fd( current->reply_fd ), vec, 2 )) < sizeof(*reply)) goto error;
-
-        if ((current->reply_towrite = current->reply_size - (ret - sizeof(*reply))))
-        {
-            /* couldn't write it all, wait for POLLOUT */
-            set_fd_events( current->reply_fd, POLLOUT );
-            set_fd_events( current->request_fd, 0 );
-            return;
-        }
-    }
-    free( current->reply_data );
-    current->reply_data = NULL;
-    return;
-
- error:
-    if (ret >= 0)
-        fatal_protocol_error( current, "partial write %d\n", ret );
-    else if (errno == EPIPE)
-        kill_thread( current, 0 );  /* normal death */
-    else
-        fatal_protocol_error( current, "reply write: %s\n", strerror( errno ));
+    current->reply_towrite = sizeof(*reply) + current->reply_size;
+    set_fd_events( current->request_fd, 0 );
+    queue_fd_write( current->reply_fd, iov );
 }
 
 /* call a request handler */

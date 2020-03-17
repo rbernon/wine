@@ -53,7 +53,6 @@ extern const void *get_req_data_after_objattr( const struct object_attributes *a
 extern int receive_fd( struct process *process );
 extern int send_client_fd( struct process *process, int fd, obj_handle_t handle );
 extern void read_request( struct thread *thread );
-extern void write_reply( struct thread *thread );
 extern timeout_t monotonic_counter(void);
 extern void open_master_socket(void);
 extern void close_master_socket( timeout_t timeout );

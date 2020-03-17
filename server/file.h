@@ -29,6 +29,7 @@ struct fd;
 struct mapping;
 struct async_queue;
 struct completion;
+struct iovec;
 
 /* server-side representation of I/O status block */
 struct iosb
@@ -74,6 +75,8 @@ struct fd_ops
     void (*queue_async)(struct fd *, struct async *async, int type, int count);
     /* selected events for async i/o need an update */
     void (*reselect_async)( struct fd *, struct async_queue *queue );
+    /* queued io completion event */
+    void (*io_event)( struct fd *, int event, int res );
 };
 
 /* file descriptor functions */
@@ -104,6 +107,7 @@ extern void allow_fd_caching( struct fd *fd );
 extern void set_fd_signaled( struct fd *fd, int signaled );
 extern char *dup_fd_name( struct fd *root, const char *name );
 extern void get_nt_name( struct fd *fd, struct unicode_str *name );
+extern void queue_fd_write( struct fd *fd, struct iovec *iov );
 
 extern int default_fd_signaled( struct object *obj, struct wait_queue_entry *entry );
 extern int default_fd_get_poll_events( struct fd *fd );

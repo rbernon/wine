@@ -38,6 +38,9 @@
 #ifdef HAVE_SYS_STATVFS_H
 #include <sys/statvfs.h>
 #endif
+#ifdef HAVE_SYS_UIO_H
+#include <sys/uio.h>
+#endif
 #ifdef HAVE_SYS_VFS_H
 /* Work around a conflict with Solaris' system list defined in sys/list.h. */
 #define list SYSLIST
@@ -193,6 +196,7 @@ struct fd
     struct completion   *completion;  /* completion object attached to this fd */
     apc_param_t          comp_key;    /* completion key to set in completion events */
     unsigned int         comp_flags;  /* completion flags */
+    struct iovec         iov[2];      /* queued io vector */
 };
 
 static void fd_dump( struct object *obj, int verbose );
@@ -542,6 +546,11 @@ static inline void fd_poll_event( struct fd *fd, int event )
     fd->fd_ops->poll_event( fd, event );
 }
 
+static inline void fd_io_event( struct fd *fd, int event, int res )
+{
+    fd->fd_ops->io_event( fd, event, res );
+}
+
 #ifdef USE_EPOLL
 
 static int epoll_fd = -1;
@@ -633,7 +642,11 @@ static inline void main_loop_epoll(void)
         for (i = 0; i < ret; i++)
         {
             int user = events[i].data.u32;
-            if (pollfd[user].revents) fd_poll_event( poll_users[user], pollfd[user].revents );
+            struct iovec *iov = poll_users[user]->iov;
+            if ((pollfd[user].revents & POLLOUT) && (iov[0].iov_len + iov[1].iov_len))
+                queue_fd_write( poll_users[user], iov );
+            else if (pollfd[user].revents)
+                fd_poll_event( poll_users[user], pollfd[user].revents );
         }
     }
 }
@@ -744,7 +757,11 @@ static inline void main_loop_epoll(void)
         for (i = 0; i < ret; i++)
         {
             long user = (long)events[i].udata;
-            if (pollfd[user].revents) fd_poll_event( poll_users[user], pollfd[user].revents );
+            struct iovec *iov = poll_users[user]->iov;
+            if ((pollfd[user].revents & POLLOUT) && (iov[0].iov_len + iov[1].iov_len))
+                queue_fd_write( poll_users[user], iov );
+            else if (pollfd[user].revents)
+                fd_poll_event( poll_users[user], pollfd[user].revents );
             pollfd[user].revents = 0;
         }
     }
@@ -841,7 +858,11 @@ static inline void main_loop_epoll(void)
         for (i = 0; i < nget; i++)
         {
             long user = (long)events[i].portev_user;
-            if (pollfd[user].revents) fd_poll_event( poll_users[user], pollfd[user].revents );
+            struct iovec *iov = poll_users[user]->iov;
+            if ((pollfd[user].revents & POLLOUT) && (iov[0].iov_len + iov[1].iov_len))
+                queue_fd_write( poll_users[user], iov );
+            else if (pollfd[user].revents)
+                fd_poll_event( poll_users[user], pollfd[user].revents );
             /* if we are still interested, reassociate the fd */
             if (pollfd[user].fd != -1) {
                 port_associate( port_fd, PORT_SOURCE_FD, pollfd[user].fd, pollfd[user].events, (void *)user );
@@ -859,6 +880,32 @@ static inline void main_loop_epoll(void) { }
 
 #endif /* USE_EPOLL */
 
+void queue_fd_write( struct fd *fd, struct iovec *iov )
+{
+    int ret;
+
+    ret = writev( get_unix_fd( fd ), iov, 2 );
+    assert( iov[0].iov_len + iov[1].iov_len >= ret );
+
+    if (iov[0].iov_len + iov[1].iov_len == ret)
+    {
+        fd->iov[0].iov_len = 0;
+        fd->iov[1].iov_len = 0;
+        fd_io_event(fd, POLLOUT, ret);
+    }
+    else
+    {
+        assert( ret >= iov[0].iov_len );
+        ret -= iov[0].iov_len;
+
+        fd->iov[0].iov_base = (char *)iov[1].iov_base + ret;
+        fd->iov[0].iov_len = iov[1].iov_len - ret;
+        fd->iov[1].iov_len = 0;
+
+        /* couldn't write it all, wait for POLLOUT */
+        set_fd_events( fd, POLLOUT );
+    }
+}
 
 /* add a user in the poll array and return its index, or -1 on failure */
 static int add_poll_user( struct fd *fd )
@@ -1007,7 +1054,11 @@ void main_loop(void)
             {
                 if (pollfd[i].revents)
                 {
-                    fd_poll_event( poll_users[i], pollfd[i].revents );
+                    struct iovec *iov = poll_users[i]->iov;
+                    if ((pollfd[i].revents & POLLOUT) && (iov[0].iov_len + iov[1].iov_len))
+                        queue_fd_write( poll_users[i], iov );
+                    else
+                        fd_poll_event( poll_users[i], pollfd[i].revents );
                     if (!--ret) break;
                 }
             }
@@ -1708,6 +1759,7 @@ static struct fd *alloc_fd_object(void)
     init_async_queue( &fd->wait_q );
     list_init( &fd->inode_entry );
     list_init( &fd->locks );
+    memset( fd->iov, 0, sizeof(fd->iov) );
 
     if ((fd->poll_index = add_poll_user( fd )) == -1)
     {

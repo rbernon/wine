@@ -177,6 +177,7 @@ static void dump_thread( struct object *obj, int verbose );
 static int thread_signaled( struct object *obj, struct wait_queue_entry *entry );
 static unsigned int thread_map_access( struct object *obj, unsigned int access );
 static void thread_poll_event( struct fd *fd, int event );
+static void thread_io_event( struct fd *, int event, int res );
 static struct list *thread_get_kernel_obj_list( struct object *obj );
 static void destroy_thread( struct object *obj );
 
@@ -208,11 +209,17 @@ static const struct fd_ops thread_fd_ops =
 {
     NULL,                       /* get_poll_events */
     thread_poll_event,          /* poll_event */
-    NULL,                       /* flush */
     NULL,                       /* get_fd_type */
+    NULL,                       /* read */
+    NULL,                       /* write */
+    NULL,                       /* flush */
+    NULL,                       /* get_file_info */
+    NULL,                       /* get_volume_info */
     NULL,                       /* ioctl */
+    NULL,                       /* cancel_async */
     NULL,                       /* queue_async */
-    NULL                        /* reselect_async */
+    NULL,                       /* reselect_async */
+    thread_io_event,            /* io_event */
 };
 
 static struct list thread_list = LIST_INIT(thread_list);
@@ -388,7 +395,25 @@ static void thread_poll_event( struct fd *fd, int event )
     grab_object( thread );
     if (event & (POLLERR | POLLHUP)) kill_thread( thread, 0 );
     else if (event & POLLIN) read_request( thread );
-    else if (event & POLLOUT) write_reply( thread );
+    assert( !(event & POLLOUT) );
+    release_object( thread );
+}
+
+static void thread_io_event( struct fd *fd, int event, int res )
+{
+    struct thread *thread = get_fd_user( fd );
+    assert( thread->obj.ops == &thread_ops );
+    assert( res != -EAGAIN );
+
+    grab_object( thread );
+    if (res <= 0) kill_thread( thread, 0 );
+    else if ((event & POLLOUT))
+    {
+        assert( !(current->reply_towrite -= res) );
+        free( thread->reply_data );
+        thread->reply_data = NULL;
+        set_fd_events( thread->request_fd, POLLIN );
+    }
     release_object( thread );
 }
 
