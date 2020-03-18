@@ -2342,4 +2342,19 @@ C_ASSERT( sizeof(struct get_next_thread_reply) == 16 );
 /* ### make_requests end ### */
 /* Everything above this line is generated automatically by tools/make_requests */
 
+#include "wine/prof.h"
+
+extern const char * const req_names[REQ_NB_REQUESTS];
+
+#undef DECL_HANDLER
+#define DECL_HANDLER(name) \
+    static void __req_##name( const struct name##_request *req, struct name##_reply *reply ); \
+    void req_##name( const struct name##_request *req, struct name##_reply *reply ) \
+    { \
+        PROF_SCOPE_START_LIMIT(req_##name, 1000000000ull); \
+        __req_##name( req, reply ); \
+        PROF_SCOPE_END(); \
+    } \
+    static void __req_##name( const struct name##_request *req, struct name##_reply *reply )
+
 #endif  /* __WINE_SERVER_REQUEST_H */
