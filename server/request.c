@@ -228,6 +228,8 @@ void write_reply( struct thread *thread )
 {
     int ret;
 
+    PROF_SCOPE_START_LIMIT(write_reply, 1000000000llu);
+
     if ((ret = write( get_unix_fd( thread->reply_fd ),
                       (char *)thread->reply_data + thread->reply_size - thread->reply_towrite,
                       thread->reply_towrite )) >= 0)
@@ -240,12 +242,16 @@ void write_reply( struct thread *thread )
             set_fd_events( thread->request_fd, POLLIN );
             set_fd_events( thread->reply_fd, 0 );
         }
-        return;
     }
-    if (errno == EPIPE)
-        kill_thread( thread, 0 );  /* normal death */
-    else if (errno != EWOULDBLOCK && (EWOULDBLOCK == EAGAIN || errno != EAGAIN))
-        fatal_protocol_error( thread, "reply write: %s\n", strerror( errno ));
+    else
+    {
+        if (errno == EPIPE)
+            kill_thread( thread, 0 );  /* normal death */
+        else if (errno != EWOULDBLOCK && (EWOULDBLOCK == EAGAIN || errno != EAGAIN))
+            fatal_protocol_error( thread, "reply write: %s\n", strerror( errno ));
+    }
+
+    PROF_SCOPE_END();
 }
 
 /* send a reply to the current thread */
