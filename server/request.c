@@ -342,16 +342,14 @@ void read_request( struct thread *thread )
 {
     int ret;
 
+    PROF_SCOPE_START_LIMIT(read_request, 1000000000llu);
+
     if (!thread->req_toread)  /* no pending request */
     {
         if ((ret = read( get_unix_fd( thread->request_fd ), &thread->req,
                          sizeof(thread->req) )) != sizeof(thread->req)) goto error;
         if (!(thread->req_toread = thread->req.request_header.request_size))
-        {
-            /* no data, handle request at once */
-            call_req_handler( thread );
-            return;
-        }
+            goto done;
         if (!(thread->req_data = malloc( thread->req_toread )))
         {
             fatal_protocol_error( thread, "no memory for %u bytes request %d\n",
@@ -369,12 +367,7 @@ void read_request( struct thread *thread )
                     thread->req_toread );
         if (ret <= 0) break;
         if (!(thread->req_toread -= ret))
-        {
-            call_req_handler( thread );
-            free( thread->req_data );
-            thread->req_data = NULL;
-            return;
-        }
+            goto done;
     }
 
 error:
@@ -384,6 +377,15 @@ error:
         fatal_protocol_error( thread, "partial read %d\n", ret );
     else if (errno != EWOULDBLOCK && (EWOULDBLOCK == EAGAIN || errno != EAGAIN))
         fatal_protocol_error( thread, "read: %s\n", strerror( errno ));
+
+    return;
+
+done:
+    PROF_SCOPE_END();
+
+    call_req_handler( thread );
+    free( thread->req_data );
+    thread->req_data = NULL;
 }
 
 /* receive a file descriptor on the process socket */
