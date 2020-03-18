@@ -259,6 +259,8 @@ static void send_reply( union generic_reply *reply )
 {
     int ret;
 
+    PROF_SCOPE_START_LIMIT(send_reply, 1000000000llu);
+
     if (!current->reply_size)
     {
         if ((ret = write( get_unix_fd( current->reply_fd ),
@@ -280,11 +282,14 @@ static void send_reply( union generic_reply *reply )
             /* couldn't write it all, wait for POLLOUT */
             set_fd_events( current->reply_fd, POLLOUT );
             set_fd_events( current->request_fd, 0 );
-            return;
+            goto done;
         }
     }
     free( current->reply_data );
     current->reply_data = NULL;
+
+done:
+    PROF_SCOPE_END();
     return;
 
  error:
