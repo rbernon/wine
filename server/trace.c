@@ -5181,7 +5181,7 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_get_next_thread_reply,
 };
 
-static const char * const req_names[REQ_NB_REQUESTS] = {
+const char * const req_names[REQ_NB_REQUESTS] = {
     "new_process",
     "get_new_process_info",
     "new_thread",

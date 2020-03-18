@@ -63,6 +63,8 @@
 #define WANT_REQUEST_HANDLERS
 #include "request.h"
 
+#include "wine/prof.h"
+
 /* Some versions of glibc don't define this */
 #ifndef SCM_RIGHTS
 #define SCM_RIGHTS 1
