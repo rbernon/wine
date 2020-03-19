@@ -260,36 +260,29 @@ void write_reply( struct thread *thread )
 }
 
 /* send a reply to the current thread */
-static void send_reply( union generic_reply *reply )
+void send_reply( union generic_reply *reply )
 {
     int ret;
 
     PROF_SCOPE_START_LIMIT(send_reply, 1000000000llu);
 
-    if (!current->reply_size)
+    struct iovec vec[2];
+
+    vec[0].iov_base = (void *)reply;
+    vec[0].iov_len  = sizeof(*reply);
+    vec[1].iov_base = current->reply_data;
+    vec[1].iov_len  = current->reply_size;
+
+    if ((ret = writev( get_unix_fd( current->reply_fd ), vec, 2 )) < sizeof(*reply)) goto error;
+
+    if ((current->reply_towrite = current->reply_size - (ret - sizeof(*reply))))
     {
-        if ((ret = write( get_unix_fd( current->reply_fd ),
-                          reply, sizeof(*reply) )) != sizeof(*reply)) goto error;
+        /* couldn't write it all, wait for POLLOUT */
+        set_fd_events( current->reply_fd, POLLOUT );
+        set_fd_events( current->request_fd, 0 );
+        goto done;
     }
-    else
-    {
-        struct iovec vec[2];
 
-        vec[0].iov_base = (void *)reply;
-        vec[0].iov_len  = sizeof(*reply);
-        vec[1].iov_base = current->reply_data;
-        vec[1].iov_len  = current->reply_size;
-
-        if ((ret = writev( get_unix_fd( current->reply_fd ), vec, 2 )) < sizeof(*reply)) goto error;
-
-        if ((current->reply_towrite = current->reply_size - (ret - sizeof(*reply))))
-        {
-            /* couldn't write it all, wait for POLLOUT */
-            set_fd_events( current->reply_fd, POLLOUT );
-            set_fd_events( current->request_fd, 0 );
-            goto done;
-        }
-    }
     if (current->reply_data != current->rep_data) free( current->reply_data );
     current->reply_data = NULL;
 
