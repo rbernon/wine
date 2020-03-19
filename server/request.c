@@ -317,20 +317,10 @@ static void call_req_handler( struct thread *thread )
     else
         set_error( STATUS_NOT_IMPLEMENTED );
 
-    if (current)
+    if (current && !current->reply_fd)
     {
-        if (current->reply_fd)
-        {
-            reply.reply_header.error = current->error;
-            reply.reply_header.reply_size = current->reply_size;
-            if (debug_level) trace_reply( req, &reply );
-            send_reply( &reply );
-        }
-        else
-        {
-            current->exit_code = 1;
-            kill_thread( current, 1 );  /* no way to continue without reply fd */
-        }
+        current->exit_code = 1;
+        kill_thread( current, 1 );  /* no way to continue without reply fd */
     }
     current = NULL;
 }
