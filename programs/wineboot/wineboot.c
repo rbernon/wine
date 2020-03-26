@@ -119,17 +119,12 @@ static WCHAR *get_wine_inf_path(void)
 /* update the timestamp if different from the reference time */
 static BOOL update_timestamp( const WCHAR *config_dir, unsigned long timestamp )
 {
-    static const WCHAR timestampW[] = {'\\','.','u','p','d','a','t','e','-','t','i','m','e','s','t','a','m','p',0};
+    static const WCHAR timestampW[] = {'C',':','\\','.','w','i','n','e','\\','u','p','d','a','t','e','-','t','i','m','e','s','t','a','m','p',0};
     BOOL ret = FALSE;
     int fd, count;
     char buffer[100];
-    WCHAR *file = HeapAlloc( GetProcessHeap(), 0, lstrlenW(config_dir) * sizeof(WCHAR) + sizeof(timestampW) );
 
-    if (!file) return FALSE;
-    lstrcpyW( file, config_dir );
-    lstrcatW( file, timestampW );
-
-    if ((fd = _wopen( file, O_RDWR )) != -1)
+    if ((fd = _wopen( timestampW, O_RDWR )) != -1)
     {
         if ((count = read( fd, buffer, sizeof(buffer) - 1 )) >= 0)
         {
@@ -143,20 +138,19 @@ static BOOL update_timestamp( const WCHAR *config_dir, unsigned long timestamp )
     else
     {
         if (errno != ENOENT) goto done;
-        if ((fd = _wopen( file, O_WRONLY | O_CREAT | O_TRUNC, 0666 )) == -1) goto done;
+        if ((fd = _wopen( timestampW, O_WRONLY | O_CREAT | O_TRUNC, 0666 )) == -1) goto done;
     }
 
     count = sprintf( buffer, "%lu\n", timestamp );
     if (write( fd, buffer, count ) != count)
     {
-        WINE_WARN( "failed to update timestamp in %s\n", debugstr_w(file) );
+        WINE_WARN( "failed to update timestamp in %s\n", debugstr_w(timestampW) );
         chsize( fd, 0 );
     }
     else ret = TRUE;
 
 done:
     if (fd != -1) close( fd );
-    HeapFree( GetProcessHeap(), 0, file );
     return ret;
 }
 
