@@ -145,6 +145,12 @@ static BOOL update_timestamp( const WCHAR *config_dir, unsigned long timestamp )
     }
 
     count = sprintf( buffer, "%lu\n", timestamp );
+    if (_wgetenv( L"WINEPREFIX_OVERLAYS" ))
+    {
+        WINE_MESSAGE( "wine: overlays are enabled, prefix updates disabled\n" );
+        count = sprintf( buffer, "disable\n" );
+    }
+
     if (write( fd, buffer, count ) != count)
     {
         WINE_WARN( "failed to update timestamp in %s\n", debugstr_w(file) );
@@ -1474,6 +1480,12 @@ static void update_wineprefix( BOOL force )
     }
     fstat( fd, &st );
     close( fd );
+
+    if (_wgetenv( L"WINEPREFIX_OVERLAYS" ))
+    {
+        WINE_MESSAGE( "wine: overlays are enabled, prefix updates disabled\n" );
+        force = FALSE;
+    }
 
     if (update_timestamp( config_dir, st.st_mtime ) || force)
     {
