@@ -129,6 +129,8 @@ struct thread *current = NULL;  /* thread handling the current request */
 unsigned int global_error = 0;  /* global error code for when no thread is current */
 timeout_t server_start_time = 0;  /* server startup time */
 char *server_dir = NULL;   /* server directory */
+char *config_dir = NULL;   /* config directory */
+char **overlay_dirs = NULL;
 int server_dir_fd = -1;    /* file descriptor for the server dir */
 int config_dir_fd = -1;    /* file descriptor for the config dir */
 
@@ -620,7 +622,7 @@ static void create_dir( const char *name, struct stat *st )
 static char *create_server_dir( int force )
 {
     const char *prefix = getenv( "WINEPREFIX" );
-    char *p, *config_dir;
+    char *p;
     struct stat st, st2;
     size_t len = sizeof("/server-") + 2 * sizeof(st.st_dev) + 2 * sizeof(st.st_ino) + 2;
 
@@ -704,7 +706,6 @@ static char *create_server_dir( int force )
     if (st.st_dev != st2.st_dev || st.st_ino != st2.st_ino)
         fatal_error( "chdir did not end up in %s\n", server_dir );
 
-    free( config_dir );
     return server_dir;
 }
 

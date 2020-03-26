@@ -31,6 +31,9 @@
 #ifdef HAVE_GETOPT_H
 # include <getopt.h>
 #endif
+#ifdef HAVE_SYS_WAIT_H
+# include <sys/wait.h>
+#endif
 
 #include "object.h"
 #include "file.h"
@@ -125,6 +128,97 @@ static void sigterm_handler( int signum )
     exit(1);  /* make sure atexit functions get called */
 }
 
+static void detach_overlays(void)
+{
+    char *argv[] = {NULL, NULL, NULL, NULL};
+    int pid;
+
+    pid = fork();
+    if (pid == -1) fatal_error( "fork" );
+    if (!pid)
+    {
+        argv[0] = strdup( "fusermount" );
+        argv[1] = strdup( "-u" );
+
+        argv[2] = malloc( sizeof("/drive_c") + strlen( config_dir ) );
+        strcpy( argv[2], config_dir );
+        strcat( argv[2], "/drive_c" );
+
+        execvp( argv[0], argv );
+        fatal_error( "could not exec fusermount\n" );
+    }
+}
+
+static void mount_overlays(void)
+{
+    char *tmp, *argv[] = {NULL, NULL, NULL, NULL, NULL, NULL};
+    const char *overlays = getenv( "WINEPREFIX_OVERLAYS" ), *opts;
+    int n, overlay_count, status, pid, lower_len;
+
+    if (!overlays) return;
+
+    overlay_count = 1;
+    overlay_dirs = malloc( sizeof(char *) );
+    overlay_dirs[0] = tmp = strdup( overlays );
+    lower_len = sizeof("-olowerdir=");
+    while ((n = strcspn( tmp, ":," )) && tmp[n] == ':')
+    {
+        tmp[n] = 0;
+        overlay_dirs = realloc( overlay_dirs, ++overlay_count * sizeof(char *) );
+        overlay_dirs[overlay_count - 1] = (tmp += n + 1);
+        lower_len += n + strlen( "/drive_c:" );
+    }
+    overlay_dirs = realloc( overlay_dirs, (overlay_count + 1) * sizeof(char *) );
+    overlay_dirs[overlay_count] = NULL;
+
+    if (tmp[n] == ',') opts = tmp + n + 1;
+    else opts = "";
+
+    tmp[n] = 0;
+    lower_len += n + strlen( "/drive_c," ) + strlen( opts );
+
+    pid = fork();
+    if (pid == -1) fatal_error( "fork" );
+    if (!pid)
+    {
+        argv[0] = strdup( "fuse-overlayfs" );
+
+        argv[1] = malloc( lower_len );
+        strcpy( argv[1], "-olowerdir=" );
+        for (n = 0; n < overlay_count; ++n)
+        {
+            strcat( argv[1], overlay_dirs[n] );
+            strcat( argv[1], n + 1 < overlay_count ? "/drive_c:" : "/drive_c," );
+        }
+        if (opts[0]) strcat( argv[1], opts );
+
+        argv[2] = malloc( sizeof("-oupperdir=/drive_c") + strlen( config_dir ) );
+        strcpy( argv[2], "-oupperdir=" );
+        strcat( argv[2], config_dir );
+        strcat( argv[2], "/drive_c" );
+
+        argv[3] = malloc( sizeof("-oworkdir=") + strlen( config_dir ) );
+        strcpy( argv[3], "-oworkdir=" );
+        strcat( argv[3], config_dir );
+
+        argv[4] = malloc( sizeof("/drive_c") + strlen( config_dir ) );
+        strcpy( argv[4], config_dir );
+        strcat( argv[4], "/drive_c" );
+
+fprintf(stderr, "%s %s %s %s %s\n", argv[0], argv[1], argv[2], argv[3], argv[4]);
+
+        execvp( argv[0], argv );
+        fatal_error( "could not exec fuse-overlayfs\n" );
+    }
+
+    do waitpid( pid, &status, 0 );
+    while (!WIFEXITED(status));
+
+    if (WEXITSTATUS(status) != 0)
+        fatal_error( "fuse-overlayfs failed\n" );
+    atexit( detach_overlays );
+}
+
 int main( int argc, char *argv[] )
 {
     setvbuf( stderr, NULL, _IOLBF, 0 );
@@ -140,6 +234,7 @@ int main( int argc, char *argv[] )
 
     sock_init();
     open_master_socket();
+    mount_overlays();
 
     if (debug_level) fprintf( stderr, "wineserver: starting (pid=%ld)\n", (long) getpid() );
     set_current_time();

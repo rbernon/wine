@@ -1730,7 +1730,7 @@ static void load_registry( struct key *key, obj_handle_t handle )
 }
 
 /* load one of the initial registry files */
-static int load_init_registry_from_file( const char *filename, struct key *key )
+static int load_init_registry_from_file( const char *filename, struct key *key, int from_overlay )
 {
     FILE *f;
 
@@ -1744,6 +1744,8 @@ static int load_init_registry_from_file( const char *filename, struct key *key )
             return 1;
         }
     }
+
+    if (from_overlay) return (f != NULL);
 
     assert( save_branch_count < MAX_SAVE_BRANCH_INFO );
 
@@ -1811,7 +1813,7 @@ void init_registry(void)
     WCHAR *current_user_path;
     struct unicode_str current_user_str;
     struct key *key, *hklm, *hkcu;
-    char *p;
+    char *p, **dir;
 
     /* switch to the config dir */
 
@@ -1827,7 +1829,17 @@ void init_registry(void)
     if (!(hklm = create_key_recursive( root_key, &HKLM_name, current_time )))
         fatal_error( "could not create Machine registry key\n" );
 
-    if (!load_init_registry_from_file( "system.reg", hklm ))
+#if 0
+    for (dir = overlay_dirs; dir && *dir; ++dir)
+    {
+        p = malloc( strlen(*dir) + sizeof("/system.reg") );
+        sprintf( p, "%s/system.reg", *dir );
+        load_init_registry_from_file( p, hklm, 1 );
+        free( p );
+    }
+#endif
+
+    if (!load_init_registry_from_file( "system.reg", hklm, 0 ))
     {
         if ((p = getenv( "WINEARCH" )) && !strcmp( p, "win32" ))
             prefix_type = PREFIX_32BIT;
@@ -1842,7 +1854,17 @@ void init_registry(void)
     if (!(key = create_key_recursive( root_key, &HKU_name, current_time )))
         fatal_error( "could not create User\\.Default registry key\n" );
 
-    load_init_registry_from_file( "userdef.reg", key );
+#if 0
+    for (dir = overlay_dirs; dir && *dir; ++dir)
+    {
+        p = malloc( strlen(*dir) + sizeof("/userdef.reg") );
+        sprintf( p, "%s/userdef.reg", *dir );
+        load_init_registry_from_file( p, key, 1 );
+        free( p );
+    }
+#endif
+
+    load_init_registry_from_file( "userdef.reg", key, 0 );
     release_object( key );
 
     /* load user.reg into HKEY_CURRENT_USER */
@@ -1853,7 +1875,17 @@ void init_registry(void)
         !(hkcu = create_key_recursive( root_key, &current_user_str, current_time )))
         fatal_error( "could not create HKEY_CURRENT_USER registry key\n" );
     free( current_user_path );
-    load_init_registry_from_file( "user.reg", hkcu );
+
+#if 0
+    for (dir = overlay_dirs; dir && *dir; ++dir)
+    {
+        p = malloc( strlen(*dir) + sizeof("/user.reg") );
+        sprintf( p, "%s/user.reg", *dir );
+        load_init_registry_from_file( p, hkcu, 1 );
+        free( p );
+    }
+#endif
+    load_init_registry_from_file( "user.reg", hkcu, 0 );
 
     /* set the shared flag on Software\Classes\Wow6432Node */
     if (prefix_type == PREFIX_64BIT)
