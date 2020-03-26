@@ -1805,12 +1805,19 @@ void init_registry(void)
     assert( root_key );
     make_object_static( &root_key->obj );
 
+    mkdir( "drive_c/.wine", 0777 );
+
+    /* create symlinks for backward compatibility */
+    symlink( "drive_c/.wine/system.reg", "system.reg" );
+    symlink( "drive_c/.wine/userdef.reg", "userdef.reg" );
+    symlink( "drive_c/.wine/user.reg", "user.reg" );
+
     /* load system.reg into Registry\Machine */
 
     if (!(hklm = create_key_recursive( root_key, &HKLM_name, current_time )))
         fatal_error( "could not create Machine registry key\n" );
 
-    if (!load_init_registry_from_file( "system.reg", hklm ))
+    if (!load_init_registry_from_file( "drive_c/.wine/system.reg", hklm ))
     {
         if ((p = getenv( "WINEARCH" )) && !strcmp( p, "win32" ))
             prefix_type = PREFIX_32BIT;
@@ -1825,7 +1832,7 @@ void init_registry(void)
     if (!(key = create_key_recursive( root_key, &HKU_name, current_time )))
         fatal_error( "could not create User\\.Default registry key\n" );
 
-    load_init_registry_from_file( "userdef.reg", key );
+    load_init_registry_from_file( "drive_c/.wine/userdef.reg", key );
     release_object( key );
 
     /* load user.reg into HKEY_CURRENT_USER */
@@ -1836,7 +1843,7 @@ void init_registry(void)
         !(hkcu = create_key_recursive( root_key, &current_user_str, current_time )))
         fatal_error( "could not create HKEY_CURRENT_USER registry key\n" );
     free( current_user_path );
-    load_init_registry_from_file( "user.reg", hkcu );
+    load_init_registry_from_file( "drive_c/.wine/user.reg", hkcu );
 
     /* set the shared flag on Software\Classes\Wow6432Node */
     if (prefix_type == PREFIX_64BIT)
