@@ -31,6 +31,9 @@
 #ifdef HAVE_GETOPT_H
 # include <getopt.h>
 #endif
+#ifdef HAVE_SYS_WAIT_H
+# include <sys/wait.h>
+#endif
 
 #include "object.h"
 #include "file.h"
@@ -124,6 +127,73 @@ static void sigterm_handler( int signum )
     exit(1);  /* make sure atexit functions get called */
 }
 
+static void detach_overlays(void)
+{
+    const char *config_dir = getenv( "WINEPREFIX" );
+    char *argv[] = {NULL, NULL, NULL, NULL};
+    int pid;
+
+    pid = fork();
+    if (pid == -1) fatal_error( "fork" );
+    if (!pid)
+    {
+        argv[0] = strdup( "fusermount" );
+        argv[1] = strdup( "-u" );
+
+        argv[2] = malloc( sizeof("/drive_c") + strlen( config_dir ) );
+        strcpy( argv[2], config_dir );
+        strcat( argv[2], "/drive_c" );
+
+        execvp( argv[0], argv );
+        fatal_error( "could not exec fusermount\n" );
+    }
+}
+
+static void mount_overlays(void)
+{
+    char *argv[] = {NULL, NULL, NULL, NULL, NULL, NULL};
+    const char *config_dir = getenv( "WINEPREFIX" );
+    const char *overlays = getenv( "WINEPREFIX_OVERLAYS" );
+    int status;
+    int pid;
+
+    if (!overlays) return;
+
+    pid = fork();
+    if (pid == -1) fatal_error( "fork" );
+    if (!pid)
+    {
+        argv[0] = strdup( "fuse-overlayfs" );
+
+        argv[1] = malloc( sizeof("-olowerdir=") + strlen( overlays ) );
+        strcpy( argv[1], "-olowerdir=" );
+        strcat( argv[1], overlays );
+
+        argv[2] = malloc( sizeof("-oupperdir=/drive_c") + strlen( config_dir ) );
+        strcpy( argv[2], "-oupperdir=" );
+        strcat( argv[2], config_dir );
+        strcat( argv[2], "/drive_c" );
+
+        argv[3] = malloc( sizeof("-oworkdir=") + strlen( config_dir ) );
+        strcpy( argv[3], "-oworkdir=" );
+        strcat( argv[3], config_dir );
+
+        argv[4] = malloc( sizeof("/drive_c") + strlen( config_dir ) );
+        strcpy( argv[4], config_dir );
+        strcat( argv[4], "/drive_c" );
+
+        execvp( argv[0], argv );
+        fatal_error( "could not exec fuse-overlayfs\n" );
+    }
+
+    do waitpid( pid, &status, 0 );
+    while (!WIFEXITED(status));
+
+    if (WEXITSTATUS(status) != 0)
+        fatal_error( "fuse-overlayfs failed\n" );
+    atexit( detach_overlays );
+}
+
 int main( int argc, char *argv[] )
 {
     setvbuf( stderr, NULL, _IOLBF, 0 );
@@ -139,6 +209,7 @@ int main( int argc, char *argv[] )
 
     sock_init();
     open_master_socket();
+    mount_overlays();
 
     if (debug_level) fprintf( stderr, "wineserver: starting (pid=%ld)\n", (long) getpid() );
     set_current_time();
