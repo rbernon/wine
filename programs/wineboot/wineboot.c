@@ -87,6 +87,7 @@ static const BOOL is_64bit = sizeof(void *) > sizeof(int);
 static const WCHAR winebuilddirW[] = {'W','I','N','E','B','U','I','L','D','D','I','R',0};
 static const WCHAR winedatadirW[] = {'W','I','N','E','D','A','T','A','D','I','R',0};
 static const WCHAR wineconfigdirW[] = {'W','I','N','E','C','O','N','F','I','G','D','I','R',0};
+static const WCHAR wineprefix_overlaysW[] = {'W','I','N','E','P','R','E','F','I','X','_','O','V','E','R','L','A','Y','S',0};
 
 /* retrieve the path to the wine.inf file */
 static WCHAR *get_wine_inf_path(void)
@@ -139,12 +140,21 @@ static BOOL update_timestamp( const WCHAR *config_dir, unsigned long timestamp )
     if ((fd = _wopen( timestampW, O_WRONLY | O_CREAT | O_TRUNC, 0666 )) == -1) goto done;
 
     count = sprintf( buffer, "%lu\n", timestamp );
+    ret = TRUE;
+
+    if (_wgetenv( wineprefix_overlaysW ))
+    {
+        WINE_MESSAGE( "wine: overlays are enabled, disabling prefix updates\n" );
+        count = sprintf( buffer, "disable\n" );
+        ret = FALSE;
+    }
+
     if (write( fd, buffer, count ) != count)
     {
         WINE_WARN( "failed to update timestamp in %s\n", debugstr_w(timestampW) );
         chsize( fd, 0 );
+        ret = FALSE;
     }
-    else ret = TRUE;
 
 done:
     if (fd != -1) close( fd );
@@ -1427,6 +1437,12 @@ static void update_wineprefix( BOOL force )
     }
     fstat( fd, &st );
     close( fd );
+
+    if (_wgetenv( wineprefix_overlaysW ))
+    {
+        WINE_MESSAGE( "wine: overlays are enabled, not updating prefix\n" );
+        force = FALSE;
+    }
 
     if (update_timestamp( config_dir, st.st_mtime ) || force)
     {
