@@ -124,7 +124,7 @@ static BOOL update_timestamp( const WCHAR *config_dir, unsigned long timestamp )
     int fd, count;
     char buffer[100];
 
-    if ((fd = _wopen( timestampW, O_RDWR )) != -1)
+    if ((fd = _wopen( timestampW, O_RDONLY )) != -1)
     {
         if ((count = read( fd, buffer, sizeof(buffer) - 1 )) >= 0)
         {
@@ -132,14 +132,11 @@ static BOOL update_timestamp( const WCHAR *config_dir, unsigned long timestamp )
             if (!strncmp( buffer, "disable", sizeof("disable")-1 )) goto done;
             if (timestamp == strtoul( buffer, NULL, 10 )) goto done;
         }
-        lseek( fd, 0, SEEK_SET );
-        chsize( fd, 0 );
+        close( fd );
     }
-    else
-    {
-        if (errno != ENOENT) goto done;
-        if ((fd = _wopen( timestampW, O_WRONLY | O_CREAT | O_TRUNC, 0666 )) == -1) goto done;
-    }
+    else if (errno != ENOENT) goto done;
+
+    if ((fd = _wopen( timestampW, O_WRONLY | O_CREAT | O_TRUNC, 0666 )) == -1) goto done;
 
     count = sprintf( buffer, "%lu\n", timestamp );
     if (write( fd, buffer, count ) != count)
