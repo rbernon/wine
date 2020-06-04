@@ -386,7 +386,6 @@ static void warp_check( struct mouse *impl, BOOL force )
 static HRESULT mouse_poll( IDirectInputDevice8W *iface )
 {
     struct mouse *impl = impl_from_IDirectInputDevice8W( iface );
-    check_dinput_events();
     warp_check( impl, FALSE );
     return DI_OK;
 }
