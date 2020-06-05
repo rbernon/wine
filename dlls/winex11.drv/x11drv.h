@@ -426,6 +426,7 @@ static inline size_t get_property_size( int format, unsigned long count )
 
 struct x11drv_ewmh_data
 {
+    int has__net_active_window : 1;
     int has__net_wm_moveresize : 1;
     int has__net_wm_state : 1;
     int has__net_wm_state_below : 1;
@@ -493,6 +494,7 @@ enum x11drv_atoms
     XATOM_DndSelection,
     XATOM__ICC_PROFILE,
     XATOM__MOTIF_WM_HINTS,
+    XATOM__NET_ACTIVE_WINDOW,
     XATOM__NET_STARTUP_INFO_BEGIN,
     XATOM__NET_STARTUP_INFO,
     XATOM__NET_SUPPORTED,
