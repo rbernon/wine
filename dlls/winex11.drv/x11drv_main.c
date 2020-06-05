@@ -152,6 +152,7 @@ static const char * const atom_names[NB_XATOMS - FIRST_XATOM] =
     "_ICC_PROFILE",
     "_KDE_NET_WM_STATE_SKIP_SWITCHER",
     "_MOTIF_WM_HINTS",
+    "_NET_ACTIVE_WINDOW",
     "_NET_STARTUP_INFO_BEGIN",
     "_NET_STARTUP_INFO",
     "_NET_SUPPORTED",
@@ -548,6 +549,8 @@ static void x11drv_ewmh_init(void)
     TRACE( "EWMH _NET_SUPPORTED:\n" );
     for (i = 0; i < supported_count; ++i)
     {
+        if (supported[i] == x11drv_atom(_NET_ACTIVE_WINDOW))
+            ewmh.has__net_active_window = 1;
         if (supported[i] == x11drv_atom(_NET_WM_MOVERESIZE))
             ewmh.has__net_wm_moveresize = 1;
 
