@@ -846,7 +846,7 @@ static void output_immediate_imports(void)
                     else if (func->export_name) output( "__imp_%s:\n", asm_name( func->export_name ));
                 }
                 if (func->name)
-                    output( "\t%s .L__wine_spec_import_data_%s_%s-.L__wine_spec_rva_base\n",
+                    output( "\t%s .L__wine_spec_import_data_%s_%s-.L__wine_spec_dos\n",
                             get_asm_ptr_keyword(), import->c_name, func->name );
                 else
                 {

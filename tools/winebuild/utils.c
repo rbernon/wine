@@ -1181,7 +1181,7 @@ void output_rva( const char *format, ... )
     default:
         output( "\t.long " );
         vfprintf( output_file, format, valist );
-        output( " - .L__wine_spec_rva_base\n" );
+        output( " - .L__wine_spec_dos\n" );
         break;
     }
     va_end( valist );

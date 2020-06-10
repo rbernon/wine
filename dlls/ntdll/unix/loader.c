@@ -161,7 +161,7 @@ static NTSTATUS add_builtin_module( void *module, void *handle, const struct sta
 
 static inline void *get_rva( const IMAGE_NT_HEADERS *nt, ULONG_PTR addr )
 {
-    return (BYTE *)nt + addr;
+    return (BYTE *)nt->OptionalHeader.ImageBase + addr;
 }
 
 /* adjust an array of pointers to make them into RVAs */
@@ -617,6 +617,8 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
                   + sizeof(IMAGE_NT_HEADERS)
                   + nb_sections * sizeof(IMAGE_SECTION_HEADER));
 
+    delta = (const BYTE *)nt_descr->OptionalHeader.ImageBase - addr;
+
     if (wine_anon_mmap( addr, size, PROT_READ | PROT_WRITE, MAP_FIXED ) != addr) return STATUS_NO_MEMORY;
 
     memmove(addr, (const BYTE *)nt_descr->OptionalHeader.ImageBase, size);
@@ -629,7 +631,6 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
 
     nt->OptionalHeader.ImageBase = (ULONG_PTR)addr;
 
-    delta      = (const BYTE *)nt_descr - addr;
     align_mask = nt->OptionalHeader.SectionAlignment - 1;
     code_start = (size + align_mask) & ~align_mask;
     data_start = delta & ~align_mask;

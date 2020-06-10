@@ -688,7 +688,6 @@ void output_module( DLLSPEC *spec )
     output( "\t.align 128, 0\n" );
     output( "\t.globl %s\n", asm_name("__wine_spec_nt_header") );
     output( "%s:\n", asm_name("__wine_spec_nt_header") );
-    output( ".L__wine_spec_rva_base:\n" );
 
     output( "\t.long 0x4550\n" );         /* Signature */
     switch(target_cpu)
