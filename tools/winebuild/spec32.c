@@ -392,7 +392,6 @@ void output_exports( DLLSPEC *spec )
     int needs_imports = 0;
     int needs_relay = has_relays( spec );
     int nr_exports = get_exports_count( spec );
-    const char *func_ptr = (target_platform == PLATFORM_WINDOWS) ? ".rva" : get_asm_ptr_keyword();
     const char *name;
 
     if (!nr_exports) return;
@@ -429,8 +428,7 @@ void output_exports( DLLSPEC *spec )
     for (i = spec->base; i <= spec->limit; i++)
     {
         ORDDEF *odp = spec->ordinals[i];
-        if (!odp) output( "\t%s 0\n",
-                          (target_platform == PLATFORM_WINDOWS) ? ".long" : get_asm_ptr_keyword() );
+        if (!odp) output( "\t.long 0\n" );
         else switch(odp->type)
         {
         case TYPE_EXTERN:
@@ -439,27 +437,27 @@ void output_exports( DLLSPEC *spec )
         case TYPE_CDECL:
             if (odp->flags & FLAG_FORWARD)
             {
-                output( "\t%s .L__wine_spec_forwards+%u\n", func_ptr, fwd_size );
+                output_rva( ".L__wine_spec_forwards+%u", fwd_size );
                 fwd_size += strlen(odp->link_name) + 1;
             }
             else if ((odp->flags & FLAG_IMPORT) && (target_cpu == CPU_x86 || target_cpu == CPU_x86_64))
             {
                 name = odp->name ? odp->name : odp->export_name;
-                if (name) output( "\t%s %s_%s\n", func_ptr, asm_name("__wine_spec_imp"), name );
-                else output( "\t%s %s_%u\n", func_ptr, asm_name("__wine_spec_imp"), i );
+                if (name) output_rva( "%s_%s", asm_name("__wine_spec_imp"), name );
+                else output_rva( "%s_%u", asm_name("__wine_spec_imp"), i );
                 needs_imports = 1;
             }
             else if (odp->flags & FLAG_EXT_LINK)
             {
-                output( "\t%s %s_%s\n", func_ptr, asm_name("__wine_spec_ext_link"), odp->link_name );
+                output_rva( "%s_%s", asm_name("__wine_spec_ext_link"), odp->link_name );
             }
             else
             {
-                output( "\t%s %s\n", func_ptr, asm_name( get_link_name( odp )));
+                output_rva( "%s", asm_name( get_link_name( odp )));
             }
             break;
         case TYPE_STUB:
-            output( "\t%s %s\n", func_ptr, asm_name( get_stub_name( odp, spec )) );
+            output_rva( "%s", asm_name( get_stub_name( odp, spec )) );
             break;
         default:
             assert(0);

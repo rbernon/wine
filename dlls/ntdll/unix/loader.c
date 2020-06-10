@@ -725,7 +725,7 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
         fixup_rva_dwords( &exports->AddressOfNames, delta, 1 );
         fixup_rva_dwords( &exports->AddressOfNameOrdinals, delta, 1 );
         fixup_rva_dwords( (DWORD *)(addr + exports->AddressOfNames), delta, exports->NumberOfNames );
-        fixup_rva_ptrs( addr + exports->AddressOfFunctions, addr, exports->NumberOfFunctions );
+        fixup_rva_dwords( (DWORD *)(addr + exports->AddressOfFunctions), delta, exports->NumberOfFunctions );
     }
     return STATUS_SUCCESS;
 }
