@@ -649,10 +649,43 @@ void output_module( DLLSPEC *spec )
         break;
     }
 
-    /* Output the NT header */
+    /* Output the DOS header */
 
     output( "\n\t.data\n" );
     output( "\t.align %d\n", get_alignment(get_ptr_size()) );
+    output( ".L__wine_spec_dos:\n" );
+    output( "\t.short 0x5a4d\n" );       /* e_magic */
+    output( "\t.short 0x90\n" );         /* e_cblp */
+    output( "\t.short 3\n" );            /* e_cp */
+    output( "\t.short 0\n" );            /* e_crlc */
+    output( "\t.short (%s-%s) / 16\n",   /* e_cparhdr */
+            asm_name("__wine_spec_nt_header"), ".L__wine_spec_dos" );
+    output( "\t.short 0x0000\n" );       /* e_minalloc */
+    output( "\t.short 0xffff\n" );       /* e_maxalloc */
+    output( "\t.short 0x0000\n" );       /* e_ss */
+    output( "\t.short 0x00b8\n" );       /* e_sp */
+    output( "\t.short 0\n" );            /* e_csum */
+    output( "\t.short 0\n" );            /* e_ip */
+    output( "\t.short 0\n" );            /* e_cs */
+    output( "\t.short %s-%s\n",          /* e_lfarlc */
+            asm_name("__wine_spec_nt_header"), ".L__wine_spec_dos" );
+    output( "\t.short 0\n" );            /* e_ovno */
+    output( "\t.long 0\n" );             /* e_res */
+    output( "\t.long 0\n" );
+    output( "\t.short 0\n" );            /* e_oemid */
+    output( "\t.short 0\n" );            /* e_oeminfo */
+    output( "\t.long 0\n" );             /* e_res2 */
+    output( "\t.long 0\n" );
+    output( "\t.long 0\n" );
+    output( "\t.long 0\n" );
+    output( "\t.long 0\n" );
+    output( "\t.long %s-%s\n",          /* e_lfanew */
+            asm_name("__wine_spec_nt_header"), ".L__wine_spec_dos" );
+    output( "\t.ascii \"Wine placeholder DLL\"\n" );
+
+    /* Output the NT header */
+
+    output( "\t.align 128, 0\n" );
     output( "\t.globl %s\n", asm_name("__wine_spec_nt_header") );
     output( "%s:\n", asm_name("__wine_spec_nt_header") );
     output( ".L__wine_spec_rva_base:\n" );
@@ -691,8 +724,8 @@ void output_module( DLLSPEC *spec )
         output( "\t.long 0\n" );          /* BaseOfCode */
         output( "\t.long 0\n" );          /* BaseOfData */
     }
-    output( "\t%s %s\n",                  /* ImageBase */
-             get_asm_ptr_keyword(), asm_name("__wine_spec_module") );
+    output( "\t%s .L__wine_spec_dos\n",   /* ImageBase */
+             get_asm_ptr_keyword() );
     output( "\t.long %u\n", page_size );  /* SectionAlignment */
     output( "\t.long %u\n", page_size );  /* FileAlignment */
     output( "\t.short 1,0\n" );           /* Major/MinorOperatingSystemVersion */

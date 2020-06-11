@@ -619,23 +619,15 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
 
     if (wine_anon_mmap( addr, size, PROT_READ | PROT_WRITE, MAP_FIXED ) != addr) return STATUS_NO_MEMORY;
 
+    memmove(addr, (const BYTE *)nt_descr->OptionalHeader.ImageBase, size);
+
     dos = (IMAGE_DOS_HEADER *)addr;
-    nt  = (IMAGE_NT_HEADERS *)((BYTE *)(dos + 1) + sizeof(builtin_signature));
+    nt  = (IMAGE_NT_HEADERS *)((BYTE *)dos + dos->e_lfanew);
     sec = (IMAGE_SECTION_HEADER *)(nt + 1);
 
-    /* build the DOS and NT headers */
+    /* build the NT headers */
 
-    dos->e_magic    = IMAGE_DOS_SIGNATURE;
-    dos->e_cblp     = 0x90;
-    dos->e_cp       = 3;
-    dos->e_cparhdr  = (sizeof(*dos) + 0xf) / 0x10;
-    dos->e_minalloc = 0;
-    dos->e_maxalloc = 0xffff;
-    dos->e_ss       = 0x0000;
-    dos->e_sp       = 0x00b8;
-    dos->e_lfanew   = sizeof(*dos) + sizeof(builtin_signature);
-
-    *nt = *nt_descr;
+    nt->OptionalHeader.ImageBase = (ULONG_PTR)addr;
 
     delta      = (const BYTE *)nt_descr - addr;
     align_mask = nt->OptionalHeader.SectionAlignment - 1;
@@ -666,7 +658,6 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
     nt->OptionalHeader.SizeOfInitializedData       = data_end - data_start;
     nt->OptionalHeader.SizeOfUninitializedData     = 0;
     nt->OptionalHeader.SizeOfImage                 = data_end;
-    nt->OptionalHeader.ImageBase                   = (ULONG_PTR)addr;
 
     /* build the code section */
 
