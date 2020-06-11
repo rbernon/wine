@@ -893,9 +893,9 @@ static NTSTATUS dlopen_dll( const char *so_name, void **ret_module )
         LIST_FOR_EACH_ENTRY( builtin, &builtin_modules, struct builtin_module, entry )
             if (builtin->module == module) goto already_loaded;
     }
-    else if ((nt = dlsym( handle, "__wine_spec_nt_header" )))
+    else if ((nt = dlsym( handle, "__wine_spec_nt_header" )) && (module = dlsym( handle, "__wine_spec_module" )))
     {
-        module = (HMODULE)((nt->OptionalHeader.ImageBase + 0xffff) & ~0xffff);
+        module = (HMODULE)(((UINT_PTR)module + 0xffff) & ~0xffff);
         LIST_FOR_EACH_ENTRY( builtin, &builtin_modules, struct builtin_module, entry )
             if (builtin->module == module) goto already_loaded;
         if (map_so_dll( nt, module ))

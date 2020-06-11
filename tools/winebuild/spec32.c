@@ -614,12 +614,14 @@ void output_module( DLLSPEC *spec )
     case PLATFORM_APPLE:
         output( "\t.text\n" );
         output( "\t.align %d\n", get_alignment(page_size) );
-        output( "__wine_spec_pe_header:\n" );
+        output( "\t.globl %s\n", asm_name("__wine_spec_module") );
+        output( "%s:\n", asm_name("__wine_spec_module") );
         output( "\t.space 65536\n" );
         break;
     case PLATFORM_SOLARIS:
         output( "\n\t.section \".text\",\"ax\"\n" );
-        output( "__wine_spec_pe_header:\n" );
+        output( "\t.globl %s\n", asm_name("__wine_spec_module") );
+        output( "%s:\n", asm_name("__wine_spec_module") );
         output( "\t.skip %u\n", 65536 + page_size );
         break;
     default:
@@ -640,7 +642,8 @@ void output_module( DLLSPEC *spec )
             output( "\tb 1f\n" );
             break;
         }
-        output( "__wine_spec_pe_header:\n" );
+        output( "\t.globl %s\n", asm_name("__wine_spec_module") );
+        output( "%s:\n", asm_name("__wine_spec_module") );
         output( "\t.skip %u\n", 65536 + page_size );
         output( "1:\n" );
         break;
@@ -688,8 +691,8 @@ void output_module( DLLSPEC *spec )
         output( "\t.long 0\n" );          /* BaseOfCode */
         output( "\t.long 0\n" );          /* BaseOfData */
     }
-    output( "\t%s __wine_spec_pe_header\n",         /* ImageBase */
-             get_asm_ptr_keyword() );
+    output( "\t%s %s\n",                  /* ImageBase */
+             get_asm_ptr_keyword(), asm_name("__wine_spec_module") );
     output( "\t.long %u\n", page_size );  /* SectionAlignment */
     output( "\t.long %u\n", page_size );  /* FileAlignment */
     output( "\t.short 1,0\n" );           /* Major/MinorOperatingSystemVersion */
