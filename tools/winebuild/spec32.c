@@ -713,14 +713,11 @@ void output_module( DLLSPEC *spec )
     output( "\t.long 0\n" );              /* SizeOfCode */
     output( "\t.long 0\n" );              /* SizeOfInitializedData */
     output( "\t.long 0\n" );              /* SizeOfUninitializedData */
-    /* note: we expand the AddressOfEntryPoint field on 64-bit by overwriting the BaseOfCode field */
-    output( "\t%s %s\n",                  /* AddressOfEntryPoint */
-            get_asm_ptr_keyword(), spec->init_func ? asm_name(spec->init_func) : "0" );
+    output_rva( spec->init_func ?         /* AddressOfEntryPoint */
+                asm_name(spec->init_func) : "0" );
+    output( "\t.long 0\n" );              /* BaseOfCode */
     if (get_ptr_size() == 4)
-    {
-        output( "\t.long 0\n" );          /* BaseOfCode */
         output( "\t.long 0\n" );          /* BaseOfData */
-    }
     output( "\t%s .L__wine_spec_dos\n",   /* ImageBase */
              get_asm_ptr_keyword() );
     output( "\t.long %u\n", page_size );  /* SectionAlignment */

@@ -686,7 +686,7 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
     data_end   = (nt->OptionalHeader.SizeOfImage + delta + align_mask) & ~align_mask;
 #endif
 
-    fixup_rva_ptrs( &nt->OptionalHeader.AddressOfEntryPoint, addr, 1 );
+    fixup_rva_dwords( &nt->OptionalHeader.AddressOfEntryPoint, delta, 1 );
 
     nt->OptionalHeader.BaseOfCode                  = code_start;
 #ifndef _WIN64
