@@ -731,7 +731,7 @@ void output_module( DLLSPEC *spec )
              spec->subsystem_major, spec->subsystem_minor );
     output( "\t.long 0\n" );                          /* Win32VersionValue */
     output_rva( "%s", asm_name("_end") ); /* SizeOfImage */
-    output( "\t.long %u\n", page_size );  /* SizeOfHeaders */
+    output_rva( ".L__wine_spec_pe_end" ); /* SizeOfHeaders */
     output( "\t.long 0\n" );              /* CheckSum */
     output( "\t.short 0x%04x\n",          /* Subsystem */
              spec->subsystem );
@@ -752,6 +752,9 @@ void output_module( DLLSPEC *spec )
         data_dirs[2] = ".L__wine_spec_resources"; /* DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE] */
 
     output_data_directories( data_dirs );
+
+    output( "\t.align %u, 0\n", page_size );
+    output( "\t.L__wine_spec_pe_end:\n" );
 
     if (target_platform == PLATFORM_APPLE)
         output( "\t.lcomm %s,4\n", asm_name("_end") );

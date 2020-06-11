@@ -603,19 +603,15 @@ void start_server( BOOL debug )
  */
 static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
 {
-    static const char builtin_signature[32] = "Wine builtin DLL";
     IMAGE_DATA_DIRECTORY *dir;
     IMAGE_DOS_HEADER *dos;
     IMAGE_NT_HEADERS *nt;
     IMAGE_SECTION_HEADER *sec;
     BYTE *addr = (BYTE *)module;
     DWORD code_start, code_end, data_start, data_end, align_mask;
-    int delta, nb_sections = 2;  /* code + data */
+    int delta;
     unsigned int i;
-    DWORD size = (sizeof(IMAGE_DOS_HEADER)
-                  + sizeof(builtin_signature)
-                  + sizeof(IMAGE_NT_HEADERS)
-                  + nb_sections * sizeof(IMAGE_SECTION_HEADER));
+    DWORD size = nt_descr->OptionalHeader.SizeOfHeaders;
 
     delta = (const BYTE *)nt_descr->OptionalHeader.ImageBase - addr;
 
@@ -650,7 +646,7 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
 
     fixup_rva_ptrs( &nt->OptionalHeader.AddressOfEntryPoint, addr, 1 );
 
-    nt->FileHeader.NumberOfSections                = nb_sections;
+    nt->FileHeader.NumberOfSections                = 2;
     nt->OptionalHeader.BaseOfCode                  = code_start;
 #ifndef _WIN64
     nt->OptionalHeader.BaseOfData                  = data_start;
