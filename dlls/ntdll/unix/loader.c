@@ -623,6 +623,15 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
     nt  = (IMAGE_NT_HEADERS *)((BYTE *)dos + dos->e_lfanew);
     sec = (IMAGE_SECTION_HEADER *)(nt + 1);
 
+    /* fixup the sections */
+
+    for (i = 0; i < nt->FileHeader.NumberOfSections; ++i)
+    {
+        fixup_rva_dwords( &sec[i].VirtualAddress, delta, 1 );
+        fixup_rva_dwords( &sec[i].PointerToRawData, delta, 1 );
+    }
+    sec = sec + nt->FileHeader.NumberOfSections;
+
     /* build the NT headers */
 
     nt->OptionalHeader.ImageBase = (ULONG_PTR)addr;
@@ -646,7 +655,6 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
 
     fixup_rva_ptrs( &nt->OptionalHeader.AddressOfEntryPoint, addr, 1 );
 
-    nt->FileHeader.NumberOfSections                = 2;
     nt->OptionalHeader.BaseOfCode                  = code_start;
 #ifndef _WIN64
     nt->OptionalHeader.BaseOfData                  = data_start;
@@ -664,6 +672,7 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
     sec->VirtualAddress   = code_start;
     sec->PointerToRawData = code_start;
     sec->Characteristics  = (IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ);
+    nt->FileHeader.NumberOfSections++;
     sec++;
 
     /* build the data section */
@@ -675,6 +684,7 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
     sec->PointerToRawData = data_start;
     sec->Characteristics  = (IMAGE_SCN_CNT_INITIALIZED_DATA |
                              IMAGE_SCN_MEM_WRITE | IMAGE_SCN_MEM_READ);
+    nt->FileHeader.NumberOfSections++;
     sec++;
 
     for (i = 0; i < nt->OptionalHeader.NumberOfRvaAndSizes; i++)
