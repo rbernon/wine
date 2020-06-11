@@ -620,6 +620,7 @@ void output_module( DLLSPEC *spec )
 
     if (has_exports) nb_sections++;
     if (has_imports()) nb_sections++;
+    if (spec->nb_resources) nb_sections++;
 
     /* Reserve some space for the PE header */
 
@@ -802,6 +803,23 @@ void output_module( DLLSPEC *spec )
                 /* CNT_INITIALIZED_DATA|MEM_READ|MEM_WRITE */ );
     }
 
+    if (spec->nb_resources)
+    {
+        /* .rsrc section */
+        output( "\t.ascii \".rsrc\"\n" );              /* Name */
+        output( "\t.align 8, 0\n" );
+        output_size( ".L__wine_spec_resources" );      /* VirtualSize */
+        output_rva( "%s", ".L__wine_spec_resources" ); /* VirtualAddress */
+        output_size( ".L__wine_spec_resources" );      /* SizeOfRawData */
+        output_rva( "%s", ".L__wine_spec_resources" ); /* PointerToRawData */
+        output( "\t.long 0\n" );                       /* PointerToRelocations */
+        output( "\t.long 0\n" );                       /* PointerToLinenumbers */
+        output( "\t.short 0\n" );                      /* NumberOfRelocations */
+        output( "\t.short 0\n" );                      /* NumberOfLinenumbers */
+        output( "\t.long 0xc0000040\n"                 /* Characteristics */
+                /* CNT_INITIALIZED_DATA|MEM_READ|MEM_WRITE */ );
+    }
+
     output( "\t.align %u, 0\n", page_size );
     output( "\t.L__wine_spec_pe_end:\n" );
 
@@ -823,6 +841,7 @@ void output_spec32_file( DLLSPEC *spec )
     output_module( spec );
     output_exports( spec );
     output_imports( spec );
+    output_resources( spec );
 
     output_stubs( spec );
     output_syscalls( spec );
@@ -831,7 +850,6 @@ void output_spec32_file( DLLSPEC *spec )
     output_export_thunks( spec );
     output_import_thunks( spec );
     if (needs_get_pc_thunk) output_get_pc_thunk();
-    output_resources( spec );
     output_gnu_stack_note();
     close_output_file();
 }

@@ -427,6 +427,7 @@ static inline void output_res_dir( unsigned int nb_names, unsigned int nb_ids )
 /* output the resource definitions */
 void output_resources( DLLSPEC *spec )
 {
+    unsigned int page_size = get_page_size();
     int k, nb_id_types;
     unsigned int i, n;
     struct res_tree *tree;
@@ -442,7 +443,7 @@ void output_resources( DLLSPEC *spec )
 
     output( "\n/* resources */\n\n" );
     output( "\t%s\n", get_asm_rsrc_section() );
-    output( "\t.align %d\n", get_alignment(get_ptr_size()) );
+    output( "\t.align %u, 0\n", page_size );
     output( ".L__wine_spec_resources:\n" );
 
     for (i = nb_id_types = 0, type = tree->types; i < tree->nb_types; i++, type++)
@@ -494,7 +495,7 @@ void output_resources( DLLSPEC *spec )
 
     for (i = 0, res = spec->resources; i < spec->nb_resources; i++, res++)
     {
-        output( "\n\t.align %d\n", get_alignment(4) );
+        output( "\n\t.align %d, 0\n", get_alignment(4) );
         output( ".L__wine_spec_res_%d:\n", i );
         dump_res_data( res );
     }
@@ -502,7 +503,7 @@ void output_resources( DLLSPEC *spec )
     if (target_platform != PLATFORM_WINDOWS)
     {
         output( ".L__wine_spec_resources_end:\n" );
-        output( "\t.byte 0\n" );
+        output( "\t.align %u, 0\n", page_size );
     }
     free_resource_tree( tree );
 }
