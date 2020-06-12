@@ -1466,6 +1466,13 @@ static void build(struct options* opts)
         }
         fclose(out);
         fclose(in);
+
+        tool = strarray_dup(objcopy);
+        strarray_add(tool, "--strip-all");
+        strarray_add(tool, "--file-alignment=512");
+        strarray_add(tool, output_fake );
+        spawn(opts->prefix, tool, 1);
+        strarray_free(tool);
     }
 
     if (opts->debug_file && !strendswith(opts->debug_file, ".pdb"))
