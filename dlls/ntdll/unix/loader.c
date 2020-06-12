@@ -597,6 +597,35 @@ void start_server( BOOL debug )
 
 
 /*************************************************************************
+ *      remap_writable
+ *
+ * Remap memory with write permissions, copying it if necessary.
+ */
+static NTSTATUS remap_writable( void *addr, size_t size )
+{
+    void *tmp;
+    int res;
+
+    if (!(res = mprotect( addr, size, PROT_READ | PROT_WRITE )))
+        return STATUS_SUCCESS;
+
+    if ((tmp = wine_anon_mmap( NULL, size, PROT_READ | PROT_WRITE, 0 )) == MAP_FAILED)
+        return STATUS_NO_MEMORY;
+    memcpy(tmp, addr, size);
+
+    if (wine_anon_mmap( addr, size, PROT_READ | PROT_WRITE, MAP_FIXED ) != addr)
+    {
+        munmap(tmp, size);
+        return STATUS_NO_MEMORY;
+    }
+
+    memcpy(addr, tmp, size);
+    munmap(tmp, size);
+    return STATUS_SUCCESS;
+}
+
+
+/*************************************************************************
  *		map_so_dll
  *
  * Map a builtin dll in memory and fixup RVAs.
@@ -629,6 +658,10 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
     {
         fixup_rva_dwords( &sec[i].VirtualAddress, delta, 1 );
         fixup_rva_dwords( &sec[i].PointerToRawData, delta, 1 );
+
+        if ((sec[i].Characteristics & IMAGE_SCN_CNT_INITIALIZED_DATA) &&
+            remap_writable( addr + sec[i].VirtualAddress, sec[i].Misc.VirtualSize ))
+            return STATUS_NO_MEMORY;
     }
     sec = sec + nt->FileHeader.NumberOfSections;
 
@@ -798,11 +831,15 @@ static void fixup_ntdll_imports( const IMAGE_NT_HEADERS *nt )
     const IMAGE_IMPORT_DESCRIPTOR *descr;
     const IMAGE_THUNK_DATA *import_list;
     IMAGE_THUNK_DATA *thunk_list;
+    NTSTATUS status;
     void **ptr;
 
     assert( ntdll_exports );
 
     descr = get_rva( nt, nt->OptionalHeader.DataDirectory[IMAGE_FILE_IMPORT_DIRECTORY].VirtualAddress );
+    status = remap_writable( (void *)descr, nt->OptionalHeader.DataDirectory[IMAGE_FILE_IMPORT_DIRECTORY].Size );
+    assert(status == STATUS_SUCCESS);
+
 
     /* ntdll must be the only import */
     assert( !strcmp( get_rva( nt, descr->Name ), "ntdll.dll" ));
