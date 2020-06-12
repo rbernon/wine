@@ -176,6 +176,7 @@ static inline void fixup_rva_ptrs( void *array, BYTE *base, unsigned int count )
 /* fixup an array of RVAs by adding the specified delta */
 static inline void fixup_rva_dwords( DWORD *ptr, int delta, unsigned int count )
 {
+    if (!delta) return;
     for ( ; count; count--, ptr++) if (*ptr) *ptr += delta;
 }
 
@@ -183,6 +184,7 @@ static inline void fixup_rva_dwords( DWORD *ptr, int delta, unsigned int count )
 /* fixup an array of name/ordinal RVAs by adding the specified delta */
 static inline void fixup_rva_names( UINT_PTR *ptr, int delta )
 {
+    if (!delta) return;
     for ( ; *ptr; ptr++) if (!(*ptr & IMAGE_ORDINAL_FLAG)) *ptr += delta;
 }
 
@@ -636,16 +638,26 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
     IMAGE_DOS_HEADER *dos;
     IMAGE_NT_HEADERS *nt;
     IMAGE_SECTION_HEADER *sec;
-    BYTE *addr = (BYTE *)module;
+    BYTE *addr = (BYTE *)module, *tmp;
     int delta;
     unsigned int i;
     DWORD size = nt_descr->OptionalHeader.SizeOfHeaders;
 
-    delta = (const BYTE *)nt_descr->OptionalHeader.ImageBase - addr;
+    if ((delta = (const BYTE *)nt_descr->OptionalHeader.ImageBase - addr))
+    {
+        TRACE("aligning module from %p-%p to %p-%p\n", (const BYTE *)nt_descr->OptionalHeader.ImageBase,
+            (const BYTE *)nt_descr->OptionalHeader.ImageBase + size, (BYTE *)module, (const BYTE *)module + size);
 
-    if (wine_anon_mmap( addr, size, PROT_READ | PROT_WRITE, MAP_FIXED ) != addr) return STATUS_NO_MEMORY;
+        if ((tmp = wine_anon_mmap( NULL, size, PROT_READ | PROT_WRITE, 0 )) == MAP_FAILED) return STATUS_NO_MEMORY;
+        memmove(tmp, (const BYTE *)nt_descr->OptionalHeader.ImageBase, size);
 
-    memmove(addr, (const BYTE *)nt_descr->OptionalHeader.ImageBase, size);
+        if (wine_anon_mmap( addr, size, PROT_READ | PROT_WRITE, MAP_FIXED ) != addr) return STATUS_NO_MEMORY;
+
+        memmove(addr, tmp, size);
+        munmap(tmp, size);
+    }
+    else if (remap_writable( addr, size ))
+        return STATUS_NO_MEMORY;
 
     dos = (IMAGE_DOS_HEADER *)addr;
     nt  = (IMAGE_NT_HEADERS *)((BYTE *)dos + dos->e_lfanew);
@@ -667,7 +679,7 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
 
     /* build the NT headers */
 
-    nt->OptionalHeader.ImageBase = (ULONG_PTR)addr;
+    if (delta) nt->OptionalHeader.ImageBase = (ULONG_PTR)addr;
 
     fixup_rva_dwords( &nt->OptionalHeader.AddressOfEntryPoint, delta, 1 );
     fixup_rva_dwords( &nt->OptionalHeader.BaseOfCode, delta, 1 );
@@ -867,9 +879,11 @@ static NTSTATUS dlopen_dll( const char *so_name, void **ret_module )
     struct builtin_module *builtin;
     void *module, *handle;
     const IMAGE_NT_HEADERS *nt;
+    BOOL mapped = FALSE;
 
     callback_module = (void *)1;
-    handle = dlopen( so_name, RTLD_NOW );
+    if ((handle = dlopen( so_name, RTLD_NOW | RTLD_NOLOAD ))) mapped = TRUE;
+    else handle = dlopen( so_name, RTLD_NOW );
     if (!handle)
     {
         WARN( "failed to load .so lib %s: %s\n", debugstr_a(so_name), dlerror() );
@@ -888,7 +902,7 @@ static NTSTATUS dlopen_dll( const char *so_name, void **ret_module )
         module = (HMODULE)(((UINT_PTR)module + 0xffff) & ~0xffff);
         LIST_FOR_EACH_ENTRY( builtin, &builtin_modules, struct builtin_module, entry )
             if (builtin->module == module) goto already_loaded;
-        if (map_so_dll( nt, module ))
+        if (!mapped && map_so_dll( nt, module ))
         {
             dlclose( handle );
             return STATUS_NO_MEMORY;
