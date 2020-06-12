@@ -1107,6 +1107,10 @@ static void build(struct options* opts)
 
     output_file = strdup( opts->output_name ? opts->output_name : "a.out" );
 
+    /* generate the fake module directly from the so file */
+    if (!is_pe && strendswith(output_file, ".fake"))
+        strcpy(output_file + strlen(output_file) - 5, ".so");
+
     /* 'winegcc -o app xxx.exe.so' only creates the load script */
     if (opts->files->size == 1 && strendswith(opts->files->base[0], ".exe.so"))
     {
@@ -1118,7 +1122,7 @@ static void build(struct options* opts)
     if (opts->shared || is_pe || strendswith(output_file, ".so"))
 	generate_app_loader = 0;
 
-    if (strendswith(output_file, ".fake")) fake_module = 1;
+    if (is_pe && strendswith(output_file, ".fake")) fake_module = 1;
 
     /* normalize the filename a bit: strip .so, ensure it has proper ext */
     if ((output_name = strrchr(output_file, '/'))) output_name++;
@@ -1428,6 +1432,41 @@ static void build(struct options* opts)
 
     spawn(opts->prefix, link_args, 0);
     strarray_free (link_args);
+
+    /* extract the fake module */
+
+    if (!is_pe)
+    {
+        strarray *tool, *objcopy = build_tool_name(opts, TOOL_OBJCOPY);
+        char *tmp = get_temp_file( output_name, ".tmp" );
+        char *output_fake = strmake( "%s.fake", get_basename( output_path ) );
+        char buffer[4096];
+        FILE *in, *out;
+        size_t n;
+        int skip = 1;
+
+        tool = strarray_dup(objcopy);
+        strarray_add(tool, "-Obinary");
+        strarray_add(tool, "-j.init");
+        strarray_add(tool, "-j.text");
+        strarray_add(tool, "-j.fini");
+        strarray_add(tool, "-j.data");
+        strarray_add(tool, output_path);
+        strarray_add(tool, tmp );
+        spawn(opts->prefix, tool, 1);
+        strarray_free(tool);
+
+        in = fopen(tmp, "rb");
+        out = fopen(output_fake, "wb");
+        while ((n = fread(buffer, 1, sizeof(buffer), in)) > 0)
+        {
+            if (!memcmp(buffer, "\x4d\x5a\x90\x00", 4)) skip = 0;
+            if (skip) continue;
+            fwrite(buffer, 1, n, out);
+        }
+        fclose(out);
+        fclose(in);
+    }
 
     if (opts->debug_file && !strendswith(opts->debug_file, ".pdb"))
     {
