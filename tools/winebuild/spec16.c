@@ -801,8 +801,9 @@ void output_spec16_file( DLLSPEC *spec16 )
     output_standard_file_header();
     output_module( spec32 );
     output_module16( spec16 );
-    output_stubs( spec16 );
     output_exports( spec32 );
+
+    output_stubs( spec16 );
     output_imports( spec16 );
     output_relay_data( spec32 );
     output_export_thunks( spec32 );

@@ -149,6 +149,11 @@ static void get_arg_string( ORDDEF *odp, char str[MAX_ARGUMENTS + 1] )
         strcpy( str + i, "I" );
 }
 
+static void output_size( const char *name )
+{
+    output( "\t.long %s_end - %s\n", name, name );
+}
+
 static void output_data_directories( const char *names[16] )
 {
     int i;
@@ -158,7 +163,7 @@ static void output_data_directories( const char *names[16] )
         if (names[i])
         {
             output_rva( "%s", names[i] );
-            output( "\t.long %s_end - %s\n", names[i], names[i] );
+            output_size( names[i] );
         }
         else output( "\t.long 0,0\n" );
     }
@@ -392,13 +397,14 @@ void output_exports( DLLSPEC *spec )
     int i, fwd_size = 0;
     int needs_relay = has_relays( spec );
     int nr_exports = get_exports_count( spec );
+    unsigned int page_size = get_page_size();
     const char *name;
 
     if (!nr_exports) return;
 
     output( "\n/* export table */\n\n" );
     output( "\t%s\n", get_asm_export_section() );
-    output( "\t.align %d\n", get_alignment(4) );
+    output( "\t.align %d, 0\n", page_size );
     output( ".L__wine_spec_exports:\n" );
 
     /* export directory header */
@@ -520,8 +526,8 @@ void output_exports( DLLSPEC *spec )
 
     if (target_platform != PLATFORM_WINDOWS)
     {
-        output( "\t.align %d\n", get_alignment(get_ptr_size()) );
         output( ".L__wine_spec_exports_end:\n" );
+        output( "\t.align %d, 0\n", page_size );
     }
 }
 
@@ -607,9 +613,12 @@ void output_relay_data( DLLSPEC *spec )
  */
 void output_module( DLLSPEC *spec )
 {
-    int machine = 0;
+    int machine = 0, has_exports = get_exports_count( spec ) > 0;
     unsigned int page_size = get_page_size();
     const char *data_dirs[16] = { NULL };
+    unsigned int nb_sections = 0;
+
+    if (has_exports) nb_sections++;
 
     /* Reserve some space for the PE header */
 
@@ -749,7 +758,7 @@ void output_module( DLLSPEC *spec )
     output( "\t.long 0\n" );              /* LoaderFlags */
     output( "\t.long 16\n" );             /* NumberOfRvaAndSizes */
 
-    if (get_exports_count( spec ))
+    if (has_exports)
         data_dirs[0] = ".L__wine_spec_exports";   /* DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT] */
     if (has_imports())
         data_dirs[1] = ".L__wine_spec_imports";   /* DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT] */
@@ -757,6 +766,23 @@ void output_module( DLLSPEC *spec )
         data_dirs[2] = ".L__wine_spec_resources"; /* DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE] */
 
     output_data_directories( data_dirs );
+
+    if (has_exports)
+    {
+        /* .edata section */
+        output( "\t.ascii \".edata\"\n" );                 /* Name */
+        output( "\t.align 8, 0\n" );
+        output_size( ".L__wine_spec_exports" );            /* VirtualSize */
+        output_rva( "%s", ".L__wine_spec_exports" );       /* VirtualAddress */
+        output_size( ".L__wine_spec_exports" );            /* SizeOfRawData */
+        output_rva( "%s", ".L__wine_spec_exports" );       /* PointerToRawData */
+        output( "\t.long 0\n" );                           /* PointerToRelocations */
+        output( "\t.long 0\n" );                           /* PointerToLinenumbers */
+        output( "\t.short 0\n" );                          /* NumberOfRelocations */
+        output( "\t.short 0\n" );                          /* NumberOfLinenumbers */
+        output( "\t.long 0x40000040\n"                     /* Characteristics */
+                /* CNT_INITIALIZED_DATA|MEM_READ */ );
+    }
 
     output( "\t.align %u, 0\n", page_size );
     output( "\t.L__wine_spec_pe_end:\n" );
@@ -777,8 +803,9 @@ void output_spec32_file( DLLSPEC *spec )
     open_output_file();
     output_standard_file_header();
     output_module( spec );
-    output_stubs( spec );
     output_exports( spec );
+
+    output_stubs( spec );
     output_imports( spec );
     output_syscalls( spec );
     output_relay_data( spec );
