@@ -1264,6 +1264,16 @@ const char *get_asm_export_section(void)
     }
 }
 
+const char *get_asm_import_section(void)
+{
+    switch (target_platform)
+    {
+    case PLATFORM_APPLE:   return ".data";
+    case PLATFORM_WINDOWS: return ".section .idata";
+    default:               return ".section .data";
+    }
+}
+
 const char *get_asm_rodata_section(void)
 {
     switch (target_platform)

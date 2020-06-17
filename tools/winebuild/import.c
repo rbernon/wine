@@ -819,8 +819,8 @@ static void output_immediate_imports(void)
     /* main import header */
 
     output( "\n/* import table */\n" );
-    output( "\n\t.data\n" );
-    output( "\t.align %d\n", get_alignment(4) );
+    output( "\t%s\n", get_asm_import_section() );
+    output( "\t.align %d, 0\n", get_alignment(4) );
     output( ".L__wine_spec_imports:\n" );
 
     /* list of dlls */
@@ -841,7 +841,7 @@ static void output_immediate_imports(void)
     output( "\t.long 0\n" );     /* Name */
     output( "\t.long 0\n" );     /* FirstThunk */
 
-    output( "\n\t.align %d\n", get_alignment(get_ptr_size()) );
+    output( "\n\t.align %d, 0\n", get_alignment(get_ptr_size()) );
     /* output the names twice, once for OriginalFirstThunk and once for FirstThunk */
     for (i = 0; i < 2; i++)
     {
@@ -878,7 +878,7 @@ static void output_immediate_imports(void)
         {
             struct import_func *func = &import->imports[j];
             if (!func->name) continue;
-            output( "\t.align %d\n", get_alignment(2) );
+            output( "\t.align %d, 0\n", get_alignment(2) );
             output( ".L__wine_spec_import_data_%s_%s:\n", import->c_name, func->name );
             output( "\t.short %d\n", func->hint );
             output( "\t%s \"%s\"\n", get_asm_string_keyword(), func->name );
@@ -929,8 +929,8 @@ static void output_delayed_imports( const DLLSPEC *spec )
     if (list_empty( &dll_delayed )) return;
 
     output( "\n/* delayed imports */\n\n" );
-    output( "\t.data\n" );
-    output( "\t.align %d\n", get_alignment(get_ptr_size()) );
+    output( "\t%s\n", get_asm_import_section() );
+    output( "\t.align %d, 0\n", get_alignment(get_ptr_size()) );
     output( "%s\n", asm_globl("__wine_spec_delay_imports") );
 
     /* list of dlls */
@@ -1258,8 +1258,8 @@ static void output_external_link_imports( DLLSPEC *spec )
     if (!ext_link_imports.count) return;  /* nothing to do */
 
     output( "\n/* external link thunks */\n\n" );
-    output( "\t.data\n" );
-    output( "\t.align %d\n", get_alignment(get_ptr_size()) );
+    output( "\t%s\n", get_asm_import_section() );
+    output( "\t.align %d, 0\n", get_alignment(get_ptr_size()) );
     output( ".L__wine_spec_external_links:\n" );
     for (i = 0; i < ext_link_imports.count; i++)
         output( "\t%s %s\n", get_asm_ptr_keyword(), asm_name(ext_link_imports.str[i]) );
@@ -1803,10 +1803,20 @@ void output_syscalls_data( DLLSPEC *spec )
 /* output the import and delayed import tables of a Win32 module */
 void output_imports( DLLSPEC *spec )
 {
+    unsigned int page_size = get_page_size();
     if (target_platform == PLATFORM_WINDOWS) return;
+
+    output( "\t%s\n", get_asm_import_section() );
+    output( "\t.align %d, 0\n", page_size );
+    output( ".L__wine_spec_idata:\n" );
+
     output_immediate_imports();
     output_delayed_imports( spec );
     output_external_link_imports( spec );
+
+    output( "\t%s\n", get_asm_import_section() );
+    output( ".L__wine_spec_idata_end:\n" );
+    output( "\t.align %d\n", page_size );
 }
 
 void output_import_thunks( DLLSPEC *spec )
