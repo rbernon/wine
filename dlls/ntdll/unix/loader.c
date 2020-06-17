@@ -637,7 +637,6 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
     IMAGE_NT_HEADERS *nt;
     IMAGE_SECTION_HEADER *sec;
     BYTE *addr = (BYTE *)module;
-    DWORD code_end;
     int delta;
     unsigned int i;
     DWORD size = nt_descr->OptionalHeader.SizeOfHeaders;
@@ -655,15 +654,11 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
     /* fixup the sections */
 
     fixup_rva_dwords( &nt->OptionalHeader.SizeOfImage, delta, 1 );
-    code_end = nt->OptionalHeader.SizeOfImage;
 
     for (i = 0; i < nt->FileHeader.NumberOfSections; ++i)
     {
         fixup_rva_dwords( &sec[i].VirtualAddress, delta, 1 );
         fixup_rva_dwords( &sec[i].PointerToRawData, delta, 1 );
-
-        if (memcmp( sec[i].Name, ".text", sizeof(".text" )) && code_end > sec[i].VirtualAddress)
-            code_end = sec[i].VirtualAddress;
 
         if ((sec[i].Characteristics & IMAGE_SCN_CNT_INITIALIZED_DATA) &&
             remap_writable( addr + sec[i].VirtualAddress, sec[i].Misc.VirtualSize ))
@@ -679,13 +674,6 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
 #ifndef _WIN64
     fixup_rva_dwords( &nt->OptionalHeader.BaseOfData, delta, 1 );
 #endif
-    nt->OptionalHeader.SizeOfCode = code_end - nt->OptionalHeader.BaseOfCode;
-
-    for (i = 0; i < nt->FileHeader.NumberOfSections; ++i)
-    {
-        if (memcmp( sec[i].Name, ".text", sizeof(".text" ))) continue;
-        sec[i].Misc.VirtualSize = sec[i].SizeOfRawData = nt->OptionalHeader.SizeOfCode;
-    }
 
     for (i = 0; i < nt->OptionalHeader.NumberOfRvaAndSizes; i++)
         fixup_rva_dwords( &nt->OptionalHeader.DataDirectory[i].VirtualAddress, delta, 1 );

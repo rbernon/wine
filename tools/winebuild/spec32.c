@@ -151,7 +151,10 @@ static void get_arg_string( ORDDEF *odp, char str[MAX_ARGUMENTS + 1] )
 
 static void output_size( const char *name )
 {
-    output( "\t.long %s_end - %s\n", name, name );
+    if (!strcmp(name, ".L__wine_spec_text"))
+        output( "\t.long %s - %s\n", asm_name("_etext"), name );
+    else
+        output( "\t.long %s_end - %s\n", name, name );
 }
 
 static void output_data_directories( const char *names[16] )
@@ -738,7 +741,7 @@ void output_module( DLLSPEC *spec )
              get_ptr_size() == 8 ? IMAGE_NT_OPTIONAL_HDR64_MAGIC : IMAGE_NT_OPTIONAL_HDR32_MAGIC );
     output( "\t.byte 7\n" );              /* MajorLinkerVersion */
     output( "\t.byte 10\n" );             /* MinorLinkerVersion */
-    output( "\t.long 0\n" );              /* SizeOfCode */
+    output_size( ".L__wine_spec_text" );  /* SizeOfCode */
     output_size( ".L__wine_spec_data" );  /* SizeOfInitializedData */
     output( "\t.long 0\n" );              /* SizeOfUninitializedData */
     output_rva( spec->init_func ?         /* AddressOfEntryPoint */
@@ -781,9 +784,9 @@ void output_module( DLLSPEC *spec )
     /* .text section */
     output( "\t.ascii \".text\"\n" );                  /* Name */
     output( "\t.align 8, 0\n" );
-    output( "\t.long 0\n" );                           /* VirtualSize */
+    output_size( ".L__wine_spec_text" );               /* VirtualSize */
     output_rva( "%s", ".L__wine_spec_text" );          /* VirtualAddress */
-    output( "\t.long 0\n" );                           /* SizeOfRawData */
+    output_size( ".L__wine_spec_text" );               /* SizeOfRawData */
     output_rva( "%s", ".L__wine_spec_text" );          /* PointerToRawData */
     output( "\t.long 0\n" );                           /* PointerToRelocations */
     output( "\t.long 0\n" );                           /* PointerToLinenumbers */

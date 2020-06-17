@@ -1299,7 +1299,7 @@ const char *get_asm_text_section(void)
     {
     case PLATFORM_APPLE:   return ".text";
     case PLATFORM_WINDOWS: return ".section .text";
-    default:               return ".section .text";
+    default:               return ".section .init";
     }
 }
 
