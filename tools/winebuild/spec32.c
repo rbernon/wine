@@ -81,7 +81,7 @@ static int is_float_arg( const ORDDEF *odp, int arg )
 }
 
 /* check if dll will output relay thunks */
-static int has_relays( DLLSPEC *spec )
+int has_relays( DLLSPEC *spec )
 {
     int i;
 
@@ -217,27 +217,6 @@ void output_relay_debug( DLLSPEC *spec )
     int i;
 
     if (!has_relays( spec )) return;
-
-    /* first the table of entry point offsets */
-
-    output( "\t%s\n", get_asm_rodata_section() );
-    output( "\t.align %d\n", get_alignment(4) );
-    output( ".L__wine_spec_relay_entry_point_offsets:\n" );
-
-    for (i = spec->base; i <= spec->limit; i++)
-    {
-        ORDDEF *odp = spec->ordinals[i];
-
-        if (needs_relay( odp ))
-            output( "\t.long .L__wine_spec_relay_entry_point_%d-__wine_spec_relay_entry_points\n", i );
-        else
-            output( "\t.long 0\n" );
-    }
-
-    /* then the strings of argument types */
-
-    output( ".L__wine_spec_relay_args_string:\n" );
-    output( "\t%s \"%s\"\n", get_asm_string_keyword(), build_args_string( spec ));
 
     /* then the relay thunks */
 
@@ -584,6 +563,37 @@ void output_export_thunks( DLLSPEC *spec )
 
 
 /*******************************************************************
+ *         output_relay_rodata
+ *
+ * Output the delay read-only data for a Win32 module.
+ */
+void output_relay_rodata( DLLSPEC *spec )
+{
+    int i;
+
+    /* first the table of entry point offsets */
+
+    output( "\t.align %d\n", get_alignment(4) );
+    output( ".L__wine_spec_relay_entry_point_offsets:\n" );
+
+    for (i = spec->base; i <= spec->limit; i++)
+    {
+        ORDDEF *odp = spec->ordinals[i];
+
+        if (needs_relay( odp ))
+            output( "\t.long .L__wine_spec_relay_entry_point_%d-__wine_spec_relay_entry_points\n", i );
+        else
+            output( "\t.long 0\n" );
+    }
+
+    /* then the strings of argument types */
+
+    output( ".L__wine_spec_relay_args_string:\n" );
+    output( "\t%s \"%s\"\n", get_asm_string_keyword(), build_args_string( spec ));
+}
+
+
+/*******************************************************************
  *         output_relay_data
  *
  * Output the delay data for a Win32 module.
@@ -621,6 +631,7 @@ void output_module( DLLSPEC *spec )
     if (has_exports) nb_sections++;
     if (has_imports()) nb_sections++;
     if (spec->nb_resources) nb_sections++;
+    if ((has_stubs( spec ) || has_relays( spec ))) nb_sections++;
 
     /* Reserve some space for the PE header */
 
@@ -820,6 +831,23 @@ void output_module( DLLSPEC *spec )
                 /* CNT_INITIALIZED_DATA|MEM_READ|MEM_WRITE */ );
     }
 
+    if (has_stubs( spec ) || has_relays( spec ))
+    {
+        /* .rodata section */
+        output( "\t.ascii \".rodata\"\n" );              /* Name */
+        output( "\t.align 8, 0\n" );
+        output_size( ".L__wine_spec_rodata" );         /* VirtualSize */
+        output_rva( "%s", ".L__wine_spec_rodata" );    /* VirtualAddress */
+        output_size( ".L__wine_spec_rodata" );         /* SizeOfRawData */
+        output_rva( "%s", ".L__wine_spec_rodata" );    /* PointerToRawData */
+        output( "\t.long 0\n" );                       /* PointerToRelocations */
+        output( "\t.long 0\n" );                       /* PointerToLinenumbers */
+        output( "\t.short 0\n" );                      /* NumberOfRelocations */
+        output( "\t.short 0\n" );                      /* NumberOfLinenumbers */
+        output( "\t.long 0x40000040\n"                 /* Characteristics */
+                /* CNT_INITIALIZED_DATA|MEM_READ */ );
+    }
+
     output( "\t.align %u, 0\n", page_size );
     output( "\t.L__wine_spec_pe_end:\n" );
 
@@ -842,6 +870,13 @@ void output_spec32_file( DLLSPEC *spec )
     output_exports( spec );
     output_imports( spec );
     output_resources( spec );
+
+    output( "\t%s\n", get_asm_rodata_section() );
+    output( "\t.align %d, 0\n", page_size );
+    output( ".L__wine_spec_rodata:\n" );
+    if (has_relays( spec )) output_relay_rodata( spec );
+    if (has_stubs( spec )) output_stubs_rodata( spec );
+    output( ".L__wine_spec_rodata_end:\n" );
 
     output_stubs( spec );
     output_syscalls( spec );

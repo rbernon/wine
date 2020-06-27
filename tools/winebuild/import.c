@@ -457,7 +457,7 @@ static void add_undef_import( const char *name, int is_ordinal )
 }
 
 /* check if the spec file exports any stubs */
-static int has_stubs( const DLLSPEC *spec )
+int has_stubs( const DLLSPEC *spec )
 {
     int i;
 
@@ -1394,8 +1394,21 @@ void output_stubs( DLLSPEC *spec )
         output_cfi( ".cfi_endproc" );
         output_function_size( name );
     }
+}
 
-    output( "\t%s\n", get_asm_string_section() );
+/*******************************************************************
+ *         output_stubs_rodata
+ *
+ * Output the read-only data used by stub entry points
+ */
+void output_stubs_rodata( DLLSPEC *spec )
+{
+    const char *name, *exp_name;
+    int i;
+
+    if (!has_stubs( spec )) return;
+
+    output( "\t%s\n", get_asm_rodata_section() );
     output( ".L__wine_spec_file_name:\n" );
     output( "\t%s \"%s\"\n", get_asm_string_keyword(), spec->file_name );
     for (i = 0; i < spec->nb_entry_points; i++)

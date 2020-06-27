@@ -1292,12 +1292,3 @@ const char *get_asm_rsrc_section(void)
     default:               return ".section .data";
     }
 }
-
-const char *get_asm_string_section(void)
-{
-    switch (target_platform)
-    {
-    case PLATFORM_APPLE: return ".cstring";
-    default:             return ".section .rodata";
-    }
-}
