@@ -212,9 +212,11 @@ static char *build_args_string( DLLSPEC *spec )
  *
  * Output entry points for relay debugging
  */
-static void output_relay_debug( DLLSPEC *spec )
+void output_relay_debug( DLLSPEC *spec )
 {
     int i;
+
+    if (!has_relays( spec )) return;
 
     /* first the table of entry point offsets */
 
@@ -601,8 +603,6 @@ void output_relay_data( DLLSPEC *spec )
     output( "\t%s __wine_spec_relay_entry_points\n", get_asm_ptr_keyword() );
     output( "\t%s .L__wine_spec_relay_entry_point_offsets\n", get_asm_ptr_keyword() );
     output( "\t%s .L__wine_spec_relay_args_string\n", get_asm_ptr_keyword() );
-
-    output_relay_debug( spec );
 }
 
 
@@ -849,6 +849,7 @@ void output_spec32_file( DLLSPEC *spec )
     output_syscalls_data( spec );
     output_export_thunks( spec );
     output_import_thunks( spec );
+    output_relay_debug( spec );
     if (needs_get_pc_thunk) output_get_pc_thunk();
     output_gnu_stack_note();
     close_output_file();

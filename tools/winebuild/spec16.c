@@ -808,6 +808,7 @@ void output_spec16_file( DLLSPEC *spec16 )
     output_relay_data( spec32 );
     output_export_thunks( spec32 );
     output_import_thunks( spec16 );
+    output_relay_debug( spec32 );
     if (!strcmp( spec16->dll_name, "kernel" )) output_asm_relays16();
     if (!strcmp( spec16->dll_name, "kernel" )) output_asm_relays16_data();
     if (needs_get_pc_thunk) output_get_pc_thunk();
