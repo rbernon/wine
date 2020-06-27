@@ -1293,6 +1293,16 @@ const char *get_asm_rsrc_section(void)
     }
 }
 
+const char *get_asm_text_section(void)
+{
+    switch (target_platform)
+    {
+    case PLATFORM_APPLE:   return ".text";
+    case PLATFORM_WINDOWS: return ".section .text";
+    default:               return ".section .text";
+    }
+}
+
 const char *get_asm_data_section(void)
 {
     switch (target_platform)

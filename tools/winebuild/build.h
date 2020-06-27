@@ -291,6 +291,7 @@ extern const char *get_asm_export_section(void);
 extern const char *get_asm_import_section(void);
 extern const char *get_asm_rodata_section(void);
 extern const char *get_asm_rsrc_section(void);
+extern const char *get_asm_text_section(void);
 extern const char *get_asm_data_section(void);
 extern void output_function_size( const char *name );
 extern void output_gnu_stack_note(void);

@@ -729,7 +729,6 @@ int is_undefined( const char *name )
 void output_get_pc_thunk(void)
 {
     assert( target_cpu == CPU_x86 );
-    output( "\n\t.text\n" );
     output( "\t.align %d\n", get_alignment(4) );
     output( "\t%s\n", func_declaration("__wine_spec_get_pc_thunk_eax") );
     output( "%s:\n", asm_name("__wine_spec_get_pc_thunk_eax") );
@@ -902,7 +901,6 @@ static void output_immediate_import_thunks(void)
     if (list_empty( &dll_imports )) return;
 
     output( "\n/* immediate import thunks */\n\n" );
-    output( "\t.text\n" );
     output( "\t.align %d\n", get_alignment(8) );
     output( "%s:\n", asm_name(import_thunks));
 
@@ -1024,7 +1022,6 @@ static void output_delayed_import_thunks( const DLLSPEC *spec )
     if (list_empty( &dll_delayed )) return;
 
     output( "\n/* delayed import thunks */\n\n" );
-    output( "\t.text\n" );
     output( "\t.align %d\n", get_alignment(8) );
     output( "%s:\n", asm_name(delayed_import_loaders));
     output( "\t%s\n", func_declaration("__wine_delay_load_asm") );
@@ -1271,7 +1268,6 @@ static void output_external_link_import_thunks( DLLSPEC *spec )
 
     if (!ext_link_imports.count) return;  /* nothing to do */
 
-    output( "\n\t.text\n" );
     output( "\t.align %d\n", get_alignment(get_ptr_size()) );
     output( "%s:\n", asm_name("__wine_spec_external_link_thunks") );
 
@@ -1298,7 +1294,6 @@ void output_stubs( DLLSPEC *spec )
     if (!has_stubs( spec )) return;
 
     output( "\n/* stub functions */\n\n" );
-    output( "\t.text\n" );
 
     for (i = 0; i < spec->nb_entry_points; i++)
     {

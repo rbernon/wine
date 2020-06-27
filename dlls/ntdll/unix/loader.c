@@ -637,7 +637,7 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
     IMAGE_NT_HEADERS *nt;
     IMAGE_SECTION_HEADER *sec;
     BYTE *addr = (BYTE *)module;
-    DWORD code_start, code_end, align_mask;
+    DWORD code_end;
     int delta;
     unsigned int i;
     DWORD size = nt_descr->OptionalHeader.SizeOfHeaders;
@@ -661,38 +661,31 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
     {
         fixup_rva_dwords( &sec[i].VirtualAddress, delta, 1 );
         fixup_rva_dwords( &sec[i].PointerToRawData, delta, 1 );
-        if (code_end > sec[i].VirtualAddress) code_end = sec[i].VirtualAddress;
+
+        if (memcmp( sec[i].Name, ".text", sizeof(".text" )) && code_end > sec[i].VirtualAddress)
+            code_end = sec[i].VirtualAddress;
 
         if ((sec[i].Characteristics & IMAGE_SCN_CNT_INITIALIZED_DATA) &&
             remap_writable( addr + sec[i].VirtualAddress, sec[i].Misc.VirtualSize ))
             return STATUS_NO_MEMORY;
     }
-    sec = sec + nt->FileHeader.NumberOfSections;
 
     /* build the NT headers */
 
     nt->OptionalHeader.ImageBase = (ULONG_PTR)addr;
 
-    align_mask = nt->OptionalHeader.SectionAlignment - 1;
-    code_start = (size + align_mask) & ~align_mask;
     fixup_rva_dwords( &nt->OptionalHeader.AddressOfEntryPoint, delta, 1 );
-
-    nt->OptionalHeader.BaseOfCode                  = code_start;
+    fixup_rva_dwords( &nt->OptionalHeader.BaseOfCode, delta, 1 );
 #ifndef _WIN64
     fixup_rva_dwords( &nt->OptionalHeader.BaseOfData, delta, 1 );
 #endif
-    nt->OptionalHeader.SizeOfCode                  = code_end - code_start;
+    nt->OptionalHeader.SizeOfCode = code_end - nt->OptionalHeader.BaseOfCode;
 
-    /* build the code section */
-
-    memcpy( sec->Name, ".text", sizeof(".text") );
-    sec->SizeOfRawData = code_end - code_start;
-    sec->Misc.VirtualSize = sec->SizeOfRawData;
-    sec->VirtualAddress   = code_start;
-    sec->PointerToRawData = code_start;
-    sec->Characteristics  = (IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ);
-    nt->FileHeader.NumberOfSections++;
-    sec++;
+    for (i = 0; i < nt->FileHeader.NumberOfSections; ++i)
+    {
+        if (memcmp( sec[i].Name, ".text", sizeof(".text" ))) continue;
+        sec[i].Misc.VirtualSize = sec[i].SizeOfRawData = nt->OptionalHeader.SizeOfCode;
+    }
 
     for (i = 0; i < nt->OptionalHeader.NumberOfRvaAndSizes; i++)
         fixup_rva_dwords( &nt->OptionalHeader.DataDirectory[i].VirtualAddress, delta, 1 );

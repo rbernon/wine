@@ -220,7 +220,6 @@ void output_relay_debug( DLLSPEC *spec )
 
     /* then the relay thunks */
 
-    output( "\t.text\n" );
     output( "__wine_spec_relay_entry_points:\n" );
     output( "\tnop\n" );  /* to avoid 0 offset */
 
@@ -523,7 +522,6 @@ void output_export_thunks( DLLSPEC *spec )
 
     /* output import thunks */
 
-    output( "\t.text\n" );
     for (i = spec->base; i <= spec->limit; i++)
     {
         ORDDEF *odp = spec->ordinals[i];
@@ -625,7 +623,7 @@ void output_module( DLLSPEC *spec )
     int machine = 0, has_exports = get_exports_count( spec ) > 0;
     unsigned int page_size = get_page_size();
     const char *data_dirs[16] = { NULL };
-    unsigned int nb_sections = 1;
+    unsigned int nb_sections = 2;
 
     if (has_exports) nb_sections++;
     if (has_imports()) nb_sections++;
@@ -745,7 +743,7 @@ void output_module( DLLSPEC *spec )
     output( "\t.long 0\n" );              /* SizeOfUninitializedData */
     output_rva( spec->init_func ?         /* AddressOfEntryPoint */
                 asm_name(spec->init_func) : "0" );
-    output( "\t.long 0\n" );              /* BaseOfCode */
+    output_rva( ".L__wine_spec_text" );   /* BaseOfCode */
     if (get_ptr_size() == 4)
         output_rva( ".L__wine_spec_data" ); /* BaseOfData */
     output( "\t%s .L__wine_spec_dos\n",   /* ImageBase */
@@ -779,6 +777,20 @@ void output_module( DLLSPEC *spec )
         data_dirs[2] = ".L__wine_spec_resources"; /* DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE] */
 
     output_data_directories( data_dirs );
+
+    /* .text section */
+    output( "\t.ascii \".text\"\n" );                  /* Name */
+    output( "\t.align 8, 0\n" );
+    output( "\t.long 0\n" );                           /* VirtualSize */
+    output_rva( "%s", ".L__wine_spec_text" );          /* VirtualAddress */
+    output( "\t.long 0\n" );                           /* SizeOfRawData */
+    output_rva( "%s", ".L__wine_spec_text" );          /* PointerToRawData */
+    output( "\t.long 0\n" );                           /* PointerToRelocations */
+    output( "\t.long 0\n" );                           /* PointerToLinenumbers */
+    output( "\t.short 0\n" );                          /* NumberOfRelocations */
+    output( "\t.short 0\n" );                          /* NumberOfLinenumbers */
+    output( "\t.long 0x60000020\n"                     /* Characteristics */
+            /* CNT_CODE|MEM_READ|MEM_EXECUTE */ );
 
     /* .data section */
     output( "\t.ascii \".data\"\n" );                  /* Name */
@@ -900,12 +912,16 @@ void output_spec32_file( DLLSPEC *spec )
     output_syscalls_data( spec );
     output( ".L__wine_spec_data_end:\n" );
 
+    output( "\t%s\n", get_asm_text_section() );
+    output( "\t.align %d, 0\n", page_size );
+    output( ".L__wine_spec_text:\n" );
     output_stubs( spec );
     output_syscalls( spec );
     output_export_thunks( spec );
     output_import_thunks( spec );
     output_relay_debug( spec );
     if (needs_get_pc_thunk) output_get_pc_thunk();
+
     output_gnu_stack_note();
     close_output_file();
 }

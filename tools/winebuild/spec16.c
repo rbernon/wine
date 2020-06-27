@@ -742,6 +742,16 @@ static void output_module16( DLLSPEC *spec )
                 asm_name( odp->type == TYPE_STUB ? get_stub_name( odp, spec ) : get_link_name( odp )));
         output( "\tcallw .L__wine_spec_callfrom16_%s\n", get_callfrom16_name( odp ) );
     }
+
+    /* relay functions */
+
+    nb_funcs = sort_func_list( typelist, nb_funcs, relay_type_compare );
+    if (nb_funcs)
+    {
+        output( "\n/* relay functions */\n\n" );
+        for ( i = 0; i < nb_funcs; i++ ) output_call16_function( typelist[i] );
+    }
+
     output( ".L__wine_spec_code_segment_end:\n" );
 
     /* data segment */
@@ -770,16 +780,6 @@ static void output_module16( DLLSPEC *spec )
 
     output( ".L__wine_spec_ne_header_end:\n" );
     output( "\t.byte 0\n" );  /* make sure the last symbol points to something */
-
-    /* relay functions */
-
-    nb_funcs = sort_func_list( typelist, nb_funcs, relay_type_compare );
-    if (nb_funcs)
-    {
-        output( "\n/* relay functions */\n\n" );
-        output( "\t.text\n" );
-        for ( i = 0; i < nb_funcs; i++ ) output_call16_function( typelist[i] );
-    }
 
     free( typelist );
 }
@@ -824,12 +824,16 @@ void output_spec16_file( DLLSPEC *spec16 )
     if (!strcmp( spec16->dll_name, "kernel" )) output_asm_relays16_data();
     output( ".L__wine_spec_data_end:\n" );
 
+    output( "\t%s\n", get_asm_text_section() );
+    output( "\t.align %d, 0\n", page_size );
+    output( ".L__wine_spec_text:\n" );
     output_stubs( spec16 );
     output_export_thunks( spec32 );
     output_import_thunks( spec16 );
     output_relay_debug( spec32 );
     if (!strcmp( spec16->dll_name, "kernel" )) output_asm_relays16();
     if (needs_get_pc_thunk) output_get_pc_thunk();
+
     output_gnu_stack_note();
     close_output_file();
     free_dll_spec( spec32 );

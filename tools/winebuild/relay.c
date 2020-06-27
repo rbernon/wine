@@ -750,7 +750,6 @@ void output_asm_relays16(void)
 {
     /* File header */
 
-    output( "\t.text\n" );
     output( "%s:\n\n", asm_name("__wine_spec_thunk_text_16") );
 
     output( "%s\n", asm_globl("__wine_call16_start") );
