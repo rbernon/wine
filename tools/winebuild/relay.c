@@ -781,7 +781,10 @@ void output_asm_relays16(void)
 
     output( "%s\n", asm_globl("__wine_call16_end") );
     output_function_size( "__wine_spec_thunk_text_16" );
+}
 
+void output_asm_relays16_data(void)
+{
     /* Declare the return address and data selector variables */
     output( "\n\t.data\n\t.align %d\n", get_alignment(4) );
     output( "%s\n\t.long 0\n", asm_globl("CallTo16_DataSelector") );

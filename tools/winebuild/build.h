@@ -328,6 +328,7 @@ extern void output_spec16_file( DLLSPEC *spec );
 extern void output_fake_module16( DLLSPEC *spec16 );
 extern void output_res_o_file( DLLSPEC *spec );
 extern void output_asm_relays16(void);
+extern void output_asm_relays16_data(void);
 extern void make_builtin_files( char *argv[] );
 extern void fixup_constructors( char *argv[] );
 
