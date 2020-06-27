@@ -56,6 +56,11 @@ static void set_entry_point( HMODULE module, const char *name, DWORD rva )
         const WORD *ordinals = (const WORD *)((const char *)module + exports->AddressOfNameOrdinals);
         const DWORD *names = (const DWORD *)((const char *)module +  exports->AddressOfNames);
         int min = 0, max = exports->NumberOfNames - 1;
+        SIZE_T size = exp_size;
+        void *addr = exports;
+        ULONG old_prot, new_prot = PAGE_READWRITE;
+
+        NtProtectVirtualMemory( NtCurrentProcess(), &addr, &size, new_prot, &old_prot );
 
         while (min <= max)
         {
@@ -67,11 +72,13 @@ static void set_entry_point( HMODULE module, const char *name, DWORD rva )
                 assert( ordinal < exports->NumberOfFunctions );
                 TRACE( "setting %s at %p to %08x\n", name, &functions[ordinal], rva );
                 functions[ordinal] = rva;
-                return;
+                break;
             }
             if (res > 0) max = pos - 1;
             else min = pos + 1;
         }
+
+        NtProtectVirtualMemory( NtCurrentProcess(), &addr, &size, old_prot, &new_prot );
     }
 }
 
