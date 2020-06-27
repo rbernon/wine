@@ -301,6 +301,7 @@ extern void read_undef_symbols( DLLSPEC *spec, char **argv );
 extern void resolve_imports( DLLSPEC *spec );
 extern int is_undefined( const char *name );
 extern int has_imports(void);
+extern void output_relay_data( DLLSPEC *spec );
 extern void output_get_pc_thunk(void);
 extern void output_module( DLLSPEC *spec );
 extern void output_stubs( DLLSPEC *spec );

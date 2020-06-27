@@ -518,36 +518,10 @@ void output_exports( DLLSPEC *spec )
         }
     }
 
-    /* output relays */
-
-    if (needs_relay)
+    if (target_platform != PLATFORM_WINDOWS)
     {
-        if (target_platform == PLATFORM_WINDOWS)
-        {
-            output( "\t.data\n" );
-            output( "\t.align %d\n", get_alignment(get_ptr_size()) );
-        }
-        else
-        {
-            output( "\t.align %d\n", get_alignment(get_ptr_size()) );
-            output( ".L__wine_spec_exports_end:\n" );
-        }
-
-        output( ".L__wine_spec_relay_descr:\n" );
-        output( "\t%s 0xdeb90002\n", get_asm_ptr_keyword() );  /* magic */
-        output( "\t%s 0\n", get_asm_ptr_keyword() );           /* relay func */
-        output( "\t%s 0\n", get_asm_ptr_keyword() );           /* private data */
-        output( "\t%s __wine_spec_relay_entry_points\n", get_asm_ptr_keyword() );
-        output( "\t%s .L__wine_spec_relay_entry_point_offsets\n", get_asm_ptr_keyword() );
-        output( "\t%s .L__wine_spec_relay_args_string\n", get_asm_ptr_keyword() );
-
-        output_relay_debug( spec );
-    }
-    else if (target_platform != PLATFORM_WINDOWS)
-    {
-            output( "\t.align %d\n", get_alignment(get_ptr_size()) );
-            output( ".L__wine_spec_exports_end:\n" );
-            output( "\t%s 0\n", get_asm_ptr_keyword() );
+        output( "\t.align %d\n", get_alignment(get_ptr_size()) );
+        output( ".L__wine_spec_exports_end:\n" );
     }
 
     /* output import thunks */
@@ -589,6 +563,31 @@ void output_exports( DLLSPEC *spec )
         }
         output_cfi( ".cfi_endproc" );
     }
+}
+
+
+/*******************************************************************
+ *         output_relay_data
+ *
+ * Output the delay data for a Win32 module.
+ */
+void output_relay_data( DLLSPEC *spec )
+{
+    if (!has_relays( spec )) return;
+
+    /* output relay data */
+
+    output( "\t.data\n" );
+    output( "\t.align %d\n", get_alignment(get_ptr_size()) );
+    output( ".L__wine_spec_relay_descr:\n" );
+    output( "\t%s 0xdeb90002\n", get_asm_ptr_keyword() );  /* magic */
+    output( "\t%s 0\n", get_asm_ptr_keyword() );           /* relay func */
+    output( "\t%s 0\n", get_asm_ptr_keyword() );           /* private data */
+    output( "\t%s __wine_spec_relay_entry_points\n", get_asm_ptr_keyword() );
+    output( "\t%s .L__wine_spec_relay_entry_point_offsets\n", get_asm_ptr_keyword() );
+    output( "\t%s .L__wine_spec_relay_args_string\n", get_asm_ptr_keyword() );
+
+    output_relay_debug( spec );
 }
 
 
@@ -773,6 +772,7 @@ void output_spec32_file( DLLSPEC *spec )
     output_exports( spec );
     output_imports( spec );
     output_syscalls( spec );
+    output_relay_data( spec );
     if (needs_get_pc_thunk) output_get_pc_thunk();
     output_resources( spec );
     output_gnu_stack_note();
