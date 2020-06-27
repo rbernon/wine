@@ -1254,13 +1254,24 @@ const char *get_asm_string_keyword(void)
     }
 }
 
+static const char *get_asm_wine_section(void)
+{
+    switch (target_platform)
+    {
+    case PLATFORM_APPLE:   return ".text";
+    case PLATFORM_SOLARIS: return ".text";
+    default:
+        if (target_cpu == CPU_ARM) return ".section .text";
+        return ".section .init";
+    }
+}
+
 const char *get_asm_export_section(void)
 {
     switch (target_platform)
     {
-    case PLATFORM_APPLE:   return ".data";
     case PLATFORM_WINDOWS: return ".section .edata";
-    default:               return ".section .data";
+    default: return get_asm_wine_section();
     }
 }
 
@@ -1268,9 +1279,8 @@ const char *get_asm_import_section(void)
 {
     switch (target_platform)
     {
-    case PLATFORM_APPLE:   return ".data";
     case PLATFORM_WINDOWS: return ".section .idata";
-    default:               return ".section .data";
+    default: return get_asm_wine_section();
     }
 }
 
@@ -1278,8 +1288,8 @@ const char *get_asm_rodata_section(void)
 {
     switch (target_platform)
     {
-    case PLATFORM_APPLE: return ".const";
-    default:             return ".section .rodata";
+    case PLATFORM_WINDOWS: return ".section .rodata";
+    default: return get_asm_wine_section();
     }
 }
 
@@ -1287,9 +1297,8 @@ const char *get_asm_rsrc_section(void)
 {
     switch (target_platform)
     {
-    case PLATFORM_APPLE:   return ".data";
     case PLATFORM_WINDOWS: return ".section .rsrc";
-    default:               return ".section .data";
+    default: return get_asm_wine_section();
     }
 }
 

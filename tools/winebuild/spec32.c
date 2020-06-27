@@ -641,16 +641,9 @@ void output_module( DLLSPEC *spec )
         return;  /* nothing to do */
     case PLATFORM_APPLE:
         output( "\t.text\n" );
-        output( "\t.align %d\n", get_alignment(page_size) );
-        output( "\t.globl %s\n", asm_name("__wine_spec_module") );
-        output( "%s:\n", asm_name("__wine_spec_module") );
-        output( "\t.space 65536\n" );
         break;
     case PLATFORM_SOLARIS:
         output( "\n\t.section \".text\",\"ax\"\n" );
-        output( "\t.globl %s\n", asm_name("__wine_spec_module") );
-        output( "%s:\n", asm_name("__wine_spec_module") );
-        output( "\t.skip %u\n", 65536 + page_size );
         break;
     default:
         switch(target_cpu)
@@ -658,29 +651,26 @@ void output_module( DLLSPEC *spec )
         case CPU_x86:
         case CPU_x86_64:
             output( "\n\t.section \".init\",\"ax\"\n" );
-            output( "\tjmp 1f\n" );
+            output( "\tjmp .L__wine_spec_reserved_end\n" );
             break;
         case CPU_ARM:
             output( "\n\t.section \".text\",\"ax\"\n" );
-            output( "\tb 1f\n" );
+            output( "\tb .L__wine_spec_reserved_end\n" );
             break;
         case CPU_ARM64:
         case CPU_POWERPC:
             output( "\n\t.section \".init\",\"ax\"\n" );
-            output( "\tb 1f\n" );
+            output( "\tb .L__wine_spec_reserved_end\n" );
             break;
         }
-        output( "\t.globl %s\n", asm_name("__wine_spec_module") );
-        output( "%s:\n", asm_name("__wine_spec_module") );
-        output( "\t.skip %u\n", 65536 + page_size );
-        output( "1:\n" );
         break;
     }
 
     /* Output the DOS header */
 
-    output( "\n\t.data\n" );
-    output( "\t.align %d\n", get_alignment(get_ptr_size()) );
+    output( "\t.align %u\n", page_size );
+    output( "\t.globl %s\n", asm_name("__wine_spec_module") );
+    output( "%s:\n", asm_name("__wine_spec_module") );
     output( ".L__wine_spec_dos:\n" );
     output( "\t.short 0x5a4d\n" );       /* e_magic */
     output( "\t.short 0x90\n" );         /* e_cblp */
@@ -880,6 +870,9 @@ void output_module( DLLSPEC *spec )
     output( "\t.align %u, 0\n", page_size );
     output( "\t.L__wine_spec_pe_end:\n" );
 
+    output( "\t.org %s + 0x10000\n", asm_name("__wine_spec_module") );
+    output_function_size( asm_name("__wine_spec_module") );
+
     if (target_platform == PLATFORM_APPLE)
         output( "\t.lcomm %s,4\n", asm_name("_end") );
 }
@@ -924,6 +917,10 @@ void output_spec32_file( DLLSPEC *spec )
     output_import_thunks( spec );
     output_relay_debug( spec );
     if (needs_get_pc_thunk) output_get_pc_thunk();
+
+    output( "\t.section .init\n" );
+    output( "\t.align %d, 0\n", page_size );
+    output( ".L__wine_spec_reserved_end:\n" );
 
     output_gnu_stack_note();
     close_output_file();
