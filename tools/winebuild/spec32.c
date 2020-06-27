@@ -47,6 +47,7 @@
 #define IMAGE_ROM_OPTIONAL_HDR_MAGIC  0x107
 
 int needs_get_pc_thunk = 0;
+int needs_imports = 0;
 
 static const char builtin_signature[32] = "Wine builtin DLL";
 static const char fakedll_signature[32] = "Wine placeholder DLL";
@@ -389,7 +390,6 @@ static void output_relay_debug( DLLSPEC *spec )
 void output_exports( DLLSPEC *spec )
 {
     int i, fwd_size = 0;
-    int needs_imports = 0;
     int needs_relay = has_relays( spec );
     int nr_exports = get_exports_count( spec );
     const char *name;
@@ -523,10 +523,19 @@ void output_exports( DLLSPEC *spec )
         output( "\t.align %d\n", get_alignment(get_ptr_size()) );
         output( ".L__wine_spec_exports_end:\n" );
     }
+}
+
+/* Output the thunks of the export table for a Win32 module. */
+void output_export_thunks( DLLSPEC *spec )
+{
+    int i, nr_exports = spec->base <= spec->limit ? spec->limit - spec->base + 1 : 0;
+    const char *name;
+
+    if (!nr_exports) return;
+    if (!needs_imports) return;
 
     /* output import thunks */
 
-    if (!needs_imports) return;
     output( "\t.text\n" );
     for (i = spec->base; i <= spec->limit; i++)
     {
@@ -774,6 +783,7 @@ void output_spec32_file( DLLSPEC *spec )
     output_syscalls( spec );
     output_relay_data( spec );
     output_syscalls_data( spec );
+    output_export_thunks( spec );
     if (needs_get_pc_thunk) output_get_pc_thunk();
     output_resources( spec );
     output_gnu_stack_note();

@@ -310,6 +310,7 @@ extern void output_syscalls_data( DLLSPEC *spec );
 extern void output_imports( DLLSPEC *spec );
 extern void output_static_lib( DLLSPEC *spec, char **argv );
 extern void output_exports( DLLSPEC *spec );
+extern void output_export_thunks( DLLSPEC *spec );
 extern int load_res32_file( const char *name, DLLSPEC *spec );
 extern void output_resources( DLLSPEC *spec );
 extern void output_bin_resources( DLLSPEC *spec, unsigned int start_rva );
