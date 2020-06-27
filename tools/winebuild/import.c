@@ -570,6 +570,17 @@ static void check_undefined_exports( DLLSPEC *spec )
             }
         }
     }
+
+    if (!ext_link_imports.count) return;  /* nothing to do */
+
+    sort_names( &ext_link_imports );
+
+    /* get rid of duplicate names */
+    for (i = 1; i < ext_link_imports.count; i++)
+    {
+        if (!strcmp( ext_link_imports.str[i-1], ext_link_imports.str[i] ))
+            remove_name( &ext_link_imports, i-- );
+    }
 }
 
 /* create a .o file that references all the undefined symbols we want to resolve */
@@ -1242,18 +1253,9 @@ static void output_delayed_import_thunks( const DLLSPEC *spec )
 /* output import stubs for exported entry points that link to external symbols */
 static void output_external_link_imports( DLLSPEC *spec )
 {
-    unsigned int i, pos;
+    unsigned int i;
 
     if (!ext_link_imports.count) return;  /* nothing to do */
-
-    sort_names( &ext_link_imports );
-
-    /* get rid of duplicate names */
-    for (i = 1; i < ext_link_imports.count; i++)
-    {
-        if (!strcmp( ext_link_imports.str[i-1], ext_link_imports.str[i] ))
-            remove_name( &ext_link_imports, i-- );
-    }
 
     output( "\n/* external link thunks */\n\n" );
     output( "\t.data\n" );
@@ -1261,6 +1263,13 @@ static void output_external_link_imports( DLLSPEC *spec )
     output( ".L__wine_spec_external_links:\n" );
     for (i = 0; i < ext_link_imports.count; i++)
         output( "\t%s %s\n", get_asm_ptr_keyword(), asm_name(ext_link_imports.str[i]) );
+}
+
+static void output_external_link_import_thunks( DLLSPEC *spec )
+{
+    unsigned int i, pos;
+
+    if (!ext_link_imports.count) return;  /* nothing to do */
 
     output( "\n\t.text\n" );
     output( "\t.align %d\n", get_alignment(get_ptr_size()) );
@@ -1797,9 +1806,15 @@ void output_imports( DLLSPEC *spec )
     if (target_platform == PLATFORM_WINDOWS) return;
     output_immediate_imports();
     output_delayed_imports( spec );
+    output_external_link_imports( spec );
+}
+
+void output_import_thunks( DLLSPEC *spec )
+{
+    if (target_platform == PLATFORM_WINDOWS) return;
     output_immediate_import_thunks();
     output_delayed_import_thunks( spec );
-    output_external_link_imports( spec );
+    output_external_link_import_thunks( spec );
 }
 
 /* create a new asm temp file */
