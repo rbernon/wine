@@ -817,13 +817,18 @@ void output_spec16_file( DLLSPEC *spec16 )
     }
     output( ".L__wine_spec_rodata_end:\n" );
 
-    output_stubs( spec16 );
+    output( "\t%s\n", get_asm_data_section() );
+    output( "\t.align %d, 0\n", page_size );
+    output( ".L__wine_spec_data:\n" );
     output_relay_data( spec32 );
+    if (!strcmp( spec16->dll_name, "kernel" )) output_asm_relays16_data();
+    output( ".L__wine_spec_data_end:\n" );
+
+    output_stubs( spec16 );
     output_export_thunks( spec32 );
     output_import_thunks( spec16 );
     output_relay_debug( spec32 );
     if (!strcmp( spec16->dll_name, "kernel" )) output_asm_relays16();
-    if (!strcmp( spec16->dll_name, "kernel" )) output_asm_relays16_data();
     if (needs_get_pc_thunk) output_get_pc_thunk();
     output_gnu_stack_note();
     close_output_file();

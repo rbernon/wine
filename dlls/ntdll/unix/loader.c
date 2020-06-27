@@ -637,7 +637,7 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
     IMAGE_NT_HEADERS *nt;
     IMAGE_SECTION_HEADER *sec;
     BYTE *addr = (BYTE *)module;
-    DWORD code_start, code_end, data_start, data_end, align_mask;
+    DWORD code_start, code_end, align_mask;
     int delta;
     unsigned int i;
     DWORD size = nt_descr->OptionalHeader.SizeOfHeaders;
@@ -654,10 +654,14 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
 
     /* fixup the sections */
 
+    fixup_rva_dwords( &nt->OptionalHeader.SizeOfImage, delta, 1 );
+    code_end = nt->OptionalHeader.SizeOfImage;
+
     for (i = 0; i < nt->FileHeader.NumberOfSections; ++i)
     {
         fixup_rva_dwords( &sec[i].VirtualAddress, delta, 1 );
         fixup_rva_dwords( &sec[i].PointerToRawData, delta, 1 );
+        if (code_end > sec[i].VirtualAddress) code_end = sec[i].VirtualAddress;
 
         if ((sec[i].Characteristics & IMAGE_SCN_CNT_INITIALIZED_DATA) &&
             remap_writable( addr + sec[i].VirtualAddress, sec[i].Misc.VirtualSize ))
@@ -671,31 +675,13 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
 
     align_mask = nt->OptionalHeader.SectionAlignment - 1;
     code_start = (size + align_mask) & ~align_mask;
-    data_start = delta & ~align_mask;
-#ifdef __APPLE__
-    {
-        Dl_info dli;
-        unsigned long data_size;
-        /* need the mach_header, not the PE header, to give to getsegmentdata(3) */
-        dladdr(addr, &dli);
-        code_end   = getsegmentdata(dli.dli_fbase, "__DATA", &data_size) - addr;
-        data_end   = (code_end + data_size + align_mask) & ~align_mask;
-    }
-#else
-    code_end   = data_start;
-    data_end   = (nt->OptionalHeader.SizeOfImage + delta + align_mask) & ~align_mask;
-#endif
-
     fixup_rva_dwords( &nt->OptionalHeader.AddressOfEntryPoint, delta, 1 );
 
     nt->OptionalHeader.BaseOfCode                  = code_start;
 #ifndef _WIN64
-    nt->OptionalHeader.BaseOfData                  = data_start;
+    fixup_rva_dwords( &nt->OptionalHeader.BaseOfData, delta, 1 );
 #endif
     nt->OptionalHeader.SizeOfCode                  = code_end - code_start;
-    nt->OptionalHeader.SizeOfInitializedData       = data_end - data_start;
-    nt->OptionalHeader.SizeOfUninitializedData     = 0;
-    nt->OptionalHeader.SizeOfImage                 = data_end;
 
     /* build the code section */
 
@@ -705,18 +691,6 @@ static NTSTATUS map_so_dll( const IMAGE_NT_HEADERS *nt_descr, HMODULE module )
     sec->VirtualAddress   = code_start;
     sec->PointerToRawData = code_start;
     sec->Characteristics  = (IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ);
-    nt->FileHeader.NumberOfSections++;
-    sec++;
-
-    /* build the data section */
-
-    memcpy( sec->Name, ".data", sizeof(".data") );
-    sec->SizeOfRawData = data_end - data_start;
-    sec->Misc.VirtualSize = sec->SizeOfRawData;
-    sec->VirtualAddress   = data_start;
-    sec->PointerToRawData = data_start;
-    sec->Characteristics  = (IMAGE_SCN_CNT_INITIALIZED_DATA |
-                             IMAGE_SCN_MEM_WRITE | IMAGE_SCN_MEM_READ);
     nt->FileHeader.NumberOfSections++;
     sec++;
 

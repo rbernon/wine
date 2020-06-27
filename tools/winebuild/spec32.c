@@ -604,7 +604,6 @@ void output_relay_data( DLLSPEC *spec )
 
     /* output relay data */
 
-    output( "\t.data\n" );
     output( "\t.align %d\n", get_alignment(get_ptr_size()) );
     output( ".L__wine_spec_relay_descr:\n" );
     output( "\t%s 0xdeb90002\n", get_asm_ptr_keyword() );  /* magic */
@@ -626,7 +625,7 @@ void output_module( DLLSPEC *spec )
     int machine = 0, has_exports = get_exports_count( spec ) > 0;
     unsigned int page_size = get_page_size();
     const char *data_dirs[16] = { NULL };
-    unsigned int nb_sections = 0;
+    unsigned int nb_sections = 1;
 
     if (has_exports) nb_sections++;
     if (has_imports()) nb_sections++;
@@ -728,7 +727,8 @@ void output_module( DLLSPEC *spec )
     }
     output( "\t.short 0x%04x\n",          /* Machine */
              machine );
-    output( "\t.short 0\n" );             /* NumberOfSections */
+    output( "\t.short 0x%04x\n",          /* NumberOfSections */
+             nb_sections );
     output( "\t.long 0\n" );              /* TimeDateStamp */
     output( "\t.long 0\n" );              /* PointerToSymbolTable */
     output( "\t.long 0\n" );              /* NumberOfSymbols */
@@ -741,13 +741,13 @@ void output_module( DLLSPEC *spec )
     output( "\t.byte 7\n" );              /* MajorLinkerVersion */
     output( "\t.byte 10\n" );             /* MinorLinkerVersion */
     output( "\t.long 0\n" );              /* SizeOfCode */
-    output( "\t.long 0\n" );              /* SizeOfInitializedData */
+    output_size( ".L__wine_spec_data" );  /* SizeOfInitializedData */
     output( "\t.long 0\n" );              /* SizeOfUninitializedData */
     output_rva( spec->init_func ?         /* AddressOfEntryPoint */
                 asm_name(spec->init_func) : "0" );
     output( "\t.long 0\n" );              /* BaseOfCode */
     if (get_ptr_size() == 4)
-        output( "\t.long 0\n" );          /* BaseOfData */
+        output_rva( ".L__wine_spec_data" ); /* BaseOfData */
     output( "\t%s .L__wine_spec_dos\n",   /* ImageBase */
              get_asm_ptr_keyword() );
     output( "\t.long %u\n", page_size );  /* SectionAlignment */
@@ -779,6 +779,20 @@ void output_module( DLLSPEC *spec )
         data_dirs[2] = ".L__wine_spec_resources"; /* DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE] */
 
     output_data_directories( data_dirs );
+
+    /* .data section */
+    output( "\t.ascii \".data\"\n" );                  /* Name */
+    output( "\t.align 8, 0\n" );
+    output_size( ".L__wine_spec_data" );               /* VirtualSize */
+    output_rva( "%s", ".L__wine_spec_data" );          /* VirtualAddress */
+    output_size( ".L__wine_spec_data" );               /* SizeOfRawData */
+    output_rva( "%s", ".L__wine_spec_data" );          /* PointerToRawData */
+    output( "\t.long 0\n" );                           /* PointerToRelocations */
+    output( "\t.long 0\n" );                           /* PointerToLinenumbers */
+    output( "\t.short 0\n" );                          /* NumberOfRelocations */
+    output( "\t.short 0\n" );                          /* NumberOfLinenumbers */
+    output( "\t.long 0xc0000040\n"                     /* Characteristics */
+            /* CNT_INITIALIZED_DATA|MEM_READ|MEM_WRITE */ );
 
     if (has_exports)
     {
@@ -863,6 +877,7 @@ void output_module( DLLSPEC *spec )
  */
 void output_spec32_file( DLLSPEC *spec )
 {
+    unsigned int page_size = get_page_size();
     needs_get_pc_thunk = 0;
     open_output_file();
     output_standard_file_header();
@@ -878,10 +893,15 @@ void output_spec32_file( DLLSPEC *spec )
     if (has_stubs( spec )) output_stubs_rodata( spec );
     output( ".L__wine_spec_rodata_end:\n" );
 
-    output_stubs( spec );
-    output_syscalls( spec );
+    output( "\t%s\n", get_asm_data_section() );
+    output( "\t.align %d, 0\n", page_size );
+    output( ".L__wine_spec_data:\n" );
     output_relay_data( spec );
     output_syscalls_data( spec );
+    output( ".L__wine_spec_data_end:\n" );
+
+    output_stubs( spec );
+    output_syscalls( spec );
     output_export_thunks( spec );
     output_import_thunks( spec );
     output_relay_debug( spec );

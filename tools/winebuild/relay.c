@@ -786,7 +786,7 @@ void output_asm_relays16(void)
 void output_asm_relays16_data(void)
 {
     /* Declare the return address and data selector variables */
-    output( "\n\t.data\n\t.align %d\n", get_alignment(4) );
+    output( "\n\t.align %d\n", get_alignment(4) );
     output( "%s\n\t.long 0\n", asm_globl("CallTo16_DataSelector") );
     output( "%s\n\t.long 0\n", asm_globl("CallTo16_TebSelector") );
 }
