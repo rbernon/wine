@@ -949,6 +949,7 @@ void queue_fd_io( struct fd *fd_out, struct iovec *iov_out, struct fd *fd_in, st
 static int add_poll_user( struct fd *fd )
 {
     int ret;
+    if (!nb_users && fd) add_poll_user( NULL );
     if (freelist)
     {
         ret = freelist - poll_users;
