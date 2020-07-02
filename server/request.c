@@ -234,13 +234,11 @@ static void send_reply( union generic_reply *reply )
     iov[0].iov_len = sizeof(*reply);
     iov[1].iov_base = current->reply_data;
     iov[1].iov_len = current->reply_size;
-
-    current->reply_towrite = sizeof(*reply) + current->reply_size;
-    queue_fd_write( current->reply_fd, iov );
-
     iov[2].iov_base = &current->req;
     iov[2].iov_len = sizeof(current->req);
-    queue_fd_read( current->request_fd, iov + 2, 1 );
+
+    current->reply_towrite = sizeof(*reply) + current->reply_size;
+    queue_fd_io( current->reply_fd, iov, current->request_fd, iov + 2 );
 }
 
 /* call a request handler */

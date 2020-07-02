@@ -939,6 +939,12 @@ void queue_fd_read( struct fd *fd, struct iovec *iov, int polled )
     }
 }
 
+void queue_fd_io( struct fd *fd_out, struct iovec *iov_out, struct fd *fd_in, struct iovec *iov_in )
+{
+    queue_fd_write( fd_out, iov_out );
+    queue_fd_read( fd_in, iov_in, 1 );
+}
+
 /* add a user in the poll array and return its index, or -1 on failure */
 static int add_poll_user( struct fd *fd )
 {
