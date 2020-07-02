@@ -310,6 +310,7 @@ struct thread *create_thread( int fd, struct process *process, const struct secu
     struct desktop *desktop;
     struct thread *thread;
     int request_pipe[2];
+    struct iovec iov[1];
 
     if (fd == -1)
     {
@@ -381,7 +382,10 @@ struct thread *create_thread( int fd, struct process *process, const struct secu
         }
     }
 
-    set_fd_events( thread->request_fd, POLLIN );  /* start listening to events */
+    iov[0].iov_base = &thread->req;
+    iov[0].iov_len = sizeof(thread->req);
+    queue_fd_read( thread->request_fd, iov, 1 );
+
     add_process_thread( thread->process, thread );
     return thread;
 }
@@ -394,7 +398,7 @@ static void thread_poll_event( struct fd *fd, int event )
 
     grab_object( thread );
     if (event & (POLLERR | POLLHUP)) kill_thread( thread, 0 );
-    else if (event & POLLIN) read_request( thread );
+    assert(!(event & POLLIN));
     assert( !(event & POLLOUT) );
     release_object( thread );
 }
@@ -402,17 +406,39 @@ static void thread_poll_event( struct fd *fd, int event )
 static void thread_io_event( struct fd *fd, int event, int res )
 {
     struct thread *thread = get_fd_user( fd );
+    struct iovec iov[1];
     assert( thread->obj.ops == &thread_ops );
     assert( res != -EAGAIN );
 
     grab_object( thread );
     if (res <= 0) kill_thread( thread, 0 );
-    else if ((event & POLLOUT))
+    else if ((event & POLLIN) && !thread->req_toread && (thread->req_toread = thread->req.request_header.request_size))
     {
-        assert( !(current->reply_towrite -= res) );
-        free( thread->reply_data );
-        thread->reply_data = NULL;
-        set_fd_events( thread->request_fd, POLLIN );
+        if (!(thread->req_data = malloc( thread->req_toread )))
+            fatal_protocol_error( thread, "no memory for %u bytes request %d\n",
+                                  thread->req_toread, thread->req.request_header.req );
+
+        iov[0].iov_base = thread->req_data;
+        iov[0].iov_len = thread->req_toread;
+        queue_fd_read( thread->request_fd, iov, 0 );
+    }
+    else
+    {
+        if ((event & POLLOUT))
+        {
+            current->reply_towrite = 0;
+            free( thread->reply_data );
+            thread->reply_data = NULL;
+        }
+
+        if ((event & POLLIN))
+        {
+            thread->req_toread = 0;
+            call_req_handler( thread );
+            free( thread->req_data );
+            thread->req_data = NULL;
+            thread->req_toread = 0;
+        }
     }
     release_object( thread );
 }

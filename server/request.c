@@ -228,7 +228,7 @@ const void *get_req_data_after_objattr( const struct object_attributes *attr, da
 /* send a reply to the current thread */
 static void send_reply( union generic_reply *reply )
 {
-    struct iovec iov[2];
+    struct iovec iov[3];
 
     iov[0].iov_base = (void*)reply;
     iov[0].iov_len = sizeof(*reply);
@@ -236,12 +236,15 @@ static void send_reply( union generic_reply *reply )
     iov[1].iov_len = current->reply_size;
 
     current->reply_towrite = sizeof(*reply) + current->reply_size;
-    set_fd_events( current->request_fd, 0 );
     queue_fd_write( current->reply_fd, iov );
+
+    iov[2].iov_base = &current->req;
+    iov[2].iov_len = sizeof(current->req);
+    queue_fd_read( current->request_fd, iov + 2, 1 );
 }
 
 /* call a request handler */
-static void call_req_handler( struct thread *thread )
+void call_req_handler( struct thread *thread )
 {
     enum request req = thread->req.request_header.req;
 
@@ -273,55 +276,6 @@ static void call_req_handler( struct thread *thread )
         }
     }
     current = NULL;
-}
-
-/* read a request from a thread */
-void read_request( struct thread *thread )
-{
-    int ret;
-
-    if (!thread->req_toread)  /* no pending request */
-    {
-        if ((ret = read( get_unix_fd( thread->request_fd ), &thread->req,
-                         sizeof(thread->req) )) != sizeof(thread->req)) goto error;
-        if (!(thread->req_toread = thread->req.request_header.request_size))
-        {
-            /* no data, handle request at once */
-            call_req_handler( thread );
-            return;
-        }
-        if (!(thread->req_data = malloc( thread->req_toread )))
-        {
-            fatal_protocol_error( thread, "no memory for %u bytes request %d\n",
-                                  thread->req_toread, thread->req.request_header.req );
-            return;
-        }
-    }
-
-    /* read the variable sized data */
-    for (;;)
-    {
-        ret = read( get_unix_fd( thread->request_fd ),
-                    (char *)thread->req_data + thread->req.request_header.request_size
-                      - thread->req_toread,
-                    thread->req_toread );
-        if (ret <= 0) break;
-        if (!(thread->req_toread -= ret))
-        {
-            call_req_handler( thread );
-            free( thread->req_data );
-            thread->req_data = NULL;
-            return;
-        }
-    }
-
-error:
-    if (!ret)  /* closed pipe */
-        kill_thread( thread, 0 );
-    else if (ret > 0)
-        fatal_protocol_error( thread, "partial read %d\n", ret );
-    else if (errno != EWOULDBLOCK && (EWOULDBLOCK == EAGAIN || errno != EAGAIN))
-        fatal_protocol_error( thread, "read: %s\n", strerror( errno ));
 }
 
 /* receive a file descriptor on the process socket */

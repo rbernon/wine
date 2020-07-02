@@ -97,6 +97,7 @@ extern struct thread *current;
 
 /* thread functions */
 
+extern void call_req_handler( struct thread *thread );
 extern struct thread *create_thread( int fd, struct process *process,
                                      const struct security_descriptor *sd );
 extern struct thread *get_thread_from_id( thread_id_t id );

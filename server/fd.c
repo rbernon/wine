@@ -645,6 +645,8 @@ static inline void main_loop_epoll(void)
             struct iovec *iov = poll_users[user]->iov;
             if ((pollfd[user].revents & POLLOUT) && (iov[0].iov_len + iov[1].iov_len))
                 queue_fd_write( poll_users[user], iov );
+            else if ((pollfd[user].revents & POLLIN) && iov[0].iov_len)
+                queue_fd_read( poll_users[user], iov, 0 );
             else if (pollfd[user].revents)
                 fd_poll_event( poll_users[user], pollfd[user].revents );
         }
@@ -760,6 +762,8 @@ static inline void main_loop_epoll(void)
             struct iovec *iov = poll_users[user]->iov;
             if ((pollfd[user].revents & POLLOUT) && (iov[0].iov_len + iov[1].iov_len))
                 queue_fd_write( poll_users[user], iov );
+            else if ((pollfd[user].revents & POLLIN) && iov[0].iov_len)
+                queue_fd_read( poll_users[user], iov, 0 );
             else if (pollfd[user].revents)
                 fd_poll_event( poll_users[user], pollfd[user].revents );
             pollfd[user].revents = 0;
@@ -861,6 +865,8 @@ static inline void main_loop_epoll(void)
             struct iovec *iov = poll_users[user]->iov;
             if ((pollfd[user].revents & POLLOUT) && (iov[0].iov_len + iov[1].iov_len))
                 queue_fd_write( poll_users[user], iov );
+            else if ((pollfd[user].revents & POLLIN) && iov[0].iov_len)
+                queue_fd_read( poll_users[user], iov, 0 );
             else if (pollfd[user].revents)
                 fd_poll_event( poll_users[user], pollfd[user].revents );
             /* if we are still interested, reassociate the fd */
@@ -904,6 +910,32 @@ void queue_fd_write( struct fd *fd, struct iovec *iov )
 
         /* couldn't write it all, wait for POLLOUT */
         set_fd_events( fd, POLLOUT );
+    }
+}
+
+void queue_fd_read( struct fd *fd, struct iovec *iov, int polled )
+{
+    int ret;
+
+    if (!polled)
+    {
+        ret = readv( get_unix_fd( fd ), iov, 1 );
+        assert(iov[0].iov_len >= ret);
+    }
+    else ret = 0;
+
+    if (iov[0].iov_len == ret)
+    {
+        fd->iov[0].iov_len = 0;
+        fd_io_event(fd, POLLIN, ret);
+    }
+    else
+    {
+        fd->iov[0].iov_base = (char *)iov[0].iov_base + ret;
+        fd->iov[0].iov_len = iov[0].iov_len - ret;
+
+        /* couldn't read it all, wait for POLLIN */
+        set_fd_events( fd, POLLIN );
     }
 }
 
@@ -1057,6 +1089,8 @@ void main_loop(void)
                     struct iovec *iov = poll_users[i]->iov;
                     if ((pollfd[i].revents & POLLOUT) && (iov[0].iov_len + iov[1].iov_len))
                         queue_fd_write( poll_users[i], iov );
+                    else if ((pollfd[i].revents & POLLIN) && iov[0].iov_len)
+                        queue_fd_read( poll_users[i], iov, 0 );
                     else
                         fd_poll_event( poll_users[i], pollfd[i].revents );
                     if (!--ret) break;
