@@ -422,23 +422,21 @@ static void thread_io_event( struct fd *fd, int event, int res )
         iov[0].iov_len = thread->req_toread;
         queue_fd_read( thread->request_fd, iov, 0 );
     }
-    else
+    else if ((event & POLLOUT))
     {
-        if ((event & POLLOUT))
-        {
-            current->reply_towrite = 0;
-            free( thread->reply_data );
-            thread->reply_data = NULL;
-        }
-
-        if ((event & POLLIN))
-        {
-            thread->req_toread = 0;
-            call_req_handler( thread );
-            free( thread->req_data );
-            thread->req_data = NULL;
-            thread->req_toread = 0;
-        }
+        free( thread->reply_data );
+        thread->reply_data = NULL;
+        thread->reply_towrite = 0;
+    }
+    else if ((event & POLLIN))
+    {
+        free( thread->reply_data );
+        thread->reply_data = NULL;
+        thread->reply_towrite = 0;
+        call_req_handler( thread );
+        free( thread->req_data );
+        thread->req_data = NULL;
+        thread->req_toread = 0;
     }
     release_object( thread );
 }

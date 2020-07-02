@@ -104,6 +104,11 @@
 #include "winioctl.h"
 #include "ddk/wdm.h"
 
+#define USE_IO_URING
+#ifdef USE_IO_URING
+#include "liburing.h"
+#endif
+
 #if defined(HAVE_SYS_EPOLL_H) && defined(HAVE_EPOLL_CREATE)
 # include <sys/epoll.h>
 # define USE_EPOLL
@@ -197,6 +202,7 @@ struct fd
     apc_param_t          comp_key;    /* completion key to set in completion events */
     unsigned int         comp_flags;  /* completion flags */
     struct iovec         iov[2];      /* queued io vector */
+    unsigned int         fixed_fd :1; /* can we use iou fixed fd? */
 };
 
 static void fd_dump( struct object *obj, int verbose );
@@ -551,7 +557,442 @@ static inline void fd_io_event( struct fd *fd, int event, int res )
     fd->fd_ops->io_event( fd, event, res );
 }
 
-#ifdef USE_EPOLL
+#ifdef USE_IO_URING
+
+enum iou_data_type
+{
+    IOU_TIME = -1,
+    IOU_NONE = 0,
+    IOU_READ = 1,
+    IOU_WRITE = 2,
+    IOU_POLL = 3,
+    IOU_SETFD = 4,
+};
+
+struct iou_data
+{
+    int user;
+    int type;
+};
+
+C_ASSERT(sizeof(struct iou_data) <= sizeof(__u64));
+
+static struct io_uring iou;
+static unsigned int iou_sqe_count;
+static unsigned int iou_sqe_counts[16];
+
+static struct io_uring_sqe *iou_create_sqe( int type )
+{
+    struct io_uring_sqe *sqe;
+
+    if (!(sqe = io_uring_get_sqe( &iou )))
+    {
+        io_uring_submit( &iou );
+        sqe = io_uring_get_sqe( &iou );
+    }
+
+    iou_sqe_counts[type + 1]++;
+    iou_sqe_count++;
+    assert( sqe );
+    return sqe;
+}
+
+static void iou_cleanup(void)
+{
+    static int once;
+    if (once++) return;
+
+    while (iou_sqe_count)
+    {
+        unsigned int head, count = 0;
+        struct io_uring_cqe *cqe;
+        struct iou_data data;
+
+        io_uring_submit_and_wait( &iou, 1 );
+        io_uring_for_each_cqe( &iou, head, cqe )
+        {
+            memcpy( &data, &cqe->user_data, sizeof(struct iou_data) );
+            iou_sqe_counts[data.type + 1]--;
+            count++;
+        }
+        io_uring_cq_advance( &iou, count );
+        iou_sqe_count -= count;
+        fprintf( stderr, "%d inflight %d time %d none %d read %d write %d poll %d setfd\n", iou_sqe_count,
+                 iou_sqe_counts[0], iou_sqe_counts[1], iou_sqe_counts[2], iou_sqe_counts[3], iou_sqe_counts[4], iou_sqe_counts[5] );
+    }
+
+    io_uring_queue_exit( &iou );
+}
+
+static void iou_sqe_set_fd( struct io_uring_sqe *sqe, int user, struct fd *fd )
+{
+    if (!fd->fixed_fd) sqe->fd = fd->unix_fd;
+    else
+    {
+        sqe->flags |= IOSQE_FIXED_FILE;
+        sqe->fd = user;
+    }
+}
+
+static const char *op_strs[] = {
+    "nop",
+    "readv",
+    "writev",
+    "fsync",
+    "read_fixed",
+    "write_fixed",
+    "poll_add",
+    "poll_remove",
+    "sync_file_range",
+    "sendmsg",
+    "recvmsg",
+    "timeout",
+    "timeout_remove",
+    "accept",
+    "async_cancel",
+    "link_timeout",
+    "connect",
+    "fallocate",
+    "openat",
+    "close",
+    "files_update",
+    "statx",
+    "read",
+    "write",
+    "fadvise",
+    "madvise",
+    "send",
+    "recv",
+    "openat2",
+    "epoll_ctl",
+    "splice",
+    "provide_buffers",
+    "remove_buffers",
+    "tee",
+    "shutdown",
+    "renameat",
+    "unlinkat",
+    "mkdirat",
+    "symlinkat",
+    "linkat",
+};
+
+static int iou_fixed_fds[0];
+
+static inline void init_epoll(void)
+{
+    struct io_uring_params params;
+    struct io_uring_probe *probe;
+    int i, ret;
+
+    probe = io_uring_get_probe();
+    fprintf( stderr, "wine: io_uring supported opcodes:" );
+    for (i = 0; i < IORING_OP_LAST; i++)
+    {
+        if (!io_uring_opcode_supported( probe, i )) continue;
+        fprintf( stderr, " %s", op_strs[i] );
+    }
+    fprintf( stderr, "\n" );
+    free( probe );
+
+    memset( &params, 0, sizeof(params) );
+#if 0
+    params.flags = IORING_SETUP_SQPOLL;
+#endif
+
+    ret = io_uring_queue_init_params( 128, &iou, &params );
+    if (ret < 0) fprintf( stderr, "%s:%d io_uring_queue_init_params returned %d\n", __FILE__, __LINE__, ret );
+    assert( ret >= 0 );
+    atexit( iou_cleanup );
+
+    fprintf( stderr, "wine: io_uring supported features:" );
+    if (params.features & IORING_FEAT_SINGLE_MMAP) fprintf( stderr, " single_mmap" );
+    if (params.features & IORING_FEAT_NODROP) fprintf( stderr, " nodrop" );
+    if (params.features & IORING_FEAT_SUBMIT_STABLE) fprintf( stderr, " submit_stable" );
+    if (params.features & IORING_FEAT_RW_CUR_POS) fprintf( stderr, " rw_cur_pos" );
+    if (params.features & IORING_FEAT_CUR_PERSONALITY) fprintf( stderr, " cur_personality" );
+    if (params.features & IORING_FEAT_FAST_POLL) fprintf( stderr, " fast_poll" );
+    if (params.features & IORING_FEAT_POLL_32BITS) fprintf( stderr, " poll_32bits" );
+    if (params.features & IORING_FEAT_SQPOLL_NONFIXED) fprintf( stderr, " sqpoll_nonfixed" );
+    if (params.features & IORING_FEAT_EXT_ARG) fprintf( stderr, " ext_arg" );
+    if (params.features & IORING_FEAT_NATIVE_WORKERS) fprintf( stderr, " native_workers" );
+    if (params.features & IORING_FEAT_RSRC_TAGS) fprintf( stderr, " rsrc_tags" );
+    fprintf( stderr, "\n" );
+
+    if (!ARRAY_SIZE( iou_fixed_fds )) return;
+
+    for (i = 0; i < ARRAY_SIZE( iou_fixed_fds ); ++i) iou_fixed_fds[i] = -1;
+    ret = io_uring_register_files( &iou, iou_fixed_fds, ARRAY_SIZE( iou_fixed_fds ) );
+    if (ret < 0) fprintf( stderr, "%s:%d io_uring_register_files returned %d %m\n", __FILE__, __LINE__, ret );
+    assert( ret >= 0 );
+    assert( ret >= 0 );
+}
+
+static inline void set_fd_epoll_events( struct fd *fd, int user, int events )
+{
+    struct iou_data none = {.type = IOU_NONE, .user = user};
+    struct iou_data data = {.type = IOU_POLL, .user = user};
+    struct io_uring_sqe *sqe;
+    __u64 user_data;
+
+    if (pollfd[user].fd == -1 && events == -1) return;
+    if (pollfd[user].fd == -1 && pollfd[user].events) return;
+    if (pollfd[user].events == events) return;
+
+    if (pollfd[user].events)
+    {
+        memcpy( &user_data, &data, sizeof(struct iou_data) );
+        sqe = iou_create_sqe( none.type );
+        io_uring_prep_poll_remove( sqe, user_data );
+        if (events) io_uring_sqe_set_flags( sqe, IOSQE_IO_LINK );
+        memcpy( &sqe->user_data, &none, sizeof(struct iou_data) );
+    }
+
+    if (events)
+    {
+        sqe = iou_create_sqe( data.type );
+        io_uring_prep_poll_add( sqe, fd->unix_fd, events );
+        /* iou_sqe_set_fd( sqe, user, fd ); */
+        memcpy( &sqe->user_data, &data, sizeof(struct iou_data) );
+    }
+}
+
+static inline int queue_fd_iou_write( struct fd *fd, struct iovec *iov )
+{
+    struct iou_data data = {.type = IOU_WRITE, .user = fd->poll_index};
+    struct io_uring_sqe *sqe;
+
+    if (fd->iov != iov) memcpy( fd->iov, iov, sizeof(struct iovec) * 2 );
+    assert( (pollfd[data.user].events == 0) );
+
+    sqe = iou_create_sqe( data.type );
+    io_uring_prep_writev( sqe, fd->unix_fd, fd->iov, 2, 0 );
+    /* iou_sqe_set_fd( sqe, data.user, fd ); */
+    memcpy( &sqe->user_data, &data, sizeof(struct iou_data) );
+
+    return 1;
+}
+
+static inline int queue_fd_iou_read( struct fd *fd, struct iovec *iov, int polled )
+{
+    struct iou_data data = {.type = IOU_READ, .user = fd->poll_index};
+    struct io_uring_sqe *sqe;
+
+    if (fd->iov != iov) memcpy( fd->iov, iov, sizeof(struct iovec) );
+    assert( pollfd[data.user].events == 0 );
+
+#if 0
+    if (polled)
+    {
+        struct iou_data data = {.type = IOU_NONE, .user = fd->poll_index};
+        sqe = iou_create_sqe( data.type );
+        io_uring_prep_poll_add( sqe, fd->unix_fd, POLLIN );
+        /* iou_sqe_set_fd( sqe, user, fd ); */
+        memcpy( &sqe->user_data, &data, sizeof(struct iou_data) );
+        io_uring_sqe_set_flags( sqe, IOSQE_IO_LINK );
+    }
+#endif
+
+    sqe = iou_create_sqe( data.type );
+    io_uring_prep_readv( sqe, fd->unix_fd, fd->iov, 1, 0 );
+    /* iou_sqe_set_fd( sqe, user, fd ); */
+    memcpy( &sqe->user_data, &data, sizeof(struct iou_data) );
+    /* if (polled) sqe->flags |= IOSQE_ASYNC; */
+
+    return 1;
+}
+
+static inline int queue_fd_iou_io( struct fd *fd_out, struct iovec *iov_out, struct fd *fd_in, struct iovec *iov_in )
+{
+    struct iou_data none = {.type = IOU_NONE, .user = 0};
+    struct iou_data data = {.type = IOU_READ, .user = fd_in->poll_index};
+    struct io_uring_sqe *sqe;
+    int user;
+
+    user = fd_out->poll_index;
+    if (fd_out->iov != iov_out) memcpy( fd_out->iov, iov_out, sizeof(struct iovec) * 2 );
+    assert( (pollfd[user].events == 0) );
+
+    sqe = iou_create_sqe( none.type );
+    io_uring_prep_writev( sqe, fd_out->unix_fd, fd_out->iov, 2, 0 );
+    io_uring_sqe_set_flags( sqe, IOSQE_IO_LINK );
+    /* iou_sqe_set_fd( sqe, user, fd_out ); */
+    memcpy( &sqe->user_data, &none, sizeof(struct iou_data) );
+    /* sqe->user_data = IOU_IGNORE | 3; */
+
+    user = fd_in->poll_index;
+    if (fd_in->iov != iov_in) memcpy( fd_in->iov, iov_in, sizeof(struct iovec) );
+    assert( pollfd[user].events == 0 );
+
+    pollfd[user].events = POLLIN;
+
+#if 0
+    sqe = iou_create_sqe( none.type );
+    io_uring_prep_poll_add(sqe, fd_in->unix_fd, POLLIN);
+    io_uring_sqe_set_flags( sqe, IOSQE_IO_LINK );
+    /* iou_sqe_set_fd(sqe, user, fd_in); */
+    memcpy( &sqe->user_data, &none, sizeof(struct iou_data) );
+#endif
+
+    sqe = iou_create_sqe( data.type );
+    io_uring_prep_readv( sqe, fd_in->unix_fd, fd_in->iov, 1, 0 );
+    io_uring_sqe_set_flags( sqe, IOSQE_ASYNC );
+    /* iou_sqe_set_fd( sqe, user, fd_in ); */
+    memcpy( &sqe->user_data, &data, sizeof(struct iou_data) );
+    /* sqe->flags |= IOSQE_ASYNC; */
+
+    return 1;
+}
+
+static inline void add_epoll_user( struct fd *fd, int user )
+{
+    struct iou_data data = {.type = IOU_SETFD, .user = user};
+    struct io_uring_sqe *sqe;
+
+    if (user >= ARRAY_SIZE( iou_fixed_fds )) return;
+    if (fd->fixed_fd) return;
+
+    iou_fixed_fds[user] = fd->unix_fd;
+    fd->fixed_fd = 0;
+
+    sqe = iou_create_sqe( data.type );
+    io_uring_prep_files_update( sqe, iou_fixed_fds + user, 1, user );
+    memcpy( &sqe->user_data, &data, sizeof(struct iou_data) );
+}
+
+static inline void remove_epoll_user( struct fd *fd, int user )
+{
+    struct iou_data none = {.type = IOU_NONE, .user = 0};
+    struct iou_data data = {.type = IOU_POLL, .user = user};
+    struct io_uring_sqe *sqe;
+    __u64 user_data;
+
+    if (!pollfd[user].events) return;
+
+    memcpy( &user_data, &data, sizeof(struct iou_data) );
+    sqe = iou_create_sqe( none.type );
+    io_uring_prep_poll_remove( sqe, user_data );
+    memcpy( &sqe->user_data, &none, sizeof(struct iou_data) );
+    /* sqe->user_data = IOU_IGNORE | 4; */
+
+    if (user >= ARRAY_SIZE( iou_fixed_fds )) return;
+    if (!fd->fixed_fd) return;
+    iou_fixed_fds[user] = -1;
+    fd->fixed_fd = 0;
+
+    sqe = iou_create_sqe( none.type );
+    io_uring_prep_files_update( sqe, iou_fixed_fds + user, 1, user );
+    memcpy( &sqe->user_data, &none, sizeof(struct iou_data) );
+}
+
+static inline void main_loop_epoll(void)
+{
+    int results[16], events[16];
+    struct __kernel_timespec ts;
+    struct io_uring_cqe *cqe;
+    struct iou_data data[16];
+    unsigned int head;
+
+    io_uring_submit( &iou );
+
+    while (active_users)
+    {
+        int i, cqe_count = 0, count = 0, ret = 0, timeout = get_next_timeout();
+
+        if (!active_users) break; /* last user removed by a timeout */
+        if (timeout == -1) io_uring_wait_cqe( &iou, &cqe );
+        else
+        {
+            ts.tv_sec = timeout / 1000;
+            ts.tv_nsec = (timeout % 1000) * 1000000;
+            /* FIXME: Use io_uring_submit_and_wait_timeout instead */
+            ret = io_uring_wait_cqe_timeout( &iou, &cqe, &ts );
+        }
+        set_current_time();
+        if (ret == -ETIME) continue;
+
+        io_uring_for_each_cqe( &iou, head, cqe )
+        {
+            cqe_count++;
+            memcpy( data + count, &cqe->user_data, sizeof(struct iou_data) );
+            iou_sqe_counts[data[count].type + 1]--;
+            results[count] = cqe->res;
+            if (cqe->user_data && ++count == ARRAY_SIZE(data)) break;
+        }
+
+        io_uring_cq_advance( &iou, cqe_count );
+        iou_sqe_count -= cqe_count;
+        if (!count) continue;
+
+        /* put the events into the pollfd array first, like poll does */
+        for (i = 0; i < count; i++)
+        {
+            int user = data[i].user, type = data[i].type, result = results[i];
+
+            if (pollfd[user].fd == -1 && pollfd[user].events == POLLHUP) continue;
+            else if (type == IOU_POLL)
+            {
+                struct iovec *iov = poll_users[user]->iov;
+                events[i] = pollfd[user].events;
+                pollfd[user].events = 0;
+                pollfd[user].revents = result;
+
+                /* this should never actually happen */
+                if ((result & POLLOUT) && (iov[0].iov_len + iov[1].iov_len))
+                {
+                    queue_fd_write( poll_users[user], iov );
+                    pollfd[user].revents = 0;
+                }
+                else if ((result & POLLIN) && iov[0].iov_len)
+                {
+                    queue_fd_read( poll_users[user], iov, 0 );
+                    pollfd[user].revents = 0;
+                }
+            }
+            else if (type == IOU_WRITE)
+            {
+                struct iovec *iov = poll_users[user]->iov;
+                assert( result == iov[0].iov_len + iov[1].iov_len || result == 0 );
+                pollfd[user].events = 0;
+                pollfd[user].revents = POLLOUT;
+                iov[0].iov_len = 0;
+                iov[1].iov_len = 0;
+            }
+            else if (type == IOU_READ)
+            {
+                struct iovec *iov = poll_users[user]->iov;
+                assert( result == iov[0].iov_len || result == 0 || result == -ECANCELED );
+                pollfd[user].events = 0;
+                pollfd[user].revents = POLLIN;
+                iov[0].iov_len = 0;
+            }
+            else if (type == IOU_SETFD)
+            {
+                poll_users[user]->fixed_fd = 1;
+            }
+        }
+
+        /* read events from the pollfd array, as set_fd_events may modify them */
+        for (i = 0; i < count; i++)
+        {
+            int user = data[i].user, type = data[i].type, result = results[i];
+
+            if (pollfd[user].fd == -1 && pollfd[user].events == POLLHUP) continue;
+            if (type == IOU_WRITE)
+                fd_io_event( poll_users[user], POLLOUT, result );
+            if (type == IOU_READ)
+                fd_io_event( poll_users[user], POLLIN, result );
+            if (type == IOU_POLL && pollfd[user].revents)
+                fd_poll_event( poll_users[user], pollfd[user].revents );
+            if (pollfd[user].fd != -1 && pollfd[user].events == 0 && events[i])
+                set_fd_events( poll_users[user], events[i] );
+        }
+
+        io_uring_submit( &iou );
+    }
+}
+
+#elif defined(USE_EPOLL)
 
 static int epoll_fd = -1;
 
@@ -597,6 +1038,11 @@ static inline void set_fd_epoll_events( struct fd *fd, int user, int events )
         else perror( "epoll_ctl" );  /* should not happen */
     }
 }
+
+static inline int queue_fd_iou_write( struct fd *fd, struct iovec *iov ) { return 0; }
+static inline int queue_fd_iou_read( struct fd *fd, struct iovec *iov, int polled ) { return 0; }
+static inline int queue_fd_iou_io( struct fd *fd_out, struct iovec *iov_out, struct fd *fd_in, struct iovec *iov_in ) { return 0; }
+static inline void add_epoll_user( struct fd *fd, int user ) { }
 
 static inline void remove_epoll_user( struct fd *fd, int user )
 {
@@ -699,6 +1145,11 @@ static inline void set_fd_epoll_events( struct fd *fd, int user, int events )
         else perror( "kevent" );  /* should not happen */
     }
 }
+
+static inline int queue_fd_iou_write( struct fd *fd, struct iovec *iov ) { return 0; }
+static inline int queue_fd_iou_read( struct fd *fd, struct iovec *iov, int polled ) { return 0; }
+static inline int queue_fd_iou_io( struct fd *fd_out, struct iovec *iov_out, struct fd *fd_in, struct iovec *iov_in ) { return 0; }
+static inline void add_epoll_user( struct fd *fd, int user ) { }
 
 static inline void remove_epoll_user( struct fd *fd, int user )
 {
@@ -812,6 +1263,11 @@ static inline void set_fd_epoll_events( struct fd *fd, int user, int events )
     }
 }
 
+static inline int queue_fd_iou_write( struct fd *fd, struct iovec *iov ) { return 0; }
+static inline int queue_fd_iou_read( struct fd *fd, struct iovec *iov, int polled ) { return 0; }
+static inline int queue_fd_iou_io( struct fd *fd_out, struct iovec *iov_out, struct fd *fd_in, struct iovec *iov_in ) { return 0; }
+static inline void add_epoll_user( struct fd *fd, int user ) { }
+
 static inline void remove_epoll_user( struct fd *fd, int user )
 {
     if (port_fd == -1) return;
@@ -881,6 +1337,10 @@ static inline void main_loop_epoll(void)
 
 static inline void init_epoll(void) { }
 static inline void set_fd_epoll_events( struct fd *fd, int user, int events ) { }
+static inline int queue_fd_iou_write( struct fd *fd, struct iovec *iov ) { return 0; }
+static inline int queue_fd_iou_read( struct fd *fd, struct iovec *iov, int polled ) { return 0; }
+static inline int queue_fd_iou_io( struct fd *fd_out, struct iovec *iov_out, struct fd *fd_in, struct iovec *iov_in ) { return 0; }
+static inline void add_epoll_user( struct fd *fd, int user ) { }
 static inline void remove_epoll_user( struct fd *fd, int user ) { }
 static inline void main_loop_epoll(void) { }
 
@@ -889,6 +1349,8 @@ static inline void main_loop_epoll(void) { }
 void queue_fd_write( struct fd *fd, struct iovec *iov )
 {
     int ret;
+
+    if (queue_fd_iou_write( fd, iov )) return;
 
     ret = writev( get_unix_fd( fd ), iov, 2 );
     assert( iov[0].iov_len + iov[1].iov_len >= ret );
@@ -917,6 +1379,8 @@ void queue_fd_read( struct fd *fd, struct iovec *iov, int polled )
 {
     int ret;
 
+    if (queue_fd_iou_read( fd, iov, polled )) return;
+
     if (!polled)
     {
         ret = readv( get_unix_fd( fd ), iov, 1 );
@@ -941,6 +1405,8 @@ void queue_fd_read( struct fd *fd, struct iovec *iov, int polled )
 
 void queue_fd_io( struct fd *fd_out, struct iovec *iov_out, struct fd *fd_in, struct iovec *iov_in )
 {
+    if (queue_fd_iou_io( fd_out, iov_out, fd_in, iov_in )) return;
+
     queue_fd_write( fd_out, iov_out );
     queue_fd_read( fd_in, iov_in, 1 );
 }
@@ -994,7 +1460,7 @@ static void remove_poll_user( struct fd *fd, int user )
 
     remove_epoll_user( fd, user );
     pollfd[user].fd = -1;
-    pollfd[user].events = 0;
+    pollfd[user].events = POLLHUP;
     pollfd[user].revents = 0;
     poll_users[user] = (struct fd *)freelist;
     freelist = &poll_users[user];
@@ -1801,6 +2267,7 @@ static struct fd *alloc_fd_object(void)
     list_init( &fd->inode_entry );
     list_init( &fd->locks );
     memset( fd->iov, 0, sizeof(fd->iov) );
+    fd->fixed_fd = 0;
 
     if ((fd->poll_index = add_poll_user( fd )) == -1)
     {
@@ -1892,6 +2359,7 @@ struct fd *dup_fd_object( struct fd *orig, unsigned int access, unsigned int sha
         file_set_error();
         goto failed;
     }
+    add_epoll_user( fd, fd->poll_index );
     return fd;
 
 failed:
@@ -2150,6 +2618,7 @@ struct fd *open_fd( struct fd *root, const char *name, struct unicode_str nt_nam
 #endif
 
     if (root_fd != -1) fchdir( server_dir_fd ); /* go back to the server dir */
+    add_epoll_user( fd, fd->poll_index );
     return fd;
 
 error:
@@ -2171,6 +2640,7 @@ struct fd *create_anonymous_fd( const struct fd_ops *fd_user_ops, int unix_fd, s
         set_fd_user( fd, fd_user_ops, user );
         fd->unix_fd = unix_fd;
         fd->options = options;
+        add_epoll_user( fd, fd->poll_index );
         return fd;
     }
     close( unix_fd );
