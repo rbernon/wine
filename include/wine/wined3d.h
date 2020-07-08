@@ -915,6 +915,7 @@ enum wined3d_pipeline
 #define WINED3D_SWAPCHAIN_REGISTER_STATE                        0x00020000u
 #define WINED3D_SWAPCHAIN_NO_WINDOW_CHANGES                     0x00040000u
 #define WINED3D_SWAPCHAIN_RESTORE_WINDOW_STATE                  0x00080000u
+#define WINED3D_SWAPCHAIN_NO_STYLE_CHANGES                      0x00100000u
 
 #define WINED3DDP_MAXTEXCOORD                                   8
 
