@@ -2982,6 +2982,58 @@ static void test_HideFromDebugger(void)
     CloseHandle( stop_event );
 }
 
+static DWORD WINAPI thread_is_terminated_thread(void *arg)
+{
+    HANDLE stop_event = arg;
+    WaitForSingleObject( stop_event, INFINITE );
+    return 0;
+}
+
+static void test_ThreadIsTerminated(void)
+{
+    NTSTATUS status;
+    HANDLE thread, stop_event;
+    ULONG terminated;
+
+    status = NtQueryInformationThread( GetCurrentThread(), ThreadIsTerminated, &terminated, sizeof(ULONG), NULL );
+    if (status == STATUS_INVALID_INFO_CLASS)
+        win_skip("ThreadIsTerminated not available\n");
+    else
+    {
+        ok( status == STATUS_INFO_LENGTH_MISMATCH, "Expected STATUS_INFO_LENGTH_MISMATCH, got %08x\n", status );
+        terminated = 0xdeadbeef;
+        status = NtQueryInformationThread( (HANDLE)0xdeadbeef, ThreadIsTerminated, &terminated, sizeof(ULONG), NULL );
+        ok( status == STATUS_INFO_LENGTH_MISMATCH, "Expected STATUS_INFO_LENGTH_MISMATCH, got %08x\n", status );
+        terminated = 0xdeadbeef;
+        status = NtQueryInformationThread( GetCurrentThread(), ThreadIsTerminated, &terminated, 1, NULL );
+        ok( status == STATUS_SUCCESS, "Expected STATUS_SUCCESS, got %08x\n", status );
+        if (status == STATUS_SUCCESS) ok( terminated == 1, "Expected terminated == 1, got %08x\n", terminated );
+    }
+
+    stop_event = CreateEventA( NULL, FALSE, FALSE, NULL );
+    ok( stop_event != NULL, "CreateEvent failed\n" );
+    thread = CreateThread( NULL, 0, thread_is_terminated_thread, stop_event, 0, NULL );
+    ok( thread != INVALID_HANDLE_VALUE, "CreateThread failed with %d\n", GetLastError() );
+
+    terminated = 0xdeadbeef;
+    status = NtQueryInformationThread( thread, ThreadIsTerminated, &terminated, 1, NULL );
+    ok( status == STATUS_SUCCESS || status == STATUS_INVALID_INFO_CLASS,
+        "Expected STATUS_SUCCESS, got %08x\n", status );
+    if (status == STATUS_SUCCESS) ok( terminated == 0, "Expected terminated == 0, got %08x\n", terminated );
+
+    SetEvent( stop_event );
+    WaitForSingleObject( thread, INFINITE );
+
+    terminated = 0xdeadbeef;
+    status = NtQueryInformationThread( thread, ThreadIsTerminated, &terminated, 1, NULL );
+    ok( status == STATUS_SUCCESS || status == STATUS_INVALID_INFO_CLASS,
+        "Expected STATUS_SUCCESS, got %08x\n", status );
+    if (status == STATUS_SUCCESS) ok( terminated == 1, "Expected terminated == 1, got %08x\n", terminated );
+
+    CloseHandle( thread );
+    CloseHandle( stop_event );
+}
+
 static void test_NtGetCurrentProcessorNumber(void)
 {
     NTSTATUS status;
@@ -3426,6 +3478,7 @@ START_TEST(info)
     /* NtQueryInformationThread */
     test_thread_info();
     test_HideFromDebugger();
+    test_ThreadIsTerminated();
     test_thread_start_address();
     test_thread_lookup();
 

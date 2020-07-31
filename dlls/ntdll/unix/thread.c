@@ -1901,6 +1901,20 @@ NTSTATUS WINAPI NtQueryInformationThread( HANDLE handle, THREADINFOCLASS class,
         return status;
     }
 
+    case ThreadIsTerminated:
+        if (length != sizeof(ULONG)) return STATUS_INFO_LENGTH_MISMATCH;
+        if (!data) return STATUS_ACCESS_VIOLATION;
+        SERVER_START_REQ( get_thread_info )
+        {
+            req->handle = wine_server_obj_handle( handle );
+            req->access = THREAD_QUERY_INFORMATION;
+            if ((status = wine_server_call( req ))) return status;
+            *(ULONG*)data = (reply->exit_code != STATUS_PENDING);
+        }
+        SERVER_END_REQ;
+        if (ret_len) *ret_len = sizeof(ULONG);
+        return STATUS_SUCCESS;
+
     case ThreadAffinityMask:
     {
         const ULONG_PTR affinity_mask = get_system_affinity_mask();
