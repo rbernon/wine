@@ -306,6 +306,7 @@ extern void output_get_pc_thunk(void);
 extern void output_module( DLLSPEC *spec );
 extern void output_stubs( DLLSPEC *spec );
 extern void output_syscalls( DLLSPEC *spec );
+extern void output_syscalls_data( DLLSPEC *spec );
 extern void output_imports( DLLSPEC *spec );
 extern void output_static_lib( DLLSPEC *spec, char **argv );
 extern void output_exports( DLLSPEC *spec );

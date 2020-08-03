@@ -773,6 +773,7 @@ void output_spec32_file( DLLSPEC *spec )
     output_imports( spec );
     output_syscalls( spec );
     output_relay_data( spec );
+    output_syscalls_data( spec );
     if (needs_get_pc_thunk) output_get_pc_thunk();
     output_resources( spec );
     output_gnu_stack_note();

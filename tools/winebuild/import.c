@@ -1661,15 +1661,6 @@ void output_syscalls( DLLSPEC *spec )
         }
         output_cfi( ".cfi_endproc" );
         output_function_size( "__wine_syscall_dispatcher" );
-
-        output( "\t.data\n" );
-        output( "\t.align %d\n", get_alignment( get_ptr_size() ) );
-        output( ".Lsyscall_table:\n" );
-        for (i = 0; i < count; i++)
-            output( "\t%s %s\n", get_asm_ptr_keyword(), asm_name( get_link_name( syscalls[i] )));
-        output( ".Lsyscall_args:\n" );
-        for (i = 0; i < count; i++)
-            output( "\t.byte %u\n", get_args_size( syscalls[i] ));
         return;
     }
 
@@ -1761,10 +1752,42 @@ void output_syscalls( DLLSPEC *spec )
         output( "\tjmp *(%s)\n", asm_name("__wine_syscall_dispatcher") );
         output_function_size( "__wine_syscall" );
     }
+}
+
+
+/* output the data for system calls */
+void output_syscalls_data( DLLSPEC *spec )
+{
+    int i, count;
+    ORDDEF **syscalls = NULL;
+
+    for (i = count = 0; i < spec->nb_entry_points; i++)
+    {
+        ORDDEF *odp = &spec->entry_points[i];
+        if (!(odp->flags & FLAG_SYSCALL)) continue;
+        if (!syscalls) syscalls = xmalloc( (spec->nb_entry_points - i) * sizeof(*syscalls) );
+        syscalls[count++] = odp;
+    }
+    if (!count) return;
+    count = sort_func_list( syscalls, count, cmp_link_name );
+
     output( "\t.data\n" );
     output( "\t.align %d\n", get_alignment( get_ptr_size() ) );
-    output( "%s\n", asm_globl("__wine_syscall_dispatcher") );
-    output( "\t%s 0\n", get_asm_ptr_keyword() );
+
+    if (unix_lib)
+    {
+        output( ".Lsyscall_table:\n" );
+        for (i = 0; i < count; i++)
+            output( "\t%s %s\n", get_asm_ptr_keyword(), asm_name( get_link_name( syscalls[i] )));
+        output( ".Lsyscall_args:\n" );
+        for (i = 0; i < count; i++)
+            output( "\t.byte %u\n", get_args_size( syscalls[i] ));
+    }
+    else
+    {
+        output( "%s\n", asm_globl("__wine_syscall_dispatcher") );
+        output( "\t%s 0\n", get_asm_ptr_keyword() );
+    }
 }
 
 
