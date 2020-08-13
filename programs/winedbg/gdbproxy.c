@@ -968,7 +968,7 @@ static void packet_reply_status_threads(struct gdb_context* gdbctx)
         return;
 
     packet_reply_add(gdbctx, "threads:");
-    LIST_FOR_EACH_ENTRY(proc, &dbg_process_list, struct dbg_process, entry)
+    LIST_FOR_EACH_ENTRY(process, &dbg_process_list, struct dbg_process, entry)
     LIST_FOR_EACH_ENTRY(thread, &process->threads, struct dbg_thread, entry)
     {
         packet_reply_val(gdbctx, thread->tid, 4);
@@ -978,7 +978,7 @@ static void packet_reply_status_threads(struct gdb_context* gdbctx)
     packet_reply_add(gdbctx, ";");
 
     packet_reply_add(gdbctx, "thread-pcs:");
-    LIST_FOR_EACH_ENTRY(proc, &dbg_process_list, struct dbg_process, entry)
+    LIST_FOR_EACH_ENTRY(process, &dbg_process_list, struct dbg_process, entry)
     LIST_FOR_EACH_ENTRY(thread, &process->threads, struct dbg_thread, entry)
     {
         if (cpu->get_context(thread->handle, &ctx))
@@ -1172,16 +1172,22 @@ static enum packet_return packet_verbose(struct gdb_context* gdbctx)
     if (strncmp(gdbctx->in_packet, "File:", 5) == 0)
         return packet_verbose_file(gdbctx);
 
+#if 0
     if (snscanf(gdbctx->in_packet, gdbctx->in_packet_len, "Kill;%x", &pid) == 1)
     {
         if (!(process = dbg_get_process(pid)))
             return packet_reply(gdbctx, "E2");
+        if (!(backend = process->be_cpu))
+            return packet_reply(gdbctx, "E2");
+        if (!backend->get_context(thread->handle, &ctx))
+            return packet_reply(gdbctx, "E2");
 
-        process->be_cpu->single_step(&gdbctx->context, FALSE);
+        process->be_cpu->single_step(&ctx, FALSE);
         resume_debuggee_process(gdbctx, DBG_CONTINUE, process);
         dbg_del_process(process);
         return packet_ok | packet_last_f;
     }
+#endif
 
     return packet_error;
 }
@@ -2213,6 +2219,7 @@ static enum packet_return packet_query(struct gdb_context* gdbctx)
         }
         break;
     case 'T':
+#if 0
         if (gdbctx->in_packet_len > 15 &&
             strncmp(gdbctx->in_packet, "ThreadExtraInfo", 15) == 0 &&
             gdbctx->in_packet[15] == ',')
@@ -2227,6 +2234,7 @@ static enum packet_return packet_query(struct gdb_context* gdbctx)
             packet_reply_close(gdbctx);
             return packet_done;
         }
+#endif
         if (strncmp(gdbctx->in_packet, "TStatus", 7) == 0)
         {
             /* Tracepoints not supported */
