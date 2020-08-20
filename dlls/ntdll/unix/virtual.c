@@ -133,6 +133,7 @@ static const BOOL is_win64 = (sizeof(void *) > sizeof(int));
 static const UINT page_shift = 12;
 static const UINT_PTR page_mask = 0xfff;
 static const UINT_PTR granularity_mask = 0xffff;
+static const UINT_PTR reserve_mask = 0x3ffffff;
 
 /* Note: these are Windows limits, you cannot change them. */
 #ifdef __i386__
@@ -1279,6 +1280,18 @@ static int CDECL get_area_boundary_callback( void *start, SIZE_T size, void *arg
 
 
 /***********************************************************************
+ *           get_upper_bound_callback
+ */
+static int CDECL get_upper_bound_callback( void *start, SIZE_T size, void *arg )
+{
+    void **limit = arg;
+    void *end = (char *)start + size;
+    if (*limit < end) *limit = end;
+    return 0;
+}
+
+
+/***********************************************************************
  *           unmap_area
  *
  * Unmap an area, or simply replace it by an empty mapping if it is
@@ -1742,16 +1755,27 @@ static NTSTATUS map_view( struct file_view **view_ret, void *base, size_t size,
     }
     else
     {
-        size_t view_size = size + granularity_mask + 1;
+        size_t view_size = size + granularity_mask + 1, reserved_size = 0, reserve_step = (view_size + reserve_mask) & ~reserve_mask;
         struct alloc_area alloc;
+        void *reserved_start = NULL;
 
         alloc.size = size;
         alloc.top_down = top_down;
         alloc.limit = (void*)(get_zero_bits_64_mask( zero_bits_64 ) & (UINT_PTR)user_space_limit);
 
-        if (mmap_enum_reserved_areas( alloc_reserved_area_callback, &alloc, top_down, 1 ))
+        while (!mmap_enum_reserved_areas( alloc_reserved_area_callback, &alloc, top_down, 1 ))
         {
-            ptr = alloc.result;
+            alloc.result = NULL;
+            if (top_down) break;
+            /* reserve some more memory and retry allocating bottom-up */
+            if (!reserved_size) mmap_enum_reserved_areas( get_upper_bound_callback, &reserved_start, top_down, 1 );
+            reserve_area( (char *)reserved_start + reserved_size, (char *)reserved_start + reserved_size + reserve_step );
+            TRACE( "reserved %p-%p\n", (char *)reserved_start + reserved_size, (char *)reserved_start + reserved_size + reserve_step );
+            reserved_size += reserve_step;
+        }
+
+        if ((ptr = alloc.result))
+        {
             TRACE( "got mem in reserved area %p-%p\n", ptr, (char *)ptr + size );
             if (anon_mmap_fixed( ptr, size, get_unix_prot(vprot), 0 ) != ptr)
                 return STATUS_INVALID_PARAMETER;
