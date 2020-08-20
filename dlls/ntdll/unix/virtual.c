@@ -1733,6 +1733,8 @@ static NTSTATUS map_fixed_area( void *base, size_t size, unsigned int vprot )
     return STATUS_SUCCESS;
 }
 
+static void cleanup_reserved_memory( void *base, SIZE_T size, void *view_base, SIZE_T view_size );
+
 /***********************************************************************
  *           map_view
  *
@@ -1773,6 +1775,8 @@ static NTSTATUS map_view( struct file_view **view_ret, void *base, size_t size,
             TRACE( "reserved %p-%p\n", (char *)reserved_start + reserved_size, (char *)reserved_start + reserved_size + reserve_step );
             reserved_size += reserve_step;
         }
+
+        if (reserved_size) cleanup_reserved_memory( reserved_start, reserved_size, alloc.result, view_size );
 
         if ((ptr = alloc.result))
         {
@@ -3291,6 +3295,20 @@ static int CDECL free_reserved_memory( void *base, SIZE_T size, void *arg )
     if ((char *)base + size > range->limit) size = range->limit - (char *)base;
     remove_reserved_area( base, size );
     return 1;  /* stop enumeration since the list has changed */
+}
+
+static void cleanup_reserved_memory( void *base, SIZE_T size, void *view_base, SIZE_T view_size )
+{
+    struct free_range range;
+    range.base = base;
+    if (view_base && view_size)
+    {
+        range.limit = view_base;
+        while (mmap_enum_reserved_areas( free_reserved_memory, &range, 0, 0 )) /* nothing */;
+        range.base = (char *)view_base + view_size;
+    }
+    range.limit = (char *)base + size;
+    while (mmap_enum_reserved_areas( free_reserved_memory, &range, 0, 0 )) /* nothing */;
 }
 
 /***********************************************************************
