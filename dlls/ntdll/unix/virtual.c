@@ -1339,8 +1339,7 @@ static void delete_view( struct file_view *view ) /* [in] View */
 {
     if (!(view->protect & VPROT_SYSTEM)) unmap_area( view->base, view->size );
     set_page_vprot( view->base, view->size, 0 );
-    if (mmap_is_in_reserved_area( view->base, view->size ))
-        free_ranges_remove_view( view );
+    free_ranges_remove_view( view );
     wine_rb_remove( &views_tree, &view->entry );
     *(struct file_view **)view = next_free_view;
     next_free_view = view;
@@ -1388,8 +1387,7 @@ static NTSTATUS create_view( struct file_view **view_ret, void *base, size_t siz
     set_page_vprot( base, size, vprot );
 
     wine_rb_put( &views_tree, view->base, &view->entry );
-    if (mmap_is_in_reserved_area( view->base, view->size ))
-        free_ranges_insert_view( view );
+    free_ranges_insert_view( view );
 
     *view_ret = view;
 
