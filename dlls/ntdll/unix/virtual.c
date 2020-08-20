@@ -79,6 +79,7 @@ struct reserved_area
     struct list entry;
     void       *base;
     size_t      size;
+    int         top_down;
 };
 
 static struct list reserved_areas = LIST_INIT(reserved_areas);
@@ -226,6 +227,7 @@ static void mmap_add_reserved_area( void *addr, SIZE_T size )
 {
     struct reserved_area *area;
     struct list *ptr;
+    int top_down = ((UINT_PTR)addr) + size > ((UINT_PTR)address_space_limit / 2);
 
     if (!((char *)addr + size)) size--;  /* avoid wrap-around */
 
@@ -247,6 +249,7 @@ static void mmap_add_reserved_area( void *addr, SIZE_T size )
         {
             /* merge with the previous one */
             area->size += size;
+            area->top_down = top_down;
 
             /* try to merge with the next one too */
             if ((ptr = list_next( &reserved_areas, ptr )))
@@ -267,6 +270,7 @@ static void mmap_add_reserved_area( void *addr, SIZE_T size )
     {
         area->base = addr;
         area->size = size;
+        area->top_down = top_down;
         list_add_before( ptr, &area->entry );
     }
 }
@@ -314,16 +318,19 @@ static void mmap_remove_reserved_area( void *addr, SIZE_T size )
                     {
                         new_area->base = (char *)addr + size;
                         new_area->size = (char *)area->base + area->size - (char *)new_area->base;
+                        new_area->top_down = area->top_down;
                         list_add_after( ptr, &new_area->entry );
                     }
                     else size = (char *)area->base + area->size - (char *)addr;
                     area->size = (char *)addr - (char *)area->base;
+                    area->top_down = ((UINT_PTR)area->base) + area->size > ((UINT_PTR)address_space_limit / 2);
                     break;
                 }
                 else
                 {
                     /* range overlaps end of area only -> shrink area */
                     area->size = (char *)addr - (char *)area->base;
+                    area->top_down = ((UINT_PTR)area->base) + area->size > ((UINT_PTR)address_space_limit / 2);
                 }
             }
         }
@@ -349,7 +356,7 @@ static int mmap_is_in_reserved_area( void *addr, SIZE_T size )
 }
 
 static int mmap_enum_reserved_areas( int (CDECL *enum_func)(void *base, SIZE_T size, void *arg),
-                                     void *arg, int top_down )
+                                     void *arg, int top_down, int check_top_down )
 {
     int ret = 0;
     struct list *ptr;
@@ -359,6 +366,7 @@ static int mmap_enum_reserved_areas( int (CDECL *enum_func)(void *base, SIZE_T s
         for (ptr = reserved_areas.prev; ptr != &reserved_areas; ptr = ptr->prev)
         {
             struct reserved_area *area = LIST_ENTRY( ptr, struct reserved_area, entry );
+            if (check_top_down && area->top_down != top_down) continue;
             if ((ret = enum_func( area->base, area->size, arg ))) break;
         }
     }
@@ -367,6 +375,7 @@ static int mmap_enum_reserved_areas( int (CDECL *enum_func)(void *base, SIZE_T s
         for (ptr = reserved_areas.next; ptr != &reserved_areas; ptr = ptr->next)
         {
             struct reserved_area *area = LIST_ENTRY( ptr, struct reserved_area, entry );
+            if (check_top_down && area->top_down != top_down) continue;
             if ((ret = enum_func( area->base, area->size, arg ))) break;
         }
     }
@@ -1285,7 +1294,7 @@ static inline void unmap_area( void *addr, size_t size )
         size_t lower_size;
         area.base = addr;
         area.size = size;
-        mmap_enum_reserved_areas( get_area_boundary_callback, &area, 0 );
+        mmap_enum_reserved_areas( get_area_boundary_callback, &area, 0, 0 );
         assert( area.boundary );
         lower_size = (char *)area.boundary - (char *)addr;
         unmap_area( addr, lower_size );
@@ -1679,7 +1688,7 @@ static NTSTATUS map_fixed_area( void *base, size_t size, unsigned int vprot )
         size_t lower_size;
         area.base = base;
         area.size = size;
-        mmap_enum_reserved_areas( get_area_boundary_callback, &area, 0 );
+        mmap_enum_reserved_areas( get_area_boundary_callback, &area, 0, 0 );
         assert( area.boundary );
         lower_size = (char *)area.boundary - (char *)base;
         status = map_fixed_area( base, lower_size, vprot );
@@ -1740,7 +1749,7 @@ static NTSTATUS map_view( struct file_view **view_ret, void *base, size_t size,
         alloc.top_down = top_down;
         alloc.limit = (void*)(get_zero_bits_64_mask( zero_bits_64 ) & (UINT_PTR)user_space_limit);
 
-        if (mmap_enum_reserved_areas( alloc_reserved_area_callback, &alloc, top_down ))
+        if (mmap_enum_reserved_areas( alloc_reserved_area_callback, &alloc, top_down, 1 ))
         {
             ptr = alloc.result;
             TRACE( "got mem in reserved area %p-%p\n", ptr, (char *)ptr + size );
@@ -2411,7 +2420,7 @@ void virtual_init(void)
 #else
     alloc_views.size = 2 * view_block_size + (1U << (32 - page_shift));
 #endif
-    if (mmap_enum_reserved_areas( alloc_virtual_heap, &alloc_views, 1 ))
+    if (mmap_enum_reserved_areas( alloc_virtual_heap, &alloc_views, 1, 0 ))
         mmap_remove_reserved_area( alloc_views.base, alloc_views.size );
     else
         alloc_views.base = anon_mmap_alloc( alloc_views.size, PROT_READ | PROT_WRITE );
@@ -3279,7 +3288,7 @@ void CDECL virtual_release_address_space(void)
 
     if (range.limit > range.base)
     {
-        while (mmap_enum_reserved_areas( free_reserved_memory, &range, 1 )) /* nothing */;
+        while (mmap_enum_reserved_areas( free_reserved_memory, &range, 1, 0 )) /* nothing */;
 #ifdef __APPLE__
         /* On macOS, we still want to free some of low memory, for OpenGL resources */
         range.base  = (char *)0x40000000;
@@ -3293,7 +3302,7 @@ void CDECL virtual_release_address_space(void)
     if (range.base)
     {
         range.limit = (char *)0x7f000000;
-        while (mmap_enum_reserved_areas( free_reserved_memory, &range, 0 )) /* nothing */;
+        while (mmap_enum_reserved_areas( free_reserved_memory, &range, 0, 0 )) /* nothing */;
     }
 
     server_leave_uninterrupted_section( &virtual_mutex, &sigset );
@@ -3741,7 +3750,7 @@ static NTSTATUS get_basic_memory_info( HANDLE process, LPCVOID addr,
 
     if (!ptr)
     {
-        if (!mmap_enum_reserved_areas( get_free_mem_state_callback, info, 0 ))
+        if (!mmap_enum_reserved_areas( get_free_mem_state_callback, info, 0, 0 ))
         {
             /* not in a reserved area at all, pretend it's allocated */
 #ifdef __i386__
