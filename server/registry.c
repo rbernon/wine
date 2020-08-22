@@ -1522,6 +1522,7 @@ static struct key_value *parse_value_name( struct key *key, const char *buffer, 
     struct key_value *value;
     struct unicode_str name;
     int index;
+    BOOL delete = FALSE;
 
     if (!get_file_tmp_space( info, strlen(buffer) * sizeof(WCHAR) )) return NULL;
     name.str = info->tmp;
@@ -1540,10 +1541,14 @@ static struct key_value *parse_value_name( struct key *key, const char *buffer, 
     }
     while (isspace(buffer[*len])) (*len)++;
     if (buffer[*len] != '=') goto error;
+    if (buffer[*len + 1] == '-') delete = TRUE;
     (*len)++;
     while (isspace(buffer[*len])) (*len)++;
-    if (!(value = find_value( key, &name, &index ))) value = insert_value( key, &name, index );
-    return value;
+    if (!(value = find_value( key, &name, &index )) && !delete)
+        value = insert_value( key, &name, index );
+    else if (value && delete)
+        delete_value( key, &name );
+    return delete ? NULL : value;
 
  error:
     file_read_error( "Malformed value name", info );
