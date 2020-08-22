@@ -49,6 +49,132 @@
 
 #include "winternl.h"
 
+#include "wine/rbtree.h"
+
+typedef void *strid_t;
+
+struct strid_entry
+{
+    data_size_t off;
+    data_size_t lower;
+    data_size_t len;
+    struct wine_rb_entry entry;
+};
+
+static data_size_t strid_buf_pos, strid_buf_len;
+static char *strids_buf;
+
+static int strid_entry_compare(const void *key, const struct wine_rb_entry *ptr)
+{
+    const struct unicode_str *tmp = key;
+    struct strid_entry *entry = WINE_RB_ENTRY_VALUE(ptr, struct strid_entry, entry);
+    data_size_t len = min( tmp->len, entry->len );
+    int res = memcmp( tmp->str, (WCHAR *)(strids_buf + entry->lower), len );
+    if (!res) res = tmp->len - entry->len;
+    return res;
+}
+
+static struct wine_rb_tree strid_index = { &strid_entry_compare };
+
+static void strid_to_unicode( strid_t id, struct unicode_str *str )
+{
+    if (!id)
+    {
+        str->str = NULL;
+        str->len = 0;
+    }
+    else
+    {
+        struct strid_entry *entry = id;
+        str->str = (WCHAR *)(strids_buf + entry->off);
+        str->len = entry->len;
+    }
+}
+
+static void strid_to_lower_unicode( strid_t id, struct unicode_str *str )
+{
+    if (!id)
+    {
+        str->str = NULL;
+        str->len = 0;
+    }
+    else
+    {
+        struct strid_entry *entry = id;
+        str->str = (WCHAR *)(strids_buf + entry->lower);
+        str->len = entry->len;
+    }
+}
+
+static size_t strlen_strid( strid_t id )
+{
+    struct strid_entry *entry = id;
+    if (!id) return 0;
+    return entry->len;
+}
+
+static int memicmp_strid( strid_t a, strid_t b )
+{
+    struct unicode_str stra, strb;
+    data_size_t len;
+    int res;
+    strid_to_lower_unicode( a, &stra );
+    strid_to_lower_unicode( b, &strb );
+    len = min( stra.len, strb.len );
+    res = memcmp( stra.str, strb.str, len );
+    if (!res) res = stra.len - strb.len;
+    return res;
+}
+
+static strid_t strid_from_name( const WCHAR *name, data_size_t len )
+{
+    struct wine_rb_entry *ptr;
+    struct strid_entry *entry;
+    struct unicode_str tmp;
+    WCHAR *lower;
+
+    if (!len) return 0;
+
+    if (!strid_buf_len)
+    {
+        strid_buf_len = max( len, 1024 * 1024 );
+        strids_buf = mem_alloc( strid_buf_len );
+    }
+    else if (strid_buf_pos + 2 * len >= strid_buf_len)
+    {
+        strid_buf_len = max( strid_buf_len + 2 * len, strid_buf_len * 2 );
+        strids_buf = realloc( strids_buf, strid_buf_len );
+    }
+
+    if (!strids_buf) return 0;
+
+    lower = (WCHAR *)(strids_buf + strid_buf_pos);
+    strlwr_strW( lower, name, len );
+
+    tmp.str = lower;
+    tmp.len = len;
+    if ((ptr = wine_rb_get( &strid_index, &tmp )))
+        return WINE_RB_ENTRY_VALUE(ptr, struct strid_entry, entry);
+
+    if (!(entry = mem_alloc( sizeof(*entry) ))) return 0;
+
+    entry->len = len;
+    entry->lower = strid_buf_pos;
+    entry->off = strid_buf_pos + len;
+    memcpy( strids_buf + entry->off, name, len );
+    strid_buf_pos += 2 * len;
+
+    wine_rb_put( &strid_index, &lower, &entry->entry );
+    return entry;
+}
+
+static int dump_strid( strid_t id, FILE *f, const char escape[2] )
+{
+    struct unicode_str tmp;
+    strid_to_unicode( id, &tmp );
+    return dump_strW( tmp.str, tmp.len, f, escape );
+}
+
 struct notify
 {
     struct list       entry;    /* entry in list of notifications */
@@ -78,9 +204,8 @@ struct type_descr key_type =
 struct key
 {
     struct object     obj;         /* object header */
-    WCHAR            *name;        /* key name */
+    strid_t           name_strid;  /* key name id */
     WCHAR            *class;       /* key class */
-    unsigned short    namelen;     /* length of key name */
     unsigned short    classlen;    /* length of class name */
     struct key       *parent;      /* parent key */
     int               last_subkey; /* last in use subkey */
@@ -105,8 +230,7 @@ struct key
 /* a key value */
 struct key_value
 {
-    WCHAR            *name;    /* value name */
-    unsigned short    namelen; /* length of value name */
+    strid_t           name_strid; /* value name */
     unsigned int      type;    /* value type */
     data_size_t       len;     /* value data length in bytes */
     void             *data;    /* pointer to value data */
@@ -128,6 +252,7 @@ static enum prefix_type { PREFIX_UNKNOWN, PREFIX_32BIT, PREFIX_64BIT } prefix_ty
 
 static const WCHAR root_name[] = { '\\','R','e','g','i','s','t','r','y','\\' };
 static const WCHAR wow6432node[] = {'W','o','w','6','4','3','2','N','o','d','e'};
+static const WCHAR wow6432node_lower[] = {'w','o','w','6','4','3','2','n','o','d','e'};
 static const WCHAR symlink_value[] = {'S','y','m','b','o','l','i','c','L','i','n','k','V','a','l','u','e'};
 static const struct unicode_str symlink_str = { symlink_value, sizeof(symlink_value) };
 
@@ -161,7 +286,6 @@ struct file_load_info
     size_t      tmplen;   /* length of temp buffer */
 };
 
-
 static void key_dump( struct object *obj, int verbose );
 static unsigned int key_map_access( struct object *obj, unsigned int access );
 static struct security_descriptor *key_get_sd( struct object *obj );
@@ -193,11 +317,14 @@ static const struct object_ops key_ops =
     key_destroy              /* destroy */
 };
 
+static strid_t wow6432node_id;
 
 static inline int is_wow6432node( const WCHAR *name, unsigned int len )
 {
     return (len == sizeof(wow6432node) && !memicmp_strW( name, wow6432node, sizeof( wow6432node )));
 }
+
+static inline int is_wow6432node_strid( strid_t id ) { return id == wow6432node_id; }
 
 /*
  * The registry text file format v2 used by this code is similar to the one
@@ -216,7 +343,7 @@ static void dump_path( const struct key *key, const struct key *base, FILE *f )
         dump_path( key->parent, base, f );
         fprintf( f, "\\\\" );
     }
-    dump_strW( key->name, key->namelen, f, "[]" );
+    dump_strid( key->name_strid, f, "[]" );
 }
 
 /* dump a value to a text file */
@@ -225,10 +352,10 @@ static void dump_value( const struct key_value *value, FILE *f )
     unsigned int i, dw;
     int count;
 
-    if (value->namelen)
+    if (value->name_strid)
     {
         fputc( '\"', f );
-        count = 1 + dump_strW( value->name, value->namelen, f, "\"\"" );
+        count = 1 + dump_strid( value->name_strid, f, "\"\"" );
         count += fprintf( f, "\"=" );
     }
     else count = fprintf( f, "@=" );
@@ -450,13 +577,9 @@ static void key_destroy( struct object *obj )
     struct key *key = (struct key *)obj;
     assert( obj->ops == &key_ops );
 
-    free( key->name );
     free( key->class );
     for (i = 0; i <= key->last_value; i++)
-    {
-        free( key->values[i].name );
         free( key->values[i].data );
-    }
     free( key->values );
     for (i = 0; i <= key->last_subkey; i++)
     {
@@ -487,7 +610,7 @@ static inline void get_req_path( struct unicode_str *str, int skip_root )
 
 /* return the next token in a given path */
 /* token->str must point inside the path, or be NULL for the first call */
-static struct unicode_str *get_path_token( const struct unicode_str *path, struct unicode_str *token )
+static struct unicode_str *get_path_token( const struct unicode_str *path, struct unicode_str *token, strid_t *token_strid )
 {
     data_size_t i = 0, len = path->len / sizeof(WCHAR);
 
@@ -509,6 +632,8 @@ static struct unicode_str *get_path_token( const struct unicode_str *path, struc
     token->str = path->str + i;
     while (i < len && path->str[i] != '\\') i++;
     token->len = (path->str + i - token->str) * sizeof(WCHAR);
+
+    *token_strid = strid_from_name( token->str, token->len );
     return token;
 }
 
@@ -518,9 +643,8 @@ static struct key *alloc_key( const struct unicode_str *name, timeout_t modif )
     struct key *key;
     if ((key = alloc_object( &key_ops )))
     {
-        key->name        = NULL;
+        key->name_strid  = strid_from_name( name->str, name->len );
         key->class       = NULL;
-        key->namelen     = name->len;
         key->classlen    = 0;
         key->flags       = 0;
         key->last_subkey = -1;
@@ -532,11 +656,6 @@ static struct key *alloc_key( const struct unicode_str *name, timeout_t modif )
         key->modif       = modif;
         key->parent      = NULL;
         list_init( &key->notify_list );
-        if (name->len && !(key->name = memdup( name->str, name->len )))
-        {
-            release_object( key );
-            key = NULL;
-        }
     }
     return key;
 }
@@ -638,7 +757,7 @@ static struct key *alloc_subkey( struct key *parent, const struct unicode_str *n
         for (i = ++parent->last_subkey; i > index; i--)
             parent->subkeys[i] = parent->subkeys[i-1];
         parent->subkeys[index] = key;
-        if (is_wow6432node( key->name, key->namelen ) && !is_wow6432node( parent->name, parent->namelen ))
+        if (is_wow6432node_strid( key->name_strid ) && !is_wow6432node_strid( parent->name_strid ))
             parent->flags |= KEY_WOW64;
     }
     return key;
@@ -658,7 +777,7 @@ static void free_subkey( struct key *parent, int index )
     parent->last_subkey--;
     key->flags |= KEY_DELETED;
     key->parent = NULL;
-    if (is_wow6432node( key->name, key->namelen )) parent->flags &= ~KEY_WOW64;
+    if (is_wow6432node_strid( key->name_strid )) parent->flags &= ~KEY_WOW64;
     release_object( key );
 
     /* try to shrink the array */
@@ -675,19 +794,16 @@ static void free_subkey( struct key *parent, int index )
 }
 
 /* find the named child of a given key and return its index */
-static struct key *find_subkey( const struct key *key, const struct unicode_str *name, int *index )
+static struct key *find_subkey( const struct key *key, strid_t name_strid, int *index )
 {
     int i, min, max, res;
-    data_size_t len;
 
     min = 0;
     max = key->last_subkey;
     while (min <= max)
     {
         i = (min + max) / 2;
-        len = min( key->subkeys[i]->namelen, name->len );
-        res = memicmp_strW( key->subkeys[i]->name, name->str, len );
-        if (!res) res = key->subkeys[i]->namelen - name->len;
+        res = memicmp_strid( key->subkeys[i]->name_strid, name_strid );
         if (!res)
         {
             *index = i;
@@ -701,15 +817,14 @@ static struct key *find_subkey( const struct key *key, const struct unicode_str 
 }
 
 /* return the wow64 variant of the key, or the key itself if none */
-static struct key *find_wow64_subkey( struct key *key, const struct unicode_str *name )
+static struct key *find_wow64_subkey( struct key *key, strid_t name_strid )
 {
-    static const struct unicode_str wow6432node_str = { wow6432node, sizeof(wow6432node) };
     int index;
 
     if (!(key->flags & KEY_WOW64)) return key;
-    if (!is_wow6432node( name->str, name->len ))
+    if (!is_wow6432node_strid( name_strid ))
     {
-        key = find_subkey( key, &wow6432node_str, &index );
+        key = find_subkey( key, wow6432node_id, &index );
         assert( key );  /* if KEY_WOW64 is set we must find it */
     }
     return key;
@@ -721,6 +836,7 @@ static struct key *follow_symlink( struct key *key, int iteration )
 {
     struct unicode_str path, token;
     struct key_value *value;
+    strid_t token_strid;
     int index;
 
     if (iteration > 16) return NULL;
@@ -736,12 +852,12 @@ static struct key *follow_symlink( struct key *key, int iteration )
 
     key = root_key;
     token.str = NULL;
-    if (!get_path_token( &path, &token )) return NULL;
+    if (!get_path_token( &path, &token, &token_strid )) return NULL;
     while (token.len)
     {
-        if (!(key = find_subkey( key, &token, &index ))) break;
+        if (!(key = find_subkey( key, token_strid, &index ))) break;
         if (!(key = follow_symlink( key, iteration + 1 ))) break;
-        get_path_token( &path, &token );
+        get_path_token( &path, &token, &token_strid );
     }
     return key;
 }
@@ -749,28 +865,29 @@ static struct key *follow_symlink( struct key *key, int iteration )
 /* open a key until we find an element that doesn't exist */
 /* helper for open_key and create_key */
 static struct key *open_key_prefix( struct key *key, const struct unicode_str *name,
-                                    unsigned int access, struct unicode_str *token, int *index )
+                                    unsigned int access, struct unicode_str *token,
+                                    strid_t *token_strid, int *index )
 {
     token->str = NULL;
-    if (!get_path_token( name, token )) return NULL;
-    if (access & KEY_WOW64_32KEY) key = find_wow64_subkey( key, token );
+    if (!get_path_token( name, token, token_strid )) return NULL;
+    if (access & KEY_WOW64_32KEY) key = find_wow64_subkey( key, *token_strid );
     while (token->len)
     {
         struct key *subkey;
-        if (!(subkey = find_subkey( key, token, index )))
+        if (!(subkey = find_subkey( key, *token_strid, index )))
         {
             if ((key->flags & KEY_WOWSHARE) && !(access & KEY_WOW64_64KEY))
             {
                 /* try in the 64-bit parent */
                 key = key->parent;
-                subkey = find_subkey( key, token, index );
+                subkey = find_subkey( key, *token_strid, index );
             }
         }
         if (!subkey) break;
         key = subkey;
-        get_path_token( name, token );
+        get_path_token( name, token, token_strid );
         if (!token->len) break;
-        if (!(access & KEY_WOW64_64KEY)) key = find_wow64_subkey( key, token );
+        if (!(access & KEY_WOW64_64KEY)) key = find_wow64_subkey( key, *token_strid );
         if (!(key = follow_symlink( key, 0 )))
         {
             set_error( STATUS_OBJECT_NAME_NOT_FOUND );
@@ -786,15 +903,16 @@ static struct key *open_key( struct key *key, const struct unicode_str *name, un
 {
     int index;
     struct unicode_str token;
+    strid_t token_strid;
 
-    if (!(key = open_key_prefix( key, name, access, &token, &index ))) return NULL;
+    if (!(key = open_key_prefix( key, name, access, &token, &token_strid, &index ))) return NULL;
 
     if (token.len)
     {
         set_error( STATUS_OBJECT_NAME_NOT_FOUND );
         return NULL;
     }
-    if (!(access & KEY_WOW64_64KEY)) key = find_wow64_subkey( key, &token );
+    if (!(access & KEY_WOW64_64KEY)) key = find_wow64_subkey( key, token_strid );
     if (!(attributes & OBJ_OPENLINK) && !(key = follow_symlink( key, 0 )))
     {
         set_error( STATUS_OBJECT_NAME_NOT_FOUND );
@@ -813,13 +931,14 @@ static struct key *create_key( struct key *key, const struct unicode_str *name,
 {
     int index;
     struct unicode_str token, next;
+    strid_t next_strid, token_strid;
 
     *created = 0;
-    if (!(key = open_key_prefix( key, name, access, &token, &index ))) return NULL;
+    if (!(key = open_key_prefix( key, name, access, &token, &token_strid, &index ))) return NULL;
 
     if (!token.len)  /* the key already exists */
     {
-        if (!(access & KEY_WOW64_64KEY)) key = find_wow64_subkey( key, &token );
+        if (!(access & KEY_WOW64_64KEY)) key = find_wow64_subkey( key, token_strid );
         if (options & REG_OPTION_CREATE_LINK)
         {
             set_error( STATUS_OBJECT_NAME_COLLISION );
@@ -837,7 +956,7 @@ static struct key *create_key( struct key *key, const struct unicode_str *name,
 
     /* token must be the last path component at this point */
     next = token;
-    get_path_token( name, &next );
+    get_path_token( name, &next, &next_strid );
     if (next.len)
     {
         set_error( STATUS_OBJECT_NAME_NOT_FOUND );
@@ -878,20 +997,21 @@ static struct key *create_key_recursive( struct key *key, const struct unicode_s
     struct key *base;
     int index;
     struct unicode_str token;
+    strid_t token_strid;
 
     token.str = NULL;
-    if (!get_path_token( name, &token )) return NULL;
+    if (!get_path_token( name, &token, &token_strid )) return NULL;
     while (token.len)
     {
         struct key *subkey;
-        if (!(subkey = find_subkey( key, &token, &index ))) break;
+        if (!(subkey = find_subkey( key, token_strid, &index ))) break;
         key = subkey;
         if (!(key = follow_symlink( key, 0 )))
         {
             set_error( STATUS_OBJECT_NAME_NOT_FOUND );
             return NULL;
         }
-        get_path_token( name, &token );
+        get_path_token( name, &token, &token_strid );
     }
 
     if (token.len)
@@ -900,7 +1020,7 @@ static struct key *create_key_recursive( struct key *key, const struct unicode_s
         base = key;
         for (;;)
         {
-            get_path_token( name, &token );
+            get_path_token( name, &token, &token_strid );
             if (!token.len) break;
             /* we know the index is always 0 in a new key */
             if (!(key = alloc_subkey( key, &token, 0, modif )))
@@ -918,6 +1038,7 @@ static struct key *create_key_recursive( struct key *key, const struct unicode_s
 /* query information about a key or a subkey */
 static void enum_key( struct key *key, int index, int info_class, struct enum_key_reply *reply )
 {
+    struct unicode_str tmp;
     int i;
     data_size_t len, namelen, classlen;
     data_size_t max_subkey = 0, max_class = 0;
@@ -935,7 +1056,7 @@ static void enum_key( struct key *key, int index, int info_class, struct enum_ke
         key = key->subkeys[index];
     }
 
-    namelen = key->namelen;
+    namelen = strlen_strid( key->name_strid );
     classlen = key->classlen;
 
     switch(info_class)
@@ -956,12 +1077,12 @@ static void enum_key( struct key *key, int index, int info_class, struct enum_ke
     case KeyCachedInformation:
         for (i = 0; i <= key->last_subkey; i++)
         {
-            if (key->subkeys[i]->namelen > max_subkey) max_subkey = key->subkeys[i]->namelen;
+            if (strlen_strid( key->subkeys[i]->name_strid ) > max_subkey) max_subkey = strlen_strid( key->subkeys[i]->name_strid );
             if (key->subkeys[i]->classlen > max_class) max_class = key->subkeys[i]->classlen;
         }
         for (i = 0; i <= key->last_value; i++)
         {
-            if (key->values[i].namelen > max_value) max_value = key->values[i].namelen;
+            if (strlen_strid( key->values[i].name_strid ) > max_value) max_value = strlen_strid( key->values[i].name_strid );
             if (key->values[i].len > max_data) max_data = key->values[i].len;
         }
         reply->max_subkey = max_subkey;
@@ -988,7 +1109,8 @@ static void enum_key( struct key *key, int index, int info_class, struct enum_ke
         if (len > namelen)
         {
             reply->namelen = namelen;
-            memcpy( data, key->name, namelen );
+            strid_to_unicode( key->name_strid, &tmp );
+            memcpy( data, tmp.str, namelen );
             memcpy( data + namelen, key->class, len - namelen );
         }
         else if (info_class == KeyNameInformation)
@@ -998,8 +1120,9 @@ static void enum_key( struct key *key, int index, int info_class, struct enum_ke
         }
         else
         {
+            strid_to_unicode( key->name_strid, &tmp );
             reply->namelen = len;
-            memcpy( data, key->name, len );
+            memcpy( data, tmp.str, len );
         }
     }
     free( fullname );
@@ -1070,16 +1193,14 @@ static int grow_values( struct key *key )
 static struct key_value *find_value( const struct key *key, const struct unicode_str *name, int *index )
 {
     int i, min, max, res;
-    data_size_t len;
+    strid_t name_strid = strid_from_name( name->str, name->len );
 
     min = 0;
     max = key->last_value;
     while (min <= max)
     {
         i = (min + max) / 2;
-        len = min( key->values[i].namelen, name->len );
-        res = memicmp_strW( key->values[i].name, name->str, len );
-        if (!res) res = key->values[i].namelen - name->len;
+        res = memicmp_strid( key->values[i].name_strid, name_strid );
         if (!res)
         {
             *index = i;
@@ -1096,7 +1217,6 @@ static struct key_value *find_value( const struct key *key, const struct unicode
 static struct key_value *insert_value( struct key *key, const struct unicode_str *name, int index )
 {
     struct key_value *value;
-    WCHAR *new_name = NULL;
     int i;
 
     if (name->len > MAX_VALUE_LEN * sizeof(WCHAR))
@@ -1108,11 +1228,9 @@ static struct key_value *insert_value( struct key *key, const struct unicode_str
     {
         if (!grow_values( key )) return NULL;
     }
-    if (name->len && !(new_name = memdup( name->str, name->len ))) return NULL;
     for (i = ++key->last_value; i > index; i--) key->values[i] = key->values[i - 1];
     value = &key->values[index];
-    value->name    = new_name;
-    value->namelen = name->len;
+    value->name_strid = strid_from_name( name->str, name->len );
     value->len     = 0;
     value->data    = NULL;
     return value;
@@ -1199,7 +1317,7 @@ static void enum_value( struct key *key, int i, int info_class, struct enum_key_
 
         value = &key->values[i];
         reply->type = value->type;
-        namelen = value->namelen;
+        namelen = strlen_strid( value->name_strid );
 
         switch(info_class)
         {
@@ -1221,16 +1339,19 @@ static void enum_value( struct key *key, int i, int info_class, struct enum_key_
         maxlen = min( reply->total, get_reply_max_size() );
         if (maxlen && ((data = set_reply_data_size( maxlen ))))
         {
+            struct unicode_str tmp;
+            strid_to_unicode( value->name_strid, &tmp );
+
             if (maxlen > namelen)
             {
                 reply->namelen = namelen;
-                memcpy( data, value->name, namelen );
+                memcpy( data, tmp.str, namelen );
                 memcpy( (char *)data + namelen, value->data, maxlen - namelen );
             }
             else
             {
                 reply->namelen = maxlen;
-                memcpy( data, value->name, maxlen );
+                memcpy( data, tmp.str, maxlen );
             }
         }
         if (debug_level > 1) dump_operation( key, value, "Enum" );
@@ -1249,7 +1370,6 @@ static void delete_value( struct key *key, const struct unicode_str *name )
         return;
     }
     if (debug_level > 1) dump_operation( key, value, "Delete" );
-    free( value->name );
     free( value->data );
     for (i = index; i < key->last_value; i++) key->values[i] = key->values[i + 1];
     key->last_value--;
@@ -1652,6 +1772,7 @@ static int get_prefix_len( struct key *key, const char *name, struct file_load_i
     WCHAR *p;
     int res;
     data_size_t len;
+    strid_t info_id;
 
     if (!get_file_tmp_space( info, strlen(name) * sizeof(WCHAR) )) return 0;
 
@@ -1663,9 +1784,10 @@ static int get_prefix_len( struct key *key, const char *name, struct file_load_i
     }
     for (p = info->tmp; *p; p++) if (*p == '\\') break;
     len = (p - info->tmp) * sizeof(WCHAR);
+    info_id = strid_from_name( info->tmp, len );
     for (res = 1; key != root_key; res++)
     {
-        if (len == key->namelen && !memicmp_strW( info->tmp, key->name, len )) break;
+        if (!memicmp_strid( info_id, key->name_strid )) break;
         key = key->parent;
     }
     if (key == root_key) res = 0;  /* no matching name */
@@ -1855,6 +1977,8 @@ void init_registry(void)
     struct key *key, *hklm, *hkcu;
     unsigned int i;
     char *p;
+
+    wow6432node_id = strid_from_name( wow6432node, sizeof(wow6432node) );
 
     /* switch to the config dir */
 

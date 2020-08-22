@@ -26,6 +26,7 @@
 #include "windef.h"
 #include "object.h"
 
+extern void strlwr_strW( WCHAR *dst, const WCHAR *src, data_size_t len );
 extern int memicmp_strW( const WCHAR *str1, const WCHAR *str2, data_size_t len );
 extern unsigned int hash_strW( const WCHAR *str, data_size_t len, unsigned int hash_size );
 extern WCHAR *ascii_to_unicode_str( const char *str, struct unicode_str *ret );
