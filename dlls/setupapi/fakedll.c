@@ -209,56 +209,67 @@ static void extract_16bit_image( IMAGE_NT_HEADERS *nt, void **data, SIZE_T *size
 /* return 1 on success, 0 on nonexistent file, -1 on other error */
 static int read_file( const WCHAR *name, void **data, SIZE_T *size )
 {
-    struct stat st;
-    int fd, ret = -1;
-    size_t header_size;
     IMAGE_DOS_HEADER *dos;
     IMAGE_NT_HEADERS *nt;
-    const size_t min_size = sizeof(*dos) + 32 +
-        FIELD_OFFSET( IMAGE_NT_HEADERS, OptionalHeader.MajorLinkerVersion );
+    HANDLE file;
+    DWORD buff_size, file_size, read_size;
+    int ret = -1;
 
-    if ((fd = _wopen( name, O_RDONLY | O_BINARY )) == -1) return 0;
-    if (fstat( fd, &st ) == -1) goto done;
-    *size = st.st_size;
-    if (!file_buffer || st.st_size > file_buffer_size)
+    *size = 0;
+    file = CreateFileW( name, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL );
+    if (file == INVALID_HANDLE_VALUE) return 0;
+
+    if (!file_buffer)
     {
-        VirtualFree( file_buffer, 0, MEM_RELEASE );
-        file_buffer = NULL;
-        file_buffer_size = st.st_size;
+        file_buffer_size = 4 * 1024 * 1024;
         if (NtAllocateVirtualMemory( GetCurrentProcess(), &file_buffer, 0, &file_buffer_size,
                                      MEM_COMMIT, PAGE_READWRITE )) goto done;
     }
 
-    /* check for valid fake dll file */
+    buff_size = 4096;
+    if (!ReadFile( file, file_buffer, buff_size, &read_size, NULL ) ||
+        read_size < sizeof(IMAGE_DOS_HEADER)) goto done;
+    buff_size = read_size;
 
-    if (st.st_size < min_size) goto done;
-    header_size = min( st.st_size, 4096 );
-    if (read( fd, file_buffer, header_size ) != header_size) goto done;
     dos = file_buffer;
     if (dos->e_magic != IMAGE_DOS_SIGNATURE) goto done;
     if (dos->e_lfanew < sizeof(*dos) + 32) goto done;
     if (memcmp( dos + 1, builtin_signature, strlen(builtin_signature) + 1 ) &&
         memcmp( dos + 1, fakedll_signature, strlen(fakedll_signature) + 1 )) goto done;
-    if (dos->e_lfanew + FIELD_OFFSET(IMAGE_NT_HEADERS,OptionalHeader.MajorLinkerVersion) > header_size)
-        goto done;
-    nt = (IMAGE_NT_HEADERS *)((char *)file_buffer + dos->e_lfanew);
+    if (dos->e_lfanew + FIELD_OFFSET(IMAGE_NT_HEADERS, OptionalHeader.SizeOfHeaders) > buff_size) goto done;
+
+    nt = RtlImageNtHeader( file_buffer );
     if (nt->Signature == IMAGE_NT_SIGNATURE && nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR_MAGIC)
     {
         /* wrong 32/64 type, pretend it doesn't exist */
         ret = 0;
         goto done;
     }
-    if (st.st_size == header_size ||
-        read( fd, (char *)file_buffer + header_size,
-              st.st_size - header_size ) == st.st_size - header_size)
+
+    file_size = GetFileSize( file, NULL );
+    if (file_size > file_buffer_size)
+    {
+        file_buffer_size = 0;
+        if (NtFreeVirtualMemory( GetCurrentProcess(), &file_buffer, &file_buffer_size, MEM_RELEASE )) goto done;
+        buff_size = 0;
+        file_buffer = NULL;
+        file_buffer_size = file_size;
+        if (NtAllocateVirtualMemory( GetCurrentProcess(), &file_buffer, 0, &file_buffer_size,
+                                     MEM_COMMIT, PAGE_READWRITE )) goto done;
+    }
+
+    if (file_size <= buff_size ||
+        (ReadFile( file, (char *)file_buffer + buff_size, file_size - buff_size, &read_size, NULL ) &&
+         read_size == file_size - buff_size))
     {
         *data = file_buffer;
+        *size = file_size;
         if (lstrlenW(name) > 2 && !wcscmp( name + lstrlenW(name) - 2, L"16" ))
             extract_16bit_image( nt, data, size );
         ret = 1;
     }
 done:
-    close( fd );
+    CloseHandle( file );
     return ret;
 }
 
@@ -1101,7 +1112,8 @@ BOOL create_fake_dll( const WCHAR *name, const WCHAR *source )
  */
 void cleanup_fake_dlls(void)
 {
-    if (file_buffer) VirtualFree( file_buffer, 0, MEM_RELEASE );
+    file_buffer_size = 0;
+    if (file_buffer) NtFreeVirtualMemory( GetCurrentProcess(), &file_buffer, &file_buffer_size, MEM_RELEASE );
     file_buffer = NULL;
     HeapFree( GetProcessHeap(), 0, handled_dlls );
     handled_dlls = NULL;
