@@ -1380,22 +1380,21 @@ static int get_data_type( const char *buffer, int *type, int *parse_type )
 }
 
 /* load and create a key from the input file */
-static struct key *load_key( struct key *base, const char *buffer, int prefix_len,
-                             struct file_load_info *info, timeout_t *modif )
+static int parse_key( struct key *base, const char *buffer, int prefix_len,
+                      struct file_load_info *info, timeout_t *modif, struct unicode_str *name )
 {
     WCHAR *p;
-    struct unicode_str name;
     int res;
     unsigned int mod;
     data_size_t len;
 
-    if (!get_file_tmp_space( info, strlen(buffer) * sizeof(WCHAR) )) return NULL;
+    if (!get_file_tmp_space( info, strlen(buffer) * sizeof(WCHAR) )) return FALSE;
 
     len = info->tmplen;
     if ((res = parse_strW( info->tmp, &len, buffer, ']' )) == -1)
     {
         file_read_error( "Malformed key", info );
-        return NULL;
+        return FALSE;
     }
     if (sscanf( buffer + res, " %u", &mod ) == 1)
         *modif = (timeout_t)mod * TICKS_PER_SEC + ticks_1601_to_1970;
@@ -1405,19 +1404,42 @@ static struct key *load_key( struct key *base, const char *buffer, int prefix_le
     p = info->tmp;
     while (prefix_len && *p) { if (*p++ == '\\') prefix_len--; }
 
-    if (!*p)
+    if (!*p && prefix_len > 1)
     {
-        if (prefix_len > 1)
-        {
-            file_read_error( "Malformed key", info );
-            return NULL;
-        }
-        /* empty key name, return base key */
-        return (struct key *)grab_object( base );
+        file_read_error( "Malformed key", info );
+        return FALSE;
     }
-    name.str = p;
-    name.len = len - (p - info->tmp + 1) * sizeof(WCHAR);
+
+    name->str = p;
+    name->len = len - (p - info->tmp + 1) * sizeof(WCHAR);
+    return TRUE;
+}
+
+/* load and create a key from the input file */
+static struct key *load_key( struct key *base, const char *buffer, int prefix_len,
+                             struct file_load_info *info, timeout_t *modif )
+{
+    struct unicode_str name;
+    if (!parse_key( base, buffer, prefix_len, info, modif, &name )) return NULL;
+
+    /* empty key name, return base key */
+    if (!*name.str) return (struct key *)grab_object( base );
     return create_key_recursive( base, &name, 0 );
+}
+
+/* load and remove a key from the input file */
+static void remove_key( struct key *base, const char *buffer, int prefix_len,
+                        struct file_load_info *info, timeout_t *modif )
+{
+    struct key *key;
+    struct unicode_str name;
+    if (!parse_key( base, buffer, prefix_len, info, modif, &name )) return;
+
+    /* empty key name, return base key */
+    if (!*name.str) key = (struct key *)grab_object( base );
+    else if (!(key = open_key( base, &name, 0, 0 ))) return;
+    delete_key( key, 0 );
+    release_object( key );
 }
 
 /* update the modification time of a key (and its parents) after it has been loaded from a file */
@@ -1689,9 +1711,11 @@ static void load_keys( struct key *key, const char *filename, FILE *f, int prefi
             {
                 update_key_time( subkey, modif );
                 release_object( subkey );
+                subkey = NULL;
             }
             if (prefix_len == -1) prefix_len = get_prefix_len( key, p + 1, &info );
-            if (!(subkey = load_key( key, p + 1, prefix_len, &info, &modif )))
+            if (*(p + 1) == '-') remove_key( key, p + 2, prefix_len, &info, &modif );
+            else if (!(subkey = load_key( key, p + 1, prefix_len, &info, &modif )))
                 file_read_error( "Error creating key", &info );
             break;
         case '@':   /* default value */
