@@ -92,14 +92,6 @@ static void strbuf_write(LPCOLESTR str, strbuf *buf, int len)
     buf->str[buf->len] = '\0';
 }
 
-static int xdigit_to_int(WCHAR c)
-{
-    if('0' <= c && c <= '9') return c - '0';
-    if('a' <= c && c <= 'f') return c - 'a' + 10;
-    if('A' <= c && c <= 'F') return c - 'A' + 10;
-    return -1;
-}
-
 static HRESULT get_word(LPCOLESTR *str, strbuf *buf)
 {
     LPCOLESTR iter, iter2 = *str;
@@ -181,13 +173,140 @@ static HRESULT do_preprocess(const Registrar *This, LPCOLESTR data, strbuf *buf)
     return S_OK;
 }
 
-static HRESULT do_process_key(LPCOLESTR *pstr, HKEY parent_key, strbuf *buf, BOOL do_register)
+typedef struct {
+    char *str;
+    DWORD alloc;
+    DWORD len;
+} outbuf;
+
+static void outbuf_init(outbuf *buf)
+{
+    buf->str = HeapAlloc(GetProcessHeap(), 0, 128*sizeof(WCHAR));
+    buf->alloc = 128;
+    buf->len = 0;
+}
+
+static void outbuf_append(outbuf *buf, const char *str, int len)
+{
+    if(len == -1) len = strlen(str);
+    if(buf->len + len + 1 >= buf->alloc) {
+        buf->alloc = (buf->len + len) * 2;
+        buf->str = HeapReAlloc(GetProcessHeap(), 0, buf->str, buf->alloc);
+    }
+    memcpy(buf->str + buf->len, str, len);
+    buf->len += len;
+    buf->str[buf->len] = '\0';
+}
+
+static void output_escaped(outbuf *buf, WCHAR *str, int n)
+{
+    static const char hex[16] = {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
+    char buffer[1024], *dst;
+    while (n > 0)
+    {
+        dst = buffer;
+        while (n-- > 0 && dst <= buffer + sizeof(buffer) - 10)
+        {
+            WCHAR c = *str++;
+            switch (c)
+            {
+            case '\n': *dst++ = '\\'; *dst++ = 'n'; break;
+            case '\r': *dst++ = '\\'; *dst++ = 'r'; break;
+            case '\t': *dst++ = '\\'; *dst++ = 't'; break;
+            case '"':  *dst++ = '\\'; *dst++ = '"'; break;
+            case ']':  *dst++ = '\\'; *dst++ = ']'; break;
+            case '[':  *dst++ = '\\'; *dst++ = '['; break;
+            case '\\': *dst++ = '\\'; *dst++ = '\\'; break;
+            default:
+                if (c < ' ' || c >= 127)
+                {
+                    *dst++ = '\\';
+                    *dst++ = hex[(c >> 12) & 0x0f];
+                    *dst++ = hex[(c >> 8) & 0x0f];
+                    *dst++ = hex[(c >> 4) & 0x0f];
+                    *dst++ = hex[c & 0x0f];
+                }
+                else *dst++ = (char)c;
+            }
+        }
+        *dst = 0;
+        outbuf_append(buf, buffer, dst - buffer);
+    }
+}
+
+static void output_delete_key(outbuf *buf, strbuf *path)
+{
+    outbuf_append(buf, "[-", 2);
+    output_escaped(buf, path->str, path->len);
+    outbuf_append(buf, "]\n", 2);
+}
+
+static void output_key(outbuf *buf, strbuf *path)
+{
+    outbuf_append(buf, "[", 1);
+    output_escaped(buf, path->str, path->len);
+    outbuf_append(buf, "]\n", 2);
+}
+
+static void output_value_string(outbuf *buf, strbuf *name, strbuf *value)
+{
+    if (!name->len) outbuf_append(buf, "@=", 2);
+    else
+    {
+        outbuf_append(buf, "\"", 1);
+        output_escaped(buf, name->str, name->len);
+        outbuf_append(buf, "\"=", 2);
+    }
+    outbuf_append(buf, "\"", 1);
+    output_escaped(buf, value->str, value->len);
+    outbuf_append(buf, "\"\n", 2);
+}
+
+static void output_value_dword(outbuf *buf, strbuf *name, DWORD value)
+{
+    if (!name->len) outbuf_append(buf, "@=", 2);
+    else
+    {
+        outbuf_append(buf, "\"", 1);
+        output_escaped(buf, name->str, name->len);
+        outbuf_append(buf, "\"=", 2);
+    }
+    outbuf_append(buf, "dword:00000000\n", 15);
+    sprintf(buf->str + buf->len - 9, "%08x\n", value);
+}
+
+static void output_value_binary(outbuf *buf, strbuf *name, strbuf *value)
+{
+    int i;
+    char tmp;
+    if (!name->len) outbuf_append(buf, "@=", 2);
+    else
+    {
+        outbuf_append(buf, "\"", 1);
+        output_escaped(buf, name->str, name->len);
+        outbuf_append(buf, "\"=", 2);
+    }
+    outbuf_append(buf, "hex:", 4);
+    for (i = 0; i < value->len; i += 2)
+    {
+        tmp = value->str[i];
+        outbuf_append(buf, &tmp, 1);
+        if (i == value->len - 1) break;
+        tmp = value->str[i + 1];
+        outbuf_append(buf, &tmp, 1);
+        if (i <= value->len - 3) outbuf_append(buf, ",", 1);
+    }
+    outbuf_append(buf, "\n", 1);
+}
+
+static HRESULT do_process_key(LPCOLESTR *pstr, HKEY parent_key, strbuf *parent_path,
+                              strbuf *buf, BOOL do_register, outbuf *out)
 {
     LPCOLESTR iter;
     HRESULT hres;
-    LONG lres;
     HKEY hkey = 0;
     strbuf name;
+    strbuf path;
 
     enum {
         NORMAL,
@@ -202,6 +321,11 @@ static HRESULT do_process_key(LPCOLESTR *pstr, HKEY parent_key, strbuf *buf, BOO
     if(FAILED(hres))
         return hres;
     strbuf_init(&name);
+    strbuf_init(&path);
+    if(parent_path) {
+        strbuf_write(parent_path->str, &path, parent_path->len);
+        strbuf_write(L"\\", &path, 1);
+    }
 
     while(buf->str[1] || buf->str[0] != '}') {
         key_type = NORMAL;
@@ -221,28 +345,25 @@ static HRESULT do_process_key(LPCOLESTR *pstr, HKEY parent_key, strbuf *buf, BOO
         }
         TRACE("name = %s\n", debugstr_w(buf->str));
 
+        if(parent_path) path.len = parent_path->len + 1;
+        else path.len = 0;
+        strbuf_write(buf->str, &path, -1);
+
         if(do_register) {
             if(key_type == IS_VAL) {
                 hkey = parent_key;
+                output_key(out, parent_path);
                 strbuf_write(buf->str, &name, -1);
             }else if(key_type == DO_DELETE) {
                 TRACE("Deleting %s\n", debugstr_w(buf->str));
-                RegDeleteTreeW(parent_key, buf->str);
+                output_delete_key(out, &path);
             }else {
                 if(key_type == FORCE_REMOVE)
-                    RegDeleteTreeW(parent_key, buf->str);
-                lres = RegCreateKeyW(parent_key, buf->str, &hkey);
-                if(lres != ERROR_SUCCESS) {
-                    WARN("Could not create(open) key: %08x\n", lres);
-                    hres = HRESULT_FROM_WIN32(lres);
-                    break;
-                }
+                    output_delete_key(out, &path);
+                if (*iter == '=') output_key(out, &path);
             }
         }else if(key_type != IS_VAL && key_type != DO_DELETE) {
             strbuf_write(buf->str, &name, -1);
-            lres = RegOpenKeyW(parent_key, buf->str, &hkey);
-              if(lres != ERROR_SUCCESS)
-                WARN("Could not open key %s: %08x\n", debugstr_w(name.str), lres);
         }
 
         if(key_type != DO_DELETE && *iter == '=') {
@@ -261,13 +382,7 @@ static HRESULT do_process_key(LPCOLESTR *pstr, HKEY parent_key, strbuf *buf, BOO
                     hres = get_word(&iter, buf);
                     if(FAILED(hres))
                         break;
-                    lres = RegSetValueExW(hkey, name.len ? name.str :  NULL, 0, REG_SZ, (PBYTE)buf->str,
-                            (lstrlenW(buf->str)+1)*sizeof(WCHAR));
-                    if(lres != ERROR_SUCCESS) {
-                        WARN("Could set value of key: %08x\n", lres);
-                        hres = HRESULT_FROM_WIN32(lres);
-                        break;
-                    }
+                    output_value_string(out, &name, buf);
                     break;
                 case 'd': {
                     DWORD dw;
@@ -275,45 +390,14 @@ static HRESULT do_process_key(LPCOLESTR *pstr, HKEY parent_key, strbuf *buf, BOO
                     if(FAILED(hres))
                         break;
                     dw = wcstol(buf->str, NULL, 10);
-                    lres = RegSetValueExW(hkey, name.len ? name.str :  NULL, 0, REG_DWORD,
-                            (PBYTE)&dw, sizeof(dw));
-                    if(lres != ERROR_SUCCESS) {
-                        WARN("Could set value of key: %08x\n", lres);
-                        hres = HRESULT_FROM_WIN32(lres);
-                        break;
-                    }
+                    output_value_dword(out, &name, dw);
                     break;
                 }
                 case 'b': {
-                    BYTE *bytes;
-                    DWORD count;
-                    DWORD i;
                     hres = get_word(&iter, buf);
                     if(FAILED(hres))
                         break;
-                    count = (lstrlenW(buf->str) + 1) / 2;
-                    bytes = HeapAlloc(GetProcessHeap(), 0, count);
-                    if(bytes == NULL) {
-                        hres = E_OUTOFMEMORY;
-                        break;
-                    }
-                    for(i = 0; i < count && buf->str[2*i]; i++) {
-                        int d1, d2;
-                        if((d1 = xdigit_to_int(buf->str[2*i])) == -1 || (d2 = xdigit_to_int(buf->str[2*i + 1])) == -1) {
-                            hres = E_FAIL;
-                            break;
-                        }
-                        bytes[i] = (d1 << 4) | d2;
-                    }
-                    if(SUCCEEDED(hres)) {
-                        lres = RegSetValueExW(hkey, name.len ? name.str :  NULL, 0, REG_BINARY,
-                            bytes, count);
-                        if(lres != ERROR_SUCCESS) {
-                            WARN("Could not set value of key: 0x%08x\n", lres);
-                            hres = HRESULT_FROM_WIN32(lres);
-                        }
-                    }
-                    HeapFree(GetProcessHeap(), 0, bytes);
+                    output_value_binary(out, &name, buf);
                     break;
                 }
                 default:
@@ -339,7 +423,7 @@ static HRESULT do_process_key(LPCOLESTR *pstr, HKEY parent_key, strbuf *buf, BOO
             hres = get_word(&iter, buf);
             if(FAILED(hres))
                 break;
-            hres = do_process_key(&iter, hkey, buf, do_register);
+            hres = do_process_key(&iter, hkey, &path, buf, do_register, out);
             if(FAILED(hres))
                 break;
         }
@@ -347,11 +431,8 @@ static HRESULT do_process_key(LPCOLESTR *pstr, HKEY parent_key, strbuf *buf, BOO
         TRACE("%x %x\n", do_register, key_type);
         if(!do_register && (key_type == NORMAL || key_type == FORCE_REMOVE)) {
             TRACE("Deleting %s\n", debugstr_w(name.str));
-            RegDeleteKeyW(parent_key, name.str);
         }
 
-        if(hkey && key_type != IS_VAL)
-            RegCloseKey(hkey);
         hkey = 0;
         name.len = 0;
 
@@ -360,11 +441,35 @@ static HRESULT do_process_key(LPCOLESTR *pstr, HKEY parent_key, strbuf *buf, BOO
             break;
     }
 
+    HeapFree(GetProcessHeap(), 0, path.str);
     HeapFree(GetProcessHeap(), 0, name.str);
-    if(hkey && key_type != IS_VAL)
-        RegCloseKey(hkey);
     *pstr = iter;
     return hres;
+}
+
+static BOOL set_privileges(LPCSTR privilege, BOOL set)
+{
+    TOKEN_PRIVILEGES tp;
+    HANDLE token;
+    LUID luid;
+    BOOL ret = FALSE;
+
+    if(!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &token)) return FALSE;
+    if(!LookupPrivilegeValueA(NULL, privilege, &luid)) goto done;
+
+    tp.PrivilegeCount = 1;
+    tp.Privileges[0].Luid = luid;
+    if (set) tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+    else tp.Privileges[0].Attributes = 0;
+
+    AdjustTokenPrivileges(token, FALSE, &tp, sizeof(TOKEN_PRIVILEGES), NULL, NULL);
+    if (GetLastError() != ERROR_SUCCESS) goto done;
+
+    ret = TRUE;
+
+done:
+    CloseHandle(token);
+    return ret;
 }
 
 static HRESULT do_process_root_key(LPCOLESTR data, BOOL do_register)
@@ -373,11 +478,21 @@ static HRESULT do_process_root_key(LPCOLESTR data, BOOL do_register)
     strbuf buf;
     HRESULT hres;
     unsigned int i;
+    DWORD written;
+    WCHAR tmppath_w[MAX_PATH];
+    HANDLE file;
+    outbuf out;
 
     strbuf_init(&buf);
+    outbuf_init(&out);
     hres = get_word(&iter, &buf);
     if(FAILED(hres))
         return hres;
+
+    set_privileges(SE_RESTORE_NAME, TRUE);
+
+    swprintf(tmppath_w, MAX_PATH, L"c:\\windows\\temp\\wine-registrar-%x-%x.reg",
+             GetCurrentProcessId(), GetCurrentThreadId());
 
     while(*iter) {
         if(!buf.len) {
@@ -402,7 +517,17 @@ static HRESULT do_process_root_key(LPCOLESTR data, BOOL do_register)
             hres = DISP_E_EXCEPTION;
             break;
         }
-        hres = do_process_key(&iter, root_keys[i].key, &buf, do_register);
+
+        out.len = 0;
+        outbuf_append(&out, "WINE REGISTRY Version 2\n", 24);
+        hres = do_process_key(&iter, root_keys[i].key, NULL, &buf, do_register, &out);
+
+        file = CreateFileW(tmppath_w, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+        if (file == INVALID_HANDLE_VALUE) break;
+        WriteFile(file, out.str, out.len, &written, NULL);
+        CloseHandle(file);
+
+        RegLoadKeyW( root_keys[i].key, NULL, tmppath_w );
         if(FAILED(hres)) {
             WARN("Processing key failed: %08x\n", hres);
             break;
@@ -411,6 +536,7 @@ static HRESULT do_process_root_key(LPCOLESTR data, BOOL do_register)
         if(FAILED(hres))
             break;
     }
+    HeapFree(GetProcessHeap(), 0, out.str);
     HeapFree(GetProcessHeap(), 0, buf.str);
     return hres;
 }
