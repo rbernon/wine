@@ -3979,6 +3979,8 @@ static void test_text_metrics(const LOGFONTA *lf, const NEWTEXTMETRICA *ntm)
                tmA.tmFirstChar == expect_first_A + 1 /* win9x */,
                "A: tmFirstChar for %s got %02x expected %02x\n", font_name, tmA.tmFirstChar, expect_first_A);
         if (pGdiGetCodePage == NULL || ! IsDBCSLeadByteEx(pGdiGetCodePage(hdc), tmA.tmLastChar))
+            todo_wine_if( cmap_type != cmap_ms_symbol && (cmap_first < 0xf000 || cmap_first >= 0xf100) &&
+                          os2_last_char < 0xff && os2_last_char < expect_last_W )
             ok(tmA.tmLastChar == expect_last_A ||
                tmA.tmLastChar == 0xff /* win9x */,
                "A: tmLastChar for %s got %02x expected %02x\n", font_name, tmA.tmLastChar, expect_last_A);
