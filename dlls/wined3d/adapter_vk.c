@@ -2487,7 +2487,7 @@ static BOOL wined3d_adapter_vk_init(struct wined3d_adapter_vk *adapter_vk,
     else if (ordinal == 0 && wined3d_get_primary_adapter_luid(&primary_luid))
         luid = &primary_luid;
 
-    if (!wined3d_adapter_init(adapter, ordinal, luid, &wined3d_adapter_vk_ops))
+    if (!wined3d_adapter_init(adapter, ordinal, luid, &wined3d_adapter_vk_ops, FALSE))
     {
         heap_free(adapter_vk->device_extensions);
         goto fail_vulkan;

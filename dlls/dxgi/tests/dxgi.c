@@ -5749,7 +5749,7 @@ static void test_multi_adapter(void)
     }
 
     /* Windows 8+ always have a WARP adapter present at the end. */
-    todo_wine ok(adapter_index >= 2 || broken(adapter_index < 2) /* Windows 7 and before */,
+    ok(adapter_index >= 2 || broken(adapter_index < 2) /* Windows 7 and before */,
             "Got unexpected adapter count %u.\n", adapter_index);
     if (adapter_index < 2)
     {
@@ -5761,17 +5761,17 @@ static void test_multi_adapter(void)
     ok(hr == S_OK, "Got unexpected hr %#x.\n", hr);
     hr = IDXGIAdapter_GetDesc(adapter, &adapter_desc);
     ok(hr == S_OK, "Got unexpected hr %#x.\n", hr);
-    todo_wine ok(!lstrcmpW(adapter_desc.Description, L"Microsoft Basic Render Driver"),
+    ok(!lstrcmpW(adapter_desc.Description, L"Microsoft Basic Render Driver"),
             "Got unexpected description %s.\n", wine_dbgstr_w(adapter_desc.Description));
-    todo_wine ok(adapter_desc.VendorId == 0x1414,
+    ok(adapter_desc.VendorId == 0x1414,
             "Got unexpected vendor ID %#x.\n", adapter_desc.VendorId);
-    todo_wine ok(adapter_desc.DeviceId == 0x008c,
+    ok(adapter_desc.DeviceId == 0x008c,
             "Got unexpected device ID %#x.\n", adapter_desc.DeviceId);
     ok(adapter_desc.SubSysId == 0x0000,
             "Got unexpected sub-system ID %#x.\n", adapter_desc.SubSysId);
     ok(adapter_desc.Revision == 0x0000,
             "Got unexpected revision %#x.\n", adapter_desc.Revision);
-    todo_wine ok(!adapter_desc.DedicatedVideoMemory,
+    ok(!adapter_desc.DedicatedVideoMemory,
             "Got unexpected DedicatedVideoMemory %#lx.\n", adapter_desc.DedicatedVideoMemory);
     ok(!adapter_desc.DedicatedSystemMemory,
             "Got unexpected DedicatedSystemMemory %#lx.\n", adapter_desc.DedicatedSystemMemory);
@@ -5782,7 +5782,7 @@ static void test_multi_adapter(void)
     {
         hr = IDXGIAdapter1_GetDesc1(adapter1, &adapter_desc1);
         ok(hr == S_OK, "Got unexpected hr %#x.\n", hr);
-        todo_wine ok(adapter_desc1.Flags == DXGI_ADAPTER_FLAG_SOFTWARE,
+        ok(adapter_desc1.Flags == DXGI_ADAPTER_FLAG_SOFTWARE,
                 "Got unexpected flags %#x.\n", adapter_desc1.Flags);
         IDXGIAdapter1_Release(adapter1);
     }
