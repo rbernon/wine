@@ -645,6 +645,24 @@ static HWND x11drv_get_active_window( Display *display, Window root, BOOL *is_fo
 }
 
 
+static BOOL has_global_focus = FALSE;
+
+static void x11drv_global_focus_out( Display *display )
+{
+    if (!has_global_focus) return;
+    TRACE("global focus lost\n");
+    has_global_focus = FALSE;
+}
+
+
+static void x11drv_global_focus_in( Display *display )
+{
+    if (has_global_focus) return;
+    TRACE("global focus gained\n");
+    has_global_focus = TRUE;
+}
+
+
 /**********************************************************************
  *              set_input_focus
  *
@@ -856,6 +874,8 @@ BOOL x11drv_handle_focus_in_event( HWND hwnd, XEvent *xev, Time time )
     TRACE( "win %p xwin %lx detail=%s mode=%s\n", hwnd, event->window, focus_details[event->detail], focus_modes[event->mode] );
 
     if (event->detail == NotifyPointer) return FALSE;
+    if (is_virtual_desktop() && event->window == root_window && event->detail != NotifyInferior)
+        x11drv_global_focus_in( event->display );
     if (hwnd == GetDesktopWindow()) return FALSE;
 
     switch (event->mode)
@@ -960,6 +980,8 @@ BOOL x11drv_handle_focus_out_event( HWND hwnd, XEvent *xev, Time time )
         return TRUE;
     }
     if (!hwnd) return FALSE;
+    if (is_virtual_desktop() && event->window == root_window && event->detail != NotifyInferior)
+        x11drv_global_focus_out( event->display );
 
     switch (event->mode)
     {
@@ -1447,9 +1469,15 @@ static BOOL X11DRV_PropertyNotify( HWND hwnd, XEvent *xev )
             return FALSE;
 
         if (!(active_window = x11drv_get_active_window( event->display, event->window, &foreign )) && foreign)
+        {
             __wine_set_foreground_window( GetDesktopWindow(), time );
+            x11drv_global_focus_out( event->display );
+        }
         else
+        {
             __wine_set_foreground_window( active_window, time );
+            x11drv_global_focus_in( event->display );
+        }
 
         return FALSE;
     }
