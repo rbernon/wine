@@ -617,6 +617,8 @@ static void set_input_focus( struct x11drv_win_data *data )
 
 }
 
+extern WINUSERAPI BOOL CDECL __wine_set_foreground_window( HWND hwnd, DWORD time );
+
 /**********************************************************************
  *              set_focus
  */
