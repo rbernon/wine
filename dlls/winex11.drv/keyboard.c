@@ -63,7 +63,42 @@ WINE_DECLARE_DEBUG_CHANNEL(key);
 
 static int min_keycode, max_keycode, keysyms_per_keycode;
 static KeySym *key_mapping;
-static WORD keyc2vkey[256], keyc2scan[256];
+static WORD keyc2vkey[256];
+
+static const WORD keyc2scan[256] = {
+    0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+    0x0000, 0x0001, 0x0002, 0x0003, 0x0004, 0x0005, 0x0006, 0x0007,
+    0x0008, 0x0009, 0x000a, 0x000b, 0x000c, 0x000d, 0x000e, 0x000f,
+    0x0010, 0x0011, 0x0012, 0x0013, 0x0014, 0x0015, 0x0016, 0x0017,
+    0x0018, 0x0019, 0x001a, 0x001b, 0x001c, 0x001d, 0x001e, 0x001f,
+    0x0020, 0x0021, 0x0022, 0x0023, 0x0024, 0x0025, 0x0026, 0x0027,
+    0x0028, 0x0029, 0x002a, 0x002b, 0x002c, 0x002d, 0x002e, 0x002f,
+    0x0030, 0x0031, 0x0032, 0x0033, 0x0034, 0x0035, 0x0136, 0x0037,
+    0x0038, 0x0039, 0x003a, 0x003b, 0x003c, 0x003d, 0x003e, 0x003f,
+    0x0040, 0x0041, 0x0042, 0x0043, 0x0044, 0x0145, 0x0046, 0x0047,
+    0x0048, 0x0049, 0x004a, 0x004b, 0x004c, 0x004d, 0x004e, 0x004f,
+    0x0050, 0x0051, 0x0052, 0x0053, 0x0054, 0x0055, 0x0056, 0x0057,
+    0x0058, 0x0059, 0x005a, 0x005b, 0x005c, 0x005d, 0x005e, 0x005f,
+    0x011c, 0x011d, 0x0135, 0x0063, 0x0138, 0x0065, 0x0147, 0x0148,
+    0x0149, 0x014b, 0x014d, 0x014f, 0x0150, 0x0151, 0x0152, 0x0153,
+    0x0070, 0x0000, 0x0000, 0x0000, 0x0074, 0x0075, 0x0076, 0x0077,
+    0x0078, 0x0079, 0x007a, 0x007b, 0x007c, 0x015b, 0x007e, 0x015d,
+    0x0080, 0x0081, 0x0082, 0x0083, 0x0084, 0x0085, 0x0086, 0x0087,
+    0x0088, 0x0089, 0x008a, 0x008b, 0x008c, 0x008d, 0x008e, 0x008f,
+    0x0090, 0x0091, 0x0092, 0x0093, 0x0094, 0x0095, 0x0096, 0x0097,
+    0x0098, 0x0099, 0x009a, 0x009b, 0x009c, 0x009d, 0x009e, 0x009f,
+    0x00a0, 0x00a1, 0x00a2, 0x00a3, 0x0000, 0x00a5, 0x00a6, 0x00a7,
+    0x00a8, 0x00a9, 0x00aa, 0x0000, 0x00ac, 0x00ad, 0x00ae, 0x00af,
+    0x00b0, 0x00b1, 0x00b2, 0x00b3, 0x00b4, 0x00b5, 0x00b6, 0x00b7,
+    0x00b8, 0x00b9, 0x00ba, 0x00bb, 0x00bc, 0x00bd, 0x00be, 0x00bf,
+    0x00c0, 0x00c1, 0x00c2, 0x00c3, 0x00c4, 0x00c5, 0x00c6, 0x00c7,
+    0x00c8, 0x00c9, 0x00ca, 0x00cb, 0x00cc, 0x00cd, 0x00ce, 0x00cf,
+    0x00d0, 0x00d1, 0x00d2, 0x00d3, 0x00d4, 0x00d5, 0x00d6, 0x00d7,
+    0x00d8, 0x00d9, 0x00da, 0x00db, 0x00dc, 0x00dd, 0x00de, 0x00df,
+    0x00e0, 0x00e1, 0x00e2, 0x00e3, 0x00e4, 0x00e5, 0x00e6, 0x00e7,
+    0x00e8, 0x00e9, 0x00ea, 0x00eb, 0x00ec, 0x00ed, 0x00ee, 0x00ef,
+    0x00f0, 0x00f1, 0x00f2, 0x00f3, 0x00f4, 0x00f5, 0x00f6, 0x00f7,
+};
 
 static int NumLockMask, ScrollLockMask, AltGrMask; /* mask in the XKeyEvent state */
 
@@ -80,58 +115,6 @@ static char KEYBOARD_MapDeadKeysym(KeySym keysym);
 
 /* Keyboard translation tables */
 #define MAIN_LEN 49
-static const WORD main_key_scan_qwerty[MAIN_LEN] =
-{
-/* this is my (102-key) keyboard layout, sorry if it doesn't quite match yours */
- /* `    1    2    3    4    5    6    7    8    9    0    -    = */
-   0x29,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,
- /* q    w    e    r    t    y    u    i    o    p    [    ] */
-   0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1B,
- /* a    s    d    f    g    h    j    k    l    ;    '    \ */
-   0x1E,0x1F,0x20,0x21,0x22,0x23,0x24,0x25,0x26,0x27,0x28,0x2B,
- /* z    x    c    v    b    n    m    ,    .    / */
-   0x2C,0x2D,0x2E,0x2F,0x30,0x31,0x32,0x33,0x34,0x35,
-   0x56 /* the 102nd key (actually to the right of l-shift) */
-};
-
-static const WORD main_key_scan_abnt_qwerty[MAIN_LEN] =
-{
- /* `    1    2    3    4    5    6    7    8    9    0    -    = */
-   0x29,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,
- /* q    w    e    r    t    y    u    i    o    p    [    ] */
-   0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1B,
- /* a    s    d    f    g    h    j    k    l    ;    '    \ */
-   0x1E,0x1F,0x20,0x21,0x22,0x23,0x24,0x25,0x26,0x27,0x28,0x2B,
- /* \      z    x    c    v    b    n    m    ,    .    / */
-   0x5e,0x2C,0x2D,0x2E,0x2F,0x30,0x31,0x32,0x33,0x34,0x35,
-   0x56, /* the 102nd key (actually to the right of l-shift) */
-};
-
-static const WORD main_key_scan_dvorak[MAIN_LEN] =
-{
- /* `    1    2    3    4    5    6    7    8    9    0    [    ] */
-   0x29,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x1A,0x1B,
- /* '    ,    .    p    y    f    g    c    r    l    /    = */
-   0x28,0x33,0x34,0x19,0x15,0x21,0x22,0x2E,0x13,0x26,0x35,0x0D,
- /* a    o    e    u    i    d    h    t    n    s    -    \ */
-   0x1E,0x18,0x12,0x16,0x17,0x20,0x23,0x14,0x31,0x1F,0x0C,0x2B,
- /* ;    q    j    k    x    b    m    w    v    z */
-   0x27,0x10,0x24,0x25,0x2D,0x30,0x32,0x11,0x2F,0x2C,
-   0x56 /* the 102nd key (actually to the right of l-shift) */
-};
-
-static const WORD main_key_scan_qwerty_jp106[MAIN_LEN] =
-{
- /* 1    2    3    4    5    6    7    8    9    0    -    ^    \ (Yen) */
-   0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x7D,
- /* q    w    e    r    t    y    u    i    o    p    @    [ */
-   0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1B,
- /* a    s    d    f    g    h    j    k    l    ;    :    ] */
-   0x1E,0x1F,0x20,0x21,0x22,0x23,0x24,0x25,0x26,0x27,0x28,0x2B,
- /* z    x    c    v    b    n    m    ,    .    /    \ (Underscore) */
-   0x2C,0x2D,0x2E,0x2F,0x30,0x31,0x32,0x33,0x34,0x35,0x73
-};
-
 
 static const WORD main_key_vkey_qwerty[MAIN_LEN] =
 {
@@ -831,13 +814,6 @@ static const char main_key_th[MAIN_LEN][4] =
 }; 
 
 /*** VNC keyboard layout */
-static const WORD main_key_scan_vnc[MAIN_LEN] =
-{
-   0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x1A,0x1B,0x27,0x28,0x29,0x33,0x34,0x35,0x2B,
-   0x1E,0x30,0x2E,0x20,0x12,0x21,0x22,0x23,0x17,0x24,0x25,0x26,0x32,0x31,0x18,0x19,0x10,0x13,0x1F,0x14,0x16,0x2F,0x11,0x2D,0x15,0x2C,
-   0x56
-};
-
 static const WORD main_key_vkey_vnc[MAIN_LEN] =
 {
    '1','2','3','4','5','6','7','8','9','0',VK_OEM_MINUS,VK_OEM_PLUS,VK_OEM_4,VK_OEM_6,VK_OEM_1,VK_OEM_7,VK_OEM_3,VK_OEM_COMMA,VK_OEM_PERIOD,VK_OEM_2,VK_OEM_5,
@@ -869,73 +845,72 @@ static const struct {
                  in the appropriate dlls/kernel/nls/.nls file */
     const char *comment;
     const char (*key)[MAIN_LEN][4];
-    const WORD (*scan)[MAIN_LEN]; /* scan codes mapping */
     const WORD (*vkey)[MAIN_LEN]; /* virtual key codes mapping */
 } main_key_tab[]={
- {0x0409, "United States keyboard layout", &main_key_US, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0409, "United States keyboard layout (phantom key version)", &main_key_US_phantom, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0409, "United States keyboard layout (dvorak)", &main_key_US_dvorak, &main_key_scan_dvorak, &main_key_vkey_dvorak},
- {0x0409, "United States International keyboard layout", &main_key_US_intl, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0809, "British keyboard layout", &main_key_UK, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0407, "German keyboard layout", &main_key_DE, &main_key_scan_qwerty, &main_key_vkey_qwertz},
- {0x0807, "Swiss German keyboard layout", &main_key_SG, &main_key_scan_qwerty, &main_key_vkey_qwertz},
- {0x100c, "Swiss French keyboard layout", &main_key_SF, &main_key_scan_qwerty, &main_key_vkey_qwertz},
- {0x041d, "Swedish keyboard layout", &main_key_SE, &main_key_scan_qwerty, &main_key_vkey_qwerty_v2},
- {0x0425, "Estonian keyboard layout", &main_key_ET, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0414, "Norwegian keyboard layout", &main_key_NO, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0406, "Danish keyboard layout", &main_key_DA, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x040c, "French keyboard layout", &main_key_FR, &main_key_scan_qwerty, &main_key_vkey_azerty},
- {0x0c0c, "Canadian French keyboard layout", &main_key_CF, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0c0c, "Canadian French keyboard layout (CA_fr)", &main_key_CA_fr, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0c0c, "Canadian keyboard layout", &main_key_CA, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x080c, "Belgian keyboard layout", &main_key_BE, &main_key_scan_qwerty, &main_key_vkey_azerty},
- {0x0816, "Portuguese keyboard layout", &main_key_PT, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0416, "Brazilian ABNT-2 keyboard layout", &main_key_PT_br, &main_key_scan_abnt_qwerty, &main_key_vkey_abnt_qwerty},
- {0x0416, "Brazilian ABNT-2 keyboard layout ALT GR", &main_key_PT_br_alt_gr,&main_key_scan_abnt_qwerty, &main_key_vkey_abnt_qwerty},
- {0x040b, "Finnish keyboard layout", &main_key_FI, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0402, "Bulgarian bds keyboard layout", &main_key_BG_bds, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0402, "Bulgarian phonetic keyboard layout", &main_key_BG_phonetic, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0423, "Belarusian keyboard layout", &main_key_BY, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0419, "Russian keyboard layout", &main_key_RU, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0419, "Russian keyboard layout (phantom key version)", &main_key_RU_phantom, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0419, "Russian keyboard layout KOI8-R", &main_key_RU_koi8r, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0419, "Russian keyboard layout cp1251", &main_key_RU_cp1251, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0419, "Russian phonetic keyboard layout", &main_key_RU_phonetic, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0422, "Ukrainian keyboard layout KOI8-U", &main_key_UA, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0422, "Ukrainian keyboard layout (standard)", &main_key_UA_std, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0419, "Russian keyboard layout (standard)", &main_key_RU_std, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x040a, "Spanish keyboard layout", &main_key_ES, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0410, "Italian keyboard layout", &main_key_IT, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x040f, "Icelandic keyboard layout", &main_key_IS, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x040e, "Hungarian keyboard layout", &main_key_HU, &main_key_scan_qwerty, &main_key_vkey_qwertz},
- {0x0415, "Polish (programmer's) keyboard layout", &main_key_PL, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0424, "Slovenian keyboard layout", &main_key_SI, &main_key_scan_qwerty, &main_key_vkey_qwertz},
- {0x0c1a, "Serbian keyboard layout sr", &main_key_SR, &main_key_scan_qwerty, &main_key_vkey_qwerty}, /* LANG_SERBIAN,SUBLANG_SERBIAN_CYRILLIC */
- {0x0c1a, "Serbian keyboard layout us,sr", &main_key_US_SR, &main_key_scan_qwerty, &main_key_vkey_qwerty}, /* LANG_SERBIAN,SUBLANG_SERBIAN_CYRILLIC */
- {0x041a, "Croatian keyboard layout", &main_key_HR, &main_key_scan_qwerty, &main_key_vkey_qwertz},
- {0x041a, "Croatian keyboard layout (specific)", &main_key_HR_jelly, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0411, "Japanese 106 keyboard layout", &main_key_JA_jp106, &main_key_scan_qwerty_jp106, &main_key_vkey_qwerty_jp106},
- {0x0411, "Japanese Mac keyboard layout", &main_key_JA_macjp, &main_key_scan_qwerty_jp106, &main_key_vkey_qwerty_jp106},
- {0x0411, "Japanese pc98x1 keyboard layout", &main_key_JA_pc98x1, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x041b, "Slovak keyboard layout", &main_key_SK, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x041b, "Slovak and Czech keyboard layout without dead keys", &main_key_SK_prog, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0405, "Czech keyboard layout", &main_key_CS, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0405, "Czech keyboard layout cz", &main_key_CZ, &main_key_scan_qwerty, &main_key_vkey_qwertz},
- {0x0405, "Czech keyboard layout cz_qwerty", &main_key_CZ_qwerty, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x040a, "Latin American keyboard layout", &main_key_LA, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0427, "Lithuanian (Baltic) keyboard layout", &main_key_LT_B, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x041f, "Turkish keyboard layout", &main_key_TK, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x041f, "Turkish keyboard layout tr", &main_key_TR, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x041f, "Turkish keyboard layout trf", &main_key_TR_F, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x040d, "Israelian keyboard layout", &main_key_IL, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x040d, "Israelian phonetic keyboard layout", &main_key_IL_phonetic, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x040d, "Israelian Saharon keyboard layout", &main_key_IL_saharon, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0409, "VNC keyboard layout", &main_key_vnc, &main_key_scan_vnc, &main_key_vkey_vnc},
- {0x0408, "Greek keyboard layout", &main_key_EL, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x041e, "Thai (Kedmanee)  keyboard layout", &main_key_th, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0413, "Dutch keyboard layout", &main_key_NL, &main_key_scan_qwerty, &main_key_vkey_qwerty},
+ {0x0409, "United States keyboard layout", &main_key_US, &main_key_vkey_qwerty},
+ {0x0409, "United States keyboard layout (phantom key version)", &main_key_US_phantom, &main_key_vkey_qwerty},
+ {0x0409, "United States keyboard layout (dvorak)", &main_key_US_dvorak, &main_key_vkey_dvorak},
+ {0x0409, "United States International keyboard layout", &main_key_US_intl, &main_key_vkey_qwerty},
+ {0x0809, "British keyboard layout", &main_key_UK, &main_key_vkey_qwerty},
+ {0x0407, "German keyboard layout", &main_key_DE, &main_key_vkey_qwertz},
+ {0x0807, "Swiss German keyboard layout", &main_key_SG, &main_key_vkey_qwertz},
+ {0x100c, "Swiss French keyboard layout", &main_key_SF, &main_key_vkey_qwertz},
+ {0x041d, "Swedish keyboard layout", &main_key_SE, &main_key_vkey_qwerty_v2},
+ {0x0425, "Estonian keyboard layout", &main_key_ET, &main_key_vkey_qwerty},
+ {0x0414, "Norwegian keyboard layout", &main_key_NO, &main_key_vkey_qwerty},
+ {0x0406, "Danish keyboard layout", &main_key_DA, &main_key_vkey_qwerty},
+ {0x040c, "French keyboard layout", &main_key_FR, &main_key_vkey_azerty},
+ {0x0c0c, "Canadian French keyboard layout", &main_key_CF, &main_key_vkey_qwerty},
+ {0x0c0c, "Canadian French keyboard layout (CA_fr)", &main_key_CA_fr, &main_key_vkey_qwerty},
+ {0x0c0c, "Canadian keyboard layout", &main_key_CA, &main_key_vkey_qwerty},
+ {0x080c, "Belgian keyboard layout", &main_key_BE, &main_key_vkey_azerty},
+ {0x0816, "Portuguese keyboard layout", &main_key_PT, &main_key_vkey_qwerty},
+ {0x0416, "Brazilian ABNT-2 keyboard layout", &main_key_PT_br, &main_key_vkey_abnt_qwerty},
+ {0x0416, "Brazilian ABNT-2 keyboard layout ALT GR", &main_key_PT_br_alt_gr,&main_key_vkey_abnt_qwerty},
+ {0x040b, "Finnish keyboard layout", &main_key_FI, &main_key_vkey_qwerty},
+ {0x0402, "Bulgarian bds keyboard layout", &main_key_BG_bds, &main_key_vkey_qwerty},
+ {0x0402, "Bulgarian phonetic keyboard layout", &main_key_BG_phonetic, &main_key_vkey_qwerty},
+ {0x0423, "Belarusian keyboard layout", &main_key_BY, &main_key_vkey_qwerty},
+ {0x0419, "Russian keyboard layout", &main_key_RU, &main_key_vkey_qwerty},
+ {0x0419, "Russian keyboard layout (phantom key version)", &main_key_RU_phantom, &main_key_vkey_qwerty},
+ {0x0419, "Russian keyboard layout KOI8-R", &main_key_RU_koi8r, &main_key_vkey_qwerty},
+ {0x0419, "Russian keyboard layout cp1251", &main_key_RU_cp1251, &main_key_vkey_qwerty},
+ {0x0419, "Russian phonetic keyboard layout", &main_key_RU_phonetic, &main_key_vkey_qwerty},
+ {0x0422, "Ukrainian keyboard layout KOI8-U", &main_key_UA, &main_key_vkey_qwerty},
+ {0x0422, "Ukrainian keyboard layout (standard)", &main_key_UA_std, &main_key_vkey_qwerty},
+ {0x0419, "Russian keyboard layout (standard)", &main_key_RU_std, &main_key_vkey_qwerty},
+ {0x040a, "Spanish keyboard layout", &main_key_ES, &main_key_vkey_qwerty},
+ {0x0410, "Italian keyboard layout", &main_key_IT, &main_key_vkey_qwerty},
+ {0x040f, "Icelandic keyboard layout", &main_key_IS, &main_key_vkey_qwerty},
+ {0x040e, "Hungarian keyboard layout", &main_key_HU, &main_key_vkey_qwertz},
+ {0x0415, "Polish (programmer's) keyboard layout", &main_key_PL, &main_key_vkey_qwerty},
+ {0x0424, "Slovenian keyboard layout", &main_key_SI, &main_key_vkey_qwertz},
+ {0x0c1a, "Serbian keyboard layout sr", &main_key_SR, &main_key_vkey_qwerty}, /* LANG_SERBIAN,SUBLANG_SERBIAN_CYRILLIC */
+ {0x0c1a, "Serbian keyboard layout us,sr", &main_key_US_SR, &main_key_vkey_qwerty}, /* LANG_SERBIAN,SUBLANG_SERBIAN_CYRILLIC */
+ {0x041a, "Croatian keyboard layout", &main_key_HR, &main_key_vkey_qwertz},
+ {0x041a, "Croatian keyboard layout (specific)", &main_key_HR_jelly, &main_key_vkey_qwerty},
+ {0x0411, "Japanese 106 keyboard layout", &main_key_JA_jp106, &main_key_vkey_qwerty_jp106},
+ {0x0411, "Japanese Mac keyboard layout", &main_key_JA_macjp, &main_key_vkey_qwerty_jp106},
+ {0x0411, "Japanese pc98x1 keyboard layout", &main_key_JA_pc98x1, &main_key_vkey_qwerty},
+ {0x041b, "Slovak keyboard layout", &main_key_SK, &main_key_vkey_qwerty},
+ {0x041b, "Slovak and Czech keyboard layout without dead keys", &main_key_SK_prog, &main_key_vkey_qwerty},
+ {0x0405, "Czech keyboard layout", &main_key_CS, &main_key_vkey_qwerty},
+ {0x0405, "Czech keyboard layout cz", &main_key_CZ, &main_key_vkey_qwertz},
+ {0x0405, "Czech keyboard layout cz_qwerty", &main_key_CZ_qwerty, &main_key_vkey_qwerty},
+ {0x040a, "Latin American keyboard layout", &main_key_LA, &main_key_vkey_qwerty},
+ {0x0427, "Lithuanian (Baltic) keyboard layout", &main_key_LT_B, &main_key_vkey_qwerty},
+ {0x041f, "Turkish keyboard layout", &main_key_TK, &main_key_vkey_qwerty},
+ {0x041f, "Turkish keyboard layout tr", &main_key_TR, &main_key_vkey_qwerty},
+ {0x041f, "Turkish keyboard layout trf", &main_key_TR_F, &main_key_vkey_qwerty},
+ {0x040d, "Israelian keyboard layout", &main_key_IL, &main_key_vkey_qwerty},
+ {0x040d, "Israelian phonetic keyboard layout", &main_key_IL_phonetic, &main_key_vkey_qwerty},
+ {0x040d, "Israelian Saharon keyboard layout", &main_key_IL_saharon, &main_key_vkey_qwerty},
+ {0x0409, "VNC keyboard layout", &main_key_vnc, &main_key_vkey_vnc},
+ {0x0408, "Greek keyboard layout", &main_key_EL, &main_key_vkey_qwerty},
+ {0x041e, "Thai (Kedmanee)  keyboard layout", &main_key_th, &main_key_vkey_qwerty},
+ {0x0413, "Dutch keyboard layout", &main_key_NL, &main_key_vkey_qwerty},
 
- {0, NULL, NULL, NULL, NULL} /* sentinel */
+ {0, NULL, NULL, NULL} /* sentinel */
 };
 static unsigned kbd_layout=0; /* index into above table of layouts */
 
@@ -1003,53 +978,6 @@ static const WORD nonchar_key_vkey[256] =
     VK_RMENU, VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN, 0, 0, 0,    /* FFE8 */
     0, 0, 0, 0, 0, 0, 0, 0,                                     /* FFF0 */
     0, 0, 0, 0, 0, 0, 0, VK_DELETE                              /* FFF8 */
-};
-
-static const WORD nonchar_key_scan[256] =
-{
-    /* unused */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,              /* FF00 */
-    /* special keys */
-    0x0E, 0x0F, 0x00, /*?*/ 0, 0x00, 0x1C, 0x00, 0x00,           /* FF08 */
-    0x00, 0x00, 0x00, 0x45, 0x46, 0x00, 0x00, 0x00,              /* FF10 */
-    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,              /* FF18 */
-    /* Japanese special keys */
-    0x00, 0x29, 0x7B, 0x79, 0x70, 0x00, 0x00, 0x70,              /* FF20 */
-    0x00, 0x00, 0x29, 0x00, 0x00, 0x00, 0x00, 0x00,              /* FF28 */
-    /* Korean special keys (FF31-) */
-    0x3A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,              /* FF30 */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,              /* FF38 */
-    /* unused */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,              /* FF40 */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,              /* FF48 */
-    /* cursor keys */
-    0x147, 0x14B, 0x148, 0x14D, 0x150, 0x149, 0x151, 0x14F,      /* FF50 */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,              /* FF58 */
-    /* misc keys */
-    /*?*/ 0, 0x137, /*?*/ 0, 0x152, 0x00, 0x00, 0x00, 0x15D,     /* FF60 */
-    /*?*/ 0, /*?*/ 0, 0x38, 0x146, 0x00, 0x00, 0x00, 0x00,       /* FF68 */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,              /* FF70 */
-    /* keypad keys */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x145,             /* FF78 */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,              /* FF80 */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x11C, 0x00, 0x00,             /* FF88 */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x47, 0x4B, 0x48,              /* FF90 */
-    0x4D, 0x50, 0x49, 0x51, 0x4F, 0x4C, 0x52, 0x53,              /* FF98 */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,              /* FFA0 */
-    0x00, 0x00, 0x37, 0x4E, 0x53, 0x4A, 0x53, 0x135,             /* FFA8 */
-    0x52, 0x4F, 0x50, 0x51, 0x4B, 0x4C, 0x4D, 0x47,              /* FFB0 */
-    0x48, 0x49, 0x00, 0x00, 0x00, 0x00,                          /* FFB8 */
-    /* function keys */
-    0x3B, 0x3C,
-    0x3D, 0x3E, 0x3F, 0x40, 0x41, 0x42, 0x43, 0x44,              /* FFC0 */
-    0x57, 0x58, 0x5B, 0x5C, 0x5D, 0x00, 0x00, 0x00,              /* FFC8 */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,              /* FFD0 */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,              /* FFD8 */
-    /* modifier keys */
-    0x00, 0x2A, 0x136, 0x1D, 0x11D, 0x3A, 0x00, 0x38,            /* FFE0 */
-    0x138, 0x38, 0x138, 0x15b, 0x15c, 0x00, 0x00, 0x00,          /* FFE8 */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,              /* FFF0 */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x153              /* FFF8 */
 };
 
 static const WORD xfree86_vendor_key_vkey[256] =
@@ -1327,7 +1255,7 @@ BOOL X11DRV_KeyEvent( HWND hwnd, XEvent *xev )
     char buf[24];
     char *Str = buf;
     KeySym keysym = 0;
-    WORD vkey = 0, bScan;
+    WORD vkey = 0, scan;
     DWORD dwFlags;
     int ascii_chars;
     XIC xic = X11DRV_get_ic( hwnd );
@@ -1398,10 +1326,10 @@ BOOL X11DRV_KeyEvent( HWND hwnd, XEvent *xev )
     vkey = EVENT_event_to_vkey(xic,event);
     /* X returns keycode 0 for composed characters */
     if (!vkey && ascii_chars) vkey = VK_NONAME;
-    bScan = keyc2scan[event->keycode] & 0xFF;
+    scan = keyc2scan[event->keycode];
 
-    TRACE_(key)("keycode %u converted to vkey 0x%X scan %02x\n",
-                event->keycode, vkey, bScan);
+    TRACE_(key)("keycode %u converted to vkey 0x%X scan %04x\n",
+                event->keycode, vkey, scan);
 
     LeaveCriticalSection( &kbd_section );
 
@@ -1409,11 +1337,11 @@ BOOL X11DRV_KeyEvent( HWND hwnd, XEvent *xev )
 
     dwFlags = 0;
     if ( event->type == KeyRelease ) dwFlags |= KEYEVENTF_KEYUP;
-    if ( vkey & 0x100 )              dwFlags |= KEYEVENTF_EXTENDEDKEY;
+    if ( scan & 0x100 )             dwFlags |= KEYEVENTF_EXTENDEDKEY;
 
     update_lock_state( hwnd, vkey, event->state, event_time );
 
-    X11DRV_send_keyboard_input( hwnd, vkey & 0xff, bScan, dwFlags, event_time );
+    X11DRV_send_keyboard_input( hwnd, vkey & 0xff, scan & 0x1ff, dwFlags, event_time );
     return TRUE;
 }
 
@@ -1611,7 +1539,7 @@ void X11DRV_InitKeyboard( Display *display )
     KeySym keysym;
     KeyCode *kcp;
     XKeyEvent e2;
-    WORD scan, vkey;
+    WORD vkey;
     int keyc, i, keyn, syms;
     char ckey[4]={0,0,0,0};
     const char (*lkey)[MAIN_LEN][4];
@@ -1691,23 +1619,18 @@ void X11DRV_InitKeyboard( Display *display )
         keysym = 0;
         e2.keycode = (KeyCode)keyc;
         have_chars = XLookupString(&e2, buf, sizeof(buf), &keysym, NULL);
-        vkey = 0; scan = 0;
+        vkey = 0;
         if (keysym)  /* otherwise, keycode not used */
         {
             if ((keysym >> 8) == 0xFF)         /* non-character key */
             {
                 vkey = nonchar_key_vkey[keysym & 0xff];
-                scan = nonchar_key_scan[keysym & 0xff];
-		/* set extended bit when necessary */
-		if (scan & 0x100) vkey |= 0x100;
             } else if ((keysym >> 8) == 0x1008FF) { /* XFree86 vendor keys */
                 vkey = xfree86_vendor_key_vkey[keysym & 0xff];
                 /* All vendor keys are extended with a scan code of 0 per testing on WinXP */
-                scan = 0x100;
 		vkey |= 0x100;
             } else if (keysym == 0x20) {                 /* Spacebar */
 	        vkey = VK_SPACE;
-		scan = 0x39;
 	    } else if (have_chars) {
 	      /* we seem to need to search the layout-dependent scancodes */
 	      int maxlen=0,maxval=-1,ok;
@@ -1741,16 +1664,14 @@ void X11DRV_InitKeyboard( Display *display )
 	      }
 	      if (maxval>=0) {
 		/* got it */
-		const WORD (*lscan)[MAIN_LEN] = main_key_tab[kbd_layout].scan;
 		const WORD (*lvkey)[MAIN_LEN] = main_key_tab[kbd_layout].vkey;
-		scan = (*lscan)[maxval];
 		vkey = (*lvkey)[maxval];
 	      }
 	    }
         }
+
         TRACE("keycode %u => vkey %04X\n", e2.keycode, vkey);
         keyc2vkey[e2.keycode] = vkey;
-        keyc2scan[e2.keycode] = scan;
         if ((vkey & 0xff) && vkey_used[(vkey & 0xff)])
             WARN("vkey %04X is being used by more than one keycode\n", vkey);
         vkey_used[(vkey & 0xff)] = 1;
@@ -1860,19 +1781,12 @@ void X11DRV_InitKeyboard( Display *display )
     } /* for */
 #undef VKEY_IF_NOT_USED
 
-    /* If some keys still lack scancodes, assign some arbitrary ones to them now */
-    for (scan = 0x60, keyc = min_keycode; keyc <= max_keycode; keyc++)
-      if (keyc2vkey[keyc]&&!keyc2scan[keyc]) {
-	const char *ksname;
-	keysym = keycode_to_keysym(display, keyc, 0);
-	ksname = XKeysymToString(keysym);
-	if (!ksname) ksname = "NoSymbol";
-
-	/* should make sure the scancode is unassigned here, but >=0x60 currently always is */
-
-	TRACE_(key)("assigning scancode %02x to unidentified keycode %u (%s)\n",scan,keyc,ksname);
-	keyc2scan[keyc]=scan++;
-      }
+    for (keyc = min_keycode; keyc <= max_keycode; keyc++)
+    {
+        if (keyc2scan[keyc] == 0x0136) keyc2vkey[keyc] = VK_RSHIFT;
+        if (keyc2scan[keyc] == 0x011d) keyc2vkey[keyc] = VK_RCONTROL;
+        if (keyc2scan[keyc] == 0x0138) keyc2vkey[keyc] = VK_RMENU;
+    }
 
     LeaveCriticalSection( &kbd_section );
 }
