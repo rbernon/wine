@@ -2032,6 +2032,8 @@ NTSTATUS WINAPI LdrGetProcedureAddress(HMODULE module, const ANSI_STRING *name,
     DWORD exp_size;
     NTSTATUS ret = STATUS_PROCEDURE_NOT_FOUND;
 
+    TRACE("module %p, name %s, ord %ld, address %p\n", module, debugstr_a(name ? name->Buffer : NULL), ord, address);
+
     RtlEnterCriticalSection( &loader_section );
 
     /* check if the module itself is invalid to return the proper error */
@@ -2052,6 +2054,8 @@ NTSTATUS WINAPI LdrGetProcedureAddress(HMODULE module, const ANSI_STRING *name,
                   ord, debugstr_us(&wm->ldr.FullDllName) );
         }
     }
+
+    if (ret) WARN("couldn't find procedure %s (%ld), returning %#lx\n", debugstr_a(name ? name->Buffer : NULL), ord, ret);
 
     RtlLeaveCriticalSection( &loader_section );
     return ret;
