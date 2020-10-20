@@ -32,6 +32,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <stdint.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -64,6 +65,9 @@
 #include <dlfcn.h>
 #ifdef HAVE_VALGRIND_VALGRIND_H
 # include <valgrind/valgrind.h>
+#endif
+#ifdef HAVE_VALGRIND_MEMCHECK_H
+# include <valgrind/memcheck.h>
 #endif
 #if defined(__APPLE__)
 # include <mach/mach_init.h>
@@ -4023,7 +4027,7 @@ NTSTATUS virtual_alloc_thread_stack( INITIAL_TEB *stack, ULONG_PTR limit_low, UL
     if (status != STATUS_SUCCESS) goto done;
 
 #ifdef VALGRIND_STACK_REGISTER
-    VALGRIND_STACK_REGISTER( view->base, (char *)view->base + view->size );
+    VALGRIND_DISCARD( VALGRIND_STACK_REGISTER( view->base, (char *)view->base + view->size ) );
 #endif
 
     /* setup no access guard page */
