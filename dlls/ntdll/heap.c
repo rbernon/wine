@@ -2154,13 +2154,13 @@ static NTSTATUS heap_resize_block( struct heap *heap, ULONG flags, struct block 
         old_block_size += block_get_size( next );
     }
 
+    valgrind_notify_resize( block + 1, *old_size, size );
     if ((next = split_block( heap, flags, block, old_block_size, block_size )))
     {
         block_init_free( next, flags, subheap, old_block_size - block_size );
         insert_free_block( heap, flags, subheap, next );
     }
 
-    valgrind_notify_resize( block + 1, *old_size, size );
     block_set_flags( block, BLOCK_FLAG_USER_MASK & ~BLOCK_FLAG_USER_INFO, BLOCK_USER_FLAGS( flags ) );
     block->tail_size = block_get_size( block ) - sizeof(*block) - size;
     initialize_block( block, *old_size, size, flags );
