@@ -1,0 +1,72 @@
+{
+   mingw_stack_grow
+   Memcheck:Addr8
+   fun:___chkstk_ms
+}
+{
+   mingw_stack_grow
+   Memcheck:Addr4
+   fun:___chkstk_ms
+}
+{
+   KeUserModeCallback_args
+   Memcheck:Addr8
+   fun:memmove
+   fun:KeUserModeCallback
+}
+{
+   KeUserModeCallback_args
+   Memcheck:Addr8
+   fun:KeUserModeCallback
+}
+{
+   fontconfig_config_leak
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:FcInitLoadOwnConfig
+}
+{
+   dlopen_leak
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:dlopen
+}
+{
+   dlopen_leak
+   Memcheck:Leak
+   fun:calloc
+   ...
+   fun:dlopen
+}
+{
+   dlopen_leak
+   Memcheck:Leak
+   fun:realloc
+   ...
+   fun:dlopen
+}
+{
+   exit_handler_leak
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:exit
+   ...
+   fun:NtTerminateProcess
+}
+{
+   orc_leak
+   Memcheck:Leak
+   fun:calloc
+   ...
+   fun:deinterlace_element_init
+}
+{
+   orc_leak
+   Memcheck:Leak
+   fun:realloc
+   ...
+   fun:deinterlace_element_init
+}
