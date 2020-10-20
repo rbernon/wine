@@ -25,8 +25,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#define RUNNING_ON_VALGRIND 0  /* FIXME */
-
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
 #define NONAMELESSUNION
@@ -36,6 +34,9 @@
 #include "ntdll_misc.h"
 #include "wine/list.h"
 #include "wine/debug.h"
+
+#include "valgrind/valgrind.h"
+#include "valgrind/memcheck.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(heap);
 

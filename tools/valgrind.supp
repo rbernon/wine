@@ -1,0 +1,23 @@
+{
+   mingw_stack_grow
+   Memcheck:Addr8
+   fun:___chkstk_ms
+   ...
+}
+{
+   wine_stack_reset
+   Memcheck:Addr8
+   fun:signal_start_thread
+}
+{
+   wine_thread_pthread_tls
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   fun:allocate_dtv
+   fun:_dl_allocate_tls
+   fun:allocate_stack
+   fun:pthread_create@@GLIBC_2.2.5
+   fun:NtCreateThreadEx
+   ...
+}
