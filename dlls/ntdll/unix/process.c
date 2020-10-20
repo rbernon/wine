@@ -60,6 +60,12 @@
 #ifdef HAVE_MACH_MACH_H
 # include <mach/mach.h>
 #endif
+#ifdef HAVE_VALGRIND_VALGRIND_H
+# include <valgrind/valgrind.h>
+#endif
+#ifdef HAVE_VALGRIND_MEMCHECK_H
+# include <valgrind/memcheck.h>
+#endif
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -1807,7 +1813,7 @@ NTSTATUS WINAPI NtSetInformationProcess( HANDLE handle, PROCESSINFOCLASS class, 
         if (!ret)
         {
 #ifdef VALGRIND_STACK_REGISTER
-            VALGRIND_STACK_REGISTER( addr, (char *)addr + reserve );
+            VALGRIND_DISCARD( VALGRIND_STACK_REGISTER( addr, (char *)addr + reserve ) );
 #endif
             stack->StackBase = addr;
         }
