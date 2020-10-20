@@ -1,0 +1,47 @@
+{
+   mingw_stack_grow
+   Memcheck:Addr8
+   fun:___chkstk_ms
+   ...
+}
+{
+   mingw_stack_grow
+   Memcheck:Addr4
+   fun:___chkstk_ms
+   ...
+}
+{
+   wine_syscall_stack_copy
+   Memcheck:Addr8
+   fun:__wine_syscall_dispatcher
+}
+{
+   wine_syscall_stack_args
+   Memcheck:Addr8
+   fun:__wine_enter_syscall
+   fun:__wine_syscall_dispatcher
+}
+{
+   radeonsi_leaks
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/dri/radeonsi_dri.so
+}
+{
+   llvm_leaks
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libLLVM-11.so.1
+}
+{
+   fontconfig_leaks
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libfontconfig.so.1.12.0
+}
+{
+   winetest_leaks
+   Memcheck:Leak
+   ...
+   fun:winetest_set_location
+}
