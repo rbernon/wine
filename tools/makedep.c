@@ -1306,6 +1306,7 @@ static const struct
 } parse_functions[] =
 {
     { ".c",   parse_c_file },
+    { ".cpp", parse_c_file },
     { ".h",   parse_c_file },
     { ".inl", parse_c_file },
     { ".l",   parse_c_file },
@@ -3127,7 +3128,8 @@ static void output_source_default( struct makefile *make, struct incl_file *sour
         else
             strarray_add( &make->clean_files, strmake( "%s.o", obj ));
         output( "%s.o: %s\n", obj_dir_path( make, obj ), source->filename );
-        output( "\t%s$(CC) -c -o $@ %s", cmd_prefix( "CC" ), source->filename );
+        if (strendswith( source->name, ".cpp" )) output( "\t%s$(CXX) -c -o $@ %s", cmd_prefix( "CXX" ), source->filename );
+        else output( "\t%s$(CC) -c -o $@ %s", cmd_prefix( "CC" ), source->filename );
         output_filenames( defines );
         if (make->module || make->staticlib || make->sharedlib || make->testdll)
         {
@@ -3136,7 +3138,8 @@ static void output_source_default( struct makefile *make, struct incl_file *sour
         }
         output_filenames( extra_cflags );
         output_filenames( cpp_flags );
-        output_filename( "$(CFLAGS)" );
+        if (strendswith( source->name, ".cpp" )) output_filename( "$(CXXFLAGS)" );
+        else output_filename( "$(CFLAGS)" );
         output( "\n" );
     }
     if (need_cross)
@@ -3146,13 +3149,15 @@ static void output_source_default( struct makefile *make, struct incl_file *sour
         else
             strarray_add( &make->clean_files, strmake( "%s.cross.o", obj ));
         output( "%s.cross.o: %s\n", obj_dir_path( make, obj ), source->filename );
-        output( "\t%s$(CROSSCC) -c -o $@ %s", cmd_prefix( "CC" ), source->filename );
+        if (strendswith( source->name, ".cpp" )) output( "\t%s$(CROSSCXX) -c -o $@ %s", cmd_prefix( "CXX" ), source->filename );
+        else output( "\t%s$(CROSSCC) -c -o $@ %s", cmd_prefix( "CC" ), source->filename );
         output_filenames( defines );
         output_filenames( extra_cross_cflags );
         if (source->file->flags & FLAG_C_IMPLIB || (make->module && is_crt_module( make->module )))
             output_filename( "-fno-builtin" );
         output_filenames( cpp_flags );
-        output_filename( "$(CROSSCFLAGS)" );
+        if (strendswith( source->name, ".cpp" )) output_filename( "$(CROSSCXXFLAGS)" );
+        else output_filename( "$(CROSSCFLAGS)" );
         output( "\n" );
     }
     if (strendswith( source->name, ".c" ) && !(source->file->flags & FLAG_GENERATED))
@@ -4180,6 +4185,7 @@ static void load_sources( struct makefile *make )
     {
         "SOURCES",
         "C_SRCS",
+        "CXX_SRCS",
         "OBJC_SRCS",
         "RC_SRCS",
         "MC_SRCS",
