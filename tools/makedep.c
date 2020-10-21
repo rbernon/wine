@@ -201,6 +201,7 @@ struct makefile
     int             is_cross;
     int             is_win16;
     int             is_exe;
+    int             is_cpp;
 
     /* values generated at output time */
     struct strarray in_files;
@@ -1127,6 +1128,7 @@ static const struct
 } parse_functions[] =
 {
     { ".c",   parse_c_file },
+    { ".cpp", parse_c_file },
     { ".h",   parse_c_file },
     { ".inl", parse_c_file },
     { ".l",   parse_c_file },
@@ -1399,7 +1401,7 @@ static struct file *open_include_file( const struct makefile *make, struct incl_
     }
 
     if (pFile->type == INCL_SYSTEM && pFile->use_msvcrt &&
-        !make->extlib && !pFile->included_by->is_external)
+        !make->extlib && !make->is_cpp && !pFile->included_by->is_external)
     {
         if (!strcmp( pFile->name, "stdarg.h" )) return NULL;
         if (!strcmp( pFile->name, "x86intrin.h" )) return NULL;
@@ -1419,7 +1421,7 @@ static struct file *open_include_file( const struct makefile *make, struct incl_
         return file;
     }
 
-    if (make->extlib) return NULL; /* ignore missing files in external libs */
+    if (make->extlib || make->is_cpp) return NULL; /* ignore missing files in external libs */
 
     fprintf( stderr, "%s:%d: error: ", pFile->included_by->file->name, pFile->included_line );
     perror( pFile->name );
@@ -1537,7 +1539,7 @@ static struct incl_file *add_src_file( struct makefile *make, const char *name )
     memset( file, 0, sizeof(*file) );
     file->name = xstrdup(name);
     file->use_msvcrt = make->use_msvcrt;
-    file->is_external = !!make->extlib;
+    file->is_external = !!make->extlib || !!make->is_cpp;
     list_add_tail( &make->sources, &file->entry );
     parse_file( make, file, 1 );
     return file;
@@ -3019,7 +3021,8 @@ static void output_source_default( struct makefile *make, struct incl_file *sour
         else
             strarray_add( &make->clean_files, strmake( "%s.o", obj ));
         output( "%s.o: %s\n", obj_dir_path( make, obj ), source->filename );
-        output( "\t%s$(CC) -c -o $@ %s", cmd_prefix( "CC" ), source->filename );
+        if (strendswith( source->name, ".cpp" )) output( "\t%s$(CXX) -c -o $@ %s", cmd_prefix( "CXX" ), source->filename );
+        else output( "\t%s$(CC) -c -o $@ %s", cmd_prefix( "CC" ), source->filename );
         output_filenames( defines );
         if (make->sharedlib || (source->file->flags & FLAG_C_UNIX))
         {
@@ -3034,7 +3037,8 @@ static void output_source_default( struct makefile *make, struct incl_file *sour
         }
         output_filenames( make->extlib ? extra_cflags_extlib : extra_cflags );
         output_filenames( cpp_flags );
-        output_filename( "$(CFLAGS)" );
+        if (strendswith( source->name, ".cpp" )) output_filename( "-fno-exceptions -fno-rtti $(CXXFLAGS)" );
+        else output_filename( "$(CFLAGS)" );
         output( "\n" );
     }
     if (need_cross)
@@ -3046,13 +3050,15 @@ static void output_source_default( struct makefile *make, struct incl_file *sour
         else
             strarray_add( &make->clean_files, strmake( "%s.cross.o", obj ));
         output( "%s.cross.o: %s\n", obj_dir_path( make, obj ), source->filename );
-        output( "\t%s$(CROSSCC) -c -o $@ %s", cmd_prefix( "CC" ), source->filename );
+        if (strendswith( source->name, ".cpp" )) output( "\t%s$(CROSSCXX) -c -o $@ %s", cmd_prefix( "CXX" ), source->filename );
+        else output( "\t%s$(CROSSCC) -c -o $@ %s", cmd_prefix( "CC" ), source->filename );
         output_filenames( defines );
         output_filenames( make->extlib ? extra_cross_cflags_extlib : extra_cross_cflags );
         if (make->module && is_crt_module( make->module ))
             output_filename( "-fno-builtin" );
         output_filenames( cpp_flags );
-        output_filename( "$(CROSSCFLAGS)" );
+        if (strendswith( source->name, ".cpp" )) output_filename( "-fno-exceptions -fno-rtti $(CROSSCXXFLAGS)" );
+        else output_filename( "$(CROSSCFLAGS)" );
         output( "\n" );
     }
     if (strendswith( source->name, ".c" ) && !(source->file->flags & FLAG_GENERATED))
@@ -4130,6 +4136,7 @@ static void load_sources( struct makefile *make )
     {
         "SOURCES",
         "C_SRCS",
+        "CXX_SRCS",
         "OBJC_SRCS",
         "RC_SRCS",
         "MC_SRCS",
@@ -4215,10 +4222,12 @@ static void load_sources( struct makefile *make )
     list_init( &make->sources );
     list_init( &make->includes );
 
+    make->is_cpp = 0;
     for (var = source_vars; *var; var++)
     {
         value = get_expanded_make_var_array( make, *var );
         for (i = 0; i < value.count; i++) add_src_file( make, value.str[i] );
+        if (!strcmp( *var, "CXX_SRCS" ) && value.count) make->is_cpp = 1;
     }
 
     add_generated_sources( make );
