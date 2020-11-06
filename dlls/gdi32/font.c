@@ -86,6 +86,12 @@ struct gdi_font_face
     struct wine_rb_entry       full_name_entry;
 };
 
+static inline const char *debugstr_bitmap_font_size(struct bitmap_font_size *size)
+{
+    return wine_dbg_sprintf("width %2d, height %2d, size %2d, xppem %4d, yppem %4d, il %2d",
+                            size->width, size->height, size->size, size->x_ppem, size->y_ppem, size->internal_leading);
+}
+
 static const struct font_backend_funcs *font_funcs;
 
 static const MAT2 identity = { {0,1}, {0,0}, {0,0}, {0,1} };
@@ -786,7 +792,7 @@ static void dump_gdi_font_list(void)
         {
             TRACE( "\t%s\t%s\t%08x", debugstr_w(face->style_name), debugstr_w(face->full_name),
                    face->fs.fsCsb[0] );
-            if (!face->scalable) TRACE(" %d", face->size.height );
+            if (!face->scalable) TRACE(" %s", debugstr_bitmap_font_size(&face->size) );
             TRACE("\n");
 	}
     }
