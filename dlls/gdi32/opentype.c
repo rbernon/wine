@@ -880,20 +880,20 @@ BOOL winfnt_parse_font_face( const void *data, size_t size, DWORD index, DWORD *
         switch (fnt_header->fi.dfCharSet)
         {
             case ANSI_CHARSET:        fs->fsCsb[0] = FS_LATIN1; break;
-            case EASTEUROPE_CHARSET:  fs->fsCsb[0] = FS_LATIN2; break;
-            case RUSSIAN_CHARSET:     fs->fsCsb[0] = FS_CYRILLIC; break;
-            case GREEK_CHARSET:       fs->fsCsb[0] = FS_GREEK; break;
-            case TURKISH_CHARSET:     fs->fsCsb[0] = FS_TURKISH; break;
-            case HEBREW_CHARSET:      fs->fsCsb[0] = FS_HEBREW; break;
-            case ARABIC_CHARSET:      fs->fsCsb[0] = FS_ARABIC; break;
-            case BALTIC_CHARSET:      fs->fsCsb[0] = FS_BALTIC; break;
-            case VIETNAMESE_CHARSET:  fs->fsCsb[0] = FS_VIETNAMESE; break;
-            case THAI_CHARSET:        fs->fsCsb[0] = FS_THAI; break;
-            case SHIFTJIS_CHARSET:    fs->fsCsb[0] = FS_JISJAPAN; break;
-            case GB2312_CHARSET:      fs->fsCsb[0] = FS_CHINESESIMP; break;
-            case HANGEUL_CHARSET:     fs->fsCsb[0] = FS_WANSUNG; break;
-            case CHINESEBIG5_CHARSET: fs->fsCsb[0] = FS_CHINESETRAD; break;
-            case JOHAB_CHARSET:       fs->fsCsb[0] = FS_JOHAB; break;
+            case EASTEUROPE_CHARSET:  fs->fsCsb[0] = FS_LATIN2; return FALSE;
+            case RUSSIAN_CHARSET:     fs->fsCsb[0] = FS_CYRILLIC; return FALSE;
+            case GREEK_CHARSET:       fs->fsCsb[0] = FS_GREEK; return FALSE;
+            case TURKISH_CHARSET:     fs->fsCsb[0] = FS_TURKISH; return FALSE;
+            case HEBREW_CHARSET:      fs->fsCsb[0] = FS_HEBREW; return FALSE;
+            case ARABIC_CHARSET:      fs->fsCsb[0] = FS_ARABIC; return FALSE;
+            case BALTIC_CHARSET:      fs->fsCsb[0] = FS_BALTIC; return FALSE;
+            case VIETNAMESE_CHARSET:  fs->fsCsb[0] = FS_VIETNAMESE; return FALSE;
+            case THAI_CHARSET:        fs->fsCsb[0] = FS_THAI; return FALSE;
+            case SHIFTJIS_CHARSET:    fs->fsCsb[0] = FS_JISJAPAN; return FALSE;
+            case GB2312_CHARSET:      fs->fsCsb[0] = FS_CHINESESIMP; return FALSE;
+            case HANGEUL_CHARSET:     fs->fsCsb[0] = FS_WANSUNG; return FALSE;
+            case CHINESEBIG5_CHARSET: fs->fsCsb[0] = FS_CHINESETRAD; return FALSE;
+            case JOHAB_CHARSET:       fs->fsCsb[0] = FS_JOHAB; return FALSE;
             case SYMBOL_CHARSET:      fs->fsCsb[0] = FS_SYMBOL; break;
         }
 

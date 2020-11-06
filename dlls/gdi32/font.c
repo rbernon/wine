@@ -883,14 +883,6 @@ static int remove_font( const WCHAR *file, DWORD flags )
     return count;
 }
 
-static inline BOOL faces_equal( const struct gdi_font_face *f1, const struct gdi_font_face *f2 )
-{
-    if (facename_compare( f1->full_name, f2->full_name, -1 )) return FALSE;
-    if (f1->scalable) return TRUE;
-    if (f1->size.y_ppem != f2->size.y_ppem) return FALSE;
-    return !memcmp( &f1->fs, &f2->fs, sizeof(f1->fs) );
-}
-
 static inline int style_order( const struct gdi_font_face *face )
 {
     switch (face->ntmFlags & (NTM_REGULAR | NTM_BOLD | NTM_ITALIC))
@@ -910,13 +902,25 @@ static inline int style_order( const struct gdi_font_face *face )
     }
 }
 
+static inline int gdi_font_face_compare( const struct gdi_font_face *f1, const struct gdi_font_face *f2 )
+{
+    int ret;
+    if ((ret = style_order(f1) - style_order(f2))) return ret;
+    if ((ret = facename_compare( f1->full_name, f2->full_name, -1 ))) return ret;
+    if (f1->scalable && f2->scalable) return 0;
+    if ((ret = (f1->fs.fsCsb[0] - f2->fs.fsCsb[0]))) return ret;
+    if ((ret = (f1->size.y_ppem - f2->size.y_ppem))) return ret;
+    return memcmp( &f1->fs, &f2->fs, sizeof(f1->fs) );
+}
+
 static BOOL insert_face_in_family_list( struct gdi_font_face *face, struct gdi_font_family *family )
 {
+    int ret;
     struct gdi_font_face *cursor;
 
     LIST_FOR_EACH_ENTRY( cursor, &family->faces, struct gdi_font_face, entry )
     {
-        if (faces_equal( face, cursor ))
+        if (!(ret = gdi_font_face_compare( face, cursor )))
         {
             TRACE( "Already loaded face %s in family %s, original version %x, new version %x\n",
                    debugstr_w(face->full_name), debugstr_w(family->family_name),
@@ -952,7 +956,7 @@ static BOOL insert_face_in_family_list( struct gdi_font_face *face, struct gdi_f
                 return TRUE;
             }
         }
-        if (style_order( face ) < style_order( cursor )) break;
+        else if (ret < 0) break;
     }
 
     TRACE( "Adding face %s in family %s from %s\n", debugstr_w(face->full_name),

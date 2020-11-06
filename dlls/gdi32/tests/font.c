@@ -1001,7 +1001,7 @@ static void test_bitmap_font_metrics(void)
             if (is_CJK() && lf.lfCharSet == ANSI_CHARSET)
                 ok(ret == ANSI_CHARSET, "got charset %d, expected ANSI_CHARSETd\n", ret);
             else
-                ok(ret == expected_cs, "got charset %d, expected %d\n", ret, expected_cs);
+                ok(ret == expected_cs, "%d: got charset %d, expected %d\n", i, ret, expected_cs);
 
             if(fd[i].dpi == tm.tmDigitizedAspectX)
             {
