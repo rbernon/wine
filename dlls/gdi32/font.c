@@ -416,6 +416,9 @@ static CRITICAL_SECTION_DEBUG critsect_debug =
 };
 static CRITICAL_SECTION font_cs = { &critsect_debug, -1, 0, 0, 0, 0 };
 
+static RTL_RUN_ONCE font_list_init_once = RTL_RUN_ONCE_INIT;
+static DWORD WINAPI font_list_init( RTL_RUN_ONCE *once, void *param, void **context );
+
 #ifndef WINE_FONT_DIR
 #define WINE_FONT_DIR "fonts"
 #endif
@@ -2543,6 +2546,7 @@ static BOOL CDECL font_CreateDC( PHYSDEV *dev, LPCWSTR driver, LPCWSTR device,
 {
     struct font_physdev *physdev;
 
+    RtlRunOnceExecuteOnce( &font_list_init_once, font_list_init, NULL, NULL );
     if (!font_funcs) return TRUE;
     if (!(physdev = HeapAlloc( GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*physdev) ))) return FALSE;
     push_dc_driver( dev, &physdev->dev, &font_driver );
@@ -2820,6 +2824,8 @@ static BOOL CDECL font_EnumFonts( PHYSDEV dev, LOGFONTW *lf, FONTENUMPROCW proc,
     struct gdi_font_face *face;
     struct enum_charset enum_charsets[32];
     DWORD count, charset;
+
+    RtlRunOnceExecuteOnce( &font_list_init_once, font_list_init, NULL, NULL );
 
     charset = lf ? lf->lfCharSet : DEFAULT_CHARSET;
 
@@ -3703,6 +3709,7 @@ static HFONT CDECL font_SelectFont( PHYSDEV dev, HFONT hfont, UINT *aa_flags )
     struct gdi_font *font = NULL, *prev = physdev->font;
     DC *dc = get_physdev_dc( dev );
 
+    RtlRunOnceExecuteOnce( &font_list_init_once, font_list_init, NULL, NULL );
     if (hfont)
     {
         LOGFONTW lf;
@@ -6835,6 +6842,7 @@ BOOL WINAPI CreateScalableFontResourceW( DWORD hidden, LPCWSTR resource_file,
     TRACE("(%d, %s, %s, %s)\n", hidden, debugstr_w(resource_file),
           debugstr_w(font_file), debugstr_w(font_path) );
 
+    RtlRunOnceExecuteOnce( &font_list_init_once, font_list_init, NULL, NULL );
     if (!font_funcs) return FALSE;
 
     if (!font_file) goto done;
@@ -7953,17 +7961,32 @@ void font_init(void)
 
     init_font_options();
     update_codepage();
-    if (__wine_init_unix_lib( gdi32_module, DLL_PROCESS_ATTACH, &callback_funcs, &font_funcs )) return;
-
-    load_system_bitmap_fonts();
-    load_file_system_fonts();
-    font_funcs->load_fonts();
 
     if (!(mutex = CreateMutexW( NULL, FALSE, L"__WINE_FONT_MUTEX__" ))) return;
     WaitForSingleObject( mutex, INFINITE );
 
     RegCreateKeyExW( wine_fonts_key, L"Cache", 0, NULL, REG_OPTION_VOLATILE,
                      KEY_ALL_ACCESS, NULL, &wine_fonts_cache_key, &disposition );
+
+    if (disposition == REG_CREATED_NEW_KEY)
+        RtlRunOnceExecuteOnce( &font_list_init_once, font_list_init, &disposition, NULL );
+
+    ReleaseMutex( mutex );
+}
+
+static DWORD WINAPI font_list_init( RTL_RUN_ONCE *once, void *param, void **context )
+{
+    DWORD disposition = param ? *(DWORD *)param : 0;
+    HANDLE mutex;
+
+    if (__wine_init_unix_lib( gdi32_module, DLL_PROCESS_ATTACH, &callback_funcs, &font_funcs )) return FALSE;
+
+    load_system_bitmap_fonts();
+    load_file_system_fonts();
+    font_funcs->load_fonts();
+
+    if (!(mutex = CreateMutexW( NULL, FALSE, L"__WINE_FONT_MUTEX__" ))) return FALSE;
+    WaitForSingleObject( mutex, INFINITE );
 
     if (disposition == REG_CREATED_NEW_KEY)
     {
@@ -7985,6 +8008,8 @@ void font_init(void)
     load_system_links();
     dump_gdi_font_list();
     dump_gdi_font_subst();
+
+    return TRUE;
 }
 
 /***********************************************************************
@@ -7996,6 +8021,7 @@ INT WINAPI AddFontResourceExW( LPCWSTR str, DWORD flags, PVOID pdv )
     WCHAR *filename;
     BOOL hidden;
 
+    RtlRunOnceExecuteOnce( &font_list_init_once, font_list_init, NULL, NULL );
     if (!font_funcs) return 1;
     if (!(ret = add_font_resource( str, flags )))
     {
@@ -8047,6 +8073,7 @@ HANDLE WINAPI AddFontMemResourceEx( PVOID ptr, DWORD size, PVOID pdv, DWORD *pcF
     DWORD num_fonts;
     void *copy;
 
+    RtlRunOnceExecuteOnce( &font_list_init_once, font_list_init, NULL, NULL );
     if (!ptr || !size || !pcFonts)
     {
         SetLastError(ERROR_INVALID_PARAMETER);
@@ -8119,6 +8146,7 @@ BOOL WINAPI RemoveFontResourceExW( LPCWSTR str, DWORD flags, PVOID pdv )
     WCHAR *filename;
     BOOL hidden;
 
+    RtlRunOnceExecuteOnce( &font_list_init_once, font_list_init, NULL, NULL );
     if (!font_funcs) return TRUE;
 
     if (!(ret = remove_font_resource( str, flags )))
@@ -8332,6 +8360,7 @@ BOOL WINAPI GetFontFileData( DWORD instance_id, DWORD unknown, UINT64 offset, vo
     DWORD tag = 0, size;
     BOOL ret = FALSE;
 
+    RtlRunOnceExecuteOnce( &font_list_init_once, font_list_init, NULL, NULL );
     if (!font_funcs) return FALSE;
     EnterCriticalSection( &font_cs );
     if ((font = get_font_from_handle( instance_id )))
@@ -8365,6 +8394,7 @@ BOOL WINAPI GetFontFileInfo( DWORD instance_id, DWORD unknown, struct font_filei
     struct gdi_font *font;
     BOOL ret = FALSE;
 
+    RtlRunOnceExecuteOnce( &font_list_init_once, font_list_init, NULL, NULL );
     EnterCriticalSection( &font_cs );
 
     if ((font = get_font_from_handle( instance_id )))
