@@ -308,7 +308,7 @@ static int pull_timeout(gnutls_transport_ptr_t transport, unsigned int timeout)
 static BOOL CDECL schan_create_session(schan_session *session, schan_credentials *cred)
 {
     gnutls_session_t *s = (gnutls_session_t*)session;
-    char priority[128] = "NORMAL:%LATEST_RECORD_VERSION", *p;
+    char priority[128] = "NORMAL:-CHACHA20-POLY1305:%LATEST_RECORD_VERSION", *p;
     BOOL using_vers_all = FALSE, disabled;
     unsigned int i, flags = (cred->credential_use == SECPKG_CRED_INBOUND) ? GNUTLS_SERVER : GNUTLS_CLIENT;
     int err;
