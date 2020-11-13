@@ -1196,9 +1196,11 @@ static struct unix_face *unix_face_create( const char *unix_name, void *data_ptr
 
     const struct ttc_sfnt_v1 *ttc_sfnt_v1;
     const struct tt_name_v0 *tt_name_v0;
+    const char *family_name_a = NULL, *style_name_a = NULL;
     struct unix_face *This;
     struct stat st;
-    DWORD face_count;
+    DWORD face_count, needed;
+    WORD width, height, points, ppem, in_leading;
     int fd, length;
 
     TRACE( "unix_name %s, face_index %u, data_ptr %p, data_size %u, flags %#x\n",
@@ -1264,6 +1266,41 @@ static struct unix_face *unix_face_create( const char *unix_name, void *data_ptr
             lstrcatW( This->full_name, This->style_name );
             WARN( "full name not found, using %s instead\n", debugstr_w(This->full_name) );
         }
+    }
+    else if (winfnt_parse_font_face( data_ptr, data_size, face_index, &face_count,
+                                     &family_name_a, &style_name_a, &This->fs, &This->ntm_flags,
+                                     &width, &height, &points, &ppem, &in_leading ))
+    {
+        This->scalable = FALSE;
+        This->num_faces = face_count;
+        This->font_version = 0;
+
+        length = strlen( family_name_a ) + 1;
+        RtlMultiByteToUnicodeSize( &needed, family_name_a, length );
+        This->family_name = RtlAllocateHeap( GetProcessHeap(), 0, needed );
+        RtlMultiByteToUnicodeN( This->family_name, needed, &needed, family_name_a, length );
+
+        This->second_name = NULL;
+
+        length = strlen( style_name_a ) + 1;
+        RtlMultiByteToUnicodeSize( &needed, style_name_a, length );
+        This->style_name = RtlAllocateHeap( GetProcessHeap(), 0, needed );
+        RtlMultiByteToUnicodeN( This->style_name, needed, &needed, style_name_a, length );
+
+        TRACE( "parsed font names family_name %s, style_name %s\n", debugstr_w(This->family_name), debugstr_w(This->style_name) );
+
+        length = lstrlenW( This->family_name ) + lstrlenW( space_w ) + lstrlenW( This->style_name ) + 1;
+        This->full_name = RtlAllocateHeap( GetProcessHeap(), 0, length * sizeof(WCHAR) );
+        lstrcpyW( This->full_name, This->family_name );
+        lstrcatW( This->full_name, space_w );
+        lstrcatW( This->full_name, This->style_name );
+
+        This->size.height = height;
+        This->size.width = width;
+        This->size.size = points * 64;
+        This->size.y_ppem = ppem;
+        This->size.x_ppem = ppem;
+        This->size.internal_leading = in_leading;
     }
     else if ((This->ft_face = new_ft_face( unix_name, data_ptr, data_size, face_index, flags & ADDFONT_ALLOW_BITMAP )))
     {

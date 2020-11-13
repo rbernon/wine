@@ -443,6 +443,10 @@ extern BOOL opentype_enum_full_names( const struct tt_name_v0 *tt_name_v0,
 extern BOOL opentype_get_properties( const void *data, size_t size, const struct ttc_sfnt_v1 *ttc_sfnt_v1,
                                      DWORD *version, FONTSIGNATURE *fs, DWORD *ntm_flags ) DECLSPEC_HIDDEN;
 
+extern BOOL winfnt_parse_font_face( const void *data, size_t size, DWORD index, DWORD *count,
+                                    const char **family_name, const char **style_name, FONTSIGNATURE *fs, DWORD *ntm_flags,
+                                    WORD *width, WORD *height, WORD *points, WORD *ppem, WORD *in_leading ) DECLSPEC_HIDDEN;
+
 /* gdiobj.c */
 extern HGDIOBJ alloc_gdi_handle( void *obj, WORD type, const struct gdi_obj_funcs *funcs ) DECLSPEC_HIDDEN;
 extern void *free_gdi_handle( HGDIOBJ handle ) DECLSPEC_HIDDEN;

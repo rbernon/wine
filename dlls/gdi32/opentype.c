@@ -631,6 +631,7 @@ BOOL opentype_get_ttc_sfnt_v1( const void *data, size_t size, DWORD index, DWORD
     default:
         WARN( "unsupported font format %x\n", fourcc );
         return FALSE;
+    case 0x010d5a4d: /* WinFNT header */ return FALSE;
     case MS_TTCF_TAG:
         if (size < sizeof(ttc_header_v1)) return FALSE;
         if (index >= (*count = GET_BE_DWORD( ttc_header_v1->numFonts ))) return FALSE;
@@ -766,5 +767,154 @@ BOOL opentype_get_properties( const void *data, size_t size, const struct ttc_sf
         flags |= NTM_PS_OPENTYPE;
 
     *ntm_flags = flags;
+    return TRUE;
+}
+
+#include "pshpack1.h"
+typedef struct
+{
+    INT16 dfType;
+    INT16 dfPoints;
+    INT16 dfVertRes;
+    INT16 dfHorizRes;
+    INT16 dfAscent;
+    INT16 dfInternalLeading;
+    INT16 dfExternalLeading;
+    BYTE  dfItalic;
+    BYTE  dfUnderline;
+    BYTE  dfStrikeOut;
+    INT16 dfWeight;
+    BYTE  dfCharSet;
+    INT16 dfPixWidth;
+    INT16 dfPixHeight;
+    BYTE  dfPitchAndFamily;
+    INT16 dfAvgWidth;
+    INT16 dfMaxWidth;
+    BYTE  dfFirstChar;
+    BYTE  dfLastChar;
+    BYTE  dfDefaultChar;
+    BYTE  dfBreakChar;
+    INT16 dfWidthBytes;
+    LONG  dfDevice;
+    LONG  dfFace;
+    LONG  dfBitsPointer;
+    LONG  dfBitsOffset;
+    BYTE  dfReserved;
+    LONG  dfFlags;
+    INT16 dfAspace;
+    INT16 dfBspace;
+    INT16 dfCspace;
+    LONG  dfColorPointer;
+    LONG  dfReserved1[4];
+} FONTINFO16;
+
+typedef struct
+{
+    WORD dfVersion;
+    DWORD dfSize;
+    char dfCopyright[60];
+    FONTINFO16 fi;
+} FNT_HEADER;
+
+typedef struct
+{
+    WORD  offset;
+    WORD  length;
+    WORD  flags;
+    WORD  id;
+    WORD  handle;
+    WORD  usage;
+} NE_NAMEINFO;
+
+typedef struct
+{
+    WORD  type_id;
+    WORD  count;
+    DWORD resloader;
+} NE_TYPEINFO;
+#include "poppack.h"
+
+#define NE_RSCTYPE_FONTDIR 0x8007
+#define NE_RSCTYPE_FONT    0x8008
+
+BOOL winfnt_parse_font_face( const void *data, size_t size, DWORD index, DWORD *count,
+                             const char **family_name, const char **style_name, FONTSIGNATURE *fs, DWORD *ntm_flags,
+                             WORD *width, WORD *height, WORD *points, WORD *ppem, WORD *in_leading )
+{
+    const IMAGE_DOS_HEADER *dos = data;
+    const IMAGE_OS2_HEADER *os2 = (const IMAGE_OS2_HEADER *)((const char *)data + dos->e_lfanew);
+    DWORD offset, flags;
+    WORD align;
+
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE) return FALSE;
+
+    if (dos->e_lfanew <= size && dos->e_lfanew + sizeof(*os2) <= size &&
+        os2->ne_magic == IMAGE_OS2_SIGNATURE)
+    {
+        const char *rsrc_table = (const char *)os2 + os2->ne_rsrctab;
+        const char *res_table = (const char *)os2 + os2->ne_restab;
+        const NE_TYPEINFO *type = (const NE_TYPEINFO *)(rsrc_table + sizeof(align));
+        const NE_NAMEINFO *name = (const NE_NAMEINFO *)(type + 1);
+        const FNT_HEADER *fnt_header;
+
+        if ((const char *)name >= res_table) return FALSE;
+        memcpy(&align, rsrc_table, sizeof(align));
+
+        if (type->type_id != NE_RSCTYPE_FONTDIR) return FALSE;
+        if (rsrc_table + name->id >= res_table) return FALSE;
+        if (*(rsrc_table + name->id) != strlen("FONTDIR")) return FALSE;
+        if (memcmp(rsrc_table + name->id + 1, "FONTDIR", strlen("FONTDIR"))) return FALSE;
+
+        type = (const NE_TYPEINFO *)(name + 1);
+        if (type->type_id != NE_RSCTYPE_FONT) return FALSE;
+        *count = type->count;
+
+        if (index >= type->count) return FALSE;
+        name = (const NE_NAMEINFO *)(type + 1) + index;
+        offset = name->offset << align;
+
+        if (offset >= size || offset + sizeof(*fnt_header) >= size) return FALSE;
+        fnt_header = (const FNT_HEADER *)((const char *)data + offset);
+
+        *family_name = (const char *)fnt_header + fnt_header->fi.dfFace;
+        switch (fnt_header->fi.dfCharSet)
+        {
+            case ANSI_CHARSET:        fs->fsCsb[0] = FS_LATIN1; break;
+            case EASTEUROPE_CHARSET:  fs->fsCsb[0] = FS_LATIN2; break;
+            case RUSSIAN_CHARSET:     fs->fsCsb[0] = FS_CYRILLIC; break;
+            case GREEK_CHARSET:       fs->fsCsb[0] = FS_GREEK; break;
+            case TURKISH_CHARSET:     fs->fsCsb[0] = FS_TURKISH; break;
+            case HEBREW_CHARSET:      fs->fsCsb[0] = FS_HEBREW; break;
+            case ARABIC_CHARSET:      fs->fsCsb[0] = FS_ARABIC; break;
+            case BALTIC_CHARSET:      fs->fsCsb[0] = FS_BALTIC; break;
+            case VIETNAMESE_CHARSET:  fs->fsCsb[0] = FS_VIETNAMESE; break;
+            case THAI_CHARSET:        fs->fsCsb[0] = FS_THAI; break;
+            case SHIFTJIS_CHARSET:    fs->fsCsb[0] = FS_JISJAPAN; break;
+            case GB2312_CHARSET:      fs->fsCsb[0] = FS_CHINESESIMP; break;
+            case HANGEUL_CHARSET:     fs->fsCsb[0] = FS_WANSUNG; break;
+            case CHINESEBIG5_CHARSET: fs->fsCsb[0] = FS_CHINESETRAD; break;
+            case JOHAB_CHARSET:       fs->fsCsb[0] = FS_JOHAB; break;
+            case SYMBOL_CHARSET:      fs->fsCsb[0] = FS_SYMBOL; break;
+        }
+
+        flags = 0;
+        if (fnt_header->fi.dfItalic) flags |= NTM_ITALIC;
+        if (fnt_header->fi.dfWeight > FW_NORMAL) flags |= NTM_BOLD;
+        if (flags == 0) flags = NTM_REGULAR;
+        *ntm_flags = flags;
+
+        if (flags == (NTM_BOLD|NTM_ITALIC)) *style_name = "Bold Italic";
+        else if (flags == NTM_BOLD) *style_name = "Bold";
+        else if (flags == NTM_ITALIC) *style_name = "Italic";
+        else *style_name = "Regular";
+
+        *width = fnt_header->fi.dfAvgWidth;
+        *height = fnt_header->fi.dfPixHeight;
+        *points = fnt_header->fi.dfPoints;
+        *ppem = ((fnt_header->fi.dfPoints * fnt_header->fi.dfVertRes * 0x40) / 72
+                 + fnt_header->fi.dfInternalLeading + fnt_header->fi.dfExternalLeading + 0x20) & ~0x3f;
+        *in_leading = fnt_header->fi.dfInternalLeading;
+    }
+
     return TRUE;
 }
