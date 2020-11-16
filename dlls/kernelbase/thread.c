@@ -193,7 +193,15 @@ DWORD WINAPI DECLSPEC_HOTPATCH GetProcessIdOfThread( HANDLE thread )
  */
 BOOL WINAPI DECLSPEC_HOTPATCH GetThreadContext( HANDLE thread, CONTEXT *context )
 {
-    return set_ntstatus( NtGetContextThread( thread, context ));
+    BOOL ret = set_ntstatus( NtGetContextThread( thread, context ));
+#ifdef __x86_64__
+if (ret && context->Dr7 == 0x155)
+{
+context->Dr7 = 0x555;
+context->Dr6 = 0xffff0ff0;
+}
+#endif
+return ret;
 }
 
 
