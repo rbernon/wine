@@ -643,6 +643,77 @@ static void test_user_shared_data(void)
     }
 }
 
+static void test_NtProtectVirtualMemory(void)
+{
+    NTSTATUS status;
+    SIZE_T size;
+    DWORD new_prot, old_prot, new_insn, old_insn;
+    void *addr;
+
+    memcpy( &old_insn, DbgUiRemoteBreakin, sizeof(old_insn) );
+
+    addr = DbgUiRemoteBreakin;
+    size = sizeof(new_insn);
+    new_prot = PAGE_EXECUTE_READWRITE;
+    old_prot = 0xdeadbeef;
+    status = NtProtectVirtualMemory( NtCurrentProcess(), &addr, &size, new_prot, &old_prot );
+    ok( !status, "NtProtectVirtualMemory(DbgUiRemoteBreakin) returned %x\n", status );
+    ok( size == 0x1000, "Unexpected size %Ix\n", size );
+    ok( old_prot == PAGE_EXECUTE_READ, "Unexpected old_prot %x\n", old_prot );
+
+    size = sizeof(new_insn);
+    new_prot = old_prot;
+    old_prot = 0xdeadbeef;
+    status = NtProtectVirtualMemory( NtCurrentProcess(), &addr, &size, new_prot, &old_prot );
+    ok( !status, "NtProtectVirtualMemory(DbgUiRemoteBreakin) returned %x\n", status );
+    ok( old_prot == PAGE_EXECUTE_WRITECOPY, "Unexpected old_prot %x\n", old_prot );
+
+    addr = DbgUiRemoteBreakin;
+    size = sizeof(new_insn);
+    new_prot = PAGE_EXECUTE_READWRITE;
+    old_prot = 0xdeadbeef;
+    status = NtProtectVirtualMemory( NtCurrentProcess(), &addr, &size, new_prot, &old_prot );
+    ok( !status, "NtProtectVirtualMemory(DbgUiRemoteBreakin) returned %x\n", status );
+    ok( size == 0x1000, "Unexpected size %Ix\n", size );
+    ok( old_prot == PAGE_EXECUTE_READ, "Unexpected old_prot %x\n", old_prot );
+
+    new_insn = ~old_insn;
+    memcpy( DbgUiRemoteBreakin, &new_insn, sizeof(new_insn) );
+    memcpy( &new_insn, DbgUiRemoteBreakin, sizeof(new_insn) );
+    ok( new_insn == ~old_insn, "Write to DbgUiRemoteBreakin failed\n" );
+
+    memcpy( DbgUiRemoteBreakin, &old_insn, sizeof(old_insn) );
+
+    size = sizeof(new_insn);
+    new_prot = PAGE_EXECUTE_WRITECOPY;
+    old_prot = 0xdeadbeef;
+    status = NtProtectVirtualMemory( NtCurrentProcess(), &addr, &size, new_prot, &old_prot );
+    ok( !status, "NtProtectVirtualMemory(DbgUiRemoteBreakin) returned %x\n", status );
+    todo_wine ok( old_prot == PAGE_EXECUTE_READWRITE, "Unexpected old_prot %x\n", old_prot );
+
+    size = sizeof(new_insn);
+    new_prot = PAGE_EXECUTE_READ;
+    old_prot = 0xdeadbeef;
+    status = NtProtectVirtualMemory( NtCurrentProcess(), &addr, &size, new_prot, &old_prot );
+    ok( !status, "NtProtectVirtualMemory(DbgUiRemoteBreakin) returned %x\n", status );
+    ok( old_prot == PAGE_EXECUTE_READWRITE, "Unexpected old_prot %x\n", old_prot );
+
+    addr = (char *)DbgUiRemoteBreakin + 0x1000;
+    size = sizeof(new_insn);
+    new_prot = PAGE_EXECUTE_WRITECOPY;
+    old_prot = 0xdeadbeef;
+    status = NtProtectVirtualMemory( NtCurrentProcess(), &addr, &size, new_prot, &old_prot );
+    ok( !status, "NtProtectVirtualMemory(DbgUiRemoteBreakin) returned %x\n", status );
+    ok( old_prot == PAGE_EXECUTE_READ, "Unexpected old_prot %x\n", old_prot );
+
+    size = sizeof(new_insn);
+    new_prot = PAGE_EXECUTE_READ;
+    old_prot = 0xdeadbeef;
+    status = NtProtectVirtualMemory( NtCurrentProcess(), &addr, &size, new_prot, &old_prot );
+    ok( !status, "NtProtectVirtualMemory(DbgUiRemoteBreakin) returned %x\n", status );
+    ok( old_prot == PAGE_EXECUTE_WRITECOPY, "Unexpected old_prot %x\n", old_prot );
+}
+
 START_TEST(virtual)
 {
     HMODULE mod;
@@ -678,4 +749,5 @@ START_TEST(virtual)
     test_RtlCreateUserStack();
     test_NtMapViewOfSection();
     test_user_shared_data();
+    test_NtProtectVirtualMemory();
 }
