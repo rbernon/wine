@@ -689,7 +689,7 @@ static void test_NtProtectVirtualMemory(void)
     old_prot = 0xdeadbeef;
     status = NtProtectVirtualMemory( NtCurrentProcess(), &addr, &size, new_prot, &old_prot );
     ok( !status, "NtProtectVirtualMemory(DbgUiRemoteBreakin) returned %x\n", status );
-    todo_wine ok( old_prot == PAGE_EXECUTE_READWRITE, "Unexpected old_prot %x\n", old_prot );
+    ok( old_prot == PAGE_EXECUTE_READWRITE, "Unexpected old_prot %x\n", old_prot );
 
     size = sizeof(new_insn);
     new_prot = PAGE_EXECUTE_READ;

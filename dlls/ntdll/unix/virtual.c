@@ -187,6 +187,7 @@ static const size_t view_block_size = 0x100000;
 static void *preload_reserve_start;
 static void *preload_reserve_end;
 static BOOL force_exec_prot;  /* whether to force PROT_EXEC on all PROT_READ mmaps */
+static BOOL force_write_prot; /* whether to force PROT_WRITE on all PROT_WRITECOPY mmaps */
 
 struct range_entry
 {
@@ -845,11 +846,11 @@ static int get_unix_prot( BYTE vprot )
     int prot = 0;
     if ((vprot & VPROT_COMMITTED) && !(vprot & VPROT_GUARD))
     {
-        if (vprot & VPROT_READ) prot |= PROT_READ;
+        if (vprot & (VPROT_READ | VPROT_WRITECOPY)) prot |= PROT_READ;
         if (vprot & VPROT_WRITE) prot |= PROT_WRITE | PROT_READ;
-        if (vprot & VPROT_WRITECOPY) prot |= PROT_WRITE | PROT_READ;
         if (vprot & VPROT_EXEC) prot |= PROT_EXEC | PROT_READ;
-        if (vprot & VPROT_WRITEWATCH) prot &= ~PROT_WRITE;
+        if (vprot & (VPROT_WRITEWATCH | VPROT_WRITECOPY)) prot &= ~PROT_WRITE;
+        if (force_write_prot && (vprot & VPROT_WRITECOPY)) prot |= PROT_WRITE;
     }
     if (!prot) prot = PROT_NONE;
     return prot;
@@ -978,12 +979,12 @@ static inline UINT_PTR get_zero_bits_64_mask( USHORT zero_bits_64 )
 
 
 /***********************************************************************
- *           is_write_watch_range
+ *           is_vprot_range
  */
-static inline BOOL is_write_watch_range( const void *addr, size_t size )
+static inline BOOL is_vprot_range( const void *addr, size_t size, unsigned int vprot )
 {
     struct file_view *view = find_view( addr, size );
-    return view && (view->protect & VPROT_WRITEWATCH);
+    return view && (view->protect & vprot);
 }
 
 
@@ -2864,6 +2865,11 @@ NTSTATUS virtual_handle_fault( void *addr, DWORD err, void *stack )
     }
     else if (err & EXCEPTION_WRITE_FAULT)
     {
+        if (vprot & VPROT_WRITECOPY)
+        {
+            set_page_vprot_bits( page, page_size, VPROT_WRITE, VPROT_WRITECOPY );
+            mprotect_range( page, page_size, 0, 0 );
+        }
         if (vprot & VPROT_WRITEWATCH)
         {
             set_page_vprot_bits( page, page_size, 0, VPROT_WRITEWATCH );
@@ -2872,7 +2878,8 @@ NTSTATUS virtual_handle_fault( void *addr, DWORD err, void *stack )
         /* ignore fault if page is writable now */
         if (get_unix_prot( get_page_vprot( page )) & PROT_WRITE)
         {
-            if ((vprot & VPROT_WRITEWATCH) || is_write_watch_range( page, page_size ))
+            if ((vprot & (VPROT_WRITEWATCH | VPROT_WRITECOPY)) ||
+                is_vprot_range( page, page_size, VPROT_WRITEWATCH | VPROT_WRITECOPY ))
                 ret = STATUS_SUCCESS;
         }
     }
@@ -2951,7 +2958,7 @@ static NTSTATUS check_write_access( void *base, size_t size, BOOL *has_write_wat
     {
         BYTE vprot = get_page_vprot( addr + i );
         if (vprot & VPROT_WRITEWATCH) *has_write_watch = TRUE;
-        if (!(get_unix_prot( vprot & ~VPROT_WRITEWATCH ) & PROT_WRITE))
+        if (!(get_unix_prot( vprot & ~VPROT_WRITEWATCH ) & PROT_WRITE) && !(vprot & VPROT_WRITECOPY))
             return STATUS_INVALID_USER_BUFFER;
     }
     if (*has_write_watch)
@@ -3234,6 +3241,25 @@ void virtual_set_force_exec( BOOL enable )
             BYTE commit = is_view_valloc( view ) ? 0 : VPROT_COMMITTED;
 
             mprotect_range( view->base, view->size, commit, 0 );
+        }
+    }
+    server_leave_uninterrupted_section( &virtual_mutex, &sigset );
+}
+
+void virtual_set_force_write( BOOL enable )
+{
+    struct file_view *view;
+    sigset_t sigset;
+
+    server_enter_uninterrupted_section( &virtual_mutex, &sigset );
+    if (!force_write_prot != !enable)  /* change all existing views */
+    {
+        force_write_prot = enable;
+
+        WINE_RB_FOR_EACH_ENTRY( view, &views_tree, struct file_view, entry )
+        {
+            if (!(view->protect & SEC_IMAGE)) continue;
+            mprotect_range( view->base, view->size, 0, 0 );
         }
     }
     server_leave_uninterrupted_section( &virtual_mutex, &sigset );
@@ -4239,7 +4265,7 @@ NTSTATUS WINAPI NtGetWriteWatch( HANDLE process, ULONG flags, PVOID base, SIZE_T
 
     server_enter_uninterrupted_section( &virtual_mutex, &sigset );
 
-    if (is_write_watch_range( base, size ))
+    if (is_vprot_range( base, size, VPROT_WRITEWATCH ))
     {
         ULONG_PTR pos = 0;
         char *addr = base;
@@ -4279,7 +4305,7 @@ NTSTATUS WINAPI NtResetWriteWatch( HANDLE process, PVOID base, SIZE_T size )
 
     server_enter_uninterrupted_section( &virtual_mutex, &sigset );
 
-    if (is_write_watch_range( base, size ))
+    if (is_vprot_range( base, size, VPROT_WRITEWATCH ))
         reset_write_watches( base, size );
     else
         status = STATUS_INVALID_PARAMETER;
