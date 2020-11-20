@@ -763,6 +763,15 @@ static void userfaultfd_event( struct process *process )
     switch (msg.event)
     {
     case UFFD_EVENT_PAGEFAULT:
+        if (!(msg.arg.pagefault.flags & UFFD_PAGEFAULT_FLAG_WP) || (msg.arg.pagefault.flags & UFFD_PAGEFAULT_FLAG_WRITE))
+        {
+            struct uffdio_zeropage zp;
+            zp.range.start = msg.arg.pagefault.address;
+            zp.range.len = 0x1000;
+            zp.mode = (msg.arg.pagefault.flags & UFFD_PAGEFAULT_FLAG_WP) ? UFFDIO_ZEROPAGE_MODE_DONTWAKE : 0;
+            ioctl( get_unix_fd( process->uffd_fd ), UFFDIO_ZEROPAGE, &zp );
+        }
+
         if (msg.arg.pagefault.flags & UFFD_PAGEFAULT_FLAG_WP)
         {
             struct uffdio_writeprotect wp;
@@ -784,8 +793,6 @@ static void userfaultfd_event( struct process *process )
                 assert( process->faults );
             }
         }
-        else fprintf( stderr, "uffd: unexpected pagefault detected @ %p (flags %llx ptid %x)\n",
-                      (void *)(ULONG_PTR)msg.arg.pagefault.address, (long long)msg.arg.pagefault.flags, msg.arg.pagefault.feat.ptid );
         break;
     default:
         fprintf( stderr, "uffd: received unexpected msg event %x\n", msg.event );
@@ -1999,7 +2006,8 @@ DECL_HANDLER(get_page_faults)
         if (faults[i] < req->base) continue;
         if (faults[i] >= req->base + req->size) continue;
         if (count < max_count) addrs[count++] = faults[i];
-        if (req->flags & PAGE_FAULTS_FLAG_CLEAR)
+        else if (!(req->flags & PAGE_FAULTS_FLAG_CLEAR)) break;
+        if (req->flags & (PAGE_FAULTS_FLAG_CLEAR|PAGE_FAULTS_FLAG_RESET))
         {
             memmove( faults + i, faults + i + 1, (process->faults_count - i - 1) * sizeof(client_ptr_t) );
             process->faults_count--;
@@ -2008,4 +2016,18 @@ DECL_HANDLER(get_page_faults)
     }
 
     reply->count = count;
+
+#ifdef HAVE_LINUX_USERFAULTFD_H
+    if (req->flags & PAGE_FAULTS_FLAG_RESET)
+    {
+        struct uffdio_writeprotect wp;
+        wp.range.start = req->base;
+        if (!addrs || !count) wp.range.len = req->size;
+        else wp.range.len = addrs[count - 1] - req->base + 0x1000;
+        wp.mode = UFFDIO_WRITEPROTECT_MODE_WP;
+        if (ioctl( get_unix_fd( process->uffd_fd ), UFFDIO_WRITEPROTECT, &wp ) == -1)
+            fprintf( stderr, "wine: ioctl(UFFDIO_WRITEPROTECT) for %p-%p failed: %d\n",
+                     (void *)(ULONG_PTR)wp.range.start, (void *)(ULONG_PTR)(wp.range.start + wp.range.len), errno );
+    }
+#endif
 }

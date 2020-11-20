@@ -861,6 +861,7 @@ static int get_unix_prot( BYTE vprot )
         if (vprot & VPROT_EXEC) prot |= PROT_EXEC | PROT_READ;
         if (vprot & (VPROT_WRITEWATCH | VPROT_WRITECOPY)) prot &= ~PROT_WRITE;
         if ((force_write_prot || uffd != -1) && (vprot & VPROT_WRITECOPY)) prot |= PROT_WRITE;
+        if (uffd != -1 && (vprot & VPROT_WRITEWATCH)) prot |= PROT_WRITE;
     }
     if (!prot) prot = PROT_NONE;
     return prot;
@@ -1350,7 +1351,7 @@ static const char *debugstr_uffdio_range( struct uffdio_range *range )
 #ifdef HAVE_LINUX_USERFAULTFD_H
 static void unregister_uffdio_range( struct uffdio_range *range, BYTE prot )
 {
-    if (!(prot & VPROT_WRITECOPY)) return;
+    if (!(prot & (VPROT_WRITECOPY | VPROT_WRITEWATCH))) return;
     TRACE( "unregistering uffd range %s\n", debugstr_uffdio_range( range ) );
     if (ioctl( uffd, UFFDIO_UNREGISTER, range ) == -1)
         ERR( "ioctl(UFFDIO_UNREGISTER) for %s failed: %d\n", debugstr_uffdio_range( range ), errno );
@@ -1365,7 +1366,7 @@ static void unregister_uffdio_range( struct uffdio_range *range, BYTE prot )
 static void delete_view( struct file_view *view ) /* [in] View */
 {
 #ifdef HAVE_LINUX_USERFAULTFD_H
-    if (uffd != -1 && (view->protect & VPROT_WRITECOPY))
+    if (uffd != -1 && (view->protect & (VPROT_WRITECOPY | VPROT_WRITEWATCH)))
     {
         struct uffdio_range range;
         BYTE prot = get_page_vprot( view->base );
@@ -1444,6 +1445,29 @@ static NTSTATUS create_view( struct file_view **view_ret, void *base, size_t siz
         TRACE( "forcing exec permission on %p-%p\n", base, (char *)base + size - 1 );
         mprotect( base, size, unix_prot | PROT_EXEC );
     }
+
+#ifdef HAVE_LINUX_USERFAULTFD_H
+    if (uffd != -1 && (vprot & VPROT_WRITEWATCH))
+    {
+        struct uffdio_writeprotect wp;
+        struct uffdio_register reg;
+
+        reg.range.start = (ULONG_PTR)ROUND_ADDR(view->base, page_mask);
+        reg.range.len = ROUND_SIZE(view->base, view->size);
+        reg.mode = UFFDIO_REGISTER_MODE_WP | UFFDIO_REGISTER_MODE_MISSING;
+        TRACE( "registering uffd range %s\n", debugstr_uffdio_range( &reg.range ) );
+        if (ioctl( uffd, UFFDIO_REGISTER, &reg ) == -1)
+            ERR( "ioctl(UFFDIO_REGISTER) for %s failed: %d\n", debugstr_uffdio_range( &reg.range ), errno );
+
+        wp.range.start = (ULONG_PTR)ROUND_ADDR(view->base, page_mask);
+        wp.range.len = ROUND_SIZE(view->base, view->size);
+        wp.mode = UFFDIO_WRITEPROTECT_MODE_WP;
+        TRACE( "protecting uffd range %s\n", debugstr_uffdio_range( &wp.range ) );
+        if (ioctl( uffd, UFFDIO_WRITEPROTECT, &wp ) == -1)
+            ERR( "ioctl(UFFDIO_WRITEPROTECT) for %s failed: %d\n", debugstr_uffdio_range( &wp.range ), errno );
+    }
+#endif
+
     return STATUS_SUCCESS;
 }
 
@@ -4407,6 +4431,32 @@ NTSTATUS WINAPI NtGetWriteWatch( HANDLE process, ULONG flags, PVOID base, SIZE_T
         char *addr = base;
         char *end = addr + size;
 
+#ifdef HAVE_LINUX_USERFAULTFD_H
+        if (uffd != -1)
+        {
+            size_t max_size = min(*count, (size + page_mask) / page_size) * sizeof(client_ptr_t);
+            client_ptr_t *addrs = malloc( max_size );
+            int count;
+            SERVER_START_REQ( get_page_faults )
+            {
+                req->base = (ULONG_PTR)base;
+                req->size = size;
+                req->flags = flags;
+                wine_server_set_reply( req, addrs, max_size );
+                if (wine_server_call( req )) count = 0;
+                else count = reply->count;
+            }
+            SERVER_END_REQ;
+            for (pos = 0; pos < count; ++pos)
+            {
+                addresses[pos] = (void *)(ULONG_PTR)addrs[pos];
+                set_page_vprot_bits( addresses[pos], page_size, 0, VPROT_WRITEWATCH );
+                mprotect_range( addresses[pos], page_size, 0, 0 );
+            }
+            free( addrs );
+        }
+        else
+#endif
         while (pos < *count && addr < end)
         {
             if (!(get_page_vprot( addr ) & VPROT_WRITEWATCH)) addresses[pos++] = addr;
@@ -4441,6 +4491,19 @@ NTSTATUS WINAPI NtResetWriteWatch( HANDLE process, PVOID base, SIZE_T size )
 
     server_enter_uninterrupted_section( &virtual_mutex, &sigset );
 
+#ifdef HAVE_LINUX_USERFAULTFD_H
+    if (uffd != -1 && is_vprot_range( base, size, VPROT_WRITEWATCH ))
+    {
+        SERVER_START_REQ( get_page_faults )
+        {
+            req->base = (ULONG_PTR)base;
+            req->size = size;
+            req->flags = PAGE_FAULTS_FLAG_RESET|PAGE_FAULTS_FLAG_CLEAR;
+            wine_server_call( req );
+        }
+        SERVER_END_REQ;
+    }
+#endif
     if (is_vprot_range( base, size, VPROT_WRITEWATCH ))
         reset_write_watches( base, size );
     else

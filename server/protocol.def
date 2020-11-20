@@ -3674,4 +3674,5 @@ struct handle_info
     VARARG(pages,uints64);
 @END
 
+#define PAGE_FAULTS_FLAG_RESET WRITE_WATCH_FLAG_RESET
 #define PAGE_FAULTS_FLAG_CLEAR 2
