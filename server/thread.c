@@ -51,6 +51,7 @@
 #include "request.h"
 #include "user.h"
 #include "security.h"
+#include "unicode.h"
 
 
 #ifdef __i386__
@@ -242,6 +243,8 @@ static inline void init_thread_structure( struct thread *thread )
     thread->token           = NULL;
     thread->desc            = NULL;
     thread->desc_len        = 0;
+    thread->shared_mapping  = NULL;
+    thread->shared          = NULL;
 
     thread->creation_time = current_time;
     thread->exit_time     = 0;
@@ -287,6 +290,28 @@ static struct context *create_thread_context( struct thread *thread )
     memset( &context->regs, 0, sizeof(context->regs) );
     context->regs.cpu = thread->process->cpu;
     return context;
+}
+
+
+static volatile void *init_thread_mapping( struct thread *thread )
+{
+    struct unicode_str name;
+    struct object *dir = create_thread_map_directory();
+    char nameA[MAX_PATH];
+    WCHAR *nameW;
+
+    if (!dir) return NULL;
+
+    sprintf( nameA, "%08x", thread->id );
+    nameW = ascii_to_unicode_str( nameA, &name );
+
+    thread->shared_mapping = create_shared_mapping( dir, &name, sizeof(struct thread_shared_memory),
+                                                    NULL, (void **)&thread->shared );
+    release_object( dir );
+    if (thread->shared) memset( (void *)thread->shared, 0, sizeof(*thread->shared) );
+
+    free( nameW );
+    return thread->shared;
 }
 
 
@@ -355,6 +380,11 @@ struct thread *create_thread( int fd, struct process *process, const struct secu
         release_object( thread );
         return NULL;
     }
+    if (!init_thread_mapping( thread ))
+    {
+        release_object( thread );
+        return NULL;
+    }
 
     set_fd_events( thread->request_fd, POLLIN );  /* start listening to events */
     add_process_thread( thread->process, thread );
@@ -413,6 +443,8 @@ static void cleanup_thread( struct thread *thread )
         }
     }
     free( thread->desc );
+    if (thread->shared_mapping) release_object( thread->shared_mapping );
+    thread->shared_mapping = NULL;
     thread->req_data = NULL;
     thread->reply_data = NULL;
     thread->request_fd = NULL;
