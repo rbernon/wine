@@ -40,11 +40,20 @@
 #ifdef HAVE_SYS_MMAN_H
 # include <sys/mman.h>
 #endif
+#ifdef HAVE_SYS_IOCTL_H
+#include <sys/ioctl.h>
+#endif
+#ifdef HAVE_SYS_SYSCALL_H
+# include <sys/syscall.h>
+#endif
 #ifdef HAVE_SYS_SYSINFO_H
 # include <sys/sysinfo.h>
 #endif
 #ifdef HAVE_UNISTD_H
 # include <unistd.h>
+#endif
+#ifdef HAVE_LINUX_USERFAULTFD_H
+# include <linux/userfaultfd.h>
 #endif
 #ifdef HAVE_VALGRIND_VALGRIND_H
 # include <valgrind/valgrind.h>
@@ -157,6 +166,7 @@ static void *working_set_limit   = (void *)0x7fff0000;
 #endif
 
 struct _KUSER_SHARED_DATA *user_shared_data = (void *)0x7ffe0000;
+static int uffd = -1;
 
 /* TEB allocation blocks */
 static void *teb_block;
@@ -850,7 +860,7 @@ static int get_unix_prot( BYTE vprot )
         if (vprot & VPROT_WRITE) prot |= PROT_WRITE | PROT_READ;
         if (vprot & VPROT_EXEC) prot |= PROT_EXEC | PROT_READ;
         if (vprot & (VPROT_WRITEWATCH | VPROT_WRITECOPY)) prot &= ~PROT_WRITE;
-        if (force_write_prot && (vprot & VPROT_WRITECOPY)) prot |= PROT_WRITE;
+        if ((force_write_prot || uffd != -1) && (vprot & VPROT_WRITECOPY)) prot |= PROT_WRITE;
     }
     if (!prot) prot = PROT_NONE;
     return prot;
@@ -1330,6 +1340,22 @@ static struct file_view *alloc_view(void)
     return view_block_start++;
 }
 
+#ifdef HAVE_LINUX_USERFAULTFD_H
+static const char *debugstr_uffdio_range( struct uffdio_range *range )
+{
+    return wine_dbg_sprintf( "%p-%p", (void *)(ULONG_PTR)range->start, (void *)(ULONG_PTR)(range->start + range->len) );
+}
+#endif
+
+#ifdef HAVE_LINUX_USERFAULTFD_H
+static void unregister_uffdio_range( struct uffdio_range *range, BYTE prot )
+{
+    if (!(prot & VPROT_WRITECOPY)) return;
+    TRACE( "unregistering uffd range %s\n", debugstr_uffdio_range( range ) );
+    if (ioctl( uffd, UFFDIO_UNREGISTER, range ) == -1)
+        ERR( "ioctl(UFFDIO_UNREGISTER) for %s failed: %d\n", debugstr_uffdio_range( range ), errno );
+}
+#endif
 
 /***********************************************************************
  *           delete_view
@@ -1338,6 +1364,25 @@ static struct file_view *alloc_view(void)
  */
 static void delete_view( struct file_view *view ) /* [in] View */
 {
+#ifdef HAVE_LINUX_USERFAULTFD_H
+    if (uffd != -1 && (view->protect & VPROT_WRITECOPY))
+    {
+        struct uffdio_range range;
+        BYTE prot = get_page_vprot( view->base );
+        range.start = (ULONG_PTR)ROUND_ADDR(view->base, page_mask);
+        for (range.len = page_mask + 1; range.start + range.len < (ULONG_PTR)view->base + view->size; range.len += page_mask + 1)
+        {
+            BYTE next = get_page_vprot( (void *)(ULONG_PTR)(range.start + range.len) );
+            if (next == prot) continue;
+            unregister_uffdio_range( &range, prot );
+            range.start += range.len;
+            range.len = 0;
+            prot = next;
+        }
+        if (range.len) unregister_uffdio_range( &range, prot );
+    }
+#endif
+
     if (!(view->protect & VPROT_SYSTEM)) unmap_area( view->base, view->size );
     set_page_vprot( view->base, view->size, 0 );
     if (mmap_is_in_reserved_area( view->base, view->size ))
@@ -1794,21 +1839,26 @@ static NTSTATUS map_file_into_view( struct file_view *view, int fd, size_t start
     void *ptr;
     int prot = get_unix_prot( vprot | VPROT_COMMITTED /* make sure it is accessible */ );
     unsigned int flags = MAP_FIXED | ((vprot & VPROT_WRITECOPY) ? MAP_PRIVATE : MAP_SHARED);
+    char *base = (char *)view->base + start;
+
+#ifdef HAVE_LINUX_USERFAULTFD_H
+    if (uffd != -1 && (vprot & VPROT_WRITECOPY))
+        removable = TRUE;
+#endif
 
     assert( start < view->size );
     assert( start + size <= view->size );
 
     if (force_exec_prot && (vprot & VPROT_READ))
     {
-        TRACE( "forcing exec permission on mapping %p-%p\n",
-               (char *)view->base + start, (char *)view->base + start + size - 1 );
+        TRACE( "forcing exec permission on mapping %p-%p\n", base, base + size - 1 );
         prot |= PROT_EXEC;
     }
 
     /* only try mmap if media is not removable (or if we require write access) */
     if (!removable || (flags & MAP_SHARED))
     {
-        if (mmap( (char *)view->base + start, size, prot, flags, fd, offset ) != (void *)-1)
+        if (mmap( base, size, prot, flags, fd, offset ) != (void *)-1)
             goto done;
 
         switch (errno)
@@ -1839,12 +1889,36 @@ static NTSTATUS map_file_into_view( struct file_view *view, int fd, size_t start
     }
 
     /* Reserve the memory with an anonymous mmap */
-    ptr = anon_mmap_fixed( (char *)view->base + start, size, PROT_READ | PROT_WRITE, 0 );
+    ptr = anon_mmap_fixed( base, size, PROT_READ | PROT_WRITE, 0 );
     if (ptr == MAP_FAILED) return STATUS_NO_MEMORY;
+
     /* Now read in the file */
     pread( fd, ptr, size, offset );
     if (prot != (PROT_READ|PROT_WRITE)) mprotect( ptr, size, prot );  /* Set the right protection */
+
 done:
+#ifdef HAVE_LINUX_USERFAULTFD_H
+    if (uffd != -1 && (vprot & VPROT_WRITECOPY))
+    {
+        struct uffdio_writeprotect wp;
+        struct uffdio_register reg;
+
+        reg.range.start = (ULONG_PTR)ROUND_ADDR(base, page_mask);
+        reg.range.len = ROUND_SIZE(base, size);
+        reg.mode = UFFDIO_REGISTER_MODE_WP | UFFDIO_REGISTER_MODE_MISSING;
+        TRACE( "registering uffd range %s\n", debugstr_uffdio_range( &reg.range ) );
+        if (ioctl( uffd, UFFDIO_REGISTER, &reg ) == -1)
+            ERR( "ioctl(UFFDIO_REGISTER) for %s failed: %d\n", debugstr_uffdio_range( &reg.range ), errno );
+
+        wp.range.start = (ULONG_PTR)ROUND_ADDR(base, page_mask);
+        wp.range.len = ROUND_SIZE(base, size);
+        wp.mode = UFFDIO_WRITEPROTECT_MODE_WP;
+        TRACE( "protecting uffd range %s\n", debugstr_uffdio_range( &wp.range ) );
+        if (ioctl( uffd, UFFDIO_WRITEPROTECT, &wp ) == -1)
+            ERR( "ioctl(UFFDIO_WRITEPROTECT) for %s failed: %d\n", debugstr_uffdio_range( &wp.range ), errno );
+    }
+#endif
+
     set_page_vprot( (char *)view->base + start, size, vprot );
     return STATUS_SUCCESS;
 }
@@ -2815,6 +2889,46 @@ void virtual_map_user_shared_data(void)
 
 
 /***********************************************************************
+ *           virtual_init_userfaultfd
+ */
+void virtual_init_userfaultfd(void)
+{
+#ifdef HAVE_LINUX_USERFAULTFD_H
+    struct uffdio_api uffdio_api;
+
+    if ((uffd = syscall( __NR_userfaultfd, O_CLOEXEC | O_NONBLOCK )) == -1)
+    {
+        ERR( "unable to create userfaultfd: %d\n", errno );
+        return;
+    }
+
+    uffdio_api.api = UFFD_API;
+    uffdio_api.features = 0;
+    if (ioctl( uffd, UFFDIO_API, &uffdio_api ) == -1)
+    {
+        ERR( "unable to init userfaultfd: %d\n", errno );
+        close( uffd );
+        uffd = -1;
+        return;
+    }
+
+    wine_server_send_fd( uffd );
+    SERVER_START_REQ( set_page_faults_fd )
+    {
+        req->fd = uffd;
+        if (wine_server_call( req ))
+        {
+            ERR( "unable to set userfaultfd: %d\n", errno );
+            close( uffd );
+            uffd = -1;
+        }
+    }
+    SERVER_END_REQ;
+#endif
+}
+
+
+/***********************************************************************
  *           grow_thread_stack
  */
 static NTSTATUS grow_thread_stack( char *page )
@@ -3633,6 +3747,28 @@ NTSTATUS WINAPI NtProtectVirtualMemory( HANDLE process, PVOID *addr_ptr, SIZE_T 
         /* Make sure all the pages are committed */
         if (get_committed_size( view, base, &vprot ) >= size && (vprot & VPROT_COMMITTED))
         {
+#ifdef HAVE_LINUX_USERFAULTFD_H
+            if (uffd != -1 && (vprot & VPROT_WRITECOPY))
+            {
+                size_t max_size = (size + page_mask) / page_size * sizeof(client_ptr_t);
+                client_ptr_t *addrs = malloc( max_size );
+                int count;
+                SERVER_START_REQ( get_page_faults )
+                {
+                    req->base = (ULONG_PTR)base;
+                    req->size = size;
+                    req->flags = PAGE_FAULTS_FLAG_CLEAR;
+                    wine_server_set_reply( req, addrs, max_size );
+                    if (wine_server_call( req )) count = 0;
+                    else count = reply->count;
+                }
+                SERVER_END_REQ;
+                while (count--) set_page_vprot_bits( (void *)(ULONG_PTR)addrs[count], page_size, VPROT_WRITE, VPROT_WRITECOPY );
+                free( addrs );
+
+                vprot = get_page_vprot( base );
+            }
+#endif
             old = get_win32_prot( vprot, view->protect );
             status = set_protection( view, base, size, new_prot );
         }

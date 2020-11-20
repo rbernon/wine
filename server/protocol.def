@@ -3656,3 +3656,22 @@ struct handle_info
 @REQ(resume_process)
     obj_handle_t handle;       /* process handle */
 @END
+
+
+/* Send process userfaultfd */
+@REQ(set_page_faults_fd)
+    int fd;
+@END
+
+
+/* Check process page faults */
+@REQ(get_page_faults)
+    client_ptr_t base;
+    data_size_t  size;
+    unsigned int flags;
+@REPLY
+    unsigned int count;
+    VARARG(pages,uints64);
+@END
+
+#define PAGE_FAULTS_FLAG_CLEAR 2

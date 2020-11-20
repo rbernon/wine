@@ -60,6 +60,7 @@ struct process
     struct debug_event  *debug_event;     /* debug event being sent to debugger */
     struct handle_table *handles;         /* handle entries */
     struct fd           *msg_fd;          /* fd for sendmsg/recvmsg */
+    struct fd           *uffd_fd;         /* fd for userfaultfd */
     process_id_t         id;              /* id of the process */
     process_id_t         group_id;        /* group id of the process */
     struct timeout_user *sigkill_timeout; /* timeout for final SIGKILL */
@@ -98,6 +99,9 @@ struct process
     const struct rawinput_device *rawinput_mouse; /* rawinput mouse device, if any */
     const struct rawinput_device *rawinput_kbd;   /* rawinput keyboard device, if any */
     struct list          kernel_object;   /* list of kernel object pointers */
+    data_size_t          faults_count;    /* number of write fault addresses */
+    data_size_t          faults_max;      /* number of write fault addresses */
+    client_ptr_t        *faults;          /* array of write fault addresses */
 };
 
 #define CPU_FLAG(cpu) (1 << (cpu))

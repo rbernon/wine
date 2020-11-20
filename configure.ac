@@ -461,6 +461,7 @@ AC_CHECK_HEADERS(\
 	linux/serial.h \
 	linux/types.h \
 	linux/ucdrom.h \
+	linux/userfaultfd.h \
 	lwp.h \
 	mach-o/nlist.h \
 	mach-o/loader.h \

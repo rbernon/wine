@@ -33,9 +33,15 @@
 #ifdef HAVE_SYS_SOCKET_H
 # include <sys/socket.h>
 #endif
+#ifdef HAVE_SYS_IOCTL_H
+# include <sys/ioctl.h>
+#endif
 #include <unistd.h>
 #ifdef HAVE_POLL_H
 #include <poll.h>
+#endif
+#ifdef HAVE_LINUX_USERFAULTFD_H
+# include <linux/userfaultfd.h>
 #endif
 
 #include "ntstatus.h"
@@ -518,6 +524,7 @@ struct process *create_process( int fd, struct process *parent, int inherit_all,
     process->debug_event     = NULL;
     process->handles         = NULL;
     process->msg_fd          = NULL;
+    process->uffd_fd         = NULL;
     process->sigkill_timeout = NULL;
     process->unix_pid        = -1;
     process->exit_code       = STILL_ACTIVE;
@@ -550,6 +557,13 @@ struct process *create_process( int fd, struct process *parent, int inherit_all,
     list_init( &process->views );
     list_init( &process->dlls );
     list_init( &process->rawinput_devices );
+    process->faults_count    = 0;
+    process->faults_max      = 1024;
+    if (!(process->faults = mem_alloc(process->faults_max * sizeof(client_ptr_t))))
+    {
+        close( fd );
+        goto error;
+    }
 
     process->end_time = 0;
     list_add_tail( &process_list, &process->entry );
@@ -639,6 +653,7 @@ static void process_destroy( struct object *obj )
         release_object( process->job );
     }
     if (process->console) release_object( process->console );
+    if (process->uffd_fd) release_object( process->uffd_fd );
     if (process->msg_fd) release_object( process->msg_fd );
     list_remove( &process->entry );
     if (process->idle_event) release_object( process->idle_event );
@@ -646,6 +661,7 @@ static void process_destroy( struct object *obj )
     if (process->id) free_ptid( process->id );
     if (process->token) release_object( process->token );
     free( process->dir_cache );
+    free( process->faults );
 }
 
 /* dump a process on stdout for debugging purposes */
@@ -737,12 +753,53 @@ static struct security_descriptor *process_get_sd( struct object *obj )
     return process_default_sd;
 }
 
+static void userfaultfd_event( struct process *process )
+{
+#ifdef HAVE_LINUX_USERFAULTFD_H
+    struct uffd_msg msg;
+    int i, n = read( get_unix_fd( process->uffd_fd ), &msg, sizeof(msg) );
+    if (n <= 0) kill_process( process, 0 );
+
+    switch (msg.event)
+    {
+    case UFFD_EVENT_PAGEFAULT:
+        if (msg.arg.pagefault.flags & UFFD_PAGEFAULT_FLAG_WP)
+        {
+            struct uffdio_writeprotect wp;
+            wp.range.start = msg.arg.pagefault.address;
+            wp.range.len = 0x1000;
+            wp.mode = 0;
+            ioctl( get_unix_fd( process->uffd_fd ), UFFDIO_WRITEPROTECT, &wp );
+
+            for (i = 0; i < process->faults_count; ++i) if (process->faults[i] >= msg.arg.pagefault.address) break;
+            if (i < process->faults_count && process->faults[i] == msg.arg.pagefault.address) break;
+
+            memmove( process->faults + i + 1, process->faults + i, (process->faults_count - i) * sizeof(client_ptr_t) );
+            process->faults[i] = msg.arg.pagefault.address;
+            process->faults_count++;
+            if (process->faults_count >= process->faults_max)
+            {
+                process->faults_max *= 2;
+                process->faults = realloc( process->faults, process->faults_max * sizeof(client_ptr_t) );
+                assert( process->faults );
+            }
+        }
+        else fprintf( stderr, "uffd: unexpected pagefault detected @ %p (flags %llx ptid %x)\n",
+                      (void *)(ULONG_PTR)msg.arg.pagefault.address, (long long)msg.arg.pagefault.flags, msg.arg.pagefault.feat.ptid );
+        break;
+    default:
+        fprintf( stderr, "uffd: received unexpected msg event %x\n", msg.event );
+    }
+#endif
+}
+
 static void process_poll_event( struct fd *fd, int event )
 {
     struct process *process = get_fd_user( fd );
     assert( process->obj.ops == &process_ops );
 
     if (event & (POLLERR | POLLHUP)) kill_process( process, 0 );
+    else if (fd == process->uffd_fd) userfaultfd_event( process );
     else if (event & POLLIN) receive_fd( process );
 }
 
@@ -1015,6 +1072,12 @@ void resume_process( struct process *process )
 /* kill a process on the spot */
 void kill_process( struct process *process, int violent_death )
 {
+    if (process->uffd_fd)
+    {
+        release_object( process->uffd_fd );
+        process->uffd_fd = NULL;
+    }
+
     if (!violent_death && process->msg_fd)  /* normal termination on pipe close */
     {
         release_object( process->msg_fd );
@@ -1896,4 +1959,53 @@ DECL_HANDLER(list_processes)
             pos += sizeof(*thread_info);
         }
     }
+}
+
+DECL_HANDLER(set_page_faults_fd)
+{
+    struct process *process = current->process;
+    int uffd;
+
+    if ((uffd = thread_get_inflight_fd( current, req->fd )) == -1)
+    {
+        set_error( STATUS_TOO_MANY_OPENED_FILES );
+        return;
+    }
+
+#ifdef HAVE_LINUX_USERFAULTFD_H
+    if (process->uffd_fd) goto error;
+    if (fcntl( uffd, F_SETFL, O_NONBLOCK ) == -1) goto error;
+
+    if (!(process->uffd_fd = create_anonymous_fd( &process_fd_ops, uffd, &process->obj, 0 ))) goto error;
+    set_fd_events( process->uffd_fd, POLLIN );
+    return;
+#endif
+
+error:
+    set_error( STATUS_INVALID_PARAMETER );
+    close( uffd );
+}
+
+
+DECL_HANDLER(get_page_faults)
+{
+    struct process *process = current->process;
+    client_ptr_t *faults = process->faults, *addrs = NULL;
+    int i, count, max_count = get_reply_max_size() / sizeof(client_ptr_t);
+
+    if (max_count && !(addrs = set_reply_data_size( get_reply_max_size() ))) return;
+    for (count = i = 0; i < process->faults_count; ++i)
+    {
+        if (faults[i] < req->base) continue;
+        if (faults[i] >= req->base + req->size) continue;
+        if (count < max_count) addrs[count++] = faults[i];
+        if (req->flags & PAGE_FAULTS_FLAG_CLEAR)
+        {
+            memmove( faults + i, faults + i + 1, (process->faults_count - i - 1) * sizeof(client_ptr_t) );
+            process->faults_count--;
+            i--;
+        }
+    }
+
+    reply->count = count;
 }
