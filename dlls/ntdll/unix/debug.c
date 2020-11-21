@@ -30,6 +30,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include <limits.h>
 #ifdef HAVE_UNISTD_H
 # include <unistd.h>
 #endif
@@ -308,6 +310,202 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
     info->out_pos = pos - info->output;
     return info->out_pos;
 }
+
+static int __cdecl wine_dbg_vsnprintf( char *buffer, size_t length, const char *format, __ms_va_list args )
+{
+    char fmtbuf[1024];
+    char *buf = buffer, *end = buffer + length;
+    char *fmt = fmtbuf, *tmp = fmt;
+    char old, *spec, *width = NULL, *prec = NULL;
+    int ret, w, p;
+
+    assert( strlen( format ) < sizeof(fmtbuf) );
+    memcpy( fmtbuf, format, strlen( format ) + 1 );
+
+    while (buf < end && *fmt)
+    {
+        if (!(tmp = strchr( tmp + 1, '%' ))) tmp = fmt + strlen( fmt );
+        else if (fmt[0] == '%' && tmp == fmt + 1) continue;
+        old = *tmp;
+        *tmp = 0;
+
+        if (fmt[0] != '%') spec = tmp;
+        else spec = fmt + 1 + strcspn( fmt + 1, "AacCdeEfFgGinopsSuxXZ%" );
+
+        if (fmt[0] != '%') prec = width = NULL;
+        else if (fmt[1] == '-' || fmt[1] == '+' || fmt[1] == ' ' || fmt[1] == '#' || fmt[1] == '0') width = fmt + 2;
+        else width = fmt + 1;
+
+        if (!width) w = -1;
+        else if (*width == '*') w = va_arg( args, int );
+        else if (!(w = atoi( width ))) w = -1;
+
+        if (fmt[0] != '%' || !(prec = strchr( fmt, '.' )) || ++prec >= spec) p = INT_MAX;
+        else if (*prec == '*') p = va_arg( args, int );
+        else if (!(p = atoi( prec ))) p = INT_MAX;
+
+#define append_checked( b, l, x )                                                                  \
+    do { if ((ret = (x)) >= 0 && ret < (l)) b += ret;                                              \
+         else if (ret < 0) return ret;                                                             \
+         else return b - buffer + ret; } while (0)
+
+        /* dispatch width / precision arguments for all possible %*.*<spec> format specifiers */
+#define snprintf_dispatch( b, l, f, a ) \
+        append_checked( b, l, (width && *width == '*' ? (prec && *prec == '*' ? snprintf( b, l, f, w, p, a ) \
+                                                                              : snprintf( b, l, f, w, a )) \
+                                                      : (prec && *prec == '*' ? snprintf( b, l, f, p, a ) \
+                                                                              : snprintf( b, l, f, a ))))
+#define snprintf_checked( b, l, ... ) append_checked( b, l, snprintf( b, l, ## __VA_ARGS__ ) )
+
+        switch (*spec)
+        {
+        case 'c':
+        case 'C':
+            if (spec[-1] == 'l' || spec[-1] == 'w' || (spec[0] == 'C' && spec[-1] != 'h'))
+            {
+                unsigned int wc = va_arg( args, unsigned int );
+                if (wc >= ' ' && wc <= '~') snprintf_checked( buf, end - buf, "%c", wc );
+                else snprintf_checked( buf, end - buf, "\\U%04x", wc );
+                snprintf_checked( buf, end - buf, spec + 1 );
+            }
+            else
+            {
+                snprintf_checked( buf, end - buf, "%c", va_arg( args, int ) );
+                snprintf_checked( buf, end - buf, spec + 1 );
+            }
+            break;
+        case 'd':
+        case 'i':
+        case 'o':
+        case 'u':
+        case 'x':
+        case 'X':
+            if (spec[-1] == '4' && spec[-2] == '6' && spec[-3] == 'I')
+            {
+                spec[-3] = 'j';
+                spec[-2] = spec[0];
+                spec[-1] = 0;
+                snprintf_dispatch( buf, end - buf, fmt, va_arg( args, uintmax_t ) );
+                snprintf_checked( buf, end - buf, spec + 1 );
+                break;
+            }
+            if (spec[-1] == '2' && spec[-2] == '3' && spec[-3] == 'I')
+            {
+                spec[-3] = spec[0];
+                spec[-2] = 0;
+                snprintf_dispatch( buf, end - buf, fmt, va_arg( args, unsigned int ) );
+                snprintf_checked( buf, end - buf, spec + 1 );
+                break;
+            }
+
+            if (spec[-1] == 'I') spec[-1] = 'z';
+            if (spec[-1] == 'j')
+                snprintf_dispatch( buf, end - buf, fmt, va_arg( args, uintmax_t ) );
+            else if (spec[-1] == 'z')
+                snprintf_dispatch( buf, end - buf, fmt, va_arg( args, size_t ) );
+            else if (spec[-1] == 't')
+                snprintf_dispatch( buf, end - buf, fmt, va_arg( args, ptrdiff_t ) );
+            else if (spec[-1] == 'l' && spec[-2] == 'l')
+                snprintf_dispatch( buf, end - buf, fmt, va_arg( args, long long int ) );
+            else if (spec[-1] == 'l')
+                snprintf_dispatch( buf, end - buf, fmt, va_arg( args, long int ) );
+            else
+                snprintf_dispatch( buf, end - buf, fmt, va_arg( args, int ) );
+            break;
+        case 's':
+        case 'S':
+            if (spec[-1] == 'l' || spec[-1] == 'w' || (spec[0] == 'S' && spec[-1] != 'h'))
+            {
+                WCHAR *wstr = va_arg( args, WCHAR * );
+                while (*wstr && p--)
+                {
+                    if (*wstr >= ' ' && *wstr <= '~') snprintf_checked( buf, end - buf, "%c", *wstr++ );
+                    else snprintf_checked( buf, end - buf, "\\U%04x", *wstr++ );
+                }
+                snprintf_checked( buf, end - buf, spec + 1 );
+            }
+            else
+            {
+                char *str = va_arg( args, char * );
+                if (spec[-1] != 'l' && spec[-1] != 'w')
+                    snprintf_dispatch( buf, end - buf, fmt, str );
+                else
+                {
+                    spec[-1] = 's';
+                    spec[0] = 0;
+                    snprintf_dispatch( buf, end - buf, fmt, str );
+                    snprintf_checked( buf, end - buf, spec + 1 );
+                }
+            }
+            break;
+        case 'Z':
+            if (spec[-1] == 'l' || spec[-1] == 'w')
+            {
+                UNICODE_STRING *ptr = va_arg( args, UNICODE_STRING * );
+                WCHAR *wstr = ptr->Buffer;
+                USHORT len = ptr->Length;
+                while (len--)
+                {
+                    if (*wstr >= ' ' && *wstr <= '~') snprintf_checked( buf, end - buf, "%c", *wstr++ );
+                    else snprintf_checked( buf, end - buf, "\\U%04x", *wstr++ );
+                }
+                snprintf_checked( buf, end - buf, spec + 1 );
+            }
+            else
+            {
+                ANSI_STRING *ptr = va_arg( args, ANSI_STRING * );
+                char *str = ptr->Buffer;
+                USHORT len = ptr->Length;
+                snprintf_checked( buf, end - buf, "%.*s", len, str );
+                snprintf_checked( buf, end - buf, spec + 1 );
+            }
+            break;
+        case 'p':
+            snprintf_dispatch( buf, end - buf, fmt, va_arg( args, void * ) );
+            break;
+        case 'A':
+        case 'a':
+        case 'e':
+        case 'E':
+        case 'f':
+        case 'F':
+        case 'g':
+        case 'G':
+            if (spec[-1] == 'l') spec[-1] = 'L';
+            if (spec[-1] == 'L') snprintf_dispatch( buf, end - buf, fmt, va_arg( args, long double ) );
+            else snprintf_dispatch( buf, end - buf, fmt, va_arg( args, double ) );
+            break;
+        case '%':
+        case '\0':
+            snprintf_checked( buf, end - buf, fmt );
+            break;
+        case 'n':
+        default:
+            fprintf( stderr, "wine_dbg_vsnprintf: unsupported format string: %s\n", fmt );
+            break;
+        }
+
+#undef snprintf_checked
+#undef snprintf_dispatch
+#undef append_checked
+
+        *tmp = old;
+        fmt = tmp;
+    }
+
+    return buf - buffer;
+}
+
+/***********************************************************************
+ *      __wine_dbg_vprintf  (NTDLL.@)
+ */
+int __cdecl __wine_dbg_vprintf( const char *format, __ms_va_list args )
+{
+    char buffer[1024];
+    wine_dbg_vsnprintf( buffer, sizeof(buffer), format, args );
+    return __wine_dbg_output( buffer );
+}
+
 
 /***********************************************************************
  *		dbg_init

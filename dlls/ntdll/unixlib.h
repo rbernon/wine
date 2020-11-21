@@ -78,6 +78,9 @@ struct unix_funcs
     NTSTATUS      (CDECL *init_unix_lib)( void *module, DWORD reason, const void *ptr_in, void *ptr_out );
     NTSTATUS      (CDECL *unwind_builtin_dll)( ULONG type, struct _DISPATCHER_CONTEXT *dispatch,
                                                CONTEXT *context );
+
+    /* debugging functions */
+    int           (CDECL *dbg_vprintf)( const char *format, __ms_va_list args );
 };
 
 #endif /* __NTDLL_UNIXLIB_H */

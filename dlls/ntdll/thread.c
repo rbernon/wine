@@ -177,6 +177,13 @@ int __cdecl __wine_dbg_output( const char *str )
     return ret;
 }
 
+/***********************************************************************
+ *		__wine_dbg_vprintf  (NTDLL.@)
+ */
+int __cdecl __wine_dbg_vprintf( const char *format, __ms_va_list args )
+{
+    return unix_funcs->dbg_vprintf( format, args );
+}
 
 /***********************************************************************
  *           RtlExitUserThread  (NTDLL.@)

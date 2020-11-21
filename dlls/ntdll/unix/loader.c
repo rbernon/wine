@@ -1850,6 +1850,7 @@ static struct unix_funcs unix_funcs =
     init_builtin_dll,
     init_unix_lib,
     unwind_builtin_dll,
+    __wine_dbg_vprintf,
 };
 
 
