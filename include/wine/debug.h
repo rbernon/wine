@@ -150,6 +150,7 @@ extern int __cdecl __wine_dbg_output( const char *str );
 extern int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
                                       const char *function );
 extern int __cdecl __wine_dbg_vprintf( const char *format, __ms_va_list args );
+extern const char * __cdecl __wine_dbg_vsprintf( const char *format, __ms_va_list args );
 
 /*
  * Exported definitions and macros
@@ -159,28 +160,16 @@ extern int __cdecl __wine_dbg_vprintf( const char *format, __ms_va_list args );
    quotes.  The string will be valid for some time, but not indefinitely
    as strings are re-used.  */
 
-#if (defined(__x86_64__) || (defined(__aarch64__) && __has_attribute(ms_abi))) && defined(__GNUC__) && defined(__WINE_USE_MSVCRT)
-# define __wine_dbg_cdecl __cdecl
-# define __wine_dbg_va_list __builtin_ms_va_list
-# define __wine_dbg_va_start(list,arg) __builtin_ms_va_start(list,arg)
-# define __wine_dbg_va_end(list) __builtin_ms_va_end(list)
-#else
-# define __wine_dbg_cdecl
-# define __wine_dbg_va_list va_list
-# define __wine_dbg_va_start(list,arg) va_start(list,arg)
-# define __wine_dbg_va_end(list) va_end(list)
-#endif
-
-static const char * __wine_dbg_cdecl wine_dbg_sprintf( const char *format, ... ) __WINE_PRINTF_ATTR(1,2);
-static inline const char * __wine_dbg_cdecl wine_dbg_sprintf( const char *format, ... )
+static const char * __cdecl wine_dbg_sprintf( const char *format, ... ) __WINE_PRINTF_ATTR(1,2);
+static inline const char * __cdecl wine_dbg_sprintf( const char *format, ... )
 {
-    char buffer[200];
-    __wine_dbg_va_list args;
+    const char *ret;
+    __ms_va_list args;
 
-    __wine_dbg_va_start( args, format );
-    vsnprintf( buffer, sizeof(buffer), format, args );
-    __wine_dbg_va_end( args );
-    return __wine_dbg_strdup( buffer );
+    __ms_va_start( args, format );
+    ret = __wine_dbg_vsprintf( format, args );
+    __ms_va_end( args );
+    return ret;
 }
 
 static int __cdecl wine_dbg_printf( const char *format, ... ) __WINE_PRINTF_ATTR(1,2);

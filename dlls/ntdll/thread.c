@@ -186,6 +186,14 @@ int __cdecl __wine_dbg_vprintf( const char *format, __ms_va_list args )
 }
 
 /***********************************************************************
+ *		__wine_dbg_vsnprintf  (NTDLL.@)
+ */
+const char * __cdecl __wine_dbg_vsprintf( const char *format, __ms_va_list args )
+{
+    return unix_funcs->dbg_vsprintf( format, args );
+}
+
+/***********************************************************************
  *           RtlExitUserThread  (NTDLL.@)
  */
 void WINAPI RtlExitUserThread( ULONG status )

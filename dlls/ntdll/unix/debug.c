@@ -508,6 +508,17 @@ int __cdecl __wine_dbg_vprintf( const char *format, __ms_va_list args )
 
 
 /***********************************************************************
+ *      __wine_dbg_vsprintf  (NTDLL.@)
+ */
+const char * __cdecl __wine_dbg_vsprintf( const char *format, __ms_va_list args )
+{
+    char buffer[200];
+    wine_dbg_vsnprintf( buffer, sizeof(buffer), format, args );
+    return __wine_dbg_strdup( buffer );
+}
+
+
+/***********************************************************************
  *		dbg_init
  */
 void dbg_init(void)

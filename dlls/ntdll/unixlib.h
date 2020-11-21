@@ -81,6 +81,7 @@ struct unix_funcs
 
     /* debugging functions */
     int           (CDECL *dbg_vprintf)( const char *format, __ms_va_list args );
+    const char *  (CDECL *dbg_vsprintf)( const char *format, __ms_va_list args );
 };
 
 #endif /* __NTDLL_UNIXLIB_H */

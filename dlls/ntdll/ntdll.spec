@@ -1627,6 +1627,7 @@
 @ cdecl -norelay __wine_dbg_output(str)
 @ cdecl -norelay __wine_dbg_strdup(str)
 @ cdecl -norelay __wine_dbg_vprintf(str ptr)
+@ cdecl -norelay __wine_dbg_vsprintf(str ptr)
 
 # Version
 @ cdecl wine_get_version()
