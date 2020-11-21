@@ -311,6 +311,90 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
     return info->out_pos;
 }
 
+static size_t sprintf_dbgstr_an( char *buffer, size_t length, const char *str, int n )
+{
+    static const char hex[16] = {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
+    char *dst = buffer;
+
+    if (!str) { if (length >= 7) strcpy(buffer, "(null)"); return 6; }
+    if (!((ULONG_PTR)str >> 16)) return snprintf( buffer, length, "#%04x", LOWORD(str) );
+    if (n == -1) for (n = 0; str[n]; n++) ;
+    *dst++ = '"';
+    while (n-- > 0 && dst <= buffer + length - 9)
+    {
+        unsigned char c = *str++;
+        switch (c)
+        {
+        case '\n': *dst++ = '\\'; *dst++ = 'n'; break;
+        case '\r': *dst++ = '\\'; *dst++ = 'r'; break;
+        case '\t': *dst++ = '\\'; *dst++ = 't'; break;
+        case '"':  *dst++ = '\\'; *dst++ = '"'; break;
+        case '\\': *dst++ = '\\'; *dst++ = '\\'; break;
+        default:
+            if (c < ' ' || c >= 127)
+            {
+                *dst++ = '\\';
+                *dst++ = 'x';
+                *dst++ = hex[(c >> 4) & 0x0f];
+                *dst++ = hex[c & 0x0f];
+            }
+            else *dst++ = c;
+        }
+    }
+    *dst++ = '"';
+    if (n > 0)
+    {
+        *dst++ = '.';
+        *dst++ = '.';
+        *dst++ = '.';
+    }
+    *dst = 0;
+    return dst - buffer;
+}
+
+static size_t sprintf_dbgstr_wn( char *buffer, size_t length, const WCHAR *str, int n )
+{
+    static const char hex[16] = {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
+    char *dst = buffer;
+
+    if (!str) { if (length >= 7) strcpy(buffer, "(null)"); return 6; }
+    if (!((ULONG_PTR)str >> 16)) return snprintf( buffer, length, "#%04x", LOWORD(str) );
+    if (n == -1) for (n = 0; str[n]; n++) ;
+    *dst++ = 'L';
+    *dst++ = '"';
+    while (n-- > 0 && dst <= buffer + length - 10)
+    {
+        WCHAR c = *str++;
+        switch (c)
+        {
+        case '\n': *dst++ = '\\'; *dst++ = 'n'; break;
+        case '\r': *dst++ = '\\'; *dst++ = 'r'; break;
+        case '\t': *dst++ = '\\'; *dst++ = 't'; break;
+        case '"':  *dst++ = '\\'; *dst++ = '"'; break;
+        case '\\': *dst++ = '\\'; *dst++ = '\\'; break;
+        default:
+            if (c < ' ' || c >= 127)
+            {
+                *dst++ = '\\';
+                *dst++ = hex[(c >> 12) & 0x0f];
+                *dst++ = hex[(c >> 8) & 0x0f];
+                *dst++ = hex[(c >> 4) & 0x0f];
+                *dst++ = hex[c & 0x0f];
+            }
+            else *dst++ = (char)c;
+        }
+    }
+    *dst++ = '"';
+    if (n > 0)
+    {
+        *dst++ = '.';
+        *dst++ = '.';
+        *dst++ = '.';
+    }
+    *dst = 0;
+    return dst - buffer;
+}
+
 static int __cdecl wine_dbg_vsnprintf( char *buffer, size_t length, const char *format, __ms_va_list args )
 {
     char fmtbuf[1024];
@@ -461,7 +545,17 @@ static int __cdecl wine_dbg_vsnprintf( char *buffer, size_t length, const char *
             }
             break;
         case 'p':
-            snprintf_dispatch( buf, end - buf, fmt, va_arg( args, void * ) );
+            if (!strncmp( spec, "p(astr)", 7 )) /* debugstr_a / debugstr_an */
+            {
+                append_checked( buf, end - buf, sprintf_dbgstr_an( buf, end - buf, va_arg( args, const char * ), w ) );
+                snprintf_checked( buf, end - buf, spec + 7 );
+            }
+            else if (!strncmp( spec, "p(wstr)", 7 )) /* debugstr_w / debugstr_wn */
+            {
+                append_checked( buf, end - buf, sprintf_dbgstr_wn( buf, end - buf, va_arg( args, const WCHAR * ), w ) );
+                snprintf_checked( buf, end - buf, spec + 7 );
+            }
+            else snprintf_dispatch( buf, end - buf, fmt, va_arg( args, void * ) );
             break;
         case 'A':
         case 'a':
