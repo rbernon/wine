@@ -395,6 +395,18 @@ static size_t sprintf_dbgstr_wn( char *buffer, size_t length, const WCHAR *str, 
     return dst - buffer;
 }
 
+static size_t sprintf_dbgstr_us( char *buffer, size_t length, const UNICODE_STRING *us )
+{
+    if (!us) { if (length >= 7) strcpy(buffer, "<null>"); return 6; }
+    return sprintf_dbgstr_wn( buffer, length, us->Buffer, us->Length / sizeof(WCHAR) );
+}
+
+static size_t sprintf_dbgstr_as( char *buffer, size_t length, const ANSI_STRING *as )
+{
+    if (!as) { if (length >= 7) strcpy(buffer, "<null>"); return 6; }
+    return sprintf_dbgstr_an( buffer, length, as->Buffer, as->Length );
+}
+
 static int __cdecl wine_dbg_vsnprintf( char *buffer, size_t length, const char *format, __ms_va_list args )
 {
     char fmtbuf[1024];
@@ -554,6 +566,16 @@ static int __cdecl wine_dbg_vsnprintf( char *buffer, size_t length, const char *
             {
                 append_checked( buf, end - buf, sprintf_dbgstr_wn( buf, end - buf, va_arg( args, const WCHAR * ), w ) );
                 snprintf_checked( buf, end - buf, spec + 7 );
+            }
+            else if (!strncmp( spec, "p(us)", 5 )) /* debugstr_us */
+            {
+                append_checked( buf, end - buf, sprintf_dbgstr_us( buf, end - buf, va_arg( args, const UNICODE_STRING * ) ) );
+                snprintf_checked( buf, end - buf, spec + 5 );
+            }
+            else if (!strncmp( spec, "p(as)", 5 ))
+            {
+                append_checked( buf, end - buf, sprintf_dbgstr_as( buf, end - buf, va_arg( args, const ANSI_STRING * ) ) );
+                snprintf_checked( buf, end - buf, spec + 5 );
             }
             else snprintf_dispatch( buf, end - buf, fmt, va_arg( args, void * ) );
             break;
