@@ -2651,8 +2651,6 @@ DECL_HANDLER(get_message)
     user_handle_t get_win = get_user_full_handle( req->get_win );
     unsigned int filter = req->flags >> 16;
 
-    reply->active_hooks = get_active_hooks();
-
     /* first check for internal messages */
     if (queue && get_queued_message( queue, SEND_MESSAGE, 0, 0x80000000, 0xffffffff, PM_REMOVE, reply ))
         return;
