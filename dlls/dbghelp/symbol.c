@@ -204,12 +204,15 @@ struct symt_public* symt_new_public(struct module* module,
                                     ULONG_PTR address, unsigned size)
 {
     struct symt_public* sym;
+    struct symt_ht *near;
     struct symt**       p;
 
     TRACE_(dbghelp_symt)("Adding public symbol %s:%s @%lx\n",
                          debugstr_w(module->module.ModuleName), name, address);
     if ((dbghelp_options & SYMOPT_AUTO_PUBLICS) &&
-        symt_find_nearest(module, address) != NULL)
+        (near = symt_find_nearest(module, address)) &&
+        near->symt.tag == SymTagPublicSymbol &&
+        ((struct symt_public *)near)->address == address)
         return NULL;
     if ((sym = pool_alloc(&module->pool, sizeof(*sym))))
     {

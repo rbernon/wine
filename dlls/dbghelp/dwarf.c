@@ -184,6 +184,7 @@ typedef struct dwarf2_parse_context_s
     ULONG_PTR                   ref_offset;
     struct symt*                symt_cache[sc_num]; /* void, int1, int2, int4 */
     char*                       cpp_name;
+    unsigned int                offset_size;
 } dwarf2_parse_context_t;
 
 /* stored in the dbghelp's module internal structure for later reuse */
@@ -193,6 +194,7 @@ struct dwarf2_module_info_s
     dwarf2_section_t            debug_frame;
     dwarf2_section_t            eh_frame;
     unsigned char               word_size;
+    unsigned char               offset_size;
 };
 
 #define loc_dwarf2_location_list        (loc_user + 0)
@@ -465,10 +467,12 @@ static void dwarf2_swallow_attribute(dwarf2_traverse_context_t* ctx,
     case DW_FORM_ref_udata:
     case DW_FORM_udata:  step = dwarf2_leb128_length(ctx); break;
     case DW_FORM_string: step = strlen((const char*)ctx->data) + 1; break;
+    case DW_FORM_exprloc:
     case DW_FORM_block:  step = dwarf2_leb128_as_unsigned(ctx); break;
     case DW_FORM_block1: step = dwarf2_parse_byte(ctx); break;
     case DW_FORM_block2: step = dwarf2_parse_u2(ctx); break;
     case DW_FORM_block4: step = dwarf2_parse_u4(ctx); break;
+    case DW_FORM_sec_offset: step = ctx->offset_size; break;
     default:
         FIXME("Unhandled attribute form %lx\n", abbrev_attr->form);
         return;
@@ -535,6 +539,11 @@ static void dwarf2_fill_attr(const dwarf2_parse_context_t* ctx,
         attr->u.uvalue = ctx->ref_offset + dwarf2_get_u4(data);
         TRACE("ref4<0x%lx>\n", attr->u.uvalue);
         break;
+
+    case DW_FORM_sec_offset:
+        attr->u.uvalue = (ctx->offset_size == 4) ? dwarf2_get_u4(data) : dwarf2_get_u8(data);
+        TRACE("sec_offset<0x%lx>\n", attr->u.uvalue);
+        break;
     
     case DW_FORM_ref8:
         FIXME("Unhandled 64-bit support\n");
@@ -565,6 +574,7 @@ static void dwarf2_fill_attr(const dwarf2_parse_context_t* ctx,
     TRACE("strp<%s>\n", debugstr_a(attr->u.string));
     break;
         
+    case DW_FORM_exprloc:
     case DW_FORM_block:
         attr->u.block.size = dwarf2_get_leb128_as_unsigned(data, &attr->u.block.ptr);
         break;
@@ -864,6 +874,8 @@ compute_location(const struct module *module, dwarf2_traverse_context_t* ctx, st
             /* Expected behaviour is that this is the last instruction of this
              * expression and just the "top of stack" value should be put to loc->offset. */
             break;
+        case DW_OP_call_frame_cfa:
+            return loc_err_internal;
         default:
             if (op < DW_OP_lo_user) /* as DW_OP_hi_user is 0xFF, we don't need to test against it */
                 FIXME("Unhandled attr op: %x\n", op);
@@ -898,10 +910,16 @@ static BOOL dwarf2_compute_location_attr(dwarf2_parse_context_t* ctx,
         loc->reg = Wine_DW_no_register;
         loc->offset = xloc.u.uvalue;
         return TRUE;
+    case DW_FORM_sec_offset:
+        loc->kind = loc_absolute;
+        loc->reg = 0;
+        loc->offset = (ULONG_PTR)ctx->sections[ctx->section].address + xloc.u.uvalue;
+        return TRUE;
     case DW_FORM_block:
     case DW_FORM_block1:
     case DW_FORM_block2:
     case DW_FORM_block4:
+    case DW_FORM_exprloc:
         break;
     default: FIXME("Unsupported yet form %lx\n", xloc.form);
         return FALSE;
@@ -2383,6 +2401,7 @@ static BOOL dwarf2_parse_compilation_unit(const dwarf2_section_t* sections,
     BOOL ret = FALSE;
 
     cu_length = dwarf2_parse_u4(mod_ctx);
+    cu_ctx.offset_size = 4;
     if (cu_length == DW_LENGTH_DWARF64)
     {
         cu_length = dwarf2_parse_u8(mod_ctx);
@@ -2413,6 +2432,7 @@ static BOOL dwarf2_parse_compilation_unit(const dwarf2_section_t* sections,
 
     module->format_info[DFI_DWARF]->u.dwarf2_info->word_size = cu_ctx.word_size;
     mod_ctx->word_size = cu_ctx.word_size;
+    mod_ctx->offset_size = cu_ctx.offset_size;
 
     pool_init(&ctx.pool, 65536);
     ctx.sections = sections;
@@ -2424,6 +2444,7 @@ static BOOL dwarf2_parse_compilation_unit(const dwarf2_section_t* sections,
     memset(ctx.symt_cache, 0, sizeof(ctx.symt_cache));
     ctx.symt_cache[sc_void] = &symt_new_basic(module, btVoid, "void", 0)->symt;
     ctx.cpp_name = NULL;
+    ctx.offset_size = cu_ctx.offset_size;
 
     abbrev_ctx.data = sections[section_abbrev].address + cu_abbrev_offset;
     abbrev_ctx.end_data = sections[section_abbrev].address + sections[section_abbrev].size;
