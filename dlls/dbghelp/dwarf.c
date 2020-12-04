@@ -160,6 +160,7 @@ typedef struct dwarf2_traverse_context_s
     const unsigned char*        data;
     const unsigned char*        end_data;
     unsigned char               word_size;
+    unsigned char               offset_size;
 } dwarf2_traverse_context_t;
 
 /* symt_cache indexes */
@@ -2195,8 +2196,14 @@ static BOOL dwarf2_parse_line_numbers(const dwarf2_section_t* sections,
     traverse.data = sections[section_line].address + offset;
     traverse.end_data = traverse.data + 4;
     traverse.word_size = ctx->module->format_info[DFI_DWARF]->u.dwarf2_info->word_size;
+    traverse.offset_size = 4;
 
     length = dwarf2_parse_u4(&traverse);
+    if (length == DW_LENGTH_DWARF64)
+    {
+        length = dwarf2_parse_u8(&traverse);
+        traverse.offset_size = 8;
+    }
     traverse.end_data = sections[section_line].address + offset + length;
 
     if (offset + 4 + length > sections[section_line].size)
@@ -2204,7 +2211,8 @@ static BOOL dwarf2_parse_line_numbers(const dwarf2_section_t* sections,
         WARN("out of bounds header\n");
         return FALSE;
     }
-    dwarf2_parse_u2(&traverse); /* version */
+    if (dwarf2_parse_u2(&traverse) > 2) /* version */
+        traverse.word_size = traverse.offset_size;
     dwarf2_parse_u4(&traverse); /* header_len */
     insn_size = dwarf2_parse_byte(&traverse);
     default_stmt = dwarf2_parse_byte(&traverse);
@@ -2375,12 +2383,18 @@ static BOOL dwarf2_parse_compilation_unit(const dwarf2_section_t* sections,
     BOOL ret = FALSE;
 
     cu_length = dwarf2_parse_u4(mod_ctx);
+    if (cu_length == DW_LENGTH_DWARF64)
+    {
+        cu_length = dwarf2_parse_u8(mod_ctx);
+        cu_ctx.offset_size = 8;
+    }
     cu_ctx.data = mod_ctx->data;
     cu_ctx.end_data = mod_ctx->data + cu_length;
     mod_ctx->data += cu_length;
     cu_version = dwarf2_parse_u2(&cu_ctx);
     cu_abbrev_offset = dwarf2_parse_u4(&cu_ctx);
     cu_ctx.word_size = dwarf2_parse_byte(&cu_ctx);
+    if (cu_version > 2) cu_ctx.word_size = cu_ctx.offset_size;
 
     TRACE("Compilation Unit Header found at 0x%x:\n",
           (int)(comp_unit_start - sections[section_debug].address));
@@ -2388,6 +2402,7 @@ static BOOL dwarf2_parse_compilation_unit(const dwarf2_section_t* sections,
     TRACE("- version:       %u\n",  cu_version);
     TRACE("- abbrev_offset: %lu\n", cu_abbrev_offset);
     TRACE("- word_size:     %u\n",  cu_ctx.word_size);
+    TRACE("- offset_size:   %u\n",  cu_ctx.offset_size);
 
     if (cu_version != 2)
     {

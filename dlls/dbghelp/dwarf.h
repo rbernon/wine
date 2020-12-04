@@ -554,3 +554,7 @@ enum dwarf_call_frame_info
 #define DW_INL_inlined                  0x01
 #define DW_INL_declared_not_inlined     0x02
 #define DW_INL_declared_inlined         0x03
+
+#define DW_LENGTH_lo_reserved 0xfffffff0
+#define DW_LENGTH_DWARF64 0xffffffff
+#define DW_LENGTH_hi_reserved 0xffffffff
