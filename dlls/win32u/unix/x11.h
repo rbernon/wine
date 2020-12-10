@@ -33,6 +33,9 @@
 
 #ifdef HAVE_X11_XLIB_H
 #include <X11/Xlib.h>
+#include <X11/Xresource.h>
+#include <X11/Xutil.h>
+#include <X11/Xatom.h>
 #endif
 
 #undef Status /* avoid conflict with wintrnl.h */
@@ -48,5 +51,24 @@ typedef int Status;
 
 #include "wine/gdi_driver.h"
 #include "wine/debug.h"
+
+#ifdef HAVE_X11_XLIB_H
+#define MAKE_FUNCPTR(f) extern typeof(f) *p##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(XCreateColormap)
+MAKE_FUNCPTR(XCreatePixmap)
+MAKE_FUNCPTR(XCreateWindow)
+MAKE_FUNCPTR(XDestroyWindow)
+MAKE_FUNCPTR(XFlush)
+MAKE_FUNCPTR(XFree)
+MAKE_FUNCPTR(XFreeColormap)
+MAKE_FUNCPTR(XFreePixmap)
+MAKE_FUNCPTR(XGetWindowAttributes)
+MAKE_FUNCPTR(XInitThreads)
+MAKE_FUNCPTR(XMapWindow)
+MAKE_FUNCPTR(XOpenDisplay)
+MAKE_FUNCPTR(XQueryExtension)
+MAKE_FUNCPTR(XSync)
+#undef MAKE_FUNCPTR
+#endif
 
 #endif /* __WINE_WIN32U_UNIX_X11_H */
