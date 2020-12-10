@@ -564,15 +564,18 @@ failed:
 /* destroy all windows belonging to a given thread */
 void destroy_thread_windows( struct thread *thread )
 {
+    struct desktop *desktop = get_thread_desktop( thread, 0 );
     user_handle_t handle = 0;
     struct window *win;
 
     while ((win = next_user_handle( &handle, USER_WINDOW )))
     {
         if (win->thread != thread) continue;
+        if (desktop) desktop_ioctl_destroy_window( desktop, win->handle );
         if (is_desktop_window( win )) detach_window_thread( win );
         else destroy_window( win );
     }
+    if (desktop) release_object( desktop );
 }
 
 /* get the desktop window */
