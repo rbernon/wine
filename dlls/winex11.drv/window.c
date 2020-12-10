@@ -52,6 +52,7 @@
 #include "mwm.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(x11drv);
+WINE_DECLARE_DEBUG_CHANNEL(winex11);
 
 #define _NET_WM_MOVERESIZE_SIZE_TOPLEFT      0
 #define _NET_WM_MOVERESIZE_SIZE_TOP          1
@@ -1800,6 +1801,8 @@ void CDECL X11DRV_SetWindowStyle( HWND hwnd, INT offset, STYLESTRUCT *style )
             sync_vk_surface( parent, FALSE );
     }
 
+    TRACE_(winex11)("hwnd %p, offset %x, style %p\n", hwnd, offset, style);
+
     if (hwnd == GetDesktopWindow()) return;
     if (!(data = get_win_data( hwnd ))) return;
     if (!data->whole_window) goto done;
@@ -1829,6 +1832,8 @@ void CDECL X11DRV_DestroyWindow( HWND hwnd )
 
     if (!GetWindow( parent, GW_CHILD ) && GetAncestor( parent, GA_PARENT ) == GetDesktopWindow())
         sync_vk_surface( parent, FALSE );
+
+    TRACE_(winex11)("hwnd %p\n", hwnd);
 
     if (!(data = get_win_data( hwnd ))) return;
 
@@ -1966,6 +1971,8 @@ static LRESULT CALLBACK desktop_wndproc_wrapper( HWND hwnd, UINT msg, WPARAM wp,
  */
 BOOL CDECL X11DRV_CreateWindow( HWND hwnd )
 {
+    TRACE_(winex11)("hwnd %p\n", hwnd);
+
     if (hwnd == GetDesktopWindow())
     {
         struct x11drv_thread_data *data = x11drv_init_thread_data();
@@ -2341,6 +2348,8 @@ void CDECL X11DRV_SetParent( HWND hwnd, HWND parent, HWND old_parent )
 {
     struct x11drv_win_data *data;
 
+    TRACE_(winex11)("hwnd %p, parent %p, old_parent %p\n", hwnd, parent, old_parent);
+
     if (parent == old_parent) return;
     if (!(data = get_win_data( hwnd ))) return;
     if (data->embedded) goto done;
@@ -2399,7 +2408,11 @@ BOOL CDECL X11DRV_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
     COLORREF key;
     BOOL layered = GetWindowLongW( hwnd, GWL_EXSTYLE ) & WS_EX_LAYERED;
 
-    if (!data && !(data = X11DRV_create_win_data( hwnd, window_rect, client_rect ))) return TRUE;
+    TRACE_(winex11)("hwnd %p, insert_after %p, swp_flags %x, window_rect %s, client_rect %s, visible_rect %p, surface %p\n",
+                    hwnd, insert_after, swp_flags, wine_dbgstr_rect(window_rect), wine_dbgstr_rect(client_rect),
+                    visible_rect, surface);
+
+    if (!data && !(data = X11DRV_create_win_data( hwnd, window_rect, client_rect ))) goto out;
 
     /* check if we need to switch the window to managed */
     if (!data->managed && data->whole_window && is_window_managed( hwnd, swp_flags, window_rect ))
@@ -2407,7 +2420,7 @@ BOOL CDECL X11DRV_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
         TRACE( "making win %p/%lx managed\n", hwnd, data->whole_window );
         release_win_data( data );
         unmap_window( hwnd );
-        if (!(data = get_win_data( hwnd ))) return TRUE;
+        if (!(data = get_win_data( hwnd ))) goto out;
         data->managed = TRUE;
     }
 
@@ -2448,6 +2461,9 @@ BOOL CDECL X11DRV_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
 
 done:
     release_win_data( data );
+
+out:
+    TRACE_(winex11)("returned: visible_rect %s, surface %p\n", wine_dbgstr_rect(visible_rect), surface);
     return TRUE;
 }
 
@@ -2463,6 +2479,10 @@ void CDECL X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags
     struct x11drv_win_data *data;
     DWORD new_style = GetWindowLongW( hwnd, GWL_STYLE );
     RECT old_window_rect, old_whole_rect, old_client_rect;
+
+    TRACE_(winex11)("hwnd %p, insert_after %p, swp_flags %x, window_rect %s, client_rect %s, visible_rect %s, valid_rects %s, surface %p\n",
+                    hwnd, insert_after, swp_flags, wine_dbgstr_rect(rectWindow), wine_dbgstr_rect(rectClient),
+                    wine_dbgstr_rect(visible_rect), wine_dbgstr_rect(valid_rects), surface);
 
     if (!(data = get_win_data( hwnd ))) return;
 
@@ -2615,6 +2635,8 @@ UINT CDECL X11DRV_ShowWindow( HWND hwnd, INT cmd, RECT *rect, UINT swp )
     struct x11drv_thread_data *thread_data = x11drv_thread_data();
     struct x11drv_win_data *data = get_win_data( hwnd );
 
+    TRACE_(winex11)("hwnd %p, cmd %d, rect %s, swp %x\n", hwnd, cmd, wine_dbgstr_rect(rect), swp);
+
     if (!data || !data->whole_window) goto done;
     if (style & WS_MINIMIZE)
     {
@@ -2642,6 +2664,7 @@ UINT CDECL X11DRV_ShowWindow( HWND hwnd, INT cmd, RECT *rect, UINT swp )
 
 done:
     release_win_data( data );
+    TRACE_(winex11)("returned: swp %x\n", swp);
     return swp;
 }
 

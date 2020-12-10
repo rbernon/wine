@@ -33,7 +33,22 @@
 #define IOCTL_WIN32U_SET_PARENT           CTL_CODE(FILE_DEVICE_UNKNOWN, 0x807, METHOD_BUFFERED, 0)
 #define IOCTL_WIN32U_TO_UNICODE           CTL_CODE(FILE_DEVICE_UNKNOWN, 0x808, METHOD_BUFFERED, 0)
 
-#define WIN32U_DUMMY_DESKTOP_SURFACE (~(UINT64)0)
+static inline const char *debugstr_win32u_ioctl( DWORD code )
+{
+    switch (code)
+    {
+    case IOCTL_WIN32U_CREATE_WINDOW: return "IOCTL_WIN32U_CREATE_WINDOW";
+    case IOCTL_WIN32U_DESTROY_WINDOW: return "IOCTL_WIN32U_DESTROY_WINDOW";
+    case IOCTL_WIN32U_WINDOW_POS_CHANGING: return "IOCTL_WIN32U_WINDOW_POS_CHANGING";
+    case IOCTL_WIN32U_WINDOW_POS_CHANGED: return "IOCTL_WIN32U_WINDOW_POS_CHANGED";
+    case IOCTL_WIN32U_SHOW_WINDOW: return "IOCTL_WIN32U_SHOW_WINDOW";
+    case IOCTL_WIN32U_SET_WINDOW_STYLE: return "IOCTL_WIN32U_SET_WINDOW_STYLE";
+    case IOCTL_WIN32U_SET_FOCUS: return "IOCTL_WIN32U_SET_FOCUS";
+    case IOCTL_WIN32U_SET_PARENT: return "IOCTL_WIN32U_SET_PARENT";
+    case IOCTL_WIN32U_TO_UNICODE: return "IOCTL_WIN32U_TO_UNICODE";
+    }
+    return "unknown";
+}
 
 /* IOCTL_WIN32U_CREATE_WINDOW params */
 struct win32u_create_window_input
@@ -55,13 +70,11 @@ struct win32u_window_pos_changing_input
     UINT   swp_flags;
     RECT   window_rect;
     RECT   client_rect;
-    UINT64 desktop_surface;
 };
 
 struct win32u_window_pos_changing_output
 {
     RECT   visible_rect;
-    UINT64 desktop_surface;
 };
 
 /* IOCTL_WIN32U_WINDOW_POS_CHANGED params */
@@ -75,7 +88,6 @@ struct win32u_window_pos_changed_input
     RECT   visible_rect;
     BOOL   valid_rects_set;
     RECT   valid_rects;
-    UINT64 desktop_surface;
 };
 
 /* IOCTL_WIN32U_SHOW_WINDOW params */
