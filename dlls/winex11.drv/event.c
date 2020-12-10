@@ -56,6 +56,7 @@
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(event);
+WINE_DECLARE_DEBUG_CHANNEL(winex11);
 
 extern BOOL ximInComposeMode;
 
@@ -1421,6 +1422,8 @@ void CDECL X11DRV_SetFocus( HWND hwnd )
     struct x11drv_win_data *data;
 
     HWND parent;
+
+    TRACE_(winex11)("hwnd %p\n", hwnd);
 
     for (;;)
     {

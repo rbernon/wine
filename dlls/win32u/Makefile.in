@@ -1,5 +1,6 @@
 MODULE = win32u.dll
 EXTRADLLFLAGS = -mno-cygwin
+IMPORTS = user32
 
 C_SRCS = \
 	win32u.c

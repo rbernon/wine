@@ -118,7 +118,9 @@ static const USER_DRIVER *load_driver(void)
         BOOL (CDECL *__wine_set_fallback_driver)(HMODULE);
         BOOL use_win32u = FALSE;
 
-        if ((__wine_set_fallback_driver = (void *)GetProcAddress(win32u, "__wine_set_fallback_driver")))
+        if (GetWindowThreadProcessId( GetDesktopWindow(), NULL ) == GetCurrentThreadId())
+            use_win32u = FALSE;
+        else if ((__wine_set_fallback_driver = (void *)GetProcAddress(win32u, "__wine_set_fallback_driver")))
             use_win32u = __wine_set_fallback_driver(graphics_driver);
 
 #define GET_USER_FUNC(name) \

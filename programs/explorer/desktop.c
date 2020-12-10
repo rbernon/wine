@@ -20,18 +20,26 @@
  */
 
 #include <stdio.h>
+#include <assert.h>
 
+#include <ntstatus.h>
+#define WIN32_NO_STATUS
 #define COBJMACROS
 #define NONAMELESSUNION
 #define NONAMELESSSTRUCT
 #define OEMRESOURCE
+#include <windef.h>
 #include <windows.h>
 #include <rpc.h>
 #include <shlobj.h>
 #include <shellapi.h>
 #include "exdisp.h"
+#include "winbase.h"
 
 #include "wine/debug.h"
+#include "wine/server.h"
+#include "wine/win32u.h"
+#include "wine/gdi_driver.h"
 #include "explorer_private.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(explorer);
@@ -75,6 +83,77 @@ typedef enum
 
 static ITypeLib *typelib;
 static ITypeInfo *typeinfos[LAST_tid];
+
+#if 0
+/* keyboard functions */
+HKL    (CDECL *pActivateKeyboardLayout)(HKL, UINT);
+void   (CDECL *pBeep)(void);
+INT    (CDECL *pGetKeyNameText)(LONG, LPWSTR, INT);
+HKL    (CDECL *pGetKeyboardLayout)(DWORD);
+UINT   (CDECL *pGetKeyboardLayoutList)(INT, HKL *);
+BOOL   (CDECL *pGetKeyboardLayoutName)(LPWSTR);
+HKL    (CDECL *pLoadKeyboardLayout)(LPCWSTR, UINT);
+UINT   (CDECL *pMapVirtualKeyEx)(UINT, UINT, HKL);
+BOOL   (CDECL *pRegisterHotKey)(HWND, UINT, UINT);
+#endif
+INT    (CDECL *driver_ToUnicodeEx)(UINT, UINT, const BYTE *, LPWSTR, int, UINT, HKL);
+#if 0
+BOOL   (CDECL *pUnloadKeyboardLayout)(HKL);
+void   (CDECL *pUnregisterHotKey)(HWND, UINT, UINT);
+SHORT  (CDECL *pVkKeyScanEx)(WCHAR, HKL);
+/* cursor/icon functions */
+void   (CDECL *pDestroyCursorIcon)(HCURSOR);
+void   (CDECL *pSetCursor)(HCURSOR);
+BOOL   (CDECL *pGetCursorPos)(LPPOINT);
+BOOL   (CDECL *pSetCursorPos)(INT,INT);
+BOOL   (CDECL *pClipCursor)(LPCRECT);
+/* clipboard functions */
+void   (CDECL *pUpdateClipboard)(void);
+/* display modes */
+LONG   (CDECL *pChangeDisplaySettingsEx)(LPCWSTR,LPDEVMODEW,HWND,DWORD,LPVOID);
+BOOL   (CDECL *pEnumDisplayMonitors)(HDC,LPRECT,MONITORENUMPROC,LPARAM);
+BOOL   (CDECL *pEnumDisplaySettingsEx)(LPCWSTR,DWORD,LPDEVMODEW,DWORD);
+BOOL   (CDECL *pGetMonitorInfo)(HMONITOR,MONITORINFO*);
+/* windowing functions */
+BOOL   (CDECL *pCreateDesktopWindow)(HWND);
+#endif
+BOOL   (CDECL *driver_CreateWindow)(HWND);
+void   (CDECL *driver_DestroyWindow)(HWND);
+#if 0
+void   (CDECL *pFlashWindowEx)(FLASHWINFO*);
+void   (CDECL *pGetDC)(HDC,HWND,HWND,const RECT *,const RECT *,DWORD);
+DWORD  (CDECL *pMsgWaitForMultipleObjectsEx)(DWORD,const HANDLE*,DWORD,DWORD,DWORD);
+void   (CDECL *pReleaseDC)(HWND,HDC);
+BOOL   (CDECL *pScrollDC)(HDC,INT,INT,HRGN);
+void   (CDECL *pSetCapture)(HWND,UINT);
+#endif
+void   (CDECL *driver_SetFocus)(HWND);
+#if 0
+void   (CDECL *pSetLayeredWindowAttributes)(HWND,COLORREF,BYTE,DWORD);
+#endif
+void   (CDECL *driver_SetParent)(HWND,HWND,HWND);
+#if 0
+void   (CDECL *pSetWindowRgn)(HWND,HRGN,BOOL);
+void   (CDECL *pSetWindowIcon)(HWND,UINT,HICON);
+#endif
+void   (CDECL *driver_SetWindowStyle)(HWND,INT,STYLESTRUCT*);
+#if 0
+void   (CDECL *pSetWindowText)(HWND,LPCWSTR);
+#endif
+UINT   (CDECL *driver_ShowWindow)(HWND,INT,RECT*,UINT);
+#if 0
+LRESULT (CDECL *pSysCommand)(HWND,WPARAM,LPARAM);
+BOOL    (CDECL *pUpdateLayeredWindow)(HWND,const UPDATELAYEREDWINDOWINFO *,const RECT *);
+LRESULT (CDECL *pWindowMessage)(HWND,UINT,WPARAM,LPARAM);
+#endif
+void   (CDECL *driver_WindowPosChanging)(HWND,HWND,UINT,const RECT *,const RECT *,RECT *,struct window_surface**);
+void   (CDECL *driver_WindowPosChanged)(HWND,HWND,UINT,const RECT *,const RECT *,const RECT *,const RECT *,struct window_surface*);
+#if 0
+/* system parameters */
+BOOL   (CDECL *pSystemParametersInfo)(UINT,UINT,void*,UINT);
+/* thread management */
+void   (CDECL *pThreadDetach)(void);
+#endif
 
 static HRESULT load_typelib(void)
 {
@@ -859,6 +938,21 @@ static HMODULE load_graphics_driver( const WCHAR *driver, const GUID *guid )
 
     TRACE( "display %s driver %s\n", debugstr_guid(guid), debugstr_w(libname) );
 
+    if (module)
+    {
+        driver_CreateWindow = (void *)GetProcAddress(module, "CreateWindow");
+        driver_DestroyWindow = (void *)GetProcAddress(module, "DestroyWindow");
+        driver_ShowWindow = (void *)GetProcAddress(module, "ShowWindow");
+        driver_SetWindowStyle = (void *)GetProcAddress(module, "SetWindowStyle");
+        driver_WindowPosChanging = (void *)GetProcAddress(module, "WindowPosChanging");
+        driver_WindowPosChanged = (void *)GetProcAddress(module, "WindowPosChanged");
+        driver_SetFocus = (void *)GetProcAddress(module, "SetFocus");
+        driver_SetParent = (void *)GetProcAddress(module, "SetParent");
+        driver_ToUnicodeEx = (void *)GetProcAddress(module, "ToUnicodeEx");
+        GetModuleFileNameW( module, buffer, MAX_PATH );
+        ERR( "display %s driver %s\n", debugstr_guid(guid), debugstr_w(buffer) );
+    }
+
     swprintf( key, ARRAY_SIZE(key), device_keyW, guid->Data1, guid->Data2, guid->Data3,
               guid->Data4[0], guid->Data4[1], guid->Data4[2], guid->Data4[3],
               guid->Data4[4], guid->Data4[5], guid->Data4[6], guid->Data4[7] );
@@ -942,6 +1036,255 @@ static void set_desktop_window_title( HWND hwnd, const WCHAR *name )
 static inline BOOL is_whitespace(WCHAR c)
 {
     return c == ' ' || c == '\t';
+}
+
+/*******************************************************************
+ * Dummy window surface for windows that shouldn't get painted.
+ */
+
+static void CDECL dummy_surface_lock( struct window_surface *window_surface );
+static void CDECL dummy_surface_unlock( struct window_surface *window_surface );
+static void *CDECL dummy_surface_get_bitmap_info( struct window_surface *window_surface, BITMAPINFO *info );
+static RECT *CDECL dummy_surface_get_bounds( struct window_surface *window_surface );
+static void CDECL dummy_surface_set_region( struct window_surface *window_surface, HRGN region );
+static void CDECL dummy_surface_flush( struct window_surface *window_surface );
+static void CDECL dummy_surface_destroy( struct window_surface *window_surface );
+
+static const struct window_surface_funcs dummy_surface_funcs =
+{
+    dummy_surface_lock,
+    dummy_surface_unlock,
+    dummy_surface_get_bitmap_info,
+    dummy_surface_get_bounds,
+    dummy_surface_set_region,
+    dummy_surface_flush,
+    dummy_surface_destroy
+};
+
+static struct window_surface dummy_surface = { &dummy_surface_funcs, { NULL, NULL }, 1, { 0, 0, 1, 1 } };
+
+
+static void CDECL dummy_surface_lock( struct window_surface *window_surface )
+{
+    /* nothing to do */
+}
+
+static void CDECL dummy_surface_unlock( struct window_surface *window_surface )
+{
+    /* nothing to do */
+}
+
+static void *CDECL dummy_surface_get_bitmap_info( struct window_surface *window_surface, BITMAPINFO *info )
+{
+    static DWORD dummy_data;
+
+    info->bmiHeader.biSize          = sizeof( info->bmiHeader );
+    info->bmiHeader.biWidth         = dummy_surface.rect.right;
+    info->bmiHeader.biHeight        = dummy_surface.rect.bottom;
+    info->bmiHeader.biPlanes        = 1;
+    info->bmiHeader.biBitCount      = 32;
+    info->bmiHeader.biCompression   = BI_RGB;
+    info->bmiHeader.biSizeImage     = 0;
+    info->bmiHeader.biXPelsPerMeter = 0;
+    info->bmiHeader.biYPelsPerMeter = 0;
+    info->bmiHeader.biClrUsed       = 0;
+    info->bmiHeader.biClrImportant  = 0;
+    return &dummy_data;
+}
+
+static RECT *CDECL dummy_surface_get_bounds( struct window_surface *window_surface )
+{
+    static RECT dummy_bounds;
+    return &dummy_bounds;
+}
+
+static void CDECL dummy_surface_set_region( struct window_surface *window_surface, HRGN region )
+{
+    /* nothing to do */
+}
+
+static void CDECL dummy_surface_flush( struct window_surface *window_surface )
+{
+    /* nothing to do */
+}
+
+static void CDECL dummy_surface_destroy( struct window_surface *window_surface )
+{
+    /* nothing to do */
+}
+
+static void process_desktop_ioctls(void)
+{
+    char ioctl_buffer[512], *buf = ioctl_buffer;
+    size_t out_size = 0, in_size, buf_size = sizeof(ioctl_buffer);
+    unsigned int code;
+    NTSTATUS status = STATUS_SUCCESS;
+
+    for (;;)
+    {
+        if (status) out_size = 0;
+
+        SERVER_START_REQ( get_desktop_ioctl )
+        {
+            req->handle = wine_server_obj_handle( GetThreadDesktop(GetCurrentThreadId()) );
+            req->status = status;
+            wine_server_add_data( req, buf, out_size );
+            wine_server_set_reply( req, buf, buf_size );
+            status = wine_server_call( req );
+            code     = reply->code;
+            out_size = reply->out_size;
+            in_size  = wine_server_reply_size( reply );
+        }
+        SERVER_END_REQ;
+
+        if (status == STATUS_PENDING) break;
+        if (status == STATUS_BUFFER_OVERFLOW)
+        {
+            if (buf != ioctl_buffer) buf = HeapReAlloc( GetProcessHeap(), 0, buf, out_size );
+            else buf = HeapAlloc( GetProcessHeap(), 0, out_size );
+            if (!buf) status = STATUS_NO_MEMORY;
+            else status = STATUS_SUCCESS;
+            buf_size = out_size;
+            continue;
+        }
+
+        out_size = 0;
+        switch (code)
+        {
+        case IOCTL_WIN32U_CREATE_WINDOW:
+        {
+            struct win32u_create_window_input in;
+            if (in_size != sizeof(in)) status = STATUS_INVALID_PARAMETER;
+            else
+            {
+                memcpy(&in, buf, sizeof(in));
+                if (!driver_CreateWindow(UlongToHandle(in.hwnd))) status = STATUS_INVALID_PARAMETER;
+                else status = STATUS_SUCCESS;
+            }
+            break;
+        }
+        case IOCTL_WIN32U_DESTROY_WINDOW:
+        {
+            struct win32u_destroy_window_input in;
+            if (in_size != sizeof(in)) status = STATUS_INVALID_PARAMETER;
+            else
+            {
+                memcpy(&in, buf, sizeof(in));
+                driver_DestroyWindow(UlongToHandle(in.hwnd));
+                status = STATUS_SUCCESS;
+            }
+            break;
+        }
+        case IOCTL_WIN32U_WINDOW_POS_CHANGING:
+        {
+            struct win32u_window_pos_changing_input in;
+            struct win32u_window_pos_changing_output out;
+            struct window_surface *surface;
+            if (in_size != sizeof(in)) status = STATUS_INVALID_PARAMETER;
+            else
+            {
+                memcpy(&in, buf, sizeof(in));
+                surface = in.desktop_surface == WIN32U_DUMMY_DESKTOP_SURFACE ? &dummy_surface : (void *)(UINT_PTR)in.desktop_surface;
+                driver_WindowPosChanging(UlongToHandle(in.hwnd), UlongToHandle(in.insert_after), in.swp_flags,
+                                         &in.window_rect, &in.client_rect, &out.visible_rect, &surface);
+                out.desktop_surface = (UINT_PTR)surface;
+                memcpy(buf, &out, sizeof(out));
+                out_size = sizeof(out);
+                status = STATUS_SUCCESS;
+            }
+            break;
+        }
+        case IOCTL_WIN32U_WINDOW_POS_CHANGED:
+        {
+            struct win32u_window_pos_changed_input in;
+            struct window_surface *surface;
+            if (in_size != sizeof(in)) status = STATUS_INVALID_PARAMETER;
+            else
+            {
+                memcpy(&in, buf, sizeof(in));
+                surface = (void *)(UINT_PTR)in.desktop_surface;
+                driver_WindowPosChanged(UlongToHandle(in.hwnd), UlongToHandle(in.insert_after), in.swp_flags,
+                                        &in.window_rect, &in.client_rect, &in.visible_rect,
+                                        in.valid_rects_set ? &in.valid_rects : NULL, surface);
+                status = STATUS_SUCCESS;
+            }
+            break;
+        }
+        case IOCTL_WIN32U_SHOW_WINDOW:
+        {
+            struct win32u_show_window_input in;
+            struct win32u_show_window_output out;
+            if (in_size != sizeof(in)) status = STATUS_INVALID_PARAMETER;
+            else
+            {
+                memcpy(&in, buf, sizeof(in));
+                out.swp = driver_ShowWindow(UlongToHandle(in.hwnd), in.cmd, &in.rect, in.swp);
+                memcpy(buf, &out, sizeof(out));
+                out_size = sizeof(out);
+                status = STATUS_SUCCESS;
+            }
+            break;
+        }
+        case IOCTL_WIN32U_SET_WINDOW_STYLE:
+        {
+            struct win32u_set_window_style_input in;
+            if (in_size != sizeof(in)) status = STATUS_INVALID_PARAMETER;
+            else
+            {
+                memcpy(&in, buf, sizeof(in));
+                driver_SetWindowStyle(UlongToHandle(in.hwnd), in.offset, &in.style);
+                status = STATUS_SUCCESS;
+            }
+            break;
+        }
+        case IOCTL_WIN32U_SET_FOCUS:
+        {
+            struct win32u_set_focus_input in;
+            if (in_size != sizeof(in)) status = STATUS_INVALID_PARAMETER;
+            else
+            {
+                memcpy(&in, buf, sizeof(in));
+                driver_SetFocus(UlongToHandle(in.hwnd));
+                status = STATUS_SUCCESS;
+            }
+            break;
+        }
+        case IOCTL_WIN32U_SET_PARENT:
+        {
+            struct win32u_set_parent_input in;
+            if (in_size != sizeof(in)) status = STATUS_INVALID_PARAMETER;
+            else
+            {
+                memcpy(&in, buf, sizeof(in));
+                driver_SetParent(UlongToHandle(in.hwnd), UlongToHandle(in.parent), UlongToHandle(in.old_parent));
+                status = STATUS_SUCCESS;
+            }
+            break;
+        }
+        case IOCTL_WIN32U_TO_UNICODE:
+        {
+            struct win32u_to_unicode_input in;
+            if (in_size != sizeof(in)) status = STATUS_INVALID_PARAMETER;
+            else
+            {
+                memcpy(&in, buf, sizeof(in));
+                out_size = driver_ToUnicodeEx(in.vkey, in.scancode, in.keystate, (void *)buf, buf_size,
+                                              in.flags, UlongToHandle(in.hkl));
+                out_size *= sizeof(WCHAR);
+                status = STATUS_SUCCESS;
+            }
+            break;
+        }
+        default:
+        {
+            FIXME("unimplemented desktop ioctl code %x size %x\n", code, in_size);
+            status = STATUS_NOT_IMPLEMENTED;
+            break;
+        }
+        }
+    }
+
+    if (buf != ioctl_buffer) HeapFree( GetProcessHeap(), 0, buf );
 }
 
 /* main desktop management function */
@@ -1063,8 +1406,26 @@ void manage_desktop( WCHAR *arg )
     /* run the desktop message loop */
     if (hwnd)
     {
+        HANDLE wait_handles[1];
+        DWORD wait_cnt = 0;
+
+        SERVER_START_REQ( get_desktop_wait_handle )
+        {
+            req->handle = wine_server_obj_handle( GetThreadDesktop(GetCurrentThreadId()) );
+            if (!wine_server_call( req )) wait_handles[wait_cnt++] = wine_server_ptr_handle( reply->handle );
+            else ERR( "unable to get a desktop wait handle!\n" );
+        }
+        SERVER_END_REQ;
+
         WINE_TRACE( "desktop message loop starting on hwnd %p\n", hwnd );
-        while (GetMessageW( &msg, 0, 0, 0 )) DispatchMessageW( &msg );
+        do
+        {
+            DWORD res = MsgWaitForMultipleObjectsEx( wait_cnt, wait_handles, INFINITE, QS_ALLINPUT, MWMO_ALERTABLE );
+            if (wait_cnt && res == WAIT_OBJECT_0) process_desktop_ioctls();
+            msg.message = 0;
+            while (PeekMessageW( &msg, 0, 0, 0, PM_REMOVE ) && msg.message != WM_QUIT) DispatchMessageW(&msg);
+        }
+        while (msg.message != WM_QUIT);
         WINE_TRACE( "desktop message loop exiting for hwnd %p\n", hwnd );
     }
 
