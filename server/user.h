@@ -23,6 +23,8 @@
 
 #include "wine/server_protocol.h"
 
+#include "file.h"
+
 struct thread;
 struct region;
 struct window;
@@ -79,6 +81,10 @@ struct desktop
     unsigned int         users;            /* processes and threads using this desktop */
     struct global_cursor cursor;           /* global cursor information */
     unsigned char        keystate[256];    /* asynchronous key state */
+    struct fd           *fd;               /* desktop control fd */
+    int                  ioctl_busy;       /* ioctl in progress */
+    struct list          ioctls;           /* ioctl queue */
+    struct async_queue   ioctls_async_q;   /* ioctl async queue */
 };
 
 /* user handles functions */
@@ -153,6 +159,7 @@ extern int rect_in_region( struct region *region, const rectangle_t *rect );
 /* window functions */
 
 extern struct process *get_top_window_owner( struct desktop *desktop );
+extern struct thread *get_top_window_owner_thread( struct desktop *desktop );
 extern void get_top_window_rectangle( struct desktop *desktop, rectangle_t *rect );
 extern void post_desktop_message( struct desktop *desktop, unsigned int message,
                                   lparam_t wparam, lparam_t lparam );
@@ -192,6 +199,7 @@ extern void set_process_default_desktop( struct process *process, struct desktop
 extern void close_process_desktop( struct process *process );
 extern void set_thread_default_desktop( struct thread *thread, struct desktop *desktop, obj_handle_t handle );
 extern void release_thread_desktop( struct thread *thread, int close );
+extern void desktop_ioctl_destroy_window( struct desktop *desktop, user_handle_t window );
 
 static inline int is_rect_empty( const rectangle_t *rect )
 {

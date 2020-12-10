@@ -39,6 +39,8 @@
 #include "file.h"
 #include "security.h"
 
+#include "wine/win32u.h"
+
 #define DESKTOP_ALL_ACCESS 0x01ff
 
 static struct list winstation_list = LIST_INIT(winstation_list);
@@ -91,6 +93,8 @@ static const struct object_ops winstation_ops =
     winstation_destroy            /* destroy */
 };
 
+static int desktop_signaled( struct object *obj, struct wait_queue_entry *entry );
+static struct fd *desktop_get_fd( struct object *obj );
 
 static const WCHAR desktop_name[] = {'D','e','s','k','t','o','p'};
 
@@ -112,12 +116,12 @@ static const struct object_ops desktop_ops =
     sizeof(struct desktop),       /* size */
     &desktop_type,                /* type */
     desktop_dump,                 /* dump */
-    no_add_queue,                 /* add_queue */
-    NULL,                         /* remove_queue */
-    NULL,                         /* signaled */
-    NULL,                         /* satisfied */
+    add_queue,                    /* add_queue */
+    remove_queue,                 /* remove_queue */
+    desktop_signaled,             /* signaled */
+    no_satisfied,                 /* satisfied */
     no_signal,                    /* signal */
-    no_get_fd,                    /* get_fd */
+    desktop_get_fd,               /* get_fd */
     default_map_access,           /* map_access */
     default_get_sd,               /* get_sd */
     default_set_sd,               /* set_sd */
@@ -129,6 +133,32 @@ static const struct object_ops desktop_ops =
     no_kernel_obj_list,           /* get_kernel_obj_list */
     desktop_close_handle,         /* close_handle */
     desktop_destroy               /* destroy */
+};
+
+static enum server_fd_type desktop_get_fd_type( struct fd *fd );
+static int desktop_ioctl( struct fd *fd, ioctl_code_t code, struct async *async );
+
+static const struct fd_ops desktop_fd_ops =
+{
+    default_fd_get_poll_events,   /* get_poll_events */
+    default_poll_event,           /* poll_event */
+    desktop_get_fd_type,          /* get_fd_type */
+    no_fd_read,                   /* read */
+    no_fd_write,                  /* write */
+    no_fd_flush,                  /* flush */
+    no_fd_get_file_info,          /* get_file_info */
+    no_fd_get_volume_info,        /* get_volume_info */
+    desktop_ioctl,                /* ioctl */
+    default_fd_queue_async,       /* queue_async */
+    default_fd_reselect_async     /* reselect_async */
+};
+
+struct desktop_ioctl
+{
+    unsigned int     code;        /* ioctl code */
+    struct async    *async;       /* ioctl async */
+    struct iosb     *iosb;        /* internal ioctl data */
+    struct list      entry;       /* list entry */
 };
 
 /* create a winstation object */
@@ -216,6 +246,68 @@ struct desktop *get_desktop_obj( struct process *process, obj_handle_t handle, u
     return (struct desktop *)get_handle_obj( process, handle, access, &desktop_ops );
 }
 
+static int desktop_signaled( struct object *obj, struct wait_queue_entry *entry )
+{
+    struct desktop *desktop = (struct desktop*)obj;
+    return !list_empty( &desktop->ioctls );
+}
+
+static struct fd *desktop_get_fd( struct object *obj )
+{
+    struct desktop *desktop = (struct desktop *)obj;
+
+    return (struct fd *)grab_object( desktop->fd );
+}
+
+static enum server_fd_type desktop_get_fd_type( struct fd *fd )
+{
+    return FD_TYPE_DEVICE;
+}
+
+static void desktop_ioctl_terminate( struct desktop_ioctl *ioctl, unsigned int status )
+{
+    if (ioctl->async)
+    {
+        async_terminate( ioctl->async, status );
+        release_object( ioctl->async );
+    }
+    if (ioctl->iosb) release_object( ioctl->iosb );
+    free( ioctl );
+}
+
+static int queue_desktop_ioctl( struct desktop *desktop, ioctl_code_t code, struct async *async,
+                                struct iosb *iosb )
+{
+    struct desktop_ioctl *ioctl;
+
+    if (!(ioctl = mem_alloc( sizeof(*ioctl) ))) return 0;
+    ioctl->code  = code;
+    ioctl->async = NULL;
+    ioctl->iosb  = iosb;
+    if (async)
+    {
+        ioctl->async = (struct async *)grab_object( async );
+        queue_async( &desktop->ioctls_async_q, async );
+    }
+    list_add_tail( &desktop->ioctls, &ioctl->entry );
+    wake_up( &desktop->obj, 0 );
+    if (async) set_error( STATUS_PENDING );
+    return 1;
+}
+
+static int desktop_ioctl( struct fd *fd, ioctl_code_t code, struct async *async )
+{
+    struct desktop *desktop = get_fd_user( fd );
+    return queue_desktop_ioctl( desktop, code, async, NULL );
+}
+
+void desktop_ioctl_destroy_window( struct desktop *desktop, user_handle_t window )
+{
+    struct win32u_destroy_window_input in;
+    in.hwnd = window;
+    queue_desktop_ioctl( desktop, IOCTL_WIN32U_DESTROY_WINDOW, NULL, create_iosb( &in, sizeof(in), 0 ) );
+}
+
 /* create a desktop object */
 static struct desktop *create_desktop( const struct unicode_str *name, unsigned int attr,
                                        unsigned int flags, struct winstation *winstation )
@@ -234,11 +326,24 @@ static struct desktop *create_desktop( const struct unicode_str *name, unsigned 
             desktop->global_hooks = NULL;
             desktop->close_timeout = NULL;
             desktop->foreground_input = NULL;
+            desktop->fd = NULL;
             desktop->users = 0;
             memset( &desktop->cursor, 0, sizeof(desktop->cursor) );
             memset( desktop->keystate, 0, sizeof(desktop->keystate) );
             list_add_tail( &winstation->desktops, &desktop->entry );
             list_init( &desktop->hotkeys );
+
+            desktop->ioctl_busy = 0;
+            init_async_queue( &desktop->ioctls_async_q );
+            list_init( &desktop->ioctls );
+            desktop->fd = alloc_pseudo_fd( &desktop_fd_ops, &desktop->obj, FILE_SYNCHRONOUS_IO_NONALERT );
+            assert( desktop->fd );
+            if (!desktop->fd)
+            {
+                release_object( desktop );
+                return NULL;
+            }
+            allow_fd_caching( desktop->fd );
         }
         else clear_error();
     }
@@ -293,6 +398,16 @@ static void desktop_destroy( struct object *obj )
     if (desktop->close_timeout) remove_timeout_user( desktop->close_timeout );
     list_remove( &desktop->entry );
     release_object( desktop->winstation );
+
+    while (!list_empty( &desktop->ioctls ))
+    {
+        struct desktop_ioctl *call = LIST_ENTRY( list_head( &desktop->ioctls ), struct desktop_ioctl, entry );
+        list_remove( &call->entry );
+        desktop_ioctl_terminate( call, STATUS_CANCELLED );
+    }
+    free_async_queue( &desktop->ioctls_async_q );
+    if (desktop->fd)
+        release_object( desktop->fd );
 }
 
 /* retrieve the thread desktop, checking the handle access rights */
@@ -763,4 +878,104 @@ DECL_HANDLER(enum_desktop)
 
     release_object( winstation );
     set_error( STATUS_NO_MORE_ENTRIES );
+}
+
+
+/* retrieve a wait handle for desktop ioctls */
+DECL_HANDLER(get_desktop_wait_handle)
+{
+    struct desktop *desktop;
+
+    if (!(desktop = (struct desktop *)get_handle_obj( current->process, req->handle,
+                                                      0, &desktop_ops )))
+        return;
+
+    if (get_top_window_owner_thread( desktop ) != current) set_error( STATUS_ACCESS_DENIED );
+    else reply->handle = alloc_handle( current->process, desktop, SYNCHRONIZE, 0 );
+
+    release_object( desktop );
+}
+
+
+/* reply and retrieve desktop ioctls */
+DECL_HANDLER(get_desktop_ioctl)
+{
+    struct desktop_ioctl *ioctl;
+    struct desktop *desktop;
+    struct iosb *iosb = NULL;
+
+    if (!(desktop = (struct desktop *)get_handle_obj( current->process, req->handle,
+                                                      0, &desktop_ops )))
+        return;
+
+    if (desktop->ioctl_busy)
+    {
+        unsigned int status = req->status;
+
+        /* set result of previous ioctl */
+        ioctl = LIST_ENTRY( list_head( &desktop->ioctls ), struct desktop_ioctl, entry );
+        list_remove( &ioctl->entry );
+
+        if (status == STATUS_PENDING) status = STATUS_INVALID_PARAMETER;
+        if (ioctl->async)
+        {
+            iosb = async_get_iosb( ioctl->async );
+            if (iosb->status == STATUS_PENDING)
+            {
+                iosb->status = status;
+                iosb->out_size = min( iosb->out_size, get_req_data_size() );
+                if (iosb->out_size)
+                {
+                    if ((iosb->out_data = memdup( get_req_data(), iosb->out_size )))
+                    {
+                        iosb->result = iosb->out_size;
+                    }
+                    else if (!status)
+                    {
+                        iosb->status = STATUS_NO_MEMORY;
+                        iosb->out_size = 0;
+                    }
+                }
+                if (iosb->result) status = STATUS_ALERTED;
+            }
+            else
+            {
+                release_object( ioctl->async );
+                ioctl->async = NULL;
+            }
+        }
+        desktop_ioctl_terminate( ioctl, status );
+        if (iosb) release_object( iosb );
+        desktop->ioctl_busy = 0;
+    }
+
+    /* return the next ioctl */
+    if (!list_empty( &desktop->ioctls ))
+    {
+        ioctl = LIST_ENTRY( list_head( &desktop->ioctls ), struct desktop_ioctl, entry );
+        if (ioctl->async) iosb = async_get_iosb( ioctl->async );
+        else if (ioctl->iosb) iosb = (struct iosb *)grab_object( ioctl->iosb );
+        else iosb = NULL;
+
+        if (!iosb || get_reply_max_size() >= iosb->in_size)
+        {
+            reply->code = ioctl->code;
+            if (iosb)
+            {
+                reply->out_size = iosb->out_size;
+                set_reply_data_ptr( iosb->in_data, iosb->in_size );
+                iosb->in_data = NULL;
+            }
+            desktop->ioctl_busy = 1;
+        }
+        else
+        {
+            reply->out_size = iosb->in_size;
+            set_error( STATUS_BUFFER_OVERFLOW );
+        }
+        if (iosb) release_object( iosb );
+    }
+    else set_error( STATUS_PENDING );
+
+    release_object( desktop );
 }
