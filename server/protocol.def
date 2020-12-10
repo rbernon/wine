@@ -2712,6 +2712,27 @@ enum coords_relative
 @END
 
 
+/* Get a waitable handle for desktop ioctls */
+@REQ(get_desktop_wait_handle)
+    obj_handle_t handle;        /* desktop server handle */
+@REPLY
+    obj_handle_t handle;        /* desktop wait handle */
+@END
+
+
+/* Reply / retrieve desktop ioctls */
+@REQ(get_desktop_ioctl)
+    obj_handle_t handle;        /* desktop server handle */
+    unsigned int status;        /* status of previous ioctl */
+    VARARG(out_data,bytes);     /* out_data of previous ioctl */
+@REPLY
+    unsigned int code;          /* ioctl code */
+    data_size_t  out_size;      /* ioctl output size */
+    VARARG(in_data,bytes);      /* ioctl in_data */
+@END
+
+
+
 /* Get/set information about a user object (window station or desktop) */
 @REQ(set_user_object_info)
     obj_handle_t handle;          /* handle to the object */
