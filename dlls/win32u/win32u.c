@@ -21,16 +21,18 @@
 #include "windef.h"
 #include "winbase.h"
 #include "winnt.h"
+#include "winuser.h"
 #include "wingdi.h"
 
 #include "wine/gdi_driver.h"
 #include "wine/debug.h"
 
 #include "unixlib.h"
+#include "win32u.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(win32u);
 
-static struct unix_funcs *unix_funcs;
+struct unix_funcs *unix_funcs;
 
 void CDECL X11DRV_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flags,
                                      const RECT *window_rect, const RECT *client_rect,
@@ -101,10 +103,16 @@ BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, LPVOID reserved )
 
     switch (reason)
     {
-    case DLL_PROCESS_ATTACH: DisableThreadLibraryCalls( instance ); break;
-    case DLL_PROCESS_DETACH: break;
+    case DLL_PROCESS_ATTACH:
+        DisableThreadLibraryCalls( instance );
+        if (__wine_init_unix_lib( instance, reason, NULL, &unix_funcs )) return FALSE;
+        win32u_create_toplevel_surface( GetDesktopWindow() );
+        break;
+    case DLL_PROCESS_DETACH:
+        win32u_delete_toplevel_surface( GetDesktopWindow() );
+        if (__wine_init_unix_lib( instance, reason, NULL, &unix_funcs )) return FALSE;
+        break;
     }
 
-    if (__wine_init_unix_lib( instance, reason, NULL, &unix_funcs )) return FALSE;
     return TRUE;
 }

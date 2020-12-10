@@ -1,7 +1,5 @@
 /*
- * Win32u Unix interface
- *
- * Copyright (C) 2021 Rémi Bernon for CodeWeavers
+ * Copyright 2021 Rémi Bernon for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,20 +16,23 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#ifndef __WIN32U_UNIXLIB_H
-#define __WIN32U_UNIXLIB_H
+#ifndef __WINE_WIN32U_WIN32U_H
+#define __WINE_WIN32U_WIN32U_H
 
-#include "winternl.h"
+#include <stdarg.h>
+#include <stdlib.h>
 
-struct unix_surface;
+#include "windef.h"
+#include "winbase.h"
+#include "winnt.h"
+#include "winuser.h"
+#include "wingdi.h"
 
-struct unix_funcs
-{
-    struct unix_surface *(CDECL *surface_create_foreign)( HWND, LPARAM );
-    void (CDECL *surface_delete)( struct unix_surface * );
-};
+extern struct unix_funcs *unix_funcs DECLSPEC_HIDDEN;
 
-extern NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in,
-                                            void *ptr_out ) DECLSPEC_HIDDEN;
+struct toplevel_surface;
 
-#endif /* __WIN32U_UNIXLIB_H */
+extern void win32u_create_toplevel_surface( HWND hwnd ) DECLSPEC_HIDDEN;
+extern void win32u_delete_toplevel_surface( HWND hwnd ) DECLSPEC_HIDDEN;
+
+#endif /* __WINE_WIN32U_WIN32U_H */

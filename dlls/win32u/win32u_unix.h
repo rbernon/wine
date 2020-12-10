@@ -31,8 +31,27 @@
 #include <unistd.h>
 #endif
 
+#ifdef HAVE_CAIRO_CAIRO_H
+#include <cairo/cairo.h>
+#endif
+
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
 #include "winternl.h"
+#include "winnt.h"
+#include "winbase.h"
+#include "winuser.h"
+#include "wingdi.h"
+
+#include "unixlib.h"
+
+#ifdef HAVE_CAIRO_CAIRO_H
+#define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(cairo_surface_destroy)
+#undef MAKE_FUNCPTR
+#endif
+
+extern struct unix_surface *CDECL cairo_surface_create_foreign( HWND hwnd, LPARAM id ) DECLSPEC_HIDDEN;
+extern void CDECL cairo_surface_delete( struct unix_surface *surface ) DECLSPEC_HIDDEN;
 
 #endif /* __WINE_WIN32U_UNIX_H */

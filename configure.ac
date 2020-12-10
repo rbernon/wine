@@ -79,6 +79,7 @@ AC_ARG_WITH(png,       AS_HELP_STRING([--without-png],[do not use PNG]))
 AC_ARG_WITH(pthread,   AS_HELP_STRING([--without-pthread],[do not use the pthread library]),
             [if test "x$withval" = "xno"; then ac_cv_header_pthread_h=no; fi])
 AC_ARG_WITH(pulse,     AS_HELP_STRING([--without-pulse],[do not use PulseAudio sound support]))
+AC_ARG_WITH(cairo,     AS_HELP_STRING([--without-cairo],[do not use Cairo 2D support]))
 AC_ARG_WITH(quicktime, AS_HELP_STRING([--without-quicktime],[do not use QuickTime support]))
 AC_ARG_WITH(sane,      AS_HELP_STRING([--without-sane],[do not use SANE (scanner support)]))
 AC_ARG_WITH(sdl,       AS_HELP_STRING([--without-sdl],[do not use SDL]))
@@ -1607,6 +1608,18 @@ fi
 WINE_NOTICE_WITH(pulse, [test -z "$PULSE_LIBS"],
         [libpulse ${notice_platform}development files not found or too old, Pulse won't be supported.],
         [enable_winepulse_drv])
+
+dnl **** Check for Cairo 2D ****
+if test "x$with_cairo" != "xno";
+then
+    WINE_PACKAGE_FLAGS(CAIRO,[cairo cairo-xcb],,,,
+        [AC_CHECK_HEADERS([cairo/cairo.h cairo/cairo-xcb.h],
+            [WINE_CHECK_SONAME(cairo,cairo_surface_destroy,[:],[CAIRO_LIBS=""],[$CAIRO_LIBS])],
+            [CAIRO_LIBS=""])])
+fi
+WINE_NOTICE_WITH(cairo,[test "x$ac_cv_lib_soname_cairo" = "x"],
+        [cairo ${notice_platform}development files not found or too old.],
+        [enable_win32u])
 
 dnl **** Check for gstreamer ****
 if test "x$with_gstreamer" != "xno"
