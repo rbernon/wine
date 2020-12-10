@@ -23,8 +23,12 @@
 
 #include "winternl.h"
 
+struct unix_surface;
+
 struct unix_funcs
 {
+    struct unix_surface *(CDECL *surface_create_toplevel)( HWND );
+    void (CDECL *surface_delete)( struct unix_surface * );
 };
 
 extern NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in,
