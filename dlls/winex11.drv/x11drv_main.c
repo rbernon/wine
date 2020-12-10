@@ -672,7 +672,7 @@ static void init_visuals( Display *display, int screen )
 /***********************************************************************
  *           X11DRV process initialisation routine
  */
-static BOOL process_attach(void)
+BOOL x11drv_process_attach(void)
 {
     Display *display;
     void *libx11 = dlopen( SONAME_LIBX11, RTLD_NOW|RTLD_GLOBAL );
@@ -829,6 +829,7 @@ struct x11drv_thread_data *x11drv_init_thread_data(void)
 }
 
 
+#ifndef WIN32U_SOURCE
 /***********************************************************************
  *           X11DRV initialisation routine
  */
@@ -841,11 +842,12 @@ BOOL WINAPI DllMain( HINSTANCE hinst, DWORD reason, LPVOID reserved )
     case DLL_PROCESS_ATTACH:
         DisableThreadLibraryCalls( hinst );
         x11drv_module = hinst;
-        ret = process_attach();
+        ret = x11drv_process_attach();
         break;
     }
     return ret;
 }
+#endif /* WIN32U_SOURCE */
 
 
 /***********************************************************************
