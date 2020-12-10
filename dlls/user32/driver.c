@@ -80,12 +80,25 @@ static BOOL load_desktop_driver( HWND hwnd, HMODULE *module )
     return ret;
 }
 
+static HMODULE win32u;
+
 /* load the graphics driver */
 static const USER_DRIVER *load_driver(void)
 {
     void *ptr;
     HMODULE graphics_driver;
     USER_DRIVER *driver, *prev;
+
+    if (win32u) LdrAddRefDll( 0, win32u );
+    else
+    {
+        HMODULE module = LoadLibraryA( "win32u" );
+        if (InterlockedCompareExchangePointer( (void **)&win32u, module, NULL ))
+        {
+            FreeLibrary( module );
+            LdrAddRefDll( 0, win32u );
+        }
+    }
 
     driver = HeapAlloc( GetProcessHeap(), 0, sizeof(*driver) );
     *driver = null_driver;
@@ -102,8 +115,15 @@ static const USER_DRIVER *load_driver(void)
     }
     else if (graphics_driver)
     {
+        BOOL (CDECL *__wine_set_fallback_driver)(HMODULE);
+        BOOL use_win32u = FALSE;
+
+        if ((__wine_set_fallback_driver = (void *)GetProcAddress(win32u, "__wine_set_fallback_driver")))
+            use_win32u = __wine_set_fallback_driver(graphics_driver);
+
 #define GET_USER_FUNC(name) \
-    do { if ((ptr = GetProcAddress( graphics_driver, #name ))) driver->p##name = ptr; } while(0)
+    do { if (use_win32u && (ptr = GetProcAddress( win32u, #name ))) driver->p##name = ptr; \
+         else if ((ptr = GetProcAddress( graphics_driver, #name ))) driver->p##name = ptr; } while(0)
 
         GET_USER_FUNC(ActivateKeyboardLayout);
         GET_USER_FUNC(Beep);
@@ -174,6 +194,7 @@ void USER_unload_driver(void)
     prev = InterlockedExchangePointer( (void **)&USER_Driver, &null_driver );
     if (prev != &lazy_load_driver && prev != &null_driver)
         HeapFree( GetProcessHeap(), 0, prev );
+    LdrUnloadDll( win32u );
 }
 
 
