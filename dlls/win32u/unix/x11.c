@@ -170,6 +170,23 @@ static BOOL init_xlib(void)
     LOAD_FUNCPTR(XSync)
 #undef LOAD_FUNCPTR
 
+#if 0
+    if (!pXInitThreads())
+    {
+        ERR("XInitThreads() failed!\n");
+        goto error;
+    }
+
+    if (!(display = pXOpenDisplay( NULL )))
+    {
+        ERR("XOpenDisplay(NULL) failed!");
+        goto error;
+    }
+
+    gdi_display = display;
+    root_window = DefaultRootWindow(display);
+#endif
+
     return TRUE;
 
 error:
