@@ -1,0 +1,7 @@
+MODULE = win32u.dll
+EXTRADLLFLAGS = -mno-cygwin
+
+C_SRCS = \
+	win32u.c
+
+RC_SRCS = win32u.rc
