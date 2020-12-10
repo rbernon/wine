@@ -80,6 +80,8 @@ static BOOL load_desktop_driver( HWND hwnd, HMODULE *module )
     return ret;
 }
 
+static HMODULE win32ku;
+
 /* load the graphics driver */
 static const USER_DRIVER *load_driver(void)
 {
@@ -102,6 +104,19 @@ static const USER_DRIVER *load_driver(void)
     }
     else if (graphics_driver)
     {
+        BOOL in_desktop_thread = GetWindowThreadProcessId( GetDesktopWindow(), NULL ) == GetCurrentThreadId();
+        if (win32ku) LdrAddRefDll( 0, win32ku );
+        else
+        {
+            HMODULE module = LoadLibraryA( in_desktop_thread ? "win32k.sys" : "win32u" );
+            if (InterlockedCompareExchangePointer( (void **)&win32ku, module, NULL ))
+            {
+                FreeLibrary( module );
+                LdrAddRefDll( 0, win32ku );
+            }
+        }
+        if (win32ku) graphics_driver = win32ku;
+
 #define GET_USER_FUNC(name) \
     do { if ((ptr = GetProcAddress( graphics_driver, #name ))) driver->p##name = ptr; } while(0)
 
@@ -174,6 +189,7 @@ void USER_unload_driver(void)
     prev = InterlockedExchangePointer( (void **)&USER_Driver, &null_driver );
     if (prev != &lazy_load_driver && prev != &null_driver)
         HeapFree( GetProcessHeap(), 0, prev );
+    LdrUnloadDll( win32ku );
 }
 
 
