@@ -16,42 +16,24 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#ifndef __WINE_WIN32U_UNIX_H
-#define __WINE_WIN32U_UNIX_H
+#ifndef __WINE_WIN32U_WIN32U_H
+#define __WINE_WIN32U_WIN32U_H
 
-#ifndef __WINE_CONFIG_H
-#error You must include config.h to use this header
-#endif
-
-#include <assert.h>
 #include <stdarg.h>
 #include <stdlib.h>
-#include <string.h>
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
-#endif
 
-#ifdef HAVE_CAIRO_CAIRO_H
-#include <cairo/cairo.h>
-#endif
-
-#include "ntstatus.h"
-#define WIN32_NO_STATUS
-#include "winternl.h"
-#include "winnt.h"
+#include "windef.h"
 #include "winbase.h"
+#include "winnt.h"
 #include "winuser.h"
 #include "wingdi.h"
 
-#include "unixlib.h"
+extern struct unix_funcs *unix_funcs DECLSPEC_HIDDEN;
 
-#ifdef HAVE_CAIRO_CAIRO_H
-#define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
-MAKE_FUNCPTR(cairo_surface_destroy)
-#undef MAKE_FUNCPTR
-#endif
+struct toplevel_surface;
 
-extern struct unix_surface *CDECL cairo_surface_create_toplevel( HWND hwnd ) DECLSPEC_HIDDEN;
-extern void CDECL cairo_surface_delete( struct unix_surface *surface ) DECLSPEC_HIDDEN;
+extern void win32u_create_toplevel_surface( HWND hwnd ) DECLSPEC_HIDDEN;
+extern void win32u_delete_toplevel_surface( HWND hwnd ) DECLSPEC_HIDDEN;
+extern void win32u_delete_hwnd_surfaces( HWND hwnd ) DECLSPEC_HIDDEN;
 
-#endif /* __WINE_WIN32U_UNIX_H */
+#endif /* __WINE_WIN32U_WIN32U_H */

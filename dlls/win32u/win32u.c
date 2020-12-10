@@ -21,16 +21,18 @@
 #include "windef.h"
 #include "winbase.h"
 #include "winnt.h"
+#include "winuser.h"
 #include "wingdi.h"
 
 #include "wine/gdi_driver.h"
 #include "wine/debug.h"
 
 #include "unixlib.h"
+#include "win32u.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(win32u);
 
-static struct unix_funcs *unix_funcs;
+struct unix_funcs *unix_funcs;
 
 void CDECL X11DRV_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flags,
                                      const RECT *window_rect, const RECT *client_rect,
@@ -40,10 +42,18 @@ void CDECL win32u_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
                                      const RECT *window_rect, const RECT *client_rect,
                                      RECT *visible_rect, struct window_surface **surface )
 {
+    BOOL visible = (swp_flags & SWP_SHOWWINDOW) || (GetWindowLongW( hwnd, GWL_STYLE ) & WS_VISIBLE);
+
     TRACE( "hwnd %p, insert_after %p, swp_flags %x, window_rect %s, client_rect %s, "
            "visible_rect %p, surface %p.\n", hwnd, insert_after, swp_flags,
            wine_dbgstr_rect( window_rect ), wine_dbgstr_rect( client_rect ),
            visible_rect, surface );
+
+    /* create a unix / window surface for top-level windows */
+    if (visible && (hwnd == GetAncestor( hwnd, GA_ROOT )))
+        win32u_create_toplevel_surface( hwnd );
+    else
+        win32u_delete_toplevel_surface( hwnd );
 
     X11DRV_WindowPosChanging( hwnd, insert_after, swp_flags, window_rect, client_rect,
                               visible_rect, surface );
@@ -72,7 +82,15 @@ void CDECL X11DRV_SetParent( HWND hwnd, HWND parent, HWND old_parent );
 
 void CDECL win32u_SetParent( HWND hwnd, HWND parent, HWND old_parent )
 {
+    BOOL visible = GetWindowLongW( hwnd, GWL_STYLE ) & WS_VISIBLE;
+
     TRACE( "hwnd %p, parent %p, old_parent %p.\n", hwnd, parent, old_parent );
+
+    /* create a unix / window surface for top-level windows */
+    if (visible && (hwnd == GetAncestor( hwnd, GA_ROOT )))
+        win32u_create_toplevel_surface( hwnd );
+    else
+        win32u_delete_toplevel_surface( hwnd );
 
     X11DRV_SetParent( hwnd, parent, old_parent );
 }
@@ -82,6 +100,8 @@ void CDECL X11DRV_DestroyWindow( HWND hwnd );
 void CDECL win32u_DestroyWindow( HWND hwnd )
 {
     TRACE( "hwnd %p.\n", hwnd );
+
+    win32u_delete_hwnd_surfaces( hwnd );
 
     X11DRV_DestroyWindow( hwnd );
 }

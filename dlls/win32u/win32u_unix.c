@@ -27,7 +27,57 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(win32u);
 
-static struct unix_funcs unix_funcs = {};
+#ifdef SONAME_LIBCAIRO
+
+#ifdef HAVE_CAIRO_CAIRO_H
+#define MAKE_FUNCPTR(f) typeof(f) *p_##f;
+MAKE_FUNCPTR(cairo_surface_destroy)
+#undef MAKE_FUNCPTR
+#endif
+
+static BOOL init_cairo(void)
+{
+    void *libcairo;
+
+    if (!(libcairo = dlopen( SONAME_LIBCAIRO, RTLD_NOW )))
+    {
+        ERR( "dlopen(%s, RTLD_NOW) failed!\n", SONAME_LIBCAIRO );
+        return FALSE;
+    }
+
+#define LOAD_FUNCPTR( f )                                                                          \
+    if ((p_##f = dlsym( libcairo, #f )) == NULL)                                                   \
+    {                                                                                              \
+        ERR( "dlsym(%s, %s) failed!\n", SONAME_LIBCAIRO, #f );                                     \
+        goto error;                                                                                \
+    }
+
+#ifdef HAVE_CAIRO_CAIRO_H
+    LOAD_FUNCPTR(cairo_surface_destroy)
+#endif
+#undef LOAD_FUNCPTR
+
+    return TRUE;
+
+error:
+    dlclose( libcairo );
+    return FALSE;
+}
+
+#else
+
+static BOOL init_cairo(void)
+{
+    ERR( "Cairo 2D support not compiled in!\n" );
+    return FALSE;
+}
+
+#endif /* defined(SONAME_LIBCAIRO) */
+
+static struct unix_funcs unix_funcs = {
+    cairo_surface_create_toplevel,
+    cairo_surface_delete,
+};
 
 NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out )
 {
@@ -38,6 +88,7 @@ NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *p
     case DLL_PROCESS_ATTACH:
         x11drv_module = module;
         if (!x11drv_process_attach()) return STATUS_DLL_NOT_FOUND;
+        if (!init_cairo()) return STATUS_DLL_NOT_FOUND;
         break;
     case DLL_PROCESS_DETACH: break;
     }
