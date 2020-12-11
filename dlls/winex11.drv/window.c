@@ -2943,6 +2943,33 @@ LRESULT CDECL X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
     case WM_X11DRV_DESKTOP_CLIP_CURSOR:
         x11drv_desktop_clip_cursor( (BOOL)wp, (BOOL)lp );
         return 0;
+
+    case WM_X11DRV_WM_DELETE_WINDOW:
+        if (GetActiveWindow() != hwnd)
+        {
+            LRESULT ma = SendMessageW( hwnd, WM_MOUSEACTIVATE,
+                                       (WPARAM)GetAncestor( hwnd, GA_ROOT ),
+                                       MAKELPARAM( HTCLOSE, WM_NCLBUTTONDOWN ) );
+            switch(ma)
+            {
+                case MA_NOACTIVATEANDEAT:
+                case MA_ACTIVATEANDEAT:
+                    return 0;
+                case MA_NOACTIVATE:
+                    break;
+                case MA_ACTIVATE:
+                case 0:
+                    SetActiveWindow(hwnd);
+                    break;
+                default:
+                    WARN( "unknown WM_MOUSEACTIVATE code %d\n", (int) ma );
+                    break;
+            }
+        }
+
+        PostMessageW( hwnd, WM_SYSCOMMAND, SC_CLOSE, 0 );
+        return 0;
+
     case WM_X11DRV_WM_TAKE_FOCUS:
     {
         /* simulate a mouse click on the menu to find out

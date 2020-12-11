@@ -650,7 +650,7 @@ static void handle_wm_protocols( HWND hwnd, XClientMessageEvent *event )
         {
             /* The desktop window does not have a close button that we can
              * pretend to click. Therefore, we simply send it a close command. */
-            SendMessageW(hwnd, WM_SYSCOMMAND, SC_CLOSE, 0);
+            SendNotifyMessageW(hwnd, WM_SYSCOMMAND, SC_CLOSE, 0);
             return;
         }
 
@@ -670,29 +670,7 @@ static void handle_wm_protocols( HWND hwnd, XClientMessageEvent *event )
                 if (state == 0xFFFFFFFF || (state & (MF_DISABLED | MF_GRAYED)))
                     return;
             }
-            if (GetActiveWindow() != hwnd)
-            {
-                LRESULT ma = SendMessageW( hwnd, WM_MOUSEACTIVATE,
-                                           (WPARAM)GetAncestor( hwnd, GA_ROOT ),
-                                           MAKELPARAM( HTCLOSE, WM_NCLBUTTONDOWN ) );
-                switch(ma)
-                {
-                    case MA_NOACTIVATEANDEAT:
-                    case MA_ACTIVATEANDEAT:
-                        return;
-                    case MA_NOACTIVATE:
-                        break;
-                    case MA_ACTIVATE:
-                    case 0:
-                        SetActiveWindow(hwnd);
-                        break;
-                    default:
-                        WARN( "unknown WM_MOUSEACTIVATE code %d\n", (int) ma );
-                        break;
-                }
-            }
-
-            PostMessageW( hwnd, WM_SYSCOMMAND, SC_CLOSE, 0 );
+            SendNotifyMessageW( hwnd, WM_X11DRV_WM_DELETE_WINDOW, 0, 0 );
         }
     }
     else if (protocol == x11drv_atom(WM_TAKE_FOCUS))
