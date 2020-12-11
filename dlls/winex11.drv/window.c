@@ -2222,13 +2222,10 @@ void CDECL X11DRV_GetDC( HDC hdc, HWND hwnd, HWND top, const RECT *win_rect,
 
     if (top == hwnd)
     {
-        struct x11drv_win_data *data = get_win_data( hwnd );
-
-        escape.drawable = data ? data->whole_window : X11DRV_get_whole_window( hwnd );
-
+        Window whole_window = X11DRV_get_whole_window( hwnd );
+        escape.drawable = whole_window;
         /* special case: when repainting the root window, clip out top-level windows */
-        if (data && data->whole_window == root_window) escape.mode = ClipByChildren;
-        release_win_data( data );
+        if (whole_window == root_window) escape.mode = ClipByChildren;
     }
     else
     {
