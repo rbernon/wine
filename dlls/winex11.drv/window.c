@@ -1564,12 +1564,10 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual )
 
     if (!data)
     {
-        /* explicitly create data for HWND_MESSAGE windows since they can be used for OpenGL */
-        HWND parent = GetAncestor( hwnd, GA_PARENT );
-        if (parent == GetDesktopWindow() || GetAncestor( parent, GA_PARENT )) return 0;
         if (!(data = alloc_win_data( thread_init_display(), hwnd ))) return 0;
         GetClientRect( hwnd, &data->client_rect );
         data->window_rect = data->whole_rect = data->client_rect;
+        data->whole_window = X11DRV_get_whole_window( hwnd );
     }
 
     if (data->client_window)
