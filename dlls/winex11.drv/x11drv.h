@@ -522,6 +522,8 @@ extern Bool (*pXGetEventData)( Display *display, XEvent /*XGenericEventCookie*/ 
 extern void (*pXFreeEventData)( Display *display, XEvent /*XGenericEventCookie*/ *event ) DECLSPEC_HIDDEN;
 
 extern DWORD EVENT_x11_time_to_win32_time(Time time) DECLSPEC_HIDDEN;
+extern void set_focus( Display *display, HWND hwnd, Time time ) DECLSPEC_HIDDEN;
+extern BOOL can_activate_window( HWND hwnd ) DECLSPEC_HIDDEN;
 
 /* X11 driver private messages, must be in the range 0x80001000..0x80001fff */
 enum x11drv_window_messages
@@ -537,6 +539,7 @@ enum x11drv_window_messages
     WM_X11DRV_DESKTOP_SET_HICON_MASK,
     WM_X11DRV_DESKTOP_SET_WINDOW_CURSOR,
     WM_X11DRV_DESKTOP_CLIP_CURSOR,
+    WM_X11DRV_WM_TAKE_FOCUS,
 };
 
 /* _NET_WM_STATE properties that we keep track of */

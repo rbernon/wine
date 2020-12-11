@@ -549,7 +549,7 @@ DWORD EVENT_x11_time_to_win32_time(Time time)
  *
  * Check if we can activate the specified window.
  */
-static inline BOOL can_activate_window( HWND hwnd )
+BOOL can_activate_window( HWND hwnd )
 {
     LONG style = GetWindowLongW( hwnd, GWL_STYLE );
     RECT rect;
@@ -597,7 +597,7 @@ static void set_input_focus( struct x11drv_win_data *data )
 /**********************************************************************
  *              set_focus
  */
-static void set_focus( Display *display, HWND hwnd, Time time )
+void set_focus( Display *display, HWND hwnd, Time time )
 {
     HWND focus;
     Window win;
@@ -705,16 +705,8 @@ static void handle_wm_protocols( HWND hwnd, XClientMessageEvent *event )
 
         if (can_activate_window(hwnd))
         {
-            /* simulate a mouse click on the menu to find out
-             * whether the window wants to be activated */
-            LRESULT ma = SendMessageW( hwnd, WM_MOUSEACTIVATE,
-                                       (WPARAM)GetAncestor( hwnd, GA_ROOT ),
-                                       MAKELONG( HTMENU, WM_LBUTTONDOWN ) );
-            if (ma != MA_NOACTIVATEANDEAT && ma != MA_NOACTIVATE)
-            {
-                set_focus( event->display, hwnd, event_time );
-                return;
-            }
+            SendNotifyMessageW( hwnd, WM_X11DRV_WM_TAKE_FOCUS, (WPARAM)event_time, (LPARAM)last_focus );
+            return;
         }
         else if (hwnd == GetDesktopWindow())
         {

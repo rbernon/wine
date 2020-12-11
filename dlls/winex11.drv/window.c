@@ -2943,6 +2943,26 @@ LRESULT CDECL X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
     case WM_X11DRV_DESKTOP_CLIP_CURSOR:
         x11drv_desktop_clip_cursor( (BOOL)wp, (BOOL)lp );
         return 0;
+    case WM_X11DRV_WM_TAKE_FOCUS:
+    {
+        /* simulate a mouse click on the menu to find out
+         * whether the window wants to be activated */
+        LRESULT ma = SendMessageW( hwnd, WM_MOUSEACTIVATE,
+                                   (WPARAM)GetAncestor( hwnd, GA_ROOT ),
+                                   MAKELONG( HTMENU, WM_LBUTTONDOWN ) );
+        if (ma != MA_NOACTIVATEANDEAT && ma != MA_NOACTIVATE)
+        {
+            set_focus( gdi_display, hwnd, (Time)wp );
+            return 0;
+        }
+        /* try to find some other window to give the focus to */
+        hwnd = GetFocus();
+        if (hwnd) hwnd = GetAncestor( hwnd, GA_ROOT );
+        if (!hwnd) hwnd = GetActiveWindow();
+        if (!hwnd) hwnd = (HWND)lp;
+        if (hwnd && can_activate_window(hwnd)) set_focus( gdi_display, hwnd, (Time)wp );
+    }
+
     default:
         FIXME( "got window msg %x hwnd %p wp %lx lp %lx\n", msg, hwnd, wp, lp );
         return 0;
