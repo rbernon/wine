@@ -1,6 +1,7 @@
 @ cdecl ToUnicodeEx(long long ptr ptr long long long) WIN32U_ToUnicodeEx
 @ cdecl CreateWindow(long) WIN32U_CreateWindow
 @ cdecl DestroyWindow(long) WIN32U_DestroyWindow
+@ cdecl MsgWaitForMultipleObjectsEx(long ptr long long long) WIN32U_MsgWaitForMultipleObjectsEx
 @ cdecl SetFocus(long) WIN32U_SetFocus
 @ cdecl SetParent(long long long) WIN32U_SetParent
 @ cdecl SetWindowStyle(ptr long ptr) WIN32U_SetWindowStyle

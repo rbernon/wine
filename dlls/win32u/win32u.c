@@ -341,3 +341,10 @@ INT CDECL WIN32U_ToUnicodeEx(UINT vkey, UINT scancode, const BYTE *keystate,
 
     return ret / sizeof(WCHAR);
 }
+
+DWORD CDECL WIN32U_MsgWaitForMultipleObjectsEx( DWORD count, const HANDLE *handles, DWORD timeout,
+                                                DWORD mask, DWORD flags )
+{
+    return WaitForMultipleObjectsEx( count, handles, flags & MWMO_WAITALL,
+                                     timeout, flags & MWMO_ALERTABLE );
+}
