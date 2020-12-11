@@ -244,3 +244,10 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
     if (__wine_init_unix_lib(instance, reason, NULL, &unix_funcs)) return FALSE;
     return TRUE;
 }
+
+DWORD CDECL WIN32U_MsgWaitForMultipleObjectsEx( DWORD count, const HANDLE *handles, DWORD timeout,
+                                                DWORD mask, DWORD flags )
+{
+    return WaitForMultipleObjectsEx( count, handles, flags & MWMO_WAITALL,
+                                     timeout, flags & MWMO_ALERTABLE );
+}
