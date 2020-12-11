@@ -2180,17 +2180,8 @@ HWND create_foreign_window( Display *display, Window xwin )
  */
 Window X11DRV_get_whole_window( HWND hwnd )
 {
-    struct x11drv_win_data *data = get_win_data( hwnd );
-    Window ret;
-
-    if (!data)
-    {
-        if (hwnd == GetDesktopWindow()) return root_window;
-        return (Window)GetPropA( hwnd, whole_window_prop );
-    }
-    ret = data->whole_window;
-    release_win_data( data );
-    return ret;
+    if (hwnd == GetDesktopWindow()) return root_window;
+    return (Window)GetPropA( hwnd, whole_window_prop );
 }
 
 
