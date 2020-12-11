@@ -2745,7 +2745,7 @@ void CDECL X11DRV_SetWindowRgn( HWND hwnd, HRGN hrgn, BOOL redraw )
     }
     else if (X11DRV_get_whole_window( hwnd ))
     {
-        SendMessageW( hwnd, WM_X11DRV_SET_WIN_REGION, 0, 0 );
+        SendNotifyMessageW( hwnd, WM_X11DRV_SET_WIN_REGION, 0, 0 );
     }
 }
 
