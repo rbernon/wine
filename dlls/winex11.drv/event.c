@@ -618,6 +618,7 @@ void set_focus( Display *display, HWND hwnd, Time time )
     {
         TRACE( "setting focus to %p (%lx) time=%ld\n", focus, win, time );
         XSetInputFocus( display, win, RevertToParent, time );
+        XFlush( display );
     }
 }
 
