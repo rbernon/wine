@@ -25,7 +25,7 @@
 @ cdecl DestroyWindow(long) WIN32U_DestroyWindow
 @ cdecl FlashWindowEx(ptr) X11DRV_FlashWindowEx
 @ cdecl GetDC(long long long ptr ptr long) X11DRV_GetDC
-@ cdecl MsgWaitForMultipleObjectsEx(long ptr long long long) X11DRV_MsgWaitForMultipleObjectsEx
+@ cdecl MsgWaitForMultipleObjectsEx(long ptr long long long) WIN32U_MsgWaitForMultipleObjectsEx
 @ cdecl ReleaseDC(long long) X11DRV_ReleaseDC
 @ cdecl ScrollDC(long long long long) X11DRV_ScrollDC
 @ cdecl SetCapture(long long) X11DRV_SetCapture
