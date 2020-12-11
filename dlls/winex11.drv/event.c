@@ -611,6 +611,7 @@ void set_focus( Display *display, HWND hwnd, Time time )
     focus = threadinfo.hwndFocus;
     if (!focus) focus = threadinfo.hwndActive;
     if (focus) focus = GetAncestor( focus, GA_ROOT );
+    if (!focus) focus = hwnd;
     win = X11DRV_get_whole_window(focus);
 
     if (win)
