@@ -25,9 +25,14 @@
 #include "windef.h"
 #include "winbase.h"
 #include "wingdi.h"
+#include "winnt.h"
+#include "winternl.h"
 #include "winuser.h"
 
 #include "wine/test.h"
+
+static BOOL is_wow64;
+static BOOL (WINAPI *pIsWow64Process)(HANDLE,PBOOL);
 
 static void test_gdi_objects(void)
 {
@@ -362,11 +367,107 @@ static void test_handles_on_win64(void)
     }
 }
 
+/* Adapted from: https://docs.microsoft.com/en-us/archive/msdn-magazine/2003/january/detect-and-plug-gdi-leaks-with-two-powerful-tools-for-windows-xp */
+
+struct gdi_handle_32
+{
+    LONG32 kernel;
+    USHORT pid;
+    USHORT count;
+    USHORT upper;
+    USHORT type;
+    LONG32 user;
+};
+
+struct gdi_handle_64
+{
+    LONG64 kernel;
+    USHORT pid;
+    USHORT count;
+    USHORT upper;
+    USHORT type;
+    LONG64 user;
+};
+
+#define MAX_GDI_HANDLES  0x4000
+
+static void get_gdi_handle_64( void *table, DWORD index, struct gdi_handle_64 *out )
+{
+#ifdef _WIN64
+    *out = ((struct gdi_handle_64 *)table)[index];
+#else
+    struct gdi_handle_32 tmp;
+    if (is_wow64) *out = ((struct gdi_handle_64 *)table)[index];
+    else
+    {
+        tmp = ((struct gdi_handle_32 *)table)[index];
+        out->kernel = tmp.kernel;
+        out->pid = tmp.pid;
+        out->count = tmp.count;
+        out->upper = tmp.upper;
+        out->type = tmp.type;
+        out->user = tmp.user;
+    }
+#endif
+}
+
+static void test_GdiSharedHandleTable(void)
+{
+    char *peb, *table, *copy;
+    DWORD i, table_size;
+
+#ifdef _WIN64
+    peb = (void *)NtCurrentTeb()->Peb;
+    table_size = MAX_GDI_HANDLES * sizeof(struct gdi_handle_64);
+    table = *(void **)(peb + FIELD_OFFSET(PEB, GdiSharedHandleTable));
+#else
+    if (is_wow64)
+    {
+        peb = (void *)(UINT_PTR)((TEB64 *)NtCurrentTeb()->GdiBatchCount)->Peb;
+        table_size = MAX_GDI_HANDLES * sizeof(struct gdi_handle_64);
+        table = *(void **)(peb + FIELD_OFFSET(PEB64, GdiSharedHandleTable));
+    }
+    else
+    {
+        peb = (void *)NtCurrentTeb()->Peb;
+        table_size = MAX_GDI_HANDLES * sizeof(struct gdi_handle_32);
+        table = *(void **)(peb + FIELD_OFFSET(PEB, GdiSharedHandleTable));
+    }
+#endif
+
+    todo_wine ok(table != NULL, "Peb->GdiSharedHandleTable is NULL\n");
+    if (!table) return;
+
+    copy = HeapAlloc( GetProcessHeap(), 0, table_size );
+    memcpy( copy, table, table_size );
+
+    for (i = 0; i < MAX_GDI_HANDLES; ++i)
+    {
+        struct gdi_handle_64 entry;
+        get_gdi_handle_64( copy, i, &entry );
+
+        if (entry.pid == 0 || (entry.type & 0x7f) == 0) continue;
+
+        ok( entry.kernel < 0, "%04x: Unexpected entry kernel %I64x\n", i, entry.kernel );
+        ok( entry.count == 0 || entry.count == 0xffff || entry.count == 0x8000,
+            "%04x: Unexpected entry count %x, expected 0 or 0xffff\n", i, entry.count );
+        ok( entry.type != 0, "%04x: Unexpected entry type %x\n", i, entry.type );
+    }
+
+    HeapFree( GetProcessHeap(), 0, copy );
+}
+
 START_TEST(gdiobj)
 {
+    HMODULE kernel32 = LoadLibraryA( "kernel32.dll" );
+    pIsWow64Process = (void *)GetProcAddress( kernel32, "IsWow64Process" );
+    if (!pIsWow64Process || !pIsWow64Process( GetCurrentProcess(), &is_wow64 )) is_wow64 = FALSE;
+    FreeLibrary( kernel32 );
+
     test_gdi_objects();
     test_thread_objects();
     test_GetCurrentObject();
     test_region();
     test_handles_on_win64();
+    test_GdiSharedHandleTable();
 }
