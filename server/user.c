@@ -109,7 +109,7 @@ static inline void free_gdi_entry( struct gdi_handle *ptr )
         release_object( process );
     }
 
-    ptr->pid = 1;
+    ptr->pid = 0;
     ptr->type = 0;
     gdi_handle_set_kernel_data( ptr, gdi_next_free );
     gdi_handle_set_user_data( ptr, 0 );
@@ -125,7 +125,7 @@ static gdi_handle_t alloc_gdi_handle( struct process *process, enum gdi_object t
     ptr->count = 0;
     if (++ptr->upper >= 0xffff) ptr->upper = 1;
     ptr->type = type;
-    gdi_handle_set_kernel_data( ptr, 0xff000000 | ((ptr->upper << 4) & 0x00ff0000) | gdi_handle_to_index( ptr ) );
+    gdi_handle_set_kernel_data( ptr, 0x80000000 );
     gdi_handle_set_user_data( ptr, 0 );
     return gdi_entry_to_handle( ptr );
 }
