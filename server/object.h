@@ -221,6 +221,7 @@ extern void debug_exit_thread( struct thread *thread );
 /* registry functions */
 
 extern unsigned int get_prefix_cpu_mask(void);
+extern unsigned int get_prefix_ptr_size(void);
 extern void init_registry(void);
 extern void flush_registry(void);
 

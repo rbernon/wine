@@ -820,6 +820,19 @@ struct thread_shared_memory
     unsigned int         changed_mask;
 };
 
+struct gdi_handle
+{
+    /* void *kernel_ptr; */
+    unsigned short pid;
+    unsigned short count;
+    unsigned short upper;
+    unsigned short type;
+    /* void *user_ptr; */
+};
+
+#define FIRST_GDI_HANDLE 0x0020
+#define MAX_GDI_HANDLES  0x4000
+
 /* Bits that must be clear for client to read */
 #define SEQUENCE_MASK_BITS  4
 #define SEQUENCE_MASK ((1UL << SEQUENCE_MASK_BITS) - 1)

@@ -1787,6 +1787,20 @@ unsigned int get_prefix_cpu_mask(void)
     }
 }
 
+unsigned int get_prefix_ptr_size(void)
+{
+    switch (prefix_type)
+    {
+    case PREFIX_64BIT:
+        return sizeof(__int64);
+    case PREFIX_32BIT:
+        return sizeof(int);
+    default:
+        /* not initialized yet, be safe */
+        return sizeof(void *);
+    }
+}
+
 /* registry initialisation */
 void init_registry(void)
 {

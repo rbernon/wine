@@ -34,6 +34,8 @@ static struct user_handle *freelist;
 static int nb_handles;
 static int allocated_handles;
 
+void *gdi_shared_handle_table;
+
 static struct user_handle *handle_to_entry( user_handle_t handle )
 {
     unsigned short generation;

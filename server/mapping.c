@@ -1010,6 +1010,27 @@ struct object *create_user_data_mapping( struct object *root, const struct unico
     return &mapping->obj;
 }
 
+struct object *create_gdi_table_mapping( struct object *root, const struct unicode_str *name,
+                                         unsigned int attr, const struct security_descriptor *sd )
+{
+    void *ptr;
+    struct mapping *mapping;
+    data_size_t entry_size = sizeof(struct gdi_handle) + 2 * get_prefix_ptr_size();
+
+    if (!(mapping = create_mapping( root, name, attr, MAX_GDI_HANDLES * entry_size,
+                                    SEC_COMMIT, 0, FILE_READ_DATA | FILE_WRITE_DATA, sd ))) return NULL;
+    ptr = mmap( NULL, mapping->size, PROT_WRITE, MAP_SHARED, get_unix_fd( mapping->fd ), 0 );
+    if (ptr == MAP_FAILED)
+    {
+        release_object( &mapping->obj );
+        return NULL;
+    }
+
+    memset( ptr, 0, MAX_GDI_HANDLES * entry_size );
+    gdi_shared_handle_table = ptr;
+    return &mapping->obj;
+}
+
 struct object *create_shared_mapping( struct object *root, const struct unicode_str *name,
                                       mem_size_t size, const struct security_descriptor *sd, void **ptr )
 {
