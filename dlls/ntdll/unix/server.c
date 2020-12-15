@@ -1564,6 +1564,34 @@ size_t server_init_thread( void *entry_point, BOOL *suspend )
     }
 #endif
 
+    if (!NtCurrentTeb()->Peb->GdiSharedHandleTable)
+    {
+        static const WCHAR nameW[] = {'\\','K','e','r','n','e','l','O','b','j','e','c','t','s',
+                                      '\\','_','_','w','i','n','e','_','g','d','i','_','s','h','a','r','e','d','_','h','a','n','d','l','e','_','t','a','b','l','e',0};
+        UNICODE_STRING name_str = { sizeof(nameW) - sizeof(WCHAR), sizeof(nameW), (WCHAR *)nameW };
+        OBJECT_ATTRIBUTES attr = { sizeof(attr), 0, &name_str };
+        NTSTATUS status;
+        HANDLE section;
+        size_t entry_size = sizeof(struct gdi_table_entry) + 2 * (is_wow64 ? sizeof(__int64) : sizeof(void *));
+        void *ptr;
+        int res, fd, needs_close;
+
+        if ((status = NtOpenSection( &section, SECTION_ALL_ACCESS, &attr )))
+        {
+            ERR( "failed to open the USD section: %08x\n", status );
+            exit(1);
+        }
+        if ((res = server_get_unix_fd( section, 0, &fd, &needs_close, NULL, NULL )) ||
+            (ptr = mmap( NULL, MAX_GDI_HANDLES * entry_size, PROT_READ, MAP_SHARED, fd, 0 )) == MAP_FAILED)
+        {
+            ERR( "failed to remap the process GDI handle table: %d\n", res );
+            exit(1);
+        }
+        if (needs_close) close( fd );
+        NtClose( section );
+        NtCurrentTeb()->Peb->GdiSharedHandleTable = ptr;
+    }
+
     switch (ret)
     {
     case STATUS_SUCCESS:
