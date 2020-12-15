@@ -2588,7 +2588,6 @@ static void dump_send_hardware_message_reply( const struct send_hardware_message
     fprintf( stderr, ", prev_y=%d", req->prev_y );
     fprintf( stderr, ", new_x=%d", req->new_x );
     fprintf( stderr, ", new_y=%d", req->new_y );
-    dump_varargs_bytes( ", keystate=", cur_size );
 }
 
 static void dump_get_message_request( const struct get_message_request *req )
@@ -2612,7 +2611,6 @@ static void dump_get_message_reply( const struct get_message_reply *req )
     fprintf( stderr, ", x=%d", req->x );
     fprintf( stderr, ", y=%d", req->y );
     fprintf( stderr, ", time=%08x", req->time );
-    fprintf( stderr, ", active_hooks=%08x", req->active_hooks );
     fprintf( stderr, ", total=%u", req->total );
     dump_varargs_message_data( ", data=", cur_size );
 }
@@ -3431,6 +3429,15 @@ static void dump_set_caret_info_reply( const struct set_caret_info_reply *req )
     fprintf( stderr, ", old_state=%d", req->old_state );
 }
 
+static void dump_get_active_hooks_request( const struct get_active_hooks_request *req )
+{
+}
+
+static void dump_get_active_hooks_reply( const struct get_active_hooks_reply *req )
+{
+    fprintf( stderr, " active_hooks=%08x", req->active_hooks );
+}
+
 static void dump_set_hook_request( const struct set_hook_request *req )
 {
     fprintf( stderr, " id=%d", req->id );
@@ -4245,6 +4252,33 @@ static void dump_free_user_handle_request( const struct free_user_handle_request
     fprintf( stderr, " handle=%08x", req->handle );
 }
 
+static void dump_alloc_gdi_handle_request( const struct alloc_gdi_handle_request *req )
+{
+}
+
+static void dump_alloc_gdi_handle_reply( const struct alloc_gdi_handle_reply *req )
+{
+    fprintf( stderr, " handle=%08x", req->handle );
+}
+
+static void dump_free_gdi_handle_request( const struct free_gdi_handle_request *req )
+{
+    fprintf( stderr, " handle=%08x", req->handle );
+}
+
+static void dump_get_gui_resources_request( const struct get_gui_resources_request *req )
+{
+    fprintf( stderr, " process=%04x", req->process );
+}
+
+static void dump_get_gui_resources_reply( const struct get_gui_resources_reply *req )
+{
+    fprintf( stderr, " nb_gdi_handle=%08x", req->nb_gdi_handle );
+    fprintf( stderr, ", max_gdi_handle=%08x", req->max_gdi_handle );
+    fprintf( stderr, ", nb_user_handle=%08x", req->nb_user_handle );
+    fprintf( stderr, ", max_user_handle=%08x", req->max_user_handle );
+}
+
 static void dump_set_cursor_request( const struct set_cursor_request *req )
 {
     fprintf( stderr, " flags=%08x", req->flags );
@@ -4569,6 +4603,7 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_set_capture_window_request,
     (dump_func)dump_set_caret_window_request,
     (dump_func)dump_set_caret_info_request,
+    (dump_func)dump_get_active_hooks_request,
     (dump_func)dump_set_hook_request,
     (dump_func)dump_remove_hook_request,
     (dump_func)dump_start_hook_chain_request,
@@ -4641,6 +4676,9 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_set_window_layered_info_request,
     (dump_func)dump_alloc_user_handle_request,
     (dump_func)dump_free_user_handle_request,
+    (dump_func)dump_alloc_gdi_handle_request,
+    (dump_func)dump_free_gdi_handle_request,
+    (dump_func)dump_get_gui_resources_request,
     (dump_func)dump_set_cursor_request,
     (dump_func)dump_get_cursor_history_request,
     (dump_func)dump_get_rawinput_buffer_request,
@@ -4846,6 +4884,7 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_set_capture_window_reply,
     (dump_func)dump_set_caret_window_reply,
     (dump_func)dump_set_caret_info_reply,
+    (dump_func)dump_get_active_hooks_reply,
     (dump_func)dump_set_hook_reply,
     (dump_func)dump_remove_hook_reply,
     (dump_func)dump_start_hook_chain_reply,
@@ -4918,6 +4957,9 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] = {
     NULL,
     (dump_func)dump_alloc_user_handle_reply,
     NULL,
+    (dump_func)dump_alloc_gdi_handle_reply,
+    NULL,
+    (dump_func)dump_get_gui_resources_reply,
     (dump_func)dump_set_cursor_reply,
     (dump_func)dump_get_cursor_history_reply,
     (dump_func)dump_get_rawinput_buffer_reply,
@@ -5123,6 +5165,7 @@ static const char * const req_names[REQ_NB_REQUESTS] = {
     "set_capture_window",
     "set_caret_window",
     "set_caret_info",
+    "get_active_hooks",
     "set_hook",
     "remove_hook",
     "start_hook_chain",
@@ -5195,6 +5238,9 @@ static const char * const req_names[REQ_NB_REQUESTS] = {
     "set_window_layered_info",
     "alloc_user_handle",
     "free_user_handle",
+    "alloc_gdi_handle",
+    "free_gdi_handle",
+    "get_gui_resources",
     "set_cursor",
     "get_cursor_history",
     "get_rawinput_buffer",

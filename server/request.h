@@ -306,6 +306,7 @@ DECL_HANDLER(set_active_window);
 DECL_HANDLER(set_capture_window);
 DECL_HANDLER(set_caret_window);
 DECL_HANDLER(set_caret_info);
+DECL_HANDLER(get_active_hooks);
 DECL_HANDLER(set_hook);
 DECL_HANDLER(remove_hook);
 DECL_HANDLER(start_hook_chain);
@@ -378,6 +379,9 @@ DECL_HANDLER(get_window_layered_info);
 DECL_HANDLER(set_window_layered_info);
 DECL_HANDLER(alloc_user_handle);
 DECL_HANDLER(free_user_handle);
+DECL_HANDLER(alloc_gdi_handle);
+DECL_HANDLER(free_gdi_handle);
+DECL_HANDLER(get_gui_resources);
 DECL_HANDLER(set_cursor);
 DECL_HANDLER(get_cursor_history);
 DECL_HANDLER(get_rawinput_buffer);
@@ -586,6 +590,7 @@ static const req_handler req_handlers[REQ_NB_REQUESTS] =
     (req_handler)req_set_capture_window,
     (req_handler)req_set_caret_window,
     (req_handler)req_set_caret_info,
+    (req_handler)req_get_active_hooks,
     (req_handler)req_set_hook,
     (req_handler)req_remove_hook,
     (req_handler)req_start_hook_chain,
@@ -658,6 +663,9 @@ static const req_handler req_handlers[REQ_NB_REQUESTS] =
     (req_handler)req_set_window_layered_info,
     (req_handler)req_alloc_user_handle,
     (req_handler)req_free_user_handle,
+    (req_handler)req_alloc_gdi_handle,
+    (req_handler)req_free_gdi_handle,
+    (req_handler)req_get_gui_resources,
     (req_handler)req_set_cursor,
     (req_handler)req_get_cursor_history,
     (req_handler)req_get_rawinput_buffer,
@@ -687,6 +695,7 @@ C_ASSERT( sizeof(client_cpu_t) == 4 );
 C_ASSERT( sizeof(client_ptr_t) == 8 );
 C_ASSERT( sizeof(data_size_t) == 4 );
 C_ASSERT( sizeof(file_pos_t) == 8 );
+C_ASSERT( sizeof(gdi_handle_t) == 4 );
 C_ASSERT( sizeof(hw_input_t) == 32 );
 C_ASSERT( sizeof(int) == 4 );
 C_ASSERT( sizeof(ioctl_code_t) == 4 );
@@ -1357,8 +1366,7 @@ C_ASSERT( FIELD_OFFSET(struct get_message_reply, type) == 32 );
 C_ASSERT( FIELD_OFFSET(struct get_message_reply, x) == 36 );
 C_ASSERT( FIELD_OFFSET(struct get_message_reply, y) == 40 );
 C_ASSERT( FIELD_OFFSET(struct get_message_reply, time) == 44 );
-C_ASSERT( FIELD_OFFSET(struct get_message_reply, active_hooks) == 48 );
-C_ASSERT( FIELD_OFFSET(struct get_message_reply, total) == 52 );
+C_ASSERT( FIELD_OFFSET(struct get_message_reply, total) == 48 );
 C_ASSERT( sizeof(struct get_message_reply) == 56 );
 C_ASSERT( FIELD_OFFSET(struct reply_message_request, remove) == 12 );
 C_ASSERT( FIELD_OFFSET(struct reply_message_request, result) == 16 );
@@ -1772,6 +1780,9 @@ C_ASSERT( FIELD_OFFSET(struct set_caret_info_reply, old_rect) == 12 );
 C_ASSERT( FIELD_OFFSET(struct set_caret_info_reply, old_hide) == 28 );
 C_ASSERT( FIELD_OFFSET(struct set_caret_info_reply, old_state) == 32 );
 C_ASSERT( sizeof(struct set_caret_info_reply) == 40 );
+C_ASSERT( sizeof(struct get_active_hooks_request) == 16 );
+C_ASSERT( FIELD_OFFSET(struct get_active_hooks_reply, active_hooks) == 8 );
+C_ASSERT( sizeof(struct get_active_hooks_reply) == 16 );
 C_ASSERT( FIELD_OFFSET(struct set_hook_request, id) == 12 );
 C_ASSERT( FIELD_OFFSET(struct set_hook_request, pid) == 16 );
 C_ASSERT( FIELD_OFFSET(struct set_hook_request, tid) == 20 );
@@ -2170,6 +2181,18 @@ C_ASSERT( FIELD_OFFSET(struct alloc_user_handle_reply, handle) == 8 );
 C_ASSERT( sizeof(struct alloc_user_handle_reply) == 16 );
 C_ASSERT( FIELD_OFFSET(struct free_user_handle_request, handle) == 12 );
 C_ASSERT( sizeof(struct free_user_handle_request) == 16 );
+C_ASSERT( sizeof(struct alloc_gdi_handle_request) == 16 );
+C_ASSERT( FIELD_OFFSET(struct alloc_gdi_handle_reply, handle) == 8 );
+C_ASSERT( sizeof(struct alloc_gdi_handle_reply) == 16 );
+C_ASSERT( FIELD_OFFSET(struct free_gdi_handle_request, handle) == 12 );
+C_ASSERT( sizeof(struct free_gdi_handle_request) == 16 );
+C_ASSERT( FIELD_OFFSET(struct get_gui_resources_request, process) == 12 );
+C_ASSERT( sizeof(struct get_gui_resources_request) == 16 );
+C_ASSERT( FIELD_OFFSET(struct get_gui_resources_reply, nb_gdi_handle) == 8 );
+C_ASSERT( FIELD_OFFSET(struct get_gui_resources_reply, max_gdi_handle) == 12 );
+C_ASSERT( FIELD_OFFSET(struct get_gui_resources_reply, nb_user_handle) == 16 );
+C_ASSERT( FIELD_OFFSET(struct get_gui_resources_reply, max_user_handle) == 20 );
+C_ASSERT( sizeof(struct get_gui_resources_reply) == 24 );
 C_ASSERT( FIELD_OFFSET(struct set_cursor_request, flags) == 12 );
 C_ASSERT( FIELD_OFFSET(struct set_cursor_request, handle) == 16 );
 C_ASSERT( FIELD_OFFSET(struct set_cursor_request, show_count) == 20 );
