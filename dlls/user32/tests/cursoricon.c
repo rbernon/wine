@@ -311,6 +311,20 @@ static LRESULT CALLBACK callback_child(HWND hwnd, UINT msg, WPARAM wParam, LPARA
 {
     switch (msg)
     {
+        case WM_USER+2:
+        {
+            HBITMAP handle = (HBITMAP)lParam;
+            BITMAP bm;
+            BOOL ret;
+
+            SetLastError(0xdeadbeef);
+            ret = GetObjectA(handle, sizeof(bm), &bm);
+            ok(ret == 0, "GetObjectA returned %d\n", ret);
+            ok(GetLastError() == 0xdeadbeef, "unexpected error %u\n", GetLastError());
+
+            break;
+        }
+
         /* Destroy the cursor. */
         case WM_USER+1:
         {
@@ -318,12 +332,34 @@ static LRESULT CALLBACK callback_child(HWND hwnd, UINT msg, WPARAM wParam, LPARA
             ICONINFO info;
             BOOL ret;
             DWORD error;
+            BITMAPINFO bmi;
+            BITMAP bm;
+            DWORD pixels[32];
+            HDC hdc = GetDC(NULL);
 
             memset(&info, 0, sizeof(info));
             ret = GetIconInfo(cursor, &info);
             todo_wine ok(ret, "GetIconInfoEx failed with error %u\n", GetLastError());
             todo_wine ok(info.hbmColor != NULL, "info.hmbColor was not set\n");
             todo_wine ok(info.hbmMask != NULL, "info.hmbColor was not set\n");
+
+            ret = GetObjectA(info.hbmColor, sizeof(bm), &bm);
+            todo_wine ok(ret == sizeof(bm), "GetObject returned %d\n", ret);
+            memset(&bmi, 0, sizeof(bmi));
+            bmi.bmiHeader.biSize = sizeof(bmi.bmiHeader);
+            bmi.bmiHeader.biWidth = bm.bmWidth;
+            bmi.bmiHeader.biHeight = bm.bmHeight;
+            bmi.bmiHeader.biPlanes = 1;
+            bmi.bmiHeader.biBitCount= 32;
+            bmi.bmiHeader.biCompression = BI_RGB;
+            memset(pixels, 0, sizeof(pixels));
+            ret = GetDIBits(hdc, info.hbmColor, 31, 1, &pixels, &bmi, DIB_RGB_COLORS);
+            todo_wine ok(ret == 1, "%d lines were converted\n", ret);
+
+            todo_wine ok(pixels[0] == 0x03020100, "pixels[0] is 0x%08x\n", pixels[0]);
+            todo_wine ok(pixels[16] == 0xcdcdcdcd, "pixels[16] is 0x%08x\n", pixels[16]);
+            ReleaseDC(NULL, hdc);
+
             DeleteObject(info.hbmColor);
             DeleteObject(info.hbmMask);
 
@@ -452,28 +488,35 @@ static void finish_child_process(void)
 
 static void test_child_process(void)
 {
-    static const BYTE bmp_bits[4096];
+    static BYTE color_bits[4096];
+    static BYTE mask_bits[1024];
     HCURSOR cursor;
     ICONINFO cursorInfo;
     UINT display_bpp;
     HDC hdc;
+    DWORD i;
 
     /* Create and set a dummy cursor. */
     hdc = GetDC(0);
     display_bpp = GetDeviceCaps(hdc, BITSPIXEL);
     ReleaseDC(0, hdc);
 
+    memset(mask_bits, 0xff, sizeof(mask_bits));
+    memset(color_bits, 0xcd, sizeof(color_bits));
+    for (i = 0; i < 16; i++) color_bits[i] = i;
+
     cursorInfo.fIcon = FALSE;
     cursorInfo.xHotspot = 0;
     cursorInfo.yHotspot = 0;
-    cursorInfo.hbmMask = CreateBitmap(32, 32, 1, 1, bmp_bits);
-    cursorInfo.hbmColor = CreateBitmap(32, 32, 1, display_bpp, bmp_bits);
+    cursorInfo.hbmMask = CreateBitmap(32, 32, 1, 1, mask_bits);
+    cursorInfo.hbmColor = CreateBitmap(32, 32, 1, display_bpp, color_bits);
 
     cursor = CreateIconIndirect(&cursorInfo);
     ok(cursor != NULL, "CreateIconIndirect returned %p.\n", cursor);
 
     SetCursor(cursor);
 
+    SendMessageA(child, WM_USER+2, 0, (LPARAM) cursorInfo.hbmColor);
     /* Destroy the cursor. */
     SendMessageA(child, WM_USER+1, 0, (LPARAM) cursor);
 }
