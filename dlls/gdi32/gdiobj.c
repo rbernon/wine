@@ -33,11 +33,9 @@
 
 #include "gdi_private.h"
 #include "wine/debug.h"
+#include "wine/server.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(gdi);
-
-#define FIRST_GDI_HANDLE 32
-#define MAX_GDI_HANDLES  16384
 
 struct hdc_list
 {
@@ -55,6 +53,7 @@ struct gdi_handle_entry
     WORD                        selcount;    /* number of times the object is selected in a DC */
     WORD                        system : 1;  /* system object flag */
     WORD                        deleted : 1; /* whether DeleteObject has been called on this object */
+    HANDLE                      kernel;
 };
 
 static struct gdi_handle_entry gdi_handles[MAX_GDI_HANDLES];
@@ -735,8 +734,15 @@ HGDIOBJ alloc_gdi_handle( void *obj, WORD type, const struct gdi_obj_funcs *func
 {
     struct gdi_handle_entry *entry;
     HGDIOBJ ret;
+    HANDLE kernel = 0;
 
     assert( type );  /* type 0 is reserved to mark free entries */
+
+    SERVER_START_REQ( alloc_gdi_handle )
+    {
+        if (!wine_server_call_err( req )) kernel = wine_server_ptr_handle( reply->handle );
+    }
+    SERVER_END_REQ;
 
     EnterCriticalSection( &gdi_section );
 
@@ -759,6 +765,7 @@ HGDIOBJ alloc_gdi_handle( void *obj, WORD type, const struct gdi_obj_funcs *func
     entry->selcount = 0;
     entry->system   = 0;
     entry->deleted  = 0;
+    entry->kernel   = kernel;
     if (++entry->generation == 0xffff) entry->generation = 1;
     ret = entry_to_handle( entry );
     LeaveCriticalSection( &gdi_section );
@@ -781,6 +788,13 @@ void *free_gdi_handle( HGDIOBJ handle )
     EnterCriticalSection( &gdi_section );
     if ((entry = handle_entry( handle )))
     {
+        SERVER_START_REQ( free_gdi_handle )
+        {
+            req->handle = wine_server_user_handle( entry->kernel );
+            if (wine_server_call( req )) ERR( "failed to release kernel handle %p\n", entry->kernel );
+        }
+        SERVER_END_REQ;
+
         TRACE( "freed %s %p %u/%u\n", gdi_obj_type( entry->type ), handle,
                InterlockedDecrement( &debug_count ) + 1, MAX_GDI_HANDLES );
         object = entry->obj;

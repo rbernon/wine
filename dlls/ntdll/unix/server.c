@@ -1572,7 +1572,7 @@ size_t server_init_thread( void *entry_point, BOOL *suspend )
         OBJECT_ATTRIBUTES attr = { sizeof(attr), 0, &name_str };
         NTSTATUS status;
         HANDLE section;
-        size_t entry_size = sizeof(struct gdi_table_entry) + 2 * (is_wow64 ? sizeof(__int64) : sizeof(void *));
+        size_t entry_size = sizeof(struct gdi_handle) + 2 * (is_wow64 ? sizeof(__int64) : sizeof(void *));
         void *ptr;
         int res, fd, needs_close;
 

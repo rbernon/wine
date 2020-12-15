@@ -32,6 +32,7 @@
 #include <winbase.h>
 
 typedef unsigned int obj_handle_t;
+typedef unsigned int gdi_handle_t;
 typedef unsigned int user_handle_t;
 typedef unsigned int atom_t;
 typedef unsigned int process_id_t;
@@ -3570,6 +3571,19 @@ struct handle_info
 /* Free an arbitrary user handle */
 @REQ(free_user_handle)
     user_handle_t  handle;        /* handle to free*/
+@END
+
+
+/* Allocate an arbitrary gdi handle */
+@REQ(alloc_gdi_handle)
+@REPLY
+    gdi_handle_t  handle;        /* allocated handle */
+@END
+
+
+/* Free an arbitrary gdi handle */
+@REQ(free_gdi_handle)
+    gdi_handle_t  handle;        /* handle to free*/
 @END
 
 

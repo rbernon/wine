@@ -18,9 +18,11 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#include "object.h"
 #include "thread.h"
 #include "user.h"
 #include "request.h"
+#include "process.h"
 
 struct user_handle
 {
@@ -35,6 +37,90 @@ static int nb_handles;
 static int allocated_handles;
 
 void *gdi_shared_handle_table;
+static int gdi_nb_handles;
+static int gdi_next_free = -1;
+
+static int gdi_handle_get_kernel_data( struct gdi_handle *ptr )
+{
+    data_size_t ptr_size = get_prefix_ptr_size();
+    return *(int *)((char *)ptr - ptr_size);
+}
+
+static void gdi_handle_set_kernel_data( struct gdi_handle *ptr, int data )
+{
+    data_size_t ptr_size = get_prefix_ptr_size();
+    *(int *)((char *)ptr - ptr_size) = data;
+    if (ptr_size == sizeof(int)) return;
+    *(int *)((char *)ptr - ptr_size + sizeof(int)) = (data >= -1) ? 0 : ~0u;
+}
+
+static void gdi_handle_set_user_data( struct gdi_handle *ptr, client_ptr_t user )
+{
+    *(client_ptr_t *)((char *)ptr + sizeof(*ptr)) = user;
+}
+
+static struct gdi_handle *index_to_gdi_entry( unsigned int index )
+{
+    data_size_t ptr_size = get_prefix_ptr_size(), entry_size = sizeof(struct gdi_handle) + 2 * ptr_size;
+    return (struct gdi_handle *)((char *)gdi_shared_handle_table + index * entry_size + ptr_size);
+}
+
+static unsigned int gdi_handle_to_index( struct gdi_handle *ptr )
+{
+    data_size_t ptr_size = get_prefix_ptr_size(), entry_size = sizeof(struct gdi_handle) + 2 * ptr_size;
+    return (((char *)ptr - ptr_size) - (char *)gdi_shared_handle_table) / entry_size;
+}
+
+static struct gdi_handle *handle_to_gdi_entry( gdi_handle_t handle )
+{
+    struct gdi_handle *ptr;
+    unsigned short upper;
+    int index = (handle & 0xffff) - FIRST_GDI_HANDLE;
+    if (index < 0) return NULL;
+    ptr = index_to_gdi_entry( index );
+    if (!ptr->type) return NULL;
+    upper = handle >> 16;
+    if (upper == ptr->upper || !upper || upper == 0xffff) return ptr;
+    return NULL;
+}
+
+static inline gdi_handle_t gdi_entry_to_handle( struct gdi_handle *ptr )
+{
+    unsigned int index = gdi_handle_to_index( ptr );
+    return (index + FIRST_GDI_HANDLE) | (ptr->upper << 16);
+}
+
+static inline struct gdi_handle *alloc_gdi_entry(void)
+{
+    struct gdi_handle *ptr;
+    if (gdi_next_free == -1) return index_to_gdi_entry( gdi_nb_handles++ );
+    ptr = index_to_gdi_entry( gdi_next_free );
+    gdi_next_free = gdi_handle_get_kernel_data( ptr );
+    return ptr;
+}
+
+static inline void free_gdi_entry( struct gdi_handle *ptr )
+{
+    ptr->pid = 1;
+    ptr->type = 0;
+    gdi_handle_set_kernel_data( ptr, gdi_next_free );
+    gdi_handle_set_user_data( ptr, 0 );
+    gdi_next_free = gdi_handle_to_index( ptr );
+}
+
+/* allocate a gdi handle for a given object */
+static gdi_handle_t alloc_gdi_handle( struct process *process, enum gdi_object type )
+{
+    struct gdi_handle *ptr = alloc_gdi_entry();
+    if (!ptr) return 0;
+    ptr->pid = process->id;
+    ptr->count = 0;
+    if (++ptr->upper >= 0xffff) ptr->upper = 1;
+    ptr->type = type;
+    gdi_handle_set_kernel_data( ptr, 0xff000000 | ((ptr->upper << 4) & 0x00ff0000) | gdi_handle_to_index( ptr ) );
+    gdi_handle_set_user_data( ptr, 0 );
+    return gdi_entry_to_handle( ptr );
+}
 
 static struct user_handle *handle_to_entry( user_handle_t handle )
 {
@@ -176,6 +262,13 @@ void free_process_user_handles( struct process *process )
     for (i = 0; i < nb_handles; i++)
         if (handles[i].type == USER_CLIENT && handles[i].ptr == process)
             free_user_entry( &handles[i] );
+
+    for (i = 0; i < gdi_nb_handles; i++)
+    {
+        struct gdi_handle *entry;
+        if ((entry = index_to_gdi_entry(i)) && entry->pid == process->id)
+            free_gdi_entry( entry );
+    }
 }
 
 /* allocate an arbitrary user handle */
@@ -192,6 +285,25 @@ DECL_HANDLER(free_user_handle)
 
     if ((entry = handle_to_entry( req->handle )) && entry->type == USER_CLIENT)
         free_user_entry( entry );
+    else
+        set_error( STATUS_INVALID_HANDLE );
+}
+
+
+/* allocate an arbitrary gdi handle */
+DECL_HANDLER(alloc_gdi_handle)
+{
+    reply->handle = alloc_gdi_handle( current->process, GDI_OBJECT );
+}
+
+
+/* free an arbitrary gdi handle */
+DECL_HANDLER(free_gdi_handle)
+{
+    struct gdi_handle *entry;
+
+    if ((entry = handle_to_gdi_entry( req->handle )) && entry->type == GDI_OBJECT)
+        free_gdi_entry( entry );
     else
         set_error( STATUS_INVALID_HANDLE );
 }

@@ -435,7 +435,7 @@ static void test_GdiSharedHandleTable(void)
     }
 #endif
 
-    todo_wine ok(table != NULL, "Peb->GdiSharedHandleTable is NULL\n");
+    ok(table != NULL, "Peb->GdiSharedHandleTable is NULL\n");
     if (!table) return;
 
     copy = HeapAlloc( GetProcessHeap(), 0, table_size );

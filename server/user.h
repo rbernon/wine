@@ -39,6 +39,11 @@ enum user_object
     USER_CLIENT  /* arbitrary client handle */
 };
 
+enum gdi_object
+{
+    GDI_OBJECT = 1,
+};
+
 #define DESKTOP_ATOM  ((atom_t)32769)
 
 struct winstation

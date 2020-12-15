@@ -27,6 +27,7 @@
 #include "winternl.h"
 #include "winnls.h"
 #include "wine/debug.h"
+#include "wine/server.h"
 #include "user_private.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(resource);
