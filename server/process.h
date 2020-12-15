@@ -98,6 +98,10 @@ struct process
     const struct rawinput_device *rawinput_mouse; /* rawinput mouse device, if any */
     const struct rawinput_device *rawinput_kbd;   /* rawinput keyboard device, if any */
     struct list          kernel_object;   /* list of kernel object pointers */
+    unsigned short       nb_gdi_handle;   /* number of allocated gdi handles */
+    unsigned short       max_gdi_handle;  /* max number of allocated gdi handles */
+    unsigned short       nb_user_handle;  /* number of allocated user handles */
+    unsigned short       max_user_handle; /* max number of allocated user handles */
 };
 
 #define CPU_FLAG(cpu) (1 << (cpu))

@@ -542,6 +542,10 @@ struct process *create_process( int fd, struct process *parent, int inherit_all,
     process->trace_data      = 0;
     process->rawinput_mouse  = NULL;
     process->rawinput_kbd    = NULL;
+    process->nb_gdi_handle   = 0;
+    process->max_gdi_handle  = 0;
+    process->nb_user_handle  = 0;
+    process->max_user_handle = 0;
     list_init( &process->kernel_object );
     list_init( &process->thread_list );
     list_init( &process->locks );
@@ -1888,4 +1892,18 @@ DECL_HANDLER(list_processes)
             pos += sizeof(*thread_info);
         }
     }
+}
+
+DECL_HANDLER(get_gui_resources)
+{
+    struct process *process;
+
+    if (!(process = get_process_from_handle( req->process, PROCESS_QUERY_INFORMATION )))
+        return;
+
+    reply->nb_gdi_handle = process->nb_gdi_handle;
+    reply->max_gdi_handle = process->max_gdi_handle;
+    reply->nb_user_handle = process->nb_user_handle;
+    reply->max_user_handle = process->max_user_handle;
+    release_object( process );
 }

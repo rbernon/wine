@@ -29,6 +29,7 @@ struct user_handle
     void          *ptr;          /* pointer to object */
     unsigned short type;         /* object type (0 if free) */
     unsigned short generation;   /* generation counter */
+    unsigned short pid;          /* owner process pid */
 };
 
 static struct user_handle *handles;
@@ -101,6 +102,13 @@ static inline struct gdi_handle *alloc_gdi_entry(void)
 
 static inline void free_gdi_entry( struct gdi_handle *ptr )
 {
+    struct process *process;
+    if ((process = get_process_from_id( ptr->pid )))
+    {
+        process->nb_gdi_handle--;
+        release_object( process );
+    }
+
     ptr->pid = 1;
     ptr->type = 0;
     gdi_handle_set_kernel_data( ptr, gdi_next_free );
@@ -170,6 +178,14 @@ static inline struct user_handle *alloc_user_entry(void)
 static inline void *free_user_entry( struct user_handle *ptr )
 {
     void *ret;
+    struct process *process;
+
+    if ((process = get_process_from_id( ptr->pid )))
+    {
+        process->nb_user_handle--;
+        release_object( process );
+    }
+
     ret = ptr->ptr;
     ptr->ptr  = freelist;
     ptr->type = 0;
@@ -184,6 +200,7 @@ user_handle_t alloc_user_handle( void *ptr, enum user_object type )
     if (!entry) return 0;
     entry->ptr  = ptr;
     entry->type = type;
+    entry->pid  = 0;
     if (++entry->generation >= 0xffff) entry->generation = 1;
     return entry_to_handle( entry );
 }
@@ -274,7 +291,15 @@ void free_process_user_handles( struct process *process )
 /* allocate an arbitrary user handle */
 DECL_HANDLER(alloc_user_handle)
 {
+    struct user_handle *entry;
+
     reply->handle = alloc_user_handle( current->process, USER_CLIENT );
+    if ((entry = handle_to_entry( reply->handle )))
+    {
+        entry->pid = current->process->id;
+        current->process->nb_user_handle++;
+        current->process->max_user_handle = max(current->process->max_user_handle, current->process->nb_user_handle);
+    }
 }
 
 
@@ -294,6 +319,8 @@ DECL_HANDLER(free_user_handle)
 DECL_HANDLER(alloc_gdi_handle)
 {
     reply->handle = alloc_gdi_handle( current->process, GDI_OBJECT );
+    current->process->nb_gdi_handle++;
+    current->process->max_gdi_handle = max(current->process->max_gdi_handle, current->process->nb_gdi_handle);
 }
 
 

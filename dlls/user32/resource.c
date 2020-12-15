@@ -323,13 +323,19 @@ INT WINAPI DECLSPEC_HOTPATCH LoadStringA( HINSTANCE instance, UINT resource_id, 
  */
 DWORD WINAPI GetGuiResources( HANDLE hProcess, DWORD uiFlags )
 {
-    static BOOL warn = TRUE;
-
-    if (warn) {
-        FIXME("(%p,%x): stub\n",hProcess,uiFlags);
-       warn = FALSE;
+    SERVER_START_REQ( get_gui_resources )
+    {
+        req->process = wine_server_obj_handle( hProcess );
+        if (wine_server_call_err( req )) return 0;
+        switch (uiFlags)
+        {
+        case 0 /* GR_GDIOBJECTS */: return reply->nb_gdi_handle;
+        case 1 /* GR_USEROBJECTS */: return reply->nb_user_handle;
+        case 2 /* GR_GDIOBJECTS_PEAK */: return reply->max_gdi_handle;
+        case 4 /* GR_USEROBJECTS_PEAK */: return reply->max_user_handle;
+        }
     }
+    SERVER_END_REQ;
 
-    SetLastError( ERROR_CALL_NOT_IMPLEMENTED );
     return 0;
 }

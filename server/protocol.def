@@ -3587,6 +3587,17 @@ struct handle_info
 @END
 
 
+/* Get the GUI resources counters for a process */
+@REQ(get_gui_resources)
+    obj_handle_t process;         /* handle to the process */
+@REPLY
+    unsigned int nb_gdi_handle;   /* number of allocated gdi handles */
+    unsigned int max_gdi_handle;  /* max number of allocated gdi handles */
+    unsigned int nb_user_handle;  /* number of allocated user handles */
+    unsigned int max_user_handle; /* max number of allocated user handles */
+@END
+
+
 /* Set/get the current cursor */
 @REQ(set_cursor)
     unsigned int   flags;         /* flags for fields to set (see below) */
