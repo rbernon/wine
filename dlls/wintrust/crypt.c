@@ -904,11 +904,10 @@ BOOL WINAPI CryptCATPersistStore(HANDLE catalog)
 HANDLE WINAPI CryptCATOpen(WCHAR *filename, DWORD flags, HCRYPTPROV hProv,
                            DWORD dwPublicVersion, DWORD dwEncodingType)
 {
-    HANDLE file, hmsg;
-    BYTE *buffer = NULL;
-    DWORD size, open_mode = OPEN_ALWAYS;
-    struct cryptcat *cc;
-    BOOL valid;
+    HANDLE file, hmsg = NULL;
+    BYTE *buffer = NULL, *p;
+    DWORD i, sum = 0, size, open_mode = OPEN_ALWAYS;
+    struct cryptcat *cc = NULL;
 
     TRACE("filename %s, flags %#x, provider %#lx, version %#x, type %#x\n",
           debugstr_w(filename), flags, hProv, dwPublicVersion, dwEncodingType);
@@ -929,102 +928,51 @@ HANDLE WINAPI CryptCATOpen(WCHAR *filename, DWORD flags, HCRYPTPROV hProv,
     file = CreateFileW(filename, GENERIC_READ, FILE_SHARE_READ, NULL, open_mode, 0, NULL);
     if (file == INVALID_HANDLE_VALUE) return INVALID_HANDLE_VALUE;
 
-    size = GetFileSize(file, NULL);
-    if (!(buffer = HeapAlloc(GetProcessHeap(), 0, size)))
-    {
-        CloseHandle(file);
-        SetLastError(ERROR_OUTOFMEMORY);
-        return INVALID_HANDLE_VALUE;
-    }
-    if (!(hmsg = CryptMsgOpenToDecode(dwEncodingType, 0, 0, hProv, NULL, NULL)))
-    {
-        CloseHandle(file);
-        HeapFree(GetProcessHeap(), 0, buffer);
-        return INVALID_HANDLE_VALUE;
-    }
-    if (!size) valid = FALSE;
-    else if (!ReadFile(file, buffer, size, &size, NULL))
-    {
-        CloseHandle(file);
-        HeapFree(GetProcessHeap(), 0, buffer);
-        CryptMsgClose(hmsg);
-        return INVALID_HANDLE_VALUE;
-    }
-    else valid = CryptMsgUpdate(hmsg, buffer, size, TRUE);
-    HeapFree(GetProcessHeap(), 0, buffer);
-    CloseHandle(file);
-
-    size = sizeof(DWORD);
-    if (!(cc = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*cc))))
-    {
-        CryptMsgClose(hmsg);
-        SetLastError(ERROR_OUTOFMEMORY);
-        return INVALID_HANDLE_VALUE;
-    }
-
+    if (!(hmsg = CryptMsgOpenToDecode(dwEncodingType, 0, 0, hProv, NULL, NULL))) goto failed;
+    if (!(cc = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*cc)))) goto failed_alloc;
     cc->msg = hmsg;
     cc->encoding = dwEncodingType;
-    if (!valid)
-    {
-        cc->magic = CRYPTCAT_MAGIC;
-        SetLastError(ERROR_SUCCESS);
-        return cc;
-    }
-    else if (CryptMsgGetParam(hmsg, CMSG_ATTR_CERT_COUNT_PARAM, 0, &cc->attr_count, &size))
-    {
-        DWORD i, sum = 0;
-        BYTE *p;
 
-        for (i = 0; i < cc->attr_count; i++)
-        {
-            if (!CryptMsgGetParam(hmsg, CMSG_ATTR_CERT_PARAM, i, NULL, &size))
-            {
-                CryptMsgClose(hmsg);
-                HeapFree(GetProcessHeap(), 0, cc);
-                return INVALID_HANDLE_VALUE;
-            }
-            sum += size;
-        }
-        if (!(cc->attr = HeapAlloc(GetProcessHeap(), 0, sizeof(*cc->attr) * cc->attr_count + sum)))
-        {
-            CryptMsgClose(hmsg);
-            HeapFree(GetProcessHeap(), 0, cc);
-            SetLastError(ERROR_OUTOFMEMORY);
-            return INVALID_HANDLE_VALUE;
-        }
-        p = (BYTE *)(cc->attr + cc->attr_count);
-        for (i = 0; i < cc->attr_count; i++)
-        {
-            if (!CryptMsgGetParam(hmsg, CMSG_ATTR_CERT_PARAM, i, NULL, &size))
-            {
-                CryptMsgClose(hmsg);
-                HeapFree(GetProcessHeap(), 0, cc->attr);
-                HeapFree(GetProcessHeap(), 0, cc);
-                return INVALID_HANDLE_VALUE;
-            }
-            if (!CryptMsgGetParam(hmsg, CMSG_ATTR_CERT_PARAM, i, p, &size))
-            {
-                CryptMsgClose(hmsg);
-                HeapFree(GetProcessHeap(), 0, cc->attr);
-                HeapFree(GetProcessHeap(), 0, cc);
-                return INVALID_HANDLE_VALUE;
-            }
-            p += size;
-        }
-        cc->inner = decode_inner_content(hmsg, dwEncodingType, &cc->inner_len);
-        if (!cc->inner || !CryptSIPRetrieveSubjectGuid(filename, NULL, &cc->subject))
-        {
-            CryptMsgClose(hmsg);
-            HeapFree(GetProcessHeap(), 0, cc->attr);
-            HeapFree(GetProcessHeap(), 0, cc->inner);
-            HeapFree(GetProcessHeap(), 0, cc);
-            return INVALID_HANDLE_VALUE;
-        }
-        cc->magic = CRYPTCAT_MAGIC;
-        SetLastError(ERROR_SUCCESS);
-        return cc;
+    size = GetFileSize(file, NULL);
+    if (!(buffer = HeapAlloc(GetProcessHeap(), 0, size))) goto failed_alloc;
+    if (size && !ReadFile(file, buffer, size, &size, NULL)) goto failed;
+    if (!size || !CryptMsgUpdate(hmsg, buffer, size, TRUE)) goto done;
+
+    size = sizeof(DWORD);
+    if (!CryptMsgGetParam(hmsg, CMSG_ATTR_CERT_COUNT_PARAM, 0, &cc->attr_count, &size)) goto failed;
+
+    for (i = 0; i < cc->attr_count; i++)
+    {
+        if (!CryptMsgGetParam(hmsg, CMSG_ATTR_CERT_PARAM, i, NULL, &size)) goto failed;
+        sum += size;
     }
+    if (!(cc->attr = HeapAlloc(GetProcessHeap(), 0, sizeof(*cc->attr) * cc->attr_count + sum))) goto failed_alloc;
+    p = (BYTE *)(cc->attr + cc->attr_count);
+    for (i = 0; i < cc->attr_count; i++)
+    {
+        if (!CryptMsgGetParam(hmsg, CMSG_ATTR_CERT_PARAM, i, NULL, &size)) goto failed;
+        if (!CryptMsgGetParam(hmsg, CMSG_ATTR_CERT_PARAM, i, p, &size)) goto failed;
+        p += size;
+    }
+    cc->inner = decode_inner_content(hmsg, dwEncodingType, &cc->inner_len);
+    if (!cc->inner || !CryptSIPRetrieveSubjectGuid(filename, NULL, &cc->subject)) goto failed;
+
+done:
+    cc->magic = CRYPTCAT_MAGIC;
+    HeapFree(GetProcessHeap(), 0, buffer);
+    CloseHandle(file);
+    SetLastError(ERROR_SUCCESS);
+    return cc;
+
+failed_alloc:
+    SetLastError(ERROR_OUTOFMEMORY);
+failed:
+    if (cc) HeapFree(GetProcessHeap(), 0, cc->inner);
+    if (cc) HeapFree(GetProcessHeap(), 0, cc->attr);
     HeapFree(GetProcessHeap(), 0, cc);
+    HeapFree(GetProcessHeap(), 0, buffer);
+    CryptMsgClose(hmsg);
+    CloseHandle(file);
     return INVALID_HANDLE_VALUE;
 }
 
