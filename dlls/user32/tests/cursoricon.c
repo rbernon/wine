@@ -329,7 +329,7 @@ static LRESULT CALLBACK callback_child(HWND hwnd, UINT msg, WPARAM wParam, LPARA
         case WM_USER+1:
         {
             HCURSOR cursor = (HCURSOR)lParam;
-            ICONINFO info;
+            ICONINFOEXW info;
             BOOL ret;
             DWORD error;
             BITMAPINFO bmi;
@@ -338,10 +338,15 @@ static LRESULT CALLBACK callback_child(HWND hwnd, UINT msg, WPARAM wParam, LPARA
             HDC hdc = GetDC(NULL);
 
             memset(&info, 0, sizeof(info));
-            ret = GetIconInfo(cursor, &info);
+            info.cbSize = sizeof(info);
+            ret = GetIconInfoExW(cursor, &info);
             todo_wine ok(ret, "GetIconInfoEx failed with error %u\n", GetLastError());
             todo_wine ok(info.hbmColor != NULL, "info.hmbColor was not set\n");
             todo_wine ok(info.hbmMask != NULL, "info.hmbColor was not set\n");
+
+            trace("info size %u, icon %d, hot %dx%d, mask %p, color %p, rid %d, mod %s, res %s\n",
+                  info.cbSize, info.fIcon, info.xHotspot, info.yHotspot, info.hbmMask, info.hbmColor,
+                  info.wResID, wine_dbgstr_w(info.szModName), wine_dbgstr_w(info.szResName));
 
             ret = GetObjectA(info.hbmColor, sizeof(bm), &bm);
             todo_wine ok(ret == sizeof(bm), "GetObject returned %d\n", ret);
@@ -495,6 +500,8 @@ static void test_child_process(void)
     UINT display_bpp;
     HDC hdc;
     DWORD i;
+    ICONINFOEXW info;
+    BOOL ret;
 
     /* Create and set a dummy cursor. */
     hdc = GetDC(0);
@@ -514,10 +521,33 @@ static void test_child_process(void)
     cursor = CreateIconIndirect(&cursorInfo);
     ok(cursor != NULL, "CreateIconIndirect returned %p.\n", cursor);
 
+    memset(&info, 0, sizeof(info));
+    info.cbSize = sizeof(info);
+    ret = GetIconInfoExW(cursor, &info);
+    ok(ret, "GetIconInfoEx failed with error %u\n", GetLastError());
+
+    trace("info size %u, icon %d, hot %dx%d, mask %p, color %p, rid %d, mod %s, res %s\n",
+          info.cbSize, info.fIcon, info.xHotspot, info.yHotspot, info.hbmMask, info.hbmColor,
+          info.wResID, wine_dbgstr_w(info.szModName), wine_dbgstr_w(info.szResName));
+
     SetCursor(cursor);
 
     SendMessageA(child, WM_USER+2, 0, (LPARAM) cursorInfo.hbmColor);
     /* Destroy the cursor. */
+    SendMessageA(child, WM_USER+1, 0, (LPARAM) cursor);
+
+    cursor = LoadImageA( NULL, 0x7f01, IMAGE_ICON, 0, 0, LR_SHARED );
+    ok(cursor != NULL, "LoadImageA returned %p error %u.\n", cursor, GetLastError());
+
+    memset(&info, 0, sizeof(info));
+    info.cbSize = sizeof(info);
+    ret = GetIconInfoExW(cursor, &info);
+    ok(ret, "GetIconInfoEx failed with error %u\n", GetLastError());
+
+    trace("info size %u, icon %d, hot %dx%d, mask %p, color %p, rid %d, mod %s, res %s\n",
+          info.cbSize, info.fIcon, info.xHotspot, info.yHotspot, info.hbmMask, info.hbmColor,
+          info.wResID, wine_dbgstr_w(info.szModName), wine_dbgstr_w(info.szResName));
+
     SendMessageA(child, WM_USER+1, 0, (LPARAM) cursor);
 }
 
