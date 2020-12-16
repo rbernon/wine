@@ -30,6 +30,7 @@
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(palette);
+WINE_DECLARE_DEBUG_CHANNEL(dcdrv);
 
 /* Palette indexed mode:
  *	logical palette -> mapping -> pixel
@@ -1195,6 +1196,7 @@ UINT CDECL X11DRV_RealizePalette( PHYSDEV dev, HPALETTE hpal, BOOL primary )
     PALETTEENTRY entries[256];
     WORD num_entries;
 
+    TRACE_(dcdrv)("\n");
     if (X11DRV_PALETTE_PaletteFlags & X11DRV_PALETTE_VIRTUAL) return 0;
 
     if (!GetObjectW( hpal, sizeof(num_entries), &num_entries )) return 0;
@@ -1306,6 +1308,7 @@ BOOL CDECL X11DRV_UnrealizePalette( HPALETTE hpal )
 {
     int *mapping = palette_get_mapping( hpal );
 
+    TRACE_(dcdrv)("\n");
     if (mapping)
     {
         XDeleteContext( gdi_display, (XID)hpal, palette_context );
@@ -1322,6 +1325,7 @@ UINT CDECL X11DRV_GetSystemPaletteEntries( PHYSDEV dev, UINT start, UINT count, 
 {
     UINT i;
 
+    TRACE_(dcdrv)("\n");
     if (!palette_size)
     {
         dev = GET_NEXT_PHYSDEV(dev, pGetSystemPaletteEntries);
@@ -1353,6 +1357,7 @@ COLORREF CDECL X11DRV_GetNearestColor( PHYSDEV dev, COLORREF color )
     unsigned char spec_type = color >> 24;
     COLORREF nearest;
 
+    TRACE_(dcdrv)("\n");
     if (!palette_size) return color;
 
     if (spec_type == 1 || spec_type == 2)
@@ -1394,6 +1399,7 @@ UINT CDECL X11DRV_RealizeDefaultPalette( PHYSDEV dev )
 {
     UINT ret = 0;
 
+    TRACE_(dcdrv)("\n");
     if (palette_size && GetObjectType(dev->hdc) != OBJ_MEMDC)
     {
         /* lookup is needed to account for SetSystemPaletteUse() stuff */

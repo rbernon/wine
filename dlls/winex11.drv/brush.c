@@ -26,6 +26,7 @@
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(gdi);
+WINE_DECLARE_DEBUG_CHANNEL(dcdrv);
 
 static const char HatchBrushes[][8] =
 {
@@ -238,6 +239,7 @@ HBRUSH CDECL X11DRV_SelectBrush( PHYSDEV dev, HBRUSH hbrush, const struct brush_
     X11DRV_PDEVICE *physDev = get_x11drv_dev( dev );
     LOGBRUSH logbrush;
 
+    TRACE_(dcdrv)("\n");
     if (pattern)  /* pattern brush */
     {
         if (!select_pattern_brush( physDev, pattern )) return 0;
@@ -289,6 +291,7 @@ COLORREF CDECL X11DRV_SetDCBrushColor( PHYSDEV dev, COLORREF crColor )
 {
     X11DRV_PDEVICE *physDev = get_x11drv_dev( dev );
 
+    TRACE_(dcdrv)("\n");
     if (GetCurrentObject(dev->hdc, OBJ_BRUSH) == GetStockObject( DC_BRUSH ))
         BRUSH_SelectSolidBrush( physDev, crColor );
 

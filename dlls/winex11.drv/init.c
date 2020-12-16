@@ -30,6 +30,7 @@
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(x11drv);
+WINE_DECLARE_DEBUG_CHANNEL(dcdrv);
 
 Display *gdi_display;  /* display to use for all GDI functions */
 
@@ -87,6 +88,7 @@ static BOOL CDECL X11DRV_CreateDC( PHYSDEV *pdev, LPCWSTR driver, LPCWSTR device
 {
     X11DRV_PDEVICE *physDev = create_x11_physdev( root_window );
 
+    TRACE_(dcdrv)("\n");
     if (!physDev) return FALSE;
 
     physDev->depth         = default_visual.depth;
@@ -106,6 +108,7 @@ static BOOL CDECL X11DRV_CreateCompatibleDC( PHYSDEV orig, PHYSDEV *pdev )
 {
     X11DRV_PDEVICE *physDev = create_x11_physdev( stock_bitmap_pixmap );
 
+    TRACE_(dcdrv)("\n");
     if (!physDev) return FALSE;
 
     physDev->depth  = 1;
@@ -124,6 +127,7 @@ static BOOL CDECL X11DRV_DeleteDC( PHYSDEV dev )
 {
     X11DRV_PDEVICE *physDev = get_x11drv_dev( dev );
 
+    TRACE_(dcdrv)("\n");
     XFreeGC( gdi_display, physDev->gc );
     HeapFree( GetProcessHeap(), 0, physDev );
     return TRUE;
@@ -149,6 +153,7 @@ static UINT CDECL X11DRV_SetBoundsRect( PHYSDEV dev, RECT *rect, UINT flags )
 {
     X11DRV_PDEVICE *pdev = get_x11drv_dev( dev );
 
+    TRACE_(dcdrv)("\n");
     if (flags & DCB_DISABLE) pdev->bounds = NULL;
     else if (flags & DCB_ENABLE) pdev->bounds = rect;
     return DCB_RESET;  /* we don't have device-specific bounds */
@@ -160,6 +165,7 @@ static UINT CDECL X11DRV_SetBoundsRect( PHYSDEV dev, RECT *rect, UINT flags )
  */
 static INT CDECL X11DRV_GetDeviceCaps( PHYSDEV dev, INT cap )
 {
+    TRACE_(dcdrv)("\n");
     switch(cap)
     {
     case BITSPIXEL:
@@ -178,6 +184,7 @@ static INT CDECL X11DRV_GetDeviceCaps( PHYSDEV dev, INT cap )
  */
 static HFONT CDECL X11DRV_SelectFont( PHYSDEV dev, HFONT hfont, UINT *aa_flags )
 {
+    TRACE_(dcdrv)("\n");
     if (default_visual.depth <= 8) *aa_flags = GGO_BITMAP;  /* no anti-aliasing on <= 8bpp */
     dev = GET_NEXT_PHYSDEV( dev, pSelectFont );
     return dev->funcs->pSelectFont( dev, hfont, aa_flags );
@@ -191,6 +198,7 @@ static INT CDECL X11DRV_ExtEscape( PHYSDEV dev, INT escape, INT in_count, LPCVOI
 {
     X11DRV_PDEVICE *physDev = get_x11drv_dev( dev );
 
+    TRACE_(dcdrv)("\n");
     switch(escape)
     {
     case QUERYESCSUPPORT:
@@ -318,6 +326,7 @@ static struct opengl_funcs * CDECL X11DRV_wine_get_wgl_driver( PHYSDEV dev, UINT
 {
     struct opengl_funcs *ret;
 
+    TRACE_(dcdrv)("\n");
     if (!(ret = get_glx_driver( version )))
     {
         dev = GET_NEXT_PHYSDEV( dev, wine_get_wgl_driver );
@@ -333,6 +342,7 @@ static const struct vulkan_funcs * CDECL X11DRV_wine_get_vulkan_driver( PHYSDEV 
 {
     const struct vulkan_funcs *ret;
 
+    TRACE_(dcdrv)("\n");
     if (!(ret = get_vulkan_driver( version )))
     {
         dev = GET_NEXT_PHYSDEV( dev, wine_get_vulkan_driver );

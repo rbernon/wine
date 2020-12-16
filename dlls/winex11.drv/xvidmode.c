@@ -46,6 +46,7 @@
 #include "wine/unicode.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(xvidmode);
+WINE_DECLARE_DEBUG_CHANNEL(dcdrv);
 
 #ifdef SONAME_LIBXXF86VM
 
@@ -563,6 +564,7 @@ void X11DRV_XF86VM_Init(void)
  */
 BOOL CDECL X11DRV_GetDeviceGammaRamp(PHYSDEV dev, LPVOID ramp)
 {
+  TRACE_(dcdrv)("\n");
 #ifdef SONAME_LIBXXF86VM
   return X11DRV_XF86VM_GetGammaRamp(ramp);
 #else
@@ -579,6 +581,7 @@ BOOL CDECL X11DRV_GetDeviceGammaRamp(PHYSDEV dev, LPVOID ramp)
  */
 BOOL CDECL X11DRV_SetDeviceGammaRamp(PHYSDEV dev, LPVOID ramp)
 {
+    TRACE_(dcdrv)("\n");
 #ifdef SONAME_LIBXXF86VM
   return X11DRV_XF86VM_SetGammaRamp(ramp);
 #else

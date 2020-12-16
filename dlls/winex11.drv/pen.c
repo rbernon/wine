@@ -20,8 +20,11 @@
 
 #include "config.h"
 
+#include "wine/debug.h"
+
 #include "x11drv.h"
 
+WINE_DECLARE_DEBUG_CHANNEL(dcdrv);
 
 static DWORD get_user_dashes( char *res, const DWORD *style, DWORD len )
 {
@@ -70,6 +73,7 @@ HPEN CDECL X11DRV_SelectPen( PHYSDEV dev, HPEN hpen, const struct brush_pattern 
     int i;
     EXTLOGPEN *elp = NULL;
 
+    TRACE_(dcdrv)("\n");
     if (!GetObjectW( hpen, sizeof(logpen), &logpen ))
     {
         /* must be an extended pen */
@@ -158,6 +162,7 @@ COLORREF CDECL X11DRV_SetDCPenColor( PHYSDEV dev, COLORREF crColor )
 {
     X11DRV_PDEVICE *physDev = get_x11drv_dev( dev );
 
+    TRACE_(dcdrv)("\n");
     if (GetCurrentObject(dev->hdc, OBJ_PEN) == GetStockObject( DC_PEN ))
         physDev->pen.pixel = X11DRV_PALETTE_ToPhysical( physDev, crColor );
 

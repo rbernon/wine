@@ -47,6 +47,7 @@
 #include "wine/unicode.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(graphics);
+WINE_DECLARE_DEBUG_CHANNEL(dcdrv);
 
 #define ABS(x)    ((x)<0?(-(x)):(x))
 
@@ -297,6 +298,7 @@ void CDECL X11DRV_SetDeviceClipping( PHYSDEV dev, HRGN rgn )
 {
     X11DRV_PDEVICE *physDev = get_x11drv_dev( dev );
 
+    TRACE_(dcdrv)("\n");
     physDev->region = rgn;
     update_x11_clipping( physDev, rgn );
 }
@@ -533,6 +535,7 @@ BOOL CDECL X11DRV_LineTo( PHYSDEV dev, INT x, INT y )
     X11DRV_PDEVICE *physDev = get_x11drv_dev( dev );
     POINT pt[2];
 
+    TRACE_(dcdrv)("\n");
     GetCurrentPositionEx( dev->hdc, &pt[0] );
     pt[1].x = x;
     pt[1].y = y;
@@ -702,6 +705,7 @@ static BOOL X11DRV_DrawArc( PHYSDEV dev, INT left, INT top, INT right, INT botto
 BOOL CDECL X11DRV_Arc( PHYSDEV dev, INT left, INT top, INT right, INT bottom,
                        INT xstart, INT ystart, INT xend, INT yend )
 {
+    TRACE_(dcdrv)("\n");
     return X11DRV_DrawArc( dev, left, top, right, bottom, xstart, ystart, xend, yend, 0 );
 }
 
@@ -712,6 +716,7 @@ BOOL CDECL X11DRV_Arc( PHYSDEV dev, INT left, INT top, INT right, INT bottom,
 BOOL CDECL X11DRV_Pie( PHYSDEV dev, INT left, INT top, INT right, INT bottom,
                        INT xstart, INT ystart, INT xend, INT yend )
 {
+    TRACE_(dcdrv)("\n");
     return X11DRV_DrawArc( dev, left, top, right, bottom, xstart, ystart, xend, yend, 2 );
 }
 
@@ -721,6 +726,7 @@ BOOL CDECL X11DRV_Pie( PHYSDEV dev, INT left, INT top, INT right, INT bottom,
 BOOL CDECL X11DRV_Chord( PHYSDEV dev, INT left, INT top, INT right, INT bottom,
                          INT xstart, INT ystart, INT xend, INT yend )
 {
+    TRACE_(dcdrv)("\n");
     return X11DRV_DrawArc( dev, left, top, right, bottom, xstart, ystart, xend, yend, 1 );
 }
 
@@ -734,6 +740,7 @@ BOOL CDECL X11DRV_Ellipse( PHYSDEV dev, INT left, INT top, INT right, INT bottom
     INT width, oldwidth;
     RECT rc = get_device_rect( dev->hdc, left, top, right, bottom );
 
+    TRACE_(dcdrv)("\n");
     if ((rc.left == rc.right) || (rc.top == rc.bottom)) return TRUE;
 
     oldwidth = width = physDev->pen.width;
@@ -777,6 +784,7 @@ BOOL CDECL X11DRV_Rectangle(PHYSDEV dev, INT left, INT top, INT right, INT botto
     INT width, oldwidth, oldjoinstyle;
     RECT rc = get_device_rect( dev->hdc, left, top, right, bottom );
 
+    TRACE_(dcdrv)("\n");
     TRACE("(%d %d %d %d)\n", left, top, right, bottom);
 
     if ((rc.left == rc.right) || (rc.top == rc.bottom)) return TRUE;
@@ -832,6 +840,7 @@ BOOL CDECL X11DRV_RoundRect( PHYSDEV dev, INT left, INT top, INT right, INT bott
     POINT pts[2];
     RECT rc = get_device_rect( dev->hdc, left, top, right, bottom );
 
+    TRACE_(dcdrv)("\n");
     TRACE("(%d %d %d %d  %d %d\n",
     	left, top, right, bottom, ell_width, ell_height);
 
@@ -1022,6 +1031,7 @@ COLORREF CDECL X11DRV_SetPixel( PHYSDEV dev, INT x, INT y, COLORREF color )
     POINT pt;
     RECT rect;
 
+    TRACE_(dcdrv)("\n");
     pt.x = x;
     pt.y = y;
     LPtoDP( dev->hdc, &pt, 1 );
@@ -1046,6 +1056,7 @@ BOOL CDECL X11DRV_PaintRgn( PHYSDEV dev, HRGN hrgn )
     X11DRV_PDEVICE *physDev = get_x11drv_dev( dev );
     RECT rc;
 
+    TRACE_(dcdrv)("\n");
     if (X11DRV_SetupGCForBrush( physDev ))
     {
         unsigned int i;
@@ -1081,6 +1092,7 @@ BOOL CDECL X11DRV_Polygon( PHYSDEV dev, const POINT* pt, INT count )
     POINT *points;
     XPoint *xpoints;
 
+    TRACE_(dcdrv)("\n");
     points = HeapAlloc( GetProcessHeap(), 0, count * sizeof(*pt) );
     if (!points) return FALSE;
     memcpy( points, pt, count * sizeof(*pt) );
@@ -1123,6 +1135,7 @@ BOOL CDECL X11DRV_PolyPolygon( PHYSDEV dev, const POINT* pt, const INT* counts, 
     POINT *points;
     BOOL ret = FALSE;
 
+    TRACE_(dcdrv)("\n");
     for (i = 0; i < polygons; i++)
     {
         if (counts[i] < 2) return FALSE;
@@ -1190,6 +1203,7 @@ BOOL CDECL X11DRV_PolyPolyline( PHYSDEV dev, const POINT* pt, const DWORD* count
     DWORD total = 0, max = 0, pos, i, j;
     POINT *points;
 
+    TRACE_(dcdrv)("\n");
     for (i = 0; i < polylines; i++)
     {
         if (counts[i] < 2) return FALSE;
@@ -1309,6 +1323,7 @@ done:
  */
 BOOL CDECL X11DRV_FillPath( PHYSDEV dev )
 {
+    TRACE_(dcdrv)("\n");
     return x11drv_stroke_and_fill_path( dev, FALSE, TRUE );
 }
 
@@ -1317,6 +1332,7 @@ BOOL CDECL X11DRV_FillPath( PHYSDEV dev )
  */
 BOOL CDECL X11DRV_StrokeAndFillPath( PHYSDEV dev )
 {
+    TRACE_(dcdrv)("\n");
     return x11drv_stroke_and_fill_path( dev, TRUE, TRUE );
 }
 
@@ -1325,6 +1341,7 @@ BOOL CDECL X11DRV_StrokeAndFillPath( PHYSDEV dev )
  */
 BOOL CDECL X11DRV_StrokePath( PHYSDEV dev )
 {
+    TRACE_(dcdrv)("\n");
     return x11drv_stroke_and_fill_path( dev, TRUE, FALSE );
 }
 
@@ -1417,6 +1434,7 @@ BOOL CDECL X11DRV_ExtFloodFill( PHYSDEV dev, INT x, INT y, COLORREF color, UINT 
     RECT rect, bounds;
     POINT pt;
 
+    TRACE_(dcdrv)("\n");
     TRACE("X11DRV_ExtFloodFill %d,%d %06x %d\n", x, y, color, fillType );
 
     pt.x = x;
@@ -1484,6 +1502,7 @@ BOOL CDECL X11DRV_GradientFill( PHYSDEV dev, TRIVERTEX *vert_array, ULONG nvert,
     unsigned int i;
     XGCValues val;
 
+    TRACE_(dcdrv)("\n");
     /* <= 16-bpp use dithering */
     if (physdev->depth <= 16) goto fallback;
 
@@ -1648,6 +1667,7 @@ BOOL CDECL X11DRV_GetICMProfile( PHYSDEV dev, LPDWORD size, LPWSTR filename )
     unsigned char *buffer;
     unsigned long buflen;
 
+    TRACE_(dcdrv)("\n");
     if (!size) return FALSE;
 
     GetSystemDirectoryW( fullname, MAX_PATH );
@@ -1720,6 +1740,7 @@ INT CDECL X11DRV_EnumICMProfiles( PHYSDEV dev, ICMENUMPROCW proc, LPARAM lparam 
     LONG res;
     INT ret;
 
+    TRACE_(dcdrv)("\n");
     TRACE("%p, %p, %ld\n", physDev, proc, lparam);
 
     if (RegOpenKeyExW( HKEY_LOCAL_MACHINE, mntr_key, 0, KEY_ALL_ACCESS, &hkey ))

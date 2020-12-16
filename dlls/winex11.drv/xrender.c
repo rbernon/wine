@@ -831,6 +831,7 @@ static HFONT CDECL xrenderdrv_SelectFont( PHYSDEV dev, HFONT hfont, UINT *aa_fla
     PHYSDEV next = GET_NEXT_PHYSDEV( dev, pSelectFont );
     HFONT ret;
 
+    TRACE_(dcdrv)( "\n" );
     GetObjectW( hfont, sizeof(lfsz.lf), &lfsz.lf );
     if (!*aa_flags) *aa_flags = get_xft_aa_flags( &lfsz.lf );
 
@@ -941,6 +942,7 @@ static void set_color_info( XRenderPictFormat *format, BITMAPINFO *info )
 static BOOL CDECL xrenderdrv_CreateDC( PHYSDEV *pdev, LPCWSTR driver, LPCWSTR device,
                                        LPCWSTR output, const DEVMODEW* initData )
 {
+    TRACE_(dcdrv)( "\n" );
     return create_xrender_dc( pdev, default_format );
 }
 
@@ -949,6 +951,7 @@ static BOOL CDECL xrenderdrv_CreateDC( PHYSDEV *pdev, LPCWSTR driver, LPCWSTR de
  */
 static BOOL CDECL xrenderdrv_CreateCompatibleDC( PHYSDEV orig, PHYSDEV *pdev )
 {
+    TRACE_(dcdrv)( "\n" );
     if (orig)  /* chain to x11drv first */
     {
         orig = GET_NEXT_PHYSDEV( orig, pCreateCompatibleDC );
@@ -966,6 +969,7 @@ static BOOL CDECL xrenderdrv_DeleteDC( PHYSDEV dev )
 {
     struct xrender_physdev *physdev = get_xrender_dev( dev );
 
+    TRACE_(dcdrv)( "\n" );
     free_xrender_picture( physdev );
 
     EnterCriticalSection( &xrender_cs );
@@ -984,6 +988,7 @@ static INT CDECL xrenderdrv_ExtEscape( PHYSDEV dev, INT escape, INT in_count, LP
 {
     struct xrender_physdev *physdev = get_xrender_dev( dev );
 
+    TRACE_(dcdrv)( "\n" );
     dev = GET_NEXT_PHYSDEV( dev, pExtEscape );
 
     if (escape == X11DRV_ESCAPE && in_data && in_count >= sizeof(enum x11drv_escape_codes))
@@ -1009,6 +1014,7 @@ static void CDECL xrenderdrv_SetDeviceClipping( PHYSDEV dev, HRGN rgn )
 {
     struct xrender_physdev *physdev = get_xrender_dev( dev );
 
+    TRACE_(dcdrv)( "\n" );
     physdev->region = rgn;
     physdev->update_clip = TRUE;
 
@@ -1317,6 +1323,7 @@ static BOOL CDECL xrenderdrv_ExtTextOut( PHYSDEV dev, INT x, INT y, UINT flags,
     RECT rect, bounds;
     enum glyph_type type = (flags & ETO_GLYPH_INDEX) ? GLYPH_INDEX : GLYPH_WCHAR;
 
+    TRACE_(dcdrv)( "\n" );
     get_xrender_color( physdev, GetTextColor( physdev->dev.hdc ), &col );
     pict = get_xrender_picture( physdev, 0, (flags & ETO_CLIPPED) ? lprect : NULL );
 
@@ -1727,6 +1734,7 @@ static BOOL CDECL xrenderdrv_StretchBlt( PHYSDEV dst_dev, struct bitblt_coords *
     struct xrender_physdev *physdev_src = get_xrender_dev( src_dev );
     BOOL stretch = (src->width != dst->width) || (src->height != dst->height);
 
+    TRACE_(dcdrv)( "\n" );
     if (src_dev->funcs != dst_dev->funcs)
     {
         dst_dev = GET_NEXT_PHYSDEV( dst_dev, pStretchBlt );
@@ -1876,6 +1884,7 @@ static DWORD CDECL xrenderdrv_BlendImage( PHYSDEV dev, BITMAPINFO *info, const s
     Pixmap src_pixmap;
     BOOL use_repeat;
 
+    TRACE_(dcdrv)( "\n" );
     format = get_xrender_format_from_bitmapinfo( info );
     if (!(func.AlphaFormat & AC_SRC_ALPHA))
         format = get_format_without_alpha( format );
@@ -1944,6 +1953,7 @@ static BOOL CDECL xrenderdrv_AlphaBlend( PHYSDEV dst_dev, struct bitblt_coords *
     Pixmap tmp_pixmap = 0;
     double xscale, yscale;
 
+    TRACE_(dcdrv)( "\n" );
     if (src_dev->funcs != dst_dev->funcs)
     {
         dst_dev = GET_NEXT_PHYSDEV( dst_dev, pAlphaBlend );
@@ -2032,6 +2042,7 @@ static BOOL CDECL xrenderdrv_GradientFill( PHYSDEV dev, TRIVERTEX *vert_array, U
     RECT rc;
     POINT pt[2];
 
+    TRACE_(dcdrv)( "\n" );
     if (!pXRenderCreateLinearGradient) goto fallback;
 
     /* <= 16-bpp uses dithering */
@@ -2129,6 +2140,7 @@ static HBRUSH CDECL xrenderdrv_SelectBrush( PHYSDEV dev, HBRUSH hbrush, const st
     XVisualInfo vis = default_visual;
     XRenderPictFormat *format = physdev->pict_format;
 
+    TRACE_(dcdrv)( "\n" );
     if (!pattern) goto x11drv_fallback;
     if (pattern->info->bmiHeader.biBitCount == 1) goto x11drv_fallback;
     if (physdev->format == WXR_FORMAT_MONO) goto x11drv_fallback;

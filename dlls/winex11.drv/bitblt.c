@@ -761,6 +761,7 @@ BOOL CDECL X11DRV_PatBlt( PHYSDEV dev, struct bitblt_coords *dst, DWORD rop )
     BOOL usePat = (((rop >> 4) & 0x0f0000) != (rop & 0x0f0000));
     const BYTE *opcode = BITBLT_Opcodes[(rop >> 16) & 0xff];
 
+    TRACE_(dcdrv)("\n");
     if (usePat && !X11DRV_SetupGCForBrush( physDev )) return TRUE;
 
     XSetFunction( gdi_display, physDev->gc, OP_ROP(*opcode) );
@@ -817,6 +818,7 @@ BOOL CDECL X11DRV_StretchBlt( PHYSDEV dst_dev, struct bitblt_coords *dst,
     Pixmap src_pixmap;
     GC gc;
 
+    TRACE_(dcdrv)("\n");
     if (src_dev->funcs != dst_dev->funcs ||
         src->width != dst->width || src->height != dst->height ||  /* no stretching with core X11 */
         (physDevDst->depth == 1 && physDevSrc->depth != 1) ||  /* color -> mono done by hand */

@@ -59,6 +59,7 @@
 WINE_DEFAULT_DEBUG_CHANNEL(x11drv);
 WINE_DECLARE_DEBUG_CHANNEL(synchronous);
 WINE_DECLARE_DEBUG_CHANNEL(winediag);
+WINE_DECLARE_DEBUG_CHANNEL(dcdrv);
 
 XVisualInfo default_visual = { 0 };
 XVisualInfo argb_visual = { 0 };
@@ -771,6 +772,7 @@ NTSTATUS CDECL X11DRV_D3DKMTSetVidPnSourceOwner( const D3DKMT_SETVIDPNSOURCEOWNE
     BOOL found;
     UINT i;
 
+    TRACE_(dcdrv)("\n");
     TRACE("(%p)\n", desc);
 
     EnterCriticalSection( &x11drv_section );
@@ -883,6 +885,7 @@ NTSTATUS CDECL X11DRV_D3DKMTCheckVidPnExclusiveOwnership( const D3DKMT_CHECKVIDP
 {
     struct d3dkmt_vidpn_source *source;
 
+    TRACE_(dcdrv)("\n");
     TRACE("(%p)\n", desc);
 
     if (!desc || !desc->hAdapter)
