@@ -114,16 +114,21 @@ HANDLE alloc_user_handle( struct user_object *ptr, enum user_obj_type type )
     }
     SERVER_END_REQ;
 
-    if (handle)
-    {
-        UINT index = USER_HANDLE_TO_INDEX( handle );
-
-        assert( index < NB_USER_HANDLES );
-        ptr->handle = handle;
-        ptr->type = type;
-        InterlockedExchangePointer( &user_handles[index], ptr );
-    }
+    if (handle) set_user_handle_ptr( handle, ptr, type );
     return handle;
+}
+
+
+/***********************************************************************
+ *           set_user_handle_ptr
+ */
+void set_user_handle_ptr( HANDLE handle, struct user_object *ptr, enum user_obj_type type )
+{
+    UINT index = USER_HANDLE_TO_INDEX( handle );
+    assert( index < NB_USER_HANDLES );
+    ptr->handle = handle;
+    ptr->type = type;
+    InterlockedExchangePointer( &user_handles[index], ptr );
 }
 
 

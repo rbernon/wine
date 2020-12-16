@@ -165,6 +165,65 @@ static struct cursoricon_object *get_icon_ptr( HICON handle )
     return obj;
 }
 
+static int get_dib_image_size( int width, int height, int depth );
+
+static void set_icon_server_data( HICON handle, struct cursoricon_object *obj )
+{
+    WCHAR module_name[MAX_PATH];
+    user_object_t user;
+    HICON *frames;
+    BITMAP mask, color;
+
+    user.type = USER_ICON;
+    user.icon.is_icon = obj->is_icon;
+    user.icon.hotspot_x = obj->hotspot.x;
+    user.icon.hotspot_y = obj->hotspot.y;
+    user.icon.res_id = 0;
+    user.icon.mod_name_len = 0;
+    user.icon.res_name_len = 0;
+    if (obj->module)
+    {
+        GetModuleFileNameW( obj->module, module_name, MAX_PATH );
+        user.icon.mod_name_len = lstrlenW( module_name );
+        if (IS_INTRESOURCE( obj->resname )) user.icon.res_id = LOWORD( obj->resname );
+        else user.icon.res_name_len = lstrlenW( obj->resname );
+    }
+
+    if (obj->is_ani)
+    {
+        struct animated_cursoricon_object *ani = (struct animated_cursoricon_object *)obj;
+        user.icon.frame_count = ani->num_steps;
+        user.icon.mask_dib_size = 0;
+        user.icon.color_dib_size = 0;
+        frames = ani->frames;
+    }
+    else
+    {
+        struct static_cursoricon_object *ptr = (struct static_cursoricon_object *)obj;
+        user.icon.frame_count = 0;
+        if (GetObjectW( ptr->frame.mask, sizeof(mask), &mask ) != sizeof(mask)) user.icon.mask_dib_size = 0;
+        else user.icon.mask_dib_size = get_dib_image_size( mask.bmWidth, mask.bmHeight, mask.bmBitsPixel );
+        if (GetObjectW( ptr->frame.mask, sizeof(color), &color ) != sizeof(color)) user.icon.color_dib_size = 0;
+        else user.icon.color_dib_size = get_dib_image_size( color.bmWidth, color.bmHeight, color.bmBitsPixel );
+        if (user.icon.mask_dib_size && !mask.bmBits) ERR("mask is DDB!\n");
+        if (user.icon.color_dib_size && !color.bmBits) ERR("color is DDB!\n");
+        frames = NULL;
+    }
+
+    SERVER_START_REQ( set_user_object )
+    {
+        req->handle = wine_server_user_handle( handle );
+        wine_server_add_data( req, &user, sizeof(user) );
+        wine_server_add_data( req, module_name, user.icon.mod_name_len * sizeof(WCHAR) );
+        wine_server_add_data( req, obj->resname, user.icon.res_name_len * sizeof(WCHAR) );
+        wine_server_add_data( req, frames, user.icon.frame_count * sizeof(HICON) );
+        wine_server_add_data( req, mask.bmBits, user.icon.mask_dib_size );
+        wine_server_add_data( req, color.bmBits, user.icon.color_dib_size );
+        if (!wine_server_call_err( req )) ERR("set_user_object failed\n");
+    }
+    SERVER_END_REQ;
+}
+
 static struct cursoricon_frame *get_icon_frame( struct cursoricon_object *obj, int istep )
 {
     struct static_cursoricon_object *req_frame;
@@ -1053,6 +1112,7 @@ done:
             info->rsrc = rsrc;
             list_add_head( &icon_cache, &info->entry );
         }
+        set_icon_server_data( hObj, info );
         release_user_handle_ptr( info );
     }
     else
@@ -1350,6 +1410,7 @@ static HCURSOR CURSORICON_CreateIconFromANI( const BYTE *bits, DWORD bits_size, 
     }
 
     HeapFree( GetProcessHeap(), 0, frames );
+    set_icon_server_data( cursor, info );
     release_user_handle_ptr( info );
 
     return cursor;
@@ -1686,6 +1747,7 @@ HICON WINAPI CopyIcon( HICON hIcon )
         frameNew->alpha  = copy_bitmap( frameOld->alpha );
         release_icon_frame( ptrOld, frameOld );
         release_icon_frame( ptrNew, frameNew );
+        set_icon_server_data( hNew, ptrNew );
         release_user_handle_ptr( ptrNew );
     }
     release_user_handle_ptr( ptrOld );
@@ -2301,6 +2363,7 @@ HICON WINAPI CreateIconIndirect(PICONINFO iconinfo)
             info->hotspot.y = iconinfo->yHotspot;
         }
 
+        set_icon_server_data( hObj, info );
         release_user_handle_ptr( info );
     }
     return hObj;

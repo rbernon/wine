@@ -769,12 +769,13 @@ typedef union
         unsigned int res_id;
         data_size_t  mod_name_len;
         data_size_t  res_name_len;
+        data_size_t  frame_count;
         data_size_t  mask_dib_size;
         data_size_t  color_dib_size;
         /* followed by mod_name_len WCHARs */
         /* followed by res_name_len WCHARs */
-        /* followed by mask_dib_size bytes */
-        /* followed by color_dib_size bytes */
+        /* followed by frame_count user_handle_t */
+        /*       or by mask_dib_size + color_dib_size bytes */
     } icon;
 } user_object_t;
 
@@ -3594,9 +3595,23 @@ struct handle_info
 
 /* Allocate an arbitrary user handle */
 @REQ(alloc_user_handle)
-    VARARG(object,user_object);   /* user object data */
 @REPLY
     user_handle_t  handle;        /* allocated handle */
+@END
+
+
+/* Set an user object data */
+@REQ(set_user_object)
+    user_handle_t  handle;        /* user object handle */
+    VARARG(object,user_object);   /* user object data */
+@END
+
+
+/* Get an user object data */
+@REQ(get_user_object)
+    user_handle_t  handle;        /* user object handle */
+@REPLY
+    VARARG(object,user_object);   /* user object data */
 @END
 
 

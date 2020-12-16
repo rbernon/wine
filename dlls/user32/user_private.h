@@ -136,6 +136,7 @@ struct user_object
 #define OBJ_OTHER_PROCESS ((void *)1)  /* returned by get_user_handle_ptr on unknown handles */
 
 HANDLE alloc_user_handle( struct user_object *ptr, enum user_obj_type type ) DECLSPEC_HIDDEN;
+void set_user_handle_ptr( HANDLE handle, struct user_object *ptr, enum user_obj_type type ) DECLSPEC_HIDDEN;
 void *get_user_handle_ptr( HANDLE handle, enum user_obj_type type ) DECLSPEC_HIDDEN;
 void release_user_handle_ptr( void *ptr ) DECLSPEC_HIDDEN;
 void *free_user_handle( HANDLE handle, enum user_obj_type type ) DECLSPEC_HIDDEN;
