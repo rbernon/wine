@@ -26,6 +26,7 @@
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(psdrv);
+WINE_DECLARE_DEBUG_CHANNEL(dcdrv);
 
 
 /* Return the width of a DIB bitmap in bytes. DIB bitmap data is 32-bit aligned. */
@@ -194,6 +195,8 @@ DWORD CDECL PSDRV_PutImage( PHYSDEV dev, HRGN clip, BITMAPINFO *info,
     struct gdi_image_bits dst_bits;
     PSDRV_PDEVICE *physDev = get_psdrv_dev( dev );
     BOOL grayscale = info->bmiHeader.biBitCount == 24 && physDev->pi->ppd->ColorDevice == CD_False;
+
+    TRACE_(dcdrv)( "dev %p, clip %p, info %p, bits %p, src %p, dst %p, rop %x\n", dev, clip, info, bits, src, dst, rop );
 
     if (info->bmiHeader.biPlanes != 1) goto update_format;
     if (info->bmiHeader.biCompression != BI_RGB) goto update_format;

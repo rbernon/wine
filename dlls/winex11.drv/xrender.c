@@ -38,6 +38,7 @@
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(xrender);
+WINE_DECLARE_DEBUG_CHANNEL(dcdrv);
 
 #ifdef SONAME_LIBXRENDER
 
@@ -1789,6 +1790,8 @@ static DWORD CDECL xrenderdrv_PutImage( PHYSDEV dev, HRGN clip, BITMAPINFO *info
     Pixmap src_pixmap;
     Picture src_pict, mask_pict = 0;
     BOOL use_repeat;
+
+    TRACE_(dcdrv)( "dev %p, clip %p, info %p, bits %p, src %p, dst %p, rop %x\n", dev, clip, info, bits, src, dst, rop );
 
     dst_format = physdev->format;
     src_format = get_xrender_format_from_bitmapinfo( info );

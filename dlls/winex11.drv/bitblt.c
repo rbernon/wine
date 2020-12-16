@@ -51,6 +51,7 @@
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(bitblt);
+WINE_DECLARE_DEBUG_CHANNEL(dcdrv);
 
 
 #define DST 0   /* Destination drawable */
@@ -1221,6 +1222,8 @@ DWORD CDECL X11DRV_PutImage( PHYSDEV dev, HRGN clip, BITMAPINFO *info,
     const BYTE *opcode = BITBLT_Opcodes[(rop >> 16) & 0xff];
     const int *mapping = NULL;
 
+    TRACE_(dcdrv)( "dev %p, clip %p, info %p, bits %p, src %p, dst %p, rop %x\n", dev, clip, info, bits, src, dst, rop );
+
     vis.depth = physdev->depth;
     if (physdev->color_shifts)
     {
@@ -1311,6 +1314,8 @@ DWORD CDECL X11DRV_GetImage( PHYSDEV dev, BITMAPINFO *info,
     struct gdi_image_bits src_bits;
     const XPixmapFormatValues *format;
     const int *mapping = NULL;
+
+    TRACE_(dcdrv)( "dev %p, info %p, bits %p, src %p\n", dev, info, bits, src );
 
     vis.depth = physdev->depth;
     if (physdev->color_shifts)

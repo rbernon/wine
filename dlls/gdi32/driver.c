@@ -44,6 +44,7 @@
 #include "wine/heap.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(driver);
+WINE_DECLARE_DEBUG_CHANNEL(dcdrv);
 
 DEFINE_DEVPROPKEY(DEVPROPKEY_GPU_LUID, 0x60b193cb, 0x5276, 0x4d0f, 0x96, 0xfc, 0xf1, 0x73, 0xab, 0xad, 0x3e, 0xc6, 2);
 
@@ -498,6 +499,7 @@ static BOOL CDECL nulldrv_GetICMProfile( PHYSDEV dev, LPDWORD size, LPWSTR filen
 static DWORD CDECL nulldrv_GetImage( PHYSDEV dev, BITMAPINFO *info, struct gdi_image_bits *bits,
                                      struct bitblt_coords *src )
 {
+    TRACE_(dcdrv)( "dev %p, info %p, bits %p, src %p\n", dev, info, bits, src );
     return ERROR_NOT_SUPPORTED;
 }
 
@@ -604,6 +606,7 @@ static DWORD CDECL nulldrv_PutImage( PHYSDEV dev, HRGN clip, BITMAPINFO *info,
                                      const struct gdi_image_bits *bits, struct bitblt_coords *src,
                                      struct bitblt_coords *dst, DWORD rop )
 {
+    TRACE_(dcdrv)( "dev %p, clip %p, info %p, bits %p, src %p, dst %p, rop %x\n", dev, clip, info, bits, src, dst, rop );
     return ERROR_SUCCESS;
 }
 

@@ -29,6 +29,7 @@
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(dib);
+WINE_DECLARE_DEBUG_CHANNEL(dcdrv);
 
 extern BOOL WINAPI GdiSetPixelFormat( HDC hdc, INT fmt, const PIXELFORMATDESCRIPTOR *pfd );
 
@@ -977,6 +978,8 @@ static DWORD CDECL windrv_GetImage( PHYSDEV dev, BITMAPINFO *info,
     struct windrv_physdev *physdev = get_windrv_physdev( dev );
     DWORD ret;
 
+    TRACE_(dcdrv)( "dev %p, info %p, bits %p, src %p\n", dev, info, bits, src );
+
     lock_surface( physdev );
     dev = GET_NEXT_PHYSDEV( dev, pGetImage );
     ret = dev->funcs->pGetImage( dev, info, bits, src );
@@ -1132,6 +1135,8 @@ static DWORD CDECL windrv_PutImage( PHYSDEV dev, HRGN clip, BITMAPINFO *info,
 {
     struct windrv_physdev *physdev = get_windrv_physdev( dev );
     DWORD ret;
+
+    TRACE_(dcdrv)( "dev %p, clip %p, info %p, bits %p, src %p, dst %p, rop %x\n", dev, clip, info, bits, src, dst, rop );
 
     lock_surface( physdev );
     dev = GET_NEXT_PHYSDEV( dev, pPutImage );

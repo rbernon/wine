@@ -26,6 +26,7 @@
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(dib);
+WINE_DECLARE_DEBUG_CHANNEL(dcdrv);
 
 #define DST 0   /* Destination dib */
 #define SRC 1   /* Source dib */
@@ -889,6 +890,7 @@ DWORD CDECL dibdrv_GetImage( PHYSDEV dev, BITMAPINFO *info, struct gdi_image_bit
     dibdrv_physdev *pdev = get_dibdrv_pdev(dev);
 
     TRACE( "%p %p\n", dev, info );
+    TRACE_(dcdrv)( "dev %p, info %p, bits %p, src %p\n", dev, info, bits, src );
 
     return get_image_dib_info( &pdev->dib, info, bits, src );
 }
@@ -998,6 +1000,7 @@ DWORD CDECL dibdrv_PutImage( PHYSDEV dev, HRGN clip, BITMAPINFO *info,
     dibdrv_physdev *pdev = get_dibdrv_pdev( dev );
     BOOL stretch = (src->width != dst->width) || (src->height != dst->height);
 
+    TRACE_(dcdrv)( "dev %p, clip %p, info %p, bits %p, src %p, dst %p, rop %x\n", dev, clip, info, bits, src, dst, rop );
     TRACE( "%p %p\n", dev, info );
 
     if (!matching_color_info( &pdev->dib, info, !stretch && !rop_uses_pat( rop ) )) goto update_format;
