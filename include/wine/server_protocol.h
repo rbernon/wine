@@ -731,6 +731,37 @@ typedef union
     } cancel;
 } irp_params_t;
 
+enum user_obj_type
+{
+    USER_WINDOW = 1,
+    USER_MENU,
+    USER_ACCEL,
+    USER_ICON,
+    USER_DWP,
+    USER_HOOK,
+    USER_CLIENT
+};
+
+typedef union
+{
+    enum user_obj_type type;
+    struct
+    {
+        int          is_icon;
+        unsigned int hotspot_x;
+        unsigned int hotspot_y;
+        unsigned int res_id;
+        data_size_t  mod_name_len;
+        data_size_t  res_name_len;
+        data_size_t  mask_dib_size;
+        data_size_t  color_dib_size;
+
+
+
+
+    } icon;
+} user_object_t;
+
 
 typedef struct
 {
@@ -5153,6 +5184,7 @@ struct set_window_layered_info_reply
 struct alloc_user_handle_request
 {
     struct request_header __header;
+    /* VARARG(object,user_object); */
     char __pad_12[4];
 };
 struct alloc_user_handle_reply
@@ -6297,7 +6329,7 @@ union generic_reply
 
 /* ### protocol_version begin ### */
 
-#define SERVER_PROTOCOL_VERSION 653
+#define SERVER_PROTOCOL_VERSION 654
 
 /* ### protocol_version end ### */
 

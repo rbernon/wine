@@ -4286,6 +4286,7 @@ static void dump_set_window_layered_info_request( const struct set_window_layere
 
 static void dump_alloc_user_handle_request( const struct alloc_user_handle_request *req )
 {
+    dump_varargs_user_object( " object=", cur_size );
 }
 
 static void dump_alloc_user_handle_reply( const struct alloc_user_handle_reply *req )
