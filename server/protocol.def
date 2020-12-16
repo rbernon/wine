@@ -747,6 +747,37 @@ typedef union
     } cancel;
 } irp_params_t;
 
+enum user_obj_type
+{
+    USER_WINDOW = 1,  /* window */
+    USER_MENU,        /* menu */
+    USER_ACCEL,       /* accelerator */
+    USER_ICON,        /* icon or cursor */
+    USER_DWP,         /* DeferWindowPos structure */
+    USER_HOOK,
+    USER_CLIENT       /* arbitrary client handle */
+};
+
+typedef union
+{
+    enum user_obj_type type;  /* user object type */
+    struct
+    {
+        int          is_icon;
+        unsigned int hotspot_x;
+        unsigned int hotspot_y;
+        unsigned int res_id;
+        data_size_t  mod_name_len;
+        data_size_t  res_name_len;
+        data_size_t  mask_dib_size;
+        data_size_t  color_dib_size;
+        /* followed by mod_name_len WCHARs */
+        /* followed by res_name_len WCHARs */
+        /* followed by mask_dib_size bytes */
+        /* followed by color_dib_size bytes */
+    } icon;
+} user_object_t;
+
 /* information about a PE image mapping, roughly equivalent to SECTION_IMAGE_INFORMATION */
 typedef struct
 {
@@ -3563,6 +3594,7 @@ struct handle_info
 
 /* Allocate an arbitrary user handle */
 @REQ(alloc_user_handle)
+    VARARG(object,user_object);   /* user object data */
 @REPLY
     user_handle_t  handle;        /* allocated handle */
 @END

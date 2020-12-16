@@ -194,7 +194,7 @@ static inline void *free_user_entry( struct user_handle *ptr )
 }
 
 /* allocate a user handle for a given object */
-user_handle_t alloc_user_handle( void *ptr, enum user_object type )
+user_handle_t alloc_user_handle( void *ptr, enum user_obj_type type )
 {
     struct user_handle *entry = alloc_user_entry();
     if (!entry) return 0;
@@ -206,7 +206,7 @@ user_handle_t alloc_user_handle( void *ptr, enum user_object type )
 }
 
 /* return a pointer to a user object from its handle */
-void *get_user_object( user_handle_t handle, enum user_object type )
+void *get_user_object( user_handle_t handle, enum user_obj_type type )
 {
     struct user_handle *entry;
 
@@ -225,7 +225,7 @@ user_handle_t get_user_full_handle( user_handle_t handle )
 }
 
 /* same as get_user_object plus set the handle to the full 32-bit value */
-void *get_user_object_handle( user_handle_t *handle, enum user_object type )
+void *get_user_object_handle( user_handle_t *handle, enum user_obj_type type )
 {
     struct user_handle *entry;
 
@@ -248,7 +248,7 @@ void *free_user_handle( user_handle_t handle )
 }
 
 /* return the next user handle after 'handle' that is of a given type */
-void *next_user_handle( user_handle_t *handle, enum user_object type )
+void *next_user_handle( user_handle_t *handle, enum user_obj_type type )
 {
     struct user_handle *entry;
 

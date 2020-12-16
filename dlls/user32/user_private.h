@@ -29,6 +29,7 @@
 #include "winreg.h"
 #include "winternl.h"
 #include "wine/heap.h"
+#include "wine/server.h"
 
 #define GET_WORD(ptr)  (*(const WORD *)(ptr))
 #define GET_DWORD(ptr) (*(const DWORD *)(ptr))
@@ -125,15 +126,6 @@ extern BOOL CDECL nulldrv_EnumDisplayMonitors( HDC hdc, RECT *rect, MONITORENUMP
 extern BOOL CDECL nulldrv_GetMonitorInfo( HMONITOR handle, MONITORINFO *info ) DECLSPEC_HIDDEN;
 
 struct received_message_info;
-
-enum user_obj_type
-{
-    USER_WINDOW = 1,  /* window */
-    USER_MENU,        /* menu */
-    USER_ACCEL,       /* accelerator */
-    USER_ICON,        /* icon or cursor */
-    USER_DWP          /* DeferWindowPos structure */
-};
 
 struct user_object
 {

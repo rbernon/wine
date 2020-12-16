@@ -521,6 +521,52 @@ static void dump_varargs_select_op( const char *prefix, data_size_t size )
     remove_data( size );
 }
 
+static void dump_varargs_user_object( const char *prefix, data_size_t size )
+{
+    user_object_t object;
+
+    if (!size)
+    {
+        fprintf( stderr, "%s{}", prefix );
+        return;
+    }
+    size = min( size, sizeof(object) );
+    memset( &object, 0, sizeof(object) );
+    memcpy( &object, cur_data, size );
+
+    switch(object.type)
+    {
+    case USER_WINDOW:
+        fprintf( stderr, "%s{window}", prefix );
+        break;
+    case USER_MENU:
+        fprintf( stderr, "%s{menu}", prefix );
+        break;
+    case USER_ACCEL:
+        fprintf( stderr, "%s{accel}", prefix );
+        break;
+    case USER_ICON:
+        fprintf( stderr, "%s{icon,is_icon=%d,hotspot_x=%d,hotspot_y=%d,res_id=%d,"
+                 "mod_name_len=%d,res_name_len=%d,mask_dib_size=%d,color_dib_size=%d}",
+                 prefix, object.icon.is_icon, object.icon.hotspot_x, object.icon.hotspot_y, object.icon.res_id,
+                 object.icon.mod_name_len, object.icon.res_name_len, object.icon.mask_dib_size, object.icon.color_dib_size );
+        break;
+    case USER_DWP:
+        fprintf( stderr, "%s{dwp}", prefix );
+        break;
+    case USER_HOOK:
+        fprintf( stderr, "%s{hook}", prefix );
+        break;
+    case USER_CLIENT:
+        fprintf( stderr, "%s{client}", prefix );
+        break;
+    default:
+        fprintf( stderr, "%s{type=??? (%d)}", prefix, object.type );
+        break;
+    }
+    remove_data( size );
+}
+
 static void dump_varargs_user_handles( const char *prefix, data_size_t size )
 {
     const user_handle_t *data = cur_data;
