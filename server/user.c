@@ -315,6 +315,18 @@ DECL_HANDLER(free_user_handle)
 }
 
 
+/* set an user object data */
+DECL_HANDLER(set_user_object)
+{
+}
+
+
+/* get an user object data */
+DECL_HANDLER(get_user_object)
+{
+}
+
+
 /* allocate an arbitrary gdi handle */
 DECL_HANDLER(alloc_gdi_handle)
 {
