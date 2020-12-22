@@ -1039,7 +1039,7 @@ static BOOL X11DRV_ReparentNotify( HWND hwnd, XEvent *xev )
             TRACE( "%p/%lx reparented to root\n", hwnd, data->whole_window );
             data->embedder = 0;
             release_win_data( data );
-            SendMessageW( hwnd, WM_CLOSE, 0, 0 );
+            SendNotifyMessageW( hwnd, WM_CLOSE, 0, 0 );
             return TRUE;
         }
         data->embedder = event->parent;

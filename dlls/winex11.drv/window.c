@@ -1861,7 +1861,7 @@ BOOL X11DRV_DestroyNotify( HWND hwnd, XEvent *event )
 
     destroy_whole_window( data, TRUE );
     release_win_data( data );
-    if (embedded) SendMessageW( hwnd, WM_CLOSE, 0, 0 );
+    if (embedded) SendNotifyMessageW( hwnd, WM_CLOSE, 0, 0 );
     return TRUE;
 }
 
