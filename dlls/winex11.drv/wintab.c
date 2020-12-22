@@ -905,7 +905,7 @@ static BOOL motion_event( HWND hwnd, XEvent *event )
     gMsgPacket.pkNormalPressure = motion->axis_data[2];
     gMsgPacket.pkButtons = get_button_state(curnum);
     gMsgPacket.pkChanged = get_changed_state(&gMsgPacket);
-    SendMessageW(hwndTabletDefault,WT_PACKET,gMsgPacket.pkSerialNumber,(LPARAM)hwnd);
+    SendNotifyMessageW(hwndTabletDefault,WT_PACKET,gMsgPacket.pkSerialNumber,(LPARAM)hwnd);
     last_packet = gMsgPacket;
     return TRUE;
 }
@@ -944,7 +944,7 @@ static BOOL button_event( HWND hwnd, XEvent *event )
     }
     gMsgPacket.pkButtons = get_button_state(curnum);
     gMsgPacket.pkChanged = get_changed_state(&gMsgPacket);
-    SendMessageW(hwndTabletDefault,WT_PACKET,gMsgPacket.pkSerialNumber,(LPARAM)hwnd);
+    SendNotifyMessageW(hwndTabletDefault,WT_PACKET,gMsgPacket.pkSerialNumber,(LPARAM)hwnd);
     last_packet = gMsgPacket;
     return TRUE;
 }
@@ -996,7 +996,7 @@ static BOOL proximity_event( HWND hwnd, XEvent *event )
      */
     proximity_info = MAKELPARAM((event->type == proximity_in_type),
                      (event->type == proximity_in_type) || (event->type == proximity_out_type));
-    SendMessageW(hwndTabletDefault, WT_PROXIMITY, (WPARAM)hwnd, proximity_info);
+    SendNotifyMessageW(hwndTabletDefault, WT_PROXIMITY, (WPARAM)hwnd, proximity_info);
     return TRUE;
 }
 
