@@ -1378,6 +1378,7 @@ static Cursor create_cursor( HANDLE handle )
  */
 void CDECL X11DRV_DestroyCursorIcon( HCURSOR handle )
 {
+    Pixmap pixmap;
     Cursor cursor;
 
     XLockDisplay( gdi_display );
@@ -1386,6 +1387,16 @@ void CDECL X11DRV_DestroyCursorIcon( HCURSOR handle )
         TRACE( "%p xid %lx\n", handle, cursor );
         XFreeCursor( gdi_display, cursor );
         XDeleteContext( gdi_display, (XID)handle, cursor_context );
+    }
+    if (!XFindContext( gdi_display, (XID)handle, icon_context, (char **)&pixmap ))
+    {
+        XFreePixmap( gdi_display, pixmap );
+        XDeleteContext( gdi_display, (XID)handle, icon_context );
+    }
+    if (!XFindContext( gdi_display, (XID)handle, mask_context, (char **)&pixmap ))
+    {
+        XFreePixmap( gdi_display, pixmap );
+        XDeleteContext( gdi_display, (XID)handle, mask_context );
     }
     XUnlockDisplay( gdi_display );
 }

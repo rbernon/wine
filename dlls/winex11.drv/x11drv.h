@@ -619,6 +619,9 @@ extern XContext winContext DECLSPEC_HIDDEN;
 extern XContext win_data_context DECLSPEC_HIDDEN;
 /* X context to associate an X cursor to a Win32 cursor handle */
 extern XContext cursor_context DECLSPEC_HIDDEN;
+/* X context to associate a Win32 icon handle to its pixmaps */
+extern XContext icon_context DECLSPEC_HIDDEN;
+extern XContext mask_context DECLSPEC_HIDDEN;
 
 extern void X11DRV_InitClipboard(void) DECLSPEC_HIDDEN;
 extern void CDECL X11DRV_SetFocus( HWND hwnd ) DECLSPEC_HIDDEN;

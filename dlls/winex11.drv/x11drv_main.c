@@ -711,6 +711,8 @@ static BOOL process_attach(void)
     winContext = XUniqueContext();
     win_data_context = XUniqueContext();
     cursor_context = XUniqueContext();
+    icon_context = XUniqueContext();
+    mask_context = XUniqueContext();
 
     if (TRACE_ON(synchronous)) XSynchronize( display, True );
 

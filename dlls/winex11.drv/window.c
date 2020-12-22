@@ -88,6 +88,9 @@ XContext winContext = 0;
 /* X context to associate a struct x11drv_win_data to an hwnd */
 XContext win_data_context = 0;
 
+XContext icon_context = 0;
+XContext mask_context = 0;
+
 /* time of last user event and window where it's stored */
 static Time last_user_time;
 static Window user_time_window;
@@ -614,6 +617,56 @@ failed:
 
 
 /***********************************************************************
+ *              get_icon_pixmaps
+ */
+static void get_icon_pixmaps( HICON icon, Pixmap *icon_ret, Pixmap *mask_ret )
+{
+    ICONINFO info;
+    Pixmap tmp;
+    HDC dc;
+
+    *icon_ret = None;
+    *mask_ret = None;
+
+    XLockDisplay( gdi_display );
+    if (XFindContext( gdi_display, (XID)icon, icon_context, (char **)icon_ret ))
+        *icon_ret = None;
+    if (XFindContext( gdi_display, (XID)icon, mask_context, (char **)mask_ret ))
+        *mask_ret = None;
+    XUnlockDisplay( gdi_display );
+    if (*icon_ret || *mask_ret) return;
+
+    if (!GetIconInfo( icon, &info )) return;
+    dc = CreateCompatibleDC( 0 );
+    if (!create_icon_pixmaps( dc, &info, icon_ret, mask_ret ))
+    {
+        *icon_ret = None;
+        *mask_ret = None;
+    }
+    DeleteObject( info.hbmColor );
+    DeleteObject( info.hbmMask );
+    DeleteDC( dc );
+
+    XLockDisplay( gdi_display );
+    if (XFindContext( gdi_display, (XID)icon, icon_context, (char **)&tmp ))
+        XSaveContext( gdi_display, (XID)icon, icon_context, (char *)*icon_ret );
+    else
+    {
+        XFreePixmap( gdi_display, *icon_ret );
+        *icon_ret = tmp;
+    }
+    if (XFindContext( gdi_display, (XID)icon, mask_context, (char **)tmp ))
+        XSaveContext( gdi_display, (XID)icon, mask_context, (char *)*mask_ret );
+    else
+    {
+        XFreePixmap( gdi_display, *mask_ret );
+        *mask_ret = tmp;
+    }
+    XUnlockDisplay( gdi_display );
+}
+
+
+/***********************************************************************
  *              fetch_icon_data
  */
 static void fetch_icon_data( HWND hwnd, HICON icon_big, HICON icon_small )
@@ -623,7 +676,6 @@ static void fetch_icon_data( HWND hwnd, HICON icon_big, HICON icon_small )
     HDC hDC;
     unsigned int size;
     unsigned long *bits;
-    Pixmap icon_pixmap, mask_pixmap;
 
     if (!icon_big)
     {
@@ -662,27 +714,20 @@ static void fetch_icon_data( HWND hwnd, HICON icon_big, HICON icon_small )
         DeleteObject( ii_small.hbmMask );
     }
 
-    if (!create_icon_pixmaps( hDC, &ii, &icon_pixmap, &mask_pixmap )) icon_pixmap = mask_pixmap = 0;
-
     DeleteObject( ii.hbmColor );
     DeleteObject( ii.hbmMask );
     DeleteDC(hDC);
 
     if ((data = get_win_data( hwnd )))
     {
-        if (data->icon_pixmap) XFreePixmap( gdi_display, data->icon_pixmap );
-        if (data->icon_mask) XFreePixmap( gdi_display, data->icon_mask );
         HeapFree( GetProcessHeap(), 0, data->icon_bits );
-        data->icon_pixmap = icon_pixmap;
-        data->icon_mask = mask_pixmap;
         data->icon_bits = bits;
         data->icon_size = size;
+        get_icon_pixmaps( icon_big, &data->icon_pixmap, &data->icon_mask );
         release_win_data( data );
     }
     else
     {
-        if (icon_pixmap) XFreePixmap( gdi_display, icon_pixmap );
-        if (mask_pixmap) XFreePixmap( gdi_display, mask_pixmap );
         HeapFree( GetProcessHeap(), 0, bits );
     }
 }
@@ -2658,6 +2703,10 @@ static void x11drv_desktop_set_hicon_cursor( HICON handle, Cursor cursor )
 void CDECL X11DRV_SetWindowIcon( HWND hwnd, UINT type, HICON icon )
 {
     struct x11drv_win_data *data;
+    Pixmap icon_pixmap, mask_pixmap;
+    get_icon_pixmaps( icon, &icon_pixmap, &mask_pixmap );
+
+    return;
 
     if (!(data = get_win_data( hwnd ))) return;
     if (!data->whole_window) goto done;
