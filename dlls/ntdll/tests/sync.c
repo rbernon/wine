@@ -529,13 +529,63 @@ static void test_semaphore(void)
     NtClose( semaphore );
 }
 
+static DWORD WINAPI test_wait_on_address_thread( void *arg )
+{
+    LARGE_INTEGER timeout;
+    NTSTATUS status;
+    LONG64 *address = arg, compare = 0;
+    DWORD i;
+
+    for (i = 0; i < 10; ++i)
+    {
+        Sleep(10);
+        pRtlWakeAddressSingle(address);
+        status = pRtlWaitOnAddress(address, &compare, 8, NULL);
+        ok(!status, "got 0x%08x\n", status);
+
+        Sleep(10);
+        pRtlWakeAddressSingle((char *)address + 1);
+        status = pRtlWaitOnAddress(address, &compare, 8, NULL);
+        ok(!status, "got 0x%08x\n", status);
+
+        Sleep(10);
+        pRtlWakeAddressSingle((char *)address + 2);
+        status = pRtlWaitOnAddress(address, &compare, 8, NULL);
+        ok(!status, "got 0x%08x\n", status);
+
+        Sleep(10);
+        pRtlWakeAddressSingle((char *)address + 3);
+        status = pRtlWaitOnAddress(address, &compare, 8, NULL);
+        ok(!status, "got 0x%08x\n", status);
+
+        Sleep(10);
+        pRtlWakeAddressSingle((char *)address + 4);
+        status = pRtlWaitOnAddress(address, &compare, 8, NULL);
+        ok(!status, "got 0x%08x\n", status);
+    }
+
+    timeout.QuadPart = -100 * 10000;
+    for (i = 0; i < 10; ++i)
+    {
+        Sleep(10);
+        status = pNtReleaseKeyedEvent(0, address, FALSE, &timeout);
+        ok(status == STATUS_TIMEOUT, "got 0x%08x\n", status);
+        status = pNtWaitForKeyedEvent(0, address, FALSE, &timeout);
+        ok(status == STATUS_TIMEOUT, "got 0x%08x\n", status);
+    }
+
+    return 0;
+}
+
 static void test_wait_on_address(void)
 {
+    DWORD i;
     SIZE_T size;
     NTSTATUS status;
     LARGE_INTEGER start, end, timeout;
     DWORD elapsed;
     LONG64 address, compare;
+    HANDLE thread;
 
     if (!pRtlWaitOnAddress)
     {
@@ -601,6 +651,49 @@ static void test_wait_on_address(void)
     ok(address == 0, "got %s\n", wine_dbgstr_longlong(address));
     pRtlWakeAddressAll(&address);
     ok(address == 0, "got %s\n", wine_dbgstr_longlong(address));
+
+    address = 0;
+    compare = 0;
+    thread = CreateThread( NULL, 0, test_wait_on_address_thread, &address, 0, NULL );
+    timeout.QuadPart = -100 * 10000;
+
+    for (i = 0; i < 10; ++i)
+    {
+        status = pRtlWaitOnAddress(&address, &compare, 8, NULL);
+        ok(!status, "got 0x%08x\n", status);
+        Sleep(10);
+        pRtlWakeAddressSingle(&address);
+
+        status = pRtlWaitOnAddress(&address, &compare, 8, &timeout);
+        ok(status == STATUS_TIMEOUT, "got 0x%08x\n", status);
+        Sleep(10);
+        pRtlWakeAddressSingle(&address);
+
+        status = pRtlWaitOnAddress(&address, &compare, 8, &timeout);
+        ok(status == STATUS_TIMEOUT, "got 0x%08x\n", status);
+        Sleep(10);
+        pRtlWakeAddressSingle(&address);
+
+        status = pRtlWaitOnAddress(&address, &compare, 8, &timeout);
+        ok(status == STATUS_TIMEOUT, "got 0x%08x\n", status);
+        Sleep(10);
+        pRtlWakeAddressSingle(&address);
+
+        status = pRtlWaitOnAddress(&address, &compare, 8, &timeout);
+        ok(status == STATUS_TIMEOUT, "got 0x%08x\n", status);
+        Sleep(10);
+        pRtlWakeAddressSingle(&address);
+    }
+
+    for (i = 0; i < 10; ++i)
+    {
+        status = pRtlWaitOnAddress(&address, &compare, 8, &timeout);
+        ok(status == STATUS_TIMEOUT, "got 0x%08x\n", status);
+        Sleep(10);
+        pRtlWakeAddressSingle(&address);
+    }
+
+    ok( WaitForSingleObject( thread, 30000 ) == 0, "wait failed\n" );
 }
 
 static HANDLE thread_ready, thread_done;
