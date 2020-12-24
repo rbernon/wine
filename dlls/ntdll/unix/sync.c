@@ -2836,7 +2836,7 @@ NTSTATUS WINAPI RtlWaitOnAddress( const void *addr, const void *cmp, SIZE_T size
 
     select_op.keyed_event.op     = SELECT_KEYED_EVENT_WAIT;
     select_op.keyed_event.handle = wine_server_obj_handle( keyed_event );
-    select_op.keyed_event.key    = wine_server_client_ptr( addr );
+    select_op.keyed_event.key    = ~wine_server_client_ptr( addr );
 
     return server_select( &select_op, sizeof(select_op.keyed_event), SELECT_INTERRUPTIBLE,
                           abs_timeout, NULL, &addr_mutex, NULL );
@@ -2847,10 +2847,17 @@ NTSTATUS WINAPI RtlWaitOnAddress( const void *addr, const void *cmp, SIZE_T size
  */
 void WINAPI RtlWakeAddressAll( const void *addr )
 {
+    select_op_t select_op;
     if (fast_wake_addr( addr ) != STATUS_NOT_IMPLEMENTED) return;
 
     mutex_lock( &addr_mutex );
-    while (NtReleaseKeyedEvent( 0, addr, 0, &zero_timeout ) == STATUS_SUCCESS) {}
+    do
+    {
+        select_op.keyed_event.op     = SELECT_KEYED_EVENT_RELEASE;
+        select_op.keyed_event.handle = wine_server_obj_handle( keyed_event );
+        select_op.keyed_event.key    = ~wine_server_client_ptr( addr );
+    }
+    while (!server_wait( &select_op, sizeof(select_op.keyed_event), SELECT_INTERRUPTIBLE, &zero_timeout ));
     mutex_unlock( &addr_mutex );
 }
 
@@ -2859,9 +2866,13 @@ void WINAPI RtlWakeAddressAll( const void *addr )
  */
 void WINAPI RtlWakeAddressSingle( const void *addr )
 {
+    select_op_t select_op;
     if (fast_wake_addr( addr ) != STATUS_NOT_IMPLEMENTED) return;
 
     mutex_lock( &addr_mutex );
-    NtReleaseKeyedEvent( 0, addr, 0, &zero_timeout );
+    select_op.keyed_event.op     = SELECT_KEYED_EVENT_RELEASE;
+    select_op.keyed_event.handle = wine_server_obj_handle( keyed_event );
+    select_op.keyed_event.key    = ~wine_server_client_ptr( addr );
+    server_wait( &select_op, sizeof(select_op.keyed_event), SELECT_INTERRUPTIBLE, &zero_timeout );
     mutex_unlock( &addr_mutex );
 }
