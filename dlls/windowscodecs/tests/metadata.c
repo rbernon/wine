@@ -967,6 +967,56 @@ static void test_create_reader(void)
 
     stream = create_stream(metadata_tEXt, sizeof(metadata_tEXt));
 
+    hr = IWICComponentFactory_CreateMetadataReader(factory,
+        NULL, NULL, WICPersistOptionDefault,
+        stream, &reader);
+    ok(hr == E_INVALIDARG, "CreateMetadataReader failed, hr=%x\n", hr);
+
+    hr = IWICComponentFactory_CreateMetadataReader(factory,
+        &GUID_MetadataFormatChunktEXt, NULL, WICPersistOptionDefault,
+        stream, NULL);
+    ok(hr == E_INVALIDARG, "CreateMetadataReader failed, hr=%x\n", hr);
+
+    hr = IWICComponentFactory_CreateMetadataReader(factory,
+        &GUID_MetadataFormatChunktEXt, NULL, WICPersistOptionDefault,
+        NULL, &reader);
+    ok(hr == S_OK, "CreateMetadataReader failed, hr=%x\n", hr);
+
+    if (SUCCEEDED(hr))
+    {
+        hr = IWICMetadataReader_GetCount(reader, &count);
+        ok(hr == S_OK, "GetCount failed, hr=%x\n", hr);
+        ok(count == 0, "unexpected count %i\n", count);
+
+        hr = IWICMetadataReader_GetMetadataFormat(reader, &format);
+        ok(hr == S_OK, "GetMetadataFormat failed, hr=%x\n", hr);
+        ok(IsEqualGUID(&format, &GUID_MetadataFormatChunktEXt), "unexpected format %s\n", wine_dbgstr_guid(&format));
+
+        IWICMetadataReader_Release(reader);
+    }
+
+    hr = IWICComponentFactory_CreateMetadataReader(factory,
+        &GUID_MetadataFormatChunktEXt, NULL, WICPersistOptionDefault,
+        stream, &reader);
+    ok(hr == S_OK, "CreateMetadataReader failed, hr=%x\n", hr);
+
+    if (SUCCEEDED(hr))
+    {
+        hr = IWICMetadataReader_GetCount(reader, &count);
+        ok(hr == S_OK, "GetCount failed, hr=%x\n", hr);
+        ok(count == 1, "unexpected count %i\n", count);
+
+        hr = IWICMetadataReader_GetMetadataFormat(reader, &format);
+        ok(hr == S_OK, "GetMetadataFormat failed, hr=%x\n", hr);
+        ok(IsEqualGUID(&format, &GUID_MetadataFormatChunktEXt), "unexpected format %s\n", wine_dbgstr_guid(&format));
+
+        IWICMetadataReader_Release(reader);
+    }
+
+    IStream_Release(stream);
+
+    stream = create_stream(metadata_tEXt, sizeof(metadata_tEXt));
+
     hr = IWICComponentFactory_CreateMetadataReaderFromContainer(factory,
         NULL, NULL, WICPersistOptionDefault,
         stream, &reader);
