@@ -4700,6 +4700,9 @@ static void STDMETHODCALLTYPE d3d10_device_PSSetSamplers(ID3D10Device1 *iface,
     TRACE("iface %p, start_slot %u, sampler_count %u, samplers %p.\n",
             iface, start_slot, sampler_count, samplers);
 
+    if (d3d_device_is_d3d11_active(device))
+        return;
+
     d3d10_device_set_samplers(iface, WINED3D_SHADER_TYPE_PIXEL, start_slot, sampler_count, samplers);
 }
 
@@ -4881,6 +4884,9 @@ static void STDMETHODCALLTYPE d3d10_device_VSSetSamplers(ID3D10Device1 *iface,
     TRACE("iface %p, start_slot %u, sampler_count %u, samplers %p.\n",
             iface, start_slot, sampler_count, samplers);
 
+    if (d3d_device_is_d3d11_active(device))
+        return;
+
     d3d10_device_set_samplers(iface, WINED3D_SHADER_TYPE_VERTEX, start_slot, sampler_count, samplers);
 }
 
@@ -4910,6 +4916,9 @@ static void STDMETHODCALLTYPE d3d10_device_GSSetSamplers(ID3D10Device1 *iface,
 {
     TRACE("iface %p, start_slot %u, sampler_count %u, samplers %p.\n",
             iface, start_slot, sampler_count, samplers);
+
+    if (d3d_device_is_d3d11_active(device))
+        return;
 
     d3d10_device_set_samplers(iface, WINED3D_SHADER_TYPE_GEOMETRY, start_slot, sampler_count, samplers);
 }
@@ -5247,6 +5256,12 @@ static void STDMETHODCALLTYPE d3d10_device_PSGetSamplers(ID3D10Device1 *iface,
     TRACE("iface %p, start_slot %u, sampler_count %u, samplers %p.\n",
             iface, start_slot, sampler_count, samplers);
 
+    if (d3d_device_is_d3d11_active(device))
+    {
+        memset(samplers, 0, sampler_count * sizeof(samplers));
+        return;
+    }
+
     wined3d_mutex_lock();
     for (i = 0; i < sampler_count; ++i)
     {
@@ -5466,6 +5481,12 @@ static void STDMETHODCALLTYPE d3d10_device_VSGetSamplers(ID3D10Device1 *iface,
     TRACE("iface %p, start_slot %u, sampler_count %u, samplers %p.\n",
             iface, start_slot, sampler_count, samplers);
 
+    if (d3d_device_is_d3d11_active(device))
+    {
+        memset(samplers, 0, sampler_count * sizeof(samplers));
+        return;
+    }
+
     wined3d_mutex_lock();
     for (i = 0; i < sampler_count; ++i)
     {
@@ -5546,6 +5567,12 @@ static void STDMETHODCALLTYPE d3d10_device_GSGetSamplers(ID3D10Device1 *iface,
 
     TRACE("iface %p, start_slot %u, sampler_count %u, samplers %p.\n",
             iface, start_slot, sampler_count, samplers);
+
+    if (d3d_device_is_d3d11_active(device))
+    {
+        memset(samplers, 0, sampler_count * sizeof(samplers));
+        return;
+    }
 
     wined3d_mutex_lock();
     for (i = 0; i < sampler_count; ++i)
