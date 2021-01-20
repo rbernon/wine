@@ -539,6 +539,12 @@ static void d3d11_device_context_get_constant_buffers(ID3D11DeviceContext1 *ifac
     struct d3d11_device_context *context = impl_from_ID3D11DeviceContext1(iface);
     unsigned int i;
 
+    if (d3d_device_is_d3d10_active(context->device))
+    {
+        memset(buffers, 0, buffer_count * sizeof(*buffers));
+        return;
+    }
+
     wined3d_mutex_lock();
     for (i = 0; i < buffer_count; ++i)
     {
@@ -573,6 +579,9 @@ static void d3d11_device_context_set_constant_buffers(ID3D11DeviceContext1 *ifac
     struct wined3d_constant_buffer_state wined3d_buffers[D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT];
     struct d3d11_device_context *context = impl_from_ID3D11DeviceContext1(iface);
     unsigned int i;
+
+    if (d3d_device_is_d3d10_active(context->device))
+        return;
 
     if (buffer_count > ARRAY_SIZE(wined3d_buffers))
     {
