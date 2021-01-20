@@ -63,6 +63,14 @@ static inline BOOL d3d_device_is_d3d10_active(struct d3d_device *device)
                 || IsEqualGUID(&device->state->emulated_interface, &IID_ID3D10Device1);
 }
 
+static inline BOOL d3d_device_is_d3d11_active(struct d3d_device *device)
+{
+    return !device->state
+                || IsEqualGUID(&device->state->emulated_interface, &IID_ID3D11Device)
+                || IsEqualGUID(&device->state->emulated_interface, &IID_ID3D11Device1)
+                || IsEqualGUID(&device->state->emulated_interface, &IID_ID3D11Device2);
+}
+
 static D3D_FEATURE_LEVEL d3d_feature_level_from_wined3d(enum wined3d_feature_level level)
 {
     return (D3D_FEATURE_LEVEL)level;
@@ -4559,6 +4567,12 @@ static void d3d10_device_get_constant_buffers(ID3D10Device1 *iface,
     struct d3d_device *device = impl_from_ID3D10Device(iface);
     unsigned int i;
 
+    if (d3d_device_is_d3d11_active(device))
+    {
+        memset(buffers, 0, buffer_count * sizeof(*buffers));
+        return;
+    }
+
     wined3d_mutex_lock();
     for (i = 0; i < buffer_count; ++i)
     {
@@ -4584,6 +4598,9 @@ static void d3d10_device_set_constant_buffers(ID3D10Device1 *iface,
 {
     struct d3d_device *device = impl_from_ID3D10Device(iface);
     unsigned int i;
+
+    if (d3d_device_is_d3d11_active(device))
+        return;
 
     wined3d_mutex_lock();
     for (i = 0; i < buffer_count; ++i)
