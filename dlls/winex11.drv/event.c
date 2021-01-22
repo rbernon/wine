@@ -870,7 +870,7 @@ BOOL x11drv_handle_focus_in_event( HWND hwnd, XEvent *xev, Time time )
         break;
     case NotifyUngrab:
         keyboard_grabbed = FALSE;
-        retry_grab_clipping_window();
+        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, FALSE );
         return TRUE; /* ignore wm specific NotifyUngrab / NotifyGrab events w.r.t focus */
     }
 
@@ -973,13 +973,7 @@ BOOL x11drv_handle_focus_out_event( HWND hwnd, XEvent *xev, Time time )
         break;
     case NotifyGrab:
         keyboard_grabbed = TRUE;
-
-        /* This will do nothing due to keyboard_grabbed == TRUE, but it
-         * will save the current clipping rect so we can restore it on
-         * FocusIn with NotifyUngrab mode.
-         */
-        retry_grab_clipping_window();
-
+        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, TRUE );
         return TRUE; /* ignore wm specific NotifyUngrab / NotifyGrab events w.r.t focus */
     }
 
