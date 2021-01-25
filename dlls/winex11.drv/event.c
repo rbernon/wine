@@ -876,7 +876,7 @@ BOOL x11drv_handle_focus_in_event( HWND hwnd, XEvent *xev, Time time )
     if ((xic = X11DRV_get_ic( hwnd ))) XSetICFocus( xic );
     if (use_take_focus)
     {
-        if (hwnd == GetForegroundWindow()) clip_fullscreen_window( hwnd, FALSE );
+        if (hwnd == GetForegroundWindow()) SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, TRUE, FALSE );
         return TRUE;
     }
 
