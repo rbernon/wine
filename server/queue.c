@@ -436,6 +436,13 @@ static int update_desktop_cursor_pos( struct desktop *desktop, user_handle_t win
     return updated;
 }
 
+static void update_desktop_cursor_handle( struct desktop *desktop, user_handle_t handle )
+{
+    if (desktop->cursor.change_msg && desktop->cursor.handle != handle)
+        post_desktop_message( desktop, desktop->cursor.change_msg, desktop->cursor.win, handle );
+    desktop->cursor.handle = handle;
+}
+
 void update_desktop_cursor_win( struct desktop *desktop )
 {
     update_desktop_cursor_pos( desktop, 0, desktop->cursor.x, desktop->cursor.y );
@@ -3338,6 +3345,11 @@ DECL_HANDLER(set_cursor)
             set_win32_error( ERROR_INVALID_CURSOR_HANDLE );
             return;
         }
+
+        /* only the desktop owner can set the message */
+        if (req->change_msg && get_top_window_owner(desktop) == current->process)
+            desktop->cursor.change_msg = req->change_msg;
+
         input->cursor = req->handle;
     }
     if (req->flags & SET_CURSOR_COUNT)
@@ -3356,6 +3368,12 @@ DECL_HANDLER(set_cursor)
             desktop->cursor.clip_msg = req->clip_msg;
 
         set_clip_rectangle( desktop, (req->flags & SET_CURSOR_NOCLIP) ? NULL : &req->clip, 0 );
+    }
+
+    if (req->flags & (SET_CURSOR_HANDLE | SET_CURSOR_COUNT))
+    {
+        if (input->cursor_count < 0) update_desktop_cursor_handle( desktop, 0 );
+        else update_desktop_cursor_handle( desktop, input->cursor );
     }
 
     reply->new_x       = desktop->cursor.x;
