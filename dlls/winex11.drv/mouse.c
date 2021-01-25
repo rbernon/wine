@@ -124,9 +124,6 @@ static const UINT button_up_data[NB_BUTTONS] =
 
 XContext cursor_context = 0;
 
-static HWND cursor_window;
-static HCURSOR last_cursor;
-static DWORD last_cursor_change;
 static RECT last_clip_rect;
 static HWND last_clip_foreground_window;
 static BOOL last_clip_refused;
@@ -238,24 +235,6 @@ void set_window_cursor( Window window, HCURSOR handle )
     XDefineCursor( gdi_display, window, cursor );
     /* make the change take effect immediately */
     XFlush( gdi_display );
-}
-
-/***********************************************************************
- *              sync_window_cursor
- */
-void sync_window_cursor( Window window )
-{
-    HCURSOR cursor;
-
-    SERVER_START_REQ( set_cursor )
-    {
-        req->flags = 0;
-        wine_server_call( req );
-        cursor = reply->prev_count >= 0 ? wine_server_ptr_handle( reply->prev_handle ) : 0;
-    }
-    SERVER_END_REQ;
-
-    set_window_cursor( window, cursor );
 }
 
 struct mouse_button_mapping
@@ -506,6 +485,7 @@ static BOOL grab_clipping_window( const RECT *clip )
 {
     static const WCHAR messageW[] = {'M','e','s','s','a','g','e',0};
     struct x11drv_thread_data *data = x11drv_thread_data();
+    HCURSOR cursor;
     Window clip_window;
     HWND msg_hwnd = 0;
     POINT pos;
@@ -562,6 +542,15 @@ static BOOL grab_clipping_window( const RECT *clip )
                        GrabModeAsync, GrabModeAsync, clip_window, None, CurrentTime ))
         clipping_cursor = TRUE;
 
+    SERVER_START_REQ( set_cursor )
+    {
+        req->flags = 0;
+        wine_server_call( req );
+        cursor = reply->prev_count >= 0 ? wine_server_ptr_handle( reply->prev_handle ) : 0;
+    }
+    SERVER_END_REQ;
+    set_window_cursor( clip_window, cursor );
+
     if (!clipping_cursor)
     {
         x11drv_xinput_disable( data->display, DefaultRootWindow( data->display ), PointerMotionMask );
@@ -569,8 +558,6 @@ static BOOL grab_clipping_window( const RECT *clip )
         return FALSE;
     }
     clip_rect = *clip;
-    if (!data->clip_hwnd) sync_window_cursor( clip_window );
-    InterlockedExchangePointer( (void **)&cursor_window, msg_hwnd );
     data->clip_hwnd = msg_hwnd;
     SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_CLIP_CURSOR_NOTIFY, 0, (LPARAM)msg_hwnd );
     return TRUE;
@@ -780,23 +767,11 @@ static void send_mouse_input( HWND hwnd, Window window, unsigned int state, INPU
 
         if (!clip_hwnd) return;
         if (thread_data->clip_window != window) return;
-        if (InterlockedExchangePointer( (void **)&cursor_window, clip_hwnd ) != clip_hwnd ||
-            input->u.mi.time - last_cursor_change > 100)
-        {
-            sync_window_cursor( window );
-            last_cursor_change = input->u.mi.time;
-        }
         __wine_send_input( hwnd, input, NULL );
         return;
     }
 
     if (!(data = get_win_data( hwnd ))) return;
-    if (InterlockedExchangePointer( (void **)&cursor_window, hwnd ) != hwnd ||
-        input->u.mi.time - last_cursor_change > 100)
-    {
-        sync_window_cursor( data->whole_window );
-        last_cursor_change = input->u.mi.time;
-    }
     release_win_data( data );
 
     if (hwnd != GetDesktopWindow())
@@ -1590,19 +1565,6 @@ void CDECL X11DRV_DestroyCursorIcon( HCURSOR handle )
         TRACE( "%p xid %lx\n", handle, cursor );
         XFreeCursor( gdi_display, cursor );
         XDeleteContext( gdi_display, (XID)handle, cursor_context );
-    }
-}
-
-/***********************************************************************
- *		SetCursor (X11DRV.@)
- */
-void CDECL X11DRV_SetCursor( HCURSOR handle )
-{
-    if (InterlockedExchangePointer( (void **)&last_cursor, handle ) != handle ||
-        GetTickCount() - last_cursor_change > 100)
-    {
-        last_cursor_change = GetTickCount();
-        if (cursor_window) SendNotifyMessageW( cursor_window, WM_X11DRV_SET_CURSOR, 0, (LPARAM)handle );
     }
 }
 
