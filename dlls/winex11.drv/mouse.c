@@ -437,7 +437,6 @@ void X11DRV_XInput2_Enable( Display *display, Window window, long event_mask )
  */
 static BOOL grab_clipping_window( const RECT *clip )
 {
-    static const WCHAR messageW[] = {'M','e','s','s','a','g','e',0};
     struct x11drv_thread_data *data = x11drv_thread_data();
     CURSORINFO pci;
     Window clip_window;
@@ -445,11 +444,6 @@ static BOOL grab_clipping_window( const RECT *clip )
 
     if (!data) return FALSE;
     if (!(clip_window = init_clip_window())) return TRUE;
-
-    if (!data->clip_hwnd &&
-        !(data->clip_hwnd = CreateWindowW( messageW, NULL, 0, 0, 0, 0, 0, HWND_MESSAGE, 0,
-                                    GetModuleHandleW(0), NULL )))
-        return TRUE;
 
     if (keyboard_grabbed)
     {
@@ -465,7 +459,7 @@ static BOOL grab_clipping_window( const RECT *clip )
     }
 
     /* enable XInput2 unless we are already clipping */
-    if (!data->clip_hwnd) x11drv_xinput_enable( data->display, DefaultRootWindow( data->display ), PointerMotionMask );
+    if (!clipping_cursor) x11drv_xinput_enable( data->display, DefaultRootWindow( data->display ), PointerMotionMask );
 
     TRACE( "clipping to %s win %lx\n", wine_dbgstr_rect(clip), clip_window );
 
@@ -494,8 +488,6 @@ static BOOL grab_clipping_window( const RECT *clip )
     {
         X11DRV_XInput2_Enable( data->display, None, 0 );
         XUnmapWindow( data->display, clip_window );
-        DestroyWindow( data->clip_hwnd );
-        data->clip_hwnd = NULL;
         return FALSE;
     }
     clip_rect = *clip;
@@ -519,8 +511,6 @@ void ungrab_clipping_window(void)
     XUnmapWindow( data->display, clip_window );
     if (clipping_cursor) XUngrabPointer( data->display, CurrentTime );
     clipping_cursor = FALSE;
-    if (data->clip_hwnd) DestroyWindow( data->clip_hwnd );
-    data->clip_hwnd = NULL;
     data->clip_reset = GetTickCount();
     x11drv_xinput_disable( data->display, DefaultRootWindow( data->display ), PointerMotionMask );
 }
@@ -577,7 +567,7 @@ static BOOL clip_fullscreen_window( HWND hwnd, BOOL reset )
     if (!fullscreen) return FALSE;
     if (!(thread_data = x11drv_thread_data())) return FALSE;
     if (GetTickCount() - thread_data->clip_reset < 1000) return FALSE;
-    if (!reset && clipping_cursor && thread_data->clip_hwnd) return FALSE;  /* already clipping */
+    if (!reset && clipping_cursor) return FALSE;  /* already clipping */
 
     monitor = MonitorFromWindow( hwnd, MONITOR_DEFAULTTONEAREST );
     if (!monitor) return FALSE;
@@ -625,7 +615,7 @@ static void map_event_coords( HWND hwnd, Window window, Window event_root, int x
     if (!hwnd)
     {
         thread_data = x11drv_thread_data();
-        if (!thread_data->clip_hwnd) return;
+        if (!clipping_cursor) return;
         if (thread_data->clip_window != window) return;
         pt.x += clip_rect.left;
         pt.y += clip_rect.top;
@@ -735,9 +725,7 @@ static void send_mouse_input( HWND hwnd, Window window, unsigned int state, INPU
     if (!hwnd)
     {
         struct x11drv_thread_data *thread_data = x11drv_thread_data();
-        HWND clip_hwnd = thread_data->clip_hwnd;
-
-        if (!clip_hwnd) return;
+        if (!clipping_cursor) return;
         if (thread_data->clip_window != window) return;
         __wine_send_input( hwnd, input, NULL );
         return;
@@ -1633,15 +1621,11 @@ void x11drv_desktop_clip_cursor( BOOL fullscreen, BOOL reset )
         {
             if (grab_clipping_window( &clip )) return;
         }
-        else /* if currently clipping, check if we should switch to fullscreen clipping */
-        {
-            struct x11drv_thread_data *data = x11drv_thread_data();
-            if (data && data->clip_hwnd)
-            {
-                if (EqualRect( &clip, &clip_rect ) || clip_fullscreen_window( foreground, TRUE ))
-                    return;
-            }
-        }
+        /* if currently clipping, check if we should switch to fullscreen clipping */
+        else if (clipping_cursor && EqualRect( &clip, &clip_rect ))
+            return;
+        else if (clipping_cursor && clip_fullscreen_window( foreground, TRUE ))
+            return;
 
         ungrab_clipping_window();
     }
