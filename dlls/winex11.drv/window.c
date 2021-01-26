@@ -23,6 +23,7 @@
 #include "config.h"
 #include "wine/port.h"
 
+#include <assert.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -646,6 +647,7 @@ static void get_icon_pixmaps( HICON icon, Pixmap *icon_ret, Pixmap *mask_ret )
     DeleteObject( info.hbmColor );
     DeleteObject( info.hbmMask );
     DeleteDC( dc );
+    XSync( gdi_display, FALSE );
 
     XLockDisplay( gdi_display );
     if (XFindContext( gdi_display, (XID)icon, icon_context, (char **)&tmp ))
@@ -663,6 +665,9 @@ static void get_icon_pixmaps( HICON icon, Pixmap *icon_ret, Pixmap *mask_ret )
         *mask_ret = tmp;
     }
     XUnlockDisplay( gdi_display );
+
+    SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_SET_HICON_COLOR, (WPARAM)icon, (LPARAM)*icon_ret );
+    SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_SET_HICON_MASK, (WPARAM)icon, (LPARAM)*mask_ret );
 }
 
 
@@ -1832,8 +1837,6 @@ void CDECL X11DRV_DestroyWindow( HWND hwnd )
     destroy_whole_window( data, FALSE );
     if (thread_data->last_focus == hwnd) thread_data->last_focus = 0;
     if (thread_data->last_xic_hwnd == hwnd) thread_data->last_xic_hwnd = 0;
-    if (data->icon_pixmap) XFreePixmap( gdi_display, data->icon_pixmap );
-    if (data->icon_mask) XFreePixmap( gdi_display, data->icon_mask );
     if (data->client_colormap) XFreeColormap( data->display, data->client_colormap );
     HeapFree( GetProcessHeap(), 0, data->icon_bits );
     XDeleteContext( gdi_display, (XID)hwnd, win_data_context );
@@ -2693,6 +2696,32 @@ static void x11drv_desktop_set_hicon_cursor( HICON handle, Cursor cursor )
     XUnlockDisplay( gdi_display );
 }
 
+/***********************************************************************
+ *      x11drv_desktop_set_hicon_color
+ *
+ * Function called upon receiving a WM_X11DRV_DESKTOP_SET_HICON_COLOR.
+ */
+static void x11drv_desktop_set_hicon_color( HICON handle, Pixmap pixmap )
+{
+    XLockDisplay( gdi_display );
+    if (pixmap) XSaveContext( gdi_display, (XID)handle, icon_context, (char *)pixmap );
+    else XDeleteContext( gdi_display, (XID)handle, icon_context );
+    XUnlockDisplay( gdi_display );
+}
+
+/***********************************************************************
+ *		x11drv_desktop_set_hicon_mask
+ *
+ * Function called upon receiving a WM_X11DRV_DESKTOP_SET_HICON_MASK.
+ */
+static void x11drv_desktop_set_hicon_mask( HICON handle, Pixmap pixmap )
+{
+    XLockDisplay( gdi_display );
+    if (pixmap) XSaveContext( gdi_display, (XID)handle, mask_context, (char *)pixmap );
+    else XDeleteContext( gdi_display, (XID)handle, mask_context );
+    XUnlockDisplay( gdi_display );
+}
+
 /**********************************************************************
  *		SetWindowIcon (X11DRV.@)
  *
@@ -2903,6 +2932,12 @@ LRESULT CDECL X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
             release_win_data( data );
             if (win) set_window_cursor( win, (HCURSOR)lp );
         }
+        return 0;
+    case WM_X11DRV_DESKTOP_SET_HICON_COLOR:
+        x11drv_desktop_set_hicon_color( (HICON)wp, (Pixmap)lp );
+        return 0;
+    case WM_X11DRV_DESKTOP_SET_HICON_MASK:
+        x11drv_desktop_set_hicon_mask( (HICON)wp, (Pixmap)lp );
         return 0;
     case WM_X11DRV_DESKTOP_SET_HICON_CURSOR:
         x11drv_desktop_set_hicon_cursor( (HICON)wp, (Cursor)lp );
