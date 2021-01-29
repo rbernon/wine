@@ -175,151 +175,6 @@ typedef struct tagHEAP
 
 static HEAP *processHeap;  /* main process heap */
 
-enum heap_stats_entry_type
-{
-    HEAP_STAT_ALLOC = 1,
-    HEAP_STAT_REALLOC = 2,
-    HEAP_STAT_FREE = 3,
-    HEAP_STAT_LOCK = 4,
-    HEAP_STAT_UNLOCK = 5,
-    HEAP_STAT_VALIDATE = 6,
-    HEAP_STAT_WALK = 7,
-    HEAP_STAT_SIZE = 8,
-};
-
-struct heap_stats_entry
-{
-    short ticks;
-    char type;
-};
-
-struct heap_stats_entry heap_stats_list[0x100000];
-static UINT64 heap_stats_list_idx;
-
-static DWORD heap_stats_last_tid;
-static SIZE_T heap_stats_alloc_count;
-static SIZE_T heap_stats_alloc_time;
-static SIZE_T heap_stats_realloc_count;
-static SIZE_T heap_stats_realloc_time;
-static SIZE_T heap_stats_free_count;
-static SIZE_T heap_stats_free_time;
-static SIZE_T heap_stats_lock_count;
-static SIZE_T heap_stats_lock_time;
-static SIZE_T heap_stats_validate_count;
-static SIZE_T heap_stats_validate_time;
-static SIZE_T heap_stats_walk_count;
-static SIZE_T heap_stats_walk_time;
-static SIZE_T heap_stats_size_count;
-static SIZE_T heap_stats_size_time;
-static SIZE_T heap_stats_switch_count;
-static SIZE_T heap_stats_total_time;
-
-static void heap_stats_print(UINT64 idx)
-{
-    UINT64 i;
-
-    for (i = idx - ARRAY_SIZE(heap_stats_list) / 2; i != idx; ++i)
-    {
-        struct heap_stats_entry *entry = heap_stats_list + (i & (ARRAY_SIZE(heap_stats_list) - 1));
-        switch (entry->type)
-        {
-        case HEAP_STAT_ALLOC: heap_stats_alloc_count++; heap_stats_alloc_time += entry->ticks; break;
-        case HEAP_STAT_REALLOC: heap_stats_realloc_count++; heap_stats_realloc_time += entry->ticks; break;
-        case HEAP_STAT_FREE: heap_stats_free_count++; heap_stats_free_time += entry->ticks; break;
-        case HEAP_STAT_LOCK: heap_stats_lock_count++; heap_stats_lock_time += entry->ticks; break;
-        case HEAP_STAT_UNLOCK: heap_stats_lock_count++; heap_stats_lock_time += entry->ticks; break;
-        case HEAP_STAT_VALIDATE: heap_stats_validate_count++; heap_stats_validate_time += entry->ticks; break;
-        case HEAP_STAT_WALK: heap_stats_walk_count++; heap_stats_walk_time += entry->ticks; break;
-        case HEAP_STAT_SIZE: heap_stats_size_count++; heap_stats_size_time += entry->ticks; break;
-        }
-    }
-
-    ERR("process heap stats:"
-        "\n\t%I64d allocs (%I64d tcs / %I64d tcs), "
-        "\n\t%I64d reallocs (%I64d tcs / %I64d tcs), "
-        "\n\t%I64d frees (%I64d tcs / %I64d tcs), "
-        "\n\t%I64d locks (%I64d tcs / %I64d tcs), "
-        "\n\t%I64d validates (%I64d tcs / %I64d tcs), "
-        "\n\t%I64d walks (%I64d tcs / %I64d tcs), "
-        "\n\t%I64d sizes (%I64d tcs / %I64d tcs), "
-        "\n\t%I64d switches\n",
-        (__int64)heap_stats_alloc_count, (__int64)heap_stats_alloc_time, (__int64)(heap_stats_alloc_time / (heap_stats_alloc_count ? heap_stats_alloc_count : 1)),
-        (__int64)heap_stats_realloc_count, (__int64)heap_stats_realloc_time, (__int64)(heap_stats_realloc_time / (heap_stats_realloc_count ? heap_stats_realloc_count : 1)),
-        (__int64)heap_stats_free_count, (__int64)heap_stats_free_time, (__int64)(heap_stats_free_time / (heap_stats_free_count ? heap_stats_free_count : 1)),
-        (__int64)heap_stats_lock_count, (__int64)heap_stats_lock_time, (__int64)(heap_stats_lock_time / (heap_stats_lock_count ? heap_stats_lock_count : 1)),
-        (__int64)heap_stats_validate_count, (__int64)heap_stats_validate_time, (__int64)(heap_stats_validate_time / (heap_stats_validate_count ? heap_stats_validate_count : 1)),
-        (__int64)heap_stats_walk_count, (__int64)heap_stats_walk_time, (__int64)(heap_stats_walk_time / (heap_stats_walk_count ? heap_stats_walk_count : 1)),
-        (__int64)heap_stats_size_count, (__int64)heap_stats_size_time, (__int64)(heap_stats_size_time / (heap_stats_size_count ? heap_stats_size_count : 1)),
-        (__int64)heap_stats_switch_count);
-}
-
-static inline UINT64 heap_stats_start( void )
-{
-    DWORD hi, lo;
-
-    __asm__ __volatile__("" : : : "memory");
-    // __asm__ __volatile__("cpuid" : : : "%rax", "%rbx", "%rcx", "%rdx");
-    __asm__ __volatile__("rdtsc" : "=&d" (hi), "=&a" (lo));
-    __asm__ __volatile__("" : : : "memory");
-
-    return (((UINT64)hi) << 32) | lo;
-}
-
-static inline void heap_stats_end( int type, UINT64 start )
-{
-    struct heap_stats_entry *entry;
-    DWORD hi, lo;
-    UINT64 idx;
-
-    __asm__ __volatile__("" : : : "memory");
-    __asm__ __volatile__("rdtsc" : "=&d" (hi), "=&a" (lo) ::"%rcx");
-    // __asm__ __volatile__("cpuid" : : : "%rax", "%rbx", "%rcx", "%rdx");
-    __asm__ __volatile__("" : : : "memory");
-
-    idx = __atomic_fetch_add(&heap_stats_list_idx, 1, __ATOMIC_RELAXED);
-    if (!(idx & (ARRAY_SIZE(heap_stats_list) / 2 - 1)) && idx)
-        heap_stats_print(idx);
-
-    entry = heap_stats_list + (idx & (ARRAY_SIZE(heap_stats_list) - 1));
-    entry->type = type;
-    entry->ticks = ((((UINT64)hi) << 32) | lo) - start;
-}
-
-static void heap_stats_alloc_end( UINT64 start, SIZE_T size )
-{
-    heap_stats_end( HEAP_STAT_ALLOC, start );
-}
-
-static void heap_stats_realloc_end( UINT64 start, SIZE_T size )
-{
-    heap_stats_end( HEAP_STAT_REALLOC, start );
-}
-
-static void heap_stats_free_end( UINT64 start )
-{
-    heap_stats_end( HEAP_STAT_FREE, start );
-}
-
-static void heap_stats_lock_end( UINT64 start )
-{
-    heap_stats_end( HEAP_STAT_LOCK, start );
-}
-
-static void heap_stats_validate_end( UINT64 start )
-{
-    heap_stats_end( HEAP_STAT_VALIDATE, start );
-}
-
-static void heap_stats_walk_end( UINT64 start )
-{
-    heap_stats_end( HEAP_STAT_WALK, start );
-}
-
-static void heap_stats_size_end( UINT64 start )
-{
-    heap_stats_end( HEAP_STAT_SIZE, start );
-}
-
 static BOOL HEAP_IsRealArena( HEAP *heapPtr, DWORD flags, LPCVOID block, BOOL quiet );
 
 /* mark a block of memory as free for debugging purposes */
@@ -1795,14 +1650,9 @@ void * WINAPI DECLSPEC_HOTPATCH RtlAllocateHeap( HANDLE heap, ULONG flags, SIZE_
 {
     HEAP *heapPtr;
     void *ptr;
-    UINT64 ticks;
 
-    ticks = heap_stats_start();
     if (!(heapPtr = HEAP_GetPtr( heap )))
-    {
-        ptr = NULL;
-        goto done;
-    }
+        return NULL;
 
     flags &= HEAP_GENERATE_EXCEPTIONS | HEAP_NO_SERIALIZE | HEAP_ZERO_MEMORY;
     flags |= heapPtr->flags;
@@ -1811,15 +1661,11 @@ void * WINAPI DECLSPEC_HOTPATCH RtlAllocateHeap( HANDLE heap, ULONG flags, SIZE_
     {
     case HEAP_LFH:
         if ((ptr = HEAP_lfh_allocate( heapPtr, flags, size )))
-            break;
+            return ptr;
         /* fallthrough */
     default:
-        ptr = HEAP_std_allocate( heapPtr, flags, size );
+        return HEAP_std_allocate( heapPtr, flags, size );
     }
-
-done:
-    heap_stats_alloc_end( ticks, size );
-    return ptr;
 }
 
 void * HEAP_std_allocate( HEAP *heapPtr, ULONG flags, SIZE_T size )
@@ -1906,17 +1752,13 @@ void * HEAP_std_allocate( HEAP *heapPtr, ULONG flags, SIZE_T size )
 BOOLEAN WINAPI DECLSPEC_HOTPATCH RtlFreeHeap( HANDLE heap, ULONG flags, void *ptr )
 {
     HEAP *heapPtr;
-    BOOLEAN ret = TRUE;
-    UINT64 ticks;
 
     if (!ptr) return TRUE;  /* freeing a NULL ptr isn't an error in Win2k */
 
-    ticks = heap_stats_start();
     if (!(heapPtr = HEAP_GetPtr( heap )))
     {
         RtlSetLastWin32ErrorAndNtStatusFromNtStatus( STATUS_INVALID_HANDLE );
-        ret = FALSE;
-        goto done;
+        return FALSE;
     }
 
     flags &= HEAP_NO_SERIALIZE;
@@ -1926,18 +1768,11 @@ BOOLEAN WINAPI DECLSPEC_HOTPATCH RtlFreeHeap( HANDLE heap, ULONG flags, void *pt
     {
     case HEAP_LFH:
         if (HEAP_lfh_validate( heapPtr, flags, ptr ))
-        {
-            ret = HEAP_lfh_free( heapPtr, flags, ptr );
-            break;
-        }
+            return HEAP_lfh_free( heapPtr, flags, ptr );
         /* fallthrough */
     default:
-        ret = HEAP_std_free( heapPtr, flags, ptr );
+        return HEAP_std_free( heapPtr, flags, ptr );
     }
-
-done:
-    heap_stats_free_end( ticks );
-    return ret;
 }
 
 BOOLEAN HEAP_std_free( HEAP *heapPtr, ULONG flags, void *ptr )
@@ -1991,17 +1826,14 @@ error:
 PVOID WINAPI RtlReAllocateHeap( HANDLE heap, ULONG flags, PVOID ptr, SIZE_T size )
 {
     HEAP *heapPtr;
-    UINT64 ticks;
 
-    ticks = heap_stats_start();
-
-    if (!ptr) goto done;
+    if (!ptr)
+        return NULL;
 
     if (!(heapPtr = HEAP_GetPtr( heap )))
     {
         RtlSetLastWin32ErrorAndNtStatusFromNtStatus( STATUS_INVALID_HANDLE );
-        ptr = NULL;
-        goto done;
+        return NULL;
     }
 
     flags &= HEAP_GENERATE_EXCEPTIONS | HEAP_NO_SERIALIZE | HEAP_ZERO_MEMORY |
@@ -2012,18 +1844,11 @@ PVOID WINAPI RtlReAllocateHeap( HANDLE heap, ULONG flags, PVOID ptr, SIZE_T size
     {
     case HEAP_LFH:
         if (HEAP_lfh_validate( heapPtr, flags, ptr ))
-        {
-            ptr = HEAP_lfh_reallocate( heapPtr, flags, ptr, size );
-            break;
-        }
+            return HEAP_lfh_reallocate( heapPtr, flags, ptr, size );
         /* fallthrough */
     default:
-        ptr = HEAP_std_reallocate( heapPtr, flags, ptr, size );
+        return HEAP_std_reallocate( heapPtr, flags, ptr, size );
     }
-
-done:
-    heap_stats_realloc_end( ticks, size );
-    return ptr;
 }
 
 void *HEAP_std_reallocate( HEAP *heapPtr, ULONG flags, void *ptr, SIZE_T size )
@@ -2186,11 +2011,8 @@ ULONG WINAPI RtlCompactHeap( HANDLE heap, ULONG flags )
 BOOLEAN WINAPI RtlLockHeap( HANDLE heap )
 {
     HEAP *heapPtr = HEAP_GetPtr( heap );
-    UINT64 ticks;
     if (!heapPtr) return FALSE;
-    ticks = heap_stats_start();
     RtlEnterCriticalSection( &heapPtr->critSection );
-    heap_stats_lock_end( ticks );
     return TRUE;
 }
 
@@ -2210,11 +2032,8 @@ BOOLEAN WINAPI RtlLockHeap( HANDLE heap )
 BOOLEAN WINAPI RtlUnlockHeap( HANDLE heap )
 {
     HEAP *heapPtr = HEAP_GetPtr( heap );
-    UINT64 ticks;
     if (!heapPtr) return FALSE;
-    ticks = heap_stats_start();
     RtlLeaveCriticalSection( &heapPtr->critSection );
-    heap_stats_lock_end( ticks );
     return TRUE;
 }
 
@@ -2238,16 +2057,12 @@ BOOLEAN WINAPI RtlUnlockHeap( HANDLE heap )
  */
 SIZE_T WINAPI RtlSizeHeap( HANDLE heap, ULONG flags, const void *ptr )
 {
-    SIZE_T ret;
     HEAP *heapPtr;
-    UINT64 ticks;
 
-    ticks = heap_stats_start();
     if (!(heapPtr = HEAP_GetPtr( heap )))
     {
         RtlSetLastWin32ErrorAndNtStatusFromNtStatus( STATUS_INVALID_HANDLE );
-        ret = ~(SIZE_T)0;
-        goto done;
+        return ~(SIZE_T)0;
     }
 
     flags &= HEAP_NO_SERIALIZE;
@@ -2257,18 +2072,11 @@ SIZE_T WINAPI RtlSizeHeap( HANDLE heap, ULONG flags, const void *ptr )
     {
     case HEAP_LFH:
         if (HEAP_lfh_validate( heapPtr, flags, ptr ))
-        {
-            ret = HEAP_lfh_get_allocated_size( heapPtr, flags, ptr );
-            break;
-        }
+            return HEAP_lfh_get_allocated_size( heapPtr, flags, ptr );
         /* fallthrough */
     default:
-        ret = HEAP_std_get_allocated_size( heapPtr, flags, ptr );
+        return HEAP_std_get_allocated_size( heapPtr, flags, ptr );
     }
-
-done:
-    heap_stats_size_end( ticks );
-    return ret;
 }
 
 SIZE_T HEAP_std_get_allocated_size( HEAP *heapPtr, ULONG flags, const void *ptr )
@@ -2317,16 +2125,10 @@ SIZE_T HEAP_std_get_allocated_size( HEAP *heapPtr, ULONG flags, const void *ptr 
  */
 BOOLEAN WINAPI RtlValidateHeap( HANDLE heap, ULONG flags, LPCVOID ptr )
 {
-    BOOLEAN ret;
     HEAP *heapPtr;
-    UINT64 ticks;
 
-    ticks = heap_stats_start();
     if (!(heapPtr = HEAP_GetPtr( heap )))
-    {
-        ret = FALSE;
-        goto done;
-    }
+        return FALSE;
 
     flags &= HEAP_NO_SERIALIZE;
     flags |= heapPtr->flags;
@@ -2335,24 +2137,13 @@ BOOLEAN WINAPI RtlValidateHeap( HANDLE heap, ULONG flags, LPCVOID ptr )
     {
     case HEAP_LFH:
         if (!HEAP_lfh_validate( heapPtr, flags, ptr ))
-        {
-            ret = FALSE;
-            break;
-        }
+            return FALSE;
         /* only fallback to std heap if pointer is NULL or didn't validate */
-        if (ptr)
-        {
-            ret = TRUE;
-            break;
-        }
+        if (ptr) return TRUE;
         /* fallthrough */
     default:
-        ret = HEAP_std_validate( heapPtr, flags, ptr );
+        return HEAP_std_validate( heapPtr, flags, ptr );
     }
-
-done:
-    heap_stats_validate_end( ticks );
-    return ret;
 }
 
 BOOLEAN HEAP_std_validate( HEAP *heapPtr, ULONG flags, const void *ptr )
@@ -2376,14 +2167,8 @@ NTSTATUS WINAPI RtlWalkHeap( HANDLE heap, PVOID entry_ptr )
     NTSTATUS ret;
     char *ptr;
     int region_index = 0;
-    UINT64 ticks;
 
-    ticks = heap_stats_start();
-    if (!heapPtr || !entry)
-    {
-        ret = STATUS_INVALID_PARAMETER;
-        goto done;
-    }
+    if (!heapPtr || !entry) return STATUS_INVALID_PARAMETER;
 
     if (!(heapPtr->flags & HEAP_NO_SERIALIZE)) RtlEnterCriticalSection( &heapPtr->critSection );
 
@@ -2491,9 +2276,6 @@ NTSTATUS WINAPI RtlWalkHeap( HANDLE heap, PVOID entry_ptr )
 
 HW_end:
     if (!(heapPtr->flags & HEAP_NO_SERIALIZE)) RtlLeaveCriticalSection( &heapPtr->critSection );
-
-done:
-    heap_stats_walk_end( ticks );
     return ret;
 }
 
@@ -2602,5 +2384,4 @@ NTSTATUS WINAPI RtlSetHeapInformation( HANDLE heap, HEAP_INFORMATION_CLASS info_
 void HEAP_notify_thread_destroy( BOOLEAN last )
 {
     HEAP_lfh_notify_thread_destroy( last );
-    if (last) heap_stats_print( heap_stats_list_idx );
 }
