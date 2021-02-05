@@ -713,6 +713,7 @@ static void get_process_info(struct gdb_context* gdbctx, char* buffer, size_t le
     strcat(buffer, "\n");
 }
 
+#if 0
 static void get_thread_info(struct gdb_context* gdbctx, unsigned tid,
                             char* buffer, size_t len)
 {
@@ -761,6 +762,7 @@ static void get_thread_info(struct gdb_context* gdbctx, unsigned tid,
     }
     assert(strlen(buffer) < len);
 }
+#endif
 
 /* =============================================== *
  *          P A C K E T        U T I L S           *
@@ -1158,9 +1160,6 @@ static enum packet_return packet_verbose_file(struct gdb_context* gdbctx)
 
 static enum packet_return packet_verbose(struct gdb_context* gdbctx)
 {
-    struct dbg_process *process;
-    int pid;
-
     if (gdbctx->in_packet_len >= 4 && !memcmp(gdbctx->in_packet, "Cont", 4))
     {
         return packet_verbose_cont(gdbctx);
@@ -1173,6 +1172,9 @@ static enum packet_return packet_verbose(struct gdb_context* gdbctx)
         return packet_verbose_file(gdbctx);
 
 #if 0
+    struct dbg_process *process;
+    int pid;
+
     if (snscanf(gdbctx->in_packet, gdbctx->in_packet_len, "Kill;%x", &pid) == 1)
     {
         if (!(process = dbg_get_process(pid)))
