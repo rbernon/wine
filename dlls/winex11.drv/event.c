@@ -866,6 +866,7 @@ BOOL x11drv_handle_focus_in_event( HWND hwnd, XEvent *xev, Time time )
         break;
     case NotifyNormal:
         keyboard_grabbed = FALSE;
+        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, FALSE );
         break;
     case NotifyUngrab:
         keyboard_grabbed = FALSE;
@@ -968,6 +969,7 @@ BOOL x11drv_handle_focus_out_event( HWND hwnd, XEvent *xev, Time time )
         break;
     case NotifyWhileGrabbed:
         keyboard_grabbed = TRUE;
+        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, TRUE );
         break;
     case NotifyGrab:
         keyboard_grabbed = TRUE;
