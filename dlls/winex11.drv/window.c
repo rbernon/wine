@@ -2825,21 +2825,17 @@ LRESULT CDECL X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
             release_win_data( data );
             if (win) set_window_cursor( win, (HCURSOR)lp );
         }
-        if (clipping_cursor) set_window_cursor( x11drv_thread_data()->clip_window, (HCURSOR)lp );
         return 0;
     case WM_X11DRV_DESKTOP_SET_HICON_CURSOR:
         x11drv_desktop_set_hicon_cursor( (HICON)wp, (Cursor)lp );
         return 0;
     case WM_X11DRV_DESKTOP_SET_WINDOW_CURSOR:
+        if (clipping_cursor) set_window_cursor( x11drv_thread_data()->clip_window, (HCURSOR)lp );
         SendNotifyMessageW( (HWND)wp, WM_X11DRV_SET_CURSOR, 0, lp );
         return 0;
     case WM_X11DRV_DESKTOP_CLIP_CURSOR:
         x11drv_desktop_clip_cursor( (BOOL)wp, (BOOL)lp );
         return 0;
-    case WM_X11DRV_CLIP_CURSOR_NOTIFY:
-        return clip_cursor_notify( hwnd, (HWND)wp, (HWND)lp );
-    case WM_X11DRV_CLIP_CURSOR_REQUEST:
-        return clip_cursor_request( hwnd, (BOOL)wp, (BOOL)lp );
     default:
         FIXME( "got window msg %x hwnd %p wp %lx lp %lx\n", msg, hwnd, wp, lp );
         return 0;

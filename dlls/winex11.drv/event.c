@@ -802,6 +802,7 @@ static BOOL X11DRV_FocusIn( HWND hwnd, XEvent *xev )
         break;
     case NotifyNormal:
         keyboard_grabbed = FALSE;
+        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, FALSE );
         break;
     case NotifyUngrab:
         keyboard_grabbed = FALSE;
@@ -904,6 +905,7 @@ static BOOL X11DRV_FocusOut( HWND hwnd, XEvent *xev )
         break;
     case NotifyWhileGrabbed:
         keyboard_grabbed = TRUE;
+        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, TRUE );
         break;
     case NotifyGrab:
         keyboard_grabbed = TRUE;
