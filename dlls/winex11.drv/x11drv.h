@@ -540,8 +540,6 @@ enum x11drv_window_messages
     WM_X11DRV_DESKTOP_SET_HICON_CURSOR,
     WM_X11DRV_DESKTOP_SET_WINDOW_CURSOR,
     WM_X11DRV_DESKTOP_CLIP_CURSOR,
-    WM_X11DRV_CLIP_CURSOR_NOTIFY,
-    WM_X11DRV_CLIP_CURSOR_REQUEST
 };
 
 /* _NET_WM_STATE properties that we keep track of */
@@ -629,8 +627,6 @@ extern XContext cursor_context DECLSPEC_HIDDEN;
 extern void X11DRV_InitClipboard(void) DECLSPEC_HIDDEN;
 extern void CDECL X11DRV_SetFocus( HWND hwnd ) DECLSPEC_HIDDEN;
 extern void set_window_cursor( Window window, HCURSOR handle ) DECLSPEC_HIDDEN;
-extern LRESULT clip_cursor_notify( HWND hwnd, HWND prev_clip_hwnd, HWND new_clip_hwnd ) DECLSPEC_HIDDEN;
-extern LRESULT clip_cursor_request( HWND hwnd, BOOL fullscreen, BOOL reset ) DECLSPEC_HIDDEN;
 extern void x11drv_desktop_clip_cursor( BOOL fullscreen, BOOL reset ) DECLSPEC_HIDDEN;
 extern void ungrab_clipping_window(void) DECLSPEC_HIDDEN;
 extern void reset_clipping_window(void) DECLSPEC_HIDDEN;
