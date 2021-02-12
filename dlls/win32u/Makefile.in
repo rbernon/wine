@@ -1,6 +1,7 @@
 MODULE = win32u.dll
 
 C_SRCS = \
+	unix/x11.c \
 	win32u.c
 
 RC_SRCS = win32u.rc

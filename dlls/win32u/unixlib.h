@@ -1,5 +1,7 @@
 /*
- * Copyright 2020 Rémi Bernon for CodeWeavers
+ * Win32u Unix interface
+ *
+ * Copyright (C) 2021 Rémi Bernon for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,34 +18,13 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include <stdarg.h>
+#ifndef __WIN32U_UNIXLIB_H
+#define __WIN32U_UNIXLIB_H
 
-#include "windef.h"
-#include "winbase.h"
-#include "winnt.h"
-#include "winternl.h"
-
-#include "wine/debug.h"
-
-#include "unixlib.h"
-
-WINE_DEFAULT_DEBUG_CHANNEL(win32u);
-
-static struct unix_funcs *unix_funcs;
-
-BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
+struct unix_funcs
 {
-    TRACE("instance %p, reason %d, reserved %p\n", instance, reason, reserved);
+};
 
-    switch(reason)
-    {
-    case DLL_PROCESS_ATTACH:
-        DisableThreadLibraryCalls(instance);
-        break;
-    case DLL_PROCESS_DETACH:
-        break;
-    }
+extern NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out ) DECLSPEC_HIDDEN;
 
-    if (__wine_init_unix_lib(instance, reason, NULL, &unix_funcs)) return FALSE;
-    return TRUE;
-}
+#endif /* __WIN32U_UNIXLIB_H */
