@@ -634,7 +634,7 @@ done:
 
 static void *opengl_handle;
 
-static BOOL WINAPI init_opengl( INIT_ONCE *once, void *param, void **context )
+static DWORD WINAPI init_opengl( RTL_RUN_ONCE *once, void *param, void **context )
 {
     int error_base, event_base;
     unsigned int i;
@@ -825,8 +825,8 @@ failed:
 
 static BOOL has_opengl(void)
 {
-    static INIT_ONCE init_once = INIT_ONCE_STATIC_INIT;
-    InitOnceExecuteOnce(&init_once, init_opengl, NULL, NULL);
+    static RTL_RUN_ONCE once = RTL_RUN_ONCE_INIT;
+    RtlRunOnceExecuteOnce(&once, init_opengl, NULL, NULL);
     return opengl_handle != NULL;
 }
 
