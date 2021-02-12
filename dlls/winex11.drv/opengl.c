@@ -42,6 +42,7 @@
 #include "winternl.h"
 #include "wine/heap.h"
 #include "wine/debug.h"
+#include "wine/rbtree.h"
 
 #ifdef SONAME_LIBGL
 
@@ -250,6 +251,9 @@ struct gl_drawable
     int                            swap_interval;
     BOOL                           refresh_swap_interval;
     BOOL                           mutable_pf;
+
+    HWND                           hwnd;
+    struct wine_rb_entry           hwnd_entry;
 };
 
 enum glx_swap_control_method
@@ -260,8 +264,6 @@ enum glx_swap_control_method
     GLX_SWAP_CONTROL_MESA
 };
 
-/* X context to associate a struct gl_drawable to an hwnd */
-static XContext gl_hwnd_context;
 /* X context to associate a struct gl_drawable to a pbuffer hdc */
 static XContext gl_pbuffer_context;
 
@@ -285,6 +287,51 @@ static RTL_CRITICAL_SECTION_DEBUG critsect_debug =
       0, 0, { (DWORD_PTR)(__FILE__ ": context_section") }
 };
 static RTL_CRITICAL_SECTION context_section = { &critsect_debug, -1, 0, 0, 0, 0 };
+
+static void release_gl_drawable( struct gl_drawable *gl );
+static struct gl_drawable *grab_gl_drawable( struct gl_drawable *gl );
+
+static struct wine_rb_tree hwnd_drawables;
+
+static int hwnd_drawable_compare(const void *key, const struct wine_rb_entry *entry)
+{
+    HWND hwnd = (HWND)key;
+    return hwnd - WINE_RB_ENTRY_VALUE(entry, struct gl_drawable, hwnd_entry)->hwnd;
+}
+
+static struct gl_drawable *gl_drawable_from_hwnd(HWND hwnd)
+{
+    struct wine_rb_entry *entry;
+    struct gl_drawable *gl = NULL;
+
+    RtlEnterCriticalSection( &context_section );
+    if ((entry = wine_rb_get( &hwnd_drawables, hwnd )))
+        gl = WINE_RB_ENTRY_VALUE( entry, struct gl_drawable, hwnd_entry );
+    RtlLeaveCriticalSection( &context_section );
+    return gl;
+}
+
+static void update_hwnd_gl_drawable(HWND hwnd, struct gl_drawable *gl)
+{
+    struct wine_rb_entry *entry, *new_entry = NULL;
+    struct gl_drawable *prev;
+
+    RtlEnterCriticalSection( &context_section );
+    if (gl)
+    {
+        gl->hwnd = hwnd;
+        new_entry = &grab_gl_drawable(gl)->hwnd_entry;
+    }
+    if ((entry = wine_rb_get( &hwnd_drawables, hwnd )))
+    {
+        prev = WINE_RB_ENTRY_VALUE( entry, struct gl_drawable, hwnd_entry );
+        if (new_entry) wine_rb_replace( &hwnd_drawables, entry, new_entry );
+        else wine_rb_remove( &hwnd_drawables, entry );
+        release_gl_drawable( prev );
+    }
+    else if (new_entry) wine_rb_put( &hwnd_drawables, hwnd, new_entry );
+    RtlLeaveCriticalSection( &context_section );
+}
 
 static const BOOL is_win64 = sizeof(void *) > sizeof(int);
 
@@ -643,8 +690,9 @@ static BOOL WINAPI init_opengl( INIT_ONCE *once, void *param, void **context )
         ERR( "GLX extension is missing, disabling OpenGL.\n" );
         goto failed;
     }
-    gl_hwnd_context = XUniqueContext();
     gl_pbuffer_context = XUniqueContext();
+
+    wine_rb_init( &hwnd_drawables, hwnd_drawable_compare );
 
     /* In case of GLX you have direct and indirect rendering. Most of the time direct rendering is used
      * as in general only that is hardware accelerated. In some cases like in case of remote X indirect
@@ -1274,7 +1322,7 @@ static struct gl_drawable *get_gl_drawable( HWND hwnd, HDC hdc )
     struct gl_drawable *gl;
 
     RtlEnterCriticalSection( &context_section );
-    if (hwnd && !XFindContext( gdi_display, (XID)hwnd, gl_hwnd_context, (char **)&gl ))
+    if (hwnd && (gl = gl_drawable_from_hwnd( hwnd )))
         gl = grab_gl_drawable( gl );
     else if (hdc && !XFindContext( gdi_display, (XID)hdc, gl_pbuffer_context, (char **)&gl ))
         gl = grab_gl_drawable( gl );
@@ -1313,7 +1361,7 @@ extern void win32u_create_client_surface( HWND hwnd ) DECLSPEC_HIDDEN;
 static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct wgl_pixel_format *format, BOOL known_child,
                                                BOOL mutable_pf )
 {
-    struct gl_drawable *gl, *prev;
+    struct gl_drawable *gl;
     XVisualInfo *visual = format->visual;
     RECT rect;
     int width, height;
@@ -1381,14 +1429,7 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct wgl_pixel
         return NULL;
     }
 
-    RtlEnterCriticalSection( &context_section );
-    if (!XFindContext( gdi_display, (XID)hwnd, gl_hwnd_context, (char **)&prev ))
-    {
-        gl->swap_interval = prev->swap_interval;
-        release_gl_drawable( prev );
-    }
-    XSaveContext( gdi_display, (XID)hwnd, gl_hwnd_context, (char *)grab_gl_drawable(gl) );
-    RtlLeaveCriticalSection( &context_section );
+    update_hwnd_gl_drawable( hwnd, gl );
     return gl;
 }
 
@@ -1531,15 +1572,7 @@ void set_gl_drawable_parent( HWND hwnd, HWND parent )
  */
 void destroy_gl_drawable( HWND hwnd )
 {
-    struct gl_drawable *gl;
-
-    RtlEnterCriticalSection( &context_section );
-    if (!XFindContext( gdi_display, (XID)hwnd, gl_hwnd_context, (char **)&gl ))
-    {
-        XDeleteContext( gdi_display, (XID)hwnd, gl_hwnd_context );
-        release_gl_drawable( gl );
-    }
-    RtlLeaveCriticalSection( &context_section );
+    update_hwnd_gl_drawable( hwnd, NULL );
 }
 
 
