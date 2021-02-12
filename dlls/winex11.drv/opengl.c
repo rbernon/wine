@@ -254,6 +254,9 @@ struct gl_drawable
 
     HWND                           hwnd;
     struct wine_rb_entry           hwnd_entry;
+
+    HDC                            hdc;
+    struct wine_rb_entry           hdc_entry;
 };
 
 enum glx_swap_control_method
@@ -263,9 +266,6 @@ enum glx_swap_control_method
     GLX_SWAP_CONTROL_SGI,
     GLX_SWAP_CONTROL_MESA
 };
-
-/* X context to associate a struct gl_drawable to a pbuffer hdc */
-static XContext gl_pbuffer_context;
 
 static struct list context_list = LIST_INIT( context_list );
 static struct list pbuffer_list = LIST_INIT( pbuffer_list );
@@ -331,6 +331,49 @@ static void update_hwnd_gl_drawable(HWND hwnd, struct gl_drawable *gl)
     }
     else if (new_entry) wine_rb_put( &hwnd_drawables, hwnd, new_entry );
     RtlLeaveCriticalSection( &context_section );
+}
+
+static struct wine_rb_tree hdc_drawables;
+
+static int hdc_drawable_compare(const void *key, const struct wine_rb_entry *entry)
+{
+    HDC hdc = (HDC)key;
+    return hdc - WINE_RB_ENTRY_VALUE(entry, struct gl_drawable, hdc_entry)->hdc;
+}
+
+static struct gl_drawable *gl_drawable_from_hdc(HDC hdc)
+{
+    struct wine_rb_entry *entry;
+    struct gl_drawable *gl = NULL;
+
+    RtlEnterCriticalSection( &context_section );
+    if ((entry = wine_rb_get( &hdc_drawables, hdc )))
+        gl = WINE_RB_ENTRY_VALUE( entry, struct gl_drawable, hdc_entry );
+    RtlLeaveCriticalSection( &context_section );
+    return gl;
+}
+
+static BOOL update_hdc_gl_drawable(HDC hdc, struct gl_drawable *gl)
+{
+    struct wine_rb_entry *entry, *new_entry = NULL;
+    struct gl_drawable *prev;
+
+    RtlEnterCriticalSection( &context_section );
+    if (gl)
+    {
+        gl->hdc = hdc;
+        new_entry = &gl->hdc_entry;
+    }
+    if ((entry = wine_rb_get( &hdc_drawables, hdc )))
+    {
+        prev = WINE_RB_ENTRY_VALUE( entry, struct gl_drawable, hdc_entry );
+        if (new_entry) wine_rb_replace( &hdc_drawables, entry, new_entry );
+        else wine_rb_remove( &hdc_drawables, entry );
+        release_gl_drawable( prev );
+    }
+    else if (new_entry) wine_rb_put( &hdc_drawables, hdc, new_entry );
+    RtlLeaveCriticalSection( &context_section );
+    return entry != NULL;
 }
 
 static const BOOL is_win64 = sizeof(void *) > sizeof(int);
@@ -690,9 +733,9 @@ static BOOL WINAPI init_opengl( INIT_ONCE *once, void *param, void **context )
         ERR( "GLX extension is missing, disabling OpenGL.\n" );
         goto failed;
     }
-    gl_pbuffer_context = XUniqueContext();
 
     wine_rb_init( &hwnd_drawables, hwnd_drawable_compare );
+    wine_rb_init( &hdc_drawables, hdc_drawable_compare );
 
     /* In case of GLX you have direct and indirect rendering. Most of the time direct rendering is used
      * as in general only that is hardware accelerated. In some cases like in case of remote X indirect
@@ -1324,7 +1367,7 @@ static struct gl_drawable *get_gl_drawable( HWND hwnd, HDC hdc )
     RtlEnterCriticalSection( &context_section );
     if (hwnd && (gl = gl_drawable_from_hwnd( hwnd )))
         gl = grab_gl_drawable( gl );
-    else if (hdc && !XFindContext( gdi_display, (XID)hdc, gl_pbuffer_context, (char **)&gl ))
+    else if (hdc && (gl = gl_drawable_from_hdc( hdc )))
         gl = grab_gl_drawable( gl );
     else
         gl = NULL;
@@ -2367,7 +2410,7 @@ static BOOL X11DRV_wglDestroyPbufferARB( struct wgl_pbuffer *object )
 static HDC X11DRV_wglGetPbufferDCARB( struct wgl_pbuffer *object )
 {
     struct x11drv_escape_set_drawable escape;
-    struct gl_drawable *gl, *prev;
+    struct gl_drawable *gl;
     HDC hdc;
 
     hdc = CreateDCA( "DISPLAY", NULL, NULL, NULL );
@@ -2383,11 +2426,7 @@ static HDC X11DRV_wglGetPbufferDCARB( struct wgl_pbuffer *object )
     gl->format = object->fmt;
     gl->ref = 1;
 
-    RtlEnterCriticalSection( &context_section );
-    if (!XFindContext( gdi_display, (XID)hdc, gl_pbuffer_context, (char **)&prev ))
-        release_gl_drawable( prev );
-    XSaveContext( gdi_display, (XID)hdc, gl_pbuffer_context, (char *)gl );
-    RtlLeaveCriticalSection( &context_section );
+    update_hdc_gl_drawable( hdc, gl );
 
     escape.code = X11DRV_SET_DRAWABLE;
     escape.drawable = object->drawable;
@@ -2495,21 +2534,9 @@ static BOOL X11DRV_wglQueryPbufferARB( struct wgl_pbuffer *object, int iAttribut
  */
 static int X11DRV_wglReleasePbufferDCARB( struct wgl_pbuffer *object, HDC hdc )
 {
-    struct gl_drawable *gl;
-
     TRACE("(%p, %p)\n", object, hdc);
 
-    RtlEnterCriticalSection( &context_section );
-
-    if (!XFindContext( gdi_display, (XID)hdc, gl_pbuffer_context, (char **)&gl ))
-    {
-        XDeleteContext( gdi_display, (XID)hdc, gl_pbuffer_context );
-        release_gl_drawable( gl );
-    }
-    else hdc = 0;
-
-    RtlLeaveCriticalSection( &context_section );
-
+    if (!update_hdc_gl_drawable( hdc, NULL )) hdc = 0;
     return hdc && DeleteDC(hdc);
 }
 
