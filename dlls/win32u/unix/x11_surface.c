@@ -21,7 +21,97 @@
 
 #include "x11.h"
 
+WINE_DEFAULT_DEBUG_CHANNEL(win32u);
+
+struct x11_window_surface
+{
+    struct window_surface base;
+};
+
+static struct x11_window_surface *impl_from_window_surface( struct window_surface *base )
+{
+    return CONTAINING_RECORD(base, struct x11_window_surface, base);
+}
+
+static void CDECL x11_window_surface_lock( struct window_surface *base )
+{
+    FIXME("base %p stub!\n", base);
+}
+
+static void CDECL x11_window_surface_unlock( struct window_surface *base )
+{
+    FIXME("base %p stub!\n", base);
+}
+
+static void *CDECL x11_window_surface_get_info( struct window_surface *base, BITMAPINFO *info )
+{
+    static DWORD dummy_data;
+
+    FIXME("base %p stub!\n", base);
+
+    info->bmiHeader.biSize          = sizeof( info->bmiHeader );
+    info->bmiHeader.biWidth         = base->rect.right;
+    info->bmiHeader.biHeight        = base->rect.bottom;
+    info->bmiHeader.biPlanes        = 1;
+    info->bmiHeader.biBitCount      = 32;
+    info->bmiHeader.biCompression   = BI_RGB;
+    info->bmiHeader.biSizeImage     = 0;
+    info->bmiHeader.biXPelsPerMeter = 0;
+    info->bmiHeader.biYPelsPerMeter = 0;
+    info->bmiHeader.biClrUsed       = 0;
+    info->bmiHeader.biClrImportant  = 0;
+
+    return &dummy_data;
+}
+
+static RECT *CDECL x11_window_surface_get_bounds( struct window_surface *base )
+{
+    static RECT dummy_bounds;
+    FIXME("base %p stub!\n", base);
+    return &dummy_bounds;
+}
+
+static void CDECL x11_window_surface_set_region( struct window_surface *base, HRGN region )
+{
+    FIXME("base %p stub!\n", base);
+}
+
+static void CDECL x11_window_surface_flush( struct window_surface *base )
+{
+    FIXME("base %p stub!\n", base);
+}
+
+static void CDECL x11_window_surface_destroy( struct window_surface *base )
+{
+    struct x11_window_surface *impl = impl_from_window_surface(base);
+
+    FIXME("base %p stub!\n", base);
+
+    RtlFreeHeap(GetProcessHeap(), 0, impl);
+}
+
+static const struct window_surface_funcs x11_window_surface_funcs =
+{
+    x11_window_surface_lock,
+    x11_window_surface_unlock,
+    x11_window_surface_get_info,
+    x11_window_surface_get_bounds,
+    x11_window_surface_set_region,
+    x11_window_surface_flush,
+    x11_window_surface_destroy
+};
+
 struct window_surface* CDECL x11_create_window_surface(void)
 {
-    return NULL;
+    struct x11_window_surface *impl;
+
+    TRACE("\n");
+
+    if (!(impl = RtlAllocateHeap( GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*impl) ))) return NULL;
+
+    impl->base.funcs = &x11_window_surface_funcs;
+    impl->base.ref = 1;
+    list_init(&impl->base.entry);
+
+    return &impl->base;
 }
