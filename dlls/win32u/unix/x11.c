@@ -193,6 +193,7 @@ static BOOL init_xlib(void)
 
 static struct unix_funcs unix_funcs = {
     x11_create_window_surface,
+    x11_resize_window_surface,
 };
 
 NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out )

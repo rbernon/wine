@@ -126,5 +126,6 @@ struct x11drv_escape_flush_gl_drawable
 };
 
 extern struct window_surface* CDECL x11_create_window_surface(const RECT *visible_rect) DECLSPEC_HIDDEN;
+extern struct window_surface *CDECL x11_resize_window_surface(struct window_surface *base, const RECT *visible_rect) DECLSPEC_HIDDEN;
 
 #endif

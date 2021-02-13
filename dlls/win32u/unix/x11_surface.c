@@ -126,3 +126,16 @@ struct window_surface* CDECL x11_create_window_surface(const RECT *visible_rect)
 
     return &impl->base;
 }
+
+struct window_surface *CDECL x11_resize_window_surface(struct window_surface *base, const RECT *visible_rect)
+{
+    RECT surface_rect;
+
+    TRACE("base %p, visible_rect %s.\n", base, wine_dbgstr_rect(visible_rect));
+
+    get_surface_rect(visible_rect, &surface_rect);
+    if (base->funcs == &x11_window_surface_funcs && EqualRect(&surface_rect, &base->rect)) return base;
+
+    window_surface_release(base);
+    return x11_create_window_surface(visible_rect);
+}
