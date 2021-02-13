@@ -783,13 +783,21 @@ static inline struct windrv_physdev *get_windrv_physdev( PHYSDEV dev )
 
 static inline void lock_surface( struct windrv_physdev *dev )
 {
+    char buffer[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
+    BITMAPINFO *info = (BITMAPINFO *)buffer;
+    BYTE *bits;
+
     GDI_CheckNotLock();
     dev->surface->funcs->lock( dev->surface );
     if (is_rect_empty( dev->dibdrv->bounds )) dev->start_ticks = GetTickCount();
+    bits = dev->surface->funcs->get_info( dev->surface, info );
+    if (info->bmiHeader.biHeight < 0) dev->dibdrv->dib.bits.ptr = bits;
+    else dev->dibdrv->dib.bits.ptr = bits + (dev->dibdrv->dib.height - 1) * -dev->dibdrv->dib.stride;
 }
 
 static inline void unlock_surface( struct windrv_physdev *dev )
 {
+    dev->dibdrv->dib.bits.ptr = NULL;
     dev->surface->funcs->unlock( dev->surface );
     if (GetTickCount() - dev->start_ticks > FLUSH_PERIOD) dev->surface->funcs->flush( dev->surface );
 }
