@@ -97,14 +97,14 @@ void CDECL WIN32U_DestroyWindow( HWND hwnd )
 
 void CDECL WIN32U_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flags,
                                      const RECT *window_rect, const RECT *client_rect, RECT *visible_rect,
-                                     struct window_surface **surface )
+                                     struct window_surface **surface, RECT *screen_rect, void **driver_handle )
 {
     struct win32u_window_pos_changing_input in;
     struct win32u_window_pos_changing_output out;
 
-    TRACE("hwnd %p, insert_after %p, swp_flags %x, window_rect %s, client_rect %s, visible_rect %p, surface %p\n",
+    TRACE("hwnd %p, insert_after %p, swp_flags %x, window_rect %s, client_rect %s, visible_rect %p, surface %p, screen_rect %p, driver_handle %p\n",
           hwnd, insert_after, swp_flags, wine_dbgstr_rect(window_rect), wine_dbgstr_rect(client_rect),
-          visible_rect, surface);
+          visible_rect, surface, screen_rect, driver_handle);
 
     in.hwnd = HandleToUlong(hwnd);
     in.insert_after = HandleToUlong(insert_after);
@@ -119,9 +119,12 @@ void CDECL WIN32U_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
 
     TRACE("returned: visible_rect %s\n", wine_dbgstr_rect(&out.visible_rect));
 
-    *visible_rect = out.visible_rect;
     if (!*surface) *surface = unix_funcs->create_window_surface(visible_rect);
     else *surface = unix_funcs->resize_window_surface(*surface, visible_rect);
+
+    *visible_rect = out.visible_rect;
+    if (screen_rect) *screen_rect = out.screen_rect;
+    if (driver_handle) *driver_handle = NULL;
 }
 
 void CDECL WIN32U_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,

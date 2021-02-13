@@ -146,7 +146,7 @@ LRESULT (CDECL *pSysCommand)(HWND,WPARAM,LPARAM);
 BOOL    (CDECL *pUpdateLayeredWindow)(HWND,const UPDATELAYEREDWINDOWINFO *,const RECT *);
 LRESULT (CDECL *pWindowMessage)(HWND,UINT,WPARAM,LPARAM);
 #endif
-void   (CDECL *driver_WindowPosChanging)(HWND,HWND,UINT,const RECT *,const RECT *,RECT *,struct window_surface**);
+void   (CDECL *driver_WindowPosChanging)(HWND,HWND,UINT,const RECT *,const RECT *,RECT *,struct window_surface**,RECT *,void **);
 void   (CDECL *driver_WindowPosChanged)(HWND,HWND,UINT,const RECT *,const RECT *,const RECT *,const RECT *,struct window_surface*);
 #if 0
 /* system parameters */
@@ -1180,12 +1180,15 @@ static void process_desktop_ioctls(void)
             struct win32u_window_pos_changing_input in;
             struct win32u_window_pos_changing_output out;
             struct window_surface *surface = NULL;
+            void *driver_handle;
             if (in_size != sizeof(in)) status = STATUS_INVALID_PARAMETER;
             else
             {
                 memcpy(&in, buf, sizeof(in));
                 driver_WindowPosChanging(UlongToHandle(in.hwnd), UlongToHandle(in.insert_after), in.swp_flags,
-                                         &in.window_rect, &in.client_rect, &out.visible_rect, &surface);
+                                         &in.window_rect, &in.client_rect, &out.visible_rect, &surface,
+                                         &out.screen_rect, &driver_handle);
+                out.unix_handle = (UINT_PTR)driver_handle;
                 if (surface) window_surface_release(surface);
                 memcpy(buf, &out, sizeof(out));
                 out_size = sizeof(out);

@@ -2116,7 +2116,8 @@ BOOL set_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags,
     }
     visible_rect = *window_rect;
     if (!(ret = USER_Driver->pWindowPosChanging( hwnd, insert_after, swp_flags,
-                                                 window_rect, client_rect, &visible_rect, &new_surface )))
+                                                 window_rect, client_rect, &visible_rect, &new_surface,
+                                                 NULL, NULL))
     {
         if (IsRectEmpty( window_rect )) visible_rect = *window_rect;
         else

@@ -75,6 +75,8 @@ struct win32u_window_pos_changing_input
 struct win32u_window_pos_changing_output
 {
     RECT   visible_rect;
+    RECT   screen_rect;
+    UINT64 unix_handle;
 };
 
 /* IOCTL_WIN32U_WINDOW_POS_CHANGED params */
