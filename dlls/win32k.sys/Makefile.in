@@ -1,6 +1,7 @@
 MODULE = win32k.sys
 
 C_SRCS = \
+	unix/x11.c \
 	win32k.c
 
 RC_SRCS = win32k.rc

@@ -16,33 +16,40 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#ifndef __WINE_WIN32K_UNIX_X11_H
+#define __WINE_WIN32K_UNIX_X11_H
+
+#ifndef __WINE_CONFIG_H
+# error You must include config.h to use this header
+#endif
+
+#include <assert.h>
 #include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
+#ifdef HAVE_UNISTD_H
+# include <unistd.h>
+#endif
 
-#include "windef.h"
-#include "winbase.h"
+#ifdef HAVE_X11_XLIB_H
+#include <X11/Xlib.h>
+#include <X11/Xresource.h>
+#include <X11/Xutil.h>
+#include <X11/Xatom.h>
+#endif
+
+#undef Status  /* avoid conflict with wintrnl.h */
+typedef int Status;
+
+#include "ntstatus.h"
+#define WIN32_NO_STATUS
+#include "winternl.h"
 #include "winnt.h"
+#include "winbase.h"
+#include "winuser.h"
+#include "wingdi.h"
 
+#include "wine/gdi_driver.h"
 #include "wine/debug.h"
 
-#include "unixlib.h"
-
-WINE_DEFAULT_DEBUG_CHANNEL(win32k);
-
-static struct unix_funcs *unix_funcs;
-
-BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
-{
-    TRACE("instance %p, reason %d, reserved %p\n", instance, reason, reserved);
-
-    switch(reason)
-    {
-    case DLL_PROCESS_ATTACH:
-        DisableThreadLibraryCalls(instance);
-        break;
-    case DLL_PROCESS_DETACH:
-        break;
-    }
-
-    if (__wine_init_unix_lib(instance, reason, NULL, &unix_funcs)) return FALSE;
-    return TRUE;
-}
+#endif /* __WINE_WIN32K_UNIX_X11_H */

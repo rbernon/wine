@@ -16,33 +16,27 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include <stdarg.h>
+#include "config.h"
+#include "wine/port.h"
 
-#include "windef.h"
-#include "winbase.h"
-#include "winnt.h"
-
-#include "wine/debug.h"
-
+#include "x11.h"
 #include "unixlib.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(win32k);
 
-static struct unix_funcs *unix_funcs;
+static struct unix_funcs unix_funcs = {
+};
 
-BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
+NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out )
 {
-    TRACE("instance %p, reason %d, reserved %p\n", instance, reason, reserved);
+    TRACE("module %p, reason %x, ptr_in %p, ptr_out %p\n", module, reason, ptr_in, ptr_out);
 
-    switch(reason)
+    switch (reason)
     {
-    case DLL_PROCESS_ATTACH:
-        DisableThreadLibraryCalls(instance);
-        break;
-    case DLL_PROCESS_DETACH:
-        break;
+    case DLL_PROCESS_ATTACH: break;
+    case DLL_PROCESS_DETACH: break;
     }
 
-    if (__wine_init_unix_lib(instance, reason, NULL, &unix_funcs)) return FALSE;
-    return TRUE;
+    *(void **)ptr_out = &unix_funcs;
+    return STATUS_SUCCESS;
 }
