@@ -35,6 +35,49 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual )
     return 0;
 }
 
+#ifdef SONAME_LIBCAIRO
+
+#define MAKE_FUNCPTR(f) typeof(f) *p_##f;
+MAKE_FUNCPTR(cairo_xlib_surface_create)
+#undef MAKE_FUNCPTR
+
+static BOOL init_cairo(void)
+{
+    void *libcairo;
+
+    if (!(libcairo = dlopen(SONAME_LIBCAIRO, RTLD_NOW)))
+    {
+        ERR("dlopen(%s, RTLD_NOW) failed!\n", SONAME_LIBCAIRO);
+        return FALSE;
+    }
+
+#define LOAD_FUNCPTR(f) \
+    if ((p_##f = dlsym(libcairo, #f)) == NULL) \
+    { \
+        ERR("dlsym(%s, %s) failed!\n", SONAME_LIBCAIRO, #f); \
+        goto error; \
+    }
+
+    LOAD_FUNCPTR(cairo_xlib_surface_create)
+#undef LOAD_FUNCPTR
+
+    return TRUE;
+
+error:
+    dlclose(libcairo);
+    return FALSE;
+}
+
+#else
+
+static BOOL init_cairo(void)
+{
+    ERR("Cairo 2D support not compiled in!\n");
+    return FALSE;
+}
+
+#endif /* defined(SONAME_LIBCAIRO) */
+
 #ifdef SONAME_LIBXCOMPOSITE
 
 #define MAKE_FUNCPTR(f) typeof(f) * p##f;
@@ -170,6 +213,7 @@ static BOOL init_xlib(void)
     }
 
     if (!init_xcomposite(display)) goto error;
+    if (!init_cairo()) goto error;
 
     gdi_display = display;
     root_window = DefaultRootWindow( display );

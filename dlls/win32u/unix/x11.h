@@ -42,6 +42,16 @@
 #include <X11/extensions/Xcomposite.h>
 #endif
 
+#ifdef HAVE_CAIRO_CAIRO_H
+#include <cairo/cairo.h>
+#endif
+#ifdef HAVE_CAIRO_CAIRO_XLIB_H
+#include <cairo/cairo-xlib.h>
+#endif
+#ifdef HAVE_CAIRO_CAIRO_XLIB_XRENDER_H
+#include <cairo/cairo-xlib-xrender.h>
+#endif
+
 #undef Status  /* avoid conflict with wintrnl.h */
 typedef int Status;
 
@@ -85,6 +95,12 @@ MAKE_FUNCPTR(XCompositeRedirectWindow)
 MAKE_FUNCPTR(XCompositeUnredirectSubwindows)
 MAKE_FUNCPTR(XCompositeUnredirectWindow)
 MAKE_FUNCPTR(XCompositeVersion)
+#undef MAKE_FUNCPTR
+#endif
+
+#ifdef HAVE_CAIRO_CAIRO_XLIB_H
+#define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(cairo_xlib_surface_create)
 #undef MAKE_FUNCPTR
 #endif
 
