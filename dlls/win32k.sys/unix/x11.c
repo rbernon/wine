@@ -20,6 +20,7 @@
 #include "wine/port.h"
 
 #include "x11.h"
+#include "x11drv.h"
 #include "unixlib.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(win32k);
@@ -27,13 +28,18 @@ WINE_DEFAULT_DEBUG_CHANNEL(win32k);
 static struct unix_funcs unix_funcs = {
 };
 
+extern BOOL process_attach(void) DECLSPEC_HIDDEN;
+
 NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out )
 {
     TRACE("module %p, reason %x, ptr_in %p, ptr_out %p\n", module, reason, ptr_in, ptr_out);
 
     switch (reason)
     {
-    case DLL_PROCESS_ATTACH: break;
+    case DLL_PROCESS_ATTACH:
+        x11drv_module = module;
+        if (!process_attach()) return STATUS_DLL_NOT_FOUND;
+        break;
     case DLL_PROCESS_DETACH: break;
     }
 

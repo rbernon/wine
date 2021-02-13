@@ -672,7 +672,7 @@ static void init_visuals( Display *display, int screen )
 /***********************************************************************
  *           X11DRV process initialisation routine
  */
-static BOOL process_attach(void)
+BOOL process_attach(void)
 {
     Display *display;
     void *libx11 = dlopen( SONAME_LIBX11, RTLD_NOW|RTLD_GLOBAL );
@@ -829,6 +829,7 @@ struct x11drv_thread_data *x11drv_init_thread_data(void)
 }
 
 
+#if !defined(WIN32K_SOURCE)
 /***********************************************************************
  *           X11DRV initialisation routine
  */
@@ -846,6 +847,7 @@ BOOL WINAPI DllMain( HINSTANCE hinst, DWORD reason, LPVOID reserved )
     }
     return ret;
 }
+#endif /* !defined(WIN32K_SOURCE) */
 
 
 /***********************************************************************
