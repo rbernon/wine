@@ -45,7 +45,9 @@ typedef int Status;
 #define WIN32_NO_STATUS
 #include "winternl.h"
 #include "winnt.h"
+#include "wingdi.h"
 
+#include "wine/gdi_driver.h"
 #include "wine/debug.h"
 
 #ifdef HAVE_X11_XLIB_H
@@ -54,5 +56,7 @@ MAKE_FUNCPTR(XInitThreads)
 MAKE_FUNCPTR(XOpenDisplay)
 #undef MAKE_FUNCPTR
 #endif
+
+extern struct window_surface* CDECL x11_create_window_surface(void) DECLSPEC_HIDDEN;
 
 #endif

@@ -1,7 +1,5 @@
 /*
- * Win32u Unix interface
- *
- * Copyright (C) 2021 Rémi Bernon for CodeWeavers
+ * Copyright 2021 Rémi Bernon for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,19 +16,12 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#ifndef __WIN32U_UNIXLIB_H
-#define __WIN32U_UNIXLIB_H
+#include "config.h"
+#include "wine/port.h"
 
-#include "windef.h"
-#include "wingdi.h"
+#include "x11.h"
 
-#include "wine/gdi_driver.h"
-
-struct unix_funcs
+struct window_surface* CDECL x11_create_window_surface(void)
 {
-    struct window_surface* (CDECL *create_window_surface)(void);
-};
-
-extern NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out ) DECLSPEC_HIDDEN;
-
-#endif /* __WIN32U_UNIXLIB_H */
+    return NULL;
+}
