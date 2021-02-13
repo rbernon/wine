@@ -22,13 +22,106 @@
 #include "x11.h"
 #include "unixlib.h"
 
+Display *gdi_display;
+Window root_window;
+XVisualInfo default_visual = { 0 };
+BOOL usexcomposite = TRUE;
+
 WINE_DEFAULT_DEBUG_CHANNEL(win32u);
+
+Window create_client_window( HWND hwnd, const XVisualInfo *visual )
+{
+    FIXME("stub!\n");
+    return 0;
+}
+
+#ifdef SONAME_LIBXCOMPOSITE
+
+#define MAKE_FUNCPTR(f) typeof(f) * p##f;
+MAKE_FUNCPTR(XCompositeCreateRegionFromBorderClip)
+MAKE_FUNCPTR(XCompositeNameWindowPixmap)
+MAKE_FUNCPTR(XCompositeQueryExtension)
+MAKE_FUNCPTR(XCompositeQueryVersion)
+MAKE_FUNCPTR(XCompositeRedirectSubwindows)
+MAKE_FUNCPTR(XCompositeRedirectWindow)
+MAKE_FUNCPTR(XCompositeUnredirectSubwindows)
+MAKE_FUNCPTR(XCompositeUnredirectWindow)
+#undef MAKE_FUNCPTR
+
+static BOOL init_xcomposite(Display *display)
+{
+    void *xcomposite_handle;
+    int event_base, error_base, major_version = 0, minor_version = 4;
+
+    if (!(xcomposite_handle = dlopen(SONAME_LIBXCOMPOSITE, RTLD_NOW)))
+    {
+        ERR("dlopen(%s, RTLD_NOW) failed!\n", SONAME_LIBXCOMPOSITE);
+        return FALSE;
+    }
+
+#define LOAD_FUNCPTR(f) \
+    if ((p##f = dlsym(xcomposite_handle, #f)) == NULL) \
+    { \
+        ERR("dlsym(%s, %s) failed!\n", SONAME_LIBXCOMPOSITE, #f); \
+        goto error; \
+    }
+
+    LOAD_FUNCPTR(XCompositeCreateRegionFromBorderClip)
+    LOAD_FUNCPTR(XCompositeNameWindowPixmap)
+    LOAD_FUNCPTR(XCompositeQueryExtension)
+    LOAD_FUNCPTR(XCompositeQueryVersion)
+    LOAD_FUNCPTR(XCompositeRedirectSubwindows)
+    LOAD_FUNCPTR(XCompositeRedirectWindow)
+    LOAD_FUNCPTR(XCompositeUnredirectSubwindows)
+    LOAD_FUNCPTR(XCompositeUnredirectWindow)
+#undef LOAD_FUNCPTR
+
+    if (!pXCompositeQueryExtension(display, &event_base, &error_base))
+    {
+        ERR("XCompositeQueryExtension(%p, %p, %p) failed!\n", display, &event_base, &error_base);
+        goto error;
+    }
+
+    if (!pXCompositeQueryVersion(display, &major_version, &minor_version))
+    {
+        ERR("XCompositeQueryVersion(%p, %d, %d) failed!\n", display, major_version, minor_version);
+        goto error;
+    }
+
+    TRACE("event_base %d, error_base %d, version %d.%d.\n", event_base, error_base, major_version, minor_version);
+    return TRUE;
+
+error:
+    dlclose(xcomposite_handle);
+    return FALSE;
+}
+
+#else
+
+static BOOL init_xcomposite(Display *display)
+{
+    ERR("XComposite support not compiled in!\n");
+    return FALSE;
+}
+
+#endif /* defined(SONAME_LIBXCOMPOSITE) */
 
 #ifdef SONAME_LIBX11
 
 #define MAKE_FUNCPTR(f) typeof(f) * p##f;
+MAKE_FUNCPTR(XCreateColormap)
+MAKE_FUNCPTR(XCreatePixmap)
+MAKE_FUNCPTR(XCreateWindow)
+MAKE_FUNCPTR(XDestroyWindow)
+MAKE_FUNCPTR(XFlush)
+MAKE_FUNCPTR(XFree)
+MAKE_FUNCPTR(XFreeColormap)
+MAKE_FUNCPTR(XFreePixmap)
 MAKE_FUNCPTR(XInitThreads)
+MAKE_FUNCPTR(XMapWindow)
 MAKE_FUNCPTR(XOpenDisplay)
+MAKE_FUNCPTR(XQueryExtension)
+MAKE_FUNCPTR(XSync)
 #undef MAKE_FUNCPTR
 
 static BOOL init_xlib(void)
@@ -49,8 +142,19 @@ static BOOL init_xlib(void)
         goto error; \
     }
 
+    LOAD_FUNCPTR(XCreateColormap)
+    LOAD_FUNCPTR(XCreatePixmap)
+    LOAD_FUNCPTR(XCreateWindow)
+    LOAD_FUNCPTR(XDestroyWindow)
+    LOAD_FUNCPTR(XFlush)
+    LOAD_FUNCPTR(XFree)
+    LOAD_FUNCPTR(XFreeColormap)
+    LOAD_FUNCPTR(XFreePixmap)
     LOAD_FUNCPTR(XInitThreads)
+    LOAD_FUNCPTR(XMapWindow)
     LOAD_FUNCPTR(XOpenDisplay)
+    LOAD_FUNCPTR(XQueryExtension)
+    LOAD_FUNCPTR(XSync)
 #undef LOAD_FUNCPTR
 
     if (!pXInitThreads())
@@ -64,6 +168,11 @@ static BOOL init_xlib(void)
         ERR("XOpenDisplay(NULL) failed!");
         goto error;
     }
+
+    if (!init_xcomposite(display)) goto error;
+
+    gdi_display = display;
+    root_window = DefaultRootWindow( display );
 
     return TRUE;
 

@@ -38,6 +38,10 @@
 #include <X11/Xatom.h>
 #endif
 
+#ifdef HAVE_X11_EXTENSIONS_XCOMPOSITE_H
+#include <X11/extensions/Xcomposite.h>
+#endif
+
 #undef Status  /* avoid conflict with wintrnl.h */
 typedef int Status;
 
@@ -52,10 +56,72 @@ typedef int Status;
 
 #ifdef HAVE_X11_XLIB_H
 #define MAKE_FUNCPTR(f) extern typeof(f) * p##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(XCreateColormap)
+MAKE_FUNCPTR(XCreatePixmap)
+MAKE_FUNCPTR(XCreateWindow)
+MAKE_FUNCPTR(XDestroyWindow)
+MAKE_FUNCPTR(XFlush)
+MAKE_FUNCPTR(XFree)
+MAKE_FUNCPTR(XFreeColormap)
+MAKE_FUNCPTR(XFreePixmap)
 MAKE_FUNCPTR(XInitThreads)
+MAKE_FUNCPTR(XMapWindow)
 MAKE_FUNCPTR(XOpenDisplay)
+MAKE_FUNCPTR(XQueryExtension)
+MAKE_FUNCPTR(XSync)
 #undef MAKE_FUNCPTR
 #endif
+
+#ifdef HAVE_X11_EXTENSIONS_XCOMPOSITE_H
+#define MAKE_FUNCPTR(f) extern typeof(f) * p##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(XCompositeCreateRegionFromBorderClip)
+MAKE_FUNCPTR(XCompositeNameWindowPixmap)
+MAKE_FUNCPTR(XCompositeQueryExtension)
+MAKE_FUNCPTR(XCompositeQueryVersion)
+MAKE_FUNCPTR(XCompositeRedirectSubwindows)
+MAKE_FUNCPTR(XCompositeRedirectWindow)
+MAKE_FUNCPTR(XCompositeUnredirectSubwindows)
+MAKE_FUNCPTR(XCompositeUnredirectWindow)
+MAKE_FUNCPTR(XCompositeVersion)
+#undef MAKE_FUNCPTR
+#endif
+
+extern Display *gdi_display DECLSPEC_HIDDEN;
+extern XVisualInfo default_visual DECLSPEC_HIDDEN;
+extern BOOL usexcomposite DECLSPEC_HIDDEN;
+extern Window root_window DECLSPEC_HIDDEN;
+
+typedef int (*x11drv_error_callback)( Display *display, XErrorEvent *event, void *arg );
+extern void X11DRV_expect_error( Display *display, x11drv_error_callback callback, void *arg ) DECLSPEC_HIDDEN;
+extern int X11DRV_check_error(void) DECLSPEC_HIDDEN;
+
+extern Window create_client_window( HWND hwnd, const XVisualInfo *visual ) DECLSPEC_HIDDEN;
+extern void destroy_gl_drawable( HWND hwnd ) DECLSPEC_HIDDEN;
+
+#define X11DRV_ESCAPE 6789
+enum x11drv_escape_codes
+{
+    X11DRV_SET_DRAWABLE,     /* set current drawable for a DC */
+    X11DRV_GET_DRAWABLE,     /* get current drawable for a DC */
+    X11DRV_START_EXPOSURES,  /* start graphics exposures */
+    X11DRV_END_EXPOSURES,    /* end graphics exposures */
+    X11DRV_FLUSH_GL_DRAWABLE /* flush changes made to the gl drawable */
+};
+
+struct x11drv_escape_set_drawable
+{
+    enum x11drv_escape_codes code;         /* escape code (X11DRV_SET_DRAWABLE) */
+    Drawable                 drawable;     /* X drawable */
+    int                      mode;         /* ClipByChildren or IncludeInferiors */
+    RECT                     dc_rect;      /* DC rectangle relative to drawable */
+};
+
+struct x11drv_escape_flush_gl_drawable
+{
+    enum x11drv_escape_codes code;         /* escape code (X11DRV_FLUSH_GL_DRAWABLE) */
+    Drawable                 gl_drawable;  /* GL drawable */
+    BOOL                     flush;        /* flush X11 before copying */
+};
 
 extern struct window_surface* CDECL x11_create_window_surface(void) DECLSPEC_HIDDEN;
 
