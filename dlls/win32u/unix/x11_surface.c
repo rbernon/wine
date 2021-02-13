@@ -30,6 +30,8 @@ struct x11_window_surface
     struct window_surface base;
     HWND hwnd;
     Window window;
+    cairo_surface_t *window_surface;
+    cairo_surface_t *image_surface;
 };
 
 static struct x11_window_surface *impl_from_window_surface( struct window_surface *base )
@@ -92,6 +94,8 @@ static void CDECL x11_window_surface_destroy( struct window_surface *base )
 
     FIXME("base %p stub!\n", base);
 
+    p_cairo_surface_unmap_image( impl->window_surface, impl->image_surface );
+    p_cairo_surface_destroy( impl->window_surface );
     RtlFreeHeap(GetProcessHeap(), 0, impl);
 }
 
@@ -120,9 +124,19 @@ static inline void get_surface_rect( const RECT *screen_rect, const RECT *visibl
     }
 }
 
+static inline void cairo_rectangle_int_from_rect( const RECT *rect, cairo_rectangle_int_t *cairo )
+{
+    cairo->x = rect->left;
+    cairo->y = rect->top;
+    cairo->width = rect->right - rect->left;
+    cairo->height = rect->bottom - rect->top;
+}
+
 struct window_surface* CDECL x11_create_window_surface(const RECT *screen_rect, const RECT *visible_rect, HWND hwnd, UINT64 unix_handle)
 {
     struct x11_window_surface *impl;
+    cairo_rectangle_int_t cairo_rect;
+    XWindowAttributes attr;
 
     TRACE("screen_rect %s, visible_rect %s, hwnd %p, unix_handle %lx.\n", wine_dbgstr_rect(screen_rect), wine_dbgstr_rect(visible_rect), hwnd, (Window)unix_handle);
 
@@ -132,8 +146,15 @@ struct window_surface* CDECL x11_create_window_surface(const RECT *screen_rect, 
     impl->base.ref = 1;
     list_init(&impl->base.entry);
     get_surface_rect(screen_rect, visible_rect, &impl->base.rect);
+    cairo_rectangle_int_from_rect(&impl->base.rect, &cairo_rect);
     impl->hwnd = hwnd;
     impl->window = unix_handle;
+
+    pXGetWindowAttributes(gdi_display, impl->window, &attr);
+    impl->window_surface = p_cairo_xlib_surface_create( gdi_display, impl->window, attr.visual, attr.width, attr.height );
+    impl->image_surface = p_cairo_surface_map_to_image( impl->window_surface, &cairo_rect );
+
+    TRACE("created surface %p.\n", &impl->base);
 
     return &impl->base;
 }

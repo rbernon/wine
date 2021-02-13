@@ -39,6 +39,9 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual )
 
 #define MAKE_FUNCPTR(f) typeof(f) *p_##f;
 MAKE_FUNCPTR(cairo_xlib_surface_create)
+MAKE_FUNCPTR(cairo_surface_map_to_image)
+MAKE_FUNCPTR(cairo_surface_unmap_image)
+MAKE_FUNCPTR(cairo_surface_destroy)
 #undef MAKE_FUNCPTR
 
 static BOOL init_cairo(void)
@@ -59,6 +62,9 @@ static BOOL init_cairo(void)
     }
 
     LOAD_FUNCPTR(cairo_xlib_surface_create)
+    LOAD_FUNCPTR(cairo_surface_map_to_image)
+    LOAD_FUNCPTR(cairo_surface_unmap_image)
+    LOAD_FUNCPTR(cairo_surface_destroy)
 #undef LOAD_FUNCPTR
 
     return TRUE;

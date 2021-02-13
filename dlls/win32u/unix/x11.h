@@ -102,6 +102,9 @@ MAKE_FUNCPTR(XCompositeVersion)
 #ifdef HAVE_CAIRO_CAIRO_XLIB_H
 #define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
 MAKE_FUNCPTR(cairo_xlib_surface_create)
+MAKE_FUNCPTR(cairo_surface_map_to_image)
+MAKE_FUNCPTR(cairo_surface_unmap_image)
+MAKE_FUNCPTR(cairo_surface_destroy)
 #undef MAKE_FUNCPTR
 #endif
 
