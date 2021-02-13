@@ -120,7 +120,7 @@ void CDECL WIN32U_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
     TRACE("returned: visible_rect %s\n", wine_dbgstr_rect(&out.visible_rect));
 
     *visible_rect = out.visible_rect;
-    if (!*surface) *surface = unix_funcs->create_window_surface();
+    if (!*surface) *surface = unix_funcs->create_window_surface(visible_rect);
 }
 
 void CDECL WIN32U_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,

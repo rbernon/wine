@@ -49,6 +49,8 @@ typedef int Status;
 #define WIN32_NO_STATUS
 #include "winternl.h"
 #include "winnt.h"
+#include "winbase.h"
+#include "winuser.h"
 #include "wingdi.h"
 
 #include "wine/gdi_driver.h"
@@ -123,6 +125,6 @@ struct x11drv_escape_flush_gl_drawable
     BOOL                     flush;        /* flush X11 before copying */
 };
 
-extern struct window_surface* CDECL x11_create_window_surface(void) DECLSPEC_HIDDEN;
+extern struct window_surface* CDECL x11_create_window_surface(const RECT *visible_rect) DECLSPEC_HIDDEN;
 
 #endif

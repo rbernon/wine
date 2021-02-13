@@ -101,17 +101,28 @@ static const struct window_surface_funcs x11_window_surface_funcs =
     x11_window_surface_destroy
 };
 
-struct window_surface* CDECL x11_create_window_surface(void)
+static inline void get_surface_rect( const RECT *visible_rect, RECT *surface_rect )
+{
+    *surface_rect = *visible_rect;
+    OffsetRect( surface_rect, -visible_rect->left, -visible_rect->top );
+    surface_rect->left &= ~31;
+    surface_rect->top  &= ~31;
+    surface_rect->right  = max( surface_rect->left + 32, (surface_rect->right + 31) & ~31 );
+    surface_rect->bottom = max( surface_rect->top + 32, (surface_rect->bottom + 31) & ~31 );
+}
+
+struct window_surface* CDECL x11_create_window_surface(const RECT *visible_rect)
 {
     struct x11_window_surface *impl;
 
-    TRACE("\n");
+    TRACE("visible_rect %s.\n", wine_dbgstr_rect(visible_rect));
 
     if (!(impl = RtlAllocateHeap( GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*impl) ))) return NULL;
 
     impl->base.funcs = &x11_window_surface_funcs;
     impl->base.ref = 1;
     list_init(&impl->base.entry);
+    get_surface_rect(visible_rect, &impl->base.rect);
 
     return &impl->base;
 }
