@@ -776,8 +776,8 @@ static void copy_bits_from_surface( HWND hwnd, struct window_surface *surface,
     HRGN rgn = get_update_region( hwnd, &flags, NULL );
     HDC hdc = GetDCEx( hwnd, rgn, DCX_CACHE | DCX_WINDOW | DCX_EXCLUDERGN );
 
-    bits = surface->funcs->get_info( surface, info );
     surface->funcs->lock( surface );
+    bits = surface->funcs->get_info( surface, info );
     SetDIBitsToDevice( hdc, dst->left, dst->top, dst->right - dst->left, dst->bottom - dst->top,
                        src->left - surface->rect.left, surface->rect.bottom - src->bottom,
                        0, surface->rect.bottom - surface->rect.top,
