@@ -30,6 +30,14 @@ WINE_DEFAULT_DEBUG_CHANNEL(win32k);
 
 static struct unix_funcs *unix_funcs;
 
+DWORD CDECL win32k_MsgWaitForMultipleObjectsEx( DWORD count, const HANDLE *handles, DWORD timeout,
+                                                DWORD mask, DWORD flags )
+{
+    TRACE("count %u, handles %p, timeout %u, mask %u, flags %u.\n", count, handles, timeout, mask, flags);
+
+    return unix_funcs->msg_wait_for_multiple_objects(count, handles, timeout, mask, flags);
+}
+
 BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
 {
     TRACE("instance %p, reason %d, reserved %p\n", instance, reason, reserved);

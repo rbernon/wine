@@ -26,6 +26,7 @@
 WINE_DEFAULT_DEBUG_CHANNEL(win32k);
 
 static struct unix_funcs unix_funcs = {
+    X11DRV_MsgWaitForMultipleObjectsEx,
 };
 
 extern BOOL process_attach(void) DECLSPEC_HIDDEN;

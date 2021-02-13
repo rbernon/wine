@@ -26,6 +26,8 @@
 
 struct unix_funcs
 {
+    DWORD (CDECL *msg_wait_for_multiple_objects)( DWORD count, const HANDLE *handles, DWORD timeout,
+                                                  DWORD mask, DWORD flags );
 };
 
 extern NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out ) DECLSPEC_HIDDEN;
