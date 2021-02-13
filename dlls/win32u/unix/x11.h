@@ -38,6 +38,10 @@
 #include <X11/Xatom.h>
 #endif
 
+#ifdef HAVE_X11_EXTENSIONS_XCOMPOSITE_H
+#include <X11/extensions/Xcomposite.h>
+#endif
+
 #ifdef HAVE_CAIRO_CAIRO_H
 #include <cairo/cairo.h>
 #endif
@@ -78,6 +82,20 @@ MAKE_FUNCPTR(XMapWindow)
 MAKE_FUNCPTR(XOpenDisplay)
 MAKE_FUNCPTR(XQueryExtension)
 MAKE_FUNCPTR(XSync)
+#undef MAKE_FUNCPTR
+#endif
+
+#ifdef HAVE_X11_EXTENSIONS_XCOMPOSITE_H
+#define MAKE_FUNCPTR(f) extern typeof(f) * p##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(XCompositeCreateRegionFromBorderClip)
+MAKE_FUNCPTR(XCompositeNameWindowPixmap)
+MAKE_FUNCPTR(XCompositeQueryExtension)
+MAKE_FUNCPTR(XCompositeQueryVersion)
+MAKE_FUNCPTR(XCompositeRedirectSubwindows)
+MAKE_FUNCPTR(XCompositeRedirectWindow)
+MAKE_FUNCPTR(XCompositeUnredirectSubwindows)
+MAKE_FUNCPTR(XCompositeUnredirectWindow)
+MAKE_FUNCPTR(XCompositeVersion)
 #undef MAKE_FUNCPTR
 #endif
 
