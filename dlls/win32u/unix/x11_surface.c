@@ -23,13 +23,18 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(win32u);
 
+static const struct window_surface_funcs x11_window_surface_funcs;
+
 struct x11_window_surface
 {
     struct window_surface base;
+    HWND hwnd;
+    Window window;
 };
 
 static struct x11_window_surface *impl_from_window_surface( struct window_surface *base )
 {
+    if (base->funcs != &x11_window_surface_funcs) return NULL;
     return CONTAINING_RECORD(base, struct x11_window_surface, base);
 }
 
@@ -101,41 +106,48 @@ static const struct window_surface_funcs x11_window_surface_funcs =
     x11_window_surface_destroy
 };
 
-static inline void get_surface_rect( const RECT *visible_rect, RECT *surface_rect )
+static inline void get_surface_rect( const RECT *screen_rect, const RECT *visible_rect, RECT *surface_rect )
 {
-    *surface_rect = *visible_rect;
-    OffsetRect( surface_rect, -visible_rect->left, -visible_rect->top );
-    surface_rect->left &= ~31;
-    surface_rect->top  &= ~31;
-    surface_rect->right  = max( surface_rect->left + 32, (surface_rect->right + 31) & ~31 );
-    surface_rect->bottom = max( surface_rect->top + 32, (surface_rect->bottom + 31) & ~31 );
+    *surface_rect = *screen_rect;
+    if (!IntersectRect( surface_rect, surface_rect, visible_rect )) SetRect(surface_rect, 0, 0, 0, 0);
+    else
+    {
+        OffsetRect( surface_rect, -visible_rect->left, -visible_rect->top );
+        surface_rect->left &= ~31;
+        surface_rect->top  &= ~31;
+        surface_rect->right  = max( surface_rect->left + 32, (surface_rect->right + 31) & ~31 );
+        surface_rect->bottom = max( surface_rect->top + 32, (surface_rect->bottom + 31) & ~31 );
+    }
 }
 
-struct window_surface* CDECL x11_create_window_surface(const RECT *visible_rect)
+struct window_surface* CDECL x11_create_window_surface(const RECT *screen_rect, const RECT *visible_rect, HWND hwnd, UINT64 unix_handle)
 {
     struct x11_window_surface *impl;
 
-    TRACE("visible_rect %s.\n", wine_dbgstr_rect(visible_rect));
+    TRACE("screen_rect %s, visible_rect %s, hwnd %p, unix_handle %lx.\n", wine_dbgstr_rect(screen_rect), wine_dbgstr_rect(visible_rect), hwnd, (Window)unix_handle);
 
     if (!(impl = RtlAllocateHeap( GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*impl) ))) return NULL;
 
     impl->base.funcs = &x11_window_surface_funcs;
     impl->base.ref = 1;
     list_init(&impl->base.entry);
-    get_surface_rect(visible_rect, &impl->base.rect);
+    get_surface_rect(screen_rect, visible_rect, &impl->base.rect);
+    impl->hwnd = hwnd;
+    impl->window = unix_handle;
 
     return &impl->base;
 }
 
-struct window_surface *CDECL x11_resize_window_surface(struct window_surface *base, const RECT *visible_rect)
+struct window_surface *CDECL x11_resize_window_surface(struct window_surface *base, const RECT *screen_rect, const RECT *visible_rect, HWND hwnd, UINT64 unix_handle)
 {
+    struct x11_window_surface *impl = impl_from_window_surface( base );
     RECT surface_rect;
 
-    TRACE("base %p, visible_rect %s.\n", base, wine_dbgstr_rect(visible_rect));
+    TRACE("base %p, screen_rect %s, visible_rect %s, hwnd %p, unix_handle %lx.\n", base, wine_dbgstr_rect(screen_rect), wine_dbgstr_rect(visible_rect), hwnd, (Window)unix_handle);
 
-    get_surface_rect(visible_rect, &surface_rect);
-    if (base->funcs == &x11_window_surface_funcs && EqualRect(&surface_rect, &base->rect)) return base;
+    get_surface_rect(screen_rect, visible_rect, &surface_rect);
+    if (impl && impl->hwnd == hwnd && impl->window == unix_handle && EqualRect(&surface_rect, &base->rect)) return base;
 
     window_surface_release(base);
-    return x11_create_window_surface(visible_rect);
+    return x11_create_window_surface(screen_rect, visible_rect, hwnd, unix_handle);
 }
