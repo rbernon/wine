@@ -105,6 +105,10 @@ MAKE_FUNCPTR(cairo_xlib_surface_create)
 MAKE_FUNCPTR(cairo_surface_map_to_image)
 MAKE_FUNCPTR(cairo_surface_unmap_image)
 MAKE_FUNCPTR(cairo_surface_destroy)
+MAKE_FUNCPTR(cairo_image_surface_get_data)
+MAKE_FUNCPTR(cairo_image_surface_get_width)
+MAKE_FUNCPTR(cairo_image_surface_get_height)
+MAKE_FUNCPTR(cairo_image_surface_get_stride)
 #undef MAKE_FUNCPTR
 #endif
 

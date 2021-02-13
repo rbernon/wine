@@ -52,23 +52,26 @@ static void CDECL x11_window_surface_unlock( struct window_surface *base )
 
 static void *CDECL x11_window_surface_get_info( struct window_surface *base, BITMAPINFO *info )
 {
+    struct x11_window_surface *impl = impl_from_window_surface( base );
     static DWORD dummy_data;
 
     FIXME("base %p stub!\n", base);
 
     info->bmiHeader.biSize          = sizeof( info->bmiHeader );
-    info->bmiHeader.biWidth         = base->rect.right;
-    info->bmiHeader.biHeight        = base->rect.bottom;
+    info->bmiHeader.biWidth         = p_cairo_image_surface_get_width( impl->image_surface );
+    info->bmiHeader.biHeight        = p_cairo_image_surface_get_height( impl->image_surface );
     info->bmiHeader.biPlanes        = 1;
     info->bmiHeader.biBitCount      = 32;
     info->bmiHeader.biCompression   = BI_RGB;
-    info->bmiHeader.biSizeImage     = 0;
+    info->bmiHeader.biSizeImage     = p_cairo_image_surface_get_height( impl->image_surface ) * p_cairo_image_surface_get_stride( impl->image_surface );
     info->bmiHeader.biXPelsPerMeter = 0;
     info->bmiHeader.biYPelsPerMeter = 0;
     info->bmiHeader.biClrUsed       = 0;
     info->bmiHeader.biClrImportant  = 0;
 
-    return &dummy_data;
+    TRACE("returning %p\n", &dummy_data);
+
+    return p_cairo_image_surface_get_data( impl->image_surface );
 }
 
 static RECT *CDECL x11_window_surface_get_bounds( struct window_surface *base )
