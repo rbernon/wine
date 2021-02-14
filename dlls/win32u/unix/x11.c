@@ -26,6 +26,98 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(win32u);
 
+#ifdef SONAME_LIBCAIRO
+
+#ifdef HAVE_CAIRO_CAIRO_H
+#define MAKE_FUNCPTR(f) typeof(f) *p_##f;
+MAKE_FUNCPTR(cairo_surface_create_similar_image)
+MAKE_FUNCPTR(cairo_surface_map_to_image)
+MAKE_FUNCPTR(cairo_surface_unmap_image)
+MAKE_FUNCPTR(cairo_surface_destroy)
+MAKE_FUNCPTR(cairo_surface_flush)
+MAKE_FUNCPTR(cairo_surface_write_to_png_stream)
+MAKE_FUNCPTR(cairo_surface_mark_dirty)
+MAKE_FUNCPTR(cairo_surface_mark_dirty_rectangle)
+MAKE_FUNCPTR(cairo_image_surface_get_data)
+MAKE_FUNCPTR(cairo_image_surface_get_width)
+MAKE_FUNCPTR(cairo_image_surface_get_height)
+MAKE_FUNCPTR(cairo_image_surface_get_stride)
+#undef MAKE_FUNCPTR
+#endif
+
+#ifdef HAVE_CAIRO_CAIRO_XLIB_H
+#define MAKE_FUNCPTR(f) typeof(f) *p_##f;
+MAKE_FUNCPTR(cairo_xlib_surface_create)
+MAKE_FUNCPTR(cairo_xlib_surface_set_drawable)
+MAKE_FUNCPTR(cairo_xlib_surface_set_size)
+#undef MAKE_FUNCPTR
+#endif
+
+#ifdef HAVE_CAIRO_CAIRO_XLIB_XRENDER_H
+#define MAKE_FUNCPTR(f) typeof(f) *p_##f;
+MAKE_FUNCPTR(cairo_xlib_surface_create_with_xrender_format)
+#undef MAKE_FUNCPTR
+#endif
+
+static BOOL init_cairo(void)
+{
+    void *libcairo;
+
+    if (!(libcairo = dlopen( SONAME_LIBCAIRO, RTLD_NOW )))
+    {
+        ERR( "dlopen(%s, RTLD_NOW) failed!\n", SONAME_LIBCAIRO );
+        return FALSE;
+    }
+
+#define LOAD_FUNCPTR( f )                                                                          \
+    if ((p_##f = dlsym( libcairo, #f )) == NULL)                                                   \
+    {                                                                                              \
+        ERR( "dlsym(%s, %s) failed!\n", SONAME_LIBCAIRO, #f );                                     \
+        goto error;                                                                                \
+    }
+
+#ifdef HAVE_CAIRO_CAIRO_H
+    LOAD_FUNCPTR(cairo_surface_create_similar_image)
+    LOAD_FUNCPTR(cairo_surface_map_to_image)
+    LOAD_FUNCPTR(cairo_surface_unmap_image)
+    LOAD_FUNCPTR(cairo_surface_destroy)
+    LOAD_FUNCPTR(cairo_surface_flush)
+    LOAD_FUNCPTR(cairo_surface_write_to_png_stream)
+    LOAD_FUNCPTR(cairo_surface_mark_dirty)
+    LOAD_FUNCPTR(cairo_surface_mark_dirty_rectangle)
+    LOAD_FUNCPTR(cairo_image_surface_get_data)
+    LOAD_FUNCPTR(cairo_image_surface_get_width)
+    LOAD_FUNCPTR(cairo_image_surface_get_height)
+    LOAD_FUNCPTR(cairo_image_surface_get_stride)
+#endif
+#ifdef HAVE_CAIRO_CAIRO_XLIB_H
+    LOAD_FUNCPTR(cairo_xlib_surface_create)
+    LOAD_FUNCPTR(cairo_xlib_surface_set_drawable)
+    LOAD_FUNCPTR(cairo_xlib_surface_set_size)
+#endif
+#ifdef HAVE_CAIRO_CAIRO_XLIB_XRENDER_H
+    LOAD_FUNCPTR(cairo_xlib_surface_create_with_xrender_format)
+#endif
+
+#undef LOAD_FUNCPTR
+
+    return TRUE;
+
+error:
+    dlclose( libcairo );
+    return FALSE;
+}
+
+#else
+
+static BOOL init_cairo(void)
+{
+    ERR( "Cairo 2D support not compiled in!\n" );
+    return FALSE;
+}
+
+#endif /* defined(SONAME_LIBCAIRO) */
+
 #ifdef SONAME_LIBX11
 
 #define MAKE_FUNCPTR(f) typeof(f) *p##f;
@@ -109,6 +201,7 @@ NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *p
     case DLL_PROCESS_ATTACH:
         x11drv_module = module;
         if (!x11drv_process_attach()) return STATUS_DLL_NOT_FOUND;
+        if (!init_cairo()) return STATUS_DLL_NOT_FOUND;
         if (!init_xlib()) return STATUS_DLL_NOT_FOUND;
         break;
     case DLL_PROCESS_DETACH: break;

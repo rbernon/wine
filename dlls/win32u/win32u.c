@@ -119,12 +119,18 @@ void CDECL WIN32U_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
     if (!desktop_ioctl( IOCTL_WIN32U_WINDOW_POS_CHANGING, &in, sizeof(in), &out, sizeof(out), NULL ))
         return;
 
-    TRACE( "returned: visible_rect %s\n", wine_dbgstr_rect( &out.visible_rect ) );
+    TRACE( "screen_rect %s, visible_rect %s, unix_handle %lx.\n", wine_dbgstr_rect( &out.screen_rect ),
+           wine_dbgstr_rect( &out.visible_rect ), (long int)out.unix_handle );
 
-    if (!*surface)
-        *surface = unix_funcs->create_window_surface( &out.screen_rect, &out.visible_rect, hwnd, out.unix_handle );
-    else
-        *surface = unix_funcs->resize_window_surface( *surface, &out.screen_rect, &out.visible_rect, hwnd, out.unix_handle );
+    if (out.unix_handle)
+    {
+        if (!*surface)
+            *surface = unix_funcs->create_window_surface(
+                &out.screen_rect, &out.visible_rect, hwnd, out.unix_handle );
+        else
+            *surface = unix_funcs->resize_window_surface(
+                *surface, &out.screen_rect, &out.visible_rect, hwnd, out.unix_handle );
+    }
 
     *visible_rect = out.visible_rect;
     if (screen_rect) *screen_rect = out.screen_rect;

@@ -38,6 +38,16 @@
 #include <X11/Xatom.h>
 #endif
 
+#ifdef HAVE_CAIRO_CAIRO_H
+#include <cairo/cairo.h>
+#endif
+#ifdef HAVE_CAIRO_CAIRO_XLIB_H
+#include <cairo/cairo-xlib.h>
+#endif
+#ifdef HAVE_CAIRO_CAIRO_XLIB_XRENDER_H
+#include <cairo/cairo-xlib-xrender.h>
+#endif
+
 #undef Status /* avoid conflict with wintrnl.h */
 typedef int Status;
 
@@ -68,6 +78,37 @@ MAKE_FUNCPTR(XMapWindow)
 MAKE_FUNCPTR(XOpenDisplay)
 MAKE_FUNCPTR(XQueryExtension)
 MAKE_FUNCPTR(XSync)
+#undef MAKE_FUNCPTR
+#endif
+
+#ifdef HAVE_CAIRO_CAIRO_H
+#define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(cairo_surface_create_similar_image)
+MAKE_FUNCPTR(cairo_surface_map_to_image)
+MAKE_FUNCPTR(cairo_surface_unmap_image)
+MAKE_FUNCPTR(cairo_surface_destroy)
+MAKE_FUNCPTR(cairo_surface_flush)
+MAKE_FUNCPTR(cairo_surface_write_to_png_stream)
+MAKE_FUNCPTR(cairo_surface_mark_dirty)
+MAKE_FUNCPTR(cairo_surface_mark_dirty_rectangle)
+MAKE_FUNCPTR(cairo_image_surface_get_data)
+MAKE_FUNCPTR(cairo_image_surface_get_width)
+MAKE_FUNCPTR(cairo_image_surface_get_height)
+MAKE_FUNCPTR(cairo_image_surface_get_stride)
+#undef MAKE_FUNCPTR
+#endif
+
+#ifdef HAVE_CAIRO_CAIRO_XLIB_H
+#define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(cairo_xlib_surface_create)
+MAKE_FUNCPTR(cairo_xlib_surface_set_drawable)
+MAKE_FUNCPTR(cairo_xlib_surface_set_size)
+#undef MAKE_FUNCPTR
+#endif
+
+#ifdef HAVE_CAIRO_CAIRO_XLIB_XRENDER_H
+#define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(cairo_xlib_surface_create_with_xrender_format)
 #undef MAKE_FUNCPTR
 #endif
 
