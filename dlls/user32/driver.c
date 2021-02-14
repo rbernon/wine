@@ -45,10 +45,10 @@ static BOOL CDECL nodrv_CreateWindow( HWND hwnd );
 
 static BOOL load_desktop_driver( HWND hwnd, HMODULE *module )
 {
-    BOOL ret = FALSE;
+    BOOL ret = FALSE, in_desktop;
     HKEY hkey;
     DWORD size;
-    WCHAR path[MAX_PATH];
+    WCHAR path[MAX_PATH], *name;
     WCHAR key[ARRAY_SIZE(L"System\\CurrentControlSet\\Control\\Video\\{}\\0000") + 40];
     UINT guid_atom;
 
@@ -56,6 +56,7 @@ static BOOL load_desktop_driver( HWND hwnd, HMODULE *module )
 
     strcpy( driver_load_error, "The explorer process failed to start." );  /* default error */
     wait_graphics_driver_ready();
+    in_desktop = GetWindowThreadProcessId( hwnd, NULL ) == GetCurrentThreadId();
 
     guid_atom = HandleToULong( GetPropW( hwnd, L"__wine_display_device_guid" ));
     lstrcpyW( key, L"System\\CurrentControlSet\\Control\\Video\\{" );
@@ -65,6 +66,7 @@ static BOOL load_desktop_driver( HWND hwnd, HMODULE *module )
     size = sizeof(path);
     if (!RegQueryValueExW( hkey, L"GraphicsDriver", NULL, NULL, (BYTE *)path, &size ))
     {
+        if (!in_desktop && (name = wcsstr( path, L"win32k.sys" )) && !name[10]) wcscpy( name, L"win32u.dll" );
         if ((ret = !wcscmp( path, L"null" ))) *module = NULL;
         else ret = (*module = LoadLibraryW( path )) != NULL;
         if (!ret) ERR( "failed to load %s\n", debugstr_w(path) );
