@@ -380,7 +380,8 @@ static LRESULT CDECL nulldrv_WindowMessage( HWND hwnd, UINT msg, WPARAM wparam, 
 
 static BOOL CDECL nulldrv_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flags,
                                              const RECT *window_rect, const RECT *client_rect,
-                                             RECT *visible_rect, struct window_surface **surface )
+                                             RECT *visible_rect, struct window_surface **surface,
+                                             RECT *screen_rect, void **driver_handle )
 {
     return FALSE;
 }

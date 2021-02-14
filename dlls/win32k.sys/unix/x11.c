@@ -30,7 +30,8 @@ BOOL CDECL X11DRV_CreateWindow( HWND hwnd );
 void CDECL X11DRV_DestroyWindow( HWND hwnd );
 void CDECL X11DRV_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flags,
                                      const RECT *window_rect, const RECT *client_rect,
-                                     RECT *visible_rect, struct window_surface **surface );
+                                     RECT *visible_rect, struct window_surface **surface,
+                                     RECT *screen_rect, void **driver_handle );
 void CDECL X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags, const RECT *rectWindow,
                                     const RECT *rectClient, const RECT *visible_rect,
                                     const RECT *valid_rects, struct window_surface *surface );

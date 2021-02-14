@@ -105,13 +105,16 @@ static void process_desktop_ioctls(HDESK desktop)
             struct win32u_window_pos_changing_input in;
             struct win32u_window_pos_changing_output out;
             struct window_surface *surface = NULL;
+            void *driver_handle;
             if (in_size != sizeof(in)) status = STATUS_INVALID_PARAMETER;
             else
             {
                 memcpy( &in, buf, sizeof(in) );
                 unix_funcs->window_pos_changing( UlongToHandle(in.hwnd), UlongToHandle(in.insert_after),
                                                  in.swp_flags, &in.window_rect, &in.client_rect,
-                                                 &out.visible_rect, &surface );
+                                                 &out.visible_rect, &surface, &out.screen_rect,
+                                                 &driver_handle );
+                out.unix_handle = (UINT_PTR)driver_handle;
                 if (surface) window_surface_release( surface );
                 memcpy( buf, &out, sizeof(out) );
                 out_size = sizeof(out);

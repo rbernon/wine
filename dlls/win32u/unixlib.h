@@ -29,8 +29,11 @@
 
 struct unix_funcs
 {
-    struct window_surface *(CDECL *create_window_surface)(const RECT *visible_rect);
-    struct window_surface *(CDECL *resize_window_surface)(struct window_surface *base, const RECT *visible_rect);
+    struct window_surface *(CDECL *create_window_surface)(const RECT *screen_rect, const RECT *visible_rect,
+                                                          HWND hwnd, UINT64 unix_handle);
+    struct window_surface *(CDECL *resize_window_surface)(struct window_surface *base,
+                                                          const RECT *screen_rect, const RECT *visible_rect,
+                                                          HWND hwnd, UINT64 unix_handle);
 };
 
 extern NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in,

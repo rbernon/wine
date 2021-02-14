@@ -2391,7 +2391,7 @@ static inline BOOL get_surface_rect( const RECT *visible_rect, RECT *surface_rec
  */
 BOOL CDECL X11DRV_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flags,
                                      const RECT *window_rect, const RECT *client_rect, RECT *visible_rect,
-                                     struct window_surface **surface )
+                                     struct window_surface **surface, RECT *screen_rect, void **driver_handle )
 {
     struct x11drv_win_data *data = get_win_data( hwnd );
     RECT surface_rect;
@@ -2447,6 +2447,8 @@ BOOL CDECL X11DRV_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
     *surface = create_surface( data->whole_window, &data->vis, &surface_rect, key, FALSE );
 
 done:
+    if (screen_rect) *screen_rect = get_virtual_screen_rect();
+    if (driver_handle) *driver_handle = (void *)data->whole_window;
     release_win_data( data );
     return TRUE;
 }

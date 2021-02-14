@@ -32,7 +32,7 @@ struct unix_funcs
     void (CDECL *destroy_window)( HWND hwnd );
     void (CDECL *window_pos_changing)( HWND hwnd, HWND insert_after, UINT swp_flags,
                                      const RECT *window_rect, const RECT *client_rect, RECT *visible_rect,
-                                     struct window_surface **surface );
+                                     struct window_surface **surface, RECT *screen_rect, void **driver_handle );
     void (CDECL *window_pos_changed)( HWND hwnd, HWND insert_after, UINT swp_flags,
                                     const RECT *rectWindow, const RECT *rectClient,
                                     const RECT *visible_rect, const RECT *valid_rects,
