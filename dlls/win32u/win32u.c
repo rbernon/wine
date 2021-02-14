@@ -101,6 +101,10 @@ void CDECL WIN32U_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
 {
     struct win32u_window_pos_changing_input in;
     struct win32u_window_pos_changing_output out;
+    HWND parent;
+
+    if (!(parent = GetAncestor( hwnd, GA_PARENT ))) return;
+    if (parent != GetDesktopWindow() && !GetAncestor( parent, GA_PARENT )) return;
 
     TRACE("hwnd %p, insert_after %p, swp_flags %x, window_rect %s, client_rect %s, visible_rect %p, surface %p, screen_rect %p, driver_handle %p\n",
           hwnd, insert_after, swp_flags, wine_dbgstr_rect(window_rect), wine_dbgstr_rect(client_rect),
@@ -136,6 +140,10 @@ void CDECL WIN32U_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags
                                     struct window_surface *surface )
 {
     struct win32u_window_pos_changed_input in;
+    HWND parent;
+
+    if (!(parent = GetAncestor( hwnd, GA_PARENT ))) return;
+    if (parent != GetDesktopWindow() && !GetAncestor( parent, GA_PARENT )) return;
 
     TRACE("hwnd %p, insert_after %p, swp_flags %x, window_rect %s, client_rect %s, visible_rect %s, valid_rects %s, surface %p\n",
           hwnd, insert_after, swp_flags, wine_dbgstr_rect(window_rect), wine_dbgstr_rect(client_rect),
