@@ -22,9 +22,15 @@
 #define __WIN32U_UNIXLIB_H
 
 #include "winternl.h"
+#include "windef.h"
+#include "wingdi.h"
+
+#include "wine/gdi_driver.h"
 
 struct unix_funcs
 {
+    struct window_surface *(CDECL *create_window_surface)(const RECT *visible_rect);
+    struct window_surface *(CDECL *resize_window_surface)(struct window_surface *base, const RECT *visible_rect);
 };
 
 extern NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in,

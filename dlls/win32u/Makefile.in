@@ -24,6 +24,7 @@ C_SRCS = \
 	settings.c \
 	systray.c \
 	unix/x11.c \
+	unix/x11_surface.c \
 	vulkan.c \
 	win32u.c \
 	window.c \

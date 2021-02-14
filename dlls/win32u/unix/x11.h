@@ -71,4 +71,8 @@ MAKE_FUNCPTR(XSync)
 #undef MAKE_FUNCPTR
 #endif
 
+extern struct window_surface *CDECL x11_create_window_surface( const RECT *visible_rect ) DECLSPEC_HIDDEN;
+extern struct window_surface *CDECL x11_resize_window_surface( struct window_surface *base,
+                                                               const RECT *visible_rect ) DECLSPEC_HIDDEN;
+
 #endif /* __WINE_WIN32U_UNIX_X11_H */
