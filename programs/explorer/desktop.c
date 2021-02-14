@@ -39,7 +39,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(explorer);
 #define DESKTOP_CLASS_ATOM ((LPCWSTR)MAKEINTATOM(32769))
 #define DESKTOP_ALL_ACCESS 0x01ff
 
-static const WCHAR *default_driver = L"win32u,mac,x11";
+static const WCHAR *default_driver = L"win32u,win32k.sys,mac,x11";
 
 static BOOL using_root;
 
@@ -841,6 +841,7 @@ static HMODULE load_graphics_driver( const WCHAR *driver, const GUID *guid )
         }
 
         if (!wcscmp( name, L"win32u" )) wcscpy( libname, name );
+        else if (!wcscmp( name, L"win32k.sys" )) wcscpy( libname, name );
         else swprintf( libname, ARRAY_SIZE( libname ), drv_formatW, name );
         if ((module = LoadLibraryW( libname )) != 0) break;
         switch (GetLastError())
