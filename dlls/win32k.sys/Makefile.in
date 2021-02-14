@@ -1,7 +1,39 @@
 MODULE = win32k.sys
+IMPORTS = uuid setupapi rpcrt4 user32 gdi32 advapi32
+DELAYIMPORTS = comctl32 ole32 shell32 imm32
+EXTRADEFS = -DWIN32K_SOURCE
+EXTRAINCL = $(X_CFLAGS)
+EXTRALIBS = $(X_LIBS) $(X_EXTRA_LIBS)
+PARENTSRC = ../winex11.drv
 
 C_SRCS = \
+	bitblt.c \
+	brush.c \
+	clipboard.c \
+	desktop.c \
+	display.c \
+	event.c \
+	graphics.c \
+	ime.c \
+	init.c \
+	keyboard.c \
+	mouse.c \
+	opengl.c \
+	palette.c \
+	pen.c \
+	settings.c \
+	systray.c \
 	unix/x11.c \
-	win32k.c
+	vulkan.c \
+	win32k.c \
+	window.c \
+	wintab.c \
+	x11drv_main.c \
+	xdnd.c \
+	xim.c \
+	xinerama.c \
+	xrandr.c \
+	xrender.c \
+	xvidmode.c
 
 RC_SRCS = win32k.rc
