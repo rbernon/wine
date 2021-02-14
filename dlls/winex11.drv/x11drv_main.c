@@ -829,7 +829,7 @@ struct x11drv_thread_data *x11drv_init_thread_data(void)
 }
 
 
-#if !defined(WIN32K_SOURCE)
+#if !defined(WIN32K_SOURCE) && !defined(WIN32U_SOURCE)
 /***********************************************************************
  *           X11DRV initialisation routine
  */
@@ -847,7 +847,7 @@ BOOL WINAPI DllMain( HINSTANCE hinst, DWORD reason, LPVOID reserved )
     }
     return ret;
 }
-#endif /* !defined(WIN32K_SOURCE) */
+#endif /* !defined(WIN32K_SOURCE) && !defined(WIN32U_SOURCE) */
 
 
 /***********************************************************************
