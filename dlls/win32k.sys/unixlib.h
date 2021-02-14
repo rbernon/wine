@@ -20,11 +20,29 @@
 #define __WIN32K_UNIXLIB_H
 
 #include "winternl.h"
+#include "wingdi.h"
+
+#include "wine/gdi_driver.h"
 
 struct unix_funcs
 {
     DWORD (CDECL *msg_wait_for_multiple_objects)( DWORD count, const HANDLE *handles, DWORD timeout,
                                                   DWORD mask, DWORD flags );
+    BOOL (CDECL *create_window)( HWND hwnd );
+    void (CDECL *destroy_window)( HWND hwnd );
+    void (CDECL *window_pos_changing)( HWND hwnd, HWND insert_after, UINT swp_flags,
+                                     const RECT *window_rect, const RECT *client_rect, RECT *visible_rect,
+                                     struct window_surface **surface );
+    void (CDECL *window_pos_changed)( HWND hwnd, HWND insert_after, UINT swp_flags,
+                                    const RECT *rectWindow, const RECT *rectClient,
+                                    const RECT *visible_rect, const RECT *valid_rects,
+                                    struct window_surface *surface );
+    UINT (CDECL *show_window)( HWND hwnd, INT cmd, RECT *rect, UINT swp );
+    void (CDECL *set_window_style)( HWND hwnd, INT offset, STYLESTRUCT *style );
+    void (CDECL *set_focus)( HWND hwnd );
+    void (CDECL *set_parent)( HWND hwnd, HWND parent, HWND old_parent );
+    INT (CDECL *to_unicode)( UINT virtKey, UINT scanCode, const BYTE *lpKeyState,
+                             LPWSTR bufW, int bufW_size, UINT flags, HKL hkl );
 };
 
 extern NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in,

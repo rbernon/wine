@@ -26,8 +26,31 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(win32k);
 
+BOOL CDECL X11DRV_CreateWindow( HWND hwnd );
+void CDECL X11DRV_DestroyWindow( HWND hwnd );
+void CDECL X11DRV_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flags,
+                                     const RECT *window_rect, const RECT *client_rect,
+                                     RECT *visible_rect, struct window_surface **surface );
+void CDECL X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags, const RECT *rectWindow,
+                                    const RECT *rectClient, const RECT *visible_rect,
+                                    const RECT *valid_rects, struct window_surface *surface );
+UINT CDECL X11DRV_ShowWindow( HWND hwnd, INT cmd, RECT *rect, UINT swp );
+void CDECL X11DRV_SetWindowStyle( HWND hwnd, INT offset, STYLESTRUCT *style );
+void CDECL X11DRV_SetParent( HWND hwnd, HWND parent, HWND old_parent );
+INT CDECL X11DRV_ToUnicodeEx( UINT virtKey, UINT scanCode, const BYTE *lpKeyState, LPWSTR bufW,
+                              int bufW_size, UINT flags, HKL hkl );
+
 static struct unix_funcs unix_funcs = {
     X11DRV_MsgWaitForMultipleObjectsEx,
+    X11DRV_CreateWindow,
+    X11DRV_DestroyWindow,
+    X11DRV_WindowPosChanging,
+    X11DRV_WindowPosChanged,
+    X11DRV_ShowWindow,
+    X11DRV_SetWindowStyle,
+    X11DRV_SetFocus,
+    X11DRV_SetParent,
+    X11DRV_ToUnicodeEx,
 };
 
 NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out )
