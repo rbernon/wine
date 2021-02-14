@@ -31,6 +31,8 @@ WINE_DEFAULT_DEBUG_CHANNEL(win32u);
 #ifdef HAVE_CAIRO_CAIRO_H
 #define MAKE_FUNCPTR(f) typeof(f) *p_##f;
 MAKE_FUNCPTR(cairo_surface_create_similar_image)
+MAKE_FUNCPTR(cairo_surface_reference)
+MAKE_FUNCPTR(cairo_surface_get_reference_count)
 MAKE_FUNCPTR(cairo_surface_map_to_image)
 MAKE_FUNCPTR(cairo_surface_unmap_image)
 MAKE_FUNCPTR(cairo_surface_destroy)
@@ -59,6 +61,12 @@ MAKE_FUNCPTR(cairo_xlib_surface_create_with_xrender_format)
 #undef MAKE_FUNCPTR
 #endif
 
+#ifdef HAVE_CAIRO_CAIRO_XCB_H
+#define MAKE_FUNCPTR(f) typeof(f) *p_##f;
+MAKE_FUNCPTR(cairo_xcb_surface_create)
+#undef MAKE_FUNCPTR
+#endif
+
 static BOOL init_cairo(void)
 {
     void *libcairo;
@@ -78,6 +86,8 @@ static BOOL init_cairo(void)
 
 #ifdef HAVE_CAIRO_CAIRO_H
     LOAD_FUNCPTR(cairo_surface_create_similar_image)
+    LOAD_FUNCPTR(cairo_surface_reference)
+    LOAD_FUNCPTR(cairo_surface_get_reference_count)
     LOAD_FUNCPTR(cairo_surface_map_to_image)
     LOAD_FUNCPTR(cairo_surface_unmap_image)
     LOAD_FUNCPTR(cairo_surface_destroy)
@@ -97,6 +107,9 @@ static BOOL init_cairo(void)
 #endif
 #ifdef HAVE_CAIRO_CAIRO_XLIB_XRENDER_H
     LOAD_FUNCPTR(cairo_xlib_surface_create_with_xrender_format)
+#endif
+#ifdef HAVE_CAIRO_CAIRO_XCB_H
+    LOAD_FUNCPTR(cairo_xcb_surface_create)
 #endif
 
 #undef LOAD_FUNCPTR
@@ -188,6 +201,56 @@ static BOOL init_xcomposite(Display *display)
 }
 
 #endif /* defined(SONAME_LIBXCOMPOSITE) */
+
+
+#ifdef HAVE_XCB_XCB_H
+#define MAKE_FUNCPTR(f) typeof(f) *p_##f;
+MAKE_FUNCPTR(xcb_get_window_attributes)
+MAKE_FUNCPTR(xcb_get_window_attributes_reply)
+#undef MAKE_FUNCPTR
+xcb_connection_t *xcb_connection;
+#endif /* HAVE_XCB_XCB_H */
+
+#ifdef SONAME_LIBXCB
+
+static BOOL init_xcb(Display *display)
+{
+    void *libxcb;
+
+    if (!(libxcb = dlopen(SONAME_LIBXCB, RTLD_NOW)))
+    {
+        ERR("dlopen(%s, RTLD_NOW) failed!\n", SONAME_LIBXCB);
+        return FALSE;
+    }
+
+#define LOAD_FUNCPTR(f) \
+    if ((p_##f = dlsym(libxcb, #f)) == NULL) \
+    { \
+        ERR("dlsym(%s, %s) failed!\n", SONAME_LIBXCB, #f); \
+        goto error; \
+    }
+
+    LOAD_FUNCPTR(xcb_get_window_attributes)
+    LOAD_FUNCPTR(xcb_get_window_attributes_reply)
+#undef LOAD_FUNCPTR
+
+    xcb_connection = pXGetXCBConnection(display);
+    return TRUE;
+
+error:
+    dlclose(libxcb);
+    return FALSE;
+}
+
+#else
+
+static BOOL init_xcb(Display *display)
+{
+    ERR("XCB support not compiled in!\n");
+    return FALSE;
+}
+
+#endif
 
 #ifdef SONAME_LIBX11
 

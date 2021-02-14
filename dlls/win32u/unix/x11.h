@@ -31,11 +31,19 @@
 #include <unistd.h>
 #endif
 
+#ifdef HAVE_X11_XLIB_XCB_H
+#include <X11/Xlib-xcb.h>
+#endif
+
 #ifdef HAVE_X11_XLIB_H
 #include <X11/Xlib.h>
 #include <X11/Xresource.h>
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
+#endif
+
+#ifdef HAVE_XCB_XCB_H
+#include <xcb/xcb.h>
 #endif
 
 #ifdef HAVE_X11_EXTENSIONS_XCOMPOSITE_H
@@ -50,6 +58,9 @@
 #endif
 #ifdef HAVE_CAIRO_CAIRO_XLIB_XRENDER_H
 #include <cairo/cairo-xlib-xrender.h>
+#endif
+#ifdef HAVE_CAIRO_CAIRO_XCB_H
+#include <cairo/cairo-xcb.h>
 #endif
 
 #undef Status /* avoid conflict with wintrnl.h */
@@ -99,9 +110,25 @@ MAKE_FUNCPTR(XCompositeVersion)
 #undef MAKE_FUNCPTR
 #endif
 
+#ifdef HAVE_X11_XLIB_XCB_H
+#define MAKE_FUNCPTR(f) extern typeof(f) *p##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(XGetXCBConnection)
+#undef MAKE_FUNCPTR
+#endif /* HAVE_X11_XLIB_XCB_H */
+
+#ifdef HAVE_XCB_XCB_H
+#define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(xcb_get_window_attributes)
+MAKE_FUNCPTR(xcb_get_window_attributes_reply)
+#undef MAKE_FUNCPTR
+extern xcb_connection_t *xcb_connection DECLSPEC_HIDDEN;
+#endif /* HAVE_XCB_XCB_H */
+
 #ifdef HAVE_CAIRO_CAIRO_H
 #define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
 MAKE_FUNCPTR(cairo_surface_create_similar_image)
+MAKE_FUNCPTR(cairo_surface_reference)
+MAKE_FUNCPTR(cairo_surface_get_reference_count)
 MAKE_FUNCPTR(cairo_surface_map_to_image)
 MAKE_FUNCPTR(cairo_surface_unmap_image)
 MAKE_FUNCPTR(cairo_surface_destroy)
@@ -127,6 +154,12 @@ MAKE_FUNCPTR(cairo_xlib_surface_set_size)
 #ifdef HAVE_CAIRO_CAIRO_XLIB_XRENDER_H
 #define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
 MAKE_FUNCPTR(cairo_xlib_surface_create_with_xrender_format)
+#undef MAKE_FUNCPTR
+#endif
+
+#ifdef HAVE_CAIRO_CAIRO_XCB_H
+#define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(cairo_xcb_surface_create)
 #undef MAKE_FUNCPTR
 #endif
 
