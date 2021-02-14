@@ -26,7 +26,9 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(win32k);
 
-static struct unix_funcs unix_funcs = {};
+static struct unix_funcs unix_funcs = {
+    X11DRV_MsgWaitForMultipleObjectsEx,
+};
 
 NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out )
 {
