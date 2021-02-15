@@ -26,6 +26,8 @@
 #include "x11.h"
 #include "x11drv.h"
 
+#include "wine/win32u.h"
+
 #define PERSISTENT_MAPPING
 
 WINE_DEFAULT_DEBUG_CHANNEL(win32u);
@@ -337,4 +339,50 @@ struct window_surface *CDECL x11_resize_window_surface( struct window_surface *b
 
     window_surface_release( base );
     return x11_create_window_surface( screen_rect, visible_rect, hwnd, unix_handle );
+}
+
+static inline BOOL set_ntstatus( NTSTATUS status )
+{
+    if (status) SetLastError( RtlNtStatusToDosError( status ) );
+    return !status;
+}
+
+static BOOL desktop_ioctl( DWORD code, void *in_buff, DWORD in_count, void *out_buff, DWORD out_count, DWORD *read )
+{
+    IO_STATUS_BLOCK io;
+    NTSTATUS status;
+
+    status = NtDeviceIoControlFile( GetThreadDesktop( GetCurrentThreadId() ), NULL, NULL, NULL, &io,
+                                    code, in_buff, in_count, out_buff, out_count );
+    switch (status)
+    {
+    case STATUS_SUCCESS:
+        TRACE( "%s (code=%08x) returned %lx.\n", debugstr_win32u_ioctl( code ), code, io.Information );
+        if (read) *read = io.Information;
+        return TRUE;
+    case STATUS_INVALID_PARAMETER:
+        ERR( "%s (code=%08x) ioctl failed: invalid parameter!\n", debugstr_win32u_ioctl( code ), code );
+        break;
+    default:
+        ERR( "%s (code=%08x) ioctl failed: %08x!\n", debugstr_win32u_ioctl( code ), code, status );
+        status = STATUS_INVALID_HANDLE;
+        break;
+    }
+    if (read) *read = 0;
+    return set_ntstatus( status );
+}
+
+Window create_client_window( HWND hwnd, const XVisualInfo *visual )
+{
+    struct win32u_create_client_window_input in;
+    struct win32u_create_client_window_output out;
+
+    in.hwnd = HandleToUlong( hwnd );
+    in.visual_id = visual->visualid;
+    memset( &out, 0, sizeof(out) );
+
+    if (!desktop_ioctl( IOCTL_WIN32U_CREATE_CLIENT_WINDOW, &in, sizeof(in), &out, sizeof(out), NULL ))
+        return None;
+
+    return out.unix_handle;
 }

@@ -43,6 +43,7 @@ struct unix_funcs
     void (CDECL *set_parent)( HWND hwnd, HWND parent, HWND old_parent );
     INT (CDECL *to_unicode)( UINT virtKey, UINT scanCode, const BYTE *lpKeyState,
                              LPWSTR bufW, int bufW_size, UINT flags, HKL hkl );
+    void (CDECL *create_client_window)( HWND hwnd, ULONG visual_id, void **driver_handle );
 };
 
 extern NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in,

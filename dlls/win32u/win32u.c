@@ -38,6 +38,10 @@ WINE_DEFAULT_DEBUG_CHANNEL(win32u);
 
 static struct unix_funcs *unix_funcs;
 
+extern void sync_gl_drawable( HWND hwnd, BOOL known_child ) DECLSPEC_HIDDEN;
+extern void set_gl_drawable_parent( HWND hwnd, HWND parent ) DECLSPEC_HIDDEN;
+extern void destroy_gl_drawable( HWND hwnd ) DECLSPEC_HIDDEN;
+
 static inline BOOL set_ntstatus( NTSTATUS status )
 {
     if (status) SetLastError( RtlNtStatusToDosError( status ) );
@@ -91,6 +95,8 @@ void CDECL WIN32U_DestroyWindow( HWND hwnd )
     in.hwnd = HandleToULong( hwnd );
 
     if (!desktop_ioctl( IOCTL_WIN32U_DESTROY_WINDOW, &in, sizeof(in), NULL, 0, NULL )) return;
+
+    destroy_gl_drawable( hwnd );
 }
 
 void CDECL WIN32U_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flags,
@@ -101,7 +107,7 @@ void CDECL WIN32U_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
     struct win32u_window_pos_changing_output out;
     HWND parent;
 
-    if ((parent = GetAncestor( hwnd, GA_PARENT )) && parent != GetDesktopWindow()) return; /* ignore child / message windows */
+    if ((parent = GetAncestor( hwnd, GA_PARENT )) && parent != GetDesktopWindow()) goto done; /* ignore child / message windows */
 
     TRACE( "hwnd %p, insert_after %p, swp_flags %x, window_rect %s, client_rect %s, visible_rect "
            "%p, surface %p, screen_rect %p, driver_handle %p\n",
@@ -135,6 +141,9 @@ void CDECL WIN32U_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
     *visible_rect = out.visible_rect;
     if (screen_rect) *screen_rect = out.screen_rect;
     if (driver_handle) *driver_handle = NULL;
+
+done:
+    sync_gl_drawable( parent, TRUE );
 }
 
 void CDECL WIN32U_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags, const RECT *window_rect,
@@ -144,7 +153,7 @@ void CDECL WIN32U_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags
     struct win32u_window_pos_changed_input in;
     HWND parent;
 
-    if ((parent = GetAncestor( hwnd, GA_PARENT )) && parent != GetDesktopWindow()) return; /* ignore child / message windows */
+    if ((parent = GetAncestor( hwnd, GA_PARENT )) && parent != GetDesktopWindow()) goto done; /* ignore child / message windows */
 
     TRACE( "hwnd %p, insert_after %p, swp_flags %x, window_rect %s, client_rect %s, visible_rect "
            "%s, valid_rects %s, surface %p\n",
@@ -161,6 +170,9 @@ void CDECL WIN32U_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags
     if (valid_rects) in.valid_rects = *valid_rects;
 
     if (!desktop_ioctl( IOCTL_WIN32U_WINDOW_POS_CHANGED, &in, sizeof(in), NULL, 0, NULL )) return;
+
+done:
+    sync_gl_drawable( hwnd, FALSE );
 }
 
 UINT CDECL WIN32U_ShowWindow( HWND hwnd, INT cmd, RECT *rect, UINT swp )
@@ -218,6 +230,9 @@ void CDECL WIN32U_SetParent( HWND hwnd, HWND parent, HWND old_parent )
     in.old_parent = HandleToUlong( old_parent );
 
     if (!desktop_ioctl( IOCTL_WIN32U_SET_PARENT, &in, sizeof(in), NULL, 0, NULL )) return;
+
+    set_gl_drawable_parent( hwnd, parent );
+    sync_gl_drawable( parent, TRUE );
 }
 
 INT CDECL WIN32U_ToUnicodeEx( UINT vkey, UINT scancode, const BYTE *keystate, WCHAR *buf,

@@ -41,6 +41,16 @@ void CDECL X11DRV_SetParent( HWND hwnd, HWND parent, HWND old_parent );
 INT CDECL X11DRV_ToUnicodeEx( UINT virtKey, UINT scanCode, const BYTE *lpKeyState, LPWSTR bufW,
                               int bufW_size, UINT flags, HKL hkl );
 
+static void CDECL win32k_x11_create_client_window( HWND hwnd, ULONG visual_id, void **driver_handle )
+{
+    XVisualInfo tmp, *match;
+    int count = 1;
+    tmp.visualid = visual_id;
+    match = XGetVisualInfo( gdi_display, VisualIDMask, &tmp, &count );
+    *driver_handle = (void *)create_client_window(hwnd, match);
+    XFree( match );
+}
+
 static struct unix_funcs unix_funcs = {
     X11DRV_MsgWaitForMultipleObjectsEx,
     X11DRV_CreateWindow,
@@ -52,6 +62,7 @@ static struct unix_funcs unix_funcs = {
     X11DRV_SetFocus,
     X11DRV_SetParent,
     X11DRV_ToUnicodeEx,
+    win32k_x11_create_client_window,
 };
 
 NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out )

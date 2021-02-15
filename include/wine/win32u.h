@@ -32,6 +32,7 @@
 #define IOCTL_WIN32U_SET_FOCUS            CTL_CODE(FILE_DEVICE_UNKNOWN, 0x806, METHOD_BUFFERED, 0)
 #define IOCTL_WIN32U_SET_PARENT           CTL_CODE(FILE_DEVICE_UNKNOWN, 0x807, METHOD_BUFFERED, 0)
 #define IOCTL_WIN32U_TO_UNICODE           CTL_CODE(FILE_DEVICE_UNKNOWN, 0x808, METHOD_BUFFERED, 0)
+#define IOCTL_WIN32U_CREATE_CLIENT_WINDOW CTL_CODE(FILE_DEVICE_UNKNOWN, 0x809, METHOD_BUFFERED, 0)
 
 static inline const char *debugstr_win32u_ioctl( DWORD code )
 {
@@ -46,6 +47,7 @@ static inline const char *debugstr_win32u_ioctl( DWORD code )
     case IOCTL_WIN32U_SET_FOCUS: return "IOCTL_WIN32U_SET_FOCUS";
     case IOCTL_WIN32U_SET_PARENT: return "IOCTL_WIN32U_SET_PARENT";
     case IOCTL_WIN32U_TO_UNICODE: return "IOCTL_WIN32U_TO_UNICODE";
+    case IOCTL_WIN32U_CREATE_CLIENT_WINDOW: return "IOCTL_WIN32U_CREATE_CLIENT_WINDOW";
     }
     return "unknown";
 }
@@ -136,6 +138,18 @@ struct win32u_to_unicode_input
     BYTE  keystate[256];
     UINT  flags;
     ULONG hkl;
+};
+
+/* IOCTL_WIN32U_CREATE_CLIENT_WINDOW params */
+struct win32u_create_client_window_input
+{
+    ULONG  hwnd;
+    ULONG  visual_id;
+};
+
+struct win32u_create_client_window_output
+{
+    UINT64 unix_handle;
 };
 
 #endif

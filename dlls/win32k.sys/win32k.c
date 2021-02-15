@@ -203,6 +203,23 @@ static void process_desktop_ioctls(HDESK desktop)
             }
             break;
         }
+        case IOCTL_WIN32U_CREATE_CLIENT_WINDOW:
+        {
+            struct win32u_create_client_window_input in;
+            struct win32u_create_client_window_output out;
+            void *driver_handle;
+            if (in_size != sizeof(in)) status = STATUS_INVALID_PARAMETER;
+            else
+            {
+                memcpy( &in, buf, sizeof(in) );
+                unix_funcs->create_client_window( UlongToHandle(in.hwnd), in.visual_id, &driver_handle );
+                out.unix_handle = (UINT_PTR)driver_handle;
+                memcpy( buf, &out, sizeof(out) );
+                out_size = sizeof(out);
+                status = STATUS_SUCCESS;
+            }
+            break;
+        }
         default:
         {
             FIXME( "unimplemented desktop %s ioctl (code=%08x) size %x\n",

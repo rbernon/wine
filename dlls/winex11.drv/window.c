@@ -1517,6 +1517,7 @@ static Window get_dummy_parent(void)
 }
 
 
+#ifndef WIN32U_SOURCE
 /**********************************************************************
  *		create_dummy_client_window
  */
@@ -1609,6 +1610,7 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual )
     release_win_data( data );
     return ret;
 }
+#endif
 
 
 /**********************************************************************
