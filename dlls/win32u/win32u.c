@@ -41,6 +41,7 @@ static struct unix_funcs *unix_funcs;
 extern void sync_gl_drawable( HWND hwnd, BOOL known_child ) DECLSPEC_HIDDEN;
 extern void set_gl_drawable_parent( HWND hwnd, HWND parent ) DECLSPEC_HIDDEN;
 extern void destroy_gl_drawable( HWND hwnd ) DECLSPEC_HIDDEN;
+extern void wine_vk_surface_destroy(HWND hwnd) DECLSPEC_HIDDEN;
 
 static inline BOOL set_ntstatus( NTSTATUS status )
 {
@@ -97,6 +98,7 @@ void CDECL WIN32U_DestroyWindow( HWND hwnd )
     if (!desktop_ioctl( IOCTL_WIN32U_DESTROY_WINDOW, &in, sizeof(in), NULL, 0, NULL )) return;
 
     destroy_gl_drawable( hwnd );
+    wine_vk_surface_destroy( hwnd );
 }
 
 void CDECL WIN32U_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flags,
