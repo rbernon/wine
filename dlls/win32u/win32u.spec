@@ -22,7 +22,7 @@
 @ cdecl EnumDisplaySettingsEx(ptr long ptr long) X11DRV_EnumDisplaySettingsEx
 @ cdecl CreateDesktopWindow(long) X11DRV_CreateDesktopWindow
 @ cdecl CreateWindow(long) X11DRV_CreateWindow
-@ cdecl DestroyWindow(long) X11DRV_DestroyWindow
+@ cdecl DestroyWindow(long) win32u_DestroyWindow
 @ cdecl FlashWindowEx(ptr) X11DRV_FlashWindowEx
 @ cdecl GetDC(long long long ptr ptr long) X11DRV_GetDC
 @ cdecl MsgWaitForMultipleObjectsEx(long ptr long long long) X11DRV_MsgWaitForMultipleObjectsEx
