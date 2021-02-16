@@ -22,7 +22,6 @@ C_SRCS = \
 	palette.c \
 	pen.c \
 	settings.c \
-	systray.c \
 	unix/x11.c \
 	vulkan.c \
 	win32u.c \
