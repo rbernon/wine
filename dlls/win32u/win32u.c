@@ -21,7 +21,9 @@
 #include "windef.h"
 #include "winbase.h"
 #include "winnt.h"
+#include "wingdi.h"
 
+#include "wine/gdi_driver.h"
 #include "wine/debug.h"
 
 #include "unixlib.h"
@@ -29,6 +31,23 @@
 WINE_DEFAULT_DEBUG_CHANNEL(win32u);
 
 static struct unix_funcs *unix_funcs;
+
+void CDECL X11DRV_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flags,
+                                     const RECT *window_rect, const RECT *client_rect,
+                                     RECT *visible_rect, struct window_surface **surface );
+
+void CDECL win32u_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flags,
+                                     const RECT *window_rect, const RECT *client_rect,
+                                     RECT *visible_rect, struct window_surface **surface )
+{
+    TRACE( "hwnd %p, insert_after %p, swp_flags %x, window_rect %s, client_rect %s, "
+           "visible_rect %p, surface %p.\n", hwnd, insert_after, swp_flags,
+           wine_dbgstr_rect( window_rect ), wine_dbgstr_rect( client_rect ),
+           visible_rect, surface );
+
+    X11DRV_WindowPosChanging( hwnd, insert_after, swp_flags, window_rect, client_rect,
+                              visible_rect, surface );
+}
 
 BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, LPVOID reserved )
 {
