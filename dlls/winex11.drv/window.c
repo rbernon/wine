@@ -2064,9 +2064,11 @@ static LRESULT WINAPI foreign_window_proc( HWND hwnd, UINT msg, WPARAM wparam, L
 {
     switch(msg)
     {
+#ifndef WIN32U_SOURCE
     case WM_WINDOWPOSCHANGED:
         update_systray_balloon_position();
         break;
+#endif /* WIN32U_SOURCE */
     case WM_PARENTNOTIFY:
         if (LOWORD(wparam) == WM_DESTROY)
         {
