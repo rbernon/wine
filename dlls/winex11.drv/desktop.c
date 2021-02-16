@@ -319,6 +319,7 @@ void X11DRV_init_desktop( Window win, unsigned int width, unsigned int height )
 }
 
 
+#ifndef WIN32U_SOURCE
 /***********************************************************************
  *		X11DRV_create_desktop
  *
@@ -369,6 +370,7 @@ BOOL CDECL X11DRV_create_desktop( UINT width, UINT height )
     XFlush( display );
     return TRUE;
 }
+#endif /* WIN32U_SOURCE */
 
 BOOL is_desktop_fullscreen(void)
 {
