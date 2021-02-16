@@ -49,6 +49,15 @@ void CDECL win32u_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
                               visible_rect, surface );
 }
 
+void CDECL X11DRV_DestroyWindow( HWND hwnd );
+
+void CDECL win32u_DestroyWindow( HWND hwnd )
+{
+    TRACE( "hwnd %p.\n", hwnd );
+
+    X11DRV_DestroyWindow( hwnd );
+}
+
 BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, LPVOID reserved )
 {
     TRACE( "instance %p, reason %d, reserved %p.\n", instance, reason, reserved );
