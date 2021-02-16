@@ -35,6 +35,13 @@
 #include <X11/Xlib.h>
 #endif
 
+#ifdef HAVE_CAIRO_CAIRO_H
+#include <cairo/cairo.h>
+#endif
+#ifdef HAVE_CAIRO_CAIRO_XLIB_H
+#include <cairo/cairo-xlib.h>
+#endif
+
 #undef Status /* avoid conflict with wintrnl.h */
 typedef int Status;
 
@@ -48,5 +55,30 @@ typedef int Status;
 
 #include "wine/gdi_driver.h"
 #include "wine/debug.h"
+
+#include "unixlib.h"
+
+#ifdef HAVE_X11_XLIB_H
+#define MAKE_FUNCPTR(f) extern typeof(f) *p##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(XGetWindowAttributes)
+#undef MAKE_FUNCPTR
+#endif
+
+#ifdef HAVE_CAIRO_CAIRO_H
+#define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(cairo_surface_destroy)
+#undef MAKE_FUNCPTR
+#endif
+
+#ifdef HAVE_CAIRO_CAIRO_XLIB_H
+#define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(cairo_xlib_surface_create)
+MAKE_FUNCPTR(cairo_xlib_surface_get_drawable)
+MAKE_FUNCPTR(cairo_xlib_surface_set_size)
+#undef MAKE_FUNCPTR
+#endif
+
+extern struct unix_surface *CDECL cairo_surface_create_toplevel( HWND hwnd ) DECLSPEC_HIDDEN;
+extern void CDECL cairo_surface_delete( struct unix_surface *surface ) DECLSPEC_HIDDEN;
 
 #endif /* __WINE_WIN32U_UNIX_X11_H */
