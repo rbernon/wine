@@ -52,9 +52,6 @@
 @ cdecl LoadTabletInfo(long) X11DRV_LoadTabletInfo
 @ cdecl WTInfoW(long long ptr) X11DRV_WTInfoW
 
-# Desktop
-@ cdecl wine_create_desktop(long long) X11DRV_create_desktop
-
 #IME Interface
 @ stdcall ImeInquire(ptr ptr wstr)
 @ stdcall ImeConfigure(long long long ptr)
