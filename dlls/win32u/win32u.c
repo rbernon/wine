@@ -49,6 +49,25 @@ void CDECL win32u_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
                               visible_rect, surface );
 }
 
+void CDECL X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
+                                    const RECT *window_rect, const RECT *client_rect,
+                                    const RECT *visible_rect, const RECT *valid_rects,
+                                    struct window_surface *surface );
+
+void CDECL win32u_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
+                                    const RECT *window_rect, const RECT *client_rect,
+                                    const RECT *visible_rect, const RECT *valid_rects,
+                                    struct window_surface *surface )
+{
+    TRACE( "hwnd %p, insert_after %p, swp_flags %x, window_rect %s, client_rect %s, "
+           "visible_rect %s, valid_rects %s, surface %p.\n", hwnd, insert_after, swp_flags,
+           wine_dbgstr_rect( window_rect ), wine_dbgstr_rect( client_rect ),
+           wine_dbgstr_rect( visible_rect ), wine_dbgstr_rect( valid_rects ), surface );
+
+    X11DRV_WindowPosChanged( hwnd, insert_after, swp_flags, window_rect, client_rect,
+                             visible_rect, valid_rects, surface );
+}
+
 void CDECL X11DRV_DestroyWindow( HWND hwnd );
 
 void CDECL win32u_DestroyWindow( HWND hwnd )
