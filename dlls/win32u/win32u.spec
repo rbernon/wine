@@ -42,7 +42,7 @@
 @ cdecl UpdateLayeredWindow(long ptr ptr) X11DRV_UpdateLayeredWindow
 @ cdecl WindowMessage(long long long long) X11DRV_WindowMessage
 @ cdecl WindowPosChanging(long long long ptr ptr ptr ptr) win32u_WindowPosChanging
-@ cdecl WindowPosChanged(long long long ptr ptr ptr ptr ptr) X11DRV_WindowPosChanged
+@ cdecl WindowPosChanged(long long long ptr ptr ptr ptr ptr) win32u_WindowPosChanged
 @ cdecl SystemParametersInfo(long long ptr long) X11DRV_SystemParametersInfo
 @ cdecl ThreadDetach() X11DRV_ThreadDetach
 
