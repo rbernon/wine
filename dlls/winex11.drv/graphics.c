@@ -269,10 +269,10 @@ BOOL add_extra_clipping_region( X11DRV_PDEVICE *dev, HRGN rgn )
     HRGN clip;
 
     if (!rgn) return FALSE;
-    if (dev->region)
+    if (dev->dev.clip_region)
     {
         if (!(clip = CreateRectRgn( 0, 0, 0, 0 ))) return FALSE;
-        CombineRgn( clip, dev->region, rgn, RGN_AND );
+        CombineRgn( clip, dev->dev.clip_region, rgn, RGN_AND );
         update_x11_clipping( dev, clip );
         DeleteObject( clip );
     }
@@ -286,7 +286,7 @@ BOOL add_extra_clipping_region( X11DRV_PDEVICE *dev, HRGN rgn )
  */
 void restore_clipping_region( X11DRV_PDEVICE *dev )
 {
-    update_x11_clipping( dev, dev->region );
+    update_x11_clipping( dev, dev->dev.clip_region );
 }
 
 
@@ -296,8 +296,7 @@ void restore_clipping_region( X11DRV_PDEVICE *dev )
 void CDECL X11DRV_SetDeviceClipping( PHYSDEV dev, HRGN rgn )
 {
     X11DRV_PDEVICE *physDev = get_x11drv_dev( dev );
-
-    physDev->region = rgn;
+    physDev->dev.clip_region = rgn;
     update_x11_clipping( physDev, rgn );
 }
 
@@ -1423,7 +1422,7 @@ BOOL CDECL X11DRV_ExtFloodFill( PHYSDEV dev, INT x, INT y, COLORREF color, UINT 
     pt.y = y;
     LPtoDP( dev->hdc, &pt, 1 );
 
-    if (!physDev->region)
+    if (!physDev->dev.clip_region)
     {
         rect.left   = 0;
         rect.top    = 0;
@@ -1432,8 +1431,8 @@ BOOL CDECL X11DRV_ExtFloodFill( PHYSDEV dev, INT x, INT y, COLORREF color, UINT 
     }
     else
     {
-        if (!PtInRegion( physDev->region, pt.x, pt.y )) return FALSE;
-        GetRgnBox( physDev->region, &rect );
+        if (!PtInRegion( physDev->dev.clip_region, pt.x, pt.y )) return FALSE;
+        GetRgnBox( physDev->dev.clip_region, &rect );
         rect.left   = max( rect.left, 0 );
         rect.top    = max( rect.top, 0 );
         rect.right  = min( rect.right, physDev->dc_rect.right - physDev->dc_rect.left );

@@ -604,7 +604,7 @@ static BOOL solid_pen_line(dibdrv_physdev *pdev, POINT *start, POINT *end, DWORD
         rect.right  = end->x;
         rect.bottom = end->y + 1;
         order_end_points(&rect.left, &rect.right);
-        if (!get_clipped_rects( &pdev->dib, &rect, pdev->clip, &clipped_rects )) return TRUE;
+        if (!get_clipped_rects( &pdev->dib, &rect, pdev->dev.clip_region, &clipped_rects )) return TRUE;
         pdev->dib.funcs->solid_rects(&pdev->dib, clipped_rects.count, clipped_rects.rects, and, xor);
     }
     else if(start->x == end->x)
@@ -614,7 +614,7 @@ static BOOL solid_pen_line(dibdrv_physdev *pdev, POINT *start, POINT *end, DWORD
         rect.right  = end->x + 1;
         rect.bottom = end->y;
         order_end_points(&rect.top, &rect.bottom);
-        if (!get_clipped_rects( &pdev->dib, &rect, pdev->clip, &clipped_rects )) return TRUE;
+        if (!get_clipped_rects( &pdev->dib, &rect, pdev->dev.clip_region, &clipped_rects )) return TRUE;
         pdev->dib.funcs->solid_rects(&pdev->dib, clipped_rects.count, clipped_rects.rects, and, xor);
     }
     else
@@ -624,7 +624,7 @@ static BOOL solid_pen_line(dibdrv_physdev *pdev, POINT *start, POINT *end, DWORD
         POINT p1 = crop_coords( *start ), p2 = crop_coords( *end );
 
         init_bres_params( &p1, &p2, &clip_params, &line_params, &rect );
-        if (!get_clipped_rects( &pdev->dib, &rect, pdev->clip, &clipped_rects )) return TRUE;
+        if (!get_clipped_rects( &pdev->dib, &rect, pdev->dev.clip_region, &clipped_rects )) return TRUE;
         for (i = 0; i < clipped_rects.count; i++)
         {
             POINT clipped_start, clipped_end;
@@ -899,7 +899,7 @@ static BOOL dashed_pen_line(dibdrv_physdev *pdev, POINT *start, POINT *end)
 
         rect.left = min( start->x, end->x );
         rect.right = max( start->x, end->x ) + 1;
-        get_clipped_rects( &pdev->dib, &rect, pdev->clip, &clipped_rects );
+        get_clipped_rects( &pdev->dib, &rect, pdev->dev.clip_region, &clipped_rects );
         for (i = 0; i < clipped_rects.count; i++)
         {
             if(clipped_rects.rects[i].right > left && clipped_rects.rects[i].left <= right)
@@ -977,7 +977,7 @@ static BOOL dashed_pen_line(dibdrv_physdev *pdev, POINT *start, POINT *end)
 
         rect.top = min( start->y, end->y );
         rect.bottom = max( start->y, end->y ) + 1;
-        get_clipped_rects( &pdev->dib, &rect, pdev->clip, &clipped_rects );
+        get_clipped_rects( &pdev->dib, &rect, pdev->dev.clip_region, &clipped_rects );
         for (i = 0; i < clipped_rects.count; i++)
         {
             if(clipped_rects.rects[i].right > start->x && clipped_rects.rects[i].left <= start->x)
@@ -1039,7 +1039,7 @@ static BOOL dashed_pen_line(dibdrv_physdev *pdev, POINT *start, POINT *end)
         POINT p1 = crop_coords( *start ), p2 = crop_coords( *end );
 
         init_bres_params( &p1, &p2, &clip_params, &line_params, &rect );
-        get_clipped_rects( &pdev->dib, &rect, pdev->clip, &clipped_rects );
+        get_clipped_rects( &pdev->dib, &rect, pdev->dev.clip_region, &clipped_rects );
         for (i = 0; i < clipped_rects.count; i++)
         {
             POINT clipped_start, clipped_end;
