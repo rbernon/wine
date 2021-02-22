@@ -791,6 +791,7 @@ static COLORREF CDECL nulldrv_SetDCPenColor( PHYSDEV dev, COLORREF color )
 
 static void CDECL nulldrv_SetDeviceClipping( PHYSDEV dev, HRGN rgn )
 {
+    dev->clip_region = rgn;
 }
 
 static DWORD CDECL nulldrv_SetLayout( PHYSDEV dev, DWORD layout )

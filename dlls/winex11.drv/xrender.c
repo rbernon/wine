@@ -140,7 +140,6 @@ struct xrender_physdev
 {
     struct gdi_physdev dev;
     X11DRV_PDEVICE    *x11dev;
-    HRGN               region;
     enum wxr_format    format;
     UINT               aa_flags;
     int                cache_index;
@@ -493,29 +492,29 @@ static Picture get_xrender_picture( struct xrender_physdev *dev, HRGN clip_rgn, 
                                            dev->pict_format, CPSubwindowMode, &pa );
         TRACE( "Allocing pict=%lx dc=%p drawable=%08lx\n",
                dev->pict, dev->dev.hdc, dev->x11dev->drawable );
-        dev->update_clip = (dev->region != 0);
+        dev->update_clip = (dev->dev.clip_region != 0);
     }
 
     if (clip_rect)
     {
         HRGN rgn = CreateRectRgnIndirect( clip_rect );
         if (clip_rgn) CombineRgn( rgn, rgn, clip_rgn, RGN_AND );
-        if (dev->region) CombineRgn( rgn, rgn, dev->region, RGN_AND );
+        if (dev->dev.clip_region) CombineRgn( rgn, rgn, dev->dev.clip_region, RGN_AND );
         update_xrender_clipping( dev, rgn );
         DeleteObject( rgn );
     }
     else if (clip_rgn)
     {
-        if (dev->region)
+        if (dev->dev.clip_region)
         {
             HRGN rgn = CreateRectRgn( 0, 0, 0, 0 );
-            CombineRgn( rgn, clip_rgn, dev->region, RGN_AND );
+            CombineRgn( rgn, clip_rgn, dev->dev.clip_region, RGN_AND );
             update_xrender_clipping( dev, rgn );
             DeleteObject( rgn );
         }
         else update_xrender_clipping( dev, clip_rgn );
     }
-    else if (dev->update_clip) update_xrender_clipping( dev, dev->region );
+    else if (dev->update_clip) update_xrender_clipping( dev, dev->dev.clip_region );
 
     dev->update_clip = (clip_rect || clip_rgn);  /* have to update again if we are using a custom region */
     return dev->pict;
@@ -1008,7 +1007,7 @@ static void CDECL xrenderdrv_SetDeviceClipping( PHYSDEV dev, HRGN rgn )
 {
     struct xrender_physdev *physdev = get_xrender_dev( dev );
 
-    physdev->region = rgn;
+    physdev->dev.clip_region = rgn;
     physdev->update_clip = TRUE;
 
     dev = GET_NEXT_PHYSDEV( dev, pSetDeviceClipping );
