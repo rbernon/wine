@@ -34,6 +34,7 @@ typedef struct gdi_physdev
     const struct gdi_dc_funcs *funcs;
     struct gdi_physdev        *next;
     HDC                        hdc;
+    HRGN                       clip_region;
 } *PHYSDEV;
 
 struct bitblt_coords

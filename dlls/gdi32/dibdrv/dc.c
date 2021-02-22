@@ -381,8 +381,7 @@ static void CDECL dibdrv_SetDeviceClipping( PHYSDEV dev, HRGN rgn )
 {
     dibdrv_physdev *pdev = get_dibdrv_pdev(dev);
     TRACE("(%p, %p)\n", dev, rgn);
-
-    pdev->clip = rgn;
+    pdev->dev.clip_region = rgn;
 }
 
 /***********************************************************************
