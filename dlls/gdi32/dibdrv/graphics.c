@@ -81,14 +81,14 @@ static BOOL brush_rect( dibdrv_physdev *pdev, dib_brush *brush, const RECT *rect
 /* paint a region with the brush (note: the region can be modified) */
 static BOOL brush_region( dibdrv_physdev *pdev, HRGN region )
 {
-    if (pdev->clip) CombineRgn( region, region, pdev->clip, RGN_AND );
+    if (pdev->dev.clip_region) CombineRgn( region, region, pdev->dev.clip_region, RGN_AND );
     return brush_rect( pdev, &pdev->brush, NULL, region );
 }
 
 /* paint a region with the pen (note: the region can be modified) */
 static BOOL pen_region( dibdrv_physdev *pdev, HRGN region )
 {
-    if (pdev->clip) CombineRgn( region, region, pdev->clip, RGN_AND );
+    if (pdev->dev.clip_region) CombineRgn( region, region, pdev->dev.clip_region, RGN_AND );
     return brush_rect( pdev, &pdev->pen_brush, NULL, region );
 }
 
@@ -170,7 +170,7 @@ static void add_pen_lines_bounds( dibdrv_physdev *dev, int count, const POINT *p
         points++;
     }
 
-    add_clipped_bounds( dev, &bounds, dev->clip );
+    add_clipped_bounds( dev, &bounds, dev->dev.clip_region );
 }
 
 /* compute the points for the first quadrant of an ellipse, counterclockwise from the x axis */
@@ -912,7 +912,7 @@ BOOL CDECL dibdrv_ExtTextOut( PHYSDEV dev, INT x, INT y, UINT flags,
         rop_mask bkgnd_color;
         get_text_bkgnd_masks( dc, &pdev->dib, &bkgnd_color );
         add_bounds_rect( &bounds, rect );
-        get_clipped_rects( &pdev->dib, rect, pdev->clip, &clipped_rects );
+        get_clipped_rects( &pdev->dib, rect, pdev->dev.clip_region, &clipped_rects );
         pdev->dib.funcs->solid_rects( &pdev->dib, clipped_rects.count, clipped_rects.rects,
                                       bkgnd_color.and, bkgnd_color.xor );
     }
@@ -922,12 +922,12 @@ BOOL CDECL dibdrv_ExtTextOut( PHYSDEV dev, INT x, INT y, UINT flags,
     if (flags & ETO_CLIPPED)
     {
         if (!(flags & ETO_OPAQUE))  /* otherwise we have done it already */
-            get_clipped_rects( &pdev->dib, rect, pdev->clip, &clipped_rects );
+            get_clipped_rects( &pdev->dib, rect, pdev->dev.clip_region, &clipped_rects );
     }
     else
     {
         free_clipped_rects( &clipped_rects );
-        get_clipped_rects( &pdev->dib, NULL, pdev->clip, &clipped_rects );
+        get_clipped_rects( &pdev->dib, NULL, pdev->dev.clip_region, &clipped_rects );
     }
     if (!clipped_rects.count) goto done;
 
@@ -935,7 +935,7 @@ BOOL CDECL dibdrv_ExtTextOut( PHYSDEV dev, INT x, INT y, UINT flags,
                    &clipped_rects, &bounds );
 
 done:
-    add_clipped_bounds( pdev, &bounds, pdev->clip );
+    add_clipped_bounds( pdev, &bounds, pdev->dev.clip_region );
     free_clipped_rects( &clipped_rects );
     return TRUE;
 }
@@ -1061,7 +1061,7 @@ BOOL CDECL dibdrv_ExtFloodFill( PHYSDEV dev, INT x, INT y, COLORREF color, UINT 
     if (x < 0 || x >= pdev->dib.rect.right - pdev->dib.rect.left ||
         y < 0 || y >= pdev->dib.rect.bottom - pdev->dib.rect.top) return FALSE;
 
-    if (!is_interior( &pdev->dib, pdev->clip, x, y, pixel, type )) return FALSE;
+    if (!is_interior( &pdev->dib, pdev->dev.clip_region, x, y, pixel, type )) return FALSE;
 
     if (!(rgn = CreateRectRgn( 0, 0, 0, 0 ))) return FALSE;
     row.left = x;
@@ -1069,7 +1069,7 @@ BOOL CDECL dibdrv_ExtFloodFill( PHYSDEV dev, INT x, INT y, COLORREF color, UINT 
     row.top = y;
     row.bottom = y + 1;
 
-    fill_row( &pdev->dib, pdev->clip, &row, pixel, type, rgn );
+    fill_row( &pdev->dib, pdev->dev.clip_region, &row, pixel, type, rgn );
 
     add_clipped_bounds( pdev, NULL, rgn );
     brush_region( pdev, rgn );
@@ -1188,7 +1188,7 @@ BOOL CDECL dibdrv_PatBlt( PHYSDEV dev, struct bitblt_coords *dst, DWORD rop )
     TRACE("(%p, %d, %d, %d, %d, %06x)\n", dev, dst->x, dst->y, dst->width, dst->height, rop);
 
     add_clipped_bounds( pdev, &dst->visrect, 0 );
-    if (!get_clipped_rects( &pdev->dib, &dst->visrect, pdev->clip, &clipped_rects )) return TRUE;
+    if (!get_clipped_rects( &pdev->dib, &dst->visrect, pdev->dev.clip_region, &clipped_rects )) return TRUE;
 
     switch (rop2)  /* shortcuts for rops that don't involve the brush */
     {
@@ -1233,11 +1233,11 @@ BOOL CDECL dibdrv_PaintRgn( PHYSDEV dev, HRGN rgn )
         rect = get_device_rect( dc, region->rects[i].left, region->rects[i].top,
                                 region->rects[i].right, region->rects[i].bottom, FALSE );
         add_bounds_rect( &bounds, &rect );
-        brush_rect( pdev, &pdev->brush, &rect, pdev->clip );
+        brush_rect( pdev, &pdev->brush, &rect, pdev->dev.clip_region );
     }
 
     release_wine_region( rgn );
-    add_clipped_bounds( pdev, &bounds, pdev->clip );
+    add_clipped_bounds( pdev, &bounds, pdev->dev.clip_region );
     return TRUE;
 }
 
@@ -1455,7 +1455,7 @@ BOOL CDECL dibdrv_Rectangle( PHYSDEV dev, INT left, INT top, INT right, INT bott
         rect.top    += (pdev->pen_width + 1) / 2;
         rect.right  -= pdev->pen_width / 2;
         rect.bottom -= pdev->pen_width / 2;
-        ret = brush_rect( pdev, &pdev->brush, &rect, pdev->clip );
+        ret = brush_rect( pdev, &pdev->brush, &rect, pdev->dev.clip_region );
     }
     return ret;
 }
@@ -1603,13 +1603,13 @@ COLORREF CDECL dibdrv_SetPixel( PHYSDEV dev, INT x, INT y, COLORREF color )
     rect.top =  pt.y;
     rect.right = rect.left + 1;
     rect.bottom = rect.top + 1;
-    add_clipped_bounds( pdev, &rect, pdev->clip );
+    add_clipped_bounds( pdev, &rect, pdev->dev.clip_region );
 
     /* SetPixel doesn't do the 1bpp massaging like other fg colors */
     pixel = get_pixel_color( dc, &pdev->dib, color, FALSE );
     color = pdev->dib.funcs->pixel_to_colorref( &pdev->dib, pixel );
 
-    if (!get_clipped_rects( &pdev->dib, &rect, pdev->clip, &clipped_rects )) return color;
+    if (!get_clipped_rects( &pdev->dib, &rect, pdev->dev.clip_region, &clipped_rects )) return color;
     fill_with_pixel( dc, &pdev->dib, pixel, clipped_rects.count, clipped_rects.rects, dc->ROPmode );
     free_clipped_rects( &clipped_rects );
     return color;

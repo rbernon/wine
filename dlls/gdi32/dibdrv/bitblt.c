@@ -1009,13 +1009,13 @@ DWORD CDECL dibdrv_PutImage( PHYSDEV dev, HRGN clip, BITMAPINFO *info,
     init_dib_info_from_bitmapinfo( &src_dib, info, bits->ptr );
     src_dib.bits.is_copy = bits->is_copy;
 
-    if (clip && pdev->clip)
+    if (clip && pdev->dev.clip_region)
     {
         tmp_rgn = CreateRectRgn( 0, 0, 0, 0 );
-        CombineRgn( tmp_rgn, clip, pdev->clip, RGN_AND );
+        CombineRgn( tmp_rgn, clip, pdev->dev.clip_region, RGN_AND );
         clip = tmp_rgn;
     }
-    else if (!clip) clip = pdev->clip;
+    else if (!clip) clip = pdev->dev.clip_region;
     add_clipped_bounds( pdev, &dst->visrect, clip );
 
     if (get_clipped_rects( &pdev->dib, &dst->visrect, clip, &clipped_rects ))
@@ -1070,8 +1070,8 @@ DWORD CDECL dibdrv_BlendImage( PHYSDEV dev, BITMAPINFO *info, const struct gdi_i
 
     init_dib_info_from_bitmapinfo( &src_dib, info, bits->ptr );
     src_dib.bits.is_copy = bits->is_copy;
-    add_clipped_bounds( pdev, &dst->visrect, pdev->clip );
-    return blend_rect( &pdev->dib, &dst->visrect, &src_dib, &src->visrect, pdev->clip, blend );
+    add_clipped_bounds( pdev, &dst->visrect, pdev->dev.clip_region );
+    return blend_rect( &pdev->dib, &dst->visrect, &src_dib, &src->visrect, pdev->dev.clip_region, blend );
 
 update_format:
     if (blend.AlphaFormat & AC_SRC_ALPHA)  /* source alpha requires A8R8G8B8 format */
@@ -1448,8 +1448,8 @@ BOOL CDECL dibdrv_GradientFill( PHYSDEV dev, TRIVERTEX *vert_array, ULONG nvert,
             /* Windows bug: no alpha on a8r8g8b8 created with bitfields */
             if (pdev->dib.funcs == &funcs_8888 && pdev->dib.compression == BI_BITFIELDS)
                 vert[0].Alpha = vert[1].Alpha = 0;
-            add_clipped_bounds( pdev, &bounds, pdev->clip );
-            gradient_rect( &pdev->dib, vert, mode, pdev->clip, &bounds );
+            add_clipped_bounds( pdev, &bounds, pdev->dev.clip_region );
+            gradient_rect( &pdev->dib, vert, mode, pdev->dev.clip_region, &bounds );
         }
         break;
 
@@ -1460,8 +1460,8 @@ BOOL CDECL dibdrv_GradientFill( PHYSDEV dev, TRIVERTEX *vert_array, ULONG nvert,
             /* Windows bug: no alpha on a8r8g8b8 created with bitfields */
             if (pdev->dib.funcs == &funcs_8888 && pdev->dib.compression == BI_BITFIELDS)
                 vert[0].Alpha = vert[1].Alpha = 0;
-            add_clipped_bounds( pdev, &bounds, pdev->clip );
-            gradient_rect( &pdev->dib, vert, mode, pdev->clip, &bounds );
+            add_clipped_bounds( pdev, &bounds, pdev->dev.clip_region );
+            gradient_rect( &pdev->dib, vert, mode, pdev->dev.clip_region, &bounds );
         }
         break;
 
@@ -1472,8 +1472,8 @@ BOOL CDECL dibdrv_GradientFill( PHYSDEV dev, TRIVERTEX *vert_array, ULONG nvert,
             /* Windows bug: no alpha on a8r8g8b8 created with bitfields */
             if (pdev->dib.funcs == &funcs_8888 && pdev->dib.compression == BI_BITFIELDS)
                 vert[0].Alpha = vert[1].Alpha = vert[2].Alpha = 0;
-            add_clipped_bounds( pdev, &bounds, pdev->clip );
-            if (!gradient_rect( &pdev->dib, vert, mode, pdev->clip, &bounds )) ret = FALSE;
+            add_clipped_bounds( pdev, &bounds, pdev->dev.clip_region );
+            if (!gradient_rect( &pdev->dib, vert, mode, pdev->dev.clip_region, &bounds )) ret = FALSE;
         }
         break;
     }

@@ -106,7 +106,6 @@ typedef struct
     Drawable      drawable;
     RECT          dc_rect;       /* DC rectangle relative to drawable */
     RECT         *bounds;        /* Graphics bounds */
-    HRGN          region;        /* Device region (visible region & clip region) */
     X_PHYSPEN     pen;
     X_PHYSBRUSH   brush;
     int           depth;       /* bit depth of the DC */

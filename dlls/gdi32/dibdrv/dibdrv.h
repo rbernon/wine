@@ -97,7 +97,6 @@ typedef struct dibdrv_physdev
     dib_info dib;
     dib_brush brush;
 
-    HRGN clip;
     RECT *bounds;
     struct cached_font *font;
 
