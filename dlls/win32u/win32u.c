@@ -68,6 +68,15 @@ void CDECL win32u_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags
                              visible_rect, valid_rects, surface );
 }
 
+void CDECL X11DRV_SetParent( HWND hwnd, HWND parent, HWND old_parent );
+
+void CDECL win32u_SetParent( HWND hwnd, HWND parent, HWND old_parent )
+{
+    TRACE( "hwnd %p, parent %p, old_parent %p.\n", hwnd, parent, old_parent );
+
+    X11DRV_SetParent( hwnd, parent, old_parent );
+}
+
 void CDECL X11DRV_DestroyWindow( HWND hwnd );
 
 void CDECL win32u_DestroyWindow( HWND hwnd )
