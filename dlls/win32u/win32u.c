@@ -77,6 +77,15 @@ void CDECL win32u_DestroyWindow( HWND hwnd )
     X11DRV_DestroyWindow( hwnd );
 }
 
+LRESULT CDECL X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp );
+
+LRESULT CDECL win32u_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
+{
+    TRACE( "hwnd %p, msg %x, wp %lx, lp %lx.\n", hwnd, msg, wp, lp );
+
+    return X11DRV_WindowMessage( hwnd, msg, wp, lp );
+}
+
 BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, LPVOID reserved )
 {
     TRACE( "instance %p, reason %d, reserved %p.\n", instance, reason, reserved );

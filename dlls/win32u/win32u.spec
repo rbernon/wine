@@ -40,7 +40,7 @@
 @ cdecl SysCommand(long long long) X11DRV_SysCommand
 @ cdecl UpdateClipboard() X11DRV_UpdateClipboard
 @ cdecl UpdateLayeredWindow(long ptr ptr) X11DRV_UpdateLayeredWindow
-@ cdecl WindowMessage(long long long long) X11DRV_WindowMessage
+@ cdecl WindowMessage(long long long long) win32u_WindowMessage
 @ cdecl WindowPosChanging(long long long ptr ptr ptr ptr) win32u_WindowPosChanging
 @ cdecl WindowPosChanged(long long long ptr ptr ptr ptr ptr) win32u_WindowPosChanged
 @ cdecl SystemParametersInfo(long long ptr long) X11DRV_SystemParametersInfo
