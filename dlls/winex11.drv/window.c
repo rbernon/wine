@@ -2933,6 +2933,14 @@ LRESULT CDECL X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
             if (win) set_window_cursor( win, (HCURSOR)lp );
         }
         return 0;
+    case WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE:
+        if ((data = get_win_data( hwnd )))
+        {
+            if (lp) data->wm_resized++;
+            else data->wm_resized--;
+            release_win_data( data );
+        }
+        return 0;
     case WM_X11DRV_DESKTOP_SET_HICON_COLOR:
         x11drv_desktop_set_hicon_color( (HICON)wp, (Pixmap)lp );
         return 0;

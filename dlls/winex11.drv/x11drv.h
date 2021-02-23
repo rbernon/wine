@@ -530,6 +530,7 @@ enum x11drv_window_messages
     WM_X11DRV_SET_WIN_REGION,
     WM_X11DRV_RESIZE_DESKTOP,
     WM_X11DRV_SET_CURSOR,
+    WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE,
     WM_X11DRV_DESKTOP_SET_HICON_CURSOR,
     WM_X11DRV_DESKTOP_SET_HICON_COLOR,
     WM_X11DRV_DESKTOP_SET_HICON_MASK,
@@ -573,6 +574,7 @@ struct x11drv_win_data
     DWORD       net_wm_state;   /* bit mask of active x11drv_net_wm_state values */
     Window      embedder;       /* window id of embedder */
     unsigned long configure_serial; /* serial number of last configure request */
+    DWORD       wm_resized; /* window is being resized by the WM */
     struct window_surface *surface;
     Pixmap         icon_pixmap;
     Pixmap         icon_mask;
