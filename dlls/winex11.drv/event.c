@@ -1048,12 +1048,14 @@ static void reparent_notify( Display *display, HWND hwnd, Window xparent, int x,
         style = (style & ~WS_POPUP) | WS_CHILD;
     }
 
+    SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
     ShowWindow( hwnd, SW_HIDE );
     old_parent = SetParent( hwnd, parent );
     SetWindowLongW( hwnd, GWL_STYLE, style );
     SetWindowPos( hwnd, HWND_TOP, x, y, 0, 0,
                   SWP_NOACTIVATE | SWP_NOSIZE | SWP_NOCOPYBITS |
                   ((style & WS_VISIBLE) ? SWP_SHOWWINDOW : 0) );
+    SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
 
     /* make old parent destroy itself if it no longer has children */
     if (old_parent != GetDesktopWindow()) PostMessageW( old_parent, WM_CLOSE, 0, 0 );
@@ -1187,7 +1189,9 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
             {
                 TRACE( "win %p/%lx is maximized\n", data->hwnd, data->whole_window );
                 release_win_data( data );
+                SendMessageW( data->hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
                 SendMessageW( data->hwnd, WM_SYSCOMMAND, SC_MAXIMIZE, 0 );
+                SendMessageW( data->hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
                 return TRUE;
             }
         }
@@ -1195,7 +1199,9 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
         {
             TRACE( "window %p/%lx is no longer maximized\n", data->hwnd, data->whole_window );
             release_win_data( data );
+            SendMessageW( data->hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
             SendMessageW( data->hwnd, WM_SYSCOMMAND, SC_RESTORE, 0 );
+            SendMessageW( data->hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
             return TRUE;
         }
     }
@@ -1203,7 +1209,9 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
     if ((flags & (SWP_NOSIZE | SWP_NOMOVE)) != (SWP_NOSIZE | SWP_NOMOVE))
     {
         release_win_data( data );
+        SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
         SetWindowPos( hwnd, 0, x, y, cx, cy, flags );
+        SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
         return TRUE;
     }
 
@@ -1241,7 +1249,11 @@ static BOOL X11DRV_GravityNotify( HWND hwnd, XEvent *xev )
     release_win_data( data );
 
     if (window_rect.left != x || window_rect.top != y)
+    {
+        SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
         SetWindowPos( hwnd, 0, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS );
+        SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
+    }
 
     return TRUE;
 }
@@ -1322,7 +1334,9 @@ static void handle_wm_state_notify( HWND hwnd, XPropertyEvent *event, BOOL updat
             {
                 TRACE( "restoring to max %p/%lx\n", data->hwnd, data->whole_window );
                 release_win_data( data );
+                SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
                 SendMessageW( hwnd, WM_SYSCOMMAND, SC_MAXIMIZE, 0 );
+                SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
                 return;
             }
             TRACE( "not restoring to max win %p/%lx style %08x\n", data->hwnd, data->whole_window, style );
@@ -1335,7 +1349,9 @@ static void handle_wm_state_notify( HWND hwnd, XPropertyEvent *event, BOOL updat
                 release_win_data( data );
                 if ((style & (WS_MINIMIZE | WS_VISIBLE)) == (WS_MINIMIZE | WS_VISIBLE))
                     SetActiveWindow( hwnd );
+                SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
                 SendMessageW( hwnd, WM_SYSCOMMAND, SC_RESTORE, 0 );
+                SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
                 return;
             }
             TRACE( "not restoring win %p/%lx style %08x\n", data->hwnd, data->whole_window, style );
@@ -1348,7 +1364,9 @@ static void handle_wm_state_notify( HWND hwnd, XPropertyEvent *event, BOOL updat
         {
             TRACE( "minimizing win %p/%lx\n", data->hwnd, data->whole_window );
             release_win_data( data );
+            SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
             SendMessageW( hwnd, WM_SYSCOMMAND, SC_MINIMIZE, 0 );
+            SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
             return;
         }
         TRACE( "not minimizing win %p/%lx style %08x\n", data->hwnd, data->whole_window, style );

@@ -2811,6 +2811,14 @@ LRESULT CDECL X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
         return clip_cursor_notify( hwnd, (HWND)wp, (HWND)lp );
     case WM_X11DRV_CLIP_CURSOR_REQUEST:
         return clip_cursor_request( hwnd, (BOOL)wp, (BOOL)lp );
+    case WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE:
+        if ((data = get_win_data( hwnd )))
+        {
+            if (lp) data->wm_resized++;
+            else data->wm_resized--;
+            release_win_data( data );
+        }
+        return 0;
     case WM_X11DRV_NOTIFY_HWND_SURFACE_CREATED:
         TRACE( "WM_X11DRV_NOTIFY_HWND_SURFACE_CREATED hwnd %p, toplevel %d, window %lx", hwnd, (BOOL)wp, (Window)lp );
         return 0;
