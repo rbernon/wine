@@ -2394,15 +2394,11 @@ void CDECL X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags
                                     const RECT *visible_rect, const RECT *valid_rects,
                                     struct window_surface *surface )
 {
-    struct x11drv_thread_data *thread_data;
     struct x11drv_win_data *data;
     DWORD new_style = GetWindowLongW( hwnd, GWL_STYLE );
     RECT old_window_rect, old_whole_rect, old_client_rect;
-    int event_type;
 
     if (!(data = get_win_data( hwnd ))) return;
-
-    thread_data = x11drv_thread_data();
 
     old_window_rect = data->window_rect;
     old_whole_rect  = data->whole_rect;
@@ -2470,22 +2466,10 @@ void CDECL X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags
         return;
     }
 
-    /* check if we are currently processing an event relevant to this window */
-    event_type = 0;
-    if (thread_data &&
-        thread_data->current_event &&
-        thread_data->current_event->xany.window == data->whole_window)
-    {
-        event_type = thread_data->current_event->type;
-        if (event_type != ConfigureNotify && event_type != PropertyNotify &&
-            event_type != GravityNotify && event_type != ReparentNotify)
-            event_type = 0;  /* ignore other events */
-    }
-
-    if (data->mapped && event_type != ReparentNotify)
+    if (data->mapped && !data->wm_reparented)
     {
         if (((swp_flags & SWP_HIDEWINDOW) && !(new_style & WS_VISIBLE)) ||
-            (!event_type && !(new_style & WS_MINIMIZE) &&
+            (!data->wm_resized && !(new_style & WS_MINIMIZE) &&
              !is_window_rect_mapped( rectWindow ) && is_window_rect_mapped( &old_window_rect )))
         {
             release_win_data( data );
@@ -2496,7 +2480,7 @@ void CDECL X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags
     }
 
     /* don't change position if we are about to minimize or maximize a managed window */
-    if (!event_type &&
+    if (!data->wm_resized &&
         !(data->managed && (swp_flags & SWP_STATECHANGED) && (new_style & (WS_MINIMIZE|WS_MAXIMIZE))))
         sync_window_position( data, swp_flags, &old_window_rect, &old_whole_rect, &old_client_rect );
 
@@ -2530,7 +2514,7 @@ void CDECL X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags
         else
         {
             if (swp_flags & (SWP_FRAMECHANGED|SWP_STATECHANGED)) set_wm_hints( data );
-            if (!event_type) update_net_wm_states( data );
+            if (!data->wm_resized) update_net_wm_states( data );
         }
     }
 
@@ -2578,13 +2562,7 @@ UINT CDECL X11DRV_ShowWindow( HWND hwnd, INT cmd, RECT *rect, UINT swp )
     if (!data->managed || !data->mapped || data->iconic) goto done;
 
     /* only fetch the new rectangle if the ShowWindow was a result of a window manager event */
-
-    if (!thread_data->current_event || thread_data->current_event->xany.window != data->whole_window)
-        goto done;
-
-    if (thread_data->current_event->type != ConfigureNotify &&
-        thread_data->current_event->type != PropertyNotify)
-        goto done;
+    if (!data->wm_resized || data->wm_reparented) goto done;
 
     TRACE( "win %p/%lx cmd %d at %s flags %08x\n",
            hwnd, data->whole_window, cmd, wine_dbgstr_rect(rect), swp );
