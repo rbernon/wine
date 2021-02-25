@@ -52,6 +52,16 @@ enum x11drv_window_messages
     WM_X11DRV_WM_TAKE_FOCUS,
 };
 
+enum x11drv_escape_codes
+{
+    X11DRV_SET_DRAWABLE,     /* set current drawable for a DC */
+    X11DRV_GET_DRAWABLE,     /* get current drawable for a DC */
+    X11DRV_START_EXPOSURES,  /* start graphics exposures */
+    X11DRV_END_EXPOSURES,    /* end graphics exposures */
+    X11DRV_FLUSH_GL_DRAWABLE,/* flush changes made to the gl drawable */
+    X11DRV_FLUSH_VK_DRAWABLE,/* flush changes made to the vulkan drawable */
+};
+
 extern void win32u_create_toplevel_surface( HWND hwnd ) DECLSPEC_HIDDEN;
 extern void win32u_create_toplevel_surface_notify( HWND hwnd, LPARAM param ) DECLSPEC_HIDDEN;
 extern void win32u_create_client_surface( HWND hwnd ) DECLSPEC_HIDDEN;
@@ -61,6 +71,7 @@ extern void win32u_delete_hwnd_surfaces( HWND hwnd ) DECLSPEC_HIDDEN;
 extern void win32u_resize_hwnd_surfaces( HWND hwnd ) DECLSPEC_HIDDEN;
 extern void win32u_resize_hwnd_surfaces_notify( HWND hwnd, BOOL enable );
 extern void win32u_reparent_hwnd_surfaces_notify( HWND hwnd, BOOL enable );
+extern void win32u_present_client_surface( HWND hwnd, HRGN region ) DECLSPEC_HIDDEN;
 extern void win32u_update_window_surface( HWND hwnd, const RECT *visible_rect, struct window_surface **window_surface ) DECLSPEC_HIDDEN;
 
 #endif /* __WINE_WIN32U_WIN32U_H */
