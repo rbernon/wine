@@ -1,6 +1,6 @@
 # GDI driver
 
-@ cdecl wine_get_gdi_driver(long) X11DRV_get_gdi_driver
+@ cdecl wine_get_gdi_driver(long) win32u_get_gdi_driver
 
 # USER driver
 
@@ -24,9 +24,9 @@
 @ cdecl CreateWindow(long) X11DRV_CreateWindow
 @ cdecl DestroyWindow(long) win32u_DestroyWindow
 @ cdecl FlashWindowEx(ptr) X11DRV_FlashWindowEx
-@ cdecl GetDC(long long long ptr ptr long) X11DRV_GetDC
+@ cdecl GetDC(long long long ptr ptr long) win32u_GetDC
 @ cdecl MsgWaitForMultipleObjectsEx(long ptr long long long) X11DRV_MsgWaitForMultipleObjectsEx
-@ cdecl ReleaseDC(long long) X11DRV_ReleaseDC
+@ cdecl ReleaseDC(long long) win32u_ReleaseDC
 @ cdecl SetCapture(long long) X11DRV_SetCapture
 @ cdecl SetFocus(long) X11DRV_SetFocus
 @ cdecl SetLayeredWindowAttributes(long long long long) X11DRV_SetLayeredWindowAttributes

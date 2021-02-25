@@ -306,8 +306,8 @@ struct x11drv_escape_get_drawable
 
 struct x11drv_escape_flush_gl_drawable
 {
-    enum x11drv_escape_codes code;         /* escape code (X11DRV_FLUSH_GL_DRAWABLE) */
-    Drawable                 gl_drawable;  /* GL drawable */
+    enum x11drv_escape_codes code;         /* escape code (X11DRV_PRESENT_DRAWABLE) */
+    LPARAM                   gl_drawable;     /* GL / VK drawable */
     BOOL                     flush;        /* flush X11 before copying */
 };
 

@@ -320,6 +320,47 @@ void win32u_reparent_hwnd_surfaces_notify( HWND hwnd, BOOL enable )
     LeaveCriticalSection( &surfaces_cs );
 }
 
+void win32u_present_client_surface( HWND hwnd, HRGN region, LPARAM param )
+{
+    struct hwnd_surfaces *surfaces;
+    RGNDATA *data = NULL;
+    POINT target_pos;
+    DWORD i, size, clip_rect_count = 0;
+    RECT source_rect, *clip_rects = NULL;
+
+    TRACE( "hwnd %p, region %p.\n", hwnd, region );
+
+    GetClientRect( hwnd, &source_rect );
+
+    if (!region)
+    {
+        clip_rect_count = 1;
+        clip_rects = &source_rect;
+    }
+    else if ((size = GetRegionData( region, 0, NULL )) && (data = malloc( size )))
+    {
+        GetRegionData( region, size, data );
+        clip_rect_count = data->rdh.nCount;
+        clip_rects = (RECT *)data->Buffer;
+    }
+
+    EnterCriticalSection( &surfaces_cs );
+    if ((surfaces = find_surfaces_for_hwnd( hwnd )))
+    {
+        if (clip_rect_count && surfaces->root && surfaces->root->toplevel)
+        {
+            target_pos = *(POINT *)&source_rect;
+            MapWindowPoints( hwnd, surfaces->root->hwnd, &target_pos, 1 );
+            for (i = 0; i < clip_rect_count; ++i) MapWindowPoints( hwnd, surfaces->root->hwnd, (POINT *)&clip_rects[i], 2 );
+            for (i = 0; i < surfaces->client_count; ++i) if (surfaces->client_ids[i] == param) break;
+            if (i < surfaces->client_count) unix_funcs->surface_present( surfaces->root->toplevel, surfaces->clients[i], &target_pos, &source_rect, clip_rect_count, clip_rects );
+        }
+    }
+    LeaveCriticalSection( &surfaces_cs );
+
+    if (data) free( data );
+}
+
 static const struct window_surface_funcs win32u_window_surface_funcs;
 
 struct win32u_window_surface
