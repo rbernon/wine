@@ -1605,6 +1605,8 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual )
         XSync( gdi_display, False );
         if (data->whole_window) XSelectInput( data->display, data->client_window, ExposureMask );
         TRACE( "%p xwin %lx/%lx\n", data->hwnd, data->whole_window, data->client_window );
+
+        SendNotifyMessageW( data->hwnd, WM_X11DRV_NOTIFY_SURFACE_CREATED, (WPARAM)FALSE, (LPARAM)data->client_window );
     }
     release_win_data( data );
     return ret;
@@ -1674,6 +1676,8 @@ static void create_whole_window( struct x11drv_win_data *data )
     sync_window_opacity( data->display, data->whole_window, key, alpha, layered_flags );
 
     XFlush( data->display );  /* make sure the window exists before we start painting to it */
+
+    SendNotifyMessageW( data->hwnd, WM_X11DRV_NOTIFY_SURFACE_CREATED, (WPARAM)TRUE, (LPARAM)data->whole_window );
 
 done:
     if (win_rgn) DeleteObject( win_rgn );
@@ -2912,6 +2916,9 @@ LRESULT CDECL X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
             else data->wm_reparented--;
             release_win_data( data );
         }
+        return 0;
+    case WM_X11DRV_NOTIFY_SURFACE_CREATED:
+        TRACE( "hwnd %p, toplevel %d, window %lx", hwnd, (BOOL)wp, (Window)lp );
         return 0;
     case WM_X11DRV_DESKTOP_SET_HICON_COLOR:
         x11drv_desktop_set_hicon_color( (HICON)wp, (Pixmap)lp );
