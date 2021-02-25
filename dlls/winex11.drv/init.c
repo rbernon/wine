@@ -227,6 +227,41 @@ static INT CDECL X11DRV_ExtEscape( PHYSDEV dev, INT escape, INT in_count, LPCVOI
                     return TRUE;
                 }
                 break;
+            case X11DRV_FLUSH_VK_DRAWABLE:
+                if (in_count >= sizeof(struct x11drv_escape_flush_vk_drawable) &&
+                    out_count >= sizeof(struct x11drv_escape_flush_vk_drawable_reply))
+                {
+                    const struct x11drv_escape_flush_vk_drawable in = *(struct x11drv_escape_flush_vk_drawable *)in_data;
+                    struct x11drv_escape_flush_vk_drawable_reply *out = (struct x11drv_escape_flush_vk_drawable_reply *)out_data;
+                    HRGN client_region;
+                    RECT client_rect;
+                    HWND hwnd = WindowFromDC( physDev->dev.hdc );
+                    RECT rect = physDev->dc_rect;
+
+                    if (in.offscreen)
+                    {
+                        OffsetRect( &rect, -physDev->dc_rect.left, -physDev->dc_rect.top );
+                        XFlush( gdi_display );
+                        XSetFunction( gdi_display, physDev->gc, GXcopy );
+                        XCopyArea( gdi_display, in.drawable, physDev->drawable, physDev->gc,
+                                   0, 0, rect.right, rect.bottom,
+                                   physDev->dc_rect.left, physDev->dc_rect.top );
+                        add_device_bounds( physDev, &rect );
+                    }
+
+                    if (!physDev->dev.clip_region) out->set_offscreen = FALSE;
+                    else if (!hwnd) out->set_offscreen = TRUE;
+                    else if (!GetWindow( hwnd, GW_CHILD ) && GetAncestor( hwnd, GA_PARENT ) == GetDesktopWindow()) out->set_offscreen = FALSE;
+                    else
+                    {
+                        GetClientRect( hwnd, &client_rect );
+                        client_region = CreateRectRgn( client_rect.left, client_rect.top, client_rect.right, client_rect.bottom );
+                        out->set_offscreen = !EqualRgn(physDev->dev.clip_region, client_region);
+                        DeleteObject(client_region);
+                    }
+                    return TRUE;
+                }
+                break;
             case X11DRV_PRESENT_DRAWABLE:
                 if (in_count >= sizeof(struct x11drv_escape_present_drawable))
                 {
