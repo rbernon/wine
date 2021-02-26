@@ -131,6 +131,7 @@ static BOOL init_xlib(void)
 
 static struct unix_funcs unix_funcs = {
     cairo_surface_create_toplevel,
+    cairo_surface_create_notify,
     cairo_surface_delete,
 };
 

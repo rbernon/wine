@@ -58,6 +58,36 @@ struct unix_surface *CDECL cairo_surface_create_toplevel( HWND hwnd )
     return cairo_surface_create( hwnd );
 }
 
+void CDECL cairo_surface_create_notify( struct unix_surface *surface, LPARAM param )
+{
+    XWindowAttributes attr;
+    Display *display;
+    Window window = (Window)param;
+    HWND hwnd = surface->hwnd;
+
+    TRACE( "surface %p, param %lx.\n", surface, param );
+
+    if (!(display = x11drv_thread_data()->display))
+    {
+        ERR( "failed to get X11 thread display for window %lx\n", window );
+        return;
+    }
+
+    if (!pXGetWindowAttributes( display, window, &attr ))
+    {
+        ERR( "XGetWindowAttributes failed for window %lx\n", window );
+        return;
+    }
+
+    if (surface->cairo_surface && p_cairo_xlib_surface_get_drawable( surface->cairo_surface ) == window)
+        return;
+
+    if (surface->cairo_surface) p_cairo_surface_destroy( surface->cairo_surface );
+    surface->cairo_surface = p_cairo_xlib_surface_create( display, window, attr.visual, attr.width, attr.height );
+
+    TRACE( "updated surface %p, hwnd %p, window %lx.\n", surface, hwnd, window );
+}
+
 void CDECL cairo_surface_delete( struct unix_surface *surface )
 {
     TRACE( "surface %p.\n", surface );

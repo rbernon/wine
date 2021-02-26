@@ -79,6 +79,7 @@ MAKE_FUNCPTR(cairo_xlib_surface_set_size)
 #endif
 
 extern struct unix_surface *CDECL cairo_surface_create_toplevel( HWND hwnd ) DECLSPEC_HIDDEN;
+extern void CDECL cairo_surface_create_notify( struct unix_surface *surface, LPARAM param ) DECLSPEC_HIDDEN;
 extern void CDECL cairo_surface_delete( struct unix_surface *surface ) DECLSPEC_HIDDEN;
 
 #endif /* __WINE_WIN32U_UNIX_X11_H */
