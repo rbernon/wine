@@ -38,6 +38,7 @@ MAKE_FUNCPTR(cairo_surface_destroy)
 #define MAKE_FUNCPTR(f) typeof(f) *p_##f;
 MAKE_FUNCPTR(cairo_xlib_surface_create)
 MAKE_FUNCPTR(cairo_xlib_surface_get_drawable)
+MAKE_FUNCPTR(cairo_xlib_surface_get_display)
 MAKE_FUNCPTR(cairo_xlib_surface_set_size)
 #undef MAKE_FUNCPTR
 #endif
@@ -65,6 +66,7 @@ static BOOL init_cairo(void)
 #ifdef HAVE_CAIRO_CAIRO_XLIB_H
     LOAD_FUNCPTR(cairo_xlib_surface_create)
     LOAD_FUNCPTR(cairo_xlib_surface_get_drawable)
+    LOAD_FUNCPTR(cairo_xlib_surface_get_display)
     LOAD_FUNCPTR(cairo_xlib_surface_set_size)
 #endif
 #undef LOAD_FUNCPTR
@@ -90,6 +92,8 @@ static BOOL init_cairo(void)
 
 #define MAKE_FUNCPTR(f) typeof(f) *p##f;
 MAKE_FUNCPTR(XGetWindowAttributes)
+MAKE_FUNCPTR(XConfigureWindow)
+MAKE_FUNCPTR(XReparentWindow)
 #undef MAKE_FUNCPTR
 
 static BOOL init_xlib(void)
@@ -110,6 +114,8 @@ static BOOL init_xlib(void)
     }
 
     LOAD_FUNCPTR(XGetWindowAttributes)
+    LOAD_FUNCPTR(XConfigureWindow)
+    LOAD_FUNCPTR(XReparentWindow)
 #undef LOAD_FUNCPTR
 
     return TRUE;
@@ -133,6 +139,7 @@ static struct unix_funcs unix_funcs = {
     cairo_surface_create_toplevel,
     cairo_surface_create_notify,
     cairo_surface_delete,
+    cairo_surface_resize_notify,
 };
 
 NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out )

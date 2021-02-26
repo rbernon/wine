@@ -76,6 +76,8 @@ void CDECL win32u_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags
 
     X11DRV_WindowPosChanged( hwnd, insert_after, swp_flags, window_rect, client_rect,
                              visible_rect, valid_rects, surface );
+
+    win32u_resize_hwnd_surfaces( hwnd );
 }
 
 void CDECL X11DRV_SetParent( HWND hwnd, HWND parent, HWND old_parent );

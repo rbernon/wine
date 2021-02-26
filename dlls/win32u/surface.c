@@ -143,3 +143,18 @@ void win32u_delete_toplevel_surface( HWND hwnd )
     }
     RtlLeaveCriticalSection( &surfaces_cs );
 }
+
+void win32u_resize_hwnd_surfaces( HWND hwnd )
+{
+    struct hwnd_surface *toplevel;
+    RECT client_rect;
+
+    TRACE( "hwnd %p.\n", hwnd );
+
+    GetWindowRect( hwnd, &client_rect );
+
+    RtlEnterCriticalSection( &surfaces_cs );
+    if ((toplevel = get_toplevel_surface_for_hwnd( hwnd )))
+        unix_funcs->surface_resize_notify( toplevel->unix_surface, &client_rect );
+    RtlLeaveCriticalSection( &surfaces_cs );
+}

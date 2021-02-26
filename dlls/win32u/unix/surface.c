@@ -95,3 +95,12 @@ void CDECL cairo_surface_delete( struct unix_surface *surface )
     if (surface->cairo_surface) p_cairo_surface_destroy( surface->cairo_surface );
     free(surface);
 }
+
+void CDECL cairo_surface_resize_notify( struct unix_surface *surface, const RECT *rect )
+{
+    TRACE( "surface %p, rect %s stub!\n", surface, wine_dbgstr_rect( rect ) );
+
+    if (!surface->cairo_surface) return;
+
+    p_cairo_xlib_surface_set_size( surface->cairo_surface, rect->right - rect->left, rect->bottom - rect->top );
+}
