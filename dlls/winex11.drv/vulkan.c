@@ -422,6 +422,10 @@ static VkResult X11DRV_vkCreateSwapchainKHR(VkDevice device,
     return result;
 }
 
+#ifdef WIN32U_SOURCE
+extern void win32u_create_client_surface( HWND hwnd ) DECLSPEC_HIDDEN;
+#endif
+
 static VkResult X11DRV_vkCreateWin32SurfaceKHR(VkInstance instance,
         const VkWin32SurfaceCreateInfoKHR *create_info,
         const VkAllocationCallbacks *allocator, VkSurfaceKHR *surface)
@@ -446,6 +450,10 @@ static VkResult X11DRV_vkCreateWin32SurfaceKHR(VkInstance instance,
                                             : create_dummy_client_window();
     x11_surface->dc = GetDC(create_info->hwnd);
     list_init(&x11_surface->entry);
+
+#ifdef WIN32U_SOURCE
+    win32u_create_client_surface(create_info->hwnd);
+#endif
 
     if (!x11_surface->window)
     {

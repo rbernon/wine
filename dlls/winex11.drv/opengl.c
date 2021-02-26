@@ -1303,6 +1303,9 @@ static GLXContext create_glxcontext(Display *display, struct wgl_context *contex
     return ctx;
 }
 
+#ifdef WIN32U_SOURCE
+extern void win32u_create_client_surface( HWND hwnd ) DECLSPEC_HIDDEN;
+#endif
 
 /***********************************************************************
  *              create_gl_drawable
@@ -1329,6 +1332,10 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct wgl_pixel
     gl->format = format;
     gl->ref = 1;
     gl->mutable_pf = mutable_pf;
+
+#ifdef WIN32U_SOURCE
+    win32u_create_client_surface( hwnd );
+#endif
 
     if (!known_child && !GetWindow( hwnd, GW_CHILD ) && GetAncestor( hwnd, GA_PARENT ) == GetDesktopWindow())  /* childless top-level window */
     {
