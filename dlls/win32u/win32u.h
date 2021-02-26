@@ -32,7 +32,26 @@ extern struct unix_funcs *unix_funcs DECLSPEC_HIDDEN;
 
 struct toplevel_surface;
 
+enum x11drv_window_messages
+{
+    WM_X11DRV_UPDATE_CLIPBOARD = 0x80001000,
+    WM_X11DRV_SET_WIN_REGION,
+    WM_X11DRV_RESIZE_DESKTOP,
+    WM_X11DRV_SET_CURSOR,
+    WM_X11DRV_NOTIFY_HWND_SURFACE_CREATED,
+    WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE,
+    WM_X11DRV_NOTIFY_HWND_SURFACE_REPARENT,
+    WM_X11DRV_DESKTOP_SET_HICON_CURSOR,
+    WM_X11DRV_DESKTOP_SET_HICON_COLOR,
+    WM_X11DRV_DESKTOP_SET_HICON_MASK,
+    WM_X11DRV_DESKTOP_SET_WINDOW_CURSOR,
+    WM_X11DRV_DESKTOP_CLIP_CURSOR,
+    WM_X11DRV_WM_DELETE_WINDOW,
+    WM_X11DRV_WM_TAKE_FOCUS,
+};
+
 extern void win32u_create_toplevel_surface( HWND hwnd ) DECLSPEC_HIDDEN;
+extern void win32u_create_toplevel_surface_notify( HWND hwnd, LPARAM param ) DECLSPEC_HIDDEN;
 extern void win32u_delete_toplevel_surface( HWND hwnd ) DECLSPEC_HIDDEN;
 
 #endif /* __WINE_WIN32U_WIN32U_H */
