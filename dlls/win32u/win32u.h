@@ -28,6 +28,8 @@
 #include "winuser.h"
 #include "wingdi.h"
 
+#include "wine/gdi_driver.h"
+
 extern struct unix_funcs *unix_funcs DECLSPEC_HIDDEN;
 
 struct toplevel_surface;
@@ -54,5 +56,6 @@ extern void win32u_create_toplevel_surface( HWND hwnd ) DECLSPEC_HIDDEN;
 extern void win32u_create_toplevel_surface_notify( HWND hwnd, LPARAM param ) DECLSPEC_HIDDEN;
 extern void win32u_delete_toplevel_surface( HWND hwnd ) DECLSPEC_HIDDEN;
 extern void win32u_resize_hwnd_surfaces( HWND hwnd ) DECLSPEC_HIDDEN;
+extern void win32u_update_window_surface( HWND hwnd, const RECT *visible_rect, struct window_surface **window_surface ) DECLSPEC_HIDDEN;
 
 #endif /* __WINE_WIN32U_WIN32U_H */

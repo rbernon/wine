@@ -22,14 +22,17 @@
 #define __WIN32U_UNIXLIB_H
 
 #include "winternl.h"
+#include "wingdi.h"
 
 struct unix_surface;
 
 struct unix_funcs
 {
     struct unix_surface *(CDECL *surface_create_toplevel)( HWND );
+    struct unix_surface *(CDECL *surface_create_drawable)( struct unix_surface *, BITMAP * );
     void (CDECL *surface_create_notify)( struct unix_surface *, LPARAM param );
     void (CDECL *surface_delete)( struct unix_surface * );
+    void (CDECL *surface_present)( struct unix_surface *, struct unix_surface *, const POINT *, const RECT *, UINT, const RECT * );
     void (CDECL *surface_resize_notify)( struct unix_surface *, const RECT * );
 };
 

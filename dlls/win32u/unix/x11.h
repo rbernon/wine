@@ -68,7 +68,23 @@ MAKE_FUNCPTR(XReparentWindow)
 
 #ifdef HAVE_CAIRO_CAIRO_H
 #define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(cairo_clip)
+MAKE_FUNCPTR(cairo_create)
+MAKE_FUNCPTR(cairo_destroy)
+MAKE_FUNCPTR(cairo_fill)
+MAKE_FUNCPTR(cairo_image_surface_get_data)
+MAKE_FUNCPTR(cairo_image_surface_get_height)
+MAKE_FUNCPTR(cairo_image_surface_get_stride)
+MAKE_FUNCPTR(cairo_image_surface_get_width)
+MAKE_FUNCPTR(cairo_move_to)
+MAKE_FUNCPTR(cairo_rectangle)
+MAKE_FUNCPTR(cairo_set_source_rgba)
+MAKE_FUNCPTR(cairo_set_source_surface)
+MAKE_FUNCPTR(cairo_surface_create_similar_image)
 MAKE_FUNCPTR(cairo_surface_destroy)
+MAKE_FUNCPTR(cairo_surface_flush)
+MAKE_FUNCPTR(cairo_surface_mark_dirty_rectangle)
+MAKE_FUNCPTR(cairo_surface_reference)
 #undef MAKE_FUNCPTR
 #endif
 
@@ -82,8 +98,10 @@ MAKE_FUNCPTR(cairo_xlib_surface_set_size)
 #endif
 
 extern struct unix_surface *CDECL cairo_surface_create_toplevel( HWND hwnd ) DECLSPEC_HIDDEN;
+extern struct unix_surface *CDECL cairo_surface_create_drawable( struct unix_surface *target, BITMAP *bitmap ) DECLSPEC_HIDDEN;
 extern void CDECL cairo_surface_create_notify( struct unix_surface *surface, LPARAM param ) DECLSPEC_HIDDEN;
 extern void CDECL cairo_surface_delete( struct unix_surface *surface ) DECLSPEC_HIDDEN;
+extern void CDECL cairo_surface_present( struct unix_surface *target, struct unix_surface *source, const POINT *target_pos, const RECT *source_rect, UINT clip_rect_count, const RECT *clip_rects ) DECLSPEC_HIDDEN;
 extern void CDECL cairo_surface_resize_notify( struct unix_surface *surface, const RECT *rect ) DECLSPEC_HIDDEN;
 
 #endif /* __WINE_WIN32U_UNIX_X11_H */
