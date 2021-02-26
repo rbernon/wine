@@ -54,7 +54,10 @@ enum x11drv_window_messages
 
 extern void win32u_create_toplevel_surface( HWND hwnd ) DECLSPEC_HIDDEN;
 extern void win32u_create_toplevel_surface_notify( HWND hwnd, LPARAM param ) DECLSPEC_HIDDEN;
+extern void win32u_create_client_surface( HWND hwnd ) DECLSPEC_HIDDEN;
+extern void win32u_create_client_surface_notify( HWND hwnd, LPARAM param ) DECLSPEC_HIDDEN;
 extern void win32u_delete_toplevel_surface( HWND hwnd ) DECLSPEC_HIDDEN;
+extern void win32u_delete_hwnd_surfaces( HWND hwnd ) DECLSPEC_HIDDEN;
 extern void win32u_resize_hwnd_surfaces( HWND hwnd ) DECLSPEC_HIDDEN;
 extern void win32u_resize_hwnd_surfaces_notify( HWND hwnd, BOOL enable );
 extern void win32u_reparent_hwnd_surfaces_notify( HWND hwnd, BOOL enable );
