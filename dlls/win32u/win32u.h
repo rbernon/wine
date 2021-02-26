@@ -56,6 +56,8 @@ extern void win32u_create_toplevel_surface( HWND hwnd ) DECLSPEC_HIDDEN;
 extern void win32u_create_toplevel_surface_notify( HWND hwnd, LPARAM param ) DECLSPEC_HIDDEN;
 extern void win32u_delete_toplevel_surface( HWND hwnd ) DECLSPEC_HIDDEN;
 extern void win32u_resize_hwnd_surfaces( HWND hwnd ) DECLSPEC_HIDDEN;
+extern void win32u_resize_hwnd_surfaces_notify( HWND hwnd, BOOL enable );
+extern void win32u_reparent_hwnd_surfaces_notify( HWND hwnd, BOOL enable );
 extern void win32u_update_window_surface( HWND hwnd, const RECT *visible_rect, struct window_surface **window_surface ) DECLSPEC_HIDDEN;
 
 #endif /* __WINE_WIN32U_WIN32U_H */
