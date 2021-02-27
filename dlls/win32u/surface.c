@@ -41,6 +41,7 @@ struct hwnd_surface
     HWND hwnd;
     BOOL resize_notify;
     BOOL reparent_notify;
+    struct hwnd_surface *toplevel;
     struct unix_surface *unix_surface;
 };
 
@@ -70,6 +71,7 @@ static struct hwnd_surface *toplevel_surface_create( HWND hwnd )
     toplevel->hwnd = hwnd;
     toplevel->resize_notify = FALSE;
     toplevel->reparent_notify = FALSE;
+    toplevel->toplevel = NULL;
     toplevel->unix_surface = unix_funcs->surface_create_toplevel( hwnd );
 
     TRACE( "created toplevel surface %p for hwnd %p.\n", toplevel, hwnd );
@@ -86,6 +88,7 @@ static struct hwnd_surface *client_surface_create( HWND hwnd )
     client->hwnd = hwnd;
     client->resize_notify = FALSE;
     client->reparent_notify = FALSE;
+    client->toplevel = NULL;
     client->unix_surface = unix_funcs->surface_create_client( hwnd );
 
     TRACE( "created client surface %p for hwnd %p.\n", client, hwnd );
@@ -104,6 +107,7 @@ static void hwnd_surface_delete( struct hwnd_surface *surface )
 
 static struct hwnd_surface *hwnd_surface_grab( struct hwnd_surface *surface )
 {
+    if (!surface) return NULL;
     InterlockedIncrement( &surface->ref );
     return surface;
 }
@@ -233,9 +237,20 @@ void win32u_delete_hwnd_surfaces( HWND hwnd )
     if ((client = get_client_surface_for_hwnd( hwnd )))
     {
         wine_rb_remove( &client_surfaces, &client->entry );
+        if (client->toplevel) hwnd_surface_release( client->toplevel );
         hwnd_surface_delete( client );
     }
     RtlLeaveCriticalSection( &surfaces_cs );
+}
+
+static struct hwnd_surface *find_toplevel_surface_for_hwnd( HWND hwnd )
+{
+    struct hwnd_surface *toplevel = NULL;
+    RtlEnterCriticalSection( &surfaces_cs );
+    while (hwnd && !(toplevel = get_toplevel_surface_for_hwnd( hwnd )))
+        hwnd = GetAncestor( hwnd, GA_PARENT );
+    RtlLeaveCriticalSection( &surfaces_cs );
+    return toplevel;
 }
 
 void win32u_resize_hwnd_surfaces( HWND hwnd )
@@ -249,9 +264,13 @@ void win32u_resize_hwnd_surfaces( HWND hwnd )
 
     RtlEnterCriticalSection( &surfaces_cs );
     if ((toplevel = get_toplevel_surface_for_hwnd( hwnd )))
-        unix_funcs->surface_resize_notify( toplevel->unix_surface, &client_rect );
+        unix_funcs->surface_resize_notify( toplevel->unix_surface, NULL, &client_rect );
     if ((client = get_client_surface_for_hwnd( hwnd )))
-        unix_funcs->surface_resize_notify( client->unix_surface, &client_rect );
+    {
+        if (client->toplevel) hwnd_surface_release( client->toplevel );
+        client->toplevel = hwnd_surface_grab( find_toplevel_surface_for_hwnd( hwnd ) );
+        unix_funcs->surface_resize_notify( client->unix_surface, client->toplevel ? client->toplevel->unix_surface : NULL, &client_rect );
+    }
     RtlLeaveCriticalSection( &surfaces_cs );
 }
 
