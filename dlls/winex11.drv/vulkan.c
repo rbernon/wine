@@ -259,6 +259,7 @@ static BOOL wine_vk_surface_set_offscreen(struct wine_vk_surface *surface, BOOL 
 #ifdef SONAME_LIBXCOMPOSITE
     if (usexcomposite)
     {
+#ifndef WIN32U_SOURCE
         if (!surface->offscreen && offscreen)
         {
             FIXME("Redirecting vulkan surface offscreen, expect degraded performance.\n");
@@ -269,6 +270,7 @@ static BOOL wine_vk_surface_set_offscreen(struct wine_vk_surface *surface, BOOL 
             FIXME("Putting vulkan surface back onscreen, expect standard performance.\n");
             pXCompositeUnredirectWindow(gdi_display, surface->window, CompositeRedirectManual);
         }
+#endif
         surface->offscreen = offscreen;
         return TRUE;
     }

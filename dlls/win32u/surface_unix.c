@@ -443,3 +443,21 @@ void CDECL cairo_surface_resize_notify( struct unix_surface *surface, struct uni
 
     cairo_surface_apply_resize( surface, parent, rect, TRUE );
 }
+
+void CDECL cairo_surface_set_offscreen( struct unix_surface *surface, BOOL offscreen )
+{
+    xcb_generic_error_t *err;
+    xcb_void_cookie_t cookie;
+
+    TRACE( "surface %p, offscreen %d.\n", surface, offscreen );
+
+    if (!surface->cairo_surface) return;
+
+    if (offscreen) cookie = p_xcb_composite_redirect_window_checked( xcb, surface->window, XCB_COMPOSITE_REDIRECT_MANUAL );
+    else cookie = p_xcb_composite_unredirect_window_checked( xcb, surface->window, XCB_COMPOSITE_REDIRECT_MANUAL );
+    if ((err = p_xcb_request_check( xcb, cookie )))
+    {
+        ERR("failed to %sset windows %x offscreen, error %d, resource %x, minor %d, major %d \n", offscreen ? "" : "un", surface->window, err->error_code, err->resource_id, err->minor_code, err->major_code );
+        free(err);
+    }
+}
