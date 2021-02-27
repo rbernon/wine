@@ -128,6 +128,69 @@ static BOOL init_cairo(void)
 
 #endif /* defined(SONAME_LIBCAIRO) */
 
+#ifdef SONAME_LIBXCOMPOSITE
+
+#define MAKE_FUNCPTR(f) typeof(f) * p##f;
+MAKE_FUNCPTR(XCompositeQueryExtension)
+MAKE_FUNCPTR(XCompositeQueryVersion)
+MAKE_FUNCPTR(XCompositeRedirectWindow)
+MAKE_FUNCPTR(XCompositeUnredirectWindow)
+#undef MAKE_FUNCPTR
+
+static BOOL init_xcomposite(Display *display)
+{
+    void *xcomposite_handle;
+    int event_base, error_base, major_version = 0, minor_version = 4;
+
+    if (!(xcomposite_handle = dlopen(SONAME_LIBXCOMPOSITE, RTLD_NOW)))
+    {
+        ERR("dlopen(%s, RTLD_NOW) failed!\n", SONAME_LIBXCOMPOSITE);
+        return FALSE;
+    }
+
+#define LOAD_FUNCPTR(f) \
+    if ((p##f = dlsym(xcomposite_handle, #f)) == NULL) \
+    { \
+        ERR("dlsym(%s, %s) failed!\n", SONAME_LIBXCOMPOSITE, #f); \
+        goto error; \
+    }
+
+    LOAD_FUNCPTR(XCompositeQueryExtension)
+    LOAD_FUNCPTR(XCompositeQueryVersion)
+    LOAD_FUNCPTR(XCompositeRedirectWindow)
+    LOAD_FUNCPTR(XCompositeUnredirectWindow)
+#undef LOAD_FUNCPTR
+
+    if (!pXCompositeQueryExtension(display, &event_base, &error_base))
+    {
+        ERR("XCompositeQueryExtension(%p, %p, %p) failed!\n", display, &event_base, &error_base);
+        goto error;
+    }
+
+    if (!pXCompositeQueryVersion(display, &major_version, &minor_version))
+    {
+        ERR("XCompositeQueryVersion(%p, %d, %d) failed!\n", display, major_version, minor_version);
+        goto error;
+    }
+
+    TRACE("event_base %d, error_base %d, version %d.%d.\n", event_base, error_base, major_version, minor_version);
+    return TRUE;
+
+error:
+    dlclose(xcomposite_handle);
+    return FALSE;
+}
+
+#else
+
+static BOOL init_xcomposite(Display *display)
+{
+    ERR("XComposite support not compiled in!\n");
+    return FALSE;
+}
+
+#endif /* defined(SONAME_LIBXCOMPOSITE) */
+
 #ifdef SONAME_LIBX11
 
 #define MAKE_FUNCPTR(f) typeof(f) *p##f;
@@ -184,6 +247,7 @@ static struct unix_funcs unix_funcs = {
     cairo_surface_present,
     cairo_surface_resize,
     cairo_surface_resize_notify,
+    cairo_surface_set_offscreen,
 };
 
 NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out )
@@ -197,6 +261,7 @@ NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *p
         if (!x11drv_process_attach()) return STATUS_DLL_NOT_FOUND;
         if (!init_cairo()) return STATUS_DLL_NOT_FOUND;
         if (!init_xlib()) return STATUS_DLL_NOT_FOUND;
+        if (!init_xcomposite( gdi_display )) return STATUS_DLL_NOT_FOUND;
         break;
     case DLL_PROCESS_DETACH: break;
     }

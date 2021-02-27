@@ -289,3 +289,18 @@ void CDECL cairo_surface_resize_notify( struct unix_surface *surface, struct uni
     surface->debug_surface = p_cairo_surface_create_similar_image( surface->cairo_surface, CAIRO_FORMAT_RGB24, rect->right - rect->left, rect->bottom - rect->top );
 #endif
 }
+
+void CDECL cairo_surface_set_offscreen( struct unix_surface *surface, BOOL offscreen )
+{
+    Display *display;
+    Window window;
+
+    TRACE( "surface %p, offscreen %d.\n", surface, offscreen );
+
+    if (!surface->cairo_surface) return;
+
+    display = p_cairo_xlib_surface_get_display( surface->cairo_surface );
+    window = p_cairo_xlib_surface_get_drawable( surface->cairo_surface );
+    if (offscreen) pXCompositeRedirectWindow( display, window, CompositeRedirectManual );
+    else pXCompositeUnredirectWindow( display, window, CompositeRedirectManual );
+}

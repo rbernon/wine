@@ -39,6 +39,7 @@ struct hwnd_surface
     struct wine_rb_entry entry;
     LONG ref;
     HWND hwnd;
+    BOOL offscreen;
     BOOL resize_notify;
     BOOL reparent_notify;
     struct hwnd_surface *toplevel;
@@ -69,6 +70,7 @@ static struct hwnd_surface *toplevel_surface_create( HWND hwnd )
     if (!(toplevel = malloc(sizeof(*toplevel)))) return NULL;
     toplevel->ref = 1;
     toplevel->hwnd = hwnd;
+    toplevel->offscreen = FALSE;
     toplevel->resize_notify = FALSE;
     toplevel->reparent_notify = FALSE;
     toplevel->toplevel = NULL;
@@ -86,6 +88,7 @@ static struct hwnd_surface *client_surface_create( HWND hwnd )
     if (!(client = malloc(sizeof(*client)))) return NULL;
     client->ref = 1;
     client->hwnd = hwnd;
+    client->offscreen = FALSE;
     client->resize_notify = FALSE;
     client->reparent_notify = FALSE;
     client->toplevel = NULL;
@@ -344,6 +347,7 @@ void win32u_present_client_surface( HWND hwnd, HRGN region )
     POINT target_pos;
     DWORD i, size, clip_rect_count = 0;
     RECT source_rect, *clip_rects = NULL;
+    BOOL offscreen;
 
     TRACE( "hwnd %p, region %p.\n", hwnd, region );
 
@@ -353,22 +357,32 @@ void win32u_present_client_surface( HWND hwnd, HRGN region )
     {
         clip_rect_count = 1;
         clip_rects = &source_rect;
+        offscreen = FALSE;
     }
     else if ((size = GetRegionData( region, 0, NULL )) && (data = malloc( size )))
     {
         GetRegionData( region, size, data );
         clip_rect_count = data->rdh.nCount;
         clip_rects = (RECT *)data->Buffer;
+        if (!data->rdh.nCount) offscreen = TRUE;
+        if (!EqualRect( &source_rect, (RECT *)data->Buffer )) offscreen = TRUE;
+        else offscreen = FALSE;
     }
+    else offscreen = TRUE;
 
     RtlEnterCriticalSection( &surfaces_cs );
-    if (clip_rect_count && (client = get_client_surface_for_hwnd( hwnd )) && (toplevel = client->toplevel))
+    if ((client = get_client_surface_for_hwnd( hwnd )) && (toplevel = client->toplevel) && clip_rect_count && offscreen)
     {
         target_pos = *(POINT *)&source_rect;
         MapWindowPoints( hwnd, toplevel->hwnd, &target_pos, 1 );
         for (i = 0; i < clip_rect_count; ++i)
             MapWindowPoints( hwnd, toplevel->hwnd, (POINT *)&clip_rects[i], 2 );
         unix_funcs->surface_present( toplevel->unix_surface, client->unix_surface, &target_pos, &source_rect, clip_rect_count, clip_rects );
+    }
+    if (client && client->offscreen != offscreen)
+    {
+        client->offscreen = offscreen;
+        unix_funcs->surface_set_offscreen( client->unix_surface, offscreen );
     }
     RtlLeaveCriticalSection( &surfaces_cs );
 
