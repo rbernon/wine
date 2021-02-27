@@ -37,6 +37,7 @@ struct unix_surface
 #ifdef CAIRO_DEBUG
     cairo_surface_t *debug_surface;
 #endif
+    struct unix_surface *parent;
 };
 
 static struct unix_surface *cairo_surface_create( HWND hwnd )
@@ -54,6 +55,7 @@ static struct unix_surface *cairo_surface_create( HWND hwnd )
 #ifdef CAIRO_DEBUG
     surface->debug_surface = NULL;
 #endif
+    surface->parent = NULL;
 
     TRACE( "created surface %p.\n", surface );
     return surface;
@@ -227,10 +229,11 @@ void CDECL cairo_surface_present( struct unix_surface *target, struct unix_surfa
     p_cairo_surface_flush( target->cairo_surface );
 }
 
-void CDECL cairo_surface_resize_notify( struct unix_surface *surface, const RECT *rect )
+void CDECL cairo_surface_resize_notify( struct unix_surface *surface, struct unix_surface *parent, const RECT *rect )
 {
-    TRACE( "surface %p, rect %s stub!\n", surface, wine_dbgstr_rect( rect ) );
+    TRACE( "surface %p, parent %p, rect %s stub!\n", surface, parent, wine_dbgstr_rect( rect ) );
 
+    surface->parent = parent;
     if (!surface->cairo_surface) return;
 
     p_cairo_xlib_surface_set_size( surface->cairo_surface, rect->right - rect->left, rect->bottom - rect->top );

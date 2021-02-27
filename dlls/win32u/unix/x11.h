@@ -107,6 +107,6 @@ extern struct unix_surface *CDECL cairo_surface_create_client( HWND hwnd ) DECLS
 extern void CDECL cairo_surface_create_notify( struct unix_surface *surface, LPARAM param ) DECLSPEC_HIDDEN;
 extern void CDECL cairo_surface_delete( struct unix_surface *surface ) DECLSPEC_HIDDEN;
 extern void CDECL cairo_surface_present( struct unix_surface *target, struct unix_surface *source, const POINT *target_pos, const RECT *source_rect, UINT clip_rect_count, const RECT *clip_rects ) DECLSPEC_HIDDEN;
-extern void CDECL cairo_surface_resize_notify( struct unix_surface *surface, const RECT *rect ) DECLSPEC_HIDDEN;
+extern void CDECL cairo_surface_resize_notify( struct unix_surface *surface, struct unix_surface *parent, const RECT *rect ) DECLSPEC_HIDDEN;
 
 #endif /* __WINE_WIN32U_UNIX_X11_H */
