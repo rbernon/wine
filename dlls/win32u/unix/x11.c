@@ -182,6 +182,7 @@ static struct unix_funcs unix_funcs = {
     cairo_surface_create_notify,
     cairo_surface_delete,
     cairo_surface_present,
+    cairo_surface_resize,
     cairo_surface_resize_notify,
 };
 

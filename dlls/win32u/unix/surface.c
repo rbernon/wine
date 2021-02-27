@@ -37,6 +37,7 @@ struct unix_surface
 #ifdef CAIRO_DEBUG
     cairo_surface_t *debug_surface;
 #endif
+    XWindowChanges position;
     struct unix_surface *parent;
 };
 
@@ -55,6 +56,7 @@ static struct unix_surface *cairo_surface_create( HWND hwnd )
 #ifdef CAIRO_DEBUG
     surface->debug_surface = NULL;
 #endif
+    memset(&surface->position, 0, sizeof(surface->position));
     surface->parent = NULL;
 
     TRACE( "created surface %p.\n", surface );
@@ -227,6 +229,50 @@ void CDECL cairo_surface_present( struct unix_surface *target, struct unix_surfa
 #endif
 
     p_cairo_surface_flush( target->cairo_surface );
+}
+
+extern POINT virtual_screen_to_root( INT x, INT y ) DECLSPEC_HIDDEN;
+
+void CDECL cairo_surface_resize( struct unix_surface *surface, struct unix_surface *parent, const RECT *rect )
+{
+    XWindowChanges changes;
+    unsigned int mask = 0;
+    Display *display, *parent_display;
+    Window window, parent_window;
+    POINT pos = { rect->left, rect->top };
+
+    TRACE( "surface %p, parent %p, rect %s stub!\n", surface, parent, wine_dbgstr_rect( rect ) );
+
+    if (!surface->cairo_surface) return;
+
+    display = p_cairo_xlib_surface_get_display( surface->cairo_surface );
+    window = p_cairo_xlib_surface_get_drawable( surface->cairo_surface );
+    parent_display = parent ? p_cairo_xlib_surface_get_display( surface->cairo_surface ) : display;
+    parent_window = parent ? p_cairo_xlib_surface_get_drawable( parent->cairo_surface ) : DefaultRootWindow( display );
+    if (parent_window == DefaultRootWindow( display )) pos = virtual_screen_to_root( pos.x, pos.y );
+
+    changes.x = pos.x;
+    changes.y = pos.y;
+    changes.width = rect->right - rect->left;
+    changes.height = rect->bottom - rect->top;
+
+    if (parent_display != display) WARN( "Reparenting to another display.\n" );
+    if (surface->parent != parent) pXReparentWindow( display, window, parent_window, pos.x, pos.y );
+    surface->parent = parent;
+
+    if (surface->position.x != pos.x) mask |= CWX;
+    if (surface->position.y != pos.y) mask |= CWY;
+    if (surface->position.width != rect->right - rect->left) mask |= CWWidth;
+    if (surface->position.height != rect->bottom - rect->top) mask |= CWHeight;
+    if (mask) pXConfigureWindow( display, window, mask, &changes );
+    surface->position = changes;
+
+    p_cairo_xlib_surface_set_size( surface->cairo_surface, rect->right - rect->left, rect->bottom - rect->top );
+
+#ifdef CAIRO_DEBUG
+    if (surface->debug_surface) p_cairo_surface_destroy( surface->debug_surface );
+    surface->debug_surface = p_cairo_surface_create_similar_image( surface->cairo_surface, CAIRO_FORMAT_RGB24, rect->right - rect->left, rect->bottom - rect->top );
+#endif
 }
 
 void CDECL cairo_surface_resize_notify( struct unix_surface *surface, struct unix_surface *parent, const RECT *rect )
