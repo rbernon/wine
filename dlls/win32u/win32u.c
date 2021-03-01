@@ -47,6 +47,7 @@ void CDECL win32u_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
                                      RECT *visible_rect, struct window_surface **surface )
 {
     struct window_surface *x11drv_surface = NULL;
+    BOOL visible = (swp_flags & SWP_SHOWWINDOW) || (GetWindowLongW( hwnd, GWL_STYLE ) & WS_VISIBLE);
     HWND parent;
 
     TRACE( "hwnd %p, insert_after %p, swp_flags %x, window_rect %s, client_rect %s, "
@@ -55,7 +56,7 @@ void CDECL win32u_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
            visible_rect, surface );
 
     /* create a unix / window surface for top-level windows */
-    if ((parent = GetAncestor( hwnd, GA_PARENT )) && parent == GetDesktopWindow())
+    if (visible && (parent = GetAncestor( hwnd, GA_PARENT )) && parent == GetDesktopWindow())
         win32u_create_toplevel_surface( hwnd );
     else
         win32u_delete_toplevel_surface( hwnd );
@@ -92,10 +93,12 @@ void CDECL X11DRV_SetParent( HWND hwnd, HWND parent, HWND old_parent );
 
 void CDECL win32u_SetParent( HWND hwnd, HWND parent, HWND old_parent )
 {
+    BOOL visible = GetWindowLongW( hwnd, GWL_STYLE ) & WS_VISIBLE;
+
     TRACE( "hwnd %p, parent %p, old_parent %p.\n", hwnd, parent, old_parent );
 
     /* create a unix / window surface for top-level windows */
-    if (parent == GetDesktopWindow())
+    if (visible && parent == GetDesktopWindow())
         win32u_create_toplevel_surface( hwnd );
     else
         win32u_delete_toplevel_surface( hwnd );
