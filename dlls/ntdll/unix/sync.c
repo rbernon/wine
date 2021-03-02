@@ -81,6 +81,47 @@ static const LARGE_INTEGER zero_timeout;
 
 static pthread_mutex_t addr_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+#if defined(__linux__) && defined(__x86_64__)
+#undef errno
+static __attribute__((noinline)) int *CDECL __msabi_errno_location(void) __THROWNL __attribute_const__;
+static int *CDECL __msabi_errno_location(void) { return __errno_location(); }
+#define errno (*__msabi_errno_location())
+
+/* Copied from musl: arch/x86_64/syscall_arch.h */
+static inline long CDECL __syscall2(long n, long a1, long a2)
+{
+    unsigned long ret;
+    __asm__ __volatile__ ("syscall" : "=a"(ret) : "a"(n), "D"(a1), "S"(a2) : "rcx", "r11", "memory");
+    return ret;
+}
+
+static inline long CDECL __syscall6(long n, long a1, long a2, long a3, long a4, long a5, long a6)
+{
+    unsigned long ret;
+    register long r10 __asm__("r10") = a4;
+    register long r8 __asm__("r8") = a5;
+    register long r9 __asm__("r9") = a6;
+    __asm__ __volatile__ ("syscall" : "=a"(ret) : "a"(n), "D"(a1), "S"(a2), "d"(a3), "r"(r10), "r"(r8), "r"(r9) : "rcx", "r11", "memory");
+    return ret;
+}
+
+static inline long CDECL __syscall_ret(unsigned long r)
+{
+    if (r > -4096UL)
+    {
+        errno = -r;
+        return -1;
+    }
+    return r;
+}
+
+#define syscall2(n, a1, a2) __syscall_ret(__syscall2(n, a1, a2))
+#define syscall6(n, a1, a2, a3, a4, a5, a6) __syscall_ret(__syscall6(n, a1, a2, a3, a4, a5, a6))
+#else
+#define syscall2(n, a1, a2) syscall(n, a1, a2)
+#define syscall6(n, a1, a2, a3, a4, a5, a6) syscall(n, a1, a2, a3, a4, a5, a6)
+#endif
+
 /* return a monotonic time counter, in Win32 ticks */
 static inline ULONGLONG monotonic_counter(void)
 {
@@ -117,27 +158,27 @@ static inline ULONGLONG monotonic_counter(void)
 
 static int futex_private = 128;
 
-static inline int futex_wait( const int *addr, int val, struct timespec *timeout )
+static inline int CDECL futex_wait( const int *addr, int val, struct timespec *timeout )
 {
-    return syscall( __NR_futex, addr, FUTEX_WAIT | futex_private, val, timeout, 0, 0 );
+    return syscall6( __NR_futex, (long)addr, FUTEX_WAIT | futex_private, val, (long)timeout, 0, 0 );
 }
 
-static inline int futex_wake( const int *addr, int val )
+static inline int CDECL futex_wake( const int *addr, int val )
 {
-    return syscall( __NR_futex, addr, FUTEX_WAKE | futex_private, val, NULL, 0, 0 );
+    return syscall6( __NR_futex, (long)addr, FUTEX_WAKE | futex_private, val, (long)NULL, 0, 0 );
 }
 
-static inline int futex_wait_bitset( const int *addr, int val, struct timespec *timeout, int mask )
+static inline int CDECL futex_wait_bitset( const int *addr, int val, struct timespec *timeout, int mask )
 {
-    return syscall( __NR_futex, addr, FUTEX_WAIT_BITSET | futex_private, val, timeout, 0, mask );
+    return syscall6( __NR_futex, (long)addr, FUTEX_WAIT_BITSET | futex_private, val, (long)timeout, 0, mask );
 }
 
-static inline int futex_wake_bitset( const int *addr, int val, int mask )
+static inline int CDECL futex_wake_bitset( const int *addr, int val, int mask )
 {
-    return syscall( __NR_futex, addr, FUTEX_WAKE_BITSET | futex_private, val, NULL, 0, mask );
+    return syscall6( __NR_futex, (long)addr, FUTEX_WAKE_BITSET | futex_private, val, (long)NULL, 0, mask );
 }
 
-static inline int use_futexes(void)
+static inline int CDECL use_futexes(void)
 {
     static int supported = -1;
 
@@ -154,7 +195,7 @@ static inline int use_futexes(void)
     return supported;
 }
 
-static int *get_futex(void **ptr)
+static inline int *CDECL get_futex(void **ptr)
 {
     if (sizeof(void *) == 8)
         return (int *)((((ULONG_PTR)ptr) + 3) & ~3);
@@ -164,7 +205,7 @@ static int *get_futex(void **ptr)
         return NULL;
 }
 
-static void timespec_from_timeout( struct timespec *timespec, const LARGE_INTEGER *timeout )
+static void CDECL timespec_from_timeout( struct timespec *timespec, const LARGE_INTEGER *timeout )
 {
     LARGE_INTEGER now;
     timeout_t diff;
@@ -179,6 +220,21 @@ static void timespec_from_timeout( struct timespec *timespec, const LARGE_INTEGE
 
     timespec->tv_sec  = diff / TICKSPERSEC;
     timespec->tv_nsec = (diff % TICKSPERSEC) * 100;
+}
+
+static __attribute__((noinline)) void CDECL futex_error_not_owned_exclusive( RTL_SRWLOCK *lock, int futex )
+{
+    ERR("Lock %p is not owned exclusive! (%#x)\n", lock, futex);
+}
+
+static __attribute__((noinline)) void CDECL futex_error_owned_exclusive( RTL_SRWLOCK *lock, int futex )
+{
+    ERR("Lock %p is owned exclusive! (%#x)\n", lock, futex);
+}
+
+static __attribute__((noinline)) void CDECL futex_error_not_owned_shared( RTL_SRWLOCK *lock, int futex )
+{
+    ERR("Lock %p is not owned shared! (%#x)\n", lock, futex);
 }
 
 #endif
@@ -2463,7 +2519,6 @@ NTSTATUS CDECL fast_RtlAcquireSRWLockExclusive( RTL_SRWLOCK *lock )
     {
         old = *futex;
         new = old + SRWLOCK_FUTEX_EXCLUSIVE_WAITERS_INC;
-        assert(new & SRWLOCK_FUTEX_EXCLUSIVE_WAITERS_MASK);
     } while (InterlockedCompareExchange( futex, new, old ) != old);
 
     for (;;)
@@ -2477,7 +2532,6 @@ NTSTATUS CDECL fast_RtlAcquireSRWLockExclusive( RTL_SRWLOCK *lock )
             {
                 /* Not locked exclusive or shared. We can try to grab it. */
                 new = old | SRWLOCK_FUTEX_EXCLUSIVE_LOCK_BIT;
-                assert(old & SRWLOCK_FUTEX_EXCLUSIVE_WAITERS_MASK);
                 new -= SRWLOCK_FUTEX_EXCLUSIVE_WAITERS_INC;
                 wait = FALSE;
             }
@@ -2517,7 +2571,6 @@ NTSTATUS CDECL fast_RtlTryAcquireSRWLockShared( RTL_SRWLOCK *lock )
             /* Not locked exclusive, and no exclusive waiters. We can try to
              * grab it. */
             new = old + SRWLOCK_FUTEX_SHARED_OWNERS_INC;
-            assert(new & SRWLOCK_FUTEX_SHARED_OWNERS_MASK);
             ret = STATUS_SUCCESS;
         }
         else
@@ -2552,7 +2605,6 @@ NTSTATUS CDECL fast_RtlAcquireSRWLockShared( RTL_SRWLOCK *lock )
                 /* Not locked exclusive, and no exclusive waiters. We can try
                  * to grab it. */
                 new = old + SRWLOCK_FUTEX_SHARED_OWNERS_INC;
-                assert(new & SRWLOCK_FUTEX_SHARED_OWNERS_MASK);
                 wait = FALSE;
             }
             else
@@ -2586,7 +2638,7 @@ NTSTATUS CDECL fast_RtlReleaseSRWLockExclusive( RTL_SRWLOCK *lock )
 
         if (!(old & SRWLOCK_FUTEX_EXCLUSIVE_LOCK_BIT))
         {
-            ERR("Lock %p is not owned exclusive! (%#x)\n", lock, *futex);
+            futex_error_not_owned_exclusive(lock, *futex);
             return STATUS_RESOURCE_NOT_OWNED;
         }
 
@@ -2619,12 +2671,12 @@ NTSTATUS CDECL fast_RtlReleaseSRWLockShared( RTL_SRWLOCK *lock )
 
         if (old & SRWLOCK_FUTEX_EXCLUSIVE_LOCK_BIT)
         {
-            ERR("Lock %p is owned exclusive! (%#x)\n", lock, *futex);
+            futex_error_owned_exclusive(lock, *futex);
             return STATUS_RESOURCE_NOT_OWNED;
         }
         else if (!(old & SRWLOCK_FUTEX_SHARED_OWNERS_MASK))
         {
-            ERR("Lock %p is not owned shared! (%#x)\n", lock, *futex);
+            futex_error_not_owned_shared(lock, *futex);
             return STATUS_RESOURCE_NOT_OWNED;
         }
 
