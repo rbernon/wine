@@ -1029,16 +1029,17 @@ static void reparent_notify( Display *display, HWND hwnd, Window xparent, int x,
         style = (style & ~WS_POPUP) | WS_CHILD;
     }
 
-    SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_REPARENT, 0, TRUE );
-    SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
-    ShowWindow( hwnd, SW_HIDE );
+    SendNotifyMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_REPARENT, 0, TRUE );
+    SendNotifyMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
+    ShowWindowAsync( hwnd, SW_HIDE );
     old_parent = SetParent( hwnd, parent );
     SetWindowLongW( hwnd, GWL_STYLE, style );
     SetWindowPos( hwnd, HWND_TOP, x, y, 0, 0,
                   SWP_NOACTIVATE | SWP_NOSIZE | SWP_NOCOPYBITS |
-                  ((style & WS_VISIBLE) ? SWP_SHOWWINDOW : 0) );
-    SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
-    SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_REPARENT, 0, FALSE );
+                  ((style & WS_VISIBLE) ? SWP_SHOWWINDOW : 0) |
+                  SWP_ASYNCWINDOWPOS );
+    SendNotifyMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
+    SendNotifyMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_REPARENT, 0, FALSE );
 
     /* make old parent destroy itself if it no longer has children */
     if (old_parent != GetDesktopWindow()) PostMessageW( old_parent, WM_CLOSE, 0, 0 );
