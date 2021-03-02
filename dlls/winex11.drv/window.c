@@ -1605,6 +1605,7 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual )
         XSync( gdi_display, False );
         if (data->whole_window) XSelectInput( data->display, data->client_window, ExposureMask );
         TRACE( "%p xwin %lx/%lx\n", data->hwnd, data->whole_window, data->client_window );
+        SendNotifyMessageW( data->hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_CREATED, (WPARAM)FALSE, (LPARAM)data->client_window );
     }
     release_win_data( data );
     return ret;
@@ -2896,6 +2897,9 @@ LRESULT CDECL X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
             release_win_data( data );
             if (win) set_window_cursor( win, (HCURSOR)lp );
         }
+        return 0;
+    case WM_X11DRV_NOTIFY_HWND_SURFACE_CREATED:
+        TRACE( "hwnd %p, toplevel %d, window %lx", hwnd, (BOOL)wp, (Window)lp );
         return 0;
     case WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE:
         if ((data = get_win_data( hwnd )))
