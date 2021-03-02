@@ -2941,6 +2941,14 @@ LRESULT CDECL X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
             release_win_data( data );
         }
         return 0;
+    case WM_X11DRV_NOTIFY_HWND_SURFACE_REPARENT:
+        if ((data = get_win_data( hwnd )))
+        {
+            if (lp) data->wm_reparented++;
+            else data->wm_reparented--;
+            release_win_data( data );
+        }
+        return 0;
     case WM_X11DRV_DESKTOP_SET_HICON_COLOR:
         x11drv_desktop_set_hicon_color( (HICON)wp, (Pixmap)lp );
         return 0;
