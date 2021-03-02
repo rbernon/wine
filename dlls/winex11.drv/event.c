@@ -1172,9 +1172,9 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
             {
                 TRACE( "win %p/%lx is maximized\n", data->hwnd, data->whole_window );
                 release_win_data( data );
-                SendMessageW( data->hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
-                SendMessageW( data->hwnd, WM_SYSCOMMAND, SC_MAXIMIZE, 0 );
-                SendMessageW( data->hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
+                SendNotifyMessageW( data->hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
+                SendNotifyMessageW( data->hwnd, WM_SYSCOMMAND, SC_MAXIMIZE, 0 );
+                SendNotifyMessageW( data->hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
                 return TRUE;
             }
         }
@@ -1182,9 +1182,9 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
         {
             TRACE( "window %p/%lx is no longer maximized\n", data->hwnd, data->whole_window );
             release_win_data( data );
-            SendMessageW( data->hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
-            SendMessageW( data->hwnd, WM_SYSCOMMAND, SC_RESTORE, 0 );
-            SendMessageW( data->hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
+            SendNotifyMessageW( data->hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
+            SendNotifyMessageW( data->hwnd, WM_SYSCOMMAND, SC_RESTORE, 0 );
+            SendNotifyMessageW( data->hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
             return TRUE;
         }
     }
@@ -1192,9 +1192,9 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
     if ((flags & (SWP_NOSIZE | SWP_NOMOVE)) != (SWP_NOSIZE | SWP_NOMOVE))
     {
         release_win_data( data );
-        SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
-        SetWindowPos( hwnd, 0, x, y, cx, cy, flags );
-        SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
+        SendNotifyMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
+        SetWindowPos( hwnd, 0, x, y, cx, cy, flags | SWP_ASYNCWINDOWPOS );
+        SendNotifyMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
         return TRUE;
     }
 
