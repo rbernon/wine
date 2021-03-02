@@ -1233,9 +1233,9 @@ static BOOL X11DRV_GravityNotify( HWND hwnd, XEvent *xev )
 
     if (window_rect.left != x || window_rect.top != y)
     {
-        SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
-        SetWindowPos( hwnd, 0, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS );
-        SendMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
+        SendNotifyMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, TRUE );
+        SetWindowPos( hwnd, 0, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS | SWP_ASYNCWINDOWPOS );
+        SendNotifyMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE, 0, FALSE );
     }
 
     return TRUE;
