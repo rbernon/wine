@@ -1540,6 +1540,7 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual )
         XSync( gdi_display, False );
         if (data->whole_window) XSelectInput( data->display, data->client_window, ExposureMask );
         TRACE( "%p xwin %lx/%lx\n", data->hwnd, data->whole_window, data->client_window );
+        SendNotifyMessageW( data->hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_CREATED, (WPARAM)FALSE, (LPARAM)data->client_window );
     }
     release_win_data( data );
     return ret;
@@ -2810,6 +2811,12 @@ LRESULT CDECL X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
         return clip_cursor_notify( hwnd, (HWND)wp, (HWND)lp );
     case WM_X11DRV_CLIP_CURSOR_REQUEST:
         return clip_cursor_request( hwnd, (BOOL)wp, (BOOL)lp );
+    case WM_X11DRV_NOTIFY_HWND_SURFACE_CREATED:
+        TRACE( "WM_X11DRV_NOTIFY_HWND_SURFACE_CREATED hwnd %p, toplevel %d, window %lx", hwnd, (BOOL)wp, (Window)lp );
+        return 0;
+    case WM_X11DRV_NOTIFY_HWND_SURFACE_DESTROYED:
+        TRACE( "WM_X11DRV_NOTIFY_HWND_SURFACE_DESTROYED hwnd %p, toplevel %d, window %lx", hwnd, (BOOL)wp, (Window)lp );
+        return 0;
     default:
         FIXME( "got window msg %x hwnd %p wp %lx lp %lx\n", msg, hwnd, wp, lp );
         return 0;
