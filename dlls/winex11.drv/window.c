@@ -2819,6 +2819,14 @@ LRESULT CDECL X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
             release_win_data( data );
         }
         return 0;
+    case WM_X11DRV_NOTIFY_HWND_SURFACE_REPARENT:
+        if ((data = get_win_data( hwnd )))
+        {
+            if (lp) data->wm_reparented++;
+            else data->wm_reparented--;
+            release_win_data( data );
+        }
+        return 0;
     case WM_X11DRV_NOTIFY_HWND_SURFACE_CREATED:
         TRACE( "WM_X11DRV_NOTIFY_HWND_SURFACE_CREATED hwnd %p, toplevel %d, window %lx", hwnd, (BOOL)wp, (Window)lp );
         return 0;
