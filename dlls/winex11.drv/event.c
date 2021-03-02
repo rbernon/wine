@@ -991,7 +991,13 @@ static BOOL X11DRV_MapNotify( HWND hwnd, XEvent *event )
 
     if (event->xany.window == x11drv_thread_data()->clip_window) return TRUE;
 
+    if (!hwnd) return TRUE;
+
     if (!(data = get_win_data( hwnd ))) return FALSE;
+    if (data->whole_window == event->xany.window)
+        SendNotifyMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_CREATED, (WPARAM)TRUE, (LPARAM)event->xany.window );
+    else if (data->client_window == event->xany.window)
+        SendNotifyMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_CREATED, (WPARAM)FALSE, (LPARAM)event->xany.window );
 
     if (!data->managed && !data->embedded && data->mapped)
     {
@@ -1009,6 +1015,15 @@ static BOOL X11DRV_MapNotify( HWND hwnd, XEvent *event )
  */
 static BOOL X11DRV_UnmapNotify( HWND hwnd, XEvent *event )
 {
+    struct x11drv_win_data *data;
+    if (!hwnd) return TRUE;
+
+    if (!(data = get_win_data( hwnd ))) return FALSE;
+    if (data->whole_window == event->xany.window)
+        SendNotifyMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_DESTROYED, (WPARAM)TRUE, (LPARAM)event->xany.window );
+    else if (data->client_window == event->xany.window)
+        SendNotifyMessageW( hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_DESTROYED, (WPARAM)FALSE, (LPARAM)event->xany.window );
+    release_win_data( data );
     return TRUE;
 }
 
