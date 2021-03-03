@@ -81,6 +81,10 @@ static const LARGE_INTEGER zero_timeout;
 
 static pthread_mutex_t addr_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+#ifndef __NR_clock_gettime
+#define __NR_clock_gettime 113
+#endif
+
 #if defined(__linux__) && defined(__x86_64__)
 #undef errno
 static __attribute__((noinline)) int *CDECL __msabi_errno_location(void) __THROWNL __attribute_const__;
@@ -122,8 +126,18 @@ static inline long CDECL __syscall_ret(unsigned long r)
 #define syscall6(n, a1, a2, a3, a4, a5, a6) syscall(n, a1, a2, a3, a4, a5, a6)
 #endif
 
+static inline int CDECL __msabi_clock_gettime( clockid_t clock_id, struct timespec *ts )
+{
+    return syscall2( __NR_clock_gettime, clock_id, (long)ts );
+}
+
+static __attribute__((noinline)) void CDECL __msabi_gettimeofday(struct timeval *now)
+{
+    gettimeofday( now, 0 );
+}
+
 /* return a monotonic time counter, in Win32 ticks */
-static inline ULONGLONG monotonic_counter(void)
+static inline ULONGLONG CDECL monotonic_counter(void)
 {
     struct timeval now;
 #ifdef __APPLE__
@@ -138,13 +152,13 @@ static inline ULONGLONG monotonic_counter(void)
 #elif defined(HAVE_CLOCK_GETTIME)
     struct timespec ts;
 #ifdef CLOCK_MONOTONIC_RAW
-    if (!clock_gettime( CLOCK_MONOTONIC_RAW, &ts ))
+    if (!__msabi_clock_gettime( CLOCK_MONOTONIC_RAW, &ts ))
         return ts.tv_sec * (ULONGLONG)TICKSPERSEC + ts.tv_nsec / 100;
 #endif
-    if (!clock_gettime( CLOCK_MONOTONIC, &ts ))
+    if (!__msabi_clock_gettime( CLOCK_MONOTONIC, &ts ))
         return ts.tv_sec * (ULONGLONG)TICKSPERSEC + ts.tv_nsec / 100;
 #endif
-    gettimeofday( &now, 0 );
+    __msabi_gettimeofday( &now );
     return ticks_from_time_t( now.tv_sec ) + now.tv_usec * 10 - server_start_time;
 }
 
