@@ -44,6 +44,7 @@
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL( mscoree );
+WINE_DECLARE_DEBUG_CHANNEL( mono );
 
 static const struct ICLRRuntimeInfoVtbl CLRRuntimeInfoVtbl;
 
@@ -325,6 +326,7 @@ static HRESULT load_mono(LPCWSTR mono_path)
         }
 
         trace_size = GetEnvironmentVariableA("WINE_MONO_TRACE", trace_setting, sizeof(trace_setting));
+        if (!TRACE_ON(mono)) trace_size = 0;
 
         if (trace_size)
         {
@@ -332,6 +334,7 @@ static HRESULT load_mono(LPCWSTR mono_path)
         }
 
         verbose_size = GetEnvironmentVariableA("WINE_MONO_VERBOSE", verbose_setting, sizeof(verbose_setting));
+        if (!TRACE_ON(mono)) verbose_size = 0;
 
         if (verbose_size)
         {
