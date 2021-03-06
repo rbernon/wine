@@ -3884,6 +3884,7 @@ void WINAPI LdrShutdownProcess(void)
  */
 void WINAPI RtlExitUserProcess( DWORD status )
 {
+    ERR( "status %#lx\n", status );
     RtlEnterCriticalSection( &loader_section );
     RtlAcquirePebLock();
     NtTerminateProcess( 0, status );
