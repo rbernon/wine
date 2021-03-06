@@ -578,6 +578,7 @@ static BOOL create_icon_pixmaps( HDC hdc, const ICONINFO *icon, Pixmap *icon_ret
 
     info->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     info->bmiHeader.biBitCount = 0;
+    info->bmiHeader.biCompression = BI_RGB;
     if (!(lines = GetDIBits( hdc, icon->hbmColor, 0, 0, NULL, info, DIB_RGB_COLORS ))) goto failed;
     if (!(bits.ptr = HeapAlloc( GetProcessHeap(), 0, info->bmiHeader.biSizeImage ))) goto failed;
     if (!GetDIBits( hdc, icon->hbmColor, 0, lines, bits.ptr, info, DIB_RGB_COLORS )) goto failed;
