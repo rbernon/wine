@@ -2769,6 +2769,7 @@ static void usr1_handler( int signal, siginfo_t *siginfo, void *ucontext )
         DECLSPEC_ALIGN(64) XSTATE xs;
         context.c.ContextFlags = CONTEXT_FULL;
         context_init_xstate( &context.c, &xs );
+        memset( &xs, 0, offsetof(XSTATE, YmmContext) );
 
         NtGetContextThread( GetCurrentThread(), &context.c );
         wait_suspend( &context.c );
