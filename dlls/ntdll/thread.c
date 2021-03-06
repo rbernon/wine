@@ -85,6 +85,11 @@ static int append_output( struct debug_info *info, const char *str, size_t len )
     return len;
 }
 
+BOOL __cdecl __wine_dbg_start_debugger( unsigned int code, BOOL start_debugger )
+{
+    return unix_funcs->dbg_start_debugger( code, start_debugger );
+}
+
 /***********************************************************************
  *		__wine_dbg_get_channel_flags  (NTDLL.@)
  *

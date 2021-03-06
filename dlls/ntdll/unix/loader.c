@@ -2135,6 +2135,7 @@ static ULONG_PTR get_image_address(void)
     return 0;
 }
 
+extern BOOL __cdecl __wine_dbg_start_debugger( unsigned int code, BOOL start_debugger ) DECLSPEC_HIDDEN;
 
 /***********************************************************************
  *           unix_funcs
@@ -2149,6 +2150,7 @@ static struct unix_funcs unix_funcs =
     init_builtin_dll,
     init_unix_lib,
     unwind_builtin_dll,
+  __wine_dbg_start_debugger,
 };
 
 

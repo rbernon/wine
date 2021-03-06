@@ -3349,6 +3349,7 @@ NTSTATUS virtual_handle_fault( void *addr, DWORD err, void *stack )
     return ret;
 }
 
+extern BOOL __cdecl __wine_dbg_start_debugger( unsigned int code, BOOL start_debugger );
 
 /***********************************************************************
  *           virtual_setup_exception
@@ -3378,6 +3379,7 @@ void *virtual_setup_exception( void *stack_ptr, size_t size, EXCEPTION_RECORD *r
     {
         /* stack overflow on last page, unrecoverable */
         UINT diff = stack_info.start + 4096 - stack;
+        __wine_dbg_start_debugger( 0xdeadbeef, TRUE );
         ERR( "stack overflow %u bytes in thread %04x addr %p stack %p (%p-%p-%p)\n",
              diff, GetCurrentThreadId(), rec->ExceptionAddress, stack, stack_info.start,
              stack_info.limit, stack_info.end );

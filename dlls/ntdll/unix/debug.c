@@ -32,6 +32,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "ntstatus.h"
@@ -209,6 +210,21 @@ static void init_options(void)
     if (!wine_debug) return;
     if (!strcmp( wine_debug, "help" )) debug_usage();
     parse_options( wine_debug );
+}
+
+extern const char *build_dir;
+
+BOOL __cdecl __wine_dbg_start_debugger( unsigned int code, BOOL start_debugger )
+{
+    static const char gdbdump[] = "gdb -batch -nx -p %d "
+                                      "-ex \"source %s/tools/gdbinit.py\" "
+                                      "-ex \"update-symbols\" "
+                                      "-ex \"thread apply all bt\" "
+                                      "-ex \"kill\" 1>&2";
+    char buffer[1024];
+    sprintf(buffer, gdbdump, getpid(), build_dir);
+    if (start_debugger) system(buffer);
+    return TRUE;
 }
 
 /***********************************************************************
