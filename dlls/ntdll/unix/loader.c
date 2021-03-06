@@ -2476,6 +2476,7 @@ static void check_command_line( int argc, char *argv[] )
     }
 }
 
+extern BOOL is_debugproc DECLSPEC_HIDDEN;
 
 /***********************************************************************
  *           __wine_main
@@ -2484,6 +2485,34 @@ static void check_command_line( int argc, char *argv[] )
  */
 void __wine_main( int argc, char *argv[], char *envp[] )
 {
+    const char *winedebug = getenv("WINEDEBUG");
+    const char *debugproc = getenv("WINEDEBUGPROC");
+    const char *debughook = getenv("WINEDEBUGHOOK");
+    const char *debugsave = getenv("WINEDEBUGSAVE");
+
+    if (winedebug && !debugsave) setenv("WINEDEBUGSAVE", winedebug, TRUE);
+
+    if (debugproc && strcasestr(argv[1], debugproc)) is_debugproc = TRUE;
+    else is_debugproc = FALSE;
+
+    if (!debugproc) is_debugproc = FALSE;
+    else if (!is_debugproc) setenv("WINEDEBUG", "-all", TRUE);
+    else if (is_debugproc && debugsave) setenv("WINEDEBUG", debugsave, TRUE);
+
+    if (debughook)
+    {
+        MESSAGE("*** (gdb -p %d):", getpid());
+        for (int i = 0; i < argc; ++i) MESSAGE(" %s", argv[i]);
+        MESSAGE("\n");
+        __wine_dbg_start_debugger( 0, FALSE );
+    }
+    else
+    {
+        MESSAGE("*** (gdb -p %d):", getpid());
+        for (int i = 0; i < argc; ++i) MESSAGE(" %s", argv[i]);
+        MESSAGE("\n");
+    }
+
     init_paths( argv );
 
     if (!getenv( "WINELOADERNOEXEC" ))  /* first time around */

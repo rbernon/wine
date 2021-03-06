@@ -549,6 +549,8 @@ NTSTATUS WINAPI dispatch_exception( EXCEPTION_RECORD *rec, CONTEXT *context )
                      context->R8, context->R9, context->R10, context->R11 );
         TRACE_(seh)( " r12=%016I64x r13=%016I64x r14=%016I64x r15=%016I64x\n",
                      context->R12, context->R13, context->R14, context->R15 );
+
+        unix_funcs->dbg_start_debugger( rec->ExceptionCode, FALSE );
     }
 
     /* Legends of Runeterra depends on having SegDs == SegSs in an exception
