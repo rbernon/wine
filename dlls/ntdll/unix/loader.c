@@ -2121,6 +2121,23 @@ static void check_command_line( int argc, char *argv[] )
 }
 
 static BOOL is_debugproc;
+static BOOL is_debughook;
+
+BOOL __cdecl __wine_dbg_start_debugger( unsigned int code, BOOL start_debugger )
+{
+    static const char gdbwait[] = "grep 'TracerPid:' /proc/%d/status|grep -v '0$'";
+    static const char gdbdump[] = "gdb -batch -nx -p %d "
+                                      "-ex \"source ~/Code/proton/wine/tools/gdbinit.py\" "
+                                      "-ex \"lsf\" "
+                                      "-ex \"thread apply all bt\" "
+                                      "-ex \"kill\" 1>&2";
+    char buffer[1024];
+    if (is_debugproc && is_debughook) sprintf(buffer, gdbwait, getpid());
+    else if (start_debugger) sprintf(buffer, gdbdump, getpid());
+    else return TRUE;
+    while (system(buffer));
+    return TRUE;
+}
 
 /***********************************************************************
  *           __wine_main
@@ -2131,6 +2148,8 @@ DECLSPEC_EXPORT void __wine_main( int argc, char *argv[], char *envp[] )
 {
     const char *winedebug = getenv("WINEDEBUG");
     const char *debugproc = getenv("WINEDEBUGPROC");
+    const char *debughook = getenv("WINEDEBUGHOOK");
+    const char *debuginit = getenv("WINEDEBUGINIT");
     const char *debugsave = getenv("WINEDEBUGSAVE");
 
     if (winedebug && !debugsave) setenv("WINEDEBUGSAVE", winedebug, TRUE);
@@ -2141,6 +2160,9 @@ DECLSPEC_EXPORT void __wine_main( int argc, char *argv[], char *envp[] )
     if (!debugproc) is_debugproc = FALSE;
     else if (!is_debugproc) setenv("WINEDEBUG", "-all", TRUE);
     else if (is_debugproc) setenv("WINEDEBUG", debugsave, TRUE);
+
+    is_debughook = debughook || debuginit;
+    if (debuginit) __wine_dbg_start_debugger( 0, FALSE );
 
     main_argc = argc;
     main_argv = argv;
