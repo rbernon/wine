@@ -2087,7 +2087,7 @@ static int get_unix_tid(void)
 /***********************************************************************
  *           start_main_thread
  */
-static void start_main_thread(void)
+static void start_main_thread(int argc, char *argv[])
 {
     SYSTEM_SERVICE_TABLE syscall_table = { (ULONG_PTR *)syscalls, NULL, ARRAY_SIZE(syscalls), syscall_args };
     TEB *teb = virtual_alloc_first_teb();
@@ -2115,6 +2115,8 @@ static void start_main_thread(void)
     load_apiset_dll();
     ntdll_init_syscalls( 0, &syscall_table, p__wine_syscall_dispatcher );
     *p__wine_unix_call_dispatcher = __wine_unix_call_dispatcher;
+    for (int i = 0; i < argc - 1; ++i) MESSAGE(" %s", argv[i]);
+    MESSAGE(" (gdb -p %d)\n", getpid());
     server_init_process_done();
 }
 
@@ -2209,11 +2211,11 @@ static jstring wine_init_jni( JNIEnv *env, jobject obj, jobjectArray cmdline, jo
         __asm__( "mov %%fs,%0" : "=r" (java_fs) );
         if (!(java_fs & 4)) java_gdt_sel = java_fs;
         __asm__( "mov %0,%%fs" :: "r" (0) );
-        start_main_thread();
+        start_main_thread( 0, NULL );
         __asm__( "mov %0,%%fs" :: "r" (java_fs) );
     }
 #else
-    start_main_thread();
+    start_main_thread( 0, NULL );
 #endif
     return (*env)->NewStringUTF( env, error );
 }
@@ -2240,7 +2242,7 @@ jint JNI_OnLoad( JavaVM *vm, void *reserved )
 #ifdef __APPLE__
 static void *apple_wine_thread( void *arg )
 {
-    start_main_thread();
+    start_main_thread( 0, NULL );
     return NULL;
 }
 
@@ -2446,5 +2448,5 @@ void __wine_main( int argc, char *argv[], char *envp[] )
 #ifdef __APPLE__
     apple_main_thread();
 #endif
-    start_main_thread();
+    start_main_thread( argc, argv );
 }
