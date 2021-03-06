@@ -1509,8 +1509,9 @@ void heap_set_debug_flags( HANDLE handle )
     if ((heap->flags & HEAP_GROWABLE) && !heap->pending_free &&
         ((flags & HEAP_FREE_CHECKING_ENABLED) || RUNNING_ON_VALGRIND))
     {
-        heap->pending_free = RtlAllocateHeap( GetProcessHeap(), HEAP_ZERO_MEMORY,
-                                              MAX_FREE_PENDING * sizeof(*heap->pending_free) );
+        SIZE_T size = MAX_FREE_PENDING * sizeof(*heap->pending_free);
+        NtAllocateVirtualMemory( NtCurrentProcess(), (void **)&heap->pending_free, 0,
+                                 &size, MEM_COMMIT, PAGE_READWRITE );
         heap->pending_pos = 0;
     }
 }
@@ -1624,7 +1625,12 @@ HANDLE WINAPI RtlDestroyHeap( HANDLE heap )
         NtFreeVirtualMemory( NtCurrentProcess(), &addr, &size, MEM_RELEASE );
     }
     subheap_notify_free_all(&heapPtr->subheap);
-    RtlFreeHeap( GetProcessHeap(), 0, heapPtr->pending_free );
+    if (heapPtr->pending_free)
+    {
+        size = 0;
+        addr = heapPtr->pending_free;
+        NtFreeVirtualMemory( NtCurrentProcess(), &addr, &size, MEM_RELEASE );
+    }
     size = 0;
     addr = heapPtr->subheap.base;
     NtFreeVirtualMemory( NtCurrentProcess(), &addr, &size, MEM_RELEASE );
