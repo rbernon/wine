@@ -129,6 +129,7 @@ static BOOL init_cairo(void)
 
 #ifdef HAVE_XCB_XCB_H
 #define MAKE_FUNCPTR(f) typeof(f) *p_##f;
+MAKE_FUNCPTR(xcb_configure_window_checked)
 MAKE_FUNCPTR(xcb_connect)
 MAKE_FUNCPTR(xcb_connection_has_error)
 MAKE_FUNCPTR(xcb_depth_next)
@@ -139,6 +140,8 @@ MAKE_FUNCPTR(xcb_get_window_attributes)
 MAKE_FUNCPTR(xcb_get_window_attributes_reply)
 MAKE_FUNCPTR(xcb_get_geometry)
 MAKE_FUNCPTR(xcb_get_geometry_reply)
+MAKE_FUNCPTR(xcb_reparent_window_checked)
+MAKE_FUNCPTR(xcb_request_check)
 MAKE_FUNCPTR(xcb_screen_allowed_depths_iterator)
 MAKE_FUNCPTR(xcb_screen_next)
 MAKE_FUNCPTR(xcb_setup_roots_iterator)
@@ -166,6 +169,7 @@ static BOOL init_xcb(void)
     }
 
 #ifdef HAVE_XCB_XCB_H
+    LOAD_FUNCPTR(xcb_configure_window_checked)
     LOAD_FUNCPTR(xcb_connect)
     LOAD_FUNCPTR(xcb_connection_has_error)
     LOAD_FUNCPTR(xcb_depth_next)
@@ -176,6 +180,8 @@ static BOOL init_xcb(void)
     LOAD_FUNCPTR(xcb_get_window_attributes_reply)
     LOAD_FUNCPTR(xcb_get_geometry)
     LOAD_FUNCPTR(xcb_get_geometry_reply)
+    LOAD_FUNCPTR(xcb_reparent_window_checked)
+    LOAD_FUNCPTR(xcb_request_check)
     LOAD_FUNCPTR(xcb_screen_allowed_depths_iterator)
     LOAD_FUNCPTR(xcb_screen_next)
     LOAD_FUNCPTR(xcb_setup_roots_iterator)
@@ -215,6 +221,7 @@ static struct unix_funcs unix_funcs = {
     cairo_surface_create_notify,
     cairo_surface_delete,
     cairo_surface_present,
+    cairo_surface_resize,
     cairo_surface_resize_notify,
 };
 

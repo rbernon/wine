@@ -57,6 +57,7 @@ typedef int Status;
 
 #ifdef HAVE_XCB_XCB_H
 #define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(xcb_configure_window_checked)
 MAKE_FUNCPTR(xcb_connect)
 MAKE_FUNCPTR(xcb_connection_has_error)
 MAKE_FUNCPTR(xcb_depth_next)
@@ -67,6 +68,8 @@ MAKE_FUNCPTR(xcb_get_window_attributes)
 MAKE_FUNCPTR(xcb_get_window_attributes_reply)
 MAKE_FUNCPTR(xcb_get_geometry)
 MAKE_FUNCPTR(xcb_get_geometry_reply)
+MAKE_FUNCPTR(xcb_reparent_window_checked)
+MAKE_FUNCPTR(xcb_request_check)
 MAKE_FUNCPTR(xcb_screen_allowed_depths_iterator)
 MAKE_FUNCPTR(xcb_screen_next)
 MAKE_FUNCPTR(xcb_setup_roots_iterator)
@@ -114,6 +117,7 @@ extern struct unix_surface *CDECL cairo_surface_create_client( HWND hwnd ) DECLS
 extern void CDECL cairo_surface_create_notify( struct unix_surface *surface, LPARAM param ) DECLSPEC_HIDDEN;
 extern void CDECL cairo_surface_delete( struct unix_surface *surface ) DECLSPEC_HIDDEN;
 extern void CDECL cairo_surface_present( struct unix_surface *target, struct unix_surface *source, const POINT *target_pos, const RECT *source_rect, UINT clip_rect_count, const RECT *clip_rects ) DECLSPEC_HIDDEN;
+extern void CDECL cairo_surface_resize( struct unix_surface *surface, struct unix_surface *parent, const RECT *rect ) DECLSPEC_HIDDEN;
 extern void CDECL cairo_surface_resize_notify( struct unix_surface *surface, struct unix_surface *parent, const RECT *rect ) DECLSPEC_HIDDEN;
 
 #endif /* __WINE_WIN32U_UNIX_H */

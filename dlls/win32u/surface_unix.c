@@ -33,10 +33,14 @@ WINE_DEFAULT_DEBUG_CHANNEL(win32u);
 struct unix_surface
 {
     HWND hwnd;
+#ifdef HAVE_XCB_XCB_H
+    xcb_window_t window;
+#endif
     cairo_surface_t *cairo_surface;
 #ifdef CAIRO_DEBUG
     cairo_surface_t *debug_surface;
 #endif
+    RECT position;
     struct unix_surface *parent;
 };
 
@@ -51,10 +55,14 @@ static struct unix_surface *cairo_surface_create( HWND hwnd )
     }
 
     surface->hwnd = hwnd;
+#ifdef HAVE_XCB_XCB_H
+    surface->window = XCB_NONE;
+#endif
     surface->cairo_surface = NULL;
 #ifdef CAIRO_DEBUG
     surface->debug_surface = NULL;
 #endif
+    memset(&surface->position, 0, sizeof(surface->position));
     surface->parent = NULL;
 
     TRACE( "created surface %p.\n", surface );
@@ -109,6 +117,13 @@ static xcb_screen_t *xcb_screen_from_id(xcb_connection_t *xcb, int id)
     return NULL;
 }
 
+static xcb_window_t xcb_root_window(xcb_connection_t *xcb, int screen_id)
+{
+    xcb_screen_t *screen = xcb_screen_from_id(xcb, screen_id);
+    if (!screen) return XCB_NONE;
+    return screen->root;
+}
+
 static xcb_visualtype_t *xcb_visualtype_from_id(xcb_connection_t *xcb, int screen_id, xcb_visualid_t id)
 {
     xcb_visualtype_iterator_t visual;
@@ -134,6 +149,16 @@ void CDECL cairo_surface_create_notify_xcb( struct unix_surface *surface, LPARAM
     xcb_get_geometry_reply_t *geom;
     xcb_window_t window = param;
     HWND hwnd = surface->hwnd;
+
+    TRACE( "surface %p, param %lx.\n", surface, param );
+
+    if (!param)
+    {
+        if (surface->cairo_surface) p_cairo_surface_destroy( surface->cairo_surface );
+        surface->cairo_surface = NULL;
+        surface->window = XCB_NONE;
+        return;
+    }
 
     attr_cookie = p_xcb_get_window_attributes( xcb, window );
     geom_cookie = p_xcb_get_geometry( xcb, window );
@@ -162,6 +187,7 @@ void CDECL cairo_surface_create_notify_xcb( struct unix_surface *surface, LPARAM
 
     if (surface->cairo_surface) p_cairo_surface_destroy( surface->cairo_surface );
     surface->cairo_surface = p_cairo_xcb_surface_create( xcb, window, xcb_visualtype_from_id( xcb, 0, attrs->visual ), geom->width, geom->height );
+    surface->window = window;
 
     TRACE( "updated surface %p, hwnd %p, window %x.\n", surface, hwnd, window );
 
@@ -207,15 +233,6 @@ static void CDECL cairo_surface_create_notify_xlib( struct unix_surface *surface
 
 void CDECL cairo_surface_create_notify( struct unix_surface *surface, LPARAM param )
 {
-    TRACE( "surface %p, param %lx.\n", surface, param );
-
-    if (!param)
-    {
-        if (surface->cairo_surface) p_cairo_surface_destroy( surface->cairo_surface );
-        surface->cairo_surface = NULL;
-        return;
-    }
-
 #ifdef HAVE_XCB_XCB_H
     cairo_surface_create_notify_xcb( surface, param );
 #else
@@ -320,34 +337,109 @@ void CDECL cairo_surface_present( struct unix_surface *target, struct unix_surfa
 #endif
 
     p_cairo_surface_flush( target->cairo_surface );
-    p_cairo_surface_flush( source->cairo_surface );
+    if (source->cairo_surface) p_cairo_surface_flush( source->cairo_surface );
     p_xcb_flush(xcb);
 
     feclearexcept(FE_ALL_EXCEPT);
     feupdateenv(&fpu_env);
 }
 
-void CDECL cairo_surface_resize_notify( struct unix_surface *surface, struct unix_surface *parent, const RECT *rect )
+extern POINT virtual_screen_to_root( INT x, INT y ) DECLSPEC_HIDDEN;
+
+static void CDECL cairo_surface_apply_resize( struct unix_surface *surface, struct unix_surface *new_parent, const RECT *rect, BOOL notify )
 {
-    int width, height;
+    struct unix_surface *old_parent;
+    xcb_generic_error_t *err;
+    xcb_window_t new_parent_window, old_parent_window;
+    uint32_t values[4] = {0, 0, 0, 0}, i = 0;
+    uint16_t mask = 0;
+    POINT pos = { rect->left, rect->top };
+    RECT old_pos, new_pos = *rect;
 
-    TRACE( "surface %p, parent %p, rect %s stub!\n", surface, parent, wine_dbgstr_rect( rect ) );
+    if (new_parent && !new_parent->cairo_surface) return;
 
-    surface->parent = parent;
+    old_parent = surface->parent;
+    surface->parent = new_parent;
 
-    width = min( max( 1, rect->right - rect->left ), 65535 );
-    height = min( max( 1, rect->bottom - rect->top ), 65535 );
+    new_pos.right = new_pos.left + min( max( 1, new_pos.right - new_pos.left ), 65535 );
+    new_pos.bottom = new_pos.top + min( max( 1, new_pos.bottom - new_pos.top ), 65535 );
+
+    if (!new_parent) pos = virtual_screen_to_root( pos.x, pos.y );
+    OffsetRect( &new_pos, pos.x - new_pos.left, pos.y - new_pos.top );
+
+    old_pos = surface->position;
+    surface->position = new_pos;
 
     if (!surface->cairo_surface) return;
 
+    if (!notify)
+    {
+        old_parent_window = old_parent ? old_parent->window : xcb_root_window(xcb, 0);
+        new_parent_window = new_parent ? new_parent->window : xcb_root_window(xcb, 0);
+
+        if (old_parent_window != new_parent_window)
+        {
+            if ((err = p_xcb_request_check( xcb,  p_xcb_reparent_window_checked( xcb, surface->window, new_parent->window, new_pos.left, new_pos.top ) )))
+            {
+                ERR("failed to reparent window, error %d, resource %x, minor %d, major %d \n", err->error_code, err->resource_id, err->minor_code, err->major_code );
+                free(err);
+            }
+            else
+                OffsetRect( &old_pos, new_pos.left - old_pos.left, new_pos.top - old_pos.top );
+        }
+
+        if (old_pos.left != new_pos.left)
+        {
+            values[i++] = new_pos.left;
+            mask |= XCB_CONFIG_WINDOW_X;
+        }
+        if (old_pos.top != new_pos.top)
+        {
+            values[i++] = new_pos.top;
+            mask |= XCB_CONFIG_WINDOW_Y;
+        }
+        if ((old_pos.right - old_pos.left) != (new_pos.right - new_pos.left))
+        {
+            values[i++] = (new_pos.right - new_pos.left);
+            mask |= XCB_CONFIG_WINDOW_WIDTH;
+        }
+        if ((old_pos.bottom - old_pos.top) != (new_pos.bottom - new_pos.top))
+        {
+            values[i++] = (new_pos.bottom - new_pos.top);
+            mask |= XCB_CONFIG_WINDOW_HEIGHT;
+        }
+        if (mask)
+        {
+            if ((err = p_xcb_request_check( xcb,  p_xcb_configure_window_checked( xcb, surface->window, mask, values ) )))
+            {
+                ERR("failed to reconfigure window, error %d, resource %x, minor %d, major %d \n", err->error_code, err->resource_id, err->minor_code, err->major_code );
+                free(err);
+            }
+        }
+    }
+
 #ifdef HAVE_XCB_XCB_H
-    p_cairo_xcb_surface_set_size( surface->cairo_surface, width, height );
+    p_cairo_xcb_surface_set_size( surface->cairo_surface, new_pos.right - new_pos.left, new_pos.bottom - new_pos.top );
 #else
 #error
 #endif
 
 #ifdef CAIRO_DEBUG
     if (surface->debug_surface) p_cairo_surface_destroy( surface->debug_surface );
-    surface->debug_surface = p_cairo_surface_create_similar_image( surface->cairo_surface, CAIRO_FORMAT_RGB24, rect->right - rect->left, rect->bottom - rect->top );
+    surface->debug_surface = p_cairo_surface_create_similar_image( surface->cairo_surface, CAIRO_FORMAT_RGB24, new_pos.right - new_pos.left, new_pos.bottom - new_pos.top );
 #endif
+}
+
+void CDECL cairo_surface_resize( struct unix_surface *surface, struct unix_surface *parent, const RECT *rect )
+{
+    TRACE( "surface %p, parent %p, rect %s stub!\n", surface, parent, wine_dbgstr_rect( rect ) );
+
+    cairo_surface_apply_resize( surface, parent, rect, FALSE );
+}
+
+void CDECL cairo_surface_resize_notify( struct unix_surface *surface, struct unix_surface *parent, const RECT *rect )
+{
+    TRACE( "surface %p, parent %p, rect %s stub!\n", surface, parent, wine_dbgstr_rect( rect ) );
+
+    cairo_surface_apply_resize( surface, parent, rect, TRUE );
 }
