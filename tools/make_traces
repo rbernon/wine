@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+
+import clang
+from clang.cindex import Index
+from clang.cindex import CursorKind
+from clang.cindex import TypeKind
+import os
+import sys
+
+
+def argfmt(node):
+  t = node.type.get_canonical()
+  if t.kind == TypeKind.POINTER:
+    tt = t.get_pointee()
+    if tt.kind == TypeKind.RECORD and 'struct _GUID' in tt.spelling:
+      return f'{node.spelling} %s'
+    if tt.kind == TypeKind.USHORT and 'WCHAR' in node.type.spelling:
+      return f'{node.spelling} %s'
+    return f'{node.spelling} %p'
+  if t.kind == TypeKind.UINT and 'flags' in node.spelling: return f'{node.spelling} %x'
+  if t.kind == TypeKind.UINT: return f'{node.spelling} %u'
+  if t.kind == TypeKind.ULONG: return f'{node.spelling} %I64u'
+  if t.kind == TypeKind.INT: return f'{node.spelling} %d'
+  if t.kind == TypeKind.LONG: return f'{node.spelling} %I64d'
+  if t.kind == TypeKind.ENUM: return f'{node.spelling} %d'
+  return f'{node.spelling} %p({t.kind})'
+
+
+def argval(node):
+  t = node.type.get_canonical()
+  if t.kind == TypeKind.POINTER:
+    tt = t.get_pointee()
+    if tt.kind == TypeKind.RECORD and 'struct _GUID' in tt.spelling:
+      return f'debugstr_guid({node.spelling})'
+    if tt.kind == TypeKind.USHORT and 'WCHAR' in node.type.spelling:
+      return f'debugstr_w({node.spelling})'
+  return node.spelling
+
+
+def insert(src, stmt, next, str):
+  nl, nc = next.line - 1, next.column - 1
+  if stmt.line != next.line: return src[:nl] + [f'    {str}'] + src[nl:]
+  if stmt == next: nc, str = nc + 1, f' {str}'
+  return src[:nl] + [f'{src[nl][:nc]}{str} {src[nl][nc:]}'] + src[nl + 1:]
+
+
+def replace(lines, beg, end, str):
+  bl, bc = beg.line - 1, beg.column - 1
+  el, ec = end.line - 1, end.column + 1
+  return lines[:bl] + [f'{lines[bl][:bc]}{str}{lines[el][ec:]}'] + lines[el + 1:]
+
+
+def handle_function(node):
+  assert(node.kind == CursorKind.FUNCTION_DECL)
+
+  args = []
+  stmt = None
+  for n in node.get_children():
+    if n.kind == CursorKind.COMPOUND_STMT: stmt = n
+    elif n.kind == CursorKind.TYPE_REF: ret = n
+    elif n.kind == CursorKind.PARM_DECL: args += [n]
+  assert(stmt is not None)
+
+  for n in stmt.get_children():
+    if n.kind != CursorKind.DECL_STMT: break
+
+  if n.kind == CursorKind.CALL_EXPR and n.spelling == 'FIXME': end = ' stub!'
+  else: end = '.'
+  fmt = "" if len(args) == 0 else ", ".join([argfmt(a) for a in args]) + end
+  arg = "" if len(args) == 0 else ", " + ", ".join([argval(a) for a in args])
+  if len(fmt) > 60: arg = ",\n          " + arg[2:]
+
+  if node.spelling.endswith('_Release'):
+    str = f'TRACE("{fmt[:-1]} decreasing refcount to %u.\\n"{arg}, rc);'
+  elif node.spelling.endswith('_AddRef'):
+    str = f'TRACE("{fmt[:-1]} increasing refcount to %u.\\n"{arg}, rc);'
+  elif n.kind == CursorKind.CALL_EXPR and n.spelling == 'FIXME':
+    str = f'FIXME("{fmt}\\n"{arg});'
+  else:
+    str = f'TRACE("{fmt}\\n"{arg});'
+
+  if n.kind == CursorKind.CALL_EXPR and \
+     n.spelling in ['TRACE', 'FIXME']:
+    yield lambda lines: replace(lines, n.extent.start, n.extent.end, str)
+  else:
+    yield lambda lines: insert(lines, stmt.extent.start, n.extent.start, str)
+
+
+def handle_translation_unit(node):
+  assert(node.kind == CursorKind.TRANSLATION_UNIT)
+
+  for n in node.get_children():
+    if os.path.normpath(str(n.location.file)) != os.path.normpath(sys.argv[1]):
+      continue
+
+    if n.kind == CursorKind.FUNCTION_DECL and n.is_definition():
+      yield from handle_function(n)
+
+
+def main():
+  index = Index.create()
+  src = os.path.join(os.path.dirname(__file__), '..')
+
+  tu = index.parse(None, [f'-I{src}/include', '-DWINE_NO_NAMELESS_EXTENSION', '-D__WINE_WINE_DEBUG_H', '-DWINE_DEFAULT_DEBUG_CHANNEL(x)=', '-fshort-wchar', '-Wno-implicit-function-declaration', '-Wno-pragma-pack'] + sys.argv[1:])
+  for d in tu.diagnostics: print(d)
+
+  with open(sys.argv[1], 'r') as i:
+    lines = i.readlines()
+
+  for op in [op for op in handle_translation_unit(tu.cursor)][::-1]:
+    lines = op(lines)
+
+  with open(sys.argv[1], 'w') as o:
+    for l in lines:
+      print(l.strip('\n'), file=o)
+  # for l in lines:
+  #   print(l.strip('\n'))
+
+
+if __name__ == "__main__":
+  main()
