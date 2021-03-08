@@ -28,10 +28,15 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(win32u);
 
+#define CAIRO_DEBUG
+
 struct unix_surface
 {
     HWND hwnd;
     cairo_surface_t *cairo_surface;
+#ifdef CAIRO_DEBUG
+    cairo_surface_t *debug_surface;
+#endif
 };
 
 static struct unix_surface *cairo_surface_create( HWND hwnd )
@@ -46,6 +51,9 @@ static struct unix_surface *cairo_surface_create( HWND hwnd )
 
     surface->hwnd = hwnd;
     surface->cairo_surface = NULL;
+#ifdef CAIRO_DEBUG
+    surface->debug_surface = NULL;
+#endif
 
     TRACE( "created surface %p.\n", surface );
     return surface;
@@ -117,17 +125,32 @@ void CDECL cairo_surface_create_xcb( struct unix_surface *surface, LPARAM param 
     if (!(attrs = p_xcb_get_window_attributes_reply(xcb, attr_cookie, NULL)))
     {
         ERR( "failed to get attributes for window %x\n", window );
+
+#ifdef CAIRO_DEBUG
+        if (surface->debug_surface) p_cairo_surface_destroy( surface->debug_surface );
+        surface->debug_surface = NULL;
+#endif
         return;
     }
 
     if (!(geom = p_xcb_get_geometry_reply(xcb, geom_cookie, NULL)))
     {
         ERR( "failed to get attributes for window %x\n", window );
+
+#ifdef CAIRO_DEBUG
+        if (surface->debug_surface) p_cairo_surface_destroy( surface->debug_surface );
+        surface->debug_surface = NULL;
+#endif
         return;
     }
 
     if (surface->cairo_surface) p_cairo_surface_destroy( surface->cairo_surface );
     surface->cairo_surface = p_cairo_xcb_surface_create( xcb, window, xcb_visualtype_from_id( xcb, 0, attrs->visual ), geom->width, geom->height );
+
+#ifdef CAIRO_DEBUG
+    if (surface->debug_surface) p_cairo_surface_destroy( surface->debug_surface );
+    surface->debug_surface = p_cairo_surface_create_similar_image( surface->cairo_surface, CAIRO_FORMAT_RGB24, geom->width, geom->height );
+#endif
 
     TRACE( "updated surface %p, hwnd %p, window %x.\n", surface, hwnd, window );
 
@@ -153,6 +176,9 @@ void CDECL cairo_surface_delete( struct unix_surface *surface )
 {
     TRACE( "surface %p.\n", surface );
 
+#ifdef CAIRO_DEBUG
+    if (surface->debug_surface) p_cairo_surface_destroy( surface->debug_surface );
+#endif
     if (surface->cairo_surface) p_cairo_surface_destroy( surface->cairo_surface );
     free(surface);
 }
@@ -178,7 +204,11 @@ void CDECL cairo_surface_present( struct unix_surface *target, struct unix_surfa
     fesetenv(FE_DFL_ENV);
     feenableexcept(FE_DIVBYZERO|FE_INVALID);
 
+#ifdef CAIRO_DEBUG
+    cr = p_cairo_create( target->debug_surface );
+#else
     cr = p_cairo_create( target->cairo_surface );
+#endif
     for (i = 0; i < clip_rect_count; ++i)
         p_cairo_rectangle( cr, clip_rects[i].left, clip_rects[i].top,
                            clip_rects[i].right - clip_rects[i].left,
@@ -198,6 +228,45 @@ void CDECL cairo_surface_present( struct unix_surface *target, struct unix_surfa
     p_cairo_rectangle( cr, target_pos->x, target_pos->y, width, height );
     p_cairo_fill( cr );
     p_cairo_destroy( cr );
+
+#ifdef CAIRO_DEBUG
+{
+    cr = p_cairo_create( target->cairo_surface );
+    p_cairo_set_source_surface( cr, target->debug_surface, 0, 0 );
+    p_cairo_paint_with_alpha( cr, 0.5 );
+
+    p_cairo_set_source_rgba( cr, 1., 0., 0., 1. );
+    for (i = 0; i < clip_rect_count; ++i)
+        p_cairo_rectangle( cr, clip_rects[i].left, clip_rects[i].top,
+                           clip_rects[i].right - clip_rects[i].left,
+                           clip_rects[i].bottom - clip_rects[i].top );
+    p_cairo_stroke( cr );
+
+    p_cairo_set_source_rgba( cr, 1., 0., 0., 1. );
+    for (i = 0; i < clip_rect_count; ++i)
+    {
+        p_cairo_move_to( cr, clip_rects[i].left, clip_rects[i].top + 10 );
+        p_cairo_text_path( cr, wine_dbgstr_rect( clip_rects + i ) );
+    }
+    p_cairo_fill( cr );
+
+    p_cairo_set_source_rgba( cr, 0., 1., 0., 1. );
+    p_cairo_rectangle( cr, target_pos->x, target_pos->y, width, height );
+    p_cairo_stroke( cr );
+
+    for (i = 0; i < clip_rect_count; ++i)
+        p_cairo_rectangle( cr, clip_rects[i].left, clip_rects[i].top,
+                           clip_rects[i].right - clip_rects[i].left,
+                           clip_rects[i].bottom - clip_rects[i].top );
+    if (clip_rect_count) p_cairo_clip( cr );
+
+    p_cairo_set_source_rgba( cr, rand() * 1. / RAND_MAX, rand() * 1. / RAND_MAX, rand() * 1. / RAND_MAX, 0.5 );
+    p_cairo_rectangle( cr, target_pos->x, target_pos->y, width, height );
+    p_cairo_fill( cr );
+
+    p_cairo_destroy( cr );
+}
+#endif
 
     p_cairo_surface_flush( target->cairo_surface );
     p_cairo_surface_flush( source->cairo_surface );
