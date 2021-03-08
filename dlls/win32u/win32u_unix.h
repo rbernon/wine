@@ -37,6 +37,12 @@
 #ifdef HAVE_XCB_COMPOSITE_H
 #include <xcb/composite.h>
 #endif
+#ifdef HAVE_XCB_XFIXES_H
+#include <xcb/xfixes.h>
+#endif
+#ifdef HAVE_XCB_PRESENT_H
+#include <xcb/present.h>
+#endif
 
 #ifdef HAVE_CAIRO_CAIRO_H
 #include <cairo/cairo.h>
@@ -62,6 +68,7 @@ typedef int Status;
 #define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
 MAKE_FUNCPTR(xcb_configure_window_checked)
 MAKE_FUNCPTR(xcb_connect)
+MAKE_FUNCPTR(xcb_generate_id)
 MAKE_FUNCPTR(xcb_connection_has_error)
 MAKE_FUNCPTR(xcb_depth_next)
 MAKE_FUNCPTR(xcb_depth_visuals_iterator)
@@ -89,6 +96,25 @@ MAKE_FUNCPTR(xcb_composite_query_version)
 MAKE_FUNCPTR(xcb_composite_query_version_reply)
 MAKE_FUNCPTR(xcb_composite_redirect_window_checked)
 MAKE_FUNCPTR(xcb_composite_unredirect_window_checked)
+MAKE_FUNCPTR(xcb_composite_name_window_pixmap_checked)
+#undef MAKE_FUNCPTR
+#endif
+
+#ifdef HAVE_XCB_XFIXES_H
+#define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(xcb_xfixes_query_version)
+MAKE_FUNCPTR(xcb_xfixes_query_version_reply)
+MAKE_FUNCPTR(xcb_xfixes_create_region_checked)
+MAKE_FUNCPTR(xcb_xfixes_set_region_checked)
+MAKE_FUNCPTR(xcb_xfixes_destroy_region_checked)
+#undef MAKE_FUNCPTR
+#endif
+
+#ifdef HAVE_XCB_PRESENT_H
+#define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(xcb_present_query_version)
+MAKE_FUNCPTR(xcb_present_query_version_reply)
+MAKE_FUNCPTR(xcb_present_pixmap_checked)
 #undef MAKE_FUNCPTR
 #endif
 

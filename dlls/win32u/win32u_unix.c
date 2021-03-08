@@ -132,6 +132,7 @@ MAKE_FUNCPTR(xcb_composite_query_version)
 MAKE_FUNCPTR(xcb_composite_query_version_reply)
 MAKE_FUNCPTR(xcb_composite_redirect_window_checked)
 MAKE_FUNCPTR(xcb_composite_unredirect_window_checked)
+MAKE_FUNCPTR(xcb_composite_name_window_pixmap_checked)
 #undef MAKE_FUNCPTR
 BOOL has_xcb_composite = FALSE;
 
@@ -158,6 +159,7 @@ static BOOL init_xcb_composite(void)
     LOAD_FUNCPTR(xcb_composite_query_version_reply)
     LOAD_FUNCPTR(xcb_composite_redirect_window_checked)
     LOAD_FUNCPTR(xcb_composite_unredirect_window_checked)
+    LOAD_FUNCPTR(xcb_composite_name_window_pixmap_checked)
 #undef LOAD_FUNCPTR
 
     if ((xcb_composite = p_xcb_query_extension_reply(xcb, p_xcb_query_extension(xcb, strlen("Composite"), "Composite"), NULL)))
@@ -194,12 +196,159 @@ static BOOL init_xcb_composite(void)
 
 #endif
 
+#ifdef SONAME_LIBXCB_XFIXES
+
+#define MAKE_FUNCPTR(f) typeof(f) *p_##f;
+MAKE_FUNCPTR(xcb_xfixes_query_version)
+MAKE_FUNCPTR(xcb_xfixes_query_version_reply)
+MAKE_FUNCPTR(xcb_xfixes_create_region_checked)
+MAKE_FUNCPTR(xcb_xfixes_set_region_checked)
+MAKE_FUNCPTR(xcb_xfixes_destroy_region_checked)
+#undef MAKE_FUNCPTR
+BOOL has_xcb_xfixes = FALSE;
+
+static BOOL init_xcb_xfixes(void)
+{
+    xcb_xfixes_query_version_reply_t *xcb_xfixes_version;
+    xcb_query_extension_reply_t *xcb_xfixes;
+    void *libxcb_xfixes;
+
+    if (!(libxcb_xfixes = dlopen(SONAME_LIBXCB_XFIXES, RTLD_NOW)))
+    {
+        ERR("dlopen(%s, RTLD_NOW) failed!\n", SONAME_LIBXCB_XFIXES);
+        return FALSE;
+    }
+
+#define LOAD_FUNCPTR(f) \
+    if ((p_##f = dlsym(libxcb_xfixes, #f)) == NULL) \
+    { \
+        ERR("dlsym(%s, %s) failed!\n", SONAME_LIBXCB_XFIXES, #f); \
+        goto error; \
+    }
+
+    LOAD_FUNCPTR(xcb_xfixes_query_version)
+    LOAD_FUNCPTR(xcb_xfixes_query_version_reply)
+    LOAD_FUNCPTR(xcb_xfixes_create_region_checked)
+    LOAD_FUNCPTR(xcb_xfixes_set_region_checked)
+    LOAD_FUNCPTR(xcb_xfixes_destroy_region_checked)
+#undef LOAD_FUNCPTR
+
+    if ((xcb_xfixes = p_xcb_query_extension_reply(xcb, p_xcb_query_extension(xcb, strlen("XFIXES"), "XFIXES"), NULL)))
+    {
+        has_xcb_xfixes = xcb_xfixes->present;
+        free(xcb_xfixes);
+    }
+    if (has_xcb_xfixes && (xcb_xfixes_version = p_xcb_xfixes_query_version_reply(xcb, p_xcb_xfixes_query_version(xcb, 5, 0), NULL)))
+    {
+        ERR("XCB XFIXES extension version %d.%d\n", xcb_xfixes_version->major_version, xcb_xfixes_version->minor_version);
+        free(xcb_xfixes_version);
+    }
+    if (!has_xcb_xfixes)
+    {
+        ERR("XCB XFIXES extension not available\n");
+        goto error;
+    }
+
+    return TRUE;
+
+error:
+    has_xcb_xfixes = FALSE;
+    dlclose(libxcb_xfixes);
+    return FALSE;
+}
+
+#else
+
+static BOOL init_xcb_xfixes(void)
+{
+    ERR("XCB XFIXES support not compiled in!\n");
+    return FALSE;
+}
+
+#endif
+
+#ifdef SONAME_LIBXCB_PRESENT
+
+#define MAKE_FUNCPTR(f) typeof(f) *p_##f;
+MAKE_FUNCPTR(xcb_present_query_version)
+MAKE_FUNCPTR(xcb_present_query_version_reply)
+MAKE_FUNCPTR(xcb_present_pixmap_checked)
+#undef MAKE_FUNCPTR
+BOOL has_xcb_present = FALSE;
+
+static BOOL init_xcb_present(void)
+{
+    xcb_present_query_version_reply_t *xcb_present_version;
+    xcb_query_extension_reply_t *xcb_present;
+    void *libxcb_present;
+
+    if (!(libxcb_present = dlopen(SONAME_LIBXCB_PRESENT, RTLD_NOW)))
+    {
+        ERR("dlopen(%s, RTLD_NOW) failed!\n", SONAME_LIBXCB_PRESENT);
+        return FALSE;
+    }
+
+#define LOAD_FUNCPTR(f) \
+    if ((p_##f = dlsym(libxcb_present, #f)) == NULL) \
+    { \
+        ERR("dlsym(%s, %s) failed!\n", SONAME_LIBXCB_PRESENT, #f); \
+        goto error; \
+    }
+
+    LOAD_FUNCPTR(xcb_present_query_version)
+    LOAD_FUNCPTR(xcb_present_query_version_reply)
+    LOAD_FUNCPTR(xcb_present_pixmap_checked)
+#undef LOAD_FUNCPTR
+
+    if ((xcb_present = p_xcb_query_extension_reply(xcb, p_xcb_query_extension(xcb, strlen("Present"), "Present"), NULL)))
+    {
+        has_xcb_present = xcb_present->present;
+        free(xcb_present);
+    }
+    if (has_xcb_present && (xcb_present_version = p_xcb_present_query_version_reply(xcb, p_xcb_present_query_version(xcb, 1, 0), NULL)))
+    {
+        ERR("XCB Present extension version %d.%d\n", xcb_present_version->major_version, xcb_present_version->minor_version);
+        free(xcb_present_version);
+    }
+    if (!has_xcb_present)
+    {
+        ERR("XCB Present extension not available\n");
+        goto error;
+    }
+
+    return TRUE;
+
+error:
+    has_xcb_present = FALSE;
+    dlclose(libxcb_present);
+    return FALSE;
+}
+
+#else
+
+static BOOL init_xcb_present(void)
+{
+    ERR("XCB Present support not compiled in!\n");
+    return FALSE;
+}
+
+#endif
+
+#ifdef HAVE_XCB_PRESENT_H
+#define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(xcb_present_query_version)
+MAKE_FUNCPTR(xcb_present_query_version_reply)
+MAKE_FUNCPTR(xcb_present_pixmap_checked)
+#undef MAKE_FUNCPTR
+#endif
+
 #ifdef SONAME_LIBXCB
 
 #ifdef HAVE_XCB_XCB_H
 #define MAKE_FUNCPTR(f) typeof(f) *p_##f;
 MAKE_FUNCPTR(xcb_configure_window_checked)
 MAKE_FUNCPTR(xcb_connect)
+MAKE_FUNCPTR(xcb_generate_id)
 MAKE_FUNCPTR(xcb_connection_has_error)
 MAKE_FUNCPTR(xcb_depth_next)
 MAKE_FUNCPTR(xcb_depth_visuals_iterator)
@@ -242,6 +391,7 @@ static BOOL init_xcb(void)
 #ifdef HAVE_XCB_XCB_H
     LOAD_FUNCPTR(xcb_configure_window_checked)
     LOAD_FUNCPTR(xcb_connect)
+    LOAD_FUNCPTR(xcb_generate_id)
     LOAD_FUNCPTR(xcb_connection_has_error)
     LOAD_FUNCPTR(xcb_depth_next)
     LOAD_FUNCPTR(xcb_depth_visuals_iterator)
@@ -270,6 +420,8 @@ static BOOL init_xcb(void)
     }
 
     if (!init_xcb_composite()) goto error;
+    if (!init_xcb_xfixes()) goto error;
+    if (!init_xcb_present()) goto error;
 
     return TRUE;
 

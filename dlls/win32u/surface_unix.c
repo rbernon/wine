@@ -35,6 +35,7 @@ struct unix_surface
     HWND hwnd;
 #ifdef HAVE_XCB_XCB_H
     xcb_window_t window;
+    xcb_window_t pixmap;
 #endif
     cairo_surface_t *cairo_surface;
 #ifdef CAIRO_DEBUG
@@ -57,6 +58,7 @@ static struct unix_surface *cairo_surface_create( HWND hwnd )
     surface->hwnd = hwnd;
 #ifdef HAVE_XCB_XCB_H
     surface->window = XCB_NONE;
+    surface->pixmap = XCB_NONE;
 #endif
     surface->cairo_surface = NULL;
 #ifdef CAIRO_DEBUG
@@ -157,6 +159,7 @@ void CDECL cairo_surface_create_notify_xcb( struct unix_surface *surface, LPARAM
         if (surface->cairo_surface) p_cairo_surface_destroy( surface->cairo_surface );
         surface->cairo_surface = NULL;
         surface->window = XCB_NONE;
+        surface->pixmap = XCB_NONE;
         return;
     }
 
@@ -188,6 +191,7 @@ void CDECL cairo_surface_create_notify_xcb( struct unix_surface *surface, LPARAM
     if (surface->cairo_surface) p_cairo_surface_destroy( surface->cairo_surface );
     surface->cairo_surface = p_cairo_xcb_surface_create( xcb, window, xcb_visualtype_from_id( xcb, 0, attrs->visual ), geom->width, geom->height );
     surface->window = window;
+    surface->pixmap = XCB_NONE;
 
     TRACE( "updated surface %p, hwnd %p, window %x.\n", surface, hwnd, window );
 
@@ -251,6 +255,73 @@ void CDECL cairo_surface_delete( struct unix_surface *surface )
     free(surface);
 }
 
+#ifdef HAVE_XCB_PRESENT_H
+static void cairo_surface_present_xcb_present( xcb_window_t target, xcb_window_t source, const POINT *target_pos, const RECT *source_rect, UINT clip_rect_count, const RECT *clip_rects )
+{
+    xcb_generic_error_t *err;
+    xcb_xfixes_region_t valid = p_xcb_generate_id(xcb), update = p_xcb_generate_id(xcb);
+    xcb_rectangle_t valid_rect, *update_rects;
+    int i;
+
+    TRACE( "target %x, source %x, pos %s, source_rect %s, clip_rect_count %u, clip_rects %p.\n",
+           target, source, wine_dbgstr_point( target_pos ), wine_dbgstr_rect( source_rect ),
+           clip_rect_count, clip_rects );
+
+    if (!(update_rects = calloc(clip_rect_count, sizeof(*update_rects))))
+    {
+        ERR("failed to allocate clip rects\n");
+        return;
+    }
+
+    valid_rect.x = source_rect->left;
+    valid_rect.y = source_rect->top;
+    valid_rect.width = source_rect->right - source_rect->left;
+    valid_rect.height = source_rect->bottom - source_rect->top;
+
+    for (i = 0; i < clip_rect_count; ++i)
+    {
+        update_rects[i].x = clip_rects[i].left - target_pos->x;
+        update_rects[i].y = clip_rects[i].top - target_pos->y;
+        update_rects[i].width = clip_rects[i].right - clip_rects[i].left;
+        update_rects[i].height = clip_rects[i].bottom - clip_rects[i].top;
+    }
+
+    if ((err = p_xcb_request_check(xcb, p_xcb_xfixes_create_region_checked(xcb, valid, 1, &valid_rect ))))
+    {
+        ERR("failed to create region, error %d, resource %x, minor %d, major %d \n", err->error_code, err->resource_id, err->minor_code, err->major_code );
+        free(err);
+    }
+
+    if ((err = p_xcb_request_check(xcb, p_xcb_xfixes_create_region_checked(xcb, update, clip_rect_count, update_rects ))))
+    {
+        ERR("failed to create region, error %d, resource %x, minor %d, major %d \n", err->error_code, err->resource_id, err->minor_code, err->major_code );
+        free(err);
+    }
+
+    if ((err = p_xcb_request_check(xcb, p_xcb_present_pixmap_checked(xcb, target, source, 0, valid, update,
+                  target_pos->x - source_rect->left, target_pos->y - source_rect->top,
+                  XCB_NONE, XCB_NONE, XCB_NONE, 0, 0, 0, 0, 0, NULL))))
+    {
+        ERR("failed to present, error %d, resource %x, minor %d, major %d \n", err->error_code, err->resource_id, err->minor_code, err->major_code );
+        free(err);
+    }
+
+    if ((err = p_xcb_request_check(xcb, p_xcb_xfixes_destroy_region_checked(xcb, update ))))
+    {
+        ERR("failed to destroy region, error %d, resource %x, minor %d, major %d \n", err->error_code, err->resource_id, err->minor_code, err->major_code );
+        free(err);
+    }
+
+    if ((err = p_xcb_request_check(xcb, p_xcb_xfixes_destroy_region_checked(xcb, valid ))))
+    {
+        ERR("failed to destroy region, error %d, resource %x, minor %d, major %d \n", err->error_code, err->resource_id, err->minor_code, err->major_code );
+        free(err);
+    }
+
+    if (update_rects) free(update_rects);
+}
+#endif
+
 void CDECL cairo_surface_present( struct unix_surface *target, struct unix_surface *source, const POINT *target_pos, const RECT *source_rect, UINT clip_rect_count, const RECT *clip_rects )
 {
     cairo_t *cr;
@@ -267,6 +338,14 @@ void CDECL cairo_surface_present( struct unix_surface *target, struct unix_surfa
         ERR( "no target surface to present to!\n" );
         return;
     }
+
+#ifdef HAVE_XCB_PRESENT_H
+    if (target->window && source->pixmap)
+    {
+        cairo_surface_present_xcb_present( target->window, source->pixmap, target_pos, source_rect, clip_rect_count, clip_rects );
+        return;
+    }
+#endif
 
     feholdexcept(&fpu_env);
     fesetenv(FE_DFL_ENV);
@@ -428,6 +507,16 @@ static void CDECL cairo_surface_apply_resize( struct unix_surface *surface, stru
     if (surface->debug_surface) p_cairo_surface_destroy( surface->debug_surface );
     surface->debug_surface = p_cairo_surface_create_similar_image( surface->cairo_surface, CAIRO_FORMAT_RGB24, new_pos.right - new_pos.left, new_pos.bottom - new_pos.top );
 #endif
+
+    if (surface->pixmap)
+    {
+        surface->pixmap = p_xcb_generate_id(xcb);
+        if ((err = p_xcb_request_check( xcb, p_xcb_composite_name_window_pixmap_checked(xcb, surface->window, surface->pixmap))))
+        {
+            ERR("failed to name window %x pixmap %x, error %d, resource %x, minor %d, major %d \n", surface->window, surface->pixmap, err->error_code, err->resource_id, err->minor_code, err->major_code );
+            free(err);
+        }
+    }
 }
 
 void CDECL cairo_surface_resize( struct unix_surface *surface, struct unix_surface *parent, const RECT *rect )
@@ -459,5 +548,16 @@ void CDECL cairo_surface_set_offscreen( struct unix_surface *surface, BOOL offsc
     {
         ERR("failed to %sset windows %x offscreen, error %d, resource %x, minor %d, major %d \n", offscreen ? "" : "un", surface->window, err->error_code, err->resource_id, err->minor_code, err->major_code );
         free(err);
+    }
+
+    if (!offscreen) surface->pixmap = XCB_NONE;
+    else
+    {
+        surface->pixmap = p_xcb_generate_id(xcb);
+        if ((err = p_xcb_request_check( xcb, p_xcb_composite_name_window_pixmap_checked(xcb, surface->window, surface->pixmap))))
+        {
+            ERR("failed to name window %x pixmap %x, error %d, resource %x, minor %d, major %d \n", surface->window, surface->pixmap, err->error_code, err->resource_id, err->minor_code, err->major_code );
+            free(err);
+        }
     }
 }
