@@ -1,0 +1,341 @@
+#!/usr/bin/env python3
+
+from clang.cindex import Index
+from clang.cindex import CursorKind
+from clang.cindex import LinkageKind
+from clang.cindex import TypeKind
+from clang.cindex import CompilationDatabase
+import os
+import re
+import sys
+
+
+def typename(type):
+  name = type.spelling
+  if name.startswith('LPARAM'): return name
+  if name.startswith('LPCSTR'): return 'const char *'
+  if name.startswith('LPSTR'): return 'char *'
+  if name.startswith('LPCWSTR'): return 'const WCHAR *'
+  if name.startswith('LPWSTR'): return 'WCHAR *'
+  if name.startswith('LPOLESTR'): return 'WCHAR *'
+  if name.startswith('LPCOLESTR'): return 'WCHAR *'
+  if name.startswith('LPC'): return f'const {name[3:]} *'
+  if name.startswith('LP'): return f'{name[2:]} *'
+  t = type.get_canonical()
+  if 'struct tag' in t.spelling:
+    return t.spelling.replace('struct tag', '')
+  return name
+
+def typenames(type):
+  yield typename(type)
+  if type.kind is TypeKind.TYPEDEF:
+    cursor = type.get_declaration()
+    yield from typenames(cursor.underlying_typedef_type)
+
+def is_wide_str(type, name):
+  if not 'WCHAR' in name and not 'WSTR' in name and not 'OLESTR' in name: return False
+  if type.kind != TypeKind.POINTER: return False
+  type = type.get_pointee()
+  if type.kind not in [TypeKind.USHORT, TypeKind.WCHAR]: return False
+  return True
+
+def is_ansi_str(type, name):
+  if not 'char' in name and not 'STR' in name: return False
+  if type.kind != TypeKind.POINTER: return False
+  type = type.get_pointee()
+  if type.kind != TypeKind.CHAR_S: return False
+  return True
+
+
+def argfmt(node=None, type=None, name=None, opts={}):
+  if not type: type = node.type
+  if not name: name = node.spelling
+  type_name = list(typenames(type))
+
+  # if name == 'iface' and type_name.startswith('I'):
+  #   return 'impl %p, iface %p'
+
+  t = type.get_canonical()
+  if t.kind == TypeKind.POINTER:
+    tt = t.get_pointee()
+    if tt.kind == TypeKind.RECORD and 'struct _GUID' in tt.spelling:
+      return f'{name} %s'
+    if is_wide_str(t, type_name[0]): return f'{name} %s'
+    if is_ansi_str(t, type_name[0]): return f'{name} %s'
+    return f'{name} %p'
+
+  if t.kind in (TypeKind.SHORT, TypeKind.USHORT, TypeKind.INT, TypeKind.UINT,
+                TypeKind.LONG, TypeKind.ULONG, TypeKind.LONGLONG, TypeKind.ULONGLONG):
+    if 'LPARAM' in type_name: return f'{name} %#Ix'
+    if 'DWORD_PTR' in type_name: return f'{name} %#Ix'
+    if 'ULONG_PTR' in type_name: return f'{name} %#Ix'
+    if 'LONG_PTR' in type_name: return f'{name} %#Ix'
+    if 'UINT_PTR' in type_name: return f'{name} %#Ix'
+    if 'INT_PTR' in type_name: return f'{name} %#Ix'
+    if 'ssize_t' in type_name: return f'{name} %#Ix'
+    if 'size_t' in type_name: return f'{name} %#Ix'
+
+    if t.get_size() == 8:
+      if 'flag' in name: return f'{name} %#I64x'
+      return f'{name} %I64d'
+
+    if 'HRESULT' in type_name: return f'{name} %#x'
+    if 'NTSTATUS' in type_name: return f'{name} %#x'
+    if 'LRESULT' in type_name: return f'{name} %#x'
+    if 'WPARAM' in type_name: return f'{name} %#x'
+    if 'flag' in name: return f'{name} %#x'
+    return f'{name} %d'
+
+  if 'POINT' in type_name: return f'{name} %s'
+  if 'RECT' in type_name: return f'{name} %s'
+  if t.kind == TypeKind.ENUM: return f'{name} %d'
+  if t.kind == TypeKind.FLOAT: return f'{name} %f'
+  if t.kind == TypeKind.DOUBLE: return f'{name} %f'
+  if t.kind == TypeKind.RECORD: return f'{name} %p'
+  if t.kind == TypeKind.FUNCTIONPROTO: return f'{name} %p'
+  return f'{name} %p({t.kind})'
+
+
+def argval(node=None, type=None, name=None, opts={}):
+  if not type: type = node.type
+  if not name: name = node.spelling
+  type_name = typename(type)
+
+  # if name == 'iface' and type_name.startswith('I'):
+  #   return f'impl_from_{type_name.split()[0]}({name}), {name}'
+
+  t = type.get_canonical()
+  if t.kind == TypeKind.POINTER:
+    tt = t.get_pointee()
+    if tt.kind == TypeKind.RECORD and 'struct _GUID' in tt.spelling:
+      return f'debugstr_guid({name})'
+    if is_wide_str(t, type_name): return f'debugstr_w({name})'
+    if is_ansi_str(t, type_name): return f'debugstr_a({name})'
+    if 'POINT' in type_name.split(' '):
+      return f'wine_dbgstr_point({name})'
+    if 'RECT' in type_name.split(' '):
+      return f'wine_dbgstr_rect({name})'
+  else:
+    if type_name == 'POINT':
+      return f'wine_dbgstr_point(&{name})'
+    if type_name == 'RECT':
+      return f'wine_dbgstr_rect(&{name})'
+
+  if t.kind in (TypeKind.SHORT, TypeKind.USHORT, TypeKind.INT, TypeKind.UINT,
+                TypeKind.LONG, TypeKind.ULONG, TypeKind.LONGLONG, TypeKind.ULONGLONG):
+    if 'LPARAM' in type_name: return f'(size_t){name}'
+    if 'DWORD_PTR' in type_name: return f'(size_t){name}'
+    if 'ULONG_PTR' in type_name: return f'(size_t){name}'
+    if 'LONG_PTR' in type_name: return f'(size_t){name}'
+    if 'UINT_PTR' in type_name: return f'(size_t){name}'
+    if 'INT_PTR' in type_name: return f'(size_t){name}'
+    if 'ssize_t' in type_name: return f'(size_t){name}'
+    if 'size_t' in type_name: return f'(size_t){name}'
+    if t.get_size() == 8: return f'(__int64){name}'
+    return f'(int){name}'
+
+  if '_Dcomplex' in type_name: return f'&{name}'
+  if '_complex' in type_name: return f'&{name}'
+  if t.kind == TypeKind.RECORD: return f'&{name}'
+  return name
+
+
+def is_out(node, type=None, name=None):
+  if not type: type = node.type
+  if not name: name = node.spelling
+  type_name = typename(type)
+  t = type.get_canonical()
+  if t.kind != TypeKind.POINTER: return False
+  if t.get_pointee().is_const_qualified(): return False
+  if t.get_pointee().kind == TypeKind.VOID: return False
+  if t.get_pointee().kind == TypeKind.RECORD:
+    if type_name[0] == 'H': return False
+  return True
+
+def outfmt(node, type=None, name=None, opts={}):
+  if not type: type = node.type
+  if not name: name = node.spelling
+  type_name = typename(type)
+  t = type.get_canonical()
+  if is_wide_str(t, type_name): return f'{name} %s'
+  if is_ansi_str(t, type_name): return f'{name} %s'
+  return argfmt(type=type.get_pointee(), name=name, opts=opts)
+
+def outval(node, type=None, name=None, opts={}):
+  if not type: type = node.type
+  if not name: name = node.spelling
+  type_name = typename(type)
+  t = type.get_canonical()
+  if is_wide_str(t, type_name): return f'debugstr_w({name})'
+  if is_ansi_str(t, type_name): return f'debugstr_a({name})'
+  if t.get_pointee().kind == TypeKind.RECORD:
+    return argval(type=type, name=f'{name}', opts=opts)
+  str = argval(type=type.get_pointee(), name=f'*{name}', opts=opts)
+  return f'{name} ? {str} : 0'
+
+
+def insert(src, stmt, next, str):
+  nl, nc = next.line - 1, next.column - 1
+  if stmt.line != next.line: return src[:nl] + [f'    {str}'] + src[nl:]
+  if stmt == next: nc, str = nc + 1, f' {str}'
+  return src[:nl] + [f'{src[nl][:nc]}{str} {src[nl][nc:]}'] + src[nl + 1:]
+
+def replace(src, beg, end, str):
+  bl, bc = beg.line - 1, beg.column - 1
+  el, ec = end.line - 1, end.column + 1
+  return src[:bl] + [f'{src[bl][:bc]}{str}{src[el][ec:]}'] + src[el + 1:]
+
+def source_range(src, beg, end):
+  bl, bc = beg.line - 1, beg.column - 1
+  el, ec = end.line - 1, end.column - 1
+  if bl == el: return src[bl][bc:ec]
+  return src[bl][bc:] + ''.join(src[bl + 1:el]) + src[el][:ec]
+
+def children(node):
+  yield from [c for c in node.get_children()][::-1]
+
+
+def format_return(ret, out, args, source, opts):
+  fmt = [argfmt(a, opts=opts) for a in args[:1]] + [outfmt(a, opts=opts) for a in args[1:] if is_out(a)]
+  arg = [argval(a, opts=opts) for a in args[:1]] + [outval(a, opts=opts) for a in args[1:] if is_out(a)]
+  if ret.spelling != 'void':
+    fmt += [argfmt(type=ret, name='ret', opts=opts)]
+    arg += [argval(type=ret, name='__r', opts=opts)]
+  fmt = ", ".join(fmt)
+  arg = ", ".join(arg)
+
+  if ret.spelling == 'void':
+    arg = f', {arg}' if len(arg) else ''
+    return f'return ({{ TRACE("{fmt}.\\n"{arg}); (void)0; }});'
+  else:
+    return f'return ({{ {ret.spelling} __r = {out}; TRACE("{fmt}.\\n", {arg}); __r; }});'
+
+def handle_returns(ret, node, args, source, opts):
+  if '-r' not in opts and '--return' not in opts: return
+  for n in children(node):
+    if n.kind != CursorKind.RETURN_STMT:
+      yield from handle_returns(ret, n, args, source, opts)
+    elif len(list(children(n))) == 0 or list(children(n))[0].kind != CursorKind.StmtExpr:
+      src = source_range(source, n.extent.start, n.extent.end)
+      out = src.replace('return ', '')
+      str = format_return(ret, out, args, source, opts)
+      yield lambda lines: replace(lines, n.extent.start, n.extent.end, str)
+
+
+def handle_function(node, source, opts):
+  assert(node.kind == CursorKind.FUNCTION_DECL)
+  if 'impl_from_' in node.spelling: return
+  if 'debugstr_' in node.spelling: return
+
+  args = []
+  api = None
+  stmt = None
+  ret = node.type.get_result()
+  for n in node.get_children():
+    if n.kind == CursorKind.COMPOUND_STMT: stmt = n
+    elif n.kind == CursorKind.PARM_DECL: args += [n]
+    elif n.kind == CursorKind.UNEXPOSED_ATTR: api = n
+  assert(stmt is not None)
+
+  if (not api and node.linkage == LinkageKind.INTERNAL) \
+     and '-a' not in opts and '--all' not in opts:
+    return
+
+  if ret.spelling == 'void' and ('-r' in opts or '--return' in opts):
+    end = next(children(node))
+    last = next(children(end), None)
+    if last and last.kind != CursorKind.RETURN_STMT:
+      str = format_return(ret, '', args, source, opts)
+      yield lambda lines: insert(lines, last.extent.end, end.extent.end, str)
+
+  yield from handle_returns(ret, stmt, args, source, opts)
+
+  for n in stmt.get_children():
+    if n.kind != CursorKind.DECL_STMT: break
+
+  if n.kind == CursorKind.DO_STMT:
+    src = source_range(source, n.extent.start, n.extent.end)
+    name, _ = re.split(r'\W', src, maxsplit=1)
+  else:
+    name = None
+
+  if n.kind == CursorKind.DO_STMT and name == 'FIXME': end = ' stub!'
+  else: end = '.'
+  fmt = "" if len(args) == 0 else ", ".join([argfmt(a, opts=opts) for a in args]) + end
+  arg = "" if len(args) == 0 else ", " + ", ".join([argval(a, opts=opts) for a in args])
+  if len(fmt) > 60: arg = ",\n          " + arg[2:]
+
+  # if node.spelling.endswith('_Release'):
+  #   str = f'TRACE("{fmt[:-1]} decreasing refcount to %u.\\n"{arg}, ref);'
+  # elif node.spelling.endswith('_AddRef'):
+  #   str = f'TRACE("{fmt[:-1]} increasing refcount to %u.\\n"{arg}, ref);'
+
+  if n.kind == CursorKind.DO_STMT and name == 'FIXME':
+    str = f'FIXME("{fmt}\\n"{arg});'
+  else:
+    str = f'TRACE("{fmt}\\n"{arg});'
+
+  if n.kind == CursorKind.DO_STMT and \
+     name in ['TRACE', 'FIXME']:
+    yield lambda lines: replace(lines, n.extent.start, n.extent.end, str)
+  else:
+    yield lambda lines: insert(lines, stmt.extent.start, n.extent.start, str + '\n')
+
+
+def handle_tu(node, source, opts, file):
+  assert(node.kind == CursorKind.TRANSLATION_UNIT)
+
+  for n in children(node):
+    if os.path.normpath(str(n.location.file)) != os.path.normpath(file):
+      continue
+
+    if n.kind == CursorKind.FUNCTION_DECL and n.is_definition():
+      yield from handle_function(n, source, opts)
+
+
+def main():
+  index = Index.create()
+
+  files = [arg for arg in sys.argv[1:]
+           if arg not in ['-a', '--all', '-r', '--return']]
+  opts = [arg for arg in sys.argv[1:]
+             if arg in ['-a', '--all', '-r', '--return']]
+
+  for build in ['64', '32']:
+    if 'proton' in os.getcwd(): prefix = '/Code/build-proton/obj-'
+    else: prefix = '/Code/build-wine/'
+    compdb = CompilationDatabase.fromDirectory(os.environ['HOME'] + prefix + f'wine{build}')
+
+    for file in files:
+      file = os.path.abspath(file)
+      for cmd in reversed(compdb.getCompileCommands(file)):
+        dir = cmd.directory
+
+        flags = [a for a in cmd.arguments
+                 if not a.startswith(('\t', '$', '-I'))]
+        flags += [f'-I{os.path.join(dir, a[2:])}' for a in cmd.arguments
+                  if a.startswith('-I')]
+        flags += ['-I/usr/x86_64-w64-mingw32/include',
+                  '-I/usr/lib/llvm-14/lib/clang/14.0.0/include']
+        flags += ['-w']
+        lopt = ['--long'] if not '-DWINE_NO_LONG_TYPES' in flags else []
+
+        tu = index.parse(file, flags)
+        for d in tu.diagnostics: print(d)
+
+        with open(file, 'r') as i:
+          lines = [l.strip('\n') for l in i.readlines()]
+
+        new_lines = lines[:]
+        for op in handle_tu(tu.cursor, lines, opts + lopt, file):
+          new_lines = op(new_lines)
+
+        with open(file, 'w') as o:
+          for l in new_lines:
+            print(l, file=o)
+
+        # for l in lines:
+        #   print(l.strip('\n'))
+
+if __name__ == "__main__":
+  main()
