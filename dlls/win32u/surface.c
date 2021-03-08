@@ -18,6 +18,7 @@
 
 #include <stdarg.h>
 #include <stdlib.h>
+#include <limits.h>
 
 #include "windef.h"
 #include "winbase.h"
@@ -36,6 +37,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(win32u);
 struct hwnd_surface
 {
     struct wine_rb_entry entry;
+    LONG ref;
     HWND hwnd;
     struct unix_surface *unix_surface;
 };
@@ -61,6 +63,7 @@ static struct hwnd_surface *toplevel_surface_create( HWND hwnd )
     struct hwnd_surface *toplevel;
 
     if (!(toplevel = malloc(sizeof(*toplevel)))) return NULL;
+    toplevel->ref = 1;
     toplevel->hwnd = hwnd;
     toplevel->unix_surface = unix_funcs->surface_create_toplevel( hwnd );
 
@@ -76,6 +79,17 @@ static void hwnd_surface_delete( struct hwnd_surface *surface )
     unix_funcs->surface_delete( surface->unix_surface );
 
     free(surface);
+}
+
+static struct hwnd_surface *hwnd_surface_grab( struct hwnd_surface *surface )
+{
+    InterlockedIncrement( &surface->ref );
+    return surface;
+}
+
+static void hwnd_surface_release( struct hwnd_surface *surface )
+{
+    if (!InterlockedDecrement( &surface->ref )) hwnd_surface_delete( surface );
 }
 
 static void set_toplevel_surface_for_hwnd( HWND hwnd, struct hwnd_surface *toplevel )
@@ -137,7 +151,7 @@ void win32u_delete_toplevel_surface( HWND hwnd )
     if ((toplevel = get_toplevel_surface_for_hwnd( hwnd )))
     {
         wine_rb_remove( &toplevel_surfaces, &toplevel->entry );
-        hwnd_surface_delete( toplevel );
+        hwnd_surface_release( toplevel );
     }
     RtlLeaveCriticalSection( &surfaces_cs );
 }
@@ -154,5 +168,220 @@ void win32u_resize_hwnd_surfaces( HWND hwnd )
     RtlEnterCriticalSection( &surfaces_cs );
     if ((toplevel = get_toplevel_surface_for_hwnd( hwnd )))
         unix_funcs->surface_resize_notify( toplevel->unix_surface, &client_rect );
+    RtlLeaveCriticalSection( &surfaces_cs );
+}
+
+static const struct window_surface_funcs win32u_window_surface_funcs;
+
+struct win32u_window_surface
+{
+    struct window_surface base;
+    RTL_CRITICAL_SECTION cs;
+    BITMAP bitmap;
+    RECT bounds;
+    HRGN region;
+
+    struct hwnd_surface *toplevel;
+    struct unix_surface *surface;
+};
+
+static inline void reset_bounds( RECT *bounds )
+{
+    bounds->left = bounds->top = INT_MAX;
+    bounds->right = bounds->bottom = INT_MIN;
+}
+
+static struct win32u_window_surface *impl_from_window_surface( struct window_surface *base )
+{
+    if (base->funcs != &win32u_window_surface_funcs) return NULL;
+    return CONTAINING_RECORD( base, struct win32u_window_surface, base );
+}
+
+static void CDECL win32u_window_surface_lock( struct window_surface *base )
+{
+    struct win32u_window_surface *impl = impl_from_window_surface( base );
+
+    if (IsRectEmpty( &impl->base.rect )) return;
+
+    TRACE( "surface %p.\n", base );
+
+    RtlEnterCriticalSection( &impl->cs );
+}
+
+static void CDECL win32u_window_surface_unlock( struct window_surface *base )
+{
+    struct win32u_window_surface *impl = impl_from_window_surface( base );
+
+    if (IsRectEmpty( &impl->base.rect )) return;
+
+    TRACE( "surface %p.\n", base );
+
+    RtlLeaveCriticalSection( &impl->cs );
+}
+
+static void *CDECL win32u_window_surface_get_info( struct window_surface *base, BITMAPINFO *info )
+{
+    struct win32u_window_surface *impl = impl_from_window_surface( base );
+
+    TRACE( "surface %p.\n", base );
+
+    info->bmiHeader.biSize = sizeof(info->bmiHeader);
+    info->bmiHeader.biPlanes = impl->bitmap.bmPlanes;
+    info->bmiHeader.biBitCount = impl->bitmap.bmBitsPixel;
+    info->bmiHeader.biCompression = BI_RGB;
+    info->bmiHeader.biWidth = impl->bitmap.bmWidth;
+    info->bmiHeader.biHeight = -impl->bitmap.bmHeight;
+    info->bmiHeader.biSizeImage = impl->bitmap.bmWidthBytes * impl->bitmap.bmHeight;
+
+    return impl->bitmap.bmBits;
+}
+
+static RECT *CDECL win32u_window_surface_get_bounds( struct window_surface *base )
+{
+    struct win32u_window_surface *impl = impl_from_window_surface( base );
+
+    TRACE( "surface %p.\n", base );
+
+    return &impl->bounds;
+}
+
+static void CDECL win32u_window_surface_set_region( struct window_surface *base, HRGN region )
+{
+    struct win32u_window_surface *impl = impl_from_window_surface( base );
+
+    TRACE( "surface %p.\n", base );
+
+    base->funcs->lock(base);
+    if (region)
+    {
+        if (!impl->region) impl->region = CreateRectRgn(0, 0, 0, 0);
+        CombineRgn(impl->region, region, 0, RGN_COPY);
+    }
+    else
+    {
+        if (impl->region) DeleteObject(impl->region);
+        impl->region = 0;
+    }
+    base->funcs->unlock(base);
+}
+
+static void CDECL win32u_window_surface_flush( struct window_surface *base )
+{
+    struct win32u_window_surface *impl = impl_from_window_surface( base );
+    RGNDATA *data = NULL;
+    DWORD size, clip_rect_count = 0;
+    RECT target_rect, source_rect, *clip_rects = NULL;
+
+    if (IsRectEmpty( &impl->base.rect )) return;
+
+    TRACE( "surface %p.\n", base );
+
+    RtlEnterCriticalSection( &impl->cs );
+
+    if (!IsRectEmpty( &impl->bounds ))
+    {
+        target_rect = source_rect = impl->bounds;
+
+        if (!impl->region)
+        {
+            clip_rect_count = 1;
+            clip_rects = &target_rect;
+        }
+        else if ((size = GetRegionData( impl->region, 0, NULL )) && (data = malloc( size )))
+        {
+            GetRegionData( impl->region, size, data );
+            clip_rect_count = data->rdh.nCount;
+            clip_rects = (RECT *)data->Buffer;
+        }
+
+        if (clip_rect_count)
+        {
+            RtlEnterCriticalSection( &surfaces_cs );
+            unix_funcs->surface_present( impl->toplevel->unix_surface, impl->surface, (POINT *)&target_rect.left,
+                                         &source_rect, clip_rect_count, clip_rects );
+            RtlLeaveCriticalSection( &surfaces_cs );
+        }
+
+        if (data) free( data );
+    }
+
+    reset_bounds( &impl->bounds );
+
+    RtlLeaveCriticalSection( &impl->cs );
+}
+
+static void CDECL win32u_window_surface_destroy( struct window_surface *base )
+{
+    struct win32u_window_surface *impl = impl_from_window_surface( base );
+
+    TRACE( "surface %p.\n", base );
+
+    if (impl->region) DeleteObject(impl->region);
+    unix_funcs->surface_delete( impl->surface );
+    hwnd_surface_release( impl->toplevel );
+
+    free(impl);
+}
+
+static const struct window_surface_funcs win32u_window_surface_funcs =
+{
+    win32u_window_surface_lock,
+    win32u_window_surface_unlock,
+    win32u_window_surface_get_info,
+    win32u_window_surface_get_bounds,
+    win32u_window_surface_set_region,
+    win32u_window_surface_flush,
+    win32u_window_surface_destroy,
+};
+
+static void create_window_surface( struct hwnd_surface *toplevel, const RECT *visible_rect, struct window_surface **window_surface )
+{
+    struct win32u_window_surface *impl = NULL;
+    struct window_surface *iface;
+    RECT surface_rect = *visible_rect;
+
+    TRACE( "toplevel %p, visible_rect %s, window_surface %p.\n", toplevel, wine_dbgstr_rect( visible_rect ), window_surface );
+
+    OffsetRect( &surface_rect, -surface_rect.left, -surface_rect.top );
+
+    /* check that old surface is a win32u_window_surface, or release it */
+    if ((iface = *window_surface) && !(impl = impl_from_window_surface( iface ))) window_surface_release( iface );
+
+    /* if the underlying surface or rect didn't change, keep the same surface */
+    if (impl && impl->toplevel == toplevel && EqualRect( &surface_rect, &impl->base.rect )) return;
+
+    /* create a new window surface */
+    *window_surface = NULL;
+    if (impl) window_surface_release( &impl->base );
+    if (!(impl = calloc(1, sizeof(*impl)))) return;
+
+    impl->base.funcs = &win32u_window_surface_funcs;
+    impl->base.ref = 1;
+    impl->base.rect = surface_rect;
+    list_init( &impl->base.entry );
+    RtlInitializeCriticalSection( &impl->cs );
+    impl->toplevel = hwnd_surface_grab( toplevel );
+    impl->bitmap.bmWidth = surface_rect.right - surface_rect.left;
+    impl->bitmap.bmHeight = surface_rect.bottom - surface_rect.top;
+    impl->surface = unix_funcs->surface_create_drawable( toplevel->unix_surface, &impl->bitmap );
+    impl->base.rect.right = impl->base.rect.left + impl->bitmap.bmWidth;
+    impl->base.rect.bottom = impl->base.rect.top + impl->bitmap.bmHeight;
+    impl->region = 0;
+    reset_bounds( &impl->bounds );
+
+    TRACE( "created window surface %p\n", &impl->base );
+
+    *window_surface = &impl->base;
+}
+
+void win32u_update_window_surface( HWND hwnd, const RECT *visible_rect, struct window_surface **window_surface )
+{
+    struct hwnd_surface *toplevel;
+
+    TRACE( "hwnd %p, visible_rect %s, window_surface %p.\n", hwnd, wine_dbgstr_rect( visible_rect ), window_surface );
+
+    RtlEnterCriticalSection( &surfaces_cs );
+    if ((toplevel = get_toplevel_surface_for_hwnd( hwnd )))
+        create_window_surface( toplevel, visible_rect, window_surface );
     RtlLeaveCriticalSection( &surfaces_cs );
 }
