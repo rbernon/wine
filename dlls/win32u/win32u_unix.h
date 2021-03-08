@@ -81,11 +81,13 @@ MAKE_FUNCPTR(cairo_surface_destroy)
 #ifdef HAVE_CAIRO_CAIRO_XCB_H
 #define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
 MAKE_FUNCPTR(cairo_xcb_surface_create)
+MAKE_FUNCPTR(cairo_xcb_surface_set_size)
 #undef MAKE_FUNCPTR
 #endif
 
 extern struct unix_surface *CDECL cairo_surface_create_toplevel( HWND hwnd ) DECLSPEC_HIDDEN;
 extern void CDECL cairo_surface_create_notify( struct unix_surface *surface, LPARAM param ) DECLSPEC_HIDDEN;
 extern void CDECL cairo_surface_delete( struct unix_surface *surface ) DECLSPEC_HIDDEN;
+extern void CDECL cairo_surface_resize_notify( struct unix_surface *surface, const RECT *rect ) DECLSPEC_HIDDEN;
 
 #endif /* __WINE_WIN32U_UNIX_H */

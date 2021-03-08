@@ -38,6 +38,7 @@ MAKE_FUNCPTR(cairo_surface_destroy)
 #ifdef HAVE_CAIRO_CAIRO_XCB_H
 #define MAKE_FUNCPTR(f) typeof(f) *p_##f;
 MAKE_FUNCPTR(cairo_xcb_surface_create)
+MAKE_FUNCPTR(cairo_xcb_surface_set_size)
 #undef MAKE_FUNCPTR
 #endif
 
@@ -63,6 +64,7 @@ static BOOL init_cairo(void)
 #endif
 #ifdef HAVE_CAIRO_CAIRO_XCB_H
     LOAD_FUNCPTR(cairo_xcb_surface_create)
+    LOAD_FUNCPTR(cairo_xcb_surface_set_size)
 #endif
 #undef LOAD_FUNCPTR
 
@@ -164,6 +166,7 @@ static struct unix_funcs unix_funcs = {
     cairo_surface_create_toplevel,
     cairo_surface_create_notify,
     cairo_surface_delete,
+    cairo_surface_resize_notify,
 };
 
 NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out )

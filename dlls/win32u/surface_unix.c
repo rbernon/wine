@@ -155,3 +155,21 @@ void CDECL cairo_surface_delete( struct unix_surface *surface )
     if (surface->cairo_surface) p_cairo_surface_destroy( surface->cairo_surface );
     free(surface);
 }
+
+void CDECL cairo_surface_resize_notify( struct unix_surface *surface, const RECT *rect )
+{
+    int width, height;
+
+    TRACE( "surface %p, rect %s stub!\n", surface, wine_dbgstr_rect( rect ) );
+
+    width = min( max( 1, rect->right - rect->left ), 65535 );
+    height = min( max( 1, rect->bottom - rect->top ), 65535 );
+
+    if (!surface->cairo_surface) return;
+
+#ifdef HAVE_XCB_XCB_H
+    p_cairo_xcb_surface_set_size( surface->cairo_surface, width, height );
+#else
+#error
+#endif
+}
