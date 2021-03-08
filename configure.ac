@@ -1613,10 +1613,12 @@ WINE_NOTICE_WITH(pulse, [test -z "$PULSE_LIBS"],
 dnl **** Check for XCB ****
 if test "x$with_xcb" != "xno";
 then
-    WINE_PACKAGE_FLAGS(XCB,[xcb xcb-composite],,,,
-        [AC_CHECK_HEADERS([xcb/xcb.h xcb/composite.h],
+    WINE_PACKAGE_FLAGS(XCB,[xcb xcb-composite xcb-xfixes xcb-present],,,,
+        [AC_CHECK_HEADERS([xcb/xcb.h xcb/composite.h xcb/xfixes.h xcb/present.h],
             [WINE_CHECK_SONAME(xcb,xcb_connect,[:],[XCB_LIBS=""],[$XCB_LIBS])
-             WINE_CHECK_SONAME(xcb-composite,xcb_composite_query_version,[:],[XCB_LIBS=""],[$XCB_LIBS])],
+             WINE_CHECK_SONAME(xcb-composite,xcb_composite_query_version,[:],[XCB_LIBS=""],[$XCB_LIBS])
+             WINE_CHECK_SONAME(xcb-xfixes,xcb_xfixes_query_version,[:],[XCB_LIBS=""],[$XCB_LIBS])
+             WINE_CHECK_SONAME(xcb-present,xcb_present_query_version,[:],[XCB_LIBS=""],[$XCB_LIBS])],
             [XCB_LIBS=""])])
 fi
 WINE_NOTICE_WITH(xcb,[test "x$ac_cv_lib_soname_xcb" = "x"],
