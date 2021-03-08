@@ -86,6 +86,7 @@ MAKE_FUNCPTR(cairo_image_surface_get_height)
 MAKE_FUNCPTR(cairo_image_surface_get_stride)
 MAKE_FUNCPTR(cairo_image_surface_get_width)
 MAKE_FUNCPTR(cairo_move_to)
+MAKE_FUNCPTR(cairo_paint_with_alpha)
 MAKE_FUNCPTR(cairo_rectangle)
 MAKE_FUNCPTR(cairo_set_source_rgba)
 MAKE_FUNCPTR(cairo_set_source_surface)
@@ -94,6 +95,9 @@ MAKE_FUNCPTR(cairo_surface_destroy)
 MAKE_FUNCPTR(cairo_surface_flush)
 MAKE_FUNCPTR(cairo_surface_mark_dirty_rectangle)
 MAKE_FUNCPTR(cairo_surface_reference)
+MAKE_FUNCPTR(cairo_set_source_rgba)
+MAKE_FUNCPTR(cairo_stroke)
+MAKE_FUNCPTR(cairo_text_path)
 #undef MAKE_FUNCPTR
 #endif
 
