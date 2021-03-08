@@ -159,3 +159,18 @@ void win32u_delete_hwnd_surfaces( HWND hwnd )
     }
     LeaveCriticalSection( &surfaces_cs );
 }
+
+void win32u_resize_hwnd_surfaces( HWND hwnd )
+{
+    struct hwnd_surfaces *surfaces;
+    RECT client_rect;
+
+    TRACE( "hwnd %p.\n", hwnd );
+
+    GetWindowRect( hwnd, &client_rect );
+
+    EnterCriticalSection( &surfaces_cs );
+    if ((surfaces = find_surfaces_for_hwnd( hwnd )) && surfaces->toplevel)
+        unix_funcs->surface_resize_notify( surfaces->toplevel, &client_rect );
+    LeaveCriticalSection( &surfaces_cs );
+}
