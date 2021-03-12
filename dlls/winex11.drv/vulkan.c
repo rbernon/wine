@@ -66,6 +66,8 @@ struct wine_vk_surface
     Window window;
     VkSurfaceKHR surface; /* native surface */
     VkPresentModeKHR present_mode;
+    UINT surface_count; /* concurrent surface count */
+    BOOL known_child; /* hwnd is or has a child */
     BOOL offscreen; /* drawable is offscreen */
     HWND hwnd;
     HDC hdc;
@@ -217,6 +219,8 @@ static struct wine_vk_surface *wine_vk_surface_grab(struct wine_vk_surface *surf
     return surface;
 }
 
+static BOOL wine_vk_surface_set_offscreen(struct wine_vk_surface *surface, BOOL offscreen);
+
 static void wine_vk_surface_release(struct wine_vk_surface *surface)
 {
     struct wine_vk_surface *other;
@@ -240,6 +244,7 @@ static void wine_vk_surface_release(struct wine_vk_surface *surface)
             else XDeleteContext(gdi_display, (XID)hwnd, vulkan_hwnd_context);
         }
         list_remove(&surface->entry);
+        if (other && !other->known_child) wine_vk_surface_set_offscreen(other, FALSE);
         LeaveCriticalSection(&context_section);
 
         /* we can't call udpate_client_window within the context_section, as it'll need to
@@ -318,8 +323,13 @@ void sync_vk_surface(HWND hwnd, BOOL known_child)
     struct list *surface_list;
     EnterCriticalSection(&context_section);
     if (!XFindContext(gdi_display, (XID)hwnd, vulkan_hwnd_context, (char **)&surface_list))
+    {
         LIST_FOR_EACH_ENTRY(surface, surface_list, struct wine_vk_surface, entry)
+        {
+            surface->known_child = known_child;
             wine_vk_surface_set_offscreen(surface, known_child);
+        }
+    }
     LeaveCriticalSection(&context_section);
 }
 
@@ -448,7 +458,7 @@ static VkResult X11DRV_vkCreateWin32SurfaceKHR(VkInstance instance,
 {
     VkResult res;
     VkXlibSurfaceCreateInfoKHR create_info_host;
-    struct wine_vk_surface *x11_surface;
+    struct wine_vk_surface *x11_surface, *previous;
     struct list *surface_list;
 
     TRACE("%p %p %p %p\n", instance, create_info, allocator, surface);
@@ -466,6 +476,8 @@ static VkResult X11DRV_vkCreateWin32SurfaceKHR(VkInstance instance,
     list_init(&x11_surface->entry);
     x11_surface->window = x11_surface->hwnd ? create_client_window(create_info->hwnd, &default_visual)
                                             : create_dummy_client_window();
+    x11_surface->surface_count = 0;
+    x11_surface->known_child = FALSE;
 
     if (!x11_surface->window)
     {
@@ -478,6 +490,7 @@ static VkResult X11DRV_vkCreateWin32SurfaceKHR(VkInstance instance,
 
     if (create_info->hwnd && (GetWindow( create_info->hwnd, GW_CHILD ) || GetAncestor( create_info->hwnd, GA_PARENT ) != GetDesktopWindow()))
     {
+        x11_surface->known_child = TRUE;
         if (!wine_vk_surface_set_offscreen(x11_surface, TRUE))
         {
             res = VK_ERROR_INCOMPATIBLE_DRIVER;
@@ -502,7 +515,12 @@ static VkResult X11DRV_vkCreateWin32SurfaceKHR(VkInstance instance,
     {
         EnterCriticalSection(&context_section);
         if (!XFindContext(gdi_display, (XID)create_info->hwnd, vulkan_hwnd_context, (char **)&surface_list))
+        {
             list_add_tail(surface_list, &x11_surface->entry);
+            wine_vk_surface_set_offscreen(x11_surface, TRUE);
+            LIST_FOR_EACH_ENTRY(previous, &x11_surface->entry, struct wine_vk_surface, entry)
+                wine_vk_surface_set_offscreen(previous, TRUE);
+        }
         XSaveContext(gdi_display, (XID)create_info->hwnd, vulkan_hwnd_context, (char *)&x11_surface->entry);
         LeaveCriticalSection(&context_section);
     }
