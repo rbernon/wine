@@ -2899,7 +2899,10 @@ LRESULT CDECL X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
         }
         return 0;
     case WM_X11DRV_NOTIFY_HWND_SURFACE_CREATED:
-        TRACE( "hwnd %p, toplevel %d, window %lx", hwnd, (BOOL)wp, (Window)lp );
+        TRACE( "WM_X11DRV_NOTIFY_HWND_SURFACE_CREATED hwnd %p, toplevel %d, window %lx", hwnd, (BOOL)wp, (Window)lp );
+        return 0;
+    case WM_X11DRV_NOTIFY_HWND_SURFACE_DESTROYED:
+        TRACE( "WM_X11DRV_NOTIFY_HWND_SURFACE_DESTROYED hwnd %p, toplevel %d, window %lx", hwnd, (BOOL)wp, (Window)lp );
         return 0;
     case WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE:
         if ((data = get_win_data( hwnd )))

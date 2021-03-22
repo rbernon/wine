@@ -230,6 +230,22 @@ void win32u_delete_toplevel_surface( HWND hwnd )
     RtlLeaveCriticalSection( &surfaces_cs );
 }
 
+void win32u_delete_client_surface( HWND hwnd, LPARAM param )
+{
+    struct hwnd_surface *client;
+
+    TRACE( "hwnd %p.\n", hwnd );
+
+    RtlEnterCriticalSection( &surfaces_cs );
+    if ((client = get_client_surface_for_hwnd( hwnd )))
+    {
+        wine_rb_remove( &client_surfaces, &client->entry );
+        if (client->toplevel) hwnd_surface_release( client->toplevel );
+        hwnd_surface_delete( client );
+    }
+    RtlLeaveCriticalSection( &surfaces_cs );
+}
+
 void win32u_delete_hwnd_surfaces( HWND hwnd )
 {
     struct hwnd_surface *client;
