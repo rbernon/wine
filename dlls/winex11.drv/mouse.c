@@ -748,6 +748,7 @@ static void map_event_coords( HWND hwnd, Window window, Window event_root, int x
 static void send_mouse_input( HWND hwnd, Window window, unsigned int state, INPUT *input )
 {
     struct x11drv_win_data *data;
+    RAWINPUT rawinput;
 
     input->type = INPUT_MOUSE;
 
@@ -764,7 +765,7 @@ static void send_mouse_input( HWND hwnd, Window window, unsigned int state, INPU
             sync_window_cursor( window );
             last_cursor_change = input->u.mi.time;
         }
-        __wine_send_input( hwnd, input, NULL );
+        __wine_send_input( hwnd, input, &rawinput );
         return;
     }
 
@@ -804,7 +805,7 @@ static void send_mouse_input( HWND hwnd, Window window, unsigned int state, INPU
         SERVER_END_REQ;
     }
 
-    __wine_send_input( hwnd, input, NULL );
+    __wine_send_input( hwnd, input, &rawinput );
 }
 
 #ifdef SONAME_LIBXCURSOR
@@ -1759,6 +1760,7 @@ void move_resize_window( HWND hwnd, int dir )
     {
         MSG msg;
         INPUT input;
+        RAWINPUT rawinput;
         int x, y, rootX, rootY;
 
         if (!XQueryPointer( display, root_window, &root, &child, &rootX, &rootY, &x, &y, &xstate )) break;
@@ -1774,7 +1776,7 @@ void move_resize_window( HWND hwnd, int dir )
             input.u.mi.dwFlags     = button_up_flags[button - 1] | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE;
             input.u.mi.time        = GetTickCount();
             input.u.mi.dwExtraInfo = 0;
-            __wine_send_input( hwnd, &input, NULL );
+            __wine_send_input( hwnd, &input, &rawinput );
         }
 
         while (PeekMessageW( &msg, 0, 0, 0, PM_REMOVE ))
@@ -1935,6 +1937,7 @@ static BOOL X11DRV_RawMotion( XGenericEventCookie *xev )
     XIRawEvent *event = xev->data;
     const double *values = event->valuators.values;
     RECT virtual_rect;
+    RAWINPUT rawinput;
     INPUT input;
     int i;
     double dx = 0, dy = 0, val;
@@ -1987,7 +1990,7 @@ static BOOL X11DRV_RawMotion( XGenericEventCookie *xev )
     TRACE( "pos %d,%d (event %f,%f)\n", input.u.mi.dx, input.u.mi.dy, dx, dy );
 
     input.type = INPUT_MOUSE;
-    __wine_send_input( 0, &input, NULL );
+    __wine_send_input( 0, &input, &rawinput );
     return TRUE;
 }
 
