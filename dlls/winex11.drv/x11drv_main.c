@@ -645,6 +645,8 @@ void CDECL X11DRV_ThreadDetach(void)
 
     if (data)
     {
+        if (GetWindowThreadProcessId( GetDesktopWindow(), NULL ) == GetCurrentThreadId())
+            x11drv_xinput_disable( data->display, DefaultRootWindow( data->display ), PointerMotionMask );
         if (data->xim) XCloseIM( data->xim );
         if (data->font_set) XFreeFontSet( data->display, data->font_set );
         XCloseDisplay( data->display );
@@ -716,6 +718,8 @@ struct x11drv_thread_data *x11drv_init_thread_data(void)
     if (use_xim) X11DRV_SetupXIM();
 
     x11drv_xinput_init();
+    if (GetWindowThreadProcessId( GetDesktopWindow(), NULL ) == GetCurrentThreadId())
+        x11drv_xinput_enable( data->display, DefaultRootWindow( data->display ), PointerMotionMask );
 
     return data;
 }
