@@ -45,6 +45,7 @@ struct hwnd_surfaces
     struct unix_surface *clients[32];
     LPARAM client_ids[32];
     LONG client_count;
+    struct hwnd_surfaces *root;
 };
 
 static CRITICAL_SECTION surfaces_cs;
@@ -73,6 +74,7 @@ static struct hwnd_surfaces *hwnd_surfaces_create( HWND hwnd )
     surfaces->reparent_notify = FALSE;
     surfaces->toplevel = NULL;
     surfaces->client_count = 0;
+    surfaces->root = NULL;
 
     TRACE( "created surfaces %p for hwnd %p.\n", surfaces, hwnd );
 
@@ -91,6 +93,7 @@ static void hwnd_surfaces_delete( struct hwnd_surfaces *surfaces )
 
 static struct hwnd_surfaces *hwnd_surfaces_grab( struct hwnd_surfaces *surfaces )
 {
+    if (!surfaces) return NULL;
     InterlockedIncrement( &surfaces->ref );
     return surfaces;
 }
@@ -137,6 +140,17 @@ static struct hwnd_surfaces *find_root_surfaces_for_hwnd( HWND hwnd )
     return surfaces;
 }
 
+static void hwnd_surfaces_update_root( struct hwnd_surfaces *surfaces )
+{
+    if (surfaces->root && surfaces->root != surfaces) hwnd_surfaces_release( surfaces->root );
+    if (surfaces->toplevel) surfaces->root = surfaces;
+    else
+    {
+        surfaces->root = hwnd_surfaces_grab( find_root_surfaces_for_hwnd( surfaces->hwnd ) );
+        if (surfaces->root == surfaces) hwnd_surfaces_release( surfaces->root );
+    }
+}
+
 void win32u_create_toplevel_surface( HWND hwnd )
 {
     struct hwnd_surfaces *surfaces;
@@ -145,7 +159,10 @@ void win32u_create_toplevel_surface( HWND hwnd )
 
     EnterCriticalSection( &surfaces_cs );
     if ((surfaces = create_surfaces_for_hwnd( hwnd )) && !surfaces->toplevel)
+    {
         surfaces->toplevel = unix_funcs->surface_create_toplevel( hwnd );
+        hwnd_surfaces_update_root( surfaces );
+    }
     LeaveCriticalSection( &surfaces_cs );
 
     if (!surfaces) ERR( "failed to create surfaces for hwnd %p!\n", hwnd );
@@ -177,6 +194,7 @@ void win32u_create_client_surface( HWND hwnd, LPARAM *id )
     EnterCriticalSection( &surfaces_cs );
     if ((surfaces = create_surfaces_for_hwnd( hwnd )))
     {
+        hwnd_surfaces_update_root( surfaces );
         if (surfaces->client_count >= ARRAY_SIZE(surfaces->clients)) ERR( "too many client surfaces for hwnd %p\n", hwnd );
         else
         {
@@ -215,6 +233,7 @@ void win32u_delete_toplevel_surface( HWND hwnd )
     {
         unix_funcs->surface_delete( surfaces->toplevel );
         surfaces->toplevel = NULL;
+        hwnd_surfaces_update_root( surfaces );
     }
     LeaveCriticalSection( &surfaces_cs );
 }
@@ -269,8 +288,10 @@ void win32u_resize_hwnd_surfaces( HWND hwnd )
     EnterCriticalSection( &surfaces_cs );
     if ((surfaces = find_surfaces_for_hwnd( hwnd )))
     {
-        if (surfaces->toplevel) unix_funcs->surface_resize_notify( surfaces->toplevel, &client_rect );
-        for (i = 0; i < surfaces->client_count; ++i) unix_funcs->surface_resize_notify( surfaces->clients[i], &client_rect );
+        hwnd_surfaces_update_root( surfaces );
+        if (surfaces->toplevel) unix_funcs->surface_resize_notify( surfaces->toplevel, NULL, &client_rect );
+        for (i = 0; i < surfaces->client_count; ++i)
+            unix_funcs->surface_resize_notify( surfaces->clients[i], surfaces->root ? surfaces->root->toplevel : NULL, &client_rect );
     }
     LeaveCriticalSection( &surfaces_cs );
 }
