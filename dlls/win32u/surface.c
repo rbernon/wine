@@ -113,6 +113,23 @@ void win32u_create_toplevel_surface( HWND hwnd )
     if (!surfaces) ERR( "failed to create surfaces for hwnd %p!\n", hwnd );
 }
 
+void win32u_create_toplevel_surface_notify( HWND hwnd, LPARAM param )
+{
+    struct hwnd_surfaces *surfaces;
+
+    UINT flags = SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOSIZE | SWP_NOMOVE
+                 | SWP_DEFERERASE | SWP_NOSENDCHANGING | SWP_STATECHANGED;
+
+    TRACE( "hwnd %p.\n", hwnd );
+
+    EnterCriticalSection( &surfaces_cs );
+    if ((surfaces = find_surfaces_for_hwnd( hwnd )) && surfaces->toplevel)
+        unix_funcs->surface_create_notify( surfaces->toplevel, param );
+    LeaveCriticalSection( &surfaces_cs );
+
+    if (surfaces && surfaces->toplevel) SetWindowPos( hwnd, 0, 0, 0, 0, 0, flags );
+}
+
 void win32u_delete_toplevel_surface( HWND hwnd )
 {
     struct hwnd_surfaces *surfaces;

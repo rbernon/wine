@@ -28,6 +28,7 @@ struct unix_surface;
 struct unix_funcs
 {
     struct unix_surface *(CDECL *surface_create_toplevel)( HWND );
+    void (CDECL *surface_create_notify)( struct unix_surface *, LPARAM param );
     void (CDECL *surface_delete)( struct unix_surface * );
 };
 

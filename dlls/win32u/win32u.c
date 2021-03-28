@@ -112,6 +112,16 @@ LRESULT CDECL win32u_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
 {
     TRACE( "hwnd %p, msg %x, wp %lx, lp %lx.\n", hwnd, msg, wp, lp );
 
+    switch (msg)
+    {
+    case WM_X11DRV_NOTIFY_HWND_SURFACE_CREATED:
+        if (wp) win32u_create_toplevel_surface_notify( hwnd, lp );
+        break;
+    case WM_X11DRV_NOTIFY_HWND_SURFACE_DESTROYED:
+        if (wp) win32u_delete_toplevel_surface( hwnd );
+        break;
+    }
+
     return X11DRV_WindowMessage( hwnd, msg, wp, lp );
 }
 
