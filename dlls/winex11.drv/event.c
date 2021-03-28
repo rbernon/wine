@@ -155,9 +155,6 @@ static const char * event_names[MAX_EVENT_HANDLERS] =
     "SelectionNotify", "ColormapNotify", "ClientMessage", "MappingNotify", "GenericEvent"
 };
 
-/* is someone else grabbing the keyboard, for example the WM, when manipulating the window */
-BOOL keyboard_grabbed = FALSE;
-
 int xinput2_opcode = 0;
 
 /* return the name of an X event */
@@ -324,6 +321,24 @@ static enum event_merge_action merge_raw_motion_events( XIRawEvent *prev, XIRawE
     return MERGE_HANDLE;
 }
 #endif
+
+static int try_grab_pointer( Display *display )
+{
+    if (!grab_pointer)
+        return 1;
+
+    /* if we are already clipping the cursor in the current thread, we should not
+     * call XGrabPointer here or it would change the confine-to window. */
+    if (clipping_cursor)
+        return 1;
+
+    if (XGrabPointer( display, root_window, False, 0, GrabModeAsync, GrabModeAsync,
+                      None, None, CurrentTime ) != GrabSuccess)
+        return 0;
+
+    XUngrabPointer( display, CurrentTime );
+    return 1;
+}
 
 /***********************************************************************
  *           merge_events
@@ -698,14 +713,24 @@ extern WINUSERAPI BOOL CDECL __wine_set_foreground_window( HWND hwnd, DWORD time
 /**********************************************************************
  *              set_focus
  */
-static void set_focus( Display *display, HWND hwnd, Time time )
+static void set_focus( XEvent *xev, HWND hwnd, Time time )
 {
     HWND focus;
     Window win;
     GUITHREADINFO threadinfo;
 
-    TRACE( "setting foreground window to %p\n", hwnd );
-    __wine_set_foreground_window( hwnd, EVENT_x11_time_to_win32_time( time ) );
+    if (!try_grab_pointer( xev->xany.display ))
+    {
+        /* ask the desktop window to release its grab before trying to get ours */
+        SendMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_RELEASE_CURSOR, 0, 0 );
+        XSendEvent( xev->xany.display, xev->xany.window, False, 0, xev );
+        return;
+    }
+    else
+    {
+        TRACE( "setting foreground window to %p\n", hwnd );
+        __wine_set_foreground_window( hwnd, EVENT_x11_time_to_win32_time( time ) );
+    }
 
     threadinfo.cbSize = sizeof(threadinfo);
     GetGUIThreadInfo(0, &threadinfo);
@@ -717,7 +742,7 @@ static void set_focus( Display *display, HWND hwnd, Time time )
     if (win)
     {
         TRACE( "setting focus to %p (%lx) time=%ld\n", focus, win, time );
-        XSetInputFocus( display, win, RevertToParent, time );
+        XSetInputFocus( xev->xany.display, win, RevertToParent, time );
     }
 }
 
@@ -725,8 +750,10 @@ static void set_focus( Display *display, HWND hwnd, Time time )
 /**********************************************************************
  *              handle_manager_message
  */
-static void handle_manager_message( HWND hwnd, XClientMessageEvent *event )
+static void handle_manager_message( HWND hwnd, XEvent *xev )
 {
+    XClientMessageEvent *event = &xev->xclient;
+
     if (hwnd != GetDesktopWindow()) return;
     if (systray_atom && event->data.l[1] == systray_atom)
         change_systray_owner( event->display, event->data.l[2] );
@@ -736,8 +763,9 @@ static void handle_manager_message( HWND hwnd, XClientMessageEvent *event )
 /**********************************************************************
  *              handle_wm_protocols
  */
-static void handle_wm_protocols( HWND hwnd, XClientMessageEvent *event )
+static void handle_wm_protocols( HWND hwnd, XEvent *xev )
 {
+    XClientMessageEvent *event = &xev->xclient;
     Atom protocol = (Atom)event->data.l[0];
     Time event_time = (Time)event->data.l[1];
 
@@ -813,7 +841,7 @@ static void handle_wm_protocols( HWND hwnd, XClientMessageEvent *event )
                                        MAKELONG( HTMENU, WM_LBUTTONDOWN ) );
             if (ma != MA_NOACTIVATEANDEAT && ma != MA_NOACTIVATE)
             {
-                set_focus( event->display, hwnd, event_time );
+                set_focus( xev, hwnd, event_time );
                 return;
             }
         }
@@ -822,7 +850,7 @@ static void handle_wm_protocols( HWND hwnd, XClientMessageEvent *event )
             hwnd = GetForegroundWindow();
             if (!hwnd) hwnd = last_focus;
             if (!hwnd) hwnd = GetDesktopWindow();
-            set_focus( event->display, hwnd, event_time );
+            set_focus( xev, hwnd, event_time );
             return;
         }
         /* try to find some other window to give the focus to */
@@ -830,7 +858,7 @@ static void handle_wm_protocols( HWND hwnd, XClientMessageEvent *event )
         if (hwnd) hwnd = GetAncestor( hwnd, GA_ROOT );
         if (!hwnd) hwnd = GetActiveWindow();
         if (!hwnd) hwnd = last_focus;
-        if (hwnd && can_activate_window(hwnd)) set_focus( event->display, hwnd, event_time );
+        if (hwnd && can_activate_window(hwnd)) set_focus( xev, hwnd, event_time );
     }
     else if (protocol == x11drv_atom(_NET_WM_PING))
     {
@@ -878,24 +906,19 @@ BOOL x11drv_handle_focus_in_event( HWND hwnd, XEvent *xev, Time time )
         x11drv_global_focus_in( event->display );
     if (hwnd == GetDesktopWindow()) return FALSE;
 
-    switch (event->mode)
+    if (!try_grab_pointer( event->display ))
     {
-    case NotifyGrab:
-        /* these are received when moving undecorated managed windows on mutter */
-        keyboard_grabbed = TRUE;
+        /* ask the desktop window to release its grab before trying to get ours */
+        SendMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_RELEASE_CURSOR, 0, 0 );
+        XSendEvent( event->display, event->window, False, 0, xev );
         return FALSE;
-    case NotifyWhileGrabbed:
-        keyboard_grabbed = TRUE;
-        break;
-    case NotifyNormal:
-        keyboard_grabbed = FALSE;
-        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, FALSE );
-        break;
-    case NotifyUngrab:
-        keyboard_grabbed = FALSE;
-        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, FALSE );
-        return TRUE; /* ignore wm specific NotifyUngrab / NotifyGrab events w.r.t focus */
     }
+
+    /* ask the desktop window to re-apply the current ClipCursor rect */
+    SendMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, FALSE );
+
+    /* ignore wm specific NotifyUngrab / NotifyGrab events w.r.t focus */
+    if (event->mode == NotifyGrab || event->mode == NotifyUngrab) return FALSE;
 
     if ((xic = X11DRV_get_ic( hwnd ))) XSetICFocus( xic );
     if (use_take_focus)
@@ -910,7 +933,7 @@ BOOL x11drv_handle_focus_in_event( HWND hwnd, XEvent *xev, Time time )
         if (hwnd) hwnd = GetAncestor( hwnd, GA_ROOT );
         if (!hwnd) hwnd = GetActiveWindow();
         if (!hwnd) hwnd = x11drv_thread_data()->last_focus;
-        if (hwnd && can_activate_window(hwnd)) set_focus( event->display, hwnd, time );
+        if (hwnd && can_activate_window(hwnd)) set_focus( xev, hwnd, time );
     }
     else __wine_set_foreground_window( hwnd, EVENT_x11_time_to_win32_time( time ) );
     return TRUE;
@@ -983,24 +1006,10 @@ BOOL x11drv_handle_focus_out_event( HWND hwnd, XEvent *xev, Time time )
     if (is_virtual_desktop() && event->window == root_window && event->detail != NotifyInferior)
         x11drv_global_focus_out( event->display );
 
-    switch (event->mode)
-    {
-    case NotifyUngrab:
-        /* these are received when moving undecorated managed windows on mutter */
-        keyboard_grabbed = FALSE;
-        return FALSE;
-    case NotifyNormal:
-        keyboard_grabbed = FALSE;
-        break;
-    case NotifyWhileGrabbed:
-        keyboard_grabbed = TRUE;
-        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, TRUE );
-        break;
-    case NotifyGrab:
-        keyboard_grabbed = TRUE;
-        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, TRUE );
-        return TRUE; /* ignore wm specific NotifyUngrab / NotifyGrab events w.r.t focus */
-    }
+    if (hwnd == GetForegroundWindow()) SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_RELEASE_CURSOR, 0, 0 );
+
+    /* ignore wm specific NotifyUngrab / NotifyGrab events w.r.t focus */
+    if (event->mode == NotifyGrab || event->mode == NotifyUngrab) return FALSE;
 
     focus_out( event->display, hwnd, time );
     return TRUE;
@@ -1910,8 +1919,9 @@ static void EVENT_DropURLs( HWND hWnd, XClientMessageEvent *event )
 /**********************************************************************
  *              handle_xembed_protocol
  */
-static void handle_xembed_protocol( HWND hwnd, XClientMessageEvent *event )
+static void handle_xembed_protocol( HWND hwnd, XEvent *xev )
 {
+    XClientMessageEvent *event = &xev->xclient;
     Time time = event->data.l[0];
 
     switch (event->data.l[1])
@@ -1968,8 +1978,9 @@ static void handle_xembed_protocol( HWND hwnd, XClientMessageEvent *event )
 /**********************************************************************
  *              handle_dnd_protocol
  */
-static void handle_dnd_protocol( HWND hwnd, XClientMessageEvent *event )
+static void handle_dnd_protocol( HWND hwnd, XEvent *xev )
 {
+    XClientMessageEvent *event = &xev->xclient;
     Window root, child;
     int root_x, root_y, child_x, child_y;
     unsigned int u;
@@ -1988,8 +1999,8 @@ static void handle_dnd_protocol( HWND hwnd, XClientMessageEvent *event )
 
 struct client_message_handler
 {
-    int    atom;                                  /* protocol atom */
-    void (*handler)(HWND, XClientMessageEvent *); /* corresponding handler function */
+    int    atom;                     /* protocol atom */
+    void (*handler)(HWND, XEvent *); /* corresponding handler function */
 };
 
 static const struct client_message_handler client_messages[] =
@@ -2025,7 +2036,7 @@ static BOOL X11DRV_ClientMessage( HWND hwnd, XEvent *xev )
     {
         if (event->message_type == X11DRV_Atoms[client_messages[i].atom - FIRST_XATOM])
         {
-            client_messages[i].handler( hwnd, event );
+            client_messages[i].handler( hwnd, xev );
             return TRUE;
         }
     }
