@@ -1549,6 +1549,11 @@ HRESULT CDECL wined3d_adapter_get_identifier(const struct wined3d_adapter *adapt
     identifier->video_memory = min(~(SIZE_T)0, adapter->driver_info.vram_bytes);
     identifier->shared_system_memory = min(~(SIZE_T)0, adapter->driver_info.sysmem_bytes);
 
+    if (adapter->d3d_info.wined3d_creation_flags & WINED3D_WARP)
+        identifier->software = TRUE;
+    else
+        identifier->software = FALSE;
+
     wined3d_mutex_unlock();
 
     return WINED3D_OK;
@@ -3115,7 +3120,7 @@ static struct wined3d_adapter *wined3d_adapter_no3d_create(unsigned int ordinal,
     if (ordinal == 0 && wined3d_get_primary_adapter_luid(&primary_luid))
         luid = &primary_luid;
 
-    if (!wined3d_adapter_init(adapter, ordinal, luid, &wined3d_adapter_no3d_ops))
+    if (!wined3d_adapter_init(adapter, ordinal, luid, &wined3d_adapter_no3d_ops, FALSE))
     {
         heap_free(adapter);
         return NULL;
@@ -3179,8 +3184,58 @@ static BOOL wined3d_adapter_create_output(struct wined3d_adapter *adapter, const
     return TRUE;
 }
 
+static struct wined3d_adapter *wined3d_adapter_warp_create(unsigned int ordinal, unsigned int wined3d_creation_flags)
+{
+    struct wined3d_adapter *adapter;
+    LUID primary_luid, *luid = NULL;
+
+    static const struct wined3d_gpu_description gpu_description =
+    {
+        HW_VENDOR_MICROSOFT, CARD_WARP, "Microsoft Basic Render Driver", DRIVER_WINE, 0,
+    };
+
+    TRACE("ordinal %u, wined3d_creation_flags %#x.\n", ordinal, wined3d_creation_flags);
+
+    if (!(adapter = heap_alloc_zero(sizeof(*adapter))))
+        return NULL;
+
+    if (ordinal == 0 && wined3d_get_primary_adapter_luid(&primary_luid))
+        luid = &primary_luid;
+
+    if (!wined3d_adapter_init(adapter, ordinal, luid, &wined3d_adapter_no3d_ops, TRUE))
+    {
+        heap_free(adapter);
+        return NULL;
+    }
+
+    if (!wined3d_adapter_no3d_init_format_info(adapter))
+    {
+        wined3d_adapter_cleanup(adapter);
+        heap_free(adapter);
+        return NULL;
+    }
+
+    if (!wined3d_driver_info_init(&adapter->driver_info, &gpu_description, WINED3D_FEATURE_LEVEL_NONE, 0, 0))
+    {
+        wined3d_adapter_cleanup(adapter);
+        heap_free(adapter);
+        return NULL;
+    }
+    adapter->vram_bytes_used = 0;
+    adapter->vertex_pipe = &none_vertex_pipe;
+    adapter->fragment_pipe = &none_fragment_pipe;
+    adapter->misc_state_template = misc_state_template_no3d;
+    adapter->shader_backend = &none_shader_backend;
+
+    wined3d_adapter_no3d_init_d3d_info(adapter, wined3d_creation_flags);
+
+    TRACE("Created adapter %p.\n", adapter);
+
+    return adapter;
+}
+
 BOOL wined3d_adapter_init(struct wined3d_adapter *adapter, unsigned int ordinal, const LUID *luid,
-        const struct wined3d_adapter_ops *adapter_ops)
+        const struct wined3d_adapter_ops *adapter_ops, BOOL no_output)
 {
     unsigned int output_idx = 0, primary_idx = 0;
     DISPLAY_DEVICEW display_device;
@@ -3206,7 +3261,7 @@ BOOL wined3d_adapter_init(struct wined3d_adapter *adapter, unsigned int ordinal,
     TRACE("adapter %p LUID %08x:%08x.\n", adapter, adapter->luid.HighPart, adapter->luid.LowPart);
 
     display_device.cb = sizeof(display_device);
-    while (EnumDisplayDevicesW(NULL, output_idx++, &display_device, 0))
+    while (!no_output && EnumDisplayDevicesW(NULL, output_idx++, &display_device, 0))
     {
         /* Detached outputs are not enumerated */
         if (!(display_device.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
@@ -3221,7 +3276,7 @@ BOOL wined3d_adapter_init(struct wined3d_adapter *adapter, unsigned int ordinal,
     TRACE("Initialised %d outputs for adapter %p.\n", adapter->output_count, adapter);
 
     /* Make the primary output first */
-    if (primary_idx)
+    if (!no_output && primary_idx)
     {
         struct wined3d_output tmp = adapter->outputs[0];
         adapter->outputs[0] = adapter->outputs[primary_idx];
@@ -3248,6 +3303,9 @@ done:
 
 static struct wined3d_adapter *wined3d_adapter_create(unsigned int ordinal, DWORD wined3d_creation_flags)
 {
+    if (wined3d_creation_flags & WINED3D_WARP)
+        return wined3d_adapter_warp_create(ordinal, wined3d_creation_flags);
+
     if (wined3d_creation_flags & WINED3D_NO3D)
         return wined3d_adapter_no3d_create(ordinal, wined3d_creation_flags);
 
@@ -3276,7 +3334,13 @@ HRESULT wined3d_init(struct wined3d *wined3d, DWORD flags)
         WARN("Failed to create adapter.\n");
         return E_FAIL;
     }
-    wined3d->adapter_count = 1;
+
+    if (!(wined3d->adapters[1] = wined3d_adapter_create(1, WINED3D_WARP)))
+    {
+        WARN("Failed to create adapter.\n");
+        return E_FAIL;
+    }
+    wined3d->adapter_count = 2;
 
     return WINED3D_OK;
 }

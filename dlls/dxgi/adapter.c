@@ -184,6 +184,11 @@ static HRESULT dxgi_adapter_get_desc(struct dxgi_adapter *adapter, DXGI_ADAPTER_
     desc->GraphicsPreemptionGranularity = 0; /* FIXME */
     desc->ComputePreemptionGranularity = 0; /* FIXME */
 
+    if (adapter_id.software)
+        desc->Flags = DXGI_ADAPTER_FLAG_SOFTWARE;
+    else
+        desc->Flags = DXGI_ADAPTER_FLAG_NONE;
+
     return hr;
 }
 
