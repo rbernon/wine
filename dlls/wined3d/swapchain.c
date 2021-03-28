@@ -2179,28 +2179,10 @@ HRESULT CDECL wined3d_swapchain_state_resize_target(struct wined3d_swapchain_sta
     return WINED3D_OK;
 }
 
-static LONG fullscreen_style(LONG style)
-{
-    /* Make sure the window is managed, otherwise we won't get keyboard input. */
-    style |= WS_POPUP | WS_SYSMENU;
-    style &= ~(WS_CAPTION | WS_THICKFRAME);
-
-    return style;
-}
-
-static LONG fullscreen_exstyle(LONG exstyle)
-{
-    /* Filter out window decorations. */
-    exstyle &= ~(WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE);
-
-    return exstyle;
-}
-
 HRESULT wined3d_swapchain_state_setup_fullscreen(struct wined3d_swapchain_state *state,
         HWND window, int x, int y, int width, int height)
 {
-    unsigned int window_pos_flags = SWP_FRAMECHANGED | SWP_NOACTIVATE;
-    LONG style, exstyle;
+    unsigned int window_pos_flags = SWP_NOACTIVATE;
     BOOL filter;
 
     TRACE("Setting up window %p for fullscreen mode.\n", window);
@@ -2225,16 +2207,21 @@ HRESULT wined3d_swapchain_state_setup_fullscreen(struct wined3d_swapchain_state 
     state->style = GetWindowLongW(window, GWL_STYLE);
     state->exstyle = GetWindowLongW(window, GWL_EXSTYLE);
 
-    style = fullscreen_style(state->style);
-    exstyle = fullscreen_exstyle(state->exstyle);
-
-    TRACE("Old style was %08x, %08x, setting to %08x, %08x.\n",
-            state->style, state->exstyle, style, exstyle);
-
     filter = wined3d_filter_messages(window, TRUE);
 
-    SetWindowLongW(window, GWL_STYLE, style);
-    SetWindowLongW(window, GWL_EXSTYLE, exstyle);
+    if (!(state->desc.flags & WINED3D_SWAPCHAIN_NO_STYLE_CHANGES))
+    {
+        LONG style = state->style & ~(WS_POPUP | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_THICKFRAME | WS_SYSMENU | WS_DLGFRAME | WS_BORDER);
+        LONG exstyle = state->exstyle & ~(WS_EX_DLGMODALFRAME | WS_EX_TOOLWINDOW | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_CONTEXTHELP);
+
+        TRACE("Old style was %08x, %08x, setting to %08x, %08x.\n",
+                state->style, state->exstyle, style, exstyle);
+
+        SetWindowLongW(window, GWL_STYLE, style);
+        SetWindowLongW(window, GWL_EXSTYLE, exstyle);
+        window_pos_flags |= SWP_FRAMECHANGED;
+    }
+
     SetWindowPos(window, HWND_TOPMOST, x, y, width, height, window_pos_flags);
 
     wined3d_filter_messages(window, filter);
@@ -2245,9 +2232,8 @@ HRESULT wined3d_swapchain_state_setup_fullscreen(struct wined3d_swapchain_state 
 void wined3d_swapchain_state_restore_from_fullscreen(struct wined3d_swapchain_state *state,
         HWND window, const RECT *window_rect)
 {
-    unsigned int window_pos_flags = SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOACTIVATE;
+    unsigned int window_pos_flags = SWP_NOZORDER | SWP_NOACTIVATE;
     HWND window_pos_after = NULL;
-    LONG style, exstyle;
     RECT rect = {0};
     BOOL filter;
 
@@ -2262,31 +2248,16 @@ void wined3d_swapchain_state_restore_from_fullscreen(struct wined3d_swapchain_st
         window_pos_flags &= ~SWP_NOZORDER;
     }
 
-    style = GetWindowLongW(window, GWL_STYLE);
-    exstyle = GetWindowLongW(window, GWL_EXSTYLE);
-
-    /* These flags are set by wined3d_device_setup_fullscreen_window, not the
-     * application, and we want to ignore them in the test below, since it's
-     * not the application's fault that they changed. Additionally, we want to
-     * preserve the current status of these flags (i.e. don't restore them) to
-     * more closely emulate the behavior of Direct3D, which leaves these flags
-     * alone when returning to windowed mode. */
-    state->style ^= (state->style ^ style) & WS_VISIBLE;
-    state->exstyle ^= (state->exstyle ^ exstyle) & WS_EX_TOPMOST;
-
-    TRACE("Restoring window style of window %p to %08x, %08x.\n",
-            window, state->style, state->exstyle);
-
     filter = wined3d_filter_messages(window, TRUE);
 
-    /* Only restore the style if the application didn't modify it during the
-     * fullscreen phase. Some applications change it before calling Reset()
-     * when switching between windowed and fullscreen modes (HL2), some
-     * depend on the original style (Eve Online). */
-    if (style == fullscreen_style(state->style) && exstyle == fullscreen_exstyle(state->exstyle))
+    if (!(state->desc.flags & WINED3D_SWAPCHAIN_NO_STYLE_CHANGES))
     {
+        TRACE("Restoring window style of window %p to %08x, %08x.\n",
+                window, state->style, state->exstyle);
+
         SetWindowLongW(window, GWL_STYLE, state->style);
         SetWindowLongW(window, GWL_EXSTYLE, state->exstyle);
+        window_pos_flags |= SWP_FRAMECHANGED;
     }
 
     if (window_rect)
