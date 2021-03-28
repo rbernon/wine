@@ -42,6 +42,7 @@ void CDECL win32u_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
                                      const RECT *window_rect, const RECT *client_rect,
                                      RECT *visible_rect, struct window_surface **surface )
 {
+    struct window_surface *x11drv_surface = NULL;
     BOOL visible = (swp_flags & SWP_SHOWWINDOW) || (GetWindowLongW( hwnd, GWL_STYLE ) & WS_VISIBLE);
 
     TRACE( "hwnd %p, insert_after %p, swp_flags %x, window_rect %s, client_rect %s, "
@@ -56,7 +57,10 @@ void CDECL win32u_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
         win32u_delete_toplevel_surface( hwnd );
 
     X11DRV_WindowPosChanging( hwnd, insert_after, swp_flags, window_rect, client_rect,
-                              visible_rect, surface );
+                              visible_rect, &x11drv_surface );
+    if (x11drv_surface) window_surface_release( x11drv_surface );
+
+    win32u_update_window_surface( hwnd, visible_rect, surface );
 }
 
 void CDECL X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
@@ -75,7 +79,7 @@ void CDECL win32u_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags
            wine_dbgstr_rect( visible_rect ), wine_dbgstr_rect( valid_rects ), surface );
 
     X11DRV_WindowPosChanged( hwnd, insert_after, swp_flags, window_rect, client_rect,
-                             visible_rect, valid_rects, surface );
+                             visible_rect, valid_rects, NULL );
 
     win32u_resize_hwnd_surfaces( hwnd );
 }

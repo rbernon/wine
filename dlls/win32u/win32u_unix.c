@@ -31,7 +31,23 @@ WINE_DEFAULT_DEBUG_CHANNEL(win32u);
 
 #ifdef HAVE_CAIRO_CAIRO_H
 #define MAKE_FUNCPTR(f) typeof(f) *p_##f;
+MAKE_FUNCPTR(cairo_clip)
+MAKE_FUNCPTR(cairo_create)
+MAKE_FUNCPTR(cairo_destroy)
+MAKE_FUNCPTR(cairo_fill)
+MAKE_FUNCPTR(cairo_image_surface_get_data)
+MAKE_FUNCPTR(cairo_image_surface_get_height)
+MAKE_FUNCPTR(cairo_image_surface_get_stride)
+MAKE_FUNCPTR(cairo_image_surface_get_width)
+MAKE_FUNCPTR(cairo_move_to)
+MAKE_FUNCPTR(cairo_rectangle)
+MAKE_FUNCPTR(cairo_set_source_rgba)
+MAKE_FUNCPTR(cairo_set_source_surface)
+MAKE_FUNCPTR(cairo_surface_create_similar_image)
 MAKE_FUNCPTR(cairo_surface_destroy)
+MAKE_FUNCPTR(cairo_surface_flush)
+MAKE_FUNCPTR(cairo_surface_mark_dirty_rectangle)
+MAKE_FUNCPTR(cairo_surface_reference)
 #undef MAKE_FUNCPTR
 #endif
 
@@ -60,7 +76,23 @@ static BOOL init_cairo(void)
     }
 
 #ifdef HAVE_CAIRO_CAIRO_H
+    LOAD_FUNCPTR(cairo_clip)
+    LOAD_FUNCPTR(cairo_create)
+    LOAD_FUNCPTR(cairo_destroy)
+    LOAD_FUNCPTR(cairo_fill)
+    LOAD_FUNCPTR(cairo_image_surface_get_data)
+    LOAD_FUNCPTR(cairo_image_surface_get_height)
+    LOAD_FUNCPTR(cairo_image_surface_get_stride)
+    LOAD_FUNCPTR(cairo_image_surface_get_width)
+    LOAD_FUNCPTR(cairo_move_to)
+    LOAD_FUNCPTR(cairo_rectangle)
+    LOAD_FUNCPTR(cairo_set_source_rgba)
+    LOAD_FUNCPTR(cairo_set_source_surface)
+    LOAD_FUNCPTR(cairo_surface_create_similar_image)
     LOAD_FUNCPTR(cairo_surface_destroy)
+    LOAD_FUNCPTR(cairo_surface_flush)
+    LOAD_FUNCPTR(cairo_surface_mark_dirty_rectangle)
+    LOAD_FUNCPTR(cairo_surface_reference)
 #endif
 #ifdef HAVE_CAIRO_CAIRO_XCB_H
     LOAD_FUNCPTR(cairo_xcb_surface_create)
@@ -93,9 +125,12 @@ MAKE_FUNCPTR(xcb_connect)
 MAKE_FUNCPTR(xcb_connection_has_error)
 MAKE_FUNCPTR(xcb_depth_next)
 MAKE_FUNCPTR(xcb_depth_visuals_iterator)
+MAKE_FUNCPTR(xcb_flush)
 MAKE_FUNCPTR(xcb_get_setup)
 MAKE_FUNCPTR(xcb_get_window_attributes)
 MAKE_FUNCPTR(xcb_get_window_attributes_reply)
+MAKE_FUNCPTR(xcb_get_geometry)
+MAKE_FUNCPTR(xcb_get_geometry_reply)
 MAKE_FUNCPTR(xcb_screen_allowed_depths_iterator)
 MAKE_FUNCPTR(xcb_screen_next)
 MAKE_FUNCPTR(xcb_setup_roots_iterator)
@@ -127,9 +162,12 @@ static BOOL init_xcb(void)
     LOAD_FUNCPTR(xcb_connection_has_error)
     LOAD_FUNCPTR(xcb_depth_next)
     LOAD_FUNCPTR(xcb_depth_visuals_iterator)
+    LOAD_FUNCPTR(xcb_flush)
     LOAD_FUNCPTR(xcb_get_setup)
     LOAD_FUNCPTR(xcb_get_window_attributes)
     LOAD_FUNCPTR(xcb_get_window_attributes_reply)
+    LOAD_FUNCPTR(xcb_get_geometry)
+    LOAD_FUNCPTR(xcb_get_geometry_reply)
     LOAD_FUNCPTR(xcb_screen_allowed_depths_iterator)
     LOAD_FUNCPTR(xcb_screen_next)
     LOAD_FUNCPTR(xcb_setup_roots_iterator)
@@ -164,8 +202,11 @@ static BOOL init_xcb(void)
 
 static struct unix_funcs unix_funcs = {
     cairo_surface_create_toplevel,
+    cairo_surface_create_foreign,
+    cairo_surface_create_drawable,
     cairo_surface_create_notify,
     cairo_surface_delete,
+    cairo_surface_present,
     cairo_surface_resize_notify,
 };
 
