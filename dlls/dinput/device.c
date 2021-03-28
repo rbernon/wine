@@ -1639,9 +1639,7 @@ HRESULT WINAPI IDirectInputDevice2WImpl_Poll(LPDIRECTINPUTDEVICE8W iface)
     IDirectInputDeviceImpl *This = impl_from_IDirectInputDevice8W(iface);
 
     if (!This->acquired) return DIERR_NOTACQUIRED;
-
-    check_dinput_events();
-    return DI_OK;
+    return DI_NOEFFECT;
 }
 
 HRESULT WINAPI IDirectInputDevice2WImpl_SendDeviceData(LPDIRECTINPUTDEVICE8W iface, DWORD cbObjectData,

@@ -67,6 +67,7 @@ struct message_result
     void                  *data;          /* message reply data */
     unsigned int           data_size;     /* size of message reply data */
     struct timeout_user   *timeout;       /* result timeout */
+    struct hook           *hook;          /* target hook of the message */
 };
 
 struct message
@@ -763,6 +764,13 @@ static void result_timeout( void *private )
     if (result->msg)  /* not received yet */
     {
         struct message *msg = result->msg;
+
+        /* hook timed out, remove it */
+        if (msg->type == MSG_HOOK_LL && result->hook)
+        {
+            fprintf(stderr, "wineserver: hook %p timeout, removing it\n", result->hook);
+            remove_hook( result->hook );
+        }
 
         result->msg = NULL;
         msg->result = NULL;
@@ -1677,13 +1685,15 @@ static void queue_hardware_message( struct desktop *desktop, struct message *msg
 static int send_hook_ll_message( struct desktop *desktop, struct message *hardware_msg,
                                  const hw_input_t *input, struct msg_queue *sender )
 {
+    struct hook *hook;
     struct thread *hook_thread;
     struct msg_queue *queue;
     struct message *msg;
     timeout_t timeout = 2000 * -10000;  /* FIXME: load from registry */
     int id = (input->type == INPUT_MOUSE) ? WH_MOUSE_LL : WH_KEYBOARD_LL;
 
-    if (!(hook_thread = get_first_global_hook( id ))) return 0;
+    if (!(hook = get_first_global_hook( id ))) return 0;
+    if (!(hook_thread = get_hook_thread( hook ))) return 0;
     if (!(queue = hook_thread->queue)) return 0;
     if (is_queue_hung( queue )) return 0;
 
@@ -1715,6 +1725,7 @@ static int send_hook_ll_message( struct desktop *desktop, struct message *hardwa
     }
     msg->result->hardware_msg = hardware_msg;
     msg->result->desktop = (struct desktop *)grab_object( desktop );
+    msg->result->hook = hook;
     list_add_tail( &queue->msg_list[SEND_MESSAGE], &msg->entry );
     set_queue_bits( queue, QS_SENDMESSAGE );
     return 1;

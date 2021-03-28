@@ -90,21 +90,16 @@ static BYTE map_dik_code(DWORD scanCode, DWORD vkCode, DWORD subType, DWORD vers
     return scanCode;
 }
 
-int dinput_keyboard_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPARAM lparam )
+static void dinput_keyboard_handle_key_event( IDirectInputDevice8W *iface, DWORD vkey_code,
+                                              DWORD scan_code, BOOL is_key_ext, BOOL is_key_up )
 {
-    SysKeyboardImpl *This = impl_from_IDirectInputDevice8W( iface );
-    int dik_code, ret = This->base.dwCoopLevel & DISCL_EXCLUSIVE;
-    KBDLLHOOKSTRUCT *hook = (KBDLLHOOKSTRUCT *)lparam;
-    BYTE new_diks;
+    SysKeyboardImpl *This = impl_from_IDirectInputDevice8W(iface);
+    int dik_code;
+    BYTE dik_state;
 
-    if (wparam != WM_KEYDOWN && wparam != WM_KEYUP &&
-        wparam != WM_SYSKEYDOWN && wparam != WM_SYSKEYUP)
-        return 0;
+    TRACE("(%p) vk %02x, scan %02x\n", iface, vkey_code, scan_code);
 
-    TRACE("(%p) wp %08lx, lp %08lx, vk %02x, scan %02x\n",
-          iface, wparam, lparam, hook->vkCode, hook->scanCode);
-
-    switch (hook->vkCode)
+    switch (vkey_code)
     {
         /* R-Shift is special - it is an extended key with separate scan code */
         case VK_RSHIFT  : dik_code = DIK_RSHIFT; break;
@@ -112,24 +107,58 @@ int dinput_keyboard_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPARAM lpa
         case VK_NUMLOCK : dik_code = DIK_NUMLOCK; break;
         case VK_SUBTRACT: dik_code = DIK_SUBTRACT; break;
         default:
-            dik_code = map_dik_code(hook->scanCode & 0xff, hook->vkCode, This->subtype, This->base.dinput->dwVersion);
-            if (hook->flags & LLKHF_EXTENDED) dik_code |= 0x80;
+            dik_code = map_dik_code(scan_code & 0xff, vkey_code, This->subtype, This->base.dinput->dwVersion);
+            if (is_key_ext) dik_code |= 0x80;
     }
-    new_diks = hook->flags & LLKHF_UP ? 0 : 0x80;
+    dik_state = (is_key_up ? 0 : 0x80);
 
     /* returns now if key event already known */
-    if (new_diks == This->DInputKeyState[dik_code])
-        return ret;
+    if (dik_state == This->DInputKeyState[dik_code])
+        return;
 
-    This->DInputKeyState[dik_code] = new_diks;
+    This->DInputKeyState[dik_code] = dik_state;
     TRACE(" setting %02X to %02X\n", dik_code, This->DInputKeyState[dik_code]);
 
     EnterCriticalSection(&This->base.crit);
     queue_event(iface, DIDFT_MAKEINSTANCE(dik_code) | DIDFT_PSHBUTTON,
-                new_diks, GetCurrentTime(), This->base.dinput->evsequence++);
+                dik_state, GetCurrentTime(), This->base.dinput->evsequence++);
     LeaveCriticalSection(&This->base.crit);
+}
 
-    return ret;
+void dinput_keyboard_rawinput_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPARAM lparam, RAWINPUT *ri )
+{
+    DWORD vkey_code, scan_code;
+    BOOL is_key_ext, is_key_up;
+
+    TRACE("(%p) wp %08lx, lp %08lx\n", iface, wparam, lparam);
+
+    vkey_code = ri->data.keyboard.VKey;
+    scan_code = ri->data.keyboard.MakeCode;
+    is_key_ext = (ri->data.keyboard.Flags & RI_KEY_E0);
+    is_key_up = (ri->data.keyboard.Flags & RI_KEY_BREAK);
+
+    dinput_keyboard_handle_key_event(iface, vkey_code, scan_code, is_key_ext, is_key_up);
+}
+
+int dinput_keyboard_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPARAM lparam )
+{
+    SysKeyboardImpl *This = impl_from_IDirectInputDevice8W( iface );
+    KBDLLHOOKSTRUCT *hook = (KBDLLHOOKSTRUCT *)lparam;
+    DWORD vkey_code, scan_code;
+    BOOL is_key_ext, is_key_up;
+
+    if (wparam != WM_KEYDOWN && wparam != WM_KEYUP &&
+        wparam != WM_SYSKEYDOWN && wparam != WM_SYSKEYUP)
+        return 0;
+
+    vkey_code = hook->vkCode;
+    scan_code = hook->scanCode;
+    is_key_ext = (hook->flags & LLKHF_EXTENDED);
+    is_key_up = (hook->flags & LLKHF_UP);
+
+    dinput_keyboard_handle_key_event(&This->base.IDirectInputDevice8W_iface, vkey_code, scan_code, is_key_ext, is_key_up);
+
+    return (This->base.dwCoopLevel & DISCL_EXCLUSIVE);
 }
 
 static DWORD get_keyboard_subtype(void)
