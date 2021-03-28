@@ -180,6 +180,7 @@ void win32u_create_toplevel_surface_notify( HWND hwnd, LPARAM param )
     EnterCriticalSection( &surfaces_cs );
     if ((surfaces = find_surfaces_for_hwnd( hwnd )) && surfaces->toplevel)
         unix_funcs->surface_create_notify( surfaces->toplevel, param );
+    win32u_resize_hwnd_surfaces( hwnd );
     LeaveCriticalSection( &surfaces_cs );
 
     if (surfaces && surfaces->toplevel) SetWindowPos( hwnd, 0, 0, 0, 0, 0, flags );
@@ -275,13 +276,32 @@ void win32u_delete_hwnd_surfaces( HWND hwnd )
     LeaveCriticalSection( &surfaces_cs );
 }
 
-void win32u_resize_hwnd_surfaces( HWND hwnd )
+static void resize_toplevel_hwnd_surface( struct hwnd_surfaces *surfaces )
 {
-    struct hwnd_surfaces *surfaces;
+    RECT window_rect;
+
+    GetWindowRect( surfaces->hwnd, &window_rect );
+
+    if (surfaces->resize_notify) unix_funcs->surface_resize_notify( surfaces->toplevel, NULL, &window_rect );
+    else unix_funcs->surface_resize( surfaces->toplevel, NULL, &window_rect );
+}
+
+static void resize_client_hwnd_surface( struct hwnd_surfaces *surfaces )
+{
     RECT client_rect;
     ULONG i;
 
-    TRACE( "hwnd %p.\n", hwnd );
+    GetClientRect( surfaces->hwnd, &client_rect );
+    if (surfaces->root) MapWindowPoints( surfaces->hwnd, surfaces->root->hwnd, (POINT *)&client_rect, 2 );
+
+    for (i = 0; i < surfaces->client_count; ++i)
+        unix_funcs->surface_resize( surfaces->clients[i], surfaces->root ? surfaces->root->toplevel : NULL, &client_rect );
+}
+
+static BOOL CALLBACK resize_hwnd_surfaces( HWND hwnd, LPARAM lparam )
+{
+    struct hwnd_surfaces *surfaces;
+    RECT client_rect;
 
     GetWindowRect( hwnd, &client_rect );
 
@@ -289,10 +309,21 @@ void win32u_resize_hwnd_surfaces( HWND hwnd )
     if ((surfaces = find_surfaces_for_hwnd( hwnd )))
     {
         hwnd_surfaces_update_root( surfaces );
-        if (surfaces->toplevel) unix_funcs->surface_resize_notify( surfaces->toplevel, NULL, &client_rect );
-        for (i = 0; i < surfaces->client_count; ++i)
-            unix_funcs->surface_resize_notify( surfaces->clients[i], surfaces->root ? surfaces->root->toplevel : NULL, &client_rect );
+        if (surfaces->toplevel) resize_toplevel_hwnd_surface( surfaces );
+        if (surfaces->client_count) resize_client_hwnd_surface( surfaces );
     }
+    LeaveCriticalSection( &surfaces_cs );
+
+    return TRUE;
+}
+
+void win32u_resize_hwnd_surfaces( HWND hwnd )
+{
+    TRACE( "hwnd %p.\n", hwnd );
+
+    EnterCriticalSection( &surfaces_cs );
+    resize_hwnd_surfaces( hwnd, 0 );
+    EnumChildWindows( hwnd, resize_hwnd_surfaces, 0 );
     LeaveCriticalSection( &surfaces_cs );
 }
 

@@ -1342,6 +1342,7 @@ static void sync_window_position( struct x11drv_win_data *data,
 static void sync_client_position( struct x11drv_win_data *data,
                                   const RECT *old_client_rect, const RECT *old_whole_rect )
 {
+#ifndef WIN32U_SOURCE
     int mask = 0;
     XWindowChanges changes;
 
@@ -1363,6 +1364,7 @@ static void sync_client_position( struct x11drv_win_data *data,
                data->client_window, changes.x, changes.y, changes.width, changes.height, mask );
         XConfigureWindow( data->display, data->client_window, mask, &changes );
     }
+#endif
 }
 
 
