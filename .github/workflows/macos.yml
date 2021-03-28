@@ -1,0 +1,34 @@
+name: macos
+on: [push]
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Dependencies
+        run: |
+          brew install bison
+          brew install ccache
+      - name: Checkout
+        uses: actions/checkout@v2.3.2
+      - name: Cache
+        uses: actions/cache@v1.1.0
+        with:
+          path: .ccache
+          key:
+            ccache-macos-${ { github.sha }}
+          restore-keys: |
+            ccache-macos-
+      - name: Prepare
+        run: |
+          autoreconf -fi
+          ./tools/make_requests
+      - name: Configure
+        run: |
+          export CCACHE_DIR=$PWD/.ccache
+          export PATH=/usr/local/opt/ccache/libexec:/usr/local/opt/bison/bin/:$PATH
+          mkdir build && cd build && ../configure --silent --cache-file=../.ccache/configure CROSSDEBUG=split --enable-win64
+      - name: Build
+        run: |
+          export CCACHE_DIR=$PWD/.ccache
+          export PATH=/usr/local/opt/ccache/libexec:/usr/local/opt/bison/bin/:$PATH
+          make -C build --silent -j4

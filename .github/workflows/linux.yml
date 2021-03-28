@@ -1,0 +1,194 @@
+name: linux
+on: [push]
+jobs:
+  build-32:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: rbernon/wine-i686:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2.3.2
+      - name: Cache
+        uses: actions/cache@v1.1.0
+        with:
+          path: .ccache
+          key:
+            ccache-linux-32-${ { github.sha }}
+          restore-keys: |
+            ccache-linux-32-
+      - name: Prepare
+        run: |
+          autoreconf -fi
+          ./tools/make_requests
+      - name: Configure
+        run: |
+          export CCACHE_DIR=$PWD/.ccache
+          export PATH=/usr/lib/ccache:$PATH
+          podman run --rm -w $PWD -v $HOME:$HOME -e HOME -e PATH -e CCACHE_DIR -e CCACHE_COMPILERCHECK $IMAGE \
+          bash -c 'mkdir build && cd build && ../configure --silent --cache-file=../.ccache/configure --with-mingw CROSSDEBUG=split'
+      - name: Build
+        run: |
+          export CCACHE_DIR=$PWD/.ccache
+          export PATH=/usr/lib/ccache:$PATH
+          podman run --rm -w $PWD -v $HOME:$HOME -e HOME -e PATH -e CCACHE_DIR -e CCACHE_COMPILERCHECK $IMAGE \
+          make -C build --silent -j4
+
+  build-64:
+    runs-on: ubuntu-latest
+    container: rbernon/wine-x86_64:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2.3.2
+      - name: Cache
+        uses: actions/cache@v1.1.0
+        with:
+          path: .ccache
+          key:
+            ccache-linux-64-${ { github.sha }}
+          restore-keys: |
+            ccache-linux-64-
+      - name: Prepare
+        run: |
+          autoreconf -fi
+          ./tools/make_requests
+      - name: Configure
+        run: |
+          export CCACHE_DIR=$PWD/.ccache
+          export PATH=/usr/lib/ccache:$PATH
+          mkdir build && cd build && ../configure --silent --cache-file=../.ccache/configure --with-mingw CROSSDEBUG=split --enable-win64
+      - name: Build
+        run: |
+          export CCACHE_DIR=$PWD/.ccache
+          export PATH=/usr/lib/ccache:$PATH
+          make -C build --silent -j4
+
+  build-32-no-mingw:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: rbernon/wine-i686:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2.3.2
+      - name: Cache
+        uses: actions/cache@v1.1.0
+        with:
+          path: .ccache
+          key:
+            ccache-linux-32-no-mingw-${ { github.sha }}
+          restore-keys: |
+            ccache-linux-32-no-mingw-
+      - name: Prepare
+        run: |
+          autoreconf -fi
+          ./tools/make_requests
+      - name: Configure
+        run: |
+          export CCACHE_DIR=$PWD/.ccache
+          export PATH=/usr/lib/ccache:$PATH
+          podman run --rm -w $PWD -v $HOME:$HOME -e HOME -e PATH -e CCACHE_DIR -e CCACHE_COMPILERCHECK $IMAGE \
+          bash -c 'mkdir build && cd build && ../configure --silent --cache-file=../.ccache/configure --without-mingw CROSSDEBUG=split'
+      - name: Build
+        run: |
+          export CCACHE_DIR=$PWD/.ccache
+          export PATH=/usr/lib/ccache:$PATH
+          podman run --rm -w $PWD -v $HOME:$HOME -e HOME -e PATH -e CCACHE_DIR -e CCACHE_COMPILERCHECK $IMAGE \
+          make -C build --silent -j4
+
+  build-64-no-mingw:
+    runs-on: ubuntu-latest
+    container: rbernon/wine-x86_64:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2.3.2
+      - name: Cache
+        uses: actions/cache@v1.1.0
+        with:
+          path: .ccache
+          key:
+            ccache-linux-64-no-mingw-${ { github.sha }}
+          restore-keys: |
+            ccache-linux-64-no-mingw-
+      - name: Prepare
+        run: |
+          autoreconf -fi
+          ./tools/make_requests
+      - name: Configure
+        run: |
+          export CCACHE_DIR=$PWD/.ccache
+          export PATH=/usr/lib/ccache:$PATH
+          mkdir build && cd build && ../configure --silent --cache-file=../.ccache/configure --without-mingw CROSSDEBUG=split --enable-win64
+      - name: Build
+        run: |
+          export CCACHE_DIR=$PWD/.ccache
+          export PATH=/usr/lib/ccache:$PATH
+          make -C build --silent -j4
+
+  build-32-llvm-mingw:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: rbernon/wine-i686:latest
+      LLVM_MINGW: llvm-mingw-20201020-ucrt-ubuntu-18.04
+    steps:
+      - name: Toolchain
+        run: |
+          curl -L https://github.com/mstorsjo/llvm-mingw/releases/download/20201020/$LLVM_MINGW.tar.xz | tar xJf -
+      - name: Checkout
+        uses: actions/checkout@v2.3.2
+      - name: Cache
+        uses: actions/cache@v1.1.0
+        with:
+          path: .ccache
+          key:
+            ccache-linux-32-llvm-mingw-${ { github.sha }}
+          restore-keys: |
+            ccache-linux-32-llvm-mingw-
+      - name: Prepare
+        run: |
+          autoreconf -fi
+          ./tools/make_requests
+      - name: Configure
+        run: |
+          export CCACHE_DIR=$PWD/.ccache
+          export PATH=/usr/lib/ccache:$PWD/$LLVM_MINGW/bin:$PATH
+          podman run --rm -w $PWD -v $HOME:$HOME -e HOME -e PATH -e CCACHE_DIR -e CCACHE_COMPILERCHECK $IMAGE \
+          bash -c 'mkdir build && cd build && ../configure --silent --cache-file=../.ccache/configure --with-mingw CROSSDEBUG=split'
+      - name: Build
+        run: |
+          export CCACHE_DIR=$PWD/.ccache
+          export PATH=/usr/lib/ccache:$PWD/$LLVM_MINGW/bin:$PATH
+          podman run --rm -w $PWD -v $HOME:$HOME -e HOME -e PATH -e CCACHE_DIR -e CCACHE_COMPILERCHECK $IMAGE \
+          make -C build --silent -j4
+
+  build-64-llvm-mingw:
+    runs-on: ubuntu-latest
+    container: rbernon/wine-x86_64:latest
+    env:
+      LLVM_MINGW: llvm-mingw-20201020-ucrt-ubuntu-18.04
+    steps:
+      - name: Toolchain
+        run: |
+          curl -L https://github.com/mstorsjo/llvm-mingw/releases/download/20201020/$LLVM_MINGW.tar.xz | tar xJf -
+      - name: Checkout
+        uses: actions/checkout@v2.3.2
+      - name: Cache
+        uses: actions/cache@v1.1.0
+        with:
+          path: .ccache
+          key:
+            ccache-linux-64-llvm-mingw-${ { github.sha }}
+          restore-keys: |
+            ccache-linux-64-llvm-mingw-
+      - name: Prepare
+        run: |
+          autoreconf -fi
+          ./tools/make_requests
+      - name: Configure
+        run: |
+          export CCACHE_DIR=$PWD/.ccache
+          export PATH=/usr/lib/ccache:$PWD/$LLVM_MINGW/bin:$PATH
+          mkdir build && cd build && ../configure --silent --cache-file=../.ccache/configure --with-mingw CROSSDEBUG=split --enable-win64
+      - name: Build
+        run: |
+          export CCACHE_DIR=$PWD/.ccache
+          export PATH=/usr/lib/ccache:$PWD/$LLVM_MINGW/bin:$PATH
+          make -C build --silent -j4
