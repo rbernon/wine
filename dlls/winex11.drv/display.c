@@ -395,12 +395,9 @@ void X11DRV_DisplayDevices_Update(BOOL send_display_change)
     X11DRV_resize_desktop(send_display_change);
     EnumWindows(update_windows_on_display_change, (LPARAM)mask);
 
-    /* forward clip_fullscreen_window request to the foreground window */
+    /* forward clip_fullscreen_window request to the desktop window */
     if ((foreground = GetForegroundWindow()) && (tid = GetWindowThreadProcessId( foreground, &pid )) && pid == GetCurrentProcessId())
-    {
-        if (tid == GetCurrentThreadId()) clip_fullscreen_window( foreground, TRUE );
-        else SendNotifyMessageW( foreground, WM_X11DRV_CLIP_CURSOR_REQUEST, TRUE, TRUE );
-    }
+        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, TRUE, TRUE );
 }
 
 /* Initialize a GPU instance.

@@ -430,10 +430,21 @@ static int update_desktop_cursor_pos( struct desktop *desktop, user_handle_t win
     else if (!win || !is_window_visible( win ) || is_window_transparent( win ))
         win = shallow_window_from_point( desktop, x, y );
 
-    if (win != desktop->cursor.win) updated = 1;
+    if (win != desktop->cursor.win)
+    {
+        post_desktop_message( desktop, desktop->cursor.change_msg, win, desktop->cursor.handle );
+        updated = 1;
+    }
     desktop->cursor.win = win;
 
     return updated;
+}
+
+static void update_desktop_cursor_handle( struct desktop *desktop, user_handle_t handle )
+{
+    if (desktop->cursor.change_msg && desktop->cursor.handle != handle)
+        post_desktop_message( desktop, desktop->cursor.change_msg, desktop->cursor.win, handle );
+    desktop->cursor.handle = handle;
 }
 
 void update_desktop_cursor_win( struct desktop *desktop )
@@ -3320,14 +3331,16 @@ DECL_HANDLER(set_cursor)
 {
     struct msg_queue *queue = get_current_queue();
     struct thread_input *input;
+    struct desktop *desktop;
 
     if (!queue) return;
     input = queue->input;
+    desktop = input->desktop;
 
     reply->prev_handle = input->cursor;
     reply->prev_count  = input->cursor_count;
-    reply->prev_x      = input->desktop->cursor.x;
-    reply->prev_y      = input->desktop->cursor.y;
+    reply->prev_x      = desktop->cursor.x;
+    reply->prev_y      = desktop->cursor.y;
 
     if (req->flags & SET_CURSOR_HANDLE)
     {
@@ -3336,6 +3349,11 @@ DECL_HANDLER(set_cursor)
             set_win32_error( ERROR_INVALID_CURSOR_HANDLE );
             return;
         }
+
+        /* only the desktop owner can set the message */
+        if (req->change_msg && get_top_window_owner(desktop) == current->process)
+            desktop->cursor.change_msg = req->change_msg;
+
         input->cursor = req->handle;
     }
     if (req->flags & SET_CURSOR_COUNT)
@@ -3345,12 +3363,10 @@ DECL_HANDLER(set_cursor)
     }
     if (req->flags & SET_CURSOR_POS)
     {
-        set_cursor_pos( input->desktop, req->x, req->y );
+        set_cursor_pos( desktop, req->x, req->y );
     }
     if (req->flags & (SET_CURSOR_CLIP | SET_CURSOR_NOCLIP))
     {
-        struct desktop *desktop = input->desktop;
-
         /* only the desktop owner can set the message */
         if (req->clip_msg && get_top_window_owner(desktop) == current->process)
             desktop->cursor.clip_msg = req->clip_msg;
@@ -3358,10 +3374,16 @@ DECL_HANDLER(set_cursor)
         set_clip_rectangle( desktop, (req->flags & SET_CURSOR_NOCLIP) ? NULL : &req->clip, 0 );
     }
 
-    reply->new_x       = input->desktop->cursor.x;
-    reply->new_y       = input->desktop->cursor.y;
-    reply->new_clip    = input->desktop->cursor.clip;
-    reply->last_change = input->desktop->cursor.last_change;
+    if (req->flags & (SET_CURSOR_HANDLE | SET_CURSOR_COUNT))
+    {
+        if (input->cursor_count < 0) update_desktop_cursor_handle( desktop, 0 );
+        else update_desktop_cursor_handle( desktop, input->cursor );
+    }
+
+    reply->new_x       = desktop->cursor.x;
+    reply->new_y       = desktop->cursor.y;
+    reply->new_clip    = desktop->cursor.clip;
+    reply->last_change = desktop->cursor.last_change;
 }
 
 /* Get the history of the 64 last cursor positions */

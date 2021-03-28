@@ -802,17 +802,18 @@ static BOOL X11DRV_FocusIn( HWND hwnd, XEvent *xev )
         break;
     case NotifyNormal:
         keyboard_grabbed = FALSE;
+        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, FALSE );
         break;
     case NotifyUngrab:
         keyboard_grabbed = FALSE;
-        retry_grab_clipping_window();
+        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, FALSE );
         return TRUE; /* ignore wm specific NotifyUngrab / NotifyGrab events w.r.t focus */
     }
 
     if ((xic = X11DRV_get_ic( hwnd ))) XSetICFocus( xic );
     if (use_take_focus)
     {
-        if (hwnd == GetForegroundWindow()) clip_fullscreen_window( hwnd, FALSE );
+        if (hwnd == GetForegroundWindow()) SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, TRUE, FALSE );
         return TRUE;
     }
 
@@ -904,16 +905,11 @@ static BOOL X11DRV_FocusOut( HWND hwnd, XEvent *xev )
         break;
     case NotifyWhileGrabbed:
         keyboard_grabbed = TRUE;
+        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, TRUE );
         break;
     case NotifyGrab:
         keyboard_grabbed = TRUE;
-
-        /* This will do nothing due to keyboard_grabbed == TRUE, but it
-         * will save the current clipping rect so we can restore it on
-         * FocusIn with NotifyUngrab mode.
-         */
-        retry_grab_clipping_window();
-
+        SendNotifyMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, TRUE );
         return TRUE; /* ignore wm specific NotifyUngrab / NotifyGrab events w.r.t focus */
     }
 

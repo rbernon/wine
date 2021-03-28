@@ -210,8 +210,10 @@ static UINT get_icon_steps( struct cursoricon_object *obj )
 
 static BOOL free_icon_handle( HICON handle )
 {
-    struct cursoricon_object *obj = free_user_handle( handle, USER_ICON );
+    struct cursoricon_object *obj;
 
+    USER_Driver->pDestroyCursorIcon( handle );
+    obj = free_user_handle( handle, USER_ICON );
     if (obj == OBJ_OTHER_PROCESS) WARN( "icon handle %p from other process\n", handle );
     else if (obj)
     {
@@ -253,7 +255,6 @@ static BOOL free_icon_handle( HICON handle )
         if (!IS_INTRESOURCE( obj->resname )) HeapFree( GetProcessHeap(), 0, obj->resname );
         HeapFree( GetProcessHeap(), 0, obj );
         if (wow_handlers.free_icon_param && param) wow_handlers.free_icon_param( param );
-        USER_Driver->pDestroyCursorIcon( handle );
         return TRUE;
     }
     return FALSE;
