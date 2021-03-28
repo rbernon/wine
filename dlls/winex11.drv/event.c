@@ -914,6 +914,14 @@ BOOL x11drv_handle_focus_in_event( HWND hwnd, XEvent *xev, Time time )
         return FALSE;
     }
 
+    /* Focus was just restored but it can be right after super was
+     * pressed and gnome-shell needs a bit of time to respond and
+     * toggle the activity view. If we grab the cursor right away
+     * it will cancel it and super key will do nothing.
+     */
+    if (event->mode == NotifyUngrab && wm_is_mutter(event->display))
+        Sleep(100);
+
     /* ask the desktop window to re-apply the current ClipCursor rect */
     SendMessageW( GetDesktopWindow(), WM_X11DRV_DESKTOP_CLIP_CURSOR, FALSE, FALSE );
 
@@ -955,8 +963,26 @@ static void focus_out( Display *display , HWND hwnd, Time time )
     Window focus_win;
     int revert;
     XIC xic;
+    struct x11drv_win_data *data;
 
     if (ximInComposeMode) return;
+
+    data = get_win_data(hwnd);
+    if(data){
+        ULONGLONG now = GetTickCount64();
+        if(data->take_focus_back > 0 &&
+                now >= data->take_focus_back &&
+                now - data->take_focus_back < 1000){
+            data->take_focus_back = 0;
+            TRACE("workaround mutter bug, taking focus back\n");
+            XSetInputFocus( data->display, data->whole_window, RevertToParent, CurrentTime);
+            release_win_data(data);
+            /* don't inform win32 client */
+            return;
+        }
+        data->take_focus_back = 0;
+        release_win_data(data);
+    }
 
     x11drv_thread_data()->last_focus = hwnd;
     if ((xic = X11DRV_get_ic( hwnd ))) XUnsetICFocus( xic );
@@ -1492,6 +1518,19 @@ static BOOL X11DRV_PropertyNotify( HWND hwnd, XEvent *xev )
     }
 
     if (!hwnd) return FALSE;
+    if (event->atom == x11drv_atom(_NET_WM_BYPASS_COMPOSITOR))
+    {
+        struct x11drv_win_data *data = get_win_data( hwnd );
+        if (!data) return TRUE;
+
+        /* workaround for mutter gitlab bug #676, changing decorations of a
+         * fullscreen and unredirected window freezes the compositing.
+         */
+        if (wm_is_mutter( data->display )) set_wm_hints( data );
+
+        release_win_data( data );
+    }
+
     if (event->atom == x11drv_atom(WM_STATE)) handle_wm_state_notify( hwnd, event, TRUE );
     return TRUE;
 }
