@@ -80,6 +80,57 @@ HANDLE keyed_event = 0;
 static const LARGE_INTEGER zero_timeout;
 
 static pthread_mutex_t addr_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t keyed_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+struct keyed_entry
+{
+    client_ptr_t key;
+    LONG         ref;
+    HANDLE       handle;
+    BOOLEAN      alertable;
+};
+
+static struct keyed_entry keyed_entries[256];
+static size_t nb_keyed_entries;
+
+static inline struct keyed_entry *keyed_entry_acquire( HANDLE handle, client_ptr_t key, BOOLEAN alertable )
+{
+    struct keyed_entry *entry;
+    DWORD i;
+
+    mutex_lock( &keyed_mutex );
+    for (i = 0; i < nb_keyed_entries; ++i)
+    {
+        if (!keyed_entries[i].ref) continue;
+        if (keyed_entries[i].key == key) break;
+    }
+    if (i == nb_keyed_entries) for (i = 0; i <= nb_keyed_entries; ++i)
+    {
+        if (!keyed_entries[i].ref) break;
+    }
+    assert(i < ARRAY_SIZE(keyed_entries));
+    if (i == nb_keyed_entries) nb_keyed_entries++;
+
+    entry = keyed_entries + i;
+    if (!entry->ref++)
+    {
+        entry->key = key;
+        entry->handle = handle;
+        entry->alertable = alertable;
+    }
+
+    if (entry->handle != handle) WARN("inconsistent keyed event handle %p, previously %p\n", handle, entry->handle);
+    if (entry->alertable != alertable) WARN("inconsistent keyed event alertable %d, previously %d\n", alertable, entry->alertable);
+    mutex_unlock( &keyed_mutex );
+    return entry;
+}
+
+static inline void keyed_entry_release( struct keyed_entry *entry )
+{
+    mutex_lock( &keyed_mutex );
+    if (!--entry->ref) while (nb_keyed_entries && !keyed_entries[nb_keyed_entries - 1].ref) nb_keyed_entries--;
+    mutex_unlock( &keyed_mutex );
+}
 
 /* return a monotonic time counter, in Win32 ticks */
 static inline ULONGLONG monotonic_counter(void)
@@ -125,6 +176,11 @@ static inline int futex_wait( const int *addr, int val, struct timespec *timeout
 static inline int futex_wake( const int *addr, int val )
 {
     return syscall( __NR_futex, addr, FUTEX_WAKE | futex_private, val, NULL, 0, 0 );
+}
+
+static inline int futex_wait_abs( const int *addr, int val, struct timespec *timeout )
+{
+    return syscall( __NR_futex, addr, FUTEX_WAIT_BITSET | futex_private, val, timeout, 0, 0xffffffff );
 }
 
 static inline int futex_wait_bitset( const int *addr, int val, struct timespec *timeout, int mask )
@@ -1690,22 +1746,33 @@ NTSTATUS WINAPI NtOpenKeyedEvent( HANDLE *handle, ACCESS_MASK access, const OBJE
     return ret;
 }
 
+static inline NTSTATUS fast_wait_for_keyed_event( struct keyed_entry *entry, const LARGE_INTEGER *timeout );
+static inline NTSTATUS fast_release_keyed_event( struct keyed_entry *entry, const LARGE_INTEGER *timeout );
+
 /******************************************************************************
  *              NtWaitForKeyedEvent (NTDLL.@)
  */
 NTSTATUS WINAPI NtWaitForKeyedEvent( HANDLE handle, const void *key,
                                      BOOLEAN alertable, const LARGE_INTEGER *timeout )
 {
+    struct keyed_entry *entry;
     select_op_t select_op;
     UINT flags = SELECT_INTERRUPTIBLE;
+    NTSTATUS status;
 
-    if (!handle) handle = keyed_event;
     if ((ULONG_PTR)key & 1) return STATUS_INVALID_PARAMETER_1;
-    if (alertable) flags |= SELECT_ALERTABLE;
-    select_op.keyed_event.op     = SELECT_KEYED_EVENT_WAIT;
-    select_op.keyed_event.handle = wine_server_obj_handle( handle );
-    select_op.keyed_event.key    = wine_server_client_ptr( key );
-    return server_wait( &select_op, sizeof(select_op.keyed_event), flags, timeout );
+    entry = keyed_entry_acquire( handle, wine_server_client_ptr( key ), alertable );
+    if ((status = fast_wait_for_keyed_event( entry, timeout )) == STATUS_NOT_IMPLEMENTED)
+    {
+        if (!handle) handle = keyed_event;
+        if (alertable) flags |= SELECT_ALERTABLE;
+        select_op.keyed_event.op     = SELECT_KEYED_EVENT_WAIT;
+        select_op.keyed_event.handle = wine_server_obj_handle( handle );
+        select_op.keyed_event.key    = wine_server_client_ptr( key );
+        status = server_wait( &select_op, sizeof(select_op.keyed_event), flags, timeout );
+    }
+    keyed_entry_release( entry );
+    return status;
 }
 
 
@@ -1715,16 +1782,24 @@ NTSTATUS WINAPI NtWaitForKeyedEvent( HANDLE handle, const void *key,
 NTSTATUS WINAPI NtReleaseKeyedEvent( HANDLE handle, const void *key,
                                      BOOLEAN alertable, const LARGE_INTEGER *timeout )
 {
+    struct keyed_entry *entry;
     select_op_t select_op;
     UINT flags = SELECT_INTERRUPTIBLE;
+    NTSTATUS status;
 
-    if (!handle) handle = keyed_event;
     if ((ULONG_PTR)key & 1) return STATUS_INVALID_PARAMETER_1;
-    if (alertable) flags |= SELECT_ALERTABLE;
-    select_op.keyed_event.op     = SELECT_KEYED_EVENT_RELEASE;
-    select_op.keyed_event.handle = wine_server_obj_handle( handle );
-    select_op.keyed_event.key    = wine_server_client_ptr( key );
-    return server_wait( &select_op, sizeof(select_op.keyed_event), flags, timeout );
+    entry = keyed_entry_acquire( handle, wine_server_client_ptr( key ), alertable );
+    if ((status = fast_release_keyed_event( entry, timeout )) == STATUS_NOT_IMPLEMENTED)
+    {
+        if (!handle) handle = keyed_event;
+        if (alertable) flags |= SELECT_ALERTABLE;
+        select_op.keyed_event.op     = SELECT_KEYED_EVENT_RELEASE;
+        select_op.keyed_event.handle = wine_server_obj_handle( handle );
+        select_op.keyed_event.key    = wine_server_client_ptr( key );
+        status = server_wait( &select_op, sizeof(select_op.keyed_event), flags, timeout );
+    }
+    keyed_entry_release( entry );
+    return status;
 }
 
 
@@ -2682,68 +2757,147 @@ NTSTATUS CDECL fast_RtlWakeConditionVariable( RTL_CONDITION_VARIABLE *variable, 
     return STATUS_SUCCESS;
 }
 
-
-/* We can't map addresses to futex directly, because an application can wait on
- * 8 bytes, and we can't pass all 8 as the compare value to futex(). Instead we
- * map all addresses to a small fixed table of futexes. This may result in
- * spurious wakes, but the application is already expected to handle those. */
-
-static int addr_futex_table[256];
-
-static inline int *hash_addr( const void *addr )
+struct fast_keyed_entry
 {
-    ULONG_PTR val = (ULONG_PTR)addr;
+    int wait_cs; /* 0: unlocked, 1: locked, 2: contested */
+    int wake_cs; /* 0: unlocked, 1: locked, 2: contested */
+    int signal; /* 0: not signaled, 1: signaled, 2: acked */
+};
 
-    return &addr_futex_table[(val >> 2) & 255];
+static struct fast_keyed_entry fast_keyed_table[256];
+
+static int futex_cs_enter( int *futex, struct timespec *timespec )
+{
+    NTSTATUS status = STATUS_SUCCESS;
+    int ret;
+    if (InterlockedCompareExchange( futex, 1, 0 ) == 0) return STATUS_SUCCESS;
+    do
+    {
+        if (*futex != 2 && InterlockedCompareExchange( futex, 2, 1 ) == 0) continue;
+        if (!(ret = futex_wait_abs( futex, 2, timespec ))) continue;
+        else if (ret == -1 && errno == ETIMEDOUT) status = STATUS_TIMEOUT;
+        else if (ret == -1 && errno != EAGAIN) ERR("futex_wait_abs unexpectedly failed, errno: %d\n", errno);
+    }
+    while (!status && InterlockedCompareExchange( futex, 2, 0 ) != 0);
+    return status;
 }
 
-static inline NTSTATUS fast_wait_addr( const void *addr, const void *cmp, SIZE_T size,
-                                       const LARGE_INTEGER *timeout )
+static void futex_cs_leave( int *futex )
 {
-    int *futex;
-    int val;
-    struct timespec timespec;
+    if (InterlockedExchange( futex, 0 ) == 2) futex_wake( futex, 1 );
+}
+
+static struct timespec *nt_timeout_to_timespec( struct timespec *timespec, const LARGE_INTEGER *timeout )
+{
+    LARGE_INTEGER diff;
+    struct timespec now;
+    if (!timeout) return NULL;
+
+    if (timeout->QuadPart > 0)
+    {
+        NtQuerySystemTime( &diff );
+        diff.QuadPart -= timeout->QuadPart;
+    }
+    else diff = *timeout;
+
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    timespec->tv_sec  = now.tv_sec + (now.tv_nsec / 100 - diff.QuadPart) / TICKSPERSEC;
+    timespec->tv_nsec = (now.tv_nsec / 100 - diff.QuadPart) % TICKSPERSEC * 100;
+    return timespec;
+}
+
+static inline NTSTATUS fast_wait_for_keyed_event( struct keyed_entry *entry, const LARGE_INTEGER *timeout )
+{
+    struct fast_keyed_entry *fast = &fast_keyed_table[entry - keyed_entries];
+    struct timespec time, *timespec = nt_timeout_to_timespec( &time, timeout );
+    NTSTATUS status = STATUS_SUCCESS;
     int ret;
 
-    if (!use_futexes())
-        return STATUS_NOT_IMPLEMENTED;
+    if (!use_futexes() || entry->handle || entry->alertable) return STATUS_NOT_IMPLEMENTED;
 
-    futex = hash_addr( addr );
-
-    /* We must read the previous value of the futex before checking the value
-     * of the address being waited on. That way, if we receive a wake between
-     * now and waiting on the futex, we know that val will have changed.
-     * Use an atomic load so that memory accesses are ordered between this read
-     * and the increment below. */
-    val = InterlockedCompareExchange( futex, 0, 0 );
-    if (!compare_addr( addr, cmp, size ))
-        return STATUS_SUCCESS;
-
-    if (timeout)
+    if ((status = futex_cs_enter( &fast->wait_cs, timespec ))) return status;
+    /* wait for signal, and ack it */
+    while (!status && InterlockedCompareExchange( &fast->signal, 2, 1 ) != 1)
     {
-        timespec_from_timeout( &timespec, timeout );
-        ret = futex_wait( futex, val, &timespec );
+        if (!(ret = futex_wait_abs( &fast->signal, 0, timespec ))) continue;
+        else if (ret == -1 && errno == ETIMEDOUT) status = STATUS_TIMEOUT;
+        else if (ret == -1 && errno != EAGAIN) ERR("futex_wait_abs unexpectedly failed, errno: %d\n", errno);
     }
-    else
-        ret = futex_wait( futex, val, NULL );
-
-    if (ret == -1 && errno == ETIMEDOUT)
-        return STATUS_TIMEOUT;
-    return STATUS_SUCCESS;
+    /* if we acked, wake the signaler */
+    if (!status) futex_wake( &fast->signal, 1 );
+    futex_cs_leave( &fast->wait_cs );
+    return status;
 }
 
-static inline NTSTATUS fast_wake_addr( const void *addr )
+static inline NTSTATUS fast_release_keyed_event( struct keyed_entry *entry, const LARGE_INTEGER *timeout )
 {
-    int *futex;
+    struct fast_keyed_entry *fast = &fast_keyed_table[entry - keyed_entries];
+    struct timespec time, *timespec = nt_timeout_to_timespec( &time, timeout );
+    NTSTATUS status = STATUS_SUCCESS;
+    int ret;
 
-    if (!use_futexes())
-        return STATUS_NOT_IMPLEMENTED;
+    if (!use_futexes() || entry->handle || entry->alertable) return STATUS_NOT_IMPLEMENTED;
 
-    futex = hash_addr( addr );
+    if ((status = futex_cs_enter( &fast->wake_cs, timespec ))) return status;
+    /* signal and wake waiter */
+    InterlockedExchange( &fast->signal, 1 );
+    futex_wake( &fast->signal, 1 );
+    /* wait for ack, and reset */
+    while (!status && InterlockedCompareExchange( &fast->signal, 0, 2 ) == 1)
+    {
+        if (!(ret = futex_wait_abs( &fast->signal, 1, timespec ))) continue;
+        else if (ret == -1 && errno == ETIMEDOUT) status = STATUS_TIMEOUT;
+        else if (ret == -1 && errno != EAGAIN) ERR("futex_wait_abs unexpectedly failed, errno: %d\n", errno);
+    }
+    /* if we timedout, reset and check ack */
+    if (status == STATUS_TIMEOUT && InterlockedExchange( &fast->signal, 0 ) == 2) status = STATUS_SUCCESS;
+    futex_cs_leave( &fast->wake_cs );
+    return status;
+}
 
-    InterlockedIncrement( futex );
+struct fast_address_entry
+{
+    int wait_cs; /* 0: unlocked, 1: locked, 2: contested */
+    int signal;
+};
 
-    futex_wake( futex, INT_MAX );
+static struct fast_address_entry fast_address_table[256];
+
+static inline NTSTATUS fast_wait_on_address( struct keyed_entry *entry, const LARGE_INTEGER *timeout, const void *addr, const void *cmp, SIZE_T size )
+{
+    struct fast_address_entry *fast = &fast_address_table[entry - keyed_entries];
+    struct timespec time, *timespec = nt_timeout_to_timespec( &time, timeout );
+    NTSTATUS status = STATUS_SUCCESS;
+    int ret, signal;
+
+    if (!use_futexes()) return STATUS_NOT_IMPLEMENTED;
+
+    if ((status = futex_cs_enter( &fast->wait_cs, timespec ))) return status;
+    if (!compare_addr( addr, cmp, size ))
+    {
+        futex_cs_leave( &fast->wait_cs );
+        return STATUS_SUCCESS;
+    }
+    /* wait for signal */
+    signal = fast->signal;
+    futex_cs_leave( &fast->wait_cs );
+    if (!(ret = futex_wait_abs( &fast->signal, signal, timespec ))) status = STATUS_SUCCESS;
+    else if (ret == -1 && errno == ETIMEDOUT) status = STATUS_TIMEOUT;
+    else if (ret == -1 && errno != EAGAIN) ERR("futex_wait_abs unexpectedly failed, errno: %d\n", errno);
+    return status;
+}
+
+static inline NTSTATUS fast_wake_address( struct keyed_entry *entry, BOOLEAN all )
+{
+    struct fast_address_entry *fast = &fast_address_table[entry - keyed_entries];
+    NTSTATUS status = STATUS_SUCCESS;
+
+    if (!use_futexes()) return STATUS_NOT_IMPLEMENTED;
+
+    if ((status = futex_cs_enter( &fast->wait_cs, NULL ))) return status;
+    InterlockedIncrement( &fast->signal );
+    futex_wake( &fast->signal, all ? INT_MAX : 1 );
+    futex_cs_leave( &fast->wait_cs );
     return STATUS_SUCCESS;
 }
 
@@ -2789,13 +2943,22 @@ NTSTATUS CDECL fast_wait_cv( RTL_CONDITION_VARIABLE *variable, const void *value
     return STATUS_NOT_IMPLEMENTED;
 }
 
-static inline NTSTATUS fast_wait_addr( const void *addr, const void *cmp, SIZE_T size,
-                                       const LARGE_INTEGER *timeout )
+static inline NTSTATUS fast_wait_for_keyed_event( struct keyed_entry *entry, const LARGE_INTEGER *timeout )
 {
     return STATUS_NOT_IMPLEMENTED;
 }
 
-static inline NTSTATUS fast_wake_addr( const void *addr )
+static inline NTSTATUS fast_release_keyed_event( struct keyed_entry *entry, const LARGE_INTEGER *timeout )
+{
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+static inline NTSTATUS fast_wait_on_address( struct keyed_entry *entry, const LARGE_INTEGER *timeout, const void *addr, const void *cmp, SIZE_T size )
+{
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+static inline NTSTATUS fast_wake_address( struct keyed_entry *entry, BOOLEAN all )
 {
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -2809,6 +2972,7 @@ static inline NTSTATUS fast_wake_addr( const void *addr )
 NTSTATUS WINAPI RtlWaitOnAddress( const void *addr, const void *cmp, SIZE_T size,
                                   const LARGE_INTEGER *timeout )
 {
+    struct keyed_entry *entry;
     select_op_t select_op;
     NTSTATUS ret;
     timeout_t abs_timeout = timeout ? timeout->QuadPart : TIMEOUT_INFINITE;
@@ -2816,30 +2980,33 @@ NTSTATUS WINAPI RtlWaitOnAddress( const void *addr, const void *cmp, SIZE_T size
     if (size != 1 && size != 2 && size != 4 && size != 8)
         return STATUS_INVALID_PARAMETER;
 
-    if ((ret = fast_wait_addr( addr, cmp, size, timeout )) != STATUS_NOT_IMPLEMENTED)
-        return ret;
-
-    mutex_lock( &addr_mutex );
-    if (!compare_addr( addr, cmp, size ))
+    entry = keyed_entry_acquire( 0, ~wine_server_client_ptr( addr ), FALSE );
+    if ((ret = fast_wait_on_address( entry, timeout, addr, cmp, size )) == STATUS_NOT_IMPLEMENTED)
     {
-        mutex_unlock( &addr_mutex );
-        return STATUS_SUCCESS;
+        mutex_lock( &addr_mutex );
+        if (!compare_addr( addr, cmp, size ))
+        {
+            mutex_unlock( &addr_mutex );
+            return STATUS_SUCCESS;
+        }
+
+        if (abs_timeout < 0)
+        {
+            LARGE_INTEGER now;
+
+            NtQueryPerformanceCounter( &now, NULL );
+            abs_timeout -= now.QuadPart;
+        }
+
+        select_op.keyed_event.op     = SELECT_KEYED_EVENT_WAIT;
+        select_op.keyed_event.handle = wine_server_obj_handle( keyed_event );
+        select_op.keyed_event.key    = entry->key;
+
+        ret = server_select( &select_op, sizeof(select_op.keyed_event), SELECT_INTERRUPTIBLE,
+                             abs_timeout, NULL, &addr_mutex, NULL );
     }
-
-    if (abs_timeout < 0)
-    {
-        LARGE_INTEGER now;
-
-        NtQueryPerformanceCounter( &now, NULL );
-        abs_timeout -= now.QuadPart;
-    }
-
-    select_op.keyed_event.op     = SELECT_KEYED_EVENT_WAIT;
-    select_op.keyed_event.handle = wine_server_obj_handle( keyed_event );
-    select_op.keyed_event.key    = wine_server_client_ptr( addr );
-
-    return server_select( &select_op, sizeof(select_op.keyed_event), SELECT_INTERRUPTIBLE,
-                          abs_timeout, NULL, &addr_mutex, NULL );
+    keyed_entry_release( entry );
+    return ret;
 }
 
 /***********************************************************************
@@ -2847,11 +3014,23 @@ NTSTATUS WINAPI RtlWaitOnAddress( const void *addr, const void *cmp, SIZE_T size
  */
 void WINAPI RtlWakeAddressAll( const void *addr )
 {
-    if (fast_wake_addr( addr ) != STATUS_NOT_IMPLEMENTED) return;
+    struct keyed_entry *entry;
+    select_op_t select_op;
 
-    mutex_lock( &addr_mutex );
-    while (NtReleaseKeyedEvent( 0, addr, 0, &zero_timeout ) == STATUS_SUCCESS) {}
-    mutex_unlock( &addr_mutex );
+    entry = keyed_entry_acquire( 0, ~wine_server_client_ptr( addr ), FALSE );
+    if (fast_wake_address( entry, TRUE ) == STATUS_NOT_IMPLEMENTED)
+    {
+        mutex_lock( &addr_mutex );
+        do
+        {
+            select_op.keyed_event.op     = SELECT_KEYED_EVENT_RELEASE;
+            select_op.keyed_event.handle = wine_server_obj_handle( keyed_event );
+            select_op.keyed_event.key    = entry->key;
+        }
+        while (!server_wait( &select_op, sizeof(select_op.keyed_event), SELECT_INTERRUPTIBLE, &zero_timeout ));
+        mutex_unlock( &addr_mutex );
+    }
+    keyed_entry_release( entry );
 }
 
 /***********************************************************************
@@ -2859,9 +3038,18 @@ void WINAPI RtlWakeAddressAll( const void *addr )
  */
 void WINAPI RtlWakeAddressSingle( const void *addr )
 {
-    if (fast_wake_addr( addr ) != STATUS_NOT_IMPLEMENTED) return;
+    struct keyed_entry *entry;
+    select_op_t select_op;
 
-    mutex_lock( &addr_mutex );
-    NtReleaseKeyedEvent( 0, addr, 0, &zero_timeout );
-    mutex_unlock( &addr_mutex );
+    entry = keyed_entry_acquire( 0, ~wine_server_client_ptr( addr ), FALSE );
+    if (fast_wake_address( entry, FALSE ) == STATUS_NOT_IMPLEMENTED)
+    {
+        mutex_lock( &addr_mutex );
+        select_op.keyed_event.op     = SELECT_KEYED_EVENT_RELEASE;
+        select_op.keyed_event.handle = wine_server_obj_handle( keyed_event );
+        select_op.keyed_event.key    = entry->key;
+        server_wait( &select_op, sizeof(select_op.keyed_event), SELECT_INTERRUPTIBLE, &zero_timeout );
+        mutex_unlock( &addr_mutex );
+    }
+    keyed_entry_release( entry );
 }
