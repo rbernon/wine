@@ -3279,6 +3279,7 @@ NTSTATUS send_hardware_message( HWND hwnd, const INPUT *input, const RAWINPUT *r
             req->input.mouse.flags = input->u.mi.dwFlags;
             req->input.mouse.time  = input->u.mi.time;
             req->input.mouse.info  = input->u.mi.dwExtraInfo;
+            if (rawinput) req->flags |= SEND_HWMSG_RAWINPUT;
             break;
         case INPUT_KEYBOARD:
             req->input.kbd.vkey  = input->u.ki.wVk;
@@ -3286,6 +3287,7 @@ NTSTATUS send_hardware_message( HWND hwnd, const INPUT *input, const RAWINPUT *r
             req->input.kbd.flags = input->u.ki.dwFlags;
             req->input.kbd.time  = input->u.ki.time;
             req->input.kbd.info  = input->u.ki.dwExtraInfo;
+            if (rawinput) req->flags |= SEND_HWMSG_RAWINPUT;
             break;
         case INPUT_HARDWARE:
             req->input.hw.msg    = input->u.hi.uMsg;
@@ -3297,6 +3299,12 @@ NTSTATUS send_hardware_message( HWND hwnd, const INPUT *input, const RAWINPUT *r
                 req->input.hw.rawinput.type = rawinput->header.dwType;
                 switch (rawinput->header.dwType)
                 {
+                case RIM_TYPEMOUSE:
+                    req->input.hw.rawinput.mouse.x = rawinput->data.mouse.lLastX;
+                    req->input.hw.rawinput.mouse.y = rawinput->data.mouse.lLastY;
+                    req->input.hw.rawinput.mouse.data = rawinput->data.mouse.ulRawButtons;
+                    req->input.hw.lparam = rawinput->data.mouse.usFlags;
+                    break;
                 case RIM_TYPEHID:
                     req->input.hw.rawinput.hid.device = HandleToUlong( rawinput->header.hDevice );
                     req->input.hw.rawinput.hid.param = rawinput->header.wParam;
