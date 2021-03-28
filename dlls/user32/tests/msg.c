@@ -11359,6 +11359,7 @@ static void test_scrollwindowex(void)
     ok_sequence(WmEmptySeq, "ScrollWindowEx", FALSE);
     trace("end scroll\n");
     flush_sequence();
+    MsgWaitForMultipleObjects( 0, NULL, FALSE, 1000, QS_ALLINPUT );
     flush_events();
     ok_sequence(ScrollWindowPaint1, "ScrollWindowEx", FALSE);
     flush_events();
@@ -11370,6 +11371,7 @@ static void test_scrollwindowex(void)
     ok_sequence(WmEmptySeq, "ScrollWindowEx", FALSE);
     trace("end scroll\n");
     flush_sequence();
+    MsgWaitForMultipleObjects( 0, NULL, FALSE, 1000, QS_ALLINPUT );
     flush_events();
     ok_sequence(ScrollWindowPaint2, "ScrollWindowEx", FALSE);
     flush_events();
@@ -11384,6 +11386,7 @@ static void test_scrollwindowex(void)
     ok_sequence(WmEmptySeq, "ScrollWindowEx", TRUE);
     trace("end scroll\n");
     flush_sequence();
+    MsgWaitForMultipleObjects( 0, NULL, FALSE, 1000, QS_ALLINPUT );
     flush_events();
     ok_sequence(ScrollWindowPaint1, "ScrollWindowEx", FALSE);
     flush_events();
@@ -11394,6 +11397,7 @@ static void test_scrollwindowex(void)
     ScrollWindow( hwnd, 5, 5, NULL, NULL);
     trace("end scroll\n");
     flush_sequence();
+    MsgWaitForMultipleObjects( 0, NULL, FALSE, 1000, QS_ALLINPUT );
     flush_events();
     ok_sequence(ScrollWindowPaint1, "ScrollWindow", FALSE);
 
@@ -12163,7 +12167,8 @@ static void test_PeekMessage(void)
     PostMessageA(info.hwnd, WM_CHAR, 'z', 0);
     qstatus = GetQueueStatus(qs_all_input);
     ok(qstatus == MAKELONG(QS_POSTMESSAGE, QS_POSTMESSAGE|QS_KEY) ||
-       qstatus == MAKELONG(QS_POSTMESSAGE, QS_POSTMESSAGE|QS_KEY|QS_SENDMESSAGE),
+       qstatus == MAKELONG(QS_POSTMESSAGE, QS_POSTMESSAGE|QS_KEY|QS_SENDMESSAGE) ||
+       broken(qstatus == MAKELONG(QS_POSTMESSAGE|QS_SENDMESSAGE, QS_POSTMESSAGE|QS_KEY|QS_SENDMESSAGE)) /* sometimes on non-us w1064v1809 */,
        "wrong qstatus %08x\n", qstatus);
 
     InvalidateRect(info.hwnd, NULL, FALSE);
@@ -12244,6 +12249,10 @@ static void test_PeekMessage(void)
 
     msg.message = 0;
     ret = PeekMessageA(&msg, 0, 0, 0, PM_REMOVE | PM_QS_PAINT);
+    /* GetQueueStatus documentation says that it's not a guarantee that PeekMessage will succeed,
+     * it indeed fails from time to time on the non-us w1064v1809 testbot VMs, let's try again */
+    if (!ret && GetQueueStatus(qs_all_input) == MAKELONG(0, QS_PAINT|QS_KEY))
+        ret = PeekMessageA(&msg, 0, 0, 0, PM_REMOVE | PM_QS_PAINT);
     ok(ret && msg.message == WM_PAINT,
        "got %d and %04x instead of TRUE and WM_PAINT\n", ret, msg.message);
     DispatchMessageA(&msg);
@@ -13488,6 +13497,7 @@ static const struct message WmMinimize_3[] = {
     { HCBT_ACTIVATE, hook|optional },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED, 0, SWP_NOACTIVATE },
+    { WM_WINDOWPOSCHANGED, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|wparam|lparam|defwinproc, SIZE_MINIMIZED, 0 },
     { 0 }
@@ -17017,7 +17027,7 @@ static void test_WaitForInputIdle( char *argv0 )
         ok( ret, "CreateProcess '%s' failed err %u.\n", path, GetLastError() );
         if (ret)
         {
-            ret = WaitForSingleObject( start_event, 5000 );
+            ret = WaitForSingleObject( start_event, INFINITE );
             ok( ret == WAIT_OBJECT_0, "%u: WaitForSingleObject failed\n", i );
             if (ret == WAIT_OBJECT_0)
             {
