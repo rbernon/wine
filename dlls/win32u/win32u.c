@@ -126,6 +126,12 @@ LRESULT CDECL win32u_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
     case WM_X11DRV_NOTIFY_HWND_SURFACE_DESTROYED:
         if (wp) win32u_delete_toplevel_surface( hwnd );
         break;
+    case WM_X11DRV_NOTIFY_HWND_SURFACE_RESIZE:
+        win32u_resize_hwnd_surfaces_notify( hwnd, (BOOL)lp );
+        break;
+    case WM_X11DRV_NOTIFY_HWND_SURFACE_REPARENT:
+        win32u_reparent_hwnd_surfaces_notify( hwnd, (BOOL)lp );
+        break;
     }
 
     return X11DRV_WindowMessage( hwnd, msg, wp, lp );

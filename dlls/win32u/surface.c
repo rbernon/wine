@@ -39,6 +39,8 @@ struct hwnd_surfaces
     struct wine_rb_entry entry;
     LONG ref;
     HWND hwnd;
+    BOOL resize_notify;
+    BOOL reparent_notify;
     struct unix_surface *toplevel;
 };
 
@@ -64,6 +66,8 @@ static struct hwnd_surfaces *hwnd_surfaces_create( HWND hwnd )
     if (!(surfaces = malloc(sizeof(*surfaces)))) return NULL;
     surfaces->ref = 1;
     surfaces->hwnd = hwnd;
+    surfaces->resize_notify = FALSE;
+    surfaces->reparent_notify = FALSE;
     surfaces->toplevel = NULL;
 
     TRACE( "created surfaces %p for hwnd %p.\n", surfaces, hwnd );
@@ -201,6 +205,30 @@ void win32u_resize_hwnd_surfaces( HWND hwnd )
     EnterCriticalSection( &surfaces_cs );
     if ((surfaces = find_surfaces_for_hwnd( hwnd )) && surfaces->toplevel)
         unix_funcs->surface_resize_notify( surfaces->toplevel, &client_rect );
+    LeaveCriticalSection( &surfaces_cs );
+}
+
+void win32u_resize_hwnd_surfaces_notify( HWND hwnd, BOOL enable )
+{
+    struct hwnd_surfaces *surfaces;
+
+    TRACE( "hwnd %p, enable %d.\n", hwnd, enable );
+
+    EnterCriticalSection( &surfaces_cs );
+    if ((surfaces = find_surfaces_for_hwnd( hwnd )))
+        surfaces->resize_notify = enable;
+    LeaveCriticalSection( &surfaces_cs );
+}
+
+void win32u_reparent_hwnd_surfaces_notify( HWND hwnd, BOOL enable )
+{
+    struct hwnd_surfaces *surfaces;
+
+    TRACE( "hwnd %p, enable %d.\n", hwnd, enable );
+
+    EnterCriticalSection( &surfaces_cs );
+    if ((surfaces = find_surfaces_for_hwnd( hwnd )))
+        surfaces->reparent_notify = enable;
     LeaveCriticalSection( &surfaces_cs );
 }
 
