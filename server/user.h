@@ -76,6 +76,7 @@ struct desktop
     struct list          hotkeys;          /* list of registered hotkeys */
     struct timeout_user *close_timeout;    /* timeout before closing the desktop */
     struct thread_input *foreground_input; /* thread input of foreground thread */
+    unsigned int         foreground_time;  /* time of last foreground input change */
     unsigned int         users;            /* processes and threads using this desktop */
     struct global_cursor cursor;           /* global cursor information */
     unsigned char        keystate[256];    /* asynchronous key state */

@@ -89,6 +89,7 @@ DWORD thread_data_tls_index = TLS_OUT_OF_INDEXES;
 int xrender_error_base = 0;
 HMODULE x11drv_module = 0;
 char *process_name = NULL;
+struct x11drv_ewmh_data ewmh = { 0 };
 
 static x11drv_error_callback err_callback;   /* current callback for error */
 static Display *err_callback_display;        /* display callback is set for */
@@ -161,6 +162,7 @@ static const char * const atom_names[NB_XATOMS - FIRST_XATOM] =
     "DndSelection",
     "_ICC_PROFILE",
     "_MOTIF_WM_HINTS",
+    "_NET_ACTIVE_WINDOW",
     "_NET_STARTUP_INFO_BEGIN",
     "_NET_STARTUP_INFO",
     "_NET_SUPPORTED",
@@ -174,6 +176,7 @@ static const char * const atom_names[NB_XATOMS - FIRST_XATOM] =
     "_NET_WM_PING",
     "_NET_WM_STATE",
     "_NET_WM_STATE_ABOVE",
+    "_NET_WM_STATE_BELOW",
     "_NET_WM_STATE_DEMANDS_ATTENTION",
     "_NET_WM_STATE_FULLSCREEN",
     "_NET_WM_STATE_MAXIMIZED_HORZ",
@@ -184,6 +187,7 @@ static const char * const atom_names[NB_XATOMS - FIRST_XATOM] =
     "_NET_WM_USER_TIME_WINDOW",
     "_NET_WM_WINDOW_OPACITY",
     "_NET_WM_WINDOW_TYPE",
+    "_NET_WM_WINDOW_TYPE_DESKTOP",
     "_NET_WM_WINDOW_TYPE_DIALOG",
     "_NET_WM_WINDOW_TYPE_NORMAL",
     "_NET_WM_WINDOW_TYPE_UTILITY",
@@ -191,6 +195,7 @@ static const char * const atom_names[NB_XATOMS - FIRST_XATOM] =
     "_GTK_WORKAREAS_D0",
     "_XEMBED",
     "_XEMBED_INFO",
+    "_WINE_HWND",
     "XdndAware",
     "XdndEnter",
     "XdndPosition",
@@ -456,6 +461,47 @@ static void setup_options(void)
     if (hkey) RegCloseKey( hkey );
 }
 
+
+/***********************************************************************
+ *              x11drv_ewmh_init
+ */
+static void x11drv_ewmh_init(void)
+{
+    Atom type, *supported;
+    unsigned long count, remaining;
+    char *atom_name;
+    int format, i, supported_count = 0;
+
+    if (!XGetWindowProperty( gdi_display, DefaultRootWindow(gdi_display), x11drv_atom(_NET_SUPPORTED), 0,
+                             ~0UL, False, XA_ATOM, &type, &format, &count, &remaining,
+                             (unsigned char **)&supported ))
+        supported_count = get_property_size( format, count ) / sizeof(Atom);
+
+    TRACE( "EWMH _NET_SUPPORTED:\n" );
+    for (i = 0; i < supported_count; ++i)
+    {
+        if (supported[i] == x11drv_atom(_NET_ACTIVE_WINDOW))
+            ewmh.has__net_active_window = 1;
+        if (supported[i] == x11drv_atom(_NET_WM_MOVERESIZE))
+            ewmh.has__net_wm_moveresize = 1;
+        if (supported[i] == x11drv_atom(_NET_WM_STATE))
+            ewmh.has__net_wm_state = 1;
+        if (supported[i] == x11drv_atom(_NET_WM_STATE_BELOW))
+            ewmh.has__net_wm_state_below = 1;
+        if (supported[i] == x11drv_atom(_NET_WM_WINDOW_TYPE))
+            ewmh.has__net_wm_window_type = 1;
+        if (supported[i] == x11drv_atom(_NET_WM_WINDOW_TYPE_DESKTOP))
+            ewmh.has__net_wm_window_type_desktop = 1;
+
+        atom_name = XGetAtomName( gdi_display, supported[i] );
+        TRACE( "  %s\n", atom_name );
+        XFree( atom_name );
+    }
+
+    if (supported) XFree( supported );
+}
+
+
 #ifdef SONAME_LIBXCOMPOSITE
 
 #define MAKE_FUNCPTR(f) typeof(f) * p##f;
@@ -607,7 +653,6 @@ static BOOL process_attach(void)
 
     XInternAtoms( display, (char **)atom_names, NB_XATOMS - FIRST_XATOM, False, X11DRV_Atoms );
 
-    winContext = XUniqueContext();
     win_data_context = XUniqueContext();
     cursor_context = XUniqueContext();
 
@@ -625,6 +670,8 @@ static BOOL process_attach(void)
     X11DRV_XComposite_Init();
 #endif
     x11drv_xinput_load();
+
+    x11drv_ewmh_init();
 
 #ifdef HAVE_XKB
     if (use_xkb) use_xkb = XkbUseExtension( gdi_display, NULL, NULL );

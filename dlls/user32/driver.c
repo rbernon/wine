@@ -132,8 +132,10 @@ static const USER_DRIVER *load_driver(void)
         GET_USER_FUNC(MsgWaitForMultipleObjectsEx);
         GET_USER_FUNC(ReleaseDC);
         GET_USER_FUNC(ScrollDC);
+        GET_USER_FUNC(SetActiveWindow);
         GET_USER_FUNC(SetCapture);
         GET_USER_FUNC(SetFocus);
+        GET_USER_FUNC(SetForegroundWindow);
         GET_USER_FUNC(SetLayeredWindowAttributes);
         GET_USER_FUNC(SetParent);
         GET_USER_FUNC(SetWindowRgn);
@@ -318,12 +320,21 @@ static BOOL CDECL nulldrv_ScrollDC( HDC hdc, INT dx, INT dy, HRGN update )
                    hdc, rect.left - dx, rect.top - dy, SRCCOPY );
 }
 
+static void CDECL nulldrv_SetActiveWindow( HWND hwnd )
+{
+}
+
 static void CDECL nulldrv_SetCapture( HWND hwnd, UINT flags )
 {
 }
 
 static void CDECL nulldrv_SetFocus( HWND hwnd )
 {
+}
+
+static BOOL CDECL nulldrv_SetForegroundWindow( HWND hwnd )
+{
+    return TRUE;
 }
 
 static void CDECL nulldrv_SetLayeredWindowAttributes( HWND hwnd, COLORREF key, BYTE alpha, DWORD flags )
@@ -428,8 +439,10 @@ static USER_DRIVER null_driver =
     nulldrv_MsgWaitForMultipleObjectsEx,
     nulldrv_ReleaseDC,
     nulldrv_ScrollDC,
+    nulldrv_SetActiveWindow,
     nulldrv_SetCapture,
     nulldrv_SetFocus,
+    nulldrv_SetForegroundWindow,
     nulldrv_SetLayeredWindowAttributes,
     nulldrv_SetParent,
     nulldrv_SetWindowRgn,
@@ -619,8 +632,10 @@ static USER_DRIVER lazy_load_driver =
     nulldrv_MsgWaitForMultipleObjectsEx,
     nulldrv_ReleaseDC,
     nulldrv_ScrollDC,
+    nulldrv_SetActiveWindow,
     nulldrv_SetCapture,
     nulldrv_SetFocus,
+    nulldrv_SetForegroundWindow,
     loaderdrv_SetLayeredWindowAttributes,
     nulldrv_SetParent,
     loaderdrv_SetWindowRgn,

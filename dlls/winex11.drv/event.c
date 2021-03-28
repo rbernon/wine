@@ -250,6 +250,10 @@ static Bool filter_event( Display *display, XEvent *event, char *arg )
             (event->xcookie.evtype == XI_RawMotion ||
              event->xcookie.evtype == XI_DeviceChanged))
             return (mask & QS_MOUSEMOVE) != 0;
+        if (event->xcookie.extension == xinput2_opcode &&
+            (event->xcookie.evtype == XI_FocusIn ||
+             event->xcookie.evtype == XI_FocusOut))
+            return (mask & QS_POSTMESSAGE) != 0;
 #endif
         return (mask & QS_SENDMESSAGE) != 0;
 #endif
@@ -406,8 +410,7 @@ static inline BOOL call_event_handler( Display *display, XEvent *event )
 #ifdef GenericEvent
     if (event->type == GenericEvent) hwnd = 0; else
 #endif
-    if (XFindContext( display, event->xany.window, winContext, (char **)&hwnd ) != 0)
-        hwnd = 0;  /* not for a registered window */
+    hwnd = x11drv_get_hwnd_for_window( display, event->xany.window, TRUE, NULL );
     if (!hwnd && event->xany.window == root_window) hwnd = GetDesktopWindow();
 
     TRACE( "%lu %s for hwnd/window %p/%lx\n",
@@ -522,39 +525,51 @@ DWORD CDECL X11DRV_MsgWaitForMultipleObjectsEx( DWORD count, const HANDLE *handl
     return ret;
 }
 
+static DWORD time_to_tick_diff = 0;
+
 /***********************************************************************
  *           EVENT_x11_time_to_win32_time
  *
- * Make our timer and the X timer line up as best we can
- *  Pass 0 to retrieve the current adjustment value (times -1)
+ * Make our timer and the X timer line up as best we can.
  */
 DWORD EVENT_x11_time_to_win32_time(Time time)
 {
-  static DWORD adjust = 0;
-  DWORD now = GetTickCount();
-  DWORD ret;
+    DWORD now = GetTickCount();
+    DWORD diff = time - now;
+    DWORD ret;
 
-  if (! adjust && time != 0)
-  {
-    ret = now;
-    adjust = time - now;
-  }
-  else
-  {
-      /* If we got an event in the 'future', then our clock is clearly wrong. 
-         If we got it more than 10000 ms in the future, then it's most likely
-         that the clock has wrapped.  */
+    if (time == CurrentTime)
+        return now;
 
-      ret = time - adjust;
-      if (ret > now && ((ret - now) < 10000) && time != 0)
-      {
-        adjust += ret - now;
-        ret    -= ret - now;
-      }
-  }
+    if (last_user_time == 0) update_user_time( time );
 
-  return ret;
+    /* Sometimes the first events timestamps are completely off. This
+     * is happening for instance on TestBot runs. */
+    if (time_to_tick_diff && (int)time_to_tick_diff < (int)diff && diff - time_to_tick_diff > 10000)
+    {
+        FIXME( "unexpectedly large time skew detected, reajusting time.\n" );
+        time_to_tick_diff = 0;
+    }
 
+    if (!time_to_tick_diff)
+    {
+        time_to_tick_diff = diff;
+        ret = now;
+    }
+    else
+    {
+        /* If we got an event in the 'future', then our clock is clearly wrong.
+         * If we got it more than 10000 ms in the future, then it's most likely
+         * that the clock has wrapped. */
+        ret = time - time_to_tick_diff;
+        if (ret > now && ((ret - now) < 10000))
+        {
+            time_to_tick_diff += ret - now;
+            ret               -= ret - now;
+        }
+    }
+
+    return ret;
 }
 
 /*******************************************************************
@@ -577,6 +592,59 @@ static inline BOOL can_activate_window( HWND hwnd )
 }
 
 
+static int x11drv_get_active_window_error( Display *dpy, XErrorEvent *event, void *arg )
+{
+    return 1;
+}
+
+
+/***********************************************************************
+ *      x11drv_get_active_window
+ */
+static HWND x11drv_get_active_window( Display *display, Window root, BOOL *is_foreign )
+{
+    unsigned long count, remaining;
+    Window *active;
+    HWND *active_hwnd, hwnd = NULL;
+    Atom type;
+    int format;
+
+    *is_foreign = FALSE;
+    if (!ewmh.has__net_active_window) return NULL;
+
+    X11DRV_expect_error( display, x11drv_get_active_window_error, NULL );
+    XGetWindowProperty( display, root, x11drv_atom(_NET_ACTIVE_WINDOW),
+                        0, ~0UL, False, XA_WINDOW,
+                        &type, &format, &count, &remaining,
+                        (unsigned char **)&active);
+
+    if (X11DRV_check_error()) return NULL;
+    if (!active || !*active)
+    {
+        /* no X11 active window -yet- let's pretend we are still active */
+        if (active) XFree(active);
+        return GetForegroundWindow();
+    }
+
+    X11DRV_expect_error( display, x11drv_get_active_window_error, NULL );
+    XGetWindowProperty( display, *active, x11drv_atom(_WINE_HWND),
+                        0, ~0UL, False, XA_CARDINAL,
+                        &type, &format, &count, &remaining,
+                        (unsigned char **)&active_hwnd);
+    XFree(active);
+
+    if (X11DRV_check_error()) return NULL;
+    if (!active_hwnd) *is_foreign = TRUE;
+    else
+    {
+        hwnd = *active_hwnd;
+        XFree(active_hwnd);
+    }
+
+    return hwnd;
+}
+
+
 /**********************************************************************
  *              set_input_focus
  *
@@ -589,10 +657,10 @@ static void set_input_focus( struct x11drv_win_data *data )
 
     if (!data->whole_window) return;
 
-    if (EVENT_x11_time_to_win32_time(0))
+    if (time_to_tick_diff)
         /* ICCCM says don't use CurrentTime, so try to use last message time if possible */
         /* FIXME: this is not entirely correct */
-        timestamp = GetMessageTime() - EVENT_x11_time_to_win32_time(0);
+        timestamp = GetMessageTime() + time_to_tick_diff;
     else
         timestamp = CurrentTime;
 
@@ -607,6 +675,8 @@ static void set_input_focus( struct x11drv_win_data *data )
 
 }
 
+extern WINUSERAPI BOOL CDECL __wine_set_foreground_window( HWND hwnd, DWORD time );
+
 /**********************************************************************
  *              set_focus
  */
@@ -617,7 +687,7 @@ static void set_focus( Display *display, HWND hwnd, Time time )
     GUITHREADINFO threadinfo;
 
     TRACE( "setting foreground window to %p\n", hwnd );
-    SetForegroundWindow( hwnd );
+    __wine_set_foreground_window( hwnd, EVENT_x11_time_to_win32_time( time ) );
 
     threadinfo.cbSize = sizeof(threadinfo);
     GetGUIThreadInfo(0, &threadinfo);
@@ -776,10 +846,7 @@ static const char * const focus_modes[] =
     "NotifyWhileGrabbed"
 };
 
-/**********************************************************************
- *              X11DRV_FocusIn
- */
-static BOOL X11DRV_FocusIn( HWND hwnd, XEvent *xev )
+BOOL x11drv_handle_focus_in_event( HWND hwnd, XEvent *xev, Time time )
 {
     XFocusChangeEvent *event = &xev->xfocus;
     XIC xic;
@@ -823,18 +890,25 @@ static BOOL X11DRV_FocusIn( HWND hwnd, XEvent *xev )
         if (hwnd) hwnd = GetAncestor( hwnd, GA_ROOT );
         if (!hwnd) hwnd = GetActiveWindow();
         if (!hwnd) hwnd = x11drv_thread_data()->last_focus;
-        if (hwnd && can_activate_window(hwnd)) set_focus( event->display, hwnd, CurrentTime );
+        if (hwnd && can_activate_window(hwnd)) set_focus( event->display, hwnd, time );
     }
-    else SetForegroundWindow( hwnd );
+    else __wine_set_foreground_window( hwnd, EVENT_x11_time_to_win32_time( time ) );
     return TRUE;
+}
+
+/**********************************************************************
+ *              X11DRV_FocusIn
+ */
+static BOOL X11DRV_FocusIn( HWND hwnd, XEvent *xev )
+{
+    return x11drv_handle_focus_in_event( hwnd, xev, CurrentTime );
 }
 
 /**********************************************************************
  *              focus_out
  */
-static void focus_out( Display *display , HWND hwnd )
+static void focus_out( Display *display , HWND hwnd, Time time )
  {
-    HWND hwnd_tmp;
     Window focus_win;
     int revert;
     XIC xic;
@@ -856,11 +930,8 @@ static void focus_out( Display *display , HWND hwnd )
        getting the focus is a Wine window */
 
     XGetInputFocus( display, &focus_win, &revert );
-    if (focus_win)
-    {
-        if (XFindContext( display, focus_win, winContext, (char **)&hwnd_tmp ) != 0)
-            focus_win = 0;
-    }
+    if (focus_win && !x11drv_get_hwnd_for_window( display, focus_win, TRUE, NULL ))
+        focus_win = 0;
 
     if (!focus_win)
     {
@@ -871,17 +942,13 @@ static void focus_out( Display *display , HWND hwnd )
         if (hwnd == GetForegroundWindow())
         {
             TRACE( "lost focus, setting fg to desktop\n" );
-            SetForegroundWindow( GetDesktopWindow() );
+            __wine_set_foreground_window( GetDesktopWindow(), EVENT_x11_time_to_win32_time( time ) );
         }
     }
  }
 
-/**********************************************************************
- *              X11DRV_FocusOut
- *
- * Note: only top-level windows get FocusOut events.
- */
-static BOOL X11DRV_FocusOut( HWND hwnd, XEvent *xev )
+
+BOOL x11drv_handle_focus_out_event( HWND hwnd, XEvent *xev, Time time )
 {
     XFocusChangeEvent *event = &xev->xfocus;
 
@@ -913,8 +980,19 @@ static BOOL X11DRV_FocusOut( HWND hwnd, XEvent *xev )
         return TRUE; /* ignore wm specific NotifyUngrab / NotifyGrab events w.r.t focus */
     }
 
-    focus_out( event->display, hwnd );
+    focus_out( event->display, hwnd, time );
     return TRUE;
+}
+
+
+/**********************************************************************
+ *              X11DRV_FocusOut
+ *
+ * Note: only top-level windows get FocusOut events.
+ */
+static BOOL X11DRV_FocusOut( HWND hwnd, XEvent *xev )
+{
+    return x11drv_handle_focus_out_event( hwnd, xev, CurrentTime );
 }
 
 
@@ -1358,6 +1436,23 @@ done:
 static BOOL X11DRV_PropertyNotify( HWND hwnd, XEvent *xev )
 {
     XPropertyEvent *event = &xev->xproperty;
+    DWORD time = EVENT_x11_time_to_win32_time( event->time );
+    HWND active_window;
+    BOOL foreign;
+
+    if (event->atom == x11drv_atom(_NET_ACTIVE_WINDOW))
+    {
+        /* virtual desktop uses focus events to track global focus instead */
+        if (is_virtual_desktop() || GetWindowThreadProcessId( GetDesktopWindow(), NULL ) != GetCurrentThreadId())
+            return FALSE;
+
+        if (!(active_window = x11drv_get_active_window( event->display, event->window, &foreign )) && foreign)
+            __wine_set_foreground_window( GetDesktopWindow(), time );
+        else
+            __wine_set_foreground_window( active_window, time );
+
+        return FALSE;
+    }
 
     if (!hwnd) return FALSE;
     if (event->atom == x11drv_atom(WM_STATE)) handle_wm_state_notify( hwnd, event, TRUE );
@@ -1431,6 +1526,79 @@ void wait_for_withdrawn_state( HWND hwnd, BOOL set )
 }
 
 
+/***********************************************************************
+ *      x11drv_activate_window
+ */
+static void x11drv_activate_window( HWND hwnd, struct x11drv_win_data *data )
+{
+    struct x11drv_win_data *active_data;
+    HWND active_hwnd = GetActiveWindow();
+    Window active_window = None;
+    XEvent event;
+
+    if (!data || !data->managed) return;
+
+    if (!data->mapped)
+    {
+        FIXME( "cannot activate hidden window %p/%lx, hacking focus\n", hwnd, data->whole_window );
+        XSetInputFocus( gdi_display, None, RevertToPointerRoot, last_user_time );
+        XFlush( gdi_display );
+        return;
+    }
+
+    if (!ewmh.has__net_active_window)
+    {
+        FIXME( "no support for _NET_ACTIVE_WINDOW, cannot activate window %p/%lx\n", hwnd, data->whole_window );
+        return;
+    }
+
+    if ((active_data = get_win_data( active_hwnd )))
+        active_window = active_data->whole_window;
+    release_win_data( active_data );
+
+    TRACE("Sending _NET_ACTIVE_WINDOW to %p/%lx, current active %p/%lx\n",
+        hwnd, data->whole_window, active_hwnd, active_window );
+
+    event.xclient.type = ClientMessage;
+    event.xclient.window = data->whole_window;
+    event.xclient.message_type = x11drv_atom(_NET_ACTIVE_WINDOW);
+    event.xclient.serial = 0;
+    event.xclient.display = gdi_display;
+    event.xclient.send_event = True;
+    event.xclient.format = 32;
+
+    event.xclient.data.l[0] = 1; /* source: application */
+    event.xclient.data.l[1] = last_user_time;
+    event.xclient.data.l[2] = active_window;
+    event.xclient.data.l[3] = 0;
+    event.xclient.data.l[4] = 0;
+    XSendEvent( gdi_display, DefaultRootWindow( gdi_display ), False,
+                SubstructureRedirectMask | SubstructureNotifyMask, &event );
+    XFlush( gdi_display );
+}
+
+
+/***********************************************************************
+ *      SetActiveWindow  (X11DRV.@)
+ */
+void CDECL X11DRV_SetActiveWindow( HWND hwnd )
+{
+    struct x11drv_thread_data *thread_data = x11drv_thread_data();
+    struct x11drv_win_data *data;
+
+    if (thread_data->current_event) return;
+    if (is_virtual_desktop()) return;
+    if (!hwnd || hwnd == GetDesktopWindow()) return;
+    if (!(data = get_win_data( hwnd ))) return;
+
+    TRACE("%p/%lx\n", hwnd, data->whole_window);
+
+    x11drv_activate_window( hwnd, data );
+
+    release_win_data( data );
+}
+
+
 /*****************************************************************
  *		SetFocus   (X11DRV.@)
  *
@@ -1453,6 +1621,27 @@ void CDECL X11DRV_SetFocus( HWND hwnd )
     }
     if (!data->managed || data->embedder) set_input_focus( data );
     release_win_data( data );
+}
+
+
+/***********************************************************************
+ *      SetForegroundWindow  (X11DRV.@)
+ */
+BOOL CDECL X11DRV_SetForegroundWindow( HWND hwnd )
+{
+    BOOL foreign;
+    if (is_virtual_desktop()) return TRUE;
+    if (!hwnd || hwnd == GetDesktopWindow()) return TRUE;
+
+    TRACE("%p\n", hwnd);
+
+    if (!x11drv_get_active_window( gdi_display, DefaultRootWindow( gdi_display ), &foreign ) && foreign)
+    {
+        WARN( "refusing to set window foreground while not already in foreground\n" );
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 
@@ -1695,6 +1884,8 @@ static void EVENT_DropURLs( HWND hWnd, XClientMessageEvent *event )
  */
 static void handle_xembed_protocol( HWND hwnd, XClientMessageEvent *event )
 {
+    Time time = event->data.l[0];
+
     switch (event->data.l[1])
     {
     case XEMBED_EMBEDDED_NOTIFY:
@@ -1720,12 +1911,12 @@ static void handle_xembed_protocol( HWND hwnd, XClientMessageEvent *event )
 
     case XEMBED_WINDOW_DEACTIVATE:
         TRACE( "win %p/%lx XEMBED_WINDOW_DEACTIVATE message\n", hwnd, event->window );
-        focus_out( event->display, GetAncestor( hwnd, GA_ROOT ) );
+        focus_out( event->display, GetAncestor( hwnd, GA_ROOT ), time );
         break;
 
     case XEMBED_FOCUS_OUT:
         TRACE( "win %p/%lx XEMBED_FOCUS_OUT message\n", hwnd, event->window );
-        focus_out( event->display, GetAncestor( hwnd, GA_ROOT ) );
+        focus_out( event->display, GetAncestor( hwnd, GA_ROOT ), time );
         break;
 
     case XEMBED_MODALITY_ON:
@@ -1758,7 +1949,7 @@ static void handle_dnd_protocol( HWND hwnd, XClientMessageEvent *event )
     /* query window (drag&drop event contains only drag window) */
     XQueryPointer( event->display, root_window, &root, &child,
                    &root_x, &root_y, &child_x, &child_y, &u);
-    if (XFindContext( event->display, child, winContext, (char **)&hwnd ) != 0) hwnd = 0;
+    hwnd = x11drv_get_hwnd_for_window( event->display, child, TRUE, NULL );
     if (!hwnd) return;
     if (event->data.l[0] == DndFile || event->data.l[0] == DndFiles)
         EVENT_DropFromOffiX(hwnd, event);

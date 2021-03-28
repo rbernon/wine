@@ -3164,20 +3164,26 @@ DECL_HANDLER(set_foreground_window)
     struct thread *thread = NULL;
     struct desktop *desktop;
     struct msg_queue *queue = get_current_queue();
+    int time_diff;
 
     if (!(desktop = get_thread_desktop( current, 0 ))) return;
     reply->previous = desktop->foreground_input ? desktop->foreground_input->active : 0;
     reply->send_msg_old = (reply->previous && desktop->foreground_input != queue->input);
     reply->send_msg_new = FALSE;
 
-    if (is_valid_foreground_window( req->handle ) &&
+    time_diff = req->time - desktop->foreground_time;
+    if (time_diff >= 0 && is_valid_foreground_window( req->handle ) &&
         (thread = get_window_thread( req->handle )) &&
         thread->queue->input->desktop == desktop)
     {
+        desktop->foreground_time = req->time;
         set_foreground_input( desktop, thread->queue->input );
         reply->send_msg_new = (desktop->foreground_input != queue->input);
     }
-    else set_win32_error( ERROR_INVALID_WINDOW_HANDLE );
+    else if (time_diff < 0)
+        set_win32_error( ERROR_INVALID_TIME );
+    else
+        set_win32_error( ERROR_INVALID_WINDOW_HANDLE );
 
     if (thread) release_object( thread );
     release_object( desktop );
