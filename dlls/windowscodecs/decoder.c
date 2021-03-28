@@ -650,40 +650,18 @@ static HRESULT WINAPI CommonDecoderFrame_Block_GetReaderByIndex(IWICMetadataBloc
                 offset, length);
         }
 
-        if (This->metadata_blocks[nIndex].options & DECODER_BLOCK_READER_CLSID)
+        if (SUCCEEDED(hr))
         {
-            IWICMetadataReader *reader;
-            IWICPersistStream *persist;
-            if (SUCCEEDED(hr))
-            {
-                hr = create_instance(&This->metadata_blocks[nIndex].reader_clsid,
-                    &IID_IWICMetadataReader, (void**)&reader);
-            }
-
-            if (SUCCEEDED(hr))
-            {
-                hr = IWICMetadataReader_QueryInterface(reader, &IID_IWICPersistStream, (void**)&persist);
-
-                if (SUCCEEDED(hr))
-                {
-                    hr = IWICPersistStream_LoadEx(persist, (IStream*)stream, NULL,
-                        This->metadata_blocks[nIndex].options & DECODER_BLOCK_OPTION_MASK);
-
-                    IWICPersistStream_Release(persist);
-                }
-
-                if (SUCCEEDED(hr))
-                    *ppIMetadataReader = reader;
-                else
-                    IWICMetadataReader_Release(reader);
-            }
-        }
-        else
-        {
-            hr = IWICComponentFactory_CreateMetadataReaderFromContainer(factory,
-                &This->parent->decoder_info.block_format, NULL,
-                This->metadata_blocks[nIndex].options & DECODER_BLOCK_OPTION_MASK,
-                (IStream*)stream, ppIMetadataReader);
+            if (This->metadata_blocks[nIndex].options & DECODER_BLOCK_FORMAT_GUID)
+                hr = IWICComponentFactory_CreateMetadataReader(factory,
+                    &This->metadata_blocks[nIndex].format_guid, NULL,
+                    This->metadata_blocks[nIndex].options & DECODER_BLOCK_OPTION_MASK,
+                    (IStream*)stream, ppIMetadataReader);
+            else
+                hr = IWICComponentFactory_CreateMetadataReaderFromContainer(factory,
+                    &This->parent->decoder_info.block_format, NULL,
+                    This->metadata_blocks[nIndex].options & DECODER_BLOCK_OPTION_MASK,
+                    (IStream*)stream, ppIMetadataReader);
         }
 
         IWICStream_Release(stream);

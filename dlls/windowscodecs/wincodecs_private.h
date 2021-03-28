@@ -286,13 +286,13 @@ struct decoder_frame
 
 #define DECODER_BLOCK_OPTION_MASK 0x0001000F
 #define DECODER_BLOCK_FULL_STREAM 0x80000000
-#define DECODER_BLOCK_READER_CLSID 0x40000000
+#define DECODER_BLOCK_FORMAT_GUID 0x40000000
 struct decoder_block
 {
     ULONGLONG offset;
     ULONGLONG length;
     DWORD options;
-    GUID reader_clsid;
+    GUID format_guid;
 };
 
 struct decoder

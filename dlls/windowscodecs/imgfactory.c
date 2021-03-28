@@ -1246,16 +1246,8 @@ static HRESULT WINAPI ComponentFactory_CreateQueryWriterFromReader(IWICComponent
     return IWICImagingFactory2_CreateQueryWriterFromReader(&This->IWICImagingFactory2_iface, reader, vendor, writer);
 }
 
-static HRESULT WINAPI ComponentFactory_CreateMetadataReader(IWICComponentFactory *iface,
-        REFGUID format, const GUID *vendor, DWORD options, IStream *stream, IWICMetadataReader **reader)
-{
-    FIXME("%p,%s,%s,%x,%p,%p: stub\n", iface, debugstr_guid(format), debugstr_guid(vendor),
-        options, stream, reader);
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI ComponentFactory_CreateMetadataReaderFromContainer(IWICComponentFactory *iface,
-        REFGUID format, const GUID *vendor, DWORD options, IStream *stream, IWICMetadataReader **reader)
+static HRESULT create_metadata_reader(IWICComponentFactory *iface, REFGUID metadata_format, REFGUID container_format,
+        const GUID *vendor, DWORD options, IStream *stream, IWICMetadataReader **reader)
 {
     HRESULT hr;
     IEnumUnknown *enumreaders;
@@ -1263,15 +1255,10 @@ static HRESULT WINAPI ComponentFactory_CreateMetadataReaderFromContainer(IWICCom
     IWICMetadataReaderInfo *readerinfo;
     IWICPersistStream *wicpersiststream;
     ULONG num_fetched;
-    GUID decoder_vendor;
+    GUID guid, *guids;
     BOOL matches;
     LARGE_INTEGER zero;
-
-    TRACE("%p,%s,%s,%x,%p,%p\n", iface, debugstr_guid(format), debugstr_guid(vendor),
-        options, stream, reader);
-
-    if (!format || !stream || !reader)
-        return E_INVALIDARG;
+    UINT count, i;
 
     zero.QuadPart = 0;
 
@@ -1293,9 +1280,9 @@ start:
             {
                 if (vendor)
                 {
-                    hr = IWICMetadataReaderInfo_GetVendorGUID(readerinfo, &decoder_vendor);
+                    hr = IWICMetadataReaderInfo_GetVendorGUID(readerinfo, &guid);
 
-                    if (FAILED(hr) || !IsEqualIID(vendor, &decoder_vendor))
+                    if (FAILED(hr) || !IsEqualIID(vendor, &guid))
                     {
                         IWICMetadataReaderInfo_Release(readerinfo);
                         IUnknown_Release(unkreaderinfo);
@@ -1303,7 +1290,63 @@ start:
                     }
                 }
 
-                hr = IWICMetadataReaderInfo_MatchesPattern(readerinfo, format, stream, &matches);
+                if (metadata_format)
+                {
+                    hr = IWICMetadataReaderInfo_GetMetadataFormat(readerinfo, &guid);
+
+                    if (FAILED(hr) || !IsEqualIID(metadata_format, &guid))
+                    {
+                        IWICMetadataReaderInfo_Release(readerinfo);
+                        IUnknown_Release(unkreaderinfo);
+                        continue;
+                    }
+
+                    if (!stream)
+                    {
+                        hr = IWICMetadataReaderInfo_CreateInstance(readerinfo, reader);
+                        break;
+                    }
+
+                    hr = IWICMetadataReaderInfo_GetContainerFormats(readerinfo, 0, NULL, &count);
+
+                    if (FAILED(hr) || !count)
+                    {
+                        IWICMetadataReaderInfo_Release(readerinfo);
+                        IUnknown_Release(unkreaderinfo);
+                        continue;
+                    }
+
+                    guids = HeapAlloc(GetProcessHeap(), 0, count * sizeof(*guids));
+
+                    if (!guids)
+                    {
+                        IWICMetadataReaderInfo_Release(readerinfo);
+                        IUnknown_Release(unkreaderinfo);
+                        continue;
+                    }
+
+                    hr = IWICMetadataReaderInfo_GetContainerFormats(readerinfo, count, guids, &count);
+
+                    if (FAILED(hr) || !count)
+                    {
+                        HeapFree(GetProcessHeap(), 0, guids);
+                        IWICMetadataReaderInfo_Release(readerinfo);
+                        IUnknown_Release(unkreaderinfo);
+                        continue;
+                    }
+
+                    for (i = 0; i < count; ++i)
+                    {
+                        hr = IWICMetadataReaderInfo_MatchesPattern(readerinfo, &guids[i], stream, &matches);
+                        if (SUCCEEDED(hr) && matches) break;
+                    }
+
+                    HeapFree(GetProcessHeap(), 0, guids);
+                }
+                else
+                {
+                    hr = IWICMetadataReaderInfo_MatchesPattern(readerinfo, container_format, stream, &matches);
+                }
 
                 if (SUCCEEDED(hr) && matches)
                 {
@@ -1380,6 +1423,31 @@ start:
         return S_OK;
     else
         return WINCODEC_ERR_COMPONENTNOTFOUND;
+
+}
+
+static HRESULT WINAPI ComponentFactory_CreateMetadataReader(IWICComponentFactory *iface,
+        REFGUID format, const GUID *vendor, DWORD options, IStream *stream, IWICMetadataReader **reader)
+{
+    TRACE("%p,%s,%s,%x,%p,%p\n", iface, debugstr_guid(format), debugstr_guid(vendor),
+        options, stream, reader);
+
+    if (!format || !reader)
+        return E_INVALIDARG;
+
+    return create_metadata_reader(iface, format, NULL, vendor, options, stream, reader);
+}
+
+static HRESULT WINAPI ComponentFactory_CreateMetadataReaderFromContainer(IWICComponentFactory *iface,
+        REFGUID format, const GUID *vendor, DWORD options, IStream *stream, IWICMetadataReader **reader)
+{
+    TRACE("%p,%s,%s,%x,%p,%p\n", iface, debugstr_guid(format), debugstr_guid(vendor),
+        options, stream, reader);
+
+    if (!format || !stream || !reader)
+        return E_INVALIDARG;
+
+    return create_metadata_reader(iface, NULL, format, vendor, options, stream, reader);
 }
 
 static HRESULT WINAPI ComponentFactory_CreateMetadataWriter(IWICComponentFactory *iface,

@@ -1130,8 +1130,8 @@ static HRESULT CDECL tiff_decoder_get_metadata_blocks(struct decoder *iface,
 #else
     result.options = byte_swapped ? WICPersistOptionBigEndian : WICPersistOptionLittleEndian;
 #endif
-    result.options |= WICPersistOptionNoCacheStream|DECODER_BLOCK_FULL_STREAM|DECODER_BLOCK_READER_CLSID;
-    result.reader_clsid = CLSID_WICIfdMetadataReader;
+    result.options |= WICPersistOptionNoCacheStream|DECODER_BLOCK_FULL_STREAM|DECODER_BLOCK_FORMAT_GUID;
+    result.format_guid = GUID_MetadataFormatIfd;
 
     *blocks = RtlAllocateHeap(GetProcessHeap(), 0, sizeof(**blocks));
     **blocks = result;
