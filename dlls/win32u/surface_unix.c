@@ -73,6 +73,13 @@ struct unix_surface *CDECL cairo_surface_create_foreign( HWND hwnd )
     return cairo_surface_create( hwnd );
 }
 
+struct unix_surface *CDECL cairo_surface_create_client( HWND hwnd, LPARAM *id )
+{
+    TRACE( "hwnd %p.\n", hwnd );
+
+    return cairo_surface_create( hwnd );
+}
+
 struct unix_surface *CDECL cairo_surface_create_drawable( struct unix_surface *target, BITMAP *bitmap )
 {
     struct unix_surface *surface;

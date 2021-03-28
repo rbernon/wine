@@ -1466,6 +1466,10 @@ static Window get_dummy_parent(void)
 }
 
 
+#ifdef WIN32U_SOURCE
+extern void win32u_create_client_surface( HWND hwnd, LPARAM *id ) DECLSPEC_HIDDEN;
+#endif
+
 /**********************************************************************
  *		create_dummy_client_window
  */
@@ -1494,6 +1498,9 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual )
     XSetWindowAttributes attr;
     Window ret;
     int x, y, cx, cy;
+#ifdef WIN32U_SOURCE
+    LPARAM surface_id;
+#endif
 
     if (!data)
     {
@@ -1533,6 +1540,11 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual )
                                                x, y, cx, cy, 0, default_visual.depth, InputOutput,
                                                visual->visual, CWBitGravity | CWWinGravity |
                                                CWBackingStore | CWColormap | CWBorderPixel, &attr );
+#ifdef WIN32U_SOURCE
+    surface_id = ret;
+    win32u_create_client_surface( hwnd, &surface_id );
+#endif
+
     if (data->client_window)
     {
         XSaveContext( data->display, data->client_window, winContext, (char *)data->hwnd );

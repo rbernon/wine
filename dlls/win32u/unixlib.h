@@ -31,6 +31,7 @@ struct unix_funcs
     struct unix_surface *(CDECL *surface_create_toplevel)( HWND );
     struct unix_surface *(CDECL *surface_create_foreign)( HWND );
     struct unix_surface *(CDECL *surface_create_drawable)( struct unix_surface *, BITMAP * );
+    struct unix_surface *(CDECL *surface_create_client)( HWND, LPARAM *id );
     void (CDECL *surface_create_notify)( struct unix_surface *, LPARAM param );
     void (CDECL *surface_delete)( struct unix_surface * );
     void (CDECL *surface_present)( struct unix_surface *, struct unix_surface *, const POINT *, const RECT *, UINT, const RECT * );

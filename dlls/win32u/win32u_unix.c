@@ -212,6 +212,7 @@ static struct unix_funcs unix_funcs = {
     cairo_surface_create_toplevel,
     cairo_surface_create_foreign,
     cairo_surface_create_drawable,
+    cairo_surface_create_client,
     cairo_surface_create_notify,
     cairo_surface_delete,
     cairo_surface_present,

@@ -42,6 +42,9 @@ struct hwnd_surfaces
     BOOL resize_notify;
     BOOL reparent_notify;
     struct unix_surface *toplevel;
+    struct unix_surface *clients[32];
+    LPARAM client_ids[32];
+    LONG client_count;
 };
 
 static CRITICAL_SECTION surfaces_cs;
@@ -69,6 +72,7 @@ static struct hwnd_surfaces *hwnd_surfaces_create( HWND hwnd )
     surfaces->resize_notify = FALSE;
     surfaces->reparent_notify = FALSE;
     surfaces->toplevel = NULL;
+    surfaces->client_count = 0;
 
     TRACE( "created surfaces %p for hwnd %p.\n", surfaces, hwnd );
 
@@ -79,6 +83,7 @@ static void hwnd_surfaces_delete( struct hwnd_surfaces *surfaces )
 {
     TRACE( "surfaces %p.\n", surfaces );
 
+    while (surfaces->client_count--) unix_funcs->surface_delete( surfaces->clients[surfaces->client_count] );
     if (surfaces->toplevel) unix_funcs->surface_delete( surfaces->toplevel );
 
     free(surfaces);
@@ -163,6 +168,42 @@ void win32u_create_toplevel_surface_notify( HWND hwnd, LPARAM param )
     if (surfaces && surfaces->toplevel) SetWindowPos( hwnd, 0, 0, 0, 0, 0, flags );
 }
 
+void win32u_create_client_surface( HWND hwnd, LPARAM *id )
+{
+    struct hwnd_surfaces *surfaces;
+
+    TRACE( "hwnd %p.\n", hwnd );
+
+    EnterCriticalSection( &surfaces_cs );
+    if ((surfaces = create_surfaces_for_hwnd( hwnd )))
+    {
+        if (surfaces->client_count >= ARRAY_SIZE(surfaces->clients)) ERR( "too many client surfaces for hwnd %p\n", hwnd );
+        else
+        {
+            surfaces->clients[surfaces->client_count] = unix_funcs->surface_create_client( hwnd, id );
+            surfaces->client_ids[surfaces->client_count] = *id;
+            surfaces->client_count++;
+        }
+    }
+    LeaveCriticalSection( &surfaces_cs );
+}
+
+void win32u_create_client_surface_notify( HWND hwnd, LPARAM param )
+{
+    struct hwnd_surfaces *surfaces;
+    ULONG i;
+
+    TRACE( "hwnd %p.\n", hwnd );
+
+    EnterCriticalSection( &surfaces_cs );
+    if ((surfaces = find_surfaces_for_hwnd( hwnd )))
+    {
+        for (i = 0; i < surfaces->client_count; ++i) if (surfaces->client_ids[i] == param) break;
+        if (i < surfaces->client_count) unix_funcs->surface_create_notify( surfaces->clients[i], param );
+    }
+    LeaveCriticalSection( &surfaces_cs );
+}
+
 void win32u_delete_toplevel_surface( HWND hwnd )
 {
     struct hwnd_surfaces *surfaces;
@@ -174,6 +215,28 @@ void win32u_delete_toplevel_surface( HWND hwnd )
     {
         unix_funcs->surface_delete( surfaces->toplevel );
         surfaces->toplevel = NULL;
+    }
+    LeaveCriticalSection( &surfaces_cs );
+}
+
+void win32u_delete_client_surface( HWND hwnd, LPARAM param )
+{
+    struct hwnd_surfaces *surfaces;
+    ULONG i;
+
+    TRACE( "hwnd %p.\n", hwnd );
+
+    EnterCriticalSection( &surfaces_cs );
+    if ((surfaces = find_surfaces_for_hwnd( hwnd )) && surfaces->client_count)
+    {
+        for (i = 0; i < surfaces->client_count; ++i) if (surfaces->client_ids[i] == param) break;
+        if (i < surfaces->client_count)
+        {
+            unix_funcs->surface_delete( surfaces->clients[i] );
+            surfaces->client_count--;
+            memmove( surfaces->clients + i, surfaces->clients + i + 1, (surfaces->client_count - i) * sizeof(*surfaces->clients) );
+            memmove( surfaces->client_ids + i, surfaces->client_ids + i + 1, (surfaces->client_count - i) * sizeof(*surfaces->client_ids) );
+        }
     }
     LeaveCriticalSection( &surfaces_cs );
 }
@@ -197,14 +260,18 @@ void win32u_resize_hwnd_surfaces( HWND hwnd )
 {
     struct hwnd_surfaces *surfaces;
     RECT client_rect;
+    ULONG i;
 
     TRACE( "hwnd %p.\n", hwnd );
 
     GetWindowRect( hwnd, &client_rect );
 
     EnterCriticalSection( &surfaces_cs );
-    if ((surfaces = find_surfaces_for_hwnd( hwnd )) && surfaces->toplevel)
-        unix_funcs->surface_resize_notify( surfaces->toplevel, &client_rect );
+    if ((surfaces = find_surfaces_for_hwnd( hwnd )))
+    {
+        if (surfaces->toplevel) unix_funcs->surface_resize_notify( surfaces->toplevel, &client_rect );
+        for (i = 0; i < surfaces->client_count; ++i) unix_funcs->surface_resize_notify( surfaces->clients[i], &client_rect );
+    }
     LeaveCriticalSection( &surfaces_cs );
 }
 
