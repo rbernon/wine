@@ -7684,12 +7684,10 @@ static void test_device_context_state(void)
 
     tmp_cb = (ID3D11Buffer *)0xdeadbeef;
     ID3D11DeviceContext1_VSGetConstantBuffers(context, 0, 1, &tmp_cb);
-    todo_wine ok(!tmp_cb, "Got unexpected buffer %p.\n", tmp_cb);
-    if (tmp_cb && tmp_cb != (ID3D11Buffer *)0xdeadbeef) ID3D11Buffer_Release(tmp_cb);
+    ok(!tmp_cb, "Got unexpected buffer %p.\n", tmp_cb);
     tmp_sampler = (ID3D11SamplerState *)0xdeadbeef;
     ID3D11DeviceContext1_VSGetSamplers(context, 0, 1, &tmp_sampler);
-    todo_wine ok(!tmp_sampler, "Got unexpected sampler %p.\n", tmp_sampler);
-    if (tmp_sampler && tmp_sampler != (ID3D11SamplerState *)0xdeadbeef) ID3D11SamplerState_Release(tmp_sampler);
+    ok(!tmp_sampler, "Got unexpected sampler %p.\n", tmp_sampler);
     tmp_vs = (ID3D11VertexShader *)0xdeadbeef;
     ID3D11DeviceContext1_VSGetShader(context, &tmp_vs, NULL, NULL);
     todo_wine ok(!tmp_vs, "Got unexpected shader %p.\n", tmp_vs);
@@ -7706,12 +7704,10 @@ static void test_device_context_state(void)
 
     tmp_cb = (ID3D11Buffer *)0xdeadbeef;
     ID3D11DeviceContext1_GSGetConstantBuffers(context, 0, 1, &tmp_cb);
-    todo_wine ok(!tmp_cb, "Got unexpected buffer %p.\n", tmp_cb);
-    if (tmp_cb && tmp_cb != (ID3D11Buffer *)0xdeadbeef) ID3D11Buffer_Release(tmp_cb);
+    ok(!tmp_cb, "Got unexpected buffer %p.\n", tmp_cb);
     tmp_sampler = (ID3D11SamplerState *)0xdeadbeef;
     ID3D11DeviceContext1_GSGetSamplers(context, 0, 1, &tmp_sampler);
-    todo_wine ok(!tmp_sampler, "Got unexpected sampler %p.\n", tmp_sampler);
-    if (tmp_sampler && tmp_sampler != (ID3D11SamplerState *)0xdeadbeef) ID3D11SamplerState_Release(tmp_sampler);
+    ok(!tmp_sampler, "Got unexpected sampler %p.\n", tmp_sampler);
     tmp_gs = (ID3D11GeometryShader *)0xdeadbeef;
     ID3D11DeviceContext1_GSGetShader(context, &tmp_gs, NULL, NULL);
     todo_wine ok(!tmp_gs, "Got unexpected shader %p.\n", tmp_gs);
@@ -7728,12 +7724,10 @@ static void test_device_context_state(void)
 
     tmp_cb = (ID3D11Buffer *)0xdeadbeef;
     ID3D11DeviceContext1_PSGetConstantBuffers(context, 0, 1, &tmp_cb);
-    todo_wine ok(!tmp_cb, "Got unexpected buffer %p.\n", tmp_cb);
-    if (tmp_cb && tmp_cb != (ID3D11Buffer *)0xdeadbeef) ID3D11Buffer_Release(tmp_cb);
+    ok(!tmp_cb, "Got unexpected buffer %p.\n", tmp_cb);
     tmp_sampler = (ID3D11SamplerState *)0xdeadbeef;
     ID3D11DeviceContext1_PSGetSamplers(context, 0, 1, &tmp_sampler);
-    todo_wine ok(tmp_sampler == (ID3D11SamplerState *)0xdeadbeef, "Got unexpected sampler %p.\n", tmp_sampler);
-    if (tmp_sampler && tmp_sampler != (ID3D11SamplerState *)0xdeadbeef) ID3D11SamplerState_Release(tmp_sampler);
+    ok(tmp_sampler == (ID3D11SamplerState *)0xdeadbeef, "Got unexpected sampler %p.\n", tmp_sampler);
     tmp_ps = (ID3D11PixelShader *)0xdeadbeef;
     ID3D11DeviceContext1_PSGetShader(context, &tmp_ps, NULL, NULL);
     todo_wine ok(!tmp_ps, "Got unexpected shader %p.\n", tmp_ps);
@@ -7750,12 +7744,10 @@ static void test_device_context_state(void)
 
     tmp_cb = (ID3D11Buffer *)0xdeadbeef;
     ID3D11DeviceContext1_HSGetConstantBuffers(context, 0, 1, &tmp_cb);
-    todo_wine ok(!tmp_cb, "Got unexpected buffer %p.\n", tmp_cb);
-    if (tmp_cb && tmp_cb != (ID3D11Buffer *)0xdeadbeef) ID3D11Buffer_Release(tmp_cb);
+    ok(!tmp_cb, "Got unexpected buffer %p.\n", tmp_cb);
     tmp_sampler = (ID3D11SamplerState *)0xdeadbeef;
     ID3D11DeviceContext1_HSGetSamplers(context, 0, 1, &tmp_sampler);
-    todo_wine ok(!tmp_sampler, "Got unexpected sampler %p.\n", tmp_sampler);
-    if (tmp_sampler && tmp_sampler != (ID3D11SamplerState *)0xdeadbeef) ID3D11SamplerState_Release(tmp_sampler);
+    ok(!tmp_sampler, "Got unexpected sampler %p.\n", tmp_sampler);
     tmp_hs = (ID3D11HullShader *)0xdeadbeef;
     ID3D11DeviceContext1_HSGetShader(context, &tmp_hs, NULL, NULL);
     if (hs) todo_wine ok(!tmp_hs, "Got unexpected shader %p.\n", tmp_hs);
@@ -7772,12 +7764,10 @@ static void test_device_context_state(void)
 
     tmp_cb = (ID3D11Buffer *)0xdeadbeef;
     ID3D11DeviceContext1_DSGetConstantBuffers(context, 0, 1, &tmp_cb);
-    todo_wine ok(!tmp_cb, "Got unexpected buffer %p.\n", tmp_cb);
-    if (tmp_cb && tmp_cb != (ID3D11Buffer *)0xdeadbeef) ID3D11Buffer_Release(tmp_cb);
+    ok(!tmp_cb, "Got unexpected buffer %p.\n", tmp_cb);
     tmp_sampler = (ID3D11SamplerState *)0xdeadbeef;
     ID3D11DeviceContext1_DSGetSamplers(context, 0, 1, &tmp_sampler);
-    todo_wine ok(!tmp_sampler, "Got unexpected sampler %p.\n", tmp_sampler);
-    if (tmp_sampler && tmp_sampler != (ID3D11SamplerState *)0xdeadbeef) ID3D11SamplerState_Release(tmp_sampler);
+    ok(!tmp_sampler, "Got unexpected sampler %p.\n", tmp_sampler);
     tmp_ds = (ID3D11DomainShader *)0xdeadbeef;
     ID3D11DeviceContext1_DSGetShader(context, &tmp_ds, NULL, NULL);
     if (ds) todo_wine ok(!tmp_ds, "Got unexpected shader %p.\n", tmp_ds);
@@ -7795,12 +7785,10 @@ static void test_device_context_state(void)
 
     tmp_cb = (ID3D11Buffer *)0xdeadbeef;
     ID3D11DeviceContext1_CSGetConstantBuffers(context, 0, 1, &tmp_cb);
-    todo_wine ok(!tmp_cb, "Got unexpected buffer %p.\n", tmp_cb);
-    if (tmp_cb && tmp_cb != (ID3D11Buffer *)0xdeadbeef) ID3D11Buffer_Release(tmp_cb);
+    ok(!tmp_cb, "Got unexpected buffer %p.\n", tmp_cb);
     tmp_sampler = (ID3D11SamplerState *)0xdeadbeef;
     ID3D11DeviceContext1_CSGetSamplers(context, 0, 1, &tmp_sampler);
-    todo_wine ok(!tmp_sampler, "Got unexpected sampler %p.\n", tmp_sampler);
-    if (tmp_sampler && tmp_sampler != (ID3D11SamplerState *)0xdeadbeef) ID3D11SamplerState_Release(tmp_sampler);
+    ok(!tmp_sampler, "Got unexpected sampler %p.\n", tmp_sampler);
     tmp_cs = (ID3D11ComputeShader *)0xdeadbeef;
     ID3D11DeviceContext1_CSGetShader(context, &tmp_cs, NULL, NULL);
     if (cs) todo_wine ok(!tmp_cs, "Got unexpected shader %p.\n", tmp_cs);
