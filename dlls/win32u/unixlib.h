@@ -22,13 +22,16 @@
 #define __WIN32U_UNIXLIB_H
 
 #include "winternl.h"
+#include "wingdi.h"
 
 struct unix_surface;
 
 struct unix_funcs
 {
     struct unix_surface *(CDECL *surface_create_foreign)( HWND, LPARAM );
+    struct unix_surface *(CDECL *surface_create_drawable)( struct unix_surface *, BITMAP * );
     void (CDECL *surface_delete)( struct unix_surface * );
+    void (CDECL *surface_present)( struct unix_surface *, struct unix_surface *, const POINT *, const RECT *, UINT, const RECT * );
 };
 
 extern NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in,

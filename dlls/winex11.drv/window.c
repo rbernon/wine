@@ -1562,6 +1562,10 @@ static void create_whole_window( struct x11drv_win_data *data )
     HRGN win_rgn;
     POINT pos;
 
+#ifdef WIN32U_SOURCE
+    return;
+#endif
+
     if (!data->managed && is_window_managed( data->hwnd, SWP_NOACTIVATE, &data->window_rect ))
     {
         TRACE( "making win %p/%lx managed\n", data->hwnd, data->whole_window );

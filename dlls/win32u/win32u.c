@@ -42,13 +42,18 @@ void CDECL win32u_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
                                      const RECT *window_rect, const RECT *client_rect,
                                      RECT *visible_rect, struct window_surface **surface )
 {
+    struct window_surface *x11drv_surface = NULL;
     TRACE( "hwnd %p, insert_after %p, swp_flags %x, window_rect %s, client_rect %s, "
            "visible_rect %p, surface %p.\n", hwnd, insert_after, swp_flags,
            wine_dbgstr_rect( window_rect ), wine_dbgstr_rect( client_rect ),
            visible_rect, surface );
 
     X11DRV_WindowPosChanging( hwnd, insert_after, swp_flags, window_rect, client_rect,
-                              visible_rect, surface );
+                              visible_rect, &x11drv_surface );
+    if (x11drv_surface) window_surface_release( x11drv_surface );
+
+    *visible_rect = *window_rect;
+    win32u_update_window_surface( GetDesktopWindow(), hwnd, visible_rect, surface );
 }
 
 void CDECL X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
@@ -67,7 +72,7 @@ void CDECL win32u_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags
            wine_dbgstr_rect( visible_rect ), wine_dbgstr_rect( valid_rects ), surface );
 
     X11DRV_WindowPosChanged( hwnd, insert_after, swp_flags, window_rect, client_rect,
-                             visible_rect, valid_rects, surface );
+                             visible_rect, valid_rects, NULL );
 }
 
 void CDECL X11DRV_SetParent( HWND hwnd, HWND parent, HWND old_parent );
