@@ -1346,7 +1346,9 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct wgl_pixel
         if (gl->window)
         {
             gl->drawable = pglXCreateWindow( gdi_display, gl->format->fbconfig, gl->window, NULL );
+#ifndef WIN32U_SOURCE
             pXCompositeRedirectWindow( gdi_display, gl->window, CompositeRedirectManual );
+#endif
         }
         TRACE( "%p created child %lx drawable %lx\n", hwnd, gl->window, gl->drawable );
     }

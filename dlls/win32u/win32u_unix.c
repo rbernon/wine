@@ -125,6 +125,75 @@ static BOOL init_cairo(void)
 
 #endif /* defined(SONAME_LIBCAIRO) */
 
+#ifdef SONAME_LIBXCB_COMPOSITE
+
+#define MAKE_FUNCPTR(f) typeof(f) *p_##f;
+MAKE_FUNCPTR(xcb_composite_query_version)
+MAKE_FUNCPTR(xcb_composite_query_version_reply)
+MAKE_FUNCPTR(xcb_composite_redirect_window_checked)
+MAKE_FUNCPTR(xcb_composite_unredirect_window_checked)
+#undef MAKE_FUNCPTR
+BOOL has_xcb_composite = FALSE;
+
+static BOOL init_xcb_composite(void)
+{
+    xcb_composite_query_version_reply_t *xcb_composite_version;
+    xcb_query_extension_reply_t *xcb_composite;
+    void *libxcb_composite;
+
+    if (!(libxcb_composite = dlopen(SONAME_LIBXCB_COMPOSITE, RTLD_NOW)))
+    {
+        ERR("dlopen(%s, RTLD_NOW) failed!\n", SONAME_LIBXCB_COMPOSITE);
+        return FALSE;
+    }
+
+#define LOAD_FUNCPTR(f) \
+    if ((p_##f = dlsym(libxcb_composite, #f)) == NULL) \
+    { \
+        ERR("dlsym(%s, %s) failed!\n", SONAME_LIBXCB_COMPOSITE, #f); \
+        goto error; \
+    }
+
+    LOAD_FUNCPTR(xcb_composite_query_version)
+    LOAD_FUNCPTR(xcb_composite_query_version_reply)
+    LOAD_FUNCPTR(xcb_composite_redirect_window_checked)
+    LOAD_FUNCPTR(xcb_composite_unredirect_window_checked)
+#undef LOAD_FUNCPTR
+
+    if ((xcb_composite = p_xcb_query_extension_reply(xcb, p_xcb_query_extension(xcb, strlen("Composite"), "Composite"), NULL)))
+    {
+        has_xcb_composite = xcb_composite->present;
+        free(xcb_composite);
+    }
+    if (has_xcb_composite && (xcb_composite_version = p_xcb_composite_query_version_reply(xcb, p_xcb_composite_query_version(xcb, 0, 4), NULL)))
+    {
+        TRACE("found Composite extension version %d.%d\n", xcb_composite_version->major_version, xcb_composite_version->minor_version);
+        free(xcb_composite_version);
+    }
+    if (!has_xcb_composite)
+    {
+        ERR("Composite extension not available\n");
+        goto error;
+    }
+
+    return TRUE;
+
+error:
+    has_xcb_composite = FALSE;
+    dlclose(libxcb_composite);
+    return FALSE;
+}
+
+#else
+
+static BOOL init_xcb_composite(void)
+{
+    ERR("Composite support not compiled in!\n");
+    return FALSE;
+}
+
+#endif
+
 #ifdef SONAME_LIBXCB
 
 #ifdef HAVE_XCB_XCB_H
@@ -146,6 +215,8 @@ MAKE_FUNCPTR(xcb_screen_allowed_depths_iterator)
 MAKE_FUNCPTR(xcb_screen_next)
 MAKE_FUNCPTR(xcb_setup_roots_iterator)
 MAKE_FUNCPTR(xcb_visualtype_next)
+MAKE_FUNCPTR(xcb_query_extension)
+MAKE_FUNCPTR(xcb_query_extension_reply)
 #undef MAKE_FUNCPTR
 xcb_connection_t *xcb = NULL;
 #endif
@@ -186,6 +257,8 @@ static BOOL init_xcb(void)
     LOAD_FUNCPTR(xcb_screen_next)
     LOAD_FUNCPTR(xcb_setup_roots_iterator)
     LOAD_FUNCPTR(xcb_visualtype_next)
+    LOAD_FUNCPTR(xcb_query_extension)
+    LOAD_FUNCPTR(xcb_query_extension_reply)
 #endif
 #undef LOAD_FUNCPTR
 
@@ -195,6 +268,8 @@ static BOOL init_xcb(void)
         ERR("failed to connect to X server using XCB!\n");
         goto error;
     }
+
+    if (!init_xcb_composite()) goto error;
 
     return TRUE;
 
@@ -224,6 +299,7 @@ static struct unix_funcs unix_funcs = {
     cairo_surface_present,
     cairo_surface_resize,
     cairo_surface_resize_notify,
+    cairo_surface_set_offscreen,
 };
 
 NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out )

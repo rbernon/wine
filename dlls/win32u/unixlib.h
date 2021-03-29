@@ -37,6 +37,7 @@ struct unix_funcs
     void (CDECL *surface_present)( struct unix_surface *, struct unix_surface *, const POINT *, const RECT *, UINT, const RECT * );
     void (CDECL *surface_resize)( struct unix_surface *, struct unix_surface *, const RECT * );
     void (CDECL *surface_resize_notify)( struct unix_surface *, struct unix_surface *, const RECT * );
+    void (CDECL *surface_set_offscreen)( struct unix_surface *, BOOL );
 };
 
 extern NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in,

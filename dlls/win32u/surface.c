@@ -39,6 +39,7 @@ struct hwnd_surfaces
     struct wine_rb_entry entry;
     LONG ref;
     HWND hwnd;
+    BOOL offscreen;
     BOOL resize_notify;
     BOOL reparent_notify;
     struct unix_surface *toplevel;
@@ -70,6 +71,7 @@ static struct hwnd_surfaces *hwnd_surfaces_create( HWND hwnd )
     if (!(surfaces = malloc(sizeof(*surfaces)))) return NULL;
     surfaces->ref = 1;
     surfaces->hwnd = hwnd;
+    surfaces->offscreen = FALSE;
     surfaces->resize_notify = FALSE;
     surfaces->reparent_notify = FALSE;
     surfaces->toplevel = NULL;
@@ -358,6 +360,7 @@ void win32u_present_client_surface( HWND hwnd, HRGN region, LPARAM param )
     POINT target_pos;
     DWORD i, size, clip_rect_count = 0;
     RECT source_rect, *clip_rects = NULL;
+    BOOL offscreen;
 
     TRACE( "hwnd %p, region %p.\n", hwnd, region );
 
@@ -367,18 +370,32 @@ void win32u_present_client_surface( HWND hwnd, HRGN region, LPARAM param )
     {
         clip_rect_count = 1;
         clip_rects = &source_rect;
+        offscreen = FALSE;
     }
     else if ((size = GetRegionData( region, 0, NULL )) && (data = malloc( size )))
     {
         GetRegionData( region, size, data );
         clip_rect_count = data->rdh.nCount;
         clip_rects = (RECT *)data->Buffer;
+        if (!data->rdh.nCount) offscreen = TRUE;
+        if (!EqualRect( &source_rect, (RECT *)data->Buffer )) offscreen = TRUE;
+        else offscreen = FALSE;
     }
+    else offscreen = TRUE;
 
     EnterCriticalSection( &surfaces_cs );
     if ((surfaces = find_surfaces_for_hwnd( hwnd )))
     {
-        if (clip_rect_count && surfaces->root && surfaces->root->toplevel)
+        if (surfaces->client_count > 1) offscreen = TRUE;
+        if (surfaces->offscreen != offscreen)
+        {
+            if (offscreen) WARN( "putting %p client surfaces offscreen, expect degraded performance\n", hwnd );
+            else WARN( "putting %p client surfaces onscreen, expect normal performance\n", hwnd );
+
+            surfaces->offscreen = offscreen;
+            for (i = 0; i < surfaces->client_count; ++i) unix_funcs->surface_set_offscreen( surfaces->clients[i], offscreen );
+        }
+        if (offscreen && clip_rect_count && surfaces->root && surfaces->root->toplevel)
         {
             target_pos = *(POINT *)&source_rect;
             MapWindowPoints( hwnd, surfaces->root->hwnd, &target_pos, 1 );
