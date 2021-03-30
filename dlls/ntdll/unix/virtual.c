@@ -3100,11 +3100,15 @@ void virtual_map_user_shared_data(void)
 static NTSTATUS grow_thread_stack( char *page )
 {
     NTSTATUS ret = 0;
-    size_t guaranteed = max( NtCurrentTeb()->GuaranteedStackBytes, page_size * (is_win64 ? 2 : 1) );
+    size_t commit, guaranteed = max( NtCurrentTeb()->GuaranteedStackBytes, page_size * (is_win64 ? 2 : 1) );
     int prot = VPROT_READ | VPROT_WRITE | VPROT_COMMITTED;
+    char *stack_limit = NtCurrentTeb()->Tib.StackLimit;
 
-    set_page_vprot_bits( page, page_size, prot, VPROT_GUARD );
-    mprotect_range( page, page_size, 0, 0 );
+    if (page < stack_limit) commit = stack_limit - page;
+    else commit = page_size;
+
+    set_page_vprot_bits( page, commit, prot, VPROT_GUARD );
+    mprotect_range( page, commit, 0, 0 );
     if (page >= (char *)NtCurrentTeb()->DeallocationStack + page_size + guaranteed)
     {
         set_page_vprot_bits( page - page_size, page_size, prot | VPROT_GUARD, 0 );
