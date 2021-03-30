@@ -507,8 +507,8 @@ __ASM_GLOBAL_FUNC( signal_start_thread,
                    "leal -12(%esi),%ecx\n\t"
                    /* clear the thread stack */
                    "andl $~0xfff,%ecx\n\t"   /* round down to page size */
-                   "movl %ecx,%edi\n\t"
-                   "subl $0x2000,%edi\n\t"
+                   "movl %fs:8,%edi\n\t"     /* NtCurrentTeb()->Tib.StackLimit */
+                   "movl %edi,%esp\n\t"
                    "subl %edi,%ecx\n\t"
                    "xorl %eax,%eax\n\t"
                    "shrl $2,%ecx\n\t"
