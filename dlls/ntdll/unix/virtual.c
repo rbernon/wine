@@ -1695,6 +1695,13 @@ static NTSTATUS set_protection( struct file_view *view, void *base, SIZE_T size,
     }
 
     if (!set_vprot( view, base, size, vprot | VPROT_COMMITTED )) return STATUS_ACCESS_DENIED;
+    if ((vprot & VPROT_GUARD) && base <= NtCurrentTeb()->Tib.StackBase)
+    {
+        if ((char *)base + size >= (char *)NtCurrentTeb()->Tib.StackBase)
+            NtCurrentTeb()->Tib.StackLimit = NtCurrentTeb()->Tib.StackBase;
+        else if ((char *)base + size >= (char *)NtCurrentTeb()->Tib.StackLimit)
+            NtCurrentTeb()->Tib.StackLimit = (char *)base + size;
+    }
     return STATUS_SUCCESS;
 }
 

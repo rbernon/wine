@@ -78,13 +78,13 @@ NTSTATUS WINAPI RtlCreateUserStack( SIZE_T commit, SIZE_T reserve, ULONG zero_bi
 
         NtAllocateVirtualMemory( GetCurrentProcess(), &addr, 0, &size, MEM_COMMIT, PAGE_NOACCESS );
         addr = (char *)alloc.StackBase + page_size;
-        if (reserve >= page_size + stack_guard_size + commit)
+        if (reserve >= 2 * page_size + commit)
         {
-            size = reserve - page_size - commit - stack_guard_size;
+            size = reserve - 2 * page_size - commit;
             NtAllocateVirtualMemory( GetCurrentProcess(), &addr, 0, &size, MEM_RESERVE, PAGE_GUARD );
             addr = (char *)addr + size;
         }
-        size = stack_guard_size;
+        size = page_size;
         NtAllocateVirtualMemory( GetCurrentProcess(), &addr, 0, &size, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD );
         addr = (char *)addr + size;
         size = commit;

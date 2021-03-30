@@ -245,7 +245,7 @@ struct test_stack_size_thread_args
 
 static void force_stack_grow(void)
 {
-    volatile int buffer[0x2000];
+    volatile int buffer[0x4000];
     buffer[0] = 0xdeadbeef;
     (void)buffer[0];
 }
