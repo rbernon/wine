@@ -78,9 +78,16 @@ NTSTATUS WINAPI RtlCreateUserStack( SIZE_T commit, SIZE_T reserve, ULONG zero_bi
 
         NtAllocateVirtualMemory( GetCurrentProcess(), &addr, 0, &size, MEM_COMMIT, PAGE_NOACCESS );
         addr = (char *)alloc.StackBase + page_size;
+        if (reserve >= page_size + stack_guard_size + commit)
+        {
+            size = reserve - page_size - commit - stack_guard_size;
+            NtAllocateVirtualMemory( GetCurrentProcess(), &addr, 0, &size, MEM_RESERVE, PAGE_GUARD );
+            addr = (char *)addr + size;
+        }
+        size = stack_guard_size;
         NtAllocateVirtualMemory( GetCurrentProcess(), &addr, 0, &size, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD );
-        addr = (char *)alloc.StackBase + 2 * page_size;
-        size = reserve - 2 * page_size;
+        addr = (char *)addr + size;
+        size = commit;
         NtAllocateVirtualMemory( GetCurrentProcess(), &addr, 0, &size, MEM_COMMIT, PAGE_READWRITE );
 
         /* note: limit is lower than base since the stack grows down */
@@ -88,7 +95,7 @@ NTSTATUS WINAPI RtlCreateUserStack( SIZE_T commit, SIZE_T reserve, ULONG zero_bi
         stack->OldStackLimit = 0;
         stack->DeallocationStack = alloc.StackBase;
         stack->StackBase = (char *)alloc.StackBase + reserve;
-        stack->StackLimit = (char *)alloc.StackBase + 2 * page_size;
+        stack->StackLimit = (char *)addr - size;
     }
     return status;
 }

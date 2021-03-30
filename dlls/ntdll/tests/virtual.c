@@ -540,7 +540,7 @@ static void test_RtlCreateUserStack(void)
                 "%u: got unaligned memory %p\n", i, stack.DeallocationStack);
         ok((ULONG_PTR)stack.StackBase - (ULONG_PTR)stack.DeallocationStack == tests[i].expect_reserve,
                 "%u: got reserve %#lx\n", i, (ULONG_PTR)stack.StackBase - (ULONG_PTR)stack.DeallocationStack);
-        todo_wine ok((ULONG_PTR)stack.StackBase - (ULONG_PTR)stack.StackLimit == tests[i].expect_commit,
+        ok((ULONG_PTR)stack.StackBase - (ULONG_PTR)stack.StackLimit == tests[i].expect_commit,
                 "%u: got commit %#lx\n", i, (ULONG_PTR)stack.StackBase - (ULONG_PTR)stack.StackLimit);
         pRtlFreeUserStack(stack.DeallocationStack);
     }
