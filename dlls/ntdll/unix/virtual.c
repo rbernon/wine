@@ -3013,6 +3013,7 @@ NTSTATUS virtual_alloc_thread_stack( INITIAL_TEB *stack, SIZE_T reserve_size, SI
         if (!commit_size) commit_size = nt->OptionalHeader.SizeOfStackCommit;
     }
 
+    if (commit_size < 2 * page_size) commit_size = 2 * page_size;
     size = max( reserve_size, commit_size );
     if (size < 1024 * 1024) size = 1024 * 1024;  /* Xlib needs a large stack */
     size = (size + 0xffff) & ~0xffff;  /* round to 64K boundary */

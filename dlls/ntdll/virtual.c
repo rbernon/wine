@@ -62,6 +62,7 @@ NTSTATUS WINAPI RtlCreateUserStack( SIZE_T commit, SIZE_T reserve, ULONG zero_bi
     reserve = (reserve + reserve_align - 1) & ~(reserve_align - 1);
     commit = (commit + commit_align - 1) & ~(commit_align - 1);
 
+    if (commit < 2 * page_size) commit = 2 * page_size;
     if (reserve < commit) reserve = commit;
     if (reserve < 0x100000) reserve = 0x100000;
     reserve = (reserve + 0xffff) & ~0xffff;  /* round to 64K boundary */
