@@ -283,8 +283,8 @@ static DWORD WINAPI test_stack_size_thread(void *ptr)
     ok( mbi.AllocationBase == NtCurrentTeb()->DeallocationStack, "unexpected AllocationBase %p, expected %p\n", mbi.AllocationBase, NtCurrentTeb()->DeallocationStack );
     ok( mbi.AllocationProtect == PAGE_READWRITE, "unexpected AllocationProtect %#x, expected %#x\n", mbi.AllocationProtect, PAGE_READWRITE );
     ok( mbi.BaseAddress == addr, "unexpected BaseAddress %p, expected %p\n", mbi.BaseAddress, addr );
-    todo_wine ok( mbi.State == MEM_RESERVE, "unexpected State %#x, expected %#x\n", mbi.State, MEM_RESERVE );
-    todo_wine ok( mbi.Protect == 0, "unexpected Protect %#x, expected %#x\n", mbi.Protect, 0 );
+    ok( mbi.State == MEM_RESERVE, "unexpected State %#x, expected %#x\n", mbi.State, MEM_RESERVE );
+    ok( mbi.Protect == 0, "unexpected Protect %#x, expected %#x\n", mbi.Protect, 0 );
     ok( mbi.Type == MEM_PRIVATE, "unexpected Type %#x, expected %#x\n", mbi.Type, MEM_PRIVATE );
 
 
@@ -304,8 +304,8 @@ static DWORD WINAPI test_stack_size_thread(void *ptr)
     ok( mbi.AllocationBase == NtCurrentTeb()->DeallocationStack, "unexpected AllocationBase %p, expected %p\n", mbi.AllocationBase, NtCurrentTeb()->DeallocationStack );
     ok( mbi.AllocationProtect == PAGE_READWRITE, "unexpected AllocationProtect %#x, expected %#x\n", mbi.AllocationProtect, PAGE_READWRITE );
     ok( mbi.BaseAddress == addr, "unexpected BaseAddress %p, expected %p\n", mbi.BaseAddress, addr );
-    todo_wine ok( mbi.State == MEM_RESERVE, "unexpected State %#x, expected %#x\n", mbi.State, MEM_RESERVE );
-    todo_wine ok( mbi.Protect == 0, "unexpected Protect %#x, expected %#x\n", mbi.Protect, 0 );
+    ok( mbi.State == MEM_RESERVE, "unexpected State %#x, expected %#x\n", mbi.State, MEM_RESERVE );
+    ok( mbi.Protect == 0, "unexpected Protect %#x, expected %#x\n", mbi.Protect, 0 );
     ok( mbi.Type == MEM_PRIVATE, "unexpected Type %#x, expected %#x\n", mbi.Type, MEM_PRIVATE );
 
     guard_size = reserved - committed - mbi.RegionSize;
