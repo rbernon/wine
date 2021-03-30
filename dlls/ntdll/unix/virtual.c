@@ -3005,6 +3005,7 @@ NTSTATUS virtual_alloc_thread_stack( INITIAL_TEB *stack, SIZE_T reserve_size, SI
     NTSTATUS status;
     sigset_t sigset;
     SIZE_T size, extra_size = 0;
+    char *stack_limit;
 
     if (!reserve_size || !commit_size)
     {
@@ -3030,10 +3031,14 @@ NTSTATUS virtual_alloc_thread_stack( INITIAL_TEB *stack, SIZE_T reserve_size, SI
 #endif
 
     /* setup no access guard page */
+    stack_limit = ROUND_ADDR((char *)view->base + view->size - extra_size - commit_size, page_mask);
+    if (stack_limit <= (char *)view->base + 2 * page_size || stack_limit >= (char *)view->base + view->size - extra_size)
+        stack_limit = (char *)view->base + 2 * page_size;
     set_page_vprot( view->base, page_size, 0 );
-    set_page_vprot( (char *)view->base + page_size, page_size,
+    set_page_vprot( (char *)view->base + page_size, stack_limit - page_size - (char *)view->base - page_size, VPROT_GUARD );
+    set_page_vprot( stack_limit - page_size, page_size,
                     VPROT_READ | VPROT_WRITE | VPROT_COMMITTED | VPROT_GUARD );
-    mprotect_range( view->base, 2 * page_size, 0, 0 );
+    mprotect_range( view->base, stack_limit - (char *)view->base, 0, 0 );
     VIRTUAL_DEBUG_DUMP_VIEW( view );
 
     if (extra_size)
@@ -3058,7 +3063,7 @@ NTSTATUS virtual_alloc_thread_stack( INITIAL_TEB *stack, SIZE_T reserve_size, SI
     stack->OldStackLimit = 0;
     stack->DeallocationStack = view->base;
     stack->StackBase = (char *)view->base + view->size;
-    stack->StackLimit = (char *)view->base + 2 * page_size;
+    stack->StackLimit = stack_limit;
 done:
     server_leave_uninterrupted_section( &virtual_mutex, &sigset );
     return status;

@@ -274,7 +274,7 @@ static DWORD WINAPI test_stack_size_thread(void *ptr)
 
     committed = (char *)NtCurrentTeb()->Tib.StackBase - (char *)NtCurrentTeb()->Tib.StackLimit;
     reserved = (char *)NtCurrentTeb()->Tib.StackBase - (char *)NtCurrentTeb()->DeallocationStack;
-    todo_wine ok( committed == args->expect_committed || broken(committed == 0x1000), "unexpected stack committed size %x, expected %x\n", committed, args->expect_committed );
+    ok( committed == args->expect_committed || broken(committed == 0x1000), "unexpected stack committed size %x, expected %x\n", committed, args->expect_committed );
     ok( reserved == args->expect_reserved, "unexpected stack reserved size %x, expected %x\n", reserved, args->expect_reserved );
 
     addr = (char *)NtCurrentTeb()->DeallocationStack;
@@ -292,7 +292,7 @@ static DWORD WINAPI test_stack_size_thread(void *ptr)
 
     committed = (char *)NtCurrentTeb()->Tib.StackBase - (char *)NtCurrentTeb()->Tib.StackLimit;
     reserved = (char *)NtCurrentTeb()->Tib.StackBase - (char *)NtCurrentTeb()->DeallocationStack;
-    todo_wine ok( committed == 0x9000, "unexpected stack committed size %x, expected 9000\n", committed );
+    ok( committed == 0x9000, "unexpected stack committed size %x, expected 9000\n", committed );
     ok( reserved == args->expect_reserved, "unexpected stack reserved size %x, expected %x\n", reserved, args->expect_reserved );
 
 
