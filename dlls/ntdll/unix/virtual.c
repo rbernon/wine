@@ -3101,18 +3101,19 @@ static NTSTATUS grow_thread_stack( char *page )
 {
     NTSTATUS ret = 0;
     size_t guaranteed = max( NtCurrentTeb()->GuaranteedStackBytes, page_size * (is_win64 ? 2 : 1) );
+    int prot = VPROT_READ | VPROT_WRITE | VPROT_COMMITTED;
 
-    set_page_vprot_bits( page, page_size, 0, VPROT_GUARD );
+    set_page_vprot_bits( page, page_size, prot, VPROT_GUARD );
     mprotect_range( page, page_size, 0, 0 );
     if (page >= (char *)NtCurrentTeb()->DeallocationStack + page_size + guaranteed)
     {
-        set_page_vprot_bits( page - page_size, page_size, VPROT_COMMITTED | VPROT_GUARD, 0 );
+        set_page_vprot_bits( page - page_size, page_size, prot | VPROT_GUARD, 0 );
         mprotect_range( page - page_size, page_size, 0, 0 );
     }
     else  /* inside guaranteed space -> overflow exception */
     {
         page = (char *)NtCurrentTeb()->DeallocationStack + page_size;
-        set_page_vprot_bits( page, guaranteed, VPROT_COMMITTED, VPROT_GUARD );
+        set_page_vprot_bits( page, guaranteed, prot, VPROT_GUARD );
         mprotect_range( page, guaranteed, 0, 0 );
         ret = STATUS_STACK_OVERFLOW;
     }
