@@ -167,6 +167,7 @@ static const char * const atom_names[NB_XATOMS - FIRST_XATOM] =
     "_NET_WM_PING",
     "_NET_WM_STATE",
     "_NET_WM_STATE_ABOVE",
+    "_NET_WM_STATE_BELOW",
     "_NET_WM_STATE_DEMANDS_ATTENTION",
     "_NET_WM_STATE_FULLSCREEN",
     "_NET_WM_STATE_MAXIMIZED_HORZ",
@@ -177,6 +178,7 @@ static const char * const atom_names[NB_XATOMS - FIRST_XATOM] =
     "_NET_WM_USER_TIME_WINDOW",
     "_NET_WM_WINDOW_OPACITY",
     "_NET_WM_WINDOW_TYPE",
+    "_NET_WM_WINDOW_TYPE_DESKTOP",
     "_NET_WM_WINDOW_TYPE_DIALOG",
     "_NET_WM_WINDOW_TYPE_NORMAL",
     "_NET_WM_WINDOW_TYPE_UTILITY",
@@ -556,6 +558,14 @@ static void x11drv_ewmh_init(void)
             ewmh.has__net_active_window = 1;
         if (supported[i] == x11drv_atom(_NET_WM_MOVERESIZE))
             ewmh.has__net_wm_moveresize = 1;
+        if (supported[i] == x11drv_atom(_NET_WM_STATE))
+            ewmh.has__net_wm_state = 1;
+        if (supported[i] == x11drv_atom(_NET_WM_STATE_BELOW))
+            ewmh.has__net_wm_state_below = 1;
+        if (supported[i] == x11drv_atom(_NET_WM_WINDOW_TYPE))
+            ewmh.has__net_wm_window_type = 1;
+        if (supported[i] == x11drv_atom(_NET_WM_WINDOW_TYPE_DESKTOP))
+            ewmh.has__net_wm_window_type_desktop = 1;
 
         atom_name = XGetAtomName( gdi_display, supported[i] );
         TRACE( "  %s\n", atom_name );

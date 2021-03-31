@@ -433,6 +433,10 @@ struct x11drv_ewmh_data
 {
     int has__net_active_window : 1;
     int has__net_wm_moveresize : 1;
+    int has__net_wm_state : 1;
+    int has__net_wm_state_below : 1;
+    int has__net_wm_window_type : 1;
+    int has__net_wm_window_type_desktop : 1;
 };
 
 extern XVisualInfo default_visual;
@@ -505,6 +509,7 @@ enum x11drv_atoms
     XATOM__NET_WM_PING,
     XATOM__NET_WM_STATE,
     XATOM__NET_WM_STATE_ABOVE,
+    XATOM__NET_WM_STATE_BELOW,
     XATOM__NET_WM_STATE_DEMANDS_ATTENTION,
     XATOM__NET_WM_STATE_FULLSCREEN,
     XATOM__NET_WM_STATE_MAXIMIZED_HORZ,
@@ -515,6 +520,7 @@ enum x11drv_atoms
     XATOM__NET_WM_USER_TIME_WINDOW,
     XATOM__NET_WM_WINDOW_OPACITY,
     XATOM__NET_WM_WINDOW_TYPE,
+    XATOM__NET_WM_WINDOW_TYPE_DESKTOP,
     XATOM__NET_WM_WINDOW_TYPE_DIALOG,
     XATOM__NET_WM_WINDOW_TYPE_NORMAL,
     XATOM__NET_WM_WINDOW_TYPE_UTILITY,

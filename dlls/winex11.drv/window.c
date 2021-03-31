@@ -1591,12 +1591,20 @@ static void move_window_bits( HWND hwnd, Window window, const RECT *old_rect, co
 Window get_dummy_parent(void)
 {
     static Window dummy_parent;
+    XWMHints *hints = NULL;
+    DWORD count;
+    Atom atoms[3];
 
     if (!dummy_parent)
     {
         XSetWindowAttributes attrib;
 
         attrib.override_redirect = True;
+        if (ewmh.has__net_wm_state && ewmh.has__net_wm_state_below &&
+            ewmh.has__net_wm_window_type && ewmh.has__net_wm_window_type_desktop &&
+            (hints = XAllocWMHints()))
+            attrib.override_redirect = False;
+
         attrib.border_pixel = 0;
         attrib.colormap = default_colormap;
 
@@ -1615,6 +1623,27 @@ Window get_dummy_parent(void)
                                       CWColormap | CWBorderPixel | CWOverrideRedirect, &attrib );
         WARN("Xshape support is not compiled in. Applications under XWayland may have poor performance.\n");
 #endif
+
+        if (!attrib.override_redirect)
+        {
+            count = 0;
+            atoms[count++] = x11drv_atom(_NET_WM_STATE_BELOW);
+            atoms[count++] = x11drv_atom(_NET_WM_STATE_SKIP_TASKBAR);
+            atoms[count++] = x11drv_atom(_NET_WM_STATE_SKIP_PAGER);
+            XChangeProperty( gdi_display, dummy_parent, x11drv_atom(_NET_WM_STATE), XA_ATOM,
+                             32, PropModeReplace, (unsigned char *)atoms, count );
+
+            count = 0;
+            atoms[count++] = x11drv_atom(_NET_WM_WINDOW_TYPE_DESKTOP);
+            XChangeProperty( gdi_display, dummy_parent, x11drv_atom(_NET_WM_WINDOW_TYPE), XA_ATOM,
+                             32, PropModeReplace, (unsigned char *)atoms, count );
+
+            hints->flags = InputHint;
+            hints->input = False;
+            XSetWMHints( gdi_display, dummy_parent, hints );
+            XFree( hints );
+        }
+
         XMapWindow( gdi_display, dummy_parent );
     }
     return dummy_parent;
