@@ -1964,6 +1964,9 @@ void release_win_data( struct x11drv_win_data *data )
 static struct x11drv_win_data *X11DRV_create_win_data( HWND hwnd, const RECT *window_rect,
                                                        const RECT *client_rect )
 {
+#ifdef WIN32U_SOURCE
+    return NULL;
+#else
     Display *display;
     struct x11drv_win_data *data;
     HWND parent;
@@ -1995,7 +1998,36 @@ static struct x11drv_win_data *X11DRV_create_win_data( HWND hwnd, const RECT *wi
                wine_dbgstr_rect( &data->whole_rect ), wine_dbgstr_rect( &data->client_rect ));
     }
     return data;
+#endif
 }
+
+#ifdef WIN32U_SOURCE
+Window x11drv_create_win32u_window( HWND hwnd )
+{
+    struct x11drv_win_data *data;
+    Display *display;
+    Window window;
+
+    display = thread_init_display();
+    if (!(data = alloc_win_data( display, hwnd ))) return None;
+    create_whole_window( data );
+    XMapWindow( display, data->whole_window );
+    window = data->whole_window;
+    release_win_data( data );
+    return window;
+}
+
+void x11drv_destroy_win32u_window( HWND hwnd )
+{
+    struct x11drv_win_data *data;
+    Display *display;
+
+    display = thread_init_display();
+    if (!(data = get_win_data( hwnd ))) return;
+    destroy_whole_window( data, FALSE );
+    release_win_data( data );
+}
+#endif
 
 
 /* window procedure for foreign windows */

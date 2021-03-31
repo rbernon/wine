@@ -56,13 +56,21 @@ void CDECL win32u_WindowPosChanging( HWND hwnd, HWND insert_after, UINT swp_flag
 
     /* create a unix / window surface for top-level windows */
     if (visible && (hwnd == GetAncestor( hwnd, GA_ROOT )))
+    {
+        *visible_rect = *client_rect;
         win32u_create_toplevel_surface( hwnd );
+    }
     else
+    {
+        *visible_rect = *window_rect;
         win32u_delete_toplevel_surface( hwnd );
+    }
 
+#if 0
     X11DRV_WindowPosChanging( hwnd, insert_after, swp_flags, window_rect, client_rect,
                               visible_rect, &x11drv_surface );
     if (x11drv_surface) window_surface_release( x11drv_surface );
+#endif
 
     win32u_update_window_surface( hwnd, visible_rect, surface );
 }
@@ -82,8 +90,10 @@ void CDECL win32u_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags
            wine_dbgstr_rect( window_rect ), wine_dbgstr_rect( client_rect ),
            wine_dbgstr_rect( visible_rect ), wine_dbgstr_rect( valid_rects ), surface );
 
+#if 1
     X11DRV_WindowPosChanged( hwnd, insert_after, swp_flags, window_rect, client_rect,
                              visible_rect, valid_rects, NULL );
+#endif
 
     win32u_resize_hwnd_surfaces( hwnd );
 }

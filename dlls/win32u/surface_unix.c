@@ -74,11 +74,21 @@ static struct unix_surface *cairo_surface_create( HWND hwnd )
     return surface;
 }
 
+xcb_window_t x11drv_create_win32u_window( HWND hwnd ) DECLSPEC_HIDDEN;
+void x11drv_destroy_win32u_window( HWND hwnd ) DECLSPEC_HIDDEN;
+
 struct unix_surface *CDECL cairo_surface_create_toplevel( HWND hwnd )
 {
-    TRACE( "hwnd %p.\n", hwnd );
+    struct unix_surface *surface;
 
-    return cairo_surface_create( hwnd );
+    ERR( "hwnd %p.\n", hwnd );
+
+    if (!(surface = cairo_surface_create( hwnd )))
+        return NULL;
+
+    surface->window = x11drv_create_win32u_window( hwnd );
+
+    return surface;
 }
 
 struct unix_surface *CDECL cairo_surface_create_foreign( HWND hwnd )
@@ -134,7 +144,7 @@ struct unix_surface *CDECL cairo_surface_create_client( HWND hwnd, DWORD visual_
         free(err);
     }
 
-    *id = window;
+    *id = surface->window = window;
 #endif
 
     surface->is_client = TRUE;
@@ -310,23 +320,27 @@ void CDECL cairo_surface_create_notify( struct unix_surface *surface, LPARAM par
 
 void CDECL cairo_surface_delete( struct unix_surface *surface )
 {
-    TRACE( "surface %p.\n", surface );
+#ifdef HAVE_XCB_XCB_H
+    xcb_generic_error_t *err;
+#endif
+
+    ERR( "surface %p, hwnd %p.\n", surface, surface->hwnd );
 
 #ifdef CAIRO_DEBUG
     if (surface->debug_surface) p_cairo_surface_destroy( surface->debug_surface );
 #endif
     if (surface->cairo_surface) p_cairo_surface_destroy( surface->cairo_surface );
-    if (surface->is_client)
-    {
 #ifdef HAVE_XCB_XCB_H
-        xcb_generic_error_t *err;
-        if ((err = p_xcb_request_check( xcb, p_xcb_destroy_window_checked( xcb, surface->window ) )))
+    if (surface->window)
+    {
+        if (!surface->is_client) x11drv_destroy_win32u_window( surface->hwnd );
+        else if ((err = p_xcb_request_check( xcb, p_xcb_destroy_window_checked( xcb, surface->window ) )))
         {
             ERR("failed to destroy window %x, error %d, resource %x, minor %d, major %d \n", surface->window, err->error_code, err->resource_id, err->minor_code, err->major_code );
             free(err);
         }
-#endif
     }
+#endif
 
     free(surface);
 }
@@ -512,6 +526,7 @@ static void CDECL cairo_surface_apply_resize( struct unix_surface *surface, stru
     RECT old_pos, new_pos = *rect;
 
     if (new_parent && !new_parent->cairo_surface) return;
+    if (!surface->cairo_surface) return;
 
     old_parent = surface->parent;
     surface->parent = new_parent;
@@ -524,8 +539,6 @@ static void CDECL cairo_surface_apply_resize( struct unix_surface *surface, stru
 
     old_pos = surface->position;
     surface->position = new_pos;
-
-    if (!surface->cairo_surface) return;
 
     if (!notify)
     {

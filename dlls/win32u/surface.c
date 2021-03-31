@@ -633,5 +633,10 @@ void win32u_update_window_surface( HWND hwnd, const RECT *visible_rect, struct w
     EnterCriticalSection( &surfaces_cs );
     if ((surfaces = find_root_surfaces_for_hwnd( hwnd )) && (surfaces->hwnd == hwnd || (GetWindowThreadProcessId( surfaces->hwnd, &pid ) && pid != GetCurrentProcessId())))
         create_window_surface( surfaces, hwnd, visible_rect, window_surface );
+    else
+    {
+        if (*window_surface) window_surface_release( *window_surface );
+        *window_surface = NULL;
+    }
     LeaveCriticalSection( &surfaces_cs );
 }
