@@ -299,13 +299,13 @@ static void initialize_qpc_features(struct _KUSER_SHARED_DATA *data)
         if (!(denom = regs[0]) || !(numer = regs[1])) data->QpcFrequency = 0;
         else
         {
-            if (!(freq = regs[2]) && cpuid_level >= 0x16)
+            if ((freq = regs[2])) data->QpcFrequency = freq * numer / denom;
+            else if (cpuid_level >= 0x16)
             {
                 __cpuid(regs, 0x16); /* eax is base freq in MHz */
-                freq = regs[0] * 1000 * denom / numer;
+                data->QpcFrequency = regs[0] * 1000000;
             }
-
-            data->QpcFrequency = freq * numer / denom;
+            else data->QpcFrequency = 0;
         }
 
         if (!data->QpcFrequency)
