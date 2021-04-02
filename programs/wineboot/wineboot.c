@@ -290,36 +290,7 @@ static void initialize_qpc_features(struct _KUSER_SHARED_DATA *data)
     regs[2] = regs[3];
     regs[3] = tmp;
 
-    /* only available on some intel CPUs */
-    if (memcmp(regs + 1, "GenuineIntel", 12)) data->QpcFrequency = 0;
-    else if ((cpuid_level = regs[0]) < 0x15) data->QpcFrequency = 0;
-    else
-    {
-        __cpuid(regs, 0x15);
-        if (!(denom = regs[0]) || !(numer = regs[1])) data->QpcFrequency = 0;
-        else
-        {
-            if ((freq = regs[2])) data->QpcFrequency = freq * numer / denom;
-            else if (cpuid_level >= 0x16)
-            {
-                __cpuid(regs, 0x16); /* eax is base freq in MHz */
-                data->QpcFrequency = regs[0] * 1000000;
-            }
-            else data->QpcFrequency = 0;
-        }
-
-        if (!data->QpcFrequency)
-            WARN("Failed to read TSC frequency from CPUID, falling back to calibration.\n");
-        else
-        {
-            data->QpcFrequency = (data->QpcFrequency + (1 << 10) - 1) >> 10;
-            data->QpcShift = 10;
-            data->QpcBias = 0;
-
-            TRACE("TSC frequency read from CPUID, freq %I64d, shift %d, bias %I64d\n",
-                  data->QpcFrequency, data->QpcShift, data->QpcBias);
-        }
-    }
+    data->QpcFrequency = 0;
 
     if (!data->QpcFrequency)
     {
