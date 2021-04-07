@@ -70,7 +70,7 @@ struct x11drv_escape_present_drawable
 
 extern void win32u_create_toplevel_surface( HWND hwnd ) DECLSPEC_HIDDEN;
 extern void win32u_create_toplevel_surface_notify( HWND hwnd, LPARAM param ) DECLSPEC_HIDDEN;
-extern void win32u_create_client_surface( HWND hwnd, LPARAM *id ) DECLSPEC_HIDDEN;
+extern void win32u_create_client_surface( HWND hwnd, DWORD visual, LPARAM *id ) DECLSPEC_HIDDEN;
 extern void win32u_create_client_surface_notify( HWND hwnd, LPARAM param ) DECLSPEC_HIDDEN;
 extern void win32u_delete_toplevel_surface( HWND hwnd ) DECLSPEC_HIDDEN;
 extern void win32u_delete_client_surface( HWND hwnd, LPARAM param ) DECLSPEC_HIDDEN;

@@ -43,6 +43,8 @@ struct unix_surface
 #endif
     RECT position;
     struct unix_surface *parent;
+
+    BOOL is_client;
 };
 
 static struct unix_surface *cairo_surface_create( HWND hwnd )
@@ -66,6 +68,7 @@ static struct unix_surface *cairo_surface_create( HWND hwnd )
 #endif
     memset(&surface->position, 0, sizeof(surface->position));
     surface->parent = NULL;
+    surface->is_client = FALSE;
 
     TRACE( "created surface %p.\n", surface );
     return surface;
@@ -85,11 +88,58 @@ struct unix_surface *CDECL cairo_surface_create_foreign( HWND hwnd )
     return cairo_surface_create( hwnd );
 }
 
-struct unix_surface *CDECL cairo_surface_create_client( HWND hwnd, LPARAM *id )
-{
-    TRACE( "hwnd %p.\n", hwnd );
+#ifdef HAVE_XCB_XCB_H
+static xcb_screen_t *xcb_screen_from_id(xcb_connection_t *xcb, int id);
+static xcb_visualtype_t *xcb_visualtype_from_id(xcb_connection_t *xcb, int screen_id, xcb_visualid_t id);
+extern xcb_window_t get_dummy_parent(void) DECLSPEC_HIDDEN;
+#endif
 
-    return cairo_surface_create( hwnd );
+struct unix_surface *CDECL cairo_surface_create_client( HWND hwnd, DWORD visual_id, LPARAM *id )
+{
+    struct unix_surface *surface;
+#ifdef HAVE_XCB_XCB_H
+    xcb_window_t window = p_xcb_generate_id( xcb );
+    xcb_screen_t *screen = xcb_screen_from_id( xcb, 0 );
+    xcb_colormap_t colormap = p_xcb_generate_id( xcb );
+    xcb_void_cookie_t cookie;
+    xcb_generic_error_t *err;
+    uint32_t mask = XCB_CW_BORDER_PIXEL | XCB_CW_EVENT_MASK | XCB_CW_COLORMAP;
+    const uint32_t list[] = { 0, 0, colormap };
+#endif
+
+    ERR( "hwnd %p, visual_id %x, id %p.\n", hwnd, visual_id, id );
+
+    if (!(surface = cairo_surface_create( hwnd )))
+        return NULL;
+
+#ifdef HAVE_XCB_XCB_H
+    cookie = p_xcb_create_colormap_checked( xcb, XCB_COLORMAP_ALLOC_NONE, colormap, screen->root, visual_id );
+    if ((err = p_xcb_request_check( xcb, cookie)))
+    {
+        ERR("failed to colormap window %x, error %d, resource %x, minor %d, major %d \n", colormap, err->error_code, err->resource_id, err->minor_code, err->major_code );
+        free(err);
+    }
+
+    cookie = p_xcb_create_window_checked( xcb, XCB_COPY_FROM_PARENT, window, get_dummy_parent(), 0, 0, 1, 1, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT,
+                                          visual_id ? visual_id : screen->root_visual, mask, list );
+    if ((err = p_xcb_request_check( xcb, cookie )))
+    {
+        ERR("failed to create window %x, error %d, resource %x, minor %d, major %d \n", window, err->error_code, err->resource_id, err->minor_code, err->major_code );
+        free(err);
+    }
+
+    if ((err = p_xcb_request_check( xcb,  p_xcb_map_window_checked( xcb, window ) )))
+    {
+        ERR("failed to map window, error %d, resource %x, minor %d, major %d \n", err->error_code, err->resource_id, err->minor_code, err->major_code );
+        free(err);
+    }
+
+    *id = window;
+#endif
+
+    surface->is_client = TRUE;
+
+    return surface;
 }
 
 struct unix_surface *CDECL cairo_surface_create_foreign( HWND hwnd, LPARAM id )
@@ -266,6 +316,18 @@ void CDECL cairo_surface_delete( struct unix_surface *surface )
     if (surface->debug_surface) p_cairo_surface_destroy( surface->debug_surface );
 #endif
     if (surface->cairo_surface) p_cairo_surface_destroy( surface->cairo_surface );
+    if (surface->is_client)
+    {
+#ifdef HAVE_XCB_XCB_H
+        xcb_generic_error_t *err;
+        if ((err = p_xcb_request_check( xcb, p_xcb_destroy_window_checked( xcb, surface->window ) )))
+        {
+            ERR("failed to destroy window %x, error %d, resource %x, minor %d, major %d \n", surface->window, err->error_code, err->resource_id, err->minor_code, err->major_code );
+            free(err);
+        }
+#endif
+    }
+
     free(surface);
 }
 
@@ -467,10 +529,10 @@ static void CDECL cairo_surface_apply_resize( struct unix_surface *surface, stru
 
     if (!notify)
     {
-        old_parent_window = old_parent ? old_parent->window : xcb_root_window(xcb, 0);
-        new_parent_window = new_parent ? new_parent->window : xcb_root_window(xcb, 0);
+        old_parent_window = old_parent ? old_parent->window : surface->is_client ? get_dummy_parent() : xcb_root_window(xcb, 0);
+        new_parent_window = new_parent ? new_parent->window : surface->is_client ? get_dummy_parent() : xcb_root_window(xcb, 0);
 
-        if (old_parent_window != new_parent_window)
+        if (new_parent_window && old_parent_window != new_parent_window)
         {
             if ((err = p_xcb_request_check( xcb,  p_xcb_reparent_window_checked( xcb, surface->window, new_parent_window, new_pos.left, new_pos.top ) )))
             {

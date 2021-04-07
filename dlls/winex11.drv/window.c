@@ -1448,7 +1448,7 @@ static void move_window_bits( HWND hwnd, Window window, const RECT *old_rect, co
  *
  * Create a dummy parent window for child windows that don't have a true X11 parent.
  */
-static Window get_dummy_parent(void)
+Window get_dummy_parent(void)
 {
     static Window dummy_parent;
 
@@ -1463,13 +1463,14 @@ static Window get_dummy_parent(void)
                                       InputOutput, default_visual.visual,
                                       CWColormap | CWBorderPixel | CWOverrideRedirect, &attrib );
         XMapWindow( gdi_display, dummy_parent );
+        XFlush( gdi_display );
     }
     return dummy_parent;
 }
 
 
 #ifdef WIN32U_SOURCE
-extern void win32u_create_client_surface( HWND hwnd, LPARAM *id ) DECLSPEC_HIDDEN;
+extern void win32u_create_client_surface( HWND hwnd, DWORD visual, LPARAM *id ) DECLSPEC_HIDDEN;
 #endif
 
 /**********************************************************************
@@ -1495,13 +1496,14 @@ Window create_dummy_client_window(void)
  */
 Window create_client_window( HWND hwnd, const XVisualInfo *visual )
 {
-    Window dummy_parent = get_dummy_parent();
     struct x11drv_win_data *data = get_win_data( hwnd );
-    XSetWindowAttributes attr;
     Window ret;
-    int x, y, cx, cy;
 #ifdef WIN32U_SOURCE
     LPARAM surface_id;
+#else
+    Window dummy_parent = get_dummy_parent();
+    XSetWindowAttributes attr;
+    int x, y, cx, cy;
 #endif
 
     if (!data)
@@ -1514,6 +1516,14 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual )
         data->window_rect = data->whole_rect = data->client_rect;
     }
 
+#ifdef WIN32U_SOURCE
+    win32u_create_client_surface( hwnd, visual->visualid, &surface_id );
+    if ((ret = surface_id))
+    {
+        x11drv_set_hwnd_for_window( data->display, ret, data->hwnd );
+        SendNotifyMessageW( data->hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_CREATED, (WPARAM)FALSE, (LPARAM)ret );
+    }
+#else
     if (data->client_window)
     {
         XDeleteContext( data->display, data->client_window, winContext );
@@ -1542,11 +1552,6 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual )
                                                x, y, cx, cy, 0, default_visual.depth, InputOutput,
                                                visual->visual, CWBitGravity | CWWinGravity |
                                                CWBackingStore | CWColormap | CWBorderPixel, &attr );
-#ifdef WIN32U_SOURCE
-    surface_id = ret;
-    win32u_create_client_surface( hwnd, &surface_id );
-#endif
-
     if (data->client_window)
     {
         XSaveContext( data->display, data->client_window, winContext, (char *)data->hwnd );
@@ -1556,6 +1561,7 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual )
         TRACE( "%p xwin %lx/%lx\n", data->hwnd, data->whole_window, data->client_window );
         SendNotifyMessageW( data->hwnd, WM_X11DRV_NOTIFY_HWND_SURFACE_CREATED, (WPARAM)FALSE, (LPARAM)data->client_window );
     }
+#endif
     release_win_data( data );
     return ret;
 }

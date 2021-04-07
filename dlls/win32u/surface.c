@@ -188,11 +188,13 @@ void win32u_create_toplevel_surface_notify( HWND hwnd, LPARAM param )
     if (surfaces && surfaces->toplevel) SetWindowPos( hwnd, 0, 0, 0, 0, 0, flags );
 }
 
-void win32u_create_client_surface( HWND hwnd, LPARAM *id )
+void win32u_create_client_surface( HWND hwnd, DWORD visual, LPARAM *id )
 {
     struct hwnd_surfaces *surfaces;
 
     TRACE( "hwnd %p.\n", hwnd );
+
+    *id = 0;
 
     EnterCriticalSection( &surfaces_cs );
     if ((surfaces = create_surfaces_for_hwnd( hwnd )))
@@ -201,7 +203,7 @@ void win32u_create_client_surface( HWND hwnd, LPARAM *id )
         if (surfaces->client_count >= ARRAY_SIZE(surfaces->clients)) ERR( "too many client surfaces for hwnd %p\n", hwnd );
         else
         {
-            surfaces->clients[surfaces->client_count] = unix_funcs->surface_create_client( hwnd, id );
+            surfaces->clients[surfaces->client_count] = unix_funcs->surface_create_client( hwnd, visual, id );
             surfaces->client_ids[surfaces->client_count] = *id;
             surfaces->client_count++;
         }

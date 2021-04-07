@@ -102,7 +102,9 @@ void CDECL win32u_SetParent( HWND hwnd, HWND parent, HWND old_parent )
     else
         win32u_delete_toplevel_surface( hwnd );
 
+#if 0
     X11DRV_SetParent( hwnd, parent, old_parent );
+#endif
 }
 
 void CDECL X11DRV_DestroyWindow( HWND hwnd );

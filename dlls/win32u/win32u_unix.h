@@ -70,6 +70,9 @@ MAKE_FUNCPTR(xcb_configure_window_checked)
 MAKE_FUNCPTR(xcb_connect)
 MAKE_FUNCPTR(xcb_generate_id)
 MAKE_FUNCPTR(xcb_connection_has_error)
+MAKE_FUNCPTR(xcb_create_window_checked)
+MAKE_FUNCPTR(xcb_destroy_window_checked)
+MAKE_FUNCPTR(xcb_create_colormap_checked)
 MAKE_FUNCPTR(xcb_depth_next)
 MAKE_FUNCPTR(xcb_depth_visuals_iterator)
 MAKE_FUNCPTR(xcb_flush)
@@ -79,6 +82,8 @@ MAKE_FUNCPTR(xcb_get_window_attributes_reply)
 MAKE_FUNCPTR(xcb_get_geometry)
 MAKE_FUNCPTR(xcb_get_geometry_reply)
 MAKE_FUNCPTR(xcb_reparent_window_checked)
+MAKE_FUNCPTR(xcb_unmap_window_checked)
+MAKE_FUNCPTR(xcb_map_window_checked)
 MAKE_FUNCPTR(xcb_request_check)
 MAKE_FUNCPTR(xcb_screen_allowed_depths_iterator)
 MAKE_FUNCPTR(xcb_screen_next)
@@ -155,7 +160,7 @@ extern struct unix_surface *CDECL cairo_surface_create_toplevel( HWND hwnd ) DEC
 extern struct unix_surface *CDECL cairo_surface_create_foreign( HWND hwnd ) DECLSPEC_HIDDEN;
 extern struct unix_surface *CDECL cairo_surface_create_drawable( struct unix_surface *target, BITMAP *bitmap ) DECLSPEC_HIDDEN;
 extern struct unix_surface *CDECL cairo_surface_create_foreign( HWND hwnd, LPARAM id ) DECLSPEC_HIDDEN;
-extern struct unix_surface *CDECL cairo_surface_create_client( HWND hwnd, LPARAM *id ) DECLSPEC_HIDDEN;
+extern struct unix_surface *CDECL cairo_surface_create_client( HWND hwnd, DWORD visual, LPARAM *id ) DECLSPEC_HIDDEN;
 extern void CDECL cairo_surface_create_notify( struct unix_surface *surface, LPARAM param ) DECLSPEC_HIDDEN;
 extern void CDECL cairo_surface_delete( struct unix_surface *surface ) DECLSPEC_HIDDEN;
 extern void CDECL cairo_surface_present( struct unix_surface *target, struct unix_surface *source, const POINT *target_pos, const RECT *source_rect, UINT clip_rect_count, const RECT *clip_rects ) DECLSPEC_HIDDEN;
