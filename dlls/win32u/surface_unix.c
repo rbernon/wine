@@ -92,6 +92,13 @@ struct unix_surface *CDECL cairo_surface_create_client( HWND hwnd, LPARAM *id )
     return cairo_surface_create( hwnd );
 }
 
+struct unix_surface *CDECL cairo_surface_create_foreign( HWND hwnd, LPARAM id )
+{
+    TRACE( "hwnd %p.\n", hwnd );
+
+    return cairo_surface_create( hwnd );
+}
+
 struct unix_surface *CDECL cairo_surface_create_drawable( struct unix_surface *target, BITMAP *bitmap )
 {
     struct unix_surface *surface;
@@ -336,7 +343,7 @@ void CDECL cairo_surface_present( struct unix_surface *target, struct unix_surfa
     POINT *source_pos = (POINT *)source_rect;
     UINT i, width, height;
 
-    TRACE( "target %p, source %p, pos %s, source_rect %s, clip_rect_count %u, clip_rects %p.\n",
+    ERR( "target %p, source %p, pos %s, source_rect %s, clip_rect_count %u, clip_rects %p.\n",
            target, source, wine_dbgstr_point( target_pos ), wine_dbgstr_rect( source_rect ),
            clip_rect_count, clip_rects );
 

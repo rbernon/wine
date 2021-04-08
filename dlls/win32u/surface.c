@@ -626,7 +626,7 @@ void win32u_update_window_surface( HWND hwnd, const RECT *visible_rect, struct w
     struct hwnd_surfaces *surfaces;
     DWORD pid;
 
-    TRACE( "hwnd %p, visible_rect %s, window_surface %p.\n", hwnd, wine_dbgstr_rect( visible_rect ), window_surface );
+    ERR( "hwnd %p, visible_rect %s, window_surface %p.\n", hwnd, wine_dbgstr_rect( visible_rect ), window_surface );
 
     EnterCriticalSection( &surfaces_cs );
     if ((surfaces = find_root_surfaces_for_hwnd( hwnd )) && (surfaces->hwnd == hwnd || (GetWindowThreadProcessId( surfaces->hwnd, &pid ) && pid != GetCurrentProcessId())))
