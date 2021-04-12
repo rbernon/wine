@@ -7230,6 +7230,9 @@ static HRESULT WINAPI eventqueue_Shutdown(IMFMediaEventQueue *iface)
     if (!queue->is_shut_down)
     {
         event_queue_cleanup(queue);
+        if (queue->subscriber)
+            IRtwqAsyncResult_Release(queue->subscriber);
+        queue->subscriber = NULL;
         queue->is_shut_down = TRUE;
     }
 
