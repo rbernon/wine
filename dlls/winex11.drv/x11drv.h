@@ -346,6 +346,7 @@ struct x11drv_thread_data
     int      xi2_current_slave;    /* Current slave driving the Core pointer */
 };
 
+extern BOOL x11drv_process_attach(void) DECLSPEC_HIDDEN;
 extern struct x11drv_thread_data *x11drv_init_thread_data(void) DECLSPEC_HIDDEN;
 extern DWORD thread_data_tls_index DECLSPEC_HIDDEN;
 

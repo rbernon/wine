@@ -21,6 +21,7 @@
 
 #include "win32u_unix.h"
 #include "unixlib.h"
+#include "x11drv.h"
 
 #include "wine/debug.h"
 
@@ -34,7 +35,10 @@ NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *p
 
     switch (reason)
     {
-    case DLL_PROCESS_ATTACH: break;
+    case DLL_PROCESS_ATTACH:
+        x11drv_module = module;
+        if (!x11drv_process_attach()) return STATUS_DLL_NOT_FOUND;
+        break;
     case DLL_PROCESS_DETACH: break;
     }
 
