@@ -42,6 +42,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(explorer);
 static const WCHAR *default_driver = L"win32k.sys,mac,x11";
 
 static BOOL using_root;
+static BOOL force_root;
 
 struct launcher
 {
@@ -735,6 +736,8 @@ static const WCHAR *get_default_desktop_name(void)
         if (!RegQueryValueExW( hkey, desktopW, 0, NULL, (LPBYTE)buffer, &size ) && *buffer) ret = buffer;
         RegCloseKey( hkey );
     }
+
+    if (force_root && !ret) return L"Default";
     return ret;
 }
 
@@ -762,6 +765,8 @@ static BOOL get_default_desktop_size( const WCHAR *name, unsigned int *width, un
         }
         RegCloseKey( hkey );
     }
+
+    if (force_root && !found) return TRUE;
     return found;
 }
 
@@ -875,6 +880,7 @@ static HMODULE load_graphics_driver( const WCHAR *driver, const GUID *guid )
         RegCloseKey( hkey );
     }
 
+    if (module && !wcscmp( libname, L"win32k.sys" )) force_root = TRUE;
     return module;
 }
 
@@ -971,6 +977,10 @@ void manage_desktop( WCHAR *arg )
         if (*p) cmdline = p;
     }
 
+    UuidCreate( &guid );
+    TRACE( "display guid %s\n", debugstr_guid(&guid) );
+    graphics_driver = load_graphics_driver( driver, &guid );
+
     /* parse the desktop option */
     /* the option is of the form /desktop=name[,widthxheight[,driver]] */
     if ((arg[0] == '=' || arg[0] == ',') && arg[1] && arg[1] != ',')
@@ -1002,10 +1012,6 @@ void manage_desktop( WCHAR *arg )
         }
         SetThreadDesktop( desktop );
     }
-
-    UuidCreate( &guid );
-    TRACE( "display guid %s\n", debugstr_guid(&guid) );
-    graphics_driver = load_graphics_driver( driver, &guid );
 
     /* create the desktop window */
     hwnd = CreateWindowExW( 0, DESKTOP_CLASS_ATOM, NULL,
