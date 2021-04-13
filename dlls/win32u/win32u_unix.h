@@ -31,9 +31,19 @@
 #include <unistd.h>
 #endif
 
+#ifdef HAVE_XCB_XCB_H
+#include <xcb/xcb.h>
+#endif
+
 #ifdef HAVE_CAIRO_CAIRO_H
 #include <cairo/cairo.h>
 #endif
+#ifdef HAVE_CAIRO_CAIRO_XCB_H
+#include <cairo/cairo-xcb.h>
+#endif
+
+#undef Status /* avoid conflict with wintrnl.h */
+typedef int Status;
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -45,9 +55,34 @@
 
 #include "unixlib.h"
 
+#ifdef HAVE_XCB_XCB_H
+#define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(xcb_connect)
+MAKE_FUNCPTR(xcb_connection_has_error)
+MAKE_FUNCPTR(xcb_depth_next)
+MAKE_FUNCPTR(xcb_depth_visuals_iterator)
+MAKE_FUNCPTR(xcb_get_setup)
+MAKE_FUNCPTR(xcb_get_geometry)
+MAKE_FUNCPTR(xcb_get_geometry_reply)
+MAKE_FUNCPTR(xcb_get_window_attributes)
+MAKE_FUNCPTR(xcb_get_window_attributes_reply)
+MAKE_FUNCPTR(xcb_screen_allowed_depths_iterator)
+MAKE_FUNCPTR(xcb_screen_next)
+MAKE_FUNCPTR(xcb_setup_roots_iterator)
+MAKE_FUNCPTR(xcb_visualtype_next)
+#undef MAKE_FUNCPTR
+extern xcb_connection_t *xcb DECLSPEC_HIDDEN;
+#endif
+
 #ifdef HAVE_CAIRO_CAIRO_H
 #define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
 MAKE_FUNCPTR(cairo_surface_destroy)
+#undef MAKE_FUNCPTR
+#endif
+
+#ifdef HAVE_CAIRO_CAIRO_XCB_H
+#define MAKE_FUNCPTR(f) extern typeof(f) *p_##f DECLSPEC_HIDDEN;
+MAKE_FUNCPTR(cairo_xcb_surface_create)
 #undef MAKE_FUNCPTR
 #endif
 
