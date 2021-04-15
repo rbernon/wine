@@ -39,7 +39,8 @@ WINE_DEFAULT_DEBUG_CHANNEL(explorer);
 #define DESKTOP_CLASS_ATOM ((LPCWSTR)MAKEINTATOM(32769))
 #define DESKTOP_ALL_ACCESS 0x01ff
 
-static const WCHAR default_driver[] = {'m','a','c',',','x','1','1',0};
+static const WCHAR default_driver[] = L"mac,x11,null";
+static struct user_driver_funcs null_driver;
 
 static BOOL using_root;
 
@@ -808,7 +809,6 @@ static HMODULE load_graphics_driver( const WCHAR *driver, const GUID *guid )
 
     WCHAR buffer[MAX_PATH], libname[32], *name, *next;
     WCHAR key[ARRAY_SIZE( device_keyW ) + 39];
-    BOOL null_driver = FALSE;
     HMODULE module = 0;
     HKEY hkey;
     char error[80];
@@ -835,9 +835,9 @@ static HMODULE load_graphics_driver( const WCHAR *driver, const GUID *guid )
 
         if (!wcscmp( name, L"null" ))
         {
+            __wine_set_user_driver( &null_driver, WINE_GDI_DRIVER_VERSION );
             TRACE( "display %s using null driver\n", debugstr_guid(guid) );
             wcscpy( libname, L"null" );
-            null_driver = TRUE;
             break;
         }
 
@@ -867,7 +867,7 @@ static HMODULE load_graphics_driver( const WCHAR *driver, const GUID *guid )
     if (!RegCreateKeyExW( HKEY_LOCAL_MACHINE, key, 0, NULL,
                           REG_OPTION_VOLATILE, KEY_SET_VALUE, NULL, &hkey, NULL  ))
     {
-        if (module || null_driver)
+        if (module || !wcscmp( libname, L"null" ))
             RegSetValueExW( hkey, graphics_driverW, 0, REG_SZ,
                             (BYTE *)libname, (lstrlenW(libname) + 1) * sizeof(WCHAR) );
         else
