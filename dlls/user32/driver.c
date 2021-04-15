@@ -254,20 +254,9 @@ static void CDECL nulldrv_UpdateClipboard(void)
 {
 }
 
-static LONG CDECL nulldrv_ChangeDisplaySettingsEx( LPCWSTR name, LPDEVMODEW mode, HWND hwnd,
-                                             DWORD flags, LPVOID lparam )
-{
-    return DISP_CHANGE_FAILED;
-}
-
 static UINT CDECL nulldrv_EnumDisplayMonitors( HDC hdc, RECT *rect, MONITORENUMPROC proc, LPARAM lp )
 {
     return ~0U; /* use default implementation */
-}
-
-static BOOL CDECL nulldrv_EnumDisplaySettingsEx( LPCWSTR name, DWORD num, LPDEVMODEW mode, DWORD flags )
-{
-    return FALSE;
 }
 
 static BOOL CDECL nulldrv_CreateDesktopWindow( HWND hwnd )

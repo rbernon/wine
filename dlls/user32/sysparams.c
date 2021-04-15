@@ -50,6 +50,7 @@
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(system);
+WINE_DECLARE_DEBUG_CHANNEL(nulldrv);
 
 /* System parameter indexes */
 enum spi_index
@@ -4940,4 +4941,73 @@ LONG WINAPI SetDisplayConfig(UINT32 path_info_count, DISPLAYCONFIG_PATH_INFO *pa
             path_info_count, path_info, mode_info_count, mode_info, flags);
 
     return ERROR_SUCCESS;
+}
+
+static int nulldrv_display_mode_reg;
+static int nulldrv_display_mode_cur;
+static const DEVMODEW nulldrv_display_modes[] =
+{
+    { { L"\\\\.\\DISPLAY1" }, DM_SPECVERSION, DM_SPECVERSION, FIELD_OFFSET(DEVMODEW, dmICMMethod), 0,
+    DM_DISPLAYORIENTATION | DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFLAGS | DM_DISPLAYFREQUENCY | DM_POSITION,
+    { { 0 } }, 0, 0, 0, 0, 0, { 0 }, 0, 32, 640, 480, { 0 }, 60, 0, 0, 0, 0, 0, 0, 0, 0, },
+
+    { { L"\\\\.\\DISPLAY1" }, DM_SPECVERSION, DM_SPECVERSION, FIELD_OFFSET(DEVMODEW, dmICMMethod), 0,
+    DM_DISPLAYORIENTATION | DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFLAGS | DM_DISPLAYFREQUENCY | DM_POSITION,
+    { { 0 } }, 0, 0, 0, 0, 0, { 0 }, 0, 32, 800, 600, { 0 }, 60, 0, 0, 0, 0, 0, 0, 0, 0, },
+
+    { { L"\\\\.\\DISPLAY1" }, DM_SPECVERSION, DM_SPECVERSION, FIELD_OFFSET(DEVMODEW, dmICMMethod), 0,
+    DM_DISPLAYORIENTATION | DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFLAGS | DM_DISPLAYFREQUENCY | DM_POSITION,
+    { { 0 } }, 0, 0, 0, 0, 0, { 0 }, 0, 32, 1024, 768, { 0 }, 60, 0, 0, 0, 0, 0, 0, 0, 0, },
+};
+
+LONG CDECL nulldrv_ChangeDisplaySettingsEx( LPCWSTR name, LPDEVMODEW mode, HWND hwnd,
+                                             DWORD flags, LPVOID lparam )
+{
+    int i;
+
+    TRACE_(nulldrv)("name %s, mode %p, hwnd %p, flags %x, lparam %p.\n", wine_dbgstr_w(name), mode, hwnd, flags, lparam);
+
+    if (name && wcscmp( name, L"\\\\.\\DISPLAY1" )) return DISP_CHANGE_FAILED;
+    if (!mode) i = nulldrv_display_mode_reg;
+    else for (i = 0; i < ARRAY_SIZE( nulldrv_display_modes ); ++i)
+    {
+        const DEVMODEW *m = nulldrv_display_modes + i;
+        if (mode->dmFields & ~(DM_DISPLAYORIENTATION | DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFLAGS | DM_DISPLAYFREQUENCY | DM_POSITION))
+            continue;
+        if ((mode->dmFields & DM_DISPLAYORIENTATION) && mode->u1.s1.dmOrientation &&
+            mode->u1.s1.dmOrientation != m->u1.s1.dmOrientation)
+            continue;
+        if ((mode->dmFields & DM_BITSPERPEL) && mode->dmBitsPerPel &&
+            mode->dmBitsPerPel != m->dmBitsPerPel)
+            continue;
+        if ((mode->dmFields & DM_PELSWIDTH) && mode->dmPelsWidth &&
+            mode->dmPelsWidth != m->dmPelsWidth)
+            continue;
+        if ((mode->dmFields & DM_PELSHEIGHT) && mode->dmPelsHeight &&
+            mode->dmPelsHeight != m->dmPelsHeight)
+            continue;
+        if ((mode->dmFields & DM_DISPLAYFLAGS) && mode->u2.dmDisplayFlags &&
+            mode->u2.dmDisplayFlags != m->u2.dmDisplayFlags)
+            continue;
+        if ((mode->dmFields & DM_DISPLAYFREQUENCY) && mode->dmDisplayFrequency &&
+            mode->dmDisplayFrequency != m->dmDisplayFrequency)
+            continue;
+        break;
+    }
+
+    if (i >= ARRAY_SIZE( nulldrv_display_modes )) return DISP_CHANGE_BADMODE;
+    if (flags & CDS_UPDATEREGISTRY) nulldrv_display_mode_reg = i;
+    if (flags & (CDS_TEST | CDS_NORESET)) return DISP_CHANGE_SUCCESSFUL;
+    nulldrv_display_mode_cur = i;
+    return DISP_CHANGE_SUCCESSFUL;
+}
+
+BOOL CDECL nulldrv_EnumDisplaySettingsEx( LPCWSTR name, DWORD num, LPDEVMODEW mode, DWORD flags )
+{
+    TRACE_(nulldrv)("name %s, num %#x, mode %p, flags %x.\n", wine_dbgstr_w(name), num, mode, flags);
+    if (num == ENUM_CURRENT_SETTINGS) num = nulldrv_display_mode_cur;
+    if (num == ENUM_REGISTRY_SETTINGS) num = nulldrv_display_mode_reg;
+    if (num >= ARRAY_SIZE(nulldrv_display_modes)) return FALSE;
+    *mode = nulldrv_display_modes[num];
+    return TRUE;
 }
