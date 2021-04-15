@@ -39,7 +39,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(explorer);
 #define DESKTOP_CLASS_ATOM ((LPCWSTR)MAKEINTATOM(32769))
 #define DESKTOP_ALL_ACCESS 0x01ff
 
-static const WCHAR default_driver[] = {'m','a','c',',','x','1','1',0};
+static const WCHAR default_driver[] = L"mac,x11,null";
 
 static BOOL using_root;
 
@@ -837,6 +837,7 @@ static HMODULE load_graphics_driver( const WCHAR *driver, const GUID *guid )
         {
             TRACE( "display %s using null driver\n", debugstr_guid(guid) );
             null_driver = TRUE;
+            wcscpy( libname, name );
             break;
         }
 
