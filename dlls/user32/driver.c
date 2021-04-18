@@ -159,7 +159,7 @@ static const USER_DRIVER *load_driver(void)
         driver = prev;
     }
     else if (graphics_driver) LdrAddRefDll( 0, graphics_driver );
-    else nulldrv_initialize_display();
+    else nulldrv_initialize_display( FALSE );
 
     __wine_set_display_driver( graphics_driver );
     register_builtin_classes();

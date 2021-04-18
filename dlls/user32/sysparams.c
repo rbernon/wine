@@ -4988,7 +4988,7 @@ struct monitor_desc
 
 static const struct gpu_desc nulldrv_gpu = {0, L"nulldrv", 0, 0, 0, 0, {0}};
 static const struct adapter_desc nulldrv_adapter = {0, DISPLAY_DEVICE_ATTACHED_TO_DESKTOP | DISPLAY_DEVICE_PRIMARY_DEVICE};
-static const struct monitor_desc nulldrv_monitor = {L"nulldrv", {0, 0, 640, 480}, {0, 0, 640, 480}, DISPLAY_DEVICE_ATTACHED | DISPLAY_DEVICE_ACTIVE};
+static struct monitor_desc nulldrv_monitor = {L"nulldrv", {0, 0, 640, 480}, {0, 0, 640, 480}, DISPLAY_DEVICE_ATTACHED | DISPLAY_DEVICE_ACTIVE};
 
 static int nulldrv_display_mode_reg;
 static int nulldrv_display_mode_cur;
@@ -5046,6 +5046,12 @@ LONG CDECL nulldrv_ChangeDisplaySettingsEx( LPCWSTR name, LPDEVMODEW mode, HWND 
     if (flags & CDS_UPDATEREGISTRY) nulldrv_display_mode_reg = i;
     if (flags & (CDS_TEST | CDS_NORESET)) return DISP_CHANGE_SUCCESSFUL;
     nulldrv_display_mode_cur = i;
+
+    nulldrv_monitor.rc_monitor.right = nulldrv_display_modes[i].dmPelsWidth;
+    nulldrv_monitor.rc_monitor.bottom = nulldrv_display_modes[i].dmPelsHeight;
+    nulldrv_monitor.rc_work = nulldrv_monitor.rc_monitor;
+    nulldrv_initialize_display(TRUE);
+
     return DISP_CHANGE_SUCCESSFUL;
 }
 
@@ -5351,7 +5357,7 @@ static void cleanup_devices(void)
     SetupDiDestroyDeviceInfoList(devinfo);
 }
 
-void nulldrv_initialize_display(void)
+void nulldrv_initialize_display(BOOL force)
 {
     HDEVINFO gpu_devinfo = NULL, monitor_devinfo = NULL;
     HANDLE mutex;
@@ -5370,7 +5376,7 @@ void nulldrv_initialize_display(void)
 
     if (RegCreateKeyExW( HKEY_LOCAL_MACHINE, L"HARDWARE\\DEVICEMAP\\VIDEO", 0, NULL, REG_OPTION_VOLATILE, KEY_ALL_ACCESS, NULL, &video_hkey, &disposition ))
         ERR( "Failed to create video device key\n" );
-    else if (disposition == REG_CREATED_NEW_KEY)
+    else if (disposition == REG_CREATED_NEW_KEY || force)
     {
         prepare_devices( video_hkey );
 
