@@ -5392,14 +5392,14 @@ static void test_messages(void)
 
     ShowWindow(hwnd, SW_SHOWMAXIMIZED);
     flush_events();
-    ok_sequence(WmShowMaxOverlappedSeq, "ShowWindow(SW_SHOWMAXIMIZED):overlapped", TRUE);
+    ok_sequence(WmShowMaxOverlappedSeq, "ShowWindow(SW_SHOWMAXIMIZED):overlapped", FALSE);
     flush_sequence();
 
     if (GetWindowLongW( hwnd, GWL_STYLE ) & WS_MAXIMIZE)
     {
         ShowWindow(hwnd, SW_RESTORE);
         flush_events();
-        ok_sequence(WmShowRestoreMaxOverlappedSeq, "ShowWindow(SW_RESTORE):overlapped", TRUE);
+        ok_sequence(WmShowRestoreMaxOverlappedSeq, "ShowWindow(SW_RESTORE):overlapped", FALSE);
         flush_sequence();
     }
 
@@ -9594,7 +9594,7 @@ static void test_accelerators(void)
     keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0);
     pump_msg_loop(hwnd, 0);
     /* this test doesn't pass in Wine for managed windows */
-    ok_sequence(WmAltPressRelease, "Alt press/release", TRUE);
+    ok_sequence(WmAltPressRelease, "Alt press/release", FALSE);
 
     trace("testing VK_F1 press/release\n");
     keybd_event(VK_F1, 0, 0, 0);
@@ -9614,7 +9614,7 @@ static void test_accelerators(void)
     keybd_event(VK_F10, 0, 0, 0);
     keybd_event(VK_F10, 0, KEYEVENTF_KEYUP, 0);
     pump_msg_loop(hwnd, 0);
-    ok_sequence(WmVkF10Seq, "VK_F10 press/release", TRUE);
+    ok_sequence(WmVkF10Seq, "VK_F10 press/release", FALSE);
 
     trace("testing SHIFT+F10 press/release\n");
     keybd_event(VK_SHIFT, 0, 0, 0);
@@ -9624,7 +9624,7 @@ static void test_accelerators(void)
     keybd_event(VK_ESCAPE, 0, 0, 0);
     keybd_event(VK_ESCAPE, 0, KEYEVENTF_KEYUP, 0);
     pump_msg_loop(hwnd, 0);
-    ok_sequence(WmShiftF10Seq, "SHIFT+F10 press/release", TRUE);
+    ok_sequence(WmShiftF10Seq, "SHIFT+F10 press/release", FALSE);
 
     trace("testing Shift+MouseButton press/release\n");
     /* first, move mouse pointer inside of the window client area */
@@ -16159,7 +16159,7 @@ static DWORD CALLBACK post_rbuttonup_msg( void *arg )
     DWORD ret;
 
     ret = WaitForSingleObject( data->wndproc_finished, 500 );
-    todo_wine ok( ret == WAIT_OBJECT_0, "WaitForSingleObject returned %x\n", ret );
+    ok( ret == WAIT_OBJECT_0, "WaitForSingleObject returned %x\n", ret );
     if( ret == WAIT_OBJECT_0 ) return 0;
 
     PostMessageA( data->hwnd, WM_RBUTTONUP, 0, 0 );
