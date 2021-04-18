@@ -236,7 +236,6 @@ static void test_EnumDisplaySettings(void)
     SetLastError( 0xdeadbeef );
     ret = EnumDisplaySettingsExW( adapter.DeviceName, ENUM_REGISTRY_SETTINGS, &devmode, 0 );
     ok( ret, "EnumDisplaySettingsExW failed, error %u\n", GetLastError() );
-    todo_wine
     ok( GetLastError() == 0xdeadbeef, "EnumDisplaySettingsExW set last error %u\n", GetLastError() );
 
     SetLastError( 0xdeadbeef );
@@ -544,7 +543,6 @@ static void test_ChangeDisplaySettingsEx(void)
         SetLastError(0xdeadbeef);
         res = ChangeDisplaySettingsExA(devices[0].name, &dm, NULL, CDS_UPDATEREGISTRY | CDS_NORESET, NULL);
         ok(res == DISP_CHANGE_SUCCESSFUL, "ChangeDisplaySettingsExA %s returned unexpected %d\n", devices[0].name, res);
-        todo_wine
         ok(GetLastError() == 0xdeadbeef, "ChangeDisplaySettingsExA set last error %u\n", GetLastError());
         res = ChangeDisplaySettingsExA(NULL, NULL, NULL, 0, NULL);
         ok(res == DISP_CHANGE_SUCCESSFUL ||
@@ -564,7 +562,6 @@ static void test_ChangeDisplaySettingsEx(void)
         SetLastError(0xdeadbeef);
         res = ChangeDisplaySettingsExA(devices[0].name, &devices[0].original_mode, NULL,
                 CDS_UPDATEREGISTRY | CDS_NORESET, NULL);
-        todo_wine
         ok(GetLastError() == 0xdeadbeef, "ChangeDisplaySettingsExA set last error %u\n", GetLastError());
         ok(res == DISP_CHANGE_SUCCESSFUL ||
                 broken(res == DISP_CHANGE_BADPARAM) || /* win10 */
@@ -592,7 +589,6 @@ static void test_ChangeDisplaySettingsEx(void)
         SetLastError(0xdeadbeef);
         res = ChangeDisplaySettingsExA(devices[1].name, &dm, NULL, CDS_UPDATEREGISTRY | CDS_NORESET, NULL);
         ok(res == DISP_CHANGE_SUCCESSFUL, "ChangeDisplaySettingsExA %s returned unexpected %d\n", devices[1].name, res);
-        todo_wine
         ok(GetLastError() == 0xdeadbeef, "ChangeDisplaySettingsExA set last error %u\n", GetLastError());
         res = ChangeDisplaySettingsExA(devices[1].name, NULL, NULL, 0, NULL);
         ok(res == DISP_CHANGE_SUCCESSFUL, "ChangeDisplaySettingsExA %s returned unexpected %d\n", devices[1].name, res);

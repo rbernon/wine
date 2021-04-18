@@ -2501,9 +2501,7 @@ static void test_WM_DISPLAYCHANGE(void)
             continue;
         }
 
-        todo_wine_if(start_bpp != test_bpps[i]) {
-            ok(last_bpp == test_bpps[i], "Set bpp %d, but WM_DISPLAYCHANGE reported bpp %d\n", test_bpps[i], last_bpp);
-        }
+        ok(last_bpp == test_bpps[i], "Set bpp %d, but WM_DISPLAYCHANGE reported bpp %d\n", test_bpps[i], last_bpp);
         last_set_bpp = test_bpps[i];
     }
 
@@ -3575,7 +3573,6 @@ static void test_dpi_mapping(void)
             hdc = GetWindowDC( hwnd );
             GetClipBox( hdc, &rect );
             SetRect( &expect, 0, 0, 295, 303 );
-            todo_wine
             ok( EqualRect( &expect, &rect ), "%lu/%lu: wrong clip box win DC %s expected %s\n",
                 i, j, wine_dbgstr_rect(&rect), wine_dbgstr_rect(&expect) );
             ReleaseDC( hwnd, hdc );
