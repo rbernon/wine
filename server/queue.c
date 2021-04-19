@@ -403,6 +403,11 @@ static int update_desktop_cursor_pos( struct desktop *desktop, user_handle_t win
     return updated;
 }
 
+void update_desktop_cursor_win( struct desktop *desktop )
+{
+    update_desktop_cursor_pos( desktop, 0, desktop->cursor.x, desktop->cursor.y );
+}
+
 /* set the cursor position and queue the corresponding mouse message */
 static void set_cursor_pos( struct desktop *desktop, int x, int y )
 {
