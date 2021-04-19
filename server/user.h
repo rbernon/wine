@@ -192,6 +192,7 @@ extern void set_process_default_desktop( struct process *process, struct desktop
 extern void close_process_desktop( struct process *process );
 extern void set_thread_default_desktop( struct thread *thread, struct desktop *desktop, obj_handle_t handle );
 extern void release_thread_desktop( struct thread *thread, int close );
+extern void update_desktop_cursor_win( struct desktop *desktop );
 
 /* checks if two rectangles are identical */
 static inline int is_rect_equal( const rectangle_t *rect1, const rectangle_t *rect2 )
