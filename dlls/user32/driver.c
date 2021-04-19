@@ -158,7 +158,8 @@ static const USER_DRIVER *load_driver(void)
         HeapFree( GetProcessHeap(), 0, driver );
         driver = prev;
     }
-    else LdrAddRefDll( 0, graphics_driver );
+    else if (graphics_driver) LdrAddRefDll( 0, graphics_driver );
+    else nulldrv_initialize_display( FALSE );
 
     __wine_set_display_driver( graphics_driver );
     register_builtin_classes();
@@ -254,15 +255,9 @@ static void CDECL nulldrv_UpdateClipboard(void)
 {
 }
 
-static LONG CDECL nulldrv_ChangeDisplaySettingsEx( LPCWSTR name, LPDEVMODEW mode, HWND hwnd,
-                                             DWORD flags, LPVOID lparam )
+static UINT CDECL nulldrv_EnumDisplayMonitors( HDC hdc, RECT *rect, MONITORENUMPROC proc, LPARAM lp )
 {
-    return DISP_CHANGE_FAILED;
-}
-
-static BOOL CDECL nulldrv_EnumDisplaySettingsEx( LPCWSTR name, DWORD num, LPDEVMODEW mode, DWORD flags )
-{
-    return FALSE;
+    return ~0U; /* use default implementation */
 }
 
 static BOOL CDECL nulldrv_CreateDesktopWindow( HWND hwnd )
@@ -538,7 +533,7 @@ static LONG CDECL loaderdrv_ChangeDisplaySettingsEx( LPCWSTR name, LPDEVMODEW mo
     return load_driver()->pChangeDisplaySettingsEx( name, mode, hwnd, flags, lparam );
 }
 
-static BOOL CDECL loaderdrv_EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC proc, LPARAM lp )
+static UINT CDECL loaderdrv_EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC proc, LPARAM lp )
 {
     return load_driver()->pEnumDisplayMonitors( hdc, rect, proc, lp );
 }

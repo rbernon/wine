@@ -35,12 +35,16 @@
 #include "wingdi.h"
 #include "winuser.h"
 #include "winreg.h"
+#include "rpc.h"
 #include "wine/wingdi16.h"
 #include "winerror.h"
 
 #include "initguid.h"
 #include "d3dkmdt.h"
 #include "devguid.h"
+#include "devpkey.h"
+#include "ntddmou.h"
+#include "ntddkbd.h"
 #include "setupapi.h"
 #include "controls.h"
 #include "win.h"
@@ -50,6 +54,7 @@
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(system);
+WINE_DECLARE_DEBUG_CHANNEL(nulldrv);
 
 /* System parameter indexes */
 enum spi_index
@@ -96,10 +101,12 @@ static const WCHAR *parameter_key_names[NB_PARAM_KEYS] =
 };
 
 DEFINE_DEVPROPKEY(DEVPROPKEY_GPU_LUID, 0x60b193cb, 0x5276, 0x4d0f, 0x96, 0xfc, 0xf1, 0x73, 0xab, 0xad, 0x3e, 0xc6, 2);
+DEFINE_DEVPROPKEY(DEVPROPKEY_HID_HANDLE, 0xbc62e415, 0xf4fe, 0x405c, 0x8e, 0xda, 0x63, 0x6f, 0xb5, 0x9f, 0x08, 0x98, 2);
 DEFINE_DEVPROPKEY(DEVPROPKEY_MONITOR_GPU_LUID, 0xca085853, 0x16ce, 0x48aa, 0xb1, 0x14, 0xde, 0x9c, 0x72, 0x33, 0x42, 0x23, 1);
 DEFINE_DEVPROPKEY(DEVPROPKEY_MONITOR_OUTPUT_ID, 0xca085853, 0x16ce, 0x48aa, 0xb1, 0x14, 0xde, 0x9c, 0x72, 0x33, 0x42, 0x23, 2);
 
 /* Wine specific monitor properties */
+DEFINE_DEVPROPKEY(WINE_DEVPROPKEY_GPU_VULKAN_UUID, 0x233a9ef3, 0xafc4, 0x4abd, 0xb5, 0x64, 0xc3, 0x2f, 0x21, 0xf1, 0x53, 0x5c, 2);
 DEFINE_DEVPROPKEY(WINE_DEVPROPKEY_MONITOR_STATEFLAGS, 0x233a9ef3, 0xafc4, 0x4abd, 0xb5, 0x64, 0xc3, 0x2f, 0x21, 0xf1, 0x53, 0x5b, 2);
 DEFINE_DEVPROPKEY(WINE_DEVPROPKEY_MONITOR_RCMONITOR, 0x233a9ef3, 0xafc4, 0x4abd, 0xb5, 0x64, 0xc3, 0x2f, 0x21, 0xf1, 0x53, 0x5b, 3);
 DEFINE_DEVPROPKEY(WINE_DEVPROPKEY_MONITOR_RCWORK, 0x233a9ef3, 0xafc4, 0x4abd, 0xb5, 0x64, 0xc3, 0x2f, 0x21, 0xf1, 0x53, 0x5b, 4);
@@ -4109,10 +4116,32 @@ static BOOL CALLBACK enum_mon_callback( HMONITOR monitor, HDC hdc, LPRECT rect, 
 #endif
 }
 
-BOOL CDECL nulldrv_EnumDisplayMonitors( HDC hdc, RECT *rect, MONITORENUMPROC proc, LPARAM lp )
+/***********************************************************************
+ *		EnumDisplayMonitors (USER32.@)
+ */
+BOOL WINAPI EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC proc, LPARAM lp )
 {
+    struct enum_mon_data data;
     RECT monitor_rect;
-    DWORD i = 0;
+    UINT ret, i = 0;
+
+    data.proc = proc;
+    data.lparam = lp;
+    data.hdc = hdc;
+
+    if (hdc)
+    {
+        if (!GetDCOrgEx( hdc, &data.origin )) return FALSE;
+        if (GetClipBox( hdc, &data.limit ) == ERROR) return FALSE;
+    }
+    else
+    {
+        data.origin.x = data.origin.y = 0;
+        data.limit.left = data.limit.top = INT_MIN;
+        data.limit.right = data.limit.bottom = INT_MAX;
+    }
+    if (rect && !IntersectRect( &data.limit, &data.limit, rect )) return TRUE;
+    if ((ret = USER_Driver->pEnumDisplayMonitors( 0, NULL, enum_mon_callback, (LPARAM)&data )) != ~0U) return ret;
 
     TRACE("(%p, %p, %p, 0x%lx)\n", hdc, rect, proc, lp);
 
@@ -4141,32 +4170,6 @@ BOOL CDECL nulldrv_EnumDisplayMonitors( HDC hdc, RECT *rect, MONITORENUMPROC pro
     if (!proc( NULLDRV_DEFAULT_HMONITOR, hdc, &monitor_rect, lp ))
         return FALSE;
     return TRUE;
-}
-
-/***********************************************************************
- *		EnumDisplayMonitors (USER32.@)
- */
-BOOL WINAPI EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC proc, LPARAM lp )
-{
-    struct enum_mon_data data;
-
-    data.proc = proc;
-    data.lparam = lp;
-    data.hdc = hdc;
-
-    if (hdc)
-    {
-        if (!GetDCOrgEx( hdc, &data.origin )) return FALSE;
-        if (GetClipBox( hdc, &data.limit ) == ERROR) return FALSE;
-    }
-    else
-    {
-        data.origin.x = data.origin.y = 0;
-        data.limit.left = data.limit.top = INT_MIN;
-        data.limit.right = data.limit.bottom = INT_MAX;
-    }
-    if (rect && !IntersectRect( &data.limit, &data.limit, rect )) return TRUE;
-    return USER_Driver->pEnumDisplayMonitors( 0, NULL, enum_mon_callback, (LPARAM)&data );
 }
 
 /***********************************************************************
@@ -4944,4 +4947,458 @@ LONG WINAPI SetDisplayConfig(UINT32 path_info_count, DISPLAYCONFIG_PATH_INFO *pa
             path_info_count, path_info, mode_info_count, mode_info, flags);
 
     return ERROR_SUCCESS;
+}
+
+struct gpu_desc
+{
+    /* ID to uniquely identify a GPU in handler */
+    ULONG_PTR id;
+    /* Name */
+    WCHAR name[128];
+    /* PCI ID */
+    UINT vendor_id;
+    UINT device_id;
+    UINT subsys_id;
+    UINT revision_id;
+    /* Vulkan device UUID */
+    GUID vulkan_uuid;
+};
+
+/* Represent an adapter in EnumDisplayDevices context */
+struct adapter_desc
+{
+    /* ID to uniquely identify an adapter in handler */
+    ULONG_PTR id;
+    /* as StateFlags in DISPLAY_DEVICE struct */
+    DWORD state_flags;
+};
+
+/* Represent a monitor in EnumDisplayDevices context */
+struct monitor_desc
+{
+    /* Name */
+    WCHAR name[128];
+    /* RcMonitor in MONITORINFO struct */
+    RECT rc_monitor;
+    /* RcWork in MONITORINFO struct */
+    RECT rc_work;
+    /* StateFlags in DISPLAY_DEVICE struct */
+    DWORD state_flags;
+};
+
+static const struct gpu_desc nulldrv_gpu = {0, L"nulldrv", 0, 0, 0, 0, {0}};
+static const struct adapter_desc nulldrv_adapter = {0, DISPLAY_DEVICE_ATTACHED_TO_DESKTOP | DISPLAY_DEVICE_PRIMARY_DEVICE};
+static struct monitor_desc nulldrv_monitor = {L"nulldrv", {0, 0, 640, 480}, {0, 0, 640, 480}, DISPLAY_DEVICE_ATTACHED | DISPLAY_DEVICE_ACTIVE};
+
+static int nulldrv_display_mode_reg;
+static int nulldrv_display_mode_cur;
+static const DEVMODEW nulldrv_display_modes[] =
+{
+    { { L"\\\\.\\DISPLAY1" }, DM_SPECVERSION, DM_SPECVERSION, FIELD_OFFSET(DEVMODEW, dmICMMethod), 0,
+    DM_DISPLAYORIENTATION | DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFLAGS | DM_DISPLAYFREQUENCY | DM_POSITION,
+    { { 0 } }, 0, 0, 0, 0, 0, { 0 }, 0, 32, 640, 480, { 0 }, 60, 0, 0, 0, 0, 0, 0, 0, 0, },
+
+    { { L"\\\\.\\DISPLAY1" }, DM_SPECVERSION, DM_SPECVERSION, FIELD_OFFSET(DEVMODEW, dmICMMethod), 0,
+    DM_DISPLAYORIENTATION | DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFLAGS | DM_DISPLAYFREQUENCY | DM_POSITION,
+    { { 0 } }, 0, 0, 0, 0, 0, { 0 }, 0, 32, 800, 600, { 0 }, 60, 0, 0, 0, 0, 0, 0, 0, 0, },
+
+    { { L"\\\\.\\DISPLAY1" }, DM_SPECVERSION, DM_SPECVERSION, FIELD_OFFSET(DEVMODEW, dmICMMethod), 0,
+    DM_DISPLAYORIENTATION | DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFLAGS | DM_DISPLAYFREQUENCY | DM_POSITION,
+    { { 0 } }, 0, 0, 0, 0, 0, { 0 }, 0, 32, 1024, 768, { 0 }, 60, 0, 0, 0, 0, 0, 0, 0, 0, },
+};
+
+LONG CDECL nulldrv_ChangeDisplaySettingsEx( LPCWSTR name, LPDEVMODEW mode, HWND hwnd,
+                                             DWORD flags, LPVOID lparam )
+{
+    int i;
+
+    TRACE_(nulldrv)("name %s, mode %p, hwnd %p, flags %x, lparam %p.\n", wine_dbgstr_w(name), mode, hwnd, flags, lparam);
+
+    if (name && wcscmp( name, L"\\\\.\\DISPLAY1" )) return DISP_CHANGE_FAILED;
+    if (!mode) i = nulldrv_display_mode_reg;
+    else for (i = 0; i < ARRAY_SIZE( nulldrv_display_modes ); ++i)
+    {
+        const DEVMODEW *m = nulldrv_display_modes + i;
+        if (mode->dmFields & ~(DM_DISPLAYORIENTATION | DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFLAGS | DM_DISPLAYFREQUENCY | DM_POSITION))
+            continue;
+        if ((mode->dmFields & DM_DISPLAYORIENTATION) && mode->u1.s1.dmOrientation &&
+            mode->u1.s1.dmOrientation != m->u1.s1.dmOrientation)
+            continue;
+        if ((mode->dmFields & DM_BITSPERPEL) && mode->dmBitsPerPel &&
+            mode->dmBitsPerPel != m->dmBitsPerPel)
+            continue;
+        if ((mode->dmFields & DM_PELSWIDTH) && mode->dmPelsWidth &&
+            mode->dmPelsWidth != m->dmPelsWidth)
+            continue;
+        if ((mode->dmFields & DM_PELSHEIGHT) && mode->dmPelsHeight &&
+            mode->dmPelsHeight != m->dmPelsHeight)
+            continue;
+        if ((mode->dmFields & DM_DISPLAYFLAGS) && mode->u2.dmDisplayFlags &&
+            mode->u2.dmDisplayFlags != m->u2.dmDisplayFlags)
+            continue;
+        if ((mode->dmFields & DM_DISPLAYFREQUENCY) && mode->dmDisplayFrequency &&
+            mode->dmDisplayFrequency != m->dmDisplayFrequency)
+            continue;
+        break;
+    }
+
+    if (i >= ARRAY_SIZE( nulldrv_display_modes )) return DISP_CHANGE_BADMODE;
+    if (flags & CDS_UPDATEREGISTRY) nulldrv_display_mode_reg = i;
+    if (flags & (CDS_TEST | CDS_NORESET)) return DISP_CHANGE_SUCCESSFUL;
+    nulldrv_display_mode_cur = i;
+
+    nulldrv_monitor.rc_monitor.right = nulldrv_display_modes[i].dmPelsWidth;
+    nulldrv_monitor.rc_monitor.bottom = nulldrv_display_modes[i].dmPelsHeight;
+    nulldrv_monitor.rc_work = nulldrv_monitor.rc_monitor;
+    nulldrv_initialize_display(TRUE);
+
+    return DISP_CHANGE_SUCCESSFUL;
+}
+
+BOOL CDECL nulldrv_EnumDisplaySettingsEx( LPCWSTR name, DWORD num, LPDEVMODEW mode, DWORD flags )
+{
+    TRACE_(nulldrv)("name %s, num %#x, mode %p, flags %x.\n", wine_dbgstr_w(name), num, mode, flags);
+    if (num == ENUM_CURRENT_SETTINGS) num = nulldrv_display_mode_cur;
+    if (num == ENUM_REGISTRY_SETTINGS) num = nulldrv_display_mode_reg;
+    if (num >= ARRAY_SIZE(nulldrv_display_modes)) return FALSE;
+    *mode = nulldrv_display_modes[num];
+    return TRUE;
+}
+
+static BOOL nulldrv_initialize_gpu( HDEVINFO devinfo, const struct gpu_desc *gpu, INT gpu_index, WCHAR *guid_string,
+                                    WCHAR *driver, LUID *gpu_luid )
+{
+    static const BOOL present = TRUE;
+    SP_DEVINFO_DATA device_data = {sizeof(device_data)};
+    WCHAR instance_path[MAX_PATH];
+    DEVPROPTYPE property_type;
+    SYSTEMTIME systemtime;
+    WCHAR bufferW[1024];
+    FILETIME filetime;
+    HKEY hkey = NULL;
+    GUID guid;
+    LUID luid;
+    INT written;
+    DWORD size;
+    BOOL ret = FALSE;
+
+    TRACE("GPU id:0x%s name:%s.\n", wine_dbgstr_longlong(gpu->id), wine_dbgstr_w(gpu->name));
+
+    swprintf(instance_path, MAX_PATH, L"PCI\\VEN_%04X&DEV_%04X&SUBSYS_%08X&REV_%02X\\%08X", gpu->vendor_id, gpu->device_id, gpu->subsys_id, gpu->revision_id, gpu_index);
+    if (!SetupDiOpenDeviceInfoW(devinfo, instance_path, NULL, 0, &device_data))
+    {
+        SetupDiCreateDeviceInfoW(devinfo, instance_path, &GUID_DEVCLASS_DISPLAY, gpu->name, NULL, 0, &device_data);
+        if (!SetupDiRegisterDeviceInfo(devinfo, &device_data, 0, NULL, NULL, NULL))
+            goto done;
+    }
+
+    /* Write HardwareID registry property, REG_MULTI_SZ */
+    written = swprintf(bufferW, 1024, L"PCI\\VEN_%04X&DEV_%04X&SUBSYS_00000000&REV_00", gpu->vendor_id, gpu->device_id);
+    bufferW[written + 1] = 0;
+    if (!SetupDiSetDeviceRegistryPropertyW(devinfo, &device_data, SPDRP_HARDWAREID, (const BYTE *)bufferW,
+                                           (written + 2) * sizeof(WCHAR)))
+        goto done;
+
+    /* Write DEVPKEY_Device_IsPresent property */
+    if (!SetupDiSetDevicePropertyW(devinfo, &device_data, &DEVPKEY_Device_IsPresent, DEVPROP_TYPE_BOOLEAN,
+                                   (const BYTE *)&present, sizeof(present), 0))
+        goto done;
+
+    /* Write DEVPROPKEY_GPU_LUID property */
+    if (!SetupDiGetDevicePropertyW(devinfo, &device_data, &DEVPROPKEY_GPU_LUID, &property_type,
+                                   (BYTE *)&luid, sizeof(luid), NULL, 0))
+    {
+        if (!AllocateLocallyUniqueId(&luid))
+            goto done;
+
+        if (!SetupDiSetDevicePropertyW(devinfo, &device_data, &DEVPROPKEY_GPU_LUID,
+                                       DEVPROP_TYPE_UINT64, (const BYTE *)&luid, sizeof(luid), 0))
+            goto done;
+    }
+    *gpu_luid = luid;
+    TRACE("LUID:%08x:%08x.\n", luid.HighPart, luid.LowPart);
+
+    /* Write WINE_DEVPROPKEY_GPU_VULKAN_UUID property */
+    if (!SetupDiSetDevicePropertyW(devinfo, &device_data, &WINE_DEVPROPKEY_GPU_VULKAN_UUID,
+                                   DEVPROP_TYPE_GUID, (const BYTE *)&gpu->vulkan_uuid,
+                                   sizeof(gpu->vulkan_uuid), 0))
+        goto done;
+    TRACE("Vulkan UUID:%s.\n", wine_dbgstr_guid(&gpu->vulkan_uuid));
+
+    /* Open driver key.
+     * This is where HKLM\System\CurrentControlSet\Control\Video\{GPU GUID}\{Adapter Index} links to */
+    hkey = SetupDiCreateDevRegKeyW(devinfo, &device_data, DICS_FLAG_GLOBAL, 0, DIREG_DRV, NULL, NULL);
+
+    /* Write DriverDesc value */
+    if (RegSetValueExW(hkey, L"DriverDesc", 0, REG_SZ, (const BYTE *)gpu->name,
+                       (wcslen(gpu->name) + 1) * sizeof(WCHAR)))
+        goto done;
+    /* Write DriverDateData value, using current time as driver date, needed by Evoland */
+    GetSystemTimeAsFileTime(&filetime);
+    if (RegSetValueExW(hkey, L"DriverDateData", 0, REG_BINARY, (BYTE *)&filetime, sizeof(filetime)))
+        goto done;
+
+    GetSystemTime(&systemtime);
+    swprintf(bufferW, 1024, L"%u-%u-%u", systemtime.wMonth, systemtime.wDay, systemtime.wYear);
+    if (RegSetValueExW(hkey, L"DriverDate", 0, REG_SZ, (BYTE *)bufferW, (wcslen(bufferW) + 1) * sizeof(WCHAR)))
+        goto done;
+
+    RegCloseKey(hkey);
+
+    /* Retrieve driver value for adapters */
+    if (!SetupDiGetDeviceRegistryPropertyW(devinfo, &device_data, SPDRP_DRIVER, NULL, (BYTE *)bufferW, sizeof(bufferW),
+                                           NULL))
+        goto done;
+    wcscpy(driver, L"\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Class\\");
+    wcscat(driver, bufferW);
+
+    /* Write GUID in VideoID in .../instance/Device Parameters, reuse the GUID if it's existent */
+    hkey = SetupDiCreateDevRegKeyW(devinfo, &device_data, DICS_FLAG_GLOBAL, 0, DIREG_DEV, NULL, NULL);
+
+    size = sizeof(bufferW);
+    if (RegQueryValueExW(hkey, L"VideoID", 0, NULL, (BYTE *)bufferW, &size))
+    {
+        UuidCreate(&guid);
+        swprintf(bufferW, 1024, L"{%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}", guid.Data1, guid.Data2, guid.Data3, guid.Data4[0], guid.Data4[1], guid.Data4[2],
+                 guid.Data4[3], guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7]);
+        if (RegSetValueExW(hkey, L"VideoID", 0, REG_SZ, (const BYTE *)bufferW, (wcslen(bufferW) + 1) * sizeof(WCHAR)))
+            goto done;
+    }
+    wcscpy(guid_string, bufferW);
+
+    ret = TRUE;
+done:
+    RegCloseKey(hkey);
+    if (!ret)
+        ERR("Failed to initialize GPU\n");
+    return ret;
+}
+
+static BOOL nulldrv_initialize_adapter(HKEY video_hkey, INT video_index, INT gpu_index, INT adapter_index, INT monitor_count,
+                                       const struct gpu_desc *gpu, const WCHAR *guid_string,
+                                       const WCHAR *gpu_driver, const struct adapter_desc *adapter)
+{
+    WCHAR adapter_key[MAX_PATH];
+    WCHAR key_name[MAX_PATH];
+    WCHAR bufferW[1024];
+    HKEY hkey = NULL;
+    BOOL ret = FALSE;
+    LSTATUS ls;
+    INT i;
+
+    swprintf(key_name, MAX_PATH, L"\\Device\\Video%d", video_index);
+    wcscpy(bufferW, L"\\Registry\\Machine\\");
+    swprintf(adapter_key, MAX_PATH, L"System\\CurrentControlSet\\Control\\Video\\%s\\%04x", guid_string, adapter_index);
+    wcscat(bufferW, adapter_key);
+
+    /* Write value of \Device\Video? (adapter key) in HKLM\HARDWARE\DEVICEMAP\VIDEO\ */
+    if (RegSetValueExW(video_hkey, key_name, 0, REG_SZ, (const BYTE *)bufferW, (wcslen(bufferW) + 1) * sizeof(WCHAR)))
+        goto done;
+
+    /* Create HKLM\System\CurrentControlSet\Control\Video\{GPU GUID}\{Adapter Index} link to GPU driver */
+    ls = RegCreateKeyExW(HKEY_LOCAL_MACHINE, adapter_key, 0, NULL, REG_OPTION_VOLATILE | REG_OPTION_CREATE_LINK,
+                         KEY_ALL_ACCESS, NULL, &hkey, NULL);
+    if (ls == ERROR_ALREADY_EXISTS)
+        RegCreateKeyExW(HKEY_LOCAL_MACHINE, adapter_key, 0, NULL, REG_OPTION_VOLATILE | REG_OPTION_OPEN_LINK,
+                        KEY_ALL_ACCESS, NULL, &hkey, NULL);
+    if (RegSetValueExW(hkey, L"SymbolicLinkValue", 0, REG_LINK, (const BYTE *)gpu_driver,
+                       wcslen(gpu_driver) * sizeof(WCHAR)))
+        goto done;
+    RegCloseKey(hkey);
+    hkey = NULL;
+
+    /* FIXME:
+     * Following information is Wine specific, it doesn't really exist on Windows. It is used so that we can
+     * implement EnumDisplayDevices etc by querying registry only. This information is most likely reported by the
+     * device driver on Windows */
+    RegCreateKeyExW(HKEY_CURRENT_CONFIG, adapter_key, 0, NULL, REG_OPTION_VOLATILE, KEY_WRITE, NULL, &hkey, NULL);
+
+    /* Write GPU instance path so that we can find the GPU instance via adapters quickly. Another way is trying to match
+     * them via the GUID in Device Parameters/VideoID, but it would require enumerating all GPU instances */
+    swprintf(bufferW, 1024, L"PCI\\VEN_%04X&DEV_%04X&SUBSYS_%08X&REV_%02X\\%08X", gpu->vendor_id, gpu->device_id, gpu->subsys_id, gpu->revision_id, gpu_index);
+    if (RegSetValueExW(hkey, L"GPUID", 0, REG_SZ, (const BYTE *)bufferW, (wcslen(bufferW) + 1) * sizeof(WCHAR)))
+        goto done;
+
+    /* Write all monitor instances paths under this adapter */
+    for (i = 0; i < monitor_count; i++)
+    {
+        swprintf(key_name, MAX_PATH, L"MonitorID%d", i);
+        swprintf(bufferW, 1024, L"DISPLAY\\Default_Monitor\\%04X&%04X", video_index, i);
+        if (RegSetValueExW(hkey, key_name, 0, REG_SZ, (const BYTE *)bufferW, (wcslen(bufferW) + 1) * sizeof(WCHAR)))
+            goto done;
+    }
+
+    /* Write StateFlags */
+    if (RegSetValueExW(hkey, L"StateFlags", 0, REG_DWORD, (const BYTE *)&adapter->state_flags,
+                       sizeof(adapter->state_flags)))
+        goto done;
+
+    ret = TRUE;
+done:
+    RegCloseKey(hkey);
+    if (!ret)
+        ERR("Failed to initialize adapter\n");
+    return ret;
+}
+
+static BOOL nulldrv_initialize_monitor(HDEVINFO devinfo, const struct monitor_desc *monitor, int monitor_index,
+                                       int video_index, const LUID *gpu_luid, UINT output_id)
+{
+    static const WCHAR monitor_hardware_idW[] = L"MONITOR\\Default_Monitor\x00";
+    SP_DEVINFO_DATA device_data = {sizeof(SP_DEVINFO_DATA)};
+    WCHAR bufferW[MAX_PATH];
+    HKEY hkey;
+    BOOL ret = FALSE;
+
+    /* Create GUID_DEVCLASS_MONITOR instance */
+    swprintf(bufferW, 1024, L"DISPLAY\\Default_Monitor\\%04X&%04X", video_index, monitor_index);
+    SetupDiCreateDeviceInfoW(devinfo, bufferW, &GUID_DEVCLASS_MONITOR, monitor->name, NULL, 0, &device_data);
+    if (!SetupDiRegisterDeviceInfo(devinfo, &device_data, 0, NULL, NULL, NULL))
+        goto done;
+
+    /* Write HardwareID registry property */
+    if (!SetupDiSetDeviceRegistryPropertyW(devinfo, &device_data, SPDRP_HARDWAREID,
+                                           (const BYTE *)monitor_hardware_idW, sizeof(monitor_hardware_idW)))
+        goto done;
+
+    /* Write DEVPROPKEY_MONITOR_GPU_LUID */
+    if (!SetupDiSetDevicePropertyW(devinfo, &device_data, &DEVPROPKEY_MONITOR_GPU_LUID,
+                                   DEVPROP_TYPE_INT64, (const BYTE *)gpu_luid, sizeof(*gpu_luid), 0))
+        goto done;
+
+    /* Write DEVPROPKEY_MONITOR_OUTPUT_ID */
+    if (!SetupDiSetDevicePropertyW(devinfo, &device_data, &DEVPROPKEY_MONITOR_OUTPUT_ID,
+                                   DEVPROP_TYPE_UINT32, (const BYTE *)&output_id, sizeof(output_id), 0))
+        goto done;
+
+    /* Create driver key */
+    hkey = SetupDiCreateDevRegKeyW(devinfo, &device_data, DICS_FLAG_GLOBAL, 0, DIREG_DRV, NULL, NULL);
+    RegCloseKey(hkey);
+
+    /* FIXME:
+     * Following properties are Wine specific, see comments in nulldrv_initialize_adapter for details */
+    /* StateFlags */
+    if (!SetupDiSetDevicePropertyW(devinfo, &device_data, &WINE_DEVPROPKEY_MONITOR_STATEFLAGS, DEVPROP_TYPE_UINT32,
+                                   (const BYTE *)&monitor->state_flags, sizeof(monitor->state_flags), 0))
+        goto done;
+    /* RcMonitor */
+    if (!SetupDiSetDevicePropertyW(devinfo, &device_data, &WINE_DEVPROPKEY_MONITOR_RCMONITOR, DEVPROP_TYPE_BINARY,
+                                   (const BYTE *)&monitor->rc_monitor, sizeof(monitor->rc_monitor), 0))
+        goto done;
+    /* RcWork */
+    if (!SetupDiSetDevicePropertyW(devinfo, &device_data, &WINE_DEVPROPKEY_MONITOR_RCWORK, DEVPROP_TYPE_BINARY,
+                                   (const BYTE *)&monitor->rc_work, sizeof(monitor->rc_work), 0))
+        goto done;
+    /* Adapter name */
+    swprintf(bufferW, 1024, L"\\\\.\\DISPLAY%d", video_index + 1);
+    if (!SetupDiSetDevicePropertyW(devinfo, &device_data, &WINE_DEVPROPKEY_MONITOR_ADAPTERNAME, DEVPROP_TYPE_STRING,
+                                   (const BYTE *)bufferW, (wcslen(bufferW) + 1) * sizeof(WCHAR), 0))
+        goto done;
+
+    ret = TRUE;
+done:
+    if (!ret)
+        ERR("Failed to initialize monitor\n");
+    return ret;
+}
+
+static void prepare_devices(HKEY video_hkey)
+{
+    static const BOOL not_present = FALSE;
+    SP_DEVINFO_DATA device_data = {sizeof(device_data)};
+    HDEVINFO devinfo;
+    DWORD i = 0;
+
+    /* Remove all monitors */
+    devinfo = SetupDiGetClassDevsW(&GUID_DEVCLASS_MONITOR, L"DISPLAY", NULL, 0);
+    while (SetupDiEnumDeviceInfo(devinfo, i++, &device_data))
+    {
+        if (!SetupDiRemoveDevice(devinfo, &device_data))
+            ERR("Failed to remove monitor\n");
+    }
+    SetupDiDestroyDeviceInfoList(devinfo);
+
+    /* Clean up old adapter keys for reinitialization */
+    RegDeleteTreeW(video_hkey, NULL);
+
+    /* FIXME:
+     * Currently SetupDiGetClassDevsW with DIGCF_PRESENT is unsupported, So we need to clean up not present devices in
+     * case application uses SetupDiGetClassDevsW to enumerate devices. Wrong devices could exist in registry as a result
+     * of prefix copying or having devices unplugged. But then we couldn't simply delete GPUs because we need to retain
+     * the same GUID for the same GPU. */
+    i = 0;
+    devinfo = SetupDiGetClassDevsW(&GUID_DEVCLASS_DISPLAY, L"PCI", NULL, 0);
+    while (SetupDiEnumDeviceInfo(devinfo, i++, &device_data))
+    {
+        if (!SetupDiSetDevicePropertyW(devinfo, &device_data, &DEVPKEY_Device_IsPresent, DEVPROP_TYPE_BOOLEAN,
+                                       (const BYTE *)&not_present, sizeof(not_present), 0))
+            ERR("Failed to set GPU present property\n");
+    }
+    SetupDiDestroyDeviceInfoList(devinfo);
+}
+
+static void cleanup_devices(void)
+{
+    SP_DEVINFO_DATA device_data = {sizeof(device_data)};
+    HDEVINFO devinfo;
+    DWORD type;
+    DWORD i = 0;
+    BOOL present;
+
+    devinfo = SetupDiGetClassDevsW(&GUID_DEVCLASS_DISPLAY, L"PCI", NULL, 0);
+    while (SetupDiEnumDeviceInfo(devinfo, i++, &device_data))
+    {
+        present = FALSE;
+        SetupDiGetDevicePropertyW(devinfo, &device_data, &DEVPKEY_Device_IsPresent, &type, (BYTE *)&present,
+                                  sizeof(present), NULL, 0);
+        if (!present && !SetupDiRemoveDevice(devinfo, &device_data))
+            ERR("Failed to remove GPU\n");
+    }
+    SetupDiDestroyDeviceInfoList(devinfo);
+}
+
+void nulldrv_initialize_display(BOOL force)
+{
+    HDEVINFO gpu_devinfo = NULL, monitor_devinfo = NULL;
+    HANDLE mutex;
+    WCHAR guidW[40], driverW[1024];
+    DWORD disposition;
+    HKEY video_hkey;
+    LUID gpu_luid;
+
+    if (!(mutex = CreateMutexW( NULL, FALSE, L"display_device_init" )))
+    {
+        ERR( "Failed to create video device mutex\n" );
+        return;
+    }
+
+    WaitForSingleObject( mutex, INFINITE );
+
+    if (RegCreateKeyExW( HKEY_LOCAL_MACHINE, L"HARDWARE\\DEVICEMAP\\VIDEO", 0, NULL, REG_OPTION_VOLATILE, KEY_ALL_ACCESS, NULL, &video_hkey, &disposition ))
+        ERR( "Failed to create video device key\n" );
+    else if (disposition == REG_CREATED_NEW_KEY || force)
+    {
+        prepare_devices( video_hkey );
+
+        gpu_devinfo = SetupDiCreateDeviceInfoList(&GUID_DEVCLASS_DISPLAY, NULL);
+        monitor_devinfo = SetupDiCreateDeviceInfoList(&GUID_DEVCLASS_MONITOR, NULL);
+
+        if (!nulldrv_initialize_gpu(gpu_devinfo, &nulldrv_gpu, 0, guidW, driverW, &gpu_luid))
+            goto done;
+
+        if (!nulldrv_initialize_adapter(video_hkey, 0, 0, 0, 1, &nulldrv_gpu, guidW, driverW, &nulldrv_adapter))
+            goto done;
+
+        if (!nulldrv_initialize_monitor(monitor_devinfo, &nulldrv_monitor, 0, 0, &gpu_luid, 0))
+            goto done;
+
+        cleanup_devices();
+        SetupDiDestroyDeviceInfoList(monitor_devinfo);
+        SetupDiDestroyDeviceInfoList(gpu_devinfo);
+    }
+
+done:
+    RegCloseKey( video_hkey );
+    ReleaseMutex( mutex );
+    CloseHandle( mutex );
 }

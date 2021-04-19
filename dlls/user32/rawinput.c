@@ -37,7 +37,6 @@
 
 #include "user_private.h"
 
-#include "initguid.h"
 #include "devpkey.h"
 #include "ntddmou.h"
 #include "ntddkbd.h"

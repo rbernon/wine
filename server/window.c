@@ -2359,6 +2359,8 @@ DECL_HANDLER(set_window_pos)
         reply->surface_win = top->handle;
         reply->needs_update = !!(top->paint_flags & (PAINT_HAS_PIXEL_FORMAT | PAINT_PIXEL_FORMAT_CHILD));
     }
+
+    update_desktop_cursor_win( win->desktop );
 }
 
 

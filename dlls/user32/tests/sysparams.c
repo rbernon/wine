@@ -3566,7 +3566,6 @@ static void test_dpi_mapping(void)
             hdc = GetWindowDC( hwnd );
             GetClipBox( hdc, &rect );
             SetRect( &expect, 0, 0, 295, 303 );
-            todo_wine
             ok( EqualRect( &expect, &rect ), "%lu/%lu: wrong clip box win DC %s expected %s\n",
                 i, j, wine_dbgstr_rect(&rect), wine_dbgstr_rect(&expect) );
             ReleaseDC( hwnd, hdc );

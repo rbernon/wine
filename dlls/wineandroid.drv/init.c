@@ -220,9 +220,9 @@ BOOL CDECL ANDROID_GetMonitorInfo( HMONITOR handle, LPMONITORINFO info )
 /***********************************************************************
  *           ANDROID_EnumDisplayMonitors
  */
-BOOL CDECL ANDROID_EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC proc, LPARAM lp )
+UINT CDECL ANDROID_EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC proc, LPARAM lp )
 {
-    return proc( (HMONITOR)1, 0, &default_monitor.rcMonitor, lp );
+    return proc( (HMONITOR)1, 0, &default_monitor.rcMonitor, lp ) ? 1 : 0;
 }
 
 
