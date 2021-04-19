@@ -118,6 +118,7 @@ extern const USER_DRIVER *USER_Driver DECLSPEC_HIDDEN;
 
 extern void USER_unload_driver(void) DECLSPEC_HIDDEN;
 
+extern void nulldrv_initialize_display(BOOL force) DECLSPEC_HIDDEN;
 extern BOOL CDECL nulldrv_GetMonitorInfo( HMONITOR handle, MONITORINFO *info ) DECLSPEC_HIDDEN;
 extern LONG CDECL nulldrv_ChangeDisplaySettingsEx( LPCWSTR name, LPDEVMODEW mode, HWND hwnd, DWORD flags, LPVOID lparam ) DECLSPEC_HIDDEN;
 extern BOOL CDECL nulldrv_EnumDisplaySettingsEx( LPCWSTR name, DWORD num, LPDEVMODEW mode, DWORD flags ) DECLSPEC_HIDDEN;

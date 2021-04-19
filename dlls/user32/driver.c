@@ -158,7 +158,8 @@ static const USER_DRIVER *load_driver(void)
         HeapFree( GetProcessHeap(), 0, driver );
         driver = prev;
     }
-    else LdrAddRefDll( 0, graphics_driver );
+    else if (graphics_driver) LdrAddRefDll( 0, graphics_driver );
+    else nulldrv_initialize_display();
 
     __wine_set_display_driver( graphics_driver );
     register_builtin_classes();
