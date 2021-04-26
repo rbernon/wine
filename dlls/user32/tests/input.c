@@ -2981,8 +2981,9 @@ static void test_ToUnicode(void)
     BYTE state[256];
     const BYTE SC_RETURN = 0x1c, SC_TAB = 0x0f, SC_A = 0x1e;
     const BYTE HIGHEST_BIT = 0x80;
-    int i, ret;
+    int i, j, k, ret;
     BOOL us_kbd = (GetKeyboardLayout(0) == (HKL)(ULONG_PTR)0x04090409);
+    HKL layouts[128];
 
     for(i=0; i<256; i++)
         state[i]=0;
@@ -3046,6 +3047,58 @@ static void test_ToUnicode(void)
     ok(ret == 0, "ToUnicodeEx with NULL keystate didn't return 0 (was %i)\n", ret);
     ret = ToUnicodeEx('A', SC_A, NULL, wStr, 4, 0, GetKeyboardLayout(0));
     ok(ret == 0, "ToUnicodeEx with NULL keystate didn't return 0 (was %i)\n", ret);
+
+    ret = GetKeyboardLayoutList(128, layouts);
+    ok(ret > 0, "GetKeyboardLayoutList failed, last error %u\n", GetLastError());
+
+    memset(state, 0, sizeof(state));
+    for (i = ret - 1; i >= 0; i--)
+    {
+        UINT scan, len;
+        trace("testing layout %p\n", layouts[i]);
+        scan = MapVirtualKeyW(VK_ESCAPE, MAPVK_VK_TO_VSC_EX);
+        ret = ToUnicodeEx(VK_ESCAPE, scan, state, wStr, 4, 0, layouts[i]);
+        ok(ret == 1 && wStr[0] == VK_ESCAPE, "layout %p ToUnicodeEx returned len %d wchar %x, expected 1 / VK_ESCAPE (0x1b)\n", layouts[i], ret, wStr[0]);
+
+        state[VK_CONTROL] = 0x80;
+        for (k = 0; k < 256; ++k)
+        {
+            WCHAR expect[2] = {0, 0};
+            scan = MapVirtualKeyW(k, MAPVK_VK_TO_VSC_EX);
+            switch (k)
+            {
+            case VK_CANCEL:    expect[0] = 0x03; break;
+            case VK_ESCAPE:    expect[0] = 0x1b; break;
+            case VK_OEM_4:     expect[0] = 0x1b; break;
+            case VK_OEM_5:     expect[0] = 0x1c; break;
+            case VK_OEM_102:   expect[0] = 0x1c; break;
+            case VK_OEM_6:     expect[0] = 0x1d; break;
+            case VK_BACK:      expect[0] = 0x7f; break;
+            case VK_RETURN:    expect[0] = '\n'; break;
+            case VK_SPACE:     expect[0] = ' '; break;
+            default:
+                if (k >= 'A' && k <= 'Z') expect[0] = k - 'A' + 1;
+                break;
+            }
+
+            len = wcslen(expect);
+            if (k == VK_PACKET) len = 1;
+
+            wStr[0] = 0;
+            ret = ToUnicodeEx(k, 0, state, wStr, 4, 0, layouts[i]);
+            ok(ret == len && wStr[0] == expect[0], "layout %p vkey %x ToUnicodeEx returned len %d wchar %x, expected %d / %x\n",
+               layouts[i], k, ret, wStr[0], len, expect[0]);
+        }
+        state[VK_CONTROL] = 0x00;
+
+        for (j = 0; j < ARRAY_SIZE(state); ++j)
+        {
+            state[j] = 0x80;
+            ret = ToUnicodeEx(VK_ESCAPE, 0, state, wStr, 4, 0, layouts[i]);
+            ok(ret == 1 && wStr[0] == VK_ESCAPE, "layout %p state %x ToUnicodeEx returned len %d wchar %x, expected 1 / VK_ESCAPE (0x1b)\n", layouts[i], j, ret, wStr[0]);
+            state[j] = 0;
+        }
+    }
 }
 
 static void test_ToAscii(void)
