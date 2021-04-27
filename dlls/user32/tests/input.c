@@ -2754,8 +2754,8 @@ static void test_DefRawInputProc(void)
 
 static void test_key_map(void)
 {
-    HKL kl = GetKeyboardLayout(0);
-    UINT kL, kR, s, sL;
+    HKL kl = GetKeyboardLayout(0), layouts[64];
+    UINT kL, kR, s, sL, len;
     int i;
     static const UINT numpad_collisions[][2] = {
         { VK_NUMPAD0, VK_INSERT },
@@ -2812,6 +2812,25 @@ static void test_key_map(void)
     ok(s >> 8 == 0xE0 || broken(s == 0), "Scan code prefix for VK_RMENU should be 0xE0 when MAPVK_VK_TO_VSC_EX is set, was %#1x\n", s >> 8);
     s = MapVirtualKeyExA(VK_RSHIFT, MAPVK_VK_TO_VSC_EX, kl);
     ok(s >> 8 == 0x00 || broken(s == 0), "The scan code shouldn't have a prefix, got %#1x\n", s >> 8);
+
+    /* keyboard layout is the high word of HKL, look for French keyboard layout and use it with English lang */
+
+    len = GetKeyboardLayoutList(ARRAY_SIZE(layouts), layouts);
+    ok(len > 0, "GetKeyboardLayoutList returned %d\n", len);
+    while (len--) if (HIWORD(layouts[len]) == MAKELANGID(LANG_FRENCH, SUBLANG_DEFAULT)) break;
+
+    if (len >= ARRAY_SIZE(layouts)) skip("French keyboard layout not available, skipping test.\n");
+    else
+    {
+        WCHAR klid[KL_NAMELENGTH];
+        swprintf(klid, KL_NAMELENGTH, L"%08X", MAKELANGID(LANG_FRENCH, SUBLANG_DEFAULT));
+        LoadKeyboardLayoutW(klid, 0);
+
+        s = MapVirtualKeyExW(0x10, MAPVK_VSC_TO_VK, (HKL)(UINT_PTR)MAKELONG(LOWORD(layouts[len]), MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT)));
+        ok(s == 'Q', "MapVirtualKeyExW returned %s, expected L\"Q\"\n", wine_dbgstr_wn((WCHAR *)&s, 1));
+        s = MapVirtualKeyExW(0x10, MAPVK_VSC_TO_VK, (HKL)(UINT_PTR)MAKELONG(LOWORD(layouts[len]), MAKELANGID(LANG_FRENCH, SUBLANG_DEFAULT)));
+        ok(s == 'A', "MapVirtualKeyExW returned %s, expected L\"A\"\n", wine_dbgstr_wn((WCHAR *)&s, 1));
+    }
 }
 
 #define shift 1
