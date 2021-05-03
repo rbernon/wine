@@ -34,6 +34,7 @@
 #include "dwmapi.h"
 #include "d3d9.h"
 
+#include "wine/wgl.h"
 #include "wine/test.h"
 
 #ifndef WM_SYSTIMER
@@ -13392,6 +13393,7 @@ static SIZE_T capture_client_surface_(int line, HWND hwnd, DWORD *surface, SIZE_
     SIZE_T data_size;
     RECT rect;
     HDC hdc;
+    int i;
 
     GetClientRect(hwnd, &rect);
     OffsetRect(&rect, -rect.left, -rect.top);
@@ -13400,6 +13402,9 @@ static SIZE_T capture_client_surface_(int line, HWND hwnd, DWORD *surface, SIZE_
     ok_(__FILE__, line)(hdc != 0, "GetDC failed, last error %lu\n", GetLastError());
     data_size = capture_surface_(line, hdc, 0, 0, rect.right, rect.bottom, surface, surface_size);
     ReleaseDC(hwnd, hdc);
+
+    /* clear inconsistent alpha channel (D3D R5G6B5 clear sets it, other paint ops clear it) */
+    for (i = 0; i < data_size / 4; i++) surface[i] &= 0xffffff;
 
     return data_size;
 }
@@ -13446,7 +13451,7 @@ static struct d3d9_context *create_d3d9_context(HWND hwnd)
     params.Windowed = TRUE;
     params.SwapEffect = D3DSWAPEFFECT_DISCARD;
     params.hDeviceWindow = hwnd;
-    params.BackBufferFormat = D3DFMT_X8R8G8B8;
+    params.BackBufferFormat = D3DFMT_R5G6B5; /* something incompatible with GL */
     params.BackBufferWidth = rect.right;
     params.BackBufferHeight = rect.bottom;
 
@@ -13470,6 +13475,67 @@ static void destroy_d3d9_context(struct d3d9_context *ctx)
 {
     IDirect3DDevice9_Release(ctx->device);
     IDirect3D9_Release(ctx->d3d);
+    free(ctx);
+}
+
+struct gl_context
+{
+    HWND hwnd;
+    HDC hdc;
+    HGLRC hrc;
+    IDirect3D9 *d3d;
+    IDirect3DDevice9 *device;
+};
+
+static struct gl_context *create_gl_context(HWND hwnd)
+{
+    PIXELFORMATDESCRIPTOR desc;
+    struct gl_context *ctx;
+    RECT rect;
+    BOOL ret;
+    INT pixel_format;
+
+    if (!(ctx = malloc(sizeof(struct gl_context)))) return NULL;
+
+    GetClientRect(hwnd, &rect);
+    OffsetRect(&rect, -rect.left, -rect.top);
+
+    memset(&desc, 0, sizeof(desc));
+    desc.nSize = sizeof(PIXELFORMATDESCRIPTOR);
+    desc.nVersion = 1;
+    desc.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+    desc.iPixelType = PFD_TYPE_RGBA;
+    desc.cColorBits = 32;
+
+    ctx->hwnd = hwnd;
+    ctx->hdc = GetDC(hwnd);
+    pixel_format = ChoosePixelFormat(ctx->hdc, &desc);
+    ok(pixel_format, "ChoosePixelFormat returned 0, last error %lu\n", GetLastError());
+    ret = SetPixelFormat(ctx->hdc, pixel_format, &desc);
+    ok(ret, "SetPixelFormat failed, last error %lu\n", GetLastError());
+    ctx->hrc = wglCreateContext(ctx->hdc);
+    wglMakeCurrent(ctx->hdc, ctx->hrc);
+    glViewport(0, 0, (GLint)rect.right, (GLint)rect.bottom);
+
+    return ctx;
+}
+
+static void paint_gl_client_rect(struct gl_context *ctx, DWORD color)
+{
+    BOOL ret;
+    ret = wglMakeCurrent(ctx->hdc, ctx->hrc);
+    ok(ret, "wglMakeCurrent failed\n");
+    glClearColor((color >> 16) & 0xff, (color >> 8) & 0xff, (color >> 0) & 0xff, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    ret = SwapBuffers(ctx->hdc);
+    ok(ret, "SwapBuffers failed\n");
+}
+
+static void destroy_gl_context(struct gl_context *ctx)
+{
+    wglMakeCurrent(NULL, NULL);
+    wglDeleteContext(ctx->hrc);
+    ReleaseDC(ctx->hwnd, ctx->hdc);
     free(ctx);
 }
 
@@ -13576,6 +13642,7 @@ static void test_surface_composition(void)
     DWORD layered_child_alpha_surface[ARRAY_SIZE(painted_child_surface)];
 
     struct d3d9_context *d3d9_ctx1, *d3d9_ctx2;
+    struct gl_context *gl_ctx1, *gl_ctx2;
     BLENDFUNCTION blend_cst_alpha = { AC_SRC_OVER, 0, 0x7f, 0 };
     BLENDFUNCTION blend_src_alpha = { AC_SRC_OVER, 0, 0xff, AC_SRC_ALPHA };
     WNDCLASSEXW wc;
@@ -14017,7 +14084,7 @@ static void test_surface_composition(void)
     DestroyWindow(hwnd);
 
 
-    /* D3D / GDI interactions */
+    /* D3D / GL / GDI interactions */
 
     hwnd = CreateWindowW(L"surface", L"", WS_POPUP | WS_VISIBLE, 0, 0, 4, 4, 0, NULL, NULL, NULL);
     ok(hwnd != 0, "CreateWindowW failed, last error %lu\n", GetLastError());
@@ -14041,6 +14108,44 @@ static void test_surface_composition(void)
     check_client_surface(hwnd, painted_surface4, sizeof(painted_surface4), TRUE);
     check_screen_surface(hwnd, painted_surface4, sizeof(painted_surface4), FALSE);
 
+    gl_ctx1 = create_gl_context(hwnd);
+    gl_ctx2 = create_gl_context(hwnd);
+    flush_events( TRUE );
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), TRUE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+
+    paint_gl_client_rect(gl_ctx1, COLOR2);
+    check_client_surface(hwnd, painted_surface2, sizeof(painted_surface2), TRUE);
+    check_screen_surface(hwnd, painted_surface2, sizeof(painted_surface2), FALSE);
+
+    paint_gl_client_rect(gl_ctx2, COLOR3);
+    check_client_surface(hwnd, painted_surface3, sizeof(painted_surface3), TRUE);
+    check_screen_surface(hwnd, painted_surface3, sizeof(painted_surface3), FALSE);
+
+    paint_d3d9_client_rect(d3d9_ctx1, COLOR4);
+    check_client_surface(hwnd, painted_surface4, sizeof(painted_surface4), TRUE);
+    check_screen_surface(hwnd, painted_surface4, sizeof(painted_surface4), TRUE);
+
+    paint_gl_client_rect(gl_ctx2, COLOR2);
+    check_client_surface(hwnd, painted_surface2, sizeof(painted_surface2), TRUE);
+    check_screen_surface(hwnd, painted_surface2, sizeof(painted_surface2), FALSE);
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), TRUE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+
+    paint_d3d9_client_rect(d3d9_ctx2, COLOR3);
+    check_client_surface(hwnd, painted_surface3, sizeof(painted_surface3), TRUE);
+    check_screen_surface(hwnd, painted_surface3, sizeof(painted_surface3), TRUE);
+
+    paint_gl_client_rect(gl_ctx1, COLOR4);
+    check_client_surface(hwnd, painted_surface4, sizeof(painted_surface4), TRUE);
+    check_screen_surface(hwnd, painted_surface4, sizeof(painted_surface4), FALSE);
+
+    destroy_gl_context(gl_ctx1);
+    destroy_gl_context(gl_ctx2);
     destroy_d3d9_context(d3d9_ctx1);
     destroy_d3d9_context(d3d9_ctx2);
     DestroyWindow(hwnd);
@@ -14075,6 +14180,35 @@ static void test_surface_composition(void)
     check_client_surface(hwnd, painted_surface4, sizeof(painted_surface4), FALSE);
     check_screen_surface(hwnd, layered_const_surface4, sizeof(layered_const_surface4), TRUE);
 
+    gl_ctx1 = create_gl_context(hwnd);
+    gl_ctx2 = create_gl_context(hwnd);
+    flush_events( TRUE );
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, layered_const_surface, sizeof(layered_const_surface), TRUE);
+
+    paint_gl_client_rect(gl_ctx1, COLOR2);
+    check_client_surface(hwnd, painted_surface2, sizeof(painted_surface2), FALSE);
+    check_screen_surface(hwnd, layered_const_surface2, sizeof(layered_const_surface2), TRUE);
+
+    paint_d3d9_client_rect(d3d9_ctx1, COLOR3);
+    check_client_surface(hwnd, painted_surface3, sizeof(painted_surface3), TRUE);
+    check_screen_surface(hwnd, layered_const_surface3, sizeof(layered_const_surface3), TRUE);
+
+    paint_gl_client_rect(gl_ctx2, COLOR4);
+    check_client_surface(hwnd, painted_surface4, sizeof(painted_surface4), FALSE);
+    check_screen_surface(hwnd, layered_const_surface4, sizeof(layered_const_surface4), TRUE);
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR2));
+    check_client_surface(hwnd, painted_surface2, sizeof(painted_surface2), FALSE);
+    check_screen_surface(hwnd, layered_const_surface2, sizeof(layered_const_surface2), TRUE);
+
+    paint_d3d9_client_rect(d3d9_ctx2, COLOR1);
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), TRUE);
+    check_screen_surface(hwnd, layered_const_surface, sizeof(layered_const_surface), TRUE);
+
+    destroy_gl_context(gl_ctx1);
+    destroy_gl_context(gl_ctx2);
     destroy_d3d9_context(d3d9_ctx1);
     destroy_d3d9_context(d3d9_ctx2);
     DestroyWindow(hwnd);
@@ -14085,6 +14219,7 @@ static void test_surface_composition(void)
     hwnd = CreateWindowW(L"surface", L"", WS_POPUP, 0, 0, 4, 4, 0, NULL, NULL, NULL);
     ok(hwnd != 0, "CreateWindowW failed, last error %lu\n", GetLastError());
     d3d9_ctx1 = create_d3d9_context(hwnd);
+    gl_ctx1 = create_gl_context(hwnd);
 
     SetWindowLongW(hwnd, GWL_EXSTYLE, GetWindowLongW(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED);
     ret = UpdateLayeredWindow(hwnd, hdc_dst, NULL, (SIZE *)&rect.right, hdc_src, (POINT *)&rect.left, 0, NULL, ULW_OPAQUE);
@@ -14096,6 +14231,10 @@ static void test_surface_composition(void)
     check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
     check_screen_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), TRUE);
 
+    paint_gl_client_rect(gl_ctx1, COLOR1);
+    check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
+    check_screen_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), TRUE);
+
     paint_d3d9_client_rect(d3d9_ctx1, COLOR2);
     check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
     check_screen_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), TRUE);
@@ -14104,6 +14243,7 @@ static void test_surface_composition(void)
     check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
     check_screen_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), TRUE);
 
+    destroy_gl_context(gl_ctx1);
     destroy_d3d9_context(d3d9_ctx1);
     DestroyWindow(hwnd);
 
