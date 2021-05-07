@@ -9090,6 +9090,67 @@ static void test_layered_window(void)
     hbm = CreateCompatibleBitmap( hdc, 200, 200 );
     SelectObject( hdc, hbm );
 
+    hwnd = CreateWindowExA( 0, "MainWindowClass", "message window", WS_CAPTION | WS_VISIBLE,
+                            100, 100, 200, 200, 0, 0, 0, NULL );
+    assert( hwnd );
+    flush_events( TRUE );
+
+    /* already visible window has some layered attributes but UpdateLayeredWindow succeeds */
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED );
+    ret = pGetLayeredWindowAttributes( hwnd, &key, &alpha, &flags );
+    todo_wine ok( ret, "GetLayeredWindowAttributes should succeed on layered visible window\n" );
+    ok( key == 0, "wrong color key %lx\n", key );
+    ok( alpha == 0, "wrong alpha %u\n", alpha );
+    ok( flags == 0, "wrong flags %lx\n", flags );
+    ret = pUpdateLayeredWindow( hwnd, 0, NULL, &sz, hdc, &pt, 0, NULL, ULW_OPAQUE );
+    ok( ret, "UpdateLayeredWindow should succeed on layered visible window\n" );
+
+    /* even after resetting the style */
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED );
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED );
+    ret = pGetLayeredWindowAttributes( hwnd, &key, &alpha, &flags );
+    todo_wine ok( ret, "GetLayeredWindowAttributes should succeed on layered visible window\n" );
+    ok( key == 0, "wrong color key %lx\n", key );
+    todo_wine ok( alpha == 0xff, "wrong alpha %u\n", alpha );
+    todo_wine ok( flags == 2, "wrong flags %lx\n", flags );
+    ret = pUpdateLayeredWindow( hwnd, 0, NULL, &sz, hdc, &pt, 0, NULL, ULW_OPAQUE );
+    ok( ret, "UpdateLayeredWindow should succeed on layered visible window\n" );
+
+    /* hiding the window before setting layered style is okay */
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED );
+    ShowWindow( hwnd, SW_HIDE );
+    flush_events( TRUE );
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED );
+    ret = pGetLayeredWindowAttributes( hwnd, &key, &alpha, &flags );
+    ok( !ret, "GetLayeredWindowAttributes should fail on layered visible window\n" );
+    ret = pUpdateLayeredWindow( hwnd, 0, NULL, &sz, hdc, &pt, 0, NULL, ULW_OPAQUE );
+    ok( ret, "UpdateLayeredWindow should succeed on layered hidden window\n" );
+
+    /* showing the window after setting layered style is okay */
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED );
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED );
+    ShowWindow( hwnd, SW_SHOW );
+    flush_events( TRUE );
+    ret = pGetLayeredWindowAttributes( hwnd, &key, &alpha, &flags );
+    ok( !ret, "GetLayeredWindowAttributes should fail on layered visible window\n" );
+    ret = pUpdateLayeredWindow( hwnd, 0, NULL, &sz, hdc, &pt, 0, NULL, ULW_OPAQUE );
+    ok( ret, "UpdateLayeredWindow should succeed on layered visible window\n" );
+
+    /* but hiding the window after setting layered style is not */
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED );
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED );
+    ShowWindow( hwnd, SW_HIDE );
+    flush_events( TRUE );
+    ret = pUpdateLayeredWindow( hwnd, 0, NULL, &sz, hdc, &pt, 0, NULL, ULW_OPAQUE );
+    todo_wine ok( !ret, "UpdateLayeredWindow should fail on layered hidden window\n" );
+
+    ShowWindow( hwnd, SW_SHOW );
+    flush_events( TRUE );
+    ret = pUpdateLayeredWindow( hwnd, 0, NULL, &sz, hdc, &pt, 0, NULL, ULW_OPAQUE );
+    todo_wine ok( !ret, "UpdateLayeredWindow should succeed on layered visible window\n" );
+
+    DestroyWindow( hwnd );
+
     hwnd = CreateWindowExA(0, "MainWindowClass", "message window", WS_CAPTION,
                            100, 100, 200, 200, 0, 0, 0, NULL);
     assert( hwnd );
