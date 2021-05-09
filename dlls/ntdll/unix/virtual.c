@@ -3024,7 +3024,7 @@ TEB *virtual_alloc_first_teb(void)
 /***********************************************************************
  *           virtual_alloc_teb
  */
-NTSTATUS virtual_alloc_teb( TEB **ret_teb )
+NTSTATUS virtual_alloc_teb( TEB **ret_teb, ULONG_PTR zero_bits )
 {
     sigset_t sigset;
     TEB *teb;
@@ -3032,21 +3032,40 @@ NTSTATUS virtual_alloc_teb( TEB **ret_teb )
     NTSTATUS status = STATUS_SUCCESS;
     SIZE_T block_size = signal_stack_mask + 1;
     BOOL is_wow = !!NtCurrentTeb()->WowTebOffset;
+    UINT_PTR zero_bits_mask = get_zero_bits_mask( zero_bits );
 
     server_enter_uninterrupted_section( &virtual_mutex, &sigset );
-    if (next_free_teb)
+
+    ptr = &next_free_teb;
+    do { ptr = *(void **)ptr; }
+    while (ptr && ((UINT_PTR)ptr & ~zero_bits_mask));
+
+    if (ptr)
     {
-        ptr = next_free_teb;
         next_free_teb = *(void **)ptr;
         memset( ptr, 0, teb_size );
     }
     else
     {
+        if (teb_block_pos && ((UINT_PTR)teb_block & ~zero_bits_mask))
+        {
+            SIZE_T total = teb_block_pos * block_size;
+            NtAllocateVirtualMemory( NtCurrentProcess(), (void **)&teb_block, 0, &total,
+                                     MEM_COMMIT, PAGE_READWRITE );
+            do
+            {
+                ptr = ((char *)teb_block + --teb_block_pos * block_size);
+                *(void **)ptr = next_free_teb;
+                next_free_teb = *(void **)ptr;
+            }
+            while (teb_block_pos);
+        }
+
         if (!teb_block_pos)
         {
             SIZE_T total = 32 * block_size;
 
-            if ((status = NtAllocateVirtualMemory( NtCurrentProcess(), &ptr, is_win64 && is_wow ? 0x7fffffff : 0,
+            if ((status = NtAllocateVirtualMemory( NtCurrentProcess(), &ptr, zero_bits,
                                                    &total, MEM_RESERVE, PAGE_READWRITE )))
             {
                 server_leave_uninterrupted_section( &virtual_mutex, &sigset );
