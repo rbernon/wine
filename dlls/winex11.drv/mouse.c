@@ -507,9 +507,6 @@ static BOOL grab_clipping_window( const RECT *clip )
         return FALSE;
     }
 
-    /* enable XInput2 unless we are already clipping */
-    if (!clipping_cursor) x11drv_xinput_enable( data->display, DefaultRootWindow( data->display ), PointerMotionMask );
-
     if (data->xi2_state != xi_enabled)
     {
         WARN( "XInput2 not supported, refusing to clip to %s\n", wine_dbgstr_rect(clip) );
@@ -542,7 +539,6 @@ static BOOL grab_clipping_window( const RECT *clip )
 
     if (!clipping_cursor)
     {
-        x11drv_xinput_disable( data->display, DefaultRootWindow( data->display ), PointerMotionMask );
         XUnmapWindow( data->display, clip_window );
         return FALSE;
     }
@@ -568,7 +564,6 @@ void ungrab_clipping_window(void)
     if (clipping_cursor) XUngrabPointer( data->display, CurrentTime );
     clipping_cursor = FALSE;
     data->clip_reset = GetTickCount();
-    x11drv_xinput_disable( data->display, DefaultRootWindow( data->display ), PointerMotionMask );
 }
 
 /***********************************************************************
