@@ -448,9 +448,6 @@ static BOOL grab_clipping_window( const RECT *clip )
         return FALSE;
     }
 
-    /* enable XInput2 unless we are already clipping */
-    if (!clipping_cursor) x11drv_xinput_enable( data->display, DefaultRootWindow( data->display ), PointerMotionMask );
-
     TRACE( "clipping to %s win %lx\n", wine_dbgstr_rect(clip), clip_window );
 
     pos = virtual_screen_to_root( clip->left, clip->top );
@@ -476,7 +473,6 @@ static BOOL grab_clipping_window( const RECT *clip )
 
     if (!clipping_cursor)
     {
-        X11DRV_XInput2_Enable( data->display, None, 0 );
         XUnmapWindow( data->display, clip_window );
         return FALSE;
     }
@@ -502,7 +498,6 @@ void ungrab_clipping_window(void)
     if (clipping_cursor) XUngrabPointer( data->display, CurrentTime );
     clipping_cursor = FALSE;
     data->clip_reset = GetTickCount();
-    x11drv_xinput_disable( data->display, DefaultRootWindow( data->display ), PointerMotionMask );
 }
 
 /***********************************************************************
