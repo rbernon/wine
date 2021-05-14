@@ -260,6 +260,11 @@ static LONG CDECL nulldrv_ChangeDisplaySettingsEx( LPCWSTR name, LPDEVMODEW mode
     return DISP_CHANGE_FAILED;
 }
 
+static UINT CDECL nulldrv_EnumDisplayMonitors( HDC hdc, RECT *rect, MONITORENUMPROC proc, LPARAM lp )
+{
+    return ~0U; /* use default implementation */
+}
+
 static BOOL CDECL nulldrv_EnumDisplaySettingsEx( LPCWSTR name, DWORD num, LPDEVMODEW mode, DWORD flags )
 {
     return FALSE;
@@ -538,7 +543,7 @@ static LONG CDECL loaderdrv_ChangeDisplaySettingsEx( LPCWSTR name, LPDEVMODEW mo
     return load_driver()->pChangeDisplaySettingsEx( name, mode, hwnd, flags, lparam );
 }
 
-static BOOL CDECL loaderdrv_EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC proc, LPARAM lp )
+static UINT CDECL loaderdrv_EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC proc, LPARAM lp )
 {
     return load_driver()->pEnumDisplayMonitors( hdc, rect, proc, lp );
 }

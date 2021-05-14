@@ -4109,10 +4109,32 @@ static BOOL CALLBACK enum_mon_callback( HMONITOR monitor, HDC hdc, LPRECT rect, 
 #endif
 }
 
-BOOL CDECL nulldrv_EnumDisplayMonitors( HDC hdc, RECT *rect, MONITORENUMPROC proc, LPARAM lp )
+/***********************************************************************
+ *		EnumDisplayMonitors (USER32.@)
+ */
+BOOL WINAPI EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC proc, LPARAM lp )
 {
+    struct enum_mon_data data;
     RECT monitor_rect;
-    DWORD i = 0;
+    UINT ret, i = 0;
+
+    data.proc = proc;
+    data.lparam = lp;
+    data.hdc = hdc;
+
+    if (hdc)
+    {
+        if (!GetDCOrgEx( hdc, &data.origin )) return FALSE;
+        if (GetClipBox( hdc, &data.limit ) == ERROR) return FALSE;
+    }
+    else
+    {
+        data.origin.x = data.origin.y = 0;
+        data.limit.left = data.limit.top = INT_MIN;
+        data.limit.right = data.limit.bottom = INT_MAX;
+    }
+    if (rect && !IntersectRect( &data.limit, &data.limit, rect )) return TRUE;
+    if ((ret = USER_Driver->pEnumDisplayMonitors( 0, NULL, enum_mon_callback, (LPARAM)&data )) != ~0U) return ret;
 
     TRACE("(%p, %p, %p, 0x%lx)\n", hdc, rect, proc, lp);
 
@@ -4141,32 +4163,6 @@ BOOL CDECL nulldrv_EnumDisplayMonitors( HDC hdc, RECT *rect, MONITORENUMPROC pro
     if (!proc( NULLDRV_DEFAULT_HMONITOR, hdc, &monitor_rect, lp ))
         return FALSE;
     return TRUE;
-}
-
-/***********************************************************************
- *		EnumDisplayMonitors (USER32.@)
- */
-BOOL WINAPI EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC proc, LPARAM lp )
-{
-    struct enum_mon_data data;
-
-    data.proc = proc;
-    data.lparam = lp;
-    data.hdc = hdc;
-
-    if (hdc)
-    {
-        if (!GetDCOrgEx( hdc, &data.origin )) return FALSE;
-        if (GetClipBox( hdc, &data.limit ) == ERROR) return FALSE;
-    }
-    else
-    {
-        data.origin.x = data.origin.y = 0;
-        data.limit.left = data.limit.top = INT_MIN;
-        data.limit.right = data.limit.bottom = INT_MAX;
-    }
-    if (rect && !IntersectRect( &data.limit, &data.limit, rect )) return TRUE;
-    return USER_Driver->pEnumDisplayMonitors( 0, NULL, enum_mon_callback, (LPARAM)&data );
 }
 
 /***********************************************************************
