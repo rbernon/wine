@@ -3313,7 +3313,7 @@ DECL_HANDLER(get_rawinput_buffer)
     struct thread_input *input = current->queue->input;
     data_size_t size = 0, next_size = 0;
     char *buf, *cur, *tmp;
-    int count = 0, buf_size = 16 * sizeof(struct hardware_msg_data);
+    int pending = 0, count = 0, buf_size = 16 * sizeof(struct hardware_msg_data);
     struct message *msg, *next;
 
     if (!req->buffer_size) buf = NULL;
@@ -3325,6 +3325,7 @@ DECL_HANDLER(get_rawinput_buffer)
         struct hardware_msg_data *data = msg->data;
         data_size_t extra_size = data->size - sizeof(*data);
         if (msg->msg != WM_INPUT) continue;
+        pending++;
 
         next_size = req->rawinput_size + extra_size;
         if (size + next_size > req->buffer_size) break;
@@ -3348,7 +3349,10 @@ DECL_HANDLER(get_rawinput_buffer)
         size += next_size;
         cur += sizeof(*data);
         count++;
+        pending--;
     }
+
+    if (!pending) clear_queue_bits( current->queue, QS_RAWINPUT );
 
     reply->next_size = next_size;
     reply->count = count;
