@@ -47,10 +47,6 @@
 #define WM_NCMOUSEFIRST WM_NCMOUSEMOVE
 #define WM_NCMOUSELAST  (WM_NCMOUSEFIRST+(WM_MOUSELAST-WM_MOUSEFIRST))
 
-enum message_kind { SEND_MESSAGE, POST_MESSAGE };
-#define NB_MSG_KINDS (POST_MESSAGE+1)
-
-
 struct message_result
 {
     struct list            sender_entry;  /* entry in sender list */
@@ -132,7 +128,8 @@ struct msg_queue
     int                    quit_message;    /* is there a pending quit message? */
     int                    exit_code;       /* exit code of pending quit message */
     int                    cursor_count;    /* per-queue cursor show count */
-    struct list            msg_list[NB_MSG_KINDS];  /* lists of messages */
+    struct list            msg_list_send;   /* list of sent messages */
+    struct list            msg_list_post;   /* list of posted messages */
     struct list            send_result;     /* stack of sent messages waiting for result */
     struct list            callback_result; /* list of callback messages waiting for result */
     struct message_result *recv_result;     /* stack of received messages waiting for result */
@@ -286,7 +283,6 @@ static struct msg_queue *create_msg_queue( struct thread *thread, struct thread_
 {
     struct thread_input *new_input = NULL;
     struct msg_queue *queue;
-    int i;
 
     if (!input)
     {
@@ -316,7 +312,8 @@ static struct msg_queue *create_msg_queue( struct thread *thread, struct thread_
         list_init( &queue->callback_result );
         list_init( &queue->pending_timers );
         list_init( &queue->expired_timers );
-        for (i = 0; i < NB_MSG_KINDS; i++) list_init( &queue->msg_list[i] );
+        list_init( &queue->msg_list_send );
+        list_init( &queue->msg_list_post );
 
         thread->queue = queue;
     }
@@ -703,7 +700,7 @@ static void store_message_result( struct message_result *res, lparam_t result, u
             /* queue the callback message in the sender queue */
             struct callback_msg_data *data = res->callback_msg->data;
             data->result = result;
-            list_add_tail( &res->sender->msg_list[SEND_MESSAGE], &res->callback_msg->entry );
+            list_add_tail( &res->sender->msg_list_send, &res->callback_msg->entry );
             set_queue_bits( res->sender, QS_SENDMESSAGE );
             res->callback_msg = NULL;
             remove_result_from_sender( res );
@@ -733,17 +730,16 @@ static void free_message( struct message *msg )
 }
 
 /* remove (and free) a message from a message list */
-static void remove_queue_message( struct msg_queue *queue, struct message *msg,
-                                  enum message_kind kind )
+static void remove_queue_message( struct msg_queue *queue, struct message *msg, unsigned int bits )
 {
     list_remove( &msg->entry );
-    switch(kind)
+    switch(bits)
     {
-    case SEND_MESSAGE:
-        if (list_empty( &queue->msg_list[kind] )) clear_queue_bits( queue, QS_SENDMESSAGE );
+    case QS_SENDMESSAGE:
+        if (list_empty( &queue->msg_list_send )) clear_queue_bits( queue, QS_SENDMESSAGE );
         break;
-    case POST_MESSAGE:
-        if (list_empty( &queue->msg_list[kind] ) && !queue->quit_message)
+    case QS_POSTMESSAGE:
+        if (list_empty( &queue->msg_list_post ) && !queue->quit_message)
             clear_queue_bits( queue, QS_POSTMESSAGE|QS_ALLPOSTMESSAGE );
         if (msg->msg == WM_HOTKEY && --queue->hotkey_count == 0)
             clear_queue_bits( queue, QS_HOTKEY );
@@ -774,7 +770,7 @@ static void result_timeout( void *private )
 
         result->msg = NULL;
         msg->result = NULL;
-        remove_queue_message( result->receiver, msg, SEND_MESSAGE );
+        remove_queue_message( result->receiver, msg, QS_SENDMESSAGE );
         result->receiver = NULL;
     }
     store_message_result( result, 0, STATUS_TIMEOUT );
@@ -868,7 +864,7 @@ static void receive_message( struct msg_queue *queue, struct message *msg,
         queue->recv_result = result;
     }
     free( msg );
-    if (list_empty( &queue->msg_list[SEND_MESSAGE] )) clear_queue_bits( queue, QS_SENDMESSAGE );
+    if (list_empty( &queue->msg_list_send )) clear_queue_bits( queue, QS_SENDMESSAGE );
 }
 
 /* set the result of the current received message */
@@ -910,7 +906,7 @@ static int get_posted_message( struct msg_queue *queue, user_handle_t win,
     struct message *msg;
 
     /* check against the filters */
-    LIST_FOR_EACH_ENTRY( msg, &queue->msg_list[POST_MESSAGE], struct message, entry )
+    LIST_FOR_EACH_ENTRY( msg, &queue->msg_list_post, struct message, entry )
     {
         if (!match_window( win, msg->win )) continue;
         if (!check_msg_filter( msg->msg, first, last )) continue;
@@ -943,7 +939,7 @@ found:
             msg->data = NULL;
             msg->data_size = 0;
         }
-        remove_queue_message( queue, msg, POST_MESSAGE );
+        remove_queue_message( queue, msg, QS_POSTMESSAGE );
     }
     else if (msg->data) set_reply_data( msg->data, msg->data_size );
 
@@ -967,7 +963,7 @@ static int get_quit_message( struct msg_queue *queue, unsigned int flags,
         if (flags & PM_REMOVE)
         {
             queue->quit_message = 0;
-            if (list_empty( &queue->msg_list[POST_MESSAGE] ))
+            if (list_empty( &queue->msg_list_post ))
                 clear_queue_bits( queue, QS_POSTMESSAGE|QS_ALLPOSTMESSAGE );
         }
         return 1;
@@ -1088,10 +1084,10 @@ static void msg_queue_destroy( struct object *obj )
     struct msg_queue *queue = (struct msg_queue *)obj;
     struct list *ptr;
     struct hotkey *hotkey, *hotkey2;
-    int i;
 
     cleanup_results( queue );
-    for (i = 0; i < NB_MSG_KINDS; i++) empty_msg_list( &queue->msg_list[i] );
+    empty_msg_list( &queue->msg_list_send );
+    empty_msg_list( &queue->msg_list_post );
 
     LIST_FOR_EACH_ENTRY_SAFE( hotkey, hotkey2, &queue->input->desktop->hotkeys, struct hotkey, entry )
     {
@@ -1535,7 +1531,7 @@ found:
     msg->data      = NULL;
     msg->data_size = 0;
 
-    list_add_tail( &hotkey->queue->msg_list[POST_MESSAGE], &msg->entry );
+    list_add_tail( &hotkey->queue->msg_list_post, &msg->entry );
     set_queue_bits( hotkey->queue, QS_POSTMESSAGE|QS_ALLPOSTMESSAGE|QS_HOTKEY );
     hotkey->queue->hotkey_count++;
     return 1;
@@ -1726,7 +1722,7 @@ static int send_hook_ll_message( struct desktop *desktop, struct message *hardwa
     msg->result->hardware_msg = hardware_msg;
     msg->result->desktop = (struct desktop *)grab_object( desktop );
     msg->result->hook = hook;
-    list_add_tail( &queue->msg_list[SEND_MESSAGE], &msg->entry );
+    list_add_tail( &queue->msg_list_send, &msg->entry );
     set_queue_bits( queue, QS_SENDMESSAGE );
     return 1;
 }
@@ -2274,13 +2270,32 @@ void inc_queue_paint_count( struct thread *thread, int incr )
         clear_queue_bits( queue, QS_PAINT );
 }
 
+void queue_cleanup_window_msgs( struct msg_queue *queue, user_handle_t win, unsigned int bits )
+{
+    struct message *msg, *next;
+    struct list *msg_list;
+
+    if (bits == QS_SENDMESSAGE) msg_list = &queue->msg_list_send;
+    else if (bits == QS_POSTMESSAGE) msg_list = &queue->msg_list_post;
+    else msg_list = NULL;
+
+    if (msg_list) LIST_FOR_EACH_ENTRY_SAFE( msg, next, msg_list, struct message, entry )
+    {
+        if (msg->win != win) continue;
+        if (msg->msg == WM_QUIT && !queue->quit_message)
+        {
+            queue->quit_message = 1;
+            queue->exit_code = msg->wparam;
+        }
+        remove_queue_message( queue, msg, bits );
+    }
+}
 
 /* remove all messages and timers belonging to a certain window */
 void queue_cleanup_window( struct thread *thread, user_handle_t win )
 {
     struct msg_queue *queue = thread->queue;
     struct list *ptr;
-    int i;
 
     if (!queue) return;
 
@@ -2304,24 +2319,8 @@ void queue_cleanup_window( struct thread *thread, user_handle_t win )
     }
 
     /* remove messages */
-    for (i = 0; i < NB_MSG_KINDS; i++)
-    {
-        struct list *ptr, *next;
-
-        LIST_FOR_EACH_SAFE( ptr, next, &queue->msg_list[i] )
-        {
-            struct message *msg = LIST_ENTRY( ptr, struct message, entry );
-            if (msg->win == win)
-            {
-                if (msg->msg == WM_QUIT && !queue->quit_message)
-                {
-                    queue->quit_message = 1;
-                    queue->exit_code = msg->wparam;
-                }
-                remove_queue_message( queue, msg, i );
-            }
-        }
-    }
+    queue_cleanup_window_msgs( queue, win, QS_SENDMESSAGE );
+    queue_cleanup_window_msgs( queue, win, QS_POSTMESSAGE );
 
     thread_input_cleanup_window( queue, win );
 }
@@ -2347,7 +2346,7 @@ void post_message( user_handle_t win, unsigned int message, lparam_t wparam, lpa
 
         get_message_defaults( thread->queue, &msg->x, &msg->y, &msg->time );
 
-        list_add_tail( &thread->queue->msg_list[POST_MESSAGE], &msg->entry );
+        list_add_tail( &thread->queue->msg_list_post, &msg->entry );
         set_queue_bits( thread->queue, QS_POSTMESSAGE|QS_ALLPOSTMESSAGE );
         if (message == WM_HOTKEY)
         {
@@ -2379,7 +2378,7 @@ void send_notify_message( user_handle_t win, unsigned int message, lparam_t wpar
 
         get_message_defaults( thread->queue, &msg->x, &msg->y, &msg->time );
 
-        list_add_tail( &thread->queue->msg_list[SEND_MESSAGE], &msg->entry );
+        list_add_tail( &thread->queue->msg_list_send, &msg->entry );
         set_queue_bits( thread->queue, QS_SENDMESSAGE );
     }
     release_object( thread );
@@ -2419,7 +2418,7 @@ void post_win_event( struct thread *thread, unsigned int event,
             if (debug_level > 1)
                 fprintf( stderr, "post_win_event: tid %04x event %04x win %08x object_id %d child_id %d\n",
                          get_thread_id(thread), event, win, object_id, child_id );
-            list_add_tail( &thread->queue->msg_list[SEND_MESSAGE], &msg->entry );
+            list_add_tail( &thread->queue->msg_list_send, &msg->entry );
             set_queue_bits( thread->queue, QS_SENDMESSAGE );
         }
         else
@@ -2584,11 +2583,11 @@ DECL_HANDLER(send_message)
             }
             /* fall through */
         case MSG_NOTIFY:
-            list_add_tail( &recv_queue->msg_list[SEND_MESSAGE], &msg->entry );
+            list_add_tail( &recv_queue->msg_list_send, &msg->entry );
             set_queue_bits( recv_queue, QS_SENDMESSAGE );
             break;
         case MSG_POSTED:
-            list_add_tail( &recv_queue->msg_list[POST_MESSAGE], &msg->entry );
+            list_add_tail( &recv_queue->msg_list_post, &msg->entry );
             set_queue_bits( recv_queue, QS_POSTMESSAGE|QS_ALLPOSTMESSAGE );
             if (msg->msg == WM_HOTKEY)
             {
@@ -2688,7 +2687,7 @@ DECL_HANDLER(get_message)
     if (!filter) filter = QS_ALLINPUT;
 
     /* first check for sent messages */
-    if ((ptr = list_head( &queue->msg_list[SEND_MESSAGE] )))
+    if ((ptr = list_head( &queue->msg_list_send )))
     {
         struct message *msg = LIST_ENTRY( ptr, struct message, entry );
         receive_message( queue, msg, reply );
@@ -3232,8 +3231,8 @@ DECL_HANDLER(set_active_window)
 
             if (desktop->foreground_input == queue->input && req->handle != reply->previous)
             {
-                LIST_FOR_EACH_ENTRY_SAFE( msg, next, &queue->msg_list[POST_MESSAGE], struct message, entry )
-                    if (msg->msg == req->internal_msg) remove_queue_message( queue, msg, POST_MESSAGE );
+                LIST_FOR_EACH_ENTRY_SAFE( msg, next, &queue->msg_list_post, struct message, entry )
+                    if (msg->msg == req->internal_msg) remove_queue_message( queue, msg, QS_SENDMESSAGE );
             }
         }
         else set_error( STATUS_INVALID_HANDLE );
