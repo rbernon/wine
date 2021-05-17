@@ -5405,7 +5405,7 @@ static void test_messages(void)
 
     ShowWindow(hwnd, SW_MINIMIZE);
     flush_events();
-    ok_sequence(WmShowMinOverlappedSeq, "ShowWindow(SW_SHOWMINIMIZED):overlapped", FALSE);
+    ok_sequence(WmShowMinOverlappedSeq, "ShowWindow(SW_SHOWMINIMIZED):overlapped", TRUE);
     flush_sequence();
 
     if (GetWindowLongW( hwnd, GWL_STYLE ) & WS_MINIMIZE)
@@ -8791,7 +8791,10 @@ static void test_paint_messages(void)
 struct wnd_event
 {
     HWND hwnd;
+    HWND child_hwnd;
+    HANDLE child;
     HANDLE grand_child;
+    HANDLE ready_event;
     HANDLE start_event;
     HANDLE stop_event;
 };
@@ -8822,42 +8825,48 @@ static DWORD CALLBACK create_grand_child_thread( void *param )
 {
     struct wnd_event *wnd_event = param;
     HWND hchild;
-    MSG msg;
+    DWORD ret;
 
     hchild = CreateWindowExA(0, "TestWindowClass", "Test child",
-                             WS_CHILD | WS_VISIBLE, 0, 0, 10, 10, wnd_event->hwnd, 0, 0, NULL);
+                             WS_CHILD | WS_VISIBLE, 0, 0, 10, 10, wnd_event->child_hwnd, 0, 0, NULL);
     ok (hchild != 0, "Failed to create child window\n");
     flush_events();
     flush_sequence();
     SetEvent( wnd_event->start_event );
 
-    for (;;)
-    {
-        MsgWaitForMultipleObjects(0, NULL, FALSE, 1000, QS_ALLINPUT);
-        if (!IsWindow( hchild )) break;  /* will be destroyed when parent thread exits */
-        while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE)) DispatchMessageA(&msg);
-    }
+    /* wait for wnd_event->child to be set */
+    ret = WaitForSingleObject( wnd_event->ready_event, 1000 );
+    ok( !ret, "WaitForSingleObject failed %x\n", ret );
+
+    /* wait for parent window thread to exit */
+    ret = WaitForSingleObject( wnd_event->child, 1000 );
+    ok( !ret, "WaitForSingleObject returned %x, error: %u\n", ret, GetLastError() );
+    ok( IsWindow( hchild ), "Child window already destroyed\n" );
+    flush_events();
+    ok( !IsWindow( hchild ), "Child window not destroyed\n" );
+
     return 0;
 }
 
 static DWORD CALLBACK create_child_thread( void *param )
 {
     struct wnd_event *wnd_event = param;
-    struct wnd_event child_event;
     DWORD ret, tid;
     MSG msg;
 
-    child_event.hwnd = CreateWindowExA(0, "TestWindowClass", "Test child",
-                             WS_CHILD | WS_VISIBLE, 0, 0, 10, 10, wnd_event->hwnd, 0, 0, NULL);
-    ok (child_event.hwnd != 0, "Failed to create child window\n");
-    SetFocus( child_event.hwnd );
+    wnd_event->child_hwnd = CreateWindowExA( 0, "TestWindowClass", "Test child", WS_CHILD | WS_VISIBLE,
+                                             0, 0, 10, 10, wnd_event->hwnd, 0, 0, NULL );
+    ok( wnd_event->child_hwnd != 0, "Failed to create child windows\n" );
+    SetFocus( wnd_event->child_hwnd );
+
+    wnd_event->grand_child = CreateThread( NULL, 0, create_grand_child_thread, wnd_event, 0, &tid );
+    ok( wnd_event->grand_child != 0, "CreateThread failed, error %u\n", GetLastError() );
+
     flush_events();
     flush_sequence();
-    child_event.start_event = wnd_event->start_event;
-    wnd_event->grand_child = CreateThread(NULL, 0, create_grand_child_thread, &child_event, 0, &tid);
     for (;;)
     {
-        DWORD ret = MsgWaitForMultipleObjects(1, &child_event.start_event, FALSE, 1000, QS_SENDMESSAGE);
+        DWORD ret = MsgWaitForMultipleObjects(1, &wnd_event->start_event, FALSE, 1000, QS_SENDMESSAGE);
         if (ret != 1) break;
         while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE)) DispatchMessageA(&msg);
     }
@@ -8997,9 +9006,11 @@ static void test_interthread_messages(void)
     flush_events();
     flush_sequence();
     log_all_parent_messages++;
+    wnd_event.ready_event = CreateEventA( NULL, TRUE, FALSE, NULL );
     wnd_event.start_event = CreateEventA( NULL, TRUE, FALSE, NULL );
     wnd_event.stop_event = CreateEventA( NULL, TRUE, FALSE, NULL );
-    hThread = CreateThread( NULL, 0, create_child_thread, &wnd_event, 0, &tid );
+    wnd_event.child = CreateThread( NULL, 0, create_child_thread, &wnd_event, 0, &tid );
+    SetEvent( wnd_event.ready_event );
     for (;;)
     {
         ret = MsgWaitForMultipleObjects(1, &wnd_event.start_event, FALSE, 1000, QS_SENDMESSAGE);
@@ -9009,18 +9020,17 @@ static void test_interthread_messages(void)
     ok( !ret, "MsgWaitForMultipleObjects failed %x\n", ret );
     /* now wait for the thread without processing messages; this shouldn't deadlock */
     SetEvent( wnd_event.stop_event );
-    ret = WaitForSingleObject( hThread, 5000 );
-    ok( !ret, "WaitForSingleObject failed %x\n", ret );
-    CloseHandle( hThread );
 
     ret = WaitForSingleObject( wnd_event.grand_child, 5000 );
     ok( !ret, "WaitForSingleObject failed %x\n", ret );
     CloseHandle( wnd_event.grand_child );
+    CloseHandle( wnd_event.child );
 
     CloseHandle( wnd_event.start_event );
     CloseHandle( wnd_event.stop_event );
+    CloseHandle( wnd_event.ready_event );
     flush_events();
-    ok_sequence(WmExitThreadSeq, "destroy child on thread exit", FALSE);
+    ok_sequence( WmExitThreadSeq, "destroy child on thread exit", FALSE );
     log_all_parent_messages--;
     DestroyWindow( wnd_event.hwnd );
 
@@ -10005,6 +10015,41 @@ static LRESULT WINAPI ShowWindowProcA(HWND hwnd, UINT message, WPARAM wParam, LP
     return ret;
 }
 
+static LRESULT WINAPI SetActiveWindowProcA(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    static LONG defwndproc_counter = 0;
+    struct recvd_message msg;
+    LRESULT ret;
+
+    switch (message)
+    {
+    /* log only specific messages we are interested in */
+    case WM_USER:
+    case WM_NCACTIVATE:
+    case WM_ACTIVATE:
+    case WM_SETFOCUS:
+    case WM_KILLFOCUS:
+        break;
+    default:
+        return DefWindowProcA(hwnd, message, wParam, lParam);
+    }
+
+    msg.hwnd = hwnd;
+    msg.message = message;
+    msg.flags = sent|wparam|lparam;
+    if (defwndproc_counter) msg.flags |= defwinproc;
+    msg.wParam = wParam;
+    msg.lParam = lParam;
+    msg.descr = "activation";
+    add_message(&msg);
+
+    defwndproc_counter++;
+    ret = DefWindowProcA(hwnd, message, wParam, lParam);
+    defwndproc_counter--;
+
+    return ret;
+}
+
 static LRESULT WINAPI PaintLoopProcA(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
@@ -10102,6 +10147,10 @@ static BOOL RegisterWindowClasses(void)
     cls.lpszClassName = "ShowWindowClass";
     if(!RegisterClassA(&cls)) return FALSE;
 
+    cls.lpfnWndProc = SetActiveWindowProcA;
+    cls.lpszClassName = "SetActiveWindowClass";
+    if(!RegisterClassA(&cls)) return FALSE;
+
     cls.lpfnWndProc = PopupMsgCheckProcA;
     cls.lpszClassName = "TestPopupClass";
     if(!RegisterClassA(&cls)) return FALSE;
@@ -10157,6 +10206,7 @@ static BOOL is_our_logged_class(HWND hwnd)
     {
 	if (!lstrcmpiA(buf, "TestWindowClass") ||
 	    !lstrcmpiA(buf, "ShowWindowClass") ||
+	    !lstrcmpiA(buf, "SetActiveWindowClass") ||
 	    !lstrcmpiA(buf, "TestParentClass") ||
 	    !lstrcmpiA(buf, "TestPopupClass") ||
 	    !lstrcmpiA(buf, "SimpleWindowClass") ||
@@ -14448,10 +14498,44 @@ static const struct message SetActiveWindowSeq4[] =
     { 0 }
 };
 
+static LRESULT WINAPI test_recursive_set_active_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
+{
+    if (message == WM_ACTIVATE && LOWORD(wparam) != WA_INACTIVE)
+    {
+        SetActiveWindow((HWND)lparam);
+        SetActiveWindow(hwnd);
+        return 0;
+    }
+
+    return DefWindowProcA(hwnd, message, wparam, lparam);
+}
+
+static void test_set_active_window_recursive(HWND hwnd, HWND hwnd2)
+{
+    const struct message RecursiveActivationSeq[] =
+    {
+        { HCBT_ACTIVATE, hook|wparam, (WPARAM)hwnd },
+        { WM_NCACTIVATE, sent|wparam|lparam, FALSE, (LPARAM)hwnd },
+        { WM_ACTIVATE, sent|wparam|lparam, WA_INACTIVE, (LPARAM)hwnd },
+        { HCBT_ACTIVATE, hook|wparam, (WPARAM)hwnd2 },
+        { WM_NCACTIVATE, sent|wparam|lparam, FALSE, (LPARAM)hwnd },
+        { WM_ACTIVATE, sent|wparam|lparam, WA_ACTIVE, (LPARAM)hwnd },
+        { 0 }
+    };
+    SetActiveWindow(hwnd2);
+
+    flush_sequence();
+    SetActiveWindow(hwnd);
+    ok_sequence(RecursiveActivationSeq, "recursive activation", FALSE);
+
+    DestroyWindow(hwnd2);
+    DestroyWindow(hwnd);
+    flush_sequence();
+}
 
 static void test_SetActiveWindow(void)
 {
-    HWND hwnd, popup, ret;
+    HWND hwnd, hwnd2, popup, ret;
 
     hwnd = CreateWindowExA(0, "TestWindowClass", "Test SetActiveWindow",
                            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
@@ -14502,6 +14586,237 @@ static void test_SetActiveWindow(void)
     trace("done\n");
 
     DestroyWindow(hwnd);
+
+    hwnd = CreateWindowExA(0, "SimpleWindowClass", NULL, WS_OVERLAPPED|WS_VISIBLE,
+                              100, 100, 200, 200, 0, 0, 0, NULL);
+    ok(hwnd != 0, "Failed to create simple window\n");
+    SetWindowLongPtrA(hwnd, GWLP_WNDPROC, (LONG_PTR)test_recursive_set_active_window_proc);
+
+    hwnd2 = CreateWindowExA(0, "SetActiveWindowClass", NULL, WS_OVERLAPPED|WS_VISIBLE,
+                                10, 10, 50, 50, hwnd, 0, 0, NULL);
+    ok(hwnd2 != 0, "Failed to create recursive activation window\n");
+
+    test_set_active_window_recursive(hwnd, hwnd2);
+
+    DestroyWindow(hwnd2);
+    DestroyWindow(hwnd);
+}
+
+#define check_foreground_window(a,b) check_foreground_window_(__LINE__,a,b)
+static void check_foreground_window_(int line, HWND hwnd, BOOL todo)
+{
+    HWND active = GetActiveWindow(), focus = GetFocus(), foreground = GetForegroundWindow();
+    todo_wine_if(todo)
+    ok_(__FILE__, line)(hwnd == active, "GetActiveWindow returned %p, expected %p\n", active, hwnd);
+    todo_wine_if(todo)
+    ok_(__FILE__, line)(hwnd == focus, "GetFocus returned %p, expected %p\n", focus, hwnd);
+    todo_wine_if(todo)
+    ok_(__FILE__, line)(hwnd == foreground, "GetForeground returned %p, expected %p\n", foreground, hwnd);
+}
+
+struct test_set_foreground_window_desc
+{
+    HWND initial_window;
+    BOOL steal_foreground;
+    BOOL call_set_active_window;
+    BOOL call_set_focus;
+
+    const struct message *seq_before_set_foreground;
+    const struct message *seq_after_set_foreground;
+    const struct message *seq_after_peek_message;
+    HWND expected_window;
+};
+
+struct test_set_foreground_window_args
+{
+    HANDLE ready;
+    HANDLE start;
+    HANDLE done;
+
+    HWND target_window;
+    DWORD tests_count;
+    const struct test_set_foreground_window_desc *tests;
+};
+
+static void test_interthread_set_foreground_window(struct test_set_foreground_window_args *args, HWND hwnd0, HWND hwnd1, HWND hwnd2)
+{
+    const struct message sequence_0[] =
+    {
+        { WM_USER, sent },
+        { 0 }
+    };
+    const struct message sequence_1[] =
+    {
+        { WM_NCACTIVATE, sent|wparam|lparam, TRUE, (LPARAM)hwnd1 },
+        { 0 }
+    };
+    const struct message sequence_2[] =
+    {
+        { WM_USER, sent },
+        { WM_NCACTIVATE, sent|wparam|lparam, FALSE, (LPARAM)hwnd0 },
+        { WM_ACTIVATE, sent|wparam|lparam, FALSE, (LPARAM)hwnd0 },
+        { WM_NCACTIVATE, sent|wparam|lparam, TRUE, (LPARAM)hwnd1 },
+        { WM_ACTIVATE, sent|wparam|lparam, TRUE, (LPARAM)hwnd1 },
+        { WM_KILLFOCUS, sent|defwinproc|wparam|lparam, (WPARAM)hwnd0, 0 },
+        { WM_SETFOCUS, sent|defwinproc|wparam|lparam, (WPARAM)hwnd1, 0 },
+        { 0 }
+    };
+    const struct message sequence_3[] =
+    {
+        { WM_NCACTIVATE, sent|wparam|lparam, FALSE, (LPARAM)hwnd1 },
+        { WM_ACTIVATE, sent|wparam|lparam, FALSE, (LPARAM)hwnd1 },
+        { WM_NCACTIVATE, sent|wparam, TRUE, 0 /* lparam is hwnd0 / hwnd2 */ },
+        { WM_ACTIVATE, sent|wparam, TRUE, 0 /* lparam is hwnd0 / hwnd2 */ },
+        { WM_KILLFOCUS, sent|defwinproc|wparam|lparam, (WPARAM)hwnd1, 0 },
+        { WM_SETFOCUS, sent|defwinproc|lparam, 0 /* wparam is hwnd0 / hwnd2 */, 0 },
+        { 0 }
+    };
+    const struct message sequence_4[] =
+    {
+        { WM_NCACTIVATE, sent|wparam|lparam, FALSE, (LPARAM)hwnd1 },
+        { WM_ACTIVATE, sent|wparam|lparam, FALSE, (LPARAM)hwnd1 },
+        { WM_NCACTIVATE, sent|wparam, FALSE, 0 /* lparam is hwnd0 / hwnd2 */ },
+        { WM_ACTIVATE, sent|wparam, TRUE, 0 /* lparam is hwnd0 / hwnd2 */ },
+        { WM_KILLFOCUS, sent|defwinproc|wparam|lparam, (WPARAM)hwnd1, 0 },
+        { WM_SETFOCUS, sent|defwinproc|lparam, 0 /* wparam is hwnd0 / hwnd2 */, 0 },
+        { 0 }
+    };
+    const struct message sequence_5[] =
+    {
+        { WM_NCACTIVATE, sent|wparam|lparam, FALSE, (LPARAM)hwnd1 },
+        { WM_ACTIVATE, sent|wparam|lparam, FALSE, (LPARAM)hwnd1 },
+        { WM_NCACTIVATE, sent|wparam, TRUE, 0 /* lparam is hwnd0 / hwnd2 */ },
+        { WM_ACTIVATE, sent|wparam, TRUE, 0 /* lparam is hwnd0 / hwnd2 */ },
+        { WM_KILLFOCUS, sent|defwinproc|wparam|lparam, (WPARAM)hwnd1, 0 },
+        { WM_SETFOCUS, sent|defwinproc|lparam, 0 /* wparam is hwnd0 / hwnd2 */, 0 },
+        { WM_KILLFOCUS, sent|wparam|lparam, (WPARAM)hwnd1, 0 },
+        { WM_SETFOCUS, sent|wparam|lparam, (WPARAM)hwnd1, 0 },
+        { 0 }
+    };
+    const struct message sequence_6[] =
+    {
+        { WM_NCACTIVATE, sent|wparam|lparam, FALSE, (LPARAM)hwnd1 },
+        { WM_ACTIVATE, sent|wparam|lparam, FALSE, (LPARAM)hwnd1 },
+        { WM_NCACTIVATE, sent|wparam, FALSE, 0 /* lparam is hwnd0 / hwnd2 */ },
+        { WM_ACTIVATE, sent|wparam, TRUE, 0 /* lparam is hwnd0 / hwnd2 */ },
+        { WM_KILLFOCUS, sent|defwinproc|wparam|lparam, (WPARAM)hwnd1, 0 },
+        { WM_SETFOCUS, sent|defwinproc|lparam, 0 /* wparam is hwnd0 / hwnd2 */, 0 },
+        { WM_KILLFOCUS, sent|wparam|lparam, (WPARAM)hwnd1, 0 },
+        { WM_SETFOCUS, sent|wparam|lparam, (WPARAM)hwnd1, 0 },
+        { 0 }
+    };
+    const struct test_set_foreground_window_desc test_sfw_tests[] =
+    {
+        { hwnd1, FALSE, FALSE, FALSE,  WmEmptySeq, WmEmptySeq, sequence_2, hwnd0 },
+        { hwnd1, TRUE, FALSE, FALSE,   WmEmptySeq, sequence_1, sequence_2, hwnd0 },
+        { hwnd1, FALSE, TRUE, FALSE,   WmEmptySeq, WmEmptySeq, sequence_2, hwnd0 },
+        { hwnd1, TRUE, TRUE, FALSE,    WmEmptySeq, sequence_1, sequence_2, hwnd0 },
+        { hwnd1, FALSE, FALSE, TRUE,   WmEmptySeq, WmEmptySeq, sequence_2, hwnd0 },
+        { hwnd1, TRUE, FALSE, TRUE,    WmEmptySeq, sequence_1, sequence_2, hwnd0 },
+
+        { hwnd2, FALSE, FALSE, FALSE,  WmEmptySeq, sequence_3, sequence_0, hwnd1 },
+        { hwnd2, TRUE, FALSE, FALSE,   WmEmptySeq, sequence_3, sequence_0, hwnd1 },
+        { hwnd2, FALSE, TRUE, FALSE,   sequence_3, WmEmptySeq, sequence_0, hwnd1 },
+        { hwnd2, TRUE, TRUE, FALSE,    sequence_4, sequence_1, sequence_2, hwnd0 },
+        { hwnd2, FALSE, FALSE, TRUE,   sequence_5, WmEmptySeq, sequence_0, hwnd1 },
+        { hwnd2, TRUE, FALSE, TRUE,    sequence_6, sequence_1, sequence_2, hwnd0 },
+
+        { hwnd0, FALSE, FALSE, FALSE,  WmEmptySeq, sequence_3, sequence_0, hwnd1 },
+        { hwnd0, TRUE, FALSE, FALSE,   WmEmptySeq, sequence_3, sequence_0, hwnd1 },
+        { hwnd0, FALSE, TRUE, FALSE,   sequence_3, WmEmptySeq, sequence_0, hwnd1 },
+        { hwnd0, TRUE, TRUE, FALSE,    sequence_4, sequence_1, sequence_2, hwnd0 },
+        { hwnd0, FALSE, FALSE, TRUE,   sequence_5, WmEmptySeq, sequence_0, hwnd1 },
+        { hwnd0, TRUE, FALSE, TRUE,    sequence_6, sequence_1, sequence_2, hwnd0 },
+    };
+
+    DWORD i, res;
+    BOOL ret;
+    MSG msg;
+
+    args->target_window = hwnd0;
+    args->tests_count = ARRAY_SIZE(test_sfw_tests);
+    args->tests = test_sfw_tests;
+
+    ret = SetEvent( args->ready );
+    ok( ret, "SetEvent failed, last error %#x.\n", GetLastError() );
+
+    /* wait for the initial state to be clean */
+
+    res = WaitForSingleObject( args->start, INFINITE );
+    ok( res == WAIT_OBJECT_0, "WaitForSingleObject returned %#x, last error %#x.\n", res, GetLastError() );
+    ret = ResetEvent( args->start );
+    ok( ret, "ResetEvent failed, last error %#x.\n", GetLastError() );
+
+    flush_events();
+
+    for (i = 0; i < args->tests_count; ++i)
+    {
+        const struct test_set_foreground_window_desc *test = args->tests + i;
+        winetest_push_context("test %d", i);
+
+        SetForegroundWindow( test->initial_window );
+        flush_events();
+        check_foreground_window( test->initial_window, FALSE );
+
+        ret = SetEvent( args->ready );
+        ok( ret, "SetEvent failed, last error %#x.\n", GetLastError() );
+
+        res = WaitForSingleObject( args->start, INFINITE );
+        ok( res == WAIT_OBJECT_0, "WaitForSingleObject returned %#x, last error %#x.\n", res, GetLastError() );
+        ret = ResetEvent( args->start );
+        ok( ret, "ResetEvent failed, last error %#x.\n", GetLastError() );
+
+        flush_sequence();
+        if (test->call_set_active_window) SetActiveWindow( hwnd1 );
+        if (test->call_set_focus) SetFocus( hwnd1 );
+        ok_sequence( test->seq_before_set_foreground, "before SetForegroundWindow", FALSE );
+
+        flush_sequence();
+        SetForegroundWindow( hwnd1 );
+        ok_sequence( test->seq_after_set_foreground, "after SetForegroundWindow", FALSE );
+        check_foreground_window( hwnd1, FALSE );
+
+        flush_sequence();
+        while (PeekMessageA( &msg, 0, 0, 0, PM_REMOVE )) DispatchMessageA( &msg );
+        ok_sequence( test->seq_after_peek_message, "after PeekMessageA", FALSE );
+        check_foreground_window( test->expected_window, FALSE );
+
+        res = WaitForSingleObject( args->done, INFINITE );
+        ok( res == WAIT_OBJECT_0, "WaitForSingleObject returned %#x, last error %#x.\n", res, GetLastError() );
+        ret = ResetEvent( args->done );
+        ok( ret, "ResetEvent failed, last error %#x.\n", GetLastError() );
+
+        winetest_pop_context();
+    }
+}
+
+static DWORD WINAPI test_set_foreground_window_thread( void *data )
+{
+    struct test_set_foreground_window_args *args = data;
+    HWND hwnd0, hwnd1, hwnd2;
+
+    hwnd1 = CreateWindowA( "SetActiveWindowClass", "Test SetForegroundWindow 1",
+                           WS_POPUP | WS_VISIBLE, 10, 10, 10, 10, 0, 0, 0, NULL );
+    ok( hwnd1 != 0, "CreateWindowA failed\n" );
+
+    hwnd2 = CreateWindowA( "SetActiveWindowClass", "Test SetForegroundWindow 2",
+                           WS_POPUP | WS_VISIBLE, 10, 10, 10, 10, 0, 0, 0, NULL );
+    ok( hwnd2 != 0, "CreateWindowA failed\n" );
+
+    hwnd0 = CreateWindowA( "SetActiveWindowClass", "Test SetForegroundWindow 2",
+                           WS_POPUP | WS_VISIBLE, 10, 10, 10, 10, 0, 0, 0, NULL );
+    ok( hwnd0 != 0, "CreateWindowA failed\n" );
+    trace( "hwnd0:%p hwnd1:%p hwnd2:%p\n", hwnd0, hwnd1, hwnd2 );
+
+    args->target_window = hwnd0;
+
+    test_interthread_set_foreground_window( args, hwnd0, hwnd1, hwnd2 );
+
+    DestroyWindow( hwnd0 );
+    DestroyWindow( hwnd1 );
+    DestroyWindow( hwnd2 );
+
+    return 0;
 }
 
 static const struct message SetForegroundWindowSeq[] =
@@ -14518,7 +14833,12 @@ static const struct message SetForegroundWindowSeq[] =
 
 static void test_SetForegroundWindow(void)
 {
+    struct test_set_foreground_window_args args;
+    HANDLE thread;
+    DWORD i, tid, res;
     HWND hwnd;
+    BOOL ret;
+    MSG msg;
 
     hwnd = CreateWindowExA(0, "TestWindowClass", "Test SetForegroundWindow",
                            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
@@ -14537,6 +14857,67 @@ static void test_SetForegroundWindow(void)
     trace("done\n");
 
     DestroyWindow(hwnd);
+
+    hwnd = CreateWindowA("SimpleWindowClass", "Test SetForegroundWindow",
+                          WS_POPUP | WS_VISIBLE, 10, 10, 10, 10, 0, 0, 0, NULL);
+    ok (hwnd != 0, "Failed to create overlapped window\n");
+    SetForegroundWindow( hwnd );
+    flush_sequence();
+
+    args.ready = CreateEventA( NULL, FALSE, FALSE, NULL );
+    ok( !!args.ready, "CreateEvent failed, last error %#x.\n", GetLastError() );
+    args.start = CreateEventA( NULL, FALSE, FALSE, NULL );
+    ok( !!args.start, "CreateEvent failed, last error %#x.\n", GetLastError() );
+    args.done = CreateEventA( NULL, FALSE, FALSE, NULL );
+    ok( !!args.done, "CreateEvent failed, last error %#x.\n", GetLastError() );
+
+    thread = CreateThread( NULL, 0, test_set_foreground_window_thread, &args, 0, &tid );
+    ok( !!thread, "Failed to create thread, last error %#x.\n", GetLastError() );
+
+    res = WaitForSingleObject( args.ready, INFINITE );
+    ok( res == WAIT_OBJECT_0, "Wait failed (%#x), last error %#x.\n", res, GetLastError() );
+    ret = ResetEvent( args.ready );
+    ok( ret, "ResetEvent failed, last error %#x.\n", GetLastError() );
+
+    SetForegroundWindow( hwnd );
+    flush_events();
+
+    res = SetEvent( args.start );
+    ok( res, "SetEvent failed, last error %#x.\n", GetLastError() );
+
+    for (i = 0; i < args.tests_count; ++i)
+    {
+        const struct test_set_foreground_window_desc *test = args.tests + i;
+
+        while (MsgWaitForMultipleObjects( 1, &args.ready, FALSE, INFINITE, QS_SENDMESSAGE ) != WAIT_OBJECT_0)
+        {
+            while (PeekMessageA( &msg, 0, 0, 0, PM_REMOVE | PM_QS_SENDMESSAGE )) DispatchMessageA( &msg );
+        }
+
+        ret = ResetEvent( args.ready );
+        ok( ret, "ResetEvent failed, last error %#x.\n", GetLastError() );
+
+        if (test->steal_foreground) SetForegroundWindow( hwnd );
+        SetForegroundWindow( args.target_window );
+        if (test->steal_foreground) SetForegroundWindow( hwnd );
+        SendNotifyMessageW( args.target_window, WM_USER, 0, 0 );
+
+        res = SetEvent( args.start );
+        ok( res, "SetEvent failed, last error %#x.\n", GetLastError() );
+
+        ret = SetEvent( args.done );
+        ok( res, "SetEvent failed, last error %#x.\n", GetLastError() );
+    }
+
+    WaitForSingleObject( thread, INFINITE );
+    CloseHandle( thread );
+
+    CloseHandle( args.start );
+    CloseHandle( args.done );
+    CloseHandle( args.ready );
+
+    DestroyWindow( hwnd );
+    flush_events();
 }
 
 static DWORD get_input_codepage( void )
