@@ -3312,22 +3312,18 @@ DECL_HANDLER(get_rawinput_buffer)
 {
     struct thread_input *input = current->queue->input;
     data_size_t size = 0, next_size = 0;
-    struct list *ptr;
     char *buf, *cur, *tmp;
     int count = 0, buf_size = 16 * sizeof(struct hardware_msg_data);
+    struct message *msg, *next;
 
     if (!req->buffer_size) buf = NULL;
     else if (!(buf = mem_alloc( buf_size ))) return;
 
     cur = buf;
-    ptr = list_head( &input->msg_list );
-    while (ptr)
+    LIST_FOR_EACH_ENTRY_SAFE( msg, next, &input->msg_list, struct message, entry )
     {
-        struct message *msg = LIST_ENTRY( ptr, struct message, entry );
         struct hardware_msg_data *data = msg->data;
         data_size_t extra_size = data->size - sizeof(*data);
-
-        ptr = list_next( &input->msg_list, ptr );
         if (msg->msg != WM_INPUT) continue;
 
         next_size = req->rawinput_size + extra_size;
