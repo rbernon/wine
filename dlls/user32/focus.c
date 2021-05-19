@@ -74,7 +74,7 @@ static HWND set_focus_window( HWND hwnd )
 static BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus )
 {
     HWND previous = GetActiveWindow();
-    BOOL ret;
+    BOOL ret = FALSE;
     DWORD old_thread, new_thread;
     CBTACTIVATESTRUCT cbt;
 
@@ -84,10 +84,13 @@ static BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus )
         return TRUE;
     }
 
+    if (prev) *prev = previous;
+    if (win_set_flags( hwnd, WIN_IS_ACTIVATING, 0 ) & WIN_IS_ACTIVATING) return TRUE;
+
     /* call CBT hook chain */
     cbt.fMouse     = mouse;
     cbt.hWndActive = previous;
-    if (HOOK_CallHooks( WH_CBT, HCBT_ACTIVATE, (WPARAM)hwnd, (LPARAM)&cbt, TRUE )) return FALSE;
+    if (HOOK_CallHooks( WH_CBT, HCBT_ACTIVATE, (WPARAM)hwnd, (LPARAM)&cbt, TRUE )) goto done;
 
     if (IsWindow(previous))
     {
@@ -103,9 +106,9 @@ static BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus )
             previous = wine_server_ptr_handle( reply->previous );
     }
     SERVER_END_REQ;
-    if (!ret) return FALSE;
+    if (!ret) goto done;
     if (prev) *prev = previous;
-    if (previous == hwnd) return TRUE;
+    if (previous == hwnd) goto done;
 
     if (hwnd)
     {
@@ -113,7 +116,7 @@ static BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus )
         if (SendMessageW( hwnd, WM_QUERYNEWPALETTE, 0, 0 ))
             SendMessageTimeoutW( HWND_BROADCAST, WM_PALETTEISCHANGING, (WPARAM)hwnd, 0,
                                  SMTO_ABORTIFHUNG, 2000, NULL );
-        if (!IsWindow(hwnd)) return FALSE;
+        if (!(ret = IsWindow( hwnd ))) goto done;
     }
 
     old_thread = previous ? GetWindowThreadProcessId( previous, NULL ) : 0;
@@ -147,7 +150,9 @@ static BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus )
 
     if (IsWindow(hwnd))
     {
-        SendMessageW( hwnd, WM_NCACTIVATE, (hwnd == GetForegroundWindow()), (LPARAM)previous );
+        SendMessageW( hwnd, WM_NCACTIVATE,
+                      (hwnd == GetForegroundWindow()) && !(win_get_flags(previous) & WIN_IS_ACTIVATING),
+                      (LPARAM)previous );
         SendMessageW( hwnd, WM_ACTIVATE,
                       MAKEWPARAM( mouse ? WA_CLICKACTIVE : WA_ACTIVE, IsIconic(hwnd) ),
                       (LPARAM)previous );
@@ -170,7 +175,9 @@ static BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus )
         }
     }
 
-    return TRUE;
+done:
+    win_set_flags( hwnd, 0, WIN_IS_ACTIVATING );
+    return ret;
 }
 
 
