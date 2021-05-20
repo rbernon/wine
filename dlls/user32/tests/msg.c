@@ -14623,7 +14623,6 @@ struct test_set_foreground_window_desc
 
     BOOL todo_seq_before_set_foreground;
     const struct message *seq_before_set_foreground;
-    BOOL todo_seq_after_set_foreground;
     const struct message *seq_after_set_foreground;
     BOOL todo_seq_after_peek_message;
     const struct message *seq_after_peek_message;
@@ -14711,26 +14710,26 @@ static void test_interthread_set_foreground_window(struct test_set_foreground_wi
     };
     const struct test_set_foreground_window_desc test_sfw_tests[] =
     {
-        { hwnd1, FALSE, FALSE, FALSE,  FALSE, WmEmptySeq, FALSE, WmEmptySeq, FALSE, sequence_2, FALSE, hwnd0 },
-        { hwnd1, TRUE, FALSE, FALSE,   FALSE, WmEmptySeq,  TRUE, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
-        { hwnd1, FALSE, TRUE, FALSE,   FALSE, WmEmptySeq, FALSE, WmEmptySeq, FALSE, sequence_2, FALSE, hwnd0 },
-        { hwnd1, TRUE, TRUE, FALSE,    FALSE, WmEmptySeq,  TRUE, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
-        { hwnd1, FALSE, FALSE, TRUE,   FALSE, WmEmptySeq, FALSE, WmEmptySeq, FALSE, sequence_2, FALSE, hwnd0 },
-        { hwnd1, TRUE, FALSE, TRUE,    FALSE, WmEmptySeq,  TRUE, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
+        { hwnd1, FALSE, FALSE, FALSE,  FALSE, WmEmptySeq, WmEmptySeq, FALSE, sequence_2, FALSE, hwnd0 },
+        { hwnd1, TRUE, FALSE, FALSE,   FALSE, WmEmptySeq, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
+        { hwnd1, FALSE, TRUE, FALSE,   FALSE, WmEmptySeq, WmEmptySeq, FALSE, sequence_2, FALSE, hwnd0 },
+        { hwnd1, TRUE, TRUE, FALSE,    FALSE, WmEmptySeq, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
+        { hwnd1, FALSE, FALSE, TRUE,   FALSE, WmEmptySeq, WmEmptySeq, FALSE, sequence_2, FALSE, hwnd0 },
+        { hwnd1, TRUE, FALSE, TRUE,    FALSE, WmEmptySeq, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
 
-        { hwnd2, FALSE, FALSE, FALSE,  FALSE, WmEmptySeq, FALSE, sequence_3,  TRUE, sequence_0,  TRUE, hwnd1 },
-        { hwnd2, TRUE, FALSE, FALSE,   FALSE, WmEmptySeq, FALSE, sequence_3,  TRUE, sequence_0,  TRUE, hwnd1 },
-        { hwnd2, FALSE, TRUE, FALSE,   FALSE, sequence_3, FALSE, WmEmptySeq,  TRUE, sequence_0,  TRUE, hwnd1 },
-        { hwnd2, TRUE, TRUE, FALSE,    FALSE, sequence_4,  TRUE, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
-        { hwnd2, FALSE, FALSE, TRUE,    TRUE, sequence_5, FALSE, WmEmptySeq,  TRUE, sequence_0,  TRUE, hwnd1 },
-        { hwnd2, TRUE, FALSE, TRUE,     TRUE, sequence_6,  TRUE, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
+        { hwnd2, FALSE, FALSE, FALSE,  FALSE, WmEmptySeq, sequence_3,  TRUE, sequence_0,  TRUE, hwnd1 },
+        { hwnd2, TRUE, FALSE, FALSE,   FALSE, WmEmptySeq, sequence_3,  TRUE, sequence_0,  TRUE, hwnd1 },
+        { hwnd2, FALSE, TRUE, FALSE,   FALSE, sequence_3, WmEmptySeq,  TRUE, sequence_0,  TRUE, hwnd1 },
+        { hwnd2, TRUE, TRUE, FALSE,    FALSE, sequence_4, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
+        { hwnd2, FALSE, FALSE, TRUE,    TRUE, sequence_5, WmEmptySeq,  TRUE, sequence_0,  TRUE, hwnd1 },
+        { hwnd2, TRUE, FALSE, TRUE,     TRUE, sequence_6, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
 
-        { hwnd0, FALSE, FALSE, FALSE,  FALSE, WmEmptySeq, FALSE, sequence_3, FALSE, sequence_0, FALSE, hwnd1 },
-        { hwnd0, TRUE, FALSE, FALSE,   FALSE, WmEmptySeq, FALSE, sequence_3,  TRUE, sequence_0,  TRUE, hwnd1 },
-        { hwnd0, FALSE, TRUE, FALSE,   FALSE, sequence_3, FALSE, WmEmptySeq, FALSE, sequence_0, FALSE, hwnd1 },
-        { hwnd0, TRUE, TRUE, FALSE,    FALSE, sequence_4,  TRUE, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
-        { hwnd0, FALSE, FALSE, TRUE,    TRUE, sequence_5, FALSE, WmEmptySeq, FALSE, sequence_0, FALSE, hwnd1 },
-        { hwnd0, TRUE, FALSE, TRUE,     TRUE, sequence_6,  TRUE, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
+        { hwnd0, FALSE, FALSE, FALSE,  FALSE, WmEmptySeq, sequence_3, FALSE, sequence_0, FALSE, hwnd1 },
+        { hwnd0, TRUE, FALSE, FALSE,   FALSE, WmEmptySeq, sequence_3,  TRUE, sequence_0,  TRUE, hwnd1 },
+        { hwnd0, FALSE, TRUE, FALSE,   FALSE, sequence_3, WmEmptySeq, FALSE, sequence_0, FALSE, hwnd1 },
+        { hwnd0, TRUE, TRUE, FALSE,    FALSE, sequence_4, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
+        { hwnd0, FALSE, FALSE, TRUE,    TRUE, sequence_5, WmEmptySeq, FALSE, sequence_0, FALSE, hwnd1 },
+        { hwnd0, TRUE, FALSE, TRUE,     TRUE, sequence_6, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
     };
 
     DWORD i, res;
@@ -14777,7 +14776,7 @@ static void test_interthread_set_foreground_window(struct test_set_foreground_wi
 
         flush_sequence();
         SetForegroundWindow( hwnd1 );
-        ok_sequence( test->seq_after_set_foreground, "after SetForegroundWindow", test->todo_seq_after_set_foreground );
+        ok_sequence( test->seq_after_set_foreground, "after SetForegroundWindow", FALSE );
         check_foreground_window( hwnd1, FALSE );
 
         flush_sequence();
