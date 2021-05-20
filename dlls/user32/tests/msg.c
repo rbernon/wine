@@ -14623,9 +14623,7 @@ struct test_set_foreground_window_desc
 
     const struct message *seq_before_set_foreground;
     const struct message *seq_after_set_foreground;
-    BOOL todo_seq_after_peek_message;
     const struct message *seq_after_peek_message;
-    BOOL todo_expected_window;
     HWND expected_window;
 };
 
@@ -14709,26 +14707,26 @@ static void test_interthread_set_foreground_window(struct test_set_foreground_wi
     };
     const struct test_set_foreground_window_desc test_sfw_tests[] =
     {
-        { hwnd1, FALSE, FALSE, FALSE,  WmEmptySeq, WmEmptySeq, FALSE, sequence_2, FALSE, hwnd0 },
-        { hwnd1, TRUE, FALSE, FALSE,   WmEmptySeq, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
-        { hwnd1, FALSE, TRUE, FALSE,   WmEmptySeq, WmEmptySeq, FALSE, sequence_2, FALSE, hwnd0 },
-        { hwnd1, TRUE, TRUE, FALSE,    WmEmptySeq, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
-        { hwnd1, FALSE, FALSE, TRUE,   WmEmptySeq, WmEmptySeq, FALSE, sequence_2, FALSE, hwnd0 },
-        { hwnd1, TRUE, FALSE, TRUE,    WmEmptySeq, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
+        { hwnd1, FALSE, FALSE, FALSE,  WmEmptySeq, WmEmptySeq, sequence_2, hwnd0 },
+        { hwnd1, TRUE, FALSE, FALSE,   WmEmptySeq, sequence_1, sequence_2, hwnd0 },
+        { hwnd1, FALSE, TRUE, FALSE,   WmEmptySeq, WmEmptySeq, sequence_2, hwnd0 },
+        { hwnd1, TRUE, TRUE, FALSE,    WmEmptySeq, sequence_1, sequence_2, hwnd0 },
+        { hwnd1, FALSE, FALSE, TRUE,   WmEmptySeq, WmEmptySeq, sequence_2, hwnd0 },
+        { hwnd1, TRUE, FALSE, TRUE,    WmEmptySeq, sequence_1, sequence_2, hwnd0 },
 
-        { hwnd2, FALSE, FALSE, FALSE,  WmEmptySeq, sequence_3,  TRUE, sequence_0,  TRUE, hwnd1 },
-        { hwnd2, TRUE, FALSE, FALSE,   WmEmptySeq, sequence_3,  TRUE, sequence_0,  TRUE, hwnd1 },
-        { hwnd2, FALSE, TRUE, FALSE,   sequence_3, WmEmptySeq,  TRUE, sequence_0,  TRUE, hwnd1 },
-        { hwnd2, TRUE, TRUE, FALSE,    sequence_4, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
-        { hwnd2, FALSE, FALSE, TRUE,   sequence_5, WmEmptySeq,  TRUE, sequence_0,  TRUE, hwnd1 },
-        { hwnd2, TRUE, FALSE, TRUE,    sequence_6, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
+        { hwnd2, FALSE, FALSE, FALSE,  WmEmptySeq, sequence_3, sequence_0, hwnd1 },
+        { hwnd2, TRUE, FALSE, FALSE,   WmEmptySeq, sequence_3, sequence_0, hwnd1 },
+        { hwnd2, FALSE, TRUE, FALSE,   sequence_3, WmEmptySeq, sequence_0, hwnd1 },
+        { hwnd2, TRUE, TRUE, FALSE,    sequence_4, sequence_1, sequence_2, hwnd0 },
+        { hwnd2, FALSE, FALSE, TRUE,   sequence_5, WmEmptySeq, sequence_0, hwnd1 },
+        { hwnd2, TRUE, FALSE, TRUE,    sequence_6, sequence_1, sequence_2, hwnd0 },
 
-        { hwnd0, FALSE, FALSE, FALSE,  WmEmptySeq, sequence_3, FALSE, sequence_0, FALSE, hwnd1 },
-        { hwnd0, TRUE, FALSE, FALSE,   WmEmptySeq, sequence_3,  TRUE, sequence_0,  TRUE, hwnd1 },
-        { hwnd0, FALSE, TRUE, FALSE,   sequence_3, WmEmptySeq, FALSE, sequence_0, FALSE, hwnd1 },
-        { hwnd0, TRUE, TRUE, FALSE,    sequence_4, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
-        { hwnd0, FALSE, FALSE, TRUE,   sequence_5, WmEmptySeq, FALSE, sequence_0, FALSE, hwnd1 },
-        { hwnd0, TRUE, FALSE, TRUE,    sequence_6, sequence_1, FALSE, sequence_2, FALSE, hwnd0 },
+        { hwnd0, FALSE, FALSE, FALSE,  WmEmptySeq, sequence_3, sequence_0, hwnd1 },
+        { hwnd0, TRUE, FALSE, FALSE,   WmEmptySeq, sequence_3, sequence_0, hwnd1 },
+        { hwnd0, FALSE, TRUE, FALSE,   sequence_3, WmEmptySeq, sequence_0, hwnd1 },
+        { hwnd0, TRUE, TRUE, FALSE,    sequence_4, sequence_1, sequence_2, hwnd0 },
+        { hwnd0, FALSE, FALSE, TRUE,   sequence_5, WmEmptySeq, sequence_0, hwnd1 },
+        { hwnd0, TRUE, FALSE, TRUE,    sequence_6, sequence_1, sequence_2, hwnd0 },
     };
 
     DWORD i, res;
@@ -14780,8 +14778,8 @@ static void test_interthread_set_foreground_window(struct test_set_foreground_wi
 
         flush_sequence();
         while (PeekMessageA( &msg, 0, 0, 0, PM_REMOVE )) DispatchMessageA( &msg );
-        ok_sequence( test->seq_after_peek_message, "after PeekMessageA", test->todo_seq_after_peek_message );
-        check_foreground_window( test->expected_window, test->todo_expected_window );
+        ok_sequence( test->seq_after_peek_message, "after PeekMessageA", FALSE );
+        check_foreground_window( test->expected_window, FALSE );
 
         res = WaitForSingleObject( args->done, INFINITE );
         ok( res == WAIT_OBJECT_0, "WaitForSingleObject returned %#x, last error %#x.\n", res, GetLastError() );
