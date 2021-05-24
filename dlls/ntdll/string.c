@@ -95,6 +95,91 @@ int __cdecl memcmp( const void *ptr1, const void *ptr2, size_t n )
 }
 
 
+static FORCEINLINE void memmove_unaligned_24( char *d, const char *s, size_t n )
+{
+    typedef uint64_t DECLSPEC_ALIGN(1) unaligned_ui64;
+    typedef uint32_t DECLSPEC_ALIGN(1) unaligned_ui32;
+    typedef uint16_t DECLSPEC_ALIGN(1) unaligned_ui16;
+    uint64_t tmp0, tmp1, tmpn;
+
+    if (n >= 16)
+    {
+        tmp0 = *(unaligned_ui64 *)s;
+        tmp1 = *(unaligned_ui64 *)(s + 8);
+        tmpn = *(unaligned_ui64 *)(s + n - 8);
+        *(unaligned_ui64 *)d = tmp0;
+        *(unaligned_ui64 *)(d + 8) = tmp1;
+        *(unaligned_ui64 *)(d + n - 8) = tmpn;
+    }
+    else if (n >= 8)
+    {
+        tmp0 = *(unaligned_ui64 *)s;
+        tmpn = *(unaligned_ui64 *)(s + n - 8);
+        *(unaligned_ui64 *)d = tmp0;
+        *(unaligned_ui64 *)(d + n - 8) = tmpn;
+    }
+    else if (n >= 4)
+    {
+        tmp0 = *(unaligned_ui32 *)s;
+        tmpn = *(unaligned_ui32 *)(s + n - 4);
+        *(unaligned_ui32 *)d = tmp0;
+        *(unaligned_ui32 *)(d + n - 4) = tmpn;
+    }
+    else if (n >= 2)
+    {
+        tmp0 = *(unaligned_ui16 *)s;
+        tmpn = *(unaligned_ui16 *)(s + n - 2);
+        *(unaligned_ui16 *)d = tmp0;
+        *(unaligned_ui16 *)(d + n - 2) = tmpn;
+    }
+    else if (n >= 1)
+    {
+        *(uint8_t *)d = *(uint8_t *)s;
+    }
+}
+
+static FORCEINLINE void *memmove_unrolled( char *dst, const char *src, size_t n )
+{
+    typedef uint64_t DECLSPEC_ALIGN(1) unaligned_ui64;
+    uint64_t tmp0, tmp1, tmp2;
+    char *end;
+
+    if (n <= 24) memmove_unaligned_24( dst, src, n );
+    else if ((size_t)dst - (size_t)src >= n)
+    {
+        end = dst + n; src += n;
+        do
+        {
+            tmp0 = *(unaligned_ui64 *)(src - n +  0);
+            tmp1 = *(unaligned_ui64 *)(src - n +  8);
+            tmp2 = *(unaligned_ui64 *)(src - n + 16);
+            *(unaligned_ui64*)(end - n +  0) = tmp0;
+            *(unaligned_ui64*)(end - n +  8) = tmp1;
+            *(unaligned_ui64*)(end - n + 16) = tmp2;
+            n -= 24;
+        }
+        while (n >= 24);
+        memmove_unaligned_24( end - n, src - n, n );
+    }
+    else
+    {
+        do
+        {
+            tmp0 = *(unaligned_ui64 *)(src + n -  8);
+            tmp1 = *(unaligned_ui64 *)(src + n - 16);
+            tmp2 = *(unaligned_ui64 *)(src + n - 24);
+            *(unaligned_ui64*)(dst + n -  8) = tmp0;
+            *(unaligned_ui64*)(dst + n - 16) = tmp1;
+            *(unaligned_ui64*)(dst + n - 24) = tmp2;
+            n -= 24;
+        }
+        while (n >= 24);
+        memmove_unaligned_24( dst, src, n );
+    }
+    return dst;
+}
+
+
 /*********************************************************************
  *                  memcpy   (NTDLL.@)
  *
@@ -103,20 +188,7 @@ int __cdecl memcmp( const void *ptr1, const void *ptr2, size_t n )
  */
 void * __cdecl memcpy( void *dst, const void *src, size_t n )
 {
-    volatile unsigned char *d = dst;  /* avoid gcc optimizations */
-    const unsigned char *s = src;
-
-    if ((size_t)dst - (size_t)src >= n)
-    {
-        while (n--) *d++ = *s++;
-    }
-    else
-    {
-        d += n - 1;
-        s += n - 1;
-        while (n--) *d-- = *s--;
-    }
-    return dst;
+    return memmove_unrolled( dst, src, n );
 }
 
 
@@ -125,20 +197,7 @@ void * __cdecl memcpy( void *dst, const void *src, size_t n )
  */
 void * __cdecl memmove( void *dst, const void *src, size_t n )
 {
-    volatile unsigned char *d = dst;  /* avoid gcc optimizations */
-    const unsigned char *s = src;
-
-    if ((size_t)dst - (size_t)src >= n)
-    {
-        while (n--) *d++ = *s++;
-    }
-    else
-    {
-        d += n - 1;
-        s += n - 1;
-        while (n--) *d-- = *s--;
-    }
-    return dst;
+    return memmove_unrolled( dst, src, n );
 }
 
 
