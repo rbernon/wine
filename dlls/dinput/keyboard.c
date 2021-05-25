@@ -125,6 +125,21 @@ static void dinput_keyboard_handle_key_event( IDirectInputDevice8W *iface, DWORD
     LeaveCriticalSection(&This->base.crit);
 }
 
+void dinput_keyboard_rawinput_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPARAM lparam, RAWINPUT *ri )
+{
+    DWORD vkey_code, scan_code;
+    BOOL is_key_ext, is_key_up;
+
+    TRACE("(%p) wp %08lx, lp %08lx\n", iface, wparam, lparam);
+
+    vkey_code = ri->data.keyboard.VKey;
+    scan_code = ri->data.keyboard.MakeCode;
+    is_key_ext = (ri->data.keyboard.Flags & RI_KEY_E0);
+    is_key_up = (ri->data.keyboard.Flags & RI_KEY_BREAK);
+
+    dinput_keyboard_handle_key_event(iface, vkey_code, scan_code, is_key_ext, is_key_up);
+}
+
 int dinput_keyboard_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPARAM lparam )
 {
     SysKeyboardImpl *This = impl_from_IDirectInputDevice8W( iface );
