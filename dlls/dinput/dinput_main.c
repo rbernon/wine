@@ -419,6 +419,16 @@ static LRESULT WINAPI di_em_win_wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPAR
                 dinput_mouse_rawinput_hook( &impl->IDirectInputDevice8W_iface, wparam, lparam, &ri );
             LeaveCriticalSection( &dinput_hook_crit );
         }
+        else if (ri.header.dwType == RIM_TYPEKEYBOARD)
+        {
+            EnterCriticalSection( &dinput_hook_crit );
+            LIST_FOR_EACH_ENTRY( impl, &acquired_keyboard_list, struct dinput_device, entry )
+            {
+                if (!impl->use_raw_input) continue;
+                dinput_keyboard_rawinput_hook( &impl->IDirectInputDevice8W_iface, wparam, lparam, &ri );
+            }
+            LeaveCriticalSection( &dinput_hook_crit );
+        }
     }
 
     return DefWindowProcW( hwnd, msg, wparam, lparam );
