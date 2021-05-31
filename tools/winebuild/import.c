@@ -1437,6 +1437,8 @@ static void output_syscall_dispatcher(void)
         output( "\tmovl $0,0x00(%%ecx)\n" );     /* frame->restore_flags */
         output( "\tpopl 0x08(%%ecx)\n" );        /* frame->eip */
         output( "\tpushfl\n" );
+        output( "\tpushl $0x202\n" );
+        output( "\tpopfl\n" );
         output( "\tpopl 0x04(%%ecx)\n" );        /* frame->eflags */
         output( "%s\n", asm_globl("__wine_syscall_dispatcher_prolog_end") );
         output( "\tmovl %%esp,0x0c(%%ecx)\n" );  /* frame->esp */
