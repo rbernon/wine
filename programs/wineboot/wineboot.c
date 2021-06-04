@@ -82,6 +82,8 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(wineboot);
 
+#define TICKSPERSEC        10000000
+
 extern BOOL shutdown_close_windows( BOOL force );
 extern BOOL shutdown_all_desktops( BOOL force );
 extern void kill_processes( BOOL kill_desktop );
@@ -355,7 +357,7 @@ static UINT64 read_tsc_frequency(void)
 
 #endif
 
-static void create_user_shared_data(void)
+static void create_user_shared_data( UINT64 *tsc_frequency )
 {
     SYSTEM_SUPPORTED_PROCESSOR_ARCHITECTURES_INFORMATION machines[8];
     struct _KUSER_SHARED_DATA *data;
@@ -475,6 +477,7 @@ static void create_user_shared_data(void)
     data->ActiveGroupCount = 1;
 
     initialize_xstate_features( data );
+    initialize_qpc_features( data, tsc_frequency );
 
     UnmapViewOfFile( data );
 }
@@ -767,7 +770,7 @@ done:
 }
 
 /* create the volatile hardware registry keys */
-static void create_hardware_registry_keys(void)
+static void create_hardware_registry_keys( UINT64 tsc_frequency )
 {
     unsigned int i;
     HKEY hkey, system_key, cpu_key, fpu_key;
@@ -1739,6 +1742,7 @@ int __cdecl main( int argc, char *argv[] )
     BOOL end_session, force, init, kill, restart, shutdown, update;
     HANDLE event;
     OBJECT_ATTRIBUTES attr;
+    UINT64 tsc_frequency = 0;
     UNICODE_STRING nameW = RTL_CONSTANT_STRING( L"\\KernelObjects\\__wineboot_event" );
     BOOL is_wow64;
 
@@ -1824,8 +1828,8 @@ int __cdecl main( int argc, char *argv[] )
 
     ResetEvent( event );  /* in case this is a restart */
 
-    create_user_shared_data();
-    create_hardware_registry_keys();
+    create_user_shared_data( &tsc_frequency );
+    create_hardware_registry_keys( tsc_frequency );
     create_dynamic_registry_keys();
     create_environment_registry_keys();
     create_computer_name_keys();
