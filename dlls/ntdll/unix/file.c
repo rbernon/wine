@@ -130,6 +130,9 @@
 #include "wine/debug.h"
 #include "unix_private.h"
 
+#include "valgrind/valgrind.h"
+#include "valgrind/memcheck.h"
+
 WINE_DEFAULT_DEBUG_CHANNEL(file);
 WINE_DECLARE_DEBUG_CHANNEL(winediag);
 

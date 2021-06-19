@@ -34,6 +34,9 @@
 #include "wine/debug.h"
 #include "ntdll_misc.h"
 
+#include "valgrind/valgrind.h"
+#include "valgrind/memcheck.h"
+
 WINE_DEFAULT_DEBUG_CHANNEL(virtual);
 
 

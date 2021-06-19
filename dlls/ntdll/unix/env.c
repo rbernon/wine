@@ -36,6 +36,9 @@
 #ifdef HAVE_SYS_STAT_H
 # include <sys/stat.h>
 #endif
+#ifdef HAVE_SYS_MMAN_H
+# include <sys/mman.h>
+#endif
 #ifdef HAVE_SYS_PRCTL_H
 # include <sys/prctl.h>
 #endif
@@ -132,27 +135,19 @@ static void *read_nls_file( ULONG type, ULONG id )
 {
     char *path = get_nls_file_path( type, id );
     struct stat st;
-    void *data, *ret = NULL;
+    void *data = NULL;
     int fd;
 
     if ((fd = open( path, O_RDONLY )) != -1)
     {
         fstat( fd, &st );
-        if ((data = malloc( st.st_size )) && st.st_size > 0x1000 &&
-            read( fd, data, st.st_size ) == st.st_size)
-        {
-            ret = data;
-        }
-        else
-        {
-            free( data );
-            data = NULL;
-        }
+        if (st.st_size > 0x1000) data = mmap( NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0 );
+        if (data == MAP_FAILED) data = NULL;
         close( fd );
     }
     else ERR( "failed to load %u/%u\n", type, id );
     free( path );
-    return ret;
+    return data;
 }
 
 static NTSTATUS open_nls_data_file( ULONG type, ULONG id, HANDLE *file )
