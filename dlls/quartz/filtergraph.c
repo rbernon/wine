@@ -521,12 +521,13 @@ static BOOL has_output_pins(IBaseFilter *filter)
 {
     IEnumPins *enumpins;
     PIN_DIRECTION dir;
+    ULONG count;
     IPin *pin;
 
     if (FAILED(IBaseFilter_EnumPins(filter, &enumpins)))
         return FALSE;
 
-    while (IEnumPins_Next(enumpins, 1, &pin, NULL) == S_OK)
+    while (IEnumPins_Next(enumpins, 1, &pin, &count) == S_OK && count != 0)
     {
         IPin_QueryDirection(pin, &dir);
         IPin_Release(pin);
@@ -685,6 +686,7 @@ static HRESULT WINAPI FilterGraph2_RemoveFilter(IFilterGraph2 *iface, IBaseFilte
     IAMOpenProgress *progress;
     struct filter *entry;
     FILTER_STATE state;
+    ULONG count;
     int i;
     HRESULT hr = E_FAIL;
 
@@ -714,7 +716,7 @@ static HRESULT WINAPI FilterGraph2_RemoveFilter(IFilterGraph2 *iface, IBaseFilte
             hr = IBaseFilter_EnumPins(pFilter, &penumpins);
             if (SUCCEEDED(hr)) {
                 IPin *ppin;
-                while(IEnumPins_Next(penumpins, 1, &ppin, NULL) == S_OK)
+                while(IEnumPins_Next(penumpins, 1, &ppin, &count) == S_OK && count != 0)
                 {
                     IPin *peer = NULL;
                     HRESULT hr;
@@ -821,6 +823,7 @@ static HRESULT CheckCircularConnection(struct filter_graph *This, IPin *out, IPi
 {
 #if 1
     HRESULT hr;
+    ULONG count;
     PIN_INFO info_out, info_in;
 
     hr = IPin_QueryPinInfo(out, &info_out);
@@ -855,7 +858,7 @@ static HRESULT CheckCircularConnection(struct filter_graph *This, IPin *out, IPi
             goto out;
 
         IEnumPins_Reset(enumpins);
-        while ((hr = IEnumPins_Next(enumpins, 1, &test, NULL)) == S_OK)
+        while ((hr = IEnumPins_Next(enumpins, 1, &test, &count)) == S_OK && count != 0)
         {
             PIN_DIRECTION dir = PINDIR_OUTPUT;
             IPin_QueryDirection(test, &dir);
@@ -910,6 +913,7 @@ static void sort_filter_recurse(struct filter_graph *graph, struct filter *filte
     PIN_DIRECTION dir;
     IPin *pin, *peer;
     PIN_INFO info;
+    ULONG count;
 
     TRACE("Sorting filter %p.\n", filter->filter);
 
@@ -919,7 +923,7 @@ static void sort_filter_recurse(struct filter_graph *graph, struct filter *filte
     filter->sorting = TRUE;
 
     IBaseFilter_EnumPins(filter->filter, &enumpins);
-    while (IEnumPins_Next(enumpins, 1, &pin, NULL) == S_OK)
+    while (IEnumPins_Next(enumpins, 1, &pin, &count) == S_OK && count != 0)
     {
         IPin_QueryDirection(pin, &dir);
 
@@ -1141,6 +1145,7 @@ static HRESULT autoplug_through_sink(struct filter_graph *graph, IPin *source,
     IEnumPins *source_enum;
     PIN_DIRECTION dir;
     PIN_INFO info;
+    ULONG count;
     HRESULT hr;
 
     TRACE("Trying to autoplug %p to %p through %p.\n", source, sink, middle_sink);
@@ -1161,7 +1166,7 @@ static HRESULT autoplug_through_sink(struct filter_graph *graph, IPin *source,
     if (FAILED(hr = IBaseFilter_EnumPins(filter, &source_enum)))
         goto err;
 
-    while (IEnumPins_Next(source_enum, 1, &middle_source, NULL) == S_OK)
+    while (IEnumPins_Next(source_enum, 1, &middle_source, &count) == S_OK && count != 0)
     {
         IPin_QueryPinInfo(middle_source, &info);
         IBaseFilter_Release(info.pFilter);
@@ -1217,6 +1222,7 @@ static HRESULT autoplug_through_filter(struct filter_graph *graph, IPin *source,
 {
     IEnumPins *sink_enum;
     IPin *filter_sink;
+    ULONG count;
     HRESULT hr;
 
     TRACE("Trying to autoplug %p to %p through %p.\n", source, sink, filter);
@@ -1224,7 +1230,7 @@ static HRESULT autoplug_through_filter(struct filter_graph *graph, IPin *source,
     if (FAILED(hr = IBaseFilter_EnumPins(filter, &sink_enum)))
         return hr;
 
-    while (IEnumPins_Next(sink_enum, 1, &filter_sink, NULL) == S_OK)
+    while (IEnumPins_Next(sink_enum, 1, &filter_sink, &count) == S_OK && count != 0)
     {
         hr = autoplug_through_sink(graph, source, filter, filter_sink, sink,
                 render_to_existing, recursion_depth);
@@ -1433,6 +1439,7 @@ static HRESULT WINAPI FilterGraph2_RenderFile(IFilterGraph2 *iface, LPCWSTR lpcw
     IPin* ppinreader = NULL;
     IEnumPins* penumpins = NULL;
     struct filter *filter;
+    ULONG count;
     HRESULT hr;
     BOOL partial = FALSE;
     BOOL any = FALSE;
@@ -1449,7 +1456,7 @@ static HRESULT WINAPI FilterGraph2_RenderFile(IFilterGraph2 *iface, LPCWSTR lpcw
     hr = IBaseFilter_EnumPins(preader, &penumpins);
     if (SUCCEEDED(hr))
     {
-        while (IEnumPins_Next(penumpins, 1, &ppinreader, NULL) == S_OK)
+        while (IEnumPins_Next(penumpins, 1, &ppinreader, &count) == S_OK && count != 0)
         {
             PIN_DIRECTION dir;
 
