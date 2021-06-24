@@ -684,6 +684,7 @@ static HRESULT WINAPI FilterGraph2_RemoveFilter(IFilterGraph2 *iface, IBaseFilte
     IAMDeviceRemoval *removal;
     IAMOpenProgress *progress;
     struct filter *entry;
+    FILTER_STATE state;
     int i;
     HRESULT hr = E_FAIL;
 
@@ -757,6 +758,9 @@ static HRESULT WINAPI FilterGraph2_RemoveFilter(IFilterGraph2 *iface, IBaseFilte
                     ERR("%s:%d\n", __FILE__, __LINE__);
                     IAMOpenProgress_Release(progress);
                 }
+
+                hr = IBaseFilter_GetState(pFilter, 0, &state);
+                ERR("%s:%d hr %#x\n", __FILE__, __LINE__, hr);
 
                 IBaseFilter_Release(pFilter);
                 if (entry->seeking)
