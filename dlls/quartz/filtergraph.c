@@ -596,6 +596,8 @@ static HRESULT WINAPI FilterGraph2_AddFilter(IFilterGraph2 *iface,
 {
     struct filter_graph *graph = impl_from_IFilterGraph2(iface);
     BOOL duplicate_name = FALSE;
+    IAMDeviceRemoval *removal;
+    IAMOpenProgress *progress;
     struct filter *entry;
     unsigned int i;
     HRESULT hr;
@@ -652,7 +654,21 @@ static HRESULT WINAPI FilterGraph2_AddFilter(IFilterGraph2 *iface,
         return hr;
     }
 
+    hr = IBaseFilter_QueryInterface(filter, &IID_IAMOpenProgress, (void **)&progress);
+    if (SUCCEEDED(hr))
+    {
+        ERR("%s:%d\n", __FILE__, __LINE__);
+        IAMOpenProgress_Release(progress);
+    }
 
+    hr = IBaseFilter_QueryInterface(filter, &IID_IAMDeviceRemoval, (void **)&removal);
+    if (SUCCEEDED(hr))
+    {
+        ERR("%s:%d\n", __FILE__, __LINE__);
+        IAMDeviceRemoval_Release(removal);
+    }
+
+    hr = S_OK;
     entry->filter = filter;
     list_add_head(&graph->filters, &entry->entry);
     entry->sorting = FALSE;
@@ -665,6 +681,8 @@ static HRESULT WINAPI FilterGraph2_AddFilter(IFilterGraph2 *iface,
 static HRESULT WINAPI FilterGraph2_RemoveFilter(IFilterGraph2 *iface, IBaseFilter *pFilter)
 {
     struct filter_graph *This = impl_from_IFilterGraph2(iface);
+    IAMDeviceRemoval *removal;
+    IAMOpenProgress *progress;
     struct filter *entry;
     int i;
     HRESULT hr = E_FAIL;
@@ -684,6 +702,13 @@ static HRESULT WINAPI FilterGraph2_RemoveFilter(IFilterGraph2 *iface, IBaseFilte
             }
 
             TRACE("Removing filter %s.\n", debugstr_w(entry->name));
+
+            hr = IBaseFilter_QueryInterface(pFilter, &IID_IAMDeviceRemoval, (void **)&removal);
+            if (SUCCEEDED(hr))
+            {
+                ERR("%s:%d\n", __FILE__, __LINE__);
+                IAMDeviceRemoval_Release(removal);
+            }
 
             hr = IBaseFilter_EnumPins(pFilter, &penumpins);
             if (SUCCEEDED(hr)) {
@@ -726,6 +751,13 @@ static HRESULT WINAPI FilterGraph2_RemoveFilter(IFilterGraph2 *iface, IBaseFilte
 
             if (SUCCEEDED(hr))
             {
+                hr = IBaseFilter_QueryInterface(pFilter, &IID_IAMOpenProgress, (void **)&progress);
+                if (SUCCEEDED(hr))
+                {
+                    ERR("%s:%d\n", __FILE__, __LINE__);
+                    IAMOpenProgress_Release(progress);
+                }
+
                 IBaseFilter_Release(pFilter);
                 if (entry->seeking)
                     IMediaSeeking_Release(entry->seeking);

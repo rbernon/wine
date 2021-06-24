@@ -1363,6 +1363,18 @@ interface IAMLatency : IUnknown
 [
     local,
     object,
+    uuid(8e1c39a1-de53-11cf-aa63-0080c744528d),
+    pointer_default(unique)
+]
+interface IAMOpenProgress : IUnknown
+{
+    HRESULT QueryProgress([out] LONGLONG* total, [out] LONGLONG* current);
+    HRESULT AbortOperation();
+}
+
+[
+    local,
+    object,
     uuid(f185fe76-e64e-11d2-b76e-00c04fb6bd3d),
     pointer_default(unique)
 ]
@@ -1375,6 +1387,19 @@ interface IAMPushSource : IAMLatency
     HRESULT GetMaxStreamOffset([out] REFERENCE_TIME *offset);
     HRESULT SetMaxStreamOffset([in] REFERENCE_TIME offset);
 };
+
+[
+    local,
+    object,
+    uuid(f90a6130-b658-11d2-ae49-0000f8754b99),
+    pointer_default(unique)
+]
+interface IAMDeviceRemoval : IUnknown
+{
+    HRESULT DeviceInfo([out] CLSID *clsid, [out] LPWSTR *symlink);
+    HRESULT Reassociate();
+    HRESULT Disassociate();
+}
 
 [
     local,
