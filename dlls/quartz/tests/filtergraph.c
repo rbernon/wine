@@ -5626,10 +5626,491 @@ static void test_events(void)
     SysFreeString(status);
 }
 
+struct xanadu_pins
+{
+    IUnknown IUnknown_iface;
+    IEnumPins IEnumPins_iface;
+    LONG ref;
+};
+
+static struct xanadu_pins *xanadu_pins_from_IUnknown(IUnknown *iface)
+{
+    return CONTAINING_RECORD(iface, struct xanadu_pins, IUnknown_iface);
+}
+
+static HRESULT STDMETHODCALLTYPE pins_iunknown_QueryInterface(IUnknown *iface, REFIID iid, void **out)
+{
+    ok(0, "unexpected iface %p, riid %s, out %p\n", iface, debugstr_guid(iid), out);
+
+    /* IID_IAMOpenProgress */
+    /* IID_IAMDeviceRemoval */
+
+    return E_NOINTERFACE;
+}
+
+static ULONG STDMETHODCALLTYPE pins_iunknown_AddRef(IUnknown *iface)
+{
+    struct xanadu_pins *impl = xanadu_pins_from_IUnknown(iface);
+    ULONG ref = InterlockedIncrement(&impl->ref);
+    trace("%s iface %p, ref %u\n", __FUNCTION__, iface, ref);
+    return ref;
+}
+
+static ULONG STDMETHODCALLTYPE pins_iunknown_Release(IUnknown *iface)
+{
+    struct xanadu_pins *impl = xanadu_pins_from_IUnknown(iface);
+    ULONG ref = InterlockedDecrement(&impl->ref);
+    trace("%s iface %p, ref %u\n", __FUNCTION__, iface, ref);
+    if (ref + 1 == 0) free(impl);
+    return ref;
+}
+
+static IUnknownVtbl pins_iunknown_vtable =
+{
+    pins_iunknown_QueryInterface,
+    pins_iunknown_AddRef,
+    pins_iunknown_Release,
+};
+
+static struct xanadu_pins *xanadu_pins_from_IEnumPins(IEnumPins *iface)
+{
+    return CONTAINING_RECORD(iface, struct xanadu_pins, IEnumPins_iface);
+}
+
+static HRESULT STDMETHODCALLTYPE pins_ienumpins_QueryInterface(IEnumPins *iface, REFIID iid, void **out)
+{
+    struct xanadu_pins *impl = xanadu_pins_from_IEnumPins(iface);
+    return IUnknown_QueryInterface(&impl->IUnknown_iface, iid, out);
+}
+
+static ULONG STDMETHODCALLTYPE pins_ienumpins_AddRef(IEnumPins *iface)
+{
+    struct xanadu_pins *impl = xanadu_pins_from_IEnumPins(iface);
+    return IUnknown_AddRef(&impl->IUnknown_iface);
+}
+
+static ULONG STDMETHODCALLTYPE pins_ienumpins_Release(IEnumPins *iface)
+{
+    struct xanadu_pins *impl = xanadu_pins_from_IEnumPins(iface);
+    return IUnknown_Release(&impl->IUnknown_iface);
+}
+
+static HRESULT STDMETHODCALLTYPE pins_ienumpins_Next(IEnumPins *iface, ULONG count, IPin **pins, ULONG *fetched)
+{
+    trace("%s iface %p, count %u, pins %p, fetched %p\n", __FUNCTION__, iface, count, pins, fetched);
+    *fetched = 0;
+    return S_OK;
+}
+
+static HRESULT STDMETHODCALLTYPE pins_ienumpins_Skip(IEnumPins *iface, ULONG count)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE pins_ienumpins_Reset(IEnumPins *iface)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE pins_ienumpins_Clone(IEnumPins *iface, IEnumPins **ppEnum)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static IEnumPinsVtbl pins_ienumpins_vtable =
+{
+    pins_ienumpins_QueryInterface,
+    pins_ienumpins_AddRef,
+    pins_ienumpins_Release,
+    pins_ienumpins_Next,
+    pins_ienumpins_Skip,
+    pins_ienumpins_Reset,
+    pins_ienumpins_Clone,
+};
+
+static void xanadu_pins_create(struct xanadu_pins *pins)
+{
+    pins->IUnknown_iface.lpVtbl = &pins_iunknown_vtable;
+    pins->IEnumPins_iface.lpVtbl = &pins_ienumpins_vtable;
+    pins->ref = 0;
+}
+
+struct xanadu_filter
+{
+    IUnknown IUnknown_iface;
+    IBaseFilter IBaseFilter_iface;
+    IAMovieSetup IAMovieSetup_iface;
+    IQualProp IQualProp_iface;
+    IQualityControl IQualityControl_iface;
+    LONG ref;
+};
+
+static struct xanadu_filter *xanadu_filter_from_IUnknown(IUnknown *iface)
+{
+    return CONTAINING_RECORD(iface, struct xanadu_filter, IUnknown_iface);
+}
+
+static HRESULT STDMETHODCALLTYPE filter_iunknown_QueryInterface(IUnknown *iface, REFIID iid, void **out)
+{
+    ok(0, "unexpected iface %p, riid %s, out %p\n", iface, debugstr_guid(iid), out);
+
+    /* IID_IAMOpenProgress */
+    /* IID_IAMDeviceRemoval */
+
+    return E_NOINTERFACE;
+}
+
+static ULONG STDMETHODCALLTYPE filter_iunknown_AddRef(IUnknown *iface)
+{
+    struct xanadu_filter *impl = xanadu_filter_from_IUnknown(iface);
+    ULONG ref = InterlockedIncrement(&impl->ref);
+    trace("%s iface %p, ref %u\n", __FUNCTION__, iface, ref);
+    return ref;
+}
+
+static ULONG STDMETHODCALLTYPE filter_iunknown_Release(IUnknown *iface)
+{
+    struct xanadu_filter *impl = xanadu_filter_from_IUnknown(iface);
+    ULONG ref = InterlockedDecrement(&impl->ref);
+    trace("%s iface %p, ref %u\n", __FUNCTION__, iface, ref);
+    return ref;
+}
+
+static IUnknownVtbl filter_iunknown_vtable =
+{
+    filter_iunknown_QueryInterface,
+    filter_iunknown_AddRef,
+    filter_iunknown_Release,
+};
+
+static struct xanadu_filter *xanadu_filter_from_IBaseFilter(IBaseFilter *iface)
+{
+    return CONTAINING_RECORD(iface, struct xanadu_filter, IBaseFilter_iface);
+}
+
+static HRESULT STDMETHODCALLTYPE filter_ibasefilter_QueryInterface(IBaseFilter *iface, REFIID iid, void **out)
+{
+    struct xanadu_filter *impl = xanadu_filter_from_IBaseFilter(iface);
+    return IUnknown_QueryInterface(&impl->IUnknown_iface, iid, out);
+}
+
+static ULONG STDMETHODCALLTYPE filter_ibasefilter_AddRef(IBaseFilter *iface)
+{
+    struct xanadu_filter *impl = xanadu_filter_from_IBaseFilter(iface);
+    return IUnknown_AddRef(&impl->IUnknown_iface);
+}
+
+static ULONG STDMETHODCALLTYPE filter_ibasefilter_Release(IBaseFilter *iface)
+{
+    struct xanadu_filter *impl = xanadu_filter_from_IBaseFilter(iface);
+    return IUnknown_Release(&impl->IUnknown_iface);
+}
+
+static HRESULT STDMETHODCALLTYPE filter_ibasefilter_GetClassID(IBaseFilter *iface, CLSID *pClassID)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_ibasefilter_Stop(IBaseFilter *iface)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_ibasefilter_Pause(IBaseFilter *iface)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_ibasefilter_Run(IBaseFilter *iface, REFERENCE_TIME tStart)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_ibasefilter_GetState(IBaseFilter *iface, DWORD dwMilliSecsTimeout,
+                                                             FILTER_STATE *State)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_ibasefilter_SetSyncSource(IBaseFilter *iface, IReferenceClock *clock)
+{
+    trace("%s iface %p, clock %p\n", __FUNCTION__, iface, clock);
+    return S_OK;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_ibasefilter_GetSyncSource(IBaseFilter *iface, IReferenceClock **pClock)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_ibasefilter_EnumPins(IBaseFilter *iface, IEnumPins **out)
+{
+    struct xanadu_pins *pins;
+
+    trace("%s iface %p, out %p\n", __FUNCTION__, iface, out);
+
+    pins = malloc(sizeof(*pins));
+    xanadu_pins_create(pins);
+    *out = &pins->IEnumPins_iface;
+
+    return S_OK;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_ibasefilter_FindPin(IBaseFilter *iface, LPCWSTR Id, IPin **ppPin)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_ibasefilter_QueryFilterInfo(IBaseFilter *iface, FILTER_INFO *pInfo)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_ibasefilter_JoinFilterGraph(IBaseFilter *iface,
+        IFilterGraph *graph, const WCHAR *name)
+{
+    trace("%s iface %p, graph %p, name %s\n", __FUNCTION__, iface, graph, debugstr_w(name));
+    return S_OK;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_ibasefilter_QueryVendorInfo(IBaseFilter *iface, LPWSTR *pVendorInfo)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static IBaseFilterVtbl filter_ibasefilter_vtable =
+{
+    filter_ibasefilter_QueryInterface,
+    filter_ibasefilter_AddRef,
+    filter_ibasefilter_Release,
+    filter_ibasefilter_GetClassID,
+    filter_ibasefilter_Stop,
+    filter_ibasefilter_Pause,
+    filter_ibasefilter_Run,
+    filter_ibasefilter_GetState,
+    filter_ibasefilter_SetSyncSource,
+    filter_ibasefilter_GetSyncSource,
+    filter_ibasefilter_EnumPins,
+    filter_ibasefilter_FindPin,
+    filter_ibasefilter_QueryFilterInfo,
+    filter_ibasefilter_JoinFilterGraph,
+    filter_ibasefilter_QueryVendorInfo,
+};
+
+static struct xanadu_filter *xanadu_filter_from_IAMovieSetup(IAMovieSetup *iface)
+{
+    return CONTAINING_RECORD(iface, struct xanadu_filter, IAMovieSetup_iface);
+}
+
+static HRESULT STDMETHODCALLTYPE filter_iamoviesetup_QueryInterface(IAMovieSetup *iface, REFIID iid, void **out)
+{
+    struct xanadu_filter *impl = xanadu_filter_from_IAMovieSetup(iface);
+    return IUnknown_QueryInterface(&impl->IUnknown_iface, iid, out);
+}
+
+static ULONG STDMETHODCALLTYPE filter_iamoviesetup_AddRef(IAMovieSetup *iface)
+{
+    struct xanadu_filter *impl = xanadu_filter_from_IAMovieSetup(iface);
+    return IUnknown_AddRef(&impl->IUnknown_iface);
+}
+
+static ULONG STDMETHODCALLTYPE filter_iamoviesetup_Release(IAMovieSetup *iface)
+{
+    struct xanadu_filter *impl = xanadu_filter_from_IAMovieSetup(iface);
+    return IUnknown_Release(&impl->IUnknown_iface);
+}
+
+static HRESULT STDMETHODCALLTYPE filter_iamoviesetup_Register(IAMovieSetup *iface)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_iamoviesetup_Unregister(IAMovieSetup *iface)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static IAMovieSetupVtbl filter_iamoviesetup_vtable =
+{
+    filter_iamoviesetup_QueryInterface,
+    filter_iamoviesetup_AddRef,
+    filter_iamoviesetup_Release,
+    filter_iamoviesetup_Register,
+    filter_iamoviesetup_Unregister,
+};
+
+static struct xanadu_filter *xanadu_filter_from_IQualProp(IQualProp *iface)
+{
+    return CONTAINING_RECORD(iface, struct xanadu_filter, IQualProp_iface);
+}
+
+static HRESULT STDMETHODCALLTYPE filter_iqualprop_QueryInterface(IQualProp *iface, REFIID iid, void **out)
+{
+    struct xanadu_filter *impl = xanadu_filter_from_IQualProp(iface);
+    return IUnknown_QueryInterface(&impl->IUnknown_iface, iid, out);
+}
+
+static ULONG STDMETHODCALLTYPE filter_iqualprop_AddRef(IQualProp *iface)
+{
+    struct xanadu_filter *impl = xanadu_filter_from_IQualProp(iface);
+    return IUnknown_AddRef(&impl->IUnknown_iface);
+}
+
+static ULONG STDMETHODCALLTYPE filter_iqualprop_Release(IQualProp *iface)
+{
+    struct xanadu_filter *impl = xanadu_filter_from_IQualProp(iface);
+    return IUnknown_Release(&impl->IUnknown_iface);
+}
+
+static HRESULT STDMETHODCALLTYPE filter_iqualprop_get_FramesDroppedInRenderer(IQualProp *iface, int *pcFrames)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_iqualprop_get_FramesDrawn(IQualProp *iface, int *pcFramesDrawn)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_iqualprop_get_AvgFrameRate(IQualProp *iface, int *piAvgFrameRate)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_iqualprop_get_Jitter(IQualProp *iface, int *iJitter)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_iqualprop_get_AvgSyncOffset(IQualProp *iface, int *piAvg)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_iqualprop_get_DevSyncOffset(IQualProp *iface, int *piDev)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static IQualPropVtbl filter_iqualprop_vtable =
+{
+    filter_iqualprop_QueryInterface,
+    filter_iqualprop_AddRef,
+    filter_iqualprop_Release,
+    filter_iqualprop_get_FramesDroppedInRenderer,
+    filter_iqualprop_get_FramesDrawn,
+    filter_iqualprop_get_AvgFrameRate,
+    filter_iqualprop_get_Jitter,
+    filter_iqualprop_get_AvgSyncOffset,
+    filter_iqualprop_get_DevSyncOffset,
+};
+
+static struct xanadu_filter *xanadu_filter_from_IQualityControl(IQualityControl *iface)
+{
+    return CONTAINING_RECORD(iface, struct xanadu_filter, IQualityControl_iface);
+}
+
+static HRESULT STDMETHODCALLTYPE filter_iqualitycontrol_QueryInterface(IQualityControl *iface,
+                                                                       REFIID iid, void **out)
+{
+    struct xanadu_filter *impl = xanadu_filter_from_IQualityControl(iface);
+    return IUnknown_QueryInterface(&impl->IUnknown_iface, iid, out);
+}
+
+static ULONG STDMETHODCALLTYPE filter_iqualitycontrol_AddRef(IQualityControl *iface)
+{
+    struct xanadu_filter *impl = xanadu_filter_from_IQualityControl(iface);
+    return IUnknown_AddRef(&impl->IUnknown_iface);
+}
+
+static ULONG STDMETHODCALLTYPE filter_iqualitycontrol_Release(IQualityControl *iface)
+{
+    struct xanadu_filter *impl = xanadu_filter_from_IQualityControl(iface);
+    return IUnknown_Release(&impl->IUnknown_iface);
+}
+
+static HRESULT STDMETHODCALLTYPE filter_iqualitycontrol_Notify(IQualityControl *iface,
+                                                               IBaseFilter *pSelf, Quality q)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE filter_iqualitycontrol_SetSink(IQualityControl *iface, IQualityControl *piqc)
+{
+    ok(0, "%s unexpected\n", __FUNCTION__);
+    return E_NOTIMPL;
+}
+
+static IQualityControlVtbl filter_iqualitycontrol_vtable =
+{
+    filter_iqualitycontrol_QueryInterface,
+    filter_iqualitycontrol_AddRef,
+    filter_iqualitycontrol_Release,
+    filter_iqualitycontrol_Notify,
+    filter_iqualitycontrol_SetSink,
+};
+
+static void xanadu_filter_create(struct xanadu_filter *filter)
+{
+    filter->IUnknown_iface.lpVtbl = &filter_iunknown_vtable;
+    filter->IBaseFilter_iface.lpVtbl = &filter_ibasefilter_vtable;
+    filter->IAMovieSetup_iface.lpVtbl = &filter_iamoviesetup_vtable;
+    filter->IQualProp_iface.lpVtbl = &filter_iqualprop_vtable;
+    filter->IQualityControl_iface.lpVtbl = &filter_iqualitycontrol_vtable;
+    filter->ref = 0;
+}
+
+static void test_xanadu(void)
+{
+    struct xanadu_filter filter;
+
+    IFilterGraph2 *graph = create_graph();
+    HRESULT hr;
+
+    xanadu_filter_create(&filter);
+
+    trace("%s:%d\n", __FILE__, __LINE__);
+    hr = IFilterGraph2_AddFilter(graph, &filter.IBaseFilter_iface, L"testid");
+    trace("%s:%d\n", __FILE__, __LINE__);
+    ok(hr == S_OK, "Got hr %#x.\n", hr);
+    ok(filter.ref == 1, "Got outstanding refcount %d.\n", filter.ref);
+
+    /* test releasing the filter graph while filters are still connected */
+    trace("%s:%d\n", __FILE__, __LINE__);
+    hr = IFilterGraph2_Release(graph);
+    trace("%s:%d\n", __FILE__, __LINE__);
+    ok(!hr, "Got outstanding refcount %d.\n", hr);
+    ok(filter.ref == 1, "Got outstanding refcount %d.\n", filter.ref);
+}
+
 START_TEST(filtergraph)
 {
     CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
+    test_xanadu();
+
+#if 0
     test_interfaces();
     test_render_run(L"test.avi", FALSE, TRUE);
     test_render_run(L"test.mpg", TRUE, TRUE);
@@ -5652,6 +6133,7 @@ START_TEST(filtergraph)
     test_autoplug_uyvy();
     test_set_notify_flags();
     test_events();
+#endif
 
     CoUninitialize();
     test_render_with_multithread();
