@@ -642,16 +642,18 @@ static HRESULT WINAPI FilterGraph2_AddFilter(IFilterGraph2 *iface,
     else
         wcscpy(entry->name, name);
 
+    IBaseFilter_AddRef(filter);
     if (FAILED(hr = IBaseFilter_JoinFilterGraph(filter,
             (IFilterGraph *)&graph->IFilterGraph2_iface, entry->name)))
     {
         CoTaskMemFree(entry->name);
         heap_free(entry);
+        IBaseFilter_Release(filter);
         return hr;
     }
 
-    IBaseFilter_AddRef(entry->filter = filter);
 
+    entry->filter = filter;
     list_add_head(&graph->filters, &entry->entry);
     entry->sorting = FALSE;
     entry->seeking = NULL;
