@@ -719,10 +719,13 @@ static HRESULT WINAPI FilterGraph2_RemoveFilter(IFilterGraph2 *iface, IBaseFilte
                 IEnumPins_Release(penumpins);
             }
 
-            hr = IBaseFilter_JoinFilterGraph(pFilter, NULL, NULL);
+            hr = IBaseFilter_SetSyncSource(pFilter, NULL);
+
+            if (SUCCEEDED(hr))
+                hr = IBaseFilter_JoinFilterGraph(pFilter, NULL, NULL);
+
             if (SUCCEEDED(hr))
             {
-                IBaseFilter_SetSyncSource(pFilter, NULL);
                 IBaseFilter_Release(pFilter);
                 if (entry->seeking)
                     IMediaSeeking_Release(entry->seeking);
