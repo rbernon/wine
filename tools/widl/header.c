@@ -1329,6 +1329,26 @@ static void write_inline_wrappers(FILE *header, const type_t *iface, const type_
       fprintf(header, ");\n");
       --indentation;
       fprintf(header, "}\n");
+
+      if (!is_aggregate_return(func)) {
+        fprintf(header, "#ifdef WINE_COM_TRACES\n");
+        fprintf(header, "#define %s_%s(iface, ...) ({ \\\n", name, get_name(func));
+        if (is_void(type_function_get_rettype(func->declspec.type))) {
+          fprintf(header, "        TRACE(\"%s_%s iface %%p\\n\", iface); \\\n", name, get_name(func));
+          fprintf(header, "        (%s_%s)(iface, ## __VA_ARGS__); \\\n", name, get_name(func));
+          fprintf(header, "        TRACE(\"%s_%s iface %%p ->\\n\", iface); \\\n", name, get_name(func));
+          fprintf(header, "        do {} while(0); })\n");
+        } else {
+          fprintf(header, "        ");
+          write_type_decl_left(header, type_function_get_ret(func->declspec.type));
+          fprintf(header, " __ret; \\\n");
+          fprintf(header, "        TRACE(\"%s_%s iface %%p\\n\", iface); \\\n", name, get_name(func));
+          fprintf(header, "        __ret = (%s_%s)(iface, ## __VA_ARGS__); \\\n", name, get_name(func));
+          fprintf(header, "        TRACE(\"%s_%s iface %%p -> %%#x\\n\", iface, __ret); \\\n", name, get_name(func));
+          fprintf(header, "        __ret; })\n");
+        }
+        fprintf(header, "#endif\n");
+      }
     }
   }
 }
@@ -2144,6 +2164,9 @@ void write_header(const statement_list_t *stmts)
   fprintf(header, "#include <windows.h>\n");
   fprintf(header, "#include <ole2.h>\n");
   fprintf(header, "#endif\n\n");
+  fprintf(header, "#ifdef WINE_COM_TRACES\n");
+  fprintf(header, "#include <wine/debug.h>\n");
+  fprintf(header, "#endif\n");
 
   fprintf(header, "#ifndef __%s__\n", header_token);
   fprintf(header, "#define __%s__\n\n", header_token);
