@@ -24,6 +24,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "windef.h"
@@ -93,6 +94,130 @@ int __cdecl memcmp( const void *ptr1, const void *ptr2, size_t n )
 }
 
 
+static FORCEINLINE void memmove_c_unaligned_32( char *d, const char *s, size_t n )
+{
+    uint64_t tmp0, tmp1, tmp2, tmpn;
+
+    if (n >= 24)
+    {
+        tmp0 = *(uint64_t *)s;
+        tmp1 = *(uint64_t *)(s + 8);
+        tmp2 = *(uint64_t *)(s + 16);
+        tmpn = *(uint64_t *)(s + n - 8);
+        *(uint64_t *)d = tmp0;
+        *(uint64_t *)(d + 8) = tmp1;
+        *(uint64_t *)(d + 16) = tmp2;
+        *(uint64_t *)(d + n - 8) = tmpn;
+    }
+    else if (n >= 16)
+    {
+        tmp0 = *(uint64_t *)s;
+        tmp1 = *(uint64_t *)(s + 8);
+        tmpn = *(uint64_t *)(s + n - 8);
+        *(uint64_t *)d = tmp0;
+        *(uint64_t *)(d + 8) = tmp1;
+        *(uint64_t *)(d + n - 8) = tmpn;
+    }
+    else if (n >= 8)
+    {
+        tmp0 = *(uint64_t *)s;
+        tmpn = *(uint64_t *)(s + n - 8);
+        *(uint64_t *)d = tmp0;
+        *(uint64_t *)(d + n - 8) = tmpn;
+    }
+    else if (n >= 4)
+    {
+        tmp0 = *(uint32_t *)s;
+        tmpn = *(uint32_t *)(s + n - 4);
+        *(uint32_t *)d = tmp0;
+        *(uint32_t *)(d + n - 4) = tmpn;
+    }
+    else if (n >= 2)
+    {
+        tmp0 = *(uint16_t *)s;
+        tmpn = *(uint16_t *)(s + n - 2);
+        *(uint16_t *)d = tmp0;
+        *(uint16_t *)(d + n - 2) = tmpn;
+    }
+    else if (n >= 1)
+    {
+        *(uint8_t *)d = *(uint8_t *)s;
+    }
+}
+
+
+static FORCEINLINE void *memmove_c( char *d, const char *s, size_t n )
+{
+    if (n <= 32) memmove_c_unaligned_32( d, s, n );
+    else if (d <= s)
+    {
+        uint64_t tmp0, tmp1, tmp2;
+        size_t k = 0;
+        while (n >= 48)
+        {
+            tmp0 = *(uint64_t *)(s +  0);
+            tmp1 = *(uint64_t *)(s +  8);
+            tmp2 = *(uint64_t *)(s + 16);
+            *(uint64_t*)(d +  0) = tmp0;
+            *(uint64_t*)(d +  8) = tmp1;
+            *(uint64_t*)(d + 16) = tmp2;
+            tmp0 = *(uint64_t *)(s + 24);
+            tmp1 = *(uint64_t *)(s + 32);
+            tmp2 = *(uint64_t *)(s + 40);
+            *(uint64_t*)(d + 24) = tmp0;
+            *(uint64_t*)(d + 32) = tmp1;
+            *(uint64_t*)(d + 40) = tmp2;
+            d += 48; s += 48; n -= 48; k += 48;
+        }
+        while (n >= 24)
+        {
+            tmp0 = *(uint64_t *)(s +  0);
+            tmp1 = *(uint64_t *)(s +  8);
+            tmp2 = *(uint64_t *)(s + 16);
+            *(uint64_t*)(d +  0) = tmp0;
+            *(uint64_t*)(d +  8) = tmp1;
+            *(uint64_t*)(d + 16) = tmp2;
+            d += 24; s += 24; n -= 24; k += 24;
+        }
+        memmove_c_unaligned_32( d, s, n );
+        return d - k;
+    }
+    else
+    {
+        uint64_t tmp0, tmp1, tmp2;
+        size_t k = n;
+        while (k >= 48)
+        {
+            tmp0 = *(uint64_t *)(s + k -  8);
+            tmp1 = *(uint64_t *)(s + k - 16);
+            tmp2 = *(uint64_t *)(s + k - 24);
+            *(uint64_t*)(d + k -  8) = tmp0;
+            *(uint64_t*)(d + k - 16) = tmp1;
+            *(uint64_t*)(d + k - 24) = tmp2;
+            tmp0 = *(uint64_t *)(s + k - 32);
+            tmp1 = *(uint64_t *)(s + k - 40);
+            tmp2 = *(uint64_t *)(s + k - 48);
+            *(uint64_t*)(d + k - 32) = tmp0;
+            *(uint64_t*)(d + k - 40) = tmp1;
+            *(uint64_t*)(d + k - 48) = tmp2;
+            k -= 48;
+        }
+        while (k >= 24)
+        {
+            tmp0 = *(uint64_t *)(s + k -  8);
+            tmp1 = *(uint64_t *)(s + k - 16);
+            tmp2 = *(uint64_t *)(s + k - 24);
+            *(uint64_t*)(d + k -  8) = tmp0;
+            *(uint64_t*)(d + k - 16) = tmp1;
+            *(uint64_t*)(d + k - 24) = tmp2;
+            k -= 24;
+        }
+        memmove_c_unaligned_32( d, s, k );
+    }
+    return d;
+}
+
+
 /*********************************************************************
  *                  memcpy   (NTDLL.@)
  *
@@ -101,20 +226,7 @@ int __cdecl memcmp( const void *ptr1, const void *ptr2, size_t n )
  */
 void * __cdecl memcpy( void *dst, const void *src, size_t n )
 {
-    volatile unsigned char *d = dst;  /* avoid gcc optimizations */
-    const unsigned char *s = src;
-
-    if ((size_t)dst - (size_t)src >= n)
-    {
-        while (n--) *d++ = *s++;
-    }
-    else
-    {
-        d += n - 1;
-        s += n - 1;
-        while (n--) *d-- = *s--;
-    }
-    return dst;
+    return memmove_c( dst, src, n );
 }
 
 
@@ -123,30 +235,82 @@ void * __cdecl memcpy( void *dst, const void *src, size_t n )
  */
 void * __cdecl memmove( void *dst, const void *src, size_t n )
 {
-    volatile unsigned char *d = dst;  /* avoid gcc optimizations */
-    const unsigned char *s = src;
+    return memmove_c( dst, src, n );
+}
 
-    if ((size_t)dst - (size_t)src >= n)
+
+static FORCEINLINE void memset_c_unaligned_32( char *d, uint64_t v, size_t n )
+{
+    if (n >= 24)
     {
-        while (n--) *d++ = *s++;
+        *(uint64_t *)d = v;
+        *(uint64_t *)(d + 8) = v;
+        *(uint64_t *)(d + 16) = v;
+        *(uint64_t *)(d + n - 8) = v;
     }
-    else
+    else if (n >= 16)
     {
-        d += n - 1;
-        s += n - 1;
-        while (n--) *d-- = *s--;
+        *(uint64_t *)d = v;
+        *(uint64_t *)(d + 8) = v;
+        *(uint64_t *)(d + n - 8) = v;
     }
-    return dst;
+    else if (n >= 8)
+    {
+        *(uint64_t *)d = v;
+        *(uint64_t *)(d + n - 8) = v;
+    }
+    else if (n >= 4)
+    {
+        *(uint32_t *)d = v;
+        *(uint32_t *)(d + n - 4) = v;
+    }
+    else if (n >= 2)
+    {
+        *(uint16_t *)d = v;
+        *(uint16_t *)(d + n - 2) = v;
+    }
+    else if (n >= 1)
+    {
+        *(uint8_t *)d = v;
+    }
 }
 
 
 /*********************************************************************
  *                  memset   (NTDLL.@)
  */
-void * __cdecl memset( void *dst, int c, size_t n )
+void *__cdecl memset(void *dst, int c, size_t n)
 {
-    volatile unsigned char *d = dst;  /* avoid gcc optimizations */
-    while (n--) *d++ = c;
+    uint16_t tmp16 = ((uint16_t)c << 8) | c;
+    uint32_t tmp32 = ((uint32_t)tmp16 << 16) | tmp16;
+    uint64_t v = ((uint64_t)tmp32 << 32) | tmp32;
+
+    if (n <= 32)
+    {
+        memset_c_unaligned_32( dst, v, n );
+        return dst;
+    }
+
+    while (n >= 48)
+    {
+        *(uint64_t*)((char *)dst + n -  8) = v;
+        *(uint64_t*)((char *)dst + n - 16) = v;
+        *(uint64_t*)((char *)dst + n - 24) = v;
+        *(uint64_t*)((char *)dst + n - 32) = v;
+        *(uint64_t*)((char *)dst + n - 40) = v;
+        *(uint64_t*)((char *)dst + n - 48) = v;
+        n -= 48;
+    }
+
+    while (n >= 24)
+    {
+        *(uint64_t*)((char *)dst + n -  8) = v;
+        *(uint64_t*)((char *)dst + n - 16) = v;
+        *(uint64_t*)((char *)dst + n - 24) = v;
+        n -= 24;
+    }
+
+    memset_c_unaligned_32( dst, v, n );
     return dst;
 }
 
