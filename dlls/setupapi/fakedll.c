@@ -885,7 +885,7 @@ static void register_fake_dll( const WCHAR *name, const void *data, size_t size,
 /* copy a fake dll file to the dest directory */
 static int install_fake_dll( WCHAR *dest, WCHAR *file, BOOL delete, struct list *delay_copy )
 {
-    int ret;
+    int ret = -1;
     SIZE_T size;
     void *data;
     DWORD written;
@@ -893,33 +893,29 @@ static int install_fake_dll( WCHAR *dest, WCHAR *file, BOOL delete, struct list 
     WCHAR *name = wcsrchr( file, '\\' ) + 1;
     WCHAR *end = name + lstrlenW(name);
     SIZE_T len = end - name;
-
-    if (!(ret = read_file( file, &data, &size )))
-    {
-        *end = 0;
-        return 0;
-    }
+    HANDLE h;
 
     if (end > name + 2 && !wcsncmp( end - 2, L"16", 2 )) len -= 2;  /* remove "16" suffix */
     memcpy( destname, name, len * sizeof(WCHAR) );
     destname[len] = 0;
-    if (!add_handled_dll( destname )) ret = -1;
+    if (!add_handled_dll( destname )) goto done;
 
-    if (ret != -1)
+    ret = read_file( file, &data, &size );
+    if (ret != 1) goto done;
+
+    h = create_dest_file( dest, delete );
+    if (h && h != INVALID_HANDLE_VALUE)
     {
-        HANDLE h = create_dest_file( dest, delete );
+        TRACE( "%s -> %s\n", debugstr_w(file), debugstr_w(dest) );
 
-        if (h && h != INVALID_HANDLE_VALUE)
-        {
-            TRACE( "%s -> %s\n", debugstr_w(file), debugstr_w(dest) );
-
-            ret = (WriteFile( h, data, size, &written, NULL ) && written == size);
-            if (!ret) ERR( "failed to write to %s (error=%u)\n", debugstr_w(dest), GetLastError() );
-            CloseHandle( h );
-            if (ret) register_fake_dll( dest, data, size, delay_copy );
-            else DeleteFileW( dest );
-        }
+        ret = (WriteFile( h, data, size, &written, NULL ) && written == size);
+        if (!ret) ERR( "failed to write to %s (error=%u)\n", debugstr_w(dest), GetLastError() );
+        CloseHandle( h );
+        if (ret) register_fake_dll( dest, data, size, delay_copy );
+        else DeleteFileW( dest );
     }
+
+done:
     *destname = 0;  /* restore it for next file */
     *end = 0;
     return ret;
