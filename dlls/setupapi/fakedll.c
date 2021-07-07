@@ -64,8 +64,6 @@ static const unsigned int file_alignment = 512;
 static const unsigned int section_alignment = 4096;
 static const unsigned int max_dll_name_len = 64;
 
-static void *file_buffer;
-static SIZE_T file_buffer_size;
 static unsigned int handled_count;
 static unsigned int handled_total;
 static WCHAR **handled_dlls;
@@ -205,61 +203,113 @@ static void extract_16bit_image( IMAGE_NT_HEADERS *nt, void **data, SIZE_T *size
     }
 }
 
-/* read in the contents of a file into the global file buffer */
-/* return 1 on success, 0 on nonexistent file, -1 on other error */
-static int read_file( const WCHAR *name, void **data, SIZE_T *size )
+static int map_dll_data( const WCHAR *name, void **data, SIZE_T *size, DWORD access )
 {
-    struct stat st;
-    int fd, ret = -1;
-    size_t header_size;
-    IMAGE_DOS_HEADER *dos;
-    IMAGE_NT_HEADERS *nt;
-    const size_t min_size = sizeof(*dos) + 32 +
-        FIELD_OFFSET( IMAGE_NT_HEADERS, OptionalHeader.MajorLinkerVersion );
+    LARGE_INTEGER new_size = {.QuadPart = *size};
+    DWORD mode, share, protect, creation;
+    MEMORY_BASIC_INFORMATION mbi = {0};
+    HANDLE file, mapping;
 
-    if ((fd = _wopen( name, O_RDONLY | O_BINARY )) == -1) return 0;
-    if (fstat( fd, &st ) == -1) goto done;
-    *size = st.st_size;
-    if (!file_buffer || st.st_size > file_buffer_size)
+    mode = GENERIC_READ;
+    share = FILE_SHARE_READ | FILE_SHARE_DELETE;
+    switch (access)
     {
-        VirtualFree( file_buffer, 0, MEM_RELEASE );
-        file_buffer = NULL;
-        file_buffer_size = st.st_size;
-        if (NtAllocateVirtualMemory( GetCurrentProcess(), &file_buffer, 0, &file_buffer_size,
-                                     MEM_COMMIT, PAGE_READWRITE )) goto done;
+    case FILE_MAP_WRITE:
+        mode |= GENERIC_WRITE;
+        share |= FILE_SHARE_WRITE;
+        protect = PAGE_READWRITE;
+        creation = OPEN_ALWAYS;
+        break;
+    case FILE_MAP_COPY:
+        protect = PAGE_WRITECOPY;
+        creation = OPEN_EXISTING;
+        break;
+    case FILE_MAP_READ:
+        protect = PAGE_READONLY;
+        creation = OPEN_EXISTING;
+        break;
     }
 
-    /* check for valid fake dll file */
+    *data = NULL;
+    *size = 0;
+    file = CreateFileW( name, mode, share, NULL, creation, 0, 0 );
+    if (file == INVALID_HANDLE_VALUE) return 0;
 
-    if (st.st_size < min_size) goto done;
-    header_size = min( st.st_size, 4096 );
-    if (read( fd, file_buffer, header_size ) != header_size) goto done;
-    dos = file_buffer;
-    if (dos->e_magic != IMAGE_DOS_SIGNATURE) goto done;
-    if (dos->e_lfanew < sizeof(*dos) + 32) goto done;
+    if (access == FILE_MAP_WRITE)
+    {
+        SetFilePointerEx( file, new_size, NULL, FILE_BEGIN );
+        SetEndOfFile( file );
+    }
+
+    mapping = CreateFileMappingW( file, NULL, protect, 0, 0, NULL );
+    CloseHandle( file );
+    if (!mapping) { ERR("CreateFileMappingW failed error %u\n", GetLastError()); goto failed; }
+
+    *data = MapViewOfFileEx( mapping, access, 0, 0, 0, NULL );
+    CloseHandle( mapping );
+    if (!*data) { ERR("MapViewOfFileEx failed error %u\n", GetLastError()); goto failed; }
+
+    if (VirtualQuery( *data, &mbi, sizeof(mbi) ) != sizeof(mbi)) goto failed;
+    *data = mbi.BaseAddress;
+    *size = mbi.RegionSize;
+    return 1;
+
+failed:
+    UnmapViewOfFile( *data );
+    *data = NULL;
+    *size = 0;
+    return -1;
+}
+
+/* map the contents of a file into memory */
+/* return 1 on success, 0 on nonexistent file, -1 on other error */
+static int map_fake_dll( const WCHAR *name, void **data, SIZE_T *size )
+{
+    IMAGE_DOS_HEADER *dos;
+    IMAGE_NT_HEADERS *nt;
+    BOOL is_16bit;
+    DWORD access;
+    int ret;
+
+    is_16bit = lstrlenW(name) > 2 && !wcscmp( name + lstrlenW(name) - 2, L"16" );
+
+    if (is_16bit) access = FILE_MAP_COPY;
+    else access = FILE_MAP_READ;
+
+    ret = map_dll_data( name, data, size, access );
+    if (ret != 1) return ret;
+
+    dos = *data;
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE || dos->e_lfanew < sizeof(*dos) + 32) goto failed;
     if (memcmp( dos + 1, builtin_signature, strlen(builtin_signature) + 1 ) &&
-        memcmp( dos + 1, fakedll_signature, strlen(fakedll_signature) + 1 )) goto done;
-    if (dos->e_lfanew + FIELD_OFFSET(IMAGE_NT_HEADERS,OptionalHeader.MajorLinkerVersion) > header_size)
-        goto done;
-    nt = (IMAGE_NT_HEADERS *)((char *)file_buffer + dos->e_lfanew);
+        memcmp( dos + 1, fakedll_signature, strlen(fakedll_signature) + 1 )) goto failed;
+    if (dos->e_lfanew + FIELD_OFFSET(IMAGE_NT_HEADERS, OptionalHeader.MajorLinkerVersion) > *size) goto failed;
+
+    nt = (IMAGE_NT_HEADERS *)((char *)dos + dos->e_lfanew);
     if (nt->Signature == IMAGE_NT_SIGNATURE && nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR_MAGIC)
     {
         /* wrong 32/64 type, pretend it doesn't exist */
-        ret = 0;
-        goto done;
+        UnmapViewOfFile( *data );
+        *data = NULL;
+        *size = 0;
+        return 0;
     }
-    if (st.st_size == header_size ||
-        read( fd, (char *)file_buffer + header_size,
-              st.st_size - header_size ) == st.st_size - header_size)
-    {
-        *data = file_buffer;
-        if (lstrlenW(name) > 2 && !wcscmp( name + lstrlenW(name) - 2, L"16" ))
-            extract_16bit_image( nt, data, size );
-        ret = 1;
-    }
-done:
-    close( fd );
-    return ret;
+
+    if (is_16bit) extract_16bit_image( nt, data, size );
+    return 1;
+
+failed:
+    UnmapViewOfFile( *data );
+    *data = NULL;
+    *size = 0;
+    return -1;
+}
+
+static void unmap_dll_data( void *data )
+{
+    MEMORY_BASIC_INFORMATION mbi = {0};
+    if (VirtualQuery( data, &mbi, sizeof(mbi) ) == sizeof(mbi))
+        UnmapViewOfFile( mbi.BaseAddress );
 }
 
 /* build a complete fake dll from scratch */
@@ -449,7 +499,9 @@ static void *load_fake_dll( const WCHAR *name, SIZE_T *size )
         ptr = prepend( ptr, ptr, namelen );
         ptr = prepend( ptr, L"\\dlls", 5 );
         ptr = prepend( ptr, build_dir, lstrlenW(build_dir) );
-        if ((res = read_file( ptr, &data, size ))) goto done;
+        if ((res = map_fake_dll( ptr, &data, size ))) goto done;
+        lstrcpyW( file + pos + len + 1, L".fake" );
+        if ((res = map_fake_dll( ptr, &data, size ))) goto done;
 
         /* now as a program */
         ptr = file + pos;
@@ -459,7 +511,9 @@ static void *load_fake_dll( const WCHAR *name, SIZE_T *size )
         ptr = prepend( ptr, ptr, namelen );
         ptr = prepend( ptr, L"\\programs", 9 );
         ptr = prepend( ptr, build_dir, lstrlenW(build_dir) );
-        if ((res = read_file( ptr, &data, size ))) goto done;
+        if ((res = map_fake_dll( ptr, &data, size ))) goto done;
+        lstrcpyW( file + pos + len + 1, L".fake" );
+        if ((res = map_fake_dll( ptr, &data, size ))) goto done;
     }
 
     file[pos + len + 1] = 0;
@@ -467,9 +521,9 @@ static void *load_fake_dll( const WCHAR *name, SIZE_T *size )
     {
         ptr = prepend( file + pos, pe_dir, lstrlenW(pe_dir) );
         ptr = prepend( ptr, path, lstrlenW(path) );
-        if ((res = read_file( ptr, &data, size ))) break;
+        if ((res = map_fake_dll( ptr, &data, size ))) break;
         ptr = prepend( file + pos, path, lstrlenW(path) );
-        if ((res = read_file( ptr, &data, size ))) break;
+        if ((res = map_fake_dll( ptr, &data, size ))) break;
     }
 
 done:
@@ -900,7 +954,7 @@ static int install_fake_dll( WCHAR *dest, WCHAR *file, BOOL delete, struct list 
     destname[len] = 0;
     if (!add_handled_dll( destname )) goto done;
 
-    ret = read_file( file, &data, &size );
+    ret = map_fake_dll( file, &data, &size );
     if (ret != 1) goto done;
 
     h = create_dest_file( dest, delete );
@@ -914,6 +968,7 @@ static int install_fake_dll( WCHAR *dest, WCHAR *file, BOOL delete, struct list 
         if (ret) register_fake_dll( dest, data, size, delay_copy );
         else DeleteFileW( dest );
     }
+    unmap_dll_data( data );
 
 done:
     *destname = 0;  /* restore it for next file */
@@ -933,7 +988,7 @@ static void delay_copy_files( struct list *delay_copy )
     LIST_FOR_EACH_ENTRY_SAFE( copy, next, delay_copy, struct delay_copy, entry )
     {
         list_remove( &copy->entry );
-        ret = read_file( copy->src, &data, &size );
+        ret = map_fake_dll( copy->src, &data, &size );
         if (ret != 1)
         {
             HeapFree( GetProcessHeap(), 0, copy );
@@ -948,6 +1003,7 @@ static void delay_copy_files( struct list *delay_copy )
             CloseHandle( h );
             if (!ret) DeleteFileW( copy->dest );
         }
+        unmap_dll_data( data );
         HeapFree( GetProcessHeap(), 0, copy );
     }
 }
@@ -1067,6 +1123,8 @@ BOOL create_fake_dll( const WCHAR *name, const WCHAR *source )
         ret = (WriteFile( h, buffer, size, &written, NULL ) && written == size);
         if (ret) register_fake_dll( name, buffer, size, &delay_copy );
         else ERR( "failed to write to %s (error=%u)\n", debugstr_w(name), GetLastError() );
+
+        unmap_dll_data( buffer );
     }
     else
     {
@@ -1087,8 +1145,6 @@ BOOL create_fake_dll( const WCHAR *name, const WCHAR *source )
  */
 void cleanup_fake_dlls(void)
 {
-    if (file_buffer) VirtualFree( file_buffer, 0, MEM_RELEASE );
-    file_buffer = NULL;
     HeapFree( GetProcessHeap(), 0, handled_dlls );
     handled_dlls = NULL;
     handled_count = handled_total = 0;
