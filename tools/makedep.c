@@ -1628,7 +1628,8 @@ static struct file *open_include_file( const struct makefile *make, struct incl_
         }
     }
 
-    if (pFile->type == INCL_SYSTEM && pFile->use_msvcrt)
+    if (pFile->type == INCL_SYSTEM && pFile->use_msvcrt && !make->is_external &&
+        !(pFile->included_by->file->flags & FLAG_EXTERNAL))
     {
         if (!strcmp( pFile->name, "stdarg.h" )) return NULL;
         if (!strcmp( pFile->name, "x86intrin.h" )) return NULL;
