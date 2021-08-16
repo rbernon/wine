@@ -109,6 +109,7 @@ struct incl_file
 #define FLAG_C_IMPLIB       0x020000  /* file is part of an import library */
 #define FLAG_C_UNIX         0x040000  /* file is part of a Unix library */
 #define FLAG_SFD_FONTS      0x080000  /* sfd file generated bitmap fonts */
+#define FLAG_EXTERNAL       0x800000  /* file is in the external source dir */
 
 static const struct
 {
@@ -153,6 +154,7 @@ static struct strarray disabled_dirs;
 static struct strarray delay_import_libs;
 static struct strarray top_install_lib;
 static struct strarray top_install_dev;
+static struct strarray ext_src_dirs;
 static const char *root_src_dir;
 static const char *tools_dir;
 static const char *tools_ext;
@@ -1449,6 +1451,22 @@ static struct file *open_global_file( const struct makefile *make, const char *p
     return ret;
 }
 
+/*******************************************************************
+ *         open_external_file
+ *
+ * Open a file in the top-level source directory.
+ */
+static struct file *open_external_file( const struct makefile *make, const char *dir, char *path, char **filename )
+{
+    char *src_path = concat_paths( dir, path );
+    struct file *ret = load_file( src_path );
+    if (!ret) return NULL;
+
+    *filename = src_path;
+    ret->flags |= FLAG_EXTERNAL;
+    return ret;
+}
+
 
 /*******************************************************************
  *         open_global_header
@@ -1480,7 +1498,7 @@ static struct file *open_include_file( const struct makefile *make, struct incl_
 {
     struct file *file = NULL;
     char *filename;
-    unsigned int i, len;
+    unsigned int i, j, len;
 
     errno = ENOENT;
 
@@ -1579,6 +1597,18 @@ static struct file *open_include_file( const struct makefile *make, struct incl_
     {
         const char *dir = make->include_paths.str[i];
 
+        for (j = 0; j < ext_src_dirs.count; j++)
+        {
+            const char *ext_dir = ext_src_dirs.str[j];
+            len = strlen( ext_dir );
+
+            if (!strncmp( dir, ext_dir, len ) && (!dir[len] || dir[len] == '/'))
+            {
+                while (dir[len] == '/') len++;
+                file = open_external_file( make, ext_dir, concat_paths( dir + len, pFile->name ), &pFile->filename );
+                if (file) return file;
+            }
+        }
         if (root_src_dir)
         {
             len = strlen( root_src_dir );
@@ -4435,6 +4465,7 @@ int main( int argc, char *argv[] )
     top_install_dev = get_expanded_make_var_array( top_makefile, "TOP_INSTALL_DEV" );
 
     root_src_dir = get_expanded_make_variable( top_makefile, "srcdir" );
+    ext_src_dirs = get_expanded_make_var_array( top_makefile, "EXTSRCDIRS" );
     tools_dir    = get_expanded_make_variable( top_makefile, "TOOLSDIR" );
     tools_ext    = get_expanded_make_variable( top_makefile, "TOOLSEXT" );
     exe_ext      = get_expanded_make_variable( top_makefile, "EXEEXT" );

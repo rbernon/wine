@@ -59,6 +59,7 @@ AR              = @AR@
 RANLIB          = @RANLIB@
 STRIP           = @STRIP@
 LN_S            = @LN_S@
+EXTSRCDIRS      = @EXTSRCDIRS@
 TOOLSDIR        = @TOOLSDIR@
 LD              = @LD@
 LDFLAGS         = @LDFLAGS@
