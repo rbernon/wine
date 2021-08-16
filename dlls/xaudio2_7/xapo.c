@@ -25,7 +25,7 @@
 #define NONAMELESSUNION
 #define COBJMACROS
 
-#include "xaudio_private.h"
+#include "xapo_private.h"
 #include "xaudio2fx.h"
 #include "xapofx.h"
 

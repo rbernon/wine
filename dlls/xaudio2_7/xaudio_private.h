@@ -28,6 +28,8 @@
 
 #include <pthread.h>
 
+#include "xapo_private.h"
+
 #if XAUDIO2_VER == 0
 #define COMPAT_E_INVALID_CALL E_INVALIDARG
 #define COMPAT_E_DEVICE_INVALIDATED XAUDIO20_E_DEVICE_INVALIDATED
@@ -35,22 +37,6 @@
 #define COMPAT_E_INVALID_CALL XAUDIO2_E_INVALID_CALL
 #define COMPAT_E_DEVICE_INVALIDATED XAUDIO2_E_DEVICE_INVALIDATED
 #endif
-
-typedef struct _XA2XAPOImpl {
-    IXAPO *xapo;
-    IXAPOParameters *xapo_params;
-
-    LONG ref;
-
-    FAPO FAPO_vtbl;
-} XA2XAPOImpl;
-
-typedef struct _XA2XAPOFXImpl {
-    IXAPO IXAPO_iface;
-    IXAPOParameters IXAPOParameters_iface;
-
-    FAPO *fapo;
-} XA2XAPOFXImpl;
 
 typedef struct _XA2VoiceImpl {
     IXAudio2SourceVoice IXAudio2SourceVoice_iface;
@@ -171,11 +157,3 @@ extern HRESULT xaudio2_initialize(IXAudio2Impl *This, UINT32 flags, XAUDIO2_PROC
 extern FAudioEffectChain *wrap_effect_chain(const XAUDIO2_EFFECT_CHAIN *pEffectChain) DECLSPEC_HIDDEN;
 extern void engine_cb(FAudioEngineCallEXT proc, FAudio *faudio, float *stream, void *user) DECLSPEC_HIDDEN;
 extern DWORD WINAPI engine_thread(void *user) DECLSPEC_HIDDEN;
-
-/* xapo.c */
-extern HRESULT make_xapo_factory(REFCLSID clsid, REFIID riid, void **ppv) DECLSPEC_HIDDEN;
-
-/* xaudio_allocator.c */
-extern void* XAudio_Internal_Malloc(size_t size) DECLSPEC_HIDDEN;
-extern void XAudio_Internal_Free(void* ptr) DECLSPEC_HIDDEN;
-extern void* XAudio_Internal_Realloc(void* ptr, size_t size) DECLSPEC_HIDDEN;

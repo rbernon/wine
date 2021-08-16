@@ -27,7 +27,7 @@
 #ifdef XAPOFX1_VER
 #include "initguid.h"
 #endif /* XAPOFX1_VER */
-#include "xaudio_private.h"
+#include "xapo_private.h"
 #include "xapofx.h"
 
 #include "wine/debug.h"
