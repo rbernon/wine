@@ -285,6 +285,11 @@ then
   enable_xactengine3_5=${enable_xactengine3_5:-no}
   enable_xactengine3_6=${enable_xactengine3_6:-no}
   enable_xactengine3_7=${enable_xactengine3_7:-no}
+  enable_xapofx1_1=${enable_xapofx1_1:-no}
+  enable_xapofx1_2=${enable_xapofx1_2:-no}
+  enable_xapofx1_3=${enable_xapofx1_3:-no}
+  enable_xapofx1_4=${enable_xapofx1_4:-no}
+  enable_xapofx1_5=${enable_xapofx1_5:-no}
 fi
 
 AC_CACHE_CHECK([for the directory containing the Wine tools], wine_cv_toolsdir,
@@ -1936,11 +1941,6 @@ WINE_NOTICE_WITH(openal,[test "x$ac_cv_lib_openal" != xyes],
 
 if test "x$ac_cv_lib_soname_FAudio" = "x"
 then
-    enable_xapofx1_1=${enable_xapofx1_1:-no}
-    enable_xapofx1_2=${enable_xapofx1_2:-no}
-    enable_xapofx1_3=${enable_xapofx1_3:-no}
-    enable_xapofx1_4=${enable_xapofx1_4:-no}
-    enable_xapofx1_5=${enable_xapofx1_5:-no}
     enable_xaudio2_0=${enable_xaudio2_0:-no}
     enable_xaudio2_1=${enable_xaudio2_1:-no}
     enable_xaudio2_2=${enable_xaudio2_2:-no}
