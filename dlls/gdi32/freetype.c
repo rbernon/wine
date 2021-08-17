@@ -2131,15 +2131,11 @@ static DWORD get_ttc_offset( FT_Face ft_face, UINT face_index )
 }
 
 /*************************************************************
- * freetype_load_font
+ * freetype_map_font
  */
-static BOOL CDECL freetype_load_font( struct gdi_font *font )
+static BOOL CDECL freetype_map_font( struct gdi_font *font, void **data_ptr, SIZE_T *data_size )
 {
     struct font_private_data *data;
-    INT width = 0, height;
-    FT_Face ft_face;
-    void *data_ptr;
-    SIZE_T data_size;
 
     if (!(data = RtlAllocateHeap( GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*data) ))) return FALSE;
     font->private = data;
@@ -2154,14 +2150,26 @@ static BOOL CDECL freetype_load_font( struct gdi_font *font )
             WARN("failed to map %s\n", debugstr_w(font->file));
             return FALSE;
         }
-        data_ptr = data->mapping->data;
-        data_size = data->mapping->size;
+        *data_ptr = data->mapping->data;
+        *data_size = data->mapping->size;
     }
     else
     {
-        data_ptr = font->data_ptr;
-        data_size = font->data_size;
+        *data_ptr = font->data_ptr;
+        *data_size = font->data_size;
     }
+
+    return TRUE;
+}
+
+/*************************************************************
+ * freetype_load_font
+ */
+static BOOL CDECL freetype_load_font( struct gdi_font *font, void *data_ptr, SIZE_T data_size )
+{
+    struct font_private_data *data = font->private;
+    INT width = 0, height;
+    FT_Face ft_face;
 
     if (pFT_New_Memory_Face( library, data_ptr, data_size, font->face_index, &ft_face )) return FALSE;
 
@@ -3979,6 +3987,7 @@ static const struct font_backend_funcs font_funcs =
     fontconfig_enum_family_fallbacks,
     freetype_add_font,
     freetype_add_mem_font,
+    freetype_map_font,
     freetype_load_font,
     freetype_get_font_data,
     freetype_get_aa_flags,

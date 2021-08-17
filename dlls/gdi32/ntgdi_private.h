@@ -312,7 +312,8 @@ struct font_backend_funcs
     INT   (CDECL *add_font)( const WCHAR *file, DWORD flags );
     INT   (CDECL *add_mem_font)( void *ptr, SIZE_T size, DWORD flags );
 
-    BOOL  (CDECL *load_font)( struct gdi_font *gdi_font );
+    BOOL  (CDECL *map_font)( struct gdi_font *gdi_font, void **data_ptr, SIZE_T *data_size );
+    BOOL  (CDECL *load_font)( struct gdi_font *gdi_font, void *data_ptr, SIZE_T data_size );
     DWORD (CDECL *get_font_data)( struct gdi_font *gdi_font, DWORD table, DWORD offset,
                                   void *buf, DWORD count );
     UINT  (CDECL *get_aa_flags)( struct gdi_font *font, UINT aa_flags, BOOL antialias_fakes );
