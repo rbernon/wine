@@ -675,7 +675,13 @@ BOOL opentype_get_tt_name_v0( const void *data, size_t size, const struct ttc_sf
                               const struct tt_name_v0 **tt_name_v0 )
 {
     UINT32 table_size = sizeof(**tt_name_v0);
-    return opentype_get_table_ptr( data, size, ttc_sfnt_v1, MS_NAME_TAG, (const void **)tt_name_v0, &table_size );
+    if (!opentype_get_table_ptr( data, size, ttc_sfnt_v1, MS_NAME_TAG, (const void **)tt_name_v0, &table_size ))
+    {
+        WARN( "unsupported sfnt font: missing name table.\n" );
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 BOOL opentype_enum_family_names( const struct tt_name_v0 *header, opentype_enum_names_cb callback, void *user )
