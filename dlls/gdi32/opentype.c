@@ -718,24 +718,18 @@ BOOL opentype_enum_full_names( const struct tt_name_v0 *header, opentype_enum_na
     return FALSE;
 }
 
-BOOL opentype_get_properties( const void *data, size_t size, const struct ttc_sfnt_v1 *ttc_sfnt_v1,
-                              DWORD *version, FONTSIGNATURE *fs, DWORD *ntm_flags )
+static BOOL opentype_parse_properties( const struct tt_head *tt_head, const struct tt_os2_v1 *tt_os2_v1,
+                                       DWORD *version, FONTSIGNATURE *fs, DWORD *ntm_flags )
 {
-    const struct tt_os2_v1 *tt_os2_v1;
-    const struct tt_head *tt_head;
     USHORT idx, selection = 0;
-    const void *cff_header;
-    UINT32 table_size = 0;
     DWORD flags = 0;
-
-    if (!opentype_get_tt_head( data, size, ttc_sfnt_v1, &tt_head )) return FALSE;
 
     *version = GET_BE_DWORD( tt_head->revision );
 
     fs->fsCsb[0] = FS_LATIN1;
     fs->fsCsb[1] = 0;
 
-    if (!opentype_get_tt_os2_v1( data, size, ttc_sfnt_v1, &tt_os2_v1 ))
+    if (!tt_os2_v1)
         WARN( "incomplete sfnt font: missing OS/2 table.\n" );
     else
     {
@@ -763,7 +757,24 @@ BOOL opentype_get_properties( const void *data, size_t size, const struct ttc_sf
     if (selection & OS2_FSSELECTION_REGULAR) flags |= NTM_REGULAR;
     if (flags == 0) flags = NTM_REGULAR;
 
-    if (opentype_get_table_ptr( data, size, ttc_sfnt_v1, MS_CFF__TAG, &cff_header, &table_size ))
+    *ntm_flags = flags;
+    return TRUE;
+}
+
+BOOL opentype_get_properties( const void *data, size_t size, const struct ttc_sfnt_v1 *ttc_sfnt_v1,
+                              DWORD *version, FONTSIGNATURE *fs, DWORD *ntm_flags )
+{
+    const struct tt_os2_v1 *tt_os2_v1;
+    const struct tt_head *tt_head;
+    DWORD flags = 0;
+
+    if (!opentype_get_tt_head( data, size, ttc_sfnt_v1, &tt_head )) return FALSE;
+    if (!opentype_get_tt_os2_v1( data, size, ttc_sfnt_v1, &tt_os2_v1 )) tt_os2_v1 = NULL;
+
+    if (!opentype_parse_properties( tt_head, tt_os2_v1, version, fs, &flags ))
+        return FALSE;
+
+    if (opentype_get_table_ptr( data, size, ttc_sfnt_v1, MS_CFF__TAG, NULL, NULL ))
         flags |= NTM_PS_OPENTYPE;
 
     *ntm_flags = flags;
