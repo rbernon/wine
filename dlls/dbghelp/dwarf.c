@@ -22,6 +22,8 @@
 
 #define NONAMELESSUNION
 
+#include "zlib.h"
+
 #include <sys/types.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,7 +40,6 @@
 
 #include "dbghelp_private.h"
 #include "image_private.h"
-#include "zlib.h"
 
 #include "wine/debug.h"
 

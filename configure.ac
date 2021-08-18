@@ -324,6 +324,7 @@ fi
 if test "x$enable_winezlib" = "xno"
 then
   enable_cabinet=${enable_cabinet:-no}
+  enable_dbghelp=${enable_dbghelp:-no}
 fi
 
 AC_CACHE_CHECK([for the directory containing the Wine tools], wine_cv_toolsdir,
