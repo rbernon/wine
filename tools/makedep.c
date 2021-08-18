@@ -3210,7 +3210,7 @@ static void output_source_default( struct makefile *make, struct incl_file *sour
             if (source->use_msvcrt) output_filenames( msvcrt_flags );
         }
         output_filenames( extra_cflags );
-        output_filenames( warn_cflags );
+        if (!make->is_external) output_filenames( warn_cflags );
         output_filenames( cpp_flags );
         output_filename( "$(CFLAGS)" );
         output( "\n" );
@@ -3225,7 +3225,7 @@ static void output_source_default( struct makefile *make, struct incl_file *sour
         output( "\t%s$(CROSSCC) -c -o $@ %s", cmd_prefix( "CC" ), source->filename );
         output_filenames( defines );
         output_filenames( extra_cross_cflags );
-        output_filenames( warn_cross_cflags );
+        if (!make->is_external) output_filenames( warn_cross_cflags );
         if (source->file->flags & FLAG_C_IMPLIB || (make->module && is_crt_module( make->module )))
             output_filename( "-fno-builtin" );
         output_filenames( cpp_flags );
