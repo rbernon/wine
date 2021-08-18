@@ -321,6 +321,11 @@ then
   enable_xaudio2_9=${enable_xaudio2_9:-no}
 fi
 
+if test "x$enable_winezlib" = "xno"
+then
+  enable_cabinet=${enable_cabinet:-no}
+fi
+
 AC_CACHE_CHECK([for the directory containing the Wine tools], wine_cv_toolsdir,
   [wine_cv_toolsdir="$with_wine_tools"
    if test -z "$with_wine_tools"; then

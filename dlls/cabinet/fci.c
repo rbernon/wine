@@ -30,6 +30,8 @@ There is still some work to be done:
 
 */
 
+#include "zlib.h"
+
 #include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -42,7 +44,6 @@ There is still some work to be done:
 #include "winerror.h"
 #include "winternl.h"
 #include "fci.h"
-#include "zlib.h"
 #include "cabinet.h"
 #include "wine/list.h"
 #include "wine/debug.h"

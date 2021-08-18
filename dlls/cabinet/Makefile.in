@@ -1,9 +1,10 @@
 MODULE    = cabinet.dll
 IMPORTLIB = cabinet
+IMPORTS   = winezlib
+EXTRAINCL = -I$(ZLIB_SRCDIR)
 
 C_SRCS = \
 	cabinet_main.c \
-	deflate.c \
 	fci.c \
 	fdi.c
 
