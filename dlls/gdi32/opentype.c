@@ -658,25 +658,13 @@ BOOL opentype_get_ttc_sfnt_v1( const void *data, size_t size, DWORD index, DWORD
         return FALSE;
     }
 
-    if (!opentype_get_tt_os2_v1( data, size, *ttc_sfnt_v1, &tt_os2_v1 ))
-    {
-        WARN( "unsupported sfnt font: missing OS/2 table.\n" );
-        return FALSE;
-    }
-
     /* Wine uses ttfs as an intermediate step in building its bitmap fonts;
        we don't want to load these. */
-    if (!memcmp( tt_os2_v1->achVendID, "Wine", sizeof(tt_os2_v1->achVendID) ) &&
+    if (opentype_get_tt_os2_v1( data, size, *ttc_sfnt_v1, &tt_os2_v1 ) &&
+        !memcmp( tt_os2_v1->achVendID, "Wine", sizeof(tt_os2_v1->achVendID) ) &&
         opentype_get_table_ptr( data, size, *ttc_sfnt_v1, MS_EBSC_TAG, NULL, NULL ))
     {
         TRACE( "ignoring wine bitmap-only sfnt font.\n" );
-        return FALSE;
-    }
-
-    if (opentype_get_table_ptr( data, size, *ttc_sfnt_v1, MS_EBDT_TAG, NULL, NULL ) ||
-        opentype_get_table_ptr( data, size, *ttc_sfnt_v1, MS_CBDT_TAG, NULL, NULL ))
-    {
-        WARN( "unsupported sfnt font: embedded bitmap data.\n" );
         return FALSE;
     }
 
@@ -728,35 +716,40 @@ BOOL opentype_get_properties( const void *data, size_t size, const struct ttc_sf
 {
     const struct tt_os2_v1 *tt_os2_v1;
     const struct tt_head *tt_head;
+    USHORT idx, selection = 0;
     const void *cff_header;
     UINT32 table_size = 0;
-    USHORT idx, selection;
     DWORD flags = 0;
 
     if (!opentype_get_tt_head( data, size, ttc_sfnt_v1, &tt_head )) return FALSE;
-    if (!opentype_get_tt_os2_v1( data, size, ttc_sfnt_v1, &tt_os2_v1 )) return FALSE;
 
     *version = GET_BE_DWORD( tt_head->revision );
 
-    fs->fsUsb[0] = GET_BE_DWORD( tt_os2_v1->ulUnicodeRange1 );
-    fs->fsUsb[1] = GET_BE_DWORD( tt_os2_v1->ulUnicodeRange2 );
-    fs->fsUsb[2] = GET_BE_DWORD( tt_os2_v1->ulUnicodeRange3 );
-    fs->fsUsb[3] = GET_BE_DWORD( tt_os2_v1->ulUnicodeRange4 );
+    fs->fsCsb[0] = FS_LATIN1;
+    fs->fsCsb[1] = 0;
 
-    if (tt_os2_v1->version == 0)
-    {
-        idx = GET_BE_WORD( tt_os2_v1->usFirstCharIndex );
-        if (idx >= 0xf000 && idx < 0xf100) fs->fsCsb[0] = FS_SYMBOL;
-        else fs->fsCsb[0] = FS_LATIN1;
-        fs->fsCsb[1] = 0;
-    }
+    if (!opentype_get_tt_os2_v1( data, size, ttc_sfnt_v1, &tt_os2_v1 ))
+        WARN( "incomplete sfnt font: missing OS/2 table.\n" );
     else
     {
-        fs->fsCsb[0] = GET_BE_DWORD( tt_os2_v1->ulCodePageRange1 );
-        fs->fsCsb[1] = GET_BE_DWORD( tt_os2_v1->ulCodePageRange2 );
-    }
+        fs->fsUsb[0] = GET_BE_DWORD( tt_os2_v1->ulUnicodeRange1 );
+        fs->fsUsb[1] = GET_BE_DWORD( tt_os2_v1->ulUnicodeRange2 );
+        fs->fsUsb[2] = GET_BE_DWORD( tt_os2_v1->ulUnicodeRange3 );
+        fs->fsUsb[3] = GET_BE_DWORD( tt_os2_v1->ulUnicodeRange4 );
 
-    selection = GET_BE_WORD( tt_os2_v1->fsSelection );
+        if (tt_os2_v1->version == 0)
+        {
+            idx = GET_BE_WORD( tt_os2_v1->usFirstCharIndex );
+            if (idx >= 0xf000 && idx < 0xf100) fs->fsCsb[0] = FS_SYMBOL;
+        }
+        else
+        {
+            fs->fsCsb[0] = GET_BE_DWORD( tt_os2_v1->ulCodePageRange1 );
+            fs->fsCsb[1] = GET_BE_DWORD( tt_os2_v1->ulCodePageRange2 );
+        }
+
+        selection = GET_BE_WORD( tt_os2_v1->fsSelection );
+    }
 
     if (selection & OS2_FSSELECTION_ITALIC) flags |= NTM_ITALIC;
     if (selection & OS2_FSSELECTION_BOLD) flags |= NTM_BOLD;
