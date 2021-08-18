@@ -886,17 +886,6 @@ static WCHAR *ft_face_get_full_name( FT_Face ft_face, LANGID langid )
     return full_name;
 }
 
-static inline FT_Fixed get_font_version( FT_Face ft_face )
-{
-    FT_Fixed version = 0;
-    TT_Header *header;
-
-    header = pFT_Get_Sfnt_Table( ft_face, ft_sfnt_head );
-    if (header) version = header->Font_Revision;
-
-    return version;
-}
-
 static inline DWORD get_ntm_flags( FT_Face ft_face )
 {
     DWORD flags = 0;
@@ -1022,82 +1011,6 @@ static inline void get_fontsig( FT_Face ft_face, FONTSIGNATURE *fs )
     }
 }
 
-static FT_Face new_ft_face( const char *file, void *font_data_ptr, DWORD font_data_size,
-                            FT_Long face_index, BOOL allow_bitmap )
-{
-    FT_Error err;
-    TT_OS2 *pOS2;
-    FT_Face ft_face;
-
-    if (file)
-    {
-        TRACE("Loading font file %s index %ld\n", debugstr_a(file), face_index);
-        err = pFT_New_Face(library, file, face_index, &ft_face);
-    }
-    else
-    {
-        TRACE("Loading font from ptr %p size %d, index %ld\n", font_data_ptr, font_data_size, face_index);
-        err = pFT_New_Memory_Face(library, font_data_ptr, font_data_size, face_index, &ft_face);
-    }
-
-    if (err != 0)
-    {
-        WARN("Unable to load font %s/%p err = %x\n", debugstr_a(file), font_data_ptr, err);
-        return NULL;
-    }
-
-    /* There are too many bugs in FreeType < 2.1.9 for bitmap font support */
-    if (!FT_IS_SCALABLE( ft_face ) && FT_SimpleVersion < FT_VERSION_VALUE(2, 1, 9))
-    {
-        WARN("FreeType version < 2.1.9, skipping bitmap font %s/%p\n", debugstr_a(file), font_data_ptr);
-        goto fail;
-    }
-
-    if (!FT_IS_SFNT( ft_face ))
-    {
-        if (FT_IS_SCALABLE( ft_face ) || !allow_bitmap )
-        {
-            WARN("Ignoring font %s/%p\n", debugstr_a(file), font_data_ptr);
-            goto fail;
-        }
-    }
-    else
-    {
-        if (!(pOS2 = pFT_Get_Sfnt_Table( ft_face, ft_sfnt_os2 )) ||
-            !pFT_Get_Sfnt_Table( ft_face, ft_sfnt_hhea ) ||
-            !pFT_Get_Sfnt_Table( ft_face, ft_sfnt_head ))
-        {
-            TRACE("Font %s/%p lacks either an OS2, HHEA or HEAD table.\n"
-                  "Skipping this font.\n", debugstr_a(file), font_data_ptr);
-            goto fail;
-        }
-
-        /* Wine uses ttfs as an intermediate step in building its bitmap fonts;
-           we don't want to load these. */
-        if (!memcmp( pOS2->achVendID, "Wine", sizeof(pOS2->achVendID) ))
-        {
-            FT_ULong len = 0;
-
-            if (!pFT_Load_Sfnt_Table( ft_face, FT_MAKE_TAG('E','B','S','C'), 0, NULL, &len ))
-            {
-                TRACE("Skipping Wine bitmap-only TrueType font %s\n", debugstr_a(file));
-                goto fail;
-            }
-        }
-    }
-
-    if (!ft_face->family_name || !ft_face->style_name)
-    {
-        TRACE("Font %s/%p lacks either a family or style name\n", debugstr_a(file), font_data_ptr);
-        goto fail;
-    }
-
-    return ft_face;
-fail:
-    pFT_Done_Face( ft_face );
-    return NULL;
-}
-
 struct family_names_data
 {
     LANGID primary_langid;
@@ -1176,7 +1089,6 @@ static WCHAR *decode_opentype_name( struct opentype_name *name )
 
 struct unix_face
 {
-    FT_Face ft_face;
     BOOL scalable;
     UINT num_faces;
     WCHAR *family_name;
@@ -1351,37 +1263,6 @@ static struct unix_face *unix_face_create( const char *unix_name, void *data_ptr
         This->size.x_ppem = ppem;
         This->size.internal_leading = in_leading;
     }
-    else if ((This->ft_face = new_ft_face( unix_name, data_ptr, data_size, face_index, flags & ADDFONT_ALLOW_BITMAP )))
-    {
-        WARN( "unable to parse font, falling back to FreeType\n" );
-        This->scalable = FT_IS_SCALABLE( This->ft_face );
-        This->num_faces = This->ft_face->num_faces;
-
-        This->family_name = ft_face_get_family_name( This->ft_face, system_lcid );
-        This->second_name = ft_face_get_family_name( This->ft_face, MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT) );
-
-        /* try to find another secondary name, preferring the lowest langids */
-        if (!RtlCompareUnicodeStrings( This->family_name, lstrlenW( This->family_name ),
-                                       This->second_name, lstrlenW( This->second_name ), TRUE ))
-        {
-            RtlFreeHeap( GetProcessHeap(), 0, This->second_name );
-            This->second_name = ft_face_get_family_name( This->ft_face, MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL) );
-            if (!RtlCompareUnicodeStrings( This->family_name, lstrlenW( This->family_name ),
-                                           This->second_name, lstrlenW( This->second_name ), TRUE ))
-            {
-                RtlFreeHeap( GetProcessHeap(), 0, This->second_name );
-                This->second_name = NULL;
-            }
-        }
-
-        This->style_name = ft_face_get_style_name( This->ft_face, system_lcid );
-        This->full_name = ft_face_get_full_name( This->ft_face, system_lcid );
-
-        This->ntm_flags = get_ntm_flags( This->ft_face );
-        This->font_version = get_font_version( This->ft_face );
-        if (!This->scalable) get_bitmap_size( This->ft_face, &This->size );
-        get_fontsig( This->ft_face, &This->fs );
-    }
     else
     {
         RtlFreeHeap( GetProcessHeap(), 0, This );
@@ -1395,7 +1276,6 @@ done:
 
 static void unix_face_destroy( struct unix_face *This )
 {
-    if (This->ft_face) pFT_Done_Face( This->ft_face );
     RtlFreeHeap( GetProcessHeap(), 0, This->full_name );
     RtlFreeHeap( GetProcessHeap(), 0, This->style_name );
     RtlFreeHeap( GetProcessHeap(), 0, This->second_name );
