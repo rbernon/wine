@@ -18,6 +18,8 @@
 
 #define COBJMACROS
 
+#include "zlib.h"
+
 #include <stdarg.h>
 
 #include "windef.h"
@@ -25,7 +27,6 @@
 #include "msopc.h"
 
 #include "opc_private.h"
-#include "zlib.h"
 
 #include "wine/debug.h"
 #include "wine/heap.h"

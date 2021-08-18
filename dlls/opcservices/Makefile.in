@@ -1,9 +1,9 @@
 MODULE  = opcservices.dll
-IMPORTS = uuid ole32 advapi32 urlmon xmllite oleaut32
+IMPORTS = winezlib uuid ole32 advapi32 urlmon xmllite oleaut32
+EXTRAINCL = -I$(ZLIB_SRCDIR)
 
 C_SRCS = \
 	compress.c \
-	deflate.c \
 	factory.c \
 	package.c \
 	uri.c

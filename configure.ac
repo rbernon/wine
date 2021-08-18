@@ -326,6 +326,7 @@ then
   enable_cabinet=${enable_cabinet:-no}
   enable_dbghelp=${enable_dbghelp:-no}
   enable_gdi32=${enable_gdi32:-no}
+  enable_opcservices=${enable_opcservices:-no}
 fi
 
 AC_CACHE_CHECK([for the directory containing the Wine tools], wine_cv_toolsdir,
