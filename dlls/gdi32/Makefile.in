@@ -28,6 +28,7 @@ C_SRCS = \
 	gdidc.c \
 	gdiobj.c \
 	icm.c \
+	inflate.c \
 	mapping.c \
 	metadc.c \
 	metafile.c \
