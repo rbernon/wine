@@ -980,7 +980,8 @@ then
         ac_save_CC="$CC"
         saved_CFLAGS=$CFLAGS
         AC_SUBST(CROSSCFLAGS,${CROSSCFLAGS:-"-g -O2"})
-        AC_SUBST(EXTRACROSSCFLAGS,"-DWINE_CROSS_PE -Wall")
+        AC_SUBST(EXTRACROSSCFLAGS,"-DWINE_CROSS_PE")
+        AC_SUBST(WARNCROSSCFLAGS,"-Wall")
         AC_SUBST(CROSSLDFLAGS)
 
         CC="$CROSSCC"
@@ -1023,29 +1024,29 @@ then
         dnl clang needs to be told to fail on unknown options
         WINE_TRY_CROSSCFLAGS([-Werror=unknown-warning-option],[CFLAGS="$CFLAGS -Werror=unknown-warning-option"])
         WINE_TRY_CROSSCFLAGS([-Werror=ignored-optimization-argument],[CFLAGS="$CFLAGS -Werror=ignored-optimization-argument"])
-        WINE_TRY_CROSSCFLAGS([-Wdeclaration-after-statement])
-        WINE_TRY_CROSSCFLAGS([-Wempty-body])
-        WINE_TRY_CROSSCFLAGS([-Wignored-qualifiers])
-        WINE_TRY_CROSSCFLAGS([-Winit-self])
-        WINE_TRY_CROSSCFLAGS([-Wpacked-not-aligned],[EXTRACROSSCFLAGS="$EXTRACROSSCFLAGS -Wno-packed-not-aligned"])
-        WINE_TRY_CROSSCFLAGS([-Wpragma-pack],[EXTRACROSSCFLAGS="$EXTRACROSSCFLAGS -Wno-pragma-pack"])
-        WINE_TRY_CROSSCFLAGS([-Wshift-overflow=2])
-        WINE_TRY_CROSSCFLAGS([-Wstrict-prototypes])
-        WINE_TRY_CROSSCFLAGS([-Wtype-limits])
-        WINE_TRY_CROSSCFLAGS([-Wunused-but-set-parameter])
-        WINE_TRY_CROSSCFLAGS([-Wvla])
-        WINE_TRY_CROSSCFLAGS([-Wwrite-strings])
-        WINE_TRY_CROSSCFLAGS([-Wpointer-arith])
-        WINE_TRY_CROSSCFLAGS([-Wlogical-op])
-        WINE_TRY_CROSSCFLAGS([-Wabsolute-value])
+        WINE_TRY_CROSSCFLAGS([-Wdeclaration-after-statement],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wdeclaration-after-statement"])
+        WINE_TRY_CROSSCFLAGS([-Wempty-body],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wempty-body"])
+        WINE_TRY_CROSSCFLAGS([-Wignored-qualifiers],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wignored-qualifiers"])
+        WINE_TRY_CROSSCFLAGS([-Winit-self],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Winit-self"])
+        WINE_TRY_CROSSCFLAGS([-Wpacked-not-aligned],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wno-packed-not-aligned"])
+        WINE_TRY_CROSSCFLAGS([-Wpragma-pack],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wno-pragma-pack"])
+        WINE_TRY_CROSSCFLAGS([-Wshift-overflow=2],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wshift-overflow=2"])
+        WINE_TRY_CROSSCFLAGS([-Wstrict-prototypes],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wstrict-prototypes"])
+        WINE_TRY_CROSSCFLAGS([-Wtype-limits],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wtype-limits"])
+        WINE_TRY_CROSSCFLAGS([-Wunused-but-set-parameter],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wunused-but-set-parameter"])
+        WINE_TRY_CROSSCFLAGS([-Wvla],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wvla"])
+        WINE_TRY_CROSSCFLAGS([-Wwrite-strings],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wwrite-strings"])
+        WINE_TRY_CROSSCFLAGS([-Wpointer-arith],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wpointer-arith"])
+        WINE_TRY_CROSSCFLAGS([-Wlogical-op],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wlogical-op"])
+        WINE_TRY_CROSSCFLAGS([-Wabsolute-value],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wabsolute-value"])
 
         case $host_cpu in
           *i[[3456789]]86*) WINE_TRY_CROSSCFLAGS([-fno-omit-frame-pointer]) ;;
-          x86_64) WINE_TRY_CROSSCFLAGS([-Wno-format])
-                  WINE_TRY_CROSSCFLAGS([-Wformat-overflow])
-                  WINE_TRY_CROSSCFLAGS([-Wnonnull])
+          x86_64) WINE_TRY_CROSSCFLAGS([-Wno-format],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wno-format"])
+                  WINE_TRY_CROSSCFLAGS([-Wformat-overflow],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wformat-overflow"])
+                  WINE_TRY_CROSSCFLAGS([-Wnonnull],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wnonnull"])
                   WINE_TRY_CROSSCFLAGS([-mcx16]) ;;
-          aarch64) WINE_TRY_CROSSCFLAGS([-Wno-format]) ;;
+          aarch64) WINE_TRY_CROSSCFLAGS([-Wno-format],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Wno-format"]) ;;
         esac
 
         dnl Determine debug info format
@@ -1070,7 +1071,7 @@ then
 
         if test "x$enable_werror" = "xyes"
         then
-            WINE_TRY_CROSSCFLAGS([-Werror])
+            WINE_TRY_CROSSCFLAGS([-Werror],[WARNCROSSCFLAGS="$WARNCROSSCFLAGS -Werror"])
         fi
         if test "x$enable_build_id" = "xyes"
         then
@@ -1980,10 +1981,12 @@ test "x$ac_cv_lib_soname_vkd3d" != "x" || enable_d3d12=${enable_d3d12:-no}
 
 dnl **** Check for gcc specific options ****
 
+AC_SUBST(WARNCFLAGS,"")
 AC_SUBST(EXTRACFLAGS,"")
 if test "x${GCC}" = "xyes"
 then
-  EXTRACFLAGS="-Wall -pipe"
+  WARNCFLAGS="-Wall"
+  EXTRACFLAGS="-pipe"
 
   dnl Check for some compiler flags
   dnl clang needs to be told to fail on unknown options
@@ -1994,18 +1997,18 @@ then
   WINE_TRY_CFLAGS([-fcf-protection=none])
   WINE_TRY_CFLAGS([-fno-stack-protector])
   WINE_TRY_CFLAGS([-fno-strict-aliasing])
-  WINE_TRY_CFLAGS([-Wdeclaration-after-statement])
-  WINE_TRY_CFLAGS([-Wempty-body])
-  WINE_TRY_CFLAGS([-Wignored-qualifiers])
-  WINE_TRY_CFLAGS([-Winit-self])
-  WINE_TRY_CFLAGS([-Wpacked-not-aligned],[EXTRACFLAGS="$EXTRACFLAGS -Wno-packed-not-aligned"])
-  WINE_TRY_CFLAGS([-Wpragma-pack],[EXTRACFLAGS="$EXTRACFLAGS -Wno-pragma-pack"])
-  WINE_TRY_CFLAGS([-Wshift-overflow=2])
-  WINE_TRY_CFLAGS([-Wstrict-prototypes])
-  WINE_TRY_CFLAGS([-Wtype-limits])
-  WINE_TRY_CFLAGS([-Wunused-but-set-parameter])
-  WINE_TRY_CFLAGS([-Wvla])
-  WINE_TRY_CFLAGS([-Wwrite-strings])
+  WINE_TRY_CFLAGS([-Wdeclaration-after-statement],[WARNCFLAGS="$WARNCFLAGS -Wdeclaration-after-statement"])
+  WINE_TRY_CFLAGS([-Wempty-body],[WARNCFLAGS="$WARNCFLAGS -Wempty-body"])
+  WINE_TRY_CFLAGS([-Wignored-qualifiers],[WARNCFLAGS="$WARNCFLAGS -Wignored-qualifiers"])
+  WINE_TRY_CFLAGS([-Winit-self],[WARNCFLAGS="$WARNCFLAGS -Winit-self"])
+  WINE_TRY_CFLAGS([-Wpacked-not-aligned],[WARNCFLAGS="$WARNCFLAGS -Wno-packed-not-aligned"])
+  WINE_TRY_CFLAGS([-Wpragma-pack],[WARNCFLAGS="$WARNCFLAGS -Wno-pragma-pack"])
+  WINE_TRY_CFLAGS([-Wshift-overflow=2],[WARNCFLAGS="$WARNCFLAGS -Wshift-overflow=2"])
+  WINE_TRY_CFLAGS([-Wstrict-prototypes],[WARNCFLAGS="$WARNCFLAGS -Wstrict-prototypes"])
+  WINE_TRY_CFLAGS([-Wtype-limits],[WARNCFLAGS="$WARNCFLAGS -Wtype-limits"])
+  WINE_TRY_CFLAGS([-Wunused-but-set-parameter],[WARNCFLAGS="$WARNCFLAGS -Wunused-but-set-parameter"])
+  WINE_TRY_CFLAGS([-Wvla],[WARNCFLAGS="$WARNCFLAGS -Wvla"])
+  WINE_TRY_CFLAGS([-Wwrite-strings],[WARNCFLAGS="$WARNCFLAGS -Wwrite-strings"])
 
   if test -z "$CROSSTARGET"
   then
@@ -2018,7 +2021,7 @@ then
       CFLAGS="$CFLAGS -Wpointer-arith -Werror"
       AC_CACHE_CHECK([for broken string.h that generates warnings with -Wpointer-arith], ac_cv_c_string_h_warnings,
           AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <string.h>]])],[ac_cv_c_string_h_warnings=no],[ac_cv_c_string_h_warnings=yes]))
-      test "$ac_cv_c_string_h_warnings" = yes || EXTRACFLAGS="$EXTRACFLAGS -Wpointer-arith"
+      test "$ac_cv_c_string_h_warnings" = yes || WARNCFLAGS="$WARNCFLAGS -Wpointer-arith"
       CFLAGS=$saved_string_h_CFLAGS])
 
   dnl Check for noisy string.h on logical ops
@@ -2029,7 +2032,7 @@ then
           AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <string.h>
 char*f(const char *h,char n) {return strchr(h,n);}]])],[ac_cv_c_logicalop_noisy=no],[ac_cv_c_logicalop_noisy=yes]))
       CFLAGS=$saved_string_h_CFLAGS
-      test "$ac_cv_c_logicalop_noisy" = yes || EXTRACFLAGS="$EXTRACFLAGS -Wlogical-op"])
+      test "$ac_cv_c_logicalop_noisy" = yes || WARNCFLAGS="$WARNCFLAGS -Wlogical-op"])
 
   dnl Check for 64-bit compare-and-swap
   AC_CACHE_CHECK([for flags needed for 64-bit compare-and-swap support], wine_cv_64bit_compare_swap,
@@ -2080,7 +2083,7 @@ char*f(const char *h,char n) {return strchr(h,n);}]])],[ac_cv_c_logicalop_noisy=
     *x86_64*)
       case $host_os in
         dnl Mingw uses Windows 64-bit types, not Unix ones
-        cygwin*|mingw32*) WINE_TRY_CFLAGS([-Wno-format]) ;;
+        cygwin*|mingw32*) WINE_TRY_CFLAGS([-Wno-format],[WARNCFLAGS="$WARNCFLAGS -Wno-format"]) ;;
         dnl Default to ms_abi on 64-bit
         *) WINE_TRY_CFLAGS([-mabi=ms],[MSVCRTFLAGS="$MSVCRTFLAGS -mabi=ms"]) ;;
       esac ;;
@@ -2091,7 +2094,7 @@ char*f(const char *h,char n) {return strchr(h,n);}]])],[ac_cv_c_logicalop_noisy=
   dnl Enable -Werror
   if test "x$enable_werror" = "xyes"
   then
-      WINE_TRY_CFLAGS([-Werror])
+      WINE_TRY_CFLAGS([-Werror],[WARNCFLAGS="$WARNCFLAGS -Werror"])
   fi
   if test "x$enable_build_id" = "xyes"
   then

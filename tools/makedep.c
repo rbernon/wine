@@ -140,7 +140,9 @@ static struct strarray dll_flags;
 static struct strarray target_flags;
 static struct strarray msvcrt_flags;
 static struct strarray extra_cflags;
+static struct strarray warn_cflags;
 static struct strarray extra_cross_cflags;
+static struct strarray warn_cross_cflags;
 static struct strarray cpp_flags;
 static struct strarray lddll_flags;
 static struct strarray libs;
@@ -3176,6 +3178,7 @@ static void output_source_default( struct makefile *make, struct incl_file *sour
             if (source->use_msvcrt) output_filenames( msvcrt_flags );
         }
         output_filenames( extra_cflags );
+        output_filenames( warn_cflags );
         output_filenames( cpp_flags );
         output_filename( "$(CFLAGS)" );
         output( "\n" );
@@ -3190,6 +3193,7 @@ static void output_source_default( struct makefile *make, struct incl_file *sour
         output( "\t%s$(CROSSCC) -c -o $@ %s", cmd_prefix( "CC" ), source->filename );
         output_filenames( defines );
         output_filenames( extra_cross_cflags );
+        output_filenames( warn_cross_cflags );
         if (source->file->flags & FLAG_C_IMPLIB || (make->module && is_crt_module( make->module )))
             output_filename( "-fno-builtin" );
         output_filenames( cpp_flags );
@@ -4419,7 +4423,9 @@ int main( int argc, char *argv[] )
     msvcrt_flags = get_expanded_make_var_array( top_makefile, "MSVCRTFLAGS" );
     dll_flags    = get_expanded_make_var_array( top_makefile, "DLLFLAGS" );
     extra_cflags = get_expanded_make_var_array( top_makefile, "EXTRACFLAGS" );
+    warn_cflags  = get_expanded_make_var_array( top_makefile, "WARNCFLAGS" );
     extra_cross_cflags = get_expanded_make_var_array( top_makefile, "EXTRACROSSCFLAGS" );
+    warn_cross_cflags = get_expanded_make_var_array( top_makefile, "WARNCROSSCFLAGS" );
     cpp_flags    = get_expanded_make_var_array( top_makefile, "CPPFLAGS" );
     lddll_flags  = get_expanded_make_var_array( top_makefile, "LDDLLFLAGS" );
     libs         = get_expanded_make_var_array( top_makefile, "LIBS" );
