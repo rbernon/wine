@@ -1,7 +1,8 @@
 MODULE    = l3codeca.acm
-IMPORTS   = winmm user32
-EXTRAINCL = $(MPG123_CFLAGS)
-EXTRALIBS = $(MPG123_LIBS)
+IMPORTS   = winempg123 winmm user32 kernelbase
+EXTRAINCL = -I$(MPG123_SRCDIR)/src/libmpg123
+
+EXTRADLLFLAGS = -mno-cygwin
 
 EXTRADLLFLAGS = -mcygwin
 

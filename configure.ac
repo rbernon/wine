@@ -386,6 +386,11 @@ then
   enable_wininet=${enable_wininet:-no}
 fi
 
+if test "x$enable_winempg123" = "xno"
+then
+  enable_l3codeca_acm=${enable_l3codeca_acm:-no}
+fi
+
 if test "x$enable_winepng" = "xno"
 then
   enable_user32=${enable_user32:-no}
@@ -2016,8 +2021,7 @@ then
         fi])
 fi
 WINE_NOTICE_WITH(mpg123,[test "x$ac_cv_lib_mpg123_mpg123_feed" != xyes],
-                 [libmpg123 ${notice_platform}development files not found (or too old), mp3 codec won't be supported.],
-                 [enable_l3codeca_acm])
+                 [libmpg123 ${notice_platform}development files not found (or too old), mp3 codec won't be supported.])
 test "x$ac_cv_lib_mpg123_mpg123_feed" = xyes || enable_mp3dmod=${enable_mp3dmod:-no}
 
 dnl **** Check for OpenAL 1.1 ****
