@@ -344,6 +344,7 @@ extern void font_init(void) DECLSPEC_HIDDEN;
 
 struct ttc_sfnt_v1;
 struct tt_name_v0;
+struct woff_header;
 
 struct opentype_name
 {
@@ -372,6 +373,15 @@ extern BOOL translate_charset_info( DWORD *src, CHARSETINFO *cs, DWORD flags ) D
 extern BOOL winfnt_parse_font_face( const void *data, size_t size, DWORD index, DWORD *count,
                                     const char **family_name, const char **style_name, FONTSIGNATURE *fs, DWORD *ntm_flags,
                                     WORD *width, WORD *height, WORD *points, WORD *ppem, WORD *in_leading ) DECLSPEC_HIDDEN;
+
+extern BOOL woff_get_header( const void *data, size_t size, DWORD index, DWORD *count,
+                             const struct woff_header **woff_header ) DECLSPEC_HIDDEN;
+extern BOOL woff_get_tt_name_v0( const void *data, size_t size, const struct woff_header *woff_header,
+                                 const struct tt_name_v0 **tt_name_v0 ) DECLSPEC_HIDDEN;
+extern void woff_free_table_ptr( const void *data, size_t size, const void *table_ptr ) DECLSPEC_HIDDEN;
+
+extern BOOL woff_get_properties( const void *data, size_t size, const struct woff_header *woff_header,
+                                 DWORD *version, FONTSIGNATURE *fs, DWORD *ntm_flags ) DECLSPEC_HIDDEN;
 
 /* gdiobj.c */
 extern HGDIOBJ alloc_gdi_handle( struct gdi_obj_header *obj, DWORD type,

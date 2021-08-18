@@ -32,6 +32,8 @@
 
 #include "ntgdi_private.h"
 
+#include "zlib.h"
+
 WINE_DEFAULT_DEBUG_CHANNEL(font);
 
 #define MS_OTTO_TAG MS_MAKE_TAG('O','T','T','O')
@@ -43,6 +45,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(font);
 #define MS_CBDT_TAG MS_MAKE_TAG('C','B','D','T')
 #define MS_NAME_TAG MS_MAKE_TAG('n','a','m','e')
 #define MS_CFF__TAG MS_MAKE_TAG('C','F','F',' ')
+#define MS_WOFF_TAG MS_MAKE_TAG('w','O','F','F')
 
 #ifdef WORDS_BIGENDIAN
 #define GET_BE_WORD(x) (x)
@@ -633,6 +636,7 @@ BOOL opentype_get_ttc_sfnt_v1( const void *data, size_t size, DWORD index, DWORD
         WARN( "unsupported font format %x\n", fourcc );
         return FALSE;
     case 0x010d5a4d: /* WinFNT header */ return FALSE;
+    case MS_WOFF_TAG: /* WOFF header */ return FALSE;
     case MS_TTCF_TAG:
         if (size < sizeof(ttc_header_v1)) return FALSE;
         if (index >= (*count = GET_BE_DWORD( ttc_header_v1->numFonts ))) return FALSE;
@@ -927,5 +931,215 @@ BOOL winfnt_parse_font_face( const void *data, size_t size, DWORD index, DWORD *
         *in_leading = fnt_header->fi.dfInternalLeading;
     }
 
+    return TRUE;
+}
+
+struct woff_header
+{
+    UINT32 signature;
+    UINT32 flavor;
+    UINT32 length;
+    UINT16 num_tables;
+    UINT16 reserved;
+    UINT32 total_sfnt_size;
+    UINT16 major_version;
+    UINT16 minor_version;
+    UINT32 meta_offset;
+    UINT32 meta_length;
+    UINT32 meta_orig_length;
+    UINT32 priv_offset;
+    UINT32 priv_length;
+};
+
+struct woff_table_entry
+{
+    UINT32 tag;
+    UINT32 offset;
+    UINT32 comp_length;
+    UINT32 orig_length;
+    UINT32 orig_check_sum;
+};
+
+static void *zalloc( void *priv, uInt count, uInt size )
+{
+    return RtlAllocateHeap( GetProcessHeap(), 0, count * size );
+}
+
+static void zfree( void *priv, void *addr )
+{
+    RtlFreeHeap( GetProcessHeap(), 0, addr );
+}
+
+static BOOL woff_uncompress( void *dst, UINT32 dst_len, const void *src, UINT32 src_len )
+{
+    z_stream stream = {0};
+    int err;
+
+    stream.zalloc = zalloc;
+    stream.zfree = zfree;
+    stream.next_in = src;
+    stream.avail_in = src_len;
+    stream.next_out = dst;
+    stream.avail_out = dst_len;
+    if (inflateInit(&stream) != Z_OK) return FALSE;
+    err = inflate(&stream, Z_NO_FLUSH);
+    inflateEnd(&stream);
+
+    if (err != Z_STREAM_END) return FALSE;
+    return TRUE;
+}
+
+static BOOL woff_find_table_ptr( const void *data, size_t size, const struct woff_header *woff_header,
+                                 UINT32 table_tag, const void **table_ptr, UINT32 *table_size )
+{
+    const struct woff_table_entry *table_entry;
+    UINT32 offset, length, comp_length;
+    UINT16 i, table_count;
+
+    if (!woff_header) return FALSE;
+
+    table_entry = (const struct woff_table_entry *)(woff_header + 1);
+    table_count = GET_BE_WORD( woff_header->num_tables );
+    for (i = 0; i < table_count; i++, table_entry++)
+    {
+        if (table_entry->tag != table_tag) continue;
+        offset = GET_BE_DWORD( table_entry->offset );
+        length = GET_BE_DWORD( table_entry->orig_length );
+        comp_length = GET_BE_DWORD( table_entry->comp_length );
+        if (size < offset + comp_length) return FALSE;
+        if (length < comp_length) return FALSE;
+        if (table_size && length < *table_size) return FALSE;
+
+        if (table_ptr)
+        {
+            if (length == comp_length)
+                *table_ptr = (const char *)data + offset;
+            else if (table_size && *table_size == length && *table_ptr)
+                woff_uncompress( *(void **)table_ptr, length, (const char *)data + offset, comp_length );
+            else
+                *table_ptr = NULL;
+        }
+        if (table_size) *table_size = length;
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+static BOOL woff_get_table_ptr( const void *data, size_t size, const struct woff_header *woff_header,
+                                UINT32 table_tag, const void **table_ptr, UINT32 *table_size )
+{
+    *table_ptr = NULL;
+    if (!woff_find_table_ptr( data, size, woff_header, table_tag, table_ptr, table_size ))
+        return FALSE;
+
+    if (*table_ptr) return TRUE;
+
+    if (!(*table_ptr = RtlAllocateHeap( GetProcessHeap(), 0, *table_size )))
+        return FALSE;
+
+    if (!woff_find_table_ptr( data, size, woff_header, table_tag, table_ptr, table_size ))
+    {
+        ERR("failed to decompress %s table!\n", debugstr_an( (char *)&table_tag, 4 ));
+        RtlFreeHeap( GetProcessHeap(), 0, (void *)*table_ptr );
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+void woff_free_table_ptr( const void *data, size_t size, const void *table_ptr )
+{
+    if (table_ptr >= data && (const char *)table_ptr < (const char *)data + size) return;
+
+    RtlFreeHeap( GetProcessHeap(), 0, (void *)table_ptr );
+}
+
+BOOL woff_get_header( const void *data, size_t size, DWORD index, DWORD *count,
+                      const struct woff_header **woff_header )
+{
+    const struct woff_header *tmp;
+    UINT32 fourcc;
+
+    *woff_header = NULL;
+    *count = 1;
+
+    if (size < sizeof(fourcc)) return FALSE;
+    memcpy( &fourcc, data, sizeof(fourcc) );
+
+    if (fourcc != MS_WOFF_TAG) return FALSE;
+
+    if (size < sizeof(**woff_header)) return FALSE;
+    tmp = (const struct woff_header *)((const char *)data);
+
+    if (GET_BE_DWORD( tmp->length ) > size)
+    {
+        WARN( "truncated font file, header length %u, file length %zu\n",
+              GET_BE_DWORD( tmp->length ), size );
+        return FALSE;
+    }
+
+    if (!woff_find_table_ptr( data, size, tmp, MS_HEAD_TAG, NULL, NULL ))
+    {
+        WARN( "unsupported sfnt font: missing head table.\n" );
+        return FALSE;
+    }
+
+    if (!woff_find_table_ptr( data, size, tmp, MS_HHEA_TAG, NULL, NULL ))
+    {
+        WARN( "unsupported sfnt font: missing hhea table.\n" );
+        return FALSE;
+    }
+
+    *woff_header = tmp;
+    return TRUE;
+}
+
+static BOOL woff_get_tt_os2_v1( const void *data, size_t size, const struct woff_header *woff_header,
+                                const struct tt_os2_v1 **tt_os2_v1 )
+{
+    UINT32 table_size = sizeof(**tt_os2_v1);
+    return woff_get_table_ptr( data, size, woff_header, MS_OS_2_TAG, (const void **)tt_os2_v1, &table_size );
+}
+
+static BOOL woff_get_tt_head( const void *data, size_t size, const struct woff_header *woff_header,
+                              const struct tt_head **tt_head )
+{
+    UINT32 table_size = sizeof(**tt_head);
+    return woff_get_table_ptr( data, size, woff_header, MS_HEAD_TAG, (const void **)tt_head, &table_size );
+}
+
+BOOL woff_get_tt_name_v0( const void *data, size_t size, const struct woff_header *woff_header,
+                          const struct tt_name_v0 **tt_name_v0 )
+{
+    UINT32 table_size = sizeof(**tt_name_v0);
+    if (!woff_get_table_ptr( data, size, woff_header, MS_NAME_TAG, (const void **)tt_name_v0, &table_size ))
+    {
+        WARN( "unsupported sfnt font: missing name table.\n" );
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+BOOL woff_get_properties( const void *data, size_t size, const struct woff_header *woff_header,
+                          DWORD *version, FONTSIGNATURE *fs, DWORD *ntm_flags )
+{
+    const struct tt_os2_v1 *tt_os2_v1;
+    const struct tt_head *tt_head;
+    DWORD flags = 0;
+    BOOL ret;
+
+    if (!woff_get_tt_head( data, size, woff_header, &tt_head )) return FALSE;
+    if (!woff_get_tt_os2_v1( data, size, woff_header, &tt_os2_v1 )) tt_os2_v1 = NULL;
+
+    if ((ret = opentype_parse_properties( tt_head, tt_os2_v1, version, fs, &flags )) &&
+        woff_find_table_ptr( data, size, woff_header, MS_CFF__TAG, NULL, NULL ))
+        flags |= NTM_PS_OPENTYPE;
+
+    if (tt_os2_v1) woff_free_table_ptr( data, size, tt_os2_v1 );
+    woff_free_table_ptr( data, size, tt_head );
+
+    *ntm_flags = flags;
     return TRUE;
 }

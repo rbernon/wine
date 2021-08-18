@@ -1194,6 +1194,7 @@ static struct unix_face *unix_face_create( const char *unix_name, void *data_ptr
 {
     static const WCHAR space_w[] = {' ',0};
 
+    const struct woff_header *woff_header;
     const struct ttc_sfnt_v1 *ttc_sfnt_v1;
     const struct tt_name_v0 *tt_name_v0;
     const char *family_name_a = NULL, *style_name_a = NULL;
@@ -1266,6 +1267,53 @@ static struct unix_face *unix_face_create( const char *unix_name, void *data_ptr
             lstrcatW( This->full_name, This->style_name );
             WARN( "full name not found, using %s instead\n", debugstr_w(This->full_name) );
         }
+    }
+    else if (woff_get_header( data_ptr, data_size, face_index, &face_count, &woff_header ) &&
+             woff_get_properties( data_ptr, data_size, woff_header, &This->font_version,
+                                  &This->fs, &This->ntm_flags ) &&
+             woff_get_tt_name_v0( data_ptr, data_size, woff_header, &tt_name_v0 ))
+    {
+        struct family_names_data family_names;
+        struct face_name_data style_name;
+        struct face_name_data full_name;
+        LANGID primary_langid = system_lcid;
+
+        This->scalable = TRUE;
+        This->num_faces = face_count;
+
+        memset( &family_names, 0, sizeof(family_names) );
+        family_names.primary_langid = primary_langid;
+        opentype_enum_family_names( tt_name_v0, search_family_names_callback, &family_names );
+        This->family_name = decode_opentype_name( &family_names.family_name );
+        This->second_name = decode_opentype_name( &family_names.second_name );
+
+        memset( &style_name, 0, sizeof(style_name) );
+        style_name.primary_langid = primary_langid;
+        opentype_enum_style_names( tt_name_v0, search_face_name_callback, &style_name );
+        This->style_name = decode_opentype_name( &style_name.face_name );
+
+        memset( &full_name, 0, sizeof(full_name) );
+        full_name.primary_langid = primary_langid;
+        opentype_enum_full_names( tt_name_v0, search_face_name_callback, &full_name );
+        This->full_name = decode_opentype_name( &full_name.face_name );
+
+        TRACE( "parsed font names family_name %s, second_name %s, primary_seen %d, english_seen %d, "
+               "full_name %s, style_name %s\n",
+               debugstr_w(This->family_name), debugstr_w(This->second_name),
+               family_names.primary_seen, family_names.english_seen,
+               debugstr_w(This->full_name), debugstr_w(This->style_name) );
+
+        if (!This->full_name && This->family_name && This->style_name)
+        {
+            length = lstrlenW( This->family_name ) + lstrlenW( space_w ) + lstrlenW( This->style_name ) + 1;
+            This->full_name = RtlAllocateHeap( GetProcessHeap(), 0, length * sizeof(WCHAR) );
+            lstrcpyW( This->full_name, This->family_name );
+            lstrcatW( This->full_name, space_w );
+            lstrcatW( This->full_name, This->style_name );
+            WARN( "full name not found, using %s instead\n", debugstr_w(This->full_name) );
+        }
+
+        woff_free_table_ptr( data_ptr, data_size, tt_name_v0 );
     }
     else if ((flags & ADDFONT_ALLOW_BITMAP) &&
              winfnt_parse_font_face( data_ptr, data_size, face_index, &face_count,
