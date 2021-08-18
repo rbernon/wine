@@ -27,6 +27,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#include "zlib.h"
+
 #include <stdlib.h>
 
 #include "winsock2.h"
@@ -53,7 +55,6 @@
 #include "winuser.h"
 
 #include "internet.h"
-#include "zlib.h"
 #include "resource.h"
 #include "wine/debug.h"
 #include "wine/exception.h"
