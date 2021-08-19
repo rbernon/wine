@@ -1643,6 +1643,8 @@ static struct file *open_include_file( const struct makefile *make, struct incl_
     /* try in src file directory */
     if ((file = open_file_same_dir( pFile->included_by, pFile->name, &pFile->filename ))) return file;
 
+    if (make->is_external) return NULL; /* ignore missing files on external dependencies */
+
     fprintf( stderr, "%s:%d: error: ", pFile->included_by->file->name, pFile->included_line );
     perror( pFile->name );
     pFile = pFile->included_by;
