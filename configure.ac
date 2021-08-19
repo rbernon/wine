@@ -374,6 +374,11 @@ then
   enable_winefreetype=${enable_winefreetype:-no}
 fi
 
+if test "x$enable_winefreetype" = "xno"
+then
+  enable_dwrite=${enable_dwrite:-no}
+fi
+
 AC_CACHE_CHECK([for the directory containing the Wine tools], wine_cv_toolsdir,
   [wine_cv_toolsdir="$with_wine_tools"
    if test -z "$with_wine_tools"; then

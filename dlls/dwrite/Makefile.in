@@ -1,7 +1,7 @@
 MODULE    = dwrite.dll
 IMPORTLIB = dwrite
-IMPORTS   = user32 gdi32 advapi32
-EXTRAINCL = $(FREETYPE_CFLAGS)
+IMPORTS   = user32 gdi32 advapi32 winefreetype winepng winezlib
+EXTRAINCL = -I$(FREETYPE_SRCDIR)/include
 
 C_SRCS = \
 	analyzer.c \

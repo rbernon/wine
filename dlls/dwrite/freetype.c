@@ -18,20 +18,11 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#if 0
-#pragma makedep unix
-#endif
-
-#include "config.h"
-#include "wine/port.h"
-
-#ifdef HAVE_FT2BUILD_H
 #include <ft2build.h>
 #include FT_CACHE_H
 #include FT_FREETYPE_H
 #include FT_OUTLINE_H
 #include FT_TRUETYPE_TABLES_H
-#endif /* HAVE_FT2BUILD_H */
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -39,8 +30,6 @@
 #include "wine/debug.h"
 
 #include "dwrite_private.h"
-
-#ifdef HAVE_FREETYPE
 
 WINE_DEFAULT_DEBUG_CHANNEL(dwrite);
 
@@ -53,7 +42,6 @@ static RTL_CRITICAL_SECTION_DEBUG critsect_debug =
 };
 static RTL_CRITICAL_SECTION freetype_cs = { &critsect_debug, -1, 0, 0, 0, 0 };
 
-static void *ft_handle = NULL;
 static FT_Library library = 0;
 static FTC_Manager cache_manager = 0;
 static FTC_ImageCache image_cache = 0;
@@ -65,39 +53,6 @@ typedef struct
 } FT_Version_t;
 
 static const struct font_callback_funcs *callback_funcs;
-
-#define MAKE_FUNCPTR(f) static typeof(f) * p##f = NULL
-MAKE_FUNCPTR(FT_Done_FreeType);
-MAKE_FUNCPTR(FT_Done_Glyph);
-MAKE_FUNCPTR(FT_Get_First_Char);
-MAKE_FUNCPTR(FT_Get_Kerning);
-MAKE_FUNCPTR(FT_Get_Sfnt_Table);
-MAKE_FUNCPTR(FT_Glyph_Copy);
-MAKE_FUNCPTR(FT_Glyph_Get_CBox);
-MAKE_FUNCPTR(FT_Glyph_Transform);
-MAKE_FUNCPTR(FT_Init_FreeType);
-MAKE_FUNCPTR(FT_Library_Version);
-MAKE_FUNCPTR(FT_Load_Glyph);
-MAKE_FUNCPTR(FT_Matrix_Multiply);
-MAKE_FUNCPTR(FT_MulDiv);
-MAKE_FUNCPTR(FT_New_Memory_Face);
-MAKE_FUNCPTR(FT_Outline_Copy);
-MAKE_FUNCPTR(FT_Outline_Decompose);
-MAKE_FUNCPTR(FT_Outline_Done);
-MAKE_FUNCPTR(FT_Outline_Embolden);
-MAKE_FUNCPTR(FT_Outline_Get_Bitmap);
-MAKE_FUNCPTR(FT_Outline_New);
-MAKE_FUNCPTR(FT_Outline_Transform);
-MAKE_FUNCPTR(FT_Outline_Translate);
-MAKE_FUNCPTR(FTC_ImageCache_Lookup);
-MAKE_FUNCPTR(FTC_ImageCache_New);
-MAKE_FUNCPTR(FTC_Manager_New);
-MAKE_FUNCPTR(FTC_Manager_Done);
-MAKE_FUNCPTR(FTC_Manager_LookupFace);
-MAKE_FUNCPTR(FTC_Manager_LookupSize);
-MAKE_FUNCPTR(FTC_Manager_RemoveFaceID);
-#undef MAKE_FUNCPTR
-static FT_Error (*pFT_Outline_EmboldenXY)(FT_Outline *, FT_Pos, FT_Pos);
 
 static void face_finalizer(void *object)
 {
@@ -124,7 +79,7 @@ static FT_Error face_requester(FTC_FaceID face_id, FT_Library library, FT_Pointe
     if (callback_funcs->get_font_data(face_id, &data_ptr, &data_size, &index, &context))
         return FT_Err_Ok;
 
-    fterror = pFT_New_Memory_Face(library, data_ptr, data_size, index, face);
+    fterror = FT_New_Memory_Face(library, data_ptr, data_size, index, face);
     if (fterror == FT_Err_Ok)
     {
         (*face)->generic.data = context;
@@ -140,79 +95,30 @@ static BOOL init_freetype(void)
 {
     FT_Version_t FT_Version;
 
-    ft_handle = dlopen(SONAME_LIBFREETYPE, RTLD_NOW);
-    if (!ft_handle) {
-        WINE_MESSAGE("Wine cannot find the FreeType font library.\n");
-	return FALSE;
-    }
-
-#define LOAD_FUNCPTR(f) if((p##f = dlsym(ft_handle, #f)) == NULL){WARN("Can't find symbol %s\n", #f); goto sym_not_found;}
-    LOAD_FUNCPTR(FT_Done_FreeType)
-    LOAD_FUNCPTR(FT_Done_Glyph)
-    LOAD_FUNCPTR(FT_Get_First_Char)
-    LOAD_FUNCPTR(FT_Get_Kerning)
-    LOAD_FUNCPTR(FT_Get_Sfnt_Table)
-    LOAD_FUNCPTR(FT_Glyph_Copy)
-    LOAD_FUNCPTR(FT_Glyph_Get_CBox)
-    LOAD_FUNCPTR(FT_Glyph_Transform)
-    LOAD_FUNCPTR(FT_Init_FreeType)
-    LOAD_FUNCPTR(FT_Library_Version)
-    LOAD_FUNCPTR(FT_Load_Glyph)
-    LOAD_FUNCPTR(FT_Matrix_Multiply)
-    LOAD_FUNCPTR(FT_MulDiv)
-    LOAD_FUNCPTR(FT_New_Memory_Face)
-    LOAD_FUNCPTR(FT_Outline_Copy)
-    LOAD_FUNCPTR(FT_Outline_Decompose)
-    LOAD_FUNCPTR(FT_Outline_Done)
-    LOAD_FUNCPTR(FT_Outline_Embolden)
-    LOAD_FUNCPTR(FT_Outline_Get_Bitmap)
-    LOAD_FUNCPTR(FT_Outline_New)
-    LOAD_FUNCPTR(FT_Outline_Transform)
-    LOAD_FUNCPTR(FT_Outline_Translate)
-    LOAD_FUNCPTR(FTC_ImageCache_Lookup)
-    LOAD_FUNCPTR(FTC_ImageCache_New)
-    LOAD_FUNCPTR(FTC_Manager_New)
-    LOAD_FUNCPTR(FTC_Manager_Done)
-    LOAD_FUNCPTR(FTC_Manager_LookupFace)
-    LOAD_FUNCPTR(FTC_Manager_LookupSize)
-    LOAD_FUNCPTR(FTC_Manager_RemoveFaceID)
-#undef LOAD_FUNCPTR
-    pFT_Outline_EmboldenXY = dlsym(ft_handle, "FT_Outline_EmboldenXY");
-
-    if (pFT_Init_FreeType(&library) != 0) {
+    if (FT_Init_FreeType(&library) != 0) {
         ERR("Can't init FreeType library\n");
-	dlclose(ft_handle);
-        ft_handle = NULL;
-	return FALSE;
+	   return FALSE;
     }
-    pFT_Library_Version(library, &FT_Version.major, &FT_Version.minor, &FT_Version.patch);
+    FT_Library_Version(library, &FT_Version.major, &FT_Version.minor, &FT_Version.patch);
 
     /* init cache manager */
-    if (pFTC_Manager_New(library, 0, 0, 0, &face_requester, NULL, &cache_manager) != 0 ||
-        pFTC_ImageCache_New(cache_manager, &image_cache) != 0) {
+    if (FTC_Manager_New(library, 0, 0, 0, &face_requester, NULL, &cache_manager) != 0 ||
+        FTC_ImageCache_New(cache_manager, &image_cache) != 0) {
 
         ERR("Failed to init FreeType cache\n");
-        pFTC_Manager_Done(cache_manager);
-        pFT_Done_FreeType(library);
-        dlclose(ft_handle);
-        ft_handle = NULL;
+        FTC_Manager_Done(cache_manager);
+        FT_Done_FreeType(library);
         return FALSE;
     }
 
     TRACE("FreeType version is %d.%d.%d\n", FT_Version.major, FT_Version.minor, FT_Version.patch);
     return TRUE;
-
-sym_not_found:
-    WINE_MESSAGE("Wine cannot find certain functions that it needs from FreeType library.\n");
-    dlclose(ft_handle);
-    ft_handle = NULL;
-    return FALSE;
 }
 
 static void CDECL freetype_notify_release(void *key)
 {
     RtlEnterCriticalSection(&freetype_cs);
-    pFTC_Manager_RemoveFaceID(cache_manager, key);
+    FTC_Manager_RemoveFaceID(cache_manager, key);
     RtlLeaveCriticalSection(&freetype_cs);
 }
 
@@ -230,8 +136,8 @@ static void CDECL freetype_get_design_glyph_metrics(void *key, UINT16 upem, UINT
     scaler.y_res = 0;
 
     RtlEnterCriticalSection(&freetype_cs);
-    if (pFTC_Manager_LookupSize(cache_manager, &scaler, &size) == 0) {
-         if (pFT_Load_Glyph(size->face, glyph, FT_LOAD_NO_SCALE) == 0) {
+    if (FTC_Manager_LookupSize(cache_manager, &scaler, &size) == 0) {
+         if (FT_Load_Glyph(size->face, glyph, FT_LOAD_NO_SCALE) == 0) {
              FT_Glyph_Metrics *metrics = &size->face->glyph->metrics;
 
              ret->leftSideBearing = metrics->horiBearingX;
@@ -436,7 +342,7 @@ static int decompose_outline(FT_Outline *ft_outline, struct dwrite_outline *outl
 
     context.outline = outline;
 
-    ret = pFT_Outline_Decompose(ft_outline, &decompose_funcs, &context);
+    ret = FT_Outline_Decompose(ft_outline, &decompose_funcs, &context);
 
     if (!ret && context.figure_started)
         ret = dwrite_outline_push_tag(outline, OUTLINE_END_FIGURE);
@@ -448,11 +354,8 @@ static void embolden_glyph_outline(FT_Outline *outline, FLOAT emsize)
 {
     FT_Pos strength;
 
-    strength = pFT_MulDiv(emsize, 1 << 6, 24);
-    if (pFT_Outline_EmboldenXY)
-        pFT_Outline_EmboldenXY(outline, strength, 0);
-    else
-        pFT_Outline_Embolden(outline, strength);
+    strength = FT_MulDiv(emsize, 1 << 6, 24);
+    FT_Outline_EmboldenXY(outline, strength, 0);
 }
 
 static void embolden_glyph(FT_Glyph glyph, FLOAT emsize)
@@ -480,9 +383,9 @@ static int CDECL freetype_get_glyph_outline(void *key, float emSize, unsigned in
     scaler.y_res = 0;
 
     RtlEnterCriticalSection(&freetype_cs);
-    if (!(ret = pFTC_Manager_LookupSize(cache_manager, &scaler, &size)))
+    if (!(ret = FTC_Manager_LookupSize(cache_manager, &scaler, &size)))
     {
-        if (pFT_Load_Glyph(size->face, glyph, FT_LOAD_NO_BITMAP) == 0)
+        if (FT_Load_Glyph(size->face, glyph, FT_LOAD_NO_BITMAP) == 0)
         {
             FT_Outline *ft_outline = &size->face->glyph->outline;
             FT_Matrix m;
@@ -495,7 +398,7 @@ static int CDECL freetype_get_glyph_outline(void *key, float emSize, unsigned in
             m.yx = 0;
             m.yy = -(1 << 16); /* flip Y axis */
 
-            pFT_Outline_Transform(ft_outline, &m);
+            FT_Outline_Transform(ft_outline, &m);
 
             ret = decompose_outline(ft_outline, outline);
         }
@@ -511,7 +414,7 @@ static UINT16 CDECL freetype_get_glyph_count(void *key)
     FT_Face face;
 
     RtlEnterCriticalSection(&freetype_cs);
-    if (pFTC_Manager_LookupFace(cache_manager, key, &face) == 0)
+    if (FTC_Manager_LookupFace(cache_manager, key, &face) == 0)
         count = face->num_glyphs;
     RtlLeaveCriticalSection(&freetype_cs);
 
@@ -530,7 +433,7 @@ static inline void ft_matrix_from_dwrite_matrix(const DWRITE_MATRIX *m, FT_Matri
 static BOOL is_face_scalable(void *key)
 {
     FT_Face face;
-    if (pFTC_Manager_LookupFace(cache_manager, key, &face) == 0)
+    if (FTC_Manager_LookupFace(cache_manager, key, &face) == 0)
         return FT_IS_SCALABLE(face);
     else
         return FALSE;
@@ -555,12 +458,12 @@ static BOOL get_glyph_transform(struct dwrite_glyphbitmap *bitmap, FT_Matrix *re
         m.xy = (1 << 16) / 3;
         m.yx =  0;
         m.yy =  1 << 16;
-        pFT_Matrix_Multiply(&m, ret);
+        FT_Matrix_Multiply(&m, ret);
     }
 
     if (bitmap->m) {
         ft_matrix_from_dwrite_matrix(bitmap->m, &m);
-        pFT_Matrix_Multiply(&m, ret);
+        FT_Matrix_Multiply(&m, ret);
     }
 
     return TRUE;
@@ -583,22 +486,22 @@ static void CDECL freetype_get_glyph_bbox(struct dwrite_glyphbitmap *bitmap)
     imagetype.height = bitmap->emsize;
     imagetype.flags = needs_transform ? FT_LOAD_NO_BITMAP : FT_LOAD_DEFAULT;
 
-    if (pFTC_ImageCache_Lookup(image_cache, &imagetype, bitmap->glyph, &glyph, NULL) == 0) {
+    if (FTC_ImageCache_Lookup(image_cache, &imagetype, bitmap->glyph, &glyph, NULL) == 0) {
         if (needs_transform) {
             FT_Glyph glyph_copy;
 
-            if (pFT_Glyph_Copy(glyph, &glyph_copy) == 0) {
+            if (FT_Glyph_Copy(glyph, &glyph_copy) == 0) {
                 if (bitmap->simulations & DWRITE_FONT_SIMULATIONS_BOLD)
                     embolden_glyph(glyph_copy, bitmap->emsize);
 
                 /* Includes oblique and user transform. */
-                pFT_Glyph_Transform(glyph_copy, &m, NULL);
-                pFT_Glyph_Get_CBox(glyph_copy, FT_GLYPH_BBOX_PIXELS, &bbox);
-                pFT_Done_Glyph(glyph_copy);
+                FT_Glyph_Transform(glyph_copy, &m, NULL);
+                FT_Glyph_Get_CBox(glyph_copy, FT_GLYPH_BBOX_PIXELS, &bbox);
+                FT_Done_Glyph(glyph_copy);
             }
         }
         else
-            pFT_Glyph_Get_CBox(glyph, FT_GLYPH_BBOX_PIXELS, &bbox);
+            FT_Glyph_Get_CBox(glyph, FT_GLYPH_BBOX_PIXELS, &bbox);
     }
 
     RtlLeaveCriticalSection(&freetype_cs);
@@ -626,11 +529,11 @@ static BOOL freetype_get_aliased_glyph_bitmap(struct dwrite_glyphbitmap *bitmap,
         ft_bitmap.buffer = bitmap->buf;
 
         /* Note: FreeType will only set 'black' bits for us. */
-        if (pFT_Outline_New(library, src->n_points, src->n_contours, &copy) == 0) {
-            pFT_Outline_Copy(src, &copy);
-            pFT_Outline_Translate(&copy, -bbox->left << 6, bbox->bottom << 6);
-            pFT_Outline_Get_Bitmap(library, &copy, &ft_bitmap);
-            pFT_Outline_Done(library, &copy);
+        if (FT_Outline_New(library, src->n_points, src->n_contours, &copy) == 0) {
+            FT_Outline_Copy(src, &copy);
+            FT_Outline_Translate(&copy, -bbox->left << 6, bbox->bottom << 6);
+            FT_Outline_Get_Bitmap(library, &copy, &ft_bitmap);
+            FT_Outline_Done(library, &copy);
         }
     }
     else if (glyph->format == FT_GLYPH_FORMAT_BITMAP) {
@@ -671,11 +574,11 @@ static BOOL freetype_get_aa_glyph_bitmap(struct dwrite_glyphbitmap *bitmap, FT_G
         ft_bitmap.buffer = bitmap->buf;
 
         /* Note: FreeType will only set 'black' bits for us. */
-        if (pFT_Outline_New(library, src->n_points, src->n_contours, &copy) == 0) {
-            pFT_Outline_Copy(src, &copy);
-            pFT_Outline_Translate(&copy, -bbox->left << 6, bbox->bottom << 6);
-            pFT_Outline_Get_Bitmap(library, &copy, &ft_bitmap);
-            pFT_Outline_Done(library, &copy);
+        if (FT_Outline_New(library, src->n_points, src->n_contours, &copy) == 0) {
+            FT_Outline_Copy(src, &copy);
+            FT_Outline_Translate(&copy, -bbox->left << 6, bbox->bottom << 6);
+            FT_Outline_Get_Bitmap(library, &copy, &ft_bitmap);
+            FT_Outline_Done(library, &copy);
         }
     }
     else if (glyph->format == FT_GLYPH_FORMAT_BITMAP) {
@@ -715,16 +618,16 @@ static BOOL CDECL freetype_get_glyph_bitmap(struct dwrite_glyphbitmap *bitmap)
     imagetype.height = bitmap->emsize;
     imagetype.flags = needs_transform ? FT_LOAD_NO_BITMAP : FT_LOAD_DEFAULT;
 
-    if (pFTC_ImageCache_Lookup(image_cache, &imagetype, bitmap->glyph, &glyph, NULL) == 0) {
+    if (FTC_ImageCache_Lookup(image_cache, &imagetype, bitmap->glyph, &glyph, NULL) == 0) {
         FT_Glyph glyph_copy;
 
         if (needs_transform) {
-            if (pFT_Glyph_Copy(glyph, &glyph_copy) == 0) {
+            if (FT_Glyph_Copy(glyph, &glyph_copy) == 0) {
                 if (bitmap->simulations & DWRITE_FONT_SIMULATIONS_BOLD)
                     embolden_glyph(glyph_copy, bitmap->emsize);
 
                 /* Includes oblique and user transform. */
-                pFT_Glyph_Transform(glyph_copy, &m, NULL);
+                FT_Glyph_Transform(glyph_copy, &m, NULL);
                 glyph = glyph_copy;
             }
         }
@@ -737,7 +640,7 @@ static BOOL CDECL freetype_get_glyph_bitmap(struct dwrite_glyphbitmap *bitmap)
             ret = freetype_get_aa_glyph_bitmap(bitmap, glyph);
 
         if (glyph_copy)
-            pFT_Done_Glyph(glyph_copy);
+            FT_Done_Glyph(glyph_copy);
     }
 
     RtlLeaveCriticalSection(&freetype_cs);
@@ -760,7 +663,7 @@ static INT32 CDECL freetype_get_glyph_advance(void *key, float emSize, UINT16 in
         imagetype.flags |= FT_LOAD_NO_HINTING;
 
     RtlEnterCriticalSection(&freetype_cs);
-    if (pFTC_ImageCache_Lookup(image_cache, &imagetype, index, &glyph, NULL) == 0) {
+    if (FTC_ImageCache_Lookup(image_cache, &imagetype, index, &glyph, NULL) == 0) {
         *has_contours = glyph->format == FT_GLYPH_FORMAT_OUTLINE && ((FT_OutlineGlyph)glyph)->outline.n_contours;
         advance = glyph->advance.x >> 16;
     }
@@ -794,73 +697,10 @@ static NTSTATUS init_freetype_lib(HMODULE module, DWORD reason, const void *ptr_
 
 static NTSTATUS release_freetype_lib(void)
 {
-    pFTC_Manager_Done(cache_manager);
-    pFT_Done_FreeType(library);
+    FTC_Manager_Done(cache_manager);
+    FT_Done_FreeType(library);
     return STATUS_SUCCESS;
 }
-
-#else /* HAVE_FREETYPE */
-
-static void CDECL null_notify_release(void *key)
-{
-}
-
-static int CDECL null_get_glyph_outline(void *key, float emSize, unsigned int simulations,
-        UINT16 glyph, struct dwrite_outline *outline)
-{
-    return 1;
-}
-
-static UINT16 CDECL null_get_glyph_count(void *key)
-{
-    return 0;
-}
-
-static INT32 CDECL null_get_glyph_advance(void *key, float emSize, UINT16 index, DWRITE_MEASURING_MODE mode,
-    BOOL *has_contours)
-{
-    *has_contours = FALSE;
-    return 0;
-}
-
-static void CDECL null_get_glyph_bbox(struct dwrite_glyphbitmap *bitmap)
-{
-    SetRectEmpty(&bitmap->bbox);
-}
-
-static BOOL CDECL null_get_glyph_bitmap(struct dwrite_glyphbitmap *bitmap)
-{
-    return FALSE;
-}
-
-static void CDECL null_get_design_glyph_metrics(void *key, UINT16 upem, UINT16 ascent, unsigned int simulations,
-        UINT16 glyph, DWRITE_GLYPH_METRICS *metrics)
-{
-}
-
-const static struct font_backend_funcs null_funcs =
-{
-    null_notify_release,
-    null_get_glyph_outline,
-    null_get_glyph_count,
-    null_get_glyph_advance,
-    null_get_glyph_bbox,
-    null_get_glyph_bitmap,
-    null_get_design_glyph_metrics,
-};
-
-static NTSTATUS init_freetype_lib(HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out)
-{
-    *(const struct font_backend_funcs **)ptr_out = &null_funcs;
-    return STATUS_DLL_NOT_FOUND;
-}
-
-static NTSTATUS release_freetype_lib(void)
-{
-    return STATUS_DLL_NOT_FOUND;
-}
-
-#endif /* HAVE_FREETYPE */
 
 NTSTATUS CDECL __wine_init_unix_lib(HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out)
 {
