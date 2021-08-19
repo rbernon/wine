@@ -1753,9 +1753,9 @@ static void unmap_font_file( struct font_mapping *mapping )
 static LONG load_VDMX(struct gdi_font *font, LONG height);
 
 /*************************************************************
- * freetype_destroy_font
+ * freetype_unmap_font
  */
-static void CDECL freetype_destroy_font( struct gdi_font *font )
+static void CDECL freetype_unmap_font( struct gdi_font *font )
 {
     struct font_private_data *data = font->private;
 
@@ -3999,7 +3999,7 @@ static const struct font_backend_funcs font_funcs =
     freetype_set_outline_text_metrics,
     freetype_set_bitmap_text_metrics,
     freetype_get_kerning_pairs,
-    freetype_destroy_font
+    freetype_unmap_font
 };
 
 static NTSTATUS init_freetype_lib( HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out )

@@ -2025,7 +2025,7 @@ static void free_gdi_font( struct gdi_font *font )
     DWORD i;
     struct gdi_font *child, *child_next;
 
-    if (font->private) font_funcs->destroy_font( font );
+    if (font->private) font_funcs->unmap_font( font );
     free_font_handle( font->handle );
     LIST_FOR_EACH_ENTRY_SAFE( child, child_next, &font->child_fonts, struct gdi_font, entry )
     {

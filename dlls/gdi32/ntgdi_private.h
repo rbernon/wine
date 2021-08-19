@@ -327,7 +327,7 @@ struct font_backend_funcs
     BOOL  (CDECL *set_outline_text_metrics)( struct gdi_font *font );
     BOOL  (CDECL *set_bitmap_text_metrics)( struct gdi_font *font );
     DWORD (CDECL *get_kerning_pairs)( struct gdi_font *gdi_font, KERNINGPAIR **kern_pair );
-    void  (CDECL *destroy_font)( struct gdi_font *font );
+    void  (CDECL *unmap_font)( struct gdi_font *font );
 };
 
 struct font_callback_funcs
