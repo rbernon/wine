@@ -1,8 +1,8 @@
 EXTRADEFS = -D_GDI32_
 MODULE    = gdi32.dll
 IMPORTLIB = gdi32
-IMPORTS   = advapi32
-EXTRAINCL = $(FREETYPE_CFLAGS) $(FONTCONFIG_CFLAGS)
+IMPORTS   = advapi32 winezlib
+EXTRAINCL = -I$(ZLIB_SRCDIR) $(FREETYPE_CFLAGS) $(FONTCONFIG_CFLAGS)
 EXTRALIBS = $(CARBON_LIBS) $(APPKIT_LIBS)
 DELAYIMPORTS = setupapi
 
@@ -28,7 +28,6 @@ C_SRCS = \
 	gdidc.c \
 	gdiobj.c \
 	icm.c \
-	inflate.c \
 	mapping.c \
 	metadc.c \
 	metafile.c \

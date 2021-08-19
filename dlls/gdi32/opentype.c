@@ -17,6 +17,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#include "zlib.h"
+
 #include <stdarg.h>
 #include <stdlib.h>
 
@@ -27,8 +29,6 @@
 #include "wine/debug.h"
 
 #include "ntgdi_private.h"
-
-#include "zlib.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(font);
 
@@ -956,41 +956,13 @@ struct woff_table_entry
     UINT32 orig_check_sum;
 };
 
-static void *zalloc( void *priv, uInt count, uInt size )
-{
-    return RtlAllocateHeap( GetProcessHeap(), 0, count * size );
-}
-
-static void zfree( void *priv, void *addr )
-{
-    RtlFreeHeap( GetProcessHeap(), 0, addr );
-}
-
-static BOOL woff_uncompress( void *dst, UINT32 dst_len, const void *src, UINT32 src_len )
-{
-    z_stream stream = {0};
-    int err;
-
-    stream.zalloc = zalloc;
-    stream.zfree = zfree;
-    stream.next_in = src;
-    stream.avail_in = src_len;
-    stream.next_out = dst;
-    stream.avail_out = dst_len;
-    if (inflateInit(&stream) != Z_OK) return FALSE;
-    err = inflate(&stream, Z_NO_FLUSH);
-    inflateEnd(&stream);
-
-    if (err != Z_STREAM_END) return FALSE;
-    return TRUE;
-}
-
 static BOOL woff_find_table_ptr( const void *data, size_t size, const struct woff_header *woff_header,
                                  UINT32 table_tag, const void **table_ptr, UINT32 *table_size )
 {
     const struct woff_table_entry *table_entry;
-    UINT32 offset, length, comp_length;
+    UINT32 offset, comp_length;
     UINT16 i, table_count;
+    uLongf length;
 
     if (!woff_header) return FALSE;
 
@@ -1011,7 +983,7 @@ static BOOL woff_find_table_ptr( const void *data, size_t size, const struct wof
             if (length == comp_length)
                 *table_ptr = (const char *)data + offset;
             else if (table_size && *table_size == length && *table_ptr)
-                woff_uncompress( *(void **)table_ptr, length, (const char *)data + offset, comp_length );
+                uncompress( *(void **)table_ptr, &length, (const unsigned char *)data + offset, comp_length );
             else
                 *table_ptr = NULL;
         }
