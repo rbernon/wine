@@ -1,7 +1,8 @@
 MODULE    = mp3dmod.dll
-IMPORTS   = dmoguids msdmo ole32 uuid wmcodecdspuuid
-EXTRAINCL = $(MPG123_CFLAGS)
-EXTRALIBS = $(MPG123_LIBS)
+IMPORTS   = winempg123 kernelbase dmoguids msdmo ole32 uuid wmcodecdspuuid
+EXTRAINCL = -I$(MPG123_SRCDIR)/src/libmpg123
+
+EXTRADLLFLAGS = -mno-cygwin
 
 EXTRADLLFLAGS = -mcygwin
 

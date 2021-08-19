@@ -20,7 +20,13 @@
 
 #include <stdarg.h>
 #include <stdio.h>
-#include <mpg123.h>
+#include <stdlib.h>
+#include <sys/types.h>
+
+typedef ssize_t mpg123_ssize_t;
+#define MPG123_NO_CONFIGURE
+#include "mpg123.h.in"
+
 #include "windef.h"
 #include "winbase.h"
 #include "wingdi.h"
@@ -513,7 +519,7 @@ static HRESULT WINAPI MediaObject_ProcessOutput(IMediaObject *iface, DWORD flags
         else if (err != MPG123_OK)
             ERR("mpg123_read() returned %d\n", err);
         if (written < framesize)
-            ERR("short write: %zd/%u\n", written, framesize);
+            ERR("short write: %I64d/%u\n", (INT64)written, framesize);
 
         got_data = 1;
 

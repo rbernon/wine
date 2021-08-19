@@ -389,6 +389,7 @@ fi
 if test "x$enable_winempg123" = "xno"
 then
   enable_l3codeca_acm=${enable_l3codeca_acm:-no}
+  enable_mp3dmod=${enable_mp3dmod:-no}
 fi
 
 if test "x$enable_winepng" = "xno"
@@ -2006,23 +2007,6 @@ then
 fi
 WINE_NOTICE_WITH(tiff,[test "x$ac_cv_lib_soname_tiff" = "x"],
                  [libtiff ${notice_platform}development files not found, TIFF won't be supported.])
-
-dnl **** Check for mpg123 ****
-if test "x$with_mpg123" != "xno"
-then
-    WINE_PACKAGE_FLAGS(MPG123,[libmpg123],[-lmpg123],,,
-        [AC_CHECK_HEADERS([mpg123.h])
-        if test "$ac_cv_header_mpg123_h" = "yes"
-        then
-            AC_CHECK_LIB(mpg123,mpg123_feed,[:],[MPG123_LIBS=""],[$MPG123_LIBS])
-        else
-            MPG123_CFLAGS=""
-            MPG123_LIBS=""
-        fi])
-fi
-WINE_NOTICE_WITH(mpg123,[test "x$ac_cv_lib_mpg123_mpg123_feed" != xyes],
-                 [libmpg123 ${notice_platform}development files not found (or too old), mp3 codec won't be supported.])
-test "x$ac_cv_lib_mpg123_mpg123_feed" = xyes || enable_mp3dmod=${enable_mp3dmod:-no}
 
 dnl **** Check for OpenAL 1.1 ****
 if test "$ac_cv_header_AL_al_h" = "yes"
