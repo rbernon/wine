@@ -404,6 +404,11 @@ then
   enable_wininet=${enable_wininet:-no}
 fi
 
+if test "x$enable_winegsm" = "xno"
+then
+  enable_msgsm32_acm=${enable_msgsm32_acm:-no}
+fi
+
 if test "x$enable_winempg123" = "xno"
 then
   enable_l3codeca_acm=${enable_l3codeca_acm:-no}

@@ -1,5 +1,8 @@
 MODULE    = msgsm32.acm
-IMPORTS   = winmm user32
+IMPORTS   = winegsm winmm user32
+EXTRAINCL = -I$(LIBGSM_SRCDIR)/inc
+
+EXTRADLLFLAGS = -mno-cygwin
 
 EXTRADLLFLAGS = -mcygwin
 
