@@ -911,12 +911,20 @@ static struct file *add_file( const char *name )
  */
 static void add_dependency( struct file *file, const char *name, enum incl_type type )
 {
+    unsigned int i, is_external = 0;
+
     /* enforce some rules for the Wine tree */
 
     if (!memcmp( name, "../", 3 ))
         fatal_error( "#include directive with relative path not allowed\n" );
 
-    if (!strcmp( name, "config.h" ))
+    for (i = 0; i < ext_src_dirs.count; i++)
+    {
+        const char *path = ext_src_dirs.str[i];
+        if ((is_external = strncmp( path, file->name, strlen( path ) ))) break;
+    }
+
+    if (!strcmp( name, "config.h" ) && !is_external)
     {
         if (strendswith( file->name, ".h" ))
             fatal_error( "config.h must not be included by a header file\n" );
