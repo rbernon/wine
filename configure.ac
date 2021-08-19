@@ -244,6 +244,24 @@ then
 fi
 
 AC_SUBST(EXTSRCDIRS,"")
+AC_SUBST(FAUDIO_SRCDIR,"")
+
+AC_CACHE_CHECK([for the directory containing FAudio sources], wine_cv_faudio_srcdir,
+  [wine_cv_faudio_srcdir="$with_faudio"
+   if test -z "$with_faudio"; then
+     WINE_WARNING([FAudio sources not provided, some modules will not be built.])
+   elif test "x$with_faudio" = "xno"; then
+     wine_cv_faudio_srcdir=""
+   elif test ! -f "$with_faudio/src/FAudio.c"; then
+     AC_MSG_ERROR([could not find FAudio sources in $wine_cv_faudio_srcdir])
+     wine_cv_faudio_srcdir=""
+   fi])
+if test -z "$wine_cv_faudio_srcdir"; then
+  enable_winefaudio=${enable_winefaudio:-no}
+else
+  EXTSRCDIRS="$EXTSRCDIRS $wine_cv_faudio_srcdir"
+  AC_SUBST(FAUDIO_SRCDIR,$wine_cv_faudio_srcdir)
+fi
 
 AC_CACHE_CHECK([for the directory containing the Wine tools], wine_cv_toolsdir,
   [wine_cv_toolsdir="$with_wine_tools"
@@ -3888,6 +3906,7 @@ WINE_CONFIG_MAKEFILE(dlls/xmllite/tests)
 WINE_CONFIG_MAKEFILE(dlls/xolehlp)
 WINE_CONFIG_MAKEFILE(dlls/xpsprint)
 WINE_CONFIG_MAKEFILE(dlls/xpssvcs)
+WINE_CONFIG_MAKEFILE(external/winefaudio)
 WINE_CONFIG_MAKEFILE(fonts)
 WINE_CONFIG_MAKEFILE(include)
 WINE_CONFIG_MAKEFILE(libs/port)
