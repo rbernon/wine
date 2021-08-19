@@ -211,6 +211,7 @@ struct makefile
     int             native_unix_lib;
     int             disabled;
     int             use_msvcrt;
+    int             is_external;
     int             is_cross;
     int             is_win16;
     int             is_exe;
@@ -4286,6 +4287,7 @@ static void load_sources( struct makefile *make )
 
     if (make->module && strendswith( make->module, ".a" )) make->staticlib = make->module;
 
+    make->is_external = make->src_dir && !strncmp( make->src_dir + strlen( root_src_dir ), "/external/", 6 );
     make->disabled   = make->obj_dir && strarray_exists( &disabled_dirs, make->obj_dir );
     make->is_win16   = strarray_exists( &make->extradllflags, "-m16" );
     make->use_msvcrt = (make->module || make->testdll || make->is_win16) &&
