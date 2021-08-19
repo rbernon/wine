@@ -2464,7 +2464,7 @@ static struct strarray get_source_defines( struct makefile *make, struct incl_fi
 
     strarray_addall( &ret, make->include_args );
     if (source->use_msvcrt)
-        strarray_add( &ret, strmake( "-I%s", root_src_dir_path( "include/msvcrt" )));
+        strarray_add( &ret, strmake( make->is_external ? "-isystem %s" : "-I%s", root_src_dir_path( "include/msvcrt" )));
     for (i = 0; i < make->include_paths.count; i++)
         strarray_add( &ret, strmake( "-I%s", make->include_paths.str[i] ));
     strarray_addall( &ret, make->define_args );
@@ -4324,8 +4324,9 @@ static void load_sources( struct makefile *make )
         strarray_add( &make->include_args, strmake( "-I%s", make->src_dir ));
     if (make->parent_dir)
         strarray_add( &make->include_args, strmake( "-I%s", src_dir_path( make, make->parent_dir )));
-    strarray_add( &make->include_args, "-Iinclude" );
-    if (root_src_dir) strarray_add( &make->include_args, strmake( "-I%s", root_src_dir_path( "include" )));
+    strarray_add( &make->include_args, make->is_external ? "-isystem include" : "-Iinclude" );
+    if (root_src_dir)
+        strarray_add( &make->include_args, strmake( make->is_external ? "-isystem %s" : "-I%s", root_src_dir_path( "include" )));
 
     list_init( &make->sources );
     list_init( &make->includes );
