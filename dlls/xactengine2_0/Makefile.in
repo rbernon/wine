@@ -1,9 +1,9 @@
 MODULE    = xactengine2_0.dll
-IMPORTS   = ole32 uuid
+IMPORTS   = winefaudio mfplat mfreadwrite mfuuid uuid propsys ole32
 EXTRADEFS = -DXACT3_VER=0x0200
 PARENTSRC = ../xactengine3_7
-EXTRALIBS = $(FAUDIO_LIBS)
-EXTRAINCL = $(FAUDIO_CFLAGS)
+EXTRAINCL = -I$(FAUDIO_SRCDIR)/include
+EXTRADLLFLAGS = -mno-cygwin
 
 EXTRADLLFLAGS = -mcygwin
 
