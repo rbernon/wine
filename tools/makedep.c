@@ -915,14 +915,14 @@ static void add_dependency( struct file *file, const char *name, enum incl_type 
 
     /* enforce some rules for the Wine tree */
 
-    if (!memcmp( name, "../", 3 ))
-        fatal_error( "#include directive with relative path not allowed\n" );
-
     for (i = 0; i < ext_src_dirs.count; i++)
     {
         const char *path = ext_src_dirs.str[i];
         if ((is_external = strncmp( path, file->name, strlen( path ) ))) break;
     }
+
+    if (!memcmp( name, "../", 3 ) && !is_external)
+        fatal_error( "#include directive with relative path not allowed\n" );
 
     if (!strcmp( name, "config.h" ) && !is_external)
     {
