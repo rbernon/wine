@@ -556,7 +556,7 @@ static BOOL CURSORICON_GetResIconEntry( LPCVOID dir, DWORD size, int n,
     *width = icon->bWidth;
     *height = icon->bHeight;
     *bits = resdir->idEntries[n].wBitCount;
-    if (!*width && !*height && png_funcs) *width = *height = 256;
+    if (!*width && !*height) *width = *height = 256;
     return TRUE;
 }
 
@@ -687,12 +687,7 @@ static BOOL CURSORICON_GetFileEntry( LPCVOID dir, DWORD size, int n,
     if (entry->dwDIBOffset > size - sizeof(info->biSize)) return FALSE;
     info = (const BITMAPINFOHEADER *)((const char *)dir + entry->dwDIBOffset);
 
-    if (info->biSize == PNG_SIGN)
-    {
-        if (png_funcs) return png_funcs->get_png_info(info, size, width, height, bits);
-        *width = *height = *bits = 0;
-        return TRUE;
-    }
+    if (info->biSize == PNG_SIGN) return get_png_info(info, size, width, height, bits);
 
     if (info->biSize != sizeof(BITMAPCOREHEADER))
     {
@@ -842,9 +837,7 @@ static HICON create_icon_from_bmi( const BITMAPINFO *bmi, DWORD maxsize, HMODULE
     if (bmi->bmiHeader.biSize == PNG_SIGN)
     {
         BITMAPINFO *bmi_png;
-
-        if (!png_funcs) return 0;
-        bmi_png = png_funcs->load_png( (const char *)bmi, &maxsize );
+        bmi_png = load_png( (const char *)bmi, &maxsize );
         if (bmi_png)
         {
             hObj = create_icon_from_bmi( bmi_png, maxsize, module, resname,

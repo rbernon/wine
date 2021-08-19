@@ -19,6 +19,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+/* include the prebuilt pnglibconf.h from external sources */
+#include "scripts/pnglibconf.h.prebuilt"
 #include "png.h"
 
 #include <assert.h>
@@ -94,7 +96,7 @@ static unsigned be_uint(unsigned val)
     return (u.c[0] << 24) | (u.c[1] << 16) | (u.c[2] << 8) | u.c[3];
 }
 
-static BOOL CDECL get_png_info(const void *png_data, DWORD size, int *width, int *height, int *bpp)
+BOOL get_png_info(const void *png_data, DWORD size, int *width, int *height, int *bpp)
 {
     static const char png_sig[8] = { 0x89,'P','N','G',0x0d,0x0a,0x1a,0x0a };
     static const char png_IHDR[8] = { 0,0,0,0x0d,'I','H','D','R' };
@@ -117,7 +119,7 @@ static BOOL CDECL get_png_info(const void *png_data, DWORD size, int *width, int
     return TRUE;
 }
 
-static BITMAPINFO * CDECL load_png(const char *png_data, DWORD *size)
+BITMAPINFO *load_png(const char *png_data, DWORD *size)
 {
     struct png_wrapper png;
     png_structp png_ptr;
@@ -257,18 +259,4 @@ static BITMAPINFO * CDECL load_png(const char *png_data, DWORD *size)
 
     *size = sizeof(BITMAPINFOHEADER) + image_size + mask_size;
     return info;
-}
-
-static const struct png_funcs funcs =
-{
-    get_png_info,
-    load_png
-};
-
-NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out )
-{
-    if (reason != DLL_PROCESS_ATTACH) return STATUS_SUCCESS;
-
-    *(const struct png_funcs **)ptr_out = &funcs;
-    return STATUS_SUCCESS;
 }
