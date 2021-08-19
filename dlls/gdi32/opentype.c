@@ -17,10 +17,6 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#if 0
-#pragma makedep unix
-#endif
-
 #include <stdarg.h>
 #include <stdlib.h>
 
@@ -1074,8 +1070,8 @@ BOOL woff_get_header( const void *data, size_t size, DWORD index, DWORD *count,
 
     if (GET_BE_DWORD( tmp->length ) > size)
     {
-        WARN( "truncated font file, header length %u, file length %zu\n",
-              GET_BE_DWORD( tmp->length ), size );
+        WARN( "truncated font file, header length %u, file length %u\n",
+              GET_BE_DWORD( tmp->length ), (UINT32)size );
         return FALSE;
     }
 

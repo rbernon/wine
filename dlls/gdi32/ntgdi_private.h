@@ -331,11 +331,8 @@ struct font_backend_funcs
 
 struct font_callback_funcs
 {
-    int (CDECL *add_gdi_face)( const WCHAR *family_name, const WCHAR *second_name,
-                               const WCHAR *style, const WCHAR *fullname, const WCHAR *file,
-                               void *data_ptr, SIZE_T data_size, UINT index, FONTSIGNATURE fs,
-                               DWORD ntmflags, DWORD version, DWORD flags,
-                               const struct bitmap_font_size *size );
+    int (CDECL *parse_gdi_face)( const WCHAR *file, void *data_ptr, SIZE_T data_size, UINT face_index, DWORD flags,
+                                 UINT *num_faces );
 };
 
 extern void font_init(void) DECLSPEC_HIDDEN;

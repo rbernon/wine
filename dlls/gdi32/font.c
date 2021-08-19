@@ -42,6 +42,8 @@ WINE_DEFAULT_DEBUG_CHANNEL(font);
 static HKEY wine_fonts_key;
 static HKEY wine_fonts_cache_key;
 
+static LCID system_lcid;
+
 struct font_physdev
 {
     struct gdi_physdev dev;
@@ -1019,6 +1021,279 @@ static int CDECL add_gdi_face( const WCHAR *family_name, const WCHAR *second_nam
         release_family( family );
         ret++;
     }
+    return ret;
+}
+
+struct family_names_data
+{
+    LANGID primary_langid;
+    struct opentype_name family_name;
+    struct opentype_name second_name;
+    BOOL primary_seen;
+    BOOL english_seen;
+};
+
+static BOOL search_family_names_callback( LANGID langid, struct opentype_name *name, void *user )
+{
+    struct family_names_data *data = user;
+
+    if (langid == MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT))
+    {
+        data->english_seen = TRUE;
+        if (data->primary_langid == langid) data->primary_seen = TRUE;
+
+        if (!data->family_name.bytes) data->family_name = *name;
+        else if (data->primary_langid != langid) data->second_name = *name;
+    }
+    else if (data->primary_langid == langid)
+    {
+        data->primary_seen = TRUE;
+        if (!data->second_name.bytes) data->second_name = data->family_name;
+        data->family_name = *name;
+    }
+    else if (!data->second_name.bytes) data->second_name = *name;
+
+    if (data->family_name.bytes && data->second_name.bytes && data->primary_seen && data->english_seen)
+        return TRUE;
+    return FALSE;
+}
+
+struct face_name_data
+{
+    LANGID primary_langid;
+    struct opentype_name face_name;
+};
+
+static BOOL search_face_name_callback( LANGID langid, struct opentype_name *name, void *user )
+{
+    struct face_name_data *data = user;
+
+    if (langid == data->primary_langid || (langid == MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT) && !data->face_name.bytes))
+        data->face_name = *name;
+
+    return langid == data->primary_langid;
+}
+
+static CPTABLEINFO *get_cptable( WORD cp )
+{
+    static CPTABLEINFO tables[100];
+    unsigned int i;
+    USHORT *ptr;
+    SIZE_T size;
+
+    for (i = 0; i < ARRAY_SIZE(tables) && tables[i].CodePage; i++)
+        if (tables[i].CodePage == cp) return &tables[i];
+    if (NtGetNlsSectionPtr( 11, cp, NULL, (void **)&ptr, &size )) return NULL;
+    if (i == ARRAY_SIZE(tables)) ERR( "too many code pages\n" );
+    RtlInitCodePageTable( ptr, &tables[i] );
+    return &tables[i];
+}
+
+static WCHAR *decode_opentype_name( struct opentype_name *name )
+{
+    WCHAR buffer[512];
+    DWORD len;
+
+    if (!name->codepage)
+    {
+        len = min( ARRAY_SIZE(buffer), name->length / sizeof(WCHAR) );
+        while (len--) buffer[len] = GET_BE_WORD( ((WORD *)name->bytes)[len] );
+        len = min( ARRAY_SIZE(buffer), name->length / sizeof(WCHAR) );
+    }
+    else
+    {
+        CPTABLEINFO *cptable = get_cptable( name->codepage );
+        if (!cptable) return NULL;
+        RtlCustomCPToUnicodeN( cptable, buffer, sizeof(buffer), &len, name->bytes, name->length );
+        len /= sizeof(WCHAR);
+    }
+
+    buffer[ARRAY_SIZE(buffer) - 1] = 0;
+    if (len == ARRAY_SIZE(buffer)) WARN("Truncated font name %s -> %s\n", debugstr_an(name->bytes, name->length), debugstr_w(buffer));
+    else buffer[len] = 0;
+
+    return strdupW( buffer );
+}
+
+struct face_info
+{
+    BOOL scalable;
+    UINT num_faces;
+    WCHAR *family_name;
+    WCHAR *second_name;
+    WCHAR *style_name;
+    WCHAR *full_name;
+    DWORD ntm_flags;
+    DWORD font_version;
+    FONTSIGNATURE fs;
+    struct bitmap_font_size size;
+};
+
+static int CDECL parse_gdi_face( const WCHAR *file, void *data_ptr, SIZE_T data_size, UINT face_index, DWORD flags,
+                                 UINT *num_faces )
+{
+    static const WCHAR space_w[] = {' ',0};
+
+    const struct woff_header *woff_header;
+    const struct ttc_sfnt_v1 *ttc_sfnt_v1;
+    const struct tt_name_v0 *tt_name_v0;
+    const char *family_name_a = NULL, *style_name_a = NULL;
+    DWORD face_count, needed;
+    WORD width, height, points, ppem, in_leading;
+    struct face_info info;
+    int length, ret = 0;
+
+    if (opentype_get_ttc_sfnt_v1( data_ptr, data_size, face_index, &face_count, &ttc_sfnt_v1 ) &&
+        opentype_get_tt_name_v0( data_ptr, data_size, ttc_sfnt_v1, &tt_name_v0 ) &&
+        opentype_get_properties( data_ptr, data_size, ttc_sfnt_v1, &info.font_version,
+                                 &info.fs, &info.ntm_flags ))
+    {
+        struct family_names_data family_names;
+        struct face_name_data style_name;
+        struct face_name_data full_name;
+        LANGID primary_langid = system_lcid;
+
+        info.scalable = TRUE;
+        info.num_faces = face_count;
+
+        memset( &family_names, 0, sizeof(family_names) );
+        family_names.primary_langid = primary_langid;
+        opentype_enum_family_names( tt_name_v0, search_family_names_callback, &family_names );
+        info.family_name = decode_opentype_name( &family_names.family_name );
+        info.second_name = decode_opentype_name( &family_names.second_name );
+
+        memset( &style_name, 0, sizeof(style_name) );
+        style_name.primary_langid = primary_langid;
+        opentype_enum_style_names( tt_name_v0, search_face_name_callback, &style_name );
+        info.style_name = decode_opentype_name( &style_name.face_name );
+
+        memset( &full_name, 0, sizeof(full_name) );
+        full_name.primary_langid = primary_langid;
+        opentype_enum_full_names( tt_name_v0, search_face_name_callback, &full_name );
+        info.full_name = decode_opentype_name( &full_name.face_name );
+
+        TRACE( "parsed font names family_name %s, second_name %s, primary_seen %d, english_seen %d, "
+               "full_name %s, style_name %s\n",
+               debugstr_w(info.family_name), debugstr_w(info.second_name),
+               family_names.primary_seen, family_names.english_seen,
+               debugstr_w(info.full_name), debugstr_w(info.style_name) );
+
+        if (!info.full_name && info.family_name && info.style_name)
+        {
+            length = lstrlenW( info.family_name ) + lstrlenW( space_w ) + lstrlenW( info.style_name ) + 1;
+            info.full_name = RtlAllocateHeap( GetProcessHeap(), 0, length * sizeof(WCHAR) );
+            lstrcpyW( info.full_name, info.family_name );
+            lstrcatW( info.full_name, space_w );
+            lstrcatW( info.full_name, info.style_name );
+            WARN( "full name not found, using %s instead\n", debugstr_w(info.full_name) );
+        }
+    }
+    else if (woff_get_header( data_ptr, data_size, face_index, &face_count, &woff_header ) &&
+             woff_get_properties( data_ptr, data_size, woff_header, &info.font_version,
+                                  &info.fs, &info.ntm_flags ) &&
+             woff_get_tt_name_v0( data_ptr, data_size, woff_header, &tt_name_v0 ))
+    {
+        struct family_names_data family_names;
+        struct face_name_data style_name;
+        struct face_name_data full_name;
+        LANGID primary_langid = system_lcid;
+
+        info.scalable = TRUE;
+        info.num_faces = face_count;
+
+        memset( &family_names, 0, sizeof(family_names) );
+        family_names.primary_langid = primary_langid;
+        opentype_enum_family_names( tt_name_v0, search_family_names_callback, &family_names );
+        info.family_name = decode_opentype_name( &family_names.family_name );
+        info.second_name = decode_opentype_name( &family_names.second_name );
+
+        memset( &style_name, 0, sizeof(style_name) );
+        style_name.primary_langid = primary_langid;
+        opentype_enum_style_names( tt_name_v0, search_face_name_callback, &style_name );
+        info.style_name = decode_opentype_name( &style_name.face_name );
+
+        memset( &full_name, 0, sizeof(full_name) );
+        full_name.primary_langid = primary_langid;
+        opentype_enum_full_names( tt_name_v0, search_face_name_callback, &full_name );
+        info.full_name = decode_opentype_name( &full_name.face_name );
+
+        TRACE( "parsed font names family_name %s, second_name %s, primary_seen %d, english_seen %d, "
+               "full_name %s, style_name %s\n",
+               debugstr_w(info.family_name), debugstr_w(info.second_name),
+               family_names.primary_seen, family_names.english_seen,
+               debugstr_w(info.full_name), debugstr_w(info.style_name) );
+
+        if (!info.full_name && info.family_name && info.style_name)
+        {
+            length = lstrlenW( info.family_name ) + lstrlenW( space_w ) + lstrlenW( info.style_name ) + 1;
+            info.full_name = RtlAllocateHeap( GetProcessHeap(), 0, length * sizeof(WCHAR) );
+            lstrcpyW( info.full_name, info.family_name );
+            lstrcatW( info.full_name, space_w );
+            lstrcatW( info.full_name, info.style_name );
+            WARN( "full name not found, using %s instead\n", debugstr_w(info.full_name) );
+        }
+
+        woff_free_table_ptr( data_ptr, data_size, tt_name_v0 );
+    }
+    else if ((flags & ADDFONT_ALLOW_BITMAP) &&
+             winfnt_parse_font_face( data_ptr, data_size, face_index, &face_count,
+                                     &family_name_a, &style_name_a, &info.fs, &info.ntm_flags,
+                                     &width, &height, &points, &ppem, &in_leading ))
+    {
+        info.scalable = FALSE;
+        info.num_faces = face_count;
+        info.font_version = 0;
+
+        length = strlen( family_name_a ) + 1;
+        RtlMultiByteToUnicodeSize( &needed, family_name_a, length );
+        info.family_name = RtlAllocateHeap( GetProcessHeap(), 0, needed );
+        RtlMultiByteToUnicodeN( info.family_name, needed, &needed, family_name_a, length );
+
+        info.second_name = NULL;
+
+        length = strlen( style_name_a ) + 1;
+        RtlMultiByteToUnicodeSize( &needed, style_name_a, length );
+        info.style_name = RtlAllocateHeap( GetProcessHeap(), 0, needed );
+        RtlMultiByteToUnicodeN( info.style_name, needed, &needed, style_name_a, length );
+
+        TRACE( "parsed font names family_name %s, style_name %s\n", debugstr_w(info.family_name), debugstr_w(info.style_name) );
+
+        length = lstrlenW( info.family_name ) + lstrlenW( space_w ) + lstrlenW( info.style_name ) + 1;
+        info.full_name = RtlAllocateHeap( GetProcessHeap(), 0, length * sizeof(WCHAR) );
+        lstrcpyW( info.full_name, info.family_name );
+        lstrcatW( info.full_name, space_w );
+        lstrcatW( info.full_name, info.style_name );
+
+        info.size.height = height;
+        info.size.width = width;
+        info.size.size = points * 64;
+        info.size.y_ppem = ppem;
+        info.size.x_ppem = ppem;
+        info.size.internal_leading = in_leading;
+    }
+    else
+    {
+        return 0;
+    }
+
+    if (info.family_name[0] == '.') /* Ignore fonts with names beginning with a dot */
+        TRACE("Ignoring %s since its family name begins with a dot\n", debugstr_w(file));
+    else
+    {
+        ret = add_gdi_face( info.family_name, info.second_name, info.style_name, info.full_name,
+                            file, data_ptr, data_size, face_index, info.fs, info.ntm_flags,
+                            info.font_version, flags, info.scalable ? NULL : &info.size );
+
+        TRACE("fsCsb = %08x %08x/%08x %08x %08x %08x\n", info.fs.fsCsb[0], info.fs.fsCsb[1],
+              info.fs.fsUsb[0], info.fs.fsUsb[1], info.fs.fsUsb[2], info.fs.fsUsb[3]);
+
+        if (num_faces) *num_faces = info.num_faces;
+    }
+
+    RtlFreeHeap( GetProcessHeap(), 0, info.full_name );
+    RtlFreeHeap( GetProcessHeap(), 0, info.style_name );
+    RtlFreeHeap( GetProcessHeap(), 0, info.second_name );
+    RtlFreeHeap( GetProcessHeap(), 0, info.family_name );
     return ret;
 }
 
@@ -5864,7 +6139,7 @@ static void load_registry_fonts(void)
     RegCloseKey( hkey );
 }
 
-static const struct font_callback_funcs callback_funcs = { add_gdi_face };
+static const struct font_callback_funcs callback_funcs = { parse_gdi_face };
 
 /***********************************************************************
  *              font_init
@@ -5884,6 +6159,7 @@ void font_init(void)
                          KEY_ALL_ACCESS, NULL, &wine_fonts_key, NULL ))
         return;
 
+    system_lcid = GetSystemDefaultLCID();
     init_font_options();
     update_codepage();
     if (__wine_init_unix_lib( gdi32_module, DLL_PROCESS_ATTACH, &callback_funcs, &font_funcs )) return;
