@@ -52,12 +52,10 @@ typedef struct
     FT_Int patch;
 } FT_Version_t;
 
-static const struct font_callback_funcs *callback_funcs;
-
 static void face_finalizer(void *object)
 {
     FT_Face face = object;
-    callback_funcs->release_font_data((struct font_data_context *)face->generic.data);
+    freetype_release_font_data((struct font_data_context *)face->generic.data);
 }
 
 static FT_Error face_requester(FTC_FaceID face_id, FT_Library library, FT_Pointer request_data, FT_Face *face)
@@ -76,7 +74,7 @@ static FT_Error face_requester(FTC_FaceID face_id, FT_Library library, FT_Pointe
         return FT_Err_Ok;
     }
 
-    if (callback_funcs->get_font_data(face_id, &data_ptr, &data_size, &index, &context))
+    if (freetype_get_font_data(face_id, &data_ptr, &data_size, &index, &context))
         return FT_Err_Ok;
 
     fterror = FT_New_Memory_Face(library, data_ptr, data_size, index, face);
@@ -86,18 +84,18 @@ static FT_Error face_requester(FTC_FaceID face_id, FT_Library library, FT_Pointe
         (*face)->generic.finalizer = face_finalizer;
     }
     else
-        callback_funcs->release_font_data(context);
+        freetype_release_font_data(context);
 
     return fterror;
 }
 
-static BOOL init_freetype(void)
+void init_font_backend(void)
 {
     FT_Version_t FT_Version;
 
     if (FT_Init_FreeType(&library) != 0) {
         ERR("Can't init FreeType library\n");
-	   return FALSE;
+	   return;
     }
     FT_Library_Version(library, &FT_Version.major, &FT_Version.minor, &FT_Version.patch);
 
@@ -108,21 +106,20 @@ static BOOL init_freetype(void)
         ERR("Failed to init FreeType cache\n");
         FTC_Manager_Done(cache_manager);
         FT_Done_FreeType(library);
-        return FALSE;
+        return;
     }
 
     TRACE("FreeType version is %d.%d.%d\n", FT_Version.major, FT_Version.minor, FT_Version.patch);
-    return TRUE;
 }
 
-static void CDECL freetype_notify_release(void *key)
+void freetype_notify_release(void *key)
 {
     RtlEnterCriticalSection(&freetype_cs);
     FTC_Manager_RemoveFaceID(cache_manager, key);
     RtlLeaveCriticalSection(&freetype_cs);
 }
 
-static void CDECL freetype_get_design_glyph_metrics(void *key, UINT16 upem, UINT16 ascent,
+void freetype_get_design_glyph_metrics(void *key, UINT16 upem, UINT16 ascent,
         unsigned int simulations, UINT16 glyph, DWRITE_GLYPH_METRICS *ret)
 {
     FTC_ScalerRec scaler;
@@ -368,7 +365,7 @@ static void embolden_glyph(FT_Glyph glyph, FLOAT emsize)
     embolden_glyph_outline(&outline_glyph->outline, emsize);
 }
 
-static int CDECL freetype_get_glyph_outline(void *key, float emSize, unsigned int simulations,
+int freetype_get_glyph_outline(void *key, float emSize, unsigned int simulations,
         UINT16 glyph, struct dwrite_outline *outline)
 {
     FTC_ScalerRec scaler;
@@ -408,7 +405,7 @@ static int CDECL freetype_get_glyph_outline(void *key, float emSize, unsigned in
     return ret;
 }
 
-static UINT16 CDECL freetype_get_glyph_count(void *key)
+UINT16 freetype_get_glyph_count(void *key)
 {
     UINT16 count = 0;
     FT_Face face;
@@ -469,7 +466,7 @@ static BOOL get_glyph_transform(struct dwrite_glyphbitmap *bitmap, FT_Matrix *re
     return TRUE;
 }
 
-static void CDECL freetype_get_glyph_bbox(struct dwrite_glyphbitmap *bitmap)
+void freetype_get_glyph_bbox(struct dwrite_glyphbitmap *bitmap)
 {
     FTC_ImageTypeRec imagetype;
     FT_BBox bbox = { 0 };
@@ -601,7 +598,7 @@ static BOOL freetype_get_aa_glyph_bitmap(struct dwrite_glyphbitmap *bitmap, FT_G
     return ret;
 }
 
-static BOOL CDECL freetype_get_glyph_bitmap(struct dwrite_glyphbitmap *bitmap)
+BOOL freetype_get_glyph_bitmap(struct dwrite_glyphbitmap *bitmap)
 {
     FTC_ImageTypeRec imagetype;
     BOOL needs_transform;
@@ -648,7 +645,7 @@ static BOOL CDECL freetype_get_glyph_bitmap(struct dwrite_glyphbitmap *bitmap)
     return ret;
 }
 
-static INT32 CDECL freetype_get_glyph_advance(void *key, float emSize, UINT16 index,
+INT32 freetype_get_glyph_advance(void *key, float emSize, UINT16 index,
         DWRITE_MEASURING_MODE mode, BOOL *has_contours)
 {
     FTC_ImageTypeRec imagetype;
@@ -676,37 +673,8 @@ static INT32 CDECL freetype_get_glyph_advance(void *key, float emSize, UINT16 in
     return advance;
 }
 
-const static struct font_backend_funcs freetype_funcs =
-{
-    freetype_notify_release,
-    freetype_get_glyph_outline,
-    freetype_get_glyph_count,
-    freetype_get_glyph_advance,
-    freetype_get_glyph_bbox,
-    freetype_get_glyph_bitmap,
-    freetype_get_design_glyph_metrics,
-};
-
-static NTSTATUS init_freetype_lib(HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out)
-{
-    callback_funcs = ptr_in;
-    if (!init_freetype()) return STATUS_DLL_NOT_FOUND;
-    *(const struct font_backend_funcs **)ptr_out = &freetype_funcs;
-    return STATUS_SUCCESS;
-}
-
-static NTSTATUS release_freetype_lib(void)
+void release_font_backend(void)
 {
     FTC_Manager_Done(cache_manager);
     FT_Done_FreeType(library);
-    return STATUS_SUCCESS;
-}
-
-NTSTATUS CDECL __wine_init_unix_lib(HMODULE module, DWORD reason, const void *ptr_in, void *ptr_out)
-{
-    if (reason == DLL_PROCESS_ATTACH)
-        return init_freetype_lib(module, reason, ptr_in, ptr_out);
-    else if (reason == DLL_PROCESS_DETACH)
-        return release_freetype_lib();
-    return STATUS_SUCCESS;
 }

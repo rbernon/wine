@@ -722,26 +722,20 @@ extern HRESULT shape_check_typographic_feature(struct scriptshaping_context *con
 struct font_data_context;
 extern HMODULE dwrite_module DECLSPEC_HIDDEN;
 
-struct font_callback_funcs
-{
-    int (CDECL *get_font_data)(void *key, const void **data_ptr, UINT64 *data_size, unsigned int *index,
-            struct font_data_context **context);
-    void (CDECL *release_font_data)(struct font_data_context *context);
-};
+extern int freetype_get_font_data(void *key, const void **data_ptr, UINT64 *data_size, unsigned int *index,
+        struct font_data_context **context) DECLSPEC_HIDDEN;
+extern void freetype_release_font_data(struct font_data_context *context) DECLSPEC_HIDDEN;
 
-struct font_backend_funcs
-{
-    void (CDECL *notify_release)(void *key);
-    int (CDECL *get_glyph_outline)(void *key, float em_size, unsigned int simulations, UINT16 glyph,
-            struct dwrite_outline *outline);
-    UINT16 (CDECL *get_glyph_count)(void *key);
-    INT32 (CDECL *get_glyph_advance)(void *key, float em_size, UINT16 index, DWRITE_MEASURING_MODE measuring_mode,
-            BOOL *has_contours);
-    void (CDECL *get_glyph_bbox)(struct dwrite_glyphbitmap *bitmap_desc);
-    BOOL (CDECL *get_glyph_bitmap)(struct dwrite_glyphbitmap *bitmap_desc);
-    void (CDECL *get_design_glyph_metrics)(void *key, UINT16 upem, UINT16 ascent, unsigned int simulations,
-            UINT16 glyph, DWRITE_GLYPH_METRICS *metrics);
-};
+extern void freetype_notify_release(void *key) DECLSPEC_HIDDEN;
+extern int freetype_get_glyph_outline(void *key, float em_size, unsigned int simulations, UINT16 glyph,
+        struct dwrite_outline *outline) DECLSPEC_HIDDEN;
+extern UINT16 freetype_get_glyph_count(void *key) DECLSPEC_HIDDEN;
+extern INT32 freetype_get_glyph_advance(void *key, float em_size, UINT16 index, DWRITE_MEASURING_MODE measuring_mode,
+        BOOL *has_contours) DECLSPEC_HIDDEN;
+extern void freetype_get_glyph_bbox(struct dwrite_glyphbitmap *bitmap_desc) DECLSPEC_HIDDEN;
+extern BOOL freetype_get_glyph_bitmap(struct dwrite_glyphbitmap *bitmap_desc) DECLSPEC_HIDDEN;
+extern void freetype_get_design_glyph_metrics(void *key, UINT16 upem, UINT16 ascent, unsigned int simulations,
+        UINT16 glyph, DWRITE_GLYPH_METRICS *metrics) DECLSPEC_HIDDEN;
 
 extern void init_font_backend(void) DECLSPEC_HIDDEN;
 extern void release_font_backend(void) DECLSPEC_HIDDEN;
