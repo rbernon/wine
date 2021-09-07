@@ -37,6 +37,7 @@ AC_ARG_ENABLE(silent-rules, AS_HELP_STRING([--enable-silent-rules],[use silent b
 AC_ARG_ENABLE(werror, AS_HELP_STRING([--enable-werror],[treat compilation warnings as errors]))
 
 AC_ARG_WITH(alsa,      AS_HELP_STRING([--without-alsa],[do not use the Alsa sound support]))
+AC_ARG_WITH(brotli,    AS_HELP_STRING([--without-brotli],[do not use Brotli]))
 AC_ARG_WITH(capi,      AS_HELP_STRING([--without-capi],[do not use CAPI (ISDN support)]))
 AC_ARG_WITH(cms,       AS_HELP_STRING([--without-cms],[do not use CMS (color management support)]))
 AC_ARG_WITH(coreaudio, AS_HELP_STRING([--without-coreaudio],[do not use the CoreAudio sound support]),
@@ -244,12 +245,30 @@ then
 fi
 
 AC_SUBST(EXTSRCDIRS,"")
+AC_SUBST(BROTLI_SRCDIR,"")
 AC_SUBST(FAUDIO_SRCDIR,"")
 AC_SUBST(FREETYPE_SRCDIR,"")
 AC_SUBST(MPG123_SRCDIR,"")
 AC_SUBST(LIBGSM_SRCDIR,"")
 AC_SUBST(LIBPNG_SRCDIR,"")
 AC_SUBST(ZLIB_SRCDIR,"")
+
+AC_CACHE_CHECK([for the directory containing Brotli sources], wine_cv_brotli_srcdir,
+  [wine_cv_brotli_srcdir="$with_brotli"
+   if test -z "$with_brotli"; then
+     WINE_WARNING([Brotli sources not provided, some modules will not be built.])
+   elif test "x$with_brotli" = "xno"; then
+     wine_cv_brotli_srcdir=""
+   elif test ! -f "$with_brotli/c/enc/brotli_bit_stream.c"; then
+     AC_MSG_ERROR([could not find Brotli sources in $wine_cv_brotli_srcdir])
+     wine_cv_brotli_srcdir=""
+   fi])
+if test -z "$wine_cv_brotli_srcdir"; then
+  enable_winebrotli=${enable_winebrotli:-no}
+else
+  EXTSRCDIRS="$EXTSRCDIRS $wine_cv_brotli_srcdir"
+  AC_SUBST(BROTLI_SRCDIR,$wine_cv_brotli_srcdir)
+fi
 
 AC_CACHE_CHECK([for the directory containing FAudio sources], wine_cv_faudio_srcdir,
   [wine_cv_faudio_srcdir="$with_faudio"
@@ -3987,6 +4006,7 @@ WINE_CONFIG_MAKEFILE(dlls/xmllite/tests)
 WINE_CONFIG_MAKEFILE(dlls/xolehlp)
 WINE_CONFIG_MAKEFILE(dlls/xpsprint)
 WINE_CONFIG_MAKEFILE(dlls/xpssvcs)
+WINE_CONFIG_MAKEFILE(external/winebrotli)
 WINE_CONFIG_MAKEFILE(external/winefaudio)
 WINE_CONFIG_MAKEFILE(external/winefreetype)
 WINE_CONFIG_MAKEFILE(external/winegsm)
