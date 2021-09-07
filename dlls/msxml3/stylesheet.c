@@ -20,8 +20,6 @@
 
 #define COBJMACROS
 
-#include "config.h"
-
 #include <stdarg.h>
 #ifdef HAVE_LIBXML2
 # include <libxml/parser.h>
@@ -713,7 +711,7 @@ static HRESULT WINAPI xslprocessor_addParameter(
     /* search for existing parameter first */
     LIST_FOR_EACH_ENTRY(cur, &This->params.list, struct xslprocessor_par, entry)
     {
-        if (!strcmpW(cur->name, p))
+        if (!wcscmp(cur->name, p))
         {
             par = cur;
             break;

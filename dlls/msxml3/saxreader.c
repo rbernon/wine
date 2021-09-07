@@ -20,8 +20,6 @@
  */
 #define COBJMACROS
 
-#include "config.h"
-
 #include <stdarg.h>
 #ifdef HAVE_LIBXML2
 # include <libxml/parser.h>
@@ -136,7 +134,7 @@ static saxreader_feature get_saxreader_feature(const WCHAR *name)
     {
         n = (min+max)/2;
 
-        c = strcmpW(saxreader_feature_map[n].name, name);
+        c = wcscmp(saxreader_feature_map[n].name, name);
         if (!c)
             return saxreader_feature_map[n].feature;
 
@@ -456,10 +454,10 @@ static BSTR build_qname(BSTR prefix, BSTR local)
         WCHAR *ptr;
 
         ptr = qname;
-        strcpyW(ptr, prefix);
+        wcscpy(ptr, prefix);
         ptr += SysStringLen(prefix);
         *ptr++ = ':';
-        strcpyW(ptr, local);
+        wcscpy(ptr, local);
         return qname;
     }
     else
@@ -536,7 +534,7 @@ static BSTR find_element_uri(saxlocator *locator, const xmlChar *uri)
     LIST_FOR_EACH_ENTRY(element, &locator->elements, element_entry, entry)
     {
         for (i=0; i < element->ns_count; i++)
-            if (!strcmpW(uriW, element->ns[i].uri))
+            if (!wcscmp(uriW, element->ns[i].uri))
             {
                 SysFreeString(uriW);
                 return element->ns[i].uri;
@@ -1417,7 +1415,7 @@ static BSTR saxreader_get_unescaped_value(const xmlChar *buf, int len)
     if (len != -1) str[str_len-1] = 0;
 
     ptrW = str;
-    while ((dest = strstrW(ptrW, ampescW)))
+    while ((dest = wcsstr(ptrW, ampescW)))
     {
         WCHAR *src;
 
@@ -1426,7 +1424,7 @@ static BSTR saxreader_get_unescaped_value(const xmlChar *buf, int len)
         dest++;
 
         /* move together with null terminator */
-        memmove(dest, src, (strlenW(src) + 1)*sizeof(WCHAR));
+        memmove(dest, src, (wcslen(src) + 1)*sizeof(WCHAR));
 
         ptrW++;
     }
@@ -2653,7 +2651,7 @@ static HRESULT internal_parse(
         case VT_BSTR|VT_BYREF:
         {
             BSTR str = V_ISBYREF(&varInput) ? *V_BSTRREF(&varInput) : V_BSTR(&varInput);
-            hr = internal_parseBuffer(This, (const char*)str, strlenW(str)*sizeof(WCHAR), vbInterface);
+            hr = internal_parseBuffer(This, (const char*)str, wcslen(str)*sizeof(WCHAR), vbInterface);
             break;
         }
         case VT_ARRAY|VT_UI1: {

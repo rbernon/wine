@@ -21,8 +21,6 @@
 
 #define COBJMACROS
 
-#include "config.h"
-
 #include <stdarg.h>
 #include <assert.h>
 #ifdef HAVE_LIBXML2
@@ -2496,9 +2494,9 @@ static HRESULT WINAPI domdoc_loadXML(
 
             /* skip leading spaces if needed */
             if (This->properties->version == MSXML_DEFAULT || This->properties->version == MSXML26)
-                while (*ptr && isspaceW(*ptr)) ptr++;
+                while (*ptr && iswspace(*ptr)) ptr++;
 
-            xmldoc = doparse(This, (char*)ptr, strlenW(ptr)*sizeof(WCHAR), XML_CHAR_ENCODING_UTF16LE);
+            xmldoc = doparse(This, (char*)ptr, wcslen(ptr)*sizeof(WCHAR), XML_CHAR_ENCODING_UTF16LE);
             if ( !xmldoc )
             {
                 This->error = E_FAIL;

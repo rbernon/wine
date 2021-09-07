@@ -20,8 +20,6 @@
 
 #define COBJMACROS
 
-#include "config.h"
-
 #include <stdarg.h>
 #ifdef HAVE_LIBXML2
 # include <libxml/parser.h>

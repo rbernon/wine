@@ -19,8 +19,6 @@
  */
 
 
-#include "config.h"
-
 #include <assert.h>
 #ifdef HAVE_LIBXML2
 # include <libxml/tree.h>

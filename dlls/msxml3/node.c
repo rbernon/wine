@@ -18,8 +18,6 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include "config.h"
-
 #define COBJMACROS
 
 #include <stdarg.h>
@@ -58,24 +56,6 @@
 #ifdef HAVE_LIBXML2
 
 WINE_DEFAULT_DEBUG_CHANNEL(msxml);
-
-#ifdef SONAME_LIBXSLT
-extern void* libxslt_handle;
-# define MAKE_FUNCPTR(f) extern typeof(f) * p##f
-MAKE_FUNCPTR(xsltApplyStylesheet);
-MAKE_FUNCPTR(xsltApplyStylesheetUser);
-MAKE_FUNCPTR(xsltCleanupGlobals);
-MAKE_FUNCPTR(xsltFreeStylesheet);
-MAKE_FUNCPTR(xsltFreeTransformContext);
-MAKE_FUNCPTR(xsltNewTransformContext);
-MAKE_FUNCPTR(xsltNextImport);
-MAKE_FUNCPTR(xsltParseStylesheetDoc);
-MAKE_FUNCPTR(xsltQuoteUserParams);
-MAKE_FUNCPTR(xsltSaveResultTo);
-# undef MAKE_FUNCPTR
-#else
-WINE_DECLARE_DEBUG_CHANNEL(winediag);
-#endif
 
 static const IID IID_xmlnode = {0x4f2f4ba2,0xb822,0x11df,{0x8b,0x8a,0x68,0x50,0xdf,0xd7,0x20,0x85}};
 
@@ -988,8 +968,6 @@ HRESULT node_get_xml(xmlnode *This, BOOL ensure_eol, BSTR *ret)
     return *ret ? S_OK : E_OUTOFMEMORY;
 }
 
-#ifdef SONAME_LIBXSLT
-
 /* duplicates xmlBufferWriteQuotedString() logic */
 static void xml_write_quotedstring(xmlOutputBufferPtr buf, const xmlChar *string)
 {
@@ -1090,7 +1068,7 @@ static void transform_write_text(xmlDocPtr result, xsltStylesheetPtr style, xmlO
     res = NULL;                                          \
     while (st != NULL) {                                 \
         if (st->name != NULL) { res = st->name; break; } \
-        st = pxsltNextImport(st);                        \
+        st = xsltNextImport(st);                         \
     }}
 
 #undef XSLT_GET_IMPORT_INT
@@ -1099,7 +1077,7 @@ static void transform_write_text(xmlDocPtr result, xsltStylesheetPtr style, xmlO
     res = -1;                                           \
     while (st != NULL) {                                \
         if (st->name != -1) { res = st->name; break; }  \
-        st = pxsltNextImport(st);                       \
+        st = xsltNextImport(st);                        \
     }}
 
 static void transform_write_xmldecl(xmlDocPtr result, xsltStylesheetPtr style, BOOL omit_encoding, xmlOutputBufferPtr output)
@@ -1500,18 +1478,14 @@ failed:
     return doc;
 }
 
-#endif /* SONAME_LIBXSLT */
-
 HRESULT node_transform_node_params(const xmlnode *This, IXMLDOMNode *stylesheet, BSTR *p,
     ISequentialStream *stream, const struct xslprocessor_params *params)
 {
-#ifdef SONAME_LIBXSLT
     xsltStylesheetPtr xsltSS;
     xmlDocPtr sheet_doc;
     HRESULT hr = S_OK;
     xmlnode *sheet;
 
-    if (!libxslt_handle) return E_NOTIMPL;
     if (!stylesheet || (!p && !stream)) return E_INVALIDARG;
 
     if (p) *p = NULL;
@@ -1520,7 +1494,7 @@ HRESULT node_transform_node_params(const xmlnode *This, IXMLDOMNode *stylesheet,
     if(!sheet) return E_FAIL;
 
     sheet_doc = xmlCopyDoc(sheet->node->doc, 1);
-    xsltSS = pxsltParseStylesheetDoc(sheet_doc);
+    xsltSS = xsltParseStylesheetDoc(sheet_doc);
     if (xsltSS)
     {
         const char **xslparams = NULL;
@@ -1544,19 +1518,19 @@ HRESULT node_transform_node_params(const xmlnode *This, IXMLDOMNode *stylesheet,
 
         if (xslparams)
         {
-            xsltTransformContextPtr ctxt = pxsltNewTransformContext(xsltSS, This->node->doc);
+            xsltTransformContextPtr ctxt = xsltNewTransformContext(xsltSS, This->node->doc);
 
             /* push parameters to user context */
-            pxsltQuoteUserParams(ctxt, xslparams);
-            result = pxsltApplyStylesheetUser(xsltSS, This->node->doc, NULL, NULL, NULL, ctxt);
-            pxsltFreeTransformContext(ctxt);
+            xsltQuoteUserParams(ctxt, xslparams);
+            result = xsltApplyStylesheetUser(xsltSS, This->node->doc, NULL, NULL, NULL, ctxt);
+            xsltFreeTransformContext(ctxt);
 
             for (i = 0; i < params->count*2; i++)
                 heap_free((char*)xslparams[i]);
             heap_free(xslparams);
         }
         else
-            result = pxsltApplyStylesheet(xsltSS, This->node->doc, NULL);
+            result = xsltApplyStylesheet(xsltSS, This->node->doc, NULL);
 
         if (result)
         {
@@ -1567,7 +1541,7 @@ HRESULT node_transform_node_params(const xmlnode *This, IXMLDOMNode *stylesheet,
             xmlFreeDoc(result);
         }
 
-        pxsltFreeStylesheet(xsltSS);
+        xsltFreeStylesheet(xsltSS);
     }
     else
         xmlFreeDoc(sheet_doc);
@@ -1575,11 +1549,6 @@ HRESULT node_transform_node_params(const xmlnode *This, IXMLDOMNode *stylesheet,
     if (p && !*p) *p = SysAllocStringLen(NULL, 0);
 
     return hr;
-#else
-    ERR_(winediag)("libxslt headers were not found at compile time. Expect problems.\n");
-
-    return E_NOTIMPL;
-#endif
 }
 
 HRESULT node_transform_node(const xmlnode *node, IXMLDOMNode *stylesheet, BSTR *p)

@@ -20,8 +20,6 @@
 
 #define COBJMACROS
 
-#include "config.h"
-
 #include <stdarg.h>
 #ifdef HAVE_LIBXML2
 # include <libxml/parser.h>
@@ -198,7 +196,7 @@ static HRESULT WINAPI dom_pi_put_nodeValue(
     if(hr == S_OK)
     {
         static const WCHAR xmlW[] = {'x','m','l',0};
-        if(!strcmpW(target, xmlW))
+        if(!wcscmp(target, xmlW))
         {
             SysFreeString(target);
             return E_FAIL;
@@ -438,7 +436,7 @@ static HRESULT WINAPI dom_pi_get_attributes(
     hr = node_get_nodeName(&This->node, &name);
     if (hr != S_OK) return hr;
 
-    if (!strcmpW(name, xmlW))
+    if (!wcscmp(name, xmlW))
     {
         if (!This->node.node->properties)
         {
@@ -754,7 +752,7 @@ static HRESULT WINAPI dom_pi_put_data(
     if(hr == S_OK)
     {
         static const WCHAR xmlW[] = {'x','m','l',0};
-        if(!strcmpW(target, xmlW))
+        if(!wcscmp(target, xmlW))
         {
             SysFreeString(target);
             return E_FAIL;

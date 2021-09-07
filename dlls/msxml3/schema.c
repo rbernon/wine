@@ -21,8 +21,6 @@
 
 #define COBJMACROS
 
-#include "config.h"
-
 #include <assert.h>
 #include <stdarg.h>
 #ifdef HAVE_LIBXML2

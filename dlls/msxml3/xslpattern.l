@@ -19,9 +19,6 @@
  */
 
 %{
-#include "config.h"
-#include "wine/port.h"
-
 #ifdef HAVE_LIBXML2
 
 #include "xslpattern.h"

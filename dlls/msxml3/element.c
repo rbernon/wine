@@ -20,8 +20,6 @@
 
 #define COBJMACROS
 
-#include "config.h"
-
 #include <stdarg.h>
 #ifdef HAVE_LIBXML2
 # include <libxml/parser.h>
@@ -504,9 +502,9 @@ static inline HRESULT variant_from_dt(XDR_DT dt, xmlChar* str, VARIANT* v)
 
             if(p+4<e && *(p+4)=='-') /* parse date (yyyy-mm-dd) */
             {
-                st.wYear = atoiW(p);
-                st.wMonth = atoiW(p+5);
-                st.wDay = atoiW(p+8);
+                st.wYear = wcstol(p, NULL, 10);
+                st.wMonth = wcstol(p+5, NULL, 10);
+                st.wDay = wcstol(p+8, NULL, 10);
                 p += 10;
 
                 if(*p == 'T') p++;
@@ -514,9 +512,9 @@ static inline HRESULT variant_from_dt(XDR_DT dt, xmlChar* str, VARIANT* v)
 
             if(p+2<e && *(p+2)==':') /* parse time (hh:mm:ss.?) */
             {
-                st.wHour = atoiW(p);
-                st.wMinute = atoiW(p+3);
-                st.wSecond = atoiW(p+6);
+                st.wHour = wcstol(p, NULL, 10);
+                st.wMinute = wcstol(p+3, NULL, 10);
+                st.wSecond = wcstol(p+6, NULL, 10);
                 p += 8;
 
                 if(*p == '.')
@@ -531,9 +529,9 @@ static inline HRESULT variant_from_dt(XDR_DT dt, xmlChar* str, VARIANT* v)
             V_DATE(v) = date;
 
             if(*p == '+') /* parse timezone offset (+hh:mm) */
-                V_DATE(v) += (DOUBLE)atoiW(p+1)/24 + (DOUBLE)atoiW(p+4)/1440;
+                V_DATE(v) += (DOUBLE)wcstol(p+1, NULL, 10)/24 + (DOUBLE)wcstol(p+4, NULL, 10)/1440;
             else if(*p == '-') /* parse timezone offset (-hh:mm) */
-                V_DATE(v) -= (DOUBLE)atoiW(p+1)/24 + (DOUBLE)atoiW(p+4)/1440;
+                V_DATE(v) -= (DOUBLE)wcstol(p+1, NULL, 10)/24 + (DOUBLE)wcstol(p+4, NULL, 10)/1440;
 
             VariantClear(&src);
             handled = TRUE;
@@ -1440,7 +1438,7 @@ static HRESULT WINAPI domelem_setAttributeNode(
     if (hr != S_OK) return hr;
 
     /* adding xmlns attribute doesn't change a tree or existing namespace definition */
-    if (!strcmpW(nameW, xmlnsW))
+    if (!wcscmp(nameW, xmlnsW))
     {
         SysFreeString(nameW);
         return DISP_E_UNKNOWNNAME;

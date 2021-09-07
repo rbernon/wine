@@ -503,6 +503,12 @@ fi
 if test "x$enable_winexml2" = "xno"
 then
   enable_winexslt=${enable_winexslt:-no}
+  enable_msxml3=${enable_msxml3:-no}
+fi
+
+if test "x$enable_winexslt" = "xno"
+then
+  enable_msxml3=${enable_msxml3:-no}
 fi
 
 AC_CACHE_CHECK([for the directory containing the Wine tools], wine_cv_toolsdir,

@@ -23,15 +23,10 @@
 
 #include "dispex.h"
 
-#include "wine/unicode.h"
 #include "wine/heap.h"
 #include "wine/list.h"
 
 #include "msxml_dispex.h"
-
-#ifndef __WINE_CONFIG_H
-# error You must include config.h to use this header
-#endif
 
 extern const CLSID * DOMDocument_version(MSXML_VERSION v) DECLSPEC_HIDDEN;
 
@@ -97,7 +92,7 @@ static inline LPWSTR heap_strdupW(LPCWSTR str)
     if(str) {
         DWORD size;
 
-        size = (strlenW(str)+1)*sizeof(WCHAR);
+        size = (wcslen(str)+1)*sizeof(WCHAR);
         ret = heap_alloc(size);
         if(ret)
             memcpy(ret, str, size);
