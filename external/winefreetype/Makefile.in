@@ -3,6 +3,7 @@ PARENTSRC = $(FREETYPE_SRCDIR)
 EXTRADEFS = \
 	-DFT2_BUILD_LIBRARY=1 \
 	-DFT_CONFIG_OPTION_USE_BROTLI=1 \
+	-DFT_CONFIG_OPTION_USE_BZIP2=1 \
 	-DFT_CONFIG_OPTION_SYSTEM_ZLIB=1 \
 	-DFT_CONFIG_OPTION_USE_PNG=1 \
 	-D_UCRT
@@ -10,6 +11,7 @@ EXTRAINCL = \
 	-I$(FREETYPE_SRCDIR)/include \
 	-I$(FREETYPE_SRCDIR)/include/freetype \
 	-I$(BROTLI_SRCDIR)/c/include \
+	-I$(BZIP2_SRCDIR) \
 	-I$(ZLIB_SRCDIR) \
 	-I$(LIBPNG_SRCDIR)
 
@@ -40,6 +42,7 @@ C_SRCS = \
 	src/cff/cff.c \
 	src/cid/type1cid.c \
 	src/gzip/ftgzip.c \
+	src/bzip2/ftbzip2.c \
 	src/lzw/ftlzw.c \
 	src/pcf/pcf.c \
 	src/pfr/pfr.c \
