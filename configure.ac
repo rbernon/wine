@@ -247,6 +247,7 @@ fi
 AC_SUBST(EXTSRCDIRS,"")
 AC_SUBST(FAUDIO_SRCDIR,"")
 AC_SUBST(FREETYPE_SRCDIR,"")
+AC_SUBST(MPG123_SRCDIR,"")
 AC_SUBST(LIBPNG_SRCDIR,"")
 AC_SUBST(ZLIB_SRCDIR,"")
 
@@ -282,6 +283,23 @@ if test -z "$wine_cv_freetype_srcdir"; then
 else
   EXTSRCDIRS="$EXTSRCDIRS $wine_cv_freetype_srcdir"
   AC_SUBST(FREETYPE_SRCDIR,$wine_cv_freetype_srcdir)
+fi
+
+AC_CACHE_CHECK([for the directory containing mpg123 sources], wine_cv_mpg123_srcdir,
+  [wine_cv_mpg123_srcdir="$with_mpg123"
+   if test -z "$with_mpg123"; then
+     WINE_WARNING([mpg123 sources not provided, some modules will not be built.])
+   elif test "x$with_mpg123" = "xno"; then
+     wine_cv_mpg123_srcdir=""
+   elif test ! -f "$with_mpg123/src/libmpg123/libmpg123.c"; then
+     AC_MSG_ERROR([could not find mpg123 sources in $wine_cv_mpg123_srcdir])
+     wine_cv_mpg123_srcdir=""
+   fi])
+if test -z "$wine_cv_mpg123_srcdir"; then
+  enable_winempg123=${enable_winempg123:-no}
+else
+  EXTSRCDIRS="$EXTSRCDIRS $wine_cv_mpg123_srcdir"
+  AC_SUBST(MPG123_SRCDIR,$wine_cv_mpg123_srcdir)
 fi
 
 AC_CACHE_CHECK([for the directory containing libpng sources], wine_cv_libpng_srcdir,
@@ -3971,6 +3989,7 @@ WINE_CONFIG_MAKEFILE(dlls/xpsprint)
 WINE_CONFIG_MAKEFILE(dlls/xpssvcs)
 WINE_CONFIG_MAKEFILE(external/winefaudio)
 WINE_CONFIG_MAKEFILE(external/winefreetype)
+WINE_CONFIG_MAKEFILE(external/winempg123)
 WINE_CONFIG_MAKEFILE(external/winepng)
 WINE_CONFIG_MAKEFILE(external/winezlib)
 WINE_CONFIG_MAKEFILE(fonts)
