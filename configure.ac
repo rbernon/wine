@@ -246,6 +246,7 @@ fi
 
 AC_SUBST(EXTSRCDIRS,"")
 AC_SUBST(FAUDIO_SRCDIR,"")
+AC_SUBST(LIBPNG_SRCDIR,"")
 AC_SUBST(ZLIB_SRCDIR,"")
 
 AC_CACHE_CHECK([for the directory containing FAudio sources], wine_cv_faudio_srcdir,
@@ -263,6 +264,23 @@ if test -z "$wine_cv_faudio_srcdir"; then
 else
   EXTSRCDIRS="$EXTSRCDIRS $wine_cv_faudio_srcdir"
   AC_SUBST(FAUDIO_SRCDIR,$wine_cv_faudio_srcdir)
+fi
+
+AC_CACHE_CHECK([for the directory containing libpng sources], wine_cv_libpng_srcdir,
+  [wine_cv_libpng_srcdir="$with_png"
+   if test -z "$with_png"; then
+     WINE_WARNING([libpng sources not provided, some modules will not be built.])
+   elif test "x$with_png" = "xno"; then
+     wine_cv_libpng_srcdir=""
+   elif test ! -f "$with_png/png.c"; then
+     AC_MSG_ERROR([could not find libpng sources in $wine_cv_libpng_srcdir])
+     wine_cv_libpng_srcdir=""
+   fi])
+if test -z "$wine_cv_libpng_srcdir"; then
+  enable_winepng=${enable_winepng:-no}
+else
+  EXTSRCDIRS="$EXTSRCDIRS $wine_cv_libpng_srcdir"
+  AC_SUBST(LIBPNG_SRCDIR,$wine_cv_libpng_srcdir)
 fi
 
 AC_CACHE_CHECK([for the directory containing zlib sources], wine_cv_zlib_srcdir,
@@ -327,6 +345,7 @@ then
   enable_dbghelp=${enable_dbghelp:-no}
   enable_gdi32=${enable_gdi32:-no}
   enable_opcservices=${enable_opcservices:-no}
+  enable_winepng=${enable_winepng:-no}
   enable_wininet=${enable_wininet:-no}
 fi
 
@@ -3920,6 +3939,7 @@ WINE_CONFIG_MAKEFILE(dlls/xolehlp)
 WINE_CONFIG_MAKEFILE(dlls/xpsprint)
 WINE_CONFIG_MAKEFILE(dlls/xpssvcs)
 WINE_CONFIG_MAKEFILE(external/winefaudio)
+WINE_CONFIG_MAKEFILE(external/winepng)
 WINE_CONFIG_MAKEFILE(external/winezlib)
 WINE_CONFIG_MAKEFILE(fonts)
 WINE_CONFIG_MAKEFILE(include)

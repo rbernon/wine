@@ -1,0 +1,21 @@
+MODULE    = libwinepng.a
+PARENTSRC = $(LIBPNG_SRCDIR)
+EXTRADEFS = -DFAR= -D_UCRT
+EXTRAINCL = -I$(ZLIB_SRCDIR)
+
+C_SRCS = \
+	png.c \
+	pngerror.c \
+	pngget.c \
+	pngmem.c \
+	pngpread.c \
+	pngread.c \
+	pngrio.c \
+	pngrtran.c \
+	pngrutil.c \
+	pngset.c \
+	pngtrans.c \
+	pngwio.c \
+	pngwrite.c \
+	pngwtran.c \
+	pngwutil.c
