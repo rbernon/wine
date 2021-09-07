@@ -1,0 +1,12 @@
+MODULE    = libwinebzip2.a
+PARENTSRC = $(BZIP2_SRCDIR)
+EXTRADEFS = -D_UCRT
+
+C_SRCS = \
+	blocksort.c \
+	bzlib.c \
+	compress.c \
+	crctable.c \
+	decompress.c \
+	huffman.c \
+	randtable.c \

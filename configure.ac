@@ -38,6 +38,7 @@ AC_ARG_ENABLE(werror, AS_HELP_STRING([--enable-werror],[treat compilation warnin
 
 AC_ARG_WITH(alsa,      AS_HELP_STRING([--without-alsa],[do not use the Alsa sound support]))
 AC_ARG_WITH(brotli,    AS_HELP_STRING([--without-brotli],[do not use Brotli]))
+AC_ARG_WITH(bzip2,     AS_HELP_STRING([--without-bzip2],[do not use bzip2]))
 AC_ARG_WITH(capi,      AS_HELP_STRING([--without-capi],[do not use CAPI (ISDN support)]))
 AC_ARG_WITH(cms,       AS_HELP_STRING([--without-cms],[do not use CMS (color management support)]))
 AC_ARG_WITH(coreaudio, AS_HELP_STRING([--without-coreaudio],[do not use the CoreAudio sound support]),
@@ -246,6 +247,7 @@ fi
 
 AC_SUBST(EXTSRCDIRS,"")
 AC_SUBST(BROTLI_SRCDIR,"")
+AC_SUBST(BZIP2_SRCDIR,"")
 AC_SUBST(FAUDIO_SRCDIR,"")
 AC_SUBST(FREETYPE_SRCDIR,"")
 AC_SUBST(MPG123_SRCDIR,"")
@@ -268,6 +270,23 @@ if test -z "$wine_cv_brotli_srcdir"; then
 else
   EXTSRCDIRS="$EXTSRCDIRS $wine_cv_brotli_srcdir"
   AC_SUBST(BROTLI_SRCDIR,$wine_cv_brotli_srcdir)
+fi
+
+AC_CACHE_CHECK([for the directory containing bzip2 sources], wine_cv_bzip2_srcdir,
+  [wine_cv_bzip2_srcdir="$with_bzip2"
+   if test -z "$with_bzip2"; then
+     WINE_WARNING([bzip2 sources not provided, some modules will not be built.])
+   elif test "x$with_bzip2" = "xno"; then
+     wine_cv_bzip2_srcdir=""
+   elif test ! -f "$with_bzip2/bzlib.c"; then
+     AC_MSG_ERROR([could not find bzip2 sources in $wine_cv_bzip2_srcdir])
+     wine_cv_bzip2_srcdir=""
+   fi])
+if test -z "$wine_cv_bzip2_srcdir"; then
+  enable_winebzip2=${enable_winebzip2:-no}
+else
+  EXTSRCDIRS="$EXTSRCDIRS $wine_cv_bzip2_srcdir"
+  AC_SUBST(BZIP2_SRCDIR,$wine_cv_bzip2_srcdir)
 fi
 
 AC_CACHE_CHECK([for the directory containing FAudio sources], wine_cv_faudio_srcdir,
@@ -4007,6 +4026,7 @@ WINE_CONFIG_MAKEFILE(dlls/xolehlp)
 WINE_CONFIG_MAKEFILE(dlls/xpsprint)
 WINE_CONFIG_MAKEFILE(dlls/xpssvcs)
 WINE_CONFIG_MAKEFILE(external/winebrotli)
+WINE_CONFIG_MAKEFILE(external/winebzip2)
 WINE_CONFIG_MAKEFILE(external/winefaudio)
 WINE_CONFIG_MAKEFILE(external/winefreetype)
 WINE_CONFIG_MAKEFILE(external/winegsm)
