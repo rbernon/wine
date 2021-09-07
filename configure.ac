@@ -113,6 +113,7 @@ AC_ARG_WITH(xshm,      AS_HELP_STRING([--without-xshm],[do not use XShm (shared 
 AC_ARG_WITH(xslt,      AS_HELP_STRING([--without-xslt],[do not use XSLT]))
 AC_ARG_WITH(xxf86vm,   AS_HELP_STRING([--without-xxf86vm],[do not use XFree video mode extension]),
             [if test "x$withval" = "xno"; then ac_cv_header_X11_extensions_xf86vmode_h=no; ac_cv_header_X11_extensions_xf86vmproto_h=no; fi])
+AC_ARG_WITH(zlib,      AS_HELP_STRING([--without-zlib],[do not use Zlib]))
 
 AC_ARG_WITH(wine-tools,AS_HELP_STRING([--with-wine-tools=DIR],[use Wine tools from directory DIR]))
 AC_ARG_WITH(wine64,    AS_HELP_STRING([--with-wine64=DIR],[use the 64-bit Wine in DIR for a Wow64 build]))
@@ -245,6 +246,7 @@ fi
 
 AC_SUBST(EXTSRCDIRS,"")
 AC_SUBST(FAUDIO_SRCDIR,"")
+AC_SUBST(ZLIB_SRCDIR,"")
 
 AC_CACHE_CHECK([for the directory containing FAudio sources], wine_cv_faudio_srcdir,
   [wine_cv_faudio_srcdir="$with_faudio"
@@ -261,6 +263,23 @@ if test -z "$wine_cv_faudio_srcdir"; then
 else
   EXTSRCDIRS="$EXTSRCDIRS $wine_cv_faudio_srcdir"
   AC_SUBST(FAUDIO_SRCDIR,$wine_cv_faudio_srcdir)
+fi
+
+AC_CACHE_CHECK([for the directory containing zlib sources], wine_cv_zlib_srcdir,
+  [wine_cv_zlib_srcdir="$with_zlib"
+   if test -z "$with_zlib"; then
+     WINE_WARNING([zlib sources not provided, some modules will not be built.])
+   elif test "x$with_zlib" = "xno"; then
+     wine_cv_zlib_srcdir=""
+   elif test ! -f "$with_zlib/deflate.c"; then
+     AC_MSG_ERROR([could not find zlib sources in $wine_cv_zlib_srcdir])
+     wine_cv_zlib_srcdir=""
+   fi])
+if test -z "$wine_cv_zlib_srcdir"; then
+  enable_winezlib=${enable_winezlib:-no}
+else
+  EXTSRCDIRS="$EXTSRCDIRS $wine_cv_zlib_srcdir"
+  AC_SUBST(ZLIB_SRCDIR,$wine_cv_zlib_srcdir)
 fi
 
 if test "x$enable_winefaudio" = "xno"
@@ -3892,6 +3911,7 @@ WINE_CONFIG_MAKEFILE(dlls/xolehlp)
 WINE_CONFIG_MAKEFILE(dlls/xpsprint)
 WINE_CONFIG_MAKEFILE(dlls/xpssvcs)
 WINE_CONFIG_MAKEFILE(external/winefaudio)
+WINE_CONFIG_MAKEFILE(external/winezlib)
 WINE_CONFIG_MAKEFILE(fonts)
 WINE_CONFIG_MAKEFILE(include)
 WINE_CONFIG_MAKEFILE(libs/port)
