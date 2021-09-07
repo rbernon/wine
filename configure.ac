@@ -248,6 +248,7 @@ AC_SUBST(EXTSRCDIRS,"")
 AC_SUBST(FAUDIO_SRCDIR,"")
 AC_SUBST(FREETYPE_SRCDIR,"")
 AC_SUBST(MPG123_SRCDIR,"")
+AC_SUBST(LIBGSM_SRCDIR,"")
 AC_SUBST(LIBPNG_SRCDIR,"")
 AC_SUBST(ZLIB_SRCDIR,"")
 
@@ -300,6 +301,23 @@ if test -z "$wine_cv_mpg123_srcdir"; then
 else
   EXTSRCDIRS="$EXTSRCDIRS $wine_cv_mpg123_srcdir"
   AC_SUBST(MPG123_SRCDIR,$wine_cv_mpg123_srcdir)
+fi
+
+AC_CACHE_CHECK([for the directory containing libgsm sources], wine_cv_libgsm_srcdir,
+  [wine_cv_libgsm_srcdir="$with_gsm"
+   if test -z "$with_gsm"; then
+     WINE_WARNING([libgsm sources not provided, some modules will not be built.])
+   elif test "x$with_gsm" = "xno"; then
+     wine_cv_libgsm_srcdir=""
+   elif test ! -f "$with_gsm/src/gsm_decode.c"; then
+     AC_MSG_ERROR([could not find libgsm sources in $wine_cv_libgsm_srcdir])
+     wine_cv_libgsm_srcdir=""
+   fi])
+if test -z "$wine_cv_libgsm_srcdir"; then
+  enable_winegsm=${enable_winegsm:-no}
+else
+  EXTSRCDIRS="$EXTSRCDIRS $wine_cv_libgsm_srcdir"
+  AC_SUBST(LIBGSM_SRCDIR,$wine_cv_libgsm_srcdir)
 fi
 
 AC_CACHE_CHECK([for the directory containing libpng sources], wine_cv_libpng_srcdir,
@@ -3977,6 +3995,7 @@ WINE_CONFIG_MAKEFILE(dlls/xpsprint)
 WINE_CONFIG_MAKEFILE(dlls/xpssvcs)
 WINE_CONFIG_MAKEFILE(external/winefaudio)
 WINE_CONFIG_MAKEFILE(external/winefreetype)
+WINE_CONFIG_MAKEFILE(external/winegsm)
 WINE_CONFIG_MAKEFILE(external/winempg123)
 WINE_CONFIG_MAKEFILE(external/winepng)
 WINE_CONFIG_MAKEFILE(external/winezlib)

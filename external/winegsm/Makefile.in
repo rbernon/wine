@@ -1,0 +1,24 @@
+MODULE    = libwinegsm.a
+PARENTSRC = $(LIBGSM_SRCDIR)
+EXTRADEFS = -DCONFIG_H -DHAS_STDLIB_H=1 -DHAS_STRING_H=1
+EXTRAINCL = -I$(LIBGSM_SRCDIR)/inc
+
+C_SRCS = \
+	src/add.c \
+	src/code.c \
+	src/debug.c \
+	src/decode.c \
+	src/gsm_create.c \
+	src/gsm_decode.c \
+	src/gsm_destroy.c \
+	src/gsm_encode.c \
+	src/gsm_explode.c \
+	src/gsm_implode.c \
+	src/gsm_option.c \
+	src/gsm_print.c \
+	src/long_term.c \
+	src/lpc.c \
+	src/preprocess.c \
+	src/rpe.c \
+	src/short_term.c \
+	src/table.c
