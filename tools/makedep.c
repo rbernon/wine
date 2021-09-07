@@ -2156,6 +2156,7 @@ static struct strarray get_local_dependencies( const struct makefile *make, cons
 
     for (i = 0; i < deps.count; i++)
     {
+fprintf(stderr, "deps %s\n", deps.str[i]);
         if (strarray_exists( &targets, deps.str[i] ))
             deps.str[i] = obj_dir_path( make, deps.str[i] );
         else
@@ -3556,10 +3557,20 @@ static void output_module( struct makefile *make )
  */
 static void output_static_lib( struct makefile *make )
 {
+    struct strarray dep_libs = empty_strarray;
+    char *basename, *p;
+
+    basename = xstrdup( make->staticlib );
+    if ((p = strchr( basename, '.' ))) *p = 0;
+
+fprintf(stderr, "basename %s\n", basename);
+    strarray_addall( &dep_libs, get_local_dependencies( make, basename, make->in_files ));
+
     strarray_add( &make->all_targets, make->staticlib );
     output( "%s:", obj_dir_path( make, make->staticlib ));
     output_filenames_obj_dir( make, make->object_files );
     output_filenames_obj_dir( make, make->unixobj_files );
+    output_filenames( dep_libs );
     output( "\n\t%srm -f $@ && %s rc $@", cmd_prefix( "AR" ), ar );
     output_filenames_obj_dir( make, make->object_files );
     output_filenames_obj_dir( make, make->unixobj_files );
@@ -3572,6 +3583,7 @@ static void output_static_lib( struct makefile *make )
         strarray_add( &make->all_targets, name );
         output( "%s: %s", obj_dir_path( make, name ), tools_path( make, "winebuild" ));
         output_filenames_obj_dir( make, make->crossobj_files );
+        output_filenames( dep_libs );
         output( "\n" );
         output( "\t%s%s -b %s -w --staticlib -o $@", cmd_prefix( "BUILD" ),
                 tools_path( make, "winebuild" ), crosstarget );

@@ -66,6 +66,7 @@ AC_ARG_WITH(ldap,      AS_HELP_STRING([--without-ldap],[do not use LDAP]),
             [if test "x$withval" = "xno"; then ac_cv_header_ldap_h=no; ac_cv_header_lber_h=no; fi])
 AC_ARG_WITH(mingw,     AS_HELP_STRING([--without-mingw],[do not use the MinGW cross-compiler]))
 AC_ARG_WITH(mpg123,    AS_HELP_STRING([--without-mpg123],[do not use the mpg123 library]))
+AC_ARG_WITH(nettle,    AS_HELP_STRING([--without-nettle],[do not use the nettle library]))
 AC_ARG_WITH(netapi,    AS_HELP_STRING([--without-netapi],[do not use the Samba NetAPI library]))
 AC_ARG_WITH(openal,    AS_HELP_STRING([--without-openal],[do not use OpenAL]),
             [if test "x$withval" = "xno"; then ac_cv_header_AL_al_h=no; ac_cv_header_OpenAL_al_h=no; fi])
@@ -251,6 +252,7 @@ AC_SUBST(BZIP2_SRCDIR,"")
 AC_SUBST(FAUDIO_SRCDIR,"")
 AC_SUBST(FREETYPE_SRCDIR,"")
 AC_SUBST(MPG123_SRCDIR,"")
+AC_SUBST(NETTLE_SRCDIR,"")
 AC_SUBST(LIBGSM_SRCDIR,"")
 AC_SUBST(LIBPNG_SRCDIR,"")
 AC_SUBST(LIBXML2_SRCDIR,"")
@@ -340,6 +342,23 @@ if test -z "$wine_cv_mpg123_srcdir"; then
 else
   EXTSRCDIRS="$EXTSRCDIRS $wine_cv_mpg123_srcdir"
   AC_SUBST(MPG123_SRCDIR,$wine_cv_mpg123_srcdir)
+fi
+
+AC_CACHE_CHECK([for the directory containing nettle sources], wine_cv_nettle_srcdir,
+  [wine_cv_nettle_srcdir="$with_nettle"
+   if test -z "$with_nettle"; then
+     WINE_WARNING([nettle sources not provided, some modules will not be built.])
+   elif test "x$with_nettle" = "xno"; then
+     wine_cv_nettle_srcdir=""
+   elif test ! -f "$with_nettle/nettle-internal.c"; then
+     AC_MSG_ERROR([could not find nettle sources in $wine_cv_nettle_srcdir])
+     wine_cv_nettle_srcdir=""
+   fi])
+if test -z "$wine_cv_nettle_srcdir"; then
+  enable_winenettle=${enable_winenettle:-no}
+else
+  EXTSRCDIRS="$EXTSRCDIRS $wine_cv_nettle_srcdir"
+  AC_SUBST(NETTLE_SRCDIR,$wine_cv_nettle_srcdir)
 fi
 
 AC_CACHE_CHECK([for the directory containing libgsm sources], wine_cv_libgsm_srcdir,
@@ -4078,6 +4097,7 @@ WINE_CONFIG_MAKEFILE(external/winefaudio)
 WINE_CONFIG_MAKEFILE(external/winefreetype)
 WINE_CONFIG_MAKEFILE(external/winegsm)
 WINE_CONFIG_MAKEFILE(external/winempg123)
+WINE_CONFIG_MAKEFILE(external/winenettle)
 WINE_CONFIG_MAKEFILE(external/winepng)
 WINE_CONFIG_MAKEFILE(external/winexml2)
 WINE_CONFIG_MAKEFILE(external/winexslt)
@@ -4212,6 +4232,7 @@ WINE_CONFIG_MAKEFILE(tools/winebuild,,[test "x$enable_tools" = xno])
 WINE_CONFIG_MAKEFILE(tools/winedump,,[test "x$enable_tools" = xno])
 WINE_CONFIG_MAKEFILE(tools/winegcc,,[test "x$enable_tools" = xno])
 WINE_CONFIG_MAKEFILE(tools/winemaker,,[test "x$enable_tools" = xno])
+WINE_CONFIG_MAKEFILE(tools/winenettle-aesdata,,[test "x$enable_tools" = xno])
 WINE_CONFIG_MAKEFILE(tools/wmc,,[test "x$enable_tools" = xno])
 WINE_CONFIG_MAKEFILE(tools/wrc,,[test "x$enable_tools" = xno])
 dnl End of auto-generated output commands
