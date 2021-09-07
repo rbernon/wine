@@ -254,6 +254,7 @@ AC_SUBST(MPG123_SRCDIR,"")
 AC_SUBST(LIBGSM_SRCDIR,"")
 AC_SUBST(LIBPNG_SRCDIR,"")
 AC_SUBST(LIBXML2_SRCDIR,"")
+AC_SUBST(LIBXSLT_SRCDIR,"")
 AC_SUBST(ZLIB_SRCDIR,"")
 
 AC_CACHE_CHECK([for the directory containing Brotli sources], wine_cv_brotli_srcdir,
@@ -392,6 +393,23 @@ else
   AC_SUBST(LIBXML2_SRCDIR,$wine_cv_libxml2_srcdir)
 fi
 
+AC_CACHE_CHECK([for the directory containing libxslt sources], wine_cv_libxslt_srcdir,
+  [wine_cv_libxslt_srcdir="$with_xslt"
+   if test -z "$with_xslt"; then
+     WINE_WARNING([libxslt sources not provided, some modules will not be built.])
+   elif test "x$with_xslt" = "xno"; then
+     wine_cv_libxslt_srcdir=""
+   elif test ! -f "$with_xslt/libxslt/xslt.c"; then
+     AC_MSG_ERROR([could not find libxslt sources in $wine_cv_libxslt_srcdir])
+     wine_cv_libxslt_srcdir=""
+   fi])
+if test -z "$wine_cv_libxslt_srcdir"; then
+  enable_winexslt=${enable_winexslt:-no}
+else
+  EXTSRCDIRS="$EXTSRCDIRS $wine_cv_libxslt_srcdir"
+  AC_SUBST(LIBXSLT_SRCDIR,$wine_cv_libxslt_srcdir)
+fi
+
 AC_CACHE_CHECK([for the directory containing zlib sources], wine_cv_zlib_srcdir,
   [wine_cv_zlib_srcdir="$with_zlib"
    if test -z "$with_zlib"; then
@@ -480,6 +498,11 @@ if test "x$enable_winefreetype" = "xno"
 then
   enable_dwrite=${enable_dwrite:-no}
   enable_gdi32=${enable_gdi32:-no}
+fi
+
+if test "x$enable_winexml2" = "xno"
+then
+  enable_winexslt=${enable_winexslt:-no}
 fi
 
 AC_CACHE_CHECK([for the directory containing the Wine tools], wine_cv_toolsdir,
@@ -4051,6 +4074,7 @@ WINE_CONFIG_MAKEFILE(external/winegsm)
 WINE_CONFIG_MAKEFILE(external/winempg123)
 WINE_CONFIG_MAKEFILE(external/winepng)
 WINE_CONFIG_MAKEFILE(external/winexml2)
+WINE_CONFIG_MAKEFILE(external/winexslt)
 WINE_CONFIG_MAKEFILE(external/winezlib)
 WINE_CONFIG_MAKEFILE(fonts)
 WINE_CONFIG_MAKEFILE(include)

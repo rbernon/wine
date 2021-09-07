@@ -1,0 +1,25 @@
+MODULE    = libwinexslt.a
+PARENTSRC = $(LIBXSLT_SRCDIR)
+EXTRAINCL = -I$(LIBXSLT_SRCDIR)/libxslt -I$(LIBXML2_SRCDIR)/include
+EXTRADEFS = -DLIBXSLT_STATIC -DLIBXML_STATIC -D_UCRT -U__WINESRC__
+
+C_SRCS = \
+	libxslt/attributes.c \
+	libxslt/attrvt.c \
+	libxslt/documents.c \
+	libxslt/extensions.c \
+	libxslt/extra.c \
+	libxslt/functions.c \
+	libxslt/imports.c \
+	libxslt/keys.c \
+	libxslt/namespaces.c \
+	libxslt/numbers.c \
+	libxslt/pattern.c \
+	libxslt/preproc.c \
+	libxslt/security.c \
+	libxslt/templates.c \
+	libxslt/transform.c \
+	libxslt/variables.c \
+	libxslt/xslt.c \
+	libxslt/xsltlocale.c \
+	libxslt/xsltutils.c \
