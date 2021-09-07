@@ -254,6 +254,7 @@ struct gdi_font
     int                    kern_count;
     /* the following members can be accessed without locking, they are never modified after creation */
     void                  *private;  /* font backend private data */
+    void                  *ft_face; /* FT_Face */
     struct list            child_fonts;
     DWORD                  handle;
     DWORD                  cache_num;
@@ -313,20 +314,6 @@ struct font_backend_funcs
     INT   (CDECL *add_mem_font)( void *ptr, SIZE_T size, DWORD flags );
 
     BOOL  (CDECL *map_font)( struct gdi_font *gdi_font, void **data_ptr, SIZE_T *data_size );
-    BOOL  (CDECL *load_font)( struct gdi_font *gdi_font, void *data_ptr, SIZE_T data_size );
-    DWORD (CDECL *get_font_data)( struct gdi_font *gdi_font, DWORD table, DWORD offset,
-                                  void *buf, DWORD count );
-    UINT  (CDECL *get_aa_flags)( struct gdi_font *font, UINT aa_flags, BOOL antialias_fakes );
-    BOOL  (CDECL *get_glyph_index)( struct gdi_font *gdi_font, UINT *glyph, BOOL use_encoding );
-    UINT  (CDECL *get_default_glyph)( struct gdi_font *gdi_font );
-    DWORD (CDECL *get_glyph_outline)( struct gdi_font *font, UINT glyph, UINT format,
-                                      GLYPHMETRICS *gm, ABC *abc, DWORD buflen, void *buf,
-                                      const MAT2 *mat, BOOL tategaki );
-    DWORD (CDECL *get_unicode_ranges)( struct gdi_font *font, GLYPHSET *gs );
-    BOOL  (CDECL *get_char_width_info)( struct gdi_font *font, struct char_width_info *info );
-    BOOL  (CDECL *set_outline_text_metrics)( struct gdi_font *font );
-    BOOL  (CDECL *set_bitmap_text_metrics)( struct gdi_font *font );
-    DWORD (CDECL *get_kerning_pairs)( struct gdi_font *gdi_font, KERNINGPAIR **kern_pair );
     void  (CDECL *unmap_font)( struct gdi_font *font );
 };
 
@@ -337,6 +324,26 @@ struct font_callback_funcs
 };
 
 extern void font_init(void) DECLSPEC_HIDDEN;
+
+/* freetype.c */
+
+BOOL init_freetype(void);
+
+extern DWORD freetype_get_font_data( struct gdi_font *font, DWORD table, DWORD offset,
+                                           void *buf, DWORD cbData);
+extern BOOL freetype_load_font( struct gdi_font *font, void *data_ptr, SIZE_T data_size );
+extern void freetype_destroy_font( struct gdi_font *font );
+extern UINT freetype_get_aa_flags( struct gdi_font *font, UINT aa_flags, BOOL antialias_fakes );
+extern BOOL freetype_get_glyph_index( struct gdi_font *font, UINT *glyph, BOOL use_encoding );
+extern UINT freetype_get_default_glyph( struct gdi_font *font );
+extern DWORD freetype_get_glyph_outline( struct gdi_font *font, UINT glyph, UINT format,
+                                               GLYPHMETRICS *lpgm, ABC *abc, DWORD buflen, void *buf,
+                                               const MAT2 *lpmat, BOOL tategaki );
+extern BOOL freetype_set_bitmap_text_metrics( struct gdi_font *font );
+extern BOOL freetype_set_outline_text_metrics( struct gdi_font *font );
+extern BOOL freetype_get_char_width_info( struct gdi_font *font, struct char_width_info *info );
+extern DWORD freetype_get_unicode_ranges( struct gdi_font *font, GLYPHSET *gs );
+extern DWORD freetype_get_kerning_pairs( struct gdi_font *font, KERNINGPAIR **pairs );
 
 /* opentype.c */
 

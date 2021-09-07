@@ -1,9 +1,10 @@
 EXTRADEFS = -D_GDI32_
 MODULE    = gdi32.dll
 IMPORTLIB = gdi32
-IMPORTS   = advapi32 winezlib
-EXTRAINCL = -I$(ZLIB_SRCDIR) $(FREETYPE_CFLAGS) $(FONTCONFIG_CFLAGS)
+IMPORTS   = advapi32 winefreetype winepng winezlib
+EXTRAINCL = -I$(FREETYPE_SRCDIR)/include -I$(ZLIB_SRCDIR) $(FONTCONFIG_CFLAGS)
 EXTRALIBS = $(CARBON_LIBS) $(APPKIT_LIBS)
+EXTRADEFS = -DHAVE_FT2BUILD_H
 DELAYIMPORTS = setupapi
 
 C_SRCS = \
@@ -24,6 +25,7 @@ C_SRCS = \
 	emfdrv.c \
 	enhmetafile.c \
 	font.c \
+	fontlist.c \
 	freetype.c \
 	gdidc.c \
 	gdiobj.c \

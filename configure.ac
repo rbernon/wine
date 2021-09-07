@@ -377,6 +377,7 @@ fi
 if test "x$enable_winefreetype" = "xno"
 then
   enable_dwrite=${enable_dwrite:-no}
+  enable_gdi32=${enable_gdi32:-no}
 fi
 
 AC_CACHE_CHECK([for the directory containing the Wine tools], wine_cv_toolsdir,

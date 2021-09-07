@@ -2025,6 +2025,7 @@ static void free_gdi_font( struct gdi_font *font )
     DWORD i;
     struct gdi_font *child, *child_next;
 
+    if (font->ft_face) freetype_destroy_font( font );
     if (font->private) font_funcs->unmap_font( font );
     free_font_handle( font->handle );
     LIST_FOR_EACH_ENTRY_SAFE( child, child_next, &font->child_fonts, struct gdi_font, entry )
@@ -2323,12 +2324,12 @@ static void *get_GSUB_vert_feature( struct gdi_font *font )
     GSUB_Script *script;
     GSUB_LangSys *language;
     GSUB_Feature *feature;
-    DWORD length = font_funcs->get_font_data( font, MS_GSUB_TAG, 0, NULL, 0 );
+    DWORD length = freetype_get_font_data( font, MS_GSUB_TAG, 0, NULL, 0 );
 
     if (length == GDI_ERROR) return NULL;
 
     header = HeapAlloc( GetProcessHeap(), 0, length );
-    font_funcs->get_font_data( font, MS_GSUB_TAG, 0, header, length );
+    freetype_get_font_data( font, MS_GSUB_TAG, 0, header, length );
     TRACE( "Loaded GSUB table of %i bytes\n", length );
 
     if ((script = GSUB_get_script_table( header, get_opentype_script(font) )))
@@ -2967,7 +2968,7 @@ static BOOL load_font( struct gdi_font *font )
     if (!font_funcs->map_font( font, &font_data, &font_data_size ))
         return FALSE;
 
-    if (!font_funcs->load_font( font, font_data, font_data_size ))
+    if (!freetype_load_font( font, font_data, font_data_size ))
         return FALSE;
 
     return TRUE;
@@ -3002,7 +3003,7 @@ static BOOL get_face_enum_data( struct gdi_font_face *face, ENUMLOGFONTEXW *elf,
         }
     }
 
-    if (font_funcs->set_outline_text_metrics( font ))
+    if (freetype_set_outline_text_metrics( font ))
     {
         static const DWORD ntm_ppem = 32;
         UINT cell_height;
@@ -3027,7 +3028,7 @@ static BOOL get_face_enum_data( struct gdi_font_face *face, ENUMLOGFONTEXW *elf,
 #undef SCALE_NTM
 #undef TM
     }
-    else if (font_funcs->set_bitmap_text_metrics( font ))
+    else if (freetype_set_bitmap_text_metrics( font ))
     {
         memcpy( &ntm->ntmTm, &font->otm.otmTextMetrics, sizeof(TEXTMETRICW) );
         ntm->ntmTm.ntmSizeEM = ntm->ntmTm.tmHeight - ntm->ntmTm.tmInternalLeading;
@@ -3209,11 +3210,11 @@ static UINT get_glyph_index_symbol( struct gdi_font *font, UINT glyph )
     /* there are a number of old pre-Unicode "broken" TTFs, which
        do have symbols at U+00XX instead of U+f0XX */
     index = glyph;
-    font_funcs->get_glyph_index( font, &index, FALSE );
+    freetype_get_glyph_index( font, &index, FALSE );
     if (!index)
     {
         index = glyph - 0xf000;
-        font_funcs->get_glyph_index( font, &index, FALSE );
+        freetype_get_glyph_index( font, &index, FALSE );
     }
     return index;
 }
@@ -3224,7 +3225,7 @@ static UINT get_glyph_index( struct gdi_font *font, UINT glyph )
     char ch;
     BOOL used;
 
-    if (font_funcs->get_glyph_index( font, &glyph, TRUE )) return glyph;
+    if (freetype_get_glyph_index( font, &glyph, TRUE )) return glyph;
 
     if (font->codepage == CP_SYMBOL)
     {
@@ -3238,7 +3239,7 @@ static UINT get_glyph_index( struct gdi_font *font, UINT glyph )
     else if (WideCharToMultiByte( font->codepage, WC_NO_BEST_FIT_CHARS, &wc, 1, &ch, 1, NULL, &used ) && !used)
     {
         glyph = (unsigned char)ch;
-        font_funcs->get_glyph_index( font, &glyph, FALSE );
+        freetype_get_glyph_index( font, &glyph, FALSE );
     }
     else return 0;
 
@@ -3279,7 +3280,7 @@ static DWORD get_glyph_outline( struct gdi_font *font, UINT glyph, UINT format,
     {
         /* Windows bitmap font, e.g. Small Fonts, uses ANSI character code
            as glyph index. "Treasure Adventure Game" depends on this. */
-        font_funcs->get_glyph_index( font, &index, FALSE );
+        freetype_get_glyph_index( font, &index, FALSE );
         format &= ~GGO_GLYPH_INDEX;
         /* TODO: Window also turns off tategaki for glyphs passed in by index
             if their unicode code points fall outside of the range that is
@@ -3301,7 +3302,7 @@ static DWORD get_glyph_outline( struct gdi_font *font, UINT glyph, UINT format,
     if (format == GGO_METRICS && !mat && get_gdi_font_glyph_metrics( font, index, &gm, &abc ))
         goto done;
 
-    ret = font_funcs->get_glyph_outline( font, index, format, &gm, &abc, buflen, buf, mat, tategaki );
+    ret = freetype_get_glyph_outline( font, index, format, &gm, &abc, buflen, buf, mat, tategaki );
     if (ret == GDI_ERROR) return ret;
 
     if ((format == GGO_METRICS || format == GGO_BITMAP || format ==  WINE_GGO_GRAY16_BITMAP) && !mat)
@@ -3430,7 +3431,7 @@ static BOOL CDECL font_GetCharWidthInfo( PHYSDEV dev, void *ptr )
     }
 
     info->unk = 0;
-    if (!physdev->font->scalable || !font_funcs->get_char_width_info( physdev->font, info ))
+    if (!physdev->font->scalable || !freetype_get_char_width_info( physdev->font, info ))
         info->lsb = info->rsb = 0;
 
     return TRUE;
@@ -3449,7 +3450,7 @@ static DWORD CDECL font_GetFontData( PHYSDEV dev, DWORD table, DWORD offset, voi
         dev = GET_NEXT_PHYSDEV( dev, pGetFontData );
         return dev->funcs->pGetFontData( dev, table, offset, buf, size );
     }
-    return font_funcs->get_font_data( physdev->font, table, offset, buf, size );
+    return freetype_get_font_data( physdev->font, table, offset, buf, size );
 }
 
 
@@ -3500,7 +3501,7 @@ static DWORD CDECL font_GetFontUnicodeRanges( PHYSDEV dev, GLYPHSET *glyphset )
         return dev->funcs->pGetFontUnicodeRanges( dev, glyphset );
     }
 
-    num_ranges = font_funcs->get_unicode_ranges( physdev->font, glyphset );
+    num_ranges = freetype_get_unicode_ranges( physdev->font, glyphset );
     size = offsetof( GLYPHSET, ranges[num_ranges] );
     if (glyphset)
     {
@@ -3541,7 +3542,7 @@ static DWORD CDECL font_GetGlyphIndices( PHYSDEV dev, const WCHAR *str, INT coun
     {
         UINT glyph = str[i];
 
-        if (!font_funcs->get_glyph_index( physdev->font, &glyph, TRUE ))
+        if (!freetype_get_glyph_index( physdev->font, &glyph, TRUE ))
         {
             glyph = 0;
             if (physdev->font->codepage == CP_SYMBOL)
@@ -3557,7 +3558,7 @@ static DWORD CDECL font_GetGlyphIndices( PHYSDEV dev, const WCHAR *str, INT coun
         {
             if (!got_default)
             {
-                default_char = font_funcs->get_default_glyph( physdev->font );
+                default_char = freetype_get_default_glyph( physdev->font );
                 got_default = TRUE;
             }
             gi[i] = default_char;
@@ -3606,8 +3607,8 @@ static DWORD CDECL font_GetKerningPairs( PHYSDEV dev, DWORD count, KERNINGPAIR *
 
     EnterCriticalSection( &font_cs );
     if (physdev->font->kern_count == -1)
-        physdev->font->kern_count = font_funcs->get_kerning_pairs( physdev->font,
-                                                                   &physdev->font->kern_pairs );
+        physdev->font->kern_count = freetype_get_kerning_pairs( physdev->font,
+                                                                &physdev->font->kern_pairs );
     LeaveCriticalSection( &font_cs );
 
     if (count && pairs)
@@ -3702,7 +3703,7 @@ static UINT CDECL font_GetOutlineTextMetrics( PHYSDEV dev, UINT size, OUTLINETEX
     if (!physdev->font->scalable) return 0;
 
     EnterCriticalSection( &font_cs );
-    if (font_funcs->set_outline_text_metrics( physdev->font ))
+    if (freetype_set_outline_text_metrics( physdev->font ))
     {
 	ret = physdev->font->otm.otmSize;
         if (metrics && size >= physdev->font->otm.otmSize)
@@ -3887,8 +3888,8 @@ static BOOL CDECL font_GetTextMetrics( PHYSDEV dev, TEXTMETRICW *metrics )
     }
 
     EnterCriticalSection( &font_cs );
-    if (font_funcs->set_outline_text_metrics( physdev->font ) ||
-        font_funcs->set_bitmap_text_metrics( physdev->font ))
+    if (freetype_set_outline_text_metrics( physdev->font ) ||
+        freetype_set_bitmap_text_metrics( physdev->font ))
     {
         *metrics = physdev->font->otm.otmTextMetrics;
         scale_font_metrics( physdev->font, metrics );
@@ -4099,7 +4100,7 @@ static HFONT CDECL font_SelectFont( PHYSDEV dev, HFONT hfont, UINT *aa_flags )
                 else
                     *aa_flags = font_smoothing;
             }
-            *aa_flags = font_funcs->get_aa_flags( font, *aa_flags, antialias_fakes );
+            *aa_flags = freetype_get_aa_flags( font, *aa_flags, antialias_fakes );
         }
         TRACE( "%p %s %d aa %x\n", hfont, debugstr_w(lf.lfFaceName), lf.lfHeight, *aa_flags );
         LeaveCriticalSection( &font_cs );
@@ -5751,7 +5752,7 @@ BOOL get_file_outline_text_metric( const WCHAR *path, OUTLINETEXTMETRICW *otm )
     if (!(font = alloc_gdi_font( path, NULL, 0 ))) goto done;
     font->lf.lfHeight = 100;
     if (!load_font( font )) goto done;
-    if (!font_funcs->set_outline_text_metrics( font )) goto done;
+    if (!freetype_set_outline_text_metrics( font )) goto done;
     *otm = font->otm;
     free_gdi_font( font );
     return TRUE;
@@ -6176,6 +6177,7 @@ void font_init(void)
     system_lcid = GetSystemDefaultLCID();
     init_font_options();
     update_codepage();
+    init_freetype();
     if (__wine_init_unix_lib( gdi32_module, DLL_PROCESS_ATTACH, &callback_funcs, &font_funcs )) return;
 
     load_system_bitmap_fonts();
@@ -6388,9 +6390,9 @@ BOOL WINAPI NtGdiGetFontFileData( DWORD instance_id, DWORD file_index, UINT64 *o
     if ((font = get_font_from_handle( instance_id )))
     {
         if (font->ttc_item_offset) tag = MS_TTCF_TAG;
-        size = font_funcs->get_font_data( font, tag, 0, NULL, 0 );
-        if (size != GDI_ERROR && size >= buff_size && *offset <= size - buff_size)
-            ret = font_funcs->get_font_data( font, tag, *offset, buff, buff_size ) != GDI_ERROR;
+        size = freetype_get_font_data( font, tag, 0, NULL, 0 );
+        if (size != GDI_ERROR && size >= buff_size && offset <= size - buff_size)
+            ret = freetype_get_font_data( font, tag, offset, buff, buff_size ) != GDI_ERROR;
         else
             SetLastError( ERROR_INVALID_PARAMETER );
     }
