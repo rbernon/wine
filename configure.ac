@@ -246,6 +246,7 @@ fi
 
 AC_SUBST(EXTSRCDIRS,"")
 AC_SUBST(FAUDIO_SRCDIR,"")
+AC_SUBST(FREETYPE_SRCDIR,"")
 AC_SUBST(LIBPNG_SRCDIR,"")
 AC_SUBST(ZLIB_SRCDIR,"")
 
@@ -264,6 +265,23 @@ if test -z "$wine_cv_faudio_srcdir"; then
 else
   EXTSRCDIRS="$EXTSRCDIRS $wine_cv_faudio_srcdir"
   AC_SUBST(FAUDIO_SRCDIR,$wine_cv_faudio_srcdir)
+fi
+
+AC_CACHE_CHECK([for the directory containing FreeType sources], wine_cv_freetype_srcdir,
+  [wine_cv_freetype_srcdir="$with_freetype"
+   if test -z "$with_freetype"; then
+     WINE_WARNING([FreeType sources not provided, some modules will not be built.])
+   elif test "x$with_freetype" = "xno"; then
+     wine_cv_freetype_srcdir=""
+   elif test ! -f "$with_freetype/src/sfnt/sfnt.c"; then
+     AC_MSG_ERROR([could not find FreeType sources in $wine_cv_freetype_srcdir])
+     wine_cv_freetype_srcdir=""
+   fi])
+if test -z "$wine_cv_freetype_srcdir"; then
+  enable_winefreetype=${enable_winefreetype:-no}
+else
+  EXTSRCDIRS="$EXTSRCDIRS $wine_cv_freetype_srcdir"
+  AC_SUBST(FREETYPE_SRCDIR,$wine_cv_freetype_srcdir)
 fi
 
 AC_CACHE_CHECK([for the directory containing libpng sources], wine_cv_libpng_srcdir,
@@ -345,6 +363,7 @@ then
   enable_dbghelp=${enable_dbghelp:-no}
   enable_gdi32=${enable_gdi32:-no}
   enable_opcservices=${enable_opcservices:-no}
+  enable_winefreetype=${enable_winefreetype:-no}
   enable_winepng=${enable_winepng:-no}
   enable_wininet=${enable_wininet:-no}
 fi
@@ -352,6 +371,7 @@ fi
 if test "x$enable_winepng" = "xno"
 then
   enable_user32=${enable_user32:-no}
+  enable_winefreetype=${enable_winefreetype:-no}
 fi
 
 AC_CACHE_CHECK([for the directory containing the Wine tools], wine_cv_toolsdir,
@@ -3944,6 +3964,7 @@ WINE_CONFIG_MAKEFILE(dlls/xolehlp)
 WINE_CONFIG_MAKEFILE(dlls/xpsprint)
 WINE_CONFIG_MAKEFILE(dlls/xpssvcs)
 WINE_CONFIG_MAKEFILE(external/winefaudio)
+WINE_CONFIG_MAKEFILE(external/winefreetype)
 WINE_CONFIG_MAKEFILE(external/winepng)
 WINE_CONFIG_MAKEFILE(external/winezlib)
 WINE_CONFIG_MAKEFILE(fonts)
