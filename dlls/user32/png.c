@@ -19,20 +19,12 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#if 0
-#pragma makedep unix
-#endif
-
-#include "config.h"
-#include "wine/port.h"
+#include "png.h"
 
 #include <assert.h>
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
-#ifdef SONAME_LIBPNG
-#include <png.h>
-#endif
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -48,35 +40,9 @@
 #include "win.h"
 #include "user_private.h"
 #include "wine/list.h"
-#include "wine/unicode.h"
 #include "wine/debug.h"
 
-#ifdef SONAME_LIBPNG
-
 WINE_DEFAULT_DEBUG_CHANNEL(cursor);
-
-static void *libpng_handle;
-#define MAKE_FUNCPTR(f) static typeof(f) * p##f
-MAKE_FUNCPTR(png_create_read_struct);
-MAKE_FUNCPTR(png_create_info_struct);
-MAKE_FUNCPTR(png_destroy_read_struct);
-MAKE_FUNCPTR(png_error);
-MAKE_FUNCPTR(png_get_bit_depth);
-MAKE_FUNCPTR(png_get_color_type);
-MAKE_FUNCPTR(png_get_error_ptr);
-MAKE_FUNCPTR(png_get_image_height);
-MAKE_FUNCPTR(png_get_image_width);
-MAKE_FUNCPTR(png_get_io_ptr);
-MAKE_FUNCPTR(png_read_image);
-MAKE_FUNCPTR(png_read_info);
-MAKE_FUNCPTR(png_read_update_info);
-MAKE_FUNCPTR(png_set_bgr);
-MAKE_FUNCPTR(png_set_crc_action);
-MAKE_FUNCPTR(png_set_error_fn);
-MAKE_FUNCPTR(png_set_expand);
-MAKE_FUNCPTR(png_set_gray_to_rgb);
-MAKE_FUNCPTR(png_set_read_fn);
-#undef MAKE_FUNCPTR
 
 static void user_error_fn(png_structp png_ptr, png_const_charp error_message)
 {
@@ -86,7 +52,7 @@ static void user_error_fn(png_structp png_ptr, png_const_charp error_message)
      * default because there's no way to access the jmp buffer in the png_struct
      * that works in 1.2 and 1.4 and allows us to dynamically load libpng. */
     WARN("PNG error: %s\n", debugstr_a(error_message));
-    pjmpbuf = ppng_get_error_ptr(png_ptr);
+    pjmpbuf = png_get_error_ptr(png_ptr);
     longjmp(*pjmpbuf, 1);
 }
 
@@ -103,7 +69,7 @@ struct png_wrapper
 
 static void user_read_data(png_structp png_ptr, png_bytep data, png_size_t length)
 {
-    struct png_wrapper *png = ppng_get_io_ptr(png_ptr);
+    struct png_wrapper *png = png_get_io_ptr(png_ptr);
 
     if (png->size - png->pos >= length)
     {
@@ -112,7 +78,7 @@ static void user_read_data(png_structp png_ptr, png_bytep data, png_size_t lengt
     }
     else
     {
-        ppng_error(png_ptr, "failed to read PNG data");
+        png_error(png_ptr, "failed to read PNG data");
     }
 }
 
@@ -170,13 +136,13 @@ static BITMAPINFO * CDECL load_png(const char *png_data, DWORD *size)
     png.pos = 0;
 
     /* initialize libpng */
-    png_ptr = ppng_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     if (!png_ptr) return NULL;
 
-    info_ptr = ppng_create_info_struct(png_ptr);
+    info_ptr = png_create_info_struct(png_ptr);
     if (!info_ptr)
     {
-        ppng_destroy_read_struct(&png_ptr, NULL, NULL);
+        png_destroy_read_struct(&png_ptr, NULL, NULL);
         return NULL;
     }
 
@@ -185,35 +151,35 @@ static BITMAPINFO * CDECL load_png(const char *png_data, DWORD *size)
     {
         free(row_pointers);
         RtlFreeHeap(GetProcessHeap(), 0, info);
-        ppng_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+        png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
         return NULL;
     }
 
-    ppng_set_error_fn(png_ptr, jmpbuf, user_error_fn, user_warning_fn);
-    ppng_set_crc_action(png_ptr, PNG_CRC_QUIET_USE, PNG_CRC_QUIET_USE);
+    png_set_error_fn(png_ptr, jmpbuf, user_error_fn, user_warning_fn);
+    png_set_crc_action(png_ptr, PNG_CRC_QUIET_USE, PNG_CRC_QUIET_USE);
 
     /* set up custom i/o handling */
-    ppng_set_read_fn(png_ptr, &png, user_read_data);
+    png_set_read_fn(png_ptr, &png, user_read_data);
 
     /* read the header */
-    ppng_read_info(png_ptr, info_ptr);
+    png_read_info(png_ptr, info_ptr);
 
-    color_type = ppng_get_color_type(png_ptr, info_ptr);
-    bit_depth = ppng_get_bit_depth(png_ptr, info_ptr);
+    color_type = png_get_color_type(png_ptr, info_ptr);
+    bit_depth = png_get_bit_depth(png_ptr, info_ptr);
 
     /* expand grayscale image data to rgb */
     if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
-        ppng_set_gray_to_rgb(png_ptr);
+        png_set_gray_to_rgb(png_ptr);
 
     /* expand palette image data to rgb */
     if (color_type == PNG_COLOR_TYPE_PALETTE || bit_depth < 8)
-        ppng_set_expand(png_ptr);
+        png_set_expand(png_ptr);
 
     /* update color type information */
-    ppng_read_update_info(png_ptr, info_ptr);
+    png_read_update_info(png_ptr, info_ptr);
 
-    color_type = ppng_get_color_type(png_ptr, info_ptr);
-    bit_depth = ppng_get_bit_depth(png_ptr, info_ptr);
+    color_type = png_get_color_type(png_ptr, info_ptr);
+    bit_depth = png_get_bit_depth(png_ptr, info_ptr);
 
     bpp = 0;
 
@@ -227,7 +193,7 @@ static BITMAPINFO * CDECL load_png(const char *png_data, DWORD *size)
     case PNG_COLOR_TYPE_RGB_ALPHA:
         if (bit_depth == 8)
         {
-            ppng_set_bgr(png_ptr);
+            png_set_bgr(png_ptr);
             bpp = 32;
         }
         break;
@@ -239,12 +205,12 @@ static BITMAPINFO * CDECL load_png(const char *png_data, DWORD *size)
     if (!bpp)
     {
         FIXME("unsupported PNG color format %d, %d bpp\n", color_type, bit_depth);
-        ppng_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+        png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
         return NULL;
     }
 
-    width = ppng_get_image_width(png_ptr, info_ptr);
-    height = ppng_get_image_height(png_ptr, info_ptr);
+    width = png_get_image_width(png_ptr, info_ptr);
+    height = png_get_image_height(png_ptr, info_ptr);
 
     rowbytes = (width * bpp + 7) / 8;
     image_size = height * rowbytes;
@@ -254,7 +220,7 @@ static BITMAPINFO * CDECL load_png(const char *png_data, DWORD *size)
     info = RtlAllocateHeap(GetProcessHeap(), 0, sizeof(BITMAPINFOHEADER) + image_size + mask_size);
     if (!info)
     {
-        ppng_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+        png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
         return NULL;
     }
 
@@ -265,7 +231,7 @@ static BITMAPINFO * CDECL load_png(const char *png_data, DWORD *size)
     if (!row_pointers)
     {
         RtlFreeHeap(GetProcessHeap(), 0, info);
-        ppng_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+        png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
         return NULL;
     }
 
@@ -273,9 +239,9 @@ static BITMAPINFO * CDECL load_png(const char *png_data, DWORD *size)
     for (i = 0; i < height; i++)
         row_pointers[i] = image_data + (height - i - 1) * rowbytes;
 
-    ppng_read_image(png_ptr, row_pointers);
+    png_read_image(png_ptr, row_pointers);
     free(row_pointers);
-    ppng_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+    png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
 
     info->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     info->bmiHeader.biWidth = width;
@@ -303,40 +269,6 @@ NTSTATUS CDECL __wine_init_unix_lib( HMODULE module, DWORD reason, const void *p
 {
     if (reason != DLL_PROCESS_ATTACH) return STATUS_SUCCESS;
 
-    if (!(libpng_handle = dlopen( SONAME_LIBPNG, RTLD_NOW )))
-    {
-        WARN( "failed to load %s\n", SONAME_LIBPNG );
-        return STATUS_DLL_NOT_FOUND;
-    }
-#define LOAD_FUNCPTR(f) \
-    if (!(p##f = dlsym( libpng_handle, #f ))) \
-    { \
-        WARN( "%s not found in %s\n", #f, SONAME_LIBPNG ); \
-        return STATUS_PROCEDURE_NOT_FOUND; \
-    }
-    LOAD_FUNCPTR(png_create_read_struct);
-    LOAD_FUNCPTR(png_create_info_struct);
-    LOAD_FUNCPTR(png_destroy_read_struct);
-    LOAD_FUNCPTR(png_error);
-    LOAD_FUNCPTR(png_get_bit_depth);
-    LOAD_FUNCPTR(png_get_color_type);
-    LOAD_FUNCPTR(png_get_error_ptr);
-    LOAD_FUNCPTR(png_get_image_height);
-    LOAD_FUNCPTR(png_get_image_width);
-    LOAD_FUNCPTR(png_get_io_ptr);
-    LOAD_FUNCPTR(png_read_image);
-    LOAD_FUNCPTR(png_read_info);
-    LOAD_FUNCPTR(png_read_update_info);
-    LOAD_FUNCPTR(png_set_bgr);
-    LOAD_FUNCPTR(png_set_crc_action);
-    LOAD_FUNCPTR(png_set_error_fn);
-    LOAD_FUNCPTR(png_set_expand);
-    LOAD_FUNCPTR(png_set_gray_to_rgb);
-    LOAD_FUNCPTR(png_set_read_fn);
-#undef LOAD_FUNCPTR
-
     *(const struct png_funcs **)ptr_out = &funcs;
     return STATUS_SUCCESS;
 }
-
-#endif  /* SONAME_LIBPNG */

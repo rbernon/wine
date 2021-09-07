@@ -349,6 +349,11 @@ then
   enable_wininet=${enable_wininet:-no}
 fi
 
+if test "x$enable_winepng" = "xno"
+then
+  enable_user32=${enable_user32:-no}
+fi
+
 AC_CACHE_CHECK([for the directory containing the Wine tools], wine_cv_toolsdir,
   [wine_cv_toolsdir="$with_wine_tools"
    if test -z "$with_wine_tools"; then

@@ -1,8 +1,8 @@
 EXTRADEFS = -D_USER32_ -D_WINABLE_
 MODULE    = user32.dll
 IMPORTLIB = user32
-IMPORTS   = setupapi gdi32 version sechost advapi32 kernelbase
-EXTRAINCL = $(PNG_CFLAGS)
+IMPORTS   = winepng winezlib setupapi gdi32 version sechost advapi32 kernelbase
+EXTRAINCL = -I$(LIBPNG_SRCDIR)
 DELAYIMPORTS = hid imm32
 
 C_SRCS = \
