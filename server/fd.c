@@ -342,27 +342,15 @@ timeout_t monotonic_time;
 struct _KUSER_SHARED_DATA *user_shared_data = NULL;
 static const int user_shared_data_timeout = 16;
 
-static void atomic_store_ulong(volatile ULONG *ptr, ULONG value)
-{
-    /* on x86 there should be total store order guarantees, so volatile is
-     * enough to ensure the stores aren't reordered by the compiler, and then
-     * they will always be seen in-order from other CPUs. On other archs, we
-     * need atomic intrinsics to guarantee that. */
+/* on x86 there should be total store order guarantees, so volatile is
+ * enough to ensure the stores aren't reordered by the compiler, and then
+ * they will always be seen in-order from other CPUs. On other archs, we
+ * need atomic intrinsics to guarantee that. */
 #if defined(__i386__) || defined(__x86_64__)
-    *ptr = value;
+#define ATOMIC_STORE(ptr, value) *(ptr) = (value)
 #else
-    __atomic_store_n(ptr, value, __ATOMIC_SEQ_CST);
+#define ATOMIC_STORE(ptr, value) __atomic_store_n(ptr, value, __ATOMIC_SEQ_CST)
 #endif
-}
-
-static void atomic_store_long(volatile LONG *ptr, LONG value)
-{
-#if defined(__i386__) || defined(__x86_64__)
-    *ptr = value;
-#else
-    __atomic_store_n(ptr, value, __ATOMIC_SEQ_CST);
-#endif
-}
 
 static void set_user_shared_data_time(void)
 {
@@ -381,26 +369,28 @@ static void set_user_shared_data_time(void)
         if (tm->tm_isdst) timezone_bias -= 3600;
         timezone_bias *= TICKS_PER_SEC;
 
-        atomic_store_long(&user_shared_data->TimeZoneBias.High2Time, timezone_bias >> 32);
-        atomic_store_ulong(&user_shared_data->TimeZoneBias.LowPart, timezone_bias);
-        atomic_store_long(&user_shared_data->TimeZoneBias.High1Time, timezone_bias >> 32);
+        ATOMIC_STORE(&user_shared_data->TimeZoneBias.High2Time, timezone_bias >> 32);
+        ATOMIC_STORE(&user_shared_data->TimeZoneBias.LowPart, timezone_bias);
+        ATOMIC_STORE(&user_shared_data->TimeZoneBias.High1Time, timezone_bias >> 32);
 
         last_timezone_update = monotonic_time;
     }
 
-    atomic_store_long(&user_shared_data->SystemTime.High2Time, current_time >> 32);
-    atomic_store_ulong(&user_shared_data->SystemTime.LowPart, current_time);
-    atomic_store_long(&user_shared_data->SystemTime.High1Time, current_time >> 32);
+    ATOMIC_STORE(&user_shared_data->SystemTime.High2Time, current_time >> 32);
+    ATOMIC_STORE(&user_shared_data->SystemTime.LowPart, current_time);
+    ATOMIC_STORE(&user_shared_data->SystemTime.High1Time, current_time >> 32);
 
-    atomic_store_long(&user_shared_data->InterruptTime.High2Time, monotonic_time >> 32);
-    atomic_store_ulong(&user_shared_data->InterruptTime.LowPart, monotonic_time);
-    atomic_store_long(&user_shared_data->InterruptTime.High1Time, monotonic_time >> 32);
+    ATOMIC_STORE(&user_shared_data->InterruptTime.High2Time, monotonic_time >> 32);
+    ATOMIC_STORE(&user_shared_data->InterruptTime.LowPart, monotonic_time);
+    ATOMIC_STORE(&user_shared_data->InterruptTime.High1Time, monotonic_time >> 32);
 
-    atomic_store_long(&user_shared_data->TickCount.High2Time, tick_count >> 32);
-    atomic_store_ulong(&user_shared_data->TickCount.LowPart, tick_count);
-    atomic_store_long(&user_shared_data->TickCount.High1Time, tick_count >> 32);
-    atomic_store_ulong(&user_shared_data->TickCountLowDeprecated, tick_count);
+    ATOMIC_STORE(&user_shared_data->TickCount.High2Time, tick_count >> 32);
+    ATOMIC_STORE(&user_shared_data->TickCount.LowPart, tick_count);
+    ATOMIC_STORE(&user_shared_data->TickCount.High1Time, tick_count >> 32);
+    ATOMIC_STORE(&user_shared_data->TickCountLowDeprecated, tick_count);
 }
+
+#undef ATOMIC_STORE
 
 void set_current_time(void)
 {
