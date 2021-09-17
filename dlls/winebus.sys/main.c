@@ -222,17 +222,23 @@ static WCHAR *get_device_id(DEVICE_OBJECT *device)
 static WCHAR *get_hardware_ids(DEVICE_OBJECT *device)
 {
     static const WCHAR input_format[] = L"&MI_%02u";
+    static const WCHAR version_format[] = L"&REV_%04X";
     static const WCHAR winebus_format[] = L"WINEBUS\\VID_%04X&PID_%04X";
     struct device_extension *ext = (struct device_extension *)device->DeviceExtension;
-    DWORD pos = 0, len = 0, input_len = 0, winebus_len = 25;
+    DWORD pos = 0, len = 0, input_len = 0, version_len = 9, winebus_len = 25;
     WCHAR *dst;
 
     if (ext->desc.input != -1) input_len = 14;
 
+    len += winebus_len + version_len + input_len + 1;
     len += winebus_len + input_len + 1;
 
     if ((dst = ExAllocatePool(PagedPool, (len + 1) * sizeof(WCHAR))))
     {
+        pos += swprintf(dst + pos, len - pos, winebus_format, ext->desc.vid, ext->desc.pid);
+        pos += swprintf(dst + pos, len - pos, version_format, ext->desc.version);
+        if (input_len) pos += swprintf(dst + pos, len - pos, input_format, ext->desc.input);
+        pos += 1;
         pos += swprintf(dst + pos, len - pos, winebus_format, ext->desc.vid, ext->desc.pid);
         if (input_len) pos += swprintf(dst + pos, len - pos, input_format, ext->desc.input);
         pos += 1;
