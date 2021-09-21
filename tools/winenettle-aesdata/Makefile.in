@@ -1,4 +1,0 @@
-PROGRAMS = winenettle-aesdata
-PARENTSRC = $(NETTLE_SRCDIR)
-
-C_SRCS = aesdata.c
