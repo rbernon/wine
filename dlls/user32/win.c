@@ -614,8 +614,13 @@ static inline void reset_bounds( RECT *bounds )
 
 static struct offscreen_window_surface *impl_from_window_surface( struct window_surface *base )
 {
-    if (!base || base->funcs != &offscreen_window_surface_funcs) return NULL;
     return CONTAINING_RECORD( base, struct offscreen_window_surface, header );
+}
+
+static struct offscreen_window_surface *impl_from_window_surface_or_null( struct window_surface *base )
+{
+    if (!base || base->funcs != &offscreen_window_surface_funcs) return NULL;
+    return impl_from_window_surface( base );
 }
 
 static void CDECL offscreen_window_surface_lock( struct window_surface *base )
@@ -687,7 +692,7 @@ void create_offscreen_window_surface( const RECT *visible_rect, struct window_su
     surface_rect.bottom = (surface_rect.bottom + 0x1f) & ~0x1f;
 
     /* check that old surface is an offscreen_window_surface, or release it */
-    if ((impl = impl_from_window_surface( *surface )))
+    if ((impl = impl_from_window_surface_or_null( *surface )))
     {
         /* if the rect didn't change, keep the same surface */
         if (EqualRect( &surface_rect, &impl->header.rect )) return;
