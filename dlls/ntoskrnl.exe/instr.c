@@ -497,8 +497,8 @@ WINE_DEFAULT_DEBUG_CHANNEL(int);
 #define SIB_BASE( sib, rex )    (((sib) & 7) | (((rex) & REX_B) ? 8 : 0))
 
 /* keep in sync with dlls/ntdll/thread.c:thread_init */
-static const BYTE *wine_user_shared_data = (BYTE *)0x7ffe0000;
-static const BYTE *user_shared_data      = (BYTE *)0xfffff78000000000;
+static const BYTE *volatile wine_user_shared_data = (BYTE *)0x7ffe0000;
+static const BYTE *volatile user_shared_data      = (BYTE *)0xfffff78000000000;
 
 static inline DWORD64 *get_int_reg( CONTEXT *context, int index )
 {
