@@ -495,9 +495,14 @@ WINE_DEFAULT_DEBUG_CHANNEL(int);
 #define SIB_INDEX( sib, rex )   (((sib) >> 3) & 7) | (((rex) & REX_X) ? 8 : 0)
 #define SIB_BASE( sib, rex )    (((sib) & 7) | (((rex) & REX_B) ? 8 : 0))
 
-/* keep in sync with dlls/ntdll/thread.c:thread_init */
-static const BYTE *wine_user_shared_data = (BYTE *)0x7ffe0000;
-static const BYTE *user_shared_data      = (BYTE *)0xfffff78000000000;
+/* keep in sync with dlls/ntdll/thread.c:thread_init.
+ *
+ * Both the data and the pointers need to be volatile, as GCC 11
+ * considers that a fixed value pointer is an empty array, and will
+ * emit warnings when dereferencing it otherwise.
+ */
+static const volatile BYTE *const volatile wine_user_shared_data = (BYTE *)0x7ffe0000;
+static const volatile BYTE *const volatile user_shared_data      = (BYTE *)0xfffff78000000000;
 
 static inline DWORD64 *get_int_reg( CONTEXT *context, int index )
 {
@@ -515,7 +520,7 @@ static inline int get_op_size( int long_op, int rex )
 }
 
 /* store an operand into a register */
-static void store_reg_word( CONTEXT *context, BYTE regmodrm, const BYTE *addr, int long_op, int rex,
+static void store_reg_word( CONTEXT *context, BYTE regmodrm, const volatile BYTE *addr, int long_op, int rex,
         enum instr_op op )
 {
     int index = REGMODRM_REG( regmodrm, rex );
@@ -526,7 +531,7 @@ static void store_reg_word( CONTEXT *context, BYTE regmodrm, const BYTE *addr, i
     switch (op)
     {
         case INSTR_OP_MOV:
-            memcpy( reg, addr, op_size );
+            memcpy( reg, (BYTE *)addr, op_size );
             break;
         case INSTR_OP_OR:
             for (i = 0; i < op_size; ++i)
@@ -540,7 +545,7 @@ static void store_reg_word( CONTEXT *context, BYTE regmodrm, const BYTE *addr, i
 }
 
 /* store an operand into a byte register */
-static void store_reg_byte( CONTEXT *context, BYTE regmodrm, const BYTE *addr, int rex, enum instr_op op )
+static void store_reg_byte( CONTEXT *context, BYTE regmodrm, const volatile BYTE *addr, int rex, enum instr_op op )
 {
     int index = REGMODRM_REG( regmodrm, rex );
     BYTE *reg = (BYTE *)get_int_reg( context, index );
@@ -842,7 +847,7 @@ static DWORD emulate_instruction( EXCEPTION_RECORD *rec, CONTEXT *context )
                 ULONGLONG temp = 0;
 
                 TRACE("USD offset %#x at %p.\n", (unsigned int)offset, (void *)context->Rip);
-                memcpy( &temp, wine_user_shared_data + offset, data_size );
+                memcpy( &temp, (BYTE *)wine_user_shared_data + offset, data_size );
                 store_reg_word( context, instr[2], (BYTE *)&temp, long_op, rex, INSTR_OP_MOV );
                 context->Rip += prefixlen + len + 2;
                 return ExceptionContinueExecution;
@@ -901,7 +906,7 @@ static DWORD emulate_instruction( EXCEPTION_RECORD *rec, CONTEXT *context )
         if (offset <= KSHARED_USER_DATA_PAGE_SIZE - data_size)
         {
             TRACE("USD offset %#x at %p.\n", (unsigned int)offset, (void *)context->Rip);
-            memcpy( &context->Rax, wine_user_shared_data + offset, data_size );
+            memcpy( &context->Rax, (BYTE *)wine_user_shared_data + offset, data_size );
             context->Rip += prefixlen + len + 1;
             return ExceptionContinueExecution;
         }
