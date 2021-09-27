@@ -3179,13 +3179,6 @@ NTSTATUS virtual_alloc_thread_stack( INITIAL_TEB *stack, ULONG_PTR zero_bits, SI
     (void)VALGRIND_STACK_REGISTER( view->base, (char *)view->base + view->size );
 #endif
 
-    /* setup no access guard page */
-    set_page_vprot( view->base, page_size, VPROT_COMMITTED );
-    set_page_vprot( (char *)view->base + page_size, page_size,
-                    VPROT_READ | VPROT_WRITE | VPROT_COMMITTED | VPROT_GUARD );
-    mprotect_range( view->base, 2 * page_size, 0, 0 );
-    VIRTUAL_DEBUG_DUMP_VIEW( view );
-
     if (extra_size)
     {
         struct file_view *extra_view;
@@ -3193,15 +3186,24 @@ NTSTATUS virtual_alloc_thread_stack( INITIAL_TEB *stack, ULONG_PTR zero_bits, SI
         /* shrink the first view and create a second one for the extra size */
         /* this allows the app to free the stack without freeing the thread start portion */
         view->size -= extra_size;
-        status = create_view( &extra_view, (char *)view->base + view->size, extra_size,
+        view->base = (char *)view->base + extra_size;
+        status = create_view( &extra_view, (char *)view->base - extra_size, extra_size,
                               VPROT_READ | VPROT_WRITE | VPROT_COMMITTED );
         if (status != STATUS_SUCCESS)
         {
             view->size += extra_size;
+            view->base = (char *)view->base - extra_size;
             delete_view( view );
             goto done;
         }
     }
+
+    /* setup no access guard page */
+    set_page_vprot( view->base, page_size, VPROT_COMMITTED );
+    set_page_vprot( (char *)view->base + page_size, page_size,
+                    VPROT_READ | VPROT_WRITE | VPROT_COMMITTED | VPROT_GUARD );
+    mprotect_range( view->base, 2 * page_size, 0, 0 );
+    VIRTUAL_DEBUG_DUMP_VIEW( view );
 
     /* note: limit is lower than base since the stack grows down */
     stack->OldStackBase = 0;
