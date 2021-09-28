@@ -3123,8 +3123,11 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    "movq %gs:0x30,%rcx\n\t"
                    "movq 0x328(%rcx),%rcx\n\t"     /* amd64_thread_data()->syscall_frame */
                    "pushfq\n\t"
+                   __ASM_CFI(".cfi_adjust_cfa_offset 8\n\t")
                    "popq 0x80(%rcx)\n\t"
+                   __ASM_CFI(".cfi_adjust_cfa_offset -8\n\t")
                    "popq 0x70(%rcx)\n\t"           /* frame->rip */
+                   __ASM_CFI(".cfi_adjust_cfa_offset -8\n\t")
                    "movl $0,0x94(%rcx)\n\t"        /* frame->restore_flags */
                    __ASM_NAME("__wine_syscall_dispatcher_prolog_end") ":\n\t"
                    "movq %rax,0x00(%rcx)\n\t"
@@ -3144,6 +3147,20 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    "movw %ss,0x90(%rcx)\n\t"
                    "movw %gs,0x92(%rcx)\n\t"
                    "movq %rbp,0x98(%rcx)\n\t"
+                   __ASM_CFI(".cfi_def_cfa %rcx,0\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rax,0x00\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rbx,0x08\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rcx,0x10\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rdx,0x18\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rsi,0x20\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rdi,0x28\n\t")
+                   __ASM_CFI(".cfi_rel_offset %r12,0x50\n\t")
+                   __ASM_CFI(".cfi_rel_offset %r13,0x58\n\t")
+                   __ASM_CFI(".cfi_rel_offset %r14,0x60\n\t")
+                   __ASM_CFI(".cfi_rel_offset %r15,0x68\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rip,0x70\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rsp,0x88\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rbp,0x98\n\t")
                    /* Legends of Runeterra hooks the first system call return instruction, and
                     * depends on us returning to it. Adjust the return address accordingly. */
                    "subq $0xb,0x70(%rcx)\n\t"
@@ -3182,6 +3199,20 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    "leaq -0x98(%rbp),%rcx\n"
                    "2:\n\t"
 #endif
+                   __ASM_CFI(".cfi_def_cfa %rbp,0\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rax,-0x98\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rbx,-0x90\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rcx,-0x88\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rdx,-0x80\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rsi,-0x78\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rdi,-0x70\n\t")
+                   __ASM_CFI(".cfi_rel_offset %r12,-0x48\n\t")
+                   __ASM_CFI(".cfi_rel_offset %r13,-0x40\n\t")
+                   __ASM_CFI(".cfi_rel_offset %r14,-0x38\n\t")
+                   __ASM_CFI(".cfi_rel_offset %r15,-0x30\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rip,-0x28\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rsp,-0x10\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rbp,-0x00\n\t")
                    "leaq 0x28(%rsp),%rsi\n\t"      /* first argument */
                    "movq %rcx,%rsp\n\t"
                    "movq 0x00(%rcx),%rax\n\t"
@@ -3209,6 +3240,20 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    "movq (%rbx),%r10\n\t"          /* table->ServiceTable */
                    "callq *(%r10,%rax,8)\n\t"
                    "leaq -0x98(%rbp),%rcx\n"
+                   __ASM_CFI(".cfi_def_cfa %rcx,0\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rax,0x00\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rbx,0x08\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rcx,0x10\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rdx,0x18\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rsi,0x20\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rdi,0x28\n\t")
+                   __ASM_CFI(".cfi_rel_offset %r12,0x50\n\t")
+                   __ASM_CFI(".cfi_rel_offset %r13,0x58\n\t")
+                   __ASM_CFI(".cfi_rel_offset %r14,0x60\n\t")
+                   __ASM_CFI(".cfi_rel_offset %r15,0x68\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rip,0x70\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rsp,0x88\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rbp,0x98\n\t")
                    "2:\tmovl 0x94(%rcx),%edx\n\t"  /* frame->restore_flags */
 #ifdef __linux__
                    "testl $12,%r14d\n\t"           /* SYSCALL_HAVE_PTHREAD_TEB | SYSCALL_HAVE_WRFSGSBASE */

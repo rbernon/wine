@@ -2466,8 +2466,11 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    "movl %fs:0x1f8,%ecx\n\t"       /* x86_thread_data()->syscall_frame */
                    "movw $0,0x02(%ecx)\n\t"        /* frame->restore_flags */
                    "pushfl\n\t"
+                   __ASM_CFI(".cfi_adjust_cfa_offset 4\n\t")
                    "popl 0x04(%ecx)\n"             /* frame->eflags */
+                   __ASM_CFI(".cfi_adjust_cfa_offset -4\n\t")
                    "popl 0x08(%ecx)\n\t"           /* frame->eip */
+                   __ASM_CFI(".cfi_adjust_cfa_offset -4\n\t")
                    __ASM_NAME("__wine_syscall_dispatcher_prolog_end") ":\n\t"
                    "movl %esp,0x0c(%ecx)\n\t"      /* frame->esp */
                    "movw %cs,0x10(%ecx)\n\t"
@@ -2482,6 +2485,16 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    "movl %esi,0x30(%ecx)\n\t"
                    "movl %ebp,0x34(%ecx)\n\t"
                    "leal 0x34(%ecx),%ebp\n\t"
+                   __ASM_CFI(".cfi_def_cfa %ebp,0\n\t")
+                   __ASM_CFI(".cfi_rel_offset %eip,-0x2c\n\t")
+                   __ASM_CFI(".cfi_rel_offset %esp,-0x28\n\t")
+                   __ASM_CFI(".cfi_rel_offset %eax,-0x18\n\t")
+                   __ASM_CFI(".cfi_rel_offset %ebx,-0x14\n\t")
+                   __ASM_CFI(".cfi_rel_offset %ecx,-0x10\n\t")
+                   __ASM_CFI(".cfi_rel_offset %edx,-0x0c\n\t")
+                   __ASM_CFI(".cfi_rel_offset %edi,-0x08\n\t")
+                   __ASM_CFI(".cfi_rel_offset %esi,-0x04\n\t")
+                   __ASM_CFI(".cfi_rel_offset %ebp,-0x00\n\t")
                    "leal 4(%esp),%esi\n\t"         /* first argument */
                    "movl %eax,%ebx\n\t"
                    "shrl $8,%ebx\n\t"
