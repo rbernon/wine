@@ -3122,9 +3122,9 @@ __ASM_GLOBAL_FUNC( signal_exit_thread,
 __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    "movq %gs:0x30,%rcx\n\t"
                    "movq 0x328(%rcx),%rcx\n\t"     /* amd64_thread_data()->syscall_frame */
-                   "popq 0x70(%rcx)\n\t"           /* frame->rip */
                    "pushfq\n\t"
                    "popq 0x80(%rcx)\n\t"
+                   "popq 0x70(%rcx)\n\t"           /* frame->rip */
                    "movl $0,0x94(%rcx)\n\t"        /* frame->restore_flags */
                    __ASM_NAME("__wine_syscall_dispatcher_prolog_end") ":\n\t"
                    "movq %rax,0x00(%rcx)\n\t"

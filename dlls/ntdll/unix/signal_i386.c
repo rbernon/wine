@@ -2465,9 +2465,9 @@ __ASM_GLOBAL_FUNC( signal_exit_thread,
 __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    "movl %fs:0x1f8,%ecx\n\t"       /* x86_thread_data()->syscall_frame */
                    "movw $0,0x02(%ecx)\n\t"        /* frame->restore_flags */
-                   "popl 0x08(%ecx)\n\t"           /* frame->eip */
                    "pushfl\n\t"
                    "popl 0x04(%ecx)\n"             /* frame->eflags */
+                   "popl 0x08(%ecx)\n\t"           /* frame->eip */
                    __ASM_NAME("__wine_syscall_dispatcher_prolog_end") ":\n\t"
                    "movl %esp,0x0c(%ecx)\n\t"      /* frame->esp */
                    "movw %cs,0x10(%ecx)\n\t"
