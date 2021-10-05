@@ -1173,7 +1173,7 @@
 @ stub NtUserIsQueueAttached
 @ stub NtUserIsResizeLayoutSynchronizationEnabled
 @ stub NtUserIsTopLevelWindow
-@ stub NtUserIsTouchWindow
+@ stdcall -syscall NtUserIsTouchWindow(long ptr)
 @ stub NtUserIsWindowBroadcastingDpiToChildren
 @ stub NtUserIsWindowDisplayChangeSuppressed
 @ stub NtUserIsWindowGDIScaledDpiMessageEnabled
