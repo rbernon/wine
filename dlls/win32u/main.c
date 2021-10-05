@@ -1831,6 +1831,11 @@ BOOL SYSCALL_API NtUserIsMouseInPointerEnabled(void)
     SYSCALL_FUNC( NtUserIsMouseInPointerEnabled );
 }
 
+BOOL SYSCALL_API NtUserIsTouchWindow( HWND hwnd, ULONG *flags )
+{
+    __ASM_SYSCALL_FUNC( __id_NtUserIsTouchWindow );
+}
+
 BOOL SYSCALL_API NtUserKillTimer( HWND hwnd, UINT_PTR id )
 {
     SYSCALL_FUNC( NtUserKillTimer );
