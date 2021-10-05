@@ -3191,6 +3191,14 @@ NTSTATUS WINAPI wow64_NtUserIsMouseInPointerEnabled( UINT *args )
     return NtUserIsMouseInPointerEnabled();
 }
 
+NTSTATUS WINAPI wow64_NtUserIsTouchWindow( UINT *args )
+{
+    HWND hwnd = get_handle( &args );
+    ULONG *flags = get_ptr( &args );
+
+    return NtUserIsTouchWindow( hwnd, flags );
+}
+
 NTSTATUS WINAPI wow64_NtUserKillTimer( UINT *args )
 {
     HWND hwnd = get_handle( &args );
