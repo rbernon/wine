@@ -894,13 +894,13 @@ static HRESULT hid_joystick_acquire( IDirectInputDevice8W *iface )
 {
     struct hid_joystick *impl = impl_from_IDirectInputDevice8W( iface );
     ULONG report_len = impl->caps.InputReportByteLength;
+    DWORD share = FILE_SHARE_READ | FILE_SHARE_WRITE;
     BOOL ret;
 
     if (impl->device == INVALID_HANDLE_VALUE)
     {
-        UINT sharing = FILE_SHARE_WRITE;
-        if (!(impl->base.dwCoopLevel & DISCL_EXCLUSIVE)) sharing |= FILE_SHARE_READ;
-        impl->device = CreateFileW( impl->device_path, GENERIC_READ | GENERIC_WRITE, sharing,
+        if (impl->base.dwCoopLevel & DISCL_EXCLUSIVE) share = 0;
+        impl->device = CreateFileW( impl->device_path, GENERIC_READ | GENERIC_WRITE, share,
                                     NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED | FILE_FLAG_NO_BUFFERING, 0 );
         if (impl->device == INVALID_HANDLE_VALUE) return DIERR_UNPLUGGED;
     }
