@@ -144,6 +144,12 @@ static inline int is_desktop_window( const struct window *win )
     return win && !win->parent && win->is_desktop;
 }
 
+/* check if window has lost its parent */
+static inline int is_orphan_window( const struct window *win )
+{
+    return !win->parent && !win->is_desktop;
+}
+
 /* get next window in Z-order list */
 static inline struct window *get_next_window( struct window *win )
 {
@@ -689,6 +695,7 @@ static int is_visible( const struct window *win )
 {
     while (win)
     {
+        if (is_orphan_window( win )) return 0;
         if (!(win->style & WS_VISIBLE)) return 0;
         win = win->parent;
         /* if parent is minimized children are not visible */
@@ -1196,6 +1203,7 @@ static int get_window_visible_rect( struct window *win, rectangle_t *rect, int f
     *rect = frame ? win->window_rect : win->client_rect;
 
     if (!(win->style & WS_VISIBLE)) return 0;
+    if (is_orphan_window( win )) return 0;
     if (is_desktop_window( win )) return 1;
 
     while (!is_desktop_window( win->parent ))
@@ -1893,9 +1901,25 @@ void destroy_window( struct window *win )
 
     /* destroy all children */
     while (!list_empty(&win->children))
-        destroy_window( LIST_ENTRY( list_head(&win->children), struct window, entry ));
+    {
+        struct window *child = LIST_ENTRY( list_head( &win->children ), struct window, entry );
+        if (!child->thread || child->thread == win->thread) destroy_window( child );
+        else
+        {
+            list_remove( &child->entry );
+            child->parent = NULL;
+        }
+    }
     while (!list_empty(&win->unlinked))
-        destroy_window( LIST_ENTRY( list_head(&win->unlinked), struct window, entry ));
+    {
+        struct window *child = LIST_ENTRY( list_head( &win->unlinked ), struct window, entry );
+        if (!child->thread || child->thread == win->thread) destroy_window( child );
+        else
+        {
+            list_remove( &child->entry );
+            child->parent = NULL;
+        }
+    }
 
     /* reset global window pointers, if the corresponding window is destroyed */
     if (win == shell_window) shell_window = NULL;
@@ -1938,6 +1962,11 @@ DECL_HANDLER(create_window)
 
     reply->handle = 0;
     if (req->parent && !(parent = get_window( req->parent ))) return;
+    if (parent && is_orphan_window( parent ))
+    {
+        set_error( STATUS_INVALID_PARAMETER );
+        return;
+    }
 
     if (req->owner)
     {
@@ -1988,8 +2017,7 @@ DECL_HANDLER(set_parent)
 
     if (!(win = get_window( req->handle ))) return;
     if (req->parent && !(parent = get_window( req->parent ))) return;
-
-    if (is_desktop_window(win))
+    if (!win->parent)
     {
         set_error( STATUS_INVALID_PARAMETER );
         return;
@@ -2110,6 +2138,12 @@ DECL_HANDLER(set_window_info)
     struct window *win = get_window( req->handle );
 
     if (!win) return;
+    if (is_orphan_window( win ))
+    {
+        set_error( STATUS_INVALID_PARAMETER );
+        return;
+    }
+
     if (req->flags && is_desktop_window(win) && win->thread != current)
     {
         set_error( STATUS_ACCESS_DENIED );
@@ -2291,6 +2325,11 @@ DECL_HANDLER(set_window_pos)
     unsigned int flags = req->swp_flags;
 
     if (!win) return;
+    if (is_orphan_window( win ))
+    {
+        set_error( STATUS_INVALID_PARAMETER );
+        return;
+    }
     if (is_desktop_window(win)) flags |= SWP_NOZORDER;  /* no Z order for the desktop */
 
     if (!(flags & SWP_NOZORDER))
@@ -2481,6 +2520,11 @@ DECL_HANDLER(get_visible_region)
     struct window *top, *win = get_window( req->window );
 
     if (!win) return;
+    if (is_orphan_window( win ))
+    {
+        set_error( STATUS_INVALID_PARAMETER );
+        return;
+    }
 
     top = get_top_clipping_window( win );
     if ((region = get_visible_region( win, req->flags )))

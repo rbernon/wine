@@ -828,7 +828,6 @@ static void test_thread_exit_destroy(void)
     ok( GetActiveWindow() == adopter, "GetActiveWindow %p, expected %p\n", GetActiveWindow(), adopter );
     todo_wine
     ok( GetFocus() == adopter, "GetFocus %p, expected %p\n", GetFocus(), adopter );
-    todo_wine
     ok( GetCapture() == child1, "GetCapture %p, expected %p\n", GetCapture(), child1 );
 
     SetActiveWindow( child1 );
@@ -839,7 +838,6 @@ static void test_thread_exit_destroy(void)
     ok( GetActiveWindow() == adopter, "GetActiveWindow %p, expected %p\n", GetActiveWindow(), adopter );
     todo_wine
     ok( GetFocus() == adopter, "GetFocus %p, expected %p\n", GetFocus(), adopter );
-    todo_wine
     ok( GetCapture() == child1, "GetCapture %p, expected %p\n", GetCapture(), child1 );
 
     SetLastError( 0xdeadbeef );
@@ -883,10 +881,8 @@ static void test_thread_exit_destroy(void)
     ok( wndproc == old_wndproc, "GetWindowLongPtrW GWLP_WNDPROC returned %p\n", wndproc );
 
     tmp = GetPropW( child1, L"myprop" );
-    todo_wine
     ok( HandleToULong(tmp) == 0xdeadbeef, "GetPropW returned %p\n", tmp );
     tmp = GetPropW( child2, L"myprop" );
-    todo_wine
     ok( HandleToULong(tmp) == 0xdeadbeef, "GetPropW returned %p\n", tmp );
 
     /* destroying child1 ourselves succeeds */
@@ -918,7 +914,6 @@ static void test_thread_exit_destroy(void)
     rgn = CreateRectRgn( 5, 5, 15, 15 );
     SetLastError( 0xdeadbeef );
     ret = SetWindowRgn( child2, rgn, TRUE );
-    todo_wine
     ok( ret, "SetWindowRgn failed, error %u\n", GetLastError() );
     DeleteObject( rgn );
 
@@ -943,13 +938,11 @@ static void test_thread_exit_destroy(void)
     ok( HandleToULong(tmp) == 0, "GetPropW returned %p\n", tmp );
 
     ret = IsWindow( child2 );
-    todo_wine
     ok( !ret, "IsWindow returned %u\n", ret );
     ret = IsWindow( child3 );
     todo_wine
     ok( !ret, "IsWindow returned %u\n", ret );
     ret = DestroyWindow( child2 );
-    todo_wine
     ok( !ret, "DestroyWindow returned %u\n", ret );
 
     DestroyWindow( adopter );
