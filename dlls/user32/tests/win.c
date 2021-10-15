@@ -953,7 +953,6 @@ static void test_thread_exit_destroy(void)
     ret = IsWindow( child2 );
     ok( !ret, "IsWindow returned %lu\n", ret );
     ret = IsWindow( child3 );
-    todo_wine
     ok( !ret, "IsWindow returned %lu\n", ret );
     ret = DestroyWindow( child2 );
     ok( !ret, "DestroyWindow returned %lu\n", ret );

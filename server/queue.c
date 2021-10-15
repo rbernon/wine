@@ -2813,6 +2813,10 @@ DECL_HANDLER(get_message)
 
     reply->active_hooks = get_active_hooks();
 
+    /* first check for internal messages */
+    if (queue && get_queued_message( queue, SEND_MESSAGE, 0, 0x80000000, 0xffffffff, PM_REMOVE, reply ))
+        return;
+
     if (get_win && get_win != 1 && get_win != -1 && !get_user_object( get_win, USER_WINDOW ))
     {
         set_win32_error( ERROR_INVALID_WINDOW_HANDLE );
@@ -2824,7 +2828,7 @@ DECL_HANDLER(get_message)
     if (!filter) filter = QS_ALLINPUT;
 
     /* first check for sent messages */
-    if (get_queued_message( queue, SEND_MESSAGE, 0, 0, 0xffffffff, PM_REMOVE, reply ))
+    if (get_queued_message( queue, SEND_MESSAGE, 0, 0, 0x7fffffff, PM_REMOVE, reply ))
         return;
 
     /* clear changed bits so we can wait on them if we don't find a message */
