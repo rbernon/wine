@@ -859,12 +859,10 @@ static void test_thread_exit_destroy(void)
     SetLastError( 0xdeadbeef );
     tmp = SetParent( child1, adopter );
     ok( tmp == 0, "SetParent returned %p\n", tmp );
-    todo_wine
     ok( GetLastError() == ERROR_INVALID_PARAMETER, "got error %u\n", GetLastError() );
     SetLastError( 0xdeadbeef );
     tmp = SetParent( child3, adopter );
     ok( tmp == 0, "SetParent returned %p\n", tmp );
-    todo_wine
     ok( GetLastError() == ERROR_INVALID_PARAMETER, "got error %u\n", GetLastError() );
     SetLastError( 0xdeadbeef );
     tmp = GetParent( child1 );
@@ -903,12 +901,10 @@ static void test_thread_exit_destroy(void)
     SetLastError( 0xdeadbeef );
     ret = SetWindowPos( child2, HWND_TOPMOST, 0, 0, 100, 100, SWP_NOSIZE|SWP_NOMOVE );
     ok( !ret, "SetWindowPos succeeded\n" );
-    todo_wine
     ok( GetLastError() == ERROR_INVALID_PARAMETER, "SetWindowPos returned error %u\n", GetLastError() );
     SetLastError( 0xdeadbeef );
     ret = SetWindowPos( child2, 0, 10, 10, 200, 200, SWP_NOZORDER | SWP_NOACTIVATE );
     ok( !ret, "SetWindowPos succeeded\n" );
-    todo_wine
     ok( GetLastError() == ERROR_INVALID_PARAMETER, "SetWindowPos returned error %u\n", GetLastError() );
 
     rgn = CreateRectRgn( 5, 5, 15, 15 );

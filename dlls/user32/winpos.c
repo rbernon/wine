@@ -2240,7 +2240,7 @@ BOOL set_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags,
         if (new_surface) req->paint_flags |= SET_WINPOS_PAINT_SURFACE;
         if (win->pixel_format) req->paint_flags |= SET_WINPOS_PIXEL_FORMAT;
 
-        if ((ret = !wine_server_call( req )))
+        if ((ret = !wine_server_call_err( req )))
         {
             win->dwStyle    = reply->new_style;
             win->dwExStyle  = reply->new_ex_style;
