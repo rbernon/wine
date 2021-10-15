@@ -899,16 +899,14 @@ static struct message_result *alloc_message_result( struct msg_queue *send_queue
 }
 
 /* receive a message, removing it from the sent queue */
-static void receive_message( struct msg_queue *queue, struct message *msg,
-                             struct get_message_reply *reply )
+static int receive_message( struct msg_queue *queue, struct message *msg,
+                            struct get_message_reply *reply )
 {
-    struct message_result *result = msg->result;
-
     reply->total = msg->data_size;
     if (msg->data_size > get_reply_max_size())
     {
         set_error( STATUS_BUFFER_OVERFLOW );
-        return;
+        return 0;
     }
     reply->type   = msg->type;
     reply->win    = msg->win;
@@ -920,17 +918,7 @@ static void receive_message( struct msg_queue *queue, struct message *msg,
     reply->time   = msg->time;
 
     if (msg->data) set_reply_data_ptr( msg->data, msg->data_size );
-
-    list_remove( &msg->entry );
-    /* put the result on the receiver result stack */
-    if (result)
-    {
-        result->msg = NULL;
-        result->recv_next  = queue->recv_result;
-        queue->recv_result = result;
-    }
-    free( msg );
-    if (list_empty( &queue->msg_list[SEND_MESSAGE] )) clear_queue_bits( queue, QS_SENDMESSAGE );
+    return 1;
 }
 
 /* set the result of the current received message */
@@ -964,17 +952,18 @@ static int match_window( user_handle_t win, user_handle_t msg_win )
     return is_child_window( win, msg_win );
 }
 
-/* retrieve a posted message */
-static int get_posted_message( struct msg_queue *queue, user_handle_t win,
+/* retrieve a sent or posted message */
+static int get_queued_message( struct msg_queue *queue, enum message_kind kind, user_handle_t win,
                                unsigned int first, unsigned int last, unsigned int flags,
                                struct get_message_reply *reply )
 {
+    struct message_result *result;
     struct message *msg;
 
     /* check against the filters */
-    LIST_FOR_EACH_ENTRY( msg, &queue->msg_list[POST_MESSAGE], struct message, entry )
+    LIST_FOR_EACH_ENTRY( msg, &queue->msg_list[kind], struct message, entry )
     {
-        if (!match_window( win, msg->win )) continue;
+        if (kind != SEND_MESSAGE && !match_window( win, msg->win )) continue;
         if (!check_msg_filter( msg->msg, first, last )) continue;
         goto found; /* found one */
     }
@@ -982,32 +971,24 @@ static int get_posted_message( struct msg_queue *queue, user_handle_t win,
 
     /* return it to the app */
 found:
-    reply->total = msg->data_size;
-    if (msg->data_size > get_reply_max_size())
-    {
-        set_error( STATUS_BUFFER_OVERFLOW );
+    if (!receive_message( queue, msg, reply ))
         return 1;
+
+    /* put the result on the receiver result stack */
+    if (kind == SEND_MESSAGE && (result = msg->result))
+    {
+        msg->result = NULL;
+        result->msg = NULL;
+        result->recv_next  = queue->recv_result;
+        queue->recv_result = result;
     }
-    reply->type   = msg->type;
-    reply->win    = msg->win;
-    reply->msg    = msg->msg;
-    reply->wparam = msg->wparam;
-    reply->lparam = msg->lparam;
-    reply->x      = msg->x;
-    reply->y      = msg->y;
-    reply->time   = msg->time;
 
     if (flags & PM_REMOVE)
     {
-        if (msg->data)
-        {
-            set_reply_data_ptr( msg->data, msg->data_size );
-            msg->data = NULL;
-            msg->data_size = 0;
-        }
-        remove_queue_message( queue, msg, POST_MESSAGE );
+        msg->data = NULL;
+        msg->data_size = 0;
+        remove_queue_message( queue, msg, kind );
     }
-    else if (msg->data) set_reply_data( msg->data, msg->data_size );
 
     return 1;
 }
@@ -2826,7 +2807,6 @@ DECL_HANDLER(post_quit_message)
 DECL_HANDLER(get_message)
 {
     struct timer *timer;
-    struct list *ptr;
     struct msg_queue *queue = get_current_queue();
     user_handle_t get_win = get_user_full_handle( req->get_win );
     unsigned int filter = req->flags >> 16;
@@ -2844,12 +2824,8 @@ DECL_HANDLER(get_message)
     if (!filter) filter = QS_ALLINPUT;
 
     /* first check for sent messages */
-    if ((ptr = list_head( &queue->msg_list[SEND_MESSAGE] )))
-    {
-        struct message *msg = LIST_ENTRY( ptr, struct message, entry );
-        receive_message( queue, msg, reply );
+    if (get_queued_message( queue, SEND_MESSAGE, 0, 0, 0xffffffff, PM_REMOVE, reply ))
         return;
-    }
 
     /* clear changed bits so we can wait on them if we don't find a message */
     if (filter & QS_POSTMESSAGE)
@@ -2862,12 +2838,12 @@ DECL_HANDLER(get_message)
 
     /* then check for posted messages */
     if ((filter & QS_POSTMESSAGE) &&
-        get_posted_message( queue, get_win, req->get_first, req->get_last, req->flags, reply ))
+        get_queued_message( queue, POST_MESSAGE, get_win, req->get_first, req->get_last, req->flags, reply ))
         return;
 
     if ((filter & QS_HOTKEY) && queue->hotkey_count &&
         req->get_first <= WM_HOTKEY && req->get_last >= WM_HOTKEY &&
-        get_posted_message( queue, get_win, WM_HOTKEY, WM_HOTKEY, req->flags, reply ))
+        get_queued_message( queue, POST_MESSAGE, get_win, WM_HOTKEY, WM_HOTKEY, req->flags, reply ))
         return;
 
     /* only check for quit messages if not posted messages pending */
