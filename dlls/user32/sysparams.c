@@ -3337,37 +3337,31 @@ BOOL WINAPI EnumDisplaySettingsExA(LPCSTR lpszDeviceName, DWORD iModeNum,
 /***********************************************************************
  *		EnumDisplaySettingsExW (USER32.@)
  */
-BOOL WINAPI EnumDisplaySettingsExW(LPCWSTR lpszDeviceName, DWORD iModeNum,
-                                   LPDEVMODEW lpDevMode, DWORD dwFlags)
+BOOL WINAPI EnumDisplaySettingsExW( const WCHAR *devname, DWORD index, DEVMODEW *devmode, DWORD flags )
 {
     WCHAR primary_adapter[CCHDEVICENAME];
     BOOL ret;
 
-    TRACE("%s %#x %p %#x\n", wine_dbgstr_w(lpszDeviceName), iModeNum, lpDevMode, dwFlags);
+    TRACE( "devname %s, index %#x, devmode %p, flags %#x\n", debugstr_w(devname), index, devmode, flags );
 
-    if (!lpszDeviceName)
+    if (!devname)
     {
-        if (!get_primary_adapter(primary_adapter))
-            return FALSE;
-
-        lpszDeviceName = primary_adapter;
+        if (!get_primary_adapter( primary_adapter )) return FALSE;
+        devname = primary_adapter;
     }
 
-    if (!is_valid_adapter_name(lpszDeviceName))
+    if (!is_valid_adapter_name( devname ))
     {
-        ERR("Invalid device name %s.\n", wine_dbgstr_w(lpszDeviceName));
+        ERR( "Invalid device name %s.\n", debugstr_w(devname) );
         return FALSE;
     }
 
-    ret = USER_Driver->pEnumDisplaySettingsEx(lpszDeviceName, iModeNum, lpDevMode, dwFlags);
-    if (ret)
-        TRACE("device:%s mode index:%#x position:(%d,%d) resolution:%ux%u frequency:%uHz "
-              "depth:%ubits orientation:%#x.\n", wine_dbgstr_w(lpszDeviceName), iModeNum,
-              lpDevMode->u1.s2.dmPosition.x, lpDevMode->u1.s2.dmPosition.y, lpDevMode->dmPelsWidth,
-              lpDevMode->dmPelsHeight, lpDevMode->dmDisplayFrequency, lpDevMode->dmBitsPerPel,
-              lpDevMode->u1.s2.dmDisplayOrientation);
-    else
-        WARN("Failed to query %s display settings.\n", wine_dbgstr_w(lpszDeviceName));
+    ret = USER_Driver->pEnumDisplaySettingsEx( devname, index, devmode, flags );
+    if (!ret) WARN( "Failed to query %s display settings.\n", debugstr_w(devname) );
+    else TRACE( "x %d, y %d, width %u, height %u, frequency %u, depth, %u, orientation %#x.\n",
+                devmode->u1.s2.dmPosition.x, devmode->u1.s2.dmPosition.y, devmode->dmPelsWidth, devmode->dmPelsHeight,
+                devmode->dmDisplayFrequency, devmode->dmBitsPerPel, devmode->u1.s2.dmDisplayOrientation );
+
     return ret;
 }
 
