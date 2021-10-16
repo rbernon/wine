@@ -112,8 +112,7 @@ struct display_device
     WCHAR device_name[32];     /* as DeviceName in DISPLAY_DEVICEW */
     WCHAR device_string[128];  /* as DeviceString in DISPLAY_DEVICEW */
     DWORD state_flags;         /* as StateFlags in DISPLAY_DEVICEW */
-    WCHAR device_id[128];      /* as DeviceID in DISPLAY_DEVICEW when EDD_GET_DEVICE_INTERFACE_NAME is not set */
-    WCHAR interface_name[128]; /* as DeviceID in DISPLAY_DEVICEW when EDD_GET_DEVICE_INTERFACE_NAME is set */
+    WCHAR device_id[128];      /* as DeviceID in DISPLAY_DEVICEW */
     WCHAR device_key[128];     /* as DeviceKey in DISPLAY_DEVICEW */
 };
 
@@ -4181,6 +4180,7 @@ BOOL WINAPI EnumDisplayDevicesA( LPCSTR device, DWORD index, DISPLAY_DEVICEA *in
 BOOL WINAPI EnumDisplayDevicesW( LPCWSTR device, DWORD index, DISPLAY_DEVICEW *info, DWORD flags )
 {
     struct display_device *adapter, *monitor, *found = NULL;
+    WCHAR buffer[MAX_PATH];
     DWORD device_idx = 0;
 
     TRACE("%s %u %p %#x\n", debugstr_w( device ), index, info, flags);
@@ -4240,7 +4240,16 @@ BOOL WINAPI EnumDisplayDevicesW( LPCWSTR device, DWORD index, DISPLAY_DEVICEW *i
     if (info->cb >= offsetof(DISPLAY_DEVICEW, StateFlags) + sizeof(info->StateFlags))
         info->StateFlags = found->state_flags;
     if (info->cb >= offsetof(DISPLAY_DEVICEW, DeviceID) + sizeof(info->DeviceID))
-        lstrcpyW( info->DeviceID, (flags & EDD_GET_DEVICE_INTERFACE_NAME) ? found->interface_name : found->device_id );
+    {
+        if (!device || (flags & EDD_GET_DEVICE_INTERFACE_NAME))
+            lstrcpyW( info->DeviceID, found->device_id );
+        else
+        {
+            swscanf( found->device_id, L"\\\\?\\DISPLAY#%[^#]#%*[^#]#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}", buffer );
+            swprintf( info->DeviceID, ARRAY_SIZE(info->DeviceID), L"MONITOR\\%s\\{4d36e96e-e325-11ce-bfc1-08002be10318}\\%s",
+                      buffer, wcsrchr( found->device_key, '\\' ) + 1 );
+        }
+    }
     if (info->cb >= offsetof(DISPLAY_DEVICEW, DeviceKey) + sizeof(info->DeviceKey))
         lstrcpyW( info->DeviceKey, found->device_key );
     LeaveCriticalSection( &display_section );
@@ -4290,9 +4299,6 @@ static BOOL enum_display_device( WCHAR *device, DWORD index, struct display_devi
         if (RegGetValueW( HKEY_CURRENT_CONFIG, key_nameW, L"StateFlags", RRF_RT_REG_DWORD, NULL,
                           &info->state_flags, &size ))
             goto done;
-
-        /* Interface name */
-        info->interface_name[0] = 0;
 
         /* DeviceID */
         size = sizeof(bufferW);
@@ -4356,29 +4362,15 @@ static BOOL enum_display_device( WCHAR *device, DWORD index, struct display_devi
         lstrcatW( info->device_key, bufferW );
 
         /* Interface name */
-        lstrcpyW( info->interface_name, L"\\\\\?\\" );
-        lstrcatW( info->interface_name, instanceW );
-        lstrcatW( info->interface_name, L"#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" );
+        lstrcpyW( info->device_id, L"\\\\\?\\" );
+        lstrcatW( info->device_id, instanceW );
+        lstrcatW( info->device_id, L"#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" );
         /* Replace '\\' with '#' after prefix */
-        for (next_charW = info->interface_name + lstrlenW( L"\\\\\?\\" ); *next_charW; next_charW++)
+        for (next_charW = info->device_id + lstrlenW( L"\\\\\?\\" ); *next_charW; next_charW++)
         {
             if (*next_charW == '\\')
                 *next_charW = '#';
         }
-
-        /* DeviceID */
-        if (!SetupDiGetDeviceRegistryPropertyW( set, &device_data, SPDRP_HARDWAREID, NULL, (BYTE *)bufferW,
-                                                sizeof(bufferW), NULL ))
-            goto done;
-
-        lstrcpyW( info->device_id, bufferW );
-        lstrcatW( info->device_id, L"\\" );
-
-        if (!SetupDiGetDeviceRegistryPropertyW( set, &device_data, SPDRP_DRIVER, NULL, (BYTE *)bufferW,
-                                                sizeof(bufferW), NULL ))
-            goto done;
-
-        lstrcatW( info->device_id, bufferW );
     }
 
     ret = TRUE;
@@ -4405,9 +4397,8 @@ done:
         lstrcpyW( info->device_name, L"\\\\.\\DISPLAY1" );
         lstrcpyW( info->device_string, L"Wine Adapter" );
         info->state_flags = DISPLAY_DEVICE_ATTACHED_TO_DESKTOP | DISPLAY_DEVICE_PRIMARY_DEVICE | DISPLAY_DEVICE_VGA_COMPATIBLE;
-        info->interface_name[0] = 0;
         lstrcpyW( info->device_id, L"PCI\\VEN_0000&DEV_0000&SUBSYS_00000000&REV_00" );
-        info->device_key[0] = 0;
+        lstrcpyW( info->device_key, L"\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Video\\{71c91c84-1064-400f-a994-95e3ff2716d6}\\0000" );
     }
     /* Monitor */
     else
@@ -4418,9 +4409,8 @@ done:
         lstrcpyW( info->device_name, L"\\\\.\\DISPLAY1\\Monitor0" );
         lstrcpyW( info->device_string, L"Generic Non-PnP Monitor" );
         info->state_flags = DISPLAY_DEVICE_ACTIVE | DISPLAY_DEVICE_ATTACHED;
-        lstrcpyW( info->interface_name, L"\\\\\?\\DISPLAY#Default_Monitor#4&17f0ff54&0&UID0#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" );
-        lstrcpyW( info->device_id, L"MONITOR\\Default_Monitor\\{4d36e96e-e325-11ce-bfc1-08002be10318}\\0000" );
-        info->device_key[0] = 0;
+        lstrcpyW( info->device_id, L"\\\\\?\\DISPLAY#Default_Monitor#4&17f0ff54&0&UID0#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" );
+        lstrcpyW( info->device_key, L"\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Class\\{4d36e96e-e325-11ce-bfc1-08002be10318}\\0000" );
     }
 
     return TRUE;

@@ -162,7 +162,6 @@ static void test_EnumDisplayDevices(void)
         /* DeviceID should equal to the first string of HardwareID value data in PCI GPU instance. You can verify this
          * by changing the data and rerun EnumDisplayDevices. But it's difficult to find corresponding PCI device on
          * userland. So here we check the expected format instead. */
-        todo_wine
         ok( broken( !*adapter_iface.DeviceID ) ||
             swscanf( adapter_iface.DeviceID, L"PCI\\VEN_%04X&DEV_%04X&SUBSYS_%08X&REV_%02X",
                      &number, &number, &number, &number ) == 4,
