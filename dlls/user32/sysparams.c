@@ -26,9 +26,6 @@
 #include <string.h>
 #include <wchar.h>
 
-#define NONAMELESSUNION
-#define NONAMELESSSTRUCT
-
 #include "windef.h"
 #include "winbase.h"
 #include "winnls.h"
@@ -3160,11 +3157,11 @@ static void trace_devmode(const DEVMODEW *devmode)
     if (devmode->dmFields & DM_DISPLAYFREQUENCY)
         TRACE("dmDisplayFrequency=%u ", devmode->dmDisplayFrequency);
     if (devmode->dmFields & DM_POSITION)
-        TRACE("dmPosition=(%d,%d) ", devmode->u1.s2.dmPosition.x, devmode->u1.s2.dmPosition.y);
+        TRACE("dmPosition=(%d,%d) ", devmode->dmPosition.x, devmode->dmPosition.y);
     if (devmode->dmFields & DM_DISPLAYFLAGS)
-        TRACE("dmDisplayFlags=%#x ", devmode->u2.dmDisplayFlags);
+        TRACE("dmDisplayFlags=%#x ", devmode->dmDisplayFlags);
     if (devmode->dmFields & DM_DISPLAYORIENTATION)
-        TRACE("dmDisplayOrientation=%u ", devmode->u1.s2.dmDisplayOrientation);
+        TRACE("dmDisplayOrientation=%u ", devmode->dmDisplayOrientation);
     TRACE("\n");
 }
 
@@ -3320,14 +3317,14 @@ BOOL WINAPI EnumDisplaySettingsExA(LPCSTR lpszDeviceName, DWORD iModeNum,
         lpDevMode->dmBitsPerPel       = devmodeW.dmBitsPerPel;
         lpDevMode->dmPelsHeight       = devmodeW.dmPelsHeight;
         lpDevMode->dmPelsWidth        = devmodeW.dmPelsWidth;
-        lpDevMode->u2.dmDisplayFlags  = devmodeW.u2.dmDisplayFlags;
+        lpDevMode->dmDisplayFlags  = devmodeW.dmDisplayFlags;
         lpDevMode->dmDisplayFrequency = devmodeW.dmDisplayFrequency;
         lpDevMode->dmFields           = devmodeW.dmFields;
 
-        lpDevMode->u1.s2.dmPosition.x = devmodeW.u1.s2.dmPosition.x;
-        lpDevMode->u1.s2.dmPosition.y = devmodeW.u1.s2.dmPosition.y;
-        lpDevMode->u1.s2.dmDisplayOrientation = devmodeW.u1.s2.dmDisplayOrientation;
-        lpDevMode->u1.s2.dmDisplayFixedOutput = devmodeW.u1.s2.dmDisplayFixedOutput;
+        lpDevMode->dmPosition.x = devmodeW.dmPosition.x;
+        lpDevMode->dmPosition.y = devmodeW.dmPosition.y;
+        lpDevMode->dmDisplayOrientation = devmodeW.dmDisplayOrientation;
+        lpDevMode->dmDisplayFixedOutput = devmodeW.dmDisplayFixedOutput;
     }
     if (lpszDeviceName) RtlFreeUnicodeString(&nameW);
     return ret;
@@ -3359,8 +3356,8 @@ BOOL WINAPI EnumDisplaySettingsExW( const WCHAR *devname, DWORD index, DEVMODEW 
     ret = USER_Driver->pEnumDisplaySettingsEx( devname, index, devmode, flags );
     if (!ret) WARN( "Failed to query %s display settings.\n", debugstr_w(devname) );
     else TRACE( "x %d, y %d, width %u, height %u, frequency %u, depth, %u, orientation %#x.\n",
-                devmode->u1.s2.dmPosition.x, devmode->u1.s2.dmPosition.y, devmode->dmPelsWidth, devmode->dmPelsHeight,
-                devmode->dmDisplayFrequency, devmode->dmBitsPerPel, devmode->u1.s2.dmDisplayOrientation );
+                devmode->dmPosition.x, devmode->dmPosition.y, devmode->dmPelsWidth, devmode->dmPelsHeight,
+                devmode->dmDisplayFrequency, devmode->dmBitsPerPel, devmode->dmDisplayOrientation );
 
     return ret;
 }
@@ -4464,7 +4461,7 @@ done:
 static DISPLAYCONFIG_ROTATION get_dc_rotation(const DEVMODEW *devmode)
 {
     if (devmode->dmFields & DM_DISPLAYORIENTATION)
-        return devmode->u1.s2.dmDisplayOrientation + 1;
+        return devmode->dmDisplayOrientation + 1;
     else
         return DISPLAYCONFIG_ROTATION_IDENTITY;
 }
@@ -4473,7 +4470,7 @@ static DISPLAYCONFIG_SCANLINE_ORDERING get_dc_scanline_ordering(const DEVMODEW *
 {
     if (!(devmode->dmFields & DM_DISPLAYFLAGS))
         return DISPLAYCONFIG_SCANLINE_ORDERING_UNSPECIFIED;
-    else if (devmode->u2.dmDisplayFlags & DM_INTERLACED)
+    else if (devmode->dmDisplayFlags & DM_INTERLACED)
         return DISPLAYCONFIG_SCANLINE_ORDERING_INTERLACED;
     else
         return DISPLAYCONFIG_SCANLINE_ORDERING_PROGRESSIVE;
@@ -4491,7 +4488,7 @@ static DISPLAYCONFIG_PIXELFORMAT get_dc_pixelformat(DWORD dmBitsPerPel)
 static void set_mode_target_info(DISPLAYCONFIG_MODE_INFO *info, const LUID *gpu_luid, UINT32 target_id,
                                  UINT32 flags, const DEVMODEW *devmode)
 {
-    DISPLAYCONFIG_TARGET_MODE *mode = &(info->u.targetMode);
+    DISPLAYCONFIG_TARGET_MODE *mode = &info->targetMode;
 
     info->infoType = DISPLAYCONFIG_MODE_INFO_TYPE_TARGET;
     info->adapterId = *gpu_luid;
@@ -4515,7 +4512,7 @@ static void set_mode_target_info(DISPLAYCONFIG_MODE_INFO *info, const LUID *gpu_
         mode->targetVideoSignalInfo.totalSize.cx = devmode->dmPelsWidth;
         mode->targetVideoSignalInfo.totalSize.cy = devmode->dmPelsHeight;
     }
-    mode->targetVideoSignalInfo.u.videoStandard = D3DKMDT_VSS_OTHER;
+    mode->targetVideoSignalInfo.videoStandard = D3DKMDT_VSS_OTHER;
     mode->targetVideoSignalInfo.scanLineOrdering = get_dc_scanline_ordering(devmode);
 }
 
@@ -4524,7 +4521,7 @@ static void set_path_target_info(DISPLAYCONFIG_PATH_TARGET_INFO *info, const LUI
 {
     info->adapterId = *gpu_luid;
     info->id = target_id;
-    info->u.modeInfoIdx = mode_index;
+    info->modeInfoIdx = mode_index;
     info->outputTechnology = DISPLAYCONFIG_OUTPUT_TECHNOLOGY_DISPLAYPORT_EXTERNAL;
     info->rotation = get_dc_rotation(devmode);
     info->scaling = DISPLAYCONFIG_SCALING_IDENTITY;
@@ -4538,7 +4535,7 @@ static void set_path_target_info(DISPLAYCONFIG_PATH_TARGET_INFO *info, const LUI
 static void set_mode_source_info(DISPLAYCONFIG_MODE_INFO *info, const LUID *gpu_luid,
                                  UINT32 source_id, const DEVMODEW *devmode)
 {
-    DISPLAYCONFIG_SOURCE_MODE *mode = &(info->u.sourceMode);
+    DISPLAYCONFIG_SOURCE_MODE *mode = &info->sourceMode;
 
     info->infoType = DISPLAYCONFIG_MODE_INFO_TYPE_SOURCE;
     info->adapterId = *gpu_luid;
@@ -4549,7 +4546,7 @@ static void set_mode_source_info(DISPLAYCONFIG_MODE_INFO *info, const LUID *gpu_
     mode->pixelFormat = get_dc_pixelformat(devmode->dmBitsPerPel);
     if (devmode->dmFields & DM_POSITION)
     {
-        mode->position = devmode->u1.s2.dmPosition;
+        mode->position = devmode->dmPosition;
     }
     else
     {
@@ -4563,7 +4560,7 @@ static void set_path_source_info(DISPLAYCONFIG_PATH_SOURCE_INFO *info, const LUI
 {
     info->adapterId = *gpu_luid;
     info->id = source_id;
-    info->u.modeInfoIdx = mode_index;
+    info->modeInfoIdx = mode_index;
     info->statusFlags = DISPLAYCONFIG_SOURCE_IN_USE;
 }
 
