@@ -133,8 +133,9 @@ static CRITICAL_SECTION display_section = { &display_critsect_debug, -1, 0, 0, 0
 static BOOL enum_display_device( WCHAR *device, DWORD index, struct display_device *info );
 
 /* Cached monitor information */
-static MONITORINFOEXW *monitors;
-static UINT monitor_count;
+static MONITORINFOEXW monitors[512];
+static MONITORINFOEXW *monitors_end = monitors;
+
 static FILETIME last_query_monitors_time;
 static CRITICAL_SECTION monitors_section;
 static CRITICAL_SECTION_DEBUG monitors_critsect_debug =
@@ -3884,15 +3885,11 @@ static BOOL update_monitor_cache(void)
 {
     SP_DEVINFO_DATA device_data = {sizeof(device_data)};
     HDEVINFO devinfo = INVALID_HANDLE_VALUE;
-    MONITORINFOEXW *monitor_array;
+    MONITORINFOEXW *monitor, *mirror;
+    DWORD state_flags, i = 0, type;
+    BOOL is_replica, ret = FALSE;
     FILETIME filetime = {0};
-    DWORD device_count = 0;
     HANDLE mutex = NULL;
-    DWORD state_flags;
-    BOOL ret = FALSE;
-    BOOL is_replica;
-    DWORD i = 0, j;
-    DWORD type;
 
     /* Update monitor cache from SetupAPI if it's outdated */
     if (!video_key && RegOpenKeyW( HKEY_LOCAL_MACHINE, L"HARDWARE\\DEVICEMAP\\VIDEO", &video_key ))
@@ -3906,26 +3903,8 @@ static BOOL update_monitor_cache(void)
     EnterCriticalSection( &monitors_section );
     devinfo = SetupDiGetClassDevsW( &GUID_DEVCLASS_MONITOR, L"DISPLAY", NULL, DIGCF_PRESENT );
 
-    while (SetupDiEnumDeviceInfo( devinfo, i++, &device_data ))
-    {
-        /* Inactive monitors don't get enumerated */
-        if (!SetupDiGetDevicePropertyW( devinfo, &device_data, &WINE_DEVPROPKEY_MONITOR_STATEFLAGS, &type,
-                                        (BYTE *)&state_flags, sizeof(DWORD), NULL, 0 ))
-            goto fail;
-        if (state_flags & DISPLAY_DEVICE_ACTIVE)
-            device_count++;
-    }
-
-    if (device_count && monitor_count < device_count)
-    {
-        monitor_array = heap_alloc( device_count * sizeof(*monitor_array) );
-        if (!monitor_array)
-            goto fail;
-        heap_free( monitors );
-        monitors = monitor_array;
-    }
-
-    for (i = 0, monitor_count = 0; SetupDiEnumDeviceInfo( devinfo, i, &device_data ); i++)
+    monitor = monitors;
+    while (monitor < monitors + ARRAY_SIZE(monitors) && SetupDiEnumDeviceInfo( devinfo, i++, &device_data ))
     {
         if (!SetupDiGetDevicePropertyW( devinfo, &device_data, &WINE_DEVPROPKEY_MONITOR_STATEFLAGS, &type,
                                         (BYTE *)&state_flags, sizeof(DWORD), NULL, 0 ))
@@ -3933,14 +3912,14 @@ static BOOL update_monitor_cache(void)
         if (!(state_flags & DISPLAY_DEVICE_ACTIVE))
             continue;
         if (!SetupDiGetDevicePropertyW( devinfo, &device_data, &WINE_DEVPROPKEY_MONITOR_RCMONITOR, &type,
-                                        (BYTE *)&monitors[monitor_count].rcMonitor, sizeof(RECT), NULL, 0 ))
+                                        (BYTE *)&monitor->rcMonitor, sizeof(RECT), NULL, 0 ))
             goto fail;
 
         /* Replicas in mirroring monitor sets don't get enumerated */
         is_replica = FALSE;
-        for (j = 0; j < monitor_count; j++)
+        for (mirror = monitors; mirror != monitor; ++mirror)
         {
-            if (EqualRect(&monitors[j].rcMonitor, &monitors[monitor_count].rcMonitor))
+            if (EqualRect(&mirror->rcMonitor, &monitor->rcMonitor))
             {
                 is_replica = TRUE;
                 break;
@@ -3950,16 +3929,21 @@ static BOOL update_monitor_cache(void)
             continue;
 
         if (!SetupDiGetDevicePropertyW( devinfo, &device_data, &WINE_DEVPROPKEY_MONITOR_RCWORK, &type,
-                                        (BYTE *)&monitors[monitor_count].rcWork, sizeof(RECT), NULL, 0 ))
+                                        (BYTE *)&monitor->rcWork, sizeof(RECT), NULL, 0 ))
             goto fail;
         if (!SetupDiGetDevicePropertyW( devinfo, &device_data, &WINE_DEVPROPKEY_MONITOR_ADAPTERNAME, &type,
-                                        (BYTE *)monitors[monitor_count].szDevice, CCHDEVICENAME * sizeof(WCHAR), NULL, 0))
+                                        (BYTE *)monitor->szDevice, CCHDEVICENAME * sizeof(WCHAR), NULL, 0))
             goto fail;
-        monitors[monitor_count].dwFlags =
-            !wcscmp( L"\\\\.\\DISPLAY1", monitors[monitor_count].szDevice ) ? MONITORINFOF_PRIMARY : 0;
+        monitor->dwFlags =
+            !wcscmp( L"\\\\.\\DISPLAY1", monitor->szDevice ) ? MONITORINFOF_PRIMARY : 0;
 
-        monitor_count++;
+        monitor++;
     }
+
+    if (monitor == monitors + ARRAY_SIZE(monitors))
+        FIXME( "More than %u monitors detected, ignoring.\n", ARRAY_SIZE(monitors) );
+    else
+        monitors_end = monitor;
 
     last_query_monitors_time = filetime;
     ret = TRUE;
@@ -3972,7 +3956,7 @@ fail:
 
 BOOL CDECL nulldrv_GetMonitorInfo( HMONITOR handle, MONITORINFO *info )
 {
-    UINT index = (UINT_PTR)handle - 1;
+    MONITORINFOEXW *monitor;
 
     TRACE("(%p, %p)\n", handle, info);
 
@@ -3992,13 +3976,14 @@ BOOL CDECL nulldrv_GetMonitorInfo( HMONITOR handle, MONITORINFO *info )
         return FALSE;
 
     EnterCriticalSection( &monitors_section );
-    if (index < monitor_count)
+    monitor = monitors + (UINT)((UINT_PTR)handle - 1);
+    if (monitor >= monitors && monitor < monitors_end)
     {
-        info->rcMonitor = monitors[index].rcMonitor;
-        info->rcWork = monitors[index].rcWork;
-        info->dwFlags = monitors[index].dwFlags;
+        info->rcMonitor = monitor->rcMonitor;
+        info->rcWork = monitor->rcWork;
+        info->dwFlags = monitor->dwFlags;
         if (info->cbSize >= sizeof(MONITORINFOEXW))
-            lstrcpyW( ((MONITORINFOEXW *)info)->szDevice, monitors[index].szDevice );
+            lstrcpyW( ((MONITORINFOEXW *)info)->szDevice, monitor->szDevice );
         LeaveCriticalSection( &monitors_section );
         return TRUE;
     }
@@ -4150,7 +4135,7 @@ BOOL WINAPI EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC proc, LPA
         while (TRUE)
         {
             EnterCriticalSection( &monitors_section );
-            if (i >= monitor_count)
+            if (i >= monitors_end - monitors)
             {
                 LeaveCriticalSection( &monitors_section );
                 return TRUE;
