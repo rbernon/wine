@@ -234,11 +234,7 @@ BOOL CDECL ANDROID_EnumDisplaySettingsEx( LPCWSTR name, DWORD n, LPDEVMODEW devm
     static const WCHAR dev_name[CCHDEVICENAME] =
         { 'W','i','n','e',' ','A','n','d','r','o','i','d',' ','d','r','i','v','e','r',0 };
 
-    devmode->dmSize = offsetof( DEVMODEW, dmICMMethod );
-    devmode->dmSpecVersion = DM_SPECVERSION;
-    devmode->dmDriverVersion = DM_SPECVERSION;
     memcpy( devmode->dmDeviceName, dev_name, sizeof(dev_name) );
-    devmode->dmDriverExtra = 0;
     devmode->u2.dmDisplayFlags = 0;
     devmode->dmDisplayFrequency = 0;
     devmode->u1.s2.dmPosition.x = 0;

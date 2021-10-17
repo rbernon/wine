@@ -3353,6 +3353,14 @@ BOOL WINAPI EnumDisplaySettingsExW( const WCHAR *devname, DWORD index, DEVMODEW 
         return FALSE;
     }
 
+    /* Set generic fields */
+    devmode->dmSize = FIELD_OFFSET( DEVMODEW, dmICMMethod );
+    devmode->dmDriverExtra = 0;
+    devmode->dmSpecVersion = DM_SPECVERSION;
+    devmode->dmDriverVersion = DM_SPECVERSION;
+    wcscpy( devmode->dmDeviceName, L"Wine Display Driver" );
+    memset( &devmode->dmFields, 0, devmode->dmSize - FIELD_OFFSET( DEVMODEW, dmFields ) );
+
     ret = USER_Driver->pEnumDisplaySettingsEx( devname, index, devmode, flags );
     if (!ret) WARN( "Failed to query %s display settings.\n", debugstr_w(devname) );
     else TRACE( "x %d, y %d, width %u, height %u, frequency %u, depth, %u, orientation %#x.\n",

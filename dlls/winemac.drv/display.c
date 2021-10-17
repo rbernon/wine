@@ -1052,11 +1052,6 @@ BOOL CDECL macdrv_EnumDisplaySettingsEx(LPCWSTR devname, DWORD mode,
     init_original_display_mode();
 
     memcpy(devmode->dmDeviceName, dev_name, sizeof(dev_name));
-    devmode->dmSpecVersion = DM_SPECVERSION;
-    devmode->dmDriverVersion = DM_SPECVERSION;
-    devmode->dmSize = FIELD_OFFSET(DEVMODEW, dmICMMethod);
-    devmode->dmDriverExtra = 0;
-    memset(&devmode->dmFields, 0, devmode->dmSize - FIELD_OFFSET(DEVMODEW, dmFields));
 
     if (mode == ENUM_REGISTRY_SETTINGS)
     {

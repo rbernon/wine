@@ -471,9 +471,11 @@ BOOL CDECL X11DRV_EnumDisplaySettingsEx( LPCWSTR name, DWORD n, LPDEVMODEW devmo
 {
     static const WCHAR dev_name[CCHDEVICENAME] =
         { 'W','i','n','e',' ','X','1','1',' ','d','r','i','v','e','r',0 };
-    DEVMODEW *modes;
+    DEVMODEW *modes, *cached;
     UINT mode_count;
     ULONG_PTR id;
+
+    lstrcpyW( devmode->dmDeviceName, dev_name );
 
     if (n == ENUM_REGISTRY_SETTINGS)
     {
@@ -482,7 +484,7 @@ BOOL CDECL X11DRV_EnumDisplaySettingsEx( LPCWSTR name, DWORD n, LPDEVMODEW devmo
             ERR("Failed to get %s registry display settings.\n", wine_dbgstr_w(name));
             return FALSE;
         }
-        goto done;
+        return TRUE;
     }
 
     if (n == ENUM_CURRENT_SETTINGS)
@@ -496,7 +498,7 @@ BOOL CDECL X11DRV_EnumDisplaySettingsEx( LPCWSTR name, DWORD n, LPDEVMODEW devmo
         if (!is_detached_mode(devmode))
             devmode->dmBitsPerPel = get_display_depth(id);
 
-        goto done;
+        return TRUE;
     }
 
     EnterCriticalSection(&modes_section);
@@ -527,16 +529,9 @@ BOOL CDECL X11DRV_EnumDisplaySettingsEx( LPCWSTR name, DWORD n, LPDEVMODEW devmo
         return FALSE;
     }
 
-    memcpy(devmode, (BYTE *)cached_modes + (sizeof(*cached_modes) + cached_modes[0].dmDriverExtra) * n, sizeof(*devmode));
+    cached = (DEVMODEW *)((BYTE *)cached_modes + (sizeof(*cached_modes) + cached_modes[0].dmDriverExtra) * n);
+    memcpy( &devmode->dmFields, &cached->dmFields, devmode->dmSize - FIELD_OFFSET( DEVMODEW, dmFields ) );
     LeaveCriticalSection(&modes_section);
-
-done:
-    /* Set generic fields */
-    devmode->dmSize = FIELD_OFFSET(DEVMODEW, dmICMMethod);
-    devmode->dmDriverExtra = 0;
-    devmode->dmSpecVersion = DM_SPECVERSION;
-    devmode->dmDriverVersion = DM_SPECVERSION;
-    lstrcpyW(devmode->dmDeviceName, dev_name);
     return TRUE;
 }
 
