@@ -3007,8 +3007,9 @@ HBRUSH SYSCOLOR_Get55AABrush(void)
     return brush_55aa;
 }
 
-static BOOL read_registry_settings( DISPLAY_DEVICEW *device, DEVMODEW *devmode )
+static BOOL read_registry_settings( DISPLAY_DEVICEW *device, BOOL current, DEVMODEW *devmode )
 {
+    WCHAR buffer[MAX_PATH];
     DWORD type, size;
     BOOL ret = TRUE;
     HANDLE mutex;
@@ -3023,27 +3024,28 @@ static BOOL read_registry_settings( DISPLAY_DEVICEW *device, DEVMODEW *devmode )
         return FALSE;
     }
 
-#define query_value( name, data )                                                                  \
-    size = sizeof(DWORD);                                                                          \
-    if (RegQueryValueExW( hkey, name, 0, &type, (LPBYTE)(data), &size ) || type != REG_DWORD ||    \
+#define query_value( name, data )                                                                    \
+    size = sizeof(DWORD);                                                                            \
+    swprintf( buffer, MAX_PATH, L"%s.%s", current ? L"CurrentSettings" : L"DefaultSettings", name ); \
+    if (RegQueryValueExW( hkey, buffer, 0, &type, (LPBYTE)(data), &size ) || type != REG_DWORD ||    \
         size != sizeof(DWORD)) ret = FALSE
 
-    query_value( L"DefaultSettings.BitsPerPel", &devmode->dmBitsPerPel );
+    query_value( L"BitsPerPel", &devmode->dmBitsPerPel );
     devmode->dmFields |= DM_BITSPERPEL;
-    query_value( L"DefaultSettings.XResolution", &devmode->dmPelsWidth );
+    query_value( L"XResolution", &devmode->dmPelsWidth );
     devmode->dmFields |= DM_PELSWIDTH;
-    query_value( L"DefaultSettings.YResolution", &devmode->dmPelsHeight );
+    query_value( L"YResolution", &devmode->dmPelsHeight );
     devmode->dmFields |= DM_PELSHEIGHT;
-    query_value( L"DefaultSettings.VRefresh", &devmode->dmDisplayFrequency );
+    query_value( L"VRefresh", &devmode->dmDisplayFrequency );
     devmode->dmFields |= DM_DISPLAYFREQUENCY;
-    query_value( L"DefaultSettings.Flags", &devmode->dmDisplayFlags );
+    query_value( L"Flags", &devmode->dmDisplayFlags );
     devmode->dmFields |= DM_DISPLAYFLAGS;
-    query_value( L"DefaultSettings.XPanning", &devmode->dmPosition.x );
-    query_value( L"DefaultSettings.YPanning", &devmode->dmPosition.y );
+    query_value( L"XPanning", &devmode->dmPosition.x );
+    query_value( L"YPanning", &devmode->dmPosition.y );
     devmode->dmFields |= DM_POSITION;
-    query_value( L"DefaultSettings.Orientation", &devmode->dmDisplayOrientation );
+    query_value( L"Orientation", &devmode->dmDisplayOrientation );
     devmode->dmFields |= DM_DISPLAYORIENTATION;
-    query_value( L"DefaultSettings.FixedOutput", &devmode->dmDisplayFixedOutput );
+    query_value( L"FixedOutput", &devmode->dmDisplayFixedOutput );
 
 #undef query_value
 
@@ -3052,8 +3054,9 @@ static BOOL read_registry_settings( DISPLAY_DEVICEW *device, DEVMODEW *devmode )
     return ret;
 }
 
-static BOOL write_registry_settings( DISPLAY_DEVICEW *device, const DEVMODEW *devmode )
+static BOOL write_registry_settings( DISPLAY_DEVICEW *device, BOOL current, const DEVMODEW *devmode )
 {
+    WCHAR buffer[MAX_PATH];
     BOOL ret = TRUE;
     HANDLE mutex;
     HKEY hkey;
@@ -3068,18 +3071,20 @@ static BOOL write_registry_settings( DISPLAY_DEVICEW *device, const DEVMODEW *de
         return FALSE;
     }
 
-#define set_value( name, data )                                                                    \
-    if (RegSetValueExW( hkey, name, 0, REG_DWORD, (const BYTE *)(data), sizeof(DWORD) )) ret = FALSE
+#define set_value( name, data )                                                                      \
+    swprintf( buffer, MAX_PATH, L"%s.%s", current ? L"CurrentSettings" : L"DefaultSettings", name ); \
+    if (RegSetValueExW( hkey, buffer, 0, REG_DWORD, (const BYTE *)(data), sizeof(DWORD) ))           \
+    ret = FALSE
 
-    set_value( L"DefaultSettings.BitsPerPel", &devmode->dmBitsPerPel );
-    set_value( L"DefaultSettings.XResolution", &devmode->dmPelsWidth );
-    set_value( L"DefaultSettings.YResolution", &devmode->dmPelsHeight );
-    set_value( L"DefaultSettings.VRefresh", &devmode->dmDisplayFrequency );
-    set_value( L"DefaultSettings.Flags", &devmode->dmDisplayFlags );
-    set_value( L"DefaultSettings.XPanning", &devmode->dmPosition.x );
-    set_value( L"DefaultSettings.YPanning", &devmode->dmPosition.y );
-    set_value( L"DefaultSettings.Orientation", &devmode->dmDisplayOrientation );
-    set_value( L"DefaultSettings.FixedOutput", &devmode->dmDisplayFixedOutput );
+    set_value( L"BitsPerPel", &devmode->dmBitsPerPel );
+    set_value( L"XResolution", &devmode->dmPelsWidth );
+    set_value( L"YResolution", &devmode->dmPelsHeight );
+    set_value( L"VRefresh", &devmode->dmDisplayFrequency );
+    set_value( L"Flags", &devmode->dmDisplayFlags );
+    set_value( L"XPanning", &devmode->dmPosition.x );
+    set_value( L"YPanning", &devmode->dmPosition.y );
+    set_value( L"Orientation", &devmode->dmDisplayOrientation );
+    set_value( L"FixedOutput", &devmode->dmDisplayFixedOutput );
 
 #undef set_value
 
@@ -3305,8 +3310,11 @@ LONG WINAPI ChangeDisplaySettingsExW( LPCWSTR devname, LPDEVMODEW devmode, HWND 
     {
         ret = USER_Driver->pChangeDisplaySettingsEx(NULL, NULL, hwnd, flags, lparam);
         if (ret != DISP_CHANGE_SUCCESSFUL)
+        {
             ERR("Restoring all displays to their registry settings returned %d.\n", ret);
-        return ret;
+            return ret;
+        }
+        goto done;
     }
 
     while ((ret = EnumDisplayDevicesW( NULL, i++, &device, 0 )))
@@ -3370,13 +3378,20 @@ LONG WINAPI ChangeDisplaySettingsExW( LPCWSTR devname, LPDEVMODEW devmode, HWND 
     if (flags & CDS_UPDATEREGISTRY)
     {
         if (!check_display_mode( device.DeviceName, devmode )) return DISP_CHANGE_BADMODE;
-        if (!write_registry_settings( &device, devmode )) return DISP_CHANGE_NOTUPDATED;
+        if (!write_registry_settings( &device, FALSE, devmode )) return DISP_CHANGE_NOTUPDATED;
     }
 
     ret = USER_Driver->pChangeDisplaySettingsEx(device.DeviceName, devmode, hwnd, flags, lparam);
     if (ret != DISP_CHANGE_SUCCESSFUL)
-        ERR("Changing %s display settings returned %d.\n", wine_dbgstr_w(device.DeviceName), ret);
-    return ret;
+    {
+        ERR("Changing %s display settings returned %d.\n", debugstr_w(devname), ret);
+        return ret;
+    }
+
+done:
+    if (flags & (CDS_TEST | CDS_NORESET)) return DISP_CHANGE_SUCCESSFUL;
+    if (!write_registry_settings( &device, TRUE, devmode )) ERR("Failed to write current mode to the registry\n");
+    return DISP_CHANGE_SUCCESSFUL;
 }
 
 
@@ -3471,7 +3486,8 @@ BOOL WINAPI EnumDisplaySettingsExW( const WCHAR *devname, DWORD index, DEVMODEW 
 
     if ((ret = USER_Driver->pEnumDisplaySettingsEx( device.DeviceName, index, devmode, flags )) < 0)
     {
-        if (index == ENUM_REGISTRY_SETTINGS) ret = read_registry_settings( &device, devmode );
+        if (index == ENUM_REGISTRY_SETTINGS) ret = read_registry_settings( &device, FALSE, devmode );
+        else if (index == ENUM_CURRENT_SETTINGS) ret = read_registry_settings( &device, TRUE, devmode );
         else ret = FALSE;
     }
 
