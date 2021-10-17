@@ -419,39 +419,6 @@ static INT get_monitor_count(void)
     return count;
 }
 
-static BOOL get_primary_adapter(WCHAR *name)
-{
-    DISPLAY_DEVICEW dd;
-    DWORD i;
-
-    dd.cb = sizeof(dd);
-    for (i = 0; EnumDisplayDevicesW(NULL, i, &dd, 0); ++i)
-    {
-        if (dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE)
-        {
-            lstrcpyW(name, dd.DeviceName);
-            return TRUE;
-        }
-    }
-
-    return FALSE;
-}
-
-static BOOL is_valid_adapter_name(const WCHAR *name)
-{
-    long int adapter_idx;
-    WCHAR *end;
-
-    if (wcsnicmp(name, L"\\\\.\\DISPLAY", lstrlenW(L"\\\\.\\DISPLAY")))
-        return FALSE;
-
-    adapter_idx = wcstol(name + lstrlenW(L"\\\\.\\DISPLAY"), &end, 10);
-    if (*end || adapter_idx < 1)
-        return FALSE;
-
-    return TRUE;
-}
-
 /* get text metrics and/or "average" char width of the specified logfont 
  * for the specified dc */
 static void get_text_metr_size( HDC hdc, LOGFONTW *plf, TEXTMETRICW * ptm, UINT *psz)
@@ -3180,8 +3147,9 @@ static BOOL is_detached_mode(const DEVMODEW *mode)
 LONG WINAPI ChangeDisplaySettingsExW( LPCWSTR devname, LPDEVMODEW devmode, HWND hwnd,
                                       DWORD flags, LPVOID lparam )
 {
-    WCHAR primary_adapter[CCHDEVICENAME];
+    DISPLAY_DEVICEW device = {.cb = sizeof(DISPLAY_DEVICEW)};
     BOOL def_mode = TRUE;
+    DWORD i = 0;
     DEVMODEW dm;
     LONG ret;
 
@@ -3196,19 +3164,12 @@ LONG WINAPI ChangeDisplaySettingsExW( LPCWSTR devname, LPDEVMODEW devmode, HWND 
         return ret;
     }
 
-    if (!devname && devmode)
+    while ((ret = EnumDisplayDevicesW( NULL, i++, &device, 0 )))
     {
-        if (!get_primary_adapter(primary_adapter))
-            return DISP_CHANGE_FAILED;
-
-        devname = primary_adapter;
+        if (!devname && (device.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE)) break;
+        if (devname && !wcscmp( devname, device.DeviceName )) break;
     }
-
-    if (!is_valid_adapter_name(devname))
-    {
-        ERR("Invalid device name %s.\n", wine_dbgstr_w(devname));
-        return DISP_CHANGE_BADPARAM;
-    }
+    if (!ret) return DISP_CHANGE_BADPARAM;
 
     if (devmode)
     {
@@ -3229,7 +3190,7 @@ LONG WINAPI ChangeDisplaySettingsExW( LPCWSTR devname, LPDEVMODEW devmode, HWND 
     {
         memset(&dm, 0, sizeof(dm));
         dm.dmSize = sizeof(dm);
-        if (!EnumDisplaySettingsExW(devname, ENUM_REGISTRY_SETTINGS, &dm, 0))
+        if (!EnumDisplaySettingsExW(device.DeviceName, ENUM_REGISTRY_SETTINGS, &dm, 0))
         {
             ERR("Default mode not found!\n");
             return DISP_CHANGE_BADMODE;
@@ -3249,7 +3210,7 @@ LONG WINAPI ChangeDisplaySettingsExW( LPCWSTR devname, LPDEVMODEW devmode, HWND 
     {
         memset(&dm, 0, sizeof(dm));
         dm.dmSize = sizeof(dm);
-        if (!EnumDisplaySettingsExW(devname, ENUM_CURRENT_SETTINGS, &dm, 0))
+        if (!EnumDisplaySettingsExW(device.DeviceName, ENUM_CURRENT_SETTINGS, &dm, 0))
         {
             ERR("Current mode not found!\n");
             return DISP_CHANGE_BADMODE;
@@ -3261,9 +3222,9 @@ LONG WINAPI ChangeDisplaySettingsExW( LPCWSTR devname, LPDEVMODEW devmode, HWND 
             devmode->dmPelsHeight = dm.dmPelsHeight;
     }
 
-    ret = USER_Driver->pChangeDisplaySettingsEx(devname, devmode, hwnd, flags, lparam);
+    ret = USER_Driver->pChangeDisplaySettingsEx(device.DeviceName, devmode, hwnd, flags, lparam);
     if (ret != DISP_CHANGE_SUCCESSFUL)
-        ERR("Changing %s display settings returned %d.\n", wine_dbgstr_w(devname), ret);
+        ERR("Changing %s display settings returned %d.\n", wine_dbgstr_w(device.DeviceName), ret);
     return ret;
 }
 
@@ -3336,22 +3297,18 @@ BOOL WINAPI EnumDisplaySettingsExA(LPCSTR lpszDeviceName, DWORD iModeNum,
  */
 BOOL WINAPI EnumDisplaySettingsExW( const WCHAR *devname, DWORD index, DEVMODEW *devmode, DWORD flags )
 {
-    WCHAR primary_adapter[CCHDEVICENAME];
+    DISPLAY_DEVICEW device = {.cb = sizeof(DISPLAY_DEVICEW)};
+    DWORD i = 0;
     BOOL ret;
 
     TRACE( "devname %s, index %#x, devmode %p, flags %#x\n", debugstr_w(devname), index, devmode, flags );
 
-    if (!devname)
+    while ((ret = EnumDisplayDevicesW( NULL, i++, &device, 0 )))
     {
-        if (!get_primary_adapter( primary_adapter )) return FALSE;
-        devname = primary_adapter;
+        if (!devname && (device.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE)) break;
+        if (devname && !wcscmp( devname, device.DeviceName )) break;
     }
-
-    if (!is_valid_adapter_name( devname ))
-    {
-        ERR( "Invalid device name %s.\n", debugstr_w(devname) );
-        return FALSE;
-    }
+    if (!ret) return FALSE;
 
     /* Set generic fields */
     devmode->dmSize = FIELD_OFFSET( DEVMODEW, dmICMMethod );
@@ -3361,8 +3318,8 @@ BOOL WINAPI EnumDisplaySettingsExW( const WCHAR *devname, DWORD index, DEVMODEW 
     wcscpy( devmode->dmDeviceName, L"Wine Display Driver" );
     memset( &devmode->dmFields, 0, devmode->dmSize - FIELD_OFFSET( DEVMODEW, dmFields ) );
 
-    ret = USER_Driver->pEnumDisplaySettingsEx( devname, index, devmode, flags );
-    if (!ret) WARN( "Failed to query %s display settings.\n", debugstr_w(devname) );
+    ret = USER_Driver->pEnumDisplaySettingsEx( device.DeviceName, index, devmode, flags );
+    if (!ret) WARN( "Failed to query %s display settings.\n", debugstr_w(device.DeviceName) );
     else TRACE( "x %d, y %d, width %u, height %u, frequency %u, depth, %u, orientation %#x.\n",
                 devmode->dmPosition.x, devmode->dmPosition.y, devmode->dmPelsWidth, devmode->dmPelsHeight,
                 devmode->dmDisplayFrequency, devmode->dmBitsPerPel, devmode->dmDisplayOrientation );

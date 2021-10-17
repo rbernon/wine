@@ -3144,6 +3144,15 @@ static void test_EnumDisplaySettings(void)
     ok(GetLastError() == 0xdeadbeef, "Expect error 0xdeadbeef, got %#x\n", GetLastError());
     ok(dm.dmFields == 0, "Expect dmFields unchanged, got %#x\n", dm.dmFields);
 
+    /* Non-existing device names are invalid */
+    memset(&dm, 0, sizeof(dm));
+    dm.dmSize = sizeof(dm);
+    SetLastError(0xdeadbeef);
+    ret = EnumDisplaySettingsA("\\\\.\\DISPLAY99", ENUM_CURRENT_SETTINGS, &dm);
+    ok(!ret, "EnumDisplaySettingsA succeeded\n");
+    ok(GetLastError() == 0xdeadbeef, "Expect error 0xdeadbeef, got %#x\n", GetLastError());
+    ok(dm.dmFields == 0, "Expect dmFields unchanged, got %#x\n", dm.dmFields);
+
     /* Test that passing NULL to device name parameter means to use the primary adapter */
     memset(&dm, 0, sizeof(dm));
     memset(&dm2, 0, sizeof(dm2));
