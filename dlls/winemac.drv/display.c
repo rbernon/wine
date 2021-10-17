@@ -154,79 +154,6 @@ static void release_display_device_init_mutex(HANDLE mutex)
     CloseHandle(mutex);
 }
 
-static BOOL get_display_device_reg_key(const WCHAR *device_name, WCHAR *key, unsigned len)
-{
-    WCHAR value_name[MAX_PATH], buffer[MAX_PATH], *end_ptr;
-    DWORD adapter_index, size;
-
-    /* Device name has to be \\.\DISPLAY%d */
-    if (strncmpiW(device_name, adapter_prefixW, ARRAY_SIZE(adapter_prefixW)))
-        return FALSE;
-
-    /* Parse \\.\DISPLAY* */
-    adapter_index = strtolW(device_name + ARRAY_SIZE(adapter_prefixW), &end_ptr, 10) - 1;
-    if (*end_ptr)
-        return FALSE;
-
-    /* Open \Device\Video* in HKLM\HARDWARE\DEVICEMAP\VIDEO\ */
-    sprintfW(value_name, device_video_fmtW, adapter_index);
-    size = sizeof(buffer);
-    if (RegGetValueW(HKEY_LOCAL_MACHINE, video_keyW, value_name, RRF_RT_REG_SZ, NULL, buffer, &size))
-        return FALSE;
-
-    if (len < lstrlenW(buffer + 18) + 1)
-        return FALSE;
-
-    /* Skip \Registry\Machine\ prefix */
-    lstrcpyW(key, buffer + 18);
-    TRACE("display device %s registry settings key %s.\n", wine_dbgstr_w(device_name), wine_dbgstr_w(key));
-    return TRUE;
-}
-
-
-static BOOL write_registry_settings(const WCHAR *device_name, const DEVMODEW *dm)
-{
-    WCHAR wine_mac_reg_key[MAX_PATH];
-    HANDLE mutex;
-    HKEY hkey;
-    BOOL ret = TRUE;
-
-    mutex = get_display_device_init_mutex();
-    if (!get_display_device_reg_key(device_name, wine_mac_reg_key, ARRAY_SIZE(wine_mac_reg_key)))
-    {
-        release_display_device_init_mutex(mutex);
-        return FALSE;
-    }
-
-    if (RegCreateKeyExW(HKEY_CURRENT_CONFIG, wine_mac_reg_key, 0, NULL,
-                        REG_OPTION_VOLATILE, KEY_WRITE, NULL, &hkey, NULL))
-    {
-        release_display_device_init_mutex(mutex);
-        return FALSE;
-    }
-
-#define set_value(name, data) \
-    if (RegSetValueExA(hkey, name, 0, REG_DWORD, (const BYTE*)(data), sizeof(DWORD))) \
-        ret = FALSE
-
-    set_value("DefaultSettings.BitsPerPel", &dm->dmBitsPerPel);
-    set_value("DefaultSettings.XResolution", &dm->dmPelsWidth);
-    set_value("DefaultSettings.YResolution", &dm->dmPelsHeight);
-    set_value("DefaultSettings.VRefresh", &dm->dmDisplayFrequency);
-    set_value("DefaultSettings.Flags", &dm->dmDisplayFlags);
-    set_value("DefaultSettings.XPanning", &dm->dmPosition.x);
-    set_value("DefaultSettings.YPanning", &dm->dmPosition.y);
-    set_value("DefaultSettings.Orientation", &dm->dmDisplayOrientation);
-    set_value("DefaultSettings.FixedOutput", &dm->dmDisplayFixedOutput);
-
-#undef set_value
-
-    RegCloseKey(hkey);
-    release_display_device_init_mutex(mutex);
-    return ret;
-}
-
-
 static BOOL write_display_settings(HKEY parent_hkey, CGDirectDisplayID displayID)
 {
     BOOL ret = FALSE;
@@ -926,13 +853,7 @@ better:
         /* we have a valid mode */
         TRACE("Requested display settings match mode %ld\n", best);
 
-        if ((flags & CDS_UPDATEREGISTRY) && !write_registry_settings(devname, devmode))
-        {
-            WARN("Failed to update registry\n");
-            ret = DISP_CHANGE_NOTUPDATED;
-        }
-        else if (flags & (CDS_TEST | CDS_NORESET))
-            ret = DISP_CHANGE_SUCCESSFUL;
+        if (flags & (CDS_TEST | CDS_NORESET)) ret = DISP_CHANGE_SUCCESSFUL;
         else if (lstrcmpiW(primary_adapter, devname))
         {
             FIXME("Changing non-primary adapter settings is currently unsupported.\n");

@@ -3052,6 +3052,42 @@ static BOOL read_registry_settings( DISPLAY_DEVICEW *device, DEVMODEW *devmode )
     return ret;
 }
 
+static BOOL write_registry_settings( DISPLAY_DEVICEW *device, const DEVMODEW *devmode )
+{
+    BOOL ret = TRUE;
+    HANDLE mutex;
+    HKEY hkey;
+
+    mutex = get_display_device_init_mutex();
+
+    /* Skip \Registry\Machine\ prefix */
+    if (RegCreateKeyExW( HKEY_CURRENT_CONFIG, device->DeviceKey + 18, 0, NULL,
+                         REG_OPTION_VOLATILE, KEY_WRITE, NULL, &hkey, NULL ))
+    {
+        release_display_device_init_mutex( mutex );
+        return FALSE;
+    }
+
+#define set_value( name, data )                                                                    \
+    if (RegSetValueExW( hkey, name, 0, REG_DWORD, (const BYTE *)(data), sizeof(DWORD) )) ret = FALSE
+
+    set_value( L"DefaultSettings.BitsPerPel", &devmode->dmBitsPerPel );
+    set_value( L"DefaultSettings.XResolution", &devmode->dmPelsWidth );
+    set_value( L"DefaultSettings.YResolution", &devmode->dmPelsHeight );
+    set_value( L"DefaultSettings.VRefresh", &devmode->dmDisplayFrequency );
+    set_value( L"DefaultSettings.Flags", &devmode->dmDisplayFlags );
+    set_value( L"DefaultSettings.XPanning", &devmode->dmPosition.x );
+    set_value( L"DefaultSettings.YPanning", &devmode->dmPosition.y );
+    set_value( L"DefaultSettings.Orientation", &devmode->dmDisplayOrientation );
+    set_value( L"DefaultSettings.FixedOutput", &devmode->dmDisplayFixedOutput );
+
+#undef set_value
+
+    RegCloseKey( hkey );
+    release_display_device_init_mutex( mutex );
+    return ret;
+}
+
 /***********************************************************************
  *		ChangeDisplaySettingsA (USER32.@)
  */
@@ -3186,6 +3222,70 @@ static BOOL is_detached_mode(const DEVMODEW *mode)
            mode->dmPelsHeight == 0;
 }
 
+/* check the display mode and fill the position field if not set. */
+static BOOL check_display_mode( const WCHAR *device, DEVMODEW *mode )
+{
+    DEVMODEW full;
+    DWORD i = 0;
+
+    if (is_detached_mode( mode )) return TRUE;
+
+    while (EnumDisplaySettingsExW( device, i++, &full, EDS_ROTATEDMODE ))
+    {
+        if ((mode->dmFields & DM_BITSPERPEL) && mode->dmBitsPerPel && full.dmBitsPerPel != mode->dmBitsPerPel)
+            continue;
+        if ((mode->dmFields & DM_PELSWIDTH) && full.dmPelsWidth != mode->dmPelsWidth)
+            continue;
+        if ((mode->dmFields & DM_PELSHEIGHT) && full.dmPelsHeight != mode->dmPelsHeight)
+            continue;
+        if ((mode->dmFields & DM_DISPLAYFREQUENCY) && mode->dmDisplayFrequency && full.dmDisplayFrequency &&
+            mode->dmDisplayFrequency != 1 && mode->dmDisplayFrequency != full.dmDisplayFrequency)
+            continue;
+        if ((mode->dmFields & DM_DISPLAYORIENTATION) && full.dmDisplayOrientation != mode->dmDisplayOrientation)
+            continue;
+
+        if (!(mode->dmFields & DM_BITSPERPEL))
+        {
+            mode->dmFields |= DM_BITSPERPEL;
+            mode->dmBitsPerPel = full.dmBitsPerPel;
+        }
+        if (!(mode->dmFields & DM_PELSWIDTH))
+        {
+            mode->dmFields |= DM_PELSWIDTH;
+            mode->dmPelsWidth = full.dmPelsWidth;
+        }
+        if (!(mode->dmFields & DM_PELSHEIGHT))
+        {
+            mode->dmFields |= DM_PELSHEIGHT;
+            mode->dmPelsHeight = full.dmPelsHeight;
+        }
+        if (!(mode->dmFields & DM_DISPLAYFREQUENCY))
+        {
+            mode->dmFields |= DM_DISPLAYFREQUENCY;
+            mode->dmDisplayFrequency = full.dmDisplayFrequency;
+        }
+        if (!(mode->dmFields & DM_DISPLAYFLAGS))
+        {
+            mode->dmFields |= DM_DISPLAYFLAGS;
+            mode->dmDisplayFlags = full.dmDisplayFlags;
+        }
+        if (!(mode->dmFields & DM_POSITION))
+        {
+            mode->dmFields |= DM_POSITION;
+            mode->dmPosition = full.dmPosition;
+        }
+        if (!(mode->dmFields & DM_DISPLAYORIENTATION))
+        {
+            mode->dmFields |= DM_DISPLAYORIENTATION;
+            mode->dmDisplayOrientation = full.dmDisplayOrientation;
+        }
+
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
 /***********************************************************************
  *		ChangeDisplaySettingsExW (USER32.@)
  */
@@ -3265,6 +3365,12 @@ LONG WINAPI ChangeDisplaySettingsExW( LPCWSTR devname, LPDEVMODEW devmode, HWND 
             devmode->dmPelsWidth = dm.dmPelsWidth;
         if (!devmode->dmPelsHeight)
             devmode->dmPelsHeight = dm.dmPelsHeight;
+    }
+
+    if (flags & CDS_UPDATEREGISTRY)
+    {
+        if (!check_display_mode( device.DeviceName, devmode )) return DISP_CHANGE_BADMODE;
+        if (!write_registry_settings( &device, devmode )) return DISP_CHANGE_NOTUPDATED;
     }
 
     ret = USER_Driver->pChangeDisplaySettingsEx(device.DeviceName, devmode, hwnd, flags, lparam);
