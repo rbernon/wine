@@ -104,8 +104,6 @@ DEFINE_DEVPROPKEY(WINE_DEVPROPKEY_MONITOR_RCMONITOR, 0x233a9ef3, 0xafc4, 0x4abd,
 DEFINE_DEVPROPKEY(WINE_DEVPROPKEY_MONITOR_RCWORK, 0x233a9ef3, 0xafc4, 0x4abd, 0xb5, 0x64, 0xc3, 0x2f, 0x21, 0xf1, 0x53, 0x5b, 4);
 DEFINE_DEVPROPKEY(WINE_DEVPROPKEY_MONITOR_ADAPTERNAME, 0x233a9ef3, 0xafc4, 0x4abd, 0xb5, 0x64, 0xc3, 0x2f, 0x21, 0xf1, 0x53, 0x5b, 5);
 
-#define NULLDRV_DEFAULT_HMONITOR ((HMONITOR)(UINT_PTR)(0x10000 + 1))
-
 /* Cached display device information */
 struct display_device
 {
@@ -132,9 +130,15 @@ static CRITICAL_SECTION display_section = { &display_critsect_debug, -1, 0, 0, 0
 
 static BOOL enum_display_device( WCHAR *device, DWORD index, struct display_device *info );
 
-/* Cached monitor information */
-static MONITORINFOEXW monitors[512];
-static MONITORINFOEXW *monitors_end = monitors;
+/* Cached monitor information, initialized with the default monitor */
+static MONITORINFOEXW monitors[512] =
+{
+    {.cbSize = sizeof(MONITORINFOEXW),
+     .rcMonitor = {0, 0, 1024, 768}, .rcWork = {0, 0, 1024, 768},
+     .dwFlags = MONITORINFOF_PRIMARY, .szDevice = L"\\\\.\\DISPLAY1",
+    },
+};
+static MONITORINFOEXW *monitors_end = monitors + 1;
 
 static FILETIME last_query_monitors_time;
 static CRITICAL_SECTION monitors_section;
@@ -3881,23 +3885,23 @@ fail:
 }
 
 /* Return FALSE on failure and TRUE on success */
-static BOOL update_monitor_cache(void)
+static void update_monitor_cache(void)
 {
     SP_DEVINFO_DATA device_data = {sizeof(device_data)};
     HDEVINFO devinfo = INVALID_HANDLE_VALUE;
     MONITORINFOEXW *monitor, *mirror;
     DWORD state_flags, i = 0, type;
-    BOOL is_replica, ret = FALSE;
     FILETIME filetime = {0};
     HANDLE mutex = NULL;
+    BOOL is_replica;
 
     /* Update monitor cache from SetupAPI if it's outdated */
     if (!video_key && RegOpenKeyW( HKEY_LOCAL_MACHINE, L"HARDWARE\\DEVICEMAP\\VIDEO", &video_key ))
-        return FALSE;
+        return;
     if (RegQueryInfoKeyW( video_key, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, &filetime ))
-        return FALSE;
+        return;
     if (CompareFileTime( &filetime, &last_query_monitors_time ) < 1)
-        return TRUE;
+        return;
 
     mutex = get_display_device_init_mutex();
     EnterCriticalSection( &monitors_section );
@@ -3942,16 +3946,15 @@ static BOOL update_monitor_cache(void)
 
     if (monitor == monitors + ARRAY_SIZE(monitors))
         FIXME( "More than %u monitors detected, ignoring.\n", ARRAY_SIZE(monitors) );
-    else
-        monitors_end = monitor;
+
+    if (monitor != monitors) monitors_end = monitor;
+    else WARN( "No monitors detected, keeping default monitor.\n" );
 
     last_query_monitors_time = filetime;
-    ret = TRUE;
 fail:
     SetupDiDestroyDeviceInfoList( devinfo );
     LeaveCriticalSection( &monitors_section );
     release_display_device_init_mutex( mutex );
-    return ret;
 }
 
 BOOL CDECL nulldrv_GetMonitorInfo( HMONITOR handle, MONITORINFO *info )
@@ -3960,20 +3963,7 @@ BOOL CDECL nulldrv_GetMonitorInfo( HMONITOR handle, MONITORINFO *info )
 
     TRACE("(%p, %p)\n", handle, info);
 
-    /* Fallback to report one monitor */
-    if (handle == NULLDRV_DEFAULT_HMONITOR)
-    {
-        RECT default_rect = {0, 0, 1024, 768};
-        info->rcMonitor = default_rect;
-        info->rcWork = default_rect;
-        info->dwFlags = MONITORINFOF_PRIMARY;
-        if (info->cbSize >= sizeof(MONITORINFOEXW))
-            lstrcpyW( ((MONITORINFOEXW *)info)->szDevice, L"WinDisc" );
-        return TRUE;
-    }
-
-    if (!update_monitor_cache())
-        return FALSE;
+    update_monitor_cache();
 
     EnterCriticalSection( &monitors_section );
     monitor = monitors + (UINT)((UINT_PTR)handle - 1);
@@ -4130,30 +4120,25 @@ BOOL WINAPI EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC proc, LPA
     if (NtUserGetObjectInformation( winstation, UOI_FLAGS, &flags, sizeof(flags), NULL ))
         is_winstation_visible = flags.dwFlags & WSF_VISIBLE;
 
-    if (is_winstation_visible && update_monitor_cache())
+    if (is_winstation_visible) update_monitor_cache();
+
+    while (TRUE)
     {
-        while (TRUE)
+        EnterCriticalSection( &monitors_section );
+        if (i >= monitors_end - monitors)
         {
-            EnterCriticalSection( &monitors_section );
-            if (i >= monitors_end - monitors)
-            {
-                LeaveCriticalSection( &monitors_section );
-                return TRUE;
-            }
-            monitor_rect = monitors[i].rcMonitor;
             LeaveCriticalSection( &monitors_section );
-
-            if (!proc( (HMONITOR)(UINT_PTR)(i + 1), hdc, &monitor_rect, lp ))
-                return FALSE;
-
-            ++i;
+            return TRUE;
         }
+        monitor_rect = monitors[i].rcMonitor;
+        LeaveCriticalSection( &monitors_section );
+
+        if (!proc( (HMONITOR)(UINT_PTR)(i + 1), hdc, &monitor_rect, lp ))
+            return FALSE;
+
+        ++i;
     }
 
-    /* Fallback to report one monitor if using SetupAPI failed */
-    SetRect( &monitor_rect, 0, 0, 1024, 768 );
-    if (!proc( NULLDRV_DEFAULT_HMONITOR, hdc, &monitor_rect, lp ))
-        return FALSE;
     return TRUE;
 }
 
