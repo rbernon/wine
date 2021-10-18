@@ -4629,6 +4629,9 @@ LONG WINAPI GetDisplayConfigBufferSizes(UINT32 flags, UINT32 *num_path_info, UIN
             (*num_path_info)++;
     }
 
+    /* pretend there's always one monitor */
+    if (monitor_index == 1) *num_path_info = 1;
+
     *num_mode_info = *num_path_info * 2;
     ret = ERROR_SUCCESS;
     TRACE("returning %u path(s) %u mode(s)\n", *num_path_info, *num_mode_info);
@@ -4780,7 +4783,8 @@ static LONG query_display_device_modes( const WCHAR *device_name, UINT32 output_
     if (++mode_index == *mode_count) return -1;
 
     /* Extract the adapter index from device_name to use as the source ID */
-    adapter_index = wcstol( device_name + lstrlenW( L"\\\\.\\DISPLAY" ), NULL, 10 ) - 1;
+    if (!device_name) adapter_index = 0;
+    else adapter_index = wcstol( device_name + lstrlenW( L"\\\\.\\DISPLAY" ), NULL, 10 ) - 1;
 
     /* Multiple targets can be driven by the same source, ensure a mode
      * hasn't already been added for this source.
@@ -4810,8 +4814,8 @@ LONG WINAPI QueryDisplayConfig(UINT32 flags, UINT32 *numpathelements, DISPLAYCON
     HDEVINFO devinfo;
     SP_DEVINFO_DATA device_data = {sizeof(device_data)};
     DWORD monitor_index = 0, state_flags, type;
-    UINT32 output_id, path_index = 0, mode_index = 0;
-    LUID gpu_luid;
+    UINT32 output_id = 0, path_index = 0, mode_index = 0;
+    LUID gpu_luid = {0};
     WCHAR device_name[CCHDEVICENAME];
 
     FIXME("(%08x %p %p %p %p %p): semi-stub\n", flags, numpathelements, pathinfo, numinfoelements, modeinfo, topologyid);
@@ -4876,6 +4880,22 @@ LONG WINAPI QueryDisplayConfig(UINT32 flags, UINT32 *numpathelements, DISPLAYCON
             goto done;
 
         ret = query_display_device_modes(device_name, output_id, &gpu_luid, flags,
+                                         path_index, numpathelements, pathinfo,
+                                         mode_index, numinfoelements, modeinfo);
+        if (ret < 0)
+        {
+            ret = ERROR_INSUFFICIENT_BUFFER;
+            goto done;
+        }
+
+        path_index += 1;
+        mode_index += ret;
+    }
+
+    /* pretend there's always one monitor */
+    if (monitor_index == 1)
+    {
+        ret = query_display_device_modes(NULL, output_id, &gpu_luid, flags,
                                          path_index, numpathelements, pathinfo,
                                          mode_index, numinfoelements, modeinfo);
         if (ret < 0)
@@ -4962,6 +4982,14 @@ LONG WINAPI DisplayConfigGetDeviceInfo(DISPLAYCONFIG_DEVICE_INFO_HEADER *packet)
             break;
         }
         SetupDiDestroyDeviceInfoList(devinfo);
+        /* pretend there's always one monitor */
+        if (index == 1 && source_name->header.id == 0 &&
+            source_name->header.adapterId.LowPart == 0 &&
+            source_name->header.adapterId.HighPart == 0)
+        {
+            wcscpy(source_name->viewGdiDeviceName, L"\\\\.\\DISPLAY1");
+            ret = ERROR_SUCCESS;
+        }
         release_display_device_init_mutex(mutex);
         return ret;
     }
