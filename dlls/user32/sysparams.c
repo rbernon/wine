@@ -619,16 +619,23 @@ void release_display_dc( HDC hdc )
 
 static HANDLE get_display_device_init_mutex( void )
 {
-    HANDLE mutex = CreateMutexW( NULL, FALSE, L"display_device_init" );
+    OBJECT_ATTRIBUTES attrs;
+    UNICODE_STRING name_str;
+    NTSTATUS status;
+    HANDLE mutex;
 
-    WaitForSingleObject( mutex, INFINITE );
+    RtlInitUnicodeString( &name_str, L"display_device_init" );
+    InitializeObjectAttributes( &attrs, &name_str, OBJ_CASE_INSENSITIVE, 0, NULL );
+    if ((status = NtCreateMutant( &mutex, MUTEX_ALL_ACCESS, &attrs, FALSE ))) return NULL;
+
+    NtWaitForMultipleObjects( 1, &mutex, TRUE, TRUE, NULL );
     return mutex;
 }
 
 static void release_display_device_init_mutex( HANDLE mutex )
 {
-    ReleaseMutex( mutex );
-    CloseHandle( mutex );
+    NtReleaseMutant( mutex, NULL );
+    NtClose( mutex );
 }
 
 /* Wait until graphics driver is loaded by explorer */
