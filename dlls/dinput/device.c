@@ -2266,3 +2266,49 @@ HRESULT dinput_device_init_device_format( IDirectInputDevice8W *iface )
 
     return DI_OK;
 }
+
+void dinput_device_update_begin( IDirectInputDevice8W *iface, ULONG time )
+{
+    struct dinput_device *impl = impl_from_IDirectInputDevice8W( iface );
+
+    EnterCriticalSection( &impl->crit );
+    impl->update_sequence = impl->dinput->evsequence++;
+    impl->update_notify = FALSE;
+    impl->update_time = time;
+}
+
+void dinput_device_update_end( IDirectInputDevice8W *iface )
+{
+    struct dinput_device *impl = impl_from_IDirectInputDevice8W( iface );
+
+    if (impl->hEvent && impl->update_notify) SetEvent( impl->hEvent );
+    LeaveCriticalSection( &impl->crit );
+}
+
+void dinput_device_update_value( IDirectInputDevice8W *iface, const DIDEVICEOBJECTINSTANCEW *instance, LONG value )
+{
+    struct dinput_device *impl = impl_from_IDirectInputDevice8W( iface );
+    LONG previous_value = *(LONG *)(impl->previous_state + instance->dwOfs);
+
+    *(LONG *)(impl->previous_state + instance->dwOfs) = value;
+    *(LONG *)(impl->device_state + instance->dwOfs) = value;
+    if (previous_value != value)
+    {
+        queue_event( iface, instance->dwType, value, impl->update_time, impl->update_sequence );
+        impl->update_notify = TRUE;
+    }
+}
+
+void dinput_device_update_button( IDirectInputDevice8W *iface, const DIDEVICEOBJECTINSTANCEW *instance, BYTE value )
+{
+    struct dinput_device *impl = impl_from_IDirectInputDevice8W( iface );
+    BYTE previous_value = impl->previous_state[instance->dwOfs];
+
+    impl->previous_state[instance->dwOfs] = value;
+    impl->device_state[instance->dwOfs] = value;
+    if (previous_value != value)
+    {
+        queue_event( iface, instance->dwType, value, impl->update_time, impl->update_sequence );
+        impl->update_notify = TRUE;
+    }
+}
