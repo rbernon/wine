@@ -101,10 +101,10 @@ int dinput_keyboard_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPARAM lpa
     switch (hook->vkCode)
     {
         /* R-Shift is special - it is an extended key with separate scan code */
-        case VK_RSHIFT  : dik_code = DIK_RSHIFT; break;
-        case VK_PAUSE   : dik_code = DIK_PAUSE; break;
-        case VK_NUMLOCK : dik_code = DIK_NUMLOCK; break;
-        case VK_SUBTRACT: dik_code = DIK_SUBTRACT; break;
+        case VK_RSHIFT  : dik = DIK_RSHIFT; break;
+        case VK_PAUSE   : dik = DIK_PAUSE; break;
+        case VK_NUMLOCK : dik = DIK_NUMLOCK; break;
+        case VK_SUBTRACT: dik = DIK_SUBTRACT; break;
         default:
             scan_code = hook->scanCode & 0xff;
             if (hook->flags & LLKHF_EXTENDED) scan_code |= 0x100;

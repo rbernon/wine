@@ -1502,6 +1502,504 @@ static void test_mouse_info(void)
     ok( ref == 0, "Release returned %d\n", ref );
 }
 
+static void test_mouse_input(void)
+{
+    static INPUT injected_input[] =
+    {
+        {.type = INPUT_MOUSE, .mi = {.mouseData = 0x12345, .dwFlags = MOUSEEVENTF_MOVE|MOUSEEVENTF_HWHEEL}},
+        {.type = INPUT_MOUSE, .mi = {.dx = 258, .dy = -257, .mouseData = 2, .dwFlags = MOUSEEVENTF_MOVE|MOUSEEVENTF_LEFTDOWN|MOUSEEVENTF_RIGHTDOWN|MOUSEEVENTF_XDOWN}},
+        {.type = INPUT_MOUSE, .mi = {.dx = 0x7fffffff, .dy = 0x80000000, .mouseData = 2, .dwFlags = MOUSEEVENTF_MOVE|MOUSEEVENTF_LEFTUP|MOUSEEVENTF_RIGHTUP|MOUSEEVENTF_XUP}},
+        {.type = INPUT_MOUSE, .mi = {.dx = 100, .dy = 100, .mouseData = 0x1000, .dwFlags = MOUSEEVENTF_MOVE|MOUSEEVENTF_ABSOLUTE|MOUSEEVENTF_WHEEL}},
+        {.type = INPUT_MOUSE, .mi = {.dx = 100, .dy = 100, .mouseData = 0x12345, .dwFlags = MOUSEEVENTF_MOVE|MOUSEEVENTF_WHEEL}},
+        {.type = INPUT_MOUSE, .mi = {.dwFlags = MOUSEEVENTF_MOVE|MOUSEEVENTF_LEFTUP}},
+    };
+    static const struct DIMOUSESTATE2 expect_state[] =
+    {
+        {.lX = 0, .lY = 0, .lZ = 0, .rgbButtons = {0, 0, 0, 0, 0}},
+        {.lX = 0, .lY = 0, .lZ = 0, .rgbButtons = {0, 0, 0, 0, 0}},
+        {.lX = 258, .lY = -257, .lZ = 0, .rgbButtons = {0x80, 0x80, 0, 0, 0x80}},
+        {.lX = 0x7fffffff, .lY = 0x80000000, .lZ = 0, .rgbButtons = {0, 0, 0, 0, 0}},
+        {.lX = 0, .lY = 0, .lZ = 0, .rgbButtons = {0, 0, 0, 0, 0}},
+        {.lX = 100, .lY = 100, .lZ = 0x7fff, .rgbButtons = {0, 0, 0, 0, 0}},
+        {.lX = 0, .lY = 0, .lZ = 0, .rgbButtons = {0, 0, 0, 0, 0}},
+    };
+    static const struct DIMOUSESTATE2 expect_state_abs[] =
+    {
+        {.lX = 0, .lY = 0, .lZ = 0, .rgbButtons = {0, 0}},
+        {.lX = 0, .lY = 0, .lZ = 0, .rgbButtons = {0, 0}},
+        {.lX = 258, .lY = -257, .lZ = 0, .rgbButtons = {0x80, 0x80, 0, 0, 0x80}},
+        {.lX = 0x80000101, .lY = 0x7ffffeff, .lZ = 0, .rgbButtons = {0, 0, 0, 0, 0}},
+        {.lX = 0x80000101, .lY = 0x7ffffeff, .rgbButtons = {0, 0, 0, 0, 0}},
+        {.lX = 0x80000165, .lY = 0x7fffff63, .lZ = 0x7fff, .rgbButtons = {0, 0, 0, 0, 0}},
+        {.lX = 0x80000165, .lY = 0x7fffff63, .lZ = 0x7fff, .rgbButtons = {0, 0, 0, 0, 0}},
+    };
+    static const DIDEVICEOBJECTDATA expect_objdata[] =
+    {
+        {.dwOfs = 0, .dwData = 258, .dwSequence = 0xa},
+        {.dwOfs = 0, .dwData = 258, .dwSequence = 0xa},
+        {.dwOfs = 4, .dwData = -257, .dwSequence = 0xa},
+        {.dwOfs = 0x04, .dwData = 0x80000000, .dwSequence = 0xd},
+        {.dwOfs = 0x0c, .dwData = 0, .dwSequence = 0xd},
+        {.dwOfs = 0x0d, .dwData = 0, .dwSequence = 0xd},
+        {.dwOfs = 0x10, .dwData = 0, .dwSequence = 0xd},
+        {.dwOfs = 0, .dwData = 100, .dwSequence = 0xf},
+        {.dwOfs = 4, .dwData = 100, .dwSequence = 0xf},
+        {.dwOfs = 8, .dwData = 0x7fff, .dwSequence = 0xf},
+    };
+    INPUT input =
+    {
+        .type = INPUT_MOUSE, .mi = {.dwFlags = MOUSEEVENTF_MOVE|MOUSEEVENTF_WHEEL}
+    };
+    DIPROPDWORD prop_dword =
+    {
+        .diph =
+        {
+            .dwSize = sizeof(DIPROPDWORD),
+            .dwHeaderSize = sizeof(DIPROPHEADER),
+            .dwHow = DIPH_DEVICE,
+        },
+    };
+    DIPROPRANGE prop_range =
+    {
+        .diph =
+        {
+            .dwSize = sizeof(DIPROPRANGE),
+            .dwHeaderSize = sizeof(DIPROPHEADER),
+            .dwHow = DIPH_DEVICE,
+        },
+    };
+    DIDEVICEOBJECTDATA objdata[32] = {{0}};
+    IDirectInputDevice8W *device;
+    DIMOUSESTATE2 state;
+    IDirectInput8W *di;
+    ULONG i, res, ref;
+    HANDLE event;
+    HRESULT hr;
+    HWND hwnd;
+
+    hr = DirectInput8Create( instance, DIRECTINPUT_VERSION, &IID_IDirectInput8W, (void **)&di, NULL );
+    ok( hr == DI_OK, "DirectInput8Create returned %#x\n", hr );
+    hr = IDirectInput8_CreateDevice( di, &GUID_SysMouse, &device, NULL );
+    ok( hr == DI_OK, "CreateDevice returned %#x\n", hr );
+
+    hr = IDirectInputDevice8_SetEventNotification( device, (HANDLE)0xdeadbeef );
+    todo_wine
+    ok( hr == E_HANDLE, "SetEventNotification returned: %#x\n", hr );
+    event = CreateEventW( NULL, FALSE, FALSE, NULL );
+    ok( event != NULL, "CreateEventW failed, last error %u\n", GetLastError() );
+    hr = IDirectInputDevice8_SetEventNotification( device, event );
+    ok( hr == DI_OK, "SetEventNotification returned: %#x\n", hr );
+
+    hr = IDirectInputDevice8_SetCooperativeLevel( device, NULL, 0 );
+    ok( hr == DIERR_INVALIDPARAM, "SetCooperativeLevel returned: %#x\n", hr );
+    hr = IDirectInputDevice8_SetCooperativeLevel( device, NULL, DISCL_BACKGROUND );
+    ok( hr == DIERR_INVALIDPARAM, "SetCooperativeLevel returned: %#x\n", hr );
+    hr = IDirectInputDevice8_SetCooperativeLevel( device, NULL, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE );
+    ok( hr == E_HANDLE, "SetCooperativeLevel returned: %#x\n", hr );
+    hr = IDirectInputDevice8_SetCooperativeLevel( device, NULL, DISCL_BACKGROUND | DISCL_EXCLUSIVE );
+    ok( hr == E_HANDLE, "SetCooperativeLevel returned: %#x\n", hr );
+    hr = IDirectInputDevice8_SetCooperativeLevel( device, NULL, DISCL_FOREGROUND | DISCL_EXCLUSIVE );
+    ok( hr == E_HANDLE, "SetCooperativeLevel returned: %#x\n", hr );
+
+    hwnd = CreateWindowW( L"static", L"dinput", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 10, 10, 200, 200,
+                          NULL, NULL, NULL, NULL );
+    flush_events();
+
+    hr = IDirectInputDevice8_SetCooperativeLevel( device, hwnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE );
+    ok( hr == DI_OK, "SetCooperativeLevel returned: %#x\n", hr );
+    hr = IDirectInputDevice8_SetCooperativeLevel( device, hwnd, DISCL_BACKGROUND | DISCL_EXCLUSIVE );
+    ok( hr == DIERR_UNSUPPORTED, "SetCooperativeLevel returned: %#x\n", hr );
+    hr = IDirectInputDevice8_SetCooperativeLevel( device, hwnd, DISCL_FOREGROUND | DISCL_EXCLUSIVE );
+    ok( hr == DI_OK, "SetCooperativeLevel returned: %#x\n", hr );
+
+    hr = IDirectInputDevice8_Unacquire( device );
+    ok( hr == DI_NOEFFECT, "Unacquire returned: %#x\n", hr );
+
+    hr = IDirectInputDevice8_Acquire( device );
+    ok( hr == DIERR_INVALIDPARAM, "Acquire returned: %#x\n", hr );
+    hr = IDirectInputDevice8_SetDataFormat( device, &c_dfDIMouse2 );
+    ok( hr == DI_OK, "SetDataFormat returned %#x\n", hr );
+    hr = IDirectInputDevice8_Acquire( device );
+    ok( hr == DI_OK, "Acquire returned: %#x\n", hr );
+
+    hr = IDirectInputDevice8_SetCooperativeLevel( device, hwnd, DISCL_FOREGROUND | DISCL_EXCLUSIVE );
+    ok( hr == DIERR_ACQUIRED, "SetCooperativeLevel returned: %#x\n", hr );
+    hr = IDirectInputDevice8_Unacquire( device );
+    ok( hr == DI_OK, "Unacquire returned: %#x\n", hr );
+    DestroyWindow( hwnd );
+
+    hr = IDirectInputDevice8_SetCooperativeLevel( device, NULL, DISCL_BACKGROUND | DISCL_NONEXCLUSIVE );
+    ok( hr == DI_OK, "SetCooperativeLevel returned: %#x\n", hr );
+
+    hr = IDirectInputDevice8_GetDeviceState( device, sizeof(DIMOUSESTATE2), &state );
+    ok( hr == DIERR_NOTACQUIRED, "GetDeviceState returned: %#x\n", hr );
+    hr = IDirectInputDevice8_Poll( device );
+    ok( hr == DIERR_NOTACQUIRED, "Poll returned: %#x\n", hr );
+
+    hwnd = CreateWindowW( L"static", L"dinput", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 10, 10, 200, 200,
+                          NULL, NULL, NULL, NULL );
+    flush_events();
+    hr = IDirectInputDevice8_SetCooperativeLevel( device, hwnd, DISCL_FOREGROUND | DISCL_EXCLUSIVE );
+    ok( hr == DI_OK, "SetCooperativeLevel returned: %#x\n", hr );
+    hr = IDirectInputDevice8_Acquire( device );
+    ok( hr == DI_OK, "Acquire returned: %#x\n", hr );
+    hr = IDirectInputDevice8_Poll( device );
+    ok( hr == DI_NOEFFECT, "Poll returned: %#x\n", hr );
+
+    hr = IDirectInputDevice8_GetDeviceState( device, sizeof(DIMOUSESTATE2) + 1, &state );
+    ok( hr == DIERR_INVALIDPARAM, "GetDeviceState returned: %#x\n", hr );
+
+    for (i = 0; i < ARRAY_SIZE(injected_input); ++i)
+    {
+        winetest_push_context( "state[%d]", i );
+        hr = IDirectInputDevice8_GetDeviceState( device, sizeof(DIMOUSESTATE2), &state );
+        ok( hr == DI_OK, "GetDeviceState returned: %#x\n", hr );
+        check_member( state, expect_state[i], "%d", lX );
+        check_member( state, expect_state[i], "%d", lY );
+        check_member( state, expect_state[i], "%d", lZ );
+        check_member( state, expect_state[i], "%#x", rgbButtons[0] );
+        check_member( state, expect_state[i], "%#x", rgbButtons[1] );
+        check_member( state, expect_state[i], "%#x", rgbButtons[2] );
+        check_member( state, expect_state[i], "%#x", rgbButtons[3] );
+        check_member( state, expect_state[i], "%#x", rgbButtons[4] );
+
+        SendInput( 1, &injected_input[i], sizeof(*injected_input) );
+
+        res = WaitForSingleObject( event, 100 );
+        if (i == 0 || i == 3 || i == 5) ok( res == WAIT_TIMEOUT, "WaitForSingleObject succeeded\n" );
+        else ok( res == WAIT_OBJECT_0, "WaitForSingleObject failed\n" );
+        ResetEvent( event );
+        winetest_pop_context();
+    }
+
+    hr = IDirectInputDevice8_GetDeviceState( device, sizeof(DIMOUSESTATE2), &state );
+    ok( hr == DI_OK, "GetDeviceState returned: %#x\n", hr );
+    winetest_push_context( "state[%d]", i );
+    check_member( state, expect_state[i], "%d", lX );
+    check_member( state, expect_state[i], "%d", lY );
+    check_member( state, expect_state[i], "%d", lZ );
+    check_member( state, expect_state[i], "%#x", rgbButtons[0] );
+    check_member( state, expect_state[i], "%#x", rgbButtons[1] );
+    check_member( state, expect_state[i], "%#x", rgbButtons[2] );
+    check_member( state, expect_state[i], "%#x", rgbButtons[3] );
+    check_member( state, expect_state[i], "%#x", rgbButtons[4] );
+    winetest_pop_context();
+
+    res = 1;
+    hr = IDirectInputDevice8_GetDeviceData( device, sizeof(DIDEVICEOBJECTDATA) - 1, objdata, &res, DIGDD_PEEK );
+    todo_wine
+    ok( hr == DIERR_INVALIDPARAM, "GetDeviceData returned %#x\n", hr );
+    res = 1;
+    hr = IDirectInputDevice8_GetDeviceData( device, sizeof(DIDEVICEOBJECTDATA), objdata, &res, DIGDD_PEEK );
+    ok( hr == DIERR_NOTBUFFERED, "GetDeviceData returned %#x\n", hr );
+
+    hr = IDirectInputDevice8_Unacquire( device );
+    ok( hr == DI_OK, "Unacquire returned: %#x\n", hr );
+    prop_dword.diph.dwHow = DIPH_DEVICE;
+    prop_dword.diph.dwObj = 0;
+    prop_dword.dwData = 1;
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_BUFFERSIZE, &prop_dword.diph );
+    ok( hr == DI_OK, "SetProperty DIPROP_BUFFERSIZE returned %#x\n", hr );
+    hr = IDirectInputDevice8_Acquire( device );
+    ok( hr == DI_OK, "Unacquire returned: %#x\n", hr );
+
+    res = 1;
+    hr = IDirectInputDevice8_GetDeviceData( device, sizeof(DIDEVICEOBJECTDATA), objdata, &res, DIGDD_PEEK );
+    ok( hr == DI_OK, "GetDeviceData returned %#x\n", hr );
+    ok( res == 0, "got %u expected %u\n", res, 0 );
+
+    SendInput( 1, &injected_input[1], sizeof(*injected_input) );
+    res = WaitForSingleObject( event, 100 );
+    ok( res == WAIT_OBJECT_0, "WaitForSingleObject failed\n" );
+    ResetEvent( event );
+
+    res = 1;
+    hr = IDirectInputDevice8_GetDeviceData( device, sizeof(DIDEVICEOBJECTDATA), objdata, &res, DIGDD_PEEK );
+    ok( hr == DI_BUFFEROVERFLOW, "GetDeviceData returned %#x\n", hr );
+    ok( res == 0, "got %u expected %u\n", res, 0 );
+    res = 1;
+    hr = IDirectInputDevice8_GetDeviceData( device, sizeof(DIDEVICEOBJECTDATA), objdata, &res, 0 );
+    todo_wine
+    ok( hr == DI_OK, "GetDeviceData returned %#x\n", hr );
+    ok( res == 0, "got %u expected %u\n", res, 0 );
+
+    hr = IDirectInputDevice8_Unacquire( device );
+    ok( hr == DI_OK, "Unacquire returned: %#x\n", hr );
+    prop_dword.diph.dwHow = DIPH_DEVICE;
+    prop_dword.diph.dwObj = 0;
+    prop_dword.dwData = 8;
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_BUFFERSIZE, &prop_dword.diph );
+    ok( hr == DI_OK, "SetProperty DIPROP_BUFFERSIZE returned %#x\n", hr );
+    hr = IDirectInputDevice8_Acquire( device );
+    ok( hr == DI_OK, "Unacquire returned: %#x\n", hr );
+
+    SendInput( 1, &injected_input[1], sizeof(*injected_input) );
+    res = WaitForSingleObject( event, 100 );
+    ok( res == WAIT_OBJECT_0, "WaitForSingleObject failed\n" );
+    ResetEvent( event );
+
+    res = 1;
+    hr = IDirectInputDevice8_GetDeviceData( device, sizeof(DIDEVICEOBJECTDATA), objdata, &res, DIGDD_PEEK );
+    ok( hr == DI_OK, "GetDeviceData returned %#x\n", hr );
+    ok( res == 1, "got %u expected %u\n", res, 1 );
+    check_member( objdata[0], expect_objdata[0], "%#x", dwOfs );
+    check_member( objdata[0], expect_objdata[0], "%#x", dwData );
+    ok( objdata[0].uAppData == -1, "got %p, expected %p\n", (void *)objdata[0].uAppData, (void *)-1 );
+    res = 4;
+    hr = IDirectInputDevice8_GetDeviceData( device, sizeof(DIDEVICEOBJECTDATA), objdata, &res, 0 );
+    ok( hr == DI_OK, "GetDeviceData returned %#x\n", hr );
+    ok( res == 2, "got %u expected %u\n", res, 4 );
+    for (i = 0; i < 2; ++i)
+    {
+        winetest_push_context( "objdata[%d]", i );
+        check_member( objdata[i], expect_objdata[1 + i], "%#x", dwOfs );
+        check_member( objdata[i], expect_objdata[1 + i], "%#x", dwData );
+        ok( objdata[i].uAppData == -1, "got %p, expected %p\n", (void *)objdata[i].uAppData, (void *)-1 );
+        winetest_pop_context();
+    }
+
+    SendInput( 1, &injected_input[2], sizeof(*injected_input) );
+    res = WaitForSingleObject( event, 100 );
+    ok( res == WAIT_OBJECT_0, "WaitForSingleObject failed\n" );
+    ResetEvent( event );
+    SendInput( 1, &injected_input[4], sizeof(*injected_input) );
+    res = WaitForSingleObject( event, 100 );
+    ok( res == WAIT_OBJECT_0, "WaitForSingleObject failed\n" );
+    ResetEvent( event );
+
+    res = 1;
+    hr = IDirectInputDevice8_GetDeviceData( device, sizeof(DIDEVICEOBJECTDATA), objdata, &res, 0 );
+    ok( hr == DI_BUFFEROVERFLOW, "GetDeviceData returned %#x\n", hr );
+    ok( res == 1, "got %u expected %u\n", res, 1 );
+    todo_wine
+    check_member( objdata[0], expect_objdata[3], "%#x", dwOfs );
+    todo_wine
+    check_member( objdata[0], expect_objdata[3], "%#x", dwData );
+    ok( objdata[0].uAppData == -1, "got %p, expected %p\n", (void *)objdata[0].uAppData, (void *)-1 );
+    res = ARRAY_SIZE(objdata);
+    hr = IDirectInputDevice8_GetDeviceData( device, sizeof(DIDEVICEOBJECTDATA), objdata, &res, 0 );
+    ok( hr == DI_OK, "GetDeviceData returned %#x\n", hr );
+    ok( res == 6, "got %u expected %u\n", res, 6 );
+    for (i = 0; i < 6; ++i)
+    {
+        winetest_push_context( "objdata[%d]", i );
+        todo_wine
+        check_member( objdata[i], expect_objdata[4 + i], "%#x", dwOfs );
+        todo_wine_if( i == 1 || i == 2 || i == 6 )
+        check_member( objdata[i], expect_objdata[4 + i], "%#x", dwData );
+        ok( objdata[i].uAppData == -1, "got %p, expected %p\n", (void *)objdata[i].uAppData, (void *)-1 );
+        winetest_pop_context();
+    }
+
+    hr = IDirectInputDevice8_Unacquire( device );
+    ok( hr == DI_OK, "Unacquire returned: %#x\n", hr );
+
+    prop_dword.diph.dwHow = DIPH_DEVICE;
+    prop_dword.diph.dwObj = 0;
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_JOYSTICKID, &prop_dword.diph );
+    ok( hr == DIERR_UNSUPPORTED, "SetProperty DIPROP_JOYSTICKID returned %#x\n", hr );
+    prop_dword.dwData = 0x1000;
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_BUFFERSIZE, &prop_dword.diph );
+    ok( hr == DI_OK, "SetProperty DIPROP_BUFFERSIZE returned %#x\n", hr );
+    prop_dword.dwData = 0xdeadbeef;
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_AUTOCENTER, &prop_dword.diph );
+    ok( hr == DIERR_INVALIDPARAM, "SetProperty DIPROP_AUTOCENTER returned %#x\n", hr );
+    prop_dword.dwData = DIPROPAUTOCENTER_ON;
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_AUTOCENTER, &prop_dword.diph );
+    ok( hr == DIERR_UNSUPPORTED, "SetProperty DIPROP_AUTOCENTER returned %#x\n", hr );
+
+    prop_dword.dwData = 0xdeadbeef;
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_AXISMODE, &prop_dword.diph );
+    todo_wine
+    ok( hr == DIERR_INVALIDPARAM, "SetProperty DIPROP_AXISMODE returned %#x\n", hr );
+    prop_dword.dwData = DIPROPAXISMODE_ABS;
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_AXISMODE, &prop_dword.diph );
+    ok( hr == DI_OK, "SetProperty DIPROP_AXISMODE returned %#x\n", hr );
+
+    prop_range.diph.dwHow = DIPH_DEVICE;
+    prop_range.diph.dwObj = 0;
+    prop_range.lMin = -4000;
+    prop_range.lMax = -14000;
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_RANGE, &prop_range.diph );
+    ok( hr == DIERR_UNSUPPORTED, "SetProperty DIPROP_RANGE returned %#x\n", hr );
+    prop_range.lMin = 1000;
+    prop_range.lMax = 51000;
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_RANGE, &prop_range.diph );
+    ok( hr == DIERR_UNSUPPORTED, "SetProperty DIPROP_RANGE returned %#x\n", hr );
+
+    prop_range.diph.dwHow = DIPH_DEVICE;
+    prop_range.diph.dwObj = 0;
+    prop_range.lMin = 0xdeadbeef;
+    prop_range.lMax = 0xdeadbeef;
+    hr = IDirectInputDevice8_GetProperty( device, DIPROP_RANGE, &prop_range.diph );
+    ok( hr == DIERR_UNSUPPORTED, "GetProperty DIPROP_RANGE returned %#x\n", hr );
+    prop_range.diph.dwHow = DIPH_BYOFFSET;
+    prop_range.diph.dwObj = 0;
+    prop_range.lMin = 0xdeadbeef;
+    prop_range.lMax = 0xdeadbeef;
+    hr = IDirectInputDevice8_GetProperty( device, DIPROP_RANGE, &prop_range.diph );
+    ok( hr == DI_OK, "GetProperty DIPROP_RANGE returned %#x\n", hr );
+    ok( prop_range.lMin == DIPROPRANGE_NOMIN, "got %d expected %d\n", prop_range.lMin, DIPROPRANGE_NOMIN );
+    ok( prop_range.lMax == DIPROPRANGE_NOMAX, "got %d expected %d\n", prop_range.lMax, DIPROPRANGE_NOMAX );
+
+    prop_dword.diph.dwHow = DIPH_DEVICE;
+    prop_dword.diph.dwObj = 0;
+    prop_dword.dwData = 10001;
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_DEADZONE, &prop_dword.diph );
+    ok( hr == DI_OK, "SetProperty DIPROP_DEADZONE returned %#x\n", hr );
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_SATURATION, &prop_dword.diph );
+    ok( hr == DI_OK, "SetProperty DIPROP_SATURATION returned %#x\n", hr );
+
+    hr = IDirectInputDevice8_GetProperty( device, DIPROP_DEADZONE, &prop_dword.diph );
+    ok( hr == DIERR_UNSUPPORTED, "GetProperty DIPROP_DEADZONE returned %#x\n", hr );
+    hr = IDirectInputDevice8_GetProperty( device, DIPROP_SATURATION, &prop_dword.diph );
+    ok( hr == DIERR_UNSUPPORTED, "GetProperty DIPROP_SATURATION returned %#x\n", hr );
+
+    prop_dword.diph.dwHow = DIPH_BYOFFSET;
+    prop_dword.diph.dwObj = 0;
+    prop_dword.dwData = 2000;
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_DEADZONE, &prop_dword.diph );
+    ok( hr == DIERR_UNSUPPORTED, "SetProperty DIPROP_DEADZONE returned %#x\n", hr );
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_SATURATION, &prop_dword.diph );
+    ok( hr == DIERR_UNSUPPORTED, "SetProperty DIPROP_SATURATION returned %#x\n", hr );
+
+    prop_dword.diph.dwHow = DIPH_BYOFFSET;
+    prop_dword.diph.dwObj = 0;
+    prop_dword.dwData = 0xdeadbeef;
+    hr = IDirectInputDevice8_GetProperty( device, DIPROP_DEADZONE, &prop_dword.diph );
+    ok( hr == DIERR_UNSUPPORTED, "GetProperty DIPROP_DEADZONE returned %#x\n", hr );
+    hr = IDirectInputDevice8_GetProperty( device, DIPROP_SATURATION, &prop_dword.diph );
+    ok( hr == DIERR_UNSUPPORTED, "GetProperty DIPROP_SATURATION returned %#x\n", hr );
+
+    hr = IDirectInputDevice8_Acquire( device );
+    ok( hr == DI_OK, "Unacquire returned: %#x\n", hr );
+
+    hr = IDirectInputDevice8_GetDeviceState( device, sizeof(DIMOUSESTATE2), &state );
+    ok( hr == DI_OK, "GetDeviceState returned: %#x\n", hr );
+
+    while (state.lX || state.lY || state.lZ)
+    {
+        input.mi.dx = -state.lX;
+        input.mi.dy = -state.lY;
+        input.mi.mouseData = -state.lZ;
+        SendInput( 1, &input, sizeof(input) );
+        res = WaitForSingleObject( event, 100 );
+        ok( res == WAIT_OBJECT_0, "WaitForSingleObject failed\n" );
+        ResetEvent( event );
+
+        hr = IDirectInputDevice8_GetDeviceState( device, sizeof(DIMOUSESTATE2), &state );
+        ok( hr == DI_OK, "GetDeviceState returned: %#x\n", hr );
+    }
+
+    check_member( state, expect_state_abs[0], "%d", lX );
+    check_member( state, expect_state_abs[0], "%d", lY );
+    check_member( state, expect_state_abs[0], "%d", lZ );
+    check_member( state, expect_state_abs[0], "%#x", rgbButtons[0] );
+    check_member( state, expect_state_abs[0], "%#x", rgbButtons[1] );
+    check_member( state, expect_state_abs[0], "%#x", rgbButtons[2] );
+    check_member( state, expect_state_abs[0], "%#x", rgbButtons[3] );
+    check_member( state, expect_state_abs[0], "%#x", rgbButtons[4] );
+
+    hr = IDirectInputDevice8_SetProperty( device, NULL, NULL );
+    ok( hr == DIERR_INVALIDPARAM, "SetProperty returned %#x\n", hr );
+    hr = IDirectInputDevice8_SetProperty( device, &GUID_NULL, NULL );
+    ok( hr == DIERR_INVALIDPARAM, "SetProperty returned %#x\n", hr );
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_VIDPID, NULL );
+    ok( hr == DIERR_INVALIDPARAM, "SetProperty returned %#x\n", hr );
+
+    prop_dword.diph.dwHow = DIPH_DEVICE;
+    prop_dword.diph.dwObj = 0;
+    prop_dword.dwData = 0xdeadbeef;
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_VIDPID, &prop_dword.diph );
+    ok( hr == DIERR_READONLY, "SetProperty DIPROP_VIDPID returned %#x\n", hr );
+
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_FFLOAD, &prop_dword.diph );
+    ok( hr == DIERR_READONLY, "SetProperty DIPROP_FFLOAD returned %#x\n", hr );
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_GRANULARITY, &prop_dword.diph );
+    ok( hr == DIERR_READONLY, "SetProperty DIPROP_GRANULARITY returned %#x\n", hr );
+
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_JOYSTICKID, &prop_dword.diph );
+    todo_wine
+    ok( hr == DIERR_ACQUIRED, "SetProperty DIPROP_JOYSTICKID returned %#x\n", hr );
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_AXISMODE, &prop_dword.diph );
+    ok( hr == DIERR_ACQUIRED, "SetProperty DIPROP_AXISMODE returned %#x\n", hr );
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_BUFFERSIZE, &prop_dword.diph );
+    ok( hr == DIERR_ACQUIRED, "SetProperty DIPROP_BUFFERSIZE returned %#x\n", hr );
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_AUTOCENTER, &prop_dword.diph );
+    ok( hr == DIERR_ACQUIRED, "SetProperty DIPROP_AUTOCENTER returned %#x\n", hr );
+
+    prop_dword.dwData = 0xdeadbeef;
+    hr = IDirectInputDevice8_GetProperty( device, DIPROP_AXISMODE, &prop_dword.diph );
+    todo_wine
+    ok( hr == DI_OK, "GetProperty DIPROP_AXISMODE returned %#x\n", hr );
+    todo_wine
+    ok( prop_dword.dwData == DIPROPAXISMODE_ABS, "got %u expected %u\n", prop_dword.dwData, DIPROPAXISMODE_REL );
+
+    prop_dword.dwData = 0xdeadbeef;
+    hr = IDirectInputDevice8_GetProperty( device, DIPROP_BUFFERSIZE, &prop_dword.diph );
+    ok( hr == DI_OK, "GetProperty DIPROP_BUFFERSIZE returned %#x\n", hr );
+    ok( prop_dword.dwData == 0x1000, "got %#x expected %#x\n", prop_dword.dwData, 0x1000 );
+
+    prop_dword.diph.dwHow = DIPH_DEVICE;
+    prop_dword.diph.dwObj = 0;
+    prop_dword.dwData = 0xdeadbeef;
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_FFGAIN, &prop_dword.diph );
+    todo_wine
+    ok( hr == DIERR_INVALIDPARAM, "SetProperty DIPROP_FFGAIN returned %#x\n", hr );
+    prop_dword.dwData = 1000;
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_FFGAIN, &prop_dword.diph );
+    todo_wine
+    ok( hr == DI_OK, "SetProperty DIPROP_FFGAIN returned %#x\n", hr );
+
+    for (i = 0; i < ARRAY_SIZE(injected_input); ++i)
+    {
+        winetest_push_context( "state[%d]", i );
+        hr = IDirectInputDevice8_GetDeviceState( device, sizeof(DIMOUSESTATE2), &state );
+        ok( hr == DI_OK, "GetDeviceState returned: %#x\n", hr );
+        todo_wine
+        check_member( state, expect_state_abs[i], "%d", lX );
+        todo_wine
+        check_member( state, expect_state_abs[i], "%d", lY );
+        todo_wine
+        check_member( state, expect_state_abs[i], "%d", lZ );
+        check_member( state, expect_state_abs[i], "%#x", rgbButtons[0] );
+        check_member( state, expect_state_abs[i], "%#x", rgbButtons[1] );
+        check_member( state, expect_state_abs[i], "%#x", rgbButtons[2] );
+        check_member( state, expect_state_abs[i], "%#x", rgbButtons[3] );
+        check_member( state, expect_state_abs[i], "%#x", rgbButtons[4] );
+
+        SendInput( 1, &injected_input[i], sizeof(*injected_input) );
+
+        res = WaitForSingleObject( event, 100 );
+        if (i == 0 || i == 3 || i == 5) ok( res == WAIT_TIMEOUT, "WaitForSingleObject succeeded\n" );
+        else ok( res == WAIT_OBJECT_0, "WaitForSingleObject failed\n" );
+        ResetEvent( event );
+        winetest_pop_context();
+    }
+
+    hr = IDirectInputDevice8_GetDeviceState( device, sizeof(DIMOUSESTATE2), &state );
+    ok( hr == DI_OK, "GetDeviceState returned: %#x\n", hr );
+    winetest_push_context( "state[%d]", i );
+    todo_wine
+    check_member( state, expect_state_abs[i], "%d", lX );
+    todo_wine
+    check_member( state, expect_state_abs[i], "%d", lY );
+    todo_wine
+    check_member( state, expect_state_abs[i], "%d", lZ );
+    check_member( state, expect_state_abs[i], "%#x", rgbButtons[0] );
+    check_member( state, expect_state_abs[i], "%#x", rgbButtons[1] );
+    check_member( state, expect_state_abs[i], "%#x", rgbButtons[2] );
+    check_member( state, expect_state_abs[i], "%#x", rgbButtons[3] );
+    check_member( state, expect_state_abs[i], "%#x", rgbButtons[4] );
+    winetest_pop_context();
+
+    DestroyWindow( hwnd );
+    ref = IDirectInputDevice8_Release( device );
+    ok( ref == 0, "Release returned %d\n", ref );
+    ref = IDirectInput8_Release( di );
+    ok( ref == 0, "Release returned %d\n", ref );
+}
+
 static void test_keyboard_info(void)
 {
     static const DIDEVCAPS expect_caps =
@@ -1843,12 +2341,15 @@ START_TEST(device)
     CoInitialize(NULL);
 
     test_mouse_info();
+    test_mouse_input();
+#if 0
     test_keyboard_info();
     test_action_mapping();
     test_save_settings();
     test_mouse_keyboard();
     test_keyboard_events();
     test_appdata_property();
+#endif
 
     CoUninitialize();
 }
