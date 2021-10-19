@@ -1133,10 +1133,7 @@ static HRESULT hid_joystick_enum_created_effect_objects( IDirectInputDevice8W *i
 
 struct parse_device_state_params
 {
-    BYTE old_state[DEVICE_STATE_MAX_SIZE];
     BYTE buttons[128];
-    DWORD time;
-    DWORD seq;
 };
 
 static BOOL check_device_state_button( struct dinput_device *device, UINT index, struct hid_value_caps *caps,
@@ -1144,15 +1141,8 @@ static BOOL check_device_state_button( struct dinput_device *device, UINT index,
 {
     IDirectInputDevice8W *iface = &device->IDirectInputDevice8W_iface;
     struct parse_device_state_params *params = data;
-    BYTE old_value, value;
-
-    if (instance->wReportId != device->device_state_report_id) return DIENUM_CONTINUE;
-
-    value = params->buttons[instance->wUsage - 1];
-    old_value = params->old_state[instance->dwOfs];
-    device->device_state[instance->dwOfs] = value;
-    if (old_value != value) queue_event( iface, index, value, params->time, params->seq );
-
+    if (instance->wReportId != impl->base.device_state_report_id) return DIENUM_CONTINUE;
+    dinput_device_update_button( iface, instance, params->buttons[instance->wUsage - 1] );
     return DIENUM_CONTINUE;
 }
 
@@ -1217,11 +1207,9 @@ static BOOL read_device_state_value( struct dinput_device *device, UINT index, s
     struct hid_joystick *impl = CONTAINING_RECORD( device, struct hid_joystick, base );
     IDirectInputDevice8W *iface = &impl->base.IDirectInputDevice8W_iface;
     ULONG logical_value, report_len = impl->caps.InputReportByteLength;
-    struct parse_device_state_params *params = data;
     char *report_buf = impl->input_report_buf;
-    struct object_properties *properties;
-    LONG old_value, value;
     NTSTATUS status;
+    LONG value;
 
     if (index == -1) return DIENUM_STOP;
     properties = device->object_properties + index;
@@ -1235,10 +1223,7 @@ static BOOL read_device_state_value( struct dinput_device *device, UINT index, s
     if (instance->dwType & DIDFT_AXIS) value = scale_axis_value( logical_value, properties );
     else value = scale_value( logical_value, properties );
 
-    old_value = *(LONG *)(params->old_state + instance->dwOfs);
-    *(LONG *)(impl->base.device_state + instance->dwOfs) = value;
-    if (old_value != value) queue_event( iface, index, value, params->time, params->seq );
-
+    dinput_device_update_value( iface, instance, value );
     return DIENUM_CONTINUE;
 }
 
@@ -1252,7 +1237,6 @@ static HRESULT hid_joystick_read( IDirectInputDevice8W *iface )
     };
     struct hid_joystick *impl = impl_from_IDirectInputDevice8W( iface );
     ULONG i, index, count, report_len = impl->caps.InputReportByteLength;
-    DIDATAFORMAT *format = &impl->base.device_format;
     char *report_buf = impl->input_report_buf;
     struct parse_device_state_params params;
     struct hid_joystick_effect *effect;
@@ -1288,12 +1272,6 @@ static HRESULT hid_joystick_read( IDirectInputDevice8W *iface )
 
         if (report_buf[0] == impl->base.device_state_report_id)
         {
-            params.time = GetCurrentTime();
-            params.seq = impl->base.dinput->evsequence++;
-            memcpy( params.old_state, impl->base.device_state, format->dwDataSize );
-            memset( params.buttons, 0, sizeof(params.buttons) );
-            memset( impl->base.device_state, 0, format->dwDataSize );
-
             while (count--)
             {
                 usages = impl->usages_buf + count;
@@ -1305,10 +1283,10 @@ static HRESULT hid_joystick_read( IDirectInputDevice8W *iface )
                     params.buttons[usages->Usage - 1] = 0x80;
             }
 
+            dinput_device_update_begin( iface, GetTickCount() );
             enum_objects( impl, &filter, DIDFT_AXIS | DIDFT_POV, read_device_state_value, &params, FALSE );
             enum_objects( impl, &filter, DIDFT_BUTTON, check_device_state_button, &params, FALSE );
-            if (impl->base.hEvent && memcmp( &params.old_state, impl->base.device_state, format->dwDataSize ))
-                SetEvent( impl->base.hEvent );
+            dinput_device_update_end( iface );
         }
         else if (report_buf[0] == impl->pid_effect_state.id && is_exclusively_acquired( impl ))
         {
