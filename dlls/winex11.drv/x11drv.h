@@ -402,6 +402,7 @@ struct x11drv_thread_data
     XIValuatorClassInfo x_valuator;
     XIValuatorClassInfo y_valuator;
     int      xinput2_pointer;      /* XInput2 master pointer device id */
+    int      xinput2_rawinput;     /* XInput2 rawinput-only thread */
 #endif /* HAVE_X11_EXTENSIONS_XINPUT2_H */
 };
 
