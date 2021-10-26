@@ -414,12 +414,12 @@ write:
     return pa_stream_write(stream->stream, buffer, bytes, NULL, 0, PA_SEEK_RELATIVE);
 }
 
-static void pulse_write(struct pulse_stream *stream)
+static void pulse_write_callback(pa_stream *s, size_t bytes, void *userdata)
 {
     /* write as much data to PA as we can */
+    struct pulse_stream *stream = userdata;
     UINT32 to_write;
     BYTE *buf = stream->local_buffer + stream->pa_offs_bytes;
-    UINT32 bytes = pa_stream_writable_size(stream->stream);
 
     if (stream->just_underran)
     {
@@ -437,7 +437,7 @@ static void pulse_write(struct pulse_stream *stream)
     }
 
     buf = stream->local_buffer + stream->pa_offs_bytes;
-    TRACE("held: %lu, avail: %u\n", stream->pa_held_bytes, bytes);
+    TRACE("held: %lu, avail: %u\n", stream->pa_held_bytes, (UINT32)bytes);
     bytes = min(stream->pa_held_bytes, bytes);
 
     if (stream->pa_offs_bytes + bytes > stream->real_bufsize_bytes)
@@ -1004,6 +1004,7 @@ static HRESULT pulse_stream_connect(struct pulse_stream *stream, UINT32 period_b
     if (stream->dataflow == eRender) {
         pa_stream_set_underflow_callback(stream->stream, pulse_underflow_callback, stream);
         pa_stream_set_started_callback(stream->stream, pulse_started_callback, stream);
+        pa_stream_set_write_callback(stream->stream, pulse_write_callback, stream);
     }
     return S_OK;
 }
@@ -1316,7 +1317,7 @@ static NTSTATUS pulse_timer_loop(void *args)
 
                 if (stream->dataflow == eRender)
                 {
-                    pulse_write(stream);
+                    pulse_write_callback(stream->stream, pa_stream_writable_size(stream->stream), stream);
 
                     /* regardless of what PA does, advance one period */
                     adv_bytes = min(stream->period_bytes, stream->held_bytes);
@@ -1380,7 +1381,7 @@ static NTSTATUS pulse_start(void *args)
         return STATUS_SUCCESS;
     }
 
-    pulse_write(stream);
+    pulse_write_callback(stream->stream, pa_stream_writable_size(stream->stream), stream);
 
     if (pa_stream_is_corked(stream->stream))
     {
