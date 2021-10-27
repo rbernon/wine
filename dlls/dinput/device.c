@@ -266,6 +266,8 @@ static HRESULT dinput_device_init_user_format( struct dinput_device *impl, const
     BOOL identical = TRUE;
     DWORD i;
 
+    if (format->dwDataSize & 3) return DIERR_INVALIDPARAM;
+
     *user_format = *device_format;
     user_format->dwFlags = format->dwFlags;
     user_format->dwDataSize = format->dwDataSize;
@@ -281,6 +283,7 @@ static HRESULT dinput_device_init_user_format( struct dinput_device *impl, const
     for (i = 0; i < format->dwNumObjs; ++i)
     {
         match_obj = format->rgodf + i;
+        if ((DIDFT_GETTYPE(match_obj->dwType) & (DIDFT_AXIS|DIDFT_POV)) && (match_obj->dwOfs & 0x3)) goto failed;
 
         if (!match_device_object( device_format, user_format, match_obj, impl->dinput->dwVersion, &identical ))
         {
