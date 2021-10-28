@@ -1483,7 +1483,7 @@ static HRESULT init_stream(struct wm_reader *reader)
     {
         struct wm_stream *stream = &reader->streams[i];
 
-        stream->wg_stream = wg_parser_get_stream(reader->wg_parser, i);
+        stream->wg_stream = wg_parser_get_stream(reader->wg_parser, reader->stream_count - i - 1);
         stream->reader = reader;
         stream->index = i;
         stream->selection = WMT_ON;
@@ -1707,7 +1707,7 @@ static HRESULT wm_reader_read_stream_sample(struct wm_reader *reader, struct wg_
     HRESULT hr;
     BYTE *data;
 
-    if (!(stream = wm_reader_get_stream_by_stream_number(reader, buffer->stream + 1)))
+    if (!(stream = wm_reader_get_stream_by_stream_number(reader, reader->stream_count - buffer->stream)))
         return E_INVALIDARG;
 
     TRACE("Got buffer for '%s' stream %p.\n", debugstr_guid(&stream->media_type.majortype), stream);
@@ -1981,7 +1981,7 @@ static HRESULT WINAPI reader_GetNextSample(IWMSyncReader2 *iface,
         if (!wg_parser_stream_get_buffer(reader->wg_parser, stream ? stream->wg_stream : 0, &wg_buffer))
             hr = NS_E_NO_MORE_SAMPLES;
         else if (SUCCEEDED(hr = wm_reader_read_stream_sample(reader, &wg_buffer, sample, pts, duration, flags)))
-            stream_number = wg_buffer.stream + 1;
+            stream_number = reader->stream_count - wg_buffer.stream;
     }
 
     if (stream && hr == NS_E_NO_MORE_SAMPLES)
