@@ -37,16 +37,18 @@ struct device_desc
     DWORD version;
     DWORD input;
     DWORD uid;
-    BOOL is_gamepad;
+    DWORD is_gamepad;
 
     WCHAR manufacturer[MAX_PATH];
     WCHAR product[MAX_PATH];
     WCHAR serialnumber[MAX_PATH];
 };
 
+C_ASSERT(sizeof(struct device_desc) == 0x630);
+
 struct sdl_bus_options
 {
-    BOOL map_controllers;
+    DWORD map_controllers;
     /* freed after bus_init */
     DWORD mappings_count;
     char **mappings;
@@ -54,9 +56,9 @@ struct sdl_bus_options
 
 struct udev_bus_options
 {
-    BOOL disable_hidraw;
-    BOOL disable_input;
-    BOOL disable_udevd;
+    DWORD disable_hidraw;
+    DWORD disable_input;
+    DWORD disable_udevd;
 };
 
 struct iohid_bus_options
@@ -73,8 +75,7 @@ enum bus_event_type
 
 struct bus_event
 {
-    enum bus_event_type type;
-
+    UINT64 type;
     UINT64 device;
     union
     {
