@@ -104,9 +104,21 @@ DEFINE_DEVPROPKEY(WINE_DEVPROPKEY_MONITOR_RCMONITOR, 0x233a9ef3, 0xafc4, 0x4abd,
 DEFINE_DEVPROPKEY(WINE_DEVPROPKEY_MONITOR_RCWORK, 0x233a9ef3, 0xafc4, 0x4abd, 0xb5, 0x64, 0xc3, 0x2f, 0x21, 0xf1, 0x53, 0x5b, 4);
 DEFINE_DEVPROPKEY(WINE_DEVPROPKEY_MONITOR_ADAPTERNAME, 0x233a9ef3, 0xafc4, 0x4abd, 0xb5, 0x64, 0xc3, 0x2f, 0x21, 0xf1, 0x53, 0x5b, 5);
 
-/* Cached display device information */
-static DISPLAY_DEVICEW display_devices[512];
-static DISPLAY_DEVICEW *display_devices_end = display_devices;
+/* Cached display device information, initialized with the default adapter and monitor */
+static DISPLAY_DEVICEW display_devices[512] =
+{
+    {.cb = sizeof(DISPLAY_DEVICEW), .DeviceName = L"\\\\.\\DISPLAY1", .DeviceString = L"Wine Default Adapter",
+     .StateFlags = DISPLAY_DEVICE_ATTACHED_TO_DESKTOP|DISPLAY_DEVICE_PRIMARY_DEVICE|DISPLAY_DEVICE_VGA_COMPATIBLE,
+     .DeviceID = L"PCI\\VEN_0000&DEV_0000&SUBSYS_00000000&REV_00",
+     .DeviceKey = L"\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Video\\{8ef18ecd-e56e-419f-8d7d-9991dd40b7f7}\\0000",
+    },
+    {.cb = sizeof(DISPLAY_DEVICEW), .DeviceName = L"\\\\.\\DISPLAY1\\Monitor0", .DeviceString = L"Generic Non-PnP Monitor",
+     .StateFlags = DISPLAY_DEVICE_ATTACHED|DISPLAY_DEVICE_ACTIVE,
+     .DeviceID = L"\\\\?\\DISPLAY#Default_Monitor#0000&0000#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}",
+     .DeviceKey = L"\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Class\\{4d36e96e-e325-11ce-bfc1-08002be10318}\\0000",
+    },
+};
+static DISPLAY_DEVICEW *display_devices_end = display_devices + 2;
 
 static FILETIME last_query_display_time;
 static CRITICAL_SECTION display_section;
@@ -3819,23 +3831,22 @@ HMONITOR WINAPI MonitorFromWindow(HWND hWnd, DWORD dwFlags)
 }
 
 /* Return FALSE on failure and TRUE on success */
-static BOOL update_display_cache(void)
+static void update_display_cache(void)
 {
     DISPLAY_DEVICEW *adapter, *device;
     DWORD adapter_idx, monitor_idx;
     FILETIME filetime = {0};
     HANDLE mutex = NULL;
-    BOOL ret = FALSE;
 
     /* Update display cache from SetupAPI if it's outdated */
     wait_graphics_driver_ready();
 
     if (!video_key && RegOpenKeyW( HKEY_LOCAL_MACHINE, L"HARDWARE\\DEVICEMAP\\VIDEO", &video_key ))
-        return FALSE;
+        return;
     if (RegQueryInfoKeyW( video_key, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, &filetime ))
-        return FALSE;
+        return;
     if (CompareFileTime( &filetime, &last_query_display_time ) < 1)
-        return TRUE;
+        return;
 
     mutex = get_display_device_init_mutex();
     EnterCriticalSection( &display_section );
@@ -3853,13 +3864,13 @@ static BOOL update_display_cache(void)
     }
     if (device == display_devices + ARRAY_SIZE(display_devices))
         FIXME( "More than %u display devices detected, ignoring.\n", ARRAY_SIZE(display_devices) );
-    display_devices_end = device;
+
+    if (device != display_devices) display_devices_end = device;
+    else WARN( "No display devices detected, keeping default devices.\n" );
 
     last_query_display_time = filetime;
-    ret = TRUE;
     LeaveCriticalSection( &display_section );
     release_display_device_init_mutex( mutex );
-    return ret;
 }
 
 /* Return FALSE on failure and TRUE on success */
@@ -4157,8 +4168,7 @@ BOOL WINAPI EnumDisplayDevicesW( const WCHAR *devname, DWORD index, DISPLAY_DEVI
 
     TRACE( "devname %s, index %u, info %p, flags %#x\n", debugstr_w(devname), index, info, flags );
 
-    if (!update_display_cache())
-        return FALSE;
+    update_display_cache();
 
     EnterCriticalSection( &display_section );
     /* Enumerate adapters */
@@ -4221,7 +4231,6 @@ static BOOL enum_display_device( WCHAR *device, DWORD index, DISPLAY_DEVICEW *in
     WCHAR *next_charW;
     DWORD size;
     DWORD type;
-    HKEY hkey;
     BOOL ret = FALSE;
 
     /* Find adapter */
@@ -4329,44 +4338,7 @@ static BOOL enum_display_device( WCHAR *device, DWORD index, DISPLAY_DEVICEW *in
     ret = TRUE;
 done:
     SetupDiDestroyDeviceInfoList( set );
-    if (ret)
-        return ret;
-
-    /* Fallback to report at least one adapter and monitor, if user driver didn't initialize display device registry */
-    if (index)
-        return FALSE;
-
-    /* If user driver did initialize the registry, then exit */
-    if (!RegOpenKeyW( HKEY_LOCAL_MACHINE, L"HARDWARE\\DEVICEMAP\\VIDEO", &hkey ))
-    {
-        RegCloseKey( hkey );
-        return FALSE;
-    }
-    WARN("Reporting fallback display devices\n");
-
-    /* Adapter */
-    if (!device)
-    {
-        lstrcpyW( info->DeviceName, L"\\\\.\\DISPLAY1" );
-        lstrcpyW( info->DeviceString, L"Wine Adapter" );
-        info->StateFlags = DISPLAY_DEVICE_ATTACHED_TO_DESKTOP | DISPLAY_DEVICE_PRIMARY_DEVICE | DISPLAY_DEVICE_VGA_COMPATIBLE;
-        lstrcpyW( info->DeviceID, L"PCI\\VEN_0000&DEV_0000&SUBSYS_00000000&REV_00" );
-        lstrcpyW( info->DeviceKey, L"\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Video\\{71c91c84-1064-400f-a994-95e3ff2716d6}\\0000" );
-    }
-    /* Monitor */
-    else
-    {
-        if (lstrcmpiW( L"\\\\.\\DISPLAY1", device ))
-            return FALSE;
-
-        lstrcpyW( info->DeviceName, L"\\\\.\\DISPLAY1\\Monitor0" );
-        lstrcpyW( info->DeviceString, L"Generic Non-PnP Monitor" );
-        info->StateFlags = DISPLAY_DEVICE_ACTIVE | DISPLAY_DEVICE_ATTACHED;
-        lstrcpyW( info->DeviceID, L"\\\\\?\\DISPLAY#Default_Monitor#4&17f0ff54&0&UID0#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}" );
-        lstrcpyW( info->DeviceKey, L"\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Class\\{4d36e96e-e325-11ce-bfc1-08002be10318}\\0000" );
-    }
-
-    return TRUE;
+    return ret;
 }
 
 /**********************************************************************
