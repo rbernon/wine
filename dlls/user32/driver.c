@@ -279,7 +279,7 @@ static BOOL CDECL loaderdrv_EnumDisplaySettingsEx( LPCWSTR name, DWORD num, LPDE
     return load_driver()->pEnumDisplaySettingsEx( name, num, mode, flags );
 }
 
-static BOOL CDECL loaderdrv_GetMonitorInfo( HMONITOR handle, LPMONITORINFO info )
+static INT CDECL loaderdrv_GetMonitorInfo( HMONITOR handle, LPMONITORINFO info )
 {
     return load_driver()->pGetMonitorInfo( handle, info );
 }
@@ -388,13 +388,6 @@ void CDECL __wine_set_user_driver( const struct user_driver_funcs *funcs, UINT v
 
     driver = HeapAlloc( GetProcessHeap(), 0, sizeof(*driver) );
     *driver = *funcs;
-
-#define SET_USER_FUNC(name) \
-    do { if (!driver->p##name) driver->p##name = nulldrv_##name; } while(0)
-
-    SET_USER_FUNC(GetMonitorInfo);
-
-#undef SET_USER_FUNC
 
     prev = InterlockedCompareExchangePointer( (void **)&USER_Driver, driver, &lazy_load_driver );
     if (prev != &lazy_load_driver)

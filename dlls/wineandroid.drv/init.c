@@ -201,19 +201,19 @@ LONG CDECL ANDROID_ChangeDisplaySettingsEx( LPCWSTR devname, LPDEVMODEW devmode,
 /***********************************************************************
  *           ANDROID_GetMonitorInfo
  */
-BOOL CDECL ANDROID_GetMonitorInfo( HMONITOR handle, LPMONITORINFO info )
+INT CDECL ANDROID_GetMonitorInfo( HMONITOR handle, LPMONITORINFO info )
 {
     if (handle != (HMONITOR)1)
     {
         SetLastError( ERROR_INVALID_HANDLE );
-        return FALSE;
+        return 0;
     }
     info->rcMonitor = default_monitor.rcMonitor;
     info->rcWork = default_monitor.rcWork;
     info->dwFlags = default_monitor.dwFlags;
     if (info->cbSize >= sizeof(MONITORINFOEXW))
         lstrcpyW( ((MONITORINFOEXW *)info)->szDevice, default_monitor.szDevice );
-    return TRUE;
+    return 1;
 }
 
 

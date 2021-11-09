@@ -825,10 +825,9 @@ static BOOL CDECL nulldrv_EnumDisplaySettingsEx( LPCWSTR name, DWORD num, LPDEVM
     return FALSE;
 }
 
-static BOOL CDECL nulldrv_GetMonitorInfo( HMONITOR handle, MONITORINFO *info )
+static INT CDECL nulldrv_GetMonitorInfo( HMONITOR handle, MONITORINFO *info )
 {
-    /* FIXME: move from user32 */
-    return FALSE;
+    return -1; /* use default implementation */
 }
 
 static BOOL CDECL nulldrv_CreateDesktopWindow( HWND hwnd )

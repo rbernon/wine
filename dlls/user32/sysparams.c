@@ -3957,34 +3957,6 @@ fail:
     release_display_device_init_mutex( mutex );
 }
 
-BOOL CDECL nulldrv_GetMonitorInfo( HMONITOR handle, MONITORINFO *info )
-{
-    MONITORINFOEXW *monitor;
-
-    TRACE("(%p, %p)\n", handle, info);
-
-    update_monitor_cache();
-
-    EnterCriticalSection( &monitors_section );
-    monitor = monitors + (UINT)((UINT_PTR)handle - 1);
-    if (monitor >= monitors && monitor < monitors_end)
-    {
-        info->rcMonitor = monitor->rcMonitor;
-        info->rcWork = monitor->rcWork;
-        info->dwFlags = monitor->dwFlags;
-        if (info->cbSize >= sizeof(MONITORINFOEXW))
-            lstrcpyW( ((MONITORINFOEXW *)info)->szDevice, monitor->szDevice );
-        LeaveCriticalSection( &monitors_section );
-        return TRUE;
-    }
-    else
-    {
-        LeaveCriticalSection( &monitors_section );
-        SetLastError( ERROR_INVALID_MONITOR_HANDLE );
-        return FALSE;
-    }
-}
-
 /***********************************************************************
  *		GetMonitorInfoA (USER32.@)
  */
@@ -4012,19 +3984,40 @@ BOOL WINAPI GetMonitorInfoA( HMONITOR monitor, LPMONITORINFO info )
 /***********************************************************************
  *		GetMonitorInfoW (USER32.@)
  */
-BOOL WINAPI GetMonitorInfoW( HMONITOR monitor, LPMONITORINFO info )
+BOOL WINAPI GetMonitorInfoW( HMONITOR handle, LPMONITORINFO info )
 {
-    BOOL ret;
+    MONITORINFOEXW *monitor;
     UINT dpi_from, dpi_to;
+    BOOL ret;
+
+    TRACE( "handle %p, info %p\n", handle, info );
 
     if (info->cbSize != sizeof(MONITORINFOEXW) && info->cbSize != sizeof(MONITORINFO)) return FALSE;
 
-    ret = USER_Driver->pGetMonitorInfo( monitor, info );
+    if ((ret = USER_Driver->pGetMonitorInfo( handle, info ) < 0))
+    {
+        update_monitor_cache();
+
+        EnterCriticalSection( &monitors_section );
+        monitor = monitors + (UINT)((UINT_PTR)handle - 1);
+        if (!(ret = monitor >= monitors && monitor < monitors_end))
+            SetLastError( ERROR_INVALID_MONITOR_HANDLE );
+        else
+        {
+            info->rcMonitor = monitor->rcMonitor;
+            info->rcWork = monitor->rcWork;
+            info->dwFlags = monitor->dwFlags;
+            if (info->cbSize >= sizeof(MONITORINFOEXW))
+                lstrcpyW( ((MONITORINFOEXW *)info)->szDevice, monitor->szDevice );
+        }
+        LeaveCriticalSection( &monitors_section );
+    }
+
     if (ret)
     {
         if ((dpi_to = get_thread_dpi()))
         {
-            dpi_from = get_monitor_dpi( monitor );
+            dpi_from = get_monitor_dpi( handle );
             info->rcMonitor = map_dpi_rect( info->rcMonitor, dpi_from, dpi_to );
             info->rcWork = map_dpi_rect( info->rcWork, dpi_from, dpi_to );
         }
