@@ -174,6 +174,23 @@ static DPI_AWARENESS default_awareness = DPI_AWARENESS_UNAWARE;
 static HKEY volatile_base_key;
 static HKEY video_key;
 
+static const DEVMODEW default_display_modes[] =
+{
+    { .dmFields = DM_DISPLAYORIENTATION|DM_BITSPERPEL|DM_PELSWIDTH|DM_PELSHEIGHT|DM_DISPLAYFLAGS|DM_DISPLAYFREQUENCY|DM_POSITION,
+      .dmBitsPerPel = 32, .dmPelsWidth = 640, .dmPelsHeight = 480, .dmDisplayFrequency = 60, },
+    { .dmFields = DM_DISPLAYORIENTATION|DM_BITSPERPEL|DM_PELSWIDTH|DM_PELSHEIGHT|DM_DISPLAYFLAGS|DM_DISPLAYFREQUENCY|DM_POSITION,
+      .dmBitsPerPel = 32, .dmPelsWidth = 800, .dmPelsHeight = 600, .dmDisplayFrequency = 60, },
+    { .dmFields = DM_DISPLAYORIENTATION|DM_BITSPERPEL|DM_PELSWIDTH|DM_PELSHEIGHT|DM_DISPLAYFLAGS|DM_DISPLAYFREQUENCY|DM_POSITION,
+      .dmBitsPerPel = 32, .dmPelsWidth = 1024, .dmPelsHeight = 768, .dmDisplayFrequency = 60, },
+    { .dmFields = DM_DISPLAYORIENTATION|DM_BITSPERPEL|DM_PELSWIDTH|DM_PELSHEIGHT|DM_DISPLAYFLAGS|DM_DISPLAYFREQUENCY|DM_POSITION,
+      .dmBitsPerPel = 16, .dmPelsWidth = 640, .dmPelsHeight = 480, .dmDisplayFrequency = 60, },
+    { .dmFields = DM_DISPLAYORIENTATION|DM_BITSPERPEL|DM_PELSWIDTH|DM_PELSHEIGHT|DM_DISPLAYFLAGS|DM_DISPLAYFREQUENCY|DM_POSITION,
+      .dmBitsPerPel = 16, .dmPelsWidth = 800, .dmPelsHeight = 600, .dmDisplayFrequency = 60, },
+    { .dmFields = DM_DISPLAYORIENTATION|DM_BITSPERPEL|DM_PELSWIDTH|DM_PELSHEIGHT|DM_DISPLAYFLAGS|DM_DISPLAYFREQUENCY|DM_POSITION,
+      .dmBitsPerPel = 16, .dmPelsWidth = 1024, .dmPelsHeight = 768, .dmDisplayFrequency = 60, },
+};
+static const DWORD default_mode_index = 2;
+
 union sysparam_all_entry;
 
 struct sysparam_entry
@@ -3309,12 +3326,12 @@ LONG WINAPI ChangeDisplaySettingsExW( LPCWSTR devname, LPDEVMODEW devmode, HWND 
     if (!devname && !devmode)
     {
         ret = USER_Driver->pChangeDisplaySettingsEx(NULL, NULL, hwnd, flags, lparam);
-        if (ret != DISP_CHANGE_SUCCESSFUL)
+        if (ret != DISP_CHANGE_SUCCESSFUL && ret != E_NOTIMPL)
         {
             ERR("Restoring all displays to their registry settings returned %d.\n", ret);
             return ret;
         }
-        goto done;
+        if (ret != E_NOTIMPL) goto done;
     }
 
     while ((ret = EnumDisplayDevicesW( NULL, i++, &device, 0 )))
@@ -3381,16 +3398,33 @@ LONG WINAPI ChangeDisplaySettingsExW( LPCWSTR devname, LPDEVMODEW devmode, HWND 
         if (!write_registry_settings( &device, FALSE, devmode )) return DISP_CHANGE_NOTUPDATED;
     }
 
-    ret = USER_Driver->pChangeDisplaySettingsEx(device.DeviceName, devmode, hwnd, flags, lparam);
-    if (ret != DISP_CHANGE_SUCCESSFUL)
+    ret = USER_Driver->pChangeDisplaySettingsEx(devname, devmode, hwnd, flags, lparam);
+    if (ret && ret != E_NOTIMPL)
     {
         ERR("Changing %s display settings returned %d.\n", debugstr_w(devname), ret);
         return ret;
     }
 
 done:
+    if (ret == E_NOTIMPL && !check_display_mode( device.DeviceName, devmode )) return DISP_CHANGE_BADMODE;
     if (flags & (CDS_TEST | CDS_NORESET)) return DISP_CHANGE_SUCCESSFUL;
     if (!write_registry_settings( &device, TRUE, devmode )) ERR("Failed to write current mode to the registry\n");
+    if (ret != E_NOTIMPL) return DISP_CHANGE_SUCCESSFUL;
+
+    trace_devmode(devmode);
+    monitors[0].rcMonitor.right = devmode->dmPelsWidth;
+    monitors[0].rcMonitor.bottom = devmode->dmPelsHeight;
+    monitors[0].rcWork = monitors[0].rcMonitor;
+
+    SetWindowPos( GetDesktopWindow(), 0, monitors[0].rcMonitor.left, monitors[0].rcMonitor.top,
+                  monitors[0].rcMonitor.right - monitors[0].rcMonitor.left,
+                  monitors[0].rcMonitor.bottom - monitors[0].rcMonitor.top,
+                  SWP_NOZORDER | SWP_NOACTIVATE | SWP_DEFERERASE );
+    ClipCursor( NULL );
+    SendMessageTimeoutW( HWND_BROADCAST, WM_DISPLAYCHANGE, devmode->dmBitsPerPel,
+                         MAKELPARAM( devmode->dmPelsWidth, devmode->dmPelsHeight ),
+                         SMTO_ABORTIFHUNG, 2000, NULL );
+
     return DISP_CHANGE_SUCCESSFUL;
 }
 
@@ -3488,7 +3522,17 @@ BOOL WINAPI EnumDisplaySettingsExW( const WCHAR *devname, DWORD index, DEVMODEW 
     {
         if (index == ENUM_REGISTRY_SETTINGS) ret = read_registry_settings( &device, FALSE, devmode );
         else if (index == ENUM_CURRENT_SETTINGS) ret = read_registry_settings( &device, TRUE, devmode );
-        else ret = FALSE;
+        else if (index >= ARRAY_SIZE(default_display_modes)) return FALSE;
+        else ret = TRUE;
+
+        if (!ret) index = default_mode_index; /* failed to read registry or current settings */
+        if (index < ARRAY_SIZE(default_display_modes))
+        {
+            memcpy( &devmode->dmFields, &default_display_modes[index].dmFields,
+                    devmode->dmSize - FIELD_OFFSET( DEVMODEW, dmFields ) );
+            if (!ret) devmode->dmFields |= DM_POSITION;
+            ret = TRUE;
+        }
     }
 
     if (!ret) WARN( "Failed to query %s display settings.\n", debugstr_w(device.DeviceName) );

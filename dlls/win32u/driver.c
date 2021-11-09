@@ -812,7 +812,7 @@ static void CDECL nulldrv_UpdateClipboard(void)
 static LONG CDECL nulldrv_ChangeDisplaySettingsEx( LPCWSTR name, LPDEVMODEW mode, HWND hwnd,
                                              DWORD flags, LPVOID lparam )
 {
-    return DISP_CHANGE_FAILED;
+    return E_NOTIMPL; /* use default implementation */
 }
 
 static INT CDECL nulldrv_EnumDisplayMonitors( HDC hdc, RECT *rect, MONITORENUMPROC proc, LPARAM lp )
