@@ -815,10 +815,9 @@ static LONG CDECL nulldrv_ChangeDisplaySettingsEx( LPCWSTR name, LPDEVMODEW mode
     return DISP_CHANGE_FAILED;
 }
 
-static BOOL CDECL nulldrv_EnumDisplayMonitors( HDC hdc, RECT *rect, MONITORENUMPROC proc, LPARAM lp )
+static INT CDECL nulldrv_EnumDisplayMonitors( HDC hdc, RECT *rect, MONITORENUMPROC proc, LPARAM lp )
 {
-    /* FIXME: move from user32 */
-    return FALSE;
+    return -1; /* use default implementation */
 }
 
 static BOOL CDECL nulldrv_EnumDisplaySettingsEx( LPCWSTR name, DWORD num, LPDEVMODEW mode, DWORD flags )

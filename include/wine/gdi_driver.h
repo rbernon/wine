@@ -255,7 +255,7 @@ struct user_driver_funcs
     void    (CDECL *pUpdateClipboard)(void);
     /* display modes */
     LONG    (CDECL *pChangeDisplaySettingsEx)(LPCWSTR,LPDEVMODEW,HWND,DWORD,LPVOID);
-    BOOL    (CDECL *pEnumDisplayMonitors)(HDC,LPRECT,MONITORENUMPROC,LPARAM);
+    INT     (CDECL *pEnumDisplayMonitors)(HDC,LPRECT,MONITORENUMPROC,LPARAM);
     BOOL    (CDECL *pEnumDisplaySettingsEx)(LPCWSTR,DWORD,LPDEVMODEW,DWORD);
     BOOL    (CDECL *pGetMonitorInfo)(HMONITOR,MONITORINFO*);
     /* windowing functions */

@@ -269,7 +269,7 @@ static LONG CDECL loaderdrv_ChangeDisplaySettingsEx( LPCWSTR name, LPDEVMODEW mo
     return load_driver()->pChangeDisplaySettingsEx( name, mode, hwnd, flags, lparam );
 }
 
-static BOOL CDECL loaderdrv_EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC proc, LPARAM lp )
+static INT CDECL loaderdrv_EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC proc, LPARAM lp )
 {
     return load_driver()->pEnumDisplayMonitors( hdc, rect, proc, lp );
 }
@@ -392,7 +392,6 @@ void CDECL __wine_set_user_driver( const struct user_driver_funcs *funcs, UINT v
 #define SET_USER_FUNC(name) \
     do { if (!driver->p##name) driver->p##name = nulldrv_##name; } while(0)
 
-    SET_USER_FUNC(EnumDisplayMonitors);
     SET_USER_FUNC(GetMonitorInfo);
 
 #undef SET_USER_FUNC
