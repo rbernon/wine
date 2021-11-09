@@ -3007,6 +3007,51 @@ HBRUSH SYSCOLOR_Get55AABrush(void)
     return brush_55aa;
 }
 
+static BOOL read_registry_settings( DISPLAY_DEVICEW *device, DEVMODEW *devmode )
+{
+    DWORD type, size;
+    BOOL ret = TRUE;
+    HANDLE mutex;
+    HKEY hkey;
+
+    mutex = get_display_device_init_mutex();
+
+    /* Skip \Registry\Machine\ prefix */
+    if (RegOpenKeyExW( HKEY_CURRENT_CONFIG, device->DeviceKey + 18, 0, KEY_READ, &hkey ))
+    {
+        release_display_device_init_mutex( mutex );
+        return FALSE;
+    }
+
+#define query_value( name, data )                                                                  \
+    size = sizeof(DWORD);                                                                          \
+    if (RegQueryValueExW( hkey, name, 0, &type, (LPBYTE)(data), &size ) || type != REG_DWORD ||    \
+        size != sizeof(DWORD)) ret = FALSE
+
+    query_value( L"DefaultSettings.BitsPerPel", &devmode->dmBitsPerPel );
+    devmode->dmFields |= DM_BITSPERPEL;
+    query_value( L"DefaultSettings.XResolution", &devmode->dmPelsWidth );
+    devmode->dmFields |= DM_PELSWIDTH;
+    query_value( L"DefaultSettings.YResolution", &devmode->dmPelsHeight );
+    devmode->dmFields |= DM_PELSHEIGHT;
+    query_value( L"DefaultSettings.VRefresh", &devmode->dmDisplayFrequency );
+    devmode->dmFields |= DM_DISPLAYFREQUENCY;
+    query_value( L"DefaultSettings.Flags", &devmode->dmDisplayFlags );
+    devmode->dmFields |= DM_DISPLAYFLAGS;
+    query_value( L"DefaultSettings.XPanning", &devmode->dmPosition.x );
+    query_value( L"DefaultSettings.YPanning", &devmode->dmPosition.y );
+    devmode->dmFields |= DM_POSITION;
+    query_value( L"DefaultSettings.Orientation", &devmode->dmDisplayOrientation );
+    devmode->dmFields |= DM_DISPLAYORIENTATION;
+    query_value( L"DefaultSettings.FixedOutput", &devmode->dmDisplayFixedOutput );
+
+#undef query_value
+
+    RegCloseKey( hkey );
+    release_display_device_init_mutex( mutex );
+    return ret;
+}
+
 /***********************************************************************
  *		ChangeDisplaySettingsA (USER32.@)
  */
@@ -3318,7 +3363,12 @@ BOOL WINAPI EnumDisplaySettingsExW( const WCHAR *devname, DWORD index, DEVMODEW 
     wcscpy( devmode->dmDeviceName, L"Wine Display Driver" );
     memset( &devmode->dmFields, 0, devmode->dmSize - FIELD_OFFSET( DEVMODEW, dmFields ) );
 
-    ret = USER_Driver->pEnumDisplaySettingsEx( device.DeviceName, index, devmode, flags );
+    if ((ret = USER_Driver->pEnumDisplaySettingsEx( device.DeviceName, index, devmode, flags )) < 0)
+    {
+        if (index == ENUM_REGISTRY_SETTINGS) ret = read_registry_settings( &device, devmode );
+        else ret = FALSE;
+    }
+
     if (!ret) WARN( "Failed to query %s display settings.\n", debugstr_w(device.DeviceName) );
     else TRACE( "x %d, y %d, width %u, height %u, frequency %u, depth, %u, orientation %#x.\n",
                 devmode->dmPosition.x, devmode->dmPosition.y, devmode->dmPelsWidth, devmode->dmPelsHeight,

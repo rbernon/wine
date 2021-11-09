@@ -229,7 +229,7 @@ INT CDECL ANDROID_EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC pro
 /***********************************************************************
  *           ANDROID_EnumDisplaySettingsEx
  */
-BOOL CDECL ANDROID_EnumDisplaySettingsEx( LPCWSTR name, DWORD n, LPDEVMODEW devmode, DWORD flags)
+INT CDECL ANDROID_EnumDisplaySettingsEx( const WCHAR *name, DWORD n, DEVMODEW *devmode, DWORD flags )
 {
     static const WCHAR dev_name[CCHDEVICENAME] =
         { 'W','i','n','e',' ','A','n','d','r','o','i','d',' ','d','r','i','v','e','r',0 };
@@ -253,11 +253,11 @@ BOOL CDECL ANDROID_EnumDisplaySettingsEx( LPCWSTR name, DWORD n, LPDEVMODEW devm
         TRACE( "mode %d -- %dx%d %d bpp @%d Hz\n", n,
                devmode->dmPelsWidth, devmode->dmPelsHeight,
                devmode->dmBitsPerPel, devmode->dmDisplayFrequency );
-        return TRUE;
+        return 1;
     }
     TRACE( "mode %d -- not present\n", n );
     SetLastError( ERROR_NO_MORE_FILES );
-    return FALSE;
+    return 0;
 }
 
 

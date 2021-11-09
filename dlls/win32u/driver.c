@@ -820,9 +820,9 @@ static INT CDECL nulldrv_EnumDisplayMonitors( HDC hdc, RECT *rect, MONITORENUMPR
     return -1; /* use default implementation */
 }
 
-static BOOL CDECL nulldrv_EnumDisplaySettingsEx( LPCWSTR name, DWORD num, LPDEVMODEW mode, DWORD flags )
+static INT CDECL nulldrv_EnumDisplaySettingsEx( const WCHAR *name, DWORD num, DEVMODEW *mode, DWORD flags )
 {
-    return FALSE;
+    return -1; /* use default implementation */
 }
 
 static INT CDECL nulldrv_GetMonitorInfo( HMONITOR handle, MONITORINFO *info )

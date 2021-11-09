@@ -254,59 +254,6 @@ static BOOL get_display_device_reg_key(const WCHAR *device_name, WCHAR *key, uns
     return TRUE;
 }
 
-static BOOL read_registry_settings(const WCHAR *device_name, DEVMODEW *dm)
-{
-    WCHAR wine_x11_reg_key[MAX_PATH];
-    HANDLE mutex;
-    HKEY hkey;
-    DWORD type, size;
-    BOOL ret = TRUE;
-
-    dm->dmFields = 0;
-
-    mutex = get_display_device_init_mutex();
-    if (!get_display_device_reg_key(device_name, wine_x11_reg_key, ARRAY_SIZE(wine_x11_reg_key)))
-    {
-        release_display_device_init_mutex(mutex);
-        return FALSE;
-    }
-
-    if (RegOpenKeyExW(HKEY_CURRENT_CONFIG, wine_x11_reg_key, 0, KEY_READ, &hkey))
-    {
-        release_display_device_init_mutex(mutex);
-        return FALSE;
-    }
-
-#define query_value(name, data) \
-    size = sizeof(DWORD); \
-    if (RegQueryValueExA(hkey, name, 0, &type, (LPBYTE)(data), &size) || \
-        type != REG_DWORD || size != sizeof(DWORD)) \
-        ret = FALSE
-
-    query_value("DefaultSettings.BitsPerPel", &dm->dmBitsPerPel);
-    dm->dmFields |= DM_BITSPERPEL;
-    query_value("DefaultSettings.XResolution", &dm->dmPelsWidth);
-    dm->dmFields |= DM_PELSWIDTH;
-    query_value("DefaultSettings.YResolution", &dm->dmPelsHeight);
-    dm->dmFields |= DM_PELSHEIGHT;
-    query_value("DefaultSettings.VRefresh", &dm->dmDisplayFrequency);
-    dm->dmFields |= DM_DISPLAYFREQUENCY;
-    query_value("DefaultSettings.Flags", &dm->u2.dmDisplayFlags);
-    dm->dmFields |= DM_DISPLAYFLAGS;
-    query_value("DefaultSettings.XPanning", &dm->u1.s2.dmPosition.x);
-    query_value("DefaultSettings.YPanning", &dm->u1.s2.dmPosition.y);
-    dm->dmFields |= DM_POSITION;
-    query_value("DefaultSettings.Orientation", &dm->u1.s2.dmDisplayOrientation);
-    dm->dmFields |= DM_DISPLAYORIENTATION;
-    query_value("DefaultSettings.FixedOutput", &dm->u1.s2.dmDisplayFixedOutput);
-
-#undef query_value
-
-    RegCloseKey(hkey);
-    release_display_device_init_mutex(mutex);
-    return ret;
-}
-
 static BOOL write_registry_settings(const WCHAR *device_name, const DEVMODEW *dm)
 {
     WCHAR wine_x11_reg_key[MAX_PATH];
@@ -467,7 +414,7 @@ static DWORD get_display_depth(ULONG_PTR display_id)
  *		EnumDisplaySettingsEx  (X11DRV.@)
  *
  */
-BOOL CDECL X11DRV_EnumDisplaySettingsEx( LPCWSTR name, DWORD n, LPDEVMODEW devmode, DWORD flags)
+INT CDECL X11DRV_EnumDisplaySettingsEx( const WCHAR *name, DWORD n, DEVMODEW *devmode, DWORD flags )
 {
     static const WCHAR dev_name[CCHDEVICENAME] =
         { 'W','i','n','e',' ','X','1','1',' ','d','r','i','v','e','r',0 };
@@ -477,22 +424,14 @@ BOOL CDECL X11DRV_EnumDisplaySettingsEx( LPCWSTR name, DWORD n, LPDEVMODEW devmo
 
     lstrcpyW( devmode->dmDeviceName, dev_name );
 
-    if (n == ENUM_REGISTRY_SETTINGS)
-    {
-        if (!read_registry_settings(name, devmode))
-        {
-            ERR("Failed to get %s registry display settings.\n", wine_dbgstr_w(name));
-            return FALSE;
-        }
-        return TRUE;
-    }
+    if (n == ENUM_REGISTRY_SETTINGS) return -1; /* use default implementation */
 
     if (n == ENUM_CURRENT_SETTINGS)
     {
         if (!handler.get_id(name, &id) || !handler.get_current_mode(id, devmode))
         {
             ERR("Failed to get %s current display settings.\n", wine_dbgstr_w(name));
-            return FALSE;
+            return 0;
         }
 
         if (!is_detached_mode(devmode))
@@ -508,7 +447,7 @@ BOOL CDECL X11DRV_EnumDisplaySettingsEx( LPCWSTR name, DWORD n, LPDEVMODEW devmo
         {
             ERR("Failed to get %s supported display modes.\n", wine_dbgstr_w(name));
             LeaveCriticalSection(&modes_section);
-            return FALSE;
+            return 0;
         }
 
         qsort(modes, mode_count, sizeof(*modes) + modes[0].dmDriverExtra, mode_compare);
@@ -526,7 +465,7 @@ BOOL CDECL X11DRV_EnumDisplaySettingsEx( LPCWSTR name, DWORD n, LPDEVMODEW devmo
         LeaveCriticalSection(&modes_section);
         WARN("handler:%s device:%s mode index:%#x not found.\n", handler.name, wine_dbgstr_w(name), n);
         SetLastError(ERROR_NO_MORE_FILES);
-        return FALSE;
+        return 0;
     }
 
     cached = (DEVMODEW *)((BYTE *)cached_modes + (sizeof(*cached_modes) + cached_modes[0].dmDriverExtra) * n);

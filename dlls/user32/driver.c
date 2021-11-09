@@ -274,7 +274,7 @@ static INT CDECL loaderdrv_EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENU
     return load_driver()->pEnumDisplayMonitors( hdc, rect, proc, lp );
 }
 
-static BOOL CDECL loaderdrv_EnumDisplaySettingsEx( LPCWSTR name, DWORD num, LPDEVMODEW mode, DWORD flags )
+static INT CDECL loaderdrv_EnumDisplaySettingsEx( const WCHAR *name, DWORD num, DEVMODEW *mode, DWORD flags )
 {
     return load_driver()->pEnumDisplaySettingsEx( name, num, mode, flags );
 }
