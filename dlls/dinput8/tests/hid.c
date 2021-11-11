@@ -3667,7 +3667,7 @@ static HRESULT create_dinput_device( DWORD version, DIDEVICEINSTANCEW *devinst, 
     return DI_OK;
 }
 
-static void test_simple_joystick(void)
+static void test_simple_joystick( DWORD version )
 {
 #include "psh_hid_macros.h"
     static const unsigned char report_desc[] =
@@ -3944,7 +3944,7 @@ static void test_simple_joystick(void)
 
     struct check_objects_params check_objects_params =
     {
-        .version = DIRECTINPUT_VERSION,
+        .version = version,
         .expect_count = ARRAY_SIZE(expect_objects),
         .expect_objs = expect_objects,
     };
@@ -4023,22 +4023,22 @@ static void test_simple_joystick(void)
 
     cleanup_registry_keys();
     if (!dinput_driver_start( report_desc, sizeof(report_desc), &hid_caps )) goto done;
-    if (FAILED(hr = create_dinput_device( DIRECTINPUT_VERSION, &devinst, &device ))) goto done;
+    if (FAILED(hr = create_dinput_device( version, &devinst, &device ))) goto done;
 
     hr = IDirectInputDevice8_Initialize( device, instance, 0x0700, &GUID_NULL );
     todo_wine
     ok( hr == DIERR_BETADIRECTINPUTVERSION, "Initialize returned %#x\n", hr );
-    hr = IDirectInputDevice8_Initialize( device, instance, DIRECTINPUT_VERSION, NULL );
+    hr = IDirectInputDevice8_Initialize( device, instance, version, NULL );
     todo_wine
     ok( hr == E_POINTER, "Initialize returned %#x\n", hr );
-    hr = IDirectInputDevice8_Initialize( device, NULL, DIRECTINPUT_VERSION, &GUID_NULL );
+    hr = IDirectInputDevice8_Initialize( device, NULL, version, &GUID_NULL );
     todo_wine
     ok( hr == DIERR_INVALIDPARAM, "Initialize returned %#x\n", hr );
-    hr = IDirectInputDevice8_Initialize( device, instance, DIRECTINPUT_VERSION, &GUID_NULL );
+    hr = IDirectInputDevice8_Initialize( device, instance, version, &GUID_NULL );
     todo_wine
     ok( hr == REGDB_E_CLASSNOTREG, "Initialize returned %#x\n", hr );
 
-    hr = IDirectInputDevice8_Initialize( device, instance, DIRECTINPUT_VERSION, &devinst.guidInstance );
+    hr = IDirectInputDevice8_Initialize( device, instance, version, &devinst.guidInstance );
     ok( hr == DI_OK, "Initialize returned %#x\n", hr );
     guid = devinst.guidInstance;
     memset( &devinst, 0, sizeof(devinst) );
@@ -4047,7 +4047,7 @@ static void test_simple_joystick(void)
     ok( hr == DI_OK, "GetDeviceInfo returned %#x\n", hr );
     ok( IsEqualGUID( &guid, &devinst.guidInstance ), "got %s expected %s\n", debugstr_guid( &guid ),
         debugstr_guid( &devinst.guidInstance ) );
-    hr = IDirectInputDevice8_Initialize( device, instance, DIRECTINPUT_VERSION, &devinst.guidProduct );
+    hr = IDirectInputDevice8_Initialize( device, instance, version, &devinst.guidProduct );
     ok( hr == DI_OK, "Initialize returned %#x\n", hr );
 
     hr = IDirectInputDevice8_GetDeviceInfo( device, NULL );
@@ -8787,7 +8787,10 @@ START_TEST( hid )
         test_device_types( 0x500 );
         test_device_types( 0x700 );
 
-        test_simple_joystick();
+        test_simple_joystick( 0x500 );
+        test_simple_joystick( 0x700 );
+        test_simple_joystick( 0x800 );
+
         test_force_feedback_joystick( 0x500 );
         test_force_feedback_joystick( 0x700 );
         test_force_feedback_joystick( 0x800 );
