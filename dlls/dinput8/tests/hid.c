@@ -3291,7 +3291,8 @@ static void cleanup_registry_keys(void)
     RegCloseKey( root_key );
 }
 
-static BOOL dinput_driver_start( const BYTE *desc_buf, ULONG desc_len, const HIDP_CAPS *caps )
+static BOOL dinput_driver_start( const BYTE *desc_buf, ULONG desc_len, const HIDP_CAPS *caps,
+                                 struct hid_expect *expect, DWORD expect_size )
 {
     static const HID_DEVICE_ATTRIBUTES attributes =
     {
@@ -3318,7 +3319,7 @@ static BOOL dinput_driver_start( const BYTE *desc_buf, ULONG desc_len, const HID
     ok( !status, "RegSetValueExW returned %#x\n", status );
     status = RegSetValueExW( hkey, L"Caps", 0, REG_BINARY, (void *)caps, sizeof(*caps) );
     ok( !status, "RegSetValueExW returned %#x\n", status );
-    status = RegSetValueExW( hkey, L"Expect", 0, REG_BINARY, NULL, 0 );
+    status = RegSetValueExW( hkey, L"Expect", 0, REG_BINARY, (void *)expect, expect_size );
     ok( !status, "RegSetValueExW returned %#x\n", status );
     status = RegSetValueExW( hkey, L"Input", 0, REG_BINARY, NULL, 0 );
     ok( !status, "RegSetValueExW returned %#x\n", status );
@@ -5602,7 +5603,7 @@ static BOOL test_device_types( DWORD version )
 
         cleanup_registry_keys();
         if (!dinput_driver_start( device_desc[i].report_desc_buf, device_desc[i].report_desc_len,
-                                  &device_desc[i].hid_caps ))
+                                  &device_desc[i].hid_caps, NULL, 0 ))
         {
             success = FALSE;
             goto done;
@@ -7211,6 +7212,42 @@ static void test_force_feedback_joystick( DWORD version )
                 REPORT_COUNT(1, 1),
                 OUTPUT(1, Data|Var|Abs),
             END_COLLECTION,
+
+            USAGE(1, PID_USAGE_POOL_REPORT),
+            COLLECTION(1, Logical),
+                REPORT_ID(1, 9),
+
+                USAGE(1, PID_USAGE_RAM_POOL_SIZE),
+                LOGICAL_MINIMUM(1, 0),
+                LOGICAL_MAXIMUM(4, 0xffff),
+                PHYSICAL_MINIMUM(1, 0),
+                PHYSICAL_MAXIMUM(4, 0xffff),
+                REPORT_SIZE(1, 16),
+                REPORT_COUNT(1, 1),
+                FEATURE(1, Data|Var|Abs),
+
+                USAGE(1, PID_USAGE_SIMULTANEOUS_EFFECTS_MAX),
+                LOGICAL_MINIMUM(1, 0),
+                LOGICAL_MAXIMUM(2, 0xff),
+                PHYSICAL_MINIMUM(1, 0),
+                PHYSICAL_MAXIMUM(2, 0xff),
+                REPORT_SIZE(1, 8),
+                REPORT_COUNT(1, 1),
+                FEATURE(1, Data|Var|Abs),
+
+                USAGE(1, PID_USAGE_DEVICE_MANAGED_POOL),
+                USAGE(1, PID_USAGE_SHARED_PARAMETER_BLOCKS),
+                LOGICAL_MINIMUM(1, 0),
+                LOGICAL_MAXIMUM(1, 1),
+                PHYSICAL_MINIMUM(1, 0),
+                PHYSICAL_MAXIMUM(1, 1),
+                REPORT_SIZE(1, 1),
+                REPORT_COUNT(1, 2),
+                FEATURE(1, Data|Var|Abs),
+                REPORT_SIZE(1, 6),
+                REPORT_COUNT(1, 1),
+                FEATURE(1, Cnst|Var|Abs),
+            END_COLLECTION,
         END_COLLECTION,
     };
 #undef REPORT_ID_OR_USAGE_PAGE
@@ -7271,6 +7308,13 @@ static void test_force_feedback_joystick( DWORD version )
         .report_id = 8,
         .report_len = 2,
         .report_buf = {8, 0x33},
+    };
+    struct hid_expect expect_pool =
+    {
+        .code = IOCTL_HID_GET_FEATURE,
+        .report_id = 8,
+        .report_len = 5,
+        .report_buf = {8,0xff,0xff,0xff,0xff},
     };
 
     const DIDEVICEINSTANCEW expect_devinst =
@@ -8044,6 +8088,13 @@ static void test_force_feedback_joystick( DWORD version )
     if (!dinput_driver_start( report_descriptor, sizeof(report_descriptor), &hid_caps )) goto done;
     if (FAILED(hr = create_dinput_device( version, &devinst, &device ))) goto done;
 
+    hr = IDirectInputDevice8_GetProperty( device, DIPROP_GUIDANDPATH, &prop_guid_path.diph );
+    ok( hr == DI_OK, "GetProperty DIPROP_GUIDANDPATH returned %#x\n", hr );
+    file = CreateFileW( prop_guid_path.wszPath, FILE_READ_ACCESS | FILE_WRITE_ACCESS,
+                        FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL );
+    ok( file != INVALID_HANDLE_VALUE, "got error %u\n", GetLastError() );
+    set_hid_expect( file, NULL, 0 );
+
     hr = IDirectInputDevice8_GetDeviceInfo( device, &devinst );
     ok( hr == DI_OK, "GetDeviceInfo returned %#x\n", hr );
     check_member( devinst, expect_devinst, "%d", dwSize );
@@ -8060,8 +8111,10 @@ static void test_force_feedback_joystick( DWORD version )
     check_member( devinst, expect_devinst, "%04x", wUsage );
 
     caps.dwSize = sizeof(DIDEVCAPS);
+    set_hid_expect( file, &expect_pool, sizeof(expect_pool) );
     hr = IDirectInputDevice8_GetCapabilities( device, &caps );
     ok( hr == DI_OK, "GetCapabilities returned %#x\n", hr );
+    set_hid_expect( file, NULL, 0 );
     check_member( caps, expect_caps, "%d", dwSize );
     check_member( caps, expect_caps, "%#x", dwFlags );
     check_member( caps, expect_caps, "%#x", dwDevType );
@@ -8195,14 +8248,19 @@ static void test_force_feedback_joystick( DWORD version )
     todo_wine
     ok( hr == DIERR_UNSUPPORTED, "Escape returned: %#x\n", hr );
 
+    set_hid_expect( file, &expect_pool, sizeof(expect_pool) );
     prop_dword.dwData = 0xdeadbeef;
     hr = IDirectInputDevice8_GetProperty( device, DIPROP_FFLOAD, &prop_dword.diph );
     todo_wine
     ok( hr == 0x80040301, "GetProperty DIPROP_FFLOAD returned %#x\n", hr );
+    set_hid_expect( file, NULL, 0 );
+
+    set_hid_expect( file, &expect_pool, sizeof(expect_pool) );
     res = 0xdeadbeef;
     hr = IDirectInputDevice8_GetForceFeedbackState( device, &res );
     todo_wine
     ok( hr == 0x80040301, "GetForceFeedbackState returned %#x\n", hr );
+    set_hid_expect( file, NULL, 0 );
 
     hr = IDirectInputDevice8_SendForceFeedbackCommand( device, 0xdeadbeef );
     ok( hr == DIERR_INVALIDPARAM, "SendForceFeedbackCommand returned %#x\n", hr );
