@@ -1811,6 +1811,7 @@ static void start_main_thread(int argc, char *argv[])
     dbg_init();
     startup_info_size = server_init_process();
     virtual_map_user_shared_data();
+    virtual_map_hypervisor_shared_data();
     init_cpu_info();
     init_files();
     init_startup_info();

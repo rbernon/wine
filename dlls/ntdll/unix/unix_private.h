@@ -178,6 +178,7 @@ extern BOOL process_exiting;
 extern HANDLE keyed_event;
 extern timeout_t server_start_time;
 extern sigset_t server_block_set;
+extern void *hypervisor_shared_data;
 extern struct _KUSER_SHARED_DATA *user_shared_data;
 extern SYSTEM_CPU_INFORMATION cpu_info;
 #ifdef __i386__
@@ -255,6 +256,7 @@ extern NTSTATUS virtual_clear_tls_index( ULONG index );
 extern NTSTATUS virtual_alloc_thread_stack( INITIAL_TEB *stack, ULONG_PTR limit_low, ULONG_PTR limit_high,
                                             SIZE_T reserve_size, SIZE_T commit_size, BOOL guard_page );
 extern void virtual_map_user_shared_data(void);
+extern void virtual_map_hypervisor_shared_data(void);
 extern NTSTATUS virtual_handle_fault( void *addr, DWORD err, void *stack );
 extern unsigned int virtual_locked_server_call( void *req_ptr );
 extern ssize_t virtual_locked_read( int fd, void *addr, size_t size );

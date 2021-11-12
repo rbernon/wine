@@ -3261,6 +3261,18 @@ NTSTATUS WINAPI NtQuerySystemInformation( SYSTEM_INFORMATION_CLASS class,
     case SystemCpuSetInformation:  /* 175 */
         return NtQuerySystemInformationEx(class, NULL, 0, info, size, ret_size);
 
+    case SystemHypervisorSharedPageInformation:
+    {
+        len = sizeof(void *);
+        if (size >= len)
+        {
+            if (!info) ret = STATUS_ACCESS_VIOLATION;
+            else *(void **)info = hypervisor_shared_data;
+        }
+        else ret = STATUS_INFO_LENGTH_MISMATCH;
+        break;
+    }
+
     /* Wine extensions */
 
     case SystemWineVersionInformation:  /* 1000 */

@@ -357,6 +357,81 @@ static UINT64 read_tsc_frequency(void)
 
 #endif
 
+struct hypervisor_shared_data
+{
+    UINT64 unknown;
+    UINT64 QpcMultiplier;
+    UINT64 QpcBias;
+};
+
+static UINT64 muldiv_tsc(UINT64 a, UINT64 b, UINT64 c)
+{
+    UINT64 ka = a / c, ra = a % c, kb = b / c, rb = b % c;
+    return ka * kb * c + kb * ra + ka * rb + (ra * rb + c / 2) / c;
+}
+
+static void create_hypervisor_shared_data( DWORD tsc_frequency )
+{
+    struct _KUSER_SHARED_DATA *user_shared_data = (void *)0x7ffe0000;
+    struct hypervisor_shared_data *hypervisor_shared_data;
+    OBJECT_ATTRIBUTES attr = {sizeof(attr)};
+    UNICODE_STRING name;
+    NTSTATUS status;
+    HANDLE handle;
+
+    RtlInitUnicodeString( &name, L"\\KernelObjects\\__wine_hypervisor_shared_data" );
+    InitializeObjectAttributes( &attr, &name, OBJ_OPENIF, NULL, NULL );
+    if ((status = NtOpenSection( &handle, SECTION_ALL_ACCESS, &attr )))
+    {
+        ERR( "cannot open __wine_hypervisor_shared_data, status %#lx\n", status );
+        return;
+    }
+    hypervisor_shared_data = MapViewOfFile( handle, FILE_MAP_WRITE, 0, 0, sizeof(*hypervisor_shared_data) );
+    CloseHandle( handle );
+    if (!hypervisor_shared_data)
+    {
+        ERR( "cannot map __wine_hypervisor_shared_data\n" );
+        return;
+    }
+
+    RtlInitUnicodeString( &name, L"\\KernelObjects\\__wine_user_shared_data" );
+    InitializeObjectAttributes( &attr, &name, OBJ_OPENIF, NULL, NULL );
+    if ((status = NtOpenSection( &handle, SECTION_ALL_ACCESS, &attr )))
+    {
+        ERR( "cannot open __wine_user_shared_data, status %#lx\n", status );
+        UnmapViewOfFile( hypervisor_shared_data );
+        return;
+    }
+    user_shared_data = MapViewOfFile( handle, FILE_MAP_WRITE, 0, 0, sizeof(*user_shared_data) );
+    CloseHandle( handle );
+    if (!user_shared_data)
+    {
+        ERR( "cannot map __wine_user_shared_data\n" );
+        UnmapViewOfFile( hypervisor_shared_data );
+        return;
+    }
+
+    hypervisor_shared_data->unknown = 0;
+    hypervisor_shared_data->QpcMultiplier = 0;
+    hypervisor_shared_data->QpcBias = 0;
+
+    if (user_shared_data->QpcBypassEnabled & SHARED_GLOBAL_FLAGS_QPC_BYPASS_ENABLED)
+    {
+        hypervisor_shared_data->QpcMultiplier = muldiv_tsc((UINT64)5000 << 32, (UINT64)2000 << 32, tsc_frequency);
+        user_shared_data->QpcBypassEnabled |= SHARED_GLOBAL_FLAGS_QPC_BYPASS_USE_HV_PAGE;
+        user_shared_data->QpcInterruptTimeIncrement = (ULONGLONG)1 << 63;
+        user_shared_data->QpcInterruptTimeIncrementShift = 1;
+        user_shared_data->QpcSystemTimeIncrement = (ULONGLONG)1 << 63;
+        user_shared_data->QpcSystemTimeIncrementShift = 1;
+        user_shared_data->QpcFrequency = 10000000;
+        user_shared_data->QpcShift = 0;
+        user_shared_data->QpcBias = 0;
+    }
+
+    UnmapViewOfFile( user_shared_data );
+    UnmapViewOfFile( hypervisor_shared_data );
+}
+
 static void create_user_shared_data( UINT64 *tsc_frequency )
 {
     SYSTEM_SUPPORTED_PROCESSOR_ARCHITECTURES_INFORMATION machines[8];
@@ -1829,6 +1904,7 @@ int __cdecl main( int argc, char *argv[] )
     ResetEvent( event );  /* in case this is a restart */
 
     create_user_shared_data( &tsc_frequency );
+    create_hypervisor_shared_data( tsc_frequency );
     create_hardware_registry_keys( tsc_frequency );
     create_dynamic_registry_keys();
     create_environment_registry_keys();

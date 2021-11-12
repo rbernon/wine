@@ -89,6 +89,14 @@ extern const WCHAR system_dir[];
 
 extern void (FASTCALL *pBaseThreadInitThunk)(DWORD,LPTHREAD_START_ROUTINE,void *);
 
+struct hypervisor_shared_data
+{
+    UINT64 unknown;
+    UINT64 QpcMultiplier;
+    UINT64 QpcBias;
+};
+
+extern struct hypervisor_shared_data *hypervisor_shared_data;
 extern struct _KUSER_SHARED_DATA *user_shared_data;
 
 extern int CDECL NTDLL__vsnprintf( char *str, SIZE_T len, const char *format, va_list args );

@@ -39,6 +39,7 @@ WINE_DECLARE_DEBUG_CHANNEL(retaddr);
 WINE_DECLARE_DEBUG_CHANNEL(timestamp);
 WINE_DECLARE_DEBUG_CHANNEL(microsecs);
 
+struct hypervisor_shared_data *hypervisor_shared_data = (void *)0x7ffd0000;
 struct _KUSER_SHARED_DATA *user_shared_data = (void *)0x7ffe0000;
 
 struct debug_info
