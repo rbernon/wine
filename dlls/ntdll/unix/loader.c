@@ -2169,6 +2169,7 @@ static void start_main_thread(void)
     dbg_init();
     startup_info_size = server_init_process();
     virtual_map_user_shared_data();
+    virtual_map_hypervisor_shared_data();
     init_cpu_info();
     init_files();
     load_libwine();
