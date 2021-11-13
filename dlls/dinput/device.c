@@ -515,7 +515,7 @@ static BOOL set_app_data( struct dinput_device *dev, int offset, UINT_PTR app_da
  *	queue_event - add new event to the ring queue
  */
 
-static void queue_event( IDirectInputDevice8W *iface, int inst_id, DWORD data, DWORD time, DWORD seq )
+void queue_event( IDirectInputDevice8W *iface, int inst_id, DWORD data, DWORD time, DWORD seq )
 {
     static ULONGLONG notify_ms = 0;
     struct dinput_device *This = impl_from_IDirectInputDevice8W( iface );
@@ -2179,7 +2179,6 @@ static BOOL CALLBACK enum_objects_init( const DIDEVICEOBJECTINSTANCEW *instance,
             else if (impl->device_state_report_id != instance->wReportId)
                 FIXME( "multiple device state reports found!\n" );
         }
-        if (instance->dwType & DIDFT_RELAXIS) *(LONG *)(impl->absolute_state + instance->dwOfs) = 32767;
     }
     else
     {
@@ -2249,46 +2248,13 @@ void dinput_device_update_end( IDirectInputDevice8W *iface )
 void dinput_device_update_value( IDirectInputDevice8W *iface, const DIDEVICEOBJECTINSTANCEW *instance, LONG value )
 {
     struct dinput_device *impl = impl_from_IDirectInputDevice8W( iface );
-    LONG absolute_value, relative_value, previous_value, output_value;
-    DIDATAFORMAT *format = impl->data_format.user_df;
+    LONG previous_value = *(LONG *)(impl->previous_state + instance->dwOfs);
 
-    absolute_value = *(LONG *)(impl->absolute_state + instance->dwOfs);
-    previous_value = *(LONG *)(impl->previous_state + instance->dwOfs);
     *(LONG *)(impl->previous_state + instance->dwOfs) = value;
-
-    if (instance->dwType & DIDFT_ABSAXIS)
-    {
-        if (format->dwFlags & DIDF_RELAXIS)
-        {
-            relative_value = (signed char)value - absolute_value;
-            absolute_value = (signed char)value;
-            output_value = relative_value;
-        }
-        else
-        {
-            relative_value = value - absolute_value;
-            absolute_value = value;
-            output_value = value;
-        }
-    }
-    else if (instance->dwType & DIDFT_RELAXIS)
-    {
-        relative_value = value;
-        absolute_value = min(max(absolute_value + value, 0), 65535);
-        if (format->dwFlags & DIDF_RELAXIS) output_value = value;
-        else output_value = absolute_value;
-    }
-    else
-    {
-        absolute_value = value;
-        output_value = value;
-    }
-
-    *(LONG *)(impl->device_state + instance->dwOfs) = output_value;
-    *(LONG *)(impl->absolute_state + instance->dwOfs) = absolute_value;
+    *(LONG *)(impl->device_state + instance->dwOfs) = value;
     if (previous_value != value)
     {
-        queue_event( iface, instance->dwType, output_value, impl->update_time, impl->update_sequence );
+        queue_event( iface, instance->dwType, value, impl->update_time, impl->update_sequence );
         impl->update_notify = TRUE;
     }
 }

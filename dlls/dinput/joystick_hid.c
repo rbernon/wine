@@ -1185,7 +1185,6 @@ static BOOL read_device_state_value( struct hid_joystick *impl, struct hid_value
     struct object_properties *properties = impl->base.object_properties + instance->dwOfs / sizeof(LONG);
     IDirectInputDevice8W *iface = &impl->base.IDirectInputDevice8W_iface;
     ULONG logical_value, report_len = impl->caps.InputReportByteLength;
-    DIDATAFORMAT *format = impl->base.data_format.user_df;
     char *report_buf = impl->input_report_buf;
     NTSTATUS status;
     LONG value;

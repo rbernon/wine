@@ -67,69 +67,6 @@ struct mouse
     WARP_MOUSE                      warp_override;
 };
 
-static const DIDEVICEOBJECTINSTANCEW mouse_objects[] =
-{
-    {
-        .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
-        .guidType = /* GUID_XAxis */ {0xa36d02e0,0xc9f3,0x11cf,{0xbf,0xc7,0x44,0x45,0x53,0x54,0x00,0x00}},
-        .dwOfs = DIMOFS_X,
-        .dwType = DIDFT_RELAXIS|DIDFT_MAKEINSTANCE(0),
-        .dwFlags = DIDOI_ASPECTPOSITION,
-        .tszName = L"X-axis",
-    },
-    {
-        .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
-        .guidType = /* GUID_YAxis */ {0xa36d02e1,0xc9f3,0x11cf,{0xbf,0xc7,0x44,0x45,0x53,0x54,0x00,0x00}},
-        .dwOfs = DIMOFS_Y,
-        .dwType = DIDFT_RELAXIS|DIDFT_MAKEINSTANCE(1),
-        .dwFlags = DIDOI_ASPECTPOSITION,
-        .tszName = L"Y-axis",
-    },
-    {
-        .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
-        .guidType = /* GUID_ZAxis */ {0xa36d02e2,0xc9f3,0x11cf,{0xbf,0xc7,0x44,0x45,0x53,0x54,0x00,0x00}},
-        .dwOfs = DIMOFS_Z,
-        .dwType = DIDFT_RELAXIS|DIDFT_MAKEINSTANCE(2),
-        .dwFlags = DIDOI_ASPECTPOSITION,
-        .tszName = L"Wheel",
-    },
-    {
-        .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
-        .guidType = /* GUID_Button */ {0xa36d02f0,0xc9f3,0x11cf,{0xbf,0xc7,0x44,0x45,0x53,0x54,0x00,0x00}},
-        .dwOfs = DIMOFS_BUTTON0,
-        .dwType = DIDFT_PSHBUTTON|DIDFT_MAKEINSTANCE(3),
-        .tszName = L"Button 0",
-    },
-    {
-        .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
-        .guidType = /* GUID_Button */ {0xa36d02f0,0xc9f3,0x11cf,{0xbf,0xc7,0x44,0x45,0x53,0x54,0x00,0x00}},
-        .dwOfs = DIMOFS_BUTTON1,
-        .dwType = DIDFT_PSHBUTTON|DIDFT_MAKEINSTANCE(4),
-        .tszName = L"Button 1",
-    },
-    {
-        .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
-        .guidType = /* GUID_Button */ {0xa36d02f0,0xc9f3,0x11cf,{0xbf,0xc7,0x44,0x45,0x53,0x54,0x00,0x00}},
-        .dwOfs = DIMOFS_BUTTON2,
-        .dwType = DIDFT_PSHBUTTON|DIDFT_MAKEINSTANCE(5),
-        .tszName = L"Button 2",
-    },
-    {
-        .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
-        .guidType = /* GUID_Button */ {0xa36d02f0,0xc9f3,0x11cf,{0xbf,0xc7,0x44,0x45,0x53,0x54,0x00,0x00}},
-        .dwOfs = DIMOFS_BUTTON3,
-        .dwType = DIDFT_PSHBUTTON|DIDFT_MAKEINSTANCE(6),
-        .tszName = L"Button 3",
-    },
-    {
-        .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
-        .guidType = /* GUID_Button */ {0xa36d02f0,0xc9f3,0x11cf,{0xbf,0xc7,0x44,0x45,0x53,0x54,0x00,0x00}},
-        .dwOfs = DIMOFS_BUTTON4,
-        .dwType = DIDFT_PSHBUTTON|DIDFT_MAKEINSTANCE(7),
-        .tszName = L"Button 4",
-    },
-};
-
 static inline struct mouse *impl_from_IDirectInputDevice8W( IDirectInputDevice8W *iface )
 {
     return CONTAINING_RECORD( CONTAINING_RECORD( iface, struct dinput_device, IDirectInputDevice8W_iface ), struct mouse, base );
@@ -207,7 +144,9 @@ void dinput_mouse_rawinput_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPA
     struct mouse *impl = impl_from_IDirectInputDevice8W( iface );
     DIMOUSESTATE2 *state = (DIMOUSESTATE2 *)impl->base.device_state;
     POINT rel, pt;
-    int i;
+    DWORD seq;
+    int i, wdata = 0;
+    BOOL notify = FALSE;
 
     static const USHORT mouse_button_flags[] =
     {
@@ -225,7 +164,8 @@ void dinput_mouse_rawinput_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPA
     if (ri->data.mouse.usFlags & MOUSE_ATTRIBUTES_CHANGED)
         FIXME( "Unimplemented MOUSE_ATTRIBUTES_CHANGED flag\n" );
 
-    dinput_device_update_begin( iface, GetTickCount() );
+    EnterCriticalSection( &impl->base.crit );
+    seq = impl->base.dinput->evsequence++;
 
     rel.x = ri->data.mouse.lLastX;
     rel.y = ri->data.mouse.lLastY;
@@ -249,8 +189,19 @@ void dinput_mouse_rawinput_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPA
         pt = rel;
     }
 
-    if (rel.x) dinput_device_update_value( iface, mouse_objects + 0, rel.x );
-    if (rel.y) dinput_device_update_value( iface, mouse_objects + 1, rel.x );
+    if (rel.x)
+    {
+        queue_event( iface, DIDFT_MAKEINSTANCE(WINE_MOUSE_X_AXIS_INSTANCE) | DIDFT_RELAXIS,
+                     pt.x, GetCurrentTime(), seq );
+        notify = TRUE;
+    }
+
+    if (rel.y)
+    {
+        queue_event( iface, DIDFT_MAKEINSTANCE(WINE_MOUSE_Y_AXIS_INSTANCE) | DIDFT_RELAXIS,
+                     pt.y, GetCurrentTime(), seq );
+        notify = TRUE;
+    }
 
     if (rel.x || rel.y)
     {
@@ -259,19 +210,31 @@ void dinput_mouse_rawinput_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPA
             impl->need_warp = TRUE;
     }
 
-    if (ri->data.mouse.usButtonFlags & RI_MOUSE_WHEEL) dinput_device_update_value( iface, mouse_objects + 2, (SHORT)ri->data.mouse.usButtonData );
+    if (ri->data.mouse.usButtonFlags & RI_MOUSE_WHEEL)
+    {
+        state->lZ += (wdata = (SHORT)ri->data.mouse.usButtonData);
+        queue_event( iface, DIDFT_MAKEINSTANCE(WINE_MOUSE_Z_AXIS_INSTANCE) | DIDFT_RELAXIS,
+                     wdata, GetCurrentTime(), seq );
+        notify = TRUE;
+    }
 
     for (i = 0; i < ARRAY_SIZE(mouse_button_flags); ++i)
     {
-        if (!(ri->data.mouse.usButtonFlags & mouse_button_flags[i])) continue;
-        dinput_device_update_button( iface, mouse_objects + 3 + i / 2, state->rgbButtons[i / 2] );
+        if (ri->data.mouse.usButtonFlags & mouse_button_flags[i])
+        {
+            state->rgbButtons[i / 2] = 0x80 - (i % 2) * 0x80;
+            queue_event( iface, DIDFT_MAKEINSTANCE( WINE_MOUSE_BUTTONS_INSTANCE + (i / 2) ) | DIDFT_PSHBUTTON,
+                         state->rgbButtons[i / 2], GetCurrentTime(), seq );
+            notify = TRUE;
+        }
     }
 
     TRACE( "buttons %02x %02x %02x %02x %02x, x %d, y %d, w %d\n", state->rgbButtons[0],
            state->rgbButtons[1], state->rgbButtons[2], state->rgbButtons[3], state->rgbButtons[4],
            state->lX, state->lY, state->lZ );
 
-    dinput_device_update_end( iface );
+    if (notify && impl->base.hEvent) SetEvent( impl->base.hEvent );
+    LeaveCriticalSection( &impl->base.crit );
 }
 
 /* low-level mouse hook */
@@ -280,30 +243,45 @@ int dinput_mouse_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPARAM lparam
     MSLLHOOKSTRUCT *hook = (MSLLHOOKSTRUCT *)lparam;
     struct mouse *impl = impl_from_IDirectInputDevice8W( iface );
     DIMOUSESTATE2 *state = (DIMOUSESTATE2 *)impl->base.device_state;
-    int ret = 0;
+    int wdata = 0, inst_id = -1, ret = 0;
+    BOOL notify = FALSE;
 
     TRACE("msg %lx @ (%d %d)\n", wparam, hook->pt.x, hook->pt.y);
 
-    dinput_device_update_begin( iface, GetTickCount() );
+    EnterCriticalSection( &impl->base.crit );
 
     switch(wparam) {
         case WM_MOUSEMOVE:
         {
-            POINT pt, rel;
+            POINT pt, pt1;
 
             GetCursorPos(&pt);
-            pt.x = hook->pt.x - pt.x;
-            pt.y = hook->pt.y - pt.y;
+            state->lX += pt.x = hook->pt.x - pt.x;
+            state->lY += pt.y = hook->pt.y - pt.y;
 
             if (impl->base.user_format->dwFlags & DIDF_ABSAXIS)
             {
-                rel.x = state->lX;
-                rel.y = state->lY;
+                pt1.x = state->lX;
+                pt1.y = state->lY;
             } else
-                rel = pt;
+                pt1 = pt;
 
-            if (pt.x) dinput_device_update_value( iface, mouse_objects + 0, rel.x );
-            if (pt.y) dinput_device_update_value( iface, mouse_objects + 1, rel.y );
+            if (pt.x)
+            {
+                inst_id = DIDFT_MAKEINSTANCE(WINE_MOUSE_X_AXIS_INSTANCE) | DIDFT_RELAXIS;
+                wdata = pt1.x;
+            }
+            if (pt.y)
+            {
+                /* Already have X, need to queue it */
+                if (inst_id != -1)
+                {
+                    queue_event( iface, inst_id, wdata, GetCurrentTime(), impl->base.dinput->evsequence );
+                    notify = TRUE;
+                }
+                inst_id = DIDFT_MAKEINSTANCE(WINE_MOUSE_Y_AXIS_INSTANCE) | DIDFT_RELAXIS;
+                wdata = pt1.y;
+            }
 
             if (pt.x || pt.y)
             {
@@ -314,26 +292,59 @@ int dinput_mouse_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPARAM lparam
             break;
         }
         case WM_MOUSEWHEEL:
-            dinput_device_update_value( iface, mouse_objects + 2, (SHORT)HIWORD( hook->mouseData ) );
+            inst_id = DIDFT_MAKEINSTANCE(WINE_MOUSE_Z_AXIS_INSTANCE) | DIDFT_RELAXIS;
+            state->lZ += wdata = (short)HIWORD( hook->mouseData );
             /* FarCry crashes if it gets a mouse wheel message */
             /* FIXME: should probably filter out other messages too */
             ret = impl->clipped;
             break;
-        case WM_LBUTTONDOWN: dinput_device_update_button( iface, mouse_objects + 3, 0x80 ); break;
-        case WM_LBUTTONUP: dinput_device_update_button( iface, mouse_objects + 3, 0x00 ); break;
-        case WM_RBUTTONDOWN: dinput_device_update_button( iface, mouse_objects + 4, 0x80 ); break;
-        case WM_RBUTTONUP: dinput_device_update_button( iface, mouse_objects + 4, 0x00 ); break;
-        case WM_MBUTTONDOWN: dinput_device_update_button( iface, mouse_objects + 5, 0x80 ); break;
-        case WM_MBUTTONUP: dinput_device_update_button( iface, mouse_objects + 5, 0x00 ); break;
-        case WM_XBUTTONDOWN: dinput_device_update_button( iface, mouse_objects + 6 + HIWORD( hook->mouseData ), 0x80 ); break;
-        case WM_XBUTTONUP: dinput_device_update_button( iface, mouse_objects + 6 + HIWORD( hook->mouseData ), 0x00 ); break;
+        case WM_LBUTTONDOWN:
+            inst_id = DIDFT_MAKEINSTANCE(WINE_MOUSE_BUTTONS_INSTANCE + 0) | DIDFT_PSHBUTTON;
+            state->rgbButtons[0] = wdata = 0x80;
+            break;
+        case WM_LBUTTONUP:
+            inst_id = DIDFT_MAKEINSTANCE(WINE_MOUSE_BUTTONS_INSTANCE + 0) | DIDFT_PSHBUTTON;
+            state->rgbButtons[0] = wdata = 0x00;
+            break;
+        case WM_RBUTTONDOWN:
+            inst_id = DIDFT_MAKEINSTANCE(WINE_MOUSE_BUTTONS_INSTANCE + 1) | DIDFT_PSHBUTTON;
+            state->rgbButtons[1] = wdata = 0x80;
+            break;
+        case WM_RBUTTONUP:
+            inst_id = DIDFT_MAKEINSTANCE(WINE_MOUSE_BUTTONS_INSTANCE + 1) | DIDFT_PSHBUTTON;
+            state->rgbButtons[1] = wdata = 0x00;
+            break;
+        case WM_MBUTTONDOWN:
+            inst_id = DIDFT_MAKEINSTANCE(WINE_MOUSE_BUTTONS_INSTANCE + 2) | DIDFT_PSHBUTTON;
+            state->rgbButtons[2] = wdata = 0x80;
+            break;
+        case WM_MBUTTONUP:
+            inst_id = DIDFT_MAKEINSTANCE(WINE_MOUSE_BUTTONS_INSTANCE + 2) | DIDFT_PSHBUTTON;
+            state->rgbButtons[2] = wdata = 0x00;
+            break;
+        case WM_XBUTTONDOWN:
+            inst_id = DIDFT_MAKEINSTANCE(WINE_MOUSE_BUTTONS_INSTANCE + 2 + HIWORD(hook->mouseData)) | DIDFT_PSHBUTTON;
+            state->rgbButtons[2 + HIWORD( hook->mouseData )] = wdata = 0x80;
+            break;
+        case WM_XBUTTONUP:
+            inst_id = DIDFT_MAKEINSTANCE(WINE_MOUSE_BUTTONS_INSTANCE + 2 + HIWORD(hook->mouseData)) | DIDFT_PSHBUTTON;
+            state->rgbButtons[2 + HIWORD( hook->mouseData )] = wdata = 0x00;
+            break;
+    }
+
+
+    if (inst_id != -1)
+    {
+        queue_event( iface, inst_id, wdata, GetCurrentTime(), impl->base.dinput->evsequence++ );
+        notify = TRUE;
     }
 
     TRACE( "buttons %02x %02x %02x %02x %02x, x %d, y %d, w %d\n", state->rgbButtons[0],
            state->rgbButtons[1], state->rgbButtons[2], state->rgbButtons[3], state->rgbButtons[4],
            state->lX, state->lY, state->lZ );
 
-    dinput_device_update_end( iface );
+    if (notify && impl->base.hEvent) SetEvent( impl->base.hEvent );
+    LeaveCriticalSection( &impl->base.crit );
     return ret;
 }
 
@@ -468,13 +479,74 @@ static BOOL try_enum_object( const DIPROPHEADER *filter, DWORD flags, LPDIENUMDE
 static HRESULT mouse_enum_objects( IDirectInputDevice8W *iface, const DIPROPHEADER *filter,
                                    DWORD flags, LPDIENUMDEVICEOBJECTSCALLBACKW callback, void *context )
 {
+    DIDEVICEOBJECTINSTANCEW instances[] =
+    {
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_XAxis,
+            .dwOfs = DIMOFS_X,
+            .dwType = DIDFT_RELAXIS|DIDFT_MAKEINSTANCE(0),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"X-axis",
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_YAxis,
+            .dwOfs = DIMOFS_Y,
+            .dwType = DIDFT_RELAXIS|DIDFT_MAKEINSTANCE(1),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Y-axis",
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_ZAxis,
+            .dwOfs = DIMOFS_Z,
+            .dwType = DIDFT_RELAXIS|DIDFT_MAKEINSTANCE(2),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Wheel",
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Button,
+            .dwOfs = DIMOFS_BUTTON0,
+            .dwType = DIDFT_PSHBUTTON|DIDFT_MAKEINSTANCE(3),
+            .tszName = L"Button 0",
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Button,
+            .dwOfs = DIMOFS_BUTTON1,
+            .dwType = DIDFT_PSHBUTTON|DIDFT_MAKEINSTANCE(4),
+            .tszName = L"Button 1",
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Button,
+            .dwOfs = DIMOFS_BUTTON2,
+            .dwType = DIDFT_PSHBUTTON|DIDFT_MAKEINSTANCE(5),
+            .tszName = L"Button 2",
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Button,
+            .dwOfs = DIMOFS_BUTTON3,
+            .dwType = DIDFT_PSHBUTTON|DIDFT_MAKEINSTANCE(6),
+            .tszName = L"Button 3",
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Button,
+            .dwOfs = DIMOFS_BUTTON4,
+            .dwType = DIDFT_PSHBUTTON|DIDFT_MAKEINSTANCE(7),
+            .tszName = L"Button 4",
+        },
+    };
     BOOL ret;
     DWORD i;
 
-    for (i = 0; i < ARRAY_SIZE(mouse_objects); ++i)
+    for (i = 0; i < ARRAY_SIZE(instances); ++i)
     {
-        DIDEVICEOBJECTINSTANCEW instance = mouse_objects[i];
-        ret = try_enum_object( filter, flags, callback, &instance, context );
+        ret = try_enum_object( filter, flags, callback, instances + i, context );
         if (ret != DIENUM_CONTINUE) return DIENUM_STOP;
     }
 

@@ -109,7 +109,6 @@ struct dinput_device
 
     BYTE device_state_report_id;
     BYTE device_state[DEVICE_STATE_MAX_SIZE];
-    BYTE absolute_state[DEVICE_STATE_MAX_SIZE];
     BYTE previous_state[DEVICE_STATE_MAX_SIZE];
     ULONG update_time;
     ULONG update_notify;
@@ -133,6 +132,9 @@ extern void dinput_device_update_button( IDirectInputDevice8W *iface, const DIDE
 extern BOOL get_app_key(HKEY*, HKEY*) DECLSPEC_HIDDEN;
 extern DWORD get_config_key( HKEY, HKEY, const WCHAR *, WCHAR *, DWORD ) DECLSPEC_HIDDEN;
 extern BOOL device_instance_is_disabled( DIDEVICEINSTANCEW *instance, BOOL *override ) DECLSPEC_HIDDEN;
+
+/* Routines to do DataFormat / WineFormat conversions */
+extern void queue_event( IDirectInputDevice8W *iface, int inst_id, DWORD data, DWORD time, DWORD seq ) DECLSPEC_HIDDEN;
 
 extern const GUID dinput_pidvid_guid DECLSPEC_HIDDEN;
 
