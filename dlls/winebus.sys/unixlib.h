@@ -46,8 +46,21 @@ struct device_desc
 
 C_ASSERT(sizeof(struct device_desc) == 0x630);
 
+enum bus_type
+{
+    BUS_TYPE_SDL,
+    BUS_TYPE_UDEV,
+    BUS_TYPE_IOHID,
+};
+
+struct bus_params
+{
+    DWORD bus_type;
+};
+
 struct sdl_bus_options
 {
+    DWORD bus_type;
     DWORD map_controllers;
     /* freed after bus_init */
     DWORD mappings_count;
@@ -56,6 +69,7 @@ struct sdl_bus_options
 
 struct udev_bus_options
 {
+    DWORD bus_type;
     DWORD disable_hidraw;
     DWORD disable_input;
     DWORD disable_udevd;
@@ -63,6 +77,7 @@ struct udev_bus_options
 
 struct iohid_bus_options
 {
+    DWORD bus_type;
 };
 
 enum bus_event_type
@@ -75,7 +90,8 @@ enum bus_event_type
 
 struct bus_event
 {
-    UINT64 type;
+    DWORD bus_type;
+    DWORD event_type;
     UINT64 device;
     union
     {
@@ -120,15 +136,9 @@ struct device_params
 
 enum unix_funcs
 {
-    sdl_init,
-    sdl_wait,
-    sdl_stop,
-    udev_init,
-    udev_wait,
-    udev_stop,
-    iohid_init,
-    iohid_wait,
-    iohid_stop,
+    bus_init,
+    bus_wait,
+    bus_stop,
     mouse_create,
     keyboard_create,
     device_remove,

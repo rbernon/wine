@@ -70,6 +70,42 @@ BOOL is_dualshock4_gamepad(WORD vid, WORD pid)
     return FALSE;
 }
 
+static NTSTATUS unix_bus_init(void *args)
+{
+    switch (((struct bus_params *)args)->bus_type)
+    {
+    case BUS_TYPE_SDL: return sdl_bus_init(args);
+    case BUS_TYPE_UDEV: return udev_bus_init(args);
+    case BUS_TYPE_IOHID: return iohid_bus_init(args);
+    }
+
+    return STATUS_INVALID_PARAMETER;
+}
+
+static NTSTATUS unix_bus_wait(void *args)
+{
+    switch (((struct bus_params *)args)->bus_type)
+    {
+    case BUS_TYPE_SDL: return sdl_bus_wait(args);
+    case BUS_TYPE_UDEV: return udev_bus_wait(args);
+    case BUS_TYPE_IOHID: return iohid_bus_wait(args);
+    }
+
+    return STATUS_INVALID_PARAMETER;
+}
+
+static NTSTATUS unix_bus_stop(void *args)
+{
+    switch (((struct bus_params *)args)->bus_type)
+    {
+    case BUS_TYPE_SDL: return sdl_bus_stop(args);
+    case BUS_TYPE_UDEV: return udev_bus_stop(args);
+    case BUS_TYPE_IOHID: return iohid_bus_stop(args);
+    }
+
+    return STATUS_INVALID_PARAMETER;
+}
+
 struct mouse_device
 {
     struct unix_device unix_device;
@@ -310,15 +346,9 @@ static NTSTATUS unix_device_set_feature_report(void *args)
 
 const unixlib_entry_t __wine_unix_call_funcs[] =
 {
-    sdl_bus_init,
-    sdl_bus_wait,
-    sdl_bus_stop,
-    udev_bus_init,
-    udev_bus_wait,
-    udev_bus_stop,
-    iohid_bus_init,
-    iohid_bus_wait,
-    iohid_bus_stop,
+    unix_bus_init,
+    unix_bus_wait,
+    unix_bus_stop,
     mouse_device_create,
     keyboard_device_create,
     unix_device_remove,
@@ -335,22 +365,34 @@ typedef ULONG PTR32;
 
 struct sdl_bus_options32
 {
+    DWORD bus_type;
     DWORD map_controllers;
     /* freed after bus_init */
     DWORD mappings_count;
     PTR32 mappings;
 };
 
-static NTSTATUS wow64_sdl_bus_init(void *args)
+static NTSTATUS wow64_unix_bus_init(void *args)
 {
-    struct sdl_bus_options32 const *params32 = args;
-    struct sdl_bus_options params =
+    switch (((struct bus_params *)args)->bus_type)
     {
-        params32->map_controllers,
-        params32->mappings_count,
-        ULongToPtr(params32->mappings),
-    };
-    return sdl_bus_init(&params);
+    case BUS_TYPE_SDL:
+    {
+        struct sdl_bus_options32 const *params32 = args;
+        struct sdl_bus_options params =
+        {
+            params32->bus_type,
+            params32->map_controllers,
+            params32->mappings_count,
+            ULongToPtr(params32->mappings),
+        };
+        return sdl_bus_init(&params);
+    }
+    case BUS_TYPE_UDEV: return udev_bus_init(args);
+    case BUS_TYPE_IOHID: return iohid_bus_init(args);
+    }
+
+    return STATUS_INVALID_PARAMETER;
 }
 
 struct device_descriptor_params32
@@ -419,15 +461,9 @@ static NTSTATUS wow64_unix_device_set_feature_report(void *args)
 
 const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
 {
-    wow64_sdl_bus_init,
-    sdl_bus_wait,
-    sdl_bus_stop,
-    udev_bus_init,
-    udev_bus_wait,
-    udev_bus_stop,
-    iohid_bus_init,
-    iohid_bus_wait,
-    iohid_bus_stop,
+    wow64_unix_bus_init,
+    unix_bus_wait,
+    unix_bus_stop,
     mouse_device_create,
     keyboard_device_create,
     unix_device_remove,
@@ -442,7 +478,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
 
 void bus_event_cleanup(struct bus_event *event)
 {
-    if (event->type == BUS_EVENT_TYPE_NONE) return;
+    if (event->event_type == BUS_EVENT_TYPE_NONE) return;
     unix_device_decref((struct unix_device *)(ULONG_PTR)event->device);
 }
 
@@ -476,7 +512,7 @@ BOOL bus_event_queue_device_removed(struct list *queue, struct unix_device *devi
         return FALSE;
     }
 
-    entry->event.type = BUS_EVENT_TYPE_DEVICE_REMOVED;
+    entry->event.event_type = BUS_EVENT_TYPE_DEVICE_REMOVED;
     entry->event.device = (ULONG_PTR)device;
     list_add_tail(queue, &entry->entry);
 
@@ -495,7 +531,7 @@ BOOL bus_event_queue_device_created(struct list *queue, struct unix_device *devi
         return FALSE;
     }
 
-    entry->event.type = BUS_EVENT_TYPE_DEVICE_CREATED;
+    entry->event.event_type = BUS_EVENT_TYPE_DEVICE_CREATED;
     entry->event.device = (ULONG_PTR)device;
     entry->event.device_created.desc = *desc;
     list_add_tail(queue, &entry->entry);
@@ -515,7 +551,7 @@ BOOL bus_event_queue_input_report(struct list *queue, struct unix_device *device
         return FALSE;
     }
 
-    entry->event.type = BUS_EVENT_TYPE_INPUT_REPORT;
+    entry->event.event_type = BUS_EVENT_TYPE_INPUT_REPORT;
     entry->event.device = (ULONG_PTR)device;
     entry->event.input_report.length = length;
     memcpy(entry->event.input_report.buffer, report, length);
@@ -535,7 +571,7 @@ BOOL bus_event_queue_pop(struct list *queue, struct bus_event *event)
     entry = LIST_ENTRY(head, struct bus_event_entry, entry);
     list_remove(&entry->entry);
 
-    if (entry->event.type != BUS_EVENT_TYPE_INPUT_REPORT) size = sizeof(entry->event);
+    if (entry->event.event_type != BUS_EVENT_TYPE_INPUT_REPORT) size = sizeof(entry->event);
     else size = offsetof(struct bus_event, input_report.buffer[entry->event.input_report.length]);
 
     memcpy(event, &entry->event, size);

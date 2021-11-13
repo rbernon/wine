@@ -635,8 +635,6 @@ struct bus_main_params
 
     void *init_args;
     HANDLE init_done;
-    unsigned int init_code;
-    unsigned int wait_code;
     struct bus_event *bus_event;
 };
 
@@ -648,16 +646,17 @@ static DWORD CALLBACK bus_main_thread(void *args)
     NTSTATUS status;
 
     TRACE("%s main loop starting\n", debugstr_w(bus.name));
-    status = winebus_call(bus.init_code, bus.init_args);
+    status = winebus_call(bus_init, bus.init_args);
     SetEvent(bus.init_done);
     TRACE("%s main loop started\n", debugstr_w(bus.name));
 
-    bus.bus_event->type = BUS_EVENT_TYPE_NONE;
+    bus.bus_event->bus_type = ((struct bus_params *)bus.init_args)->bus_type;
+    bus.bus_event->event_type = BUS_EVENT_TYPE_NONE;
     if (status) WARN("%s bus init returned status %#x\n", debugstr_w(bus.name), status);
-    else while ((status = winebus_call(bus.wait_code, bus.bus_event)) == STATUS_PENDING)
+    else while ((status = winebus_call(bus_wait, bus.bus_event)) == STATUS_PENDING)
     {
         struct bus_event *event = bus.bus_event;
-        switch (event->type)
+        switch (event->event_type)
         {
         case BUS_EVENT_TYPE_NONE: break;
         case BUS_EVENT_TYPE_DEVICE_REMOVED:
@@ -910,13 +909,11 @@ done:
 
 static NTSTATUS sdl_driver_init(void)
 {
-    struct sdl_bus_options bus_options;
+    struct sdl_bus_options bus_options = {.bus_type = BUS_TYPE_SDL};
     struct bus_main_params bus =
     {
         .name = L"SDL",
         .init_args = &bus_options,
-        .init_code = sdl_init,
-        .wait_code = sdl_wait,
     };
     NTSTATUS status;
 
@@ -931,13 +928,11 @@ static NTSTATUS sdl_driver_init(void)
 
 static NTSTATUS udev_driver_init(void)
 {
-    struct udev_bus_options bus_options;
+    struct udev_bus_options bus_options = {.bus_type = BUS_TYPE_UDEV};
     struct bus_main_params bus =
     {
         .name = L"UDEV",
         .init_args = &bus_options,
-        .init_code = udev_init,
-        .wait_code = udev_wait,
     };
 
     bus_options.disable_hidraw = check_bus_option(L"DisableHidraw", 0);
@@ -952,13 +947,11 @@ static NTSTATUS udev_driver_init(void)
 
 static NTSTATUS iohid_driver_init(void)
 {
-    struct iohid_bus_options bus_options;
+    struct iohid_bus_options bus_options = {.bus_type = BUS_TYPE_IOHID};
     struct bus_main_params bus =
     {
         .name = L"IOHID",
         .init_args = &bus_options,
-        .init_code = iohid_init,
-        .wait_code = iohid_wait,
     };
 
     return bus_main_thread_start(&bus);
@@ -967,6 +960,7 @@ static NTSTATUS iohid_driver_init(void)
 static NTSTATUS fdo_pnp_dispatch(DEVICE_OBJECT *device, IRP *irp)
 {
     IO_STACK_LOCATION *irpsp = IoGetCurrentIrpStackLocation(irp);
+    struct bus_params bus_params;
     NTSTATUS ret;
 
     switch (irpsp->MinorFunction)
@@ -991,9 +985,12 @@ static NTSTATUS fdo_pnp_dispatch(DEVICE_OBJECT *device, IRP *irp)
         irp->IoStatus.Status = STATUS_SUCCESS;
         break;
     case IRP_MN_REMOVE_DEVICE:
-        winebus_call(sdl_stop, NULL);
-        winebus_call(udev_stop, NULL);
-        winebus_call(iohid_stop, NULL);
+        bus_params.bus_type = BUS_TYPE_SDL;
+        winebus_call(bus_stop, &bus_params);
+        bus_params.bus_type = BUS_TYPE_UDEV;
+        winebus_call(bus_stop, &bus_params);
+        bus_params.bus_type = BUS_TYPE_IOHID;
+        winebus_call(bus_stop, &bus_params);
 
         SetEvent(write_control[0]);
         WaitForMultipleObjects(thread_count, threads, TRUE, INFINITE);
