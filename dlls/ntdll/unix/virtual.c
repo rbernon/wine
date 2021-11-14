@@ -60,9 +60,6 @@
 #endif
 #include <unistd.h>
 #include <dlfcn.h>
-#ifdef HAVE_VALGRIND_VALGRIND_H
-# include <valgrind/valgrind.h>
-#endif
 #if defined(__APPLE__)
 # include <mach/mach_init.h>
 # include <mach/mach_vm.h>
@@ -77,6 +74,9 @@
 #include "wine/rbtree.h"
 #include "unix_private.h"
 #include "wine/debug.h"
+
+#include "valgrind/valgrind.h"
+#include "valgrind/memcheck.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(virtual);
 WINE_DECLARE_DEBUG_CHANNEL(module);
@@ -3176,7 +3176,7 @@ NTSTATUS virtual_alloc_thread_stack( INITIAL_TEB *stack, ULONG_PTR zero_bits, SI
         goto done;
 
 #ifdef VALGRIND_STACK_REGISTER
-    VALGRIND_STACK_REGISTER( view->base, (char *)view->base + view->size );
+    (void)VALGRIND_STACK_REGISTER( view->base, (char *)view->base + view->size );
 #endif
 
     /* setup no access guard page */

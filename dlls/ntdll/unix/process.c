@@ -76,6 +76,8 @@
 #include "wine/server.h"
 #include "wine/debug.h"
 
+#include "valgrind/valgrind.h"
+
 WINE_DEFAULT_DEBUG_CHANNEL(process);
 
 
@@ -1601,7 +1603,7 @@ NTSTATUS WINAPI NtSetInformationProcess( HANDLE handle, PROCESSINFOCLASS class, 
         if (!ret)
         {
 #ifdef VALGRIND_STACK_REGISTER
-            VALGRIND_STACK_REGISTER( addr, (char *)addr + reserve );
+            (void)VALGRIND_STACK_REGISTER( addr, (char *)addr + reserve );
 #endif
             stack->StackBase = addr;
         }

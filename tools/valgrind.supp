@@ -1,0 +1,53 @@
+{
+   mingw_stack_grow
+   Memcheck:Addr8
+   fun:___chkstk_ms
+   ...
+}
+{
+   mingw_stack_grow
+   Memcheck:Addr4
+   fun:___chkstk_ms
+   ...
+}
+{
+   wine_stack_reset
+   Memcheck:Addr8
+   fun:signal_start_thread
+}
+{
+   wine_thread_pthread_tls
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   fun:allocate_dtv
+   fun:_dl_allocate_tls
+   fun:allocate_stack
+   fun:pthread_create@@GLIBC_2.2.5
+   fun:NtCreateThreadEx
+   ...
+}
+{
+   radeonsi_leaks
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/dri/radeonsi_dri.so
+}
+{
+   llvm_leaks
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libLLVM-11.so.1
+}
+{
+   fontconfig_leaks
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libfontconfig.so.1.12.0
+}
+{
+   winetest_leaks
+   Memcheck:Leak
+   ...
+   fun:winetest_set_location
+}
