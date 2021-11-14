@@ -5940,6 +5940,43 @@ LRESULT device_process_message(struct wined3d_device *device, HWND window, BOOL 
         }
     }
 
+    /* Testing shows we shouldn't hook that message, but doing it allows us
+     * to create fullscreen exclusive windows without altering window styles. */
+    if (message == WM_NCCALCSIZE && wparam == TRUE)
+    {
+        unsigned int i = device->swapchain_count;
+        NCCALCSIZE_PARAMS *params = (NCCALCSIZE_PARAMS*)lparam;
+        NCCALCSIZE_PARAMS orig_rects = *params, default_rects = *params;
+        LRESULT res;
+
+        if (unicode)
+            DefWindowProcW(window, message, wparam, (LPARAM)&default_rects);
+        else
+            DefWindowProcA(window, message, wparam, (LPARAM)&default_rects);
+
+        if (unicode)
+            res = CallWindowProcW(proc, window, message, wparam, lparam);
+        else
+            res = CallWindowProcA(proc, window, message, wparam, lparam);
+
+        if (EqualRect(&default_rects.rgrc[0], &params->rgrc[0]) &&
+            EqualRect(&default_rects.rgrc[1], &params->rgrc[1]) &&
+            EqualRect(&default_rects.rgrc[2], &params->rgrc[2]))
+        {
+            while (i--)
+            {
+                if (device->swapchains[i]->state.device_window == window &&
+                    !device->swapchains[i]->state.desc.windowed)
+                {
+                    *params = orig_rects;
+                    return 0;
+                }
+            }
+        }
+
+        return res;
+    }
+
     if (unicode)
         return CallWindowProcW(proc, window, message, wparam, lparam);
     else
