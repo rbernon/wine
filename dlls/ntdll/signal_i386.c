@@ -217,6 +217,8 @@ NTSTATUS WINAPI dispatch_exception( EXCEPTION_RECORD *rec, CONTEXT *context )
         TRACE(" ebp=%08x esp=%08x cs=%04x ss=%04x ds=%04x es=%04x fs=%04x gs=%04x flags=%08x\n",
               context->Ebp, context->Esp, context->SegCs, context->SegSs, context->SegDs,
               context->SegEs, context->SegFs, context->SegGs, context->EFlags );
+
+        unix_funcs->dbg_start_debugger( rec->ExceptionCode, FALSE );
     }
 
     if (call_vectored_handlers( rec, context ) == EXCEPTION_CONTINUE_EXECUTION)

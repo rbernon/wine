@@ -31,6 +31,7 @@
 WINE_DECLARE_DEBUG_CHANNEL(pid);
 WINE_DECLARE_DEBUG_CHANNEL(timestamp);
 
+static BOOL (__cdecl *p__wine_dbg_start_debugger)( unsigned int code, BOOL start_debugger );
 static const char * (__cdecl *p__wine_dbg_strdup)( const char *str );
 static int (__cdecl *p__wine_dbg_output)( const char *str );
 static unsigned char (__cdecl *p__wine_dbg_get_channel_flags)( struct __wine_debug_channel *channel );
@@ -156,6 +157,11 @@ static void init_options(void)
     if (wine_debug) parse_options( wine_debug );
 }
 
+static BOOL __cdecl fallback__wine_dbg_start_debugger( unsigned int code, BOOL start_debugger )
+{
+    return FALSE;
+}
+
 /* FIXME: this is not 100% thread-safe */
 static const char * __cdecl fallback__wine_dbg_strdup( const char *str )
 {
@@ -222,6 +228,12 @@ static unsigned char __cdecl fallback__wine_dbg_get_channel_flags( struct __wine
     /* no option for this channel */
     if (channel->flags & (1 << __WINE_DBCL_INIT)) channel->flags = default_flags;
     return default_flags;
+}
+
+BOOL __cdecl __wine_dbg_start_debugger( unsigned int code, BOOL start_debugger )
+{
+    LOAD_FUNC( __wine_dbg_start_debugger );
+    return p__wine_dbg_start_debugger( code, start_debugger );
 }
 
 const char * __cdecl __wine_dbg_strdup( const char *str )

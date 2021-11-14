@@ -5,4 +5,5 @@ C_SRCS = \
 	make_xftmpl.c
 
 IN_SRCS = \
-	wineapploader.in
+	wineapploader.in \
+        gdbinit.py.in

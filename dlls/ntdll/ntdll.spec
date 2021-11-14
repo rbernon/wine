@@ -1638,6 +1638,7 @@
 
 # Debugging
 @ stdcall -syscall -norelay __wine_dbg_write(ptr long)
+@ cdecl -norelay __wine_dbg_start_debugger(long long)
 @ cdecl -norelay __wine_dbg_get_channel_flags(ptr)
 @ cdecl -norelay __wine_dbg_header(long long str)
 @ cdecl -norelay __wine_dbg_output(str)

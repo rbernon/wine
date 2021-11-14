@@ -381,6 +381,7 @@ static void format_exception_msg( const EXCEPTION_POINTERS *ptr, char *buffer, i
     snprintf( buffer + len,  size - len, " at address %p", ptr->ExceptionRecord->ExceptionAddress );
 }
 
+extern BOOL __cdecl __wine_dbg_start_debugger( unsigned int code, BOOL start_debugger );
 
 /******************************************************************
  *		start_debugger
@@ -398,6 +399,8 @@ static BOOL start_debugger( EXCEPTION_POINTERS *epointers, HANDLE event )
     STARTUPINFOW startup;
     BOOL ret = FALSE;
     char buffer[256];
+
+    if (__wine_dbg_start_debugger( epointers->ExceptionRecord->ExceptionCode, TRUE )) return FALSE;
 
     format_exception_msg( epointers, buffer, sizeof(buffer) );
     MESSAGE( "wine: %s (thread %04x), starting debugger...\n", buffer, GetCurrentThreadId() );
