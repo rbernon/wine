@@ -33,6 +33,9 @@
 #ifdef HAVE_X11_XKBLIB_H
 #include <X11/XKBlib.h>
 #endif
+#ifdef HAVE_X11_EXTENSIONS_XINPUT2_H
+#include <X11/extensions/XInput2.h>
+#endif
 
 #include <ctype.h>
 #include <stdarg.h>
@@ -1416,6 +1419,53 @@ BOOL X11DRV_KeyEvent( HWND hwnd, XEvent *xev )
     X11DRV_send_keyboard_input( hwnd, vkey & 0xff, bScan, dwFlags, event_time );
     return TRUE;
 }
+
+
+#ifdef HAVE_X11_EXTENSIONS_XINPUT2_H
+/***********************************************************************
+ *           X11DRV_KeyEvent
+ *
+ * Handle a raw XInput2 key event for background windows
+ */
+BOOL X11DRV_RawKeyEvent( XGenericEventCookie *cookie )
+{
+    XIRawEvent *event = cookie->data;
+    DWORD flags;
+    WORD vkey, scan;
+    RAWINPUT rawinput;
+    INPUT input;
+
+    vkey = keyc2vkey[event->detail];
+    scan = keyc2scan[event->detail];
+
+    flags = 0;
+    if ( event->evtype == XI_RawKeyRelease ) flags |= KEYEVENTF_KEYUP;
+    if ( vkey & 0x100 ) flags |= KEYEVENTF_EXTENDEDKEY;
+
+    TRACE_(key)( "vkey=%04x scan=%04x flags=%04x\n", vkey, scan, flags );
+
+    rawinput.header.dwType = RIM_TYPEKEYBOARD;
+    rawinput.header.dwSize = offsetof(RAWINPUT, data) + sizeof(RAWKEYBOARD);
+    rawinput.header.hDevice = ULongToHandle(2); /* WINE_KEYBOARD_HANDLE */
+    rawinput.header.wParam = RIM_INPUT;
+
+    rawinput.data.keyboard.MakeCode = scan & 0xff;
+    rawinput.data.keyboard.Flags = flags;
+    rawinput.data.keyboard.Reserved = 0;
+    rawinput.data.keyboard.VKey = vkey & 0xff;
+    rawinput.data.keyboard.Message = 0;
+    rawinput.data.keyboard.ExtraInformation = 0;
+
+    input.type = INPUT_HARDWARE;
+    input.u.hi.uMsg = WM_INPUT;
+    input.u.hi.wParamH = 0;
+    input.u.hi.wParamL = 0;
+    __wine_send_input( 0, &input, &rawinput );
+
+    return TRUE;
+}
+#endif
+
 
 /**********************************************************************
  *		X11DRV_KEYBOARD_DetectLayout

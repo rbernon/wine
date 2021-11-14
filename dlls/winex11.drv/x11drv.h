@@ -580,6 +580,7 @@ extern BOOL X11DRV_ButtonRelease( HWND hwnd, XEvent *event ) DECLSPEC_HIDDEN;
 extern BOOL X11DRV_MotionNotify( HWND hwnd, XEvent *event ) DECLSPEC_HIDDEN;
 extern BOOL X11DRV_EnterNotify( HWND hwnd, XEvent *event ) DECLSPEC_HIDDEN;
 extern BOOL X11DRV_KeyEvent( HWND hwnd, XEvent *event ) DECLSPEC_HIDDEN;
+extern BOOL X11DRV_RawKeyEvent( XGenericEventCookie *cookie ) DECLSPEC_HIDDEN;
 extern BOOL X11DRV_KeymapNotify( HWND hwnd, XEvent *event ) DECLSPEC_HIDDEN;
 extern BOOL X11DRV_DestroyNotify( HWND hwnd, XEvent *event ) DECLSPEC_HIDDEN;
 extern BOOL X11DRV_SelectionRequest( HWND hWnd, XEvent *event ) DECLSPEC_HIDDEN;

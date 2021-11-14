@@ -410,6 +410,18 @@ void X11DRV_XInput2_Enable( Display *display, Window window, long event_mask )
         XISetMask( mask_bits, XI_DeviceChanged );
         XISetMask( mask_bits, raw ? XI_RawButtonRelease : XI_ButtonRelease );
     }
+    if (event_mask & KeyPressMask)
+    {
+        event_mask &= ~ButtonPressMask;
+        XISetMask( mask_bits, XI_DeviceChanged );
+        XISetMask( mask_bits, raw ? XI_RawKeyPress : XI_KeyPress );
+    }
+    if (event_mask & KeyReleaseMask)
+    {
+        event_mask &= ~ButtonReleaseMask;
+        XISetMask( mask_bits, XI_DeviceChanged );
+        XISetMask( mask_bits, raw ? XI_RawKeyRelease : XI_KeyRelease );
+    }
     if ((event_mask & FocusChangeMask))
     {
         event_mask &= ~FocusChangeMask;
@@ -2107,6 +2119,9 @@ BOOL X11DRV_GenericEvent( HWND hwnd, XEvent *xev )
     case XI_ButtonPress:
     case XI_ButtonRelease:
         return X11DRV_XIDeviceEvent( event->data );
+    case XI_RawKeyPress:
+    case XI_RawKeyRelease:
+        return X11DRV_RawKeyEvent( event );
 
     default:
         TRACE( "Unhandled event %#x\n", event->evtype );
