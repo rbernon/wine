@@ -2138,7 +2138,7 @@ static LRESULT CALLBACK rawinputbuffer_wndproc(HWND hwnd, UINT msg, WPARAM wpara
 {
     RAWINPUT ri;
     char buffer[16 * sizeof(RAWINPUT64)];
-    UINT size, count, rawinput_size, iteration = rawinputbuffer_wndproc_count++;
+    UINT size, count, status, rawinput_size, iteration = rawinputbuffer_wndproc_count++;
     MSG message;
 
     if (is_wow64) rawinput_size = sizeof(RAWINPUT64);
@@ -2154,6 +2154,9 @@ static LRESULT CALLBACK rawinputbuffer_wndproc(HWND hwnd, UINT msg, WPARAM wpara
         ok(count == 0, "GetRawInputBuffer returned %u\n", count);
         ok(size == rawinput_size, "GetRawInputBuffer returned unexpected size: %u\n", size);
 
+        status = GetQueueStatus(QS_RAWINPUT);
+        ok(status == (QS_RAWINPUT << 16), "GetQueueStatus returned %x, expected 0x4000000.\n", status);
+
         size = sizeof(buffer);
         memset(buffer, 0, sizeof(buffer));
         count = GetRawInputBuffer((RAWINPUT*)buffer, &size, sizeof(RAWINPUTHEADER));
@@ -2162,6 +2165,9 @@ static LRESULT CALLBACK rawinputbuffer_wndproc(HWND hwnd, UINT msg, WPARAM wpara
         ok(rawinput_buffer_mouse_x(buffer, 0) == 2, "Unexpected rawinput data: %d\n", rawinput_buffer_mouse_x(buffer, 0));
         ok(rawinput_buffer_mouse_x(buffer, 1) == 3, "Unexpected rawinput data: %d\n", rawinput_buffer_mouse_x(buffer, 1));
         ok(rawinput_buffer_mouse_x(buffer, 2) == 4, "Unexpected rawinput data: %d\n", rawinput_buffer_mouse_x(buffer, 2));
+
+        status = GetQueueStatus(QS_RAWINPUT);
+        ok(status == 0, "GetQueueStatus returned %x, expected 0.\n", status);
 
         /* the first event should be removed by the next GetRawInputBuffer call
          * and the others should do another round through the message loop but not more */
