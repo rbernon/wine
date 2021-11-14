@@ -62,6 +62,8 @@ typedef int Status;
 #include "wine/gdi_driver.h"
 #include "wine/list.h"
 
+#include "mwm.h"
+
 #define MAX_DASHLEN 16
 
 #define WINE_XDND_VERSION 5
@@ -498,9 +500,11 @@ enum x11drv_atoms
     XATOM__NET_STARTUP_INFO_BEGIN,
     XATOM__NET_STARTUP_INFO,
     XATOM__NET_SUPPORTED,
+    XATOM__NET_SUPPORTING_WM_CHECK,
     XATOM__NET_SYSTEM_TRAY_OPCODE,
     XATOM__NET_SYSTEM_TRAY_S0,
     XATOM__NET_SYSTEM_TRAY_VISUAL,
+    XATOM__NET_WM_BYPASS_COMPOSITOR,
     XATOM__NET_WM_ICON,
     XATOM__NET_WM_MOVERESIZE,
     XATOM__NET_WM_NAME,
@@ -551,6 +555,7 @@ enum x11drv_atoms
     XATOM_WCF_SYLK,
     XATOM_WCF_TIFF,
     XATOM_WCF_WAVE,
+    XATOM_WINDOW,
     XATOM_image_bmp,
     XATOM_image_gif,
     XATOM_image_jpeg,
@@ -638,15 +643,18 @@ struct x11drv_win_data
     BOOL        shaped : 1;     /* is window using a custom region shape? */
     BOOL        layered : 1;    /* is window layered and with valid attributes? */
     BOOL        use_alpha : 1;  /* does window use an alpha channel? */
+    ULONGLONG   take_focus_back;
     int         wm_state;       /* current value of the WM_STATE property */
     DWORD       net_wm_state;   /* bit mask of active x11drv_net_wm_state values */
     Window      embedder;       /* window id of embedder */
+    unsigned long unmapnotify_serial; /* serial number of last UnmapNotify event */
     unsigned long configure_serial; /* serial number of last configure request */
     struct window_surface *surface;
     Pixmap         icon_pixmap;
     Pixmap         icon_mask;
     unsigned long *icon_bits;
     unsigned int   icon_size;
+    MwmHints prev_hints;
 };
 
 extern struct x11drv_win_data *get_win_data( HWND hwnd ) DECLSPEC_HIDDEN;
@@ -678,6 +686,8 @@ extern void update_systray_balloon_position(void) DECLSPEC_HIDDEN;
 extern HWND create_foreign_window( Display *display, Window window ) DECLSPEC_HIDDEN;
 extern BOOL update_clipboard( HWND hwnd ) DECLSPEC_HIDDEN;
 
+extern void set_wm_hints( struct x11drv_win_data *data ) DECLSPEC_HIDDEN;
+extern BOOL wm_is_mutter(Display *) DECLSPEC_HIDDEN;
 static inline void mirror_rect( const RECT *window_rect, RECT *rect )
 {
     int width = window_rect->right - window_rect->left;

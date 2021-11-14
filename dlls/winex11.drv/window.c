@@ -51,7 +51,6 @@
 #include "x11drv.h"
 #include "wine/debug.h"
 #include "wine/server.h"
-#include "mwm.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(x11drv);
 
@@ -104,6 +103,42 @@ static CRITICAL_SECTION_DEBUG critsect_debug =
       0, 0, { (DWORD_PTR)(__FILE__ ": win_data_section") }
 };
 static CRITICAL_SECTION win_data_section = { &critsect_debug, -1, 0, 0, 0, 0 };
+
+
+/* enable workarounds for mutter bugs */
+BOOL wm_is_mutter(Display *display)
+{
+    Window root = DefaultRootWindow(display), *wm_check;
+    Atom type;
+    int format;
+    unsigned long count, remaining;
+    static int cached = -1;
+    char *wm_name;
+
+    if(cached < 0){
+        if (XGetWindowProperty( display, root, x11drv_atom(_NET_SUPPORTING_WM_CHECK), 0,
+                                 sizeof(*wm_check)/sizeof(CARD32), False, x11drv_atom(WINDOW),
+                                 &type, &format, &count, &remaining, (unsigned char **)&wm_check ) == Success){
+            if (type == x11drv_atom(WINDOW) &&
+                    XGetWindowProperty( display, *wm_check, x11drv_atom(_NET_WM_NAME), 0,
+                        256/sizeof(CARD32), False, x11drv_atom(UTF8_STRING),
+                        &type, &format, &count, &remaining, (unsigned char **)&wm_name) == Success){
+                if(type == x11drv_atom(UTF8_STRING)){
+                    TRACE("Got WM name %s\n", wm_name);
+                    cached = (strcmp(wm_name, "GNOME Shell") == 0) ||
+                        (strcmp(wm_name, "Mutter") == 0);
+                }else
+                    cached = 0;
+                XFree(wm_name);
+            }else
+                cached = 0;
+            XFree(wm_check);
+        }else
+            cached = 0;
+    }
+
+    return cached;
+}
 
 
 /***********************************************************************
@@ -730,6 +765,13 @@ static void set_size_hints( struct x11drv_win_data *data, DWORD style )
     XFree( size_hints );
 }
 
+static Bool is_unmap_notify( Display *display, XEvent *event, XPointer arg )
+{
+    struct x11drv_win_data *data = (struct x11drv_win_data *)arg;
+    return event->xany.serial >= data->unmapnotify_serial &&
+           event->xany.window == data->whole_window &&
+           event->type == UnmapNotify;
+}
 
 /***********************************************************************
  *              set_mwm_hints
@@ -737,6 +779,34 @@ static void set_size_hints( struct x11drv_win_data *data, DWORD style )
 static void set_mwm_hints( struct x11drv_win_data *data, DWORD style, DWORD ex_style )
 {
     MwmHints mwm_hints;
+    int enable_mutter_workaround, mapped;
+
+    /* workaround for mutter gitlab bug #676, changing decorations of a
+     * fullscreen and unredirected window freezes the compositing.
+     * The window style will be updated again once the window has returned
+     * from fullscreen.
+     */
+    if (wm_is_mutter(data->display) && (data->net_wm_state & (1 << NET_WM_STATE_FULLSCREEN)))
+    {
+        Atom type;
+        int format;
+        unsigned long *property, net_wm_bypass_compositor = 0, count, remaining;
+
+        if (XGetWindowProperty( data->display, data->whole_window, x11drv_atom(_NET_WM_BYPASS_COMPOSITOR), 0,
+                                1, False, XA_CARDINAL, &type, &format, &count, &remaining,
+                                (unsigned char **)&property ) == Success &&
+            property)
+        {
+            net_wm_bypass_compositor = *property;
+            XFree(property);
+        }
+
+        if (net_wm_bypass_compositor)
+        {
+            TRACE("workaround mutter bug, ignoring decorations while compositor is bypassed\n");
+            return;
+        }
+    }
 
     if (data->hwnd == GetDesktopWindow())
     {
@@ -764,12 +834,50 @@ static void set_mwm_hints( struct x11drv_win_data *data, DWORD style, DWORD ex_s
     TRACE( "%p setting mwm hints to %lx,%lx (style %x exstyle %x)\n",
            data->hwnd, mwm_hints.decorations, mwm_hints.functions, style, ex_style );
 
+    enable_mutter_workaround = wm_is_mutter(data->display) && GetFocus() == data->hwnd &&
+                               !!data->prev_hints.decorations != !!mwm_hints.decorations &&
+                               root_window == DefaultRootWindow(data->display);
+
+    /* workaround for mutter gitlab bug #649, we cannot trust the
+     * data->mapped flag as mapping is asynchronous.
+     */
+    if (enable_mutter_workaround)
+    {
+        XWindowAttributes attr;
+
+        mapped = data->mapped;
+        if (XGetWindowAttributes( data->display, data->whole_window, &attr ))
+            mapped = (attr.map_state != IsUnmapped);
+    }
+
     mwm_hints.flags = MWM_HINTS_FUNCTIONS | MWM_HINTS_DECORATIONS;
     mwm_hints.input_mode = 0;
     mwm_hints.status = 0;
+    data->unmapnotify_serial = NextRequest( data->display );
     XChangeProperty( data->display, data->whole_window, x11drv_atom(_MOTIF_WM_HINTS),
                      x11drv_atom(_MOTIF_WM_HINTS), 32, PropModeReplace,
                      (unsigned char*)&mwm_hints, sizeof(mwm_hints)/sizeof(long) );
+
+    if (enable_mutter_workaround)
+    {
+        XEvent event;
+
+        /* workaround for mutter gitlab bug #649, wait for the map notify
+         * event each time the decorations are modified before modifying
+         * them again.
+         */
+        if (mapped)
+        {
+            TRACE("workaround mutter bug #649, waiting for UnmapNotify\n");
+            XPeekIfEvent( data->display, &event, is_unmap_notify, (XPointer)data );
+        }
+
+        /* workaround for mutter gitlab bug #273 */
+        TRACE("workaround mutter bug, setting take_focus_back\n");
+        data->take_focus_back = GetTickCount64();
+    }
+
+    data->prev_hints = mwm_hints;
 }
 
 
@@ -904,7 +1012,7 @@ static void make_owner_managed( HWND hwnd )
  *
  * Set all the window manager hints for a window.
  */
-static void set_wm_hints( struct x11drv_win_data *data )
+void set_wm_hints( struct x11drv_win_data *data )
 {
     DWORD style, ex_style;
 
@@ -973,6 +1081,7 @@ void update_user_time( Time time )
 void update_net_wm_states( struct x11drv_win_data *data )
 {
     DWORD i, style, ex_style, new_state = 0;
+    unsigned long net_wm_bypass_compositor = 0;
 
     if (!data->managed) return;
     if (data->whole_window == root_window) return;
@@ -985,13 +1094,21 @@ void update_net_wm_states( struct x11drv_win_data *data )
         if ((style & WS_MAXIMIZE) && (style & WS_CAPTION) == WS_CAPTION)
             new_state |= (1 << NET_WM_STATE_MAXIMIZED);
         else if (!(style & WS_MINIMIZE))
+	{
+            net_wm_bypass_compositor = 1;
             new_state |= (1 << NET_WM_STATE_FULLSCREEN);
+	}
     }
     else if (style & WS_MAXIMIZE)
         new_state |= (1 << NET_WM_STATE_MAXIMIZED);
 
     ex_style = GetWindowLongW( data->hwnd, GWL_EXSTYLE );
-    if (ex_style & WS_EX_TOPMOST)
+    if ((ex_style & WS_EX_TOPMOST) &&
+            /* mutter < 3.31 has a bug where a FULLSCREEN and ABOVE window when
+             * minimized will incorrectly show a black window.  this workaround
+             * should be removed when the fix is widely distributed.  see
+             * mutter issue #306. */
+            !(wm_is_mutter(data->display) && (new_state & (1 << NET_WM_STATE_FULLSCREEN))))
         new_state |= (1 << NET_WM_STATE_ABOVE);
     if (ex_style & (WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE))
         new_state |= (1 << NET_WM_STATE_SKIP_TASKBAR) | (1 << NET_WM_STATE_SKIP_PAGER);
@@ -1044,6 +1161,9 @@ void update_net_wm_states( struct x11drv_win_data *data )
         }
     }
     data->net_wm_state = new_state;
+
+    XChangeProperty( data->display, data->whole_window, x11drv_atom(_NET_WM_BYPASS_COMPOSITOR), XA_CARDINAL,
+                     32, PropModeReplace, (unsigned char *)&net_wm_bypass_compositor, 1 );
 }
 
 /***********************************************************************
