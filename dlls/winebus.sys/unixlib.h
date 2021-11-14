@@ -37,16 +37,31 @@ struct device_desc
     DWORD version;
     DWORD input;
     DWORD uid;
-    BOOL is_gamepad;
+    DWORD is_gamepad;
 
     WCHAR manufacturer[MAX_PATH];
     WCHAR product[MAX_PATH];
     WCHAR serialnumber[MAX_PATH];
 };
 
+C_ASSERT(sizeof(struct device_desc) == 0x630);
+
+enum bus_type
+{
+    BUS_TYPE_SDL,
+    BUS_TYPE_UDEV,
+    BUS_TYPE_IOHID,
+};
+
+struct bus_params
+{
+    DWORD bus_type;
+};
+
 struct sdl_bus_options
 {
-    BOOL map_controllers;
+    DWORD bus_type;
+    DWORD map_controllers;
     /* freed after bus_init */
     DWORD mappings_count;
     char **mappings;
@@ -54,16 +69,16 @@ struct sdl_bus_options
 
 struct udev_bus_options
 {
-    BOOL disable_hidraw;
-    BOOL disable_input;
-    BOOL disable_udevd;
+    DWORD bus_type;
+    DWORD disable_hidraw;
+    DWORD disable_input;
+    DWORD disable_udevd;
 };
 
 struct iohid_bus_options
 {
+    DWORD bus_type;
 };
-
-struct unix_device;
 
 enum bus_event_type
 {
@@ -75,10 +90,9 @@ enum bus_event_type
 
 struct bus_event
 {
-    enum bus_event_type type;
-    struct list entry;
-
-    struct unix_device *device;
+    DWORD bus_type;
+    DWORD event_type;
+    UINT64 device;
     union
     {
         struct
@@ -97,12 +111,12 @@ struct bus_event
 struct device_create_params
 {
     struct device_desc desc;
-    struct unix_device *device;
+    UINT64 device;
 };
 
 struct device_descriptor_params
 {
-    struct unix_device *iface;
+    UINT64 device;
     BYTE *buffer;
     DWORD length;
     DWORD *out_length;
@@ -110,22 +124,21 @@ struct device_descriptor_params
 
 struct device_report_params
 {
-    struct unix_device *iface;
+    UINT64 device;
     HID_XFER_PACKET *packet;
     IO_STATUS_BLOCK *io;
 };
 
+struct device_params
+{
+    UINT64 device;
+};
+
 enum unix_funcs
 {
-    sdl_init,
-    sdl_wait,
-    sdl_stop,
-    udev_init,
-    udev_wait,
-    udev_stop,
-    iohid_init,
-    iohid_wait,
-    iohid_stop,
+    bus_init,
+    bus_wait,
+    bus_stop,
     mouse_create,
     keyboard_create,
     device_remove,

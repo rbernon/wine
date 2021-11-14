@@ -520,8 +520,9 @@ static void scmdatabase_wait_terminate(struct scmdatabase *db)
     {
         struct process_entry *process = grab_process(LIST_ENTRY(ptr, struct process_entry, entry));
 
-        process_terminate(process);
         scmdatabase_unlock(db);
+        if (WaitForSingleObject(process->process, 100) == WAIT_TIMEOUT)
+            process_terminate(process);
         WaitForSingleObject(process->process, INFINITE);
         scmdatabase_lock(db);
 

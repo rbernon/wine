@@ -60,6 +60,92 @@ struct hid_report
     BYTE buffer[1];
 };
 
+struct irp_queue
+{
+    KSPIN_LOCK lock;
+    LIST_ENTRY list;
+};
+
+static void WINAPI irp_cancel_routine(DEVICE_OBJECT *device, IRP *irp)
+{
+    struct irp_queue *queue = irp->Tail.Overlay.DriverContext[0];
+    KIRQL irql;
+
+    IoReleaseCancelSpinLock(irp->CancelIrql);
+
+    KeAcquireSpinLock(&queue->lock, &irql);
+    RemoveEntryList(&irp->Tail.Overlay.ListEntry);
+    KeReleaseSpinLock(&queue->lock, irql);
+
+    irp->IoStatus.Information = 0;
+    irp->IoStatus.Status = STATUS_CANCELLED;
+    IoCompleteRequest(irp, IO_NO_INCREMENT);
+}
+
+static IRP *irp_queue_pop(struct irp_queue *queue)
+{
+    LIST_ENTRY *entry;
+    IRP *irp = NULL;
+    KIRQL irql;
+
+    KeAcquireSpinLock(&queue->lock, &irql);
+    while (!irp && (entry = RemoveHeadList(&queue->list)) != &queue->list)
+    {
+        irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);
+        if (!IoSetCancelRoutine(irp, NULL))
+        {
+            /* cancel routine is already cleared, meaning that it was called. let it handle completion. */
+            InitializeListHead(&irp->Tail.Overlay.ListEntry);
+            irp = NULL;
+        }
+    }
+    KeReleaseSpinLock(&queue->lock, irql);
+
+    return irp;
+}
+
+static NTSTATUS irp_queue_push(struct irp_queue *queue, IRP *irp)
+{
+    NTSTATUS status;
+    KIRQL irql;
+
+    KeAcquireSpinLock(&queue->lock, &irql);
+    IoSetCancelRoutine(irp, irp_cancel_routine);
+    if (irp->Cancel && !IoSetCancelRoutine(irp, NULL))
+    {
+        InitializeListHead(&irp->Tail.Overlay.ListEntry);
+        status = STATUS_CANCELLED;
+    }
+    else
+    {
+        irp->Tail.Overlay.DriverContext[0] = queue;
+        IoMarkIrpPending(irp);
+        InsertTailList(&queue->list, &irp->Tail.Overlay.ListEntry);
+        status = STATUS_PENDING;
+    }
+    KeReleaseSpinLock(&queue->lock, irql);
+
+    return status;
+}
+
+static void irp_queue_clear(struct irp_queue *queue)
+{
+    IRP *irp;
+
+    while ((irp = irp_queue_pop(queue)))
+    {
+        irp->IoStatus.Information = 0;
+        irp->IoStatus.Status = STATUS_DELETE_PENDING;
+        IoCompleteRequest(irp, IO_NO_INCREMENT);
+    }
+}
+
+static void irp_queue_init(struct irp_queue *queue)
+{
+    KeInitializeSpinLock(&queue->lock);
+    InitializeListHead(&queue->list);
+}
+
 enum device_state
 {
     DEVICE_STATE_STOPPED,
@@ -86,7 +172,7 @@ struct device_extension
     struct list reports;
     IRP *pending_read;
 
-    struct unix_device *unix_device;
+    UINT64 unix_device;
 };
 
 static CRITICAL_SECTION device_list_cs;
@@ -111,13 +197,15 @@ static NTSTATUS winebus_call(unsigned int code, void *args)
 static void unix_device_remove(DEVICE_OBJECT *device)
 {
     struct device_extension *ext = (struct device_extension *)device->DeviceExtension;
-    winebus_call(device_remove, ext->unix_device);
+    struct device_params params = {.device = ext->unix_device};
+    winebus_call(device_remove, &params);
 }
 
 static NTSTATUS unix_device_start(DEVICE_OBJECT *device)
 {
     struct device_extension *ext = (struct device_extension *)device->DeviceExtension;
-    return winebus_call(device_start, ext->unix_device);
+    struct device_params params = {.device = ext->unix_device};
+    return winebus_call(device_start, &params);
 }
 
 static NTSTATUS unix_device_get_report_descriptor(DEVICE_OBJECT *device, BYTE *buffer, DWORD length, DWORD *out_length)
@@ -125,7 +213,7 @@ static NTSTATUS unix_device_get_report_descriptor(DEVICE_OBJECT *device, BYTE *b
     struct device_extension *ext = (struct device_extension *)device->DeviceExtension;
     struct device_descriptor_params params =
     {
-        .iface = ext->unix_device,
+        .device = ext->unix_device,
         .buffer = buffer,
         .length = length,
         .out_length = out_length
@@ -138,7 +226,7 @@ static void unix_device_set_output_report(DEVICE_OBJECT *device, HID_XFER_PACKET
     struct device_extension *ext = (struct device_extension *)device->DeviceExtension;
     struct device_report_params params =
     {
-        .iface = ext->unix_device,
+        .device = ext->unix_device,
         .packet = packet,
         .io = io,
     };
@@ -150,7 +238,7 @@ static void unix_device_get_feature_report(DEVICE_OBJECT *device, HID_XFER_PACKE
     struct device_extension *ext = (struct device_extension *)device->DeviceExtension;
     struct device_report_params params =
     {
-        .iface = ext->unix_device,
+        .device = ext->unix_device,
         .packet = packet,
         .io = io,
     };
@@ -162,7 +250,7 @@ static void unix_device_set_feature_report(DEVICE_OBJECT *device, HID_XFER_PACKE
     struct device_extension *ext = (struct device_extension *)device->DeviceExtension;
     struct device_report_params params =
     {
-        .iface = ext->unix_device,
+        .device = ext->unix_device,
         .packet = packet,
         .io = io,
     };
@@ -219,17 +307,23 @@ static WCHAR *get_device_id(DEVICE_OBJECT *device)
 static WCHAR *get_hardware_ids(DEVICE_OBJECT *device)
 {
     static const WCHAR input_format[] = L"&MI_%02u";
+    static const WCHAR version_format[] = L"&REV_%04X";
     static const WCHAR winebus_format[] = L"WINEBUS\\VID_%04X&PID_%04X";
     struct device_extension *ext = (struct device_extension *)device->DeviceExtension;
-    DWORD pos = 0, len = 0, input_len = 0, winebus_len = 25;
+    DWORD pos = 0, len = 0, input_len = 0, version_len = 9, winebus_len = 25;
     WCHAR *dst;
 
     if (ext->desc.input != -1) input_len = 14;
 
+    len += winebus_len + version_len + input_len + 1;
     len += winebus_len + input_len + 1;
 
     if ((dst = ExAllocatePool(PagedPool, (len + 1) * sizeof(WCHAR))))
     {
+        pos += swprintf(dst + pos, len - pos, winebus_format, ext->desc.vid, ext->desc.pid);
+        pos += swprintf(dst + pos, len - pos, version_format, ext->desc.version);
+        if (input_len) pos += swprintf(dst + pos, len - pos, input_format, ext->desc.input);
+        pos += 1;
         pos += swprintf(dst + pos, len - pos, winebus_format, ext->desc.vid, ext->desc.pid);
         if (input_len) pos += swprintf(dst + pos, len - pos, input_format, ext->desc.input);
         pos += 1;
@@ -284,7 +378,7 @@ static void remove_pending_irps(DEVICE_OBJECT *device)
     }
 }
 
-static DEVICE_OBJECT *bus_create_hid_device(struct device_desc *desc, struct unix_device *unix_device)
+static DEVICE_OBJECT *bus_create_hid_device(struct device_desc *desc, UINT64 unix_device)
 {
     struct device_extension *ext;
     DEVICE_OBJECT *device;
@@ -292,9 +386,9 @@ static DEVICE_OBJECT *bus_create_hid_device(struct device_desc *desc, struct uni
     WCHAR dev_name[256];
     NTSTATUS status;
 
-    TRACE("desc %s, unix_device %p\n", debugstr_device_desc(desc), unix_device);
+    TRACE("desc %s, unix_device %I64x\n", debugstr_device_desc(desc), unix_device);
 
-    swprintf(dev_name, ARRAY_SIZE(dev_name), L"\\Device\\WINEBUS#%p", unix_device);
+    swprintf(dev_name, ARRAY_SIZE(dev_name), L"\\Device\\WINEBUS#%I64x", unix_device);
     RtlInitUnicodeString(&nameW, dev_name);
     status = IoCreateDevice(driver_obj, sizeof(struct device_extension), &nameW, 0, 0, FALSE, &device);
     if (status)
@@ -323,7 +417,7 @@ static DEVICE_OBJECT *bus_create_hid_device(struct device_desc *desc, struct uni
     return device;
 }
 
-static DEVICE_OBJECT *bus_find_unix_device(struct unix_device *unix_device)
+static DEVICE_OBJECT *bus_find_unix_device(UINT64 unix_device)
 {
     struct device_extension *ext;
 
@@ -532,8 +626,8 @@ static void keyboard_device_create(void)
     IoInvalidateDeviceRelations(bus_pdo, BusRelations);
 }
 
-static DWORD bus_count;
-static HANDLE bus_thread[16];
+static DWORD thread_count;
+static HANDLE threads[16];
 
 struct bus_main_params
 {
@@ -541,34 +635,34 @@ struct bus_main_params
 
     void *init_args;
     HANDLE init_done;
-    unsigned int init_code;
-    unsigned int wait_code;
     struct bus_event *bus_event;
 };
 
 static DWORD CALLBACK bus_main_thread(void *args)
 {
     struct bus_main_params bus = *(struct bus_main_params *)args;
+    struct device_params remove_params;
     DEVICE_OBJECT *device;
     NTSTATUS status;
 
     TRACE("%s main loop starting\n", debugstr_w(bus.name));
-    status = winebus_call(bus.init_code, bus.init_args);
+    status = winebus_call(bus_init, bus.init_args);
     SetEvent(bus.init_done);
     TRACE("%s main loop started\n", debugstr_w(bus.name));
 
-    bus.bus_event->type = BUS_EVENT_TYPE_NONE;
+    bus.bus_event->bus_type = ((struct bus_params *)bus.init_args)->bus_type;
+    bus.bus_event->event_type = BUS_EVENT_TYPE_NONE;
     if (status) WARN("%s bus init returned status %#x\n", debugstr_w(bus.name), status);
-    else while ((status = winebus_call(bus.wait_code, bus.bus_event)) == STATUS_PENDING)
+    else while ((status = winebus_call(bus_wait, bus.bus_event)) == STATUS_PENDING)
     {
         struct bus_event *event = bus.bus_event;
-        switch (event->type)
+        switch (event->event_type)
         {
         case BUS_EVENT_TYPE_NONE: break;
         case BUS_EVENT_TYPE_DEVICE_REMOVED:
             RtlEnterCriticalSection(&device_list_cs);
             device = bus_find_unix_device(event->device);
-            if (!device) WARN("could not find device for %s bus device %p\n", debugstr_w(bus.name), event->device);
+            if (!device) WARN("could not find device for %s bus device %I64x\n", debugstr_w(bus.name), event->device);
             else bus_unlink_hid_device(device);
             RtlLeaveCriticalSection(&device_list_cs);
             IoInvalidateDeviceRelations(bus_pdo, BusRelations);
@@ -578,14 +672,15 @@ static DWORD CALLBACK bus_main_thread(void *args)
             if (device) IoInvalidateDeviceRelations(bus_pdo, BusRelations);
             else
             {
-                WARN("failed to create device for %s bus device %p\n", debugstr_w(bus.name), event->device);
-                winebus_call(device_remove, event->device);
+                WARN("failed to create device for %s bus device %I64x\n", debugstr_w(bus.name), event->device);
+                remove_params.device = event->device;
+                winebus_call(device_remove, &remove_params);
             }
             break;
         case BUS_EVENT_TYPE_INPUT_REPORT:
             RtlEnterCriticalSection(&device_list_cs);
             device = bus_find_unix_device(event->device);
-            if (!device) WARN("could not find device for %s bus device %p\n", debugstr_w(bus.name), event->device);
+            if (!device) WARN("could not find device for %s bus device %I64x\n", debugstr_w(bus.name), event->device);
             else process_hid_report(device, event->input_report.buffer, event->input_report.length);
             RtlLeaveCriticalSection(&device_list_cs);
             break;
@@ -600,12 +695,12 @@ static DWORD CALLBACK bus_main_thread(void *args)
 
 static NTSTATUS bus_main_thread_start(struct bus_main_params *bus)
 {
-    DWORD i = bus_count++, max_size;
+    DWORD i = thread_count++, max_size;
 
     if (!(bus->init_done = CreateEventW(NULL, FALSE, FALSE, NULL)))
     {
         ERR("failed to create %s bus init done event.\n", debugstr_w(bus->name));
-        bus_count--;
+        thread_count--;
         return STATUS_UNSUCCESSFUL;
     }
 
@@ -614,20 +709,124 @@ static NTSTATUS bus_main_thread_start(struct bus_main_params *bus)
     {
         ERR("failed to allocate %s bus event.\n", debugstr_w(bus->name));
         CloseHandle(bus->init_done);
-        bus_count--;
+        thread_count--;
         return STATUS_UNSUCCESSFUL;
     }
 
-    if (!(bus_thread[i] = CreateThread(NULL, 0, bus_main_thread, bus, 0, NULL)))
+    if (!(threads[i] = CreateThread(NULL, 0, bus_main_thread, bus, 0, NULL)))
     {
         ERR("failed to create %s bus thread.\n", debugstr_w(bus->name));
         CloseHandle(bus->init_done);
-        bus_count--;
+        thread_count--;
         return STATUS_UNSUCCESSFUL;
     }
 
     WaitForSingleObject(bus->init_done, INFINITE);
     CloseHandle(bus->init_done);
+    return STATUS_SUCCESS;
+}
+
+static struct irp_queue write_queue;
+static HANDLE write_control[3];
+
+static DWORD CALLBACK write_thread(void *args)
+{
+    struct unix_device *unix_device;
+    HID_XFER_PACKET *packet, *tmp;
+    struct device_extension *ext;
+    DEVICE_OBJECT *device;
+    IO_STATUS_BLOCK io;
+    DWORD i, size, res;
+    IRP *irp;
+
+    irp_queue_init(&write_queue);
+    SetEvent(write_control[2]);
+    TRACE("write thread started\n");
+
+    while ((res = WaitForMultipleObjects(2, write_control, FALSE, INFINITE)) == 1)
+    {
+        while ((irp = irp_queue_pop(&write_queue)))
+        {
+            unix_device = irp->Tail.Overlay.DriverContext[1];
+            packet = (HID_XFER_PACKET *)irp->UserBuffer;
+
+            size = sizeof(HID_XFER_PACKET) + packet->reportBufferLen;
+            tmp = RtlAllocateHeap(GetProcessHeap(), 0, size);
+            tmp->reportId = packet->reportId;
+            tmp->reportBuffer = (BYTE *)(tmp + 1);
+            tmp->reportBufferLen = packet->reportBufferLen;
+            memcpy(tmp->reportBuffer, packet->reportBuffer, packet->reportBufferLen);
+
+            io = irp->IoStatus;
+            RtlEnterCriticalSection(&device_list_cs);
+            if (!(device = bus_find_unix_device(unix_device)))
+            {
+                irp->IoStatus.Information = 0;
+                irp->IoStatus.Status = STATUS_DELETE_PENDING;
+            }
+            else
+            {
+                irp->IoStatus.Information = packet->reportBufferLen;
+                irp->IoStatus.Status = STATUS_SUCCESS;
+            }
+            RtlLeaveCriticalSection(&device_list_cs);
+            IoCompleteRequest(irp, IO_NO_INCREMENT);
+
+            if (TRACE_ON(hid))
+            {
+                TRACE("write output report id %u length %u:\n", tmp->reportId, tmp->reportBufferLen);
+                for (i = 0; i < tmp->reportBufferLen;)
+                {
+                    char buffer[256], *buf = buffer;
+                    buf += sprintf(buf, "%08x ", i);
+                    do { buf += sprintf(buf, " %02x", tmp->reportBuffer[i]); }
+                    while (++i % 16 && i < tmp->reportBufferLen);
+                    TRACE("%s\n", buffer);
+                }
+            }
+
+            RtlEnterCriticalSection(&device_list_cs);
+            if ((device = bus_find_unix_device(unix_device)))
+            {
+                ext = device->DeviceExtension;
+                RtlEnterCriticalSection(&ext->cs);
+                unix_device_set_output_report(device, tmp, &io);
+                RtlLeaveCriticalSection(&ext->cs);
+            }
+            RtlLeaveCriticalSection(&device_list_cs);
+
+            RtlFreeHeap(GetProcessHeap(), 0, tmp);
+        }
+    }
+
+    if (res) WARN("write wait returned status %#x\n", res);
+    else TRACE("write thread exited\n");
+
+    CloseHandle(write_control[0]);
+    CloseHandle(write_control[1]);
+    irp_queue_clear(&write_queue);
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS write_thread_start(void)
+{
+    DWORD i = thread_count++;
+
+    if (!(write_control[0] = CreateEventW(NULL, FALSE, FALSE, NULL)) ||
+        !(write_control[1] = CreateEventW(NULL, FALSE, FALSE, NULL)) ||
+        !(write_control[2] = CreateEventW(NULL, FALSE, FALSE, NULL)) ||
+        !(threads[i] = CreateThread(NULL, 0, write_thread, NULL, 0, NULL)))
+    {
+        ERR("failed to create write thread.\n");
+        CloseHandle(write_control[0]);
+        CloseHandle(write_control[1]);
+        CloseHandle(write_control[2]);
+        thread_count--;
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    WaitForSingleObject(write_control[2], INFINITE);
+    CloseHandle(write_control[2]);
     return STATUS_SUCCESS;
 }
 
@@ -710,13 +909,11 @@ done:
 
 static NTSTATUS sdl_driver_init(void)
 {
-    struct sdl_bus_options bus_options;
+    struct sdl_bus_options bus_options = {.bus_type = BUS_TYPE_SDL};
     struct bus_main_params bus =
     {
         .name = L"SDL",
         .init_args = &bus_options,
-        .init_code = sdl_init,
-        .wait_code = sdl_wait,
     };
     NTSTATUS status;
 
@@ -731,13 +928,11 @@ static NTSTATUS sdl_driver_init(void)
 
 static NTSTATUS udev_driver_init(void)
 {
-    struct udev_bus_options bus_options;
+    struct udev_bus_options bus_options = {.bus_type = BUS_TYPE_UDEV};
     struct bus_main_params bus =
     {
         .name = L"UDEV",
         .init_args = &bus_options,
-        .init_code = udev_init,
-        .wait_code = udev_wait,
     };
 
     bus_options.disable_hidraw = check_bus_option(L"DisableHidraw", 0);
@@ -752,13 +947,11 @@ static NTSTATUS udev_driver_init(void)
 
 static NTSTATUS iohid_driver_init(void)
 {
-    struct iohid_bus_options bus_options;
+    struct iohid_bus_options bus_options = {.bus_type = BUS_TYPE_IOHID};
     struct bus_main_params bus =
     {
         .name = L"IOHID",
         .init_args = &bus_options,
-        .init_code = iohid_init,
-        .wait_code = iohid_wait,
     };
 
     return bus_main_thread_start(&bus);
@@ -767,6 +960,7 @@ static NTSTATUS iohid_driver_init(void)
 static NTSTATUS fdo_pnp_dispatch(DEVICE_OBJECT *device, IRP *irp)
 {
     IO_STACK_LOCATION *irpsp = IoGetCurrentIrpStackLocation(irp);
+    struct bus_params bus_params;
     NTSTATUS ret;
 
     switch (irpsp->MinorFunction)
@@ -775,6 +969,7 @@ static NTSTATUS fdo_pnp_dispatch(DEVICE_OBJECT *device, IRP *irp)
         irp->IoStatus.Status = handle_IRP_MN_QUERY_DEVICE_RELATIONS(irp);
         break;
     case IRP_MN_START_DEVICE:
+        write_thread_start();
         mouse_device_create();
         keyboard_device_create();
 
@@ -790,12 +985,16 @@ static NTSTATUS fdo_pnp_dispatch(DEVICE_OBJECT *device, IRP *irp)
         irp->IoStatus.Status = STATUS_SUCCESS;
         break;
     case IRP_MN_REMOVE_DEVICE:
-        winebus_call(sdl_stop, NULL);
-        winebus_call(udev_stop, NULL);
-        winebus_call(iohid_stop, NULL);
+        bus_params.bus_type = BUS_TYPE_SDL;
+        winebus_call(bus_stop, &bus_params);
+        bus_params.bus_type = BUS_TYPE_UDEV;
+        winebus_call(bus_stop, &bus_params);
+        bus_params.bus_type = BUS_TYPE_IOHID;
+        winebus_call(bus_stop, &bus_params);
 
-        WaitForMultipleObjects(bus_count, bus_thread, TRUE, INFINITE);
-        while (bus_count--) CloseHandle(bus_thread[bus_count]);
+        SetEvent(write_control[0]);
+        WaitForMultipleObjects(thread_count, threads, TRUE, INFINITE);
+        while (thread_count--) CloseHandle(threads[thread_count]);
 
         irp->IoStatus.Status = STATUS_SUCCESS;
         IoSkipCurrentIrpStackLocation(irp);
@@ -968,6 +1167,7 @@ static NTSTATUS WINAPI hid_internal_dispatch(DEVICE_OBJECT *device, IRP *irp)
         return IoCallDriver(bus_pdo, irp);
     }
 
+    irp->IoStatus.Information = 0;
     RtlEnterCriticalSection(&ext->cs);
 
     if (ext->state == DEVICE_STATE_REMOVED)
@@ -1077,20 +1277,9 @@ static NTSTATUS WINAPI hid_internal_dispatch(DEVICE_OBJECT *device, IRP *irp)
         case IOCTL_HID_SET_OUTPUT_REPORT:
         case IOCTL_HID_WRITE_REPORT:
         {
-            HID_XFER_PACKET *packet = (HID_XFER_PACKET *)irp->UserBuffer;
-            if (TRACE_ON(hid))
-            {
-                TRACE("write output report id %u length %u:\n", packet->reportId, packet->reportBufferLen);
-                for (i = 0; i < packet->reportBufferLen;)
-                {
-                    char buffer[256], *buf = buffer;
-                    buf += sprintf(buf, "%08x ", i);
-                    do { buf += sprintf(buf, " %02x", packet->reportBuffer[i]); }
-                    while (++i % 16 && i < packet->reportBufferLen);
-                    TRACE("%s\n", buffer);
-                }
-            }
-            unix_device_set_output_report(device, packet, &irp->IoStatus);
+            irp->Tail.Overlay.DriverContext[1] = ext->unix_device;
+            irp->IoStatus.Status = irp_queue_push(&write_queue, irp);
+            if (irp->IoStatus.Status == STATUS_PENDING) SetEvent(write_control[1]);
             break;
         }
         case IOCTL_HID_GET_FEATURE:

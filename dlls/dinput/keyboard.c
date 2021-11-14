@@ -195,7 +195,6 @@ HRESULT keyboard_create_device( IDirectInputImpl *dinput, const GUID *guid, IDir
 
 static HRESULT keyboard_poll( IDirectInputDevice8W *iface )
 {
-    check_dinput_events();
     return DI_OK;
 }
 

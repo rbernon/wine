@@ -1478,22 +1478,6 @@ void check_dinput_hooks( IDirectInputDevice8W *iface, BOOL acquired )
     CloseHandle(hook_change_finished_event);
 }
 
-void check_dinput_events(void)
-{
-    /* Windows does not do that, but our current implementation of winex11
-     * requires periodic event polling to forward events to the wineserver.
-     *
-     * We have to call this function from multiple places, because:
-     * - some games do not explicitly poll for mouse events
-     *   (for example Culpa Innata)
-     * - some games only poll the device, and neither keyboard nor mouse
-     *   (for example Civilization: Call to Power 2)
-     * - some games do not explicitly poll for keyboard events
-     *   (for example Morrowind in its key binding page)
-     */
-    MsgWaitForMultipleObjectsEx(0, NULL, 0, QS_ALLINPUT, 0);
-}
-
 BOOL WINAPI DllMain( HINSTANCE inst, DWORD reason, LPVOID reserved)
 {
     switch(reason)

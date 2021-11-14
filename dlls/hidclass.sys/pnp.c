@@ -203,7 +203,7 @@ static void create_child(minidriver *minidriver, DEVICE_OBJECT *fdo)
     NTSTATUS status;
     INT i;
 
-    call_minidriver( IOCTL_HID_GET_DEVICE_ATTRIBUTES, fdo, NULL, 0, &attr, sizeof(attr), &io );
+    call_minidriver( IOCTL_HID_GET_DEVICE_ATTRIBUTES, fdo, NULL, 0, &attr, sizeof(attr), &io, NULL, NULL );
     if (io.Status != STATUS_SUCCESS)
     {
         ERR( "Minidriver failed to get attributes, status %#x.\n", io.Status );
@@ -233,7 +233,7 @@ static void create_child(minidriver *minidriver, DEVICE_OBJECT *fdo)
     pdo_ext->u.pdo.information.VersionNumber = attr.VersionNumber;
     pdo_ext->u.pdo.information.Polled = minidriver->minidriver.DevicesArePolled;
 
-    call_minidriver( IOCTL_HID_GET_DEVICE_DESCRIPTOR, fdo, NULL, 0, &descriptor, sizeof(descriptor), &io );
+    call_minidriver( IOCTL_HID_GET_DEVICE_DESCRIPTOR, fdo, NULL, 0, &descriptor, sizeof(descriptor), &io, NULL, NULL );
     if (io.Status != STATUS_SUCCESS)
     {
         ERR("Cannot get Device Descriptor(%x)\n",status);
@@ -253,7 +253,7 @@ static void create_child(minidriver *minidriver, DEVICE_OBJECT *fdo)
 
     reportDescriptor = malloc(descriptor.DescriptorList[i].wReportLength);
     call_minidriver( IOCTL_HID_GET_REPORT_DESCRIPTOR, fdo, NULL, 0, reportDescriptor,
-                     descriptor.DescriptorList[i].wReportLength, &io );
+                     descriptor.DescriptorList[i].wReportLength, &io, NULL, NULL );
     if (io.Status != STATUS_SUCCESS)
     {
         ERR("Cannot get Report Descriptor(%x)\n",status);
@@ -611,10 +611,19 @@ NTSTATUS WINAPI HidRegisterMinidriver(HID_MINIDRIVER_REGISTRATION *registration)
 }
 
 void call_minidriver( ULONG code, DEVICE_OBJECT *device, void *in_buff, ULONG in_size,
-                      void *out_buff, ULONG out_size, IO_STATUS_BLOCK *io )
+                      void *out_buff, ULONG out_size, IO_STATUS_BLOCK *io,
+                      PIO_COMPLETION_ROUTINE completion, void *context )
 {
-    IRP *irp;
     KEVENT event;
+    IRP *irp;
+
+    if (completion)
+    {
+        irp = IoBuildDeviceIoControlRequest( code, device, in_buff, in_size, out_buff, out_size, TRUE, NULL, io );
+        IoSetCompletionRoutine( irp, completion, context, TRUE, TRUE, TRUE );
+        IoCallDriver( device, irp );
+        return;
+    }
 
     KeInitializeEvent(&event, NotificationEvent, FALSE);
 

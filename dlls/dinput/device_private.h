@@ -109,6 +109,10 @@ struct dinput_device
 
     BYTE device_state_report_id;
     BYTE device_state[DEVICE_STATE_MAX_SIZE];
+    BYTE previous_state[DEVICE_STATE_MAX_SIZE];
+    ULONG update_time;
+    ULONG update_notify;
+    ULONG update_sequence;
 
     BOOL autocenter;
     LONG device_gain;
@@ -119,6 +123,11 @@ extern HRESULT dinput_device_alloc( SIZE_T size, const struct dinput_device_vtbl
                                     IDirectInputImpl *dinput, void **out ) DECLSPEC_HIDDEN;
 extern HRESULT dinput_device_init( IDirectInputDevice8W *iface );
 extern void dinput_device_destroy( IDirectInputDevice8W *iface );
+
+extern void dinput_device_update_begin( IDirectInputDevice8W *iface, ULONG time );
+extern void dinput_device_update_end( IDirectInputDevice8W *iface );
+extern void dinput_device_update_value( IDirectInputDevice8W *iface, const DIDEVICEOBJECTINSTANCEW *instance, LONG value );
+extern void dinput_device_update_button( IDirectInputDevice8W *iface, const DIDEVICEOBJECTINSTANCEW *instance, BYTE value );
 
 extern BOOL get_app_key(HKEY*, HKEY*) DECLSPEC_HIDDEN;
 extern DWORD get_config_key( HKEY, HKEY, const WCHAR *, WCHAR *, DWORD ) DECLSPEC_HIDDEN;
