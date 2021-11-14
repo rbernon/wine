@@ -1957,8 +1957,7 @@ static BOOL X11DRV_XIDeviceEvent( XIDeviceEvent *event )
     INPUT input;
     HWND hwnd;
 
-    if (XFindContext( event->display, event->event, winContext, (char **)&hwnd ) != 0)
-        hwnd = 0;  /* not for a registered window */
+    hwnd = x11drv_get_hwnd_for_window( event->display, event->event, TRUE, NULL );
     if (!hwnd && event->event == root_window) hwnd = GetDesktopWindow();
 
     TRACE( "evtype %u hwnd %p/%lx pos %f,%f detail %u flags %#x serial %lu\n",
@@ -2055,8 +2054,7 @@ static BOOL X11DRV_XIEnterEvent( XGenericEventCookie *xev )
     XEvent event;
     HWND hwnd;
 
-    if (XFindContext( xiev->display, xiev->event, winContext, (char **)&hwnd ) != 0)
-        hwnd = 0;
+    hwnd = x11drv_get_hwnd_for_window( xiev->display, xiev->event, TRUE, NULL );
     if (!hwnd && xiev->event == root_window)
         hwnd = GetDesktopWindow();
 

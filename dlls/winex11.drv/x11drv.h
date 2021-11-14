@@ -217,6 +217,7 @@ extern void CDECL X11DRV_GetDC( HDC hdc, HWND hwnd, HWND top, const RECT *win_re
                                 const RECT *top_rect, DWORD flags ) DECLSPEC_HIDDEN;
 extern void CDECL X11DRV_ReleaseDC( HWND hwnd, HDC hdc ) DECLSPEC_HIDDEN;
 extern BOOL CDECL X11DRV_ScrollDC( HDC hdc, INT dx, INT dy, HRGN update ) DECLSPEC_HIDDEN;
+extern void CDECL X11DRV_SetActiveWindow( HWND hwnd ) DECLSPEC_HIDDEN;
 extern void CDECL X11DRV_SetCapture( HWND hwnd, UINT flags ) DECLSPEC_HIDDEN;
 extern void CDECL X11DRV_SetLayeredWindowAttributes( HWND hwnd, COLORREF key, BYTE alpha,
                                                      DWORD flags ) DECLSPEC_HIDDEN;
@@ -424,6 +425,16 @@ static inline size_t get_property_size( int format, unsigned long count )
     return count * (format / 8);
 }
 
+struct x11drv_ewmh_data
+{
+    int has__net_active_window : 1;
+    int has__net_wm_moveresize : 1;
+    int has__net_wm_state : 1;
+    int has__net_wm_state_below : 1;
+    int has__net_wm_window_type : 1;
+    int has__net_wm_window_type_desktop : 1;
+};
+
 extern XVisualInfo default_visual DECLSPEC_HIDDEN;
 extern XVisualInfo argb_visual DECLSPEC_HIDDEN;
 extern Colormap default_colormap DECLSPEC_HIDDEN;
@@ -453,6 +464,8 @@ extern int xrender_error_base DECLSPEC_HIDDEN;
 extern HMODULE x11drv_module DECLSPEC_HIDDEN;
 extern char *process_name DECLSPEC_HIDDEN;
 extern Display *clipboard_display DECLSPEC_HIDDEN;
+extern struct x11drv_ewmh_data ewmh DECLSPEC_HIDDEN;
+extern Time last_user_time DECLSPEC_HIDDEN;
 
 /* atoms */
 
@@ -483,6 +496,7 @@ enum x11drv_atoms
     XATOM_DndSelection,
     XATOM__ICC_PROFILE,
     XATOM__MOTIF_WM_HINTS,
+    XATOM__NET_ACTIVE_WINDOW,
     XATOM__NET_STARTUP_INFO_BEGIN,
     XATOM__NET_STARTUP_INFO,
     XATOM__NET_SUPPORTED,
@@ -496,6 +510,7 @@ enum x11drv_atoms
     XATOM__NET_WM_PING,
     XATOM__NET_WM_STATE,
     XATOM__NET_WM_STATE_ABOVE,
+    XATOM__NET_WM_STATE_BELOW,
     XATOM__NET_WM_STATE_DEMANDS_ATTENTION,
     XATOM__NET_WM_STATE_FULLSCREEN,
     XATOM__NET_WM_STATE_MAXIMIZED_HORZ,
@@ -506,6 +521,7 @@ enum x11drv_atoms
     XATOM__NET_WM_USER_TIME_WINDOW,
     XATOM__NET_WM_WINDOW_OPACITY,
     XATOM__NET_WM_WINDOW_TYPE,
+    XATOM__NET_WM_WINDOW_TYPE_DESKTOP,
     XATOM__NET_WM_WINDOW_TYPE_DIALOG,
     XATOM__NET_WM_WINDOW_TYPE_NORMAL,
     XATOM__NET_WM_WINDOW_TYPE_UTILITY,
@@ -513,6 +529,7 @@ enum x11drv_atoms
     XATOM__GTK_WORKAREAS_D0,
     XATOM__XEMBED,
     XATOM__XEMBED_INFO,
+    XATOM__WINE_HWND,
     XATOM_XdndAware,
     XATOM_XdndEnter,
     XATOM_XdndPosition,
@@ -637,6 +654,9 @@ extern Window X11DRV_get_whole_window( HWND hwnd ) DECLSPEC_HIDDEN;
 extern XIC X11DRV_get_ic( HWND hwnd ) DECLSPEC_HIDDEN;
 extern Window get_dummy_parent(void) DECLSPEC_HIDDEN;
 
+extern HWND x11drv_get_hwnd_for_window( Display *display, Window window, BOOL same_process, BOOL *is_foreign ) DECLSPEC_HIDDEN;
+extern void x11drv_set_hwnd_for_window( Display *display, Window window, HWND hwnd ) DECLSPEC_HIDDEN;
+
 extern void sync_gl_drawable( HWND hwnd, BOOL known_child ) DECLSPEC_HIDDEN;
 extern void set_gl_drawable_parent( HWND hwnd, HWND parent ) DECLSPEC_HIDDEN;
 extern void destroy_gl_drawable( HWND hwnd ) DECLSPEC_HIDDEN;
@@ -665,8 +685,6 @@ static inline void mirror_rect( const RECT *window_rect, RECT *rect )
     rect->right = width - tmp;
 }
 
-/* X context to associate a hwnd to an X window */
-extern XContext winContext DECLSPEC_HIDDEN;
 /* X context to associate a struct x11drv_win_data to an hwnd */
 extern XContext win_data_context DECLSPEC_HIDDEN;
 /* X context to associate an X cursor to a Win32 cursor handle */
@@ -674,6 +692,7 @@ extern XContext cursor_context DECLSPEC_HIDDEN;
 
 extern void X11DRV_InitClipboard(void) DECLSPEC_HIDDEN;
 extern void CDECL X11DRV_SetFocus( HWND hwnd ) DECLSPEC_HIDDEN;
+extern BOOL CDECL X11DRV_SetForegroundWindow( HWND hwnd ) DECLSPEC_HIDDEN;
 extern void set_window_cursor( Window window, HCURSOR handle ) DECLSPEC_HIDDEN;
 extern void sync_window_cursor( Window window ) DECLSPEC_HIDDEN;
 extern LRESULT clip_cursor_notify( HWND hwnd, HWND prev_clip_hwnd, HWND new_clip_hwnd ) DECLSPEC_HIDDEN;

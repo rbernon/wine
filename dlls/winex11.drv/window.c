@@ -85,14 +85,11 @@ static const unsigned int net_wm_state_atoms[NB_NET_WM_STATES] =
 /* is cursor clipping active? */
 BOOL clipping_cursor = FALSE;
 
-/* X context to associate a hwnd to an X window */
-XContext winContext = 0;
-
 /* X context to associate a struct x11drv_win_data to an hwnd */
 XContext win_data_context = 0;
 
 /* time of last user event and window where it's stored */
-static Time last_user_time;
+Time last_user_time;
 static Window user_time_window;
 
 static const char foreign_window_prop[] = "__wine_x11_foreign_window";
@@ -1454,17 +1451,46 @@ static void move_window_bits( HWND hwnd, Window window, const RECT *old_rect, co
 Window get_dummy_parent(void)
 {
     static Window dummy_parent;
+    XWMHints *hints = NULL;
+    DWORD count;
+    Atom atoms[3];
 
     if (!dummy_parent)
     {
         XSetWindowAttributes attrib;
 
         attrib.override_redirect = True;
+        if (ewmh.has__net_wm_state && ewmh.has__net_wm_state_below &&
+            ewmh.has__net_wm_window_type && ewmh.has__net_wm_window_type_desktop &&
+            (hints = XAllocWMHints()))
+            attrib.override_redirect = False;
+
         attrib.border_pixel = 0;
         attrib.colormap = default_colormap;
         dummy_parent = XCreateWindow( gdi_display, root_window, -1, -1, 1, 1, 0, default_visual.depth,
                                       InputOutput, default_visual.visual,
                                       CWColormap | CWBorderPixel | CWOverrideRedirect, &attrib );
+
+        if (!attrib.override_redirect)
+        {
+            count = 0;
+            atoms[count++] = x11drv_atom(_NET_WM_STATE_BELOW);
+            atoms[count++] = x11drv_atom(_NET_WM_STATE_SKIP_TASKBAR);
+            atoms[count++] = x11drv_atom(_NET_WM_STATE_SKIP_PAGER);
+            XChangeProperty( gdi_display, dummy_parent, x11drv_atom(_NET_WM_STATE), XA_ATOM,
+                             32, PropModeReplace, (unsigned char *)atoms, count );
+
+            count = 0;
+            atoms[count++] = x11drv_atom(_NET_WM_WINDOW_TYPE_DESKTOP);
+            XChangeProperty( gdi_display, dummy_parent, x11drv_atom(_NET_WM_WINDOW_TYPE), XA_ATOM,
+                             32, PropModeReplace, (unsigned char *)atoms, count );
+
+            hints->flags = InputHint;
+            hints->input = False;
+            XSetWMHints( gdi_display, dummy_parent, hints );
+            XFree( hints );
+        }
+
         XMapWindow( gdi_display, dummy_parent );
     }
     return dummy_parent;
@@ -1512,7 +1538,7 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual )
 
     if (data->client_window)
     {
-        XDeleteContext( data->display, data->client_window, winContext );
+        x11drv_set_hwnd_for_window( data->display, data->client_window, NULL );
         XReparentWindow( gdi_display, data->client_window, dummy_parent, 0, 0 );
         TRACE( "%p reparent xwin %lx/%lx\n", data->hwnd, data->whole_window, data->client_window );
     }
@@ -1540,7 +1566,7 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual )
                                                CWBackingStore | CWColormap | CWBorderPixel, &attr );
     if (data->client_window)
     {
-        XSaveContext( data->display, data->client_window, winContext, (char *)data->hwnd );
+        x11drv_set_hwnd_for_window( data->display, data->client_window, data->hwnd );
         XMapWindow( gdi_display, data->client_window );
         XSync( gdi_display, False );
         if (data->whole_window) XSelectInput( data->display, data->client_window, ExposureMask );
@@ -1600,7 +1626,7 @@ static void create_whole_window( struct x11drv_win_data *data )
     set_initial_wm_hints( data->display, data->whole_window );
     set_wm_hints( data );
 
-    XSaveContext( data->display, data->whole_window, winContext, (char *)data->hwnd );
+    x11drv_set_hwnd_for_window( data->display, data->whole_window, data->hwnd );
     SetPropA( data->hwnd, whole_window_prop, (HANDLE)data->whole_window );
 
     /* set the window text */
@@ -1632,7 +1658,7 @@ static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_des
 {
     TRACE( "win %p xwin %lx/%lx\n", data->hwnd, data->whole_window, data->client_window );
 
-    if (data->client_window) XDeleteContext( data->display, data->client_window, winContext );
+    if (data->client_window) x11drv_set_hwnd_for_window( data->display, data->client_window, NULL );
 
     if (!data->whole_window)
     {
@@ -1642,7 +1668,7 @@ static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_des
             if (xwin)
             {
                 if (!already_destroyed) XSelectInput( data->display, xwin, 0 );
-                XDeleteContext( data->display, xwin, winContext );
+                x11drv_set_hwnd_for_window( data->display, xwin, NULL );
                 RemovePropA( data->hwnd, foreign_window_prop );
             }
             return;
@@ -1656,7 +1682,7 @@ static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_des
             XReparentWindow( data->display, data->client_window, get_dummy_parent(), 0, 0 );
             XSync( data->display, False );
         }
-        XDeleteContext( data->display, data->whole_window, winContext );
+        x11drv_set_hwnd_for_window( data->display, data->whole_window, NULL );
         if (!already_destroyed) XDestroyWindow( data->display, data->whole_window );
     }
     if (data->whole_colormap) XFreeColormap( data->display, data->whole_colormap );
@@ -1894,6 +1920,11 @@ BOOL CDECL X11DRV_CreateWindow( HWND hwnd )
         struct x11drv_thread_data *data = x11drv_init_thread_data();
         XSetWindowAttributes attr;
 
+        if (ewmh.has__net_active_window)
+            XSelectInput( data->display, DefaultRootWindow( data->display ), PropertyChangeMask );
+        else if (!is_virtual_desktop())
+            ERR("_NET_ACTIVE_WINDOW is not supported, and virtual desktop not enabled, unable to track focus globally!\n");
+
         desktop_orig_wndproc = (WNDPROC)SetWindowLongPtrW( hwnd, GWLP_WNDPROC,
                                                            (LONG_PTR)desktop_wndproc_wrapper );
 
@@ -2041,7 +2072,7 @@ HWND create_foreign_window( Display *display, Window xwin )
         class_registered = TRUE;
     }
 
-    if (XFindContext( display, xwin, winContext, (char **)&hwnd )) hwnd = 0;
+    hwnd = x11drv_get_hwnd_for_window( display, xwin, TRUE, NULL );
     if (hwnd) return hwnd;  /* already created */
 
     XSelectInput( display, xwin, StructureNotifyMask );
@@ -2082,7 +2113,7 @@ HWND create_foreign_window( Display *display, Window xwin )
     data->mapped = TRUE;
 
     SetPropA( hwnd, foreign_window_prop, (HANDLE)xwin );
-    XSaveContext( display, xwin, winContext, (char *)data->hwnd );
+    x11drv_set_hwnd_for_window( display, xwin, data->hwnd );
 
     TRACE( "win %lx parent %p style %08x %s -> hwnd %p\n",
            xwin, parent, style, wine_dbgstr_rect(&data->window_rect), hwnd );
@@ -2824,35 +2855,6 @@ LRESULT CDECL X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
 
 
 /***********************************************************************
- *              is_netwm_supported
- */
-static BOOL is_netwm_supported( Display *display, Atom atom )
-{
-    static Atom *net_supported;
-    static int net_supported_count = -1;
-    int i;
-
-    if (net_supported_count == -1)
-    {
-        Atom type;
-        int format;
-        unsigned long count, remaining;
-
-        if (!XGetWindowProperty( display, DefaultRootWindow(display), x11drv_atom(_NET_SUPPORTED), 0,
-                                 ~0UL, False, XA_ATOM, &type, &format, &count,
-                                 &remaining, (unsigned char **)&net_supported ))
-            net_supported_count = get_property_size( format, count ) / sizeof(Atom);
-        else
-            net_supported_count = 0;
-    }
-
-    for (i = 0; i < net_supported_count; i++)
-        if (net_supported[i] == atom) return TRUE;
-    return FALSE;
-}
-
-
-/***********************************************************************
  *              start_screensaver
  */
 static LRESULT start_screensaver(void)
@@ -2930,7 +2932,7 @@ LRESULT CDECL X11DRV_SysCommand( HWND hwnd, WPARAM wparam, LPARAM lparam )
 
     if (IsZoomed(hwnd)) goto failed;
 
-    if (!is_netwm_supported( data->display, x11drv_atom(_NET_WM_MOVERESIZE) ))
+    if (!ewmh.has__net_wm_moveresize)
     {
         TRACE( "_NET_WM_MOVERESIZE not supported\n" );
         goto failed;
@@ -2972,4 +2974,39 @@ void CDECL X11DRV_FlashWindowEx( PFLASHWINFO pfinfo )
                     SubstructureNotifyMask, &xev );
     }
     release_win_data( data );
+}
+
+static int x11drv_get_hwnd_for_window_error( Display *display, XErrorEvent *event, void *arg )
+{
+    return 1;
+}
+
+HWND x11drv_get_hwnd_for_window( Display *display, Window window, BOOL same_process, BOOL *is_foreign )
+{
+    unsigned long count, remaining;
+    HWND *property, hwnd = NULL;
+    DWORD pid;
+    Atom type;
+    int format;
+
+    if (is_foreign) *is_foreign = TRUE;
+    X11DRV_expect_error( display, x11drv_get_hwnd_for_window_error, NULL );
+    XGetWindowProperty( display, window, x11drv_atom(_WINE_HWND), 0, ~0UL, False, XA_CARDINAL,
+                        &type, &format, &count, &remaining, (unsigned char **)&property );
+    if (X11DRV_check_error()) return NULL;
+    if (!property) return NULL;
+
+    if (is_foreign) *is_foreign = FALSE;
+    hwnd = *property;
+    XFree(property);
+
+    if (!hwnd || !GetWindowThreadProcessId( hwnd, &pid )) return NULL;
+    if (same_process && pid != GetCurrentProcessId()) return NULL;
+    return hwnd;
+}
+
+void x11drv_set_hwnd_for_window( Display *display, Window window, HWND hwnd )
+{
+    XChangeProperty( display, window, x11drv_atom(_WINE_HWND), XA_CARDINAL, 8,
+                     PropModeReplace, (unsigned char *)&hwnd, sizeof(hwnd) );
 }

@@ -170,6 +170,9 @@ static BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus )
                       (LPARAM)previous );
         if (GetAncestor( hwnd, GA_PARENT ) == GetDesktopWindow())
             PostMessageW( GetDesktopWindow(), WM_PARENTNOTIFY, WM_NCACTIVATE, (LPARAM)hwnd );
+
+        if (hwnd == GetForegroundWindow() && !IsIconic( hwnd ))
+            USER_Driver->pSetActiveWindow( hwnd );
     }
 
     /* now change focus if necessary */
@@ -359,6 +362,9 @@ BOOL WINAPI SetForegroundWindow( HWND hwnd )
     TRACE( "%p\n", hwnd );
 
     hwnd = WIN_GetFullHandle( hwnd );
+    if (!USER_Driver->pSetForegroundWindow(hwnd))
+        return FALSE;
+
     return set_foreground_window( hwnd, FALSE, GetTickCount() );
 }
 

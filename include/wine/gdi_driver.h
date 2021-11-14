@@ -267,8 +267,10 @@ struct user_driver_funcs
     DWORD   (CDECL *pMsgWaitForMultipleObjectsEx)(DWORD,const HANDLE*,DWORD,DWORD,DWORD);
     void    (CDECL *pReleaseDC)(HWND,HDC);
     BOOL    (CDECL *pScrollDC)(HDC,INT,INT,HRGN);
+    void    (CDECL *pSetActiveWindow)(HWND);
     void    (CDECL *pSetCapture)(HWND,UINT);
     void    (CDECL *pSetFocus)(HWND);
+    BOOL    (CDECL *pSetForegroundWindow)(HWND);
     void    (CDECL *pSetLayeredWindowAttributes)(HWND,COLORREF,BYTE,DWORD);
     void    (CDECL *pSetParent)(HWND,HWND,HWND);
     void    (CDECL *pSetWindowRgn)(HWND,HRGN,BOOL);
