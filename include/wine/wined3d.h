@@ -1344,6 +1344,7 @@ enum wined3d_pipeline
 #define WINED3D_NO_PRIMITIVE_RESTART                            0x00000800
 #define WINED3D_LEGACY_CUBEMAP_FILTERING                        0x00001000
 #define WINED3D_NORMALIZED_DEPTH_BIAS                           0x00002000
+#define WINED3D_WARP                                            0x00004000
 
 #define WINED3D_RESZ_CODE                                       0x7fa05000
 
@@ -1764,6 +1765,7 @@ struct wined3d_adapter_identifier
     LUID adapter_luid;
     SIZE_T video_memory;
     SIZE_T shared_system_memory;
+    BOOL software;
 };
 
 struct wined3d_swapchain_desc
