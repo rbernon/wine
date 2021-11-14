@@ -429,7 +429,7 @@ LRESULT WINAPI acmDriverMessage(HACMDRIVER had, UINT uMsg, LPARAM lParam1, LPARA
                  * reports a 16-byte structure to codecs, so allocate 16 bytes,
                  * just to be on the safe side.
                  */
-                const unsigned int iStructSize = 16;
+                const unsigned int iStructSize = max(16, sizeof(*pConfigInfo));
                 pConfigInfo = HeapAlloc(MSACM_hHeap, 0, iStructSize);
                 if (!pConfigInfo) {
                     ERR("OOM while supplying DRVCONFIGINFO for DRV_CONFIGURE, using NULL\n");
