@@ -1180,7 +1180,7 @@ NTSTATUS init_thread_stack( TEB *teb, ULONG_PTR zero_bits, SIZE_T reserve_size, 
         teb->Tib.StackBase = teb->TlsSlots[WOW64_TLS_CPURESERVED] = cpu;
         teb->Tib.StackLimit = stack.StackLimit;
         teb->DeallocationStack = stack.DeallocationStack;
-        thread_data->kernel_stack = stack.StackBase;
+        thread_data->kernel_stack = (char *)stack.DeallocationStack - kernel_stack_size;
         return STATUS_SUCCESS;
 #else
         /* 64-bit stack */
@@ -1201,7 +1201,7 @@ NTSTATUS init_thread_stack( TEB *teb, ULONG_PTR zero_bits, SIZE_T reserve_size, 
     teb->Tib.StackBase = stack.StackBase;
     teb->Tib.StackLimit = stack.StackLimit;
     teb->DeallocationStack = stack.DeallocationStack;
-    thread_data->kernel_stack = stack.StackBase;
+    thread_data->kernel_stack = (char *)stack.DeallocationStack - kernel_stack_size;
     return STATUS_SUCCESS;
 }
 

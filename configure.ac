@@ -1906,6 +1906,7 @@ then
    DLLFLAGS="$DLLFLAGS -fasynchronous-unwind-tables"
    LDDLLFLAGS="$LDDLLFLAGS -fasynchronous-unwind-tables"
    UNIXDLLFLAGS="$UNIXDLLFLAGS -fasynchronous-unwind-tables"
+   CROSSLDFLAGS="$CROSSLDFLAGS -fasynchronous-unwind-tables"
 else
    if test "x$enable_win64" = "xyes"
    then
