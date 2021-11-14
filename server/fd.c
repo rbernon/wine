@@ -88,6 +88,9 @@
 #ifdef HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>
 #endif
+#if defined(__i386__) || defined(__x86_64__)
+#include <x86intrin.h>
+#endif
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -376,38 +379,62 @@ static struct list rel_timeout_list = LIST_INIT(rel_timeout_list); /* sorted rel
 timeout_t current_time;
 timeout_t monotonic_time;
 
+struct hypervisor_shared_data *hypervisor_shared_data = NULL;
 struct _KUSER_SHARED_DATA *user_shared_data = NULL;
 static const int user_shared_data_timeout = 16;
 
-static void atomic_store_ulong(volatile ULONG *ptr, ULONG value)
+/* 128-bit multiply a by b and return the high 64 bits, same as __umulh */
+static UINT64 multiply_tsc(UINT64 a, UINT64 b)
 {
-    /* on x86 there should be total store order guarantees, so volatile is
-     * enough to ensure the stores aren't reordered by the compiler, and then
-     * they will always be seen in-order from other CPUs. On other archs, we
-     * need atomic intrinsics to guarantee that. */
-#if defined(__i386__) || defined(__x86_64__)
-    *ptr = value;
-#else
-    __atomic_store_n(ptr, value, __ATOMIC_SEQ_CST);
-#endif
+    UINT64 ah = a >> 32, al = (UINT32)a, bh = b >> 32, bl = (UINT32)b, m;
+    m = (ah * bl) + (bh * al) + ((al * bl) >> 32);
+    return (ah * bh) + (m >> 32);
 }
 
-static void atomic_store_long(volatile LONG *ptr, LONG value)
-{
+/* on x86 there should be total store order guarantees, so volatile is
+ * enough to ensure the stores aren't reordered by the compiler, and then
+ * they will always be seen in-order from other CPUs. On other archs, we
+ * need atomic intrinsics to guarantee that. */
 #if defined(__i386__) || defined(__x86_64__)
-    *ptr = value;
+#define ATOMIC_STORE(ptr, value) *(ptr) = (value)
 #else
-    __atomic_store_n(ptr, value, __ATOMIC_SEQ_CST);
+#define ATOMIC_STORE(ptr, value) __atomic_store_n(ptr, value, __ATOMIC_SEQ_CST)
 #endif
-}
 
 static void set_user_shared_data_time(void)
 {
+    unsigned __int64 tsc, qpc_bias, qpc_freq = user_shared_data->QpcFrequency;
+    unsigned int aux, qpc_shift = user_shared_data->QpcShift;
+    unsigned int qpc_bypass = user_shared_data->QpcBypassEnabled;
     timeout_t tick_count = monotonic_time / 10000;
     static timeout_t last_timezone_update;
     timeout_t timezone_bias;
     struct tm *tm;
     time_t now;
+
+
+    if (!(qpc_bypass & SHARED_GLOBAL_FLAGS_QPC_BYPASS_ENABLED))
+        tsc = 0;
+#if defined(__i386__) || defined(__x86_64__)
+    else if (qpc_bypass & SHARED_GLOBAL_FLAGS_QPC_BYPASS_USE_RDTSCP)
+        tsc = __rdtscp(&aux);
+    else
+    {
+        if (qpc_bypass & SHARED_GLOBAL_FLAGS_QPC_BYPASS_USE_MFENCE)
+            __asm__ __volatile__ ( "mfence" : : : "memory" );
+        if (qpc_bypass & SHARED_GLOBAL_FLAGS_QPC_BYPASS_USE_LFENCE)
+            __asm__ __volatile__ ( "lfence" : : : "memory" );
+        tsc = __rdtsc();
+    }
+#endif
+
+    if (!(qpc_bypass & SHARED_GLOBAL_FLAGS_QPC_BYPASS_USE_HV_PAGE))
+        qpc_bias = ((monotonic_time * qpc_freq / 10000000) << qpc_shift) - tsc;
+    else
+    {
+        tsc = multiply_tsc(tsc, hypervisor_shared_data->QpcMultiplier);
+        qpc_bias = monotonic_time - tsc;
+    }
 
     if (monotonic_time - last_timezone_update > TICKS_PER_SEC)
     {
@@ -418,26 +445,32 @@ static void set_user_shared_data_time(void)
         if (tm->tm_isdst) timezone_bias -= 3600;
         timezone_bias *= TICKS_PER_SEC;
 
-        atomic_store_long(&user_shared_data->TimeZoneBias.High2Time, timezone_bias >> 32);
-        atomic_store_ulong(&user_shared_data->TimeZoneBias.LowPart, timezone_bias);
-        atomic_store_long(&user_shared_data->TimeZoneBias.High1Time, timezone_bias >> 32);
+        ATOMIC_STORE(&user_shared_data->TimeZoneBias.High2Time, timezone_bias >> 32);
+        ATOMIC_STORE(&user_shared_data->TimeZoneBias.LowPart, timezone_bias);
+        ATOMIC_STORE(&user_shared_data->TimeZoneBias.High1Time, timezone_bias >> 32);
 
         last_timezone_update = monotonic_time;
     }
 
-    atomic_store_long(&user_shared_data->SystemTime.High2Time, current_time >> 32);
-    atomic_store_ulong(&user_shared_data->SystemTime.LowPart, current_time);
-    atomic_store_long(&user_shared_data->SystemTime.High1Time, current_time >> 32);
+    ATOMIC_STORE(&user_shared_data->SystemTime.High2Time, current_time >> 32);
+    ATOMIC_STORE(&user_shared_data->SystemTime.LowPart, current_time);
+    ATOMIC_STORE(&user_shared_data->SystemTime.High1Time, current_time >> 32);
 
-    atomic_store_long(&user_shared_data->InterruptTime.High2Time, monotonic_time >> 32);
-    atomic_store_ulong(&user_shared_data->InterruptTime.LowPart, monotonic_time);
-    atomic_store_long(&user_shared_data->InterruptTime.High1Time, monotonic_time >> 32);
+    ATOMIC_STORE(&user_shared_data->InterruptTime.High2Time, monotonic_time >> 32);
+    ATOMIC_STORE(&user_shared_data->InterruptTime.LowPart, monotonic_time);
+    ATOMIC_STORE(&user_shared_data->InterruptTime.High1Time, monotonic_time >> 32);
 
-    atomic_store_long(&user_shared_data->TickCount.High2Time, tick_count >> 32);
-    atomic_store_ulong(&user_shared_data->TickCount.LowPart, tick_count);
-    atomic_store_long(&user_shared_data->TickCount.High1Time, tick_count >> 32);
-    atomic_store_ulong(&user_shared_data->TickCountLowDeprecated, tick_count);
+    ATOMIC_STORE(&user_shared_data->TickCount.High2Time, tick_count >> 32);
+    ATOMIC_STORE(&user_shared_data->TickCount.LowPart, tick_count);
+    ATOMIC_STORE(&user_shared_data->TickCount.High1Time, tick_count >> 32);
+    ATOMIC_STORE(&user_shared_data->TickCountLowDeprecated, tick_count);
+    if (qpc_bypass & SHARED_GLOBAL_FLAGS_QPC_BYPASS_USE_HV_PAGE)
+        ATOMIC_STORE(&hypervisor_shared_data->QpcBias, qpc_bias);
+    else
+        ATOMIC_STORE(&user_shared_data->QpcBias, qpc_bias);
 }
+
+#undef ATOMIC_STORE
 
 void set_current_time(void)
 {

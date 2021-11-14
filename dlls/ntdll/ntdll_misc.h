@@ -83,6 +83,14 @@ extern HMODULE kernel32_handle DECLSPEC_HIDDEN;
 extern void (FASTCALL *pBaseThreadInitThunk)(DWORD,LPTHREAD_START_ROUTINE,void *) DECLSPEC_HIDDEN;
 extern const struct unix_funcs *unix_funcs DECLSPEC_HIDDEN;
 
+struct hypervisor_shared_data
+{
+    UINT64 unknown;
+    UINT64 QpcMultiplier;
+    UINT64 QpcBias;
+};
+
+extern struct hypervisor_shared_data *hypervisor_shared_data DECLSPEC_HIDDEN;
 extern struct _KUSER_SHARED_DATA *user_shared_data DECLSPEC_HIDDEN;
 
 extern int CDECL NTDLL__vsnprintf( char *str, SIZE_T len, const char *format, va_list args ) DECLSPEC_HIDDEN;
