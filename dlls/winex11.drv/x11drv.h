@@ -245,7 +245,12 @@ extern void CDECL X11DRV_ThreadDetach(void) DECLSPEC_HIDDEN;
 /* X11 driver internal functions */
 
 extern void X11DRV_Xcursor_Init(void) DECLSPEC_HIDDEN;
+extern void X11DRV_XInput2_Load(void) DECLSPEC_HIDDEN;
 extern void X11DRV_XInput2_Init(void) DECLSPEC_HIDDEN;
+extern void X11DRV_XInput2_Enable( Display *display, Window window, long event_mask ) DECLSPEC_HIDDEN;
+
+BOOL x11drv_handle_focus_in_event( HWND hwnd, XEvent *xev, Time time );
+BOOL x11drv_handle_focus_out_event( HWND hwnd, XEvent *xev, Time time );
 
 extern DWORD copy_image_bits( BITMAPINFO *info, BOOL is_r8g8b8, XImage *image,
                               const struct gdi_image_bits *src_bits, struct gdi_image_bits *dst_bits,
@@ -381,13 +386,9 @@ struct x11drv_thread_data
     HWND     clip_hwnd;            /* message window stored in desktop while clipping is active */
     DWORD    clip_reset;           /* time when clipping was last reset */
 #ifdef HAVE_X11_EXTENSIONS_XINPUT2_H
-    enum { xi_unavailable = -1, xi_unknown, xi_disabled, xi_enabled } xi2_state; /* XInput2 state */
-    void    *xi2_devices;          /* list of XInput2 devices (valid when state is enabled) */
-    int      xi2_device_count;
     XIValuatorClassInfo x_valuator;
     XIValuatorClassInfo y_valuator;
     int      xi2_core_pointer;     /* XInput2 core pointer id */
-    int      xi2_current_slave;    /* Current slave driving the Core pointer */
 #endif /* HAVE_X11_EXTENSIONS_XINPUT2_H */
 };
 
@@ -683,6 +684,7 @@ extern void retry_grab_clipping_window(void) DECLSPEC_HIDDEN;
 extern BOOL clip_fullscreen_window( HWND hwnd, BOOL reset ) DECLSPEC_HIDDEN;
 extern void move_resize_window( HWND hwnd, int dir ) DECLSPEC_HIDDEN;
 extern void X11DRV_InitKeyboard( Display *display ) DECLSPEC_HIDDEN;
+extern void X11DRV_InitMouse( Display *display ) DECLSPEC_HIDDEN;
 extern DWORD CDECL X11DRV_MsgWaitForMultipleObjectsEx( DWORD count, const HANDLE *handles, DWORD timeout,
                                                        DWORD mask, DWORD flags ) DECLSPEC_HIDDEN;
 

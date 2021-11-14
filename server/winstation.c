@@ -234,6 +234,7 @@ static struct desktop *create_desktop( const struct unicode_str *name, unsigned 
             desktop->global_hooks = NULL;
             desktop->close_timeout = NULL;
             desktop->foreground_input = NULL;
+            desktop->foreground_time = 0;
             desktop->users = 0;
             memset( &desktop->cursor, 0, sizeof(desktop->cursor) );
             memset( desktop->keystate, 0, sizeof(desktop->keystate) );
