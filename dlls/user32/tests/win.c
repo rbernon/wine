@@ -31,7 +31,10 @@
 #include "wingdi.h"
 #include "winuser.h"
 #include "winreg.h"
+#include "dwmapi.h"
+#include "d3d9.h"
 
+#include "wine/wgl.h"
 #include "wine/test.h"
 
 #ifndef SPI_GETDESKWALLPAPER
@@ -3546,7 +3549,17 @@ static void test_SetActiveWindow(HWND hwnd)
     ShowWindow(hwnd, SW_HIDE);
     SetFocus(0);
     SetActiveWindow(0);
-    check_wnd_state(0, 0, 0, 0);
+
+    /* On w1064v1809, ShowWindow(hwnd, SW_HIDE) / SetActiveWindow(0)
+     * does not change active window to 0, and then focus is not
+     * restored either when window is activated. */
+    if (broken(GetActiveWindow() != 0))
+    {
+        check_wnd_state(hwnd, 0, 0, 0);
+        SetFocus(hwnd);
+    }
+    else
+        check_wnd_state(0, 0, 0, 0);
 
     ShowWindow(hwnd, SW_SHOW);
     check_wnd_state(hwnd, hwnd, hwnd, 0);
@@ -3570,7 +3583,17 @@ static void test_SetActiveWindow(HWND hwnd)
     check_wnd_state(hwnd, hwnd, hwnd, 0);
 
     ShowWindow(hwnd, SW_HIDE);
-    check_wnd_state(0, 0, 0, 0);
+
+    /* On w1064v1809, ShowWindow(hwnd, SW_HIDE) / SetActiveWindow(0)
+     * does not change active window to 0, and then focus is not
+     * restored either when window is activated. */
+    if (broken(GetActiveWindow() != 0))
+    {
+        check_wnd_state(hwnd, 0, 0, 0);
+        SetFocus(hwnd);
+    }
+    else
+        check_wnd_state(0, 0, 0, 0);
 
     /* Invisible window. */
     SetActiveWindow(hwnd);
@@ -4101,8 +4124,18 @@ static void test_keyboard_input(HWND hwnd)
         skip( "keybd_event didn't work, skipping keyboard test\n" );
         return;
     }
+
+    if (broken(msg.message == WM_USER+0x338) && /* w1064v1809_he/w1064v1809_ja have an unknown message here */
+        !peek_message(&msg))
+    {
+        skip( "keybd_event didn't work, skipping keyboard test\n" );
+        return;
+    }
+
     ok(msg.hwnd == hwnd && msg.message == WM_KEYDOWN, "hwnd %p message %04x\n", msg.hwnd, msg.message);
     ret = peek_message(&msg);
+    if (broken(msg.message == WM_USER+0x338)) /* w1064v1809_ja have an unknown message here */
+        ret = peek_message(&msg);
     ok( !ret, "message %04x available\n", msg.message);
 
     SetFocus(0);
@@ -4145,7 +4178,10 @@ static BOOL wait_for_message( MSG *msg )
         ret = peek_message(msg);
         if (ret)
         {
-            if (msg->message == WM_PAINT) DispatchMessageA(msg);
+            if (msg->message == WM_PAINT ||
+                msg->message == WM_IME_NOTIFY ||
+                msg->message == WM_APP-1)
+                DispatchMessageA(msg);
             else break;
         }
         else if (MsgWaitForMultipleObjects( 0, NULL, FALSE, 100, QS_ALLINPUT ) == WAIT_TIMEOUT) break;
@@ -4263,10 +4299,18 @@ static void test_mouse_input(HWND hwnd)
         ok(ret, "no message available\n");
     }
 
+    if (broken(msg.message == WM_USER+0x337)) /* w1064v1809_2scr has an unknown message here */
+    {
+        ret = wait_for_message( &msg );
+        ok(ret, "no message available\n");
+    }
+
     ok(msg.hwnd == popup && msg.message == WM_LBUTTONDOWN, "hwnd %p/%p message %04x\n",
        msg.hwnd, popup, msg.message);
 
     ret = wait_for_message( &msg );
+    if (broken(msg.message >= WM_USER) /* on w1064v1809 */)
+        ret = wait_for_message( &msg );
     ok(ret, "no message available\n");
     ok(msg.hwnd == popup && msg.message == WM_LBUTTONUP, "hwnd %p/%p message %04x\n",
        msg.hwnd, popup, msg.message);
@@ -8597,6 +8641,67 @@ static void test_layered_window(void)
     hbm = CreateCompatibleBitmap( hdc, 200, 200 );
     SelectObject( hdc, hbm );
 
+    hwnd = CreateWindowExA( 0, "MainWindowClass", "message window", WS_CAPTION | WS_VISIBLE,
+                            100, 100, 200, 200, 0, 0, 0, NULL );
+    assert( hwnd );
+    flush_events( TRUE );
+
+    /* already visible window has some layered attributes but UpdateLayeredWindow succeeds */
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED );
+    ret = pGetLayeredWindowAttributes( hwnd, &key, &alpha, &flags );
+    todo_wine ok( ret, "GetLayeredWindowAttributes should succeed on layered visible window\n" );
+    ok( key == 0, "wrong color key %x\n", key );
+    ok( alpha == 0, "wrong alpha %u\n", alpha );
+    ok( flags == 0, "wrong flags %x\n", flags );
+    ret = pUpdateLayeredWindow( hwnd, 0, NULL, &sz, hdc, &pt, 0, NULL, ULW_OPAQUE );
+    ok( ret, "UpdateLayeredWindow should succeed on layered visible window\n" );
+
+    /* even after resetting the style */
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED );
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED );
+    ret = pGetLayeredWindowAttributes( hwnd, &key, &alpha, &flags );
+    todo_wine ok( ret, "GetLayeredWindowAttributes should succeed on layered visible window\n" );
+    ok( key == 0, "wrong color key %x\n", key );
+    todo_wine ok( alpha == 0xff, "wrong alpha %u\n", alpha );
+    todo_wine ok( flags == 2, "wrong flags %x\n", flags );
+    ret = pUpdateLayeredWindow( hwnd, 0, NULL, &sz, hdc, &pt, 0, NULL, ULW_OPAQUE );
+    ok( ret, "UpdateLayeredWindow should succeed on layered visible window\n" );
+
+    /* hiding the window before setting layered style is okay */
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED );
+    ShowWindow( hwnd, SW_HIDE );
+    flush_events( TRUE );
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED );
+    ret = pGetLayeredWindowAttributes( hwnd, &key, &alpha, &flags );
+    ok( !ret, "GetLayeredWindowAttributes should fail on layered visible window\n" );
+    ret = pUpdateLayeredWindow( hwnd, 0, NULL, &sz, hdc, &pt, 0, NULL, ULW_OPAQUE );
+    ok( ret, "UpdateLayeredWindow should succeed on layered hidden window\n" );
+
+    /* showing the window after setting layered style is okay */
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED );
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED );
+    ShowWindow( hwnd, SW_SHOW );
+    flush_events( TRUE );
+    ret = pGetLayeredWindowAttributes( hwnd, &key, &alpha, &flags );
+    ok( !ret, "GetLayeredWindowAttributes should fail on layered visible window\n" );
+    ret = pUpdateLayeredWindow( hwnd, 0, NULL, &sz, hdc, &pt, 0, NULL, ULW_OPAQUE );
+    ok( ret, "UpdateLayeredWindow should succeed on layered visible window\n" );
+
+    /* but hiding the window after setting layered style is not */
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED );
+    SetWindowLongA( hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED );
+    ShowWindow( hwnd, SW_HIDE );
+    flush_events( TRUE );
+    ret = pUpdateLayeredWindow( hwnd, 0, NULL, &sz, hdc, &pt, 0, NULL, ULW_OPAQUE );
+    todo_wine ok( !ret, "UpdateLayeredWindow should fail on layered hidden window\n" );
+
+    ShowWindow( hwnd, SW_SHOW );
+    flush_events( TRUE );
+    ret = pUpdateLayeredWindow( hwnd, 0, NULL, &sz, hdc, &pt, 0, NULL, ULW_OPAQUE );
+    todo_wine ok( !ret, "UpdateLayeredWindow should succeed on layered visible window\n" );
+
+    DestroyWindow( hwnd );
+
     hwnd = CreateWindowExA(0, "MainWindowClass", "message window", WS_CAPTION,
                            100, 100, 200, 200, 0, 0, 0, NULL);
     assert( hwnd );
@@ -9851,7 +9956,7 @@ static LRESULT WINAPI static_hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
 
 static void window_from_point_proc(HWND parent)
 {
-    HANDLE start_event, end_event;
+    HANDLE start_event, end_event, done_event;
     HANDLE win, child_static, child_button;
     BOOL got_click;
     DWORD ret;
@@ -9862,6 +9967,8 @@ static void window_from_point_proc(HWND parent)
     ok(start_event != 0, "OpenEvent failed\n");
     end_event = OpenEventA(EVENT_ALL_ACCESS, FALSE, "test_wfp_end");
     ok(end_event != 0, "OpenEvent failed\n");
+    done_event = OpenEventA(EVENT_ALL_ACCESS, FALSE, "test_wfp_done");
+    ok(done_event != 0, "OpenEvent failed\n");
 
     child_static = CreateWindowExA(0, "static", "static", WS_CHILD | WS_VISIBLE,
             0, 0, 100, 100, parent, 0, NULL, NULL);
@@ -9902,6 +10009,8 @@ static void window_from_point_proc(HWND parent)
     ret = WaitForSingleObject(end_event, 5000);
     ok(ret == WAIT_OBJECT_0, "WaitForSingleObject returned %x\n", ret);
 
+    SetEvent(done_event);
+    CloseHandle(done_event);
     CloseHandle(start_event);
     CloseHandle(end_event);
 }
@@ -9913,7 +10022,7 @@ static void test_window_from_point(const char *argv0)
     PROCESS_INFORMATION info;
     STARTUPINFOA startup;
     char cmd[MAX_PATH];
-    HANDLE start_event, end_event;
+    HANDLE start_event, end_event, done_event;
 
     hwnd = CreateWindowExA(0, "MainWindowClass", NULL, WS_POPUP | WS_VISIBLE,
             100, 100, 200, 100, 0, 0, NULL, NULL);
@@ -9948,7 +10057,9 @@ static void test_window_from_point(const char *argv0)
     start_event = CreateEventA(NULL, FALSE, FALSE, "test_wfp_start");
     ok(start_event != 0, "CreateEvent failed\n");
     end_event = CreateEventA(NULL, FALSE, FALSE, "test_wfp_end");
-    ok(start_event != 0, "CreateEvent failed\n");
+    ok(end_event != 0, "CreateEvent failed\n");
+    done_event = CreateEventA(NULL, FALSE, FALSE, "test_wfp_done");
+    ok(done_event != 0, "CreateEvent failed\n");
 
     sprintf(cmd, "%s win create_children %p\n", argv0, hwnd);
     memset(&startup, 0, sizeof(startup));
@@ -9970,13 +10081,14 @@ static void test_window_from_point(const char *argv0)
     ok(win == child, "WindowFromPoint returned %p, expected %p\n", win, child);
 
     SetEvent(end_event);
+    ok(wait_for_event(done_event, 1000), "timedout waiting for child to complete\n");
+    DestroyWindow(hwnd);
     wait_child_process(info.hProcess);
+    CloseHandle(done_event);
     CloseHandle(start_event);
     CloseHandle(end_event);
     CloseHandle(info.hProcess);
     CloseHandle(info.hThread);
-
-    DestroyWindow(hwnd);
 }
 
 static void test_map_points(void)
@@ -12533,6 +12645,989 @@ static void test_DragDetect(void)
     ok(!(GetKeyState( VK_LBUTTON ) & 0x8000), "got VK_LBUTTON\n");
 }
 
+#define capture_surface(hdc, x, y, width, height, surface, surface_size) capture_surface_(__LINE__, hdc, x, y, width, height, surface, surface_size)
+static SIZE_T capture_surface_(int line, HDC hdc, int x, int y, int width, int height, DWORD *surface, SIZE_T surface_size)
+{
+    BITMAPINFOHEADER info;
+    HBITMAP bmp_obj;
+    SIZE_T data_size;
+    BITMAP bmp;
+    DWORD count;
+    BOOL ret;
+    HDC hdc_dst;
+
+    hdc_dst = CreateCompatibleDC(hdc);
+    ok_(__FILE__, line)(hdc_dst != 0, "CreateCompatibleDC failed, last error %u\n", GetLastError());
+    bmp_obj = CreateCompatibleBitmap(hdc, width, height);
+    ok_(__FILE__, line)(bmp_obj != 0, "CreateCompatibleBitmap failed, last error %u\n", GetLastError());
+
+#ifndef CAPTUREBLT
+#define CAPTUREBLT  0x40000000
+#endif
+
+    SelectObject(hdc_dst, bmp_obj);
+    ret = BitBlt(hdc_dst, 0, 0, width, height, hdc, x, y, SRCCOPY | CAPTUREBLT);
+    ok_(__FILE__, line)(ret, "BitBlt failed, last error %u\n", GetLastError());
+    count = GetObjectW(bmp_obj, sizeof(BITMAP), &bmp);
+    ok_(__FILE__, line)(count == sizeof(BITMAP), "GetObjectW failed, last error %u\n", GetLastError());
+
+    info.biSize = sizeof(BITMAPINFOHEADER);
+    info.biWidth = bmp.bmWidth;
+    info.biHeight = bmp.bmHeight;
+    info.biPlanes = 1;
+    info.biBitCount = 32;
+    info.biCompression = BI_RGB;
+    info.biSizeImage = 0;
+    info.biXPelsPerMeter = 0;
+    info.biYPelsPerMeter = 0;
+    info.biClrUsed = 0;
+    info.biClrImportant = 0;
+
+    data_size = ((bmp.bmWidth * info.biBitCount + 31) / 32) * 4 * bmp.bmHeight;
+    ok_(__FILE__, line)( data_size == surface_size, "Got %Iu bytes, expected %Iu\n", data_size, surface_size );
+    count = GetDIBits(hdc_dst, bmp_obj, 0, bmp.bmHeight, surface, (BITMAPINFO*)&info, DIB_RGB_COLORS);
+    ok_(__FILE__, line)(count == bmp.bmHeight, "GetDIBits failed, last error %u\n", GetLastError());
+
+    DeleteObject(bmp_obj);
+    DeleteDC(hdc_dst);
+
+#if 0
+    {
+        BITMAPFILEHEADER header;
+        HANDLE file;
+
+        header.bfType = 0x4d42;
+        header.bfSize = sizeof(header) + sizeof(info) + data_size;
+        header.bfOffBits = sizeof(header) + sizeof(info);
+
+        file = CreateFileW(L"surface.bmp", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        ok(file != INVALID_HANDLE_VALUE, "CreateFileW failed, error %u\n", GetLastError());
+        ret = WriteFile(file, &header, sizeof(header), &count, NULL);
+        ok(ret && count == sizeof(header), "WriteFile failed, error %u\n", GetLastError());
+        ret = WriteFile(file, &info, sizeof(info), &count, NULL);
+        ok(ret && count == sizeof(info), "WriteFile failed, error %u\n", GetLastError());
+        ret = WriteFile(file, surface, data_size, &count, NULL);
+        ok(ret && count == data_size, "WriteFile failed, error %u\n", GetLastError());
+        CloseHandle(file);
+    }
+#endif
+
+    return data_size;
+}
+
+#define capture_screen_surface(hwnd, surface, surface_size) capture_screen_surface_(__LINE__, hwnd, surface, surface_size)
+static SIZE_T capture_screen_surface_(int line, HWND hwnd, DWORD *surface, SIZE_T surface_size)
+{
+    SIZE_T data_size, i;
+    RECT rect, rect_win;
+    HDC hdc;
+
+    GetWindowRect(hwnd, &rect_win);
+    GetClientRect(hwnd, &rect);
+    OffsetRect(&rect, -rect.left, -rect.top);
+
+    hdc = GetDC(NULL);
+    ok_(__FILE__, line)(hdc != 0, "GetDC failed, last error %u\n", GetLastError());
+    if (DwmFlush() == E_NOTIMPL) flush_events( TRUE );
+    data_size = capture_surface_(line, hdc, rect_win.left, rect_win.top, rect.right, rect.bottom, surface, surface_size);
+    ReleaseDC(NULL, hdc);
+
+    for (i = data_size / 4; i != 0; i--) surface[i - 1] &= 0xffffff;
+    return data_size;
+}
+
+#define check_screen_surface(hwnd, expect, expect_size, todo) check_screen_surface_(__LINE__, hwnd, expect, expect_size, todo)
+static void check_screen_surface_(int line, HWND hwnd, const DWORD *expect, SIZE_T expect_size, BOOL todo)
+{
+    SIZE_T data_size;
+    DWORD *data;
+
+    data = malloc(expect_size);
+    ok_(__FILE__, line)(data != NULL, "Failed to allocate %Iu bytes\n", expect_size);
+    data_size = capture_screen_surface_(line, hwnd, data, expect_size);
+    if (data_size != expect_size)
+        todo_wine_if(todo) ok_(__FILE__, line)(0, "Unexpected screen surface size %Iu, expected %Iu", data_size, expect_size);
+    else if (memcmp( data, expect, data_size ))
+        todo_wine_if(todo) ok_(__FILE__, line)(0, "Unexpected screen surface data\n");
+    else if (todo)
+        todo_wine ok_(__FILE__, line)(1, "Got expected screen surface data\n");
+    free(data);
+}
+
+#define capture_client_surface(hwnd, surface, surface_size) capture_client_surface_(__LINE__, hwnd, surface, surface_size)
+static SIZE_T capture_client_surface_(int line, HWND hwnd, DWORD *surface, SIZE_T surface_size)
+{
+    SIZE_T data_size;
+    RECT rect;
+    HDC hdc;
+    int i;
+
+    GetClientRect(hwnd, &rect);
+    OffsetRect(&rect, -rect.left, -rect.top);
+
+    hdc = GetDC(hwnd);
+    ok_(__FILE__, line)(hdc != 0, "GetDC failed, last error %u\n", GetLastError());
+    data_size = capture_surface_(line, hdc, 0, 0, rect.right, rect.bottom, surface, surface_size);
+    ReleaseDC(hwnd, hdc);
+
+    /* clear inconsistent alpha channel (D3D R5G6B5 clear sets it, other paint ops clear it) */
+    for (i = 0; i < data_size / 4; i++) surface[i] &= 0xffffff;
+
+    return data_size;
+}
+
+#define check_client_surface(hwnd, expect, expect_size, todo) check_client_surface_(__LINE__, hwnd, expect, expect_size, todo)
+static void check_client_surface_(int line, HWND hwnd, const DWORD *expect, SIZE_T expect_size, BOOL todo)
+{
+    SIZE_T data_size;
+    DWORD *data;
+
+    data = malloc(expect_size);
+    ok_(__FILE__, line)(data != NULL, "Failed to allocate %Iu bytes\n", expect_size);
+    data_size = capture_client_surface_(line, hwnd, data, expect_size);
+    if (data_size != expect_size)
+        todo_wine_if(todo) ok_(__FILE__, line)(0, "Unexpected client surface size %Iu, expected %Iu", data_size, expect_size);
+    else if (memcmp( data, expect, data_size ))
+        todo_wine_if(todo) ok_(__FILE__, line)(0, "Unexpected client surface data\n");
+    else if (todo)
+        todo_wine ok_(__FILE__, line)(1, "Got expected client surface data\n");
+    free(data);
+}
+
+struct d3d9_context
+{
+    IDirect3D9 *d3d;
+    IDirect3DDevice9 *device;
+};
+
+static struct d3d9_context *create_d3d9_context(HWND hwnd)
+{
+    D3DPRESENT_PARAMETERS params;
+    struct d3d9_context *ctx;
+    HRESULT hr;
+    RECT rect;
+
+    if (!(ctx = malloc(sizeof(struct d3d9_context)))) return NULL;
+    ctx->d3d = Direct3DCreate9(D3D_SDK_VERSION);
+    ok(ctx->d3d != NULL, "Direct3DCreate9 failed, last error %u\n", GetLastError());
+
+    GetClientRect(hwnd, &rect);
+    OffsetRect(&rect, -rect.left, -rect.top);
+
+    memset(&params, 0, sizeof(params));
+    params.Windowed = TRUE;
+    params.SwapEffect = D3DSWAPEFFECT_DISCARD;
+    params.hDeviceWindow = hwnd;
+    params.BackBufferFormat = D3DFMT_R5G6B5; /* something incompatible with GL */
+    params.BackBufferWidth = rect.right;
+    params.BackBufferHeight = rect.bottom;
+
+    hr = IDirect3D9_CreateDevice(ctx->d3d, D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hwnd,
+                                 D3DCREATE_SOFTWARE_VERTEXPROCESSING, &params, &ctx->device);
+    ok(hr == S_OK, "IDirect3D9_CreateDevice returned %#x\n", hr);
+
+    return ctx;
+}
+
+static void paint_d3d9_client_rect(struct d3d9_context *ctx, DWORD color)
+{
+    HRESULT hr;
+    hr = IDirect3DDevice9_Clear(ctx->device, 0, NULL, D3DCLEAR_TARGET, color, 1.0f, 0);
+    ok(hr == S_OK, "IDirect3DDevice9_Clear returned %#x\n", hr);
+    hr = IDirect3DDevice9_Present(ctx->device, NULL, NULL, NULL, NULL);
+    ok(hr == S_OK, "IDirect3DDevice9_Present returned %#x\n", hr);
+}
+
+static void destroy_d3d9_context(struct d3d9_context *ctx)
+{
+    IDirect3DDevice9_Release(ctx->device);
+    IDirect3D9_Release(ctx->d3d);
+    free(ctx);
+}
+
+struct gl_context
+{
+    HWND hwnd;
+    HDC hdc;
+    HGLRC hrc;
+    IDirect3D9 *d3d;
+    IDirect3DDevice9 *device;
+};
+
+static struct gl_context *create_gl_context(HWND hwnd)
+{
+    PIXELFORMATDESCRIPTOR desc;
+    struct gl_context *ctx;
+    RECT rect;
+    BOOL ret;
+    INT pixel_format;
+
+    if (!(ctx = malloc(sizeof(struct gl_context)))) return NULL;
+
+    GetClientRect(hwnd, &rect);
+    OffsetRect(&rect, -rect.left, -rect.top);
+
+    memset(&desc, 0, sizeof(desc));
+    desc.nSize = sizeof(PIXELFORMATDESCRIPTOR);
+    desc.nVersion = 1;
+    desc.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+    desc.iPixelType = PFD_TYPE_RGBA;
+    desc.cColorBits = 32;
+
+    ctx->hwnd = hwnd;
+    ctx->hdc = GetDC(hwnd);
+    pixel_format = ChoosePixelFormat(ctx->hdc, &desc);
+    ok(pixel_format, "ChoosePixelFormat returned 0, last error %u\n", GetLastError());
+    ret = SetPixelFormat(ctx->hdc, pixel_format, &desc);
+    ok(ret, "SetPixelFormat failed, last error %u\n", GetLastError());
+    ctx->hrc = wglCreateContext(ctx->hdc);
+    wglMakeCurrent(ctx->hdc, ctx->hrc);
+    glViewport(0, 0, (GLint)rect.right, (GLint)rect.bottom);
+
+    return ctx;
+}
+
+static void paint_gl_client_rect(struct gl_context *ctx, DWORD color)
+{
+    BOOL ret;
+    ret = wglMakeCurrent(ctx->hdc, ctx->hrc);
+    ok(ret, "wglMakeCurrent failed\n");
+    glClearColor((color >> 16) & 0xff, (color >> 8) & 0xff, (color >> 0) & 0xff, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    ret = SwapBuffers(ctx->hdc);
+    ok(ret, "SwapBuffers failed\n");
+}
+
+static void destroy_gl_context(struct gl_context *ctx)
+{
+    wglMakeCurrent(NULL, NULL);
+    wglDeleteContext(ctx->hrc);
+    ReleaseDC(ctx->hwnd, ctx->hdc);
+    free(ctx);
+}
+
+static void paint_client_rect(HWND hwnd, COLORREF color)
+{
+    HDC hdc = GetDC(hwnd);
+    HPEN pen = CreatePen(PS_SOLID, 0, color);
+    HBRUSH brush = CreateSolidBrush(color);
+    RECT rect;
+    GetClientRect(hwnd, &rect);
+
+    SelectObject(hdc, pen);
+    SelectObject(hdc, brush);
+    Rectangle(hdc, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top);
+    DeleteObject(brush);
+    DeleteObject(pen);
+    DeleteDC(hdc);
+}
+
+LRESULT WINAPI test_surface_composition_winproc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+    switch (msg)
+    {
+    case WM_ERASEBKGND: return 0;
+    case WM_NCPAINT:
+    case WM_PAINT:
+    {
+        BeginPaint(hwnd, NULL);
+        EndPaint(hwnd, NULL);
+        return 0;
+    }
+    default:
+        return DefWindowProcW(hwnd, msg, wparam, lparam);
+    }
+}
+
+static void test_surface_composition(void)
+{
+#define COLOR1 0x00ff0000
+#define COLOR2 0x0000ffff
+#define COLOR3 0x00ff00ff
+#define COLOR4 0x00ffff00
+#define BGRA2RGB(x) RGB((x >> 16) & 0xff, (x >> 8) & 0xff, x & 0xff)
+    static const DWORD minimized_surface[] =
+    {
+        0x00000000
+    };
+    static const DWORD hidden_surface[] =
+    {
+        0x00000000, 0x00000000, 0x00000000, 0x00000000,
+        0x00000000, 0x00000000, 0x00000000, 0x00000000,
+        0x00000000, 0x00000000, 0x00000000, 0x00000000,
+        0x00000000, 0x00000000, 0x00000000, 0x00000000,
+    };
+    static const DWORD partial_surface[] =
+    {
+        0x00000000, 0x00000000,     COLOR1,     COLOR1,
+        0x00000000, 0x00000000,     COLOR1,     COLOR1,
+        0x00000000, 0x00000000, 0x00000000, 0x00000000,
+        0x00000000, 0x00000000, 0x00000000, 0x00000000,
+    };
+    static const DWORD painted_surface[] =
+    {
+        COLOR1, COLOR1, COLOR1, COLOR1,
+        COLOR1, COLOR1, COLOR1, COLOR1,
+        COLOR1, COLOR1, COLOR1, COLOR1,
+        COLOR1, COLOR1, COLOR1, COLOR1,
+    };
+    static const DWORD painted_surface2[] =
+    {
+        COLOR2, COLOR2, COLOR2, COLOR2,
+        COLOR2, COLOR2, COLOR2, COLOR2,
+        COLOR2, COLOR2, COLOR2, COLOR2,
+        COLOR2, COLOR2, COLOR2, COLOR2,
+    };
+    static const DWORD painted_surface3[] =
+    {
+        COLOR3, COLOR3, COLOR3, COLOR3,
+        COLOR3, COLOR3, COLOR3, COLOR3,
+        COLOR3, COLOR3, COLOR3, COLOR3,
+        COLOR3, COLOR3, COLOR3, COLOR3,
+    };
+    static const DWORD painted_surface4[] =
+    {
+        COLOR4, COLOR4, COLOR4, COLOR4,
+        COLOR4, COLOR4, COLOR4, COLOR4,
+        COLOR4, COLOR4, COLOR4, COLOR4,
+        COLOR4, COLOR4, COLOR4, COLOR4,
+    };
+    static const DWORD painted_child_surface[] = {
+        COLOR1, COLOR1, COLOR1, COLOR1,
+        COLOR1, COLOR2, COLOR2, COLOR1,
+        COLOR1, COLOR2, COLOR2, COLOR1,
+        COLOR1, COLOR1, COLOR1, COLOR1,
+    };
+
+    DWORD screen_surface[ARRAY_SIZE(painted_surface)];
+    DWORD layered_const_surface[ARRAY_SIZE(painted_surface)];
+    DWORD layered_const_surface2[ARRAY_SIZE(painted_surface2)];
+    DWORD layered_const_surface3[ARRAY_SIZE(painted_surface3)];
+    DWORD layered_const_surface4[ARRAY_SIZE(painted_surface4)];
+    DWORD layered_child_surface[ARRAY_SIZE(painted_child_surface)];
+    DWORD layered_child_const_surface[ARRAY_SIZE(painted_child_surface)];
+    DWORD layered_child_alpha_surface[ARRAY_SIZE(painted_child_surface)];
+
+    struct d3d9_context *d3d9_ctx1, *d3d9_ctx2;
+    struct gl_context *gl_ctx1, *gl_ctx2;
+    BLENDFUNCTION blend_cst_alpha = { AC_SRC_OVER, 0, 0x7f, 0 };
+    BLENDFUNCTION blend_src_alpha = { AC_SRC_OVER, 0, 0xff, AC_SRC_ALPHA };
+    WNDCLASSEXW wc;
+    BITMAPINFO info;
+    HBITMAP bmp_obj;
+    HRESULT hres;
+    SIZE_T i;
+    DWORD *data;
+    HWND hwnd, hwnd_child;
+    RECT rect;
+    BOOL ret;
+    HDC hdc_dst, hdc_src;
+
+    wc.cbSize = sizeof(WNDCLASSEXW);
+    wc.style = CS_HREDRAW | CS_VREDRAW;
+    wc.lpfnWndProc = test_surface_composition_winproc;
+    wc.cbClsExtra = 0;
+    wc.cbWndExtra = 0;
+    wc.hInstance = GetModuleHandleW(NULL);
+    wc.hIcon = 0;
+    wc.hCursor = 0;
+    wc.hbrBackground = 0;
+    wc.lpszMenuName = NULL;
+    wc.lpszClassName = L"surface";
+    wc.hIconSm = 0;
+    RegisterClassExW(&wc);
+
+
+    hres = DwmFlush();
+    todo_wine ok(hres == S_OK || broken(hres == DWM_E_COMPOSITIONDISABLED), "DwmFlush returned %#x\n", hres);
+    if (hres == DWM_E_COMPOSITIONDISABLED)
+    {
+        win_skip("Cannot reliably capture screen surfaces, skipping tests\n");
+        return;
+    }
+
+    hwnd = CreateWindowW(L"surface", L"", WS_POPUP, 0, 0, 4, 4, NULL, NULL, NULL, NULL);
+    ok(hwnd != 0, "CreateWindowW failed, last error %u\n", GetLastError());
+    flush_events( TRUE );
+
+    capture_screen_surface(hwnd, screen_surface, sizeof(screen_surface));
+
+    for (i = 0; i < ARRAY_SIZE(painted_surface); i++)
+    {
+        BYTE sr = (screen_surface[i] >> 16) & 0xff, dr = (painted_surface[i] >> 16) & 0xff;
+        BYTE sg = (screen_surface[i] >> 8) & 0xff, dg = (painted_surface[i] >> 8) & 0xff;
+        BYTE sb = (screen_surface[i] >> 0) & 0xff, db = (painted_surface[i] >> 0) & 0xff;
+        BYTE da = 0x7f;
+        dr = min(max((sr * (0xff - da) + dr * da + 0x7f) / 0xff, 0), 0xff);
+        dg = min(max((sg * (0xff - da) + dg * da + 0x7f) / 0xff, 0), 0xff);
+        db = min(max((sb * (0xff - da) + db * da + 0x7f) / 0xff, 0), 0xff);
+        layered_const_surface[i] = BGRA2RGB(RGB(dr, dg, db));
+    }
+
+    for (i = 0; i < ARRAY_SIZE(painted_surface2); i++)
+    {
+        BYTE sr = (screen_surface[i] >> 16) & 0xff, dr = (painted_surface2[i] >> 16) & 0xff;
+        BYTE sg = (screen_surface[i] >> 8) & 0xff, dg = (painted_surface2[i] >> 8) & 0xff;
+        BYTE sb = (screen_surface[i] >> 0) & 0xff, db = (painted_surface2[i] >> 0) & 0xff;
+        BYTE da = 0x7f;
+        dr = min(max((sr * (0xff - da) + dr * da + 0x7f) / 0xff, 0), 0xff);
+        dg = min(max((sg * (0xff - da) + dg * da + 0x7f) / 0xff, 0), 0xff);
+        db = min(max((sb * (0xff - da) + db * da + 0x7f) / 0xff, 0), 0xff);
+        layered_const_surface2[i] = BGRA2RGB(RGB(dr, dg, db));
+    }
+
+    for (i = 0; i < ARRAY_SIZE(painted_surface3); i++)
+    {
+        BYTE sr = (screen_surface[i] >> 16) & 0xff, dr = (painted_surface3[i] >> 16) & 0xff;
+        BYTE sg = (screen_surface[i] >> 8) & 0xff, dg = (painted_surface3[i] >> 8) & 0xff;
+        BYTE sb = (screen_surface[i] >> 0) & 0xff, db = (painted_surface3[i] >> 0) & 0xff;
+        BYTE da = 0x7f;
+        dr = min(max((sr * (0xff - da) + dr * da + 0x7f) / 0xff, 0), 0xff);
+        dg = min(max((sg * (0xff - da) + dg * da + 0x7f) / 0xff, 0), 0xff);
+        db = min(max((sb * (0xff - da) + db * da + 0x7f) / 0xff, 0), 0xff);
+        layered_const_surface3[i] = BGRA2RGB(RGB(dr, dg, db));
+    }
+
+    for (i = 0; i < ARRAY_SIZE(painted_surface4); i++)
+    {
+        BYTE sr = (screen_surface[i] >> 16) & 0xff, dr = (painted_surface4[i] >> 16) & 0xff;
+        BYTE sg = (screen_surface[i] >> 8) & 0xff, dg = (painted_surface4[i] >> 8) & 0xff;
+        BYTE sb = (screen_surface[i] >> 0) & 0xff, db = (painted_surface4[i] >> 0) & 0xff;
+        BYTE da = 0x7f;
+        dr = min(max((sr * (0xff - da) + dr * da + 0x7f) / 0xff, 0), 0xff);
+        dg = min(max((sg * (0xff - da) + dg * da + 0x7f) / 0xff, 0), 0xff);
+        db = min(max((sb * (0xff - da) + db * da + 0x7f) / 0xff, 0), 0xff);
+        layered_const_surface4[i] = BGRA2RGB(RGB(dr, dg, db));
+    }
+
+    memcpy(layered_child_surface, screen_surface, sizeof(screen_surface));
+    for (i = 0; i < ARRAY_SIZE(painted_child_surface); i++)
+    {
+        if (painted_child_surface[i] == painted_surface[i])
+            layered_child_surface[i] = painted_surface[i];
+    }
+
+    for (i = 0; i < ARRAY_SIZE(painted_child_surface); i++)
+    {
+        BYTE sr = (screen_surface[i] >> 16) & 0xff, dr = (painted_child_surface[i] >> 16) & 0xff;
+        BYTE sg = (screen_surface[i] >> 8) & 0xff, dg = (painted_child_surface[i] >> 8) & 0xff;
+        BYTE sb = (screen_surface[i] >> 0) & 0xff, db = (painted_child_surface[i] >> 0) & 0xff;
+        BYTE da = 0x7f;
+        dr = min(max((sr * (0xff - da) + dr * da + 0x7f) / 0xff, 0), 0xff);
+        dg = min(max((sg * (0xff - da) + dg * da + 0x7f) / 0xff, 0), 0xff);
+        db = min(max((sb * (0xff - da) + db * da + 0x7f) / 0xff, 0), 0xff);
+        layered_child_const_surface[i] = BGRA2RGB(RGB(dr, dg, db));
+    }
+
+    for (i = 0; i < ARRAY_SIZE(painted_child_surface); i++)
+    {
+        BYTE sr = (screen_surface[i] >> 16) & 0xff, dr = (painted_child_surface[i] >> 16) & 0xff;
+        BYTE sg = (screen_surface[i] >> 8) & 0xff, dg = (painted_child_surface[i] >> 8) & 0xff;
+        BYTE sb = (screen_surface[i] >> 0) & 0xff, db = (painted_child_surface[i] >> 0) & 0xff;
+        BYTE sa = painted_child_surface[i] == COLOR2 ? 0xff : 0x00;
+        dr = min(max((sr * (0xff - sa) + dr * 0xff + 0x7f) / 0xff, 0), 0xff);
+        dg = min(max((sg * (0xff - sa) + dg * 0xff + 0x7f) / 0xff, 0), 0xff);
+        db = min(max((sb * (0xff - sa) + db * 0xff + 0x7f) / 0xff, 0), 0xff);
+        layered_child_alpha_surface[i] = BGRA2RGB(RGB(dr, dg, db));
+    }
+
+
+    ShowWindow(hwnd, SW_SHOW);
+    flush_events( TRUE );
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+
+    ShowWindow(hwnd, SW_HIDE);
+    flush_events( TRUE );
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
+    check_screen_surface(hwnd, screen_surface, sizeof(screen_surface), FALSE);
+
+    ShowWindow(hwnd, SW_SHOW);
+    flush_events( TRUE );
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+
+    ShowWindow(hwnd, SW_MINIMIZE);
+    flush_events( TRUE );
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, minimized_surface, sizeof(minimized_surface), FALSE);
+    check_screen_surface(hwnd, minimized_surface, sizeof(minimized_surface), FALSE);
+
+    ShowWindow(hwnd, SW_RESTORE);
+    flush_events( TRUE );
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+
+    SetWindowPos(hwnd, 0, -100, -100, 0, 0, SWP_NOSIZE);
+    flush_events( TRUE );
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), TRUE);
+    check_screen_surface(hwnd, hidden_surface, sizeof(hidden_surface), FALSE);
+
+    SetWindowPos(hwnd, 0, -2, -2, 0, 0, SWP_NOSIZE);
+    flush_events( TRUE );
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, partial_surface, sizeof(partial_surface), TRUE);
+
+    SetWindowPos(hwnd, 0, 0, 0, 0, 0, SWP_NOSIZE);
+    flush_events( TRUE );
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+
+    hwnd_child = CreateWindowW(L"surface", L"", WS_CHILD | WS_VISIBLE, 1, 1, 2, 2, hwnd, NULL, NULL, NULL);
+    ok(hwnd_child != 0, "CreateWindowW failed, last error %u\n", GetLastError());
+
+    flush_events( TRUE );
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    paint_client_rect(hwnd_child, BGRA2RGB(COLOR2));
+    check_client_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+    check_screen_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+
+    SetWindowLongW(hwnd, GWL_STYLE, GetWindowLongW(hwnd, GWL_STYLE) | WS_CLIPCHILDREN);
+
+    paint_client_rect(hwnd_child, BGRA2RGB(COLOR2));
+    check_client_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+    check_screen_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+    check_screen_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+
+    DestroyWindow(hwnd_child);
+    check_client_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+    check_screen_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+
+    DestroyWindow(hwnd);
+
+
+    /* WS_EX_LAYERED */
+
+    hwnd = CreateWindowW(L"surface", L"", WS_POPUP | WS_VISIBLE, 0, 0, 4, 4, 0, NULL, NULL, NULL);
+    ok(hwnd != 0, "CreateWindowW failed, last error %u\n", GetLastError());
+    flush_events( TRUE );
+
+    SetWindowLongW(hwnd, GWL_EXSTYLE, GetWindowLongW(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED);
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+
+    ShowWindow(hwnd, SW_HIDE);
+    flush_events( TRUE );
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), TRUE);
+    check_screen_surface(hwnd, screen_surface, sizeof(screen_surface), FALSE);
+
+    ShowWindow(hwnd, SW_SHOW);
+    flush_events( TRUE );
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), TRUE);
+
+    hwnd_child = CreateWindowW(L"surface", L"", WS_CHILD | WS_VISIBLE, 1, 1, 2, 2, hwnd, NULL, NULL, NULL);
+    ok(hwnd_child != 0, "CreateWindowW failed, last error %u\n", GetLastError());
+
+    flush_events( TRUE );
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), TRUE);
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    paint_client_rect(hwnd_child, BGRA2RGB(COLOR2));
+    check_client_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+    check_screen_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), TRUE);
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), TRUE);
+
+    SetWindowLongW(hwnd, GWL_STYLE, GetWindowLongW(hwnd, GWL_STYLE) | WS_CLIPCHILDREN);
+
+    paint_client_rect(hwnd_child, BGRA2RGB(COLOR2));
+    check_client_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+    check_screen_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), TRUE);
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+    check_screen_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), TRUE);
+
+    DestroyWindow(hwnd_child);
+    check_client_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+    check_screen_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), TRUE);
+
+    DestroyWindow(hwnd);
+
+
+    /* SetLayeredWindowAttributes / LWA_ALPHA */
+
+    hwnd = CreateWindowW(L"surface", L"", WS_POPUP, 0, 0, 4, 4, 0, NULL, NULL, NULL);
+    ok(hwnd != 0, "CreateWindowW failed, last error %u\n", GetLastError());
+
+    SetWindowLongW(hwnd, GWL_EXSTYLE, GetWindowLongW(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED);
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), FALSE);
+    check_screen_surface(hwnd, screen_surface, sizeof(screen_surface), FALSE);
+
+    ShowWindow(hwnd, SW_SHOW);
+    flush_events( TRUE );
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
+    check_screen_surface(hwnd, screen_surface, sizeof(screen_surface), FALSE);
+
+    ret = SetLayeredWindowAttributes(hwnd, 0, 0x7f, LWA_ALPHA);
+    ok(ret, "SetLayeredWindowAttributes failed, last error %u\n", GetLastError());
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, layered_const_surface, sizeof(layered_const_surface), TRUE);
+
+    hwnd_child = CreateWindowW(L"surface", L"", WS_CHILD | WS_VISIBLE, 1, 1, 2, 2, hwnd, NULL, NULL, NULL);
+    ok(hwnd_child != 0, "CreateWindowW failed, last error %u\n", GetLastError());
+
+    flush_events( TRUE );
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, layered_const_surface, sizeof(layered_const_surface), TRUE);
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    paint_client_rect(hwnd_child, BGRA2RGB(COLOR2));
+    check_client_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+    check_screen_surface(hwnd, layered_child_const_surface, sizeof(layered_child_const_surface), TRUE);
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, layered_const_surface, sizeof(layered_const_surface), TRUE);
+
+    SetWindowLongW(hwnd, GWL_STYLE, GetWindowLongW(hwnd, GWL_STYLE) | WS_CLIPCHILDREN);
+
+    paint_client_rect(hwnd_child, BGRA2RGB(COLOR2));
+    check_client_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+    check_screen_surface(hwnd, layered_child_const_surface, sizeof(layered_child_const_surface), TRUE);
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+    check_screen_surface(hwnd, layered_child_const_surface, sizeof(layered_child_const_surface), TRUE);
+
+    DestroyWindow(hwnd_child);
+    check_client_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+    check_screen_surface(hwnd, layered_child_const_surface, sizeof(layered_child_const_surface), TRUE);
+
+    DestroyWindow(hwnd);
+
+
+    /* SetLayeredWindowAttributes / LWA_COLORKEY */
+
+    hwnd = CreateWindowW(L"surface", L"", WS_POPUP, 0, 0, 4, 4, 0, NULL, NULL, NULL);
+    ok(hwnd != 0, "CreateWindowW failed, last error %u\n", GetLastError());
+
+    SetWindowLongW(hwnd, GWL_EXSTYLE, GetWindowLongW(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED);
+    ret = SetLayeredWindowAttributes(hwnd, BGRA2RGB(COLOR2), 0, LWA_COLORKEY);
+    ok(ret, "SetLayeredWindowAttributes failed, last error %u\n", GetLastError());
+    ShowWindow(hwnd, SW_SHOW);
+    flush_events( TRUE );
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+
+    hwnd_child = CreateWindowW(L"surface", L"", WS_CHILD | WS_VISIBLE, 1, 1, 2, 2, hwnd, NULL, NULL, NULL);
+    ok(hwnd_child != 0, "CreateWindowW failed, last error %u\n", GetLastError());
+    flush_events( TRUE );
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    paint_client_rect(hwnd_child, BGRA2RGB(COLOR2));
+    check_client_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+    check_screen_surface(hwnd, layered_child_surface, sizeof(layered_child_surface), FALSE);
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+
+    SetWindowLongW(hwnd, GWL_STYLE, GetWindowLongW(hwnd, GWL_STYLE) | WS_CLIPCHILDREN);
+
+    paint_client_rect(hwnd_child, BGRA2RGB(COLOR2));
+    check_client_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+    check_screen_surface(hwnd, layered_child_surface, sizeof(layered_child_surface), FALSE);
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+    check_screen_surface(hwnd, layered_child_surface, sizeof(layered_child_surface), FALSE);
+
+    DestroyWindow(hwnd_child);
+    check_client_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), FALSE);
+    check_screen_surface(hwnd, layered_child_surface, sizeof(layered_child_surface), FALSE);
+
+    GetClientRect(hwnd, &rect);
+    OffsetRect(&rect, -rect.left, -rect.top);
+
+    memset(&info, 0, sizeof(info));
+    info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    info.bmiHeader.biWidth = rect.right;
+    info.bmiHeader.biHeight = rect.bottom;
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+    info.bmiHeader.biSizeImage = rect.right * rect.bottom * 4;
+
+    hdc_dst = GetDC(hwnd);
+    ok(hdc_dst != 0, "GetDC failed, last error %u\n", GetLastError());
+    hdc_src = CreateCompatibleDC(hdc_dst);
+    ok(hdc_src != 0, "CreateCompatibleDC failed, last error %u\n", GetLastError());
+    bmp_obj = CreateDIBSection(hdc_src, &info, DIB_RGB_COLORS, (void **)&data, NULL, 0x0);
+    ok(bmp_obj != 0, "CreateBitmap failed, last error %u\n", GetLastError());
+    SelectObject(hdc_src, bmp_obj);
+    ret = BitBlt(hdc_src, 0, 0, rect.right, rect.bottom, hdc_dst, 0, 0, SRCCOPY);
+    ok(ret, "BitBlt failed, last error %u\n", GetLastError());
+    ReleaseDC(hwnd, hdc_dst);
+
+    for (i = rect.bottom * rect.right; i != 0; i--)
+        if (data[i - 1] == COLOR2) data[i - 1] |= 0xff000000;
+
+    DestroyWindow(hwnd);
+
+
+    /* UpdateLayeredWindow */
+
+    hdc_dst = GetDC(NULL);
+    hwnd = CreateWindowW(L"surface", L"", WS_POPUP, 0, 0, 4, 4, 0, NULL, NULL, NULL);
+    ok(hwnd != 0, "CreateWindowW failed, last error %u\n", GetLastError());
+
+    SetWindowLongW(hwnd, GWL_EXSTYLE, GetWindowLongW(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED);
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), FALSE);
+    check_screen_surface(hwnd, screen_surface, sizeof(screen_surface), FALSE);
+
+    ret = UpdateLayeredWindow(hwnd, hdc_dst, NULL, (SIZE *)&rect.right, hdc_src, (POINT *)&rect.left, 0, NULL, ULW_OPAQUE);
+    ok(ret, "UpdateLayeredWindow failed, last error %u\n", GetLastError());
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
+    check_screen_surface(hwnd, screen_surface, sizeof(screen_surface), FALSE);
+
+    ShowWindow(hwnd, SW_SHOW);
+    flush_events( TRUE );
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
+    check_screen_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), TRUE);
+
+    ret = UpdateLayeredWindow(hwnd, hdc_dst, NULL, (SIZE *)&rect.right, hdc_src, (POINT *)&rect.left, BGRA2RGB(COLOR2), NULL, ULW_COLORKEY);
+    ok(ret, "UpdateLayeredWindow failed, last error %u\n", GetLastError());
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
+    check_screen_surface(hwnd, layered_child_surface, sizeof(layered_child_surface), TRUE);
+
+    ret = UpdateLayeredWindow(hwnd, hdc_dst, NULL, (SIZE *)&rect.right, hdc_src, (POINT *)&rect.left, 0, &blend_cst_alpha, ULW_ALPHA);
+    ok(ret, "UpdateLayeredWindow failed, last error %u\n", GetLastError());
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
+    check_screen_surface(hwnd, layered_child_const_surface, sizeof(layered_child_const_surface), TRUE);
+
+    ret = UpdateLayeredWindow(hwnd, hdc_dst, NULL, (SIZE *)&rect.right, hdc_src, (POINT *)&rect.left, 0, &blend_src_alpha, ULW_ALPHA);
+    ok(ret, "UpdateLayeredWindow failed, last error %u\n", GetLastError());
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
+    check_screen_surface(hwnd, layered_child_alpha_surface, sizeof(layered_child_alpha_surface), TRUE);
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
+    check_screen_surface(hwnd, layered_child_alpha_surface, sizeof(layered_child_alpha_surface), TRUE);
+
+    hwnd_child = CreateWindowW(L"surface", L"", WS_CHILD | WS_VISIBLE, 1, 1, 2, 2, hwnd, NULL, NULL, NULL);
+    ok(hwnd_child != 0, "CreateWindowW failed, last error %u\n", GetLastError());
+    flush_events( TRUE );
+    check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
+    check_screen_surface(hwnd, layered_child_alpha_surface, sizeof(layered_child_alpha_surface), TRUE);
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    paint_client_rect(hwnd_child, BGRA2RGB(COLOR2));
+    check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
+    check_screen_surface(hwnd, layered_child_alpha_surface, sizeof(layered_child_alpha_surface), TRUE);
+
+    DestroyWindow(hwnd_child);
+    DestroyWindow(hwnd);
+
+
+    /* D3D / GL / GDI interactions */
+
+    hwnd = CreateWindowW(L"surface", L"", WS_POPUP | WS_VISIBLE, 0, 0, 4, 4, 0, NULL, NULL, NULL);
+    ok(hwnd != 0, "CreateWindowW failed, last error %u\n", GetLastError());
+    d3d9_ctx1 = create_d3d9_context(hwnd);
+    d3d9_ctx2 = create_d3d9_context(hwnd);
+    flush_events( TRUE );
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), TRUE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+
+    paint_d3d9_client_rect(d3d9_ctx1, COLOR2);
+    check_client_surface(hwnd, painted_surface2, sizeof(painted_surface2), TRUE);
+    check_screen_surface(hwnd, painted_surface2, sizeof(painted_surface2), FALSE);
+
+    paint_d3d9_client_rect(d3d9_ctx2, COLOR3);
+    check_client_surface(hwnd, painted_surface3, sizeof(painted_surface3), TRUE);
+    check_screen_surface(hwnd, painted_surface3, sizeof(painted_surface3), FALSE);
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR4));
+    check_client_surface(hwnd, painted_surface4, sizeof(painted_surface4), TRUE);
+    check_screen_surface(hwnd, painted_surface4, sizeof(painted_surface4), FALSE);
+
+    gl_ctx1 = create_gl_context(hwnd);
+    gl_ctx2 = create_gl_context(hwnd);
+    flush_events( TRUE );
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), TRUE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+
+    paint_gl_client_rect(gl_ctx1, COLOR2);
+    check_client_surface(hwnd, painted_surface2, sizeof(painted_surface2), TRUE);
+    check_screen_surface(hwnd, painted_surface2, sizeof(painted_surface2), FALSE);
+
+    paint_gl_client_rect(gl_ctx2, COLOR3);
+    check_client_surface(hwnd, painted_surface3, sizeof(painted_surface3), TRUE);
+    check_screen_surface(hwnd, painted_surface3, sizeof(painted_surface3), FALSE);
+
+    paint_d3d9_client_rect(d3d9_ctx1, COLOR4);
+    check_client_surface(hwnd, painted_surface4, sizeof(painted_surface4), TRUE);
+    check_screen_surface(hwnd, painted_surface4, sizeof(painted_surface4), TRUE);
+
+    paint_gl_client_rect(gl_ctx2, COLOR2);
+    check_client_surface(hwnd, painted_surface2, sizeof(painted_surface2), TRUE);
+    check_screen_surface(hwnd, painted_surface2, sizeof(painted_surface2), FALSE);
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), TRUE);
+    check_screen_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+
+    paint_d3d9_client_rect(d3d9_ctx2, COLOR3);
+    check_client_surface(hwnd, painted_surface3, sizeof(painted_surface3), TRUE);
+    check_screen_surface(hwnd, painted_surface3, sizeof(painted_surface3), TRUE);
+
+    paint_gl_client_rect(gl_ctx1, COLOR4);
+    check_client_surface(hwnd, painted_surface4, sizeof(painted_surface4), TRUE);
+    check_screen_surface(hwnd, painted_surface4, sizeof(painted_surface4), FALSE);
+
+    destroy_gl_context(gl_ctx1);
+    destroy_gl_context(gl_ctx2);
+    destroy_d3d9_context(d3d9_ctx1);
+    destroy_d3d9_context(d3d9_ctx2);
+    DestroyWindow(hwnd);
+
+
+    /* D3D / SLWA interactions */
+
+    hwnd = CreateWindowW(L"surface", L"", WS_POPUP, 0, 0, 4, 4, 0, NULL, NULL, NULL);
+    ok(hwnd != 0, "CreateWindowW failed, last error %u\n", GetLastError());
+    d3d9_ctx1 = create_d3d9_context(hwnd);
+    d3d9_ctx2 = create_d3d9_context(hwnd);
+
+    SetWindowLongW(hwnd, GWL_EXSTYLE, GetWindowLongW(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED);
+    ret = SetLayeredWindowAttributes(hwnd, 0, 0x7f, LWA_ALPHA);
+    ok(ret, "SetLayeredWindowAttributes failed, last error %u\n", GetLastError());
+
+    ShowWindow(hwnd, SW_SHOW);
+    flush_events( TRUE );
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, layered_const_surface, sizeof(layered_const_surface), TRUE);
+
+    paint_d3d9_client_rect(d3d9_ctx1, COLOR2);
+    check_client_surface(hwnd, painted_surface2, sizeof(painted_surface2), TRUE);
+    check_screen_surface(hwnd, layered_const_surface2, sizeof(layered_const_surface2), TRUE);
+
+    paint_d3d9_client_rect(d3d9_ctx2, COLOR3);
+    check_client_surface(hwnd, painted_surface3, sizeof(painted_surface3), TRUE);
+    check_screen_surface(hwnd, layered_const_surface3, sizeof(layered_const_surface3), TRUE);
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR4));
+    check_client_surface(hwnd, painted_surface4, sizeof(painted_surface4), FALSE);
+    check_screen_surface(hwnd, layered_const_surface4, sizeof(layered_const_surface4), TRUE);
+
+    gl_ctx1 = create_gl_context(hwnd);
+    gl_ctx2 = create_gl_context(hwnd);
+    flush_events( TRUE );
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), FALSE);
+    check_screen_surface(hwnd, layered_const_surface, sizeof(layered_const_surface), TRUE);
+
+    paint_gl_client_rect(gl_ctx1, COLOR2);
+    check_client_surface(hwnd, painted_surface2, sizeof(painted_surface2), FALSE);
+    check_screen_surface(hwnd, layered_const_surface2, sizeof(layered_const_surface2), TRUE);
+
+    paint_d3d9_client_rect(d3d9_ctx1, COLOR3);
+    check_client_surface(hwnd, painted_surface3, sizeof(painted_surface3), TRUE);
+    check_screen_surface(hwnd, layered_const_surface3, sizeof(layered_const_surface3), TRUE);
+
+    paint_gl_client_rect(gl_ctx2, COLOR4);
+    check_client_surface(hwnd, painted_surface4, sizeof(painted_surface4), FALSE);
+    check_screen_surface(hwnd, layered_const_surface4, sizeof(layered_const_surface4), TRUE);
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR2));
+    check_client_surface(hwnd, painted_surface2, sizeof(painted_surface2), FALSE);
+    check_screen_surface(hwnd, layered_const_surface2, sizeof(layered_const_surface2), TRUE);
+
+    paint_d3d9_client_rect(d3d9_ctx2, COLOR1);
+    check_client_surface(hwnd, painted_surface, sizeof(painted_surface), TRUE);
+    check_screen_surface(hwnd, layered_const_surface, sizeof(layered_const_surface), TRUE);
+
+    destroy_gl_context(gl_ctx1);
+    destroy_gl_context(gl_ctx2);
+    destroy_d3d9_context(d3d9_ctx1);
+    destroy_d3d9_context(d3d9_ctx2);
+    DestroyWindow(hwnd);
+
+
+    /* D3D / ULW interactions */
+
+    hwnd = CreateWindowW(L"surface", L"", WS_POPUP, 0, 0, 4, 4, 0, NULL, NULL, NULL);
+    ok(hwnd != 0, "CreateWindowW failed, last error %u\n", GetLastError());
+    d3d9_ctx1 = create_d3d9_context(hwnd);
+    gl_ctx1 = create_gl_context(hwnd);
+
+    SetWindowLongW(hwnd, GWL_EXSTYLE, GetWindowLongW(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED);
+    ret = UpdateLayeredWindow(hwnd, hdc_dst, NULL, (SIZE *)&rect.right, hdc_src, (POINT *)&rect.left, 0, NULL, ULW_OPAQUE);
+    ok(ret, "UpdateLayeredWindow failed, last error %u\n", GetLastError());
+
+    ShowWindow(hwnd, SW_SHOW);
+    flush_events( TRUE );
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
+    check_screen_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), TRUE);
+
+    paint_gl_client_rect(gl_ctx1, COLOR1);
+    check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
+    check_screen_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), TRUE);
+
+    paint_d3d9_client_rect(d3d9_ctx1, COLOR2);
+    check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
+    check_screen_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), TRUE);
+
+    paint_client_rect(hwnd, BGRA2RGB(COLOR1));
+    check_client_surface(hwnd, hidden_surface, sizeof(hidden_surface), TRUE);
+    check_screen_surface(hwnd, painted_child_surface, sizeof(painted_child_surface), TRUE);
+
+    destroy_gl_context(gl_ctx1);
+    destroy_d3d9_context(d3d9_ctx1);
+    DestroyWindow(hwnd);
+
+
+    DeleteObject(bmp_obj);
+    DeleteDC(hdc_src);
+    ReleaseDC(NULL, hdc_dst);
+
+    UnregisterClassW(L"surface", NULL);
+
+#undef BGRA2RGB
+#undef COLOR1
+#undef COLOR2
+#undef COLOR3
+#undef COLOR4
+}
+
 START_TEST(win)
 {
     char **argv;
@@ -12709,6 +13804,8 @@ START_TEST(win)
 
     DestroyWindow(hwndMain2);
     DestroyWindow(hwndMain);
+
+    test_surface_composition();
 
     /* Make sure that following tests are executed last, under Windows they
      * tend to break the tests which are sensitive to z-order and activation
