@@ -80,6 +80,7 @@ struct window
     unsigned int     is_unicode : 1;  /* ANSI or unicode */
     unsigned int     is_linked : 1;   /* is it linked into the parent z-order list? */
     unsigned int     is_layered : 1;  /* has layered info been set? */
+    unsigned int     is_desktop : 1;  /* is it a desktop window? */
     unsigned int     color_key;       /* color key for a layered window */
     unsigned int     alpha;           /* alpha value for a layered window */
     unsigned int     layered_flags;   /* flags for a layered window */
@@ -140,7 +141,13 @@ static inline struct window *get_window( user_handle_t handle )
 /* check if window is the desktop */
 static inline int is_desktop_window( const struct window *win )
 {
-    return !win->parent;  /* only desktop windows have no parent */
+    return win && !win->parent && win->is_desktop;
+}
+
+/* check if window has lost its parent */
+static inline int is_orphan_window( const struct window *win )
+{
+    return !win->parent && !win->is_desktop;
 }
 
 /* get next window in Z-order list */
@@ -183,7 +190,7 @@ static inline void update_pixel_format_flags( struct window *win )
 static unsigned int get_monitor_dpi( struct window *win )
 {
     /* FIXME: we return the desktop window DPI for now */
-    while (!is_desktop_window( win )) win = win->parent;
+    while (win->parent) win = win->parent;
     return win->dpi ? win->dpi : USER_DEFAULT_SCREEN_DPI;
 }
 
@@ -502,6 +509,7 @@ static struct window *create_window( struct window *parent, struct window *owner
     win->is_unicode     = 1;
     win->is_linked      = 0;
     win->is_layered     = 0;
+    win->is_desktop     = parent ? 0 : 1;
     win->dpi_awareness  = DPI_AWARENESS_PER_MONITOR_AWARE;
     win->dpi            = 0;
     win->user_data      = 0;
@@ -662,7 +670,7 @@ static void map_dpi_region( struct window *win, struct region *region, unsigned 
 /* convert coordinates from client to screen coords */
 static inline void client_to_screen( struct window *win, int *x, int *y )
 {
-    for ( ; win && !is_desktop_window(win); win = win->parent)
+    for ( ; win && win->parent; win = win->parent)
     {
         *x += win->client_rect.left;
         *y += win->client_rect.top;
@@ -687,6 +695,7 @@ static int is_visible( const struct window *win )
 {
     while (win)
     {
+        if (is_orphan_window( win )) return 0;
         if (!(win->style & WS_VISIBLE)) return 0;
         win = win->parent;
         /* if parent is minimized children are not visible */
@@ -833,7 +842,8 @@ struct thread *window_thread_from_point( user_handle_t scope, int x, int y )
 static int all_windows_from_point( struct window *top, int x, int y, unsigned int dpi,
                                    struct user_handle_array *array )
 {
-    if (!is_desktop_window( top ) && !is_desktop_window( top->parent ))
+    assert( top != NULL );
+    if (top->parent && !is_desktop_window( top->parent ))
     {
         screen_to_client( top->parent, &x, &y, dpi );
         dpi = top->parent->dpi;
@@ -941,13 +951,14 @@ static struct region *intersect_window_region( struct region *region, struct win
 /* convert coordinates from client to screen coords */
 static inline void client_to_screen_rect( struct window *win, rectangle_t *rect )
 {
-    for ( ; win && !is_desktop_window(win); win = win->parent)
+    for ( ; win && win->parent; win = win->parent)
         offset_rect( rect, win->client_rect.left, win->client_rect.top );
 }
 
 /* map the region from window to screen coordinates */
 static inline void map_win_region_to_screen( struct window *win, struct region *region )
 {
+    assert( win != NULL );
     if (!is_desktop_window(win))
     {
         int x = win->window_rect.left;
@@ -1192,6 +1203,7 @@ static int get_window_visible_rect( struct window *win, rectangle_t *rect, int f
     *rect = frame ? win->window_rect : win->client_rect;
 
     if (!(win->style & WS_VISIBLE)) return 0;
+    if (is_orphan_window( win )) return 0;
     if (is_desktop_window( win )) return 1;
 
     while (!is_desktop_window( win->parent ))
@@ -1889,9 +1901,25 @@ void destroy_window( struct window *win )
 
     /* destroy all children */
     while (!list_empty(&win->children))
-        destroy_window( LIST_ENTRY( list_head(&win->children), struct window, entry ));
+    {
+        struct window *child = LIST_ENTRY( list_head( &win->children ), struct window, entry );
+        if (!child->thread || child->thread == win->thread) destroy_window( child );
+        else
+        {
+            list_remove( &child->entry );
+            child->parent = NULL;
+        }
+    }
     while (!list_empty(&win->unlinked))
-        destroy_window( LIST_ENTRY( list_head(&win->unlinked), struct window, entry ));
+    {
+        struct window *child = LIST_ENTRY( list_head( &win->unlinked ), struct window, entry );
+        if (!child->thread || child->thread == win->thread) destroy_window( child );
+        else
+        {
+            list_remove( &child->entry );
+            child->parent = NULL;
+        }
+    }
 
     /* reset global window pointers, if the corresponding window is destroyed */
     if (win == shell_window) shell_window = NULL;
@@ -1934,6 +1962,11 @@ DECL_HANDLER(create_window)
 
     reply->handle = 0;
     if (req->parent && !(parent = get_window( req->parent ))) return;
+    if (parent && is_orphan_window( parent ))
+    {
+        set_error( STATUS_INVALID_PARAMETER );
+        return;
+    }
 
     if (req->owner)
     {
@@ -1984,8 +2017,7 @@ DECL_HANDLER(set_parent)
 
     if (!(win = get_window( req->handle ))) return;
     if (req->parent && !(parent = get_window( req->parent ))) return;
-
-    if (is_desktop_window(win))
+    if (!win->parent)
     {
         set_error( STATUS_INVALID_PARAMETER );
         return;
@@ -2106,6 +2138,12 @@ DECL_HANDLER(set_window_info)
     struct window *win = get_window( req->handle );
 
     if (!win) return;
+    if (is_orphan_window( win ))
+    {
+        set_error( STATUS_INVALID_PARAMETER );
+        return;
+    }
+
     if (req->flags && is_desktop_window(win) && win->thread != current)
     {
         set_error( STATUS_ACCESS_DENIED );
@@ -2287,7 +2325,12 @@ DECL_HANDLER(set_window_pos)
     unsigned int flags = req->swp_flags;
 
     if (!win) return;
-    if (!win->parent) flags |= SWP_NOZORDER;  /* no Z order for the desktop */
+    if (is_orphan_window( win ))
+    {
+        set_error( STATUS_INVALID_PARAMETER );
+        return;
+    }
+    if (is_desktop_window(win)) flags |= SWP_NOZORDER;  /* no Z order for the desktop */
 
     if (!(flags & SWP_NOZORDER))
     {
@@ -2477,6 +2520,11 @@ DECL_HANDLER(get_visible_region)
     struct window *top, *win = get_window( req->window );
 
     if (!win) return;
+    if (is_orphan_window( win ))
+    {
+        set_error( STATUS_INVALID_PARAMETER );
+        return;
+    }
 
     top = get_top_clipping_window( win );
     if ((region = get_visible_region( win, req->flags )))
