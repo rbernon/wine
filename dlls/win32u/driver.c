@@ -812,24 +812,22 @@ static void CDECL nulldrv_UpdateClipboard(void)
 static LONG CDECL nulldrv_ChangeDisplaySettingsEx( LPCWSTR name, LPDEVMODEW mode, HWND hwnd,
                                              DWORD flags, LPVOID lparam )
 {
-    return DISP_CHANGE_FAILED;
+    return E_NOTIMPL; /* use default implementation */
 }
 
-static BOOL CDECL nulldrv_EnumDisplayMonitors( HDC hdc, RECT *rect, MONITORENUMPROC proc, LPARAM lp )
+static INT CDECL nulldrv_EnumDisplayMonitors( HDC hdc, RECT *rect, MONITORENUMPROC proc, LPARAM lp )
 {
-    /* FIXME: move from user32 */
-    return FALSE;
+    return -1; /* use default implementation */
 }
 
-static BOOL CDECL nulldrv_EnumDisplaySettingsEx( LPCWSTR name, DWORD num, LPDEVMODEW mode, DWORD flags )
+static INT CDECL nulldrv_EnumDisplaySettingsEx( const WCHAR *name, DWORD num, DEVMODEW *mode, DWORD flags )
 {
-    return FALSE;
+    return -1; /* use default implementation */
 }
 
-static BOOL CDECL nulldrv_GetMonitorInfo( HMONITOR handle, MONITORINFO *info )
+static INT CDECL nulldrv_GetMonitorInfo( HMONITOR handle, MONITORINFO *info )
 {
-    /* FIXME: move from user32 */
-    return FALSE;
+    return -1; /* use default implementation */
 }
 
 static BOOL CDECL nulldrv_CreateDesktopWindow( HWND hwnd )

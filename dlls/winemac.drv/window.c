@@ -1798,7 +1798,7 @@ UINT CDECL macdrv_ShowWindow(HWND hwnd, INT cmd, RECT *rect, UINT swp)
           hwnd, data ? data->cocoa_window : NULL, cmd, wine_dbgstr_rect(rect), swp);
 
     if (!data || !data->cocoa_window) goto done;
-    if (GetWindowLongW(hwnd, GWL_STYLE) & WS_MINIMIZE)
+    if (IsIconic( hwnd ))
     {
         if (rect->left != -32000 || rect->top != -32000)
         {

@@ -2560,12 +2560,11 @@ UINT CDECL X11DRV_ShowWindow( HWND hwnd, INT cmd, RECT *rect, UINT swp )
     unsigned int width, height, border, depth;
     Window root, top;
     POINT pos;
-    DWORD style = GetWindowLongW( hwnd, GWL_STYLE );
     struct x11drv_thread_data *thread_data = x11drv_thread_data();
     struct x11drv_win_data *data = get_win_data( hwnd );
 
     if (!data || !data->whole_window) goto done;
-    if (style & WS_MINIMIZE)
+    if (IsIconic( hwnd ))
     {
         if (((rect->left != -32000 || rect->top != -32000)) && hide_icon( data ))
         {

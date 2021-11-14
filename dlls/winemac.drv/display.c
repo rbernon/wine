@@ -51,7 +51,7 @@ struct display_mode_descriptor
 };
 
 
-BOOL CDECL macdrv_EnumDisplaySettingsEx(LPCWSTR devname, DWORD mode, LPDEVMODEW devmode, DWORD flags);
+INT CDECL macdrv_EnumDisplaySettingsEx(const WCHAR *devname, DWORD mode, DEVMODEW *devmode, DWORD flags);
 
 DEFINE_DEVPROPKEY(DEVPROPKEY_GPU_LUID, 0x60b193cb, 0x5276, 0x4d0f, 0x96, 0xfc, 0xf1, 0x73, 0xab, 0xad, 0x3e, 0xc6, 2);
 DEFINE_DEVPROPKEY(DEVPROPKEY_MONITOR_GPU_LUID, 0xca085853, 0x16ce, 0x48aa, 0xb1, 0x14, 0xde, 0x9c, 0x72, 0x33, 0x42, 0x23, 1);
@@ -153,133 +153,6 @@ static void release_display_device_init_mutex(HANDLE mutex)
     ReleaseMutex(mutex);
     CloseHandle(mutex);
 }
-
-static BOOL get_display_device_reg_key(const WCHAR *device_name, WCHAR *key, unsigned len)
-{
-    WCHAR value_name[MAX_PATH], buffer[MAX_PATH], *end_ptr;
-    DWORD adapter_index, size;
-
-    /* Device name has to be \\.\DISPLAY%d */
-    if (strncmpiW(device_name, adapter_prefixW, ARRAY_SIZE(adapter_prefixW)))
-        return FALSE;
-
-    /* Parse \\.\DISPLAY* */
-    adapter_index = strtolW(device_name + ARRAY_SIZE(adapter_prefixW), &end_ptr, 10) - 1;
-    if (*end_ptr)
-        return FALSE;
-
-    /* Open \Device\Video* in HKLM\HARDWARE\DEVICEMAP\VIDEO\ */
-    sprintfW(value_name, device_video_fmtW, adapter_index);
-    size = sizeof(buffer);
-    if (RegGetValueW(HKEY_LOCAL_MACHINE, video_keyW, value_name, RRF_RT_REG_SZ, NULL, buffer, &size))
-        return FALSE;
-
-    if (len < lstrlenW(buffer + 18) + 1)
-        return FALSE;
-
-    /* Skip \Registry\Machine\ prefix */
-    lstrcpyW(key, buffer + 18);
-    TRACE("display device %s registry settings key %s.\n", wine_dbgstr_w(device_name), wine_dbgstr_w(key));
-    return TRUE;
-}
-
-
-static BOOL read_registry_settings(const WCHAR *device_name, DEVMODEW *dm)
-{
-    WCHAR wine_mac_reg_key[MAX_PATH];
-    HANDLE mutex;
-    HKEY hkey;
-    DWORD type, size;
-    BOOL ret = TRUE;
-
-    dm->dmFields = 0;
-
-    mutex = get_display_device_init_mutex();
-    if (!get_display_device_reg_key(device_name, wine_mac_reg_key, ARRAY_SIZE(wine_mac_reg_key)))
-    {
-        release_display_device_init_mutex(mutex);
-        return FALSE;
-    }
-
-    if (RegOpenKeyExW(HKEY_CURRENT_CONFIG, wine_mac_reg_key, 0, KEY_READ, &hkey))
-    {
-        release_display_device_init_mutex(mutex);
-        return FALSE;
-    }
-
-#define query_value(name, data) \
-    size = sizeof(DWORD); \
-    if (RegQueryValueExA(hkey, name, 0, &type, (LPBYTE)(data), &size) || \
-        type != REG_DWORD || size != sizeof(DWORD)) \
-        ret = FALSE
-
-    query_value("DefaultSettings.BitsPerPel", &dm->dmBitsPerPel);
-    dm->dmFields |= DM_BITSPERPEL;
-    query_value("DefaultSettings.XResolution", &dm->dmPelsWidth);
-    dm->dmFields |= DM_PELSWIDTH;
-    query_value("DefaultSettings.YResolution", &dm->dmPelsHeight);
-    dm->dmFields |= DM_PELSHEIGHT;
-    query_value("DefaultSettings.VRefresh", &dm->dmDisplayFrequency);
-    dm->dmFields |= DM_DISPLAYFREQUENCY;
-    query_value("DefaultSettings.Flags", &dm->dmDisplayFlags);
-    dm->dmFields |= DM_DISPLAYFLAGS;
-    query_value("DefaultSettings.XPanning", &dm->dmPosition.x);
-    query_value("DefaultSettings.YPanning", &dm->dmPosition.y);
-    dm->dmFields |= DM_POSITION;
-    query_value("DefaultSettings.Orientation", &dm->dmDisplayOrientation);
-    dm->dmFields |= DM_DISPLAYORIENTATION;
-    query_value("DefaultSettings.FixedOutput", &dm->dmDisplayFixedOutput);
-
-#undef query_value
-
-    RegCloseKey(hkey);
-    release_display_device_init_mutex(mutex);
-    return ret;
-}
-
-
-static BOOL write_registry_settings(const WCHAR *device_name, const DEVMODEW *dm)
-{
-    WCHAR wine_mac_reg_key[MAX_PATH];
-    HANDLE mutex;
-    HKEY hkey;
-    BOOL ret = TRUE;
-
-    mutex = get_display_device_init_mutex();
-    if (!get_display_device_reg_key(device_name, wine_mac_reg_key, ARRAY_SIZE(wine_mac_reg_key)))
-    {
-        release_display_device_init_mutex(mutex);
-        return FALSE;
-    }
-
-    if (RegCreateKeyExW(HKEY_CURRENT_CONFIG, wine_mac_reg_key, 0, NULL,
-                        REG_OPTION_VOLATILE, KEY_WRITE, NULL, &hkey, NULL))
-    {
-        release_display_device_init_mutex(mutex);
-        return FALSE;
-    }
-
-#define set_value(name, data) \
-    if (RegSetValueExA(hkey, name, 0, REG_DWORD, (const BYTE*)(data), sizeof(DWORD))) \
-        ret = FALSE
-
-    set_value("DefaultSettings.BitsPerPel", &dm->dmBitsPerPel);
-    set_value("DefaultSettings.XResolution", &dm->dmPelsWidth);
-    set_value("DefaultSettings.YResolution", &dm->dmPelsHeight);
-    set_value("DefaultSettings.VRefresh", &dm->dmDisplayFrequency);
-    set_value("DefaultSettings.Flags", &dm->dmDisplayFlags);
-    set_value("DefaultSettings.XPanning", &dm->dmPosition.x);
-    set_value("DefaultSettings.YPanning", &dm->dmPosition.y);
-    set_value("DefaultSettings.Orientation", &dm->dmDisplayOrientation);
-    set_value("DefaultSettings.FixedOutput", &dm->dmDisplayFixedOutput);
-
-#undef set_value
-
-    RegCloseKey(hkey);
-    release_display_device_init_mutex(mutex);
-    return ret;
-}
-
 
 static BOOL write_display_settings(HKEY parent_hkey, CGDirectDisplayID displayID)
 {
@@ -980,13 +853,7 @@ better:
         /* we have a valid mode */
         TRACE("Requested display settings match mode %ld\n", best);
 
-        if ((flags & CDS_UPDATEREGISTRY) && !write_registry_settings(devname, devmode))
-        {
-            WARN("Failed to update registry\n");
-            ret = DISP_CHANGE_NOTUPDATED;
-        }
-        else if (flags & (CDS_TEST | CDS_NORESET))
-            ret = DISP_CHANGE_SUCCESSFUL;
+        if (flags & (CDS_TEST | CDS_NORESET)) ret = DISP_CHANGE_SUCCESSFUL;
         else if (lstrcmpiW(primary_adapter, devname))
         {
             FIXME("Changing non-primary adapter settings is currently unsupported.\n");
@@ -1034,8 +901,8 @@ better:
  *              EnumDisplaySettingsEx  (MACDRV.@)
  *
  */
-BOOL CDECL macdrv_EnumDisplaySettingsEx(LPCWSTR devname, DWORD mode,
-                                        LPDEVMODEW devmode, DWORD flags)
+INT CDECL macdrv_EnumDisplaySettingsEx(const WCHAR *devname, DWORD mode,
+                                       DEVMODEW *devmode, DWORD flags)
 {
     static const WCHAR dev_name[CCHDEVICENAME] =
         { 'W','i','n','e',' ','M','a','c',' ','d','r','i','v','e','r',0 };
@@ -1052,17 +919,8 @@ BOOL CDECL macdrv_EnumDisplaySettingsEx(LPCWSTR devname, DWORD mode,
     init_original_display_mode();
 
     memcpy(devmode->dmDeviceName, dev_name, sizeof(dev_name));
-    devmode->dmSpecVersion = DM_SPECVERSION;
-    devmode->dmDriverVersion = DM_SPECVERSION;
-    devmode->dmSize = FIELD_OFFSET(DEVMODEW, dmICMMethod);
-    devmode->dmDriverExtra = 0;
-    memset(&devmode->dmFields, 0, devmode->dmSize - FIELD_OFFSET(DEVMODEW, dmFields));
 
-    if (mode == ENUM_REGISTRY_SETTINGS)
-    {
-        TRACE("mode %d (registry) -- getting default mode\n", mode);
-        return read_registry_settings(devname, devmode);
-    }
+    if (mode == ENUM_REGISTRY_SETTINGS) return -1; /* use default implementation */
 
     if (macdrv_get_displays(&displays, &num_displays))
         goto failed;
@@ -1220,13 +1078,13 @@ BOOL CDECL macdrv_EnumDisplaySettingsEx(LPCWSTR devname, DWORD mode,
         TRACE(" (synthesized)");
     TRACE("\n");
 
-    return TRUE;
+    return 1;
 
 failed:
     TRACE("mode %d -- not present\n", mode);
     if (displays) macdrv_free_displays(displays);
     SetLastError(ERROR_NO_MORE_FILES);
-    return FALSE;
+    return 0;
 }
 
 

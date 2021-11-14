@@ -201,44 +201,40 @@ LONG CDECL ANDROID_ChangeDisplaySettingsEx( LPCWSTR devname, LPDEVMODEW devmode,
 /***********************************************************************
  *           ANDROID_GetMonitorInfo
  */
-BOOL CDECL ANDROID_GetMonitorInfo( HMONITOR handle, LPMONITORINFO info )
+INT CDECL ANDROID_GetMonitorInfo( HMONITOR handle, LPMONITORINFO info )
 {
     if (handle != (HMONITOR)1)
     {
         SetLastError( ERROR_INVALID_HANDLE );
-        return FALSE;
+        return 0;
     }
     info->rcMonitor = default_monitor.rcMonitor;
     info->rcWork = default_monitor.rcWork;
     info->dwFlags = default_monitor.dwFlags;
     if (info->cbSize >= sizeof(MONITORINFOEXW))
         lstrcpyW( ((MONITORINFOEXW *)info)->szDevice, default_monitor.szDevice );
-    return TRUE;
+    return 1;
 }
 
 
 /***********************************************************************
  *           ANDROID_EnumDisplayMonitors
  */
-BOOL CDECL ANDROID_EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC proc, LPARAM lp )
+INT CDECL ANDROID_EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC proc, LPARAM lp )
 {
-    return proc( (HMONITOR)1, 0, &default_monitor.rcMonitor, lp );
+    return proc( (HMONITOR)1, 0, &default_monitor.rcMonitor, lp ) ? 1 : 0;
 }
 
 
 /***********************************************************************
  *           ANDROID_EnumDisplaySettingsEx
  */
-BOOL CDECL ANDROID_EnumDisplaySettingsEx( LPCWSTR name, DWORD n, LPDEVMODEW devmode, DWORD flags)
+INT CDECL ANDROID_EnumDisplaySettingsEx( const WCHAR *name, DWORD n, DEVMODEW *devmode, DWORD flags )
 {
     static const WCHAR dev_name[CCHDEVICENAME] =
         { 'W','i','n','e',' ','A','n','d','r','o','i','d',' ','d','r','i','v','e','r',0 };
 
-    devmode->dmSize = offsetof( DEVMODEW, dmICMMethod );
-    devmode->dmSpecVersion = DM_SPECVERSION;
-    devmode->dmDriverVersion = DM_SPECVERSION;
     memcpy( devmode->dmDeviceName, dev_name, sizeof(dev_name) );
-    devmode->dmDriverExtra = 0;
     devmode->u2.dmDisplayFlags = 0;
     devmode->dmDisplayFrequency = 0;
     devmode->u1.s2.dmPosition.x = 0;
@@ -257,11 +253,11 @@ BOOL CDECL ANDROID_EnumDisplaySettingsEx( LPCWSTR name, DWORD n, LPDEVMODEW devm
         TRACE( "mode %d -- %dx%d %d bpp @%d Hz\n", n,
                devmode->dmPelsWidth, devmode->dmPelsHeight,
                devmode->dmBitsPerPel, devmode->dmDisplayFrequency );
-        return TRUE;
+        return 1;
     }
     TRACE( "mode %d -- not present\n", n );
     SetLastError( ERROR_NO_MORE_FILES );
-    return FALSE;
+    return 0;
 }
 
 

@@ -2501,9 +2501,7 @@ static void test_WM_DISPLAYCHANGE(void)
             continue;
         }
 
-        todo_wine_if(start_bpp != test_bpps[i]) {
-            ok(last_bpp == test_bpps[i], "Set bpp %d, but WM_DISPLAYCHANGE reported bpp %d\n", test_bpps[i], last_bpp);
-        }
+        ok(last_bpp == test_bpps[i], "Set bpp %d, but WM_DISPLAYCHANGE reported bpp %d\n", test_bpps[i], last_bpp);
         last_set_bpp = test_bpps[i];
     }
 
@@ -3144,6 +3142,15 @@ static void test_EnumDisplaySettings(void)
     ok(GetLastError() == 0xdeadbeef, "Expect error 0xdeadbeef, got %#x\n", GetLastError());
     ok(dm.dmFields == 0, "Expect dmFields unchanged, got %#x\n", dm.dmFields);
 
+    /* Non-existing device names are invalid */
+    memset(&dm, 0, sizeof(dm));
+    dm.dmSize = sizeof(dm);
+    SetLastError(0xdeadbeef);
+    ret = EnumDisplaySettingsA("\\\\.\\DISPLAY99", ENUM_CURRENT_SETTINGS, &dm);
+    ok(!ret, "EnumDisplaySettingsA succeeded\n");
+    ok(GetLastError() == 0xdeadbeef, "Expect error 0xdeadbeef, got %#x\n", GetLastError());
+    ok(dm.dmFields == 0, "Expect dmFields unchanged, got %#x\n", dm.dmFields);
+
     /* Test that passing NULL to device name parameter means to use the primary adapter */
     memset(&dm, 0, sizeof(dm));
     memset(&dm2, 0, sizeof(dm2));
@@ -3566,7 +3573,6 @@ static void test_dpi_mapping(void)
             hdc = GetWindowDC( hwnd );
             GetClipBox( hdc, &rect );
             SetRect( &expect, 0, 0, 295, 303 );
-            todo_wine
             ok( EqualRect( &expect, &rect ), "%lu/%lu: wrong clip box win DC %s expected %s\n",
                 i, j, wine_dbgstr_rect(&rect), wine_dbgstr_rect(&expect) );
             ReleaseDC( hwnd, hdc );
