@@ -36,6 +36,10 @@
 
 #include "driver_hid.h"
 
+#include "initguid.h"
+
+DEFINE_GUID(control_class,0xdeadbeef,0x29ef,0x4538,0xa5,0xfd,0xb6,0x95,0x73,0xa3,0x62,0xc0);
+
 static UNICODE_STRING control_symlink;
 
 static unsigned int got_start_device;
