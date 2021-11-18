@@ -161,6 +161,11 @@ static void CDECL nulldrv_SetFocus( HWND hwnd )
 {
 }
 
+static BOOL CDECL nulldrv_SetForegroundWindow( HWND hwnd )
+{
+    return TRUE;
+}
+
 static void CDECL nulldrv_SetParent( HWND hwnd, HWND parent, HWND old_parent )
 {
 }
@@ -358,6 +363,7 @@ static struct user_driver_funcs lazy_load_driver =
     NULL,
     nulldrv_SetCapture,
     nulldrv_SetFocus,
+    nulldrv_SetForegroundWindow,
     loaderdrv_SetLayeredWindowAttributes,
     nulldrv_SetParent,
     loaderdrv_SetWindowRgn,

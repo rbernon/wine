@@ -916,6 +916,11 @@ static void CDECL nulldrv_SetCapture( HWND hwnd, UINT flags )
 {
 }
 
+static BOOL CDECL nulldrv_SetForegroundWindow( HWND hwnd )
+{
+    return TRUE;
+}
+
 static void CDECL nulldrv_SetFocus( HWND hwnd )
 {
 }
@@ -1100,6 +1105,7 @@ void CDECL __wine_set_display_driver( struct user_driver_funcs *driver, UINT ver
     SET_USER_FUNC(ReleaseDC);
     SET_USER_FUNC(ScrollDC);
     SET_USER_FUNC(SetCapture);
+    SET_USER_FUNC(SetForegroundWindow);
     SET_USER_FUNC(SetFocus);
     SET_USER_FUNC(SetLayeredWindowAttributes);
     SET_USER_FUNC(SetParent);
