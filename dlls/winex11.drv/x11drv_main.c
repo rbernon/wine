@@ -767,7 +767,7 @@ struct x11drv_thread_data *x11drv_init_thread_data(void)
 
     X11DRV_XInput2_Init();
     if (GetWindowThreadProcessId( GetDesktopWindow(), NULL ) == GetCurrentThreadId())
-        X11DRV_XInput2_Enable( data->display, None, PointerMotionMask|ButtonPressMask|ButtonReleaseMask );
+        X11DRV_XInput2_Enable( data->display, None, PointerMotionMask|ButtonPressMask|ButtonReleaseMask|KeyPressMask|KeyReleaseMask );
 
     return data;
 }
