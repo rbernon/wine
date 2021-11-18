@@ -217,6 +217,7 @@ extern void CDECL X11DRV_GetDC( HDC hdc, HWND hwnd, HWND top, const RECT *win_re
                                 const RECT *top_rect, DWORD flags ) DECLSPEC_HIDDEN;
 extern void CDECL X11DRV_ReleaseDC( HWND hwnd, HDC hdc ) DECLSPEC_HIDDEN;
 extern BOOL CDECL X11DRV_ScrollDC( HDC hdc, INT dx, INT dy, HRGN update ) DECLSPEC_HIDDEN;
+extern void CDECL X11DRV_SetActiveWindow( HWND hwnd ) DECLSPEC_HIDDEN;
 extern void CDECL X11DRV_SetCapture( HWND hwnd, UINT flags ) DECLSPEC_HIDDEN;
 extern void CDECL X11DRV_SetLayeredWindowAttributes( HWND hwnd, COLORREF key, BYTE alpha,
                                                      DWORD flags ) DECLSPEC_HIDDEN;
@@ -464,6 +465,7 @@ extern HMODULE x11drv_module DECLSPEC_HIDDEN;
 extern char *process_name DECLSPEC_HIDDEN;
 extern Display *clipboard_display DECLSPEC_HIDDEN;
 extern struct x11drv_ewmh_data ewmh DECLSPEC_HIDDEN;
+extern Time last_user_time DECLSPEC_HIDDEN;
 
 /* atoms */
 
