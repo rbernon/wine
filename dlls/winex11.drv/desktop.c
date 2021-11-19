@@ -322,11 +322,11 @@ void X11DRV_init_desktop( Window win, unsigned int width, unsigned int height )
 
 
 /***********************************************************************
- *		X11DRV_create_desktop
+ *		X11DRV_CreateDesktop
  *
  * Create the X11 desktop window for the desktop mode.
  */
-BOOL CDECL X11DRV_create_desktop( UINT width, UINT height )
+BOOL CDECL X11DRV_CreateDesktop( UINT width, UINT height )
 {
     static const WCHAR rootW[] = {'r','o','o','t',0};
     XSetWindowAttributes win_attr;

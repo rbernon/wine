@@ -289,9 +289,12 @@ struct user_driver_funcs
     BOOL    (CDECL *pSystemParametersInfo)(UINT,UINT,void*,UINT);
     /* thread management */
     void    (CDECL *pThreadDetach)(void);
+    /* desktop creation */
+    BOOL    (CDECL *pCreateDesktop)(UINT,UINT);
 };
 
 extern void CDECL __wine_set_user_driver( const struct user_driver_funcs *funcs, UINT version );
+extern BOOL CDECL __wine_set_desktop( HMODULE module, const WCHAR *name, UINT width, UINT height, HDESK desktop );
 
 /* the DC hook support is only exported on Win16, the 32-bit version is a Wine extension */
 

@@ -842,3 +842,4 @@
 @ cdecl __wine_set_pixel_format(long long)
 @ cdecl __wine_set_user_driver(ptr long)
 @ cdecl __wine_set_foreground_window(long long)
+@ cdecl __wine_set_desktop(ptr ptr long long ptr)

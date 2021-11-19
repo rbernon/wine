@@ -445,6 +445,7 @@ static const struct user_driver_funcs x11drv_funcs =
     .pWindowPosChanged = X11DRV_WindowPosChanged,
     .pSystemParametersInfo = X11DRV_SystemParametersInfo,
     .pThreadDetach = X11DRV_ThreadDetach,
+    .pCreateDesktop = X11DRV_CreateDesktop,
 };
 
 

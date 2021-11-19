@@ -306,6 +306,7 @@ static const struct user_driver_funcs android_drv_funcs =
     .pWindowMessage = ANDROID_WindowMessage,
     .pWindowPosChanging = ANDROID_WindowPosChanging,
     .pWindowPosChanged = ANDROID_WindowPosChanged,
+    .pCreateDesktop = ANDROID_CreateDesktop,
 };
 
 

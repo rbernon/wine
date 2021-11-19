@@ -106,6 +106,7 @@ extern void CDECL ANDROID_WindowPosChanged( HWND hwnd, HWND insert_after, UINT s
                                             const RECT *window_rect, const RECT *client_rect,
                                             const RECT *visible_rect, const RECT *valid_rects,
                                             struct window_surface *surface ) DECLSPEC_HIDDEN;
+extern BOOL CDECL ANDROID_CreateDesktop( UINT width, UINT height ) DECLSPEC_HIDDEN;
 
 extern unsigned int screen_width DECLSPEC_HIDDEN;
 extern unsigned int screen_height DECLSPEC_HIDDEN;

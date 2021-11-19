@@ -1651,9 +1651,9 @@ LRESULT CDECL ANDROID_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
 
 
 /***********************************************************************
- *           ANDROID_create_desktop
+ *           ANDROID_CreateDesktop
  */
-BOOL CDECL ANDROID_create_desktop( UINT width, UINT height )
+BOOL CDECL ANDROID_CreateDesktop( UINT width, UINT height )
 {
     desktop_orig_wndproc = (WNDPROC)SetWindowLongPtrW( GetDesktopWindow(), GWLP_WNDPROC,
                                                        (LONG_PTR)desktop_wndproc_wrapper );

@@ -32,6 +32,7 @@
 #include "exdisp.h"
 
 #include "wine/debug.h"
+#include "wine/gdi_driver.h"
 #include "explorer_private.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(explorer);
@@ -685,20 +686,6 @@ static LRESULT WINAPI desktop_wnd_proc( HWND hwnd, UINT message, WPARAM wp, LPAR
     return desktop_orig_wndproc( hwnd, message, wp, lp );
 }
 
-/* create the desktop and the associated driver window, and make it the current desktop */
-static BOOL create_desktop( HMODULE driver, const WCHAR *name, unsigned int width, unsigned int height )
-{
-    BOOL ret = FALSE;
-    BOOL (CDECL *create_desktop_func)(unsigned int, unsigned int);
-
-    if (driver)
-    {
-        create_desktop_func = (void *)GetProcAddress( driver, "wine_create_desktop" );
-        if (create_desktop_func) ret = create_desktop_func( width, height );
-    }
-    return ret;
-}
-
 /* parse the desktop size specification */
 static BOOL parse_size( const WCHAR *size, unsigned int *width, unsigned int *height )
 {
@@ -1019,7 +1006,7 @@ void manage_desktop( WCHAR *arg )
 
         desktop_orig_wndproc = (WNDPROC)SetWindowLongPtrW( hwnd, GWLP_WNDPROC,
             (LONG_PTR)desktop_wnd_proc );
-        using_root = !desktop || !create_desktop( graphics_driver, name, width, height );
+        using_root = !__wine_set_desktop( graphics_driver, name, width, height, desktop );
         SendMessageW( hwnd, WM_SETICON, ICON_BIG, (LPARAM)LoadIconW( 0, MAKEINTRESOURCEW(OIC_WINLOGO)));
         if (name) set_desktop_window_title( hwnd, name );
         SetWindowPos( hwnd, 0, GetSystemMetrics(SM_XVIRTUALSCREEN), GetSystemMetrics(SM_YVIRTUALSCREEN),

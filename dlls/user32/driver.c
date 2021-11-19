@@ -224,6 +224,11 @@ static void CDECL nulldrv_ThreadDetach( void )
 {
 }
 
+static BOOL CDECL nulldrv_CreateDesktop( UINT width, UINT heigth )
+{
+    return FALSE;
+}
+
 
 /**********************************************************************
  * Lazy loading user driver
@@ -384,7 +389,9 @@ static struct user_driver_funcs lazy_load_driver =
     /* system parameters */
     nulldrv_SystemParametersInfo,
     /* thread management */
-    nulldrv_ThreadDetach
+    nulldrv_ThreadDetach,
+    /* desktop creation */
+    nulldrv_CreateDesktop,
 };
 
 void CDECL __wine_set_user_driver( const struct user_driver_funcs *funcs, UINT version )
@@ -409,4 +416,16 @@ void CDECL __wine_set_user_driver( const struct user_driver_funcs *funcs, UINT v
     }
 
     __wine_set_display_driver( driver, version );
+}
+
+BOOL CDECL __wine_set_desktop( HMODULE module, const WCHAR *name, UINT width, UINT height, HDESK desktop )
+{
+    /* we're in the desktop thread already but we need to set the ready
+     * flag so that later user32 calls won't trigger a SendMessageW while
+     * holding the user lock when registering classes. */
+    wait_graphics_driver_ready();
+
+    register_builtin_classes();
+    if (!desktop) return FALSE;
+    return USER_Driver->pCreateDesktop( width, height );
 }
