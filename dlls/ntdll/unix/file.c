@@ -1377,7 +1377,8 @@ static ULONG hash_short_file_name( const WCHAR *name, int length, LPWSTR buffer 
     }
 
     /* Find last dot for start of the extension */
-    for (p = name + 1, ext = NULL; p < end - 1; p++) if (*p == '.') ext = p;
+    for (ext = end - 2; ext > name; ext--) if (*ext == '.') break;
+    if (ext == name) ext = NULL;
 
     /* Copy first 4 chars, replacing invalid chars with '_' */
     for (i = 4, p = name, dst = buffer; i > 0; i--, p++)
