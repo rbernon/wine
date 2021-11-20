@@ -1355,7 +1355,8 @@ static ULONG hash_short_file_name( const WCHAR *name, int length, LPWSTR buffer 
 {
     static const char hash_chars[32] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345";
 
-    LPCWSTR p, ext, end = name + length;
+    WCHAR hash_name[MAX_DIR_ENTRY_LEN + 1];
+    LPCWSTR p, ext, end = name + length, hash_end = hash_name + length;
     LPWSTR dst;
     unsigned short hash;
     int i;
@@ -1365,9 +1366,11 @@ static ULONG hash_short_file_name( const WCHAR *name, int length, LPWSTR buffer 
     /* insert a better algorithm here... */
     if (!is_case_sensitive)
     {
-        for (p = name, hash = 0xbeef; p < end - 1; p++)
-            hash = (hash<<3) ^ (hash>>5) ^ towlower(*p) ^ (towlower(p[1]) << 8);
-        hash = (hash<<3) ^ (hash>>5) ^ towlower(*p); /* Last character */
+        for (p = name, dst = hash_name; p < end; p++, dst++)
+            *dst = towlower(*p);
+        for (p = hash_name, hash = 0xbeef; p < hash_end - 1; p++)
+            hash = (hash << 3) ^ (hash >> 5) ^ *p ^ (p[1] << 8);
+        hash = (hash << 3) ^ (hash >> 5) ^ *p;  /* Last character */
     }
     else
     {
