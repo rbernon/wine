@@ -172,7 +172,6 @@ typedef struct
 #define IS_SEPARATOR(ch)   ((ch) == '\\' || (ch) == '/')
 
 #define INVALID_NT_CHARS   '*','?','<','>','|','"'
-#define INVALID_DOS_CHARS  INVALID_NT_CHARS,'+','=',',',';','[',']',' ','\345'
 
 #define MAX_DIR_ENTRY_LEN 255  /* max length of a directory entry in chars */
 
@@ -243,9 +242,41 @@ static pthread_mutex_t mnt_mutex = PTHREAD_MUTEX_INITIALIZER;
 /* check if a given Unicode char is OK in a DOS short name */
 static inline BOOL is_invalid_dos_char( WCHAR ch )
 {
-    static const WCHAR invalid_chars[] = { INVALID_DOS_CHARS,'~','.',0 };
+    static const char invalid_chars[0x7f] =
+    {
+        ['*'] = 1, ['?'] = 1, ['<'] = 1, ['>'] = 1, ['|'] = 1, ['"'] = 1, ['+'] = 1, ['='] = 1,
+        [','] = 1, [';'] = 1, ['['] = 1, [']'] = 1, [' '] = 1, ['~'] = 1, ['.'] = 1,
+    };
     if (ch > 0x7f) return TRUE;
-    return wcschr( invalid_chars, ch ) != NULL;
+    return invalid_chars[ch] != 0;
+}
+
+static inline BOOL is_invalid_8dot3_char( WCHAR ch )
+{
+    static const char invalid_chars[0x7f] =
+    {
+        ['*'] = 1, ['?'] = 1, ['<'] = 1, ['>'] = 1, ['|'] = 1, ['"'] = 1, ['+'] = 1, ['='] = 1,
+        [','] = 1, [';'] = 1, ['['] = 1, [']'] = 1, [' '] = 1, [':'] = 1, ['/'] = 1, ['\\'] = 1,
+    };
+    if (ch > 0x7f) return TRUE;
+    return invalid_chars[ch] != 0;
+}
+
+static inline BOOL is_invalid_nt_char( WCHAR ch )
+{
+    static const char invalid_chars[0x7f] =
+    {
+        ['*'] = 1, ['?'] = 1, ['<'] = 1, ['>'] = 1, ['|'] = 1, ['"'] = 1,
+    };
+    if (ch < 32) return TRUE;
+    if (ch >= 127) return FALSE;
+    return invalid_chars[ch] != 0;
+}
+
+static inline BOOL is_invalid_unix_char( WCHAR ch )
+{
+    if (ch == '/') return TRUE;
+    return is_invalid_nt_char( ch );
 }
 
 /* check if the device can be a mounted volume */
@@ -1379,7 +1410,6 @@ static BOOLEAN match_filename( const WCHAR *name, int length, const UNICODE_STRI
  */
 static BOOLEAN is_legal_8dot3_name( const WCHAR *name, int len )
 {
-    static const WCHAR invalid_chars[] = { INVALID_DOS_CHARS,':','/','\\',0 };
     int i, dot = -1;
 
     if (len > 12) return FALSE;
@@ -1389,8 +1419,7 @@ static BOOLEAN is_legal_8dot3_name( const WCHAR *name, int len )
 
     for (i = 0; i < len; i++)
     {
-        if (name[i] > 0x7f) return FALSE;
-        if (wcschr( invalid_chars, name[i] )) return FALSE;
+        if (is_invalid_8dot3_char( name[i] )) return FALSE;
         if (name[i] == '.')
         {
             if (dot != -1) return FALSE;
@@ -3132,7 +3161,6 @@ done:
 static NTSTATUS lookup_unix_name( const WCHAR *name, int name_len, char **buffer, int unix_len, int pos,
                                   UINT disposition, BOOL is_unix )
 {
-    static const WCHAR invalid_charsW[] = { INVALID_NT_CHARS, '/', 0 };
     NTSTATUS status;
     int ret;
     struct stat st;
@@ -3159,7 +3187,7 @@ static NTSTATUS lookup_unix_name( const WCHAR *name, int name_len, char **buffer
         {
             if (!*ptr) return STATUS_OBJECT_NAME_INVALID;
             if (is_unix) continue;
-            if (*ptr < 32 || wcschr( invalid_charsW, *ptr )) return STATUS_OBJECT_NAME_INVALID;
+            if (is_invalid_unix_char( *ptr )) return STATUS_OBJECT_NAME_INVALID;
         }
     }
 
@@ -3249,7 +3277,6 @@ static NTSTATUS nt_to_unix_file_name_no_root( const UNICODE_STRING *nameW, char 
                                               UINT disposition )
 {
     static const WCHAR unixW[] = {'u','n','i','x'};
-    static const WCHAR invalid_charsW[] = { INVALID_NT_CHARS, 0 };
 
     NTSTATUS status = STATUS_SUCCESS;
     const WCHAR *name;
@@ -3276,8 +3303,7 @@ static NTSTATUS nt_to_unix_file_name_no_root( const UNICODE_STRING *nameW, char 
     for (pos = 0; pos < name_len && pos <= MAX_DIR_ENTRY_LEN; pos++)
     {
         if (name[pos] == '\\') break;
-        if (name[pos] < 32 || wcschr( invalid_charsW, name[pos] ))
-            return STATUS_OBJECT_NAME_INVALID;
+        if (is_invalid_nt_char( name[pos] )) return STATUS_OBJECT_NAME_INVALID;
         prefix[pos] = (name[pos] >= 'A' && name[pos] <= 'Z') ? name[pos] + 'a' - 'A' : name[pos];
     }
     if (pos > MAX_DIR_ENTRY_LEN) return STATUS_OBJECT_NAME_INVALID;
