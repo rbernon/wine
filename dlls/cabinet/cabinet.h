@@ -131,10 +131,7 @@ typedef UINT32        cab_off_t;
 struct Ziphuft {
   cab_UBYTE e;                /* number of extra bits or operation */
   cab_UBYTE b;                /* number of bits in this code or subcode */
-  union {
-    cab_UWORD n;              /* literal, length base, or distance base */
-    struct Ziphuft *t;        /* pointer to next level of table */
-  } v;
+  cab_UWORD n;                /* literal, length base, distance base, or table index */
 };
 
 struct ZIPstate {

@@ -858,21 +858,30 @@ static int NONEfdi_decomp(int inlen, int outlen, fdi_decomp_state *decomp_state)
   return DECR_OK;
 }
 
+static BOOL fdi_Ziphuft_grow(struct Ziphuft **entries, cab_ULONG *capacity, cab_ULONG count, cab_ULONG amount,
+                             fdi_decomp_state *decomp_state)
+{
+  struct Ziphuft *tmp;
+
+  if (*capacity > count + amount)
+    return TRUE;
+
+  *capacity = max(*capacity + amount, *capacity * 3 / 2);
+  tmp = CAB(fdi)->alloc(*capacity * sizeof(struct Ziphuft));
+  if (tmp && *entries) memcpy(tmp, *entries, count * sizeof(struct Ziphuft));
+
+  CAB(fdi)->free(*entries);
+  *entries = tmp;
+
+  return tmp != NULL;
+}
+
 /********************************************************
  * Ziphuft_free (internal)
  */
 static void fdi_Ziphuft_free(FDI_Int *fdi, struct Ziphuft *t)
 {
-  register struct Ziphuft *p, *q;
-
-  /* Go through linked list, freeing from the allocated (t[-1]) address. */
-  p = t;
-  while (p != NULL)
-  {
-    q = (--p)->v.t;
-    fdi->free(p);
-    p = q;
-  } 
+  fdi->free(t);
 }
 
 /*********************************************************
@@ -897,6 +906,13 @@ struct Ziphuft **t, cab_LONG *m, fdi_decomp_state *decomp_state)
   cab_ULONG *xp;                 	/* pointer into x */
   cab_LONG y;                           /* number of dummy codes added */
   cab_ULONG z;                   	/* number of entries in current table */
+
+  cab_ULONG capacity = 0;
+  cab_ULONG count = 0;
+
+  *t = NULL;
+  if (!fdi_Ziphuft_grow(t, &capacity, count, 1024, decomp_state))
+    return 3;
 
   l = ZIP(lx)+1;
 
@@ -995,16 +1011,11 @@ struct Ziphuft **t, cab_LONG *m, fdi_decomp_state *decomp_state)
         z = 1 << j;             /* table entries for j-bit table */
         l[h] = j;               /* set table size in stack */
 
-        /* allocate and link in new table */
-        if (!(q = CAB(fdi)->alloc((z + 1)*sizeof(struct Ziphuft))))
-        {
-          if(h)
-            fdi_Ziphuft_free(CAB(fdi), ZIP(u)[0]);
-          return 3;             /* not enough memory */
-        }
-        *t = q + 1;             /* link to list for Ziphuft_free() */
-        *(t = &(q->v.t)) = NULL;
-        ZIP(u)[h] = ++q;             /* table starts after link */
+        if (!fdi_Ziphuft_grow(t, &capacity, count, z, decomp_state))
+          return 3;
+        q = *t + count;
+        count += z;
+        ZIP(u)[h] = q;
 
         /* connect to last table, if there is one */
         if (h)
@@ -1012,7 +1023,7 @@ struct Ziphuft **t, cab_LONG *m, fdi_decomp_state *decomp_state)
           ZIP(x)[h] = i;              /* save pattern for backing up */
           r.b = (cab_UBYTE)l[h-1];    /* bits to dump before this table */
           r.e = (cab_UBYTE)(16 + j);  /* bits in this table */
-          r.v.t = q;                  /* pointer to this table */
+          r.n = q - *t;               /* index of this table */
           j = (i & ((1 << w) - 1)) >> (w - l[h-1]);
           ZIP(u)[h-1][j] = r;        /* connect to last table */
         }
@@ -1025,12 +1036,12 @@ struct Ziphuft **t, cab_LONG *m, fdi_decomp_state *decomp_state)
       else if (*p < s)
       {
         r.e = (cab_UBYTE)(*p < 256 ? 16 : 15);    /* 256 is end-of-block code */
-        r.v.n = *p++;           /* simple code is just the value */
+        r.n = *p++;             /* simple code is just the value */
       }
       else
       {
         r.e = (cab_UBYTE)e[*p - s];   /* non-simple--look up in lists */
-        r.v.n = d[*p++ - s];
+        r.n = d[*p++ - s];
       }
 
       /* fill code-like entries with r */
@@ -1082,18 +1093,19 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
   for(;;)
   {
     ZIPNEEDBITS((cab_ULONG)bl)
-    if((e = (t = tl + (b & ml))->e) > 16)
-      do
-      {
-        if (e == 99)
-          return 1;
-        ZIPDUMPBITS(t->b)
-        e -= 16;
-        ZIPNEEDBITS(e)
-      } while ((e = (t = t->v.t + (b & Zipmask[e]))->e) > 16);
+    t = tl + (b & ml);
+    while ((e = t->e) > 16)
+    {
+      if (e == 99)
+        return 1;
+      ZIPDUMPBITS(t->b)
+      e -= 16;
+      ZIPNEEDBITS(e)
+      t = tl + t->n + (b & Zipmask[e]);
+    } 
     ZIPDUMPBITS(t->b)
     if (e == 16)                /* then it's a literal */
-      CAB(outbuf)[w++] = (cab_UBYTE)t->v.n;
+      CAB(outbuf)[w++] = (cab_UBYTE)t->n;
     else                        /* it's an EOB or a length */
     {
       /* exit if end of block */
@@ -1102,22 +1114,24 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
 
       /* get length of block to copy */
       ZIPNEEDBITS(e)
-      n = t->v.n + (b & Zipmask[e]);
+      n = t->n + (b & Zipmask[e]);
       ZIPDUMPBITS(e);
 
       /* decode distance of block to copy */
       ZIPNEEDBITS((cab_ULONG)bd)
-      if ((e = (t = td + (b & md))->e) > 16)
-        do {
-          if (e == 99)
-            return 1;
-          ZIPDUMPBITS(t->b)
-          e -= 16;
-          ZIPNEEDBITS(e)
-        } while ((e = (t = t->v.t + (b & Zipmask[e]))->e) > 16);
+      t = td + (b & md);
+      while ((e = t->e) > 16)
+      {
+        if (e == 99)
+          return 1;
+        ZIPDUMPBITS(t->b)
+        e -= 16;
+        ZIPNEEDBITS(e)
+        t = td + t->n + (b & Zipmask[e]);
+      }
       ZIPDUMPBITS(t->b)
       ZIPNEEDBITS(e)
-      d = w - t->v.n - (b & Zipmask[e]);
+      d = w - t->n - (b & Zipmask[e]);
       ZIPDUMPBITS(e)
       do
       {
@@ -1479,7 +1493,7 @@ static cab_LONG fdi_Zipinflate_dynamic(fdi_decomp_state *decomp_state)
     ZIPNEEDBITS((cab_ULONG)bl)
     j = (td = tl + (b & m))->b;
     ZIPDUMPBITS(j)
-    j = td->v.n;
+    j = td->n;
     if (j < 16)                 /* length of code in bits (0..15) */
       ll[i++] = l = j;          /* save last length in l */
     else if (j == 16)           /* repeat last length 3 to 6 times */
