@@ -256,9 +256,12 @@ static pthread_mutex_t mnt_mutex = PTHREAD_MUTEX_INITIALIZER;
 /* check if a given Unicode char is OK in a DOS short name */
 static inline BOOL is_invalid_dos_char( WCHAR ch )
 {
-    static const WCHAR invalid_chars[] = { INVALID_DOS_CHARS,'~','.',0 };
-    if (ch > 0x7f) return TRUE;
-    return wcschr( invalid_chars, ch ) != NULL;
+    static const char is_invalid[0x7f] =
+    {
+        ['*'] = 1, ['?'] = 1, ['<'] = 1, ['>'] = 1, ['|'] = 1, ['"'] = 1, ['+'] = 1, ['='] = 1,
+        [','] = 1, [';'] = 1, ['['] = 1, [']'] = 1, [' '] = 1, ['~'] = 1, ['.'] = 1,
+    };
+    return ch <= 0x7f ? is_invalid[ch] : TRUE;
 }
 
 /* check if the device can be a mounted volume */
