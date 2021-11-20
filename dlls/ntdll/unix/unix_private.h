@@ -504,11 +504,15 @@ extern enum loadorder get_load_order( const UNICODE_STRING *nt_name );
 
 static inline WCHAR ntdll_towupper( WCHAR ch )
 {
+    if (ch >= 'a' && ch <= 'z') return ch - 'a' + 'A';
+    if (ch <= 0x7f) return ch;
     return ch + uctable[uctable[uctable[ch >> 8] + ((ch >> 4) & 0x0f)] + (ch & 0x0f)];
 }
 
 static inline WCHAR ntdll_towlower( WCHAR ch )
 {
+    if (ch >= 'A' && ch <= 'Z') return ch - 'A' + 'a';
+    if (ch <= 0x7f) return ch;
     return ch + lctable[lctable[lctable[ch >> 8] + ((ch >> 4) & 0x0f)] + (ch & 0x0f)];
 }
 
