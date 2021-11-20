@@ -174,8 +174,6 @@ typedef struct
 
 #define IS_SEPARATOR(ch)   ((ch) == '\\' || (ch) == '/')
 
-#define INVALID_NT_CHARS   '*','?','<','>','|','"'
-
 #define MAX_DIR_ENTRY_LEN 255  /* max length of a directory entry in chars */
 
 #define MAX_IGNORED_FILES 4
@@ -281,6 +279,12 @@ static inline BOOL is_invalid_nt_char( WCHAR ch )
         ['*'] = 1, ['?'] = 1, ['<'] = 1, ['>'] = 1, ['|'] = 1, ['"'] = 1,
     };
     return ch <= 0x7f ? is_invalid[ch] : FALSE;
+}
+
+static inline BOOL is_invalid_unix_char( WCHAR ch )
+{
+    if (ch == '/') return TRUE;
+    return is_invalid_nt_char( ch );
 }
 
 /* check if the device can be a mounted volume */
@@ -3370,7 +3374,6 @@ done:
 static NTSTATUS lookup_unix_name( const WCHAR *name, int name_len, char **buffer, int unix_len, int pos,
                                   UINT disposition, BOOL is_unix )
 {
-    static const WCHAR invalid_charsW[] = { INVALID_NT_CHARS, '/', 0 };
     NTSTATUS status;
     int ret;
     struct stat st;
@@ -3397,7 +3400,7 @@ static NTSTATUS lookup_unix_name( const WCHAR *name, int name_len, char **buffer
         {
             if (!*ptr) return STATUS_OBJECT_NAME_INVALID;
             if (is_unix) continue;
-            if (*ptr < 32 || wcschr( invalid_charsW, *ptr )) return STATUS_OBJECT_NAME_INVALID;
+            if (is_invalid_unix_char( *ptr )) return STATUS_OBJECT_NAME_INVALID;
         }
     }
 
