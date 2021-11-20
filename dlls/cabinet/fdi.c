@@ -1125,10 +1125,8 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
         e = ZIPWSIZE - max(d, w);
         e = min(e, n);
         n -= e;
-        do
-        {
-          CAB(outbuf)[w++] = CAB(outbuf)[d++];
-        } while (--e);
+        memcpy(CAB(outbuf) + w, CAB(outbuf) + d, e);
+        w += e; d += e; e = 0;
       } while (n);
     }
   }
