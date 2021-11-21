@@ -505,11 +505,6 @@ static const cab_UWORD Zipcpdist[] = /* Copy offsets for distance codes 0..29 */
 static const cab_UWORD Zipcpdext[] = /* Extra bits for distance codes */           \
 { 0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10,            \
 10, 11, 11, 12, 12, 13, 13};                                                       \
-/* And'ing with Zipmask[n] masks the lower n bits */                               \
-static const cab_UWORD Zipmask[17] = {                                             \
- 0x0000, 0x0001, 0x0003, 0x0007, 0x000f, 0x001f, 0x003f, 0x007f, 0x00ff,           \
- 0x01ff, 0x03ff, 0x07ff, 0x0fff, 0x1fff, 0x3fff, 0x7fff, 0xffff                    \
-}
 
 /* SESSION Operation */
 #define EXTRACT_FILLFILELIST  0x00000001
