@@ -1074,8 +1074,7 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
   cab_LONG bl, cab_LONG bd, fdi_decomp_state *decomp_state)
 {
   register cab_ULONG e;     /* table entry flag/number of extra bits */
-  cab_ULONG n, d;           /* length and index for copy */
-  cab_ULONG w;              /* current window position */
+  cab_ULONG len, dist, w;   /* length and distance for copy, current window pos */
   const struct Ziphuft *t;  /* pointer to table entry */
   cab_ULONG ml, md;         /* masks for bl and bd bits */
   register cab_ULONG b;     /* bit buffer */
@@ -1116,7 +1115,7 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
 
       /* get length of block to copy */
       ZIPNEEDBITS(e)
-      n = t->n + (b & Zipmask[e]);
+      len = t->n + (b & Zipmask[e]);
       ZIPDUMPBITS(e);
 
       /* decode distance of block to copy */
@@ -1133,17 +1132,17 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
       }
       ZIPDUMPBITS(t->b)
       ZIPNEEDBITS(e)
-      d = w - t->n - (b & Zipmask[e]);
+      dist = w - t->n - (b & Zipmask[e]);
       ZIPDUMPBITS(e)
       do
       {
-        d &= ZIPWSIZE - 1;
-        e = ZIPWSIZE - max(d, w);
-        e = min(e, n);
-        n -= e;
-        memcpy(out + w, out + d, e);
-        w += e; d += e; e = 0;
-      } while (n);
+        dist &= ZIPWSIZE - 1;
+        e = ZIPWSIZE - max(dist, w);
+        e = min(e, len);
+        len -= e;
+        memcpy(out + w, out + dist, e);
+        w += e; dist += e; e = 0;
+      } while (len);
     }
   }
 
