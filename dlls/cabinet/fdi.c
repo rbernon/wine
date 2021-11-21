@@ -163,10 +163,23 @@ typedef struct fdi_cds_fwd {
   struct fdi_cds_fwd *next;
 } fdi_decomp_state;
 
-#define ZIPNEEDBITS(n) {while(bits.size<(n)){cab_LONG c=*(bits.input++);\
-    bits.buffer|=((cab_ULONG)c)<<bits.size;bits.size+=8;}}
-#define ZIPDUMPBITS(n) {bits.buffer>>=(n);bits.size-=(n);}
-#define ZIPGETBITS(n)  (bits.buffer & ((1 << (cab_UBYTE)(n)) - 1))
+static inline cab_ULONG get_bits(struct bit_buffer *buff, BYTE read, BYTE drop)
+{
+  cab_ULONG tmp;
+
+  while (buff->size < read)
+  {
+    tmp = *buff->input++;
+    buff->buffer |= tmp << buff->size;
+    buff->size += 8;
+  }
+
+  tmp = buff->buffer & ((1 << read) - 1);
+
+  buff->buffer >>= drop;
+  buff->size -= drop;
+  return tmp;
+}
 
 /* endian-neutral reading of little-endian data */
 #define EndGetI32(a)  ((((a)[3])<<24)|(((a)[2])<<16)|(((a)[1])<<8)|((a)[0]))
@@ -1087,15 +1100,13 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
   /* inflate the coded data */
   for(;;)
   {
-    ZIPNEEDBITS((cab_ULONG)bl)
-    t = tl + ZIPGETBITS(bl);
+    t = tl + get_bits(&bits, (cab_ULONG)bl, 0);
     while ((e = t->e) < 0)
     {
-      ZIPDUMPBITS(t->b)
-      ZIPNEEDBITS(-e)
-      t = tl + t->n + ZIPGETBITS(-e);
+      get_bits(&bits, 0, t->b);
+      t = tl + t->n + get_bits(&bits, -e, 0);
     } 
-    ZIPDUMPBITS(t->b)
+    get_bits(&bits, 0, t->b);
     if (e > 16)
       return 1;
     if (e == 16)                /* then it's a literal */
@@ -1107,25 +1118,19 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
         break;
 
       /* get length of block to copy */
-      ZIPNEEDBITS(e)
-      len = t->n + ZIPGETBITS(e);
-      ZIPDUMPBITS(e);
+      len = t->n + get_bits(&bits, e, e);
 
       /* decode distance of block to copy */
-      ZIPNEEDBITS((cab_ULONG)bd)
-      t = td + ZIPGETBITS(bd);
+      t = td + get_bits(&bits, (cab_ULONG)bd, 0);
       while ((e = t->e) < 0)
       {
-        ZIPDUMPBITS(t->b)
-        ZIPNEEDBITS(-e)
-        t = td + t->n + ZIPGETBITS(-e);
+        get_bits(&bits, 0, t->b);
+        t = td + t->n + get_bits(&bits, -e, 0);
       }
       if (e > 16)
         return 1;
-      ZIPDUMPBITS(t->b)
-      ZIPNEEDBITS(e)
-      dist = (w - t->n - ZIPGETBITS(e)) & (ZIPWSIZE - 1);
-      ZIPDUMPBITS(e)
+      get_bits(&bits, 0, t->b);
+      dist = (w - t->n - get_bits(&bits, e, e)) & (ZIPWSIZE - 1);
 
       if (dist <= w) memcpy(out + w, out + dist, len);
       else
@@ -1162,24 +1167,18 @@ static cab_LONG fdi_Zipinflate_stored(fdi_decomp_state *decomp_state)
 
   /* go to byte boundary */
   n = bits.size & 7;
-  ZIPDUMPBITS(n);
+  get_bits(&bits, 0, n);
 
   /* get the length and its complement */
-  ZIPNEEDBITS(16)
-  n = ZIPGETBITS(16);
-  ZIPDUMPBITS(16)
-  ZIPNEEDBITS(16)
-  c = ZIPGETBITS(16);
+  n = get_bits(&bits, 16, 16);
+  c = get_bits(&bits, 16, 16);
   if (n != ((~c) & 0xffff))
     return 1;                   /* error in compressed data */
-  ZIPDUMPBITS(16)
 
   /* read and output the compressed data */
   while(n--)
   {
-    ZIPNEEDBITS(8)
-    CAB(outbuf)[w++] = (cab_UBYTE)ZIPGETBITS(8);
-    ZIPDUMPBITS(8)
+    CAB(outbuf)[w++] = (cab_UBYTE)get_bits(&bits, 8, 8);
   }
 
   /* restore the globals from the locals */
@@ -1440,24 +1439,16 @@ static cab_LONG fdi_Zipinflate_dynamic(fdi_decomp_state *decomp_state)
   ll = ZIP(ll);
 
   /* read in table lengths */
-  ZIPNEEDBITS(5)
-  nl = 257 + ZIPGETBITS(5);      /* number of literal/length codes */
-  ZIPDUMPBITS(5)
-  ZIPNEEDBITS(5)
-  nd = 1 + ZIPGETBITS(5);        /* number of distance codes */
-  ZIPDUMPBITS(5)
-  ZIPNEEDBITS(4)
-  nb = 4 + ZIPGETBITS(4);         /* number of bit length codes */
-  ZIPDUMPBITS(4)
+  nl = 257 + get_bits(&bits, 5, 5);      /* number of literal/length codes */
+  nd = 1 + get_bits(&bits, 5, 5);        /* number of distance codes */
+  nb = 4 + get_bits(&bits, 4, 4);         /* number of bit length codes */
   if(nl > 288 || nd > 32)
     return 1;                   /* bad lengths */
 
   /* read in bit-length-code lengths */
   for(j = 0; j < nb; j++)
   {
-    ZIPNEEDBITS(3)
-    ll[Zipborder[j]] = ZIPGETBITS(3);
-    ZIPDUMPBITS(3)
+    ll[Zipborder[j]] = get_bits(&bits, 3, 3);
   }
   for(; j < 19; j++)
     ll[Zipborder[j]] = 0;
@@ -1476,17 +1467,14 @@ static cab_LONG fdi_Zipinflate_dynamic(fdi_decomp_state *decomp_state)
   i = l = 0;
   while((cab_ULONG)i < n)
   {
-    ZIPNEEDBITS((cab_ULONG)bl)
-    j = (td = tl + ZIPGETBITS(bl))->b;
-    ZIPDUMPBITS(j)
+    j = (td = tl + get_bits(&bits, (cab_ULONG)bl, 0))->b;
+    get_bits(&bits, 0, j);
     j = td->n;
     if (j < 16)                 /* length of code in bits (0..15) */
       ll[i++] = l = j;          /* save last length in l */
     else if (j == 16)           /* repeat last length 3 to 6 times */
     {
-      ZIPNEEDBITS(2)
-      j = 3 + ZIPGETBITS(2);
-      ZIPDUMPBITS(2)
+      j = 3 + get_bits(&bits, 2, 2);
       if((cab_ULONG)i + j > n)
         return 1;
       while (j--)
@@ -1494,9 +1482,7 @@ static cab_LONG fdi_Zipinflate_dynamic(fdi_decomp_state *decomp_state)
     }
     else if (j == 17)           /* 3 to 10 zero length codes */
     {
-      ZIPNEEDBITS(3)
-      j = 3 + ZIPGETBITS(3);
-      ZIPDUMPBITS(3)
+      j = 3 + get_bits(&bits, 3, 3);
       if ((cab_ULONG)i + j > n)
         return 1;
       while (j--)
@@ -1505,9 +1491,7 @@ static cab_LONG fdi_Zipinflate_dynamic(fdi_decomp_state *decomp_state)
     }
     else                        /* j == 18: 11 to 138 zero length codes */
     {
-      ZIPNEEDBITS(7)
-      j = 11 + ZIPGETBITS(7);
-      ZIPDUMPBITS(7)
+      j = 11 + get_bits(&bits, 7, 7);
       if ((cab_ULONG)i + j > n)
         return 1;
       while (j--)
@@ -1556,14 +1540,10 @@ static cab_LONG fdi_Zipinflate_block(cab_LONG *e, fdi_decomp_state *decomp_state
   bits = ZIP(bits);
 
   /* read in last block bit */
-  ZIPNEEDBITS(1)
-  *e = (cab_LONG)ZIPGETBITS(1);
-  ZIPDUMPBITS(1)
+  *e = (cab_LONG)get_bits(&bits, 1, 1);
 
   /* read in block type */
-  ZIPNEEDBITS(2)
-  t = ZIPGETBITS(2);
-  ZIPDUMPBITS(2)
+  t = get_bits(&bits, 2, 2);
 
   /* restore the global bit buffer */
   ZIP(bits) = bits;
