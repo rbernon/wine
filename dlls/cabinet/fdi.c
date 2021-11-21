@@ -1132,17 +1132,17 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
       }
       ZIPDUMPBITS(t->b)
       ZIPNEEDBITS(e)
-      dist = w - t->n - (b & Zipmask[e]);
+      dist = (w - t->n - (b & Zipmask[e])) & (ZIPWSIZE - 1);
       ZIPDUMPBITS(e)
-      do
+
+      if (dist <= w) memcpy(out + w, out + dist, len);
+      else
       {
-        dist &= ZIPWSIZE - 1;
-        e = ZIPWSIZE - max(dist, w);
-        e = min(e, len);
-        len -= e;
-        memcpy(out + w, out + dist, e);
-        w += e; dist += e; e = 0;
-      } while (len);
+        cab_ULONG count = min(ZIPWSIZE - dist, len);
+        memcpy(out + w, out + dist, count);
+        if (len != count) memcpy(out + w + count, out, len - count);
+      }
+      w += len;
     }
   }
 
