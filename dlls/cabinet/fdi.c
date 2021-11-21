@@ -1080,11 +1080,13 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
   cab_ULONG ml, md;         /* masks for bl and bd bits */
   register cab_ULONG b;     /* bit buffer */
   register cab_ULONG k;     /* number of bits in bit buffer */
+  cab_UBYTE *out;
 
   /* make local copies of globals */
   b = ZIP(bb);                       /* initialize bit buffer */
   k = ZIP(bk);
   w = ZIP(window_posn);                       /* initialize window position */
+  out = CAB(outbuf);
 
   /* inflate the coded data */
   ml = Zipmask[bl];           	/* precompute masks for speed */
@@ -1105,7 +1107,7 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
     } 
     ZIPDUMPBITS(t->b)
     if (e == 16)                /* then it's a literal */
-      CAB(outbuf)[w++] = (cab_UBYTE)t->n;
+      out[w++] = (cab_UBYTE)t->n;
     else                        /* it's an EOB or a length */
     {
       /* exit if end of block */
@@ -1139,7 +1141,7 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
         e = ZIPWSIZE - max(d, w);
         e = min(e, n);
         n -= e;
-        memcpy(CAB(outbuf) + w, CAB(outbuf) + d, e);
+        memcpy(out + w, out + d, e);
         w += e; d += e; e = 0;
       } while (n);
     }
