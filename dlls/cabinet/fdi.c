@@ -1032,7 +1032,7 @@ struct Ziphuft **t, cab_LONG *m, fdi_decomp_state *decomp_state)
       /* set up table entry in r */
       r.b = (cab_UBYTE)(k - w);
       if (p >= ZIP(v) + n)
-        r.e = 99;               /* out of values--invalid code */
+        r.e = 127;              /* out of values--invalid code */
       else if (*p < s)
       {
         r.e = (cab_UBYTE)(*p < 256 ? 16 : 15);    /* 256 is end-of-block code */
@@ -1093,7 +1093,7 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
     t = tl + ZIPGETBITS(bl);
     while ((e = t->e) > 16)
     {
-      if (e == 99)
+      if (e == 127)
         return 1;
       ZIPDUMPBITS(t->b)
       e -= 16;
@@ -1119,7 +1119,7 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
       t = td + ZIPGETBITS(bd);
       while ((e = t->e) > 16)
       {
-        if (e == 99)
+        if (e == 127)
           return 1;
         ZIPDUMPBITS(t->b)
         e -= 16;
