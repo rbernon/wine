@@ -1022,7 +1022,7 @@ struct Ziphuft **t, cab_LONG *m, fdi_decomp_state *decomp_state)
         {
           ZIP(x)[h] = i;              /* save pattern for backing up */
           r.b = (cab_UBYTE)l[h-1];    /* bits to dump before this table */
-          r.e = (cab_UBYTE)(16 + j);  /* bits in this table */
+          r.e = -(cab_UBYTE)j;        /* bits in this table */
           r.n = q - *t;               /* index of this table */
           j = (i & ((1 << w) - 1)) >> (w - l[h-1]);
           ZIP(u)[h-1][j] = r;        /* connect to last table */
@@ -1073,7 +1073,7 @@ struct Ziphuft **t, cab_LONG *m, fdi_decomp_state *decomp_state)
 static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziphuft *td,
   cab_LONG bl, cab_LONG bd, fdi_decomp_state *decomp_state)
 {
-  register cab_ULONG e;     /* table entry flag/number of extra bits */
+  char e;     /* table entry flag/number of extra bits */
   cab_ULONG len, dist, w;   /* length and distance for copy, current window pos */
   const struct Ziphuft *t;  /* pointer to table entry */
   register cab_ULONG b;     /* bit buffer */
@@ -1091,16 +1091,15 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
   {
     ZIPNEEDBITS((cab_ULONG)bl)
     t = tl + ZIPGETBITS(bl);
-    while ((e = t->e) > 16)
+    while ((e = t->e) < 0)
     {
-      if (e == 127)
-        return 1;
       ZIPDUMPBITS(t->b)
-      e -= 16;
-      ZIPNEEDBITS(e)
-      t = tl + t->n + ZIPGETBITS(e);
+      ZIPNEEDBITS(-e)
+      t = tl + t->n + ZIPGETBITS(-e);
     } 
     ZIPDUMPBITS(t->b)
+    if (e > 16)
+      return 1;
     if (e == 16)                /* then it's a literal */
       out[w++] = (cab_UBYTE)t->n;
     else                        /* it's an EOB or a length */
@@ -1117,15 +1116,14 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
       /* decode distance of block to copy */
       ZIPNEEDBITS((cab_ULONG)bd)
       t = td + ZIPGETBITS(bd);
-      while ((e = t->e) > 16)
+      while ((e = t->e) < 0)
       {
-        if (e == 127)
-          return 1;
         ZIPDUMPBITS(t->b)
-        e -= 16;
-        ZIPNEEDBITS(e)
-        t = td + t->n + ZIPGETBITS(e);
+        ZIPNEEDBITS(-e)
+        t = td + t->n + ZIPGETBITS(-e);
       }
+      if (e > 16)
+        return 1;
       ZIPDUMPBITS(t->b)
       ZIPNEEDBITS(e)
       dist = (w - t->n - ZIPGETBITS(e)) & (ZIPWSIZE - 1);
