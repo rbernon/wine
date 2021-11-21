@@ -163,10 +163,10 @@ typedef struct fdi_cds_fwd {
   struct fdi_cds_fwd *next;
 } fdi_decomp_state;
 
-#define ZIPNEEDBITS(n) {while(k<(n)){cab_LONG c=*(ZIP(inpos)++);\
-    b|=((cab_ULONG)c)<<k;k+=8;}}
-#define ZIPDUMPBITS(n) {b>>=(n);k-=(n);}
-#define ZIPGETBITS(n)  (b & ((1 << (cab_UBYTE)(n)) - 1))
+#define ZIPNEEDBITS(n) {while(bits.size<(n)){cab_LONG c=*(bits.input++);\
+    bits.buffer|=((cab_ULONG)c)<<bits.size;bits.size+=8;}}
+#define ZIPDUMPBITS(n) {bits.buffer>>=(n);bits.size-=(n);}
+#define ZIPGETBITS(n)  (bits.buffer & ((1 << (cab_UBYTE)(n)) - 1))
 
 /* endian-neutral reading of little-endian data */
 #define EndGetI32(a)  ((((a)[3])<<24)|(((a)[2])<<16)|(((a)[1])<<8)|((a)[0]))
@@ -1076,13 +1076,11 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
   char e;     /* table entry flag/number of extra bits */
   cab_ULONG len, dist, w;   /* length and distance for copy, current window pos */
   const struct Ziphuft *t;  /* pointer to table entry */
-  register cab_ULONG b;     /* bit buffer */
-  register cab_ULONG k;     /* number of bits in bit buffer */
+  struct bit_buffer bits;
   cab_UBYTE *out;
 
   /* make local copies of globals */
-  b = ZIP(bb);                       /* initialize bit buffer */
-  k = ZIP(bk);
+  bits = ZIP(bits);                           /* initialize bit buffer */
   w = ZIP(window_posn);                       /* initialize window position */
   out = CAB(outbuf);
 
@@ -1142,8 +1140,7 @@ static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziph
 
   /* restore the globals from the locals */
   ZIP(window_posn) = w;              /* restore global window pointer */
-  ZIP(bb) = b;                       /* restore global bit buffer */
-  ZIP(bk) = k;
+  ZIP(bits) = bits;                  /* restore global bit buffer */
 
   /* done */
   return 0;
@@ -1157,16 +1154,14 @@ static cab_LONG fdi_Zipinflate_stored(fdi_decomp_state *decomp_state)
 {
   cab_ULONG n, c;        /* number of bytes in block */
   cab_ULONG w;           /* current window position */
-  register cab_ULONG b;  /* bit buffer */
-  register cab_ULONG k;  /* number of bits in bit buffer */
+  struct bit_buffer bits;
 
   /* make local copies of globals */
-  b = ZIP(bb);                       /* initialize bit buffer */
-  k = ZIP(bk);
+  bits = ZIP(bits);                  /* initialize bit buffer */
   w = ZIP(window_posn);              /* initialize window position */
 
   /* go to byte boundary */
-  n = k & 7;
+  n = bits.size & 7;
   ZIPDUMPBITS(n);
 
   /* get the length and its complement */
@@ -1189,8 +1184,7 @@ static cab_LONG fdi_Zipinflate_stored(fdi_decomp_state *decomp_state)
 
   /* restore the globals from the locals */
   ZIP(window_posn) = w;              /* restore global window pointer */
-  ZIP(bb) = b;                       /* restore global bit buffer */
-  ZIP(bk) = k;
+  ZIP(bits) = bits;                  /* restore global bit buffer */
   return 0;
 }
 
@@ -1439,12 +1433,10 @@ static cab_LONG fdi_Zipinflate_dynamic(fdi_decomp_state *decomp_state)
   cab_ULONG nb;          	/* number of bit length codes */
   cab_ULONG nl;          	/* number of literal/length codes */
   cab_ULONG nd;          	/* number of distance codes */
-  register cab_ULONG b;         /* bit buffer */
-  register cab_ULONG k;	        /* number of bits in bit buffer */
+  struct bit_buffer bits;
 
   /* make local bit buffer */
-  b = ZIP(bb);
-  k = ZIP(bk);
+  bits = ZIP(bits);
   ll = ZIP(ll);
 
   /* read in table lengths */
@@ -1528,8 +1520,7 @@ static cab_LONG fdi_Zipinflate_dynamic(fdi_decomp_state *decomp_state)
   fdi_Ziphuft_free(CAB(fdi), tl);
 
   /* restore the global bit buffer */
-  ZIP(bb) = b;
-  ZIP(bk) = k;
+  ZIP(bits) = bits;
 
   /* build the decoding tables for literal/length and distance codes */
   bl = ZIPLBITS;
@@ -1559,12 +1550,10 @@ static cab_LONG fdi_Zipinflate_dynamic(fdi_decomp_state *decomp_state)
 static cab_LONG fdi_Zipinflate_block(cab_LONG *e, fdi_decomp_state *decomp_state) /* e == last block flag */
 { /* decompress an inflated block */
   cab_ULONG t;           	/* block type */
-  register cab_ULONG b;     /* bit buffer */
-  register cab_ULONG k;     /* number of bits in bit buffer */
+  struct bit_buffer bits;
 
   /* make local bit buffer */
-  b = ZIP(bb);
-  k = ZIP(bk);
+  bits = ZIP(bits);
 
   /* read in last block bit */
   ZIPNEEDBITS(1)
@@ -1577,8 +1566,7 @@ static cab_LONG fdi_Zipinflate_block(cab_LONG *e, fdi_decomp_state *decomp_state
   ZIPDUMPBITS(2)
 
   /* restore the global bit buffer */
-  ZIP(bb) = b;
-  ZIP(bk) = k;
+  ZIP(bits) = bits;
 
   /* inflate that block type */
   if(t == 2)
@@ -1722,15 +1710,15 @@ static int ZIPfdi_decomp(int inlen, int outlen, fdi_decomp_state *decomp_state)
 
   TRACE("(inlen == %d, outlen == %d)\n", inlen, outlen);
 
-  ZIP(inpos) = CAB(inbuf);
-  ZIP(bb) = ZIP(bk) = ZIP(window_posn) = 0;
+  ZIP(bits.input) = CAB(inbuf);
+  ZIP(bits.buffer) = ZIP(bits.size) = ZIP(window_posn) = 0;
   if(outlen > ZIPWSIZE)
     return DECR_DATAFORMAT;
 
   /* CK = Chris Kirmse, official Microsoft purloiner */
-  if(ZIP(inpos)[0] != 0x43 || ZIP(inpos)[1] != 0x4B)
+  if(ZIP(bits.input)[0] != 0x43 || ZIP(bits.input)[1] != 0x4B)
     return DECR_ILLEGALDATA;
-  ZIP(inpos) += 2;
+  ZIP(bits.input) += 2;
 
   do {
     if(fdi_Zipinflate_block(&e, decomp_state))

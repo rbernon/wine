@@ -134,17 +134,22 @@ struct Ziphuft {
   cab_UWORD n;                /* literal, length base, distance base, or table index */
 };
 
+struct bit_buffer
+{
+  cab_UBYTE *input;
+  cab_ULONG buffer;
+  cab_UBYTE size;
+};
+
 struct ZIPstate {
     cab_ULONG window_posn;      /* current offset within the window        */
-    cab_ULONG bb;               /* bit buffer */
-    cab_ULONG bk;               /* bits in bit buffer */
+    struct bit_buffer bits;
     cab_ULONG ll[288+32];       /* literal/length and distance code lengths */
     cab_ULONG c[ZIPBMAX+1];     /* bit length count table */
     cab_LONG  lx[ZIPBMAX+1];    /* memory for l[-1..ZIPBMAX-1] */
     struct Ziphuft *u[ZIPBMAX];	/* table stack */
     cab_ULONG v[ZIPN_MAX];      /* values in order of bit length */
     cab_ULONG x[ZIPBMAX+1];     /* bit offsets, then code stack */
-    cab_UBYTE *inpos;
 
     /* huffman code lengths */
     unsigned char LITERAL_len[MSZIP_LITERAL_MAXSYMBOLS];
