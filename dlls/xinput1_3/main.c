@@ -75,10 +75,15 @@ struct xinput_controller
 
         HANDLE read_event;
         OVERLAPPED read_ovl;
+        HANDLE rumble_event;
+        OVERLAPPED rumble_ovl;
+        HANDLE buzz_event;
+        OVERLAPPED buzz_ovl;
 
         char *input_report_buf;
-        char *output_report_buf;
         char *feature_report_buf;
+        char *rumble_report_buf;
+        char *buzz_report_buf;
 
         BYTE haptics_report;
         BYTE haptics_rumble_index;
@@ -278,10 +283,10 @@ static BOOL controller_check_caps(struct xinput_controller *controller, HANDLE d
 
 static DWORD HID_set_state(struct xinput_controller *controller, XINPUT_VIBRATION *state)
 {
-    ULONG report_len = controller->hid.caps.OutputReportByteLength;
+    ULONG written, report_len = controller->hid.caps.OutputReportByteLength;
     PHIDP_PREPARSED_DATA preparsed = controller->hid.preparsed;
-    char *report_buf = controller->hid.output_report_buf;
     BYTE report_id = controller->hid.haptics_report;
+    char *report_buf;
     NTSTATUS status;
 
     if (!(controller->caps.Flags & XINPUT_CAPS_FFB_SUPPORTED)) return ERROR_SUCCESS;
@@ -291,7 +296,19 @@ static DWORD HID_set_state(struct xinput_controller *controller, XINPUT_VIBRATIO
 
     if (!controller->enabled) return ERROR_SUCCESS;
 
+    if (WaitForSingleObject(controller->hid.rumble_ovl.hEvent, 1) == WAIT_TIMEOUT)
+    {
+        CancelIoEx(controller->device, &controller->hid.rumble_ovl);
+        WaitForSingleObject(controller->hid.rumble_ovl.hEvent, INFINITE);
+    }
+    if (WaitForSingleObject(controller->hid.buzz_ovl.hEvent, 1) == WAIT_TIMEOUT)
+    {
+        CancelIoEx(controller->device, &controller->hid.buzz_ovl);
+        WaitForSingleObject(controller->hid.buzz_ovl.hEvent, INFINITE);
+    }
+
     /* send haptics rumble report (left motor) */
+    report_buf = controller->hid.rumble_report_buf;
     status = HidP_InitializeReportForID(HidP_Output, report_id, preparsed, report_buf, report_len);
     if (status != HIDP_STATUS_SUCCESS) WARN("HidP_InitializeReportForID returned %#x\n", status);
     status = HidP_SetUsageValue(HidP_Output, HID_USAGE_PAGE_HAPTICS, 0, HID_USAGE_HAPTICS_INTENSITY,
@@ -300,13 +317,13 @@ static DWORD HID_set_state(struct xinput_controller *controller, XINPUT_VIBRATIO
     status = HidP_SetUsageValue(HidP_Output, HID_USAGE_PAGE_HAPTICS, 0, HID_USAGE_HAPTICS_MANUAL_TRIGGER,
                                 controller->hid.haptics_rumble_index, preparsed, report_buf, report_len);
     if (status != HIDP_STATUS_SUCCESS) WARN("HidP_SetUsageValue MANUAL_TRIGGER returned %#x\n", status);
-    if (!HidD_SetOutputReport(controller->device, report_buf, report_len))
-    {
-        WARN("HidD_SetOutputReport failed with error %u\n", GetLastError());
-        return GetLastError();
-    }
+
+    memset(&controller->hid.rumble_ovl, 0, sizeof(controller->hid.rumble_ovl));
+    controller->hid.rumble_ovl.hEvent = controller->hid.rumble_event;
+    WriteFile(controller->device, report_buf, report_len, &written, &controller->hid.rumble_ovl);
 
     /* send haptics buzz report (right motor) */
+    report_buf = controller->hid.buzz_report_buf;
     status = HidP_InitializeReportForID(HidP_Output, report_id, preparsed, report_buf, report_len);
     if (status != HIDP_STATUS_SUCCESS) WARN("HidP_InitializeReportForID returned %#x\n", status);
     status = HidP_SetUsageValue(HidP_Output, HID_USAGE_PAGE_HAPTICS, 0, HID_USAGE_HAPTICS_INTENSITY,
@@ -315,11 +332,10 @@ static DWORD HID_set_state(struct xinput_controller *controller, XINPUT_VIBRATIO
     status = HidP_SetUsageValue(HidP_Output, HID_USAGE_PAGE_HAPTICS, 0, HID_USAGE_HAPTICS_MANUAL_TRIGGER,
                                 controller->hid.haptics_buzz_index, preparsed, report_buf, report_len);
     if (status != HIDP_STATUS_SUCCESS) WARN("HidP_SetUsageValue MANUAL_TRIGGER returned %#x\n", status);
-    if (!HidD_SetOutputReport(controller->device, report_buf, report_len))
-    {
-        WARN("HidD_SetOutputReport failed with error %u\n", GetLastError());
-        return GetLastError();
-    }
+
+    memset(&controller->hid.buzz_ovl, 0, sizeof(controller->hid.buzz_ovl));
+    controller->hid.buzz_ovl.hEvent = controller->hid.buzz_event;
+    WriteFile(controller->device, report_buf, report_len, &written, &controller->hid.buzz_ovl);
 
     return ERROR_SUCCESS;
 }
@@ -354,25 +370,34 @@ static void controller_disable(struct xinput_controller *controller)
 
     CancelIoEx(controller->device, &controller->hid.read_ovl);
     WaitForSingleObject(controller->hid.read_ovl.hEvent, INFINITE);
+    CancelIoEx(controller->device, &controller->hid.rumble_ovl);
+    WaitForSingleObject(controller->hid.rumble_ovl.hEvent, INFINITE);
+    CancelIoEx(controller->device, &controller->hid.buzz_ovl);
+    WaitForSingleObject(controller->hid.buzz_ovl.hEvent, INFINITE);
     SetEvent(update_event);
 }
 
 static BOOL controller_init(struct xinput_controller *controller, PHIDP_PREPARSED_DATA preparsed,
                             HIDP_CAPS *caps, HANDLE device, WCHAR *device_path)
 {
-    HANDLE event = NULL;
+    HANDLE read_event = NULL, rumble_event = NULL, buzz_event = NULL;
 
     controller->hid.caps = *caps;
     if (!(controller->hid.feature_report_buf = calloc(1, controller->hid.caps.FeatureReportByteLength))) goto failed;
     if (!controller_check_caps(controller, device, preparsed)) goto failed;
-    if (!(event = CreateEventW(NULL, TRUE, FALSE, NULL))) goto failed;
+    if (!(read_event = CreateEventW(NULL, TRUE, FALSE, NULL))) goto failed;
+    if (!(rumble_event = CreateEventW(NULL, TRUE, FALSE, NULL))) goto failed;
+    if (!(buzz_event = CreateEventW(NULL, TRUE, FALSE, NULL))) goto failed;
 
     TRACE("Found gamepad %s\n", debugstr_w(device_path));
 
     controller->hid.preparsed = preparsed;
-    controller->hid.read_event = event;
+    controller->hid.read_event = read_event;
+    controller->hid.rumble_event = rumble_event;
+    controller->hid.buzz_event = buzz_event;
     if (!(controller->hid.input_report_buf = calloc(1, controller->hid.caps.InputReportByteLength))) goto failed;
-    if (!(controller->hid.output_report_buf = calloc(1, controller->hid.caps.OutputReportByteLength))) goto failed;
+    if (!(controller->hid.rumble_report_buf = calloc(1, controller->hid.caps.OutputReportByteLength))) goto failed;
+    if (!(controller->hid.buzz_report_buf = calloc(1, controller->hid.caps.OutputReportByteLength))) goto failed;
 
     memset(&controller->state, 0, sizeof(controller->state));
     memset(&controller->vibration, 0, sizeof(controller->vibration));
@@ -387,10 +412,13 @@ static BOOL controller_init(struct xinput_controller *controller, PHIDP_PREPARSE
 
 failed:
     free(controller->hid.input_report_buf);
-    free(controller->hid.output_report_buf);
     free(controller->hid.feature_report_buf);
+    free(controller->hid.rumble_report_buf);
+    free(controller->hid.buzz_report_buf);
     memset(&controller->hid, 0, sizeof(controller->hid));
-    CloseHandle(event);
+    CloseHandle(read_event);
+    CloseHandle(rumble_event);
+    CloseHandle(buzz_event);
     return FALSE;
 }
 
@@ -508,8 +536,9 @@ static void controller_destroy(struct xinput_controller *controller, BOOL alread
         controller->device = NULL;
 
         free(controller->hid.input_report_buf);
-        free(controller->hid.output_report_buf);
         free(controller->hid.feature_report_buf);
+        free(controller->hid.rumble_report_buf);
+        free(controller->hid.buzz_report_buf);
         HidD_FreePreparsedData(controller->hid.preparsed);
         memset(&controller->hid, 0, sizeof(controller->hid));
     }
