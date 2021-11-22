@@ -60,6 +60,88 @@ struct hid_report
     BYTE buffer[1];
 };
 
+struct irp_queue
+{
+    KSPIN_LOCK lock;
+    LIST_ENTRY list;
+};
+
+static void WINAPI irp_cancel_routine(DEVICE_OBJECT *device, IRP *irp)
+{
+    struct irp_queue *queue = irp->Tail.Overlay.DriverContext[0];
+    KIRQL irql;
+
+    IoReleaseCancelSpinLock(irp->CancelIrql);
+
+    KeAcquireSpinLock(&queue->lock, &irql);
+    RemoveEntryList(&irp->Tail.Overlay.ListEntry);
+    KeReleaseSpinLock(&queue->lock, irql);
+
+    irp->IoStatus.Information = 0;
+    irp->IoStatus.Status = STATUS_CANCELLED;
+    IoCompleteRequest(irp, IO_NO_INCREMENT);
+}
+
+static IRP *irp_queue_pop(struct irp_queue *queue)
+{
+    LIST_ENTRY *entry;
+    IRP *irp = NULL;
+    KIRQL irql;
+
+    KeAcquireSpinLock(&queue->lock, &irql);
+    while (!irp && (entry = RemoveHeadList(&queue->list)) != &queue->list)
+    {
+        irp = CONTAINING_RECORD(entry, IRP, Tail.Overlay.ListEntry);
+        if (!IoSetCancelRoutine(irp, NULL))
+        {
+            /* cancel routine is already cleared, meaning that it was called. let it handle completion. */
+            InitializeListHead(&irp->Tail.Overlay.ListEntry);
+            irp = NULL;
+        }
+    }
+    KeReleaseSpinLock(&queue->lock, irql);
+
+    return irp;
+}
+
+static NTSTATUS irp_queue_push(struct irp_queue *queue, IRP *irp)
+{
+    NTSTATUS status;
+    KIRQL irql;
+
+    KeAcquireSpinLock(&queue->lock, &irql);
+    IoSetCancelRoutine(irp, irp_cancel_routine);
+    if (irp->Cancel && !IoSetCancelRoutine(irp, NULL))
+        status = STATUS_CANCELLED;
+    else
+    {
+        irp->Tail.Overlay.DriverContext[0] = queue;
+        IoMarkIrpPending(irp);
+        InsertTailList(&queue->list, &irp->Tail.Overlay.ListEntry);
+        status = STATUS_PENDING;
+    }
+    KeReleaseSpinLock(&queue->lock, irql);
+
+    return status;
+}
+
+static void irp_queue_clear(struct irp_queue *queue)
+{
+    IRP *irp;
+
+    while ((irp = irp_queue_pop(queue)))
+    {
+        irp->IoStatus.Status = STATUS_DELETE_PENDING;
+        IoCompleteRequest(irp, IO_NO_INCREMENT);
+    }
+}
+
+static void irp_queue_init(struct irp_queue *queue)
+{
+    KeInitializeSpinLock(&queue->lock);
+    InitializeListHead(&queue->list);
+}
+
 enum device_state
 {
     DEVICE_STATE_STOPPED,
@@ -532,8 +614,8 @@ static void keyboard_device_create(void)
     IoInvalidateDeviceRelations(bus_pdo, BusRelations);
 }
 
-static DWORD bus_count;
-static HANDLE bus_thread[16];
+static DWORD thread_count;
+static HANDLE threads[16];
 
 struct bus_main_params
 {
@@ -600,12 +682,12 @@ static DWORD CALLBACK bus_main_thread(void *args)
 
 static NTSTATUS bus_main_thread_start(struct bus_main_params *bus)
 {
-    DWORD i = bus_count++, max_size;
+    DWORD i = thread_count++, max_size;
 
     if (!(bus->init_done = CreateEventW(NULL, FALSE, FALSE, NULL)))
     {
         ERR("failed to create %s bus init done event.\n", debugstr_w(bus->name));
-        bus_count--;
+        thread_count--;
         return STATUS_UNSUCCESSFUL;
     }
 
@@ -614,20 +696,109 @@ static NTSTATUS bus_main_thread_start(struct bus_main_params *bus)
     {
         ERR("failed to allocate %s bus event.\n", debugstr_w(bus->name));
         CloseHandle(bus->init_done);
-        bus_count--;
+        thread_count--;
         return STATUS_UNSUCCESSFUL;
     }
 
-    if (!(bus_thread[i] = CreateThread(NULL, 0, bus_main_thread, bus, 0, NULL)))
+    if (!(threads[i] = CreateThread(NULL, 0, bus_main_thread, bus, 0, NULL)))
     {
         ERR("failed to create %s bus thread.\n", debugstr_w(bus->name));
         CloseHandle(bus->init_done);
-        bus_count--;
+        thread_count--;
         return STATUS_UNSUCCESSFUL;
     }
 
     WaitForSingleObject(bus->init_done, INFINITE);
     CloseHandle(bus->init_done);
+    return STATUS_SUCCESS;
+}
+
+static struct irp_queue write_queue;
+static HANDLE write_control[3];
+
+static DWORD CALLBACK write_thread(void *args)
+{
+    struct unix_device *unix_device;
+    HID_XFER_PACKET *packet, *tmp;
+    struct device_extension *ext;
+    DEVICE_OBJECT *device;
+    DWORD i, size, res;
+    IRP *irp;
+
+    irp_queue_init(&write_queue);
+    SetEvent(write_control[2]);
+    TRACE("write thread started\n");
+
+    while ((res = WaitForMultipleObjects(2, write_control, FALSE, INFINITE)) == 1)
+    {
+        if (!(irp = irp_queue_pop(&write_queue))) continue;
+        unix_device = irp->Tail.Overlay.DriverContext[1];
+        packet = (HID_XFER_PACKET *)irp->UserBuffer;
+
+        size = sizeof(HID_XFER_PACKET) + packet->reportBufferLen;
+        tmp = RtlAllocateHeap(GetProcessHeap(), 0, size);
+        tmp->reportId = packet->reportId;
+        tmp->reportBuffer = (BYTE *)(tmp + 1);
+        tmp->reportBufferLen = packet->reportBufferLen;
+        memcpy(tmp->reportBuffer, packet->reportBuffer, packet->reportBufferLen);
+
+        irp->IoStatus.Status = STATUS_SUCCESS;
+        IoCompleteRequest(irp, IO_NO_INCREMENT);
+
+        if (TRACE_ON(hid))
+        {
+            TRACE("write output report id %u length %u:\n", tmp->reportId, tmp->reportBufferLen);
+            for (i = 0; i < tmp->reportBufferLen;)
+            {
+                char buffer[256], *buf = buffer;
+                buf += sprintf(buf, "%08x ", i);
+                do { buf += sprintf(buf, " %02x", tmp->reportBuffer[i]); }
+                while (++i % 16 && i < tmp->reportBufferLen);
+                TRACE("%s\n", buffer);
+            }
+        }
+
+        RtlEnterCriticalSection(&device_list_cs);
+        if ((device = bus_find_unix_device(unix_device)))
+        {
+            ext = device->DeviceExtension;
+            RtlEnterCriticalSection(&ext->cs);
+            unix_device_set_output_report(device, tmp, &irp->IoStatus);
+            RtlLeaveCriticalSection(&ext->cs);
+        }
+        RtlLeaveCriticalSection(&device_list_cs);
+
+        RtlFreeHeap(GetProcessHeap(), 0, tmp);
+    }
+
+    if (res) WARN("write wait returned status %#x\n", res);
+    else TRACE("write thread exited\n");
+
+    CloseHandle(write_control[0]);
+    CloseHandle(write_control[1]);
+    irp_queue_clear(&write_queue);
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS write_thread_start(void)
+{
+    DWORD i = thread_count++;
+
+    if (!(write_control[0] = CreateEventW(NULL, FALSE, FALSE, NULL)) ||
+        !(write_control[1] = CreateEventW(NULL, FALSE, FALSE, NULL)) ||
+        !(write_control[2] = CreateEventW(NULL, FALSE, FALSE, NULL)) ||
+        !(threads[i] = CreateThread(NULL, 0, write_thread, NULL, 0, NULL)))
+    {
+        ERR("failed to create write thread.\n");
+        CloseHandle(write_control[0]);
+        CloseHandle(write_control[1]);
+        CloseHandle(write_control[2]);
+        thread_count--;
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    WaitForSingleObject(write_control[2], INFINITE);
+    CloseHandle(write_control[2]);
     return STATUS_SUCCESS;
 }
 
@@ -775,6 +946,7 @@ static NTSTATUS fdo_pnp_dispatch(DEVICE_OBJECT *device, IRP *irp)
         irp->IoStatus.Status = handle_IRP_MN_QUERY_DEVICE_RELATIONS(irp);
         break;
     case IRP_MN_START_DEVICE:
+        write_thread_start();
         mouse_device_create();
         keyboard_device_create();
 
@@ -794,8 +966,9 @@ static NTSTATUS fdo_pnp_dispatch(DEVICE_OBJECT *device, IRP *irp)
         winebus_call(udev_stop, NULL);
         winebus_call(iohid_stop, NULL);
 
-        WaitForMultipleObjects(bus_count, bus_thread, TRUE, INFINITE);
-        while (bus_count--) CloseHandle(bus_thread[bus_count]);
+        SetEvent(write_control[0]);
+        WaitForMultipleObjects(thread_count, threads, TRUE, INFINITE);
+        while (thread_count--) CloseHandle(threads[thread_count]);
 
         irp->IoStatus.Status = STATUS_SUCCESS;
         IoSkipCurrentIrpStackLocation(irp);
@@ -1077,20 +1250,9 @@ static NTSTATUS WINAPI hid_internal_dispatch(DEVICE_OBJECT *device, IRP *irp)
         case IOCTL_HID_SET_OUTPUT_REPORT:
         case IOCTL_HID_WRITE_REPORT:
         {
-            HID_XFER_PACKET *packet = (HID_XFER_PACKET *)irp->UserBuffer;
-            if (TRACE_ON(hid))
-            {
-                TRACE("write output report id %u length %u:\n", packet->reportId, packet->reportBufferLen);
-                for (i = 0; i < packet->reportBufferLen;)
-                {
-                    char buffer[256], *buf = buffer;
-                    buf += sprintf(buf, "%08x ", i);
-                    do { buf += sprintf(buf, " %02x", packet->reportBuffer[i]); }
-                    while (++i % 16 && i < packet->reportBufferLen);
-                    TRACE("%s\n", buffer);
-                }
-            }
-            unix_device_set_output_report(device, packet, &irp->IoStatus);
+            irp->Tail.Overlay.DriverContext[1] = ext->unix_device;
+            irp->IoStatus.Status = irp_queue_push(&write_queue, irp);
+            if (irp->IoStatus.Status == STATUS_PENDING) SetEvent(write_control[1]);
             break;
         }
         case IOCTL_HID_GET_FEATURE:
