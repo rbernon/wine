@@ -112,7 +112,10 @@ static NTSTATUS irp_queue_push(struct irp_queue *queue, IRP *irp)
     KeAcquireSpinLock(&queue->lock, &irql);
     IoSetCancelRoutine(irp, irp_cancel_routine);
     if (irp->Cancel && !IoSetCancelRoutine(irp, NULL))
+    {
+        InitializeListHead(&irp->Tail.Overlay.ListEntry);
         status = STATUS_CANCELLED;
+    }
     else
     {
         irp->Tail.Overlay.DriverContext[0] = queue;
@@ -131,6 +134,7 @@ static void irp_queue_clear(struct irp_queue *queue)
 
     while ((irp = irp_queue_pop(queue)))
     {
+        irp->IoStatus.Information = 0;
         irp->IoStatus.Status = STATUS_DELETE_PENDING;
         IoCompleteRequest(irp, IO_NO_INCREMENT);
     }
@@ -722,6 +726,7 @@ static DWORD CALLBACK write_thread(void *args)
     HID_XFER_PACKET *packet, *tmp;
     struct device_extension *ext;
     DEVICE_OBJECT *device;
+    IO_STATUS_BLOCK io;
     DWORD i, size, res;
     IRP *irp;
 
@@ -731,44 +736,58 @@ static DWORD CALLBACK write_thread(void *args)
 
     while ((res = WaitForMultipleObjects(2, write_control, FALSE, INFINITE)) == 1)
     {
-        if (!(irp = irp_queue_pop(&write_queue))) continue;
-        unix_device = irp->Tail.Overlay.DriverContext[1];
-        packet = (HID_XFER_PACKET *)irp->UserBuffer;
-
-        size = sizeof(HID_XFER_PACKET) + packet->reportBufferLen;
-        tmp = RtlAllocateHeap(GetProcessHeap(), 0, size);
-        tmp->reportId = packet->reportId;
-        tmp->reportBuffer = (BYTE *)(tmp + 1);
-        tmp->reportBufferLen = packet->reportBufferLen;
-        memcpy(tmp->reportBuffer, packet->reportBuffer, packet->reportBufferLen);
-
-        irp->IoStatus.Status = STATUS_SUCCESS;
-        IoCompleteRequest(irp, IO_NO_INCREMENT);
-
-        if (TRACE_ON(hid))
+        while ((irp = irp_queue_pop(&write_queue)))
         {
-            TRACE("write output report id %u length %u:\n", tmp->reportId, tmp->reportBufferLen);
-            for (i = 0; i < tmp->reportBufferLen;)
+            unix_device = irp->Tail.Overlay.DriverContext[1];
+            packet = (HID_XFER_PACKET *)irp->UserBuffer;
+
+            size = sizeof(HID_XFER_PACKET) + packet->reportBufferLen;
+            tmp = RtlAllocateHeap(GetProcessHeap(), 0, size);
+            tmp->reportId = packet->reportId;
+            tmp->reportBuffer = (BYTE *)(tmp + 1);
+            tmp->reportBufferLen = packet->reportBufferLen;
+            memcpy(tmp->reportBuffer, packet->reportBuffer, packet->reportBufferLen);
+
+            io = irp->IoStatus;
+            RtlEnterCriticalSection(&device_list_cs);
+            if (!(device = bus_find_unix_device(unix_device)))
             {
-                char buffer[256], *buf = buffer;
-                buf += sprintf(buf, "%08x ", i);
-                do { buf += sprintf(buf, " %02x", tmp->reportBuffer[i]); }
-                while (++i % 16 && i < tmp->reportBufferLen);
-                TRACE("%s\n", buffer);
+                irp->IoStatus.Information = 0;
+                irp->IoStatus.Status = STATUS_DELETE_PENDING;
             }
-        }
+            else
+            {
+                irp->IoStatus.Information = packet->reportBufferLen;
+                irp->IoStatus.Status = STATUS_SUCCESS;
+            }
+            RtlLeaveCriticalSection(&device_list_cs);
+            IoCompleteRequest(irp, IO_NO_INCREMENT);
 
-        RtlEnterCriticalSection(&device_list_cs);
-        if ((device = bus_find_unix_device(unix_device)))
-        {
-            ext = device->DeviceExtension;
-            RtlEnterCriticalSection(&ext->cs);
-            unix_device_set_output_report(device, tmp, &irp->IoStatus);
-            RtlLeaveCriticalSection(&ext->cs);
-        }
-        RtlLeaveCriticalSection(&device_list_cs);
+            if (TRACE_ON(hid))
+            {
+                TRACE("write output report id %u length %u:\n", tmp->reportId, tmp->reportBufferLen);
+                for (i = 0; i < tmp->reportBufferLen;)
+                {
+                    char buffer[256], *buf = buffer;
+                    buf += sprintf(buf, "%08x ", i);
+                    do { buf += sprintf(buf, " %02x", tmp->reportBuffer[i]); }
+                    while (++i % 16 && i < tmp->reportBufferLen);
+                    TRACE("%s\n", buffer);
+                }
+            }
 
-        RtlFreeHeap(GetProcessHeap(), 0, tmp);
+            RtlEnterCriticalSection(&device_list_cs);
+            if ((device = bus_find_unix_device(unix_device)))
+            {
+                ext = device->DeviceExtension;
+                RtlEnterCriticalSection(&ext->cs);
+                unix_device_set_output_report(device, tmp, &io);
+                RtlLeaveCriticalSection(&ext->cs);
+            }
+            RtlLeaveCriticalSection(&device_list_cs);
+
+            RtlFreeHeap(GetProcessHeap(), 0, tmp);
+        }
     }
 
     if (res) WARN("write wait returned status %#x\n", res);
@@ -1141,6 +1160,7 @@ static NTSTATUS WINAPI hid_internal_dispatch(DEVICE_OBJECT *device, IRP *irp)
         return IoCallDriver(bus_pdo, irp);
     }
 
+    irp->IoStatus.Information = 0;
     RtlEnterCriticalSection(&ext->cs);
 
     if (ext->state == DEVICE_STATE_REMOVED)

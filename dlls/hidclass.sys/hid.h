@@ -117,7 +117,8 @@ typedef struct _minidriver
 } minidriver;
 
 void call_minidriver( ULONG code, DEVICE_OBJECT *device, void *in_buff, ULONG in_size,
-                      void *out_buff, ULONG out_size, IO_STATUS_BLOCK *io ) DECLSPEC_HIDDEN;
+                      void *out_buff, ULONG out_size, IO_STATUS_BLOCK *io,
+                      PIO_COMPLETION_ROUTINE completion, void *context ) DECLSPEC_HIDDEN;
 
 /* Internal device functions */
 void HID_StartDeviceThread(DEVICE_OBJECT *device) DECLSPEC_HIDDEN;

@@ -340,7 +340,7 @@ static DWORD CALLBACK hid_device_thread(void *args)
         }
 
         call_minidriver( IOCTL_HID_READ_REPORT, ext->u.pdo.parent_fdo, NULL, 0,
-                         packet->reportBuffer, packet->reportBufferLen, &io );
+                         packet->reportBuffer, packet->reportBufferLen, &io, NULL, NULL );
 
         if (io.Status == STATUS_SUCCESS)
         {
@@ -418,7 +418,7 @@ static void handle_minidriver_string( BASE_DEVICE_EXTENSION *ext, IRP *irp, ULON
     if (index == HID_STRING_ID_IPRODUCT) str = find_product_string( ext->device_id );
 
     if (!str) call_minidriver( IOCTL_HID_GET_STRING, ext->u.pdo.parent_fdo, ULongToPtr( index ),
-                               sizeof(index), output_buf, output_len, io );
+                               sizeof(index), output_buf, output_len, io, NULL, NULL );
     else
     {
         io->Information = (wcslen( str ) + 1) * sizeof(WCHAR);
@@ -432,12 +432,36 @@ static void handle_minidriver_string( BASE_DEVICE_EXTENSION *ext, IRP *irp, ULON
     }
 }
 
+struct xfer_completion_params
+{
+    HID_XFER_PACKET packet;
+    IO_STATUS_BLOCK io;
+    ULONG code;
+    IRP *irp;
+};
+
+static NTSTATUS WINAPI xfer_report_completion( DEVICE_OBJECT *device, IRP *irp, void *context )
+{
+    struct xfer_completion_params *params = context;
+
+ERR("%s:%d status %#x information %#x\n", __FILE__, __LINE__, params->io.Status, params->io.Information);
+
+    if (params->code == IOCTL_HID_WRITE_REPORT && params->packet.reportId) params->io.Information--;
+    params->irp->IoStatus = params->io;
+    IoCompleteRequest( params->irp, IO_NO_INCREMENT );
+
+    free(params);
+
+    if (irp->PendingReturned) IoMarkIrpPending( irp );
+    return STATUS_SUCCESS;
+}
+
 static void hid_device_xfer_report( BASE_DEVICE_EXTENSION *ext, ULONG code, IRP *irp, IO_STATUS_BLOCK *io )
 {
     IO_STACK_LOCATION *stack = IoGetCurrentIrpStackLocation( irp );
     ULONG offset = 0, report_len = 0, buffer_len = 0;
+    struct xfer_completion_params *params;
     HIDP_REPORT_IDS *report = NULL;
-    HID_XFER_PACKET packet;
     BYTE *buffer = NULL;
 
     switch (code)
@@ -488,22 +512,31 @@ static void hid_device_xfer_report( BASE_DEVICE_EXTENSION *ext, ULONG code, IRP 
     }
 
     if (!report->ReportID) offset = 1;
-    packet.reportId = report->ReportID;
-    packet.reportBuffer = buffer + offset;
+
+    params = malloc(sizeof(struct xfer_completion_params));
+    params->packet.reportId = report->ReportID;
+    params->packet.reportBuffer = buffer + offset;
+    params->code = code;
+    params->irp = irp;
+    params->io = *io;
+
+    IoMarkIrpPending( irp );
+    io->Status = STATUS_PENDING;
 
     switch (code)
     {
     case IOCTL_HID_GET_FEATURE:
     case IOCTL_HID_GET_INPUT_REPORT:
-        packet.reportBufferLen = buffer_len - offset;
-        call_minidriver( code, ext->u.pdo.parent_fdo, NULL, 0, &packet, sizeof(packet), io );
+        params->packet.reportBufferLen = buffer_len - offset;
+        call_minidriver( code, ext->u.pdo.parent_fdo, NULL, 0, &params->packet, sizeof(params->packet), &params->io,
+                         xfer_report_completion, params );
         break;
     case IOCTL_HID_SET_FEATURE:
     case IOCTL_HID_SET_OUTPUT_REPORT:
     case IOCTL_HID_WRITE_REPORT:
-        packet.reportBufferLen = report_len - offset;
-        call_minidriver( code, ext->u.pdo.parent_fdo, NULL, sizeof(packet), &packet, 0, io );
-        if (code == IOCTL_HID_WRITE_REPORT && packet.reportId) io->Information--;
+        params->packet.reportBufferLen = report_len - offset;
+        call_minidriver( code, ext->u.pdo.parent_fdo, NULL, sizeof(params->packet), &params->packet, 0, &params->io,
+                         xfer_report_completion, params );
         break;
     }
 }
