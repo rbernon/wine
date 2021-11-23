@@ -142,7 +142,7 @@ typedef struct fdi_cds_fwd {
   cab_UBYTE *outpos;               /* (high level) start of data to use up  */
   cab_UWORD outlen;                /* (high level) amount of data to use up */
   int (*decompress)(int, int, struct fdi_cds_fwd *); /* chosen compress fn  */
-  cab_UBYTE inbuf[CAB_INPUTMAX+2]; /* +2 for lzx bitbuffer overflows!       */
+  cab_UBYTE inbuf[CAB_INPUTMAX+8];
   cab_UBYTE outbuf[CAB_BLOCKMAX];
   union {
     struct ZIPstate zip;
@@ -165,19 +165,10 @@ typedef struct fdi_cds_fwd {
 
 static inline cab_ULONG get_bits(struct bit_buffer *buff, BYTE read, BYTE drop)
 {
-  cab_ULONG tmp;
-
-  while (buff->size < read)
-  {
-    tmp = *buff->input++;
-    buff->buffer |= tmp << buff->size;
-    buff->size += 8;
-  }
-
-  tmp = buff->buffer & ((1 << read) - 1);
-
-  buff->buffer >>= drop;
-  buff->size -= drop;
+  UINT32 tmp = *(UINT32 *)buff->input >> buff->shift;
+  tmp &= (1 << read) - 1;
+  buff->input += (buff->shift + drop) / 8;
+  buff->shift = (buff->shift + drop) % 8;
   return tmp;
 }
 
@@ -1166,7 +1157,7 @@ static cab_LONG fdi_Zipinflate_stored(fdi_decomp_state *decomp_state)
   w = ZIP(window_posn);              /* initialize window position */
 
   /* go to byte boundary */
-  n = bits.size & 7;
+  n = (~bits.shift + 1) & 7;
   get_bits(&bits, 0, n);
 
   /* get the length and its complement */
@@ -1691,7 +1682,7 @@ static int ZIPfdi_decomp(int inlen, int outlen, fdi_decomp_state *decomp_state)
   TRACE("(inlen == %d, outlen == %d)\n", inlen, outlen);
 
   ZIP(bits.input) = CAB(inbuf);
-  ZIP(bits.buffer) = ZIP(bits.size) = ZIP(window_posn) = 0;
+  ZIP(bits.shift) = ZIP(window_posn) = 0;
   if(outlen > ZIPWSIZE)
     return DECR_DATAFORMAT;
 
@@ -2262,7 +2253,7 @@ static int fdi_decomp(const struct fdi_file *fi, int savemode, fdi_decomp_state 
         return DECR_INPUT;
 
       /* clear two bytes after read-in data */
-      data[len+1] = data[len+2] = 0;
+      memset(data + len, 0, 8);
 
       /* perform checksum test on the block (if one is stored) */
       cksum = EndGetI32(buf+cfdata_CheckSum);

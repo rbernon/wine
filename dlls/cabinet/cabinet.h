@@ -137,8 +137,7 @@ struct Ziphuft {
 struct bit_buffer
 {
   cab_UBYTE *input;
-  cab_ULONG buffer;
-  cab_UBYTE size;
+  cab_UBYTE shift;
 };
 
 struct ZIPstate {
@@ -303,7 +302,7 @@ typedef struct cds_forward {
   cab_UWORD outlen;                /* (high level) amount of data to use up */
   cab_UWORD split;                 /* at which split in current folder?     */
   int (*decompress)(int, int, struct cds_forward *); /* chosen compress fn  */
-  cab_UBYTE inbuf[CAB_INPUTMAX+2]; /* +2 for lzx bitbuffer overflows!       */
+  cab_UBYTE inbuf[CAB_INPUTMAX+8];
   cab_UBYTE outbuf[CAB_BLOCKMAX];
   cab_UBYTE q_length_base[27], q_length_extra[27], q_extra_bits[42];
   cab_ULONG q_position_base[42];
