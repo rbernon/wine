@@ -166,6 +166,7 @@ typedef struct fdi_cds_fwd {
 #define ZIPNEEDBITS(n) {while(k<(n)){cab_LONG c=*(ZIP(inpos)++);\
     b|=((cab_ULONG)c)<<k;k+=8;}}
 #define ZIPDUMPBITS(n) {b>>=(n);k-=(n);}
+#define ZIPGETBITS(n)  (b & ((1 << (n)) - 1))
 
 /* endian-neutral reading of little-endian data */
 #define EndGetI32(a)  ((((a)[3])<<24)|(((a)[2])<<16)|(((a)[1])<<8)|((a)[0]))
@@ -1185,6 +1186,189 @@ static cab_LONG fdi_Zipinflate_stored(fdi_decomp_state *decomp_state)
   return 0;
 }
 
+/* match lengths for literal codes 257.. 285 */
+static const unsigned short lit_lengths[29] = {
+  3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27,
+  31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258
+};
+
+/* match offsets for distance codes 0 .. 29 */
+static const unsigned short dist_offsets[30] = {
+  1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385,
+  513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577
+};
+
+/* extra bits required for literal codes 257.. 285 */
+static const unsigned char lit_extrabits[29] = {
+  0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2,
+  2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0
+};
+
+/* extra bits required for distance codes 0 .. 29 */
+static const unsigned char dist_extrabits[30] = {
+  0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6,
+  6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13
+};
+
+/* the order of the bit length Huffman code lengths */
+static const unsigned char bitlen_order[19] = {
+  16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15
+};
+
+static int make_decode_table2(unsigned int nsyms, unsigned int nbits,
+                             unsigned char *length, unsigned short *table)
+{
+    register unsigned short sym, next_symbol;
+    register unsigned int leaf, fill;
+    register unsigned int reverse;
+    register unsigned char bit_num;
+    unsigned int pos         = 0; /* the current position in the decode table */
+    unsigned int table_mask  = 1 << nbits;
+    unsigned int bit_mask    = table_mask >> 1; /* don't do 0 length codes */
+
+    /* fill entries for codes short enough for a direct mapping */
+    for (bit_num = 1; bit_num <= nbits; bit_num++) {
+        for (sym = 0; sym < nsyms; sym++) {
+            if (length[sym] != bit_num) continue;
+
+            /* reverse the significant bits */
+            fill = length[sym]; reverse = pos >> (nbits - fill); leaf = 0;
+            do {leaf <<= 1; leaf |= reverse & 1; reverse >>= 1;} while (--fill);
+
+            if((pos += bit_mask) > table_mask) return 1; /* table overrun */
+
+            /* fill all possible lookups of this symbol with the symbol itself */
+            fill = bit_mask; next_symbol = 1 << bit_num;
+            do { table[leaf] = sym; leaf += next_symbol; } while (--fill);
+        }
+        bit_mask >>= 1;
+    }
+
+    /* exit with success if table is now complete */
+    if (pos == table_mask) return 0;
+
+    /* mark all remaining table entries as unused */
+    for (sym = pos; sym < table_mask; sym++) {
+        reverse = sym; leaf = 0; fill = nbits;
+        do { leaf <<= 1; leaf |= reverse & 1; reverse >>= 1; } while (--fill);
+        table[leaf] = 0xFFFF;
+    }
+
+    /* next_symbol = base of allocation for long codes */
+    next_symbol = ((table_mask >> 1) < nsyms) ? nsyms : (table_mask >> 1);
+
+    /* give ourselves room for codes to grow by up to 16 more bits.
+     * codes now start at bit nbits+16 and end at (nbits+16-codelength) */
+    pos <<= 16;
+    table_mask <<= 16;
+    bit_mask = 1 << 15;
+
+    for (bit_num = nbits+1; bit_num <= 16; bit_num++) {
+        for (sym = 0; sym < nsyms; sym++) {
+            if (length[sym] != bit_num) continue;
+            if (pos >= table_mask) return 1; /* table overflow */
+
+            /* leaf = the first nbits of the code, reversed */
+            reverse = pos >> 16; leaf = 0; fill = nbits;
+            do {leaf <<= 1; leaf |= reverse & 1; reverse >>= 1;} while (--fill);
+
+            for (fill = 0; fill < (bit_num - nbits); fill++) {
+                /* if this path hasn't been taken yet, 'allocate' two entries */
+                if (table[leaf] == 0xFFFF) {
+                    table[(next_symbol << 1)     ] = 0xFFFF;
+                    table[(next_symbol << 1) + 1 ] = 0xFFFF;
+                    table[leaf] = next_symbol++;
+                }
+
+                /* follow the path and select either left or right for next bit */
+                leaf = table[leaf] << 1;
+                if ((pos >> (15-fill)) & 1) leaf++;
+            }
+            table[leaf] = sym;
+            pos += bit_mask;
+        }
+        bit_mask >>= 1;
+    }
+
+    /* full table? */
+    return (pos == table_mask) ? 0 : 1;
+}
+
+static int zip_read_lens(fdi_decomp_state *decomp_state) {
+  /* bitlen Huffman codes -- immediate lookup, 7 bit max code length */
+  unsigned short bl_table[(1 << 7)];
+  unsigned char bl_len[19];
+
+  unsigned char lens[MSZIP_LITERAL_MAXSYMBOLS + MSZIP_DISTANCE_MAXSYMBOLS];
+  unsigned int lit_codes, dist_codes, code, last_code=0, bitlen_codes, i, run;
+
+  register cab_ULONG b;     /* bit buffer */
+  register cab_ULONG k;     /* number of bits in bit buffer */
+
+  /* make local copies of globals */
+  b = ZIP(bb);                       /* initialize bit buffer */
+  k = ZIP(bk);
+
+  /* read the number of codes */
+  ZIPNEEDBITS(5)
+  lit_codes = ZIPGETBITS(5) + 257;
+  ZIPDUMPBITS(5)
+  ZIPNEEDBITS(5)
+  dist_codes = ZIPGETBITS(5) + 1;
+  ZIPDUMPBITS(5)
+  ZIPNEEDBITS(4)
+  bitlen_codes = ZIPGETBITS(4) + 4;
+  ZIPDUMPBITS(4)
+  if (lit_codes  > MSZIP_LITERAL_MAXSYMBOLS) return 1;
+  if (dist_codes > MSZIP_DISTANCE_MAXSYMBOLS) return 1;
+
+  /* read in the bit lengths in their unusual order */
+  for (i = 0; i < bitlen_codes; i++) {
+    ZIPNEEDBITS(3)
+    bl_len[bitlen_order[i]] = ZIPGETBITS(3);
+    ZIPDUMPBITS(3)
+  }
+  while (i < 19) bl_len[bitlen_order[i++]] = 0;
+
+  /* create decoding table with an immediate lookup */
+  if (make_decode_table2(19, 7, bl_len, bl_table))
+    return 1;
+
+  /* read literal / distance code lengths */
+  for (i = 0; i < (lit_codes + dist_codes); i++) {
+    /* single-level huffman lookup */
+    ZIPNEEDBITS(7)
+    code = bl_table[ZIPGETBITS(7)];
+    ZIPDUMPBITS(bl_len[code])
+
+    if (code < 16) lens[i] = last_code = code;
+    else {
+      switch (code) {
+      case 16: ZIPNEEDBITS(2) run = ZIPGETBITS(2) + 3;  ZIPDUMPBITS(2) code = last_code; break;
+      case 17: ZIPNEEDBITS(3) run = ZIPGETBITS(3) + 3;  ZIPDUMPBITS(3) code = 0;         break;
+      case 18: ZIPNEEDBITS(7) run = ZIPGETBITS(7) + 11; ZIPDUMPBITS(7) code = 0;         break;
+      default: return 1;
+      }
+      if ((i + run) > (lit_codes + dist_codes)) return 1;
+      while (run--) lens[i++] = code;
+      i--;
+    }
+  }
+
+  /* copy LITERAL code lengths and clear any remaining */
+  i = lit_codes;
+  memcpy(ZIP(LITERAL_len), lens, i);
+  while (i < MSZIP_LITERAL_MAXSYMBOLS) ZIP(LITERAL_len)[i++] = 0;
+
+  i = dist_codes;
+  memcpy(ZIP(DISTANCE_len), lens + lit_codes, i);
+  while (i < MSZIP_DISTANCE_MAXSYMBOLS) ZIP(DISTANCE_len)[i++] = 0;
+
+  ZIP(bb) = b;                       /* restore global bit buffer */
+  ZIP(bk) = k;
+  return 0;
+}
+
 /******************************************************
  * fdi_Zipinflate_fixed (internal)
  */
@@ -1362,6 +1546,7 @@ static cab_LONG fdi_Zipinflate_dynamic(fdi_decomp_state *decomp_state)
   return 0;
 }
 
+#if 0
 /*****************************************************
  * fdi_Zipinflate_block (internal)
  */
@@ -1398,6 +1583,128 @@ static cab_LONG fdi_Zipinflate_block(cab_LONG *e, fdi_decomp_state *decomp_state
     return fdi_Zipinflate_fixed(decomp_state);
   /* bad block type */
   return 2;
+}
+#endif
+
+/*****************************************************
+ * fdi_Zipinflate_block (internal)
+ */
+static cab_LONG fdi_Zipinflate_block(cab_LONG *e, fdi_decomp_state *decomp_state) /* e == last block flag */
+{ /* decompress an inflated block */
+  cab_ULONG i, t;            /* block type */
+  register cab_ULONG b;     /* bit buffer */
+  register cab_ULONG k;     /* number of bits in bit buffer */
+  cab_UWORD code, d, w, n, m;
+
+  /* make local bit buffer */
+  b = ZIP(bb);
+  k = ZIP(bk);
+
+  /* read in last block bit */
+  ZIPNEEDBITS(1)
+  *e = ZIPGETBITS(1);
+  ZIPDUMPBITS(1)
+
+  /* read in block type */
+  ZIPNEEDBITS(2)
+  t = ZIPGETBITS(2);
+  ZIPDUMPBITS(2)
+
+  /* restore the global bit buffer */
+  ZIP(bb) = b;
+  ZIP(bk) = k;
+
+  if(t == 0)
+    return fdi_Zipinflate_stored(decomp_state);
+  if (t == 1) {
+    /* block with fixed Huffman codes */
+    i = 0;
+    while (i < 144) ZIP(LITERAL_len)[i++] = 8;
+    while (i < 256) ZIP(LITERAL_len)[i++] = 9;
+    while (i < 280) ZIP(LITERAL_len)[i++] = 7;
+    while (i < 288) ZIP(LITERAL_len)[i++] = 8;
+    for (i = 0; i < 32; i++) ZIP(DISTANCE_len)[i] = 5;
+  } else if (t == 2) {
+    /* block with dynamic Huffman codes */
+    if (zip_read_lens(decomp_state)) return 1;
+  }
+
+  /* now huffman lengths are read for either kind of block, 
+   * create huffman decoding tables */
+  if (make_decode_table2(MSZIP_LITERAL_MAXSYMBOLS, MSZIP_LITERAL_TABLEBITS,
+                        ZIP(LITERAL_len), ZIP(LITERAL_table)))
+    return 1;
+
+  if (make_decode_table2(MSZIP_DISTANCE_MAXSYMBOLS, MSZIP_DISTANCE_TABLEBITS,
+                        ZIP(DISTANCE_len), ZIP(DISTANCE_table)))
+    return 1;
+
+  w = ZIP(window_posn);
+  b = ZIP(bb);
+  k = ZIP(bk);
+
+  /* decode forever until end of block code */
+  for (;;) {
+    i = MSZIP_LITERAL_TABLEBITS;
+    ZIPNEEDBITS(i)
+    code = ZIPGETBITS(i);
+    while ((code = ZIP(LITERAL_table)[code]) >= MSZIP_LITERAL_MAXSYMBOLS)
+    {
+      if (i++ > 16) return -1;
+      ZIPNEEDBITS(i)
+      code = (code << 1) | (ZIPGETBITS(i) >> (i - 1));
+    }
+    ZIPDUMPBITS(ZIP(LITERAL_len)[code])
+
+    if (code < 256)
+      CAB(outbuf)[w++] = (cab_UBYTE)code;
+    else if (code == 256)
+      break;
+    else
+    {
+      code -= 257;
+      ZIPNEEDBITS(lit_extrabits[code])
+      n = b & ZIPGETBITS(lit_extrabits[code]);
+      ZIPDUMPBITS(lit_extrabits[code])
+      n += lit_lengths[code];
+
+      i = MSZIP_DISTANCE_TABLEBITS;
+      ZIPNEEDBITS(i)
+      code = ZIPGETBITS(i);
+      while ((code = ZIP(DISTANCE_table)[code]) >= MSZIP_DISTANCE_MAXSYMBOLS)
+      {
+        if (i++ > 16) return -1;
+        ZIPNEEDBITS(i)
+        code = (code << 1) | (ZIPGETBITS(i) >> (i - 1));
+      }
+      ZIPDUMPBITS(ZIP(DISTANCE_len)[code])
+
+      ZIPNEEDBITS(dist_extrabits[code])
+      d = ZIPGETBITS(dist_extrabits[code]);
+      ZIPDUMPBITS(dist_extrabits[code])
+      d += dist_offsets[code];
+      d = (w - d) & (ZIPWSIZE - 1);
+
+      do
+      {
+        d &= ZIPWSIZE - 1;
+        m = ZIPWSIZE - max(d, w);
+        m = min(m, n);
+        n -= m;
+        do
+        {
+          CAB(outbuf)[w++] = CAB(outbuf)[d++];
+        } while (--m);
+      } while (n);
+    }
+
+  } /* for(;;) -- break point at 'code == 256' */
+
+  ZIP(window_posn) = w;
+  ZIP(bb) = b;
+  ZIP(bk) = k;
+
+  return 0;
 }
 
 /****************************************************

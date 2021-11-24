@@ -107,6 +107,27 @@ typedef UINT32        cab_off_t;
 #define ZIPBMAX		16      /* maximum bit length of any code */
 #define ZIPN_MAX	288     /* maximum number of codes in any set */
 
+#define MSZIP_FRAME_SIZE (32768)       /* size of LZ history window */
+#define MSZIP_LITERAL_MAXSYMBOLS (288) /* literal/length huffman tree */
+#define MSZIP_LITERAL_TABLEBITS (9)
+#define MSZIP_DISTANCE_MAXSYMBOLS (32) /* distance huffman tree */
+#define MSZIP_DISTANCE_TABLEBITS (6)
+
+/* if there are less direct lookup entries than symbols, the longer
+ * code pointers will be <= maxsymbols. This must not happen, or we
+ * will decode entries badly */
+#if (1 << MSZIP_LITERAL_TABLEBITS) < (MSZIP_LITERAL_MAXSYMBOLS * 2)
+#define MSZIP_LITERAL_TABLESIZE (MSZIP_LITERAL_MAXSYMBOLS * 4)
+#else
+#define MSZIP_LITERAL_TABLESIZE ((1 << MSZIP_LITERAL_TABLEBITS) + (MSZIP_LITERAL_MAXSYMBOLS * 2))
+#endif
+
+#if (1 << MSZIP_DISTANCE_TABLEBITS) < (MSZIP_DISTANCE_MAXSYMBOLS * 2)
+#define MSZIP_DISTANCE_TABLESIZE (MSZIP_DISTANCE_MAXSYMBOLS * 4)
+#else
+#define MSZIP_DISTANCE_TABLESIZE ((1 << MSZIP_DISTANCE_TABLEBITS) + (MSZIP_DISTANCE_MAXSYMBOLS * 2))
+#endif
+
 struct Ziphuft {
   cab_UBYTE e;                /* number of extra bits or operation */
   cab_UBYTE b;                /* number of bits in this code or subcode */
@@ -127,6 +148,14 @@ struct ZIPstate {
     cab_ULONG v[ZIPN_MAX];      /* values in order of bit length */
     cab_ULONG x[ZIPBMAX+1];     /* bit offsets, then code stack */
     cab_UBYTE *inpos;
+
+    /* huffman code lengths */
+    unsigned char LITERAL_len[MSZIP_LITERAL_MAXSYMBOLS];
+    unsigned char DISTANCE_len[MSZIP_DISTANCE_MAXSYMBOLS];
+
+    /* huffman decoding tables */
+    unsigned short LITERAL_table[MSZIP_LITERAL_TABLESIZE];
+    unsigned short DISTANCE_table[MSZIP_DISTANCE_TABLESIZE];
 };
   
 /* Quantum stuff */
