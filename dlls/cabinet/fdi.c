@@ -73,8 +73,6 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(cabinet);
 
-THOSE_ZIP_CONSTS;
-
 struct fdi_file {
   struct fdi_file *next;               /* next file in sequence          */
   LPSTR filename;                     /* output name of file            */
@@ -862,286 +860,6 @@ static int NONEfdi_decomp(int inlen, int outlen, fdi_decomp_state *decomp_state)
   return DECR_OK;
 }
 
-static BOOL fdi_Ziphuft_grow(struct Ziphuft **entries, cab_ULONG *capacity, cab_ULONG count, cab_ULONG amount,
-                             fdi_decomp_state *decomp_state)
-{
-  struct Ziphuft *tmp;
-
-  if (*capacity > count + amount)
-    return TRUE;
-
-  *capacity = max(*capacity + amount, *capacity * 3 / 2);
-  tmp = CAB(fdi)->alloc(*capacity * sizeof(struct Ziphuft));
-  if (tmp && *entries) memcpy(tmp, *entries, count * sizeof(struct Ziphuft));
-
-  CAB(fdi)->free(*entries);
-  *entries = tmp;
-
-  return tmp != NULL;
-}
-
-/********************************************************
- * Ziphuft_free (internal)
- */
-static void fdi_Ziphuft_free(FDI_Int *fdi, struct Ziphuft *t)
-{
-  fdi->free(t);
-}
-
-/*********************************************************
- * fdi_Ziphuft_build (internal)
- */
-static cab_LONG fdi_Ziphuft_build(cab_ULONG *b, cab_ULONG n, cab_ULONG s, const cab_UWORD *d, const cab_UWORD *e,
-struct Ziphuft **t, cab_LONG *m, fdi_decomp_state *decomp_state)
-{
-  cab_ULONG a;                   	/* counter for codes of length k */
-  cab_ULONG el;                  	/* length of EOB code (value 256) */
-  cab_ULONG f;                   	/* i repeats in table every f entries */
-  cab_LONG g;                    	/* maximum code length */
-  cab_LONG h;                    	/* table level */
-  register cab_ULONG i;          	/* counter, current code */
-  register cab_ULONG j;          	/* counter */
-  register cab_LONG k;           	/* number of bits in current code */
-  cab_LONG *l;                  	/* stack of bits per table */
-  register cab_ULONG *p;         	/* pointer into ZIP(c)[],ZIP(b)[],ZIP(v)[] */
-  register struct Ziphuft *q;           /* points to current table */
-  struct Ziphuft r;                     /* table entry for structure assignment */
-  register cab_LONG w;                  /* bits before this table == (l * h) */
-  cab_ULONG *xp;                 	/* pointer into x */
-  cab_LONG y;                           /* number of dummy codes added */
-  cab_ULONG z;                   	/* number of entries in current table */
-
-  cab_ULONG capacity = 0;
-  cab_ULONG count = 0;
-
-  *t = NULL;
-  if (!fdi_Ziphuft_grow(t, &capacity, count, 1024, decomp_state))
-    return 3;
-
-  l = ZIP(lx)+1;
-
-  /* Generate counts for each bit length */
-  el = n > 256 ? b[256] : ZIPBMAX; /* set length of EOB code, if any */
-
-  for(i = 0; i < ZIPBMAX+1; ++i)
-    ZIP(c)[i] = 0;
-  p = b;  i = n;
-  do
-  {
-    ZIP(c)[*p]++; p++;               /* assume all entries <= ZIPBMAX */
-  } while (--i);
-  if (ZIP(c)[0] == n)                /* null input--all zero length codes */
-  {
-    *t = NULL;
-    *m = 0;
-    return 0;
-  }
-
-  /* Find minimum and maximum length, bound *m by those */
-  for (j = 1; j <= ZIPBMAX; j++)
-    if (ZIP(c)[j])
-      break;
-  k = j;                        /* minimum code length */
-  if ((cab_ULONG)*m < j)
-    *m = j;
-  for (i = ZIPBMAX; i; i--)
-    if (ZIP(c)[i])
-      break;
-  g = i;                        /* maximum code length */
-  if ((cab_ULONG)*m > i)
-    *m = i;
-
-  /* Adjust last length count to fill out codes, if needed */
-  for (y = 1 << j; j < i; j++, y <<= 1)
-    if ((y -= ZIP(c)[j]) < 0)
-      return 2;                 /* bad input: more codes than bits */
-  if ((y -= ZIP(c)[i]) < 0)
-    return 2;
-  ZIP(c)[i] += y;
-
-  /* Generate starting offsets LONGo the value table for each length */
-  ZIP(x)[1] = j = 0;
-  p = ZIP(c) + 1;  xp = ZIP(x) + 2;
-  while (--i)
-  {                 /* note that i == g from above */
-    *xp++ = (j += *p++);
-  }
-
-  /* Make a table of values in order of bit lengths */
-  p = b;  i = 0;
-  do{
-    if ((j = *p++) != 0)
-      ZIP(v)[ZIP(x)[j]++] = i;
-  } while (++i < n);
-
-
-  /* Generate the Huffman codes and for each, make the table entries */
-  ZIP(x)[0] = i = 0;                 /* first Huffman code is zero */
-  p = ZIP(v);                        /* grab values in bit order */
-  h = -1;                       /* no tables yet--level -1 */
-  w = l[-1] = 0;                /* no bits decoded yet */
-  ZIP(u)[0] = NULL;             /* just to keep compilers happy */
-  q = NULL;                     /* ditto */
-  z = 0;                        /* ditto */
-
-  /* go through the bit lengths (k already is bits in shortest code) */
-  for (; k <= g; k++)
-  {
-    a = ZIP(c)[k];
-    while (a--)
-    {
-      /* here i is the Huffman code of length k bits for value *p */
-      /* make tables up to required level */
-      while (k > w + l[h])
-      {
-        w += l[h++];            /* add bits already decoded */
-
-        /* compute minimum size table less than or equal to *m bits */
-        if ((z = g - w) > (cab_ULONG)*m)    /* upper limit */
-          z = *m;
-        if ((f = 1 << (j = k - w)) > a + 1)     /* try a k-w bit table */
-        {                       /* too few codes for k-w bit table */
-          f -= a + 1;           /* deduct codes from patterns left */
-          xp = ZIP(c) + k;
-          while (++j < z)       /* try smaller tables up to z bits */
-          {
-            if ((f <<= 1) <= *++xp)
-              break;            /* enough codes to use up j bits */
-            f -= *xp;           /* else deduct codes from patterns */
-          }
-        }
-        if ((cab_ULONG)w + j > el && (cab_ULONG)w < el)
-          j = el - w;           /* make EOB code end at table */
-        z = 1 << j;             /* table entries for j-bit table */
-        l[h] = j;               /* set table size in stack */
-
-        if (!fdi_Ziphuft_grow(t, &capacity, count, z, decomp_state))
-          return 3;
-        q = *t + count;
-        count += z;
-        ZIP(u)[h] = q;
-
-        /* connect to last table, if there is one */
-        if (h)
-        {
-          ZIP(x)[h] = i;              /* save pattern for backing up */
-          r.b = (cab_UBYTE)l[h-1];    /* bits to dump before this table */
-          r.e = -(cab_UBYTE)j;        /* bits in this table */
-          r.n = q - *t;               /* index of this table */
-          j = (i & ((1 << w) - 1)) >> (w - l[h-1]);
-          ZIP(u)[h-1][j] = r;        /* connect to last table */
-        }
-      }
-
-      /* set up table entry in r */
-      r.b = (cab_UBYTE)(k - w);
-      if (p >= ZIP(v) + n)
-        r.e = 127;              /* out of values--invalid code */
-      else if (*p < s)
-      {
-        r.e = (cab_UBYTE)(*p < 256 ? 16 : 15);    /* 256 is end-of-block code */
-        r.n = *p++;             /* simple code is just the value */
-      }
-      else
-      {
-        r.e = (cab_UBYTE)e[*p - s];   /* non-simple--look up in lists */
-        r.n = d[*p++ - s];
-      }
-
-      /* fill code-like entries with r */
-      f = 1 << (k - w);
-      for (j = i >> w; j < z; j += f)
-        q[j] = r;
-
-      /* backwards increment the k-bit code i */
-      for (j = 1 << (k - 1); i & j; j >>= 1)
-        i ^= j;
-      i ^= j;
-
-      /* backup over finished tables */
-      while ((i & ((1 << w) - 1)) != ZIP(x)[h])
-        w -= l[--h];            /* don't need to update q */
-    }
-  }
-
-  /* return actual size of base table */
-  *m = l[0];
-
-  /* Return true (1) if we were given an incomplete table */
-  return y != 0 && g != 1;
-}
-
-/*********************************************************
- * fdi_Zipinflate_codes (internal)
- */
-static cab_LONG fdi_Zipinflate_codes(const struct Ziphuft *tl, const struct Ziphuft *td,
-  cab_LONG bl, cab_LONG bd, fdi_decomp_state *decomp_state)
-{
-  char e;     /* table entry flag/number of extra bits */
-  cab_ULONG len, dist, w;   /* length and distance for copy, current window pos */
-  const struct Ziphuft *t;  /* pointer to table entry */
-  struct bit_buffer bits;
-  cab_UBYTE *out;
-
-  /* make local copies of globals */
-  bits = ZIP(bits);                           /* initialize bit buffer */
-  w = ZIP(window_posn);                       /* initialize window position */
-  out = CAB(outbuf);
-
-  /* inflate the coded data */
-  for(;;)
-  {
-    t = tl + get_bits(&bits, (cab_ULONG)bl, 0);
-    while ((e = t->e) < 0)
-    {
-      get_bits(&bits, 0, t->b);
-      t = tl + t->n + get_bits(&bits, -e, 0);
-    } 
-    get_bits(&bits, 0, t->b);
-    if (e > 16)
-      return 1;
-    if (e == 16)                /* then it's a literal */
-      out[w++] = (cab_UBYTE)t->n;
-    else                        /* it's an EOB or a length */
-    {
-      /* exit if end of block */
-      if(e == 15)
-        break;
-
-      /* get length of block to copy */
-      len = t->n + get_bits(&bits, e, e);
-
-      /* decode distance of block to copy */
-      t = td + get_bits(&bits, (cab_ULONG)bd, 0);
-      while ((e = t->e) < 0)
-      {
-        get_bits(&bits, 0, t->b);
-        t = td + t->n + get_bits(&bits, -e, 0);
-      }
-      if (e > 16)
-        return 1;
-      get_bits(&bits, 0, t->b);
-      dist = (w - t->n - get_bits(&bits, e, e)) & (ZIPWSIZE - 1);
-
-      if (dist <= w) memcpy(out + w, out + dist, len);
-      else
-      {
-        cab_ULONG count = min(ZIPWSIZE - dist, len);
-        memcpy(out + w, out + dist, count);
-        if (len != count) memcpy(out + w + count, out, len - count);
-      }
-      w += len;
-    }
-  }
-
-  /* restore the globals from the locals */
-  ZIP(window_posn) = w;              /* restore global window pointer */
-  ZIP(bits) = bits;                  /* restore global bit buffer */
-
-  /* done */
-  return 0;
-}
-
 /***********************************************************
  * Zipinflate_stored (internal)
  */
@@ -1294,32 +1012,17 @@ static int zip_read_lens(fdi_decomp_state *decomp_state) {
   unsigned char lens[MSZIP_LITERAL_MAXSYMBOLS + MSZIP_DISTANCE_MAXSYMBOLS];
   unsigned int lit_codes, dist_codes, code, last_code=0, bitlen_codes, i, run;
 
-  register cab_ULONG b;     /* bit buffer */
-  register cab_ULONG k;     /* number of bits in bit buffer */
-
-  /* make local copies of globals */
-  b = ZIP(bb);                       /* initialize bit buffer */
-  k = ZIP(bk);
+  struct bit_buffer bits = ZIP(bits);
 
   /* read the number of codes */
-  ZIPNEEDBITS(5)
-  lit_codes = ZIPGETBITS(5) + 257;
-  ZIPDUMPBITS(5)
-  ZIPNEEDBITS(5)
-  dist_codes = ZIPGETBITS(5) + 1;
-  ZIPDUMPBITS(5)
-  ZIPNEEDBITS(4)
-  bitlen_codes = ZIPGETBITS(4) + 4;
-  ZIPDUMPBITS(4)
+  lit_codes = get_bits(&bits, 5, 5) + 257;
+  dist_codes = get_bits(&bits, 5, 5) + 1;
+  bitlen_codes = get_bits(&bits, 4, 4) + 4;
   if (lit_codes  > MSZIP_LITERAL_MAXSYMBOLS) return 1;
   if (dist_codes > MSZIP_DISTANCE_MAXSYMBOLS) return 1;
 
   /* read in the bit lengths in their unusual order */
-  for (i = 0; i < bitlen_codes; i++) {
-    ZIPNEEDBITS(3)
-    bl_len[bitlen_order[i]] = ZIPGETBITS(3);
-    ZIPDUMPBITS(3)
-  }
+  for (i = 0; i < bitlen_codes; i++) bl_len[bitlen_order[i]] = get_bits(&bits, 3, 3);
   while (i < 19) bl_len[bitlen_order[i++]] = 0;
 
   /* create decoding table with an immediate lookup */
@@ -1329,16 +1032,15 @@ static int zip_read_lens(fdi_decomp_state *decomp_state) {
   /* read literal / distance code lengths */
   for (i = 0; i < (lit_codes + dist_codes); i++) {
     /* single-level huffman lookup */
-    ZIPNEEDBITS(7)
-    code = bl_table[ZIPGETBITS(7)];
-    ZIPDUMPBITS(bl_len[code])
+    code = bl_table[get_bits(&bits, 7, 0)];
+    get_bits(&bits, 0, bl_len[code]);
 
     if (code < 16) lens[i] = last_code = code;
     else {
       switch (code) {
-      case 16: ZIPNEEDBITS(2) run = ZIPGETBITS(2) + 3;  ZIPDUMPBITS(2) code = last_code; break;
-      case 17: ZIPNEEDBITS(3) run = ZIPGETBITS(3) + 3;  ZIPDUMPBITS(3) code = 0;         break;
-      case 18: ZIPNEEDBITS(7) run = ZIPGETBITS(7) + 11; ZIPDUMPBITS(7) code = 0;         break;
+      case 16: run = get_bits(&bits, 2, 2) + 3;  code = last_code; break;
+      case 17: run = get_bits(&bits, 3, 3) + 3;  code = 0;         break;
+      case 18: run = get_bits(&bits, 7, 7) + 11; code = 0;         break;
       default: return 1;
       }
       if ((i + run) > (lit_codes + dist_codes)) return 1;
@@ -1356,178 +1058,25 @@ static int zip_read_lens(fdi_decomp_state *decomp_state) {
   memcpy(ZIP(DISTANCE_len), lens + lit_codes, i);
   while (i < MSZIP_DISTANCE_MAXSYMBOLS) ZIP(DISTANCE_len)[i++] = 0;
 
-  ZIP(bb) = b;                       /* restore global bit buffer */
-  ZIP(bk) = k;
-  return 0;
-}
-
-/******************************************************
- * fdi_Zipinflate_fixed (internal)
- */
-static cab_LONG fdi_Zipinflate_fixed(fdi_decomp_state *decomp_state)
-{
-  struct Ziphuft *fixed_tl;
-  struct Ziphuft *fixed_td;
-  cab_LONG fixed_bl, fixed_bd;
-  cab_LONG i;                /* temporary variable */
-  cab_ULONG *l;
-
-  l = ZIP(ll);
-
-  /* literal table */
-  for(i = 0; i < 144; i++)
-    l[i] = 8;
-  for(; i < 256; i++)
-    l[i] = 9;
-  for(; i < 280; i++)
-    l[i] = 7;
-  for(; i < 288; i++)          /* make a complete, but wrong code set */
-    l[i] = 8;
-  fixed_bl = 7;
-  if((i = fdi_Ziphuft_build(l, 288, 257, Zipcplens, Zipcplext, &fixed_tl, &fixed_bl, decomp_state)))
-    return i;
-
-  /* distance table */
-  for(i = 0; i < 30; i++)      /* make an incomplete code set */
-    l[i] = 5;
-  fixed_bd = 5;
-  if((i = fdi_Ziphuft_build(l, 30, 0, Zipcpdist, Zipcpdext, &fixed_td, &fixed_bd, decomp_state)) > 1)
-  {
-    fdi_Ziphuft_free(CAB(fdi), fixed_tl);
-    return i;
-  }
-
-  /* decompress until an end-of-block code */
-  i = fdi_Zipinflate_codes(fixed_tl, fixed_td, fixed_bl, fixed_bd, decomp_state);
-
-  fdi_Ziphuft_free(CAB(fdi), fixed_td);
-  fdi_Ziphuft_free(CAB(fdi), fixed_tl);
-  return i;
-}
-
-/**************************************************************
- * fdi_Zipinflate_dynamic (internal)
- */
-static cab_LONG fdi_Zipinflate_dynamic(fdi_decomp_state *decomp_state)
- /* decompress an inflated type 2 (dynamic Huffman codes) block. */
-{
-  cab_LONG i;          	/* temporary variables */
-  cab_ULONG j;
-  cab_ULONG *ll;
-  cab_ULONG l;           	/* last length */
-  cab_ULONG n;           	/* number of lengths to get */
-  struct Ziphuft *tl;           /* literal/length code table */
-  struct Ziphuft *td;           /* distance code table */
-  cab_LONG bl;                  /* lookup bits for tl */
-  cab_LONG bd;                  /* lookup bits for td */
-  cab_ULONG nb;          	/* number of bit length codes */
-  cab_ULONG nl;          	/* number of literal/length codes */
-  cab_ULONG nd;          	/* number of distance codes */
-  struct bit_buffer bits;
-
-  /* make local bit buffer */
-  bits = ZIP(bits);
-  ll = ZIP(ll);
-
-  /* read in table lengths */
-  nl = 257 + get_bits(&bits, 5, 5);      /* number of literal/length codes */
-  nd = 1 + get_bits(&bits, 5, 5);        /* number of distance codes */
-  nb = 4 + get_bits(&bits, 4, 4);         /* number of bit length codes */
-  if(nl > 288 || nd > 32)
-    return 1;                   /* bad lengths */
-
-  /* read in bit-length-code lengths */
-  for(j = 0; j < nb; j++)
-  {
-    ll[Zipborder[j]] = get_bits(&bits, 3, 3);
-  }
-  for(; j < 19; j++)
-    ll[Zipborder[j]] = 0;
-
-  /* build decoding table for trees--single level, 7 bit lookup */
-  bl = 7;
-  if((i = fdi_Ziphuft_build(ll, 19, 19, NULL, NULL, &tl, &bl, decomp_state)) != 0)
-  {
-    if(i == 1)
-      fdi_Ziphuft_free(CAB(fdi), tl);
-    return i;                   /* incomplete code set */
-  }
-
-  /* read in literal and distance code lengths */
-  n = nl + nd;
-  i = l = 0;
-  while((cab_ULONG)i < n)
-  {
-    j = (td = tl + get_bits(&bits, (cab_ULONG)bl, 0))->b;
-    get_bits(&bits, 0, j);
-    j = td->n;
-    if (j < 16)                 /* length of code in bits (0..15) */
-      ll[i++] = l = j;          /* save last length in l */
-    else if (j == 16)           /* repeat last length 3 to 6 times */
-    {
-      j = 3 + get_bits(&bits, 2, 2);
-      if((cab_ULONG)i + j > n)
-        return 1;
-      while (j--)
-        ll[i++] = l;
-    }
-    else if (j == 17)           /* 3 to 10 zero length codes */
-    {
-      j = 3 + get_bits(&bits, 3, 3);
-      if ((cab_ULONG)i + j > n)
-        return 1;
-      while (j--)
-        ll[i++] = 0;
-      l = 0;
-    }
-    else                        /* j == 18: 11 to 138 zero length codes */
-    {
-      j = 11 + get_bits(&bits, 7, 7);
-      if ((cab_ULONG)i + j > n)
-        return 1;
-      while (j--)
-        ll[i++] = 0;
-      l = 0;
-    }
-  }
-
-  /* free decoding table for trees */
-  fdi_Ziphuft_free(CAB(fdi), tl);
-
-  /* restore the global bit buffer */
   ZIP(bits) = bits;
-
-  /* build the decoding tables for literal/length and distance codes */
-  bl = ZIPLBITS;
-  if((i = fdi_Ziphuft_build(ll, nl, 257, Zipcplens, Zipcplext, &tl, &bl, decomp_state)) != 0)
-  {
-    if(i == 1)
-      fdi_Ziphuft_free(CAB(fdi), tl);
-    return i;                   /* incomplete code set */
-  }
-  bd = ZIPDBITS;
-  fdi_Ziphuft_build(ll + nl, nd, 0, Zipcpdist, Zipcpdext, &td, &bd, decomp_state);
-
-  /* decompress until an end-of-block code */
-  if(fdi_Zipinflate_codes(tl, td, bl, bd, decomp_state))
-    return 1;
-
-  /* free the decoding tables, return */
-  fdi_Ziphuft_free(CAB(fdi), tl);
-  fdi_Ziphuft_free(CAB(fdi), td);
   return 0;
 }
 
-#if 0
 /*****************************************************
  * fdi_Zipinflate_block (internal)
  */
 static cab_LONG fdi_Zipinflate_block(cab_LONG *e, fdi_decomp_state *decomp_state) /* e == last block flag */
 { /* decompress an inflated block */
-  cab_ULONG t;           	/* block type */
+  cab_ULONG i, t;           	/* block type */
+  cab_UWORD code;
   struct bit_buffer bits;
 
+  cab_ULONG len, dist, w;   /* length and distance for copy, current window pos */
+  cab_UBYTE *out;
+
   /* make local bit buffer */
+  w = ZIP(window_posn);                       /* initialize window position */
+  out = CAB(outbuf);
   bits = ZIP(bits);
 
   /* read in last block bit */
@@ -1538,46 +1087,6 @@ static cab_LONG fdi_Zipinflate_block(cab_LONG *e, fdi_decomp_state *decomp_state
 
   /* restore the global bit buffer */
   ZIP(bits) = bits;
-
-  /* inflate that block type */
-  if(t == 2)
-    return fdi_Zipinflate_dynamic(decomp_state);
-  if(t == 0)
-    return fdi_Zipinflate_stored(decomp_state);
-  if(t == 1)
-    return fdi_Zipinflate_fixed(decomp_state);
-  /* bad block type */
-  return 2;
-}
-#endif
-
-/*****************************************************
- * fdi_Zipinflate_block (internal)
- */
-static cab_LONG fdi_Zipinflate_block(cab_LONG *e, fdi_decomp_state *decomp_state) /* e == last block flag */
-{ /* decompress an inflated block */
-  cab_ULONG i, t;            /* block type */
-  register cab_ULONG b;     /* bit buffer */
-  register cab_ULONG k;     /* number of bits in bit buffer */
-  cab_UWORD code, d, w, n, m;
-
-  /* make local bit buffer */
-  b = ZIP(bb);
-  k = ZIP(bk);
-
-  /* read in last block bit */
-  ZIPNEEDBITS(1)
-  *e = ZIPGETBITS(1);
-  ZIPDUMPBITS(1)
-
-  /* read in block type */
-  ZIPNEEDBITS(2)
-  t = ZIPGETBITS(2);
-  ZIPDUMPBITS(2)
-
-  /* restore the global bit buffer */
-  ZIP(bb) = b;
-  ZIP(bk) = k;
 
   if(t == 0)
     return fdi_Zipinflate_stored(decomp_state);
@@ -1604,70 +1113,56 @@ static cab_LONG fdi_Zipinflate_block(cab_LONG *e, fdi_decomp_state *decomp_state
                         ZIP(DISTANCE_len), ZIP(DISTANCE_table)))
     return 1;
 
-  w = ZIP(window_posn);
-  b = ZIP(bb);
-  k = ZIP(bk);
+  bits = ZIP(bits);
 
   /* decode forever until end of block code */
   for (;;) {
     i = MSZIP_LITERAL_TABLEBITS;
-    ZIPNEEDBITS(i)
-    code = ZIPGETBITS(i);
+    code = get_bits(&bits, i, 0);
     while ((code = ZIP(LITERAL_table)[code]) >= MSZIP_LITERAL_MAXSYMBOLS)
     {
       if (i++ > 16) return -1;
-      ZIPNEEDBITS(i)
-      code = (code << 1) | (ZIPGETBITS(i) >> (i - 1));
+      code = (code << 1) | (get_bits(&bits, i, 0) >> (i - 1));
     }
-    ZIPDUMPBITS(ZIP(LITERAL_len)[code])
+    get_bits(&bits, 0, ZIP(LITERAL_len)[code]);
 
     if (code < 256)
-      CAB(outbuf)[w++] = (cab_UBYTE)code;
+      out[w++] = (cab_UBYTE)code;
     else if (code == 256)
       break;
     else
     {
       code -= 257;
-      ZIPNEEDBITS(lit_extrabits[code])
-      n = b & ZIPGETBITS(lit_extrabits[code]);
-      ZIPDUMPBITS(lit_extrabits[code])
-      n += lit_lengths[code];
+      len = get_bits(&bits, lit_extrabits[code], lit_extrabits[code]);
+      len += lit_lengths[code];
 
       i = MSZIP_DISTANCE_TABLEBITS;
-      ZIPNEEDBITS(i)
-      code = ZIPGETBITS(i);
+      code = get_bits(&bits, i, 0);
       while ((code = ZIP(DISTANCE_table)[code]) >= MSZIP_DISTANCE_MAXSYMBOLS)
       {
         if (i++ > 16) return -1;
-        ZIPNEEDBITS(i)
-        code = (code << 1) | (ZIPGETBITS(i) >> (i - 1));
+        code = (code << 1) | (get_bits(&bits, i, 0) >> (i - 1));
       }
-      ZIPDUMPBITS(ZIP(DISTANCE_len)[code])
+      get_bits(&bits, 0, ZIP(DISTANCE_len)[code]);
 
-      ZIPNEEDBITS(dist_extrabits[code])
-      d = ZIPGETBITS(dist_extrabits[code]);
-      ZIPDUMPBITS(dist_extrabits[code])
-      d += dist_offsets[code];
-      d = (w - d) & (ZIPWSIZE - 1);
+      dist = get_bits(&bits, dist_extrabits[code], dist_extrabits[code]);
+      dist += dist_offsets[code];
+      dist = (w - dist) & (ZIPWSIZE - 1);
 
-      do
+      if (dist <= w) memcpy(out + w, out + dist, len);
+      else
       {
-        d &= ZIPWSIZE - 1;
-        m = ZIPWSIZE - max(d, w);
-        m = min(m, n);
-        n -= m;
-        do
-        {
-          CAB(outbuf)[w++] = CAB(outbuf)[d++];
-        } while (--m);
-      } while (n);
+        cab_ULONG count = min(ZIPWSIZE - dist, len);
+        memcpy(out + w, out + dist, count);
+        if (len != count) memcpy(out + w + count, out, len - count);
+      }
+      w += len;
     }
 
   } /* for(;;) -- break point at 'code == 256' */
 
   ZIP(window_posn) = w;
-  ZIP(bb) = b;
-  ZIP(bk) = k;
+  ZIP(bits) = bits;
 
   return 0;
 }

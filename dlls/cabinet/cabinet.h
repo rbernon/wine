@@ -143,12 +143,6 @@ struct bit_buffer
 struct ZIPstate {
     cab_ULONG window_posn;      /* current offset within the window        */
     struct bit_buffer bits;
-    cab_ULONG ll[288+32];       /* literal/length and distance code lengths */
-    cab_ULONG c[ZIPBMAX+1];     /* bit length count table */
-    cab_LONG  lx[ZIPBMAX+1];    /* memory for l[-1..ZIPBMAX-1] */
-    struct Ziphuft *u[ZIPBMAX];	/* table stack */
-    cab_ULONG v[ZIPN_MAX];      /* values in order of bit length */
-    cab_ULONG x[ZIPBMAX+1];     /* bit offsets, then code stack */
 
     /* huffman code lengths */
     unsigned char LITERAL_len[MSZIP_LITERAL_MAXSYMBOLS];
@@ -493,22 +487,6 @@ typedef struct cds_forward {
 } while (0)
 
 /* Tables for deflate from PKZIP's appnote.txt. */
-
-#define THOSE_ZIP_CONSTS                                                           \
-static const cab_UBYTE Zipborder[] = /* Order of the bit length code lengths */    \
-{ 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15};               \
-static const cab_UWORD Zipcplens[] = /* Copy lengths for literal codes 257..285 */ \
-{ 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51,             \
- 59, 67, 83, 99, 115, 131, 163, 195, 227, 258, 0, 0};                              \
-static const cab_UWORD Zipcplext[] = /* Extra bits for literal codes 257..285 */   \
-{ 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4,             \
-  4, 5, 5, 5, 5, 0, 127, 127}; /* 127==invalid */                                  \
-static const cab_UWORD Zipcpdist[] = /* Copy offsets for distance codes 0..29 */   \
-{ 1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385,             \
-513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577};          \
-static const cab_UWORD Zipcpdext[] = /* Extra bits for distance codes */           \
-{ 0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10,            \
-10, 11, 11, 12, 12, 13, 13};                                                       \
 
 /* SESSION Operation */
 #define EXTRACT_FILLFILELIST  0x00000001
