@@ -1115,6 +1115,8 @@ static void start_thread( TEB *teb )
 
     thread_data->pthread_id = pthread_self();
     pthread_setspecific( teb_key, teb );
+    teb->SystemReserved1[0] = (void *)(ULONG_PTR)getpid();
+    teb->SystemReserved1[1] = (void *)(ULONG_PTR)gettid();
     server_init_thread( thread_data->start, &suspend );
     signal_start_thread( thread_data->start, thread_data->param, suspend, teb );
 }
