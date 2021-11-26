@@ -29,6 +29,14 @@
 #include "wine/list.h"
 #include "wine/debug.h"
 
+#ifndef linux
+#ifdef HAVE_PTHREAD_GETTHREADID_NP
+#define gettid pthread_getthreadid_np
+#else
+static inline int gettid(void) { return 0; }
+#endif
+#endif
+
 struct msghdr;
 
 typedef struct
