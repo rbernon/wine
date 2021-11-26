@@ -192,8 +192,8 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls, struc
         UINT ticks = GetTickCount();
         pos += sprintf( pos, "%3u.%03u:", ticks / 1000, ticks % 1000 );
     }
-    if (TRACE_ON(pid)) pos += sprintf( pos, "%04x:", (UINT)GetCurrentProcessId() );
-    pos += sprintf( pos, "%04x:", (UINT)GetCurrentThreadId() );
+    if (TRACE_ON(pid)) pos += sprintf( pos, "%04x:%4u:", (UINT)GetCurrentProcessId(), 0 );
+    pos += sprintf( pos, "%04x:%4u:", (UINT)GetCurrentThreadId(), 0 );
     if (context && cls < ARRAY_SIZE( debug_classes ))
     {
         const char *tmp, *function, *file;
