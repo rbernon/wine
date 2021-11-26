@@ -58,6 +58,8 @@
 #ifdef HAVE_LIBPROCSTAT_H
 #include <libprocstat.h>
 #endif
+#include <sys/syscall.h>
+#define gettid() ((pid_t)syscall(SYS_gettid))
 
 #ifdef __APPLE__
 #include <mach/mach.h>
@@ -1060,6 +1062,16 @@ static void pthread_exit_wrapper( int status )
     pthread_exit( UIntToPtr(status) );
 }
 
+static int get_unix_tid(void)
+{
+    int ret = -1;
+#ifdef HAVE_PTHREAD_GETTHREADID_NP
+    ret = pthread_getthreadid_np();
+#elif defined(linux)
+    ret = gettid();
+#endif
+    return ret;
+}
 
 /***********************************************************************
  *           start_thread
@@ -1073,6 +1085,8 @@ static void start_thread( TEB *teb )
 
     thread_data->pthread_id = pthread_self();
     pthread_setspecific( teb_key, teb );
+    teb->SystemReserved1[0] = (void *)(ULONG_PTR)getpid();
+    teb->SystemReserved1[1] = (void *)(ULONG_PTR)get_unix_tid();
     server_init_thread( thread_data->start, &suspend );
     signal_start_thread( thread_data->start, thread_data->param, suspend, teb );
 }

@@ -77,6 +77,8 @@
 #ifdef __ANDROID__
 # include <jni.h>
 #endif
+#include <sys/syscall.h>
+#define gettid() ((pid_t)syscall(SYS_gettid))
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -2095,6 +2097,18 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
 
 #endif  /* _WIN64 */
 
+static int get_unix_tid(void)
+{
+    int ret = -1;
+#ifdef HAVE_PTHREAD_GETTHREADID_NP
+    ret = pthread_getthreadid_np();
+#elif defined(linux)
+    ret = gettid();
+#endif
+    return ret;
+}
+
+
 /***********************************************************************
  *           start_main_thread
  */
@@ -2105,6 +2119,8 @@ static void start_main_thread(void)
 
     signal_init_threading();
     signal_alloc_thread( teb );
+    teb->SystemReserved1[0] = (void *)(ULONG_PTR)getpid();
+    teb->SystemReserved1[1] = (void *)(ULONG_PTR)get_unix_tid();
     dbg_init();
     startup_info_size = server_init_process();
     virtual_map_user_shared_data();
