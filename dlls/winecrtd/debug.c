@@ -243,8 +243,8 @@ static int dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel 
         ULONG ticks = NtGetTickCount();
         pos += sprintf( pos, "%3u.%03u:", ticks / 1000, ticks % 1000 );
     }
-    if (TRACE_ON(pid)) pos += sprintf( pos, "%04x:", GetCurrentProcessId() );
-    pos += sprintf( pos, "%04x:", GetCurrentThreadId() );
+    if (TRACE_ON(pid)) pos += sprintf( pos, "%04x:%9lu:", GetCurrentProcessId(), (ULONG_PTR)NtCurrentTeb()->SystemReserved1[0] );
+    pos += sprintf( pos, "%04x:%9lu:", GetCurrentThreadId(), (ULONG_PTR)NtCurrentTeb()->SystemReserved1[1] );
     if (function && cls < ARRAY_SIZE( classes ))
     {
         const char *tmp = strrchr( file, '/' );
