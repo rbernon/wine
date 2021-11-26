@@ -148,8 +148,8 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
         ULONG ticks = NtGetTickCount();
         pos += sprintf( pos, "%3lu.%03lu:", ticks / 1000, ticks % 1000 );
     }
-    if (TRACE_ON(pid)) pos += sprintf( pos, "%04lx:", GetCurrentProcessId() );
-    pos += sprintf( pos, "%04lx:", GetCurrentThreadId() );
+    if (TRACE_ON(pid)) pos += sprintf( pos, "%04x:%4u:", (UINT)GetCurrentProcessId(), (UINT)(ULONG_PTR)NtCurrentTeb()->SystemReserved1[0] );
+    pos += sprintf( pos, "%04x:%4u:", (UINT)GetCurrentThreadId(), (UINT)(ULONG_PTR)NtCurrentTeb()->SystemReserved1[1] );
     if (context && cls < ARRAY_SIZE( classes ))
     {
         const char *tmp, *function, *file;
