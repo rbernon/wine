@@ -194,8 +194,8 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls, struc
         UINT ticks = GetTickCount();
         pos += snprintf( pos, end - pos, "%3u.%03u:", ticks / 1000, ticks % 1000 );
     }
-    if (TRACE_ON(pid)) pos += snprintf( pos, end - pos, "%04x:", (UINT)GetCurrentProcessId() );
-    pos += snprintf( pos, end - pos, "%04x:", (UINT)GetCurrentThreadId() );
+    if (TRACE_ON(pid)) pos += snprintf( pos, end - pos, "%04x:%4u:", (UINT)GetCurrentProcessId(), 0 );
+    pos += snprintf( pos, end - pos, "%04x:%4u:", (UINT)GetCurrentThreadId(), 0 );
     if (cls < ARRAY_SIZE( debug_classes )) pos += snprintf( pos, end - pos, "%s:", debug_classes[cls] );
     pos += snprintf( pos, end - pos, "%s:", channel->name );
 
