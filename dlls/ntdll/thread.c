@@ -155,8 +155,8 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
         ULONG ticks = NtGetTickCount();
         pos += snprintf( pos, end - pos, "%3lu.%03lu:", ticks / 1000, ticks % 1000 );
     }
-    if (TRACE_ON(pid)) pos += snprintf( pos, end - pos, "%04lx:", GetCurrentProcessId() );
-    pos += snprintf( pos, end - pos, "%04lx:", GetCurrentThreadId() );
+    if (TRACE_ON(pid)) pos += snprintf( pos, end - pos, "%04x:%4u:", (UINT)GetCurrentProcessId(), (UINT)(ULONG_PTR)NtCurrentTeb()->SystemReserved1[0] );
+    pos += snprintf( pos, end - pos, "%04x:%4u:", (UINT)GetCurrentThreadId(), (UINT)(ULONG_PTR)NtCurrentTeb()->SystemReserved1[1] );
     if (cls < ARRAY_SIZE( classes )) pos += snprintf( pos, end - pos, "%s:", classes[cls] );
     pos += snprintf( pos, end - pos, "%s:", channel->name );
 
