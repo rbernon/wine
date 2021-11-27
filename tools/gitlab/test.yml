@@ -55,6 +55,9 @@
 
 test-linux-32:
   extends: .wine-test
+  image: docker.io/rbernon/winehq
+  tags:
+    - local
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
   needs:
@@ -65,6 +68,9 @@ test-linux-32:
 
 test-linux-64:
   extends: .wine-test
+  image: docker.io/rbernon/winehq
+  tags:
+    - local
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
   needs:
@@ -75,6 +81,9 @@ test-linux-64:
 
 test-linux-64-extra:
   extends: .wine-test
+  image: docker.io/rbernon/winehq
+  tags:
+    - local
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
   needs:
@@ -85,6 +94,9 @@ test-linux-64-extra:
 
 test-nulldrv-64:
   extends: .wine-test
+  image: docker.io/rbernon/winehq
+  tags:
+    - local
   variables:
     INCLUDE_TESTS: user32
   rules:
