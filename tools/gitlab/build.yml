@@ -33,6 +33,9 @@
 
 build-linux:
   extends: .wine-build
+  image: docker.io/rbernon/winehq
+  tags:
+    - local
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
   artifacts:
