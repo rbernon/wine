@@ -1,0 +1,208 @@
+name: build
+on: [push]
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.set-version.outputs.version }}
+      tag: ${{ steps.set-version.outputs.tag }}
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - id: set-version
+      run: |
+        echo version="$(git describe --always)" >> $GITHUB_OUTPUT
+        echo tag="$(git describe --always HEAD^)" >> $GITHUB_OUTPUT
+
+  linux-matrix:
+    runs-on: ubuntu-latest
+    env:
+      builds: '[\"32\", \"64\"]'
+      configs: '[\"\", \"nope\"]'
+    outputs:
+      builds: ${{ steps.set-matrix.outputs.builds }}
+      configs: ${{ steps.set-matrix.outputs.configs }}
+    steps:
+    - id: set-matrix
+      run: |
+        echo builds="${{ env.builds }}" >> $GITHUB_OUTPUT
+        echo configs="${{ env.configs }}" >> $GITHUB_OUTPUT
+
+  linux:
+    runs-on: ubuntu-latest
+    needs: [version, linux-matrix]
+    strategy:
+      matrix:
+        build: ${{ fromJson(needs.linux-matrix.outputs.builds) }}
+        config: ${{ fromJson(needs.linux-matrix.outputs.configs) }}
+
+    env:
+      IMAGE_32: rbernon/wine:experimental
+      IMAGE_64: rbernon/wine:experimental
+      IMAGE_32nope: rbernon/wine:experimental
+      IMAGE_64nope: rbernon/wine:experimental
+      IMAGE_32llvm: rbernon/wine-llvm:experimental
+      IMAGE_64llvm: rbernon/wine-llvm:experimental
+      CONFIG_32: --with-mingw --disable-tests --host=i686-linux-gnu
+      CONFIG_64: --with-mingw --disable-tests --host=x86_64-linux-gnu --enable-win64
+      CONFIG_32nope: --without-mingw --disable-tests --host=i686-linux-gnu
+      CONFIG_64nope: --without-mingw --disable-tests --host=x86_64-linux-gnu --enable-win64
+      CONFIG_32llvm: --with-mingw --disable-tests --host=i686-linux-gnu
+      CONFIG_64llvm: --with-mingw --disable-tests --host=x86_64-linux-gnu --enable-win64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Environ
+        run: |
+          echo "IMAGE=${IMAGE_${{ matrix.build }}${{ matrix.config }}}" >> $GITHUB_ENV
+          echo "CONFIG=${CONFIG_${{ matrix.build }}${{ matrix.config }}}" >> $GITHUB_ENV
+          echo "ARCHIVE=${{ needs.version.outputs.version }}-linux-${{ matrix.build }}${{ matrix.config }}" >> $GITHUB_ENV
+      - name: Cache
+        uses: actions/cache@v3
+        with:
+          path: .ccache
+          key:
+            cache-linux-${{ matrix.build }}${{ matrix.config }}-${{ github.run_id }}
+          restore-keys: |
+            cache-linux-${{ matrix.build }}${{ matrix.config }}
+      - name: Configure
+        run: |
+          rm -f .ccache/configure
+          make -f .github/workflows/build.mk Makefile
+      - name: Build
+        run: |
+          make -f .github/workflows/build.mk
+      - name: Archive
+        if: ${{ contains(env.ARCHIVE, '-1-') }}
+        run: |
+          cd install
+          tar --posix --use-compress-program=zstdmt -cf ../$ARCHIVE.tzst --exclude=*.debug *
+          find . -type f -not -iname '*.debug' -delete
+          find . -empty -delete
+          tar --posix --use-compress-program=zstdmt -cf ../$ARCHIVE-debug.tzst *
+      - name: Upload
+        if: ${{ contains(env.ARCHIVE, '-1-') }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.ARCHIVE }}.tzst
+          path: ${{ env.ARCHIVE }}.tzst
+      - name: Upload debug
+        if: ${{ contains(env.ARCHIVE, '-1-') }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.ARCHIVE }}-debug.tzst
+          path: ${{ env.ARCHIVE }}-debug.tzst
+
+  macos-matrix:
+    runs-on: macos-latest
+    env:
+      builds: '[\"64\"]'
+      configs: '[\"\"]'
+    outputs:
+      builds: ${{ steps.set-matrix.outputs.builds }}
+      configs: ${{ steps.set-matrix.outputs.configs }}
+    steps:
+    - id: set-matrix
+      run: |
+        echo builds="${{ env.builds }}" >> $GITHUB_OUTPUT
+        echo configs="${{ env.configs }}" >> $GITHUB_OUTPUT
+
+  macos:
+    runs-on: macos-latest
+    needs: [version, macos-matrix]
+    strategy:
+      matrix:
+        build: ${{ fromJson(needs.macos-matrix.outputs.builds) }}
+        config: ${{ fromJson(needs.macos-matrix.outputs.configs) }}
+
+    env:
+      PATH_64: /usr/local/opt/ccache/bin/:/usr/local/opt/bison/bin/:/usr/local/opt/mingw-w64/bin/
+      CONFIG_64: --with-mingw --disable-tests --enable-win64 CC="ccache gcc" CROSSCC="ccache x86_64-w64-mingw32-gcc"
+      CCACHE_COMPILERCHECK: none
+      OBJCOPY: /usr/local/opt/binutils/bin/gobjcopy
+
+    steps:
+      - name: Dependencies
+        run: |
+          brew install bison
+          brew install ccache
+          brew install binutils
+          brew install mingw-w64
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Environ
+        run: |
+          echo "PATH=${PATH_${{ matrix.build }}${{ matrix.config }}}:$PATH" >> $GITHUB_ENV
+          echo "CONFIG=${CONFIG_${{ matrix.build }}${{ matrix.config }}}" >> $GITHUB_ENV
+          echo "ARCHIVE=${{ needs.version.outputs.version }}-macos-${{ matrix.build }}${{ matrix.config }}" >> $GITHUB_ENV
+      - name: Cache
+        uses: actions/cache@v3
+        with:
+          path: .ccache
+          key:
+            cache-macos-${{ matrix.build }}${{ matrix.config }}-${{ github.run_id }}
+          restore-keys: |
+            cache-macos-${{ matrix.build }}${{ matrix.config }}
+      - name: Configure
+        run: |
+          rm -f .ccache/configure
+          make -f .github/workflows/build.mk Makefile
+      - name: Build
+        run: |
+          make -f .github/workflows/build.mk
+      - name: Archive
+        if: ${{ contains(env.ARCHIVE, '-1-') }}
+        run: |
+          cd install
+          tar --posix --use-compress-program=zstdmt -cf ../$ARCHIVE.tzst --exclude=*.debug *
+          find . -type f -not -iname '*.debug' -delete
+          find . -empty -delete
+          tar --posix --use-compress-program=zstdmt -cf ../$ARCHIVE-debug.tzst *
+      - name: Upload
+        if: ${{ contains(env.ARCHIVE, '-1-') }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.ARCHIVE }}.tzst
+          path: ${{ env.ARCHIVE }}.tzst
+      - name: Upload debug
+        if: ${{ contains(env.ARCHIVE, '-1-') }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.ARCHIVE }}-debug.tzst
+          path: ${{ env.ARCHIVE }}-debug.tzst
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [version, macos, linux]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Environ
+        run: |
+          echo "VERSION=${{ needs.version.outputs.version }}" >> $GITHUB_ENV
+          echo "TAG=${{ needs.version.outputs.tag }}" >> $GITHUB_ENV
+      - name: Download
+        if: ${{ contains(env.VERSION, '-1-') }}
+        uses: actions/download-artifact@v2
+      - name: Release
+        if: ${{ contains(env.VERSION, '-1-') }}
+        run: |
+          hub release create -m "${{ env.TAG }} builds" \
+            $(find . -type f -name '*.tzst' -printf '-a %p ') \
+            ${{ env.TAG }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  clean:
+    runs-on: ubuntu-latest
+    needs: [release]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Cleanup
+        uses: rbernon/workflow-cleanup@main
+        with:
+          workflow: all
