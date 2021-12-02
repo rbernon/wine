@@ -658,6 +658,7 @@ struct process *create_process( int fd, struct process *parent, unsigned int fla
     process->msg_fd          = NULL;
     process->sigkill_timeout = NULL;
     process->sigkill_delay   = TICKS_PER_SEC / 64;
+    process->machine         = IMAGE_FILE_MACHINE_UNKNOWN;
     process->unix_pid        = -1;
     process->exit_code       = STILL_ACTIVE;
     process->running_threads = 0;
