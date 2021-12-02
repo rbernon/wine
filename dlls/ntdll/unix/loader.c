@@ -2120,6 +2120,7 @@ static void check_command_line( int argc, char *argv[] )
     }
 }
 
+static BOOL is_debugproc;
 
 /***********************************************************************
  *           __wine_main
@@ -2128,6 +2129,19 @@ static void check_command_line( int argc, char *argv[] )
  */
 DECLSPEC_EXPORT void __wine_main( int argc, char *argv[], char *envp[] )
 {
+    const char *winedebug = getenv("WINEDEBUG");
+    const char *debugproc = getenv("WINEDEBUGPROC");
+    const char *debugsave = getenv("WINEDEBUGSAVE");
+
+    if (winedebug && !debugsave) setenv("WINEDEBUGSAVE", winedebug, TRUE);
+
+    if (debugproc && strcasestr(argv[1], debugproc)) is_debugproc = TRUE;
+    else is_debugproc = FALSE;
+
+    if (!debugproc) is_debugproc = FALSE;
+    else if (!is_debugproc) setenv("WINEDEBUG", "-all", TRUE);
+    else if (is_debugproc) setenv("WINEDEBUG", debugsave, TRUE);
+
     main_argc = argc;
     main_argv = argv;
     main_envp = envp;
