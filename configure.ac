@@ -61,6 +61,8 @@ AC_ARG_WITH(sane,      AS_HELP_STRING([--without-sane],[do not use SANE (scanner
 AC_ARG_WITH(sdl,       AS_HELP_STRING([--without-sdl],[do not use SDL]))
 AC_ARG_WITH(udev,      AS_HELP_STRING([--without-udev],[do not use udev (plug and play support)]))
 AC_ARG_WITH(unwind,    AS_HELP_STRING([--without-unwind],[do not use the libunwind library (exception handling)]))
+AC_ARG_WITH(uring,     AS_HELP_STRING([--without-uring],[do not use the liburing library]),
+            [if test "x$withval" = "xno"; then ac_cv_header_liburing_h=no; fi])
 AC_ARG_WITH(usb,       AS_HELP_STRING([--without-usb],[do not use the libusb library]))
 AC_ARG_WITH(v4l2,      AS_HELP_STRING([--without-v4l2],[do not use v4l2 (video capture)]))
 AC_ARG_WITH(vkd3d,     AS_HELP_STRING([--without-vkd3d],[do not use vkd3d (Direct3D 12 support)]))
@@ -440,6 +442,7 @@ AC_CHECK_HEADERS(\
 	gettext-po.h \
 	ieeefp.h \
 	libproc.h \
+	liburing.h \
 	link.h \
 	linux/cdrom.h \
 	linux/filter.h \
@@ -1386,6 +1389,15 @@ fi
 WINE_NOTICE_WITH(usb,[test "$ac_cv_lib_usb_1_0_libusb_interrupt_event_handler" != "yes"],
                  [libusb-1.0 ${notice_platform}development files not found (or too old), USB devices won't be supported.],
                  [enable_wineusb_sys])
+
+dnl **** Check for liburing ****
+
+if test "$ac_cv_header_liburing_h" = "yes"
+then
+    AC_CHECK_FUNC(io_uring_get_probe,,[AC_CHECK_LIB(uring,io_uring_get_probe,[AC_SUBST(URING_LIBS,"-luring")])])
+fi
+WINE_NOTICE_WITH(uring,[test "x$ac_cv_func_io_uring_get_probe" != xyes -a "x$URING_LIBS" = x],
+                 [liburing ${notice_platform}development files not found.])
 
 dnl **** Check for libv4l2 ****
 if test "x$with_v4l2" != "xno"
