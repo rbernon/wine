@@ -1,0 +1,11 @@
+MODULE    = wintrace.exe
+IMPORTS   = dinput8 hid user32 setupapi xinput combase
+
+EXTRADLLFLAGS = -mconsole -municode
+
+wintrace_hooks_IMPORTS = user32
+
+SOURCES = \
+	wintrace.c \
+	wintrace_hooks.c \
+	wintrace_hooks.spec
