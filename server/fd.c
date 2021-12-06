@@ -88,9 +88,6 @@
 #ifdef HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>
 #endif
-#if defined(__i386__) || defined(__x86_64__)
-#include <x86intrin.h>
-#endif
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -358,38 +355,11 @@ static const int user_shared_data_timeout = 16;
 
 static void set_user_shared_data_time(void)
 {
-    unsigned __int64 tsc, qpc_bias, qpc_freq = user_shared_data->QpcFrequency;
-    unsigned int aux, qpc_shift = user_shared_data->QpcShift;
-    unsigned int qpc_bypass = user_shared_data->QpcBypassEnabled;
     timeout_t tick_count = monotonic_time / 10000;
     static timeout_t last_timezone_update;
     timeout_t timezone_bias;
     struct tm *tm;
     time_t now;
-
-
-    if (!(qpc_bypass & SHARED_GLOBAL_FLAGS_QPC_BYPASS_ENABLED))
-        tsc = 0;
-#if defined(__i386__) || defined(__x86_64__)
-    else if (qpc_bypass & SHARED_GLOBAL_FLAGS_QPC_BYPASS_USE_RDTSCP)
-        tsc = __rdtscp(&aux);
-    else
-    {
-        if (qpc_bypass & SHARED_GLOBAL_FLAGS_QPC_BYPASS_USE_MFENCE)
-            __asm__ __volatile__ ( "mfence" : : : "memory" );
-        if (qpc_bypass & SHARED_GLOBAL_FLAGS_QPC_BYPASS_USE_LFENCE)
-            __asm__ __volatile__ ( "lfence" : : : "memory" );
-        tsc = __rdtsc();
-    }
-#endif
-
-    if (!(qpc_bypass & SHARED_GLOBAL_FLAGS_QPC_BYPASS_USE_HV_PAGE))
-        qpc_bias = ((monotonic_time * qpc_freq / 10000000) << qpc_shift) - tsc;
-    else
-    {
-        tsc = multiply_tsc(tsc, hypervisor_shared_data->QpcMultiplier);
-        qpc_bias = monotonic_time - tsc;
-    }
 
     if (monotonic_time - last_timezone_update > TICKS_PER_SEC)
     {
@@ -419,10 +389,6 @@ static void set_user_shared_data_time(void)
     ATOMIC_STORE(&user_shared_data->TickCount.LowPart, tick_count);
     ATOMIC_STORE(&user_shared_data->TickCount.High1Time, tick_count >> 32);
     ATOMIC_STORE(&user_shared_data->TickCountLowDeprecated, tick_count);
-    if (qpc_bypass & SHARED_GLOBAL_FLAGS_QPC_BYPASS_USE_HV_PAGE)
-        ATOMIC_STORE(&hypervisor_shared_data->QpcBias, qpc_bias);
-    else
-        ATOMIC_STORE(&user_shared_data->QpcBias, qpc_bias);
 }
 
 #undef ATOMIC_STORE
