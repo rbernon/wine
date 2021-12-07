@@ -23,20 +23,118 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <assert.h>
+
+#include "ntstatus.h"
+#define WIN32_NO_STATUS
+#define NONAMELESSUNION
 #include "windef.h"
 #include "winbase.h"
+#include "winternl.h"
+#include "ddk/wdm.h"
+
 #include "wine/debug.h"
 #include "wine/heap.h"
 
 WINE_DECLARE_DEBUG_CHANNEL(pid);
+WINE_DECLARE_DEBUG_CHANNEL(thread);
 WINE_DECLARE_DEBUG_CHANNEL(timestamp);
+WINE_DECLARE_DEBUG_CHANNEL(microsecs);
+WINE_DECLARE_DEBUG_CHANNEL(address);
 
-static const char * (__cdecl *p__wine_dbg_strdup)( const char *str );
-static int (__cdecl *p__wine_dbg_output)( const char *str );
-static unsigned char (__cdecl *p__wine_dbg_get_channel_flags)( struct __wine_debug_channel *channel );
-static int (__cdecl *p__wine_dbg_header)( enum __wine_debug_class cls,
-                                          struct __wine_debug_channel *channel,
-                                          const char *function );
+struct winedebug_mapping
+{
+    DWORD tls_index;
+};
+
+static HANDLE winedebug_section;
+static struct winedebug_mapping *winedebug_mapping;
+
+static NTSTATUS initialize_winedebug_section(void)
+{
+    OBJECT_ATTRIBUTES root_attrs, attrs;
+    UNICODE_STRING root_name, name;
+    WCHAR buffer[MAX_PATH];
+    HANDLE root, section;
+    LARGE_INTEGER size;
+    NTSTATUS status;
+
+    if (winedebug_section) return STATUS_SUCCESS;
+
+    swprintf( buffer, ARRAY_SIZE(buffer), L"\\Sessions\\%u\\BaseNamedObjects",
+              NtCurrentTeb()->Peb->SessionId );
+    RtlInitUnicodeString( &root_name, buffer );
+    InitializeObjectAttributes( &root_attrs, &root_name, 0, 0, NULL );
+    status = NtOpenDirectoryObject( &root, DIRECTORY_CREATE_OBJECT | DIRECTORY_TRAVERSE, &root_attrs );
+    assert( !status );
+
+    swprintf( buffer, ARRAY_SIZE(buffer), L"Local\\winedebug_section_%08x",
+              NtCurrentTeb()->ClientId.UniqueProcess );
+    RtlInitUnicodeString( &name, buffer );
+    InitializeObjectAttributes( &attrs, &name, OBJ_OPENIF, root, NULL );
+
+    size.QuadPart = 0x1000;
+    status = NtCreateSection( &section, STANDARD_RIGHTS_REQUIRED | SECTION_QUERY | SECTION_MAP_READ | SECTION_MAP_WRITE,
+                              &attrs, &size, PAGE_READWRITE, SEC_COMMIT, 0 );
+    assert( status == STATUS_SUCCESS || status == STATUS_OBJECT_NAME_EXISTS );
+    NtClose( root );
+
+    if (InterlockedCompareExchangePointer( &winedebug_section, section, NULL ))
+        NtClose( section );
+
+    swprintf( buffer, ARRAY_SIZE(buffer), L"winedebug_section %p, status %#x\n", winedebug_section, status );
+    fwrite( buffer, 1, wcslen(buffer) * sizeof(WCHAR), stderr );
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS initialize_winedebug_mapping(void)
+{
+    struct winedebug_mapping *mapping = NULL;
+    SIZE_T size = 0x1000;
+    NTSTATUS status;
+
+    if (winedebug_mapping) return STATUS_SUCCESS;
+
+    if ((status = initialize_winedebug_section())) return status;
+    if ((status = NtMapViewOfSection( winedebug_section, GetCurrentProcess(), (void **)&mapping,
+                                      0, 0, NULL, &size, ViewUnmap, 0, PAGE_READWRITE )))
+        return status;
+
+    mapping->tls_index = TlsAlloc();
+
+    if (InterlockedCompareExchangePointer( (void **)&winedebug_mapping, mapping, NULL ))
+    {
+        TlsFree( mapping->tls_index );
+        NtUnmapViewOfSection( GetCurrentProcess(), mapping );
+    }
+
+    return STATUS_SUCCESS;
+}
+
+struct debug_info
+{
+    unsigned int str_pos;       /* current position in strings buffer */
+    unsigned int out_pos;       /* current position in output buffer */
+    char         strings[1020]; /* buffer for temporary strings */
+    char         output[1020];  /* current output line */
+};
+
+C_ASSERT( sizeof(struct debug_info) == 0x800 );
+
+static inline struct debug_info *get_info(void)
+{
+    struct debug_info *info;
+    NTSTATUS status;
+
+    if ((status = initialize_winedebug_mapping())) return NULL;
+    if ((info = TlsGetValue( winedebug_mapping->tls_index ))) return info;
+    info = RtlAllocateHeap( GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(struct debug_info) );
+    TlsSetValue( winedebug_mapping->tls_index, info );
+    return info;
+}
+
+static int (WINAPI *p__wine_dbg_write)( const char *str, unsigned int len );
 
 static const char * const debug_classes[] = { "fixme", "err", "warn", "trace" };
 
@@ -58,7 +156,6 @@ static void load_func( void **func, const char *name, void *def )
     }
 }
 #define LOAD_FUNC(name) load_func( (void **)&p ## name, #name, fallback ## name )
-
 
 /* add a new debug option at the end of the option list */
 static void add_option( const char *name, unsigned char set, unsigned char clear )
@@ -151,63 +248,42 @@ static void parse_options( const char *str )
 static void init_options(void)
 {
     char *wine_debug = getenv("WINEDEBUG");
+    NTSTATUS status;
+
+    struct debug_info *info = get_info();
+    assert( info );
 
     nb_debug_options = 0;
     if (wine_debug) parse_options( wine_debug );
 }
 
-/* FIXME: this is not 100% thread-safe */
-static const char * __cdecl fallback__wine_dbg_strdup( const char *str )
+/* add a string to the output buffer */
+static int append_output( struct debug_info *info, const char *str, size_t len )
 {
-    static char *list[32];
-    static int pos;
-    char *ret = strdup( str );
-    int idx;
-
-    idx = InterlockedIncrement( &pos ) % ARRAY_SIZE(list);
-    free( InterlockedExchangePointer( (void **)&list[idx], ret ));
-    return ret;
-}
-
-static int __cdecl fallback__wine_dbg_output( const char *str )
-{
-    size_t len = strlen( str );
-
-    if (!len) return 0;
-    InterlockedExchange( (LONG *)&partial_line_tid, str[len - 1] != '\n' ? GetCurrentThreadId() : 0 );
-    return fwrite( str, 1, len, stderr );
-}
-
-static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls,
-                                              struct __wine_debug_channel *channel,
-                                              const char *function )
-{
-    char buffer[200], *pos = buffer;
-
-    if (!(__wine_dbg_get_channel_flags( channel ) & (1 << cls))) return -1;
-
-    /* skip header if partial line and no other thread came in between */
-    if (partial_line_tid == GetCurrentThreadId()) return 0;
-
-    if (TRACE_ON(timestamp))
+    if (len >= sizeof(info->output) - info->out_pos)
     {
-        ULONG ticks = GetTickCount();
-        pos += sprintf( pos, "%3u.%03u:", ticks / 1000, ticks % 1000 );
+        __wine_dbg_write( info->output, info->out_pos );
+        info->out_pos = 0;
+        ERR_(thread)( "debug buffer overflow:\n" );
+        __wine_dbg_write( str, len );
+        RtlRaiseStatus( STATUS_BUFFER_OVERFLOW );
     }
-    if (TRACE_ON(pid)) pos += sprintf( pos, "%04x:", GetCurrentProcessId() );
-    pos += sprintf( pos, "%04x:", GetCurrentThreadId() );
-    if (function && cls < ARRAY_SIZE( debug_classes ))
-        snprintf( pos, sizeof(buffer) - (pos - buffer), "%s:%s:%s ",
-                  debug_classes[cls], channel->name, function );
-
-    return fwrite( buffer, 1, strlen(buffer), stderr );
+    memcpy( info->output + info->out_pos, str, len );
+    info->out_pos += len;
+    return len;
 }
 
-static unsigned char __cdecl fallback__wine_dbg_get_channel_flags( struct __wine_debug_channel *channel )
+/***********************************************************************
+ *      __wine_dbg_get_channel_flags  (NTDLL.@)
+ *
+ * Get the flags to use for a given channel, possibly setting them too in case of lazy init
+ */
+unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel *channel )
 {
     int min, max, pos, res;
+    unsigned char default_flags;
 
-    if (nb_debug_options == -1) init_options();
+    if (!debug_options) init_options();
 
     min = 0;
     max = nb_debug_options - 1;
@@ -220,33 +296,92 @@ static unsigned char __cdecl fallback__wine_dbg_get_channel_flags( struct __wine
         else min = pos + 1;
     }
     /* no option for this channel */
+    default_flags = debug_options[nb_debug_options].flags;
     if (channel->flags & (1 << __WINE_DBCL_INIT)) channel->flags = default_flags;
     return default_flags;
 }
 
+/***********************************************************************
+ *      __wine_dbg_strdup  (NTDLL.@)
+ */
 const char * __cdecl __wine_dbg_strdup( const char *str )
 {
-    LOAD_FUNC( __wine_dbg_strdup );
-    return p__wine_dbg_strdup( str );
+    struct debug_info *info = get_info();
+    unsigned int pos = info->str_pos;
+    size_t n = strlen( str ) + 1;
+
+    assert( n <= sizeof(info->strings) );
+    if (pos + n > sizeof(info->strings)) pos = 0;
+    info->str_pos = pos + n;
+    return memcpy( info->strings + pos, str, n );
 }
 
+/***********************************************************************
+ *      __wine_dbg_header  (NTDLL.@)
+ */
+int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
+                               void *ret, void *addr, const char *function )
+{
+    static const char * const classes[] = { "fixme", "err", "warn", "trace" };
+    struct debug_info *info = get_info();
+    char *pos = info->output;
+
+    if (!(__wine_dbg_get_channel_flags( channel ) & (1 << cls))) return -1;
+
+    /* only print header if we are at the beginning of the line */
+    if (info->out_pos) return 0;
+
+    if (TRACE_ON(microsecs))
+    {
+        LARGE_INTEGER counter, frequency, microsecs;
+        NtQueryPerformanceCounter(&counter, &frequency);
+        microsecs.QuadPart = counter.QuadPart * 1000000 / frequency.QuadPart;
+        pos += sprintf( pos, "%3u.%06u:", (unsigned int)(microsecs.QuadPart / 1000000), (unsigned int)(microsecs.QuadPart % 1000000) );
+    }
+    else if (TRACE_ON(timestamp))
+    {
+        ULONG ticks = NtGetTickCount();
+        pos += sprintf( pos, "%3u.%03u:", ticks / 1000, ticks % 1000 );
+    }
+    if (TRACE_ON(pid)) pos += sprintf( pos, "%04x:%9lu:", GetCurrentProcessId(), (ULONG_PTR)NtCurrentTeb()->SystemReserved1[0] );
+    pos += sprintf( pos, "%04x:%9lu:", GetCurrentThreadId(), (ULONG_PTR)NtCurrentTeb()->SystemReserved1[1] );
+    if (TRACE_ON(address)) pos += sprintf( pos, "%p:%p:", ret, addr );
+    if (function && cls < ARRAY_SIZE( classes ))
+        pos += snprintf( pos, sizeof(info->output) - (pos - info->output), "%s:%s:%s ",
+                         classes[cls], channel->name, function );
+    info->out_pos = pos - info->output;
+    return info->out_pos;
+}
+
+/***********************************************************************
+ *      __wine_dbg_output  (NTDLL.@)
+ */
 int __cdecl __wine_dbg_output( const char *str )
 {
-    LOAD_FUNC( __wine_dbg_output );
-    return p__wine_dbg_output( str );
+    struct debug_info *info = get_info();
+    const char *end = strrchr( str, '\n' );
+    int ret = 0;
+
+    if (end)
+    {
+        ret += append_output( info, str, end + 1 - str );
+        __wine_dbg_write( info->output, info->out_pos );
+        info->out_pos = 0;
+        str = end + 1;
+    }
+    if (*str) ret += append_output( info, str, strlen( str ));
+    return ret;
 }
 
-unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel *channel )
+static int fallback__wine_dbg_write( const char *str, unsigned int len )
 {
-    LOAD_FUNC( __wine_dbg_get_channel_flags );
-    return p__wine_dbg_get_channel_flags( channel );
+    return fwrite( str, 1, len, stderr );
 }
 
-int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
-                               const char *function )
+int WINAPI __wine_dbg_write( const char *str, unsigned int len )
 {
-    LOAD_FUNC( __wine_dbg_header );
-    return p__wine_dbg_header( cls, channel, function );
+    LOAD_FUNC( __wine_dbg_write );
+    return fallback__wine_dbg_write( str, len );
 }
 
 #endif  /* __WINE_PE_BUILD */
