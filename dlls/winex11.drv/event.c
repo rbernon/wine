@@ -484,39 +484,34 @@ BOOL X11DRV_ProcessEvents( DWORD mask )
     return process_events( data->display, filter_event, mask );
 }
 
+static DWORD time_bias;
+static BOOL time_init;
+
 /***********************************************************************
  *           x11drv_time_to_ticks
  *
- * Make our timer and the X timer line up as best we can
- *  Pass 0 to retrieve the current adjustment value (times -1)
+ * Make our timer and the X timer line up as best we can.
  */
 DWORD x11drv_time_to_ticks( Time time )
 {
-  static DWORD adjust = 0;
-  DWORD now = NtGetTickCount();
-  DWORD ret;
+    DWORD ticks = NtGetTickCount();
 
-  if (! adjust && time != 0)
-  {
-    ret = now;
-    adjust = time - now;
-  }
-  else
-  {
-      /* If we got an event in the 'future', then our clock is clearly wrong. 
-         If we got it more than 10000 ms in the future, then it's most likely
-         that the clock has wrapped.  */
+    if (time == CurrentTime) return ticks;
 
-      ret = time - adjust;
-      if (ret > now && ((ret - now) < 10000) && time != 0)
-      {
-        adjust += ret - now;
-        ret    -= ret - now;
-      }
-  }
+    if (!time_init) time_bias = time - ticks;
+    time_init = TRUE;
 
-  return ret;
+    /* If we got an event in the 'future', then our clock is clearly wrong,
+     * unless we got it more than 10000 ms in the future, then it's most likely
+     * that the clock has wrapped. */
+    if (time > ticks + time_bias && time < ticks + time_bias + 10000) time_bias = time - ticks;
+    return time - time_bias;
+}
 
+Time x11drv_ticks_to_time( DWORD ticks )
+{
+    if (!time_init) return CurrentTime;
+    return ticks + time_bias;
 }
 
 /*******************************************************************
@@ -551,12 +546,9 @@ static void set_input_focus( struct x11drv_win_data *data )
 
     if (!data->whole_window) return;
 
-    if (x11drv_time_to_ticks(0))
-        /* ICCCM says don't use CurrentTime, so try to use last message time if possible */
-        /* FIXME: this is not entirely correct */
-        timestamp = NtUserGetThreadInfo()->message_time - x11drv_time_to_ticks(0);
-    else
-        timestamp = CurrentTime;
+    /* ICCCM says don't use CurrentTime, so try to use last message time if possible */
+    /* FIXME: this is not entirely correct */
+    timestamp = x11drv_ticks_to_time( NtUserGetThreadInfo()->message_time );
 
     /* Set X focus and install colormap */
     changes.stack_mode = Above;
