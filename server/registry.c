@@ -2034,6 +2034,7 @@ static void save_registry( struct key *key, obj_handle_t handle )
         FILE *f = fdopen( fd, "w" );
         if (f)
         {
+fprintf(stderr, "%s:%d\n", __FILE__, __LINE__);
             save_all_subkeys( key, f );
             if (fclose( f )) file_set_error();
         }

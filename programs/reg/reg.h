@@ -62,4 +62,13 @@ int reg_import(int argc, WCHAR *argvW[]);
 /* query.c */
 int reg_query(int argc, WCHAR *argvW[]);
 
+/* save.c */
+int reg_save(int argc, WCHAR *argvW[]);
+
+/* load.c */
+int reg_load(int argc, WCHAR *argvW[]);
+
+/* restore.c */
+int reg_restore(int argc, WCHAR *argvW[]);
+
 #endif /* __REG_H__ */

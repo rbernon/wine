@@ -146,6 +146,36 @@ STRINGTABLE
 \  <file>\n\
 \     The name and path of the registry file to import.\n\n"
 
+    STRING_LOAD_USAGE, "REG LOAD <key> <file>\n\n\
+\  Loads keys, values and data from a given file into the registry.\n\n\
+\  <key>\n\
+\     The registry key to export.\n\n\
+\     Format: ROOT\\Subkey\n\n\
+\     ROOT: A predefined registry key. This must be one of the following:\n\n\
+\         HKEY_LOCAL_MACHINE  | HKLM\n\
+\         HKEY_CURRENT_USER   | HKCU\n\
+\         HKEY_CLASSES_ROOT   | HKCR\n\
+\         HKEY_USERS          | HKU\n\
+\         HKEY_CURRENT_CONFIG | HKCC\n\n\
+\     Subkey: The full path to a registry key under a given ROOT key.\n\n\
+\  <file>\n\
+\     The name and path of the registry file to load.\n\n"
+
+    STRING_RESTORE_USAGE, "REG RESTORE <key> <file>\n\n\
+\  Restores keys, values and data from a given file into the registry.\n\n\
+\  <key>\n\
+\     The registry key to export.\n\n\
+\     Format: ROOT\\Subkey\n\n\
+\     ROOT: A predefined registry key. This must be one of the following:\n\n\
+\         HKEY_LOCAL_MACHINE  | HKLM\n\
+\         HKEY_CURRENT_USER   | HKCU\n\
+\         HKEY_CLASSES_ROOT   | HKCR\n\
+\         HKEY_USERS          | HKU\n\
+\         HKEY_CURRENT_CONFIG | HKCC\n\n\
+\     Subkey: The full path to a registry key under a given ROOT key.\n\n\
+\  <file>\n\
+\     The name and path of the registry file to restore.\n\n"
+
     STRING_FILE_NOT_FOUND, "reg: The file '%1' was not found.\n"
     STRING_ESCAPE_SEQUENCE, "reg: Unrecognized escape sequence [\\%1!c!]\n"
 
@@ -165,6 +195,24 @@ STRINGTABLE
 \  <file>\n\
 \     The name and path of the registry file that will be created.\n\
 \     This file must have a .reg extension.\n\n\
+\  /y\n\
+\     Overwrite <file> without prompting for confirmation.\n\n"
+
+    STRING_SAVE_USAGE, "REG SAVE <key> <file> [/y]\n\n\
+\  Saves a specified registry key (including all metadata)\n\
+\  to a file.\n\n\
+\  <key>\n\
+\     The registry key to save.\n\n\
+\     Format: ROOT\\Subkey\n\n\
+\     ROOT: A predefined registry key. This must be one of the following:\n\n\
+\         HKEY_LOCAL_MACHINE  | HKLM\n\
+\         HKEY_CURRENT_USER   | HKCU\n\
+\         HKEY_CLASSES_ROOT   | HKCR\n\
+\         HKEY_USERS          | HKU\n\
+\         HKEY_CURRENT_CONFIG | HKCC\n\n\
+\     Subkey: The full path to a registry key under a given ROOT key.\n\n\
+\  <file>\n\
+\     The name and path of the registry file that will be created.\n\
 \  /y\n\
 \     Overwrite <file> without prompting for confirmation.\n\n"
 

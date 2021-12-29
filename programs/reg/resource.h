@@ -46,6 +46,9 @@
 #define STRING_EXPORT_USAGE           155
 #define STRING_IMPORT_USAGE           156
 #define STRING_QUERY_USAGE            157
+#define STRING_SAVE_USAGE             158
+#define STRING_LOAD_USAGE             159
+#define STRING_RESTORE_USAGE          160
 #define STRING_REG_VIEW_USAGE         164
 #define STRING_INVALID_KEY            165
 #define STRING_NO_REMOTE              166

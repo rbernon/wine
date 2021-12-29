@@ -10,7 +10,10 @@ C_SRCS = \
 	delete.c \
 	export.c \
 	import.c \
+	load.c \
 	query.c \
-	reg.c
+	reg.c \
+	restore.c \
+	save.c
 
 RC_SRCS = reg.rc
