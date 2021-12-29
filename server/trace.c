@@ -616,12 +616,13 @@ static void dump_varargs_bytes( const char *prefix, data_size_t size )
     data_size_t len = min( 1024, size );
 
     fprintf( stderr,"%s{", prefix );
+    fprintf( stderr, "total=%u,", size );
     while (len > 0)
     {
         fprintf( stderr, "%02x", *data++ );
         if (--len) fputc( ',', stderr );
     }
-    if (size > 1024) fprintf( stderr, "...(total %u)", size );
+    if (size > 1024) fprintf( stderr, "..." );
     fputc( '}', stderr );
     remove_data( size );
 }
@@ -5646,9 +5647,20 @@ static const char *get_status_name( unsigned int status )
     return buffer;
 }
 
+static void trace_current_time(BOOL diff)
+{
+    static timeout_t last_us;
+    timeout_t microsecs = monotonic_counter() / 10;
+    if (diff) microsecs -= last_us;
+    fprintf( stderr, "%6u.%06u:", (unsigned int)(microsecs / 1000000), (unsigned int)(microsecs % 1000000) );
+    if (diff) microsecs += last_us;
+    last_us = microsecs;
+}
+
 void trace_request(void)
 {
     enum request req = current->req.request_header.req;
+    trace_current_time(FALSE);
     if (req < REQ_NB_REQUESTS)
     {
         fprintf( stderr, "%04x: %s(", current->id, req_names[req] );
@@ -5665,6 +5677,7 @@ void trace_request(void)
 
 void trace_reply( enum request req, const union generic_reply *reply )
 {
+    trace_current_time(TRUE);
     if (req < REQ_NB_REQUESTS)
     {
         fprintf( stderr, "%04x: %s() = %s",
