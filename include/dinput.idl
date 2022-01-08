@@ -346,6 +346,69 @@ interface IDirectInputDeviceW : IUnknown
 };
 typedef IDirectInputDeviceW *LPDIRECTINPUTDEVICEW;
 
+typedef struct DIEFFECTINFOA
+{
+    DWORD dwSize;
+    GUID guid;
+    DWORD dwEffType;
+    DWORD dwStaticParams;
+    DWORD dwDynamicParams;
+    CHAR tszName[MAX_PATH];
+} DIEFFECTINFOA, *LPDIEFFECTINFOA;
+typedef const DIEFFECTINFOA *LPCDIEFFECTINFOA;
+
+typedef struct DIEFFECTINFOW
+{
+    DWORD dwSize;
+    GUID guid;
+    DWORD dwEffType;
+    DWORD dwStaticParams;
+    DWORD dwDynamicParams;
+    WCHAR tszName[MAX_PATH];
+} DIEFFECTINFOW, *LPDIEFFECTINFOW;
+typedef const DIEFFECTINFOW *LPCDIEFFECTINFOW;
+
+typedef BOOL (__stdcall *LPDIENUMEFFECTSCALLBACKA)(const DIEFFECTINFOA *, void *);
+typedef BOOL (__stdcall *LPDIENUMEFFECTSCALLBACKW)(const DIEFFECTINFOW *, void *);
+
+typedef BOOL (__stdcall *LPDIENUMCREATEDEFFECTOBJECTSCALLBACK)(IDirectInputEffect *, void *);
+
+[
+    object,
+    local,
+    uuid(5944e682-c92e-11cf-bfc7-444553540000)
+]
+interface IDirectInputDevice2A : IDirectInputDeviceA
+{
+    HRESULT CreateEffect(REFGUID rguid, const DIEFFECT *lpeff, IDirectInputEffect **ppdeff, IUnknown *punkOuter);
+    HRESULT EnumEffects(LPDIENUMEFFECTSCALLBACKA lpCallback, void *pvRef, DWORD dwEffType);
+    HRESULT GetEffectInfo(DIEFFECTINFOA *pdei, REFGUID rguid);
+    HRESULT GetForceFeedbackState(DWORD *pdwOut);
+    HRESULT SendForceFeedbackCommand(DWORD dwFlags);
+    HRESULT EnumCreatedEffectObjects(LPDIENUMCREATEDEFFECTOBJECTSCALLBACK lpCallback, void *pvRef, DWORD fl);
+    HRESULT Escape(DIEFFESCAPE *pesc);
+    HRESULT Poll();
+    HRESULT SendDeviceData(DWORD cbObjectData, LPCDIDEVICEOBJECTDATA rgdod, DWORD *pdwInOut, DWORD fl);
+};
+
+[
+    object,
+    local,
+    uuid(5944e683-c92e-11cf-bfc7-444553540000)
+]
+interface IDirectInputDevice2W : IDirectInputDeviceW
+{
+    HRESULT CreateEffect(REFGUID rguid, const DIEFFECT *lpeff, IDirectInputEffect **ppdeff, IUnknown *punkOuter);
+    HRESULT EnumEffects(LPDIENUMEFFECTSCALLBACKW lpCallback, void *pvRef, DWORD dwEffType);
+    HRESULT GetEffectInfo(DIEFFECTINFOW *pdei, REFGUID rguid);
+    HRESULT GetForceFeedbackState(DWORD *pdwOut);
+    HRESULT SendForceFeedbackCommand(DWORD dwFlags);
+    HRESULT EnumCreatedEffectObjects(LPDIENUMCREATEDEFFECTOBJECTSCALLBACK lpCallback, void *pvRef, DWORD fl);
+    HRESULT Escape(DIEFFESCAPE *pesc);
+    HRESULT Poll();
+    HRESULT SendDeviceData(DWORD cbObjectData, LPCDIDEVICEOBJECTDATA rgdod, DWORD *pdwInOut, DWORD fl);
+};
+
 cpp_quote("#ifdef __COBJMACROS_DEFINED")
 cpp_quote("#undef COBJMACROS")
 cpp_quote("#endif")
