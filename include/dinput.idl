@@ -442,6 +442,149 @@ interface IDirectInputDevice7W : IDirectInputDevice2W
     HRESULT WriteEffectToFile(const WCHAR *lpszFileName,DWORD dwEntries,DIFILEEFFECT *rgDiFileEft,DWORD dwFlags);
 };
 
+typedef struct _DIACTIONA {
+    UINT_PTR uAppData;
+    DWORD dwSemantic;
+    DWORD dwFlags;
+    union
+    {
+        const CHAR *lptszActionName;
+        UINT uResIdString;
+    } DUMMYUNIONNAME;
+    GUID guidInstance;
+    DWORD dwObjID;
+    DWORD dwHow;
+} DIACTIONA, *LPDIACTIONA;
+typedef const DIACTIONA *LPCDIACTIONA;
+
+typedef struct _DIACTIONW {
+    UINT_PTR uAppData;
+    DWORD dwSemantic;
+    DWORD dwFlags;
+    union {
+        const WCHAR *lptszActionName;
+        UINT uResIdString;
+    } DUMMYUNIONNAME;
+    GUID guidInstance;
+    DWORD dwObjID;
+    DWORD dwHow;
+} DIACTIONW, *LPDIACTIONW;
+typedef const DIACTIONW *LPCDIACTIONW;
+
+typedef struct _DIACTIONFORMATA
+{
+    DWORD dwSize;
+    DWORD dwActionSize;
+    DWORD dwDataSize;
+    DWORD dwNumActions;
+    DIACTIONA *rgoAction;
+    GUID guidActionMap;
+    DWORD dwGenre;
+    DWORD dwBufferSize;
+    LONG lAxisMin;
+    LONG lAxisMax;
+    HINSTANCE hInstString;
+    FILETIME ftTimeStamp;
+    DWORD dwCRC;
+    CHAR tszActionMap[MAX_PATH];
+} DIACTIONFORMATA, *LPDIACTIONFORMATA;
+typedef const DIACTIONFORMATA *LPCDIACTIONFORMATA;
+
+typedef struct _DIACTIONFORMATW
+{
+    DWORD dwSize;
+    DWORD dwActionSize;
+    DWORD dwDataSize;
+    DWORD dwNumActions;
+    DIACTIONW *rgoAction;
+    GUID guidActionMap;
+    DWORD dwGenre;
+    DWORD dwBufferSize;
+    LONG lAxisMin;
+    LONG lAxisMax;
+    HINSTANCE hInstString;
+    FILETIME ftTimeStamp;
+    DWORD dwCRC;
+    WCHAR tszActionMap[MAX_PATH];
+} DIACTIONFORMATW, *LPDIACTIONFORMATW;
+typedef const DIACTIONFORMATW *LPCDIACTIONFORMATW;
+
+typedef struct _DIDEVICEIMAGEINFOA {
+    CHAR tszImagePath[MAX_PATH];
+    DWORD dwFlags;
+    DWORD dwViewID;
+    RECT rcOverlay;
+    DWORD dwObjID;
+    DWORD dwcValidPts;
+    POINT rgptCalloutLine[5];
+    RECT rcCalloutRect;
+    DWORD dwTextAlign;
+} DIDEVICEIMAGEINFOA, *LPDIDEVICEIMAGEINFOA;
+typedef const DIDEVICEIMAGEINFOA *LPCDIDEVICEIMAGEINFOA;
+
+typedef struct _DIDEVICEIMAGEINFOW {
+    WCHAR tszImagePath[MAX_PATH];
+    DWORD dwFlags;
+    DWORD dwViewID;
+    RECT rcOverlay;
+    DWORD dwObjID;
+    DWORD dwcValidPts;
+    POINT rgptCalloutLine[5];
+    RECT rcCalloutRect;
+    DWORD dwTextAlign;
+} DIDEVICEIMAGEINFOW, *LPDIDEVICEIMAGEINFOW;
+typedef const DIDEVICEIMAGEINFOW *LPCDIDEVICEIMAGEINFOW;
+
+typedef struct _DIDEVICEIMAGEINFOHEADERA {
+    DWORD dwSize;
+    DWORD dwSizeImageInfo;
+    DWORD dwcViews;
+    DWORD dwcButtons;
+    DWORD dwcAxes;
+    DWORD dwcPOVs;
+    DWORD dwBufferSize;
+    DWORD dwBufferUsed;
+    DIDEVICEIMAGEINFOA *lprgImageInfoArray;
+} DIDEVICEIMAGEINFOHEADERA, *LPDIDEVICEIMAGEINFOHEADERA;
+typedef const DIDEVICEIMAGEINFOHEADERA *LPCDIDEVICEIMAGEINFOHEADERA;
+
+typedef struct _DIDEVICEIMAGEINFOHEADERW {
+    DWORD dwSize;
+    DWORD dwSizeImageInfo;
+    DWORD dwcViews;
+    DWORD dwcButtons;
+    DWORD dwcAxes;
+    DWORD dwcPOVs;
+    DWORD dwBufferSize;
+    DWORD dwBufferUsed;
+    DIDEVICEIMAGEINFOW *lprgImageInfoArray;
+} DIDEVICEIMAGEINFOHEADERW, *LPDIDEVICEIMAGEINFOHEADERW;
+typedef const DIDEVICEIMAGEINFOHEADERW *LPCDIDEVICEIMAGEINFOHEADERW;
+
+[
+    object,
+    local,
+    uuid(54d41080-dc15-4833-a41b-748f73a38179)
+]
+interface IDirectInputDevice8A : IDirectInputDevice7A
+{
+    HRESULT BuildActionMap(DIACTIONFORMATA *lpdiaf, const CHAR *lpszUserName, DWORD dwFlags);
+    HRESULT SetActionMap(DIACTIONFORMATA *lpdiaf, const CHAR *lpszUserName, DWORD dwFlags);
+    HRESULT GetImageInfo(DIDEVICEIMAGEINFOHEADERA *lpdiDevImageInfoHeader);
+};
+
+[
+    object,
+    local,
+    uuid(54d41081-dc15-4833-a41b-748f73a38179)
+]
+interface IDirectInputDevice8W : IDirectInputDevice7W
+{
+    HRESULT BuildActionMap(DIACTIONFORMATW *lpdiaf, const WCHAR *lpszUserName, DWORD dwFlags);
+    HRESULT SetActionMap(DIACTIONFORMATW *lpdiaf, const WCHAR *lpszUserName, DWORD dwFlags);
+    HRESULT GetImageInfo(DIDEVICEIMAGEINFOHEADERW *lpdiDevImageInfoHeader);
+};
+
 cpp_quote("#ifdef __COBJMACROS_DEFINED")
 cpp_quote("#undef COBJMACROS")
 cpp_quote("#endif")
