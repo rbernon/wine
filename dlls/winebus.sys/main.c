@@ -33,6 +33,7 @@
 #include "ddk/hidport.h"
 #include "ddk/hidtypes.h"
 #include "ddk/hidpddi.h"
+#include "ddk/winebus.h"
 #include "wine/asm.h"
 #include "wine/debug.h"
 #include "wine/list.h"
@@ -879,6 +880,13 @@ static NTSTATUS bus_main_thread_start(struct bus_main_params *bus)
     DWORD i = bus_count++, max_size;
     NTSTATUS status;
 
+    if (i >= ARRAY_SIZE(bus_thread))
+    {
+        ERR("failed to create %s bus too many threads.\n", debugstr_w(bus->name));
+        bus_count--;
+        return STATUS_UNSUCCESSFUL;
+    }
+
     if (!(bus->init_done = CreateEventW(NULL, FALSE, FALSE, NULL)))
     {
         ERR("failed to create %s bus init done event.\n", debugstr_w(bus->name));
@@ -1049,6 +1057,21 @@ static NTSTATUS iohid_driver_init(void)
     return bus_main_thread_start(&bus);
 }
 
+static NTSTATUS x11_driver_init(const char *display, size_t display_len)
+{
+    struct x11_bus_options bus_options = {.bus_type = BUS_TYPE_X11};
+    struct bus_main_params bus =
+    {
+        .name = L"X11",
+        .init_args = &bus_options,
+    };
+
+    lstrcpynA(bus_options.display, display, min(display_len, ARRAY_SIZE(bus_options.display)));
+    TRACE("Opening X11 display %s\n", debugstr_a(bus_options.display));
+
+    return bus_main_thread_start(&bus);
+}
+
 static NTSTATUS fdo_pnp_dispatch(DEVICE_OBJECT *device, IRP *irp)
 {
     IO_STACK_LOCATION *irpsp = IoGetCurrentIrpStackLocation(irp);
@@ -1063,6 +1086,7 @@ static NTSTATUS fdo_pnp_dispatch(DEVICE_OBJECT *device, IRP *irp)
     case IRP_MN_START_DEVICE:
         mouse_device_create();
         keyboard_device_create();
+        x11_driver_init(NULL, 0);
 
         if ((enable_sdl = check_bus_option(L"Enable SDL", 1)))
             enable_sdl = !sdl_driver_init();
@@ -1248,18 +1272,12 @@ static void hidraw_disable_report_fixups(DEVICE_OBJECT *device)
     }
 }
 
-static NTSTATUS WINAPI hid_internal_dispatch(DEVICE_OBJECT *device, IRP *irp)
+static NTSTATUS WINAPI hid_internal_ioctl(DEVICE_OBJECT *device, IRP *irp)
 {
     IO_STACK_LOCATION *irpsp = IoGetCurrentIrpStackLocation(irp);
     struct device_extension *ext = (struct device_extension *)device->DeviceExtension;
     ULONG i, code, buffer_len = irpsp->Parameters.DeviceIoControl.OutputBufferLength;
     NTSTATUS status;
-
-    if (device == bus_fdo)
-    {
-        IoSkipCurrentIrpStackLocation(irp);
-        return IoCallDriver(bus_pdo, irp);
-    }
 
     RtlEnterCriticalSection(&ext->cs);
 
@@ -1438,13 +1456,44 @@ static NTSTATUS WINAPI hid_internal_dispatch(DEVICE_OBJECT *device, IRP *irp)
     return status;
 }
 
+static NTSTATUS WINAPI internal_ioctl(DEVICE_OBJECT *device, IRP *irp)
+{
+    IO_STACK_LOCATION *stack = IoGetCurrentIrpStackLocation(irp);
+    ULONG code, buffer_len = stack->Parameters.DeviceIoControl.InputBufferLength;
+
+    if (device != bus_fdo) return hid_internal_ioctl(device, irp);
+
+    switch ((code = stack->Parameters.DeviceIoControl.IoControlCode))
+    {
+    case IOCTL_WINEBUS_X11_OPEN_DISPLAY:
+        x11_driver_init(irp->UserBuffer, buffer_len);
+        break;
+
+    case IOCTL_WINEBUS_X11_CLOSE_DISPLAY:
+    {
+        struct x11_bus_options bus_params;
+        bus_params.bus_type = BUS_TYPE_X11;
+        lstrcpynA(bus_params.display, irp->UserBuffer, min(buffer_len, ARRAY_SIZE(bus_params.display)));
+        TRACE("Closing X11 display %s\n", debugstr_a(bus_params.display));
+
+        winebus_call(bus_stop, &bus_params);
+        break;
+    }
+    }
+
+    IoSkipCurrentIrpStackLocation(irp);
+    return IoCallDriver(bus_pdo, irp);
+}
+
 static NTSTATUS WINAPI driver_add_device(DRIVER_OBJECT *driver, DEVICE_OBJECT *pdo)
 {
+    UNICODE_STRING name_str;
     NTSTATUS ret;
 
     TRACE("driver %p, pdo %p.\n", driver, pdo);
 
-    if ((ret = IoCreateDevice(driver, 0, NULL, FILE_DEVICE_BUS_EXTENDER, 0, FALSE, &bus_fdo)))
+    RtlInitUnicodeString(&name_str, WINEBUS_DEVICE_NAME);
+    if ((ret = IoCreateDevice(driver, 0, &name_str, FILE_DEVICE_BUS_EXTENDER, 0, FALSE, &bus_fdo)))
     {
         ERR("Failed to create FDO, status %#lx.\n", ret);
         return ret;
@@ -1481,7 +1530,7 @@ NTSTATUS WINAPI DriverEntry( DRIVER_OBJECT *driver, UNICODE_STRING *path )
     driver_obj = driver;
 
     driver->MajorFunction[IRP_MJ_PNP] = common_pnp_dispatch;
-    driver->MajorFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL] = hid_internal_dispatch;
+    driver->MajorFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL] = internal_ioctl;
     driver->DriverExtension->AddDevice = driver_add_device;
     driver->DriverUnload = driver_unload;
 
