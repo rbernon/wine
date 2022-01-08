@@ -409,6 +409,39 @@ interface IDirectInputDevice2W : IDirectInputDeviceW
     HRESULT SendDeviceData(DWORD cbObjectData, LPCDIDEVICEOBJECTDATA rgdod, DWORD *pdwInOut, DWORD fl);
 };
 
+typedef struct DIFILEEFFECT
+{
+    DWORD dwSize;
+    GUID GuidEffect;
+    const DIEFFECT *lpDiEffect;
+    CHAR szFriendlyName[MAX_PATH];
+} DIFILEEFFECT, *LPDIFILEEFFECT;
+typedef const DIFILEEFFECT *LPCDIFILEEFFECT;
+
+typedef BOOL (__stdcall *LPDIENUMEFFECTSINFILECALLBACK)(const DIFILEEFFECT *, void *);
+
+[
+    object,
+    local,
+    uuid(57d7c6bc-2356-11d3-8e9d-00c04f6844ae)
+]
+interface IDirectInputDevice7A : IDirectInputDevice2A
+{
+    HRESULT EnumEffectsInFile(const char *lpszFileName,LPDIENUMEFFECTSINFILECALLBACK pec,void *pvRef,DWORD dwFlags);
+    HRESULT WriteEffectToFile(const char *lpszFileName,DWORD dwEntries,DIFILEEFFECT *rgDiFileEft,DWORD dwFlags);
+};
+
+[
+    object,
+    local,
+    uuid(57d7c6bd-2356-11d3-8e9d-00c04f6844ae)
+]
+interface IDirectInputDevice7W : IDirectInputDevice2W
+{
+    HRESULT EnumEffectsInFile(const WCHAR *lpszFileName,LPDIENUMEFFECTSINFILECALLBACK pec,void *pvRef,DWORD dwFlags);
+    HRESULT WriteEffectToFile(const WCHAR *lpszFileName,DWORD dwEntries,DIFILEEFFECT *rgDiFileEft,DWORD dwFlags);
+};
+
 cpp_quote("#ifdef __COBJMACROS_DEFINED")
 cpp_quote("#undef COBJMACROS")
 cpp_quote("#endif")
