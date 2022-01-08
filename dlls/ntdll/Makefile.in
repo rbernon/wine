@@ -51,6 +51,7 @@ C_SRCS = \
 	unix/loader.c \
 	unix/loadorder.c \
 	unix/process.c \
+	unix/prof.c \
 	unix/registry.c \
 	unix/security.c \
 	unix/serial.c \
