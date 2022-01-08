@@ -33,11 +33,14 @@
 #include "windef.h"
 #include "winternl.h"
 #include "wine/debug.h"
+#include "wine/prof.h"
 #include "wine/list.h"
 #include "ntdll_misc.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(sync);
 WINE_DECLARE_DEBUG_CHANNEL(relay);
+
+static SRWLOCK debug_lock = RTL_SRWLOCK_INIT;
 
 static const char *debugstr_timeout( const LARGE_INTEGER *timeout )
 {
@@ -152,6 +155,38 @@ static void *no_debug_info_marker = (void *)(ULONG_PTR)-1;
 static BOOL crit_section_has_debuginfo( const RTL_CRITICAL_SECTION *crit )
 {
     return crit->DebugInfo != NULL && crit->DebugInfo != no_debug_info_marker;
+}
+
+static struct __wine_prof_data *crit_section_prof_data(RTL_CRITICAL_SECTION *crit)
+{
+    RTL_CRITICAL_SECTION_DEBUG *debug;
+    struct __wine_prof_data *data;
+
+    if (!crit_section_has_debuginfo( crit ))
+        return NULL;
+
+    if (crit->DebugInfo->Type != 0xdead)
+    {
+        RtlAcquireSRWLockExclusive(&debug_lock);
+        if (crit->DebugInfo->Type != 0xdead)
+        {
+            data = __wine_prof_data_alloc(sizeof(RTL_CRITICAL_SECTION_DEBUG));
+            data->name = (char*)crit->DebugInfo->Spare[0];
+            if (!data->name) data->name = "unknown_cs";
+
+            debug = (RTL_CRITICAL_SECTION_DEBUG *)(data + 1);
+            debug->Spare[0] = (UINT_PTR)data->name;
+            debug->CriticalSection = crit;
+            debug->ProcessLocksList.Blink = &debug->ProcessLocksList;
+            debug->ProcessLocksList.Flink = &debug->ProcessLocksList;
+            debug->Type = 0xdead;
+
+            crit->DebugInfo = debug;
+        }
+        RtlReleaseSRWLockExclusive(&debug_lock);
+    }
+
+    return (struct __wine_prof_data *)crit->DebugInfo - 1;
 }
 
 static const char *crit_section_get_name( const RTL_CRITICAL_SECTION *crit )
@@ -282,9 +317,10 @@ NTSTATUS WINAPI RtlDeleteCriticalSection( RTL_CRITICAL_SECTION *crit )
     if (crit_section_has_debuginfo( crit ))
     {
         /* only free the ones we made in here */
-        if (!crit->DebugInfo->Spare[0])
+        if (!crit->DebugInfo->Spare[0] || crit->DebugInfo->Type == 0xdead)
         {
-            RtlFreeHeap( GetProcessHeap(), 0, crit->DebugInfo );
+            if (!crit->DebugInfo->Type) RtlFreeHeap( GetProcessHeap(), 0, crit->DebugInfo );
+            else RtlFreeHeap( GetProcessHeap(), 0, (struct __wine_prof_data *)crit->DebugInfo - 1 );
             crit->DebugInfo = NULL;
         }
     }
@@ -355,11 +391,14 @@ NTSTATUS WINAPI RtlpUnWaitCriticalSection( RTL_CRITICAL_SECTION *crit )
  */
 NTSTATUS WINAPI RtlEnterCriticalSection( RTL_CRITICAL_SECTION *crit )
 {
+    struct __wine_prof_data *prof = crit_section_prof_data( crit );
+    size_t start_ns = __wine_prof_start( prof );
+
     if (crit->SpinCount)
     {
         ULONG count;
 
-        if (RtlTryEnterCriticalSection( crit )) return STATUS_SUCCESS;
+        if (RtlTryEnterCriticalSection( crit )) goto success;
         for (count = crit->SpinCount; count > 0; count--)
         {
             if (crit->LockCount > 0) break;  /* more than one waiter, don't bother spinning */
@@ -376,7 +415,7 @@ NTSTATUS WINAPI RtlEnterCriticalSection( RTL_CRITICAL_SECTION *crit )
         if (crit->OwningThread == ULongToHandle(GetCurrentThreadId()))
         {
             crit->RecursionCount++;
-            return STATUS_SUCCESS;
+            goto success;
         }
 
         /* Now wait for it */
@@ -385,6 +424,9 @@ NTSTATUS WINAPI RtlEnterCriticalSection( RTL_CRITICAL_SECTION *crit )
 done:
     crit->OwningThread   = ULongToHandle(GetCurrentThreadId());
     crit->RecursionCount = 1;
+
+success:
+    PROF_STOP( prof, start_ns );
     return STATUS_SUCCESS;
 }
 
