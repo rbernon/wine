@@ -222,7 +222,8 @@ SOURCES = \
 	difxapi.h \
 	digitalv.h \
 	dimm.idl \
-	dinput.h \
+	dinputbase.h \
+	dinput.idl \
 	dinputd.h \
 	directmanipulation.idl \
 	dispdib.h \

@@ -1,0 +1,111 @@
+/*
+ * Copyright 2022 Rémi Bernon for CodeWeavers
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
+ */
+
+import "objidlbase.idl";
+import "unknwn.idl";
+
+cpp_quote("#ifndef COBJMACROS")
+cpp_quote("#define COBJMACROS")
+cpp_quote("#define __COBJMACROS_DEFINED")
+cpp_quote("#endif")
+
+typedef struct DIENVELOPE
+{
+    DWORD dwSize;
+    DWORD dwAttackLevel;
+    DWORD dwAttackTime;
+    DWORD dwFadeLevel;
+    DWORD dwFadeTime;
+} DIENVELOPE, *LPDIENVELOPE;
+typedef const DIENVELOPE *LPCDIENVELOPE;
+
+typedef struct DIEFFECT_DX5
+{
+    DWORD dwSize;
+    DWORD dwFlags;
+    DWORD dwDuration;
+    DWORD dwSamplePeriod;
+    DWORD dwGain;
+    DWORD dwTriggerButton;
+    DWORD dwTriggerRepeatInterval;
+    DWORD cAxes;
+    DWORD *rgdwAxes;
+    LONG *rglDirection;
+    DIENVELOPE *lpEnvelope;
+    DWORD cbTypeSpecificParams;
+    void *lpvTypeSpecificParams;
+} DIEFFECT_DX5, *LPDIEFFECT_DX5;
+typedef const DIEFFECT_DX5 *LPCDIEFFECT_DX5;
+
+typedef struct DIEFFECT
+{
+    DWORD dwSize;
+    DWORD dwFlags;
+    DWORD dwDuration;
+    DWORD dwSamplePeriod;
+    DWORD dwGain;
+    DWORD dwTriggerButton;
+    DWORD dwTriggerRepeatInterval;
+    DWORD cAxes;
+    DWORD *rgdwAxes;
+    LONG *rglDirection;
+    DIENVELOPE *lpEnvelope;
+    DWORD cbTypeSpecificParams;
+    void *lpvTypeSpecificParams;
+    DWORD dwStartDelay;
+} DIEFFECT, *LPDIEFFECT;
+typedef const DIEFFECT *LPCDIEFFECT;
+
+typedef DIEFFECT DIEFFECT_DX6;
+typedef LPDIEFFECT LPDIEFFECT_DX6;
+
+typedef struct DIEFFESCAPE
+{
+    DWORD dwSize;
+    DWORD dwCommand;
+    void *lpvInBuffer;
+    DWORD cbInBuffer;
+    void *lpvOutBuffer;
+    DWORD cbOutBuffer;
+} DIEFFESCAPE, *LPDIEFFESCAPE;
+
+[
+    object,
+    local,
+    uuid(e7e1f7c0-88d2-11d0-9ad0-00a0c9a06e35)
+]
+interface IDirectInputEffect : IUnknown
+{
+    HRESULT Initialize([in] HINSTANCE instance, [in] DWORD version, [in] REFGUID guid);
+    HRESULT GetEffectGuid([out] GUID *guid);
+    HRESULT GetParameters([in] DIEFFECT *params, [in] DWORD flags);
+    HRESULT SetParameters([in] const DIEFFECT *params, [in] DWORD flags);
+    HRESULT Start([in] DWORD iterations, [in] DWORD flags);
+    HRESULT Stop();
+    HRESULT GetEffectStatus([out] DWORD *status);
+    HRESULT Download();
+    HRESULT Unload();
+    HRESULT Escape([in] DIEFFESCAPE *escape);
+}
+typedef IDirectInputEffect *LPDIRECTINPUTEFFECT;
+
+cpp_quote("#ifdef __COBJMACROS_DEFINED")
+cpp_quote("#undef COBJMACROS")
+cpp_quote("#endif")
+
+cpp_quote("#include \"dinputbase.h\"")

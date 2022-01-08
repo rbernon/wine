@@ -50,7 +50,6 @@ DEFINE_GUID(IID_IDirectInputDevice7A,	0x57D7C6BC,0x2356,0x11D3,0x8E,0x9D,0x00,0x
 DEFINE_GUID(IID_IDirectInputDevice7W,	0x57D7C6BD,0x2356,0x11D3,0x8E,0x9D,0x00,0xC0,0x4F,0x68,0x44,0xAE);
 DEFINE_GUID(IID_IDirectInputDevice8A,	0x54D41080,0xDC15,0x4833,0xA4,0x1B,0x74,0x8F,0x73,0xA3,0x81,0x79);
 DEFINE_GUID(IID_IDirectInputDevice8W,	0x54D41081,0xDC15,0x4833,0xA4,0x1B,0x74,0x8F,0x73,0xA3,0x81,0x79);
-DEFINE_GUID(IID_IDirectInputEffect,	0xE7E1F7C0,0x88D2,0x11D0,0x9A,0xD0,0x00,0xA0,0xC9,0xA0,0x6E,0x35);
 
 /* Predefined object types */
 DEFINE_GUID(GUID_XAxis,	0xA36D02E0,0xC9F3,0x11CF,0xBF,0xC7,0x44,0x45,0x53,0x54,0x00,0x00);
@@ -104,7 +103,6 @@ typedef struct IDirectInputDevice7A *LPDIRECTINPUTDEVICE7A;
 typedef struct IDirectInputDevice7W *LPDIRECTINPUTDEVICE7W;
 typedef struct IDirectInputDevice8A *LPDIRECTINPUTDEVICE8A;
 typedef struct IDirectInputDevice8W *LPDIRECTINPUTDEVICE8W;
-typedef struct IDirectInputEffect *LPDIRECTINPUTEFFECT;
 typedef struct SysKeyboardA *LPSYSKEYBOARDA;
 typedef struct SysMouseA *LPSYSMOUSEA;
 
@@ -1084,52 +1082,6 @@ typedef struct DICUSTOMFORCE {
 } DICUSTOMFORCE, *LPDICUSTOMFORCE;
 typedef const DICUSTOMFORCE *LPCDICUSTOMFORCE;
 
-typedef struct DIENVELOPE {
-	DWORD			dwSize;
-	DWORD			dwAttackLevel;
-	DWORD			dwAttackTime;
-	DWORD			dwFadeLevel;
-	DWORD			dwFadeTime;
-} DIENVELOPE, *LPDIENVELOPE;
-typedef const DIENVELOPE *LPCDIENVELOPE;
-
-typedef struct DIEFFECT_DX5 {
-	DWORD			dwSize;
-	DWORD			dwFlags;
-	DWORD			dwDuration;
-	DWORD			dwSamplePeriod;
-	DWORD			dwGain;
-	DWORD			dwTriggerButton;
-	DWORD			dwTriggerRepeatInterval;
-	DWORD			cAxes;
-	LPDWORD			rgdwAxes;
-	LPLONG			rglDirection;
-	LPDIENVELOPE		lpEnvelope;
-	DWORD			cbTypeSpecificParams;
-	LPVOID			lpvTypeSpecificParams;
-} DIEFFECT_DX5, *LPDIEFFECT_DX5;
-typedef const DIEFFECT_DX5 *LPCDIEFFECT_DX5;
-
-typedef struct DIEFFECT {
-	DWORD			dwSize;
-	DWORD			dwFlags;
-	DWORD			dwDuration;
-	DWORD			dwSamplePeriod;
-	DWORD			dwGain;
-	DWORD			dwTriggerButton;
-	DWORD			dwTriggerRepeatInterval;
-	DWORD			cAxes;
-	LPDWORD			rgdwAxes;
-	LPLONG			rglDirection;
-	LPDIENVELOPE		lpEnvelope;
-	DWORD			cbTypeSpecificParams;
-	LPVOID			lpvTypeSpecificParams;
-	DWORD			dwStartDelay;
-} DIEFFECT, *LPDIEFFECT;
-typedef const DIEFFECT *LPCDIEFFECT;
-typedef DIEFFECT DIEFFECT_DX6;
-typedef LPDIEFFECT LPDIEFFECT_DX6;
-
 typedef struct DIEFFECTINFOA {
 	DWORD			dwSize;
 	GUID			guid;
@@ -1156,15 +1108,6 @@ DECL_WINELIB_TYPE_AW(LPCDIEFFECTINFO)
 
 typedef BOOL (CALLBACK *LPDIENUMEFFECTSCALLBACKA)(LPCDIEFFECTINFOA, LPVOID);
 typedef BOOL (CALLBACK *LPDIENUMEFFECTSCALLBACKW)(LPCDIEFFECTINFOW, LPVOID);
-
-typedef struct DIEFFESCAPE {
-	DWORD	dwSize;
-	DWORD	dwCommand;
-	LPVOID	lpvInBuffer;
-	DWORD	cbInBuffer;
-	LPVOID	lpvOutBuffer;
-	DWORD	cbOutBuffer;
-} DIEFFESCAPE, *LPDIEFFESCAPE;
 
 typedef struct DIJOYSTATE {
 	LONG	lX;
@@ -1485,66 +1428,6 @@ typedef const DIDEVICEIMAGEINFOHEADERW *LPCDIDEVICEIMAGEINFOHEADERW;
 DECL_WINELIB_TYPE_AW(DIDEVICEIMAGEINFOHEADER)
 DECL_WINELIB_TYPE_AW(LPDIDEVICEIMAGEINFOHEADER)
 DECL_WINELIB_TYPE_AW(LPCDIDEVICEIMAGEINFOHEADER)
-
-
-/*****************************************************************************
- * IDirectInputEffect interface
- */
-#define INTERFACE IDirectInputEffect
-DECLARE_INTERFACE_(IDirectInputEffect,IUnknown)
-{
-    /*** IUnknown methods ***/
-    STDMETHOD_(HRESULT,QueryInterface)(THIS_ REFIID riid, void** ppvObject) PURE;
-    STDMETHOD_(ULONG,AddRef)(THIS) PURE;
-    STDMETHOD_(ULONG,Release)(THIS) PURE;
-    /*** IDirectInputEffect methods ***/
-    STDMETHOD(Initialize)(THIS_ HINSTANCE, DWORD, REFGUID) PURE;
-    STDMETHOD(GetEffectGuid)(THIS_ LPGUID) PURE;
-    STDMETHOD(GetParameters)(THIS_ LPDIEFFECT, DWORD) PURE;
-    STDMETHOD(SetParameters)(THIS_ LPCDIEFFECT, DWORD) PURE;
-    STDMETHOD(Start)(THIS_ DWORD, DWORD) PURE;
-    STDMETHOD(Stop)(THIS) PURE;
-    STDMETHOD(GetEffectStatus)(THIS_ LPDWORD) PURE;
-    STDMETHOD(Download)(THIS) PURE;
-    STDMETHOD(Unload)(THIS) PURE;
-    STDMETHOD(Escape)(THIS_ LPDIEFFESCAPE) PURE;
-};
-#undef INTERFACE
-
-#if !defined(__cplusplus) || defined(CINTERFACE)
-/*** IUnknown methods ***/
-#define IDirectInputEffect_QueryInterface(p,a,b) (p)->lpVtbl->QueryInterface(p,a,b)
-#define IDirectInputEffect_AddRef(p)             (p)->lpVtbl->AddRef(p)
-#define IDirectInputEffect_Release(p)            (p)->lpVtbl->Release(p)
-/*** IDirectInputEffect methods ***/
-#define IDirectInputEffect_Initialize(p,a,b,c)    (p)->lpVtbl->Initialize(p,a,b,c)
-#define IDirectInputEffect_GetEffectGuid(p,a)     (p)->lpVtbl->GetEffectGuid(p,a)
-#define IDirectInputEffect_GetParameters(p,a,b)   (p)->lpVtbl->GetParameters(p,a,b)
-#define IDirectInputEffect_SetParameters(p,a,b)   (p)->lpVtbl->SetParameters(p,a,b)
-#define IDirectInputEffect_Start(p,a,b)           (p)->lpVtbl->Start(p,a,b)
-#define IDirectInputEffect_Stop(p)                (p)->lpVtbl->Stop(p)
-#define IDirectInputEffect_GetEffectStatus(p,a)   (p)->lpVtbl->GetEffectStatus(p,a)
-#define IDirectInputEffect_Download(p)            (p)->lpVtbl->Download(p)
-#define IDirectInputEffect_Unload(p)              (p)->lpVtbl->Unload(p)
-#define IDirectInputEffect_Escape(p,a)            (p)->lpVtbl->Escape(p,a)
-#else
-/*** IUnknown methods ***/
-#define IDirectInputEffect_QueryInterface(p,a,b) (p)->QueryInterface(a,b)
-#define IDirectInputEffect_AddRef(p)             (p)->AddRef()
-#define IDirectInputEffect_Release(p)            (p)->Release()
-/*** IDirectInputEffect methods ***/
-#define IDirectInputEffect_Initialize(p,a,b,c)    (p)->Initialize(a,b,c)
-#define IDirectInputEffect_GetEffectGuid(p,a)     (p)->GetEffectGuid(a)
-#define IDirectInputEffect_GetParameters(p,a,b)   (p)->GetParameters(a,b)
-#define IDirectInputEffect_SetParameters(p,a,b)   (p)->SetParameters(a,b)
-#define IDirectInputEffect_Start(p,a,b)           (p)->Start(a,b)
-#define IDirectInputEffect_Stop(p)                (p)->Stop()
-#define IDirectInputEffect_GetEffectStatus(p,a)   (p)->GetEffectStatus(a)
-#define IDirectInputEffect_Download(p)            (p)->Download()
-#define IDirectInputEffect_Unload(p)              (p)->Unload()
-#define IDirectInputEffect_Escape(p,a)            (p)->Escape(a)
-#endif
-
 
 /*****************************************************************************
  * IDirectInputDeviceA interface
