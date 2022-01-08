@@ -905,6 +905,7 @@ SOURCES = \
 	wine/nsi.h \
 	wine/orpc.idl \
 	wine/plugplay.idl \
+	wine/prof.h \
 	wine/rbtree.h \
 	wine/schrpc.idl \
 	wine/server.h \
