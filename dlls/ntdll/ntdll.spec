@@ -1724,6 +1724,11 @@
 @ cdecl -norelay __wine_dbg_output(str)
 @ cdecl -norelay __wine_dbg_strdup(str)
 
+# Profiling
+@ cdecl -norelay __wine_prof_data_alloc(long)
+@ cdecl -norelay __wine_prof_start(ptr)
+@ cdecl -norelay __wine_prof_stop(ptr long ptr ptr long ptr ptr)
+
 # Version
 @ cdecl wine_get_version()
 @ cdecl wine_get_build_id()
