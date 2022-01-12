@@ -947,7 +947,7 @@ static HRESULT media_stream_create(IMFMediaSource *source, DWORD id,
 static HRESULT media_stream_init_desc(struct media_stream *stream)
 {
     IMFMediaTypeHandler *type_handler = NULL;
-    IMFMediaType *stream_types[6];
+    IMFMediaType *stream_types[7];
     struct wg_format format;
     DWORD type_count = 0;
     unsigned int i;
