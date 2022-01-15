@@ -1,0 +1,11 @@
+MODULE    = wglinfo.exe
+IMPORTS   = opengl32 user32 gdi32 winmm
+PARENTSRC = ../wglgears
+
+EXTRADLLFLAGS = -mwindows
+
+SOURCES = \
+	glad.c \
+	glad_wgl.c \
+	glinfo_common.c \
+	wglinfo.c
