@@ -138,6 +138,7 @@ static inline const char *debugstr_pnp( ULONG code )
     case IRP_MN_DEVICE_USAGE_NOTIFICATION: return "IRP_MN_DEVICE_USAGE_NOTIFICATION";
     case IRP_MN_SURPRISE_REMOVAL: return "IRP_MN_SURPRISE_REMOVAL";
     case IRP_MN_QUERY_LEGACY_BUS_INFORMATION: return "IRP_MN_QUERY_LEGACY_BUS_INFORMATION";
+    case IRP_MN_DEVICE_ENUMERATED: return "IRP_MN_DEVICE_ENUMERATED";
     default: return "unknown";
     }
 }
