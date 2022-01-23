@@ -3105,7 +3105,7 @@ static void output_source_testdll( struct makefile *make, struct incl_file *sour
     struct strarray dll_flags = empty_strarray;
     struct strarray default_imports = empty_strarray;
     struct strarray all_libs, dep_libs;
-    const char *dll_name, *obj_name, *res_name, *output_rsrc, *output_file, *debug_file, *ext = ".dll";
+    const char *dll_name, *obj_name, *res_name, *output_rsrc, *output_file, *ext = ".dll";
     struct incl_file *spec_file = find_src_file( make, strmake( "%s.spec", obj ));
     unsigned int arch, link_arch;
 
@@ -3154,7 +3154,6 @@ static void output_source_testdll( struct makefile *make, struct incl_file *sour
         output_filename( tools_path( make, "winegcc" ));
         output( "\n" );
         output_winegcc_command( make, link_arch );
-        output_filename( "-s" );
         output_filenames( dll_flags );
         if (link_arch) output_filenames( get_expanded_arch_var_array( make, "EXTRADLLFLAGS", link_arch ));
         if (!strcmp( ext, ".dll" )) output_filename( "-shared" );
@@ -3162,8 +3161,6 @@ static void output_source_testdll( struct makefile *make, struct incl_file *sour
         output_filename( obj_name );
         if (hybrid_obj_name) output_filename( hybrid_obj_name );
         if (res_name) output_filename( res_name );
-        if ((debug_file = get_debug_file( make, dll_name, link_arch )))
-            output_filename( strmake( "-Wl,--debug-file,%s", obj_dir_path( make, debug_file )));
         output_filenames( all_libs );
         output_filename( arch_make_variable( "LDFLAGS", link_arch ));
         output( "\n" );
@@ -3664,9 +3661,9 @@ static void output_test_module( struct makefile *make, unsigned int arch )
     output( "\n" );
 
     output( "programs/winetest/%s%s_test.res: %s\n", arch_dirs[arch], basemodule,
-            obj_dir_path( make, stripped ));
+            obj_dir_path( make, testmodule ));
     output( "\t%secho \"%s_test.exe TESTRES \\\"%s\\\"\" | %s -u -o $@\n", cmd_prefix( "WRC" ),
-            basemodule, obj_dir_path( make, stripped ), tools_path( make, "wrc" ));
+            basemodule, obj_dir_path( make, testmodule ), tools_path( make, "wrc" ));
 
     if (make->disabled[arch] || (parent && parent->disabled[arch]))
     {
