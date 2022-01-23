@@ -2344,7 +2344,7 @@ ServiceBinary="%12%\mountmgr.sys"
 ServiceType=1
 StartType=0
 ErrorControl=1
-LoadOrderGroup="System Bus Extender"
+LoadOrderGroup="WinePlugPlay"
 
 [NDISService]
 AddReg=NDISServiceKeys
@@ -2354,7 +2354,7 @@ ServiceBinary="%12%\ndis.sys"
 ServiceType=1
 StartType=2
 ErrorControl=1
-LoadOrderGroup="System Bus Extender"
+LoadOrderGroup="WinePlugPlay"
 
 [NDISServiceKeys]
 HKR,,"Tag",0x10001,2
@@ -2367,7 +2367,7 @@ ServiceBinary="%12%\nsiproxy.sys"
 ServiceType=1
 StartType=2
 ErrorControl=1
-LoadOrderGroup="System Bus Extender"
+LoadOrderGroup="WinePlugPlay"
 
 [NsiProxyServiceKeys]
 HKR,,"Tag",0x10001,1
@@ -2401,7 +2401,7 @@ ServiceBinary="%11%\spoolsv.exe"
 ServiceType=0x110
 StartType=3
 ErrorControl=1
-LoadOrderGroup="SpoolerGroup"
+LoadOrderGroup="WinePlugPlay"
 
 [SpoolerServiceKeys]
 HKLM,"System\CurrentControlSet\Services\Spooler\Performance","Library",,"winspool.drv"
