@@ -40,6 +40,16 @@ WINE_DECLARE_DEBUG_CHANNEL(win);
 
 #define DESKTOP_ALL_ACCESS 0x01ff
 
+BOOL is_virtual_desktop(void)
+{
+    HANDLE desktop = NtUserGetThreadDesktop( GetCurrentThreadId() );
+    USEROBJECTFLAGS flags = {0};
+    DWORD len;
+
+    if (!NtUserGetObjectInformation( desktop, UOI_FLAGS, &flags, sizeof(flags), &len )) return FALSE;
+    return !!(flags.dwFlags & DF_WINE_CREATE_DESKTOP);
+}
+
 /***********************************************************************
  *           NtUserCreateWindowStation  (win32u.@)
  */
@@ -173,6 +183,8 @@ HDESK WINAPI NtUserCreateDesktopEx( OBJECT_ATTRIBUTES *attr, UNICODE_STRING *dev
         return 0;
     }
 
+    /* force update display cache to use virtual desktop display settings */
+    if (flags & DF_WINE_CREATE_DESKTOP) update_display_cache( TRUE );
     return ret;
 }
 

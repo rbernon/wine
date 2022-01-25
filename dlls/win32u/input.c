@@ -404,9 +404,11 @@ static const KBDTABLES kbdus_tables =
     .fLocaleFlags = MAKELONG(0, KBD_VERSION),
 };
 
+static LONG clipping_cursor; /* clipping thread counter */
 
 LONG global_key_state_counter = 0;
-
+BOOL grab_pointer = TRUE;
+BOOL grab_fullscreen = FALSE;
 
 static void kbd_tables_init_vsc2vk( const KBDTABLES *tables, BYTE vsc2vk[0x300] )
 {
@@ -1844,7 +1846,7 @@ static BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus )
     if (previous == hwnd)
     {
         if (prev) *prev = hwnd;
-        return TRUE;
+        goto done;
     }
 
     /* call CBT hook chain */
@@ -1868,7 +1870,7 @@ static BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus )
     SERVER_END_REQ;
     if (!ret) return FALSE;
     if (prev) *prev = previous;
-    if (previous == hwnd) return TRUE;
+    if (previous == hwnd) goto done;
 
     if (hwnd)
     {
@@ -1933,6 +1935,8 @@ static BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus )
         }
     }
 
+done:
+    if (hwnd) clip_fullscreen_window( hwnd, FALSE );
     return TRUE;
 }
 
@@ -2457,6 +2461,59 @@ BOOL WINAPI NtUserIsMouseInPointerEnabled(void)
     return FALSE;
 }
 
+/***********************************************************************
+ *      clip_fullscreen_window
+ *
+ * Turn on clipping if the active window is fullscreen.
+ */
+BOOL clip_fullscreen_window( HWND hwnd, BOOL reset )
+{
+    struct user_thread_info *thread_info = get_user_thread_info();
+    MONITORINFO monitor_info = {.cbSize = sizeof(MONITORINFO)};
+    RECT rect;
+    HMONITOR monitor;
+    DWORD style;
+    BOOL ret;
+
+    if (hwnd == NtUserGetDesktopWindow()) return FALSE;
+    if (hwnd != NtUserGetForegroundWindow()) return FALSE;
+
+    style = NtUserGetWindowLongW( hwnd, GWL_STYLE );
+    if (!(style & WS_VISIBLE)) return FALSE;
+    if ((style & (WS_POPUP | WS_CHILD)) == WS_CHILD) return FALSE;
+    /* maximized windows don't count as full screen */
+    if ((style & WS_MAXIMIZE) && (style & WS_CAPTION) == WS_CAPTION) return FALSE;
+
+    if (!NtUserGetWindowRect( hwnd, &rect )) return FALSE;
+    if (!NtUserIsWindowRectFullScreen( &rect )) return FALSE;
+    if (NtGetTickCount() - thread_info->clipping_reset < 1000) return FALSE;
+    if (!reset && clipping_cursor && thread_info->clipping_cursor) return FALSE;  /* already clipping */
+
+    if (!(monitor = NtUserMonitorFromWindow( hwnd, MONITOR_DEFAULTTONEAREST ))) return FALSE;
+    if (!NtUserGetMonitorInfo( monitor, &monitor_info )) return FALSE;
+    if (!grab_fullscreen)
+    {
+        RECT virtual_rect = NtUserGetVirtualScreenRect();
+        if (!EqualRect( &monitor_info.rcMonitor, &virtual_rect )) return FALSE;
+        if (is_virtual_desktop()) return FALSE;
+    }
+
+    TRACE( "win %p clipping fullscreen\n", hwnd );
+
+    SERVER_START_REQ( set_cursor )
+    {
+        req->flags = SET_CURSOR_CLIP | SET_CURSOR_FSCLIP;
+        req->clip.left   = monitor_info.rcMonitor.left;
+        req->clip.top    = monitor_info.rcMonitor.top;
+        req->clip.right  = monitor_info.rcMonitor.right;
+        req->clip.bottom = monitor_info.rcMonitor.bottom;
+        ret = !wine_server_call( req );
+    }
+    SERVER_END_REQ;
+
+    return ret;
+}
+
 /**********************************************************************
  *       NtUserGetPointerInfoList    (win32u.@)
  */
@@ -2497,16 +2554,40 @@ BOOL get_clip_cursor( RECT *rect )
     return ret;
 }
 
-BOOL process_wine_clipcursor( BOOL empty, BOOL reset )
+BOOL process_wine_clipcursor( HWND hwnd, UINT flags, BOOL reset )
 {
-    RECT rect;
+    struct user_thread_info *thread_info = get_user_thread_info();
+    RECT rect, virtual_rect = NtUserGetVirtualScreenRect();
+    BOOL was_clipping, empty = !!(flags & SET_CURSOR_NOCLIP);
 
-    TRACE( "empty %u, reset %u\n", empty, reset );
+    TRACE( "hwnd %p, flags %#x, reset %u\n", hwnd, flags, reset );
 
-    if (empty || reset) return user_driver->pClipCursor( NULL, reset );
+    if ((was_clipping = thread_info->clipping_cursor)) InterlockedDecrement( &clipping_cursor );
+    thread_info->clipping_cursor = FALSE;
 
+    if (reset)
+    {
+        thread_info->clipping_reset = NtGetTickCount();
+        return user_driver->pClipCursor( NULL, TRUE );
+    }
+
+    if (!grab_pointer) return TRUE;
+
+    /* we are clipping if the clip rectangle is smaller than the screen */
     get_clip_cursor( &rect );
-    return user_driver->pClipCursor( &rect, FALSE );
+    intersect_rect( &rect, &rect, &virtual_rect );
+    if (EqualRect( &rect, &virtual_rect )) empty = TRUE;
+    if (empty && !(flags & SET_CURSOR_FSCLIP))
+    {
+        /* if currently clipping, check if we should switch to fullscreen clipping */
+        if (was_clipping && clip_fullscreen_window( hwnd, TRUE )) return TRUE;
+        return user_driver->pClipCursor( NULL, FALSE );
+    }
+
+    if (!user_driver->pClipCursor( &rect, FALSE )) return FALSE;
+    InterlockedIncrement( &clipping_cursor );
+    thread_info->clipping_cursor = TRUE;
+    return TRUE;
 }
 
 /***********************************************************************
@@ -2543,13 +2624,7 @@ BOOL WINAPI NtUserClipCursor( const RECT *rect )
         }
         else req->flags = SET_CURSOR_NOCLIP;
 
-        if ((ret = !wine_server_call( req )))
-        {
-            new_rect.left   = reply->new_clip.left;
-            new_rect.top    = reply->new_clip.top;
-            new_rect.right  = reply->new_clip.right;
-            new_rect.bottom = reply->new_clip.bottom;
-        }
+        ret = !wine_server_call( req );
     }
     SERVER_END_REQ;
 

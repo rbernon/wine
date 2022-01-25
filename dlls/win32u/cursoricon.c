@@ -74,12 +74,18 @@ static struct cursoricon_object *get_icon_ptr( HICON handle )
     return obj;
 }
 
+BOOL process_wine_setcursor( HWND hwnd, HWND window, HCURSOR handle )
+{
+    TRACE( "hwnd %p, window %p, hcursor %p\n", hwnd, window, handle );
+    user_driver->pSetCursor( window, handle );
+    return TRUE;
+}
+
 /***********************************************************************
  *	     NtUserShowCursor    (win32u.@)
  */
 INT WINAPI NtUserShowCursor( BOOL show )
 {
-    HCURSOR cursor;
     int increment = show ? 1 : -1;
     int count;
 
@@ -88,16 +94,11 @@ INT WINAPI NtUserShowCursor( BOOL show )
         req->flags = SET_CURSOR_COUNT;
         req->show_count = increment;
         wine_server_call( req );
-        cursor = wine_server_ptr_handle( reply->prev_handle );
         count = reply->prev_count + increment;
     }
     SERVER_END_REQ;
 
     TRACE("%d, count=%d\n", show, count );
-
-    if (show && !count) user_driver->pSetCursor( cursor );
-    else if (!show && count == -1) user_driver->pSetCursor( 0 );
-
     return count;
 }
 
@@ -108,7 +109,6 @@ HCURSOR WINAPI NtUserSetCursor( HCURSOR cursor )
 {
     struct cursoricon_object *obj;
     HCURSOR old_cursor;
-    int show_count;
     BOOL ret;
 
     TRACE( "%p\n", cursor );
@@ -118,15 +118,10 @@ HCURSOR WINAPI NtUserSetCursor( HCURSOR cursor )
         req->flags = SET_CURSOR_HANDLE;
         req->handle = wine_server_user_handle( cursor );
         if ((ret = !wine_server_call_err( req )))
-        {
             old_cursor = wine_server_ptr_handle( reply->prev_handle );
-            show_count = reply->prev_count;
-        }
     }
     SERVER_END_REQ;
     if (!ret) return 0;
-
-    user_driver->pSetCursor( show_count >= 0 ? cursor : 0 );
 
     if (!(obj = get_icon_ptr( old_cursor ))) return 0;
     release_user_handle_ptr( obj );
