@@ -1728,6 +1728,18 @@ void server_init_thread( void *entry_point, BOOL *suspend )
 }
 
 
+/***********************************************************************
+ *           server_exit_thread
+ */
+void server_exit_thread( void )
+{
+    close( ntdll_get_thread_data()->wait_fd[0] );
+    close( ntdll_get_thread_data()->wait_fd[1] );
+    close( ntdll_get_thread_data()->reply_fd );
+    close( ntdll_get_thread_data()->request_fd );
+}
+
+
 /******************************************************************************
  *           NtDuplicateObject
  */

@@ -101,6 +101,7 @@ GstElement *find_element(GstElementFactoryListType type, GstCaps *src_caps, GstC
     for (tmp = transforms; tmp != NULL && element == NULL; tmp = tmp->next)
     {
         name = gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(tmp->data));
+if (getenv("NOVAAPI") && !strncmp(name, "vaapi", 5)) continue;
         if (!(element = gst_element_factory_create(GST_ELEMENT_FACTORY(tmp->data), NULL)))
             GST_WARNING("Failed to create %s element.", name);
     }
