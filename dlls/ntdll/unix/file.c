@@ -36,6 +36,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <limits.h>
 #include <unistd.h>
 #ifdef HAVE_MNTENT_H
@@ -108,6 +109,12 @@
 #endif
 #include <time.h>
 #include <unistd.h>
+#ifdef HAVE_VALGRIND_VALGRIND_H
+# include <valgrind/valgrind.h>
+#endif
+#ifdef HAVE_VALGRIND_MEMCHECK_H
+# include <valgrind/memcheck.h>
+#endif
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
