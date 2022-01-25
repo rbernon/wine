@@ -1,0 +1,25 @@
+{
+   mingw_stack_grow
+   Memcheck:Addr8
+   fun:___chkstk_ms
+   ...
+}
+{
+   mingw_stack_grow
+   Memcheck:Addr4
+   fun:___chkstk_ms
+   ...
+}
+{
+   KeUserModeCallback_args
+   Memcheck:Addr8
+   fun:memmove
+   fun:KeUserModeCallback
+   ...
+}
+{
+   KeUserModeCallback_args
+   Memcheck:Addr8
+   fun:KeUserModeCallback
+   ...
+}

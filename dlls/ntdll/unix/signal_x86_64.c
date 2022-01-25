@@ -1595,7 +1595,7 @@ __ASM_GLOBAL_FUNC( call_user_mode_callback,
                    "movq %rbp,0xe0(%rsp)\n\t"
                    __ASM_CFI(".cfi_rel_offset %rbp,0xe0\n\t")
                    "leaq 0xe0(%rsp),%rbp\n\t"
-                   __ASM_CFI(".cfi_def_cfa_register %rbp\n\t")
+                   __ASM_CFI(".cfi_def_cfa %rbp,0x10\n\t")
                    "movq %rbx,-0x08(%rbp)\n\t"
                    __ASM_CFI(".cfi_rel_offset %rbx,-0x08\n\t")
                    "movq %rsi,-0x10(%rbp)\n\t"
@@ -1645,11 +1645,10 @@ __ASM_GLOBAL_FUNC( call_user_mode_callback,
                    "1:\n\t"
 #endif
                    "movq %rcx,%r9\n\t"         /* func */
-                   "movq %rdx,%rax\n\t"        /* stack */
-                   "movq 0x8(%rax),%rcx\n\t"   /* id */
-                   "movq 0x10(%rax),%rdx\n\t"  /* args */
-                   "movq 0x18(%rax),%r8\n\t"   /* len */
-                   "movq %rax,%rsp\n\t"
+                   "movq %rdx,%rsp\n\t"        /* stack */
+                   "movq 0x8(%rsp),%rcx\n\t"   /* id */
+                   "movq 0x10(%rsp),%rdx\n\t"  /* args */
+                   "movq 0x18(%rsp),%r8\n\t"   /* len */
                    "jmpq *%r9" )
 
 
