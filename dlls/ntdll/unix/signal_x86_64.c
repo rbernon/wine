@@ -64,6 +64,12 @@
 #ifdef __APPLE__
 # include <mach/mach.h>
 #endif
+#ifdef HAVE_VALGRIND_VALGRIND_H
+# include <valgrind/valgrind.h>
+#endif
+#ifdef HAVE_VALGRIND_MEMCHECK_H
+# include <valgrind/memcheck.h>
+#endif
 
 #define NONAMELESSUNION
 #define NONAMELESSSTRUCT
@@ -1731,12 +1737,18 @@ NTSTATUS WINAPI KeUserModeCallback( ULONG id, const void *args, ULONG len, void 
     if ((char *)ntdll_get_thread_data()->kernel_stack + min_kernel_stack > (char *)&frame)
         return STATUS_STACK_OVERFLOW;
 
+#if defined(VALGRIND_MAKE_MEM_UNDEFINED)
+        VALGRIND_MAKE_MEM_UNDEFINED( (char *)stack - 0x100, (char *)frame->rsp - (char *)stack + 0x100 );
+#elif defined(VALGRIND_MAKE_WRITABLE)
+        VALGRIND_MAKE_WRITABLE( (char *)stack - 0x100, (char *)frame->rsp - (char *)stack + 0x100 );
+#endif
+
     memcpy( args_data, args, len );
     *(--stack) = 0;
     *(--stack) = len;
     *(--stack) = (ULONG_PTR)args_data;
     *(--stack) = id;
-    *(--stack) = 0xdeadbabe;
+    *(--stack) = *(ULONG_PTR *)frame->rsp;
 
     return call_user_mode_callback( pKiUserCallbackDispatcher, stack, ret_ptr, ret_len, NtCurrentTeb() );
 }
@@ -2643,6 +2655,7 @@ __ASM_GLOBAL_FUNC( signal_exit_thread,
  *           __wine_syscall_dispatcher
  */
 __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
+                   __ASM_CFI(".cfi_signal_frame\n\t")
 #ifdef __APPLE__
                    "movq %gs:0x30,%rcx\n\t"
                    "movq 0x328(%rcx),%rcx\n\t"
@@ -2865,6 +2878,7 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
  *           __wine_unix_call_dispatcher
  */
 __ASM_GLOBAL_FUNC( __wine_unix_call_dispatcher,
+                   __ASM_CFI(".cfi_signal_frame\n\t")
                    "movq %rcx,%r10\n\t"
 #ifdef __APPLE__
                    "movq %gs:0x30,%rcx\n\t"
