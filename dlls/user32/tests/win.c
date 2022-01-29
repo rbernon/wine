@@ -10239,21 +10239,29 @@ static void window_from_point_proc(HWND parent)
     flush_events(TRUE);
     SetEvent(start_event);
 
-    got_hittest = FALSE;
     got_click = FALSE;
-    while(!got_click && wait_for_message(&msg)) {
-        if(msg.message == WM_LBUTTONUP) {
-            ok(msg.hwnd == win, "msg.hwnd = %p, expected %p\n", msg.hwnd, win);
-            got_click = TRUE;
+    got_hittest = FALSE;
+    while ((ret = MsgWaitForMultipleObjects( 1, &end_event, FALSE, INFINITE, QS_ALLINPUT )) <= 1)
+    {
+        while (PeekMessageA( &msg, 0, 0, 0, PM_REMOVE ))
+        {
+            if (msg.message == WM_LBUTTONUP)
+            {
+                ok(msg.hwnd == win, "msg.hwnd = %p, expected %p\n", msg.hwnd, win);
+                got_click = TRUE;
+            }
+            TranslateMessage( &msg );
+            DispatchMessageA( &msg );
         }
-        DispatchMessageA(&msg);
+        if (ret == 0) break;
     }
+    ok(ret == 0, "MsgWaitForMultipleObjects returned %#lx\n", ret);
     ok(got_hittest, "transparent window didn't get WM_NCHITTEST message\n");
     ok(got_click, "button under static window didn't get WM_LBUTTONUP\n");
 
-    ret = WaitForSingleObject(end_event, 5000);
-    ok(ret == WAIT_OBJECT_0, "WaitForSingleObject returned %lx\n", ret);
-
+    DestroyWindow(win);
+    DestroyWindow(child_button);
+    DestroyWindow(child_static);
     CloseHandle(start_event);
     CloseHandle(end_event);
 }
@@ -10274,16 +10282,12 @@ static void test_window_from_point(HWND main_window, const char *argv0)
     pt.x = pt.y = 50;
     ClientToScreen( hwnd, &pt );
     win = WindowFromPoint(pt);
+    ok(win == hwnd, "WindowFromPoint returned %p, expected %p\n", win, hwnd);
     pt.x = 150;
     pt.y = 50;
     ClientToScreen( hwnd, &pt );
-    if(win == hwnd)
-        win = WindowFromPoint(pt);
-    if(win != hwnd) {
-        skip("there's another window covering test window\n");
-        DestroyWindow(hwnd);
-        return;
-    }
+    win = WindowFromPoint(pt);
+    ok(win == hwnd, "WindowFromPoint returned %p, expected %p\n", win, hwnd);
 
     child = CreateWindowExA(0, "static", "static", WS_CHILD | WS_VISIBLE,
             0, 0, 100, 100, hwnd, 0, NULL, NULL);
@@ -10311,7 +10315,7 @@ static void test_window_from_point(HWND main_window, const char *argv0)
     startup.cb = sizeof(startup);
     ok(CreateProcessA(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL,
                 &startup, &info), "CreateProcess failed.\n");
-    ok(wait_for_events(1, &start_event, 1000) == 0, "didn't get start_event\n");
+    wait_for_events(1, &start_event, INFINITE);
 
     child = GetWindow(hwnd, GW_CHILD);
     win = WindowFromPoint(pt);
@@ -10328,6 +10332,8 @@ static void test_window_from_point(HWND main_window, const char *argv0)
     ok(win == child, "WindowFromPoint returned %p, expected %p\n", win, child);
 
     SetEvent(end_event);
+    wait_for_events(1, &info.hProcess, INFINITE);
+
     wait_child_process(info.hProcess);
     CloseHandle(start_event);
     CloseHandle(end_event);
