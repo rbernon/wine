@@ -11085,13 +11085,8 @@ static void test_GetMessagePos(void)
 
     SetTimer(button, 1, 250, NULL);
     SetCursorPos(330, 350);
-    GetMessageA(&msg, button, 0, 0);
-    while (msg.message == WM_PAINT)
-    {
-        UpdateWindow( button );
-        GetMessageA(&msg, button, 0, 0);
-    }
-    ok(msg.message == WM_TIMER, "msg.message = %x\n", msg.message);
+    while (GetMessageA(&msg, button, 0, 0) && msg.message != WM_TIMER)
+        if (msg.message == WM_PAINT) UpdateWindow(button);
     pos = GetMessagePos();
     ok(pos == MAKELONG(330, 350), "pos = %08lx\n", pos);
     KillTimer(button, 1);
