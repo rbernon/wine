@@ -25,6 +25,9 @@
 #include <math.h>
 #include <fenv.h>
 
+#include "intrin.h"
+#include "libbf.h"
+
 #include "wine/asm.h"
 #include "wine/test.h"
 
@@ -47,7 +50,6 @@ union float_value
 };
 
 float CDECL sse2_sqrtf(float);
-
 __ASM_GLOBAL_FUNC( sse2_sqrtf,
         "sqrtss %xmm0, %xmm0\n\t"
         "ret" )
@@ -431,6 +433,237 @@ static void dump_asinf_core_max( UINT min, UINT max, UINT mode )
     free(r);
 }
 
+static void *bf_realloc_func(void *opaque, void *ptr, size_t size)
+{
+    return realloc(ptr, size);
+}
+
+static void dump_asin_bf( UINT min, UINT max, UINT mode )
+{
+    bf_flags_t bf_round = mode == 0 ? BF_RNDN : mode == 1 ? BF_RNDD : mode == 2 ? BF_RNDU : BF_RNDZ;
+    bf_t bf_a, bf_v;
+    union float_value v, *r;
+    double *asin, tmp;
+    char buffer[256];
+    bf_context_t bf;
+    float *asinf;
+    FILE *out;
+    int res;
+
+    bf_context_init(&bf, bf_realloc_func, NULL);
+    bf_init(&bf, &bf_a);
+    bf_init(&bf, &bf_v);
+
+    r = malloc((max - min) * sizeof(*r));
+    asin = malloc((max - min) * sizeof(*asin));
+    asinf = malloc((max - min) * sizeof(*asinf));
+    for (v.u = min; v.u != max; v.u++)
+    {
+        res = bf_set_float64(&bf_v, v.f);
+        ok(res == 0, "bf_set_float64 returned %d\n", res);
+        bf_normalize_and_round(&bf_v, 24, bf_set_exp_bits(8) | bf_round);
+
+        res = bf_asin(&bf_a, &bf_v, 112, bf_set_exp_bits(15) | bf_round);
+        ok(res == BF_ST_INEXACT, "bf_asin returned %d\n", res);
+        bf_get_float64(&bf_a, &asin[v.u - min], bf_round);
+        asinf[v.u - min] = asin[v.u - min];
+
+        bf_sub(&bf_a, &bf_a, &bf_v, BF_PREC_INF, bf_round);
+        bf_div(&bf_a, &bf_a, &bf_v, 112, bf_set_exp_bits(15) | bf_round);
+        bf_normalize_and_round(&bf_a, 24, bf_set_exp_bits(8) | bf_round);
+        bf_mul(&bf_a, &bf_a, &bf_v, 24, bf_set_exp_bits(8) | bf_round);
+        bf_add(&bf_a, &bf_a, &bf_v, 24, bf_set_exp_bits(8) | bf_round);
+
+        bf_get_float64(&bf_a, &tmp, bf_round);
+        r[v.u - min].f = tmp;
+    }
+
+    bf_delete(&bf_v);
+    bf_delete(&bf_a);
+    bf_context_end(&bf);
+
+    sprintf(buffer, "asinf-%08x-%08x-%u-bf-asinf.dat", min, max, mode);
+    out = fopen(buffer, "wb");
+    fwrite(asinf, max - min, sizeof(*asinf), out);
+    fclose(out);
+    free(asinf);
+
+    sprintf(buffer, "asinf-%08x-%08x-%u-bf-asin.dat", min, max, mode);
+    out = fopen(buffer, "wb");
+    fwrite(asin, max - min, sizeof(*asin), out);
+    fclose(out);
+    free(asin);
+
+    sprintf(buffer, "asinf-%08x-%08x-%u-bf-maddx.dat", min, max, mode);
+    out = fopen(buffer, "wb");
+    fwrite(r, max - min, sizeof(*r), out);
+    fclose(out);
+    free(r);
+}
+
+static float asinf_bf_high( float x, float asin_r )
+{
+    static const float pio4_hi = 0.785398125648;
+    static const float pio2_lo = 7.54978941586e-08;
+    float s, z, f, c;
+
+    z = (1 - fabsf( x )) * 0.5f;
+    s = sse2_sqrtf( z );
+    *(unsigned int *)&f = *(unsigned int *)&s & 0xffff0000;
+    c = (z - f * f) / (s + f);
+    f = pio4_hi - (2 * s * asin_r - (pio2_lo - 2 * c) - (pio4_hi - 2 * f));
+    if (x < 0) return -f;
+    return f;
+}
+
+static void dump_asin_bf_high( UINT min, UINT max, UINT mode )
+{
+    bf_flags_t bf_round = mode == 0 ? BF_RNDN : mode == 1 ? BF_RNDD : mode == 2 ? BF_RNDU : BF_RNDZ;
+    bf_t bf_a, bf_v, bf_tmp, bf_1, bf_2, bf_pio2;
+    union float_value v, *r;
+    char buffer[256];
+    bf_context_t bf;
+    double *d, a;
+    FILE *out;
+    int res;
+
+    bf_context_init(&bf, bf_realloc_func, NULL);
+    bf_init(&bf, &bf_a);
+    bf_init(&bf, &bf_v);
+    bf_init(&bf, &bf_tmp);
+    bf_init(&bf, &bf_1);
+    bf_init(&bf, &bf_2);
+    bf_init(&bf, &bf_pio2);
+
+    res = bf_set_float64(&bf_1, 1);
+    ok(res == 0, "bf_set_float64 returned %d\n", res);
+    res = bf_set_float64(&bf_2, 2);
+    ok(res == 0, "bf_set_float64 returned %d\n", res);
+    res = bf_set_float64(&bf_pio2, M_PI_2);
+    ok(res == 0, "bf_set_float64 returned %d\n", res);
+
+    r = malloc((max - min) * sizeof(*r));
+    d = malloc((max - min) * sizeof(*d));
+    for (v.u = min; v.u != max; v.u++)
+    {
+        res = bf_set_float64(&bf_v, v.f);
+        ok(res == 0, "bf_set_float64 returned %d\n", res);
+        bf_normalize_and_round(&bf_v, 24, bf_set_exp_bits(8) | bf_round);
+
+        res = bf_asin(&bf_a, &bf_v, 112, bf_set_exp_bits(15) | bf_round);
+        ok(res == BF_ST_INEXACT, "bf_asin returned %d\n", res);
+        bf_get_float64(&bf_a, &d[v.u - min], bf_round);
+
+        bf_sub(&bf_v, &bf_1, &bf_v, BF_PREC_INF, bf_round);
+        bf_div(&bf_v, &bf_v, &bf_2, 112, bf_set_exp_bits(15) | bf_round);
+        bf_sqrt(&bf_tmp, &bf_v, 112, bf_set_exp_bits(15) | bf_round);
+        bf_set(&bf_v, &bf_tmp);
+
+        res = bf_asin(&bf_a, &bf_v, 112, bf_set_exp_bits(15) | bf_round);
+        ok(res == BF_ST_INEXACT, "bf_asin returned %d\n", res);
+
+        bf_sub(&bf_a, &bf_a, &bf_v, BF_PREC_INF, bf_round);
+        bf_div(&bf_a, &bf_a, &bf_v, 112, bf_set_exp_bits(15) | bf_round);
+        bf_normalize_and_round(&bf_a, 24, bf_set_exp_bits(8) | bf_round);
+
+        bf_get_float64(&bf_a, &a, bf_round);
+        a = asinf_bf_high( v.f, a );
+
+        r[v.u - min].f = a;
+    }
+
+    bf_delete(&bf_pio2);
+    bf_delete(&bf_2);
+    bf_delete(&bf_1);
+    bf_delete(&bf_tmp);
+    bf_delete(&bf_v);
+    bf_delete(&bf_a);
+    bf_context_end(&bf);
+
+    sprintf(buffer, "asinf-%08x-%08x-%u-bf32.dat", min, max, mode);
+    out = fopen(buffer, "wb");
+    fwrite(r, max - min, sizeof(*r), out);
+    fclose(out);
+    free(r);
+
+    sprintf(buffer, "asinf-%08x-%08x-%u-bf64.dat", min, max, mode);
+    out = fopen(buffer, "wb");
+    fwrite(d, max - min, sizeof(*d), out);
+    fclose(out);
+    free(d);
+}
+
+static void dump_asinf_core_error( UINT min, UINT max, UINT mode )
+{
+    bf_flags_t bf_round = mode == 0 ? BF_RNDN : mode == 1 ? BF_RNDD : mode == 2 ? BF_RNDU : BF_RNDZ;
+    bf_t bf_r, bf_a, bf_e, bf_v;
+    union float_value v, *r;
+    char buffer[256];
+    bf_context_t bf;
+    FILE *out;
+    double *d;
+    int res;
+
+    bf_context_init(&bf, bf_realloc_func, NULL);
+    bf_init(&bf, &bf_a);
+    bf_init(&bf, &bf_e);
+    bf_init(&bf, &bf_r);
+    bf_init(&bf, &bf_v);
+
+    r = malloc((max - min) * sizeof(*r));
+    sprintf(buffer, "asinf-%08x-%08x-%u-%s.dat", min, max, mode, strcmp( winetest_platform, "wine" ) ? "msvc" : "wine" );
+    out = fopen(buffer, "rb");
+    fread(r, max - min, sizeof(*r), out);
+    fclose(out);
+
+    d = malloc((max - min) * sizeof(*d));
+    for (v.u = min; v.u != max; v.u+=16)
+    {
+        res = bf_set_float64(&bf_v, v.f);
+        ok(res == 0, "bf_set_float64 returned %d\n", res);
+        bf_normalize_and_round(&bf_v, 24, bf_set_exp_bits(8) | bf_round);
+
+        res = bf_asin(&bf_a, &bf_v, 112, bf_set_exp_bits(15) | bf_round);
+        ok(res == BF_ST_INEXACT, "bf_asin returned %d\n", res);
+
+        bf_sub(&bf_e, &bf_a, &bf_v, BF_PREC_INF, bf_round);
+        /* bf_div(&bf_e, &bf_e, &bf_v, 112, bf_set_exp_bits(15) | bf_round); */
+        bf_normalize_and_round(&bf_e, 24, bf_set_exp_bits(8) | bf_round);
+        /* bf_mul(&bf_e, &bf_e, &bf_v, 24, bf_set_exp_bits(8) | bf_round); */
+        bf_add(&bf_e, &bf_e, &bf_v, 24, bf_set_exp_bits(8) | bf_round);
+        bf_sub(&bf_e, &bf_e, &bf_a, BF_PREC_INF, bf_round);
+        bf_mul(&bf_e, &bf_e, &bf_e, BF_PREC_INF, bf_round);
+
+        res = bf_set_float64(&bf_r, r[v.u - min].f);
+        ok(res == 0, "bf_set_float32 returned %d\n", res);
+        bf_normalize_and_round(&bf_r, 24, bf_set_exp_bits(8) | bf_round);
+#if 0
+        bf_mul(&bf_r, &bf_r, &bf_v, 24, bf_set_exp_bits(8) | bf_round);
+        bf_add(&bf_r, &bf_r, &bf_v, 24, bf_set_exp_bits(8) | bf_round);
+#endif
+
+        bf_sub(&bf_r, &bf_r, &bf_a, BF_PREC_INF, bf_round);
+        bf_mul(&bf_r, &bf_r, &bf_r, BF_PREC_INF, bf_round);
+        /* bf_div(&bf_r, &bf_r, &bf_e, 112, bf_set_exp_bits(15) | bf_round); */
+
+        bf_get_float64(&bf_r, &d[v.u - min], bf_round);
+        if (!d[v.u - min]) d[v.u - min] = 1;
+    }
+
+    bf_delete(&bf_v);
+    bf_delete(&bf_r);
+    bf_delete(&bf_e);
+    bf_delete(&bf_a);
+    bf_context_end(&bf);
+
+    sprintf(buffer, "asinf-core-err-%08x-%08x-%u.dat", min, max, mode);
+    out = fopen(buffer, "wb");
+    fwrite(d, max - min, sizeof(*d), out);
+    fclose(out);
+    free(d);
+    free(r);
+}
+
 static void dump_acosf( UINT min, UINT max, UINT mode )
 {
     union float_value v, *r;
@@ -441,6 +674,74 @@ static void dump_acosf( UINT min, UINT max, UINT mode )
     for (v.u = min; v.u != max; v.u++) r[v.u - min].f = p_acosf(v.f);
 
     sprintf(buffer, "acosf-%08x-%08x-%u-%s.dat", min, max, mode, strcmp( winetest_platform, "wine" ) ? "msvc" : "wine" );
+    out = fopen(buffer, "wb");
+    fwrite(r, max - min, sizeof(*r), out);
+    fclose(out);
+    free(r);
+}
+
+static void dump_acos_bf( UINT min, UINT max, UINT mode )
+{
+    bf_flags_t bf_round = mode == 0 ? BF_RNDN : mode == 1 ? BF_RNDD : mode == 2 ? BF_RNDU : BF_RNDZ;
+    bf_t bf_a, bf_v, bf_pio2;
+    union float_value v, *r;
+    double *acos, tmp;
+    char buffer[256];
+    bf_context_t bf;
+    float *acosf;
+    FILE *out;
+    int res;
+
+    bf_context_init(&bf, bf_realloc_func, NULL);
+    bf_init(&bf, &bf_a);
+    bf_init(&bf, &bf_v);
+    bf_init(&bf, &bf_pio2);
+
+    bf_set_float64(&bf_pio2, M_PI_2);
+
+    r = malloc((max - min) * sizeof(*r));
+    acos = malloc((max - min) * sizeof(*acos));
+    acosf = malloc((max - min) * sizeof(*acosf));
+    for (v.u = min; v.u != max; v.u++)
+    {
+        res = bf_set_float64(&bf_v, v.f);
+        ok(res == 0, "bf_set_float64 returned %d\n", res);
+        bf_normalize_and_round(&bf_v, 24, bf_set_exp_bits(8) | bf_round);
+
+        res = bf_acos(&bf_a, &bf_v, 112, bf_set_exp_bits(15) | bf_round);
+        ok(res == BF_ST_INEXACT, "bf_acos returned %d\n", res);
+        bf_get_float64(&bf_a, &acos[v.u - min], bf_round);
+        acosf[v.u - min] = acos[v.u - min];
+
+        bf_sub(&bf_a, &bf_pio2, &bf_a, BF_PREC_INF, bf_round);
+        bf_sub(&bf_a, &bf_a, &bf_v, BF_PREC_INF, bf_round);
+        bf_div(&bf_a, &bf_a, &bf_v, 112, bf_set_exp_bits(15) | bf_round);
+        bf_normalize_and_round(&bf_a, 24, bf_set_exp_bits(8) | bf_round);
+        bf_mul(&bf_a, &bf_a, &bf_v, 24, bf_set_exp_bits(8) | bf_round);
+        bf_add(&bf_a, &bf_a, &bf_v, 24, bf_set_exp_bits(8) | bf_round);
+        bf_sub(&bf_a, &bf_pio2, &bf_a, BF_PREC_INF, bf_round);
+
+        bf_get_float64(&bf_a, &tmp, bf_round);
+        r[v.u - min].f = tmp;
+    }
+
+    bf_delete(&bf_v);
+    bf_delete(&bf_a);
+    bf_context_end(&bf);
+
+    sprintf(buffer, "acosf-%08x-%08x-%u-bf-acosf.dat", min, max, mode);
+    out = fopen(buffer, "wb");
+    fwrite(acosf, max - min, sizeof(*acosf), out);
+    fclose(out);
+    free(acosf);
+
+    sprintf(buffer, "acosf-%08x-%08x-%u-bf-acos.dat", min, max, mode);
+    out = fopen(buffer, "wb");
+    fwrite(acos, max - min, sizeof(*acos), out);
+    fclose(out);
+    free(acos);
+
+    sprintf(buffer, "acosf-%08x-%08x-%u-bf-maddx.dat", min, max, mode);
     out = fopen(buffer, "wb");
     fwrite(r, max - min, sizeof(*r), out);
     fclose(out);
@@ -606,6 +907,7 @@ static DWORD CALLBACK run_thread( void *args )
     static const char *mode_names[] = {"nearest", "down", "up", "toward_zero"};
 
     struct run_params params = *(struct run_params *)args;
+    UINT sse_mode = params.mode * 0x2000;
 
     SetEvent( params.event );
 
@@ -618,6 +920,12 @@ static DWORD CALLBACK run_thread( void *args )
         p_fesetround( fp_modes[params.mode] );
         ok( p_fegetround() == fp_modes[params.mode], "fegetround returned %u\n", p_fegetround() );
     }
+    else
+    {
+        ok( _MM_GET_ROUNDING_MODE() == 0, "got SSE rounding mode %#x\n", _MM_GET_ROUNDING_MODE() );
+        _MM_SET_ROUNDING_MODE( sse_mode );
+    }
+    ok( _MM_GET_ROUNDING_MODE() == sse_mode, "got SSE rounding mode %#x\n", _MM_GET_ROUNDING_MODE() );
 
     params.callback( params.min, params.max, params.mode );
     winetest_pop_context();
@@ -759,8 +1067,12 @@ START_TEST( math )
         if (0) run( dump_asinf, 0xb8800000, 0xbf000000, 8, mode );
         if (0) run( dump_asinf, 0xbf000000, 0xbf800000, 8, mode );
 
+        if (0) run_split( dump_asin_bf, asinf_split[mode], 16, mode );
+        if (0) run( dump_asin_bf, 0x38800000, 0x3f000000, 8, mode );
+        if (0) run( dump_asin_bf_high, 0x3f000000, 0x3f800000, 8, mode );
         if (0) run( dump_asinf_core_min, 0x38800000, 0x3f000000, 8, mode );
         if (0) run( dump_asinf_core_max, 0x38800000, 0x3f000000, 8, mode );
+        if (0) run( dump_asinf_core_error, 0x38800000, 0x3f000000, 8, mode );
     }
 
     if (!p_acosf) skip( "acosf not found, skipping tests\n" );
@@ -792,6 +1104,8 @@ START_TEST( math )
         if (0) run( dump_acosf, 0x3f000000, 0x3f800000, 8, mode );
         if (0) run( dump_acosf, 0xb2800000, 0xbf000000, 1, mode );
         if (0) run( dump_acosf, 0xbf000000, 0xbf800000, 1, mode );
+
+        if (0) run( dump_acos_bf, 0x32800000, 0x3f000000, 8, mode );
     }
 
     if (!p_atanf) skip( "atanf not found, skipping tests\n" );

@@ -2445,9 +2445,11 @@ int bf_get_float32(const bf_t *a, float *pres, bf_rnd_t rnd_mode)
         
         bf_init(a->ctx, b);
         bf_set(b, a);
+#if 0
         if (bf_is_finite(b)) {
             ret = bf_round(b, 24, rnd_mode | BF_FLAG_SUBNORMAL | bf_set_exp_bits(8));
         }
+#endif
         if (b->expn == BF_EXP_INF) {
             e = (1 << 8) - 1;
             m = 0;
