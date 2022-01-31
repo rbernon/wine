@@ -285,8 +285,10 @@ float CDECL acosf( float x )
                 return M_PI;
             return 0;
         }
-        if (isnan(x)) return x;
-        return math_error(_DOMAIN, "acosf", x, 0, 0 / (x - x));
+        hx |= 0x400000;
+        if (isnan(x)) z = *(float *)&hx;
+        else z = 0 / (x - x);
+        return math_error(_DOMAIN, "acosf", x, 0, z);
     }
     /* |x| < 0.5 */
     if (ix < 0x3f000000) {
