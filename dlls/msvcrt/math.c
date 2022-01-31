@@ -271,7 +271,6 @@ static float asinf_R(float z)
  */
 float CDECL asinf( float x )
 {
-    static const double pio2 = 1.570796326794896558e+00;
     static const float pio4_hi = 0.785398125648;
     static const float pio2_lo = 7.54978941586e-08;
 
@@ -280,9 +279,9 @@ float CDECL asinf( float x )
 
     hx = *(unsigned int*)&x;
     ix = hx & 0x7fffffff;
-    if (ix >= 0x3f800000) {  /* |x| >= 1 */
-        if (ix == 0x3f800000)  /* |x| == 1 */
-            return x * pio2 + 7.5231638453e-37;  /* asin(+-1) = +-pi/2 with inexact */
+    if (ix > 0x3f800000)
+    {
+        /* |x| > 1 */
         if (isnan(x)) return x;
         return math_error(_DOMAIN, "asinf", x, 0, 0 / (x - x));
     }
@@ -291,6 +290,8 @@ float CDECL asinf( float x )
     z = *(float *)&ix;
     if (ix < 0x3f000000)
         x = z + z * asinf_R(z * z);  /* |x| < 0.5 */
+    else if (ix == 0x3f800000)
+        x = M_PI_2;  /* |x| == 1, asin(+-1) = +-pi/2 */
     else
     {
         /* 1 > |x| >= 0.5 */
