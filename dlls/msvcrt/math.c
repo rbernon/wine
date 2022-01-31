@@ -282,8 +282,10 @@ float CDECL asinf( float x )
     if (ix > 0x3f800000)
     {
         /* |x| > 1 */
-        if (isnan(x)) return x;
-        return math_error(_DOMAIN, "asinf", x, 0, 0 / (x - x));
+        hx |= 0x400000;
+        if (isnan(x)) z = *(float *)&hx;
+        else z = 0 / (x - x);
+        return math_error(_DOMAIN, "asinf", x, 0, z);
     }
     if (ix < 0x38800000)
         return x;  /* if |x| < 0x1p-14, avoid raising underflow */
