@@ -9,6 +9,7 @@ SOURCES = \
 	file.c \
 	heap.c \
 	locale.c \
+	math.c \
 	misc.c \
 	printf.c \
 	scanf.c \
