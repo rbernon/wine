@@ -286,22 +286,25 @@ float CDECL asinf( float x )
         if (isnan(x)) return x;
         return math_error(_DOMAIN, "asinf", x, 0, 0 / (x - x));
     }
+    z = *(float *)&ix;
     if (ix < 0x3f000000) {  /* |x| < 0.5 */
         /* if 0x1p-126 <= |x| < 0x1p-12, avoid raising underflow */
         if (ix < 0x39800000 && ix >= 0x00800000)
             return x;
-        return x + x * asinf_R(x * x);
+        x = z + z * asinf_R(z * z);
     }
-    /* 1 > |x| >= 0.5 */
-    z = (1 - fabsf(x)) * 0.5f;
-    s = sqrtf(z);
-    /* f+c = sqrt(z) */
-    *(unsigned int*)&f = *(unsigned int*)&s & 0xffff0000;
-    c = (z - f * f) / (s + f);
-    x = pio4_hi - (2 * s * asinf_R(z) - (pio2_lo - 2 * c) - (pio4_hi - 2 * f));
-    if (hx >> 31)
-        return -x;
-    return x;
+    else
+    {
+        /* 1 > |x| >= 0.5 */
+        z = (1 - z) * 0.5f;
+        s = sqrtf(z);
+        /* f+c = sqrt(z) */
+        *(unsigned int*)&f = *(unsigned int*)&s & 0xffff0000;
+        c = (z - f * f) / (s + f);
+        x = pio4_hi - (2 * s * asinf_R(z) - (pio2_lo - 2 * c) - (pio4_hi - 2 * f));
+    }
+    hx = (hx & 0x80000000) | *(unsigned int *)&x;
+    return *(float *)&hx;
 }
 
 /*********************************************************************
