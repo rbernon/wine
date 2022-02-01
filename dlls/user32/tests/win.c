@@ -3851,9 +3851,13 @@ static void test_SetActiveWindow_0( char **argv )
     DestroyWindow( hwnd );
 }
 
-static void test_SetActiveWindow(HWND hwnd)
+static void test_SetActiveWindow(void)
 {
-    HWND hwnd2, ret;
+    DWORD style = WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_POPUP | WS_VISIBLE;
+    HWND hwnd, hwnd2, active, ret;
+
+    hwnd = CreateWindowExA( 0, "MainWindowClass", "Main window", style, 100, 100, 200, 200, 0, 0, NULL, NULL);
+    ok( !!hwnd, "CreateWindowExA failed, error %lu\n", GetLastError() );
 
     flush_events( TRUE );
     ShowWindow(hwnd, SW_HIDE);
@@ -3869,14 +3873,22 @@ static void test_SetActiveWindow(HWND hwnd)
     check_wnd_state(hwnd, hwnd, hwnd, 0);
 
     ShowWindow(hwnd, SW_HIDE);
-    check_wnd_state(0, 0, 0, 0);
+    active = GetActiveWindow();
+    /* SW_HIDE only sometimes deactivates the window, consistently on Win10 >= 1809 */
+    ok(active == hwnd || active == 0, "got active window %p\n", active);
+    check_wnd_state(active, 0, 0, 0);
+
+    SetWindowPos(hwnd,0,0,0,0,0,SWP_NOZORDER|SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+    check_wnd_state(active, 0, 0, 0);
 
     /* Invisible window. */
     SetActiveWindow(hwnd);
-    check_wnd_state(hwnd, hwnd, hwnd, 0);
-    
+    if (active == hwnd) check_wnd_state(hwnd, hwnd, 0, 0); /* not de-activated, focus isn't restored */
+    else check_wnd_state(hwnd, hwnd, hwnd, 0);
+
     ShowWindow(hwnd, SW_SHOW);
-    check_wnd_state(hwnd, hwnd, hwnd, 0);
+    if (active == hwnd) check_wnd_state(hwnd, hwnd, 0, 0); /* not de-activated, focus isn't restored */
+    else check_wnd_state(hwnd, hwnd, hwnd, 0);
 
     hwnd2 = CreateWindowExA(0, "static", NULL, WS_POPUP|WS_VISIBLE, 0, 0, 0, 0, hwnd, 0, 0, NULL);
     check_wnd_state(hwnd2, hwnd2, hwnd2, 0);
@@ -3912,6 +3924,7 @@ static void test_SetActiveWindow(HWND hwnd)
     check_wnd_state(hwnd, hwnd, hwnd, 0);
 
     DestroyWindow(hwnd2);
+    DestroyWindow(hwnd);
 }
 
 struct create_window_thread_params
@@ -13158,8 +13171,6 @@ START_TEST(win)
     test_SetWindowPos(hwndMain, hwndMain2);
     test_SetMenu(hwndMain);
     test_SetFocus(hwndMain);
-    test_SetActiveWindow_0( argv );
-    test_SetActiveWindow(hwndMain);
     test_NCRedraw();
 
     test_children_zorder(hwndMain);
@@ -13226,6 +13237,9 @@ START_TEST(win)
 
     DestroyWindow(hwndMain2);
     DestroyWindow(hwndMain);
+
+    test_SetActiveWindow_0( argv );
+    test_SetActiveWindow();
 
     /* Make sure that following tests are executed last, under Windows they
      * tend to break the tests which are sensitive to z-order and activation
