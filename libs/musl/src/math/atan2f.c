@@ -71,8 +71,19 @@ float __cdecl atan2f(float y, float x)
 	/* z = atan(|y/x|) with correct underflow */
 	if ((m&2) && iy+(26<<23) < ix)  /*|y/x| < 0x1p-26, x < 0 */
 		z = 0.0;
-	else
-		z = atanf(fabsf(y/x));
+	else {
+		z = fabs(y / x);
+		if (*(unsigned int *)&z > 0x4d000000) {
+			switch (m) {
+			case 0: return M_PI_2;   /* atan(+,+) */
+			case 1: return -M_PI_2;  /* atan(-,+) */
+			case 2: return -M_PI_2;  /* atan(+,-) */
+			default: return M_PI_2;  /* atan(-,-) */
+			}
+			return (m % 3 ? -1 : 1) * M_PI_2;
+		}
+		z = atanf(fabsf(y / x));
+	}
 	switch (m) {
 	case 0: return z;              /* atan(+,+) */
 	case 1: return -z;             /* atan(-,+) */
