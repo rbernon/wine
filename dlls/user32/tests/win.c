@@ -5641,11 +5641,16 @@ static void test_dialog_parent(void)
     DestroyWindow(parent);
 }
 
-static void test_scrollwindow( HWND hwnd)
+static void test_scrollwindow(void)
 {
+    DWORD style = WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_POPUP | WS_VISIBLE;
     HDC hdc;
     RECT rc, rc2, rc3;
     COLORREF colr;
+    HWND hwnd;
+
+    hwnd = CreateWindowExA( 0, "MainWindowClass", "Main window", style, 100, 100, 200, 200, 0, 0, NULL, NULL);
+    ok( !!hwnd, "CreateWindowExA failed, error %lu\n", GetLastError() );
 
     ShowWindow( hwnd, SW_SHOW);
     UpdateWindow( hwnd);
@@ -5692,6 +5697,7 @@ static void test_scrollwindow( HWND hwnd)
 
     /* clean up */
     ReleaseDC( hwnd, hdc);
+    DestroyWindow( hwnd );
 }
 
 static void test_scrollvalidate( HWND parent)
@@ -13181,7 +13187,6 @@ START_TEST(win)
     test_mouse_input(hwndMain);
     test_validatergn(hwndMain);
     test_nccalcscroll( hwndMain);
-    test_scrollwindow( hwndMain);
     test_scrollvalidate( hwndMain);
     test_scrolldc( hwndMain);
     test_scroll();
@@ -13240,6 +13245,7 @@ START_TEST(win)
 
     test_SetActiveWindow_0( argv );
     test_SetActiveWindow();
+    test_scrollwindow();
 
     /* Make sure that following tests are executed last, under Windows they
      * tend to break the tests which are sensitive to z-order and activation
