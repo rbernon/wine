@@ -1529,6 +1529,18 @@ static HRESULT init_stream(struct wm_reader *reader)
             vih->bmiHeader.biCompression = BI_RGB;
             vih->bmiHeader.biSizeImage = vih->bmiHeader.biWidth * vih->bmiHeader.biHeight * 3;
             stream->media_type.subtype = MEDIASUBTYPE_RGB24;
+
+            {
+                /* HACK: Persona 4 Golden tries to read compressed samples, and
+                 * then autoplug them via quartz to a filter that only accepts
+                 * BGRx. This is not trivial to implement. Return BGRx from the
+                 * wmvcore reader for now. */
+
+                const char *id = getenv("SteamGameId");
+
+                if (id && !strcmp(id, "1113000"))
+                    stream->format.u.video.format = WG_VIDEO_FORMAT_BGRx;
+            }
         }
 
         wg_parser_stream_enable_quartz(stream->wg_stream, &stream->media_type);
