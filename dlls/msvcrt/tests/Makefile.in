@@ -1,5 +1,6 @@
+EXTRAINCL = $(LIBBF_PE_CFLAGS)
 TESTDLL   = msvcrt.dll
-IMPORTS   = advapi32
+IMPORTS   = advapi32 bf
 
 SOURCES = \
 	cpp.c \

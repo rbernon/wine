@@ -1,0 +1,7 @@
+EXTLIB    = libbf.a
+EXTRAINCL = $(LIBBF_PE_CFLAGS)
+
+C_SRCS = \
+	cutils.c \
+	libbf.c \
+	softfp.c \
