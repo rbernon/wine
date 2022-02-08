@@ -260,6 +260,8 @@ int bf_set(bf_t *r, const bf_t *a);
 void bf_move(bf_t *r, bf_t *a);
 int bf_get_float64(const bf_t *a, double *pres, bf_rnd_t rnd_mode);
 int bf_set_float64(bf_t *a, double d);
+int bf_get_float32(const bf_t *a, float *pres, bf_rnd_t rnd_mode);
+int bf_set_float32(bf_t *a, float d);
 
 int bf_cmpu(const bf_t *a, const bf_t *b);
 int bf_cmp_full(const bf_t *a, const bf_t *b);

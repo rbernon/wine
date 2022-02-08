@@ -2427,6 +2427,52 @@ int bf_logic_and(bf_t *r, const bf_t *a, const bf_t *b)
 /* conversion between fixed size types */
 
 typedef union {
+    float f;
+    uint32_t u;
+} Float32Union;
+
+int bf_get_float32(const bf_t *a, float *pres, bf_rnd_t rnd_mode)
+{
+    Float32Union u;
+    int e, ret;
+    uint32_t m;
+    
+    ret = 0;
+    if (a->expn == BF_EXP_NAN) {
+        u.u = 0x7fc00000; /* quiet nan */
+    } else {
+        bf_t b_s, *b = &b_s;
+        
+        bf_init(a->ctx, b);
+        bf_set(b, a);
+        if (bf_is_finite(b)) {
+            ret = bf_round(b, 24, rnd_mode | BF_FLAG_SUBNORMAL | bf_set_exp_bits(8));
+        }
+        if (b->expn == BF_EXP_INF) {
+            e = (1 << 8) - 1;
+            m = 0;
+        } else if (b->expn == BF_EXP_ZERO) {
+            e = 0;
+            m = 0;
+        } else {
+            e = b->expn + 127 - 1;
+            m = b->tab[0];
+            if (e <= 0) {
+                /* subnormal */
+                m = m >> (9 - e);
+                e = 0;
+            } else {
+                m = (m << 1) >> 9;
+            }
+        }
+        u.u = m | ((uint64_t)e << 23) | ((uint64_t)b->sign << 31);
+        bf_delete(b);
+    }
+    *pres = u.f;
+    return ret;
+}
+
+typedef union {
     double d;
     uint64_t u;
 } Float64Union;
@@ -2521,6 +2567,48 @@ int bf_set_float64(bf_t *a, double d)
             goto fail;
         a->tab[0] = m;
 #endif
+        a->sign = sgn;
+    }
+    return 0;
+fail:
+    bf_set_nan(a);
+    return BF_ST_MEM_ERROR;
+}
+
+int bf_set_float32(bf_t *a, float f)
+{
+    Float32Union u;
+    uint32_t m;
+    int shift, e, sgn;
+    
+    u.f = f;
+    sgn = u.u >> 31;
+    e = (u.u >> 23) & ((1 << 8) - 1);
+    m = u.u & (((uint32_t)1 << 23) - 1);
+    if (e == ((1 << 8) - 1)) {
+        if (m != 0) {
+            bf_set_nan(a);
+        } else {
+            bf_set_inf(a, sgn);
+        }
+    } else if (e == 0) {
+        if (m == 0) {
+            bf_set_zero(a, sgn);
+        } else {
+            /* subnormal number */
+            m <<= 9;
+            shift = __builtin_clz(m);
+            m <<= shift;
+            e = -shift;
+            goto norm;
+        }
+    } else {
+        m = (m << 8) | ((uint32_t)1 << 31);
+    norm:
+        a->expn = e - 127 + 1;
+        if (bf_resize(a, 1))
+            goto fail;
+        a->tab[0] = m;
         a->sign = sgn;
     }
     return 0;
