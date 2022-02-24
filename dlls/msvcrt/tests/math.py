@@ -12,57 +12,51 @@ import struct
 
 build = os.path.expanduser('~/Code/build-wine')
 step = 1
-ranges = [
- #  (0x38800000, 0x39500000),
-  # (0x39500000, 0x3a200000),
-  # (0x3a200000, 0x3af00000),
-  # (0x3af00000, 0x3bc00000),
-  # (0x3bc00000, 0x3c900000),
-  # (0x3c900000, 0x3d600000),
-  # (0x3d600000, 0x3e300000),
-  (0x3e300000, 0x3f000000),
-#  (0x3f000000, 0x3f100000),
-#  (0x3f100000, 0x3f200000),
-#  (0x3f200000, 0x3f300000),
-#  (0x3f300000, 0x3f400000),
-#  (0x3f400000, 0x3f500000),
-#  (0x3f500000, 0x3f600000),
-#  (0x3f600000, 0x3f700000),
-#  (0x3f700000, 0x3f800000),
+split = [
+  [
+    # 0x38800000, 0x39000000, 0x39800000, 0x39ffffff, 0x3a7ffffd, 0x3afffff5, 0x3b7fffd5, 0x3bffff55, 0x3c7ffd55, 0x3cfff555, 0x3d7fd557, 
+    0x3dff5577, 0x3e7d5777, 0x3ef57744, 0x3f000000, 0x3f576aa5, 0x3f800000,
+  ],
+  [
+    # 0x38800000, 0x39000000, 0x39800000, 0x3a000000, 0x3a7ffffe, 0x3afffff6, 0x3b7fffd6, 0x3bffff56, 0x3c7ffd56, 0x3cfff556, 0x3d7fd558,
+    0x3dff5578, 0x3e7d5777, 0x3ef57744, 0x3f000000, 0x3f576aa5, 0x3f800000,
+  ],
+  [
+    # 0x38800000, 0x38ffffff, 0x397fffff, 0x39ffffff, 0x3a7ffffd, 0x3afffff5, 0x3b7fffd5, 0x3bffff55, 0x3c7ffd55, 0x3cfff555, 0x3d7fd557,
+    0x3dff5577, 0x3e7d5776, 0x3ef57743, 0x3f000000, 0x3f576aa5, 0x3f800000,
+  ],
+  [
+    # 0x38800000, 0x39000000, 0x39800000, 0x3a000000, 0x3a7ffffe, 0x3afffff6, 0x3b7fffd6, 0x3bffff56, 0x3c7ffd56, 0x3cfff556, 0x3d7fd558,
+    0x3dff5578, 0x3e7d5777, 0x3ef57744, 0x3f000000, 0x3f576aa5, 0x3f800000,
+  ],
 ]
 
-for xmin, xmax, mode in [(mn, mx, m) for mn, mx in ranges for m in [0,1,2,3]]:
+for xmin, xmax, mode in [(mn, mx, m) for m, s in enumerate(split) for mn, mx in zip(s[:-1], s[1:])]:
   np.random.seed(1)
 
   def plot(x, y, name, color, y_range=None):
     data = pd.DataFrame(odict([('x', x), ('y', y)]))
-    cvs = ds.Canvas(plot_width=1600, plot_height=900, y_range=y_range)
+    cvs = ds.Canvas(plot_width=1600, plot_height=500, y_range=y_range)
     agg = cvs.points(data, 'x','y')
     img = tf.shade(agg, cmap=list(color))
     export_image(img, f'{build}/asinf-{xmin:08x}-{xmax:08x}-{mode}-{name}', background='black')
 
-  beg = 0
-  end = 0x3e7d5777-xmin
-
-  # beg = 0x3e7d5777-xmin
-  # end = beg+0x3ee74e97-0x3e7d5777
-
   with open(f'{build}/x-{xmin:08x}-{xmax:08x}.dat', 'wb') as out:
     for i in range(xmin,xmax):
       out.write(struct.pack('i',i))
-  xf = np.fromfile(open(f'{build}/x-{xmin:08x}-{xmax:08x}.dat', 'rb'), dtype=np.float32)[beg:end:step]
+  xf = np.fromfile(open(f'{build}/x-{xmin:08x}-{xmax:08x}.dat', 'rb'), dtype=np.float32)[::step]
   x = np.float64(xf)
   os.remove(f'{build}/x-{xmin:08x}-{xmax:08x}.dat')
 
-  ms_asinf = np.fromfile(open(f"{build}/asinf-{xmin:08x}-{xmax:08x}-{mode}-windows.dat", 'rb'), dtype=np.float32)[beg:end:step]
-  wn_asinf = np.fromfile(open(f"{build}/asinf-{xmin:08x}-{xmax:08x}-{mode}-wine.dat", 'rb'), dtype=np.float32)[beg:end:step]
-  md_asinf = np.fromfile(open(f"{build}/asinf-{xmin:08x}-{xmax:08x}-{mode}-bf-maddx.dat", 'rb'), dtype=np.float32)[beg:end:step]
-  bf_asin = np.fromfile(open(f"{build}/asinf-{xmin:08x}-{xmax:08x}-{mode}-bf-asin.dat", 'rb'), dtype=np.float64)[beg:end:step]
-  bf_asinf = np.fromfile(open(f"{build}/asinf-{xmin:08x}-{xmax:08x}-{mode}-bf-asinf.dat", 'rb'), dtype=np.float32)[beg:end:step]
+  ms_asinf = np.fromfile(open(f"{build}/asinf-{xmin:08x}-{xmax:08x}-{mode}-windows.dat", 'rb'), dtype=np.float32)[::step]
+  wn_asinf = np.fromfile(open(f"{build}/asinf-{xmin:08x}-{xmax:08x}-{mode}-wine.dat", 'rb'), dtype=np.float32)[::step]
+  md_asinf = np.fromfile(open(f"{build}/asinf-{xmin:08x}-{xmax:08x}-{mode}-bf-maddx.dat", 'rb'), dtype=np.float32)[::step]
+  # bf_asin = np.fromfile(open(f"{build}/asinf-{xmin:08x}-{xmax:08x}-{mode}-bf-asin.dat", 'rb'), dtype=np.float64)[::step]
+  # bf_asinf = np.fromfile(open(f"{build}/asinf-{xmin:08x}-{xmax:08x}-{mode}-bf-asinf.dat", 'rb'), dtype=np.float32)[::step]
   np_asin = np.arcsin(x)
   np_asinf = np.arcsin(xf)
-  asin = bf_asin
-  asinf = bf_asinf
+  asin = np_asin
+  asinf = np_asinf
 
   diff = np.where(ms_asinf != wn_asinf)
   print(f'{len(diff[0])} differences')
@@ -72,7 +66,7 @@ for xmin, xmax, mode in [(mn, mx, m) for mn, mx in ranges for m in [0,1,2,3]]:
   round_err = (np.float64(asinf) - asin)**2
   core_err = (np.float64((np.float32(1./6.)+core) * xf * xf * xf + xf) - asin)**2
   np_err = (np.float64(np_asinf) - asin)**2
-  bf_err = (np.float64(bf_asinf) - asin)**2
+  # bf_err = (np.float64(bf_asinf) - asin)**2
   ms_err = (np.float64(ms_asinf) - asin)**2
   wn_err = (np.float64(wn_asinf) - asin)**2
   md_err = (np.float64(md_asinf) - asin)**2
@@ -101,9 +95,9 @@ for xmin, xmax, mode in [(mn, mx, m) for mn, mx in ranges for m in [0,1,2,3]]:
   # plot(x, round_err, 'round', RdBu9) #, y_range=(ymin, ymax))
   # plot(x, core_err, 'core', RdBu9, y_range=(ymin, ymax))
   plot(x, ms_err, 'windows', RdBu9, y_range=(ymin, ymax))
-  plot(x, wn_err, 'wine', PiYG9, y_range=(ymin, ymax))
-  plot(x, np_err, 'numpy', PiYG9, y_range=(ymin, ymax))
-  # plot(x, md_err, 'maddx', PiYG9, y_range=(ymin, ymax))
+  plot(x, wn_err, 'wine', RdBu9, y_range=(ymin, ymax))
+  # plot(x, np_err, 'numpy', PiYG9, y_range=(ymin, ymax))
+  plot(x, md_err, 'maddx', PiYG9, y_range=(ymin, ymax))
 
   # # agg = cvs.points(dists['rd'],'x','y')
   # # img = tf.shade(agg, cmap=list(PiYG9))
