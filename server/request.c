@@ -161,6 +161,7 @@ void *set_reply_data_size( data_size_t size )
     assert( size <= get_reply_max_size() );
     if (size > current->rep_data_size)
     {
+        if (current->rep_data) free( current->rep_data );
         if (!(current->rep_data = mem_alloc( size ))) size = 0;
         current->rep_data_size = size;
     }
