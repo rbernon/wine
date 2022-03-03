@@ -617,12 +617,54 @@ static const IMFAsyncCallbackVtbl source_async_commands_callback_vtbl =
     source_async_commands_Invoke,
 };
 
+static void handle_input_request(struct media_source *source, QWORD file_size,
+        void **buffer, size_t *buffer_size, uint64_t offset, uint32_t size)
+{
+    IMFByteStream *byte_stream = source->byte_stream;
+    ULONG ret_size = 0;
+    HRESULT hr;
+    void *data;
+
+    if (offset >= file_size)
+        size = 0;
+    else if (offset + size >= file_size)
+        size = file_size - offset;
+
+    if (!array_reserve(buffer, buffer_size, size, 1))
+    {
+        wg_parser_push_data(source->wg_parser, NULL, 0);
+        return;
+    }
+    data = *buffer;
+
+    /* Some IMFByteStreams (including the standard file-based stream) return
+     * an error when reading past the file size. */
+
+    if (!size)
+        hr = S_OK;
+    else if (SUCCEEDED(hr = IMFByteStream_SetCurrentPosition(byte_stream, offset)))
+        hr = IMFByteStream_Read(byte_stream, data, size, &ret_size);
+
+    if (FAILED(hr))
+    {
+        ERR("Failed to read %u bytes at offset %I64u, hr %#lx.\n", size, offset, hr);
+        data = NULL;
+    }
+    else if (ret_size != size)
+    {
+        ERR("Unexpected short read: requested %u bytes, got %lu.\n", size, ret_size);
+        size = ret_size;
+    }
+
+    wg_parser_push_data(source->wg_parser, data, size);
+}
+
 static DWORD CALLBACK read_thread(void *arg)
 {
     struct media_source *source = arg;
     IMFByteStream *byte_stream = source->byte_stream;
     size_t buffer_size = 4096;
-    uint64_t file_size;
+    QWORD file_size;
     void *data;
 
     if (!(data = malloc(buffer_size)))
@@ -635,41 +677,12 @@ static DWORD CALLBACK read_thread(void *arg)
     while (!source->read_thread_shutdown)
     {
         uint64_t offset;
-        ULONG ret_size;
         uint32_t size;
-        HRESULT hr;
 
         if (!wg_parser_get_next_read_offset(source->wg_parser, &offset, &size))
             continue;
 
-        if (offset >= file_size)
-            size = 0;
-        else if (offset + size >= file_size)
-            size = file_size - offset;
-
-        /* Some IMFByteStreams (including the standard file-based stream) return
-         * an error when reading past the file size. */
-        if (!size)
-        {
-            wg_parser_push_data(source->wg_parser, data, 0);
-            continue;
-        }
-
-        if (!array_reserve(&data, &buffer_size, size, 1))
-        {
-            free(data);
-            return 0;
-        }
-
-        ret_size = 0;
-
-        if (SUCCEEDED(hr = IMFByteStream_SetCurrentPosition(byte_stream, offset)))
-            hr = IMFByteStream_Read(byte_stream, data, size, &ret_size);
-        if (FAILED(hr))
-            ERR("Failed to read %u bytes at offset %I64u, hr %#lx.\n", size, offset, hr);
-        else if (ret_size != size)
-            ERR("Unexpected short read: requested %u bytes, got %lu.\n", size, ret_size);
-        wg_parser_push_data(source->wg_parser, SUCCEEDED(hr) ? data : NULL, ret_size);
+        handle_input_request(source, file_size, &data, &buffer_size, offset, size);
     }
 
     free(data);

@@ -1100,12 +1100,41 @@ static DWORD CALLBACK stream_thread(void *arg)
     return 0;
 }
 
+static void handle_input_request(struct parser *filter, LONGLONG file_size,
+        void **buffer, size_t *buffer_size, uint64_t offset, uint32_t size)
+{
+    HRESULT hr;
+    void *data;
+
+    if (offset >= file_size)
+        size = 0;
+    else if (offset + size >= file_size)
+        size = file_size - offset;
+
+    if (!array_reserve(buffer, buffer_size, size, 1))
+    {
+        wg_parser_push_data(filter->wg_parser, NULL, 0);
+        return;
+    }
+    data = *buffer;
+
+    hr = IAsyncReader_SyncRead(filter->reader, offset, size, data);
+
+    if (FAILED(hr))
+    {
+        ERR("Failed to read %u bytes at offset %I64u, hr %#lx.\n", size, offset, hr);
+        data = NULL;
+    }
+
+    wg_parser_push_data(filter->wg_parser, data, size);
+}
+
 static DWORD CALLBACK read_thread(void *arg)
 {
     struct parser *filter = arg;
     LONGLONG file_size, unused;
     size_t buffer_size = 4096;
-    void *data = NULL;
+    void *data;
 
     if (!(data = malloc(buffer_size)))
         return 0;
@@ -1118,27 +1147,11 @@ static DWORD CALLBACK read_thread(void *arg)
     {
         uint64_t offset;
         uint32_t size;
-        HRESULT hr;
 
         if (!wg_parser_get_next_read_offset(filter->wg_parser, &offset, &size))
             continue;
 
-        if (offset >= file_size)
-            size = 0;
-        else if (offset + size >= file_size)
-            size = file_size - offset;
-
-        if (!array_reserve(&data, &buffer_size, size, 1))
-        {
-            free(data);
-            return 0;
-        }
-
-        hr = IAsyncReader_SyncRead(filter->reader, offset, size, data);
-        if (FAILED(hr))
-            ERR("Failed to read %u bytes at offset %I64u, hr %#lx.\n", size, offset, hr);
-
-        wg_parser_push_data(filter->wg_parser, SUCCEEDED(hr) ? data : NULL, size);
+        handle_input_request(filter, file_size, &data, &buffer_size, offset, size);
     }
 
     free(data);

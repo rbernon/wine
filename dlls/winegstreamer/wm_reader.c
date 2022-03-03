@@ -586,6 +586,59 @@ static const IWMMediaPropsVtbl stream_props_vtbl =
     stream_props_SetMediaType,
 };
 
+static void handle_input_request(struct wm_reader *reader, uint64_t file_size,
+        void **buffer, size_t *buffer_size, uint64_t offset, uint32_t size)
+{
+    IStream *stream = reader->source_stream;
+    LARGE_INTEGER large_offset;
+    HANDLE file = reader->file;
+    ULONG ret_size = 0;
+    HRESULT hr;
+    void *data;
+
+    if (offset >= file_size)
+        size = 0;
+    else if (offset + size >= file_size)
+        size = file_size - offset;
+
+    if (!array_reserve(buffer, buffer_size, size, 1))
+    {
+        wg_parser_push_data(reader->wg_parser, NULL, 0);
+        return;
+    }
+    data = *buffer;
+
+    large_offset.QuadPart = offset;
+    if (!size)
+        hr = S_OK;
+    else if (file)
+    {
+        if (!SetFilePointerEx(file, large_offset, NULL, FILE_BEGIN)
+                || !ReadFile(file, data, size, &ret_size, NULL))
+            hr = HRESULT_FROM_WIN32(GetLastError());
+        else
+            hr = S_OK;
+    }
+    else
+    {
+        if (SUCCEEDED(hr = IStream_Seek(stream, large_offset, STREAM_SEEK_SET, NULL)))
+            hr = IStream_Read(stream, data, size, &ret_size);
+    }
+
+    if (FAILED(hr))
+    {
+        ERR("Failed to read %u bytes at offset %I64u, hr %#lx.\n", size, offset, hr);
+        data = NULL;
+    }
+    else if (ret_size != size)
+    {
+        ERR("Unexpected short read: requested %u bytes, got %lu.\n", size, ret_size);
+        size = ret_size;
+    }
+
+    wg_parser_push_data(reader->wg_parser, data, size);
+}
+
 static DWORD CALLBACK read_thread(void *arg)
 {
     struct wm_reader *reader = arg;
@@ -617,60 +670,13 @@ static DWORD CALLBACK read_thread(void *arg)
 
     while (!reader->read_thread_shutdown)
     {
-        LARGE_INTEGER large_offset;
         uint64_t offset;
-        ULONG ret_size;
         uint32_t size;
-        HRESULT hr;
 
         if (!wg_parser_get_next_read_offset(reader->wg_parser, &offset, &size))
             continue;
 
-        if (offset >= file_size)
-            size = 0;
-        else if (offset + size >= file_size)
-            size = file_size - offset;
-
-        if (!size)
-        {
-            wg_parser_push_data(reader->wg_parser, data, 0);
-            continue;
-        }
-
-        if (!array_reserve(&data, &buffer_size, size, 1))
-        {
-            free(data);
-            return 0;
-        }
-
-        ret_size = 0;
-
-        large_offset.QuadPart = offset;
-        if (file)
-        {
-            if (!SetFilePointerEx(file, large_offset, NULL, FILE_BEGIN)
-                    || !ReadFile(file, data, size, &ret_size, NULL))
-            {
-                ERR("Failed to read %u bytes at offset %I64u, error %lu.\n", size, offset, GetLastError());
-                wg_parser_push_data(reader->wg_parser, NULL, 0);
-                continue;
-            }
-        }
-        else
-        {
-            if (SUCCEEDED(hr = IStream_Seek(stream, large_offset, STREAM_SEEK_SET, NULL)))
-                hr = IStream_Read(stream, data, size, &ret_size);
-            if (FAILED(hr))
-            {
-                ERR("Failed to read %u bytes at offset %I64u, hr %#lx.\n", size, offset, hr);
-                wg_parser_push_data(reader->wg_parser, NULL, 0);
-                continue;
-            }
-        }
-
-        if (ret_size != size)
-            ERR("Unexpected short read: requested %u bytes, got %lu.\n", size, ret_size);
-        wg_parser_push_data(reader->wg_parser, data, ret_size);
+        handle_input_request(reader, file_size, &data, &buffer_size, offset, size);
     }
 
     free(data);
