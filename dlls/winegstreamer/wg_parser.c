@@ -111,7 +111,6 @@ struct wg_parser_stream
 
     pthread_cond_t event_cond, event_empty_cond;
     GstBuffer *buffer;
-    GstMapInfo map_info;
 
     bool flushing, eos, enabled, has_caps, has_tags, has_buffer, no_more_pads;
 
@@ -356,6 +355,7 @@ static NTSTATUS wg_parser_stream_copy_buffer(void *args)
     struct wg_parser *parser = stream->parser;
     uint32_t offset = params->offset;
     uint32_t size = params->size;
+    GstMapInfo map_info;
 
     pthread_mutex_lock(&parser->mutex);
 
@@ -365,9 +365,18 @@ static NTSTATUS wg_parser_stream_copy_buffer(void *args)
         return VFW_E_WRONG_STATE;
     }
 
-    assert(offset < stream->map_info.size);
-    assert(offset + size <= stream->map_info.size);
-    memcpy(params->data, stream->map_info.data + offset, size);
+    if (!gst_buffer_map(stream->buffer, &map_info, GST_MAP_READ))
+    {
+        pthread_mutex_unlock(&parser->mutex);
+        GST_ERROR("Failed to map buffer.\n");
+        return E_FAIL;
+    }
+
+    assert(offset < map_info.size);
+    assert(offset + size <= map_info.size);
+    memcpy(params->data, map_info.data + offset, size);
+
+    gst_buffer_unmap(stream->buffer, &map_info);
 
     pthread_mutex_unlock(&parser->mutex);
     return S_OK;
@@ -382,7 +391,6 @@ static NTSTATUS wg_parser_stream_release_buffer(void *args)
 
     assert(stream->buffer);
 
-    gst_buffer_unmap(stream->buffer, &stream->map_info);
     gst_buffer_unref(stream->buffer);
     stream->buffer = NULL;
 
@@ -584,7 +592,6 @@ static gboolean sink_event_cb(GstPad *pad, GstObject *parent, GstEvent *event)
 
                 if (stream->buffer)
                 {
-                    gst_buffer_unmap(stream->buffer, &stream->map_info);
                     gst_buffer_unref(stream->buffer);
                     stream->buffer = NULL;
                 }
@@ -673,14 +680,6 @@ static GstFlowReturn sink_chain_cb(GstPad *pad, GstObject *parent, GstBuffer *bu
         GST_DEBUG("Stream is flushing; discarding buffer.");
         gst_buffer_unref(buffer);
         return GST_FLOW_FLUSHING;
-    }
-
-    if (!gst_buffer_map(buffer, &stream->map_info, GST_MAP_READ))
-    {
-        pthread_mutex_unlock(&parser->mutex);
-        GST_ERROR("Failed to map buffer.\n");
-        gst_buffer_unref(buffer);
-        return GST_FLOW_ERROR;
     }
 
     stream->buffer = buffer;
