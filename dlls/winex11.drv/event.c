@@ -577,7 +577,7 @@ static void set_input_focus( struct x11drv_win_data *data )
 static void set_focus( Display *display, HWND hwnd, Time time )
 {
     HWND focus;
-    Window win;
+    Window window;
     GUITHREADINFO threadinfo;
 
     TRACE( "setting foreground window to %p\n", hwnd );
@@ -588,12 +588,12 @@ static void set_focus( Display *display, HWND hwnd, Time time )
     focus = threadinfo.hwndFocus;
     if (!focus) focus = threadinfo.hwndActive;
     if (focus) focus = NtUserGetAncestor( focus, GA_ROOT );
-    win = X11DRV_get_whole_window(focus);
+    if (focus == hwnd && !use_take_focus) return;
 
-    if (win)
+    if ((window = X11DRV_get_whole_window( focus )))
     {
-        TRACE( "setting focus to %p (%lx) time=%ld\n", focus, win, time );
-        XSetInputFocus( display, win, RevertToParent, time );
+        TRACE( "setting focus to %p/%lx, time %lu\n", focus, window, time );
+        XSetInputFocus( display, window, RevertToParent, time );
     }
 }
 
@@ -795,8 +795,9 @@ static BOOL X11DRV_FocusIn( HWND hwnd, XEvent *xev )
         if (!hwnd) hwnd = get_active_window();
         if (!hwnd) hwnd = x11drv_thread_data()->last_focus;
         if (hwnd && can_activate_window(hwnd)) set_focus( event->display, hwnd, CurrentTime );
+        return TRUE;
     }
-    else NtUserSetForegroundWindow( hwnd );
+    else set_focus( event->display, hwnd, CurrentTime );
     return TRUE;
 }
 
