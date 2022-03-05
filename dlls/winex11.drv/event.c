@@ -571,16 +571,48 @@ static void set_input_focus( struct x11drv_win_data *data )
 
 }
 
+
+static HWND find_activatable_window( HWND hwnd, BOOL check )
+{
+    LRESULT result;
+
+    if (can_activate_window( hwnd ))
+    {
+        if (!check) return hwnd;
+
+        /* simulate a mouse click on the menu to find out
+         * whether the window wants to be activated */
+        result = send_message( hwnd, WM_MOUSEACTIVATE, (WPARAM)NtUserGetAncestor( hwnd, GA_ROOT ),
+                               MAKELONG( HTMENU, WM_LBUTTONDOWN ) );
+        if (result != MA_NOACTIVATEANDEAT && result != MA_NOACTIVATE) return hwnd;
+    }
+
+    if (hwnd == NtUserGetDesktopWindow()) hwnd = NtUserGetForegroundWindow();
+    else
+    {
+        hwnd = get_focus();
+        if (hwnd) hwnd = NtUserGetAncestor( hwnd, GA_ROOT );
+        if (!hwnd) hwnd = get_active_window();
+    }
+
+    if (!hwnd) hwnd = x11drv_thread_data()->last_focus;
+    if (!hwnd) hwnd = NtUserGetDesktopWindow();
+
+    if (!can_activate_window( hwnd )) return 0;
+    return hwnd;
+}
+
 /**********************************************************************
  *              set_focus
  */
-static void set_focus( Display *display, HWND hwnd, Time time )
+static void set_focus( Display *display, HWND hwnd, Time time, BOOL check )
 {
     HWND focus;
     Window window;
     GUITHREADINFO threadinfo;
 
-    TRACE( "setting foreground window to %p\n", hwnd );
+    if (!(focus = find_activatable_window( hwnd, check ))) return;
+    TRACE( "setting foreground window to %p\n", focus );
     NtUserSetForegroundWindow( hwnd );
 
     threadinfo.cbSize = sizeof(threadinfo);
@@ -686,33 +718,7 @@ static void handle_wm_protocols( HWND hwnd, XClientMessageEvent *event )
                (int)NtUserGetWindowLongW(hwnd, GWL_STYLE),
                get_focus(), get_active_window(), NtUserGetForegroundWindow(), last_focus );
 
-        if (can_activate_window(hwnd))
-        {
-            /* simulate a mouse click on the menu to find out
-             * whether the window wants to be activated */
-            LRESULT ma = send_message( hwnd, WM_MOUSEACTIVATE,
-                                       (WPARAM)NtUserGetAncestor( hwnd, GA_ROOT ),
-                                       MAKELONG( HTMENU, WM_LBUTTONDOWN ) );
-            if (ma != MA_NOACTIVATEANDEAT && ma != MA_NOACTIVATE)
-            {
-                set_focus( event->display, hwnd, event_time );
-                return;
-            }
-        }
-        else if (hwnd == NtUserGetDesktopWindow())
-        {
-            hwnd = NtUserGetForegroundWindow();
-            if (!hwnd) hwnd = last_focus;
-            if (!hwnd) hwnd = NtUserGetDesktopWindow();
-            set_focus( event->display, hwnd, event_time );
-            return;
-        }
-        /* try to find some other window to give the focus to */
-        hwnd = get_focus();
-        if (hwnd) hwnd = NtUserGetAncestor( hwnd, GA_ROOT );
-        if (!hwnd) hwnd = get_active_window();
-        if (!hwnd) hwnd = last_focus;
-        if (hwnd && can_activate_window(hwnd)) set_focus( event->display, hwnd, event_time );
+        set_focus( event->display, hwnd, event_time, TRUE );
     }
     else if (protocol == x11drv_atom(_NET_WM_PING))
     {
@@ -788,16 +794,7 @@ static BOOL X11DRV_FocusIn( HWND hwnd, XEvent *xev )
 
     if (use_take_focus) return TRUE;
 
-    if (!can_activate_window(hwnd))
-    {
-        HWND hwnd = get_focus();
-        if (hwnd) hwnd = NtUserGetAncestor( hwnd, GA_ROOT );
-        if (!hwnd) hwnd = get_active_window();
-        if (!hwnd) hwnd = x11drv_thread_data()->last_focus;
-        if (hwnd && can_activate_window(hwnd)) set_focus( event->display, hwnd, CurrentTime );
-        return TRUE;
-    }
-    else set_focus( event->display, hwnd, CurrentTime );
+    set_focus( event->display, hwnd, CurrentTime, FALSE );
     return TRUE;
 }
 
