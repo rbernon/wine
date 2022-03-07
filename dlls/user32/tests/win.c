@@ -3490,13 +3490,11 @@ static void check_z_order_debug(HWND hwnd, HWND next, HWND prev, HWND owner,
 static void test_popup_zorder(HWND hwnd_D, HWND hwnd_E, DWORD style)
 {
     HWND hwnd_A, hwnd_B, hwnd_C, hwnd_F;
+    BOOL ret;
 
     /* Give current thread foreground state otherwise the tests may fail. */
-    if (!SetForegroundWindow(hwnd_D))
-    {
-        skip("SetForegroundWindow not working\n");
-        return;
-    }
+    ret = SetForegroundWindow(hwnd_D);
+    ok(ret, "SetForegroundWindow failed, error %lu\n", GetLastError());
 
     SetWindowPos(hwnd_E, hwnd_D, 0,0,0,0, SWP_NOSIZE|SWP_NOMOVE|SWP_NOACTIVATE);
 
@@ -3958,11 +3956,8 @@ static void test_SetForegroundWindow(HWND hwnd)
     check_wnd_state(hwnd, hwnd, hwnd, 0);
 
     ret = SetForegroundWindow(hwnd);
-    if (!ret)
-    {
-        skip( "SetForegroundWindow not working\n" );
-        return;
-    }
+    ok(ret, "SetForegroundWindow failed, error %lu\n", GetLastError());
+
     check_wnd_state(hwnd, hwnd, hwnd, 0);
 
     SetLastError(0xdeadbeef);
@@ -11633,19 +11628,15 @@ static void reset_window_state(HWND *state, int n)
 static void test_topmost(void)
 {
     HWND owner, hwnd, hwnd2, hwnd_child, hwnd_child2, hwnd_grandchild, state[6] = { 0 };
-    BOOL is_wine = !strcmp(winetest_platform, "wine");
+    BOOL ret, is_wine = !strcmp(winetest_platform, "wine");
 
     owner = create_tool_window(WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX |
                               WS_MAXIMIZEBOX | WS_POPUP | WS_VISIBLE, 0);
     ok(owner != 0, "Failed to create owner window (%ld)\n", GetLastError());
 
     /* Give current thread foreground state otherwise the tests may fail. */
-    if (!SetForegroundWindow(owner))
-    {
-        DestroyWindow(owner);
-        skip("SetForegroundWindow not working\n");
-        return;
-    }
+    ret = SetForegroundWindow(owner);
+    ok(ret, "SetForegroundWindow failed, error %lu\n", GetLastError());
 
     hwnd = create_tool_window(WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX |
                               WS_MAXIMIZEBOX | WS_POPUP | WS_VISIBLE, owner);
