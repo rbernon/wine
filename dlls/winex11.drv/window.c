@@ -99,10 +99,6 @@ XContext winContext = 0;
 /* X context to associate a struct x11drv_win_data to an hwnd */
 static XContext win_data_context = 0;
 
-/* time of last user event and window where it's stored */
-static Time last_user_time;
-static Window user_time_window;
-
 static const WCHAR foreign_window_prop[] =
     {'_','_','w','i','n','e','_','x','1','1','_','f','o','r','e','i','g','n','_','w','i','n','d','o','w',0};
 static const WCHAR whole_window_prop[] =
@@ -132,7 +128,7 @@ static void remove_startup_notification(Display *display, Window window)
 
     if (!(id = getenv( "DESKTOP_STARTUP_ID" )) || !id[0]) return;
 
-    if ((src = strstr( id, "_TIME" ))) update_user_time( atol( src + 5 ));
+    if ((src = strstr( id, "_TIME" ))) set_window_user_time( display, window, atol( src + 5 ) );
 
     pos = snprintf(message, sizeof(message), "remove: ID=");
     message[pos++] = '"';
@@ -884,11 +880,6 @@ static void set_initial_wm_hints( Display *display, Window window )
 
     XChangeProperty( display, window, x11drv_atom(XdndAware),
                      XA_ATOM, 32, PropModeReplace, (unsigned char*)&dndVersion, 1 );
-
-    update_user_time( 0 );  /* make sure that the user time window exists */
-    if (user_time_window)
-        XChangeProperty( display, window, x11drv_atom(_NET_WM_USER_TIME_WINDOW),
-                         XA_WINDOW, 32, PropModeReplace, (unsigned char *)&user_time_window, 1 );
 }
 
 
@@ -955,28 +946,17 @@ Window init_clip_window(void)
 
 
 /***********************************************************************
- *     update_user_time
+ *     set_window_user_time
  */
-void update_user_time( Time time )
+void set_window_user_time( Display *display, Window window, Time time )
 {
-    if (!user_time_window)
-    {
-        Window win = XCreateWindow( gdi_display, root_window, -1, -1, 1, 1, 0, CopyFromParent,
-                                    InputOnly, CopyFromParent, 0, NULL );
-        if (InterlockedCompareExchangePointer( (void **)&user_time_window, (void *)win, 0 ))
-            XDestroyWindow( gdi_display, win );
-        TRACE( "user time window %lx\n", user_time_window );
-    }
+    if (!window || window == root_window) return;
 
-    if (!time) return;
-    XLockDisplay( gdi_display );
-    if (!last_user_time || (long)(time - last_user_time) > 0)
-    {
-        last_user_time = time;
-        XChangeProperty( gdi_display, user_time_window, x11drv_atom(_NET_WM_USER_TIME),
-                         XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&time, 1 );
-    }
-    XUnlockDisplay( gdi_display );
+    TRACE( "display %p, window %lx, time %lu\n", display, window, time );
+
+    if (time == -1) XDeleteProperty( display, window, x11drv_atom(_NET_WM_USER_TIME) );
+    else XChangeProperty( display, window, x11drv_atom(_NET_WM_USER_TIME), XA_CARDINAL, 32,
+                          PropModeReplace, (unsigned char *)&time, 1 );
 }
 
 static void update_desktop_fullscreen( Display *display )

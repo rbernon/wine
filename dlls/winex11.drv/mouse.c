@@ -1535,7 +1535,7 @@ BOOL X11DRV_ButtonPress( HWND hwnd, XEvent *xev )
     input.mi.time        = x11drv_time_to_ticks( event->time );
     input.mi.dwExtraInfo = 0;
 
-    update_user_time( event->time );
+    set_window_user_time( event->display, event->window, event->time );
     map_event_coords( hwnd, event->window, event->root, event->x_root, event->y_root, &input );
     send_mouse_input( hwnd, event->window, event->state, &input );
     return TRUE;
