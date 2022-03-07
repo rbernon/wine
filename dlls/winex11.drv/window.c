@@ -1248,6 +1248,8 @@ static void map_window( HWND hwnd, DWORD new_style )
         {
             update_net_wm_states( data );
             sync_window_style( data );
+            if (hwnd == NtUserGetForegroundWindow()) set_window_user_time( data->display, data->whole_window, -1 );
+            else set_window_user_time( data->display, data->whole_window, 0 );
             XMapWindow( data->display, data->whole_window );
             /* Mutter always unminimizes windows when handling map requests. Restore iconic state */
             if (new_style & WS_MINIMIZE)
@@ -2818,7 +2820,12 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
             if (data->iconic)
                 XIconifyWindow( data->display, data->whole_window, data->vis.screen );
             else if (is_window_rect_mapped( rectWindow ))
+            {
+                BOOL activate = (hwnd == NtUserGetForegroundWindow());
+                if (!activate) set_window_user_time( data->display, data->whole_window, 0 );
                 XMapWindow( data->display, data->whole_window );
+                if (activate) X11DRV_SetActiveWindow( hwnd, 0 );
+            }
             update_net_wm_states( data );
         }
         else
