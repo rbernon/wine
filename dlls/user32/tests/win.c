@@ -1454,10 +1454,6 @@ static void test_nonclient_area(HWND hwnd)
     GetWindowRect(hwnd, &rc_window);
     GetClientRect(hwnd, &rc_client);
 
-    /* avoid some cases when things go wrong */
-    if (IsRectEmpty(&rc_window) || IsRectEmpty(&rc_client) ||
-	rc_window.right > 32768 || rc_window.bottom > 32768) return;
-
     rc = rc_client;
     MapWindowPoints(hwnd, 0, (LPPOINT)&rc, 2);
     FixedAdjustWindowRectEx(&rc, style, menu, exstyle);
@@ -4317,7 +4313,7 @@ static void test_capture_4(void)
                           WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 0,
                           400, 200, NULL, NULL, hInstance, NULL);
     ok(hwnd != NULL, "CreateWindowEx failed with error %ld\n", GetLastError());
-    if (!hwnd) return;
+
     hmenu = CreatePopupMenu();
 
     ret = AppendMenuA( hmenu, MF_STRING, 1, "winetest2");
@@ -4382,11 +4378,8 @@ static void test_keyboard_input(HWND hwnd)
     ok(GetFocus() == hwnd, "wrong focus window %p\n", GetFocus());
 
     keybd_event(VK_SPACE, 0, 0, 0);
-    if (!peek_message(&msg))
-    {
-        skip( "keybd_event didn't work, skipping keyboard test\n" );
-        return;
-    }
+    ret = peek_message(&msg);
+    ok( ret, "message %04x available\n", msg.message);
     ok(msg.hwnd == hwnd && msg.message == WM_KEYDOWN, "hwnd %p message %04x\n", msg.hwnd, msg.message);
     ret = peek_message(&msg);
     ok( !ret, "message %04x available\n", msg.message);
@@ -11323,12 +11316,6 @@ static void test_LockWindowUpdate(HWND parent)
         {parent, parent, 1, 1}
     };
 
-    if (!child)
-    {
-        skip("CreateWindow failed, skipping LockWindowUpdate tests\n");
-        return;
-    }
-
     ShowWindow(parent, SW_SHOW);
     UpdateWindow(parent);
     flush_events(TRUE);
@@ -12215,11 +12202,6 @@ static void test_destroy_quit(void)
             "destroy test main", WS_OVERLAPPED | WS_CAPTION, 100, 100, 100, 100,
             0, 0, GetModuleHandleA(NULL), NULL);
     ok(destroy_data.main_wnd != NULL, "CreateWindowEx failed with error %ld\n", GetLastError());
-    if (!destroy_data.main_wnd)
-    {
-        CloseHandle(destroy_data.evt);
-        return;
-    }
 
     thread1 = CreateThread(NULL, 0, destroy_thread1, 0, 0, NULL);
 
