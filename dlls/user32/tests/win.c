@@ -1162,10 +1162,11 @@ static LRESULT WINAPI tool_window_procA(HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 static const WCHAR mainclassW[] = {'M','a','i','n','W','i','n','d','o','w','C','l','a','s','s','W',0};
 
-static BOOL RegisterWindowClasses(void)
+static void RegisterWindowClasses(void)
 {
     WNDCLASSW clsW;
     WNDCLASSA cls;
+    BOOL ret;
 
     cls.style = CS_DBLCLKS;
     cls.lpfnWndProc = main_window_procA;
@@ -1178,7 +1179,8 @@ static BOOL RegisterWindowClasses(void)
     cls.lpszMenuName = NULL;
     cls.lpszClassName = "MainWindowClass";
 
-    if(!RegisterClassA(&cls)) return FALSE;
+    ret = RegisterClassA(&cls);
+    ok(ret, "RegisterClassA failed, error %lu\n", GetLastError());
 
     clsW.style = CS_DBLCLKS;
     clsW.lpfnWndProc = main_window_procW;
@@ -1191,7 +1193,8 @@ static BOOL RegisterWindowClasses(void)
     clsW.lpszMenuName = NULL;
     clsW.lpszClassName = mainclassW;
 
-    if(!RegisterClassW(&clsW)) return FALSE;
+    ret = RegisterClassW(&clsW);
+    ok(ret, "RegisterClassW failed, error %lu\n", GetLastError());
 
     cls.style = 0;
     cls.lpfnWndProc = tool_window_procA;
@@ -1204,9 +1207,8 @@ static BOOL RegisterWindowClasses(void)
     cls.lpszMenuName = NULL;
     cls.lpszClassName = "ToolWindowClass";
 
-    if(!RegisterClassA(&cls)) return FALSE;
-
-    return TRUE;
+    ret = RegisterClassA(&cls);
+    ok(ret, "RegisterClassA failed, error %lu\n", GetLastError());
 }
 
 static void verify_window_info(const char *hook, HWND hwnd, const WINDOWINFO *info)
@@ -2500,9 +2502,10 @@ static LRESULT WINAPI mdi_main_wnd_procA(HWND hwnd, UINT msg, WPARAM wparam, LPA
     return DefFrameProcA(hwnd, mdi_client, msg, wparam, lparam);
 }
 
-static BOOL mdi_RegisterWindowClasses(void)
+static void mdi_RegisterWindowClasses(void)
 {
     WNDCLASSA cls;
+    BOOL ret;
 
     cls.style = 0;
     cls.lpfnWndProc = mdi_main_wnd_procA;
@@ -2514,17 +2517,18 @@ static BOOL mdi_RegisterWindowClasses(void)
     cls.hbrBackground = GetStockObject(WHITE_BRUSH);
     cls.lpszMenuName = NULL;
     cls.lpszClassName = "MDI_parent_Class";
-    if(!RegisterClassA(&cls)) return FALSE;
+    ret = RegisterClassA(&cls);
+    ok(ret, "RegisterClassA failed, error %lu\n", GetLastError());
 
     cls.lpfnWndProc = mdi_child_wnd_proc_1;
     cls.lpszClassName = "MDI_child_Class_1";
-    if(!RegisterClassA(&cls)) return FALSE;
+    ret = RegisterClassA(&cls);
+    ok(ret, "RegisterClassA failed, error %lu\n", GetLastError());
 
     cls.lpfnWndProc = mdi_child_wnd_proc_2;
     cls.lpszClassName = "MDI_child_Class_2";
-    if(!RegisterClassA(&cls)) return FALSE;
-
-    return TRUE;
+    ret = RegisterClassA(&cls);
+    ok(ret, "RegisterClassA failed, error %lu\n", GetLastError());
 }
 
 static void test_mdi(void)
@@ -2537,7 +2541,7 @@ static void test_mdi(void)
     MSG msg;
     HMENU frame_menu, child_menu;
 
-    if (!mdi_RegisterWindowClasses()) assert(0);
+    mdi_RegisterWindowClasses();
 
     mdi_hwndMain = CreateWindowExA(0, "MDI_parent_Class", "MDI parent window",
                                    WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX |
@@ -5997,9 +6001,10 @@ static void test_AWRwindow(LPCSTR class, LONG style, LONG exStyle, BOOL menu)
     DestroyWindow(hwnd);
 }
 
-static BOOL AWR_init(void)
+static void AWR_init(void)
 {
     WNDCLASSA class;
+    BOOL ret;
 
     class.style         = CS_HREDRAW | CS_VREDRAW;
     class.lpfnWndProc     = DefWindowProcA;
@@ -6012,18 +6017,12 @@ static BOOL AWR_init(void)
     class.lpszMenuName  = 0;
     class.lpszClassName = szAWRClass;
 
-    if (!RegisterClassA(&class)) {
-	ok(FALSE, "RegisterClass failed\n");
-	return FALSE;
-    }
+    ret = RegisterClassA(&class);
+    ok(ret, "RegisterClassA failed, error %lu\n", GetLastError());
 
     hmenu = CreateMenu();
-    if (!hmenu)
-	return FALSE;
     ok(hmenu != 0, "Failed to create menu\n");
     ok(AppendMenuA(hmenu, MF_STRING, 1, "Test!"), "Failed to create menu item\n");
-
-    return TRUE;
 }
 
 
@@ -6090,8 +6089,7 @@ static void test_AWR_flags(void)
 
 static void test_AdjustWindowRect(void)
 {
-    if (!AWR_init())
-	return;
+    AWR_init();
     
     SHOWSYSMETRIC(SM_CYCAPTION);
     SHOWSYSMETRIC(SM_CYSMCAPTION);
@@ -13091,7 +13089,7 @@ START_TEST(win)
         return;
     }
 
-    if (!RegisterWindowClasses()) assert(0);
+    RegisterWindowClasses();
 
     hwndMain = CreateWindowExA(/*WS_EX_TOOLWINDOW*/ 0, "MainWindowClass", "Main window",
                                WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX |
