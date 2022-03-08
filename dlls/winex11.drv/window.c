@@ -3289,8 +3289,17 @@ void init_win_context(void)
     cursor_context = XUniqueContext();
 }
 
+static int handle_hwnd_for_window_error( Display *display, XErrorEvent *event, void *arg )
+{
+    return 1;
+}
+
 HWND get_hwnd_for_window( Display *display, Window window )
 {
+    unsigned long count, remaining;
+    unsigned char *property;
+    int format;
+    Atom type;
     HWND hwnd;
 
     if (!window) return 0;
@@ -3300,8 +3309,15 @@ HWND get_hwnd_for_window( Display *display, Window window )
 
     if (!XFindContext( display, window, winContext, (char **)&hwnd )) return hwnd;
 
-    WARN( "Failed to find HWND for window %lx\n", window );
-    return 0;
+    hwnd = 0;
+    X11DRV_expect_error( display, handle_hwnd_for_window_error, NULL );
+    if (XGetWindowProperty( display, window, x11drv_atom(_WINE_HWND), 0, ~0UL, False, XA_CARDINAL,
+                            &type, &format, &count, &remaining, &property )) count = 0;
+    if (!X11DRV_check_error() && count && format == 32 && property) hwnd = *(HWND *)property;
+    else WARN("Failed to find HWND for window %lx\n", window);
+    XFree(property);
+
+    return hwnd;
 }
 
 void set_hwnd_for_window( Display *display, Window window, HWND hwnd )
@@ -3312,4 +3328,8 @@ void set_hwnd_for_window( Display *display, Window window, HWND hwnd )
 
     if (!hwnd) XDeleteContext( display, window, winContext );
     else XSaveContext( display, window, winContext, (char *)hwnd );
+
+    if (!hwnd) XDeleteProperty( display, window, x11drv_atom(_WINE_HWND) );
+    else XChangeProperty( display, window, x11drv_atom(_WINE_HWND), XA_CARDINAL, 32,
+                          PropModeReplace, (unsigned char *)&hwnd, sizeof(hwnd) / 4 );
 }

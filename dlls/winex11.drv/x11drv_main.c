@@ -184,6 +184,7 @@ static const char * const atom_names[NB_XATOMS - FIRST_XATOM] =
     "_GTK_WORKAREAS_D0",
     "_XEMBED",
     "_XEMBED_INFO",
+    "_WINE_HWND",
     "XdndAware",
     "XdndEnter",
     "XdndPosition",
@@ -228,6 +229,8 @@ static inline BOOL ignore_error( Display *display, XErrorEvent *event )
     if ((event->request_code == X_SetInputFocus ||
          event->request_code == X_ChangeWindowAttributes ||
          event->request_code == X_ConfigureWindow ||
+         event->request_code == X_ChangeProperty ||
+         event->request_code == X_DeleteProperty ||
          event->request_code == X_SendEvent) &&
         (event->error_code == BadMatch ||
          event->error_code == BadWindow)) return TRUE;
