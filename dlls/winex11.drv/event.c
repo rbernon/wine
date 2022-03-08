@@ -643,13 +643,17 @@ static void set_foreground_window( HWND hwnd )
 /**********************************************************************
  *              set_focus
  */
-static void set_focus( Display *display, HWND hwnd, Time time, BOOL check )
+static void set_focus( Display *display, Window window, HWND hwnd, Time time, BOOL check )
 {
     HWND focus;
-    Window window;
     GUITHREADINFO threadinfo;
+    Time user_time;
 
-    if (!(focus = find_activatable_window( hwnd, time, check ))) return;
+    /* if the window was never activated and never received user input, it should not activate on focus change */
+    if (!get_window_user_time( display, window, &user_time ) || user_time) focus = hwnd;
+    else focus = NtUserGetForegroundWindow();
+
+    if (!(focus = find_activatable_window( focus, time, check ))) return;
     TRACE( "setting foreground window to %p\n", focus );
     set_foreground_window( focus );
 
@@ -756,7 +760,7 @@ static void handle_wm_protocols( HWND hwnd, XClientMessageEvent *event )
                (int)NtUserGetWindowLongW(hwnd, GWL_STYLE),
                get_focus(), get_active_window(), NtUserGetForegroundWindow(), last_focus );
 
-        set_focus( event->display, hwnd, event_time, TRUE );
+        set_focus( event->display, event->window, hwnd, event_time, TRUE );
     }
     else if (protocol == x11drv_atom(_NET_WM_PING))
     {
@@ -832,7 +836,7 @@ static BOOL X11DRV_FocusIn( HWND hwnd, XEvent *xev )
 
     if (use_take_focus) return TRUE;
 
-    set_focus( event->display, hwnd, CurrentTime, FALSE );
+    set_focus( event->display, event->window, hwnd, CurrentTime, FALSE );
     return TRUE;
 }
 
