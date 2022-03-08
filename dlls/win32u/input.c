@@ -1505,7 +1505,7 @@ HWND get_focus(void)
  *
  * Change the focus window, sending the WM_SETFOCUS and WM_KILLFOCUS messages
  */
-static HWND set_focus_window( HWND hwnd )
+static HWND set_focus_window( HWND hwnd, HWND last_focus )
 {
     HWND previous = 0, ime_hwnd;
     BOOL ret;
@@ -1518,7 +1518,8 @@ static HWND set_focus_window( HWND hwnd )
     }
     SERVER_END_REQ;
     if (!ret) return 0;
-    if (previous == hwnd) return previous;
+    if (!last_focus) last_focus = previous;
+    if (last_focus == hwnd) return previous;
 
     if (previous)
     {
@@ -1651,7 +1652,7 @@ static BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus )
         if (hwnd == info.hwndActive)
         {
             if (!info.hwndFocus || !hwnd || NtUserGetAncestor( info.hwndFocus, GA_ROOT ) != hwnd)
-                set_focus_window( hwnd );
+                set_focus_window( hwnd, 0 );
         }
     }
 
@@ -1745,7 +1746,7 @@ HWND WINAPI NtUserSetFocus( HWND hwnd )
     }
 
     /* change focus and send messages */
-    return set_focus_window( hwnd );
+    return set_focus_window( hwnd, previous );
 }
 
 /*******************************************************************
