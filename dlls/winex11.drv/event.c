@@ -572,9 +572,18 @@ static void set_input_focus( struct x11drv_win_data *data )
 }
 
 
-static HWND find_activatable_window( HWND hwnd, BOOL check )
+static HWND find_activatable_window( HWND hwnd, Time time, BOOL check )
 {
+    struct x11drv_thread_data *thread_data = x11drv_thread_data();
+    int time_since_activation = x11drv_time_to_ticks( time ) - thread_data->activating_time;
+    HWND foreground = NtUserGetForegroundWindow();
     LRESULT result;
+
+    TRACE( "time_since_activation %d, hwnd %p, foreground %p\n", time_since_activation, hwnd, foreground );
+
+    /* prefer Wine foreground window over X11 window if SetActiveWindow was very recently called */
+    if (thread_data->activating_time && time_since_activation < 200) return foreground;
+    thread_data->activating_time = 0;
 
     if (can_activate_window( hwnd ))
     {
@@ -611,7 +620,7 @@ static void set_focus( Display *display, HWND hwnd, Time time, BOOL check )
     Window window;
     GUITHREADINFO threadinfo;
 
-    if (!(focus = find_activatable_window( hwnd, check ))) return;
+    if (!(focus = find_activatable_window( hwnd, time, check ))) return;
     TRACE( "setting foreground window to %p\n", focus );
     NtUserSetForegroundWindow( hwnd );
 
@@ -1379,6 +1388,23 @@ void wait_for_withdrawn_state( HWND hwnd, BOOL set )
         }
     }
     release_win_data( data );
+}
+
+
+/***********************************************************************
+ *      SetActiveWindow  (X11DRV.@)
+ */
+void X11DRV_SetActiveWindow( HWND hwnd, HWND prev )
+{
+    struct x11drv_thread_data *thread_data;
+
+    if (is_virtual_desktop()) return;
+    if (!hwnd || hwnd == NtUserGetDesktopWindow()) return;
+    if (!(thread_data = x11drv_init_thread_data())) return;
+
+    TRACE( "hwnd %p, prev %p\n", hwnd, prev );
+
+    thread_data->activating_time = NtGetTickCount();
 }
 
 
