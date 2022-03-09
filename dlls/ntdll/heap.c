@@ -25,7 +25,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#define RUNNING_ON_VALGRIND 0  /* FIXME */
+#include "valgrind/valgrind.h"
+#include "valgrind/memcheck.h"
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
