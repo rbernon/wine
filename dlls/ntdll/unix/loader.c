@@ -537,6 +537,9 @@ char *get_alternate_wineloader( WORD machine )
     return remove_tail( wineloader, "64" );
 }
 
+#ifndef RUNNING_ON_VALGRIND
+#define RUNNING_ON_VALGRIND 0
+#endif
 
 static void preloader_exec( char **argv )
 {
