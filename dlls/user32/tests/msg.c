@@ -2631,6 +2631,28 @@ static void flush_sequence(void)
     LeaveCriticalSection( &sequence_cs );
 }
 
+static DWORD wait_for_events( DWORD count, HANDLE *events, DWORD timeout )
+{
+    DWORD ret, end = GetTickCount() + timeout;
+    MSG msg;
+
+    while ((ret = MsgWaitForMultipleObjects( count, events, FALSE, timeout, QS_ALLINPUT )) <= count)
+    {
+        while (PeekMessageA( &msg, 0, 0, 0, PM_REMOVE ))
+        {
+            TranslateMessage( &msg );
+            DispatchMessageA( &msg );
+        }
+        if (ret < count) return ret;
+        if (timeout == INFINITE) continue;
+        if (end <= GetTickCount()) timeout = 0;
+        else timeout = end - GetTickCount();
+    }
+
+    ok( ret == WAIT_TIMEOUT, "MsgWaitForMultipleObjects returned %#lx\n", ret );
+    return ret;
+}
+
 static const char* message_type_name(int flags) {
     if (flags & hook) return "hook";
     if (flags & kbd_hook) return "kbd_hook";
@@ -9899,7 +9921,6 @@ static DWORD CALLBACK create_grand_child_thread( void *param )
 {
     struct wnd_event *wnd_event = param;
     HWND hchild;
-    MSG msg;
 
     hchild = CreateWindowExA(0, "TestWindowClass", "Test child",
                              WS_CHILD | WS_VISIBLE, 0, 0, 10, 10, wnd_event->hwnd, 0, 0, NULL);
@@ -9910,9 +9931,8 @@ static DWORD CALLBACK create_grand_child_thread( void *param )
 
     for (;;)
     {
-        MsgWaitForMultipleObjects(0, NULL, FALSE, 1000, QS_ALLINPUT);
+        wait_for_events( 0, NULL, 1000 );
         if (!IsWindow( hchild )) break;  /* will be destroyed when parent thread exits */
-        while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE)) DispatchMessageA(&msg);
     }
     return 0;
 }
@@ -9922,7 +9942,6 @@ static DWORD CALLBACK create_child_thread( void *param )
     struct wnd_event *wnd_event = param;
     struct wnd_event child_event;
     DWORD ret, tid;
-    MSG msg;
 
     child_event.hwnd = CreateWindowExA(0, "TestWindowClass", "Test child",
                              WS_CHILD | WS_VISIBLE, 0, 0, 10, 10, wnd_event->hwnd, 0, 0, NULL);
@@ -9932,12 +9951,8 @@ static DWORD CALLBACK create_child_thread( void *param )
     flush_sequence();
     child_event.start_event = wnd_event->start_event;
     wnd_event->grand_child = CreateThread(NULL, 0, create_grand_child_thread, &child_event, 0, &tid);
-    for (;;)
-    {
-        DWORD ret = MsgWaitForMultipleObjects(1, &child_event.start_event, FALSE, 1000, QS_SENDMESSAGE);
-        if (ret != 1) break;
-        while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE)) DispatchMessageA(&msg);
-    }
+    ret = wait_for_events( 1, &child_event.start_event, 1000 );
+    ok( !ret, "wait_for_events returned %lx\n", ret );
     ret = WaitForSingleObject( wnd_event->stop_event, 5000 );
     ok( !ret, "WaitForSingleObject failed %lx\n", ret );
     return 0;
@@ -10077,13 +10092,8 @@ static void test_interthread_messages(void)
     wnd_event.start_event = CreateEventA( NULL, TRUE, FALSE, NULL );
     wnd_event.stop_event = CreateEventA( NULL, TRUE, FALSE, NULL );
     hThread = CreateThread( NULL, 0, create_child_thread, &wnd_event, 0, &tid );
-    for (;;)
-    {
-        ret = MsgWaitForMultipleObjects(1, &wnd_event.start_event, FALSE, 1000, QS_SENDMESSAGE);
-        if (ret != 1) break;
-        while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE)) DispatchMessageA(&msg);
-    }
-    ok( !ret, "MsgWaitForMultipleObjects failed %x\n", ret );
+    ret = wait_for_events( 1, &wnd_event.start_event, 1000 );
+    ok( !ret, "wait_for_events returned %x\n", ret );
     /* now wait for the thread without processing messages; this shouldn't deadlock */
     SetEvent( wnd_event.stop_event );
     ret = WaitForSingleObject( hThread, 5000 );
@@ -13051,15 +13061,6 @@ static DWORD CALLBACK send_msg_thread( LPVOID arg )
     return 0;
 }
 
-static void wait_for_thread( HANDLE thread )
-{
-    while (MsgWaitForMultipleObjects(1, &thread, FALSE, INFINITE, QS_SENDMESSAGE) != WAIT_OBJECT_0)
-    {
-        MSG msg;
-        while (PeekMessageA( &msg, 0, 0, 0, PM_REMOVE )) DispatchMessageA(&msg);
-    }
-}
-
 static LRESULT WINAPI send_msg_delay_proc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     if (message == WM_USER) Sleep(200);
@@ -13084,7 +13085,7 @@ static void test_SendMessageTimeout(void)
     ResetEvent( info.ready );
     thread = CreateThread( NULL, 0, send_msg_thread, &info, 0, &tid );
     WaitForSingleObject( info.ready, INFINITE );
-    wait_for_thread( thread );
+    wait_for_events( 1, &thread, INFINITE );
     CloseHandle( thread );
     ok( info.ret == 1, "SendMessageTimeout failed\n" );
     ok_sequence( WmUser, "WmUser", FALSE );
@@ -13095,7 +13096,7 @@ static void test_SendMessageTimeout(void)
     thread = CreateThread( NULL, 0, send_msg_thread, &info, 0, &tid );
     WaitForSingleObject( info.ready, INFINITE );
     Sleep(100);  /* SendMessageTimeout should time out here */
-    wait_for_thread( thread );
+    wait_for_events( 1, &thread, INFINITE );
     CloseHandle( thread );
     ok( info.ret == 0, "SendMessageTimeout succeeded\n" );
     ok_sequence( WmEmptySeq, "WmEmptySeq", FALSE );
@@ -13107,7 +13108,7 @@ static void test_SendMessageTimeout(void)
     thread = CreateThread( NULL, 0, send_msg_thread, &info, 0, &tid );
     WaitForSingleObject( info.ready, INFINITE );
     Sleep(100);
-    wait_for_thread( thread );
+    wait_for_events( 1, &thread, INFINITE );
     CloseHandle( thread );
     is_win9x = !info.ret;
     if (is_win9x) ok_sequence( WmEmptySeq, "WmEmptySeq", FALSE );
@@ -13120,7 +13121,7 @@ static void test_SendMessageTimeout(void)
     thread = CreateThread( NULL, 0, send_msg_thread, &info, 0, &tid );
     WaitForSingleObject( info.ready, INFINITE );
     Sleep(100);
-    wait_for_thread( thread );
+    wait_for_events( 1, &thread, INFINITE );
     CloseHandle( thread );
     ok( info.ret == 1, "SendMessageTimeout failed\n" );
     ok_sequence( WmUser, "WmUser", FALSE );
@@ -13131,7 +13132,7 @@ static void test_SendMessageTimeout(void)
     thread = CreateThread( NULL, 0, send_msg_thread, &info, 0, &tid );
     WaitForSingleObject( info.ready, INFINITE );
     Sleep(100);
-    wait_for_thread( thread );
+    wait_for_events( 1, &thread, INFINITE );
     CloseHandle( thread );
     if (is_win9x)
     {
@@ -13151,7 +13152,7 @@ static void test_SendMessageTimeout(void)
     ResetEvent( info.ready );
     thread = CreateThread( NULL, 0, send_msg_thread, &info, 0, &tid );
     WaitForSingleObject( info.ready, INFINITE );
-    wait_for_thread( thread );
+    wait_for_events( 1, &thread, INFINITE );
     CloseHandle( thread );
     /* we should time out but still get the message */
     ok( info.ret == 0, "SendMessageTimeout failed\n" );
