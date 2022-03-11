@@ -16311,7 +16311,7 @@ static void test_set_active_window_recursive(HWND hwnd, HWND hwnd2)
 
     flush_sequence();
     SetActiveWindow(hwnd);
-    ok_sequence(RecursiveActivationSeq, "recursive activation", TRUE);
+    ok_sequence(RecursiveActivationSeq, "recursive activation", FALSE);
 
     DestroyWindow(hwnd2);
     DestroyWindow(hwnd);
