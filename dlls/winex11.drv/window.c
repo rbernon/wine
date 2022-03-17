@@ -1085,6 +1085,8 @@ static void update_net_wm_fullscreen_monitors( struct x11drv_win_data *data )
 void update_net_wm_states( struct x11drv_win_data *data )
 {
     UINT i, style, ex_style, new_state = 0;
+    RECT window_rect, client_rect;
+    BOOL fullscreen;
 
     if (!data->managed) return;
     if (data->whole_window == root_window)
@@ -1094,9 +1096,20 @@ void update_net_wm_states( struct x11drv_win_data *data )
     }
 
     style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE );
+    ex_style = NtUserGetWindowLongW( data->hwnd, GWL_EXSTYLE );
+    if (!(fullscreen = NtUserIsWindowRectFullScreen( &data->whole_rect )))
+    {
+        client_rect = data->client_rect;
+        OffsetRect( &client_rect, -client_rect.left, -client_rect.top );
+        window_rect = client_rect;
+        AdjustWindowRectEx( &window_rect, style, 0, ex_style );
+        OffsetRect( &window_rect, data->window_rect.left - window_rect.left, data->window_rect.top - window_rect.top );
+        fullscreen = EqualRect( &window_rect, &data->window_rect ) && NtUserIsWindowRectFullScreen( &client_rect );
+    }
+
     if (style & WS_MINIMIZE)
         new_state |= data->net_wm_state & ((1 << NET_WM_STATE_FULLSCREEN)|(1 << NET_WM_STATE_MAXIMIZED));
-    if (NtUserIsWindowRectFullScreen( &data->whole_rect ))
+    if (fullscreen)
     {
         if ((style & WS_MAXIMIZE) && (style & WS_CAPTION) == WS_CAPTION)
             new_state |= (1 << NET_WM_STATE_MAXIMIZED);
