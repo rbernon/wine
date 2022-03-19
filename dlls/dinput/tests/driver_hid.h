@@ -304,7 +304,8 @@ static inline NTSTATUS winetest_init(void)
     ZwUnmapViewOfSection( NtCurrentProcess(), addr );
     ZwClose( section );
 
-    RtlInitUnicodeString( &string, L"\\??\\C:\\windows\\winetest_dinput_okfile" );
+    if (running_under_wine) RtlInitUnicodeString( &string, L"\\??\\C:\\windows\\winetest_dinput_okfile" );
+    else RtlInitUnicodeString( &string, L"\\??\\Z:\\build-wine\\winetest_dinput_okfile" );
     return ZwOpenFile( &okfile, FILE_APPEND_DATA | SYNCHRONIZE, &attr, &io,
                        FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_SYNCHRONOUS_IO_NONALERT );
 }
