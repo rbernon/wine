@@ -472,10 +472,8 @@ void bus_device_stop(void)
     WCHAR path[MAX_PATH], dest[MAX_PATH], *filepart;
     const WCHAR *service_name = L"winetest_bus";
     SC_HANDLE manager, service;
-    char buffer[512];
     HDEVINFO set;
     HANDLE file;
-    DWORD size;
     BOOL ret;
 
     if (!test_data) return;
@@ -512,15 +510,6 @@ void bus_device_stop(void)
     else ok( GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST, "got error %lu\n", GetLastError() );
 
     CloseServiceHandle( manager );
-
-    SetFilePointer( okfile, 0, NULL, FILE_BEGIN );
-    do
-    {
-        ReadFile( okfile, buffer, sizeof(buffer), &size, NULL );
-        printf( "%.*s", (int)size, buffer );
-    } while (size == sizeof(buffer));
-    SetFilePointer( okfile, 0, NULL, FILE_BEGIN );
-    SetEndOfFile( okfile );
 
     InterlockedAdd( &winetest_successes, InterlockedExchange( &test_data->successes, 0 ) );
     winetest_add_failures( InterlockedExchange( &test_data->failures, 0 ) );
@@ -3678,6 +3667,7 @@ void run_in_desktop_( const char *file, int line, const char *test_name,
 
 void dinput_test_init_( const char *file, int line )
 {
+    const WCHAR *path;
     BOOL is_wow64;
 
     monitor_stop = CreateEventW( NULL, FALSE, FALSE, NULL );
@@ -3716,8 +3706,10 @@ void dinput_test_init_( const char *file, int line )
     test_data->winetest_report_success = winetest_report_success;
     test_data->winetest_debug = winetest_debug;
 
-    okfile = CreateFileW( L"C:\\windows\\winetest_dinput_okfile", GENERIC_READ | GENERIC_WRITE,
-                          FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, 0, NULL );
+    if (!strcmp( winetest_platform, "wine" )) path = L"\\??\\C:\\windows\\winetest_dinput_okfile";
+    else path = L"\\??\\Z:\\build-wine\\winetest_dinput_okfile";
+    okfile = CreateFileW( path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                          NULL, CREATE_ALWAYS, 0, NULL );
     ok_(file, line)( okfile != INVALID_HANDLE_VALUE, "failed to create file, error %lu\n", GetLastError() );
 
     subtest_(file, line)( "hid" );
@@ -3734,7 +3726,6 @@ void dinput_test_exit(void)
     UnmapViewOfFile( test_data );
     CloseHandle( test_data_mapping );
     CloseHandle( okfile );
-    DeleteFileW( L"C:\\windows\\winetest_dinput_okfile" );
 
     SetEvent( monitor_stop );
     ret = WaitForSingleObject( monitor_thread, 5000 );
