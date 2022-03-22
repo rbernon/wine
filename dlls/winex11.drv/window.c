@@ -1233,6 +1233,9 @@ static void map_window( HWND hwnd, DWORD new_style )
             update_net_wm_states( data );
             sync_window_style( data );
             XMapWindow( data->display, data->whole_window );
+            /* Mutter always unminimizes windows when handling map requests. Restore iconic state */
+            if (new_style & WS_MINIMIZE)
+                XIconifyWindow( data->display, data->whole_window, data->vis.screen );
             XFlush( data->display );
             if (data->surface && data->vis.visualid != default_visual.visualid)
                 data->surface->funcs->flush( data->surface );
