@@ -870,7 +870,9 @@ static NTSTATUS pdo_pnp( DEVICE_OBJECT *device, IRP *irp )
         case EjectionRelations:
             if (winetest_debug > 1) trace( "pdo_pnp IRP_MN_QUERY_DEVICE_RELATIONS EjectionRelations\n" );
             ok( !irp->IoStatus.Information, "got unexpected EjectionRelations relations\n" );
-            status = irp->IoStatus.Status;
+            irp->IoStatus.Information = get_device_relations( device, (void *)irp->IoStatus.Information, 1, &device );
+            if (!irp->IoStatus.Information) status = STATUS_NO_MEMORY;
+            else status = STATUS_SUCCESS;
             break;
         case RemovalRelations:
             if (winetest_debug > 1) trace( "pdo_pnp IRP_MN_QUERY_DEVICE_RELATIONS RemovalRelations\n" );
