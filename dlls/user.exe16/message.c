@@ -1392,7 +1392,7 @@ LRESULT WINPROC_CallProc32ATo16( winproc_callback16_t callback, HWND hwnd, UINT 
     case LB_GETSELITEMS:
         {
             INT *items32 = (INT *)lParam;
-            INT16 *items, buffer[512];
+            INT16 *items, buffer[512] = {0};
             unsigned int i;
 
             wParam = min( wParam, 0x7f80 ); /* Must be < 64K */
@@ -1458,7 +1458,7 @@ LRESULT WINPROC_CallProc32ATo16( winproc_callback16_t callback, HWND hwnd, UINT 
     case CB_GETDROPPEDCONTROLRECT:
         {
             RECT *r32 = (RECT *)lParam;
-            RECT16 rect;
+            RECT16 rect = {0};
             lParam = MapLS( &rect );
             ret = callback( HWND_16(hwnd),
                             (msg == LB_GETITEMRECT) ? LB_GETITEMRECT16 : CB_GETDROPPEDCONTROLRECT16,
