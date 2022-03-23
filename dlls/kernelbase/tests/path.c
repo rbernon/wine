@@ -1189,7 +1189,7 @@ static void test_PathCchCanonicalize(void)
 
 static void test_PathCchCanonicalizeEx(void)
 {
-    WCHAR path_inW[PATHCCH_MAX_CCH + 1], path_outW[PATHCCH_MAX_CCH];
+    WCHAR path_inW[PATHCCH_MAX_CCH + 1] = {0}, path_outW[PATHCCH_MAX_CCH];
     CHAR path_outA[4096];
     BOOL skip_new_flags = TRUE;
     HRESULT hr;
