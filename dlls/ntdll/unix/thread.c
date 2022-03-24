@@ -1171,25 +1171,28 @@ NTSTATUS init_thread_stack( TEB *teb, ULONG_PTR zero_bits, SIZE_T reserve_size, 
 #ifdef _WIN64
         /* 32-bit stack */
         if ((status = virtual_alloc_thread_stack( &stack, zero_bits ? zero_bits : 0x7fffffff,
-                                                  reserve_size, commit_size, 0 )))
+                                                  reserve_size, commit_size )))
             return status;
         wow_teb->Tib.StackBase = PtrToUlong( stack.StackBase );
         wow_teb->Tib.StackLimit = PtrToUlong( stack.StackLimit );
         wow_teb->DeallocationStack = PtrToUlong( stack.DeallocationStack );
 
         /* 64-bit stack */
-        if ((status = virtual_alloc_thread_stack( &stack, 0, 0x40000, 0x40000, kernel_stack_size )))
+        if ((status = virtual_alloc_thread_stack( &stack, 0, 0x40000, 0x40000 )))
             return status;
         cpu = (WOW64_CPURESERVED *)(((ULONG_PTR)stack.StackBase - cpusize) & ~15);
         cpu->Machine = main_image_info.Machine;
         teb->Tib.StackBase = teb->TlsSlots[WOW64_TLS_CPURESERVED] = cpu;
         teb->Tib.StackLimit = stack.StackLimit;
         teb->DeallocationStack = stack.DeallocationStack;
-        thread_data->kernel_stack = stack.StackBase;
+
+        if ((status = virtual_alloc_thread_stack( &stack, 0, kernel_stack_size, kernel_stack_size )))
+            return status;
+        thread_data->kernel_stack = stack.DeallocationStack;
         return STATUS_SUCCESS;
 #else
         /* 64-bit stack */
-        if ((status = virtual_alloc_thread_stack( &stack, 0, 0x40000, 0x40000, 0 ))) return status;
+        if ((status = virtual_alloc_thread_stack( &stack, 0, 0x40000, 0x40000 ))) return status;
 
         cpu = (WOW64_CPURESERVED *)(((ULONG_PTR)stack.StackBase - cpusize) & ~15);
         cpu->Machine = main_image_info.Machine;
@@ -1200,13 +1203,15 @@ NTSTATUS init_thread_stack( TEB *teb, ULONG_PTR zero_bits, SIZE_T reserve_size, 
     }
 
     /* native stack */
-    if ((status = virtual_alloc_thread_stack( &stack, zero_bits, reserve_size,
-                                              commit_size, kernel_stack_size )))
+    if ((status = virtual_alloc_thread_stack( &stack, zero_bits, reserve_size, commit_size )))
         return status;
     teb->Tib.StackBase = stack.StackBase;
     teb->Tib.StackLimit = stack.StackLimit;
     teb->DeallocationStack = stack.DeallocationStack;
-    thread_data->kernel_stack = stack.StackBase;
+
+    if ((status = virtual_alloc_thread_stack( &stack, 0, kernel_stack_size, kernel_stack_size )))
+        return status;
+    thread_data->kernel_stack = stack.DeallocationStack;
     return STATUS_SUCCESS;
 }
 
@@ -1357,8 +1362,7 @@ NTSTATUS WINAPI NtCreateThreadEx( HANDLE *handle, ACCESS_MASK access, OBJECT_ATT
     thread_data->param = param;
 
     pthread_attr_init( &pthread_attr );
-    pthread_attr_setstack( &pthread_attr, teb->DeallocationStack,
-                           (char *)thread_data->kernel_stack + kernel_stack_size - (char *)teb->DeallocationStack );
+    pthread_attr_setstack( &pthread_attr, thread_data->kernel_stack, kernel_stack_size );
     pthread_attr_setguardsize( &pthread_attr, 0 );
     pthread_attr_setscope( &pthread_attr, PTHREAD_SCOPE_SYSTEM ); /* force creating a kernel thread */
     InterlockedIncrement( &nb_threads );

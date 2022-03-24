@@ -3116,8 +3116,9 @@ NTSTATUS virtual_clear_tls_index( ULONG index )
  *           virtual_alloc_thread_stack
  */
 NTSTATUS virtual_alloc_thread_stack( INITIAL_TEB *stack, ULONG_PTR zero_bits, SIZE_T reserve_size,
-                                     SIZE_T commit_size, SIZE_T extra_size )
+                                     SIZE_T commit_size )
 {
+    unsigned int vprot = VPROT_READ | VPROT_WRITE | VPROT_COMMITTED;
     struct file_view *view;
     NTSTATUS status;
     sigset_t sigset;
@@ -3132,8 +3133,8 @@ NTSTATUS virtual_alloc_thread_stack( INITIAL_TEB *stack, ULONG_PTR zero_bits, SI
 
     server_enter_uninterrupted_section( &virtual_mutex, &sigset );
 
-    if ((status = map_view( &view, NULL, size + extra_size, FALSE,
-                            VPROT_READ | VPROT_WRITE | VPROT_COMMITTED, get_zero_bits_mask( zero_bits ), 0 ))
+    if ((status = map_view( &view, NULL, size, FALSE,
+                            vprot, get_zero_bits_mask( zero_bits ), 0 ))
                             != STATUS_SUCCESS)
         goto done;
 
@@ -3147,23 +3148,6 @@ NTSTATUS virtual_alloc_thread_stack( INITIAL_TEB *stack, ULONG_PTR zero_bits, SI
                     VPROT_READ | VPROT_WRITE | VPROT_COMMITTED | VPROT_GUARD );
     mprotect_range( view->base, 2 * page_size, 0, 0 );
     VIRTUAL_DEBUG_DUMP_VIEW( view );
-
-    if (extra_size)
-    {
-        struct file_view *extra_view;
-
-        /* shrink the first view and create a second one for the extra size */
-        /* this allows the app to free the stack without freeing the thread start portion */
-        view->size -= extra_size;
-        status = create_view( &extra_view, (char *)view->base + view->size, extra_size,
-                              VPROT_READ | VPROT_WRITE | VPROT_COMMITTED );
-        if (status != STATUS_SUCCESS)
-        {
-            view->size += extra_size;
-            delete_view( view );
-            goto done;
-        }
-    }
 
     /* note: limit is lower than base since the stack grows down */
     stack->OldStackBase = 0;
