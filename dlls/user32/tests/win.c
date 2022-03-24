@@ -150,13 +150,19 @@ static void check_active_state_(const char *file, int line,
     ok_(file, line)(focus == GetFocus(), "GetFocus() = %p\n", GetFocus());
 }
 
-static BOOL ignore_message( UINT message, HWND hwnd )
+static BOOL ignore_message( UINT message, HWND hwnd, BOOL ignore_moves )
 {
     WCHAR buffer[256];
 
     if (GetClassNameW( hwnd, buffer, ARRAY_SIZE(buffer) ) == 22 &&
         !wcscmp( buffer, L"UserAdapterWindowClass" ))
         return TRUE;
+
+    if (message == WM_MOUSEMOVE ||
+        message == WM_NCMOUSEMOVE)
+        return ignore_moves;
+    if (message == WM_PAINT)
+        return !ignore_moves;
 
     /* these are always ignored */
     return (message >= 0xc000 ||
@@ -4347,7 +4353,7 @@ static BOOL peek_message( MSG *msg )
     do
     {
         ret = PeekMessageA(msg, 0, 0, 0, PM_REMOVE);
-    } while (ret && ignore_message(msg->message, msg->hwnd));
+    } while (ret && ignore_message(msg->message, msg->hwnd, TRUE));
     return ret;
 }
 
@@ -4483,13 +4489,14 @@ static void test_mouse_input(HWND hwnd)
     /* Check that setting the same position may generate WM_MOUSEMOVE */
     SetCursorPos(x, y);
     msg.message = 0;
-    ret = peek_message(&msg);
-    if (ret)
+    while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE))
     {
-        ok(msg.hwnd == popup && msg.message == WM_MOUSEMOVE, "hwnd %p message %04x\n",
-           msg.hwnd, msg.message);
-        ok(msg.pt.x == x && msg.pt.y == y, "wrong message coords (%d,%d)/(%ld,%ld)\n",
-           x, y, msg.pt.x, msg.pt.y);
+        if (ignore_message(msg.message, msg.hwnd, FALSE)) continue;
+        ok(msg.message == WM_MOUSEMOVE, "got message %04x\n", msg.message);
+        ok(msg.hwnd == popup, "got hwnd %p\n", msg.hwnd);
+        ok(msg.pt.x == x, "got x %ld\n", msg.pt.x);
+        ok(msg.pt.y == y, "got y %ld\n", msg.pt.y);
+        DispatchMessageA(&msg);
     }
 
     /* force the system to update its internal queue mouse position,
@@ -4504,9 +4511,9 @@ static void test_mouse_input(HWND hwnd)
     /* FIXME: SetCursorPos in Wine generates additional WM_MOUSEMOVE message */
     while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE))
     {
-        if (ignore_message(msg.message, msg.hwnd)) continue;
-        ok(msg.hwnd == popup && msg.message == WM_MOUSEMOVE,
-           "hwnd %p message %04x\n", msg.hwnd, msg.message);
+        if (ignore_message(msg.message, msg.hwnd, FALSE)) continue;
+        ok(msg.message == WM_MOUSEMOVE, "got message %04x\n", msg.message);
+        ok(msg.hwnd == popup, "got hwnd %p\n", msg.hwnd);
         DispatchMessageA(&msg);
     }
     ret = peek_message(&msg);
@@ -4514,9 +4521,14 @@ static void test_mouse_input(HWND hwnd)
 
     mouse_event(MOUSEEVENTF_MOVE, -1, -1, 0, 0);
     ShowWindow(popup, SW_HIDE);
-    ret = wait_for_message( &msg );
-    if (ret)
-        ok(msg.hwnd == hwnd && msg.message == WM_MOUSEMOVE, "hwnd %p message %04x\n", msg.hwnd, msg.message);
+    while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE))
+    {
+        if (ignore_message(msg.message, msg.hwnd, FALSE)) continue;
+        ok(msg.message == WM_MOUSEMOVE, "got message %04x\n", msg.message);
+        ok(msg.hwnd == hwnd, "got hwnd %p\n", msg.hwnd);
+        DispatchMessageA(&msg);
+    }
+
     flush_events( TRUE );
 
     mouse_event(MOUSEEVENTF_MOVE, 1, 1, 0, 0);
@@ -4545,12 +4557,6 @@ static void test_mouse_input(HWND hwnd)
         skip( "simulating mouse click doesn't work, skipping mouse button tests\n" );
         goto done;
     }
-    if (msg.message == WM_MOUSEMOVE)  /* win2k has an extra WM_MOUSEMOVE here */
-    {
-        ret = wait_for_message( &msg );
-        ok(ret, "no message available\n");
-    }
-
     ok(msg.hwnd == popup && msg.message == WM_LBUTTONDOWN, "hwnd %p/%p message %04x\n",
        msg.hwnd, popup, msg.message);
 
@@ -4625,12 +4631,6 @@ static void test_mouse_input(HWND hwnd)
 
     ret = wait_for_message( &msg );
     ok(ret, "no message available\n");
-    if (msg.message == WM_NCMOUSEMOVE) /* not sent by Win10 1709+ */
-    {
-        ok(msg.hwnd == child, "expected %p, got %p\n", child, msg.hwnd);
-        ret = wait_for_message( &msg );
-        ok(ret, "no message available\n");
-    }
     ok(msg.hwnd == child && msg.message == WM_NCLBUTTONDOWN, "hwnd %p/%p message %04x\n",
        msg.hwnd, child, msg.message);
     ok(msg.wParam == HTSYSMENU, "wparam %Id\n", msg.wParam);
