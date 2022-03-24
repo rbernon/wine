@@ -917,13 +917,11 @@ static void test_thread_exit_destroy(void)
     ret = SetWindowPos( child2, HWND_TOPMOST, 0, 0, 100, 100, SWP_NOSIZE|SWP_NOMOVE );
     todo_wine
     ok( !ret, "SetWindowPos succeeded\n" );
-    todo_wine
     ok( GetLastError() == ERROR_INVALID_PARAMETER, "SetWindowPos returned error %lu\n", GetLastError() );
     SetLastError( 0xdeadbeef );
     ret = SetWindowPos( child2, 0, 10, 10, 200, 200, SWP_NOZORDER | SWP_NOACTIVATE );
     todo_wine
     ok( !ret, "SetWindowPos succeeded\n" );
-    todo_wine
     ok( GetLastError() == ERROR_INVALID_PARAMETER, "SetWindowPos returned error %lu\n", GetLastError() );
 
     rgn = CreateRectRgn( 5, 5, 15, 15 );
