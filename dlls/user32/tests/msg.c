@@ -144,25 +144,377 @@ typedef enum {
     winevent_hook_todo=0x800
 } msg_flags_t;
 
-struct message {
+struct message
+{
     UINT message;          /* the WM_* code */
     msg_flags_t flags;     /* message props */
     WPARAM wParam;         /* expected value of wParam */
     LPARAM lParam;         /* expected value of lParam */
     WPARAM wp_mask;        /* mask for wParam checks */
     LPARAM lp_mask;        /* mask for lParam checks */
-};
 
-struct recvd_message {
-    UINT message;          /* the WM_* code */
-    msg_flags_t flags;     /* message props */
     HWND hwnd;             /* window that received the message */
-    WPARAM wParam;         /* expected value of wParam */
-    LPARAM lParam;         /* expected value of lParam */
     int line;              /* source line where logged */
     const char *descr;     /* description for trace output */
-    char output[512];      /* trace output */
 };
+
+static const char *debugstr_hcbt( UINT message )
+{
+    switch (message)
+    {
+    #define CASE( v ) case v: return #v
+    CASE( HCBT_ACTIVATE );
+    CASE( HCBT_CLICKSKIPPED );
+    CASE( HCBT_CREATEWND );
+    CASE( HCBT_DESTROYWND );
+    CASE( HCBT_KEYSKIPPED );
+    CASE( HCBT_MINMAX );
+    CASE( HCBT_MOVESIZE );
+    CASE( HCBT_QS );
+    CASE( HCBT_SETFOCUS );
+    CASE( HCBT_SYSCOMMAND );
+    CASE( WM_LBUTTONUP );
+    CASE( WM_MOUSEMOVE );
+    #undef CASE
+    }
+    return wine_dbg_sprintf( "HCBT %#x", message );
+}
+
+static const char *debugstr_event( UINT message )
+{
+    switch (message)
+    {
+    #define CASE( v ) case v: return #v
+    CASE( EVENT_CONSOLE_CARET );
+    CASE( EVENT_CONSOLE_END_APPLICATION );
+    CASE( EVENT_CONSOLE_LAYOUT );
+    CASE( EVENT_CONSOLE_START_APPLICATION );
+    CASE( EVENT_CONSOLE_UPDATE_REGION );
+    CASE( EVENT_CONSOLE_UPDATE_SCROLL );
+    CASE( EVENT_CONSOLE_UPDATE_SIMPLE );
+    CASE( EVENT_OBJECT_ACCELERATORCHANGE );
+    CASE( EVENT_OBJECT_CREATE );
+    CASE( EVENT_OBJECT_DEFACTIONCHANGE );
+    CASE( EVENT_OBJECT_DESCRIPTIONCHANGE );
+    CASE( EVENT_OBJECT_DESTROY );
+    CASE( EVENT_OBJECT_FOCUS );
+    CASE( EVENT_OBJECT_HELPCHANGE );
+    CASE( EVENT_OBJECT_HIDE );
+    CASE( EVENT_OBJECT_INVOKED );
+    CASE( EVENT_OBJECT_LOCATIONCHANGE );
+    CASE( EVENT_OBJECT_NAMECHANGE );
+    CASE( EVENT_OBJECT_PARENTCHANGE );
+    CASE( EVENT_OBJECT_REORDER );
+    CASE( EVENT_OBJECT_SELECTION );
+    CASE( EVENT_OBJECT_SELECTIONADD );
+    CASE( EVENT_OBJECT_SELECTIONREMOVE );
+    CASE( EVENT_OBJECT_SELECTIONWITHIN );
+    CASE( EVENT_OBJECT_SHOW );
+    CASE( EVENT_OBJECT_STATECHANGE );
+    CASE( EVENT_OBJECT_VALUECHANGE );
+    CASE( EVENT_SYSTEM_ALERT );
+    CASE( EVENT_SYSTEM_CAPTUREEND );
+    CASE( EVENT_SYSTEM_CAPTURESTART );
+    CASE( EVENT_SYSTEM_CONTEXTHELPEND );
+    CASE( EVENT_SYSTEM_CONTEXTHELPSTART );
+    CASE( EVENT_SYSTEM_DIALOGEND );
+    CASE( EVENT_SYSTEM_DIALOGSTART );
+    CASE( EVENT_SYSTEM_DRAGDROPEND );
+    CASE( EVENT_SYSTEM_DRAGDROPSTART );
+    CASE( EVENT_SYSTEM_FOREGROUND );
+    CASE( EVENT_SYSTEM_MENUEND );
+    CASE( EVENT_SYSTEM_MENUPOPUPEND );
+    CASE( EVENT_SYSTEM_MENUPOPUPSTART );
+    CASE( EVENT_SYSTEM_MENUSTART );
+    CASE( EVENT_SYSTEM_MINIMIZEEND );
+    CASE( EVENT_SYSTEM_MINIMIZESTART );
+    CASE( EVENT_SYSTEM_MOVESIZEEND );
+    CASE( EVENT_SYSTEM_MOVESIZESTART );
+    CASE( EVENT_SYSTEM_SCROLLINGEND );
+    CASE( EVENT_SYSTEM_SCROLLINGSTART );
+    CASE( EVENT_SYSTEM_SOUND );
+    CASE( EVENT_SYSTEM_SWITCHEND );
+    CASE( EVENT_SYSTEM_SWITCHSTART );
+    #undef CASE
+    }
+    return wine_dbg_sprintf( "EVENT %#x", message );
+}
+
+static const char *debugstr_msg( UINT message )
+{
+    switch (message)
+    {
+    #define CASE( v ) case v: return #v
+    CASE( WM_ACTIVATE );
+    CASE( WM_ACTIVATEAPP );
+    CASE( WM_APP );
+    CASE( WM_APPCOMMAND );
+    CASE( WM_CANCELMODE );
+    CASE( WM_CAPTURECHANGED );
+    CASE( WM_CHANGECBCHAIN );
+    CASE( WM_CHANGEUISTATE );
+    CASE( WM_CHAR );
+    CASE( WM_CHILDACTIVATE );
+    CASE( WM_CLOSE );
+    CASE( WM_COMMAND );
+    CASE( WM_COMPAREITEM );
+    CASE( WM_CONTEXTMENU );
+    CASE( WM_CREATE );
+    CASE( WM_CTLCOLORBTN );
+    CASE( WM_CTLCOLORDLG );
+    CASE( WM_CTLCOLOREDIT );
+    CASE( WM_CTLCOLORLISTBOX );
+    CASE( WM_CTLCOLORSTATIC );
+    CASE( WM_DELETEITEM );
+    CASE( WM_DESTROY );
+    CASE( WM_DESTROYCLIPBOARD );
+    CASE( WM_DRAWCLIPBOARD );
+    CASE( WM_DRAWITEM );
+    CASE( WM_DWMNCRENDERINGCHANGED );
+    CASE( WM_ENABLE );
+    CASE( WM_ENDSESSION );
+    CASE( WM_ENTERIDLE );
+    CASE( WM_ENTERMENULOOP );
+    CASE( WM_ERASEBKGND );
+    CASE( WM_EXITMENULOOP );
+    CASE( WM_GETDLGCODE );
+    CASE( WM_GETMINMAXINFO );
+    CASE( WM_GETTEXT );
+    CASE( WM_GETTEXTLENGTH );
+    CASE( WM_GETTITLEBARINFOEX );
+    CASE( WM_HELP );
+    CASE( WM_HOTKEY );
+    CASE( WM_IME_KEYDOWN );
+    CASE( WM_IME_NOTIFY );
+    CASE( WM_IME_SETCONTEXT );
+    CASE( WM_INITDIALOG );
+    CASE( WM_INITMENU );
+    CASE( WM_INITMENUPOPUP );
+    CASE( WM_KEYDOWN );
+    CASE( WM_KEYF1 );
+    CASE( WM_KEYUP );
+    CASE( WM_KILLFOCUS );
+    CASE( WM_LBTRACKPOINT );
+    CASE( WM_LBUTTONDBLCLK );
+    CASE( WM_LBUTTONDOWN );
+    CASE( WM_LBUTTONUP );
+    CASE( WM_MDIACTIVATE );
+    CASE( WM_MDICREATE );
+    CASE( WM_MDIDESTROY );
+    CASE( WM_MDIMAXIMIZE );
+    CASE( WM_MDIREFRESHMENU );
+    CASE( WM_MEASUREITEM );
+    CASE( WM_MENUCHAR );
+    CASE( WM_MENUCOMMAND );
+    CASE( WM_MENUSELECT );
+    CASE( WM_MOUSEACTIVATE );
+    CASE( WM_MOUSEHOVER );
+    CASE( WM_MOUSEMOVE );
+    CASE( WM_MOVE );
+    CASE( WM_NCACTIVATE );
+    CASE( WM_NCCALCSIZE );
+    CASE( WM_NCCREATE );
+    CASE( WM_NCDESTROY );
+    CASE( WM_NCHITTEST );
+    CASE( WM_NCPAINT );
+    CASE( WM_NOTIFY );
+    CASE( WM_NOTIFYFORMAT );
+    CASE( WM_PAINT );
+    CASE( WM_PALETTEISCHANGING );
+    CASE( WM_PARENTNOTIFY );
+    CASE( WM_QUERYENDSESSION );
+    CASE( WM_QUERYNEWPALETTE );
+    CASE( WM_QUERYOPEN );
+    CASE( WM_QUERYUISTATE );
+    CASE( WM_QUIT );
+    CASE( WM_SETCURSOR );
+    CASE( WM_SETFOCUS );
+    CASE( WM_SETFONT );
+    CASE( WM_SETICON );
+    CASE( WM_SETREDRAW );
+    CASE( WM_SETTEXT );
+    CASE( WM_SHOWWINDOW );
+    CASE( WM_SIZE );
+    CASE( WM_STYLECHANGED );
+    CASE( WM_STYLECHANGING );
+    CASE( WM_SYNCPAINT );
+    CASE( WM_SYSCHAR );
+    CASE( WM_SYSCOMMAND );
+    CASE( WM_SYSKEYDOWN );
+    CASE( WM_SYSKEYUP );
+    CASE( WM_SYSTIMER );
+    CASE( WM_TIMER );
+    CASE( WM_UNINITMENUPOPUP );
+    CASE( WM_UPDATEUISTATE );
+    CASE( WM_USER );
+    CASE( WM_WINDOWPOSCHANGED );
+    CASE( WM_WINDOWPOSCHANGING );
+    #undef CASE
+    }
+    return wine_dbg_sprintf( "MSG %#x", message );
+}
+
+static const char *debugstr_wparam( UINT message, msg_flags_t flags, WPARAM wparam )
+{
+    if (flags & winevent_hook)
+    {
+        switch (wparam)
+        {
+#define CASE( v ) case v: return #v
+        CASE( OBJID_ALERT );
+        CASE( OBJID_CARET );
+        CASE( OBJID_CLIENT );
+        CASE( OBJID_CURSOR );
+        CASE( OBJID_HSCROLL );
+        CASE( OBJID_MENU );
+        CASE( OBJID_NATIVEOM );
+        CASE( OBJID_QUERYCLASSNAMEIDX );
+        CASE( OBJID_SIZEGRIP );
+        CASE( OBJID_SOUND );
+        CASE( OBJID_SYSMENU );
+        CASE( OBJID_TITLEBAR );
+        CASE( OBJID_VSCROLL );
+        CASE( OBJID_WINDOW );
+#undef CASE
+        }
+        return wine_dbg_sprintf( "%#Ix", wparam );
+    }
+    if (flags & hook)
+    {
+        if (message == HCBT_SYSCOMMAND) message = WM_SYSCOMMAND;
+        else if (message == HCBT_KEYSKIPPED) message = WM_CHAR;
+        else return wine_dbg_sprintf( "%#Ix", wparam );
+    }
+    switch (message)
+    {
+    case WM_SYSCOMMAND:
+        switch (wparam)
+        {
+#define CASE( v ) case v: return #v
+        CASE( SC_ARRANGE );
+        CASE( SC_CLOSE );
+        CASE( SC_CONTEXTHELP );
+        CASE( SC_DEFAULT );
+        CASE( SC_HOTKEY );
+        CASE( SC_HSCROLL );
+        CASE( SC_KEYMENU );
+        CASE( SC_MAXIMIZE );
+        CASE( SC_MINIMIZE );
+        CASE( SC_MONITORPOWER );
+        CASE( SC_MOUSEMENU );
+        CASE( SC_MOVE );
+        CASE( SC_NEXTWINDOW );
+        CASE( SC_PREVWINDOW );
+        CASE( SC_RESTORE );
+        CASE( SC_SCREENSAVE );
+        CASE( SC_SEPARATOR );
+        CASE( SC_SIZE );
+        CASE( SC_TASKLIST );
+        CASE( SC_VSCROLL );
+#undef CASE
+        }
+        break;
+    case WM_SIZE:
+        switch (wparam)
+        {
+#define CASE( v ) case v: return #v
+        CASE( SIZE_MAXHIDE );
+        CASE( SIZE_MAXIMIZED );
+        CASE( SIZE_MAXSHOW );
+        CASE( SIZE_MINIMIZED );
+        CASE( SIZE_RESTORED );
+#undef CASE
+        }
+        break;
+    case WM_CHAR:
+    case WM_IME_KEYDOWN:
+    case WM_KEYDOWN:
+    case WM_KEYUP:
+    case WM_SYSKEYDOWN:
+    case WM_SYSKEYUP:
+        switch (wparam)
+        {
+#define CASE( v ) case v: return #v
+        CASE( VK_APPS );
+        CASE( VK_CONTROL );
+        CASE( VK_DOWN );
+        CASE( VK_ESCAPE );
+        CASE( VK_F1 );
+        CASE( VK_F10 );
+        CASE( VK_LMENU );
+        CASE( VK_LWIN );
+        CASE( VK_MENU );
+        CASE( VK_RETURN );
+        CASE( VK_RIGHT );
+        CASE( VK_SHIFT );
+        CASE( VK_UP );
+#undef CASE
+        }
+        if (wparam >= '0' && wparam <= 'Z') return wine_dbg_sprintf( "'%c'", (char)wparam );
+        return wine_dbg_sprintf( "%#Ix", wparam );
+    case WM_WINDOWPOSCHANGED:
+    case WM_WINDOWPOSCHANGING:
+    {
+        char buffer[300] = {0}, *ptr = buffer;
+        if (!wparam) ptr += sprintf( ptr, "|0" );
+#define DUMP( f ) do { if (wparam & f) { ptr += sprintf( ptr, "|" #f ); wparam &= ~f; } } while(0)
+        DUMP( SWP_ASYNCWINDOWPOS );
+        DUMP( SWP_DEFERERASE );
+        DUMP( SWP_FRAMECHANGED );
+        DUMP( SWP_HIDEWINDOW );
+        DUMP( SWP_NOACTIVATE );
+        DUMP( SWP_NOCLIENTMOVE );
+        DUMP( SWP_NOCLIENTSIZE );
+        DUMP( SWP_NOCOPYBITS );
+        DUMP( SWP_NOMOVE );
+        DUMP( SWP_NOOWNERZORDER );
+        DUMP( SWP_NOREDRAW );
+        DUMP( SWP_NOSENDCHANGING );
+        DUMP( SWP_NOSIZE );
+        DUMP( SWP_NOZORDER );
+        DUMP( SWP_SHOWWINDOW );
+        DUMP( SWP_STATECHANGED );
+#undef DUMP
+        if (wparam) ptr += sprintf( ptr, "|%#Ix", wparam );
+        return __wine_dbg_strdup( buffer + 1 );
+    }
+    }
+    return wine_dbg_sprintf( "%#Ix", wparam );
+}
+
+static const char *debugstr_msg_flags( msg_flags_t flags )
+{
+    char buffer[300] = {0}, *ptr = buffer;
+    if (!flags) ptr += sprintf( ptr, "|0" );
+#define DUMP( f ) do { if (flags & f) { ptr += sprintf( ptr, "|" #f ); flags &= ~f; } } while(0)
+    DUMP( hook );
+    DUMP( winevent_hook );
+    DUMP( kbd_hook );
+    DUMP( sent );
+    DUMP( posted );
+    DUMP( wparam );
+    DUMP( lparam );
+    DUMP( beginpaint );
+    DUMP( defwinproc );
+    DUMP( parent );
+    DUMP( optional );
+    DUMP( winevent_hook_todo );
+#undef DUMP
+    if (flags) ptr += sprintf( ptr, "|%#x", flags );
+    return __wine_dbg_strdup( buffer + 1 );
+}
+
+static const char *debugstr_message( const struct message *msg )
+{
+    const char *type;
+    if (msg->flags & winevent_hook) type = debugstr_event( msg->message );
+    else if (msg->flags & hook) type = debugstr_hcbt( msg->message );
+    else type = debugstr_msg( msg->message );
+    return wine_dbg_sprintf( "{ %s, %s, %s, %#Ix, %s, %#Ix },%s", type, debugstr_msg_flags( msg->flags ),
+                             debugstr_wparam( msg->message, msg->flags, msg->wParam ), msg->lParam,
+                             msg->wp_mask ? debugstr_wparam( msg->message, msg->flags, msg->wp_mask ) : "0",
+                             msg->lp_mask, msg->descr ? wine_dbg_sprintf(" /* %s */", msg->descr ) : "" );
+}
 
 /* Empty message sequence */
 static const struct message WmEmptySeq[] =
@@ -2302,7 +2654,7 @@ static const struct message WmTrackPopupMenuAbort[] = {
 
 static BOOL after_end_dialog, test_def_id, paint_loop_done;
 static int sequence_cnt, sequence_size;
-static struct recvd_message* sequence;
+static struct message* sequence;
 static int log_all_parent_messages;
 static CRITICAL_SECTION sequence_cs;
 
@@ -2343,32 +2695,6 @@ static void init_procs(void)
 #undef GET_PROC
 }
 
-static const char *get_winpos_flags(UINT flags)
-{
-    static char buffer[300];
-
-    buffer[0] = 0;
-#define DUMP(flag) do { if (flags & flag) { strcat( buffer, "|" #flag ); flags &= ~flag; } } while(0)
-    DUMP( SWP_SHOWWINDOW );
-    DUMP( SWP_HIDEWINDOW );
-    DUMP( SWP_NOACTIVATE );
-    DUMP( SWP_FRAMECHANGED );
-    DUMP( SWP_NOCOPYBITS );
-    DUMP( SWP_NOOWNERZORDER );
-    DUMP( SWP_NOSENDCHANGING );
-    DUMP( SWP_DEFERERASE );
-    DUMP( SWP_ASYNCWINDOWPOS );
-    DUMP( SWP_NOZORDER );
-    DUMP( SWP_NOREDRAW );
-    DUMP( SWP_NOSIZE );
-    DUMP( SWP_NOMOVE );
-    DUMP( SWP_NOCLIENTSIZE );
-    DUMP( SWP_NOCLIENTMOVE );
-    if (flags) sprintf(buffer + strlen(buffer),"|0x%04x", flags);
-    return buffer + 1;
-#undef DUMP
-}
-
 static BOOL ignore_message( UINT message )
 {
     /* these are always ignored */
@@ -2403,9 +2729,9 @@ static unsigned hash_Ly(const char *str)
 }
 
 #define add_message(msg) add_message_(__LINE__,msg);
-static void add_message_(int line, const struct recvd_message *msg)
+static void add_message_(int line, const struct message *msg)
 {
-    struct recvd_message *seq;
+    struct message *seq;
 
     EnterCriticalSection( &sequence_cs );
     if (sequence_cnt == sequence_size) 
@@ -2421,39 +2747,15 @@ static void add_message_(int line, const struct recvd_message *msg)
     seq->flags = msg->flags;
     seq->wParam = msg->wParam;
     seq->lParam = msg->lParam;
+    seq->wp_mask = 0;
+    seq->lp_mask = 0;
     seq->line   = line;
     seq->descr  = msg->descr;
-    seq->output[0] = 0;
     LeaveCriticalSection( &sequence_cs );
 
     if (msg->descr)
     {
-        if (msg->flags & hook)
-        {
-            static const char * const CBT_code_name[10] =
-            {
-                "HCBT_MOVESIZE",
-                "HCBT_MINMAX",
-                "HCBT_QS",
-                "HCBT_CREATEWND",
-                "HCBT_DESTROYWND",
-                "HCBT_ACTIVATE",
-                "HCBT_CLICKSKIPPED",
-                "HCBT_KEYSKIPPED",
-                "HCBT_SYSCOMMAND",
-                "HCBT_SETFOCUS"
-            };
-            const char *code_name = (msg->message <= HCBT_SETFOCUS) ? CBT_code_name[msg->message] : "Unknown";
-
-            sprintf( seq->output, "%s: hook %d (%s) wp %08Ix lp %08Ix",
-                     msg->descr, msg->message, code_name, msg->wParam, msg->lParam );
-        }
-        else if (msg->flags & winevent_hook)
-        {
-            sprintf( seq->output, "%s: winevent %p %08x %08Ix %08Ix",
-                     msg->descr, msg->hwnd, msg->message, msg->wParam, msg->lParam );
-        }
-        else
+        if (!(msg->flags & (hook|winevent_hook)))
         {
             switch (msg->message)
             {
@@ -2461,13 +2763,6 @@ static void add_message_(int line, const struct recvd_message *msg)
             case WM_WINDOWPOSCHANGED:
             {
                 WINDOWPOS *winpos = (WINDOWPOS *)msg->lParam;
-
-                sprintf( seq->output, "%s: %p WM_WINDOWPOS%s wp %08Ix lp %08Ix after %p x %d y %d cx %d cy %d flags %s",
-                          msg->descr, msg->hwnd,
-                          (msg->message == WM_WINDOWPOSCHANGING) ? "CHANGING" : "CHANGED",
-                          msg->wParam, msg->lParam, winpos->hwndInsertAfter,
-                          winpos->x, winpos->y, winpos->cx, winpos->cy,
-                          get_winpos_flags(winpos->flags) );
 
                 /* Log only documented flags, win2k uses 0x1000 and 0x2000
                  * in the high word for internal purposes
@@ -2486,8 +2781,6 @@ static void add_message_(int line, const struct recvd_message *msg)
                     NCCALCSIZE_PARAMS *p = (NCCALCSIZE_PARAMS *)msg->lParam;
                     WINDOWPOS *winpos = p->lppos;
 
-                    sprintf(seq->output, "%s: %p WM_NCCALCSIZE: winpos->cx %u, winpos->cy %u",
-                            msg->descr, msg->hwnd, winpos->cx, winpos->cy);
                     seq->lParam = (!!winpos->cx) | ((!!winpos->cy) << 1)
                             | ((!!winpos->x) << 2) | ((!!winpos->y) << 3);
                 }
@@ -2500,10 +2793,6 @@ static void add_message_(int line, const struct recvd_message *msg)
             {
                 DRAW_ITEM_STRUCT di;
                 DRAWITEMSTRUCT *dis = (DRAWITEMSTRUCT *)msg->lParam;
-
-                sprintf( seq->output, "%s: %p WM_DRAWITEM: type %x, ctl_id %x, item_id %x, action %x, state %x",
-                         msg->descr, msg->hwnd, dis->CtlType, dis->CtlID,
-                         dis->itemID, dis->itemAction, dis->itemState);
 
                 di.u.lp = 0;
                 di.u.item.type = dis->CtlType;
@@ -2524,10 +2813,6 @@ static void add_message_(int line, const struct recvd_message *msg)
                 MEASURE_ITEM_STRUCT mi;
                 MEASUREITEMSTRUCT *mis = (MEASUREITEMSTRUCT *)msg->lParam;
                 BOOL is_unicode_data = TRUE;
-
-                sprintf( seq->output, "%s: %p WM_MEASUREITEM: CtlType %#x, CtlID %#x, itemID %#x, itemData %#Ix",
-                         msg->descr, msg->hwnd, mis->CtlType, mis->CtlID,
-                         mis->itemID, mis->itemData);
 
                 if (mis->CtlType == ODT_LISTBOX)
                 {
@@ -2559,10 +2844,6 @@ static void add_message_(int line, const struct recvd_message *msg)
                 ok((int)cis->itemID1 >= 0, "expected >= 0, got %d\n", cis->itemID1);
                 ok((int)cis->itemID2 == -1, "expected -1, got %d\n", cis->itemID2);
 
-                sprintf( seq->output, "%s: %p WM_COMPAREITEM: CtlType %#x, CtlID %#x, itemID1 %#x, itemData1 %#Ix, itemID2 %#x, itemData2 %#Ix",
-                         msg->descr, msg->hwnd, cis->CtlType, cis->CtlID,
-                         cis->itemID1, cis->itemData1, cis->itemID2, cis->itemData2);
-
                 if (cis->CtlType == ODT_LISTBOX)
                     is_unicode_data = GetWindowLongA(ctrl, GWL_STYLE) & LBS_HASSTRINGS;
 
@@ -2578,14 +2859,9 @@ static void add_message_(int line, const struct recvd_message *msg)
                 }
                 break;
             }
-
             default:
                 if (msg->message >= 0xc000) return;  /* ignore registered messages */
-                sprintf( seq->output, "%s: %p %04x wp %08Ix lp %08Ix",
-                         msg->descr, msg->hwnd, msg->message, msg->wParam, msg->lParam );
             }
-            if (msg->flags & (sent|posted|parent|defwinproc|beginpaint))
-                sprintf( seq->output + strlen(seq->output), " (flags %x)", msg->flags );
         }
     }
 }
@@ -2615,7 +2891,7 @@ static void flush_sequence(void)
     LeaveCriticalSection( &sequence_cs );
 }
 
-static int try_compare_message( const struct message *expected, const struct recvd_message *received )
+static int try_compare_message( const struct message *expected, const struct message *received )
 {
     static DWORD type_flags = hook | winevent_hook | kbd_hook;
     int ret;
@@ -2631,7 +2907,7 @@ static int try_compare_message( const struct message *expected, const struct rec
     return 0;
 }
 
-static int compare_message( const struct message *expected, const struct recvd_message *received,
+static int compare_message( const struct message *expected, const struct message *received,
                             BOOL todo, const char *file, int line )
 {
     static DWORD type_flags = hook | winevent_hook | kbd_hook;
@@ -2651,19 +2927,17 @@ done:
     if (ret && winetest_debug > 1)
     {
         todo_wine_if(todo)
-        ok_(file, line)( 0, "mismatch %#x, %#x, %#Ix, %#Ix\n", received->message,
-                         received->flags, received->wParam, received->lParam );
+        ok_(file, line)( 0, "mismatch %s\n", debugstr_message( received ) );
     }
     if (!ret && winetest_debug > 2)
-        trace_(file, line)( "match %#x, %#x, %#Ix, %#Ix\n", received->message,
-                         received->flags, received->wParam, received->lParam );
+        trace_(file, line)( "match %s\n", debugstr_message( received ) );
     return ret;
 }
 
-static BOOL find_next_message( const struct message **expected, const struct recvd_message **received,
+static BOOL find_next_message( const struct message **expected, const struct message **received,
                                BOOL *matches, BOOL todo, const char *file, int line )
 {
-    const struct recvd_message *first_received = *received, *tmp_received, *next_received;
+    const struct message *first_received = *received, *tmp_received, *next_received;
     const struct message *first_expected = *expected, *tmp_expected, *next_expected;
     BOOL winhook_todo;
 
@@ -2697,8 +2971,7 @@ static BOOL find_next_message( const struct message **expected, const struct rec
             if (winetest_debug > 1)
             {
                 todo_wine_if(todo || winhook_todo)
-                ok_(file, line)( 0, "missing %#x, %#x, %#Ix, %#Ix\n", tmp_expected->message,
-                                 tmp_expected->flags, tmp_expected->wParam, tmp_expected->lParam );
+                ok_(file, line)( 0, "missing %s\n", debugstr_message( tmp_expected ) );
             }
         }
         *expected = next_expected;
@@ -2713,8 +2986,7 @@ static BOOL find_next_message( const struct message **expected, const struct rec
             if (winetest_debug > 1)
             {
                 todo_wine_if(todo)
-                ok_(file, line)( 0, "spurious %#x, %#x, %#Ix, %#Ix\n", tmp_received->message,
-                                 tmp_received->flags, tmp_received->wParam, tmp_received->lParam );
+                ok_(file, line)( 0, "spurious %s\n", debugstr_message( tmp_received ) );
             }
         }
         *received = next_received;
@@ -2729,8 +3001,8 @@ static BOOL find_next_message( const struct message **expected, const struct rec
 static void ok_sequence_(const struct message *expected, const char *context, BOOL todo,
                          const char *file, int line)
 {
-    static const struct recvd_message end_of_sequence;
-    const struct recvd_message *first_received, *received;
+    static const struct message end_of_sequence;
+    const struct message *first_received, *received;
     const struct message *first_expected = expected;
     BOOL matches = TRUE;
 
@@ -2756,14 +3028,10 @@ static void ok_sequence_(const struct message *expected, const char *context, BO
     {
         trace_(file, line)( "expected:\n" );
         for (expected = first_expected; expected->message; ++expected)
-            trace_(file, line)( "  %Iu: %#x, %#x, %#Ix, %#Ix\n", expected - first_expected,
-                                expected->message, expected->flags, expected->wParam,
-                                expected->lParam );
+            trace_(file, line)( "  %s\n", debugstr_message( expected ) );
         trace_(file, line)( "received:\n" );
         for (received = first_received; received->message; ++received)
-            trace_(file, line)( "  %Iu: %#x, %#x, %#Ix, %#Ix\n", received - first_received,
-                                received->message, received->flags, received->wParam,
-                                received->lParam );
+            trace_(file, line)( "  %s\n", debugstr_message( received ) );
     }
     flush_sequence();
 }
@@ -3844,7 +4112,7 @@ static WNDPROC old_mdi_client_proc;
 
 static LRESULT WINAPI mdi_client_hook_proc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    struct recvd_message msg;
+    struct message msg;
 
     /* do not log painting messages */
     if (message != WM_PAINT &&
@@ -3872,7 +4140,7 @@ static LRESULT WINAPI mdi_child_wnd_proc(HWND hwnd, UINT message, WPARAM wParam,
 {
     static LONG defwndproc_counter = 0;
     LRESULT ret;
-    struct recvd_message msg;
+    struct message msg;
 
     /* do not log painting messages */
     if (message != WM_PAINT &&
@@ -3920,7 +4188,7 @@ static LRESULT WINAPI mdi_frame_wnd_proc(HWND hwnd, UINT message, WPARAM wParam,
 {
     static LONG defwndproc_counter = 0;
     LRESULT ret;
-    struct recvd_message msg;
+    struct message msg;
 
     /* do not log painting messages */
     if (message != WM_PAINT &&
@@ -4592,7 +4860,7 @@ static void test_WM_SETREDRAW(HWND hwnd)
 
 static INT_PTR CALLBACK TestModalDlgProcA(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    struct recvd_message msg;
+    struct message msg;
 
     if (ignore_message( message )) return 0;
 
@@ -4623,7 +4891,7 @@ static INT_PTR CALLBACK TestModalDlgProcA(HWND hwnd, UINT message, WPARAM wParam
 
 static INT_PTR CALLBACK TestModalDlgProc2(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    struct recvd_message msg;
+    struct message msg;
 
     if (ignore_message( message )) return 0;
 
@@ -6532,7 +6800,7 @@ static LRESULT CALLBACK button_hook_proc(HWND hwnd, UINT message, WPARAM wParam,
 {
     static LONG defwndproc_counter = 0;
     LRESULT ret;
-    struct recvd_message msg;
+    struct message msg;
 
     if (ignore_message( message )) return 0;
 
@@ -7489,7 +7757,7 @@ static LRESULT CALLBACK static_hook_proc(HWND hwnd, UINT message, WPARAM wParam,
 {
     static LONG defwndproc_counter = 0;
     LRESULT ret;
-    struct recvd_message msg;
+    struct message msg;
 
     if (ignore_message( message )) return 0;
 
@@ -7692,7 +7960,7 @@ static LRESULT CALLBACK combobox_edit_subclass_proc(HWND hwnd, UINT message,
 {
     static LONG defwndproc_counter = 0;
     LRESULT ret;
-    struct recvd_message msg;
+    struct message msg;
 
     /* do not log painting messages */
     if (message != WM_PAINT &&
@@ -7725,7 +7993,7 @@ static LRESULT CALLBACK combobox_lbox_subclass_proc(HWND hwnd, UINT message,
 {
     static LONG defwndproc_counter = 0;
     LRESULT ret;
-    struct recvd_message msg;
+    struct message msg;
 
     /* do not log painting messages */
     if (message != WM_PAINT &&
@@ -7756,7 +8024,7 @@ static LRESULT CALLBACK combobox_hook_proc(HWND hwnd, UINT message, WPARAM wPara
 {
     static LONG defwndproc_counter = 0;
     LRESULT ret;
-    struct recvd_message msg;
+    struct message msg;
 
     /* do not log painting messages */
     if (message != WM_PAINT &&
@@ -7957,7 +8225,7 @@ static const struct message WmImeKeydownMsgSeq_1[] =
 
 static LRESULT WINAPI wmime_keydown_procA(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    struct recvd_message msg;
+    struct message msg;
 
     msg.hwnd = hwnd;
     msg.message = message;
@@ -9982,7 +10250,7 @@ static void pump_msg_loop(HWND hwnd, HACCEL hAccel)
 
     while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE))
     {
-        struct recvd_message log_msg;
+        struct message log_msg;
 
         /* ignore some unwanted messages */
         if (msg.message == WM_MOUSEMOVE ||
@@ -10252,7 +10520,7 @@ static LRESULT MsgCheckProc (BOOL unicode, HWND hwnd, UINT message,
     static LONG defwndproc_counter = 0;
     static LONG beginpaint_counter = 0;
     LRESULT ret;
-    struct recvd_message msg;
+    struct message msg;
 
     if (ignore_message( message )) return 0;
 
@@ -10413,7 +10681,7 @@ static LRESULT WINAPI PopupMsgCheckProcA(HWND hwnd, UINT message, WPARAM wParam,
 {
     static LONG defwndproc_counter = 0;
     LRESULT ret;
-    struct recvd_message msg;
+    struct message msg;
 
     if (ignore_message( message )) return 0;
 
@@ -10452,7 +10720,7 @@ static LRESULT WINAPI ParentMsgCheckProcA(HWND hwnd, UINT message, WPARAM wParam
     static LONG defwndproc_counter = 0;
     static LONG beginpaint_counter = 0;
     LRESULT ret;
-    struct recvd_message msg;
+    struct message msg;
 
     if (ignore_message( message )) return 0;
 
@@ -10521,7 +10789,7 @@ static LRESULT WINAPI TestDlgProcA(HWND hwnd, UINT message, WPARAM wParam, LPARA
 {
     static LONG defwndproc_counter = 0;
     LRESULT ret;
-    struct recvd_message msg;
+    struct message msg;
 
     if (ignore_message( message )) return 0;
 
@@ -10555,7 +10823,7 @@ static LRESULT WINAPI ShowWindowProcA(HWND hwnd, UINT message, WPARAM wParam, LP
 {
     static LONG defwndproc_counter = 0;
     LRESULT ret;
-    struct recvd_message msg;
+    struct message msg;
 
     /* log only specific messages we are interested in */
     switch (message)
@@ -10661,7 +10929,7 @@ static LRESULT WINAPI HotkeyMsgCheckProcA(HWND hwnd, UINT message, WPARAM wParam
 {
     static LONG defwndproc_counter = 0;
     LRESULT ret;
-    struct recvd_message msg;
+    struct message msg;
     DWORD queue_status;
 
     if (ignore_message( message )) return 0;
@@ -10839,7 +11107,7 @@ static LRESULT CALLBACK cbt_hook_proc(int nCode, WPARAM wParam, LPARAM lParam)
 
     if (nCode == HCBT_SYSCOMMAND || nCode == HCBT_KEYSKIPPED)
     {
-	struct recvd_message msg;
+	struct message msg;
 
         msg.hwnd = 0;
 	msg.message = nCode;
@@ -10871,7 +11139,7 @@ static LRESULT CALLBACK cbt_hook_proc(int nCode, WPARAM wParam, LPARAM lParam)
 
     if (is_our_logged_class(hwnd))
     {
-        struct recvd_message msg;
+        struct message msg;
 
         msg.hwnd = hwnd;
         msg.message = nCode;
@@ -10899,7 +11167,7 @@ static void CALLBACK win_event_proc(HWINEVENTHOOK hevent,
 
     if (!hwnd || is_our_logged_class(hwnd))
     {
-        struct recvd_message msg;
+        struct message msg;
 
         msg.hwnd = hwnd;
         msg.message = event;
@@ -11386,7 +11654,7 @@ static void CALLBACK win_event_global_hook_proc(HWINEVENTHOOK hevent,
 	if (!lstrcmpiA(buf, "TestWindowClass") ||
 	    !lstrcmpiA(buf, "static"))
 	{
-	    struct recvd_message msg;
+	    struct message msg;
 
             msg.hwnd = hwnd;
 	    msg.message = event;
@@ -11409,7 +11677,7 @@ static LRESULT CALLBACK cbt_global_hook_proc(int nCode, WPARAM wParam, LPARAM lP
 
     if (nCode == HCBT_SYSCOMMAND)
     {
-	struct recvd_message msg;
+	struct message msg;
 
         msg.hwnd = 0;
 	msg.message = nCode;
@@ -11429,7 +11697,7 @@ static LRESULT CALLBACK cbt_global_hook_proc(int nCode, WPARAM wParam, LPARAM lP
         /* we can't test for real mouse events */
         if (mhll->flags & LLMHF_INJECTED)
         {
-	    struct recvd_message msg;
+	    struct message msg;
 
 	    memset (&msg, 0, sizeof (msg));
 	    msg.message = wParam;
@@ -11448,7 +11716,7 @@ static LRESULT CALLBACK cbt_global_hook_proc(int nCode, WPARAM wParam, LPARAM lP
 	if (!lstrcmpiA(buf, "TestWindowClass") ||
 	    !lstrcmpiA(buf, "static"))
 	{
-	    struct recvd_message msg;
+	    struct message msg;
 
             msg.hwnd = hwnd;
 	    msg.message = nCode;
@@ -12478,7 +12746,7 @@ static LRESULT CALLBACK edit_hook_proc(HWND hwnd, UINT message, WPARAM wParam, L
 {
     static LONG defwndproc_counter = 0;
     LRESULT ret;
-    struct recvd_message msg;
+    struct message msg;
 
     if (ignore_message( message )) return 0;
 
@@ -12533,7 +12801,7 @@ static LRESULT CALLBACK edit_ime_subclass_proc(HWND hwnd, UINT message, WPARAM w
 {
     WNDPROC oldproc = (WNDPROC)GetWindowLongPtrA(hwnd, GWLP_USERDATA);
     static LONG defwndproc_counter = 0;
-    struct recvd_message msg = {0};
+    struct message msg = {0};
     LRESULT ret;
 
     msg.message = message;
@@ -13600,7 +13868,7 @@ static void test_PeekMessage3(void)
 
 static INT_PTR CALLBACK wm_quit_dlg_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp)
 {
-    struct recvd_message msg;
+    struct message msg;
 
     if (ignore_message( message )) return 0;
 
@@ -13727,7 +13995,7 @@ static void test_quit_message(void)
     flush_sequence();
     while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE))
     {
-        struct recvd_message rmsg;
+        struct message rmsg;
         rmsg.hwnd = msg.hwnd;
         rmsg.message = msg.message;
         rmsg.flags = posted|wparam|lparam;
@@ -13737,6 +14005,7 @@ static void test_quit_message(void)
         if (msg.message == WM_QUIT)
             /* The hwnd can only be checked here */
             ok(!msg.hwnd, "The WM_QUIT hwnd was %p instead of NULL\n", msg.hwnd);
+        rmsg.descr = NULL;
         add_message(&rmsg);
         DispatchMessageA(&msg);
     }
@@ -13835,7 +14104,7 @@ static void pump_msg_loop_timeout(DWORD timeout, BOOL inject_mouse_move)
              */
             if ((msg.message == WM_TIMER || msg.message == WM_SYSTIMER) && msg.hwnd)
             {
-                struct recvd_message s_msg;
+                struct message s_msg;
 
                 s_msg.hwnd = msg.hwnd;
                 s_msg.message = msg.message;
@@ -14698,7 +14967,7 @@ static void test_ShowWindow(void)
 
 static INT_PTR WINAPI test_dlg_proc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    struct recvd_message msg;
+    struct message msg;
 
     if (ignore_message( message )) return 0;
 
@@ -14726,7 +14995,7 @@ static INT_PTR WINAPI test_dlg_proc(HWND hwnd, UINT message, WPARAM wParam, LPAR
 static WNDPROC orig_edit_proc;
 static LRESULT WINAPI dlg_creation_edit_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp)
 {
-    struct recvd_message msg;
+    struct message msg;
 
     if (ignore_message( message )) return 0;
 
@@ -14743,7 +15012,7 @@ static LRESULT WINAPI dlg_creation_edit_proc(HWND hwnd, UINT message, WPARAM wp,
 
 static INT_PTR WINAPI test_dlg_proc2(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    struct recvd_message msg;
+    struct message msg;
 
     if (ignore_message( message )) return 0;
 
@@ -14772,7 +15041,7 @@ static INT_PTR WINAPI test_dlg_proc3(HWND hwnd, UINT message, WPARAM wParam, LPA
 
 static LRESULT WINAPI test_dlg_proc4(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    struct recvd_message msg;
+    struct message msg;
 
     if (!ignore_message( message ))
     {
@@ -16109,7 +16378,7 @@ static LRESULT WINAPI listbox_hook_proc(HWND hwnd, UINT message, WPARAM wp, LPAR
 {
     static LONG defwndproc_counter = 0;
     LRESULT ret;
-    struct recvd_message msg;
+    struct message msg;
 
     /* do not log painting messages */
     if (message != WM_PAINT &&
@@ -16522,7 +16791,7 @@ static LRESULT WINAPI parent_menu_proc(HWND hwnd, UINT message, WPARAM wp, LPARA
         message == WM_COMMAND ||
         message == WM_MENUCOMMAND)
     {
-        struct recvd_message msg;
+        struct message msg;
 
         msg.hwnd = hwnd;
         msg.message = message;
@@ -18116,7 +18385,7 @@ static int hotkey_letter;
 
 static LRESULT CALLBACK KeyboardHookProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
-    struct recvd_message msg;
+    struct message msg;
 
     if (nCode == HC_ACTION)
     {
@@ -18361,7 +18630,7 @@ static void test_hotkey(void)
     {
         if (msg.message == WM_HOTKEY)
         {
-            struct recvd_message message;
+            struct message message;
             ok(msg.hwnd == NULL, "unexpected hwnd %p\n", msg.hwnd);
             ok(msg.lParam == MAKELPARAM(MOD_WIN, hotkey_letter), "unexpected WM_HOTKEY lparam %Ix\n", msg.lParam);
             message.message = msg.message;
