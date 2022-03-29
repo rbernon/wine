@@ -47,10 +47,10 @@ jobs:
       IMAGE_64llvm: rbernon/wine-llvm:experimental
       CONFIG_32: --with-mingw --disable-tests --host=i686-linux-gnu
       CONFIG_64: --with-mingw --disable-tests --host=x86_64-linux-gnu --enable-win64
-      CONFIG_32nope: --without-mingw --disable-tests --host=i686-linux-gnu
-      CONFIG_64nope: --without-mingw --disable-tests --host=x86_64-linux-gnu --enable-win64
-      CONFIG_32llvm: --with-mingw --disable-tests --host=i686-linux-gnu
-      CONFIG_64llvm: --with-mingw --disable-tests --host=x86_64-linux-gnu --enable-win64
+      CONFIG_32nope: --without-mingw --disable-tests --host=i686-linux-gnu --disable-werror
+      CONFIG_64nope: --without-mingw --disable-tests --host=x86_64-linux-gnu --enable-win64 --disable-werror
+      CONFIG_32llvm: --with-mingw --disable-tests --host=i686-linux-gnu --disable-werror
+      CONFIG_64llvm: --with-mingw --disable-tests --host=x86_64-linux-gnu --enable-win64 --disable-werror
 
     steps:
       - name: Checkout
@@ -120,7 +120,7 @@ jobs:
 
     env:
       PATH_64: /usr/local/opt/ccache/bin/:/usr/local/opt/bison/bin/:/usr/local/opt/mingw-w64/bin/
-      CONFIG_64: --with-mingw --disable-tests --enable-win64 CC="ccache gcc" CROSSCC="ccache x86_64-w64-mingw32-gcc"
+      CONFIG_64: --with-mingw --disable-tests --enable-win64 --disable-werror CC="ccache gcc" CROSSCC="ccache x86_64-w64-mingw32-gcc"
       CCACHE_COMPILERCHECK: none
       OBJCOPY: /usr/local/opt/binutils/bin/gobjcopy
 
