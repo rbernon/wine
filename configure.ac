@@ -261,6 +261,8 @@ then
   RSVG=""
   CONVERT=""
   ICOTOOL=""
+
+  enable_werror=${enable_werror:-yes}
 else
   test "$srcdir" = . || AC_MSG_ERROR([Maintainer mode cannot work out of tree.])
   AC_CHECK_PROGS(FONTFORGE, fontforge, false)
@@ -3613,7 +3615,7 @@ dnl Rules for re-running configure
 
 WINE_APPEND_RULE(
 [config.status: ${wine_srcdir}configure
-	@./config.status --recheck
+	@./config.status --recheck --quiet
 include/config.h: include/stamp-h
 include/stamp-h: ${wine_srcdir}include/config.h.in config.status
 	@./config.status include/config.h include/stamp-h])
