@@ -880,6 +880,11 @@ static void nulldrv_SetDesktopWindow( HWND hwnd )
 {
 }
 
+static BOOL nulldrv_SetForegroundWindow( HWND hwnd )
+{
+    return TRUE;
+}
+
 static void nulldrv_SetFocus( HWND hwnd )
 {
 }
@@ -1321,6 +1326,7 @@ static const struct user_driver_funcs lazy_load_driver =
     nulldrv_SetCapture,
     loaderdrv_SetDesktopWindow,
     nulldrv_SetFocus,
+    nulldrv_SetForegroundWindow,
     loaderdrv_SetLayeredWindowAttributes,
     nulldrv_SetParent,
     loaderdrv_SetWindowRgn,
@@ -1407,6 +1413,7 @@ void __wine_set_user_driver( const struct user_driver_funcs *funcs, UINT version
     SET_USER_FUNC(SetActiveWindow);
     SET_USER_FUNC(SetCapture);
     SET_USER_FUNC(SetDesktopWindow);
+    SET_USER_FUNC(SetForegroundWindow);
     SET_USER_FUNC(SetFocus);
     SET_USER_FUNC(SetLayeredWindowAttributes);
     SET_USER_FUNC(SetParent);

@@ -335,6 +335,7 @@ struct user_driver_funcs
     void    (*pSetCapture)(HWND,UINT);
     void    (*pSetDesktopWindow)(HWND);
     void    (*pSetFocus)(HWND);
+    BOOL    (*pSetForegroundWindow)(HWND);
     void    (*pSetLayeredWindowAttributes)(HWND,COLORREF,BYTE,DWORD);
     void    (*pSetParent)(HWND,HWND,HWND);
     void    (*pSetWindowRgn)(HWND,HRGN,BOOL);

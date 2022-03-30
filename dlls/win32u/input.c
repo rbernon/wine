@@ -2055,6 +2055,7 @@ BOOL set_foreground_window( HWND hwnd, BOOL mouse )
     HWND previous = 0;
 
     if (mouse) hwnd = get_full_window_handle( hwnd );
+    else if (!user_driver->pSetForegroundWindow( hwnd )) return FALSE;
 
     SERVER_START_REQ( set_foreground_window )
     {
