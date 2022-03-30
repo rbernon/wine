@@ -331,6 +331,7 @@ struct user_driver_funcs
     BOOL    (*pProcessEvents)(DWORD);
     void    (*pReleaseDC)(HWND,HDC);
     BOOL    (*pScrollDC)(HDC,INT,INT,HRGN);
+    void    (*pSetActiveWindow)(HWND, HWND);
     void    (*pSetCapture)(HWND,UINT);
     void    (*pSetDesktopWindow)(HWND);
     void    (*pSetFocus)(HWND);

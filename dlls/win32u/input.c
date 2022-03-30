@@ -1854,6 +1854,7 @@ static BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus )
 
     if (previous == hwnd)
     {
+        if (hwnd == NtUserGetForegroundWindow()) user_driver->pSetActiveWindow( hwnd, previous );
         if (prev) *prev = hwnd;
         goto done;
     }
@@ -1882,6 +1883,7 @@ static BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus )
     }
     SERVER_END_REQ;
     if (!ret) goto done;
+    if (hwnd == NtUserGetForegroundWindow()) user_driver->pSetActiveWindow( hwnd, previous );
     if (prev) *prev = previous;
     if (previous == hwnd) goto done;
 
