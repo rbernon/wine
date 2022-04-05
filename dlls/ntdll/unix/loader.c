@@ -2452,6 +2452,9 @@ void __wine_main( int argc, char *argv[], char *envp[] )
     set_max_limit( RLIMIT_AS );
 #endif
 
+    setenv("GST_DEBUG", "WINE:9,3", TRUE);
+    setenv("GST_DEBUG_NO_COLOR", "1", TRUE);
+
     virtual_init();
     init_environment( argc, argv, envp );
 
