@@ -534,6 +534,37 @@ static inline BOOL can_activate_window( HWND hwnd )
 }
 
 
+static int handle__net_active_window_error( Display *dpy, XErrorEvent *event, void *arg )
+{
+    return 1;
+}
+
+/***********************************************************************
+ *      get_foreground_window
+ */
+static HWND get_foreground_window( Display *display, Window *window )
+{
+    unsigned long count, remaining;
+    unsigned char *property = NULL;
+    Window active;
+    int format;
+    Atom type;
+
+    if (window) *window = None;
+    if (!ewmh.has__net_active_window) return NtUserGetForegroundWindow();
+
+    X11DRV_expect_error( display, handle__net_active_window_error, NULL );
+    if (XGetWindowProperty( display, DefaultRootWindow( display ), x11drv_atom( _NET_ACTIVE_WINDOW ), 0, ~0UL, False,
+                            XA_WINDOW, &type, &format, &count, &remaining, &property )) count = 0;
+    if (!X11DRV_check_error() && count && format == 32 && property) active = *(Window *)property;
+    else active = None;
+    XFree( property );
+
+    if (window) *window = active;
+    return get_hwnd_for_window( display, active );
+}
+
+
 /**********************************************************************
  *              set_input_focus
  *
@@ -601,6 +632,14 @@ static HWND find_activatable_window( HWND hwnd, Time time, BOOL check )
     return hwnd;
 }
 
+static void set_foreground_window( HWND hwnd )
+{
+    struct x11drv_thread_data *thread_data = x11drv_thread_data();
+    thread_data->activating_hwnd = hwnd;
+    NtUserSetForegroundWindow( hwnd );
+    thread_data->activating_hwnd = 0;
+}
+
 /**********************************************************************
  *              set_focus
  */
@@ -612,7 +651,7 @@ static void set_focus( Display *display, HWND hwnd, Time time, BOOL check )
 
     if (!(focus = find_activatable_window( hwnd, time, check ))) return;
     TRACE( "setting foreground window to %p\n", focus );
-    NtUserSetForegroundWindow( hwnd );
+    set_foreground_window( focus );
 
     threadinfo.cbSize = sizeof(threadinfo);
     NtUserGetGUIThreadInfo( 0, &threadinfo );
@@ -824,7 +863,7 @@ static void focus_out( Display *display , HWND hwnd )
         if (hwnd == NtUserGetForegroundWindow())
         {
             TRACE( "lost focus, setting fg to desktop\n" );
-            NtUserSetForegroundWindow( NtUserGetDesktopWindow() );
+            set_foreground_window( NtUserGetDesktopWindow() );
         }
     }
  }
@@ -1275,7 +1314,7 @@ static void handle_wm_state_notify( HWND hwnd, XPropertyEvent *event, BOOL updat
                 TRACE( "restoring win %p/%lx\n", data->hwnd, data->whole_window );
                 release_win_data( data );
                 if ((style & (WS_MINIMIZE | WS_VISIBLE)) == (WS_MINIMIZE | WS_VISIBLE))
-                    NtUserSetForegroundWindow( hwnd );
+                    set_foreground_window( hwnd );
                 send_message( hwnd, WM_SYSCOMMAND, SC_RESTORE, 0 );
                 return;
             }
@@ -1420,6 +1459,39 @@ void X11DRV_SetFocus( HWND hwnd )
     }
     if (!data->managed || data->embedder) set_input_focus( data );
     release_win_data( data );
+}
+
+
+/***********************************************************************
+ *      SetForegroundWindow  (X11DRV.@)
+ */
+BOOL X11DRV_SetForegroundWindow( HWND hwnd )
+{
+    struct x11drv_thread_data *thread_data;
+    Time window_time, foreground_time;
+    Window window, foreground;
+
+    if (is_virtual_desktop()) return TRUE;
+    if (!hwnd || hwnd == NtUserGetDesktopWindow()) return TRUE;
+    if (!(thread_data = x11drv_init_thread_data())) return TRUE;
+    if (thread_data->activating_hwnd == hwnd) return TRUE;
+
+    TRACE( "hwnd %p\n", hwnd );
+
+    if (!(window = X11DRV_get_whole_window( hwnd ))) return TRUE;
+    if (!get_foreground_window( thread_data->display, &foreground ))
+    {
+        /* If foreground X11 window is not a Wine window, check if we can expect the window to activate */
+        get_window_user_time( thread_data->display, window, &window_time );
+        if (!get_window_user_time( thread_data->display, foreground, &foreground_time )) return TRUE;
+        else if ((!window_time || window_time >= foreground_time)) return TRUE;
+
+        WARN( "refusing to set window %p/%lx time %lu foreground, foreground is %lx time %lu\n",
+              hwnd, window, window_time, foreground, foreground_time );
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 

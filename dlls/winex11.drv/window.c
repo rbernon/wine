@@ -945,6 +945,11 @@ Window init_clip_window(void)
 }
 
 
+static int handle__net_wm_user_time_error( Display *dpy, XErrorEvent *event, void *arg )
+{
+    return 1;
+}
+
 /***********************************************************************
  *     set_window_user_time
  */
@@ -957,6 +962,37 @@ void set_window_user_time( Display *display, Window window, Time time )
     if (time == -1) XDeleteProperty( display, window, x11drv_atom(_NET_WM_USER_TIME) );
     else XChangeProperty( display, window, x11drv_atom(_NET_WM_USER_TIME), XA_CARDINAL, 32,
                           PropModeReplace, (unsigned char *)&time, 1 );
+}
+
+/***********************************************************************
+ *     get_window_user_time
+ */
+BOOL get_window_user_time( Display *display, Window window, Time *time )
+{
+    unsigned long count, remaining;
+    unsigned char *property = NULL;
+    int format;
+    Atom type;
+
+    *time = 0;
+    if (!window || window == root_window) return FALSE;
+
+    TRACE( "display %p, window %lx, time %p\n", display, window, time );
+
+    X11DRV_expect_error( display, handle__net_wm_user_time_error, NULL );
+    if (XGetWindowProperty( display, window, x11drv_atom(_NET_WM_USER_TIME_WINDOW), 0, ~0UL, False,
+                            XA_WINDOW, &type, &format, &count, &remaining, &property )) count = 0;
+    if (!X11DRV_check_error() && count && format == 32 && property) window = *(Window *)property;
+    XFree( property );
+
+    X11DRV_expect_error( display, handle__net_wm_user_time_error, NULL );
+    if (XGetWindowProperty( display, window, x11drv_atom(_NET_WM_USER_TIME), 0, ~0UL, False,
+                            XA_CARDINAL, &type, &format, &count, &remaining, &property )) count = 0;
+    if (!X11DRV_check_error() && count && format == 32 && property) *time = *(Time *)property;
+    else count = 0;
+    XFree( property );
+
+    return count;
 }
 
 static void update_desktop_fullscreen( Display *display )

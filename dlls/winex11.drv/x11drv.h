@@ -386,6 +386,7 @@ struct x11drv_thread_data
     HWND     last_focus;           /* last window that had focus */
     HWND     keymapnotify_hwnd;    /* window that should receive modifier release events */
     DWORD    activating_time;      /* time of the last SetActiveWindow call */
+    HWND     activating_hwnd;      /* window currently activating */
     XIM      xim;                  /* input method */
     HWND     last_xic_hwnd;        /* last xic window */
     XFontSet font_set;             /* international text drawing font set */
@@ -664,7 +665,7 @@ extern void vulkan_thread_detach(void);
 extern void wait_for_withdrawn_state( HWND hwnd, BOOL set );
 extern Window init_clip_window(void);
 extern void set_window_user_time( Display *display, Window window, Time time );
-extern void update_user_time( Time time );
+extern BOOL get_window_user_time( Display *display, Window window, Time *time );
 extern void read_net_wm_states( Display *display, struct x11drv_win_data *data );
 extern void update_net_wm_states( struct x11drv_win_data *data );
 extern void make_window_embedded( struct x11drv_win_data *data );
@@ -694,6 +695,7 @@ extern XContext cursor_context;
 
 extern BOOL is_current_process_focused(void);
 extern void X11DRV_SetFocus( HWND hwnd );
+extern BOOL X11DRV_SetForegroundWindow( HWND hwnd );
 extern void set_window_cursor( Window window, HCURSOR handle );
 extern void retry_grab_clipping_window(void);
 extern void ungrab_clipping_window(void);

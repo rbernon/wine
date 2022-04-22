@@ -424,6 +424,7 @@ static const struct user_driver_funcs x11drv_funcs =
     .pSetCapture = X11DRV_SetCapture,
     .pSetDesktopWindow = X11DRV_SetDesktopWindow,
     .pSetFocus = X11DRV_SetFocus,
+    .pSetForegroundWindow = X11DRV_SetForegroundWindow,
     .pSetLayeredWindowAttributes = X11DRV_SetLayeredWindowAttributes,
     .pSetParent = X11DRV_SetParent,
     .pSetWindowIcon = X11DRV_SetWindowIcon,
