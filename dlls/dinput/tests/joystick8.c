@@ -4996,6 +4996,8 @@ static void test_windows_gaming_input(void)
         COLLECTION(1, Application),
             USAGE(1, HID_USAGE_GENERIC_GAMEPAD),
             COLLECTION(1, Physical),
+                REPORT_ID(1, 1),
+
                 USAGE(1, HID_USAGE_GENERIC_X),
                 USAGE(1, HID_USAGE_GENERIC_Y),
                 USAGE(1, HID_USAGE_GENERIC_RX),
@@ -5034,10 +5036,12 @@ static void test_windows_gaming_input(void)
             USAGE_PAGE(1, HID_USAGE_PAGE_HAPTICS),
             USAGE(1, HID_USAGE_HAPTICS_SIMPLE_CONTROLLER),
             COLLECTION(1, Logical),
+                REPORT_ID(1, 2),
+
                 USAGE(1, HID_USAGE_HAPTICS_WAVEFORM_LIST),
                 COLLECTION(1, NamedArray),
                     USAGE(4, (HID_USAGE_PAGE_ORDINAL<<16)|3),
-                    REPORT_COUNT(1, 2),
+                    REPORT_COUNT(1, 1),
                     REPORT_SIZE(1, 16),
                     FEATURE(1, Data|Var|Abs|Null),
                 END_COLLECTION,
@@ -5045,10 +5049,24 @@ static void test_windows_gaming_input(void)
                 USAGE(1, HID_USAGE_HAPTICS_DURATION_LIST),
                 COLLECTION(1, NamedArray),
                     USAGE(4, (HID_USAGE_PAGE_ORDINAL<<16)|3),
-                    REPORT_COUNT(1, 2),
+                    REPORT_COUNT(1, 1),
                     REPORT_SIZE(1, 16),
                     FEATURE(1, Data|Var|Abs|Null),
                 END_COLLECTION,
+
+                USAGE(1, HID_USAGE_HAPTICS_AUTO_TRIGGER),
+                LOGICAL_MINIMUM(1, 1),
+                LOGICAL_MAXIMUM(1, 3),
+                REPORT_SIZE(1, 8),
+                REPORT_COUNT(1, 1),
+                FEATURE(1, Data|Var|Abs),
+
+                USAGE(1, HID_USAGE_HAPTICS_AUTO_ASSOCIATED_CONTROL),
+                LOGICAL_MINIMUM(4, (HID_USAGE_PAGE_GENERIC<<16)|HID_USAGE_GENERIC_Z),
+                LOGICAL_MAXIMUM(4, (HID_USAGE_PAGE_GENERIC<<16)|HID_USAGE_GENERIC_Z),
+                REPORT_SIZE(1, 32),
+                REPORT_COUNT(1, 1),
+                FEATURE(1, Data|Var|Abs),
 
                 USAGE(1, HID_USAGE_HAPTICS_WAVEFORM_CUTOFF_TIME),
                 UNIT(2, 0x1001), /* seconds */
@@ -5069,7 +5087,6 @@ static void test_windows_gaming_input(void)
                 REPORT_COUNT(1, 1),
                 OUTPUT(1, Data|Var|Abs),
 
-                USAGE_PAGE(1, HID_USAGE_PAGE_HAPTICS),
                 USAGE(1, HID_USAGE_HAPTICS_MANUAL_TRIGGER),
                 LOGICAL_MINIMUM(1, 1),
                 LOGICAL_MAXIMUM(1, 3),
@@ -5137,8 +5154,11 @@ static void test_windows_gaming_input(void)
 
     IVectorView_SimpleHapticsController *haptics_controllers;
     IRawGameController *raw_controller, *tmp_raw_controller;
+    IVectorView_SimpleHapticsControllerFeedback *feedbacks;
     IVectorView_RawGameController *controllers_view;
     IRawGameControllerStatics *controller_statics;
+    ISimpleHapticsController *haptic_controller;
+    ISimpleHapticsControllerFeedback *feedback;
     EventRegistrationToken controller_added_token;
     IVectorView_RacingWheel *racing_wheels_view;
     IRacingWheelStatics2 *racing_wheel_statics2;
@@ -5150,6 +5170,8 @@ static void test_windows_gaming_input(void)
     IRacingWheel *racing_wheel;
     UINT32 size, length;
     const WCHAR *buffer;
+    TimeSpan duration;
+    UINT16 waveform;
     HSTRING str;
     HRESULT hr;
     DWORD res;
@@ -5292,8 +5314,40 @@ static void test_windows_gaming_input(void)
     hr = IVectorView_SimpleHapticsController_get_Size( haptics_controllers, &length );
     ok( hr == S_OK, "get_Size returned %#lx\n", hr );
     ok( length == 1, "got length %u\n", length );
+
+if (!length) goto skip_length;
+    hr = IVectorView_SimpleHapticsController_GetAt( haptics_controllers, 0, &haptic_controller );
+    ok( hr == S_OK, "GetAt returned %#lx\n", hr );
+
+    hr = ISimpleHapticsController_get_Id( haptic_controller, &str );
+    ok( hr == S_OK, "get_Id returned %#lx\n", hr );
+    buffer = pWindowsGetStringRawBuffer( str, &size );
+    ok( !wcscmp( buffer, L"" ), "get_Id returned %s\n", debugstr_wn(buffer, size) );
+    pWindowsDeleteString( str );
+
+    hr = ISimpleHapticsController_get_SupportedFeedback( haptic_controller, &feedbacks );
+    ok( hr == S_OK, "get_SupportedFeedback returned %#lx\n", hr );
+    hr = IVectorView_SimpleHapticsControllerFeedback_get_Size( feedbacks, &size );
+    ok( hr == S_OK, "get_Size returned %#lx\n", hr );
+    ok( size == 1, "got length %u\n", size );
+
+    hr = IVectorView_SimpleHapticsControllerFeedback_GetAt( feedbacks, 0, &feedback );
+    ok( hr == S_OK, "GetAt returned %#lx\n", hr );
+    waveform = 0xdead;
+    hr = ISimpleHapticsControllerFeedback_get_Waveform( feedback, &waveform );
+    ok( hr == S_OK, "get_Waveform returned %#lx\n", hr );
+    ok( waveform == HID_USAGE_HAPTICS_WAVEFORM_RUMBLE, "got waveform %#x\n", waveform );
+    hr = ISimpleHapticsControllerFeedback_get_Duration( feedback, &duration );
+    ok( hr == S_OK, "get_Duration returned %#lx\n", hr );
+    ok( duration.Duration == 0, "got duration %I64u\n", duration.Duration );
+    ISimpleHapticsControllerFeedback_Release( feedback );
+
+    IVectorView_SimpleHapticsControllerFeedback_Release( feedbacks );
+    ISimpleHapticsController_Release( haptic_controller );
+
     IVectorView_SimpleHapticsController_Release( haptics_controllers );
 
+skip_length:
     IRawGameController2_Release( raw_controller2 );
     IRawGameController_Release( raw_controller );
 
