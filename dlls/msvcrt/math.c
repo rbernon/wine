@@ -51,6 +51,8 @@
 #include "wine/asm.h"
 #include "wine/debug.h"
 
+#include "msvcrt/intrin.h"
+
 WINE_DEFAULT_DEBUG_CHANNEL(msvcrt);
 
 #undef div
@@ -67,8 +69,18 @@ static MSVCRT_matherr_func MSVCRT_default_matherr_func = NULL;
 
 BOOL erms_supported;
 BOOL sse2_supported;
+BOOL avx_supported;
 static BOOL sse2_enabled;
 
+#ifndef __AVX__
+#ifdef __clang__
+#pragma clang attribute push (__attribute__((target("avx"))), apply_to=function)
+#else
+#pragma GCC push_options
+#pragma GCC target("avx")
+#endif
+#define __DISABLE_AVX__
+#endif /* __AVX__ */
 void msvcrt_init_math( void *module )
 {
 #if defined(__i386__) || defined(__x86_64__)
@@ -80,6 +92,10 @@ void msvcrt_init_math( void *module )
         __cpuidex(regs, 7, 0);
         erms_supported = ((regs[1] >> 9) & 1);
     }
+
+    __cpuid(regs, 1);
+    if (IsProcessorFeaturePresent( PF_XSAVE_ENABLED ) && (regs[2] & (1 << 28)))
+        avx_supported = (_xgetbv(0) & 0x6) == 0x6;
 #endif
 
     sse2_supported = IsProcessorFeaturePresent( PF_XMMI64_INSTRUCTIONS_AVAILABLE );
@@ -89,6 +105,14 @@ void msvcrt_init_math( void *module )
     sse2_enabled = sse2_supported;
 #endif
 }
+#ifdef __DISABLE_AVX__
+#undef __DISABLE_AVX__
+#ifdef __clang__
+#pragma clang attribute pop
+#else
+#pragma GCC pop_options
+#endif
+#endif /* __DISABLE_AVX__ */
 
 /* Copied from musl: src/internal/libm.h */
 static inline float fp_barrierf(float x)
