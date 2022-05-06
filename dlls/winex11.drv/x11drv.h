@@ -428,6 +428,11 @@ static inline size_t get_property_size( int format, unsigned long count )
     return count * (format / 8);
 }
 
+struct x11drv_ewmh_data
+{
+    int has__net_wm_moveresize : 1;
+};
+
 extern XVisualInfo default_visual;
 extern XVisualInfo argb_visual;
 extern Colormap default_colormap;
@@ -453,6 +458,7 @@ extern int xrender_error_base;
 extern char *process_name;
 extern Display *clipboard_display;
 extern WNDPROC client_foreign_window_proc;
+extern struct x11drv_ewmh_data ewmh;
 
 /* atoms */
 
