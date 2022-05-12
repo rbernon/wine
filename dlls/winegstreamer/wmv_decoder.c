@@ -23,12 +23,32 @@
 #include "mfobjects.h"
 #include "mftransform.h"
 #include "wmcodecdsp.h"
+#include "mediaerr.h"
+#include "dmort.h"
+
 #include "initguid.h"
 
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(mfplat);
 WINE_DECLARE_DEBUG_CHANNEL(winediag);
+
+static enum wg_video_format const output_video_formats[] =
+{
+    WG_VIDEO_FORMAT_BGRA,
+    WG_VIDEO_FORMAT_BGRx,
+    WG_VIDEO_FORMAT_BGR,
+    WG_VIDEO_FORMAT_RGB15,
+    WG_VIDEO_FORMAT_RGB16,
+
+    WG_VIDEO_FORMAT_AYUV,
+    WG_VIDEO_FORMAT_I420,
+    WG_VIDEO_FORMAT_NV12,
+    WG_VIDEO_FORMAT_UYVY,
+    WG_VIDEO_FORMAT_YUY2,
+    WG_VIDEO_FORMAT_YV12,
+    WG_VIDEO_FORMAT_YVYU,
+};
 
 extern const GUID MEDIASUBTYPE_VC1S;
 
@@ -80,6 +100,9 @@ struct wmv_decoder
     IPropertyStore IPropertyStore_iface;
     IUnknown *outer;
     LONG refcount;
+
+    IMFMediaType *input_type;
+    IMFMediaType *output_type;
 
     struct wg_format input_format;
     struct wg_format output_format;
@@ -365,17 +388,20 @@ static inline struct wmv_decoder *impl_from_IMediaObject(IMediaObject *iface)
 
 static HRESULT WINAPI media_object_QueryInterface(IMediaObject *iface, REFIID iid, void **obj)
 {
-    return IUnknown_QueryInterface(impl_from_IMediaObject(iface)->outer, iid, obj);
+    struct wmv_decoder *decoder = impl_from_IMediaObject(iface);
+    return IUnknown_QueryInterface(decoder->outer, iid, obj);
 }
 
 static ULONG WINAPI media_object_AddRef(IMediaObject *iface)
 {
-    return IUnknown_AddRef(impl_from_IMediaObject(iface)->outer);
+    struct wmv_decoder *decoder = impl_from_IMediaObject(iface);
+    return IUnknown_AddRef(decoder->outer);
 }
 
 static ULONG WINAPI media_object_Release(IMediaObject *iface)
 {
-    return IUnknown_Release(impl_from_IMediaObject(iface)->outer);
+    struct wmv_decoder *decoder = impl_from_IMediaObject(iface);
+    return IUnknown_Release(decoder->outer);
 }
 
 static HRESULT WINAPI media_object_GetStreamCount(IMediaObject *iface, DWORD *input, DWORD *output)
@@ -656,14 +682,14 @@ static HRESULT WINAPI media_object_SetInputMaxLatency(IMediaObject *iface, DWORD
 
 static HRESULT WINAPI media_object_Flush(IMediaObject *iface)
 {
-    FIXME("iface %p stub!\n", iface);
-    return E_NOTIMPL;
+    TRACE("iface %p.\n", iface);
+    return S_OK;
 }
 
 static HRESULT WINAPI media_object_Discontinuity(IMediaObject *iface, DWORD index)
 {
-    FIXME("iface %p, index %lu stub!\n", iface, index);
-    return E_NOTIMPL;
+    FIXME("iface %p, index %lu semi-stub!\n", iface, index);
+    return S_OK;
 }
 
 static HRESULT WINAPI media_object_AllocateStreamingResources(IMediaObject *iface)

@@ -326,6 +326,47 @@ static bool amt_from_wg_format_audio_wma(AM_MEDIA_TYPE *mt, const struct wg_form
     return true;
 }
 
+static bool amt_from_wg_format_video_wmv(AM_MEDIA_TYPE *mt, const struct wg_format *format)
+{
+    VIDEOINFO *video_format;
+    uint32_t frame_time;
+
+    if (!(video_format = CoTaskMemAlloc(sizeof(*video_format))))
+        return false;
+
+    mt->majortype = MEDIATYPE_Video;
+    mt->lSampleSize = 1;
+    mt->formattype = FORMAT_VideoInfo;
+
+    switch (format->u.video_wmv.version)
+    {
+        case 1: mt->subtype = WMMEDIASUBTYPE_WMV1; break;
+        case 2: mt->subtype = WMMEDIASUBTYPE_WMV2; break;
+        case 3: mt->subtype = WMMEDIASUBTYPE_WMV3; break;
+        default:
+            FIXME("unsupported version %u\n", format->u.video_wmv.version);
+            assert(0);
+            return false;
+    }
+
+    mt->cbFormat = sizeof(VIDEOINFOHEADER);
+    mt->pbFormat = (BYTE *)video_format;
+
+    memset(video_format, 0, sizeof(*video_format));
+
+    if ((frame_time = MulDiv(10000000, format->u.video_wmv.fps_d, format->u.video_wmv.fps_n)) != -1)
+        video_format->AvgTimePerFrame = frame_time;
+    video_format->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    video_format->bmiHeader.biWidth = format->u.video_wmv.width;
+    video_format->bmiHeader.biHeight = format->u.video_wmv.height;
+    video_format->bmiHeader.biPlanes = 1;
+    video_format->bmiHeader.biBitCount = 0;
+    video_format->bmiHeader.biCompression = mt->subtype.Data1;
+    video_format->bmiHeader.biSizeImage = wg_format_get_max_size(format);
+
+    return true;
+}
+
 #define ALIGN(n, alignment) (((n) + (alignment) - 1) & ~((alignment) - 1))
 
 unsigned int wg_format_get_max_size(const struct wg_format *format)
