@@ -543,6 +543,8 @@ static GstAutoplugSelectResult autoplug_select_cb(GstElement *bin, GstPad *pad,
         GST_WARNING("Blacklisted a/52 decoder because it only works in Totem.");
         return GST_AUTOPLUG_SELECT_SKIP;
     }
+    if (strstr(name, "VA-API") && getenv("NOVAAPI"))
+        return GST_AUTOPLUG_SELECT_SKIP;
     if (!strcmp(name, "Fluendo Hardware Accelerated Video Decoder"))
     {
         GST_WARNING("Disabled video acceleration since it breaks in wine.");
