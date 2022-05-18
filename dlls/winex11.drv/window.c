@@ -996,6 +996,10 @@ static void set_style_hints( struct x11drv_win_data *data, DWORD style, DWORD ex
     else
         XDeleteProperty( data->display, data->whole_window, x11drv_atom(_NET_WM_ICON) );
 
+    XChangeProperty( data->display, data->whole_window, x11drv_atom(_WINE_HWND_STYLE), XA_CARDINAL, 32,
+                     PropModeReplace, (unsigned char *)&style, sizeof(style) / 4 );
+    XChangeProperty( data->display, data->whole_window, x11drv_atom(_WINE_HWND_EXSTYLE), XA_CARDINAL, 32,
+                     PropModeReplace, (unsigned char *)&ex_style, sizeof(ex_style) / 4 );
 }
 
 
