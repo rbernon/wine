@@ -944,10 +944,12 @@ static void test_rtti(void)
   void *simple_class = &simple_class_vtbl[1];
   void *child_class_vtbl[2] = {&child_class_rtti.object_locator};
   void *child_class = &child_class_vtbl[1];
+  void ** volatile child_class_ptr = &child_class;
   void *simple_class_sig0_vtbl[2] = {&simple_class_sig0_rtti.object_locator};
   void *simple_class_sig0 = &simple_class_sig0_vtbl[1];
   void *child_class_sig0_vtbl[2] = {&child_class_sig0_rtti.object_locator};
   void *child_class_sig0 = &child_class_sig0_vtbl[1];
+  void ** volatile child_class_sig0_ptr = &child_class_sig0;
   void *virtual_base_class_vtbl[2] = {&virtual_base_class_rtti.object_locator};
   int virtual_base_class_vbtbl[2] = {0, 0x100};
   struct {
@@ -1033,11 +1035,11 @@ static void test_rtti(void)
   casted = p__RTDynamicCast(&child_class_sig0, 0, NULL, simple_class_sig0_rtti.type_info, 0);
   if(casted)
   {
-      ok (casted == (char*)&child_class_sig0+8, "failed cast to simple_class (%p %p)\n", casted, &child_class_sig0);
+      ok (casted == (char*)child_class_sig0_ptr+8, "failed cast to simple_class (%p %p)\n", casted, child_class_sig0_ptr);
   }
 
   casted = p__RTDynamicCast(&child_class_sig0, 0, &child_class_sig0_rtti.type_info[0], &child_class_sig0_rtti.type_info[1], 0);
-  ok(casted == (char*)&child_class_sig0+4, "failed cast to child class (%p %p)\n", casted, &child_class_sig0);
+  ok(casted == (char*)child_class_sig0_ptr+4, "failed cast to child class (%p %p)\n", casted, child_class_sig0_ptr);
 
   if(old_signature) {
       skip("signature==1 is not supported\n");
@@ -1059,11 +1061,11 @@ static void test_rtti(void)
   casted = p__RTDynamicCast(&child_class, 0, NULL, simple_class_rtti.type_info, 0);
   if(casted)
   {
-    ok (casted == (char*)&child_class+8, "failed cast to simple_class (%p %p)\n", casted, &child_class);
+    ok (casted == (char*)child_class_ptr+8, "failed cast to simple_class (%p %p)\n", casted, child_class_ptr);
   }
 
   casted = p__RTDynamicCast(&child_class, 0, &child_class_rtti.type_info[0], &child_class_rtti.type_info[1], 0);
-  ok(casted == (char*)&child_class+4, "failed cast to child class (%p %p)\n", casted, &child_class);
+  ok(casted == (char*)child_class_ptr+4, "failed cast to child class (%p %p)\n", casted, child_class_ptr);
 
   casted = p__RTDynamicCast(&virtual_base_class, 0, &virtual_base_class_rtti.type_info[0], &virtual_base_class_rtti.type_info[1], 0);
   ok(casted == &virtual_base_class.vbthis, "failed cast to child class (%p %p)\n", casted, &virtual_base_class);
