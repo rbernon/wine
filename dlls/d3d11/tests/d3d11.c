@@ -16359,15 +16359,15 @@ static void test_clear_buffer_unordered_access_view(void)
     struct resource_readback rb;
     ID3D11Buffer *buffer;
     ID3D11Device *device;
-    struct uvec4 uvec4;
     unsigned int i, x;
     ULONG refcount;
+    UINT uvec4[4];
     HRESULT hr;
     RECT rect;
 
     static const D3D_FEATURE_LEVEL feature_level = D3D_FEATURE_LEVEL_11_0;
-    static const struct uvec4 fe_uvec4 = {0xfefefefe, 0xfefefefe, 0xfefefefe, 0xfefefefe};
-    static const struct uvec4 uvec4_data[] =
+    static const UINT fe_uvec4[] = {0xfefefefe, 0xfefefefe, 0xfefefefe, 0xfefefefe};
+    static const UINT uvec4_data[][4] =
     {
         {0x00000000, 0x00000000, 0x00000000, 0x00000000},
 
@@ -16463,20 +16463,20 @@ static void test_clear_buffer_unordered_access_view(void)
 
     for (i = 0; i < ARRAY_SIZE(uvec4_data); ++i)
     {
-        uvec4 = uvec4_data[i];
-        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav, &uvec4.x);
+        memcpy(uvec4, uvec4_data[i], sizeof(uvec4));
+        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav, uvec4);
         get_buffer_readback(buffer, &rb);
-        SetRect(&rect, 0, 0, buffer_desc.ByteWidth / sizeof(uvec4.x), 1);
-        check_readback_data_color(&rb, &rect, uvec4.x, 0);
+        SetRect(&rect, 0, 0, buffer_desc.ByteWidth / sizeof(uvec4[0]), 1);
+        check_readback_data_color(&rb, &rect, uvec4[0], 0);
         release_resource_readback(&rb);
 
-        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav2, &fe_uvec4.x);
+        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav2, fe_uvec4);
         get_buffer_readback(buffer, &rb);
-        SetRect(&rect, 0, 0, U(uav_desc).Buffer.NumElements * buffer_desc.StructureByteStride / sizeof(uvec4.x), 1);
-        check_readback_data_color(&rb, &rect, fe_uvec4.x, 0);
+        SetRect(&rect, 0, 0, U(uav_desc).Buffer.NumElements * buffer_desc.StructureByteStride / sizeof(uvec4[0]), 1);
+        check_readback_data_color(&rb, &rect, fe_uvec4[0], 0);
         rect.left = rect.right;
-        rect.right = buffer_desc.ByteWidth / sizeof(uvec4.x);
-        check_readback_data_color(&rb, &rect, uvec4.x, 0);
+        rect.right = buffer_desc.ByteWidth / sizeof(uvec4[0]);
+        check_readback_data_color(&rb, &rect, uvec4[0], 0);
         release_resource_readback(&rb);
     }
 
@@ -16503,19 +16503,19 @@ static void test_clear_buffer_unordered_access_view(void)
 
     for (i = 0; i < ARRAY_SIZE(uvec4_data); ++i)
     {
-        uvec4 = uvec4_data[i];
-        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav, &uvec4.x);
+        memcpy(uvec4, uvec4_data[i], sizeof(uvec4));
+        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav, uvec4);
         get_buffer_readback(buffer, &rb);
-        SetRect(&rect, 0, 0, buffer_desc.ByteWidth / sizeof(uvec4.x), 1);
-        check_readback_data_color(&rb, &rect, uvec4.x, 0);
+        SetRect(&rect, 0, 0, buffer_desc.ByteWidth / sizeof(uvec4[0]), 1);
+        check_readback_data_color(&rb, &rect, uvec4[0], 0);
         release_resource_readback(&rb);
 
-        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav2, &fe_uvec4.x);
+        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav2, fe_uvec4);
         get_buffer_readback(buffer, &rb);
         SetRect(&rect, 0, 0, U(uav_desc).Buffer.FirstElement, 1);
-        check_readback_data_color(&rb, &rect, uvec4.x, 0);
-        SetRect(&rect, U(uav_desc).Buffer.FirstElement, 0, buffer_desc.ByteWidth / sizeof(uvec4.x), 1);
-        check_readback_data_color(&rb, &rect, fe_uvec4.x, 0);
+        check_readback_data_color(&rb, &rect, uvec4[0], 0);
+        SetRect(&rect, U(uav_desc).Buffer.FirstElement, 0, buffer_desc.ByteWidth / sizeof(uvec4[0]), 1);
+        check_readback_data_color(&rb, &rect, fe_uvec4[0], 0);
         release_resource_readback(&rb);
     }
 
@@ -16542,19 +16542,19 @@ static void test_clear_buffer_unordered_access_view(void)
 
     for (i = 0; i < ARRAY_SIZE(uvec4_data); ++i)
     {
-        uvec4 = uvec4_data[i];
-        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav, &uvec4.x);
+        memcpy(uvec4, uvec4_data[i], sizeof(uvec4));
+        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav, uvec4);
         get_buffer_readback(buffer, &rb);
-        SetRect(&rect, 0, 0, buffer_desc.ByteWidth / sizeof(uvec4.x), 1);
-        check_readback_data_color(&rb, &rect, uvec4.x, 0);
+        SetRect(&rect, 0, 0, buffer_desc.ByteWidth / sizeof(uvec4[0]), 1);
+        check_readback_data_color(&rb, &rect, uvec4[0], 0);
         release_resource_readback(&rb);
 
-        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav2, &fe_uvec4.x);
+        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav2, fe_uvec4);
         get_buffer_readback(buffer, &rb);
         SetRect(&rect, 0, 0, U(uav_desc).Buffer.FirstElement, 1);
-        check_readback_data_color(&rb, &rect, uvec4.x, 0);
-        SetRect(&rect, U(uav_desc).Buffer.FirstElement, 0, buffer_desc.ByteWidth / sizeof(uvec4.x), 1);
-        check_readback_data_color(&rb, &rect, fe_uvec4.x, 0);
+        check_readback_data_color(&rb, &rect, uvec4[0], 0);
+        SetRect(&rect, U(uav_desc).Buffer.FirstElement, 0, buffer_desc.ByteWidth / sizeof(uvec4[0]), 1);
+        check_readback_data_color(&rb, &rect, fe_uvec4[0], 0);
         release_resource_readback(&rb);
     }
 
@@ -16578,44 +16578,44 @@ static void test_clear_buffer_unordered_access_view(void)
         const struct uvec4 *data = NULL;
         BOOL all_match;
 
-        uvec4 = uvec4_data[i];
-        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav, &uvec4.x);
+        memcpy(uvec4, uvec4_data[i], sizeof(uvec4));
+        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav, uvec4);
         get_buffer_readback(buffer, &rb);
         for (x = 0, all_match = TRUE; x < buffer_desc.ByteWidth / sizeof(uvec4); ++x)
         {
-            const struct uvec4 broken_result = {uvec4.x, uvec4.x, uvec4.x, uvec4.x}; /* Intel */
+            const struct uvec4 broken_result = {uvec4[0], uvec4[0], uvec4[0], uvec4[0]}; /* Intel */
             data = get_readback_uvec4(&rb, x, 0);
-            if (!(compare_uvec4(data, &uvec4) || broken(compare_uvec4(data, &broken_result))))
+            if (!(compare_uvec4(data, (struct uvec4 *)uvec4) || broken(compare_uvec4(data, &broken_result))))
             {
                 all_match = FALSE;
                 break;
             }
         }
         ok(all_match, "Got {%#x, %#x, %#x, %#x}, expected {%#x, %#x, %#x, %#x} at %u.\n",
-                data->x, data->y, data->z, data->w, uvec4.x, uvec4.y, uvec4.z, uvec4.w, x);
+                data->x, data->y, data->z, data->w, uvec4[0], uvec4[1], uvec4[2], uvec4[3], x);
         release_resource_readback(&rb);
 
-        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav2, &fe_uvec4.x);
+        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav2, fe_uvec4);
         get_buffer_readback(buffer, &rb);
         for (x = 0, all_match = TRUE; x < buffer_desc.ByteWidth / sizeof(uvec4); ++x)
         {
             struct uvec4 broken_result;
             data = get_readback_uvec4(&rb, x, 0);
-            uvec4 = U(uav_desc).Buffer.FirstElement <= x ? fe_uvec4 : uvec4_data[i];
-            broken_result.x = broken_result.y = broken_result.z = broken_result.w = uvec4.x;
-            if (!(compare_uvec4(data, &uvec4) || broken(compare_uvec4(data, &broken_result))))
+            memcpy(uvec4, U(uav_desc).Buffer.FirstElement <= x ? fe_uvec4 : uvec4_data[i], sizeof(uvec4));
+            broken_result.x = broken_result.y = broken_result.z = broken_result.w = uvec4[0];
+            if (!(compare_uvec4(data, (struct uvec4 *)uvec4) || broken(compare_uvec4(data, &broken_result))))
             {
                 all_match = FALSE;
                 break;
             }
         }
         ok(all_match, "Got {%#x, %#x, %#x, %#x}, expected {%#x, %#x, %#x, %#x} at %u.\n",
-                data->x, data->y, data->z, data->w, uvec4.x, uvec4.y, uvec4.z, uvec4.w, x);
+                data->x, data->y, data->z, data->w, uvec4[0], uvec4[1], uvec4[2], uvec4[3], x);
         release_resource_readback(&rb);
     }
 
-    uvec4.x = uvec4.y = uvec4.z = uvec4.w = 0xdeadbeef;
-    ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav, &uvec4.x);
+    uvec4[0] = uvec4[1] = uvec4[2] = uvec4[3] = 0xdeadbeef;
+    ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav, uvec4);
     ID3D11UnorderedAccessView_Release(uav);
     ID3D11UnorderedAccessView_Release(uav2);
 
@@ -16633,19 +16633,19 @@ static void test_clear_buffer_unordered_access_view(void)
 
     for (i = 0; i < ARRAY_SIZE(uvec4_data); ++i)
     {
-        uvec4 = uvec4_data[i];
-        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav, &uvec4.x);
+        memcpy(uvec4, uvec4_data[i], sizeof(uvec4));
+        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav, uvec4);
         get_buffer_readback(buffer, &rb);
-        todo_wine check_rgba_sint8(get_readback_color(&rb, 0, 0, 0), &uvec4);
-        todo_wine check_rgba_sint8(get_readback_color(&rb, 7, 0, 0), &uvec4);
-        todo_wine check_rgba_sint8(get_readback_color(&rb, 15, 0, 0), &uvec4);
+        todo_wine check_rgba_sint8(get_readback_color(&rb, 0, 0, 0), (struct uvec4 *)uvec4);
+        todo_wine check_rgba_sint8(get_readback_color(&rb, 7, 0, 0), (struct uvec4 *)uvec4);
+        todo_wine check_rgba_sint8(get_readback_color(&rb, 15, 0, 0), (struct uvec4 *)uvec4);
         release_resource_readback(&rb);
 
-        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav2, &fe_uvec4.x);
+        ID3D11DeviceContext_ClearUnorderedAccessViewUint(context, uav2, fe_uvec4);
         get_buffer_readback(buffer, &rb);
-        todo_wine check_rgba_sint8(get_readback_color(&rb, 0, 0, 0), &uvec4);
-        todo_wine check_rgba_sint8(get_readback_color(&rb, U(uav_desc).Buffer.FirstElement - 1, 0, 0), &uvec4);
-        todo_wine check_rgba_sint8(get_readback_color(&rb, U(uav_desc).Buffer.FirstElement, 0, 0), &fe_uvec4);
+        todo_wine check_rgba_sint8(get_readback_color(&rb, 0, 0, 0), (struct uvec4 *)uvec4);
+        todo_wine check_rgba_sint8(get_readback_color(&rb, U(uav_desc).Buffer.FirstElement - 1, 0, 0), (struct uvec4 *)uvec4);
+        todo_wine check_rgba_sint8(get_readback_color(&rb, U(uav_desc).Buffer.FirstElement, 0, 0), (struct uvec4 *)fe_uvec4);
         release_resource_readback(&rb);
     }
 
