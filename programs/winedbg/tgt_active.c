@@ -165,7 +165,7 @@ static BOOL dbg_exception_prolog(BOOL is_debug, const EXCEPTION_RECORD* rec)
                                   ? "32 bit" : "64 bit"; break;
         default: return FALSE;
         }
-        dbg_printf("In %s mode.\n", name);
+        dbg_printf("In %s mode.\n", debugstr_a(name));
         dbg_curr_thread->addr_mode = addr.Mode;
     }
     display_print();
