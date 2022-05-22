@@ -27,7 +27,7 @@
 #include "wine/debug.h"
 WINE_DEFAULT_DEBUG_CHANNEL(msvcp);
 
-#define FROZEN 255
+#define FROZEN (unsigned char)255
 
 /* _String_iterator<char> and _String_const_iterator<char> class */
 typedef struct {
