@@ -129,10 +129,11 @@ static RpcPktHdr *RPCRT4_BuildRequestHeader(ULONG DataRepresentation,
   RpcPktHdr *header;
   BOOL has_object;
   RPC_STATUS status;
+  SIZE_T size;
 
   has_object = (ObjectUuid != NULL && !UuidIsNil(ObjectUuid, &status));
-  header = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
-                     sizeof(header->request) + (has_object ? sizeof(UUID) : 0));
+  size = sizeof(header->request) + (has_object ? sizeof(UUID) : 0);
+  header = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, max(sizeof(*header), size));
   if (header == NULL) {
     return NULL;
   }
@@ -155,7 +156,7 @@ RpcPktHdr *RPCRT4_BuildResponseHeader(ULONG DataRepresentation, ULONG BufferLeng
 {
   RpcPktHdr *header;
 
-  header = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(header->response));
+  header = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*header));
   if (header == NULL) {
     return NULL;
   }
@@ -171,7 +172,7 @@ RpcPktHdr *RPCRT4_BuildFaultHeader(ULONG DataRepresentation, RPC_STATUS Status)
 {
   RpcPktHdr *header;
 
-  header = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(header->fault));
+  header = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*header));
   if (header == NULL) {
     return NULL;
   }
@@ -192,9 +193,10 @@ RpcPktHdr *RPCRT4_BuildBindHeader(ULONG DataRepresentation,
 {
   RpcPktHdr *header;
   RpcContextElement *ctxt_elem;
+  SIZE_T size;
 
-  header = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
-                     sizeof(header->bind) + FIELD_OFFSET(RpcContextElement, transfer_syntaxes[1]));
+  size = sizeof(header->bind) + FIELD_OFFSET(RpcContextElement, transfer_syntaxes[1]);
+  header = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, max(sizeof(*header), size));
   if (header == NULL) {
     return NULL;
   }
@@ -217,8 +219,7 @@ static RpcPktHdr *RPCRT4_BuildAuthHeader(ULONG DataRepresentation)
 {
   RpcPktHdr *header;
 
-  header = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
-                     sizeof(header->auth3));
+  header = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*header));
   if (header == NULL)
     return NULL;
 
@@ -234,8 +235,10 @@ RpcPktHdr *RPCRT4_BuildBindNackHeader(ULONG DataRepresentation,
                                       unsigned short RejectReason)
 {
   RpcPktHdr *header;
+  SIZE_T size;
 
-  header = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, FIELD_OFFSET(RpcPktHdr, bind_nack.protocols[1]));
+  size = FIELD_OFFSET(RpcPktHdr, bind_nack.protocols[1]);
+  header = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, max(sizeof(*header), size));
   if (header == NULL) {
     return NULL;
   }
@@ -259,21 +262,19 @@ RpcPktHdr *RPCRT4_BuildBindAckHeader(ULONG DataRepresentation,
                                      const RpcResult *Results)
 {
   RpcPktHdr *header;
-  ULONG header_size;
   RpcAddressString *server_address;
   RpcResultList *results;
+  SIZE_T size;
 
-  header_size = sizeof(header->bind_ack) +
-                ROUND_UP(FIELD_OFFSET(RpcAddressString, string[strlen(ServerAddress) + 1]), 4) +
-                FIELD_OFFSET(RpcResultList, results[ResultCount]);
-
-  header = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, header_size);
+  size = sizeof(header->bind_ack) + ROUND_UP(FIELD_OFFSET(RpcAddressString, string[strlen(ServerAddress) + 1]), 4) +
+         FIELD_OFFSET(RpcResultList, results[ResultCount]);
+  header = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, max(sizeof(*header), size));
   if (header == NULL) {
     return NULL;
   }
 
   RPCRT4_BuildCommonHeader(header, PKT_BIND_ACK, DataRepresentation);
-  header->common.frag_len = header_size;
+  header->common.frag_len = size;
   header->bind_ack.max_tsize = MaxTransmissionSize;
   header->bind_ack.max_rsize = MaxReceiveSize;
   header->bind_ack.assoc_gid = AssocGroupId;
@@ -294,8 +295,10 @@ RpcPktHdr *RPCRT4_BuildHttpHeader(ULONG DataRepresentation,
                                   unsigned int payload_size)
 {
   RpcPktHdr *header;
+  SIZE_T size;
 
-  header = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(header->http) + payload_size);
+  size = sizeof(header->http) + payload_size;
+  header = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, max(sizeof(*header), size));
   if (header == NULL) {
       ERR("failed to allocate memory\n");
     return NULL;
