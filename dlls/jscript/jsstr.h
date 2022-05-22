@@ -82,6 +82,8 @@ typedef struct {
     WCHAR buf[];
 } jsstr_inline_t;
 
+C_ASSERT(sizeof(jsstr_inline_t) == offsetof(jsstr_inline_t, buf[0]));
+
 typedef struct {
     jsstr_t str;
     WCHAR *buf;
