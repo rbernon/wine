@@ -327,7 +327,7 @@ HMODULE WINAPI DECLSPEC_HOTPATCH GetModuleHandleA( LPCSTR module )
 {
     HMODULE ret;
 
-    GetModuleHandleExA( GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, module, &ret );
+    if (!GetModuleHandleExA( GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, module, &ret )) return NULL;
     return ret;
 }
 
@@ -339,7 +339,7 @@ HMODULE WINAPI DECLSPEC_HOTPATCH GetModuleHandleW( LPCWSTR module )
 {
     HMODULE ret;
 
-    GetModuleHandleExW( GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, module, &ret );
+    if (!GetModuleHandleExW( GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, module, &ret )) return NULL;
     return ret;
 }
 
