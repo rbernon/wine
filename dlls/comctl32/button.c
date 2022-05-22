@@ -1925,6 +1925,7 @@ static void PB_Paint( const BUTTON_INFO *infoPtr, HDC hDC, UINT action )
             SetTextColor( hDC, oldTxtColor );
         }
     }
+    else dtFlags = (UINT)-1L;
 
     if (cdrf & CDRF_NOTIFYPOSTPAINT)
     {
