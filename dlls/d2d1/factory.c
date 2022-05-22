@@ -1307,6 +1307,7 @@ HRESULT WINAPI D2D1CreateDevice(IDXGIDevice *dxgi_device,
 {
     D2D1_CREATION_PROPERTIES default_properties = {0};
     D2D1_FACTORY_OPTIONS factory_options;
+    D2D1_FACTORY_TYPE factory_type;
     ID3D11Device *d3d_device;
     ID2D1Factory1 *factory;
     HRESULT hr;
@@ -1324,8 +1325,12 @@ HRESULT WINAPI D2D1CreateDevice(IDXGIDevice *dxgi_device,
         properties = &default_properties;
     }
 
+    if (properties->threadingMode == D2D1_THREADING_MODE_MULTI_THREADED)
+        factory_type = D2D1_FACTORY_TYPE_MULTI_THREADED;
+    else
+        factory_type = D2D1_FACTORY_TYPE_SINGLE_THREADED;
     factory_options.debugLevel = properties->debugLevel;
-    if (FAILED(hr = D2D1CreateFactory(properties->threadingMode,
+    if (FAILED(hr = D2D1CreateFactory(factory_type,
             &IID_ID2D1Factory1, &factory_options, (void **)&factory)))
         return hr;
 
