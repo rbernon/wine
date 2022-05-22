@@ -1541,6 +1541,8 @@ static void test__AdjustPointer(void)
     } obj = { 0, 0xf0 };
     void *obj1 = &obj.off;
     void *obj2 = &obj;
+    void *volatile obj3 = &obj1;
+    void *volatile obj4 = &obj2;
     struct test_data {
         void *ptr;
         void *ret;
@@ -1553,10 +1555,10 @@ static void test__AdjustPointer(void)
         {NULL, NULL, {0, -1, 0}},
         {(void*)0xbeef, (void*)0xbef0, {1, -1, 1}},
         {(void*)0xbeef, (void*)0xbeee, {-1, -1, 0}},
-        {&obj1, (char*)&obj1 + obj.off, {0, 0, 0}},
-        {(char*)&obj1 - 5, (char*)&obj1 + obj.off, {0, 5, 0}},
-        {(char*)&obj1 - 3, (char*)&obj1 + obj.off + 24, {24, 3, 0}},
-        {(char*)&obj2 - 17, (char*)&obj2 + obj.off + 4, {4, 17, sizeof(int)}}
+        {obj3, (char*)obj3 + obj.off, {0, 0, 0}},
+        {(char*)obj3 - 5, (char*)obj3 + obj.off, {0, 5, 0}},
+        {(char*)obj3 - 3, (char*)obj3 + obj.off + 24, {24, 3, 0}},
+        {(char*)obj4 - 17, (char*)obj4 + obj.off + 4, {4, 17, sizeof(int)}}
     };
     void *ret;
     int i;
