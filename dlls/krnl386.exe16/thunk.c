@@ -990,7 +990,8 @@ DWORD WINAPIV SSCall(
 	...		/* [in/out] arguments */
 ) {
     DWORD i,ret;
-    DWORD *args = ((DWORD *)&fun) + 1;
+    void *first = &fun;
+    DWORD *args = (*(DWORD *volatile *)&first) + 1;
 
     TRACE("(%ld,0x%08lx,%p,[",nr,flags,fun);
     for (i = 0; i < nr/4; i++) TRACE("0x%08lx,",args[i]);
