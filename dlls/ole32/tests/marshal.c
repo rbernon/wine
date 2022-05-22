@@ -268,8 +268,9 @@ static ULONG WINAPI TestCrash_IUnknown_Release(LPUNKNOWN iface)
 {
     UnlockModule();
     if(!cLocks) {
+        static volatile int *volatile i;
         trace("crashing...\n");
-        *(int**)0xc = 0;
+        *i = 0;
     }
     return 1; /* non-heap-based object */
 }
