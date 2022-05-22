@@ -2337,7 +2337,7 @@ XIC X11DRV_get_ic( HWND hwnd )
 void X11DRV_GetDC( HDC hdc, HWND hwnd, HWND top, const RECT *win_rect,
                    const RECT *top_rect, DWORD flags )
 {
-    struct x11drv_escape_set_drawable escape;
+    struct x11drv_escape_set_drawable escape = {0};
     HWND parent;
 
     escape.code = X11DRV_SET_DRAWABLE;
