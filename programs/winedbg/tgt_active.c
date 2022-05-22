@@ -163,7 +163,7 @@ static BOOL dbg_exception_prolog(BOOL is_debug, const EXCEPTION_RECORD* rec)
         case AddrModeFlat: name = dbg_curr_process->be_cpu->pointer_size == 4
                                   ? "32 bit" : "64 bit"; break;
         }
-        dbg_printf("In %s mode.\n", name);
+        dbg_printf("In %s mode.\n", debugstr_a(name));
         dbg_curr_thread->addr_mode = addr.Mode;
     }
     display_print();
