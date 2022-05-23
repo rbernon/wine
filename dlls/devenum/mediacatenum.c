@@ -217,6 +217,7 @@ static HRESULT WINAPI property_bag_Read(IPropertyBag *iface,
         if ((ret = RegOpenKeyExW(HKEY_CURRENT_USER, path, 0, 0, &parent)))
             return HRESULT_FROM_WIN32(ret);
     }
+    else return E_INVALIDARG;
     ret = RegOpenKeyExW(parent, moniker->name, 0, KEY_READ, &key);
     RegCloseKey(parent);
     if (ret)
