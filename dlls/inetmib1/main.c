@@ -631,7 +631,7 @@ static BOOL mib2IfEntryQuery(BYTE bPduType, SnmpVarBind *pVarBind,
 
             *pErrorStatus = getItemAndIntegerInstanceFromOid(&pVarBind->name,
                 &entryOid, bPduType, &item, &tableIndex);
-            if (!*pErrorStatus)
+            if (!*pErrorStatus && tableIndex)
             {
                 assert(tableIndex);
                 assert(item);
