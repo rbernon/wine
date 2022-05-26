@@ -7228,7 +7228,7 @@ static HRESULT set_input_xml_buffer( struct reader *reader, struct xmlbuf *xmlbu
 {
     reader->input_type    = WS_XML_READER_INPUT_TYPE_BUFFER;
     reader->input_buf     = xmlbuf;
-    reader->input_enc     = xmlbuf->encoding;
+    reader->input_enc     = (WS_XML_READER_ENCODING_TYPE)xmlbuf->encoding;
     reader->input_charset = xmlbuf->charset;
     reader->dict_static   = xmlbuf->dict_static;
     reader->dict          = xmlbuf->dict;
@@ -7630,7 +7630,7 @@ HRESULT create_header_buffer( WS_XML_READER *handle, WS_HEAP *heap, WS_XML_BUFFE
         return E_INVALIDARG;
     }
 
-    if ((xmlbuf = alloc_xmlbuf( heap, reader->read_pos, reader->input_enc, reader->input_charset,
+    if ((xmlbuf = alloc_xmlbuf( heap, reader->read_pos, (WS_XML_WRITER_ENCODING_TYPE)reader->input_enc, reader->input_charset,
                                 reader->dict_static, reader->dict )))
     {
         memcpy( xmlbuf->bytes.bytes, reader->read_bufptr, reader->read_pos );
