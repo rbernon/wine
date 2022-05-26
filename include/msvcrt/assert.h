@@ -26,10 +26,10 @@ extern "C" {
 
 #undef assert
 #ifdef NDEBUG
-#define assert(_expr) ((void)0)
+#define assert(_expr) ((void)((_expr) ? 0 : (__builtin_unreachable(), 0)))
 #else
 _ACRTIMP void __cdecl _assert(const char *, const char *, unsigned int);
-#define assert(_expr) (void)((!!(_expr)) || (_assert(#_expr, __FILE__, __LINE__), 0))
+#define assert(_expr) (void)((!!(_expr)) || (_assert(#_expr, __FILE__, __LINE__), (_expr) ? 0 : (__builtin_unreachable(), 0)))
 #endif
 
 #ifdef  __cplusplus

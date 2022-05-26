@@ -937,8 +937,8 @@ static DWORD MIDI_player(WINE_MCIMIDI* wmm, DWORD dwFlags)
 		if (TRACE_ON(mcimidi)) {
 		    WORD	twd;
 
-		    MIDI_mciReadWord(wmm, &twd);	/* == 0 */
-		    TRACE("Got sequence number %u\n", twd);
+		    if (MIDI_mciReadWord(wmm, &twd)) WARN("Failed to read word\n");
+		    else TRACE("Got sequence number %u\n", twd);
 		}
 		break;
 	    case 0x01: /* any text */
