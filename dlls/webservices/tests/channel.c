@@ -1221,7 +1221,7 @@ static BOOL send_dict_str( int sock, char *addr, const char *str, int dict_str_c
 
     /* Session dictionary strings. */
     offset = write_size( dict_buf, strlen(str) );
-    memcpy( dict_buf + offset, str, strlen(str) );
+    strcpy( dict_buf + offset, str );
     dict_buf_size = strlen(str) + offset;
 
     dict_size = write_size( dict_size_buf, dict_buf_size );

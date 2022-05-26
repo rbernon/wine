@@ -25,7 +25,7 @@ cpp_quote("#include <pshpack1.h>")
 typedef struct
 {
     WORD cb;      /* nr of bytes in this item */
-    BYTE abID[1]; /* first byte in this item */
+    [size_is(cb)] BYTE abID[];  /* first byte in this item */
 } SHITEMID, *LPSHITEMID;
 typedef const SHITEMID *LPCSHITEMID;
 
