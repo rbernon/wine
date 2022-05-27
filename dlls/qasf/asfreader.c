@@ -344,10 +344,55 @@ static ULONG WINAPI media_seeking_Release(IMediaSeeking *iface)
 static HRESULT WINAPI media_seeking_SetPositions(IMediaSeeking *iface,
         LONGLONG *current, DWORD current_flags, LONGLONG *stop, DWORD stop_flags)
 {
-    FIXME("iface %p, current %s, current_flags %#lx, stop %s, stop_flags %#lx stub!\n",
+    struct asf_stream *impl = impl_from_IMediaSeeking(iface);
+    struct asf_reader *filter = asf_reader_from_asf_stream(impl);
+    HRESULT hr;
+    int i;
+
+    TRACE("iface %p, current %s, current_flags %#lx, stop %s, stop_flags %#lx.\n",
             iface, current ? debugstr_time(*current) : "<null>", current_flags,
             stop ? debugstr_time(*stop) : "<null>", stop_flags);
-    return SourceSeekingImpl_SetPositions(iface, current, current_flags, stop, stop_flags);
+
+    if (impl->source.pin.filter->state == State_Stopped)
+    {
+        SourceSeekingImpl_SetPositions(iface, current, current_flags, stop, stop_flags);
+        return S_OK;
+    }
+
+    if (!(current_flags & AM_SEEKING_NoFlush))
+    {
+        for (i = 0; i < filter->stream_count; ++i)
+        {
+            if (filter->streams[i].source.pin.peer)
+                IPin_BeginFlush(filter->streams[i].source.pin.peer);
+        }
+    }
+
+    EnterCriticalSection(&filter->status_cs);
+
+    SourceSeekingImpl_SetPositions(iface, current, current_flags, stop, stop_flags);
+
+    if (SUCCEEDED(hr = IWMReader_Start(filter->reader, impl->seek.llCurrent,
+            impl->seek.llDuration, impl->seek.dRate, NULL)))
+    {
+        filter->status = -1;
+        while (filter->status != WMT_STARTED)
+            SleepConditionVariableCS(&filter->status_cv, &filter->status_cs, INFINITE);
+        hr = filter->result;
+    }
+
+    LeaveCriticalSection(&filter->status_cs);
+
+    if (!(current_flags & AM_SEEKING_NoFlush))
+    {
+        for (i = 0; i < filter->stream_count; ++i)
+        {
+            if (filter->streams[i].source.pin.peer)
+                IPin_EndFlush(filter->streams[i].source.pin.peer);
+        }
+    }
+
+    return S_OK;
 }
 
 static const IMediaSeekingVtbl media_seeking_vtbl =
@@ -487,7 +532,8 @@ static HRESULT asf_reader_init_stream(struct strmbase_filter *iface)
             break;
         }
 
-        if (FAILED(hr = IPin_NewSegment(stream->source.pin.peer, 0, 0, 1)))
+        if (FAILED(hr = IPin_NewSegment(stream->source.pin.peer, stream->seek.llCurrent,
+                stream->seek.llStop, stream->seek.dRate)))
         {
             WARN("Failed to start stream %u new segment, hr %#lx\n", i, hr);
             break;
