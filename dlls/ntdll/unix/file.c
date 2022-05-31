@@ -36,7 +36,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <limits.h>
 #include <unistd.h>
 #ifdef HAVE_MNTENT_H
