@@ -2631,307 +2631,157 @@ static void flush_sequence(void)
     LeaveCriticalSection( &sequence_cs );
 }
 
-static const char* message_type_name(int flags) {
-    if (flags & hook) return "hook";
-    if (flags & kbd_hook) return "kbd_hook";
-    if (flags & winevent_hook) return "winevent_hook";
-    return "msg";
+static int try_compare_message( const struct message *expected, const struct recvd_message *received )
+{
+    static DWORD type_flags = hook | winevent_hook | kbd_hook;
+    int ret;
+
+    if ((ret = (expected->flags & type_flags) - (received->flags & type_flags))) return ret;
+    if ((ret = expected->message - received->message)) return ret;
+
+    /* validate parent and defwinproc flags for optional messages */
+    if (!(expected->flags & optional)) return 0;
+    if ((ret = (expected->flags & defwinproc) - (received->flags & defwinproc))) return ret;
+    if ((ret = (expected->flags & parent) - (received->flags & parent))) return ret;
+
+    return 0;
 }
 
-static BOOL can_skip_message(const struct message *expected)
+static int compare_message( const struct message *expected, const struct recvd_message *received,
+                            BOOL todo, const char *file, int line )
 {
-    if (expected->flags & optional) return TRUE;
+    static DWORD type_flags = hook | winevent_hook | kbd_hook;
+    static DWORD msg_flags = sent | posted;
+    int ret;
 
-    if ((expected->flags & winevent_hook) && !hEvent_hook) return TRUE;
-    if ((expected->flags & kbd_hook) && !hKBD_hook) return TRUE;
-    if ((expected->flags & hook) && !hCBT_hook) return TRUE;
+    if ((ret = (expected->flags & type_flags) - (received->flags & type_flags))) goto done;
+    if ((ret = expected->message - received->message)) goto done;
+    if ((ret = (expected->flags & defwinproc) - (received->flags & defwinproc))) goto done;
+    if ((ret = (expected->flags & parent) - (received->flags & parent))) goto done;
+    if ((ret = (expected->flags & msg_flags) - (received->flags & msg_flags))) goto done;
+    if ((ret = (expected->flags & beginpaint) - (received->flags & beginpaint))) goto done;
+    if ((expected->flags & wparam) && (ret = (expected->wParam & ~expected->wp_mask) - (received->wParam & ~expected->wp_mask))) goto done;
+    if ((expected->flags & lparam) && (ret = (expected->lParam & ~expected->lp_mask) - (received->lParam & ~expected->lp_mask))) goto done;
 
-    if ((expected->flags & winevent_hook_todo) && !strcmp(winetest_platform, "wine")) return TRUE;
-
-    return FALSE;
-}
-
-static BOOL messages_equal(const struct message *expected, const struct recvd_message *actual,
-    BOOL expect_equal, const char* file, int line)
-{
-    int todo = (expected->flags & winevent_hook_todo) != 0;
-    const int message_type_flags = hook|winevent_hook|kbd_hook;
-    static int todo_reported;
-
-    if (!todo && can_skip_message(expected))
-        expect_equal = FALSE;
-
-    if (!expected->message || !actual->message) {
-        if (expect_equal && (!todo || !todo_reported++))
-            todo_wine_if(todo)
-            ok_( file, line) (FALSE, "the msg sequence is not complete: expected %s %04x - actual %s %04x\n",
-                              message_type_name(expected->flags), expected->message, message_type_name(actual->flags), actual->message);
-        return FALSE;
-    }
-
-    if (expected->message != actual->message ||
-        (expected->flags & message_type_flags) != (actual->flags & message_type_flags))
+done:
+    if (ret && winetest_debug > 1)
     {
-        if (expect_equal && (!todo || !todo_reported++))
-            todo_wine_if(todo)
-            ok_( file, line) (FALSE, "the %s 0x%04x was expected, but got %s 0x%04x instead\n",
-                              message_type_name(expected->flags), expected->message, message_type_name(actual->flags), actual->message);
-        return FALSE;
-    }
-
-    if (expected->flags & optional)
-    {
-        /* If a message can be sent in 2 different ways at the same time, we may need to treat
-         * them as unequal so that the optional message can be properly skipped. */
-        if ((expected->flags & defwinproc) != (actual->flags & defwinproc)) {
-            /* don't match messages if their defwinproc status differs */
-            return FALSE;
-        }
-    }
-
-    if (expect_equal)
         todo_wine_if(todo)
-        ok_( file, line) (TRUE, "got %s 0x%04x as expected\n",
-                          message_type_name(expected->flags), expected->message);
-
-    return TRUE;
+        ok_(file, line)( 0, "mismatch %#x, %#x, %#Ix, %#Ix\n", received->message,
+                         received->flags, received->wParam, received->lParam );
+    }
+    if (!ret && winetest_debug > 2)
+        trace_(file, line)( "match %#x, %#x, %#Ix, %#Ix\n", received->message,
+                         received->flags, received->wParam, received->lParam );
+    return ret;
 }
 
-static BOOL sequence_contains_message(const struct message *expected, const struct recvd_message *actual)
+static BOOL find_next_message( const struct message **expected, const struct recvd_message **received,
+                               BOOL *matches, BOOL todo, const char *file, int line )
 {
-    while (expected->message)
-    {
-        if (messages_equal(expected, actual, FALSE, __FILE__, __LINE__))
-            return TRUE;
-        expected++;
-    }
-    return FALSE;
-}
+    const struct recvd_message *first_received = *received, *tmp_received, *next_received;
+    const struct message *first_expected = *expected, *tmp_expected, *next_expected;
+    BOOL winhook_todo;
 
-static void dump_sequence(const struct message *expected, const char *context, const char *file, int line)
-{
-    const struct recvd_message *actual = sequence;
-    unsigned int count = 0;
+    /* try matching messages in expected list with first received message */
+    for (next_expected = first_expected; next_expected->message; next_expected++)
+        if (!try_compare_message( next_expected, first_received )) break;
 
-    trace_(file, line)("Failed sequence %s:\n", context );
-    while (expected->message && actual->message)
+    /* if current message doesn't match anything in the received list, match a non-optional message */
+    if (!next_expected->message) while (first_expected->flags & optional) first_expected++;
+
+    /* try matching messages in received list with first non-optional message */
+    for (next_received = first_received; next_received->message; next_received++)
+        if (!try_compare_message( first_expected, next_received ) &&
+            !(first_expected->flags & optional)) break;
+
+    /* couldn't find a match but there's more messages to try */
+    if (!next_expected->message && next_expected - first_expected > 1 &&
+        !next_received->message && next_received - first_received > 1)
+        return TRUE;
+
+    /* report the smallest mismatch which doesn't end the sequence */
+    if ((next_expected->message && next_expected - first_expected < next_received - first_received) ||
+        !next_received->message)
     {
-        if (actual->output[0])
+        for (tmp_expected = first_expected; tmp_expected != next_expected; ++tmp_expected)
         {
-            trace_(file, line)( "  %u: expected: %s %04x - actual: %s\n",
-                                count, message_type_name(expected->flags), expected->message, actual->output );
+            if (tmp_expected->flags & optional) continue;
+            if ((tmp_expected->flags & winevent_hook) && !hEvent_hook) continue;
+            winhook_todo = (tmp_expected->flags & winevent_hook) && (tmp_expected->flags & winevent_hook_todo);
+            if (!winhook_todo) *matches = FALSE;
+            if (winetest_debug > 1)
+            {
+                todo_wine_if(todo || winhook_todo)
+                ok_(file, line)( 0, "missing %#x, %#x, %#Ix, %#Ix\n", tmp_expected->message,
+                                 tmp_expected->flags, tmp_expected->wParam, tmp_expected->lParam );
+            }
         }
+        *expected = next_expected;
+    }
 
-        if (messages_equal(expected, actual, FALSE, file, line))
+    if ((next_received->message && next_received - first_received < next_expected - first_expected) ||
+        !next_expected->message)
+    {
+        for (tmp_received = first_received; tmp_received != next_received; ++tmp_received)
         {
-            expected++;
-            actual++;
-            count++;
+            *matches = FALSE;
+            if (winetest_debug > 1)
+            {
+                todo_wine_if(todo)
+                ok_(file, line)( 0, "spurious %#x, %#x, %#Ix, %#Ix\n", tmp_received->message,
+                                 tmp_received->flags, tmp_received->wParam, tmp_received->lParam );
+            }
+            break;
         }
-        else if (can_skip_message(expected) || sequence_contains_message(expected, actual))
-	{
-            expected++;
-            count++;
-        }
-        else
-        {
-            actual++;
-        }
+        *received = next_received;
     }
 
-    /* optional trailing messages */
-    while (can_skip_message(expected))
-    {
-        trace_(file, line)( "  %u: expected: msg %04x - actual: nothing\n", count, expected->message );
-	expected++;
-        count++;
-    }
-
-    if (expected->message)
-    {
-        trace_(file, line)( "  %u: expected: msg %04x - actual: nothing\n", count, expected->message );
-        return;
-    }
-
-    while (actual->message && actual->output[0])
-    {
-        trace_(file, line)( "  %u: expected: nothing - actual: %s\n", count, actual->output );
-        actual++;
-        count++;
-    }
+    return (*expected)->message && (*received)->message;
 }
 
 #define ok_sequence( exp, contx, todo) \
         ok_sequence_( (exp), (contx), (todo), __FILE__, __LINE__)
 
-
-static void ok_sequence_(const struct message *expected_list, const char *context, BOOL todo,
+static void ok_sequence_(const struct message *expected, const char *context, BOOL todo,
                          const char *file, int line)
 {
     static const struct recvd_message end_of_sequence;
-    const struct message *expected = expected_list;
-    const struct recvd_message *actual;
-    int failcount = 0, dump = 0;
-    unsigned int count = 0;
-    BOOL is_wine = !strcmp(winetest_platform, "wine");
+    const struct recvd_message *first_received, *received;
+    const struct message *first_expected = expected;
+    BOOL matches = TRUE;
 
     add_message(&end_of_sequence);
+    received = first_received = sequence;
 
-    actual = sequence;
-
-    winetest_push_context("%s: %u", context, count);
-
-    while (expected->message && actual->message)
+    while (expected->message || received->message)
     {
-	if (messages_equal(expected, actual, !todo, file, line))
-	{
-	    if (expected->flags & wparam)
-	    {
-		if (((expected->wParam ^ actual->wParam) & ~expected->wp_mask) && todo)
-		{
-		    todo_wine {
-                        failcount ++;
-                        dump++;
-                        ok_( file, line) (FALSE,
-			    "in msg 0x%04x expecting wParam 0x%Ix got 0x%Ix\n",
-                            expected->message, expected->wParam, actual->wParam);
-		    }
-                    if (is_wine) goto done;
-		}
-		else
-                {
-                    ok_( file, line)( ((expected->wParam ^ actual->wParam) & ~expected->wp_mask) == 0,
-                                     "in msg 0x%04x expecting wParam 0x%Ix got 0x%Ix\n",
-                                     expected->message, expected->wParam, actual->wParam);
-                    if ((expected->wParam ^ actual->wParam) & ~expected->wp_mask) dump++;
-                }
-
-	    }
-	    if (expected->flags & lparam)
-            {
-		if (((expected->lParam ^ actual->lParam) & ~expected->lp_mask) && todo)
-		{
-		    todo_wine {
-                        failcount ++;
-                        dump++;
-                        ok_( file, line) (FALSE,
-			    "in msg 0x%04x expecting lParam 0x%Ix got 0x%Ix\n",
-                            expected->message, expected->lParam, actual->lParam);
-		    }
-                    if (is_wine) goto done;
-		}
-		else
-                {
-                    ok_( file, line)(((expected->lParam ^ actual->lParam) & ~expected->lp_mask) == 0,
-                                     "in msg 0x%04x expecting lParam 0x%Ix got 0x%Ix\n",
-                                     expected->message, expected->lParam, actual->lParam);
-                    if ((expected->lParam ^ actual->lParam) & ~expected->lp_mask) dump++;
-                }
-            }
-	    if ((expected->flags & defwinproc) != (actual->flags & defwinproc) && todo)
-	    {
-		    todo_wine {
-                        failcount ++;
-                        dump++;
-                        ok_( file, line) (FALSE,
-                            "the msg 0x%04x should %shave been sent by DefWindowProc\n",
-                            expected->message, (expected->flags & defwinproc) ? "" : "NOT ");
-		    }
-                    if (is_wine) goto done;
-	    }
-	    else
-            {
-	        ok_( file, line) ((expected->flags & defwinproc) == (actual->flags & defwinproc),
-		    "the msg 0x%04x should %shave been sent by DefWindowProc\n",
-                    expected->message, (expected->flags & defwinproc) ? "" : "NOT ");
-                if ((expected->flags & defwinproc) != (actual->flags & defwinproc)) dump++;
-            }
-
-	    ok_( file, line) ((expected->flags & beginpaint) == (actual->flags & beginpaint),
-		"the msg 0x%04x should %shave been sent by BeginPaint\n",
-                expected->message, (expected->flags & beginpaint) ? "" : "NOT ");
-            if ((expected->flags & beginpaint) != (actual->flags & beginpaint)) dump++;
-
-	    ok_( file, line) ((expected->flags & (sent|posted)) == (actual->flags & (sent|posted)),
-		"the msg 0x%04x should have been %s\n",
-                expected->message, (expected->flags & posted) ? "posted" : "sent");
-            if ((expected->flags & (sent|posted)) != (actual->flags & (sent|posted))) dump++;
-
-	    ok_( file, line) ((expected->flags & parent) == (actual->flags & parent),
-		"the msg 0x%04x was expected in %s\n",
-                expected->message, (expected->flags & parent) ? "parent" : "child");
-            if ((expected->flags & parent) != (actual->flags & parent)) dump++;
-
-	    expected++;
-            count++;
-	    actual++;
-	}
-	/*
-         * silently drop hook messages if there is no support for them
-         */
-	else if (can_skip_message(expected))
+        winetest_push_context( "%Iu", expected - first_expected );
+        if (find_next_message( &expected, &received, &matches, todo, file, line ))
         {
-	    expected++;
-            count++;
-        }
-	else if (todo)
-	{
-            todo_wine messages_equal(expected, actual, TRUE, file, line);
-            failcount++;
-            dump++;
-            goto done;
-        }
-        else if (sequence_contains_message(expected, actual))
-        {
-            dump++;
+            if (compare_message( expected, received, todo, file, line )) matches = FALSE;
             expected++;
-            count++;
+            received++;
         }
-        else
-        {
-            dump++;
-            actual++;
-        }
-
         winetest_pop_context();
-        winetest_push_context("%s: %u", context, count);
     }
 
-    /* skip all optional trailing messages */
-    while (can_skip_message(expected))
-    {
-        messages_equal(expected, actual, TRUE, file, line); /* check for message todo's */
-	expected++;
-    }
+    todo_wine_if(todo)
+    ok_(file, line)( matches, "%s mismatches\n", context );
 
-    if (todo)
+    if (winetest_debug > (matches ? 2 : 1))
     {
-        todo_wine {
-            if (expected->message || actual->message) {
-                failcount++;
-                dump++;
-                messages_equal(expected, actual, TRUE, file, line);
-            }
-        }
-        if (is_wine) goto done;
+        trace_(file, line)( "expected:\n" );
+        for (expected = first_expected; expected->message; ++expected)
+            trace_(file, line)( "  %Iu: %#x, %#x, %#Ix, %#Ix\n", expected - first_expected,
+                                expected->message, expected->flags, expected->wParam,
+                                expected->lParam );
+        trace_(file, line)( "received:\n" );
+        for (received = first_received; received->message; ++received)
+            trace_(file, line)( "  %Iu: %#x, %#x, %#Ix, %#Ix\n", received - first_received,
+                                received->message, received->flags, received->wParam,
+                                received->lParam );
     }
-    else
-    {
-        if (expected->message || actual->message)
-        {
-            dump++;
-            messages_equal(expected, actual, TRUE, file, line);
-        }
-    }
-    if (todo && !failcount && !strcmp(winetest_platform, "wine")) /* succeeded yet marked todo */
-        todo_wine {
-            dump++;
-            ok_( file, line)( TRUE, "marked \"todo_wine\" but succeeds\n");
-        }
-
-done:
-    winetest_pop_context();
-    if (dump && (!is_wine || winetest_debug > 1)) dump_sequence(expected_list, context, file, line);
     flush_sequence();
 }
 
@@ -15512,6 +15362,7 @@ static void test_ShowWindow(void)
         };
         char comment[64];
         INT idx; /* index into the above array of names */
+        winetest_push_context("%u", i);
 
         idx = (sw[i].cmd == SW_NORMALNA) ? 12 : sw[i].cmd;
 
@@ -15555,6 +15406,8 @@ static void test_ShowWindow(void)
             ok(EqualRect(&win_rc, &wp.rcNormalPosition), "expected %s got %s\n",
                wine_dbgstr_rect(&win_rc), wine_dbgstr_rect(&wp.rcNormalPosition));
         }
+
+        winetest_pop_context();
     }
     DestroyWindow(hwnd);
     flush_events();
