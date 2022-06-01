@@ -495,9 +495,8 @@ static void test_ChangeDisplaySettingsEx(void)
 
     /* Save the original mode for all devices so that they can be restored at the end of tests */
     device_count = 0;
-    device_size = 2;
-    devices = heap_calloc(device_size, sizeof(*devices));
-    ok(devices != NULL, "Failed to allocate memory.\n");
+    device_size = 0;
+    devices = NULL;
 
     primary = 0;
     memset(&dd, 0, sizeof(dd));
@@ -518,8 +517,8 @@ static void test_ChangeDisplaySettingsEx(void)
 
         if (device_count >= device_size)
         {
-            device_size *= 2;
-            devices = heap_realloc(devices, device_size * sizeof(*devices));
+            device_size = max( 2, device_size * 3 / 2 );
+            devices = realloc( devices, device_size * sizeof(*devices) );
             ok(devices != NULL, "Failed to reallocate memory.\n");
         }
 
@@ -1165,7 +1164,7 @@ static void test_ChangeDisplaySettingsEx(void)
     for (device = 0; device < device_count; ++device)
         expect_dm(&devices[device].original_mode, devices[device].name, 0);
 
-    heap_free(devices);
+    free( devices );
 }
 
 static void test_monitors(void)
