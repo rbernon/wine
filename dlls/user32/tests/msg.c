@@ -15511,9 +15511,11 @@ static void test_ShowWindow(void)
         ok(wp.ptMaxPosition.x == sw[i].wp_max.x && wp.ptMaxPosition.y == sw[i].wp_max.y,
            "expected %ld,%ld got %ld,%ld\n", sw[i].wp_max.x, sw[i].wp_max.y, wp.ptMaxPosition.x, wp.ptMaxPosition.y);
 
-if (0) /* FIXME: Wine behaves completely different here */
-        ok(EqualRect(&win_rc, &wp.rcNormalPosition), "expected %s got %s\n",
-           wine_dbgstr_rect(&win_rc), wine_dbgstr_rect(&wp.rcNormalPosition));
+        if (0) /* FIXME: Wine behaves completely different here */
+        {
+            ok(EqualRect(&win_rc, &wp.rcNormalPosition), "expected %s got %s\n",
+               wine_dbgstr_rect(&win_rc), wine_dbgstr_rect(&wp.rcNormalPosition));
+        }
     }
     DestroyWindow(hwnd);
     flush_events();
