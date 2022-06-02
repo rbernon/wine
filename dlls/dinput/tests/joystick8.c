@@ -304,7 +304,7 @@ static BOOL CALLBACK enum_device_count( const DIDEVICEINSTANCEW *devinst, void *
     return DIENUM_CONTINUE;
 }
 
-static void check_dinput_devices( DWORD version, DIDEVICEINSTANCEW *devinst )
+void check_dinput_devices( DWORD version, DIDEVICEINSTANCEW *devinst )
 {
     DIPROPDWORD prop_dword =
     {
