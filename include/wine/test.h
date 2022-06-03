@@ -828,6 +828,28 @@ static BOOL running_under_wine(void)
 void _fpreset(void) {} /* override the mingw fpu init code */
 #endif
 
+static void execute_test( char *argv0, const char *test )
+{
+    PROCESS_INFORMATION pi;
+    STARTUPINFOA startup;
+    char path[MAX_PATH];
+    BOOL ret;
+
+    memset( &startup, 0, sizeof(startup) );
+    startup.cb = sizeof(startup);
+    startup.dwFlags = STARTF_USESHOWWINDOW;
+    startup.wShowWindow = SW_SHOWNORMAL;
+
+    sprintf( path, "%s %s", argv0, test );
+    ret = CreateProcessA( NULL, path, NULL, NULL, TRUE, 0, NULL, NULL, &startup, &pi );
+    ok( ret, "CreateProcess '%s' failed err %u.\n", path, (UINT)GetLastError() );
+
+    WaitForSingleObject( pi.hProcess, INFINITE );
+    wait_child_process( pi.hProcess );
+    CloseHandle( pi.hProcess );
+    CloseHandle( pi.hThread );
+}
+
 /* main function */
 int main( int argc, char **argv )
 {
@@ -879,6 +901,13 @@ int main( int argc, char **argv )
     if (!strcmp( argv[1], "--list" ))
     {
         list_tests();
+        return 0;
+    }
+    if (!strcmp( argv[1], "--all" ))
+    {
+        const struct test *test;
+        for (test = winetest_testlist; test->name; test++)
+            execute_test( argv[0], test->name );
         return 0;
     }
     return run_test(argv[1]);
