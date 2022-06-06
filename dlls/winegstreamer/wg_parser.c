@@ -770,9 +770,46 @@ static gboolean sink_query_cb(GstPad *pad, GstObject *parent, GstQuery *query)
             return TRUE;
         }
 
+        case GST_QUERY_ALLOCATION:
+        {
+            GstStructure *config;
+            gboolean needs_pool;
+            GstBufferPool *pool;
+            GstVideoInfo info;
+            GstCaps *caps;
+
+            gst_query_parse_allocation(query, &caps, &needs_pool);
+            if (!is_caps_video(caps) || !needs_pool)
+                break;
+
+            if (!gst_video_info_from_caps(&info, caps)
+                    || !(pool = gst_video_buffer_pool_new()))
+                break;
+
+            if (!(config = gst_buffer_pool_get_config(pool)))
+                GST_ERROR("Failed to get pool %p config.", pool);
+            else
+            {
+                gst_buffer_pool_config_set_params(config, caps,
+                        info.size, 0, 0);
+                if (!gst_buffer_pool_set_config(pool, config))
+                    GST_ERROR("Failed to set pool %p config.", pool);
+            }
+
+            gst_query_add_allocation_pool(query, pool, info.size, 0, 0);
+
+            GST_INFO("Proposing pool %p, buffer size %#zx, for query %p.",
+                    pool, info.size, query);
+
+            g_object_unref(pool);
+            return true;
+        }
+
         default:
-            return gst_pad_query_default (pad, parent, query);
+            break;
     }
+
+    return gst_pad_query_default(pad, parent, query);
 }
 
 static struct wg_parser_stream *create_stream(struct wg_parser *parser)
