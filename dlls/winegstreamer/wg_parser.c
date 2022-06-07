@@ -356,6 +356,7 @@ static NTSTATUS wg_parser_stream_copy_buffer(void *args)
     uint32_t offset = params->offset;
     uint32_t size = params->size;
     GstMapInfo map_info;
+    GstBuffer *buffer;
 
     pthread_mutex_lock(&parser->mutex);
 
@@ -365,10 +366,13 @@ static NTSTATUS wg_parser_stream_copy_buffer(void *args)
         return VFW_E_WRONG_STATE;
     }
 
-    if (!gst_buffer_map(stream->buffer, &map_info, GST_MAP_READ))
+    buffer = gst_buffer_ref(stream->buffer);
+    pthread_mutex_unlock(&parser->mutex);
+
+    if (!gst_buffer_map(buffer, &map_info, GST_MAP_READ))
     {
-        pthread_mutex_unlock(&parser->mutex);
         GST_ERROR("Failed to map buffer.\n");
+        gst_buffer_unref(buffer);
         return E_FAIL;
     }
 
@@ -378,7 +382,7 @@ static NTSTATUS wg_parser_stream_copy_buffer(void *args)
 
     gst_buffer_unmap(stream->buffer, &map_info);
 
-    pthread_mutex_unlock(&parser->mutex);
+    gst_buffer_unref(buffer);
     return S_OK;
 }
 
@@ -386,17 +390,18 @@ static NTSTATUS wg_parser_stream_release_buffer(void *args)
 {
     struct wg_parser_stream *stream = args;
     struct wg_parser *parser = stream->parser;
+    GstBuffer *buffer;
 
     pthread_mutex_lock(&parser->mutex);
 
     assert(stream->buffer);
-
-    gst_buffer_unref(stream->buffer);
+    buffer = stream->buffer;
     stream->buffer = NULL;
 
     pthread_mutex_unlock(&parser->mutex);
     pthread_cond_signal(&stream->event_empty_cond);
 
+    gst_buffer_unref(buffer);
     return S_OK;
 }
 
