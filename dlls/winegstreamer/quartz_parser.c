@@ -996,127 +996,14 @@ bool amt_to_wg_format(const AM_MEDIA_TYPE *mt, struct wg_format *format)
     return false;
 }
 
-/*
- * scale_uint64() is based on gst_util_scale_int() from GStreamer, which is
- * covered by the following license:
- *
- * GStreamer
- * Copyright (C) 1999,2000 Erik Walthinsen <omega@cse.ogi.edu>
- *                    2000 Wim Taymans <wtay@chello.be>
- *                    2002 Thomas Vander Stichele <thomas@apestaart.org>
- *                    2004 Wim Taymans <wim@fluendo.com>
- *                    2015 Jan Schmidt <jan@centricular.com>
- *
- * gstutils.c: Utility functions
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
- *
- * You should have received a copy of the GNU Library General Public
- * License along with this library; if not, write to the
- * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
- * Boston, MA 02110-1301, USA.
- */
-static uint64_t scale_uint64(uint64_t value, uint32_t numerator, uint32_t denominator)
-{
-    ULARGE_INTEGER i, high, low;
-
-    if (!value)
-        return 0;
-
-    i.QuadPart = value;
-    low.QuadPart = (ULONGLONG)i.u.LowPart * numerator;
-    high.QuadPart = (ULONGLONG)i.u.HighPart * numerator + low.u.HighPart;
-    low.u.HighPart = 0;
-
-    if (high.u.HighPart >= denominator)
-        return ULLONG_MAX;
-
-    low.QuadPart += (high.QuadPart % denominator) << 32;
-    return ((high.QuadPart / denominator) << 32) + (low.QuadPart / denominator);
-}
-
-/* Fill and send a single IMediaSample. */
-static HRESULT send_sample(struct parser_source *pin, IMediaSample *sample,
-        const struct wg_parser_buffer *buffer, uint32_t offset, uint32_t size, DWORD bytes_per_second)
-{
-    HRESULT hr;
-    BYTE *ptr = NULL;
-
-    TRACE("offset %u, size %u, sample size %lu.\n", offset, size, IMediaSample_GetSize(sample));
-
-    hr = IMediaSample_SetActualDataLength(sample, size);
-    if(FAILED(hr)){
-        ERR("Failed to set sample size, hr %#lx.\n", hr);
-        return hr;
-    }
-
-    IMediaSample_GetPointer(sample, &ptr);
-
-    if (!wg_parser_stream_copy_buffer(pin->wg_stream, ptr, offset, size))
-    {
-        /* The GStreamer pin has been flushed. */
-        return S_OK;
-    }
-
-    if (buffer->has_pts)
-    {
-        REFERENCE_TIME start_pts = buffer->pts;
-
-        if (offset)
-            start_pts += scale_uint64(offset, 10000000, bytes_per_second);
-        start_pts -= pin->seek.llCurrent;
-        start_pts *= pin->seek.dRate;
-
-        if (buffer->has_duration)
-        {
-            REFERENCE_TIME end_pts = buffer->pts + buffer->duration;
-
-            if (offset + size < buffer->size)
-                end_pts = buffer->pts + scale_uint64(offset + size, 10000000, bytes_per_second);
-            end_pts -= pin->seek.llCurrent;
-            end_pts *= pin->seek.dRate;
-
-            IMediaSample_SetTime(sample, &start_pts, &end_pts);
-            IMediaSample_SetMediaTime(sample, &start_pts, &end_pts);
-        }
-        else
-        {
-            IMediaSample_SetTime(sample, &start_pts, NULL);
-            IMediaSample_SetMediaTime(sample, NULL, NULL);
-        }
-    }
-    else
-    {
-        IMediaSample_SetTime(sample, NULL, NULL);
-        IMediaSample_SetMediaTime(sample, NULL, NULL);
-    }
-
-    IMediaSample_SetDiscontinuity(sample, !offset && buffer->discontinuity);
-    IMediaSample_SetPreroll(sample, buffer->preroll);
-    IMediaSample_SetSyncPoint(sample, !buffer->delta);
-
-    if (!pin->pin.pin.peer)
-        return VFW_E_NOT_CONNECTED;
-
-    hr = IMemInputPin_Receive(pin->pin.pMemInputPin, sample);
-    TRACE("Receive() returned hr %#lx.\n", hr);
-    return hr;
-}
-
 /* Send a single GStreamer buffer (splitting it into multiple IMediaSamples if
  * necessary). */
 static void send_buffer(struct parser_source *pin, const struct wg_parser_buffer *buffer)
 {
-    HRESULT hr;
+    bool success, incomplete = true;
+    struct wg_sample *wg_sample;
     IMediaSample *sample;
+    HRESULT hr = S_OK;
 
     if (pin->need_segment)
     {
@@ -1126,50 +1013,40 @@ static void send_buffer(struct parser_source *pin, const struct wg_parser_buffer
         pin->need_segment = false;
     }
 
-    if (IsEqualGUID(&pin->pin.pin.mt.formattype, &FORMAT_WaveFormatEx)
-            && (IsEqualGUID(&pin->pin.pin.mt.subtype, &MEDIASUBTYPE_PCM)
-            || IsEqualGUID(&pin->pin.pin.mt.subtype, &MEDIASUBTYPE_IEEE_FLOAT)))
-    {
-        WAVEFORMATEX *format = (WAVEFORMATEX *)pin->pin.pin.mt.pbFormat;
-        uint32_t offset = 0;
-
-        while (offset < buffer->size)
-        {
-            uint32_t advance;
-
-            if (FAILED(hr = IMemAllocator_GetBuffer(pin->pin.pAllocator, &sample, NULL, NULL, 0)))
-            {
-                ERR("Failed to get a sample, hr %#lx.\n", hr);
-                break;
-            }
-
-            advance = min(IMediaSample_GetSize(sample), buffer->size - offset);
-
-            hr = send_sample(pin, sample, buffer, offset, advance, format->nAvgBytesPerSec);
-
-            IMediaSample_Release(sample);
-
-            if (FAILED(hr))
-                break;
-
-            offset += advance;
-        }
-    }
-    else
+    while (SUCCEEDED(hr) && incomplete)
     {
         if (FAILED(hr = IMemAllocator_GetBuffer(pin->pin.pAllocator, &sample, NULL, NULL, 0)))
         {
             ERR("Failed to get a sample, hr %#lx.\n", hr);
+            break;
         }
+        if (FAILED(hr = wg_sample_create_quartz(sample, &wg_sample)))
+        {
+            ERR("Failed to create sample, hr %#lx.\n", hr);
+            IMediaSample_Release(sample);
+            break;
+        }
+
+        if ((success = wg_parser_stream_read_quartz(pin->wg_stream, wg_sample)))
+        {
+            /* update pts and duration to current seeking time and rate */
+            wg_sample->pts -= pin->seek.llCurrent;
+            wg_sample->pts *= pin->seek.dRate;
+            wg_sample->duration *= pin->seek.dRate;
+            incomplete = wg_sample->flags & WG_SAMPLE_FLAG_INCOMPLETE;
+        }
+        wg_sample_release(wg_sample);
+
+        if (!success || !pin->pin.pin.peer)
+            hr = E_FAIL;
         else
         {
-            hr = send_sample(pin, sample, buffer, 0, buffer->size, 0);
-
-            IMediaSample_Release(sample);
+            hr = IMemInputPin_Receive(pin->pin.pMemInputPin, sample);
+            TRACE("Receive() returned hr %#lx.\n", hr);
         }
-    }
 
-    wg_parser_stream_release_buffer(pin->wg_stream);
+        IMediaSample_Release(sample);
+    }
 }
 
 static DWORD CALLBACK stream_thread(void *arg)

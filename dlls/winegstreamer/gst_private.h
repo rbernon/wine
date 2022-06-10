@@ -156,6 +156,7 @@ HRESULT wg_transform_read_dmo(struct wg_transform *transform, IMediaBuffer *buff
         DWORD *flags, REFERENCE_TIME *pts, REFERENCE_TIME *duration);
 
 bool wg_parser_stream_read_mf(struct wg_parser_stream *stream, struct wg_sample *sample);
+bool wg_parser_stream_read_quartz(struct wg_parser_stream *stream, struct wg_sample *sample);
 bool wg_parser_stream_read_wm(struct wg_parser_stream *stream, struct wg_sample *wg_sample,
         QWORD *pts, QWORD *duration, DWORD *flags);
 

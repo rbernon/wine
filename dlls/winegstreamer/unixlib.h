@@ -161,6 +161,7 @@ enum wg_sample_flag
     WG_SAMPLE_FLAG_HAS_DURATION = 4,
     WG_SAMPLE_FLAG_SYNC_POINT = 8,
     WG_SAMPLE_FLAG_DISCONTINUITY = 0x10,
+    WG_SAMPLE_FLAG_PREROLL = 0x20,
 };
 
 struct wg_sample

@@ -476,6 +476,8 @@ HRESULT wg_transform_push_quartz(struct wg_transform *transform, struct wg_sampl
         wg_sample->flags |= WG_SAMPLE_FLAG_SYNC_POINT;
     if (IMediaSample_IsDiscontinuity(sample->u.quartz.sample) == S_OK)
         wg_sample->flags |= WG_SAMPLE_FLAG_DISCONTINUITY;
+    if (IMediaSample_IsPreroll(sample->u.quartz.sample) == S_OK)
+        wg_sample->flags |= WG_SAMPLE_FLAG_PREROLL;
 
     wg_sample_queue_begin_append(queue, wg_sample);
     hr = wg_transform_push_data(transform, wg_sample);
@@ -521,6 +523,8 @@ HRESULT wg_transform_read_quartz(struct wg_transform *transform, struct wg_sampl
     IMediaSample_SetSyncPoint(sample->u.quartz.sample, value);
     value = !!(wg_sample->flags & WG_SAMPLE_FLAG_DISCONTINUITY);
     IMediaSample_SetDiscontinuity(sample->u.quartz.sample, value);
+    value = !!(wg_sample->flags & WG_SAMPLE_FLAG_PREROLL);
+    IMediaSample_SetPreroll(sample->u.quartz.sample, value);
 
     return S_OK;
 }
@@ -616,6 +620,48 @@ bool wg_parser_stream_read_mf(struct wg_parser_stream *stream, struct wg_sample 
         IMFSample_SetSampleDuration(sample->u.mf.sample, wg_sample->duration);
     if (wg_sample->flags & WG_SAMPLE_FLAG_SYNC_POINT)
         IMFSample_SetUINT32(sample->u.mf.sample, &MFSampleExtension_CleanPoint, 1);
+
+    return true;
+}
+
+bool wg_parser_stream_read_quartz(struct wg_parser_stream *stream, struct wg_sample *wg_sample)
+{
+    struct sample *sample = unsafe_quartz_from_wg_sample(wg_sample);
+    REFERENCE_TIME start_pts = wg_sample->pts, end_pts = start_pts + wg_sample->duration;
+    BOOL value;
+
+    TRACE_(quartz)("stream %p, wg_sample %p\n", stream, wg_sample);
+
+    if (!wg_parser_stream_read_data(stream, wg_sample))
+        return false;
+
+    IMediaSample_SetActualDataLength(sample->u.quartz.sample, wg_sample->size);
+
+    if (wg_sample->flags & WG_SAMPLE_FLAG_HAS_PTS)
+    {
+        if (wg_sample->flags & WG_SAMPLE_FLAG_HAS_DURATION)
+        {
+            IMediaSample_SetTime(sample->u.quartz.sample, &start_pts, &end_pts);
+            IMediaSample_SetMediaTime(sample->u.quartz.sample, &start_pts, &end_pts);
+        }
+        else
+        {
+            IMediaSample_SetTime(sample->u.quartz.sample, &start_pts, NULL);
+            IMediaSample_SetMediaTime(sample->u.quartz.sample, NULL, NULL);
+        }
+    }
+    else
+    {
+        IMediaSample_SetTime(sample->u.quartz.sample, NULL, NULL);
+        IMediaSample_SetMediaTime(sample->u.quartz.sample, NULL, NULL);
+    }
+
+    value = !!(wg_sample->flags & WG_SAMPLE_FLAG_SYNC_POINT);
+    IMediaSample_SetSyncPoint(sample->u.quartz.sample, value);
+    value = !!(wg_sample->flags & WG_SAMPLE_FLAG_DISCONTINUITY);
+    IMediaSample_SetDiscontinuity(sample->u.quartz.sample, value);
+    value = !!(wg_sample->flags & WG_SAMPLE_FLAG_PREROLL);
+    IMediaSample_SetPreroll(sample->u.quartz.sample, value);
 
     return true;
 }

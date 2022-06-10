@@ -582,6 +582,8 @@ NTSTATUS wg_transform_push_data(void *args)
         GST_BUFFER_FLAG_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT);
     if (sample->flags & WG_SAMPLE_FLAG_DISCONTINUITY)
         GST_BUFFER_FLAG_SET(buffer, GST_BUFFER_FLAG_DISCONT);
+    if (sample->flags & WG_SAMPLE_FLAG_PREROLL)
+        GST_BUFFER_FLAG_SET(buffer, GST_BUFFER_FLAG_LIVE);
     gst_atomic_queue_push(transform->input_queue, buffer);
 
     params->result = S_OK;
@@ -717,6 +719,8 @@ NTSTATUS wg_sample_read_from_buffer(GstBuffer *buffer, GstVideoInfo *src_video_i
         sample->flags |= WG_SAMPLE_FLAG_SYNC_POINT;
     if (GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DISCONT))
         sample->flags |= WG_SAMPLE_FLAG_DISCONTINUITY;
+    if (GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_LIVE))
+        sample->flags |= WG_SAMPLE_FLAG_PREROLL;
 
     if (needs_copy)
     {
