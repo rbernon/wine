@@ -87,6 +87,220 @@ static HRESULT (WINAPI *pSignerSign)( SIGNER_SUBJECT_INFO *subject, SIGNER_CERT 
                                       SIGNER_SIGNATURE_INFO *signature, SIGNER_PROVIDER_INFO *provider,
                                       const WCHAR *timestamp, CRYPT_ATTRIBUTES *attr, void *sip_data );
 
+#define RIM_INPUT_TYPE_MOUSE     0x01
+#define RIM_INPUT_TYPE_KEYBOARD  0x02
+#define RIM_INPUT_TYPE_HID_PEN   0x04
+#define RIM_INPUT_TYPE_HID_PTP   0x08
+#define RIM_INPUT_TYPE_HID_TCH   0x10
+#define RIM_INPUT_TYPE_HID_GEN   0x20
+
+#define RIM_INPUT_TYPE_HID  (RIM_INPUT_TYPE_HID_PEN | RIM_INPUT_TYPE_HID_PTP | RIM_INPUT_TYPE_HID_TCH)
+#define RIM_INPUT_TYPE_ALL  (RIM_INPUT_TYPE_MOUSE | RIM_INPUT_TYPE_KEYBOARD | RIM_INPUT_TYPE_HID | RIM_INPUT_TYPE_HID_GEN)
+
+typedef struct _RIM_USAGE_ANDPAGE
+{
+    USHORT Usage;
+    USHORT UsagePage;
+} RIM_USAGE_AND_PAGE, *PRIM_USAGE_AND_PAGE;
+
+typedef BOOL (CALLBACK *RIMDEVCHANGECALLBACKPROC)( HANDLE rim_manager, HANDLE rim_device, DWORD device_identity,
+                                                   DWORD code, DWORD device_type, DWORD rim_input_type,
+                                                   USHORT usage, USHORT usage_page, void *context );
+
+typedef struct _RIM_KEYBOARD_ID
+{
+    UCHAR Type;
+    UCHAR Subtype;
+} RIM_KEYBOARD_ID, *PRIM_KEYBOARD_ID;
+
+typedef struct _RIM_KEYBOARD_TYPEMATIC_PARAMETERS
+{
+    USHORT UnitId;
+    USHORT Rate;
+    USHORT Delay;
+} RIM_KEYBOARD_TYPEMATIC_PARAMETERS, *PRIM_KEYBOARD_TYPEMATIC_PARAMETERS;
+
+typedef struct _RIM_KEYBOARD_ATTRIBUTES
+{
+    RIM_KEYBOARD_ID KeyboardIdentifier;
+    USHORT KeyboardMode;
+    USHORT NumberOfFunctionKeys;
+    USHORT NumberOfIndicators;
+    USHORT NumberOfKeysTotal;
+    ULONG InputDataQueueLength;
+    RIM_KEYBOARD_TYPEMATIC_PARAMETERS KeyRepeatMinimum;
+    RIM_KEYBOARD_TYPEMATIC_PARAMETERS KeyRepeatMaximum;
+} RIM_KEYBOARD_ATTRIBUTES, *PRIM_KEYBOARD_ATTRIBUTES;
+
+typedef struct _RIM_MOUSE_ATTRIBUTES
+{
+    USHORT MouseIdentifier;
+    USHORT NumberOfButtons;
+    USHORT SampleRate;
+    ULONG InputDataQueueLength;
+} RIM_MOUSE_ATTRIBUTES, *PRIM_MOUSE_ATTRIBUTES;
+
+typedef struct _RIM_HID_ATTRIBUTES
+{
+    USHORT VendorID;
+    USHORT ProductID;
+    USHORT VersionNumber;
+    LUID AdapterLuid;
+    DWORD VidPnTargetId;
+} RIM_HID_ATTRIBUTES, *PRIM_HID_ATTRIBUTES;
+
+typedef struct _RIM_PNP_INSTANCE_PATH
+{
+    ULONG cbBufferSize;
+    LPVOID pData;
+} RIM_PNP_INSTANCE_PATH;
+
+typedef struct _RIM_POINTER_ATTRIBUTES
+{
+    HANDLE PointerDevice;
+} RIM_POINTER_ATTRIBUTES, *PRIM_POINTER_ATTRIBUTES;
+
+typedef struct _RIM_DEVICE_ATTRIBUTES
+{
+    BOOLEAN IsInjectionDevice;
+} RIM_DEVICE_ATTRIBUTES, *PRIM_DEVICE_ATTRIBUTES;
+
+typedef struct RIM_DEVICE_PROPERTIES
+{
+    DWORD dwDevicePropType;
+    union
+    {
+        RIM_KEYBOARD_ATTRIBUTES keyboard;
+        RIM_MOUSE_ATTRIBUTES mouse;
+        RIM_HID_ATTRIBUTES hid;
+        RIM_PNP_INSTANCE_PATH pnpInstancePath;
+        RIM_POINTER_ATTRIBUTES pointer;
+        RIM_DEVICE_ATTRIBUTES device;
+    };
+} RIMDEVICEPROPERTIES, *PRIMDEVICEPROPERTIES;
+
+typedef struct tagUSAGE_PROPERTIES
+{
+    USHORT level;
+    USHORT page;
+    USHORT usage;
+    INT32 logicalMinimum;
+    INT32 logicalMaximum;
+    USHORT unit;
+    USHORT exponent;
+    BYTE count;
+    INT32 physicalMinimum;
+    INT32 physicalMaximum;
+} USAGE_PROPERTIES, *PUSAGE_PROPERTIES;
+
+typedef struct tagINPUT_INJECTION_VALUE
+{
+    USHORT page;
+    USHORT usage;
+    INT32 value;
+    USHORT index;
+} INPUT_INJECTION_VALUE, *PINPUT_INJECTION_VALUE;
+
+typedef struct _RIMIDE_GENERIC_HID_DEVICE_PROPERTIES
+{
+    USHORT VendorID;
+    USHORT ProductID;
+    USHORT VersionNumber;
+    GUID ContainerID;
+    HANDLE DeviceParent;
+    UCHAR *ReportDescriptor;
+    USHORT ReportDescriptorLength;
+    UCHAR *FeatureReport;
+    USHORT FeatureReportLength;
+} RIMIDE_GENERIC_HID_DEVICE_PROPERTIES, *PRIMIDE_GENERIC_HID_DEVICE_PROPERTIES;
+
+static NTSTATUS (WINAPI *pRIMRegisterForInput)( DWORD input_type, UNICODE_STRING *device_name, DWORD rim_usages_count,
+                                                RIM_USAGE_AND_PAGE *rim_usages, HANDLE pnp_notification_event,
+                                                HANDLE timer, HANDLE auto_repeat_timer, void *context,
+                                                RIMDEVCHANGECALLBACKPROC callback, HANDLE *rim_manager );
+static NTSTATUS (WINAPI *pRIMUnregisterForInput)( HANDLE rim_manager );
+static NTSTATUS (WINAPI *pRIMOnPnpNotification)( HANDLE rim_manager );
+
+static NTSTATUS (WINAPI *pRIMAddInputObserver)( void *buffer, DWORD buffer_size, HANDLE input_ready_event,
+                                                DWORD input_type, DWORD usage_page, DWORD usage,
+                                                DWORD flags, HANDLE *rim_observer );
+static NTSTATUS (WINAPI *pRIMUpdateInputObserverRegistration)( HANDLE rim_observer, DWORD flags,
+                                                               void *buffer, DWORD buffer_size );
+static NTSTATUS (WINAPI *pRIMRemoveInputObserver)( HANDLE rim_observer );
+static NTSTATUS (WINAPI *pRIMObserveNextInput)( HANDLE rim_observer );
+
+static NTSTATUS (WINAPI *pRIMReadInput)( HANDLE rim_manager, void **input_buf, ULONG input_len, HANDLE completion_event,
+                                         HANDLE *rim_device, DWORD *input_type, IO_STATUS_BLOCK *iosb );
+static void (WINAPI *pRIMFreeInputBuffer)( HANDLE rim_manager, void *input_buf );
+static NTSTATUS (WINAPI *pRIMGetDevicePreparsedDataLockfree)( HANDLE rim_device, void *buffer, DWORD *buffer_size );
+static NTSTATUS (WINAPI *pRIMGetDevicePreparsedData)( HANDLE rim_manager, HANDLE rim_device,
+                                                      void *buffer, DWORD *buffer_size );
+static NTSTATUS (WINAPI *pRIMGetDevicePropertiesLockfree)( HANDLE rim_device, RIMDEVICEPROPERTIES *device_properties );
+static NTSTATUS (WINAPI *pRIMGetDeviceProperties)( HANDLE rim_manager, HANDLE rim_device,
+                                                   RIMDEVICEPROPERTIES *device_properties );
+
+static NTSTATUS (WINAPI *pRIMSetExtendedDeviceProperty)( HANDLE rim_device, void *buffer, DWORD buffer_size );
+static NTSTATUS (WINAPI *pRIMQueryDevicePath)( UNICODE_STRING *device_path, HANDLE *rim_device );
+
+static BOOL (WINAPI *pInitializeInputDeviceInjection)( USHORT page, USHORT caUsage,
+                                                       const USAGE_PROPERTIES *usages, ULONG cUsages,
+                                                       HMONITOR monitor, DWORD visual_mode, HANDLE *device );
+static BOOL (WINAPI *pInitializePointerDeviceInjection)( POINTER_INPUT_TYPE type, ULONG contact_count,
+                                                         HMONITOR monitor, DWORD visual_mode, HANDLE *device );
+static BOOL (WINAPI *pInitializePointerDeviceInjectionEx)( POINTER_INPUT_TYPE type, ULONG contact_count,
+                                                           HMONITOR monitor, DWORD visual_mode,
+                                                           DWORD workspace_id, HANDLE *device );
+static BOOL (WINAPI *pInitializeGenericHidInjection)( RIMIDE_GENERIC_HID_DEVICE_PROPERTIES *pDeviceProperties,
+                                                      HANDLE *device );
+static BOOL (WINAPI *pRemoveInjectionDevice)( HANDLE device );
+
+static BOOL (WINAPI *pSetFeatureReportResponse)( HANDLE device, const INPUT_INJECTION_VALUE *input, UINT32 count );
+static BOOL (WINAPI *pInjectDeviceInput)( HANDLE device, const INPUT_INJECTION_VALUE *input, UINT32 count );
+static BOOL (WINAPI *pInjectMouseInput)( const MOUSEINPUT *input, UINT32 count );
+static BOOL (WINAPI *pInjectKeyboardInput)( const KEYBDINPUT *input, UINT32 count );
+static BOOL (WINAPI *pInjectPointerInput)( HANDLE device, const POINTER_TYPE_INFO *pointer_info, UINT32 count );
+static BOOL (WINAPI *pInjectGenericHidInput)( HANDLE device, const UCHAR *report_buf, ULONG report_len );
+
+static BOOL load_rim_functions(void)
+{
+    HMODULE user32 = GetModuleHandleW( L"user32.dll" );
+
+#define LOAD_FUNC(m, f) if (!(p ## f = (void *)GetProcAddress( m, #f ))) goto failed;
+    LOAD_FUNC( user32, RIMRegisterForInput )
+    LOAD_FUNC( user32, RIMUnregisterForInput )
+    LOAD_FUNC( user32, RIMOnPnpNotification )
+    LOAD_FUNC( user32, RIMAddInputObserver )
+    LOAD_FUNC( user32, RIMUpdateInputObserverRegistration )
+    LOAD_FUNC( user32, RIMRemoveInputObserver )
+    LOAD_FUNC( user32, RIMObserveNextInput )
+    LOAD_FUNC( user32, RIMReadInput )
+    LOAD_FUNC( user32, RIMFreeInputBuffer )
+    LOAD_FUNC( user32, RIMGetDevicePreparsedDataLockfree )
+    LOAD_FUNC( user32, RIMGetDevicePreparsedData )
+    LOAD_FUNC( user32, RIMGetDevicePropertiesLockfree )
+    LOAD_FUNC( user32, RIMGetDeviceProperties )
+    LOAD_FUNC( user32, RIMSetExtendedDeviceProperty )
+    LOAD_FUNC( user32, RIMQueryDevicePath )
+    LOAD_FUNC( user32, InitializeInputDeviceInjection )
+    LOAD_FUNC( user32, InitializePointerDeviceInjection )
+    LOAD_FUNC( user32, InitializePointerDeviceInjectionEx )
+    LOAD_FUNC( user32, InitializeGenericHidInjection )
+    LOAD_FUNC( user32, RemoveInjectionDevice )
+    LOAD_FUNC( user32, SetFeatureReportResponse )
+    LOAD_FUNC( user32, InjectDeviceInput )
+    LOAD_FUNC( user32, InjectMouseInput )
+    LOAD_FUNC( user32, InjectKeyboardInput )
+    LOAD_FUNC( user32, InjectPointerInput )
+    LOAD_FUNC( user32, InjectGenericHidInput )
+#undef LOAD_FUNC
+
+    return TRUE;
+
+failed:
+    win_skip( "Failed to load user32.dll functions, skipping tests\n" );
+    return FALSE;
+}
+
 static const WCHAR container_name[] = L"wine_testsign";
 
 static const CERT_CONTEXT *testsign_sign( const WCHAR *filename )
@@ -4199,10 +4413,35 @@ done:
     hid_device_stop( &desc, 2 );
 }
 
+static BOOL CALLBACK rim_callback( HANDLE rim_manager, HANDLE rim_device, DWORD device_identity,
+                                   DWORD code, DWORD device_type, DWORD rim_input_type,
+                                   USHORT usage, USHORT usage_page, void *context )
+{
+    ok( 0, "rim_manager %p, rim_device %p, device_identity %lu, code %lu, device_type %lu, rim_input_type %lu, usage %#x, usage_page %#x, context %p\n",
+        rim_manager, rim_device, device_identity, code, device_type, rim_input_type, usage, usage_page, context );
+    return TRUE;
+}
+
+static void test_rim(void)
+{
+    HANDLE rim_manager;
+    NTSTATUS status;
+
+    if (!load_rim_functions()) return;
+
+    status = pRIMRegisterForInput( RIM_INPUT_TYPE_ALL, NULL, 0, NULL, NULL, NULL, NULL,
+                                   (void *)0xdeadbeef, rim_callback, &rim_manager );
+    ok( !status, "RIMRegisterForInput returned %#lx\n", status );
+
+    status = pRIMUnregisterForInput( rim_manager );
+    ok( !status, "RIMUnregisterForInput returned %#lx\n", status );
+}
+
 START_TEST( hid )
 {
     dinput_test_init();
 
+    test_rim();
     test_bus_driver();
 
     if (!bus_device_start()) goto done;
