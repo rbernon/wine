@@ -3298,7 +3298,7 @@ static BOOL test_force_feedback_joystick( DWORD version )
     if (!hid_device_start( &desc, 1 )) goto done;
     if (FAILED(hr = dinput_test_create_device( version, &devinst, &device ))) goto done;
 
-    check_dinput_devices( version, &devinst );
+    check_ff_dinput_devices( version, &devinst );
 
     hr = IDirectInputDevice8_GetDeviceInfo( device, &devinst );
     ok( hr == DI_OK, "GetDeviceInfo returned %#lx\n", hr );
