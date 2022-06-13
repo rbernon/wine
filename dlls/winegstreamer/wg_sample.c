@@ -757,3 +757,33 @@ void wg_parser_queue_alloc(struct wg_parser *parser, struct wg_sample *wg_sample
     wg_parser_done_alloc(parser, wg_sample, token);
     wg_sample_queue_end_append(queue, wg_sample);
 }
+
+bool wg_sample_queue_find_mf(struct wg_sample_queue *queue, void *data,
+        struct wg_sample **wg_sample, IMFSample **mf_sample)
+{
+    struct sample *sample, *next;
+
+    *wg_sample = NULL;
+    EnterCriticalSection(&queue->cs);
+
+    LIST_FOR_EACH_ENTRY_SAFE(sample, next, &queue->samples, struct sample, entry)
+    {
+        if (sample->wg_sample.data != data)
+            continue;
+
+        if (sample->ops != &mf_sample_ops)
+        {
+            ERR_(mfplat)("Invalid type for wg_sample %p, data %p\n", &sample->wg_sample, data);
+            break;
+        }
+
+        TRACE_(mfplat)("Found sample %p for data %p\n", sample->u.mf.sample, data);
+        IMFSample_AddRef((*mf_sample = sample->u.mf.sample));
+        *wg_sample = &sample->wg_sample;
+        list_remove(&sample->entry);
+        break;
+    }
+
+    LeaveCriticalSection(&queue->cs);
+    return !!*wg_sample;
+}

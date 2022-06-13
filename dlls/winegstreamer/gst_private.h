@@ -138,6 +138,9 @@ HRESULT wg_sample_create_raw(UINT32 size, struct wg_sample **out);
 HRESULT wg_sample_create_wm(INSSBuffer *wm_sample, struct wg_sample **out);
 void wg_sample_release(struct wg_sample *wg_sample);
 
+bool wg_sample_queue_find_mf(struct wg_sample_queue *queue, void *data,
+        struct wg_sample **wg_sample, IMFSample **mf_sample);
+
 HRESULT wg_transform_push_mf(struct wg_transform *transform, IMFSample *sample,
         struct wg_sample_queue *queue);
 HRESULT wg_transform_push_quartz(struct wg_transform *transform, struct wg_sample *sample,

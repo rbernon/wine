@@ -519,16 +519,19 @@ static HRESULT handle_output_request(struct media_stream *stream, const struct w
     bool success;
     HRESULT hr;
 
-    if (FAILED(hr = allocate_sample(request->u.output.size, &sample)))
+    if (!wg_sample_queue_find_mf(source->wg_sample_queue, request->u.output.data, &wg_sample, &sample))
     {
-        ERR("Failed to create sample, hr %#lx.\n", hr);
-        return hr;
-    }
-    if (FAILED(hr = wg_sample_create_mf(sample, &wg_sample)))
-    {
-        ERR("Failed to create wg_sample, hr %#lx.\n", hr);
-        IMFSample_Release(sample);
-        return;
+        if (FAILED(hr = allocate_sample(request->u.output.size, &sample)))
+        {
+            ERR("Failed to create sample, hr %#lx.\n", hr);
+            return hr;
+        }
+        if (FAILED(hr = wg_sample_create_mf(sample, &wg_sample)))
+        {
+            ERR("Failed to create wg_sample, hr %#lx.\n", hr);
+            IMFSample_Release(sample);
+            return hr;
+        }
     }
 
     success = wg_parser_read_mf(source->wg_parser, wg_sample, request->token);

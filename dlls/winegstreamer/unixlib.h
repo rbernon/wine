@@ -201,6 +201,7 @@ struct wg_request
         struct
         {
             UINT32 size;
+            BYTE *data;
         } output;
     } u;
 };

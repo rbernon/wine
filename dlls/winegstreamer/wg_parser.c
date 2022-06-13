@@ -135,6 +135,15 @@ struct wg_parser_stream
     gchar *tags[WG_PARSER_TAG_COUNT];
 };
 
+static NTSTATUS wg_parser_stream_from_index(struct wg_parser *parser, uint32_t index, struct wg_parser_stream **stream)
+{
+    if (index >= parser->stream_count)
+        return STATUS_INVALID_PARAMETER;
+
+    *stream = parser->streams[index];
+    return STATUS_SUCCESS;
+}
+
 static bool format_is_compressed(struct wg_format *format)
 {
     return format->major_type != WG_MAJOR_TYPE_UNKNOWN
@@ -396,11 +405,27 @@ static NTSTATUS wg_parser_read_data(void *args)
     struct request *req = (struct request *)(UINT_PTR)params->token;
     struct wg_parser *parser = params->parser;
     struct wg_sample *sample = params->sample;
+    struct wg_parser_stream *stream;
+    bool discard_data;
     NTSTATUS status;
 
     if (!(status = wg_sample_read_from_buffer(req->u.output.buffer, NULL, NULL, sample))
             && (sample->flags & WG_SAMPLE_FLAG_INCOMPLETE))
         return status;
+
+    /* Make sure the memory cannot be reused by the buffer pool so it always
+     * requests memory from the allocator, and so we can provide output sample
+     * memory to achieve zero-copy. However, some decoder keep a reference on
+     * the buffer they passed downstream, to re-use it later. In this case, it
+     * will not be possible to do zero-copy, and we should copy the data back
+     * to the buffer and leave it unchanged.
+     */
+    if ((discard_data = !status && gst_buffer_is_writable(req->u.output.buffer)))
+        gst_buffer_remove_all_memory(req->u.output.buffer);
+
+    if (!(status = wg_parser_stream_from_index(parser, req->wg_request.stream, &stream)))
+        wg_allocator_release_sample(stream->allocator, sample, discard_data);
+
     pthread_cond_broadcast(&parser->request_done_cond);
 
     GST_DEBUG("Output request %p completed for buffer %p", req, req->u.output.buffer);
@@ -667,6 +692,7 @@ static GstFlowReturn sink_chain_cb(GstPad *pad, GstObject *parent, GstBuffer *bu
     struct wg_parser_stream *stream = gst_pad_get_element_private(pad);
     struct wg_parser *parser = stream->parser;
     struct request *req;
+    GstMapInfo info;
 
     GST_LOG("stream %p, buffer %p.", stream, buffer);
 
@@ -716,6 +742,13 @@ static GstFlowReturn sink_chain_cb(GstPad *pad, GstObject *parent, GstBuffer *bu
      * well. */
 
     req->wg_request.u.output.size = gst_buffer_get_size(buffer);
+    if (!gst_buffer_map(buffer, &info, GST_MAP_READ))
+        GST_ERROR("Failed to map buffer %p", buffer);
+    else
+    {
+        req->wg_request.u.output.data = info.data;
+        gst_buffer_unmap(buffer, &info);
+    }
     req->u.output.buffer = buffer;
 
     GST_DEBUG("Output request %p created for stream %u, buffer %p", req,
