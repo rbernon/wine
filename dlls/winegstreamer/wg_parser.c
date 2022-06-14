@@ -51,6 +51,20 @@ typedef enum
 
 typedef BOOL (*init_gst_cb)(struct wg_parser *parser);
 
+struct request
+{
+    struct wg_request wg_request;
+    union
+    {
+        struct
+        {
+            bool done;
+            GstFlowReturn result;
+            GstBuffer *buffer;
+        } input;
+    } u;
+};
+
 struct input_cache_chunk
 {
     guint64 position;
@@ -79,15 +93,8 @@ struct wg_parser
     bool no_more_pads, has_duration, error;
     bool err_on, warn_on;
 
-    pthread_cond_t read_cond, read_done_cond;
-    struct
-    {
-        GstBuffer *buffer;
-        uint64_t offset;
-        uint32_t size;
-        bool done;
-        GstFlowReturn ret;
-    } read_request;
+    pthread_cond_t request_cond, request_done_cond;
+    struct request next_request;
 
     bool sink_connected;
 
@@ -145,11 +152,12 @@ static NTSTATUS wg_parser_get_next_read_offset(void *args)
 {
     struct wg_parser_get_next_read_offset_params *params = args;
     struct wg_parser *parser = params->parser;
+    struct request *req = &parser->next_request;
 
     pthread_mutex_lock(&parser->mutex);
 
-    while (parser->sink_connected && !parser->read_request.size)
-        pthread_cond_wait(&parser->read_cond, &parser->mutex);
+    while (parser->sink_connected && !req->wg_request.u.input.size)
+        pthread_cond_wait(&parser->request_cond, &parser->mutex);
 
     if (!parser->sink_connected)
     {
@@ -157,8 +165,8 @@ static NTSTATUS wg_parser_get_next_read_offset(void *args)
         return VFW_E_WRONG_STATE;
     }
 
-    params->offset = parser->read_request.offset;
-    params->size = parser->read_request.size;
+    params->offset = req->wg_request.u.input.offset;
+    params->size = req->wg_request.u.input.size;
 
     pthread_mutex_unlock(&parser->mutex);
     return S_OK;
@@ -170,6 +178,7 @@ static NTSTATUS wg_parser_push_data(void *args)
     struct wg_parser *parser = params->parser;
     const void *data = params->data;
     uint32_t size = params->size;
+    struct request *req = &parser->next_request;
 
     pthread_mutex_lock(&parser->mutex);
 
@@ -182,27 +191,27 @@ static NTSTATUS wg_parser_push_data(void *args)
             /* Note that we don't allocate the buffer until we have a size.
              * midiparse passes a NULL buffer and a size of UINT_MAX, in an
              * apparent attempt to read the whole input stream at once. */
-            if (!parser->read_request.buffer)
-                parser->read_request.buffer = gst_buffer_new_and_alloc(size);
-            gst_buffer_map(parser->read_request.buffer, &map_info, GST_MAP_WRITE);
+            if (!req->u.input.buffer)
+                req->u.input.buffer = gst_buffer_new_and_alloc(size);
+            gst_buffer_map(req->u.input.buffer, &map_info, GST_MAP_WRITE);
             memcpy(map_info.data, data, size);
-            gst_buffer_unmap(parser->read_request.buffer, &map_info);
-            parser->read_request.ret = GST_FLOW_OK;
+            gst_buffer_unmap(req->u.input.buffer, &map_info);
+            req->u.input.result = GST_FLOW_OK;
         }
         else
         {
-            parser->read_request.ret = GST_FLOW_EOS;
+            req->u.input.result = GST_FLOW_EOS;
         }
     }
     else
     {
-        parser->read_request.ret = GST_FLOW_ERROR;
+        req->u.input.result = GST_FLOW_ERROR;
     }
-    parser->read_request.done = true;
-    parser->read_request.size = 0;
+    req->u.input.done = true;
+    req->wg_request.u.input.size = 0;
 
     pthread_mutex_unlock(&parser->mutex);
-    pthread_cond_signal(&parser->read_done_cond);
+    pthread_cond_signal(&parser->request_done_cond);
 
     return S_OK;
 }
@@ -1007,31 +1016,35 @@ static void pad_removed_cb(GstElement *element, GstPad *pad, gpointer user)
 
 static GstFlowReturn issue_read_request(struct wg_parser *parser, guint64 offset, guint size, GstBuffer **buffer)
 {
+    struct request *req = &parser->next_request;
     GstFlowReturn ret;
 
     pthread_mutex_lock(&parser->mutex);
 
-    assert(!parser->read_request.size);
-    parser->read_request.buffer = *buffer;
-    parser->read_request.offset = offset;
-    parser->read_request.size = size;
-    parser->read_request.done = false;
-    pthread_cond_signal(&parser->read_cond);
+    memset(req, 0, sizeof(*req));
+    req->wg_request.type = WG_REQUEST_TYPE_INPUT;
+    req->wg_request.u.input.offset = offset;
+    req->wg_request.u.input.size = size;
+    req->u.input.buffer = *buffer;
+
+    GST_DEBUG("Input request %p created for offset %" G_GINT64_MODIFIER "u, "
+            "size %u, buffer %p", req, offset, size, *buffer);
+    pthread_cond_signal(&parser->request_cond);
 
     /* Note that we don't unblock this wait on GST_EVENT_FLUSH_START. We expect
      * the upstream pin to flush if necessary. We should never be blocked on
      * read_thread() not running. */
 
-    while (!parser->read_request.done)
-        pthread_cond_wait(&parser->read_done_cond, &parser->mutex);
+    while (!req->u.input.done)
+        pthread_cond_wait(&parser->request_done_cond, &parser->mutex);
 
-    *buffer = parser->read_request.buffer;
-    ret = parser->read_request.ret;
+    *buffer = req->u.input.buffer;
+    ret = req->u.input.result;
 
     pthread_mutex_unlock(&parser->mutex);
 
-    GST_LOG("Request returned %s.", gst_flow_get_name(ret));
-
+    GST_LOG("Input request %p returned buffer %p, result %s.", req,
+            *buffer, gst_flow_get_name(ret));
     return ret;
 }
 
@@ -1671,7 +1684,7 @@ out:
     pthread_mutex_lock(&parser->mutex);
     parser->sink_connected = false;
     pthread_mutex_unlock(&parser->mutex);
-    pthread_cond_signal(&parser->read_cond);
+    pthread_cond_signal(&parser->request_cond);
 
     return E_FAIL;
 }
@@ -1698,7 +1711,7 @@ static NTSTATUS wg_parser_disconnect(void *args)
     pthread_mutex_lock(&parser->mutex);
     parser->sink_connected = false;
     pthread_mutex_unlock(&parser->mutex);
-    pthread_cond_signal(&parser->read_cond);
+    pthread_cond_signal(&parser->request_cond);
 
     for (i = 0; i < parser->stream_count; ++i)
         free_stream(parser->streams[i]);
@@ -1881,8 +1894,8 @@ static NTSTATUS wg_parser_create(void *args)
 
     pthread_mutex_init(&parser->mutex, NULL);
     pthread_cond_init(&parser->init_cond, NULL);
-    pthread_cond_init(&parser->read_cond, NULL);
-    pthread_cond_init(&parser->read_done_cond, NULL);
+    pthread_cond_init(&parser->request_cond, NULL);
+    pthread_cond_init(&parser->request_done_cond, NULL);
     parser->init_gst = init_funcs[params->type];
     parser->unlimited_buffering = params->unlimited_buffering;
     parser->err_on = params->err_on;
@@ -1904,8 +1917,8 @@ static NTSTATUS wg_parser_destroy(void *args)
 
     pthread_mutex_destroy(&parser->mutex);
     pthread_cond_destroy(&parser->init_cond);
-    pthread_cond_destroy(&parser->read_cond);
-    pthread_cond_destroy(&parser->read_done_cond);
+    pthread_cond_destroy(&parser->request_cond);
+    pthread_cond_destroy(&parser->request_done_cond);
 
     free(parser);
     return S_OK;

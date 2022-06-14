@@ -176,6 +176,23 @@ struct wg_sample
     BYTE *data;
 };
 
+struct wg_request
+{
+    enum wg_request_type
+    {
+        WG_REQUEST_TYPE_INPUT = 1,
+    } type;
+
+    union
+    {
+        struct
+        {
+            UINT64 offset;
+            UINT32 size;
+        } input;
+    } u;
+};
+
 struct wg_parser_buffer
 {
     UINT32 size;
