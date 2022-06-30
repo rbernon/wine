@@ -1000,7 +1000,28 @@ bool amt_to_wg_format(const AM_MEDIA_TYPE *mt, struct wg_format *format)
 static void handle_alloc_request(struct parser_source *pin, const struct wg_request *request)
 {
     struct parser *filter = impl_from_strmbase_filter(pin->pin.pin.filter);
-    wg_parser_queue_alloc(filter->wg_parser, NULL, request->token, NULL);
+    struct wg_sample *wg_sample = NULL;
+    IMediaSample *sample;
+    HRESULT hr = E_FAIL;
+
+    if (!pin->pin.pin.peer)
+        WARN("Source %p is not connected\n", pin);
+    else if (!pin->pin.pAllocator)
+        WARN("Source %p does not have any allocator\n", pin);
+    else if (SUCCEEDED(hr = IMemAllocator_GetBuffer(pin->pin.pAllocator, &sample, NULL, NULL, 0)))
+    {
+        hr = wg_sample_create_quartz(sample, &wg_sample);
+        IMediaSample_Release(sample);
+    }
+
+    if (FAILED(hr))
+    {
+        WARN("Failed to allocate sample, hr %#lx\n", hr);
+        wg_parser_queue_alloc(filter->wg_parser, NULL, request->token, NULL);
+        return;
+    }
+
+    wg_parser_queue_alloc(filter->wg_parser, wg_sample, request->token, filter->wg_sample_queue);
 }
 
 /* Send a single GStreamer buffer (splitting it into multiple IMediaSamples if
