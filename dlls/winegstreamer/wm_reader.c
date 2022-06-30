@@ -1629,7 +1629,31 @@ static HRESULT wm_stream_allocate_sample(struct wm_stream *stream, DWORD size, I
 
 static HRESULT handle_alloc_request(struct wm_reader *reader, struct wg_request *request)
 {
-    wg_parser_queue_alloc(reader->wg_parser, NULL, request->token, NULL);
+    struct wg_sample *wg_sample;
+    struct wm_stream *stream;
+    INSSBuffer *sample;
+    HRESULT hr;
+
+    if (!(stream = wm_reader_get_stream_by_stream_number(reader, request->stream + 1)))
+    {
+        ERR("Unable to find stream with index %u.\n", request->stream);
+        return E_INVALIDARG;
+    }
+
+    if (SUCCEEDED(hr = wm_stream_allocate_sample(stream, request->u.alloc.size, &sample)))
+    {
+        hr = wg_sample_create_wm(sample, &wg_sample);
+        INSSBuffer_Release(sample);
+    }
+
+    if (FAILED(hr))
+    {
+        WARN("Failed to allocate sample, hr %#lx\n", hr);
+        wg_parser_queue_alloc(reader->wg_parser, NULL, request->token, NULL);
+        return hr;
+    }
+
+    wg_parser_queue_alloc(reader->wg_parser, wg_sample, request->token, reader->wg_sample_queue);
     return S_FALSE;
 }
 
