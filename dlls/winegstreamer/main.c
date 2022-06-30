@@ -233,29 +233,6 @@ bool wg_parser_stream_get_buffer(struct wg_parser *parser, struct wg_parser_stre
     return !WINE_UNIX_CALL(unix_wg_parser_stream_get_buffer, &params);
 }
 
-bool wg_parser_stream_copy_buffer(struct wg_parser_stream *stream,
-        void *data, uint32_t offset, uint32_t size)
-{
-    struct wg_parser_stream_copy_buffer_params params =
-    {
-        .stream = stream,
-        .data = data,
-        .offset = offset,
-        .size = size,
-    };
-
-    TRACE("stream %p, data %p, offset %u, size %u.\n", stream, data, offset, size);
-
-    return !WINE_UNIX_CALL(unix_wg_parser_stream_copy_buffer, &params);
-}
-
-void wg_parser_stream_release_buffer(struct wg_parser_stream *stream)
-{
-    TRACE("stream %p.\n", stream);
-
-    WINE_UNIX_CALL(unix_wg_parser_stream_release_buffer, stream);
-}
-
 bool wg_parser_stream_read_data(struct wg_parser_stream *stream, struct wg_sample *sample)
 {
     struct wg_parser_stream_read_data_params params =

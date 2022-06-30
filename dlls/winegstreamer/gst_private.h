@@ -88,10 +88,6 @@ void wg_parser_stream_disable(struct wg_parser_stream *stream);
 
 bool wg_parser_stream_get_buffer(struct wg_parser *parser, struct wg_parser_stream *stream,
         struct wg_parser_buffer *buffer);
-bool wg_parser_stream_copy_buffer(struct wg_parser_stream *stream,
-        void *data, uint32_t offset, uint32_t size);
-void wg_parser_stream_release_buffer(struct wg_parser_stream *stream);
-bool wg_parser_stream_read_data(struct wg_parser_stream *stream, struct wg_sample *sample);
 void wg_parser_stream_notify_qos(struct wg_parser_stream *stream,
         bool underflow, double proportion, int64_t diff, uint64_t timestamp);
 

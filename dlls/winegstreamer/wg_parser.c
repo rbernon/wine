@@ -334,74 +334,10 @@ static NTSTATUS wg_parser_stream_get_buffer(void *args)
      * that this will need modification to wg_parser_stream_notify_qos() as
      * well. */
 
-    if ((wg_buffer->has_pts = GST_BUFFER_PTS_IS_VALID(buffer)))
-        wg_buffer->pts = GST_BUFFER_PTS(buffer) / 100;
-    if ((wg_buffer->has_duration = GST_BUFFER_DURATION_IS_VALID(buffer)))
-        wg_buffer->duration = GST_BUFFER_DURATION(buffer) / 100;
-    wg_buffer->discontinuity = GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DISCONT);
-    wg_buffer->preroll = GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_LIVE);
-    wg_buffer->delta = GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT);
     wg_buffer->size = gst_buffer_get_size(buffer);
     wg_buffer->stream = stream->number;
 
     pthread_mutex_unlock(&parser->mutex);
-    return S_OK;
-}
-
-static NTSTATUS wg_parser_stream_copy_buffer(void *args)
-{
-    const struct wg_parser_stream_copy_buffer_params *params = args;
-    struct wg_parser_stream *stream = params->stream;
-    struct wg_parser *parser = stream->parser;
-    uint32_t offset = params->offset;
-    uint32_t size = params->size;
-    GstMapInfo map_info;
-    GstBuffer *buffer;
-
-    pthread_mutex_lock(&parser->mutex);
-
-    if (!stream->buffer)
-    {
-        pthread_mutex_unlock(&parser->mutex);
-        return VFW_E_WRONG_STATE;
-    }
-
-    buffer = gst_buffer_ref(stream->buffer);
-    pthread_mutex_unlock(&parser->mutex);
-
-    if (!gst_buffer_map(buffer, &map_info, GST_MAP_READ))
-    {
-        GST_ERROR("Failed to map buffer.\n");
-        gst_buffer_unref(buffer);
-        return E_FAIL;
-    }
-
-    assert(offset < map_info.size);
-    assert(offset + size <= map_info.size);
-    memcpy(params->data, map_info.data + offset, size);
-
-    gst_buffer_unmap(stream->buffer, &map_info);
-
-    gst_buffer_unref(buffer);
-    return S_OK;
-}
-
-static NTSTATUS wg_parser_stream_release_buffer(void *args)
-{
-    struct wg_parser_stream *stream = args;
-    struct wg_parser *parser = stream->parser;
-    GstBuffer *buffer;
-
-    pthread_mutex_lock(&parser->mutex);
-
-    assert(stream->buffer);
-    buffer = stream->buffer;
-    stream->buffer = NULL;
-
-    pthread_mutex_unlock(&parser->mutex);
-    pthread_cond_signal(&stream->event_empty_cond);
-
-    gst_buffer_unref(buffer);
     return S_OK;
 }
 
@@ -726,7 +662,7 @@ static GstFlowReturn sink_chain_cb(GstPad *pad, GstObject *parent, GstBuffer *bu
 
     /* The chain callback is given a reference to the buffer. Transfer that
      * reference to the stream object, which will release it in
-     * wg_parser_stream_release_buffer(). */
+     * wg_parser_stream_read_data(). */
 
     GST_LOG("Buffer queued.");
     return GST_FLOW_OK;
@@ -1998,8 +1934,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_parser_stream_disable),
 
     X(wg_parser_stream_get_buffer),
-    X(wg_parser_stream_copy_buffer),
-    X(wg_parser_stream_release_buffer),
     X(wg_parser_stream_notify_qos),
 
     X(wg_parser_stream_get_duration),

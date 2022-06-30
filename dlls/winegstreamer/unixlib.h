@@ -166,7 +166,7 @@ enum wg_sample_flag
 
 struct wg_sample
 {
-    /* timestamp and duration are in 100-nanosecond units. */
+    /* pts and duration are in 100-nanosecond units. */
     UINT64 pts;
     UINT64 duration;
     LONG refcount; /* unix refcount */
@@ -178,13 +178,9 @@ struct wg_sample
 
 struct wg_parser_buffer
 {
-    /* pts and duration are in 100-nanosecond units. */
-    UINT64 pts, duration;
     UINT32 size;
     UINT32 stream;
-    bool discontinuity, preroll, delta, has_pts, has_duration;
 };
-C_ASSERT(sizeof(struct wg_parser_buffer) == 32);
 
 enum wg_parser_type
 {
@@ -259,14 +255,6 @@ struct wg_parser_stream_get_buffer_params
     struct wg_parser *parser;
     struct wg_parser_stream *stream;
     struct wg_parser_buffer *buffer;
-};
-
-struct wg_parser_stream_copy_buffer_params
-{
-    struct wg_parser_stream *stream;
-    void *data;
-    UINT32 offset;
-    UINT32 size;
 };
 
 struct wg_parser_stream_read_data_params
@@ -369,8 +357,6 @@ enum unix_funcs
     unix_wg_parser_stream_disable,
 
     unix_wg_parser_stream_get_buffer,
-    unix_wg_parser_stream_copy_buffer,
-    unix_wg_parser_stream_release_buffer,
     unix_wg_parser_stream_notify_qos,
 
     unix_wg_parser_stream_get_duration,

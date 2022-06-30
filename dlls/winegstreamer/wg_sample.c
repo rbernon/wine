@@ -367,6 +367,7 @@ void wg_sample_queue_destroy(struct wg_sample_queue *queue)
 HRESULT wg_transform_push_data(struct wg_transform *transform, struct wg_sample *sample);
 HRESULT wg_transform_read_data(struct wg_transform *transform, struct wg_sample *sample,
         struct wg_format *format);
+bool wg_parser_stream_read_data(struct wg_parser_stream *stream, struct wg_sample *sample);
 
 HRESULT wg_transform_push_mf(struct wg_transform *transform, IMFSample *sample,
         struct wg_sample_queue *queue)
