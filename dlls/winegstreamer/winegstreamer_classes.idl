@@ -111,3 +111,9 @@ coclass CResamplerMediaObject {}
     uuid(98230571-0087-4204-b020-3282538e57d3)
 ]
 coclass CColorConvertDMO {}
+
+[
+    threading(both),
+    uuid(bbeea841-0a63-4f52-a7ab-a9b3a84ed38a)
+]
+coclass CMP3DecMediaObject {}

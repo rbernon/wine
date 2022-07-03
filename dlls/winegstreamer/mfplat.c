@@ -22,9 +22,9 @@
 #include "ks.h"
 #include "ksmedia.h"
 #include "wmcodecdsp.h"
+#include "mfapi.h"
 #include "initguid.h"
 #include "d3d9types.h"
-#include "mfapi.h"
 
 #include "wine/debug.h"
 #include "wine/list.h"
@@ -174,6 +174,15 @@ HRESULT mfplat_DllRegisterServer(void)
     MFT_REGISTER_TYPE_INFO aac_decoder_output_types[] =
     {
         {MFMediaType_Audio, MFAudioFormat_Float},
+        {MFMediaType_Audio, MFAudioFormat_PCM},
+    };
+
+    MFT_REGISTER_TYPE_INFO mp3_decoder_input_types[] =
+    {
+        {MFMediaType_Audio, MFAudioFormat_MP3},
+    };
+    MFT_REGISTER_TYPE_INFO mp3_decoder_output_types[] =
+    {
         {MFMediaType_Audio, MFAudioFormat_PCM},
     };
 
@@ -406,6 +415,16 @@ HRESULT mfplat_DllRegisterServer(void)
             color_convert_input_types,
             ARRAY_SIZE(color_convert_output_types),
             color_convert_output_types,
+        },
+        {
+            CLSID_CMP3DecMediaObject,
+            MFT_CATEGORY_AUDIO_DECODER,
+            L"MP3 Decoder MFT",
+            MFT_ENUM_FLAG_SYNCMFT,
+            ARRAY_SIZE(mp3_decoder_input_types),
+            mp3_decoder_input_types,
+            ARRAY_SIZE(mp3_decoder_output_types),
+            mp3_decoder_output_types,
         },
     };
 
@@ -680,6 +699,27 @@ static enum wg_video_format mf_video_format_to_wg(const GUID *subtype)
     return WG_VIDEO_FORMAT_UNKNOWN;
 }
 
+static void mf_media_type_to_wg_format_audio_mpeg1(IMFMediaType *type, const GUID *subtype, struct wg_format *format)
+{
+    UINT32 rate, channels;
+
+    if (FAILED(IMFMediaType_GetUINT32(type, &MF_MT_AUDIO_SAMPLES_PER_SECOND, &rate)))
+    {
+        FIXME("Sample rate is not set.\n");
+        return;
+    }
+    if (FAILED(IMFMediaType_GetUINT32(type, &MF_MT_AUDIO_NUM_CHANNELS, &channels)))
+    {
+        FIXME("Channel count is not set.\n");
+        return;
+    }
+
+    format->major_type = WG_MAJOR_TYPE_AUDIO_MPEG1;
+    format->u.audio_mpeg1.layer = 3;
+    format->u.audio_mpeg1.rate = rate;
+    format->u.audio_mpeg1.channels = channels;
+}
+
 static void mf_media_type_to_wg_format_video(IMFMediaType *type, const GUID *subtype, struct wg_format *format)
 {
     UINT64 frame_rate, frame_size;
@@ -914,6 +954,8 @@ void mf_media_type_to_wg_format(IMFMediaType *type, struct wg_format *format)
             mf_media_type_to_wg_format_audio_wma(type, &subtype, format);
         else if (IsEqualGUID(&subtype, &MFAudioFormat_AAC) || IsEqualGUID(&subtype, &MFAudioFormat_RAW_AAC))
             mf_media_type_to_wg_format_audio_mpeg4(type, &subtype, format);
+        else if (IsEqualGUID(&subtype, &MFAudioFormat_MP3))
+            mf_media_type_to_wg_format_audio_mpeg1(type, &subtype, format);
         else
             mf_media_type_to_wg_format_audio(type, &subtype, format);
     }

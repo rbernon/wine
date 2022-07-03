@@ -31,6 +31,7 @@
 #include "dmoreg.h"
 #include "gst_guids.h"
 #include "wmcodecdsp.h"
+#include "mfapi.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(quartz);
 
@@ -581,6 +582,7 @@ static const IClassFactoryVtbl class_factory_vtbl =
 
 static struct class_factory avi_splitter_cf = {{&class_factory_vtbl}, avi_splitter_create};
 static struct class_factory decodebin_parser_cf = {{&class_factory_vtbl}, decodebin_parser_create};
+static struct class_factory mp3_decoder_cf = {{&class_factory_vtbl}, mp3_decoder_create};
 static struct class_factory mpeg_audio_codec_cf = {{&class_factory_vtbl}, mpeg_audio_codec_create};
 static struct class_factory mpeg_layer3_decoder_cf = {{&class_factory_vtbl}, mpeg_layer3_decoder_create};
 static struct class_factory mpeg_splitter_cf = {{&class_factory_vtbl}, mpeg_splitter_create};
@@ -623,6 +625,8 @@ HRESULT WINAPI DllGetClassObject(REFCLSID clsid, REFIID iid, void **out)
         factory = &resampler_cf;
     else if (IsEqualGUID(clsid, &CLSID_CColorConvertDMO))
         factory = &color_convert_cf;
+    else if (IsEqualGUID(clsid, &CLSID_CMP3DecMediaObject))
+        factory = &mp3_decoder_cf;
     else
     {
         FIXME("%s not implemented, returning CLASS_E_CLASSNOTAVAILABLE.\n", debugstr_guid(clsid));
@@ -935,6 +939,14 @@ HRESULT WINAPI DllRegisterServer(void)
         {.type = MEDIATYPE_Video, .subtype = MEDIASUBTYPE_V410},
         {.type = MEDIATYPE_Video, .subtype = MEDIASUBTYPE_NV11},
     };
+    DMO_PARTIAL_MEDIATYPE mp3_decoder_output[2] =
+    {
+        {.type = MEDIATYPE_Audio, .subtype = MEDIASUBTYPE_PCM},
+    };
+    DMO_PARTIAL_MEDIATYPE mp3_decoder_input[4] =
+    {
+        {.type = MEDIATYPE_Audio, .subtype = MFAudioFormat_MP3},
+    };
 
     IFilterMapper2 *mapper;
     HRESULT hr;
@@ -973,6 +985,9 @@ HRESULT WINAPI DllRegisterServer(void)
     if (FAILED(hr = DMORegister(L"Color Converter DMO", &CLSID_CColorConvertDMO, &DMOCATEGORY_VIDEO_EFFECT,
             0, ARRAY_SIZE(color_convert_input), color_convert_input, ARRAY_SIZE(color_convert_output), color_convert_output)))
         return hr;
+    if (FAILED(hr = DMORegister(L"MP3 Decoder DMO", &CLSID_CMP3DecMediaObject, &DMOCATEGORY_AUDIO_DECODER,
+            0, ARRAY_SIZE(mp3_decoder_input), mp3_decoder_input, ARRAY_SIZE(mp3_decoder_output), mp3_decoder_output)))
+        return hr;
 
     return mfplat_DllRegisterServer();
 }
@@ -1000,6 +1015,8 @@ HRESULT WINAPI DllUnregisterServer(void)
 
     IFilterMapper2_Release(mapper);
 
+    if (FAILED(hr = DMOUnregister(&CLSID_CMP3DecMediaObject, &DMOCATEGORY_AUDIO_DECODER)))
+        return hr;
     if (FAILED(hr = DMOUnregister(&CLSID_CColorConvertDMO, &DMOCATEGORY_VIDEO_EFFECT)))
         return hr;
     if (FAILED(hr = DMOUnregister(&CLSID_CResamplerMediaObject, &DMOCATEGORY_AUDIO_EFFECT)))

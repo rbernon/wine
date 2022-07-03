@@ -1,7 +1,9 @@
 MODULE    = winegstreamer.dll
 UNIXLIB   = winegstreamer.so
 IMPORTLIB = winegstreamer
-IMPORTS   = strmbase ole32 oleaut32 msdmo
+IMPORTS   = $(MPG123_PE_LIBS) strmbase ole32 oleaut32 msdmo
+EXTRAINCL = $(MPG123_PE_CFLAGS)
+EXTRADEFS = -DMPG123_NO_LARGENAME
 DELAYIMPORTS = mfplat mf
 UNIX_CFLAGS  = $(GSTREAMER_CFLAGS)
 UNIX_LIBS    = $(GSTREAMER_LIBS) $(PTHREAD_LIBS)
@@ -13,6 +15,7 @@ C_SRCS = \
 	main.c \
 	media_source.c \
 	mfplat.c \
+	mp3_decoder.c \
 	quartz_parser.c \
 	quartz_transform.c \
 	resampler.c \
