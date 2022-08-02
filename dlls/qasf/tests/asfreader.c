@@ -970,7 +970,6 @@ static void test_threading(BOOL receive_can_block)
     memset(&props, 0xcd, sizeof(props));
     hr = IMemAllocator_GetProperties(test_sink.video.allocator, &props);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    todo_wine
     ok(props.cBuffers == 10, "got cBuffers %lu\n", props.cBuffers);
     ok(props.cbBuffer == expect_size, "got cbBuffer %lu\n", props.cbBuffer);
     ok(props.cbAlign == 1, "got cbAlign %lu\n", props.cbAlign);
@@ -993,7 +992,6 @@ static void test_threading(BOOL receive_can_block)
     memset(&props, 0xcd, sizeof(props));
     hr = IMemAllocator_GetProperties(test_sink.audio.allocator, &props);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    todo_wine
     ok(props.cBuffers == 50, "got cBuffers %lu\n", props.cBuffers);
     ok(props.cbBuffer == expect_size, "got cbBuffer %lu\n", props.cbBuffer);
     ok(props.cbAlign == 1, "got cbAlign %lu\n", props.cbAlign);
