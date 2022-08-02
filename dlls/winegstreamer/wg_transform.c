@@ -641,6 +641,10 @@ NTSTATUS wg_transform_create(void *args)
                 || !append_element(transform->container, element, &first, &last))
             goto out;
     }
+    else
+    {
+        transform->attrs.input_queue_length = 16;
+    }
 
     if (g_str_has_prefix(output_mime, "audio/"))
     {
