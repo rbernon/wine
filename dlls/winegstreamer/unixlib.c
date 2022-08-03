@@ -213,5 +213,28 @@ NTSTATUS wg_init_gstreamer(void *arg)
 
     GST_INFO("GStreamer library version %s; wine built with %d.%d.%d.",
             gst_version_string(), GST_VERSION_MAJOR, GST_VERSION_MINOR, GST_VERSION_MICRO);
+
+    if (!(gl_display = gst_gl_display_new()))
+        GST_ERROR("Failed to create OpenGL display");
+    else
+    {
+        GError *error = NULL;
+        gboolean ret;
+
+        GST_OBJECT_LOCK(gl_display);
+        ret = gst_gl_display_create_context(gl_display, NULL, &gl_context, &error);
+        GST_OBJECT_UNLOCK(gl_display);
+        g_clear_error(&error);
+
+        if (ret)
+            gst_gl_display_add_context(gl_display, gl_context);
+        else
+        {
+            GST_ERROR("Failed to create OpenGL context");
+            gst_object_unref(gl_display);
+            gl_display = NULL;
+        }
+    }
+
     return STATUS_SUCCESS;
 }
