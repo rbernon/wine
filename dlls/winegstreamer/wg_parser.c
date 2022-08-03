@@ -1007,25 +1007,36 @@ static bool stream_create_post_processing_elements(struct wg_parser_stream *stre
 
     if (!strcmp(name, "video/x-raw") && parser->context)
     {
-        GstElement *first = NULL, *last = NULL, *element;
-
         if (!(element = create_element("glupload", "base"))
                 || !append_element(GST_BIN(parser->container), element, &first, &last))
             goto out;
+
+        /* gldeinterlace and glvideoflip elements only support RGBA, so convert first. */
         if (!(element = create_element("glcolorconvert", "base"))
                 || !append_element(GST_BIN(parser->container), element, &first, &last))
             goto out;
+
+        /* DirectShow can express interlaced video, but downstream filters can't
+         * necessarily consume it. In particular, the video renderer can't. */
+        if (!(element = create_element("gldeinterlace", "base"))
+                || !append_element(GST_BIN(parser->container), element, &first, &last))
+            goto out;
+
+        /* GStreamer outputs RGB video top-down, but DirectShow expects bottom-up. */
         if (!(element = create_element("glvideoflip", "base"))
                 || !append_element(GST_BIN(parser->container), element, &first, &last))
             goto out;
         stream->flip = element;
-        if (!(element = create_element("gldeinterlace", "base"))
-                || !append_element(GST_BIN(parser->container), element, &first, &last))
-            goto out;
+
         if (!(element = create_element("glcolorconvert", "base"))
                 || !append_element(GST_BIN(parser->container), element, &first, &last))
             goto out;
         if (!(element = create_element("gldownload", "base"))
+                || !append_element(GST_BIN(parser->container), element, &first, &last))
+            goto out;
+
+        /* OpenGL plugins don't support RGB15, make sure we can convert it. */
+        if (!(element = create_element("videoconvert", "base"))
                 || !append_element(GST_BIN(parser->container), element, &first, &last))
             goto out;
 
