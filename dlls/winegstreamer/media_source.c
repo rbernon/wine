@@ -37,6 +37,7 @@ struct media_stream
     IMFStreamDescriptor *descriptor;
 
     struct wg_parser_stream *wg_stream;
+    DWORD stream;
 
     IUnknown **token_queue;
     LONG token_queue_count;
@@ -91,6 +92,7 @@ struct media_source
     CRITICAL_SECTION cs;
 
     struct wg_parser *wg_parser;
+    struct wg_sample_queue *wg_sample_queue;
     UINT64 duration;
 
     IMFStreamDescriptor **descriptors;
@@ -410,7 +412,7 @@ static HRESULT media_source_start(struct media_source *source, IMFPresentationDe
     source->state = SOURCE_RUNNING;
 
     if (position->vt == VT_I8)
-        wg_parser_stream_seek(source->streams[0]->wg_stream, 1.0, position->hVal.QuadPart, 0,
+        wg_parser_seek_stream(source->wg_parser, 0, 1.0, position->hVal.QuadPart, 0,
                 AM_SEEKING_AbsolutePositioning, AM_SEEKING_NoPositioning);
 
     for (i = 0; i < source->stream_count; i++)
@@ -468,50 +470,82 @@ static HRESULT media_source_stop(struct media_source *source)
     return IMFMediaEventQueue_QueueEventParamVar(source->event_queue, MESourceStopped, &GUID_NULL, S_OK, NULL);
 }
 
-static HRESULT media_stream_send_sample(struct media_stream *stream, const struct wg_parser_buffer *wg_buffer, IUnknown *token)
+static HRESULT allocate_sample(UINT32 size, IMFSample **out)
 {
     IMFSample *sample = NULL;
     IMFMediaBuffer *buffer;
     HRESULT hr;
-    BYTE *data;
-
-    if (FAILED(hr = MFCreateMemoryBuffer(wg_buffer->size, &buffer)))
-        return hr;
-    if (FAILED(hr = IMFMediaBuffer_SetCurrentLength(buffer, wg_buffer->size)))
-        goto out;
-    if (FAILED(hr = IMFMediaBuffer_Lock(buffer, &data, NULL, NULL)))
-        goto out;
-
-    if (!wg_parser_stream_copy_buffer(stream->wg_stream, data, 0, wg_buffer->size))
-    {
-        wg_parser_stream_release_buffer(stream->wg_stream);
-        IMFMediaBuffer_Unlock(buffer);
-        goto out;
-    }
-    wg_parser_stream_release_buffer(stream->wg_stream);
-
-    if (FAILED(hr = IMFMediaBuffer_Unlock(buffer)))
-        goto out;
 
     if (FAILED(hr = MFCreateSample(&sample)))
-        goto out;
-    if (FAILED(hr = IMFSample_AddBuffer(sample, buffer)))
-        goto out;
-    if (FAILED(hr = IMFSample_SetSampleTime(sample, wg_buffer->pts)))
-        goto out;
-    if (FAILED(hr = IMFSample_SetSampleDuration(sample, wg_buffer->duration)))
-        goto out;
-    if (token && FAILED(hr = IMFSample_SetUnknown(sample, &MFSampleExtension_Token, token)))
-        goto out;
+        return hr;
 
-    hr = IMFMediaEventQueue_QueueEventParamUnk(stream->event_queue, MEMediaSample,
-            &GUID_NULL, S_OK, (IUnknown *)sample);
+    if (SUCCEEDED(hr = MFCreateMemoryBuffer(size, &buffer)))
+    {
+        if (SUCCEEDED(hr = IMFSample_AddBuffer(sample, buffer)))
+            IMFSample_AddRef((*out = sample));
+        IMFMediaBuffer_Release(buffer);
+    }
 
-out:
-    if (sample)
-        IMFSample_Release(sample);
-    IMFMediaBuffer_Release(buffer);
+    IMFSample_Release(sample);
     return hr;
+}
+
+static HRESULT handle_alloc_request(struct media_source *source, struct wg_request *request)
+{
+    struct wg_sample *wg_sample = NULL;
+    IMFSample *sample;
+    HRESULT hr;
+
+    if (SUCCEEDED(hr = allocate_sample(request->u.alloc.size, &sample)))
+    {
+        hr = wg_sample_create_mf(sample, &wg_sample);
+        IMFSample_Release(sample);
+    }
+
+    if (FAILED(hr))
+    {
+        ERR("Failed to allocate sample, hr %#lx\n", hr);
+        wg_parser_queue_alloc(source->wg_parser, NULL, request->token, NULL);
+        return;
+    }
+
+    wg_parser_queue_alloc(source->wg_parser, wg_sample, request->token, source->wg_sample_queue);
+}
+
+static HRESULT handle_output_request(struct media_stream *stream, const struct wg_request *request, IUnknown *token)
+{
+    struct media_source *source = stream->parent_source;
+    struct wg_sample *wg_sample;
+    IMFSample *sample;
+    bool success;
+    HRESULT hr;
+
+    if (!wg_sample_queue_find_mf(source->wg_sample_queue, request->u.output.data, &wg_sample, &sample))
+    {
+        if (FAILED(hr = allocate_sample(request->u.output.size, &sample)))
+        {
+            ERR("Failed to create sample, hr %#lx.\n", hr);
+            return hr;
+        }
+        if (FAILED(hr = wg_sample_create_mf(sample, &wg_sample)))
+        {
+            ERR("Failed to create wg_sample, hr %#lx.\n", hr);
+            IMFSample_Release(sample);
+            return hr;
+        }
+    }
+
+    success = wg_parser_read_mf(source->wg_parser, wg_sample, request->token);
+    wg_sample_release(wg_sample);
+    if (success)
+    {
+        if (token)
+            IMFSample_SetUnknown(sample, &MFSampleExtension_Token, token);
+        IMFMediaEventQueue_QueueEventParamUnk(stream->event_queue, MEMediaSample,
+                &GUID_NULL, S_OK, (IUnknown *)sample);
+    }
+
+    IMFSample_Release(sample);
 }
 
 static HRESULT media_stream_send_eos(struct media_source *source, struct media_stream *stream)
@@ -545,8 +579,13 @@ static HRESULT wait_on_sample(struct media_stream *stream, IUnknown *token)
 
     TRACE("%p, %p\n", stream, token);
 
-    if (wg_parser_stream_get_buffer(source->wg_parser, stream->wg_stream, &buffer))
-        return media_stream_send_sample(stream, &buffer, token);
+    if (wg_parser_wait_stream_request(source->wg_parser, WG_REQUEST_TYPE_OUTPUT, stream->wg_stream, &request))
+    {
+        if (request.type == WG_REQUEST_TYPE_OUTPUT)
+            return handle_output_request(stream, &buffer, token);
+        ERR("Received unexpected request type %u\n", request.type);
+        return MF_E_UNEXPECTED;
+    }
 
     return media_stream_send_eos(source, stream);
 }
@@ -592,6 +631,7 @@ static HRESULT WINAPI source_async_commands_Invoke(IMFAsyncCallback *iface, IMFA
                 if (FAILED(hr = wait_on_sample(command->u.request_sample.stream, command->u.request_sample.token)))
                     WARN("Failed to request sample, hr %#lx\n", hr);
             }
+            wg_sample_queue_flush(source->wg_sample_queue, false);
             break;
     }
 
@@ -611,16 +651,55 @@ static const IMFAsyncCallbackVtbl source_async_commands_callback_vtbl =
     source_async_commands_Invoke,
 };
 
+static void handle_input_request(struct media_source *source, QWORD file_size,
+        struct wg_request *request)
+{
+    IMFByteStream *byte_stream = source->byte_stream;
+    uint64_t offset = request->u.input.offset;
+    uint32_t size = request->u.input.size;
+    struct wg_sample *wg_sample;
+    ULONG ret_size = 0;
+    HRESULT hr;
+
+    if (offset >= file_size)
+        size = 0;
+    else if (offset + size >= file_size)
+        size = file_size - offset;
+
+    if (FAILED(wg_sample_create_raw(size, &wg_sample)))
+    {
+        wg_parser_queue_data(source->wg_parser, NULL, request->token, NULL);
+        return;
+    }
+
+    /* Some IMFByteStreams (including the standard file-based stream) return
+     * an error when reading past the file size. */
+
+    if (!size)
+        hr = S_OK;
+    else if (SUCCEEDED(hr = IMFByteStream_SetCurrentPosition(byte_stream, offset)))
+        hr = IMFByteStream_Read(byte_stream, wg_sample->data, size, &ret_size);
+
+    if (FAILED(hr))
+    {
+        ERR("Failed to read %u bytes at offset %I64u, hr %#lx.\n", size, offset, hr);
+        wg_sample->data = NULL;
+    }
+    else if (ret_size != size)
+    {
+        ERR("Unexpected short read: requested %u bytes, got %lu.\n", size, ret_size);
+        size = ret_size;
+    }
+
+    wg_sample->size = size;
+    wg_parser_queue_data(source->wg_parser, wg_sample, request->token, source->wg_sample_queue);
+}
+
 static DWORD CALLBACK read_thread(void *arg)
 {
     struct media_source *source = arg;
     IMFByteStream *byte_stream = source->byte_stream;
-    size_t buffer_size = 4096;
     QWORD file_size;
-    void *data;
-
-    if (!(data = malloc(buffer_size)))
-        return 0;
 
     IMFByteStream_GetLength(byte_stream, &file_size);
 
@@ -628,45 +707,21 @@ static DWORD CALLBACK read_thread(void *arg)
 
     while (!source->read_thread_shutdown)
     {
-        uint64_t offset;
-        ULONG ret_size;
-        uint32_t size;
-        HRESULT hr;
+        struct wg_request request;
 
-        if (!wg_parser_get_next_read_offset(source->wg_parser, &offset, &size))
+        if (!wg_parser_wait_request(source->wg_parser, WG_REQUEST_TYPE_ALLOC | WG_REQUEST_TYPE_INPUT, &request))
             continue;
 
-        if (offset >= file_size)
-            size = 0;
-        else if (offset + size >= file_size)
-            size = file_size - offset;
+        if (request.type == WG_REQUEST_TYPE_ALLOC)
+            handle_alloc_request(source, &request);
+        else if (request.type == WG_REQUEST_TYPE_INPUT)
+            handle_input_request(source, file_size, &request);
+        else
+            ERR("Received unexpected request type %u\n", request.type);
 
-        /* Some IMFByteStreams (including the standard file-based stream) return
-         * an error when reading past the file size. */
-        if (!size)
-        {
-            wg_parser_push_data(source->wg_parser, data, 0);
-            continue;
-        }
-
-        if (!array_reserve(&data, &buffer_size, size, 1))
-        {
-            free(data);
-            return 0;
-        }
-
-        ret_size = 0;
-
-        if (SUCCEEDED(hr = IMFByteStream_SetCurrentPosition(byte_stream, offset)))
-            hr = IMFByteStream_Read(byte_stream, data, size, &ret_size);
-        if (FAILED(hr))
-            ERR("Failed to read %u bytes at offset %I64u, hr %#lx.\n", size, offset, hr);
-        else if (ret_size != size)
-            ERR("Unexpected short read: requested %u bytes, got %lu.\n", size, ret_size);
-        wg_parser_push_data(source->wg_parser, SUCCEEDED(hr) ? data : NULL, ret_size);
+        wg_sample_queue_flush(source->wg_sample_queue, false);
     }
 
-    free(data);
     TRACE("Media source is shutting down; exiting.\n");
     return 0;
 }
@@ -1453,6 +1508,7 @@ static HRESULT WINAPI media_source_Shutdown(IMFMediaSource *iface)
     free(source->streams);
 
     MFUnlockWorkQueue(source->async_commands_queue);
+    wg_sample_queue_destroy(source->wg_sample_queue);
 
     LeaveCriticalSection(&source->cs);
 
@@ -1482,7 +1538,7 @@ static HRESULT media_source_constructor(IMFByteStream *bytestream, struct media_
     struct media_source *object;
     struct wg_parser *parser;
     DWORD bytestream_caps;
-    QWORD file_size;
+    uint64_t file_size;
     unsigned int i;
     HRESULT hr;
 
@@ -1503,6 +1559,11 @@ static HRESULT media_source_constructor(IMFByteStream *bytestream, struct media_
 
     if (!(object = calloc(1, sizeof(*object))))
         return E_OUTOFMEMORY;
+    if (FAILED(hr = wg_sample_queue_create(&object->wg_sample_queue)))
+    {
+        free(object);
+        return hr;
+    }
 
     object->IMFMediaSource_iface.lpVtbl = &IMFMediaSource_vtbl;
     object->IMFGetService_iface.lpVtbl = &media_source_get_service_vtbl;

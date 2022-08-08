@@ -75,10 +75,16 @@ void wg_parser_destroy(struct wg_parser *parser);
 HRESULT wg_parser_connect(struct wg_parser *parser, uint64_t file_size);
 void wg_parser_disconnect(struct wg_parser *parser);
 
-bool wg_parser_get_next_read_offset(struct wg_parser *parser, uint64_t *offset, uint32_t *size);
-void wg_parser_push_data(struct wg_parser *parser, const void *data, uint32_t size);
+bool wg_parser_wait_request(struct wg_parser *parser, enum wg_request_type type_mask,
+        struct wg_request *request);
+bool wg_parser_wait_stream_request(struct wg_parser *parser, enum wg_request_type type_mask,
+        struct wg_parser_stream *stream, struct wg_request *request);
+void wg_parser_queue_data(struct wg_parser *parser, struct wg_sample *sample, UINT64 token,
+        struct wg_sample_queue *queue);
 
 uint32_t wg_parser_get_stream_count(struct wg_parser *parser);
+/* Returns the duration in 100-nanosecond units. */
+uint64_t wg_parser_get_stream_duration(struct wg_parser *parser, uint32_t stream);
 struct wg_parser_stream *wg_parser_get_stream(struct wg_parser *parser, uint32_t index);
 
 void wg_parser_stream_get_preferred_format(struct wg_parser_stream *stream, struct wg_format *format);
@@ -86,19 +92,12 @@ void wg_parser_stream_get_codec_format(struct wg_parser_stream *stream, struct w
 void wg_parser_stream_enable(struct wg_parser_stream *stream, const struct wg_format *format);
 void wg_parser_stream_disable(struct wg_parser_stream *stream);
 
-bool wg_parser_stream_get_buffer(struct wg_parser *parser, struct wg_parser_stream *stream,
-        struct wg_parser_buffer *buffer);
-bool wg_parser_stream_copy_buffer(struct wg_parser_stream *stream,
-        void *data, uint32_t offset, uint32_t size);
-void wg_parser_stream_release_buffer(struct wg_parser_stream *stream);
-void wg_parser_stream_notify_qos(struct wg_parser_stream *stream,
+void wg_parser_notify_stream_qos(struct wg_parser *parser, uint32_t stream,
         bool underflow, double proportion, int64_t diff, uint64_t timestamp);
 
-/* Returns the duration in 100-nanosecond units. */
-uint64_t wg_parser_stream_get_duration(struct wg_parser_stream *stream);
 char *wg_parser_stream_get_tag(struct wg_parser_stream *stream, enum wg_parser_tag tag);
 /* start_pos and stop_pos are in 100-nanosecond units. */
-void wg_parser_stream_seek(struct wg_parser_stream *stream, double rate,
+void wg_parser_seek_stream(struct wg_parser *parser, uint32_t stream, double rate,
         uint64_t start_pos, uint64_t stop_pos, DWORD start_flags, DWORD stop_flags);
 
 struct wg_transform *wg_transform_create(const struct wg_format *input_format,
@@ -135,7 +134,16 @@ HRESULT wg_sample_create_dmo(IMediaBuffer *buffer, struct wg_sample **out);
 HRESULT wg_sample_create_mf(IMFSample *sample, struct wg_sample **out);
 HRESULT wg_sample_create_quartz(IMediaSample *sample, struct wg_sample **out);
 HRESULT wg_sample_create_dmo(IMediaBuffer *media_buffer, struct wg_sample **out);
+HRESULT wg_sample_create_raw(UINT32 size, struct wg_sample **out);
+HRESULT wg_sample_create_wm(INSSBuffer *wm_sample, struct wg_sample **out);
 void wg_sample_release(struct wg_sample *wg_sample);
+
+bool wg_sample_queue_find_mf(struct wg_sample_queue *queue, void *data,
+        struct wg_sample **wg_sample, IMFSample **mf_sample);
+bool wg_sample_queue_find_quartz(struct wg_sample_queue *queue, void *data,
+        struct wg_sample **wg_sample, IMediaSample **media_sample);
+bool wg_sample_queue_find_wm(struct wg_sample_queue *queue, void *data,
+        struct wg_sample **wg_sample, INSSBuffer **wm_sample);
 
 HRESULT wg_transform_push_mf(struct wg_transform *transform, IMFSample *sample,
         struct wg_sample_queue *queue);
@@ -152,6 +160,13 @@ HRESULT wg_transform_push_dmo(struct wg_transform *transform, IMediaBuffer *buff
         REFERENCE_TIME pts, REFERENCE_TIME duration, struct wg_sample_queue *queue);
 HRESULT wg_transform_read_dmo(struct wg_transform *transform, IMediaBuffer *buffer,
         DWORD *flags, REFERENCE_TIME *pts, REFERENCE_TIME *duration);
+
+bool wg_parser_read_mf(struct wg_parser *parser, struct wg_sample *sample, UINT64 token);
+bool wg_parser_read_quartz(struct wg_parser *parser, struct wg_sample *sample, UINT64 token);
+bool wg_parser_read_wm(struct wg_parser *parser, struct wg_sample *wg_sample, UINT64 token,
+        QWORD *pts, QWORD *duration, DWORD *flags);
+void wg_parser_queue_alloc(struct wg_parser *parser, struct wg_sample *wg_sample, UINT64 token,
+        struct wg_sample_queue *queue);
 
 HRESULT winegstreamer_stream_handler_create(REFIID riid, void **obj);
 

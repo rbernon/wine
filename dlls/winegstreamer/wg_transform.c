@@ -582,6 +582,8 @@ NTSTATUS wg_transform_push_data(void *args)
         GST_BUFFER_FLAG_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT);
     if (sample->flags & WG_SAMPLE_FLAG_DISCONTINUITY)
         GST_BUFFER_FLAG_SET(buffer, GST_BUFFER_FLAG_DISCONT);
+    if (sample->flags & WG_SAMPLE_FLAG_PREROLL)
+        GST_BUFFER_FLAG_SET(buffer, GST_BUFFER_FLAG_LIVE);
     gst_atomic_queue_push(transform->input_queue, buffer);
 
     params->result = S_OK;
@@ -666,8 +668,8 @@ static bool copy_buffer(GstBuffer *buffer, GstCaps *caps, struct wg_sample *samp
     return true;
 }
 
-static NTSTATUS read_transform_output_data(GstBuffer *buffer, GstCaps *caps, gsize plane_align,
-        struct wg_sample *sample)
+NTSTATUS wg_sample_read_from_buffer(GstBuffer *buffer, GstVideoInfo *src_video_info,
+        GstVideoInfo *dst_video_info, struct wg_sample *sample)
 {
     bool ret, needs_copy;
     gsize total_size;
@@ -717,6 +719,8 @@ static NTSTATUS read_transform_output_data(GstBuffer *buffer, GstCaps *caps, gsi
         sample->flags |= WG_SAMPLE_FLAG_SYNC_POINT;
     if (GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DISCONT))
         sample->flags |= WG_SAMPLE_FLAG_DISCONTINUITY;
+    if (GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_LIVE))
+        sample->flags |= WG_SAMPLE_FLAG_PREROLL;
 
     if (needs_copy)
     {
@@ -827,8 +831,7 @@ NTSTATUS wg_transform_read_data(void *args)
         return STATUS_SUCCESS;
     }
 
-    if ((status = read_transform_output_data(output_buffer, output_caps,
-                transform->output_plane_align, sample)))
+    if ((status = wg_sample_read_from_buffer(output_buffer, src_video_info, dst_video_info, sample)))
     {
         wg_allocator_release_sample(transform->allocator, sample, false);
         return status;

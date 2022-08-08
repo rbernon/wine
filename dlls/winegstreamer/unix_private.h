@@ -64,4 +64,18 @@ extern void wg_allocator_destroy(GstAllocator *allocator) DECLSPEC_HIDDEN;
 extern void wg_allocator_release_sample(GstAllocator *allocator, struct wg_sample *sample,
         bool discard_data) DECLSPEC_HIDDEN;
 
+extern NTSTATUS wg_sample_read_from_buffer(GstBuffer *buffer, GstVideoInfo *src_video_info,
+        GstVideoInfo *dst_video_info, struct wg_sample *sample) DECLSPEC_HIDDEN;
+
+static inline bool is_caps_video(GstCaps *caps)
+{
+    const gchar *media_type;
+
+    if (!caps || !gst_caps_get_size(caps))
+        return false;
+
+    media_type = gst_structure_get_name(gst_caps_get_structure(caps, 0));
+    return g_str_has_prefix(media_type, "video/");
+}
+
 #endif /* __WINE_WINEGSTREAMER_UNIX_PRIVATE_H */

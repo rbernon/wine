@@ -27,6 +27,7 @@
 #include "wine/list.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(mfplat);
+WINE_DECLARE_DEBUG_CHANNEL(wmvcore);
 WINE_DECLARE_DEBUG_CHANNEL(quartz);
 
 struct wg_sample_queue
@@ -66,8 +67,46 @@ struct sample
         {
             IMediaBuffer *buffer;
         } dmo;
+        struct
+        {
+            void *__pad[3];
+            BYTE buffer[];
+        } raw;
+        struct
+        {
+            INSSBuffer *sample;
+        } wm;
     } u;
 };
+
+C_ASSERT(sizeof(struct sample) == offsetof(struct sample, u.raw.buffer[0]));
+
+static void raw_sample_destroy(struct wg_sample *wg_sample)
+{
+    TRACE("wg_sample %p\n", wg_sample);
+}
+
+static const struct wg_sample_ops raw_sample_ops =
+{
+    raw_sample_destroy,
+};
+
+HRESULT wg_sample_create_raw(UINT32 size, struct wg_sample **out)
+{
+    struct sample *sample;
+
+    if (!(sample = calloc(1, offsetof(struct sample, u.raw.buffer[size]))))
+        return E_OUTOFMEMORY;
+
+    sample->wg_sample.data = sample->u.raw.buffer;
+    sample->wg_sample.size = 0;
+    sample->wg_sample.max_size = size;
+    sample->ops = &raw_sample_ops;
+
+    TRACE("Created wg_sample %p, size %u.\n", &sample->wg_sample, size);
+    *out = &sample->wg_sample;
+    return S_OK;
+}
 
 static const struct wg_sample_ops mf_sample_ops;
 
@@ -228,6 +267,54 @@ fail:
     return hr;
 }
 
+static const struct wg_sample_ops wm_sample_ops;
+
+static inline struct sample *unsafe_wm_from_wg_sample(struct wg_sample *wg_sample)
+{
+    struct sample *sample = CONTAINING_RECORD(wg_sample, struct sample, wg_sample);
+    if (sample->ops != &wm_sample_ops) return NULL;
+    return sample;
+}
+
+static void wm_sample_destroy(struct wg_sample *wg_sample)
+{
+    struct sample *sample = unsafe_wm_from_wg_sample(wg_sample);
+
+    TRACE_(wmvcore)("wg_sample %p, sample %p\n", wg_sample, sample);
+
+    INSSBuffer_Release(sample->u.wm.sample);
+}
+
+static const struct wg_sample_ops wm_sample_ops =
+{
+    wm_sample_destroy,
+};
+
+HRESULT wg_sample_create_wm(INSSBuffer *wm_sample, struct wg_sample **out)
+{
+    DWORD current_length, max_length;
+    struct sample *sample;
+    BYTE *buffer;
+    HRESULT hr;
+
+    if (FAILED(hr = INSSBuffer_GetBufferAndLength(wm_sample, &buffer, &current_length)))
+        return hr;
+    if (FAILED(hr = INSSBuffer_GetMaxLength(wm_sample, &max_length)))
+        return hr;
+    if (!(sample = calloc(1, sizeof(*sample))))
+        return E_OUTOFMEMORY;
+
+    INSSBuffer_AddRef((sample->u.wm.sample = wm_sample));
+    sample->wg_sample.data = buffer;
+    sample->wg_sample.size = current_length;
+    sample->wg_sample.max_size = max_length;
+    sample->ops = &wm_sample_ops;
+
+    TRACE_(wmvcore)("Created wg_sample %p for sample %p.\n", &sample->wg_sample, wm_sample);
+    *out = &sample->wg_sample;
+    return S_OK;
+}
+
 void wg_sample_release(struct wg_sample *wg_sample)
 {
     struct sample *sample = CONTAINING_RECORD(wg_sample, struct sample, wg_sample);
@@ -314,6 +401,9 @@ void wg_sample_queue_destroy(struct wg_sample_queue *queue)
 HRESULT wg_transform_push_data(struct wg_transform *transform, struct wg_sample *sample);
 HRESULT wg_transform_read_data(struct wg_transform *transform, struct wg_sample *sample,
         struct wg_format *format);
+void wg_parser_push_data(struct wg_parser *parser, struct wg_sample *sample, UINT64 token);
+bool wg_parser_read_data(struct wg_parser *parser, struct wg_sample *sample, UINT64 token);
+void wg_parser_done_alloc(struct wg_parser *parser, struct wg_sample *sample, UINT64 token);
 
 HRESULT wg_transform_push_mf(struct wg_transform *transform, IMFSample *sample,
         struct wg_sample_queue *queue)
@@ -423,6 +513,8 @@ HRESULT wg_transform_push_quartz(struct wg_transform *transform, struct wg_sampl
         wg_sample->flags |= WG_SAMPLE_FLAG_SYNC_POINT;
     if (IMediaSample_IsDiscontinuity(sample->u.quartz.sample) == S_OK)
         wg_sample->flags |= WG_SAMPLE_FLAG_DISCONTINUITY;
+    if (IMediaSample_IsPreroll(sample->u.quartz.sample) == S_OK)
+        wg_sample->flags |= WG_SAMPLE_FLAG_PREROLL;
 
     wg_sample_queue_begin_append(queue, wg_sample);
     hr = wg_transform_push_data(transform, wg_sample);
@@ -468,6 +560,8 @@ HRESULT wg_transform_read_quartz(struct wg_transform *transform, struct wg_sampl
     IMediaSample_SetSyncPoint(sample->u.quartz.sample, value);
     value = !!(wg_sample->flags & WG_SAMPLE_FLAG_DISCONTINUITY);
     IMediaSample_SetDiscontinuity(sample->u.quartz.sample, value);
+    value = !!(wg_sample->flags & WG_SAMPLE_FLAG_PREROLL);
+    IMediaSample_SetPreroll(sample->u.quartz.sample, value);
 
     return S_OK;
 }
@@ -543,4 +637,213 @@ HRESULT wg_transform_read_dmo(struct wg_transform *transform, DMO_OUTPUT_DATA_BU
 
     wg_sample_release(wg_sample);
     return hr;
+}
+
+bool wg_parser_read_mf(struct wg_parser *parser, struct wg_sample *wg_sample, UINT64 token)
+{
+    struct sample *sample = unsafe_mf_from_wg_sample(wg_sample);
+
+    TRACE_(mfplat)("parser %p, wg_sample %p\n", parser, wg_sample);
+
+    if (!wg_parser_read_data(parser, wg_sample, token))
+        return false;
+
+    if (FAILED(IMFMediaBuffer_SetCurrentLength(sample->u.mf.buffer, wg_sample->size)))
+        return false;
+
+    if (wg_sample->flags & WG_SAMPLE_FLAG_HAS_PTS)
+        IMFSample_SetSampleTime(sample->u.mf.sample, wg_sample->pts);
+    if (wg_sample->flags & WG_SAMPLE_FLAG_HAS_DURATION)
+        IMFSample_SetSampleDuration(sample->u.mf.sample, wg_sample->duration);
+    if (wg_sample->flags & WG_SAMPLE_FLAG_SYNC_POINT)
+        IMFSample_SetUINT32(sample->u.mf.sample, &MFSampleExtension_CleanPoint, 1);
+
+    return true;
+}
+
+bool wg_parser_read_quartz(struct wg_parser *parser, struct wg_sample *wg_sample, UINT64 token)
+{
+    struct sample *sample = unsafe_quartz_from_wg_sample(wg_sample);
+    REFERENCE_TIME start_pts = wg_sample->pts, end_pts = start_pts + wg_sample->duration;
+    BOOL value;
+
+    TRACE_(quartz)("parser %p, wg_sample %p\n", parser, wg_sample);
+
+    if (!wg_parser_read_data(parser, wg_sample, token))
+        return false;
+
+    IMediaSample_SetActualDataLength(sample->u.quartz.sample, wg_sample->size);
+
+    if (wg_sample->flags & WG_SAMPLE_FLAG_HAS_PTS)
+    {
+        if (wg_sample->flags & WG_SAMPLE_FLAG_HAS_DURATION)
+        {
+            IMediaSample_SetTime(sample->u.quartz.sample, &start_pts, &end_pts);
+            IMediaSample_SetMediaTime(sample->u.quartz.sample, &start_pts, &end_pts);
+        }
+        else
+        {
+            IMediaSample_SetTime(sample->u.quartz.sample, &start_pts, NULL);
+            IMediaSample_SetMediaTime(sample->u.quartz.sample, NULL, NULL);
+        }
+    }
+    else
+    {
+        IMediaSample_SetTime(sample->u.quartz.sample, NULL, NULL);
+        IMediaSample_SetMediaTime(sample->u.quartz.sample, NULL, NULL);
+    }
+
+    value = !!(wg_sample->flags & WG_SAMPLE_FLAG_SYNC_POINT);
+    IMediaSample_SetSyncPoint(sample->u.quartz.sample, value);
+    value = !!(wg_sample->flags & WG_SAMPLE_FLAG_DISCONTINUITY);
+    IMediaSample_SetDiscontinuity(sample->u.quartz.sample, value);
+    value = !!(wg_sample->flags & WG_SAMPLE_FLAG_PREROLL);
+    IMediaSample_SetPreroll(sample->u.quartz.sample, value);
+
+    return true;
+}
+
+bool wg_parser_read_wm(struct wg_parser *parser, struct wg_sample *wg_sample, UINT64 token,
+        QWORD *pts, QWORD *duration, DWORD *flags)
+{
+    struct sample *sample = unsafe_wm_from_wg_sample(wg_sample);
+
+    TRACE_(wmvcore)("parser %p, wg_sample %p, pts %p, duration %p, flags %p\n", parser, wg_sample, pts, duration, flags);
+
+    if (!wg_parser_read_data(parser, wg_sample, token))
+        return false;
+
+    if (FAILED(INSSBuffer_SetLength(sample->u.wm.sample, wg_sample->size)))
+        return false;
+
+    if (!(wg_sample->flags & WG_SAMPLE_FLAG_HAS_PTS))
+        FIXME("Missing PTS.\n");
+    if (!(wg_sample->flags & WG_SAMPLE_FLAG_HAS_DURATION))
+        FIXME("Missing duration.\n");
+
+    *pts = wg_sample->pts;
+    *duration = wg_sample->duration;
+    *flags = 0;
+    if (wg_sample->flags & WG_SAMPLE_FLAG_DISCONTINUITY)
+        *flags |= WM_SF_DISCONTINUITY;
+    if (wg_sample->flags & WG_SAMPLE_FLAG_SYNC_POINT)
+        *flags |= WM_SF_CLEANPOINT;
+
+    return true;
+}
+
+void wg_parser_queue_data(struct wg_parser *parser, struct wg_sample *wg_sample, UINT64 token,
+        struct wg_sample_queue *queue)
+{
+    TRACE("parser %p, wg_sample %p, token %#I64x, queue %p\n", parser, wg_sample, token, queue);
+
+    if (!wg_sample)
+        return wg_parser_push_data(parser, NULL, token);
+
+    wg_sample_queue_begin_append(queue, wg_sample);
+    wg_parser_push_data(parser, wg_sample, token);
+    wg_sample_queue_end_append(queue, wg_sample);
+}
+
+void wg_parser_queue_alloc(struct wg_parser *parser, struct wg_sample *wg_sample, UINT64 token,
+        struct wg_sample_queue *queue)
+{
+    TRACE("parser %p, wg_sample %p, token %#I64x, queue %p\n", parser, wg_sample, token, queue);
+
+    if (!wg_sample)
+        return wg_parser_done_alloc(parser, NULL, token);
+
+    wg_sample_queue_begin_append(queue, wg_sample);
+    wg_parser_done_alloc(parser, wg_sample, token);
+    wg_sample_queue_end_append(queue, wg_sample);
+}
+
+bool wg_sample_queue_find_mf(struct wg_sample_queue *queue, void *data,
+        struct wg_sample **wg_sample, IMFSample **mf_sample)
+{
+    struct sample *sample, *next;
+
+    *wg_sample = NULL;
+    EnterCriticalSection(&queue->cs);
+
+    LIST_FOR_EACH_ENTRY_SAFE(sample, next, &queue->samples, struct sample, entry)
+    {
+        if (sample->wg_sample.data != data)
+            continue;
+
+        if (sample->ops != &mf_sample_ops)
+        {
+            ERR_(mfplat)("Invalid type for wg_sample %p, data %p\n", &sample->wg_sample, data);
+            break;
+        }
+
+        TRACE_(mfplat)("Found sample %p for data %p\n", sample->u.mf.sample, data);
+        IMFSample_AddRef((*mf_sample = sample->u.mf.sample));
+        *wg_sample = &sample->wg_sample;
+        list_remove(&sample->entry);
+        break;
+    }
+
+    LeaveCriticalSection(&queue->cs);
+    return !!*wg_sample;
+}
+
+bool wg_sample_queue_find_quartz(struct wg_sample_queue *queue, void *data,
+        struct wg_sample **wg_sample, IMediaSample **media_sample)
+{
+    struct sample *sample, *next;
+
+    *wg_sample = NULL;
+    EnterCriticalSection(&queue->cs);
+
+    LIST_FOR_EACH_ENTRY_SAFE(sample, next, &queue->samples, struct sample, entry)
+    {
+        if (sample->wg_sample.data != data)
+            continue;
+
+        if (sample->ops != &quartz_sample_ops)
+        {
+            ERR_(quartz)("Invalid type for wg_sample %p, data %p\n", &sample->wg_sample, data);
+            break;
+        }
+
+        TRACE_(quartz)("Found sample %p for data %p\n", sample->u.quartz.sample, data);
+        IMediaSample_AddRef((*media_sample = sample->u.quartz.sample));
+        *wg_sample = &sample->wg_sample;
+        list_remove(&sample->entry);
+        break;
+    }
+
+    LeaveCriticalSection(&queue->cs);
+    return !!*wg_sample;
+}
+
+bool wg_sample_queue_find_wm(struct wg_sample_queue *queue, void *data,
+        struct wg_sample **wg_sample, INSSBuffer **wm_sample)
+{
+    struct sample *sample, *next;
+
+    *wg_sample = NULL;
+    EnterCriticalSection(&queue->cs);
+
+    LIST_FOR_EACH_ENTRY_SAFE(sample, next, &queue->samples, struct sample, entry)
+    {
+        if (sample->wg_sample.data != data)
+            continue;
+
+        if (sample->ops != &wm_sample_ops)
+        {
+            ERR_(wmvcore)("Invalid type for wg_sample %p, data %p\n", &sample->wg_sample, data);
+            break;
+        }
+
+        TRACE_(wmvcore)("Found sample %p for data %p\n", sample->u.wm.sample, data);
+        INSSBuffer_AddRef((*wm_sample = sample->u.wm.sample));
+        *wg_sample = &sample->wg_sample;
+        list_remove(&sample->entry);
+        break;
+    }
+
+    LeaveCriticalSection(&queue->cs);
+    return !!*wg_sample;
 }

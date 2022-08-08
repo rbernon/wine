@@ -61,6 +61,7 @@ struct wm_reader
     HANDLE read_thread;
     bool read_thread_shutdown;
     struct wg_parser *wg_parser;
+    struct wg_sample_queue *wg_sample_queue;
 
     struct wm_stream *streams;
     WORD stream_count;
@@ -586,17 +587,67 @@ static const IWMMediaPropsVtbl stream_props_vtbl =
     stream_props_SetMediaType,
 };
 
+static void handle_input_request(struct wm_reader *reader, uint64_t file_size,
+        struct wg_request *request)
+{
+    uint64_t offset = request->u.input.offset;
+    IStream *stream = reader->source_stream;
+    uint32_t size = request->u.input.size;
+    struct wg_sample *wg_sample;
+    LARGE_INTEGER large_offset;
+    HANDLE file = reader->file;
+    ULONG ret_size = 0;
+    HRESULT hr;
+
+    if (offset >= file_size)
+        size = 0;
+    else if (offset + size >= file_size)
+        size = file_size - offset;
+
+    if (FAILED(wg_sample_create_raw(size, &wg_sample)))
+    {
+        wg_parser_queue_data(reader->wg_parser, NULL, request->token, NULL);
+        return;
+    }
+
+    large_offset.QuadPart = offset;
+    if (!size)
+        hr = S_OK;
+    else if (file)
+    {
+        if (!SetFilePointerEx(file, large_offset, NULL, FILE_BEGIN)
+                || !ReadFile(file, wg_sample->data, size, &ret_size, NULL))
+            hr = HRESULT_FROM_WIN32(GetLastError());
+        else
+            hr = S_OK;
+    }
+    else
+    {
+        if (SUCCEEDED(hr = IStream_Seek(stream, large_offset, STREAM_SEEK_SET, NULL)))
+            hr = IStream_Read(stream, wg_sample->data, size, &ret_size);
+    }
+
+    if (FAILED(hr))
+    {
+        ERR("Failed to read %u bytes at offset %I64u, hr %#lx.\n", size, offset, hr);
+        wg_sample->data = NULL;
+    }
+    else if (ret_size != size)
+    {
+        ERR("Unexpected short read: requested %u bytes, got %lu.\n", size, ret_size);
+        size = ret_size;
+    }
+
+    wg_sample->size = size;
+    wg_parser_queue_data(reader->wg_parser, wg_sample, request->token, reader->wg_sample_queue);
+}
+
 static DWORD CALLBACK read_thread(void *arg)
 {
     struct wm_reader *reader = arg;
     IStream *stream = reader->source_stream;
     HANDLE file = reader->file;
-    size_t buffer_size = 4096;
     uint64_t file_size;
-    void *data;
-
-    if (!(data = malloc(buffer_size)))
-        return 0;
 
     if (file)
     {
@@ -617,63 +668,19 @@ static DWORD CALLBACK read_thread(void *arg)
 
     while (!reader->read_thread_shutdown)
     {
-        LARGE_INTEGER large_offset;
-        uint64_t offset;
-        ULONG ret_size;
-        uint32_t size;
-        HRESULT hr;
+        struct wg_request request;
 
-        if (!wg_parser_get_next_read_offset(reader->wg_parser, &offset, &size))
+        if (!wg_parser_wait_request(reader->wg_parser, WG_REQUEST_TYPE_INPUT, &request))
             continue;
 
-        if (offset >= file_size)
-            size = 0;
-        else if (offset + size >= file_size)
-            size = file_size - offset;
-
-        if (!size)
-        {
-            wg_parser_push_data(reader->wg_parser, data, 0);
-            continue;
-        }
-
-        if (!array_reserve(&data, &buffer_size, size, 1))
-        {
-            free(data);
-            return 0;
-        }
-
-        ret_size = 0;
-
-        large_offset.QuadPart = offset;
-        if (file)
-        {
-            if (!SetFilePointerEx(file, large_offset, NULL, FILE_BEGIN)
-                    || !ReadFile(file, data, size, &ret_size, NULL))
-            {
-                ERR("Failed to read %u bytes at offset %I64u, error %lu.\n", size, offset, GetLastError());
-                wg_parser_push_data(reader->wg_parser, NULL, 0);
-                continue;
-            }
-        }
+        if (request.type == WG_REQUEST_TYPE_INPUT)
+            handle_input_request(reader, file_size, &request);
         else
-        {
-            if (SUCCEEDED(hr = IStream_Seek(stream, large_offset, STREAM_SEEK_SET, NULL)))
-                hr = IStream_Read(stream, data, size, &ret_size);
-            if (FAILED(hr))
-            {
-                ERR("Failed to read %u bytes at offset %I64u, hr %#lx.\n", size, offset, hr);
-                wg_parser_push_data(reader->wg_parser, NULL, 0);
-                continue;
-            }
-        }
+            ERR("Received unexpected request type %u\n", request.type);
 
-        if (ret_size != size)
-            ERR("Unexpected short read: requested %u bytes, got %lu.\n", size, ret_size);
-        wg_parser_push_data(reader->wg_parser, data, ret_size);
+        wg_sample_queue_flush(reader->wg_sample_queue, false);
     }
 
-    free(data);
     TRACE("Reader is shutting down; exiting.\n");
     return 0;
 }
@@ -1043,7 +1050,7 @@ static HRESULT WINAPI header_info_GetAttributeByName(IWMHeaderInfo3 *iface, WORD
 
         *type = WMT_TYPE_QWORD;
         EnterCriticalSection(&reader->cs);
-        duration = wg_parser_stream_get_duration(wg_parser_get_stream(reader->wg_parser, 0));
+        duration = wg_parser_get_stream_duration(reader->wg_parser, 0);
         LeaveCriticalSection(&reader->cs);
         TRACE("Returning duration %s.\n", debugstr_time(duration));
         memcpy(value, &duration, sizeof(QWORD));
@@ -1522,7 +1529,7 @@ static HRESULT init_stream(struct wm_reader *reader, QWORD file_size)
 
     /* We probably discarded events because streams weren't enabled yet.
      * Now that they're all enabled seek back to the start again. */
-    wg_parser_stream_seek(reader->streams[0].wg_stream, 1.0, 0, 0,
+    wg_parser_seek_stream(reader->wg_parser, 0, 1.0, 0, 0,
             AM_SEEKING_AbsolutePositioning, AM_SEEKING_NoPositioning);
 
     return S_OK;
@@ -1620,58 +1627,74 @@ static HRESULT wm_stream_allocate_sample(struct wm_stream *stream, DWORD size, I
     return S_OK;
 }
 
-static HRESULT wm_reader_read_stream_sample(struct wm_reader *reader, struct wg_parser_buffer *buffer,
+static HRESULT handle_alloc_request(struct wm_reader *reader, struct wg_request *request)
+{
+    struct wg_sample *wg_sample;
+    struct wm_stream *stream;
+    INSSBuffer *sample;
+    HRESULT hr;
+
+    if (!(stream = wm_reader_get_stream_by_stream_number(reader, request->stream + 1)))
+    {
+        ERR("Unable to find stream with index %u.\n", request->stream);
+        return E_INVALIDARG;
+    }
+
+    if (SUCCEEDED(hr = wm_stream_allocate_sample(stream, request->u.alloc.size, &sample)))
+    {
+        hr = wg_sample_create_wm(sample, &wg_sample);
+        INSSBuffer_Release(sample);
+    }
+
+    if (FAILED(hr))
+    {
+        WARN("Failed to allocate sample, hr %#lx\n", hr);
+        wg_parser_queue_alloc(reader->wg_parser, NULL, request->token, NULL);
+        return hr;
+    }
+
+    wg_parser_queue_alloc(reader->wg_parser, wg_sample, request->token, reader->wg_sample_queue);
+    return S_FALSE;
+}
+
+static HRESULT handle_output_request(struct wm_reader *reader, struct wg_request *request,
         INSSBuffer **sample, QWORD *pts, QWORD *duration, DWORD *flags)
 {
+    struct wg_sample *wg_sample;
     struct wm_stream *stream;
-    DWORD size, capacity;
+    bool success;
     HRESULT hr;
-    BYTE *data;
 
-    if (!(stream = wm_reader_get_stream_by_stream_number(reader, buffer->stream + 1)))
+    if (!(stream = wm_reader_get_stream_by_stream_number(reader, request->stream + 1)))
         return E_INVALIDARG;
 
     TRACE("Got buffer for '%s' stream %p.\n", get_major_type_string(stream->format.major_type), stream);
 
-    if (FAILED(hr = wm_stream_allocate_sample(stream, buffer->size, sample)))
+    if (!wg_sample_queue_find_wm(reader->wg_sample_queue, request->u.output.data, &wg_sample, sample))
     {
-        ERR("Failed to allocate sample of %u bytes, hr %#lx.\n", buffer->size, hr);
-        wg_parser_stream_release_buffer(stream->wg_stream);
-        return hr;
+        if (FAILED(hr = wm_stream_allocate_sample(stream, request->u.output.size, sample)))
+        {
+            ERR("Failed to allocate stream sample of %u bytes, hr %#lx.\n", request->u.output.size, hr);
+            return hr;
+        }
+        if (FAILED(hr = wg_sample_create_wm(*sample, &wg_sample)))
+        {
+            ERR("Failed to create wg_sample, hr %#lx.\n", hr);
+            INSSBuffer_Release(*sample);
+            *sample = NULL;
+            return hr;
+        }
     }
 
-    if (FAILED(hr = INSSBuffer_GetBufferAndLength(*sample, &data, &size)))
-        ERR("Failed to get data pointer, hr %#lx.\n", hr);
-    if (FAILED(hr = INSSBuffer_GetMaxLength(*sample, &capacity)))
-        ERR("Failed to get capacity, hr %#lx.\n", hr);
-    if (buffer->size > capacity)
-        ERR("Returned capacity %lu is less than requested capacity %u.\n", capacity, buffer->size);
-
-    if (!wg_parser_stream_copy_buffer(stream->wg_stream, data, 0, buffer->size))
+    success = wg_parser_read_wm(reader->wg_parser, wg_sample, request->token, pts, duration, flags);
+    wg_sample_release(wg_sample);
+    if (!success)
     {
         /* The GStreamer pin has been flushed. */
         INSSBuffer_Release(*sample);
         *sample = NULL;
         return S_FALSE;
     }
-
-    if (FAILED(hr = INSSBuffer_SetLength(*sample, buffer->size)))
-        ERR("Failed to set size %u, hr %#lx.\n", buffer->size, hr);
-
-    wg_parser_stream_release_buffer(stream->wg_stream);
-
-    if (!buffer->has_pts)
-        FIXME("Missing PTS.\n");
-    if (!buffer->has_duration)
-        FIXME("Missing duration.\n");
-
-    *pts = buffer->pts;
-    *duration = buffer->duration;
-    *flags = 0;
-    if (buffer->discontinuity)
-        *flags |= WM_SF_DISCONTINUITY;
-    if (!buffer->delta)
-        *flags |= WM_SF_CLEANPOINT;
 
     return S_OK;
 }
@@ -1737,6 +1760,8 @@ static ULONG WINAPI unknown_inner_Release(IUnknown *iface)
     if (!refcount)
     {
         IWMSyncReader2_Close(&reader->IWMSyncReader2_iface);
+
+        wg_sample_queue_destroy(reader->wg_sample_queue);
 
         reader->cs.DebugInfo->Spare[0] = 0;
         DeleteCriticalSection(&reader->cs);
@@ -1868,12 +1893,25 @@ static HRESULT WINAPI reader_GetNextSample(IWMSyncReader2 *iface,
 
     while (hr == S_FALSE)
     {
-        struct wg_parser_buffer wg_buffer;
-        if (!wg_parser_stream_get_buffer(reader->wg_parser, stream ? stream->wg_stream : NULL, &wg_buffer))
+        struct wg_request request;
+        if (!wg_parser_wait_stream_request(reader->wg_parser, WG_REQUEST_TYPE_ALLOC | WG_REQUEST_TYPE_OUTPUT,
+                stream ? stream->wg_stream : NULL, &request))
             hr = NS_E_NO_MORE_SAMPLES;
-        else if (SUCCEEDED(hr = wm_reader_read_stream_sample(reader, &wg_buffer, sample, pts, duration, flags)))
-            stream_number = wg_buffer.stream + 1;
+        else if (request.type == WG_REQUEST_TYPE_ALLOC)
+            hr = handle_alloc_request(reader, &request);
+        else if (request.type == WG_REQUEST_TYPE_OUTPUT)
+        {
+            if (SUCCEEDED(hr = handle_output_request(reader, &request, sample, pts, duration, flags)))
+                stream_number = request.stream + 1;
+        }
+        else
+        {
+            ERR("Received unexpected request type %u\n", request.type);
+            hr = E_UNEXPECTED;
+        }
     }
+
+    wg_sample_queue_flush(reader->wg_sample_queue, false);
 
     if (stream && hr == NS_E_NO_MORE_SAMPLES)
         stream->eos = true;
@@ -2254,7 +2292,7 @@ static HRESULT WINAPI reader_SetOutputProps(IWMSyncReader2 *iface, DWORD output,
      * In all likelihood this function is being called not mid-stream but rather
      * while setting the stream up, before consuming any events. Accordingly
      * let's just seek back to the beginning. */
-    wg_parser_stream_seek(reader->streams[0].wg_stream, 1.0, reader->start_time, 0,
+    wg_parser_seek_stream(reader->wg_parser, 0, 1.0, reader->start_time, 0,
             AM_SEEKING_AbsolutePositioning, AM_SEEKING_NoPositioning);
 
     LeaveCriticalSection(&reader->cs);
@@ -2302,7 +2340,7 @@ static HRESULT WINAPI reader_SetRange(IWMSyncReader2 *iface, QWORD start, LONGLO
 
     reader->start_time = start;
 
-    wg_parser_stream_seek(reader->streams[0].wg_stream, 1.0, start, start + duration,
+    wg_parser_seek_stream(reader->wg_parser, 0, 1.0, start, start + duration,
             AM_SEEKING_AbsolutePositioning, duration ? AM_SEEKING_AbsolutePositioning : AM_SEEKING_NoPositioning);
 
     for (i = 0; i < reader->stream_count; ++i)
@@ -2542,6 +2580,7 @@ static const IWMSyncReader2Vtbl reader_vtbl =
 HRESULT WINAPI winegstreamer_create_wm_sync_reader(IUnknown *outer, void **out)
 {
     struct wm_reader *object;
+    HRESULT hr;
 
     TRACE("out %p.\n", out);
 
@@ -2561,6 +2600,12 @@ HRESULT WINAPI winegstreamer_create_wm_sync_reader(IUnknown *outer, void **out)
     object->IWMReaderTimecode_iface.lpVtbl = &timecode_vtbl;
     object->outer = outer ? outer : &object->IUnknown_inner;
     object->refcount = 1;
+
+    if (FAILED(hr = wg_sample_queue_create(&object->wg_sample_queue)))
+    {
+        free(object);
+        return hr;
+    }
 
     InitializeCriticalSection(&object->cs);
     object->cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": reader.cs");

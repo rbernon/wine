@@ -113,32 +113,31 @@ void wg_parser_disconnect(struct wg_parser *parser)
     WINE_UNIX_CALL(unix_wg_parser_disconnect, parser);
 }
 
-bool wg_parser_get_next_read_offset(struct wg_parser *parser, uint64_t *offset, uint32_t *size)
+bool wg_parser_wait_request(struct wg_parser *parser, enum wg_request_type type_mask,
+        struct wg_request *request)
 {
-    struct wg_parser_get_next_read_offset_params params =
+    struct wg_parser_wait_request_params params =
     {
         .parser = parser,
+        .type_mask = type_mask,
+        .request = request,
     };
 
-    TRACE("parser %p, offset %p, size %p.\n", parser, offset, size);
+    TRACE("parser %p, type_mask %#x, request %p.\n", parser, type_mask, request);
 
-    if (WINE_UNIX_CALL(unix_wg_parser_get_next_read_offset, &params))
-        return false;
-    *offset = params.offset;
-    *size = params.size;
-    return true;
+    return !WINE_UNIX_CALL(unix_wg_parser_wait_request, &params);
 }
 
-void wg_parser_push_data(struct wg_parser *parser, const void *data, uint32_t size)
+void wg_parser_push_data(struct wg_parser *parser, struct wg_sample *sample, UINT64 token)
 {
     struct wg_parser_push_data_params params =
     {
         .parser = parser,
-        .data = data,
-        .size = size,
+        .sample = sample,
+        .token = token,
     };
 
-    TRACE("parser %p, data %p, size %u.\n", parser, data, size);
+    TRACE("parser %p, sample %p, token %#I64x.\n", parser, sample, token);
 
     WINE_UNIX_CALL(unix_wg_parser_push_data, &params);
 }
@@ -218,49 +217,56 @@ void wg_parser_stream_disable(struct wg_parser_stream *stream)
     WINE_UNIX_CALL(unix_wg_parser_stream_disable, stream);
 }
 
-bool wg_parser_stream_get_buffer(struct wg_parser *parser, struct wg_parser_stream *stream,
-        struct wg_parser_buffer *buffer)
+bool wg_parser_wait_stream_request(struct wg_parser *parser, enum wg_request_type type_mask,
+        struct wg_parser_stream *stream, struct wg_request *request)
 {
-    struct wg_parser_stream_get_buffer_params params =
+    struct wg_parser_wait_stream_request_params params =
     {
         .parser = parser,
+        .type_mask = type_mask,
         .stream = stream,
-        .buffer = buffer,
+        .request = request,
     };
 
-    TRACE("parser %p, stream %p, buffer %p.\n", parser, stream, buffer);
+    TRACE("parser %p, stream %p, type_mask %#x, request %p.\n", parser, stream, type_mask, request);
 
-    return !WINE_UNIX_CALL(unix_wg_parser_stream_get_buffer, &params);
+    return !WINE_UNIX_CALL(unix_wg_parser_wait_stream_request, &params);
 }
 
-bool wg_parser_stream_copy_buffer(struct wg_parser_stream *stream,
-        void *data, uint32_t offset, uint32_t size)
+bool wg_parser_read_data(struct wg_parser *parser, struct wg_sample *sample, UINT64 token)
 {
-    struct wg_parser_stream_copy_buffer_params params =
+    struct wg_parser_read_data_params params =
     {
-        .stream = stream,
-        .data = data,
-        .offset = offset,
-        .size = size,
+        .parser = parser,
+        .sample = sample,
+        .token = token,
     };
 
-    TRACE("stream %p, data %p, offset %u, size %u.\n", stream, data, offset, size);
+    TRACE("parser %p, sample %p, token %#I64x.\n", parser, sample, token);
 
-    return !WINE_UNIX_CALL(unix_wg_parser_stream_copy_buffer, &params);
+    return !__wine_unix_call(unix_handle, unix_wg_parser_read_data, &params);
 }
 
-void wg_parser_stream_release_buffer(struct wg_parser_stream *stream)
+void wg_parser_done_alloc(struct wg_parser *parser, struct wg_sample *sample, UINT64 token)
 {
-    TRACE("stream %p.\n", stream);
+    struct wg_parser_done_alloc_params params =
+    {
+        .parser = parser,
+        .sample = sample,
+        .token = token,
+    };
 
-    WINE_UNIX_CALL(unix_wg_parser_stream_release_buffer, stream);
+    TRACE("parser %p, sample %p, token %#I64x.\n", parser, sample, token);
+
+    __wine_unix_call(unix_handle, unix_wg_parser_done_alloc, &params);
 }
 
-void wg_parser_stream_notify_qos(struct wg_parser_stream *stream,
+void wg_parser_notify_stream_qos(struct wg_parser *parser, uint32_t stream,
         bool underflow, double proportion, int64_t diff, uint64_t timestamp)
 {
-    struct wg_parser_stream_notify_qos_params params =
+    struct wg_parser_notify_stream_qos_params params =
     {
+        .parser = parser,
         .stream = stream,
         .underflow = underflow,
         .proportion = proportion,
@@ -268,22 +274,23 @@ void wg_parser_stream_notify_qos(struct wg_parser_stream *stream,
         .timestamp = timestamp,
     };
 
-    TRACE("stream %p, underflow %d, proportion %.16e, diff %I64d, timestamp %I64u.\n",
-            stream, underflow, proportion, diff, timestamp);
+    TRACE("parser %p, stream %u, underflow %d, proportion %.16e, diff %I64d, timestamp %I64u.\n",
+            parser, stream, underflow, proportion, diff, timestamp);
 
-    WINE_UNIX_CALL(unix_wg_parser_stream_notify_qos, &params);
+    WINE_UNIX_CALL(unix_wg_parser_notify_stream_qos, &params);
 }
 
-uint64_t wg_parser_stream_get_duration(struct wg_parser_stream *stream)
+uint64_t wg_parser_get_stream_duration(struct wg_parser *parser, uint32_t stream)
 {
-    struct wg_parser_stream_get_duration_params params =
+    struct wg_parser_get_stream_duration_params params =
     {
+        .parser = parser,
         .stream = stream,
     };
 
-    TRACE("stream %p.\n", stream);
+    TRACE("parser %p, stream %u.\n", parser, stream);
 
-    WINE_UNIX_CALL(unix_wg_parser_stream_get_duration, &params);
+    WINE_UNIX_CALL(unix_wg_parser_get_stream_duration, &params);
 
     TRACE("Returning duration %I64u.\n", params.duration);
     return params.duration;
@@ -317,11 +324,12 @@ char *wg_parser_stream_get_tag(struct wg_parser_stream *stream, enum wg_parser_t
     return buffer;
 }
 
-void wg_parser_stream_seek(struct wg_parser_stream *stream, double rate,
+void wg_parser_seek_stream(struct wg_parser *parser, uint32_t stream, double rate,
         uint64_t start_pos, uint64_t stop_pos, DWORD start_flags, DWORD stop_flags)
 {
-    struct wg_parser_stream_seek_params params =
+    struct wg_parser_seek_stream_params params =
     {
+        .parser = parser,
         .stream = stream,
         .rate = rate,
         .start_pos = start_pos,
@@ -330,10 +338,10 @@ void wg_parser_stream_seek(struct wg_parser_stream *stream, double rate,
         .stop_flags = stop_flags,
     };
 
-    TRACE("stream %p, rate %.16e, start_pos %I64u, stop_pos %I64u, start_flags %#lx, stop_flags %#lx.\n",
-            stream, rate, start_pos, stop_pos, start_flags, stop_flags);
+    TRACE("parser %p, stream %u, rate %.16e, start_pos %I64u, stop_pos %I64u, start_flags %#lx, stop_flags %#lx.\n",
+            parser, stream, rate, start_pos, stop_pos, start_flags, stop_flags);
 
-    WINE_UNIX_CALL(unix_wg_parser_stream_seek, &params);
+    WINE_UNIX_CALL(unix_wg_parser_seek_stream, &params);
 }
 
 struct wg_transform *wg_transform_create(const struct wg_format *input_format,

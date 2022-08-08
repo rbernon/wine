@@ -21,6 +21,7 @@
 #ifndef __WINE_WINEGSTREAMER_UNIXLIB_H
 #define __WINE_WINEGSTREAMER_UNIXLIB_H
 
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include "windef.h"
@@ -160,11 +161,12 @@ enum wg_sample_flag
     WG_SAMPLE_FLAG_HAS_DURATION = 4,
     WG_SAMPLE_FLAG_SYNC_POINT = 8,
     WG_SAMPLE_FLAG_DISCONTINUITY = 0x10,
+    WG_SAMPLE_FLAG_PREROLL = 0x20,
 };
 
 struct wg_sample
 {
-    /* timestamp and duration are in 100-nanosecond units. */
+    /* pts and duration are in 100-nanosecond units. */
     UINT64 pts;
     UINT64 duration;
     LONG refcount; /* unix refcount */
@@ -174,15 +176,35 @@ struct wg_sample
     BYTE *data;
 };
 
-struct wg_parser_buffer
+struct wg_request
 {
-    /* pts and duration are in 100-nanosecond units. */
-    UINT64 pts, duration;
-    UINT32 size;
+    enum wg_request_type
+    {
+        WG_REQUEST_TYPE_ALLOC = 1,
+        WG_REQUEST_TYPE_INPUT = 2,
+        WG_REQUEST_TYPE_OUTPUT = 4,
+    } type;
     UINT32 stream;
-    bool discontinuity, preroll, delta, has_pts, has_duration;
+    UINT64 token;
+
+    union
+    {
+        struct
+        {
+            UINT32 size;
+        } alloc;
+        struct
+        {
+            UINT64 offset;
+            UINT32 size;
+        } input;
+        struct
+        {
+            UINT32 size;
+            BYTE *data;
+        } output;
+    } u;
 };
-C_ASSERT(sizeof(struct wg_parser_buffer) == 32);
 
 enum wg_parser_type
 {
@@ -207,24 +229,31 @@ struct wg_parser_connect_params
     UINT64 file_size;
 };
 
-struct wg_parser_get_next_read_offset_params
+struct wg_parser_wait_request_params
 {
     struct wg_parser *parser;
-    UINT32 size;
-    UINT64 offset;
+    UINT32 type_mask;
+    struct wg_request *request;
 };
 
 struct wg_parser_push_data_params
 {
     struct wg_parser *parser;
-    const void *data;
-    UINT32 size;
+    struct wg_sample *sample;
+    UINT64 token;
 };
 
 struct wg_parser_get_stream_count_params
 {
     struct wg_parser *parser;
     UINT32 count;
+};
+
+struct wg_parser_get_stream_duration_params
+{
+    struct wg_parser *parser;
+    UINT32 stream;
+    UINT64 duration;
 };
 
 struct wg_parser_get_stream_params
@@ -252,34 +281,36 @@ struct wg_parser_stream_enable_params
     const struct wg_format *format;
 };
 
-struct wg_parser_stream_get_buffer_params
+struct wg_parser_wait_stream_request_params
 {
     struct wg_parser *parser;
+    UINT32 type_mask;
     struct wg_parser_stream *stream;
-    struct wg_parser_buffer *buffer;
+    struct wg_request *request;
 };
 
-struct wg_parser_stream_copy_buffer_params
+struct wg_parser_read_data_params
 {
-    struct wg_parser_stream *stream;
-    void *data;
-    UINT32 offset;
-    UINT32 size;
+    struct wg_parser *parser;
+    struct wg_sample *sample;
+    UINT64 token;
 };
 
-struct wg_parser_stream_notify_qos_params
+struct wg_parser_done_alloc_params
 {
-    struct wg_parser_stream *stream;
+    struct wg_parser *parser;
+    struct wg_sample *sample;
+    UINT64 token;
+};
+
+struct wg_parser_notify_stream_qos_params
+{
+    struct wg_parser *parser;
+    UINT32 stream;
     bool underflow;
     DOUBLE proportion;
     INT64 diff;
     UINT64 timestamp;
-};
-
-struct wg_parser_stream_get_duration_params
-{
-    struct wg_parser_stream *stream;
-    UINT64 duration;
 };
 
 enum wg_parser_tag
@@ -297,9 +328,10 @@ struct wg_parser_stream_get_tag_params
     UINT32 *size;
 };
 
-struct wg_parser_stream_seek_params
+struct wg_parser_seek_stream_params
 {
-    struct wg_parser_stream *stream;
+    struct wg_parser *parser;
+    UINT32 stream;
     DOUBLE rate;
     UINT64 start_pos, stop_pos;
     DWORD start_flags, stop_flags;
@@ -349,25 +381,24 @@ enum unix_funcs
     unix_wg_parser_connect,
     unix_wg_parser_disconnect,
 
-    unix_wg_parser_get_next_read_offset,
+    unix_wg_parser_wait_request,
+    unix_wg_parser_wait_stream_request,
     unix_wg_parser_push_data,
+    unix_wg_parser_read_data,
+    unix_wg_parser_done_alloc,
 
     unix_wg_parser_get_stream_count,
+    unix_wg_parser_get_stream_duration,
     unix_wg_parser_get_stream,
+    unix_wg_parser_seek_stream,
+    unix_wg_parser_notify_stream_qos,
 
     unix_wg_parser_stream_get_preferred_format,
     unix_wg_parser_stream_get_codec_format,
     unix_wg_parser_stream_enable,
     unix_wg_parser_stream_disable,
 
-    unix_wg_parser_stream_get_buffer,
-    unix_wg_parser_stream_copy_buffer,
-    unix_wg_parser_stream_release_buffer,
-    unix_wg_parser_stream_notify_qos,
-
-    unix_wg_parser_stream_get_duration,
     unix_wg_parser_stream_get_tag,
-    unix_wg_parser_stream_seek,
 
     unix_wg_transform_create,
     unix_wg_transform_destroy,
