@@ -1466,7 +1466,7 @@ static HRESULT init_stream(struct wm_reader *reader, QWORD file_size)
     HRESULT hr;
     WORD i;
 
-    if (!(wg_parser = wg_parser_create(WG_PARSER_DECODEBIN, false)))
+    if (!(wg_parser = wg_parser_create(true)))
         return E_OUTOFMEMORY;
 
     reader->wg_parser = wg_parser;
