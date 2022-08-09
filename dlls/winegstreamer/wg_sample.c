@@ -19,6 +19,7 @@
 #include "gst_private.h"
 
 #include "wmcodecdsp.h"
+#include "mediaerr.h"
 #include "mfapi.h"
 #include "mferror.h"
 
@@ -48,6 +49,10 @@ struct sample
 
     union
     {
+        struct
+        {
+            IMediaBuffer *buffer;
+        } dmo;
         struct
         {
             IMFSample *sample;
@@ -433,7 +438,7 @@ HRESULT wg_transform_read_quartz(struct wg_transform *transform, struct wg_sampl
     HRESULT hr;
     BOOL value;
 
-    TRACE_(mfplat)("transform %p, wg_sample %p.\n", transform, wg_sample);
+    TRACE_(quartz)("transform %p, wg_sample %p.\n", transform, wg_sample);
 
     if (FAILED(hr = wg_transform_read_data(transform, wg_sample, NULL)))
     {
