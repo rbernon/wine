@@ -7473,3 +7473,4 @@ START_TEST(transform)
     test_mp3_decoder();
     test_h264_with_dxgi_manager();
 }
+
