@@ -709,9 +709,19 @@ static HRESULT WINAPI media_object_GetOutputType(IMediaObject *iface, DWORD inde
     format.major_type = WG_MAJOR_TYPE_AUDIO;
     format.u.audio.format = audio_formats[index];
     if (!format.u.audio.channels)
-        format.u.audio.channels = impl->input_format.u.audio_wma.channels;
+    {
+        if (impl->input_format.major_type == WG_MAJOR_TYPE_AUDIO_WMA)
+            format.u.audio.channels = impl->input_format.u.audio_wma.channels;
+        if (impl->input_format.major_type == WG_MAJOR_TYPE_AUDIO)
+            format.u.audio.channels = impl->input_format.u.audio.channels;
+    }
     if (!format.u.audio.rate)
-        format.u.audio.rate = impl->input_format.u.audio_wma.rate;
+    {
+        if (impl->input_format.major_type == WG_MAJOR_TYPE_AUDIO_WMA)
+            format.u.audio.rate = impl->input_format.u.audio_wma.rate;
+        if (impl->input_format.major_type == WG_MAJOR_TYPE_AUDIO)
+            format.u.audio.rate = impl->input_format.u.audio.rate;
+    }
 
     if (!amt_from_wg_format((AM_MEDIA_TYPE *)type, &format, false))
         return VFW_E_NO_TYPES;
@@ -736,7 +746,8 @@ static HRESULT WINAPI media_object_SetInputType(IMediaObject *iface, DWORD index
     if (!amt_to_wg_format((const AM_MEDIA_TYPE *)type, &wg_format))
         return VFW_E_INVALIDMEDIATYPE;
 
-    if (wg_format.major_type != WG_MAJOR_TYPE_AUDIO)
+    if (wg_format.major_type != WG_MAJOR_TYPE_AUDIO_WMA
+            && wg_format.major_type != WG_MAJOR_TYPE_AUDIO)
         return VFW_E_INVALIDMEDIATYPE;
     if (!(flags & DMO_SET_TYPEF_TEST_ONLY))
     {
