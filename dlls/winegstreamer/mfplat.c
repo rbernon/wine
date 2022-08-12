@@ -25,6 +25,7 @@
 #include "initguid.h"
 #include "d3d9types.h"
 #include "mfapi.h"
+#include "mferror.h"
 
 #include "wine/debug.h"
 #include "wine/list.h"
@@ -938,4 +939,28 @@ void mf_media_type_to_wg_format(IMFMediaType *type, struct wg_format *format)
     }
     else
         FIXME("Unrecognized major type %s.\n", debugstr_guid(&major_type));
+}
+
+HRESULT mf_validate_media_type(IMFMediaType *type, const GUID *major, GUID *subtype,
+        UINT attribute_count, const struct mf_attribute_desc *attributes)
+{
+    MF_ATTRIBUTE_TYPE item_type;
+    HRESULT hr;
+    GUID guid;
+    UINT i;
+
+    if (FAILED(hr = IMFMediaType_GetMajorType(type, &guid)) || !IsEqualGUID(&guid, major))
+        return E_INVALIDARG;
+    if (FAILED(hr = IMFMediaType_GetGUID(type, &MF_MT_SUBTYPE, subtype)))
+        return MF_E_INVALIDMEDIATYPE;
+
+    for (i = 0; i < attribute_count; ++i)
+    {
+        if (FAILED(IMFMediaType_GetItemType(type, attributes[i].key, &item_type)))
+            return MF_E_INVALIDMEDIATYPE;
+        if (item_type != attributes[i].type)
+            return MF_E_INVALIDMEDIATYPE;
+    }
+
+    return S_OK;
 }

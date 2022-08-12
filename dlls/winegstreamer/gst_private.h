@@ -127,6 +127,14 @@ BOOL init_gstreamer(void);
 extern HRESULT mfplat_get_class_object(REFCLSID rclsid, REFIID riid, void **obj);
 extern HRESULT mfplat_DllRegisterServer(void);
 
+struct mf_attribute_desc
+{
+    const GUID *key;
+    MF_ATTRIBUTE_TYPE type;
+};
+
+HRESULT mf_validate_media_type(IMFMediaType *type, const GUID *major, GUID *subtype,
+        UINT attribute_count, const struct mf_attribute_desc *attributes);
 IMFMediaType *mf_media_type_from_wg_format(const struct wg_format *format);
 void mf_media_type_to_wg_format(IMFMediaType *type, struct wg_format *format);
 
