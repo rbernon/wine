@@ -945,11 +945,28 @@ static HRESULT WINAPI reader_callback_OnSample(IWMReaderCallback *iface, DWORD o
     struct asf_reader *filter = impl_from_IWMReaderCallback(iface)->filter;
     REFERENCE_TIME start_time = time, end_time = time + duration;
     struct asf_stream *stream = filter->streams + output;
+    IWMReaderAdvanced *reader_advanced;
     struct buffer *buffer;
     HRESULT hr = S_OK;
 
     TRACE("iface %p, output %lu, time %I64u, duration %I64u, flags %#lx, sample %p, context %p.\n",
             iface, output, time, duration, flags, sample, context);
+
+    if (SUCCEEDED(hr = IWMReader_QueryInterface(filter->reader, &IID_IWMReaderAdvanced, (void **)&reader_advanced)))
+    {
+        REFERENCE_TIME time = -1;
+
+        if (filter->filter.clock)
+            hr = IReferenceClock_GetTime(filter->filter.clock, &time);
+        if (FAILED(hr))
+            WARN("Failed to get clock time, hr %#lx\n", hr);
+
+        hr = IWMReaderAdvanced_DeliverTime(reader_advanced, time);
+        if (FAILED(hr))
+            WARN("Failed to set user time, hr %#lx\n", hr);
+
+        IWMReaderAdvanced_Release(reader_advanced);
+    }
 
     if (!stream->source.pin.peer)
     {
