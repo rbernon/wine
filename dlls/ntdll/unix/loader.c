@@ -389,6 +389,7 @@ static int *p___wine_main_argc;
 static char ***p___wine_main_argv;
 static WCHAR ***p___wine_main_wargv;
 
+char *build32_dir = NULL;
 const char *home_dir = NULL;
 const char *data_dir = NULL;
 const char *build_dir = NULL;
@@ -653,6 +654,18 @@ static void init_paths( char *argv[] )
     set_config_dir();
 }
 
+/* whether to use wow64 for i386 EXEs or launch a 32-bit wine */
+BOOL needs_wow64(void)
+{
+    static int ret = -1;
+    if (ret == -1)
+    {
+        const char *val = getenv( "WINEWOW" );
+        ret = val && val[0] != '0';
+    }
+    return ret;
+}
+
 
 static void preloader_exec( char **argv )
 {
@@ -690,7 +703,7 @@ static NTSTATUS loader_exec( const char *loader, char **argv, WORD machine )
 
     if (build_dir)
     {
-        argv[1] = build_path( build_dir, (machine == IMAGE_FILE_MACHINE_AMD64) ? "loader/wine64" : "loader/wine" );
+        argv[1] = build_path( build_dir, (machine == IMAGE_FILE_MACHINE_AMD64) ? "loader/wine64" : needs_wow64() ? "loader/wine64" : "loader/wine" );
         preloader_exec( argv );
         return STATUS_INVALID_IMAGE_FORMAT;
     }
@@ -761,7 +774,7 @@ NTSTATUS exec_wineloader( char **argv, int socketfd, const pe_image_info_t *pe_i
             loader = env;
             putenv( env );
         }
-        else loader = is_child_64bit ? "wine64" : "wine";
+        else loader = is_child_64bit ? "wine64" : needs_wow64() ? "wine64" : "wine";
     }
 
     signal( SIGPIPE, SIG_DFL );
@@ -1555,7 +1568,7 @@ static NTSTATUS find_builtin_dll( UNICODE_STRING *nt_name, void **module, SIZE_T
 {
     unsigned int i, pos, namepos, maxlen = 0;
     unsigned int len = nt_name->Length / sizeof(WCHAR);
-    char *ptr = NULL, *file, *ext = NULL;
+    char *ptr = NULL, *file, *ext = NULL, *tmp;
     const char *pe_dir = get_pe_dir( machine );
     OBJECT_ATTRIBUTES attr;
     NTSTATUS status = STATUS_DLL_NOT_FOUND;
@@ -1588,6 +1601,7 @@ static NTSTATUS find_builtin_dll( UNICODE_STRING *nt_name, void **module, SIZE_T
         /* try as a dll */
         file[pos + len + 1] = 0;
         ptr = prepend_build_dir_path( file + pos, ".dll", pe_dir, "/dlls" );
+        if (!strcmp( pe_dir, "/i386-windows" ) && (tmp = strstr( ptr, "/wine64/" ))) memcpy( tmp, "/wine32/", 8 );
         status = open_builtin_pe_file( ptr, &attr, module, size_ptr, image_info, zero_bits, machine, prefer_native );
         ptr = prepend_build_dir_path( file + pos, ".dll", "", "/dlls" );
         if (status != STATUS_DLL_NOT_FOUND) goto done;
@@ -1598,6 +1612,7 @@ static NTSTATUS find_builtin_dll( UNICODE_STRING *nt_name, void **module, SIZE_T
         /* now as a program */
         file[pos + len + 1] = 0;
         ptr = prepend_build_dir_path( file + pos, ".exe", pe_dir, "/programs" );
+        if (!strcmp( pe_dir, "/i386-windows" ) && (tmp = strstr( ptr, "/wine64/" ))) memcpy( tmp, "/wine32/", 8 );
         status = open_builtin_pe_file( ptr, &attr, module, size_ptr, image_info, zero_bits, machine, prefer_native );
         ptr = prepend_build_dir_path( file + pos, ".exe", "", "/programs" );
         if (status != STATUS_DLL_NOT_FOUND) goto done;
@@ -1642,6 +1657,8 @@ done:
     if (status >= 0 && ext)
     {
         strcpy( ext, ".so" );
+        if ((ext = strstr( ptr, "/../wine64" ))) memcpy( ext, "/././././.", 10 );
+        if ((ext = strstr( ptr, "/../wine32" ))) memcpy( ext, "/././././.", 10 );
         load_builtin_unixlib( *module, ptr );
     }
     free( file );
