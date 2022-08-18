@@ -4218,6 +4218,20 @@ static void test_sync_reader_streaming(void)
 
     hr = IWMSyncReader_GetNextSample(reader, stream_numbers[0], &sample, &pts, &duration, &flags, NULL, NULL);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    ok(duration == 920000, "got duration %I64d\n", duration);
+    INSSBuffer_Release(sample);
+
+    hr = IWMSyncReader_GetNextSample(reader, stream_numbers[1], &sample, &pts, &duration, &flags, &output_number, NULL);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    ok(duration == 10000, "got duration %I64d\n", duration);
+    INSSBuffer_Release(sample);
+
+    check_sync_set_output_setting(reader, output_number, L"VideoSampleDurations",
+            WMT_TYPE_BOOL, 1, S_OK, FALSE);
+
+    hr = IWMSyncReader_GetNextSample(reader, stream_numbers[1], &sample, &pts, &duration, &flags, NULL, NULL);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    ok(duration == 330000, "got duration %I64d\n", duration);
     INSSBuffer_Release(sample);
 
     hr = IWMSyncReader_GetNextSample(reader, 0, &sample, &pts, &duration, &flags, NULL, NULL);
