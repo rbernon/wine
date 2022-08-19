@@ -27,11 +27,20 @@
 #include "amvideo.h"
 #include "uuids.h"
 #include "wmcodecdsp.h"
+#include "dvdmedia.h"
 
 #include "wine/list.h"
 #include "wine/test.h"
 
-static const DWORD test_wmv_duration = 20460000;
+DEFINE_GUID( WMProfile_V80_768Video, 
+             0x74d01102,
+             0xe71a,
+             0x4820,
+             0x8f, 0xd, 0x13, 0xd2, 0xec, 0x1e, 0x48, 0x72 );
+DEFINE_GUID(WMMEDIASUBTYPE_PCM,0x00000001,0x0000,0x0010,0x80,0x00,0x00,0xaa,0x00,0x38,0x9b,0x71);
+DEFINE_GUID(WMMEDIASUBTYPE_I420,0x30323449,0x0000,0x0010,0x80,0x00,0x00,0xaa,0x00,0x38,0x9b,0x71);
+
+static const DWORD test_wmv_duration = 20540000;
 
 HRESULT WINAPI WMCreateWriterPriv(IWMWriter **writer);
 
@@ -2930,6 +2939,130 @@ static void test_wmwriter_interfaces(void)
     IWMWriter_Release(writer);
 }
 
+static void test_wmwriter(void)
+{
+    INSSBuffer *audio_sample, *video_sample;
+    WM_MEDIA_TYPE *audio_mt, *video_mt;
+    VIDEOINFOHEADER *video_info;
+    WCHAR output_path[MAX_PATH];
+    IWMInputMediaProps *props;
+    WAVEFORMATEX *audio_info;
+    DWORD count, length;
+    IWMWriter *writer;
+    BYTE *buffer;
+    HRESULT hr;
+    QWORD pts;
+
+    hr = WMCreateWriter(NULL, &writer);
+    ok(hr == S_OK, "WMCreateWriter failed 0x%08lx\n", hr);
+    if(FAILED(hr))
+    {
+        win_skip("Failed to create IWMWriter\n");
+        return;
+    }
+
+    GetTempPathW(ARRAY_SIZE(output_path), output_path);
+    lstrcatW(output_path, L"test.wmv");
+
+    hr = IWMWriter_SetProfileByID(writer, &WMProfile_V80_768Video);
+    todo_wine
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    if (hr != S_OK)
+        goto skip_writer;
+    hr = IWMWriter_SetOutputFilename(writer, output_path);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+
+    hr = IWMWriter_GetInputCount(writer, &count);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    ok(count == 2, "Got count %lu.\n", count);
+
+    hr = IWMWriter_GetInputFormatCount(writer, 0, &count);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    ok(count == 36, "Got count %lu.\n", count);
+    hr = IWMWriter_GetInputFormatCount(writer, 1, &count);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    ok(count == 12, "Got count %lu.\n", count);
+
+    hr = IWMWriter_GetInputFormat(writer, 0, 0, &props);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    IWMInputMediaProps_GetMediaType(props, NULL, &count);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    audio_mt = calloc(1, count);
+    ok(!!audio_mt, "Got audio_mt %p.\n", audio_mt);
+    IWMInputMediaProps_GetMediaType(props, audio_mt, &count);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    audio_info = (WAVEFORMATEX *)audio_mt->pbFormat;
+    ok(IsEqualGUID(&audio_mt->subtype, &WMMEDIASUBTYPE_PCM),
+            "got subtype %s\n", debugstr_guid(&audio_mt->subtype));
+    hr = IWMWriter_SetInputProps(writer, 0, props);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    IWMInputMediaProps_Release(props);
+
+    hr = IWMWriter_GetInputFormat(writer, 1, 1, &props);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    IWMInputMediaProps_GetMediaType(props, NULL, &count);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    video_mt = calloc(1, count);
+    ok(!!video_mt, "Got video_mt %p.\n", video_mt);
+    IWMInputMediaProps_GetMediaType(props, video_mt, &count);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    video_info = (VIDEOINFOHEADER *)video_mt->pbFormat;
+    ok(IsEqualGUID(&video_mt->subtype, &WMMEDIASUBTYPE_I420),
+            "got subtype %s\n", debugstr_guid(&video_mt->subtype));
+    hr = IWMWriter_SetInputProps(writer, 1, props);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+
+    IWMInputMediaProps_Release(props);
+
+    hr = IWMWriter_BeginWriting(writer);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+
+    for (pts = 0; pts <= 20000000; pts += video_info->AvgTimePerFrame)
+    {
+        length = audio_info->nAvgBytesPerSec / 30;
+        hr = IWMWriter_AllocateSample(writer, length, &audio_sample);
+        ok(hr == S_OK, "Got hr %#lx.\n", hr);
+        hr = INSSBuffer_GetMaxLength(audio_sample, &length);
+        ok(hr == S_OK, "Got hr %#lx.\n", hr);
+        hr = INSSBuffer_GetBuffer(audio_sample, &buffer);
+        ok(hr == S_OK, "Got hr %#lx.\n", hr);
+        hr = INSSBuffer_SetLength(audio_sample, length);
+        ok(hr == S_OK, "Got hr %#lx.\n", hr);
+        /* set something that's not trivial, or GStreamer may choke on decoding */
+        while (length--) buffer[length] = length;
+        hr = IWMWriter_WriteSample(writer, 0, pts, 0, audio_sample);
+        ok(hr == S_OK, "Got hr %#lx.\n", hr);
+        INSSBuffer_Release(audio_sample);
+
+        hr = IWMWriter_AllocateSample(writer, video_info->bmiHeader.biSizeImage, &video_sample);
+        ok(hr == S_OK, "Got hr %#lx.\n", hr);
+        hr = INSSBuffer_GetMaxLength(video_sample, &length);
+        ok(hr == S_OK, "Got hr %#lx.\n", hr);
+        hr = INSSBuffer_GetBuffer(video_sample, &buffer);
+        ok(hr == S_OK, "Got hr %#lx.\n", hr);
+        hr = INSSBuffer_SetLength(video_sample, length);
+        ok(hr == S_OK, "Got hr %#lx.\n", hr);
+        /* set something that's not trivial, or GStreamer may choke on decoding */
+        while (length--) buffer[length] = length;
+        hr = IWMWriter_WriteSample(writer, 1, pts, 0, video_sample);
+        ok(hr == S_OK, "Got hr %#lx.\n", hr);
+        INSSBuffer_Release(video_sample);
+    }
+
+    hr = IWMWriter_Flush(writer);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    hr = IWMWriter_EndWriting(writer);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+
+    trace("created %s\n", debugstr_w(output_path));
+
+    free(audio_mt);
+    free(video_mt);
+
+skip_writer:
+    IWMWriter_Release(writer);
+}
+
 static void test_wmreader_interfaces(void)
 {
     HRESULT hr;
@@ -3953,7 +4086,7 @@ static void test_sync_reader_streaming(void)
     BOOL ret;
 
     file = CreateFileW(filename, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, 0);
-    ok(file != INVALID_HANDLE_VALUE, "Failed to open %s, error %lu.\n", debugstr_w(file), GetLastError());
+    ok(file != INVALID_HANDLE_VALUE, "Failed to open %s, error %lu.\n", debugstr_w(filename), GetLastError());
 
     teststream_init(&stream, file);
 
@@ -4179,21 +4312,21 @@ static void test_sync_reader_streaming(void)
 static void check_video_type(const WM_MEDIA_TYPE *mt)
 {
     const VIDEOINFOHEADER *video_info = (const VIDEOINFOHEADER *)mt->pbFormat;
-    static const RECT rect = {.right = 64, .bottom = 48};
+    static const RECT rect = {.right = 320, .bottom = 240};
 
     ok(IsEqualGUID(&mt->formattype, &FORMAT_VideoInfo), "Got format %s.\n", debugstr_guid(&mt->formattype));
     ok(mt->bFixedSizeSamples == TRUE, "Got fixed size %d.\n", mt->bFixedSizeSamples);
     ok(!mt->bTemporalCompression, "Got temporal compression %d.\n", mt->bTemporalCompression);
     ok(!mt->pUnk, "Got pUnk %p.\n", mt->pUnk);
 
-    ok(EqualRect(&video_info->rcSource, &rect), "Got source rect %s.\n", wine_dbgstr_rect(&rect));
-    ok(EqualRect(&video_info->rcTarget, &rect), "Got target rect %s.\n", wine_dbgstr_rect(&rect));
+    ok(EqualRect(&video_info->rcSource, &rect), "Got source rect %s.\n", wine_dbgstr_rect(&video_info->rcSource));
+    ok(EqualRect(&video_info->rcTarget, &rect), "Got target rect %s.\n", wine_dbgstr_rect(&video_info->rcTarget));
     ok(!video_info->dwBitRate, "Got bit rate %lu.\n", video_info->dwBitRate);
     ok(!video_info->dwBitErrorRate, "Got bit error rate %lu.\n", video_info->dwBitErrorRate);
     ok(video_info->bmiHeader.biSize == sizeof(video_info->bmiHeader),
             "Got size %lu.\n", video_info->bmiHeader.biSize);
-    ok(video_info->bmiHeader.biWidth == 64, "Got width %ld.\n", video_info->bmiHeader.biWidth);
-    ok(video_info->bmiHeader.biHeight == 48, "Got height %ld.\n", video_info->bmiHeader.biHeight);
+    ok(video_info->bmiHeader.biWidth == 320, "Got width %ld.\n", video_info->bmiHeader.biWidth);
+    ok(video_info->bmiHeader.biHeight == 240, "Got height %ld.\n", video_info->bmiHeader.biHeight);
     ok(video_info->bmiHeader.biPlanes == 1, "Got planes %d.\n", video_info->bmiHeader.biPlanes);
 }
 
@@ -4271,7 +4404,7 @@ static void test_sync_reader_types(void)
     BOOL ret;
 
     file = CreateFileW(filename, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, 0);
-    ok(file != INVALID_HANDLE_VALUE, "Failed to open %s, error %lu.\n", debugstr_w(file), GetLastError());
+    ok(file != INVALID_HANDLE_VALUE, "Failed to open %s, error %lu.\n", debugstr_w(filename), GetLastError());
 
     teststream_init(&stream, file);
 
@@ -4297,10 +4430,16 @@ static void test_sync_reader_types(void)
 
         hr = IWMStreamConfig_GetStreamType(config, &majortype);
         ok(hr == S_OK, "Got hr %#lx.\n", hr);
-        if (!i)
+        if (i)
+        {
+            todo_wine
             ok(IsEqualGUID(&majortype, &MEDIATYPE_Video), "Got major type %s.\n", debugstr_guid(&majortype));
+        }
         else
+        {
+            todo_wine
             ok(IsEqualGUID(&majortype, &MEDIATYPE_Audio), "Got major type %s.\n", debugstr_guid(&majortype));
+        }
 
         if (IsEqualGUID(&majortype, &MEDIATYPE_Audio))
             test_stream_media_props(config, &MEDIATYPE_Audio, &MEDIASUBTYPE_MSAUDIO1, &FORMAT_WaveFormatEx, TRUE);
@@ -4313,7 +4452,7 @@ static void test_sync_reader_types(void)
         output_number = 0xdeadbeef;
         hr = IWMSyncReader_GetOutputNumberForStream(reader, stream_number, &output_number);
         ok(hr == S_OK, "Got hr %#lx.\n", hr);
-        todo_wine ok(output_number == 1 - i, "Got output number %lu.\n", output_number);
+        ok(output_number == i, "Got output number %lu.\n", output_number);
 
         stream_number2 = 0xdead;
         hr = IWMSyncReader_GetStreamNumberForOutput(reader, output_number, &stream_number2);
@@ -4348,6 +4487,7 @@ static void test_sync_reader_types(void)
             hr = IWMOutputMediaProps_SetMediaType(output_props, mt2);
             ok(hr == S_OK, "Got hr %#lx.\n", hr);
             hr = IWMSyncReader_SetOutputProps(reader, output_number, output_props);
+            todo_wine
             ok(hr == NS_E_AUDIO_CODEC_NOT_INSTALLED, "Got hr %#lx.\n", hr);
 
             init_audio_type(mt2, &MEDIASUBTYPE_PCM, 8, 1, 11025);
@@ -4468,8 +4608,11 @@ static void test_sync_reader_types(void)
             hr = IWMSyncReader_SetOutputProps(reader, output_number, output_props);
             ok(hr == S_OK, "Got hr %#lx.\n", hr);
             hr = IWMSyncReader_SetOutputProps(reader, 1 - output_number, output_props);
-            if (!i)
-                todo_wine ok(hr == ASF_E_BADMEDIATYPE, "Got hr %#lx.\n", hr);
+            if (i)
+            {
+                todo_wine
+                ok(hr == NS_E_INVALID_REQUEST, "Got hr %#lx.\n", hr);
+            }
             else
                 ok(hr == NS_E_INCOMPATIBLE_FORMAT
                         || hr == NS_E_INVALID_OUTPUT_FORMAT /* win10 */, "Got hr %#lx.\n", hr);
@@ -4985,8 +5128,6 @@ static HRESULT WINAPI callback_advanced_AllocateForStream(IWMReaderCallbackAdvan
     if (!(object = malloc(offsetof(struct buffer, data[size]))))
         return E_OUTOFMEMORY;
 
-    size = max(size, 65536);
-
     object->INSSBuffer_iface.lpVtbl = &buffer_vtbl;
     object->refcount = 1;
     object->capacity = size;
@@ -5031,8 +5172,6 @@ static HRESULT WINAPI callback_advanced_AllocateForOutput(IWMReaderCallbackAdvan
 
     if (!(object = malloc(offsetof(struct buffer, data[size]))))
         return E_OUTOFMEMORY;
-
-    size = max(size, 65536);
 
     object->INSSBuffer_iface.lpVtbl = &buffer_vtbl;
     object->refcount = 1;
@@ -5955,7 +6094,7 @@ static void test_async_reader_streaming(void)
     BOOL ret;
 
     file = CreateFileW(filename, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, 0);
-    ok(file != INVALID_HANDLE_VALUE, "Failed to open %s, error %lu.\n", debugstr_w(file), GetLastError());
+    ok(file != INVALID_HANDLE_VALUE, "Failed to open %s, error %lu.\n", debugstr_w(filename), GetLastError());
 
     teststream_init(&stream, file);
     callback_init(&callback, &stream);
@@ -6136,7 +6275,7 @@ static void test_async_reader_types(void)
     BOOL ret;
 
     file = CreateFileW(filename, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, 0);
-    ok(file != INVALID_HANDLE_VALUE, "Failed to open %s, error %lu.\n", debugstr_w(file), GetLastError());
+    ok(file != INVALID_HANDLE_VALUE, "Failed to open %s, error %lu.\n", debugstr_w(filename), GetLastError());
 
     teststream_init(&stream, file);
     callback_init(&callback, &stream);
@@ -6161,10 +6300,16 @@ static void test_async_reader_types(void)
 
         hr = IWMStreamConfig_GetStreamType(config, &majortype);
         ok(hr == S_OK, "Got hr %#lx.\n", hr);
-        if (!i)
+        if (i)
+        {
+            todo_wine
             ok(IsEqualGUID(&majortype, &MEDIATYPE_Video), "Got major type %s.\n", debugstr_guid(&majortype));
+        }
         else
+        {
+            todo_wine
             ok(IsEqualGUID(&majortype, &MEDIATYPE_Audio), "Got major type %s.\n", debugstr_guid(&majortype));
+        }
 
         if (IsEqualGUID(&majortype, &MEDIATYPE_Audio))
             test_stream_media_props(config, &MEDIATYPE_Audio, &MEDIASUBTYPE_MSAUDIO1, &FORMAT_WaveFormatEx, TRUE);
@@ -6211,6 +6356,7 @@ static void test_async_reader_types(void)
             hr = IWMOutputMediaProps_SetMediaType(output_props, mt2);
             ok(hr == S_OK, "Got hr %#lx.\n", hr);
             hr = IWMReader_SetOutputProps(reader, output_number, output_props);
+            todo_wine
             ok(hr == NS_E_AUDIO_CODEC_NOT_INSTALLED, "Got hr %#lx.\n", hr);
 
             init_audio_type(mt2, &MEDIASUBTYPE_PCM, 8, 1, 11025);
@@ -6807,6 +6953,9 @@ START_TEST(wmvcore)
     test_async_reader_types();
     test_async_reader_file();
     if (0) test_async_reader_clock();
+
+    /* Keep last so that test.wmv doesn't get overwritten */
+    test_wmwriter();
 
     CoUninitialize();
 }

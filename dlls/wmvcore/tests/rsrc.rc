@@ -20,6 +20,6 @@
 
 #include "windef.h"
 
-/* ffmpeg -f lavfi -i smptebars -f lavfi -i "sine=frequency=700" -t 2.0 -f asf -vcodec wmv1 -vf scale=64x48 -acodec wmav1 test.wmv */
+/* Generated on Windows from test_writer() test. */
 /* @makedep: test.wmv */
 test.wmv RCDATA "test.wmv"
