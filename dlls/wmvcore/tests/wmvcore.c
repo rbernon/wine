@@ -4071,6 +4071,7 @@ static void test_sync_reader_streaming(void)
 {
     DWORD size, capacity, flags, output_number, expect_output_number;
     const WCHAR *filename = load_resource(L"test.wmv");
+    QWORD pts, duration, next_pts[2] = {0, 0};
     WORD stream_numbers[2], stream_number;
     IWMStreamConfig *config, *config2;
     bool eos[2] = {0}, first = true;
@@ -4078,7 +4079,6 @@ static void test_sync_reader_streaming(void)
     ULONG i, j, count, ref;
     IWMSyncReader *reader;
     IWMProfile *profile;
-    QWORD pts, duration;
     INSSBuffer *sample;
     BYTE *data, *data2;
     HANDLE file;
@@ -4277,6 +4277,34 @@ static void test_sync_reader_streaming(void)
             ok(stream_number == 0xbeef, "Got stream number %u.\n", stream_number);
             break;
         }
+    }
+
+    hr = IWMSyncReader_SetRange(reader, 0, 0);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+
+    expect_output_number = next_pts[0] = next_pts[1] = 0;
+    for (;;)
+    {
+        stream_number = pts = duration = flags = output_number = 0xdeadbeef;
+        hr = IWMSyncReader_GetNextSample(reader, 0, &sample,
+                &pts, &duration, &flags, &output_number, &stream_number);
+        ok(hr == S_OK || hr == NS_E_NO_MORE_SAMPLES, "Got hr %#lx.\n", hr);
+        if (hr == NS_E_NO_MORE_SAMPLES)
+            break;
+
+        ok(pts == next_pts[output_number], "got stream %u pts %I64d\n", stream_number, pts);
+        ok(output_number == expect_output_number, "got output %lu\n", output_number);
+        ref = INSSBuffer_Release(sample);
+        ok(!ref, "Got outstanding refcount %ld.\n", ref);
+
+        next_pts[output_number] = pts + duration;
+
+        if (next_pts[0] >= test_wmv_duration)
+            expect_output_number = 1;
+        else if (output_number == 0 && next_pts[0] >= next_pts[1] + 3000000)
+            expect_output_number = 1;
+        else if (output_number == 1 && next_pts[0] <= next_pts[1] + 1500000)
+            expect_output_number = 0;
     }
 
     hr = IWMSyncReader_GetNextSample(reader, 0, &sample,
