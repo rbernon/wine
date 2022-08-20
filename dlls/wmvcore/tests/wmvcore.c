@@ -4728,6 +4728,7 @@ struct callback
     IWMReaderAllocatorEx IWMReaderAllocatorEx_iface;
     LONG refcount;
     HANDLE expect_opened, got_opened;
+    HANDLE expect_preroll, got_preroll;
     HANDLE expect_started, got_started;
     HANDLE expect_stopped, got_stopped;
     HANDLE expect_eof, got_eof;
@@ -4746,6 +4747,7 @@ struct callback
     DWORD output_tid[2];
     struct teststream *stream;
 
+    DWORD early_data_delivery[2];
     QWORD last_pts[2];
     QWORD next_pts[2];
     QWORD expect_time;
@@ -4882,6 +4884,19 @@ static HRESULT WINAPI callback_OnStatus(IWMReaderCallback *iface, WMT_STATUS sta
                 ok(callback->sample_count > 0, "Got no samples.\n");
             ok(callback->eof_count == 1, "Got %u WMT_EOF callbacks.\n",
                     callback->eof_count);
+            break;
+
+        case WMT_PREROLL_READY:
+            break;
+
+        case WMT_PREROLL_COMPLETE:
+            ok(callback->callback_tid == GetCurrentThreadId(), "got wrong thread\n");
+            ok(type == WMT_TYPE_DWORD, "Got type %#x.\n", type);
+            ok(!*(DWORD *)value, "Got value %#lx.\n", *(DWORD *)value);
+            ok(context == (void *)0xfacade, "Got unexpected context %p.\n", context);
+            ret = WaitForSingleObject(callback->expect_preroll, 100);
+            ok(!ret, "Wait timed out.\n");
+            SetEvent(callback->got_preroll);
             break;
 
         default:
@@ -5024,6 +5039,7 @@ static HRESULT WINAPI callback_advanced_OnStreamSample(IWMReaderCallbackAdvanced
 {
     struct callback *callback = impl_from_IWMReaderCallbackAdvanced(iface);
     struct teststream *stream = callback->stream;
+    QWORD pts_offset = callback->early_data_delivery[stream_number - 1] * 10000;
     DWORD output = 2 - stream_number;
 
     if (winetest_debug > 1)
@@ -5040,6 +5056,7 @@ static HRESULT WINAPI callback_advanced_OnStreamSample(IWMReaderCallbackAdvanced
     {
         ok(callback->callback_tid == GetCurrentThreadId(), "got wrong thread\n");
         ok(callback->last_pts[1 - output] <= pts, "got pts %I64d\n", pts);
+        ok(callback->last_pts[1 - output] <= pts + pts_offset, "got pts %I64d\n", pts);
     }
 
     if (!callback->output_tid[output])
@@ -5290,6 +5307,8 @@ static void callback_init(struct callback *callback, struct teststream *stream)
     callback->refcount = 1;
     callback->expect_opened = CreateEventW(NULL, FALSE, FALSE, NULL);
     callback->got_opened = CreateEventW(NULL, FALSE, FALSE, NULL);
+    callback->expect_preroll = CreateEventW(NULL, FALSE, FALSE, NULL);
+    callback->got_preroll = CreateEventW(NULL, FALSE, FALSE, NULL);
     callback->expect_started = CreateEventW(NULL, FALSE, FALSE, NULL);
     callback->got_started = CreateEventW(NULL, FALSE, FALSE, NULL);
     callback->expect_stopped = CreateEventW(NULL, FALSE, FALSE, NULL);
@@ -5305,6 +5324,8 @@ static void callback_cleanup(struct callback *callback)
 {
     CloseHandle(callback->got_opened);
     CloseHandle(callback->expect_opened);
+    CloseHandle(callback->got_preroll);
+    CloseHandle(callback->expect_preroll);
     CloseHandle(callback->got_started);
     CloseHandle(callback->expect_started);
     CloseHandle(callback->got_stopped);
@@ -5324,6 +5345,18 @@ static void wait_opened_callback_(int line, struct callback *callback)
     ok_(__FILE__, line)(ret == WAIT_TIMEOUT, "Got unexpected WMT_OPENED.\n");
     SetEvent(callback->expect_opened);
     ret = WaitForSingleObject(callback->got_opened, 1000);
+    ok_(__FILE__, line)(!ret, "Wait timed out.\n");
+}
+
+#define wait_preroll_callback(a) wait_preroll_callback_(__LINE__, a)
+static void wait_preroll_callback_(int line, struct callback *callback)
+{
+    DWORD ret;
+
+    ret = WaitForSingleObject(callback->got_preroll, 0);
+    ok_(__FILE__, line)(ret == WAIT_TIMEOUT, "Got unexpected WMT_PREROLL_COMPLETE.\n");
+    SetEvent(callback->expect_preroll);
+    ret = WaitForSingleObject(callback->got_preroll, 1000);
     ok_(__FILE__, line)(!ret, "Wait timed out.\n");
 }
 
@@ -5461,6 +5494,18 @@ static void run_async_reader(IWMReader *reader, IWMReaderAdvanced2 *advanced, st
             WMT_TYPE_BOOL, callback->dedicated_threads, S_OK);
     check_async_set_output_setting(advanced, 1, L"DedicatedDeliveryThread",
             WMT_TYPE_BOOL, callback->dedicated_threads, S_OK);
+
+    check_async_set_output_setting(advanced, 0, L"EarlyDataDelivery",
+            WMT_TYPE_DWORD, callback->early_data_delivery[0], S_OK);
+    check_async_set_output_setting(advanced, 1, L"EarlyDataDelivery",
+            WMT_TYPE_DWORD, callback->early_data_delivery[1], S_OK);
+
+    if (callback->early_data_delivery[0] || callback->early_data_delivery[1])
+    {
+        hr = IWMReaderAdvanced2_Preroll(advanced, 0, 0, 1.0f);
+        ok(hr == S_OK, "Got hr %#lx.\n", hr);
+        wait_preroll_callback(callback);
+    }
 
     callback->expect_context = (void *)0xfacade;
     hr = IWMReader_Start(reader, 0, 0, 1.0f, (void *)0xfacade);
@@ -6227,6 +6272,30 @@ static void test_async_reader_streaming(void)
     trace("  with compressed sample allocation\n");
     test_async_reader_allocate_compressed(reader, advanced, &callback);
     callback.dedicated_threads = FALSE;
+
+    callback.early_data_delivery[0] = 500;
+    trace("Checking EarlyDataDelivery[0] = 500.\n");
+    trace("  with stream selection\n");
+    test_async_reader_selection(reader, advanced, &callback);
+    trace("  with sample allocation\n");
+    test_async_reader_allocate(reader, advanced, &callback);
+    trace("  with compressed sample\n");
+    test_async_reader_compressed(reader, advanced, &callback);
+    trace("  with compressed sample allocation\n");
+    test_async_reader_allocate_compressed(reader, advanced, &callback);
+    callback.early_data_delivery[0] = 0;
+
+    callback.early_data_delivery[1] = 500;
+    trace("Checking EarlyDataDelivery[1] = 500.\n");
+    trace("  with stream selection\n");
+    test_async_reader_selection(reader, advanced, &callback);
+    trace("  with sample allocation\n");
+    test_async_reader_allocate(reader, advanced, &callback);
+    trace("  with compressed sample\n");
+    test_async_reader_compressed(reader, advanced, &callback);
+    trace("  with compressed sample allocation\n");
+    test_async_reader_allocate_compressed(reader, advanced, &callback);
+    callback.early_data_delivery[1] = 0;
 
     hr = IWMReader_Close(reader);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
