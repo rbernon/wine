@@ -3921,6 +3921,110 @@ static void test_sync_reader_allocator(void)
     callback_cleanup(&callback);
 }
 
+static void test_async_reader_clock(void)
+{
+    const WCHAR *filename = load_resource(L"test.wmv");
+    IWMReaderAdvanced2 *advanced;
+    REFERENCE_TIME start_time;
+    struct callback callback;
+    IReferenceClock *clock;
+    IWMReader *reader;
+    DWORD_PTR cookie;
+    ULONG ref, ret;
+    HANDLE event;
+    HRESULT hr;
+    BOOL res;
+
+    callback_init(&callback);
+
+    event = CreateEventW(NULL, FALSE, FALSE, NULL);
+    ok(!!event, "CreateEventW failed, error %lu\n", GetLastError());
+
+    hr = WMCreateReader(NULL, 0, &reader);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+
+    hr = IWMReader_QueryInterface(reader, &IID_IWMReaderAdvanced2, (void **)&advanced);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    hr = IWMReader_QueryInterface(reader, &IID_IReferenceClock, (void **)&clock);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+
+    hr = IReferenceClock_GetTime(clock, &start_time);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    ok(start_time, "Got time %I64d.\n", start_time);
+
+    hr = IReferenceClock_AdviseTime(clock, 0, 0, (HEVENT)event, &cookie);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    ok(!!cookie, "Got cookie %#Ix.\n", cookie);
+    ret = WaitForSingleObject(event, 100);
+    ok(!ret, "WaitForSingleObject returned %#lx.\n", ret);
+    hr = IReferenceClock_Unadvise(clock, cookie);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+
+    hr = IReferenceClock_AdviseTime(clock, start_time, 1000 * 10000, (HEVENT)event, &cookie);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    ok(!!cookie, "Got cookie %#Ix.\n", cookie);
+    ret = WaitForSingleObject(event, 100);
+    ok(ret == WAIT_TIMEOUT, "WaitForSingleObject returned %#lx.\n", ret);
+    hr = IReferenceClock_Unadvise(clock, cookie);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+
+    hr = IWMReaderAdvanced2_SetUserProvidedClock(advanced, TRUE);
+    ok(hr == NS_E_INVALID_REQUEST, "Got hr %#lx.\n", hr);
+    hr = IWMReaderAdvanced2_DeliverTime(advanced, 1000 * 10000);
+    ok(hr == E_UNEXPECTED, "Got hr %#lx.\n", hr);
+
+    hr = IWMReader_Open(reader, filename, &callback.IWMReaderCallback_iface, (void **)0xdeadbeef);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    ok(callback.refcount > 1, "Got refcount %ld.\n", callback.refcount);
+    wait_opened_callback(&callback);
+
+    hr = IWMReaderAdvanced2_SetUserProvidedClock(advanced, TRUE);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    hr = IWMReaderAdvanced2_DeliverTime(advanced, 0);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+
+    hr = IReferenceClock_GetTime(clock, &start_time);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    ok(start_time, "Got time %I64d.\n", start_time);
+
+    hr = IReferenceClock_AdviseTime(clock, start_time, 10000, (HEVENT)event, &cookie);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    ok(!!cookie, "Got cookie %#Ix.\n", cookie);
+    ret = WaitForSingleObject(event, 100);
+    ok(!ret, "WaitForSingleObject returned %#lx.\n", ret);
+    hr = IReferenceClock_Unadvise(clock, cookie);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+
+    hr = IWMReader_Start(reader, 0, 0, 1.0f, (void *)0xfacade);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    wait_started_callback(&callback);
+
+    hr = IWMReaderAdvanced2_SetUserProvidedClock(advanced, FALSE);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    hr = IWMReaderAdvanced2_DeliverTime(advanced, 1000 * 10000);
+    ok(hr == E_UNEXPECTED, "Got hr %#lx.\n", hr);
+
+    hr = IWMReader_Close(reader);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    ok(callback.closed_count == 1, "Got %u WMT_CLOSED callbacks.\n", callback.closed_count);
+    ok(callback.refcount == 1, "Got outstanding refcount %ld.\n", callback.refcount);
+    ret = WaitForSingleObject(callback.got_stopped, 0);
+    ok(ret == WAIT_TIMEOUT, "Got unexpected WMT_STOPPED.\n");
+    callback_cleanup(&callback);
+
+    IWMReaderAdvanced2_Release(advanced);
+    IReferenceClock_Release(clock);
+    CloseHandle(event);
+
+    ref = IWMReader_Release(reader);
+    ok(!ref, "Got outstanding refcount %ld.\n", ref);
+
+    callback_cleanup(&callback);
+
+    res = DeleteFileW(filename);
+    ok(res, "Failed to delete %s, error %lu.\n", debugstr_w(filename), GetLastError());
+}
+
 START_TEST(wmvcore)
 {
     HRESULT hr;
@@ -3946,6 +4050,7 @@ START_TEST(wmvcore)
     test_async_reader_streaming();
     test_async_reader_types();
     test_async_reader_file();
+    test_async_reader_clock();
 
     CoUninitialize();
 }
