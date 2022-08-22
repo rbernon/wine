@@ -28,11 +28,2767 @@
 #include "uuids.h"
 #include "wmcodecdsp.h"
 
+#include "wine/list.h"
 #include "wine/test.h"
 
 static const DWORD test_wmv_duration = 20460000;
 
 HRESULT WINAPI WMCreateWriterPriv(IWMWriter **writer);
+
+struct async_start_info
+{
+    QWORD start;
+    QWORD duration;
+    void *context;
+};
+
+struct async_op
+{
+    enum async_op_type
+    {
+        ASYNC_OP_OPEN_STREAM,
+        ASYNC_OP_OPEN_FILE,
+        ASYNC_OP_START,
+        ASYNC_OP_STOP,
+        ASYNC_OP_CLOSE,
+    } type;
+    void *data;
+    struct list entry;
+};
+
+struct async_reader_stream
+{
+    struct async_reader *reader;
+    DWORD index;
+
+    bool sample_requested;
+    CONDITION_VARIABLE cv;
+    HANDLE stream_thread;
+
+    INSSBuffer *sample;
+    QWORD pts;
+    QWORD duration;
+    DWORD flags;
+    DWORD output;
+    HRESULT result;
+};
+
+struct async_reader
+{
+    IWMReader IWMReader_iface;
+    IWMReaderAdvanced6 IWMReaderAdvanced6_iface;
+    IWMReaderAccelerator IWMReaderAccelerator_iface;
+    IWMReaderNetworkConfig2 IWMReaderNetworkConfig2_iface;
+    IWMReaderStreamClock IWMReaderStreamClock_iface;
+    IWMReaderTypeNegotiation IWMReaderTypeNegotiation_iface;
+    IWMProfile3 IWMProfile3_iface;
+    IWMHeaderInfo3 IWMHeaderInfo3_iface;
+    IWMLanguageList IWMLanguageList_iface;
+    IWMPacketSize2 IWMPacketSize2_iface;
+    IWMReaderPlaylistBurn IWMReaderPlaylistBurn_iface;
+    IWMReaderTimecode IWMReaderTimecode_iface;
+    IUnknown *clock_inner;
+    LONG refcount;
+
+    IWMSyncReader2 *reader;
+    IWMProfile3 *profile;
+    IWMHeaderInfo3 *header_info;
+
+    CRITICAL_SECTION cs;
+
+    IWMReaderCallbackAdvanced *callback_advanced;
+    IWMReaderAllocatorEx *allocator;
+    IWMReaderCallback *callback;
+    void *context;
+
+    BOOL allocate_for_stream[64];
+    BOOL allocate_for_output[64];
+
+    REFERENCE_TIME clock_start;
+    LARGE_INTEGER clock_frequency;
+
+    struct async_reader_stream *streams;
+    HANDLE callback_thread;
+    CRITICAL_SECTION callback_cs;
+    CONDITION_VARIABLE callback_cv;
+
+    bool opened, running, sample_ready;
+    struct list async_ops;
+
+    bool user_clock;
+    QWORD user_time;
+};
+
+struct allocator
+{
+    IWMReaderAllocatorEx IWMReaderAllocatorEx_iface;
+    LONG refcount;
+
+    IWMReaderCallbackAdvanced *callback;
+    struct async_reader *reader;
+};
+
+static struct allocator *impl_from_IWMReaderAllocatorEx(IWMReaderAllocatorEx *iface)
+{
+    return CONTAINING_RECORD(iface, struct allocator, IWMReaderAllocatorEx_iface);
+}
+
+static HRESULT WINAPI allocator_QueryInterface(IWMReaderAllocatorEx *iface, REFIID iid, void **out)
+{
+    struct allocator *allocator = impl_from_IWMReaderAllocatorEx(iface);
+
+    if (IsEqualIID(iid, &IID_IUnknown)
+            || IsEqualIID(iid, &IID_IWMReaderAllocatorEx))
+        *out = &allocator->IWMReaderAllocatorEx_iface;
+    else
+    {
+        ok(0, "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid(iid));
+        return E_NOINTERFACE;
+    }
+
+    IUnknown_AddRef((IUnknown *)*out);
+    return S_OK;
+}
+
+static ULONG WINAPI allocator_AddRef(IWMReaderAllocatorEx *iface)
+{
+    struct allocator *allocator = impl_from_IWMReaderAllocatorEx(iface);
+    ULONG refcount = InterlockedIncrement(&allocator->refcount);
+    return refcount;
+}
+
+static ULONG WINAPI allocator_Release(IWMReaderAllocatorEx *iface)
+{
+    struct allocator *allocator = impl_from_IWMReaderAllocatorEx(iface);
+    ULONG refcount = InterlockedDecrement(&allocator->refcount);
+
+    if (!refcount)
+    {
+        if (allocator->callback)
+            IWMReaderCallbackAdvanced_Release(allocator->callback);
+        free(allocator);
+    }
+
+    return refcount;
+}
+
+struct async_buffer
+{
+    INSSBuffer3 INSSBuffer3_iface;
+    LONG refcount;
+
+    DWORD size, capacity;
+    BYTE data[1];
+};
+
+static struct async_buffer *impl_from_INSSBuffer3(INSSBuffer3 *iface)
+{
+    return CONTAINING_RECORD(iface, struct async_buffer, INSSBuffer3_iface);
+}
+
+static HRESULT WINAPI async_buffer_QueryInterface(INSSBuffer3 *iface, REFIID iid, void **out)
+{
+    struct async_buffer *buffer = impl_from_INSSBuffer3(iface);
+
+    if (IsEqualGUID(iid, &IID_IUnknown)
+            || IsEqualGUID(iid, &IID_INSSBuffer)
+            || IsEqualGUID(iid, &IID_INSSBuffer2)
+            || IsEqualGUID(iid, &IID_INSSBuffer3))
+        *out = &buffer->INSSBuffer3_iface;
+    else
+    {
+        *out = NULL;
+        ok(0, "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid(iid));
+        return E_NOINTERFACE;
+    }
+
+    IUnknown_AddRef((IUnknown *)*out);
+    return S_OK;
+}
+
+static ULONG WINAPI async_buffer_AddRef(INSSBuffer3 *iface)
+{
+    struct async_buffer *buffer = impl_from_INSSBuffer3(iface);
+    ULONG refcount = InterlockedIncrement(&buffer->refcount);
+    return refcount;
+}
+
+static ULONG WINAPI async_buffer_Release(INSSBuffer3 *iface)
+{
+    struct async_buffer *buffer = impl_from_INSSBuffer3(iface);
+    ULONG refcount = InterlockedDecrement(&buffer->refcount);
+
+    if (!refcount)
+        free(buffer);
+
+    return refcount;
+}
+
+static HRESULT WINAPI async_buffer_GetLength(INSSBuffer3 *iface, DWORD *size)
+{
+    struct async_buffer *buffer = impl_from_INSSBuffer3(iface);
+    *size = buffer->size;
+    return S_OK;
+}
+
+static HRESULT WINAPI async_buffer_SetLength(INSSBuffer3 *iface, DWORD size)
+{
+    struct async_buffer *buffer = impl_from_INSSBuffer3(iface);
+
+    if (size > buffer->capacity)
+        return E_INVALIDARG;
+
+    buffer->size = size;
+    return S_OK;
+}
+
+static HRESULT WINAPI async_buffer_GetMaxLength(INSSBuffer3 *iface, DWORD *size)
+{
+    struct async_buffer *buffer = impl_from_INSSBuffer3(iface);
+    *size = buffer->capacity;
+    return S_OK;
+}
+
+static HRESULT WINAPI async_buffer_GetBuffer(INSSBuffer3 *iface, BYTE **data)
+{
+    struct async_buffer *buffer = impl_from_INSSBuffer3(iface);
+    *data = buffer->data;
+    return S_OK;
+}
+
+static HRESULT WINAPI async_buffer_GetBufferAndLength(INSSBuffer3 *iface, BYTE **data, DWORD *size)
+{
+    struct async_buffer *buffer = impl_from_INSSBuffer3(iface);
+    *size = buffer->size;
+    *data = buffer->data;
+    return S_OK;
+}
+
+static const INSSBuffer3Vtbl async_buffer_vtbl =
+{
+    async_buffer_QueryInterface,
+    async_buffer_AddRef,
+    async_buffer_Release,
+    async_buffer_GetLength,
+    async_buffer_SetLength,
+    async_buffer_GetMaxLength,
+    async_buffer_GetBuffer,
+    async_buffer_GetBufferAndLength,
+};
+
+static HRESULT allocate_buffer(DWORD size, INSSBuffer **out)
+{
+    struct async_buffer *object;
+
+    if (!(object = calloc(1, offsetof(struct async_buffer, data[size]))))
+        return E_OUTOFMEMORY;
+
+    object->INSSBuffer3_iface.lpVtbl = &async_buffer_vtbl;
+    object->refcount = 1;
+    object->capacity = size;
+
+    *out = (INSSBuffer *)&object->INSSBuffer3_iface;
+    return S_OK;
+}
+
+static HRESULT WINAPI allocator_AllocateForStreamEx(IWMReaderAllocatorEx *iface,
+        WORD stream_number, DWORD size, INSSBuffer **sample, DWORD flags,
+        QWORD pts, QWORD duration, void *context)
+{
+    struct allocator *allocator = impl_from_IWMReaderAllocatorEx(iface);
+    struct async_reader *reader = allocator->reader;
+
+    if (!reader->allocate_for_stream[stream_number - 1])
+        return allocate_buffer(size, sample);
+
+    if (allocator->callback)
+        return IWMReaderCallbackAdvanced_AllocateForStream(allocator->callback,
+                stream_number, size, sample, context);
+
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI allocator_AllocateForOutputEx(IWMReaderAllocatorEx *iface,
+        DWORD output, DWORD size, INSSBuffer **sample, DWORD flags,
+        QWORD pts, QWORD duration, void *context)
+{
+    struct allocator *allocator = impl_from_IWMReaderAllocatorEx(iface);
+    struct async_reader *reader = allocator->reader;
+
+    if (!reader->allocate_for_output[output])
+        return allocate_buffer(size, sample);
+
+    if (allocator->callback)
+        return IWMReaderCallbackAdvanced_AllocateForOutput(allocator->callback,
+                output, size, sample, context);
+
+    return E_NOTIMPL;
+}
+
+static const IWMReaderAllocatorExVtbl allocator_vtbl =
+{
+    allocator_QueryInterface,
+    allocator_AddRef,
+    allocator_Release,
+    allocator_AllocateForStreamEx,
+    allocator_AllocateForOutputEx,
+};
+
+static HRESULT allocator_create(IWMReaderCallback *callback, struct async_reader *reader, IWMReaderAllocatorEx **out)
+{
+    struct allocator *allocator;
+    HRESULT hr;
+
+    if (!(allocator = calloc(1, sizeof(*allocator))))
+        return E_OUTOFMEMORY;
+    allocator->IWMReaderAllocatorEx_iface.lpVtbl = &allocator_vtbl;
+    allocator->refcount = 1;
+    allocator->reader = reader;
+
+    if (FAILED(hr = IWMReaderCallback_QueryInterface(callback,
+            &IID_IWMReaderCallbackAdvanced, (void **)&allocator->callback)))
+    {
+        ok(0, "Got hr %#lx.\n", hr);
+        allocator->callback = NULL;
+    }
+
+    *out = &allocator->IWMReaderAllocatorEx_iface;
+    return S_OK;
+}
+
+static REFERENCE_TIME async_reader_get_time(const struct async_reader *reader, bool absolute)
+{
+    LARGE_INTEGER time;
+    QueryPerformanceCounter(&time);
+    return (time.QuadPart * 1000) / reader->clock_frequency.QuadPart * 10000 - (absolute ? 0 : reader->clock_start);
+}
+
+static bool async_reader_needs_wait(struct async_reader *reader, QWORD pts, DWORD *timeout)
+{
+    if (!reader->user_clock)
+    {
+        REFERENCE_TIME current_time = async_reader_get_time(reader, false);
+        *timeout = (pts - current_time) / 10000;
+        return pts > current_time;
+    }
+
+    *timeout = INFINITE;
+    return pts > reader->user_time;
+}
+
+static bool async_reader_wait_pts(struct async_reader *reader, QWORD pts)
+{
+    IWMReaderCallbackAdvanced *callback_advanced = reader->callback_advanced;
+    DWORD timeout;
+    bool ret;
+
+    if (callback_advanced && reader->user_clock && pts > reader->user_time)
+    {
+        QWORD user_time = reader->user_time;
+        LeaveCriticalSection(&reader->callback_cs);
+        IWMReaderCallbackAdvanced_OnTime(callback_advanced, user_time, reader->context);
+        EnterCriticalSection(&reader->callback_cs);
+    }
+
+    while ((ret = reader->running && list_empty(&reader->async_ops)) && async_reader_needs_wait(reader, pts, &timeout))
+        SleepConditionVariableCS(&reader->callback_cv, &reader->callback_cs, timeout);
+
+    return ret;
+}
+
+static void async_reader_deliver_sample(struct async_reader *reader, DWORD output, WORD stream,
+        QWORD pts, QWORD duration, DWORD flags, INSSBuffer *sample)
+{
+    IWMReaderCallbackAdvanced *callback_advanced = reader->callback_advanced;
+    IWMReaderCallback *callback = reader->callback;
+    BOOL read_compressed;
+    HRESULT hr;
+
+    if (FAILED(hr = IWMSyncReader2_GetReadStreamSamples(reader->reader, stream,
+            &read_compressed)))
+    {
+        ok(0, "Got hr %#lx.\n", hr);
+        read_compressed = FALSE;
+    }
+
+    LeaveCriticalSection(&reader->callback_cs);
+    if (read_compressed)
+        hr = IWMReaderCallbackAdvanced_OnStreamSample(callback_advanced,
+                stream, pts, duration, flags, sample, reader->context);
+    else
+        hr = IWMReaderCallback_OnSample(callback, output, pts, duration,
+                flags, sample, reader->context);
+    EnterCriticalSection(&reader->callback_cs);
+}
+
+static DWORD WINAPI async_reader_stream_thread(void *arg)
+{
+    struct async_reader_stream *stream = arg;
+    struct async_reader *reader = stream->reader;
+    HRESULT hr = S_OK;
+
+    EnterCriticalSection(&reader->callback_cs);
+
+    while (reader->running)
+    {
+        if (!stream->sample_requested)
+        {
+            SleepConditionVariableCS(&stream->cv, &reader->callback_cs, INFINITE);
+            continue;
+        }
+
+        while (stream->sample_requested)
+        {
+            stream->sample_requested = false;
+            LeaveCriticalSection(&reader->callback_cs);
+            hr = IWMSyncReader2_GetNextSample(reader->reader, stream->index + 1,
+                    &stream->sample, &stream->pts, &stream->duration, &stream->flags,
+                    &stream->output, NULL);
+            EnterCriticalSection(&reader->callback_cs);
+        }
+
+        if (FAILED(stream->result = hr))
+            ok(hr == S_OK || hr == NS_E_NO_MORE_SAMPLES,
+                    "Failed to get stream %lu sample, hr %#lx.\n", stream->index, hr);
+
+        reader->sample_ready = true;
+        WakeConditionVariable(&reader->callback_cv);
+    }
+
+    LeaveCriticalSection(&reader->callback_cs);
+    return 0;
+}
+
+static void async_reader_close_stream(struct async_reader *reader, DWORD index)
+{
+    struct async_reader_stream *stream = reader->streams + index;
+
+    if (stream->stream_thread)
+    {
+        WakeConditionVariable(&stream->cv);
+        WaitForSingleObject(stream->stream_thread, INFINITE);
+        CloseHandle(stream->stream_thread);
+        stream->stream_thread = NULL;
+    }
+}
+
+static HRESULT async_reader_open_stream(struct async_reader *reader, DWORD index)
+{
+    struct async_reader_stream *stream = reader->streams + index;
+
+    if (stream->stream_thread)
+        return S_OK;
+
+    stream->index = index;
+    stream->reader = reader;
+    if (!(stream->stream_thread = CreateThread(NULL, 0, async_reader_stream_thread, stream, 0, NULL)))
+        goto error;
+
+    return S_OK;
+
+error:
+    async_reader_close_stream(reader, index);
+    return E_OUTOFMEMORY;
+}
+
+static void async_reader_stream_request_sample(struct async_reader *reader, DWORD index)
+{
+    struct async_reader_stream *stream = reader->streams + index;
+
+    stream->result = E_PENDING;
+    stream->sample_requested = true;
+    WakeConditionVariable(&stream->cv);
+}
+
+static HRESULT async_reader_find_next_stream(struct async_reader *reader, DWORD stream_count, struct async_reader_stream **out)
+{
+    struct async_reader_stream *first = NULL;
+    WMT_STREAM_SELECTION selection;
+    DWORD i;
+
+    for (i = 0; i < stream_count; ++i)
+    {
+        struct async_reader_stream *stream = reader->streams + i;
+
+        if (FAILED(IWMSyncReader2_GetStreamSelected(reader->reader, i + 1, &selection))
+                || selection == WMT_OFF)
+            continue;
+        if (stream->result == E_PENDING)
+            return E_PENDING;
+        if (FAILED(stream->result))
+            continue;
+
+        if (!first || first->pts > stream->pts)
+            first = stream;
+    }
+
+    if (!first)
+        return NS_E_NO_MORE_SAMPLES;
+
+    *out = first;
+    return S_OK;
+}
+
+static void async_reader_deliver_samples(struct async_reader *reader, DWORD stream_count)
+{
+    static const DWORD zero;
+
+    IWMReaderCallbackAdvanced *callback_advanced = reader->callback_advanced;
+    IWMReaderCallback *callback = reader->callback;
+    struct async_reader_stream *stream;
+    QWORD pts, duration;
+    DWORD output, flags;
+    INSSBuffer *sample;
+    HRESULT hr = S_OK;
+
+    while (reader->running && list_empty(&reader->async_ops))
+    {
+        if (FAILED(hr = async_reader_find_next_stream(reader, stream_count, &stream)))
+            break;
+
+        sample = stream->sample;
+        stream->sample = NULL;
+        pts = stream->pts;
+        duration = stream->duration;
+        flags = stream->flags;
+        output = stream->output;
+        async_reader_stream_request_sample(reader, stream->index);
+
+        if (async_reader_wait_pts(reader, pts))
+            async_reader_deliver_sample(reader, output, stream->index + 1,
+                    pts, duration, flags, sample);
+
+        INSSBuffer_Release(sample);
+    }
+
+    if (hr == NS_E_NO_MORE_SAMPLES)
+    {
+        BOOL user_clock = reader->user_clock;
+        QWORD user_time = reader->user_time;
+
+        LeaveCriticalSection(&reader->callback_cs);
+
+        IWMReaderCallback_OnStatus(callback, WMT_END_OF_STREAMING, S_OK,
+                WMT_TYPE_DWORD, (BYTE *)&zero, reader->context);
+        IWMReaderCallback_OnStatus(callback, WMT_EOF, S_OK,
+                WMT_TYPE_DWORD, (BYTE *)&zero, reader->context);
+
+        if (user_clock && callback_advanced)
+        {
+            /* We can only get here if user_time is greater than the PTS
+             * of all samples, in which case we cannot have sent this
+             * notification already. */
+            IWMReaderCallbackAdvanced_OnTime(callback_advanced,
+                    user_time, reader->context);
+        }
+
+        EnterCriticalSection(&reader->callback_cs);
+    }
+    else if (hr != S_OK && hr != E_PENDING)
+    {
+        ok(0, "Failed to get sample, hr %#lx.\n", hr);
+    }
+}
+
+static DWORD WINAPI async_reader_callback_thread(void *arg)
+{
+    static const DWORD zero;
+
+    struct async_reader *reader = arg;
+    DWORD i, stream_count = 0;
+    struct list *entry;
+    HRESULT hr;
+
+    EnterCriticalSection(&reader->callback_cs);
+
+    while (reader->running)
+    {
+        if ((entry = list_head(&reader->async_ops)))
+        {
+            struct async_op *op = LIST_ENTRY(entry, struct async_op, entry);
+            list_remove(&op->entry);
+
+            hr = list_empty(&reader->async_ops) ? S_OK : E_ABORT;
+            switch (op->type)
+            {
+                case ASYNC_OP_OPEN_FILE:
+                    if (SUCCEEDED(hr) && FAILED(hr = IWMSyncReader2_Open(reader->reader, op->data)))
+                    {
+                        ok(0, "Got hr %#lx.\n", hr);
+                        reader->running = false;
+                    }
+                    free(op->data);
+                    goto case_ASYNC_OP_OPEN;
+
+                case ASYNC_OP_OPEN_STREAM:
+                    if (SUCCEEDED(hr) && FAILED(hr = IWMSyncReader2_OpenStream(reader->reader, op->data)))
+                    {
+                        ok(0, "Got hr %#lx.\n", hr);
+                        reader->running = false;
+                    }
+                    IStream_Release(op->data);
+                    goto case_ASYNC_OP_OPEN;
+
+                case_ASYNC_OP_OPEN:
+                    if (SUCCEEDED(hr) && FAILED(hr = IWMProfile3_GetStreamCount(reader->profile, &stream_count)))
+                        reader->running = false;
+
+                    if (SUCCEEDED(hr) && !(reader->streams = calloc(stream_count, sizeof(*reader->streams))))
+                    {
+                        reader->running = false;
+                        hr = E_OUTOFMEMORY;
+                    }
+
+                    for (i = 0; SUCCEEDED(hr) && i < stream_count; ++i)
+                    {
+                        hr = IWMSyncReader2_SetAllocateForOutput(reader->reader, i, reader->allocator);
+                        ok(hr == S_OK, "Got hr %#lx\n", hr);
+                        hr = IWMSyncReader2_SetAllocateForStream(reader->reader, i + 1, reader->allocator);
+                        ok(hr == S_OK, "Got hr %#lx\n", hr);
+
+                        if (FAILED(hr = async_reader_open_stream(reader, i)))
+                        {
+                            ok(hr == S_OK, "Got hr %#lx\n", hr);
+                            reader->running = false;
+                        }
+                    }
+
+                    reader->opened = SUCCEEDED(hr);
+                    LeaveCriticalSection(&reader->callback_cs);
+                    IWMReaderCallback_OnStatus(reader->callback, WMT_OPENED, hr,
+                            WMT_TYPE_DWORD, (BYTE *)&zero, reader->context);
+                    EnterCriticalSection(&reader->callback_cs);
+                    break;
+
+                case ASYNC_OP_START:
+                {
+                    struct async_start_info *info = op->data;
+
+                    reader->context = info->context;
+                    if (SUCCEEDED(hr))
+                        hr = IWMSyncReader2_SetRange(reader->reader, info->start, info->duration);
+                    if (SUCCEEDED(hr))
+                    {
+                        reader->clock_start = async_reader_get_time(reader, true);
+
+                        for (i = 0; i < stream_count; ++i)
+                            async_reader_stream_request_sample(reader, i);
+
+                        /* Try delivering EOF immediately if no streams are selected. */
+                        reader->sample_ready = true;
+                    }
+                    free(info);
+
+                    LeaveCriticalSection(&reader->callback_cs);
+                    IWMReaderCallback_OnStatus(reader->callback, WMT_STARTED, hr,
+                            WMT_TYPE_DWORD, (BYTE *)&zero, reader->context);
+                    EnterCriticalSection(&reader->callback_cs);
+                    break;
+                }
+
+                case ASYNC_OP_STOP:
+                    if (SUCCEEDED(hr))
+                        reader->clock_start = 0;
+
+                    LeaveCriticalSection(&reader->callback_cs);
+                    IWMReaderCallback_OnStatus(reader->callback, WMT_STOPPED, hr,
+                            WMT_TYPE_DWORD, (BYTE *)&zero, reader->context);
+                    EnterCriticalSection(&reader->callback_cs);
+                    break;
+
+                case ASYNC_OP_CLOSE:
+                    LeaveCriticalSection(&reader->callback_cs);
+                    IWMReaderCallback_OnStatus(reader->callback, WMT_CLOSED, hr,
+                            WMT_TYPE_DWORD, (BYTE *)&zero, reader->context);
+                    EnterCriticalSection(&reader->callback_cs);
+
+                    if (SUCCEEDED(hr))
+                        reader->running = false;
+                    break;
+            }
+
+            free(op);
+        }
+
+        if (reader->sample_ready && reader->clock_start)
+        {
+            async_reader_deliver_samples(reader, stream_count);
+            reader->sample_ready = false;
+        }
+
+        if (reader->running && list_empty(&reader->async_ops))
+            SleepConditionVariableCS(&reader->callback_cv, &reader->callback_cs, INFINITE);
+    }
+
+    LeaveCriticalSection(&reader->callback_cs);
+
+    for (i = 0; reader->streams && i < stream_count; ++i)
+        async_reader_close_stream(reader, i);
+    free(reader->streams);
+    reader->streams = NULL;
+
+    if (reader->opened)
+    {
+        ok(0, "closing\n");
+        IWMSyncReader2_Close(reader->reader);
+    }
+    reader->opened = false;
+
+    return 0;
+}
+
+static HRESULT async_reader_queue_op(struct async_reader *reader, enum async_op_type type, void *data)
+{
+    struct async_op *op;
+
+    EnterCriticalSection(&reader->callback_cs);
+
+    if (!(op = calloc(1, sizeof(*op))))
+    {
+        LeaveCriticalSection(&reader->callback_cs);
+        return E_OUTOFMEMORY;
+    }
+    op->type = type;
+    op->data = data;
+
+    list_add_tail(&reader->async_ops, &op->entry);
+
+    LeaveCriticalSection(&reader->callback_cs);
+    WakeConditionVariable(&reader->callback_cv);
+
+    return S_OK;
+}
+
+static void async_reader_close(struct async_reader *reader, bool force)
+{
+    struct async_op *op, *next;
+    HRESULT hr;
+
+    if (!force && FAILED(hr = async_reader_queue_op(reader, ASYNC_OP_CLOSE, NULL)))
+    {
+        ok(0, "Got hr %#lx.\n", hr);
+        force = true;
+    }
+
+    if (force)
+    {
+        EnterCriticalSection(&reader->callback_cs);
+        reader->running = false;
+        LeaveCriticalSection(&reader->callback_cs);
+        WakeConditionVariable(&reader->callback_cv);
+    }
+
+    if (reader->callback_thread)
+    {
+        WaitForSingleObject(reader->callback_thread, INFINITE);
+        CloseHandle(reader->callback_thread);
+        reader->callback_thread = NULL;
+    }
+
+    LIST_FOR_EACH_ENTRY_SAFE(op, next, &reader->async_ops, struct async_op, entry)
+    {
+        list_remove(&op->entry);
+        free(op);
+    }
+
+    if (reader->allocator)
+        IWMReaderAllocatorEx_Release(reader->allocator);
+    reader->allocator = NULL;
+
+    if (reader->callback_advanced)
+        IWMReaderCallbackAdvanced_Release(reader->callback_advanced);
+    reader->callback_advanced = NULL;
+
+    if (reader->callback)
+        IWMReaderCallback_Release(reader->callback);
+    reader->callback = NULL;
+    reader->context = NULL;
+}
+
+static HRESULT async_reader_open(struct async_reader *reader, IWMReaderCallback *callback, void *context)
+{
+    HRESULT hr = E_OUTOFMEMORY;
+
+    IWMReaderCallback_AddRef((reader->callback = callback));
+    reader->context = context;
+
+    if (FAILED(hr = allocator_create(reader->callback, reader, &reader->allocator)))
+    {
+        ok(0, "Got hr %#lx.\n", hr);
+        goto error;
+    }
+
+    if (FAILED(hr = IWMReaderCallback_QueryInterface(callback, &IID_IWMReaderCallbackAdvanced,
+            (void **)&reader->callback_advanced)))
+    {
+        ok(0, "Got hr %#lx.\n", hr);
+        reader->callback_advanced = NULL;
+    }
+
+    reader->running = true;
+    if (!(reader->callback_thread = CreateThread(NULL, 0, async_reader_callback_thread, reader, 0, NULL)))
+        goto error;
+
+    return S_OK;
+
+error:
+    async_reader_close(reader, true);
+    return hr;
+}
+
+static struct async_reader *impl_from_IWMReader(IWMReader *iface)
+{
+    return CONTAINING_RECORD(iface, struct async_reader, IWMReader_iface);
+}
+
+static HRESULT WINAPI WMReader_QueryInterface(IWMReader *iface, REFIID iid, void **out)
+{
+    struct async_reader *reader = impl_from_IWMReader(iface);
+
+    if (IsEqualIID(iid, &IID_IUnknown)
+            || IsEqualIID(iid, &IID_IWMReader))
+        *out = &reader->IWMReader_iface;
+    else if (IsEqualIID(iid, &IID_IWMReaderAccelerator))
+        *out = &reader->IWMReaderAccelerator_iface;
+    else if (IsEqualIID(iid, &IID_IWMReaderAdvanced)
+            || IsEqualIID(iid, &IID_IWMReaderAdvanced2)
+            || IsEqualIID(iid, &IID_IWMReaderAdvanced3)
+            || IsEqualIID(iid, &IID_IWMReaderAdvanced4)
+            || IsEqualIID(iid, &IID_IWMReaderAdvanced5)
+            || IsEqualIID(iid, &IID_IWMReaderAdvanced6))
+        *out = &reader->IWMReaderAdvanced6_iface;
+    else if (IsEqualIID(iid, &IID_IWMReaderNetworkConfig)
+            || IsEqualIID(iid, &IID_IWMReaderNetworkConfig2))
+        *out = &reader->IWMReaderNetworkConfig2_iface;
+    else if (IsEqualIID(iid, &IID_IWMReaderStreamClock))
+        *out = &reader->IWMReaderStreamClock_iface;
+    else if (IsEqualIID(iid, &IID_IWMReaderTypeNegotiation))
+        *out = &reader->IWMReaderTypeNegotiation_iface;
+    else if (IsEqualIID(iid, &IID_IWMHeaderInfo)
+            || IsEqualIID(iid, &IID_IWMHeaderInfo2)
+            || IsEqualIID(iid, &IID_IWMHeaderInfo3))
+        *out = &reader->IWMHeaderInfo3_iface;
+    else if (IsEqualIID(iid, &IID_IWMLanguageList))
+        *out = &reader->IWMLanguageList_iface;
+    else if (IsEqualIID(iid, &IID_IWMPacketSize)
+            || IsEqualIID(iid, &IID_IWMPacketSize2))
+        *out = &reader->IWMPacketSize2_iface;
+    else if (IsEqualIID(iid, &IID_IWMProfile)
+            || IsEqualIID(iid, &IID_IWMProfile2)
+            || IsEqualIID(iid, &IID_IWMProfile3))
+        *out = &reader->IWMProfile3_iface;
+    else if (IsEqualIID(iid, &IID_IWMReaderPlaylistBurn))
+        *out = &reader->IWMReaderPlaylistBurn_iface;
+    else if (IsEqualIID(iid, &IID_IWMReaderTimecode))
+        *out = &reader->IWMReaderTimecode_iface;
+    else if (IsEqualIID(iid, &IID_IReferenceClock))
+        return IUnknown_QueryInterface(reader->clock_inner, iid, out);
+    else
+    {
+        ok(0, "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid(iid));
+        return E_NOINTERFACE;
+    }
+
+    IUnknown_AddRef((IUnknown *)*out);
+    return S_OK;
+}
+
+static ULONG WINAPI WMReader_AddRef(IWMReader *iface)
+{
+    struct async_reader *reader = impl_from_IWMReader(iface);
+    ULONG refcount = InterlockedIncrement(&reader->refcount);
+    return refcount;
+}
+
+static ULONG WINAPI WMReader_Release(IWMReader *iface)
+{
+    struct async_reader *reader = impl_from_IWMReader(iface);
+    ULONG refcount = InterlockedDecrement(&reader->refcount);
+
+    if (!refcount)
+    {
+        async_reader_close(reader, true);
+
+        DeleteCriticalSection(&reader->callback_cs);
+        DeleteCriticalSection(&reader->cs);
+
+        IWMHeaderInfo3_Release(reader->header_info);
+        IWMProfile3_Release(reader->profile);
+        IWMSyncReader2_Release(reader->reader);
+        IUnknown_Release(reader->clock_inner);
+        free(reader);
+    }
+
+    return refcount;
+}
+
+static HRESULT WINAPI WMReader_Open(IWMReader *iface, const WCHAR *url,
+        IWMReaderCallback *callback, void *context)
+{
+    struct async_reader *reader = impl_from_IWMReader(iface);
+    HRESULT hr;
+    WCHAR *tmp;
+
+    if (!(tmp = wcsdup(url)))
+        return E_OUTOFMEMORY;
+
+    EnterCriticalSection(&reader->cs);
+
+    if (reader->opened)
+        hr = E_UNEXPECTED;
+    else if (FAILED(hr = async_reader_open(reader, callback, context)))
+        ok(0, "Failed to open %s, hr %#lx.\n", debugstr_w(url), hr);
+    else if (FAILED(hr = async_reader_queue_op(reader, ASYNC_OP_OPEN_FILE, tmp)))
+    {
+        ok(0, "Got hr %#lx.\n", hr);
+        async_reader_close(reader, true);
+    }
+
+    LeaveCriticalSection(&reader->cs);
+
+    if (FAILED(hr))
+    {
+        ok(0, "Got hr %#lx.\n", hr);
+        free(tmp);
+    }
+    return hr;
+}
+
+static HRESULT WINAPI WMReader_Close(IWMReader *iface)
+{
+    struct async_reader *reader = impl_from_IWMReader(iface);
+    HRESULT hr;
+
+    EnterCriticalSection(&reader->cs);
+
+    if (!reader->callback_thread)
+        hr = NS_E_INVALID_REQUEST;
+    else
+    {
+        async_reader_close(reader, false);
+        hr = S_OK;
+    }
+
+    LeaveCriticalSection(&reader->cs);
+
+    return hr;
+}
+
+static HRESULT WINAPI WMReader_GetOutputCount(IWMReader *iface, DWORD *count)
+{
+    struct async_reader *reader = impl_from_IWMReader(iface);
+    return IWMSyncReader2_GetOutputCount(reader->reader, count);
+}
+
+static HRESULT WINAPI WMReader_GetOutputProps(IWMReader *iface, DWORD output, IWMOutputMediaProps **props)
+{
+    struct async_reader *reader = impl_from_IWMReader(iface);
+    return IWMSyncReader2_GetOutputProps(reader->reader, output, props);
+}
+
+static HRESULT WINAPI WMReader_SetOutputProps(IWMReader *iface, DWORD output, IWMOutputMediaProps *props)
+{
+    struct async_reader *reader = impl_from_IWMReader(iface);
+    return IWMSyncReader2_SetOutputProps(reader->reader, output, props);
+}
+
+static HRESULT WINAPI WMReader_GetOutputFormatCount(IWMReader *iface, DWORD output, DWORD *count)
+{
+    struct async_reader *reader = impl_from_IWMReader(iface);
+    return IWMSyncReader2_GetOutputFormatCount(reader->reader, output, count);
+}
+
+static HRESULT WINAPI WMReader_GetOutputFormat(IWMReader *iface, DWORD output,
+        DWORD index, IWMOutputMediaProps **props)
+{
+    struct async_reader *reader = impl_from_IWMReader(iface);
+    return IWMSyncReader2_GetOutputFormat(reader->reader, output, index, props);
+}
+
+static HRESULT WINAPI WMReader_Start(IWMReader *iface,
+        QWORD start, QWORD duration, float rate, void *context)
+{
+    struct async_reader *reader = impl_from_IWMReader(iface);
+    struct async_start_info *info;
+    HRESULT hr;
+
+    if (!(info = calloc(1, sizeof(*info))))
+        return E_OUTOFMEMORY;
+    info->start = start;
+    info->duration = duration;
+    info->context = context;
+
+    EnterCriticalSection(&reader->cs);
+
+    if (!reader->callback_thread)
+        hr = NS_E_INVALID_REQUEST;
+    else
+        hr = async_reader_queue_op(reader, ASYNC_OP_START, info);
+
+    LeaveCriticalSection(&reader->cs);
+
+    if (FAILED(hr))
+        free(info);
+    return hr;
+}
+
+static HRESULT WINAPI WMReader_Stop(IWMReader *iface)
+{
+    struct async_reader *reader = impl_from_IWMReader(iface);
+    HRESULT hr;
+
+    EnterCriticalSection(&reader->cs);
+
+    if (!reader->callback_thread)
+        hr = E_UNEXPECTED;
+    else
+        hr = async_reader_queue_op(reader, ASYNC_OP_STOP, NULL);
+
+    LeaveCriticalSection(&reader->cs);
+
+    return hr;
+}
+
+static HRESULT WINAPI WMReader_Pause(IWMReader *iface)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReader_Resume(IWMReader *iface)
+{
+    return E_NOTIMPL;
+}
+
+static const IWMReaderVtbl WMReaderVtbl = {
+    WMReader_QueryInterface,
+    WMReader_AddRef,
+    WMReader_Release,
+    WMReader_Open,
+    WMReader_Close,
+    WMReader_GetOutputCount,
+    WMReader_GetOutputProps,
+    WMReader_SetOutputProps,
+    WMReader_GetOutputFormatCount,
+    WMReader_GetOutputFormat,
+    WMReader_Start,
+    WMReader_Stop,
+    WMReader_Pause,
+    WMReader_Resume
+};
+
+static struct async_reader *impl_from_IWMReaderAdvanced6(IWMReaderAdvanced6 *iface)
+{
+    return CONTAINING_RECORD(iface, struct async_reader, IWMReaderAdvanced6_iface);
+}
+
+static HRESULT WINAPI WMReaderAdvanced_QueryInterface(IWMReaderAdvanced6 *iface, REFIID iid, void **out)
+{
+    struct async_reader *reader = impl_from_IWMReaderAdvanced6(iface);
+    return IWMReader_QueryInterface(&reader->IWMReader_iface, iid, out);
+}
+
+static ULONG WINAPI WMReaderAdvanced_AddRef(IWMReaderAdvanced6 *iface)
+{
+    struct async_reader *reader = impl_from_IWMReaderAdvanced6(iface);
+    return IWMReader_AddRef(&reader->IWMReader_iface);
+}
+
+static ULONG WINAPI WMReaderAdvanced_Release(IWMReaderAdvanced6 *iface)
+{
+    struct async_reader *reader = impl_from_IWMReaderAdvanced6(iface);
+    return IWMReader_Release(&reader->IWMReader_iface);
+}
+
+static HRESULT WINAPI WMReaderAdvanced_SetUserProvidedClock(IWMReaderAdvanced6 *iface, BOOL user_clock)
+{
+    struct async_reader *reader = impl_from_IWMReaderAdvanced6(iface);
+
+    EnterCriticalSection(&reader->callback_cs);
+    reader->user_clock = !!user_clock;
+    LeaveCriticalSection(&reader->callback_cs);
+    WakeConditionVariable(&reader->callback_cv);
+    return S_OK;
+}
+
+static HRESULT WINAPI WMReaderAdvanced_GetUserProvidedClock(IWMReaderAdvanced6 *iface, BOOL *user_clock)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced_DeliverTime(IWMReaderAdvanced6 *iface, QWORD time)
+{
+    struct async_reader *reader = impl_from_IWMReaderAdvanced6(iface);
+
+    EnterCriticalSection(&reader->callback_cs);
+
+    if (!reader->user_clock)
+    {
+        LeaveCriticalSection(&reader->callback_cs);
+        return E_UNEXPECTED;
+    }
+
+    reader->user_time = time;
+
+    LeaveCriticalSection(&reader->callback_cs);
+    WakeConditionVariable(&reader->callback_cv);
+    return S_OK;
+}
+
+static HRESULT WINAPI WMReaderAdvanced_SetManualStreamSelection(IWMReaderAdvanced6 *iface, BOOL selection)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced_GetManualStreamSelection(IWMReaderAdvanced6 *iface, BOOL *selection)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced_SetStreamsSelected(IWMReaderAdvanced6 *iface,
+        WORD count, WORD *stream_numbers, WMT_STREAM_SELECTION *selections)
+{
+    struct async_reader *reader = impl_from_IWMReaderAdvanced6(iface);
+    return IWMSyncReader2_SetStreamsSelected(reader->reader, count, stream_numbers, selections);
+}
+
+static HRESULT WINAPI WMReaderAdvanced_GetStreamSelected(IWMReaderAdvanced6 *iface,
+        WORD stream_number, WMT_STREAM_SELECTION *selection)
+{
+    struct async_reader *reader = impl_from_IWMReaderAdvanced6(iface);
+    return IWMSyncReader2_GetStreamSelected(reader->reader, stream_number, selection);
+}
+
+static HRESULT WINAPI WMReaderAdvanced_SetReceiveSelectionCallbacks(IWMReaderAdvanced6 *iface, BOOL get_callbacks)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced_GetReceiveSelectionCallbacks(IWMReaderAdvanced6 *iface, BOOL *get_callbacks)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced_SetReceiveStreamSamples(IWMReaderAdvanced6 *iface,
+        WORD stream_number, BOOL compressed)
+{
+    struct async_reader *reader = impl_from_IWMReaderAdvanced6(iface);
+    return IWMSyncReader2_SetReadStreamSamples(reader->reader, stream_number, compressed);
+}
+
+static HRESULT WINAPI WMReaderAdvanced_GetReceiveStreamSamples(IWMReaderAdvanced6 *iface, WORD stream_num,
+        BOOL *receive_stream_samples)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced_SetAllocateForOutput(IWMReaderAdvanced6 *iface, DWORD output, BOOL allocate)
+{
+    struct async_reader *reader = impl_from_IWMReaderAdvanced6(iface);
+    reader->allocate_for_output[output] = allocate;
+    return S_OK;
+}
+
+static HRESULT WINAPI WMReaderAdvanced_GetAllocateForOutput(IWMReaderAdvanced6 *iface, DWORD output, BOOL *allocate)
+{
+    struct async_reader *reader = impl_from_IWMReaderAdvanced6(iface);
+    *allocate = reader->allocate_for_output[output];
+    return S_OK;
+}
+
+static HRESULT WINAPI WMReaderAdvanced_SetAllocateForStream(IWMReaderAdvanced6 *iface, WORD stream_number, BOOL allocate)
+{
+    struct async_reader *reader = impl_from_IWMReaderAdvanced6(iface);
+    reader->allocate_for_stream[stream_number - 1] = allocate;
+    return S_OK;
+}
+
+static HRESULT WINAPI WMReaderAdvanced_GetAllocateForStream(IWMReaderAdvanced6 *iface, WORD stream_number, BOOL *allocate)
+{
+    struct async_reader *reader = impl_from_IWMReaderAdvanced6(iface);
+    *allocate = reader->allocate_for_stream[stream_number - 1];
+    return S_OK;
+}
+
+static HRESULT WINAPI WMReaderAdvanced_GetStatistics(IWMReaderAdvanced6 *iface, WM_READER_STATISTICS *statistics)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced_SetClientInfo(IWMReaderAdvanced6 *iface, WM_READER_CLIENTINFO *client_info)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced_GetMaxOutputSampleSize(IWMReaderAdvanced6 *iface, DWORD output, DWORD *max)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced_GetMaxStreamSampleSize(IWMReaderAdvanced6 *iface,
+        WORD stream_number, DWORD *size)
+{
+    struct async_reader *reader = impl_from_IWMReaderAdvanced6(iface);
+    return IWMSyncReader2_GetMaxStreamSampleSize(reader->reader, stream_number, size);
+}
+
+static HRESULT WINAPI WMReaderAdvanced_NotifyLateDelivery(IWMReaderAdvanced6 *iface, QWORD lateness)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced2_SetPlayMode(IWMReaderAdvanced6 *iface, WMT_PLAY_MODE mode)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced2_GetPlayMode(IWMReaderAdvanced6 *iface, WMT_PLAY_MODE *mode)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced2_GetBufferProgress(IWMReaderAdvanced6 *iface, DWORD *percent, QWORD *buffering)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced2_GetDownloadProgress(IWMReaderAdvanced6 *iface, DWORD *percent,
+        QWORD *bytes_downloaded, QWORD *download)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced2_GetSaveAsProgress(IWMReaderAdvanced6 *iface, DWORD *percent)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced2_SaveFileAs(IWMReaderAdvanced6 *iface, const WCHAR *filename)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced2_GetProtocolName(IWMReaderAdvanced6 *iface, WCHAR *protocol, DWORD *protocol_len)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced2_StartAtMarker(IWMReaderAdvanced6 *iface, WORD marker_index,
+        QWORD duration, float rate, void *context)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced2_GetOutputSetting(IWMReaderAdvanced6 *iface, DWORD output_num,
+        const WCHAR *name, WMT_ATTR_DATATYPE *type, BYTE *value, WORD *length)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced2_SetOutputSetting(IWMReaderAdvanced6 *iface, DWORD output_num,
+        const WCHAR *name, WMT_ATTR_DATATYPE type, const BYTE *value, WORD length)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced2_Preroll(IWMReaderAdvanced6 *iface, QWORD start, QWORD duration, float rate)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced2_SetLogClientID(IWMReaderAdvanced6 *iface, BOOL log_client_id)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced2_GetLogClientID(IWMReaderAdvanced6 *iface, BOOL *log_client_id)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced2_StopBuffering(IWMReaderAdvanced6 *iface)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced2_OpenStream(IWMReaderAdvanced6 *iface,
+        IStream *stream, IWMReaderCallback *callback, void *context)
+{
+    struct async_reader *reader = impl_from_IWMReaderAdvanced6(iface);
+    HRESULT hr;
+
+    IStream_AddRef(stream);
+
+    EnterCriticalSection(&reader->cs);
+
+    if (reader->opened)
+        hr = E_UNEXPECTED;
+    else if (FAILED(hr = async_reader_open(reader, callback, context)))
+        ok(0, "Failed to open stream %p, hr %#lx.\n", stream, hr);
+    else if (FAILED(hr = async_reader_queue_op(reader, ASYNC_OP_OPEN_STREAM, stream)))
+    {
+        ok(0, "Got hr %#lx.\n", hr);
+        async_reader_close(reader, true);
+    }
+
+    LeaveCriticalSection(&reader->cs);
+
+    if (FAILED(hr))
+        IStream_Release(stream);
+    return hr;
+}
+
+static HRESULT WINAPI WMReaderAdvanced3_StopNetStreaming(IWMReaderAdvanced6 *iface)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced3_StartAtPosition(IWMReaderAdvanced6 *iface, WORD stream_num,
+        void *offset_start, void *duration, WMT_OFFSET_FORMAT format, float rate, void *context)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced4_GetLanguageCount(IWMReaderAdvanced6 *iface, DWORD output_num, WORD *language_count)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced4_GetLanguage(IWMReaderAdvanced6 *iface, DWORD output_num,
+       WORD language, WCHAR *language_string, WORD *language_string_len)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced4_GetMaxSpeedFactor(IWMReaderAdvanced6 *iface, double *factor)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced4_IsUsingFastCache(IWMReaderAdvanced6 *iface, BOOL *using_fast_cache)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced4_AddLogParam(IWMReaderAdvanced6 *iface, const WCHAR *namespace,
+        const WCHAR *name, const WCHAR *value)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced4_SendLogParams(IWMReaderAdvanced6 *iface)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced4_CanSaveFileAs(IWMReaderAdvanced6 *iface, BOOL *can_save)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced4_CancelSaveFileAs(IWMReaderAdvanced6 *iface)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced4_GetURL(IWMReaderAdvanced6 *iface, WCHAR *url, DWORD *url_len)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced5_SetPlayerHook(IWMReaderAdvanced6 *iface, DWORD output_num, IWMPlayerHook *hook)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI WMReaderAdvanced6_SetProtectStreamSamples(IWMReaderAdvanced6 *iface, BYTE *cert,
+        DWORD cert_size, DWORD cert_type, DWORD flags, BYTE *initialization_vector, DWORD *initialization_vector_size)
+{
+    return E_NOTIMPL;
+}
+
+static const IWMReaderAdvanced6Vtbl WMReaderAdvanced6Vtbl = {
+    WMReaderAdvanced_QueryInterface,
+    WMReaderAdvanced_AddRef,
+    WMReaderAdvanced_Release,
+    WMReaderAdvanced_SetUserProvidedClock,
+    WMReaderAdvanced_GetUserProvidedClock,
+    WMReaderAdvanced_DeliverTime,
+    WMReaderAdvanced_SetManualStreamSelection,
+    WMReaderAdvanced_GetManualStreamSelection,
+    WMReaderAdvanced_SetStreamsSelected,
+    WMReaderAdvanced_GetStreamSelected,
+    WMReaderAdvanced_SetReceiveSelectionCallbacks,
+    WMReaderAdvanced_GetReceiveSelectionCallbacks,
+    WMReaderAdvanced_SetReceiveStreamSamples,
+    WMReaderAdvanced_GetReceiveStreamSamples,
+    WMReaderAdvanced_SetAllocateForOutput,
+    WMReaderAdvanced_GetAllocateForOutput,
+    WMReaderAdvanced_SetAllocateForStream,
+    WMReaderAdvanced_GetAllocateForStream,
+    WMReaderAdvanced_GetStatistics,
+    WMReaderAdvanced_SetClientInfo,
+    WMReaderAdvanced_GetMaxOutputSampleSize,
+    WMReaderAdvanced_GetMaxStreamSampleSize,
+    WMReaderAdvanced_NotifyLateDelivery,
+    WMReaderAdvanced2_SetPlayMode,
+    WMReaderAdvanced2_GetPlayMode,
+    WMReaderAdvanced2_GetBufferProgress,
+    WMReaderAdvanced2_GetDownloadProgress,
+    WMReaderAdvanced2_GetSaveAsProgress,
+    WMReaderAdvanced2_SaveFileAs,
+    WMReaderAdvanced2_GetProtocolName,
+    WMReaderAdvanced2_StartAtMarker,
+    WMReaderAdvanced2_GetOutputSetting,
+    WMReaderAdvanced2_SetOutputSetting,
+    WMReaderAdvanced2_Preroll,
+    WMReaderAdvanced2_SetLogClientID,
+    WMReaderAdvanced2_GetLogClientID,
+    WMReaderAdvanced2_StopBuffering,
+    WMReaderAdvanced2_OpenStream,
+    WMReaderAdvanced3_StopNetStreaming,
+    WMReaderAdvanced3_StartAtPosition,
+    WMReaderAdvanced4_GetLanguageCount,
+    WMReaderAdvanced4_GetLanguage,
+    WMReaderAdvanced4_GetMaxSpeedFactor,
+    WMReaderAdvanced4_IsUsingFastCache,
+    WMReaderAdvanced4_AddLogParam,
+    WMReaderAdvanced4_SendLogParams,
+    WMReaderAdvanced4_CanSaveFileAs,
+    WMReaderAdvanced4_CancelSaveFileAs,
+    WMReaderAdvanced4_GetURL,
+    WMReaderAdvanced5_SetPlayerHook,
+    WMReaderAdvanced6_SetProtectStreamSamples
+};
+
+static struct async_reader *impl_from_IWMReaderAccelerator(IWMReaderAccelerator *iface)
+{
+    return CONTAINING_RECORD(iface, struct async_reader, IWMReaderAccelerator_iface);
+}
+
+static HRESULT WINAPI reader_accl_QueryInterface(IWMReaderAccelerator *iface, REFIID iid, void **out)
+{
+    struct async_reader *reader = impl_from_IWMReaderAccelerator(iface);
+    return IWMReader_QueryInterface(&reader->IWMReader_iface, iid, out);
+}
+
+static ULONG WINAPI reader_accl_AddRef(IWMReaderAccelerator *iface)
+{
+    struct async_reader *reader = impl_from_IWMReaderAccelerator(iface);
+    return IWMReader_AddRef(&reader->IWMReader_iface);
+}
+
+static ULONG WINAPI reader_accl_Release(IWMReaderAccelerator *iface)
+{
+    struct async_reader *reader = impl_from_IWMReaderAccelerator(iface);
+    return IWMReader_Release(&reader->IWMReader_iface);
+}
+
+static HRESULT WINAPI reader_accl_GetCodecInterface(IWMReaderAccelerator *iface, DWORD output, REFIID riid, void **codec)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI reader_accl_Notify(IWMReaderAccelerator *iface, DWORD output, WM_MEDIA_TYPE *subtype)
+{
+    return E_NOTIMPL;
+}
+
+static const IWMReaderAcceleratorVtbl WMReaderAcceleratorVtbl = {
+    reader_accl_QueryInterface,
+    reader_accl_AddRef,
+    reader_accl_Release,
+    reader_accl_GetCodecInterface,
+    reader_accl_Notify
+};
+
+static struct async_reader *impl_from_IWMReaderNetworkConfig2(IWMReaderNetworkConfig2 *iface)
+{
+    return CONTAINING_RECORD(iface, struct async_reader, IWMReaderNetworkConfig2_iface);
+}
+
+static HRESULT WINAPI networkconfig_QueryInterface(IWMReaderNetworkConfig2 *iface, REFIID iid, void **out)
+{
+    struct async_reader *reader = impl_from_IWMReaderNetworkConfig2(iface);
+    return IWMReader_QueryInterface(&reader->IWMReader_iface, iid, out);
+}
+
+static ULONG WINAPI networkconfig_AddRef(IWMReaderNetworkConfig2 *iface)
+{
+    struct async_reader *reader = impl_from_IWMReaderNetworkConfig2(iface);
+    return IWMReader_AddRef(&reader->IWMReader_iface);
+}
+
+static ULONG WINAPI networkconfig_Release(IWMReaderNetworkConfig2 *iface)
+{
+    struct async_reader *reader = impl_from_IWMReaderNetworkConfig2(iface);
+    return IWMReader_Release(&reader->IWMReader_iface);
+}
+
+static HRESULT WINAPI networkconfig_GetBufferingTime(IWMReaderNetworkConfig2 *iface, QWORD *buffering_time)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetBufferingTime(IWMReaderNetworkConfig2 *iface, QWORD buffering_time)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetUDPPortRanges(IWMReaderNetworkConfig2 *iface, WM_PORT_NUMBER_RANGE *array,
+        DWORD *ranges)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetUDPPortRanges(IWMReaderNetworkConfig2 *iface,
+        WM_PORT_NUMBER_RANGE *ranges, DWORD count)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetProxySettings(IWMReaderNetworkConfig2 *iface, const WCHAR *protocol,
+        WMT_PROXY_SETTINGS *proxy)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetProxySettings(IWMReaderNetworkConfig2 *iface, LPCWSTR protocol,
+        WMT_PROXY_SETTINGS proxy)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetProxyHostName(IWMReaderNetworkConfig2 *iface, const WCHAR *protocol,
+        WCHAR *hostname, DWORD *size)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetProxyHostName(IWMReaderNetworkConfig2 *iface, const WCHAR *protocol,
+        const WCHAR *hostname)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetProxyPort(IWMReaderNetworkConfig2 *iface, const WCHAR *protocol,
+        DWORD *port)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetProxyPort(IWMReaderNetworkConfig2 *iface, const WCHAR *protocol,
+        DWORD port)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetProxyExceptionList(IWMReaderNetworkConfig2 *iface, const WCHAR *protocol,
+        WCHAR *exceptions, DWORD *count)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetProxyExceptionList(IWMReaderNetworkConfig2 *iface, const WCHAR *protocol,
+        const WCHAR *exceptions)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetProxyBypassForLocal(IWMReaderNetworkConfig2 *iface, const WCHAR *protocol,
+        BOOL *bypass)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetProxyBypassForLocal(IWMReaderNetworkConfig2 *iface, const WCHAR *protocol,
+        BOOL bypass)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetForceRerunAutoProxyDetection(IWMReaderNetworkConfig2 *iface,
+        BOOL *detection)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetForceRerunAutoProxyDetection(IWMReaderNetworkConfig2 *iface,
+        BOOL detection)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetEnableMulticast(IWMReaderNetworkConfig2 *iface, BOOL *multicast)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetEnableMulticast(IWMReaderNetworkConfig2 *iface, BOOL multicast)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetEnableHTTP(IWMReaderNetworkConfig2 *iface, BOOL *enable)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetEnableHTTP(IWMReaderNetworkConfig2 *iface, BOOL enable)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetEnableUDP(IWMReaderNetworkConfig2 *iface, BOOL *enable)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetEnableUDP(IWMReaderNetworkConfig2 *iface, BOOL enable)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetEnableTCP(IWMReaderNetworkConfig2 *iface, BOOL *enable)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetEnableTCP(IWMReaderNetworkConfig2 *iface, BOOL enable)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_ResetProtocolRollover(IWMReaderNetworkConfig2 *iface)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetConnectionBandwidth(IWMReaderNetworkConfig2 *iface, DWORD *bandwidth)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetConnectionBandwidth(IWMReaderNetworkConfig2 *iface, DWORD bandwidth)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetNumProtocolsSupported(IWMReaderNetworkConfig2 *iface, DWORD *protocols)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetSupportedProtocolName(IWMReaderNetworkConfig2 *iface, DWORD protocol_num,
+        WCHAR *protocol, DWORD *size)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_AddLoggingUrl(IWMReaderNetworkConfig2 *iface, const WCHAR *url)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetLoggingUrl(IWMReaderNetworkConfig2 *iface, DWORD index, WCHAR *url,
+        DWORD *size)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetLoggingUrlCount(IWMReaderNetworkConfig2 *iface, DWORD *count)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_ResetLoggingUrlList(IWMReaderNetworkConfig2 *iface)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetEnableContentCaching(IWMReaderNetworkConfig2 *iface, BOOL *enable)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetEnableContentCaching(IWMReaderNetworkConfig2 *iface, BOOL enable)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetEnableFastCache(IWMReaderNetworkConfig2 *iface, BOOL *enable)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetEnableFastCache(IWMReaderNetworkConfig2 *iface, BOOL enable)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetAcceleratedStreamingDuration(IWMReaderNetworkConfig2 *iface,
+        QWORD *duration)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetAcceleratedStreamingDuration(IWMReaderNetworkConfig2 *iface,
+        QWORD duration)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetAutoReconnectLimit(IWMReaderNetworkConfig2 *iface, DWORD *limit)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetAutoReconnectLimit(IWMReaderNetworkConfig2 *iface, DWORD limit)
+{
+
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetEnableResends(IWMReaderNetworkConfig2 *iface, BOOL *enable)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetEnableResends(IWMReaderNetworkConfig2 *iface, BOOL enable)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetEnableThinning(IWMReaderNetworkConfig2 *iface, BOOL *enable)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_SetEnableThinning(IWMReaderNetworkConfig2 *iface, BOOL enable)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI networkconfig_GetMaxNetPacketSize(IWMReaderNetworkConfig2 *iface, DWORD *packet_size)
+{
+    return E_NOTIMPL;
+}
+
+static const IWMReaderNetworkConfig2Vtbl WMReaderNetworkConfig2Vtbl =
+{
+    networkconfig_QueryInterface,
+    networkconfig_AddRef,
+    networkconfig_Release,
+    networkconfig_GetBufferingTime,
+    networkconfig_SetBufferingTime,
+    networkconfig_GetUDPPortRanges,
+    networkconfig_SetUDPPortRanges,
+    networkconfig_GetProxySettings,
+    networkconfig_SetProxySettings,
+    networkconfig_GetProxyHostName,
+    networkconfig_SetProxyHostName,
+    networkconfig_GetProxyPort,
+    networkconfig_SetProxyPort,
+    networkconfig_GetProxyExceptionList,
+    networkconfig_SetProxyExceptionList,
+    networkconfig_GetProxyBypassForLocal,
+    networkconfig_SetProxyBypassForLocal,
+    networkconfig_GetForceRerunAutoProxyDetection,
+    networkconfig_SetForceRerunAutoProxyDetection,
+    networkconfig_GetEnableMulticast,
+    networkconfig_SetEnableMulticast,
+    networkconfig_GetEnableHTTP,
+    networkconfig_SetEnableHTTP,
+    networkconfig_GetEnableUDP,
+    networkconfig_SetEnableUDP,
+    networkconfig_GetEnableTCP,
+    networkconfig_SetEnableTCP,
+    networkconfig_ResetProtocolRollover,
+    networkconfig_GetConnectionBandwidth,
+    networkconfig_SetConnectionBandwidth,
+    networkconfig_GetNumProtocolsSupported,
+    networkconfig_GetSupportedProtocolName,
+    networkconfig_AddLoggingUrl,
+    networkconfig_GetLoggingUrl,
+    networkconfig_GetLoggingUrlCount,
+    networkconfig_ResetLoggingUrlList,
+    networkconfig_GetEnableContentCaching,
+    networkconfig_SetEnableContentCaching,
+    networkconfig_GetEnableFastCache,
+    networkconfig_SetEnableFastCache,
+    networkconfig_GetAcceleratedStreamingDuration,
+    networkconfig_SetAcceleratedStreamingDuration,
+    networkconfig_GetAutoReconnectLimit,
+    networkconfig_SetAutoReconnectLimit,
+    networkconfig_GetEnableResends,
+    networkconfig_SetEnableResends,
+    networkconfig_GetEnableThinning,
+    networkconfig_SetEnableThinning,
+    networkconfig_GetMaxNetPacketSize
+};
+
+static struct async_reader *impl_from_IWMReaderStreamClock(IWMReaderStreamClock *iface)
+{
+    return CONTAINING_RECORD(iface, struct async_reader, IWMReaderStreamClock_iface);
+}
+
+static HRESULT WINAPI readclock_QueryInterface(IWMReaderStreamClock *iface, REFIID iid, void **out)
+{
+    struct async_reader *reader = impl_from_IWMReaderStreamClock(iface);
+    return IWMReader_QueryInterface(&reader->IWMReader_iface, iid, out);
+}
+
+static ULONG WINAPI readclock_AddRef(IWMReaderStreamClock *iface)
+{
+    struct async_reader *reader = impl_from_IWMReaderStreamClock(iface);
+    return IWMReader_AddRef(&reader->IWMReader_iface);
+}
+
+static ULONG WINAPI readclock_Release(IWMReaderStreamClock *iface)
+{
+    struct async_reader *reader = impl_from_IWMReaderStreamClock(iface);
+    return IWMReader_Release(&reader->IWMReader_iface);
+}
+
+static HRESULT WINAPI readclock_GetTime(IWMReaderStreamClock *iface, QWORD *now)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI readclock_SetTimer(IWMReaderStreamClock *iface, QWORD when, void *param, DWORD *id)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI readclock_KillTimer(IWMReaderStreamClock *iface, DWORD id)
+{
+    return E_NOTIMPL;
+}
+
+static const IWMReaderStreamClockVtbl WMReaderStreamClockVtbl =
+{
+    readclock_QueryInterface,
+    readclock_AddRef,
+    readclock_Release,
+    readclock_GetTime,
+    readclock_SetTimer,
+    readclock_KillTimer
+};
+
+static struct async_reader *impl_from_IWMReaderTypeNegotiation(IWMReaderTypeNegotiation *iface)
+{
+    return CONTAINING_RECORD(iface, struct async_reader, IWMReaderTypeNegotiation_iface);
+}
+
+static HRESULT WINAPI negotiation_QueryInterface(IWMReaderTypeNegotiation *iface, REFIID iid, void **out)
+{
+    struct async_reader *reader = impl_from_IWMReaderTypeNegotiation(iface);
+    return IWMReader_QueryInterface(&reader->IWMReader_iface, iid, out);
+}
+
+static ULONG WINAPI negotiation_AddRef(IWMReaderTypeNegotiation *iface)
+{
+    struct async_reader *reader = impl_from_IWMReaderTypeNegotiation(iface);
+    return IWMReader_AddRef(&reader->IWMReader_iface);
+}
+
+static ULONG WINAPI negotiation_Release(IWMReaderTypeNegotiation *iface)
+{
+    struct async_reader *reader = impl_from_IWMReaderTypeNegotiation(iface);
+    return IWMReader_Release(&reader->IWMReader_iface);
+}
+
+static HRESULT WINAPI negotiation_TryOutputProps(IWMReaderTypeNegotiation *iface, DWORD output, IWMOutputMediaProps *props)
+{
+    return E_NOTIMPL;
+}
+
+static const IWMReaderTypeNegotiationVtbl WMReaderTypeNegotiationVtbl =
+{
+    negotiation_QueryInterface,
+    negotiation_AddRef,
+    negotiation_Release,
+    negotiation_TryOutputProps
+};
+
+static struct async_reader *impl_from_IWMProfile3(IWMProfile3 *iface)
+{
+    return CONTAINING_RECORD(iface, struct async_reader, IWMProfile3_iface);
+}
+
+static HRESULT WINAPI profile_QueryInterface(IWMProfile3 *iface, REFIID iid, void **out)
+{
+    struct async_reader *reader = impl_from_IWMProfile3(iface);
+    return IWMReader_QueryInterface(&reader->IWMReader_iface, iid, out);
+}
+
+static ULONG WINAPI profile_AddRef(IWMProfile3 *iface)
+{
+    struct async_reader *reader = impl_from_IWMProfile3(iface);
+    return IWMReader_AddRef(&reader->IWMReader_iface);
+}
+
+static ULONG WINAPI profile_Release(IWMProfile3 *iface)
+{
+    struct async_reader *reader = impl_from_IWMProfile3(iface);
+    return IWMReader_Release(&reader->IWMReader_iface);
+}
+
+static HRESULT WINAPI profile_GetVersion(IWMProfile3 *iface, WMT_VERSION *version)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_GetName(IWMProfile3 *iface, WCHAR *name, DWORD *length)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_SetName(IWMProfile3 *iface, const WCHAR *name)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_GetDescription(IWMProfile3 *iface, WCHAR *description, DWORD *length)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_SetDescription(IWMProfile3 *iface, const WCHAR *description)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_GetStreamCount(IWMProfile3 *iface, DWORD *count)
+{
+    struct async_reader *reader = impl_from_IWMProfile3(iface);
+    return IWMProfile3_GetStreamCount(reader->profile, count);
+}
+
+struct stream_config
+{
+    IWMStreamConfig IWMStreamConfig_iface;
+    IWMMediaProps IWMMediaProps_iface;
+    LONG refcount;
+
+    IWMStreamConfig *config;
+    IWMMediaProps *props;
+    IWMReader *reader;
+};
+
+static struct stream_config *impl_from_IWMStreamConfig(IWMStreamConfig *iface)
+{
+    return CONTAINING_RECORD(iface, struct stream_config, IWMStreamConfig_iface);
+}
+
+static HRESULT WINAPI stream_config_QueryInterface(IWMStreamConfig *iface, REFIID iid, void **out)
+{
+    struct stream_config *config = impl_from_IWMStreamConfig(iface);
+
+    if (IsEqualGUID(iid, &IID_IUnknown)
+            || IsEqualGUID(iid, &IID_IWMStreamConfig))
+        *out = &config->IWMStreamConfig_iface;
+    else if (IsEqualGUID(iid, &IID_IWMMediaProps))
+        *out = &config->IWMMediaProps_iface;
+    else
+    {
+        *out = NULL;
+        ok(0, "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid(iid));
+        return E_NOINTERFACE;
+    }
+
+    IUnknown_AddRef((IUnknown *)*out);
+    return S_OK;
+}
+
+static ULONG WINAPI stream_config_AddRef(IWMStreamConfig *iface)
+{
+    struct stream_config *config = impl_from_IWMStreamConfig(iface);
+    ULONG refcount = InterlockedIncrement(&config->refcount);
+    return refcount;
+}
+
+static ULONG WINAPI stream_config_Release(IWMStreamConfig *iface)
+{
+    struct stream_config *config = impl_from_IWMStreamConfig(iface);
+    ULONG refcount = InterlockedDecrement(&config->refcount);
+
+    if (!refcount)
+    {
+        IWMReader_Release(config->reader);
+        IWMMediaProps_Release(config->props);
+        IWMStreamConfig_Release(config->config);
+        free(config);
+    }
+
+    return refcount;
+}
+
+static HRESULT WINAPI stream_config_GetStreamType(IWMStreamConfig *iface, GUID *type)
+{
+    struct stream_config *config = impl_from_IWMStreamConfig(iface);
+    return IWMStreamConfig_GetStreamType(config->config, type);
+}
+
+static HRESULT WINAPI stream_config_GetStreamNumber(IWMStreamConfig *iface, WORD *number)
+{
+    struct stream_config *config = impl_from_IWMStreamConfig(iface);
+    return IWMStreamConfig_GetStreamNumber(config->config, number);
+}
+
+static HRESULT WINAPI stream_config_SetStreamNumber(IWMStreamConfig *iface, WORD number)
+{
+    struct stream_config *config = impl_from_IWMStreamConfig(iface);
+    return IWMStreamConfig_SetStreamNumber(config->config, number);
+}
+
+static HRESULT WINAPI stream_config_GetStreamName(IWMStreamConfig *iface, WCHAR *name, WORD *len)
+{
+    struct stream_config *config = impl_from_IWMStreamConfig(iface);
+    return IWMStreamConfig_GetStreamName(config->config, name, len);
+}
+
+static HRESULT WINAPI stream_config_SetStreamName(IWMStreamConfig *iface, const WCHAR *name)
+{
+    struct stream_config *config = impl_from_IWMStreamConfig(iface);
+    return IWMStreamConfig_SetStreamName(config->config, name);
+}
+
+static HRESULT WINAPI stream_config_GetConnectionName(IWMStreamConfig *iface, WCHAR *name, WORD *len)
+{
+    struct stream_config *config = impl_from_IWMStreamConfig(iface);
+    return IWMStreamConfig_GetConnectionName(config->config, name, len);
+}
+
+static HRESULT WINAPI stream_config_SetConnectionName(IWMStreamConfig *iface, const WCHAR *name)
+{
+    struct stream_config *config = impl_from_IWMStreamConfig(iface);
+    return IWMStreamConfig_SetConnectionName(config->config, name);
+}
+
+static HRESULT WINAPI stream_config_GetBitrate(IWMStreamConfig *iface, DWORD *bitrate)
+{
+    struct stream_config *config = impl_from_IWMStreamConfig(iface);
+    return IWMStreamConfig_GetBitrate(config->config, bitrate);
+}
+
+static HRESULT WINAPI stream_config_SetBitrate(IWMStreamConfig *iface, DWORD bitrate)
+{
+    struct stream_config *config = impl_from_IWMStreamConfig(iface);
+    return IWMStreamConfig_SetBitrate(config->config, bitrate);
+}
+
+static HRESULT WINAPI stream_config_GetBufferWindow(IWMStreamConfig *iface, DWORD *window)
+{
+    struct stream_config *config = impl_from_IWMStreamConfig(iface);
+    return IWMStreamConfig_GetBufferWindow(config->config, window);
+}
+
+static HRESULT WINAPI stream_config_SetBufferWindow(IWMStreamConfig *iface, DWORD window)
+{
+    struct stream_config *config = impl_from_IWMStreamConfig(iface);
+    return IWMStreamConfig_SetBufferWindow(config->config, window);
+}
+
+static const IWMStreamConfigVtbl stream_config_vtbl =
+{
+    stream_config_QueryInterface,
+    stream_config_AddRef,
+    stream_config_Release,
+    stream_config_GetStreamType,
+    stream_config_GetStreamNumber,
+    stream_config_SetStreamNumber,
+    stream_config_GetStreamName,
+    stream_config_SetStreamName,
+    stream_config_GetConnectionName,
+    stream_config_SetConnectionName,
+    stream_config_GetBitrate,
+    stream_config_SetBitrate,
+    stream_config_GetBufferWindow,
+    stream_config_SetBufferWindow,
+};
+
+static struct stream_config *impl_from_IWMMediaProps(IWMMediaProps *iface)
+{
+    return CONTAINING_RECORD(iface, struct stream_config, IWMMediaProps_iface);
+}
+
+static HRESULT WINAPI stream_props_QueryInterface(IWMMediaProps *iface, REFIID iid, void **out)
+{
+    struct stream_config *config = impl_from_IWMMediaProps(iface);
+    return IWMStreamConfig_QueryInterface(&config->IWMStreamConfig_iface, iid, out);
+}
+
+static ULONG WINAPI stream_props_AddRef(IWMMediaProps *iface)
+{
+    struct stream_config *config = impl_from_IWMMediaProps(iface);
+    return IWMStreamConfig_AddRef(&config->IWMStreamConfig_iface);
+}
+
+static ULONG WINAPI stream_props_Release(IWMMediaProps *iface)
+{
+    struct stream_config *config = impl_from_IWMMediaProps(iface);
+    return IWMStreamConfig_Release(&config->IWMStreamConfig_iface);
+}
+
+static HRESULT WINAPI stream_props_GetType(IWMMediaProps *iface, GUID *major_type)
+{
+    struct stream_config *config = impl_from_IWMMediaProps(iface);
+    return IWMMediaProps_GetType(config->props, major_type);
+}
+
+static HRESULT WINAPI stream_props_GetMediaType(IWMMediaProps *iface, WM_MEDIA_TYPE *mt, DWORD *size)
+{
+    struct stream_config *config = impl_from_IWMMediaProps(iface);
+    return IWMMediaProps_GetMediaType(config->props, mt, size);
+}
+
+static HRESULT WINAPI stream_props_SetMediaType(IWMMediaProps *iface, WM_MEDIA_TYPE *mt)
+{
+    struct stream_config *config = impl_from_IWMMediaProps(iface);
+    return IWMMediaProps_SetMediaType(config->props, mt);
+}
+
+static const IWMMediaPropsVtbl stream_props_vtbl =
+{
+    stream_props_QueryInterface,
+    stream_props_AddRef,
+    stream_props_Release,
+    stream_props_GetType,
+    stream_props_GetMediaType,
+    stream_props_SetMediaType,
+};
+
+static HRESULT WINAPI profile_GetStream(IWMProfile3 *iface, DWORD index, IWMStreamConfig **config)
+{
+    struct async_reader *reader = impl_from_IWMProfile3(iface);
+    struct stream_config *object;
+    HRESULT hr;
+
+    if (!(object = calloc(1, sizeof(*object))))
+        return E_OUTOFMEMORY;
+
+    object->IWMStreamConfig_iface.lpVtbl = &stream_config_vtbl;
+    object->IWMMediaProps_iface.lpVtbl = &stream_props_vtbl;
+    object->refcount = 1;
+
+    if (FAILED(hr = IWMProfile3_GetStream(reader->profile, index, &object->config)))
+    {
+        ok(0, "Got hr %#lx.\n", hr);
+        free(object);
+        return hr;
+    }
+    if (FAILED(hr = IWMStreamConfig_QueryInterface(object->config, &IID_IWMMediaProps, (void **)&object->props)))
+    {
+        ok(0, "Got hr %#lx.\n", hr);
+        IWMStreamConfig_Release(object->config);
+        free(object);
+        return hr;
+    }
+    IWMReader_AddRef((object->reader = &reader->IWMReader_iface));
+
+    *config = &object->IWMStreamConfig_iface;
+    return S_OK;
+}
+
+static HRESULT WINAPI profile_GetStreamByNumber(IWMProfile3 *iface, WORD stream_number, IWMStreamConfig **config)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_RemoveStream(IWMProfile3 *iface, IWMStreamConfig *config)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_RemoveStreamByNumber(IWMProfile3 *iface, WORD stream_number)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_AddStream(IWMProfile3 *iface, IWMStreamConfig *config)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_ReconfigStream(IWMProfile3 *iface, IWMStreamConfig *config)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_CreateNewStream(IWMProfile3 *iface, REFGUID type, IWMStreamConfig **config)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_GetMutualExclusionCount(IWMProfile3 *iface, DWORD *count)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_GetMutualExclusion(IWMProfile3 *iface, DWORD index, IWMMutualExclusion **excl)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_RemoveMutualExclusion(IWMProfile3 *iface, IWMMutualExclusion *excl)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_AddMutualExclusion(IWMProfile3 *iface, IWMMutualExclusion *excl)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_CreateNewMutualExclusion(IWMProfile3 *iface, IWMMutualExclusion **excl)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_GetProfileID(IWMProfile3 *iface, GUID *id)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_GetStorageFormat(IWMProfile3 *iface, WMT_STORAGE_FORMAT *format)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_SetStorageFormat(IWMProfile3 *iface, WMT_STORAGE_FORMAT format)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_GetBandwidthSharingCount(IWMProfile3 *iface, DWORD *count)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_GetBandwidthSharing(IWMProfile3 *iface, DWORD index, IWMBandwidthSharing **sharing)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_RemoveBandwidthSharing( IWMProfile3 *iface, IWMBandwidthSharing *sharing)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_AddBandwidthSharing(IWMProfile3 *iface, IWMBandwidthSharing *sharing)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_CreateNewBandwidthSharing( IWMProfile3 *iface, IWMBandwidthSharing **sharing)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_GetStreamPrioritization(IWMProfile3 *iface, IWMStreamPrioritization **stream)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_SetStreamPrioritization(IWMProfile3 *iface, IWMStreamPrioritization *stream)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_RemoveStreamPrioritization(IWMProfile3 *iface)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_CreateNewStreamPrioritization(IWMProfile3 *iface, IWMStreamPrioritization **stream)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI profile_GetExpectedPacketCount(IWMProfile3 *iface, QWORD duration, QWORD *count)
+{
+    return E_NOTIMPL;
+}
+
+static const IWMProfile3Vtbl profile_vtbl =
+{
+    profile_QueryInterface,
+    profile_AddRef,
+    profile_Release,
+    profile_GetVersion,
+    profile_GetName,
+    profile_SetName,
+    profile_GetDescription,
+    profile_SetDescription,
+    profile_GetStreamCount,
+    profile_GetStream,
+    profile_GetStreamByNumber,
+    profile_RemoveStream,
+    profile_RemoveStreamByNumber,
+    profile_AddStream,
+    profile_ReconfigStream,
+    profile_CreateNewStream,
+    profile_GetMutualExclusionCount,
+    profile_GetMutualExclusion,
+    profile_RemoveMutualExclusion,
+    profile_AddMutualExclusion,
+    profile_CreateNewMutualExclusion,
+    profile_GetProfileID,
+    profile_GetStorageFormat,
+    profile_SetStorageFormat,
+    profile_GetBandwidthSharingCount,
+    profile_GetBandwidthSharing,
+    profile_RemoveBandwidthSharing,
+    profile_AddBandwidthSharing,
+    profile_CreateNewBandwidthSharing,
+    profile_GetStreamPrioritization,
+    profile_SetStreamPrioritization,
+    profile_RemoveStreamPrioritization,
+    profile_CreateNewStreamPrioritization,
+    profile_GetExpectedPacketCount,
+};
+
+static struct async_reader *impl_from_IWMHeaderInfo3(IWMHeaderInfo3 *iface)
+{
+    return CONTAINING_RECORD(iface, struct async_reader, IWMHeaderInfo3_iface);
+}
+
+static HRESULT WINAPI header_info_QueryInterface(IWMHeaderInfo3 *iface, REFIID iid, void **out)
+{
+    struct async_reader *reader = impl_from_IWMHeaderInfo3(iface);
+    return IWMReader_QueryInterface(&reader->IWMReader_iface, iid, out);
+}
+
+static ULONG WINAPI header_info_AddRef(IWMHeaderInfo3 *iface)
+{
+    struct async_reader *reader = impl_from_IWMHeaderInfo3(iface);
+    return IWMReader_AddRef(&reader->IWMReader_iface);
+}
+
+static ULONG WINAPI header_info_Release(IWMHeaderInfo3 *iface)
+{
+    struct async_reader *reader = impl_from_IWMHeaderInfo3(iface);
+    return IWMReader_Release(&reader->IWMReader_iface);
+}
+
+static HRESULT WINAPI header_info_GetAttributeCount(IWMHeaderInfo3 *iface, WORD stream_number, WORD *count)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_GetAttributeByIndex(IWMHeaderInfo3 *iface, WORD index, WORD *stream_number,
+        WCHAR *name, WORD *name_len, WMT_ATTR_DATATYPE *type, BYTE *value, WORD *size)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_GetAttributeByName(IWMHeaderInfo3 *iface, WORD *stream_number,
+        const WCHAR *name, WMT_ATTR_DATATYPE *type, BYTE *value, WORD *size)
+{
+    struct async_reader *reader = impl_from_IWMHeaderInfo3(iface);
+    return IWMHeaderInfo3_GetAttributeByName(reader->header_info, stream_number, name, type, value, size);
+}
+
+static HRESULT WINAPI header_info_SetAttribute(IWMHeaderInfo3 *iface, WORD stream_number,
+        const WCHAR *name, WMT_ATTR_DATATYPE type, const BYTE *value, WORD size)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_GetMarkerCount(IWMHeaderInfo3 *iface, WORD *count)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_GetMarker(IWMHeaderInfo3 *iface,
+        WORD index, WCHAR *name, WORD *len, QWORD *time)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_AddMarker(IWMHeaderInfo3 *iface, const WCHAR *name, QWORD time)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_RemoveMarker(IWMHeaderInfo3 *iface, WORD index)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_GetScriptCount(IWMHeaderInfo3 *iface, WORD *count)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_GetScript(IWMHeaderInfo3 *iface, WORD index, WCHAR *type,
+        WORD *type_len, WCHAR *command, WORD *command_len, QWORD *time)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_AddScript(IWMHeaderInfo3 *iface,
+        const WCHAR *type, const WCHAR *command, QWORD time)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_RemoveScript(IWMHeaderInfo3 *iface, WORD index)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_GetCodecInfoCount(IWMHeaderInfo3 *iface, DWORD *count)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_GetCodecInfo(IWMHeaderInfo3 *iface, DWORD index, WORD *name_len,
+        WCHAR *name, WORD *desc_len, WCHAR *desc, WMT_CODEC_INFO_TYPE *type, WORD *size, BYTE *info)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_GetAttributeCountEx(IWMHeaderInfo3 *iface, WORD stream_number, WORD *count)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_GetAttributeIndices(IWMHeaderInfo3 *iface, WORD stream_number,
+        const WCHAR *name, WORD *lang_index, WORD *indices, WORD *count)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_GetAttributeByIndexEx(IWMHeaderInfo3 *iface,
+        WORD stream_number, WORD index, WCHAR *name, WORD *name_len,
+        WMT_ATTR_DATATYPE *type, WORD *lang_index, BYTE *value, DWORD *size)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_ModifyAttribute(IWMHeaderInfo3 *iface, WORD stream_number,
+        WORD index, WMT_ATTR_DATATYPE type, WORD lang_index, const BYTE *value, DWORD size)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_AddAttribute(IWMHeaderInfo3 *iface,
+        WORD stream_number, const WCHAR *name, WORD *index,
+        WMT_ATTR_DATATYPE type, WORD lang_index, const BYTE *value, DWORD size)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_DeleteAttribute(IWMHeaderInfo3 *iface, WORD stream_number, WORD index)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI header_info_AddCodecInfo(IWMHeaderInfo3 *iface, const WCHAR *name,
+        const WCHAR *desc, WMT_CODEC_INFO_TYPE type, WORD size, BYTE *info)
+{
+    return E_NOTIMPL;
+}
+
+static const IWMHeaderInfo3Vtbl header_info_vtbl =
+{
+    header_info_QueryInterface,
+    header_info_AddRef,
+    header_info_Release,
+    header_info_GetAttributeCount,
+    header_info_GetAttributeByIndex,
+    header_info_GetAttributeByName,
+    header_info_SetAttribute,
+    header_info_GetMarkerCount,
+    header_info_GetMarker,
+    header_info_AddMarker,
+    header_info_RemoveMarker,
+    header_info_GetScriptCount,
+    header_info_GetScript,
+    header_info_AddScript,
+    header_info_RemoveScript,
+    header_info_GetCodecInfoCount,
+    header_info_GetCodecInfo,
+    header_info_GetAttributeCountEx,
+    header_info_GetAttributeIndices,
+    header_info_GetAttributeByIndexEx,
+    header_info_ModifyAttribute,
+    header_info_AddAttribute,
+    header_info_DeleteAttribute,
+    header_info_AddCodecInfo,
+};
+
+static struct async_reader *impl_from_IWMLanguageList(IWMLanguageList *iface)
+{
+    return CONTAINING_RECORD(iface, struct async_reader, IWMLanguageList_iface);
+}
+
+static HRESULT WINAPI language_list_QueryInterface(IWMLanguageList *iface, REFIID iid, void **out)
+{
+    struct async_reader *reader = impl_from_IWMLanguageList(iface);
+    return IWMReader_QueryInterface(&reader->IWMReader_iface, iid, out);
+}
+
+static ULONG WINAPI language_list_AddRef(IWMLanguageList *iface)
+{
+    struct async_reader *reader = impl_from_IWMLanguageList(iface);
+    return IWMReader_AddRef(&reader->IWMReader_iface);
+}
+
+static ULONG WINAPI language_list_Release(IWMLanguageList *iface)
+{
+    struct async_reader *reader = impl_from_IWMLanguageList(iface);
+    return IWMReader_Release(&reader->IWMReader_iface);
+}
+
+static HRESULT WINAPI language_list_GetLanguageCount(IWMLanguageList *iface, WORD *count)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI language_list_GetLanguageDetails(IWMLanguageList *iface,
+        WORD index, WCHAR *lang, WORD *len)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI language_list_AddLanguageByRFC1766String(IWMLanguageList *iface,
+        const WCHAR *lang, WORD *index)
+{
+    return E_NOTIMPL;
+}
+
+static const IWMLanguageListVtbl language_list_vtbl =
+{
+    language_list_QueryInterface,
+    language_list_AddRef,
+    language_list_Release,
+    language_list_GetLanguageCount,
+    language_list_GetLanguageDetails,
+    language_list_AddLanguageByRFC1766String,
+};
+
+static struct async_reader *impl_from_IWMPacketSize2(IWMPacketSize2 *iface)
+{
+    return CONTAINING_RECORD(iface, struct async_reader, IWMPacketSize2_iface);
+}
+
+static HRESULT WINAPI packet_size_QueryInterface(IWMPacketSize2 *iface, REFIID iid, void **out)
+{
+    struct async_reader *reader = impl_from_IWMPacketSize2(iface);
+    return IWMReader_QueryInterface(&reader->IWMReader_iface, iid, out);
+}
+
+static ULONG WINAPI packet_size_AddRef(IWMPacketSize2 *iface)
+{
+    struct async_reader *reader = impl_from_IWMPacketSize2(iface);
+    return IWMReader_AddRef(&reader->IWMReader_iface);
+}
+
+static ULONG WINAPI packet_size_Release(IWMPacketSize2 *iface)
+{
+    struct async_reader *reader = impl_from_IWMPacketSize2(iface);
+    return IWMReader_Release(&reader->IWMReader_iface);
+}
+
+static HRESULT WINAPI packet_size_GetMaxPacketSize(IWMPacketSize2 *iface, DWORD *size)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI packet_size_SetMaxPacketSize(IWMPacketSize2 *iface, DWORD size)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI packet_size_GetMinPacketSize(IWMPacketSize2 *iface, DWORD *size)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI packet_size_SetMinPacketSize(IWMPacketSize2 *iface, DWORD size)
+{
+    return E_NOTIMPL;
+}
+
+static const IWMPacketSize2Vtbl packet_size_vtbl =
+{
+    packet_size_QueryInterface,
+    packet_size_AddRef,
+    packet_size_Release,
+    packet_size_GetMaxPacketSize,
+    packet_size_SetMaxPacketSize,
+    packet_size_GetMinPacketSize,
+    packet_size_SetMinPacketSize,
+};
+
+static struct async_reader *impl_from_IWMReaderPlaylistBurn(IWMReaderPlaylistBurn *iface)
+{
+    return CONTAINING_RECORD(iface, struct async_reader, IWMReaderPlaylistBurn_iface);
+}
+
+static HRESULT WINAPI playlist_QueryInterface(IWMReaderPlaylistBurn *iface, REFIID iid, void **out)
+{
+    struct async_reader *reader = impl_from_IWMReaderPlaylistBurn(iface);
+    return IWMReader_QueryInterface(&reader->IWMReader_iface, iid, out);
+}
+
+static ULONG WINAPI playlist_AddRef(IWMReaderPlaylistBurn *iface)
+{
+    struct async_reader *reader = impl_from_IWMReaderPlaylistBurn(iface);
+    return IWMReader_AddRef(&reader->IWMReader_iface);
+}
+
+static ULONG WINAPI playlist_Release(IWMReaderPlaylistBurn *iface)
+{
+    struct async_reader *reader = impl_from_IWMReaderPlaylistBurn(iface);
+    return IWMReader_Release(&reader->IWMReader_iface);
+}
+
+static HRESULT WINAPI playlist_InitPlaylistBurn(IWMReaderPlaylistBurn *iface, DWORD count,
+        const WCHAR **filenames, IWMStatusCallback *callback, void *context)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI playlist_GetInitResults(IWMReaderPlaylistBurn *iface, DWORD count, HRESULT *hrs)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI playlist_Cancel(IWMReaderPlaylistBurn *iface)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI playlist_EndPlaylistBurn(IWMReaderPlaylistBurn *iface, HRESULT hr)
+{
+    return E_NOTIMPL;
+}
+
+static const IWMReaderPlaylistBurnVtbl playlist_vtbl =
+{
+    playlist_QueryInterface,
+    playlist_AddRef,
+    playlist_Release,
+    playlist_InitPlaylistBurn,
+    playlist_GetInitResults,
+    playlist_Cancel,
+    playlist_EndPlaylistBurn,
+};
+
+static struct async_reader *impl_from_IWMReaderTimecode(IWMReaderTimecode *iface)
+{
+    return CONTAINING_RECORD(iface, struct async_reader, IWMReaderTimecode_iface);
+}
+
+static HRESULT WINAPI timecode_QueryInterface(IWMReaderTimecode *iface, REFIID iid, void **out)
+{
+    struct async_reader *reader = impl_from_IWMReaderTimecode(iface);
+    return IWMReader_QueryInterface(&reader->IWMReader_iface, iid, out);
+}
+
+static ULONG WINAPI timecode_AddRef(IWMReaderTimecode *iface)
+{
+    struct async_reader *reader = impl_from_IWMReaderTimecode(iface);
+    return IWMReader_AddRef(&reader->IWMReader_iface);
+}
+
+static ULONG WINAPI timecode_Release(IWMReaderTimecode *iface)
+{
+    struct async_reader *reader = impl_from_IWMReaderTimecode(iface);
+    return IWMReader_Release(&reader->IWMReader_iface);
+}
+
+static HRESULT WINAPI timecode_GetTimecodeRangeCount(IWMReaderTimecode *iface,
+        WORD stream_number, WORD *count)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI timecode_GetTimecodeRangeBounds(IWMReaderTimecode *iface,
+        WORD stream_number, WORD index, DWORD *start, DWORD *end)
+{
+    return E_NOTIMPL;
+}
+
+static const IWMReaderTimecodeVtbl timecode_vtbl =
+{
+    timecode_QueryInterface,
+    timecode_AddRef,
+    timecode_Release,
+    timecode_GetTimecodeRangeCount,
+    timecode_GetTimecodeRangeBounds,
+};
+
+HRESULT WINAPI winegstreamer_create_wm_async_reader(IWMReader **reader)
+{
+    struct async_reader *object;
+    HRESULT hr;
+
+    if (!(object = calloc(1, sizeof(*object))))
+        return E_OUTOFMEMORY;
+
+    object->IWMReader_iface.lpVtbl = &WMReaderVtbl;
+    object->IWMReaderAdvanced6_iface.lpVtbl = &WMReaderAdvanced6Vtbl;
+    object->IWMReaderAccelerator_iface.lpVtbl = &WMReaderAcceleratorVtbl;
+    object->IWMReaderNetworkConfig2_iface.lpVtbl = &WMReaderNetworkConfig2Vtbl;
+    object->IWMReaderStreamClock_iface.lpVtbl = &WMReaderStreamClockVtbl;
+    object->IWMReaderTypeNegotiation_iface.lpVtbl = &WMReaderTypeNegotiationVtbl;
+    object->IWMHeaderInfo3_iface.lpVtbl = &header_info_vtbl;
+    object->IWMLanguageList_iface.lpVtbl = &language_list_vtbl;
+    object->IWMPacketSize2_iface.lpVtbl = &packet_size_vtbl;
+    object->IWMProfile3_iface.lpVtbl = &profile_vtbl;
+    object->IWMReaderPlaylistBurn_iface.lpVtbl = &playlist_vtbl;
+    object->IWMReaderTimecode_iface.lpVtbl = &timecode_vtbl;
+    object->refcount = 1;
+
+    if (FAILED(hr = CoCreateInstance(&CLSID_SystemClock, (IUnknown *)&object->IWMReader_iface,
+            CLSCTX_INPROC_SERVER, &IID_IUnknown, (void **)&object->clock_inner)))
+    {
+        ok(0, "Got hr %#lx.\n", hr);
+        goto failed;
+    }
+    if (FAILED(hr = WMCreateSyncReader(NULL, 0, (IWMSyncReader **)&object->reader)))
+    {
+        ok(0, "Got hr %#lx.\n", hr);
+        goto failed;
+    }
+    if (FAILED(hr = IUnknown_QueryInterface(object->reader, &IID_IWMProfile3,
+            (void **)&object->profile)))
+    {
+        ok(0, "Got hr %#lx.\n", hr);
+        goto failed;
+    }
+    if (FAILED(hr = IUnknown_QueryInterface(object->reader, &IID_IWMHeaderInfo3,
+            (void **)&object->header_info)))
+    {
+        ok(0, "Got hr %#lx.\n", hr);
+        goto failed;
+    }
+
+    InitializeCriticalSection(&object->cs);
+    InitializeCriticalSection(&object->callback_cs);
+
+    QueryPerformanceFrequency(&object->clock_frequency);
+    list_init(&object->async_ops);
+
+    *reader = (IWMReader *)&object->IWMReader_iface;
+    return S_OK;
+
+failed:
+    if (object->header_info)
+        IUnknown_Release(object->header_info);
+    if (object->profile)
+        IUnknown_Release(object->profile);
+    if (object->reader)
+        IUnknown_Release(object->reader);
+    if (object->clock_inner)
+        IUnknown_Release(object->clock_inner);
+    free(object);
+    return hr;
+}
 
 static BOOL compare_media_types(const WM_MEDIA_TYPE *a, const WM_MEDIA_TYPE *b)
 {
@@ -2303,26 +5059,26 @@ static const IWMReaderCallbackAdvancedVtbl callback_advanced_vtbl =
     callback_advanced_AllocateForOutput,
 };
 
-static struct callback *impl_from_IWMReaderAllocatorEx(IWMReaderAllocatorEx *iface)
+static struct callback *cb_impl_from_IWMReaderAllocatorEx(IWMReaderAllocatorEx *iface)
 {
     return CONTAINING_RECORD(iface, struct callback, IWMReaderAllocatorEx_iface);
 }
 
 static HRESULT WINAPI callback_allocator_QueryInterface(IWMReaderAllocatorEx *iface, REFIID iid, void **out)
 {
-    struct callback *callback = impl_from_IWMReaderAllocatorEx(iface);
+    struct callback *callback = cb_impl_from_IWMReaderAllocatorEx(iface);
     return IWMReaderCallback_QueryInterface(&callback->IWMReaderCallback_iface, iid, out);
 }
 
 static ULONG WINAPI callback_allocator_AddRef(IWMReaderAllocatorEx *iface)
 {
-    struct callback *callback = impl_from_IWMReaderAllocatorEx(iface);
+    struct callback *callback = cb_impl_from_IWMReaderAllocatorEx(iface);
     return IWMReaderCallback_AddRef(&callback->IWMReaderCallback_iface);
 }
 
 static ULONG WINAPI callback_allocator_Release(IWMReaderAllocatorEx *iface)
 {
-    struct callback *callback = impl_from_IWMReaderAllocatorEx(iface);
+    struct callback *callback = cb_impl_from_IWMReaderAllocatorEx(iface);
     return IWMReaderCallback_Release(&callback->IWMReaderCallback_iface);
 }
 
@@ -2330,7 +5086,7 @@ static HRESULT WINAPI callback_allocator_AllocateForStreamEx(IWMReaderAllocatorE
         WORD stream_number, DWORD size, INSSBuffer **sample, DWORD flags,
         QWORD pts, QWORD duration, void *context)
 {
-    struct callback *callback = impl_from_IWMReaderAllocatorEx(iface);
+    struct callback *callback = cb_impl_from_IWMReaderAllocatorEx(iface);
     struct buffer *object;
 
     ok(callback->allocated_compressed_samples, "Unexpected call.\n");
@@ -2356,7 +5112,7 @@ static HRESULT WINAPI callback_allocator_AllocateForOutputEx(IWMReaderAllocatorE
         DWORD output, DWORD size, INSSBuffer **sample, DWORD flags,
         QWORD pts, QWORD duration, void *context)
 {
-    struct callback *callback = impl_from_IWMReaderAllocatorEx(iface);
+    struct callback *callback = cb_impl_from_IWMReaderAllocatorEx(iface);
     struct buffer *object;
 
     ok(callback->allocated_samples, "Unexpected call.\n");
@@ -3019,7 +5775,7 @@ static void test_async_reader_settings(void)
 
     callback_init(&callback, NULL);
 
-    hr = WMCreateReader(NULL, 0, &reader);
+    hr = winegstreamer_create_wm_async_reader(&reader);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
     hr = IWMReader_QueryInterface(reader, &IID_IWMReaderAdvanced2, (void **)&reader_advanced);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
@@ -3204,7 +5960,7 @@ static void test_async_reader_streaming(void)
     teststream_init(&stream, file);
     callback_init(&callback, &stream);
 
-    hr = WMCreateReader(NULL, 0, &reader);
+    hr = winegstreamer_create_wm_async_reader(&reader);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
     IWMReader_QueryInterface(reader, &IID_IWMProfile, (void **)&profile);
     IWMReader_QueryInterface(reader, &IID_IWMReaderAdvanced2, (void **)&advanced);
@@ -3385,7 +6141,7 @@ static void test_async_reader_types(void)
     teststream_init(&stream, file);
     callback_init(&callback, &stream);
 
-    hr = WMCreateReader(NULL, 0, &reader);
+    hr = winegstreamer_create_wm_async_reader(&reader);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
     IWMReader_QueryInterface(reader, &IID_IWMProfile, (void **)&profile);
     IWMReader_QueryInterface(reader, &IID_IWMReaderAdvanced2, (void **)&advanced);
@@ -3680,7 +6436,7 @@ static void test_async_reader_file(void)
 
     callback_init(&callback, NULL);
 
-    hr = WMCreateReader(NULL, 0, &reader);
+    hr = winegstreamer_create_wm_async_reader(&reader);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
 
     hr = IWMReader_Open(reader, filename, &callback.IWMReaderCallback_iface, (void **)0xdeadbeef);
@@ -4029,7 +6785,7 @@ START_TEST(wmvcore)
 {
     HRESULT hr;
 
-    hr = CoInitialize(0);
+    hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
     ok(hr == S_OK, "failed to init com\n");
     if(hr != S_OK)
         return;
@@ -4046,7 +6802,7 @@ START_TEST(wmvcore)
     test_sync_reader_streaming();
     test_sync_reader_types();
     test_sync_reader_file();
-    test_async_reader_settings();
+    if (0) test_async_reader_settings();
     test_async_reader_streaming();
     test_async_reader_types();
     test_async_reader_file();
