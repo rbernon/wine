@@ -94,8 +94,8 @@ struct async_reader
     IWMReaderNetworkConfig2 IWMReaderNetworkConfig2_iface;
     IWMReaderStreamClock IWMReaderStreamClock_iface;
     IWMReaderTypeNegotiation IWMReaderTypeNegotiation_iface;
-    IReferenceClock IReferenceClock_iface;
     IUnknown *reader_inner;
+    IUnknown *clock_inner;
     LONG refcount;
 
     IWMSyncReader2 *reader;
@@ -845,7 +845,7 @@ static HRESULT WINAPI WMReader_QueryInterface(IWMReader *iface, REFIID iid, void
             || IsEqualIID(iid, &IID_IWMReaderTimecode))
         return IUnknown_QueryInterface(reader->reader_inner, iid, out);
     else if (IsEqualIID(iid, &IID_IReferenceClock))
-        *out = &reader->IReferenceClock_iface;
+        return IUnknown_QueryInterface(reader->clock_inner, iid, out);
     else
     {
         FIXME("%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid(iid));
@@ -888,6 +888,7 @@ static ULONG WINAPI WMReader_Release(IWMReader *iface)
 
         IWMSyncReader2_Close(reader->reader);
 
+        IUnknown_Release(reader->clock_inner);
         IUnknown_Release(reader->reader_inner);
         free(reader);
     }
@@ -2170,78 +2171,6 @@ static const IWMReaderTypeNegotiationVtbl WMReaderTypeNegotiationVtbl =
     negotiation_TryOutputProps
 };
 
-static struct async_reader *impl_from_IReferenceClock(IReferenceClock *iface)
-{
-    return CONTAINING_RECORD(iface, struct async_reader, IReferenceClock_iface);
-}
-
-static HRESULT WINAPI refclock_QueryInterface(IReferenceClock *iface, REFIID iid, void **out)
-{
-    struct async_reader *reader = impl_from_IReferenceClock(iface);
-    return IWMReader_QueryInterface(&reader->IWMReader_iface, iid, out);
-}
-
-static ULONG WINAPI refclock_AddRef(IReferenceClock *iface)
-{
-    struct async_reader *reader = impl_from_IReferenceClock(iface);
-    return IWMReader_AddRef(&reader->IWMReader_iface);
-}
-
-static ULONG WINAPI refclock_Release(IReferenceClock *iface)
-{
-    struct async_reader *reader = impl_from_IReferenceClock(iface);
-    return IWMReader_Release(&reader->IWMReader_iface);
-}
-
-static HRESULT WINAPI refclock_GetTime(IReferenceClock *iface, REFERENCE_TIME *time)
-{
-    struct async_reader *This = impl_from_IReferenceClock(iface);
-    FIXME("%p, %p\n", This, time);
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI refclock_AdviseTime(IReferenceClock *iface, REFERENCE_TIME basetime,
-        REFERENCE_TIME streamtime, HEVENT event, DWORD_PTR *cookie)
-{
-    struct async_reader *reader = impl_from_IReferenceClock(iface);
-
-    FIXME("reader %p, basetime %I64d, streamtime %I64d, event %#Ix, cookie %p, stub!\n",
-            reader, basetime, streamtime, event, cookie);
-
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI refclock_AdvisePeriodic(IReferenceClock *iface, REFERENCE_TIME starttime,
-        REFERENCE_TIME period, HSEMAPHORE semaphore, DWORD_PTR *cookie)
-{
-    struct async_reader *reader = impl_from_IReferenceClock(iface);
-
-    FIXME("reader %p, starttime %I64d, period %I64d, semaphore %#Ix, cookie %p, stub!\n",
-            reader, starttime, period, semaphore, cookie);
-
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI refclock_Unadvise(IReferenceClock *iface, DWORD_PTR cookie)
-{
-    struct async_reader *reader = impl_from_IReferenceClock(iface);
-
-    FIXME("reader %p, cookie %Iu, stub!\n", reader, cookie);
-
-    return E_NOTIMPL;
-}
-
-static const IReferenceClockVtbl ReferenceClockVtbl =
-{
-    refclock_QueryInterface,
-    refclock_AddRef,
-    refclock_Release,
-    refclock_GetTime,
-    refclock_AdviseTime,
-    refclock_AdvisePeriodic,
-    refclock_Unadvise
-};
-
 static HRESULT WINAPI async_reader_create(IWMReader **reader)
 {
     struct async_reader *object;
@@ -2252,7 +2181,6 @@ static HRESULT WINAPI async_reader_create(IWMReader **reader)
     if (!(object = calloc(1, sizeof(*object))))
         return E_OUTOFMEMORY;
 
-    object->IReferenceClock_iface.lpVtbl = &ReferenceClockVtbl;
     object->IWMReader_iface.lpVtbl = &WMReaderVtbl;
     object->IWMReaderAdvanced6_iface.lpVtbl = &WMReaderAdvanced6Vtbl;
     object->IWMReaderAccelerator_iface.lpVtbl = &WMReaderAcceleratorVtbl;
@@ -2263,6 +2191,9 @@ static HRESULT WINAPI async_reader_create(IWMReader **reader)
 
     if (FAILED(hr = winegstreamer_create_wm_sync_reader((IUnknown *)&object->IWMReader_iface,
             (void **)&object->reader_inner)))
+        goto failed;
+    if (FAILED(hr = CoCreateInstance(&CLSID_SystemClock, (IUnknown *)&object->IWMReader_iface,
+            CLSCTX_INPROC_SERVER, &IID_IUnknown, (void **)&object->clock_inner)))
         goto failed;
 
     if (FAILED(hr = IUnknown_QueryInterface(object->reader_inner, &IID_IWMSyncReader2,
@@ -2287,6 +2218,8 @@ static HRESULT WINAPI async_reader_create(IWMReader **reader)
     return S_OK;
 
 failed:
+    if (object->clock_inner)
+        IUnknown_Release(object->clock_inner);
     if (object->reader_inner)
         IUnknown_Release(object->reader_inner);
     free(object);
