@@ -1550,12 +1550,16 @@ out_destroy_parser:
     return hr;
 }
 
-static struct wm_stream *wm_reader_get_stream_by_stream_number(struct wm_reader *reader, WORD stream_number)
+static HRESULT wm_reader_get_stream(struct wm_reader *reader, WORD stream_number, struct wm_stream **stream)
 {
-    if (stream_number && stream_number <= reader->stream_count)
-        return &reader->streams[stream_number - 1];
-    WARN("Invalid stream number %u.\n", stream_number);
-    return NULL;
+    if (!stream_number || stream_number > reader->stream_count)
+    {
+        WARN("Invalid reader %p stream number %u, returning NS_E_INVALID_REQUEST.\n", reader, stream_number);
+        return E_INVALIDARG;
+    }
+
+    *stream = reader->streams + stream_number - 1;
+    return S_OK;
 }
 
 static const enum wg_video_format video_formats[] =
@@ -1634,11 +1638,8 @@ static HRESULT handle_alloc_request(struct wm_reader *reader, struct wg_request 
     INSSBuffer *sample;
     HRESULT hr;
 
-    if (!(stream = wm_reader_get_stream_by_stream_number(reader, request->stream + 1)))
-    {
-        ERR("Unable to find stream with index %u.\n", request->stream);
+    if (FAILED(hr = wm_reader_get_stream(reader, request->stream + 1, &stream)))
         return E_INVALIDARG;
-    }
 
     if (SUCCEEDED(hr = wm_stream_allocate_sample(stream, request->u.alloc.size, &sample)))
     {
@@ -1665,7 +1666,7 @@ static HRESULT handle_output_request(struct wm_reader *reader, struct wg_request
     bool success;
     HRESULT hr;
 
-    if (!(stream = wm_reader_get_stream_by_stream_number(reader, request->stream + 1)))
+    if (FAILED(hr = wm_reader_get_stream(reader, request->stream + 1, &stream)))
         return E_INVALIDARG;
 
     TRACE("Got buffer for '%s' stream %p.\n", get_major_type_string(stream->format.major_type), stream);
@@ -1848,21 +1849,17 @@ static HRESULT WINAPI reader_GetMaxStreamSampleSize(IWMSyncReader2 *iface, WORD 
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     struct wm_stream *stream;
+    HRESULT hr;
 
     TRACE("reader %p, stream_number %u, size %p.\n", reader, stream_number, size);
 
     EnterCriticalSection(&reader->cs);
 
-    if (!(stream = wm_reader_get_stream_by_stream_number(reader, stream_number)))
-    {
-        LeaveCriticalSection(&reader->cs);
-        return E_INVALIDARG;
-    }
-
-    *size = wg_format_get_max_size(&stream->format);
+    if (SUCCEEDED(hr = wm_reader_get_stream(reader, stream_number, &stream)))
+        *size = wg_format_get_max_size(&stream->format);
 
     LeaveCriticalSection(&reader->cs);
-    return S_OK;
+    return hr;
 }
 
 static HRESULT WINAPI reader_GetNextSample(IWMSyncReader2 *iface,
@@ -1885,7 +1882,7 @@ static HRESULT WINAPI reader_GetNextSample(IWMSyncReader2 *iface,
 
     if (!stream_number)
         stream = NULL;
-    else if (!(stream = wm_reader_get_stream_by_stream_number(reader, stream_number)))
+    else if (FAILED(wm_reader_get_stream(reader, stream_number, &stream)))
         hr = E_INVALIDARG;
     else if (stream->selection == WMT_OFF)
         hr = NS_E_INVALID_REQUEST;
@@ -2086,21 +2083,17 @@ static HRESULT WINAPI reader_GetReadStreamSamples(IWMSyncReader2 *iface, WORD st
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     struct wm_stream *stream;
+    HRESULT hr;
 
     TRACE("reader %p, stream_number %u, compressed %p.\n", reader, stream_number, compressed);
 
     EnterCriticalSection(&reader->cs);
 
-    if (!(stream = wm_reader_get_stream_by_stream_number(reader, stream_number)))
-    {
-        LeaveCriticalSection(&reader->cs);
-        return E_INVALIDARG;
-    }
-
-    *compressed = stream->read_compressed;
+    if (SUCCEEDED(hr = wm_reader_get_stream(reader, stream_number, &stream)))
+        *compressed = stream->read_compressed;
 
     LeaveCriticalSection(&reader->cs);
-    return S_OK;
+    return hr;
 }
 
 static HRESULT WINAPI reader_GetStreamNumberForOutput(IWMSyncReader2 *iface,
@@ -2119,21 +2112,17 @@ static HRESULT WINAPI reader_GetStreamSelected(IWMSyncReader2 *iface,
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     struct wm_stream *stream;
+    HRESULT hr;
 
     TRACE("reader %p, stream_number %u, selection %p.\n", reader, stream_number, selection);
 
     EnterCriticalSection(&reader->cs);
 
-    if (!(stream = wm_reader_get_stream_by_stream_number(reader, stream_number)))
-    {
-        LeaveCriticalSection(&reader->cs);
-        return E_INVALIDARG;
-    }
-
-    *selection = stream->selection;
+    if (SUCCEEDED(hr = wm_reader_get_stream(reader, stream_number, &stream)))
+        *selection = stream->selection;
 
     LeaveCriticalSection(&reader->cs);
-    return S_OK;
+    return hr;
 }
 
 static HRESULT WINAPI reader_Open(IWMSyncReader2 *iface, const WCHAR *filename)
@@ -2364,18 +2353,14 @@ static HRESULT WINAPI reader_SetReadStreamSamples(IWMSyncReader2 *iface, WORD st
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     struct wm_stream *stream;
+    HRESULT hr;
 
     TRACE("reader %p, stream_index %u, compressed %d.\n", reader, stream_number, compressed);
 
     EnterCriticalSection(&reader->cs);
 
-    if (!(stream = wm_reader_get_stream_by_stream_number(reader, stream_number)))
-    {
-        LeaveCriticalSection(&reader->cs);
-        return E_INVALIDARG;
-    }
-
-    stream->read_compressed = compressed;
+    if (SUCCEEDED(hr = wm_reader_get_stream(reader, stream_number, &stream)))
+        stream->read_compressed = compressed;
 
     LeaveCriticalSection(&reader->cs);
     return S_OK;
@@ -2398,17 +2383,16 @@ static HRESULT WINAPI reader_SetStreamsSelected(IWMSyncReader2 *iface,
 
     for (i = 0; i < count; ++i)
     {
-        if (!(stream = wm_reader_get_stream_by_stream_number(reader, stream_numbers[i])))
+        if (FAILED(wm_reader_get_stream(reader, stream_numbers[i], &stream)))
         {
             LeaveCriticalSection(&reader->cs);
-            WARN("Invalid stream number %u; returning NS_E_INVALID_REQUEST.\n", stream_numbers[i]);
             return NS_E_INVALID_REQUEST;
         }
     }
 
     for (i = 0; i < count; ++i)
     {
-        stream = wm_reader_get_stream_by_stream_number(reader, stream_numbers[i]);
+        wm_reader_get_stream(reader, stream_numbers[i], &stream);
         stream->selection = selections[i];
         if (selections[i] == WMT_OFF)
         {
@@ -2500,21 +2484,19 @@ static HRESULT WINAPI reader_SetAllocateForStream(IWMSyncReader2 *iface, DWORD s
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     struct wm_stream *stream;
+    HRESULT hr;
 
     TRACE("reader %p, stream_number %lu, allocator %p.\n", reader, stream_number, allocator);
 
     EnterCriticalSection(&reader->cs);
 
-    if (!(stream = wm_reader_get_stream_by_stream_number(reader, stream_number)))
+    if (SUCCEEDED(hr = wm_reader_get_stream(reader, stream_number, &stream)))
     {
-        LeaveCriticalSection(&reader->cs);
-        return E_INVALIDARG;
+        if (stream->stream_allocator)
+            IWMReaderAllocatorEx_Release(stream->stream_allocator);
+        if ((stream->stream_allocator = allocator))
+            IWMReaderAllocatorEx_AddRef(stream->stream_allocator);
     }
-
-    if (stream->stream_allocator)
-        IWMReaderAllocatorEx_Release(stream->stream_allocator);
-    if ((stream->stream_allocator = allocator))
-        IWMReaderAllocatorEx_AddRef(stream->stream_allocator);
 
     LeaveCriticalSection(&reader->cs);
     return S_OK;
@@ -2524,6 +2506,7 @@ static HRESULT WINAPI reader_GetAllocateForStream(IWMSyncReader2 *iface, DWORD s
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     struct wm_stream *stream;
+    HRESULT hr;
 
     TRACE("reader %p, stream_number %lu, allocator %p.\n", reader, stream_number, allocator);
 
@@ -2532,17 +2515,12 @@ static HRESULT WINAPI reader_GetAllocateForStream(IWMSyncReader2 *iface, DWORD s
 
     EnterCriticalSection(&reader->cs);
 
-    if (!(stream = wm_reader_get_stream_by_stream_number(reader, stream_number)))
-    {
-        LeaveCriticalSection(&reader->cs);
-        return E_INVALIDARG;
-    }
-
-    if ((*allocator = stream->stream_allocator))
+    if (SUCCEEDED(hr = wm_reader_get_stream(reader, stream_number, &stream))
+            && (*allocator = stream->stream_allocator))
         IWMReaderAllocatorEx_AddRef(*allocator);
 
     LeaveCriticalSection(&reader->cs);
-    return S_OK;
+    return hr;
 }
 
 static const IWMSyncReader2Vtbl reader_vtbl =
