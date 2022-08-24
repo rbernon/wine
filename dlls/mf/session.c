@@ -1427,16 +1427,6 @@ static HRESULT session_add_media_source(struct media_session *session, IMFTopolo
     return hr;
 }
 
-static void session_raise_topology_set(struct media_session *session, IMFTopology *topology, HRESULT status)
-{
-    PROPVARIANT param;
-
-    param.vt = topology ? VT_UNKNOWN : VT_EMPTY;
-    param.punkVal = (IUnknown *)topology;
-
-    IMFMediaEventQueue_QueueEventParamVar(session->event_queue, MESessionTopologySet, &GUID_NULL, status, &param);
-}
-
 static DWORD session_get_object_rate_caps(IUnknown *object)
 {
     IMFRateSupport *rate_support;
@@ -1873,10 +1863,13 @@ static void session_set_topology(struct media_session *session, DWORD flags, IMF
         session_clear_presentation(session);
     }
 
-    session_raise_topology_set(session, topology, hr);
-
     /* With no current topology set it right away, otherwise queue. */
-    if (topology)
+    if (!topology)
+    {
+        PROPVARIANT param = {.vt = VT_EMPTY};
+        IMFMediaEventQueue_QueueEventParamVar(session->event_queue, MESessionTopologySet, &GUID_NULL, hr, &param);
+    }
+    else
     {
         struct queued_topology *queued_topology;
 
@@ -1887,6 +1880,8 @@ static void session_set_topology(struct media_session *session, DWORD flags, IMF
 
             list_add_tail(&session->topologies, &queued_topology->entry);
         }
+
+        IMFMediaEventQueue_QueueEventParamUnk(session->event_queue, MESessionTopologySet, &GUID_NULL, hr, (IUnknown *)topology);
 
         if (session->presentation.topo_status == MF_TOPOSTATUS_INVALID)
         {
