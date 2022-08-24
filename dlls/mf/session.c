@@ -1013,7 +1013,11 @@ static void session_pause(struct media_session *session)
             break;
 
         case SESSION_STATE_STOPPED:
-            hr = MF_E_SESSION_PAUSEWHILESTOPPED;
+            /* Pause request with no current topology. */
+            if (session->presentation.topo_status == MF_TOPOSTATUS_INVALID)
+                hr = MF_E_INVALIDREQUEST;
+            else
+                hr = MF_E_SESSION_PAUSEWHILESTOPPED;
             break;
         default:
             hr = MF_E_INVALIDREQUEST;
@@ -1079,7 +1083,11 @@ static void session_stop(struct media_session *session)
 
             break;
         case SESSION_STATE_STOPPED:
-            hr = S_OK;
+            /* Stop request with no current topology. */
+            if (session->presentation.topo_status == MF_TOPOSTATUS_INVALID)
+                hr = MF_E_INVALIDREQUEST;
+            else
+                hr = S_OK;
             /* fallthrough */
         default:
             session_command_complete_with_event(session, MESessionStopped, hr, NULL);
