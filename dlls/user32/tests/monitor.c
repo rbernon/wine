@@ -2628,3 +2628,4 @@ START_TEST(monitor)
     test_handles();
     test_display_dc();
 }
+
