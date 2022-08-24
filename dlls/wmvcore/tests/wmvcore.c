@@ -2061,10 +2061,7 @@ static HRESULT WINAPI callback_OnSample(IWMReaderCallback *iface, DWORD output,
     callback->next_pts[output] = time + duration;
 
     if (callback->dedicated_threads)
-    {
-        todo_wine
         ok(callback->callback_tid != GetCurrentThreadId(), "got wrong thread\n");
-    }
     else
         ok(callback->callback_tid == GetCurrentThreadId(), "got wrong thread\n");
 
@@ -2074,10 +2071,7 @@ static HRESULT WINAPI callback_OnSample(IWMReaderCallback *iface, DWORD output,
         ok(callback->output_tid[output] == GetCurrentThreadId(), "got wrong thread\n");
 
     if (callback->dedicated_threads && callback->output_tid[1 - output])
-    {
-        todo_wine
         ok(callback->output_tid[1 - output] != GetCurrentThreadId(), "got wrong thread\n");
-    }
 
     if (stream)
         ok(stream->input_tid != GetCurrentThreadId(), "got wrong thread\n");
@@ -2142,10 +2136,7 @@ static HRESULT WINAPI callback_advanced_OnStreamSample(IWMReaderCallbackAdvanced
     callback->next_pts[output] = pts + duration;
 
     if (callback->dedicated_threads)
-    {
-        todo_wine
         ok(callback->callback_tid != GetCurrentThreadId(), "got wrong thread\n");
-    }
     else
     {
         ok(callback->callback_tid == GetCurrentThreadId(), "got wrong thread\n");
@@ -2158,10 +2149,7 @@ static HRESULT WINAPI callback_advanced_OnStreamSample(IWMReaderCallbackAdvanced
         ok(callback->output_tid[output] == GetCurrentThreadId(), "got wrong thread\n");
 
     if (callback->dedicated_threads && callback->output_tid[1 - output])
-    {
-        todo_wine
         ok(callback->output_tid[1 - output] != GetCurrentThreadId(), "got wrong thread\n");
-    }
 
     if (stream)
         ok(stream->input_tid != GetCurrentThreadId(), "got wrong thread\n");
@@ -2224,9 +2212,7 @@ static HRESULT WINAPI callback_advanced_AllocateForStream(IWMReaderCallbackAdvan
         trace("%lu: %04lx: IWMReaderCallbackAdvanced::AllocateForStream(output %u, size %lu)\n",
                 GetTickCount(), GetCurrentThreadId(), stream_number, size);
 
-    todo_wine
     ok(callback->callback_tid != GetCurrentThreadId(), "got wrong thread\n");
-    todo_wine_if(callback->output_tid[stream_number - 1])
     ok(callback->output_tid[stream_number - 1] != GetCurrentThreadId(), "got wrong thread\n");
     if (stream)
     {
@@ -2269,9 +2255,7 @@ static HRESULT WINAPI callback_advanced_AllocateForOutput(IWMReaderCallbackAdvan
         trace("%lu: %04lx: IWMReaderCallbackAdvanced::AllocateForOutput(output %lu, size %lu)\n",
                 GetTickCount(), GetCurrentThreadId(), output, size);
 
-    todo_wine
     ok(callback->callback_tid != GetCurrentThreadId(), "got wrong thread\n");
-    todo_wine_if(callback->output_tid[output])
     ok(callback->output_tid[output] != GetCurrentThreadId(), "got wrong thread\n");
     if (stream)
     {
@@ -2554,7 +2538,7 @@ static void check_async_set_output_setting(IWMReaderAdvanced2 *reader, DWORD out
         size = sizeof(DWORD);
 
     hr = IWMReaderAdvanced2_SetOutputSetting(reader, output, name, type, (BYTE *)&value, size);
-    todo_wine
+    todo_wine_if(wcscmp(name, L"DedicatedDeliveryThread"))
     ok(hr == expect_hr, "Got hr %#lx.\n", hr);
 
     winetest_pop_context();
@@ -3945,8 +3929,6 @@ START_TEST(wmvcore)
     ok(hr == S_OK, "failed to init com\n");
     if(hr != S_OK)
         return;
-
-    winetest_mute_threshold = 3;  /* FIXME: thread tests print too many "got wrong thread" todos */
 
     test_wmreader_interfaces();
     test_wmsyncreader_interfaces();
