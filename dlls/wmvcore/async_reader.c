@@ -80,6 +80,7 @@ struct stream
     struct list read_samples;
     HRESULT read_result;
 
+    bool deliver_on_receive;
     bool dedicated_delivery_thread;
     HANDLE deliver_thread;
     struct list deliver_samples;
@@ -570,7 +571,7 @@ static void async_reader_deliver_samples(struct async_reader *reader)
 
         stream_request_read(stream);
 
-        if (async_reader_wait_pts(reader, sample->pts))
+        if (stream->deliver_on_receive || async_reader_wait_pts(reader, sample->pts))
         {
             if (!stream->dedicated_delivery_thread)
                 async_reader_deliver_sample(reader, sample);
@@ -1386,6 +1387,11 @@ static HRESULT WINAPI WMReaderAdvanced2_SetOutputSetting(IWMReaderAdvanced6 *ifa
     if (!wcscmp(name, L"DedicatedDeliveryThread"))
     {
         stream->dedicated_delivery_thread = *(BOOL *)value;
+        hr = S_OK;
+    }
+    if (!wcscmp(name, L"DeliverOnReceive"))
+    {
+        stream->deliver_on_receive = *(BOOL *)value;
         hr = S_OK;
     }
     LeaveCriticalSection(&reader->callback_cs);
