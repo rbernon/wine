@@ -702,6 +702,10 @@ static HRESULT WINAPI test_mem_input_pin_Receive(IMemInputPin *iface,
         IMediaSample *sample)
 {
     struct test_sink *pin = impl_from_IMemInputPin(iface);
+    HRESULT hr;
+
+    hr = IMediaSample_IsPreroll(sample);
+    ok(hr == S_FALSE, "got %p IsPreroll %#lx\n", pin, hr);
 
     pin->receive_tid = GetCurrentThreadId();
     SetEvent(pin->receive_event);
@@ -716,6 +720,11 @@ static HRESULT WINAPI test_mem_input_pin_ReceiveMultiple(IMemInputPin *iface,
         IMediaSample **samples, LONG count, LONG *processed)
 {
     struct test_sink *pin = impl_from_IMemInputPin(iface);
+    HRESULT hr;
+
+    ok(count == 1, "got %lu samples\n", count);
+    hr = IMediaSample_IsPreroll(samples[0]);
+    ok(hr == S_FALSE, "got %p IsPreroll %#lx\n", pin, hr);
 
     pin->receive_tid = GetCurrentThreadId();
     SetEvent(pin->receive_event);
