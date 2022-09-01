@@ -4050,7 +4050,7 @@ START_TEST(wmvcore)
     test_async_reader_streaming();
     test_async_reader_types();
     test_async_reader_file();
-    test_async_reader_clock();
+    if (0) test_async_reader_clock();
 
     CoUninitialize();
 }
