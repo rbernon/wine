@@ -72,6 +72,8 @@ struct stream
     struct async_reader *reader;
     WORD number;
 
+    QWORD pts_offset;
+
     HANDLE read_thread;
     bool read_requested;
     CONDITION_VARIABLE read_cv;
@@ -471,11 +473,15 @@ static void stream_close(struct stream *stream)
 
 static HRESULT stream_open(struct stream *stream, struct async_reader *reader, WORD number)
 {
+    IWMOutputMediaProps *props;
+    GUID type;
+
     if (stream->read_thread)
         return S_OK;
 
     stream->number = number;
     stream->reader = reader;
+    stream->pts_offset = 0;
     list_init(&stream->read_samples);
     list_init(&stream->deliver_samples);
 
@@ -488,6 +494,14 @@ static HRESULT stream_open(struct stream *stream, struct async_reader *reader, W
         return E_OUTOFMEMORY;
     }
 
+    if (SUCCEEDED(IWMSyncReader2_GetOutputFormat(reader->reader, number - 1, 0, &props)))
+    {
+        if (SUCCEEDED(IWMOutputMediaProps_GetType(props, &type))
+                && IsEqualGUID(&type, &WMMEDIATYPE_Video))
+            stream->pts_offset = 1500000;
+        IWMOutputMediaProps_Release(props);
+    }
+
     return S_OK;
 }
 
@@ -497,6 +511,7 @@ static HRESULT async_reader_get_next_sample(struct async_reader *reader,
     struct sample *sample, *first_sample = NULL;
     struct stream *stream, *first_stream = NULL;
     WMT_STREAM_SELECTION selection;
+    QWORD first_pts = -1;
     BOOL pending = FALSE;
     struct list *entry;
     DWORD i;
@@ -518,8 +533,9 @@ static HRESULT async_reader_get_next_sample(struct async_reader *reader,
         }
 
         sample = LIST_ENTRY(entry, struct sample, entry);
-        if (!first_sample || first_sample->pts > sample->pts)
+        if (first_pts > sample->pts + stream->pts_offset)
         {
+            first_pts = sample->pts + stream->pts_offset;
             first_stream = stream;
             first_sample = sample;
         }
