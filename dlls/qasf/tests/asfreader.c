@@ -920,11 +920,12 @@ static void test_threading(BOOL receive_can_block)
     IBaseFilter *filter = create_asf_reader();
     IFileSourceFilter *file_source;
     struct test_filter test_sink;
+    ALLOCATOR_PROPERTIES props;
+    DWORD ret, expect_size;
     IFilterGraph *graph;
     FILTER_STATE state;
     HRESULT hr;
     IPin *pin;
-    DWORD ret;
     ULONG ref;
 
     winetest_push_context("blocking %u", !!receive_can_block);
@@ -957,24 +958,46 @@ static void test_threading(BOOL receive_can_block)
     hr = IPin_Connect(pin, &test_sink.video.sink.pin.IPin_iface, &video_mt);
     todo_wine
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    expect_size = wmv1_info2.bmiHeader.biSizeImage;
     if (hr != S_OK)
     {
         hr = IPin_Connect(pin, &test_sink.video.sink.pin.IPin_iface, &wine_video_mt);
         ok(hr == S_OK, "Got hr %#lx.\n", hr);
+        expect_size = nv12_info.bmiHeader.biSizeImage;
     }
     IPin_Release(pin);
+
+    memset(&props, 0xcd, sizeof(props));
+    hr = IMemAllocator_GetProperties(test_sink.video.allocator, &props);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    todo_wine
+    ok(props.cBuffers == 10, "got cBuffers %lu\n", props.cBuffers);
+    ok(props.cbBuffer == expect_size, "got cbBuffer %lu\n", props.cbBuffer);
+    ok(props.cbAlign == 1, "got cbAlign %lu\n", props.cbAlign);
+    ok(props.cbPrefix == 0, "got cbPrefix %lu\n", props.cbPrefix);
 
     hr = IBaseFilter_FindPin(filter, L"Raw Audio 1", &pin);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
     hr = IPin_Connect(pin, &test_sink.audio.sink.pin.IPin_iface, &audio_mt);
     todo_wine
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    expect_size = msaudio1_format.wfx.nBlockAlign;
     if (hr != S_OK)
     {
         hr = IPin_Connect(pin, &test_sink.audio.sink.pin.IPin_iface, &wine_audio_mt);
         ok(hr == S_OK, "Got hr %#lx.\n", hr);
+        expect_size = pcm_format.nAvgBytesPerSec;
     }
     IPin_Release(pin);
+
+    memset(&props, 0xcd, sizeof(props));
+    hr = IMemAllocator_GetProperties(test_sink.audio.allocator, &props);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    todo_wine
+    ok(props.cBuffers == 50, "got cBuffers %lu\n", props.cBuffers);
+    ok(props.cbBuffer == expect_size, "got cbBuffer %lu\n", props.cbBuffer);
+    ok(props.cbAlign == 1, "got cbAlign %lu\n", props.cbAlign);
+    ok(props.cbPrefix == 0, "got cbPrefix %lu\n", props.cbPrefix);
 
     hr = IBaseFilter_Run(filter, GetTickCount() * 10000);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
