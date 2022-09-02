@@ -817,7 +817,7 @@ static void test_threading(BOOL receive_can_block)
 {
     static const WAVEFORMATEX pcm_format =
     {
-        .wFormatTag = WAVE_FORMAT_MSAUDIO1,
+        .wFormatTag = WAVE_FORMAT_EXTENSIBLE,
         .nChannels = 1,
         .nSamplesPerSec = 44100,
         .nBlockAlign = 2,
