@@ -6093,7 +6093,6 @@ static void test_color_convert(void)
     check_interface(transform, &IID_IMFTransform, TRUE);
     check_interface(transform, &IID_IMediaObject, TRUE);
     check_interface(transform, &IID_IPropertyStore, TRUE);
-    todo_wine
     check_interface(transform, &IID_IPropertyBag, FALSE);
     todo_wine
     check_interface(transform, &IID_IMFRealTimeClient, TRUE);

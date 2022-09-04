@@ -76,7 +76,6 @@ struct color_convert
     IUnknown IUnknown_inner;
     IMFTransform IMFTransform_iface;
     IMediaObject IMediaObject_iface;
-    IPropertyBag IPropertyBag_iface;
     IPropertyStore IPropertyStore_iface;
     IUnknown *outer;
     LONG refcount;
@@ -129,8 +128,6 @@ static HRESULT WINAPI unknown_QueryInterface(IUnknown *iface, REFIID iid, void *
         *out = &impl->IMFTransform_iface;
     else if (IsEqualGUID(iid, &IID_IMediaObject))
         *out = &impl->IMediaObject_iface;
-    else if (IsEqualIID(iid, &IID_IPropertyBag))
-        *out = &impl->IPropertyBag_iface;
     else if (IsEqualIID(iid, &IID_IPropertyStore))
         *out = &impl->IPropertyStore_iface;
     else
@@ -830,48 +827,6 @@ static const IMediaObjectVtbl media_object_vtbl =
     media_object_Lock,
 };
 
-static inline struct color_convert *impl_from_IPropertyBag(IPropertyBag *iface)
-{
-    return CONTAINING_RECORD(iface, struct color_convert, IPropertyBag_iface);
-}
-
-static HRESULT WINAPI property_bag_QueryInterface(IPropertyBag *iface, REFIID iid, void **out)
-{
-    return IUnknown_QueryInterface(impl_from_IPropertyBag(iface)->outer, iid, out);
-}
-
-static ULONG WINAPI property_bag_AddRef(IPropertyBag *iface)
-{
-    return IUnknown_AddRef(impl_from_IPropertyBag(iface)->outer);
-}
-
-static ULONG WINAPI property_bag_Release(IPropertyBag *iface)
-{
-    return IUnknown_Release(impl_from_IPropertyBag(iface)->outer);
-}
-
-static HRESULT WINAPI property_bag_Read(IPropertyBag *iface, const WCHAR *prop_name, VARIANT *value,
-        IErrorLog *error_log)
-{
-    FIXME("iface %p, prop_name %s, value %p, error_log %p stub!\n", iface, debugstr_w(prop_name), value, error_log);
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI property_bag_Write(IPropertyBag *iface, const WCHAR *prop_name, VARIANT *value)
-{
-    FIXME("iface %p, prop_name %s, value %p stub!\n", iface, debugstr_w(prop_name), value);
-    return S_OK;
-}
-
-static const IPropertyBagVtbl property_bag_vtbl =
-{
-    property_bag_QueryInterface,
-    property_bag_AddRef,
-    property_bag_Release,
-    property_bag_Read,
-    property_bag_Write,
-};
-
 static inline struct color_convert *impl_from_IPropertyStore(IPropertyStore *iface)
 {
     return CONTAINING_RECORD(iface, struct color_convert, IPropertyStore_iface);
@@ -981,7 +936,6 @@ HRESULT color_convert_create(IUnknown *outer, IUnknown **out)
     impl->IUnknown_inner.lpVtbl = &unknown_vtbl;
     impl->IMFTransform_iface.lpVtbl = &transform_vtbl;
     impl->IMediaObject_iface.lpVtbl = &media_object_vtbl;
-    impl->IPropertyBag_iface.lpVtbl = &property_bag_vtbl;
     impl->IPropertyStore_iface.lpVtbl = &property_store_vtbl;
     impl->refcount = 1;
     impl->outer = outer ? outer : &impl->IUnknown_inner;
