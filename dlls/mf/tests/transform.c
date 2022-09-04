@@ -3430,7 +3430,6 @@ static void test_wma_decoder(void)
 
     check_interface(transform, &IID_IMFTransform, TRUE);
     check_interface(transform, &IID_IMediaObject, TRUE);
-    todo_wine
     check_interface(transform, &IID_IPropertyStore, TRUE);
     check_interface(transform, &IID_IPropertyBag, TRUE);
 

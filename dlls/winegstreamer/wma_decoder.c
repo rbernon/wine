@@ -52,6 +52,7 @@ struct wma_decoder
     IMFTransform IMFTransform_iface;
     IMediaObject IMediaObject_iface;
     IPropertyBag IPropertyBag_iface;
+    IPropertyStore IPropertyStore_iface;
     IUnknown *outer;
     LONG refcount;
 
@@ -106,6 +107,8 @@ static HRESULT WINAPI unknown_QueryInterface(IUnknown *iface, REFIID iid, void *
         *out = &decoder->IMediaObject_iface;
     else if (IsEqualIID(iid, &IID_IPropertyBag))
         *out = &decoder->IPropertyBag_iface;
+    else if (IsEqualIID(iid, &IID_IPropertyStore))
+        *out = &decoder->IPropertyStore_iface;
     else
     {
         *out = NULL;
@@ -983,6 +986,68 @@ static const IPropertyBagVtbl property_bag_vtbl =
     property_bag_Write,
 };
 
+static inline struct wma_decoder *impl_from_IPropertyStore(IPropertyStore *iface)
+{
+    return CONTAINING_RECORD(iface, struct wma_decoder, IPropertyStore_iface);
+}
+
+static HRESULT WINAPI property_store_QueryInterface(IPropertyStore *iface, REFIID iid, void **out)
+{
+    return IUnknown_QueryInterface(impl_from_IPropertyStore(iface)->outer, iid, out);
+}
+
+static ULONG WINAPI property_store_AddRef(IPropertyStore *iface)
+{
+    return IUnknown_AddRef(impl_from_IPropertyStore(iface)->outer);
+}
+
+static ULONG WINAPI property_store_Release(IPropertyStore *iface)
+{
+    return IUnknown_Release(impl_from_IPropertyStore(iface)->outer);
+}
+
+static HRESULT WINAPI property_store_GetCount(IPropertyStore *iface, DWORD *count)
+{
+    FIXME("iface %p, count %p stub!\n", iface, count);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI property_store_GetAt(IPropertyStore *iface, DWORD index, PROPERTYKEY *key)
+{
+    FIXME("iface %p, index %lu, key %p stub!\n", iface, index, key);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI property_store_GetValue(IPropertyStore *iface, REFPROPERTYKEY key, PROPVARIANT *value)
+{
+    FIXME("iface %p, key %p, value %p stub!\n", iface, key, value);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI property_store_SetValue(IPropertyStore *iface, REFPROPERTYKEY key, REFPROPVARIANT value)
+{
+    FIXME("iface %p, key %p, value %p stub!\n", iface, key, value);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI property_store_Commit(IPropertyStore *iface)
+{
+    FIXME("iface %p stub!\n", iface);
+    return E_NOTIMPL;
+}
+
+static const IPropertyStoreVtbl property_store_vtbl =
+{
+    property_store_QueryInterface,
+    property_store_AddRef,
+    property_store_Release,
+    property_store_GetCount,
+    property_store_GetAt,
+    property_store_GetValue,
+    property_store_SetValue,
+    property_store_Commit,
+};
+
 HRESULT wma_decoder_create(IUnknown *outer, IUnknown **out)
 {
     static const struct wg_format output_format =
@@ -1023,6 +1088,7 @@ HRESULT wma_decoder_create(IUnknown *outer, IUnknown **out)
     decoder->IMFTransform_iface.lpVtbl = &transform_vtbl;
     decoder->IMediaObject_iface.lpVtbl = &media_object_vtbl;
     decoder->IPropertyBag_iface.lpVtbl = &property_bag_vtbl;
+    decoder->IPropertyStore_iface.lpVtbl = &property_store_vtbl;
     decoder->refcount = 1;
     decoder->outer = outer ? outer : &decoder->IUnknown_inner;
 
