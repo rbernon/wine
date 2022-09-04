@@ -537,12 +537,6 @@ static HRESULT WINAPI media_object_SetInputType(IMediaObject *iface, DWORD index
     if (!IsEqualGUID(&type->majortype, &MEDIATYPE_Video))
         return DMO_E_TYPE_NOT_ACCEPTED;
 
-    for (i = 0; i < ARRAY_SIZE(wmv_decoder_input_types); ++i)
-        if (IsEqualGUID(&type->subtype, wmv_decoder_input_types[i]))
-            break;
-    if (i == ARRAY_SIZE(wmv_decoder_input_types))
-        return DMO_E_TYPE_NOT_ACCEPTED;
-
     if (!amt_to_wg_format((const AM_MEDIA_TYPE *)type, &wg_format))
         return DMO_E_TYPE_NOT_ACCEPTED;
     assert(wg_format.major_type == WG_MAJOR_TYPE_VIDEO_WMV);
@@ -551,6 +545,15 @@ static HRESULT WINAPI media_object_SetInputType(IMediaObject *iface, DWORD index
 
     if (flags & DMO_SET_TYPEF_TEST_ONLY)
         return S_OK;
+
+    if (wg_format.major_type != WG_MAJOR_TYPE_VIDEO)
+    {
+        for (i = 0; i < ARRAY_SIZE(wmv_decoder_input_types); ++i)
+            if (IsEqualGUID(&type->subtype, wmv_decoder_input_types[i]))
+                break;
+        if (i == ARRAY_SIZE(wmv_decoder_input_types))
+            return DMO_E_TYPE_NOT_ACCEPTED;
+    }
 
     decoder->input_format = wg_format;
     if (decoder->wg_transform)
