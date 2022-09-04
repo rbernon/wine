@@ -598,9 +598,10 @@ static void check_mft_get_attributes(IMFTransform *transform, const struct attri
         BOOL expect_output_attributes)
 {
     IMFAttributes *attributes, *tmp_attributes;
+    IPropertyStore *store;
+    ULONG prop_count, ref;
     UINT32 count;
     HRESULT hr;
-    ULONG ref;
 
     hr = IMFTransform_GetAttributes(transform, &attributes);
     todo_wine_if(expect_transform_attributes && hr == E_NOTIMPL)
@@ -617,6 +618,17 @@ static void check_mft_get_attributes(IMFTransform *transform, const struct attri
 
         ref = IMFAttributes_Release(attributes);
         ok(ref == 1, "Release returned %lu\n", ref);
+    }
+
+    if (SUCCEEDED(IMFTransform_QueryInterface(transform, &IID_IPropertyStore, (void **)&store)))
+    {
+        hr = IPropertyStore_GetCount(store, &prop_count);
+        ok(hr == S_OK, "GetCount returned %#lx\n", hr);
+        ok(prop_count == 0, "got prop_count %lu\n", prop_count);
+
+        dump_properties(store);
+
+        IPropertyStore_Release(store);
     }
 
     hr = IMFTransform_GetOutputStreamAttributes(transform, 0, &attributes);
