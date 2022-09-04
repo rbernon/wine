@@ -102,7 +102,14 @@ static HRESULT WINAPI sample_copier_transform_GetStreamLimits(IMFTransform *ifac
 {
     TRACE("%p, %p, %p, %p, %p.\n", iface, input_minimum, input_maximum, output_minimum, output_maximum);
 
-    *input_minimum = *input_maximum = *output_minimum = *output_maximum = 1;
+    if (input_minimum)
+        *input_minimum = 1;
+    if (input_maximum)
+        *input_maximum = 1;
+    if (output_minimum)
+        *output_minimum = 1;
+    if (output_maximum)
+        *output_maximum = 1;
 
     return S_OK;
 }
@@ -111,8 +118,10 @@ static HRESULT WINAPI sample_copier_transform_GetStreamCount(IMFTransform *iface
 {
     TRACE("%p, %p, %p.\n", iface, inputs, outputs);
 
-    *inputs = 1;
-    *outputs = 1;
+    if (inputs)
+        *inputs = 1;
+    if (outputs)
+        *outputs = 1;
 
     return S_OK;
 }
@@ -161,6 +170,9 @@ static HRESULT WINAPI sample_copier_transform_GetAttributes(IMFTransform *iface,
     struct sample_copier *transform = impl_from_IMFTransform(iface);
 
     TRACE("%p, %p.\n", iface, attributes);
+
+    if (!attributes)
+        return E_POINTER;
 
     *attributes = transform->attributes;
     IMFAttributes_AddRef(*attributes);
