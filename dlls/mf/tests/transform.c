@@ -7529,10 +7529,146 @@ failed:
     CoUninitialize();
 }
 
+static void test_transform_classes(void)
+{
+    struct
+    {
+        const GUID *guid;
+        const char *name;
+        DWORD dmo_hr;
+        DWORD mft_hr;
+    } classes[] =
+    {
+#define X(n, ...) {&CLSID_ ## n, #n, ## __VA_ARGS__}
+        X(AudioResamplerMediaObject),
+        X(CColorControlDmo),
+        X(CColorConvertDMO),
+        X(CFrameRateConvertDmo),
+        X(CMP3DecMediaObject),
+        X(MP3DecMediaObject),
+        X(CMpeg43DecMediaObject),
+        X(CMpeg4DecMediaObject),
+        X(CMSSCDecMediaObject),
+        X(CMSSCEncMediaObject2),
+        X(CResamplerMediaObject),
+        X(CResizerDMO),
+        X(CWMADecMediaObject),
+        X(WMADecMediaObject),
+        X(CWMAEncMediaObject),
+        X(CWMAudioAEC),
+        X(CWMAudioSpdTxDMO),
+        X(CWMSPDecMediaObject),
+        X(CWMSPEncMediaObject2),
+        X(CWMV9EncMediaObject),
+        X(CWMVDecMediaObject),
+        X(WMVDecoderMFT),
+        X(CWMVXEncMediaObject),
+
+        X(AACMFTEncoder, .dmo_hr = E_NOINTERFACE),
+        X(ALawCodecWrapper, .dmo_hr = E_NOINTERFACE),
+        X(MP3ACMCodecWrapper, .dmo_hr = E_NOINTERFACE),
+        X(CMPEG2AudioEncoderMFT, .dmo_hr = E_NOINTERFACE),
+        X(CMpeg4sDecMFT, .dmo_hr = E_NOINTERFACE),
+        X(CMSAACDecMFT, .dmo_hr = E_NOINTERFACE),
+        X(MSAACDecMFT, .dmo_hr = E_NOINTERFACE),
+        X(CMSALACDecMFT, .dmo_hr = E_NOINTERFACE),
+        X(CMSALACEncMFT, .dmo_hr = E_NOINTERFACE),
+        X(MSAMRNBDecoder, .dmo_hr = E_NOINTERFACE),
+        X(MSAMRNBEncoder, .dmo_hr = E_NOINTERFACE),
+        X(CMSDDPlusDecMFT, .dmo_hr = E_NOINTERFACE),
+        X(MSDDPlusDecMFT, .dmo_hr = E_NOINTERFACE),
+        X(CMSDolbyDigitalEncMFT, .dmo_hr = E_NOINTERFACE),
+        X(CMSFLACDecMFT, .dmo_hr = E_NOINTERFACE),
+        X(CMSFLACEncMFT, .dmo_hr = E_NOINTERFACE),
+        X(CMSH263EncoderMFT, .dmo_hr = E_NOINTERFACE),
+        X(CMSH264DecoderMFT, .dmo_hr = E_NOINTERFACE),
+        X(MSH264DecoderMFT, .dmo_hr = E_NOINTERFACE),
+        X(CMSH264EncoderMFT, .dmo_hr = E_NOINTERFACE),
+        X(MSH264EncoderMFT, .dmo_hr = E_NOINTERFACE),
+        X(CMSH264RemuxMFT, .dmo_hr = E_NOINTERFACE),
+        X(CMSMPEGAudDecMFT, .dmo_hr = E_NOINTERFACE),
+        X(MSMPEGAudDecMFT, .dmo_hr = E_NOINTERFACE),
+        X(CMSOpusDecMFT, .dmo_hr = E_NOINTERFACE),
+        X(MSOpusDecoder, .dmo_hr = E_NOINTERFACE),
+        X(CMSVideoDSPMFT, .dmo_hr = E_NOINTERFACE),
+        X(MSVPxDecoder, .dmo_hr = E_NOINTERFACE),
+        X(CMSVPXEncoderMFT, .dmo_hr = E_NOINTERFACE),
+        X(MULawCodecWrapper, .dmo_hr = E_NOINTERFACE),
+        X(VideoProcessorMFT, .dmo_hr = E_NOINTERFACE),
+
+#if 0
+        X(CMpeg4sDecMediaObject, .mft_hr = E_NOINTERFACE),
+        X(CThumbnailGeneratorDmo, .mft_hr = E_NOINTERFACE),
+        X(CTocGeneratorDmo, .mft_hr = E_NOINTERFACE),
+
+        X(CMPEG2VideoEncoderMFT, .dmo_hr = 0xc004f011, .mft_hr = 0xc004f011 /* SL_E_LICENSE_FILE_NOT_INSTALLED */),
+        X(CMSMPEGDecoderMFT, .dmo_hr = 0xc004f011, .mft_hr = 0xc004f011 /* SL_E_LICENSE_FILE_NOT_INSTALLED */),
+        X(MSMPEGDecoderMFT, .dmo_hr = 0xc004f011, .mft_hr = 0xc004f011 /* SL_E_LICENSE_FILE_NOT_INSTALLED */),
+
+        X(CAC3DecMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CClusterDetectorDmo, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CColorLegalizerDmo, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CDeColorConvMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CDVDecoderMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CDVEncoderMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CFrameInterpDMO, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CInterlaceMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CMpeg2DecMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CMpeg4EncMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CMpeg4sEncMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CMPEGAACDecMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(MSH265DecoderMFT, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CMSH265EncoderMFT, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CMSSCEncMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CNokiaAACCCDecMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CNokiaAACDecMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CResizerMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CShotDetectorDmo, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CSmpteTransformsDmo, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CVodafoneAACCCDecMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CVodafoneAACDecMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(VorbisDecoderMFT, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CWMATransMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CWMSPEncMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CWMTDecMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CWMTEncMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CWMVEncMediaObject2, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CWVC1DecMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CWVC1EncMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CZuneAACCCDecMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+        X(CZuneM4S2DecMediaObject, .dmo_hr = REGDB_E_CLASSNOTREG, .mft_hr = REGDB_E_CLASSNOTREG),
+#endif
+#undef X
+    };
+    DWORD i;
+
+    for (i = 0; i < ARRAY_SIZE(classes); ++i)
+    {
+        IMediaObject *dmo;
+        IMFTransform *mft;
+        HRESULT hr;
+
+        winetest_push_context("%s", classes[i].name);
+
+        hr = CoCreateInstance(classes[i].guid, NULL, CLSCTX_INPROC_SERVER, &IID_IMediaObject, (void **)&dmo);
+        ok(hr == classes[i].dmo_hr, "Unexpected hr %#lx.\n", hr);
+        if (hr == S_OK)
+            IMediaObject_Release(dmo);
+
+        hr = CoCreateInstance(classes[i].guid, NULL, CLSCTX_INPROC_SERVER, &IID_IMFTransform, (void **)&mft);
+        ok(hr == classes[i].mft_hr, "Unexpected hr %#lx.\n", hr);
+        if (hr == S_OK)
+            IMFTransform_Release(mft);
+
+        winetest_pop_context();
+    }
+}
+
 START_TEST(transform)
 {
     init_functions();
 
+    test_transform_classes();
     test_sample_copier();
     test_sample_copier_output_processing();
     test_aac_encoder();
