@@ -4488,6 +4488,8 @@ failed:
     CoUninitialize();
 }
 
+static const BYTE wmv1_codec_data[10] = {0, 0x44, 0, 0, 0x17, 0, 0, 0, 0, 0};
+
 static void test_wmv_encoder(void)
 {
     const GUID *const class_id = &CLSID_CWMVXEncMediaObject;
@@ -4793,14 +4795,19 @@ static void test_wmv_encoder(void)
     MFT_REGISTER_TYPE_INFO output_type = {MFMediaType_Video, MFVideoFormat_WMV1};
     MFT_REGISTER_TYPE_INFO input_type = {MFMediaType_Video, MFVideoFormat_NV12};
     IMFSample *input_sample, *output_sample;
+    IWMVideoForceKeyFrame *force_keyframe;
     DWORD status, length, output_status;
+    IWMCodecPrivateData *codec_private;
+    BYTE tmp_codec_data[1024] = {0};
+    IPropertyStore *property_store;
     MFT_OUTPUT_DATA_BUFFER output;
     IMFCollection *output_samples;
     const BYTE *nv12frame_data;
     IMFMediaType *media_type;
     ULONG nv12frame_data_len;
     IMFTransform *transform;
-    ULONG i, ret;
+    AM_MEDIA_TYPE *am_type;
+    ULONG i, j, ret;
     HRESULT hr;
     LONG ref;
 
@@ -4822,6 +4829,61 @@ static void test_wmv_encoder(void)
     check_interface(transform, &IID_IMediaObject, TRUE);
     check_interface(transform, &IID_IPropertyStore, TRUE);
     check_interface(transform, &IID_IPropertyBag, TRUE);
+    check_interface(transform, &IID_IWMCodecPrivateData, TRUE);
+
+    check_interface(transform, &IID_IWMCodecLeakyBucket, TRUE);
+    check_interface(transform, &IID_IWMCodecPrivateData, TRUE);
+    check_interface(transform, &IID_IWMCodecProps, TRUE);
+    check_interface(transform, &IID_IWMCodecStrings, TRUE);
+    check_interface(transform, &IID_IWMSampleExtensionSupport, TRUE);
+    check_interface(transform, &IID_IWMVideoForceKeyFrame, TRUE);
+
+    check_interface(transform, &IID_IWMCodecOutputTimestamp, FALSE);
+    check_interface(transform, &IID_IWMColorConvProps, FALSE);
+    check_interface(transform, &IID_IWMColorLegalizerProps, FALSE);
+    check_interface(transform, &IID_IWMFrameInterpProps, FALSE);
+    check_interface(transform, &IID_IWMInterlaceProps, FALSE);
+    check_interface(transform, &IID_IWMResamplerProps, FALSE);
+    check_interface(transform, &IID_IWMResizerProps, FALSE);
+    check_interface(transform, &IID_IWMValidate, FALSE);
+    check_interface(transform, &IID_IWMVideoDecoderHurryup, FALSE);
+    check_interface(transform, &IID_IWMVideoDecoderReconBuffer, FALSE);
+
+    hr = IMFTransform_QueryInterface(transform, &IID_IPropertyStore, (void **)&property_store);
+    dump_properties(property_store);
+    IPropertyStore_Release(property_store);
+
+    hr = IMFTransform_QueryInterface(transform, &IID_IWMVideoForceKeyFrame, (void **)&force_keyframe);
+
+    hr = IMFTransform_QueryInterface(transform, &IID_IWMCodecPrivateData, (void **)&codec_private);
+    ok(hr == S_OK, "QueryInterface returned %#lx.\n", hr);
+
+    create_media_type(output_type_desc, &media_type);
+    hr = MFCreateAMMediaTypeFromMFMediaType(media_type, FORMAT_VideoInfo, &am_type);
+    ok(hr == S_OK, "MFCreateAMMediaTypeFromMFMediaType returned %#lx.\n", hr);
+
+    hr = IWMCodecPrivateData_SetPartialOutputType(codec_private, (DMO_MEDIA_TYPE *)am_type);
+    ok(hr == S_OK, "SetPartialOutputType returned %#lx.\n", hr);
+    length = 0;
+    hr = IWMCodecPrivateData_GetPrivateData(codec_private, NULL, &length);
+    ok(hr == S_OK, "GetPrivateData returned %#lx.\n", hr);
+    ok(length == sizeof(tmp_codec_data), "got length %lu\n", length);
+    length = sizeof(tmp_codec_data);
+    hr = IWMCodecPrivateData_GetPrivateData(codec_private, tmp_codec_data, &length);
+    ok(hr == S_OK, "GetPrivateData returned %#lx.\n", hr);
+    ok(length == sizeof(wmv1_codec_data), "got length %lu\n", length);
+    ok(!memcmp(tmp_codec_data, wmv1_codec_data, length), "got unexpected WMV codec data\n");
+
+    hr = MFInitMediaTypeFromAMMediaType(media_type, am_type);
+    ok(hr == S_OK, "MFCreateAMMediaTypeFromMFMediaType returned %#lx.\n", hr);
+    dump_attributes((IMFAttributes *)media_type);
+
+    if (am_type->pUnk)
+        IUnknown_Release(am_type->pUnk);
+    CoTaskMemFree(am_type->pbFormat);
+    CoTaskMemFree(am_type);
+
+    IWMCodecPrivateData_Release(codec_private);
 
     check_mft_optional_methods(transform, 2);
     check_mft_get_attributes(transform, NULL, FALSE);
@@ -4904,20 +4966,68 @@ static void test_wmv_encoder(void)
         ref = IMFSample_Release(input_sample);
         ok(ref <= 1, "Release returned %ld\n", ref);
 
-        output_sample = create_sample(NULL, expect_output_info.cbSize);
-        hr = check_mft_process_output(transform, output_sample, &output_status);
+winetest_pop_context();
+        if (hr == S_OK)
+            continue;
+/*
+        hr = IMFTransform_ProcessMessage(transform, MFT_MESSAGE_COMMAND_DRAIN, 0);
+        ok(hr == S_OK, "ProcessMessage returned %#lx\n", hr);
+*/
+        hr = IWMVideoForceKeyFrame_SetKeyFrame(force_keyframe);
+        ok(hr == S_OK, "SetKeyFrame returned %#lx\n", hr);
+
+        output_sample = create_sample(NULL, output_info.cbSize);
+        for (j = 0; SUCCEEDED(hr = check_mft_process_output(transform, output_sample, &output_status)); j++)
+        {
+            winetest_push_context("%lu", j);
+            ok(hr == S_OK, "ProcessOutput returned %#lx\n", hr);
+            hr = IMFCollection_AddElement(output_samples, (IUnknown *)output_sample);
+            ok(hr == S_OK, "AddElement returned %#lx\n", hr);
+            ref = IMFSample_Release(output_sample);
+            ok(ref == 1, "Release returned %ld\n", ref);
+            output_sample = create_sample(NULL, output_info.cbSize);
+
+            hr = IWMVideoForceKeyFrame_SetKeyFrame(force_keyframe);
+            ok(hr == S_OK, "SetKeyFrame returned %#lx\n", hr);
+
+            winetest_pop_context();
+        }
+        ok(hr == MF_E_TRANSFORM_NEED_MORE_INPUT, "ProcessOutput returned %#lx\n", hr);
+        ret = IMFSample_Release(output_sample);
+        ok(ret == 0, "Release returned %lu\n", ret);
+        ok(j == 88, "got %lu output samples\n", j);
+    }
+
+    hr = IMFTransform_ProcessMessage(transform, MFT_MESSAGE_COMMAND_DRAIN, 0);
+    ok(hr == S_OK, "ProcessMessage returned %#lx\n", hr);
+
+    hr = IWMVideoForceKeyFrame_SetKeyFrame(force_keyframe);
+    ok(hr == S_OK, "SetKeyFrame returned %#lx\n", hr);
+
+    output_sample = create_sample(NULL, output_info.cbSize);
+    for (i = 0; SUCCEEDED(hr = check_mft_process_output(transform, output_sample, &output_status)); i++)
+    {
+        winetest_push_context("%lu", i);
         ok(hr == S_OK, "ProcessOutput returned %#lx\n", hr);
         hr = IMFCollection_AddElement(output_samples, (IUnknown *)output_sample);
         ok(hr == S_OK, "AddElement returned %#lx\n", hr);
         ref = IMFSample_Release(output_sample);
         ok(ref == 1, "Release returned %ld\n", ref);
+        output_sample = create_sample(NULL, output_info.cbSize);
+
+        hr = IWMVideoForceKeyFrame_SetKeyFrame(force_keyframe);
+        ok(hr == S_OK, "SetKeyFrame returned %#lx\n", hr);
+
+        winetest_pop_context();
     }
 
     ret = check_mf_sample_collection(output_samples, output_sample_desc, L"wmvencdata.bin");
     ok(ret == 0, "got %lu%% diff\n", ret);
     IMFCollection_Release(output_samples);
 
-    output_sample = create_sample(NULL, expect_output_info.cbSize);
+    IWMVideoForceKeyFrame_Release(force_keyframe);
+
+    output_sample = create_sample(NULL, output_info.cbSize);
     status = 0xdeadbeef;
     memset(&output, 0, sizeof(output));
     output.pSample = output_sample;
@@ -5025,6 +5135,10 @@ static void test_wmv_decoder(void)
     };
     static const MFVideoArea actual_aperture = {.Area={96,96}};
     static const DWORD actual_width = 96, actual_height = 96;
+    const struct attribute_desc expect_attributes[] =
+    {
+        {0},
+    };
     const struct attribute_desc expect_output_attributes[] =
     {
         ATTR_BLOB(MF_MT_GEOMETRIC_APERTURE, &actual_aperture, sizeof(actual_aperture)),
@@ -5131,20 +5245,14 @@ static void test_wmv_decoder(void)
             /* ATTR_BLOB(MF_MT_PALETTE, ... with 904 elements), */
         },
     };
-    const struct attribute_desc expect_attributes[] =
-    {
-        ATTR_UINT32(MF_LOW_LATENCY, 0),
-        ATTR_UINT32(MF_SA_D3D11_AWARE, 1),
-        ATTR_UINT32(MF_SA_D3D_AWARE, 1),
-        ATTR_UINT32(MFT_DECODER_EXPOSE_OUTPUT_TYPES_IN_NATIVE_ORDER, 0),
-        /* more attributes from CODECAPI */
-        {0},
-    };
     const struct attribute_desc input_type_desc[] =
     {
         ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video, .required = TRUE),
         ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_WMV1, .required = TRUE),
         ATTR_RATIO(MF_MT_FRAME_SIZE, actual_width, actual_height, .required = TRUE),
+        ATTR_RATIO(MF_MT_FRAME_RATE, 30000, 1001),
+        ATTR_UINT32(MF_MT_AVG_BITRATE, 193540),
+        ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1),
         {0},
     };
     const struct attribute_desc output_type_desc[] =
@@ -5190,6 +5298,9 @@ static void test_wmv_decoder(void)
         ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
         ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_WMV1),
         ATTR_RATIO(MF_MT_FRAME_SIZE, actual_width, actual_height),
+        ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1),
+        ATTR_RATIO(MF_MT_FRAME_RATE, 30000, 1001),
+        ATTR_UINT32(MF_MT_AVG_BITRATE, 193540),
         ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1),
         {0},
     };
@@ -5392,6 +5503,28 @@ static void test_wmv_decoder(void)
     check_interface(transform, &IID_IMediaObject, TRUE);
     check_interface(transform, &IID_IPropertyStore, TRUE);
     check_interface(transform, &IID_IPropertyBag, TRUE);
+    check_interface(transform, &IID_IWMSampleExtensionSupport, TRUE);
+
+    check_interface(transform, &IID_IMFShutdown, FALSE);
+    check_interface(transform, &IID_IMFMediaEventGenerator, FALSE);
+    check_interface(transform, &IID_IWMCodecPrivateData, FALSE);
+
+    check_interface(transform, &IID_IWMCodecOutputTimestamp, FALSE);
+    check_interface(transform, &IID_IWMVideoDecoderHurryup, FALSE);
+    check_interface(transform, &IID_IWMVideoDecoderReconBuffer, FALSE);
+
+    check_interface(transform, &IID_IWMCodecLeakyBucket, FALSE);
+    check_interface(transform, &IID_IWMCodecPrivateData, FALSE);
+    check_interface(transform, &IID_IWMCodecProps, FALSE);
+    check_interface(transform, &IID_IWMCodecStrings, FALSE);
+    check_interface(transform, &IID_IWMColorConvProps, FALSE);
+    check_interface(transform, &IID_IWMColorLegalizerProps, FALSE);
+    check_interface(transform, &IID_IWMFrameInterpProps, FALSE);
+    check_interface(transform, &IID_IWMInterlaceProps, FALSE);
+    check_interface(transform, &IID_IWMResamplerProps, FALSE);
+    check_interface(transform, &IID_IWMResizerProps, FALSE);
+    check_interface(transform, &IID_IWMValidate, FALSE);
+    check_interface(transform, &IID_IWMVideoForceKeyFrame, FALSE);
 
     check_mft_optional_methods(transform, 1);
     check_mft_get_attributes(transform, expect_attributes, TRUE);
@@ -6725,7 +6858,7 @@ static void test_video_processor(void)
                 && IsEqualGUID(&guid, &MFVideoFormat_RGB32)))
             expect_available_inputs++;
 
-        ok(IsEqualGUID(&expect_available_inputs[i], &guid), "got subtype %s\n", debugstr_guid(&guid));
+        ok(IsEqualGUID(&expect_available_inputs[i], &guid), "got subtype %s\n", debugstr_mf_guid(&guid));
 
         hr = IMFTransform_SetInputType(transform, 0, media_type, 0);
         ok(hr == MF_E_ATTRIBUTENOTFOUND, "SetInputType returned %#lx.\n", hr);
@@ -6757,7 +6890,7 @@ static void test_video_processor(void)
             for (; k < ARRAY_SIZE(expect_available_outputs); k++)
                 if (IsEqualGUID(&expect_available_outputs[k], &guid))
                     break;
-            ok(k < ARRAY_SIZE(expect_available_outputs), "got subtype %s\n", debugstr_guid(&guid));
+            ok(k < ARRAY_SIZE(expect_available_outputs), "got subtype %s\n", debugstr_mf_guid(&guid));
 
             ret = IMFMediaType_Release(media_type);
             ok(ret == 0, "Release returned %lu\n", ret);
