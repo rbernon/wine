@@ -31,6 +31,63 @@
 
 #include "wine/unixlib.h"
 
+/* List all supported raw audio formats, with their metadata.
+ *
+ * Each element should be X(wg, gst, guid, depth), with:
+ *   wg: the enum wg_video_format value.
+ *   gst: corresponding GStreamer constant.
+ *   guid: suffix of the corresponding MEDIASUBTYPE / MFAudioFormat guid.
+ *   depth: the number of bits of each audio sample.
+ *
+ */
+#define FOR_EACH_WG_AUDIO_FORMAT(F)  \
+    F(WG_AUDIO_FORMAT_U8,    GST_AUDIO_FORMAT_U8,    PCM,   8)  \
+    F(WG_AUDIO_FORMAT_S16LE, GST_AUDIO_FORMAT_S16LE, PCM,   16) \
+    F(WG_AUDIO_FORMAT_S24LE, GST_AUDIO_FORMAT_S24LE, PCM,   24) \
+    F(WG_AUDIO_FORMAT_S32LE, GST_AUDIO_FORMAT_S32LE, PCM,   32) \
+    F(WG_AUDIO_FORMAT_F32LE, GST_AUDIO_FORMAT_F32LE, Float, 32) \
+    F(WG_AUDIO_FORMAT_F64LE, GST_AUDIO_FORMAT_F64LE, Float, 64) \
+
+enum wg_audio_format
+{
+    WG_AUDIO_FORMAT_UNKNOWN = 0,
+#define X(wg, gst, guid, depth) wg,
+    FOR_EACH_WG_AUDIO_FORMAT(X)
+#undef X
+};
+
+/* List all supported raw video formats, with their metadata.
+ *
+ * Each element should be X(wg, gst, guid, depth, type), with:
+ *   wg: the enum wg_video_format value.
+ *   gst: corresponding GStreamer constant.
+ *   guid: suffix of the corresponding MEDIASUBTYPE / MFVideoFormat guid.
+ *   depth: the number of bits of each video sample.
+ *   type: whether the video format is RGB or YUV.
+ *
+ */
+#define FOR_EACH_WG_VIDEO_FORMAT(F)  \
+    F(WG_VIDEO_FORMAT_BGRA,  GST_VIDEO_FORMAT_BGRA,  ARGB32, 32, RGB) \
+    F(WG_VIDEO_FORMAT_BGRx,  GST_VIDEO_FORMAT_BGRx,  RGB32,  32, RGB) \
+    F(WG_VIDEO_FORMAT_BGR,   GST_VIDEO_FORMAT_BGR,   RGB24,  24, RGB) \
+    F(WG_VIDEO_FORMAT_RGB15, GST_VIDEO_FORMAT_RGB15, RGB555, 16, RGB) \
+    F(WG_VIDEO_FORMAT_RGB16, GST_VIDEO_FORMAT_RGB16, RGB565, 16, RGB) \
+    F(WG_VIDEO_FORMAT_AYUV,  GST_VIDEO_FORMAT_AYUV,  AYUV,   32, YUV) \
+    F(WG_VIDEO_FORMAT_I420,  GST_VIDEO_FORMAT_I420,  I420,   12, YUV) \
+    F(WG_VIDEO_FORMAT_NV12,  GST_VIDEO_FORMAT_NV12,  NV12,   12, YUV) \
+    F(WG_VIDEO_FORMAT_UYVY,  GST_VIDEO_FORMAT_UYVY,  UYVY,   16, YUV) \
+    F(WG_VIDEO_FORMAT_YUY2,  GST_VIDEO_FORMAT_YUY2,  YUY2,   16, YUV) \
+    F(WG_VIDEO_FORMAT_YV12,  GST_VIDEO_FORMAT_YV12,  YV12,   12, YUV) \
+    F(WG_VIDEO_FORMAT_YVYU,  GST_VIDEO_FORMAT_YVYU,  YVYU,   16, YUV) \
+
+enum wg_video_format
+{
+    WG_VIDEO_FORMAT_UNKNOWN = 0,
+#define X(wg, gst, guid, depth, type) wg,
+    FOR_EACH_WG_VIDEO_FORMAT(X)
+#undef X
+};
+
 struct wg_format
 {
     enum wg_major_type
@@ -51,18 +108,7 @@ struct wg_format
     {
         struct
         {
-            enum wg_audio_format
-            {
-                WG_AUDIO_FORMAT_UNKNOWN,
-
-                WG_AUDIO_FORMAT_U8,
-                WG_AUDIO_FORMAT_S16LE,
-                WG_AUDIO_FORMAT_S24LE,
-                WG_AUDIO_FORMAT_S32LE,
-                WG_AUDIO_FORMAT_F32LE,
-                WG_AUDIO_FORMAT_F64LE,
-            } format;
-
+            enum wg_audio_format format;
             uint32_t channels;
             uint32_t channel_mask; /* In WinMM format. */
             uint32_t rate;
@@ -93,26 +139,7 @@ struct wg_format
 
         struct
         {
-            enum wg_video_format
-            {
-                WG_VIDEO_FORMAT_UNKNOWN,
-
-                WG_VIDEO_FORMAT_BGRA,
-                WG_VIDEO_FORMAT_BGRx,
-                WG_VIDEO_FORMAT_BGR,
-                WG_VIDEO_FORMAT_RGB15,
-                WG_VIDEO_FORMAT_RGB16,
-
-                WG_VIDEO_FORMAT_AYUV,
-                WG_VIDEO_FORMAT_I420,
-                WG_VIDEO_FORMAT_NV12,
-                WG_VIDEO_FORMAT_UYVY,
-                WG_VIDEO_FORMAT_YUY2,
-                WG_VIDEO_FORMAT_YV12,
-                WG_VIDEO_FORMAT_YVYU,
-            } format;
-            /* Positive height indicates top-down video; negative height
-             * indicates bottom-up video. */
+            enum wg_video_format format;
             int32_t width, height;
             uint32_t fps_n, fps_d;
             RECT padding;

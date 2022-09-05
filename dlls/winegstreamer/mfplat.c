@@ -434,19 +434,9 @@ static const struct
 }
 video_formats[] =
 {
-    {&MFVideoFormat_ARGB32, WG_VIDEO_FORMAT_BGRA},
-    {&MFVideoFormat_RGB32,  WG_VIDEO_FORMAT_BGRx},
-    {&MFVideoFormat_RGB24,  WG_VIDEO_FORMAT_BGR},
-    {&MFVideoFormat_RGB555, WG_VIDEO_FORMAT_RGB15},
-    {&MFVideoFormat_RGB565, WG_VIDEO_FORMAT_RGB16},
-    {&MFVideoFormat_AYUV,   WG_VIDEO_FORMAT_AYUV},
-    {&MFVideoFormat_I420,   WG_VIDEO_FORMAT_I420},
-    {&MFVideoFormat_IYUV,   WG_VIDEO_FORMAT_I420},
-    {&MFVideoFormat_NV12,   WG_VIDEO_FORMAT_NV12},
-    {&MFVideoFormat_UYVY,   WG_VIDEO_FORMAT_UYVY},
-    {&MFVideoFormat_YUY2,   WG_VIDEO_FORMAT_YUY2},
-    {&MFVideoFormat_YV12,   WG_VIDEO_FORMAT_YV12},
-    {&MFVideoFormat_YVYU,   WG_VIDEO_FORMAT_YVYU},
+#define X(wg, gst, guid, depth, type) {&MFVideoFormat_ ## guid, wg},
+    FOR_EACH_WG_VIDEO_FORMAT(X)
+#undef X
 };
 
 static const struct
@@ -457,12 +447,9 @@ static const struct
 }
 audio_formats[] =
 {
-    {&MFAudioFormat_PCM,     8, WG_AUDIO_FORMAT_U8},
-    {&MFAudioFormat_PCM,    16, WG_AUDIO_FORMAT_S16LE},
-    {&MFAudioFormat_PCM,    24, WG_AUDIO_FORMAT_S24LE},
-    {&MFAudioFormat_PCM,    32, WG_AUDIO_FORMAT_S32LE},
-    {&MFAudioFormat_Float,  32, WG_AUDIO_FORMAT_F32LE},
-    {&MFAudioFormat_Float,  64, WG_AUDIO_FORMAT_F64LE},
+#define X(wg, gst, guid, depth) {&MFAudioFormat_ ## guid, depth, wg},
+    FOR_EACH_WG_AUDIO_FORMAT(X)
+#undef X
 };
 
 static inline UINT64 make_uint64(UINT32 high, UINT32 low)

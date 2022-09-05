@@ -44,20 +44,10 @@ static enum wg_audio_format wg_audio_format_from_gst(GstAudioFormat format)
 {
     switch (format)
     {
-        case GST_AUDIO_FORMAT_U8:
-            return WG_AUDIO_FORMAT_U8;
-        case GST_AUDIO_FORMAT_S16LE:
-            return WG_AUDIO_FORMAT_S16LE;
-        case GST_AUDIO_FORMAT_S24LE:
-            return WG_AUDIO_FORMAT_S24LE;
-        case GST_AUDIO_FORMAT_S32LE:
-            return WG_AUDIO_FORMAT_S32LE;
-        case GST_AUDIO_FORMAT_F32LE:
-            return WG_AUDIO_FORMAT_F32LE;
-        case GST_AUDIO_FORMAT_F64LE:
-            return WG_AUDIO_FORMAT_F64LE;
-        default:
-            return WG_AUDIO_FORMAT_UNKNOWN;
+#define X(wg, gst, guid, depth) case gst: return wg;
+        FOR_EACH_WG_AUDIO_FORMAT(X)
+#undef X
+        default: return WG_AUDIO_FORMAT_UNKNOWN;
     }
 }
 
@@ -135,32 +125,10 @@ static enum wg_video_format wg_video_format_from_gst(GstVideoFormat format)
 {
     switch (format)
     {
-        case GST_VIDEO_FORMAT_BGRA:
-            return WG_VIDEO_FORMAT_BGRA;
-        case GST_VIDEO_FORMAT_BGRx:
-            return WG_VIDEO_FORMAT_BGRx;
-        case GST_VIDEO_FORMAT_BGR:
-            return WG_VIDEO_FORMAT_BGR;
-        case GST_VIDEO_FORMAT_RGB15:
-            return WG_VIDEO_FORMAT_RGB15;
-        case GST_VIDEO_FORMAT_RGB16:
-            return WG_VIDEO_FORMAT_RGB16;
-        case GST_VIDEO_FORMAT_AYUV:
-            return WG_VIDEO_FORMAT_AYUV;
-        case GST_VIDEO_FORMAT_I420:
-            return WG_VIDEO_FORMAT_I420;
-        case GST_VIDEO_FORMAT_NV12:
-            return WG_VIDEO_FORMAT_NV12;
-        case GST_VIDEO_FORMAT_UYVY:
-            return WG_VIDEO_FORMAT_UYVY;
-        case GST_VIDEO_FORMAT_YUY2:
-            return WG_VIDEO_FORMAT_YUY2;
-        case GST_VIDEO_FORMAT_YV12:
-            return WG_VIDEO_FORMAT_YV12;
-        case GST_VIDEO_FORMAT_YVYU:
-            return WG_VIDEO_FORMAT_YVYU;
-        default:
-            return WG_VIDEO_FORMAT_UNKNOWN;
+#define X(wg, gst, guid, depth, type) case gst: return wg;
+        FOR_EACH_WG_VIDEO_FORMAT(X)
+#undef X
+        default: return WG_VIDEO_FORMAT_UNKNOWN;
     }
 }
 
@@ -328,12 +296,9 @@ static GstAudioFormat wg_audio_format_to_gst(enum wg_audio_format format)
 {
     switch (format)
     {
-        case WG_AUDIO_FORMAT_U8:    return GST_AUDIO_FORMAT_U8;
-        case WG_AUDIO_FORMAT_S16LE: return GST_AUDIO_FORMAT_S16LE;
-        case WG_AUDIO_FORMAT_S24LE: return GST_AUDIO_FORMAT_S24LE;
-        case WG_AUDIO_FORMAT_S32LE: return GST_AUDIO_FORMAT_S32LE;
-        case WG_AUDIO_FORMAT_F32LE: return GST_AUDIO_FORMAT_F32LE;
-        case WG_AUDIO_FORMAT_F64LE: return GST_AUDIO_FORMAT_F64LE;
+#define X(wg, gst, guid, depth) case wg: return gst;
+        FOR_EACH_WG_AUDIO_FORMAT(X)
+#undef X
         default: return GST_AUDIO_FORMAT_UNKNOWN;
     }
 }
@@ -449,18 +414,9 @@ static GstVideoFormat wg_video_format_to_gst(enum wg_video_format format)
 {
     switch (format)
     {
-        case WG_VIDEO_FORMAT_BGRA:  return GST_VIDEO_FORMAT_BGRA;
-        case WG_VIDEO_FORMAT_BGRx:  return GST_VIDEO_FORMAT_BGRx;
-        case WG_VIDEO_FORMAT_BGR:   return GST_VIDEO_FORMAT_BGR;
-        case WG_VIDEO_FORMAT_RGB15: return GST_VIDEO_FORMAT_RGB15;
-        case WG_VIDEO_FORMAT_RGB16: return GST_VIDEO_FORMAT_RGB16;
-        case WG_VIDEO_FORMAT_AYUV:  return GST_VIDEO_FORMAT_AYUV;
-        case WG_VIDEO_FORMAT_I420:  return GST_VIDEO_FORMAT_I420;
-        case WG_VIDEO_FORMAT_NV12:  return GST_VIDEO_FORMAT_NV12;
-        case WG_VIDEO_FORMAT_UYVY:  return GST_VIDEO_FORMAT_UYVY;
-        case WG_VIDEO_FORMAT_YUY2:  return GST_VIDEO_FORMAT_YUY2;
-        case WG_VIDEO_FORMAT_YV12:  return GST_VIDEO_FORMAT_YV12;
-        case WG_VIDEO_FORMAT_YVYU:  return GST_VIDEO_FORMAT_YVYU;
+#define X(wg, gst, guid, depth, type) case wg: return gst;
+        FOR_EACH_WG_VIDEO_FORMAT(X)
+#undef X
         default: return GST_VIDEO_FORMAT_UNKNOWN;
     }
 }
