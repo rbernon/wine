@@ -42,7 +42,6 @@ struct debug_info
 
 C_ASSERT( sizeof(struct debug_info) == 0x800 );
 
-static const char * (__cdecl *p__wine_dbg_strdup)( const char *str );
 static int (__cdecl *p__wine_dbg_output)( const char *str );
 static unsigned char (__cdecl *p__wine_dbg_get_channel_flags)( struct __wine_debug_channel *channel );
 static int (__cdecl *p__wine_dbg_header)( enum __wine_debug_class cls,
@@ -221,19 +220,6 @@ struct debug_info *__cdecl __wine_dbg_get_info(void)
     return p__wine_dbg_get_info();
 }
 
-/* FIXME: this is not 100% thread-safe */
-static const char * __cdecl fallback__wine_dbg_strdup( const char *str )
-{
-    static char *list[32];
-    static LONG pos;
-    char *ret = strdup( str );
-    int idx;
-
-    idx = InterlockedIncrement( &pos ) % ARRAY_SIZE(list);
-    free( InterlockedExchangePointer( (void **)&list[idx], ret ));
-    return ret;
-}
-
 static int __cdecl fallback__wine_dbg_output( const char *str )
 {
     size_t len = strlen( str );
@@ -292,12 +278,6 @@ static unsigned char __cdecl fallback__wine_dbg_get_channel_flags( struct __wine
     default_flags = debug_options[nb_debug_options].flags;
     if (channel->flags & (1 << __WINE_DBCL_INIT)) channel->flags = default_flags;
     return default_flags;
-}
-
-const char * __cdecl __wine_dbg_strdup( const char *str )
-{
-    LOAD_FUNC( __wine_dbg_strdup );
-    return p__wine_dbg_strdup( str );
 }
 
 int __cdecl __wine_dbg_output( const char *str )

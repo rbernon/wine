@@ -1,6 +1,6 @@
 EXTRADEFS = -D_CRTDLL -D_CRTIMP=
 MODULE    = crtdll.dll
-IMPORTS   = ntdll
+IMPORTS   = winecrtd ntdll
 DELAYIMPORTS = advapi32 user32
 PARENTSRC = ../msvcrt
 

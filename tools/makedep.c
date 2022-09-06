@@ -2119,6 +2119,9 @@ static struct strarray add_unix_libraries( const struct makefile *make, struct s
     struct strarray all_libs = empty_strarray;
     unsigned int i, j;
 
+    strarray_add( &all_libs, obj_dir_path( top_makefile, "dlls/winecrtd/libwinecrtd.a" ) );
+    strarray_add( deps, obj_dir_path( top_makefile, "dlls/winecrtd/libwinecrtd.a" ) );
+
     if (strcmp( make->unixlib, "ntdll.so" )) strarray_add( &all_libs, "-lntdll" );
     strarray_addall( &all_libs, get_expanded_make_var_array( make, "UNIX_LIBS" ));
 
@@ -2207,6 +2210,7 @@ static struct strarray get_default_imports( const struct makefile *make, struct 
         if (is_crt_module( imports.str[i] ))
             crt_dll = imports.str[i];
 
+    strarray_add( &ret, "winecrtd" );
     strarray_add( &ret, "winecrt0" );
     if (crt_dll) strarray_add( &ret, crt_dll );
 
