@@ -2134,6 +2134,8 @@ static struct strarray add_unix_libraries( const struct makefile *make, struct s
     unsigned int i, j;
 
     if (strcmp( make->unixlib, "ntdll.so" )) strarray_add( &all_libs, "-lntdll" );
+    strarray_add( &all_libs, "-lwinecrtd" );
+
     strarray_addall( &all_libs, get_expanded_make_var_array( make, "UNIX_LIBS" ));
 
     for (i = 0; i < all_libs.count; i++)
@@ -2144,8 +2146,11 @@ static struct strarray add_unix_libraries( const struct makefile *make, struct s
         {
             for (j = 0; j < subdirs.count; j++)
             {
+                struct makefile *submake;
                 if (make == submakes[j]) continue;
                 if ((lib = get_native_unix_lib( submakes[j], all_libs.str[i] + 2 ))) break;
+                if (!(submake = get_static_lib( all_libs.str[i] + 2, 0 )) || !submake->staticlib) continue;
+                if ((lib = obj_dir_path( submake, strmake( "lib%s.a", all_libs.str[i] + 2 )))) break;
             }
         }
         if (lib)
@@ -2221,6 +2226,7 @@ static struct strarray get_default_imports( const struct makefile *make, struct 
             crt_dll = imports.str[i];
 
     strarray_add( &ret, "winecrt0" );
+    strarray_add( &ret, "winecrtd" );
     if (crt_dll) strarray_add( &ret, crt_dll );
 
     if (make->is_win16 && (!make->importlib || strcmp( make->importlib, "kernel" )))
@@ -3167,6 +3173,7 @@ static void output_source_one_arch( struct makefile *make, struct incl_file *sou
             if (!*dll_ext && make->module && is_crt_module( make->module ))
                 output_filename( "-fno-builtin" );
         }
+        if (make->staticlib) output_filename( "-fPIC" );
     }
     else
     {

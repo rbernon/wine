@@ -64,7 +64,7 @@ static struct __wine_debug_channel *debug_options;
 static const char * const debug_classes[] = { "fixme", "err", "warn", "trace" };
 
 /* get the debug info pointer for the current thread */
-static inline struct debug_info *get_info(void)
+struct debug_info *__cdecl __wine_dbg_get_info(void)
 {
     if (!init_done) return &initial_info;
 #ifdef _WIN64
@@ -231,21 +231,6 @@ unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel 
 }
 
 /***********************************************************************
- *		__wine_dbg_strdup  (NTDLL.@)
- */
-const char * __cdecl __wine_dbg_strdup( const char *str )
-{
-    struct debug_info *info = get_info();
-    unsigned int pos = info->str_pos;
-    size_t n = strlen( str ) + 1;
-
-    assert( n <= sizeof(info->strings) );
-    if (pos + n > sizeof(info->strings)) pos = 0;
-    info->str_pos = pos + n;
-    return memcpy( info->strings + pos, str, n );
-}
-
-/***********************************************************************
  *		__wine_dbg_write  (NTDLL.@)
  */
 int WINAPI __wine_dbg_write( const char *str, unsigned int len )
@@ -258,7 +243,7 @@ int WINAPI __wine_dbg_write( const char *str, unsigned int len )
  */
 int __cdecl __wine_dbg_output( const char *str )
 {
-    struct debug_info *info = get_info();
+    struct debug_info *info = __wine_dbg_get_info();
     const char *end = strrchr( str, '\n' );
     int ret = 0;
 
@@ -280,7 +265,7 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
                                const char *function )
 {
     static const char * const classes[] = { "fixme", "err", "warn", "trace" };
-    struct debug_info *info = get_info();
+    struct debug_info *info = __wine_dbg_get_info();
     char *pos = info->output;
 
     if (!(__wine_dbg_get_channel_flags( channel ) & (1 << cls))) return -1;
