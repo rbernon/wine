@@ -2635,7 +2635,6 @@ static void test_media_session_events(void)
         ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     }
     ok(IsEqualGUID(&guid, &GUID_NULL), "got guid %s\n", debugstr_guid(&guid));
-    todo_wine
     ok(event_type == MESessionStopped, "got type %lu\n", event_type);
     ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
 
