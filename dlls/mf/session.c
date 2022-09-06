@@ -1045,6 +1045,9 @@ static void session_set_stopped(struct media_session *session, HRESULT status)
     session->state = SESSION_STATE_STOPPED;
     event_type = session->presentation.flags & SESSION_FLAG_END_OF_PRESENTATION ? MESessionEnded : MESessionStopped;
 
+    if (SUCCEEDED(status))
+        session_set_caps(session, session->caps & ~MFSESSIONCAP_PAUSE);
+
     if (SUCCEEDED(MFCreateMediaEvent(event_type, &GUID_NULL, status, NULL, &event)))
     {
         IMFMediaEvent_SetUINT64(event, &MF_SESSION_APPROX_EVENT_OCCURRENCE_TIME, session->presentation.clock_stop_time);
@@ -2951,8 +2954,6 @@ static void session_set_source_object_state(struct media_session *session, IUnkn
                 }
             }
 
-            session_set_caps(session, session->caps & ~MFSESSIONCAP_PAUSE);
-
             if (session->presentation.flags & SESSION_FLAG_FINALIZE_SINKS)
                 session_finalize_sinks(session);
             else
@@ -3587,7 +3588,6 @@ static void session_sink_stream_marker(struct media_session *session, IMFStreamS
             session_nodes_is_mask_set(session, MF_TOPOLOGY_OUTPUT_NODE, TOPO_NODE_END_OF_STREAM))
     {
         session_set_topo_status(session, S_OK, MF_TOPOSTATUS_ENDED);
-        session_set_caps(session, session->caps & ~MFSESSIONCAP_PAUSE);
         session_stop(session);
     }
 }
