@@ -38,6 +38,166 @@ cpp_quote("DEFINE_GUID(MEDIASUBTYPE_WVC1,0x31435657,0x0000,0x0010,0x80,0x00,0x00
 cpp_quote("DEFINE_GUID(MEDIASUBTYPE_WVP2,0x32505657,0x0000,0x0010,0x80,0x00,0x00,0xaa,0x00,0x38,0x9b,0x71);")
 
 [
+    uuid(36cb6e0c-78c1-42b2-9943-846262f31786)
+]
+coclass ALawCodecWrapper {}
+
+[
+    uuid(798059f0-89ca-4160-b325-aeb48efe4f9a)
+]
+coclass CColorControlDmo {}
+
+[
+    uuid(01f36ce2-0907-4d8b-979d-f151be91c883)
+]
+coclass CFrameRateConvertDmo {}
+
+[
+    uuid(11103421-354c-4cca-a7a3-1aff9a5b6701)
+]
+coclass MP3ACMCodecWrapper {}
+
+[
+    uuid(46a4dd5c-73f8-4304-94df-308f760974f4)
+]
+coclass CMPEG2AudioEncoderMFT {}
+
+[
+    uuid(cba9e78b-49a3-49ea-93d4-6bcba8c4de07)
+]
+coclass CMpeg43DecMediaObject {}
+
+[
+    uuid(f371728a-6052-4d47-827c-d039335dfe0a)
+]
+coclass CMpeg4DecMediaObject {}
+
+[
+    uuid(5686a0d9-fe39-409f-9dff-3fdbc849f9f5)
+]
+coclass CMpeg4sDecMFT {}
+
+[
+    uuid(32d186a7-218f-4c75-8876-dd77273a8999)
+]
+coclass CMSAACDecMFT {}
+
+[
+    uuid(c0cd7d12-31fc-4bbc-b363-7322ee3e1879)
+]
+coclass CMSALACDecMFT {}
+
+[
+    uuid(9ab6a28c-748e-4b6a-bfff-cc443b8e8fb4)
+]
+coclass CMSALACEncMFT {}
+
+[
+    uuid(265011ae-5481-4f77-a295-abb6ffe8d63e)
+]
+coclass MSAMRNBDecoder {}
+
+[
+    uuid(2fae8afe-04a3-423a-a814-85db454712b0)
+]
+coclass MSAMRNBEncoder {}
+
+[
+    uuid(177c0afe-900b-48d4-9e4c-57add250b3d4)
+]
+coclass CMSDDPlusDecMFT {}
+
+[
+    uuid(ac3315c9-f481-45d7-826c-0b406c1f64b8)
+]
+coclass CMSDolbyDigitalEncMFT {}
+
+[
+    uuid(6b0b3e6b-a2c5-4514-8055-afe8a95242d9)
+]
+coclass CMSFLACDecMFT {}
+
+[
+    uuid(128509e9-c44e-45dc-95e9-c255b8f466a6)
+]
+coclass CMSFLACEncMFT {}
+
+[
+    uuid(bc47fcfe-98a0-4f27-bb07-698af24f2b38)
+]
+coclass CMSH263EncoderMFT {}
+
+[
+    uuid(6ca50344-051a-4ded-9779-a43305165e35)
+]
+coclass CMSH264EncoderMFT {}
+
+[
+    uuid(05a47ebb-8bf0-4cbf-ad2f-3b71d75866f5)
+]
+coclass CMSH264RemuxMFT {}
+
+[
+    uuid(70707b39-b2ca-4015-abea-f8447d22d88b)
+]
+coclass CMSMPEGAudDecMFT {}
+
+[
+    uuid(63e17c10-2d43-4c42-8fe3-8d8b63e46a6a)
+]
+coclass CMSOpusDecMFT {}
+
+[
+    uuid(7bafb3b1-d8f4-4279-9253-27da423108de)
+]
+coclass CMSSCDecMediaObject {}
+
+[
+    uuid(f7ffe0a0-a4f5-44b5-949e-15ed2bc66f9d)
+]
+coclass CMSSCEncMediaObject2 {}
+
+[
+    uuid(51571744-7fe4-4ff2-a498-2dc34ff74f1b)
+]
+coclass CMSVideoDSPMFT {}
+
+[
+    uuid(aeb6c755-2546-4881-82cc-e15ae5ebff3d)
+]
+coclass CMSVPXEncoderMFT {}
+
+[
+    uuid(92b66080-5e2d-449e-90c4-c41f268e5514)
+]
+coclass MULawCodecWrapper {}
+
+[
+    uuid(1ea1ea14-48f4-4054-ad1a-e8aee10ac805)
+]
+coclass CResizerDMO {}
+
+[
+    uuid(745057c7-f353-4f2d-a7ee-58434477730e)
+]
+coclass CWMAudioAEC {}
+
+[
+    uuid(5210f8e4-b0bb-47c3-a8d9-7b2282cc79ed)
+]
+coclass CWMAudioSpdTxDMO {}
+
+[
+    uuid(874131cb-4ecc-443b-8948-746b89595d20)
+]
+coclass CWMSPDecMediaObject {}
+
+[
+    uuid(1f1f4e1a-2252-4063-84bb-eee75f8856d5)
+]
+coclass CWMSPEncMediaObject2 {}
+
+[
     uuid(bbeea841-0a63-4f52-a7ab-a9b3a84ed38a)
 ]
 coclass CMP3DecMediaObject {}
