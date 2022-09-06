@@ -3017,10 +3017,11 @@ static void session_set_sink_stream_state(struct media_session *session, IMFStre
 
             LIST_FOR_EACH_ENTRY(source, &session->presentation.sources, struct media_source, entry)
             {
-                if (session->presentation.flags & SESSION_FLAG_END_OF_PRESENTATION)
-                    IMFMediaSource_Stop(source->source);
-                else if (FAILED(hr = IMFMediaSource_Stop(source->source)))
+                if (FAILED(hr = IMFMediaSource_Stop(source->source)))
+                {
+                    WARN("Failed to stop media source %p, hr %#lx\n", source->source, hr);
                     break;
+                }
             }
 
             if (session->presentation.flags & SESSION_FLAG_END_OF_PRESENTATION || FAILED(hr))
