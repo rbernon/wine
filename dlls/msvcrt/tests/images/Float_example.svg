@@ -1,0 +1,92 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="590" height="75">
+	<style>
+		text {
+			font-size: 14px;
+			font-family: Arial, sans-serif;
+			text-anchor: middle;
+		}
+	</style>
+	<defs>
+		<g id="bit-0">
+			<rect width="15" height="26" stroke="#000"/>
+			<text x="8" y="18.3" fill="#000">0</text>
+		</g>
+		<g id="bit-1">
+			<rect width="15" height="26" stroke="#000"/>
+			<text x="8" y="18.3" fill="#000">1</text>
+		</g>
+	</defs>
+	
+	<g transform="translate(14.25,28.75)">
+		<use xlink:href="#bit-0" fill="#c5fcff"/>
+		<g fill="#9fffad">
+			<use xlink:href="#bit-0" x="15"/>
+			<use xlink:href="#bit-1" x="30"/>
+			<use xlink:href="#bit-1" x="45"/>
+			<use xlink:href="#bit-1" x="60"/>
+			<use xlink:href="#bit-1" x="75"/>
+			<use xlink:href="#bit-1" x="90"/>
+			<use xlink:href="#bit-0" x="105"/>
+			<use xlink:href="#bit-0" x="120"/>
+		</g>
+		<g fill="#ffaead">
+			<use xlink:href="#bit-0" x="135"/>
+			<use xlink:href="#bit-1" x="150"/>
+			<use xlink:href="#bit-0" x="165"/>
+			<use xlink:href="#bit-0" x="180"/>
+			<use xlink:href="#bit-0" x="195"/>
+			<use xlink:href="#bit-0" x="210"/>
+			<use xlink:href="#bit-0" x="225"/>
+			<use xlink:href="#bit-0" x="240"/>
+			<use xlink:href="#bit-0" x="255"/>
+			<use xlink:href="#bit-0" x="270"/>
+			<use xlink:href="#bit-0" x="285"/>
+			<use xlink:href="#bit-0" x="300"/>
+			<use xlink:href="#bit-0" x="315"/>
+			<use xlink:href="#bit-0" x="330"/>
+			<use xlink:href="#bit-0" x="345"/>
+			<use xlink:href="#bit-0" x="360"/>
+			<use xlink:href="#bit-0" x="375"/>
+			<use xlink:href="#bit-0" x="390"/>
+			<use xlink:href="#bit-0" x="405"/>
+			<use xlink:href="#bit-0" x="420"/>
+			<use xlink:href="#bit-0" x="435"/>
+			<use xlink:href="#bit-0" x="450"/>
+			<use xlink:href="#bit-0" x="465"/>
+		</g>
+		<g fill="none" stroke="#000" stroke-width="2">
+			<rect width="480" height="26"/>
+			<path d="m15,0 v26 M135,0 v26" fill="none" stroke="#000"/>
+		</g>
+		
+		<path d="m7.5,-3.5 v-9.5" stroke="#008080"/>
+		<path d="m16,-3.5 v-9.5 h118 v9.5" stroke="#008000" fill="none"/>
+		<path d="m136,-3.5 v-9.5 h343 v9.5" stroke="#800000" fill="none"/>
+		
+		<text y="-18">
+			<tspan x="2">sign</tspan>
+			<tspan x="75">exponent (8 bits)</tspan>
+			<tspan x="307">fraction (23 bits)</tspan>
+		</text>
+		
+		<g transform="translate(0,30.5)" fill="#000">
+			<circle r="2" cx="7.5"/>
+			<circle r="2" cx="22.5"/>
+			<circle r="2" cx="127.5"/>
+			<circle r="2" cx="142.5"/>
+			<circle r="2" cx="472.5"/>
+		</g>
+		
+		<text y="45.5">
+			<tspan x="6">31</tspan>
+			<tspan x="27">30</tspan>
+			<tspan x="126">23</tspan>
+			<tspan x="146">22</tspan>
+			<tspan x="472.5">0</tspan>
+		</text>
+		<text x="243" y="44.5">(bit index)</text>
+	</g>
+	
+	<text x="504" y="48.4" style="text-anchor: start; font-size: 18.7px;">= 0.15625</text>
+</svg>
