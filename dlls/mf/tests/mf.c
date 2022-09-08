@@ -2165,7 +2165,9 @@ static void test_media_session_events(void)
     /* Shutdown behavior. */
     hr = IMFMediaSession_Shutdown(session);
     ok(hr == S_OK, "Failed to shut down, hr %#lx.\n", hr);
-    IMFMediaSession_Release(session);
+    ref = IMFMediaSession_Release(session);
+    todo_wine
+    ok(ref == 0, "Release returned %ld\n", ref);
 
     /* Shutdown leaks callback */
     EXPECT_REF(callback, 2);
@@ -2609,14 +2611,6 @@ static void test_media_session_events(void)
     IMFStreamSink_Release(stream);
     IMFMediaSink_Release(renderer);
 
-    hr = IMFMediaSession_GetClock(session, (IMFClock **)&clock);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = IMFPresentationClock_GetState(clock, 0, &clock_state);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(clock_state == MFCLOCK_STATE_INVALID, "Unexpected clock_state %#x.\n", clock_state);
-
-    ok(0, "%04lx: STARTING\n", GetCurrentThreadId());
-
     hr = IMFMediaSession_SetTopology(session, 0, topology);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     propvar.vt = VT_EMPTY;
@@ -2788,7 +2782,9 @@ if (0)
 
     hr = IMFMediaSession_Shutdown(session);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    IMFMediaSession_Release(session);
+    ref = IMFMediaSession_Release(session);
+    todo_wine
+    ok(ref == 0, "Release returned %ld\n", ref);
 
     hr = IMFTopologyNode_SetObject(sink_node, NULL);
     ok(hr == S_OK, "Failed to set object, hr %#lx.\n", hr);
@@ -2833,6 +2829,7 @@ static void test_media_session(void)
     IMFClock *clock;
     HRESULT hr;
     DWORD caps;
+    LONG ref;
 
     hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
     ok(hr == S_OK, "Startup failure, hr %#lx.\n", hr);
@@ -2913,7 +2910,9 @@ static void test_media_session(void)
     hr = IMFMediaSession_Shutdown(session);
     ok(hr == MF_E_SHUTDOWN, "Unexpected hr %#lx.\n", hr);
 
-    IMFMediaSession_Release(session);
+    ref = IMFMediaSession_Release(session);
+    todo_wine
+    ok(ref == 0, "Release returned %ld\n", ref);
 
     /* Custom topology loader, GUID is not registered. */
     hr = MFCreateAttributes(&attributes, 1);
@@ -2924,7 +2923,10 @@ static void test_media_session(void)
 
     hr = MFCreateMediaSession(attributes, &session);
     ok(hr == S_OK, "Failed to create media session, hr %#lx.\n", hr);
-    IMFMediaSession_Release(session);
+
+    ref = IMFMediaSession_Release(session);
+    todo_wine
+    ok(ref == 0, "Release returned %ld\n", ref);
 
     /* Disabled quality manager. */
     hr = IMFAttributes_SetGUID(attributes, &MF_SESSION_QUALITY_MANAGER, &GUID_NULL);
@@ -2932,7 +2934,10 @@ static void test_media_session(void)
 
     hr = MFCreateMediaSession(attributes, &session);
     ok(hr == S_OK, "Failed to create media session, hr %#lx.\n", hr);
-    IMFMediaSession_Release(session);
+
+    ref = IMFMediaSession_Release(session);
+    todo_wine
+    ok(ref == 0, "Release returned %ld\n", ref);
 
     IMFAttributes_Release(attributes);
 }
