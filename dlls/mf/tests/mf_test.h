@@ -56,6 +56,7 @@ typedef struct attribute_desc media_type_desc[32];
 #define ATTR_UINT64(k, v, ...)    {.key = &k, .name = #k, {.vt = VT_UI8, .uhVal = {.QuadPart = v}}, __VA_ARGS__ }
 
 extern const char *debugstr_mf_guid(const GUID *guid);
+extern const char *debugstr_mf_media_event_type(MediaEventType type);
 
 #define dump_media_type(a) dump_attributes_(__LINE__, (IMFAttributes *)a)
 #define dump_attributes(a) dump_attributes_(__LINE__, a)

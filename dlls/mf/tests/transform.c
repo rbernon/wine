@@ -58,6 +58,7 @@ DEFINE_GUID(MFVideoFormat_WMV_Unknown,0x7ce12ca9,0xbfbf,0x43d9,0x9d,0x00,0x82,0x
 DEFINE_GUID(mft_output_sample_incomplete,0xffffff,0xffff,0xffff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff);
 
 extern const char *debugstr_mf_guid(const GUID *guid) DECLSPEC_HIDDEN;
+extern const char *debugstr_mf_media_event_type(MediaEventType type) DECLSPEC_HIDDEN;
 
 void dump_attributes_(int line, IMFAttributes *attributes)
 {

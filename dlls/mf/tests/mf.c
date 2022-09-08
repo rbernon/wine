@@ -1862,9 +1862,16 @@ static HRESULT WINAPI testcallback_GetParameters(IMFAsyncCallback *iface, DWORD 
     return E_NOTIMPL;
 }
 
+
+static IMFPresentationClock *clock;
+
 static HRESULT WINAPI testcallback_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
 {
     struct test_callback *callback = CONTAINING_RECORD(iface, struct test_callback, IMFAsyncCallback_iface);
+    MFCLOCK_STATE clock_state = 0;
+    LONGLONG clock_time = 0;
+    MFTIME system_time = 0;
+    MediaEventType type;
     IUnknown *object;
     HRESULT hr;
 
@@ -1885,6 +1892,19 @@ static HRESULT WINAPI testcallback_Invoke(IMFAsyncCallback *iface, IMFAsyncResul
         ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
         IUnknown_Release(object);
     }
+
+    if (clock)
+    {
+        hr = IMFPresentationClock_GetState(clock, 0, &clock_state);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        hr = IMFPresentationClock_GetCorrelatedTime(clock, 0, &clock_time, &system_time);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    }
+
+    hr = IMFMediaEvent_GetType(callback->media_event, &type);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(0, "%04lx: got type %s, clock_state %#x, clock_time %I64d, system_time %I64d\n", GetCurrentThreadId(), debugstr_mf_media_event_type(type), clock_state, clock_time, system_time);
+    dump_attributes((IMFAttributes *)callback->media_event);
 
     SetEvent(callback->event);
 
@@ -1931,7 +1951,20 @@ static HRESULT wait_media_event_(int line, IMFMediaSession *session, IMFAsyncCal
         hr = IMFMediaSession_BeginGetEvent(session, &impl->IMFAsyncCallback_iface, (IUnknown *)session);
         todo_wine_if(hr == MF_S_MULTIPLE_BEGIN)
         ok_(__FILE__, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-        ret = WaitForSingleObject(impl->event, timeout);
+        while ((ret = WaitForSingleObject(impl->event, 10)))
+        {
+    if (clock)
+    {
+        MFCLOCK_STATE clock_state;
+        LONGLONG clock_time;
+        MFTIME system_time;
+        hr = IMFPresentationClock_GetState(clock, 0, &clock_state);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        hr = IMFPresentationClock_GetCorrelatedTime(clock, 0, &clock_time, &system_time);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        ok(0, "%04lx: got clock_state %#x, clock_time %I64d, system_time %I64d\n", GetCurrentThreadId(), clock_state, clock_time, system_time);
+    }
+        }
         todo_wine_if(ret == WAIT_TIMEOUT)
         ok_(__FILE__, line)(ret == WAIT_OBJECT_0, "WaitForSingleObject returned %lu\n", ret);
         if (ret == WAIT_TIMEOUT)
@@ -2066,6 +2099,7 @@ static void test_media_session_events(void)
     IMFMediaType *input_type, *output_type;
     IMFTopologyNode *src_node, *sink_node;
     IMFPresentationDescriptor *pd;
+    MFCLOCK_STATE clock_state;
     IMFMediaSession *session;
     IMFStreamDescriptor *sd;
     IMFAsyncResult *result;
@@ -2575,6 +2609,14 @@ static void test_media_session_events(void)
     IMFStreamSink_Release(stream);
     IMFMediaSink_Release(renderer);
 
+    hr = IMFMediaSession_GetClock(session, (IMFClock **)&clock);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFPresentationClock_GetState(clock, 0, &clock_state);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(clock_state == MFCLOCK_STATE_INVALID, "Unexpected clock_state %#x.\n", clock_state);
+
+    ok(0, "%04lx: STARTING\n", GetCurrentThreadId());
+
     hr = IMFMediaSession_SetTopology(session, 0, topology);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     propvar.vt = VT_EMPTY;
@@ -2634,9 +2676,37 @@ static void test_media_session_events(void)
         goto skip_wait_ended;
 #endif
 
-    hr = wait_media_event(session, callback, MEEndOfPresentation, 5000, &propvar);
+if (0)
+{
+    hr = IMFPresentationClock_GetState(clock, 0, &clock_state);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(clock_state == MFCLOCK_STATE_RUNNING, "Unexpected clock_state %#x.\n", clock_state);
+
+    hr = IMFMediaSession_Stop(session);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaSession_Stop(session);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    hr = wait_media_event(session, callback, MESessionStopped, 1000, &propvar);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+    hr = wait_media_event(session, callback, MESessionStopped, 1000, &propvar);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+
+    propvar.vt = VT_EMPTY;
+    hr = IMFMediaSession_Start(session, &GUID_NULL, &propvar);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+}
+
+    ok(0, "%04lx: ENDING\n", GetCurrentThreadId());
+
+    hr = wait_media_event(session, callback, MEEndOfPresentation, 10000, &propvar);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+
+    hr = IMFMediaSession_Stop(session);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
     hr = wait_media_event(session, callback, MESessionTopologyStatus, 1000, &propvar);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
@@ -2644,9 +2714,38 @@ static void test_media_session_events(void)
     ok(propvar.punkVal != (IUnknown *)topology, "got punkVal %p\n", propvar.punkVal);
     PropVariantClear(&propvar);
 
-    hr = wait_media_event(session, callback, MESessionEnded, 1000, &propvar);
+    hr = wait_media_event(session, callback, MESessionStopped, 1000, &propvar);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+
+    hr = IMFPresentationClock_GetState(clock, 0, &clock_state);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(clock_state == MFCLOCK_STATE_STOPPED, "Unexpected clock_state %#x.\n", clock_state);
+
+    ok(0, "%04lx: STOPPING\n", GetCurrentThreadId());
+
+    propvar.vt = VT_EMPTY;
+    hr = IMFMediaSession_Start(session, &GUID_NULL, &propvar);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = wait_media_event(session, callback, MESessionStarted, 1000, &propvar);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+
+    hr = IMFMediaSession_Stop(session);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaSession_Stop(session);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    hr = wait_media_event(session, callback, MESessionStopped, 1000, &propvar);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+    hr = wait_media_event(session, callback, MESessionStopped, 1000, &propvar);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+
+    hr = IMFPresentationClock_GetState(clock, 0, &clock_state);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(clock_state == MFCLOCK_STATE_STOPPED, "Unexpected clock_state %#x.\n", clock_state);
 
     hr = IMFMediaSession_Pause(session);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
@@ -2684,6 +2783,8 @@ static void test_media_session_events(void)
     hr = wait_media_event(session, callback, MESessionClosed, 1000, &propvar);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+
+    IMFPresentationClock_Release(clock);
 
     hr = IMFMediaSession_Shutdown(session);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
