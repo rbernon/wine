@@ -774,6 +774,21 @@ static void check_mft_get_input_current_type_(IMFTransform *transform, const str
     IMFMediaType_Release(current_type);
 }
 
+static void check_get_input_status(IMFTransform *transform, HRESULT expect_hr, DWORD expect_status)
+{
+    DWORD status;
+    HRESULT hr;
+
+    hr = IMFTransform_GetInputStatus(transform, 0, NULL);
+    ok(hr == E_POINTER, "GetInputStatus returned %#lx.\n", hr);
+    hr = IMFTransform_GetInputStatus(transform, 1, &status);
+    ok(hr == MF_E_INVALIDSTREAMNUMBER, "GetInputStatus returned %#lx.\n", hr);
+    status = 0xdeadbeef;
+    hr = IMFTransform_GetInputStatus(transform, 0, &status);
+    ok(hr == expect_hr, "GetInputStatus returned %#lx.\n", hr);
+    ok(status == expect_status, "got status %#lx.\n", status);
+}
+
 #define check_mft_set_output_type_required(a, b) check_mft_set_output_type_required_(__LINE__, a, b)
 static void check_mft_set_output_type_required_(int line, IMFTransform *transform, const struct attribute_desc *attributes)
 {
@@ -857,6 +872,19 @@ static void check_mft_get_output_current_type_(int line, IMFTransform *transform
 
     IMFMediaType_Release(media_type);
     IMFMediaType_Release(current_type);
+}
+
+static void check_get_output_status(IMFTransform *transform, HRESULT expect_hr, DWORD expect_status)
+{
+    DWORD status;
+    HRESULT hr;
+
+    hr = IMFTransform_GetOutputStatus(transform, NULL);
+    ok(hr == E_POINTER, "GetOutputStatus returned %#lx.\n", hr);
+    status = 0xdeadbeef;
+    hr = IMFTransform_GetOutputStatus(transform, &status);
+    ok(hr == expect_hr, "GetOutputStatus returned %#lx.\n", hr);
+    ok(status == expect_status, "got status %#lx.\n", status);
 }
 
 #define check_mft_process_output(a, b, c) check_mft_process_output_(__LINE__, a, b, c)
@@ -2108,8 +2136,7 @@ static void test_sample_copier(void)
 
     check_mft_get_input_current_type(copier, NULL);
 
-    hr = IMFTransform_GetInputStatus(copier, 0, &flags);
-    ok(hr == MF_E_TRANSFORM_TYPE_NOT_SET, "Unexpected hr %#lx.\n", hr);
+    check_get_input_status(copier, MF_E_TRANSFORM_TYPE_NOT_SET, 0xdeadbeef);
 
     /* Setting input type resets output type. */
     hr = IMFTransform_GetOutputCurrentType(copier, 0, &mediatype2);
@@ -2136,23 +2163,18 @@ static void test_sample_copier(void)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     IMFMediaType_Release(mediatype2);
 
-    hr = IMFTransform_GetInputStatus(copier, 0, &flags);
-    ok(hr == S_OK, "Failed to get input status, hr %#lx.\n", hr);
-    ok(flags == MFT_INPUT_STATUS_ACCEPT_DATA, "Unexpected flags %#lx.\n", flags);
+    check_get_input_status(copier, S_OK, MFT_INPUT_STATUS_ACCEPT_DATA);
 
     hr = IMFTransform_GetInputCurrentType(copier, 0, &mediatype2);
     ok(hr == S_OK, "Failed to get current type, hr %#lx.\n", hr);
     IMFMediaType_Release(mediatype2);
 
-    hr = IMFTransform_GetOutputStatus(copier, &flags);
-    ok(hr == MF_E_TRANSFORM_TYPE_NOT_SET, "Unexpected hr %#lx.\n", hr);
+    check_get_output_status(copier, MF_E_TRANSFORM_TYPE_NOT_SET, 0xdeadbeef);
 
     hr = IMFTransform_SetOutputType(copier, 0, mediatype, 0);
     ok(hr == S_OK, "Failed to set output type, hr %#lx.\n", hr);
 
-    hr = IMFTransform_GetOutputStatus(copier, &flags);
-    ok(hr == S_OK, "Failed to get output status, hr %#lx.\n", hr);
-    ok(!flags, "Unexpected flags %#lx.\n", flags);
+    check_get_output_status(copier, S_OK, 0);
 
     /* Pushing samples. */
     hr = MFCreateAlignedMemoryBuffer(output_info.cbSize, output_info.cbAlignment, &media_buffer);
@@ -2167,13 +2189,8 @@ static void test_sample_copier(void)
     ok(hr == S_OK, "Failed to process input, hr %#lx.\n", hr);
     EXPECT_REF(sample, 2);
 
-    hr = IMFTransform_GetInputStatus(copier, 0, &flags);
-    ok(hr == S_OK, "Failed to get input status, hr %#lx.\n", hr);
-    ok(!flags, "Unexpected flags %#lx.\n", flags);
-
-    hr = IMFTransform_GetOutputStatus(copier, &flags);
-    ok(hr == S_OK, "Failed to get output status, hr %#lx.\n", hr);
-    ok(flags == MFT_OUTPUT_STATUS_SAMPLE_READY, "Unexpected flags %#lx.\n", flags);
+    check_get_input_status(copier, S_OK, 0);
+    check_get_output_status(copier, S_OK, MFT_OUTPUT_STATUS_SAMPLE_READY);
 
     hr = IMFTransform_ProcessInput(copier, 0, sample, 0);
     ok(hr == MF_E_NOTACCEPTING, "Unexpected hr %#lx.\n", hr);
@@ -6438,11 +6455,8 @@ static void test_video_processor(void)
     check_interface(transform, &IID_IMFMediaEventGenerator, FALSE);
     check_interface(transform, &IID_IMFShutdown, FALSE);
 
-    hr = IMFTransform_GetInputStatus(transform, 0, &flags);
-    ok(hr == MF_E_TRANSFORM_TYPE_NOT_SET, "Unexpected hr %#lx.\n", hr);
-
-    hr = IMFTransform_GetOutputStatus(transform, &flags);
-    ok(hr == MF_E_TRANSFORM_TYPE_NOT_SET, "Unexpected hr %#lx.\n", hr);
+    check_get_input_status(transform, MF_E_TRANSFORM_TYPE_NOT_SET, 0xdeadbeef);
+    check_get_output_status(transform, MF_E_TRANSFORM_TYPE_NOT_SET, 0xdeadbeef);
 
     check_mft_get_input_current_type(transform, NULL);
     check_mft_get_output_current_type(transform, NULL);
