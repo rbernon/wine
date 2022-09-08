@@ -1136,37 +1136,45 @@ static IMFAsyncCallback *create_test_callback(BOOL check_media_event)
     return &callback->IMFAsyncCallback_iface;
 }
 
+#define wait_next_media_event(a, b, c, d, e, f) wait_next_media_event_(__LINE__, a, b, c, d, e, f)
+static HRESULT wait_next_media_event_(int line, IMFMediaSession *session, IMFAsyncCallback *callback,
+        DWORD timeout, MediaEventType *type, GUID *guid, PROPVARIANT *value)
+{
+    struct test_callback *impl = impl_from_IMFAsyncCallback(callback);
+    HRESULT hr = S_OK, status;
+    DWORD ret;
+
+    hr = IMFMediaSession_BeginGetEvent(session, &impl->IMFAsyncCallback_iface, (IUnknown *)session);
+    ok_(__FILE__, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ret = WaitForSingleObject(impl->event, timeout);
+    ok_(__FILE__, line)(ret == WAIT_OBJECT_0, "WaitForSingleObject returned %lu\n", ret);
+    hr = IMFMediaEvent_GetType(impl->media_event, type);
+    ok_(__FILE__, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaEvent_GetExtendedType(impl->media_event, guid);
+    ok_(__FILE__, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaEvent_GetValue(impl->media_event, value);
+    ok_(__FILE__, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaEvent_GetStatus(impl->media_event, &status);
+    ok_(__FILE__, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    return status;
+}
+
 #define wait_media_event(a, b, c, d, e) wait_media_event_(__LINE__, a, b, c, d, e)
 static HRESULT wait_media_event_(int line, IMFMediaSession *session, IMFAsyncCallback *callback,
         MediaEventType expect_type, DWORD timeout, PROPVARIANT *value)
 {
-    struct test_callback *impl = impl_from_IMFAsyncCallback(callback);
     MediaEventType type;
-    HRESULT hr, status;
-    DWORD ret;
+    HRESULT status;
     GUID guid;
 
     do
     {
-        hr = IMFMediaSession_BeginGetEvent(session, &impl->IMFAsyncCallback_iface, (IUnknown *)session);
-        ok_(__FILE__, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-        ret = WaitForSingleObject(impl->event, timeout);
-        ok_(__FILE__, line)(ret == WAIT_OBJECT_0, "WaitForSingleObject returned %lu\n", ret);
-        hr = IMFMediaEvent_GetType(impl->media_event, &type);
-        ok_(__FILE__, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        PropVariantClear(value);
+        status = wait_next_media_event_(line, session, callback, timeout, &type, &guid, value);
     } while (type != expect_type);
 
-    ok_(__FILE__, line)(type == expect_type, "got type %lu\n", type);
-
-    hr = IMFMediaEvent_GetExtendedType(impl->media_event, &guid);
-    ok_(__FILE__, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ok_(__FILE__, line)(IsEqualGUID(&guid, &GUID_NULL), "got extended type %s\n", debugstr_guid(&guid));
-
-    hr = IMFMediaEvent_GetValue(impl->media_event, value);
-    ok_(__FILE__, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-    hr = IMFMediaEvent_GetStatus(impl->media_event, &status);
-    ok_(__FILE__, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
     return status;
 }
