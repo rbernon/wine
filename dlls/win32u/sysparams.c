@@ -213,9 +213,9 @@ struct adapter
     struct display_device dev;
     LUID gpu_luid;
     unsigned int id;
-    const WCHAR *config_key;
     unsigned int mode_count;
     DEVMODEW *modes;
+    HKEY hkey;
 };
 
 struct monitor
@@ -431,6 +431,7 @@ static void adapter_release( struct adapter *adapter )
 {
     if (!InterlockedDecrement( &adapter->refcount ))
     {
+        NtClose( adapter->hkey );
         free( adapter->modes );
         free( adapter );
     }
@@ -467,17 +468,11 @@ static BOOL adapter_get_registry_settings( const struct adapter *adapter, DEVMOD
 {
     BOOL ret = FALSE;
     HANDLE mutex;
-    HKEY hkey;
 
     mutex = get_display_device_init_mutex();
 
     if (!config_key && !(config_key = reg_open_key( NULL, config_keyW, sizeof(config_keyW) ))) ret = FALSE;
-    else if (!(hkey = reg_open_key( config_key, adapter->config_key, lstrlenW( adapter->config_key ) * sizeof(WCHAR) ))) ret = FALSE;
-    else
-    {
-        ret = read_adapter_mode( hkey, ENUM_REGISTRY_SETTINGS, mode );
-        NtClose( hkey );
-    }
+    else ret = read_adapter_mode( adapter->hkey, ENUM_REGISTRY_SETTINGS, mode );
 
     release_display_device_init_mutex( mutex );
     return ret;
@@ -486,18 +481,12 @@ static BOOL adapter_get_registry_settings( const struct adapter *adapter, DEVMOD
 static BOOL adapter_set_registry_settings( const struct adapter *adapter, const DEVMODEW *mode )
 {
     HANDLE mutex;
-    HKEY hkey;
     BOOL ret;
 
     mutex = get_display_device_init_mutex();
 
     if (!config_key && !(config_key = reg_open_key( NULL, config_keyW, sizeof(config_keyW) ))) ret = FALSE;
-    if (!(hkey = reg_open_key( config_key, adapter->config_key, lstrlenW( adapter->config_key ) * sizeof(WCHAR) ))) ret = FALSE;
-    else
-    {
-        ret = write_adapter_mode( hkey, ENUM_REGISTRY_SETTINGS, mode );
-        NtClose( hkey );
-    }
+    else ret = write_adapter_mode( adapter->hkey, ENUM_REGISTRY_SETTINGS, mode );
 
     release_display_device_init_mutex( mutex );
     return ret;
@@ -507,7 +496,6 @@ static BOOL adapter_get_current_settings( const struct adapter *adapter, DEVMODE
 {
     BOOL is_primary = !!(adapter->dev.state_flags & DISPLAY_DEVICE_PRIMARY_DEVICE);
     HANDLE mutex;
-    HKEY hkey;
     BOOL ret;
 
     if ((ret = user_driver->pGetCurrentDisplaySettings( adapter->dev.device_name, is_primary, mode ))) return TRUE;
@@ -517,12 +505,7 @@ static BOOL adapter_get_current_settings( const struct adapter *adapter, DEVMODE
     mutex = get_display_device_init_mutex();
 
     if (!config_key && !(config_key = reg_open_key( NULL, config_keyW, sizeof(config_keyW) ))) ret = FALSE;
-    else if (!(hkey = reg_open_key( config_key, adapter->config_key, lstrlenW( adapter->config_key ) * sizeof(WCHAR) ))) ret = FALSE;
-    else
-    {
-        ret = read_adapter_mode( hkey, ENUM_CURRENT_SETTINGS, mode );
-        NtClose( hkey );
-    }
+    else ret = read_adapter_mode( adapter->hkey, ENUM_CURRENT_SETTINGS, mode );
 
     release_display_device_init_mutex( mutex );
     return ret;
@@ -531,18 +514,12 @@ static BOOL adapter_get_current_settings( const struct adapter *adapter, DEVMODE
 static BOOL adapter_set_current_settings( const struct adapter *adapter, const DEVMODEW *mode )
 {
     HANDLE mutex;
-    HKEY hkey;
     BOOL ret;
 
     mutex = get_display_device_init_mutex();
 
     if (!config_key && !(config_key = reg_open_key( NULL, config_keyW, sizeof(config_keyW) ))) ret = FALSE;
-    if (!(hkey = reg_open_key( config_key, adapter->config_key, lstrlenW( adapter->config_key ) * sizeof(WCHAR) ))) ret = FALSE;
-    else
-    {
-        ret = write_adapter_mode( hkey, ENUM_CURRENT_SETTINGS, mode );
-        NtClose( hkey );
-    }
+    else ret = write_adapter_mode( adapter->hkey, ENUM_CURRENT_SETTINGS, mode );
 
     release_display_device_init_mutex( mutex );
     return ret;
@@ -627,7 +604,7 @@ static BOOL read_display_adapter_settings( unsigned int index, struct adapter *i
 {
     char buffer[4096];
     KEY_VALUE_PARTIAL_INFORMATION *value = (void *)buffer;
-    WCHAR *value_str = (WCHAR *)value->Data;
+    WCHAR *value_str = (WCHAR *)value->Data, *config_path;
     DEVMODEW *mode;
     DWORD i, size;
     HKEY hkey;
@@ -644,7 +621,7 @@ static BOOL read_display_adapter_settings( unsigned int index, struct adapter *i
 
     /* DeviceKey */
     memcpy( info->dev.device_key, value_str, value->DataLength );
-    info->config_key = info->dev.device_key + sizeof("\\Registry\\Machine\\") - 1;
+    config_path = info->dev.device_key + sizeof("\\Registry\\Machine\\") - 1;
 
     if (!(hkey = reg_open_key( NULL, value_str, value->DataLength - sizeof(WCHAR) )))
         return FALSE;
@@ -658,8 +635,7 @@ static BOOL read_display_adapter_settings( unsigned int index, struct adapter *i
     sprintf( buffer, "\\\\.\\DISPLAY%d", index + 1 );
     asciiz_to_unicode( info->dev.device_name, buffer );
 
-    if (!(hkey = reg_open_key( config_key, info->config_key,
-                               lstrlenW( info->config_key ) * sizeof(WCHAR) )))
+    if (!(info->hkey = reg_open_key( config_key, config_path, lstrlenW( config_path ) * sizeof(WCHAR) )))
         return FALSE;
 
     /* StateFlags */
@@ -726,14 +702,9 @@ static BOOL read_monitor_settings( struct adapter *adapter, DWORD index, struct 
     sprintf( buffer, "\\\\.\\DISPLAY%d\\Monitor%d", adapter->id + 1, index );
     asciiz_to_unicode( monitor->dev.device_name, buffer );
 
-    if (!(hkey = reg_open_key( config_key, adapter->config_key,
-                               lstrlenW( adapter->config_key ) * sizeof(WCHAR) )))
-        return FALSE;
-
     /* Interface name */
     sprintf( buffer, "MonitorID%u", index );
-    size = query_reg_ascii_value( hkey, buffer, value, sizeof(buffer) );
-    NtClose( hkey );
+    size = query_reg_ascii_value( adapter->hkey, buffer, value, sizeof(buffer) );
     if (!size || value->Type != REG_SZ) return FALSE;
     len = asciiz_to_unicode( monitor->dev.interface_name, "\\\\\?\\" ) / sizeof(WCHAR) - 1;
     memcpy( monitor->dev.interface_name + len, value_str, value->DataLength - sizeof(WCHAR) );
