@@ -1,103 +1,25 @@
-<p>Hacking in <em>Wine</em> involves reverse engineering of
-<em>Windows</em> components and algorithms, and the rule is that we have
-to do it without looking at the <em>Windows</em> code, or disassembly.
-Instead, we write tests, checking the outputs and side effects of
-function call sequences, and then write code that would do the same
-thing.</p>
+<p><img src="https://media.codeweavers.com/pub/crossover/website/htmlimages/reverse-engineering-wine-codeweavers.png" data-image="ag95f1ds2vdu"></p>
+<p><br>
+</p>
+<p>Hacking in <em>Wine</em> involves reverse engineering of <em>Windows</em> components
+and algorithms, and the rule is that we have to do it without looking
+at the <em>Windows</em> code, or disassembly. Instead, we write tests,
+checking the outputs and side effects of function call sequences, and
+then write code that would do the same thing.</p>
+<br>
 <p>It is a bit tedious and a long process, but most of the time it isn’t
-actually very hard… maybe not even very fun either. Most of the time, it
-doesn’t really deserve writing a story about it. Sometimes, it gets
+actually very hard… maybe not even very fun either. Most of the time,
+it doesn’t really deserve writing a story about it. Sometimes, it gets
 hard… and fun.</p>
-<p><em>In this article I’m going to embed images and code snippets, they
-are only meant as illustrations, and are not directly usable. I’ve tried
-to keep them close to some actual code that you will be able to find <a
-href="https://gitlab.winehq.org/rbernon/wine/-/blob/wip/ucrtcringe/v1/dlls/msvcrt/tests">there</a>.
-Each image also have a corresponding <strong>Python</strong> source that
-was used to generate it.</em></p>
-  <style>
-    #TOC li {
-      list-style: none;
-    }
-    #TOC ul {
-      padding-left: 1.3em;
-    }
-    #TOC > ul {
-      padding-left: 0;
-    }
-    #TOC a:not(:hover) {
-      text-decoration: none;
-    }
-    code{white-space: pre-wrap;}
-    span.smallcaps{font-variant: small-caps;}
-    span.underline{text-decoration: underline;}
-    div.column{display: inline-block; vertical-align: top; width: 50%;}
-    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
-    ul.task-list{list-style: none;}
-    pre > code.sourceCode { white-space: pre; position: relative; }
-    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
-    pre > code.sourceCode > span:empty { height: 1.2em; }
-    .sourceCode { overflow: visible; }
-    code.sourceCode > span { color: inherit; text-decoration: inherit; }
-    div.sourceCode { margin: 1em 0; }
-    pre.sourceCode { margin: 0; }
-    @media screen {
-    div.sourceCode { overflow: auto; }
-    }
-    @media print {
-    pre > code.sourceCode { white-space: pre-wrap; }
-    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-    }
-    pre.numberSource code
-      { counter-reset: source-line 0; }
-    pre.numberSource code > span
-      { position: relative; left: -4em; counter-increment: source-line; }
-    pre.numberSource code > span > a:first-child::before
-      { content: counter(source-line);
-        position: relative; left: -1em; text-align: right; vertical-align: baseline;
-        border: none; display: inline-block;
-        -webkit-touch-callout: none; -webkit-user-select: none;
-        -khtml-user-select: none; -moz-user-select: none;
-        -ms-user-select: none; user-select: none;
-        padding: 0 4px; width: 4em;
-      }
-    pre.numberSource { margin-left: 3em;  padding-left: 4px; }
-    div.sourceCode
-      { color: #cccccc; background-color: #303030; }
-    @media screen {
-    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
-    }
-    code span.al { color: #ffcfaf; } /* Alert */
-    code span.an { color: #7f9f7f; font-weight: bold; } /* Annotation */
-    code span.at { } /* Attribute */
-    code span.bn { color: #dca3a3; } /* BaseN */
-    code span.bu { } /* BuiltIn */
-    code span.cf { color: #f0dfaf; } /* ControlFlow */
-    code span.ch { color: #dca3a3; } /* Char */
-    code span.cn { color: #dca3a3; font-weight: bold; } /* Constant */
-    code span.co { color: #7f9f7f; } /* Comment */
-    code span.cv { color: #7f9f7f; font-weight: bold; } /* CommentVar */
-    code span.do { color: #7f9f7f; } /* Documentation */
-    code span.dt { color: #dfdfbf; } /* DataType */
-    code span.dv { color: #dcdccc; } /* DecVal */
-    code span.er { color: #c3bf9f; } /* Error */
-    code span.ex { } /* Extension */
-    code span.fl { color: #c0bed1; } /* Float */
-    code span.fu { color: #efef8f; } /* Function */
-    code span.im { } /* Import */
-    code span.in { color: #7f9f7f; font-weight: bold; } /* Information */
-    code span.kw { color: #f0dfaf; } /* Keyword */
-    code span.op { color: #f0efd0; } /* Operator */
-    code span.ot { color: #efef8f; } /* Other */
-    code span.pp { color: #ffcfaf; font-weight: bold; } /* Preprocessor */
-    code span.sc { color: #dca3a3; } /* SpecialChar */
-    code span.ss { color: #cc9393; } /* SpecialString */
-    code span.st { color: #cc9393; } /* String */
-    code span.va { } /* Variable */
-    code span.vs { color: #cc9393; } /* VerbatimString */
-    code span.wa { color: #7f9f7f; font-weight: bold; } /* Warning */
-    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
-  </style>
-<hr/><h1>Table of Contents</h1>
+<p><em>In this article I’m going to embed images and code snippets, they are
+only meant as illustrations, and are not directly usable. I’ve tried
+to keep them close to some actual code that you will be able to find
+<a href="https://gitlab.winehq.org/rbernon/wine/-/blob/wip/ucrtcringe/v1/dlls/msvcrt/tests">there</a>.
+Each image also have a corresponding <strong>Python</strong> source that was used
+to generate it.</em></p>
+<br>
+<hr>
+<h1 id="toc">Table of Contents</h1>
 <nav id="TOC" role="doc-toc">
 <ul>
 <li><a href="#transcendance">Transcendance</a></li>
@@ -118,14 +40,15 @@ was used to generate it.</em></p>
 <li><a href="#conclusion">Conclusion</a></li>
 </ul>
 </nav>
-<hr/><h1 id="transcendance">Transcendance</h1>
+<br>
+<hr>
+<h1 id="transcendance">Transcendance</h1>
 <p>There’s a set of maths functions, called transcendental functions,
 which <em>transcend</em> algebra. They cannot be expressed as a finite
-sequence of algebraic operations<code>⁽¹⁾</code>, and cannot be exactly
-computed. Instead, what a computer can only achieve, is an approximated
-result. Of course, it is always possible to run a longer sequence of
-operations to achieve more precision in the result, but it will never be
-exact.</p>
+sequence of algebraic operations<code>⁽¹⁾</code>, and cannot be exactly computed.
+Instead, what a computer can only achieve, is an approximated result.
+Of course, it is always possible to run a longer sequence of operations
+to achieve more precision in the result, but it will never be exact.</p>
 <p>This includes a lot of very useful functions, such as trigonometric,
 exponential, or logarithm, which are used almost everywhere in games.
 They often end up being used to compute some aspect of the game state,
@@ -133,65 +56,57 @@ which, in multiplayer games, may be compared against other players
 expected state.</p>
 <p>Any difference in the states could mean there’s something weird going
 on, that some network packets got lost or that someone’s cheating. The
-games often then bail out and end the game session: It’s what happens in
-<strong>Age of Empires</strong> or <strong>Mortal Kombat 11</strong>,
-causing spurious disconnects when you try to start a multiplayer game in
-<em>Proton</em>.</p>
-<p>Why are there any differences between the expected state and the
-other players’? Because each player may be running the game with a
-different <strong>C</strong> runtime, some are on <em>Windows</em>, some
-are now using <em>Proton</em>, and <em>Wine</em>. Maybe some could be
-playing on a console.</p>
+games often then bail out and end the game session: It’s what happens
+in <strong>Age of Empires</strong> or <strong>Mortal Kombat 11</strong>, causing spurious
+disconnects when you try to start a multiplayer game in <em>Proton</em>.</p>
+<p>Why are there any differences between the expected state and the other
+players’? Because each player may be running the game with a different
+<strong>C</strong> runtime, some are on <em>Windows</em>, some are now using <em>Proton</em>,
+and <em>Wine</em>. Maybe some could be playing on a console.</p>
 <p>As these functions can only be approximated, and as finding a good
 approximation function is a complex task, almost every programming
-language provides an implementation of them. The <strong>C</strong>
-language runtime makes no exception here, and the <strong>C</strong>
-language standard even mandates it. The <em>GNU</em> <code>glibc</code>
-library, <code>musl</code> libc, and <em>Windows</em>
-<code>msvcrt.dll</code> or <code>ucrtbase.dll</code>, all provide
-them.</p>
-<p>What the <strong>C</strong> language standard doesn’t mandate though,
-is how they must be approximated, and we’ll see, there’s an infinite
-number of ways to do so, all equally valid. And even if precision is
-nice to have, it is also sometimes costly to get, so trade-offs can be
-made between performance and precision.</p>
-<p>Overall, and most of the time, the results returned from the
-evaluation of a certain transcendental function have very little chance
-to match the ones from another implementation. It could even happen with
-the same runtime, if it decides to use a different code path after some
-CPU feature has been detected (think SSE, FMA instructions etc…).</p>
-<p>In our case, comparing almost any of the <em>Wine</em> maths
-functions with <em>Windows</em> <code>ucrtbase.dll</code> maths
-functions will show differences. Not so much, but enough to make games
-unhappy when a player uses <em>Wine</em> and another uses
-<em>Windows</em>.</p>
-<p><code>⁽¹⁾</code> <em>addition, multiplication, and raising to a
-power, or the inverse operation, subtraction, division, and root
-extraction.</em></p>
-<hr/><h1 id="approximation">Approximation</h1>
+language provides an implementation of them. The <strong>C</strong> language runtime
+makes no exception here, and the <strong>C</strong> language standard even mandates
+it. The <em>GNU</em> <code>glibc</code> library, <code>musl</code> libc, and <em>Windows</em> <code>msvcrt.dll</code>
+or <code>ucrtbase.dll</code>, all provide them.</p>
+<p>What the <strong>C</strong> language standard doesn’t mandate though, is how they
+must be approximated, and we’ll see, there’s an infinite number of ways
+to do so, all equally valid. And even if precision is nice to have, it
+is also sometimes costly to get, so trade-offs can be made between
+performance and precision.</p>
+<p>Overall, and most of the time, the results returned from the evaluation
+of a certain transcendental function have very little chance to match
+the ones from another implementation. It could even happen with the
+same runtime, if it decides to use a different code path after some CPU
+feature has been detected (think SSE, FMA instructions etc…).</p>
+<p>In our case, comparing almost any of the <em>Wine</em> maths functions with
+<em>Windows</em> <code>ucrtbase.dll</code> maths functions will show differences. Not so
+much, but enough to make games unhappy when a player uses <em>Wine</em> and
+another uses <em>Windows</em>.</p>
+<p><code>⁽¹⁾</code> <em>addition, multiplication, and raising to a power, or the inverse
+operation, subtraction, division, and root extraction.</em></p>
+<br>
+<hr>
+<h1 id="approximation">Approximation</h1>
 <p>Function approximation is a large topic, so I will only focus on the
 most common approach for the functions we’re interested in, and I will
-use <strong>arcsine</strong> function as an illustration, because it has
-some properties that makes it easier.</p>
+use <strong>arcsine</strong> function as an illustration, because it has some
+properties that makes it easier.</p>
 <p>The <strong>arcsine</strong> function looks like this:</p>
 <figure>
-<img
-src="https://gitlab.winehq.org/rbernon/wine/-/raw/wip/ucrtcringe/v1/dlls/msvcrt/tests/images/asin.png"
-alt="The arcsine function, defined for x ∈ [-1; 1]" />
+<img src="https://media.codeweavers.com/pub/crossover/website/htmlimages/asin_1.png" alt="The arcsine function, defined for x ∈ [-1; 1]" data-image="cdgu5l0e3bqn">
 </figure>
 <h2 id="range-reduction">Range reduction</h2>
-<p>The first step is about handling corner cases. This is
-straightforward, the <strong>arcsine</strong> function is only defined
-over the [-1; 1] interval, so anything outside of this range should
-return an error:</p>
+<p>The first step is about handling corner cases. This is straightforward,
+the <strong>arcsine</strong> function is only defined over the [-1; 1] interval, so
+anything outside of this range should return an error:</p>
 <ul>
 <li><code>if (x &lt; -1 || x &gt; 1) return math_error();</code></li>
 </ul>
-<p>Then, we reduce the problem space to reduce the range of values where
-we want to actually compute an approximation. This is most often
-achieved by exploiting mathematical relations between functions.</p>
-<p>For instance, with <strong>arcsine</strong>, you have the following
-properties:</p>
+<p>Then, we reduce the problem space to reduce the range of values where we
+want to actually compute an approximation. This is most often achieved
+by exploiting mathematical relations between functions.</p>
+<p>For instance, with <strong>arcsine</strong>, you have the following properties:</p>
 <ul>
 <li><p><code>arcsine(-x) == -arcsine(x)</code></p></li>
 <li><p><code>arcsine(x) == pi / 2 - 2 * arcsine(sqrt((1 - x) / 2))</code></p></li>
@@ -210,71 +125,56 @@ properties that can be exploited. For instance you also have:</p>
 <li><p><code>arcsine(x) == arccos(sqrt(1 - x²)), with x &gt; 0</code></p></li>
 <li><p>etc…</p></li>
 </ul>
-<p>If for some reason you found a better approximation of
-<strong>arccos</strong>, or <strong>arctan</strong> and you want to
-compute <strong>arcsine</strong> from it, it’s very much possible.</p>
-<p>Of course, we’re not even limited to mathematical properties, and we
-can very well decide to split the value ranges into pieces, and find an
+<p>If for some reason you found a better approximation of <strong>arccos</strong>, or
+<strong>arctan</strong> and you want to compute <strong>arcsine</strong> from it, it’s very much
+possible.</p>
+<p>Of course, we’re not even limited to mathematical properties, and we can
+very well decide to split the value ranges into pieces, and find an
 approximation for each of these sub-ranges.</p>
-<p>After the range has been reduced or split enough, we will now focus
-on computing the approximation. There’s plenty of ways, we could
-hardcode value in static tables, if we don’t care about the size in
-memory. Most of the time nowadays, polynomial approximation is used
-instead.</p>
+<p>After the range has been reduced or split enough, we will now focus on
+computing the approximation. There’s plenty of ways, we could hardcode
+value in static tables, if we don’t care about the size in memory. Most
+of the time nowadays, polynomial approximation is used instead.</p>
 <h2 id="polynomials">Polynomials</h2>
-<p>The idea is that for a continuous function <code>f(x), x ∈ R</code>
-and given a maximum error <code>ε</code>, you can always find:</p>
+<p>The idea is that for a continuous function <code>f(x), x ∈ R</code> and given a
+maximum error <code>ε</code>, you can always find:</p>
 <ul>
 <li><code>P(x) = p₀ + p₁x + p₂x² + ... + pₙxⁿ</code></li>
 </ul>
-<p>So that <code>∀ x ∈ R, |f(x) - P(x)| &lt;= ε</code>. The smaller the
-maximum error, the higher degree <code>P(x)</code> will need to be.</p>
+<p>So that <code>∀ x ∈ R, |f(x) - P(x)| &lt;= ε</code>. The smaller the maximum error,
+the higher degree <code>P(x)</code> will need to be.</p>
 <p>Of course, there are an infinite number of such polynomials that can
-work, and plenty of ways to find one. For instance
-<strong>Taylor</strong> expansion is the most well known method, but
-some other classes of polynomials such as <strong>Chebyshev</strong>
-series are also sometimes used.</p>
-<p>The <strong>Taylor</strong> expansion series of
-<strong>arcsine</strong> is actually very simple, and it can be
-expressed in the form of:</p>
+work, and plenty of ways to find one. For instance <strong>Taylor</strong> expansion
+is the most well known method, but some other classes of polynomials
+such as <strong>Chebyshev</strong> series are also sometimes used.</p>
+<p>The <strong>Taylor</strong> expansion series of <strong>arcsine</strong> is actually very simple,
+and it can be expressed in the form of:</p>
 <ul>
 <li><code>arcsine(x) = x + x * P(x²)</code></li>
 </ul>
 <p>We’ll use that for an additional range reduction, and compute the
-approximation of <code>(arcsine(x) - x) / x</code> using
-<code>P(x²)</code> instead:</p>
+approximation of <code>(arcsine(x) - x) / x</code> using <code>P(x²)</code> instead:</p>
 <figure>
-<img
-src="https://gitlab.winehq.org/rbernon/wine/-/raw/wip/ucrtcringe/v1/dlls/msvcrt/tests/images/asin-core.png"
-alt="The core arcsine function, (arcsine(x) - x) / x, x ∈ [0; 0.5]" />
+<img src="https://media.codeweavers.com/pub/crossover/website/htmlimages/asin-core_1.png" alt="The core arcsine function, (arcsine(x) - x) / x, x ∈ [0; 0.5]" data-image="834saeqmsyow">
 </figure>
 <p>An inconvenience with simple polynomials is that they tend to diverge
-quickly around their definition range bounds, and for a small
-<code>ε</code> value we may need to use a very large polynomial degree
-<code>n</code>.</p>
-<p>The higher <code>n</code> is, the more computation we’ll have to
-actually do, and the errors will also not be spread evenly across the
-value range.</p>
-<p>For instance, using the <strong>Taylor</strong> series as the
-polynomial expression, and for instance with a degree 2, we get the
-polynomial <code>P(x) = 1/6·x + 3/40·x²</code>, and plotting it with
-<strong>arcsine</strong>, we can see it’s already pretty close:</p>
+quickly around their definition range bounds, and for a small <code>ε</code> value
+we may need to use a very large polynomial degree <code>n</code>.</p>
+<p>The higher <code>n</code> is, the more computation we’ll have to actually do, and
+the errors will also not be spread evenly across the value range.</p>
+<p>For instance, using the <strong>Taylor</strong> series as the polynomial expression,
+and for instance with a degree 2, we get the polynomial <code>P(x) = 1/6·x + 3/40·x²</code>, and plotting it with <strong>arcsine</strong>, we can see it’s already
+pretty close:</p>
 <figure>
-<img
-src="https://gitlab.winehq.org/rbernon/wine/-/raw/wip/ucrtcringe/v1/dlls/msvcrt/tests/images/asin-taylor.png"
-alt="Taylor approximation of the arcsine function and error measurement" />
+<img src="https://media.codeweavers.com/pub/crossover/website/htmlimages/asin-taylor_1.png" alt="Taylor approximation of the arcsine function and error measurement" data-image="jzwlwr2nzfom">
 </figure>
-<p>Good enough, right? Well, not very good if you look at the
-theoretical error. We could improve that by using the
-<strong>Taylor</strong> series expansion evaluated around
-<code>0.125</code>, instead of <code>0</code>.</p>
-<p>We now get a
-<code>P(x) = 0.00011432060688831153 + 0.16400250467599248·x + 0.09510025970319425·x²</code>
-polynomial instead, with an improved error profile:</p>
+<p>Good enough, right? Well, not very good if you look at the theoretical
+error. We could improve that by using the <strong>Taylor</strong> series expansion
+evaluated around <code>0.125</code>, instead of <code>0</code>.</p>
+<p>We now get a <code>P(x) = 0.00011432060688831153 + 0.16400250467599248·x + 0.09510025970319425·x²</code> polynomial instead, with an improved error
+profile:</p>
 <figure>
-<img
-src="https://gitlab.winehq.org/rbernon/wine/-/raw/wip/ucrtcringe/v1/dlls/msvcrt/tests/images/asin-taylor-0.125.png"
-alt="Taylor approximation centered on x = 0.125, and error measurement" />
+<img src="https://media.codeweavers.com/pub/crossover/website/htmlimages/asin-taylor-0.125_1.png" alt="Taylor approximation centered on x = 0.125, and error measurement" data-image="pz386ogqq4oa">
 </figure>
 <p>It’s better, and the error is more consistent over the range, but
 there’s a better way: Instead of a simple polynomial, we can use a
@@ -286,431 +186,375 @@ rational polynomial of the form <code>P(X) / Q(X)</code>, with:</p>
 <p>Rational polynomial are strange beasts, they cannot be expressed as
 simple polynomials but they share the same properties for function
 approximation. Although they also tend to diverge near the limits, they
-can have a better average error overall, for lower degrees
-<code>n</code> and <code>m</code>.</p>
-<p>There too, several methods to compute them are available. One is the
-<strong>Padé</strong> approximant, or other algorithms such as
-<strong>Remez</strong> algorithm or <strong>minimax</strong> rational
-approximation also exist.</p>
+can have a better average error overall, for lower degrees <code>n</code> and
+<code>m</code>.</p>
+<p>There too, several methods to compute them are available. One is
+the <strong>Padé</strong> approximant, or other algorithms such as <strong>Remez</strong>
+algorithm or <strong>minimax</strong> rational approximation also exist.</p>
 <p>Note that all the functions are usually continuous on the value range
-and easily derivable, so we could very well use more brute force methods
-such as least squares method, or any other optimization algorithm
-too.</p>
-<p>For <strong>arcsine</strong>, we can use <code>polyrat</code> to
-compute first degree polynomials
-<code>P(x) = -5.233528614964622e-06 - 0.1764267746171257·x</code> and
-<code>Q(x) = -1.0610258247966033 + 0.5041027241138349·x</code>, and
-immediately get 10 times better approximation than our best
-<strong>Taylor</strong> expansion:</p>
+and easily derivable, so we could very well use more brute force
+methods such as least squares method, or any other optimization
+algorithm too.</p>
+<p>For <strong>arcsine</strong>, we can use <code>polyrat</code> to compute first degree
+polynomials <code>P(x) = -5.233528614964622e-06 - 0.1764267746171257·x</code> and
+<code>Q(x) = -1.0610258247966033 + 0.5041027241138349·x</code>, and immediately
+get 10 times better approximation than our best <strong>Taylor</strong> expansion:</p>
 <figure>
-<img
-src="https://gitlab.winehq.org/rbernon/wine/-/raw/wip/ucrtcringe/v1/dlls/msvcrt/tests/images/asin-polyrat.png"
-alt="Rational approximation computed by polyrat, and error measurement" />
+<img src="https://media.codeweavers.com/pub/crossover/website/htmlimages/asin-polyrat_1.png" alt="Rational approximation computed by polyrat, and error measurement" data-image="avmo98i2tjqb">
 </figure>
-<p>As you see, our maximum error is already around <code>ε = 1e-5</code>
-with single degree polynomials. Using rational polynomials degrees
-<code>3</code> or <code>4</code>, we can easily achieve something like
-<code>ε = 1e-12</code> or better. It’s really just a matter of adding
-more computations.</p>
-<p>The implementation we currently use in <em>Wine</em> uses a 4th
-degree <code>P(x)</code> and a first degree <code>Q(x)</code>.</p>
+<p>As you see, our maximum error is already around <code>ε = 1e-5</code> with single
+degree polynomials. Using rational polynomials degrees <code>3</code> or <code>4</code>, we
+can easily achieve something like <code>ε = 1e-12</code> or better. It’s really
+just a matter of adding more computations.</p>
+<p>The implementation we currently use in <em>Wine</em> uses a 4th degree <code>P(x)</code>
+and a first degree <code>Q(x)</code>.</p>
 <h2 id="computation">Computation</h2>
-<p>So, after we’ve found good polynomials, it will all be about
-evaluating them. We can do it the naïve way, in the same way they are
-expressed above, and compute
-<code>P(x) = p₀ + p₁x + p₂x² + ... + pₙxⁿ</code> and
-<code>Q(x) = q₀ + q₁x + q₂x² + ... + qₘxᵐ</code>, but we would need to
-compute <code>x</code> powers many times, and that may not be the most
-efficient.</p>
-<p>Instead, polynomials can be expressed in multiple forms, some being
-more efficient for computing than others. The one that’s used by many
-<strong>C</strong> language implementations is the
-<strong>Horner</strong> form, where we factor <code>x</code> for each
-increasing power:</p>
+<p>So, after we’ve found good polynomials, it will all be about evaluating
+them. We can do it the naïve way, in the same way they are expressed
+above, and compute <code>P(x) = p₀ + p₁x + p₂x² + ... + pₙxⁿ</code> and <code>Q(x) = q₀ + q₁x + q₂x² + ... + qₘxᵐ</code>, but we would need to compute <code>x</code> powers
+many times, and that may not be the most efficient.</p>
+<p>Instead, polynomials can be expressed in multiple forms, some being more
+efficient for computing than others. The one that’s used by many <strong>C</strong>
+language implementations is the <strong>Horner</strong> form, where we factor <code>x</code>
+for each increasing power:</p>
 <ul>
 <li><code>P(x) = p₀ + x·(p₁ + x·(p₂ + ... + x·pₙ)...)</code></li>
 </ul>
-<p>There exist other canonical forms, like the <strong>continued
-fraction</strong> for rational polynomial, but I don’t know if it can be
-used efficiently.</p>
-<p>Computing the <strong>Horner</strong> form is easy, we start with the
-highest degree coefficient, compute <code>x·pₙ</code>, add the next
-coefficient, multiply by <code>x</code>, add the next, etc…</p>
+<p>There exist other canonical forms, like the <strong>continued fraction</strong> for
+rational polynomial, but I don’t know if it can be used efficiently.</p>
+<p>Computing the <strong>Horner</strong> form is easy, we start with the highest degree
+coefficient, compute <code>x·pₙ</code>, add the next coefficient, multiply by <code>x</code>,
+add the next, etc…</p>
 <p>It is especially efficient on modern hardware because they have
-specialized CPU instructions called <code>FMA</code> for <em>fused
-multiply-add</em>, which perform a multiplication and an addition at the
-same time.</p>
-<p>So, we now know how to approximate our <strong>arcsine</strong>
-function, we can even do it with an arbitrary high precision, by
-increasing our polynomial degrees. In theory, that would mean that we
-can get as good results as the <em>Windows</em> <strong>arcsine</strong>
-implementation? Well, no.</p>
+specialized CPU instructions called <code>FMA</code> for <em>fused multiply-add</em>,
+which perform a multiplication and an addition at the same time.</p>
+<p>So, we now know how to approximate our <strong>arcsine</strong> function, we can even
+do it with an arbitrary high precision, by increasing our polynomial
+degrees. In theory, that would mean that we can get as good results as
+the <em>Windows</em> <strong>arcsine</strong> implementation? Well, no.</p>
 <p>Computation is where things start to get tricky, and where the theory
 falls apart: computer can’t count, they make mistakes… <strong>all the
 time</strong>…</p>
-<hr/><h1 id="floating-point">Floating-point</h1>
-<p>Computers can’t count. They can’t even represent most real numbers.
-Not exactly at least.</p>
-<p>You don’t believe so? Run
-<code>python -c 'print(1/10 + 2/10 - 3/10)'</code> and see for yourself.
-Any child knowing about fraction and addition can tell you the answer is
-<code>0</code>. But <strong>Python</strong> cannot, and it prints
+<br>
+<hr>
+<h1 id="floating-point">Floating-point</h1>
+<p>Computers can’t count. They can’t even represent most real numbers. Not
+exactly at least.</p>
+<p>You don’t believe so? Run <code>python -c 'print(1/10 + 2/10 - 3/10)'</code> and
+see for yourself. Any child knowing about fraction and addition can
+tell you the answer is <code>0</code>. But <strong>Python</strong> cannot, and it prints
 <code>5.551115123125783e-17</code> instead.</p>
-<p>It’s not a language issue, every programming language will struggle
-at this unless it does some kind of rational computation.</p>
-<p>What happens here is that computers are limited. They cannot
-represent arbitrary numbers efficiently and they need to work with a
-certain set of numbers, all based on powers of two. This is also the
-case for real numbers, using negative powers of two to represent decimal
-numbers. Any number which is not a power of two needs to be rounded to
-the best matching one.</p>
+<p>It’s not a language issue, every programming language will struggle at
+this unless it does some kind of rational computation.</p>
+<p>What happens here is that computers are limited. They cannot represent
+arbitrary numbers efficiently and they need to work with a certain set
+of numbers, all based on powers of two. This is also the case for real
+numbers, using negative powers of two to represent decimal numbers. Any
+number which is not a power of two needs to be rounded to the best
+matching one.</p>
 <p>They are also size limited, and they are only able to keep track of a
 similarly limited amount of information, either the information about
 the number digits, or about the power of two. Any number which requires
 either a larger, or smaller power of two, or which has too many digits
 to be represented will be truncated.</p>
-<p>Then, even if two numbers can be represented exactly, the result of
-an operation on these numbers might not be, and will have to be rounded
-or truncated too.</p>
-<p>There’s a standard which defines these representations and
-limitations, called IEEE 754 floating-point. It defines the format used
-to represent the numbers in memory, as well as how these rounding and
-truncations should be done, and how operations on other floating-point
-numbers need to operate.</p>
-<figure>
-<img style="background: white;" 
-src="https://gitlab.winehq.org/rbernon/wine/-/raw/wip/ucrtcringe/v1/dlls/msvcrt/tests/images/Float_example.svg"
-alt="IEEE 754 32bit floating point representation in computer memory" />
-</figure>
-<p><em>(<a
-href="https://commons.wikimedia.org/w/index.php?curid=3357169">By
-Vectorization: Stannered, CC BY-SA 3.0</a>)</em></p>
+<p>Then, even if two numbers can be represented exactly, the result of an
+operation on these numbers might not be, and will have to be rounded or
+truncated too.</p>
+<p>There’s a standard which defines these representations and limitations,
+called IEEE 754 floating-point. It defines the format used to represent
+the numbers in memory, as well as how these rounding and truncations
+should be done, and how operations on other floating-point numbers need
+to operate.</p>
+<p><img src="https://media.codeweavers.com/pub/crossover/website/htmlimages/Float-example.png" alt="IEEE 754 32bit floating point representation in computer memory" data-image="gmy689vqwvao"></p>
+<p><em>(<a href="https://commons.wikimedia.org/w/index.php?curid=3357169">By Vectorization: Stannered, CC BY-SA 3.0</a>)</em></p>
 <p>Every addition, or multiplication, that operates on floating point
 number will follow that standard. And everything is done to prevent
 these rounding and truncations from causing invalid results, but
-1ULP<code>⁽²⁾</code> errors are common and usually considered harmless,
-especially when it comes to transcendental maths approximations.</p>
-<p><code>⁽²⁾</code> <em>Unit in the Last Place, the last bit in the IEEE
-floating-point representation</em></p>
-<p>Moreover, these are rounding errors and they are thus heavily
-dependent on the values as well as on the order of the computed
-operations. So, the polynomials degrees, their coefficients, and the
-form used to compute them, all matter very much.</p>
-<p>In the end, even with a very accurate theoretical approximation, if
-the operations we’re doing aren’t rounded in the same way as how
-<em>Windows</em> does it, there’s little chance we end up with the exact
-same value for every possible floating point value.</p>
+1ULP<code>⁽²⁾</code> errors are common and usually considered harmless, especially
+when it comes to transcendental maths approximations.</p>
+<p><code>⁽²⁾</code> <em>Unit in the Last Place, the last bit in the IEEE floating-point
+representation</em></p>
+<p>Moreover, these are rounding errors and they are thus heavily dependent
+on the values as well as on the order of the computed operations. So,
+the polynomials degrees, their coefficients, and the form used to
+compute them, all matter very much.</p>
+<p>In the end, even with a very accurate theoretical approximation, if the
+operations we’re doing aren’t rounded in the same way as how <em>Windows</em>
+does it, there’s little chance we end up with the exact same value for
+every possible floating point value.</p>
 <p>So yes, it looks bad, can we do something about it?</p>
-<hr/><h1 id="solution">Solution</h1>
+<br>
+<hr>
+<h1 id="solution">Solution</h1>
 <p>There’s actually only one good solution to this issue: games, or game
 engines, should implement and embed their own maths approximations.</p>
 <p>And now, you know how to build your own, it’s not so hard and there’s
 even existing open-licensed reference implementations for some extra
 easy.</p>
-<p>Including the implementation within the game will ensure that -
-assuming the hardware works the same, but most of the time it does - it
-would not depend on the runtime anymore. Whether you run on
-<em>Windows</em> or <em>Wine</em>, it will give you the exact same
-results.</p>
-<p>Then, from <em>Wine</em> hacking perspective, it’s simply not fun.
-What if we could do better?</p>
-<hr/><h1 id="fun">Fun?</h1>
-<p>What if we could find clues about the sequence of operations that
-were done by looking at the input and the results, taking into account
-the error that it produces?</p>
-<p>It really sounds like looking into the cosmic background noise to
-figure what happens in the room next to you, but could that work?</p>
+<p>Including the implementation within the game will ensure that - assuming
+the hardware works the same, but most of the time it does - it would not
+depend on the runtime anymore. Whether you run on <em>Windows</em> or <em>Wine</em>,
+it will give you the exact same results.</p>
+<p>Then, from <em>Wine</em> hacking perspective, it’s simply not fun. What if we
+could do better?</p>
+<br>
+<hr>
+<h1 id="fun">Fun?</h1>
+<p>What if we could find clues about the sequence of operations that were
+done by looking at the input and the results, taking into account the
+error that it produces?</p>
+<p>It really sounds like looking into the cosmic background noise to figure
+what happens in the room next to you, but could that work?</p>
 <h2 id="writing-tests">Writing tests</h2>
-<p>First of all, we will want every comparison we do to be exact. We
-need all the bits of the compared values to match. So in order to avoid
-any trouble with floating-point and implicit rounding, we’re going to
-use a programming trick to access both the floating-point value and its
+<p>First of all, we will want every comparison we do to be exact. We need
+all the bits of the compared values to match. So in order to avoid any
+trouble with floating-point and implicit rounding, we’re going to use a
+programming trick to access both the floating-point value and its
 representation, when we need to manipulate or compare it, as a 32bit
 integer value:</p>
-<div class="sourceCode" id="cb1"><pre
-class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">union</span> float_value</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    INT i<span class="op">;</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    UINT u<span class="op">;</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">float</span> f<span class="op">;</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
-<p>As we have 32bit of information, it means that there is around 4
-billion possible values. In addition, IEEE 754 defines 4 rounding modes
-that can be enabled globally, and which will apply to every
-floating-point operation that is done, possibly changing every
-result.</p>
-<p>There’s <code>Round to nearest</code>, <code>Round toward 0</code>,
-<code>Round toward +∞</code>, and <code>Round toward -∞</code>. We want
-<em>Wine</em> implementation to match <em>Windows</em> implementation
-for all the values, regardless of the rounding mode in use, but for now
-we’ll just assume the default <code>Round to nearest</code> is used.</p>
-<p>So, lets start by getting the easy cases out of the way. This
-includes all the special floating-point values IEEE 754 defines, as well
-as corner cases such as very small or out of range values.</p>
-<p><em>NaN numbers</em>: these are not valid numbers. They are in the
-following ranges:</p>
+<pre><code class="language-cpp">union float_value
+{
+    INT i;
+    UINT u;
+    float f;
+};</code></pre>
+<p>As we have 32bit of information, it means that there is around 4 billion
+possible values. In addition, IEEE 754 defines 4 rounding modes that
+can be enabled globally, and which will apply to every floating-point
+operation that is done, possibly changing every result.</p>
+<p>There’s <code>Round to nearest</code>, <code>Round toward 0</code>, <code>Round toward +∞</code>, and
+<code>Round toward -∞</code>. We want <em>Wine</em> implementation to match <em>Windows</em>
+implementation for all the values, regardless of the rounding mode in
+use, but for now we’ll just assume the default <code>Round to nearest</code> is
+used.</p>
+<p>So, lets start by getting the easy cases out of the way. This includes
+all the special floating-point values IEEE 754 defines, as well as
+corner cases such as very small or out of range values.</p>
+<p><em>NaN numbers</em>: these are not valid numbers. They are in the following
+ranges:</p>
 <ul>
 <li><p><code>[0x7f800001; 0x7fc00000)</code>: Signaling NaNs</p></li>
 <li><p><code>[0x7fc00000; 0x80000000)</code>: Quiet NaNs</p></li>
 <li><p><code>[0xff800001; 0xffc00000)</code>: Signaling NaNs</p></li>
 <li><p><code>[0xffc00000; 0x00000000)</code>: Quiet NaNs</p></li>
 </ul>
-<p>For all these, calling <strong>arcsine</strong> should return a
-<em>Quiet NaN</em> value:</p>
-<div class="sourceCode" id="cb2"><pre
-class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">static</span> <span class="dt">void</span> test_asinf_nan<span class="op">(</span> UINT min<span class="op">,</span> UINT max <span class="op">)</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">union</span> float_value v<span class="op">,</span> r<span class="op">;</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span>v<span class="op">.</span>u <span class="op">=</span> min<span class="op">;</span> v<span class="op">.</span>u <span class="op">!=</span> max<span class="op">;</span> v<span class="op">.</span>u<span class="op">++)</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>        r<span class="op">.</span>f <span class="op">=</span> asinf<span class="op">(</span> v<span class="op">.</span>f <span class="op">);</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>        ok<span class="op">(</span> r<span class="op">.</span>u <span class="op">==</span> <span class="op">(</span>v<span class="op">.</span>u <span class="op">|</span> <span class="bn">0x400000</span><span class="op">),</span> <span class="st">&quot;asinf </span><span class="sc">%#08x</span><span class="st"> returned </span><span class="sc">%#08x\n</span><span class="st">&quot;</span><span class="op">,</span> v<span class="op">.</span>u<span class="op">,</span> r<span class="op">.</span>u <span class="op">);</span></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
-<p><em>Domain errors</em>: these are invalid values for the
-<strong>arcsine</strong> functions, they are in the following
-ranges:</p>
+<p>For all these, calling <strong>arcsine</strong> should return a <em>Quiet NaN</em> value:</p>
+<pre><code class="language-cpp">static void test_asinf_nan( UINT min, UINT max )
+{
+    union float_value v, r;
+    for (v.u = min; v.u != max; v.u++)
+    {
+        r.f = asinf( v.f );
+        ok( r.u == (v.u | 0x400000), "asinf %#08x returned %#08x\n", v.u, r.u );
+    }
+}</code></pre>
+<p><em>Domain errors</em>: these are invalid values for the <strong>arcsine</strong> functions,
+they are in the following ranges:</p>
 <ul>
 <li><p><code>[0x3f800001; 0x7f800001)</code>: (1.f; +inf]</p></li>
 <li><p><code>[0xbf800001; 0xff800001)</code>: (-1.f; -inf]</p></li>
 </ul>
-<p>For all these, calling <strong>arcsine</strong> should return a
-<em>Quiet NaN</em> and set an error (not tested):</p>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="at">static</span> <span class="dt">void</span> test_asinf_edom<span class="op">(</span> UINT min<span class="op">,</span> UINT max <span class="op">)</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">union</span> float_value v<span class="op">,</span> r<span class="op">;</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span>v<span class="op">.</span>u <span class="op">=</span> min<span class="op">;</span> v<span class="op">.</span>u <span class="op">!=</span> max<span class="op">;</span> v<span class="op">.</span>u<span class="op">++)</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        r<span class="op">.</span>f <span class="op">=</span> asinf<span class="op">(</span> v<span class="op">.</span>f <span class="op">);</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        ok<span class="op">(</span> r<span class="op">.</span>u <span class="op">==</span> <span class="bn">0xffc00000</span><span class="op">,</span> <span class="st">&quot;asinf </span><span class="sc">%#08x</span><span class="st"> returned </span><span class="sc">%#08x\n</span><span class="st">&quot;</span><span class="op">,</span> v<span class="op">.</span>u<span class="op">,</span> r<span class="op">.</span>u <span class="op">);</span></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
-<p><em>Tiny values</em>: these are valid values but very small, and
-<strong>arcsine</strong> should return the same value as input:</p>
+<p>For all these, calling <strong>arcsine</strong> should return a <em>Quiet NaN</em> and set
+an error (not tested):</p>
+<pre><code class="language-cpp">static void test_asinf_edom( UINT min, UINT max )
+{
+    union float_value v, r;
+    for (v.u = min; v.u != max; v.u++)
+    {
+        r.f = asinf( v.f );
+        ok( r.u == 0xffc00000, "asinf %#08x returned %#08x\n", v.u, r.u );
+    }
+}</code></pre>
+<p><em>Tiny values</em>: these are valid values but very small, and <strong>arcsine</strong>
+should return the same value as input:</p>
 <ul>
-<li><p><code>[0x00000000; 0x38800000)</code>: [+0;
-+6.10352e-05)</p></li>
-<li><p><code>[0x80000000; 0xb8800000)</code>: [-0;
--6.10352e-05)</p></li>
+<li><p><code>[0x00000000; 0x38800000)</code>: [+0; +6.10352e-05)</p></li>
+<li><p><code>[0x80000000; 0xb8800000)</code>: [-0; -6.10352e-05)</p></li>
 </ul>
-<p>The returned value should be the same as the input because the result
-is truncated. This is interesting to test because it is effectively a
+<p>The returned value should be the same as the input because the result is
+truncated. This is interesting to test because it is effectively a
 range reduction.</p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="at">static</span> <span class="dt">void</span> test_asinf_tiny<span class="op">(</span> UINT min<span class="op">,</span> UINT max <span class="op">)</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">union</span> float_value v<span class="op">,</span> r<span class="op">;</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span>v<span class="op">.</span>u <span class="op">=</span> min<span class="op">;</span> v<span class="op">.</span>u <span class="op">!=</span> max<span class="op">;</span> v<span class="op">.</span>u<span class="op">++)</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>        r<span class="op">.</span>f <span class="op">=</span> asinf<span class="op">(</span> v<span class="op">.</span>f <span class="op">);</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        ok<span class="op">(</span> r<span class="op">.</span>u <span class="op">==</span> v<span class="op">.</span>u<span class="op">,</span> <span class="st">&quot;asinf </span><span class="sc">%#08x</span><span class="st"> returned </span><span class="sc">%#08x\n</span><span class="st">&quot;</span><span class="op">,</span> v<span class="op">.</span>u<span class="op">,</span> r<span class="op">.</span>u <span class="op">);</span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
-<p>Lastly, two more easy values can be tested: <code>0x3f800000</code>
-(+1) and <code>0xbf800000</code> (-1):</p>
-<p>Tests actually show that <em>Wine</em> is wrong here: our
-approximation may return truncated results, especially with non-default
-rounding modes, where <em>Windows</em> always returns ±π/2. Easy to fix
-and two less values to worry about.</p>
-<div class="sourceCode" id="cb5"><pre
-class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="at">static</span> <span class="dt">void</span> test_asinf_pio2<span class="op">(</span> UINT min<span class="op">,</span> UINT max <span class="op">)</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">union</span> float_value v<span class="op">,</span> r<span class="op">;</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span>v<span class="op">.</span>u <span class="op">=</span> min<span class="op">;</span> v<span class="op">.</span>u <span class="op">!=</span> max<span class="op">;</span> v<span class="op">.</span>u<span class="op">++)</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        r<span class="op">.</span>f <span class="op">=</span> asinf<span class="op">(</span> v<span class="op">.</span>f <span class="op">);</span></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>        ok<span class="op">(</span> r<span class="op">.</span>u <span class="op">==</span> <span class="op">((</span>r<span class="op">.</span>u <span class="op">&amp;</span> <span class="bn">0x80000000</span><span class="op">)</span> <span class="op">|</span> <span class="bn">0x3fc90fdb</span><span class="op">)</span> <span class="co">/* ±π/2 */</span><span class="op">,</span> <span class="st">&quot;asinf </span><span class="sc">%#08x</span><span class="st"> returned </span><span class="sc">%#08x\n</span><span class="st">&quot;</span><span class="op">,</span> v<span class="op">.</span>u<span class="op">,</span> r<span class="op">.</span>u <span class="op">);</span></span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
-<p>Now only the <code>[0x38800000; 0x3f800000)</code> and
-<code>[0xb8800000; 0xbf800000)</code> ranges remain, we can add a few
-more tests to validate that we can indeed use the
-<code>asin(-x) = -asin(x)</code> range reduction we talked about
+<pre><code class="language-cpp">static void test_asinf_tiny( UINT min, UINT max )
+{
+    union float_value v, r;
+    for (v.u = min; v.u != max; v.u++)
+    {
+        r.f = asinf( v.f );
+        ok( r.u == v.u, "asinf %#08x returned %#08x\n", v.u, r.u );
+    }
+}</code></pre>
+<p>Lastly, two more easy values can be tested: <code>0x3f800000</code> (+1) and
+<code>0xbf800000</code> (-1):</p>
+<p>Tests actually show that <em>Wine</em> is wrong here: our approximation may
+return truncated results, especially with non-default rounding modes,
+where <em>Windows</em> always returns ±π/2. Easy to fix and two less values to
+worry about.</p>
+<pre><code class="language-cpp">static void test_asinf_pio2( UINT min, UINT max )
+{
+    union float_value v, r;
+    for (v.u = min; v.u != max; v.u++)
+    {
+        r.f = asinf( v.f );
+        ok( r.u == ((r.u & 0x80000000) | 0x3fc90fdb) /* ±π/2 */, "asinf %#08x returned %#08x\n", v.u, r.u );
+    }
+}</code></pre>
+<p>Now only the <code>[0x38800000; 0x3f800000)</code> and <code>[0xb8800000; 0xbf800000)</code>
+ranges remain, we can add a few more tests to validate that we can
+indeed use the <code>asin(-x) = -asin(x)</code> range reduction we talked about
 previously:</p>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="at">static</span> <span class="dt">void</span> test_asinf_sign<span class="op">(</span> UINT min<span class="op">,</span> UINT max <span class="op">)</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">union</span> float_value v<span class="op">,</span> o<span class="op">,</span> r<span class="op">;</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span>v<span class="op">.</span>u <span class="op">=</span> o<span class="op">.</span>u <span class="op">=</span> min<span class="op">;</span> v<span class="op">.</span>u <span class="op">!=</span> max<span class="op">;</span> v<span class="op">.</span>u<span class="op">++,</span> o<span class="op">.</span>u <span class="op">=</span> v<span class="op">.</span>u<span class="op">)</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>        r<span class="op">.</span>f <span class="op">=</span> asinf<span class="op">(</span> v<span class="op">.</span>f <span class="op">);</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        o<span class="op">.</span>u <span class="op">^=</span> <span class="bn">0x80000000</span><span class="op">;</span></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>        o<span class="op">.</span>f <span class="op">=</span> asinf<span class="op">(</span> o<span class="op">.</span>f <span class="op">);</span></span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>        o<span class="op">.</span>u <span class="op">^=</span> <span class="bn">0x80000000</span><span class="op">;</span></span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        ok<span class="op">(</span> r<span class="op">.</span>u <span class="op">==</span> o<span class="op">.</span>u<span class="op">,</span> <span class="st">&quot;asinf </span><span class="sc">%#08x</span><span class="st"> returned </span><span class="sc">%#08x\n</span><span class="st">&quot;</span><span class="op">,</span> v<span class="op">.</span>u<span class="op">,</span> r<span class="op">.</span>u <span class="op">);</span></span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<pre><code class="language-cpp">static void test_asinf_sign( UINT min, UINT max )
+{
+    union float_value v, o, r;
+    for (v.u = o.u = min; v.u != max; v.u++, o.u = v.u)
+    {
+        r.f = asinf( v.f );
+        o.u ^= 0x80000000;
+        o.f = asinf( o.f );
+        o.u ^= 0x80000000;
+        ok( r.u == o.u, "asinf %#08x returned %#08x\n", v.u, r.u );
+    }
+}</code></pre>
 <p><code>00d4:math: -503316375 tests executed (0 marked as todo, 0 failures), 0 skipped.</code></p>
 <p>These tests results look… alright? Good, so now it’s reduced down to
-the <code>[0x38800000; 0x3f800000)</code> range. Only about 112 million
-values to match.</p>
+the <code>[0x38800000; 0x3f800000)</code> range. Only about 112 million values to
+match.</p>
 <h2 id="checking-errors">Checking errors</h2>
-<p>We could try plotting <em>Wine</em> <strong>arcsine</strong> and
-<em>Windows</em> <strong>arcsine</strong> and see if we can spot any
-pattern, but it’s actually pretty pointless: they are very close to each
-other, they only mismatch for a few hundred thousand values, and when
-they do, the mismatch is only about the last bit of the value, not
-something that you will see.</p>
-<p>Instead, we need to figure how much is 1ULP error, for every
-<code>x</code>. Note that it’s not 1ULP relative to <code>x</code>, but
-relative to <strong>arcsine</strong>. We keep these ULP stored as 64bit
-floats, because they are too tiny otherwise:</p>
-<div class="sourceCode" id="cb7"><pre
-class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Float:</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">def</span> from_repr(data):</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="im">import</span> struct</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    reprs <span class="op">=</span> struct.pack(<span class="ss">f&#39;</span><span class="sc">{</span><span class="bu">len</span>(data)<span class="sc">}</span><span class="ss">i&#39;</span>, <span class="op">*</span>data)</span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">float</span> <span class="op">=</span> struct.unpack(<span class="ss">f&#39;</span><span class="sc">{</span><span class="bu">len</span>(data)<span class="sc">}</span><span class="ss">f&#39;</span>, reprs)</span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array(<span class="bu">float</span>, dtype<span class="op">=</span>np.float32)</span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="kw">def</span> <span class="bu">repr</span>(data):</span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    <span class="im">import</span> struct</span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="bu">float</span> <span class="op">=</span> struct.pack(<span class="ss">f&#39;</span><span class="sc">{</span><span class="bu">len</span>(data)<span class="sc">}</span><span class="ss">f&#39;</span>, <span class="op">*</span>data)</span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    reprs <span class="op">=</span> struct.unpack(<span class="ss">f&#39;</span><span class="sc">{</span><span class="bu">len</span>(data)<span class="sc">}</span><span class="ss">i&#39;</span>, <span class="bu">float</span>)</span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array(reprs, dtype<span class="op">=</span>np.int32)</span>
-<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>  <span class="kw">def</span> ulp(data):</span>
-<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    min_data <span class="op">=</span> Float.from_repr(Float.<span class="bu">repr</span>(data) <span class="op">&amp;</span> <span class="bn">0x7f800000</span>)</span>
-<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    ulp_data <span class="op">=</span> Float.from_repr(Float.<span class="bu">repr</span>(min_data) <span class="op">+</span> <span class="dv">1</span>)</span>
-<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.float64(ulp_data) <span class="op">-</span> np.float64(min_data)</span>
-<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>asin_ulp <span class="op">=</span> utils.Float.ulp(np.arcsin(x))</span></code></pre></div>
-<p>Then we load the 32bit values, and compute the differences using
-64bit floating-point which should be able represent tiny values:</p>
-<div class="sourceCode" id="cb8"><pre
-class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> utils.Float.from_repr(<span class="bu">range</span>(xmin, xmax))</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>wine_asinf <span class="op">=</span> np.fromfile(<span class="bu">open</span>(<span class="ss">f&#39;</span><span class="sc">{</span><span class="bu">dir</span><span class="sc">}</span><span class="ss">/asinf-</span><span class="sc">{</span>xmin<span class="sc">:08x}</span><span class="ss">-</span><span class="sc">{</span>xmax<span class="sc">:08x}</span><span class="ss">-wine.dat&#39;</span>, <span class="st">&#39;rb&#39;</span>), dtype<span class="op">=</span>np.float32)</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>msvc_asinf <span class="op">=</span> np.fromfile(<span class="bu">open</span>(<span class="ss">f&#39;</span><span class="sc">{</span><span class="bu">dir</span><span class="sc">}</span><span class="ss">/asinf-</span><span class="sc">{</span>xmin<span class="sc">:08x}</span><span class="ss">-</span><span class="sc">{</span>xmax<span class="sc">:08x}</span><span class="ss">-msvc.dat&#39;</span>, <span class="st">&#39;rb&#39;</span>), dtype<span class="op">=</span>np.float32)</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>diff <span class="op">=</span> np.float64(wine_asinf) <span class="op">-</span> np.float64(msvc_asinf)</span></code></pre></div>
-<p>We can now check that there’s indeed only a few differences, and
-ignore values where the results match already:</p>
-<div class="sourceCode" id="cb9"><pre
-class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">len</span>(x[diff <span class="op">!=</span> <span class="dv">0</span>]) <span class="op">&lt;=</span> <span class="dv">320000</span></span></code></pre></div>
+<p>We could try plotting <em>Wine</em> <strong>arcsine</strong> and <em>Windows</em> <strong>arcsine</strong> and
+see if we can spot any pattern, but it’s actually pretty pointless:
+they are very close to each other, they only mismatch for a few hundred
+thousand values, and when they do, the mismatch is only about the last
+bit of the value, not something that you will see.</p>
+<p>Instead, we need to figure how much is 1ULP error, for every <code>x</code>. Note
+that it’s not 1ULP relative to <code>x</code>, but relative to <strong>arcsine</strong>. We
+keep these ULP stored as 64bit floats, because they are too tiny
+otherwise:</p>
+<pre><code class="language-python">class Float:
+  def from_repr(data):
+    import struct
+    reprs = struct.pack(f'{len(data)}i', *data)
+    float = struct.unpack(f'{len(data)}f', reprs)
+    return np.array(float, dtype=np.float32)
+
+  def repr(data):
+    import struct
+    float = struct.pack(f'{len(data)}f', *data)
+    reprs = struct.unpack(f'{len(data)}i', float)
+    return np.array(reprs, dtype=np.int32)
+
+  def ulp(data):
+    min_data = Float.from_repr(Float.repr(data) & 0x7f800000)
+    ulp_data = Float.from_repr(Float.repr(min_data) + 1)
+    return np.float64(ulp_data) - np.float64(min_data)
+
+asin_ulp = utils.Float.ulp(np.arcsin(x))</code></pre>
+<p>Then we load the 32bit values, and compute the differences using 64bit
+floating-point which should be able represent tiny values:</p>
+<pre><code class="language-python">x = utils.Float.from_repr(range(xmin, xmax))
+wine_asinf = np.fromfile(open(f'{dir}/asinf-{xmin:08x}-{xmax:08x}-wine.dat', 'rb'), dtype=np.float32)
+msvc_asinf = np.fromfile(open(f'{dir}/asinf-{xmin:08x}-{xmax:08x}-msvc.dat', 'rb'), dtype=np.float32)
+
+diff = np.float64(wine_asinf) - np.float64(msvc_asinf)</code></pre>
+<p>We can now check that there’s indeed only a few differences, and ignore
+values where the results match already:</p>
+<pre><code class="language-python">assert len(x[diff != 0]) &lt;= 320000</code></pre>
 <p>An we plot the differences, relative to the ULP:</p>
 <figure>
-<img
-src="https://gitlab.winehq.org/rbernon/wine/-/raw/wip/ucrtcringe/v1/dlls/msvcrt/tests/images/asin-wine-msvc-ulp.png"
-alt="Differences between Wine and Windows arcsine output" />
+<img src="https://media.codeweavers.com/pub/crossover/website/htmlimages/asin-wine-msvc-ulp.png" alt="Differences between Wine and Windows arcsine output" data-image="wttwauaw7xs8">
 </figure>
 <p>As you can see, differences are really all ≤ ±1ULP. The color also
 corresponds to the density of points, blue is the least dense, red the
-most dense<code>⁽³⁾</code>. And as you can see, the density is not
-uniform, which means that <em>Wine</em> implementation is definitely
-biased toward some direction.</p>
-<p><code>⁽³⁾</code> <em>note that the scale is not linear, and instead
-the colors bands are equalized for improved visibility.</em></p>
-<p>In any case comparing these doesn’t give us much information, so
-let’s try something else. For instance, let’s compare <em>Wine</em> and
-<em>Windows</em> implementation to a higher precision
-<strong>arcsine</strong>, and let’s see if we can get something useful
-out of the error profile:</p>
-<div class="sourceCode" id="cb10"><pre
-class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>wine_diff <span class="op">=</span> np.float64(wine_asinf) <span class="op">-</span> np.arcsine(np.float64(x))</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>msvc_diff <span class="op">=</span> np.float64(msvc_asinf) <span class="op">-</span> np.arcsine(np.float64(x))</span></code></pre></div>
+most dense<code>⁽³⁾</code>. And as you can see, the density is not uniform, which
+means that <em>Wine</em> implementation is definitely biased toward some
+direction.</p>
+<p><code>⁽³⁾</code> <em>note that the scale is not linear, and instead the colors bands
+are equalized for improved visibility.</em></p>
+<p>In any case comparing these doesn’t give us much information, so let’s
+try something else. For instance, let’s compare <em>Wine</em> and <em>Windows</em>
+implementation to a higher precision <strong>arcsine</strong>, and let’s see if we
+can get something useful out of the error profile:</p>
+<pre><code class="language-python">wine_diff = np.float64(wine_asinf) - np.arcsine(np.float64(x))
+msvc_diff = np.float64(msvc_asinf) - np.arcsine(np.float64(x))</code></pre>
 <figure>
-<img
-src="https://gitlab.winehq.org/rbernon/wine/-/raw/wip/ucrtcringe/v1/dlls/msvcrt/tests/images/asin-wine-error.png"
-alt="Differences between Wine and a higher precision arcsine output" />
+<img src="https://media.codeweavers.com/pub/crossover/website/htmlimages/asin-wine-error.png" alt="Differences between Wine and a higher precision arcsine output" data-image="jer327sfljnb">
 </figure>
 <figure>
-<img
-src="https://gitlab.winehq.org/rbernon/wine/-/raw/wip/ucrtcringe/v1/dlls/msvcrt/tests/images/asin-msvc-error.png"
-alt="Differences between Windows and a higher precision arcsine output" />
+<img src="https://media.codeweavers.com/pub/crossover/website/htmlimages/asin-msvc-error.png" alt="Differences between Windows and a higher precision arcsine output" data-image="209liy64k351">
 </figure>
-<p>Hmm, that looks nice, what about for instance the <em>GNU</em>
-<code>glibc</code> implementation?</p>
-<div class="sourceCode" id="cb11"><pre
-class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>gnuc_asinf <span class="op">=</span> np.arcsine(x)</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>gnuc_diff <span class="op">=</span> np.float64(gnuc_asinf) <span class="op">-</span> np.arcsine(np.float64(x))</span></code></pre></div>
+<p>Hmm, that looks nice, what about for instance the <em>GNU</em> <code>glibc</code>
+implementation?</p>
+<pre><code class="language-python">gnuc_asinf = np.arcsine(x)
+gnuc_diff = np.float64(gnuc_asinf) - np.arcsine(np.float64(x))</code></pre>
 <figure>
-<img
-src="https://gitlab.winehq.org/rbernon/wine/-/raw/wip/ucrtcringe/v1/dlls/msvcrt/tests/images/asin-gnuc-error.png"
-alt="Differences between GNU libc and a higher precision arcsine output" />
+<img src="https://media.codeweavers.com/pub/crossover/website/htmlimages/asin-gnuc-error.png" alt="Differences between GNU libc and a higher precision arcsine output" data-image="evejxabt86kw">
 </figure>
 <p>Wow… wobbly!</p>
 <p>Does this tell us anything? Well, I think there’s at least a few
 interesting points to make here:</p>
 <ol type="1">
-<li><p><em>Windows</em> implementation likely uses the same 0.5 domain
-split as <em>Wine</em> does, as well as the <em>GNU</em>
-<code>glibc</code> and most other implementations. It is very visible on
-the pictures, with a clear different error pattern for x &gt;
-0.5.</p></li>
-<li><p>The <em>GNU</em> <code>glibc</code> implementation leaks a lot of
-its polynomial error pattern. Look at our theoretical rational
-polynomial error above, it’s very similar! <em>Wine</em> and
-<em>Windows</em> do not show the same, at least nothing obviously
-visible, so they maybe using higher polynomial degrees, or something
-different.</p></li>
-<li><p><em>Wine</em> implementationx is really close to <em>Windows</em>
-in term of signature. More specifically in the right most part of the
-pictures, <em>GNU</em> <code>glibc</code> shows a segment that does not
-appear on the other two.</p></li>
+<li><p><em>Windows</em> implementation likely uses the same 0.5 domain split
+as <em>Wine</em> does, as well as the <em>GNU</em> <code>glibc</code> and most other
+implementations. It is very visible on the pictures, with a clear
+different error pattern for x &gt; 0.5.</p></li>
+<li><p>The <em>GNU</em> <code>glibc</code> implementation leaks a lot of its polynomial error
+pattern. Look at our theoretical rational polynomial error above, it’s
+very similar! <em>Wine</em> and <em>Windows</em> do not show the same, at least
+nothing obviously visible, so they maybe using higher polynomial
+degrees, or something different.</p></li>
+<li><p><em>Wine</em> implementation is really close to <em>Windows</em> in term of
+signature. More specifically in the right most part of the
+pictures, <em>GNU</em> <code>glibc</code> shows a segment that does not appear on the
+other two.</p></li>
 </ol>
 <h2 id="finding-patterns">Finding patterns</h2>
-<p>Let’s try one last thing. Let’s zoom in a bit, close to 0.5, and
-assume we’re computing something like
-<code>asin(x) = x + x * P(x²)</code>. Can we recognize the error
-signature of the last <code>+</code> operation?</p>
-<p>To find out, we first compute <code>f(x) = asin(x) - x</code>, as if
-we were infinitely precise (using 64bit floating-point should be
-enough), then we truncate that back to 32bit and compute the
-<code>asinf(x) = f(x) + x</code> using 32bit floating point
-operations.</p>
-<div class="sourceCode" id="cb12"><pre
-class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>asin_addx <span class="op">=</span> np.arcsin(np.float64(x)) <span class="op">-</span> np.float64(x)</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>asin_addx <span class="op">=</span> np.float32(asin_addx) <span class="op">+</span> x</span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>diff <span class="op">=</span> np.float64(asin_addx) <span class="op">-</span> np.arcsin(np.float64(x))</span></code></pre></div>
-<p>Zooming to the <em>Wine</em> implementation profile for reference, to
-make some patterns more apparent:</p>
+<p>Let’s try one last thing. Let’s zoom in a bit, close to 0.5, and assume
+we’re computing something like <code>asin(x) = x + x * P(x²)</code>. Can we
+recognize the error signature of the last <code>+</code> operation?</p>
+<p>To find out, we first compute <code>f(x) = asin(x) - x</code>, as if we were
+infinitely precise (using 64bit floating-point should be enough), then
+we truncate that back to 32bit and compute the <code>asinf(x) = f(x) + x</code>
+using 32bit floating point operations.</p>
+<pre><code class="language-python">asin_addx = np.arcsin(np.float64(x)) - np.float64(x)
+asin_addx = np.float32(asin_addx) + x
+
+diff = np.float64(asin_addx) - np.arcsin(np.float64(x))</code></pre>
+<p>Zooming to the <em>Wine</em> implementation profile for reference, to make some
+patterns more apparent:</p>
 <figure>
-<img
-src="https://gitlab.winehq.org/rbernon/wine/-/raw/wip/ucrtcringe/v1/dlls/msvcrt/tests/images/asin-core-wine-error.png"
-alt="Differences between Wine and a higher precision arcsine output" />
+<img src="https://media.codeweavers.com/pub/crossover/website/htmlimages/asin-core-wine-error.png" alt="Differences between Wine and a higher precision arcsine output" data-image="n019tpcmbihi">
 </figure>
 <p>Then the <code>+ x</code> operation theoretical induced error:</p>
 <figure>
-<img
-src="https://gitlab.winehq.org/rbernon/wine/-/raw/wip/ucrtcringe/v1/dlls/msvcrt/tests/images/asin-core-addx-error.png"
-alt="Differences between theoretical last +x operation and a higher precision arcsine output" />
+<img src="https://media.codeweavers.com/pub/crossover/website/htmlimages/asin-core-addx-error.png" alt="Differences between theoretical last +x operation and a higher precision arcsine output" data-image="yw4tdvejd5o3">
 </figure>
 <p>Can you see it?</p>
 <p>Okay, let’s go one step further, what about <code>* x + x</code>?</p>
-<div class="sourceCode" id="cb13"><pre
-class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>asin_madd <span class="op">=</span> (np.arcsin(np.float64(x)) <span class="op">-</span> np.float64(x)) <span class="op">/</span> np.float64(x)</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>asin_madd <span class="op">=</span> np.float32(asin_madd) <span class="op">*</span> x <span class="op">+</span> x</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>diff <span class="op">=</span> np.float64(asin_madd) <span class="op">-</span> np.arcsin(np.float64(x))</span></code></pre></div>
+<pre><code class="language-python">asin_madd = (np.arcsin(np.float64(x)) - np.float64(x)) / np.float64(x)
+asin_madd = np.float32(asin_madd) * x + x
+
+diff = np.float64(asin_madd) - np.arcsin(np.float64(x))</code></pre>
 <figure>
-<img
-src="https://gitlab.winehq.org/rbernon/wine/-/raw/wip/ucrtcringe/v1/dlls/msvcrt/tests/images/asin-core-madd-error.png"
-alt="Differences between theoretical last * x + x operation and a higher precision arcsine output" />
+<img src="https://media.codeweavers.com/pub/crossover/website/htmlimages/asin-core-madd-error.png" alt="Differences between theoretical last * x + x operation and a higher precision arcsine output" data-image="twbisb2naq58">
 </figure>
-<p>There’s definitely something. And we can compare with
-<em>Windows</em> signature too, it shows the same kind of patterns:</p>
+<p>There’s definitely something. And we can compare with <em>Windows</em>
+signature too, it shows the same kind of patterns:</p>
 <figure>
-<img
-src="https://gitlab.winehq.org/rbernon/wine/-/raw/wip/ucrtcringe/v1/dlls/msvcrt/tests/images/asin-core-msvc-error.png"
-alt="Differences between Wine and a higher precision arcsine output" />
+<img src="https://media.codeweavers.com/pub/crossover/website/htmlimages/asin-core-msvc-error.png" alt="Differences between Wine and a higher precision arcsine output" data-image="49rrp05yhcyx">
 </figure>
-<p>I believe that proves, at least, that the last <code>* x + x</code>
-operations are done in both implementations, and that <em>Windows</em>
-uses the same range reduction as described above. Also, because
-<em>Wine</em> signature is already very similar, I think it is likely
-that it uses a rational polynomial approximation.</p>
-<hr/><h1 id="conclusion">Conclusion</h1>
-<p>Can we go even further? Can we keep going and reverse engineer the
-whole thing one operation at a time? Well… I don’t know. The more nested
-the operations are, the blurrier their error signature gets. At least,
-doing it visually, like I did here is probably not really going to
-work.</p>
+<p>I believe that proves, at least, that the last <code>* x + x</code> operations are
+done in both implementations, and that <em>Windows</em> uses the same range
+reduction as described above. Also, because <em>Wine</em> signature is already
+very similar, I think it is likely that it uses a rational polynomial
+approximation.</p>
+<br>
+<hr>
+<h1 id="conclusion">Conclusion</h1>
+<p>Can we go even further? Can we keep going and reverse engineer the whole
+thing one operation at a time? Well… I don’t know. The more nested the
+operations are, the blurrier their error signature gets. At least, doing
+it visually, like I did here is probably not really going to work.</p>
 <p>I believe there’s some information hidden in the errors. There’s
-actually some more obvious differences between <em>Wine</em> and
-<em>Windows</em> signature when non-default IEEE 754 rounding modes are
-used. Can these be exploited to better match the results? Maybe.</p>
-<p>At least, even if my analysis didn’t really go anywhere, I still
-enjoyed the pointless investigation. And we got nice looking pictures
-too.</p>
+actually some more obvious differences between <em>Wine</em> and <em>Windows</em>
+signature when non-default IEEE 754 rounding modes are used. Can these
+be exploited to better match the results? Maybe.</p>
+<p>At least, even if my analysis didn’t really go anywhere, I still enjoyed
+the pointless investigation. And we got nice looking pictures too.</p>
