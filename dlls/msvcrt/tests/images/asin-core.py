@@ -7,7 +7,7 @@ import sys
 plt.autoscale(False)
 plt.style.use('dark_background')
 plt.grid(True, alpha=0.1)
-plt.figure(figsize=mpl.figure.figaspect(9 / 16))
+plt.figure(figsize=mpl.figure.figaspect(9 / 16), dpi=200)
 
 x = sp.symbols('x')
 f = (sp.asin(x) - x)/x

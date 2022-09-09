@@ -37,7 +37,7 @@ diff_df = pd.DataFrame({'x': x, 'y': diff / asin_ulp})
 
 plt.autoscale(False)
 plt.style.use('dark_background')
-fig = plt.figure(figsize=mpl.figure.figaspect(9 / 16))
+fig = plt.figure(figsize=mpl.figure.figaspect(9 / 16), dpi=200)
 grid = grid.ImageGrid(fig, 111, nrows_ncols=(1, 1), cbar_mode="each", cbar_size="2%")
 
 grid[0].set_xlabel(r'$x$')

@@ -7,7 +7,7 @@ import sys
 plt.autoscale(False)
 plt.style.use('dark_background')
 plt.grid(True, alpha=0.1)
-fig, ax1 = plt.subplots(figsize=mpl.figure.figaspect(9 / 16))
+fig, ax1 = plt.subplots(figsize=mpl.figure.figaspect(9 / 16), dpi=200)
 ax2 = ax1.twinx()
 plots = []
 
