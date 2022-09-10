@@ -251,16 +251,15 @@ int CDECL _isnanf( float num )
 
 static float asinf_R(float z)
 {
-    /* coefficients for R(x^2) */
-    static const float p1 = 1.66666672e-01,
-                 p2 = -5.11644611e-02,
-                 p3 = -1.21124933e-02,
-                 p4 = -3.58742251e-03,
-                 q1 = -7.56982703e-01;
+    static const double Pn[] = {-3.5892746177188881e-03, -1.2124695893780329e-02,
+                                -5.1102040203526725e-02,  1.6666666757062301e-01, 0};
+    static const double Qn[] = {-2.4391734864756136e-04, -7.5660791231708657e-01, 1};
+    double p = 0, q = 0, Z = z;
+    int i;
 
-    float p, q;
-    p = z * (p1 + z * (p2 + z * (p3 + z * p4)));
-    q = 1.0f + z * q1;
+    for (i = 0; i < ARRAY_SIZE(Pn); ++i) p = Pn[i] + Z * p;
+    for (i = 0; i < ARRAY_SIZE(Qn); ++i) q = Qn[i] + Z * q;
+
     return p / q;
 }
 
