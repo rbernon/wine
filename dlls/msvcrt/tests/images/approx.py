@@ -71,9 +71,9 @@ if test < 3:
 
 else:
   dtype = np.float32
-  n, m = 6, 3
-  Pf = []
-  Qf = []
+  n, m = 6, 0
+  Pf = [3/40,1/6,0]
+  Qf = [1]
 
   z = np.where(x <= 0.5, x**2, (1 - x) / 2)
   s = np.where(x <= 0.5, x, np.sqrt(z))
@@ -166,10 +166,10 @@ else:
     print(out)
     print(min_err(A), repr(A))
 
-    out = opt.minimize(min_err, A, method='Nelder-Mead', tol=1e-12, options={'disp':True}, bounds=np.array([(-1, 1)] * (m+n)))
-    A = dtype(out.x)
-    print(out)
-    print(min_err(A), repr(A))
+    # out = opt.minimize(min_err, A, method='Nelder-Mead', tol=1e-12, options={'disp':True}, bounds=np.array([(-1, 1)] * (m+n)))
+    # A = dtype(out.x)
+    # print(out)
+    # print(min_err(A), repr(A))
 
   off, step = 0, 1
   poly_asinf = asinf(A)
