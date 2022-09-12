@@ -78,9 +78,6 @@ else:
   z = np.where(x <= 0.5, x**2, (1 - x) / 2)
   s = np.where(x <= 0.5, x, np.sqrt(z))
 
-  Z = np.array([np.float32(z**i) for i in range(0, max(m, n) + max(len(Pf), len(Qf)))], dtype=dtype)
-  W = np.transpose(np.concatenate((Z[len(Pf):][:n][::-1], Z[len(Qf):][:m][::-1]), dtype=dtype))
-
   f = utils.Float.from_repr(utils.Float.repr(s) & 0xffff0000)
   c = (z - f**2) / (s + f)
 
@@ -109,7 +106,14 @@ else:
       # for qn in Q[-1::-2][::-1]: qe = qn + (z*z) * qe
       # for qn in Q[-2::-2][::-1]: qo = qn + (z*z) * qo
       # q = qe + z * qo
-      J = W * np.float32(s / q).reshape(-1,1)
+
+      J = np.full((m + n, len(z)), 1, dtype=dtype)
+      for i, pn in enumerate(P[:n]): J[0:0+i+1] *= z
+      for i, qn in enumerate(Q[:m]): J[n:n+i+1] *= z
+      for i, pn in enumerate(P[n:-1]): J[:n] *= z
+      for i, qn in enumerate(Q[m:-1]): J[n:] *= z
+
+      J = np.transpose(J) * np.float32(s / q).reshape(-1,1)
       J[:,n:] *= -np.float32(p / q).reshape(-1,1)
       return np.float64(J)
 
