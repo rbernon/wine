@@ -727,6 +727,17 @@ static void check_mft_set_input_type(IMFTransform *transform, const struct attri
     IMFMediaType *media_type;
     HRESULT hr;
 
+    if (!attributes)
+    {
+        hr = IMFTransform_SetInputType(transform, 0, NULL, MFT_SET_TYPE_TEST_ONLY);
+        ok(hr == S_OK || broken(hr == E_INVALIDARG), "SetInputType returned %#lx.\n", hr);
+        hr = IMFTransform_SetInputType(transform, 0, NULL, 0);
+        ok(hr == S_OK, "SetInputType returned %#lx.\n", hr);
+        hr = IMFTransform_SetInputType(transform, 0, NULL, 0);
+        ok(hr == S_OK || broken(hr == MF_E_INVALIDMEDIATYPE), "SetInputType returned %#lx.\n", hr);
+        return;
+    }
+
     create_media_type(attributes, &media_type);
 
     hr = IMFTransform_SetInputType(transform, 0, media_type, MFT_SET_TYPE_TEST_ONLY);
@@ -791,24 +802,39 @@ static void check_mft_set_output_type_required_(int line, IMFTransform *transfor
     ok_(__FILE__, line)(!ref, "Release returned %lu\n", ref);
 }
 
-static void check_mft_set_output_type(IMFTransform *transform, const struct attribute_desc *attributes,
+#define check_mft_set_output_type(a, b, c) check_mft_set_output_type_(__LINE__, a, b, c)
+static void check_mft_set_output_type_(int line, IMFTransform *transform, const struct attribute_desc *attributes,
         HRESULT expect_hr)
 {
     IMFMediaType *media_type;
     HRESULT hr;
 
+    if (!attributes)
+    {
+        hr = IMFTransform_SetOutputType(transform, 0, NULL, MFT_SET_TYPE_TEST_ONLY);
+        ok_(__FILE__, line)(hr == S_OK || broken(hr == E_INVALIDARG), "SetOutputType returned %#lx.\n", hr);
+        hr = IMFTransform_SetOutputType(transform, 0, NULL, 0);
+        ok_(__FILE__, line)(hr == S_OK, "SetOutputType returned %#lx.\n", hr);
+        hr = IMFTransform_SetOutputType(transform, 0, NULL, 0);
+        ok_(__FILE__, line)(hr == S_OK || broken(hr == MF_E_INVALIDMEDIATYPE), "SetOutputType returned %#lx.\n", hr);
+        return;
+    }
+
     create_media_type(attributes, &media_type);
 
+    hr = IMFTransform_SetOutputType(transform, 2, media_type, 0);
+    ok_(__FILE__, line)(hr == MF_E_INVALIDSTREAMNUMBER, "SetOutputType returned %#lx.\n", hr);
+
     hr = IMFTransform_SetOutputType(transform, 0, media_type, MFT_SET_TYPE_TEST_ONLY);
-    ok(hr == expect_hr, "SetOutputType returned %#lx.\n", hr);
+    ok_(__FILE__, line)(hr == expect_hr, "SetOutputType returned %#lx.\n", hr);
     hr = IMFTransform_SetOutputType(transform, 0, media_type, 0);
-    ok(hr == expect_hr, "SetOutputType returned %#lx.\n", hr);
+    ok_(__FILE__, line)(hr == expect_hr, "SetOutputType returned %#lx.\n", hr);
 
     IMFMediaType_Release(media_type);
 }
 
-#define check_mft_get_output_current_type(a, b) check_mft_get_output_current_type_(a, b, FALSE, FALSE)
-static void check_mft_get_output_current_type_(IMFTransform *transform, const struct attribute_desc *attributes,
+#define check_mft_get_output_current_type(a, b) check_mft_get_output_current_type_(__LINE__, a, b, FALSE, FALSE)
+static void check_mft_get_output_current_type_(int line, IMFTransform *transform, const struct attribute_desc *attributes,
         BOOL todo_current, BOOL todo_compare)
 {
     HRESULT hr, expect_hr = attributes ? S_OK : MF_E_TRANSFORM_TYPE_NOT_SET;
@@ -817,7 +843,7 @@ static void check_mft_get_output_current_type_(IMFTransform *transform, const st
 
     hr = IMFTransform_GetOutputCurrentType(transform, 0, &current_type);
     todo_wine_if(todo_current)
-    ok(hr == expect_hr, "GetOutputCurrentType returned hr %#lx.\n", hr);
+    ok_(__FILE__, line)(hr == expect_hr, "GetOutputCurrentType returned hr %#lx.\n", hr);
     if (FAILED(hr))
         return;
 
@@ -825,9 +851,9 @@ static void check_mft_get_output_current_type_(IMFTransform *transform, const st
 
     hr = IMFMediaType_Compare(current_type, (IMFAttributes *)media_type,
             MF_ATTRIBUTES_MATCH_ALL_ITEMS, &result);
-    ok(hr == S_OK, "Compare returned hr %#lx.\n", hr);
+    ok_(__FILE__, line)(hr == S_OK, "Compare returned hr %#lx.\n", hr);
     todo_wine_if(todo_compare)
-    ok(result, "got result %u.\n", !!result);
+    ok_(__FILE__, line)(result, "got result %u.\n", !!result);
 
     IMFMediaType_Release(media_type);
     IMFMediaType_Release(current_type);
@@ -2384,8 +2410,18 @@ static void test_aac_encoder(void)
     check_mft_set_input_type(transform, input_type_desc);
     check_mft_get_input_current_type(transform, expect_input_type_desc);
 
-    check_mft_get_input_stream_info(transform, S_OK, &input_info);
-    check_mft_get_output_stream_info(transform, S_OK, &output_info);
+    check_mft_set_input_type(transform, NULL);
+    check_mft_get_input_current_type(transform, NULL);
+    check_mft_get_output_current_type(transform, expect_output_type_desc);
+    check_mft_set_output_type(transform, NULL, S_OK);
+    check_mft_get_output_current_type(transform, NULL);
+    check_mft_set_output_type(transform, output_type_desc, S_OK);
+    check_mft_get_output_current_type(transform, expect_output_type_desc);
+    check_mft_set_input_type(transform, input_type_desc);
+    check_mft_get_input_current_type(transform, expect_input_type_desc);
+
+    check_mft_get_input_stream_info(transform, &input_info);
+    check_mft_get_output_stream_info(transform, &output_info);
 
     if (!has_video_processor)
     {
@@ -2662,8 +2698,18 @@ static void test_aac_decoder_subtype(const struct attribute_desc *input_type_des
     check_mft_set_output_type(transform, output_type_desc, S_OK);
     check_mft_get_output_current_type(transform, output_type_desc);
 
-    check_mft_get_input_stream_info(transform, S_OK, &input_info);
-    check_mft_get_output_stream_info(transform, S_OK, &output_info);
+    check_mft_set_input_type(transform, NULL);
+    check_mft_get_input_current_type(transform, NULL);
+    check_mft_get_output_current_type(transform, output_type_desc);
+    check_mft_set_output_type(transform, NULL, S_OK);
+    check_mft_get_output_current_type(transform, NULL);
+    check_mft_set_input_type(transform, input_type_desc);
+    check_mft_get_input_current_type(transform, input_type_desc);
+    check_mft_set_output_type(transform, output_type_desc, S_OK);
+    check_mft_get_output_current_type(transform, output_type_desc);
+
+    check_mft_get_input_stream_info(transform, &input_info);
+    check_mft_get_output_stream_info(transform, &output_info);
 
     load_resource(L"aacencdata.bin", &aacenc_data, &aacenc_data_len);
     ok(aacenc_data_len == 24861, "got length %lu\n", aacenc_data_len);
@@ -2971,8 +3017,18 @@ static void test_wma_encoder(void)
     check_mft_set_input_type(transform, input_type_desc);
     check_mft_get_input_current_type(transform, expect_input_type_desc);
 
-    check_mft_get_input_stream_info(transform, S_OK, &input_info);
-    check_mft_get_output_stream_info(transform, S_OK, &output_info);
+    check_mft_set_input_type(transform, NULL);
+    check_mft_get_input_current_type(transform, NULL);
+    check_mft_get_output_current_type(transform, expect_output_type_desc);
+    check_mft_set_output_type(transform, NULL, S_OK);
+    check_mft_get_output_current_type(transform, NULL);
+    check_mft_set_output_type(transform, output_type_desc, S_OK);
+    check_mft_get_output_current_type(transform, expect_output_type_desc);
+    check_mft_set_input_type(transform, input_type_desc);
+    check_mft_get_input_current_type(transform, expect_input_type_desc);
+
+    check_mft_get_input_stream_info(transform, &input_info);
+    check_mft_get_output_stream_info(transform, &output_info);
 
     load_resource(L"audiodata.bin", &audio_data, &audio_data_len);
     ok(audio_data_len == 179928, "got length %lu\n", audio_data_len);
@@ -3278,7 +3334,7 @@ static void test_wma_decoder(void)
 
     /* setting output media type first doesn't work */
     check_mft_set_output_type(transform, output_type_desc, MF_E_TRANSFORM_TYPE_NOT_SET);
-    check_mft_get_output_current_type_(transform, NULL, TRUE, FALSE);
+    check_mft_get_output_current_type_(__LINE__, transform, NULL, TRUE, FALSE);
 
     check_mft_set_input_type_required(transform, input_type_desc);
     check_mft_set_input_type(transform, input_type_desc);
@@ -3304,7 +3360,16 @@ static void test_wma_decoder(void)
 
     check_mft_set_output_type_required(transform, output_type_desc);
     check_mft_set_output_type(transform, output_type_desc, S_OK);
-    check_mft_get_output_current_type_(transform, expect_output_type_desc, TRUE, FALSE);
+    check_mft_get_output_current_type_(__LINE__, transform, expect_output_type_desc, TRUE, FALSE);
+
+    check_mft_set_input_type(transform, NULL);
+    check_mft_get_input_current_type(transform, NULL);
+    check_mft_get_output_current_type(transform, NULL);
+    check_mft_set_output_type(transform, NULL, S_OK);
+    check_mft_set_input_type(transform, input_type_desc);
+    check_mft_get_input_current_type(transform, expect_input_type_desc);
+    check_mft_set_output_type(transform, output_type_desc, S_OK);
+    check_mft_get_output_current_type(transform, expect_output_type_desc);
 
     check_mft_get_input_stream_info(transform, S_OK, &input_info);
     check_mft_get_output_stream_info(transform, S_OK, &output_info);
@@ -3862,7 +3927,7 @@ static void test_h264_decoder(void)
 
     check_mft_set_output_type_required(transform, output_type_desc);
     check_mft_set_output_type(transform, output_type_desc, S_OK);
-    check_mft_get_output_current_type_(transform, expect_output_type_desc, FALSE, TRUE);
+    check_mft_get_output_current_type_(__LINE__, transform, expect_output_type_desc, FALSE, TRUE);
 
     /* check that the output media type we've selected don't change the enumeration */
 
@@ -3879,8 +3944,18 @@ static void test_h264_decoder(void)
     ok(hr == MF_E_NO_MORE_TYPES, "GetOutputAvailableType returned %#lx\n", hr);
     ok(i == 5, "%lu output media types\n", i);
 
-    check_mft_get_input_stream_info(transform, S_OK, &input_info);
-    check_mft_get_output_stream_info(transform, S_OK, &output_info);
+    check_mft_set_input_type(transform, NULL);
+    check_mft_get_input_current_type(transform, NULL);
+    check_mft_get_output_current_type(transform, expect_output_type_desc);
+    check_mft_set_output_type(transform, NULL, S_OK);
+    check_mft_get_output_current_type(transform, NULL);
+    check_mft_set_input_type(transform, input_type_desc);
+    check_mft_get_input_current_type(transform, expect_input_type_desc);
+    check_mft_set_output_type(transform, output_type_desc, S_OK);
+    check_mft_get_output_current_type(transform, expect_output_type_desc);
+
+    check_mft_get_input_stream_info(transform, &input_info);
+    check_mft_get_output_stream_info(transform, &output_info);
 
     load_resource(L"h264data.bin", &h264_encoded_data, &h264_encoded_data_len);
 
@@ -3960,7 +4035,7 @@ static void test_h264_decoder(void)
     ok(i == 5, "%lu output media types\n", i);
 
     /* current output type is still the one we selected */
-    check_mft_get_output_current_type_(transform, expect_output_type_desc, FALSE, TRUE);
+    check_mft_get_output_current_type_(__LINE__, transform, expect_output_type_desc, FALSE, TRUE);
 
     hr = MFCreateCollection(&output_samples);
     ok(hr == S_OK, "MFCreateCollection returned %#lx\n", hr);
@@ -3991,7 +4066,7 @@ static void test_h264_decoder(void)
     ret = IMFMediaType_Release(media_type);
     ok(ret == 1, "Release returned %lu\n", ret);
 
-    check_mft_get_output_current_type_(transform, expect_new_output_type_desc, FALSE, TRUE);
+    check_mft_get_output_current_type_(__LINE__, transform, expect_new_output_type_desc, FALSE, TRUE);
 
     output_sample = create_sample(NULL, actual_width * actual_height * 2);
     hr = check_mft_process_output(transform, output_sample, &output_status);
@@ -4336,7 +4411,17 @@ static void test_audio_convert(void)
 
     check_mft_set_output_type_required(transform, output_type_desc);
     check_mft_set_output_type(transform, output_type_desc, S_OK);
-    check_mft_get_output_current_type_(transform, expect_output_type_desc, FALSE, TRUE);
+    check_mft_get_output_current_type_(__LINE__, transform, expect_output_type_desc, FALSE, TRUE);
+
+    check_mft_set_input_type(transform, NULL);
+    check_mft_get_input_current_type(transform, NULL);
+    check_mft_get_output_current_type(transform, expect_output_type_desc);
+    check_mft_set_output_type(transform, NULL, S_OK);
+    check_mft_get_output_current_type(transform, NULL);
+    check_mft_set_input_type(transform, input_type_desc);
+    check_mft_get_input_current_type(transform, expect_input_type_desc);
+    check_mft_set_output_type(transform, output_type_desc, S_OK);
+    check_mft_get_output_current_type(transform, expect_output_type_desc);
 
     check_mft_get_input_stream_info(transform, S_OK, &input_info);
     check_mft_get_output_stream_info(transform, S_OK, &output_info);
@@ -4776,7 +4861,17 @@ static void test_wmv_encoder(void)
 
     check_mft_set_output_type_required(transform, output_type_desc);
     check_mft_set_output_type(transform, output_type_desc, S_OK);
-    check_mft_get_output_current_type_(transform, expect_output_type_desc, FALSE, TRUE);
+    check_mft_get_output_current_type_(__LINE__, transform, expect_output_type_desc, FALSE, TRUE);
+
+    check_mft_set_input_type(transform, NULL);
+    check_mft_get_input_current_type(transform, NULL);
+    check_mft_get_output_current_type(transform, expect_output_type_desc);
+    check_mft_set_output_type(transform, NULL, S_OK);
+    check_mft_get_output_current_type(transform, NULL);
+    check_mft_set_input_type(transform, input_type_desc);
+    check_mft_get_input_current_type(transform, expect_input_type_desc);
+    check_mft_set_output_type(transform, output_type_desc, S_OK);
+    check_mft_get_output_current_type(transform, expect_output_type_desc);
 
     check_mft_get_input_stream_info(transform, S_OK, &expect_input_info);
     check_mft_get_output_stream_info(transform, S_OK, &expect_output_info);
@@ -5349,6 +5444,20 @@ static void test_wmv_decoder(void)
     }
     ok(hr == MF_E_NO_MORE_TYPES, "GetOutputAvailableType returned %#lx\n", hr);
     ok(i == ARRAY_SIZE(expect_available_outputs), "%lu input media types\n", i);
+
+    check_mft_set_output_type_required(transform, output_type_desc);
+    check_mft_set_output_type(transform, output_type_desc, S_OK);
+    check_mft_get_output_current_type_(__LINE__, transform, expect_output_type_desc, FALSE, TRUE);
+
+    check_mft_set_input_type(transform, NULL);
+    check_mft_get_input_current_type(transform, NULL);
+    check_mft_get_output_current_type(transform, expect_output_type_desc);
+    check_mft_set_output_type(transform, NULL, S_OK);
+    check_mft_get_output_current_type(transform, NULL);
+    check_mft_set_input_type(transform, input_type_desc);
+    check_mft_get_input_current_type(transform, expect_input_type_desc);
+    check_mft_set_output_type(transform, output_type_desc, S_OK);
+    check_mft_get_output_current_type(transform, expect_output_type_desc);
 
     for (j = 0; j < ARRAY_SIZE(transform_tests); j++)
     {
@@ -6022,6 +6131,19 @@ static void test_color_convert(void)
     check_mft_set_input_type(transform, input_type_desc);
     check_mft_get_input_current_type_(transform, expect_input_type_desc, FALSE, TRUE);
 
+    check_mft_set_input_type(transform, NULL);
+    check_mft_get_input_current_type(transform, NULL);
+    check_mft_get_output_current_type(transform, expect_output_type_desc);
+    check_mft_set_output_type(transform, NULL, S_OK);
+    check_mft_get_output_current_type(transform, NULL);
+    check_mft_set_output_type(transform, output_type_desc, S_OK);
+    check_mft_get_output_current_type(transform, expect_output_type_desc);
+    check_mft_set_input_type(transform, input_type_desc);
+    check_mft_get_input_current_type(transform, expect_input_type_desc);
+
+    check_mft_get_input_stream_info(transform, &input_info);
+    check_mft_get_output_stream_info(transform, &output_info);
+
     for (i = 0; i < ARRAY_SIZE(color_conversion_tests); i++)
     {
         winetest_push_context("color conversion #%lu", i);
@@ -6650,6 +6772,29 @@ static void test_video_processor(void)
     ok(hr == MF_E_NO_MORE_TYPES, "GetInputAvailableType returned %#lx\n", hr);
     ok(i == 22 || i == 30 || broken(i == 26) /* w1064v1507 */, "%lu input media types\n", i);
 
+    check_mft_set_input_type_required(transform, input_type_desc);
+    check_mft_set_input_type(transform, input_type_desc);
+    check_mft_get_input_current_type(transform, input_type_desc);
+
+    check_mft_set_output_type_required(transform, output_type_desc);
+    check_mft_set_output_type(transform, output_type_desc, S_OK);
+    check_mft_get_output_current_type(transform, output_type_desc);
+
+    check_mft_set_input_type(transform, NULL);
+    check_mft_get_input_current_type(transform, NULL);
+    check_mft_get_output_current_type(transform, output_type_desc);
+    check_mft_set_output_type(transform, NULL, S_OK);
+    check_mft_get_output_current_type(transform, NULL);
+    check_mft_set_output_type(transform, output_type_desc, S_OK);
+    check_mft_get_output_current_type(transform, output_type_desc);
+    check_mft_set_input_type(transform, input_type_desc);
+    check_mft_get_input_current_type(transform, input_type_desc);
+
+    input_info.cbSize = actual_width * actual_height * 3 / 2;
+    output_info.cbSize = actual_width * actual_height * 4;
+    check_mft_get_input_stream_info(transform, S_OK, &input_info);
+    check_mft_get_output_stream_info(transform, S_OK, &output_info);
+
     for (i = 0; i < ARRAY_SIZE(video_processor_tests); i++)
     {
         winetest_push_context("transform #%lu", i);
@@ -7006,8 +7151,18 @@ static void test_mp3_decoder(void)
     check_mft_set_output_type(transform, output_type_desc, S_OK);
     check_mft_get_output_current_type(transform, expect_output_type_desc);
 
-    check_mft_get_input_stream_info(transform, S_OK, &input_info);
-    check_mft_get_output_stream_info(transform, S_OK, &output_info);
+    check_mft_set_input_type(transform, NULL);
+    check_mft_get_input_current_type(transform, NULL);
+    check_mft_get_output_current_type(transform, expect_output_type_desc);
+    check_mft_set_output_type(transform, NULL, S_OK);
+    check_mft_get_output_current_type(transform, NULL);
+    check_mft_set_input_type(transform, input_type_desc);
+    check_mft_get_input_current_type(transform, expect_input_type_desc);
+    check_mft_set_output_type(transform, output_type_desc, S_OK);
+    check_mft_get_output_current_type(transform, expect_output_type_desc);
+
+    check_mft_get_input_stream_info(transform, &input_info);
+    check_mft_get_output_stream_info(transform, &output_info);
 
     load_resource(L"mp3encdata.bin", &mp3enc_data, &mp3enc_data_len);
     ok(mp3enc_data_len == 6295, "got length %lu\n", mp3enc_data_len);
