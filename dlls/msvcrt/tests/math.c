@@ -93,6 +93,19 @@ static void test_asinf_tiny( UINT min, UINT max, UINT mode )
     }
 }
 
+static void test_asinf_sign( UINT min, UINT max, UINT mode )
+{
+    union float_value v, o, r;
+    for (v.u = o.u = min; v.u != max; v.u += min( STEP, max - v.u ), o.u = v.u)
+    {
+        r.f = p_asinf( v.f );
+        o.u ^= 0x80000000;
+        o.f = p_asinf( o.f );
+        o.u ^= 0x80000000;
+        ok( r.u == o.u, "asinf %#08x returned %#08x\n", v.u, r.u );
+    }
+}
+
 static void test_asinf_tiny2( UINT min, UINT max, UINT mode )
 {
     union float_value v, r;
@@ -137,6 +150,18 @@ static void test_asinf_lowr( UINT min, UINT max, UINT mode )
         ok( r.u == o.u, "asinf %#08x returned %#08x\n", v.u, r.u );
         o.f = asinf_lowr( v.f );
         ok( abs( r.i - o.i ) <= 1, "asinf %#08x returned %#08x\n", v.u, r.u );
+    }
+}
+
+static void test_asinf_part( UINT min, UINT max, UINT mode )
+{
+    union float_value v, r, p = {.u = min};
+    p.f = p_asinf( p.f );
+    for (v.u = min; v.u != max; v.u += min( STEP, max - v.u ))
+    {
+        r.f = p_asinf( v.f );
+        ok( (r.u & 0x7f800000) == (p.u & 0x7f800000), "split %08x\n", v.u );
+        p.u = r.u;
     }
 }
 
@@ -231,6 +256,18 @@ static void test_acosf_lowr( UINT min, UINT max, UINT mode )
     }
 }
 
+static void test_acosf_part( UINT min, UINT max, UINT mode )
+{
+    union float_value v, r, p = {.u = min};
+    p.f = p_acosf( p.f );
+    for (v.u = min; v.u != max; v.u += min( STEP, max - v.u ))
+    {
+        r.f = p_acosf( v.f );
+        ok( (r.u & 0x7f800000) == (p.u & 0x7f800000), "split %08x\n", v.u );
+        p.u = r.u;
+    }
+}
+
 static float acosf_hneg( float x )
 {
     static const double pio2_lo = 6.12323399573676603587e-17;
@@ -296,7 +333,98 @@ static void dump_asinf( UINT min, UINT max, UINT mode )
     r = malloc((max - min) * sizeof(*r));
     for (v.u = min; v.u != max; v.u++) r[v.u - min].f = p_asinf(v.f);
 
-    sprintf(buffer, "asinf-%08x-%08x-%u.dat", min, max, mode);
+    sprintf( buffer, "asinf-%08x-%08x-%u-%s.dat", min, max, mode, strcmp( winetest_platform, "wine" ) ? "msvc" : "wine" );
+    out = fopen(buffer, "wb");
+    fwrite(r, max - min, sizeof(*r), out);
+    fflush(out);
+    fclose(out);
+    free(r);
+}
+
+union float_value asinf_lower_bound(union float_value min, union float_value max, union float_value v, union float_value r)
+{
+    union float_value it;
+    unsigned int step;
+ 
+    while (max.u != min.u)
+    {
+        step = (max.u - min.u) / 2;
+        it.u = min.u + step;
+        it.f = v.f + v.f * it.f;
+        if (it.u == r.u) max.u = min.u + step;
+        else min.u = min.u + step + 1;
+    }
+
+    it.f = v.f + v.f * min.f;
+    if (it.f != r.f) min.u += 1;
+    return min;
+}
+
+static void dump_asinf_core_min( UINT min, UINT max, UINT mode )
+{
+    union float_value v, a, o, *r;
+    char buffer[256];
+    FILE *out;
+
+    r = malloc((max - min) * sizeof(*r));
+    sprintf(buffer, "asinf-%08x-%08x-%u-%s.dat", min, max, mode, strcmp( winetest_platform, "wine" ) ? "msvc" : "wine" );
+    out = fopen(buffer, "rb");
+    fread(r, max - min, sizeof(*r), out);
+    fclose(out);
+
+    for (v.u = min; v.u < max; v.u++)
+    {
+        o.u = 0;
+        a.f = (r[v.u - min].f - v.f) / v.f;
+        r[v.u - min] = asinf_lower_bound(o, a, v, r[v.u - min]);
+    }
+
+    sprintf(buffer, "asinf-core-min-%08x-%08x-%u.dat", min, max, mode);
+    out = fopen(buffer, "wb");
+    fwrite(r, max - min, sizeof(*r), out);
+    fclose(out);
+    free(r);
+}
+
+union float_value asinf_upper_bound(union float_value min, union float_value max, union float_value v, union float_value r)
+{
+    union float_value it;
+    unsigned int step;
+ 
+    while (max.u != min.u)
+    {
+        step = (max.u - min.u) / 2;
+        it.u = max.u - step;
+        it.f = v.f + v.f * it.f;
+        if (it.u == r.u) min.u = max.u - step;
+        else max.u = max.u - step - 1;
+    }
+
+    it.f = v.f + v.f * max.f;
+    if (it.f != r.f) max.u -= 1;
+    return max;
+}
+
+static void dump_asinf_core_max( UINT min, UINT max, UINT mode )
+{
+    union float_value v, a, o, *r;
+    char buffer[256];
+    FILE *out;
+
+    r = malloc((max - min) * sizeof(*r));
+    sprintf(buffer, "asinf-%08x-%08x-%u-%s.dat", min, max, mode, strcmp( winetest_platform, "wine" ) ? "msvc" : "wine" );
+    out = fopen(buffer, "rb");
+    fread(r, max - min, sizeof(*r), out);
+    fclose(out);
+
+    for (v.u = min; v.u < max; v.u++)
+    {
+        o.u = 0x7f800000;
+        a.f = (r[v.u - min].f - v.f) / v.f;
+        r[v.u - min] = asinf_upper_bound(a, o, v, r[v.u - min]);
+    }
+
+    sprintf(buffer, "asinf-core-max-%08x-%08x-%u.dat", min, max, mode);
     out = fopen(buffer, "wb");
     fwrite(r, max - min, sizeof(*r), out);
     fclose(out);
@@ -312,7 +440,7 @@ static void dump_acosf( UINT min, UINT max, UINT mode )
     r = malloc((max - min) * sizeof(*r));
     for (v.u = min; v.u != max; v.u++) r[v.u - min].f = p_acosf(v.f);
 
-    sprintf(buffer, "acosf-%08x-%08x-%u.dat", min, max, mode);
+    sprintf(buffer, "acosf-%08x-%08x-%u-%s.dat", min, max, mode, strcmp( winetest_platform, "wine" ) ? "msvc" : "wine" );
     out = fopen(buffer, "wb");
     fwrite(r, max - min, sizeof(*r), out);
     fclose(out);
@@ -497,16 +625,17 @@ static DWORD CALLBACK run_thread( void *args )
     return 0;
 }
 
-static void run( void (*callback)( UINT min, UINT max, UINT mode ),
-                 UINT min, UINT max, UINT count, UINT mode )
+static void run_split( void (*callback)( UINT min, UINT max, UINT mode ),
+                       const UINT *split, UINT count, UINT mode )
 {
-    struct run_params params = {.callback = callback, .max = min, .mode = mode};
-    HANDLE thread[16];
+    struct run_params params = {.callback = callback, .max = split[0], .mode = mode};
+    HANDLE thread[32];
+    UINT i;
 
-    for (UINT i = 0; i < count; ++i)
+    for (i = 0; i < count; ++i)
     {
         params.min = params.max;
-        params.max = params.min + (max - params.min) / (count - i);
+        params.max = split[i + 1];
         params.event = CreateEventW( NULL, FALSE, FALSE, NULL );
         thread[i] = CreateThread( NULL, 0, run_thread, &params, 0, NULL );
         WaitForSingleObject( params.event, INFINITE );
@@ -517,8 +646,48 @@ static void run( void (*callback)( UINT min, UINT max, UINT mode ),
     while (count--) CloseHandle( thread[count] );
 }
 
+static void run( void (*callback)( UINT min, UINT max, UINT mode ),
+                 UINT min, UINT max, UINT count, UINT mode )
+{
+    UINT i, split[32] = { min, max };
+    for (i = 1; i < count; ++i)
+    {
+        split[i] = min + (max - min) / (count - i);
+        split[i + 1] = max;
+        min = split[i];
+    }
+    run_split( callback, split, count, mode );
+}
+
 START_TEST( math )
 {
+    static const UINT32 asinf_split[4][17] =
+    {
+        {
+            0x38800000, 0x39000000, 0x39800000, 0x39ffffff,
+            0x3a7ffffd, 0x3afffff5, 0x3b7fffd5, 0x3bffff55,
+            0x3c7ffd55, 0x3cfff555, 0x3d7fd557, 0x3dff5577,
+            0x3e7d5777, 0x3ef57744, 0x3f000000, 0x3f576aa5, 0x3f800000,
+        },
+        {
+            0x38800000, 0x39000000, 0x39800000, 0x3a000000,
+            0x3a7ffffe, 0x3afffff6, 0x3b7fffd6, 0x3bffff56,
+            0x3c7ffd56, 0x3cfff556, 0x3d7fd558, 0x3dff5578,
+            0x3e7d5777, 0x3ef57744, 0x3f000000, 0x3f576aa5, 0x3f800000,
+        },
+        {
+            0x38800000, 0x38ffffff, 0x397fffff, 0x39ffffff,
+            0x3a7ffffd, 0x3afffff5, 0x3b7fffd5, 0x3bffff55,
+            0x3c7ffd55, 0x3cfff555, 0x3d7fd557, 0x3dff5577,
+            0x3e7d5776, 0x3ef57743, 0x3f000000, 0x3f576aa5, 0x3f800000,
+        },
+        {
+            0x38800000, 0x39000000, 0x39800000, 0x3a000000,
+            0x3a7ffffe, 0x3afffff6, 0x3b7fffd6, 0x3bffff56,
+            0x3c7ffd56, 0x3cfff556, 0x3d7fd558, 0x3dff5578,
+            0x3e7d5777, 0x3ef57744, 0x3f000000, 0x3f576aa5, 0x3f800000,
+        },
+    };
     HMODULE ucrtbase;
     UINT mode;
 
@@ -571,15 +740,27 @@ START_TEST( math )
 
         if (0) run( test_asinf_tiny2, 0x38800000, 0x3a389ba1, 1, mode );
 
+        if (0) run( test_asinf_part, 0x38800000, 0x3f800000, 1, mode );
+        if (0) run( test_asinf_part, 0xb8800000, 0xbf800000, 1, mode );
+
+        if (0) run( test_asinf_sign, 0x38800000, 0x3f000000, 8, mode );
+        if (0) run( test_asinf_sign, 0x3f000000, 0x3f800000, 8, mode );
+        if (0) run( test_asinf_sign, 0xb8800000, 0xbf000000, 8, mode );
+        if (0) run( test_asinf_sign, 0xbf000000, 0xbf800000, 8, mode );
+
         if (0) run( test_asinf_lowr, 0x38800000, 0x3f000000, 8, mode );
         if (0) run( test_asinf_high, 0x3f000000, 0x3f800000, 8, mode );
         if (0) run( test_asinf_lowr, 0xb8800000, 0xbf000000, 8, mode );
         if (0) run( test_asinf_high, 0xbf000000, 0xbf800000, 8, mode );
 
-        if (0) run( dump_asinf, 0x38800000, 0x3f000000, 1, mode );
-        if (0) run( dump_asinf, 0x3f000000, 0x3f800000, 1, mode );
-        if (0) run( dump_asinf, 0xb8800000, 0xbf000000, 1, mode );
-        if (0) run( dump_asinf, 0xbf000000, 0xbf800000, 1, mode );
+        if (1) run_split( dump_asinf, asinf_split[mode], 16, mode );
+        if (0) run( dump_asinf, 0x38800000, 0x3f000000, 8, mode );
+        if (0) run( dump_asinf, 0x3f000000, 0x3f800000, 8, mode );
+        if (0) run( dump_asinf, 0xb8800000, 0xbf000000, 8, mode );
+        if (0) run( dump_asinf, 0xbf000000, 0xbf800000, 8, mode );
+
+        if (0) run( dump_asinf_core_min, 0x38800000, 0x3f000000, 8, mode );
+        if (0) run( dump_asinf_core_max, 0x38800000, 0x3f000000, 8, mode );
     }
 
     if (!p_acosf) skip( "acosf not found, skipping tests\n" );
@@ -597,13 +778,18 @@ START_TEST( math )
         if (0) run( test_acosf_nan, 0xff800001, 0xffc00000, 8, mode ); /* SNaN */
         if (0) run( test_acosf_nan, 0xffc00000, 0x00000000, 8, mode ); /* QNaN */
 
+        if (0) run( test_acosf_part, 0x32800000, 0x3f800000, 1, mode );
+        if (0) run( test_acosf_part, 0xb2800000, 0xbf800000, 1, mode );
+
         if (0) run( test_acosf_lowr, 0x32800000, 0x3f000000, 8, mode );
         if (0) run( test_acosf_hpos, 0x3f000000, 0x3f800000, 8, mode );
         if (0) run( test_acosf_lowr, 0xb2800000, 0xbf000000, 8, mode );
         if (0) run( test_acosf_hneg, 0xbf000000, 0xbf800000, 8, mode );
 
-        if (0) run( dump_acosf, 0x32800000, 0x3f000000, 1, mode );
-        if (0) run( dump_acosf, 0x3f000000, 0x3f800000, 1, mode );
+        if (1) run_split( dump_acosf, asinf_split[mode], 16, mode );
+        if (0) run( dump_acosf, 0x32800000, 0x3f000000, 8, mode );
+        if (0) run( dump_acosf, 0x38800000, 0x3f000000, 8, mode );
+        if (0) run( dump_acosf, 0x3f000000, 0x3f800000, 8, mode );
         if (0) run( dump_acosf, 0xb2800000, 0xbf000000, 1, mode );
         if (0) run( dump_acosf, 0xbf000000, 0xbf800000, 1, mode );
     }
@@ -656,10 +842,10 @@ START_TEST( math )
         if (0) run( test_atan2f_y1_tiny, 0x00000000, 0x39000000, 1, mode );
         if (0) run( test_atan2f_y1_tiny, 0x80000000, 0xb9000000, 8, mode );
 
-        if (1) run( test_atan2f_y1_pio2, 0x4d000000, 0x7f800001, 8, mode );
-        if (1) run( test_atan2f_y1_pio2, 0xcd000000, 0xff800001, 8, mode );
+        if (0) run( test_atan2f_y1_pio2, 0x4d000000, 0x7f800001, 8, mode );
+        if (0) run( test_atan2f_y1_pio2, 0xcd000000, 0xff800001, 8, mode );
 
-        if (1) run( test_atan2f_1x_huge, 0x461c4000, 0x7f800001, 1, mode );
+        if (0) run( test_atan2f_1x_huge, 0x461c4000, 0x7f800001, 1, mode );
         if (0) run( test_atan2f_1x, 0x32800000, 0x461c4000, 1, mode );
         if (0) run( test_atan2f_1x, 0xb2800000, 0xff800001, 1, mode );
 
