@@ -31,6 +31,7 @@
 #include "ole2.h"
 #include "ks.h"
 #include "ksmedia.h"
+#include "dvdmedia.h"
 #include "amvideo.h"
 #include "mfapi.h"
 #include "mfidl.h"
@@ -39,6 +40,7 @@
 #include "propvarutil.h"
 #include "strsafe.h"
 #include "uuids.h"
+#include "dxva.h"
 #include "evr.h"
 #include "mfmediaengine.h"
 
@@ -130,6 +132,480 @@ struct d3d9_surface_readback
     D3DSURFACE_DESC surf_desc;
 };
 
+static inline const char *debugstr_attr(const GUID *guid)
+{
+    static const struct guid_def guid_defs[] =
+    {
+#define X(g) { &(g), #g }
+#define MF_READER_WRITER_D3D_MANAGER MF_SOURCE_READER_D3D_MANAGER
+        X(MF_TOPONODE_MARKIN_HERE),
+        X(MF_MT_H264_SUPPORTED_SYNC_FRAME_TYPES),
+        X(MF_TOPONODE_MARKOUT_HERE),
+        X(EVRConfig_ForceBob),
+        X(MF_TOPONODE_DECODER),
+        X(EVRConfig_AllowDropToBob),
+        X(MF_TOPOLOGY_PROJECTSTART),
+        X(EVRConfig_ForceThrottle),
+        X(MF_VIDEO_MAX_MB_PER_SEC),
+        X(MF_TOPOLOGY_PROJECTSTOP),
+        X(EVRConfig_AllowDropToThrottle),
+        X(MF_TOPOLOGY_NO_MARKIN_MARKOUT),
+        X(EVRConfig_ForceHalfInterlace),
+        X(EVRConfig_AllowDropToHalfInterlace),
+        X(EVRConfig_ForceScaling),
+        X(MF_MT_H264_CAPABILITIES),
+        X(EVRConfig_AllowScaling),
+        X(MFT_PREFERRED_ENCODER_PROFILE),
+        X(EVRConfig_ForceBatching),
+        X(EVRConfig_AllowBatching),
+        X(MF_TOPOLOGY_DYNAMIC_CHANGE_NOT_ALLOWED),
+        X(MF_MT_VIDEO_PROFILE),
+        X(MF_MT_DV_AAUX_CTRL_PACK_1),
+        X(MF_MT_ALPHA_MODE),
+        X(MF_MT_MPEG2_TIMECODE),
+        X(MF_PMP_SERVER_CONTEXT),
+        X(MFT_SUPPORT_DYNAMIC_FORMAT_CHANGE),
+        X(MF_MT_CUSTOM_VIDEO_PRIMARIES),
+        X(MF_MT_TIMESTAMP_CAN_BE_DTS),
+        X(MFT_CODEC_MERIT_Attribute),
+        X(MF_TOPOLOGY_PLAYBACK_MAX_DIMS),
+        X(MF_XVP_DISABLE_FRC),
+        X(MF_LOW_LATENCY),
+        X(MF_MT_MPEG2_FLAGS),
+        X(MF_MT_PIXEL_ASPECT_RATIO),
+        X(MF_VIDEO_PROCESSOR_ALGORITHM),
+        X(MF_TOPOLOGY_ENABLE_XVP_FOR_PLAYBACK),
+        X(MFT_CONNECTED_STREAM_ATTRIBUTE),
+        X(MF_MT_REALTIME_CONTENT),
+        X(MF_MT_WRAPPED_TYPE),
+        X(MF_MT_DRM_FLAGS),
+        X(MF_MT_AVG_BITRATE),
+        X(MF_MT_DECODER_USE_MAX_RESOLUTION),
+        X(MF_MT_MAX_LUMINANCE_LEVEL),
+        X(MFT_CONNECTED_TO_HW_STREAM),
+        X(MF_SA_D3D_AWARE),
+        X(MF_XVP_SAMPLE_LOCK_TIMEOUT),
+        X(MF_MT_MAX_KEYFRAME_SPACING),
+        X(MFT_TRANSFORM_CLSID_Attribute),
+        X(MF_MT_AM_FORMAT_TYPE),
+        X(MF_SESSION_APPROX_EVENT_OCCURRENCE_TIME),
+        X(MF_MT_H264_MAX_MB_PER_SEC),
+        X(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_MAX_BUFFERS),
+        X(MF_MT_AUDIO_BLOCK_ALIGNMENT),
+        X(MF_PD_PMPHOST_CONTEXT),
+        X(MF_PD_APP_CONTEXT),
+        X(MF_PD_DURATION),
+        X(MF_PD_TOTAL_FILE_SIZE),
+        X(MF_PD_AUDIO_ENCODING_BITRATE),
+        X(MF_PD_VIDEO_ENCODING_BITRATE),
+        X(MFSampleExtension_TargetGlobalLuminance),
+        X(MF_PD_MIME_TYPE),
+        X(MF_MT_H264_SUPPORTED_SLICE_MODES),
+        X(MF_PD_LAST_MODIFIED_TIME),
+        X(VIDEO_ZOOM_RECT),
+        X(MF_PD_PLAYBACK_ELEMENT_ID),
+        X(MF_MT_ALL_SAMPLES_INDEPENDENT),
+        X(MF_PD_PREFERRED_LANGUAGE),
+        X(MF_PD_PLAYBACK_BOUNDARY_TIME),
+        X(MF_ACTIVATE_MFT_LOCKED),
+        X(MF_MT_FRAME_SIZE),
+        X(MF_MT_H264_SIMULCAST_SUPPORT),
+        X(MF_TOPOLOGY_START_TIME_ON_PRESENTATION_SWITCH),
+        X(MFT_DECODER_EXPOSE_OUTPUT_TYPES_IN_NATIVE_ORDER),
+        X(MF_TOPONODE_WORKQUEUE_MMCSS_PRIORITY),
+        X(MF_MT_FRAME_RATE_RANGE_MAX),
+        X(MF_MT_PALETTE),
+        X(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_PROVIDER_DEVICE_ID),
+        X(MF_TOPOLOGY_STATIC_PLAYBACK_OPTIMIZATIONS),
+        X(MF_SA_D3D11_USAGE),
+        X(MF_MT_GEOMETRIC_APERTURE),
+        X(MF_MT_ORIGINAL_WAVE_FORMAT_TAG),
+        X(MF_MT_DV_AAUX_SRC_PACK_1),
+        X(MF_MT_DEFAULT_STRIDE),
+        X(MF_MT_ARBITRARY_FORMAT),
+        X(MF_TRANSFORM_CATEGORY_Attribute),
+        X(MF_MT_MPEG2_HDCP),
+        X(MF_MT_AUDIO_FLOAT_SAMPLES_PER_SECOND),
+        X(MF_MT_SPATIAL_AUDIO_MAX_DYNAMIC_OBJECTS),
+        X(MF_MT_DECODER_MAX_DPB_COUNT),
+        X(MFSampleExtension_ForwardedDecodeUnits),
+        X(MF_SA_D3D11_SHARED_WITHOUT_MUTEX),
+        X(MF_MT_DV_AAUX_CTRL_PACK_0),
+        X(MF_MT_YUV_MATRIX),
+        X(MF_EVENT_SOURCE_TOPOLOGY_CANCELED),
+        X(MF_MT_MPEG4_CURRENT_SAMPLE_ENTRY),
+        X(MF_MT_MAX_FRAME_AVERAGE_LUMINANCE_LEVEL),
+        X(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_AUDCAP_ENDPOINT_ID),
+        X(MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME),
+        X(MF_MT_VIDEO_ROTATION),
+        X(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_AUDCAP_SYMBOLIC_LINK),
+        X(MF_MT_USER_DATA),
+        X(MF_ACTIVATE_CUSTOM_VIDEO_MIXER_CLSID),
+        X(MF_MT_MIN_MASTERING_LUMINANCE),
+        X(MF_ACTIVATE_CUSTOM_VIDEO_MIXER_ACTIVATE),
+        X(MF_SA_REQUIRED_SAMPLE_COUNT),
+        X(MF_ACTIVATE_CUSTOM_VIDEO_MIXER_FLAGS),
+        X(MF_ACTIVATE_CUSTOM_VIDEO_PRESENTER_CLSID),
+        X(MF_EVENT_STREAM_METADATA_SYSTEMID),
+        X(MF_ACTIVATE_CUSTOM_VIDEO_PRESENTER_ACTIVATE),
+        X(MF_MT_AUDIO_CHANNEL_MASK),
+        X(MF_ACTIVATE_CUSTOM_VIDEO_PRESENTER_FLAGS),
+        X(MF_MT_MINIMUM_DISPLAY_APERTURE),
+        X(MFSampleExtension_Token),
+        X(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_CATEGORY),
+        X(MF_MT_AUDIO_VALID_BITS_PER_SAMPLE),
+        X(MF_TRANSFORM_ASYNC_UNLOCK),
+        X(MF_DISABLE_FRAME_CORRUPTION_INFO),
+        X(MF_TOPOLOGY_ENUMERATE_SOURCE_TYPES),
+        X(MF_MT_VIDEO_NO_FRAME_ORDERING),
+        X(MF_MT_VIDEO_CHROMA_SITING),
+        X(MF_AUDIO_RENDERER_ATTRIBUTE_STREAM_CATEGORY),
+        X(MF_SA_BUFFERS_PER_SAMPLE),
+        X(MFSampleExtension_3DVideo_SampleFormat),
+        X(MF_MT_H264_RESOLUTION_SCALING),
+        X(MF_MT_VIDEO_LEVEL),
+        X(MF_SAMPLEGRABBERSINK_SAMPLE_TIME_OFFSET),
+        X(MF_MT_SAMPLE_SIZE),
+        X(MF_MT_AAC_PAYLOAD_TYPE),
+        X(MF_TOPOLOGY_PLAYBACK_FRAMERATE),
+        X(MF_MT_AUDIO_FOLDDOWN_MATRIX),
+        X(MF_MT_AUDIO_WMADRC_PEAKREF),
+        X(MF_MT_AUDIO_WMADRC_PEAKTARGET),
+        X(MF_TRANSFORM_FLAGS_Attribute),
+        X(MF_MT_H264_SUPPORTED_RATE_CONTROL_MODES),
+        X(MF_PD_SAMI_STYLELIST),
+        X(MF_MT_AUDIO_WMADRC_AVGREF),
+        X(MF_MT_AUDIO_BITS_PER_SAMPLE),
+        X(MF_SD_LANGUAGE),
+        X(MF_MT_AUDIO_WMADRC_AVGTARGET),
+        X(MF_SD_PROTECTED),
+        X(MF_SESSION_TOPOLOADER),
+        X(MF_SESSION_GLOBAL_TIME),
+        X(MF_SESSION_QUALITY_MANAGER),
+        X(MF_SESSION_CONTENT_PROTECTION_MANAGER),
+        X(MF_MT_MPEG4_SAMPLE_DESCRIPTION),
+        X(MF_MT_MPEG_START_TIME_CODE),
+        X(MFT_REMUX_MARK_I_PICTURE_AS_CLEAN_POINT),
+        X(MFT_REMUX_MARK_I_PICTURE_AS_CLEAN_POINT),
+        X(MF_MT_H264_MAX_CODEC_CONFIG_DELAY),
+        X(MF_MT_DV_AAUX_SRC_PACK_0),
+        X(MF_BYTESTREAM_ORIGIN_NAME),
+        X(MF_BYTESTREAM_CONTENT_TYPE),
+        X(MF_MT_DEPTH_MEASUREMENT),
+        X(MF_MT_VIDEO_3D_NUM_VIEWS),
+        X(MF_BYTESTREAM_DURATION),
+        X(MF_SD_SAMI_LANGUAGE),
+        X(MF_EVENT_OUTPUT_NODE),
+        X(MF_BYTESTREAM_LAST_MODIFIED_TIME),
+        X(MFT_ENUM_ADAPTER_LUID),
+        X(MF_MT_FRAME_RATE_RANGE_MIN),
+        X(MF_BYTESTREAM_IFO_FILE_URI),
+        X(MF_EVENT_TOPOLOGY_STATUS),
+        X(MF_BYTESTREAM_DLNA_PROFILE_ID),
+        X(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_AUDCAP_ROLE),
+        X(MF_MT_MAJOR_TYPE),
+        X(MF_SA_REQUIRED_SAMPLE_COUNT_PROGRESSIVE),
+        X(MF_MT_IN_BAND_PARAMETER_SET),
+        X(MF_EVENT_SOURCE_CHARACTERISTICS),
+        X(MF_EVENT_SOURCE_CHARACTERISTICS_OLD),
+        X(MF_SESSION_SERVER_CONTEXT),
+        X(MF_MT_VIDEO_3D_FIRST_IS_LEFT),
+        X(MFT_DECODER_FINAL_VIDEO_RESOLUTION_HINT),
+        X(MF_PD_ADAPTIVE_STREAMING),
+        X(MF_MT_H264_SUPPORTED_USAGES),
+        X(MFT_PREFERRED_OUTPUTTYPE_Attribute),
+        X(MFSampleExtension_Timestamp),
+        X(MF_TOPONODE_PRIMARYOUTPUT),
+        X(MF_MT_SUBTYPE),
+        X(MF_TRANSFORM_ASYNC),
+        X(MF_TOPONODE_STREAMID),
+        X(MF_TOPONODE_NOSHUTDOWN_ON_REMOVE),
+        X(MF_MT_VIDEO_LIGHTING),
+        X(MF_SD_MUTUALLY_EXCLUSIVE),
+        X(MF_SD_STREAM_NAME),
+        X(MF_MT_DV_VAUX_SRC_PACK),
+        X(MF_TOPONODE_RATELESS),
+        X(MF_EVENT_STREAM_METADATA_CONTENT_KEYIDS),
+        X(MF_TOPONODE_DISABLE_PREROLL),
+        X(MF_SA_D3D11_ALLOW_DYNAMIC_YUV_TEXTURE),
+        X(MF_MT_VIDEO_3D_FORMAT),
+        X(MF_EVENT_STREAM_METADATA_KEYDATA),
+        X(MFSampleExtension_3DVideo),
+        X(MF_SA_MINIMUM_OUTPUT_SAMPLE_COUNT_PROGRESSIVE),
+        X(MF_MT_H264_USAGE),
+        X(MF_EVENT_SOURCE_FAKE_START),
+        X(MF_EVENT_SOURCE_PROJECTSTART),
+        X(MF_EVENT_SOURCE_ACTUAL_START),
+        X(MF_MT_AUDIO_SAMPLES_PER_BLOCK),
+        X(MFT_ENUM_HARDWARE_URL_Attribute),
+        X(MF_MT_OUTPUT_BUFFER_NUM),
+        X(MF_SA_D3D11_BINDFLAGS),
+        X(MFT_ENCODER_SUPPORTS_CONFIG_EVENT),
+        X(MF_MT_AUDIO_FLAC_MAX_BLOCK_SIZE),
+        X(MFT_FRIENDLY_NAME_Attribute),
+        X(MF_MT_FIXED_SIZE_SAMPLES),
+        X(MFT_SUPPORT_3DVIDEO),
+        X(MFT_SUPPORT_3DVIDEO),
+        X(MFT_INPUT_TYPES_Attributes),
+        X(MF_MT_H264_LAYOUT_PER_STREAM),
+        X(MF_EVENT_SCRUBSAMPLE_TIME),
+        X(MF_MT_SPATIAL_AUDIO_MAX_METADATA_ITEMS),
+        X(MF_MT_MPEG2_ONE_FRAME_PER_PACKET),
+        X(MF_MT_INTERLACE_MODE),
+        X(MF_MT_VIDEO_RENDERER_EXTENSION_PROFILE),
+        X(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_HW_SOURCE),
+        X(MF_MT_AUDIO_PREFER_WAVEFORMATEX),
+        X(MF_XVP_CALLER_ALLOCATES_OUTPUT),
+        X(MF_MT_H264_SVC_CAPABILITIES),
+        X(MF_TOPONODE_WORKQUEUE_ITEM_PRIORITY),
+        X(MF_MT_SPATIAL_AUDIO_OBJECT_METADATA_LENGTH),
+        X(MF_MT_SPATIAL_AUDIO_OBJECT_METADATA_FORMAT_ID),
+        X(MF_SAMPLEGRABBERSINK_IGNORE_CLOCK),
+        X(MF_SA_D3D11_SHARED),
+        X(MF_MT_PAN_SCAN_ENABLED),
+        X(MF_AUDIO_RENDERER_ATTRIBUTE_ENDPOINT_ID),
+        X(MF_MT_DV_VAUX_CTRL_PACK),
+        X(MFSampleExtension_ForwardedDecodeUnitType),
+        X(MF_SA_D3D11_AWARE),
+        X(MF_MT_AUDIO_AVG_BYTES_PER_SECOND),
+        X(MF_MT_SPATIAL_AUDIO_MIN_METADATA_ITEM_OFFSET_SPACING),
+        X(MF_TOPONODE_TRANSFORM_OBJECTID),
+        X(MF_DEVSOURCE_ATTRIBUTE_MEDIA_TYPE),
+        X(MF_EVENT_MFT_INPUT_STREAM_ID),
+        X(MF_MT_SOURCE_CONTENT_HINT),
+        X(MFT_ENUM_HARDWARE_VENDOR_ID_Attribute),
+        X(MFT_ENUM_TRANSCODE_ONLY_ATTRIBUTE),
+        X(MF_MT_VIDEO_3D),
+        X(MF_EVENT_START_PRESENTATION_TIME),
+        X(MF_EVENT_SESSIONCAPS),
+        X(MF_EVENT_PRESENTATION_TIME_OFFSET),
+        X(MF_EVENT_SESSIONCAPS_DELTA),
+        X(MF_EVENT_START_PRESENTATION_TIME_AT_OUTPUT),
+        X(MFSampleExtension_DecodeTimestamp),
+        X(MF_SA_MINIMUM_OUTPUT_SAMPLE_COUNT),
+        X(MF_MT_VIDEO_H264_NO_FMOASO),
+        X(MF_MT_AVG_BIT_ERROR_RATE),
+        X(MF_MT_VIDEO_PRIMARIES),
+        X(MF_MT_H264_RATE_CONTROL_MODES),
+        X(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK),
+        X(MF_SA_D3D11_HW_PROTECTED),
+        X(MF_MT_MPEG4_TRACK_TYPE),
+        X(MF_ACTIVATE_VIDEO_WINDOW),
+        X(MF_MT_PAN_SCAN_APERTURE),
+        X(MF_TOPOLOGY_RESOLUTION_STATUS),
+        X(MF_MT_ORIGINAL_4CC),
+        X(MF_PD_AUDIO_ISVARIABLEBITRATE),
+        X(MF_AUDIO_RENDERER_ATTRIBUTE_FLAGS),
+        X(MF_AUDIO_RENDERER_ATTRIBUTE_SESSION_ID),
+        X(MF_MT_MPEG2_CONTENT_PACKET),
+        X(MFT_PROCESS_LOCAL_Attribute),
+        X(MFT_PROCESS_LOCAL_Attribute),
+        X(MF_MT_PAD_CONTROL_FLAGS),
+        X(MF_MT_VIDEO_NOMINAL_RANGE),
+        X(MF_MT_AAC_AUDIO_PROFILE_LEVEL_INDICATION),
+        X(MF_MT_MPEG_SEQUENCE_HEADER),
+        X(MF_MT_AUDIO_SAMPLES_PER_SECOND),
+        X(MF_MT_SPATIAL_AUDIO_DATA_PRESENT),
+        X(MF_MT_FRAME_RATE),
+        X(MF_TOPONODE_FLUSH),
+        X(MF_MT_MPEG2_STANDARD),
+        X(MF_TOPONODE_DRAIN),
+        X(MF_MT_TRANSFER_FUNCTION),
+        X(MF_TOPONODE_MEDIASTART),
+        X(MF_TOPONODE_MEDIASTOP),
+        X(MF_TOPONODE_SOURCE),
+        X(MF_TOPONODE_PRESENTATION_DESCRIPTOR),
+        X(MF_TOPONODE_D3DAWARE),
+        X(MF_MT_COMPRESSED),
+        X(MF_TOPONODE_STREAM_DESCRIPTOR),
+        X(MF_TOPONODE_ERRORCODE),
+        X(MF_TOPONODE_SEQUENCE_ELEMENTID),
+        X(MF_EVENT_MFT_CONTEXT),
+        X(MF_MT_FORWARD_CUSTOM_SEI),
+        X(MF_TOPONODE_CONNECT_METHOD),
+        X(MFT_OUTPUT_TYPES_Attributes),
+        X(MF_MT_IMAGE_LOSS_TOLERANT),
+        X(MF_SESSION_REMOTE_SOURCE_MODE),
+        X(MF_MT_DEPTH_VALUE_UNIT),
+        X(MF_MT_AUDIO_NUM_CHANNELS),
+        X(MF_MT_ARBITRARY_HEADER),
+        X(MF_TOPOLOGY_DXVA_MODE),
+        X(MF_TOPONODE_LOCKED),
+        X(MF_TOPONODE_WORKQUEUE_ID),
+        X(MF_TOPONODE_WORKQUEUE_MMCSS_CLASS),
+        X(MF_TOPONODE_DECRYPTOR),
+        X(MF_EVENT_DO_THINNING),
+        X(MF_TOPONODE_DISCARDABLE),
+        X(MF_TOPOLOGY_HARDWARE_MODE),
+        X(MF_MT_FORWARD_CUSTOM_NALU),
+        X(MF_TOPONODE_ERROR_MAJORTYPE),
+        X(MF_MT_SECURE),
+        X(MFT_FIELDOFUSE_UNLOCK_Attribute),
+        X(MF_TOPONODE_ERROR_SUBTYPE),
+        X(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE),
+        X(MF_AUDIO_RENDERER_ATTRIBUTE_ENDPOINT_ROLE),
+        X(MF_MT_VIDEO_3D_LEFT_IS_BASE),
+        X(MF_TOPONODE_WORKQUEUE_MMCSS_TASKID),
+#undef MF_READER_WRITER_D3D_MANAGER
+#undef X
+    };
+    DWORD i;
+
+    for (i = 0; i < ARRAY_SIZE(guid_defs); ++i)
+        if (guid && IsEqualGUID(guid, guid_defs[i].guid))
+            return wine_dbg_sprintf("%s", guid_defs[i].name);
+
+    return wine_dbgstr_guid(guid);
+}
+
+static inline const char *debugstr_mf_guid(const GUID *guid)
+{
+    static const struct guid_def guid_defs[] =
+    {
+#define X(g) { &(g), #g }
+        X(MFAudioFormat_ADTS),
+        X(MFAudioFormat_PCM),
+        X(MFAudioFormat_PCM_HDCP),
+        X(MFAudioFormat_Float),
+        X(MFAudioFormat_DTS),
+        X(MFAudioFormat_DRM),
+        X(MFAudioFormat_MSP1),
+        X(MFAudioFormat_Vorbis),
+        X(MFAudioFormat_AAC),
+        X(MFVideoFormat_RGB24),
+        X(MFVideoFormat_ARGB32),
+        X(MFVideoFormat_RGB32),
+        X(MFVideoFormat_RGB565),
+        X(MFVideoFormat_RGB555),
+        X(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_AUDCAP_GUID),
+        X(MFT_CATEGORY_MULTIPLEXER),
+        X(MFVideoFormat_A2R10G10B10),
+        X(MFT_CATEGORY_VIDEO_EFFECT),
+        X(MFMediaType_Script),
+        X(MFMediaType_Image),
+        X(MFMediaType_HTML),
+        X(MFMediaType_Binary),
+        X(MFVideoFormat_MPEG2),
+        X(MFMediaType_FileTransfer),
+        X(MFVideoFormat_RGB8),
+        X(MFAudioFormat_Dolby_AC3),
+        X(MFVideoFormat_L8),
+        X(MFAudioFormat_LPCM),
+        X(MFVideoFormat_420O),
+        X(MFVideoFormat_AI44),
+        X(MFVideoFormat_AV1),
+        X(MFVideoFormat_AYUV),
+        X(MFVideoFormat_H263),
+        X(MFVideoFormat_H264),
+        X(MFVideoFormat_H265),
+        X(MFVideoFormat_HEVC),
+        X(MFVideoFormat_HEVC_ES),
+        X(MFT_CATEGORY_AUDIO_EFFECT),
+        X(MFVideoFormat_I420),
+        X(MFVideoFormat_IYUV),
+        X(MFT_CATEGORY_VIDEO_DECODER),
+        X(MFVideoFormat_M4S2),
+        X(MFVideoFormat_MJPG),
+        X(MFVideoFormat_MP43),
+        X(MFVideoFormat_MP4S),
+        X(MFVideoFormat_MP4V),
+        X(MFVideoFormat_MPG1),
+        X(MFVideoFormat_MSS1),
+        X(MFVideoFormat_MSS2),
+        X(MFVideoFormat_NV11),
+        X(MFVideoFormat_NV12),
+        X(MFVideoFormat_ORAW),
+        X(MFAudioFormat_Opus),
+        X(MFAudioFormat_MPEG),
+        X(MFVideoFormat_D16),
+        X(MFVideoFormat_P010),
+        X(MFVideoFormat_P016),
+        X(MFVideoFormat_P210),
+        X(MFVideoFormat_P216),
+        X(MFVideoFormat_L16),
+        X(MFAudioFormat_MP3),
+        X(MFVideoFormat_UYVY),
+        X(MFVideoFormat_VP10),
+        X(MFVideoFormat_VP80),
+        X(MFVideoFormat_VP90),
+        X(MFVideoFormat_WMV1),
+        X(MFVideoFormat_WMV2),
+        X(MFVideoFormat_WMV3),
+        X(MFVideoFormat_WVC1),
+        X(MFT_CATEGORY_OTHER),
+        X(MFVideoFormat_Y210),
+        X(MFVideoFormat_Y216),
+        X(MFVideoFormat_Y410),
+        X(MFVideoFormat_Y416),
+        X(MFVideoFormat_Y41P),
+        X(MFVideoFormat_Y41T),
+        X(MFVideoFormat_Y42T),
+        X(MFVideoFormat_YUY2),
+        X(MFVideoFormat_YV12),
+        X(MFVideoFormat_YVU9),
+        X(MFVideoFormat_YVYU),
+        X(MFAudioFormat_WMAudioV8),
+        X(MFAudioFormat_ALAC),
+        X(MFAudioFormat_AMR_NB),
+        X(MFMediaType_Audio),
+        X(MFAudioFormat_WMAudioV9),
+        X(MFAudioFormat_AMR_WB),
+        X(MFAudioFormat_WMAudio_Lossless),
+        X(MFAudioFormat_AMR_WP),
+        X(MFAudioFormat_WMASPDIF),
+        X(MFVideoFormat_DV25),
+        X(MFVideoFormat_DV50),
+        X(MFVideoFormat_DVC),
+        X(MFVideoFormat_DVH1),
+        X(MFVideoFormat_DVHD),
+        X(MFVideoFormat_DVSD),
+        X(MFVideoFormat_DVSL),
+        X(MFVideoFormat_A16B16G16R16F),
+        X(MFVideoFormat_v210),
+        X(MFVideoFormat_v216),
+        X(MFVideoFormat_v410),
+        X(MFMediaType_Video),
+        X(MFAudioFormat_AAC_HDCP),
+        X(MFT_CATEGORY_DEMULTIPLEXER),
+        X(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID),
+        X(MFT_CATEGORY_VIDEO_ENCODER),
+        X(MFAudioFormat_Dolby_AC3_HDCP),
+        X(MFMediaType_Subtitle),
+        X(MFMediaType_Stream),
+        X(MFAudioFormat_Dolby_AC3_SPDIF),
+        X(MFAudioFormat_Float_SpatialObjects),
+        X(MFMediaType_SAMI),
+        X(MFAudioFormat_ADTS_HDCP),
+        X(MFAudioFormat_FLAC),
+        X(MFAudioFormat_Dolby_DDPlus),
+        X(MFMediaType_MultiplexedFrames),
+        X(MFT_CATEGORY_AUDIO_DECODER),
+        X(MFAudioFormat_Base_HDCP),
+        X(MFT_CATEGORY_AUDIO_ENCODER),
+        X(MFVideoFormat_Base_HDCP),
+        X(MFVideoFormat_H264_HDCP),
+        X(MFVideoFormat_HEVC_HDCP),
+        X(MFMediaType_Default),
+        X(MFMediaType_Protected),
+        X(MFVideoFormat_H264_ES),
+        X(MFMediaType_Perception),
+        X(MFT_CATEGORY_VIDEO_PROCESSOR),
+        X(MEDIASUBTYPE_RGB8),
+        X(FORMAT_MFVideoFormat),
+        X(FORMAT_VideoInfo),
+        X(FORMAT_VideoInfo2),
+        X(FORMAT_WaveFormatEx),
+#undef X
+    };
+    DWORD i;
+
+    for (i = 0; i < ARRAY_SIZE(guid_defs); ++i)
+        if (guid && IsEqualGUID(guid, guid_defs[i].guid))
+            return wine_dbg_sprintf("%s", guid_defs[i].name);
+
+    return wine_dbgstr_guid(guid);
+}
+
 static void get_d3d9_surface_readback(IDirect3DSurface9 *surface, struct d3d9_surface_readback *rb)
 {
     IDirect3DDevice9 *device;
@@ -213,6 +689,111 @@ static void put_d3d9_readback_u32(struct d3d9_surface_readback *rb, unsigned int
     *(DWORD *)get_d3d9_readback_data(rb, x, y, sizeof(DWORD)) = color;
 }
 
+#define check_member_( file, line, val, exp, fmt, member )                                         \
+    ok_(file, line)( (val).member == (exp).member, "got " #member " " fmt "\n", (val).member )
+#define check_member( val, exp, fmt, member )                                                      \
+    check_member_( __FILE__, __LINE__, val, exp, fmt, member )
+
+#define check_member_guid_( file, line, val, exp, member )                                         \
+    ok_(file, line)( IsEqualGUID( &(val).member, &(exp).member ), "got " #member " %s\n",         \
+                     debugstr_guid( &(val).member ) )
+#define check_member_guid( val, exp, member )                                                      \
+    check_member_guid_( __FILE__, __LINE__, val, exp, member )
+
+void dump_am_media_type(const AM_MEDIA_TYPE *mt)
+{
+    char buffer[1024], *buf = buffer;
+    buf += sprintf(buf, "Dumping media type %p: major type %s, subtype %s",
+            mt, debugstr_mf_guid(&mt->majortype), debugstr_mf_guid(&mt->subtype));
+    if (mt->bFixedSizeSamples) buf += sprintf(buf, ", fixed size samples");
+    if (mt->bTemporalCompression) buf += sprintf(buf, ", temporal compression");
+    if (mt->lSampleSize) buf += sprintf(buf, ", sample size %ld", mt->lSampleSize);
+    if (mt->pUnk) buf += sprintf(buf, ", pUnk %p", mt->pUnk);
+    buf += sprintf(buf, ", format type %s.", debugstr_mf_guid(&mt->formattype));
+    ok(0, "%s\n", buffer);
+    buf = buffer;
+
+    if (!mt->pbFormat) return;
+
+    buf += sprintf(buf, "Dumping format %p: ", mt->pbFormat);
+
+    if (IsEqualGUID(&mt->formattype, &FORMAT_WaveFormatEx) && mt->cbFormat >= sizeof(WAVEFORMATEX))
+    {
+        WAVEFORMATEX *wfx = (WAVEFORMATEX *)mt->pbFormat;
+
+        buf += sprintf(buf, "tag %#x, %u channels, sample rate %lu, %lu bytes/sec, alignment %u, %u bits/sample.\n",
+                wfx->wFormatTag, wfx->nChannels, wfx->nSamplesPerSec,
+                wfx->nAvgBytesPerSec, wfx->nBlockAlign, wfx->wBitsPerSample);
+
+        if (wfx->cbSize)
+        {
+            const unsigned char *extra = (const unsigned char *)(wfx + 1);
+            unsigned int i;
+
+            buf += sprintf(buf, "  Extra bytes:");
+            for (i = 0; i < wfx->cbSize; ++i)
+            {
+                if (!(i % 16)) buf += sprintf(buf, "\n     ");
+                buf += sprintf(buf, " %02x", extra[i]);
+            }
+            buf += sprintf(buf, "\n");
+        }
+    }
+    else if (IsEqualGUID(&mt->formattype, &FORMAT_VideoInfo) && mt->cbFormat >= sizeof(VIDEOINFOHEADER))
+    {
+        VIDEOINFOHEADER *vih = (VIDEOINFOHEADER *)mt->pbFormat;
+
+        if (!IsRectEmpty(&vih->rcSource)) buf += sprintf(buf, "source %s, ", wine_dbgstr_rect(&vih->rcSource));
+        if (!IsRectEmpty(&vih->rcTarget)) buf += sprintf(buf, "target %s, ", wine_dbgstr_rect(&vih->rcTarget));
+        if (vih->dwBitRate) buf += sprintf(buf, "bitrate %lu, ", vih->dwBitRate);
+        if (vih->dwBitErrorRate) buf += sprintf(buf, "error rate %lu, ", vih->dwBitErrorRate);
+        buf += sprintf(buf, "%I64d sec/frame, ", vih->AvgTimePerFrame);
+        buf += sprintf(buf, "size %ldx%ld, %u planes, %u bpp, compression %#lx, image size %lu",
+                vih->bmiHeader.biWidth, vih->bmiHeader.biHeight, vih->bmiHeader.biPlanes,
+                vih->bmiHeader.biBitCount, vih->bmiHeader.biCompression,
+                vih->bmiHeader.biSizeImage);
+        if (vih->bmiHeader.biXPelsPerMeter || vih->bmiHeader.biYPelsPerMeter)
+            buf += sprintf(buf, ", resolution %ldx%ld", vih->bmiHeader.biXPelsPerMeter, vih->bmiHeader.biYPelsPerMeter);
+        if (vih->bmiHeader.biClrUsed) buf += sprintf(buf, ", %lu colours", vih->bmiHeader.biClrUsed);
+        if (vih->bmiHeader.biClrImportant) buf += sprintf(buf, ", %lu important colours", vih->bmiHeader.biClrImportant);
+        buf += sprintf(buf, ".\n");
+    }
+    else if (IsEqualGUID(&mt->formattype, &FORMAT_VideoInfo2) && mt->cbFormat >= sizeof(VIDEOINFOHEADER2))
+    {
+        VIDEOINFOHEADER2 *vih = (VIDEOINFOHEADER2 *)mt->pbFormat;
+
+        if (!IsRectEmpty(&vih->rcSource)) buf += sprintf(buf, "source %s, ", wine_dbgstr_rect(&vih->rcSource));
+        if (!IsRectEmpty(&vih->rcTarget)) buf += sprintf(buf, "target %s, ", wine_dbgstr_rect(&vih->rcTarget));
+        if (vih->dwBitRate) buf += sprintf(buf, "bitrate %lu, ", vih->dwBitRate);
+        if (vih->dwBitErrorRate) buf += sprintf(buf, "error rate %lu, ", vih->dwBitErrorRate);
+        buf += sprintf(buf, "%I64d sec/frame, ", vih->AvgTimePerFrame);
+        if (vih->dwInterlaceFlags) buf += sprintf(buf, "interlace flags %#lx, ", vih->dwInterlaceFlags);
+        if (vih->dwCopyProtectFlags) buf += sprintf(buf, "copy-protection flags %#lx, ", vih->dwCopyProtectFlags);
+        buf += sprintf(buf, "aspect ratio %lu/%lu, ", vih->dwPictAspectRatioX, vih->dwPictAspectRatioY);
+        if (vih->dwControlFlags) buf += sprintf(buf, "control flags %#lx, ", vih->dwControlFlags);
+        if (vih->dwControlFlags & AMCONTROL_COLORINFO_PRESENT)
+        {
+            const DXVA_ExtendedFormat *colorimetry = (const DXVA_ExtendedFormat *)&vih->dwControlFlags;
+
+            buf += sprintf(buf, "chroma site %#x, range %#x, matrix %#x, lighting %#x, primaries %#x, transfer function %#x, ",
+                    colorimetry->VideoChromaSubsampling, colorimetry->NominalRange, colorimetry->VideoTransferMatrix,
+                    colorimetry->VideoLighting, colorimetry->VideoPrimaries, colorimetry->VideoTransferFunction);
+        }
+        buf += sprintf(buf, "size %ldx%ld, %u planes, %u bpp, compression %#lx, image size %lu",
+                vih->bmiHeader.biWidth, vih->bmiHeader.biHeight, vih->bmiHeader.biPlanes,
+                vih->bmiHeader.biBitCount, vih->bmiHeader.biCompression,
+                vih->bmiHeader.biSizeImage);
+        if (vih->bmiHeader.biXPelsPerMeter || vih->bmiHeader.biYPelsPerMeter)
+            buf += sprintf(buf, ", resolution %ldx%ld", vih->bmiHeader.biXPelsPerMeter, vih->bmiHeader.biYPelsPerMeter);
+        if (vih->bmiHeader.biClrUsed) buf += sprintf(buf, ", %lu colours", vih->bmiHeader.biClrUsed);
+        if (vih->bmiHeader.biClrImportant) buf += sprintf(buf, ", %lu important colours", vih->bmiHeader.biClrImportant);
+        buf += sprintf(buf, ".\n");
+    }
+    else
+        buf += sprintf(buf, "not implemented for this format type.\n");
+    ok(0, "%s\n", buffer);
+}
+
 static void put_d3d9_readback_color(struct d3d9_surface_readback *rb, unsigned int x, unsigned int y, DWORD color)
 {
     put_d3d9_readback_u32(rb, x, y, color);
@@ -226,6 +807,148 @@ static void put_d3d9_surface_color(IDirect3DSurface9 *surface,
     get_d3d9_surface_readback(surface, &rb);
     put_d3d9_readback_color(&rb, x, y, color);
     release_d3d9_surface_readback(&rb, TRUE);
+}
+
+#define check_waveformatextensible(a, b) check_waveformatextensible_(__LINE__, a, b)
+static void check_waveformatextensible_(int line, const WAVEFORMATEXTENSIBLE *value, const WAVEFORMATEXTENSIBLE *expect)
+{
+    check_member_(__FILE__, line, *value, *expect, "%u", Format.wFormatTag);
+    check_member_(__FILE__, line, *value, *expect, "%u", Format.nChannels);
+    check_member_(__FILE__, line, *value, *expect, "%lu", Format.nSamplesPerSec);
+    check_member_(__FILE__, line, *value, *expect, "%lu", Format.nAvgBytesPerSec);
+    check_member_(__FILE__, line, *value, *expect, "%u", Format.nBlockAlign);
+    check_member_(__FILE__, line, *value, *expect, "%u", Format.wBitsPerSample);
+    check_member_(__FILE__, line, *value, *expect, "%u", Format.cbSize);
+    check_member_(__FILE__, line, *value, *expect, "%u", Samples.wValidBitsPerSample);
+    check_member_(__FILE__, line, *value, *expect, "%lu", dwChannelMask);
+    check_member_guid_(__FILE__, line, *value, *expect, SubFormat);
+}
+
+#define check_videoinfoheader(a, b) check_videoinfoheader_(__LINE__, a, b)
+static void check_videoinfoheader_(int line, const VIDEOINFOHEADER *value, const VIDEOINFOHEADER *expect)
+{
+    check_member_(__FILE__, line, *value, *expect, "%lu", rcSource.top);
+    check_member_(__FILE__, line, *value, *expect, "%lu", rcSource.left);
+    check_member_(__FILE__, line, *value, *expect, "%lu", rcSource.right);
+    check_member_(__FILE__, line, *value, *expect, "%lu", rcSource.bottom);
+    check_member_(__FILE__, line, *value, *expect, "%lu", rcTarget.top);
+    check_member_(__FILE__, line, *value, *expect, "%lu", rcTarget.left);
+    check_member_(__FILE__, line, *value, *expect, "%lu", rcTarget.right);
+    check_member_(__FILE__, line, *value, *expect, "%lu", rcTarget.bottom);
+    check_member_(__FILE__, line, *value, *expect, "%lu", dwBitRate);
+    check_member_(__FILE__, line, *value, *expect, "%lu", dwBitErrorRate);
+    check_member_(__FILE__, line, *value, *expect, "%I64d", AvgTimePerFrame);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biSize);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biWidth);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biHeight);
+    check_member_(__FILE__, line, *value, *expect, "%u", bmiHeader.biPlanes);
+    check_member_(__FILE__, line, *value, *expect, "%u", bmiHeader.biBitCount);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biCompression);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biSizeImage);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biXPelsPerMeter);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biYPelsPerMeter);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biClrUsed);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biClrImportant);
+}
+
+#define check_videoinfoheader2(a, b) check_videoinfoheader2_(__LINE__, a, b)
+static void check_videoinfoheader2_(int line, const VIDEOINFOHEADER2 *value, const VIDEOINFOHEADER2 *expect)
+{
+    check_member_(__FILE__, line, *value, *expect, "%lu", rcSource.top);
+    check_member_(__FILE__, line, *value, *expect, "%lu", rcSource.left);
+    check_member_(__FILE__, line, *value, *expect, "%lu", rcSource.right);
+    check_member_(__FILE__, line, *value, *expect, "%lu", rcSource.bottom);
+    check_member_(__FILE__, line, *value, *expect, "%lu", rcTarget.top);
+    check_member_(__FILE__, line, *value, *expect, "%lu", rcTarget.left);
+    check_member_(__FILE__, line, *value, *expect, "%lu", rcTarget.right);
+    check_member_(__FILE__, line, *value, *expect, "%lu", rcTarget.bottom);
+    check_member_(__FILE__, line, *value, *expect, "%lu", dwBitRate);
+    check_member_(__FILE__, line, *value, *expect, "%lu", dwBitErrorRate);
+    check_member_(__FILE__, line, *value, *expect, "%I64d", AvgTimePerFrame);
+    check_member_(__FILE__, line, *value, *expect, "%lu", dwInterlaceFlags);
+    check_member_(__FILE__, line, *value, *expect, "%lu", dwCopyProtectFlags);
+    check_member_(__FILE__, line, *value, *expect, "%lu", dwPictAspectRatioX);
+    check_member_(__FILE__, line, *value, *expect, "%lu", dwPictAspectRatioY);
+    check_member_(__FILE__, line, *value, *expect, "%lu", dwControlFlags);
+    check_member_(__FILE__, line, *value, *expect, "%lu", dwReserved2);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biSize);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biWidth);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biHeight);
+    check_member_(__FILE__, line, *value, *expect, "%u", bmiHeader.biPlanes);
+    check_member_(__FILE__, line, *value, *expect, "%u", bmiHeader.biBitCount);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biCompression);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biSizeImage);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biXPelsPerMeter);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biYPelsPerMeter);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biClrUsed);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biClrImportant);
+}
+
+#define check_mfvideoformat(a, b) check_mfvideoformat_(__LINE__, a, b)
+static void check_mfvideoformat_(int line, const MFVIDEOFORMAT *value, const MFVIDEOFORMAT *expect)
+{
+    check_member_(__FILE__, line, *value, *expect, "%lu", dwSize);
+    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.dwWidth);
+    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.dwHeight);
+    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.PixelAspectRatio.Numerator);
+    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.PixelAspectRatio.Denominator);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.SourceChromaSubsampling);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.InterlaceMode);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.TransferFunction);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.ColorPrimaries);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.TransferMatrix);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.SourceLighting);
+    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.FramesPerSecond.Numerator);
+    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.FramesPerSecond.Denominator);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.NominalRange);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.GeometricAperture.OffsetX.fract);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.GeometricAperture.OffsetX.value);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.GeometricAperture.OffsetY.fract);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.GeometricAperture.OffsetY.value);
+    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.GeometricAperture.Area.cx);
+    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.GeometricAperture.Area.cy);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.MinimumDisplayAperture.OffsetX.fract);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.MinimumDisplayAperture.OffsetX.value);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.MinimumDisplayAperture.OffsetY.fract);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.MinimumDisplayAperture.OffsetY.value);
+    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.MinimumDisplayAperture.Area.cx);
+    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.MinimumDisplayAperture.Area.cy);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.PanScanAperture.OffsetX.fract);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.PanScanAperture.OffsetX.value);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.PanScanAperture.OffsetY.fract);
+    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.PanScanAperture.OffsetY.value);
+    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.PanScanAperture.Area.cx);
+    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.PanScanAperture.Area.cy);
+    check_member_(__FILE__, line, *value, *expect, "%I64u", videoInfo.VideoFlags);
+    check_member_guid_(__FILE__, line, *value, *expect, guidFormat);
+    check_member_(__FILE__, line, *value, *expect, "%I64d", compressedInfo.AvgBitrate);
+    check_member_(__FILE__, line, *value, *expect, "%I64d", compressedInfo.AvgBitErrorRate);
+    check_member_(__FILE__, line, *value, *expect, "%lu", compressedInfo.MaxKeyFrameSpacing);
+    check_member_(__FILE__, line, *value, *expect, "%lu", surfaceInfo.Format);
+    check_member_(__FILE__, line, *value, *expect, "%lu", surfaceInfo.PaletteEntries);
+}
+
+#define check_am_media_type(a, b) check_am_media_type_(__LINE__, a, b)
+static void check_am_media_type_(int line, const AM_MEDIA_TYPE *value, const AM_MEDIA_TYPE *expect)
+{
+    check_member_guid_(__FILE__, line, *value, *expect, majortype);
+    check_member_guid_(__FILE__, line, *value, *expect, subtype);
+    check_member_guid_(__FILE__, line, *value, *expect, formattype);
+    check_member_(__FILE__, line, *value, *expect, "%u", bFixedSizeSamples);
+    check_member_(__FILE__, line, *value, *expect, "%u", bTemporalCompression);
+    check_member_(__FILE__, line, *value, *expect, "%lu", lSampleSize);
+    check_member_(__FILE__, line, *value, *expect, "%lu", cbFormat);
+    ok_(__FILE__, line)(!value->pUnk == !expect->pUnk, "got pUnk %p\n", value->pUnk);
+    ok_(__FILE__, line)(!value->pbFormat == !expect->pbFormat, "got pbFormat %p\n", value->pbFormat);
+
+    if (IsEqualGUID(&value->formattype, &FORMAT_WaveFormatEx) && IsEqualGUID(&expect->formattype, &FORMAT_WaveFormatEx))
+        check_waveformatextensible_(line, (WAVEFORMATEXTENSIBLE *)value->pbFormat, (WAVEFORMATEXTENSIBLE *)expect->pbFormat);
+    if (IsEqualGUID(&value->formattype, &FORMAT_VideoInfo) && IsEqualGUID(&expect->formattype, &FORMAT_VideoInfo))
+        check_videoinfoheader_(line, (VIDEOINFOHEADER *)value->pbFormat, (VIDEOINFOHEADER *)expect->pbFormat);
+    if (IsEqualGUID(&value->formattype, &FORMAT_VideoInfo2) && IsEqualGUID(&expect->formattype, &FORMAT_VideoInfo2))
+        check_videoinfoheader2_(line, (VIDEOINFOHEADER2 *)value->pbFormat, (VIDEOINFOHEADER2 *)expect->pbFormat);
+    if (IsEqualGUID(&value->formattype, &FORMAT_MFVideoFormat) && IsEqualGUID(&expect->formattype, &FORMAT_MFVideoFormat))
+        check_mfvideoformat_(line, (MFVIDEOFORMAT *)value->pbFormat, (MFVIDEOFORMAT *)expect->pbFormat);
 }
 
 struct d3d11_resource_readback
@@ -1321,6 +2044,17 @@ static void init_functions(void)
 
 static void test_media_type(void)
 {
+    static const media_type_desc media_types[] =
+    {
+        {
+            ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
+            ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32),
+        },
+        {
+            ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
+            ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_Float),
+        },
+    };
     IMFMediaType *mediatype, *mediatype2;
     IMFVideoMediaType *video_type;
     IUnknown *unk, *unk2;
@@ -1329,6 +2063,7 @@ static void test_media_type(void)
     UINT count;
     HRESULT hr;
     GUID guid;
+    int i;
 
 if(0)
 {
@@ -1550,6 +2285,351 @@ if(0)
     IUnknown_Release(unk);
 
     IMFMediaType_Release(mediatype);
+
+    for (i = 0; i < ARRAY_SIZE(media_types); ++i)
+    {
+        AM_MEDIA_TYPE *am_type;
+
+        create_media_type(media_types[i], &mediatype);
+
+        hr = IMFMediaType_GetRepresentation(mediatype, AM_MEDIA_TYPE_REPRESENTATION, (void **)&am_type);
+        ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
+        if (hr == S_OK)
+        {
+            hr = IMFMediaType_FreeRepresentation(mediatype, AM_MEDIA_TYPE_REPRESENTATION, am_type);
+            ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
+        }
+
+        hr = IMFMediaType_GetRepresentation(mediatype, FORMAT_MFVideoFormat, (void **)&am_type);
+        ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
+        if (hr == S_OK)
+        {
+            hr = IMFMediaType_FreeRepresentation(mediatype, FORMAT_MFVideoFormat, am_type);
+            ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
+        }
+
+        hr = IMFMediaType_GetRepresentation(mediatype, FORMAT_VideoInfo, (void **)&am_type);
+        ok(hr == S_OK || hr == E_INVALIDARG, "GetRepresentation returned %#lx.\n", hr);
+        if (hr == S_OK)
+        {
+            hr = IMFMediaType_FreeRepresentation(mediatype, FORMAT_VideoInfo, am_type);
+            ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
+        }
+
+        hr = IMFMediaType_GetRepresentation(mediatype, FORMAT_VideoInfo2, (void **)&am_type);
+        ok(hr == S_OK || hr == E_INVALIDARG, "GetRepresentation returned %#lx.\n", hr);
+        if (hr == S_OK)
+        {
+            hr = IMFMediaType_FreeRepresentation(mediatype, FORMAT_VideoInfo2, am_type);
+            ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
+        }
+
+        hr = IMFMediaType_GetRepresentation(mediatype, FORMAT_WaveFormatEx, (void **)&am_type);
+        ok(hr == MF_E_UNSUPPORTED_REPRESENTATION, "GetRepresentation returned %#lx.\n", hr);
+
+        IMFMediaType_Release(mediatype);
+    }
+
+    {
+        const WAVEFORMATEXTENSIBLE expect_wfx =
+        {
+            .Format.wFormatTag = WAVE_FORMAT_PCM,
+            .Format.nChannels = 0xcdcd,
+            .Format.nSamplesPerSec = 0xcdcdcdcd,
+            .Format.nAvgBytesPerSec = 0xcdcdcdcd,
+            .Format.nBlockAlign = 0xcdcd,
+            .Format.wBitsPerSample = 0xcdcd,
+            .Samples.wValidBitsPerSample = 0xcdcd,
+            .SubFormat = MEDIASUBTYPE_PCM,
+        };
+        const AM_MEDIA_TYPE expect_am_type_wfx =
+        {
+            .formattype = FORMAT_WaveFormatEx,
+            .majortype = MEDIATYPE_Audio,
+            .subtype = MEDIASUBTYPE_PCM,
+            .lSampleSize = 0xcdcdcdcd,
+            .bFixedSizeSamples = 1,
+            .cbFormat = sizeof(expect_wfx.Format),
+            .pbFormat = (void *)&expect_wfx.Format,
+        };
+        const WAVEFORMATEXTENSIBLE expect_wfxext =
+        {
+            .Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE,
+            .Format.nChannels = 0xcdcd,
+            .Format.nSamplesPerSec = 0xcdcdcdcd,
+            .Format.nAvgBytesPerSec = 0xcdcdcdcd,
+            .Format.nBlockAlign = 0xcdcd,
+            .Format.wBitsPerSample = 0xcdd0,
+            .Format.cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX),
+            .Samples.wValidBitsPerSample = 0xcdcd,
+            .dwChannelMask = 0xcdcdcdcd,
+            .SubFormat = MEDIASUBTYPE_PCM,
+        };
+        const AM_MEDIA_TYPE expect_am_type_wfxext =
+        {
+            .formattype = FORMAT_WaveFormatEx,
+            .majortype = MEDIATYPE_Audio,
+            .subtype = MEDIASUBTYPE_PCM,
+            .lSampleSize = 0xcdcdcdcd,
+            .bFixedSizeSamples = 1,
+            .cbFormat = sizeof(expect_wfxext),
+            .pbFormat = (void *)&expect_wfxext,
+        };
+        static const VIDEOINFOHEADER expect_vi =
+        {
+            .dwBitRate = 0xcdcdcdcd,
+            .dwBitErrorRate = 0xcdcdcdcd,
+            .bmiHeader.biSize = 40,
+            .bmiHeader.biWidth = 0xcdcdcdcd,
+            .bmiHeader.biHeight = 0x32323233,
+            .bmiHeader.biPlanes = 1,
+            .bmiHeader.biCompression = MAKEFOURCC('N','V','1','2'),
+            .bmiHeader.biSizeImage = 0xcdcdcdcd,
+        };
+        const AM_MEDIA_TYPE expect_am_type_vi =
+        {
+            .formattype = FORMAT_VideoInfo,
+            .majortype = MEDIATYPE_Video,
+            .subtype = MEDIASUBTYPE_NV12,
+            .lSampleSize = 0xcdcdcdcd,
+            .cbFormat = sizeof(expect_vi),
+            .pbFormat = (void *)&expect_vi,
+        };
+        static const VIDEOINFOHEADER2 expect_vi2 =
+        {
+            .dwBitRate = 0xcdcdcdcd,
+            .dwBitErrorRate = 0xcdcdcdcd,
+            .dwInterlaceFlags = 5,
+            .dwPictAspectRatioX = 1,
+            .dwPictAspectRatioY = 1,
+            .dwControlFlags = 0xdc084,
+            .bmiHeader.biSize = 40,
+            .bmiHeader.biWidth = 0xcdcdcdcd,
+            .bmiHeader.biHeight = 0x32323233,
+            .bmiHeader.biPlanes = 1,
+            .bmiHeader.biCompression = MAKEFOURCC('N','V','1','2'),
+            .bmiHeader.biSizeImage = 0xcdcdcdcd,
+        };
+        const AM_MEDIA_TYPE expect_am_type_vi2 =
+        {
+            .formattype = FORMAT_VideoInfo2,
+            .majortype = MEDIATYPE_Video,
+            .subtype = MEDIASUBTYPE_NV12,
+            .lSampleSize = 0xcdcdcdcd,
+            .cbFormat = sizeof(expect_vi2),
+            .pbFormat = (void *)&expect_vi2,
+        };
+        const MFVIDEOFORMAT expect_mfv =
+        {
+            .dwSize = sizeof(MFVIDEOFORMAT),
+            .videoInfo.dwWidth = 1234,
+            .videoInfo.dwHeight = 5678,
+            .videoInfo.PixelAspectRatio.Numerator = 0xcdcdcdcd,
+            .videoInfo.PixelAspectRatio.Denominator = 0xcdcdcdcd,
+            .videoInfo.SourceChromaSubsampling = 0xcdcdcdcd,
+            .videoInfo.InterlaceMode = 0xcdcdcdcd,
+            .videoInfo.TransferFunction = 0xcdcdcdcd,
+            .videoInfo.ColorPrimaries = 0xcdcdcdcd,
+            .videoInfo.TransferMatrix = 0xcdcdcdcd,
+            .videoInfo.SourceLighting = 0xcdcdcdcd,
+            .videoInfo.FramesPerSecond.Numerator = 0xcdcdcdcd,
+            .videoInfo.FramesPerSecond.Denominator = 0xcdcdcdcd,
+            .videoInfo.NominalRange = 0xcdcdcdcd,
+            .videoInfo.GeometricAperture.OffsetX.fract = 0xcdcd,
+            .videoInfo.GeometricAperture.OffsetX.value = 0xcdcd,
+            .videoInfo.GeometricAperture.OffsetY.fract = 0xcdcd,
+            .videoInfo.GeometricAperture.OffsetY.value = 0xcdcd,
+            .videoInfo.GeometricAperture.Area.cx = 0xcdcdcdcd,
+            .videoInfo.GeometricAperture.Area.cy = 0xcdcdcdcd,
+            .videoInfo.MinimumDisplayAperture.OffsetX.fract = 0xcdcd,
+            .videoInfo.MinimumDisplayAperture.OffsetX.value = 0xcdcd,
+            .videoInfo.MinimumDisplayAperture.OffsetY.fract = 0xcdcd,
+            .videoInfo.MinimumDisplayAperture.OffsetY.value = 0xcdcd,
+            .videoInfo.MinimumDisplayAperture.Area.cx = 0xcdcdcdcd,
+            .videoInfo.MinimumDisplayAperture.Area.cy = 0xcdcdcdcd,
+            .videoInfo.PanScanAperture.OffsetX.fract = 0xcdcd,
+            .videoInfo.PanScanAperture.OffsetX.value = 0xcdcd,
+            .videoInfo.PanScanAperture.OffsetY.fract = 0xcdcd,
+            .videoInfo.PanScanAperture.OffsetY.value = 0xcdcd,
+            .videoInfo.PanScanAperture.Area.cx = 0xcdcdcdcd,
+            .videoInfo.PanScanAperture.Area.cy = 0xcdcdcdcd,
+            .videoInfo.VideoFlags = 0x4d,
+            .guidFormat = MEDIASUBTYPE_NV12,
+            .compressedInfo.AvgBitrate = 0xcdcdcdcd,
+            .compressedInfo.AvgBitErrorRate = 0xcdcdcdcd,
+            .compressedInfo.MaxKeyFrameSpacing = 0xcdcdcdcd,
+            .surfaceInfo.Format = 0x3231564e,
+        };
+        const AM_MEDIA_TYPE expect_am_type_mfv =
+        {
+            .formattype = FORMAT_MFVideoFormat,
+            .majortype = MEDIATYPE_Video,
+            .subtype = MEDIASUBTYPE_NV12,
+            .lSampleSize = 10509978,
+            .bFixedSizeSamples = 1,
+            .cbFormat = sizeof(expect_mfv),
+            .pbFormat = (void *)&expect_mfv,
+        };
+        AM_MEDIA_TYPE *tmp_am_type, am_type = {0};
+        WAVEFORMATEXTENSIBLE wfx = {0};
+        VIDEOINFOHEADER2 vi2 = {0};
+        VIDEOINFOHEADER vi = {0};
+        MFVIDEOFORMAT mfv = {0};
+
+        create_media_type(media_types[0], &mediatype);
+
+        memset(&am_type, 0xcd, sizeof(am_type));
+        am_type.cbFormat = 0;
+        am_type.pbFormat = NULL;
+        am_type.formattype = GUID_NULL;
+        am_type.majortype = MEDIATYPE_Audio;
+        am_type.subtype = MEDIASUBTYPE_PCM;
+
+        hr = MFInitMediaTypeFromAMMediaType(mediatype, &am_type);
+        ok(hr == S_OK, "MFInitMediaTypeFromAMMediaType returned %#lx.\n", hr);
+        if (0) dump_media_type(mediatype);
+
+        hr = IMFMediaType_GetRepresentation(mediatype, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
+        ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
+
+        check_member_guid(*tmp_am_type, expect_am_type_wfx, majortype);
+        check_member_guid(*tmp_am_type, expect_am_type_wfx, subtype);
+        check_member_guid(*tmp_am_type, expect_am_type_wfx, formattype);
+
+        hr = IMFMediaType_FreeRepresentation(mediatype, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
+        ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
+
+        am_type.cbFormat = sizeof(wfx.Format);
+        am_type.pbFormat = (void *)&wfx.Format;
+        am_type.formattype = FORMAT_WaveFormatEx;
+
+        memset(&wfx, 0xcd, sizeof(wfx));
+        wfx.Format.wFormatTag = WAVE_FORMAT_PCM;
+        wfx.Format.cbSize = 0;
+
+        hr = MFInitMediaTypeFromAMMediaType(mediatype, &am_type);
+        ok(hr == S_OK, "MFInitMediaTypeFromAMMediaType returned %#lx.\n", hr);
+        if (0) dump_media_type(mediatype);
+
+        hr = IMFMediaType_GetRepresentation(mediatype, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
+        ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
+        check_am_media_type(tmp_am_type, &expect_am_type_wfx);
+        hr = IMFMediaType_FreeRepresentation(mediatype, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
+        ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
+
+        am_type.cbFormat = sizeof(wfx);
+        am_type.pbFormat = (void *)&wfx;
+        am_type.formattype = FORMAT_WaveFormatEx;
+
+        memset(&wfx, 0xcd, sizeof(wfx));
+        wfx.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+        wfx.Format.cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
+        wfx.SubFormat = MEDIASUBTYPE_PCM;
+
+        hr = MFInitMediaTypeFromAMMediaType(mediatype, &am_type);
+        ok(hr == S_OK, "MFInitMediaTypeFromAMMediaType returned %#lx.\n", hr);
+        if (0) dump_media_type(mediatype);
+
+        hr = IMFMediaType_GetRepresentation(mediatype, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
+        ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
+        check_am_media_type(tmp_am_type, &expect_am_type_wfxext);
+        hr = IMFMediaType_FreeRepresentation(mediatype, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
+        ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
+
+        memset(&am_type, 0xcd, sizeof(am_type));
+        am_type.cbFormat = 0;
+        am_type.pbFormat = NULL;
+        am_type.formattype = GUID_NULL;
+        am_type.majortype = MEDIATYPE_Video;
+        am_type.subtype = MEDIASUBTYPE_NV12;
+
+        hr = MFInitMediaTypeFromAMMediaType(mediatype, &am_type);
+        ok(hr == S_OK, "MFInitMediaTypeFromAMMediaType returned %#lx.\n", hr);
+        if (0) dump_media_type(mediatype);
+
+        hr = IMFMediaType_GetRepresentation(mediatype, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
+        ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
+        check_member_guid(*tmp_am_type, expect_am_type_vi, majortype);
+        check_member_guid(*tmp_am_type, expect_am_type_vi, subtype);
+        check_member_guid(*tmp_am_type, expect_am_type_vi, formattype);
+        hr = IMFMediaType_FreeRepresentation(mediatype, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
+        ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
+
+        am_type.cbFormat = sizeof(vi);
+        am_type.pbFormat = (void *)&vi;
+        am_type.formattype = FORMAT_VideoInfo;
+        am_type.majortype = MEDIATYPE_Video;
+        am_type.subtype = MEDIASUBTYPE_NV12;
+
+        memset(&vi, 0xcd, sizeof(vi));
+        vi.bmiHeader.biSize = sizeof(vi.bmiHeader);
+
+        hr = MFInitMediaTypeFromAMMediaType(mediatype, &am_type);
+        ok(hr == S_OK, "MFInitMediaTypeFromAMMediaType returned %#lx.\n", hr);
+        if (0) dump_media_type(mediatype);
+
+        hr = IMFMediaType_GetRepresentation(mediatype, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
+        ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
+        check_member_guid(*tmp_am_type, expect_am_type_vi2, majortype);
+        check_member_guid(*tmp_am_type, expect_am_type_vi2, subtype);
+        check_member_guid(*tmp_am_type, expect_am_type_vi2, formattype);
+        hr = IMFMediaType_FreeRepresentation(mediatype, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
+        ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
+
+        hr = IMFMediaType_GetRepresentation(mediatype, FORMAT_VideoInfo, (void **)&tmp_am_type);
+        ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
+        check_am_media_type(tmp_am_type, &expect_am_type_vi);
+        hr = IMFMediaType_FreeRepresentation(mediatype, FORMAT_VideoInfo, (void *)tmp_am_type);
+        ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
+
+        am_type.cbFormat = sizeof(vi2);
+        am_type.pbFormat = (void *)&vi2;
+        am_type.formattype = FORMAT_VideoInfo2;
+
+        memset(&vi2, 0xcd, sizeof(vi2));
+        vi2.bmiHeader.biSize = sizeof(vi2.bmiHeader);
+
+        hr = MFInitMediaTypeFromAMMediaType(mediatype, &am_type);
+        ok(hr == S_OK, "MFInitMediaTypeFromAMMediaType returned %#lx.\n", hr);
+        if (0) dump_media_type(mediatype);
+
+        hr = IMFMediaType_GetRepresentation(mediatype, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
+        ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
+        check_am_media_type(tmp_am_type, &expect_am_type_vi2);
+        hr = IMFMediaType_FreeRepresentation(mediatype, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
+        ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
+
+        am_type.cbFormat = sizeof(mfv);
+        am_type.pbFormat = (void *)&mfv;
+        am_type.formattype = FORMAT_MFVideoFormat;
+
+        memset(&mfv, 0xcd, sizeof(mfv));
+        mfv.videoInfo.dwWidth = 1234;
+        mfv.videoInfo.dwHeight = 5678;
+        mfv.dwSize = sizeof(mfv);
+        mfv.guidFormat = MEDIASUBTYPE_NV12;
+        mfv.surfaceInfo.PaletteEntries = 0;
+
+        hr = MFInitMediaTypeFromAMMediaType(mediatype, &am_type);
+        ok(hr == S_OK, "MFInitMediaTypeFromAMMediaType returned %#lx.\n", hr);
+        if (0) dump_media_type(mediatype);
+
+        hr = IMFMediaType_GetRepresentation(mediatype, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
+        ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
+        check_member_guid(*tmp_am_type, expect_am_type_vi2, majortype);
+        check_member_guid(*tmp_am_type, expect_am_type_vi2, subtype);
+        check_member_guid(*tmp_am_type, expect_am_type_vi2, formattype);
+        hr = IMFMediaType_FreeRepresentation(mediatype, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
+        ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
+
+        hr = IMFMediaType_GetRepresentation(mediatype, FORMAT_MFVideoFormat, (void **)&tmp_am_type);
+        ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
+        check_am_media_type(tmp_am_type, &expect_am_type_mfv);
+        hr = IMFMediaType_FreeRepresentation(mediatype, FORMAT_MFVideoFormat, (void *)tmp_am_type);
+        ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
+
+        IMFMediaType_Release(mediatype);
+    }
 }
 
 static void test_MFCreateMediaEvent(void)
