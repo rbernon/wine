@@ -1730,8 +1730,29 @@ HRESULT WINAPI MFCreateMediaBufferFromMediaType(IMFMediaType *media_type, LONGLO
 
         return create_1d_buffer(length, alignment - 1, buffer);
     }
-    else
-        FIXME("Major type %s is not supported.\n", debugstr_guid(&major));
 
+    if (IsEqualGUID(&major, &MFMediaType_Video))
+    {
+        LONG stride, default_stride;
+        GUID subtype;
+        UINT64 ratio;
+        BOOL is_yuv;
+
+        if (SUCCEEDED(hr = IMFMediaType_GetGUID(media_type, &MF_MT_SUBTYPE, &subtype))
+                && SUCCEEDED(hr = IMFMediaType_GetUINT64(media_type, &MF_MT_FRAME_SIZE, &ratio))
+                && (stride = mf_format_get_stride(&subtype, ALIGN_SIZE(ratio >> 32, 0xf), &is_yuv)))
+        {
+            if (SUCCEEDED(IMFMediaType_GetUINT32(media_type, &MF_MT_DEFAULT_STRIDE, (UINT32 *)&default_stride)))
+                stride = max(abs(default_stride), stride) * (default_stride / abs(default_stride));
+            return create_2d_buffer(&subtype, ratio >> 32, (UINT32)ratio, stride, buffer);
+        }
+
+        if (min_length)
+            return buffer_1d_create(min_length, alignment, buffer);
+
+        return FAILED(hr) ? hr : E_INVALIDARG;
+    }
+
+    FIXME("Major type %s is not supported.\n", debugstr_guid(&major));
     return E_NOTIMPL;
 }
