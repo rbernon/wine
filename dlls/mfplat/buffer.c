@@ -673,9 +673,24 @@ static HRESULT WINAPI memory_2d_buffer_Lock2DSize(IMF2DBuffer2 *iface, MF2DBuffe
 
 static HRESULT WINAPI memory_2d_buffer_Copy2DTo(IMF2DBuffer2 *iface, IMF2DBuffer2 *dest_buffer)
 {
-    FIXME("%p, %p.\n", iface, dest_buffer);
+    struct buffer_2d *buffer = impl_from_IMF2DBuffer2(iface);
+    LONG src_pitch, dst_pitch;
+    BYTE *src, *dst;
+    HRESULT hr;
 
-    return E_NOTIMPL;
+    TRACE("%p, %p.\n", iface, dest_buffer);
+
+    if (SUCCEEDED(hr = IMF2DBuffer2_Lock2D(dest_buffer, &dst, &dst_pitch)))
+    {
+        if (SUCCEEDED(hr = IMF2DBuffer2_Lock2D(iface, &src, &src_pitch)))
+        {
+            copy_image(buffer, dst, dst_pitch, src, src_pitch, buffer->_2d.width, buffer->_2d.height);
+            IMF2DBuffer2_Unlock2D(iface);
+        }
+        IMF2DBuffer2_Unlock2D(dest_buffer);
+    }
+
+    return hr;
 }
 
 static const IMF2DBuffer2Vtbl memory_2d_buffer_vtbl =
