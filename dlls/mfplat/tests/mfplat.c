@@ -2447,6 +2447,9 @@ static void test_system_memory_buffer(void)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
     check_interface(buffer, &IID_IMFGetService, FALSE);
+    check_interface(buffer, &IID_IMFDXGIBuffer, FALSE);
+    check_interface(buffer, &IID_IMF2DBuffer, FALSE);
+    check_interface(buffer, &IID_IMF2DBuffer2, FALSE);
 
     hr = IMFMediaBuffer_GetMaxLength(buffer, NULL);
     ok(hr == E_INVALIDARG || hr == E_POINTER, "Unexpected hr %#lx.\n", hr);
@@ -6047,6 +6050,8 @@ static void test_MFCreate2DMediaBuffer(void)
 
     check_interface(buffer, &IID_IMFGetService, TRUE);
     check_interface(buffer, &IID_IMF2DBuffer, TRUE);
+    check_interface(buffer, &IID_IMF2DBuffer2, TRUE);
+    check_interface(buffer, &IID_IMFDXGIBuffer, FALSE);
 
     /* Full backing buffer size, with 64 bytes per row alignment.  */
     hr = IMFMediaBuffer_GetMaxLength(buffer, &max_length);
@@ -7036,6 +7041,7 @@ static void test_MFCreateDXSurfaceBuffer(void)
     check_interface(buffer, &IID_IMF2DBuffer, TRUE);
     check_interface(buffer, &IID_IMF2DBuffer2, TRUE);
     check_interface(buffer, &IID_IMFGetService, TRUE);
+    check_interface(buffer, &IID_IMFDXGIBuffer, FALSE);
 
     /* Surface is accessible. */
     hr = IMFMediaBuffer_QueryInterface(buffer, &IID_IMFGetService, (void **)&gs);
