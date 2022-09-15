@@ -4452,6 +4452,7 @@ static const struct image_size_test
     UINT32 max_length;
     UINT32 contiguous_length;
     UINT32 pitch;
+    BOOL is_packed;
 }
 image_size_tests[] =
 {
@@ -4495,22 +4496,22 @@ image_size_tests[] =
     { &MEDIASUBTYPE_RGB32,  1, 1, 4  },
 
     /* YUV 4:4:4, 32 bpp, packed */
-    { &MFVideoFormat_AYUV, 1, 1, 4, 0, 64, 4, 64 },
-    { &MFVideoFormat_AYUV, 2, 1, 8, 0, 64, 8, 64 },
-    { &MFVideoFormat_AYUV, 1, 2, 8, 0, 128, 8, 64 },
-    { &MFVideoFormat_AYUV, 4, 3, 48, 0, 192, 48, 64 },
-    { &MFVideoFormat_AYUV, 320, 240, 307200, 0, 307200, 307200, 1280 },
+    { &MFVideoFormat_AYUV, 1, 1, 4, 0, 64, 4, 64, TRUE },
+    { &MFVideoFormat_AYUV, 2, 1, 8, 0, 64, 8, 64, TRUE },
+    { &MFVideoFormat_AYUV, 1, 2, 8, 0, 128, 8, 64, TRUE },
+    { &MFVideoFormat_AYUV, 4, 3, 48, 0, 192, 48, 64, TRUE },
+    { &MFVideoFormat_AYUV, 320, 240, 307200, 0, 307200, 307200, 1280, TRUE },
 
     /* YUV 4:2:2, 16 bpp, packed */
-    { &MFVideoFormat_YUY2, 2, 1, 4, 0, 64, 4, 64 },
-    { &MFVideoFormat_YUY2, 4, 3, 24, 0, 192, 24, 64 },
-    { &MFVideoFormat_YUY2, 128, 128, 32768, 0, 32768, 32768, 256 },
-    { &MFVideoFormat_YUY2, 320, 240, 153600, 0, 153600, 153600, 640 },
+    { &MFVideoFormat_YUY2, 2, 1, 4, 0, 64, 4, 64, TRUE },
+    { &MFVideoFormat_YUY2, 4, 3, 24, 0, 192, 24, 64, TRUE },
+    { &MFVideoFormat_YUY2, 128, 128, 32768, 0, 32768, 32768, 256, TRUE },
+    { &MFVideoFormat_YUY2, 320, 240, 153600, 0, 153600, 153600, 640, TRUE },
 
-    { &MFVideoFormat_UYVY, 2, 1, 4, 0, 64, 4, 64 },
-    { &MFVideoFormat_UYVY, 4, 3, 24, 0, 192, 24, 64 },
-    { &MFVideoFormat_UYVY, 128, 128, 32768, 0, 32768, 32768, 256 },
-    { &MFVideoFormat_UYVY, 320, 240, 153600, 0, 153600, 153600, 640 },
+    { &MFVideoFormat_UYVY, 2, 1, 4, 0, 64, 4, 64, TRUE },
+    { &MFVideoFormat_UYVY, 4, 3, 24, 0, 192, 24, 64, TRUE },
+    { &MFVideoFormat_UYVY, 128, 128, 32768, 0, 32768, 32768, 256, TRUE },
+    { &MFVideoFormat_UYVY, 320, 240, 153600, 0, 153600, 153600, 640, TRUE },
 
     /* YUV 4:2:0, 16 bpp, planar (the secondary plane has the same
      * height, half the width and the same stride as the primary
@@ -6480,6 +6481,7 @@ static void test_MFCreate2DMediaBuffer(void)
     for (i = 0; i < ARRAY_SIZE(image_size_tests); ++i)
     {
         const struct image_size_test *ptr = &image_size_tests[i];
+        LONG tmp_pitch;
 
         if (is_MEDIASUBTYPE_RGB(ptr->subtype))
             continue;
@@ -6493,6 +6495,26 @@ static void test_MFCreate2DMediaBuffer(void)
         hr = IMF2DBuffer_Lock2D(_2dbuffer, &data, &pitch);
         ok(hr == S_OK, "Failed to lock buffer, hr %#lx.\n", hr);
         ok(((uintptr_t)data & MF_64_BYTE_ALIGNMENT) == 0, "Misaligned data at %p.\n", data);
+
+        hr = IMF2DBuffer_Unlock2D(_2dbuffer);
+        ok(hr == S_OK, "Failed to unlock buffer, hr %#lx.\n", hr);
+
+        IMF2DBuffer_Release(_2dbuffer);
+        IMFMediaBuffer_Release(buffer);
+
+
+        hr = pMFCreate2DMediaBuffer(ptr->width, ptr->height, ptr->subtype->Data1, TRUE, &buffer);
+        ok(hr == (ptr->is_packed ? S_OK : MF_E_INVALIDMEDIATYPE), "Failed to create a buffer, hr %#lx.\n", hr);
+        if (FAILED(hr))
+            continue;
+
+        hr = IMFMediaBuffer_QueryInterface(buffer, &IID_IMF2DBuffer, (void **)&_2dbuffer);
+        ok(hr == S_OK, "Failed to get interface, hr %#lx.\n", hr);
+
+        hr = IMF2DBuffer_Lock2D(_2dbuffer, &data, &tmp_pitch);
+        ok(hr == S_OK, "Failed to lock buffer, hr %#lx.\n", hr);
+        ok(((uintptr_t)data & MF_64_BYTE_ALIGNMENT) == 0, "Misaligned data at %p.\n", data);
+        ok(pitch == -tmp_pitch, "Unexpected pitch %+ld\n", tmp_pitch);
 
         hr = IMF2DBuffer_Unlock2D(_2dbuffer);
         ok(hr == S_OK, "Failed to unlock buffer, hr %#lx.\n", hr);
