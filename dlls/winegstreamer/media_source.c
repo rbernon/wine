@@ -38,6 +38,7 @@ struct media_stream
 
     struct wg_parser_stream *wg_stream;
     DWORD stream;
+    IMFMediaType *media_type;
 
     IUnknown **token_queue;
     LONG token_queue_count;
@@ -388,13 +389,32 @@ static HRESULT media_source_start(struct media_source *source, IMFPresentationDe
 
     for (i = 0; i < source->stream_count; i++)
     {
+        IMFMediaTypeHandler *handler;
         struct media_stream *stream;
         BOOL was_active, selected;
         IMFStreamDescriptor *sd;
         DWORD stream_id;
+        BOOL was_active;
+        BOOL selected;
+        HRESULT hr;
 
         stream = source->streams[i];
         was_active = !starting && stream->active;
+
+        if (stream->media_type)
+            IMFMediaType_Release(stream->media_type);
+        stream->media_type = NULL;
+
+        if (SUCCEEDED(hr = IMFStreamDescriptor_GetMediaTypeHandler(stream->descriptor, &handler)))
+        {
+            hr = IMFMediaTypeHandler_GetCurrentMediaType(handler, &stream->media_type);
+            IMFMediaTypeHandler_Release(handler);
+        }
+        if (FAILED(hr))
+        {
+            WARN("Failed to get stream current media type, hr %#lx\n", hr);
+            selected = FALSE;
+        }
 
         IMFStreamDescriptor_GetStreamIdentifier(stream->descriptor, &stream_id);
         sd = stream_descriptor_from_id(descriptor, stream_id, &selected);
@@ -470,7 +490,7 @@ static HRESULT media_source_stop(struct media_source *source)
     return IMFMediaEventQueue_QueueEventParamVar(source->event_queue, MESourceStopped, &GUID_NULL, S_OK, NULL);
 }
 
-static HRESULT allocate_sample(UINT32 size, IMFSample **out)
+static HRESULT allocate_sample(struct media_stream *stream, UINT32 size, IMFSample **out)
 {
     IMFSample *sample = NULL;
     IMFMediaBuffer *buffer;
@@ -479,7 +499,7 @@ static HRESULT allocate_sample(UINT32 size, IMFSample **out)
     if (FAILED(hr = MFCreateSample(&sample)))
         return hr;
 
-    if (SUCCEEDED(hr = MFCreateMemoryBuffer(size, &buffer)))
+    if (SUCCEEDED(hr = MFCreateMediaBufferFromMediaType(stream->media_type, 0, 0, 0, &buffer)))
     {
         if (SUCCEEDED(hr = IMFSample_AddBuffer(sample, buffer)))
             IMFSample_AddRef((*out = sample));
@@ -492,11 +512,12 @@ static HRESULT allocate_sample(UINT32 size, IMFSample **out)
 
 static HRESULT handle_alloc_request(struct media_source *source, struct wg_request *request)
 {
+    struct media_stream *stream = source->streams[request->stream];
     struct wg_sample *wg_sample = NULL;
     IMFSample *sample;
     HRESULT hr;
 
-    if (SUCCEEDED(hr = allocate_sample(request->u.alloc.size, &sample)))
+    if (SUCCEEDED(hr = allocate_sample(stream, request->u.alloc.size, &sample)))
     {
         hr = wg_sample_create_mf(sample, &wg_sample);
         IMFSample_Release(sample);
@@ -522,7 +543,7 @@ static HRESULT handle_output_request(struct media_stream *stream, const struct w
 
     if (!wg_sample_queue_find_mf(source->wg_sample_queue, request->u.output.data, &wg_sample, &sample))
     {
-        if (FAILED(hr = allocate_sample(request->u.output.size, &sample)))
+        if (FAILED(hr = allocate_sample(stream, request->u.output.size, &sample)))
         {
             ERR("Failed to create sample, hr %#lx.\n", hr);
             return hr;
