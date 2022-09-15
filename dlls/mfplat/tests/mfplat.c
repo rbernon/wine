@@ -2854,6 +2854,37 @@ static void test_sample(void)
     IMFMediaBuffer_Release(buffer);
 
     IMFSample_Release(sample);
+
+    /* ConvertToContiguousBuffer with 2D buffers crashes */
+    if (0)
+    {
+        hr = MFCreateSample(&sample);
+        ok(hr == S_OK, "Unexpected hr %lx.\n", hr);
+
+        hr = MFCreate2DMediaBuffer(16, 16, D3DFMT_R8G8B8, FALSE, &buffer);
+        ok(hr == S_OK, "Unexpected hr %lx.\n", hr);
+        hr = IMFSample_AddBuffer(sample, buffer);
+        ok(hr == S_OK, "Unexpected hr %lx.\n", hr);
+        IMFMediaBuffer_Release(buffer);
+
+        hr = MFCreate2DMediaBuffer(16, 16, D3DFMT_R8G8B8, FALSE, &buffer);
+        ok(hr == S_OK, "Unexpected hr %lx.\n", hr);
+        hr = IMFSample_AddBuffer(sample, buffer);
+        ok(hr == S_OK, "Unexpected hr %lx.\n", hr);
+        IMFMediaBuffer_Release(buffer);
+
+        hr = IMFSample_ConvertToContiguousBuffer(sample, &buffer);
+        ok(hr == S_OK, "Unexpected hr %lx.\n", hr);
+        check_interface(buffer, &IID_IMF2DBuffer, TRUE);
+        hr = IMFMediaBuffer_GetCurrentLength(buffer, &count);
+        ok(hr == S_OK, "Unexpected hr %lx.\n", hr);
+        ok(count == 16, "Unexpected hr %lx.\n", hr);
+        hr = IMFMediaBuffer_GetMaxLength(buffer, &count);
+        ok(hr == S_OK, "Unexpected hr %lx.\n", hr);
+        IMFMediaBuffer_Release(buffer);
+
+        IMFSample_Release(sample);
+    }
 }
 
 static HRESULT WINAPI testcallback_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
