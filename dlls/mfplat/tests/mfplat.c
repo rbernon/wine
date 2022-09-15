@@ -1378,8 +1378,24 @@ if(0)
     hr = IMFMediaType_DeleteItem(mediatype, &MF_MT_COMPRESSED);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
+    hr = IMFMediaType_DeleteItem(mediatype, &MF_MT_ALL_SAMPLES_INDEPENDENT);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
     hr = IMFMediaType_SetGUID(mediatype, &MF_MT_MAJOR_TYPE, &MFMediaType_Video);
     ok(hr == S_OK, "Failed to set GUID value, hr %#lx.\n", hr);
+
+    compressed = FALSE;
+    hr = IMFMediaType_IsCompressedFormat(mediatype, &compressed);
+    ok(hr == S_OK, "Failed to get media type property, hr %#lx.\n", hr);
+    ok(compressed, "Unexpected value %d.\n", compressed);
+
+    hr = IMFMediaType_SetGUID(mediatype, &MF_MT_SUBTYPE, &MFVideoFormat_NV12);
+    ok(hr == S_OK, "Failed to set GUID value, hr %#lx.\n", hr);
+
+    compressed = FALSE;
+    hr = IMFMediaType_IsCompressedFormat(mediatype, &compressed);
+    ok(hr == S_OK, "Failed to get media type property, hr %#lx.\n", hr);
+    ok(compressed, "Unexpected value %d.\n", compressed);
 
     hr = IMFMediaType_GetMajorType(mediatype, &guid);
     ok(hr == S_OK, "Failed to get major type, hr %#lx.\n", hr);
