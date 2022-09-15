@@ -6563,12 +6563,50 @@ static void test_MFCreateMediaBufferFromMediaType(void)
 
     hr = MFCreateMediaType(&media_type);
     ok(hr == S_OK, "Failed to create media type, hr %#lx.\n", hr);
+    hr = pMFCreateMediaBufferFromMediaType(media_type, 10000000, 0, 0, &buffer);
+    ok(hr == MF_E_ATTRIBUTENOTFOUND, "Unexpected hr %#lx.\n", hr);
 
     hr = MFCreateMediaType(&media_type2);
     ok(hr == S_OK, "Failed to create media type, hr %#lx.\n", hr);
 
+    hr = IMFMediaType_SetGUID(media_type, &MF_MT_MAJOR_TYPE, &MFMediaType_Video);
+    ok(hr == S_OK, "Failed to set attribute, hr %#lx.\n", hr);
+    hr = IMFMediaType_SetUINT64(media_type, &MF_MT_FRAME_SIZE, ((UINT64)16 << 32) | 16);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = pMFCreateMediaBufferFromMediaType(media_type, 10000000, 0, 0, &buffer);
+    ok(hr == MF_E_ATTRIBUTENOTFOUND, "Unexpected hr %#lx.\n", hr);
+    hr = pMFCreateMediaBufferFromMediaType(media_type, 10000000, 1, 0, &buffer);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaBuffer_GetMaxLength(buffer, &length);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(length == 1, "got length %lu.\n", length);
+    IMFMediaBuffer_Release(buffer);
+
+    hr = IMFMediaType_SetGUID(media_type, &MF_MT_MAJOR_TYPE, &MFMediaType_Video);
+    ok(hr == S_OK, "Failed to set attribute, hr %#lx.\n", hr);
+    hr = IMFMediaType_SetGUID(media_type, &MF_MT_SUBTYPE, &MFVideoFormat_H264);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = pMFCreateMediaBufferFromMediaType(media_type, 10000000, 0, 0, &buffer);
+    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+    hr = pMFCreateMediaBufferFromMediaType(media_type, 10000000, 1, 0, &buffer);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaBuffer_GetMaxLength(buffer, &length);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(length == 1, "got length %lu.\n", length);
+    IMFMediaBuffer_Release(buffer);
+
+    hr = IMFMediaType_DeleteAllItems(media_type);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
     hr = IMFMediaType_SetGUID(media_type, &MF_MT_MAJOR_TYPE, &MFMediaType_Audio);
     ok(hr == S_OK, "Failed to set attribute, hr %#lx.\n", hr);
+
+    hr = pMFCreateMediaBufferFromMediaType(media_type, 10000000, 0, 0, &buffer);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaBuffer_GetMaxLength(buffer, &length);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(length == 0, "got length %lu.\n", length);
+    IMFMediaBuffer_Release(buffer);
 
     hr = IMFMediaType_CopyAllItems(media_type, (IMFAttributes *)media_type2);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
