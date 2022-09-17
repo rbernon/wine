@@ -908,6 +908,14 @@ static HRESULT check_mft_process_output_(int line, IMFTransform *transform, IMFS
     HRESULT hr, ret;
     DWORD status;
 
+    status = 0xdeadbeef;
+    memset(&output, 0xcd, sizeof(output));
+    output[0].pSample = output_sample;
+    output[1].pSample = output_sample;
+    hr = IMFTransform_ProcessOutput(transform, 0, 2, output, &status);
+    ok_(__FILE__, line)(hr == E_INVALIDARG, "ProcessOutput returned %#lx\n", hr);
+    ok_(__FILE__, line)(status == 0 || status == 0xdeadbeef, "got status %#lx\n", status);
+
     status = 0;
     memset(&output, 0, sizeof(output));
     output[0].pSample = output_sample;
