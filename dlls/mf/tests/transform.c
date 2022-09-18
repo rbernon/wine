@@ -551,14 +551,18 @@ static void check_mft_optional_methods(IMFTransform *transform, DWORD output_cou
     HRESULT hr;
 
     in_min = in_max = out_min = out_max = 0xdeadbeef;
-    hr = IMFTransform_GetStreamLimits(transform, &in_min, &in_max, &out_min, &out_max);
+    hr = IMFTransform_GetStreamLimits(transform, &in_min, NULL, NULL, NULL);
     ok(hr == S_OK, "GetStreamLimits returned %#lx\n", hr);
     ok(in_min == 1, "got input_min %lu\n", in_min);
+    hr = IMFTransform_GetStreamLimits(transform, NULL, &in_max, &out_min, &out_max);
+    ok(hr == S_OK, "GetStreamLimits returned %#lx\n", hr);
     ok(in_max == 1, "got input_max %lu\n", in_max);
     ok(out_min == output_count, "got output_min %lu\n", out_min);
     ok(out_max == output_count, "got output_max %lu\n", out_max);
 
     in_count = out_count = 0xdeadbeef;
+    hr = IMFTransform_GetStreamCount(transform, &in_count, NULL);
+    ok(hr == S_OK || hr == E_POINTER, "GetStreamCount returned %#lx\n", hr);
     hr = IMFTransform_GetStreamCount(transform, &in_count, &out_count);
     ok(hr == S_OK, "GetStreamCount returned %#lx\n", hr);
     ok(in_count == 1, "got input_count %lu\n", in_count);
