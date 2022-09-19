@@ -673,9 +673,24 @@ static HRESULT WINAPI memory_2d_buffer_Lock2DSize(IMF2DBuffer2 *iface, MF2DBuffe
 
 static HRESULT WINAPI memory_2d_buffer_Copy2DTo(IMF2DBuffer2 *iface, IMF2DBuffer2 *dest_buffer)
 {
-    FIXME("%p, %p.\n", iface, dest_buffer);
+    struct buffer_2d *buffer = impl_from_IMF2DBuffer2(iface);
+    LONG src_pitch, dst_pitch;
+    BYTE *src, *dst;
+    HRESULT hr;
 
-    return E_NOTIMPL;
+    TRACE("%p, %p.\n", iface, dest_buffer);
+
+    if (SUCCEEDED(hr = IMF2DBuffer2_Lock2D(dest_buffer, &dst, &dst_pitch)))
+    {
+        if (SUCCEEDED(hr = IMF2DBuffer2_Lock2D(iface, &src, &src_pitch)))
+        {
+            copy_image(buffer, dst, dst_pitch, src, src_pitch, buffer->_2d.width, buffer->_2d.height);
+            IMF2DBuffer2_Unlock2D(iface);
+        }
+        IMF2DBuffer2_Unlock2D(dest_buffer);
+    }
+
+    return hr;
 }
 
 static const IMF2DBuffer2Vtbl memory_2d_buffer_vtbl =
@@ -1715,8 +1730,29 @@ HRESULT WINAPI MFCreateMediaBufferFromMediaType(IMFMediaType *media_type, LONGLO
 
         return create_1d_buffer(length, alignment - 1, buffer);
     }
-    else
-        FIXME("Major type %s is not supported.\n", debugstr_guid(&major));
 
+    if (IsEqualGUID(&major, &MFMediaType_Video))
+    {
+        LONG stride, default_stride;
+        GUID subtype;
+        UINT64 ratio;
+        BOOL is_yuv;
+
+        if (SUCCEEDED(hr = IMFMediaType_GetGUID(media_type, &MF_MT_SUBTYPE, &subtype))
+                && SUCCEEDED(hr = IMFMediaType_GetUINT64(media_type, &MF_MT_FRAME_SIZE, &ratio))
+                && (stride = mf_format_get_stride(&subtype, ALIGN_SIZE(ratio >> 32, 0xf), &is_yuv)))
+        {
+            if (SUCCEEDED(IMFMediaType_GetUINT32(media_type, &MF_MT_DEFAULT_STRIDE, (UINT32 *)&default_stride)))
+                stride = max(abs(default_stride), stride) * (default_stride / abs(default_stride));
+            return create_2d_buffer(&subtype, ratio >> 32, (UINT32)ratio, stride, buffer);
+        }
+
+        if (min_length)
+            return buffer_1d_create(min_length, alignment, buffer);
+
+        return FAILED(hr) ? hr : E_INVALIDARG;
+    }
+
+    FIXME("Major type %s is not supported.\n", debugstr_guid(&major));
     return E_NOTIMPL;
 }

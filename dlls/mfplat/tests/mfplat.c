@@ -2447,6 +2447,9 @@ static void test_system_memory_buffer(void)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
     check_interface(buffer, &IID_IMFGetService, FALSE);
+    check_interface(buffer, &IID_IMFDXGIBuffer, FALSE);
+    check_interface(buffer, &IID_IMF2DBuffer, FALSE);
+    check_interface(buffer, &IID_IMF2DBuffer2, FALSE);
 
     hr = IMFMediaBuffer_GetMaxLength(buffer, NULL);
     ok(hr == E_INVALIDARG || hr == E_POINTER, "Unexpected hr %#lx.\n", hr);
@@ -2854,6 +2857,37 @@ static void test_sample(void)
     IMFMediaBuffer_Release(buffer);
 
     IMFSample_Release(sample);
+
+    /* ConvertToContiguousBuffer with 2D buffers crashes */
+    if (0)
+    {
+        hr = MFCreateSample(&sample);
+        ok(hr == S_OK, "Unexpected hr %lx.\n", hr);
+
+        hr = MFCreate2DMediaBuffer(16, 16, D3DFMT_R8G8B8, FALSE, &buffer);
+        ok(hr == S_OK, "Unexpected hr %lx.\n", hr);
+        hr = IMFSample_AddBuffer(sample, buffer);
+        ok(hr == S_OK, "Unexpected hr %lx.\n", hr);
+        IMFMediaBuffer_Release(buffer);
+
+        hr = MFCreate2DMediaBuffer(16, 16, D3DFMT_R8G8B8, FALSE, &buffer);
+        ok(hr == S_OK, "Unexpected hr %lx.\n", hr);
+        hr = IMFSample_AddBuffer(sample, buffer);
+        ok(hr == S_OK, "Unexpected hr %lx.\n", hr);
+        IMFMediaBuffer_Release(buffer);
+
+        hr = IMFSample_ConvertToContiguousBuffer(sample, &buffer);
+        ok(hr == S_OK, "Unexpected hr %lx.\n", hr);
+        check_interface(buffer, &IID_IMF2DBuffer, TRUE);
+        hr = IMFMediaBuffer_GetCurrentLength(buffer, &count);
+        ok(hr == S_OK, "Unexpected hr %lx.\n", hr);
+        ok(count == 16, "Unexpected hr %lx.\n", hr);
+        hr = IMFMediaBuffer_GetMaxLength(buffer, &count);
+        ok(hr == S_OK, "Unexpected hr %lx.\n", hr);
+        IMFMediaBuffer_Release(buffer);
+
+        IMFSample_Release(sample);
+    }
 }
 
 static HRESULT WINAPI testcallback_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
@@ -4421,6 +4455,7 @@ static const struct image_size_test
     UINT32 max_length;
     UINT32 contiguous_length;
     UINT32 pitch;
+    BOOL is_packed;
 }
 image_size_tests[] =
 {
@@ -4464,22 +4499,22 @@ image_size_tests[] =
     { &MEDIASUBTYPE_RGB32,  1, 1, 4  },
 
     /* YUV 4:4:4, 32 bpp, packed */
-    { &MFVideoFormat_AYUV, 1, 1, 4, 0, 64, 4, 64 },
-    { &MFVideoFormat_AYUV, 2, 1, 8, 0, 64, 8, 64 },
-    { &MFVideoFormat_AYUV, 1, 2, 8, 0, 128, 8, 64 },
-    { &MFVideoFormat_AYUV, 4, 3, 48, 0, 192, 48, 64 },
-    { &MFVideoFormat_AYUV, 320, 240, 307200, 0, 307200, 307200, 1280 },
+    { &MFVideoFormat_AYUV, 1, 1, 4, 0, 64, 4, 64, TRUE },
+    { &MFVideoFormat_AYUV, 2, 1, 8, 0, 64, 8, 64, TRUE },
+    { &MFVideoFormat_AYUV, 1, 2, 8, 0, 128, 8, 64, TRUE },
+    { &MFVideoFormat_AYUV, 4, 3, 48, 0, 192, 48, 64, TRUE },
+    { &MFVideoFormat_AYUV, 320, 240, 307200, 0, 307200, 307200, 1280, TRUE },
 
     /* YUV 4:2:2, 16 bpp, packed */
-    { &MFVideoFormat_YUY2, 2, 1, 4, 0, 64, 4, 64 },
-    { &MFVideoFormat_YUY2, 4, 3, 24, 0, 192, 24, 64 },
-    { &MFVideoFormat_YUY2, 128, 128, 32768, 0, 32768, 32768, 256 },
-    { &MFVideoFormat_YUY2, 320, 240, 153600, 0, 153600, 153600, 640 },
+    { &MFVideoFormat_YUY2, 2, 1, 4, 0, 64, 4, 64, TRUE },
+    { &MFVideoFormat_YUY2, 4, 3, 24, 0, 192, 24, 64, TRUE },
+    { &MFVideoFormat_YUY2, 128, 128, 32768, 0, 32768, 32768, 256, TRUE },
+    { &MFVideoFormat_YUY2, 320, 240, 153600, 0, 153600, 153600, 640, TRUE },
 
-    { &MFVideoFormat_UYVY, 2, 1, 4, 0, 64, 4, 64 },
-    { &MFVideoFormat_UYVY, 4, 3, 24, 0, 192, 24, 64 },
-    { &MFVideoFormat_UYVY, 128, 128, 32768, 0, 32768, 32768, 256 },
-    { &MFVideoFormat_UYVY, 320, 240, 153600, 0, 153600, 153600, 640 },
+    { &MFVideoFormat_UYVY, 2, 1, 4, 0, 64, 4, 64, TRUE },
+    { &MFVideoFormat_UYVY, 4, 3, 24, 0, 192, 24, 64, TRUE },
+    { &MFVideoFormat_UYVY, 128, 128, 32768, 0, 32768, 32768, 256, TRUE },
+    { &MFVideoFormat_UYVY, 320, 240, 153600, 0, 153600, 153600, 640, TRUE },
 
     /* YUV 4:2:0, 16 bpp, planar (the secondary plane has the same
      * height, half the width and the same stride as the primary
@@ -6015,6 +6050,8 @@ static void test_MFCreate2DMediaBuffer(void)
 
     check_interface(buffer, &IID_IMFGetService, TRUE);
     check_interface(buffer, &IID_IMF2DBuffer, TRUE);
+    check_interface(buffer, &IID_IMF2DBuffer2, TRUE);
+    check_interface(buffer, &IID_IMFDXGIBuffer, FALSE);
 
     /* Full backing buffer size, with 64 bytes per row alignment.  */
     hr = IMFMediaBuffer_GetMaxLength(buffer, &max_length);
@@ -6449,6 +6486,7 @@ static void test_MFCreate2DMediaBuffer(void)
     for (i = 0; i < ARRAY_SIZE(image_size_tests); ++i)
     {
         const struct image_size_test *ptr = &image_size_tests[i];
+        LONG tmp_pitch;
 
         if (is_MEDIASUBTYPE_RGB(ptr->subtype))
             continue;
@@ -6462,6 +6500,26 @@ static void test_MFCreate2DMediaBuffer(void)
         hr = IMF2DBuffer_Lock2D(_2dbuffer, &data, &pitch);
         ok(hr == S_OK, "Failed to lock buffer, hr %#lx.\n", hr);
         ok(((uintptr_t)data & MF_64_BYTE_ALIGNMENT) == 0, "Misaligned data at %p.\n", data);
+
+        hr = IMF2DBuffer_Unlock2D(_2dbuffer);
+        ok(hr == S_OK, "Failed to unlock buffer, hr %#lx.\n", hr);
+
+        IMF2DBuffer_Release(_2dbuffer);
+        IMFMediaBuffer_Release(buffer);
+
+
+        hr = pMFCreate2DMediaBuffer(ptr->width, ptr->height, ptr->subtype->Data1, TRUE, &buffer);
+        ok(hr == (ptr->is_packed ? S_OK : MF_E_INVALIDMEDIATYPE), "Failed to create a buffer, hr %#lx.\n", hr);
+        if (FAILED(hr))
+            continue;
+
+        hr = IMFMediaBuffer_QueryInterface(buffer, &IID_IMF2DBuffer, (void **)&_2dbuffer);
+        ok(hr == S_OK, "Failed to get interface, hr %#lx.\n", hr);
+
+        hr = IMF2DBuffer_Lock2D(_2dbuffer, &data, &tmp_pitch);
+        ok(hr == S_OK, "Failed to lock buffer, hr %#lx.\n", hr);
+        ok(((uintptr_t)data & MF_64_BYTE_ALIGNMENT) == 0, "Misaligned data at %p.\n", data);
+        ok(pitch == -tmp_pitch, "Unexpected pitch %+ld\n", tmp_pitch);
 
         hr = IMF2DBuffer_Unlock2D(_2dbuffer);
         ok(hr == S_OK, "Failed to unlock buffer, hr %#lx.\n", hr);
@@ -6492,6 +6550,34 @@ static void test_MFCreateMediaBufferFromMediaType(void)
         { 2,  0,  64,  4, 16, 68 },
         { 2,  0, 128,  4, 16,132 },
     };
+    static struct video_buffer_test
+    {
+        const GUID *subtype;
+        int width, height, stride;
+        unsigned int duration;
+        unsigned int min_length;
+        unsigned int min_alignment;
+        unsigned int max_length;
+        unsigned int locked_length;
+    } video_tests[] =
+    {
+        { &MFVideoFormat_RGB32,  4, 8,       0, 0,  0,  0,  512,  128 },
+        { &MFVideoFormat_RGB32,  4, 8,  +4 * 4, 0,  0,  0,  512,  128 },
+        { &MFVideoFormat_RGB32, 16, 8,       0, 0,  0,  0,  512,  512 },
+        { &MFVideoFormat_RGB32, 16, 8, +16 * 4, 0,  0,  0,  512,  512 },
+        { &MFVideoFormat_RGB32, 20, 8, -16 * 4, 0,  0,  0, 1024,  640 },
+
+        { &MFVideoFormat_RGB32, 16, 8, +16 * 4, 1,  0,  0, 512, 512 },
+        { &MFVideoFormat_RGB32, 16, 8, +16 * 4, 0, 32,  0, 512, 512 },
+        { &MFVideoFormat_RGB32, 16, 8, +16 * 4, 0,  0, 32, 512, 512 },
+        { &MFVideoFormat_RGB32, 16, 8, -16 * 4, 0,  0,  0, 512, 512 },
+
+        { &MFVideoFormat_YUY2,   4, 8,       0, 0,  0,  0, 512,  64 },
+        { &MFVideoFormat_YUY2,   4, 8,  +4 * 4, 0,  0,  0, 512,  64 },
+        { &MFVideoFormat_YUY2,  16, 8,       0, 0,  0,  0, 512, 256 },
+        { &MFVideoFormat_YUY2,  16, 8, +16 * 4, 0,  0,  0, 512, 256 },
+        { &MFVideoFormat_YUY2,  16, 8, -16 * 4, 0,  0,  0, 512, 256 },
+    };
     IMFMediaType *media_type, *media_type2;
     unsigned int i, alignment;
     IMFMediaBuffer *buffer;
@@ -6510,12 +6596,50 @@ static void test_MFCreateMediaBufferFromMediaType(void)
 
     hr = MFCreateMediaType(&media_type);
     ok(hr == S_OK, "Failed to create media type, hr %#lx.\n", hr);
+    hr = pMFCreateMediaBufferFromMediaType(media_type, 10000000, 0, 0, &buffer);
+    ok(hr == MF_E_ATTRIBUTENOTFOUND, "Unexpected hr %#lx.\n", hr);
 
     hr = MFCreateMediaType(&media_type2);
     ok(hr == S_OK, "Failed to create media type, hr %#lx.\n", hr);
 
+    hr = IMFMediaType_SetGUID(media_type, &MF_MT_MAJOR_TYPE, &MFMediaType_Video);
+    ok(hr == S_OK, "Failed to set attribute, hr %#lx.\n", hr);
+    hr = IMFMediaType_SetUINT64(media_type, &MF_MT_FRAME_SIZE, ((UINT64)16 << 32) | 16);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = pMFCreateMediaBufferFromMediaType(media_type, 10000000, 0, 0, &buffer);
+    ok(hr == MF_E_ATTRIBUTENOTFOUND, "Unexpected hr %#lx.\n", hr);
+    hr = pMFCreateMediaBufferFromMediaType(media_type, 10000000, 1, 0, &buffer);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaBuffer_GetMaxLength(buffer, &length);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(length == 1, "got length %lu.\n", length);
+    IMFMediaBuffer_Release(buffer);
+
+    hr = IMFMediaType_SetGUID(media_type, &MF_MT_MAJOR_TYPE, &MFMediaType_Video);
+    ok(hr == S_OK, "Failed to set attribute, hr %#lx.\n", hr);
+    hr = IMFMediaType_SetGUID(media_type, &MF_MT_SUBTYPE, &MFVideoFormat_H264);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = pMFCreateMediaBufferFromMediaType(media_type, 10000000, 0, 0, &buffer);
+    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+    hr = pMFCreateMediaBufferFromMediaType(media_type, 10000000, 1, 0, &buffer);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaBuffer_GetMaxLength(buffer, &length);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(length == 1, "got length %lu.\n", length);
+    IMFMediaBuffer_Release(buffer);
+
+    hr = IMFMediaType_DeleteAllItems(media_type);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
     hr = IMFMediaType_SetGUID(media_type, &MF_MT_MAJOR_TYPE, &MFMediaType_Audio);
     ok(hr == S_OK, "Failed to set attribute, hr %#lx.\n", hr);
+
+    hr = pMFCreateMediaBufferFromMediaType(media_type, 10000000, 0, 0, &buffer);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaBuffer_GetMaxLength(buffer, &length);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(length == 0, "got length %lu.\n", length);
+    IMFMediaBuffer_Release(buffer);
 
     hr = IMFMediaType_CopyAllItems(media_type, (IMFAttributes *)media_type2);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
@@ -6572,6 +6696,96 @@ static void test_MFCreateMediaBufferFromMediaType(void)
     }
 
     IMFMediaType_Release(media_type);
+
+    for (i = 0; i < ARRAY_SIZE(video_tests); ++i)
+    {
+        const struct video_buffer_test *ptr = &video_tests[i];
+        LONG stride, tmp_stride, expected_stride;
+        BYTE *scanline, *tmp_scanline;
+        IMF2DBuffer *buffer_2d;
+        BOOL contiguous;
+
+        winetest_push_context("%u", i);
+
+        hr = MFCreateMediaType(&media_type);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        hr = IMFMediaType_SetGUID(media_type, &MF_MT_MAJOR_TYPE, &MFMediaType_Video);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        hr = IMFMediaType_SetGUID(media_type, &MF_MT_SUBTYPE, ptr->subtype);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        hr = IMFMediaType_SetUINT64(media_type, &MF_MT_FRAME_SIZE, ((UINT64)ptr->width << 32) | ptr->height);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+        if (ptr->stride)
+        {
+            hr = IMFMediaType_SetUINT32(media_type, &MF_MT_DEFAULT_STRIDE, ptr->stride);
+            ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        }
+
+        hr = pMFCreateMediaBufferFromMediaType(media_type, 10000000, ptr->min_length,
+                ptr->min_alignment, &buffer);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        if (FAILED(hr))
+        {
+            winetest_pop_context();
+            continue;
+        }
+
+        check_interface(buffer, &IID_IMF2DBuffer, TRUE);
+        check_interface(buffer, &IID_IMF2DBuffer2, TRUE);
+        check_interface(buffer, &IID_IMFDXGIBuffer, FALSE);
+        check_interface(buffer, &IID_IMFGetService, TRUE);
+
+        hr = IMFMediaBuffer_GetMaxLength(buffer, &length);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        ok(length == ptr->max_length, "Unexpected max length %lu.\n", length);
+
+        hr = IMFMediaBuffer_Lock(buffer, &data, &max, &length);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        ok(max == ptr->locked_length, "Unexpected locked max length %lu.\n", max);
+        ok(length == ptr->locked_length, "Unexpected locked length %lu.\n", length);
+        hr = IMFMediaBuffer_Unlock(buffer);
+        ok(hr == S_OK, "Failed to unlock, hr %#lx.\n", hr);
+
+        hr = IMFMediaBuffer_QueryInterface(buffer, &IID_IMF2DBuffer, (void **)&buffer_2d);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+        alignment = ptr->min_alignment ? ptr->min_alignment - 1 : MF_16_BYTE_ALIGNMENT;
+        expected_stride = ((ptr->width + 0xf) & ~0xf) * 4;
+
+        hr = IMF2DBuffer_Lock2D(buffer_2d, &scanline, &stride);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        ok(!!scanline, "Unexpected scanline %p.\n", scanline);
+        ok(!((uintptr_t)scanline & alignment), "scanline at %p is misaligned.\n", scanline);
+        if (abs(ptr->stride) >= expected_stride)
+            ok(stride == ptr->stride, "Unexpected stride %+ld.\n", stride);
+        else if (ptr->stride < 0)
+            ok(stride == -expected_stride, "Unexpected stride %+ld.\n", stride);
+        else
+            ok(stride == expected_stride, "Unexpected stride %+ld.\n", stride);
+
+        hr = IMF2DBuffer_GetScanline0AndPitch(buffer_2d, &tmp_scanline, &tmp_stride);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        ok(scanline == tmp_scanline, "Unexpected scanline %p.\n", tmp_scanline);
+        ok(stride == tmp_stride, "Unexpected stride %+ld.\n", tmp_stride);
+
+        hr = IMF2DBuffer_Unlock2D(buffer_2d);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+        hr = IMF2DBuffer_IsContiguousFormat(buffer_2d, &contiguous);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        ok(!contiguous, "Unexpected contiguous %u.\n", contiguous);
+        hr = IMF2DBuffer_GetContiguousLength(buffer_2d, &length);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        ok(length, "Unexpected contiguous length %lu.\n", length);
+
+        IMF2DBuffer_Release(buffer_2d);
+        IMFMediaBuffer_Release(buffer);
+        IMFMediaType_Release(media_type);
+
+        winetest_pop_context();
+    }
+
     IMFMediaType_Release(media_type2);
 }
 
@@ -6827,6 +7041,7 @@ static void test_MFCreateDXSurfaceBuffer(void)
     check_interface(buffer, &IID_IMF2DBuffer, TRUE);
     check_interface(buffer, &IID_IMF2DBuffer2, TRUE);
     check_interface(buffer, &IID_IMFGetService, TRUE);
+    check_interface(buffer, &IID_IMFDXGIBuffer, FALSE);
 
     /* Surface is accessible. */
     hr = IMFMediaBuffer_QueryInterface(buffer, &IID_IMFGetService, (void **)&gs);

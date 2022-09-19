@@ -483,11 +483,47 @@ static HRESULT WINAPI sample_copier_transform_ProcessInput(IMFTransform *iface, 
     return hr;
 }
 
+static HRESULT copy_buffer(IMFMediaBuffer *src, IMFMediaBuffer *dst)
+{
+    IMF2DBuffer2 *src_buffer_2d, *dst_buffer_2d;
+    DWORD src_length, dst_length;
+    BYTE *src_data, *dst_data;
+    HRESULT hr;
+
+    if (SUCCEEDED(hr = IMFMediaBuffer_QueryInterface(src, &IID_IMF2DBuffer2, (void **)&src_buffer_2d)))
+    {
+        if (SUCCEEDED(hr = IMFMediaBuffer_QueryInterface(dst, &IID_IMF2DBuffer2, (void **)&dst_buffer_2d)))
+        {
+            hr = IMF2DBuffer2_Copy2DTo(src_buffer_2d, dst_buffer_2d);
+            IMF2DBuffer2_Release(dst_buffer_2d);
+        }
+        IMF2DBuffer2_Release(src_buffer_2d);
+    }
+
+    if (FAILED(hr) && SUCCEEDED(hr = IMFMediaBuffer_Lock(src, &src_data, NULL, &src_length)))
+    {
+        if (SUCCEEDED(hr = IMFMediaBuffer_Lock(dst, &dst_data, &dst_length, NULL)))
+        {
+            if (dst_length < src_length)
+                hr = MF_E_BUFFERTOOSMALL;
+            else
+            {
+                memcpy(dst_data, src_data, src_length);
+                hr = IMFMediaBuffer_SetCurrentLength(dst, src_length);
+            }
+            IMFMediaBuffer_Unlock(dst);
+        }
+        IMFMediaBuffer_Unlock(src);
+    }
+
+    return hr;
+}
+
 static HRESULT WINAPI sample_copier_transform_ProcessOutput(IMFTransform *iface, DWORD flags, DWORD count,
         MFT_OUTPUT_DATA_BUFFER *buffers, DWORD *status)
 {
     struct sample_copier *transform = impl_from_IMFTransform(iface);
-    IMFMediaBuffer *buffer;
+    IMFMediaBuffer *src_buffer, *dst_buffer;
     DWORD sample_flags;
     HRESULT hr = S_OK;
     LONGLONG time;
@@ -512,14 +548,14 @@ static HRESULT WINAPI sample_copier_transform_ProcessOutput(IMFTransform *iface,
         if (SUCCEEDED(IMFSample_GetSampleFlags(transform->sample, &sample_flags)))
             IMFSample_SetSampleFlags(buffers->pSample, sample_flags);
 
-        if (SUCCEEDED(IMFSample_ConvertToContiguousBuffer(transform->sample, NULL)))
+        if (SUCCEEDED(IMFSample_ConvertToContiguousBuffer(transform->sample, &src_buffer)))
         {
-            if (SUCCEEDED(IMFSample_GetBufferByIndex(buffers->pSample, 0, &buffer)))
+            if (SUCCEEDED(IMFSample_GetBufferByIndex(buffers->pSample, 0, &dst_buffer)))
             {
-                if (FAILED(IMFSample_CopyToBuffer(transform->sample, buffer)))
-                    hr = MF_E_UNEXPECTED;
-                IMFMediaBuffer_Release(buffer);
+                hr = copy_buffer(src_buffer, dst_buffer);
+                IMFMediaBuffer_Release(dst_buffer);
             }
+            IMFMediaBuffer_Release(src_buffer);
         }
 
         IMFSample_Release(transform->sample);
