@@ -2912,8 +2912,8 @@ static void test_mixer_zorder(void)
     IMFTransform_Release(mixer);
 }
 
-static IDirect3DSurface9 * create_surface(IDirect3DDeviceManager9 *manager, unsigned int width,
-        unsigned int height)
+static IDirect3DSurface9 * create_surface(IDirect3DDeviceManager9 *manager, UINT32 format,
+        unsigned int width, unsigned int height)
 {
     IDirectXVideoAccelerationService *service;
     IDirect3DSurface9 *surface = NULL;
@@ -2931,7 +2931,7 @@ static IDirect3DSurface9 * create_surface(IDirect3DDeviceManager9 *manager, unsi
             (void **)&service);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
-    hr = IDirectXVideoAccelerationService_CreateSurface(service, width, height, 0, D3DFMT_A8R8G8B8,
+    hr = IDirectXVideoAccelerationService_CreateSurface(service, width, height, 0, format,
             D3DPOOL_DEFAULT, 0, DXVA2_VideoProcessorRenderTarget, &surface, NULL);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
@@ -3080,7 +3080,7 @@ static void test_mixer_samples(void)
 
     IMFSample_Release(sample);
 
-    surface = create_surface(manager, 64, 64);
+    surface = create_surface(manager, D3DFMT_A8R8G8B8, 64, 64);
 
     hr = MFCreateVideoSampleFromSurface((IUnknown *)surface, &sample);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
@@ -3332,7 +3332,7 @@ static void test_mixer_render(void)
     IMFMediaType_Release(output_type);
     IMFMediaType_Release(video_type);
 
-    surface = create_surface(manager, 64, 64);
+    surface = create_surface(manager, D3DFMT_A8R8G8B8, 64, 64);
     ok(!!surface, "Failed to create input surface.\n");
 
     hr = MFCreateVideoSampleFromSurface((IUnknown *)surface, &sample);
@@ -3383,6 +3383,486 @@ done:
     DestroyWindow(window);
 }
 
+IMFSample *create_surface_sample(IDirect3DSurface9 *surface, IMFMediaBuffer **media_buffer)
+{
+    IMFSample *sample;
+    HRESULT hr;
+
+    hr = MFCreateSample(&sample);
+    ok(hr == S_OK, "MFCreateSample returned %#lx\n", hr);
+    hr = MFCreateDXSurfaceBuffer(&IID_IDirect3DSurface9, (IUnknown *)surface, FALSE, media_buffer);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFSample_AddBuffer(sample, *media_buffer);
+    ok(hr == S_OK, "AddBuffer returned %#lx\n", hr);
+
+    return sample;
+}
+
+IMFSample *load_surface_sample(IDirect3DSurface9 *surface, const WCHAR *filename, const GUID *subtype)
+{
+    IMFMediaBuffer *media_buffer;
+    DWORD length, rsrc_length;
+    BYTE *data, *rsrc_data;
+    IMFSample *sample;
+    HRSRC resource;
+    HRESULT hr;
+    ULONG ret;
+
+    resource = FindResourceW(NULL, filename, (const WCHAR *)RT_RCDATA);
+    ok(resource != 0, "FindResourceW failed, error %lu\n", GetLastError());
+    rsrc_data = LockResource(LoadResource(GetModuleHandleW(NULL), resource));
+    rsrc_length = SizeofResource(GetModuleHandleW(NULL), resource);
+
+    /* skip BMP header (and RGB data) from the dump */
+    length = IsEqualGUID(subtype, &MFVideoFormat_RGB32) || IsEqualGUID(subtype, &MFVideoFormat_AYUV)
+            ? *(DWORD *)(rsrc_data + 2 + 2 * sizeof(DWORD))
+            : *(DWORD *)(rsrc_data + 2);
+    rsrc_length = rsrc_length - length;
+    rsrc_data = rsrc_data + length;
+
+    hr = MFCreateSample(&sample);
+    ok(hr == S_OK, "MFCreateSample returned %#lx\n", hr);
+    if (surface)
+        hr = MFCreateDXSurfaceBuffer(&IID_IDirect3DSurface9, (IUnknown *)surface, FALSE, &media_buffer);
+    else
+        hr = MFCreate2DMediaBuffer(64, 64, subtype->Data1, FALSE, &media_buffer);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaBuffer_Lock(media_buffer, &data, NULL, &length);
+    ok(hr == S_OK, "Lock returned %#lx\n", hr);
+    ok(length == rsrc_length, "got length %lu\n", length);
+    memcpy(data, rsrc_data, rsrc_length);
+    hr = IMFMediaBuffer_Unlock(media_buffer);
+    ok(hr == S_OK, "Unlock returned %#lx\n", hr);
+    hr = IMFMediaBuffer_SetCurrentLength(media_buffer, rsrc_length);
+    ok(hr == S_OK, "SetCurrentLength returned %#lx\n", hr);
+    hr = IMFSample_AddBuffer(sample, media_buffer);
+    ok(hr == S_OK, "AddBuffer returned %#lx\n", hr);
+    ret = IMFMediaBuffer_Release(media_buffer);
+    ok(ret == 1, "Release returned %lu\n", ret);
+
+    return sample;
+}
+
+static DWORD compare_rgba32(const BYTE *data, DWORD *length, const RECT *rect, const BYTE *expect)
+{
+    DWORD x, y, size, diff = 0, width = (rect->right + 0xf) & ~0xf, height = (rect->bottom + 0xf) & ~0xf;
+
+    /* skip BMP header from the dump */
+    size = *(DWORD *)(expect + 2 + 2 * sizeof(DWORD));
+    *length = *length + size;
+    expect = expect + size;
+
+    for (y = 0; y < height; y++, data += width * 4, expect += width * 4)
+    {
+        if (y < rect->top || y >= rect->bottom) continue;
+        for (x = 0; x < width; x++)
+        {
+            if (x < rect->left || x >= rect->right) continue;
+            diff += abs((int)expect[4 * x + 0] - (int)data[4 * x + 0]);
+            diff += abs((int)expect[4 * x + 1] - (int)data[4 * x + 1]);
+            diff += abs((int)expect[4 * x + 2] - (int)data[4 * x + 2]);
+            diff += abs((int)expect[4 * x + 4] - (int)data[4 * x + 4]);
+        }
+    }
+
+    size = (rect->right - rect->left) * (rect->bottom - rect->top) * 4;
+    return diff * 100 / 256 / size;
+}
+
+static DWORD compare_yuy2(const BYTE *data, DWORD *length, const RECT *rect, const BYTE *expect)
+{
+    DWORD i, x, y, size, diff = 0, width = (rect->right + 0xf) & ~0xf, height = (rect->bottom + 0xf) & ~0xf;
+
+    /* skip BMP header and RGB data from the dump */
+    size = *(DWORD *)(expect + 2);
+    *length = *length + size;
+    expect = expect + size;
+
+    for (i = 0; i < 2; ++i) for (y = 0; y < height; y++, data += width, expect += width)
+    {
+        if (y < rect->top || y >= rect->bottom) continue;
+        for (x = 0; x < width; x += 2)
+        {
+            if (x < rect->left || x >= rect->right) continue;
+            diff += abs((int)expect[x + 0] - (int)data[x + 0]);
+            diff += abs((int)expect[x + 1] - (int)data[x + 1]);
+        }
+    }
+
+    size = (rect->right - rect->left) * (rect->bottom - rect->top) * 2;
+    return diff * 100 / 256 / size;
+}
+
+DWORD compare_nv12(const BYTE *data, DWORD *length, const RECT *rect, const BYTE *expect)
+{
+    DWORD x, y, size, diff = 0, width = (rect->right + 0xf) & ~0xf, height = (rect->bottom + 0xf) & ~0xf;
+
+    /* skip BMP header and RGB data from the dump */
+    size = *(DWORD *)(expect + 2);
+    *length = *length + size;
+    expect = expect + size;
+
+    for (y = 0; y < height; y++, data += width, expect += width)
+    {
+        if (y < rect->top || y >= rect->bottom) continue;
+        for (x = 0; x < width; x++)
+        {
+            if (x < rect->left || x >= rect->right) continue;
+            diff += abs((int)expect[x] - (int)data[x]);
+        }
+    }
+
+    for (y = 0; y < height; y += 2, data += width, expect += width)
+    {
+        if (y < rect->top || y >= rect->bottom) continue;
+        for (x = 0; x < width; x += 2)
+        {
+            if (x < rect->left || x >= rect->right) continue;
+            diff += abs((int)expect[x + 0] - (int)data[x + 0]);
+            diff += abs((int)expect[x + 1] - (int)data[x + 1]);
+        }
+    }
+
+    size = (rect->right - rect->left) * (rect->bottom - rect->top) * 3 / 2;
+    return diff * 100 / 256 / size;
+}
+
+static void dump_rgba32(const BYTE *data, DWORD length, const RECT *rect, HANDLE output)
+{
+    DWORD width = (rect->right + 0xf) & ~0xf, height = (rect->bottom + 0xf) & ~0xf;
+    static const char magic[2] = "BM";
+    struct
+    {
+        DWORD length;
+        DWORD reserved;
+        DWORD offset;
+        BITMAPINFOHEADER biHeader;
+    } header =
+    {
+        .length = length + sizeof(header) + 2, .offset = sizeof(header) + 2,
+        .biHeader =
+        {
+            .biSize = sizeof(BITMAPINFOHEADER), .biWidth = width, .biHeight = height, .biPlanes = 1,
+            .biBitCount = 32, .biCompression = BI_RGB, .biSizeImage = width * height * 4,
+        },
+    };
+    DWORD written;
+    BOOL ret;
+
+    ret = WriteFile(output, magic, sizeof(magic), &written, NULL);
+    ok(ret, "WriteFile failed, error %lu\n", GetLastError());
+    ok(written == sizeof(magic), "written %lu bytes\n", written);
+    ret = WriteFile(output, &header, sizeof(header), &written, NULL);
+    ok(ret, "WriteFile failed, error %lu\n", GetLastError());
+    ok(written == sizeof(header), "written %lu bytes\n", written);
+    ret = WriteFile(output, data, length, &written, NULL);
+    ok(ret, "WriteFile failed, error %lu\n", GetLastError());
+    ok(written == length, "written %lu bytes\n", written);
+}
+
+void dump_yuy2(const BYTE *data, DWORD length, const RECT *rect, HANDLE output)
+{
+    DWORD written, x, y, width = (rect->right + 0xf) & ~0xf, height = (rect->bottom + 0xf) & ~0xf;
+    BYTE *rgba32_data = malloc(width * height * 4), *rgb32 = rgba32_data;
+    BOOL ret;
+
+    for (y = 0; y < height; y++) for (x = 0; x < width; x++)
+    {
+        *rgb32++ = data[2 * width * y + (x & ~1) + 0];
+        *rgb32++ = data[2 * width * y + (x & ~3) + 1];
+        *rgb32++ = data[2 * width * y + (x & ~3) + 3];
+        *rgb32++ = 0xff;
+    }
+
+    dump_rgba32(rgba32_data, width * height * 4, rect, output);
+    free(rgba32_data);
+
+    ret = WriteFile(output, data, length, &written, NULL);
+    ok(ret, "WriteFile failed, error %lu\n", GetLastError());
+    ok(written == length, "written %lu bytes\n", written);
+}
+
+void dump_nv12(const BYTE *data, DWORD length, const RECT *rect, HANDLE output)
+{
+    DWORD written, x, y, width = (rect->right + 0xf) & ~0xf, height = (rect->bottom + 0xf) & ~0xf;
+    BYTE *rgb32_data = malloc(width * height * 4), *rgb32 = rgb32_data;
+    BOOL ret;
+
+    for (y = 0; y < height; y++) for (x = 0; x < width; x++)
+    {
+        *rgb32++ = data[width * y + x];
+        *rgb32++ = data[width * height + width * (y / 2) + (x & ~1) + 0];
+        *rgb32++ = data[width * height + width * (y / 2) + (x & ~1) + 1];
+        *rgb32++ = 0xff;
+    }
+
+    dump_rgba32(rgb32_data, width * height * 4, rect, output);
+    free(rgb32_data);
+
+    ret = WriteFile(output, data, length, &written, NULL);
+    ok(ret, "WriteFile failed, error %lu\n", GetLastError());
+    ok(written == length, "written %lu bytes\n", written);
+}
+
+#define check_32bit_data(a, b, c, d) check_32bit_data_(__LINE__, a, b, c, d)
+static void check_32bit_data_(int line, const WCHAR *filename, const BYTE *data, DWORD length, const RECT *rect)
+{
+    WCHAR output_path[MAX_PATH];
+    const BYTE *expect_data;
+    HRSRC resource;
+    HANDLE output;
+    DWORD diff;
+
+    GetTempPathW(ARRAY_SIZE(output_path), output_path);
+    lstrcatW(output_path, filename);
+    output = CreateFileW(output_path, GENERIC_READ|GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, 0);
+    ok(output != INVALID_HANDLE_VALUE, "CreateFileW failed, error %lu\n", GetLastError());
+    dump_rgba32(data, length, rect, output);
+    trace("created %s\n", debugstr_w(output_path));
+    CloseHandle(output);
+
+    resource = FindResourceW(NULL, filename, (const WCHAR *)RT_RCDATA);
+    ok(resource != 0, "FindResourceW failed, error %lu\n", GetLastError());
+    expect_data = LockResource(LoadResource(GetModuleHandleW(NULL), resource));
+
+    diff = compare_rgba32(data, &length, rect, expect_data);
+    ok_(__FILE__, line)(diff == 0, "Unexpected %lu%% diff\n", diff);
+}
+
+#define check_yuy2_data(a, b, c, d) check_yuy2_data_(__LINE__, a, b, c, d)
+static inline void check_yuy2_data_(int line, const WCHAR *filename, const BYTE *data, DWORD length, const RECT *rect)
+{
+    WCHAR output_path[MAX_PATH];
+    const BYTE *expect_data;
+    HRSRC resource;
+    HANDLE output;
+    DWORD diff;
+
+    GetTempPathW(ARRAY_SIZE(output_path), output_path);
+    lstrcatW(output_path, filename);
+    output = CreateFileW(output_path, GENERIC_READ|GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, 0);
+    ok(output != INVALID_HANDLE_VALUE, "CreateFileW failed, error %lu\n", GetLastError());
+    dump_yuy2(data, length, rect, output);
+    trace("created %s\n", debugstr_w(output_path));
+    CloseHandle(output);
+
+    resource = FindResourceW(NULL, filename, (const WCHAR *)RT_RCDATA);
+    ok(resource != 0, "FindResourceW failed, error %lu\n", GetLastError());
+    expect_data = LockResource(LoadResource(GetModuleHandleW(NULL), resource));
+
+    diff = compare_yuy2(data, &length, rect, expect_data);
+    ok_(__FILE__, line)(diff == 0, "Unexpected %lu%% diff\n", diff);
+}
+
+#define check_nv12_data(a, b, c, d) check_nv12_data_(__LINE__, a, b, c, d)
+static inline void check_nv12_data_(int line, const WCHAR *filename, const BYTE *data, DWORD length, const RECT *rect)
+{
+    WCHAR output_path[MAX_PATH];
+    const BYTE *expect_data;
+    HRSRC resource;
+    HANDLE output;
+    DWORD diff;
+
+    GetTempPathW(ARRAY_SIZE(output_path), output_path);
+    lstrcatW(output_path, filename);
+    output = CreateFileW(output_path, GENERIC_READ|GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, 0);
+    ok(output != INVALID_HANDLE_VALUE, "CreateFileW failed, error %lu\n", GetLastError());
+    dump_nv12(data, length, rect, output);
+    trace("created %s\n", debugstr_w(output_path));
+    CloseHandle(output);
+
+    resource = FindResourceW(NULL, filename, (const WCHAR *)RT_RCDATA);
+    ok(resource != 0, "FindResourceW failed, error %lu\n", GetLastError());
+    expect_data = LockResource(LoadResource(GetModuleHandleW(NULL), resource));
+
+    diff = compare_nv12(data, &length, rect, expect_data);
+    ok_(__FILE__, line)(diff == 0, "Unexpected %lu%% diff\n", diff);
+}
+
+static void test_mixer_orientation(const GUID *subtype, const WCHAR *input_filename, const WCHAR *output_filename)
+{
+    static const RECT rect = {.right = 64, .bottom = 64};
+    static const DWORD width = 64, height = 64;
+    IMFSample *input_sample, *output_sample;
+    IMFMediaType *input_type, *output_type;
+    MFT_OUTPUT_DATA_BUFFER output_buffer;
+    IDirect3DDeviceManager9 *manager;
+    IMFMediaBuffer *media_buffer;
+    IMFVideoProcessor *processor;
+    IDirect3DSurface9 *surface;
+    IDirect3DDevice9 *device;
+    IMFTransform *mixer;
+    DWORD dst_length;
+    BYTE *dst_data;
+    DWORD status;
+    HWND window;
+    UINT token;
+    HRESULT hr;
+
+    window = create_window();
+    if (!(device = create_device(window)))
+    {
+        skip("Failed to create a D3D device, skipping tests.\n");
+        DestroyWindow(window);
+        return;
+    }
+
+    hr = MFCreateVideoMixer(NULL, &IID_IDirect3DDevice9, &IID_IMFTransform, (void **)&mixer);
+    ok(hr == S_OK, "Failed to create a mixer, hr %#lx.\n", hr);
+
+    hr = IMFTransform_QueryInterface(mixer, &IID_IMFVideoProcessor, (void **)&processor);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    IMFVideoProcessor_Release(processor);
+
+    hr = DXVA2CreateDirect3DDeviceManager9(&token, &manager);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IDirect3DDeviceManager9_ResetDevice(manager, device, token);
+    ok(hr == S_OK, "Failed to set a device, hr %#lx.\n", hr);
+    hr = IMFTransform_ProcessMessage(mixer, MFT_MESSAGE_SET_D3D_MANAGER, (ULONG_PTR)manager);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    input_type = create_video_type(subtype);
+    hr = IMFMediaType_SetUINT64(input_type, &MF_MT_FRAME_SIZE, (UINT64)width << 32 | height);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaType_SetUINT32(input_type, &MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFTransform_SetInputType(mixer, 0, input_type, 0);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    IMFMediaType_Release(input_type);
+    if (hr != S_OK)
+        goto done;
+
+    hr = IMFTransform_GetOutputAvailableType(mixer, 0, 0, &output_type);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    IMFMediaType_SetGUID(output_type, &MF_MT_SUBTYPE, &MFVideoFormat_RGB32);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFTransform_SetOutputType(mixer, 0, output_type, 0);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    IMFMediaType_Release(output_type);
+
+    surface = create_surface(manager, subtype->Data1, rect.right, rect.bottom);
+    ok(!!surface, "Failed to create input surface.\n");
+    input_sample = load_surface_sample(surface, input_filename, subtype);
+    ok(!!input_sample, "Failed to create input sample.\n");
+    IDirect3DSurface9_Release(surface);
+
+    hr = IMFTransform_ProcessInput(mixer, 0, input_sample, 0);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    IMFSample_Release(input_sample);
+
+    surface = create_surface(manager, D3DFMT_A8R8G8B8, rect.right, rect.bottom);
+    ok(!!surface, "Failed to create output surface.\n");
+    output_sample = create_surface_sample(surface, &media_buffer);
+    ok(!!output_sample, "Failed to create output sample.\n");
+    IDirect3DSurface9_Release(surface);
+
+    status = 0;
+    memset(&output_buffer, 0, sizeof(output_buffer));
+    output_buffer.pSample = output_sample;
+    hr = IMFTransform_ProcessOutput(mixer, 0, 1, &output_buffer, &status);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(status == 0, "got status %#lx\n", status);
+    ok(output_buffer.pSample == output_sample, "got output_buffer.pSample %p\n", output_buffer.pSample);
+    ok(output_buffer.dwStatus == 0, "got output_buffer.dwStatus %#lx\n", output_buffer.dwStatus);
+    IMFSample_Release(output_sample);
+
+    hr = IMFMediaBuffer_Lock(media_buffer, &dst_data, NULL, &dst_length);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    check_32bit_data(output_filename, dst_data, dst_length, &rect);
+    hr = IMFMediaBuffer_Unlock(media_buffer);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    IMFMediaBuffer_Release(media_buffer);
+
+done:
+    IMFTransform_Release(mixer);
+
+    IDirect3DDeviceManager9_Release(manager);
+    ok(!IDirect3DDevice9_Release(device), "Unexpected refcount.\n");
+
+    DestroyWindow(window);
+}
+
+static void test_presenter_orientation(void)
+{
+}
+
+static void test_transform(const GUID *input_subtype, const WCHAR *input_filename,
+        const GUID *output_subtype, const WCHAR *output_filename)
+{
+    static const RECT rect = {.right = 64, .bottom = 64};
+    static const DWORD width = 64, height = 64;
+
+    IMFSample *input_sample, *output_sample;
+    IMFMediaType *input_type, *output_type;
+    MFT_OUTPUT_DATA_BUFFER output_buffer;
+    IMFMediaBuffer *media_buffer;
+    IMFTransform *transform;
+    DWORD status, length;
+    HRESULT hr;
+    BYTE *data;
+
+    if (FAILED(hr = CoCreateInstance(&CLSID_VideoProcessorMFT, NULL, CLSCTX_INPROC_SERVER,
+            &IID_IMFTransform, (void **)&transform)))
+        return;
+
+    input_type = create_video_type(input_subtype);
+    hr = IMFMediaType_SetUINT64(input_type, &MF_MT_FRAME_SIZE, (UINT64)width << 32 | height);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaType_SetUINT32(input_type, &MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFTransform_SetInputType(transform, 0, input_type, 0);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    IMFMediaType_Release(input_type);
+
+    output_type = create_video_type(output_subtype);
+    hr = IMFMediaType_SetUINT64(output_type, &MF_MT_FRAME_SIZE, (UINT64)width << 32 | height);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaType_SetUINT32(output_type, &MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFTransform_SetOutputType(transform, 0, output_type, 0);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    IMFMediaType_Release(output_type);
+
+    input_sample = load_surface_sample(NULL, input_filename, input_subtype);
+    hr = IMFSample_SetSampleTime(input_sample, 0);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    IMFSample_Release(input_sample);
+
+    hr = MFCreateSample(&output_sample);
+    ok(hr == S_OK, "MFCreateSample returned %#lx\n", hr);
+    hr = MFCreate2DMediaBuffer(width, height, output_subtype->Data1, FALSE, &media_buffer);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFSample_AddBuffer(output_sample, media_buffer);
+    ok(hr == S_OK, "AddBuffer returned %#lx\n", hr);
+
+    status = 0;
+    memset(&output_buffer, 0, sizeof(output_buffer));
+    output_buffer.pSample = output_sample;
+    hr = IMFTransform_ProcessOutput(transform, 0, 1, &output_buffer, &status);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(status == 0, "got status %#lx\n", status);
+    ok(output_buffer.pSample == output_sample, "got output_buffer.pSample %p\n", output_buffer.pSample);
+    ok(output_buffer.dwStatus == 0, "got output_buffer.dwStatus %#lx\n", output_buffer.dwStatus);
+    IMFSample_Release(output_sample);
+
+    hr = IMFMediaBuffer_Lock(media_buffer, &data, NULL, &length);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    if (IsEqualGUID(output_subtype, &MFVideoFormat_RGB32)
+            || IsEqualGUID(output_subtype, &MFVideoFormat_AYUV))
+        check_32bit_data(output_filename, data, length, &rect);
+    else if (IsEqualGUID(output_subtype, &MFVideoFormat_YUY2))
+        check_yuy2_data(output_filename, data, length, &rect);
+    else if (IsEqualGUID(output_subtype, &MFVideoFormat_NV12))
+        check_nv12_data(output_filename, data, length, &rect);
+    hr = IMFMediaBuffer_Unlock(media_buffer);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    IMFMediaBuffer_Release(media_buffer);
+
+    IMFTransform_Release(transform);
+}
+
 START_TEST(evr)
 {
     IMFVideoPresenter *presenter;
@@ -3398,6 +3878,16 @@ START_TEST(evr)
     }
     IMFVideoPresenter_Release(presenter);
 
+    test_transform(&MFVideoFormat_RGB32, L"rgb32frame.bmp", &MFVideoFormat_RGB32, L"rgb32frame.bmp");
+    test_transform(&MFVideoFormat_RGB32, L"rgb32frame.bmp", &MFVideoFormat_NV12, L"nv12frame.bmp");
+    test_transform(&MFVideoFormat_RGB32, L"rgb32frame.bmp", &MFVideoFormat_AYUV, L"ayuvframe.bmp");
+    test_transform(&MFVideoFormat_RGB32, L"rgb32frame.bmp", &MFVideoFormat_YUY2, L"yuy2frame.bmp");
+    test_mixer_orientation(&MFVideoFormat_RGB32, L"rgb32frame.bmp", L"evr-rgb32-argb32.bmp");
+    test_mixer_orientation(&MFVideoFormat_NV12, L"nv12frame.bmp", L"evr-nv12-argb32.bmp");
+    test_mixer_orientation(&MFVideoFormat_AYUV, L"ayuvframe.bmp", L"evr-ayuv-argb32.bmp");
+    test_mixer_orientation(&MFVideoFormat_YUY2, L"yuy2frame.bmp", L"evr-yuy2-argb32.bmp");
+    test_presenter_orientation();
+return;
     test_aggregation();
     test_interfaces();
     test_enum_pins();
@@ -3422,10 +3912,12 @@ START_TEST(evr)
     test_presenter_quality_control();
     test_presenter_media_type();
     test_presenter_shutdown();
+    test_presenter_orientation();
     test_mixer_output_rectangle();
     test_mixer_zorder();
     test_mixer_samples();
     test_mixer_render();
+    test_mixer_orientation(&MFVideoFormat_RGB32, L"rgb32frame.bmp", L"evr-rgb32-argb32.bmp");
     test_MFIsFormatYUV();
 
     CoUninitialize();

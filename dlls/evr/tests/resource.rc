@@ -1,0 +1,46 @@
+/*
+ * Copyright 2022 Rémi Bernon for CodeWeavers
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
+ */
+
+#include "windef.h"
+
+/* @makedep: nv12frame.bmp */
+nv12frame.bmp RCDATA nv12frame.bmp
+
+/* @makedep: rgb16frame.bmp */
+rgb16frame.bmp RCDATA rgb16frame.bmp
+
+/* @makedep: rgb32frame.bmp */
+rgb32frame.bmp RCDATA rgb32frame.bmp
+
+/* @makedep: yuy2frame.bmp */
+yuy2frame.bmp RCDATA yuy2frame.bmp
+
+/* @makedep: ayuvframe.bmp */
+ayuvframe.bmp RCDATA ayuvframe.bmp
+
+/* @makedep: evr-rgb32-argb32.bmp */
+evr-rgb32-argb32.bmp RCDATA evr-rgb32-argb32.bmp
+
+/* @makedep: evr-nv12-argb32.bmp */
+evr-nv12-argb32.bmp RCDATA evr-nv12-argb32.bmp
+
+/* @makedep: evr-ayuv-argb32.bmp */
+evr-ayuv-argb32.bmp RCDATA evr-ayuv-argb32.bmp
+
+/* @makedep: evr-yuy2-argb32.bmp */
+evr-yuy2-argb32.bmp RCDATA evr-yuy2-argb32.bmp
