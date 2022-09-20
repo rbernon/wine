@@ -34,6 +34,7 @@
 #include "winbase.h"
 
 #include "wine/debug.h"
+#include "wine/prof.h"
 #include "x11drv.h"
 
 #define VK_NO_PROTOTYPES
@@ -650,11 +651,15 @@ static VkResult X11DRV_vkQueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *
     {
         static unsigned long frames, frames_total;
         static long prev_time, start_time;
+        static struct __wine_prof_frame_data fps_ticks = {"fps", 0, 0, 0};
         DWORD time;
 
         time = NtGetTickCount();
         frames++;
         frames_total++;
+
+        PROF_FRAME(&fps_ticks);
+
         if (time - prev_time > 1500)
         {
             TRACE_(fps)("%p @ approx %.2ffps, total %.2ffps\n",

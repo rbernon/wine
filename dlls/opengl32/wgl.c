@@ -35,6 +35,7 @@
 
 #include "wine/glu.h"
 #include "wine/debug.h"
+#include "wine/prof.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(opengl);
 WINE_DECLARE_DEBUG_CHANNEL(fps);
@@ -324,12 +325,16 @@ BOOL WINAPI DECLSPEC_HOTPATCH wglSwapBuffers( HDC hdc )
     if ((status = UNIX_CALL( wglSwapBuffers, &args ))) WARN( "wglSwapBuffers returned %#lx\n", status );
     else if (TRACE_ON(fps))
     {
+        static struct __wine_prof_frame_data fps_ticks = {"fps", 0, 0, 0};
         static long prev_time, start_time;
         static unsigned long frames, frames_total;
 
         DWORD time = GetTickCount();
         frames++;
         frames_total++;
+
+        PROF_FRAME(&fps_ticks);
+
         /* every 1.5 seconds */
         if (time - prev_time > 1500)
         {
