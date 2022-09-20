@@ -49,9 +49,6 @@ struct debug_info
 
 C_ASSERT( sizeof(struct debug_info) == 0x800 );
 
-static int nb_debug_options;
-static struct __wine_debug_channel *debug_options;
-
 static inline struct debug_info *get_info(void)
 {
 #ifdef _WIN64
@@ -61,12 +58,13 @@ static inline struct debug_info *get_info(void)
 #endif
 }
 
-static void init_options(void)
+void __cdecl __wine_dbg_init( struct __wine_debug_channel **options, LONG *option_count )
 {
-    unsigned int offset = page_size * (sizeof(void *) / 4);
-
-    debug_options = (struct __wine_debug_channel *)((char *)NtCurrentTeb()->Peb + offset);
-    while (debug_options[nb_debug_options].name[0]) nb_debug_options++;
+    unsigned int offset = page_size * (sizeof(void *) / 4), count = 0;
+    struct __wine_debug_channel *peb_options = (struct __wine_debug_channel *)((char *)NtCurrentTeb()->Peb + offset);
+    while (peb_options[count].name[0]) count++;
+    InterlockedExchangePointer( (void *)options, peb_options );
+    InterlockedExchange( option_count, count );
 }
 
 /* add a string to the output buffer */
@@ -92,10 +90,13 @@ static int append_output( struct debug_info *info, const char *str, size_t len )
  */
 unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel *channel )
 {
+    static struct __wine_debug_channel *debug_options;
+    static LONG nb_debug_options = -1;
+
     int min, max, pos, res;
     unsigned char default_flags;
 
-    if (!debug_options) init_options();
+    if (nb_debug_options == -1) __wine_dbg_init( &debug_options, &nb_debug_options );
 
     min = 0;
     max = nb_debug_options - 1;
