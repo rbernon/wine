@@ -28,6 +28,7 @@
 /* winecrtd/dbgstr_mf.c */
 extern const char *debugstr_mf_guid(const GUID *guid);
 extern const char *debugstr_mf_attr(const GUID *guid);
+extern const char *debugstr_mf_eventid(MediaEventType type);
 
 struct attribute
 {
