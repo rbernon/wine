@@ -20,6 +20,13 @@
 
 #include "config.h"
 
+#include <stdarg.h>
+#include <stddef.h>
+
+#include "windef.h"
+#include "winbase.h"
+#include "winnt.h"
+
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -30,16 +37,333 @@
 #include <unistd.h>
 #include <dlfcn.h>
 #include <limits.h>
+#ifdef __linux__
+# include <malloc.h>
+#endif
 #ifdef HAVE_SYS_SYSCTL_H
 # include <sys/sysctl.h>
 #endif
+#ifdef HAVE_LINK_H
+# include <link.h>
+#endif
+#ifdef HAVE_SYS_LINK_H
+# include <sys/link.h>
+#endif
+
+#include "wine/list.h"
 
 #include "main.h"
 
 extern char **environ;
 
-/* the preloader will set this variable */
+/* the preloader will set these variables */
 const struct wine_preload_info *wine_main_preload_info = NULL;
+void (*wine_dl_debug_state)(void) = NULL;
+struct r_debug *wine_r_debug = NULL;
+
+#ifdef __linux__
+
+struct link_map_entry
+{
+    struct link_map map;
+    const void *module;
+    struct list entry;
+};
+
+static pthread_mutex_t link_map_lock;
+static struct link_map so_link_map = {0};
+static struct link_map pe_link_map = {.l_prev = &so_link_map, .l_name = (char *)""};
+static struct list pe_link_map_entries = LIST_INIT( pe_link_map_entries );
+
+static char *strdup_link_name( const char *path )
+{
+    char *real;
+    if (!path || !(real = realpath( path, NULL ))) return strdup( path );
+    if (!strncmp( real, "/run/host", 9 )) memmove( real, real + 9, strlen( real ) - 8 );
+    return real;
+}
+
+static void sync_wine_link_map(void)
+{
+    static struct r_debug *_r_debug;
+    struct link_map *next = &so_link_map, **rtld_map, **wine_map;
+
+    if (!_r_debug) _r_debug = dlsym( RTLD_NEXT, "_r_debug" );
+    rtld_map = &_r_debug->r_map;
+    wine_map = &next;
+
+    /* unlink PE link map */
+    pe_link_map.l_prev->l_next = NULL;
+
+    while (*rtld_map)
+    {
+        if (!*wine_map)
+        {
+            if (!(*wine_map = calloc( 1, sizeof(struct link_map) ))) break;
+            (*wine_map)->l_prev = pe_link_map.l_prev;
+        }
+
+        pe_link_map.l_prev = *wine_map;
+        free( (*wine_map)->l_name );
+        (*wine_map)->l_addr = (*rtld_map)->l_addr;
+        (*wine_map)->l_name = strdup_link_name( (*rtld_map)->l_name );
+        (*wine_map)->l_ld = (*rtld_map)->l_ld;
+        rtld_map = &(*rtld_map)->l_next;
+        wine_map = &(*wine_map)->l_next;
+    }
+
+    /* remove the remaining wine entries */
+    next = *wine_map;
+    *wine_map = NULL;
+
+    while (next)
+    {
+        struct link_map *prev = next;
+        wine_map = &next->l_next;
+        next = *wine_map;
+        *wine_map = NULL;
+        free( prev->l_name );
+        free( prev );
+    }
+
+    /* link PE link map back */
+    pe_link_map.l_prev->l_next = &pe_link_map;
+
+    if (wine_r_debug) wine_r_debug->r_map = &so_link_map;
+    if (wine_dl_debug_state) wine_dl_debug_state();
+}
+
+static void add_dll_to_pe_link_map( const void *module, const char *unix_path )
+{
+    const IMAGE_DOS_HEADER *dos = (const IMAGE_DOS_HEADER *)module;
+    const IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)((const BYTE *)dos + dos->e_lfanew);
+    struct link_map_entry *entry;
+    struct link_map *map_end;
+    struct list *tail;
+
+    if (!(entry = calloc( 1, sizeof(*entry) ))) return;
+
+    entry->module = module;
+    entry->map.l_addr = (char *)module - (char *)nt->OptionalHeader.ImageBase;
+    entry->map.l_name = strdup_link_name( unix_path );
+
+    if ((tail = list_tail( &pe_link_map_entries )))
+    {
+        entry->map.l_prev = &LIST_ENTRY( tail, struct link_map_entry, entry )->map;
+        entry->map.l_prev->l_next = &entry->map;
+    }
+    else
+    {
+        map_end = &pe_link_map;
+        while (map_end->l_next) map_end = map_end->l_next;
+
+        map_end->l_next = &entry->map;
+        map_end->l_next->l_prev = map_end;
+    }
+
+    list_add_tail( &pe_link_map_entries, &entry->entry );
+}
+
+void wine_gdb_dll_loaded( const void *module, const char *unix_path )
+{
+    struct link_map_entry *entry;
+
+    pthread_mutex_lock( &link_map_lock );
+
+    LIST_FOR_EACH_ENTRY( entry, &pe_link_map_entries, struct link_map_entry, entry )
+        if (entry->module == module) break;
+
+    if (&entry->entry == &pe_link_map_entries)
+        add_dll_to_pe_link_map( module, unix_path );
+    else
+    {
+        const IMAGE_DOS_HEADER *dos = (const IMAGE_DOS_HEADER *)module;
+        const IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)((const BYTE *)dos + dos->e_lfanew);
+        entry->map.l_addr = (char *)module - (char *)nt->OptionalHeader.ImageBase;
+    }
+
+    sync_wine_link_map();
+
+    pthread_mutex_unlock( &link_map_lock );
+}
+
+void wine_gdb_dll_unload( const void *module )
+{
+    struct link_map_entry *entry;
+
+    pthread_mutex_lock( &link_map_lock );
+
+    LIST_FOR_EACH_ENTRY( entry, &pe_link_map_entries, struct link_map_entry, entry )
+        if (entry->module == module) break;
+
+    if (&entry->entry == &pe_link_map_entries)
+    {
+        pthread_mutex_unlock( &link_map_lock );
+        return;
+    }
+
+    list_remove( &entry->entry );
+
+    if (entry->map.l_prev) entry->map.l_prev->l_next = entry->map.l_next;
+    if (entry->map.l_next) entry->map.l_next->l_prev = entry->map.l_prev;
+
+    sync_wine_link_map();
+
+    pthread_mutex_unlock( &link_map_lock );
+
+    free( entry->map.l_name );
+    free( entry );
+}
+
+void *dlopen( const char *file, int mode )
+{
+    static typeof(dlopen) *rtld_dlopen;
+    void *ret;
+
+    pthread_mutex_lock( &link_map_lock );
+
+    if (!rtld_dlopen) rtld_dlopen = dlsym( RTLD_NEXT, "dlopen" );
+    ret = rtld_dlopen( file, mode );
+    sync_wine_link_map();
+
+    pthread_mutex_unlock( &link_map_lock );
+
+    return ret;
+}
+
+int dlclose( void *handle )
+{
+    static typeof(dlclose) *rtld_dlclose;
+    int ret;
+
+    pthread_mutex_lock( &link_map_lock );
+
+    if (!rtld_dlclose) rtld_dlclose = dlsym( RTLD_NEXT, "dlclose" );
+    ret = rtld_dlclose( handle );
+    sync_wine_link_map();
+
+    pthread_mutex_unlock( &link_map_lock );
+
+    return ret;
+}
+
+extern void *__libc_malloc( size_t size );
+extern void *__libc_valloc( size_t size );
+extern void *__libc_memalign( size_t align, size_t size );
+extern void *__libc_calloc( size_t count, size_t size );
+extern void *__libc_realloc( void *ptr, size_t size );
+extern void __libc_free( void *ptr );
+
+static pthread_mutex_t free_lock = PTHREAD_MUTEX_INITIALIZER;
+static size_t free_delay_count;
+static void *free_origin[256];
+static void *free_delay[256];
+
+static int malloc_trace_on;
+#define MALLOC_TRACE( fmt, ... ) fprintf( stderr, "%u: %p: %s: " fmt, gettid(), __builtin_return_address(0), __func__, ## __VA_ARGS__ )
+
+void *malloc( size_t size )
+{
+    void *ret;
+    ret = __libc_malloc( size );
+    if (malloc_trace_on) MALLOC_TRACE( "size %#zx, ret %p\n", size, ret );
+    return ret;
+}
+
+void *valloc( size_t size )
+{
+    void *ret;
+    ret = __libc_valloc( size );
+    if (malloc_trace_on) MALLOC_TRACE( "size %#zx, ret %p\n", size, ret );
+    return ret;
+}
+
+void *memalign( size_t align, size_t size )
+{
+    void *ret;
+    ret = __libc_memalign( align, size );
+    if (malloc_trace_on) MALLOC_TRACE( "align %#zx, size %#zx, ret %p\n", align, size, ret );
+    return ret;
+}
+
+int posix_memalign( void **ptr, size_t align, size_t size )
+{
+    void *ret = NULL;
+    int err = 0;
+
+    if ((align & (align - 1)) || align % sizeof (void *)) err = 22;
+    else if (!(ret = __libc_memalign( align, size ))) err = 12;
+
+    if (malloc_trace_on) MALLOC_TRACE( "align %#zx, size %#zx, ret %p\n", align, size, ret );
+    *ptr = ret;
+    return err;
+}
+
+void *aligned_alloc( size_t align, size_t size )
+{
+    void *ret;
+    ret = __libc_memalign( align, size );
+    if (malloc_trace_on) MALLOC_TRACE( "align %#zx, size %#zx, ret %p\n", align, size, ret );
+    return ret;
+}
+
+void *calloc( size_t count, size_t size )
+{
+    void *ret;
+    ret = __libc_calloc( count, size );
+    if (malloc_trace_on) MALLOC_TRACE( "count %#zx, size %#zx, ret %p\n", count, size, ret );
+    return ret;
+}
+
+void *realloc( void *ptr, size_t size )
+{
+    void *ret;
+    if (malloc_trace_on) MALLOC_TRACE( "ptr %p, size %#zx\n", ptr, size );
+    ret = __libc_realloc( ptr, size );
+    if (malloc_trace_on) MALLOC_TRACE( "ptr %p, size %#zx, ret %p\n", ptr, size, ret );
+    return ret;
+}
+
+void free( void *ptr )
+{
+    void *tmp, *origin = __builtin_return_address(0);
+    size_t size, idx;
+
+    if (!ptr) return;
+    if (malloc_trace_on) MALLOC_TRACE( "ptr %p\n", ptr );
+
+    size = malloc_usable_size( ptr );
+    memset( ptr, 0xcd, size );
+
+    pthread_mutex_lock( &free_lock );
+    idx = free_delay_count++ % ARRAY_SIZE(free_delay);
+    tmp = free_delay[idx];
+    free_origin[idx] = origin;
+    free_delay[idx] = ptr;
+    ptr = tmp;
+    pthread_mutex_unlock( &free_lock );
+
+    if (!ptr) return;
+
+    size = malloc_usable_size( ptr );
+    while (size--)
+    {
+        if (((unsigned char *)ptr)[size] == 0xcd) continue;
+        MALLOC_TRACE( "ptr %p, size %#zx, UAF!\n", ptr, size );
+        abort();
+    }
+
+    __libc_free( ptr );
+}
+
+void __assert_fail( const char *assertion, const char *file, unsigned int line, const char *function )
+{
+    MALLOC_TRACE( "%s:%d:%s: %s\n", file, line, function, assertion );
+    *(volatile int *)0 = 0;
+}
+
+
+#endif /* __linux__ */
 
 /* canonicalize path and return its directory name */
 static char *realpath_dirname( const char *name )
@@ -176,6 +500,13 @@ static void *load_ntdll( char *argv0 )
 int main( int argc, char *argv[] )
 {
     void *handle;
+#ifdef __linux__
+    pthread_mutexattr_t attr;
+    pthread_mutexattr_init( &attr );
+    pthread_mutexattr_settype( &attr, PTHREAD_MUTEX_RECURSIVE );
+    pthread_mutex_init( &link_map_lock, &attr );
+    pthread_mutexattr_destroy( &attr );
+#endif /* __linux__ */
 
     if ((handle = load_ntdll( argv[0] )))
     {
