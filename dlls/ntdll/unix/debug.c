@@ -134,7 +134,11 @@ static void parse_options( const char *str, const char *app_name )
     char *opt, *next, *options;
     unsigned int i;
 
-    if (!(options = strdup(str))) return;
+    nb_debug_options = 0;
+
+    if (!str) options = NULL;
+    else options = strdup( str );
+
     for (opt = options; opt; opt = next)
     {
         char *p;
@@ -200,22 +204,16 @@ static void debug_usage(void)
 /* initialize all options at startup */
 static void init_options(void)
 {
-    char *wine_debug = getenv("WINEDEBUG");
+    const char *wine_debug = getenv("WINEDEBUG");
     const char *app_name, *p;
     struct stat st1, st2;
-
-    nb_debug_options = 0;
 
     /* check for stderr pointing to /dev/null */
     if (!fstat( 2, &st1 ) && S_ISCHR(st1.st_mode) &&
         !stat( "/dev/null", &st2 ) && S_ISCHR(st2.st_mode) &&
-        st1.st_rdev == st2.st_rdev)
-    {
-        default_flags = 0;
-        return;
-    }
-    if (!wine_debug) return;
-    if (!strcmp( wine_debug, "help" )) debug_usage();
+        st1.st_rdev == st2.st_rdev) wine_debug = "-all";
+
+    if (wine_debug && !strcmp( wine_debug, "help" )) debug_usage();
 
     app_name = main_argv[1];
     while ((p = strpbrk( app_name, "/\\" ))) app_name = p + 1;
