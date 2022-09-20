@@ -118,34 +118,6 @@ static void init_options(void)
 }
 
 /***********************************************************************
- *		__wine_dbg_get_channel_flags  (NTDLL.@)
- *
- * Get the flags to use for a given channel, possibly setting them too in case of lazy init
- */
-unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel *channel )
-{
-    unsigned char default_flags;
-    int min, max, pos, res;
-
-    if (nb_debug_options == -1) init_options();
-
-    min = 0;
-    max = nb_debug_options - 1;
-    while (min <= max)
-    {
-        pos = (min + max) / 2;
-        res = strcmp( channel->name, debug_options[pos].name );
-        if (!res) return debug_options[pos].flags;
-        if (res < 0) max = pos - 1;
-        else min = pos + 1;
-    }
-    /* no option for this channel */
-    default_flags = debug_options[nb_debug_options].flags;
-    if (channel->flags & (1 << __WINE_DBCL_INIT)) channel->flags = default_flags;
-    return default_flags;
-}
-
-/***********************************************************************
  *		__wine_dbg_write  (NTDLL.@)
  */
 int WINAPI __wine_dbg_write( const char *str, unsigned int len )
@@ -223,6 +195,12 @@ void dbg_init(void)
     init_done = TRUE;
 }
 
+void __cdecl __wine_dbg_init( struct __wine_debug_channel **options, int *option_count )
+{
+    if (nb_debug_options == -1) init_options();
+    InterlockedExchangePointer( (void **)options, debug_options );
+    InterlockedExchange( option_count, init_done ? nb_debug_options : -(nb_debug_options + 1) );
+}
 
 /***********************************************************************
  *              NtTraceControl  (NTDLL.@)
