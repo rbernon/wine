@@ -40,7 +40,6 @@ static int (__cdecl *p__wine_dbg_header)( enum __wine_debug_class cls,
 
 static const char * const debug_classes[] = { "fixme", "err", "warn", "trace" };
 
-static unsigned char default_flags = (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
 static int nb_debug_options = -1;
 static struct __wine_debug_channel *debug_options;
 static const int max_debug_options = 2048; /* see ntdll/unix/debug.c */
@@ -90,6 +89,7 @@ static int add_option( struct __wine_debug_channel *options, int option_count, u
 static int parse_options( struct __wine_debug_channel *options, int max_options,
                           const char *wine_debug )
 {
+    unsigned char default_flags = (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
     char *opt, *next, *buf;
     unsigned int i, count = 0;
 
@@ -134,11 +134,12 @@ static int parse_options( struct __wine_debug_channel *options, int max_options,
         else if (strlen( p ) < sizeof(options[0].name))
         {
             count = add_option( options, count, default_flags, p, set, clear );
-            if (count >= max_debug_options) break; /* too many options */
+            if (count >= max_debug_options - 1) break; /* too many options */
         }
     }
     free( buf );
 
+    options[count++].flags = default_flags;
     return count;
 }
 
@@ -198,12 +199,14 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls,
 
 static unsigned char __cdecl fallback__wine_dbg_get_channel_flags( struct __wine_debug_channel *channel )
 {
+    unsigned char default_flags;
     int min, max, pos, res;
 
     if (nb_debug_options == -1) init_options();
+    if (!nb_debug_options) return (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
 
     min = 0;
-    max = nb_debug_options - 1;
+    max = nb_debug_options - 2;
     while (min <= max)
     {
         pos = (min + max) / 2;
@@ -213,6 +216,7 @@ static unsigned char __cdecl fallback__wine_dbg_get_channel_flags( struct __wine
         else min = pos + 1;
     }
     /* no option for this channel */
+    default_flags = debug_options[nb_debug_options - 1].flags;
     if (channel->flags & (1 << __WINE_DBCL_INIT)) channel->flags = default_flags;
     return default_flags;
 }
