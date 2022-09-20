@@ -121,28 +121,26 @@ static int parse_options( struct __wine_debug_channel *options, int max_options,
                           const char *wine_debug, const char *app_name )
 {
     unsigned char default_flags = (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
-    char *opt, *next, *buf;
+    const char *opt, *next;
     unsigned int i, count = 0;
 
-    if (!wine_debug) buf = NULL;
-    else buf = strdup( wine_debug );
-
-    for (opt = buf; opt; opt = next)
+    for (opt = wine_debug; opt; opt = next)
     {
-        char *p;
+        struct __wine_debug_channel option = {0};
+        const char *p, *end;
         unsigned char set = 0, clear = 0;
 
-        if ((next = strchr( opt, ',' ))) *next++ = 0;
+        if ((next = strchr( opt, ',' ))) end = next++;
+        else end = opt + strlen( opt );
 
         if ((p = strchr( opt, ':' )))
         {
-            *p = 0;
-            if (strcasecmp( opt, app_name )) continue;
+            if (strncasecmp( opt, app_name, p - opt )) continue;
             opt = p + 1;
         }
 
         p = opt + strcspn( opt, "+-" );
-        if (!p[0]) p = opt;  /* assume it's a debug channel name */
+        if (p == end) p = opt;  /* assume it's a debug channel name */
 
         if (p > opt)
         {
@@ -166,16 +164,17 @@ static int parse_options( struct __wine_debug_channel *options, int max_options,
             else set = ~0;
         }
         if (*p == '+' || *p == '-') p++;
+        if (end - p >= sizeof(option.name)) continue; /* name too long */
+        memcpy( option.name, p, end - p );
 
-        if (!strcmp( p, "all" ) || !p[0])
+        if (!strcmp( option.name, "all" ) || !option.name[0])
             default_flags = (default_flags & ~clear) | set;
-        else if (strlen( p ) < sizeof(options[0].name))
+        else
         {
-            count = add_option( options, count, default_flags, p, set, clear );
+            count = add_option( options, count, default_flags, option.name, set, clear );
             if (count >= max_options - 1) break; /* too many options */
         }
     }
-    free( buf );
 
     options[count++].flags = default_flags;
     return count;
