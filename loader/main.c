@@ -20,6 +20,13 @@
 
 #include "config.h"
 
+#include <stdarg.h>
+#include <stddef.h>
+
+#include "windef.h"
+#include "winbase.h"
+#include "winnt.h"
+
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -30,9 +37,20 @@
 #include <unistd.h>
 #include <dlfcn.h>
 #include <limits.h>
+#ifdef __linux__
+# include <malloc.h>
+#endif
 #ifdef HAVE_SYS_SYSCTL_H
 # include <sys/sysctl.h>
 #endif
+#ifdef HAVE_LINK_H
+# include <link.h>
+#endif
+#ifdef HAVE_SYS_LINK_H
+# include <sys/link.h>
+#endif
+
+#include "wine/list.h"
 
 #include "main.h"
 
@@ -40,6 +58,320 @@ extern char **environ;
 
 /* the preloader will set this variable */
 const __attribute((visibility("default"))) struct wine_preload_info *wine_main_preload_info = NULL;
+
+#ifdef __linux__
+
+/* the preloader will set these variables */
+typedef void (*rtld_init_func)( struct link_map *map );
+__attribute((visibility("default"))) rtld_init_func wine_rtld_init = NULL;
+typedef void (*rtld_notify_func)(void);
+__attribute((visibility("default"))) rtld_notify_func wine_rtld_map_start = NULL;
+__attribute((visibility("default"))) rtld_notify_func wine_rtld_map_complete = NULL;
+__attribute((visibility("default"))) rtld_notify_func wine_rtld_unmap_start = NULL;
+__attribute((visibility("default"))) rtld_notify_func wine_rtld_unmap_complete = NULL;
+
+struct link_map_entry
+{
+    struct link_map map;
+    const void *module;
+    struct list entry;
+};
+
+static pthread_mutex_t link_map_lock;
+static struct link_map link_map = {0};
+static struct list dll_map_entries = LIST_INIT( dll_map_entries );
+
+static char *link_realpath( const char *path )
+{
+    char *real;
+    if (!path) return NULL;
+    if (!(real = realpath( path, NULL ))) return strdup( path );
+    return real;
+}
+
+static void sync_wine_link_map(void)
+{
+    static struct r_debug *_r_debug;
+    struct link_map *next = &link_map, *last = NULL, **rtld_map, **wine_map;
+    struct link_map_entry *pe_entry = NULL;
+    struct list *ptr;
+
+    if (!_r_debug) _r_debug = dlsym( RTLD_NEXT, "_r_debug" );
+    rtld_map = &_r_debug->r_map;
+    wine_map = &next;
+
+    /* detach the PE link map */
+    if ((ptr = list_head( &dll_map_entries )))
+    {
+        pe_entry = LIST_ENTRY( ptr, struct link_map_entry, entry );
+        if (pe_entry->map.l_prev) pe_entry->map.l_prev->l_next = NULL;
+    }
+
+    while (*rtld_map)
+    {
+        if (!*wine_map)
+        {
+            if (!(*wine_map = calloc( 1, sizeof(struct link_map) ))) break;
+            (*wine_map)->l_prev = last;
+        }
+
+        last = *wine_map;
+        free( (*wine_map)->l_name );
+        (*wine_map)->l_addr = (*rtld_map)->l_addr;
+        (*wine_map)->l_name = link_realpath( (*rtld_map)->l_name );
+        (*wine_map)->l_ld = (*rtld_map)->l_ld;
+        rtld_map = &(*rtld_map)->l_next;
+        wine_map = &(*wine_map)->l_next;
+    }
+
+    /* remove the remaining wine entries */
+    next = *wine_map;
+    *wine_map = NULL;
+
+    while (next)
+    {
+        struct link_map *tmp = next;
+        wine_map = &next->l_next;
+        next = *wine_map;
+        *wine_map = NULL;
+        free( tmp->l_name );
+        free( tmp );
+    }
+
+    if (pe_entry)
+    {
+        /* attach PE link map back */
+        pe_entry->map.l_prev = last;
+        last->l_next = &pe_entry->map;
+    }
+}
+
+static void add_dll_to_pe_link_map( const void *module, const char *unix_path, INT_PTR offset )
+{
+    struct link_map_entry *entry, *last_entry;
+    struct list *ptr;
+
+    if (!(entry = calloc( 1, sizeof(*entry) ))) return;
+
+    entry->module = module;
+    entry->map.l_addr = offset;
+    entry->map.l_name = link_realpath( unix_path );
+
+    if ((ptr = list_tail( &dll_map_entries )))
+    {
+        last_entry = LIST_ENTRY( ptr, struct link_map_entry, entry );
+        entry->map.l_prev = &last_entry->map;
+        last_entry->map.l_next = &entry->map;
+    }
+
+    list_add_tail( &dll_map_entries, &entry->entry );
+    if (!entry->map.l_prev) sync_wine_link_map();
+}
+
+__attribute((visibility("default"))) void wine_gdb_dll_loaded( const void *module, const char *unix_path, INT_PTR offset )
+{
+    struct link_map_entry *entry;
+
+    pthread_mutex_lock( &link_map_lock );
+
+    LIST_FOR_EACH_ENTRY( entry, &dll_map_entries, struct link_map_entry, entry )
+        if (entry->module == module) break;
+
+    if (&entry->entry == &dll_map_entries)
+        add_dll_to_pe_link_map( module, unix_path, offset );
+    else
+        entry->map.l_addr = offset;
+
+    if (wine_rtld_map_start) wine_rtld_map_start();
+    if (wine_rtld_map_complete) wine_rtld_map_complete();
+
+    pthread_mutex_unlock( &link_map_lock );
+}
+
+__attribute((visibility("default"))) void wine_gdb_dll_unload( const void *module )
+{
+    struct link_map *prev, *next;
+    struct link_map_entry *entry;
+
+    pthread_mutex_lock( &link_map_lock );
+
+    LIST_FOR_EACH_ENTRY( entry, &dll_map_entries, struct link_map_entry, entry )
+        if (entry->module == module) break;
+
+    if (&entry->entry == &dll_map_entries)
+    {
+        pthread_mutex_unlock( &link_map_lock );
+        return;
+    }
+
+    list_remove( &entry->entry );
+    if ((prev = entry->map.l_prev)) prev->l_next = entry->map.l_next;
+    if ((next = entry->map.l_next)) next->l_prev = entry->map.l_prev;
+
+    if (wine_rtld_unmap_start) wine_rtld_unmap_start();
+    if (wine_rtld_unmap_complete) wine_rtld_unmap_complete();
+
+    pthread_mutex_unlock( &link_map_lock );
+
+    free( entry->map.l_name );
+    free( entry );
+}
+
+__attribute((visibility("default"))) void *dlopen( const char *file, int mode )
+{
+    static typeof(dlopen) *rtld_dlopen;
+    void *ret;
+
+    pthread_mutex_lock( &link_map_lock );
+
+    if (!rtld_dlopen) rtld_dlopen = dlsym( RTLD_NEXT, "dlopen" );
+    ret = rtld_dlopen( file, mode );
+
+    if (wine_rtld_map_start) wine_rtld_map_start();
+    sync_wine_link_map();
+    if (wine_rtld_map_complete) wine_rtld_map_complete();
+
+    pthread_mutex_unlock( &link_map_lock );
+
+    return ret;
+}
+
+__attribute((visibility("default"))) int dlclose( void *handle )
+{
+    static typeof(dlclose) *rtld_dlclose;
+    int ret;
+
+    pthread_mutex_lock( &link_map_lock );
+
+    if (!rtld_dlclose) rtld_dlclose = dlsym( RTLD_NEXT, "dlclose" );
+    ret = rtld_dlclose( handle );
+
+    if (wine_rtld_unmap_start) wine_rtld_unmap_start();
+    sync_wine_link_map();
+    if (wine_rtld_unmap_complete) wine_rtld_unmap_complete();
+
+    pthread_mutex_unlock( &link_map_lock );
+
+    return ret;
+}
+
+extern void *__libc_malloc( size_t size );
+extern void *__libc_valloc( size_t size );
+extern void *__libc_memalign( size_t align, size_t size );
+extern void *__libc_calloc( size_t count, size_t size );
+extern void *__libc_realloc( void *ptr, size_t size );
+extern void __libc_free( void *ptr );
+
+static pthread_mutex_t free_lock = PTHREAD_MUTEX_INITIALIZER;
+static size_t free_delay_count;
+static void *free_origin[256];
+static void *free_delay[256];
+
+static int malloc_trace_on;
+#define MALLOC_TRACE( fmt, ... ) fprintf( stderr, "%u: %p: %s: " fmt, gettid(), __builtin_return_address(0), __func__, ## __VA_ARGS__ )
+
+void *malloc( size_t size )
+{
+    void *ret;
+    ret = __libc_malloc( size );
+    if (malloc_trace_on) MALLOC_TRACE( "size %#zx, ret %p\n", size, ret );
+    return ret;
+}
+
+void *valloc( size_t size )
+{
+    void *ret;
+    ret = __libc_valloc( size );
+    if (malloc_trace_on) MALLOC_TRACE( "size %#zx, ret %p\n", size, ret );
+    return ret;
+}
+
+void *memalign( size_t align, size_t size )
+{
+    void *ret;
+    ret = __libc_memalign( align, size );
+    if (malloc_trace_on) MALLOC_TRACE( "align %#zx, size %#zx, ret %p\n", align, size, ret );
+    return ret;
+}
+
+int posix_memalign( void **ptr, size_t align, size_t size )
+{
+    void *ret = NULL;
+    int err = 0;
+
+    if ((align & (align - 1)) || align % sizeof (void *)) err = 22;
+    else if (!(ret = __libc_memalign( align, size ))) err = 12;
+
+    if (malloc_trace_on) MALLOC_TRACE( "align %#zx, size %#zx, ret %p\n", align, size, ret );
+    *ptr = ret;
+    return err;
+}
+
+void *aligned_alloc( size_t align, size_t size )
+{
+    void *ret;
+    ret = __libc_memalign( align, size );
+    if (malloc_trace_on) MALLOC_TRACE( "align %#zx, size %#zx, ret %p\n", align, size, ret );
+    return ret;
+}
+
+void *calloc( size_t count, size_t size )
+{
+    void *ret;
+    ret = __libc_calloc( count, size );
+    if (malloc_trace_on) MALLOC_TRACE( "count %#zx, size %#zx, ret %p\n", count, size, ret );
+    return ret;
+}
+
+void *realloc( void *ptr, size_t size )
+{
+    void *ret;
+    if (malloc_trace_on) MALLOC_TRACE( "ptr %p, size %#zx\n", ptr, size );
+    ret = __libc_realloc( ptr, size );
+    if (malloc_trace_on) MALLOC_TRACE( "ptr %p, size %#zx, ret %p\n", ptr, size, ret );
+    return ret;
+}
+
+void free( void *ptr )
+{
+    void *tmp, *origin = __builtin_return_address(0);
+    size_t size, idx;
+
+    if (!ptr) return;
+    if (malloc_trace_on) MALLOC_TRACE( "ptr %p\n", ptr );
+
+    size = malloc_usable_size( ptr );
+    memset( ptr, 0xcd, size );
+
+    pthread_mutex_lock( &free_lock );
+    idx = free_delay_count++ % ARRAY_SIZE(free_delay);
+    tmp = free_delay[idx];
+    free_origin[idx] = origin;
+    free_delay[idx] = ptr;
+    ptr = tmp;
+    pthread_mutex_unlock( &free_lock );
+
+    if (!ptr) return;
+
+    size = malloc_usable_size( ptr );
+    while (size--)
+    {
+        if (((unsigned char *)ptr)[size] == 0xcd) continue;
+        MALLOC_TRACE( "ptr %p, size %#zx, UAF!\n", ptr, size );
+        abort();
+    }
+
+    __libc_free( ptr );
+}
+
+void __assert_fail( const char *assertion, const char *file, unsigned int line, const char *function )
+{
+    MALLOC_TRACE( "%s:%d:%s: %s\n", file, line, function, assertion );
+    *(volatile int *)0 = 0;
+}
+
+
+#endif /* __linux__ */
 
 /* canonicalize path and return its directory name */
 static char *realpath_dirname( const char *name )
@@ -176,6 +508,15 @@ static void *load_ntdll( char *argv0 )
 int main( int argc, char *argv[] )
 {
     void *handle;
+#ifdef __linux__
+    pthread_mutexattr_t attr;
+    pthread_mutexattr_init( &attr );
+    pthread_mutexattr_settype( &attr, PTHREAD_MUTEX_RECURSIVE );
+    pthread_mutex_init( &link_map_lock, &attr );
+    pthread_mutexattr_destroy( &attr );
+
+    if (wine_rtld_init) wine_rtld_init( &link_map );
+#endif /* __linux__ */
 
     if ((handle = load_ntdll( argv[0] )))
     {

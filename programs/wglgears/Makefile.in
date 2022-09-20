@@ -1,0 +1,9 @@
+MODULE    = wglgears.exe
+IMPORTS   = opengl32 user32 gdi32 winmm
+
+EXTRADLLFLAGS = -mwindows
+
+SOURCES = \
+	glad.c \
+	glad_wgl.c \
+	wglgears.c
