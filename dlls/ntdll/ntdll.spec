@@ -1728,6 +1728,7 @@
 @ cdecl -norelay __wine_prof_data_alloc(long)
 @ cdecl -norelay __wine_prof_start(ptr)
 @ cdecl -norelay __wine_prof_stop(ptr long ptr ptr long ptr ptr)
+@ cdecl -norelay __wine_prof_frame(ptr)
 
 # Version
 @ cdecl wine_get_version()

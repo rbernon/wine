@@ -40,11 +40,24 @@ struct __wine_prof_data
     size_t limit_ns;
 };
 
+struct __wine_prof_frame_data
+{
+    const char *name;
+    size_t  print_ticks;
+    size_t  prev_ticks;
+    size_t  time_count;
+    size_t  time_ticks[1024];
+};
+
 extern struct __wine_prof_data *__cdecl __wine_prof_data_alloc( size_t size );
 extern size_t __cdecl __wine_prof_start( struct __wine_prof_data * );
 extern void __cdecl __wine_prof_stop( struct __wine_prof_data *data, size_t start_ticks,
                                       const char *file, int line, const char *function, void *retaddr );
+extern void __cdecl __wine_prof_frame( struct __wine_prof_frame_data *,
+                                       const char *file, int line, const char *function, void *retaddr );
 
+#define PROF_FRAME( x ) __wine_prof_frame( x, __FILE__, __LINE__, __func__, \
+                                           __builtin_extract_return_addr(__builtin_return_address(0)) )
 #define PROF_STOP( prof, start )  __wine_prof_stop( prof, start, __FILE__, __LINE__, __func__, \
                                                     __builtin_extract_return_addr(__builtin_return_address(0)) )
 
