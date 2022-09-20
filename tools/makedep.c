@@ -2225,8 +2225,8 @@ static struct strarray get_default_imports( const struct makefile *make, struct 
         if (is_crt_module( imports.str[i] ))
             crt_dll = imports.str[i];
 
-    strarray_add( &ret, "winecrt0" );
     strarray_add( &ret, "winecrtd" );
+    strarray_add( &ret, "winecrt0" );
     if (crt_dll) strarray_add( &ret, crt_dll );
 
     if (make->is_win16 && (!make->importlib || strcmp( make->importlib, "kernel" )))
