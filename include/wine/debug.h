@@ -88,7 +88,7 @@ struct __wine_debug_channel
        __WINE_DBG_LOG
 
 #define __WINE_DBG_LOG(...) \
-   wine_dbg_log( __dbcl, __dbch, __func__, __VA_ARGS__); } } while(0)
+   wine_dbg_log( __dbcl, __dbch, __FILE__, __LINE__, __func__, __VA_ARGS__); } } while(0)
 
 #if defined(__MINGW32__) || (!defined(__WINE_USE_MSVCRT) && (defined(__GNUC__) || defined(__clang__)))
 #define __WINE_PRINTF_ATTR(fmt,args) __attribute__((format (printf,fmt,args)))
@@ -131,10 +131,12 @@ extern const char * __wine_dbg_cdecl wine_dbg_vsprintf( const char *format, va_l
 extern const char * __wine_dbg_cdecl wine_dbg_sprintf( const char *format, ... ) __WINE_PRINTF_ATTR(1,2) DECLSPEC_HIDDEN;
 extern int __wine_dbg_cdecl wine_dbg_vprintf( const char *format, va_list args ) __WINE_PRINTF_ATTR(1,0) DECLSPEC_HIDDEN;
 extern int __wine_dbg_cdecl wine_dbg_printf( const char *format, ... ) __WINE_PRINTF_ATTR(1,2) DECLSPEC_HIDDEN;
-extern int __wine_dbg_cdecl wine_dbg_vlog( enum __wine_debug_class cls, struct __wine_debug_channel *channel, const char *func,
-                                           const char *format, va_list args ) __WINE_PRINTF_ATTR(4,0) DECLSPEC_HIDDEN;
-extern int __wine_dbg_cdecl wine_dbg_log( enum __wine_debug_class cls, struct __wine_debug_channel *channel, const char *func,
-                                          const char *format, ... ) __WINE_PRINTF_ATTR(4,5) DECLSPEC_HIDDEN;
+extern int __wine_dbg_cdecl wine_dbg_vlog( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
+                                           const char *file, int line, const char *func, const char *format,
+                                           va_list args ) __WINE_PRINTF_ATTR(6,0) DECLSPEC_HIDDEN;
+extern int __wine_dbg_cdecl wine_dbg_log( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
+                                          const char *file, int line, const char *func, const char *format,
+                                          ... ) __WINE_PRINTF_ATTR(6,7) DECLSPEC_HIDDEN;
 
 extern const char *wine_dbgstr_an( const char *str, int n ) DECLSPEC_HIDDEN;
 extern const char *wine_dbgstr_wn( const WCHAR *str, int n ) DECLSPEC_HIDDEN;
