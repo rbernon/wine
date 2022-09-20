@@ -28,9 +28,6 @@
 #include "wine/debug.h"
 #include "wine/heap.h"
 
-WINE_DECLARE_DEBUG_CHANNEL(pid);
-WINE_DECLARE_DEBUG_CHANNEL(timestamp);
-
 static DWORD debug_info_tls;
 struct debug_info
 {
@@ -43,11 +40,6 @@ struct debug_info
 C_ASSERT( sizeof(struct debug_info) == 0x800 );
 
 static int (WINAPI *p__wine_dbg_write)( const char *str, unsigned int len );
-static int (__cdecl *p__wine_dbg_header)( enum __wine_debug_class cls,
-                                          struct __wine_debug_channel *channel,
-                                          const char *function );
-
-static DWORD partial_line_tid;  /* id of the last thread to output a partial line */
 
 static void load_func( void **func, const char *name, void *def )
 {
@@ -140,43 +132,10 @@ static int WINAPI fallback__wine_dbg_write( const char *str, unsigned int len )
     return len;
 }
 
-static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls,
-                                              struct __wine_debug_channel *channel,
-                                              const char *function )
-{
-    static const char * const classes[] = { "fixme", "err", "warn", "trace" };
-    char buffer[200], *pos = buffer;
-
-    if (!(__wine_dbg_get_channel_flags( channel ) & (1 << cls))) return -1;
-
-    /* skip header if partial line and no other thread came in between */
-    if (partial_line_tid == GetCurrentThreadId()) return 0;
-
-    if (TRACE_ON(timestamp))
-    {
-        ULONG ticks = GetTickCount();
-        pos += sprintf( pos, "%3u.%03u:", ticks / 1000, ticks % 1000 );
-    }
-    if (TRACE_ON(pid)) pos += sprintf( pos, "%04x:", GetCurrentProcessId() );
-    pos += sprintf( pos, "%04x:", GetCurrentThreadId() );
-    if (function && cls < ARRAY_SIZE( classes ))
-        snprintf( pos, sizeof(buffer) - (pos - buffer), "%s:%s:%s ",
-                  classes[cls], channel->name, function );
-
-    return fwrite( buffer, 1, strlen(buffer), stderr );
-}
-
 int WINAPI __wine_dbg_write( const char *str, unsigned int len )
 {
     LOAD_FUNC( __wine_dbg_write );
     return p__wine_dbg_write( str, len );
-}
-
-int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
-                               const char *function )
-{
-    LOAD_FUNC( __wine_dbg_header );
-    return p__wine_dbg_header( cls, channel, function );
 }
 
 #endif  /* __WINE_PE_BUILD */

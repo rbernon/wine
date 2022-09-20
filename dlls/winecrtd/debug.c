@@ -30,6 +30,9 @@
 
 #include "wine/debug.h"
 
+WINE_DECLARE_DEBUG_CHANNEL(pid);
+WINE_DECLARE_DEBUG_CHANNEL(timestamp);
+
 struct debug_info
 {
     unsigned int str_pos;       /* current position in strings buffer */
@@ -212,4 +215,30 @@ int __cdecl __wine_dbg_output( const char *str )
     }
     if (*str) ret += append_output( info, str, strlen( str ));
     return ret;
+}
+
+int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
+                               const char *function )
+{
+    static const char * const classes[] = { "fixme", "err", "warn", "trace" };
+    struct debug_info *info = __wine_dbg_get_info();
+    char *pos = info->output;
+
+    if (!(__wine_dbg_get_channel_flags( channel ) & (1 << cls))) return -1;
+
+    /* only print header if we are at the beginning of the line */
+    if (info->out_pos) return 0;
+
+    if (TRACE_ON(timestamp))
+    {
+        ULONG ticks = NtGetTickCount();
+        pos += sprintf( pos, "%3u.%03u:", ticks / 1000, ticks % 1000 );
+    }
+    if (TRACE_ON(pid)) pos += sprintf( pos, "%04x:", GetCurrentProcessId() );
+    pos += sprintf( pos, "%04x:", GetCurrentThreadId() );
+    if (function && cls < ARRAY_SIZE( classes ))
+        pos += snprintf( pos, sizeof(info->output) - (pos - info->output), "%s:%s:%s ",
+                         classes[cls], channel->name, function );
+    info->out_pos = pos - info->output;
+    return info->out_pos;
 }
