@@ -604,3 +604,126 @@ const char *debugstr_mf_guid(const GUID *guid)
     ret = bsearch(&tmp, guid_defs, ARRAY_SIZE(guid_defs), sizeof(*guid_defs), guid_def_cmp);
     return ret ? wine_dbg_sprintf("%s", ret->name) : wine_dbgstr_guid(guid);
 }
+
+const char *debugstr_mf_media_event_type(DWORD event)
+{
+    switch (event)
+    {
+#define X(e) case e: return #e
+        X(MEUnknown);
+        X(MEError);
+        X(MEExtendedType);
+        X(MENonFatalError);
+        X(MESessionUnknown);
+        X(MESessionTopologySet);
+        X(MESessionTopologiesCleared);
+        X(MESessionStarted);
+        X(MESessionPaused);
+        X(MESessionStopped);
+        X(MESessionClosed);
+        X(MESessionEnded);
+        X(MESessionRateChanged);
+        X(MESessionScrubSampleComplete);
+        X(MESessionCapabilitiesChanged);
+        X(MESessionTopologyStatus);
+        X(MESessionNotifyPresentationTime);
+        X(MENewPresentation);
+        X(MELicenseAcquisitionStart);
+        X(MELicenseAcquisitionCompleted);
+        X(MEIndividualizationStart);
+        X(MEIndividualizationCompleted);
+        X(MEEnablerProgress);
+        X(MEEnablerCompleted);
+        X(MEPolicyError);
+        X(MEPolicyReport);
+        X(MEBufferingStarted);
+        X(MEBufferingStopped);
+        X(MEConnectStart);
+        X(MEConnectEnd);
+        X(MEReconnectStart);
+        X(MEReconnectEnd);
+        X(MERendererEvent);
+        X(MESessionStreamSinkFormatChanged);
+        X(MESourceUnknown);
+        X(MESourceStarted);
+        X(MEStreamStarted);
+        X(MESourceSeeked);
+        X(MEStreamSeeked);
+        X(MENewStream);
+        X(MEUpdatedStream);
+        X(MESourceStopped);
+        X(MEStreamStopped);
+        X(MESourcePaused);
+        X(MEStreamPaused);
+        X(MEEndOfPresentation);
+        X(MEEndOfStream);
+        X(MEMediaSample);
+        X(MEStreamTick);
+        X(MEStreamThinMode);
+        X(MEStreamFormatChanged);
+        X(MESourceRateChanged);
+        X(MEEndOfPresentationSegment);
+        X(MESourceCharacteristicsChanged);
+        X(MESourceRateChangeRequested);
+        X(MESourceMetadataChanged);
+        X(MESequencerSourceTopologyUpdated);
+        X(MESinkUnknown);
+        X(MEStreamSinkStarted);
+        X(MEStreamSinkStopped);
+        X(MEStreamSinkPaused);
+        X(MEStreamSinkRateChanged);
+        X(MEStreamSinkRequestSample);
+        X(MEStreamSinkMarker);
+        X(MEStreamSinkPrerolled);
+        X(MEStreamSinkScrubSampleComplete);
+        X(MEStreamSinkFormatChanged);
+        X(MEStreamSinkDeviceChanged);
+        X(MEQualityNotify);
+        X(MESinkInvalidated);
+        X(MEAudioSessionNameChanged);
+        X(MEAudioSessionVolumeChanged);
+        X(MEAudioSessionDeviceRemoved);
+        X(MEAudioSessionServerShutdown);
+        X(MEAudioSessionGroupingParamChanged);
+        X(MEAudioSessionIconChanged);
+        X(MEAudioSessionFormatChanged);
+        X(MEAudioSessionDisconnected);
+        X(MEAudioSessionExclusiveModeOverride);
+        X(MECaptureAudioSessionVolumeChanged);
+        X(MECaptureAudioSessionDeviceRemoved);
+        X(MECaptureAudioSessionFormatChanged);
+        X(MECaptureAudioSessionDisconnected);
+        X(MECaptureAudioSessionExclusiveModeOverride);
+        X(MECaptureAudioSessionServerShutdown);
+        X(METrustUnknown);
+        X(MEPolicyChanged);
+        X(MEContentProtectionMessage);
+        X(MEPolicySet);
+        X(MEWMDRMLicenseBackupCompleted);
+        X(MEWMDRMLicenseBackupProgress);
+        X(MEWMDRMLicenseRestoreCompleted);
+        X(MEWMDRMLicenseRestoreProgress);
+        X(MEWMDRMLicenseAcquisitionCompleted);
+        X(MEWMDRMIndividualizationCompleted);
+        X(MEWMDRMIndividualizationProgress);
+        X(MEWMDRMProximityCompleted);
+        X(MEWMDRMLicenseStoreCleaned);
+        X(MEWMDRMRevocationDownloadCompleted);
+        X(METransformUnknown);
+        X(METransformNeedInput);
+        X(METransformHaveOutput);
+        X(METransformDrainComplete);
+        X(METransformMarker);
+        X(METransformInputStreamStateChanged);
+        X(MEByteStreamCharacteristicsChanged);
+        X(MEVideoCaptureDeviceRemoved);
+        X(MEVideoCaptureDevicePreempted);
+        X(MEStreamSinkFormatInvalidated);
+        X(MEEncodingParameters);
+        X(MEContentProtectionMetadata);
+        X(MEDeviceThermalStateChanged);
+#undef X
+    }
+
+    return wine_dbg_sprintf("%lu", event);
+}
