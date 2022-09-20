@@ -217,8 +217,8 @@ int __cdecl __wine_dbg_output( const char *str )
     return ret;
 }
 
-int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
-                               const char *function )
+static int dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
+                       const char *function )
 {
     static const char * const classes[] = { "fixme", "err", "warn", "trace" };
     struct debug_info *info = __wine_dbg_get_info();
@@ -241,4 +241,68 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
                          classes[cls], channel->name, function );
     info->out_pos = pos - info->output;
     return info->out_pos;
+}
+
+const char * __wine_dbg_cdecl wine_dbg_vsprintf( const char *format, va_list args )
+{
+    char buffer[200];
+
+    vsnprintf( buffer, sizeof(buffer), format, args );
+    return __wine_dbg_strdup( buffer );
+}
+
+const char * __wine_dbg_cdecl wine_dbg_sprintf( const char *format, ... )
+{
+    const char *ret;
+    va_list args;
+
+    va_start( args, format );
+    ret = wine_dbg_vsprintf( format, args );
+    va_end( args );
+    return ret;
+}
+
+int __wine_dbg_cdecl wine_dbg_vprintf( const char *format, va_list args )
+{
+    char buffer[1024];
+
+    vsnprintf( buffer, sizeof(buffer), format, args );
+    return __wine_dbg_output( buffer );
+}
+
+int __wine_dbg_cdecl wine_dbg_printf( const char *format, ... )
+{
+    int ret;
+    va_list args;
+
+    va_start( args, format );
+    ret = wine_dbg_vprintf( format, args );
+    va_end( args );
+    return ret;
+}
+
+int __wine_dbg_cdecl wine_dbg_vlog( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
+                                    const char *function, const char *format, va_list args )
+{
+    int ret;
+
+    if (*format == '\1')  /* special magic to avoid standard prefix */
+    {
+        format++;
+        function = NULL;
+    }
+    if ((ret = dbg_header( cls, channel, function )) != -1) ret += wine_dbg_vprintf( format, args );
+    return ret;
+}
+
+int __wine_dbg_cdecl wine_dbg_log( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
+                                   const char *function, const char *format, ... )
+{
+    va_list args;
+    int ret;
+
+    va_start( args, format );
+    ret = wine_dbg_vlog( cls, channel, function, format, args );
+    va_end( args );
+    return ret;
 }
