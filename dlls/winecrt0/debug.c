@@ -31,6 +31,17 @@
 WINE_DECLARE_DEBUG_CHANNEL(pid);
 WINE_DECLARE_DEBUG_CHANNEL(timestamp);
 
+static DWORD debug_info_tls;
+struct debug_info
+{
+    unsigned int str_pos;       /* current position in strings buffer */
+    unsigned int out_pos;       /* current position in output buffer */
+    char         strings[1020]; /* buffer for temporary strings */
+    char         output[1020];  /* current output line */
+};
+
+C_ASSERT( sizeof(struct debug_info) == 0x800 );
+
 static const char * (__cdecl *p__wine_dbg_strdup)( const char *str );
 static int (__cdecl *p__wine_dbg_output)( const char *str );
 static unsigned char (__cdecl *p__wine_dbg_get_channel_flags)( struct __wine_debug_channel *channel );
@@ -153,6 +164,21 @@ static void spin_unlock( LONG *lock )
     InterlockedExchange( lock, 0 );
 }
 
+static void dbg_info_init(void)
+{
+    static LONG lock;
+
+    if (debug_info_tls)
+        return;
+
+    spin_lock( &lock );
+
+    if (debug_info_tls)
+        debug_info_tls = TlsAlloc();
+
+    spin_unlock( &lock );
+}
+
 /* initialize all options at startup */
 static void __cdecl fallback__wine_dbg_init( struct __wine_debug_channel **options, LONG *option_count )
 {
@@ -174,6 +200,25 @@ void __cdecl __wine_dbg_init( struct __wine_debug_channel **options, LONG *optio
     static typeof(fallback__wine_dbg_init) *p__wine_dbg_init;
     LOAD_FUNC( __wine_dbg_init );
     p__wine_dbg_init( options, option_count );
+}
+
+static struct debug_info *__cdecl fallback__wine_dbg_get_info(void)
+{
+    struct debug_info *debug_info;
+
+    dbg_info_init();
+
+    if ((debug_info = TlsGetValue( debug_info_tls ))) return debug_info;
+    debug_info = calloc( 1, sizeof(struct debug_info) );
+    TlsSetValue( debug_info_tls, debug_info );
+    return debug_info;
+}
+
+struct debug_info *__cdecl __wine_dbg_get_info(void)
+{
+    static typeof(fallback__wine_dbg_get_info) *p__wine_dbg_get_info;
+    LOAD_FUNC( __wine_dbg_get_info );
+    return p__wine_dbg_get_info();
 }
 
 /* FIXME: this is not 100% thread-safe */
