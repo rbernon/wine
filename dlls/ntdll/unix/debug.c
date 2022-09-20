@@ -60,8 +60,9 @@ static BOOL init_done;
 static struct debug_info initial_info;  /* debug info for initial thread */
 static unsigned char default_flags = (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
 static int nb_debug_options = -1;
-static int options_size;
 static struct __wine_debug_channel *debug_options;
+static const int peb_options_offset = (is_win64 ? 2 : 1) * page_size;
+static const int max_debug_options = ((signal_stack_mask + 1) - peb_options_offset) / sizeof(*debug_options);
 
 static const char * const debug_classes[] = { "fixme", "err", "warn", "trace" };
 
@@ -106,11 +107,6 @@ static void add_option( const char *name, unsigned char set, unsigned char clear
         }
         if (res < 0) max = pos - 1;
         else min = pos + 1;
-    }
-    if (nb_debug_options >= options_size)
-    {
-        options_size = max( options_size * 2, 16 );
-        debug_options = realloc( debug_options, options_size * sizeof(debug_options[0]) );
     }
 
     pos = min;
@@ -175,7 +171,10 @@ static void parse_options( const char *str, const char *app_name )
         if (!strcmp( p, "all" ) || !p[0])
             default_flags = (default_flags & ~clear) | set;
         else if (strlen( p ) < sizeof(debug_options[0].name))
+        {
             add_option( p, set, clear );
+            if (nb_debug_options == max_debug_options) break; /* too many options */
+        }
     }
     free( options );
 }
@@ -210,7 +209,9 @@ static void init_options(void)
     app_name = main_argv[1];
     while ((p = strpbrk( app_name, "/\\" ))) app_name = p + 1;
 
-    parse_options( wine_debug, app_name );
+    assert( max_debug_options >= 2048 );
+    if (!(debug_options = malloc( max_debug_options * sizeof(*debug_options) ))) nb_debug_options = 0;
+    else parse_options( wine_debug, app_name );
 }
 
 /***********************************************************************
@@ -352,7 +353,7 @@ void dbg_init(void)
 
     if (nb_debug_options == -1) init_options();
 
-    options = (struct __wine_debug_channel *)((char *)peb + (is_win64 ? 2 : 1) * page_size);
+    options = (struct __wine_debug_channel *)((char *)peb + peb_options_offset);
     memcpy( options, debug_options, nb_debug_options * sizeof(*options) );
     free( debug_options );
     debug_options = options;
