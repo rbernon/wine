@@ -40,7 +40,6 @@ static int (__cdecl *p__wine_dbg_header)( enum __wine_debug_class cls,
 
 static const char * const debug_classes[] = { "fixme", "err", "warn", "trace" };
 
-static unsigned char default_flags = (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
 static int nb_debug_options = -1;
 static struct __wine_debug_channel *debug_options;
 static DWORD partial_line_tid;  /* id of the last thread to output a partial line */
@@ -89,6 +88,8 @@ static void add_option( struct __wine_debug_channel *options, int *option_count,
 static struct __wine_debug_channel *parse_options( const char *str, int *option_count )
 {
     static struct __wine_debug_channel option_buffer[1024];
+
+    unsigned char default_flags = (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
     char *opt, *next, *options;
     unsigned int i;
 
@@ -135,10 +136,11 @@ static struct __wine_debug_channel *parse_options( const char *str, int *option_
             default_flags = (default_flags & ~clear) | set;
         else if (strlen( p ) < sizeof(option_buffer[0].name))
             add_option( option_buffer, option_count, default_flags, p, set, clear );
-        if (*option_count >= ARRAY_SIZE(option_buffer)) break; /* too many options */
+        if (*option_count >= ARRAY_SIZE(option_buffer) - 1) break; /* too many options */
     }
     free( options );
 
+    option_buffer[*option_count].flags = default_flags;
     return option_buffer;
 }
 
@@ -197,6 +199,7 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls,
 
 static unsigned char __cdecl fallback__wine_dbg_get_channel_flags( struct __wine_debug_channel *channel )
 {
+    unsigned char default_flags;
     int min, max, pos, res;
 
     if (nb_debug_options == -1) init_options();
@@ -212,6 +215,7 @@ static unsigned char __cdecl fallback__wine_dbg_get_channel_flags( struct __wine
         else min = pos + 1;
     }
     /* no option for this channel */
+    default_flags = debug_options[nb_debug_options].flags;
     if (channel->flags & (1 << __WINE_DBCL_INIT)) channel->flags = default_flags;
     return default_flags;
 }
