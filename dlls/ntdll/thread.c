@@ -34,6 +34,7 @@
 WINE_DEFAULT_DEBUG_CHANNEL(thread);
 WINE_DECLARE_DEBUG_CHANNEL(relay);
 WINE_DECLARE_DEBUG_CHANNEL(pid);
+WINE_DECLARE_DEBUG_CHANNEL(source);
 WINE_DECLARE_DEBUG_CHANNEL(timestamp);
 
 struct _KUSER_SHARED_DATA *user_shared_data = (void *)0x7ffe0000;
@@ -161,7 +162,20 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
     if (context && context->compat)
         pos += snprintf( pos, end - pos, "%s ", (const char *)context );
     else if (context && context->version == WINE_DEBUG_CONTEXT_VERSION)
+    {
+        if (TRACE_ON(source))
+        {
+            const char *tmp, *file;
+
+            if ((tmp = strrchr( context->file, '/' ))) file = tmp + 1;
+            else if ((tmp = strrchr( context->file, '\\' ))) file = tmp + 1;
+            else file = context->file;
+
+            pos += snprintf( pos, end - pos, "%s:%d:", file, context->line );
+        }
+
         pos += snprintf( pos, end - pos, "%s ", context->function );
+    }
 
     info->out_pos = pos - info->output;
     return info->out_pos;
