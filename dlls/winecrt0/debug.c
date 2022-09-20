@@ -34,9 +34,8 @@ WINE_DECLARE_DEBUG_CHANNEL(timestamp);
 static const char * (__cdecl *p__wine_dbg_strdup)( const char *str );
 static int (__cdecl *p__wine_dbg_output)( const char *str );
 static unsigned char (__cdecl *p__wine_dbg_get_channel_flags)( struct __wine_debug_channel *channel );
-static int (__cdecl *p__wine_dbg_header)( enum __wine_debug_class cls,
-                                          struct __wine_debug_channel *channel,
-                                          const char *function );
+static int (__cdecl *p__wine_dbg_header)( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
+                                          const struct __wine_debug_context *context );
 
 static const char * const debug_classes[] = { "fixme", "err", "warn", "trace" };
 
@@ -178,9 +177,8 @@ static int __cdecl fallback__wine_dbg_output( const char *str )
     return fwrite( str, 1, len, stderr );
 }
 
-static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls,
-                                              struct __wine_debug_channel *channel,
-                                              const char *function )
+static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
+                                              const struct __wine_debug_context *context )
 {
     char buffer[200], *pos = buffer, *end = pos + sizeof(buffer);
 
@@ -198,7 +196,11 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls,
     pos += snprintf( pos, end - pos, "%04x:", (UINT)GetCurrentThreadId() );
     if (cls < ARRAY_SIZE( debug_classes )) pos += snprintf( pos, end - pos, "%s:", debug_classes[cls] );
     pos += snprintf( pos, end - pos, "%s:", channel->name );
-    if (function) pos += snprintf( pos, end - pos, "%s ", function );
+
+    if (context && context->compat)
+        pos += snprintf( pos, end - pos, "%s ", (const char *)context );
+    else if (context && context->version == WINE_DEBUG_CONTEXT_VERSION)
+        pos += snprintf( pos, end - pos, "%s ", context->function );
 
     return fwrite( buffer, 1, strlen(buffer), stderr );
 }
@@ -243,10 +245,10 @@ unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel 
 }
 
 int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
-                               const char *function )
+                               const struct __wine_debug_context *context )
 {
     LOAD_FUNC( __wine_dbg_header );
-    return p__wine_dbg_header( cls, channel, function );
+    return p__wine_dbg_header( cls, channel, context );
 }
 
 #endif  /* __WINE_PE_BUILD */
