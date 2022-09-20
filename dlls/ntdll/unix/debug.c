@@ -92,29 +92,29 @@ static int append_output( struct debug_info *info, const char *str, size_t len )
 }
 
 /* add a new debug option at the end of the option list */
-static void add_option( const char *name, unsigned char set, unsigned char clear )
+static int add_option( struct __wine_debug_channel *options, int option_count, unsigned char default_flags,
+                       const char *name, unsigned char set, unsigned char clear )
 {
-    int min = 0, max = nb_debug_options - 1, pos, res;
+    struct __wine_debug_channel *tmp, *opt = options, *end = opt + option_count;
+    int res;
 
-    while (min <= max)
+    while (opt < end)
     {
-        pos = (min + max) / 2;
-        res = strcmp( name, debug_options[pos].name );
-        if (!res)
+        tmp = opt + (end - opt) / 2;
+        if (!(res = strcmp( name, tmp->name )))
         {
-            debug_options[pos].flags = (debug_options[pos].flags & ~clear) | set;
-            return;
+            tmp->flags = (tmp->flags & ~clear) | set;
+            return option_count;
         }
-        if (res < 0) max = pos - 1;
-        else min = pos + 1;
+        if (res < 0) end = tmp;
+        else opt = tmp + 1;
     }
 
-    pos = min;
-    if (pos < nb_debug_options) memmove( &debug_options[pos + 1], &debug_options[pos],
-                                         (nb_debug_options - pos) * sizeof(debug_options[0]) );
-    strcpy( debug_options[pos].name, name );
-    debug_options[pos].flags = (default_flags & ~clear) | set;
-    nb_debug_options++;
+    end = options + option_count;
+    memmove( opt + 1, opt, (char *)end - (char *)opt );
+    strcpy( opt->name, name );
+    opt->flags = (default_flags & ~clear) | set;
+    return option_count + 1;
 }
 
 /* parse a set of debugging option specifications and add them to the option list */
@@ -172,8 +172,8 @@ static void parse_options( const char *str, const char *app_name )
             default_flags = (default_flags & ~clear) | set;
         else if (strlen( p ) < sizeof(debug_options[0].name))
         {
-            add_option( p, set, clear );
-            if (nb_debug_options == max_debug_options) break; /* too many options */
+            nb_debug_options = add_option( debug_options, nb_debug_options, default_flags, p, set, clear );
+            if (nb_debug_options >= max_debug_options) break; /* too many options */
         }
     }
     free( options );
