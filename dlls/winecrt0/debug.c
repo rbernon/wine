@@ -42,7 +42,7 @@ static const char * const debug_classes[] = { "fixme", "err", "warn", "trace" };
 
 static unsigned char default_flags = (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
 static int nb_debug_options = -1;
-static struct __wine_debug_channel option_buffer[1024], *debug_options = option_buffer;
+static struct __wine_debug_channel *debug_options;
 static DWORD partial_line_tid;  /* id of the last thread to output a partial line */
 
 static void load_func( void **func, const char *name, void *def )
@@ -86,12 +86,13 @@ static void add_option( struct __wine_debug_channel *options, int *option_count,
 }
 
 /* parse a set of debugging option specifications and add them to the option list */
-static void parse_options( const char *str )
+static struct __wine_debug_channel *parse_options( const char *str, int *option_count )
 {
+    static struct __wine_debug_channel option_buffer[1024];
     char *opt, *next, *options;
     unsigned int i;
 
-    nb_debug_options = 0;
+    *option_count = 0;
 
     if (!str) options = NULL;
     else options = _strdup( str );
@@ -132,17 +133,19 @@ static void parse_options( const char *str )
 
         if (!strcmp( p, "all" ) || !p[0])
             default_flags = (default_flags & ~clear) | set;
-        else if (strlen( p ) < sizeof(debug_options[0].name))
-            add_option( debug_options, &nb_debug_options, default_flags, p, set, clear );
-        if (nb_debug_options >= ARRAY_SIZE(option_buffer)) break; /* too many options */
+        else if (strlen( p ) < sizeof(option_buffer[0].name))
+            add_option( option_buffer, option_count, default_flags, p, set, clear );
+        if (*option_count >= ARRAY_SIZE(option_buffer)) break; /* too many options */
     }
     free( options );
+
+    return option_buffer;
 }
 
 /* initialize all options at startup */
 static void init_options(void)
 {
-    parse_options( getenv( "WINEDEBUG" ) );
+    debug_options = parse_options( getenv( "WINEDEBUG" ), &nb_debug_options );
 }
 
 /* FIXME: this is not 100% thread-safe */
