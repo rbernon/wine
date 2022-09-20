@@ -87,6 +87,14 @@ struct __wine_debug_channel
        const enum __wine_debug_class __dbcl = __WINE_DBCL##dbcl; \
        __WINE_DBG_LOG
 
+struct __wine_debug_context
+{
+    char compat; /* for backward compatibility */
+    int version; /* for forward compatibility */
+    const char *function;
+};
+#define WINE_DEBUG_CONTEXT_VERSION 1
+
 #define __WINE_DBG_LOG(...) \
    wine_dbg_log( __dbcl, __dbch, __func__, __VA_ARGS__); } } while(0)
 
@@ -113,7 +121,7 @@ extern DECLSPEC_EXPORT unsigned char __cdecl __wine_dbg_get_channel_flags( struc
 extern DECLSPEC_EXPORT const char * __cdecl __wine_dbg_strdup( const char *str );
 extern DECLSPEC_EXPORT int __cdecl __wine_dbg_output( const char *str );
 extern DECLSPEC_EXPORT int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
-                                                      const char *function );
+                                                      const struct __wine_debug_context *context );
 
 /*
  * Exported definitions and macros
@@ -178,14 +186,20 @@ static inline int __wine_dbg_cdecl wine_dbg_vlog( enum __wine_debug_class cls,
                                                   struct __wine_debug_channel *channel,
                                                   const char *function, const char *format, va_list args )
 {
+    struct __wine_debug_context info =
+    {
+        .version = WINE_DEBUG_CONTEXT_VERSION,
+        .function = function,
+    };
+    struct __wine_debug_context *context = &info;
     int ret;
 
     if (*format == '\1')  /* special magic to avoid standard prefix */
     {
         format++;
-        function = NULL;
+        context = NULL;
     }
-    if ((ret = __wine_dbg_header( cls, channel, function )) != -1) ret += wine_dbg_vprintf( format, args );
+    if ((ret = __wine_dbg_header( cls, channel, context )) != -1) ret += wine_dbg_vprintf( format, args );
     return ret;
 }
 
