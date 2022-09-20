@@ -75,7 +75,7 @@ void wineXmlCallbackLog(char const* caller, xmlErrorLevel lvl, char const* msg, 
     len = vsnprintf(buff, max_size, msg, ap);
     if (len == -1 || len >= max_size) buff[max_size-1] = 0;
 
-    wine_dbg_log(dbcl, &__wine_dbch_msxml, __FILE__, __LINE__, caller, "%s", buff);
+    wine_dbg_log(dbcl, &__wine_dbch_msxml, __FILE__, __LINE__, caller, __WINE_DBG_RETADDR, "%s", buff);
 }
 
 void wineXmlCallbackError(char const* caller, const xmlError* err)
@@ -89,11 +89,11 @@ void wineXmlCallbackError(char const* caller, const xmlError* err)
     default:              dbcl = __WINE_DBCL_ERR; break;
     }
 
-    wine_dbg_log(dbcl, &__wine_dbch_msxml, __FILE__, __LINE__, caller, "error code %d", err->code);
+    wine_dbg_log(dbcl, &__wine_dbch_msxml, __FILE__, __LINE__, caller, __WINE_DBG_RETADDR, "error code %d", err->code);
     if (err->message)
-        wine_dbg_log(dbcl, &__wine_dbch_msxml, __FILE__, __LINE__, caller, ": %s", err->message);
+        wine_dbg_log(dbcl, &__wine_dbch_msxml, __FILE__, __LINE__, caller, __WINE_DBG_RETADDR, ": %s", err->message);
     else
-        wine_dbg_log(dbcl, &__wine_dbch_msxml, __FILE__, __LINE__, caller, "\n");
+        wine_dbg_log(dbcl, &__wine_dbch_msxml, __FILE__, __LINE__, caller, __WINE_DBG_RETADDR, "\n");
 }
 
 /* Support for loading xml files from a Wine Windows drive */
