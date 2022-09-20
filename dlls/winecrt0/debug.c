@@ -104,7 +104,11 @@ static void parse_options( const char *str )
     char *opt, *next, *options;
     unsigned int i;
 
-    if (!(options = _strdup(str))) return;
+    nb_debug_options = 0;
+
+    if (!str) options = NULL;
+    else options = _strdup( str );
+
     for (opt = options; opt; opt = next)
     {
         const char *p;
@@ -150,10 +154,7 @@ static void parse_options( const char *str )
 /* initialize all options at startup */
 static void init_options(void)
 {
-    char *wine_debug = getenv("WINEDEBUG");
-
-    nb_debug_options = 0;
-    if (wine_debug) parse_options( wine_debug );
+    parse_options( getenv( "WINEDEBUG" ) );
 }
 
 /* FIXME: this is not 100% thread-safe */
