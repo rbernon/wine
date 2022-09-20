@@ -42,8 +42,8 @@ static const char * const debug_classes[] = { "fixme", "err", "warn", "trace" };
 
 static unsigned char default_flags = (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
 static int nb_debug_options = -1;
-static int options_size;
 static struct __wine_debug_channel *debug_options;
+static const int max_debug_options = 2048; /* see ntdll/unix/debug.c */
 static DWORD partial_line_tid;  /* id of the last thread to output a partial line */
 
 static void load_func( void **func, const char *name, void *def )
@@ -76,11 +76,6 @@ static void add_option( const char *name, unsigned char set, unsigned char clear
         }
         if (res < 0) max = pos - 1;
         else min = pos + 1;
-    }
-    if (nb_debug_options >= options_size)
-    {
-        options_size = max( options_size * 2, 16 );
-        debug_options = heap_realloc( debug_options, options_size * sizeof(debug_options[0]) );
     }
 
     pos = min;
@@ -138,7 +133,10 @@ static void parse_options( const char *str )
         if (!strcmp( p, "all" ) || !p[0])
             default_flags = (default_flags & ~clear) | set;
         else if (strlen( p ) < sizeof(debug_options[0].name))
+        {
             add_option( p, set, clear );
+            if (nb_debug_options == max_debug_options) break; /* too many options */
+        }
     }
     free( options );
 }
@@ -146,7 +144,8 @@ static void parse_options( const char *str )
 /* initialize all options at startup */
 static void init_options(void)
 {
-    parse_options( getenv( "WINEDEBUG" ) );
+    if (!(debug_options = heap_alloc( max_debug_options * sizeof(*debug_options) ))) nb_debug_options = 0;
+    else parse_options( getenv( "WINEDEBUG" ) );
 }
 
 /* FIXME: this is not 100% thread-safe */
