@@ -137,7 +137,7 @@ const char * __cdecl __wine_dbg_strdup( const char *str )
  *		__wine_dbg_header  (NTDLL.@)
  */
 int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
-                               const char *function )
+                               const struct __wine_debug_context *context )
 {
     static const char * const classes[] = { "fixme", "err", "warn", "trace" };
     struct debug_info *info = get_info();
@@ -157,7 +157,11 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
     pos += snprintf( pos, end - pos, "%04lx:", GetCurrentThreadId() );
     if (cls < ARRAY_SIZE( classes )) pos += snprintf( pos, end - pos, "%s:", classes[cls] );
     pos += snprintf( pos, end - pos, "%s:", channel->name );
-    if (function) pos += snprintf( pos, end - pos, "%s ", function );
+
+    if (context && context->compat)
+        pos += snprintf( pos, end - pos, "%s ", (const char *)context );
+    else if (context && context->version == WINE_DEBUG_CONTEXT_VERSION)
+        pos += snprintf( pos, end - pos, "%s ", context->function );
 
     info->out_pos = pos - info->output;
     return info->out_pos;
