@@ -3062,7 +3062,7 @@ static void output_source_spec( struct makefile *make, struct incl_file *source,
     struct strarray dll_flags = empty_strarray;
     struct strarray default_imports = empty_strarray;
     struct strarray all_libs, dep_libs;
-    const char *dll_name, *obj_name, *res_name, *output_rsrc, *output_file, *debug_file;
+    const char *dll_name, *obj_name, *res_name, *output_rsrc, *output_file;
     unsigned int arch;
 
     if (!imports.count) imports = make->imports;
@@ -3103,15 +3103,12 @@ static void output_source_spec( struct makefile *make, struct incl_file *source,
         output_filename( tools_path( make, "winegcc" ));
         output( "\n" );
         output_winegcc_command( make, arch );
-        output_filename( "-s" );
         output_filenames( dll_flags );
         if (arch) output_filenames( get_expanded_arch_var_array( make, "EXTRADLLFLAGS", arch ));
         output_filename( "-shared" );
         output_filename( source->filename );
         output_filename( obj_name );
         if (res_name) output_filename( res_name );
-        if ((debug_file = get_debug_file( make, dll_name, arch )))
-            output_filename( strmake( "-Wl,--debug-file,%s", obj_dir_path( make, debug_file )));
         output_filenames( all_libs );
         output_filename( arch_make_variable( "LDFLAGS", arch ));
         output( "\n" );
@@ -3524,9 +3521,9 @@ static void output_test_module( struct makefile *make, unsigned int arch )
     output( "\n" );
 
     output( "programs/winetest/%s%s_test.res: %s\n", arch_dirs[arch], basemodule,
-            obj_dir_path( make, stripped ));
+            obj_dir_path( make, testmodule ));
     output( "\t%secho \"%s_test.exe TESTRES \\\"%s\\\"\" | %s -u -o $@\n", cmd_prefix( "WRC" ),
-            basemodule, obj_dir_path( make, stripped ), tools_path( make, "wrc" ));
+            basemodule, obj_dir_path( make, testmodule ), tools_path( make, "wrc" ));
 
     if (make->disabled[arch] || (parent && parent->disabled[arch]))
     {
