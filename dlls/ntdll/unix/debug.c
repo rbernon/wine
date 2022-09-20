@@ -60,8 +60,7 @@ static BOOL init_done;
 static struct debug_info initial_info;  /* debug info for initial thread */
 static unsigned char default_flags = (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
 static int nb_debug_options = -1;
-static int options_size;
-static struct __wine_debug_channel *debug_options;
+static struct __wine_debug_channel option_buffer[1024], *debug_options = option_buffer;
 
 static const char * const debug_classes[] = { "fixme", "err", "warn", "trace" };
 
@@ -106,11 +105,6 @@ static void add_option( const char *name, unsigned char set, unsigned char clear
         }
         if (res < 0) max = pos - 1;
         else min = pos + 1;
-    }
-    if (nb_debug_options >= options_size)
-    {
-        options_size = max( options_size * 2, 16 );
-        debug_options = realloc( debug_options, options_size * sizeof(debug_options[0]) );
     }
 
     pos = min;
@@ -170,6 +164,7 @@ static void parse_options( const char *str )
             default_flags = (default_flags & ~clear) | set;
         else if (strlen( p ) < sizeof(debug_options[0].name))
             add_option( p, set, clear );
+        if (nb_debug_options >= ARRAY_SIZE(option_buffer)) break; /* too many options */
     }
     free( options );
 }
@@ -317,7 +312,6 @@ void dbg_init(void)
 
     options = (struct __wine_debug_channel *)((char *)peb + (is_win64 ? 2 : 1) * page_size);
     memcpy( options, debug_options, nb_debug_options * sizeof(*options) );
-    free( debug_options );
     debug_options = options;
     options[nb_debug_options] = default_option;
     init_done = TRUE;
