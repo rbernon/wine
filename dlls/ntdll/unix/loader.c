@@ -91,6 +91,9 @@ extern char **environ;
 #include "wine/list.h"
 #include "ntsyscalls.h"
 #include "wine/debug.h"
+#ifdef HAVE_VALGRIND_VALGRIND_H
+# include <valgrind/valgrind.h>
+#endif
 
 WINE_DEFAULT_DEBUG_CHANNEL(module);
 
@@ -500,7 +503,7 @@ char *get_alternate_wineloader( WORD machine )
 
 static void preloader_exec( char **argv )
 {
-    if (use_preloader)
+    if (use_preloader && !RUNNING_ON_VALGRIND)
     {
         static const char *preloader = "wine-preloader";
         char *p;
@@ -1801,7 +1804,7 @@ static ULONG_PTR get_image_address(void)
 /***********************************************************************
  *           start_main_thread
  */
-static void start_main_thread(void)
+static void start_main_thread(int argc, char *argv[])
 {
     TEB *teb = virtual_alloc_first_teb();
 
@@ -1822,6 +1825,8 @@ static void start_main_thread(void)
     load_ntdll();
     load_wow64_ntdll( main_image_info.Machine );
     load_apiset_dll();
+    for (int i = 0; i < argc - 1; ++i) MESSAGE(" %s", argv[i]);
+    MESSAGE(" (gdb -p %d)\n", getpid());
     server_init_process_done();
 }
 
@@ -1920,11 +1925,11 @@ static jstring wine_init_jni( JNIEnv *env, jobject obj, jobjectArray cmdline, jo
         __asm__( "mov %%fs,%0" : "=r" (java_fs) );
         if (!(java_fs & 4)) java_gdt_sel = java_fs;
         __asm__( "mov %0,%%fs" :: "r" (0) );
-        start_main_thread();
+        start_main_thread( 0, NULL );
         __asm__( "mov %0,%%fs" :: "r" (java_fs) );
     }
 #else
-    start_main_thread();
+    start_main_thread( 0, NULL );
 #endif
     return (*env)->NewStringUTF( env, error );
 }
@@ -1951,7 +1956,7 @@ jint JNI_OnLoad( JavaVM *vm, void *reserved )
 #ifdef __APPLE__
 static void *apple_wine_thread( void *arg )
 {
-    start_main_thread();
+    start_main_thread( 0, NULL );
     return NULL;
 }
 
@@ -2119,6 +2124,24 @@ static void check_command_line( int argc, char *argv[] )
     }
 }
 
+static BOOL is_debugproc;
+static BOOL is_debughook;
+
+BOOL __cdecl __wine_dbg_start_debugger( unsigned int code, BOOL start_debugger )
+{
+    static const char gdbwait[] = "grep 'TracerPid:' /proc/%d/status|grep -v '0$'";
+    static const char gdbdump[] = "gdb -batch -nx -p %d "
+                                      "-ex \"source ~/Code/proton/wine/tools/gdbinit.py\" "
+                                      "-ex \"lsf\" "
+                                      "-ex \"thread apply all bt\" "
+                                      "-ex \"kill\" 1>&2";
+    char buffer[1024];
+    if (is_debugproc && is_debughook) sprintf(buffer, gdbwait, getpid());
+    else if (start_debugger) sprintf(buffer, gdbdump, getpid());
+    else return TRUE;
+    while (system(buffer));
+    return TRUE;
+}
 
 /***********************************************************************
  *           __wine_main
@@ -2127,6 +2150,24 @@ static void check_command_line( int argc, char *argv[] )
  */
 DECLSPEC_EXPORT void __wine_main( int argc, char *argv[], char *envp[] )
 {
+    const char *winedebug = getenv("WINEDEBUG");
+    const char *debugproc = getenv("WINEDEBUGPROC");
+    const char *debughook = getenv("WINEDEBUGHOOK");
+    const char *debuginit = getenv("WINEDEBUGINIT");
+    const char *debugsave = getenv("WINEDEBUGSAVE");
+
+    if (winedebug && !debugsave) setenv("WINEDEBUGSAVE", winedebug, TRUE);
+
+    if (debugproc && strcasestr(argv[1], debugproc)) is_debugproc = TRUE;
+    else is_debugproc = FALSE;
+
+    if (!debugproc) is_debugproc = FALSE;
+    else if (!is_debugproc) setenv("WINEDEBUG", "-all", TRUE);
+    else if (is_debugproc) setenv("WINEDEBUG", debugsave, TRUE);
+
+    is_debughook = debughook || debuginit;
+    if (debuginit) __wine_dbg_start_debugger( 0, FALSE );
+
     main_argc = argc;
     main_argv = argv;
     main_envp = envp;
@@ -2161,5 +2202,5 @@ DECLSPEC_EXPORT void __wine_main( int argc, char *argv[], char *envp[] )
 #ifdef __APPLE__
     apple_main_thread();
 #endif
-    start_main_thread();
+    start_main_thread( argc, argv );
 }

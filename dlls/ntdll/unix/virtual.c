@@ -32,6 +32,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <stdint.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -59,6 +60,9 @@
 #ifdef HAVE_VALGRIND_VALGRIND_H
 # include <valgrind/valgrind.h>
 #endif
+#ifdef HAVE_VALGRIND_MEMCHECK_H
+# include <valgrind/memcheck.h>
+#endif
 #if defined(__APPLE__)
 # include <mach/mach_init.h>
 # include <mach/mach_vm.h>
@@ -78,6 +82,10 @@
 WINE_DEFAULT_DEBUG_CHANNEL(virtual);
 WINE_DECLARE_DEBUG_CHANNEL(module);
 WINE_DECLARE_DEBUG_CHANNEL(virtual_ranges);
+
+/* Gdb integration, in loader/main.c */
+static void (*wine_gdb_dll_loaded)( const void *module, const char *unix_path, INT_PTR offset );
+static void (*wine_gdb_dll_unload)( const void *module );
 
 struct preload_info
 {
@@ -2695,6 +2703,27 @@ static IMAGE_BASE_RELOCATION *process_relocation_block( char *page, IMAGE_BASE_R
 
 
 /***********************************************************************
+ *           notify_gdb_dll_loaded
+ */
+static void notify_gdb_dll_loaded( void *module, const WCHAR *filename, INT_PTR offset )
+{
+    UNICODE_STRING redir, nt_name;
+    OBJECT_ATTRIBUTES attr;
+    char *unix_path = NULL;
+
+    RtlInitUnicodeString( &nt_name, filename );
+    InitializeObjectAttributes( &attr, &nt_name, OBJ_CASE_INSENSITIVE, 0, 0 );
+    get_redirect( &attr, &redir );
+
+    if (!nt_to_unix_file_name( &attr, &unix_path, FILE_OPEN ))
+        wine_gdb_dll_loaded( module, unix_path, offset );
+
+    free( redir.Buffer );
+    free( unix_path );
+}
+
+
+/***********************************************************************
  *           map_image_into_view
  *
  * Map an executable (PE format) image into an existing view.
@@ -2924,6 +2953,7 @@ static NTSTATUS map_image_into_view( struct file_view *view, const WCHAR *filena
 #ifdef VALGRIND_LOAD_PDB_DEBUGINFO
     VALGRIND_LOAD_PDB_DEBUGINFO(fd, ptr, total_size, ptr - (char *)wine_server_get_ptr( image_info->base ));
 #endif
+    if (wine_gdb_dll_loaded) notify_gdb_dll_loaded( ptr, filename, ptr - (char *)wine_server_get_ptr( image_info->base ) );
     return STATUS_SUCCESS;
 }
 
@@ -3283,6 +3313,9 @@ void virtual_init(void)
     size_t size;
     int i;
     pthread_mutexattr_t attr;
+
+    wine_gdb_dll_loaded = dlsym( RTLD_DEFAULT, "wine_gdb_dll_loaded" );
+    wine_gdb_dll_unload = dlsym( RTLD_DEFAULT, "wine_gdb_dll_unload" );
 
     pthread_mutexattr_init( &attr );
     pthread_mutexattr_settype( &attr, PTHREAD_MUTEX_RECURSIVE );
@@ -3853,7 +3886,7 @@ NTSTATUS virtual_alloc_thread_stack( INITIAL_TEB *stack, ULONG_PTR limit_low, UL
     if (status != STATUS_SUCCESS) goto done;
 
 #ifdef VALGRIND_STACK_REGISTER
-    VALGRIND_STACK_REGISTER( view->base, (char *)view->base + view->size );
+    VALGRIND_DISCARD( VALGRIND_STACK_REGISTER( view->base, (char *)view->base + view->size ) );
 #endif
 
     /* setup no access guard page */
@@ -5641,7 +5674,11 @@ static NTSTATUS unmap_view_of_section( HANDLE process, PVOID addr, ULONG flags )
     SERVER_END_REQ;
     if (!status)
     {
-        if (view->protect & SEC_IMAGE) release_builtin_module( view->base );
+        if (view->protect & SEC_IMAGE)
+        {
+            if (wine_gdb_dll_unload) wine_gdb_dll_unload( view->base );
+            release_builtin_module( view->base );
+        }
         if (flags & MEM_PRESERVE_PLACEHOLDER) free_pages_preserve_placeholder( view, view->base, view->size );
         else delete_view( view );
     }

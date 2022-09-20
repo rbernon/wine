@@ -471,6 +471,7 @@ AC_CHECK_HEADERS(\
 	sys/random.h \
 	sys/resource.h \
 	sys/scsiio.h \
+	sys/sdt.h \
 	sys/shm.h \
 	sys/signal.h \
 	sys/socketvar.h \
@@ -3496,7 +3497,11 @@ WINE_CONFIG_MAKEFILE(programs/termsv)
 WINE_CONFIG_MAKEFILE(programs/uninstaller)
 WINE_CONFIG_MAKEFILE(programs/unlodctr)
 WINE_CONFIG_MAKEFILE(programs/view)
+WINE_CONFIG_MAKEFILE(programs/vkcube)
 WINE_CONFIG_MAKEFILE(programs/wevtutil)
+WINE_CONFIG_MAKEFILE(programs/wglchild)
+WINE_CONFIG_MAKEFILE(programs/wglgears)
+WINE_CONFIG_MAKEFILE(programs/wglinfo)
 WINE_CONFIG_MAKEFILE(programs/where)
 WINE_CONFIG_MAKEFILE(programs/whoami)
 WINE_CONFIG_MAKEFILE(programs/wineboot)
@@ -3516,6 +3521,7 @@ WINE_CONFIG_MAKEFILE(programs/winhelp.exe16,enable_win16)
 WINE_CONFIG_MAKEFILE(programs/winhlp32)
 WINE_CONFIG_MAKEFILE(programs/winmgmt)
 WINE_CONFIG_MAKEFILE(programs/winoldap.mod16,enable_win16)
+WINE_CONFIG_MAKEFILE(programs/wintrace)
 WINE_CONFIG_MAKEFILE(programs/winver)
 WINE_CONFIG_MAKEFILE(programs/wmic)
 WINE_CONFIG_MAKEFILE(programs/wmplayer)
