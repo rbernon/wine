@@ -3,6 +3,7 @@ STATICLIB = libwinecrtd.a
 SOURCES = \
 	channel.c \
 	dbgstr.c \
+	dbgstr_mf.c \
 	dbgstr_variant.c \
 	header.c \
 	log.c \
