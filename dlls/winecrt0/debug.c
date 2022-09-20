@@ -30,6 +30,7 @@
 
 WINE_DECLARE_DEBUG_CHANNEL(pid);
 WINE_DECLARE_DEBUG_CHANNEL(source);
+WINE_DECLARE_DEBUG_CHANNEL(retaddr);
 WINE_DECLARE_DEBUG_CHANNEL(timestamp);
 
 static const char * (__cdecl *p__wine_dbg_strdup)( const char *str );
@@ -202,6 +203,7 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls, struc
         pos += snprintf( pos, end - pos, "%s ", (const char *)context );
     else if (context && context->version == WINE_DEBUG_CONTEXT_VERSION)
     {
+        if (TRACE_ON(retaddr)) pos += snprintf( pos, end - pos, "%012Ix:", (SIZE_T)context->retaddr );
         if (TRACE_ON(source))
         {
             const char *tmp, *file;
