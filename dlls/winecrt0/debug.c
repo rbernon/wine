@@ -98,23 +98,21 @@ static struct __wine_debug_channel *parse_options( const char *str, int *option_
     static struct __wine_debug_channel option_buffer[1024];
 
     unsigned char default_flags = (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
-    char *opt, *next, *options;
+    const char *opt, *next;
     unsigned int i;
 
     *option_count = 0;
-
-    if (!str) options = NULL;
-    else options = _strdup( str );
-
-    for (opt = options; opt; opt = next)
+    for (opt = str; opt; opt = next)
     {
-        const char *p;
+        struct __wine_debug_channel tmp_option = {0};
+        const char *p, *end;
         unsigned char set = 0, clear = 0;
 
-        if ((next = strchr( opt, ',' ))) *next++ = 0;
+        if ((next = strchr( opt, ',' ))) end = next++;
+        else end = opt + strlen( opt );
 
         p = opt + strcspn( opt, "+-" );
-        if (!p[0]) p = opt;  /* assume it's a debug channel name */
+        if (p == end) p = opt;  /* assume it's a debug channel name */
 
         if (p > opt)
         {
@@ -138,15 +136,17 @@ static struct __wine_debug_channel *parse_options( const char *str, int *option_
             else set = ~0;
         }
         if (*p == '+' || *p == '-') p++;
-        if (!p[0]) continue;
+        if (p == end) continue;
 
         if (!strcmp( p, "all" ) || !p[0])
             default_flags = (default_flags & ~clear) | set;
-        else if (strlen( p ) < sizeof(option_buffer[0].name))
-            add_option( option_buffer, option_count, default_flags, p, set, clear );
+        else if (end - p < sizeof(tmp_option.name))
+        {
+            memcpy( tmp_option.name, p, end - p );
+            add_option( option_buffer, option_count, default_flags, tmp_option.name, set, clear );
+        }
         if (*option_count >= ARRAY_SIZE(option_buffer) - 1) break; /* too many options */
     }
-    free( options );
 
     option_buffer[*option_count].flags = default_flags;
     return option_buffer;
