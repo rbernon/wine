@@ -40,8 +40,6 @@ static int (__cdecl *p__wine_dbg_header)( enum __wine_debug_class cls,
 
 static const char * const debug_classes[] = { "fixme", "err", "warn", "trace" };
 
-static int nb_debug_options = -1;
-static struct __wine_debug_channel *debug_options;
 static DWORD partial_line_tid;  /* id of the last thread to output a partial line */
 
 static void load_func( void **func, const char *name, void *def )
@@ -144,10 +142,38 @@ static struct __wine_debug_channel *parse_options( const char *str, int *option_
     return option_buffer;
 }
 
-/* initialize all options at startup */
-static void init_options(void)
+static void spin_lock( LONG *lock )
 {
-    debug_options = parse_options( getenv( "WINEDEBUG" ), &nb_debug_options );
+    while (InterlockedCompareExchange( lock, -1, 0 ))
+        YieldProcessor();
+}
+
+static void spin_unlock( LONG *lock )
+{
+    InterlockedExchange( lock, 0 );
+}
+
+/* initialize all options at startup */
+static void __cdecl fallback__wine_dbg_init( struct __wine_debug_channel **options, int *option_count )
+{
+    static LONG lock;
+
+    if (*option_count != -1)
+        return;
+
+    spin_lock( &lock );
+
+    if (*option_count == -1)
+        *options = parse_options( getenv( "WINEDEBUG" ), option_count );
+
+    spin_unlock( &lock );
+}
+
+void __cdecl __wine_dbg_init( struct __wine_debug_channel **options, int *option_count )
+{
+    static typeof(fallback__wine_dbg_init) *p__wine_dbg_init;
+    LOAD_FUNC( __wine_dbg_init );
+    p__wine_dbg_init( options, option_count );
 }
 
 /* FIXME: this is not 100% thread-safe */
@@ -199,10 +225,13 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls,
 
 static unsigned char __cdecl fallback__wine_dbg_get_channel_flags( struct __wine_debug_channel *channel )
 {
+    static struct __wine_debug_channel *debug_options;
+    static int nb_debug_options = -1;
+
     unsigned char default_flags;
     int min, max, pos, res;
 
-    if (nb_debug_options == -1) init_options();
+    if (nb_debug_options == -1) __wine_dbg_init( &debug_options, &nb_debug_options );
 
     min = 0;
     max = nb_debug_options - 1;
