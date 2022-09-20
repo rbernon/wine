@@ -77,6 +77,8 @@
 #ifdef __ANDROID__
 # include <jni.h>
 #endif
+#include <sys/syscall.h>
+#define gettid() ((pid_t)syscall(SYS_gettid))
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -2070,16 +2072,30 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
 
 #endif  /* _WIN64 */
 
+static int get_unix_tid(void)
+{
+    int ret = -1;
+#ifdef HAVE_PTHREAD_GETTHREADID_NP
+    ret = pthread_getthreadid_np();
+#elif defined(linux)
+    ret = gettid();
+#endif
+    return ret;
+}
+
+
 /***********************************************************************
  *           start_main_thread
  */
-static void start_main_thread(void)
+static void start_main_thread(int argc, char *argv[])
 {
     SYSTEM_SERVICE_TABLE syscall_table = { (ULONG_PTR *)syscalls, NULL, ARRAY_SIZE(syscalls), syscall_args };
     TEB *teb = virtual_alloc_first_teb();
 
     signal_init_threading();
     signal_alloc_thread( teb );
+    teb->SystemReserved1[0] = (void *)(ULONG_PTR)getpid();
+    teb->SystemReserved1[1] = (void *)(ULONG_PTR)get_unix_tid();
     dbg_init();
     startup_info_size = server_init_process();
     virtual_map_user_shared_data();
@@ -2099,6 +2115,8 @@ static void start_main_thread(void)
     load_apiset_dll();
     ntdll_init_syscalls( 0, &syscall_table, p__wine_syscall_dispatcher );
     *p__wine_unix_call_dispatcher = __wine_unix_call_dispatcher;
+    for (int i = 0; i < argc - 1; ++i) MESSAGE(" %s", argv[i]);
+    MESSAGE(" (gdb -p %d)\n", getpid());
     server_init_process_done();
 }
 
@@ -2193,11 +2211,11 @@ static jstring wine_init_jni( JNIEnv *env, jobject obj, jobjectArray cmdline, jo
         __asm__( "mov %%fs,%0" : "=r" (java_fs) );
         if (!(java_fs & 4)) java_gdt_sel = java_fs;
         __asm__( "mov %0,%%fs" :: "r" (0) );
-        start_main_thread();
+        start_main_thread( 0, NULL );
         __asm__( "mov %0,%%fs" :: "r" (java_fs) );
     }
 #else
-    start_main_thread();
+    start_main_thread( 0, NULL );
 #endif
     return (*env)->NewStringUTF( env, error );
 }
@@ -2224,7 +2242,7 @@ jint JNI_OnLoad( JavaVM *vm, void *reserved )
 #ifdef __APPLE__
 static void *apple_wine_thread( void *arg )
 {
-    start_main_thread();
+    start_main_thread( 0, NULL );
     return NULL;
 }
 
@@ -2392,6 +2410,24 @@ static void check_command_line( int argc, char *argv[] )
     }
 }
 
+static BOOL is_debugproc;
+static BOOL is_debughook;
+
+BOOL __cdecl __wine_dbg_start_debugger( unsigned int code, BOOL start_debugger )
+{
+    static const char gdbwait[] = "grep 'TracerPid:' /proc/%d/status|grep -v '0$'";
+    static const char gdbdump[] = "gdb -batch -nx -p %d "
+                                      "-ex \"source ~/Code/proton/wine/tools/gdbinit.py\" "
+                                      "-ex \"lsf\" "
+                                      "-ex \"thread apply all bt\" "
+                                      "-ex \"kill\" 1>&2";
+    char buffer[1024];
+    if (is_debugproc && is_debughook) sprintf(buffer, gdbwait, getpid());
+    else if (start_debugger) sprintf(buffer, gdbdump, getpid());
+    else return TRUE;
+    while (system(buffer));
+    return TRUE;
+}
 
 /***********************************************************************
  *           __wine_main
@@ -2400,6 +2436,24 @@ static void check_command_line( int argc, char *argv[] )
  */
 void __wine_main( int argc, char *argv[], char *envp[] )
 {
+    const char *winedebug = getenv("WINEDEBUG");
+    const char *debugproc = getenv("WINEDEBUGPROC");
+    const char *debughook = getenv("WINEDEBUGHOOK");
+    const char *debuginit = getenv("WINEDEBUGINIT");
+    const char *debugsave = getenv("WINEDEBUGSAVE");
+
+    if (winedebug && !debugsave) setenv("WINEDEBUGSAVE", winedebug, TRUE);
+
+    if (debugproc && strcasestr(argv[1], debugproc)) is_debugproc = TRUE;
+    else is_debugproc = FALSE;
+
+    if (!debugproc) is_debugproc = FALSE;
+    else if (!is_debugproc) setenv("WINEDEBUG", "-all", TRUE);
+    else if (is_debugproc) setenv("WINEDEBUG", debugsave, TRUE);
+
+    is_debughook = debughook || debuginit;
+    if (debuginit) __wine_dbg_start_debugger( 0, FALSE );
+
     init_paths( argv );
 
     if (!getenv( "WINELOADERNOEXEC" ))  /* first time around */
@@ -2430,5 +2484,5 @@ void __wine_main( int argc, char *argv[], char *envp[] )
 #ifdef __APPLE__
     apple_main_thread();
 #endif
-    start_main_thread();
+    start_main_thread( argc, argv );
 }
