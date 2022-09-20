@@ -994,6 +994,7 @@ NTSTATUS WINAPI NtSetContextThread( HANDLE handle, const CONTEXT *context )
     }
     else flags &= ~CONTEXT_XSTATE;
 
+#if 0
     /* debug registers require a server call */
     if (self && (flags & CONTEXT_DEBUG_REGISTERS))
         self = (amd64_thread_data()->dr0 == context->Dr0 &&
@@ -1002,6 +1003,7 @@ NTSTATUS WINAPI NtSetContextThread( HANDLE handle, const CONTEXT *context )
                 amd64_thread_data()->dr3 == context->Dr3 &&
                 amd64_thread_data()->dr6 == context->Dr6 &&
                 amd64_thread_data()->dr7 == context->Dr7);
+#endif
 
     if (!self)
     {
@@ -1038,6 +1040,15 @@ NTSTATUS WINAPI NtSetContextThread( HANDLE handle, const CONTEXT *context )
         frame->r13 = context->R13;
         frame->r14 = context->R14;
         frame->r15 = context->R15;
+    }
+    if (flags & CONTEXT_DEBUG_REGISTERS)
+    {
+        amd64_thread_data()->dr0 = context->Dr0;
+        amd64_thread_data()->dr1 = context->Dr1;
+        amd64_thread_data()->dr2 = context->Dr2;
+        amd64_thread_data()->dr3 = context->Dr3;
+        amd64_thread_data()->dr6 = context->Dr6;
+        amd64_thread_data()->dr7 = context->Dr7;
     }
     if (flags & CONTEXT_CONTROL)
     {
@@ -1080,7 +1091,9 @@ NTSTATUS WINAPI NtGetContextThread( HANDLE handle, CONTEXT *context )
     BOOL self = (handle == GetCurrentThread());
 
     /* debug registers require a server call */
+#if 0
     if (needed_flags & CONTEXT_DEBUG_REGISTERS) self = FALSE;
+#endif
 
     if (!self)
     {
@@ -1182,12 +1195,12 @@ NTSTATUS WINAPI NtGetContextThread( HANDLE handle, CONTEXT *context )
     /* update the cached version of the debug registers */
     if (needed_flags & CONTEXT_DEBUG_REGISTERS)
     {
-        amd64_thread_data()->dr0 = context->Dr0;
-        amd64_thread_data()->dr1 = context->Dr1;
-        amd64_thread_data()->dr2 = context->Dr2;
-        amd64_thread_data()->dr3 = context->Dr3;
-        amd64_thread_data()->dr6 = context->Dr6;
-        amd64_thread_data()->dr7 = context->Dr7;
+        context->Dr0 = amd64_thread_data()->dr0;
+        context->Dr1 = amd64_thread_data()->dr1;
+        context->Dr2 = amd64_thread_data()->dr2;
+        context->Dr3 = amd64_thread_data()->dr3;
+        context->Dr6 = amd64_thread_data()->dr6;
+        context->Dr7 = amd64_thread_data()->dr7;
     }
     return STATUS_SUCCESS;
 }
@@ -1574,7 +1587,7 @@ __ASM_GLOBAL_FUNC( call_user_mode_callback,
                    "movq %rbp,0x40(%rsp)\n\t"
                    __ASM_CFI(".cfi_rel_offset %rbp,0x40\n\t")
                    "leaq 0x40(%rsp),%rbp\n\t"
-                   __ASM_CFI(".cfi_def_cfa_register %rbp\n\t")
+                   __ASM_CFI(".cfi_def_cfa %rbp,0x10\n\t")
                    "movq %rbx,-0x08(%rbp)\n\t"
                    __ASM_CFI(".cfi_rel_offset %rbx,-0x08\n\t")
                    "movq %r12,-0x10(%rbp)\n\t"

@@ -471,6 +471,7 @@ AC_CHECK_HEADERS(\
 	sys/random.h \
 	sys/resource.h \
 	sys/scsiio.h \
+	sys/sdt.h \
 	sys/shm.h \
 	sys/signal.h \
 	sys/socketvar.h \
