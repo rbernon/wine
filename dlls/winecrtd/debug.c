@@ -58,3 +58,31 @@ const char * __cdecl __wine_dbg_strdup( const char *str )
     info->str_pos = pos + n;
     return memcpy( info->strings + pos, str, n );
 }
+
+/* add a new debug option at the end of the option list */
+void __wine_dbg_add_option( struct __wine_debug_channel *options, int *options_count, unsigned char default_flags,
+                            const char *name, unsigned char set, unsigned char clear ) DECLSPEC_HIDDEN;
+void __wine_dbg_add_option( struct __wine_debug_channel *options, int *option_count, unsigned char default_flags,
+                            const char *name, unsigned char set, unsigned char clear )
+{
+    struct __wine_debug_channel *tmp, *opt = options, *end = opt + *option_count;
+    int res;
+
+    while (opt < end)
+    {
+        tmp = opt + (end - opt) / 2;
+        if (!(res = strcmp( name, tmp->name )))
+        {
+            tmp->flags = (tmp->flags & ~clear) | set;
+            return;
+        }
+        if (res < 0) end = tmp;
+        else opt = tmp + 1;
+    }
+
+    end = options + *option_count;
+    memmove( opt + 1, opt, (char *)end - (char *)opt );
+    strcpy( opt->name, name );
+    opt->flags = (default_flags & ~clear) | set;
+    (*option_count)++;
+}
