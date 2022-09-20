@@ -5,6 +5,7 @@ SOURCES = \
 	crt_dllmain.c \
 	crt_fltused.c \
 	debug.c \
+	dbgstr.c \
 	delay_load.c \
 	dll_canunload.c \
 	dll_entry.c \
