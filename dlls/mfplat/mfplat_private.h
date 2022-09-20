@@ -44,6 +44,7 @@ struct attributes
 extern HRESULT init_attributes_object(struct attributes *object, UINT32 size);
 extern void clear_attributes_object(struct attributes *object);
 extern const char *debugstr_mf_guid(const GUID *guid);
+extern const char *debugstr_mf_media_event_type(MediaEventType type);
 
 extern HRESULT attributes_GetItem(struct attributes *object, REFGUID key, PROPVARIANT *value);
 extern HRESULT attributes_GetItemType(struct attributes *object, REFGUID key, MF_ATTRIBUTE_TYPE *type);
