@@ -29,6 +29,7 @@
 #include "wine/heap.h"
 
 WINE_DECLARE_DEBUG_CHANNEL(pid);
+WINE_DECLARE_DEBUG_CHANNEL(source);
 WINE_DECLARE_DEBUG_CHANNEL(timestamp);
 
 static const char * (__cdecl *p__wine_dbg_strdup)( const char *str );
@@ -200,7 +201,20 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls, struc
     if (context && context->compat)
         pos += snprintf( pos, end - pos, "%s ", (const char *)context );
     else if (context && context->version == WINE_DEBUG_CONTEXT_VERSION)
+    {
+        if (TRACE_ON(source))
+        {
+            const char *tmp, *file;
+
+            if ((tmp = strrchr( context->file, '/' ))) file = tmp + 1;
+            else if ((tmp = strrchr( context->file, '\\' ))) file = tmp + 1;
+            else file = context->file;
+
+            pos += snprintf( pos, end - pos, "%s:%d:", file, context->line );
+        }
+
         pos += snprintf( pos, end - pos, "%s ", context->function );
+    }
 
     return fwrite( buffer, 1, strlen(buffer), stderr );
 }
