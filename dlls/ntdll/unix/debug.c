@@ -302,7 +302,7 @@ int __cdecl __wine_dbg_output( const char *str )
  *		__wine_dbg_header  (NTDLL.@)
  */
 int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
-                               const char *function )
+                               const struct __wine_debug_context *context )
 {
     static const char * const classes[] = { "fixme", "err", "warn", "trace" };
     struct debug_info *info = get_info();
@@ -323,9 +323,17 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
         if (TRACE_ON(pid)) pos += sprintf( pos, "%04x:", (UINT)GetCurrentProcessId() );
         pos += sprintf( pos, "%04x:", (UINT)GetCurrentThreadId() );
     }
-    if (function && cls < ARRAY_SIZE( classes ))
+    if (context && cls < ARRAY_SIZE( classes ))
+    {
+        const char *function;
+
+        if (context->compat) function = (const char *)context;
+        else if (context->version != WINE_DEBUG_CONTEXT_VERSION) function = "";
+        else function = context->function;
+
         pos += snprintf( pos, sizeof(info->output) - (pos - info->output), "%s:%s:%s ",
                          classes[cls], channel->name, function );
+    }
     info->out_pos = pos - info->output;
     return info->out_pos;
 }
