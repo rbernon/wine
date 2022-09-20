@@ -65,8 +65,6 @@ static void add_option( const char *name, unsigned char set, unsigned char clear
 {
     int min = 0, max = nb_debug_options - 1, pos, res;
 
-    if (strlen(name) >= sizeof(debug_options[0].name)) return;
-
     while (min <= max)
     {
         pos = (min + max) / 2;
@@ -139,7 +137,7 @@ static void parse_options( const char *str )
 
         if (!strcmp( p, "all" ) || !p[0])
             default_flags = (default_flags & ~clear) | set;
-        else
+        else if (strlen( p ) < sizeof(debug_options[0].name))
             add_option( p, set, clear );
     }
     free( options );
