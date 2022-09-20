@@ -58,6 +58,8 @@
 #ifdef HAVE_LIBPROCSTAT_H
 #include <libprocstat.h>
 #endif
+#include <sys/syscall.h>
+#define gettid() ((pid_t)syscall(SYS_gettid))
 
 #ifdef __APPLE__
 #include <mach/mach.h>
@@ -77,7 +79,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(thread);
 WINE_DECLARE_DEBUG_CHANNEL(seh);
 WINE_DECLARE_DEBUG_CHANNEL(threadname);
 
-pthread_key_t teb_key = 0;
+pthread_key_t __wine_teb_key = 0;
 
 static LONG nb_threads = 1;
 
@@ -1060,6 +1062,16 @@ static void pthread_exit_wrapper( int status )
     pthread_exit( UIntToPtr(status) );
 }
 
+static int get_unix_tid(void)
+{
+    int ret = -1;
+#ifdef HAVE_PTHREAD_GETTHREADID_NP
+    ret = pthread_getthreadid_np();
+#elif defined(linux)
+    ret = gettid();
+#endif
+    return ret;
+}
 
 /***********************************************************************
  *           start_thread
@@ -1072,7 +1084,9 @@ static void start_thread( TEB *teb )
     BOOL suspend;
 
     thread_data->pthread_id = pthread_self();
-    pthread_setspecific( teb_key, teb );
+    pthread_setspecific( __wine_teb_key, teb );
+    teb->SystemReserved1[0] = (void *)(ULONG_PTR)getpid();
+    teb->SystemReserved1[1] = (void *)(ULONG_PTR)get_unix_tid();
     server_init_thread( thread_data->start, &suspend );
     signal_start_thread( thread_data->start, thread_data->param, suspend, teb );
 }
@@ -1527,15 +1541,6 @@ NTSTATUS WINAPI NtRaiseException( EXCEPTION_RECORD *rec, CONTEXT *context, BOOL 
 
     NtTerminateProcess( NtCurrentProcess(), rec->ExceptionCode );
     return STATUS_SUCCESS;
-}
-
-
-/**********************************************************************
- *           NtCurrentTeb   (NTDLL.@)
- */
-TEB * WINAPI NtCurrentTeb(void)
-{
-    return pthread_getspecific( teb_key );
 }
 
 

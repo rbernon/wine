@@ -77,6 +77,8 @@
 #ifdef __ANDROID__
 # include <jni.h>
 #endif
+#include <sys/syscall.h>
+#define gettid() ((pid_t)syscall(SYS_gettid))
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -1440,6 +1442,30 @@ static inline char *prepend_build_dir_path( char *ptr, const char *ext, const ch
 }
 
 
+static void notify_gdb_dll_loaded( void *module, const char *unix_path )
+{
+    static void (*wine_gdb_dll_loaded)( const void *module, const char *unix_path );
+    if (!wine_gdb_dll_loaded) wine_gdb_dll_loaded = dlsym( RTLD_DEFAULT, "wine_gdb_dll_loaded" );
+    if (wine_gdb_dll_loaded) wine_gdb_dll_loaded( module, unix_path );
+}
+
+void notify_gdb_native_dll_loaded( void *module, UNICODE_STRING *nt_name )
+{
+    OBJECT_ATTRIBUTES attr;
+    UNICODE_STRING redir;
+    char *unix_path;
+
+    InitializeObjectAttributes( &attr, nt_name, OBJ_CASE_INSENSITIVE, 0, 0 );
+    get_redirect( &attr, &redir );
+
+    if (!nt_to_unix_file_name( &attr, &unix_path, FILE_OPEN ))
+        notify_gdb_dll_loaded( module, unix_path );
+
+    free( redir.Buffer );
+    free( unix_path );
+}
+
+
 /***********************************************************************
  *	open_dll_file
  *
@@ -1490,6 +1516,7 @@ static NTSTATUS open_builtin_pe_file( const char *name, OBJECT_ATTRIBUTES *attr,
     {
         status = virtual_map_builtin_module( mapping, module, size, image_info, zero_bits, machine, prefer_native );
         NtClose( mapping );
+        if (!status) notify_gdb_dll_loaded( *module, name );
     }
     return status;
 }
@@ -1620,6 +1647,7 @@ static NTSTATUS find_builtin_dll( UNICODE_STRING *nt_name, void **module, SIZE_T
 
     if (found_image) status = STATUS_IMAGE_MACHINE_TYPE_MISMATCH;
     WARN( "cannot find builtin library for %s\n", debugstr_us(nt_name) );
+    if (!status) notify_gdb_native_dll_loaded( *module, nt_name );
 done:
     if (status >= 0 && ext)
     {
@@ -1637,17 +1665,15 @@ done:
  * Load the builtin dll if specified by load order configuration.
  * Return STATUS_IMAGE_ALREADY_LOADED if we should keep the native one that we have found.
  */
-NTSTATUS load_builtin( const pe_image_info_t *image_info, WCHAR *filename,
+NTSTATUS load_builtin( const pe_image_info_t *image_info, UNICODE_STRING *nt_name,
                        void **module, SIZE_T *size, ULONG_PTR zero_bits )
 {
     WORD machine = image_info->machine;  /* request same machine as the native one */
     NTSTATUS status;
-    UNICODE_STRING nt_name;
     SECTION_IMAGE_INFORMATION info;
     enum loadorder loadorder;
 
-    init_unicode_string( &nt_name, filename );
-    loadorder = get_load_order( &nt_name );
+    loadorder = get_load_order( nt_name );
 
     if (loadorder == LO_DISABLED) return STATUS_DLL_NOT_FOUND;
 
@@ -1658,7 +1684,7 @@ NTSTATUS load_builtin( const pe_image_info_t *image_info, WCHAR *filename,
     }
     else if (image_info->image_flags & IMAGE_FLAGS_WineFakeDll)
     {
-        TRACE( "%s is a fake Wine dll\n", debugstr_w(filename) );
+        TRACE( "%s is a fake Wine dll\n", debugstr_us(nt_name) );
         if (loadorder == LO_NATIVE) return STATUS_DLL_NOT_FOUND;
         loadorder = LO_BUILTIN;  /* builtin with no fallback since mapping a fake dll is not useful */
     }
@@ -1669,9 +1695,9 @@ NTSTATUS load_builtin( const pe_image_info_t *image_info, WCHAR *filename,
     case LO_NATIVE_BUILTIN:
         return STATUS_IMAGE_ALREADY_LOADED;
     case LO_BUILTIN:
-        return find_builtin_dll( &nt_name, module, size, &info, zero_bits, machine, FALSE );
+        return find_builtin_dll( nt_name, module, size, &info, zero_bits, machine, FALSE );
     default:
-        status = find_builtin_dll( &nt_name, module, size, &info, zero_bits, machine, (loadorder == LO_DEFAULT) );
+        status = find_builtin_dll( nt_name, module, size, &info, zero_bits, machine, (loadorder == LO_DEFAULT) );
         if (status == STATUS_DLL_NOT_FOUND || status == STATUS_IMAGE_MACHINE_TYPE_MISMATCH)
             return STATUS_IMAGE_ALREADY_LOADED;
         return status;
@@ -2071,16 +2097,30 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
 
 #endif  /* _WIN64 */
 
+static int get_unix_tid(void)
+{
+    int ret = -1;
+#ifdef HAVE_PTHREAD_GETTHREADID_NP
+    ret = pthread_getthreadid_np();
+#elif defined(linux)
+    ret = gettid();
+#endif
+    return ret;
+}
+
+
 /***********************************************************************
  *           start_main_thread
  */
-static void start_main_thread(void)
+static void start_main_thread(int argc, char *argv[])
 {
     SYSTEM_SERVICE_TABLE syscall_table = { (ULONG_PTR *)syscalls, NULL, ARRAY_SIZE(syscalls), syscall_args };
     TEB *teb = virtual_alloc_first_teb();
 
     signal_init_threading();
     signal_alloc_thread( teb );
+    teb->SystemReserved1[0] = (void *)(ULONG_PTR)getpid();
+    teb->SystemReserved1[1] = (void *)(ULONG_PTR)get_unix_tid();
     dbg_init();
     startup_info_size = server_init_process();
     virtual_map_user_shared_data();
@@ -2100,6 +2140,8 @@ static void start_main_thread(void)
     load_apiset_dll();
     ntdll_init_syscalls( 0, &syscall_table, p__wine_syscall_dispatcher );
     *p__wine_unix_call_dispatcher = __wine_unix_call_dispatcher;
+    for (int i = 0; i < argc - 1; ++i) MESSAGE(" %s", argv[i]);
+    MESSAGE(" (gdb -p %d)\n", getpid());
     server_init_process_done();
 }
 
@@ -2194,11 +2236,11 @@ static jstring wine_init_jni( JNIEnv *env, jobject obj, jobjectArray cmdline, jo
         __asm__( "mov %%fs,%0" : "=r" (java_fs) );
         if (!(java_fs & 4)) java_gdt_sel = java_fs;
         __asm__( "mov %0,%%fs" :: "r" (0) );
-        start_main_thread();
+        start_main_thread( 0, NULL );
         __asm__( "mov %0,%%fs" :: "r" (java_fs) );
     }
 #else
-    start_main_thread();
+    start_main_thread( 0, NULL );
 #endif
     return (*env)->NewStringUTF( env, error );
 }
@@ -2225,7 +2267,7 @@ jint JNI_OnLoad( JavaVM *vm, void *reserved )
 #ifdef __APPLE__
 static void *apple_wine_thread( void *arg )
 {
-    start_main_thread();
+    start_main_thread( 0, NULL );
     return NULL;
 }
 
@@ -2393,6 +2435,24 @@ static void check_command_line( int argc, char *argv[] )
     }
 }
 
+static BOOL is_debugproc;
+static BOOL is_debughook;
+
+BOOL __cdecl __wine_dbg_start_debugger( unsigned int code, BOOL start_debugger )
+{
+    static const char gdbwait[] = "grep 'TracerPid:' /proc/%d/status|grep -v '0$'";
+    static const char gdbdump[] = "gdb -batch -nx -p %d "
+                                      "-ex \"source ~/Code/proton/wine/tools/gdbinit.py\" "
+                                      "-ex \"lsf\" "
+                                      "-ex \"thread apply all bt\" "
+                                      "-ex \"kill\" 1>&2";
+    char buffer[1024];
+    if (is_debugproc && is_debughook) sprintf(buffer, gdbwait, getpid());
+    else if (start_debugger) sprintf(buffer, gdbdump, getpid());
+    else return TRUE;
+    while (system(buffer));
+    return TRUE;
+}
 
 /***********************************************************************
  *           __wine_main
@@ -2401,6 +2461,24 @@ static void check_command_line( int argc, char *argv[] )
  */
 void __wine_main( int argc, char *argv[], char *envp[] )
 {
+    const char *winedebug = getenv("WINEDEBUG");
+    const char *debugproc = getenv("WINEDEBUGPROC");
+    const char *debughook = getenv("WINEDEBUGHOOK");
+    const char *debuginit = getenv("WINEDEBUGINIT");
+    const char *debugsave = getenv("WINEDEBUGSAVE");
+
+    if (winedebug && !debugsave) setenv("WINEDEBUGSAVE", winedebug, TRUE);
+
+    if (debugproc && strcasestr(argv[1], debugproc)) is_debugproc = TRUE;
+    else is_debugproc = FALSE;
+
+    if (!debugproc) is_debugproc = FALSE;
+    else if (!is_debugproc) setenv("WINEDEBUG", "-all", TRUE);
+    else if (is_debugproc) setenv("WINEDEBUG", debugsave, TRUE);
+
+    is_debughook = debughook || debuginit;
+    if (debuginit) __wine_dbg_start_debugger( 0, FALSE );
+
     init_paths( argv );
 
     if (!getenv( "WINELOADERNOEXEC" ))  /* first time around */
@@ -2431,5 +2509,5 @@ void __wine_main( int argc, char *argv[], char *envp[] )
 #ifdef __APPLE__
     apple_main_thread();
 #endif
-    start_main_thread();
+    start_main_thread( argc, argv );
 }

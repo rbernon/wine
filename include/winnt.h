@@ -32,6 +32,9 @@
 #include <string.h>
 #endif
 
+#if defined(WINE_UNIX_LIB)
+#include <pthread.h>
+#endif
 
 #if defined(_MSC_VER) && (defined(__arm__) || defined(__aarch64__))
 #include <intrin.h>
@@ -2230,14 +2233,21 @@ typedef struct _NT_TIB
 
 struct _TEB;
 
-#if defined(__i386__) && defined(__GNUC__) && !defined(WINE_UNIX_LIB)
+#if defined(WINE_UNIX_LIB)
+extern pthread_key_t __wine_teb_key;
+
+static FORCEINLINE struct _TEB * WINAPI NtCurrentTeb(void)
+{
+    return pthread_getspecific( __wine_teb_key );
+}
+#elif defined(__i386__) && defined(__GNUC__)
 static FORCEINLINE struct _TEB * WINAPI NtCurrentTeb(void)
 {
     struct _TEB *teb;
     __asm__(".byte 0x64\n\tmovl (0x18),%0" : "=r" (teb));
     return teb;
 }
-#elif defined(__i386__) && defined(_MSC_VER) && !defined(WINE_UNIX_LIB)
+#elif defined(__i386__) && defined(_MSC_VER)
 static FORCEINLINE struct _TEB * WINAPI NtCurrentTeb(void)
 {
   struct _TEB *teb;
@@ -2245,28 +2255,28 @@ static FORCEINLINE struct _TEB * WINAPI NtCurrentTeb(void)
   __asm mov teb, eax;
   return teb;
 }
-#elif defined(__x86_64__) && defined(__GNUC__) && !defined(WINE_UNIX_LIB)
+#elif defined(__x86_64__) && defined(__GNUC__)
 static FORCEINLINE struct _TEB * WINAPI NtCurrentTeb(void)
 {
     struct _TEB *teb;
     __asm__(".byte 0x65\n\tmovq (0x30),%0" : "=r" (teb));
     return teb;
 }
-#elif defined(__x86_64__) && defined(_MSC_VER) && !defined(WINE_UNIX_LIB)
+#elif defined(__x86_64__) && defined(_MSC_VER)
 unsigned __int64 __readgsqword(unsigned long);
 #pragma intrinsic(__readgsqword)
 static FORCEINLINE struct _TEB * WINAPI NtCurrentTeb(void)
 {
     return (struct _TEB *)__readgsqword(FIELD_OFFSET(NT_TIB, Self));
 }
-#elif defined(__arm__) && defined(__GNUC__) && !defined(WINE_UNIX_LIB)
+#elif defined(__arm__) && defined(__GNUC__)
 static FORCEINLINE struct _TEB * WINAPI NtCurrentTeb(void)
 {
     struct _TEB *teb;
     __asm__("mrc p15, 0, %0, c13, c0, 2" : "=r" (teb));
     return teb;
 }
-#elif defined(__arm__) && defined(_MSC_VER) && !defined(WINE_UNIX_LIB)
+#elif defined(__arm__) && defined(_MSC_VER)
 #pragma intrinsic(_MoveFromCoprocessor)
 static FORCEINLINE struct _TEB * WINAPI NtCurrentTeb(void)
 {
