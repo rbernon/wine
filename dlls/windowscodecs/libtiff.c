@@ -39,14 +39,14 @@ WINE_DECLARE_DEBUG_CHANNEL(tiff);
 static void tiff_error_handler( const char *module, const char *format, va_list args )
 {
     if (!ERR_ON(tiff)) return;
-    if (wine_dbg_vlog( __WINE_DBCL_ERR, &__wine_dbch_tiff, module, format, args ) != -1)
+    if (wine_dbg_vlog( __WINE_DBCL_ERR, &__wine_dbch_tiff, __FILE__, __LINE__, module, format, args ) != -1)
         __wine_dbg_output( "\n" );
 }
 
 static void tiff_warning_handler( const char *module, const char *format, va_list args )
 {
     if (!WARN_ON(tiff)) return;
-    if (wine_dbg_vlog( __WINE_DBCL_WARN, &__wine_dbch_tiff, module, format, args ) != -1)
+    if (wine_dbg_vlog( __WINE_DBCL_WARN, &__wine_dbch_tiff, __FILE__, __LINE__, module, format, args ) != -1)
         __wine_dbg_output( "\n" );
 }
 
