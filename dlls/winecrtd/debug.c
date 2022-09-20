@@ -175,3 +175,41 @@ unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel 
     if (channel->flags & (1 << __WINE_DBCL_INIT)) channel->flags = default_flags;
     return default_flags;
 }
+
+/* add a string to the output buffer */
+static int append_output( struct debug_info *info, const char *str, size_t len )
+{
+    if (len >= sizeof(info->output) - info->out_pos)
+    {
+        static const char overflow_msg[] = "wine: debug buffer overflow:\n";
+        __wine_dbg_write( info->output, info->out_pos );
+        info->out_pos = 0;
+        __wine_dbg_write( overflow_msg, sizeof(overflow_msg) - 1 );
+        __wine_dbg_write( str, len );
+#ifdef __WINE_PE_BUILD
+        RtlRaiseStatus( STATUS_BUFFER_OVERFLOW );
+#else
+        abort();
+#endif
+    }
+    memcpy( info->output + info->out_pos, str, len );
+    info->out_pos += len;
+    return len;
+}
+
+int __cdecl __wine_dbg_output( const char *str )
+{
+    struct debug_info *info = __wine_dbg_get_info();
+    const char *end = strrchr( str, '\n' );
+    int ret = 0;
+
+    if (end)
+    {
+        ret += append_output( info, str, end + 1 - str );
+        __wine_dbg_write( info->output, info->out_pos );
+        info->out_pos = 0;
+        str = end + 1;
+    }
+    if (*str) ret += append_output( info, str, strlen( str ));
+    return ret;
+}

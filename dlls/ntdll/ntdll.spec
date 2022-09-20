@@ -1701,7 +1701,6 @@
 @ cdecl -norelay __wine_dbg_init(ptr ptr)
 @ cdecl -norelay __wine_dbg_get_info(ptr ptr)
 @ cdecl -norelay __wine_dbg_header(long long str)
-@ cdecl -norelay __wine_dbg_output(str)
 
 # Version
 @ cdecl wine_get_version()
