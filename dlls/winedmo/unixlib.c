@@ -90,7 +90,7 @@ static void vlog( void *ctx, int level, const char *fmt, va_list va_args )
     enum __wine_debug_class dbcl = __WINE_DBCL_TRACE;
     if (level <= AV_LOG_ERROR) dbcl = __WINE_DBCL_ERR;
     if (level <= AV_LOG_WARNING) dbcl = __WINE_DBCL_WARN;
-    wine_dbg_vlog( dbcl, __wine_dbch___default, __FILE__, __LINE__, __func__, fmt, va_args );
+    wine_dbg_vlog( dbcl, __wine_dbch___default, __FILE__, __LINE__, __func__, __WINE_DBG_RETADDR, fmt, va_args );
 }
 
 static const char *debugstr_version( UINT version )

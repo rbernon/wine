@@ -94,11 +94,18 @@ struct __wine_debug_context
     const char *function;
     const char *file;
     int line;
+    const void *retaddr;
 };
-#define WINE_DEBUG_CONTEXT_VERSION 2
+#define WINE_DEBUG_CONTEXT_VERSION 3
+
+#if defined(__GNUC__) || defined(__clang__)
+#define __WINE_DBG_RETADDR __builtin_extract_return_addr(__builtin_return_address(0))
+#else
+#define __WINE_DBG_RETADDR ((void *)0)
+#endif
 
 #define __WINE_DBG_LOG(...) \
-   wine_dbg_log( __dbcl, __dbch, __FILE__, __LINE__, __func__, __VA_ARGS__); } } while(0)
+   wine_dbg_log( __dbcl, __dbch, __FILE__, __LINE__, __func__, __WINE_DBG_RETADDR, __VA_ARGS__); } } while(0)
 
 #if (defined(__GNUC__) || defined(__clang__)) && (defined(__MINGW32__) || defined (_MSC_VER) || !defined(__WINE_USE_MSVCRT))
 #define __WINE_PRINTF_ATTR(fmt,args) __attribute__((format (printf,fmt,args)))
@@ -182,10 +189,10 @@ static inline int __wine_dbg_cdecl wine_dbg_printf( const char *format, ... )
 }
 
 static int __wine_dbg_cdecl wine_dbg_vlog( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
-                                           const char *file, int line, const char *function,
-                                           const char *format, va_list args ) __WINE_PRINTF_ATTR(6,0);
+                                           const char *file, int line, const char *function, const void *retaddr,
+                                           const char *format, va_list args ) __WINE_PRINTF_ATTR(7,0);
 static inline int __wine_dbg_cdecl wine_dbg_vlog( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
-                                                  const char *file, int line, const char *function,
+                                                  const char *file, int line, const char *function, const void *retaddr,
                                                   const char *format, va_list args )
 {
     struct __wine_debug_context info =
@@ -194,6 +201,7 @@ static inline int __wine_dbg_cdecl wine_dbg_vlog( enum __wine_debug_class cls, s
         .function = function,
         .file = file,
         .line = line,
+        .retaddr = retaddr,
     };
     struct __wine_debug_context *context = &info;
     int ret;
@@ -208,17 +216,17 @@ static inline int __wine_dbg_cdecl wine_dbg_vlog( enum __wine_debug_class cls, s
 }
 
 static int __wine_dbg_cdecl wine_dbg_log( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
-                                          const char *file, int line, const char *function,
-                                          const char *format, ... ) __WINE_PRINTF_ATTR(6,7);
+                                          const char *file, int line, const char *function, const void *retaddr,
+                                          const char *format, ... ) __WINE_PRINTF_ATTR(7,8);
 static inline int __wine_dbg_cdecl wine_dbg_log( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
-                                                 const char *file, int line, const char *function,
+                                                 const char *file, int line, const char *function, const void *retaddr,
                                                  const char *format, ... )
 {
     va_list args;
     int ret;
 
     va_start( args, format );
-    ret = wine_dbg_vlog( cls, channel, file, line, function, format, args );
+    ret = wine_dbg_vlog( cls, channel, file, line, function, retaddr, format, args );
     va_end( args );
     return ret;
 }
