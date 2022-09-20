@@ -43,7 +43,6 @@ struct attributes
 
 extern HRESULT init_attributes_object(struct attributes *object, UINT32 size);
 extern void clear_attributes_object(struct attributes *object);
-extern const char *debugstr_attr(const GUID *guid);
 extern const char *debugstr_mf_guid(const GUID *guid);
 
 extern HRESULT attributes_GetItem(struct attributes *object, REFGUID key, PROPVARIANT *value);
