@@ -1663,6 +1663,8 @@ if (msg >= WM_INPUT_DEVICE_CHANGE && msg <= WM_INPUT)
     rawinput.data.mouse.lLastX, rawinput.data.mouse.lLastY, rawinput.data.mouse.usFlags, rawinput.data.mouse.ulButtons, rawinput.data.mouse.ulExtraInformation);
 }
 
+    ok( 0, "hwnd %p, msg %#x, wparam %#Ix, lparam %#Ix\n", hwnd, msg, wparam, lparam );
+
     if (msg == WM_MOUSEMOVE)
     {
         ok( wparam == 0, "got wparam %#Ix\n", wparam );
@@ -1996,6 +1998,43 @@ winetest_pop_context();
 
     ret = IDirectInputDevice8_Release( device );
     ok( ret == 0, "Release returned %d\n", ret );
+
+
+    EnableMouseInPointer( TRUE );
+ok(0, "EnableMouseInPointer( TRUE );\n");
+
+    mouse_move_count = 0;
+    bus_send_hid_input( file, &desc, &injected_input[1], sizeof(injected_input[1]) );
+
+ok(0, "injected_input[1];\n");
+
+    res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_MOUSEMOVE );
+    todo_wine
+    ok( !res, "MsgWaitForMultipleObjects returned %#lx\n", res );
+
+    flush_events();
+    todo_wine
+    ok( mouse_move_count == 1, "got mouse_move_count %u\n", mouse_move_count );
+
+
+    bus_send_hid_input( file, &desc, &injected_input[2], sizeof(injected_input[2]) );
+ok(0, "injected_input[2];\n");
+    res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_MOUSEBUTTON );
+    todo_wine
+    ok( !res, "MsgWaitForMultipleObjects returned %#lx\n", res );
+    flush_events();
+
+    bus_send_hid_input( file, &desc, &injected_input[3], sizeof(injected_input[3]) );
+ok(0, "injected_input[3];\n");
+    res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_MOUSEBUTTON );
+    todo_wine
+    ok( !res, "MsgWaitForMultipleObjects returned %#lx\n", res );
+    flush_events();
+
+
+ok(0, "EnableMouseInPointer( FALSE );\n");
+    EnableMouseInPointer( FALSE );
+
 
     DestroyWindow( hwnd );
 
