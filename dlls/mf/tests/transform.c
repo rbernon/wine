@@ -27,8 +27,6 @@
 #include "control.h"
 #include "d3d9types.h"
 #include "dmo.h"
-#include "dshow.h"
-#include "dvdmedia.h"
 #include "mferror.h"
 #include "mfidl.h"
 #include "mftransform.h"
@@ -338,154 +336,6 @@ static void check_interface_(unsigned int line, void *iface_ptr, REFIID iid, BOO
 #define check_member_(file, line, val, exp, fmt, member)                                           \
     ok_ (file, line)((val).member == (exp).member, "got " #member " " fmt "\n", (val).member)
 #define check_member(val, exp, fmt, member) check_member_(__FILE__, __LINE__, val, exp, fmt, member)
-
-#define check_member_guid_( file, line, val, exp, member )                                         \
-    ok_(file, line)( IsEqualGUID( &(val).member, &(exp).member ), "got " #member " %s\n",         \
-                     debugstr_mf_guid( &(val).member ) )
-#define check_member_guid( val, exp, member )                                                      \
-    check_member_guid_( __FILE__, __LINE__, val, exp, member )
-
-#define check_waveformatextensible(a, b) check_waveformatextensible_(__LINE__, a, b)
-static void check_waveformatextensible_(int line, const WAVEFORMATEXTENSIBLE *value, const WAVEFORMATEXTENSIBLE *expect)
-{
-    check_member_(__FILE__, line, *value, *expect, "%#x", Format.wFormatTag);
-    check_member_(__FILE__, line, *value, *expect, "%u", Format.nChannels);
-    check_member_(__FILE__, line, *value, *expect, "%lu", Format.nSamplesPerSec);
-    check_member_(__FILE__, line, *value, *expect, "%lu", Format.nAvgBytesPerSec);
-    check_member_(__FILE__, line, *value, *expect, "%u", Format.nBlockAlign);
-    check_member_(__FILE__, line, *value, *expect, "%u", Format.wBitsPerSample);
-    check_member_(__FILE__, line, *value, *expect, "%u", Format.cbSize);
-    check_member_(__FILE__, line, *value, *expect, "%u", Samples.wValidBitsPerSample);
-    check_member_(__FILE__, line, *value, *expect, "%lu", dwChannelMask);
-    check_member_guid_(__FILE__, line, *value, *expect, SubFormat);
-}
-
-#define check_videoinfoheader(a, b) check_videoinfoheader_(__LINE__, a, b)
-static void check_videoinfoheader_(int line, const VIDEOINFOHEADER *value, const VIDEOINFOHEADER *expect)
-{
-    check_member_(__FILE__, line, *value, *expect, "%lu", rcSource.top);
-    check_member_(__FILE__, line, *value, *expect, "%lu", rcSource.left);
-    check_member_(__FILE__, line, *value, *expect, "%lu", rcSource.right);
-    check_member_(__FILE__, line, *value, *expect, "%lu", rcSource.bottom);
-    check_member_(__FILE__, line, *value, *expect, "%lu", rcTarget.top);
-    check_member_(__FILE__, line, *value, *expect, "%lu", rcTarget.left);
-    check_member_(__FILE__, line, *value, *expect, "%lu", rcTarget.right);
-    check_member_(__FILE__, line, *value, *expect, "%lu", rcTarget.bottom);
-    check_member_(__FILE__, line, *value, *expect, "%lu", dwBitRate);
-    check_member_(__FILE__, line, *value, *expect, "%lu", dwBitErrorRate);
-    check_member_(__FILE__, line, *value, *expect, "%I64d", AvgTimePerFrame);
-    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biSize);
-    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biWidth);
-    check_member_(__FILE__, line, *value, *expect, "%+ld", bmiHeader.biHeight);
-    check_member_(__FILE__, line, *value, *expect, "%u", bmiHeader.biPlanes);
-    check_member_(__FILE__, line, *value, *expect, "%u", bmiHeader.biBitCount);
-    check_member_(__FILE__, line, *value, *expect, "%#lx", bmiHeader.biCompression);
-    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biSizeImage);
-    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biXPelsPerMeter);
-    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biYPelsPerMeter);
-    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biClrUsed);
-    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biClrImportant);
-}
-
-#define check_videoinfoheader2(a, b) check_videoinfoheader2_(__LINE__, a, b)
-static void check_videoinfoheader2_(int line, const VIDEOINFOHEADER2 *value, const VIDEOINFOHEADER2 *expect)
-{
-    check_member_(__FILE__, line, *value, *expect, "%lu", rcSource.top);
-    check_member_(__FILE__, line, *value, *expect, "%lu", rcSource.left);
-    check_member_(__FILE__, line, *value, *expect, "%lu", rcSource.right);
-    check_member_(__FILE__, line, *value, *expect, "%lu", rcSource.bottom);
-    check_member_(__FILE__, line, *value, *expect, "%lu", rcTarget.top);
-    check_member_(__FILE__, line, *value, *expect, "%lu", rcTarget.left);
-    check_member_(__FILE__, line, *value, *expect, "%lu", rcTarget.right);
-    check_member_(__FILE__, line, *value, *expect, "%lu", rcTarget.bottom);
-    check_member_(__FILE__, line, *value, *expect, "%lu", dwBitRate);
-    check_member_(__FILE__, line, *value, *expect, "%lu", dwBitErrorRate);
-    check_member_(__FILE__, line, *value, *expect, "%I64d", AvgTimePerFrame);
-    check_member_(__FILE__, line, *value, *expect, "%lu", dwInterlaceFlags);
-    check_member_(__FILE__, line, *value, *expect, "%#lx", dwCopyProtectFlags);
-    check_member_(__FILE__, line, *value, *expect, "%lu", dwPictAspectRatioX);
-    check_member_(__FILE__, line, *value, *expect, "%lu", dwPictAspectRatioY);
-    check_member_(__FILE__, line, *value, *expect, "%#lx", dwControlFlags);
-    check_member_(__FILE__, line, *value, *expect, "%lu", dwReserved2);
-    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biSize);
-    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biWidth);
-    check_member_(__FILE__, line, *value, *expect, "%+ld", bmiHeader.biHeight);
-    check_member_(__FILE__, line, *value, *expect, "%u", bmiHeader.biPlanes);
-    check_member_(__FILE__, line, *value, *expect, "%u", bmiHeader.biBitCount);
-    check_member_(__FILE__, line, *value, *expect, "%#lx", bmiHeader.biCompression);
-    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biSizeImage);
-    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biXPelsPerMeter);
-    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biYPelsPerMeter);
-    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biClrUsed);
-    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biClrImportant);
-}
-
-#define check_mfvideoformat(a, b) check_mfvideoformat_(__LINE__, a, b)
-static void check_mfvideoformat_(int line, const MFVIDEOFORMAT *value, const MFVIDEOFORMAT *expect)
-{
-    check_member_(__FILE__, line, *value, *expect, "%lu", dwSize);
-    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.dwWidth);
-    check_member_(__FILE__, line, *value, *expect, "%+ld", videoInfo.dwHeight);
-    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.PixelAspectRatio.Numerator);
-    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.PixelAspectRatio.Denominator);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.SourceChromaSubsampling);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.InterlaceMode);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.TransferFunction);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.ColorPrimaries);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.TransferMatrix);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.SourceLighting);
-    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.FramesPerSecond.Numerator);
-    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.FramesPerSecond.Denominator);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.NominalRange);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.GeometricAperture.OffsetX.fract);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.GeometricAperture.OffsetX.value);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.GeometricAperture.OffsetY.fract);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.GeometricAperture.OffsetY.value);
-    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.GeometricAperture.Area.cx);
-    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.GeometricAperture.Area.cy);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.MinimumDisplayAperture.OffsetX.fract);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.MinimumDisplayAperture.OffsetX.value);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.MinimumDisplayAperture.OffsetY.fract);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.MinimumDisplayAperture.OffsetY.value);
-    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.MinimumDisplayAperture.Area.cx);
-    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.MinimumDisplayAperture.Area.cy);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.PanScanAperture.OffsetX.fract);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.PanScanAperture.OffsetX.value);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.PanScanAperture.OffsetY.fract);
-    check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.PanScanAperture.OffsetY.value);
-    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.PanScanAperture.Area.cx);
-    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.PanScanAperture.Area.cy);
-    check_member_(__FILE__, line, *value, *expect, "%#I64x", videoInfo.VideoFlags);
-    check_member_guid_(__FILE__, line, *value, *expect, guidFormat);
-    check_member_(__FILE__, line, *value, *expect, "%I64d", compressedInfo.AvgBitrate);
-    check_member_(__FILE__, line, *value, *expect, "%I64d", compressedInfo.AvgBitErrorRate);
-    check_member_(__FILE__, line, *value, *expect, "%lu", compressedInfo.MaxKeyFrameSpacing);
-    check_member_(__FILE__, line, *value, *expect, "%#lx", surfaceInfo.Format);
-    check_member_(__FILE__, line, *value, *expect, "%lu", surfaceInfo.PaletteEntries);
-}
-
-#define check_am_media_type(a, b) check_am_media_type_(__LINE__, a, b)
-static void check_am_media_type_(int line, const AM_MEDIA_TYPE *value, const AM_MEDIA_TYPE *expect)
-{
-    check_member_guid_(__FILE__, line, *value, *expect, majortype);
-    check_member_guid_(__FILE__, line, *value, *expect, subtype);
-    check_member_guid_(__FILE__, line, *value, *expect, formattype);
-    check_member_(__FILE__, line, *value, *expect, "%u", bFixedSizeSamples);
-    check_member_(__FILE__, line, *value, *expect, "%u", bTemporalCompression);
-    check_member_(__FILE__, line, *value, *expect, "%lu", lSampleSize);
-    check_member_(__FILE__, line, *value, *expect, "%lu", cbFormat);
-    ok_(__FILE__, line)(!value->pUnk == !expect->pUnk, "got pUnk %p\n", value->pUnk);
-    ok_(__FILE__, line)(!value->pbFormat == !expect->pbFormat, "got pbFormat %p\n", value->pbFormat);
-
-    if (IsEqualGUID(&value->formattype, &FORMAT_WaveFormatEx) && IsEqualGUID(&expect->formattype, &FORMAT_WaveFormatEx))
-        check_waveformatextensible_(line, (WAVEFORMATEXTENSIBLE *)value->pbFormat, (WAVEFORMATEXTENSIBLE *)expect->pbFormat);
-    if (IsEqualGUID(&value->formattype, &FORMAT_VideoInfo) && IsEqualGUID(&expect->formattype, &FORMAT_VideoInfo))
-        check_videoinfoheader_(line, (VIDEOINFOHEADER *)value->pbFormat, (VIDEOINFOHEADER *)expect->pbFormat);
-    if (IsEqualGUID(&value->formattype, &FORMAT_VideoInfo2) && IsEqualGUID(&expect->formattype, &FORMAT_VideoInfo2))
-        check_videoinfoheader2_(line, (VIDEOINFOHEADER2 *)value->pbFormat, (VIDEOINFOHEADER2 *)expect->pbFormat);
-    if (IsEqualGUID(&value->formattype, &FORMAT_MFVideoFormat) && IsEqualGUID(&expect->formattype, &FORMAT_MFVideoFormat))
-        check_mfvideoformat_(line, (MFVIDEOFORMAT *)value->pbFormat, (MFVIDEOFORMAT *)expect->pbFormat);
-}
 
 void check_attributes_(const char *file, int line, IMFAttributes *attributes,
         const struct attribute_desc *expect_attributes)
@@ -2570,46 +2420,6 @@ static void test_aac_encoder(void)
     check_mft_set_input_type(transform, input_type_desc);
     check_mft_get_input_current_type(transform, expect_input_type_desc);
 
-{
-    static const WAVEFORMATEXTENSIBLE wfx = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_WaveFormatEx, .cbFormat = sizeof(wfx.Format), .pbFormat = (void *)&wfx.Format};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetInputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
-
-{
-    static const WAVEFORMATEXTENSIBLE wfx = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_WaveFormatEx, .cbFormat = sizeof(wfx.Format), .pbFormat = (void *)&wfx.Format};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetOutputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
-
     check_mft_get_input_stream_info(transform, &input_info);
     check_mft_get_output_stream_info(transform, &output_info);
 
@@ -2897,46 +2707,6 @@ static void test_aac_decoder_subtype(const struct attribute_desc *input_type_des
     check_mft_get_input_current_type(transform, input_type_desc);
     check_mft_set_output_type(transform, output_type_desc, S_OK);
     check_mft_get_output_current_type(transform, output_type_desc);
-
-{
-    static const WAVEFORMATEXTENSIBLE wfx = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_WaveFormatEx, .cbFormat = sizeof(wfx.Format), .pbFormat = (void *)&wfx.Format};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetInputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
-
-{
-    static const WAVEFORMATEXTENSIBLE wfx = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_WaveFormatEx, .cbFormat = sizeof(wfx.Format), .pbFormat = (void *)&wfx.Format};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetOutputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
 
     check_mft_get_input_stream_info(transform, &input_info);
     check_mft_get_output_stream_info(transform, &output_info);
@@ -3256,46 +3026,6 @@ static void test_wma_encoder(void)
     check_mft_get_output_current_type(transform, expect_output_type_desc);
     check_mft_set_input_type(transform, input_type_desc);
     check_mft_get_input_current_type(transform, expect_input_type_desc);
-
-{
-    static const WAVEFORMATEXTENSIBLE wfx = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_WaveFormatEx, .cbFormat = sizeof(wfx.Format), .pbFormat = (void *)&wfx.Format};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetInputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
-
-{
-    static const WAVEFORMATEXTENSIBLE wfx = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_WaveFormatEx, .cbFormat = sizeof(wfx.Format), .pbFormat = (void *)&wfx.Format};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetOutputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
 
     check_mft_get_input_stream_info(transform, &input_info);
     check_mft_get_output_stream_info(transform, &output_info);
@@ -3640,46 +3370,6 @@ static void test_wma_decoder(void)
     check_mft_get_input_current_type(transform, expect_input_type_desc);
     check_mft_set_output_type(transform, output_type_desc, S_OK);
     check_mft_get_output_current_type(transform, expect_output_type_desc);
-
-{
-    static const WAVEFORMATEXTENSIBLE wfx = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_WaveFormatEx, .cbFormat = sizeof(wfx.Format), .pbFormat = (void *)&wfx.Format};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetInputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
-
-{
-    static const WAVEFORMATEXTENSIBLE wfx = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_WaveFormatEx, .cbFormat = sizeof(wfx.Format), .pbFormat = (void *)&wfx.Format};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetOutputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
 
     check_mft_get_input_stream_info(transform, &input_info);
     check_mft_get_output_stream_info(transform, &output_info);
@@ -4264,46 +3954,6 @@ static void test_h264_decoder(void)
     check_mft_set_output_type(transform, output_type_desc, S_OK);
     check_mft_get_output_current_type(transform, expect_output_type_desc);
 
-{
-    static const VIDEOINFOHEADER vi = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_VideoInfo, .cbFormat = sizeof(vi), .pbFormat = (void *)&vi};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetInputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
-
-{
-    static const VIDEOINFOHEADER2 vi2 = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_VideoInfo2, .cbFormat = sizeof(vi2), .pbFormat = (void *)&vi2};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetOutputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
-
     check_mft_get_input_stream_info(transform, &input_info);
     check_mft_get_output_stream_info(transform, &output_info);
 
@@ -4772,46 +4422,6 @@ static void test_audio_convert(void)
     check_mft_get_input_current_type(transform, expect_input_type_desc);
     check_mft_set_output_type(transform, output_type_desc, S_OK);
     check_mft_get_output_current_type(transform, expect_output_type_desc);
-
-{
-    static const WAVEFORMATEXTENSIBLE wfx = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_WaveFormatEx, .cbFormat = sizeof(wfx.Format), .pbFormat = (void *)&wfx.Format};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetInputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
-
-{
-    static const WAVEFORMATEXTENSIBLE wfx = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_WaveFormatEx, .cbFormat = sizeof(wfx.Format), .pbFormat = (void *)&wfx.Format};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetOutputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
 
     check_mft_get_input_stream_info(transform, &input_info);
     check_mft_get_output_stream_info(transform, &output_info);
@@ -5849,50 +5459,6 @@ static void test_wmv_decoder(void)
     check_mft_set_output_type(transform, output_type_desc, S_OK);
     check_mft_get_output_current_type(transform, expect_output_type_desc);
 
-    for (j = 0; j < ARRAY_SIZE(transform_tests); j++)
-    {
-        winetest_push_context("transform #%lu", j);
-
-{
-    static const VIDEOINFOHEADER2 vi2 = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_VideoInfo2, .cbFormat = sizeof(vi2), .pbFormat = (void *)&vi2};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetInputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
-
-{
-    static const VIDEOINFOHEADER2 vi2 = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_VideoInfo2, .cbFormat = sizeof(vi2), .pbFormat = (void *)&vi2};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetOutputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
-
     check_mft_get_input_stream_info(transform, &input_info);
     check_mft_get_output_stream_info(transform, &output_info);
 
@@ -6573,63 +6139,6 @@ static void test_color_convert(void)
     check_mft_set_input_type(transform, input_type_desc);
     check_mft_get_input_current_type(transform, expect_input_type_desc);
 
-{
-    static const VIDEOINFOHEADER2 vi2 = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_VideoInfo2, .cbFormat = sizeof(vi2), .pbFormat = (void *)&vi2};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetInputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
-
-{
-    static const VIDEOINFOHEADER2 vi2 = {0};
-    static const VIDEOINFOHEADER vi = {0};
-    const AM_MEDIA_TYPE expect_am_type_vi = {.formattype = FORMAT_VideoInfo, .cbFormat = sizeof(vi), .pbFormat = (void *)&vi};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_VideoInfo2, .cbFormat = sizeof(vi2), .pbFormat = (void *)&vi2};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetOutputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-
-dump_media_type(media_type);
-
-    hr = IMFMediaType_GetRepresentation(media_type, FORMAT_VideoInfo, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type_vi);
-    hr = IMFMediaType_FreeRepresentation(media_type, FORMAT_VideoInfo, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
-
     check_mft_get_input_stream_info(transform, &input_info);
     check_mft_get_output_stream_info(transform, &output_info);
 
@@ -7279,63 +6788,6 @@ static void test_video_processor(void)
     check_mft_set_input_type(transform, input_type_desc);
     check_mft_get_input_current_type(transform, input_type_desc);
 
-{
-    static const VIDEOINFOHEADER vi = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_VideoInfo, .cbFormat = sizeof(vi), .pbFormat = (void *)&vi};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetInputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
-
-{
-    static const VIDEOINFOHEADER2 vi2 = {0};
-    static const VIDEOINFOHEADER vi = {0};
-    const AM_MEDIA_TYPE expect_am_type_vi2 = {.formattype = FORMAT_VideoInfo2, .cbFormat = sizeof(vi2), .pbFormat = (void *)&vi2};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_VideoInfo, .cbFormat = sizeof(vi), .pbFormat = (void *)&vi};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetOutputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-
-dump_media_type(media_type);
-
-    hr = IMFMediaType_GetRepresentation(media_type, FORMAT_VideoInfo2, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type_vi2);
-    hr = IMFMediaType_FreeRepresentation(media_type, FORMAT_VideoInfo2, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type_vi2);
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
-
     input_info.cbSize = actual_width * actual_height * 3 / 2;
     output_info.cbSize = actual_width * actual_height * 4;
     check_mft_get_input_stream_info(transform, S_OK, &input_info);
@@ -7706,46 +7158,6 @@ static void test_mp3_decoder(void)
     check_mft_get_input_current_type(transform, expect_input_type_desc);
     check_mft_set_output_type(transform, output_type_desc, S_OK);
     check_mft_get_output_current_type(transform, expect_output_type_desc);
-
-{
-    static const WAVEFORMATEXTENSIBLE wfx = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_WaveFormatEx, .cbFormat = sizeof(wfx.Format), .pbFormat = (void *)&wfx.Format};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetInputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
-
-{
-    static const WAVEFORMATEXTENSIBLE wfx = {0};
-    const AM_MEDIA_TYPE expect_am_type = {.formattype = FORMAT_WaveFormatEx, .cbFormat = sizeof(wfx.Format), .pbFormat = (void *)&wfx.Format};
-    AM_MEDIA_TYPE *tmp_am_type;
-    IMFMediaType *media_type;
-
-    hr = IMFTransform_GetOutputCurrentType(transform, 0, &media_type);
-    ok(hr == S_OK, "GetOutputCurrentType returned %#lx.\n", hr);
-    hr = IMFMediaType_GetRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void **)&tmp_am_type);
-    ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-    check_am_media_type(tmp_am_type, &expect_am_type);
-
-MFInitMediaTypeFromAMMediaType(media_type, tmp_am_type);
-dump_media_type(media_type);
-
-    hr = IMFMediaType_FreeRepresentation(media_type, AM_MEDIA_TYPE_REPRESENTATION, (void *)tmp_am_type);
-    ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-    IMFMediaType_Release(media_type);
-}
 
     check_mft_get_input_stream_info(transform, &input_info);
     check_mft_get_output_stream_info(transform, &output_info);
