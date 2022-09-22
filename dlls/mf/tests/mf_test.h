@@ -62,10 +62,10 @@ extern const char *debugstr_mf_guid(const GUID *guid);
 extern void dump_attributes_(int line, IMFAttributes *attributes);
 extern void dump_properties(IPropertyStore *store);
 
-#define check_media_type(a, b, c) check_attributes_(__FILE__, __LINE__, (IMFAttributes *)a, b, c)
-#define check_attributes(a, b, c) check_attributes_(__FILE__, __LINE__, a, b, c)
+#define check_media_type(a, b) check_attributes_(__FILE__, __LINE__, (IMFAttributes *)a, b)
+#define check_attributes(a, b) check_attributes_(__FILE__, __LINE__, a, b)
 extern void check_attributes_(const char *file, int line, IMFAttributes *attributes,
-        const struct attribute_desc *desc, ULONG limit);
+        const struct attribute_desc *desc);
 #define create_media_type(a, b) create_media_type_(__FILE__, __LINE__, a, b)
 extern void create_media_type_(const char *file, int line, const struct attribute_desc *attributes, IMFMediaType **out);
 

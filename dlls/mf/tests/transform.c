@@ -338,18 +338,19 @@ static void check_interface_(unsigned int line, void *iface_ptr, REFIID iid, BOO
 #define check_member(val, exp, fmt, member) check_member_(__FILE__, __LINE__, val, exp, fmt, member)
 
 void check_attributes_(const char *file, int line, IMFAttributes *attributes,
-        const struct attribute_desc *desc, ULONG limit)
+        const struct attribute_desc *expect_attributes)
 {
+    const struct attribute_desc *attr;
     char buffer[256], *buf = buffer;
     PROPVARIANT value;
-    int i, j, ret;
     HRESULT hr;
+    int j, ret;
 
-    for (i = 0; i < limit && desc[i].key; ++i)
+    for (attr = expect_attributes; attr && attr->key; attr++)
     {
-        hr = IMFAttributes_GetItem(attributes, desc[i].key, &value);
-        todo_wine_if(desc[i].todo)
-        ok_(file, line)(hr == S_OK, "%s missing, hr %#lx\n", debugstr_a(desc[i].name), hr);
+        hr = IMFAttributes_GetItem(attributes, attr->key, &value);
+        todo_wine_if(attr->todo)
+        ok_(file, line)(hr == S_OK, "%s missing, hr %#lx\n", debugstr_a(attr->name), hr);
         if (hr != S_OK) continue;
 
         switch (value.vt)
@@ -358,7 +359,7 @@ void check_attributes_(const char *file, int line, IMFAttributes *attributes,
         case VT_CLSID: sprintf(buffer, "%s", debugstr_mf_guid(value.puuid)); break;
         case VT_UI4: sprintf(buffer, "%lu", value.ulVal); break;
         case VT_UI8:
-            if (desc[i].ratio)
+            if (attr->ratio)
                 sprintf(buffer, "%lu:%lu", value.uhVal.HighPart, value.uhVal.LowPart);
             else
                 sprintf(buffer, "%I64u", value.uhVal.QuadPart);
@@ -374,10 +375,10 @@ void check_attributes_(const char *file, int line, IMFAttributes *attributes,
             break;
         }
 
-        ret = PropVariantCompareEx(&value, &desc[i].value, 0, 0);
-        todo_wine_if(desc[i].todo_value)
+        ret = PropVariantCompareEx(&value, &attr->value, 0, 0);
+        todo_wine_if(attr->todo_value)
         ok_(file, line)(ret == 0, "%s mismatch, type %u, value %s\n",
-                debugstr_a(desc[i].name), value.vt, buffer);
+                debugstr_a(attr->name), value.vt, buffer);
     }
 }
 
@@ -607,7 +608,7 @@ static void check_mft_get_attributes(IMFTransform *transform, const struct attri
     if (hr == S_OK)
     {
         ok(hr == S_OK, "GetAttributes returned %#lx\n", hr);
-        check_attributes(attributes, expect_transform_attributes, -1);
+        check_attributes(attributes, expect_transform_attributes);
 
         hr = IMFTransform_GetAttributes(transform, &tmp_attributes);
         ok(hr == S_OK, "GetAttributes returned %#lx\n", hr);
@@ -1240,7 +1241,7 @@ static DWORD check_mf_sample_(const char *file, int line, IMFSample *sample, con
     HRESULT hr;
 
     if (expect->attributes)
-        check_attributes_(file, line, (IMFAttributes *)sample, expect->attributes, -1);
+        check_attributes_(file, line, (IMFAttributes *)sample, expect->attributes);
 
     buffer_count = 0xdeadbeef;
     hr = IMFSample_GetBufferCount(sample, &buffer_count);
@@ -2622,8 +2623,8 @@ static void test_aac_decoder_subtype(const struct attribute_desc *input_type_des
     {
         winetest_push_context("in %lu", i);
         ok(hr == S_OK, "GetInputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, expect_input_attributes, -1);
-        check_media_type(media_type, expect_available_inputs[i], -1);
+        check_media_type(media_type, expect_input_attributes);
+        check_media_type(media_type, expect_available_inputs[i]);
         ret = IMFMediaType_Release(media_type);
         ok(ret <= 1, "Release returned %lu\n", ret);
         winetest_pop_context();
@@ -2648,8 +2649,8 @@ static void test_aac_decoder_subtype(const struct attribute_desc *input_type_des
     {
         winetest_push_context("out %lu", i);
         ok(hr == S_OK, "GetOutputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, expect_output_attributes, -1);
-        check_media_type(media_type, expect_available_outputs[i], -1);
+        check_media_type(media_type, expect_output_attributes);
+        check_media_type(media_type, expect_available_outputs[i]);
         ret = IMFMediaType_Release(media_type);
         ok(ret <= 1, "Release returned %lu\n", ret);
         winetest_pop_context();
@@ -3265,7 +3266,7 @@ static void test_wma_decoder(void)
     {
         winetest_push_context("in %lu", i);
         ok(hr == S_OK, "GetInputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, expect_available_inputs[i], -1);
+        check_media_type(media_type, expect_available_inputs[i]);
         ret = IMFMediaType_Release(media_type);
         ok(ret == 0, "Release returned %lu\n", ret);
         winetest_pop_context();
@@ -3293,7 +3294,7 @@ static void test_wma_decoder(void)
     {
         winetest_push_context("out %lu", i);
         ok(hr == S_OK, "GetOutputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, expect_available_outputs[i], -1);
+        check_media_type(media_type, expect_available_outputs[i]);
         ret = IMFMediaType_Release(media_type);
         ok(ret == 0, "Release returned %lu\n", ret);
         winetest_pop_context();
@@ -3829,7 +3830,7 @@ static void test_h264_decoder(void)
     {
         winetest_push_context("in %lu", i);
         ok(hr == S_OK, "GetInputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, default_inputs[i], -1);
+        check_media_type(media_type, default_inputs[i]);
         ret = IMFMediaType_Release(media_type);
         ok(ret == 0, "Release returned %lu\n", ret);
         winetest_pop_context();
@@ -3851,7 +3852,7 @@ static void test_h264_decoder(void)
     {
         winetest_push_context("out %lu", i);
         ok(hr == S_OK, "GetOutputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, default_outputs[i], -1);
+        check_media_type(media_type, default_outputs[i]);
         ret = IMFMediaType_Release(media_type);
         ok(ret == 0, "Release returned %lu\n", ret);
         winetest_pop_context();
@@ -3870,7 +3871,7 @@ static void test_h264_decoder(void)
     {
         winetest_push_context("out %lu", i);
         ok(hr == S_OK, "GetOutputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, default_outputs[i], -1);
+        check_media_type(media_type, default_outputs[i]);
         ret = IMFMediaType_Release(media_type);
         ok(ret == 0, "Release returned %lu\n", ret);
         winetest_pop_context();
@@ -3950,7 +3951,7 @@ static void test_h264_decoder(void)
     {
         winetest_push_context("out %lu", i);
         ok(hr == S_OK, "GetOutputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, actual_outputs[i], -1);
+        check_media_type(media_type, actual_outputs[i]);
         ret = IMFMediaType_Release(media_type);
         ok(ret == 0, "Release returned %lu\n", ret);
         winetest_pop_context();
@@ -4286,7 +4287,7 @@ static void test_audio_convert(void)
     {
         winetest_push_context("out %lu", i);
         ok(hr == S_OK, "GetOutputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, expect_available_outputs[i], -1);
+        check_media_type(media_type, expect_available_outputs[i]);
         ret = IMFMediaType_Release(media_type);
         ok(ret == 0, "Release returned %lu\n", ret);
         winetest_pop_context();
@@ -4299,7 +4300,7 @@ static void test_audio_convert(void)
     {
         winetest_push_context("in %lu", i);
         ok(hr == S_OK, "GetInputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, expect_available_inputs[i], -1);
+        check_media_type(media_type, expect_available_inputs[i]);
         ret = IMFMediaType_Release(media_type);
         ok(ret == 0, "Release returned %lu\n", ret);
         winetest_pop_context();
@@ -4325,7 +4326,7 @@ static void test_audio_convert(void)
     {
         winetest_push_context("out %lu", i);
         ok(hr == S_OK, "GetOutputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, expect_available_outputs[i], -1);
+        check_media_type(media_type, expect_available_outputs[i]);
         ret = IMFMediaType_Release(media_type);
         ok(ret == 0, "Release returned %lu\n", ret);
         winetest_pop_context();
@@ -5313,8 +5314,8 @@ static void test_wmv_decoder(void)
     {
         winetest_push_context("in %lu", i);
         ok(hr == S_OK, "GetInputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, expect_common_attributes, -1);
-        check_media_type(media_type, expect_available_inputs[i], -1);
+        check_media_type(media_type, expect_common_attributes);
+        check_media_type(media_type, expect_available_inputs[i]);
         ret = IMFMediaType_Release(media_type);
         ok(!ret, "Release returned %lu\n", ret);
         winetest_pop_context();
@@ -5339,9 +5340,9 @@ static void test_wmv_decoder(void)
     {
         winetest_push_context("out %lu", i);
         ok(hr == S_OK, "GetOutputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, expect_common_attributes, -1);
-        check_media_type(media_type, expect_output_attributes, -1);
-        check_media_type(media_type, expect_available_outputs[i], -1);
+        check_media_type(media_type, expect_common_attributes);
+        check_media_type(media_type, expect_output_attributes);
+        check_media_type(media_type, expect_available_outputs[i]);
         ret = IMFMediaType_Release(media_type);
         ok(!ret, "Release returned %lu\n", ret);
         winetest_pop_context();
@@ -5994,8 +5995,8 @@ static void test_color_convert(void)
     {
         winetest_push_context("out %lu", i);
         ok(hr == S_OK, "GetOutputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, expect_available_common, -1);
-        check_media_type(media_type, expect_available_outputs[i], -1);
+        check_media_type(media_type, expect_available_common);
+        check_media_type(media_type, expect_available_outputs[i]);
         ret = IMFMediaType_Release(media_type);
         ok(ret == 0, "Release returned %lu\n", ret);
         winetest_pop_context();
@@ -6008,8 +6009,8 @@ static void test_color_convert(void)
     {
         winetest_push_context("in %lu", i);
         ok(hr == S_OK, "GetInputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, expect_available_common, -1);
-        check_media_type(media_type, expect_available_inputs[i], -1);
+        check_media_type(media_type, expect_available_common);
+        check_media_type(media_type, expect_available_inputs[i]);
         ret = IMFMediaType_Release(media_type);
         ok(ret == 0, "Release returned %lu\n", ret);
         winetest_pop_context();
@@ -6594,7 +6595,7 @@ static void test_video_processor(void)
 
         winetest_push_context("in %lu", i);
         ok(hr == S_OK, "GetInputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, expect_available_common, -1);
+        check_media_type(media_type, expect_available_common);
 
         hr = IMFMediaType_GetGUID(media_type, &MF_MT_SUBTYPE, &guid);
         ok(hr == S_OK, "GetGUID returned %#lx\n", hr);
@@ -6628,7 +6629,7 @@ static void test_video_processor(void)
         {
             winetest_push_context("out %lu", j);
             ok(hr == S_OK, "GetOutputAvailableType returned %#lx\n", hr);
-            check_media_type(media_type, expect_available_common, -1);
+            check_media_type(media_type, expect_available_common);
 
             hr = IMFMediaType_GetGUID(media_type, &MF_MT_SUBTYPE, &guid);
             ok(hr == S_OK, "GetGUID returned %#lx\n", hr);
@@ -6965,7 +6966,7 @@ static void test_mp3_decoder(void)
     {
         winetest_push_context("in %lu", i);
         ok(hr == S_OK, "GetInputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, expect_available_inputs[i], -1);
+        check_media_type(media_type, expect_available_inputs[i]);
         ret = IMFMediaType_Release(media_type);
         ok(ret == 0, "Release returned %lu\n", ret);
         winetest_pop_context();
@@ -6993,7 +6994,7 @@ static void test_mp3_decoder(void)
     {
         winetest_push_context("out %lu", i);
         ok(hr == S_OK, "GetOutputAvailableType returned %#lx\n", hr);
-        check_media_type(media_type, expect_available_outputs[i], -1);
+        check_media_type(media_type, expect_available_outputs[i]);
         ret = IMFMediaType_Release(media_type);
         ok(ret == 0, "Release returned %lu\n", ret);
         winetest_pop_context();
