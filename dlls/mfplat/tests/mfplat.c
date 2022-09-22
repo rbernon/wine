@@ -839,8 +839,8 @@ static void check_videoinfoheader_(int line, const VIDEOINFOHEADER *value, const
     check_member_(__FILE__, line, *value, *expect, "%lu", dwBitErrorRate);
     check_member_(__FILE__, line, *value, *expect, "%I64d", AvgTimePerFrame);
     check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biSize);
-    check_member_(__FILE__, line, *value, *expect, "%ld", bmiHeader.biWidth);
-    check_member_(__FILE__, line, *value, *expect, "%+ld", bmiHeader.biHeight);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biWidth);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biHeight);
     check_member_(__FILE__, line, *value, *expect, "%u", bmiHeader.biPlanes);
     check_member_(__FILE__, line, *value, *expect, "%u", bmiHeader.biBitCount);
     check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biCompression);
@@ -873,7 +873,7 @@ static void check_videoinfoheader2_(int line, const VIDEOINFOHEADER2 *value, con
     check_member_(__FILE__, line, *value, *expect, "%lu", dwReserved2);
     check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biSize);
     check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biWidth);
-    check_member_(__FILE__, line, *value, *expect, "%+ld", bmiHeader.biHeight);
+    check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biHeight);
     check_member_(__FILE__, line, *value, *expect, "%u", bmiHeader.biPlanes);
     check_member_(__FILE__, line, *value, *expect, "%u", bmiHeader.biBitCount);
     check_member_(__FILE__, line, *value, *expect, "%lu", bmiHeader.biCompression);
@@ -889,7 +889,7 @@ static void check_mfvideoformat_(int line, const MFVIDEOFORMAT *value, const MFV
 {
     check_member_(__FILE__, line, *value, *expect, "%lu", dwSize);
     check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.dwWidth);
-    check_member_(__FILE__, line, *value, *expect, "%+ld", videoInfo.dwHeight);
+    check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.dwHeight);
     check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.PixelAspectRatio.Numerator);
     check_member_(__FILE__, line, *value, *expect, "%lu", videoInfo.PixelAspectRatio.Denominator);
     check_member_(__FILE__, line, *value, *expect, "%u", videoInfo.SourceChromaSubsampling);
@@ -2629,128 +2629,6 @@ if(0)
         ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
 
         IMFMediaType_Release(mediatype);
-    }
-
-    {
-        static const int width = 96, height = 96;
-        const media_type_desc video_rgb32_desc =
-        {
-            ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
-            ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32),
-            ATTR_RATIO(MF_MT_FRAME_SIZE, width, height),
-        };
-        const media_type_desc video_nv12_desc =
-        {
-            ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
-            ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_NV12),
-            ATTR_RATIO(MF_MT_FRAME_SIZE, width, height),
-        };
-        const VIDEOINFOHEADER expect_nv12_vi =
-        {
-            .bmiHeader =
-            {
-                .biSize = sizeof(BITMAPINFOHEADER),
-                .biWidth = width,
-                .biHeight = height,
-                .biPlanes = 1,
-                .biBitCount = 12,
-                .biSizeImage = width * height * 3 / 2,
-                .biCompression = MAKEFOURCC('N','V','1','2'),
-            }
-        };
-        const AM_MEDIA_TYPE expect_am_type_nv12_vi =
-        {
-            .formattype = FORMAT_VideoInfo,
-            .majortype = MEDIATYPE_Video,
-            .subtype = MEDIASUBTYPE_NV12,
-            .bFixedSizeSamples = 1,
-            .lSampleSize = width * height * 3 / 2,
-            .cbFormat = sizeof(expect_nv12_vi),
-            .pbFormat = (void *)&expect_nv12_vi,
-        };
-        VIDEOINFOHEADER expect_rgb32_vi =
-        {
-            .bmiHeader =
-            {
-                .biSize = sizeof(BITMAPINFOHEADER),
-                .biWidth = width,
-                .biHeight = height,
-                .biPlanes = 1,
-                .biBitCount = 32,
-                .biSizeImage = width * height * 4,
-            }
-        };
-        const AM_MEDIA_TYPE expect_am_type_rgb32_vi =
-        {
-            .formattype = FORMAT_VideoInfo,
-            .majortype = MEDIATYPE_Video,
-            .subtype = MEDIASUBTYPE_RGB32,
-            .bFixedSizeSamples = 1,
-            .lSampleSize = width * height * 4,
-            .cbFormat = sizeof(expect_rgb32_vi),
-            .pbFormat = (void *)&expect_rgb32_vi,
-        };
-        AM_MEDIA_TYPE *tmp_am_type;
-        IMFMediaType *media_type;
-
-        create_media_type(video_rgb32_desc, &media_type);
-
-        hr = IMFMediaType_GetRepresentation(media_type, FORMAT_VideoInfo, (void **)&tmp_am_type);
-        ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-        check_am_media_type(tmp_am_type, &expect_am_type_rgb32_vi);
-        hr = IMFMediaType_FreeRepresentation(media_type, FORMAT_VideoInfo, (void *)tmp_am_type);
-        ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-
-        hr = IMFMediaType_SetUINT32(media_type, &MF_MT_DEFAULT_STRIDE, -width * 4);
-        ok(hr == S_OK, "SetUINT32 returned %#lx.\n", hr);
-
-        hr = IMFMediaType_GetRepresentation(media_type, FORMAT_VideoInfo, (void **)&tmp_am_type);
-        ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-        check_am_media_type(tmp_am_type, &expect_am_type_rgb32_vi);
-        hr = IMFMediaType_FreeRepresentation(media_type, FORMAT_VideoInfo, (void *)tmp_am_type);
-        ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-
-        hr = IMFMediaType_SetUINT32(media_type, &MF_MT_DEFAULT_STRIDE, width * 4);
-        ok(hr == S_OK, "SetUINT32 returned %#lx.\n", hr);
-
-        hr = IMFMediaType_GetRepresentation(media_type, FORMAT_VideoInfo, (void **)&tmp_am_type);
-        ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-        expect_rgb32_vi.bmiHeader.biHeight *= -1;
-        check_am_media_type(tmp_am_type, &expect_am_type_rgb32_vi);
-        hr = IMFMediaType_FreeRepresentation(media_type, FORMAT_VideoInfo, (void *)tmp_am_type);
-        ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-
-        IMFMediaType_Release(media_type);
-
-
-        create_media_type(video_nv12_desc, &media_type);
-
-        hr = IMFMediaType_GetRepresentation(media_type, FORMAT_VideoInfo, (void **)&tmp_am_type);
-        ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-        check_am_media_type(tmp_am_type, &expect_am_type_nv12_vi);
-        hr = IMFMediaType_FreeRepresentation(media_type, FORMAT_VideoInfo, (void *)tmp_am_type);
-        ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-
-        hr = IMFMediaType_SetUINT32(media_type, &MF_MT_DEFAULT_STRIDE, width);
-        ok(hr == S_OK, "SetUINT32 returned %#lx.\n", hr);
-
-        hr = IMFMediaType_GetRepresentation(media_type, FORMAT_VideoInfo, (void **)&tmp_am_type);
-        ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-        check_am_media_type(tmp_am_type, &expect_am_type_nv12_vi);
-        hr = IMFMediaType_FreeRepresentation(media_type, FORMAT_VideoInfo, (void *)tmp_am_type);
-        ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-
-        hr = IMFMediaType_SetUINT32(media_type, &MF_MT_DEFAULT_STRIDE, -width);
-        ok(hr == S_OK, "SetUINT32 returned %#lx.\n", hr);
-
-        hr = IMFMediaType_GetRepresentation(media_type, FORMAT_VideoInfo, (void **)&tmp_am_type);
-        ok(hr == S_OK, "GetRepresentation returned %#lx.\n", hr);
-        check_am_media_type(tmp_am_type, &expect_am_type_nv12_vi);
-        hr = IMFMediaType_FreeRepresentation(media_type, FORMAT_VideoInfo, (void *)tmp_am_type);
-        ok(hr == S_OK, "FreeRepresentation returned %#lx.\n", hr);
-
-        IMFMediaType_Release(media_type);
-
     }
 }
 
