@@ -209,14 +209,28 @@ static HRESULT WINAPI transform_GetStreamLimits(IMFTransform *iface, DWORD *inpu
 {
     TRACE("iface %p, input_minimum %p, input_maximum %p, output_minimum %p, output_maximum %p.\n",
             iface, input_minimum, input_maximum, output_minimum, output_maximum);
-    *input_minimum = *input_maximum = *output_minimum = *output_maximum = 1;
+
+    if (input_minimum)
+        *input_minimum = 1;
+    if (input_maximum)
+        *input_maximum = 1;
+    if (output_minimum)
+        *output_minimum = 1;
+    if (output_maximum)
+        *output_maximum = 1;
+
     return S_OK;
 }
 
 static HRESULT WINAPI transform_GetStreamCount(IMFTransform *iface, DWORD *inputs, DWORD *outputs)
 {
     TRACE("iface %p, inputs %p, outputs %p.\n", iface, inputs, outputs);
-    *inputs = *outputs = 1;
+
+    if (inputs)
+        *inputs = 1;
+    if (outputs)
+        *outputs = 1;
+
     return S_OK;
 }
 
