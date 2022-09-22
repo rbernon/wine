@@ -370,6 +370,9 @@ static HRESULT WINAPI transform_SetInputType(IMFTransform *iface, DWORD id, IMFM
 
     TRACE("iface %p, id %#lx, type %p, flags %#lx.\n", iface, id, type, flags);
 
+    if (id)
+        return MF_E_INVALIDSTREAMNUMBER;
+
     if (FAILED(hr = check_media_type(type)))
         return hr;
     if (FAILED(hr = IMFMediaType_GetUINT32(type, &MF_MT_AUDIO_BLOCK_ALIGNMENT, &block_alignment)))
@@ -406,6 +409,8 @@ static HRESULT WINAPI transform_SetOutputType(IMFTransform *iface, DWORD id, IMF
 
     TRACE("iface %p, id %#lx, type %p, flags %#lx.\n", iface, id, type, flags);
 
+    if (id)
+        return MF_E_INVALIDSTREAMNUMBER;
     if (!impl->input_type)
         return MF_E_TRANSFORM_TYPE_NOT_SET;
 

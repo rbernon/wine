@@ -455,6 +455,9 @@ static HRESULT WINAPI transform_SetInputType(IMFTransform *iface, DWORD id, IMFM
 
     TRACE("iface %p, id %#lx, type %p, flags %#lx.\n", iface, id, type, flags);
 
+    if (id)
+        return MF_E_INVALIDSTREAMNUMBER;
+
     if (FAILED(hr = IMFMediaType_GetGUID(type, &MF_MT_MAJOR_TYPE, &major)) ||
             FAILED(hr = IMFMediaType_GetGUID(type, &MF_MT_SUBTYPE, &subtype)))
         return E_INVALIDARG;
@@ -501,6 +504,8 @@ static HRESULT WINAPI transform_SetOutputType(IMFTransform *iface, DWORD id, IMF
 
     TRACE("iface %p, id %#lx, type %p, flags %#lx.\n", iface, id, type, flags);
 
+    if (id)
+        return MF_E_INVALIDSTREAMNUMBER;
     if (!decoder->input_type)
         return MF_E_TRANSFORM_TYPE_NOT_SET;
 
