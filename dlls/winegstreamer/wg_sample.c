@@ -69,10 +69,44 @@ struct sample
         } dmo;
         struct
         {
+            void *__pad[3];
+            BYTE buffer[];
+        } raw;
+        struct
+        {
             INSSBuffer *sample;
         } wm;
     } u;
 };
+
+C_ASSERT(sizeof(struct sample) == offsetof(struct sample, u.raw.buffer[0]));
+
+static void raw_sample_destroy(struct wg_sample *wg_sample)
+{
+    TRACE("wg_sample %p\n", wg_sample);
+}
+
+static const struct wg_sample_ops raw_sample_ops =
+{
+    raw_sample_destroy,
+};
+
+HRESULT wg_sample_create_raw(UINT32 size, struct wg_sample **out)
+{
+    struct sample *sample;
+
+    if (!(sample = calloc(1, offsetof(struct sample, u.raw.buffer[size]))))
+        return E_OUTOFMEMORY;
+
+    sample->wg_sample.data = sample->u.raw.buffer;
+    sample->wg_sample.size = 0;
+    sample->wg_sample.max_size = size;
+    sample->ops = &raw_sample_ops;
+
+    TRACE("Created wg_sample %p, size %u.\n", &sample->wg_sample, size);
+    *out = &sample->wg_sample;
+    return S_OK;
+}
 
 static const struct wg_sample_ops mf_sample_ops;
 

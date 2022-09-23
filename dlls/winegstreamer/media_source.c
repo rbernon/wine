@@ -618,26 +618,25 @@ static const IMFAsyncCallbackVtbl source_async_commands_callback_vtbl =
 };
 
 static void handle_input_request(struct media_source *source, QWORD file_size,
-        void **buffer, size_t *buffer_size, struct wg_request *request)
+        struct wg_request *request)
 {
     IMFByteStream *byte_stream = source->byte_stream;
     uint64_t offset = request->u.input.offset;
     uint32_t size = request->u.input.size;
+    struct wg_sample *wg_sample;
     ULONG ret_size = 0;
     HRESULT hr;
-    void *data;
 
     if (offset >= file_size)
         size = 0;
     else if (offset + size >= file_size)
         size = file_size - offset;
 
-    if (!array_reserve(buffer, buffer_size, size, 1))
+    if (FAILED(wg_sample_create_raw(size, &wg_sample)))
     {
-        wg_parser_push_data(source->wg_parser, NULL, 0, request->token);
+        wg_parser_push_data(source->wg_parser, NULL, request->token);
         return;
     }
-    data = *buffer;
 
     /* Some IMFByteStreams (including the standard file-based stream) return
      * an error when reading past the file size. */
@@ -645,12 +644,12 @@ static void handle_input_request(struct media_source *source, QWORD file_size,
     if (!size)
         hr = S_OK;
     else if (SUCCEEDED(hr = IMFByteStream_SetCurrentPosition(byte_stream, offset)))
-        hr = IMFByteStream_Read(byte_stream, data, size, &ret_size);
+        hr = IMFByteStream_Read(byte_stream, wg_sample->data, size, &ret_size);
 
     if (FAILED(hr))
     {
         ERR("Failed to read %u bytes at offset %I64u, hr %#lx.\n", size, offset, hr);
-        data = NULL;
+        wg_sample->data = NULL;
     }
     else if (ret_size != size)
     {
@@ -658,19 +657,16 @@ static void handle_input_request(struct media_source *source, QWORD file_size,
         size = ret_size;
     }
 
-    wg_parser_push_data(source->wg_parser, data, size, request->token);
+    wg_sample->size = size;
+    wg_parser_push_data(source->wg_parser, wg_sample, request->token);
+    wg_sample_release(wg_sample);
 }
 
 static DWORD CALLBACK read_thread(void *arg)
 {
     struct media_source *source = arg;
     IMFByteStream *byte_stream = source->byte_stream;
-    size_t buffer_size = 4096;
     QWORD file_size;
-    void *data;
-
-    if (!(data = malloc(buffer_size)))
-        return 0;
 
     IMFByteStream_GetLength(byte_stream, &file_size);
 
@@ -684,12 +680,11 @@ static DWORD CALLBACK read_thread(void *arg)
             continue;
 
         if (request.type == WG_REQUEST_TYPE_INPUT)
-            handle_input_request(source, file_size, &data, &buffer_size, &request);
+            handle_input_request(source, file_size, &request);
         else
             ERR("Received unexpected request type %u\n", request.type);
     }
 
-    free(data);
     TRACE("Media source is shutting down; exiting.\n");
     return 0;
 }

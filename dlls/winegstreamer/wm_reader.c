@@ -587,28 +587,27 @@ static const IWMMediaPropsVtbl stream_props_vtbl =
 };
 
 static void handle_input_request(struct wm_reader *reader, uint64_t file_size,
-        void **buffer, size_t *buffer_size, struct wg_request *request)
+        struct wg_request *request)
 {
     uint64_t offset = request->u.input.offset;
     IStream *stream = reader->source_stream;
     uint32_t size = request->u.input.size;
+    struct wg_sample *wg_sample;
     LARGE_INTEGER large_offset;
     HANDLE file = reader->file;
     ULONG ret_size = 0;
     HRESULT hr;
-    void *data;
 
     if (offset >= file_size)
         size = 0;
     else if (offset + size >= file_size)
         size = file_size - offset;
 
-    if (!array_reserve(buffer, buffer_size, size, 1))
+    if (FAILED(wg_sample_create_raw(size, &wg_sample)))
     {
-        wg_parser_push_data(reader->wg_parser, NULL, 0, request->token);
+        wg_parser_push_data(reader->wg_parser, NULL, request->token);
         return;
     }
-    data = *buffer;
 
     large_offset.QuadPart = offset;
     if (!size)
@@ -616,7 +615,7 @@ static void handle_input_request(struct wm_reader *reader, uint64_t file_size,
     else if (file)
     {
         if (!SetFilePointerEx(file, large_offset, NULL, FILE_BEGIN)
-                || !ReadFile(file, data, size, &ret_size, NULL))
+                || !ReadFile(file, wg_sample->data, size, &ret_size, NULL))
             hr = HRESULT_FROM_WIN32(GetLastError());
         else
             hr = S_OK;
@@ -624,13 +623,13 @@ static void handle_input_request(struct wm_reader *reader, uint64_t file_size,
     else
     {
         if (SUCCEEDED(hr = IStream_Seek(stream, large_offset, STREAM_SEEK_SET, NULL)))
-            hr = IStream_Read(stream, data, size, &ret_size);
+            hr = IStream_Read(stream, wg_sample->data, size, &ret_size);
     }
 
     if (FAILED(hr))
     {
         ERR("Failed to read %u bytes at offset %I64u, hr %#lx.\n", size, offset, hr);
-        data = NULL;
+        wg_sample->data = NULL;
     }
     else if (ret_size != size)
     {
@@ -638,7 +637,9 @@ static void handle_input_request(struct wm_reader *reader, uint64_t file_size,
         size = ret_size;
     }
 
-    wg_parser_push_data(reader->wg_parser, data, size, request->token);
+    wg_sample->size = size;
+    wg_parser_push_data(reader->wg_parser, wg_sample, request->token);
+    wg_sample_release(wg_sample);
 }
 
 static DWORD CALLBACK read_thread(void *arg)
@@ -646,12 +647,7 @@ static DWORD CALLBACK read_thread(void *arg)
     struct wm_reader *reader = arg;
     IStream *stream = reader->source_stream;
     HANDLE file = reader->file;
-    size_t buffer_size = 4096;
     uint64_t file_size;
-    void *data;
-
-    if (!(data = malloc(buffer_size)))
-        return 0;
 
     if (file)
     {
@@ -678,12 +674,11 @@ static DWORD CALLBACK read_thread(void *arg)
             continue;
 
         if (request.type == WG_REQUEST_TYPE_INPUT)
-            handle_input_request(reader, file_size, &data, &buffer_size, &request);
+            handle_input_request(reader, file_size, &request);
         else
             ERR("Received unexpected request type %u\n", request.type);
     }
 
-    free(data);
     TRACE("Reader is shutting down; exiting.\n");
     return 0;
 }

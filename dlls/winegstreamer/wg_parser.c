@@ -187,23 +187,22 @@ static NTSTATUS wg_parser_push_data(void *args)
     const struct wg_parser_push_data_params *params = args;
     struct request *req = (struct request *)(UINT_PTR)params->token;
     struct wg_parser *parser = params->parser;
-    const void *data = params->data;
-    uint32_t size = params->size;
+    struct wg_sample *sample = params->sample;
     GstBuffer *buffer;
 
-    if (!data)
+    if (!sample || !sample->data)
         req->u.input.result = GST_FLOW_ERROR;
-    else if (!size)
+    else if (!sample->size)
         req->u.input.result = GST_FLOW_EOS;
     /* Note that we don't allocate the buffer until we have a size.
      * midiparse passes a NULL buffer and a size of UINT_MAX, in an
      * apparent attempt to read the whole input stream at once. */
-    else if (!(buffer = req->u.input.buffer) && !(buffer = gst_buffer_new_and_alloc(size)))
+    else if (!(buffer = req->u.input.buffer) && !(buffer = gst_buffer_new_and_alloc(sample->size)))
         req->u.input.result = GST_FLOW_ERROR;
     else
     {
-        gst_buffer_fill(buffer, 0, data, size);
-        GST_INFO("Copied %u bytes from data %p to buffer %p", size, data, buffer);
+        gst_buffer_fill(buffer, 0, sample->data, sample->size);
+        GST_INFO("Copied %u bytes from data %p to buffer %p", sample->size, sample->data, buffer);
         req->u.input.buffer = buffer;
         req->u.input.result = GST_FLOW_OK;
     }

@@ -1101,45 +1101,40 @@ static DWORD CALLBACK stream_thread(void *arg)
 }
 
 static void handle_input_request(struct parser *filter, LONGLONG file_size,
-        void **buffer, size_t *buffer_size, struct wg_request *request)
+        struct wg_request *request)
 {
     uint64_t offset = request->u.input.offset;
     uint32_t size = request->u.input.size;
+    struct wg_sample *wg_sample;
     HRESULT hr;
-    void *data;
 
     if (offset >= file_size)
         size = 0;
     else if (offset + size >= file_size)
         size = file_size - offset;
 
-    if (!array_reserve(buffer, buffer_size, size, 1))
+    if (FAILED(wg_sample_create_raw(size, &wg_sample)))
     {
-        wg_parser_push_data(filter->wg_parser, NULL, 0, request->token);
+        wg_parser_push_data(filter->wg_parser, NULL, request->token);
         return;
     }
-    data = *buffer;
 
-    hr = IAsyncReader_SyncRead(filter->reader, offset, size, data);
-
+    hr = IAsyncReader_SyncRead(filter->reader, offset, size, wg_sample->data);
     if (FAILED(hr))
     {
         ERR("Failed to read %u bytes at offset %I64u, hr %#lx.\n", size, offset, hr);
-        data = NULL;
+        wg_sample->data = NULL;
     }
 
-    wg_parser_push_data(filter->wg_parser, data, size, request->token);
+    wg_sample->size = size;
+    wg_parser_push_data(filter->wg_parser, wg_sample, request->token);
+    wg_sample_release(wg_sample);
 }
 
 static DWORD CALLBACK read_thread(void *arg)
 {
     struct parser *filter = arg;
     LONGLONG file_size, unused;
-    size_t buffer_size = 4096;
-    void *data;
-
-    if (!(data = malloc(buffer_size)))
-        return 0;
 
     IAsyncReader_Length(filter->reader, &file_size, &unused);
 
@@ -1153,12 +1148,11 @@ static DWORD CALLBACK read_thread(void *arg)
             continue;
 
         if (request.type == WG_REQUEST_TYPE_INPUT)
-            handle_input_request(filter, file_size, &data, &buffer_size, &request);
+            handle_input_request(filter, file_size, &request);
         else
             ERR("Received unexpected request type %u\n", request.type);
     }
 
-    free(data);
     TRACE("Streaming stopped; exiting.\n");
     return 0;
 }

@@ -232,8 +232,7 @@ struct wg_parser_wait_request_params
 struct wg_parser_push_data_params
 {
     struct wg_parser *parser;
-    const void *data;
-    UINT32 size;
+    struct wg_sample *sample;
     UINT64 token;
 };
 

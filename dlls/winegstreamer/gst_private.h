@@ -76,7 +76,7 @@ HRESULT wg_parser_connect(struct wg_parser *parser, uint64_t file_size);
 void wg_parser_disconnect(struct wg_parser *parser);
 
 bool wg_parser_wait_request(struct wg_parser *parser, struct wg_request *request);
-void wg_parser_push_data(struct wg_parser *parser, const void *data, uint32_t size, UINT64 token);
+void wg_parser_push_data(struct wg_parser *parser, struct wg_sample *sample, UINT64 token);
 
 uint32_t wg_parser_get_stream_count(struct wg_parser *parser);
 struct wg_parser_stream *wg_parser_get_stream(struct wg_parser *parser, uint32_t index);
@@ -132,6 +132,7 @@ HRESULT wg_sample_create_dmo(IMediaBuffer *buffer, struct wg_sample **out);
 HRESULT wg_sample_create_mf(IMFSample *sample, struct wg_sample **out);
 HRESULT wg_sample_create_quartz(IMediaSample *sample, struct wg_sample **out);
 HRESULT wg_sample_create_dmo(IMediaBuffer *media_buffer, struct wg_sample **out);
+HRESULT wg_sample_create_raw(UINT32 size, struct wg_sample **out);
 HRESULT wg_sample_create_wm(INSSBuffer *wm_sample, struct wg_sample **out);
 void wg_sample_release(struct wg_sample *wg_sample);
 

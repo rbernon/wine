@@ -126,17 +126,16 @@ bool wg_parser_wait_request(struct wg_parser *parser, struct wg_request *request
     return !WINE_UNIX_CALL(unix_wg_parser_wait_request, &params);
 }
 
-void wg_parser_push_data(struct wg_parser *parser, const void *data, uint32_t size, UINT64 token)
+void wg_parser_push_data(struct wg_parser *parser, struct wg_sample *sample, UINT64 token)
 {
     struct wg_parser_push_data_params params =
     {
         .parser = parser,
-        .data = data,
-        .size = size,
+        .sample = sample,
         .token = token,
     };
 
-    TRACE("parser %p, data %p, size %u, token %#I64x.\n", parser, data, size, token);
+    TRACE("parser %p, sample %p, token %#I64x.\n", parser, sample, token);
 
     WINE_UNIX_CALL(unix_wg_parser_push_data, &params);
 }
