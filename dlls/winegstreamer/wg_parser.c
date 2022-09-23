@@ -189,36 +189,27 @@ static NTSTATUS wg_parser_push_data(void *args)
     struct wg_parser *parser = params->parser;
     const void *data = params->data;
     uint32_t size = params->size;
+    GstBuffer *buffer;
 
-    pthread_mutex_lock(&parser->mutex);
-
-    if (data)
-    {
-        if (size)
-        {
-            GstMapInfo map_info;
-
-            /* Note that we don't allocate the buffer until we have a size.
-             * midiparse passes a NULL buffer and a size of UINT_MAX, in an
-             * apparent attempt to read the whole input stream at once. */
-            if (!req->u.input.buffer)
-                req->u.input.buffer = gst_buffer_new_and_alloc(size);
-            gst_buffer_map(req->u.input.buffer, &map_info, GST_MAP_WRITE);
-            memcpy(map_info.data, data, size);
-            gst_buffer_unmap(req->u.input.buffer, &map_info);
-            req->u.input.result = GST_FLOW_OK;
-        }
-        else
-        {
-            req->u.input.result = GST_FLOW_EOS;
-        }
-    }
+    if (!data)
+        req->u.input.result = GST_FLOW_ERROR;
+    else if (!size)
+        req->u.input.result = GST_FLOW_EOS;
+    /* Note that we don't allocate the buffer until we have a size.
+     * midiparse passes a NULL buffer and a size of UINT_MAX, in an
+     * apparent attempt to read the whole input stream at once. */
+    else if (!(buffer = req->u.input.buffer) && !(buffer = gst_buffer_new_and_alloc(size)))
+        req->u.input.result = GST_FLOW_ERROR;
     else
     {
-        req->u.input.result = GST_FLOW_ERROR;
+        gst_buffer_fill(buffer, 0, data, size);
+        GST_INFO("Copied %u bytes from data %p to buffer %p", size, data, buffer);
+        req->u.input.buffer = buffer;
+        req->u.input.result = GST_FLOW_OK;
     }
-    req->u.input.done = true;
 
+    pthread_mutex_lock(&parser->mutex);
+    req->u.input.done = true;
     pthread_mutex_unlock(&parser->mutex);
     pthread_cond_signal(&parser->request_done_cond);
 
