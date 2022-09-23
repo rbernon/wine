@@ -258,6 +258,17 @@ static NTSTATUS wg_parser_stream_enable(void *args)
     return S_OK;
 }
 
+static void flush_parser_stream_requests(struct wg_parser *parser, struct wg_parser_stream *stream)
+{
+    stream->flushing = true;
+
+    if (stream->buffer)
+        gst_buffer_unref(stream->buffer);
+    stream->buffer = NULL;
+
+    pthread_cond_signal(&stream->event_empty_cond);
+}
+
 static NTSTATUS wg_parser_stream_disable(void *args)
 {
     struct wg_parser_stream *stream = args;
@@ -565,19 +576,8 @@ static gboolean sink_event_cb(GstPad *pad, GstObject *parent, GstEvent *event)
 
         case GST_EVENT_FLUSH_START:
             pthread_mutex_lock(&parser->mutex);
-
             if (stream->enabled)
-            {
-                stream->flushing = true;
-                pthread_cond_signal(&stream->event_empty_cond);
-
-                if (stream->buffer)
-                {
-                    gst_buffer_unref(stream->buffer);
-                    stream->buffer = NULL;
-                }
-            }
-
+                flush_parser_stream_requests(parser, stream);
             pthread_mutex_unlock(&parser->mutex);
             break;
 
@@ -1702,10 +1702,7 @@ static NTSTATUS wg_parser_disconnect(void *args)
     /* Unblock all of our streams. */
     pthread_mutex_lock(&parser->mutex);
     for (i = 0; i < parser->stream_count; ++i)
-    {
-        parser->streams[i]->flushing = true;
-        pthread_cond_signal(&parser->streams[i]->event_empty_cond);
-    }
+        flush_parser_stream_requests(parser, parser->streams[i]);
     pthread_mutex_unlock(&parser->mutex);
 
     gst_element_set_state(parser->container, GST_STATE_NULL);
