@@ -401,7 +401,7 @@ void wg_sample_queue_destroy(struct wg_sample_queue *queue)
 HRESULT wg_transform_push_data(struct wg_transform *transform, struct wg_sample *sample);
 HRESULT wg_transform_read_data(struct wg_transform *transform, struct wg_sample *sample,
         struct wg_format *format);
-bool wg_parser_stream_read_data(struct wg_parser_stream *stream, struct wg_sample *sample);
+bool wg_parser_stream_read_data(struct wg_parser_stream *stream, struct wg_sample *sample, UINT64 token);
 
 HRESULT wg_transform_push_mf(struct wg_transform *transform, IMFSample *sample,
         struct wg_sample_queue *queue)
@@ -637,13 +637,13 @@ HRESULT wg_transform_read_dmo(struct wg_transform *transform, DMO_OUTPUT_DATA_BU
     return hr;
 }
 
-bool wg_parser_stream_read_mf(struct wg_parser_stream *stream, struct wg_sample *wg_sample)
+bool wg_parser_stream_read_mf(struct wg_parser_stream *stream, struct wg_sample *wg_sample, UINT64 token)
 {
     struct sample *sample = unsafe_mf_from_wg_sample(wg_sample);
 
     TRACE_(mfplat)("stream %p, wg_sample %p\n", stream, wg_sample);
 
-    if (!wg_parser_stream_read_data(stream, wg_sample))
+    if (!wg_parser_stream_read_data(stream, wg_sample, token))
         return false;
 
     if (FAILED(IMFMediaBuffer_SetCurrentLength(sample->u.mf.buffer, wg_sample->size)))
@@ -659,7 +659,7 @@ bool wg_parser_stream_read_mf(struct wg_parser_stream *stream, struct wg_sample 
     return true;
 }
 
-bool wg_parser_stream_read_quartz(struct wg_parser_stream *stream, struct wg_sample *wg_sample)
+bool wg_parser_stream_read_quartz(struct wg_parser_stream *stream, struct wg_sample *wg_sample, UINT64 token)
 {
     struct sample *sample = unsafe_quartz_from_wg_sample(wg_sample);
     REFERENCE_TIME start_pts = wg_sample->pts, end_pts = start_pts + wg_sample->duration;
@@ -667,7 +667,7 @@ bool wg_parser_stream_read_quartz(struct wg_parser_stream *stream, struct wg_sam
 
     TRACE_(quartz)("stream %p, wg_sample %p\n", stream, wg_sample);
 
-    if (!wg_parser_stream_read_data(stream, wg_sample))
+    if (!wg_parser_stream_read_data(stream, wg_sample, token))
         return false;
 
     IMediaSample_SetActualDataLength(sample->u.quartz.sample, wg_sample->size);
@@ -701,14 +701,14 @@ bool wg_parser_stream_read_quartz(struct wg_parser_stream *stream, struct wg_sam
     return true;
 }
 
-bool wg_parser_stream_read_wm(struct wg_parser_stream *stream, struct wg_sample *wg_sample,
+bool wg_parser_stream_read_wm(struct wg_parser_stream *stream, struct wg_sample *wg_sample, UINT64 token,
         QWORD *pts, QWORD *duration, DWORD *flags)
 {
     struct sample *sample = unsafe_wm_from_wg_sample(wg_sample);
 
     TRACE_(wmvcore)("stream %p, wg_sample %p, pts %p, duration %p, flags %p\n", stream, wg_sample, pts, duration, flags);
 
-    if (!wg_parser_stream_read_data(stream, wg_sample))
+    if (!wg_parser_stream_read_data(stream, wg_sample, token))
         return false;
 
     if (FAILED(INSSBuffer_SetLength(sample->u.wm.sample, wg_sample->size)))

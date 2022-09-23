@@ -361,8 +361,8 @@ static NTSTATUS wg_parser_wait_stream_request(void *args)
 static NTSTATUS wg_parser_stream_read_data(void *args)
 {
     struct wg_parser_stream_read_data_params *params = args;
+    struct request *req = (struct request *)(UINT_PTR)params->token;
     struct wg_parser_stream *stream = params->stream;
-    struct request *req = &stream->next_request;
     struct wg_parser *parser = stream->parser;
     struct wg_sample *sample = params->sample;
     GstBuffer *buffer;

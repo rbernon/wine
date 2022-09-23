@@ -507,7 +507,7 @@ static HRESULT handle_output_request(struct media_stream *stream, const struct w
         return;
     }
 
-    success = wg_parser_stream_read_mf(stream->wg_stream, wg_sample);
+    success = wg_parser_stream_read_mf(stream->wg_stream, wg_sample, request->token);
     wg_sample_release(wg_sample);
     if (success)
     {

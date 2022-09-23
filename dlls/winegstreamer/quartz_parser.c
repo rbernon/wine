@@ -1027,7 +1027,7 @@ static void handle_output_request(struct parser_source *pin, const struct wg_req
             break;
         }
 
-        if ((success = wg_parser_stream_read_quartz(pin->wg_stream, wg_sample)))
+        if ((success = wg_parser_stream_read_quartz(pin->wg_stream, wg_sample, request->token)))
         {
             /* update pts and duration to current seeking time and rate */
             wg_sample->pts -= pin->seek.llCurrent;

@@ -278,6 +278,7 @@ struct wg_parser_stream_read_data_params
 {
     struct wg_parser_stream *stream;
     struct wg_sample *sample;
+    UINT64 token;
 };
 
 struct wg_parser_stream_notify_qos_params
