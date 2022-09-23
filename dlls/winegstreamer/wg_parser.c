@@ -42,6 +42,8 @@
 
 #include "unix_private.h"
 
+#include "wine/list.h"
+
 typedef enum
 {
     GST_AUTOPLUG_SELECT_TRY,
@@ -54,6 +56,7 @@ typedef BOOL (*init_gst_cb)(struct wg_parser *parser);
 struct request
 {
     struct wg_request wg_request;
+    struct list entry;
     union
     {
         struct
@@ -94,7 +97,7 @@ struct wg_parser
     bool err_on, warn_on;
 
     pthread_cond_t request_cond, request_done_cond;
-    struct request next_request;
+    struct list requests;
 
     bool sink_connected;
 
@@ -148,37 +151,44 @@ static NTSTATUS wg_parser_get_stream(void *args)
     return S_OK;
 }
 
+static struct request *wg_parser_pop_request(struct wg_parser *parser)
+{
+    struct request *req;
+
+    LIST_FOR_EACH_ENTRY(req, &parser->requests, struct request, entry)
+    {
+        list_remove(&req->entry);
+        return req;
+    }
+
+    return NULL;
+}
+
 static NTSTATUS wg_parser_wait_request(void *args)
 {
     struct wg_parser_wait_request_params *params = args;
     struct wg_parser *parser = params->parser;
-    struct request *req = &parser->next_request;
-    struct wg_request *request = &req->wg_request;
+    struct request *req;
 
     pthread_mutex_lock(&parser->mutex);
-
-    while (parser->sink_connected && !req->wg_request.u.input.size)
+    while (parser->sink_connected && !(req = wg_parser_pop_request(parser)))
         pthread_cond_wait(&parser->request_cond, &parser->mutex);
-
-    if (!parser->sink_connected)
-    {
-        pthread_mutex_unlock(&parser->mutex);
-        return VFW_E_WRONG_STATE;
-    }
-
-    *params->request = *request;
-
     pthread_mutex_unlock(&parser->mutex);
+
+    if (!req)
+        return VFW_E_WRONG_STATE;
+
+    *params->request = req->wg_request;
     return S_OK;
 }
 
 static NTSTATUS wg_parser_push_data(void *args)
 {
     const struct wg_parser_push_data_params *params = args;
+    struct request *req = (struct request *)(UINT_PTR)params->token;
     struct wg_parser *parser = params->parser;
     const void *data = params->data;
     uint32_t size = params->size;
-    struct request *req = &parser->next_request;
 
     pthread_mutex_lock(&parser->mutex);
 
@@ -208,7 +218,6 @@ static NTSTATUS wg_parser_push_data(void *args)
         req->u.input.result = GST_FLOW_ERROR;
     }
     req->u.input.done = true;
-    req->wg_request.u.input.size = 0;
 
     pthread_mutex_unlock(&parser->mutex);
     pthread_cond_signal(&parser->request_done_cond);
@@ -1019,16 +1028,22 @@ static GstFlowReturn issue_read_request(struct wg_parser *parser, guint64 offset
     struct request *req = &parser->next_request;
     GstFlowReturn ret;
 
+    if (!(req = calloc(1, sizeof(*req))))
+        return GST_FLOW_ERROR;
+
     pthread_mutex_lock(&parser->mutex);
 
-    memset(req, 0, sizeof(*req));
     req->wg_request.type = WG_REQUEST_TYPE_INPUT;
+    req->wg_request.token = (UINT_PTR)req;
     req->wg_request.u.input.offset = offset;
     req->wg_request.u.input.size = size;
     req->u.input.buffer = *buffer;
 
     GST_DEBUG("Input request %p created for offset %" G_GINT64_MODIFIER "u, "
             "size %u, buffer %p", req, offset, size, *buffer);
+
+    pthread_mutex_lock(&parser->mutex);
+    list_add_tail(&parser->requests, &req->entry);
     pthread_cond_signal(&parser->request_cond);
 
     /* Note that we don't unblock this wait on GST_EVENT_FLUSH_START. We expect
@@ -1037,14 +1052,14 @@ static GstFlowReturn issue_read_request(struct wg_parser *parser, guint64 offset
 
     while (!req->u.input.done)
         pthread_cond_wait(&parser->request_done_cond, &parser->mutex);
+    pthread_mutex_unlock(&parser->mutex);
 
     *buffer = req->u.input.buffer;
     ret = req->u.input.result;
 
-    pthread_mutex_unlock(&parser->mutex);
-
     GST_LOG("Input request %p returned buffer %p, result %s.", req,
             *buffer, gst_flow_get_name(ret));
+    free(req);
     return ret;
 }
 
@@ -1892,6 +1907,7 @@ static NTSTATUS wg_parser_create(void *args)
     if (!(parser = calloc(1, sizeof(*parser))))
         return E_OUTOFMEMORY;
 
+    list_init(&parser->requests);
     pthread_mutex_init(&parser->mutex, NULL);
     pthread_cond_init(&parser->init_cond, NULL);
     pthread_cond_init(&parser->request_cond, NULL);

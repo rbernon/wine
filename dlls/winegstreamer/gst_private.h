@@ -76,7 +76,7 @@ HRESULT wg_parser_connect(struct wg_parser *parser, uint64_t file_size);
 void wg_parser_disconnect(struct wg_parser *parser);
 
 bool wg_parser_wait_request(struct wg_parser *parser, struct wg_request *request);
-void wg_parser_push_data(struct wg_parser *parser, const void *data, uint32_t size);
+void wg_parser_push_data(struct wg_parser *parser, const void *data, uint32_t size, UINT64 token);
 
 uint32_t wg_parser_get_stream_count(struct wg_parser *parser);
 struct wg_parser_stream *wg_parser_get_stream(struct wg_parser *parser, uint32_t index);

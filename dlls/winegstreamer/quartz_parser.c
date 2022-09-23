@@ -1115,7 +1115,7 @@ static void handle_input_request(struct parser *filter, LONGLONG file_size,
 
     if (!array_reserve(buffer, buffer_size, size, 1))
     {
-        wg_parser_push_data(filter->wg_parser, NULL, 0);
+        wg_parser_push_data(filter->wg_parser, NULL, 0, request->token);
         return;
     }
     data = *buffer;
@@ -1128,7 +1128,7 @@ static void handle_input_request(struct parser *filter, LONGLONG file_size,
         data = NULL;
     }
 
-    wg_parser_push_data(filter->wg_parser, data, size);
+    wg_parser_push_data(filter->wg_parser, data, size, request->token);
 }
 
 static DWORD CALLBACK read_thread(void *arg)

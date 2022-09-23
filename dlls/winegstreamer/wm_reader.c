@@ -605,7 +605,7 @@ static void handle_input_request(struct wm_reader *reader, uint64_t file_size,
 
     if (!array_reserve(buffer, buffer_size, size, 1))
     {
-        wg_parser_push_data(reader->wg_parser, NULL, 0);
+        wg_parser_push_data(reader->wg_parser, NULL, 0, request->token);
         return;
     }
     data = *buffer;
@@ -638,7 +638,7 @@ static void handle_input_request(struct wm_reader *reader, uint64_t file_size,
         size = ret_size;
     }
 
-    wg_parser_push_data(reader->wg_parser, data, size);
+    wg_parser_push_data(reader->wg_parser, data, size, request->token);
 }
 
 static DWORD CALLBACK read_thread(void *arg)

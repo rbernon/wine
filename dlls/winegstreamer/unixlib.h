@@ -182,6 +182,7 @@ struct wg_request
     {
         WG_REQUEST_TYPE_INPUT = 1,
     } type;
+    UINT64 token;
 
     union
     {
@@ -233,6 +234,7 @@ struct wg_parser_push_data_params
     struct wg_parser *parser;
     const void *data;
     UINT32 size;
+    UINT64 token;
 };
 
 struct wg_parser_get_stream_count_params
