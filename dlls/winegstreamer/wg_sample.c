@@ -787,3 +787,33 @@ bool wg_sample_queue_find_mf(struct wg_sample_queue *queue, void *data,
     LeaveCriticalSection(&queue->cs);
     return !!*wg_sample;
 }
+
+bool wg_sample_queue_find_quartz(struct wg_sample_queue *queue, void *data,
+        struct wg_sample **wg_sample, IMediaSample **media_sample)
+{
+    struct sample *sample, *next;
+
+    *wg_sample = NULL;
+    EnterCriticalSection(&queue->cs);
+
+    LIST_FOR_EACH_ENTRY_SAFE(sample, next, &queue->samples, struct sample, entry)
+    {
+        if (sample->wg_sample.data != data)
+            continue;
+
+        if (sample->ops != &quartz_sample_ops)
+        {
+            ERR_(quartz)("Invalid type for wg_sample %p, data %p\n", &sample->wg_sample, data);
+            break;
+        }
+
+        TRACE_(quartz)("Found sample %p for data %p\n", sample->u.quartz.sample, data);
+        IMediaSample_AddRef((*media_sample = sample->u.quartz.sample));
+        *wg_sample = &sample->wg_sample;
+        list_remove(&sample->entry);
+        break;
+    }
+
+    LeaveCriticalSection(&queue->cs);
+    return !!*wg_sample;
+}

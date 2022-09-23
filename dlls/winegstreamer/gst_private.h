@@ -140,6 +140,8 @@ void wg_sample_release(struct wg_sample *wg_sample);
 
 bool wg_sample_queue_find_mf(struct wg_sample_queue *queue, void *data,
         struct wg_sample **wg_sample, IMFSample **mf_sample);
+bool wg_sample_queue_find_quartz(struct wg_sample_queue *queue, void *data,
+        struct wg_sample **wg_sample, IMediaSample **media_sample);
 
 HRESULT wg_transform_push_mf(struct wg_transform *transform, IMFSample *sample,
         struct wg_sample_queue *queue);

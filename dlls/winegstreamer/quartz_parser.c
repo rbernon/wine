@@ -1044,16 +1044,19 @@ static void handle_output_request(struct parser_source *pin, const struct wg_req
 
     while (SUCCEEDED(hr) && incomplete)
     {
-        if (FAILED(hr = IMemAllocator_GetBuffer(pin->pin.pAllocator, &sample, NULL, NULL, 0)))
+        if (!wg_sample_queue_find_quartz(filter->wg_sample_queue, request->u.output.data, &wg_sample, &sample))
         {
-            ERR("Failed to get a sample, hr %#lx.\n", hr);
-            break;
-        }
-        if (FAILED(hr = wg_sample_create_quartz(sample, &wg_sample)))
-        {
-            ERR("Failed to create sample, hr %#lx.\n", hr);
-            IMediaSample_Release(sample);
-            break;
+            if (FAILED(hr = IMemAllocator_GetBuffer(pin->pin.pAllocator, &sample, NULL, NULL, 0)))
+            {
+                ERR("Failed to get a sample, hr %#lx.\n", hr);
+                return;
+            }
+            if (FAILED(hr = wg_sample_create_quartz(sample, &wg_sample)))
+            {
+                ERR("Failed to create sample, hr %#lx.\n", hr);
+                IMediaSample_Release(sample);
+                return;
+            }
         }
 
         if ((success = wg_parser_read_quartz(filter->wg_parser, wg_sample, request->token)))
