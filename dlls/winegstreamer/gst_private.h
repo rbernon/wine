@@ -75,7 +75,7 @@ void wg_parser_destroy(struct wg_parser *parser);
 HRESULT wg_parser_connect(struct wg_parser *parser, uint64_t file_size);
 void wg_parser_disconnect(struct wg_parser *parser);
 
-bool wg_parser_get_next_read_offset(struct wg_parser *parser, uint64_t *offset, uint32_t *size);
+bool wg_parser_wait_request(struct wg_parser *parser, struct wg_request *request);
 void wg_parser_push_data(struct wg_parser *parser, const void *data, uint32_t size);
 
 uint32_t wg_parser_get_stream_count(struct wg_parser *parser);

@@ -222,11 +222,10 @@ struct wg_parser_connect_params
     UINT64 file_size;
 };
 
-struct wg_parser_get_next_read_offset_params
+struct wg_parser_wait_request_params
 {
     struct wg_parser *parser;
-    UINT32 size;
-    UINT64 offset;
+    struct wg_request *request;
 };
 
 struct wg_parser_push_data_params
@@ -362,7 +361,7 @@ enum unix_funcs
     unix_wg_parser_connect,
     unix_wg_parser_disconnect,
 
-    unix_wg_parser_get_next_read_offset,
+    unix_wg_parser_wait_request,
     unix_wg_parser_push_data,
 
     unix_wg_parser_get_stream_count,

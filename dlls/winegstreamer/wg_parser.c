@@ -148,11 +148,12 @@ static NTSTATUS wg_parser_get_stream(void *args)
     return S_OK;
 }
 
-static NTSTATUS wg_parser_get_next_read_offset(void *args)
+static NTSTATUS wg_parser_wait_request(void *args)
 {
-    struct wg_parser_get_next_read_offset_params *params = args;
+    struct wg_parser_wait_request_params *params = args;
     struct wg_parser *parser = params->parser;
     struct request *req = &parser->next_request;
+    struct wg_request *request = &req->wg_request;
 
     pthread_mutex_lock(&parser->mutex);
 
@@ -165,8 +166,7 @@ static NTSTATUS wg_parser_get_next_read_offset(void *args)
         return VFW_E_WRONG_STATE;
     }
 
-    params->offset = req->wg_request.u.input.offset;
-    params->size = req->wg_request.u.input.size;
+    *params->request = *request;
 
     pthread_mutex_unlock(&parser->mutex);
     return S_OK;
@@ -1935,7 +1935,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_parser_connect),
     X(wg_parser_disconnect),
 
-    X(wg_parser_get_next_read_offset),
+    X(wg_parser_wait_request),
     X(wg_parser_push_data),
 
     X(wg_parser_get_stream_count),

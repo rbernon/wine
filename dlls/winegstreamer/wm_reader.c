@@ -587,9 +587,11 @@ static const IWMMediaPropsVtbl stream_props_vtbl =
 };
 
 static void handle_input_request(struct wm_reader *reader, uint64_t file_size,
-        void **buffer, size_t *buffer_size, uint64_t offset, uint32_t size)
+        void **buffer, size_t *buffer_size, struct wg_request *request)
 {
+    uint64_t offset = request->u.input.offset;
     IStream *stream = reader->source_stream;
+    uint32_t size = request->u.input.size;
     LARGE_INTEGER large_offset;
     HANDLE file = reader->file;
     ULONG ret_size = 0;
@@ -670,13 +672,15 @@ static DWORD CALLBACK read_thread(void *arg)
 
     while (!reader->read_thread_shutdown)
     {
-        uint64_t offset;
-        uint32_t size;
+        struct wg_request request;
 
-        if (!wg_parser_get_next_read_offset(reader->wg_parser, &offset, &size))
+        if (!wg_parser_wait_request(reader->wg_parser, &request))
             continue;
 
-        handle_input_request(reader, file_size, &data, &buffer_size, offset, size);
+        if (request.type == WG_REQUEST_TYPE_INPUT)
+            handle_input_request(reader, file_size, &data, &buffer_size, &request);
+        else
+            ERR("Received unexpected request type %u\n", request.type);
     }
 
     free(data);

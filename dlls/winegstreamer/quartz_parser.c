@@ -1101,8 +1101,10 @@ static DWORD CALLBACK stream_thread(void *arg)
 }
 
 static void handle_input_request(struct parser *filter, LONGLONG file_size,
-        void **buffer, size_t *buffer_size, uint64_t offset, uint32_t size)
+        void **buffer, size_t *buffer_size, struct wg_request *request)
 {
+    uint64_t offset = request->u.input.offset;
+    uint32_t size = request->u.input.size;
     HRESULT hr;
     void *data;
 
@@ -1145,13 +1147,15 @@ static DWORD CALLBACK read_thread(void *arg)
 
     while (filter->sink_connected)
     {
-        uint64_t offset;
-        uint32_t size;
+        struct wg_request request;
 
-        if (!wg_parser_get_next_read_offset(filter->wg_parser, &offset, &size))
+        if (!wg_parser_wait_request(filter->wg_parser, &request))
             continue;
 
-        handle_input_request(filter, file_size, &data, &buffer_size, offset, size);
+        if (request.type == WG_REQUEST_TYPE_INPUT)
+            handle_input_request(filter, file_size, &data, &buffer_size, &request);
+        else
+            ERR("Received unexpected request type %u\n", request.type);
     }
 
     free(data);

@@ -618,9 +618,11 @@ static const IMFAsyncCallbackVtbl source_async_commands_callback_vtbl =
 };
 
 static void handle_input_request(struct media_source *source, QWORD file_size,
-        void **buffer, size_t *buffer_size, uint64_t offset, uint32_t size)
+        void **buffer, size_t *buffer_size, struct wg_request *request)
 {
     IMFByteStream *byte_stream = source->byte_stream;
+    uint64_t offset = request->u.input.offset;
+    uint32_t size = request->u.input.size;
     ULONG ret_size = 0;
     HRESULT hr;
     void *data;
@@ -676,13 +678,15 @@ static DWORD CALLBACK read_thread(void *arg)
 
     while (!source->read_thread_shutdown)
     {
-        uint64_t offset;
-        uint32_t size;
+        struct wg_request request;
 
-        if (!wg_parser_get_next_read_offset(source->wg_parser, &offset, &size))
+        if (!wg_parser_wait_request(source->wg_parser, &request))
             continue;
 
-        handle_input_request(source, file_size, &data, &buffer_size, offset, size);
+        if (request.type == WG_REQUEST_TYPE_INPUT)
+            handle_input_request(source, file_size, &data, &buffer_size, &request);
+        else
+            ERR("Received unexpected request type %u\n", request.type);
     }
 
     free(data);

@@ -113,20 +113,17 @@ void wg_parser_disconnect(struct wg_parser *parser)
     WINE_UNIX_CALL(unix_wg_parser_disconnect, parser);
 }
 
-bool wg_parser_get_next_read_offset(struct wg_parser *parser, uint64_t *offset, uint32_t *size)
+bool wg_parser_wait_request(struct wg_parser *parser, struct wg_request *request)
 {
-    struct wg_parser_get_next_read_offset_params params =
+    struct wg_parser_wait_request_params params =
     {
         .parser = parser,
+        .request = request,
     };
 
-    TRACE("parser %p, offset %p, size %p.\n", parser, offset, size);
+    TRACE("parser %p, request %p.\n", parser, request);
 
-    if (WINE_UNIX_CALL(unix_wg_parser_get_next_read_offset, &params))
-        return false;
-    *offset = params.offset;
-    *size = params.size;
-    return true;
+    return !WINE_UNIX_CALL(unix_wg_parser_wait_request, &params);
 }
 
 void wg_parser_push_data(struct wg_parser *parser, const void *data, uint32_t size)
