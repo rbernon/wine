@@ -21,6 +21,7 @@
 #ifndef __WINE_WINEGSTREAMER_UNIXLIB_H
 #define __WINE_WINEGSTREAMER_UNIXLIB_H
 
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include "windef.h"
