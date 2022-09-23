@@ -490,34 +490,26 @@ static HRESULT allocate_sample(UINT32 size, IMFSample **out)
 
 static HRESULT send_buffer(struct media_stream *stream, const struct wg_parser_buffer *wg_buffer, IUnknown *token)
 {
-    IMFMediaBuffer *buffer;
+    struct wg_sample *wg_sample;
     IMFSample *sample;
+    bool success;
     HRESULT hr;
-    BYTE *data;
 
     if (FAILED(hr = allocate_sample(wg_buffer->size, &sample)))
     {
         ERR("Failed to create sample, hr %#lx.\n", hr);
         return hr;
     }
-
-    if (SUCCEEDED(hr = IMFSample_ConvertToContiguousBuffer(sample, &buffer)))
+    if (FAILED(hr = wg_sample_create_mf(sample, &wg_sample)))
     {
-        if (SUCCEEDED(hr = IMFMediaBuffer_SetCurrentLength(buffer, wg_buffer->size))
-                && SUCCEEDED(hr = IMFMediaBuffer_Lock(buffer, &data, NULL, NULL)))
-        {
-            bool success = wg_parser_stream_copy_buffer(stream->wg_stream, data, 0, wg_buffer->size);
-            wg_parser_stream_release_buffer(stream->wg_stream);
-            if (SUCCEEDED(hr = IMFMediaBuffer_Unlock(buffer)) && !success)
-                hr = E_FAIL;
-        }
-        IMFMediaBuffer_Release(buffer);
+        ERR("Failed to create wg_sample, hr %#lx.\n", hr);
+        IMFSample_Release(sample);
+        return;
     }
 
-    if (FAILED(hr) || FAILED(hr = IMFSample_SetSampleTime(sample, wg_buffer->pts))
-            || FAILED(hr = IMFSample_SetSampleDuration(sample, wg_buffer->duration)))
-        ERR("Failed to read sample, hr %#lx\n", hr);
-    else
+    success = wg_parser_stream_read_mf(stream->wg_stream, wg_sample);
+    wg_sample_release(wg_sample);
+    if (success)
     {
         if (token)
             IMFSample_SetUnknown(sample, &MFSampleExtension_Token, token);

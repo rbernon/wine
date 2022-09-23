@@ -268,6 +268,12 @@ struct wg_parser_stream_copy_buffer_params
     UINT32 size;
 };
 
+struct wg_parser_stream_read_data_params
+{
+    struct wg_parser_stream *stream;
+    struct wg_sample *sample;
+};
+
 struct wg_parser_stream_notify_qos_params
 {
     struct wg_parser_stream *stream;
@@ -369,6 +375,7 @@ enum unix_funcs
     unix_wg_parser_stream_get_duration,
     unix_wg_parser_stream_get_tag,
     unix_wg_parser_stream_seek,
+    unix_wg_parser_stream_read_data,
 
     unix_wg_transform_create,
     unix_wg_transform_destroy,

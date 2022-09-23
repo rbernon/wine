@@ -405,6 +405,38 @@ static NTSTATUS wg_parser_stream_release_buffer(void *args)
     return S_OK;
 }
 
+static NTSTATUS wg_parser_stream_read_data(void *args)
+{
+    struct wg_parser_stream_read_data_params *params = args;
+    struct wg_parser_stream *stream = params->stream;
+    struct wg_parser *parser = stream->parser;
+    struct wg_sample *sample = params->sample;
+    GstBuffer *buffer;
+    NTSTATUS status;
+
+    pthread_mutex_lock(&parser->mutex);
+
+    if (!(buffer = stream->buffer))  /* stream has been flushed */
+    {
+        pthread_mutex_unlock(&parser->mutex);
+        return VFW_E_WRONG_STATE;
+    }
+
+    if (!(status = wg_sample_read_from_buffer(buffer, NULL, NULL, sample))
+            && (sample->flags & WG_SAMPLE_FLAG_INCOMPLETE))
+    {
+        pthread_mutex_unlock(&parser->mutex);
+        return status;
+    }
+
+    stream->buffer = NULL;
+    pthread_mutex_unlock(&parser->mutex);
+    pthread_cond_signal(&stream->event_empty_cond);
+
+    gst_buffer_unref(buffer);
+    return status;
+}
+
 static NTSTATUS wg_parser_stream_get_duration(void *args)
 {
     struct wg_parser_stream_get_duration_params *params = args;
@@ -1973,6 +2005,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_parser_stream_get_duration),
     X(wg_parser_stream_get_tag),
     X(wg_parser_stream_seek),
+    X(wg_parser_stream_read_data),
 
     X(wg_transform_create),
     X(wg_transform_destroy),

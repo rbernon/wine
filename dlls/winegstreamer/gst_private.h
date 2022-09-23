@@ -91,6 +91,7 @@ bool wg_parser_stream_get_buffer(struct wg_parser *parser, struct wg_parser_stre
 bool wg_parser_stream_copy_buffer(struct wg_parser_stream *stream,
         void *data, uint32_t offset, uint32_t size);
 void wg_parser_stream_release_buffer(struct wg_parser_stream *stream);
+bool wg_parser_stream_read_data(struct wg_parser_stream *stream, struct wg_sample *sample);
 void wg_parser_stream_notify_qos(struct wg_parser_stream *stream,
         bool underflow, double proportion, int64_t diff, uint64_t timestamp);
 
@@ -152,6 +153,8 @@ HRESULT wg_transform_push_dmo(struct wg_transform *transform, IMediaBuffer *buff
         REFERENCE_TIME pts, REFERENCE_TIME duration, struct wg_sample_queue *queue);
 HRESULT wg_transform_read_dmo(struct wg_transform *transform, IMediaBuffer *buffer,
         DWORD *flags, REFERENCE_TIME *pts, REFERENCE_TIME *duration);
+
+bool wg_parser_stream_read_mf(struct wg_parser_stream *stream, struct wg_sample *sample);
 
 HRESULT winegstreamer_stream_handler_create(REFIID riid, void **obj);
 

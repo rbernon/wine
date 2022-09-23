@@ -544,3 +544,26 @@ HRESULT wg_transform_read_dmo(struct wg_transform *transform, DMO_OUTPUT_DATA_BU
     wg_sample_release(wg_sample);
     return hr;
 }
+
+bool wg_parser_stream_read_mf(struct wg_parser_stream *stream, struct wg_sample *wg_sample)
+{
+    struct sample *sample = unsafe_mf_from_wg_sample(wg_sample);
+
+    TRACE_(mfplat)("stream %p, wg_sample %p\n", stream, wg_sample);
+
+    if (!wg_parser_stream_read_data(stream, wg_sample))
+        return false;
+
+    if (FAILED(IMFMediaBuffer_SetCurrentLength(sample->u.mf.buffer, wg_sample->size)))
+        return false;
+
+    if (wg_sample->flags & WG_SAMPLE_FLAG_HAS_PTS)
+        IMFSample_SetSampleTime(sample->u.mf.sample, wg_sample->pts);
+    if (wg_sample->flags & WG_SAMPLE_FLAG_HAS_DURATION)
+        IMFSample_SetSampleDuration(sample->u.mf.sample, wg_sample->duration);
+    if (wg_sample->flags & WG_SAMPLE_FLAG_SYNC_POINT)
+        IMFSample_SetUINT32(sample->u.mf.sample, &MFSampleExtension_CleanPoint, 1);
+
+    return true;
+}
+

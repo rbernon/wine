@@ -256,6 +256,19 @@ void wg_parser_stream_release_buffer(struct wg_parser_stream *stream)
     WINE_UNIX_CALL(unix_wg_parser_stream_release_buffer, stream);
 }
 
+bool wg_parser_stream_read_data(struct wg_parser_stream *stream, struct wg_sample *sample)
+{
+    struct wg_parser_stream_read_data_params params =
+    {
+        .stream = stream,
+        .sample = sample,
+    };
+
+    TRACE("stream %p, sample %p.\n", stream, sample);
+
+    return !__wine_unix_call(unix_handle, unix_wg_parser_stream_read_data, &params);
+}
+
 void wg_parser_stream_notify_qos(struct wg_parser_stream *stream,
         bool underflow, double proportion, int64_t diff, uint64_t timestamp)
 {

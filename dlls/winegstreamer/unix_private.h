@@ -64,4 +64,7 @@ extern void wg_allocator_destroy(GstAllocator *allocator) DECLSPEC_HIDDEN;
 extern void wg_allocator_release_sample(GstAllocator *allocator, struct wg_sample *sample,
         bool discard_data) DECLSPEC_HIDDEN;
 
+extern NTSTATUS wg_sample_read_from_buffer(GstBuffer *buffer, GstVideoInfo *src_video_info,
+        GstVideoInfo *dst_video_info, struct wg_sample *sample) DECLSPEC_HIDDEN;
+
 #endif /* __WINE_WINEGSTREAMER_UNIX_PRIVATE_H */
