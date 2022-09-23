@@ -1670,17 +1670,20 @@ static HRESULT handle_output_request(struct wm_reader *reader, struct wg_request
 
     TRACE("Got buffer for '%s' stream %p.\n", get_major_type_string(stream->format.major_type), stream);
 
-    if (FAILED(hr = wm_stream_allocate_sample(stream, request->u.output.size, sample)))
+    if (!wg_sample_queue_find_wm(reader->wg_sample_queue, request->u.output.data, &wg_sample, sample))
     {
-        ERR("Failed to allocate sample of %u bytes, hr %#lx.\n", request->u.output.size, hr);
-        return hr;
-    }
-    if (FAILED(hr = wg_sample_create_wm(*sample, &wg_sample)))
-    {
-        ERR("Failed to create wg_sample, hr %#lx.\n", hr);
-        INSSBuffer_Release(*sample);
-        *sample = NULL;
-        return hr;
+        if (FAILED(hr = wm_stream_allocate_sample(stream, request->u.output.size, sample)))
+        {
+            ERR("Failed to allocate stream sample of %u bytes, hr %#lx.\n", request->u.output.size, hr);
+            return hr;
+        }
+        if (FAILED(hr = wg_sample_create_wm(*sample, &wg_sample)))
+        {
+            ERR("Failed to create wg_sample, hr %#lx.\n", hr);
+            INSSBuffer_Release(*sample);
+            *sample = NULL;
+            return hr;
+        }
     }
 
     success = wg_parser_read_wm(reader->wg_parser, wg_sample, request->token, pts, duration, flags);

@@ -817,3 +817,33 @@ bool wg_sample_queue_find_quartz(struct wg_sample_queue *queue, void *data,
     LeaveCriticalSection(&queue->cs);
     return !!*wg_sample;
 }
+
+bool wg_sample_queue_find_wm(struct wg_sample_queue *queue, void *data,
+        struct wg_sample **wg_sample, INSSBuffer **wm_sample)
+{
+    struct sample *sample, *next;
+
+    *wg_sample = NULL;
+    EnterCriticalSection(&queue->cs);
+
+    LIST_FOR_EACH_ENTRY_SAFE(sample, next, &queue->samples, struct sample, entry)
+    {
+        if (sample->wg_sample.data != data)
+            continue;
+
+        if (sample->ops != &wm_sample_ops)
+        {
+            ERR_(wmvcore)("Invalid type for wg_sample %p, data %p\n", &sample->wg_sample, data);
+            break;
+        }
+
+        TRACE_(wmvcore)("Found sample %p for data %p\n", sample->u.wm.sample, data);
+        INSSBuffer_AddRef((*wm_sample = sample->u.wm.sample));
+        *wg_sample = &sample->wg_sample;
+        list_remove(&sample->entry);
+        break;
+    }
+
+    LeaveCriticalSection(&queue->cs);
+    return !!*wg_sample;
+}
