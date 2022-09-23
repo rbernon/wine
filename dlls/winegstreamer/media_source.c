@@ -468,50 +468,64 @@ static HRESULT media_source_stop(struct media_source *source)
     return IMFMediaEventQueue_QueueEventParamVar(source->event_queue, MESourceStopped, &GUID_NULL, S_OK, NULL);
 }
 
-static HRESULT media_stream_send_sample(struct media_stream *stream, const struct wg_parser_buffer *wg_buffer, IUnknown *token)
+static HRESULT allocate_sample(UINT32 size, IMFSample **out)
 {
     IMFSample *sample = NULL;
     IMFMediaBuffer *buffer;
     HRESULT hr;
-    BYTE *data;
-
-    if (FAILED(hr = MFCreateMemoryBuffer(wg_buffer->size, &buffer)))
-        return hr;
-    if (FAILED(hr = IMFMediaBuffer_SetCurrentLength(buffer, wg_buffer->size)))
-        goto out;
-    if (FAILED(hr = IMFMediaBuffer_Lock(buffer, &data, NULL, NULL)))
-        goto out;
-
-    if (!wg_parser_stream_copy_buffer(stream->wg_stream, data, 0, wg_buffer->size))
-    {
-        wg_parser_stream_release_buffer(stream->wg_stream);
-        IMFMediaBuffer_Unlock(buffer);
-        goto out;
-    }
-    wg_parser_stream_release_buffer(stream->wg_stream);
-
-    if (FAILED(hr = IMFMediaBuffer_Unlock(buffer)))
-        goto out;
 
     if (FAILED(hr = MFCreateSample(&sample)))
-        goto out;
-    if (FAILED(hr = IMFSample_AddBuffer(sample, buffer)))
-        goto out;
-    if (FAILED(hr = IMFSample_SetSampleTime(sample, wg_buffer->pts)))
-        goto out;
-    if (FAILED(hr = IMFSample_SetSampleDuration(sample, wg_buffer->duration)))
-        goto out;
-    if (token && FAILED(hr = IMFSample_SetUnknown(sample, &MFSampleExtension_Token, token)))
-        goto out;
+        return hr;
 
-    hr = IMFMediaEventQueue_QueueEventParamUnk(stream->event_queue, MEMediaSample,
-            &GUID_NULL, S_OK, (IUnknown *)sample);
+    if (SUCCEEDED(hr = MFCreateMemoryBuffer(size, &buffer)))
+    {
+        if (SUCCEEDED(hr = IMFSample_AddBuffer(sample, buffer)))
+            IMFSample_AddRef((*out = sample));
+        IMFMediaBuffer_Release(buffer);
+    }
 
-out:
-    if (sample)
-        IMFSample_Release(sample);
-    IMFMediaBuffer_Release(buffer);
+    IMFSample_Release(sample);
     return hr;
+}
+
+static HRESULT send_buffer(struct media_stream *stream, const struct wg_parser_buffer *wg_buffer, IUnknown *token)
+{
+    IMFMediaBuffer *buffer;
+    IMFSample *sample;
+    HRESULT hr;
+    BYTE *data;
+
+    if (FAILED(hr = allocate_sample(wg_buffer->size, &sample)))
+    {
+        ERR("Failed to create sample, hr %#lx.\n", hr);
+        return hr;
+    }
+
+    if (SUCCEEDED(hr = IMFSample_ConvertToContiguousBuffer(sample, &buffer)))
+    {
+        if (SUCCEEDED(hr = IMFMediaBuffer_SetCurrentLength(buffer, wg_buffer->size))
+                && SUCCEEDED(hr = IMFMediaBuffer_Lock(buffer, &data, NULL, NULL)))
+        {
+            bool success = wg_parser_stream_copy_buffer(stream->wg_stream, data, 0, wg_buffer->size);
+            wg_parser_stream_release_buffer(stream->wg_stream);
+            if (SUCCEEDED(hr = IMFMediaBuffer_Unlock(buffer)) && !success)
+                hr = E_FAIL;
+        }
+        IMFMediaBuffer_Release(buffer);
+    }
+
+    if (FAILED(hr) || FAILED(hr = IMFSample_SetSampleTime(sample, wg_buffer->pts))
+            || FAILED(hr = IMFSample_SetSampleDuration(sample, wg_buffer->duration)))
+        ERR("Failed to read sample, hr %#lx\n", hr);
+    else
+    {
+        if (token)
+            IMFSample_SetUnknown(sample, &MFSampleExtension_Token, token);
+        IMFMediaEventQueue_QueueEventParamUnk(stream->event_queue, MEMediaSample,
+                &GUID_NULL, S_OK, (IUnknown *)sample);
+    }
+
+    IMFSample_Release(sample);
 }
 
 static HRESULT media_stream_send_eos(struct media_source *source, struct media_stream *stream)
