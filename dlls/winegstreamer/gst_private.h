@@ -136,6 +136,7 @@ HRESULT wg_sample_create_dmo(IMediaBuffer *buffer, struct wg_sample **out);
 HRESULT wg_sample_create_mf(IMFSample *sample, struct wg_sample **out);
 HRESULT wg_sample_create_quartz(IMediaSample *sample, struct wg_sample **out);
 HRESULT wg_sample_create_dmo(IMediaBuffer *media_buffer, struct wg_sample **out);
+HRESULT wg_sample_create_wm(INSSBuffer *wm_sample, struct wg_sample **out);
 void wg_sample_release(struct wg_sample *wg_sample);
 
 HRESULT wg_transform_push_mf(struct wg_transform *transform, IMFSample *sample,
@@ -155,6 +156,8 @@ HRESULT wg_transform_read_dmo(struct wg_transform *transform, IMediaBuffer *buff
         DWORD *flags, REFERENCE_TIME *pts, REFERENCE_TIME *duration);
 
 bool wg_parser_stream_read_mf(struct wg_parser_stream *stream, struct wg_sample *sample);
+bool wg_parser_stream_read_wm(struct wg_parser_stream *stream, struct wg_sample *wg_sample,
+        QWORD *pts, QWORD *duration, DWORD *flags);
 
 HRESULT winegstreamer_stream_handler_create(REFIID riid, void **obj);
 

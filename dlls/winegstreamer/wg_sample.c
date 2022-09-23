@@ -27,6 +27,7 @@
 #include "wine/list.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(mfplat);
+WINE_DECLARE_DEBUG_CHANNEL(wmvcore);
 WINE_DECLARE_DEBUG_CHANNEL(quartz);
 
 struct wg_sample_queue
@@ -66,6 +67,10 @@ struct sample
         {
             IMediaBuffer *buffer;
         } dmo;
+        struct
+        {
+            INSSBuffer *sample;
+        } wm;
     } u;
 };
 
@@ -226,6 +231,54 @@ fail:
         IMediaBuffer_Release(sample->u.dmo.buffer);
     free(sample);
     return hr;
+}
+
+static const struct wg_sample_ops wm_sample_ops;
+
+static inline struct sample *unsafe_wm_from_wg_sample(struct wg_sample *wg_sample)
+{
+    struct sample *sample = CONTAINING_RECORD(wg_sample, struct sample, wg_sample);
+    if (sample->ops != &wm_sample_ops) return NULL;
+    return sample;
+}
+
+static void wm_sample_destroy(struct wg_sample *wg_sample)
+{
+    struct sample *sample = unsafe_wm_from_wg_sample(wg_sample);
+
+    TRACE_(wmvcore)("wg_sample %p, sample %p\n", wg_sample, sample);
+
+    INSSBuffer_Release(sample->u.wm.sample);
+}
+
+static const struct wg_sample_ops wm_sample_ops =
+{
+    wm_sample_destroy,
+};
+
+HRESULT wg_sample_create_wm(INSSBuffer *wm_sample, struct wg_sample **out)
+{
+    DWORD current_length, max_length;
+    struct sample *sample;
+    BYTE *buffer;
+    HRESULT hr;
+
+    if (FAILED(hr = INSSBuffer_GetBufferAndLength(wm_sample, &buffer, &current_length)))
+        return hr;
+    if (FAILED(hr = INSSBuffer_GetMaxLength(wm_sample, &max_length)))
+        return hr;
+    if (!(sample = calloc(1, sizeof(*sample))))
+        return E_OUTOFMEMORY;
+
+    INSSBuffer_AddRef((sample->u.wm.sample = wm_sample));
+    sample->wg_sample.data = buffer;
+    sample->wg_sample.size = current_length;
+    sample->wg_sample.max_size = max_length;
+    sample->ops = &wm_sample_ops;
+
+    TRACE_(wmvcore)("Created wg_sample %p for sample %p.\n", &sample->wg_sample, wm_sample);
+    *out = &sample->wg_sample;
+    return S_OK;
 }
 
 void wg_sample_release(struct wg_sample *wg_sample)
@@ -563,6 +616,35 @@ bool wg_parser_stream_read_mf(struct wg_parser_stream *stream, struct wg_sample 
         IMFSample_SetSampleDuration(sample->u.mf.sample, wg_sample->duration);
     if (wg_sample->flags & WG_SAMPLE_FLAG_SYNC_POINT)
         IMFSample_SetUINT32(sample->u.mf.sample, &MFSampleExtension_CleanPoint, 1);
+
+    return true;
+}
+
+bool wg_parser_stream_read_wm(struct wg_parser_stream *stream, struct wg_sample *wg_sample,
+        QWORD *pts, QWORD *duration, DWORD *flags)
+{
+    struct sample *sample = unsafe_wm_from_wg_sample(wg_sample);
+
+    TRACE_(wmvcore)("stream %p, wg_sample %p, pts %p, duration %p, flags %p\n", stream, wg_sample, pts, duration, flags);
+
+    if (!wg_parser_stream_read_data(stream, wg_sample))
+        return false;
+
+    if (FAILED(INSSBuffer_SetLength(sample->u.wm.sample, wg_sample->size)))
+        return false;
+
+    if (!(wg_sample->flags & WG_SAMPLE_FLAG_HAS_PTS))
+        FIXME("Missing PTS.\n");
+    if (!(wg_sample->flags & WG_SAMPLE_FLAG_HAS_DURATION))
+        FIXME("Missing duration.\n");
+
+    *pts = wg_sample->pts;
+    *duration = wg_sample->duration;
+    *flags = 0;
+    if (wg_sample->flags & WG_SAMPLE_FLAG_DISCONTINUITY)
+        *flags |= WM_SF_DISCONTINUITY;
+    if (wg_sample->flags & WG_SAMPLE_FLAG_SYNC_POINT)
+        *flags |= WM_SF_CLEANPOINT;
 
     return true;
 }

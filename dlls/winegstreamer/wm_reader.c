@@ -1623,10 +1623,10 @@ static HRESULT wm_stream_allocate_sample(struct wm_stream *stream, DWORD size, I
 static HRESULT wm_reader_read_stream_sample(struct wm_reader *reader, struct wg_parser_buffer *buffer,
         INSSBuffer **sample, QWORD *pts, QWORD *duration, DWORD *flags)
 {
+    struct wg_sample *wg_sample;
     struct wm_stream *stream;
-    DWORD size, capacity;
+    bool success;
     HRESULT hr;
-    BYTE *data;
 
     if (!(stream = wm_reader_get_stream_by_stream_number(reader, buffer->stream + 1)))
         return E_INVALIDARG;
@@ -1636,42 +1636,25 @@ static HRESULT wm_reader_read_stream_sample(struct wm_reader *reader, struct wg_
     if (FAILED(hr = wm_stream_allocate_sample(stream, buffer->size, sample)))
     {
         ERR("Failed to allocate sample of %u bytes, hr %#lx.\n", buffer->size, hr);
-        wg_parser_stream_release_buffer(stream->wg_stream);
+        return hr;
+    }
+    if (FAILED(hr = wg_sample_create_wm(*sample, &wg_sample)))
+    {
+        ERR("Failed to create wg_sample, hr %#lx.\n", hr);
+        INSSBuffer_Release(*sample);
+        *sample = NULL;
         return hr;
     }
 
-    if (FAILED(hr = INSSBuffer_GetBufferAndLength(*sample, &data, &size)))
-        ERR("Failed to get data pointer, hr %#lx.\n", hr);
-    if (FAILED(hr = INSSBuffer_GetMaxLength(*sample, &capacity)))
-        ERR("Failed to get capacity, hr %#lx.\n", hr);
-    if (buffer->size > capacity)
-        ERR("Returned capacity %lu is less than requested capacity %u.\n", capacity, buffer->size);
-
-    if (!wg_parser_stream_copy_buffer(stream->wg_stream, data, 0, buffer->size))
+    success = wg_parser_stream_read_wm(stream->wg_stream, wg_sample, pts, duration, flags);
+    wg_sample_release(wg_sample);
+    if (!success)
     {
         /* The GStreamer pin has been flushed. */
         INSSBuffer_Release(*sample);
         *sample = NULL;
         return S_FALSE;
     }
-
-    if (FAILED(hr = INSSBuffer_SetLength(*sample, buffer->size)))
-        ERR("Failed to set size %u, hr %#lx.\n", buffer->size, hr);
-
-    wg_parser_stream_release_buffer(stream->wg_stream);
-
-    if (!buffer->has_pts)
-        FIXME("Missing PTS.\n");
-    if (!buffer->has_duration)
-        FIXME("Missing duration.\n");
-
-    *pts = buffer->pts;
-    *duration = buffer->duration;
-    *flags = 0;
-    if (buffer->discontinuity)
-        *flags |= WM_SF_DISCONTINUITY;
-    if (!buffer->delta)
-        *flags |= WM_SF_CLEANPOINT;
 
     return S_OK;
 }
