@@ -998,7 +998,7 @@ bool amt_to_wg_format(const AM_MEDIA_TYPE *mt, struct wg_format *format)
 
 /* Send a single GStreamer buffer (splitting it into multiple IMediaSamples if
  * necessary). */
-static void send_buffer(struct parser_source *pin, const struct wg_parser_buffer *buffer)
+static void handle_output_request(struct parser_source *pin, const struct wg_parser_buffer *buffer)
 {
     bool success, incomplete = true;
     struct wg_sample *wg_sample;
@@ -1084,7 +1084,7 @@ static DWORD CALLBACK stream_thread(void *arg)
 
         if (wg_parser_stream_get_buffer(filter->wg_parser, pin->wg_stream, &buffer))
         {
-            send_buffer(pin, &buffer);
+            handle_output_request(pin, &buffer);
         }
         else
         {

@@ -1625,7 +1625,7 @@ static HRESULT wm_stream_allocate_sample(struct wm_stream *stream, DWORD size, I
     return S_OK;
 }
 
-static HRESULT wm_reader_read_stream_sample(struct wm_reader *reader, struct wg_parser_buffer *buffer,
+static HRESULT handle_output_request(struct wm_reader *reader, struct wg_parser_buffer *buffer,
         INSSBuffer **sample, QWORD *pts, QWORD *duration, DWORD *flags)
 {
     struct wg_sample *wg_sample;
@@ -1859,7 +1859,7 @@ static HRESULT WINAPI reader_GetNextSample(IWMSyncReader2 *iface,
         struct wg_parser_buffer wg_buffer;
         if (!wg_parser_stream_get_buffer(reader->wg_parser, stream ? stream->wg_stream : NULL, &wg_buffer))
             hr = NS_E_NO_MORE_SAMPLES;
-        else if (SUCCEEDED(hr = wm_reader_read_stream_sample(reader, &wg_buffer, sample, pts, duration, flags)))
+        else if (SUCCEEDED(hr = handle_output_request(reader, &wg_buffer, sample, pts, duration, flags)))
             stream_number = wg_buffer.stream + 1;
     }
 

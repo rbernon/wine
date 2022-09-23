@@ -488,7 +488,7 @@ static HRESULT allocate_sample(UINT32 size, IMFSample **out)
     return hr;
 }
 
-static HRESULT send_buffer(struct media_stream *stream, const struct wg_parser_buffer *wg_buffer, IUnknown *token)
+static HRESULT handle_output_request(struct media_stream *stream, const struct wg_parser_buffer *wg_buffer, IUnknown *token)
 {
     struct wg_sample *wg_sample;
     IMFSample *sample;
@@ -552,7 +552,7 @@ static HRESULT wait_on_sample(struct media_stream *stream, IUnknown *token)
     TRACE("%p, %p\n", stream, token);
 
     if (wg_parser_stream_get_buffer(source->wg_parser, stream->wg_stream, &buffer))
-        return media_stream_send_sample(stream, &buffer, token);
+        return handle_output_request(stream, &buffer, token);
 
     return media_stream_send_eos(source, stream);
 }
