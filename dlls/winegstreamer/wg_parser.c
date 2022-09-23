@@ -275,6 +275,8 @@ static NTSTATUS wg_parser_stream_disable(void *args)
     struct wg_parser *parser = stream->parser;
 
     pthread_mutex_lock(&parser->mutex);
+    flush_parser_stream_requests(parser, stream);
+    stream->flushing = false;
     stream->enabled = false;
     stream->current_format.major_type = WG_MAJOR_TYPE_UNKNOWN;
     pthread_mutex_unlock(&parser->mutex);
