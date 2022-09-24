@@ -339,9 +339,6 @@ NTSTATUS wg_transform_create(void *args)
              */
             transform->input_max_length = 16;
             transform->output_plane_align = 15;
-            if (!(element = create_element("h264parse", "base"))
-                    || !append_element(transform->container, element, &first, &last))
-                goto out;
             /* fallthrough */
         case WG_MAJOR_TYPE_AUDIO_MPEG1:
         case WG_MAJOR_TYPE_AUDIO_MPEG4:
@@ -349,8 +346,14 @@ NTSTATUS wg_transform_create(void *args)
         case WG_MAJOR_TYPE_VIDEO_CINEPAK:
         case WG_MAJOR_TYPE_VIDEO_INDEO:
         case WG_MAJOR_TYPE_VIDEO_WMV:
+            if ((element = find_element(GST_ELEMENT_FACTORY_TYPE_PARSER, src_caps, src_caps))
+                    && !append_element(GST_BIN(transform->container), element, &first, &last))
+            {
+                gst_caps_unref(raw_caps);
+                goto out;
+            }
             if (!(element = find_element(GST_ELEMENT_FACTORY_TYPE_DECODER, src_caps, raw_caps))
-                    || !append_element(transform->container, element, &first, &last))
+                    || !append_element(GST_BIN(transform->container), element, &first, &last))
             {
                 gst_caps_unref(raw_caps);
                 goto out;

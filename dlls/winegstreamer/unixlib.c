@@ -115,7 +115,8 @@ done:
     else
     {
         gchar *src_str = gst_caps_to_string(src_caps), *sink_str = gst_caps_to_string(sink_caps);
-        GST_WARNING("Failed to create element matching caps %s / %s.", src_str, sink_str);
+        GST_WARNING("Failed to find element with type %#" G_GINT64_MODIFIER "x "
+                "matching caps %s / %s.", type, src_str, sink_str);
         g_free(sink_str);
         g_free(src_str);
     }
