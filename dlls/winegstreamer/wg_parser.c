@@ -123,9 +123,6 @@ struct wg_parser_stream
     GstSegment segment;
     struct wg_format preferred_format, current_format, codec_format;
 
-    pthread_cond_t event_cond, event_empty_cond;
-    struct request next_request;
-
     bool flushing, eos, enabled, has_caps, has_tags, has_buffer, no_more_pads;
 
     uint64_t duration;
@@ -155,17 +152,30 @@ static NTSTATUS wg_parser_get_stream(void *args)
     return S_OK;
 }
 
-static struct request *wg_parser_pop_request(struct wg_parser *parser)
+static struct request *wg_parser_peek_request(struct wg_parser *parser, enum wg_request_type type_mask, UINT32 stream)
 {
     struct request *req;
 
     LIST_FOR_EACH_ENTRY(req, &parser->requests, struct request, entry)
     {
-        list_remove(&req->entry);
+        if (!(req->wg_request.type & type_mask))
+            continue;
+        if (stream != -1 && req->wg_request.stream != stream)
+            continue;
         return req;
     }
 
     return NULL;
+}
+
+static struct request *wg_parser_pop_request(struct wg_parser *parser, enum wg_request_type type_mask, UINT32 stream)
+{
+    struct request *req;
+
+    if ((req = wg_parser_peek_request(parser, type_mask, stream)))
+        list_remove(&req->entry);
+
+    return req;
 }
 
 static NTSTATUS wg_parser_wait_request(void *args)
@@ -175,7 +185,7 @@ static NTSTATUS wg_parser_wait_request(void *args)
     struct request *req;
 
     pthread_mutex_lock(&parser->mutex);
-    while (parser->sink_connected && !(req = wg_parser_pop_request(parser)))
+    while (parser->sink_connected && !(req = wg_parser_pop_request(parser, WG_REQUEST_TYPE_INPUT, -1)))
         pthread_cond_wait(&parser->request_cond, &parser->mutex);
     pthread_mutex_unlock(&parser->mutex);
 
@@ -214,7 +224,7 @@ static NTSTATUS wg_parser_push_data(void *args)
     pthread_mutex_lock(&parser->mutex);
     req->u.input.done = true;
     pthread_mutex_unlock(&parser->mutex);
-    pthread_cond_signal(&parser->request_done_cond);
+    pthread_cond_broadcast(&parser->request_done_cond);
 
     return S_OK;
 }
@@ -264,13 +274,18 @@ static NTSTATUS wg_parser_stream_enable(void *args)
 
 static void flush_parser_stream_requests(struct wg_parser *parser, struct wg_parser_stream *stream)
 {
+    struct request *req;
+
     stream->flushing = true;
 
-    if (stream->next_request.u.output.buffer)
-        gst_buffer_unref(stream->next_request.u.output.buffer);
-    stream->next_request.u.output.buffer = NULL;
+    while ((req = wg_parser_pop_request(parser, WG_REQUEST_TYPE_OUTPUT, stream->number)))
+    {
+        GST_LOG("Flushing stream output request %p", req);
+        gst_buffer_unref(req->u.output.buffer);
+        free(req);
+    }
 
-    pthread_cond_signal(&stream->event_empty_cond);
+    pthread_cond_broadcast(&parser->request_done_cond);
 }
 
 static NTSTATUS wg_parser_stream_disable(void *args)
@@ -284,22 +299,21 @@ static NTSTATUS wg_parser_stream_disable(void *args)
     stream->enabled = false;
     stream->current_format.major_type = WG_MAJOR_TYPE_UNKNOWN;
     pthread_mutex_unlock(&parser->mutex);
-    pthread_cond_signal(&stream->event_empty_cond);
+
     return S_OK;
 }
 
 static struct request *wait_parser_stream_request(struct wg_parser *parser, struct wg_parser_stream *stream)
 {
-    struct request *req = &stream->next_request;
-    GstBuffer *buffer = NULL;
+    struct request *req;
 
     /* Note that we can both have a buffer and stream->eos, in which case we
      * must return the buffer. */
 
-    while (stream->enabled && !(buffer = req->u.output.buffer) && !stream->eos)
-        pthread_cond_wait(&stream->event_cond, &parser->mutex);
+    while (stream->enabled && !(req = wg_parser_peek_request(parser, WG_REQUEST_TYPE_OUTPUT, stream->number)) && !stream->eos)
+        pthread_cond_wait(&parser->request_cond, &parser->mutex);
 
-    return buffer ? req : NULL;
+    return req;
 }
 
 static NTSTATUS wg_parser_wait_stream_request(void *args)
@@ -353,8 +367,10 @@ static NTSTATUS wg_parser_wait_stream_request(void *args)
         return S_FALSE;
     }
 
-    *params->request = req->wg_request;
+    list_remove(&req->entry);
     pthread_mutex_unlock(&parser->mutex);
+
+    *params->request = req->wg_request;
     return S_OK;
 }
 
@@ -365,30 +381,16 @@ static NTSTATUS wg_parser_stream_read_data(void *args)
     struct wg_parser_stream *stream = params->stream;
     struct wg_parser *parser = stream->parser;
     struct wg_sample *sample = params->sample;
-    GstBuffer *buffer;
     NTSTATUS status;
 
-    pthread_mutex_lock(&parser->mutex);
-
-    if (!(buffer = req->u.output.buffer))  /* stream has been flushed */
-    {
-        pthread_mutex_unlock(&parser->mutex);
-        return VFW_E_WRONG_STATE;
-    }
-
-    if (!(status = wg_sample_read_from_buffer(buffer, NULL, NULL, sample))
+    if (!(status = wg_sample_read_from_buffer(req->u.output.buffer, NULL, NULL, sample))
             && (sample->flags & WG_SAMPLE_FLAG_INCOMPLETE))
-    {
-        pthread_mutex_unlock(&parser->mutex);
         return status;
-    }
+    pthread_cond_broadcast(&parser->request_done_cond);
 
-    req->u.output.buffer = NULL;
-    pthread_mutex_unlock(&parser->mutex);
-    pthread_cond_signal(&stream->event_empty_cond);
-
-    GST_DEBUG("Output request %p completed for buffer %p", req, buffer);
-    gst_buffer_unref(buffer);
+    GST_DEBUG("Output request %p completed for buffer %p", req, req->u.output.buffer);
+    gst_buffer_unref(req->u.output.buffer);
+    free(req);
     return status;
 }
 
@@ -568,7 +570,7 @@ static gboolean sink_event_cb(GstPad *pad, GstObject *parent, GstEvent *event)
             pthread_mutex_lock(&parser->mutex);
             stream->eos = true;
             if (stream->enabled)
-                pthread_cond_signal(&stream->event_cond);
+                pthread_cond_broadcast(&parser->request_cond);
             else
                 pthread_cond_signal(&parser->init_cond);
             pthread_mutex_unlock(&parser->mutex);
@@ -630,8 +632,8 @@ static gboolean sink_event_cb(GstPad *pad, GstObject *parent, GstEvent *event)
 static GstFlowReturn sink_chain_cb(GstPad *pad, GstObject *parent, GstBuffer *buffer)
 {
     struct wg_parser_stream *stream = gst_pad_get_element_private(pad);
-    struct request *req = &stream->next_request;
     struct wg_parser *parser = stream->parser;
+    struct request *req;
 
     GST_LOG("stream %p, buffer %p.", stream, buffer);
 
@@ -646,8 +648,8 @@ static GstFlowReturn sink_chain_cb(GstPad *pad, GstObject *parent, GstBuffer *bu
     /* Allow this buffer to be flushed by GStreamer. We are effectively
      * implementing a queue object here. */
 
-    while (stream->enabled && !stream->flushing && req->u.output.buffer)
-        pthread_cond_wait(&stream->event_empty_cond, &parser->mutex);
+    while (stream->enabled && !stream->flushing && wg_parser_peek_request(parser, WG_REQUEST_TYPE_OUTPUT, stream->number))
+        pthread_cond_wait(&parser->request_done_cond, &parser->mutex);
 
     if (!stream->enabled)
     {
@@ -664,7 +666,13 @@ static GstFlowReturn sink_chain_cb(GstPad *pad, GstObject *parent, GstBuffer *bu
         return GST_FLOW_FLUSHING;
     }
 
-    memset(req, 0, sizeof(*req));
+    if (!(req = calloc(1, sizeof(*req))))
+    {
+        pthread_mutex_unlock(&parser->mutex);
+        gst_buffer_unref(buffer);
+        return GST_FLOW_ERROR;
+    }
+
     req->wg_request.type = WG_REQUEST_TYPE_OUTPUT;
     req->wg_request.stream = stream->number;
     req->wg_request.token = (UINT_PTR)req;
@@ -680,8 +688,9 @@ static GstFlowReturn sink_chain_cb(GstPad *pad, GstObject *parent, GstBuffer *bu
     GST_DEBUG("Output request %p created for stream %u, buffer %p", req,
             stream->number, buffer);
 
+    list_add_tail(&parser->requests, &req->entry);
     pthread_mutex_unlock(&parser->mutex);
-    pthread_cond_signal(&stream->event_cond);
+    pthread_cond_broadcast(&parser->request_cond);
 
     return GST_FLOW_OK;
 }
@@ -785,8 +794,6 @@ static struct wg_parser_stream *create_stream(struct wg_parser *parser)
     stream->number = parser->stream_count;
     stream->no_more_pads = true;
     stream->current_format.major_type = WG_MAJOR_TYPE_UNKNOWN;
-    pthread_cond_init(&stream->event_cond, NULL);
-    pthread_cond_init(&stream->event_empty_cond, NULL);
 
     sprintf(pad_name, "qz_sink_%u", parser->stream_count);
     stream->my_sink = gst_pad_new(pad_name, GST_PAD_SINK);
@@ -806,9 +813,6 @@ static void free_stream(struct wg_parser_stream *stream)
     if (stream->their_src)
         gst_object_unref(stream->their_src);
     gst_object_unref(stream->my_sink);
-
-    pthread_cond_destroy(&stream->event_cond);
-    pthread_cond_destroy(&stream->event_empty_cond);
 
     for (i = 0; i < ARRAY_SIZE(stream->tags); ++i)
     {
@@ -1045,7 +1049,7 @@ static GstFlowReturn issue_read_request(struct wg_parser *parser, guint64 offset
 
     pthread_mutex_lock(&parser->mutex);
     list_add_tail(&parser->requests, &req->entry);
-    pthread_cond_signal(&parser->request_cond);
+    pthread_cond_broadcast(&parser->request_cond);
 
     /* Note that we don't unblock this wait on GST_EVENT_FLUSH_START. We expect
      * the upstream pin to flush if necessary. We should never be blocked on
@@ -1700,7 +1704,7 @@ out:
     pthread_mutex_lock(&parser->mutex);
     parser->sink_connected = false;
     pthread_mutex_unlock(&parser->mutex);
-    pthread_cond_signal(&parser->request_cond);
+    pthread_cond_broadcast(&parser->request_cond);
 
     return E_FAIL;
 }
@@ -1724,7 +1728,7 @@ static NTSTATUS wg_parser_disconnect(void *args)
     pthread_mutex_lock(&parser->mutex);
     parser->sink_connected = false;
     pthread_mutex_unlock(&parser->mutex);
-    pthread_cond_signal(&parser->request_cond);
+    pthread_cond_broadcast(&parser->request_cond);
 
     for (i = 0; i < parser->stream_count; ++i)
         free_stream(parser->streams[i]);
