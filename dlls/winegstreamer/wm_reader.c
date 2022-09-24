@@ -1629,15 +1629,7 @@ static HRESULT wm_stream_allocate_sample(struct wm_stream *stream, DWORD size, I
 
 static HRESULT handle_alloc_request(struct wm_reader *reader, struct wg_request *request)
 {
-    struct wm_stream *stream;
-
-    if (!(stream = wm_reader_get_stream_by_stream_number(reader, request->stream + 1)))
-    {
-        ERR("Unable to find stream with index %u.\n", request->stream);
-        return E_INVALIDARG;
-    }
-
-    wg_parser_done_alloc(reader->wg_parser, NULL, request->token);
+    wg_parser_queue_alloc(reader->wg_parser, NULL, request->token, NULL);
     return S_FALSE;
 }
 

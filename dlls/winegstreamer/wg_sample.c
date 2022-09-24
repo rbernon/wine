@@ -403,6 +403,7 @@ HRESULT wg_transform_read_data(struct wg_transform *transform, struct wg_sample 
         struct wg_format *format);
 void wg_parser_push_data(struct wg_parser *parser, struct wg_sample *sample, UINT64 token);
 bool wg_parser_read_data(struct wg_parser *parser, struct wg_sample *sample, UINT64 token);
+void wg_parser_done_alloc(struct wg_parser *parser, struct wg_sample *sample, UINT64 token);
 
 HRESULT wg_transform_push_mf(struct wg_transform *transform, IMFSample *sample,
         struct wg_sample_queue *queue)
@@ -741,5 +742,18 @@ void wg_parser_queue_data(struct wg_parser *parser, struct wg_sample *wg_sample,
 
     wg_sample_queue_begin_append(queue, wg_sample);
     wg_parser_push_data(parser, wg_sample, token);
+    wg_sample_queue_end_append(queue, wg_sample);
+}
+
+void wg_parser_queue_alloc(struct wg_parser *parser, struct wg_sample *wg_sample, UINT64 token,
+        struct wg_sample_queue *queue)
+{
+    TRACE("parser %p, wg_sample %p, token %#I64x, queue %p\n", parser, wg_sample, token, queue);
+
+    if (!wg_sample)
+        return wg_parser_done_alloc(parser, NULL, token);
+
+    wg_sample_queue_begin_append(queue, wg_sample);
+    wg_parser_done_alloc(parser, wg_sample, token);
     wg_sample_queue_end_append(queue, wg_sample);
 }

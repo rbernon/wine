@@ -1000,7 +1000,7 @@ bool amt_to_wg_format(const AM_MEDIA_TYPE *mt, struct wg_format *format)
 static void handle_alloc_request(struct parser_source *pin, const struct wg_request *request)
 {
     struct parser *filter = impl_from_strmbase_filter(pin->pin.pin.filter);
-    wg_parser_done_alloc(filter->wg_parser, NULL, request->token);
+    wg_parser_queue_alloc(filter->wg_parser, NULL, request->token, NULL);
 }
 
 /* Send a single GStreamer buffer (splitting it into multiple IMediaSamples if

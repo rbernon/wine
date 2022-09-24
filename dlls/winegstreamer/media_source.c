@@ -491,7 +491,24 @@ static HRESULT allocate_sample(UINT32 size, IMFSample **out)
 
 static HRESULT handle_alloc_request(struct media_source *source, struct wg_request *request)
 {
-    wg_parser_done_alloc(source->wg_parser, NULL, request->token);
+    struct wg_sample *wg_sample = NULL;
+    IMFSample *sample;
+    HRESULT hr;
+
+    if (SUCCEEDED(hr = allocate_sample(request->u.alloc.size, &sample)))
+    {
+        hr = wg_sample_create_mf(sample, &wg_sample);
+        IMFSample_Release(sample);
+    }
+
+    if (FAILED(hr))
+    {
+        ERR("Failed to allocate sample, hr %#lx\n", hr);
+        wg_parser_queue_alloc(source->wg_parser, NULL, request->token, NULL);
+        return;
+    }
+
+    wg_parser_queue_alloc(source->wg_parser, wg_sample, request->token, source->wg_sample_queue);
 }
 
 static HRESULT handle_output_request(struct media_stream *stream, const struct wg_request *request, IUnknown *token)
