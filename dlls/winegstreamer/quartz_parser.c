@@ -1482,7 +1482,7 @@ static HRESULT parser_create(enum wg_parser_type type, struct parser **parser)
         return hr;
     }
 
-    if (!(object->wg_parser = wg_parser_create(type)))
+    if (!(object->wg_parser = wg_parser_create(true)))
     {
         free(object);
         return E_OUTOFMEMORY;

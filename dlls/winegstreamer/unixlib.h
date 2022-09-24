@@ -233,18 +233,10 @@ struct wg_request
     } u;
 };
 
-enum wg_parser_type
-{
-    WG_PARSER_DECODEBIN,
-    WG_PARSER_AVIDEMUX,
-    WG_PARSER_MPEGAUDIOPARSE,
-    WG_PARSER_WAVPARSE,
-};
-
 struct wg_parser_create_params
 {
     struct wg_parser *parser;
-    enum wg_parser_type type;
+    BOOL decoder;
     bool err_on;
     bool warn_on;
 };
