@@ -1782,6 +1782,7 @@ static ULONG WINAPI GST_QualityControl_Release(IQualityControl *iface)
 static HRESULT WINAPI GST_QualityControl_Notify(IQualityControl *iface, IBaseFilter *sender, Quality q)
 {
     struct parser_source *pin = impl_from_IQualityControl(iface);
+    struct parser *filter = impl_from_strmbase_filter(pin->pin.pin.filter);
     uint64_t timestamp;
     int64_t diff;
 
@@ -1819,7 +1820,7 @@ static HRESULT WINAPI GST_QualityControl_Notify(IQualityControl *iface, IBaseFil
     /* GST_QOS_TYPE_OVERFLOW is also used for buffers that arrive on time, but
      * DirectShow filters might use Famine, so check that there actually is an
      * underrun. */
-    wg_parser_stream_notify_qos(pin->wg_stream, q.Type == Famine && q.Proportion < 1000,
+    wg_parser_notify_stream_qos(filter->wg_parser, pin->stream, q.Type == Famine && q.Proportion < 1000,
             1000.0 / q.Proportion, diff, timestamp);
 
     return S_OK;

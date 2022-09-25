@@ -516,12 +516,17 @@ static NTSTATUS wg_parser_seek_stream(void *args)
     return S_OK;
 }
 
-static NTSTATUS wg_parser_stream_notify_qos(void *args)
+static NTSTATUS wg_parser_notify_stream_qos(void *args)
 {
-    const struct wg_parser_stream_notify_qos_params *params = args;
-    struct wg_parser_stream *stream = params->stream;
+    const struct wg_parser_notify_stream_qos_params *params = args;
+    struct wg_parser *parser = params->parser;
+    struct wg_parser_stream *stream;
     GstClockTime stream_time;
     GstEvent *event;
+    NTSTATUS status;
+
+    if ((status = wg_parser_stream_from_index(parser, params->stream, &stream)))
+        return status;
 
     /* We return timestamps in stream time, i.e. relative to the start of the
      * file (or other medium), but gst_event_new_qos() expects the timestamp in
@@ -2151,7 +2156,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_parser_stream_enable),
     X(wg_parser_stream_disable),
 
-    X(wg_parser_stream_notify_qos),
+    X(wg_parser_notify_stream_qos),
 
     X(wg_parser_stream_get_tag),
 

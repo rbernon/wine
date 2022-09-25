@@ -303,9 +303,10 @@ struct wg_parser_done_alloc_params
     UINT64 token;
 };
 
-struct wg_parser_stream_notify_qos_params
+struct wg_parser_notify_stream_qos_params
 {
-    struct wg_parser_stream *stream;
+    struct wg_parser *parser;
+    UINT32 stream;
     bool underflow;
     DOUBLE proportion;
     INT64 diff;
@@ -390,13 +391,12 @@ enum unix_funcs
     unix_wg_parser_get_stream_duration,
     unix_wg_parser_get_stream,
     unix_wg_parser_seek_stream,
+    unix_wg_parser_notify_stream_qos,
 
     unix_wg_parser_stream_get_preferred_format,
     unix_wg_parser_stream_get_codec_format,
     unix_wg_parser_stream_enable,
     unix_wg_parser_stream_disable,
-
-    unix_wg_parser_stream_notify_qos,
 
     unix_wg_parser_stream_get_tag,
 

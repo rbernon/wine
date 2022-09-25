@@ -92,7 +92,7 @@ void wg_parser_stream_get_codec_format(struct wg_parser_stream *stream, struct w
 void wg_parser_stream_enable(struct wg_parser_stream *stream, const struct wg_format *format);
 void wg_parser_stream_disable(struct wg_parser_stream *stream);
 
-void wg_parser_stream_notify_qos(struct wg_parser_stream *stream,
+void wg_parser_notify_stream_qos(struct wg_parser *parser, uint32_t stream,
         bool underflow, double proportion, int64_t diff, uint64_t timestamp);
 
 char *wg_parser_stream_get_tag(struct wg_parser_stream *stream, enum wg_parser_tag tag);

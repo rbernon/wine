@@ -261,11 +261,12 @@ void wg_parser_done_alloc(struct wg_parser *parser, struct wg_sample *sample, UI
     __wine_unix_call(unix_handle, unix_wg_parser_done_alloc, &params);
 }
 
-void wg_parser_stream_notify_qos(struct wg_parser_stream *stream,
+void wg_parser_notify_stream_qos(struct wg_parser *parser, uint32_t stream,
         bool underflow, double proportion, int64_t diff, uint64_t timestamp)
 {
-    struct wg_parser_stream_notify_qos_params params =
+    struct wg_parser_notify_stream_qos_params params =
     {
+        .parser = parser,
         .stream = stream,
         .underflow = underflow,
         .proportion = proportion,
@@ -273,10 +274,10 @@ void wg_parser_stream_notify_qos(struct wg_parser_stream *stream,
         .timestamp = timestamp,
     };
 
-    TRACE("stream %p, underflow %d, proportion %.16e, diff %I64d, timestamp %I64u.\n",
-            stream, underflow, proportion, diff, timestamp);
+    TRACE("parser %p, stream %u, underflow %d, proportion %.16e, diff %I64d, timestamp %I64u.\n",
+            parser, stream, underflow, proportion, diff, timestamp);
 
-    WINE_UNIX_CALL(unix_wg_parser_stream_notify_qos, &params);
+    WINE_UNIX_CALL(unix_wg_parser_notify_stream_qos, &params);
 }
 
 uint64_t wg_parser_get_stream_duration(struct wg_parser *parser, uint32_t stream)
