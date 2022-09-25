@@ -37,6 +37,7 @@ struct media_stream
     IMFStreamDescriptor *descriptor;
 
     struct wg_parser_stream *wg_stream;
+    DWORD stream;
 
     IUnknown **token_queue;
     LONG token_queue_count;
