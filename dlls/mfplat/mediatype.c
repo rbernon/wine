@@ -3729,13 +3729,3 @@ HRESULT WINAPI MFInitMediaTypeFromAMMediaType(IMFMediaType *media_type, const AM
 
     return E_NOTIMPL;
 }
-
-HRESULT WINAPI MFInitAMMediaTypeFromMFMediaType(IMFMediaType *mediatype, GUID format, AM_MEDIA_TYPE *am_type)
-{
-    return E_NOTIMPL;
-}
-
-HRESULT WINAPI MFCreateAMMediaTypeFromMFMediaType(IMFMediaType *media_type, GUID format, AM_MEDIA_TYPE **am_type)
-{
-    return E_NOTIMPL;
-}

@@ -588,8 +588,6 @@ HRESULT WINAPI MFTGetInfo(CLSID clsid, WCHAR **name, MFT_REGISTER_TYPE_INFO **in
 BOOL WINAPI MFIsFormatYUV(DWORD format);
 HRESULT WINAPI MFInitAttributesFromBlob(IMFAttributes *attributes, const UINT8 *buffer, UINT size);
 HRESULT WINAPI MFInitMediaTypeFromAMMediaType(IMFMediaType *mediatype, const AM_MEDIA_TYPE *am_type);
-HRESULT WINAPI MFInitAMMediaTypeFromMFMediaType(IMFMediaType *mediatype, GUID format, AM_MEDIA_TYPE *am_type);
-HRESULT WINAPI MFCreateAMMediaTypeFromMFMediaType(IMFMediaType *media_type, GUID format, AM_MEDIA_TYPE **am_type);
 HRESULT WINAPI MFInitMediaTypeFromVideoInfoHeader(IMFMediaType *media_type, const VIDEOINFOHEADER *vih,
         UINT32 size, const GUID *subtype);
 HRESULT WINAPI MFInitMediaTypeFromWaveFormatEx(IMFMediaType *mediatype, const WAVEFORMATEX *format, UINT32 size);
