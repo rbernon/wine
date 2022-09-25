@@ -84,6 +84,7 @@ struct parser_source
     struct strmbase_source pin;
     IQualityControl IQualityControl_iface;
 
+    uint32_t stream;
     struct wg_parser_stream *wg_stream;
 
     SourceSeeking seek;
@@ -109,8 +110,7 @@ static inline struct parser *impl_from_strmbase_filter(struct strmbase_filter *i
 static const IMediaSeekingVtbl GST_Seeking_Vtbl;
 static const IQualityControlVtbl GSTOutPin_QualityControl_Vtbl;
 
-static struct parser_source *create_pin(struct parser *filter,
-        struct wg_parser_stream *stream, const WCHAR *name);
+static struct parser_source *create_pin(struct parser *filter, uint32_t stream, const WCHAR *name);
 static HRESULT GST_RemoveOutputPins(struct parser *This);
 static HRESULT WINAPI GST_ChangeCurrent(IMediaSeeking *iface);
 static HRESULT WINAPI GST_ChangeStop(IMediaSeeking *iface);
@@ -1430,7 +1430,7 @@ static BOOL decodebin_parser_filter_init_gst(struct parser *filter)
     for (i = 0; i < stream_count; ++i)
     {
         swprintf(source_name, ARRAY_SIZE(source_name), L"Stream %02u", i);
-        if (!create_pin(filter, wg_parser_get_stream(parser, i), source_name))
+        if (!create_pin(filter, i, source_name))
             return FALSE;
     }
 
@@ -1938,8 +1938,7 @@ static const struct strmbase_source_ops source_ops =
     .pfnDecideBufferSize = GSTOutPin_DecideBufferSize,
 };
 
-static struct parser_source *create_pin(struct parser *filter,
-        struct wg_parser_stream *stream, const WCHAR *name)
+static struct parser_source *create_pin(struct parser *filter, uint32_t stream, const WCHAR *name)
 {
     struct parser_source *pin, **new_array;
 
@@ -1950,7 +1949,8 @@ static struct parser_source *create_pin(struct parser *filter,
     if (!(pin = calloc(1, sizeof(*pin))))
         return NULL;
 
-    pin->wg_stream = stream;
+    pin->stream = stream;
+    pin->wg_stream = wg_parser_get_stream(filter->wg_parser, stream);
     strmbase_source_init(&pin->pin, &filter->filter, name, &source_ops);
     pin->IQualityControl_iface.lpVtbl = &GSTOutPin_QualityControl_Vtbl;
     strmbase_seeking_init(&pin->seek, &GST_Seeking_Vtbl, GST_ChangeStop,
@@ -2025,9 +2025,7 @@ static const struct strmbase_sink_ops wave_parser_sink_ops =
 
 static BOOL wave_parser_filter_init_gst(struct parser *filter)
 {
-    struct wg_parser *parser = filter->wg_parser;
-
-    if (!create_pin(filter, wg_parser_get_stream(parser, 0), L"output"))
+    if (!create_pin(filter, 0, L"output"))
         return FALSE;
 
     return TRUE;
@@ -2104,7 +2102,7 @@ static BOOL avi_splitter_filter_init_gst(struct parser *filter)
     for (i = 0; i < stream_count; ++i)
     {
         swprintf(source_name, ARRAY_SIZE(source_name), L"Stream %02u", i);
-        if (!create_pin(filter, wg_parser_get_stream(parser, i), source_name))
+        if (!create_pin(filter, i, source_name))
             return FALSE;
     }
 
@@ -2179,9 +2177,7 @@ static const struct strmbase_sink_ops mpeg_splitter_sink_ops =
 
 static BOOL mpeg_splitter_filter_init_gst(struct parser *filter)
 {
-    struct wg_parser *parser = filter->wg_parser;
-
-    if (!create_pin(filter, wg_parser_get_stream(parser, 0), L"Audio"))
+    if (!create_pin(filter, 0, L"Audio"))
         return FALSE;
 
     return TRUE;
