@@ -2098,7 +2098,6 @@ static void test_media_session_events(void)
     IMFAsyncCallback *callback, *callback2;
     IMFMediaType *input_type, *output_type;
     IMFTopologyNode *src_node, *sink_node;
-    IMFTopology *topology, *full_topology;
     IMFPresentationDescriptor *pd;
     MFCLOCK_STATE clock_state;
     IMFMediaSession *session;
@@ -2107,6 +2106,7 @@ static void test_media_session_events(void)
     IMFMediaSource *source;
     IMFMediaSink *renderer;
     IMFStreamSink *stream;
+    IMFTopology *topology;
     IMFMediaEvent *event;
     PROPVARIANT propvar;
     BOOL selected;
@@ -2330,90 +2330,13 @@ static void test_media_session_events(void)
     hr = MFCreateMediaSession(NULL, &session);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
-    EXPECT_REF(topology, 1);
-
     hr = IMFMediaSession_SetTopology(session, 0, topology);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     hr = wait_media_event(session, callback, MESessionTopologySet, 1000, &propvar);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ok(propvar.vt == VT_UNKNOWN, "got vt %u\n", propvar.vt);
     ok(propvar.punkVal != (IUnknown *)topology, "got punkVal %p\n", propvar.punkVal);
-    full_topology = (void *)propvar.punkVal;
     PropVariantClear(&propvar);
-    EXPECT_REF(topology, 2);
-    EXPECT_REF(full_topology, 7);
-
-    hr = IMFMediaSession_ClearTopologies(session);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologiesCleared, 1000, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
-    EXPECT_REF(topology, 2);
-    EXPECT_REF(full_topology, 7);
-
-    hr = IMFMediaSession_SetTopology(session, MFSESSION_SETTOPOLOGY_CLEAR_CURRENT, topology);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologySet, 1000, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
-    EXPECT_REF(topology, 2);
-    EXPECT_REF(full_topology, 7);
-
-    hr = IMFMediaSession_SetTopology(session, MFSESSION_SETTOPOLOGY_CLEAR_CURRENT, NULL);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologySet, 1000, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
-    EXPECT_REF(topology, 2);
-    EXPECT_REF(full_topology, 7);
-
-    hr = IMFMediaSession_SetTopology(session, MFSESSION_SETTOPOLOGY_NORESOLUTION, full_topology);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologySet, 1000, &propvar);
-    todo_wine
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    todo_wine
-    ok(propvar.vt == VT_UNKNOWN, "got vt %u\n", propvar.vt);
-    ok(propvar.punkVal == (IUnknown *)full_topology, "got punkVal %p\n", propvar.punkVal);
-    PropVariantClear(&propvar);
-    EXPECT_REF(topology, 2);
-    EXPECT_REF(full_topology, 10);
-
-    hr = IMFMediaSession_SetTopology(session, MFSESSION_SETTOPOLOGY_NORESOLUTION, full_topology);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologySet, 1000, &propvar);
-    todo_wine
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    todo_wine
-    ok(propvar.vt == VT_UNKNOWN, "got vt %u\n", propvar.vt);
-    ok(propvar.punkVal == (IUnknown *)full_topology, "got punkVal %p\n", propvar.punkVal);
-    PropVariantClear(&propvar);
-    EXPECT_REF(topology, 2);
-    EXPECT_REF(full_topology, 13);
-
-    hr = IMFMediaSession_SetTopology(session, MFSESSION_SETTOPOLOGY_CLEAR_CURRENT, full_topology);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologySet, 1000, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
-    EXPECT_REF(topology, 2);
-    EXPECT_REF(full_topology, 13);
-
-    hr = IMFMediaSession_ClearTopologies(session);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologiesCleared, 1000, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
-    EXPECT_REF(topology, 2);
-    EXPECT_REF(full_topology, 13);
-
-    IMFTopology_Release(full_topology);
-
-    hr = IMFMediaSession_ClearTopologies(session);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologiesCleared, 1000, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
 
     todo_wine
     ok(!handler.enum_count, "got %lu GetMediaTypeByIndex\n", handler.enum_count);
@@ -2686,166 +2609,13 @@ static void test_media_session_events(void)
     IMFStreamSink_Release(stream);
     IMFMediaSink_Release(renderer);
 
+    hr = IMFMediaSession_GetClock(session, (IMFClock **)&clock);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFPresentationClock_GetState(clock, 0, &clock_state);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(clock_state == MFCLOCK_STATE_INVALID, "Unexpected clock_state %#x.\n", clock_state);
 
-    hr = IMFMediaSession_SetTopology(session, 0, topology);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologySet, 1000, &propvar);
-    todo_wine
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    todo_wine
-    ok(propvar.vt == VT_UNKNOWN, "got vt %u\n", propvar.vt);
-    ok(propvar.punkVal != (IUnknown *)topology, "got punkVal %p\n", propvar.punkVal);
-    PropVariantClear(&propvar);
-
-
-    propvar.vt = VT_EMPTY;
-    hr = IMFMediaSession_Start(session, &GUID_NULL, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = IMFMediaSession_ClearTopologies(session);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = IMFMediaSession_SetTopology(session, MFSESSION_SETTOPOLOGY_CLEAR_CURRENT, NULL);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-    hr = wait_media_event(session, callback, MESessionStarted, 1000, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
-    hr = wait_media_event(session, callback, MESessionTopologiesCleared, 1000, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
-    hr = wait_media_event(session, callback, MESessionTopologySet, 0, &propvar);
-    ok(hr == E_PENDING, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologySet, 5000, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
-    EXPECT_REF(topology, 2);
-    EXPECT_REF(full_topology, 7);
-
-    hr = IMFMediaSession_SetTopology(session, MFSESSION_SETTOPOLOGY_CLEAR_CURRENT, full_topology);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologySet, 1000, &propvar);
-    ok(hr == S_FALSE, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
-
-    hr = IMFMediaSession_SetTopology(session, MFSESSION_SETTOPOLOGY_CLEAR_CURRENT, full_topology);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologySet, 1000, &propvar);
-    ok(hr == S_FALSE, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
-
-
-    EXPECT_REF(topology, 1);
-
-    hr = IMFMediaSession_SetTopology(session, 0, topology);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologySet, 1000, &propvar);
-    todo_wine
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    todo_wine
-    ok(propvar.vt == VT_UNKNOWN, "got vt %u\n", propvar.vt);
-    ok(propvar.punkVal != (IUnknown *)topology, "got punkVal %p\n", propvar.punkVal);
-    hr = IUnknown_QueryInterface(propvar.punkVal, &IID_IMFTopology, (void **)&full_topology);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    PropVariantClear(&propvar);
-    EXPECT_REF(topology, 2);
-    EXPECT_REF(full_topology, 7);
-
-    propvar.vt = VT_EMPTY;
-    hr = IMFMediaSession_Start(session, &GUID_NULL, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = IMFMediaSession_ClearTopologies(session);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = IMFMediaSession_SetTopology(session, MFSESSION_SETTOPOLOGY_CLEAR_CURRENT, full_topology);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-    hr = wait_media_event(session, callback, MESessionStarted, 1000, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
-    hr = wait_media_event(session, callback, MESessionTopologiesCleared, 1000, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
-    hr = wait_media_event(session, callback, MESessionTopologySet, 0, &propvar);
-    ok(hr == E_PENDING, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologySet, 5000, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
-    EXPECT_REF(topology, 2);
-    EXPECT_REF(full_topology, 7);
-
-
-    hr = IMFMediaSession_SetTopology(session, MFSESSION_SETTOPOLOGY_CLEAR_CURRENT, NULL);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologySet, 1000, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
-    EXPECT_REF(topology, 2);
-    EXPECT_REF(full_topology, 7);
-
-    hr = IMFMediaSession_SetTopology(session, MFSESSION_SETTOPOLOGY_NORESOLUTION, full_topology);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologySet, 1000, &propvar);
-    todo_wine
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    todo_wine
-    ok(propvar.vt == VT_UNKNOWN, "got vt %u\n", propvar.vt);
-    ok(propvar.punkVal == (IUnknown *)full_topology, "got punkVal %p\n", propvar.punkVal);
-    PropVariantClear(&propvar);
-    EXPECT_REF(topology, 2);
-    EXPECT_REF(full_topology, 10);
-
-    hr = IMFMediaSession_SetTopology(session, MFSESSION_SETTOPOLOGY_NORESOLUTION, full_topology);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologySet, 1000, &propvar);
-    todo_wine
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    todo_wine
-    ok(propvar.vt == VT_UNKNOWN, "got vt %u\n", propvar.vt);
-    ok(propvar.punkVal == (IUnknown *)full_topology, "got punkVal %p\n", propvar.punkVal);
-    PropVariantClear(&propvar);
-    EXPECT_REF(topology, 2);
-    EXPECT_REF(full_topology, 13);
-
-    hr = IMFMediaSession_SetTopology(session, MFSESSION_SETTOPOLOGY_CLEAR_CURRENT, full_topology);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologySet, 1000, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
-    EXPECT_REF(topology, 2);
-    EXPECT_REF(full_topology, 13);
-
-    hr = IMFMediaSession_ClearTopologies(session);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionTopologiesCleared, 1000, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
-    EXPECT_REF(topology, 2);
-    EXPECT_REF(full_topology, 13);
-
-    hr = IMFMediaSession_Close(session);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    hr = wait_media_event(session, callback, MESessionClosed, 1000, &propvar);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
-
-    hr = IMFMediaSession_Shutdown(session);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-    /* sometimes briefly leaking */
-    IMFMediaSession_Release(session);
-    IMFAsyncCallback_Release(callback);
-
-    /* Windows requires this to avoid leaking source */
-    hr = IMFTopology_Clear(full_topology);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ref = IMFTopology_Release(full_topology);
-    todo_wine
-    ok(ref == 0, "Release returned %ld\n", ref);
-
-    hr = IMFTopologyNode_SetObject(sink_node, NULL);
-    ok(hr == S_OK, "Failed to set object, hr %#lx.\n", hr);
-
-
-    hr = MFCreateMediaSession(NULL, &session);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(0, "%04lx: STARTING\n", GetCurrentThreadId());
 
     hr = IMFMediaSession_SetTopology(session, 0, topology);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
