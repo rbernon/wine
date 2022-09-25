@@ -1000,6 +1000,7 @@ bool amt_to_wg_format(const AM_MEDIA_TYPE *mt, struct wg_format *format)
  * necessary). */
 static void handle_output_request(struct parser_source *pin, const struct wg_request *request)
 {
+    struct parser *filter = impl_from_strmbase_filter(pin->pin.pin.filter);
     bool success, incomplete = true;
     struct wg_sample *wg_sample;
     IMediaSample *sample;
@@ -1027,7 +1028,7 @@ static void handle_output_request(struct parser_source *pin, const struct wg_req
             break;
         }
 
-        if ((success = wg_parser_stream_read_quartz(pin->wg_stream, wg_sample, request->token)))
+        if ((success = wg_parser_read_quartz(filter->wg_parser, wg_sample, request->token)))
         {
             /* update pts and duration to current seeking time and rate */
             wg_sample->pts -= pin->seek.llCurrent;

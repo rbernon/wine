@@ -1651,7 +1651,7 @@ static HRESULT handle_output_request(struct wm_reader *reader, struct wg_request
         return hr;
     }
 
-    success = wg_parser_stream_read_wm(stream->wg_stream, wg_sample, request->token, pts, duration, flags);
+    success = wg_parser_read_wm(reader->wg_parser, wg_sample, request->token, pts, duration, flags);
     wg_sample_release(wg_sample);
     if (!success)
     {

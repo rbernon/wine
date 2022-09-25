@@ -274,9 +274,9 @@ struct wg_parser_wait_stream_request_params
     struct wg_request *request;
 };
 
-struct wg_parser_stream_read_data_params
+struct wg_parser_read_data_params
 {
-    struct wg_parser_stream *stream;
+    struct wg_parser *parser;
     struct wg_sample *sample;
     UINT64 token;
 };
@@ -366,6 +366,7 @@ enum unix_funcs
     unix_wg_parser_wait_request,
     unix_wg_parser_wait_stream_request,
     unix_wg_parser_push_data,
+    unix_wg_parser_read_data,
 
     unix_wg_parser_get_stream_count,
     unix_wg_parser_get_stream,
@@ -380,7 +381,6 @@ enum unix_funcs
     unix_wg_parser_stream_get_duration,
     unix_wg_parser_stream_get_tag,
     unix_wg_parser_stream_seek,
-    unix_wg_parser_stream_read_data,
 
     unix_wg_transform_create,
     unix_wg_transform_destroy,

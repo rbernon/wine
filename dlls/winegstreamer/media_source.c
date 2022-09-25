@@ -490,6 +490,7 @@ static HRESULT allocate_sample(UINT32 size, IMFSample **out)
 
 static HRESULT handle_output_request(struct media_stream *stream, const struct wg_request *request, IUnknown *token)
 {
+    struct media_source *source = stream->parent_source;
     struct wg_sample *wg_sample;
     IMFSample *sample;
     bool success;
@@ -507,7 +508,7 @@ static HRESULT handle_output_request(struct media_stream *stream, const struct w
         return;
     }
 
-    success = wg_parser_stream_read_mf(stream->wg_stream, wg_sample, request->token);
+    success = wg_parser_read_mf(source->wg_parser, wg_sample, request->token);
     wg_sample_release(wg_sample);
     if (success)
     {

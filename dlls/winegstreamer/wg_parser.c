@@ -374,12 +374,11 @@ static NTSTATUS wg_parser_wait_stream_request(void *args)
     return S_OK;
 }
 
-static NTSTATUS wg_parser_stream_read_data(void *args)
+static NTSTATUS wg_parser_read_data(void *args)
 {
-    struct wg_parser_stream_read_data_params *params = args;
+    struct wg_parser_read_data_params *params = args;
     struct request *req = (struct request *)(UINT_PTR)params->token;
-    struct wg_parser_stream *stream = params->stream;
-    struct wg_parser *parser = stream->parser;
+    struct wg_parser *parser = params->parser;
     struct wg_sample *sample = params->sample;
     NTSTATUS status;
 
@@ -1956,6 +1955,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_parser_wait_request),
     X(wg_parser_wait_stream_request),
     X(wg_parser_push_data),
+    X(wg_parser_read_data),
 
     X(wg_parser_get_stream_count),
     X(wg_parser_get_stream),
@@ -1970,7 +1970,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_parser_stream_get_duration),
     X(wg_parser_stream_get_tag),
     X(wg_parser_stream_seek),
-    X(wg_parser_stream_read_data),
 
     X(wg_transform_create),
     X(wg_transform_destroy),

@@ -229,18 +229,18 @@ bool wg_parser_wait_stream_request(struct wg_parser *parser, struct wg_parser_st
     return !WINE_UNIX_CALL(unix_wg_parser_wait_stream_request, &params);
 }
 
-bool wg_parser_stream_read_data(struct wg_parser_stream *stream, struct wg_sample *sample, UINT64 token)
+bool wg_parser_read_data(struct wg_parser *parser, struct wg_sample *sample, UINT64 token)
 {
-    struct wg_parser_stream_read_data_params params =
+    struct wg_parser_read_data_params params =
     {
-        .stream = stream,
+        .parser = parser,
         .sample = sample,
         .token = token,
     };
 
-    TRACE("stream %p, sample %p, token %#I64x.\n", stream, sample, token);
+    TRACE("parser %p, sample %p, token %#I64x.\n", parser, sample, token);
 
-    return !__wine_unix_call(unix_handle, unix_wg_parser_stream_read_data, &params);
+    return !__wine_unix_call(unix_handle, unix_wg_parser_read_data, &params);
 }
 
 void wg_parser_stream_notify_qos(struct wg_parser_stream *stream,
