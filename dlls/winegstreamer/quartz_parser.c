@@ -484,19 +484,10 @@ static const GUID *wg_video_format_get_mediasubtype(enum wg_video_format format)
 {
     switch (format)
     {
+#define X(wg, gst, guid, depth, type) case wg: return &MEDIASUBTYPE_ ## guid;
+        FOR_EACH_WG_VIDEO_FORMAT(X)
+#undef X
         case WG_VIDEO_FORMAT_UNKNOWN: return &GUID_NULL;
-        case WG_VIDEO_FORMAT_BGRA: return &MEDIASUBTYPE_ARGB32;
-        case WG_VIDEO_FORMAT_BGRx: return &MEDIASUBTYPE_RGB32;
-        case WG_VIDEO_FORMAT_BGR: return &MEDIASUBTYPE_RGB24;
-        case WG_VIDEO_FORMAT_RGB15: return &MEDIASUBTYPE_RGB555;
-        case WG_VIDEO_FORMAT_RGB16: return &MEDIASUBTYPE_RGB565;
-        case WG_VIDEO_FORMAT_AYUV: return &MEDIASUBTYPE_AYUV;
-        case WG_VIDEO_FORMAT_I420: return &MEDIASUBTYPE_I420;
-        case WG_VIDEO_FORMAT_NV12: return &MEDIASUBTYPE_NV12;
-        case WG_VIDEO_FORMAT_UYVY: return &MEDIASUBTYPE_UYVY;
-        case WG_VIDEO_FORMAT_YUY2: return &MEDIASUBTYPE_YUY2;
-        case WG_VIDEO_FORMAT_YV12: return &MEDIASUBTYPE_YV12;
-        case WG_VIDEO_FORMAT_YVYU: return &MEDIASUBTYPE_YVYU;
     }
 
     assert(0);
@@ -507,19 +498,14 @@ static DWORD wg_video_format_get_compression(enum wg_video_format format)
 {
     switch (format)
     {
+#define X_RGB(g) BI_RGB
+#define X_YUV(g) MEDIASUBTYPE_ ## g.Data1
+#define X(wg, gst, guid, depth, type) case wg: return X_ ## type(guid);
+        FOR_EACH_WG_VIDEO_FORMAT(X)
+#undef X
+#undef X_YUV
+#undef X_RGB
         case WG_VIDEO_FORMAT_UNKNOWN: return 0;
-        case WG_VIDEO_FORMAT_BGRA: return BI_RGB;
-        case WG_VIDEO_FORMAT_BGRx: return BI_RGB;
-        case WG_VIDEO_FORMAT_BGR: return BI_RGB;
-        case WG_VIDEO_FORMAT_RGB15: return BI_RGB;
-        case WG_VIDEO_FORMAT_RGB16: return BI_BITFIELDS;
-        case WG_VIDEO_FORMAT_AYUV: return mmioFOURCC('A','Y','U','V');
-        case WG_VIDEO_FORMAT_I420: return mmioFOURCC('I','4','2','0');
-        case WG_VIDEO_FORMAT_NV12: return mmioFOURCC('N','V','1','2');
-        case WG_VIDEO_FORMAT_UYVY: return mmioFOURCC('U','Y','V','Y');
-        case WG_VIDEO_FORMAT_YUY2: return mmioFOURCC('Y','U','Y','2');
-        case WG_VIDEO_FORMAT_YV12: return mmioFOURCC('Y','V','1','2');
-        case WG_VIDEO_FORMAT_YVYU: return mmioFOURCC('Y','V','Y','U');
     }
 
     assert(0);
@@ -530,19 +516,10 @@ static WORD wg_video_format_get_depth(enum wg_video_format format)
 {
     switch (format)
     {
+#define X(wg, gst, guid, depth, type) case wg: return depth;
+        FOR_EACH_WG_VIDEO_FORMAT(X)
+#undef X
         case WG_VIDEO_FORMAT_UNKNOWN: return 0;
-        case WG_VIDEO_FORMAT_BGRA: return 32;
-        case WG_VIDEO_FORMAT_BGRx: return 32;
-        case WG_VIDEO_FORMAT_BGR: return 24;
-        case WG_VIDEO_FORMAT_RGB15: return 16;
-        case WG_VIDEO_FORMAT_RGB16: return 16;
-        case WG_VIDEO_FORMAT_AYUV: return 32;
-        case WG_VIDEO_FORMAT_I420: return 12;
-        case WG_VIDEO_FORMAT_NV12: return 12;
-        case WG_VIDEO_FORMAT_UYVY: return 16;
-        case WG_VIDEO_FORMAT_YUY2: return 16;
-        case WG_VIDEO_FORMAT_YV12: return 12;
-        case WG_VIDEO_FORMAT_YVYU: return 16;
     }
 
     assert(0);
@@ -593,6 +570,7 @@ static bool amt_from_wg_format_video(AM_MEDIA_TYPE *mt, const struct wg_format *
     if (format->u.video.format == WG_VIDEO_FORMAT_RGB16)
     {
         mt->cbFormat = offsetof(VIDEOINFO, dwBitMasks[3]);
+        video_format->bmiHeader.biCompression = BI_BITFIELDS;
         video_format->dwBitMasks[iRED]   = 0xf800;
         video_format->dwBitMasks[iGREEN] = 0x07e0;
         video_format->dwBitMasks[iBLUE]  = 0x001f;
@@ -872,18 +850,9 @@ static bool amt_to_wg_format_video(const AM_MEDIA_TYPE *mt, struct wg_format *fo
     }
     format_map[] =
     {
-        {&MEDIASUBTYPE_ARGB32,  WG_VIDEO_FORMAT_BGRA},
-        {&MEDIASUBTYPE_RGB32,   WG_VIDEO_FORMAT_BGRx},
-        {&MEDIASUBTYPE_RGB24,   WG_VIDEO_FORMAT_BGR},
-        {&MEDIASUBTYPE_RGB555,  WG_VIDEO_FORMAT_RGB15},
-        {&MEDIASUBTYPE_RGB565,  WG_VIDEO_FORMAT_RGB16},
-        {&MEDIASUBTYPE_AYUV,    WG_VIDEO_FORMAT_AYUV},
-        {&MEDIASUBTYPE_I420,    WG_VIDEO_FORMAT_I420},
-        {&MEDIASUBTYPE_NV12,    WG_VIDEO_FORMAT_NV12},
-        {&MEDIASUBTYPE_UYVY,    WG_VIDEO_FORMAT_UYVY},
-        {&MEDIASUBTYPE_YUY2,    WG_VIDEO_FORMAT_YUY2},
-        {&MEDIASUBTYPE_YV12,    WG_VIDEO_FORMAT_YV12},
-        {&MEDIASUBTYPE_YVYU,    WG_VIDEO_FORMAT_YVYU},
+#define X(wg, gst, guid, depth, type) {&MEDIASUBTYPE_ ## guid, wg},
+        FOR_EACH_WG_VIDEO_FORMAT(X)
+#undef X
     };
 
     const VIDEOINFOHEADER *video_format = (const VIDEOINFOHEADER *)mt->pbFormat;
