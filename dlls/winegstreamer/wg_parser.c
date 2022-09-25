@@ -483,13 +483,19 @@ static NTSTATUS wg_parser_stream_get_tag(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS wg_parser_stream_seek(void *args)
+static NTSTATUS wg_parser_seek_stream(void *args)
 {
     GstSeekType start_type = GST_SEEK_TYPE_SET, stop_type = GST_SEEK_TYPE_SET;
-    const struct wg_parser_stream_seek_params *params = args;
+    const struct wg_parser_seek_stream_params *params = args;
+    struct wg_parser *parser = params->parser;
     DWORD start_flags = params->start_flags;
     DWORD stop_flags = params->stop_flags;
+    struct wg_parser_stream *stream;
     GstSeekFlags flags = 0;
+    NTSTATUS status;
+
+    if ((status = wg_parser_stream_from_index(parser, params->stream, &stream)))
+        return status;
 
     if (start_flags & AM_SEEKING_SeekToKeyFrame)
         flags |= GST_SEEK_FLAG_KEY_UNIT;
@@ -503,7 +509,7 @@ static NTSTATUS wg_parser_stream_seek(void *args)
     if ((stop_flags & AM_SEEKING_PositioningBitsMask) == AM_SEEKING_NoPositioning)
         stop_type = GST_SEEK_TYPE_NONE;
 
-    if (!gst_pad_push_event(params->stream->my_sink, gst_event_new_seek(params->rate, GST_FORMAT_TIME,
+    if (!gst_pad_push_event(stream->my_sink, gst_event_new_seek(params->rate, GST_FORMAT_TIME,
             flags, start_type, params->start_pos * 100, stop_type, params->stop_pos * 100)))
         GST_ERROR("Failed to seek.\n");
 
@@ -2138,6 +2144,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_parser_get_stream_count),
     X(wg_parser_get_stream_duration),
     X(wg_parser_get_stream),
+    X(wg_parser_seek_stream),
 
     X(wg_parser_stream_get_preferred_format),
     X(wg_parser_stream_get_codec_format),
@@ -2147,7 +2154,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_parser_stream_notify_qos),
 
     X(wg_parser_stream_get_tag),
-    X(wg_parser_stream_seek),
 
     X(wg_transform_create),
     X(wg_transform_destroy),

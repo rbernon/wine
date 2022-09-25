@@ -1529,7 +1529,7 @@ static HRESULT init_stream(struct wm_reader *reader, QWORD file_size)
 
     /* We probably discarded events because streams weren't enabled yet.
      * Now that they're all enabled seek back to the start again. */
-    wg_parser_stream_seek(reader->streams[0].wg_stream, 1.0, 0, 0,
+    wg_parser_seek_stream(reader->wg_parser, 0, 1.0, 0, 0,
             AM_SEEKING_AbsolutePositioning, AM_SEEKING_NoPositioning);
 
     return S_OK;
@@ -2292,7 +2292,7 @@ static HRESULT WINAPI reader_SetOutputProps(IWMSyncReader2 *iface, DWORD output,
      * In all likelihood this function is being called not mid-stream but rather
      * while setting the stream up, before consuming any events. Accordingly
      * let's just seek back to the beginning. */
-    wg_parser_stream_seek(reader->streams[0].wg_stream, 1.0, reader->start_time, 0,
+    wg_parser_seek_stream(reader->wg_parser, 0, 1.0, reader->start_time, 0,
             AM_SEEKING_AbsolutePositioning, AM_SEEKING_NoPositioning);
 
     LeaveCriticalSection(&reader->cs);
@@ -2340,7 +2340,7 @@ static HRESULT WINAPI reader_SetRange(IWMSyncReader2 *iface, QWORD start, LONGLO
 
     reader->start_time = start;
 
-    wg_parser_stream_seek(reader->streams[0].wg_stream, 1.0, start, start + duration,
+    wg_parser_seek_stream(reader->wg_parser, 0, 1.0, start, start + duration,
             AM_SEEKING_AbsolutePositioning, duration ? AM_SEEKING_AbsolutePositioning : AM_SEEKING_NoPositioning);
 
     for (i = 0; i < reader->stream_count; ++i)

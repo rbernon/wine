@@ -412,7 +412,7 @@ static HRESULT media_source_start(struct media_source *source, IMFPresentationDe
     source->state = SOURCE_RUNNING;
 
     if (position->vt == VT_I8)
-        wg_parser_stream_seek(source->streams[0]->wg_stream, 1.0, position->hVal.QuadPart, 0,
+        wg_parser_seek_stream(source->wg_parser, 0, 1.0, position->hVal.QuadPart, 0,
                 AM_SEEKING_AbsolutePositioning, AM_SEEKING_NoPositioning);
 
     for (i = 0; i < source->stream_count; i++)

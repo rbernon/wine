@@ -1289,7 +1289,7 @@ static HRESULT parser_init_stream(struct strmbase_filter *iface)
     seeking = &filter->sources[0]->seek;
     if (seeking->llStop)
         stop_flags = AM_SEEKING_AbsolutePositioning;
-    wg_parser_stream_seek(filter->sources[0]->wg_stream, seeking->dRate,
+    wg_parser_seek_stream(filter->wg_parser, 0, seeking->dRate,
             seeking->llCurrent, seeking->llStop, AM_SEEKING_AbsolutePositioning, stop_flags);
 
     for (i = 0; i < filter->source_count; ++i)
@@ -1620,8 +1620,9 @@ static HRESULT WINAPI GST_ChangeStop(IMediaSeeking *iface)
 static HRESULT WINAPI GST_ChangeRate(IMediaSeeking *iface)
 {
     struct parser_source *pin = impl_from_IMediaSeeking(iface);
+    struct parser *filter = impl_from_strmbase_filter(pin->pin.pin.filter);
 
-    wg_parser_stream_seek(pin->wg_stream, pin->seek.dRate, 0, 0,
+    wg_parser_seek_stream(filter->wg_parser, pin->stream, pin->seek.dRate, 0, 0,
             AM_SEEKING_NoPositioning, AM_SEEKING_NoPositioning);
     return S_OK;
 }
@@ -1690,7 +1691,7 @@ static HRESULT WINAPI GST_Seeking_SetPositions(IMediaSeeking *iface,
 
     SourceSeekingImpl_SetPositions(iface, current, current_flags, stop, stop_flags);
 
-    wg_parser_stream_seek(pin->wg_stream, pin->seek.dRate,
+    wg_parser_seek_stream(filter->wg_parser, pin->stream, pin->seek.dRate,
             pin->seek.llCurrent, pin->seek.llStop, current_flags, stop_flags);
 
     if (!(current_flags & AM_SEEKING_NoFlush))

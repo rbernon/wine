@@ -327,9 +327,10 @@ struct wg_parser_stream_get_tag_params
     UINT32 *size;
 };
 
-struct wg_parser_stream_seek_params
+struct wg_parser_seek_stream_params
 {
-    struct wg_parser_stream *stream;
+    struct wg_parser *parser;
+    UINT32 stream;
     DOUBLE rate;
     UINT64 start_pos, stop_pos;
     DWORD start_flags, stop_flags;
@@ -388,6 +389,7 @@ enum unix_funcs
     unix_wg_parser_get_stream_count,
     unix_wg_parser_get_stream_duration,
     unix_wg_parser_get_stream,
+    unix_wg_parser_seek_stream,
 
     unix_wg_parser_stream_get_preferred_format,
     unix_wg_parser_stream_get_codec_format,
@@ -397,7 +399,6 @@ enum unix_funcs
     unix_wg_parser_stream_notify_qos,
 
     unix_wg_parser_stream_get_tag,
-    unix_wg_parser_stream_seek,
 
     unix_wg_transform_create,
     unix_wg_transform_destroy,

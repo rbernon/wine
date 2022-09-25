@@ -323,11 +323,12 @@ char *wg_parser_stream_get_tag(struct wg_parser_stream *stream, enum wg_parser_t
     return buffer;
 }
 
-void wg_parser_stream_seek(struct wg_parser_stream *stream, double rate,
+void wg_parser_seek_stream(struct wg_parser *parser, uint32_t stream, double rate,
         uint64_t start_pos, uint64_t stop_pos, DWORD start_flags, DWORD stop_flags)
 {
-    struct wg_parser_stream_seek_params params =
+    struct wg_parser_seek_stream_params params =
     {
+        .parser = parser,
         .stream = stream,
         .rate = rate,
         .start_pos = start_pos,
@@ -336,10 +337,10 @@ void wg_parser_stream_seek(struct wg_parser_stream *stream, double rate,
         .stop_flags = stop_flags,
     };
 
-    TRACE("stream %p, rate %.16e, start_pos %I64u, stop_pos %I64u, start_flags %#lx, stop_flags %#lx.\n",
-            stream, rate, start_pos, stop_pos, start_flags, stop_flags);
+    TRACE("parser %p, stream %u, rate %.16e, start_pos %I64u, stop_pos %I64u, start_flags %#lx, stop_flags %#lx.\n",
+            parser, stream, rate, start_pos, stop_pos, start_flags, stop_flags);
 
-    WINE_UNIX_CALL(unix_wg_parser_stream_seek, &params);
+    WINE_UNIX_CALL(unix_wg_parser_seek_stream, &params);
 }
 
 struct wg_transform *wg_transform_create(const struct wg_format *input_format,
