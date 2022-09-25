@@ -53,8 +53,8 @@ typedef enum
     GST_AUTOPLUG_SELECT_SKIP,
 } GstAutoplugSelectResult;
 
-static GstGLDisplay *gl_display;
-static GstGLContext *gl_context;
+GstGLDisplay *gl_display;
+GstGLContext *gl_context;
 
 struct request
 {

@@ -5783,6 +5783,111 @@ static void test_wmv_decoder_media_object(void)
     winetest_pop_context();
 }
 
+static void bench_color_convert(void)
+{
+    const GUID *const class_id = &CLSID_CColorConvertDMO;
+    static const DWORD actual_width = 1280, actual_height = 720;
+    const struct attribute_desc input_type_desc[] =
+    {
+        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video, .required = TRUE),
+        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_I420, .required = TRUE),
+        ATTR_RATIO(MF_MT_FRAME_SIZE, actual_width, actual_height, .required = TRUE),
+        {0},
+    };
+    const struct attribute_desc output_type_desc[] =
+    {
+        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video, .required = TRUE),
+        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32, .required = TRUE),
+        ATTR_RATIO(MF_MT_FRAME_SIZE, actual_width, actual_height, .required = TRUE),
+        {0},
+    };
+    const MFT_OUTPUT_STREAM_INFO output_info =
+    {
+        .cbSize = actual_width * actual_height * 4,
+        .cbAlignment = 1,
+    };
+    const MFT_INPUT_STREAM_INFO input_info =
+    {
+        .cbSize = actual_width * actual_height * 3 / 2,
+        .cbAlignment = 1,
+    };
+
+    IMFSample *input_sample, *output_sample;
+    QWORD input_duration, output_duration;
+    LARGE_INTEGER frequency, counter;
+    IMFTransform *transform;
+    DWORD output_status;
+    ULONG i, ret;
+    void *data;
+    HRESULT hr;
+
+    hr = CoInitialize(NULL);
+    ok(hr == S_OK, "Failed to initialize, hr %#lx.\n", hr);
+
+    winetest_push_context("colorconv");
+
+    if (FAILED(hr = CoCreateInstance(class_id, NULL, CLSCTX_INPROC_SERVER,
+            &IID_IMFTransform, (void **)&transform)))
+        goto failed;
+
+    check_mft_set_input_type(transform, input_type_desc);
+    check_mft_set_output_type(transform, output_type_desc, S_OK);
+
+    check_mft_get_input_stream_info(transform, &input_info);
+    check_mft_get_output_stream_info(transform, &output_info);
+
+    data = calloc(1, input_info.cbSize);
+    input_sample = create_sample(data, input_info.cbSize);
+    free(data);
+
+    hr = IMFSample_SetSampleTime(input_sample, 0);
+    ok(hr == S_OK, "SetSampleTime returned %#lx\n", hr);
+    hr = IMFSample_SetSampleDuration(input_sample, 0);
+    ok(hr == S_OK, "SetSampleDuration returned %#lx\n", hr);
+
+    output_sample = create_sample(NULL, output_info.cbSize);
+
+
+    QueryPerformanceFrequency(&frequency);
+    input_duration = output_duration = 0;
+
+
+for (i = 0; i < 1000; ++i)
+{
+    QueryPerformanceCounter(&counter);
+    input_duration += -counter.QuadPart;
+
+    hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
+    ok(hr == S_OK, "ProcessInput returned %#lx\n", hr);
+
+    QueryPerformanceCounter(&counter);
+    input_duration += counter.QuadPart;
+    output_duration += -counter.QuadPart;
+
+    hr = check_mft_process_output(transform, output_sample, &output_status);
+    ok(hr == S_OK, "ProcessOutput returned %#lx\n", hr);
+    ok(output_status == 0, "got output[0].dwStatus %#lx\n", output_status);
+
+    QueryPerformanceCounter(&counter);
+    output_duration += counter.QuadPart;
+}
+
+    ok(0, "input %f us, output %f us\n", input_duration * 1000000. / frequency.QuadPart / i, output_duration * 1000000. / frequency.QuadPart / i);
+
+
+    ret = IMFSample_Release(input_sample);
+    ok(ret == 0, "Release returned %ld\n", ret);
+    ret = IMFSample_Release(output_sample);
+    ok(ret == 0, "Release returned %lu\n", ret);
+
+    ret = IMFTransform_Release(transform);
+    ok(ret == 0, "Release returned %ld\n", ret);
+
+failed:
+    winetest_pop_context();
+    CoUninitialize();
+}
+
 static void test_color_convert(void)
 {
     const GUID *const class_id = &CLSID_CColorConvertDMO;
@@ -8086,6 +8191,9 @@ failed:
 START_TEST(transform)
 {
     init_functions();
+
+    bench_color_convert();
+    return;
 
     test_sample_copier();
     test_sample_copier_output_processing();

@@ -32,6 +32,8 @@
 #include <gst/video/video.h>
 #include <gst/audio/audio.h>
 
+#include <gst/gl/gl.h>
+
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
 #include "winternl.h"
@@ -40,6 +42,9 @@
 #include "unix_private.h"
 
 #define GST_SAMPLE_FLAG_WG_CAPS_CHANGED (GST_MINI_OBJECT_FLAG_LAST << 0)
+
+extern GstGLDisplay *gl_display;
+extern GstGLContext *gl_context;
 
 struct wg_transform
 {
@@ -50,6 +55,7 @@ struct wg_transform
     GstQuery *drain_query;
     bool broken_timestamps;
 
+    bool push_input_early;
     guint input_max_length;
     GstAtomicQueue *input_queue;
 
@@ -266,9 +272,31 @@ static struct wg_sample *transform_request_sample(gsize size, void *context)
     return InterlockedExchangePointer((void **)&transform->output_wg_sample, NULL);
 }
 
-static bool wg_format_video_is_flipped(const struct wg_format *format)
+static bool is_rgb_format(enum wg_video_format format)
 {
-    return format->major_type == WG_MAJOR_TYPE_VIDEO && (format->u.video.height < 0);
+    switch (format)
+    {
+        case WG_VIDEO_FORMAT_BGRA:
+        case WG_VIDEO_FORMAT_BGRx:
+        case WG_VIDEO_FORMAT_BGR:
+        case WG_VIDEO_FORMAT_RGBA:
+        case WG_VIDEO_FORMAT_RGB15:
+        case WG_VIDEO_FORMAT_RGB16:
+            return true;
+
+        case WG_VIDEO_FORMAT_AYUV:
+        case WG_VIDEO_FORMAT_I420:
+        case WG_VIDEO_FORMAT_NV12:
+        case WG_VIDEO_FORMAT_UYVY:
+        case WG_VIDEO_FORMAT_YUY2:
+        case WG_VIDEO_FORMAT_YV12:
+        case WG_VIDEO_FORMAT_YVYU:
+        case WG_VIDEO_FORMAT_UNKNOWN:
+            return false;
+    }
+
+    assert(0);
+    return false;
 }
 
 NTSTATUS wg_transform_create(void *args)
@@ -281,6 +309,7 @@ NTSTATUS wg_transform_create(void *args)
     NTSTATUS status = STATUS_UNSUCCESSFUL;
     GstPadTemplate *template = NULL;
     struct wg_transform *transform;
+    GstContext *context = NULL;
     const gchar *media_type;
     GstEvent *event;
 
@@ -321,6 +350,17 @@ NTSTATUS wg_transform_create(void *args)
     gst_pad_set_event_function(transform->my_sink, transform_sink_event_cb);
     gst_pad_set_query_function(transform->my_sink, transform_sink_query_cb);
     gst_pad_set_chain_function(transform->my_sink, transform_sink_chain_cb);
+
+    if (!gl_display)
+        GST_WARNING("No OpenGL display available, using CPU video conversion.");
+    else if (!(context = gst_context_new(GST_GL_DISPLAY_CONTEXT_TYPE, false)))
+        GST_ERROR("Failed to create OpenGL GStreamer context");
+    else
+    {
+        gst_context_set_gl_display(context, gl_display);
+        gst_element_set_context(transform->container, context);
+        gst_context_unref(context);
+    }
 
     /* Since we append conversion elements, we don't want to filter decoders
      * based on the actual output caps now. Matching decoders with the
@@ -395,17 +435,54 @@ NTSTATUS wg_transform_create(void *args)
 
         case WG_MAJOR_TYPE_VIDEO:
         case WG_MAJOR_TYPE_VIDEO_WMV:
-            if (!(transform->video_flip = create_element("videoflip", "base"))
-                    || !append_element(transform->container, transform->video_flip, &first, &last))
+if (context && !is_rgb_format(input_format.u.video.format) && is_rgb_format(output_format.u.video.format) && !getenv("NOGSTGL"))
+{
+/*
+        GstCaps *gl_caps = gst_caps_copy(transform->output_caps);
+        gst_caps_set_features_simple(gl_caps, gst_caps_features_new_single("memory:GLMemory"));
+*/
+        transform->push_input_early = true;
+
+        if (!(element = create_element("glupload", "base"))
+                || !append_element(GST_BIN(transform->container), element, &first, &last))
+            goto out;
+        if (!(element = create_element("glcolorconvert", "base"))
+                || !append_element(GST_BIN(transform->container), element, &first, &last))
+            goto out;
+/*
+        if (!(element = create_element("capsfilter", "base"))
+                || !append_element(GST_BIN(transform->container), element, &first, &last))
+            goto out;
+        g_object_set(G_OBJECT(element), "caps", gl_caps, NULL);
+*/
+        if (wg_format_is_flipped(&input_format) != wg_format_is_flipped(&output_format))
+        {
+            if (!(element = create_element("glvideoflip", "base"))
+                    || !append_element(GST_BIN(transform->container), element, &first, &last))
                 goto out;
-            transform->input_is_flipped = wg_format_video_is_flipped(&input_format);
-            if (transform->input_is_flipped != wg_format_video_is_flipped(&output_format))
-                gst_util_set_object_arg(G_OBJECT(transform->video_flip), "method", "vertical-flip");
+            gst_util_set_object_arg(G_OBJECT(element), "method", "vertical-flip");
+        }
+
+        if (!(element = create_element("gldownload", "base"))
+                || !append_element(GST_BIN(transform->container), element, &first, &last))
+            goto out;
+}
+else
+{
             if (!(element = create_element("videoconvert", "base"))
                     || !append_element(transform->container, element, &first, &last))
                 goto out;
             /* Let GStreamer choose a default number of threads. */
-            gst_util_set_object_arg(G_OBJECT(element), "n-threads", "0");
+            gst_util_set_object_arg(G_OBJECT(element), "n-threads", getenv("THREADS") ? getenv("THREADS") : "0");
+
+            if (wg_format_is_flipped(&input_format) != wg_format_is_flipped(&output_format))
+            {
+                if (!(element = create_element("videoflip", "base"))
+                        || !transform_append_element(transform, element, &first, &last))
+                    goto out;
+                gst_util_set_object_arg(G_OBJECT(element), "method", "vertical-flip");
+            }
+}
             break;
 
         case WG_MAJOR_TYPE_AUDIO_MPEG1:
@@ -428,6 +505,8 @@ NTSTATUS wg_transform_create(void *args)
         goto out;
     if (!gst_pad_set_active(transform->my_src, 1))
         goto out;
+
+GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transform->container), GST_DEBUG_GRAPH_SHOW_ALL, "wg_transform-null");
 
     gst_element_set_state(transform->container, GST_STATE_PAUSED);
     if (!gst_element_get_state(transform->container, NULL, NULL, -1))
@@ -454,6 +533,8 @@ NTSTATUS wg_transform_create(void *args)
         goto out;
 
     gst_caps_unref(src_caps);
+
+GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(transform->container), GST_DEBUG_GRAPH_SHOW_ALL, "wg_transform-done");
 
     GST_INFO("Created winegstreamer transform %p.", transform);
     params->transform = transform;
@@ -560,6 +641,7 @@ NTSTATUS wg_transform_push_data(void *args)
     struct wg_transform_push_data_params *params = args;
     struct wg_transform *transform = params->transform;
     struct wg_sample *sample = params->sample;
+    GstFlowReturn ret;
     GstBuffer *buffer;
     guint length;
 
@@ -593,7 +675,11 @@ NTSTATUS wg_transform_push_data(void *args)
         GST_BUFFER_FLAG_SET(buffer, GST_BUFFER_FLAG_DISCONT);
     if (sample->flags & WG_SAMPLE_FLAG_PREROLL)
         GST_BUFFER_FLAG_SET(buffer, GST_BUFFER_FLAG_LIVE);
-    gst_atomic_queue_push(transform->input_queue, buffer);
+
+    if (!transform->push_input_early)
+        gst_atomic_queue_push(transform->input_queue, buffer);
+    else if ((ret = gst_pad_push(transform->my_src, buffer)))
+        GST_ERROR("Failed to push transform input, error %d", ret);
 
     params->result = S_OK;
     return STATUS_SUCCESS;
@@ -755,7 +841,8 @@ static bool get_transform_output(struct wg_transform *transform, struct wg_sampl
     InterlockedIncrement(&sample->refcount);
     InterlockedExchangePointer((void **)&transform->output_wg_sample, sample);
 
-    while (!(transform->output_sample = gst_atomic_queue_pop(transform->output_queue)))
+    while (!(transform->output_sample = gst_atomic_queue_pop(transform->output_queue))
+            && !transform->push_input_early)
     {
         if (!(input_buffer = gst_atomic_queue_pop(transform->input_queue)))
             break;
