@@ -2167,4 +2167,254 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_transform_push_data),
     X(wg_transform_read_data),
     X(wg_transform_get_status),
+#undef X
 };
+
+#ifdef _WIN64
+
+typedef ULONG PTR32;
+
+static NTSTATUS wow64_wg_parser_wait_request(void *args)
+{
+    struct
+    {
+        enum wg_parser_handle parser;
+        UINT32 type_mask;
+        PTR32 request;
+    } const *params32 = args;
+
+    struct wg_parser_wait_request_params params =
+    {
+        params32->parser,
+        params32->type_mask,
+        ULongToPtr(params32->request),
+    };
+
+    return wg_parser_wait_request( &params );
+}
+
+static NTSTATUS wow64_wg_parser_wait_stream_request(void *args)
+{
+    struct
+    {
+        enum wg_parser_handle parser;
+        UINT32 type_mask;
+        UINT32 stream;
+        PTR32 request;
+    } const *params32 = args;
+
+    struct wg_parser_wait_stream_request_params params =
+    {
+        params32->parser,
+        params32->type_mask,
+        params32->stream,
+        ULongToPtr(params32->request),
+    };
+
+    return wg_parser_wait_stream_request( &params );
+}
+
+static NTSTATUS wow64_wg_parser_push_data(void *args)
+{
+    struct
+    {
+        enum wg_parser_handle parser;
+        PTR32 sample;
+        UINT64 token;
+    } const *params32 = args;
+
+    struct wg_parser_push_data_params params =
+    {
+        params32->parser,
+        ULongToPtr(params32->sample),
+        params32->token,
+    };
+
+    return wg_parser_push_data( &params );
+}
+
+static NTSTATUS wow64_wg_parser_read_data(void *args)
+{
+    struct
+    {
+        enum wg_parser_handle parser;
+        PTR32 sample;
+        UINT64 token;
+    } const *params32 = args;
+
+    struct wg_parser_read_data_params params =
+    {
+        params32->parser,
+        ULongToPtr(params32->sample),
+        params32->token,
+    };
+
+    return wg_parser_read_data( &params );
+}
+
+static NTSTATUS wow64_wg_parser_done_alloc(void *args)
+{
+    struct
+    {
+        enum wg_parser_handle parser;
+        PTR32 sample;
+        UINT64 token;
+    } const *params32 = args;
+
+    struct wg_parser_done_alloc_params params =
+    {
+        params32->parser,
+        ULongToPtr(params32->sample),
+        params32->token,
+    };
+
+    return wg_parser_done_alloc( &params );
+}
+
+static NTSTATUS wow64_wg_parser_get_stream_format(void *args)
+{
+    struct
+    {
+        enum wg_parser_handle parser;
+        UINT32 stream;
+        PTR32 format;
+    } const *params32 = args;
+
+    struct wg_parser_get_stream_format_params params =
+    {
+        params32->parser,
+        params32->stream,
+        ULongToPtr(params32->format),
+    };
+
+    return wg_parser_get_stream_format( &params );
+}
+
+static NTSTATUS wow64_wg_parser_set_stream_format(void *args)
+{
+    struct
+    {
+        enum wg_parser_handle parser;
+        UINT32 stream;
+        PTR32 format;
+    } const *params32 = args;
+
+    struct wg_parser_set_stream_format_params params =
+    {
+        params32->parser,
+        params32->stream,
+        ULongToPtr(params32->format),
+    };
+
+    return wg_parser_set_stream_format( &params );
+}
+
+static NTSTATUS wow64_wg_transform_create(void *args)
+{
+    struct
+    {
+        enum wg_transform_handle transform;
+        PTR32 input_format;
+        PTR32 output_format;
+    } const *params32 = args;
+
+    struct wg_transform_create_params params =
+    {
+        params32->transform,
+        ULongToPtr(params32->input_format),
+        ULongToPtr(params32->output_format),
+    };
+
+    return wg_transform_create( &params );
+}
+
+static NTSTATUS wow64_wg_transform_set_output_format(void *args)
+{
+    struct
+    {
+        enum wg_transform_handle transform;
+        PTR32 format;
+    } const *params32 = args;
+
+    struct wg_transform_set_output_format_params params =
+    {
+        params32->transform,
+        ULongToPtr(params32->format),
+    };
+
+    return wg_transform_set_output_format( &params );
+}
+
+static NTSTATUS wow64_wg_transform_push_data(void *args)
+{
+    struct
+    {
+        enum wg_transform_handle transform;
+        PTR32 sample;
+        UINT32 result;
+    } const *params32 = args;
+
+    struct wg_transform_push_data_params params =
+    {
+        params32->transform,
+        ULongToPtr(params32->sample),
+        params32->result,
+    };
+
+    return wg_transform_push_data( &params );
+}
+
+static NTSTATUS wow64_wg_transform_read_data(void *args)
+{
+    struct
+    {
+        enum wg_transform_handle transform;
+        PTR32 sample;
+        PTR32 format;
+        UINT32 result;
+    } const *params32 = args;
+
+    struct wg_transform_read_data_params params =
+    {
+        params32->transform,
+        ULongToPtr(params32->sample),
+        ULongToPtr(params32->format),
+        params32->result,
+    };
+
+    return wg_transform_read_data( &params );
+}
+
+const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
+{
+#define X(name) [unix_ ## name] = name
+#define WOW64(name) [unix_ ## name] = wow64_ ## name
+    X(wg_parser_create),
+    X(wg_parser_destroy),
+
+    X(wg_parser_connect),
+    X(wg_parser_disconnect),
+
+    WOW64(wg_parser_wait_request),
+    WOW64(wg_parser_wait_stream_request),
+    WOW64(wg_parser_push_data),
+    WOW64(wg_parser_read_data),
+    WOW64(wg_parser_done_alloc),
+
+    X(wg_parser_get_stream_count),
+    X(wg_parser_get_stream_duration),
+    WOW64(wg_parser_get_stream_format),
+    WOW64(wg_parser_set_stream_format),
+    X(wg_parser_seek_stream),
+
+    WOW64(wg_transform_create),
+    X(wg_transform_destroy),
+    WOW64(wg_transform_set_output_format),
+
+    WOW64(wg_transform_push_data),
+    WOW64(wg_transform_read_data),
+#undef WOW64
+#undef X
+};
+
+#endif  /* _WIN64 */
