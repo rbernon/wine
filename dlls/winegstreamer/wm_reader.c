@@ -1050,7 +1050,7 @@ static HRESULT WINAPI header_info_GetAttributeByName(IWMHeaderInfo3 *iface, WORD
 
         *type = WMT_TYPE_QWORD;
         EnterCriticalSection(&reader->cs);
-        duration = wg_parser_stream_get_duration(wg_parser_get_stream(reader->wg_parser, 0));
+        duration = wg_parser_get_stream_duration(reader->wg_parser, 0);
         LeaveCriticalSection(&reader->cs);
         TRACE("Returning duration %s.\n", debugstr_time(duration));
         memcpy(value, &duration, sizeof(QWORD));

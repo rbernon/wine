@@ -279,16 +279,17 @@ void wg_parser_stream_notify_qos(struct wg_parser_stream *stream,
     WINE_UNIX_CALL(unix_wg_parser_stream_notify_qos, &params);
 }
 
-uint64_t wg_parser_stream_get_duration(struct wg_parser_stream *stream)
+uint64_t wg_parser_get_stream_duration(struct wg_parser *parser, uint32_t stream)
 {
-    struct wg_parser_stream_get_duration_params params =
+    struct wg_parser_get_stream_duration_params params =
     {
+        .parser = parser,
         .stream = stream,
     };
 
-    TRACE("stream %p.\n", stream);
+    TRACE("parser %p, stream %u.\n", parser, stream);
 
-    WINE_UNIX_CALL(unix_wg_parser_stream_get_duration, &params);
+    WINE_UNIX_CALL(unix_wg_parser_get_stream_duration, &params);
 
     TRACE("Returning duration %I64u.\n", params.duration);
     return params.duration;

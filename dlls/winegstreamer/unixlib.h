@@ -249,6 +249,13 @@ struct wg_parser_get_stream_count_params
     UINT32 count;
 };
 
+struct wg_parser_get_stream_duration_params
+{
+    struct wg_parser *parser;
+    UINT32 stream;
+    UINT64 duration;
+};
+
 struct wg_parser_get_stream_params
 {
     struct wg_parser *parser;
@@ -303,12 +310,6 @@ struct wg_parser_stream_notify_qos_params
     DOUBLE proportion;
     INT64 diff;
     UINT64 timestamp;
-};
-
-struct wg_parser_stream_get_duration_params
-{
-    struct wg_parser_stream *stream;
-    UINT64 duration;
 };
 
 enum wg_parser_tag
@@ -385,6 +386,7 @@ enum unix_funcs
     unix_wg_parser_done_alloc,
 
     unix_wg_parser_get_stream_count,
+    unix_wg_parser_get_stream_duration,
     unix_wg_parser_get_stream,
 
     unix_wg_parser_stream_get_preferred_format,
@@ -394,7 +396,6 @@ enum unix_funcs
 
     unix_wg_parser_stream_notify_qos,
 
-    unix_wg_parser_stream_get_duration,
     unix_wg_parser_stream_get_tag,
     unix_wg_parser_stream_seek,
 

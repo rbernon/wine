@@ -83,6 +83,8 @@ void wg_parser_queue_data(struct wg_parser *parser, struct wg_sample *sample, UI
         struct wg_sample_queue *queue);
 
 uint32_t wg_parser_get_stream_count(struct wg_parser *parser);
+/* Returns the duration in 100-nanosecond units. */
+uint64_t wg_parser_get_stream_duration(struct wg_parser *parser, uint32_t stream);
 struct wg_parser_stream *wg_parser_get_stream(struct wg_parser *parser, uint32_t index);
 
 void wg_parser_stream_get_preferred_format(struct wg_parser_stream *stream, struct wg_format *format);
@@ -93,8 +95,6 @@ void wg_parser_stream_disable(struct wg_parser_stream *stream);
 void wg_parser_stream_notify_qos(struct wg_parser_stream *stream,
         bool underflow, double proportion, int64_t diff, uint64_t timestamp);
 
-/* Returns the duration in 100-nanosecond units. */
-uint64_t wg_parser_stream_get_duration(struct wg_parser_stream *stream);
 char *wg_parser_stream_get_tag(struct wg_parser_stream *stream, enum wg_parser_tag tag);
 /* start_pos and stop_pos are in 100-nanosecond units. */
 void wg_parser_stream_seek(struct wg_parser_stream *stream, double rate,

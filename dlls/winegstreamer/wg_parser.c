@@ -159,6 +159,19 @@ static NTSTATUS wg_parser_get_stream_count(void *args)
     return S_OK;
 }
 
+static NTSTATUS wg_parser_get_stream_duration(void *args)
+{
+    struct wg_parser_get_stream_duration_params *params = args;
+    struct wg_parser *parser = params->parser;
+    struct wg_parser_stream *stream;
+    NTSTATUS status;
+
+    if (!(status = wg_parser_stream_from_index(parser, params->stream, &stream)))
+        params->duration = stream->duration;
+
+    return status;
+}
+
 static NTSTATUS wg_parser_get_stream(void *args)
 {
     struct wg_parser_get_stream_params *params = args;
@@ -449,14 +462,6 @@ static NTSTATUS wg_parser_done_alloc(void *args)
     pthread_mutex_unlock(&parser->mutex);
     pthread_cond_broadcast(&parser->request_done_cond);
 
-    return S_OK;
-}
-
-static NTSTATUS wg_parser_stream_get_duration(void *args)
-{
-    struct wg_parser_stream_get_duration_params *params = args;
-
-    params->duration = params->stream->duration;
     return S_OK;
 }
 
@@ -2131,6 +2136,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_parser_done_alloc),
 
     X(wg_parser_get_stream_count),
+    X(wg_parser_get_stream_duration),
     X(wg_parser_get_stream),
 
     X(wg_parser_stream_get_preferred_format),
@@ -2140,7 +2146,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
 
     X(wg_parser_stream_notify_qos),
 
-    X(wg_parser_stream_get_duration),
     X(wg_parser_stream_get_tag),
     X(wg_parser_stream_seek),
 
