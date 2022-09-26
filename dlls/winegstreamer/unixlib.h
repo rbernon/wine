@@ -31,6 +31,31 @@
 
 #include "wine/unixlib.h"
 
+/* List all supported raw audio formats, with their metadata.
+ *
+ * Each element should be X(wg, gst, guid, depth), with:
+ *   wg: the enum wg_video_format value.
+ *   gst: corresponding GStreamer constant.
+ *   guid: suffix of the corresponding MEDIASUBTYPE / MFAudioFormat guid.
+ *   depth: the number of bits of each audio sample.
+ *
+ */
+#define FOR_EACH_WG_AUDIO_FORMAT(F)  \
+    F(WG_AUDIO_FORMAT_U8,    GST_AUDIO_FORMAT_U8,    PCM,   8)  \
+    F(WG_AUDIO_FORMAT_S16LE, GST_AUDIO_FORMAT_S16LE, PCM,   16) \
+    F(WG_AUDIO_FORMAT_S24LE, GST_AUDIO_FORMAT_S24LE, PCM,   24) \
+    F(WG_AUDIO_FORMAT_S32LE, GST_AUDIO_FORMAT_S32LE, PCM,   32) \
+    F(WG_AUDIO_FORMAT_F32LE, GST_AUDIO_FORMAT_F32LE, Float, 32) \
+    F(WG_AUDIO_FORMAT_F64LE, GST_AUDIO_FORMAT_F64LE, Float, 64) \
+
+enum wg_audio_format
+{
+    WG_AUDIO_FORMAT_UNKNOWN = 0,
+#define X(wg, gst, guid, depth) wg,
+    FOR_EACH_WG_AUDIO_FORMAT(X)
+#undef X
+};
+
 /* List all supported raw video formats, with their metadata.
  *
  * Each element should be X(wg, gst, guid, depth, type), with:
@@ -83,18 +108,7 @@ struct wg_format
     {
         struct
         {
-            enum wg_audio_format
-            {
-                WG_AUDIO_FORMAT_UNKNOWN,
-
-                WG_AUDIO_FORMAT_U8,
-                WG_AUDIO_FORMAT_S16LE,
-                WG_AUDIO_FORMAT_S24LE,
-                WG_AUDIO_FORMAT_S32LE,
-                WG_AUDIO_FORMAT_F32LE,
-                WG_AUDIO_FORMAT_F64LE,
-            } format;
-
+            enum wg_audio_format format;
             uint32_t channels;
             uint32_t channel_mask; /* In WinMM format. */
             uint32_t rate;

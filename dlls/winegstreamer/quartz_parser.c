@@ -121,12 +121,13 @@ static bool wg_audio_format_is_float(enum wg_audio_format format)
     switch (format)
     {
         case WG_AUDIO_FORMAT_UNKNOWN: return false;
-        case WG_AUDIO_FORMAT_U8: return false;
-        case WG_AUDIO_FORMAT_S16LE: return false;
-        case WG_AUDIO_FORMAT_S24LE: return false;
-        case WG_AUDIO_FORMAT_S32LE: return false;
-        case WG_AUDIO_FORMAT_F32LE: return true;
-        case WG_AUDIO_FORMAT_F64LE: return true;
+#define X_PCM false
+#define X_Float true
+#define X(wg, gst, guid, depth) case wg: return X_ ## guid;
+        FOR_EACH_WG_AUDIO_FORMAT(X)
+#undef X
+#undef X_Float
+#undef X_PCM
     }
 
     assert(0);
@@ -137,13 +138,10 @@ static WORD wg_audio_format_get_depth(enum wg_audio_format format)
 {
     switch (format)
     {
+#define X(wg, gst, guid, depth) case wg: return depth;
+        FOR_EACH_WG_AUDIO_FORMAT(X)
+#undef X
         case WG_AUDIO_FORMAT_UNKNOWN: return 0;
-        case WG_AUDIO_FORMAT_U8: return 8;
-        case WG_AUDIO_FORMAT_S16LE: return 16;
-        case WG_AUDIO_FORMAT_S24LE: return 24;
-        case WG_AUDIO_FORMAT_S32LE: return 32;
-        case WG_AUDIO_FORMAT_F32LE: return 32;
-        case WG_AUDIO_FORMAT_F64LE: return 64;
     }
 
     assert(0);
@@ -710,12 +708,13 @@ static bool amt_to_wg_format_audio(const AM_MEDIA_TYPE *mt, struct wg_format *fo
     }
     format_map[] =
     {
-        {&MEDIASUBTYPE_PCM,          8, WG_AUDIO_FORMAT_U8},
-        {&MEDIASUBTYPE_PCM,         16, WG_AUDIO_FORMAT_S16LE},
-        {&MEDIASUBTYPE_PCM,         24, WG_AUDIO_FORMAT_S24LE},
-        {&MEDIASUBTYPE_PCM,         32, WG_AUDIO_FORMAT_S32LE},
-        {&MEDIASUBTYPE_IEEE_FLOAT,  32, WG_AUDIO_FORMAT_F32LE},
-        {&MEDIASUBTYPE_IEEE_FLOAT,  64, WG_AUDIO_FORMAT_F64LE},
+#define X_PCM MEDIASUBTYPE_PCM
+#define X_Float MEDIASUBTYPE_IEEE_FLOAT
+#define X(wg, gst, guid, depth) {&X_ ## guid, depth, wg},
+        FOR_EACH_WG_AUDIO_FORMAT(X)
+#undef X
+#undef X_Float
+#undef X_PCM
     };
 
     const WAVEFORMATEX *audio_format = (const WAVEFORMATEX *)mt->pbFormat;

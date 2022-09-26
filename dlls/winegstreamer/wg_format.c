@@ -44,20 +44,10 @@ static enum wg_audio_format wg_audio_format_from_gst(GstAudioFormat format)
 {
     switch (format)
     {
-        case GST_AUDIO_FORMAT_U8:
-            return WG_AUDIO_FORMAT_U8;
-        case GST_AUDIO_FORMAT_S16LE:
-            return WG_AUDIO_FORMAT_S16LE;
-        case GST_AUDIO_FORMAT_S24LE:
-            return WG_AUDIO_FORMAT_S24LE;
-        case GST_AUDIO_FORMAT_S32LE:
-            return WG_AUDIO_FORMAT_S32LE;
-        case GST_AUDIO_FORMAT_F32LE:
-            return WG_AUDIO_FORMAT_F32LE;
-        case GST_AUDIO_FORMAT_F64LE:
-            return WG_AUDIO_FORMAT_F64LE;
-        default:
-            return WG_AUDIO_FORMAT_UNKNOWN;
+#define X(wg, gst, guid, depth) case gst: return wg;
+        FOR_EACH_WG_AUDIO_FORMAT(X)
+#undef X
+        default: return WG_AUDIO_FORMAT_UNKNOWN;
     }
 }
 
@@ -306,12 +296,9 @@ static GstAudioFormat wg_audio_format_to_gst(enum wg_audio_format format)
 {
     switch (format)
     {
-        case WG_AUDIO_FORMAT_U8:    return GST_AUDIO_FORMAT_U8;
-        case WG_AUDIO_FORMAT_S16LE: return GST_AUDIO_FORMAT_S16LE;
-        case WG_AUDIO_FORMAT_S24LE: return GST_AUDIO_FORMAT_S24LE;
-        case WG_AUDIO_FORMAT_S32LE: return GST_AUDIO_FORMAT_S32LE;
-        case WG_AUDIO_FORMAT_F32LE: return GST_AUDIO_FORMAT_F32LE;
-        case WG_AUDIO_FORMAT_F64LE: return GST_AUDIO_FORMAT_F64LE;
+#define X(wg, gst, guid, depth) case wg: return gst;
+        FOR_EACH_WG_AUDIO_FORMAT(X)
+#undef X
         default: return GST_AUDIO_FORMAT_UNKNOWN;
     }
 }

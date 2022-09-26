@@ -447,12 +447,9 @@ static const struct
 }
 audio_formats[] =
 {
-    {&MFAudioFormat_PCM,     8, WG_AUDIO_FORMAT_U8},
-    {&MFAudioFormat_PCM,    16, WG_AUDIO_FORMAT_S16LE},
-    {&MFAudioFormat_PCM,    24, WG_AUDIO_FORMAT_S24LE},
-    {&MFAudioFormat_PCM,    32, WG_AUDIO_FORMAT_S32LE},
-    {&MFAudioFormat_Float,  32, WG_AUDIO_FORMAT_F32LE},
-    {&MFAudioFormat_Float,  64, WG_AUDIO_FORMAT_F64LE},
+#define X(wg, gst, guid, depth) {&MFAudioFormat_ ## guid, depth, wg},
+    FOR_EACH_WG_AUDIO_FORMAT(X)
+#undef X
 };
 
 static inline UINT64 make_uint64(UINT32 high, UINT32 low)
