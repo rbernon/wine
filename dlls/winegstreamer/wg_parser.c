@@ -65,6 +65,10 @@ struct request
             GstFlowReturn result;
             GstBuffer *buffer;
         } input;
+        struct
+        {
+            GstBuffer *buffer;
+        } output;
     } u;
 };
 
@@ -120,7 +124,7 @@ struct wg_parser_stream
     struct wg_format preferred_format, current_format, codec_format;
 
     pthread_cond_t event_cond, event_empty_cond;
-    GstBuffer *buffer;
+    struct request next_request;
 
     bool flushing, eos, enabled, has_caps, has_tags, has_buffer, no_more_pads;
 
@@ -262,9 +266,9 @@ static void flush_parser_stream_requests(struct wg_parser *parser, struct wg_par
 {
     stream->flushing = true;
 
-    if (stream->buffer)
-        gst_buffer_unref(stream->buffer);
-    stream->buffer = NULL;
+    if (stream->next_request.u.output.buffer)
+        gst_buffer_unref(stream->next_request.u.output.buffer);
+    stream->next_request.u.output.buffer = NULL;
 
     pthread_cond_signal(&stream->event_empty_cond);
 }
@@ -284,17 +288,18 @@ static NTSTATUS wg_parser_stream_disable(void *args)
     return S_OK;
 }
 
-static GstBuffer *wait_parser_stream_buffer(struct wg_parser *parser, struct wg_parser_stream *stream)
+static struct request *wait_parser_stream_request(struct wg_parser *parser, struct wg_parser_stream *stream)
 {
+    struct request *req = &stream->next_request;
     GstBuffer *buffer = NULL;
 
     /* Note that we can both have a buffer and stream->eos, in which case we
      * must return the buffer. */
 
-    while (stream->enabled && !(buffer = stream->buffer) && !stream->eos)
+    while (stream->enabled && !(buffer = req->u.output.buffer) && !stream->eos)
         pthread_cond_wait(&stream->event_cond, &parser->mutex);
 
-    return buffer;
+    return buffer ? req : NULL;
 }
 
 static NTSTATUS wg_parser_stream_get_buffer(void *args)
@@ -303,13 +308,13 @@ static NTSTATUS wg_parser_stream_get_buffer(void *args)
     struct wg_parser_buffer *wg_buffer = params->buffer;
     struct wg_parser_stream *stream = params->stream;
     struct wg_parser *parser = params->parser;
-    GstBuffer *buffer;
+    struct request *req;
     unsigned int i;
 
     pthread_mutex_lock(&parser->mutex);
 
     if (stream)
-        buffer = wait_parser_stream_buffer(parser, stream);
+        req = wait_parser_stream_request(parser, stream);
     else
     {
         /* Find the earliest buffer by PTS.
@@ -327,35 +332,30 @@ static NTSTATUS wg_parser_stream_get_buffer(void *args)
          * don't have quite the same "frame rate", and we don't want to force one stream
          * to decode faster just to keep up with the other. Delivering samples in PTS
          * order should avoid that problem. */
-        GstBuffer *earliest = NULL;
+        struct request *earliest = NULL;
 
         for (i = 0; i < parser->stream_count; ++i)
         {
-            if (!(buffer = wait_parser_stream_buffer(parser, parser->streams[i])))
+            if (!(req = wait_parser_stream_request(parser, parser->streams[i])))
                 continue;
             /* invalid PTS is GST_CLOCK_TIME_NONE == (guint64)-1, so this will prefer valid timestamps. */
-            if (!earliest || GST_BUFFER_PTS(buffer) < GST_BUFFER_PTS(earliest))
+            if (!earliest || GST_BUFFER_PTS(req->u.output.buffer) < GST_BUFFER_PTS(earliest->u.output.buffer))
             {
                 stream = parser->streams[i];
-                earliest = buffer;
+                earliest = req;
             }
         }
 
-        buffer = earliest;
+        req = earliest;
     }
 
-    if (!buffer)
+    if (!req)
     {
         pthread_mutex_unlock(&parser->mutex);
         return S_FALSE;
     }
 
-    /* FIXME: Should we use gst_segment_to_stream_time_full()? Under what
-     * circumstances is the stream time not equal to the buffer PTS? Note
-     * that this will need modification to wg_parser_stream_notify_qos() as
-     * well. */
-
-    wg_buffer->size = gst_buffer_get_size(buffer);
+    wg_buffer->size = req->wg_request.u.output.size;
     wg_buffer->stream = stream->number;
 
     pthread_mutex_unlock(&parser->mutex);
@@ -366,6 +366,7 @@ static NTSTATUS wg_parser_stream_read_data(void *args)
 {
     struct wg_parser_stream_read_data_params *params = args;
     struct wg_parser_stream *stream = params->stream;
+    struct request *req = &stream->next_request;
     struct wg_parser *parser = stream->parser;
     struct wg_sample *sample = params->sample;
     GstBuffer *buffer;
@@ -373,7 +374,7 @@ static NTSTATUS wg_parser_stream_read_data(void *args)
 
     pthread_mutex_lock(&parser->mutex);
 
-    if (!(buffer = stream->buffer))  /* stream has been flushed */
+    if (!(buffer = req->u.output.buffer))  /* stream has been flushed */
     {
         pthread_mutex_unlock(&parser->mutex);
         return VFW_E_WRONG_STATE;
@@ -386,10 +387,11 @@ static NTSTATUS wg_parser_stream_read_data(void *args)
         return status;
     }
 
-    stream->buffer = NULL;
+    req->u.output.buffer = NULL;
     pthread_mutex_unlock(&parser->mutex);
     pthread_cond_signal(&stream->event_empty_cond);
 
+    GST_DEBUG("Output request %p completed for buffer %p", req, buffer);
     gst_buffer_unref(buffer);
     return status;
 }
@@ -632,6 +634,7 @@ static gboolean sink_event_cb(GstPad *pad, GstObject *parent, GstEvent *event)
 static GstFlowReturn sink_chain_cb(GstPad *pad, GstObject *parent, GstBuffer *buffer)
 {
     struct wg_parser_stream *stream = gst_pad_get_element_private(pad);
+    struct request *req = &stream->next_request;
     struct wg_parser *parser = stream->parser;
 
     GST_LOG("stream %p, buffer %p.", stream, buffer);
@@ -647,7 +650,7 @@ static GstFlowReturn sink_chain_cb(GstPad *pad, GstObject *parent, GstBuffer *bu
     /* Allow this buffer to be flushed by GStreamer. We are effectively
      * implementing a queue object here. */
 
-    while (stream->enabled && !stream->flushing && stream->buffer)
+    while (stream->enabled && !stream->flushing && req->u.output.buffer)
         pthread_cond_wait(&stream->event_empty_cond, &parser->mutex);
 
     if (!stream->enabled)
@@ -665,16 +668,24 @@ static GstFlowReturn sink_chain_cb(GstPad *pad, GstObject *parent, GstBuffer *bu
         return GST_FLOW_FLUSHING;
     }
 
-    stream->buffer = buffer;
+    memset(req, 0, sizeof(*req));
+    req->wg_request.type = WG_REQUEST_TYPE_OUTPUT;
+    req->wg_request.token = (UINT_PTR)req;
+
+    /* FIXME: Should we use gst_segment_to_stream_time_full()? Under what
+     * circumstances is the stream time not equal to the buffer PTS? Note
+     * that this will need modification to wg_parser_stream_notify_qos() as
+     * well. */
+
+    req->wg_request.u.output.size = gst_buffer_get_size(buffer);
+    req->u.output.buffer = buffer;
+
+    GST_DEBUG("Output request %p created for stream %u, buffer %p", req,
+            stream->number, buffer);
 
     pthread_mutex_unlock(&parser->mutex);
     pthread_cond_signal(&stream->event_cond);
 
-    /* The chain callback is given a reference to the buffer. Transfer that
-     * reference to the stream object, which will release it in
-     * wg_parser_stream_read_data(). */
-
-    GST_LOG("Buffer queued.");
     return GST_FLOW_OK;
 }
 

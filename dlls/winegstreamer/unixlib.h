@@ -181,6 +181,7 @@ struct wg_request
     enum wg_request_type
     {
         WG_REQUEST_TYPE_INPUT = 1,
+        WG_REQUEST_TYPE_OUTPUT = 2,
     } type;
     UINT64 token;
 
@@ -191,6 +192,10 @@ struct wg_request
             UINT64 offset;
             UINT32 size;
         } input;
+        struct
+        {
+            UINT32 size;
+        } output;
     } u;
 };
 
