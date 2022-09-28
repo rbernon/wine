@@ -180,14 +180,19 @@ struct wg_request
 {
     enum wg_request_type
     {
-        WG_REQUEST_TYPE_INPUT = 1,
-        WG_REQUEST_TYPE_OUTPUT = 2,
+        WG_REQUEST_TYPE_ALLOC = 1,
+        WG_REQUEST_TYPE_INPUT = 2,
+        WG_REQUEST_TYPE_OUTPUT = 4,
     } type;
     UINT32 stream;
     UINT64 token;
 
     union
     {
+        struct
+        {
+            UINT32 size;
+        } alloc;
         struct
         {
             UINT64 offset;
@@ -283,6 +288,13 @@ struct wg_parser_read_data_params
     UINT64 token;
 };
 
+struct wg_parser_done_alloc_params
+{
+    struct wg_parser *parser;
+    struct wg_sample *sample;
+    UINT64 token;
+};
+
 struct wg_parser_stream_notify_qos_params
 {
     struct wg_parser_stream *stream;
@@ -369,6 +381,7 @@ enum unix_funcs
     unix_wg_parser_wait_stream_request,
     unix_wg_parser_push_data,
     unix_wg_parser_read_data,
+    unix_wg_parser_done_alloc,
 
     unix_wg_parser_get_stream_count,
     unix_wg_parser_get_stream,

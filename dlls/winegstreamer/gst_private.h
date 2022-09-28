@@ -158,6 +158,7 @@ bool wg_parser_read_mf(struct wg_parser *parser, struct wg_sample *sample, UINT6
 bool wg_parser_read_quartz(struct wg_parser *parser, struct wg_sample *sample, UINT64 token);
 bool wg_parser_read_wm(struct wg_parser *parser, struct wg_sample *wg_sample, UINT64 token,
         QWORD *pts, QWORD *duration, DWORD *flags);
+void wg_parser_done_alloc(struct wg_parser *parser, struct wg_sample *sample, UINT64 token);
 
 HRESULT winegstreamer_stream_handler_create(REFIID riid, void **obj);
 

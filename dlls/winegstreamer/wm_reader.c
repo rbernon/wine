@@ -1627,6 +1627,20 @@ static HRESULT wm_stream_allocate_sample(struct wm_stream *stream, DWORD size, I
     return S_OK;
 }
 
+static HRESULT handle_alloc_request(struct wm_reader *reader, struct wg_request *request)
+{
+    struct wm_stream *stream;
+
+    if (!(stream = wm_reader_get_stream_by_stream_number(reader, request->stream + 1)))
+    {
+        ERR("Unable to find stream with index %u.\n", request->stream);
+        return E_INVALIDARG;
+    }
+
+    wg_parser_done_alloc(reader->wg_parser, NULL, request->token);
+    return S_FALSE;
+}
+
 static HRESULT handle_output_request(struct wm_reader *reader, struct wg_request *request,
         INSSBuffer **sample, QWORD *pts, QWORD *duration, DWORD *flags)
 {
@@ -1861,9 +1875,11 @@ static HRESULT WINAPI reader_GetNextSample(IWMSyncReader2 *iface,
     while (hr == S_FALSE)
     {
         struct wg_request request;
-        if (!wg_parser_wait_stream_request(reader->wg_parser, WG_REQUEST_TYPE_OUTPUT,
+        if (!wg_parser_wait_stream_request(reader->wg_parser, WG_REQUEST_TYPE_ALLOC | WG_REQUEST_TYPE_OUTPUT,
                 stream ? stream->wg_stream : NULL, &request))
             hr = NS_E_NO_MORE_SAMPLES;
+        else if (request.type == WG_REQUEST_TYPE_ALLOC)
+            hr = handle_alloc_request(reader, &request);
         else if (request.type == WG_REQUEST_TYPE_OUTPUT)
         {
             if (SUCCEEDED(hr = handle_output_request(reader, &request, sample, pts, duration, flags)))

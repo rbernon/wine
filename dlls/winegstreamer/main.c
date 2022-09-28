@@ -247,6 +247,20 @@ bool wg_parser_read_data(struct wg_parser *parser, struct wg_sample *sample, UIN
     return !__wine_unix_call(unix_handle, unix_wg_parser_read_data, &params);
 }
 
+void wg_parser_done_alloc(struct wg_parser *parser, struct wg_sample *sample, UINT64 token)
+{
+    struct wg_parser_done_alloc_params params =
+    {
+        .parser = parser,
+        .sample = sample,
+        .token = token,
+    };
+
+    TRACE("parser %p, sample %p, token %#I64x.\n", parser, sample, token);
+
+    __wine_unix_call(unix_handle, unix_wg_parser_done_alloc, &params);
+}
+
 void wg_parser_stream_notify_qos(struct wg_parser_stream *stream,
         bool underflow, double proportion, int64_t diff, uint64_t timestamp)
 {

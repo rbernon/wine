@@ -489,6 +489,11 @@ static HRESULT allocate_sample(UINT32 size, IMFSample **out)
     return hr;
 }
 
+static HRESULT handle_alloc_request(struct media_source *source, struct wg_request *request)
+{
+    wg_parser_done_alloc(source->wg_parser, NULL, request->token);
+}
+
 static HRESULT handle_output_request(struct media_stream *stream, const struct wg_request *request, IUnknown *token)
 {
     struct media_source *source = stream->parent_source;
@@ -683,10 +688,12 @@ static DWORD CALLBACK read_thread(void *arg)
     {
         struct wg_request request;
 
-        if (!wg_parser_wait_request(source->wg_parser, WG_REQUEST_TYPE_INPUT, &request))
+        if (!wg_parser_wait_request(source->wg_parser, WG_REQUEST_TYPE_ALLOC | WG_REQUEST_TYPE_INPUT, &request))
             continue;
 
-        if (request.type == WG_REQUEST_TYPE_INPUT)
+        if (request.type == WG_REQUEST_TYPE_ALLOC)
+            handle_alloc_request(source, &request);
+        else if (request.type == WG_REQUEST_TYPE_INPUT)
             handle_input_request(source, file_size, &request);
         else
             ERR("Received unexpected request type %u\n", request.type);

@@ -62,6 +62,11 @@ struct request
         struct
         {
             bool done;
+            struct wg_sample *sample;
+        } alloc;
+        struct
+        {
+            bool done;
             GstFlowReturn result;
             struct wg_sample *sample;
         } input;
@@ -118,6 +123,7 @@ struct wg_parser_stream
     struct wg_parser *parser;
     uint32_t number;
 
+    GstAllocator *allocator;
     GstPad *their_src, *my_sink;
     GstElement *flip, *decodebin;
     GstSegment segment;
@@ -278,6 +284,12 @@ static void flush_parser_stream_requests(struct wg_parser *parser, struct wg_par
 
     stream->flushing = true;
 
+    while ((req = wg_parser_pop_request(parser, WG_REQUEST_TYPE_ALLOC, stream->number)))
+    {
+        GST_LOG("Flushing stream alloc request %p", req);
+        req->u.alloc.done = true;
+    }
+
     while ((req = wg_parser_pop_request(parser, WG_REQUEST_TYPE_OUTPUT, stream->number)))
     {
         GST_LOG("Flushing stream output request %p", req);
@@ -355,8 +367,11 @@ static NTSTATUS wg_parser_wait_stream_request(void *args)
             if (!(req = wait_parser_stream_request(parser, params->type_mask, parser->streams[i])))
                 continue;
             /* invalid PTS is GST_CLOCK_TIME_NONE == (guint64)-1, so this will prefer valid timestamps. */
-            if (!earliest || GST_BUFFER_PTS(req->u.output.buffer) < GST_BUFFER_PTS(earliest->u.output.buffer))
+            if (!earliest || req->wg_request.type != WG_REQUEST_TYPE_OUTPUT
+                    || GST_BUFFER_PTS(req->u.output.buffer) < GST_BUFFER_PTS(earliest->u.output.buffer))
                 earliest = req;
+            if (earliest->wg_request.type != WG_REQUEST_TYPE_OUTPUT)
+                break;
         }
 
         req = earliest;
@@ -392,6 +407,24 @@ static NTSTATUS wg_parser_read_data(void *args)
     gst_buffer_unref(req->u.output.buffer);
     free(req);
     return status;
+}
+
+static NTSTATUS wg_parser_done_alloc(void *args)
+{
+    const struct wg_parser_done_alloc_params *params = args;
+    struct request *req = (struct request *)(UINT_PTR)params->token;
+    struct wg_parser *parser = params->parser;
+    struct wg_sample *sample = params->sample;
+
+    if ((req->u.alloc.sample = sample))
+        InterlockedIncrement(&sample->refcount);
+
+    pthread_mutex_lock(&parser->mutex);
+    req->u.alloc.done = true;
+    pthread_mutex_unlock(&parser->mutex);
+    pthread_cond_broadcast(&parser->request_done_cond);
+
+    return S_OK;
 }
 
 static NTSTATUS wg_parser_stream_get_duration(void *args)
@@ -793,14 +826,16 @@ static gboolean sink_query_cb(GstPad *pad, GstObject *parent, GstQuery *query)
             {
                 gst_buffer_pool_config_set_params(config, caps,
                         info.size, 0, 0);
+                gst_buffer_pool_config_set_allocator(config, stream->allocator, NULL);
                 if (!gst_buffer_pool_set_config(pool, config))
                     GST_ERROR("Failed to set pool %p config.", pool);
             }
 
             gst_query_add_allocation_pool(query, pool, info.size, 0, 0);
+            gst_query_add_allocation_param(query, stream->allocator, NULL);
 
-            GST_INFO("Proposing pool %p, buffer size %#zx, for query %p.",
-                    pool, info.size, query);
+            GST_INFO("Proposing pool %p, buffer size %#zx, allocator %p, for query %p.",
+                    pool, info.size, stream->allocator, query);
 
             g_object_unref(pool);
             return true;
@@ -811,6 +846,46 @@ static gboolean sink_query_cb(GstPad *pad, GstObject *parent, GstQuery *query)
     }
 
     return gst_pad_query_default(pad, parent, query);
+}
+
+static struct wg_sample *stream_request_sample(gsize size, void *context)
+{
+    struct wg_parser_stream *stream = context;
+    struct wg_parser *parser = stream->parser;
+    struct wg_sample *sample;
+    struct request *req;
+
+    GST_LOG("stream %p, size %zu.", stream, size);
+
+    pthread_mutex_lock(&parser->mutex);
+
+    if (!stream->enabled || stream->flushing || !(req = calloc(1, sizeof(*req))))
+    {
+        pthread_mutex_unlock(&parser->mutex);
+        return NULL;
+    }
+
+    req->wg_request.type = WG_REQUEST_TYPE_ALLOC;
+    req->wg_request.stream = stream->number;
+    req->wg_request.token = (UINT_PTR)req;
+    req->wg_request.u.alloc.size = size;
+
+    GST_DEBUG("Alloc request %p created for stream %u, size %" G_GSIZE_MODIFIER "u",
+            req, stream->number, size);
+
+    list_add_tail(&parser->requests, &req->entry);
+    pthread_cond_broadcast(&parser->request_cond);
+
+    while (!req->u.alloc.done)
+        pthread_cond_wait(&parser->request_done_cond, &parser->mutex);
+
+    pthread_mutex_unlock(&parser->mutex);
+
+    sample = req->u.alloc.sample;
+    GST_LOG("Alloc request %p returned sample %p", req, sample);
+    free(req);
+
+    return sample;
 }
 
 static struct wg_parser_stream *create_stream(struct wg_parser *parser)
@@ -831,6 +906,7 @@ static struct wg_parser_stream *create_stream(struct wg_parser *parser)
     stream->number = parser->stream_count;
     stream->no_more_pads = true;
     stream->current_format.major_type = WG_MAJOR_TYPE_UNKNOWN;
+    stream->allocator = wg_allocator_create(stream_request_sample, stream);
 
     sprintf(pad_name, "qz_sink_%u", parser->stream_count);
     stream->my_sink = gst_pad_new(pad_name, GST_PAD_SINK);
@@ -846,6 +922,8 @@ static struct wg_parser_stream *create_stream(struct wg_parser *parser)
 static void free_stream(struct wg_parser_stream *stream)
 {
     unsigned int i;
+
+    wg_allocator_destroy(stream->allocator);
 
     if (stream->their_src)
         gst_object_unref(stream->their_src);
@@ -2017,6 +2095,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_parser_wait_stream_request),
     X(wg_parser_push_data),
     X(wg_parser_read_data),
+    X(wg_parser_done_alloc),
 
     X(wg_parser_get_stream_count),
     X(wg_parser_get_stream),
