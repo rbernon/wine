@@ -183,6 +183,7 @@ struct wg_request
         WG_REQUEST_TYPE_INPUT = 1,
         WG_REQUEST_TYPE_OUTPUT = 2,
     } type;
+    UINT32 stream;
     UINT64 token;
 
     union
@@ -197,12 +198,6 @@ struct wg_request
             UINT32 size;
         } output;
     } u;
-};
-
-struct wg_parser_buffer
-{
-    UINT32 size;
-    UINT32 stream;
 };
 
 enum wg_parser_type
@@ -272,11 +267,11 @@ struct wg_parser_stream_enable_params
     const struct wg_format *format;
 };
 
-struct wg_parser_stream_get_buffer_params
+struct wg_parser_wait_stream_request_params
 {
     struct wg_parser *parser;
     struct wg_parser_stream *stream;
-    struct wg_parser_buffer *buffer;
+    struct wg_request *request;
 };
 
 struct wg_parser_stream_read_data_params
@@ -368,6 +363,7 @@ enum unix_funcs
     unix_wg_parser_disconnect,
 
     unix_wg_parser_wait_request,
+    unix_wg_parser_wait_stream_request,
     unix_wg_parser_push_data,
 
     unix_wg_parser_get_stream_count,
@@ -378,7 +374,6 @@ enum unix_funcs
     unix_wg_parser_stream_enable,
     unix_wg_parser_stream_disable,
 
-    unix_wg_parser_stream_get_buffer,
     unix_wg_parser_stream_notify_qos,
 
     unix_wg_parser_stream_get_duration,

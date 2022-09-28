@@ -1625,7 +1625,7 @@ static HRESULT wm_stream_allocate_sample(struct wm_stream *stream, DWORD size, I
     return S_OK;
 }
 
-static HRESULT handle_output_request(struct wm_reader *reader, struct wg_parser_buffer *buffer,
+static HRESULT handle_output_request(struct wm_reader *reader, struct wg_request *request,
         INSSBuffer **sample, QWORD *pts, QWORD *duration, DWORD *flags)
 {
     struct wg_sample *wg_sample;
@@ -1633,14 +1633,14 @@ static HRESULT handle_output_request(struct wm_reader *reader, struct wg_parser_
     bool success;
     HRESULT hr;
 
-    if (!(stream = wm_reader_get_stream_by_stream_number(reader, buffer->stream + 1)))
+    if (!(stream = wm_reader_get_stream_by_stream_number(reader, request->stream + 1)))
         return E_INVALIDARG;
 
     TRACE("Got buffer for '%s' stream %p.\n", get_major_type_string(stream->format.major_type), stream);
 
-    if (FAILED(hr = wm_stream_allocate_sample(stream, buffer->size, sample)))
+    if (FAILED(hr = wm_stream_allocate_sample(stream, request->u.output.size, sample)))
     {
-        ERR("Failed to allocate sample of %u bytes, hr %#lx.\n", buffer->size, hr);
+        ERR("Failed to allocate sample of %u bytes, hr %#lx.\n", request->u.output.size, hr);
         return hr;
     }
     if (FAILED(hr = wg_sample_create_wm(*sample, &wg_sample)))
@@ -1856,11 +1856,19 @@ static HRESULT WINAPI reader_GetNextSample(IWMSyncReader2 *iface,
 
     while (hr == S_FALSE)
     {
-        struct wg_parser_buffer wg_buffer;
-        if (!wg_parser_stream_get_buffer(reader->wg_parser, stream ? stream->wg_stream : NULL, &wg_buffer))
+        struct wg_request request;
+        if (!wg_parser_wait_stream_request(reader->wg_parser, stream ? stream->wg_stream : NULL, &request))
             hr = NS_E_NO_MORE_SAMPLES;
-        else if (SUCCEEDED(hr = handle_output_request(reader, &wg_buffer, sample, pts, duration, flags)))
-            stream_number = wg_buffer.stream + 1;
+        else if (request.type == WG_REQUEST_TYPE_OUTPUT)
+        {
+            if (SUCCEEDED(hr = handle_output_request(reader, &request, sample, pts, duration, flags)))
+                stream_number = request.stream + 1;
+        }
+        else
+        {
+            ERR("Received unexpected request type %u\n", request.type);
+            hr = E_UNEXPECTED;
+        }
     }
 
     if (stream && hr == NS_E_NO_MORE_SAMPLES)

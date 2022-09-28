@@ -215,19 +215,18 @@ void wg_parser_stream_disable(struct wg_parser_stream *stream)
     WINE_UNIX_CALL(unix_wg_parser_stream_disable, stream);
 }
 
-bool wg_parser_stream_get_buffer(struct wg_parser *parser, struct wg_parser_stream *stream,
-        struct wg_parser_buffer *buffer)
+bool wg_parser_wait_stream_request(struct wg_parser *parser, struct wg_parser_stream *stream, struct wg_request *request)
 {
-    struct wg_parser_stream_get_buffer_params params =
+    struct wg_parser_wait_stream_request_params params =
     {
         .parser = parser,
         .stream = stream,
-        .buffer = buffer,
+        .request = request,
     };
 
-    TRACE("parser %p, stream %p, buffer %p.\n", parser, stream, buffer);
+    TRACE("parser %p, stream %p, request %p.\n", parser, stream, request);
 
-    return !WINE_UNIX_CALL(unix_wg_parser_stream_get_buffer, &params);
+    return !WINE_UNIX_CALL(unix_wg_parser_wait_stream_request, &params);
 }
 
 bool wg_parser_stream_read_data(struct wg_parser_stream *stream, struct wg_sample *sample)

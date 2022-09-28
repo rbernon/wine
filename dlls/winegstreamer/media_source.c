@@ -488,14 +488,14 @@ static HRESULT allocate_sample(UINT32 size, IMFSample **out)
     return hr;
 }
 
-static HRESULT handle_output_request(struct media_stream *stream, const struct wg_parser_buffer *wg_buffer, IUnknown *token)
+static HRESULT handle_output_request(struct media_stream *stream, const struct wg_request *request, IUnknown *token)
 {
     struct wg_sample *wg_sample;
     IMFSample *sample;
     bool success;
     HRESULT hr;
 
-    if (FAILED(hr = allocate_sample(wg_buffer->size, &sample)))
+    if (FAILED(hr = allocate_sample(request->u.output.size, &sample)))
     {
         ERR("Failed to create sample, hr %#lx.\n", hr);
         return hr;
@@ -551,8 +551,13 @@ static HRESULT wait_on_sample(struct media_stream *stream, IUnknown *token)
 
     TRACE("%p, %p\n", stream, token);
 
-    if (wg_parser_stream_get_buffer(source->wg_parser, stream->wg_stream, &buffer))
-        return handle_output_request(stream, &buffer, token);
+    if (wg_parser_wait_stream_request(source->wg_parser, stream->wg_stream, &request))
+    {
+        if (request.type == WG_REQUEST_TYPE_OUTPUT)
+            return handle_output_request(stream, &buffer, token);
+        ERR("Received unexpected request type %u\n", request.type);
+        return MF_E_UNEXPECTED;
+    }
 
     return media_stream_send_eos(source, stream);
 }

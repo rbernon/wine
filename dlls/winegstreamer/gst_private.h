@@ -76,6 +76,7 @@ HRESULT wg_parser_connect(struct wg_parser *parser, uint64_t file_size);
 void wg_parser_disconnect(struct wg_parser *parser);
 
 bool wg_parser_wait_request(struct wg_parser *parser, struct wg_request *request);
+bool wg_parser_wait_stream_request(struct wg_parser *parser, struct wg_parser_stream *stream, struct wg_request *request);
 void wg_parser_push_data(struct wg_parser *parser, struct wg_sample *sample, UINT64 token);
 
 uint32_t wg_parser_get_stream_count(struct wg_parser *parser);
@@ -86,8 +87,6 @@ void wg_parser_stream_get_codec_format(struct wg_parser_stream *stream, struct w
 void wg_parser_stream_enable(struct wg_parser_stream *stream, const struct wg_format *format);
 void wg_parser_stream_disable(struct wg_parser_stream *stream);
 
-bool wg_parser_stream_get_buffer(struct wg_parser *parser, struct wg_parser_stream *stream,
-        struct wg_parser_buffer *buffer);
 void wg_parser_stream_notify_qos(struct wg_parser_stream *stream,
         bool underflow, double proportion, int64_t diff, uint64_t timestamp);
 

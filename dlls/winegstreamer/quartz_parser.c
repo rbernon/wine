@@ -998,7 +998,7 @@ bool amt_to_wg_format(const AM_MEDIA_TYPE *mt, struct wg_format *format)
 
 /* Send a single GStreamer buffer (splitting it into multiple IMediaSamples if
  * necessary). */
-static void handle_output_request(struct parser_source *pin, const struct wg_parser_buffer *buffer)
+static void handle_output_request(struct parser_source *pin, const struct wg_request *request)
 {
     bool success, incomplete = true;
     struct wg_sample *wg_sample;
@@ -1058,7 +1058,7 @@ static DWORD CALLBACK stream_thread(void *arg)
 
     for (;;)
     {
-        struct wg_parser_buffer buffer;
+        struct wg_request request;
 
         EnterCriticalSection(&filter->streaming_cs);
 
@@ -1082,9 +1082,12 @@ static DWORD CALLBACK stream_thread(void *arg)
             continue;
         }
 
-        if (wg_parser_stream_get_buffer(filter->wg_parser, pin->wg_stream, &buffer))
+        if (wg_parser_wait_stream_request(filter->wg_parser, pin->wg_stream, &request))
         {
-            handle_output_request(pin, &buffer);
+            if (request.type == WG_REQUEST_TYPE_OUTPUT)
+                handle_output_request(pin, &request);
+            else
+                ERR("Received unexpected request type %u\n", request.type);
         }
         else
         {

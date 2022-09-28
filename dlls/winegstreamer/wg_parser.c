@@ -302,19 +302,20 @@ static struct request *wait_parser_stream_request(struct wg_parser *parser, stru
     return buffer ? req : NULL;
 }
 
-static NTSTATUS wg_parser_stream_get_buffer(void *args)
+static NTSTATUS wg_parser_wait_stream_request(void *args)
 {
-    const struct wg_parser_stream_get_buffer_params *params = args;
-    struct wg_parser_buffer *wg_buffer = params->buffer;
-    struct wg_parser_stream *stream = params->stream;
+    const struct wg_parser_wait_stream_request_params *params = args;
     struct wg_parser *parser = params->parser;
+    struct wg_parser_stream *stream;
     struct request *req;
     unsigned int i;
 
     pthread_mutex_lock(&parser->mutex);
 
-    if (stream)
+    if ((stream = params->stream))
+    {
         req = wait_parser_stream_request(parser, stream);
+    }
     else
     {
         /* Find the earliest buffer by PTS.
@@ -340,10 +341,7 @@ static NTSTATUS wg_parser_stream_get_buffer(void *args)
                 continue;
             /* invalid PTS is GST_CLOCK_TIME_NONE == (guint64)-1, so this will prefer valid timestamps. */
             if (!earliest || GST_BUFFER_PTS(req->u.output.buffer) < GST_BUFFER_PTS(earliest->u.output.buffer))
-            {
-                stream = parser->streams[i];
                 earliest = req;
-            }
         }
 
         req = earliest;
@@ -355,9 +353,7 @@ static NTSTATUS wg_parser_stream_get_buffer(void *args)
         return S_FALSE;
     }
 
-    wg_buffer->size = req->wg_request.u.output.size;
-    wg_buffer->stream = stream->number;
-
+    *params->request = req->wg_request;
     pthread_mutex_unlock(&parser->mutex);
     return S_OK;
 }
@@ -670,6 +666,7 @@ static GstFlowReturn sink_chain_cb(GstPad *pad, GstObject *parent, GstBuffer *bu
 
     memset(req, 0, sizeof(*req));
     req->wg_request.type = WG_REQUEST_TYPE_OUTPUT;
+    req->wg_request.stream = stream->number;
     req->wg_request.token = (UINT_PTR)req;
 
     /* FIXME: Should we use gst_segment_to_stream_time_full()? Under what
@@ -1037,6 +1034,7 @@ static GstFlowReturn issue_read_request(struct wg_parser *parser, guint64 offset
     pthread_mutex_lock(&parser->mutex);
 
     req->wg_request.type = WG_REQUEST_TYPE_INPUT;
+    req->wg_request.stream = -1;
     req->wg_request.token = (UINT_PTR)req;
     req->wg_request.u.input.offset = offset;
     req->wg_request.u.input.size = size;
@@ -1952,6 +1950,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_parser_disconnect),
 
     X(wg_parser_wait_request),
+    X(wg_parser_wait_stream_request),
     X(wg_parser_push_data),
 
     X(wg_parser_get_stream_count),
@@ -1962,7 +1961,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_parser_stream_enable),
     X(wg_parser_stream_disable),
 
-    X(wg_parser_stream_get_buffer),
     X(wg_parser_stream_notify_qos),
 
     X(wg_parser_stream_get_duration),
