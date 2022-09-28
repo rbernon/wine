@@ -34,6 +34,7 @@
 #include "ddk/wdm.h"
 #include "ddk/hidsdi.h"
 #include "ddk/hidport.h"
+#include "ddk/hidpddi.h"
 
 #include "wine/list.h"
 
@@ -906,6 +907,7 @@ static NTSTATUS create_child_pdo( DEVICE_OBJECT *device, struct hid_device_desc 
     static ULONG index;
 
     struct func_device *fdo = fdo_from_DEVICE_OBJECT( device );
+    HIDP_DEVICE_DESC device_desc;
     struct phys_device *impl;
     UNICODE_STRING name_str;
     DEVICE_OBJECT *child;
@@ -943,6 +945,25 @@ static NTSTATUS create_child_pdo( DEVICE_OBJECT *device, struct hid_device_desc 
     expect_queue_init( &impl->expect_queue );
     expect_queue_reset( &impl->expect_queue, desc->expect, desc->expect_size );
     memcpy( impl->expect_queue.context, desc->context, desc->context_size );
+
+    memset( &device_desc, 0xcd, sizeof(device_desc) );
+    status = HidP_GetCollectionDescription( (BYTE *)desc->report_descriptor_buf, desc->report_descriptor_len, PagedPool, &device_desc );
+    ok( !status, "HidP_GetCollectionDescription returned %#lx", status );
+
+    ok( 0, "got CollectionDesc %p\n", device_desc.CollectionDesc );
+    ok( 0, "got CollectionDescLength %lu\n", device_desc.CollectionDescLength );
+    ok( 0, "got ReportIDs %p\n", device_desc.ReportIDs );
+    ok( 0, "got ReportIDsLength %lu\n", device_desc.ReportIDsLength );
+    ok( 0, "got Dbg.BreakOffset %lu\n", device_desc.Dbg.BreakOffset );
+    ok( 0, "got Dbg.ErrorCode %#lx\n", device_desc.Dbg.ErrorCode );
+    ok( 0, "got Dbg.Args[0] %#lx\n", device_desc.Dbg.Args[0] );
+    ok( 0, "got Dbg.Args[1] %#lx\n", device_desc.Dbg.Args[1] );
+    ok( 0, "got Dbg.Args[2] %#lx\n", device_desc.Dbg.Args[2] );
+    ok( 0, "got Dbg.Args[3] %#lx\n", device_desc.Dbg.Args[3] );
+    ok( 0, "got Dbg.Args[4] %#lx\n", device_desc.Dbg.Args[4] );
+    ok( 0, "got Dbg.Args[5] %#lx\n", device_desc.Dbg.Args[5] );
+
+    HidP_FreeCollectionDescription( &device_desc );
 
     if (winetest_debug > 1) trace( "Created Bus PDO %p for Bus FDO %p\n", child, device );
 
