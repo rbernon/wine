@@ -1084,7 +1084,8 @@ static DWORD CALLBACK stream_thread(void *arg)
             continue;
         }
 
-        if (wg_parser_wait_stream_request(filter->wg_parser, pin->wg_stream, &request))
+        if (wg_parser_wait_stream_request(filter->wg_parser, WG_REQUEST_TYPE_OUTPUT,
+                pin->wg_stream, &request))
         {
             if (request.type == WG_REQUEST_TYPE_OUTPUT)
                 handle_output_request(pin, &request);
@@ -1150,7 +1151,7 @@ static DWORD CALLBACK read_thread(void *arg)
     {
         struct wg_request request;
 
-        if (!wg_parser_wait_request(filter->wg_parser, &request))
+        if (!wg_parser_wait_request(filter->wg_parser, WG_REQUEST_TYPE_INPUT, &request))
             continue;
 
         if (request.type == WG_REQUEST_TYPE_INPUT)

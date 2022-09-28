@@ -670,7 +670,7 @@ static DWORD CALLBACK read_thread(void *arg)
     {
         struct wg_request request;
 
-        if (!wg_parser_wait_request(reader->wg_parser, &request))
+        if (!wg_parser_wait_request(reader->wg_parser, WG_REQUEST_TYPE_INPUT, &request))
             continue;
 
         if (request.type == WG_REQUEST_TYPE_INPUT)
@@ -1861,7 +1861,8 @@ static HRESULT WINAPI reader_GetNextSample(IWMSyncReader2 *iface,
     while (hr == S_FALSE)
     {
         struct wg_request request;
-        if (!wg_parser_wait_stream_request(reader->wg_parser, stream ? stream->wg_stream : NULL, &request))
+        if (!wg_parser_wait_stream_request(reader->wg_parser, WG_REQUEST_TYPE_OUTPUT,
+                stream ? stream->wg_stream : NULL, &request))
             hr = NS_E_NO_MORE_SAMPLES;
         else if (request.type == WG_REQUEST_TYPE_OUTPUT)
         {

@@ -113,15 +113,17 @@ void wg_parser_disconnect(struct wg_parser *parser)
     WINE_UNIX_CALL(unix_wg_parser_disconnect, parser);
 }
 
-bool wg_parser_wait_request(struct wg_parser *parser, struct wg_request *request)
+bool wg_parser_wait_request(struct wg_parser *parser, enum wg_request_type type_mask,
+        struct wg_request *request)
 {
     struct wg_parser_wait_request_params params =
     {
         .parser = parser,
+        .type_mask = type_mask,
         .request = request,
     };
 
-    TRACE("parser %p, request %p.\n", parser, request);
+    TRACE("parser %p, type_mask %#x, request %p.\n", parser, type_mask, request);
 
     return !WINE_UNIX_CALL(unix_wg_parser_wait_request, &params);
 }
@@ -215,16 +217,18 @@ void wg_parser_stream_disable(struct wg_parser_stream *stream)
     WINE_UNIX_CALL(unix_wg_parser_stream_disable, stream);
 }
 
-bool wg_parser_wait_stream_request(struct wg_parser *parser, struct wg_parser_stream *stream, struct wg_request *request)
+bool wg_parser_wait_stream_request(struct wg_parser *parser, enum wg_request_type type_mask,
+        struct wg_parser_stream *stream, struct wg_request *request)
 {
     struct wg_parser_wait_stream_request_params params =
     {
         .parser = parser,
+        .type_mask = type_mask,
         .stream = stream,
         .request = request,
     };
 
-    TRACE("parser %p, stream %p, request %p.\n", parser, stream, request);
+    TRACE("parser %p, stream %p, type_mask %#x, request %p.\n", parser, stream, type_mask, request);
 
     return !WINE_UNIX_CALL(unix_wg_parser_wait_stream_request, &params);
 }

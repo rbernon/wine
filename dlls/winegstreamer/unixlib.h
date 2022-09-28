@@ -226,6 +226,7 @@ struct wg_parser_connect_params
 struct wg_parser_wait_request_params
 {
     struct wg_parser *parser;
+    UINT32 type_mask;
     struct wg_request *request;
 };
 
@@ -270,6 +271,7 @@ struct wg_parser_stream_enable_params
 struct wg_parser_wait_stream_request_params
 {
     struct wg_parser *parser;
+    UINT32 type_mask;
     struct wg_parser_stream *stream;
     struct wg_request *request;
 };

@@ -185,7 +185,7 @@ static NTSTATUS wg_parser_wait_request(void *args)
     struct request *req;
 
     pthread_mutex_lock(&parser->mutex);
-    while (parser->sink_connected && !(req = wg_parser_pop_request(parser, WG_REQUEST_TYPE_INPUT, -1)))
+    while (parser->sink_connected && !(req = wg_parser_pop_request(parser, params->type_mask, -1)))
         pthread_cond_wait(&parser->request_cond, &parser->mutex);
     pthread_mutex_unlock(&parser->mutex);
 
@@ -303,14 +303,15 @@ static NTSTATUS wg_parser_stream_disable(void *args)
     return S_OK;
 }
 
-static struct request *wait_parser_stream_request(struct wg_parser *parser, struct wg_parser_stream *stream)
+static struct request *wait_parser_stream_request(struct wg_parser *parser, enum wg_request_type type_mask,
+        struct wg_parser_stream *stream)
 {
     struct request *req;
 
     /* Note that we can both have a buffer and stream->eos, in which case we
      * must return the buffer. */
 
-    while (stream->enabled && !(req = wg_parser_peek_request(parser, WG_REQUEST_TYPE_OUTPUT, stream->number)) && !stream->eos)
+    while (stream->enabled && !(req = wg_parser_peek_request(parser, type_mask, stream->number)) && !stream->eos)
         pthread_cond_wait(&parser->request_cond, &parser->mutex);
 
     return req;
@@ -328,7 +329,7 @@ static NTSTATUS wg_parser_wait_stream_request(void *args)
 
     if ((stream = params->stream))
     {
-        req = wait_parser_stream_request(parser, stream);
+        req = wait_parser_stream_request(parser, params->type_mask, stream);
     }
     else
     {
@@ -351,7 +352,7 @@ static NTSTATUS wg_parser_wait_stream_request(void *args)
 
         for (i = 0; i < parser->stream_count; ++i)
         {
-            if (!(req = wait_parser_stream_request(parser, parser->streams[i])))
+            if (!(req = wait_parser_stream_request(parser, params->type_mask, parser->streams[i])))
                 continue;
             /* invalid PTS is GST_CLOCK_TIME_NONE == (guint64)-1, so this will prefer valid timestamps. */
             if (!earliest || GST_BUFFER_PTS(req->u.output.buffer) < GST_BUFFER_PTS(earliest->u.output.buffer))
