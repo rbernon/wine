@@ -91,6 +91,7 @@ struct media_source
     CRITICAL_SECTION cs;
 
     struct wg_parser *wg_parser;
+    struct wg_sample_queue *wg_sample_queue;
     UINT64 duration;
 
     IMFStreamDescriptor **descriptors;
@@ -604,6 +605,7 @@ static HRESULT WINAPI source_async_commands_Invoke(IMFAsyncCallback *iface, IMFA
                 if (FAILED(hr = wait_on_sample(command->u.request_sample.stream, command->u.request_sample.token)))
                     WARN("Failed to request sample, hr %#lx\n", hr);
             }
+            wg_sample_queue_flush(source->wg_sample_queue, false);
             break;
     }
 
@@ -640,7 +642,7 @@ static void handle_input_request(struct media_source *source, QWORD file_size,
 
     if (FAILED(wg_sample_create_raw(size, &wg_sample)))
     {
-        wg_parser_push_data(source->wg_parser, NULL, request->token);
+        wg_parser_queue_data(source->wg_parser, NULL, request->token, NULL);
         return;
     }
 
@@ -664,8 +666,7 @@ static void handle_input_request(struct media_source *source, QWORD file_size,
     }
 
     wg_sample->size = size;
-    wg_parser_push_data(source->wg_parser, wg_sample, request->token);
-    wg_sample_release(wg_sample);
+    wg_parser_queue_data(source->wg_parser, wg_sample, request->token, source->wg_sample_queue);
 }
 
 static DWORD CALLBACK read_thread(void *arg)
@@ -689,6 +690,8 @@ static DWORD CALLBACK read_thread(void *arg)
             handle_input_request(source, file_size, &request);
         else
             ERR("Received unexpected request type %u\n", request.type);
+
+        wg_sample_queue_flush(source->wg_sample_queue, false);
     }
 
     TRACE("Media source is shutting down; exiting.\n");
@@ -1477,6 +1480,7 @@ static HRESULT WINAPI media_source_Shutdown(IMFMediaSource *iface)
     free(source->streams);
 
     MFUnlockWorkQueue(source->async_commands_queue);
+    wg_sample_queue_destroy(source->wg_sample_queue);
 
     LeaveCriticalSection(&source->cs);
 
@@ -1527,6 +1531,11 @@ static HRESULT media_source_constructor(IMFByteStream *bytestream, struct media_
 
     if (!(object = calloc(1, sizeof(*object))))
         return E_OUTOFMEMORY;
+    if (FAILED(hr = wg_sample_queue_create(&object->wg_sample_queue)))
+    {
+        free(object);
+        return hr;
+    }
 
     object->IMFMediaSource_iface.lpVtbl = &IMFMediaSource_vtbl;
     object->IMFGetService_iface.lpVtbl = &media_source_get_service_vtbl;

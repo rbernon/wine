@@ -53,6 +53,7 @@ struct parser
     BOOL enum_sink_first;
 
     struct wg_parser *wg_parser;
+    struct wg_sample_queue *wg_sample_queue;
 
     /* This protects the "streaming" and "flushing" fields, accessed by both
      * the application and streaming threads.
@@ -1098,6 +1099,8 @@ static DWORD CALLBACK stream_thread(void *arg)
         }
 
         LeaveCriticalSection(&pin->flushing_cs);
+
+        wg_sample_queue_flush(filter->wg_sample_queue, false);
     }
 
     TRACE("Streaming stopped; exiting.\n");
@@ -1119,7 +1122,7 @@ static void handle_input_request(struct parser *filter, LONGLONG file_size,
 
     if (FAILED(wg_sample_create_raw(size, &wg_sample)))
     {
-        wg_parser_push_data(filter->wg_parser, NULL, request->token);
+        wg_parser_queue_data(filter->wg_parser, NULL, request->token, NULL);
         return;
     }
 
@@ -1131,8 +1134,7 @@ static void handle_input_request(struct parser *filter, LONGLONG file_size,
     }
 
     wg_sample->size = size;
-    wg_parser_push_data(filter->wg_parser, wg_sample, request->token);
-    wg_sample_release(wg_sample);
+    wg_parser_queue_data(filter->wg_parser, wg_sample, request->token, filter->wg_sample_queue);
 }
 
 static DWORD CALLBACK read_thread(void *arg)
@@ -1155,6 +1157,8 @@ static DWORD CALLBACK read_thread(void *arg)
             handle_input_request(filter, file_size, &request);
         else
             ERR("Received unexpected request type %u\n", request.type);
+
+        wg_sample_queue_flush(filter->wg_sample_queue, false);
     }
 
     TRACE("Streaming stopped; exiting.\n");
@@ -1206,6 +1210,7 @@ static void parser_destroy(struct strmbase_filter *iface)
     filter->reader = NULL;
 
     wg_parser_destroy(filter->wg_parser);
+    wg_sample_queue_destroy(filter->wg_sample_queue);
 
     filter->streaming_cs.DebugInfo->Spare[0] = 0;
     DeleteCriticalSection(&filter->streaming_cs);
@@ -1466,9 +1471,15 @@ static HRESULT decodebin_parser_source_get_media_type(struct parser_source *pin,
 static HRESULT parser_create(enum wg_parser_type type, struct parser **parser)
 {
     struct parser *object;
+    HRESULT hr;
 
     if (!(object = calloc(1, sizeof(*object))))
         return E_OUTOFMEMORY;
+    if (FAILED(hr = wg_sample_queue_create(&object->wg_sample_queue)))
+    {
+        free(object);
+        return hr;
+    }
 
     if (!(object->wg_parser = wg_parser_create(type, false)))
     {

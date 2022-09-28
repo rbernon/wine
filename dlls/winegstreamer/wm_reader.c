@@ -61,6 +61,7 @@ struct wm_reader
     HANDLE read_thread;
     bool read_thread_shutdown;
     struct wg_parser *wg_parser;
+    struct wg_sample_queue *wg_sample_queue;
 
     struct wm_stream *streams;
     WORD stream_count;
@@ -605,7 +606,7 @@ static void handle_input_request(struct wm_reader *reader, uint64_t file_size,
 
     if (FAILED(wg_sample_create_raw(size, &wg_sample)))
     {
-        wg_parser_push_data(reader->wg_parser, NULL, request->token);
+        wg_parser_queue_data(reader->wg_parser, NULL, request->token, NULL);
         return;
     }
 
@@ -638,8 +639,7 @@ static void handle_input_request(struct wm_reader *reader, uint64_t file_size,
     }
 
     wg_sample->size = size;
-    wg_parser_push_data(reader->wg_parser, wg_sample, request->token);
-    wg_sample_release(wg_sample);
+    wg_parser_queue_data(reader->wg_parser, wg_sample, request->token, reader->wg_sample_queue);
 }
 
 static DWORD CALLBACK read_thread(void *arg)
@@ -677,6 +677,8 @@ static DWORD CALLBACK read_thread(void *arg)
             handle_input_request(reader, file_size, &request);
         else
             ERR("Received unexpected request type %u\n", request.type);
+
+        wg_sample_queue_flush(reader->wg_sample_queue, false);
     }
 
     TRACE("Reader is shutting down; exiting.\n");
@@ -1726,6 +1728,8 @@ static ULONG WINAPI unknown_inner_Release(IUnknown *iface)
     {
         IWMSyncReader2_Close(&reader->IWMSyncReader2_iface);
 
+        wg_sample_queue_destroy(reader->wg_sample_queue);
+
         reader->cs.DebugInfo->Spare[0] = 0;
         DeleteCriticalSection(&reader->cs);
 
@@ -1870,6 +1874,8 @@ static HRESULT WINAPI reader_GetNextSample(IWMSyncReader2 *iface,
             hr = E_UNEXPECTED;
         }
     }
+
+    wg_sample_queue_flush(reader->wg_sample_queue, false);
 
     if (stream && hr == NS_E_NO_MORE_SAMPLES)
         stream->eos = true;
@@ -2538,6 +2544,7 @@ static const IWMSyncReader2Vtbl reader_vtbl =
 HRESULT WINAPI winegstreamer_create_wm_sync_reader(IUnknown *outer, void **out)
 {
     struct wm_reader *object;
+    HRESULT hr;
 
     TRACE("out %p.\n", out);
 
@@ -2557,6 +2564,12 @@ HRESULT WINAPI winegstreamer_create_wm_sync_reader(IUnknown *outer, void **out)
     object->IWMReaderTimecode_iface.lpVtbl = &timecode_vtbl;
     object->outer = outer ? outer : &object->IUnknown_inner;
     object->refcount = 1;
+
+    if (FAILED(hr = wg_sample_queue_create(&object->wg_sample_queue)))
+    {
+        free(object);
+        return hr;
+    }
 
     InitializeCriticalSection(&object->cs);
     object->cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": reader.cs");

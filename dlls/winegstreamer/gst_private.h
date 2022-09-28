@@ -77,7 +77,8 @@ void wg_parser_disconnect(struct wg_parser *parser);
 
 bool wg_parser_wait_request(struct wg_parser *parser, struct wg_request *request);
 bool wg_parser_wait_stream_request(struct wg_parser *parser, struct wg_parser_stream *stream, struct wg_request *request);
-void wg_parser_push_data(struct wg_parser *parser, struct wg_sample *sample, UINT64 token);
+void wg_parser_queue_data(struct wg_parser *parser, struct wg_sample *sample, UINT64 token,
+        struct wg_sample_queue *queue);
 
 uint32_t wg_parser_get_stream_count(struct wg_parser *parser);
 struct wg_parser_stream *wg_parser_get_stream(struct wg_parser *parser, uint32_t index);

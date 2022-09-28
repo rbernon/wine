@@ -63,7 +63,7 @@ struct request
         {
             bool done;
             GstFlowReturn result;
-            GstBuffer *buffer;
+            struct wg_sample *sample;
         } input;
         struct
         {
@@ -196,28 +196,28 @@ static NTSTATUS wg_parser_wait_request(void *args)
     return S_OK;
 }
 
+static void wg_sample_free_notify(void *arg)
+{
+    struct wg_sample *sample = arg;
+    GST_DEBUG("Releasing wg_sample %p", sample);
+    InterlockedDecrement(&sample->refcount);
+}
+
 static NTSTATUS wg_parser_push_data(void *args)
 {
     const struct wg_parser_push_data_params *params = args;
     struct request *req = (struct request *)(UINT_PTR)params->token;
     struct wg_parser *parser = params->parser;
     struct wg_sample *sample = params->sample;
-    GstBuffer *buffer;
 
     if (!sample || !sample->data)
         req->u.input.result = GST_FLOW_ERROR;
     else if (!sample->size)
         req->u.input.result = GST_FLOW_EOS;
-    /* Note that we don't allocate the buffer until we have a size.
-     * midiparse passes a NULL buffer and a size of UINT_MAX, in an
-     * apparent attempt to read the whole input stream at once. */
-    else if (!(buffer = req->u.input.buffer) && !(buffer = gst_buffer_new_and_alloc(sample->size)))
-        req->u.input.result = GST_FLOW_ERROR;
     else
     {
-        gst_buffer_fill(buffer, 0, sample->data, sample->size);
-        GST_INFO("Copied %u bytes from data %p to buffer %p", sample->size, sample->data, buffer);
-        req->u.input.buffer = buffer;
+        req->u.input.sample = sample;
+        InterlockedIncrement(&sample->refcount);
         req->u.input.result = GST_FLOW_OK;
     }
 
@@ -1065,7 +1065,8 @@ static void pad_removed_cb(GstElement *element, GstPad *pad, gpointer user)
 
 static GstFlowReturn issue_read_request(struct wg_parser *parser, guint64 offset, guint size, GstBuffer **buffer)
 {
-    struct request *req = &parser->next_request;
+    struct wg_sample *sample;
+    struct request *req;
     GstFlowReturn ret;
 
     if (!(req = calloc(1, sizeof(*req))))
@@ -1078,7 +1079,6 @@ static GstFlowReturn issue_read_request(struct wg_parser *parser, guint64 offset
     req->wg_request.token = (UINT_PTR)req;
     req->wg_request.u.input.offset = offset;
     req->wg_request.u.input.size = size;
-    req->u.input.buffer = *buffer;
 
     GST_DEBUG("Input request %p created for offset %" G_GINT64_MODIFIER "u, "
             "size %u, buffer %p", req, offset, size, *buffer);
@@ -1095,13 +1095,36 @@ static GstFlowReturn issue_read_request(struct wg_parser *parser, guint64 offset
         pthread_cond_wait(&parser->request_done_cond, &parser->mutex);
     pthread_mutex_unlock(&parser->mutex);
 
-    *buffer = req->u.input.buffer;
+    sample = req->u.input.sample;
     ret = req->u.input.result;
 
-    GST_LOG("Input request %p returned buffer %p, result %s.", req,
-            *buffer, gst_flow_get_name(ret));
-    free(req);
-    return ret;
+    GST_LOG("Input request %p returned sample %p, result %s.", req,
+            sample, gst_flow_get_name(ret));
+
+    if (ret)
+    {
+        GST_WARNING("Input request %p returned %s.", req, gst_flow_get_name(ret));
+        return ret;
+    }
+
+    if (*buffer)
+    {
+        gst_buffer_fill(*buffer, 0, sample->data, sample->size);
+        GST_INFO("Copied %u bytes from data %p to buffer %p", sample->size, sample->data, *buffer);
+        InterlockedDecrement(&sample->refcount);
+        return GST_FLOW_OK;
+    }
+
+    if (!(*buffer = gst_buffer_new_wrapped_full(GST_MEMORY_FLAG_READONLY, sample->data, sample->max_size,
+            0, sample->size, sample, wg_sample_free_notify)))
+    {
+        GST_ERROR("Failed to wrap sample %p into a buffer.", sample);
+        InterlockedDecrement(&sample->refcount);
+        return GST_FLOW_ERROR;
+    }
+
+    GST_INFO("Wrapped %u/%u bytes from sample %p to buffer %p", sample->size, sample->max_size, sample, buffer);
+    return GST_FLOW_OK;
 }
 
 static struct input_cache_chunk * get_cache_entry(struct wg_parser *parser, guint64 position)
