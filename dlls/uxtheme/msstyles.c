@@ -934,7 +934,7 @@ static void MSSTYLES_ParseThemeIni(PTHEME_FILE tf, BOOL setMetrics)
             parse_init_nonclient (&nonClientState);
 
             while((lpName=UXINI_GetNextValue(ini, &dwLen, &lpValue, &dwValueLen))) {
-                lstrcpynW(szPropertyName, lpName, min(dwLen+1, ARRAY_SIZE(szPropertyName)));
+                LCMapStringW(LOCALE_USER_DEFAULT, LCMAP_UPPERCASE, lpName, dwLen, szPropertyName, ARRAY_SIZE(szPropertyName) - 1);
                 if(MSSTYLES_LookupProperty(szPropertyName, &iPropertyPrimitive, &iPropertyId)) {
                     if(iPropertyId >= TMT_FIRSTCOLOR && iPropertyId <= TMT_LASTCOLOR) {
                         if (!parse_handle_color_property (&colorState, iPropertyId, 
@@ -985,7 +985,7 @@ static void MSSTYLES_ParseThemeIni(PTHEME_FILE tf, BOOL setMetrics)
             ps = MSSTYLES_AddPartState(cls, iPartId, iStateId);
 
             while((lpName=UXINI_GetNextValue(ini, &dwLen, &lpValue, &dwValueLen))) {
-                lstrcpynW(szPropertyName, lpName, min(dwLen+1, ARRAY_SIZE(szPropertyName)));
+                LCMapStringW(LOCALE_USER_DEFAULT, LCMAP_UPPERCASE, lpName, dwLen, szPropertyName, ARRAY_SIZE(szPropertyName) - 1);
                 if(MSSTYLES_LookupProperty(szPropertyName, &iPropertyPrimitive, &iPropertyId)) {
                     MSSTYLES_AddProperty(ps, iPropertyPrimitive, iPropertyId, lpValue, dwValueLen, isGlobal);
                 }
@@ -1432,6 +1432,18 @@ HRESULT MSSTYLES_GetPropertyPosition(PTHEME_PROPERTY tp, POINT *pPoint)
 HRESULT MSSTYLES_GetPropertyString(PTHEME_PROPERTY tp, LPWSTR pszBuff, int cchMaxBuffChars)
 {
     lstrcpynW(pszBuff, tp->lpValue, min(tp->dwValueLen+1, cchMaxBuffChars));
+    return S_OK;
+}
+
+/***********************************************************************
+ *      MSSTYLES_GetPropertyString
+ *
+ * Retrieve an upper case string value for a property 
+ */
+HRESULT MSSTYLES_GetPropertyStringUpper(PTHEME_PROPERTY tp, LPWSTR pszBuff, int cchMaxBuffChars)
+{
+    LCMapStringW(LOCALE_USER_DEFAULT, LCMAP_UPPERCASE, tp->lpValue, tp->dwValueLen,
+                 pszBuff, cchMaxBuffChars - 1);
     return S_OK;
 }
 

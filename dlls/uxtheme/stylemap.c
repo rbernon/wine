@@ -23,8 +23,13 @@
 
 #include "windef.h"
 #include "winbase.h"
+#include "wingdi.h"
 #include "winuser.h"
+#include "winnls.h"
+#include "vfwmsgs.h"
+#include "uxtheme.h"
 #include "vssym32.h"
+#include "msstyles.h"
 
 #define TMT_ENUM 200
 #define TMT_STOCKIMAGEFILE 3007
@@ -1438,17 +1443,22 @@ static const MSSTYLES_CLASS_NAME mapClass[] = {
 
 BOOL MSSTYLES_LookupPartState(LPCWSTR pszClass, LPCWSTR pszPart, LPCWSTR pszState, int *iPartId, int *iStateId)
 {
+    WCHAR class[MAX_THEME_CLASS_NAME] = {0}, part[MAX_THEME_CLASS_NAME] = {0}, state[MAX_THEME_CLASS_NAME] = {0};
     unsigned int i;
     const MSSTYLES_CLASS_MAP *map;
+
+    LCMapStringW(LOCALE_USER_DEFAULT, LCMAP_UPPERCASE, pszClass, wcslen(pszClass), class, ARRAY_SIZE(class) - 1);
+    if (pszPart) LCMapStringW(LOCALE_USER_DEFAULT, LCMAP_UPPERCASE, pszPart, wcslen(pszPart), part, ARRAY_SIZE(part) - 1);
+    if (pszState) LCMapStringW(LOCALE_USER_DEFAULT, LCMAP_UPPERCASE, pszState, wcslen(pszState), state, ARRAY_SIZE(state) - 1);
 
     *iPartId = 0;
     *iStateId = 0;
     for(i=0; i<ARRAY_SIZE(mapClass); i++) {
-        if(!lstrcmpiW(mapClass[i].pszClass, pszClass)) {
+        if(!wcscmp(mapClass[i].pszClass, class)) {
             map = mapClass[i].lpMap;
             if(pszPart) {
                 do {
-                    if(map->dwStateID == 0 && !lstrcmpiW(map->szName, pszPart)) {
+                    if(map->dwStateID == 0 && !wcscmp(map->szName, part)) {
                         *iPartId = map->dwPartID;
                         break;
                     }
@@ -1460,13 +1470,13 @@ BOOL MSSTYLES_LookupPartState(LPCWSTR pszClass, LPCWSTR pszPart, LPCWSTR pszStat
                 }
                 do {
                     if(pszPart) {
-                        if(map->dwPartID == *iPartId && !lstrcmpiW(map->szName, pszState)) {
+                        if(map->dwPartID == *iPartId && !wcscmp(map->szName, state)) {
                             *iStateId = map->dwStateID;
                             break;
                         }
                     }
                     else {
-                        if(!lstrcmpiW(map->szName, pszState)) {
+                        if(!wcscmp(map->szName, state)) {
                             *iStateId = map->dwStateID;
                             break;
                         }
@@ -1502,7 +1512,7 @@ BOOL MSSTYLES_LookupProperty(LPCWSTR pszPropertyName, int *dwPrimitive, int *dwI
 {
     DWORD item = 0;
     do {
-        if(!lstrcmpiW(mapProperty[item].szPropertyName, pszPropertyName)) {
+        if(!wcscmp(mapProperty[item].szPropertyName, pszPropertyName)) {
             if(dwPrimitive) *dwPrimitive = mapProperty[item].dwPrimitiveType;
             if(dwId) *dwId = mapProperty[item].dwPropertyID;
             return TRUE;
@@ -1531,7 +1541,7 @@ BOOL MSSTYLES_LookupEnum(LPCWSTR pszValueName, int dwEnum, int *dwValue)
     while(*mapEnum[item].szValueName && mapEnum[item].dwEnum != dwEnum) item++;
     /* Now find the value in that block */
     while(*mapEnum[item].szValueName && mapEnum[item].dwEnum == dwEnum) {
-        if(!lstrcmpiW(mapEnum[item].szValueName, pszValueName)) {
+        if(!wcscmp(mapEnum[item].szValueName, pszValueName)) {
             if(dwValue) *dwValue = mapEnum[item].dwValue;
             return TRUE;
         }

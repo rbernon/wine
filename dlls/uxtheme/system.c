@@ -26,6 +26,7 @@
 #include "wingdi.h"
 #include "winuser.h"
 #include "winreg.h"
+#include "winnls.h"
 #include "vfwmsgs.h"
 #include "uxtheme.h"
 #include "vssym32.h"
@@ -834,6 +835,7 @@ HRESULT WINAPI GetThemeDocumentationProperty(LPCWSTR pszThemeName,
         TMT_VERSION,5006,
         TMT_DESCRIPTION,5007
     };
+    WCHAR property[MAX_THEME_CLASS_NAME] = {0};
 
     PTHEME_FILE pt;
     HRESULT hr;
@@ -847,7 +849,8 @@ HRESULT WINAPI GetThemeDocumentationProperty(LPCWSTR pszThemeName,
 
     /* Try to load from string resources */
     hr = E_PROP_ID_UNSUPPORTED;
-    if(MSSTYLES_LookupProperty(pszPropertyName, NULL, &iDocId)) {
+    LCMapStringW(LOCALE_USER_DEFAULT, LCMAP_UPPERCASE, pszPropertyName, wcslen(pszPropertyName), property, ARRAY_SIZE(property) - 1);
+    if(MSSTYLES_LookupProperty(property, NULL, &iDocId)) {
         for(i=0; i<ARRAY_SIZE(wDocToRes); i+=2) {
             if(wDocToRes[i] == iDocId) {
                 if(LoadStringW(pt->hTheme, wDocToRes[i+1], pszValueBuff, cchMaxValChars)) {
