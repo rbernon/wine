@@ -18,7 +18,6 @@ C_SRCS = \
 	resampler.c \
 	unixlib.c \
 	video_decoder.c \
-	video_processor.c \
 	wg_allocator.c \
 	wg_format.c \
 	wg_parser.c \
