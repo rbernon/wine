@@ -169,8 +169,6 @@ static const WCHAR displayW[] = {'D','i','s','p','l','a','y',0};
 static const WCHAR monitorW[] = {'M','o','n','i','t','o','r',0};
 static const WCHAR yesW[] = {'Y','e','s',0};
 static const WCHAR noW[] = {'N','o',0};
-static const WCHAR defaultW[] = {'D','e','f','a','u','l','t',0};
-static const WCHAR modesW[] = {'M','o','d','e','s',0};
 static const WCHAR mode_countW[] = {'M','o','d','e','C','o','u','n','t',0};
 
 static const char  guid_devclass_displayA[] = "{4D36E968-E325-11CE-BFC1-08002BE10318}";
@@ -440,48 +438,29 @@ static void adapter_release( struct adapter *adapter )
 
 C_ASSERT(sizeof(DEVMODEW) - offsetof(DEVMODEW, dmFields) == 0x94);
 
-static BOOL write_adapter_modes( HKEY adapter_key, const WCHAR *name, DWORD count, const DEVMODEW *modes )
+static BOOL write_adapter_mode( HKEY adapter_key, DWORD index, const DEVMODEW *mode )
 {
-    SIZE_T i, size = sizeof(DEVMODEW) - offsetof(DEVMODEW, dmFields), data_size = count * size;
-    char buffer[2048] = {0}, *data;
-    BOOL ret;
+    WCHAR bufferW[MAX_PATH] = {0};
+    char buffer[MAX_PATH];
 
-    if (data_size <= sizeof(buffer)) data = buffer;
-    else if (!(data = calloc( 1, data_size ))) return FALSE;
-
-    for (i = 0; i < count; ++i)
-    {
-        memcpy( data + i * size, &modes->dmFields, size );
-        modes = NEXT_DEVMODEW(modes);
-    }
-
-    ret = set_reg_value( adapter_key, name, REG_BINARY, data, data_size );
-    if (data != buffer) free( data );
-    return ret;
+    sprintf( buffer, "Modes\\%08X", index );
+    asciiz_to_unicode( bufferW, buffer );
+    return set_reg_value( adapter_key, bufferW, REG_BINARY, &mode->dmFields, sizeof(*mode) - offsetof(DEVMODEW, dmFields) );
 }
 
-static BOOL read_adapter_modes( HKEY adapter_key, const WCHAR *name, DWORD count, DEVMODEW *modes )
+static BOOL read_adapter_mode( HKEY adapter_key, DWORD index, DEVMODEW *mode )
 {
-    SIZE_T i, size = sizeof(DEVMODEW) - offsetof(DEVMODEW, dmFields), value_size;
-    char value_buffer[offsetof(KEY_VALUE_PARTIAL_INFORMATION, Data[2048])];
-    KEY_VALUE_PARTIAL_INFORMATION *value = (void *)value_buffer;
-    BOOL ret;
+    char value_buf[offsetof(KEY_VALUE_PARTIAL_INFORMATION, Data[sizeof(*mode)])];
+    KEY_VALUE_PARTIAL_INFORMATION *value = (void *)value_buf;
+    WCHAR bufferW[MAX_PATH] = {0};
+    char buffer[MAX_PATH];
 
-    value_size = offsetof(KEY_VALUE_PARTIAL_INFORMATION, Data[count * size]);
-    if (value_size <= sizeof(value_buffer)) value = (void *)value_buffer;
-    else if (!(value = malloc( value_size ))) return FALSE;
+    sprintf( buffer, "Modes\\%08X", index );
+    asciiz_to_unicode( bufferW, buffer );
+    if (!query_reg_value( adapter_key, bufferW, value, sizeof(value_buf) )) return FALSE;
 
-    if ((ret = query_reg_value( adapter_key, name, value, value_size )))
-    {
-        for (i = 0; i < count; ++i)
-        {
-            memcpy( &modes->dmFields, value->Data + i * size, size );
-            modes = NEXT_DEVMODEW(modes);
-        }
-    }
-
-    if (value != (void *)value_buffer) free( value );
-    return ret;
+    memcpy( &mode->dmFields, value->Data, sizeof(*mode) - offsetof(DEVMODEW, dmFields) );
+    return TRUE;
 }
 
 static BOOL adapter_get_registry_settings( const struct adapter *adapter, DEVMODEW *mode )
@@ -496,7 +475,7 @@ static BOOL adapter_get_registry_settings( const struct adapter *adapter, DEVMOD
     else if (!(hkey = reg_open_key( config_key, adapter->config_key, lstrlenW( adapter->config_key ) * sizeof(WCHAR) ))) ret = FALSE;
     else
     {
-        ret = read_adapter_modes( hkey, defaultW, 1, mode );
+        ret = read_adapter_mode( hkey, ENUM_REGISTRY_SETTINGS, mode );
         NtClose( hkey );
     }
 
@@ -516,7 +495,7 @@ static BOOL adapter_set_registry_settings( const struct adapter *adapter, const 
     if (!(hkey = reg_open_key( config_key, adapter->config_key, lstrlenW( adapter->config_key ) * sizeof(WCHAR) ))) ret = FALSE;
     else
     {
-        ret = write_adapter_modes( hkey, defaultW, 1, mode );
+        ret = write_adapter_mode( hkey, ENUM_REGISTRY_SETTINGS, mode );
         NtClose( hkey );
     }
 
@@ -700,10 +679,12 @@ static BOOL read_display_adapter_settings( unsigned int index, struct adapter *i
         for (i = 0, mode = info->modes; i < info->mode_count; i++)
         {
             mode->dmSize = offsetof(DEVMODEW, dmICMMethod);
+            if (!read_adapter_mode( hkey, i, mode )) break;
             mode = NEXT_DEVMODEW(mode);
         }
-        if (!read_adapter_modes( hkey, modesW, info->mode_count, info->modes )) info->mode_count = 0;
-        else qsort(info->modes, info->mode_count, sizeof(*info->modes) + info->modes->dmDriverExtra, mode_compare);
+        info->mode_count = i;
+
+        qsort(info->modes, info->mode_count, sizeof(*info->modes) + info->modes->dmDriverExtra, mode_compare);
     }
 
     /* DeviceID */
@@ -1057,7 +1038,6 @@ struct device_manager_ctx
     unsigned int monitor_count;
     unsigned int output_count;
     unsigned int mode_count;
-    DEVMODEW *modes;
     HANDLE mutex;
     WCHAR gpuid[128];
     WCHAR gpu_guid[64];
@@ -1270,8 +1250,6 @@ static void add_adapter( const struct gdi_adapter *adapter, void *param )
 
     if (ctx->adapter_key)
     {
-        if (write_adapter_modes( ctx->adapter_key, modesW, ctx->mode_count, ctx->modes ))
-            set_reg_value( ctx->adapter_key, mode_countW, REG_DWORD, &ctx->mode_count, sizeof(ctx->mode_count) );
         NtClose( ctx->adapter_key );
         ctx->adapter_key = NULL;
     }
@@ -1449,8 +1427,11 @@ static void add_mode( const DEVMODEW *mode, void *param )
         add_adapter( &default_adapter, ctx );
     }
 
-    if ((ctx->modes = realloc( ctx->modes, (ctx->mode_count + 1) * sizeof(DEVMODEW) )))
-        ctx->modes[ctx->mode_count++] = *mode;
+    if (write_adapter_mode( ctx->adapter_key, ctx->mode_count, mode ))
+    {
+        ctx->mode_count++;
+        set_reg_value( ctx->adapter_key, mode_countW, REG_DWORD, &ctx->mode_count, sizeof(ctx->mode_count) );
+    }
 }
 
 static const struct gdi_device_manager device_manager =
@@ -1470,13 +1451,9 @@ static void release_display_manager_ctx( struct device_manager_ctx *ctx )
     }
     if (ctx->adapter_key)
     {
-        if (write_adapter_modes( ctx->adapter_key, modesW, ctx->mode_count, ctx->modes ))
-            set_reg_value( ctx->adapter_key, mode_countW, REG_DWORD, &ctx->mode_count, sizeof(ctx->mode_count) );
         NtClose( ctx->adapter_key );
         last_query_display_time = 0;
     }
-    free( ctx->modes );
-    ctx->modes = NULL;
     if (ctx->gpu_count) cleanup_devices();
 }
 
