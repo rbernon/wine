@@ -8,10 +8,10 @@ UNIX_LIBS    = $(GSTREAMER_LIBS) $(PTHREAD_LIBS)
 
 C_SRCS = \
 	aac_decoder.c \
-	color_convert.c \
 	h264_decoder.c \
 	main.c \
 	media_source.c \
+	mf_transform.c \
 	mfplat.c \
 	quartz_parser.c \
 	quartz_transform.c \

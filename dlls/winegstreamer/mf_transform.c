@@ -28,7 +28,7 @@
 WINE_DEFAULT_DEBUG_CHANNEL(mfplat);
 WINE_DECLARE_DEBUG_CHANNEL(winediag);
 
-static const GUID *const input_types[] =
+static const GUID *const color_convert_input_types[] =
 {
     &MFVideoFormat_YV12,
     &MFVideoFormat_YUY2,
@@ -51,7 +51,7 @@ static const GUID *const input_types[] =
     &MFVideoFormat_Y42T,
     &MFVideoFormat_YVU9,
 };
-static const GUID *const output_types[] =
+static const GUID *const color_convert_output_types[] =
 {
     &MFVideoFormat_YV12,
     &MFVideoFormat_YUY2,
@@ -71,7 +71,7 @@ static const GUID *const output_types[] =
     &MFVideoFormat_NV11,
 };
 
-struct color_convert
+struct transform
 {
     IUnknown IUnknown_inner;
     IMFTransform IMFTransform_iface;
@@ -90,12 +90,12 @@ struct color_convert
     struct wg_sample_queue *wg_sample_queue;
 };
 
-static inline struct color_convert *impl_from_IUnknown(IUnknown *iface)
+static inline struct transform *impl_from_IUnknown(IUnknown *iface)
 {
-    return CONTAINING_RECORD(iface, struct color_convert, IUnknown_inner);
+    return CONTAINING_RECORD(iface, struct transform, IUnknown_inner);
 }
 
-static HRESULT try_create_wg_transform(struct color_convert *impl)
+static HRESULT try_create_wg_transform(struct transform *impl)
 {
     struct wg_format input_format, output_format;
 
@@ -119,7 +119,7 @@ static HRESULT try_create_wg_transform(struct color_convert *impl)
 
 static HRESULT WINAPI unknown_QueryInterface(IUnknown *iface, REFIID iid, void **out)
 {
-    struct color_convert *impl = impl_from_IUnknown(iface);
+    struct transform *impl = impl_from_IUnknown(iface);
 
     TRACE("iface %p, iid %s, out %p.\n", iface, debugstr_guid(iid), out);
 
@@ -146,7 +146,7 @@ static HRESULT WINAPI unknown_QueryInterface(IUnknown *iface, REFIID iid, void *
 
 static ULONG WINAPI unknown_AddRef(IUnknown *iface)
 {
-    struct color_convert *impl = impl_from_IUnknown(iface);
+    struct transform *impl = impl_from_IUnknown(iface);
     ULONG refcount = InterlockedIncrement(&impl->refcount);
 
     TRACE("iface %p increasing refcount to %lu.\n", iface, refcount);
@@ -156,7 +156,7 @@ static ULONG WINAPI unknown_AddRef(IUnknown *iface)
 
 static ULONG WINAPI unknown_Release(IUnknown *iface)
 {
-    struct color_convert *impl = impl_from_IUnknown(iface);
+    struct transform *impl = impl_from_IUnknown(iface);
     ULONG refcount = InterlockedDecrement(&impl->refcount);
 
     TRACE("iface %p decreasing refcount to %lu.\n", iface, refcount);
@@ -184,9 +184,9 @@ static const IUnknownVtbl unknown_vtbl =
     unknown_Release,
 };
 
-static struct color_convert *impl_from_IMFTransform(IMFTransform *iface)
+static struct transform *impl_from_IMFTransform(IMFTransform *iface)
 {
-    return CONTAINING_RECORD(iface, struct color_convert, IMFTransform_iface);
+    return CONTAINING_RECORD(iface, struct transform, IMFTransform_iface);
 }
 
 static HRESULT WINAPI transform_QueryInterface(IMFTransform *iface, REFIID iid, void **out)
@@ -230,7 +230,7 @@ static HRESULT WINAPI transform_GetStreamIDs(IMFTransform *iface, DWORD input_si
 
 static HRESULT WINAPI transform_GetInputStreamInfo(IMFTransform *iface, DWORD id, MFT_INPUT_STREAM_INFO *info)
 {
-    struct color_convert *impl = impl_from_IMFTransform(iface);
+    struct transform *impl = impl_from_IMFTransform(iface);
 
     TRACE("iface %p, id %#lx, info %p.\n", iface, id, info);
 
@@ -246,7 +246,7 @@ static HRESULT WINAPI transform_GetInputStreamInfo(IMFTransform *iface, DWORD id
 
 static HRESULT WINAPI transform_GetOutputStreamInfo(IMFTransform *iface, DWORD id, MFT_OUTPUT_STREAM_INFO *info)
 {
-    struct color_convert *impl = impl_from_IMFTransform(iface);
+    struct transform *impl = impl_from_IMFTransform(iface);
 
     TRACE("iface %p, id %#lx, info %p.\n", iface, id, info);
 
@@ -290,8 +290,8 @@ static HRESULT WINAPI transform_AddInputStreams(IMFTransform *iface, DWORD strea
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI transform_GetInputAvailableType(IMFTransform *iface, DWORD id, DWORD index,
-        IMFMediaType **type)
+static HRESULT WINAPI color_convert_transform_GetInputAvailableType(IMFTransform *iface, DWORD id,
+        DWORD index, IMFMediaType **type)
 {
     IMFMediaType *media_type;
     const GUID *subtype;
@@ -301,9 +301,9 @@ static HRESULT WINAPI transform_GetInputAvailableType(IMFTransform *iface, DWORD
 
     *type = NULL;
 
-    if (index >= ARRAY_SIZE(input_types))
+    if (index >= ARRAY_SIZE(color_convert_input_types))
         return MF_E_NO_MORE_TYPES;
-    subtype = input_types[index];
+    subtype = color_convert_input_types[index];
 
     if (FAILED(hr = MFCreateMediaType(&media_type)))
         return hr;
@@ -324,8 +324,8 @@ done:
     return hr;
 }
 
-static HRESULT WINAPI transform_GetOutputAvailableType(IMFTransform *iface, DWORD id, DWORD index,
-        IMFMediaType **type)
+static HRESULT WINAPI color_convert_transform_GetOutputAvailableType(IMFTransform *iface, DWORD id,
+        DWORD index, IMFMediaType **type)
 {
     IMFMediaType *media_type;
     const GUID *subtype;
@@ -335,9 +335,9 @@ static HRESULT WINAPI transform_GetOutputAvailableType(IMFTransform *iface, DWOR
 
     *type = NULL;
 
-    if (index >= ARRAY_SIZE(output_types))
+    if (index >= ARRAY_SIZE(color_convert_output_types))
         return MF_E_NO_MORE_TYPES;
-    subtype = output_types[index];
+    subtype = color_convert_output_types[index];
 
     if (FAILED(hr = MFCreateMediaType(&media_type)))
         return hr;
@@ -358,9 +358,10 @@ done:
     return hr;
 }
 
-static HRESULT WINAPI transform_SetInputType(IMFTransform *iface, DWORD id, IMFMediaType *type, DWORD flags)
+static HRESULT WINAPI color_convert_transform_SetInputType(IMFTransform *iface, DWORD id,
+        IMFMediaType *type, DWORD flags)
 {
-    struct color_convert *impl = impl_from_IMFTransform(iface);
+    struct transform *impl = impl_from_IMFTransform(iface);
     GUID major, subtype;
     UINT64 frame_size;
     UINT32 stride;
@@ -380,10 +381,10 @@ static HRESULT WINAPI transform_SetInputType(IMFTransform *iface, DWORD id, IMFM
             || IMFMediaType_GetUINT64(type, &MF_MT_FRAME_SIZE, &frame_size))
         return E_INVALIDARG;
 
-    for (i = 0; i < ARRAY_SIZE(input_types); ++i)
-        if (IsEqualGUID(&subtype, input_types[i]))
+    for (i = 0; i < ARRAY_SIZE(color_convert_input_types); ++i)
+        if (IsEqualGUID(&subtype, color_convert_input_types[i]))
             break;
-    if (i == ARRAY_SIZE(input_types))
+    if (i == ARRAY_SIZE(color_convert_input_types))
         return MF_E_INVALIDMEDIATYPE;
     if (flags & MFT_SET_TYPE_TEST_ONLY)
         return S_OK;
@@ -423,9 +424,10 @@ static HRESULT WINAPI transform_SetInputType(IMFTransform *iface, DWORD id, IMFM
     return hr;
 }
 
-static HRESULT WINAPI transform_SetOutputType(IMFTransform *iface, DWORD id, IMFMediaType *type, DWORD flags)
+static HRESULT WINAPI color_convert_transform_SetOutputType(IMFTransform *iface, DWORD id,
+        IMFMediaType *type, DWORD flags)
 {
-    struct color_convert *impl = impl_from_IMFTransform(iface);
+    struct transform *impl = impl_from_IMFTransform(iface);
     GUID major, subtype;
     UINT64 frame_size;
     UINT32 stride;
@@ -445,10 +447,10 @@ static HRESULT WINAPI transform_SetOutputType(IMFTransform *iface, DWORD id, IMF
             || IMFMediaType_GetUINT64(type, &MF_MT_FRAME_SIZE, &frame_size))
         return E_INVALIDARG;
 
-    for (i = 0; i < ARRAY_SIZE(output_types); ++i)
-        if (IsEqualGUID(&subtype, output_types[i]))
+    for (i = 0; i < ARRAY_SIZE(color_convert_output_types); ++i)
+        if (IsEqualGUID(&subtype, color_convert_output_types[i]))
             break;
-    if (i == ARRAY_SIZE(output_types))
+    if (i == ARRAY_SIZE(color_convert_output_types))
         return MF_E_INVALIDMEDIATYPE;
     if (flags & MFT_SET_TYPE_TEST_ONLY)
         return S_OK;
@@ -490,7 +492,7 @@ static HRESULT WINAPI transform_SetOutputType(IMFTransform *iface, DWORD id, IMF
 
 static HRESULT WINAPI transform_GetInputCurrentType(IMFTransform *iface, DWORD id, IMFMediaType **type)
 {
-    struct color_convert *impl = impl_from_IMFTransform(iface);
+    struct transform *impl = impl_from_IMFTransform(iface);
     HRESULT hr;
 
     TRACE("iface %p, id %#lx, type %p.\n", iface, id, type);
@@ -512,7 +514,7 @@ static HRESULT WINAPI transform_GetInputCurrentType(IMFTransform *iface, DWORD i
 
 static HRESULT WINAPI transform_GetOutputCurrentType(IMFTransform *iface, DWORD id, IMFMediaType **type)
 {
-    struct color_convert *impl = impl_from_IMFTransform(iface);
+    struct transform *impl = impl_from_IMFTransform(iface);
     HRESULT hr;
 
     TRACE("iface %p, id %#lx, type %p.\n", iface, id, type);
@@ -564,7 +566,7 @@ static HRESULT WINAPI transform_ProcessMessage(IMFTransform *iface, MFT_MESSAGE_
 
 static HRESULT WINAPI transform_ProcessInput(IMFTransform *iface, DWORD id, IMFSample *sample, DWORD flags)
 {
-    struct color_convert *impl = impl_from_IMFTransform(iface);
+    struct transform *impl = impl_from_IMFTransform(iface);
 
     TRACE("iface %p, id %#lx, sample %p, flags %#lx.\n", iface, id, sample, flags);
 
@@ -577,7 +579,7 @@ static HRESULT WINAPI transform_ProcessInput(IMFTransform *iface, DWORD id, IMFS
 static HRESULT WINAPI transform_ProcessOutput(IMFTransform *iface, DWORD flags, DWORD count,
         MFT_OUTPUT_DATA_BUFFER *samples, DWORD *status)
 {
-    struct color_convert *impl = impl_from_IMFTransform(iface);
+    struct transform *impl = impl_from_IMFTransform(iface);
     MFT_OUTPUT_STREAM_INFO info;
     HRESULT hr;
 
@@ -603,7 +605,7 @@ static HRESULT WINAPI transform_ProcessOutput(IMFTransform *iface, DWORD flags, 
     return hr;
 }
 
-static const IMFTransformVtbl transform_vtbl =
+static const IMFTransformVtbl color_convert_transform_vtbl =
 {
     transform_QueryInterface,
     transform_AddRef,
@@ -618,10 +620,10 @@ static const IMFTransformVtbl transform_vtbl =
     transform_GetOutputStreamAttributes,
     transform_DeleteInputStream,
     transform_AddInputStreams,
-    transform_GetInputAvailableType,
-    transform_GetOutputAvailableType,
-    transform_SetInputType,
-    transform_SetOutputType,
+    color_convert_transform_GetInputAvailableType,
+    color_convert_transform_GetOutputAvailableType,
+    color_convert_transform_SetInputType,
+    color_convert_transform_SetOutputType,
     transform_GetInputCurrentType,
     transform_GetOutputCurrentType,
     transform_GetInputStatus,
@@ -633,9 +635,9 @@ static const IMFTransformVtbl transform_vtbl =
     transform_ProcessOutput,
 };
 
-static inline struct color_convert *impl_from_IMediaObject(IMediaObject *iface)
+static inline struct transform *impl_from_IMediaObject(IMediaObject *iface)
 {
-    return CONTAINING_RECORD(iface, struct color_convert, IMediaObject_iface);
+    return CONTAINING_RECORD(iface, struct transform, IMediaObject_iface);
 }
 
 static HRESULT WINAPI media_object_QueryInterface(IMediaObject *iface, REFIID iid, void **obj)
@@ -816,9 +818,9 @@ static const IMediaObjectVtbl media_object_vtbl =
     media_object_Lock,
 };
 
-static inline struct color_convert *impl_from_IPropertyBag(IPropertyBag *iface)
+static inline struct transform *impl_from_IPropertyBag(IPropertyBag *iface)
 {
-    return CONTAINING_RECORD(iface, struct color_convert, IPropertyBag_iface);
+    return CONTAINING_RECORD(iface, struct transform, IPropertyBag_iface);
 }
 
 static HRESULT WINAPI property_bag_QueryInterface(IPropertyBag *iface, REFIID iid, void **out)
@@ -858,9 +860,9 @@ static const IPropertyBagVtbl property_bag_vtbl =
     property_bag_Write,
 };
 
-static inline struct color_convert *impl_from_IPropertyStore(IPropertyStore *iface)
+static inline struct transform *impl_from_IPropertyStore(IPropertyStore *iface)
 {
-    return CONTAINING_RECORD(iface, struct color_convert, IPropertyStore_iface);
+    return CONTAINING_RECORD(iface, struct transform, IPropertyStore_iface);
 }
 
 static HRESULT WINAPI property_store_QueryInterface(IPropertyStore *iface, REFIID iid, void **out)
@@ -943,7 +945,7 @@ HRESULT color_convert_create(IUnknown *outer, IUnknown **out)
         },
     };
     struct wg_transform *transform;
-    struct color_convert *impl;
+    struct transform *impl;
     HRESULT hr;
 
     TRACE("outer %p, out %p.\n", outer, out);
@@ -965,7 +967,7 @@ HRESULT color_convert_create(IUnknown *outer, IUnknown **out)
     }
 
     impl->IUnknown_inner.lpVtbl = &unknown_vtbl;
-    impl->IMFTransform_iface.lpVtbl = &transform_vtbl;
+    impl->IMFTransform_iface.lpVtbl = &color_convert_transform_vtbl;
     impl->IMediaObject_iface.lpVtbl = &media_object_vtbl;
     impl->IPropertyBag_iface.lpVtbl = &property_bag_vtbl;
     impl->IPropertyStore_iface.lpVtbl = &property_store_vtbl;
