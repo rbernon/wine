@@ -205,13 +205,11 @@ C_ASSERT( sizeof( struct syscall_frame ) == 0x160);
 
 struct arm_thread_data
 {
-    void                 *exit_frame;    /* 1d4 exit frame pointer */
-    struct syscall_frame *syscall_frame; /* 1d8 frame pointer on syscall entry */
+    struct syscall_frame *syscall_frame; /* 1d4 frame pointer on syscall entry */
 };
 
 C_ASSERT( sizeof(struct arm_thread_data) <= sizeof(((struct ntdll_thread_data *)0)->cpu_data) );
-C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct arm_thread_data, exit_frame ) == 0x1d4 );
-C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct arm_thread_data, syscall_frame ) == 0x1d8 );
+C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct arm_thread_data, syscall_frame ) == 0x1d4 );
 
 static inline struct arm_thread_data *arm_thread_data(void)
 {
@@ -1627,13 +1625,11 @@ void DECLSPEC_HIDDEN call_init_thunk( LPTHREAD_START_ROUTINE entry, void *arg, B
 __ASM_GLOBAL_FUNC( signal_start_thread,
                    __ASM_EHABI(".cantunwind\n\t")
                    "push {r4-r12,lr}\n\t"
-                   /* store exit frame */
-                   "str sp, [r3, #0x1d4]\n\t" /* arm_thread_data()->exit_frame */
                    /* set syscall frame */
-                   "ldr r6, [r3, #0x1d8]\n\t" /* arm_thread_data()->syscall_frame */
+                   "ldr r6, [r3, #0x1d4]\n\t" /* arm_thread_data()->syscall_frame */
                    "cbnz r6, 1f\n\t"
                    "sub r6, sp, #0x160\n\t"   /* sizeof(struct syscall_frame) */
-                   "str r6, [r3, #0x1d8]\n\t" /* arm_thread_data()->syscall_frame */
+                   "str r6, [r3, #0x1d4]\n\t" /* arm_thread_data()->syscall_frame */
                    "1:\tmov sp, r6\n\t"
                    "bl " __ASM_NAME("call_init_thunk") )
 
@@ -1659,7 +1655,7 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    __ASM_CFI(".cfi_signal_frame\n\t")
                    __ASM_EHABI(".cantunwind\n\t")
                    "mrc p15, 0, r1, c13, c0, 2\n\t" /* NtCurrentTeb() */
-                   "ldr r1, [r1, #0x1d8]\n\t"       /* arm_thread_data()->syscall_frame */
+                   "ldr r1, [r1, #0x1d4]\n\t"       /* arm_thread_data()->syscall_frame */
                    "add r0, r1, #0x10\n\t"
                    "stm r0, {r4-r12,lr}\n\t"
                    "add r2, sp, #0x10\n\t"

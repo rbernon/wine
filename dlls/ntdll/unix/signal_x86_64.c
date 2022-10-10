@@ -430,16 +430,14 @@ struct amd64_thread_data
     DWORD_PTR             dr3;           /* 0308 */
     DWORD_PTR             dr6;           /* 0310 */
     DWORD_PTR             dr7;           /* 0318 */
-    void                 *exit_frame;    /* 0320 exit frame pointer */
-    struct syscall_frame *syscall_frame; /* 0328 syscall frame pointer */
-    void                 *pthread_teb;   /* 0330 thread data for pthread */
-    DWORD                 fs;            /* 0338 WOW TEB selector */
+    struct syscall_frame *syscall_frame; /* 0320 syscall frame pointer */
+    void                 *pthread_teb;   /* 0328 thread data for pthread */
+    DWORD                 fs;            /* 0330 WOW TEB selector */
 };
 
 C_ASSERT( sizeof(struct amd64_thread_data) <= sizeof(((struct ntdll_thread_data *)0)->cpu_data) );
-C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct amd64_thread_data, exit_frame ) == 0x320 );
-C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct amd64_thread_data, syscall_frame ) == 0x328 );
-C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct amd64_thread_data, pthread_teb ) == 0x330 );
+C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct amd64_thread_data, syscall_frame ) == 0x320 );
+C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct amd64_thread_data, pthread_teb ) == 0x328 );
 
 static inline struct amd64_thread_data *amd64_thread_data(void)
 {
@@ -2617,15 +2615,13 @@ __ASM_GLOBAL_FUNC( signal_start_thread,
                    __ASM_CFI(".cfi_rel_offset %r14,16\n\t")
                    "movq %r15,8(%rsp)\n\t"
                    __ASM_CFI(".cfi_rel_offset %r15,8\n\t")
-                   /* store exit frame */
-                   "movq %rsp,0x320(%rcx)\n\t"     /* amd64_thread_data()->exit_frame */
                    /* set syscall frame */
-                   "movq 0x328(%rcx),%rax\n\t"     /* amd64_thread_data()->syscall_frame */
+                   "movq 0x320(%rcx),%rax\n\t"     /* amd64_thread_data()->syscall_frame */
                    "orq %rax,%rax\n\t"
                    "jnz 1f\n\t"
                    "leaq -0x400(%rsp),%rax\n\t"    /* sizeof(struct syscall_frame) */
                    "andq $~63,%rax\n\t"
-                   "movq %rax,0x328(%rcx)\n"       /* amd64_thread_data()->syscall_frame */
+                   "movq %rax,0x320(%rcx)\n"       /* amd64_thread_data()->syscall_frame */
                    "1:\tmovq %rax,%rsp\n\t"
                    "call " __ASM_NAME("call_init_thunk"))
 
@@ -2658,9 +2654,9 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    __ASM_CFI(".cfi_signal_frame\n\t")
 #ifdef __APPLE__
                    "movq %gs:0x30,%rcx\n\t"
-                   "movq 0x328(%rcx),%rcx\n\t"
+                   "movq 0x320(%rcx),%rcx\n\t"
 #else
-                   "movq %gs:0x328,%rcx\n\t"       /* amd64_thread_data()->syscall_frame */
+                   "movq %gs:0x320,%rcx\n\t"       /* amd64_thread_data()->syscall_frame */
 #endif
                    "popq 0x70(%rcx)\n\t"           /* frame->rip */
                    __ASM_CFI(".cfi_adjust_cfa_offset -8\n\t")
