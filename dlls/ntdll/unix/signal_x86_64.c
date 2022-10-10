@@ -2574,22 +2574,6 @@ void DECLSPEC_HIDDEN call_init_thunk( LPTHREAD_START_ROUTINE entry, void *arg, B
  *           signal_start_thread
  */
 __ASM_GLOBAL_FUNC( signal_start_thread,
-                   "subq $56,%rsp\n\t"
-                   __ASM_SEH(".seh_stackalloc 56\n\t")
-                   __ASM_SEH(".seh_endprologue\n\t")
-                   __ASM_CFI(".cfi_adjust_cfa_offset 56\n\t")
-                   "movq %rbp,48(%rsp)\n\t"
-                   __ASM_CFI(".cfi_rel_offset %rbp,48\n\t")
-                   "movq %rbx,40(%rsp)\n\t"
-                   __ASM_CFI(".cfi_rel_offset %rbx,40\n\t")
-                   "movq %r12,32(%rsp)\n\t"
-                   __ASM_CFI(".cfi_rel_offset %r12,32\n\t")
-                   "movq %r13,24(%rsp)\n\t"
-                   __ASM_CFI(".cfi_rel_offset %r13,24\n\t")
-                   "movq %r14,16(%rsp)\n\t"
-                   __ASM_CFI(".cfi_rel_offset %r14,16\n\t")
-                   "movq %r15,8(%rsp)\n\t"
-                   __ASM_CFI(".cfi_rel_offset %r15,8\n\t")
                    /* set syscall frame */
                    "movq 0x320(%rcx),%rax\n\t"     /* amd64_thread_data()->syscall_frame */
                    "orq %rax,%rax\n\t"

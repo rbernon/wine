@@ -1626,7 +1626,6 @@ void DECLSPEC_HIDDEN call_init_thunk( LPTHREAD_START_ROUTINE entry, void *arg, B
  */
 __ASM_GLOBAL_FUNC( signal_start_thread,
                    __ASM_EHABI(".cantunwind\n\t")
-                   "push {r4-r12,lr}\n\t"
                    /* set syscall frame */
                    "ldr r6, [r3, #0x1d4]\n\t" /* arm_thread_data()->syscall_frame */
                    "cbnz r6, 1f\n\t"
