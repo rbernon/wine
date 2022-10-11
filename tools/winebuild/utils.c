@@ -320,7 +320,6 @@ struct strarray get_as_command(void)
     if (using_cc)
     {
         strarray_add( &args, "-xassembler" );
-        strarray_add( &args, "-c" );
         if (force_pointer_size)
             strarray_add( &args, (force_pointer_size == 8) ? "-m64" : "-m32" );
         if (cpu_option) strarray_add( &args, strmake("-mcpu=%s", cpu_option) );
@@ -623,6 +622,7 @@ int remove_stdcall_decoration( char *name )
 void assemble_file( const char *src_file, const char *obj_file )
 {
     struct strarray args = get_as_command();
+    strarray_add( &args, "-c" );
     strarray_add( &args, "-o" );
     strarray_add( &args, obj_file );
     strarray_add( &args, src_file );
