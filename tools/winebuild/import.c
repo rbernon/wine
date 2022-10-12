@@ -1918,7 +1918,7 @@ static void build_windows_import_lib( const char *lib_name, DLLSPEC *spec, struc
             /* reference head object to always pull its sections */
             output( "\n\t.section .idata$7\n" );
             if (!strendswith( lib_name, ".delay.a" ))
-                output_rva( "%s", asm_name( import_desc ) );
+                output( "\n\t.globl %s\n", asm_name( import_desc ) );
 
             free( imp_name );
             break;
