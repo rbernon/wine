@@ -1451,6 +1451,7 @@ __ASM_GLOBAL_FUNC( signal_exit_thread,
  *           __wine_syscall_dispatcher
  */
 __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
+                   __ASM_CFI(".cfi_signal_frame\n\t")
                    /* FIXME: use x18 directly instead */
                    "stp x0, x1, [sp, #-96]!\n\t"
                    "stp x2, x3, [sp, #16]\n\t"
