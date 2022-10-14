@@ -150,11 +150,13 @@ C_ASSERT( sizeof( struct syscall_frame ) == 0x330 );
 
 struct arm64_thread_data
 {
-    struct syscall_frame *syscall_frame; /* 02f0 frame pointer on syscall entry */
+    void                 *exit_frame;    /* 02f0 exit frame pointer */
+    struct syscall_frame *syscall_frame; /* 02f8 frame pointer on syscall entry */
 };
 
 C_ASSERT( sizeof(struct arm64_thread_data) <= sizeof(((struct ntdll_thread_data *)0)->cpu_data) );
-C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct arm64_thread_data, syscall_frame ) == 0x2f0 );
+C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct arm64_thread_data, exit_frame ) == 0x2f0 );
+C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct arm64_thread_data, syscall_frame ) == 0x2f8 );
 
 static inline struct arm64_thread_data *arm64_thread_data(void)
 {
@@ -1421,11 +1423,14 @@ void DECLSPEC_HIDDEN call_init_thunk( LPTHREAD_START_ROUTINE entry, void *arg, B
  */
 __ASM_GLOBAL_FUNC( signal_start_thread,
                    "stp x29, x30, [sp,#-16]!\n\t"
+                   /* store exit frame */
+                   "mov x29, sp\n\t"
+                   "str x29, [x3, #0x2f0]\n\t"  /* arm64_thread_data()->exit_frame */
                    /* set syscall frame */
-                   "ldr x8, [x3, #0x2f0]\n\t"   /* arm64_thread_data()->syscall_frame */
+                   "ldr x8, [x3, #0x2f8]\n\t"   /* arm64_thread_data()->syscall_frame */
                    "cbnz x8, 1f\n\t"
                    "sub x8, sp, #0x330\n\t"     /* sizeof(struct syscall_frame) */
-                   "str x8, [x3, #0x2f0]\n\t"   /* arm64_thread_data()->syscall_frame */
+                   "str x8, [x3, #0x2f8]\n\t"   /* arm64_thread_data()->syscall_frame */
                    "1:\tmov sp, x8\n\t"
                    "bl " __ASM_NAME("call_init_thunk") )
 
@@ -1463,7 +1468,7 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    "ldr x30,    [sp, #80]\n\t"
                    "ldp x0, x1, [sp], #96\n\t"
 
-                   "ldr x10, [x18, #0x2f0]\n\t" /* arm64_thread_data()->syscall_frame */
+                   "ldr x10, [x18, #0x2f8]\n\t" /* arm64_thread_data()->syscall_frame */
                    "stp x18, x19, [x10, #0x90]\n\t"
                    "stp x20, x21, [x10, #0xa0]\n\t"
                    "stp x22, x23, [x10, #0xb0]\n\t"
