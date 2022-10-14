@@ -2473,6 +2473,12 @@ __ASM_GLOBAL_FUNC( signal_start_thread,
                    __ASM_CFI(".cfi_rel_offset %ebp,0\n\t")
                    "movl %esp,%ebp\n\t"
                    __ASM_CFI(".cfi_def_cfa_register %ebp\n\t")
+                   "pushl %ebx\n\t"
+                   __ASM_CFI(".cfi_rel_offset %ebx,-4\n\t")
+                   "pushl %esi\n\t"
+                   __ASM_CFI(".cfi_rel_offset %esi,-8\n\t")
+                   "pushl %edi\n\t"
+                   __ASM_CFI(".cfi_rel_offset %edi,-12\n\t")
                    /* store exit frame */
                    "movl 20(%ebp),%ecx\n\t"     /* teb */
                    /* set syscall frame */

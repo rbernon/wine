@@ -1420,6 +1420,7 @@ void DECLSPEC_HIDDEN call_init_thunk( LPTHREAD_START_ROUTINE entry, void *arg, B
  *           signal_start_thread
  */
 __ASM_GLOBAL_FUNC( signal_start_thread,
+                   "stp x29, x30, [sp,#-16]!\n\t"
                    /* set syscall frame */
                    "ldr x8, [x3, #0x2f0]\n\t"   /* arm64_thread_data()->syscall_frame */
                    "cbnz x8, 1f\n\t"
