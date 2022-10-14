@@ -1669,7 +1669,7 @@ NTSTATUS WINAPI KeUserModeCallback( ULONG id, const void *args, ULONG len, void 
     *(--stack) = len;
     *(--stack) = (ULONG_PTR)args_data;
     *(--stack) = id;
-    *(--stack) = 0xdeadbabe;
+    *(--stack) = *(ULONG_PTR *)frame->esp;
 
     return call_user_mode_callback( pKiUserCallbackDispatcher, stack, ret_ptr, ret_len, NtCurrentTeb() );
 }
