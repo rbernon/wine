@@ -480,12 +480,14 @@ struct x86_thread_data
     UINT               dr3;           /* 1e8 */
     UINT               dr6;           /* 1ec */
     UINT               dr7;           /* 1f0 */
+    void              *exit_frame;    /* 1f4 exit frame pointer */
     struct syscall_frame *syscall_frame; /* 1f8 frame pointer on syscall entry */
 };
 
 C_ASSERT( sizeof(struct x86_thread_data) <= sizeof(((struct ntdll_thread_data *)0)->cpu_data) );
 C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct x86_thread_data, gs ) == 0x1d8 );
-C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct x86_thread_data, syscall_frame ) == 0x1f4 );
+C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct x86_thread_data, exit_frame ) == 0x1f4 );
+C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct x86_thread_data, syscall_frame ) == 0x1f8 );
 
 /* flags to control the behavior of the syscall dispatcher */
 #define SYSCALL_HAVE_XSAVE    1
@@ -2490,13 +2492,14 @@ __ASM_GLOBAL_FUNC( signal_start_thread,
                    __ASM_CFI(".cfi_rel_offset %edi,-12\n\t")
                    /* store exit frame */
                    "movl 20(%ebp),%ecx\n\t"     /* teb */
+                   "movl %ebp,0x1f4(%ecx)\n\t"  /* x86_thread_data()->exit_frame */
                    /* set syscall frame */
-                   "movl 0x1f4(%ecx),%eax\n\t"  /* x86_thread_data()->syscall_frame */
+                   "movl 0x1f8(%ecx),%eax\n\t"  /* x86_thread_data()->syscall_frame */
                    "orl %eax,%eax\n\t"
                    "jnz 1f\n\t"
                    "leal -0x380(%esp),%eax\n\t" /* sizeof(struct syscall_frame) */
                    "andl $~63,%eax\n\t"
-                   "movl %eax,0x1f4(%ecx)\n"    /* x86_thread_data()->syscall_frame */
+                   "movl %eax,0x1f8(%ecx)\n"    /* x86_thread_data()->syscall_frame */
                    "1:\tmovl %eax,%esp\n\t"
                    "pushl %ecx\n\t"             /* teb */
                    "pushl 16(%ebp)\n\t"         /* suspend */
@@ -2535,7 +2538,7 @@ __ASM_GLOBAL_FUNC( signal_exit_thread,
  */
 __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    __ASM_CFI(".cfi_signal_frame\n\t")
-                   "movl %fs:0x1f4,%ecx\n\t"       /* x86_thread_data()->syscall_frame */
+                   "movl %fs:0x1f8,%ecx\n\t"       /* x86_thread_data()->syscall_frame */
                    "movw $0,0x02(%ecx)\n\t"        /* frame->restore_flags */
                    "pushfl\n\t"
                    __ASM_CFI(".cfi_adjust_cfa_offset 4\n\t")
