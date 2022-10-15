@@ -400,18 +400,18 @@ static void check_dmo_get_info(const GUID *class_id, const struct transform_info
         ok(0, "extra output[%u] subtype %s\n", i, debugstr_guid(&output[i].subtype));
 }
 
-void init_media_type(IMFMediaType *mediatype, const struct attribute_desc *desc, ULONG limit)
+void create_media_type_(const char *file, int line, const struct attribute_desc *attributes, IMFMediaType **out)
 {
+    const struct attribute_desc *attr;
     HRESULT hr;
-    ULONG i;
 
-    hr = IMFMediaType_DeleteAllItems(mediatype);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = MFCreateMediaType(out);
+    ok_(file, line)(hr == S_OK, "MFCreateMediaType returned hr %#lx.\n", hr);
 
-    for (i = 0; i < limit && desc[i].key; ++i)
+    for (attr = attributes; attr && attr->key; attr++)
     {
-        hr = IMFMediaType_SetItem(mediatype, desc[i].key, &desc[i].value);
-        ok(hr == S_OK, "SetItem %s returned %#lx\n", debugstr_a(desc[i].name), hr);
+        hr = IMFMediaType_SetItem(*out, attr->key, &attr->value);
+        ok_(file, line)(hr == S_OK, "SetItem %s returned %#lx\n", debugstr_a(attr->name), hr);
     }
 }
 
@@ -601,9 +601,7 @@ static void check_mft_set_input_type_required_(int line, IMFTransform *transform
     HRESULT hr;
     ULONG ref;
 
-    hr = MFCreateMediaType(&media_type);
-    ok_(__FILE__, line)(hr == S_OK, "MFCreateMediaType returned hr %#lx.\n", hr);
-    init_media_type(media_type, attributes, -1);
+    create_media_type_(__FILE__, line, attributes, &media_type);
 
     for (attr = attributes; attr && attr->key; attr++)
     {
@@ -628,9 +626,7 @@ static void check_mft_set_input_type(IMFTransform *transform, const struct attri
     IMFMediaType *media_type;
     HRESULT hr;
 
-    hr = MFCreateMediaType(&media_type);
-    ok(hr == S_OK, "MFCreateMediaType returned hr %#lx.\n", hr);
-    init_media_type(media_type, attributes, -1);
+    create_media_type(attributes, &media_type);
 
     hr = IMFTransform_SetInputType(transform, 0, media_type, MFT_SET_TYPE_TEST_ONLY);
     ok(hr == S_OK, "SetInputType returned %#lx.\n", hr);
@@ -654,9 +650,7 @@ static void check_mft_get_input_current_type_(IMFTransform *transform, const str
     if (FAILED(hr))
         return;
 
-    hr = MFCreateMediaType(&media_type);
-    ok(hr == S_OK, "MFCreateMediaType returned hr %#lx.\n", hr);
-    init_media_type(media_type, attributes, -1);
+    create_media_type(attributes, &media_type);
 
     hr = IMFMediaType_Compare(current_type, (IMFAttributes *)media_type,
             MF_ATTRIBUTES_MATCH_ALL_ITEMS, &result);
@@ -676,9 +670,7 @@ static void check_mft_set_output_type_required_(int line, IMFTransform *transfor
     HRESULT hr;
     ULONG ref;
 
-    hr = MFCreateMediaType(&media_type);
-    ok_(__FILE__, line)(hr == S_OK, "MFCreateMediaType returned hr %#lx.\n", hr);
-    init_media_type(media_type, attributes, -1);
+    create_media_type_(__FILE__, line, attributes, &media_type);
 
     for (attr = attributes; attr && attr->key; attr++)
     {
@@ -704,9 +696,7 @@ static void check_mft_set_output_type(IMFTransform *transform, const struct attr
     IMFMediaType *media_type;
     HRESULT hr;
 
-    hr = MFCreateMediaType(&media_type);
-    ok(hr == S_OK, "MFCreateMediaType returned hr %#lx.\n", hr);
-    init_media_type(media_type, attributes, -1);
+    create_media_type(attributes, &media_type);
 
     hr = IMFTransform_SetOutputType(transform, 0, media_type, MFT_SET_TYPE_TEST_ONLY);
     ok(hr == expect_hr, "SetOutputType returned %#lx.\n", hr);
@@ -730,9 +720,7 @@ static void check_mft_get_output_current_type_(IMFTransform *transform, const st
     if (FAILED(hr))
         return;
 
-    hr = MFCreateMediaType(&media_type);
-    ok(hr == S_OK, "MFCreateMediaType returned hr %#lx.\n", hr);
-    init_media_type(media_type, attributes, -1);
+    create_media_type(attributes, &media_type);
 
     hr = IMFMediaType_Compare(current_type, (IMFAttributes *)media_type,
             MF_ATTRIBUTES_MATCH_ALL_ITEMS, &result);
@@ -2868,9 +2856,7 @@ static void test_wma_encoder(void)
 
     check_mft_set_input_type_required(transform, input_type_desc);
 
-    hr = MFCreateMediaType(&media_type);
-    ok(hr == S_OK, "MFCreateMediaType returned %#lx\n", hr);
-    init_media_type(media_type, input_type_desc, -1);
+    create_media_type(input_type_desc, &media_type);
     hr = IMFTransform_SetInputType(transform, 0, media_type, 0);
     ok(hr == S_OK, "SetInputType returned %#lx.\n", hr);
     ret = IMFMediaType_Release(media_type);
@@ -3892,12 +3878,13 @@ static void test_h264_decoder(void)
     IMFCollection_Release(output_samples);
 
     /* we can change it, but only with the correct frame size */
-    hr = MFCreateMediaType(&media_type);
-    ok(hr == S_OK, "MFCreateMediaType returned %#lx\n", hr);
-    init_media_type(media_type, output_type_desc, -1);
+    create_media_type(output_type_desc, &media_type);
     hr = IMFTransform_SetOutputType(transform, 0, media_type, 0);
     ok(hr == MF_E_INVALIDMEDIATYPE, "SetOutputType returned %#lx.\n", hr);
-    init_media_type(media_type, new_output_type_desc, -1);
+    ret = IMFMediaType_Release(media_type);
+    ok(ret == 0, "Release returned %lu\n", ret);
+
+    create_media_type(new_output_type_desc, &media_type);
     hr = IMFTransform_SetOutputType(transform, 0, media_type, 0);
     ok(hr == S_OK, "SetOutputType returned %#lx.\n", hr);
     ret = IMFMediaType_Release(media_type);

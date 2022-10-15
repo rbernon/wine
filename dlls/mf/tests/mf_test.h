@@ -59,7 +59,8 @@ typedef struct attribute_desc media_type_desc[32];
 #define check_attributes(a, b, c) check_attributes_(__FILE__, __LINE__, a, b, c)
 extern void check_attributes_(const char *file, int line, IMFAttributes *attributes,
         const struct attribute_desc *desc, ULONG limit);
-extern void init_media_type(IMFMediaType *mediatype, const struct attribute_desc *desc, ULONG limit);
+#define create_media_type(a, b) create_media_type_(__FILE__, __LINE__, a, b)
+extern void create_media_type_(const char *file, int line, const struct attribute_desc *attributes, IMFMediaType **out);
 
 typedef DWORD (*compare_cb)(const BYTE *data, DWORD *length, const RECT *rect, const BYTE *expect);
 extern DWORD compare_nv12(const BYTE *data, DWORD *length, const RECT *rect, const BYTE *expect);

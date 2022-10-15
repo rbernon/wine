@@ -174,9 +174,7 @@ static void check_handler_required_attributes_(int line, IMFMediaTypeHandler *ha
     HRESULT hr;
     ULONG ref;
 
-    hr = MFCreateMediaType(&media_type);
-    ok_(__FILE__, line)(hr == S_OK, "MFCreateMediaType returned hr %#lx.\n", hr);
-    init_media_type(media_type, attributes, -1);
+    create_media_type_(__FILE__, line, attributes, &media_type);
 
     for (attr = attributes; attr && attr->key; attr++)
     {
@@ -213,9 +211,7 @@ static void create_descriptors(UINT enum_types_count, IMFMediaType **enum_types,
         IMFMediaTypeHandler *handler;
         IMFMediaType *type;
 
-        hr = MFCreateMediaType(&type);
-        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-        init_media_type(type, *current_desc, -1);
+        create_media_type(*current_desc, &type);
 
         hr = IMFStreamDescriptor_GetMediaTypeHandler(*sd, &handler);
         ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
@@ -2198,18 +2194,14 @@ static void test_media_session_events(void)
     hr = MFCreateMediaSession(NULL, &session);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
-    hr = MFCreateMediaType(&input_type);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    init_media_type(input_type, audio_float_44100, -1);
+    create_media_type(audio_float_44100, &input_type);
     create_descriptors(1, &input_type, NULL, &pd, &sd);
 
     hr = MFCreateTopologyNode(MF_TOPOLOGY_OUTPUT_NODE, &sink_node);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     init_sink_node(&stream_sink.IMFStreamSink_iface, -1, sink_node);
 
-    hr = MFCreateMediaType(&output_type);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    init_media_type(output_type, audio_pcm_48000, -1);
+    create_media_type(audio_pcm_48000, &output_type);
     handler.media_types_count = 1;
     handler.media_types = &output_type;
 
@@ -3359,21 +3351,14 @@ static void test_topology_loader(void)
     ref = IMFStreamDescriptor_Release(sd);
     ok(ref == 0, "Release returned %ld\n", ref);
 
-
-    hr = MFCreateMediaType(&input_type);
-    ok(hr == S_OK, "Failed to create media type, hr %#lx.\n", hr);
-
-    hr = MFCreateMediaType(&output_type);
-    ok(hr == S_OK, "Failed to create media type, hr %#lx.\n", hr);
-
     for (i = 0; i < ARRAY_SIZE(loader_tests); ++i)
     {
         const struct loader_test *test = &loader_tests[i];
 
         winetest_push_context("%u", i);
 
-        init_media_type(input_type, *test->input_type, -1);
-        init_media_type(output_type, *test->output_type, -1);
+        create_media_type(*test->input_type, &input_type);
+        create_media_type(*test->output_type, &output_type);
 
         handler.set_current_count = 0;
         if (test->flags & LOADER_NO_CURRENT_OUTPUT)
@@ -3629,6 +3614,11 @@ todo_wine {
         ref = IMFStreamDescriptor_Release(sd);
         ok(ref == 0, "Release returned %ld\n", ref);
 
+        ref = IMFMediaType_Release(input_type);
+        ok(ref == 0, "Release returned %ld\n", ref);
+        ref = IMFMediaType_Release(output_type);
+        ok(ref == 0, "Release returned %ld\n", ref);
+
         winetest_pop_context();
     }
 
@@ -3639,11 +3629,6 @@ todo_wine {
     ref = IMFTopologyNode_Release(src_node);
     ok(ref == 0, "Release returned %ld\n", ref);
     ref = IMFTopologyNode_Release(sink_node);
-    ok(ref == 0, "Release returned %ld\n", ref);
-
-    ref = IMFMediaType_Release(input_type);
-    ok(ref == 0, "Release returned %ld\n", ref);
-    ref = IMFMediaType_Release(output_type);
     ok(ref == 0, "Release returned %ld\n", ref);
 
     hr = MFShutdown();
@@ -3689,9 +3674,7 @@ static void test_topology_loader_evr(void)
     hr = MFCreateTopologyNode(MF_TOPOLOGY_SOURCESTREAM_NODE, &source_node);
     ok(hr == S_OK, "Failed to create topology node, hr %#lx.\n", hr);
 
-    hr = MFCreateMediaType(&media_type);
-    ok(hr == S_OK, "Failed to create media type, hr %#lx.\n", hr);
-    init_media_type(media_type, media_type_desc, -1);
+    create_media_type(media_type_desc, &media_type);
 
     create_descriptors(1, &media_type, &media_type_desc, &pd, &sd);
     init_source_node(NULL, -1, source_node, pd, sd);
@@ -4942,9 +4925,8 @@ static void test_sample_grabber_orientation(GUID subtype)
     IMFPresentationDescriptor_Release(pd);
     IMFStreamDescriptor_Release(sd);
 
-    hr = MFCreateMediaType(&output_type);
+    create_media_type(video_rgb32_desc, &output_type);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    init_media_type(output_type, video_rgb32_desc, -1);
     hr = MFCreateSampleGrabberSinkActivate(output_type, &grabber_callback->IMFSampleGrabberSinkCallback_iface, &sink_activate);
     ok(hr == S_OK, "Failed to create grabber sink, hr %#lx.\n", hr);
     IMFMediaType_Release(output_type);
@@ -6412,18 +6394,10 @@ static void test_MFGetTopoNodeCurrentType(void)
     hr = CoInitialize(NULL);
     ok(hr == S_OK, "Failed to initialize, hr %#lx.\n", hr);
 
-    hr = MFCreateMediaType(&input_types[0]);
-    ok(hr == S_OK, "Failed to create media type, hr %#lx.\n", hr);
-    init_media_type(input_types[0], media_type_desc, -1);
-    hr = MFCreateMediaType(&input_types[1]);
-    ok(hr == S_OK, "Failed to create media type, hr %#lx.\n", hr);
-    init_media_type(input_types[1], media_type_desc, -1);
-    hr = MFCreateMediaType(&output_types[0]);
-    ok(hr == S_OK, "Failed to create media type, hr %#lx.\n", hr);
-    init_media_type(output_types[0], media_type_desc, -1);
-    hr = MFCreateMediaType(&output_types[1]);
-    ok(hr == S_OK, "Failed to create media type, hr %#lx.\n", hr);
-    init_media_type(output_types[1], media_type_desc, -1);
+    create_media_type(media_type_desc, &input_types[0]);
+    create_media_type(media_type_desc, &input_types[1]);
+    create_media_type(media_type_desc, &output_types[0]);
+    create_media_type(media_type_desc, &output_types[1]);
 
     hr = MFCreateStreamDescriptor(0, 2, input_types, &input_descriptor);
     ok(hr == S_OK, "Failed to create IMFStreamDescriptor hr %#lx.\n", hr);
