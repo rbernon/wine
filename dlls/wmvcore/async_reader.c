@@ -76,11 +76,6 @@ struct stream
     CONDITION_VARIABLE read_cv;
     struct sample *next_sample;
     HRESULT read_result;
-
-    bool dedicated_delivery_thread;
-    HANDLE deliver_thread;
-    struct list deliver_samples;
-    CONDITION_VARIABLE deliver_cv;
 };
 
 struct async_reader
@@ -326,48 +321,6 @@ static void stream_request_read(struct stream *stream)
     WakeConditionVariable(&stream->read_cv);
 }
 
-static void stream_request_deliver(struct async_reader *reader, struct sample *sample)
-{
-    struct stream *stream = reader->streams + sample->output;
-
-    list_remove(&sample->entry);
-    list_add_tail(&stream->deliver_samples, &sample->entry);
-    WakeConditionVariable(&stream->deliver_cv);
-}
-
-static DWORD WINAPI stream_deliver_thread(void *arg)
-{
-    struct stream *stream = arg;
-    struct async_reader *reader = stream->reader;
-    struct list *entry;
-
-    TRACE("reader %p, number %u\n", reader, stream->number);
-
-    EnterCriticalSection(&reader->callback_cs);
-
-    while (reader->opened)
-    {
-        if (list_empty(&stream->deliver_samples))
-        {
-            SleepConditionVariableCS(&stream->deliver_cv, &reader->callback_cs, INFINITE);
-            continue;
-        }
-
-        while ((entry = list_head(&stream->deliver_samples)))
-        {
-            struct sample *sample = LIST_ENTRY(entry, struct sample, entry);
-            async_reader_deliver_sample(reader, sample);
-        }
-
-        WakeConditionVariable(&reader->callback_cv);
-    }
-
-    LeaveCriticalSection(&reader->callback_cs);
-
-    TRACE("Reader is stopping; exiting.\n");
-    return 0;
-}
-
 static DWORD WINAPI stream_read_thread(void *arg)
 {
     struct stream *stream = arg;
@@ -448,13 +401,6 @@ static void stream_flush_samples(struct stream *stream)
         INSSBuffer_Release(sample->buffer);
         free(sample);
     }
-
-    LIST_FOR_EACH_ENTRY_SAFE(sample, next, &stream->deliver_samples, struct sample, entry)
-    {
-        list_remove(&sample->entry);
-        INSSBuffer_Release(sample->buffer);
-        free(sample);
-    }
 }
 
 static void stream_close(struct stream *stream)
@@ -467,14 +413,6 @@ static void stream_close(struct stream *stream)
         stream->read_thread = NULL;
     }
 
-    if (stream->deliver_thread)
-    {
-        WakeConditionVariable(&stream->deliver_cv);
-        WaitForSingleObject(stream->deliver_thread, INFINITE);
-        CloseHandle(stream->deliver_thread);
-        stream->deliver_thread = NULL;
-    }
-
     stream_flush_samples(stream);
 }
 
@@ -482,16 +420,10 @@ static HRESULT stream_open(struct stream *stream, struct async_reader *reader, W
 {
     stream->number = number;
     stream->reader = reader;
-    list_init(&stream->deliver_samples);
+    list_init(&stream->read_samples);
 
     if (!(stream->read_thread = CreateThread(NULL, 0, stream_read_thread, stream, 0, NULL)))
         return E_OUTOFMEMORY;
-
-    if (!(stream->deliver_thread = CreateThread(NULL, 0, stream_deliver_thread, stream, 0, NULL)))
-    {
-        stream_close(stream);
-        return E_OUTOFMEMORY;
-    }
 
     return S_OK;
 }
@@ -501,15 +433,17 @@ static HRESULT async_reader_get_next_sample(struct async_reader *reader,
 {
     struct sample *sample, *first_sample = NULL;
     struct stream *stream, *first_stream = NULL;
-    BOOL pending = FALSE;
+    WMT_STREAM_SELECTION selection;
+    struct list *entry;
     DWORD i;
 
     for (i = 0; i < reader->stream_count; ++i)
     {
         stream = reader->streams + i;
 
-        if (!list_empty(&stream->deliver_samples))
-            pending = TRUE;
+        if (FAILED(IWMSyncReader2_GetStreamSelected(reader->reader, i + 1, &selection))
+                || selection == WMT_OFF)
+            continue;
         if (!(sample = stream->next_sample))
         {
             if (stream->read_result == E_PENDING)
@@ -525,7 +459,7 @@ static HRESULT async_reader_get_next_sample(struct async_reader *reader,
     }
 
     if (!first_sample)
-        return pending ? E_PENDING : NS_E_NO_MORE_SAMPLES;
+        return NS_E_NO_MORE_SAMPLES;
 
     TRACE("Found first stream %u with pts %I64d.\n", first_stream->number, first_sample->pts);
 
@@ -547,8 +481,8 @@ static void async_reader_deliver_samples(struct async_reader *reader)
 
     while (reader->opened && list_empty(&reader->async_ops))
     {
-        struct stream *stream;
         struct sample *sample;
+        struct stream *stream;
 
         if (FAILED(hr = async_reader_get_next_sample(reader, &stream, &sample)))
             break;
@@ -556,12 +490,7 @@ static void async_reader_deliver_samples(struct async_reader *reader)
         stream_request_read(stream);
 
         if (async_reader_wait_pts(reader, sample->pts))
-        {
-            if (!stream->dedicated_delivery_thread)
-                async_reader_deliver_sample(reader, sample);
-            else
-                stream_request_deliver(reader, sample);
-        }
+            async_reader_deliver_sample(reader, sample);
     }
 
     if (hr == NS_E_NO_MORE_SAMPLES)
@@ -1351,35 +1280,9 @@ static HRESULT WINAPI WMReaderAdvanced2_GetOutputSetting(IWMReaderAdvanced6 *ifa
 static HRESULT WINAPI WMReaderAdvanced2_SetOutputSetting(IWMReaderAdvanced6 *iface, DWORD output_num,
         const WCHAR *name, WMT_ATTR_DATATYPE type, const BYTE *value, WORD length)
 {
-    struct async_reader *reader = impl_from_IWMReaderAdvanced6(iface);
-    struct stream *stream;
-    HRESULT hr = E_NOTIMPL;
-
-    TRACE("reader %p, output_num %lu, name %s, type %u, value %p, length %u semi-stub!\n",
-            reader, output_num, debugstr_w(name), type, value, length);
-
-    EnterCriticalSection(&reader->cs);
-
-    if (!reader->streams)
-    {
-        LeaveCriticalSection(&reader->cs);
-        return E_UNEXPECTED;
-    }
-
-    stream = reader->streams + output_num;
-
-    EnterCriticalSection(&reader->callback_cs);
-    if (!wcscmp(name, L"DedicatedDeliveryThread"))
-    {
-        stream->dedicated_delivery_thread = *(BOOL *)value;
-        hr = S_OK;
-    }
-    else FIXME("Setting %s not implemented!\n", debugstr_w(name));
-    LeaveCriticalSection(&reader->callback_cs);
-
-    LeaveCriticalSection(&reader->cs);
-
-    return hr;
+    struct async_reader *This = impl_from_IWMReaderAdvanced6(iface);
+    FIXME("(%p)->(%lu %s %#x %p %u)\n", This, output_num, debugstr_w(name), type, value, length);
+    return E_NOTIMPL;
 }
 
 static HRESULT WINAPI WMReaderAdvanced2_Preroll(IWMReaderAdvanced6 *iface, QWORD start, QWORD duration, float rate)

@@ -2061,7 +2061,10 @@ static HRESULT WINAPI callback_OnSample(IWMReaderCallback *iface, DWORD output,
     callback->next_pts[output] = time + duration;
 
     if (callback->dedicated_threads)
+    {
+        todo_wine
         ok(callback->callback_tid != GetCurrentThreadId(), "got wrong thread\n");
+    }
     else
         ok(callback->callback_tid == GetCurrentThreadId(), "got wrong thread\n");
 
@@ -2071,7 +2074,10 @@ static HRESULT WINAPI callback_OnSample(IWMReaderCallback *iface, DWORD output,
         ok(callback->output_tid[output] == GetCurrentThreadId(), "got wrong thread\n");
 
     if (callback->dedicated_threads && callback->output_tid[1 - output])
+    {
+        todo_wine
         ok(callback->output_tid[1 - output] != GetCurrentThreadId(), "got wrong thread\n");
+    }
 
     if (stream)
         ok(stream->input_tid != GetCurrentThreadId(), "got wrong thread\n");
@@ -2136,7 +2142,10 @@ static HRESULT WINAPI callback_advanced_OnStreamSample(IWMReaderCallbackAdvanced
     callback->next_pts[output] = pts + duration;
 
     if (callback->dedicated_threads)
+    {
+        todo_wine
         ok(callback->callback_tid != GetCurrentThreadId(), "got wrong thread\n");
+    }
     else
     {
         ok(callback->callback_tid == GetCurrentThreadId(), "got wrong thread\n");
@@ -2149,7 +2158,10 @@ static HRESULT WINAPI callback_advanced_OnStreamSample(IWMReaderCallbackAdvanced
         ok(callback->output_tid[output] == GetCurrentThreadId(), "got wrong thread\n");
 
     if (callback->dedicated_threads && callback->output_tid[1 - output])
+    {
+        todo_wine
         ok(callback->output_tid[1 - output] != GetCurrentThreadId(), "got wrong thread\n");
+    }
 
     if (stream)
         ok(stream->input_tid != GetCurrentThreadId(), "got wrong thread\n");
@@ -2538,7 +2550,7 @@ static void check_async_set_output_setting(IWMReaderAdvanced2 *reader, DWORD out
         size = sizeof(DWORD);
 
     hr = IWMReaderAdvanced2_SetOutputSetting(reader, output, name, type, (BYTE *)&value, size);
-    todo_wine_if(wcscmp(name, L"DedicatedDeliveryThread"))
+    todo_wine
     ok(hr == expect_hr, "Got hr %#lx.\n", hr);
 
     winetest_pop_context();
