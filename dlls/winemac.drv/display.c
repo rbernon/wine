@@ -730,9 +730,8 @@ LONG macdrv_ChangeDisplaySettings(LPDEVMODEW displays, LPCWSTR primary_name, HWN
 {
     LONG ret = DISP_CHANGE_SUCCESSFUL;
     DEVMODEW *mode;
-    int bpp;
     struct macdrv_display *macdrv_displays;
-    int num_displays;
+    int i, bpp, num_displays;
     CFArrayRef display_modes;
     struct display_mode_descriptor *desc;
     CGDisplayModeRef best_display_mode;
@@ -744,29 +743,22 @@ LONG macdrv_ChangeDisplaySettings(LPDEVMODEW displays, LPCWSTR primary_name, HWN
     if (macdrv_get_displays(&macdrv_displays, &num_displays))
         return DISP_CHANGE_FAILED;
 
-    display_modes = copy_display_modes(macdrv_displays[0].displayID, FALSE);
-    if (!display_modes)
-    {
-        macdrv_free_displays(macdrv_displays);
-        return DISP_CHANGE_FAILED;
-    }
-
     bpp = get_default_bpp();
 
-    desc = create_original_display_mode_descriptor(macdrv_displays[0].displayID);
-
-    for (mode = displays; mode->dmSize && !ret; mode = NEXT_DEVMODEW(mode))
+    for (mode = displays, i = 0; mode->dmSize && !ret && i <= num_displays; mode = NEXT_DEVMODEW(mode), i++)
     {
-        if (wcsicmp(primary_name, mode->dmDeviceName))
-        {
-            FIXME("Changing non-primary adapter settings is currently unsupported.\n");
-            continue;
-        }
         if (is_detached_mode(mode))
         {
             FIXME("Detaching adapters is currently unsupported.\n");
             continue;
         }
+
+        if (!(display_modes = copy_display_modes(macdrv_displays[i].displayID, FALSE)))
+        {
+            ret = DISP_CHANGE_FAILED;
+            break;
+        }
+        desc = create_original_display_mode_descriptor(macdrv_displays[i].displayID);
 
         if (mode->dmBitsPerPel != bpp)
             TRACE("using default %d bpp instead of caller's request %d bpp\n", bpp, mode->dmBitsPerPel);
@@ -783,17 +775,20 @@ LONG macdrv_ChangeDisplaySettings(LPDEVMODEW displays, LPCWSTR primary_name, HWN
                 bpp, mode->dmDisplayFrequency);
             ret = DISP_CHANGE_BADMODE;
         }
-        else if (!macdrv_set_display_mode(&macdrv_displays[0], best_display_mode))
+        else if (!macdrv_set_display_mode(&macdrv_displays[i], best_display_mode))
         {
             WARN("Failed to set display mode\n");
             ret = DISP_CHANGE_FAILED;
         }
+
+        free_display_mode_descriptor(desc);
+        CFRelease(display_modes);
     }
 
-    free_display_mode_descriptor(desc);
-    CFRelease(display_modes);
     macdrv_free_displays(macdrv_displays);
 
+    if (!ret)
+        macdrv_init_display_devices(TRUE);
     return ret;
 }
 
