@@ -6,6 +6,8 @@
   interruptible: true
   variables:
     GIT_DEPTH: 0
+    GECKO_VER: 2.47.3
+    MONO_VER: 7.4.0
   cache:
     - paths:
         - ccache/
@@ -22,11 +24,18 @@
     - export CCACHE_COMPILERCHECK=content
     - export PATH="/usr/lib/ccache:$PATH"
     - git config --global --add safe.directory $CI_PROJECT_DIR
-    - mkdir -p build32 build64
+    - mkdir -p build32 build64 $HOME/.cache/wine
     - rm -fr .git/rebase-merge  # in case a previous CI run failed in git rebase
+    - rm -fr .wine64 .wine32
+    - test -f $HOME/.cache/wine/wine-gecko-$GECKO_VER-x86.msi || curl -o $HOME/.cache/wine/wine-gecko-$GECKO_VER-x86.msi https://dl.winehq.org/wine/wine-gecko/$GECKO_VER/wine-gecko-$GECKO_VER-x86.msi
+    - test -f $HOME/.cache/wine/wine-gecko-$GECKO_VER-x86_64.msi || curl -o $HOME/.cache/wine/wine-gecko-$GECKO_VER-x86_64.msi https://dl.winehq.org/wine/wine-gecko/$GECKO_VER/wine-gecko-$GECKO_VER-x86_64.msi
+    - test -f $HOME/.cache/wine/wine-mono-$MONO_VER-x86.msi || curl -o $HOME/.cache/wine/wine-mono-$MONO_VER-x86.msi https://dl.winehq.org/wine/wine-mono/$MONO_VER/wine-mono-$MONO_VER-x86.msi
 
 build-linux:
   extends: .wine-build
+  image: docker.io/rbernon/winehq
+  tags:
+    - local
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
   artifacts:
@@ -34,6 +43,20 @@ build-linux:
     paths:
       - usr/local/
   script:
+    - export DISPLAY=:0
+    - export LC_ALL=C.UTF-8
+    - export WINEDEBUG=err-all,fixme-all
+    - |
+      cat >$HOME/xorg.conf << EOF
+      Section "Device"
+        Identifier "dummy"
+        Driver "dummy"
+        VideoRam 32768
+      EndSection
+      EOF
+    - echo 'exec /usr/bin/fvwm -f config -c "Style * MwmDecor" 2>/dev/null' >$HOME/.xinitrc
+    - startx -- -config $HOME/xorg.conf $DISPLAY &
+    - pulseaudio --start --exit-idle-time=-1
     - git rebase $CI_MERGE_REQUEST_DIFF_BASE_SHA --exec ./tools/gitlab/build-linux
 
 build-mac:
