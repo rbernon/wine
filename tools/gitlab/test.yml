@@ -40,22 +40,14 @@
     - ln -sf $BASEDIR/wine-mono-$MONO_VER-x86.msi usr/local/share/wine/mono
     - pulseaudio --start --exit-idle-time=-1
     - wine wineboot.exe -u
+    - wine reg add HKCU\\Software\\Wine\\Drivers /v Graphics /d mac,x11,null /f
     - wineserver -w
 
 test-linux-64:
   extends: .wine-test
-  variables:
-    INCLUDE_TESTS: "dinput"
-  rules:
-    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
-  needs:
-    - job: build-linux
-  script:
-    - export WINETEST_COLOR=1
-    - wine usr/local/lib/wine/x86_64-windows/winetest.exe -q -q -o - -t gitlab -u $CI_JOB_URL $INCLUDE_TESTS
-
-test-linux-32:
-  extends: .wine-test
+  image: docker.io/rbernon/winehq
+  tags:
+    - local
   variables:
     EXCLUDE_TESTS: "d3d10core:d3d10core d3d11:d3d11 d3d8:device d3d8:visual d3d9:d3d9ex d3d9:device d3d9:visual"
   rules:
@@ -64,7 +56,24 @@ test-linux-32:
     - job: build-linux
   script:
     - export WINETEST_COLOR=1
-    - wine usr/local/lib/wine/i386-windows/winetest.exe -q -q -o - -t gitlab -u $CI_JOB_URL -n $EXCLUDE_TESTS
+    - wine usr/local/lib/wine/x86_64-windows/winetest.exe -q -q -o - -t gitlab -u $CI_JOB_URL -n $EXCLUDE_TESTS
+
+test-nulldrv-64:
+  extends: .wine-test
+  image: docker.io/rbernon/winehq
+  tags:
+    - local
+  variables:
+    INCLUDE_TESTS: user32
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+  needs:
+    - job: build-linux
+  allow_failure: true
+  script:
+    - export DISPLAY=
+    - export WINETEST_COLOR=1
+    - wine usr/local/lib/wine/x86_64-windows/winetest.exe -q -q -o - -t gitlab -u $CI_JOB_URL $INCLUDE_TESTS
 
 debian-32:
   extends: .wine-test
