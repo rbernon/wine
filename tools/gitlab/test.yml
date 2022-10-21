@@ -45,6 +45,9 @@
 
 test-linux-64:
   extends: .wine-test
+  image: docker.io/rbernon/winehq
+  tags:
+    - local
   variables:
     INCLUDE_TESTS: "dinput"
   rules:
@@ -57,6 +60,9 @@ test-linux-64:
 
 test-linux-32:
   extends: .wine-test
+  image: docker.io/rbernon/winehq
+  tags:
+    - local
   variables:
     EXCLUDE_TESTS: "d3d11:d3d11 d3d9:d3d9ex d3d9:visual"
   rules:
