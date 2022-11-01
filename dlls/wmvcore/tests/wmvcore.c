@@ -491,7 +491,8 @@ static HRESULT WINAPI stream_Read(IStream *iface, void *data, ULONG size, ULONG 
 {
     struct teststream *stream = impl_from_IStream(iface);
 
-    trace("%04lx: IStream::Read(size %lu)\n", GetCurrentThreadId(), size);
+    if (winetest_debug > 2)
+        trace("%04lx: IStream::Read(size %lu)\n", GetCurrentThreadId(), size);
 
     if (!stream->input_tid)
         stream->input_tid = GetCurrentThreadId();
@@ -519,7 +520,8 @@ static HRESULT WINAPI stream_Seek(IStream *iface, LARGE_INTEGER offset, DWORD me
     struct teststream *stream = impl_from_IStream(iface);
     LARGE_INTEGER size;
 
-    trace("%04lx: IStream::Seek(offset %I64u, method %#lx)\n", GetCurrentThreadId(), offset.QuadPart, method);
+    if (winetest_debug > 2)
+        trace("%04lx: IStream::Seek(offset %I64u, method %#lx)\n", GetCurrentThreadId(), offset.QuadPart, method);
 
     if (!stream->input_tid)
         stream->input_tid = GetCurrentThreadId();
@@ -583,7 +585,8 @@ static HRESULT WINAPI stream_Stat(IStream *iface, STATSTG *stat, DWORD flags)
     struct teststream *stream = impl_from_IStream(iface);
     LARGE_INTEGER size;
 
-    trace("%04lx: IStream::Stat(flags %#lx)\n", GetCurrentThreadId(), flags);
+    if (winetest_debug > 1)
+        trace("%04lx: IStream::Stat(flags %#lx)\n", GetCurrentThreadId(), flags);
 
     if (!stream->input_tid)
         stream->input_tid = GetCurrentThreadId();
@@ -1898,8 +1901,9 @@ static HRESULT WINAPI callback_OnStatus(IWMReaderCallback *iface, WMT_STATUS sta
     struct callback *callback = impl_from_IWMReaderCallback(iface);
     DWORD ret;
 
-    trace("%lu: %04lx: IWMReaderCallback::OnStatus(status %u, hr %#lx, type %#x, value %p)\n",
-            GetTickCount(), GetCurrentThreadId(), status, hr, type, value);
+    if (winetest_debug > 1)
+        trace("%lu: %04lx: IWMReaderCallback::OnStatus(status %u, hr %#lx, type %#x, value %p)\n",
+                GetTickCount(), GetCurrentThreadId(), status, hr, type, value);
 
     switch (status)
     {
@@ -2047,8 +2051,9 @@ static HRESULT WINAPI callback_OnSample(IWMReaderCallback *iface, DWORD output,
     struct callback *callback = impl_from_IWMReaderCallback(iface);
     struct teststream *stream = callback->stream;
 
-    trace("%lu: %04lx: IWMReaderCallback::OnSample(output %lu, time %I64u, duration %I64u, flags %#lx)\n",
-            GetTickCount(), GetCurrentThreadId(), output, time, duration, flags);
+    if (winetest_debug > 1)
+        trace("%lu: %04lx: IWMReaderCallback::OnSample(output %lu, time %I64u, duration %I64u, flags %#lx)\n",
+                GetTickCount(), GetCurrentThreadId(), output, time, duration, flags);
 
     /* uncompressed samples are slightly out of order because of decoding delay */
     ok(callback->last_pts[output] <= time, "got time %I64d\n", time);
@@ -2122,8 +2127,9 @@ static HRESULT WINAPI callback_advanced_OnStreamSample(IWMReaderCallbackAdvanced
     struct teststream *stream = callback->stream;
     DWORD output = 2 - stream_number;
 
-    trace("%lu: %04lx: IWMReaderCallbackAdvanced::OnStreamSample(stream %u, pts %I64u, duration %I64u, flags %#lx)\n",
-            GetTickCount(), GetCurrentThreadId(), stream_number, pts, duration, flags);
+    if (winetest_debug > 1)
+        trace("%lu: %04lx: IWMReaderCallbackAdvanced::OnStreamSample(stream %u, pts %I64u, duration %I64u, flags %#lx)\n",
+                GetTickCount(), GetCurrentThreadId(), stream_number, pts, duration, flags);
 
     ok(callback->last_pts[output] <= pts, "got pts %I64d\n", pts);
     callback->last_pts[output] = pts;
@@ -2165,8 +2171,9 @@ static HRESULT WINAPI callback_advanced_OnTime(IWMReaderCallbackAdvanced *iface,
     struct callback *callback = impl_from_IWMReaderCallbackAdvanced(iface);
     DWORD ret;
 
-    trace("%lu: %04lx: IWMReaderCallbackAdvanced::OnTime(time %I64u)\n",
-            GetTickCount(), GetCurrentThreadId(), time);
+    if (winetest_debug > 1)
+        trace("%lu: %04lx: IWMReaderCallbackAdvanced::OnTime(time %I64u)\n",
+                GetTickCount(), GetCurrentThreadId(), time);
 
     ok(callback->callback_tid == GetCurrentThreadId(), "got wrong thread\n");
 
@@ -2201,8 +2208,9 @@ static HRESULT WINAPI callback_advanced_AllocateForStream(IWMReaderCallbackAdvan
     struct teststream *stream = callback->stream;
     struct buffer *object;
 
-    trace("%lu: %04lx: IWMReaderCallbackAdvanced::AllocateForStream(output %u, size %lu)\n",
-            GetTickCount(), GetCurrentThreadId(), stream_number, size);
+    if (winetest_debug > 1)
+        trace("%lu: %04lx: IWMReaderCallbackAdvanced::AllocateForStream(output %u, size %lu)\n",
+                GetTickCount(), GetCurrentThreadId(), stream_number, size);
 
     ok(callback->callback_tid != GetCurrentThreadId(), "got wrong thread\n");
     ok(callback->output_tid[stream_number - 1] != GetCurrentThreadId(), "got wrong thread\n");
@@ -2243,8 +2251,9 @@ static HRESULT WINAPI callback_advanced_AllocateForOutput(IWMReaderCallbackAdvan
     struct teststream *stream = callback->stream;
     struct buffer *object;
 
-    trace("%lu: %04lx: IWMReaderCallbackAdvanced::AllocateForOutput(output %lu, size %lu)\n",
-            GetTickCount(), GetCurrentThreadId(), output, size);
+    if (winetest_debug > 1)
+        trace("%lu: %04lx: IWMReaderCallbackAdvanced::AllocateForOutput(output %lu, size %lu)\n",
+                GetTickCount(), GetCurrentThreadId(), output, size);
 
     ok(callback->callback_tid != GetCurrentThreadId(), "got wrong thread\n");
     ok(callback->output_tid[output] != GetCurrentThreadId(), "got wrong thread\n");
@@ -2324,9 +2333,6 @@ static HRESULT WINAPI callback_allocator_AllocateForStreamEx(IWMReaderAllocatorE
     struct callback *callback = impl_from_IWMReaderAllocatorEx(iface);
     struct buffer *object;
 
-    trace("%lu: %04lx: IWMReaderCallbackAdvanced::AllocateForStreamEx(stream %u, size %lu)\n",
-            GetTickCount(), GetCurrentThreadId(), stream_number, size);
-
     ok(callback->allocated_compressed_samples, "Unexpected call.\n");
     ok(stream_number, "got stream_number %u.\n", stream_number);
     ok(!flags, "got flags %#lx.\n", flags);
@@ -2352,9 +2358,6 @@ static HRESULT WINAPI callback_allocator_AllocateForOutputEx(IWMReaderAllocatorE
 {
     struct callback *callback = impl_from_IWMReaderAllocatorEx(iface);
     struct buffer *object;
-
-    trace("%lu: %04lx: IWMReaderCallbackAdvanced::AllocateForOutput(output %lu, size %lu)\n",
-            GetTickCount(), GetCurrentThreadId(), output, size);
 
     ok(callback->allocated_samples, "Unexpected call.\n");
     ok(!flags, "got flags %#lx.\n", flags);
