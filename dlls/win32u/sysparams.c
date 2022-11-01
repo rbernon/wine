@@ -2011,7 +2011,7 @@ static struct display_device *find_monitor_device( struct display_device *adapte
 }
 
 /* display_lock mutex must be held */
-static struct display_device *find_adapter_device_by_id( DWORD index )
+static struct display_device *find_adapter_device_by_index( DWORD index )
 {
     struct adapter *adapter;
 
@@ -2036,6 +2036,17 @@ static struct display_device *find_adapter_device_by_name( UNICODE_STRING *name 
     return NULL;
 }
 
+/* display_lock mutex must be held */
+static struct display_device *find_primary_adapter_device(void)
+{
+    struct adapter *adapter;
+
+    LIST_FOR_EACH_ENTRY(adapter, &adapters, struct adapter, entry)
+        if (adapter->dev.state_flags & DISPLAY_DEVICE_PRIMARY_DEVICE) return &adapter->dev;
+
+    return find_adapter_device_by_index( 0 );
+}
+
 /* Find and acquire the adapter matching name, or primary adapter if name is NULL.
  * If not NULL, the returned adapter needs to be released with adapter_release.
  */
@@ -2047,7 +2058,7 @@ static struct adapter *find_adapter( UNICODE_STRING *name )
     if (!lock_display_devices()) return NULL;
 
     if (name && name->Length) device = find_adapter_device_by_name( name );
-    else device = find_adapter_device_by_id( 0 ); /* use primary adapter */
+    else device = find_primary_adapter_device();
 
     if (!device) adapter = NULL;
     else adapter = adapter_acquire( CONTAINING_RECORD( device, struct adapter, dev ) );
@@ -2070,7 +2081,7 @@ NTSTATUS WINAPI NtUserEnumDisplayDevices( UNICODE_STRING *device, DWORD index,
 
     if (!lock_display_devices()) return STATUS_UNSUCCESSFUL;
 
-    if (!device || !device->Length) found = find_adapter_device_by_id( index );
+    if (!device || !device->Length) found = find_adapter_device_by_index( index );
     else if ((found = find_adapter_device_by_name( device ))) found = find_monitor_device( found, index );
 
     if (found)
@@ -2504,7 +2515,7 @@ static LONG apply_display_settings( const WCHAR *devname, const DEVMODEW *devmod
 
     place_all_displays( displays );
 
-    if (!(primary = find_adapter_device_by_id( 0 ))) primary_name[0] = 0;
+    if (!(primary = find_primary_adapter_device())) primary_name[0] = 0;
     else wcscpy( primary_name, primary->device_name );
 
     if ((ret = user_driver->pChangeDisplaySettings( displays, primary_name, hwnd, flags, lparam )) == E_NOTIMPL)
