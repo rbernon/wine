@@ -1661,8 +1661,8 @@ static void build_windows_import_lib( const char *lib_name, DLLSPEC *spec, struc
     dll_name = encode_dll_name( spec->file_name );
     for (i = 0; i < strlen( dll_name ); ++i) if (dll_name[i] == '.') dll_name[i] = '_';
 
-    import_desc = strmake( "__wine_import_%s_desc", dll_name );
-    import_name = strmake( "__wine_import_%s_name", dll_name );
+    import_desc = strmake( "__IMPORT_DESCRIPTOR_%s", dll_name );
+    import_name = strmake( "%s_NULL_THUNK_DATA", dll_name );
     delay_load = strmake( "__wine_delay_load_%s", dll_name );
 
     new_output_as_file();
@@ -1756,10 +1756,10 @@ static void build_windows_import_lib( const char *lib_name, DLLSPEC *spec, struc
 
         output( "%s\n", asm_globl( import_desc ) );
         output( "\t.long 1\n" );                         /* DllAttributes */
-        output_rva( "%s", asm_name( import_name ) );     /* DllNameRVA */
-        output_rva( "__DLL_HANDLE_%s", dll_name );       /* ModuleHandleRVA */
-        output_rva( "__IAT_%s", dll_name );              /* ImportAddressTableRVA */
-        output_rva( "__INT_%s", dll_name );              /* ImportNameTableRVA */
+        output_rva( ".L__wine_import_name" );            /* DllNameRVA */
+        output_rva( ".L__wine_delay_import_handle" );    /* ModuleHandleRVA */
+        output_rva( ".L__wine_import_addrs" );           /* ImportAddressTableRVA */
+        output_rva( ".L__wine_import_names" );           /* ImportNameTableRVA */
         output( "\t.long 0\n" );                         /* BoundImportAddressTableRVA */
         output( "\t.long 0\n" );                         /* UnloadInformationTableRVA */
         output( "\t.long 0\n" );                         /* TimeDateStamp */
@@ -1784,33 +1784,58 @@ static void build_windows_import_lib( const char *lib_name, DLLSPEC *spec, struc
         output_rva( ".L__wine_import_names" );           /* OriginalFirstThunk */
         output( "\t.long 0\n" );                         /* TimeDateStamp */
         output( "\t.long 0\n" );                         /* ForwarderChain */
-        output_rva( "%s", asm_name( import_name ) );     /* Name */
+        output_rva( ".L__wine_import_name" );            /* Name */
         output_rva( ".L__wine_import_addrs" );           /* FirstThunk */
 
-        output( "\n\t.section .idata$4\n" );
-        output( ".L__wine_import_names:\n" );            /* OriginalFirstThunk head */
+    output( "\n\t.section .idata$6\n" );
+    output( "\n\t.align 2\n" );
+    output( ".L__wine_import_name:\n" );
+    output( "\t%s \"%s\"\n", get_asm_string_keyword(), spec->file_name );
+
+    output( "\n\t.section .idata$4\n" );
+    if (strendswith( lib_name, ".delay.a" ))
+        output( "\t%s 0\n", get_asm_ptr_keyword() );     /* OriginalFirstThunk tail */
+    output( ".L__wine_import_names:\n" );                /* OriginalFirstThunk head */
 
         output( "\n\t.section .idata$5\n" );
         output( ".L__wine_import_addrs:\n" );            /* FirstThunk head */
     }
+
+    /* reference name symbol from tail object */
+    output( "\n\t.globl %s\n", asm_name( "__NULL_IMPORT_DESCRIPTOR" ) );
+    output( "\n\t.globl %s\n", asm_name( import_name ) );
 
     /* _head suffix to keep this object sections first */
     assemble_files( strmake( "%s_head", dll_name ) );
     strarray_addall( &objs, as_files );
     as_files = empty_strarray;
 
+    new_output_as_file( strmake( "%s_tail.s", dll_name ) );
+
+    output( "\n\t.section .idata$3\n" );
+    output( "%s\n", asm_globl( "__NULL_IMPORT_DESCRIPTOR" ) );
+    output( "\t.long 0\n" );                         /* OriginalFirstThunk */
+    output( "\t.long 0\n" );                         /* TimeDateStamp */
+    output( "\t.long 0\n" );                         /* ForwarderChain */
+    output( "\t.long 0\n" );                         /* Name */
+    output( "\t.long 0\n" );                         /* FirstThunk */
+
+    /* _tail suffix to keep this object sections last */
+    assemble_files( strmake( "%s_tail_null_desc", dll_name ) );
+    strarray_addall( &objs, as_files );
+    as_files = empty_strarray;
+
     new_output_as_file();
 
     output( "\n\t.section .idata$4\n" );
-    output( "\t%s 0\n", get_asm_ptr_keyword() );         /* OriginalFirstThunk tail */
-    output( "\n\t.section .idata$5\n" );
-    output( "\t%s 0\n", get_asm_ptr_keyword() );         /* FirstThunk tail */
-    output( "\n\t.section .idata$7\n" );
     output( "%s\n", asm_globl( import_name ) );
-    output( "\t%s \"%s\"\n", get_asm_string_keyword(), spec->file_name );
+    output( "\t%s 0\n", get_asm_ptr_keyword() );     /* OriginalFirstThunk tail */
+
+    output( "\n\t.section .idata$5\n" );
+    output( "\t%s 0\n", get_asm_ptr_keyword() );     /* FirstThunk tail */
 
     /* _tail suffix to keep this object sections last */
-    assemble_files( strmake( "%s_tail", dll_name ) );
+    assemble_files( strmake( "%s_tail_null_thunk", dll_name ) );
     strarray_addall( &objs, as_files );
     as_files = empty_strarray;
 
