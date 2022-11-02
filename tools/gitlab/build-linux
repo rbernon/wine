@@ -3,7 +3,7 @@
 echo "Building $(git log -1)"
 echo "---"
 
-set -Eeuxo pipefail
+set -Eeux
 
 ./tools/make_requests
 ./tools/make_makefiles
@@ -18,6 +18,16 @@ cd build32
 ../configure -q -C --enable-werror --with-mingw
 make -s -j$(nproc)
 cd ..
+
+TESTS="$(git diff --name-only $CI_MERGE_REQUEST_DIFF_BASE_SHA dlls/ programs/ | \
+         sed -re 's:^([^/]+/[^/]+).*$:\1/tests:' | sort -u | \
+         xargs -r ls -d 2>/dev/null | sed -re 's:/tests$:/tests/check:')"
+
+if ! test -z "$TESTS"
+then
+    WINEPREFIX=$PWD/.wine64 WINEARCH=win64 make -C build64 -s $TESTS
+    WINEPREFIX=$PWD/.wine32 WINEARCH=win32 make -C build32 -s $TESTS
+fi
 
 if ! test -s .git/rebase-merge/git-rebase-todo
 then
