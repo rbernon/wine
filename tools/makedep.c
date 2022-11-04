@@ -2432,9 +2432,12 @@ static void output_winegcc_command( struct makefile *make, unsigned int arch )
         output_filename( tools_path( make, "winebuild" ));
     }
     output_filenames( target_flags[arch] );
-    if (arch) return;
-    output_filename( "-mno-cygwin" );
-    output_filenames( lddll_flags );
+    if (arch) output_filenames( dll_flags );
+    else
+    {
+        output_filename( "-mno-cygwin" );
+        output_filenames( lddll_flags );
+    }
 }
 
 
@@ -3108,7 +3111,6 @@ static void output_source_spec( struct makefile *make, struct incl_file *source,
         output( "\n" );
         output_winegcc_command( make, arch );
         output_filename( "-s" );
-        output_filenames( dll_flags );
         if (arch) output_filenames( get_expanded_arch_var_array( make, "EXTRADLLFLAGS", arch ));
         output_filename( "-shared" );
         output_filename( source->filename );
