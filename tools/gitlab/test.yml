@@ -53,19 +53,6 @@
     - wine reg add HKCU\\Software\\Wine\\Drivers /v Graphics /d mac,x11,null /f
     - wineserver -w
 
-test-linux-32:
-  extends: .wine-test
-  image: docker.io/rbernon/winehq
-  tags:
-    - local
-  rules:
-    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
-  needs:
-    - job: build-linux
-  script:
-    - export WINETEST_COLOR=1
-    - wine usr/local/lib/wine/i386-windows/winetest.exe -q -q -o - -t gitlab -u $CI_JOB_URL -n $EXCLUDE_TESTS $EXTRA_TESTS
-
 test-linux-64:
   extends: .wine-test
   image: docker.io/rbernon/winehq
