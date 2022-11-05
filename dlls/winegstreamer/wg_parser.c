@@ -102,6 +102,7 @@ struct wg_parser
 
     struct input_cache_chunk input_cache_chunks[4];
 
+    bool using_qtdemux;
     bool use_mediaconv;
     bool use_opengl;
     GstContext *context;
@@ -128,6 +129,8 @@ struct wg_parser_stream
 
     uint64_t duration;
     gchar *tags[WG_PARSER_TAG_COUNT];
+    gchar *stream_id;
+    int seq_id;
 };
 
 static struct wg_parser *get_parser(wg_parser_t parser)
@@ -597,6 +600,8 @@ static GstAutoplugSelectResult autoplug_select_cb(GstElement *bin, GstPad *pad,
         GST_INFO("Skipping \"Proton video converter\".");
         return GST_AUTOPLUG_SELECT_SKIP;
     }
+    if (!strcmp(name, "QuickTime demuxer"))
+        parser->using_qtdemux = true;
 
     if (!parser->sink_caps && strstr(klass, GST_ELEMENT_FACTORY_KLASS_DEMUXER))
         parser->sink_caps = g_strdup(gst_structure_get_name(gst_caps_get_structure(caps, 0)));
@@ -632,11 +637,37 @@ static GValueArray *autoplug_sort_cb(GstElement *bin, GstPad *pad,
     return ret;
 }
 
+static int streams_compare(const void *comp1, const void *comp2)
+{
+    const struct wg_parser_stream * const *stream1 = comp1;
+    const struct wg_parser_stream * const *stream2 = comp2;
+    const char *s1, *s2;
+    int ret;
+
+    s1 = (*stream1)->stream_id ? strchr((*stream1)->stream_id, '/') : NULL;
+    s2 = (*stream2)->stream_id ? strchr((*stream2)->stream_id, '/') : NULL;
+
+    if (!s1 || !s2)
+    {
+        if (!s1 && !s2)
+            return (*stream1)->seq_id - (*stream2)->seq_id;
+        if (!s1)
+            return -1;
+        return 1;
+    }
+    if ((ret = strcmp(s1, s2)))
+        return ret;
+    return (*stream1)->seq_id - (*stream2)->seq_id;
+}
+
 static void no_more_pads_cb(GstElement *element, gpointer user)
 {
     struct wg_parser *parser = user;
 
     GST_DEBUG("parser %p.", parser);
+
+    if (parser->using_qtdemux)
+        qsort(parser->streams, parser->stream_count, sizeof(*parser->streams), streams_compare);
 
     pthread_mutex_lock(&parser->mutex);
     parser->no_more_pads = true;
@@ -893,7 +924,7 @@ static gboolean sink_query_cb(GstPad *pad, GstObject *parent, GstQuery *query)
     }
 }
 
-static struct wg_parser_stream *create_stream(struct wg_parser *parser)
+static struct wg_parser_stream *create_stream(struct wg_parser *parser, char *id)
 {
     struct wg_parser_stream *stream, **new_array;
     char pad_name[19];
@@ -907,6 +938,8 @@ static struct wg_parser_stream *create_stream(struct wg_parser *parser)
 
     gst_segment_init(&stream->segment, GST_FORMAT_UNDEFINED);
 
+    stream->stream_id = id;
+    stream->seq_id = parser->stream_count;
     stream->parser = parser;
     stream->number = parser->stream_count;
     stream->no_more_pads = true;
@@ -951,6 +984,10 @@ static void free_stream(struct wg_parser_stream *stream)
         if (stream->tags[i])
             g_free(stream->tags[i]);
     }
+
+    if (stream->stream_id)
+        g_free(stream->stream_id);
+
     free(stream);
 }
 
@@ -1152,7 +1189,7 @@ static void pad_added_cb(GstElement *element, GstPad *pad, gpointer user)
     if (gst_pad_is_linked(pad))
         return;
 
-    if (!(stream = create_stream(parser)))
+    if (!(stream = create_stream(parser, gst_pad_get_stream_id(pad))))
         return;
     if (!(stream->codec_caps = gst_pad_query_caps(pad, NULL)))
         return;
@@ -2090,7 +2127,7 @@ static BOOL wave_parser_init_gst(struct wg_parser *parser)
     if (!link_src_to_element(parser->my_src, element))
         return FALSE;
 
-    if (!(stream = create_stream(parser)))
+    if (!(stream = create_stream(parser, NULL)))
         return FALSE;
 
     if (!link_element_to_sink(element, stream->my_sink))
