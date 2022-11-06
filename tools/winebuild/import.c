@@ -1678,6 +1678,7 @@ static void build_windows_import_lib( const char *lib_name, DLLSPEC *spec, struc
         switch (target.cpu)
         {
         case CPU_i386:
+            import_desc = strmake( "_DELAY_IMPORT_DESCRIPTOR_%s", dll_name );
             output( "\tpushl %%ecx\n" );
             output_cfi( ".cfi_adjust_cfa_offset 4" );
             output( "\tpushl %%edx\n" );
@@ -1694,6 +1695,7 @@ static void build_windows_import_lib( const char *lib_name, DLLSPEC *spec, struc
             output( "\tjmp *%%eax\n" );
             break;
         case CPU_x86_64:
+            import_desc = strmake( "__DELAY_IMPORT_DESCRIPTOR_%s", dll_name );
             output_cfi( ".seh_proc %s", asm_name( delay_load ) );
             output( "\tsubq $0x48, %%rsp\n" );
             output_cfi( ".cfi_adjust_cfa_offset 0x48" );
@@ -1747,36 +1749,36 @@ static void build_windows_import_lib( const char *lib_name, DLLSPEC *spec, struc
             break;
         }
         output_cfi( ".cfi_endproc" );
-        output_function_size( delay_load );
-        output_gnu_stack_note();
 
         output( "\n\t.data\n" );
-        output( ".L__wine_delay_import_handle:\n" );
+        output( "__DLL_HANDLE_%s:\n", dll_name );
         output( "\t%s 0\n", get_asm_ptr_keyword() );
 
         output( "%s\n", asm_globl( import_desc ) );
         output( "\t.long 1\n" );                         /* DllAttributes */
         output_rva( "%s", asm_name( import_name ) );     /* DllNameRVA */
-        output_rva( ".L__wine_delay_import_handle" );    /* ModuleHandleRVA */
-        output_rva( ".L__wine_import_addrs" );           /* ImportAddressTableRVA */
-        output_rva( ".L__wine_import_names" );           /* ImportNameTableRVA */
+        output_rva( "__DLL_HANDLE_%s", dll_name );       /* ModuleHandleRVA */
+        output_rva( "__IAT_%s", dll_name );              /* ImportAddressTableRVA */
+        output_rva( "__INT_%s", dll_name );              /* ImportNameTableRVA */
         output( "\t.long 0\n" );                         /* BoundImportAddressTableRVA */
         output( "\t.long 0\n" );                         /* UnloadInformationTableRVA */
         output( "\t.long 0\n" );                         /* TimeDateStamp */
 
         output( "\n\t.section .idata$5\n" );
         output( "\t%s 0\n", get_asm_ptr_keyword() );     /* FirstThunk tail */
-        output( ".L__wine_import_addrs:\n" );
+        output( "__IAT_%s:\n", dll_name );
 
         output( "\n\t.section .idata$4\n" );
         output( "\t%s 0\n", get_asm_ptr_keyword() );     /* OriginalFirstThunk tail */
-        output( ".L__wine_import_names:\n" );
+        output( "__INT_%s:\n", dll_name );
 
         /* required to avoid internal linker errors with some binutils versions */
         output( "\n\t.section .idata$2\n" );
     }
     else
     {
+        import_desc = strmake( "__wine_import_%s_desc", dll_name );
+
         output( "\n\t.section .idata$2\n" );
         output( "%s\n", asm_globl( import_desc ) );
         output_rva( ".L__wine_import_names" );           /* OriginalFirstThunk */
@@ -1915,7 +1917,8 @@ static void build_windows_import_lib( const char *lib_name, DLLSPEC *spec, struc
 
             /* reference head object to always pull its sections */
             output( "\n\t.section .idata$7\n" );
-            output_rva( "%s", asm_name( import_desc ) );
+            if (!strendswith( lib_name, ".delay.a" ))
+                output_rva( "%s", asm_name( import_desc ) );
 
             free( imp_name );
             break;
