@@ -1600,7 +1600,7 @@ __ASM_GLOBAL_FUNC( call_user_mode_callback,
                    "movq %rbp,0xe0(%rsp)\n\t"
                    __ASM_CFI(".cfi_rel_offset %rbp,0xe0\n\t")
                    "leaq 0xe0(%rsp),%rbp\n\t"
-                   __ASM_CFI(".cfi_def_cfa_register %rbp\n\t")
+                   __ASM_CFI(".cfi_def_cfa %rbp,0x10\n\t")
                    "movq %rbx,-0x08(%rbp)\n\t"
                    __ASM_CFI(".cfi_rel_offset %rbx,-0x08\n\t")
                    "movq %rsi,-0x10(%rbp)\n\t"
