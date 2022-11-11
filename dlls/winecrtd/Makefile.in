@@ -1,0 +1,7 @@
+EXTRADEFS = -DWINE_NO_LONG_TYPES
+STATICLIB = libwinecrtd.a
+
+C_SRCS = \
+	debug.c \
+	dbgstr.c \
+	dbgstr_mf.c
