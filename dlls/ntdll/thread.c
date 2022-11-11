@@ -36,6 +36,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(thread);
 WINE_DECLARE_DEBUG_CHANNEL(relay);
 WINE_DECLARE_DEBUG_CHANNEL(pid);
 WINE_DECLARE_DEBUG_CHANNEL(timestamp);
+WINE_DECLARE_DEBUG_CHANNEL(microsecs);
 
 struct _KUSER_SHARED_DATA *user_shared_data = (void *)0x7ffe0000;
 
@@ -132,7 +133,7 @@ const char * __cdecl __wine_dbg_strdup( const char *str )
  *		__wine_dbg_header  (NTDLL.@)
  */
 int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
-                               const char *function )
+                               const struct __wine_debug_context *context )
 {
     static const char * const classes[] = { "fixme", "err", "warn", "trace" };
     struct debug_info *info = get_info();
@@ -143,16 +144,44 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
     /* only print header if we are at the beginning of the line */
     if (info->out_pos) return 0;
 
-    if (TRACE_ON(timestamp))
+    if (TRACE_ON(microsecs))
+    {
+        LARGE_INTEGER counter, frequency, microsecs;
+        NtQueryPerformanceCounter(&counter, &frequency);
+        microsecs.QuadPart = counter.QuadPart * 1000000 / frequency.QuadPart;
+        pos += sprintf( pos, "%3u.%06u:", (unsigned int)(microsecs.QuadPart / 1000000), (unsigned int)(microsecs.QuadPart % 1000000) );
+    }
+    else if (TRACE_ON(timestamp))
     {
         ULONG ticks = NtGetTickCount();
         pos += sprintf( pos, "%3lu.%03lu:", ticks / 1000, ticks % 1000 );
     }
-    if (TRACE_ON(pid)) pos += sprintf( pos, "%04lx:", GetCurrentProcessId() );
-    pos += sprintf( pos, "%04lx:", GetCurrentThreadId() );
-    if (function && cls < ARRAY_SIZE( classes ))
-        pos += snprintf( pos, sizeof(info->output) - (pos - info->output), "%s:%s:%s ",
-                         classes[cls], channel->name, function );
+    if (TRACE_ON(pid)) pos += sprintf( pos, "%04x:%4u:", (UINT)GetCurrentProcessId(), (UINT)(ULONG_PTR)NtCurrentTeb()->SystemReserved1[0] );
+    pos += sprintf( pos, "%04x:%4u:", (UINT)GetCurrentThreadId(), (UINT)(ULONG_PTR)NtCurrentTeb()->SystemReserved1[1] );
+    if (context && cls < ARRAY_SIZE( classes ))
+    {
+        const char *tmp, *function, *file;
+        const void *retaddr;
+        int line;
+
+        if (context->compat) function = (const char *)context;
+        else if (context->version != WINE_DEBUG_CONTEXT_VERSION) function = "";
+        else function = context->function;
+
+        if (context->compat || context->version != WINE_DEBUG_CONTEXT_VERSION) file = "";
+        else file = (tmp = strrchr( context->file, '/' )) ? tmp + 1
+                  : (tmp = strrchr( context->file, '\\' )) ? tmp + 1
+                  : context->file;
+
+        if (context->compat || context->version != WINE_DEBUG_CONTEXT_VERSION) line = 0;
+        else line = context->line;
+
+        if (context->compat || context->version != WINE_DEBUG_CONTEXT_VERSION) retaddr = NULL;
+        else retaddr = context->retaddr;
+
+        pos += snprintf( pos, sizeof(info->output) - (pos - info->output), "%012Ix:%s:%s:%s:%d:%s ",
+                         (SIZE_T)retaddr, classes[cls], channel->name, file, line, function );
+    }
     info->out_pos = pos - info->output;
     return info->out_pos;
 }
