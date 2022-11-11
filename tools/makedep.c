@@ -2134,6 +2134,8 @@ static struct strarray add_unix_libraries( const struct makefile *make, struct s
     unsigned int i, j;
 
     if (strcmp( make->unixlib, "ntdll.so" )) strarray_add( &all_libs, "-lntdll" );
+    strarray_add( &all_libs, "-lwinecrtd" );
+
     strarray_addall( &all_libs, get_expanded_make_var_array( make, "UNIX_LIBS" ));
 
     for (i = 0; i < all_libs.count; i++)
@@ -2144,8 +2146,11 @@ static struct strarray add_unix_libraries( const struct makefile *make, struct s
         {
             for (j = 0; j < subdirs.count; j++)
             {
+                struct makefile *submake;
                 if (make == submakes[j]) continue;
                 if ((lib = get_native_unix_lib( submakes[j], all_libs.str[i] + 2 ))) break;
+                if (!(submake = get_static_lib( all_libs.str[i] + 2, 0 )) || !submake->staticlib) continue;
+                if ((lib = obj_dir_path( submake, strmake( "lib%s.a", all_libs.str[i] + 2 )))) break;
             }
         }
         if (lib)
@@ -2220,6 +2225,7 @@ static struct strarray get_default_imports( const struct makefile *make, struct 
         if (is_crt_module( imports.str[i] ))
             crt_dll = imports.str[i];
 
+    strarray_add( &ret, "winecrtd" );
     strarray_add( &ret, "winecrt0" );
     if (crt_dll) strarray_add( &ret, crt_dll );
 
@@ -2353,13 +2359,13 @@ static struct strarray get_shared_lib_names( const char *libname )
  *         get_source_defines
  */
 static struct strarray get_source_defines( struct makefile *make, struct incl_file *source,
-                                           const char *obj )
+                                           const char *obj, int is_cross )
 {
     unsigned int i;
     struct strarray ret = empty_strarray;
 
     strarray_addall( &ret, make->include_args );
-    if (source->use_msvcrt)
+    if (source->use_msvcrt && is_cross)
     {
         strarray_add( &ret, strmake( "-I%s", root_src_dir_path( "include/msvcrt" )));
         for (i = 0; i < make->include_paths.count; i++)
@@ -2737,7 +2743,7 @@ static void output_source_h( struct makefile *make, struct incl_file *source, co
  */
 static void output_source_rc( struct makefile *make, struct incl_file *source, const char *obj )
 {
-    struct strarray defines = get_source_defines( make, source, obj );
+    struct strarray defines = get_source_defines( make, source, obj, 1 );
     const char *po_dir = NULL, *res_file = strmake( "%s.res", obj );
     unsigned int i, arch;
 
@@ -2815,7 +2821,7 @@ static void output_source_res( struct makefile *make, struct incl_file *source, 
  */
 static void output_source_idl( struct makefile *make, struct incl_file *source, const char *obj )
 {
-    struct strarray defines = get_source_defines( make, source, obj );
+    struct strarray defines = get_source_defines( make, source, obj, 1 );
     struct strarray headers = empty_strarray;
     struct strarray multiarch_targets[MAX_ARCHS] = { empty_strarray };
     const char *dest;
@@ -3119,9 +3125,9 @@ static void output_source_spec( struct makefile *make, struct incl_file *source,
  *         output_source_one_arch
  */
 static void output_source_one_arch( struct makefile *make, struct incl_file *source, const char *obj,
-                                    struct strarray defines, struct strarray *targets,
-                                    unsigned int arch, int is_dll_src )
+                                    struct strarray *targets, unsigned int arch, int is_dll_src )
 {
+    struct strarray defines = get_source_defines( make, source, obj, arch != 0 );
     const char *obj_name;
 
     if (arch)
@@ -3163,10 +3169,11 @@ static void output_source_one_arch( struct makefile *make, struct incl_file *sou
         else if (make->module || make->testdll)
         {
             output_filenames( dll_flags );
-            if (source->use_msvcrt) output_filenames( msvcrt_flags );
+            if (source->use_msvcrt && !make->staticlib) output_filenames( msvcrt_flags );
             if (!*dll_ext && make->module && is_crt_module( make->module ))
                 output_filename( "-fno-builtin" );
         }
+        if (make->staticlib) output_filename( "-fPIC" );
     }
     else
     {
@@ -3199,7 +3206,6 @@ static void output_source_one_arch( struct makefile *make, struct incl_file *sou
  */
 static void output_source_default( struct makefile *make, struct incl_file *source, const char *obj )
 {
-    struct strarray defines = get_source_defines( make, source, obj );
     struct strarray targets = empty_strarray;
     int is_dll_src = (make->testdll && strendswith( source->name, ".c" ) &&
                       find_src_file( make, replace_extension( source->name, ".c", ".spec" )));
@@ -3207,7 +3213,7 @@ static void output_source_default( struct makefile *make, struct incl_file *sour
 
     for (arch = 0; arch < archs.count; arch++)
         if (!source->arch || source->arch == arch)
-            output_source_one_arch( make, source, obj, defines, &targets, arch, is_dll_src );
+            output_source_one_arch( make, source, obj, &targets, arch, is_dll_src );
 
     if (source->file->flags & FLAG_GENERATED)
     {
