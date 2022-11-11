@@ -93,7 +93,7 @@ struct async_reader
     CRITICAL_SECTION callback_cs;
     CONDITION_VARIABLE callback_cv;
 
-    bool running;
+    bool opened;
     struct list async_ops;
 
     bool user_clock;
@@ -256,7 +256,7 @@ static bool async_reader_wait_pts(struct async_reader *reader, QWORD pts)
         EnterCriticalSection(&reader->callback_cs);
     }
 
-    while (reader->running && list_empty(&reader->async_ops))
+    while (reader->opened && list_empty(&reader->async_ops))
     {
         if (!(timeout = async_reader_get_wait_timeout(reader, pts)))
             return true;
@@ -302,7 +302,7 @@ static void callback_thread_run(struct async_reader *reader)
     static const DWORD zero;
     HRESULT hr = S_OK;
 
-    while (reader->running && list_empty(&reader->async_ops))
+    while (reader->opened && list_empty(&reader->async_ops))
     {
         struct sample sample;
 
@@ -362,7 +362,7 @@ static DWORD WINAPI async_reader_callback_thread(void *arg)
 
     EnterCriticalSection(&reader->callback_cs);
 
-    while (reader->running)
+    while (reader->opened)
     {
         if ((entry = list_head(&reader->async_ops)))
         {
@@ -404,14 +404,14 @@ static DWORD WINAPI async_reader_callback_thread(void *arg)
                     EnterCriticalSection(&reader->callback_cs);
 
                     if (SUCCEEDED(hr))
-                        reader->running = false;
+                        reader->opened = false;
                     break;
             }
 
             free(op);
         }
 
-        if (reader->running && list_empty(&reader->async_ops))
+        if (reader->opened && list_empty(&reader->async_ops))
             SleepConditionVariableCS(&reader->callback_cv, &reader->callback_cs, INFINITE);
     }
 
@@ -469,7 +469,7 @@ static HRESULT async_reader_open(struct async_reader *reader, IWMReaderCallback 
         reader->callback_advanced = NULL;
     }
 
-    reader->running = true;
+    reader->opened = true;
     if (!(reader->callback_thread = CreateThread(NULL, 0, async_reader_callback_thread, reader, 0, NULL)))
         goto error;
 
@@ -571,7 +571,7 @@ static ULONG WINAPI WMReader_Release(IWMReader *iface)
     if (!refcount)
     {
         EnterCriticalSection(&reader->callback_cs);
-        reader->running = false;
+        reader->opened = false;
         LeaveCriticalSection(&reader->callback_cs);
         WakeConditionVariable(&reader->callback_cv);
 
