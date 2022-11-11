@@ -43,8 +43,11 @@
 #include "wine/debug.h"
 
 WINE_DECLARE_DEBUG_CHANNEL(pid);
+WINE_DECLARE_DEBUG_CHANNEL(source);
+WINE_DECLARE_DEBUG_CHANNEL(retaddr);
 WINE_DECLARE_DEBUG_CHANNEL(timestamp);
 WINE_DEFAULT_DEBUG_CHANNEL(ntdll);
+WINE_DECLARE_DEBUG_CHANNEL(microsecs);
 
 struct debug_info
 {
@@ -314,11 +317,11 @@ int __cdecl __wine_dbg_output( const char *str )
  *		__wine_dbg_header  (NTDLL.@)
  */
 int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
-                               const char *function )
+                               const struct __wine_debug_context *context )
 {
     static const char * const classes[] = { "fixme", "err", "warn", "trace" };
     struct debug_info *info = get_info();
-    char *pos = info->output;
+    char *pos = info->output, *end = pos + sizeof(info->output);
 
     if (!(__wine_dbg_get_channel_flags( channel ) & (1 << cls))) return -1;
 
@@ -327,17 +330,43 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
 
     if (init_done)
     {
-        if (TRACE_ON(timestamp))
+        if (TRACE_ON(microsecs))
+        {
+            LARGE_INTEGER counter, frequency, microsecs;
+            NtQueryPerformanceCounter(&counter, &frequency);
+            microsecs.QuadPart = counter.QuadPart * 1000000 / frequency.QuadPart;
+            pos += sprintf( pos, "%3u.%06u:", (unsigned int)(microsecs.QuadPart / 1000000), (unsigned int)(microsecs.QuadPart % 1000000) );
+        }
+        else if (TRACE_ON(timestamp))
         {
             UINT ticks = NtGetTickCount();
-            pos += snprintf( pos, sizeof(info->output) - (pos - info->output), "%3u.%03u:", ticks / 1000, ticks % 1000 );
+            pos += snprintf( pos, end - pos, "%3u.%03u:", ticks / 1000, ticks % 1000 );
         }
-        if (TRACE_ON(pid)) pos += snprintf( pos, sizeof(info->output) - (pos - info->output), "%04x:", (UINT)GetCurrentProcessId() );
-        pos += snprintf( pos, sizeof(info->output) - (pos - info->output), "%04x:", (UINT)GetCurrentThreadId() );
+        if (TRACE_ON(pid)) pos += snprintf( pos, end - pos, "%04x:%4u:", (UINT)GetCurrentProcessId(), (UINT)(ULONG_PTR)NtCurrentTeb()->SystemReserved1[0] );
+        pos += snprintf( pos, end - pos, "%04x:%4u:", (UINT)GetCurrentThreadId(), (UINT)(ULONG_PTR)NtCurrentTeb()->SystemReserved1[1] );
     }
-    if (function && cls < ARRAY_SIZE( classes ))
-        pos += snprintf( pos, sizeof(info->output) - (pos - info->output), "%s:%s:%s ",
-                         classes[cls], channel->name, function );
+    if (cls < ARRAY_SIZE( classes )) pos += snprintf( pos, end - pos, "%s:", classes[cls] );
+    pos += snprintf( pos, end - pos, "%s:", channel->name );
+
+    if (context && context->compat)
+        pos += snprintf( pos, end - pos, "%s ", (const char *)context );
+    else if (context && context->version == WINE_DEBUG_CONTEXT_VERSION)
+    {
+        if (1 || TRACE_ON(retaddr)) pos += snprintf( pos, end - pos, "%012zx:", (size_t)context->retaddr );
+        if (1 || TRACE_ON(source))
+        {
+            const char *tmp, *file;
+
+            if ((tmp = strrchr( context->file, '/' ))) file = tmp + 1;
+            else if ((tmp = strrchr( context->file, '\\' ))) file = tmp + 1;
+            else file = context->file;
+
+            pos += snprintf( pos, end - pos, "%s:%d:", file, context->line );
+        }
+
+        pos += snprintf( pos, end - pos, "%s ", context->function );
+    }
+
     info->out_pos = pos - info->output;
     return info->out_pos;
 }

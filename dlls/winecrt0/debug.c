@@ -29,14 +29,16 @@
 #include "wine/heap.h"
 
 WINE_DECLARE_DEBUG_CHANNEL(pid);
+WINE_DECLARE_DEBUG_CHANNEL(source);
+WINE_DECLARE_DEBUG_CHANNEL(retaddr);
 WINE_DECLARE_DEBUG_CHANNEL(timestamp);
+WINE_DECLARE_DEBUG_CHANNEL(microsecs);
 
 static const char * (__cdecl *p__wine_dbg_strdup)( const char *str );
 static int (__cdecl *p__wine_dbg_output)( const char *str );
 static unsigned char (__cdecl *p__wine_dbg_get_channel_flags)( struct __wine_debug_channel *channel );
-static int (__cdecl *p__wine_dbg_header)( enum __wine_debug_class cls,
-                                          struct __wine_debug_channel *channel,
-                                          const char *function );
+static int (__cdecl *p__wine_dbg_header)( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
+                                          const struct __wine_debug_context *context );
 
 static const char * const debug_classes[] = { "fixme", "err", "warn", "trace" };
 
@@ -178,27 +180,52 @@ static int __cdecl fallback__wine_dbg_output( const char *str )
     return fwrite( str, 1, len, stderr );
 }
 
-static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls,
-                                              struct __wine_debug_channel *channel,
-                                              const char *function )
+static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
+                                              const struct __wine_debug_context *context )
 {
-    char buffer[200], *pos = buffer;
+    char buffer[200], *pos = buffer, *end = pos + sizeof(buffer);
 
     if (!(__wine_dbg_get_channel_flags( channel ) & (1 << cls))) return -1;
 
     /* skip header if partial line and no other thread came in between */
     if (partial_line_tid == GetCurrentThreadId()) return 0;
 
-    if (TRACE_ON(timestamp))
+    if (TRACE_ON(microsecs))
+    {
+        LARGE_INTEGER counter, microsecs, frequency = {0};
+        if (!frequency.QuadPart) QueryPerformanceFrequency(&frequency);
+        QueryPerformanceCounter(&counter);
+        microsecs.QuadPart = counter.QuadPart * 1000000 / frequency.QuadPart;
+        pos += sprintf( pos, "%3u.%06u:", (unsigned int)(microsecs.QuadPart / 1000000), (unsigned int)(microsecs.QuadPart % 1000000) );
+    }
+    else if (TRACE_ON(timestamp))
     {
         UINT ticks = GetTickCount();
-        pos += sprintf( pos, "%3u.%03u:", ticks / 1000, ticks % 1000 );
+        pos += snprintf( pos, end - pos, "%3u.%03u:", ticks / 1000, ticks % 1000 );
     }
-    if (TRACE_ON(pid)) pos += sprintf( pos, "%04x:", (UINT)GetCurrentProcessId() );
-    pos += sprintf( pos, "%04x:", (UINT)GetCurrentThreadId() );
-    if (function && cls < ARRAY_SIZE( debug_classes ))
-        snprintf( pos, sizeof(buffer) - (pos - buffer), "%s:%s:%s ",
-                  debug_classes[cls], channel->name, function );
+    if (TRACE_ON(pid)) pos += snprintf( pos, end - pos, "%04x:%4u:", (UINT)GetCurrentProcessId(), 0 );
+    pos += snprintf( pos, end - pos, "%04x:%4u:", (UINT)GetCurrentThreadId(), 0 );
+    if (cls < ARRAY_SIZE( debug_classes )) pos += snprintf( pos, end - pos, "%s:", debug_classes[cls] );
+    pos += snprintf( pos, end - pos, "%s:", channel->name );
+
+    if (context && context->compat)
+        pos += snprintf( pos, end - pos, "%s ", (const char *)context );
+    else if (context && context->version == WINE_DEBUG_CONTEXT_VERSION)
+    {
+        if (1 || TRACE_ON(retaddr)) pos += snprintf( pos, end - pos, "%012Ix:", (SIZE_T)context->retaddr );
+        if (1 || TRACE_ON(source))
+        {
+            const char *tmp, *file;
+
+            if ((tmp = strrchr( context->file, '/' ))) file = tmp + 1;
+            else if ((tmp = strrchr( context->file, '\\' ))) file = tmp + 1;
+            else file = context->file;
+
+            pos += snprintf( pos, end - pos, "%s:%d:", file, context->line );
+        }
+
+        pos += snprintf( pos, end - pos, "%s ", context->function );
+    }
 
     return fwrite( buffer, 1, strlen(buffer), stderr );
 }
@@ -243,10 +270,10 @@ unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel 
 }
 
 int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
-                               const char *function )
+                               const struct __wine_debug_context *context )
 {
     LOAD_FUNC( __wine_dbg_header );
-    return p__wine_dbg_header( cls, channel, function );
+    return p__wine_dbg_header( cls, channel, context );
 }
 
 #endif  /* __WINE_PE_BUILD */
