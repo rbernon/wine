@@ -48,8 +48,6 @@ static int (__cdecl *p__wine_dbg_header)( enum __wine_debug_class cls,
                                           struct __wine_debug_channel *channel,
                                           const char *function );
 
-static const char * const debug_classes[] = { "fixme", "err", "warn", "trace" };
-
 static DWORD partial_line_tid;  /* id of the last thread to output a partial line */
 
 static void load_func( void **func, const char *name, void *def )
@@ -65,69 +63,8 @@ static void load_func( void **func, const char *name, void *def )
 }
 #define LOAD_FUNC(name) load_func( (void **)&p ## name, #name, fallback ## name )
 
-/* add a new debug option at the end of the option list */
-void __wine_dbg_add_option( struct __wine_debug_channel *options, LONG *options_count, unsigned char default_flags,
-                            const char *name, unsigned char set, unsigned char clear ) DECLSPEC_HIDDEN;
-
 /* parse a set of debugging option specifications and add them to the option list */
-static struct __wine_debug_channel *parse_options( const char *str, LONG *option_count )
-{
-    static struct __wine_debug_channel option_buffer[1024];
-
-    unsigned char default_flags = (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
-    const char *opt, *next;
-    unsigned int i;
-
-    *option_count = 0;
-    for (opt = str; opt; opt = next)
-    {
-        struct __wine_debug_channel tmp_option = {0};
-        const char *p, *end;
-        unsigned char set = 0, clear = 0;
-
-        if ((next = strchr( opt, ',' ))) end = next++;
-        else end = opt + strlen( opt );
-
-        p = opt + strcspn( opt, "+-" );
-        if (p == end) p = opt;  /* assume it's a debug channel name */
-
-        if (p > opt)
-        {
-            for (i = 0; i < ARRAY_SIZE(debug_classes); i++)
-            {
-                int len = strlen(debug_classes[i]);
-                if (len != (p - opt)) continue;
-                if (!memcmp( opt, debug_classes[i], len ))  /* found it */
-                {
-                    if (*p == '+') set |= 1 << i;
-                    else clear |= 1 << i;
-                    break;
-                }
-            }
-            if (i == ARRAY_SIZE(debug_classes)) /* bad class name, skip it */
-                continue;
-        }
-        else
-        {
-            if (*p == '-') clear = ~0;
-            else set = ~0;
-        }
-        if (*p == '+' || *p == '-') p++;
-        if (p == end) continue;
-
-        if (!strcmp( p, "all" ) || !p[0])
-            default_flags = (default_flags & ~clear) | set;
-        else if (end - p < sizeof(tmp_option.name))
-        {
-            memcpy( tmp_option.name, p, end - p );
-            __wine_dbg_add_option( option_buffer, option_count, default_flags, tmp_option.name, set, clear );
-        }
-        if (*option_count >= ARRAY_SIZE(option_buffer) - 1) break; /* too many options */
-    }
-
-    option_buffer[*option_count].flags = default_flags;
-    return option_buffer;
-}
+struct __wine_debug_channel *__wine_dbg_parse_options( const char *winedebug, LONG *option_count ) DECLSPEC_HIDDEN;
 
 static void spin_lock( LONG *lock )
 {
@@ -166,7 +103,7 @@ static void __cdecl fallback__wine_dbg_init( struct __wine_debug_channel **optio
     spin_lock( &lock );
 
     if (*option_count == -1)
-        *options = parse_options( getenv( "WINEDEBUG" ), option_count );
+        *options = __wine_dbg_parse_options( getenv( "WINEDEBUG" ), option_count );
 
     spin_unlock( &lock );
 }
@@ -210,6 +147,7 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls,
                                               struct __wine_debug_channel *channel,
                                               const char *function )
 {
+    static const char * const classes[] = { "fixme", "err", "warn", "trace" };
     char buffer[200], *pos = buffer;
 
     if (!(__wine_dbg_get_channel_flags( channel ) & (1 << cls))) return -1;
@@ -224,9 +162,9 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls,
     }
     if (TRACE_ON(pid)) pos += sprintf( pos, "%04x:", (UINT)GetCurrentProcessId() );
     pos += sprintf( pos, "%04x:", (UINT)GetCurrentThreadId() );
-    if (function && cls < ARRAY_SIZE( debug_classes ))
+    if (function && cls < ARRAY_SIZE( classes ))
         snprintf( pos, sizeof(buffer) - (pos - buffer), "%s:%s:%s ",
-                  debug_classes[cls], channel->name, function );
+                  classes[cls], channel->name, function );
 
     return fwrite( buffer, 1, strlen(buffer), stderr );
 }
