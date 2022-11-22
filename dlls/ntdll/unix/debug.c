@@ -58,7 +58,7 @@ C_ASSERT( sizeof(struct debug_info) == 0x800 );
 
 static BOOL init_done;
 static struct debug_info initial_info;  /* debug info for initial thread */
-static int nb_debug_options = -1;
+static LONG nb_debug_options = -1;
 static struct __wine_debug_channel *debug_options;
 
 static const char * const debug_classes[] = { "fixme", "err", "warn", "trace" };
@@ -89,33 +89,11 @@ static int append_output( struct debug_info *info, const char *str, size_t len )
 }
 
 /* add a new debug option at the end of the option list */
-static void add_option( struct __wine_debug_channel *options, int *option_count, unsigned char default_flags,
-                        const char *name, unsigned char set, unsigned char clear )
-{
-    struct __wine_debug_channel *tmp, *opt = options, *end = opt + *option_count;
-    int res;
-
-    while (opt < end)
-    {
-        tmp = opt + (end - opt) / 2;
-        if (!(res = strcmp( name, tmp->name )))
-        {
-            tmp->flags = (tmp->flags & ~clear) | set;
-            return;
-        }
-        if (res < 0) end = tmp;
-        else opt = tmp + 1;
-    }
-
-    end = options + *option_count;
-    memmove( opt + 1, opt, (char *)end - (char *)opt );
-    strcpy( opt->name, name );
-    opt->flags = (default_flags & ~clear) | set;
-    (*option_count)++;
-}
+void __wine_dbg_add_option( struct __wine_debug_channel *options, LONG *options_count, unsigned char default_flags,
+                            const char *name, unsigned char set, unsigned char clear ) DECLSPEC_HIDDEN;
 
 /* parse a set of debugging option specifications and add them to the option list */
-static struct __wine_debug_channel *parse_options( const char *str, int *option_count )
+static struct __wine_debug_channel *parse_options( const char *str, LONG *option_count )
 {
     static struct __wine_debug_channel option_buffer[1024];
 
@@ -165,7 +143,7 @@ static struct __wine_debug_channel *parse_options( const char *str, int *option_
         else if (end - p < sizeof(tmp_option.name))
         {
             memcpy( tmp_option.name, p, end - p );
-            add_option( option_buffer, option_count, default_flags, tmp_option.name, set, clear );
+            __wine_dbg_add_option( option_buffer, option_count, default_flags, tmp_option.name, set, clear );
         }
         if (*option_count >= ARRAY_SIZE(option_buffer) - 1) break; /* too many options */
     }
