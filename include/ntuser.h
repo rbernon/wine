@@ -1073,6 +1073,7 @@ enum
     NtUserCallOneParam_SetThreadDpiAwarenessContext,
     NtUserCallOneParam_D3DKMTOpenAdapterFromGdiDisplayName,
     NtUserCallOneParam_GetAsyncKeyboardState,
+    NtUserCallOneParam_UnregisterTouchWindow,
     /* temporary exports */
     NtUserGetDeskPattern,
 };
@@ -1216,6 +1217,7 @@ enum
     NtUserCallTwoParam_GetMonitorInfo,
     NtUserCallTwoParam_GetSystemMetricsForDpi,
     NtUserCallTwoParam_MonitorFromRect,
+    NtUserCallTwoParam_RegisterTouchWindow,
     NtUserCallTwoParam_SetCaretPos,
     NtUserCallTwoParam_SetIconParam,
     NtUserCallTwoParam_SetIMECompositionRect,
