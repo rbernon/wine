@@ -38,6 +38,7 @@
 #define IDD_TEST_DI         1001
 #define IDD_TEST_XI         1002
 #define IDD_TEST_WGI        1003
+#define IDD_TEST_WMM        1004
 
 #define IDC_JOYSTICKLIST    2000
 #define IDC_DISABLEDLIST    2001
@@ -71,6 +72,9 @@
 #define IDC_WGI_DISPLAY     2302
 #define IDC_WGI_RUMBLE      2303
 #define IDC_WGI_EFFECTS     2304
+
+#define IDC_WMM_SELECT      2400
+#define IDC_WMM_DISPLAY     2401
 
 #define ICO_MAIN            100
 
