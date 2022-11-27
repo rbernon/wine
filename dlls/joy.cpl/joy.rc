@@ -100,6 +100,21 @@ FONT 8, "Ms Shell Dlg"
     AUTOCHECKBOX    "Rumble", IDC_XI_RUMBLE_3, 260, 220, 40, 10
 }
 
+IDD_TEST_WGI DIALOG 0, 0, 320, 300
+STYLE WS_CAPTION | WS_CHILD | WS_DISABLED
+CAPTION "Windows.Gaming.Input"
+FONT 8, "Ms Shell Dlg"
+{
+    COMBOBOX        IDC_WGI_DEVICES, 15, 10, 150, 60, CBS_DROPDOWNLIST | CBS_HASSTRINGS
+    COMBOBOX        IDC_WGI_INTERFACE, 175, 10, 131, 60, CBS_DROPDOWNLIST | CBS_HASSTRINGS
+    GROUPBOX        "", IDC_WGI_DISPLAY, 15, 30, 291, 60
+    AUTOCHECKBOX    "Rumble", IDC_WGI_RUMBLE, 260, 30, 40, 10
+    LTEXT           "Force Feedback Effect", IDC_STATIC, 15, 180, 291, 10
+    LISTBOX         IDC_WGI_EFFECTS, 15, 190, 291, 70, WS_TABSTOP | WS_VSCROLL | LBS_NOTIFY
+    LTEXT           "Press any button in the controller to activate the chosen effect. The effect direction can be changed with the controller axis.",
+                    IDC_STATIC, 15, 260, 291, 25
+}
+
 LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
 
 /* @makedep: joy.manifest */
