@@ -9,4 +9,5 @@ SOURCES = \
 	joy.svg \
 	main.c \
 	wginput.c \
+	winmm.c \
 	xinput.c
