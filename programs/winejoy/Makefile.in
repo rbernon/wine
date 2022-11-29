@@ -1,0 +1,18 @@
+MODULE    = winejoy.exe
+IMPORTS   = dxguid dinput dinput8 ole32 comctl32 user32 gdi32 advapi32 xinput combase
+PARENTSRC = ../../dlls/joy.cpl
+
+EXTRADLLFLAGS = -mconsole -municode
+
+C_SRCS = \
+	dinput.c \
+	main.c \
+	wginput.c \
+	winejoy.c \
+	winmm.c \
+	xinput.c
+
+RC_SRCS = joy.rc
+
+SVG_SRCS = \
+	joy.svg
