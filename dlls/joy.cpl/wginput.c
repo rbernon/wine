@@ -55,6 +55,24 @@ struct device
     IRawGameController *device;
 };
 
+struct raw_controller_state
+{
+    UINT64 timestamp;
+    double axes[6];
+    boolean buttons[32];
+    GameControllerSwitchPosition switches[4];
+};
+
+struct device_state
+{
+    const GUID *iid;
+    union
+    {
+        struct raw_controller_state raw_controller;
+        GamepadReading gamepad;
+    };
+};
+
 static CRITICAL_SECTION state_cs;
 static CRITICAL_SECTION_DEBUG state_cs_debug =
 {
@@ -64,14 +82,32 @@ static CRITICAL_SECTION_DEBUG state_cs_debug =
 };
 static CRITICAL_SECTION state_cs = { &state_cs_debug, -1, 0, 0, 0, 0 };
 
+static struct device_state device_state;
 static struct list devices = LIST_INIT( devices );
-static IRawGameController *device_selected;
-
 static struct list ifaces = LIST_INIT( ifaces );
 static IGameController *iface_selected;
 
 static HWND dialog_hwnd;
 static HANDLE state_event;
+
+static void set_device_state( struct device_state *state )
+{
+    BOOL modified;
+
+    EnterCriticalSection( &state_cs );
+    modified = memcmp( &device_state, state, sizeof(*state) );
+    device_state = *state;
+    LeaveCriticalSection( &state_cs );
+
+    if (modified) SendMessageW( dialog_hwnd, WM_USER, 0, 0 );
+}
+
+static void get_device_state( struct device_state *state )
+{
+    EnterCriticalSection( &state_cs );
+    *state = device_state;
+    LeaveCriticalSection( &state_cs );
+}
 
 static void set_selected_interface( IGameController *iface )
 {
@@ -111,35 +147,9 @@ static void clear_interfaces(void)
     }
 }
 
-static void set_selected_device( IRawGameController *device )
-{
-    IRawGameController *previous;
-
-    EnterCriticalSection( &state_cs );
-
-    if ((previous = device_selected)) IRawGameController_Release( previous );
-    if ((device_selected = device)) IRawGameController_AddRef( device );
-
-    LeaveCriticalSection( &state_cs );
-}
-
-static inline IRawGameController *get_selected_device(void)
-{
-    IRawGameController *device;
-
-    EnterCriticalSection( &state_cs );
-    device = device_selected;
-    if (device) IRawGameController_AddRef( device );
-    LeaveCriticalSection( &state_cs );
-
-    return device;
-}
-
 static void clear_devices(void)
 {
     struct device *entry, *next;
-
-    set_selected_device( NULL );
 
     LIST_FOR_EACH_ENTRY_SAFE( entry, next, &devices, struct device, entry )
     {
@@ -151,10 +161,46 @@ static void clear_devices(void)
 
 static DWORD WINAPI input_thread_proc( void *param )
 {
+    union
+    {
+        struct raw_controller_state raw_controller;
+        GamepadReading gamepad;
+    } previous = {0};
+
     HANDLE stop_event = param;
 
     while (WaitForSingleObject( stop_event, 20 ) == WAIT_TIMEOUT)
     {
+        IGameController *iface;
+
+        if (!(iface = get_selected_interface()))
+            memset( &previous, 0, sizeof(previous) );
+        else
+        {
+            IRawGameController *raw_controller;
+            IGamepad *gamepad;
+
+            if (SUCCEEDED(IGameController_QueryInterface( iface, &IID_IRawGameController, (void **)&raw_controller )))
+            {
+                struct device_state state = {.iid = &IID_IRawGameController};
+                struct raw_controller_state *current = &state.raw_controller;
+                IRawGameController_GetCurrentReading( raw_controller, ARRAY_SIZE(current->buttons), current->buttons,
+                                                      ARRAY_SIZE(current->switches), current->switches,
+                                                      ARRAY_SIZE(current->axes), current->axes, &current->timestamp );
+                IRawGameController_Release( raw_controller );
+                set_device_state( &state );
+            }
+
+            if (SUCCEEDED(IGameController_QueryInterface( iface, &IID_IGamepad, (void **)&gamepad )))
+            {
+                struct device_state state = {.iid = &IID_IGamepad};
+                IGamepad_GetCurrentReading( gamepad, &state.gamepad );
+                IGamepad_Release( gamepad );
+                set_device_state( &state );
+            }
+
+            IGameController_Release( iface );
+        }
     }
 
     return 0;
@@ -285,8 +331,6 @@ static void handle_wgi_devices_change( HWND hwnd )
     struct list *entry;
     int i;
 
-    set_selected_device( NULL );
-
     i = SendDlgItemMessageW( hwnd, IDC_WGI_DEVICES, CB_GETCURSEL, 0, 0 );
     if (i < 0) return;
 
@@ -295,7 +339,6 @@ static void handle_wgi_devices_change( HWND hwnd )
     if (!entry) return;
 
     device = LIST_ENTRY( entry, struct device, entry )->device;
-    set_selected_device( device );
     update_wgi_interface( hwnd, device );
 }
 
@@ -358,6 +401,10 @@ static void update_wgi_devices( HWND hwnd )
             SendDlgItemMessageW( hwnd, IDC_WGI_DEVICES, CB_ADDSTRING, 0, (LPARAM)buffer );
         }
     }
+}
+
+static void update_device_views( HWND hwnd )
+{
 }
 
 static void create_device_views( HWND hwnd )
@@ -428,6 +475,7 @@ extern INT_PTR CALLBACK test_wgi_dialog_proc( HWND hwnd, UINT msg, WPARAM wparam
         return TRUE;
 
     case WM_USER:
+        update_device_views( hwnd );
         return TRUE;
     }
 
