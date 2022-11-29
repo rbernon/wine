@@ -1,0 +1,7 @@
+MODULE    = vkcube.exe
+IMPORTS   = vulkan-1 user32 gdi32 shcore
+
+EXTRADLLFLAGS = -mwindows
+
+SOURCES = \
+	cube.c
