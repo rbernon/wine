@@ -206,6 +206,86 @@ static DWORD WINAPI input_thread_proc( void *param )
     return 0;
 }
 
+LRESULT CALLBACK test_wgi_gamepad_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
+{
+    TRACE( "hwnd %p, msg %#x, wparam %#Ix, lparam %#Ix\n", hwnd, msg, wparam, lparam );
+
+    if (msg == WM_PAINT)
+    {
+        UINT axis_size, trigger_size, button_size, horiz_space;
+        struct device_state state;
+        RECT rect, tmp_rect;
+        PAINTSTRUCT paint;
+        HDC hdc;
+
+        GetClientRect( hwnd, &rect );
+        axis_size = rect.bottom - rect.top;
+        button_size = (axis_size - 1) / 3;
+        trigger_size = axis_size / 4;
+        horiz_space = (rect.right - rect.left - axis_size * 2 - trigger_size * 2 - button_size * 5) / 10;
+
+        get_device_state( &state );
+
+        hdc = BeginPaint( hwnd, &paint );
+
+        rect.right = rect.left + axis_size;
+        OffsetRect( &rect, horiz_space, 0 );
+        draw_gamepad_axis_view( hdc, rect, state.gamepad.LeftThumbstickX * 0x7fff, state.gamepad.LeftThumbstickY * 0x7fff,
+                                state.gamepad.Buttons & GamepadButtons_LeftThumbstick );
+        OffsetRect( &rect, rect.right - rect.left + horiz_space, 0 );
+        draw_gamepad_axis_view( hdc, rect, state.gamepad.RightThumbstickX * 0x7fff, state.gamepad.RightThumbstickY * 0x7fff,
+                                state.gamepad.Buttons & GamepadButtons_RightThumbstick );
+
+        OffsetRect( &rect, rect.right - rect.left + horiz_space, 0 );
+        rect.right = rect.left + trigger_size;
+        draw_gamepad_trigger_view( hdc, rect, state.gamepad.LeftTrigger * 0xff );
+        OffsetRect( &rect, rect.right - rect.left + horiz_space, 0 );
+        draw_gamepad_trigger_view( hdc, rect, state.gamepad.RightTrigger * 0xff );
+
+        OffsetRect( &rect, rect.right - rect.left + horiz_space, 0 );
+        rect.right = rect.left + button_size;
+        rect.bottom = rect.top + button_size;
+        tmp_rect = rect;
+        OffsetRect( &rect, (rect.right - rect.left + horiz_space) / 2, 0 );
+        draw_gamepad_button_view( hdc, rect, state.gamepad.Buttons & GamepadButtons_DPadUp, L"^" );
+        OffsetRect( &rect, rect.right - rect.left + horiz_space, 0 );
+        draw_gamepad_button_view( hdc, rect, state.gamepad.Buttons & GamepadButtons_LeftShoulder, L"L" );
+        OffsetRect( &rect, rect.right - rect.left + horiz_space, 0 );
+        draw_gamepad_button_view( hdc, rect, state.gamepad.Buttons & GamepadButtons_RightShoulder, L"R" );
+        OffsetRect( &rect, rect.right - rect.left + horiz_space, 0 );
+        draw_gamepad_button_view( hdc, rect, state.gamepad.Buttons & GamepadButtons_Y, L"Y" );
+
+        rect = tmp_rect;
+        OffsetRect( &rect, 0, rect.bottom - rect.top );
+        tmp_rect = rect;
+        draw_gamepad_button_view( hdc, rect, state.gamepad.Buttons & GamepadButtons_DPadLeft, L"<" );
+        OffsetRect( &rect, rect.right - rect.left + horiz_space, 0 );
+        draw_gamepad_button_view( hdc, rect, state.gamepad.Buttons & GamepadButtons_DPadRight, L">" );
+        OffsetRect( &rect, rect.right - rect.left + horiz_space, 0 );
+        draw_gamepad_button_view( hdc, rect, 0, L"@" );
+        OffsetRect( &rect, rect.right - rect.left + horiz_space, 0 );
+        draw_gamepad_button_view( hdc, rect, state.gamepad.Buttons & GamepadButtons_X, L"X" );
+        OffsetRect( &rect, rect.right - rect.left + horiz_space, 0 );
+        draw_gamepad_button_view( hdc, rect, state.gamepad.Buttons & GamepadButtons_B, L"B" );
+
+        rect = tmp_rect;
+        OffsetRect( &rect, (rect.right - rect.left + horiz_space) / 2, rect.bottom - rect.top );
+        draw_gamepad_button_view( hdc, rect, state.gamepad.Buttons & GamepadButtons_DPadDown, L"v" );
+        OffsetRect( &rect, rect.right - rect.left + horiz_space, 0 );
+        draw_gamepad_button_view( hdc, rect, state.gamepad.Buttons & GamepadButtons_View, L"#" );
+        OffsetRect( &rect, rect.right - rect.left + horiz_space, 0 );
+        draw_gamepad_button_view( hdc, rect, state.gamepad.Buttons & GamepadButtons_Menu, L"=" );
+        OffsetRect( &rect, rect.right - rect.left + horiz_space, 0 );
+        draw_gamepad_button_view( hdc, rect, state.gamepad.Buttons & GamepadButtons_A, L"A" );
+
+        EndPaint( hwnd, &paint );
+
+        return 0;
+    }
+
+    return DefWindowProcW( hwnd, msg, wparam, lparam );
+}
+
 static void handle_wgi_interface_change( HWND hwnd )
 {
     IGameController *iface;
@@ -405,10 +485,50 @@ static void update_wgi_devices( HWND hwnd )
 
 static void update_device_views( HWND hwnd )
 {
+    struct device_state state;
+    HWND parent, view;
+
+    get_device_state( &state );
+
+    parent = GetDlgItem( hwnd, IDC_WGI_DISPLAY );
+    view = FindWindowExW( parent, NULL, L"JoyCplWGIGamepad", NULL );
+
+    if (!IsEqualGUID( state.iid, &IID_IGamepad ))
+    {
+        ShowWindow( view, SW_HIDE );
+        InvalidateRect( parent, NULL, TRUE );
+    }
+    else
+    {
+        ShowWindow( view, SW_SHOW );
+        InvalidateRect( view, NULL, TRUE );
+    }
+
+    parent = GetDlgItem( hwnd, IDC_WGI_RUMBLE );
+    ShowWindow( parent, IsEqualGUID( state.iid, &IID_IGamepad ) ? SW_SHOW : SW_HIDE );
 }
 
 static void create_device_views( HWND hwnd )
 {
+    HINSTANCE instance = (HINSTANCE)GetWindowLongPtrW( hwnd, GWLP_HINSTANCE );
+    HWND parent, view;
+    LONG margin;
+    RECT rect;
+
+    parent = GetDlgItem( hwnd, IDC_WGI_DISPLAY );
+
+    GetClientRect( parent, &rect );
+    rect.top += 10;
+
+    margin = (rect.bottom - rect.top) * 15 / 100;
+    InflateRect( &rect, -margin, -margin );
+
+    view = CreateWindowW( L"JoyCplWGIGamepad", NULL, WS_CHILD | WS_VISIBLE, rect.left, rect.top,
+                          rect.right - rect.left, rect.bottom - rect.top, parent, NULL, NULL, instance );
+    ShowWindow( view, SW_HIDE );
+
+    parent = GetDlgItem( hwnd, IDC_WGI_RUMBLE );
+    ShowWindow( parent, SW_HIDE );
 }
 
 extern INT_PTR CALLBACK test_wgi_dialog_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
