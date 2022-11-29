@@ -21,12 +21,15 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <math.h>
+#include <assert.h>
 
 #include "windef.h"
 #include "winbase.h"
 #include "winuser.h"
 #include "wingdi.h"
 
+#include "propvarutil.h"
+#include "gdiplus.h"
 #include "xinput.h"
 
 #include "wine/debug.h"
@@ -113,42 +116,53 @@ static DWORD WINAPI input_thread_proc( void *param )
     return 0;
 }
 
-static void draw_axis_view( HDC hdc, RECT rect, SHORT dx, SHORT dy, BOOL set )
+static void draw_axis_view( GpGraphics *ctx, RECT rect, SHORT dx, SHORT dy, BOOL set )
 {
-    POINT center =
+    POINTFLOAT center =
     {
-        .x = (rect.left + rect.right) / 2,
-        .y = (rect.top + rect.bottom) / 2,
+        .x = (rect.left + rect.right) / 2.,
+        .y = (rect.top + rect.bottom) / 2.,
     };
-    POINT pos =
+    POINTFLOAT pos =
     {
-        .x = center.x + MulDiv( dx, rect.right - rect.left - 20, 0xffff ),
-        .y = center.y - MulDiv( dy, rect.bottom - rect.top - 20, 0xffff ),
+        .x = center.x + (float)(dx + 20000) * (rect.right - rect.left - 20) / 0xffff,
+        .y = center.y - (float)(dy + 20000) * (rect.bottom - rect.top - 20) / 0xffff,
     };
+    GpBrush *brush;
+    GpPen *pen;
 
-    FillRect( hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1) );
+    GdipCreateSolidFill( GetSysColor( COLOR_WINDOW ) | 0xff000000, (GpSolidFill **)&brush );
+    GdipFillRectangle( ctx, brush, rect.left, rect.right, rect.right - rect.left,
+                                rect.bottom - rect.top );
+    GdipDeleteBrush( brush );
 
-    SetDCBrushColor( hdc, GetSysColor( set ? COLOR_HIGHLIGHT : COLOR_WINDOW ) );
-    SetDCPenColor( hdc, GetSysColor( set ? COLOR_HIGHLIGHTTEXT : COLOR_WINDOWFRAME ) );
-    SelectObject( hdc, GetStockObject( DC_BRUSH ) );
-    SelectObject( hdc, GetStockObject( DC_PEN ) );
+    GdipCreateSolidFill( GetSysColor( set ? COLOR_HIGHLIGHT : COLOR_WINDOW ) | 0xff000000,
+                         (GpSolidFill **)&brush );
+    GdipCreatePen1( GetSysColor( set ? COLOR_HIGHLIGHTTEXT : COLOR_WINDOWFRAME ) | 0xff000000,
+                    1, UnitPixel, &pen );
 
-    Ellipse( hdc, rect.left, rect.top, rect.right, rect.bottom );
+    GdipFillEllipseI( ctx, brush, rect.left + 1, rect.top + 1, rect.right - rect.left - 2, rect.bottom - rect.top - 2 );
+    GdipDrawEllipseI( ctx, pen, rect.left + 1, rect.top + 1, rect.right - rect.left - 2, rect.bottom - rect.top - 2 );
 
-    MoveToEx( hdc, center.x, center.y - 3, NULL );
-    LineTo( hdc, center.x, center.y + 4 );
-    MoveToEx( hdc, center.x - 3, center.y, NULL );
-    LineTo( hdc, center.x + 4, center.y );
+    GdipDrawLine( ctx, pen, center.x - 3, center.y, center.x + 3, center.y );
+    GdipDrawLine( ctx, pen, center.x, center.y - 3, center.x, center.y + 3 );
 
-    if (!set) SetDCPenColor( hdc, GetSysColor( (dx || dy) ? COLOR_HIGHLIGHT : COLOR_WINDOWFRAME ) );
+    if (!set)
+    {
+        GdipDeletePen( pen );
+        GdipCreatePen1( GetSysColor( (dx || dy) ? COLOR_HIGHLIGHT : COLOR_WINDOWFRAME ) | 0xff000000,
+                        1, UnitPixel, &pen );
+    }
 
-    MoveToEx( hdc, center.x, center.y, NULL );
-    LineTo( hdc, pos.x, pos.y );
+    GdipDrawLine( ctx, pen, center.x, center.y, pos.x, pos.y );
 
-    Ellipse( hdc, pos.x - 4, pos.y - 4, pos.x + 4, pos.y + 4 );
+    GdipFillEllipse( ctx, brush, pos.x - 4, pos.y - 4, 8, 8 );
+    GdipDrawEllipse( ctx, pen, pos.x - 4, pos.y - 4, 8, 8 );
+
+    GdipDeleteBrush( brush );
 }
 
-static void draw_trigger_view( HDC hdc, RECT rect, BYTE dt )
+static inline void draw_trigger_view( HDC hdc, RECT rect, BYTE dt )
 {
     POINT center =
     {
@@ -185,7 +199,7 @@ static void draw_trigger_view( HDC hdc, RECT rect, BYTE dt )
     }
 }
 
-static void draw_button_view( HDC hdc, RECT rect, BOOL set, const WCHAR *name )
+static inline void draw_button_view( HDC hdc, RECT rect, BOOL set, const WCHAR *name )
 {
     COLORREF color = SetTextColor( hdc, GetSysColor( set ? COLOR_HIGHLIGHTTEXT : COLOR_WINDOWTEXT ) );
     HFONT font = SelectObject( hdc, GetStockObject( ANSI_VAR_FONT ) );
@@ -256,8 +270,9 @@ LRESULT CALLBACK test_xi_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM
         DWORD index = GetWindowLongW( hwnd, GWLP_USERDATA );
         UINT axis_size, trigger_size, button_size, horiz_space;
         struct device_state state;
-        RECT rect, tmp_rect;
+        RECT rect/*, tmp_rect*/;
         PAINTSTRUCT paint;
+        GpGraphics *ctx;
         HDC hdc;
 
         GetClientRect( hwnd, &rect );
@@ -269,15 +284,18 @@ LRESULT CALLBACK test_xi_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM
         get_device_state( index, &state );
 
         hdc = BeginPaint( hwnd, &paint );
+        GdipCreateFromHDC( hdc, &ctx );
+        GdipSetSmoothingMode( ctx, SmoothingModeHighQuality );
 
         rect.right = rect.left + axis_size;
         OffsetRect( &rect, horiz_space, 0 );
-        draw_axis_view( hdc, rect, state.state.Gamepad.sThumbLX, state.state.Gamepad.sThumbLY,
+        draw_axis_view( ctx, rect, state.state.Gamepad.sThumbLX, state.state.Gamepad.sThumbLY,
                         state.state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_THUMB );
         OffsetRect( &rect, rect.right - rect.left + horiz_space, 0 );
-        draw_axis_view( hdc, rect, state.state.Gamepad.sThumbRX, state.state.Gamepad.sThumbRY,
+        draw_axis_view( ctx, rect, state.state.Gamepad.sThumbRX, state.state.Gamepad.sThumbRY,
                         state.state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_THUMB );
 
+#if 0
         OffsetRect( &rect, rect.right - rect.left + horiz_space, 0 );
         rect.right = rect.left + trigger_size;
         draw_trigger_view( hdc, rect, state.state.Gamepad.bLeftTrigger );
@@ -319,7 +337,10 @@ LRESULT CALLBACK test_xi_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM
         draw_button_view( hdc, rect, state.state.Gamepad.wButtons & XINPUT_GAMEPAD_START, L"=" );
         OffsetRect( &rect, rect.right - rect.left + horiz_space, 0 );
         draw_button_view( hdc, rect, state.state.Gamepad.wButtons & XINPUT_GAMEPAD_A, L"A" );
+#endif
 
+        GdipFlush( ctx, FlushIntentionFlush );
+        GdipDeleteGraphics( ctx );
         EndPaint( hwnd, &paint );
 
         return 0;
@@ -398,11 +419,18 @@ extern INT_PTR CALLBACK test_xi_dialog_proc( HWND hwnd, UINT msg, WPARAM wparam,
     switch (msg)
     {
     case WM_INITDIALOG:
+    {
+        struct GdiplusStartupInput input = {.GdiplusVersion = 1};
+        ULONG_PTR token;
+
+        GdiplusStartup( &token, &input, NULL );
+
         create_user_view( hwnd, 0 );
         create_user_view( hwnd, 1 );
         create_user_view( hwnd, 2 );
         create_user_view( hwnd, 3 );
         return TRUE;
+    }
 
     case WM_COMMAND:
         switch (LOWORD(wparam))
