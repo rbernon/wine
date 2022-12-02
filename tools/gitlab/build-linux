@@ -11,12 +11,12 @@ autoreconf
 
 cd build64
 ../configure -q -C --enable-win64 --enable-werror --with-mingw
-make -s -j$(nproc)
+make -s -j$(nproc) GIT=true
 cd ..
 
 cd build32
 ../configure -q -C --enable-werror --with-mingw
-make -s -j$(nproc)
+make -s -j$(nproc) GIT=true
 cd ..
 
 TESTS="$(git diff --name-only $CI_MERGE_REQUEST_DIFF_BASE_SHA dlls/ programs/ | \
@@ -31,8 +31,8 @@ fi
 
 if ! test -s .git/rebase-merge/git-rebase-todo
 then
-    make -s -j$(nproc) -C build32 install-lib install-test DESTDIR=$BASEDIR
-    make -s -j$(nproc) -C build64 install-lib install-test DESTDIR=$BASEDIR
+    make -s -j$(nproc) -C build32 all install-lib install-test DESTDIR=$BASEDIR
+    make -s -j$(nproc) -C build64 all install-lib install-test DESTDIR=$BASEDIR
 fi
 
 git reset --hard
