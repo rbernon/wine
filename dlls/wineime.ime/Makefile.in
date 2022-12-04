@@ -1,6 +1,8 @@
 MODULE    = wineime.ime
+UNIXLIB   = wineime.so
 
 C_SRCS = \
-	main.c
+	main.c \
+	unixlib.c
 
 RC_SRCS = version.rc

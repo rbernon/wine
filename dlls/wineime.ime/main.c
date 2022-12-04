@@ -19,6 +19,8 @@
 #include <stddef.h>
 #include <stdarg.h>
 
+#include "ntstatus.h"
+#define WIN32_NO_STATUS
 #include "windef.h"
 #include "winbase.h"
 #include "wingdi.h"
@@ -26,15 +28,23 @@
 #include "imm.h"
 #include "immdev.h"
 
+#include "unixlib.h"
+
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(imm);
 
 BOOL WINAPI ImeInquire( IMEINFO *info, WCHAR *ui_class, DWORD flags )
 {
-    FIXME( "info %p, ui_class %s, flags %#lx stub!\n", info, debugstr_w(ui_class), flags );
-    SetLastError( ERROR_CALL_NOT_IMPLEMENTED );
-    return FALSE;
+    NTSTATUS status;
+
+    FIXME( "info %p, ui_class %s, flags %#lx semi-stub!\n", info, debugstr_w(ui_class), flags );
+
+    if ((status = UNIX_CALL( ime_init, NULL )))
+        WARN( "Failed to initialize IME, status %#lx\n", status );
+    if (status) return FALSE;
+
+    return TRUE;
 }
 
 BOOL WINAPI ImeDestroy( UINT force )
@@ -146,12 +156,19 @@ DWORD WINAPI ImeGetImeMenuItems( HIMC himc, DWORD flags, DWORD type, IMEMENUITEM
 
 BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, LPVOID reserved )
 {
+    NTSTATUS status;
+
     TRACE( "instance %p, reason %lu, reserved %p.\n", instance, reason, reserved );
 
     switch (reason)
     {
     case DLL_PROCESS_ATTACH:
         DisableThreadLibraryCalls( instance );
+        if ((status = __wine_init_unix_call()))
+        {
+            ERR( "Failed to load unixlib, status %#lx\n", status );
+            return FALSE;
+        }
         break;
     case DLL_PROCESS_DETACH:
         break;
