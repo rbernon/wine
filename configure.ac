@@ -1787,6 +1787,16 @@ WINE_NOTICE_WITH(netapi,[test "x$ac_cv_lib_soname_netapi" = "x"],
                  [libnetapi not found, Samba NetAPI won't be supported.],
                  [enable_netapi])
 
+dnl **** Check for ibus ****
+if test "x$with_ibus" != "xno"
+then
+    WINE_PACKAGE_FLAGS(IBUS,[ibus-1.0],,,,
+        [AC_CHECK_HEADERS([ibus.h],
+            [WINE_CHECK_SONAME(ibus-1.0,ibus_init,,,[$IBUS_LIBS])])])
+fi
+WINE_NOTICE_WITH(ibus,[test "x$ac_cv_lib_soname_IBUS" = "x"],
+                 [ibus ${notice_platform}development files not found, ibus IME won't be supported.])
+
 
 dnl **** Check for any sound system ****
 if test "x$enable_winealsa_drv$enable_winecoreaudio_drv$enable_winepulse_drv$enable_wineoss_drv$enable_wineandroid_drv" = xnonononono -a \
