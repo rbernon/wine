@@ -22,17 +22,36 @@
 
 #include "config.h"
 
+#ifdef HAVE_IBUS_H
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wstrict-prototypes"
+# include <ibus.h>
+# pragma GCC diagnostic pop
+#endif
+
 #include "unixlib.h"
 
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(imm);
 
+#ifdef SONAME_LIBIBUS_1_0
+
 static NTSTATUS ime_init( void *arg )
 {
     FIXME( "stub!\n" );
     return STATUS_NOT_IMPLEMENTED;
 }
+
+#else
+
+static NTSTATUS ime_init( void *arg )
+{
+    FIXME( "Not supported!\n" );
+    return STATUS_NOT_SUPPORTED;
+}
+
+#endif /* SONAME_LIBIBUS_1_0 */
 
 const unixlib_entry_t __wine_unix_call_funcs[] =
 {

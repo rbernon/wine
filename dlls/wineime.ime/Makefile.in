@@ -1,6 +1,9 @@
 MODULE    = wineime.ime
 UNIXLIB   = wineime.so
 
+UNIX_LIBS    = $(IBUS_LIBS)
+UNIX_CFLAGS  = $(IBUS_CFLAGS)
+
 C_SRCS = \
 	main.c \
 	unixlib.c
