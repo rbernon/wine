@@ -1556,17 +1556,15 @@ done:
  * Load the builtin dll if specified by load order configuration.
  * Return STATUS_IMAGE_ALREADY_LOADED if we should keep the native one that we have found.
  */
-NTSTATUS load_builtin( const pe_image_info_t *image_info, WCHAR *filename,
+NTSTATUS load_builtin( const pe_image_info_t *image_info, UNICODE_STRING *nt_name,
                        void **module, SIZE_T *size, ULONG_PTR limit )
 {
     WORD machine = image_info->machine;  /* request same machine as the native one */
     NTSTATUS status;
-    UNICODE_STRING nt_name;
     SECTION_IMAGE_INFORMATION info;
     enum loadorder loadorder;
 
-    init_unicode_string( &nt_name, filename );
-    loadorder = get_load_order( &nt_name );
+    loadorder = get_load_order( nt_name );
 
     if (loadorder == LO_DISABLED) return STATUS_DLL_NOT_FOUND;
 
@@ -1577,7 +1575,7 @@ NTSTATUS load_builtin( const pe_image_info_t *image_info, WCHAR *filename,
     }
     else if (image_info->wine_fakedll)
     {
-        TRACE( "%s is a fake Wine dll\n", debugstr_w(filename) );
+        TRACE( "%s is a fake Wine dll\n", debugstr_us(nt_name) );
         if (loadorder == LO_NATIVE) return STATUS_DLL_NOT_FOUND;
         loadorder = LO_BUILTIN;  /* builtin with no fallback since mapping a fake dll is not useful */
     }
@@ -1588,9 +1586,9 @@ NTSTATUS load_builtin( const pe_image_info_t *image_info, WCHAR *filename,
     case LO_NATIVE_BUILTIN:
         return STATUS_IMAGE_ALREADY_LOADED;
     case LO_BUILTIN:
-        return find_builtin_dll( &nt_name, module, size, &info, limit, machine, FALSE );
+        return find_builtin_dll( nt_name, module, size, &info, limit, machine, FALSE );
     default:
-        status = find_builtin_dll( &nt_name, module, size, &info, limit, machine, (loadorder == LO_DEFAULT) );
+        status = find_builtin_dll( nt_name, module, size, &info, limit, machine, (loadorder == LO_DEFAULT) );
         if (status == STATUS_DLL_NOT_FOUND || status == STATUS_IMAGE_MACHINE_TYPE_MISMATCH)
             return STATUS_IMAGE_ALREADY_LOADED;
         return status;
