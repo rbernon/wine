@@ -9,6 +9,7 @@
  *
  */
 
+#define VK_DEFINE_DISPATCHER
 #include "vulkan_loader.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(vulkan);
