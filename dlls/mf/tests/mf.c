@@ -2664,6 +2664,130 @@ static void test_media_session_events(void)
     IMFStreamDescriptor_Release(sd);
 
 
+    /* calling IMFMediaSession_Pause near MEEndOfPresentation preempts MESessionEnded */
+
+    source = create_media_source(L"audiodata.wav", L"audio/wav");
+    hr = IMFMediaSource_CreatePresentationDescriptor(source, &pd);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFPresentationDescriptor_GetStreamDescriptorByIndex(pd, 0, &selected, &sd);
+    ok(selected, "got selected %u.\n", !!selected);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    init_source_node(source, -1, src_node, pd, sd);
+
+    hr = MFCreateAudioRenderer(NULL, &renderer);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaSink_GetStreamSinkByIndex(renderer, 0, &stream);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    init_sink_node(stream, -1, sink_node);
+    IMFStreamSink_Release(stream);
+    IMFMediaSink_Release(renderer);
+
+    hr = MFCreateMediaSession(NULL, &session);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    propvar.vt = VT_EMPTY;
+    hr = IMFMediaSession_SetTopology(session, 0, topology);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    hr = IMFMediaSession_Start(session, &GUID_NULL, &propvar);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = wait_media_event(session, callback, MESessionStarted, 1000, &propvar);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+    hr = wait_media_event(session, callback, MEEndOfPresentation, 5000, &propvar);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+
+    hr = IMFMediaSession_Pause(session);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = wait_next_media_event(session, callback, 500, &event_type, &guid, &propvar);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(IsEqualGUID(&guid, &GUID_NULL), "got guid %s\n", debugstr_guid(&guid));
+    if (event_type == MESessionCapabilitiesChanged) /* > w7 */
+    {
+        ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+        hr = wait_next_media_event(session, callback, 500, &event_type, &guid, &propvar);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        ok(IsEqualGUID(&guid, &GUID_NULL), "got guid %s\n", debugstr_guid(&guid));
+    }
+    todo_wine
+    ok(event_type == MESessionPaused, "got type %lu\n", event_type);
+    todo_wine
+    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+    PropVariantClear(&propvar);
+
+
+    /* calling IMFMediaSession_Start again raises another MEEndOfPresentation */
+
+    hr = IMFMediaSession_Start(session, &GUID_NULL, &propvar);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaSession_Stop(session);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = wait_next_media_event(session, callback, 500, &event_type, &guid, &propvar);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(IsEqualGUID(&guid, &GUID_NULL), "got guid %s\n", debugstr_guid(&guid));
+    if (event_type == MESessionCapabilitiesChanged) /* > w7 */
+    {
+        ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+        hr = wait_next_media_event(session, callback, 500, &event_type, &guid, &propvar);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        ok(IsEqualGUID(&guid, &GUID_NULL), "got guid %s\n", debugstr_guid(&guid));
+    }
+    todo_wine
+    ok(event_type == MESessionStarted, "got type %lu\n", event_type);
+    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+    hr = wait_next_media_event(session, callback, 500, &event_type, &guid, &propvar);
+    todo_wine
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(IsEqualGUID(&guid, &GUID_NULL), "got guid %s\n", debugstr_guid(&guid));
+    todo_wine
+    ok(event_type == MEEndOfPresentation, "got type %lu\n", event_type);
+    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+    hr = wait_next_media_event(session, callback, 500, &event_type, &guid, &propvar);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(IsEqualGUID(&guid, &GUID_NULL), "got guid %s\n", debugstr_guid(&guid));
+    ok(event_type == MESessionTopologyStatus, "got type %lu\n", event_type);
+    ok(propvar.vt == VT_UNKNOWN, "got vt %u\n", propvar.vt);
+    ok(propvar.punkVal != (IUnknown *)topology, "got punkVal %p\n", propvar.punkVal);
+    PropVariantClear(&propvar);
+    hr = wait_next_media_event(session, callback, 500, &event_type, &guid, &propvar);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(IsEqualGUID(&guid, &GUID_NULL), "got guid %s\n", debugstr_guid(&guid));
+    if (event_type == MESessionCapabilitiesChanged) /* > w7 */
+    {
+        ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+        hr = wait_next_media_event(session, callback, 500, &event_type, &guid, &propvar);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        ok(IsEqualGUID(&guid, &GUID_NULL), "got guid %s\n", debugstr_guid(&guid));
+    }
+    todo_wine
+    ok(event_type == MESessionStopped, "got type %lu\n", event_type);
+    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+
+    hr = IMFMediaSession_ClearTopologies(session);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = wait_media_event(session, callback, MESessionTopologiesCleared, 1000, &propvar);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+
+    hr = IMFMediaSession_Close(session);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = wait_media_event(session, callback, MESessionClosed, 1000, &propvar);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(propvar.vt == VT_EMPTY, "got vt %u\n", propvar.vt);
+
+    hr = IMFMediaSession_Shutdown(session);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaSource_Shutdown(source);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    /* sometimes briefly leaking */
+    IMFMediaSession_Release(session);
+    IMFMediaSource_Release(source);
+    IMFPresentationDescriptor_Release(pd);
+    IMFStreamDescriptor_Release(sd);
+
+
     hr = IMFTopology_Clear(topology);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ref = IMFTopologyNode_Release(src_node);
