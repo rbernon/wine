@@ -505,7 +505,7 @@ PTHEME_PARTSTATE MSSTYLES_FindPart(PTHEME_CLASS tc, int iPartId)
  * RETURNS
  *  The part/state found, or NULL
  */
-PTHEME_PARTSTATE MSSTYLES_FindPartState(PTHEME_CLASS tc, int iPartId, int iStateId, PTHEME_CLASS *tcNext)
+static PTHEME_PARTSTATE MSSTYLES_FindPartState(PTHEME_CLASS tc, int iPartId, int iStateId, PTHEME_CLASS *tcNext)
 {
     PTHEME_PARTSTATE cur = tc->partstate;
     while(cur) {
