@@ -2844,27 +2844,19 @@ static void MSSTYLES_ParseThemeIni(PTHEME_FILE tf, BOOL setMetrics)
         parse_apply_nonclient(&nonClientState);
     }
 
-    while((lpName=UXINI_GetNextSection(ini, &dwLen))) {
-        if(CompareStringW(LOCALE_SYSTEM_DEFAULT, NORM_IGNORECASE, lpName, dwLen, L"SysMetrics", -1) == CSTR_EQUAL)
-            continue;
-        if(MSSTYLES_ParseIniSectionName(lpName, dwLen, szAppName, szClassName, &iPartId, &iStateId)) {
-            BOOL isGlobal = FALSE;
-            if(!lstrcmpiW(szClassName, L"globals")) {
-                isGlobal = TRUE;
-            }
+    WINE_RB_FOR_EACH_ENTRY(value, &ini->values, struct uxini_value, entry)
+    {
+        if (!cls && cls->szAppName)
+        {
             cls = MSSTYLES_AddClass(tf, szAppName, szClassName);
-            ps = MSSTYLES_AddPartState(cls, iPartId, iStateId);
-
-            while((lpName=UXINI_GetNextValue(ini, &dwLen, &lpValue, &dwValueLen))) {
-                lstrcpynW(szPropertyName, lpName, min(dwLen+1, ARRAY_SIZE(szPropertyName)));
-                if(MSSTYLES_LookupProperty(szPropertyName, &iPropertyPrimitive, &iPropertyId)) {
-                    MSSTYLES_AddProperty(ps, iPropertyPrimitive, iPropertyId, lpValue, dwValueLen, isGlobal);
-                }
-                else {
-                    TRACE("Unknown property %s\n", debugstr_w(szPropertyName));
-                }
-            }
+            ps = NULL;
         }
+
+        if (!ps || ps->iPartId != value->part_id || ps->iStateId != value->state_id)
+            ps = MSSTYLES_AddPartState(cls, value->part_id, value->state_id);
+
+        MSSTYLES_AddProperty(ps, value->prop_type, value->prop_id, value->value,
+                             wcslen(value->value), value->is_global);
     }
 
     /* App/Class combos override values defined by the base class, map these overrides */
