@@ -101,6 +101,7 @@ typedef struct _UXINI_FILE
     LPCWSTR lpIni;
     LPCWSTR lpCurLoc;
     LPCWSTR lpEnd;
+    struct wine_rb_tree sys_metrics;
     struct wine_rb_tree values;
 } UXINI_FILE, *PUXINI_FILE;
 
@@ -607,7 +608,10 @@ static void uxini_dump_values(UXINI_FILE *file)
     const struct uxini_string *prev_section = NULL;
     struct uxini_value *value;
 
-    TRACE("file %p:\n", file);
+    TRACE("file %p\n", file);
+    TRACE("  SysMetrics:\n");
+    WINE_RB_FOR_EACH_ENTRY(value, &file->sys_metrics, struct uxini_value, entry)
+        TRACE("    %s = %s\n", debugstr_w(value->name), debugstr_w(value->value));
 
     WINE_RB_FOR_EACH_ENTRY(value, &file->values, struct uxini_value, entry)
     {
@@ -630,8 +634,11 @@ static void uxini_parse_values(UXINI_FILE *file)
     while ((section_buf = UXINI_GetNextSection(file, &section_len)))
     {
         struct uxini_string section = {.buf = section_buf, .len = section_len};
+        struct wine_rb_tree *values = &file->values;
         const WCHAR *name_buf, *value_buf;
         DWORD name_len, value_len;
+
+        if (CompareStringOrdinal(section, -1, L"SysMetrics", -1, TRUE) == CSTR_EQUAL) values = &file->sys_metrics;
 
         while ((name_buf = UXINI_GetNextValue(file, &name_len, &value_buf, &value_len)))
         {
@@ -654,7 +661,7 @@ static void uxini_parse_values(UXINI_FILE *file)
                 continue;
             }
 
-            if (wine_rb_put(&file->values, key, &entry->entry))
+            if (wine_rb_put(values, key, &entry->entry)) heap_free(entry);
             {
                 WARN("Ignoring duplicate property %s / %s\n", debugstr_wn(section.buf, section.len),
                      debugstr_wn(name.buf, name.len));
@@ -693,6 +700,7 @@ static PUXINI_FILE UXINI_LoadINI(HMODULE hTheme, LPCWSTR lpName)
     dwIniSize = SizeofResource(hTheme, hrsc) / sizeof(WCHAR);
     uf = heap_alloc(sizeof(*uf));
 
+    wine_rb_init(&uf->sys_metrics, uxini_value_compare);
     wine_rb_init(&uf->values, uxini_value_compare);
     uf->lpIni = lpThemesIni;
     uf->lpCurLoc = lpThemesIni;
@@ -713,6 +721,7 @@ static PUXINI_FILE UXINI_LoadINI(HMODULE hTheme, LPCWSTR lpName)
 void UXINI_CloseINI(PUXINI_FILE uf)
 {
     wine_rb_destroy(&uf->values, uxini_value_destroy, NULL);
+    wine_rb_destroy(&uf->sys_metrics, uxini_value_destroy, NULL);
     heap_free(uf);
 }
 
@@ -1567,6 +1576,9 @@ static void parse_apply_nonclient (struct PARSENONCLIENTSTATE* state)
  */
 static void MSSTYLES_ParseThemeIni(PTHEME_FILE tf, BOOL setMetrics)
 {
+    struct PARSENONCLIENTSTATE nonClientState;
+    struct PARSECOLORSTATE colorState;
+    struct uxini_value *value;
     PTHEME_CLASS cls;
     PTHEME_CLASS globals;
     PTHEME_PARTSTATE ps;
@@ -1585,55 +1597,49 @@ static void MSSTYLES_ParseThemeIni(PTHEME_FILE tf, BOOL setMetrics)
 
     ini = MSSTYLES_GetActiveThemeIni(tf);
 
-    while((lpName=UXINI_GetNextSection(ini, &dwLen))) {
-        if (CompareStringW(LOCALE_SYSTEM_DEFAULT, NORM_IGNORECASE, lpName, dwLen, L"SysMetrics", -1) == CSTR_EQUAL)
+    parse_init_color(&colorState);
+    parse_init_nonclient(&nonClientState);
+
+    WINE_RB_FOR_EACH_ENTRY(value, &ini->sys_metrics, struct uxini_value, entry)
+    {
+        DWORD dwValueLen = wcslen(value->value);
+        const WCHAR *lpValue = value->value;
+        int iPropertyId = value->prop_id;
+
+        if (iPropertyId >= TMT_FIRSTCOLOR && iPropertyId <= TMT_LASTCOLOR)
         {
-            struct PARSECOLORSTATE colorState;
-            struct PARSENONCLIENTSTATE nonClientState;
-
-            parse_init_color(&colorState);
-            parse_init_nonclient(&nonClientState);
-
-            while ((lpName = UXINI_GetNextValue(ini, &dwLen, &lpValue, &dwValueLen)))
-            {
-                lstrcpynW(szPropertyName, lpName, min(dwLen + 1, ARRAY_SIZE(szPropertyName)));
-                if (MSSTYLES_LookupProperty(szPropertyName, &iPropertyPrimitive, &iPropertyId))
-                {
-                    if (iPropertyId >= TMT_FIRSTCOLOR && iPropertyId <= TMT_LASTCOLOR)
-                    {
-                        if (!parse_handle_color_property(&colorState, iPropertyId, lpValue, dwValueLen))
-                            FIXME("Invalid color value for %s\n", debugstr_w(szPropertyName));
-                    }
-                    else if (setMetrics && iPropertyId == TMT_FLATMENUS)
-                    {
-                        BOOL flatMenus = lpValue[0] == 'T' || lpValue[0] == 't';
-                        SystemParametersInfoW(SPI_SETFLATMENU, 0, (PVOID)(INT_PTR)flatMenus, 0);
-                    }
-                    else if (iPropertyId >= TMT_FIRSTFONT && iPropertyId <= TMT_LASTFONT)
-                    {
-                        if (!parse_handle_nonclient_font(&nonClientState, iPropertyId, lpValue, dwValueLen))
-                            FIXME("Invalid font value for %s\n", debugstr_w(szPropertyName));
-                    }
-                    else if (iPropertyId >= TMT_FIRSTSIZE && iPropertyId <= TMT_LASTSIZE)
-                    {
-                        if (!parse_handle_nonclient_size(&nonClientState, iPropertyId, lpValue, dwValueLen))
-                            FIXME("Invalid size value for %s\n", debugstr_w(szPropertyName));
-                    }
-                    /* Catch all metrics, including colors */
-                    MSSTYLES_AddMetric(tf, iPropertyPrimitive, iPropertyId, lpValue, dwValueLen);
-                }
-                else
-                {
-                    TRACE("Unknown system metric %s\n", debugstr_w(szPropertyName));
-                }
-            }
-            if (setMetrics)
-            {
-                parse_apply_color(&colorState);
-                parse_apply_nonclient(&nonClientState);
-            }
-            continue;
+            if (!parse_handle_color_property(&colorState, iPropertyId, lpValue, dwValueLen))
+                FIXME("Invalid color value for %s\n", debugstr_w(szPropertyName));
         }
+        else if (setMetrics && iPropertyId == TMT_FLATMENUS)
+        {
+            BOOL flatMenus = lpValue[0] == 'T' || lpValue[0] == 't';
+            SystemParametersInfoW(SPI_SETFLATMENU, 0, (PVOID)(INT_PTR)flatMenus, 0);
+        }
+        else if (iPropertyId >= TMT_FIRSTFONT && iPropertyId <= TMT_LASTFONT)
+        {
+            if (!parse_handle_nonclient_font(&nonClientState, iPropertyId, lpValue, dwValueLen))
+                FIXME("Invalid font value for %s\n", debugstr_w(szPropertyName));
+        }
+        else if (iPropertyId >= TMT_FIRSTSIZE && iPropertyId <= TMT_LASTSIZE)
+        {
+            if (!parse_handle_nonclient_size(&nonClientState, iPropertyId, lpValue, dwValueLen))
+                FIXME("Invalid size value for %s\n",  debugstr_w(szPropertyName));
+        }
+
+        /* Catch all metrics, including colors */
+        MSSTYLES_AddMetric(tf, value->prop_type, iPropertyId, lpValue, dwValueLen);
+    }
+
+    if (setMetrics)
+    {
+        parse_apply_color(&colorState);
+        parse_apply_nonclient(&nonClientState);
+    }
+
+    while((lpName=UXINI_GetNextSection(ini, &dwLen))) {
+        if(CompareStringW(LOCALE_SYSTEM_DEFAULT, NORM_IGNORECASE, lpName, dwLen, L"SysMetrics", -1) == CSTR_EQUAL)
+            continue;
         if(MSSTYLES_ParseIniSectionName(lpName, dwLen, szAppName, szClassName, &iPartId, &iStateId)) {
             BOOL isGlobal = FALSE;
             if(!lstrcmpiW(szClassName, L"globals")) {
