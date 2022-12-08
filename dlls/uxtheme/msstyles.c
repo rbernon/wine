@@ -75,6 +75,8 @@ struct uxini_value
     struct uxini_string section;
     struct uxini_string name;
     struct uxini_string value;
+    int prop_type;
+    int prop_id;
 };
 
 static int uxini_value_compare(const void *key, const struct wine_rb_entry *entry)
@@ -338,6 +340,26 @@ BOOL MSSTYLES_LookupProperty(LPCWSTR pszPropertyName, int *dwPrimitive, int *dwI
 
     if (dwPrimitive) *dwPrimitive = found->dwPrimitiveType;
     if (dwId) *dwId = found->dwPropertyID;
+    return TRUE;
+}
+
+static int __cdecl uxini_property_name_compare(const void *a, const void *b)
+{
+    const struct MSSTYLES_PROPERTY_MAP *entry = b;
+    const struct uxini_string name_str = {.buf = entry->szPropertyName, .len = -1};
+    return uxini_string_compare(a, &name_str);
+}
+
+static BOOL uxini_lookup_property(const struct uxini_string *property_name, int *prop_type, int *prop_id)
+{
+    struct MSSTYLES_PROPERTY_MAP *found;
+
+    if (!(found = bsearch(property_name, mapProperty, ARRAY_SIZE(mapProperty),
+                          sizeof(*mapProperty), uxini_property_name_compare)))
+        return FALSE;
+
+    *prop_type = found->dwPrimitiveType;
+    *prop_id = found->dwPropertyID;
     return TRUE;
 }
 
@@ -623,6 +645,14 @@ static void uxini_parse_values(UXINI_FILE *file)
             entry->section = section;
             entry->name = name;
             entry->value = value;
+
+            if (!uxini_lookup_property(&entry->name, &entry->prop_type, &entry->prop_id))
+            {
+                WARN("Ignoring unknown property %s / %s\n", debugstr_wn(section.buf, section.len),
+                     debugstr_wn(name.buf, name.len));
+                heap_free(entry);
+                continue;
+            }
 
             if (wine_rb_put(&file->values, key, &entry->entry))
             {
