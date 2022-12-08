@@ -14,7 +14,6 @@ C_SRCS = \
 	scrollbar.c \
 	stylemap.c \
 	system.c \
-	uxini.c \
 	window.c
 
 RC_SRCS = version.rc
