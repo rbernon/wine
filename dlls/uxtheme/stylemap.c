@@ -26,12 +26,6 @@
 #include "winuser.h"
 #include "vssym32.h"
 
-typedef struct _MSSTYLES_ENUM_MAP {
-    WORD dwEnum;
-    WORD dwValue;
-    WCHAR szValueName[18];
-} MSSTYLES_ENUM_MAP, *PMSSTYLES_ENUM_MAP;
-
 typedef struct _MSSTYLES_CLASS_MAP {
     WORD dwPartID;
     WORD dwStateID;
@@ -42,74 +36,6 @@ typedef struct _MSSTYLES_CLASS_NAME {
     const MSSTYLES_CLASS_MAP *lpMap;
     WCHAR pszClass[12];
 } MSSTYLES_CLASS_NAME, *PMSSTYLES_CLASS_NAME;
-
-/***********************************************************************
- * Map strings to enumeration values
- * Enum,Value,ValueName
- */
-static const MSSTYLES_ENUM_MAP mapEnum[] = {
-    {TMT_BGTYPE, BT_IMAGEFILE, L"IMAGEFILE"},
-    {TMT_BGTYPE, BT_BORDERFILL, L"BORDERFILL"},
-    {TMT_BGTYPE, BT_NONE, L"NONE"},
-    {TMT_IMAGELAYOUT, IL_VERTICAL, L"VERTICAL"},
-    {TMT_IMAGELAYOUT, IL_HORIZONTAL, L"HORIZONTAL"},
-    {TMT_BORDERTYPE, BT_RECT, L"RECT"},
-    {TMT_BORDERTYPE, BT_ROUNDRECT, L"ROUNDRECT"},
-    {TMT_BORDERTYPE, BT_ELLIPSE, L"ELLIPSE"},
-    {TMT_FILLTYPE, FT_SOLID, L"SOLID"},
-    {TMT_FILLTYPE, FT_VERTGRADIENT, L"VERTGRADIENT"},
-    {TMT_FILLTYPE, FT_HORZGRADIENT, L"HORZGRADIENT"},
-    {TMT_FILLTYPE, FT_RADIALGRADIENT, L"RADIALGRADIENT"},
-    {TMT_FILLTYPE, FT_TILEIMAGE, L"TILEIMAGE"},
-    {TMT_SIZINGTYPE, ST_TRUESIZE, L"TRUESIZE"},
-    {TMT_SIZINGTYPE, ST_STRETCH, L"STRETCH"},
-    {TMT_SIZINGTYPE, ST_TILE, L"TILE"},
-    {TMT_HALIGN, HA_LEFT, L"LEFT"},
-    {TMT_HALIGN, HA_CENTER, L"CENTER"},
-    {TMT_HALIGN, HA_RIGHT, L"RIGHT"},
-    {TMT_CONTENTALIGNMENT, CA_LEFT, L"LEFT"},
-    {TMT_CONTENTALIGNMENT, CA_CENTER, L"CENTER"},
-    {TMT_CONTENTALIGNMENT, CA_RIGHT, L"RIGHT"},
-    {TMT_VALIGN, VA_TOP, L"TOP"},
-    {TMT_VALIGN, VA_CENTER, L"CENTER"},
-    {TMT_VALIGN, VA_BOTTOM, L"BOTTOM"},
-    {TMT_OFFSETTYPE, OT_TOPLEFT, L"TOPLEFT"},
-    {TMT_OFFSETTYPE, OT_TOPRIGHT, L"TOPRIGHT"},
-    {TMT_OFFSETTYPE, OT_TOPMIDDLE, L"TOPMIDDLE"},
-    {TMT_OFFSETTYPE, OT_BOTTOMLEFT, L"BOTTOMLEFT"},
-    {TMT_OFFSETTYPE, OT_BOTTOMRIGHT, L"BOTTOMRIGHT"},
-    {TMT_OFFSETTYPE, OT_BOTTOMMIDDLE, L"BOTTOMMIDDLE"},
-    {TMT_OFFSETTYPE, OT_MIDDLELEFT, L"MIDDLELEFT"},
-    {TMT_OFFSETTYPE, OT_MIDDLERIGHT, L"MIDDLERIGHT"},
-    {TMT_OFFSETTYPE, OT_LEFTOFCAPTION, L"LEFTOFCAPTION"},
-    {TMT_OFFSETTYPE, OT_RIGHTOFCAPTION, L"RIGHTOFCAPTION"},
-    {TMT_OFFSETTYPE, OT_LEFTOFLASTBUTTON, L"LEFTOFLASTBUTTON"},
-    {TMT_OFFSETTYPE, OT_RIGHTOFLASTBUTTON, L"RIGHTOFLASTBUTTON"},
-    {TMT_OFFSETTYPE, OT_ABOVELASTBUTTON, L"ABOVELASTBUTTON"},
-    {TMT_OFFSETTYPE, OT_BELOWLASTBUTTON, L"BELOWLASTBUTTON"},
-    {TMT_ICONEFFECT, ICE_NONE, L"NONE"},
-    {TMT_ICONEFFECT, ICE_GLOW, L"GLOW"},
-    {TMT_ICONEFFECT, ICE_SHADOW, L"SHADOW"},
-    {TMT_ICONEFFECT, ICE_PULSE, L"PULSE"},
-    {TMT_ICONEFFECT, ICE_ALPHA, L"ALPHA"},
-    {TMT_TEXTSHADOWTYPE, TST_NONE, L"NONE"},
-    {TMT_TEXTSHADOWTYPE, TST_SINGLE, L"SINGLE"},
-    {TMT_TEXTSHADOWTYPE, TST_CONTINUOUS, L"CONTINUOUS"},
-    {TMT_GLYPHTYPE, GT_NONE, L"NONE"},
-    {TMT_GLYPHTYPE, GT_IMAGEGLYPH, L"IMAGEGLYPH"},
-    {TMT_GLYPHTYPE, GT_FONTGLYPH, L"FONTGLYPH"},
-    {TMT_IMAGESELECTTYPE, IST_NONE, L"NONE"},
-    {TMT_IMAGESELECTTYPE, IST_SIZE, L"SIZE"},
-    {TMT_IMAGESELECTTYPE, IST_DPI, L"DPI"},
-    {TMT_TRUESIZESCALINGTYPE, TSST_NONE, L"NONE"},
-    {TMT_TRUESIZESCALINGTYPE, TSST_SIZE, L"SIZE"},
-    {TMT_TRUESIZESCALINGTYPE, TSST_DPI, L"DPI"},
-    {TMT_GLYPHFONTSIZINGTYPE, GFST_NONE, L"NONE"},
-    {TMT_GLYPHFONTSIZINGTYPE, GFST_SIZE, L"SIZE"},
-    {TMT_GLYPHFONTSIZINGTYPE, GFST_DPI, L"DPI"},
-    {0, 0, L""}
-};
-
 
 /***********************************************************************
  * Classes defined below
@@ -1264,33 +1190,4 @@ BOOL MSSTYLES_LookupPartState(LPCWSTR pszClass, LPCWSTR pszPart, LPCWSTR pszStat
         return FALSE;
     }
     return TRUE;
-}
-
-/**********************************************************************
- *      MSSTYLES_LookupEnum
- *
- * Lookup the value for an enumeration
- *
- * PARAMS
- *     pszValueName        Value name to lookup
- *     dwEnum              Enumeration property ID to search
- *     dwValue             Location to store value
- *
- * RETURNS
- *     FALSE if value is not found, TRUE otherwise
- */
-BOOL MSSTYLES_LookupEnum(LPCWSTR pszValueName, int dwEnum, int *dwValue)
-{
-    DWORD item = 0;
-    /* Locate the enum block */
-    while(*mapEnum[item].szValueName && mapEnum[item].dwEnum != dwEnum) item++;
-    /* Now find the value in that block */
-    while(*mapEnum[item].szValueName && mapEnum[item].dwEnum == dwEnum) {
-        if(!lstrcmpiW(mapEnum[item].szValueName, pszValueName)) {
-            if(dwValue) *dwValue = mapEnum[item].dwValue;
-            return TRUE;
-        }
-        item++;
-    }
-    return FALSE;
 }
