@@ -44,6 +44,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(uxtheme);
  * Defines and global variables
  */
 
+static BOOL MSSTYLES_ParseIniSectionName(LPCWSTR lpSection, DWORD dwLen, LPWSTR szAppName, LPWSTR szClassName, int *iPartId, int *iStateId);
 static BOOL MSSTYLES_GetNextInteger(LPCWSTR lpStringStart, LPCWSTR lpStringEnd, LPCWSTR *lpValEnd, int *value);
 static BOOL MSSTYLES_GetNextLong(LPCWSTR lpStringStart, LPCWSTR lpStringEnd, LPCWSTR *lpValEnd, LONG *value);
 static BOOL MSSTYLES_GetNextToken(LPCWSTR lpStringStart, LPCWSTR lpStringEnd, LPCWSTR *lpValEnd, LPWSTR lpBuff, DWORD buffSize);
@@ -76,6 +77,9 @@ struct uxini_value
     struct uxini_string section;
     struct uxini_string name;
     struct uxini_string value;
+    int part_id;
+    int state_id;
+    int is_global;
     int prop_type;
     int prop_id;
 };
@@ -1830,12 +1834,15 @@ static void uxini_parse_values(UXINI_FILE *file)
 
     while ((section_buf = UXINI_GetNextSection(file, &section_len)))
     {
+        WCHAR class_name[MAX_THEME_CLASS_NAME], app_name[MAX_THEME_APP_NAME];
         struct uxini_string section = {.buf = section_buf, .len = section_len};
         struct wine_rb_tree *values = &file->values;
         const WCHAR *name_buf, *value_buf;
         DWORD name_len, value_len;
 
         if (CompareStringOrdinal(section, -1, L"SysMetrics", -1, TRUE) == CSTR_EQUAL) values = &file->sys_metrics;
+        else if (!MSSTYLES_ParseIniSectionName(section, section_len, app_name, class_name, &part_id, &state_id)) continue;
+        is_global = CompareStringOrdinal(class_name, -1, L"globals", -1, TRUE) == CSTR_EQUAL;
 
         while ((name_buf = UXINI_GetNextValue(file, &name_len, &value_buf, &value_len)))
         {
@@ -1845,6 +1852,9 @@ static void uxini_parse_values(UXINI_FILE *file)
             struct uxini_value *entry;
 
             if (!(entry = heap_alloc(sizeof(*entry)))) return;
+            entry->part_id = part_id;
+            entry->state_id = state_id;
+            entry->is_global = is_global;
 
             entry->section = section;
             entry->name = name;
