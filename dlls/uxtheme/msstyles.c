@@ -35,6 +35,7 @@
 #include "wine/exception.h"
 #include "wine/debug.h"
 #include "wine/heap.h"
+#include "wine/rbtree.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(uxtheme);
 
@@ -54,11 +55,48 @@ static HRESULT MSSTYLES_GetFont (LPCWSTR lpStringStart, LPCWSTR lpStringEnd, LPC
 
 static PTHEME_FILE tfActiveTheme;
 
+struct uxini_string
+{
+    const WCHAR *buf;
+    SIZE_T len;
+};
+
+static inline int uxini_string_compare(const struct uxini_string *a, const struct uxini_string *b)
+{
+    return CompareStringOrdinal(a->buf, a->len, b->buf, b->len, TRUE) - CSTR_EQUAL;
+}
+
+struct uxini_value
+{
+    struct wine_rb_entry entry;
+    struct uxini_string section;
+    struct uxini_string name;
+    struct uxini_string value;
+};
+
+static int uxini_value_compare(const void *key, const struct wine_rb_entry *entry)
+{
+    struct uxini_value *value = WINE_RB_ENTRY_VALUE(entry, struct uxini_value, entry);
+    const struct uxini_string *lookup = key;
+    int ret;
+
+    if ((ret = uxini_string_compare(&lookup[0], &value->section))) return ret;
+    if ((ret = uxini_string_compare(&lookup[1], &value->name))) return ret;
+    return 0;
+}
+
+static void uxini_value_destroy(struct wine_rb_entry *entry, void *context)
+{
+    struct uxini_value *value = WINE_RB_ENTRY_VALUE(entry, struct uxini_value, entry);
+    heap_free(value);
+}
+
 typedef struct _UXINI_FILE
 {
     LPCWSTR lpIni;
     LPCWSTR lpCurLoc;
     LPCWSTR lpEnd;
+    struct wine_rb_tree values;
 } UXINI_FILE, *PUXINI_FILE;
 
 /**********************************************************************
@@ -231,6 +269,62 @@ BOOL UXINI_FindValue(PUXINI_FILE uf, LPCWSTR lpName, LPCWSTR *lpValue, DWORD *dw
     return FALSE;
 }
 
+static void uxini_dump_values(UXINI_FILE *file)
+{
+    const struct uxini_string *prev_section = NULL;
+    struct uxini_value *value;
+
+    TRACE("file %p:\n", file);
+
+    WINE_RB_FOR_EACH_ENTRY(value, &file->values, struct uxini_value, entry)
+    {
+        if (!prev_section || uxini_string_compare(prev_section, &value->section))
+        {
+            prev_section = &value->section;
+            TRACE("  %s:\n", debugstr_wn(value->section.buf, value->section.len));
+        }
+
+        TRACE("    %s = %s\n", debugstr_wn(value->name.buf, value->name.len),
+              debugstr_wn(value->value.buf, value->value.len));
+    }
+}
+
+static void uxini_parse_values(UXINI_FILE *file)
+{
+    const WCHAR *section_buf;
+    DWORD section_len;
+
+    while ((section_buf = UXINI_GetNextSection(file, &section_len)))
+    {
+        struct uxini_string section = {.buf = section_buf, .len = section_len};
+        const WCHAR *name_buf, *value_buf;
+        DWORD name_len, value_len;
+
+        while ((name_buf = UXINI_GetNextValue(file, &name_len, &value_buf, &value_len)))
+        {
+            struct uxini_string value = {.buf = value_buf, .len = value_len};
+            struct uxini_string name = {.buf = name_buf, .len = name_len};
+            struct uxini_string key[2] = {section, value};
+            struct uxini_value *entry;
+
+            if (!(entry = heap_alloc(sizeof(*entry)))) return;
+
+            entry->section = section;
+            entry->name = name;
+            entry->value = value;
+
+            if (wine_rb_put(&file->values, key, &entry->entry))
+            {
+                WARN("Ignoring duplicate property %s / %s\n", debugstr_wn(section.buf, section.len),
+                     debugstr_wn(name.buf, name.len));
+                heap_free(entry);
+            }
+        }
+    }
+
+    if (TRACE_ON(uxtheme)) uxini_dump_values(file);
+}
+
 /**********************************************************************
  *      UXINI_LoadINI
  *
@@ -257,6 +351,13 @@ static PUXINI_FILE UXINI_LoadINI(HMODULE hTheme, LPCWSTR lpName)
 
     dwIniSize = SizeofResource(hTheme, hrsc) / sizeof(WCHAR);
     uf = heap_alloc(sizeof(*uf));
+
+    wine_rb_init(&uf->values, uxini_value_compare);
+    uf->lpIni = lpThemesIni;
+    uf->lpCurLoc = lpThemesIni;
+    uf->lpEnd = lpThemesIni + dwIniSize;
+    uxini_parse_values(uf);
+
     uf->lpIni = lpThemesIni;
     uf->lpCurLoc = lpThemesIni;
     uf->lpEnd = lpThemesIni + dwIniSize;
@@ -270,6 +371,7 @@ static PUXINI_FILE UXINI_LoadINI(HMODULE hTheme, LPCWSTR lpName)
  */
 void UXINI_CloseINI(PUXINI_FILE uf)
 {
+    wine_rb_destroy(&uf->values, uxini_value_destroy, NULL);
     heap_free(uf);
 }
 
