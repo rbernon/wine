@@ -860,14 +860,7 @@ HRESULT WINAPI GetThemeDocumentationProperty(LPCWSTR pszThemeName,
     /* If loading from string resource failed, try getting it from the theme.ini */
     if(FAILED(hr)) {
         PUXINI_FILE uf = MSSTYLES_GetThemeIni(pt);
-        if(UXINI_FindSection(uf, L"documentation")) {
-            LPCWSTR lpValue;
-            DWORD dwLen;
-            if(UXINI_FindValue(uf, pszPropertyName, &lpValue, &dwLen)) {
-                lstrcpynW(pszValueBuff, lpValue, min(dwLen+1,cchMaxValChars));
-                hr = S_OK;
-            }
-        }
+        if (UXINI_FindValue(uf, L"documentation", pszPropertyName, pszValueBuff, cchMaxValChars)) hr = S_OK;
         UXINI_CloseINI(uf);
     }
 

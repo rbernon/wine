@@ -182,26 +182,6 @@ static LPCWSTR UXINI_GetNextSection(PUXINI_FILE uf, DWORD *dwLen)
 }
 
 /**********************************************************************
- *      UXINI_FindSection
- *
- * Locate a section with the specified name, search starts
- * at current location in ini file
- */
-BOOL UXINI_FindSection(PUXINI_FILE uf, LPCWSTR lpName)
-{
-    LPCWSTR lpSection;
-    DWORD dwLen;
-    while ((lpSection = UXINI_GetNextSection(uf, &dwLen)))
-    {
-        if (CompareStringW(LOCALE_SYSTEM_DEFAULT, NORM_IGNORECASE, lpSection, dwLen, lpName, -1) == CSTR_EQUAL)
-        {
-            return TRUE;
-        }
-    }
-    return FALSE;
-}
-
-/**********************************************************************
  *      UXINI_GetNextValue
  *
  * Locate the next value in the current section
@@ -254,19 +234,16 @@ static LPCWSTR UXINI_GetNextValue(PUXINI_FILE uf, DWORD *dwNameLen, LPCWSTR *lpV
  *
  * Locate a value by name
  */
-BOOL UXINI_FindValue(PUXINI_FILE uf, LPCWSTR lpName, LPCWSTR *lpValue, DWORD *dwValueLen)
+BOOL UXINI_FindValue(PUXINI_FILE uf, const WCHAR *section, const WCHAR *name, WCHAR *buffer, DWORD length)
 {
-    LPCWSTR name;
-    DWORD namelen;
+    struct uxini_string key[2] = {{.buf = section, .len = -1}, {.buf = name, .len = -1}};
+    struct wine_rb_entry *entry;
+    struct uxini_value *value;
 
-    while ((name = UXINI_GetNextValue(uf, &namelen, lpValue, dwValueLen)))
-    {
-        if (CompareStringW(LOCALE_SYSTEM_DEFAULT, NORM_IGNORECASE, name, namelen, lpName, -1) == CSTR_EQUAL)
-        {
-            return TRUE;
-        }
-    }
-    return FALSE;
+    if (!(entry = wine_rb_get(&uf->values, key))) return FALSE;
+    value = WINE_RB_ENTRY_VALUE(entry, struct uxini_value, entry);
+    lstrcpynW(buffer, value->value.buf, length);
+    return TRUE;
 }
 
 static void uxini_dump_values(UXINI_FILE *file)
