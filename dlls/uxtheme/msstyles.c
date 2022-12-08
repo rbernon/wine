@@ -1586,54 +1586,52 @@ static void MSSTYLES_ParseThemeIni(PTHEME_FILE tf, BOOL setMetrics)
     ini = MSSTYLES_GetActiveThemeIni(tf);
 
     while((lpName=UXINI_GetNextSection(ini, &dwLen))) {
-        if(CompareStringW(LOCALE_SYSTEM_DEFAULT, NORM_IGNORECASE, lpName, dwLen, L"SysMetrics", -1) == CSTR_EQUAL) {
+        if (CompareStringW(LOCALE_SYSTEM_DEFAULT, NORM_IGNORECASE, lpName, dwLen, L"SysMetrics", -1) == CSTR_EQUAL)
+        {
             struct PARSECOLORSTATE colorState;
             struct PARSENONCLIENTSTATE nonClientState;
-            
-            parse_init_color (&colorState);
-            parse_init_nonclient (&nonClientState);
 
-            while((lpName=UXINI_GetNextValue(ini, &dwLen, &lpValue, &dwValueLen))) {
-                lstrcpynW(szPropertyName, lpName, min(dwLen+1, ARRAY_SIZE(szPropertyName)));
-                if(MSSTYLES_LookupProperty(szPropertyName, &iPropertyPrimitive, &iPropertyId)) {
-                    if(iPropertyId >= TMT_FIRSTCOLOR && iPropertyId <= TMT_LASTCOLOR) {
-                        if (!parse_handle_color_property (&colorState, iPropertyId, 
-                            lpValue, dwValueLen))
-                            FIXME("Invalid color value for %s\n", 
-                                debugstr_w(szPropertyName)); 
+            parse_init_color(&colorState);
+            parse_init_nonclient(&nonClientState);
+
+            while ((lpName = UXINI_GetNextValue(ini, &dwLen, &lpValue, &dwValueLen)))
+            {
+                lstrcpynW(szPropertyName, lpName, min(dwLen + 1, ARRAY_SIZE(szPropertyName)));
+                if (MSSTYLES_LookupProperty(szPropertyName, &iPropertyPrimitive, &iPropertyId))
+                {
+                    if (iPropertyId >= TMT_FIRSTCOLOR && iPropertyId <= TMT_LASTCOLOR)
+                    {
+                        if (!parse_handle_color_property(&colorState, iPropertyId, lpValue, dwValueLen))
+                            FIXME("Invalid color value for %s\n", debugstr_w(szPropertyName));
                     }
-		    else if (setMetrics && (iPropertyId == TMT_FLATMENUS)) {
-			BOOL flatMenus = (*lpValue == 'T') || (*lpValue == 't');
-			SystemParametersInfoW (SPI_SETFLATMENU, 0, (PVOID)(INT_PTR)flatMenus, 0);
-		    }
-		    else if ((iPropertyId >= TMT_FIRSTFONT) 
-			&& (iPropertyId <= TMT_LASTFONT))
-		    {
-		        if (!parse_handle_nonclient_font (&nonClientState,
-		            iPropertyId, lpValue, dwValueLen))
-                            FIXME("Invalid font value for %s\n", 
-                                debugstr_w(szPropertyName)); 
-		    }
-		    else if ((iPropertyId >= TMT_FIRSTSIZE)
-			&& (iPropertyId <= TMT_LASTSIZE))
-		    {
-		        if (!parse_handle_nonclient_size (&nonClientState,
-		            iPropertyId, lpValue, dwValueLen))
-                            FIXME("Invalid size value for %s\n", 
-                                debugstr_w(szPropertyName)); 
-		    }
+                    else if (setMetrics && iPropertyId == TMT_FLATMENUS)
+                    {
+                        BOOL flatMenus = lpValue[0] == 'T' || lpValue[0] == 't';
+                        SystemParametersInfoW(SPI_SETFLATMENU, 0, (PVOID)(INT_PTR)flatMenus, 0);
+                    }
+                    else if (iPropertyId >= TMT_FIRSTFONT && iPropertyId <= TMT_LASTFONT)
+                    {
+                        if (!parse_handle_nonclient_font(&nonClientState, iPropertyId, lpValue, dwValueLen))
+                            FIXME("Invalid font value for %s\n", debugstr_w(szPropertyName));
+                    }
+                    else if (iPropertyId >= TMT_FIRSTSIZE && iPropertyId <= TMT_LASTSIZE)
+                    {
+                        if (!parse_handle_nonclient_size(&nonClientState, iPropertyId, lpValue, dwValueLen))
+                            FIXME("Invalid size value for %s\n", debugstr_w(szPropertyName));
+                    }
                     /* Catch all metrics, including colors */
                     MSSTYLES_AddMetric(tf, iPropertyPrimitive, iPropertyId, lpValue, dwValueLen);
                 }
-                else {
+                else
+                {
                     TRACE("Unknown system metric %s\n", debugstr_w(szPropertyName));
                 }
             }
-            if (setMetrics) 
+            if (setMetrics)
             {
-                parse_apply_color (&colorState);
-		parse_apply_nonclient (&nonClientState);
-	    }
+                parse_apply_color(&colorState);
+                parse_apply_nonclient(&nonClientState);
+            }
             continue;
         }
         if(MSSTYLES_ParseIniSectionName(lpName, dwLen, szAppName, szClassName, &iPartId, &iStateId)) {
