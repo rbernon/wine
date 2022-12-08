@@ -54,17 +54,12 @@ static HRESULT MSSTYLES_GetFont (LPCWSTR lpStringStart, LPCWSTR lpStringEnd, LPC
 
 static PTHEME_FILE tfActiveTheme;
 
-/***********************************************************************
- * Defines and global variables
- */
-
-typedef struct _UXINI_FILE {
+typedef struct _UXINI_FILE
+{
     LPCWSTR lpIni;
     LPCWSTR lpCurLoc;
     LPCWSTR lpEnd;
 } UXINI_FILE, *PUXINI_FILE;
-
-/***********************************************************************/
 
 /**********************************************************************
  *      UXINI_eof
@@ -99,22 +94,23 @@ static LPCWSTR UXINI_GetNextLine(PUXINI_FILE uf, DWORD *dwLen)
     LPCWSTR lpLineEnd;
     LPCWSTR lpLineStart;
     DWORD len;
-    do {
-        if(UXINI_eof(uf)) return NULL;
+    do
+    {
+        if (UXINI_eof(uf)) return NULL;
         /* Skip whitespace and empty lines */
-        while(!UXINI_eof(uf) && (UXINI_isspace(*uf->lpCurLoc) || *uf->lpCurLoc == '\n')) uf->lpCurLoc++;
+        while (!UXINI_eof(uf) && (UXINI_isspace(*uf->lpCurLoc) || *uf->lpCurLoc == '\n')) uf->lpCurLoc++;
         lpLineStart = uf->lpCurLoc;
         lpLineEnd = uf->lpCurLoc;
-        while(!UXINI_eof(uf) && *uf->lpCurLoc != '\n' && *uf->lpCurLoc != ';') lpLineEnd = ++uf->lpCurLoc;
+        while (!UXINI_eof(uf) && *uf->lpCurLoc != '\n' && *uf->lpCurLoc != ';') lpLineEnd = ++uf->lpCurLoc;
         /* If comment was found, skip the rest of the line */
-        if(*uf->lpCurLoc == ';')
-            while(!UXINI_eof(uf) && *uf->lpCurLoc != '\n') uf->lpCurLoc++;
+        if (*uf->lpCurLoc == ';')
+            while (!UXINI_eof(uf) && *uf->lpCurLoc != '\n') uf->lpCurLoc++;
         len = (lpLineEnd - lpLineStart);
-        if(*lpLineStart != ';' && len == 0)
+        if (*lpLineStart != ';' && len == 0)
             return NULL;
-    } while(*lpLineStart == ';');
+    } while (*lpLineStart == ';');
     /* Remove whitespace from end of line */
-    while(UXINI_isspace(lpLineStart[len-1])) len--;
+    while (UXINI_isspace(lpLineStart[len - 1])) len--;
     *dwLen = len;
 
     return lpLineStart;
@@ -134,9 +130,11 @@ static inline void UXINI_UnGetToLine(PUXINI_FILE uf, LPCWSTR lpLine)
 static LPCWSTR UXINI_GetNextSection(PUXINI_FILE uf, DWORD *dwLen)
 {
     LPCWSTR lpLine;
-    while((lpLine = UXINI_GetNextLine(uf, dwLen))) {
+    while ((lpLine = UXINI_GetNextLine(uf, dwLen)))
+    {
         /* Assuming a ']' ending to the section name */
-        if(lpLine[0] == '[') {
+        if (lpLine[0] == '[')
+        {
             lpLine++;
             *dwLen -= 2;
             break;
@@ -155,8 +153,10 @@ BOOL UXINI_FindSection(PUXINI_FILE uf, LPCWSTR lpName)
 {
     LPCWSTR lpSection;
     DWORD dwLen;
-    while((lpSection = UXINI_GetNextSection(uf, &dwLen))) {
-        if(CompareStringW(LOCALE_SYSTEM_DEFAULT, NORM_IGNORECASE, lpSection, dwLen, lpName, -1) == CSTR_EQUAL) {
+    while ((lpSection = UXINI_GetNextSection(uf, &dwLen)))
+    {
+        if (CompareStringW(LOCALE_SYSTEM_DEFAULT, NORM_IGNORECASE, lpSection, dwLen, lpName, -1) == CSTR_EQUAL)
+        {
             return TRUE;
         }
     }
@@ -178,28 +178,31 @@ static LPCWSTR UXINI_GetNextValue(PUXINI_FILE uf, DWORD *dwNameLen, LPCWSTR *lpV
     DWORD namelen = 0;
     DWORD dwLen;
     lpLine = UXINI_GetNextLine(uf, &dwLen);
-    if(!lpLine)
+    if (!lpLine)
         return NULL;
-    if(lpLine[0] == '[') {
+    if (lpLine[0] == '[')
+    {
         UXINI_UnGetToLine(uf, lpLine);
         return NULL;
     }
     lpLineEnd = lpLine + dwLen;
 
     name = lpLine;
-    while(namelen < dwLen && *lpLine != '=') {
+    while (namelen < dwLen && *lpLine != '=')
+    {
         lpLine++;
         namelen++;
     }
-    if(*lpLine != '=') return NULL;
+    if (*lpLine != '=')
+        return NULL;
     lpLine++;
 
     /* Remove whitespace from end of name */
-    while(UXINI_isspace(name[namelen-1])) namelen--;
+    while (UXINI_isspace(name[namelen - 1])) namelen--;
     /* Remove whitespace from beginning of value */
-    while(UXINI_isspace(*lpLine) && lpLine < lpLineEnd) lpLine++;
+    while (UXINI_isspace(*lpLine) && lpLine < lpLineEnd) lpLine++;
     value = lpLine;
-    vallen = dwLen-(value-name);
+    vallen = dwLen - (value - name);
 
     *dwNameLen = namelen;
     *dwValueLen = vallen;
@@ -218,8 +221,10 @@ BOOL UXINI_FindValue(PUXINI_FILE uf, LPCWSTR lpName, LPCWSTR *lpValue, DWORD *dw
     LPCWSTR name;
     DWORD namelen;
 
-    while((name = UXINI_GetNextValue(uf, &namelen, lpValue, dwValueLen))) {
-        if(CompareStringW(LOCALE_SYSTEM_DEFAULT, NORM_IGNORECASE, name, namelen, lpName, -1) == CSTR_EQUAL) {
+    while ((name = UXINI_GetNextValue(uf, &namelen, lpValue, dwValueLen)))
+    {
+        if (CompareStringW(LOCALE_SYSTEM_DEFAULT, NORM_IGNORECASE, name, namelen, lpName, -1) == CSTR_EQUAL)
+        {
             return TRUE;
         }
     }
@@ -232,7 +237,8 @@ BOOL UXINI_FindValue(PUXINI_FILE uf, LPCWSTR lpName, LPCWSTR *lpValue, DWORD *dw
  * Load a theme INI file out of resources from the specified
  * theme
  */
-static PUXINI_FILE UXINI_LoadINI(HMODULE hTheme, LPCWSTR lpName) {
+static PUXINI_FILE UXINI_LoadINI(HMODULE hTheme, LPCWSTR lpName)
+{
     HRSRC hrsc;
     LPCWSTR lpThemesIni = NULL;
     PUXINI_FILE uf;
@@ -240,8 +246,10 @@ static PUXINI_FILE UXINI_LoadINI(HMODULE hTheme, LPCWSTR lpName) {
 
     TRACE("Loading resource INI %s\n", debugstr_w(lpName));
 
-    if((hrsc = FindResourceW(hTheme, lpName, L"TEXTFILE"))) {
-        if(!(lpThemesIni = LoadResource(hTheme, hrsc))) {
+    if ((hrsc = FindResourceW(hTheme, lpName, L"TEXTFILE")))
+    {
+        if (!(lpThemesIni = LoadResource(hTheme, hrsc)))
+        {
             TRACE("%s resource not found\n", debugstr_w(lpName));
             return NULL;
         }
