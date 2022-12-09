@@ -273,6 +273,16 @@ static inline BOOL is_invalid_8dot3_char( WCHAR ch )
     return ch <= 0x7f ? is_invalid[ch] : TRUE;
 }
 
+static inline BOOL is_invalid_nt_char( WCHAR ch )
+{
+    static const char is_invalid[0x7f] =
+    {
+        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+        ['*'] = 1, ['?'] = 1, ['<'] = 1, ['>'] = 1, ['|'] = 1, ['"'] = 1,
+    };
+    return ch <= 0x7f ? is_invalid[ch] : FALSE;
+}
+
 /* check if the device can be a mounted volume */
 static inline BOOL is_valid_mounted_device( const struct stat *st )
 {
@@ -3480,7 +3490,6 @@ static NTSTATUS nt_to_unix_file_name_no_root( const UNICODE_STRING *nameW, char 
                                               UINT disposition )
 {
     static const WCHAR unixW[] = {'u','n','i','x'};
-    static const WCHAR invalid_charsW[] = { INVALID_NT_CHARS, 0 };
 
     NTSTATUS status = STATUS_SUCCESS;
     const WCHAR *name;
@@ -3507,8 +3516,7 @@ static NTSTATUS nt_to_unix_file_name_no_root( const UNICODE_STRING *nameW, char 
     for (pos = 0; pos < name_len && pos <= MAX_DIR_ENTRY_LEN; pos++)
     {
         if (name[pos] == '\\') break;
-        if (name[pos] < 32 || wcschr( invalid_charsW, name[pos] ))
-            return STATUS_OBJECT_NAME_INVALID;
+        if (is_invalid_nt_char( name[pos] )) return STATUS_OBJECT_NAME_INVALID;
         prefix[pos] = (name[pos] >= 'A' && name[pos] <= 'Z') ? name[pos] + 'a' - 'A' : name[pos];
     }
     if (pos > MAX_DIR_ENTRY_LEN) return STATUS_OBJECT_NAME_INVALID;
