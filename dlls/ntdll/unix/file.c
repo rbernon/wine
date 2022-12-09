@@ -175,7 +175,6 @@ typedef struct
 #define IS_SEPARATOR(ch)   ((ch) == '\\' || (ch) == '/')
 
 #define INVALID_NT_CHARS   '*','?','<','>','|','"'
-#define INVALID_DOS_CHARS  INVALID_NT_CHARS,'+','=',',',';','[',']',' ','\345'
 
 #define MAX_DIR_ENTRY_LEN 255  /* max length of a directory entry in chars */
 
@@ -260,6 +259,16 @@ static inline BOOL is_invalid_dos_char( WCHAR ch )
     {
         ['*'] = 1, ['?'] = 1, ['<'] = 1, ['>'] = 1, ['|'] = 1, ['"'] = 1, ['+'] = 1, ['='] = 1,
         [','] = 1, [';'] = 1, ['['] = 1, [']'] = 1, [' '] = 1, ['~'] = 1, ['.'] = 1,
+    };
+    return ch <= 0x7f ? is_invalid[ch] : TRUE;
+}
+
+static inline BOOL is_invalid_8dot3_char( WCHAR ch )
+{
+    static const char is_invalid[0x7f] =
+    {
+        ['*'] = 1, ['?'] = 1, ['<'] = 1, ['>'] = 1, ['|'] = 1, ['"'] = 1, ['+'] = 1, ['='] = 1,
+        [','] = 1, [';'] = 1, ['['] = 1, [']'] = 1, [' '] = 1, [':'] = 1, ['/'] = 1, ['\\'] = 1,
     };
     return ch <= 0x7f ? is_invalid[ch] : TRUE;
 }
@@ -1471,7 +1480,6 @@ static BOOLEAN match_filename( const WCHAR *name, int length, const UNICODE_STRI
  */
 static BOOLEAN is_legal_8dot3_name( const WCHAR *name, int len )
 {
-    static const WCHAR invalid_chars[] = { INVALID_DOS_CHARS,':','/','\\',0 };
     int i, dot = -1;
 
     if (len > 12) return FALSE;
@@ -1481,8 +1489,7 @@ static BOOLEAN is_legal_8dot3_name( const WCHAR *name, int len )
 
     for (i = 0; i < len; i++)
     {
-        if (name[i] > 0x7f) return FALSE;
-        if (wcschr( invalid_chars, name[i] )) return FALSE;
+        if (is_invalid_8dot3_char( name[i] )) return FALSE;
         if (name[i] == '.')
         {
             if (dot != -1) return FALSE;
