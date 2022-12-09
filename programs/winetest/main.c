@@ -1203,6 +1203,7 @@ run_tests (char *logname, char *outdir)
     FreeLibrary(hmscoree);
 
     if (aborting) return logname;
+    return logname;
 
     xprintf ("Test output:\n" );
 
