@@ -1608,7 +1608,7 @@ static void init_fontconfig(void)
     LOAD_FUNCPTR(FcStrSetMember);
 #undef LOAD_FUNCPTR
 
-    if (pFcInit())
+    if (0 && pFcInit())
     {
         FcPattern *pattern = pFcPatternCreate();
         pFcConfigSubstitute( NULL, pattern, FcMatchFont );
@@ -2356,6 +2356,7 @@ static BOOL fontconfig_enum_family_fallbacks( UINT pitch_and_family, int index,
     char *str;
     DWORD len;
 
+    return FALSE;
     if ((pitch_and_family & FIXED_PITCH) || (pitch_and_family & 0xf0) == FF_MODERN) pat = create_family_pattern( "monospace", &pattern_fixed );
     else if ((pitch_and_family & 0xf0) == FF_ROMAN) pat = create_family_pattern( "serif", &pattern_serif );
     else pat = create_family_pattern( "sans", &pattern_sans );
