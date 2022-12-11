@@ -1650,11 +1650,10 @@ __ASM_GLOBAL_FUNC( call_user_mode_callback,
                    "1:\n\t"
 #endif
                    "movq %rcx,%r9\n\t"         /* func */
-                   "movq %rdx,%rax\n\t"        /* stack */
-                   "movq 0x8(%rax),%rcx\n\t"   /* id */
-                   "movq 0x10(%rax),%rdx\n\t"  /* args */
-                   "movq 0x18(%rax),%r8\n\t"   /* len */
-                   "movq %rax,%rsp\n\t"
+                   "movq %rdx,%rsp\n\t"        /* stack */
+                   "movq 0x8(%rsp),%rcx\n\t"   /* id */
+                   "movq 0x10(%rsp),%rdx\n\t"  /* args */
+                   "movq 0x18(%rsp),%r8\n\t"   /* len */
                    "jmpq *%r9" )
 
 
