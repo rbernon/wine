@@ -2756,11 +2756,11 @@ __ASM_GLOBAL_FUNC( __wine_unix_call_dispatcher,
                    __ASM_CFI_REG_IS_AT1(esi, ecx, 0x30)
                    "movl %ebp,0x34(%ecx)\n\t"
                    __ASM_CFI_REG_IS_AT1(ebp, ecx, 0x34)
-                   "movl 12(%esp),%edx\n\t"    /* args */
-                   "movl %edx,-16(%ecx)\n\t"
+                   "movl 12(%esp),%ebx\n\t"    /* args */
                    "movl (%esp),%eax\n\t"      /* handle */
                    "movl 8(%esp),%edx\n\t"     /* code */
                    "leal -16(%ecx),%esp\n\t"
+                   "movl %ebx,(%esp)\n\t"
                    "call *(%eax,%edx,4)\n\t"
                    "leal 16(%esp),%esp\n\t"
                    __ASM_CFI_CFA_IS_AT1(esp, 0x0c)
@@ -2772,6 +2772,8 @@ __ASM_GLOBAL_FUNC( __wine_unix_call_dispatcher,
                    __ASM_CFI_REG_IS_AT1(ebp, esp, 0x34)
                    "testw $0xffff,2(%esp)\n\t" /* frame->restore_flags */
                    "jnz " __ASM_LOCAL_LABEL("__wine_syscall_dispatcher_return") "\n\t"
+                   "movl 0x20(%esp),%ebx\n\t"
+                   __ASM_CFI(".cfi_same_value %ebx\n\t")
                    "movl 0x08(%esp),%ecx\n\t"  /* frame->eip */
                    __ASM_CFI(".cfi_register %eip, %ecx\n\t")
                    "movl 0x0c(%esp),%esp\n\t"  /* frame->esp */
