@@ -1319,6 +1319,16 @@ static BOOL check_gamma_ramps(void *ptr)
     return TRUE;
 }
 
+static void update_children_window_state( HWND hwnd )
+{
+    HWND *children;
+    int i;
+
+    if (!(children = list_window_children( hwnd ))) return;
+    for (i = 0; children[i]; i++) update_window_state( children[i] );
+    free( children );
+}
+
 /***********************************************************************
  *           NtGdiSetDeviceGammaRamp    (win32u.@)
  */
@@ -1336,6 +1346,8 @@ BOOL WINAPI NtGdiSetDeviceGammaRamp( HDC hdc, void *ptr )
 
             if (check_gamma_ramps(ptr))
                 ret = physdev->funcs->pSetDeviceGammaRamp( physdev, ptr );
+
+            update_children_window_state( get_desktop_window() );
         }
         else RtlSetLastWin32Error( ERROR_INVALID_PARAMETER );
 	release_dc_ptr( dc );
