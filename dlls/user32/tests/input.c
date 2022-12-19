@@ -370,6 +370,10 @@ static BOOL (WINAPI *pEnableMouseInPointer)( BOOL );
 static BOOL (WINAPI *pIsMouseInPointerEnabled)(void);
 static BOOL (WINAPI *pGetCurrentInputMessageSource)( INPUT_MESSAGE_SOURCE *source );
 static BOOL (WINAPI *pGetPointerType)(UINT32, POINTER_INPUT_TYPE*);
+static BOOL (WINAPI *pGetPointerPenInfo)(UINT32, POINTER_PEN_INFO*);
+static BOOL (WINAPI *pGetPointerPenInfoHistory)(UINT32, UINT32*, POINTER_PEN_INFO*);
+static BOOL (WINAPI *pGetPointerFramePenInfo)(UINT32, UINT32*, POINTER_PEN_INFO*);
+static BOOL (WINAPI *pGetPointerFramePenInfoHistory)(UINT32, UINT32*, UINT32*, POINTER_PEN_INFO*);
 static BOOL (WINAPI *pGetPointerInfo)(UINT32, POINTER_INFO*);
 static BOOL (WINAPI *pGetPointerInfoHistory)(UINT32, UINT32*, POINTER_INFO*);
 static BOOL (WINAPI *pGetPointerFrameInfo)(UINT32, UINT32*, POINTER_INFO*);
@@ -401,6 +405,10 @@ static void init_function_pointers(void)
     GET_PROC(GetPointerInfoHistory);
     GET_PROC(GetPointerFrameInfo);
     GET_PROC(GetPointerFrameInfoHistory);
+    GET_PROC(GetPointerPenInfo);
+    GET_PROC(GetPointerPenInfoHistory);
+    GET_PROC(GetPointerFramePenInfo);
+    GET_PROC(GetPointerFramePenInfoHistory);
     GET_PROC(GetPointerType);
     GET_PROC(GetRawInputDeviceList);
     GET_PROC(GetRawInputDeviceInfoW);
@@ -5326,6 +5334,18 @@ static void check_pointer_info_( int line, const POINTER_INFO *actual, const POI
     check_member( *actual, *expected, "%#x", ButtonChangeType );
 }
 
+#define check_pointer_pen_info( a, b ) check_pointer_pen_info_( __LINE__, a, b )
+static void check_pointer_pen_info_( int line, const POINTER_PEN_INFO *actual, const POINTER_PEN_INFO *expected )
+{
+    check_pointer_info_( line, &actual->pointerInfo, &expected->pointerInfo );
+    check_member( *actual, *expected, "%#x", penFlags );
+    check_member( *actual, *expected, "%#x", penMask );
+    check_member( *actual, *expected, "%u", pressure );
+    check_member( *actual, *expected, "%u", rotation );
+    check_member( *actual, *expected, "%+d", tiltX );
+    check_member( *actual, *expected, "%+d", tiltY );
+}
+
 static DWORD CALLBACK test_GetPointerInfo_thread( void *arg )
 {
     POINTER_INFO pointer_info;
@@ -5347,6 +5367,7 @@ static DWORD CALLBACK test_GetPointerInfo_thread( void *arg )
 static void test_GetPointerInfo( BOOL mouse_in_pointer_enabled )
 {
     POINTER_INFO pointer_info[4], expect_pointer;
+    POINTER_PEN_INFO pen_info[4], expect_pen;
     void *invalid_ptr = (void *)0xdeadbeef;
     UINT32 entry_count, pointer_count;
     POINTER_INPUT_TYPE type;
@@ -5498,6 +5519,49 @@ static void test_GetPointerInfo( BOOL mouse_in_pointer_enabled )
     ok( pointer_count == 1, "got pointer_count %u\n", pointer_count );
     todo_wine_if(!pGetPointerFrameInfoHistory)
     check_pointer_info( &pointer_info[0], &expect_pointer );
+
+    memset( &expect_pen, 0xa5, sizeof(expect_pen) );
+    expect_pen.pointerInfo = expect_pointer;
+
+    memset( pen_info, 0xa5, sizeof(pen_info) );
+    if (!pGetPointerPenInfo) ret = FALSE;
+    else ret = pGetPointerPenInfo( 1, pen_info );
+    todo_wine_if(!pGetPointerPenInfo)
+    ok( ret, "GetPointerPenInfo failed, error %lu\n", GetLastError() );
+    todo_wine_if(!pGetPointerPenInfo)
+    check_pointer_pen_info( &pen_info[0], &expect_pen );
+    memset( pen_info, 0xa5, sizeof(pen_info) );
+    entry_count = pointer_count = 2;
+    if (!pGetPointerFramePenInfo) ret = FALSE;
+    else ret = pGetPointerFramePenInfo( 1, &pointer_count, pen_info );
+    todo_wine_if(!pGetPointerFramePenInfo)
+    ok( ret, "GetPointerFramePenInfo failed, error %lu\n", GetLastError() );
+    todo_wine_if(!pGetPointerFramePenInfo)
+    ok( pointer_count == 1, "got pointer_count %u\n", pointer_count );
+    todo_wine_if(!pGetPointerFramePenInfo)
+    check_pointer_pen_info( &pen_info[0], &expect_pen );
+    memset( pen_info, 0xa5, sizeof(pen_info) );
+    entry_count = pointer_count = 2;
+    if (!pGetPointerPenInfoHistory) ret = FALSE;
+    else ret = pGetPointerPenInfoHistory( 1, &entry_count, pen_info );
+    todo_wine_if(!pGetPointerPenInfoHistory)
+    ok( ret, "GetPointerPenInfoHistory failed, error %lu\n", GetLastError() );
+    todo_wine_if(!pGetPointerPenInfoHistory)
+    ok( entry_count == 1, "got entry_count %u\n", entry_count );
+    todo_wine_if(!pGetPointerPenInfoHistory)
+    check_pointer_pen_info( &pen_info[0], &expect_pen );
+    memset( pen_info, 0xa5, sizeof(pen_info) );
+    entry_count = pointer_count = 2;
+    if (!pGetPointerFramePenInfoHistory) ret = FALSE;
+    else ret = pGetPointerFramePenInfoHistory( 1, &entry_count, &pointer_count, pen_info );
+    todo_wine_if(!pGetPointerFramePenInfoHistory)
+    ok( ret, "GetPointerFramePenInfoHistory failed, error %lu\n", GetLastError() );
+    todo_wine_if(!pGetPointerFramePenInfoHistory)
+    ok( entry_count == 1, "got pointer_count %u\n", pointer_count );
+    todo_wine_if(!pGetPointerFramePenInfoHistory)
+    ok( pointer_count == 1, "got pointer_count %u\n", pointer_count );
+    todo_wine_if(!pGetPointerFramePenInfoHistory)
+    check_pointer_pen_info( &pen_info[0], &expect_pen );
 
     DestroyWindow( hwnd );
 
