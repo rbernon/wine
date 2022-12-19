@@ -2611,7 +2611,13 @@ void toggle_caret( HWND hwnd )
 BOOL WINAPI NtUserEnableMouseInPointer( BOOL enable )
 {
     FIXME( "enable %u semi-stub!\n", enable );
-    enable_mouse_in_pointer = TRUE;
+
+    if (InterlockedCompareExchange( &enable_mouse_in_pointer, enable ? 1 : 0, -1 ) != -1)
+    {
+        RtlSetLastWin32Error( ERROR_ACCESS_DENIED );
+        return FALSE;
+    }
+
     return TRUE;
 }
 
