@@ -55,6 +55,11 @@
     ok_(file, line)( (val).member == (exp).member, "got " #member " " fmt "\n", (val).member )
 #define check_member( val, exp, fmt, member )                                                      \
     check_member_( __FILE__, __LINE__, val, exp, fmt, member )
+#define check_member_rect_( file, line, val, exp, member )                                         \
+    ok_(file, line)( EqualRect( &(val).member, &(exp).member ), "got " #member " %s\n",            \
+                     wine_dbgstr_rect( &(val).member ) )
+#define check_member_rect( val, exp, member )                                                      \
+    check_member_rect_( __FILE__, __LINE__, val, exp, member )
 
 enum user_function
 {
@@ -378,6 +383,10 @@ static BOOL (WINAPI *pGetPointerInfo)(UINT32, POINTER_INFO*);
 static BOOL (WINAPI *pGetPointerInfoHistory)(UINT32, UINT32*, POINTER_INFO*);
 static BOOL (WINAPI *pGetPointerFrameInfo)(UINT32, UINT32*, POINTER_INFO*);
 static BOOL (WINAPI *pGetPointerFrameInfoHistory)(UINT32, UINT32*, UINT32*, POINTER_INFO*);
+static BOOL (WINAPI *pGetPointerTouchInfo)(UINT32, POINTER_TOUCH_INFO*);
+static BOOL (WINAPI *pGetPointerTouchInfoHistory)(UINT32, UINT32*, POINTER_TOUCH_INFO*);
+static BOOL (WINAPI *pGetPointerFrameTouchInfo)(UINT32, UINT32*, POINTER_TOUCH_INFO*);
+static BOOL (WINAPI *pGetPointerFrameTouchInfoHistory)(UINT32, UINT32*, UINT32*, POINTER_TOUCH_INFO*);
 static int (WINAPI *pGetMouseMovePointsEx) (UINT, LPMOUSEMOVEPOINT, LPMOUSEMOVEPOINT, int, DWORD);
 static UINT (WINAPI *pGetRawInputDeviceList) (PRAWINPUTDEVICELIST, PUINT, UINT);
 static UINT (WINAPI *pGetRawInputDeviceInfoW) (HANDLE, UINT, void *, UINT *);
@@ -409,6 +418,10 @@ static void init_function_pointers(void)
     GET_PROC(GetPointerPenInfoHistory);
     GET_PROC(GetPointerFramePenInfo);
     GET_PROC(GetPointerFramePenInfoHistory);
+    GET_PROC(GetPointerTouchInfo);
+    GET_PROC(GetPointerTouchInfoHistory);
+    GET_PROC(GetPointerFrameTouchInfo);
+    GET_PROC(GetPointerFrameTouchInfoHistory);
     GET_PROC(GetPointerType);
     GET_PROC(GetRawInputDeviceList);
     GET_PROC(GetRawInputDeviceInfoW);
@@ -5346,6 +5359,18 @@ static void check_pointer_pen_info_( int line, const POINTER_PEN_INFO *actual, c
     check_member( *actual, *expected, "%+d", tiltY );
 }
 
+#define check_pointer_touch_info( a, b ) check_pointer_touch_info_( __LINE__, a, b )
+static void check_pointer_touch_info_( int line, const POINTER_TOUCH_INFO *actual, const POINTER_TOUCH_INFO *expected )
+{
+    check_pointer_info_( line, &actual->pointerInfo, &expected->pointerInfo );
+    check_member( *actual, *expected, "%#x", touchFlags );
+    check_member( *actual, *expected, "%#x", touchMask );
+    check_member_rect( *actual, *expected, rcContact );
+    check_member_rect( *actual, *expected, rcContactRaw );
+    check_member( *actual, *expected, "%#x", orientation );
+    check_member( *actual, *expected, "%#x", pressure );
+}
+
 static DWORD CALLBACK test_GetPointerInfo_thread( void *arg )
 {
     POINTER_INFO pointer_info;
@@ -5366,6 +5391,7 @@ static DWORD CALLBACK test_GetPointerInfo_thread( void *arg )
 
 static void test_GetPointerInfo( BOOL mouse_in_pointer_enabled )
 {
+    POINTER_TOUCH_INFO touch_info[4], expect_touch;
     POINTER_INFO pointer_info[4], expect_pointer;
     POINTER_PEN_INFO pen_info[4], expect_pen;
     void *invalid_ptr = (void *)0xdeadbeef;
@@ -5562,6 +5588,47 @@ static void test_GetPointerInfo( BOOL mouse_in_pointer_enabled )
     ok( pointer_count == 1, "got pointer_count %u\n", pointer_count );
     todo_wine_if(!pGetPointerFramePenInfoHistory)
     check_pointer_pen_info( &pen_info[0], &expect_pen );
+
+    memset( &expect_touch, 0xa5, sizeof(expect_touch) );
+    expect_touch.pointerInfo = expect_pointer;
+
+    memset( touch_info, 0xa5, sizeof(touch_info) );
+    ret = pGetPointerTouchInfo( 1, touch_info );
+    todo_wine
+    ok( ret, "GetPointerTouchInfo failed, error %lu\n", GetLastError() );
+    todo_wine
+    check_pointer_touch_info( &touch_info[0], &expect_touch );
+    memset( touch_info, 0xa5, sizeof(touch_info) );
+    entry_count = pointer_count = 2;
+    if (!pGetPointerFrameTouchInfo) ret = FALSE;
+    else ret = pGetPointerFrameTouchInfo( 1, &pointer_count, touch_info );
+    todo_wine_if(!pGetPointerFrameTouchInfo)
+    ok( ret, "GetPointerFrameTouchInfo failed, error %lu\n", GetLastError() );
+    todo_wine_if(!pGetPointerFrameTouchInfo)
+    ok( pointer_count == 1, "got pointer_count %u\n", pointer_count );
+    todo_wine_if(!pGetPointerFrameTouchInfo)
+    check_pointer_touch_info( &touch_info[0], &expect_touch );
+    memset( touch_info, 0xa5, sizeof(touch_info) );
+    entry_count = pointer_count = 2;
+    ret = pGetPointerTouchInfoHistory( 1, &entry_count, touch_info );
+    todo_wine
+    ok( ret, "GetPointerTouchInfoHistory failed, error %lu\n", GetLastError() );
+    todo_wine
+    ok( entry_count == 1, "got entry_count %u\n", entry_count );
+    todo_wine
+    check_pointer_touch_info( &touch_info[0], &expect_touch );
+    memset( touch_info, 0xa5, sizeof(touch_info) );
+    entry_count = pointer_count = 2;
+    if (!pGetPointerFrameTouchInfoHistory) ret = FALSE;
+    else ret = pGetPointerFrameTouchInfoHistory( 1, &entry_count, &pointer_count, touch_info );
+    todo_wine_if(!pGetPointerFrameTouchInfoHistory)
+    ok( ret, "GetPointerFrameTouchInfoHistory failed, error %lu\n", GetLastError() );
+    todo_wine_if(!pGetPointerFrameTouchInfoHistory)
+    ok( entry_count == 1, "got pointer_count %u\n", pointer_count );
+    todo_wine_if(!pGetPointerFrameTouchInfoHistory)
+    ok( pointer_count == 1, "got pointer_count %u\n", pointer_count );
+    todo_wine_if(!pGetPointerFrameTouchInfoHistory)
+    check_pointer_touch_info( &touch_info[0], &expect_touch );
 
     DestroyWindow( hwnd );
 
