@@ -406,6 +406,7 @@ static const KBDTABLES kbdus_tables =
 
 static LONG clipping_cursor; /* clipping thread counter */
 
+LONG enable_mouse_in_pointer = -1;
 BOOL grab_pointer = TRUE;
 BOOL grab_fullscreen = FALSE;
 
