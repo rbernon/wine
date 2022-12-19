@@ -2493,9 +2493,8 @@ BOOL WINAPI NtUserEnableMouseInPointer( BOOL enable )
  */
 BOOL WINAPI NtUserIsMouseInPointerEnabled(void)
 {
-    FIXME( "stub!\n" );
-    RtlSetLastWin32Error( ERROR_CALL_NOT_IMPLEMENTED );
-    return FALSE;
+    TRACE( "\n" );
+    return enable_mouse_in_pointer == 1;
 }
 
 static BOOL is_captured_by_system(void)
