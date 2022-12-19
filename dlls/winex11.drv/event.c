@@ -686,6 +686,7 @@ static void set_input_focus( struct x11drv_win_data *data )
  */
 static void set_focus( Display *display, HWND hwnd, Time time )
 {
+    struct x11drv_win_data *data;
     HWND focus;
     Window win;
     GUITHREADINFO threadinfo;
@@ -700,7 +701,18 @@ static void set_focus( Display *display, HWND hwnd, Time time )
     if (focus) focus = NtUserGetAncestor( focus, GA_ROOT );
     win = X11DRV_get_whole_window(focus);
 
-    if (win)
+    if ((data = get_win_data( focus )))
+    {
+        DWORD ex_style = NtUserGetWindowLongW( focus, GWL_EXSTYLE );
+
+        if (!(ex_style & WS_EX_APPWINDOW) && NtUserGetWindowRelative( focus, GW_OWNER ))
+            XRaiseWindow( display, data->whole_window );
+
+        TRACE( "setting focus to %p (%lx) time=%ld\n", focus, data->whole_window, time );
+        XSetInputFocus( display, data->whole_window, RevertToParent, time );
+        release_win_data( data );
+    }
+    else if ((win = X11DRV_get_whole_window( focus )))
     {
         TRACE( "setting focus to %p (%lx) time=%ld\n", focus, win, time );
         XSetInputFocus( display, win, RevertToParent, time );
