@@ -1447,8 +1447,6 @@ static HRESULT WINAPI dinput_device_GetDeviceState( IDirectInputDevice8W *iface,
 
     if (!data) return DIERR_INVALIDPARAM;
 
-    IDirectInputDevice2_Poll( iface );
-
     EnterCriticalSection( &impl->crit );
     if (impl->status == STATUS_UNPLUGGED)
         hr = DIERR_INPUTLOST;
@@ -1512,7 +1510,6 @@ static HRESULT WINAPI dinput_device_GetDeviceData( IDirectInputDevice8W *iface, 
         return DI_OK;
     if (size < sizeof(DIDEVICEOBJECTDATA_DX3)) return DIERR_INVALIDPARAM;
 
-    IDirectInputDevice2_Poll(iface);
     EnterCriticalSection(&This->crit);
 
     len = This->queue_head - This->queue_tail;
@@ -1760,9 +1757,7 @@ static HRESULT WINAPI dinput_device_Poll( IDirectInputDevice8W *iface )
     if (impl->status == STATUS_UNPLUGGED) hr = DIERR_INPUTLOST;
     else if (impl->status != STATUS_ACQUIRED) hr = DIERR_NOTACQUIRED;
     LeaveCriticalSection( &impl->crit );
-    if (FAILED(hr)) return hr;
 
-    if (impl->vtbl->poll) return impl->vtbl->poll( iface );
     return hr;
 }
 
