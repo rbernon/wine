@@ -37,7 +37,6 @@ typedef BOOL (*enum_object_callback)( struct dinput_device *impl, UINT index, st
 struct dinput_device_vtbl
 {
     void (*destroy)( IDirectInputDevice8W *iface );
-    HRESULT (*poll)( IDirectInputDevice8W *iface );
     HRESULT (*read)( IDirectInputDevice8W *iface );
     HRESULT (*acquire)( IDirectInputDevice8W *iface );
     HRESULT (*unacquire)( IDirectInputDevice8W *iface );
