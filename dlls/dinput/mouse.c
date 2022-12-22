@@ -230,6 +230,9 @@ void dinput_mouse_rawinput_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPA
            state->lX, state->lY, state->lZ );
 
     if (notify && impl->base.hEvent) SetEvent( impl->base.hEvent );
+
+    warp_check( impl, FALSE );
+
     LeaveCriticalSection( &impl->base.crit );
 }
 
@@ -336,16 +339,12 @@ int dinput_mouse_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPARAM lparam
            state->lX, state->lY, state->lZ );
 
     if (notify && impl->base.hEvent) SetEvent( impl->base.hEvent );
-    LeaveCriticalSection( &impl->base.crit );
-    return ret;
-}
 
-static HRESULT mouse_poll( IDirectInputDevice8W *iface )
-{
-    struct mouse *impl = impl_from_IDirectInputDevice8W( iface );
-    check_dinput_events();
     warp_check( impl, FALSE );
-    return DI_OK;
+
+    LeaveCriticalSection( &impl->base.crit );
+
+    return ret;
 }
 
 static HRESULT mouse_acquire( IDirectInputDevice8W *iface )
@@ -562,7 +561,6 @@ failed:
 static const struct dinput_device_vtbl mouse_vtbl =
 {
     NULL,
-    mouse_poll,
     NULL,
     mouse_acquire,
     mouse_unacquire,

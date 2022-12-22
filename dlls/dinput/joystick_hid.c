@@ -1367,7 +1367,6 @@ static HRESULT hid_joystick_enum_objects( IDirectInputDevice8W *iface, const DIP
 static const struct dinput_device_vtbl hid_joystick_vtbl =
 {
     hid_joystick_destroy,
-    NULL,
     hid_joystick_read,
     hid_joystick_acquire,
     hid_joystick_unacquire,

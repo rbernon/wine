@@ -492,22 +492,6 @@ void input_thread_remove_user(void)
     LeaveCriticalSection( &dinput_hook_crit );
 }
 
-void check_dinput_events(void)
-{
-    /* Windows does not do that, but our current implementation of winex11
-     * requires periodic event polling to forward events to the wineserver.
-     *
-     * We have to call this function from multiple places, because:
-     * - some games do not explicitly poll for mouse events
-     *   (for example Culpa Innata)
-     * - some games only poll the device, and neither keyboard nor mouse
-     *   (for example Civilization: Call to Power 2)
-     * - some games do not explicitly poll for keyboard events
-     *   (for example Morrowind in its key binding page)
-     */
-    MsgWaitForMultipleObjectsEx(0, NULL, 0, QS_ALLINPUT, 0);
-}
-
 BOOL WINAPI DllMain( HINSTANCE inst, DWORD reason, void *reserved )
 {
     TRACE( "inst %p, reason %lu, reserved %p.\n", inst, reason, reserved );
