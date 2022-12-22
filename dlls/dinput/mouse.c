@@ -98,6 +98,47 @@ static BOOL init_object_properties( struct dinput_device *device, UINT index, st
     return DIENUM_CONTINUE;
 }
 
+static void warp_check( struct mouse *impl, BOOL force )
+{
+    DWORD now = GetCurrentTime();
+    const DWORD interval = impl->clipped ? 500 : 10;
+
+    if (force || (impl->need_warp && (now - impl->last_warped > interval)))
+    {
+        POINT mapped_center;
+        RECT rect;
+
+        impl->last_warped = now;
+        impl->need_warp = FALSE;
+        if (!GetClientRect( impl->base.win, &rect )) return;
+        MapWindowPoints( impl->base.win, 0, (POINT *)&rect, 2 );
+        if (impl->base.dwCoopLevel & DISCL_EXCLUSIVE)
+        {
+            /* make sure we clip even if the window covers the whole screen */
+            rect.left = max( rect.left, GetSystemMetrics( SM_XVIRTUALSCREEN ) + 1 );
+            rect.top = max( rect.top, GetSystemMetrics( SM_YVIRTUALSCREEN ) + 1 );
+            rect.right = min( rect.right, rect.left + GetSystemMetrics( SM_CXVIRTUALSCREEN ) - 2 );
+            rect.bottom = min( rect.bottom, rect.top + GetSystemMetrics( SM_CYVIRTUALSCREEN ) - 2 );
+            TRACE("Clipping mouse to %s\n", wine_dbgstr_rect( &rect ));
+            impl->clipped = ClipCursor( &rect );
+        }
+        if (!impl->clipped)
+        {
+            mapped_center.x = (rect.left + rect.right) / 2;
+            mapped_center.y = (rect.top + rect.bottom) / 2;
+            TRACE( "Warping mouse to x %+ld, y %+ld.\n", mapped_center.x, mapped_center.y );
+            SetCursorPos( mapped_center.x, mapped_center.y );
+        }
+        if (!impl->clipped)
+        {
+            mapped_center.x = (rect.left + rect.right) / 2;
+            mapped_center.y = (rect.top + rect.bottom) / 2;
+            TRACE( "Warping mouse to x %+ld, y %+ld.\n", mapped_center.x, mapped_center.y );
+            SetCursorPos( mapped_center.x, mapped_center.y );
+        }
+    }
+}
+
 void dinput_mouse_rawinput_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPARAM lparam, RAWINPUT *ri )
 {
     struct mouse *impl = impl_from_IDirectInputDevice8W( iface );
@@ -297,47 +338,6 @@ int dinput_mouse_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPARAM lparam
     if (notify && impl->base.hEvent) SetEvent( impl->base.hEvent );
     LeaveCriticalSection( &impl->base.crit );
     return ret;
-}
-
-static void warp_check( struct mouse *impl, BOOL force )
-{
-    DWORD now = GetCurrentTime();
-    const DWORD interval = impl->clipped ? 500 : 10;
-
-    if (force || (impl->need_warp && (now - impl->last_warped > interval)))
-    {
-        POINT mapped_center;
-        RECT rect;
-
-        impl->last_warped = now;
-        impl->need_warp = FALSE;
-        if (!GetClientRect( impl->base.win, &rect )) return;
-        MapWindowPoints( impl->base.win, 0, (POINT *)&rect, 2 );
-        if (impl->base.dwCoopLevel & DISCL_EXCLUSIVE)
-        {
-            /* make sure we clip even if the window covers the whole screen */
-            rect.left = max( rect.left, GetSystemMetrics( SM_XVIRTUALSCREEN ) + 1 );
-            rect.top = max( rect.top, GetSystemMetrics( SM_YVIRTUALSCREEN ) + 1 );
-            rect.right = min( rect.right, rect.left + GetSystemMetrics( SM_CXVIRTUALSCREEN ) - 2 );
-            rect.bottom = min( rect.bottom, rect.top + GetSystemMetrics( SM_CYVIRTUALSCREEN ) - 2 );
-            TRACE("Clipping mouse to %s\n", wine_dbgstr_rect( &rect ));
-            impl->clipped = ClipCursor( &rect );
-        }
-        if (!impl->clipped)
-        {
-            mapped_center.x = (rect.left + rect.right) / 2;
-            mapped_center.y = (rect.top + rect.bottom) / 2;
-            TRACE( "Warping mouse to x %+ld, y %+ld.\n", mapped_center.x, mapped_center.y );
-            SetCursorPos( mapped_center.x, mapped_center.y );
-        }
-        if (!impl->clipped)
-        {
-            mapped_center.x = (rect.left + rect.right) / 2;
-            mapped_center.y = (rect.top + rect.bottom) / 2;
-            TRACE( "Warping mouse to x %+ld, y %+ld.\n", mapped_center.x, mapped_center.y );
-            SetCursorPos( mapped_center.x, mapped_center.y );
-        }
-    }
 }
 
 static HRESULT mouse_poll( IDirectInputDevice8W *iface )
