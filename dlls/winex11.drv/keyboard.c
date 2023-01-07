@@ -170,6 +170,15 @@ struct layout
     USHORT vsc2vk[0x100];
     VSC_VK vsc2vk_e0[0x100];
     VSC_VK vsc2vk_e1[0x100];
+
+    VK_TO_WCHAR_TABLE vk_to_wchar_table;
+    VK_TO_WCHARS8 vk_to_wchars8[0x100];
+    VK_TO_BIT vk2bit[4];
+    union
+    {
+        MODIFIERS modifiers;
+        char modifiers_buf[offsetof(MODIFIERS, ModNumber[8])];
+    };
 };
 
 static const unsigned int ControlMask = 1 << 2;
@@ -469,9 +478,11 @@ static void create_layout_from_xkb( Display *display, int xkb_group, const char 
 {
     static WORD next_layout_id = 1;
 
+    unsigned int mod, keyc, len, names_len, altgr_mod = 0;
     VSC_LPWSTR *names_entry, *names_ext_entry;
     VSC_VK *vsc2vk_e0_entry, *vsc2vk_e1_entry;
-    unsigned int keyc, len, names_len;
+    VK_TO_WCHARS8 *vk2wchars_entry;
+    XModifierKeymap *modmap;
     struct layout *layout;
     WCHAR *names_str;
     WORD index = 0;
@@ -531,17 +542,55 @@ static void create_layout_from_xkb( Display *display, int xkb_group, const char 
     }
     if (strstr( xkb_layout, "dvorak" )) layout->scan2vk = scan2vk_dvorak;
 
+    modmap = XGetModifierMapping( display );
+    for (mod = 0; mod < 8 * modmap->max_keypermod; mod++)
+    {
+        int xmod = 1 << (mod / modmap->max_keypermod);
+        unsigned int dummy;
+        KeySym keysym;
+
+        if (!(keyc = modmap->modifiermap[mod])) continue;
+        XkbLookupKeySym( display, keyc, xkb_group * 0x2000, &dummy, &keysym );
+        if (keysym == XK_ISO_Level3_Shift) altgr_mod = xmod;
+    }
+    XFreeModifiermap( modmap );
+
     layout->tables.pKeyNames = layout->key_names;
     layout->tables.pKeyNamesExt = layout->key_names_ext;
     layout->tables.bMaxVSCtoVK = 0xff;
     layout->tables.pusVSCtoVK = layout->vsc2vk;
     layout->tables.pVSCtoVK_E0 = layout->vsc2vk_e0;
     layout->tables.pVSCtoVK_E1 = layout->vsc2vk_e1;
+    layout->tables.pCharModifiers = &layout->modifiers;
+    layout->tables.pVkToWcharTable = &layout->vk_to_wchar_table;
+
+    layout->vk_to_wchar_table.pVkToWchars = (VK_TO_WCHARS1 *)layout->vk_to_wchars8;
+    layout->vk_to_wchar_table.cbSize = sizeof(*layout->vk_to_wchars8);
+    layout->vk_to_wchar_table.nModifications = 8;
+
+    layout->vk2bit[0].Vk = VK_SHIFT;
+    layout->vk2bit[0].ModBits = KBDSHIFT;
+    layout->vk2bit[1].Vk = VK_CONTROL;
+    layout->vk2bit[1].ModBits = KBDCTRL;
+    layout->vk2bit[2].Vk = VK_ICO_CLEAR;
+    layout->vk2bit[2].ModBits = KBDALT;
+
+    layout->modifiers.pVkToBit = layout->vk2bit;
+    for (mod = 0; mod <= (KBDSHIFT | KBDCTRL | KBDALT); ++mod)
+    {
+        BYTE num = 0;
+        if (mod & KBDSHIFT) num |= 1 << 0;
+        if (mod & KBDCTRL)  num |= 1 << 1;
+        if (mod & KBDALT)   num |= 1 << 2;
+        layout->modifiers.ModNumber[mod] = num;
+    }
+    layout->modifiers.wMaxModBits = 7;
 
     names_entry = layout->tables.pKeyNames;
     names_ext_entry = layout->tables.pKeyNamesExt;
     vsc2vk_e0_entry = layout->tables.pVSCtoVK_E0;
     vsc2vk_e1_entry = layout->tables.pVSCtoVK_E1;
+    vk2wchars_entry = layout->vk_to_wchars8;
 
     for (keyc = min_keycode; keyc <= max_keycode; keyc++)
     {
@@ -582,6 +631,38 @@ static void create_layout_from_xkb( Display *display, int xkb_group, const char 
         }
 
         TRACE( "keyc %#04x, scan %#05x -> vkey %#06x\n", keyc, scan, vkey );
+    }
+
+    for (keyc = min_keycode; keyc <= max_keycode; keyc++)
+    {
+        WORD scan = keyc2scan( keyc ), vkey = layout->scan2vk[scan];
+        XKeyEvent key = {.type = KeyPress, .display = display, .keycode = keyc, .state = xkb_group * 0x2000};
+        VK_TO_WCHARS8 vkey2wch = {.VirtualKey = vkey, .Attributes = CAPLOK};
+        BOOL found = FALSE;
+        unsigned int mod;
+        KeySym keysym;
+
+        for (mod = 0; mod < 8; ++mod)
+        {
+            char buffer[16] = {0};
+            unsigned int ret;
+
+            if (mod & (1 << 0)) key.state |= ShiftMask;
+            else key.state &= ~ShiftMask;
+            if (mod & (1 << 1)) key.state |= ControlMask;
+            else key.state &= ~ControlMask;
+            if (mod & (1 << 2)) key.state |= altgr_mod;
+            else key.state &= ~altgr_mod;
+
+            if (!(ret = XLookupString( &key, buffer, sizeof(buffer), &keysym, NULL ))) vkey2wch.wch[mod] = WCH_NONE;
+            else ret = ntdll_umbstowcs( buffer, ret, &vkey2wch.wch[mod], 1 );
+            if (ret) found = TRUE;
+        }
+
+        if (!found) continue;
+
+        TRACE( "vkey %#06x -> %s\n", vkey2wch.VirtualKey, debugstr_wn(vkey2wch.wch, 8) );
+        *vk2wchars_entry++ = vkey2wch;
     }
 
     TRACE( "Created layout entry %p, hkl %04x%04x id %04x\n", layout, layout->index, layout->lang, layout->layout_id );
