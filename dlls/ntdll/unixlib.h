@@ -22,7 +22,6 @@
 #define __NTDLL_UNIXLIB_H
 
 #include "wine/unixlib.h"
-#include "wine/prof.h"
 
 struct _DISPATCHER_CONTEXT;
 

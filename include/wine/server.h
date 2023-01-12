@@ -27,7 +27,6 @@
 #include <winternl.h>
 #include <wine/server_protocol.h>
 #include <wine/debug.h>
-#include <wine/prof.h>
 
 /* client communication functions */
 
@@ -130,7 +129,6 @@ static inline void *wine_server_get_ptr( client_ptr_t ptr )
         struct __server_request_info __req; \
         struct type##_request * const req = &__req.u.req.type##_request; \
         const struct type##_reply * const reply = &__req.u.reply.type##_reply; \
-        PROF_SCOPE_START(type); \
         memset( &__req.u.req, 0, sizeof(__req.u.req) ); \
         __req.u.req.request_header.req = REQ_##type; \
         __req.data_count = 0; \
@@ -141,7 +139,6 @@ static inline void *wine_server_get_ptr( client_ptr_t ptr )
 #define SERVER_END_REQ \
         while(0); \
         TRACE_(client)("%s end\n", __req_name); \
-        PROF_SCOPE_END(); \
     } while(0)
 
 
