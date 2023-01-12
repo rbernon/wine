@@ -63,10 +63,7 @@ struct thread
     unsigned int           error;         /* current error code */
     union generic_request  req;           /* current request */
     void                  *req_data;      /* variable-size data for request */
-    unsigned int           req_data_size;
     unsigned int           req_toread;    /* amount of data still to read in request */
-    void                  *rep_data;      /* variable-size data for reply */
-    unsigned int           rep_data_size; /* size of reply data */
     void                  *reply_data;    /* variable-size data for reply */
     unsigned int           reply_size;    /* size of reply data */
     unsigned int           reply_towrite; /* amount of data still to write in reply */
