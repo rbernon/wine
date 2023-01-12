@@ -238,14 +238,3 @@ int main( int argc, char *argv[] )
     main_loop();
     return 0;
 }
-
-#include "wine/prof.h"
-
-#undef TRACE_ON
-#define TRACE_ON(x) (getenv( "WINEDEBUG" ) && strstr( getenv( "WINEDEBUG" ), "+" #x ))
-#undef WINE_DECLARE_DEBUG_CHANNEL
-#define WINE_DECLARE_DEBUG_CHANNEL(x)
-#define wine_dbg_log( a, b, file, line, func, c, fmt, ...) fprintf( stderr, "%s:%u:%s " fmt, file, line, func, ## __VA_ARGS__ )
-#define WINE_UNIX_LIB
-
-#include "../dlls/ntdll/unix/prof.c"

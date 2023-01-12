@@ -501,5 +501,3 @@ ULONG WINAPIV EtwTraceMessage( TRACEHANDLE handle, ULONG flags, LPGUID guid, /*U
     va_end( valist );
     return ret;
 }
-
-#include "unix/prof.c"

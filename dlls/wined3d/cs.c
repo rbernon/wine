@@ -19,8 +19,6 @@
 #include "wined3d_private.h"
 #include "wined3d_gl.h"
 
-#include "wine/prof.h"
-
 WINE_DEFAULT_DEBUG_CHANNEL(d3d);
 WINE_DECLARE_DEBUG_CHANNEL(d3d_perf);
 WINE_DECLARE_DEBUG_CHANNEL(d3d_sync);
@@ -725,11 +723,8 @@ static void wined3d_cs_exec_present(struct wined3d_cs *cs, const void *data)
     }
     if (TRACE_ON(fps))
     {
-        static struct __wine_prof_frame_data fps_ticks = {"fps", 0, 0, 0};
         DWORD time = GetTickCount();
         ++swapchain->frames;
-
-        PROF_FRAME(&fps_ticks);
 
         /* every 1.5 seconds */
         if (time - swapchain->prev_time > 1500)

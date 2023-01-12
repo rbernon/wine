@@ -458,7 +458,7 @@ foreach my $req (@requests)
 }
 push @trace_lines, "};\n\n";
 
-push @trace_lines, "const char * const req_names[REQ_NB_REQUESTS] = {\n";
+push @trace_lines, "static const char * const req_names[REQ_NB_REQUESTS] = {\n";
 foreach my $req (@requests)
 {
     push @trace_lines, "    \"$req\",\n";
