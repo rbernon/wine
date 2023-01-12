@@ -63,8 +63,6 @@
 #define WANT_REQUEST_HANDLERS
 #include "request.h"
 
-#include "wine/prof.h"
-
 /* Some versions of glibc don't define this */
 #ifndef SCM_RIGHTS
 #define SCM_RIGHTS 1
@@ -159,13 +157,7 @@ void fatal_error( const char *err, ... )
 void *set_reply_data_size( data_size_t size )
 {
     assert( size <= get_reply_max_size() );
-    if (size > current->rep_data_size)
-    {
-        if (current->rep_data) free( current->rep_data );
-        if (!(current->rep_data = mem_alloc( size ))) size = 0;
-        current->rep_data_size = size;
-    }
-    current->reply_data = current->rep_data;
+    if (size && !(current->reply_data = mem_alloc( size ))) size = 0;
     current->reply_size = size;
     return current->reply_data;
 }
@@ -234,61 +226,57 @@ void write_reply( struct thread *thread )
 {
     int ret;
 
-    PROF_SCOPE_START_LIMIT(write_reply, 1000000000llu);
-
     if ((ret = write( get_unix_fd( thread->reply_fd ),
                       (char *)thread->reply_data + thread->reply_size - thread->reply_towrite,
                       thread->reply_towrite )) >= 0)
     {
         if (!(thread->reply_towrite -= ret))
         {
-            if (thread->reply_data != thread->rep_data) free( thread->reply_data );
+            free( thread->reply_data );
             thread->reply_data = NULL;
             /* sent everything, can go back to waiting for requests */
             set_fd_events( thread->request_fd, POLLIN );
             set_fd_events( thread->reply_fd, 0 );
         }
+        return;
     }
-    else
-    {
-        if (errno == EPIPE)
-            kill_thread( thread, 0 );  /* normal death */
-        else if (errno != EWOULDBLOCK && (EWOULDBLOCK == EAGAIN || errno != EAGAIN))
-            fatal_protocol_error( thread, "reply write: %s\n", strerror( errno ));
-    }
-
-    PROF_SCOPE_END();
+    if (errno == EPIPE)
+        kill_thread( thread, 0 );  /* normal death */
+    else if (errno != EWOULDBLOCK && (EWOULDBLOCK == EAGAIN || errno != EAGAIN))
+        fatal_protocol_error( thread, "reply write: %s\n", strerror( errno ));
 }
 
 /* send a reply to the current thread */
-void send_reply( union generic_reply *reply )
+static void send_reply( union generic_reply *reply )
 {
     int ret;
 
-    PROF_SCOPE_START_LIMIT(send_reply, 1000000000llu);
-
-    struct iovec vec[2];
-
-    vec[0].iov_base = (void *)reply;
-    vec[0].iov_len  = sizeof(*reply);
-    vec[1].iov_base = current->reply_data;
-    vec[1].iov_len  = current->reply_size;
-
-    if ((ret = writev( get_unix_fd( current->reply_fd ), vec, 2 )) < sizeof(*reply)) goto error;
-
-    if ((current->reply_towrite = current->reply_size - (ret - sizeof(*reply))))
+    if (!current->reply_size)
     {
-        /* couldn't write it all, wait for POLLOUT */
-        set_fd_events( current->reply_fd, POLLOUT );
-        set_fd_events( current->request_fd, 0 );
-        goto done;
+        if ((ret = write( get_unix_fd( current->reply_fd ),
+                          reply, sizeof(*reply) )) != sizeof(*reply)) goto error;
     }
+    else
+    {
+        struct iovec vec[2];
 
-    if (current->reply_data != current->rep_data) free( current->reply_data );
+        vec[0].iov_base = (void *)reply;
+        vec[0].iov_len  = sizeof(*reply);
+        vec[1].iov_base = current->reply_data;
+        vec[1].iov_len  = current->reply_size;
+
+        if ((ret = writev( get_unix_fd( current->reply_fd ), vec, 2 )) < sizeof(*reply)) goto error;
+
+        if ((current->reply_towrite = current->reply_size - (ret - sizeof(*reply))))
+        {
+            /* couldn't write it all, wait for POLLOUT */
+            set_fd_events( current->reply_fd, POLLOUT );
+            set_fd_events( current->request_fd, 0 );
+            return;
+        }
+    }
+    free( current->reply_data );
     current->reply_data = NULL;
-
-done:
-    PROF_SCOPE_END();
     return;
 
  error:
@@ -318,10 +306,20 @@ static void call_req_handler( struct thread *thread )
     else
         set_error( STATUS_NOT_IMPLEMENTED );
 
-    if (current && !current->reply_fd)
+    if (current)
     {
-        current->exit_code = 1;
-        kill_thread( current, 1 );  /* no way to continue without reply fd */
+        if (current->reply_fd)
+        {
+            reply.reply_header.error = current->error;
+            reply.reply_header.reply_size = current->reply_size;
+            if (debug_level) trace_reply( req, &reply );
+            send_reply( &reply );
+        }
+        else
+        {
+            current->exit_code = 1;
+            kill_thread( current, 1 );  /* no way to continue without reply fd */
+        }
     }
     current = NULL;
 }
@@ -331,23 +329,21 @@ void read_request( struct thread *thread )
 {
     int ret;
 
-    PROF_SCOPE_START_LIMIT(read_request, 1000000000llu);
-
     if (!thread->req_toread)  /* no pending request */
     {
         if ((ret = read( get_unix_fd( thread->request_fd ), &thread->req,
                          sizeof(thread->req) )) != sizeof(thread->req)) goto error;
         if (!(thread->req_toread = thread->req.request_header.request_size))
-            goto done;
-        if (thread->req_data_size < thread->req_toread)
         {
-            thread->req_data_size = thread->req_toread;
-            if (!(thread->req_data = realloc( thread->req_data, thread->req_data_size )))
-            {
-                fatal_protocol_error( thread, "no memory for %u bytes request %d\n",
-                                      thread->req_toread, thread->req.request_header.req );
-                return;
-            }
+            /* no data, handle request at once */
+            call_req_handler( thread );
+            return;
+        }
+        if (!(thread->req_data = malloc( thread->req_toread )))
+        {
+            fatal_protocol_error( thread, "no memory for %u bytes request %d\n",
+                                  thread->req_toread, thread->req.request_header.req );
+            return;
         }
     }
 
@@ -360,7 +356,12 @@ void read_request( struct thread *thread )
                     thread->req_toread );
         if (ret <= 0) break;
         if (!(thread->req_toread -= ret))
-            goto done;
+        {
+            call_req_handler( thread );
+            free( thread->req_data );
+            thread->req_data = NULL;
+            return;
+        }
     }
 
 error:
@@ -370,13 +371,6 @@ error:
         fatal_protocol_error( thread, "partial read %d\n", ret );
     else if (errno != EWOULDBLOCK && (EWOULDBLOCK == EAGAIN || errno != EAGAIN))
         fatal_protocol_error( thread, "read: %s\n", strerror( errno ));
-
-    return;
-
-done:
-    PROF_SCOPE_END();
-
-    call_req_handler( thread );
 }
 
 /* receive a file descriptor on the process socket */
