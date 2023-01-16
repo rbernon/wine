@@ -1589,7 +1589,7 @@ static HRESULT hid_joystick_device_open( int index, const GUID *guid, DIDEVICEIN
         detail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W);
         if (!SetupDiGetDeviceInterfaceDetailW( set, &iface, detail, sizeof(buffer), NULL, &devinfo ))
             continue;
-        if (FAILED(hid_joystick_device_try_open( detail->DevicePath, preparsed,
+        if (FAILED(hid_joystick_device_try_open( detail->DevicePath, device, preparsed,
                                                  attrs, caps, instance, version )))
             continue;
 
@@ -1609,7 +1609,7 @@ static HRESULT hid_joystick_device_open( int index, const GUID *guid, DIDEVICEIN
 
             CloseHandle( *device );
             HidD_FreePreparsedData( *preparsed );
-            if (FAILED(hid_joystick_device_try_open( detail->DevicePath, preparsed,
+            if (FAILED(hid_joystick_device_try_open( detail->DevicePath, device, preparsed,
                                                      attrs, caps, instance, version )))
                 continue;
         }
