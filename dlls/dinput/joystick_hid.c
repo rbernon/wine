@@ -932,11 +932,9 @@ static HRESULT hid_joystick_unacquire( IDirectInputDevice8W *iface )
     if (!ret) WARN( "CancelIoEx failed, last error %lu\n", GetLastError() );
     else WaitForSingleObject( impl->base.read_event, INFINITE );
 
-    if ((impl->base.caps.dwFlags & DIDC_FORCEFEEDBACK) && is_exclusively_acquired( impl ))
-        hid_joystick_send_force_feedback_command( iface, DISFFC_RESET, TRUE );
-
-    CloseHandle( impl->device );
-    impl->device = INVALID_HANDLE_VALUE;
+    if (!(impl->base.caps.dwFlags & DIDC_FORCEFEEDBACK)) return DI_OK;
+    if (!is_exclusively_acquired( impl )) return DI_OK;
+    hid_joystick_send_force_feedback_command( iface, DISFFC_RESET, TRUE );
     return DI_OK;
 }
 
@@ -1426,7 +1424,7 @@ static DWORD device_type_for_version( DWORD type, DWORD version )
     }
 }
 
-static HRESULT hid_joystick_device_try_open( const WCHAR *path, PHIDP_PREPARSED_DATA *preparsed,
+static HRESULT hid_joystick_device_try_open( const WCHAR *path, HANDLE *device, PHIDP_PREPARSED_DATA *preparsed,
                                              HIDD_ATTRIBUTES *attrs, HIDP_CAPS *caps, DIDEVICEINSTANCEW *instance,
                                              DWORD version )
 {
@@ -1574,6 +1572,7 @@ static HRESULT hid_joystick_device_try_open( const WCHAR *path, PHIDP_PREPARSED_
     instance->dwDevType = device_type_for_version( type, version ) | DIDEVTYPE_HID;
     TRACE("detected device type %#lx\n", instance->dwDevType);
 
+    *device = device_file;
     *preparsed = preparsed_data;
     return DI_OK;
 
@@ -1584,7 +1583,7 @@ failed:
 }
 
 static HRESULT hid_joystick_device_open( int index, const GUID *guid, DIDEVICEINSTANCEW *instance,
-                                         WCHAR *device_path, PHIDP_PREPARSED_DATA *preparsed,
+                                         WCHAR *device_path, HANDLE *device, PHIDP_PREPARSED_DATA *preparsed,
                                          HIDD_ATTRIBUTES *attrs, HIDP_CAPS *caps, DWORD version )
 {
     char buffer[sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W) + MAX_PATH * sizeof(WCHAR)];
@@ -1605,6 +1604,7 @@ static HRESULT hid_joystick_device_open( int index, const GUID *guid, DIDEVICEIN
     if (set == INVALID_HANDLE_VALUE) return DIERR_DEVICENOTREG;
     xi_set = SetupDiGetClassDevsW( &GUID_DEVINTERFACE_WINEXINPUT, NULL, NULL, DIGCF_DEVICEINTERFACE | DIGCF_PRESENT );
 
+    *device = NULL;
     *preparsed = NULL;
     while (SetupDiEnumDeviceInterfaces( set, NULL, &hid, i++, &iface ))
     {
@@ -1629,6 +1629,7 @@ static HRESULT hid_joystick_device_open( int index, const GUID *guid, DIDEVICEIN
             if (!SetupDiGetDeviceInterfaceDetailW( xi_set, &iface, detail, sizeof(buffer), NULL, &devinfo ))
                 goto next;
 
+            CloseHandle( *device );
             HidD_FreePreparsedData( *preparsed );
             if (FAILED(hid_joystick_device_try_open( detail->DevicePath, preparsed,
                                                      attrs, caps, instance, version )))
@@ -1642,13 +1643,15 @@ static HRESULT hid_joystick_device_open( int index, const GUID *guid, DIDEVICEIN
         if (index >= 0 && !index--) break;
 
     next:
+        CloseHandle( *device );
         HidD_FreePreparsedData( *preparsed );
+        *device = NULL;
         *preparsed = NULL;
     }
 
     if (xi_set != INVALID_HANDLE_VALUE) SetupDiDestroyDeviceInfoList( xi_set );
     SetupDiDestroyDeviceInfoList( set );
-    if (!*preparsed) return DIERR_DEVICENOTREG;
+    if (!*device || !*preparsed) return DIERR_DEVICENOTREG;
 
     lstrcpynW( device_path, detail->DevicePath, MAX_PATH );
     return DI_OK;
@@ -1661,14 +1664,17 @@ HRESULT hid_joystick_enum_device( DWORD type, DWORD flags, DIDEVICEINSTANCEW *in
     WCHAR device_path[MAX_PATH];
     GUID guid = GUID_NULL;
     HIDP_CAPS caps;
+    HANDLE device;
     HRESULT hr;
 
     TRACE( "type %#lx, flags %#lx, instance %p, version %#lx, index %d\n", type, flags, instance, version, index );
 
-    hr = hid_joystick_device_open( index, &guid, instance, device_path, &preparsed,
+    hr = hid_joystick_device_open( index, &guid, instance, device_path, &device, &preparsed,
                                    &attrs, &caps, version );
     if (hr != DI_OK) return hr;
+
     HidD_FreePreparsedData( preparsed );
+    CloseHandle( device );
 
     TRACE( "found device %s, usage %04x:%04x, product %s, instance %s, name %s\n", debugstr_w(device_path),
            instance->wUsagePage, instance->wUsage, debugstr_guid( &instance->guidProduct ),
@@ -2050,13 +2056,12 @@ HRESULT hid_joystick_create_device( struct dinput *dinput, const GUID *guid, IDi
     else
     {
         wcscpy( impl->device_path, *(const WCHAR **)guid );
-        hr = hid_joystick_device_try_open( impl->device_path, &impl->preparsed, &attrs,
+        hr = hid_joystick_device_try_open( impl->device_path, &impl->device, &impl->preparsed, &attrs,
                                            &impl->caps, &impl->base.instance, dinput->dwVersion );
     }
     if (hr != DI_OK) goto failed;
 
     impl->base.caps.dwDevType = impl->base.instance.dwDevType;
-    impl->device = INVALID_HANDLE_VALUE;
     impl->attrs = attrs;
     list_init( &impl->effect_list );
 
