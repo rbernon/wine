@@ -57,6 +57,8 @@ struct hid_expect
     DWORD code;
     DWORD ret_length;
     DWORD ret_status;
+    DWORD repeat_count;
+    BYTE repeat_length;
     BYTE todo;   /* missing on wine */
     BYTE broken_id; /* different or missing (-1) report on some win versions */
     BYTE wine_only;

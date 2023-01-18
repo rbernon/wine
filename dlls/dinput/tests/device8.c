@@ -1689,6 +1689,26 @@ static LRESULT CALLBACK mouse_ll_proc( int code, WPARAM wparam, LPARAM lparam )
     return CallNextHookEx( 0, code, wparam, lparam );
 }
 
+static DWORD CALLBACK inject_thread_proc( void *arg )
+{
+    BOOL (*CDECL p__wine_send_input)( HWND hwnd, const INPUT *input, const RAWINPUT *rawinput );
+
+    p__wine_send_input = (void *)GetProcAddress( GetModuleHandleW( L"win32u" ), "__wine_send_input" );
+
+    for (int i = 0; i < 10000000; ++i)
+    {
+        INPUT input =
+        {
+            .type = INPUT_MOUSE,
+            .mi = {.dwFlags = MOUSEEVENTF_MOVE, .time = GetTickCount(), .dx = 1},
+        };
+
+        p__wine_send_input( 0, &input, NULL );
+    }
+
+    return 0;
+}
+
 static void test_hid_mouse(void)
 {
 #include "psh_hid_macros.h"
@@ -1956,6 +1976,26 @@ winetest_pop_context();
     rawdevice.hwndTarget = 0;
     ret = RegisterRawInputDevices( &rawdevice, count, sizeof(RAWINPUTDEVICE) );
     ok( ret == 1, "RegisterRawInputDevices failed, error %lu\n", GetLastError() );
+
+    inject_thread = CreateThread( NULL, 0, inject_thread_proc, NULL, 0, NULL );
+    ok( !!inject_thread, "CreateThread failed, error %lu\n", GetLastError() );
+
+    if (FAILED(create_dinput_device( 0x800, &GUID_SysMouse, &device ))) return;
+    hr = IDirectInputDevice8_SetDataFormat( device, &c_dfDIMouse2 );
+    ok( hr == DI_OK, "SetDataFormat returned %#lx\n", hr );
+    hr = IDirectInputDevice8_SetCooperativeLevel( device, NULL, DISCL_BACKGROUND|DISCL_NONEXCLUSIVE );
+    ok( hr == DI_OK, "SetCooperativeLevel returned %#lx\n", hr );
+    hr = IDirectInputDevice8_Acquire( device );
+    ok( hr == DI_OK, "Acquire returned %#lx\n", hr );
+
+    do { mouse_move_count = 0; flush_events(); }
+    while (mouse_move_count);
+
+    WaitForSingleObject( inject_thread, INFINITE );
+    CloseHandle( inject_thread );
+
+    ret = IDirectInputDevice8_Release( device );
+    ok( ret == 0, "Release returned %d\n", ret );
 
     DestroyWindow( hwnd );
 
