@@ -59,6 +59,7 @@ void bus_device_stop(void);
 
 BOOL find_hid_device_path( WCHAR *device_path );
 void cleanup_registry_keys( const WCHAR *vidpid );
+BOOL find_hid_device_path( WCHAR *device_path );
 
 #define dinput_test_init() dinput_test_init_( __FILE__, __LINE__ )
 void dinput_test_init_( const char *file, int line );

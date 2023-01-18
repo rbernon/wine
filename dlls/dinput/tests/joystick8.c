@@ -1647,6 +1647,18 @@ static void test_simple_joystick( DWORD version )
             .report_buf = {1,0x10,0x10,0x10,0xee,0x10,0x10,0x10,0x54},
         },
     };
+    struct hid_expect auto_input[] =
+    {
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x10,0x10,0x80,0x80,0x10,0x10,0x10,0xff},
+        },
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x10,0x10,0x10,0xee,0x10,0x10,0x10,0x54},
+            .repeat_length = 2, .repeat_count = 10000000,
+        },
+    };
     static const struct DIJOYSTATE2 expect_state[] =
     {
         {.lX = 32767, .lY = 32767, .lZ = 32767, .rgdwPOV = {-1, -1, -1, -1}, .rgbButtons = {0, 0}},
@@ -3296,6 +3308,12 @@ static void test_simple_joystick( DWORD version )
         ResetEvent( event );
         winetest_pop_context();
     }
+
+    {
+    send_hid_input( file, auto_input, sizeof(auto_input) );
+    Sleep( 600000 );
+    }
+
 
     hr = IDirectInputDevice8_GetDeviceState( device, sizeof(DIJOYSTATE2), &state );
     ok( hr == DI_OK, "GetDeviceState returned: %#lx\n", hr );
