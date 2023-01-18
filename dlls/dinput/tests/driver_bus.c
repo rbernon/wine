@@ -288,7 +288,15 @@ static void expect_queue_next( struct expect_queue *queue, ULONG code, HID_XFER_
         *missing_end++ = *tmp++;
     }
     *index = tmp - queue->buffer;
-    if (tmp < queue->end) queue->pos = tmp + 1;
+    if (tmp < queue->end)
+    {
+        if (!tmp->repeat_count) queue->pos = tmp + 1;
+        else
+        {
+            tmp->repeat_count -= 1;
+            queue->pos = tmp - (tmp->repeat_length - 1);
+        }
+    }
     else tmp = &queue->spurious;
     *expect = *tmp;
 
@@ -425,7 +433,15 @@ static BOOL input_queue_read_locked( struct input_queue *queue, IRP *irp )
     }
     irp->IoStatus.Information = out_size;
     irp->IoStatus.Status = tmp->ret_status;
-    if (tmp < queue->end) queue->pos = tmp + 1;
+    if (tmp < queue->end)
+    {
+        if (!tmp->repeat_count) queue->pos = tmp + 1;
+        else
+        {
+            tmp->repeat_count -= 1;
+            queue->pos = tmp - (tmp->repeat_length - 1);
+        }
+    }
 
     /* loop on the queue data in polled mode */
     if (queue->is_polled && queue->pos == queue->end) queue->pos = queue->buffer;
