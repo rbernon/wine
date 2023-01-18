@@ -218,13 +218,14 @@ static struct hid_report *hid_queue_pop_report( struct hid_queue *queue )
 
 static void hid_device_queue_input( DEVICE_OBJECT *device, HID_XFER_PACKET *packet )
 {
+    char buffer[offsetof(RAWINPUT, data.hid.bRawData[256])];
     BASE_DEVICE_EXTENSION *ext = device->DeviceExtension;
     HIDP_COLLECTION_DESC *desc = ext->u.pdo.device_desc.CollectionDesc;
     const BOOL polled = ext->u.pdo.information.Polled;
     ULONG size, report_len = polled ? packet->reportBufferLen : desc->InputLength;
     struct hid_report *last_report, *report;
-    struct hid_queue *queue;
     LIST_ENTRY completed, *entry;
+    struct hid_queue *queue;
     KIRQL irql;
     IRP *irp;
 
@@ -232,10 +233,11 @@ static void hid_device_queue_input( DEVICE_OBJECT *device, HID_XFER_PACKET *pack
 
     if (IsEqualGUID( ext->class_guid, &GUID_DEVINTERFACE_HID ))
     {
-        struct hid_packet *hid;
+        struct hid_packet *hid = (struct hid_input *)buffer;
 
         size = offsetof( struct hid_packet, data[report_len] );
-        if (!(hid = malloc( size ))) ERR( "Failed to allocate rawinput data!\n" );
+        if (size > sizeof(buffer) && !(harware = malloc( size )))
+            ERR( "Failed to allocate rawinput data!\n" );
         else
         {
             INPUT input = {.type = INPUT_HARDWARE};
@@ -253,7 +255,7 @@ static void hid_device_queue_input( DEVICE_OBJECT *device, HID_XFER_PACKET *pack
             memset( hid->data + packet->reportBufferLen, 0, report_len - packet->reportBufferLen );
             NtUserSendHardwareInput( 0, 0, &input, (LPARAM)hid );
 
-            free( hid );
+            if (hid != (struct hid_input *)buffer) free( hid );
         }
     }
 
