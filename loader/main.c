@@ -31,6 +31,9 @@
 #include <unistd.h>
 #include <dlfcn.h>
 #include <limits.h>
+#ifdef __linux__
+# include <malloc.h>
+#endif
 #ifdef HAVE_SYS_SYSCTL_H
 # include <sys/sysctl.h>
 #endif
@@ -76,6 +79,130 @@ static void init_reserved_areas(void)
 /* the preloader will set these variables */
 __attribute((visibility("default"))) struct r_debug *wine_r_debug = NULL;
 const __attribute((visibility("default"))) struct wine_preload_info *wine_main_preload_info = NULL;
+
+#ifdef __linux__
+
+extern void *__libc_malloc( size_t size );
+extern void *__libc_valloc( size_t size );
+extern void *__libc_memalign( size_t align, size_t size );
+extern void *__libc_calloc( size_t count, size_t size );
+extern void *__libc_realloc( void *ptr, size_t size );
+extern void __libc_free( void *ptr );
+
+static pthread_mutex_t free_lock = PTHREAD_MUTEX_INITIALIZER;
+static size_t free_delay_count;
+static void *free_origin[256];
+static void *free_delay[256];
+
+static int malloc_trace_on;
+#define MALLOC_TRACE( fmt, ... ) fprintf( stderr, "%u: %p: %s: " fmt, gettid(), __builtin_return_address(0), __func__, ## __VA_ARGS__ )
+
+void *malloc( size_t size )
+{
+    void *ret;
+    ret = __libc_malloc( size );
+    if (malloc_trace_on) MALLOC_TRACE( "size %#zx, ret %p\n", size, ret );
+    return ret;
+}
+
+void *valloc( size_t size )
+{
+    void *ret;
+    ret = __libc_valloc( size );
+    if (malloc_trace_on) MALLOC_TRACE( "size %#zx, ret %p\n", size, ret );
+    return ret;
+}
+
+void *memalign( size_t align, size_t size )
+{
+    void *ret;
+    ret = __libc_memalign( align, size );
+    if (malloc_trace_on) MALLOC_TRACE( "align %#zx, size %#zx, ret %p\n", align, size, ret );
+    return ret;
+}
+
+int posix_memalign( void **ptr, size_t align, size_t size )
+{
+    void *ret = NULL;
+    int err = 0;
+
+    if ((align & (align - 1)) || align % sizeof (void *)) err = 22;
+    else if (!(ret = __libc_memalign( align, size ))) err = 12;
+
+    if (malloc_trace_on) MALLOC_TRACE( "align %#zx, size %#zx, ret %p\n", align, size, ret );
+    *ptr = ret;
+    return err;
+}
+
+void *aligned_alloc( size_t align, size_t size )
+{
+    void *ret;
+    ret = __libc_memalign( align, size );
+    if (malloc_trace_on) MALLOC_TRACE( "align %#zx, size %#zx, ret %p\n", align, size, ret );
+    return ret;
+}
+
+void *calloc( size_t count, size_t size )
+{
+    void *ret;
+    ret = __libc_calloc( count, size );
+    if (malloc_trace_on) MALLOC_TRACE( "count %#zx, size %#zx, ret %p\n", count, size, ret );
+    return ret;
+}
+
+void *realloc( void *ptr, size_t size )
+{
+    void *ret;
+    if (malloc_trace_on) MALLOC_TRACE( "ptr %p, size %#zx\n", ptr, size );
+    ret = __libc_realloc( ptr, size );
+    if (malloc_trace_on) MALLOC_TRACE( "ptr %p, size %#zx, ret %p\n", ptr, size, ret );
+    return ret;
+}
+
+void free( void *ptr )
+{
+    void *tmp, *origin = __builtin_return_address(0);
+    size_t size, idx;
+
+    if (!ptr) return;
+    if (malloc_trace_on) MALLOC_TRACE( "ptr %p\n", ptr );
+
+    size = malloc_usable_size( ptr );
+    memset( ptr, 0xcd, size );
+
+#ifndef ARRAY_SIZE
+# define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+#endif
+
+    pthread_mutex_lock( &free_lock );
+    idx = free_delay_count++ % ARRAY_SIZE(free_delay);
+    tmp = free_delay[idx];
+    free_origin[idx] = origin;
+    free_delay[idx] = ptr;
+    ptr = tmp;
+    pthread_mutex_unlock( &free_lock );
+
+    if (!ptr) return;
+
+    size = malloc_usable_size( ptr );
+    while (size--)
+    {
+        if (((unsigned char *)ptr)[size] == 0xcd) continue;
+        MALLOC_TRACE( "ptr %p, size %#zx, UAF!\n", ptr, size );
+        abort();
+    }
+
+    __libc_free( ptr );
+}
+
+void __assert_fail( const char *assertion, const char *file, unsigned int line, const char *function )
+{
+    MALLOC_TRACE( "%s:%d:%s: %s\n", file, line, function, assertion );
+    *(volatile int *)0 = 0;
+}
+
+
+#endif /* __linux__ */
 
 static void init_reserved_areas(void)
 {
