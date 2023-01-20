@@ -2976,8 +2976,8 @@ TEB *virtual_alloc_first_teb(void)
     NtAllocateVirtualMemory( NtCurrentProcess(), (void **)&ptr, 0, &data_size, MEM_COMMIT, PAGE_READWRITE );
     peb = (PEB *)((char *)teb_block + 31 * block_size + (is_win64 ? 0 : page_size));
     teb = init_teb( ptr, FALSE );
-    pthread_key_create( &teb_key, NULL );
-    pthread_setspecific( teb_key, teb );
+    pthread_key_create( &__wine_teb_key, NULL );
+    pthread_setspecific( __wine_teb_key, teb );
     return teb;
 }
 
