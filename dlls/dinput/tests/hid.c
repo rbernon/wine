@@ -21,6 +21,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 
+#define COBJMACROS
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
 #include "windef.h"
@@ -44,8 +45,6 @@
 #include "devguid.h"
 
 #include "objbase.h"
-
-#define COBJMACROS
 
 #include "initguid.h"
 #include "ddk/wdm.h"
@@ -3714,7 +3713,8 @@ BOOL CALLBACK find_test_device( const DIDEVICEINSTANCEW *devinst, void *context 
     return DIENUM_CONTINUE;
 }
 
-HRESULT dinput_test_create_device( DWORD version, DIDEVICEINSTANCEW *devinst, IDirectInputDevice8W **device )
+HRESULT dinput_test_create_device_( DWORD version, DIDEVICEINSTANCEW *devinst,
+                                    IDirectInputDevice8W **device, IUnknown **dinput )
 {
     IDirectInput8W *di8;
     IDirectInputW *di;
@@ -3743,6 +3743,12 @@ HRESULT dinput_test_create_device( DWORD version, DIDEVICEINSTANCEW *devinst, ID
         hr = IDirectInput8_CreateDevice( di8, &expect_guid_product, device, NULL );
         ok( hr == DI_OK, "CreateDevice returned %#lx\n", hr );
 
+        if (dinput)
+        {
+            *dinput = (IUnknown *)di8;
+            IUnknown_AddRef( *dinput );
+        }
+
         ref = IDirectInput8_Release( di8 );
         ok( ref == 0, "Release returned %ld\n", ref );
     }
@@ -3768,6 +3774,12 @@ HRESULT dinput_test_create_device( DWORD version, DIDEVICEINSTANCEW *devinst, ID
 
         hr = IDirectInput_CreateDevice( di, &expect_guid_product, (IDirectInputDeviceW **)device, NULL );
         ok( hr == DI_OK, "CreateDevice returned %#lx\n", hr );
+
+        if (dinput)
+        {
+            *dinput = (IUnknown *)di;
+            IUnknown_AddRef( *dinput );
+        }
 
         ref = IDirectInput_Release( di );
         ok( ref == 0, "Release returned %ld\n", ref );
