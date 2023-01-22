@@ -534,7 +534,7 @@ static void set_axis_type( DIDEVICEOBJECTINSTANCEW *instance, BOOL *seen, DWORD 
 }
 
 static BOOL enum_objects( struct hid_joystick *impl, const DIPROPHEADER *filter, DWORD flags,
-                          enum_object_callback callback, void *data )
+                          enum_object_callback callback, void *data, BOOL names )
 {
     DWORD collection = 0, object = 0, axis = 0, button = 0, pov = 0, value_ofs = 0, button_ofs = 0, j, count, len;
     struct hid_preparsed_data *preparsed = (struct hid_preparsed_data *)impl->preparsed;
@@ -613,7 +613,8 @@ static BOOL enum_objects( struct hid_joystick *impl, const DIPROPHEADER *filter,
             instance.wCollectionNumber = caps->link_collection;
             instance.dwDimension = caps->units;
             instance.wExponent = caps->units_exp;
-            if ((tmp = object_usage_to_string( &instance ))) lstrcpynW( instance.tszName, tmp, MAX_PATH );
+            if (!names) instance.tszName[0] = 0;
+            else if ((tmp = object_usage_to_string( &instance ))) lstrcpynW( instance.tszName, tmp, MAX_PATH );
             else swprintf( instance.tszName, MAX_PATH, L"Unknown %u", DIDFT_GETINSTANCE( instance.dwType ) );
             check_pid_effect_axis_caps( impl, &instance );
             ret = enum_object( impl, filter, flags, callback, object, caps, &instance, data );
@@ -650,7 +651,8 @@ static BOOL enum_objects( struct hid_joystick *impl, const DIPROPHEADER *filter,
             instance.wCollectionNumber = caps->link_collection;
             instance.dwDimension = caps->units;
             instance.wExponent = caps->units_exp;
-            swprintf( instance.tszName, MAX_PATH, L"Button %u", DIDFT_GETINSTANCE( instance.dwType ) );
+            if (!names) instance.tszName[0] = 0;
+            else swprintf( instance.tszName, MAX_PATH, L"Button %u", DIDFT_GETINSTANCE( instance.dwType ) );
             ret = enum_object( impl, filter, flags, callback, object, caps, &instance, data );
             if (ret != DIENUM_CONTINUE) return ret;
             button_ofs++;
@@ -688,7 +690,8 @@ static BOOL enum_objects( struct hid_joystick *impl, const DIPROPHEADER *filter,
                 instance.wCollectionNumber = nary->link_collection;
                 instance.dwDimension = caps->units;
                 instance.wExponent = caps->units_exp;
-                if ((tmp = object_usage_to_string( &instance ))) lstrcpynW( instance.tszName, tmp, MAX_PATH );
+                if (!names) instance.tszName[0] = 0;
+                else if ((tmp = object_usage_to_string( &instance ))) lstrcpynW( instance.tszName, tmp, MAX_PATH );
                 else swprintf( instance.tszName, MAX_PATH, L"Unknown %u", DIDFT_GETINSTANCE( instance.dwType ) );
                 ret = enum_object( impl, filter, flags, callback, -1, nary, &instance, data );
                 if (ret != DIENUM_CONTINUE) return ret;
@@ -710,7 +713,8 @@ static BOOL enum_objects( struct hid_joystick *impl, const DIPROPHEADER *filter,
             instance.wCollectionNumber = caps->link_collection;
             instance.dwDimension = caps->units;
             instance.wExponent = caps->units_exp;
-            if ((tmp = object_usage_to_string( &instance ))) lstrcpynW( instance.tszName, tmp, MAX_PATH );
+            if (!names) instance.tszName[0] = 0;
+            else if ((tmp = object_usage_to_string( &instance ))) lstrcpynW( instance.tszName, tmp, MAX_PATH );
             else swprintf( instance.tszName, MAX_PATH, L"Unknown %u", DIDFT_GETINSTANCE( instance.dwType ) );
             ret = enum_object( impl, filter, flags, callback, -1, caps, &instance, data );
             if (ret != DIENUM_CONTINUE) return ret;
@@ -736,9 +740,13 @@ static BOOL enum_objects( struct hid_joystick *impl, const DIPROPHEADER *filter,
             instance.wCollectionNumber = node->parent;
             instance.dwDimension = 0;
             instance.wExponent = 0;
-            len = swprintf( instance.tszName, MAX_PATH, L"Collection %u - ", DIDFT_GETINSTANCE( instance.dwType ) );
-            if ((tmp = object_usage_to_string( &instance ))) lstrcpynW( instance.tszName + len, tmp, MAX_PATH - len );
-            else swprintf( instance.tszName + len, MAX_PATH - len, L"Unknown %u", DIDFT_GETINSTANCE( instance.dwType ) );
+            if (!names) instance.tszName[0] = 0;
+            else
+            {
+                len = swprintf( instance.tszName, MAX_PATH, L"Collection %u - ", DIDFT_GETINSTANCE( instance.dwType ) );
+                if ((tmp = object_usage_to_string( &instance ))) lstrcpynW( instance.tszName + len, tmp, MAX_PATH - len );
+                else swprintf( instance.tszName + len, MAX_PATH - len, L"Unknown %u", DIDFT_GETINSTANCE( instance.dwType ) );
+            }
             ret = enum_object( impl, filter, flags, callback, -1, NULL, &instance, data );
             if (ret != DIENUM_CONTINUE) return ret;
         }
@@ -1299,8 +1307,8 @@ static HRESULT hid_joystick_read( IDirectInputDevice8W *iface )
                     params.buttons[usages->Usage - 1] = 0x80;
             }
 
-            enum_objects( impl, &filter, DIDFT_AXIS | DIDFT_POV, read_device_state_value, &params );
-            enum_objects( impl, &filter, DIDFT_BUTTON, check_device_state_button, &params );
+            enum_objects( impl, &filter, DIDFT_AXIS | DIDFT_POV, read_device_state_value, &params, FALSE );
+            enum_objects( impl, &filter, DIDFT_BUTTON, check_device_state_button, &params, FALSE );
             if (impl->base.hEvent && memcmp( &params.old_state, impl->base.device_state, format->dwDataSize ))
                 SetEvent( impl->base.hEvent );
         }
@@ -2067,8 +2075,8 @@ HRESULT hid_joystick_create_device( struct dinput *dinput, const GUID *guid, IDi
     if (!(usages = malloc( size ))) goto failed;
     impl->usages_buf = usages;
 
-    enum_objects( impl, &filter, DIDFT_COLLECTION, init_pid_reports, NULL );
-    enum_objects( impl, &filter, DIDFT_NODATA | DIDFT_BUTTON | DIDFT_AXIS, init_pid_caps, NULL );
+    enum_objects( impl, &filter, DIDFT_COLLECTION, init_pid_reports, NULL, FALSE );
+    enum_objects( impl, &filter, DIDFT_NODATA | DIDFT_BUTTON | DIDFT_AXIS, init_pid_caps, NULL, FALSE );
 
     TRACE( "device control id %u, coll %u, control coll %u\n", impl->pid_device_control.id,
            impl->pid_device_control.collection, impl->pid_device_control.control_coll );
@@ -2456,10 +2464,10 @@ static HRESULT WINAPI hid_joystick_effect_GetParameters( IDirectInputEffect *ifa
             filter.dwObj = impl->params.rgdwAxes[i];
             if (object_flags & DIEFF_OBJECTIDS)
                 ret = enum_objects( impl->joystick, &filter, DIDFT_AXIS, get_parameters_object_id,
-                                    &params->rgdwAxes[i] );
+                                    &params->rgdwAxes[i], FALSE );
             else
                 ret = enum_objects( impl->joystick, &filter, DIDFT_AXIS, get_parameters_object_ofs,
-                                    &params->rgdwAxes[i] );
+                                    &params->rgdwAxes[i], FALSE );
             if (ret != DIENUM_STOP) params->rgdwAxes[i] = 0;
         }
     }
@@ -2516,10 +2524,10 @@ static HRESULT WINAPI hid_joystick_effect_GetParameters( IDirectInputEffect *ifa
         filter.dwObj = impl->params.dwTriggerButton;
         if (object_flags & DIEFF_OBJECTIDS)
             ret = enum_objects( impl->joystick, &filter, DIDFT_BUTTON, get_parameters_object_id,
-                                &params->dwTriggerButton );
+                                &params->dwTriggerButton, FALSE );
         else
             ret = enum_objects( impl->joystick, &filter, DIDFT_BUTTON, get_parameters_object_ofs,
-                                &params->dwTriggerButton );
+                                &params->dwTriggerButton, FALSE );
         if (ret != DIENUM_STOP) params->dwTriggerButton = -1;
     }
 
@@ -2571,7 +2579,7 @@ static HRESULT WINAPI hid_joystick_effect_SetParameters( IDirectInputEffect *ifa
         {
             filter.dwObj = params->rgdwAxes[i];
             ret = enum_objects( impl->joystick, &filter, DIDFT_AXIS, set_parameters_object,
-                                &impl->params.rgdwAxes[i] );
+                                &impl->params.rgdwAxes[i], FALSE );
             if (ret != DIENUM_STOP) impl->params.rgdwAxes[i] = 0;
         }
 
@@ -2690,7 +2698,7 @@ static HRESULT WINAPI hid_joystick_effect_SetParameters( IDirectInputEffect *ifa
         filter.dwObj = params->dwTriggerButton;
         old_value = impl->params.dwTriggerButton;
         ret = enum_objects( impl->joystick, &filter, DIDFT_BUTTON, set_parameters_object,
-                            &impl->params.dwTriggerButton );
+                            &impl->params.dwTriggerButton, FALSE );
         if (ret != DIENUM_STOP) impl->params.dwTriggerButton = -1;
         if (impl->params.dwTriggerButton != old_value) impl->modified |= DIEP_TRIGGERBUTTON;
     }
