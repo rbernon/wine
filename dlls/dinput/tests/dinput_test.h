@@ -64,7 +64,9 @@ void cleanup_registry_keys( const WCHAR *vidpid );
 void dinput_test_init_( const char *file, int line );
 void dinput_test_exit(void);
 
-HRESULT dinput_test_create_device( DWORD version, DIDEVICEINSTANCEW *devinst, IDirectInputDevice8W **device );
+#define dinput_test_create_device( a, b, c ) dinput_test_create_device_( a, b, c, NULL )
+HRESULT dinput_test_create_device_( DWORD version, DIDEVICEINSTANCEW *devinst,
+                                    IDirectInputDevice8W **device, IUnknown **dinput );
 DWORD WINAPI dinput_test_device_thread( void *stop_event );
 
 #define fill_context( a, b ) fill_context_( __FILE__, __LINE__, a, b )
