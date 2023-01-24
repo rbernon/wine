@@ -525,8 +525,8 @@ m_args
 	| args
 	;
 
-arg_list: arg					{ check_arg_attrs($1); $$ = append_var( NULL, $1 ); }
-	| arg_list ',' arg			{ check_arg_attrs($3); $$ = append_var( $1, $3 ); }
+arg_list: arg					{ $$ = append_var( NULL, $1 ); }
+	| arg_list ',' arg			{ $$ = append_var( $1, $3 ); }
 	;
 
 args:	  arg_list
@@ -536,7 +536,7 @@ args:	  arg_list
 /* split into two rules to get bison to resolve a tVOID conflict */
 arg:	  attributes decl_spec m_any_declarator	{ if ($2->stgclass != STG_NONE && $2->stgclass != STG_REGISTER)
 						    error_loc("invalid storage class for function parameter\n");
-						  $$ = declare_var($1, $2, $3, TRUE);
+						  $$ = declare_var( check_arg_attrs( $1, $3->var->name ), $2, $3, TRUE );
 						  free($2); free($3);
 						}
 	| decl_spec m_any_declarator		{ if ($1->stgclass != STG_NONE && $1->stgclass != STG_REGISTER)
