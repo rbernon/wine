@@ -285,19 +285,17 @@ static int decl_needs_parens(const type_t *t)
     return is_func(t);
 }
 
-static void write_pointer_left(FILE *h, type_t *ref)
+static void write_pointer_left( FILE *file, type_t *ref )
 {
-    if (needs_space_after(ref))
-        fprintf(h, " ");
-    if (decl_needs_parens(ref))
-        fprintf(h, "(");
-    if (type_get_type_detect_alias(ref) == TYPE_FUNCTION)
+    if (needs_space_after( ref )) fprintf( file, " " );
+    if (decl_needs_parens( ref )) fprintf( file, "(" );
+    if (type_get_type_detect_alias( ref ) == TYPE_FUNCTION)
     {
-        const char *callconv = get_attrp(ref->attrs, ATTR_CALLCONV);
+        const char *callconv = get_attrp( ref->attrs, ATTR_CALLCONV );
         if (!callconv && is_object_interface) callconv = "STDMETHODCALLTYPE";
-        if (callconv) fprintf(h, "%s ", callconv);
+        if (callconv) fprintf( file, "%s ", callconv );
     }
-    fprintf(h, "*");
+    fprintf( file, "*" );
 }
 
 static void write_basic_type( FILE *file, type_t *type )
