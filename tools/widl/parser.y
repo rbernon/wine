@@ -353,7 +353,8 @@ PARSER_LTYPE pop_import(void);
 %type <str> typename m_typename
 %type <str> import_start
 %type <typelib> library_start librarydef
-%type <statement> typedef pragma_warning
+%type <statement> type_definition
+%type <statement> pragma_warning
 
 %type <stmt_list> global_statements
 %type <statement> global_statement
@@ -465,7 +466,7 @@ statement:
 	| typedecl ';'				{ $$ = make_statement_type_decl($1); }
 	| declaration ';'			{ $$ = make_statement_declaration($1); }
 	| import				{ $$ = make_statement_import($1); }
-	| typedef ';'				{ $$ = $1; }
+	| type_definition ';'			{ $$ = $1; }
 	| aPRAGMA				{ $$ = make_statement_pragma($1); }
 	| pragma_warning { $$ = NULL; }
 	;
@@ -1381,12 +1382,15 @@ type:
 	| parameterized_type			{ $$ = $1; }
 	;
 
-typedef: m_attributes tTYPEDEF m_attributes decl_spec declarator_list
-						{ $1 = append_attribs($1, $3);
-						  reg_typedefs( @$, $4, $5, check_typedef_attrs( $1 ) );
-						  $$ = make_statement_typedef($5, $4->type->defined && !$4->type->defined_in_import);
-						}
-	;
+type_definition
+        : m_attributes[attrs] tTYPEDEF
+          m_attributes[attrs_decl] decl_spec[decl]
+          declarator_list[types]                {
+                                                    $attrs = append_attribs( $attrs, $attrs_decl );
+                                                    reg_typedefs( @$, $decl, $types, check_typedef_attrs( $attrs ) );
+                                                    $$ = make_statement_typedef( $types, $decl->type->defined && !$decl->type->defined_in_import );
+                                                }
+        ;
 
 union_definition
         : tUNION m_typename[name]
