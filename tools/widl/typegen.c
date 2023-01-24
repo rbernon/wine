@@ -35,7 +35,6 @@
 #include "typetree.h"
 
 #include "typegen.h"
-#include "expr.h"
 
 /* round size up to multiple of alignment */
 #define ROUND_SIZE(size, alignment) (((size) + ((alignment) - 1)) & ~((alignment) - 1))
@@ -206,7 +205,6 @@ unsigned char get_basic_fc(const type_t *type)
     case TYPE_BASIC_INT3264: return (sign <= 0 ? FC_INT3264 : FC_UINT3264);
     case TYPE_BASIC_BYTE: return FC_BYTE;
     case TYPE_BASIC_CHAR: return FC_CHAR;
-    case TYPE_BASIC_WCHAR: return FC_WCHAR;
     case TYPE_BASIC_HYPER: return FC_HYPER;
     case TYPE_BASIC_FLOAT: return FC_FLOAT;
     case TYPE_BASIC_DOUBLE: return FC_DOUBLE;
@@ -229,7 +227,6 @@ static unsigned char get_basic_fc_signed(const type_t *type)
     case TYPE_BASIC_LONG: return FC_LONG;
     case TYPE_BASIC_BYTE: return FC_BYTE;
     case TYPE_BASIC_CHAR: return FC_CHAR;
-    case TYPE_BASIC_WCHAR: return FC_WCHAR;
     case TYPE_BASIC_HYPER: return FC_HYPER;
     case TYPE_BASIC_FLOAT: return FC_FLOAT;
     case TYPE_BASIC_DOUBLE: return FC_DOUBLE;
@@ -1915,34 +1912,34 @@ static unsigned int write_conf_or_var_desc(FILE *file, const type_t *cont_type,
     switch (subexpr->type)
     {
     case EXPR_PPTR:
-        subexpr = subexpr->ref;
+        subexpr = subexpr->u.args[0];
         operator_type = FC_DEREFERENCE;
         break;
     case EXPR_DIV:
-        if (subexpr->u.ext->is_const && (subexpr->u.ext->cval == 2))
+        if (subexpr->u.args[1]->is_const && (subexpr->u.args[1]->cval == 2))
         {
-            subexpr = subexpr->ref;
+            subexpr = subexpr->u.args[0];
             operator_type = FC_DIV_2;
         }
         break;
     case EXPR_MUL:
-        if (subexpr->u.ext->is_const && (subexpr->u.ext->cval == 2))
+        if (subexpr->u.args[1]->is_const && (subexpr->u.args[1]->cval == 2))
         {
-            subexpr = subexpr->ref;
+            subexpr = subexpr->u.args[0];
             operator_type = FC_MULT_2;
         }
         break;
     case EXPR_SUB:
-        if (subexpr->u.ext->is_const && (subexpr->u.ext->cval == 1))
+        if (subexpr->u.args[1]->is_const && (subexpr->u.args[1]->cval == 1))
         {
-            subexpr = subexpr->ref;
+            subexpr = subexpr->u.args[0];
             operator_type = FC_SUB_1;
         }
         break;
     case EXPR_ADD:
-        if (subexpr->u.ext->is_const && (subexpr->u.ext->cval == 1))
+        if (subexpr->u.args[1]->is_const && (subexpr->u.args[1]->cval == 1))
         {
-            subexpr = subexpr->ref;
+            subexpr = subexpr->u.args[0];
             operator_type = FC_ADD_1;
         }
         break;

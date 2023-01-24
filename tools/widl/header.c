@@ -30,7 +30,6 @@
 #include "utils.h"
 #include "parser.h"
 #include "header.h"
-#include "expr.h"
 #include "typetree.h"
 #include "typelib.h"
 
@@ -67,21 +66,20 @@ static void write_line(FILE *f, int delta, const char *fmt, ...)
 
 static char *format_parameterized_type_args(const type_t *type, const char *prefix, const char *suffix)
 {
+    struct strbuf str = {0};
     typeref_list_t *params;
     typeref_t *ref;
-    size_t len = 0, pos = 0;
-    char *buf = NULL;
 
     params = type->details.parameterized.params;
     if (params) LIST_FOR_EACH_ENTRY(ref, params, typeref_t, entry)
     {
         assert(ref->type->type_type != TYPE_POINTER);
-        pos += strappend(&buf, &len, pos, "%s%s%s", prefix, ref->type->name, suffix);
-        if (list_next(params, &ref->entry)) pos += strappend(&buf, &len, pos, ", ");
+        strappend( &str, "%s%s%s", prefix, ref->type->name, suffix );
+        if (list_next( params, &ref->entry )) strappend( &str, ", " );
     }
 
-    if (!buf) return xstrdup("");
-    return buf;
+    if (!str.buf) return xstrdup( "" );
+    return str.buf;
 }
 
 static void write_guid(FILE *f, const char *guid_prefix, const char *name, const struct uuid *uuid)
@@ -398,7 +396,6 @@ void write_type_left(FILE *h, const decl_spec_t *ds, enum name_type name_type, b
         case TYPE_BASIC_INT3264: fprintf(h, "__int3264"); break;
         case TYPE_BASIC_BYTE: fprintf(h, "byte"); break;
         case TYPE_BASIC_CHAR: fprintf(h, "char"); break;
-        case TYPE_BASIC_WCHAR: fprintf(h, "wchar_t"); break;
         case TYPE_BASIC_FLOAT: fprintf(h, "float"); break;
         case TYPE_BASIC_DOUBLE: fprintf(h, "double"); break;
         case TYPE_BASIC_ERROR_STATUS_T: fprintf(h, "error_status_t"); break;
@@ -816,7 +813,7 @@ static void write_generic_handle_routines(FILE *header)
 static void write_typedef(FILE *header, type_t *type, bool define)
 {
     type_t *t = type_alias_get_aliasee_type(type), *root = type_pointer_get_root_type(t);
-    if (winrt_mode && root->namespace && !is_global_namespace(root->namespace))
+    if (winrt_mode && root->namespace && !is_global_namespace( root->namespace ))
     {
         fprintf(header, "#ifndef __cplusplus\n");
         fprintf(header, "typedef ");
@@ -1578,8 +1575,8 @@ static void write_apicontract_guard_start(FILE *header, const expr_t *expr)
     char *name;
     int ver;
     if (!winrt_mode) return;
-    type = expr->u.tref.type;
-    ver = expr->ref->u.integer.value;
+    type = expr->u.args[0]->u.decl->type;
+    ver = expr->u.args[1]->u.lval;
     name = format_apicontract_macro(type);
     fprintf(header, "#if %s_VERSION >= %#x\n", name, ver);
     free(name);
@@ -1591,8 +1588,8 @@ static void write_apicontract_guard_end(FILE *header, const expr_t *expr)
     char *name;
     int ver;
     if (!winrt_mode) return;
-    type = expr->u.tref.type;
-    ver = expr->ref->u.integer.value;
+    type = expr->u.args[0]->u.decl->type;
+    ver = expr->u.args[1]->u.lval;
     name = format_apicontract_macro(type);
     fprintf(header, "#endif /* %s_VERSION >= %#x */\n", name, ver);
     free(name);
