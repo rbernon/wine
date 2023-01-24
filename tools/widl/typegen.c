@@ -4936,9 +4936,9 @@ int write_expr_eval_routines(FILE *file, const char *iface)
         {
             decl_spec_t ds = {.type = (type_t *)eval->cont_type};
             print_file(file, 1, "%s", "");
-            write_type_left(file, &ds, NAME_DEFAULT, TRUE, TRUE);
+            write_type_decl_left(file, &ds);
             fprintf(file, " *%s = (", var_name);
-            write_type_left(file, &ds, NAME_DEFAULT, TRUE, TRUE);
+            write_type_decl_left(file, &ds);
             fprintf(file, " *)(pStubMsg->StackTop - %u);\n", eval->baseoff);
         }
         print_file(file, 1, "pStubMsg->Offset = 0;\n"); /* FIXME */
