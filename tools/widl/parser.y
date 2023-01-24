@@ -411,7 +411,7 @@ PARSER_LTYPE pop_import(void);
 %type <attr_list> dispattributes
 %type <str> str
 %type <str_list> str_list
-%type <expr> m_expr expr expr_const expr_int_const array m_bitfield
+%type <expr> m_expr expr expr_const expr_int_const array
 %type <expr_list> m_exprs /* exprs expr_list */ expr_list_int_const
 %type <expr> contract_req
 %type <expr> static_attr
@@ -1431,12 +1431,9 @@ declarator_list:
 	| declarator_list ',' declarator	{ $$ = append_declarator( $1, $3 ); }
 	;
 
-m_bitfield
-	: %empty				{ $$ = NULL; }
-	| ':' expr_const			{ $$ = $2; }
-	;
-
-struct_declarator: any_declarator m_bitfield	{ $$ = $1; $$->bits = $2;
+struct_declarator
+	: any_declarator
+	| ident ':' expr_const			{ $$ = make_declarator($1); $$->bits = $3;
 						  if (!$$->bits && !$$->var->name)
 						    error_loc("unnamed fields are not allowed\n");
 						}
