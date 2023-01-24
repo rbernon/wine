@@ -26,6 +26,9 @@
 extern const char* get_name(const var_t *v);
 extern void write_declspec( FILE *h, const decl_spec_t *ds, const char *name );
 extern void put_declspec( const decl_spec_t *ds, const char *name );
+extern void write_type_decl_left(FILE *f, const decl_spec_t *ds);
+extern void write_expr( FILE *out, const expr_t *expr, int brackets, int toplevel, const char *toplevel_prefix,
+                        const type_t *cont_type, const char *local_var_prefix );
 extern unsigned int get_context_handle_offset( const type_t *type );
 extern unsigned int get_generic_handle_offset( const type_t *type );
 extern int needs_space_after(type_t *t);
