@@ -35,16 +35,13 @@
 
 static int indentation = 0;
 static int is_object_interface = 0;
+static const char *default_callconv;
 user_type_list_t user_type_list = LIST_INIT(user_type_list);
 context_handle_list_t context_handle_list = LIST_INIT(context_handle_list);
 generic_handle_list_t generic_handle_list = LIST_INIT(generic_handle_list);
 
-static void write_type_v(FILE *f, const decl_spec_t *t, int is_field, bool define, const char *name, enum name_type name_type);
-
-static void write_apicontract_guard_start(FILE *header, const expr_t *expr);
-static void write_apicontract_guard_end(FILE *header, const expr_t *expr);
-
-static void write_widl_using_macros(FILE *header, type_t *iface);
+static void write_declspec_full( FILE *h, const decl_spec_t *ds, int is_field, int declonly,
+                                 const char *name, enum name_type name_type );
 
 static void indent(FILE *h, int delta)
 {
@@ -64,6 +61,46 @@ static void write_line(FILE *f, int delta, const char *fmt, ...)
     fprintf(f, "\n");
 }
 
+static int is_override_method( const type_t *iface, const type_t *child, const var_t *func )
+{
+    if (iface == child) return 0;
+
+    do
+    {
+        const statement_t *stmt;
+        STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts( child ) )
+        {
+            const var_t *funccmp = stmt->u.var;
+
+            if (!is_callas( func->attrs ))
+            {
+                char inherit_name[256];
+                /* compare full name including property prefix */
+                strcpy( inherit_name, get_name( funccmp ) );
+                if (!strcmp( inherit_name, get_name( func ) )) return 1;
+            }
+        }
+    } while ((child = type_iface_get_inherit( child )) && child != iface);
+
+    return 0;
+}
+
+void *get_attrp(const attr_list_t *list, enum attr_type t)
+{
+    const attr_t *attr;
+    if (list) LIST_FOR_EACH_ENTRY( attr, list, const attr_t, entry )
+        if (attr->type == t) return attr->u.pval;
+    return NULL;
+}
+
+unsigned int get_attrv(const attr_list_t *list, enum attr_type t)
+{
+    const attr_t *attr;
+    if (list) LIST_FOR_EACH_ENTRY( attr, list, const attr_t, entry )
+        if (attr->type == t) return attr->u.ival;
+    return 0;
+}
+
 static char *format_parameterized_type_args(const type_t *type, const char *prefix, const char *suffix)
 {
     struct strbuf str = {0};
@@ -80,6 +117,83 @@ static char *format_parameterized_type_args(const type_t *type, const char *pref
 
     if (!str.buf) return xstrdup( "" );
     return str.buf;
+}
+
+static char *format_apicontract_macro( const type_t *type )
+{
+    char *name = format_namespace( type->namespace, "", "_", type->name, NULL );
+    int i;
+    for (i = strlen( name ); i > 0; --i) name[i - 1] = toupper( name[i - 1] );
+    return name;
+}
+
+static void write_apicontract_guard_start( FILE *header, const expr_t *expr )
+{
+    const type_t *type;
+    char *name;
+    int ver;
+    if (!winrt_mode) return;
+    type = expr->u.args[0]->u.decl->type;
+    ver = expr->u.args[1]->u.lval;
+    name = format_apicontract_macro( type );
+    fprintf( header, "#if %s_VERSION >= %#x\n", name, ver );
+    free( name );
+}
+
+static void write_apicontract_guard_end( FILE *header, const expr_t *expr )
+{
+    const type_t *type;
+    char *name;
+    int ver;
+    if (!winrt_mode) return;
+    type = expr->u.args[0]->u.decl->type;
+    ver = expr->u.args[1]->u.lval;
+    name = format_apicontract_macro( type );
+    fprintf( header, "#endif /* %s_VERSION >= %#x */\n", name, ver );
+    free( name );
+}
+
+static void write_widl_using_method_macros( FILE *header, const type_t *iface, const type_t *top_iface )
+{
+    const statement_t *stmt;
+    const char *name = top_iface->short_name ? top_iface->short_name : top_iface->name;
+
+    if (type_iface_get_inherit( iface ))
+        write_widl_using_method_macros( header, type_iface_get_inherit( iface ), top_iface );
+
+    STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts( iface ) )
+    {
+        const var_t *func = stmt->u.var;
+        const char *func_name;
+
+        if (is_override_method( iface, top_iface, func )) continue;
+        if (is_callas( func->attrs )) continue;
+
+        func_name = get_name( func );
+        fprintf( header, "#define %s_%s %s_%s\n", name, func_name, top_iface->c_name, func_name );
+    }
+}
+
+static void write_widl_using_macros( FILE *header, type_t *iface )
+{
+    const struct uuid *uuid = get_attrp( iface->attrs, ATTR_UUID );
+    const char *name = iface->short_name ? iface->short_name : iface->name;
+    char *macro;
+
+    if (!strcmp( iface->name, iface->c_name )) return;
+
+    macro = format_namespace( iface->namespace, "WIDL_using_", "_", NULL, NULL );
+    fprintf( header, "#ifdef %s\n", macro );
+
+    if (uuid) fprintf( header, "#define IID_%s IID_%s\n", name, iface->c_name );
+    if (iface->type_type == TYPE_INTERFACE)
+        fprintf( header, "#define %sVtbl %sVtbl\n", name, iface->c_name );
+    fprintf( header, "#define %s %s\n", name, iface->c_name );
+
+    if (iface->type_type == TYPE_INTERFACE) write_widl_using_method_macros( header, iface, iface );
+
+    fprintf( header, "#endif /* %s */\n", macro );
+    free( macro );
 }
 
 static void write_guid(FILE *f, const char *guid_prefix, const char *name, const struct uuid *uuid)
@@ -112,6 +226,26 @@ static const char *uuid_string(const struct uuid *uuid)
         uuid->Data4[3], uuid->Data4[4], uuid->Data4[5], uuid->Data4[6], uuid->Data4[7]);
 
   return buf;
+}
+
+static void put_namespace_start( struct namespace *namespace )
+{
+    if (!is_global_namespace( namespace ))
+    {
+        put_namespace_start( namespace->parent );
+        put_line( "namespace %s {", namespace->name );
+    }
+    else if (use_abi_namespace) put_line( "namespace ABI {" );
+}
+
+static void put_namespace_end( struct namespace *namespace )
+{
+    if (!is_global_namespace( namespace ))
+    {
+        put_line( "}" );
+        put_namespace_end( namespace->parent );
+    }
+    else if (use_abi_namespace) put_line( "}" );
 }
 
 static void write_namespace_start(FILE *header, struct namespace *namespace)
@@ -156,95 +290,97 @@ const char *get_name(const var_t *v)
     return v->name;
 }
 
-static void write_fields(FILE *h, var_list_t *fields, enum name_type name_type)
+static void write_fields( FILE *file, var_list_t *fields, enum name_type name_type )
 {
     unsigned nameless_struct_cnt = 0, nameless_struct_i = 0, nameless_union_cnt = 0, nameless_union_i = 0;
     const char *name;
     char buf[32];
-    var_t *v;
+    var_t *field;
 
     if (!fields) return;
 
-    LIST_FOR_EACH_ENTRY( v, fields, var_t, entry ) {
-        if (!v->declspec.type) continue;
+    LIST_FOR_EACH_ENTRY( field, fields, var_t, entry )
+    {
+        if (!field->declspec.type) continue;
 
-        switch(type_get_type_detect_alias(v->declspec.type)) {
+        switch (type_get_type_detect_alias( field->declspec.type ))
+        {
         case TYPE_STRUCT:
-        case TYPE_ENCAPSULATED_UNION:
-            nameless_struct_cnt++;
-            break;
-        case TYPE_UNION:
-            nameless_union_cnt++;
-            break;
-        default:
-            ;
+        case TYPE_ENCAPSULATED_UNION: nameless_struct_cnt++; break;
+        case TYPE_UNION: nameless_union_cnt++; break;
+        default:;
         }
     }
 
-    LIST_FOR_EACH_ENTRY( v, fields, var_t, entry ) {
-        expr_t *contract = get_attrp(v->attrs, ATTR_CONTRACT);
-        if (!v->declspec.type) continue;
-        if (contract) write_apicontract_guard_start(h, contract);
+    LIST_FOR_EACH_ENTRY( field, fields, var_t, entry )
+    {
+        expr_t *contract = get_attrp( field->attrs, ATTR_CONTRACT );
+        if (!field->declspec.type) continue;
+        if (contract) write_apicontract_guard_start( file, contract );
 
-        indent(h, 0);
-        name = v->name;
+        indent( file, 0 );
+        name = field->name;
 
-        switch(type_get_type_detect_alias(v->declspec.type)) {
+        switch (type_get_type_detect_alias( field->declspec.type ))
+        {
         case TYPE_STRUCT:
         case TYPE_ENCAPSULATED_UNION:
-            if(!v->name) {
-                fprintf(h, "__C89_NAMELESS ");
-                if(nameless_struct_cnt == 1) {
+            if (!field->name)
+            {
+                fprintf( file, "__C89_NAMELESS " );
+                if (nameless_struct_cnt == 1)
                     name = "__C89_NAMELESSSTRUCTNAME";
-                }else if(nameless_struct_i < 5 /* # of supporting macros */) {
-                    snprintf(buf, sizeof(buf), "__C89_NAMELESSSTRUCTNAME%d", ++nameless_struct_i);
+                else if (nameless_struct_i < 5 /* # of supporting macros */)
+                {
+                    snprintf( buf, sizeof(buf), "__C89_NAMELESSSTRUCTNAME%d", ++nameless_struct_i );
                     name = buf;
                 }
             }
             break;
         case TYPE_UNION:
-            if(!v->name) {
-                fprintf(h, "__C89_NAMELESS ");
-                if(nameless_union_cnt == 1) {
+            if (!field->name)
+            {
+                fprintf( file, "__C89_NAMELESS " );
+                if (nameless_union_cnt == 1)
                     name = "__C89_NAMELESSUNIONNAME";
-                }else if(nameless_union_i < 8 /* # of supporting macros */ ) {
-                    snprintf(buf, sizeof(buf), "__C89_NAMELESSUNIONNAME%d", ++nameless_union_i);
+                else if (nameless_union_i < 8 /* # of supporting macros */)
+                {
+                    snprintf( buf, sizeof(buf), "__C89_NAMELESSUNIONNAME%d", ++nameless_union_i );
                     name = buf;
                 }
             }
             break;
-        default:
-            ;
+        default: break;
         }
-        write_type_v(h, &v->declspec, TRUE, v->is_defined, name, name_type);
-        fprintf(h, ";\n");
-        if (contract) write_apicontract_guard_end(h, contract);
+        write_declspec_full( file, &field->declspec, TRUE, field->declonly, name, name_type );
+        fprintf( file, ";\n" );
+        if (contract) write_apicontract_guard_end( file, contract );
     }
 }
 
-static void write_enums(FILE *h, var_list_t *enums, const char *enum_name)
+static void write_enums( FILE *file, var_list_t *enums, const char *enum_name )
 {
-  var_t *v;
-  if (!enums) return;
-  LIST_FOR_EACH_ENTRY( v, enums, var_t, entry )
-  {
-    expr_t *contract = get_attrp(v->attrs, ATTR_CONTRACT);
-    if (contract) write_apicontract_guard_start(h, contract);
-    if (v->name) {
-      indent(h, 0);
-      if(!enum_name)
-          fprintf(h, "%s", get_name(v));
-      else
-          fprintf(h, "%s_%s", enum_name, get_name(v));
-      if (v->eval) {
-        fprintf(h, " = ");
-        write_expr(h, v->eval, 0, 1, NULL, NULL, "");
-      }
+    var_t *value;
+    if (!enums) return;
+    LIST_FOR_EACH_ENTRY( value, enums, var_t, entry )
+    {
+        expr_t *contract = get_attrp( value->attrs, ATTR_CONTRACT );
+        if (contract) write_apicontract_guard_start( file, contract );
+        if (value->name)
+        {
+            indent( file, 0 );
+            if (!enum_name) fprintf( file, "%s", get_name( value ) );
+            else fprintf( file, "%s_%s", enum_name, get_name( value ) );
+            if (value->eval)
+            {
+                fprintf( file, " = " );
+                write_expr( file, value->eval, 0, 1, NULL, NULL, "" );
+            }
+        }
+        if (list_next( enums, &value->entry )) fprintf( file, ",\n" );
+        else fprintf( file, "\n" );
+        if (contract) write_apicontract_guard_end( file, contract );
     }
-    if (list_next( enums, &v->entry )) fprintf(h, ",\n");
-    else fprintf(h, "\n");
-    if (contract) write_apicontract_guard_end(h, contract);
-  }
 }
 
 int needs_space_after(type_t *t)
@@ -262,110 +398,197 @@ static int decl_needs_parens(const type_t *t)
     return is_func(t);
 }
 
-static void write_pointer_left(FILE *h, type_t *ref)
+static void write_pointer_left( FILE *file, type_t *ref )
 {
-    if (needs_space_after(ref))
-        fprintf(h, " ");
-    if (decl_needs_parens(ref))
-        fprintf(h, "(");
-    if (type_get_type_detect_alias(ref) == TYPE_FUNCTION)
+    if (needs_space_after( ref )) fprintf( file, " " );
+    if (decl_needs_parens( ref )) fprintf( file, "(" );
+    if (type_get_type_detect_alias( ref ) == TYPE_FUNCTION)
     {
-        const char *callconv = get_attrp(ref->attrs, ATTR_CALLCONV);
+        const char *callconv = get_attrp( ref->attrs, ATTR_CALLCONV );
         if (!callconv && is_object_interface) callconv = "STDMETHODCALLTYPE";
-        if (callconv) fprintf(h, "%s ", callconv);
+        if (callconv) fprintf( file, "%s ", callconv );
     }
-    fprintf(h, "*");
+    fprintf( file, "*" );
 }
 
-void write_type_left(FILE *h, const decl_spec_t *ds, enum name_type name_type, bool define, int write_callconv)
+static void write_basic_type( FILE *file, type_t *type )
 {
-  type_t *t = ds->type;
-  const char *decl_name, *name;
-  char *args;
+    if (type_basic_get_type( type ) != TYPE_BASIC_INT32 &&
+        type_basic_get_type( type ) != TYPE_BASIC_INT64 &&
+        type_basic_get_type( type ) != TYPE_BASIC_LONG &&
+        type_basic_get_type( type ) != TYPE_BASIC_HYPER)
+    {
+        if (type_basic_get_sign( type ) < 0) fprintf( file, "signed " );
+        else if (type_basic_get_sign( type ) > 0) fprintf( file, "unsigned " );
+    }
 
-  if (!h) return;
-
-  decl_name = type_get_decl_name(t, name_type);
-  name = type_get_name(t, name_type);
-
-  if (ds->func_specifier & FUNCTION_SPECIFIER_INLINE)
-    fprintf(h, "inline ");
-
-  if ((ds->qualifier & TYPE_QUALIFIER_CONST) && (type_is_alias(t) || !is_ptr(t)))
-    fprintf(h, "const ");
-
-  if (type_is_alias(t)) fprintf(h, "%s", name);
-  else {
-    switch (type_get_type_detect_alias(t)) {
-      case TYPE_ENUM:
-        if (!define) fprintf(h, "enum %s", decl_name ? decl_name : "");
-        else if (!t->written) {
-          assert(t->defined);
-          if (decl_name) fprintf(h, "enum %s {\n", decl_name);
-          else fprintf(h, "enum {\n");
-          t->written = TRUE;
-          indentation++;
-          write_enums(h, type_enum_get_values(t), is_global_namespace(t->namespace) ? NULL : t->name);
-          indent(h, -1);
-          fprintf(h, "}");
-        }
-        else if (winrt_mode && name_type == NAME_DEFAULT && name) fprintf(h, "%s", name);
-        else fprintf(h, "enum %s", name ? name : "");
+    switch (type_basic_get_type( type ))
+    {
+    case TYPE_BASIC_INT8:           fprintf( file, "small" ); break;
+    case TYPE_BASIC_INT16:          fprintf( file, "short" ); break;
+    case TYPE_BASIC_INT3264:        fprintf( file, "__int3264" ); break;
+    case TYPE_BASIC_INT:            fprintf( file, "int" ); break;
+    case TYPE_BASIC_BYTE:           fprintf( file, "byte" ); break;
+    case TYPE_BASIC_CHAR:           fprintf( file, "char" ); break;
+    case TYPE_BASIC_WCHAR:          fprintf( file, "wchar_t" ); break;
+    case TYPE_BASIC_FLOAT:          fprintf( file, "float" ); break;
+    case TYPE_BASIC_DOUBLE:         fprintf( file, "double" ); break;
+    case TYPE_BASIC_HANDLE:         fprintf( file, "handle_t" ); break;
+    case TYPE_BASIC_ERROR_STATUS_T: fprintf( file, "error_status_t" ); break;
+    case TYPE_BASIC_INT32:
+        if (type_basic_get_sign( type ) > 0) fprintf( file, "UINT32" );
+        else fprintf( file, "INT32" );
         break;
-      case TYPE_STRUCT:
-      case TYPE_ENCAPSULATED_UNION:
-        if (!define) fprintf(h, "struct %s", decl_name ? decl_name : "");
-        else if (!t->written) {
-          assert(t->defined);
-          if (decl_name) fprintf(h, "struct %s {\n", decl_name);
-          else fprintf(h, "struct {\n");
-          t->written = TRUE;
-          indentation++;
-          if (type_get_type(t) != TYPE_STRUCT)
-            write_fields(h, type_encapsulated_union_get_fields(t), name_type);
-          else
-            write_fields(h, type_struct_get_fields(t), name_type);
-          indent(h, -1);
-          fprintf(h, "}");
-        }
-        else if (winrt_mode && name_type == NAME_DEFAULT && name) fprintf(h, "%s", name);
-        else fprintf(h, "struct %s", name ? name : "");
+    case TYPE_BASIC_LONG:
+        if (type_basic_get_sign( type ) > 0) fprintf( file, "ULONG" );
+        else fprintf( file, "LONG" );
         break;
-      case TYPE_UNION:
-        if (!define) fprintf(h, "union %s", decl_name ? decl_name : "");
-        else if (!t->written) {
-          assert(t->defined);
-          if (decl_name) fprintf(h, "union %s {\n", decl_name);
-          else fprintf(h, "union {\n");
-          t->written = TRUE;
-          indentation++;
-          write_fields(h, type_union_get_cases(t), name_type);
-          indent(h, -1);
-          fprintf(h, "}");
-        }
-        else if (winrt_mode && name_type == NAME_DEFAULT && name) fprintf(h, "%s", name);
-        else fprintf(h, "union %s", name ? name : "");
+    case TYPE_BASIC_INT64:
+        if (type_basic_get_sign( type ) > 0) fprintf( file, "UINT64" );
+        else fprintf( file, "INT64" );
         break;
-      case TYPE_POINTER:
-      {
-        write_type_left(h, type_pointer_get_ref(t), name_type, define, FALSE);
-        write_pointer_left(h, type_pointer_get_ref_type(t));
-        if (ds->qualifier & TYPE_QUALIFIER_CONST) fprintf(h, "const ");
+    case TYPE_BASIC_HYPER:
+        if (type_basic_get_sign( type ) > 0) fprintf( file, "MIDL_uhyper" );
+        else fprintf( file, "hyper" );
         break;
-      }
-      case TYPE_ARRAY:
-        if (t->name && type_array_is_decl_as_ptr(t))
-          fprintf(h, "%s", t->name);
+    }
+}
+
+static void write_enum_type( FILE *file, type_t *type, enum name_type name_type )
+{
+    if (type->written)
+    {
+        const char *name = type_get_name( type, name_type );
+        if (winrt_mode && name_type == NAME_DEFAULT && name) fprintf( file, "%s", name );
+        else fprintf( file, "enum %s", name ? name : "" );
+    }
+    else
+    {
+        const char *decl_name = type_get_decl_name( type, name_type );
+        var_list_t *values = type_enum_get_values( type );
+
+        assert( type->defined );
+        type->written = TRUE;
+
+        fprintf( file, "enum " );
+        if (decl_name) fprintf( file, "%s ", decl_name );
+        fprintf( file, "{\n" );
+        indentation++;
+
+        write_enums( file, values, is_global_namespace( type->namespace ) ? NULL : type->name );
+
+        indent( file, -1 );
+        fprintf( file, "}" );
+    }
+}
+
+static void write_struct_type( FILE *file, type_t *type, enum name_type name_type )
+{
+    if (type->written)
+    {
+        const char *name = type_get_name( type, name_type );
+        if (winrt_mode && name_type == NAME_DEFAULT && name) fprintf( file, "%s", name );
+        else fprintf( file, "struct %s", name ? name : "" );
+    }
+    else
+    {
+        const char *decl_name = type_get_decl_name( type, name_type );
+        var_list_t *fields;
+
+        if (type_get_type( type ) == TYPE_STRUCT) fields = type_struct_get_fields( type );
+        else fields = type_encapsulated_union_get_fields( type );
+
+        assert( type->defined );
+        type->written = TRUE;
+
+        fprintf( file, "struct " );
+        if (decl_name) fprintf( file, "%s ", decl_name );
+        fprintf( file, "{\n" );
+        indentation++;
+
+        write_fields( file, fields, name_type );
+
+        indent( file, -1 );
+        fprintf( file, "}" );
+    }
+}
+
+static void write_union_type( FILE *file, type_t *type, enum name_type name_type )
+{
+    if (type->written)
+    {
+        const char *name = type_get_name( type, name_type );
+        if (winrt_mode && name_type == NAME_DEFAULT && name) fprintf( file, "%s", name );
+        else fprintf( file, "union %s", name ? name : "" );
+    }
+    else
+    {
+        const char *decl_name = type_get_decl_name( type, name_type );
+
+        assert( type->defined );
+        type->written = TRUE;
+
+        fprintf( file, "union " );
+        if (decl_name) fprintf( file, "%s ", decl_name );
+        fprintf( file, "{\n" );
+        indentation++;
+
+        write_fields( file, type_union_get_cases( type ), name_type );
+
+        indent( file, -1 );
+        fprintf( file, "}" );
+    }
+}
+
+static void write_type_left( FILE *h, const decl_spec_t *ds, enum name_type name_type,
+                             int is_defined, int write_callconv )
+{
+    type_t *t = ds->type;
+    const char *decl_name;
+    char *args;
+
+    if (!h) return;
+
+    decl_name = type_get_decl_name( t, name_type );
+
+    if (ds->func_specifier & FUNCTION_SPECIFIER_INLINE)
+        fprintf( h, "inline " );
+
+    if ((ds->qualifier & TYPE_QUALIFIER_CONST) && (type_is_alias( t ) || !is_ptr( t )))
+        fprintf( h, "const " );
+
+    switch (type_get_type_detect_alias( t ))
+    {
+    case TYPE_ENUM:
+        if (declonly) fprintf( h, "enum %s", decl_name ? decl_name : "" );
+        else write_enum_type( h, t, name_type );
+        break;
+    case TYPE_STRUCT:
+    case TYPE_ENCAPSULATED_UNION:
+        if (declonly) fprintf( h, "struct %s", decl_name ? decl_name : "" );
+        else write_struct_type( h, t, name_type );
+        break;
+    case TYPE_UNION:
+        if (declonly) fprintf( h, "union %s", decl_name ? decl_name : "" );
+        else write_union_type( h, t, name_type );
+        break;
+    case TYPE_POINTER:
+    {
+        write_type_left( h, type_pointer_get_ref( t ), name_type, declonly, FALSE );
+        write_pointer_left( h, type_pointer_get_ref_type( t ) );
+        if (ds->qualifier & TYPE_QUALIFIER_CONST) fprintf( h, "const " );
+        break;
+    }
+    case TYPE_ARRAY:
+        if (t->name && type_array_is_decl_as_ptr( t )) fprintf( h, "%s", t->name );
         else
         {
-          write_type_left(h, type_array_get_element(t), name_type, define, !type_array_is_decl_as_ptr(t));
-          if (type_array_is_decl_as_ptr(t))
-            write_pointer_left(h, type_array_get_element_type(t));
+            write_type_left( h, type_array_get_element( t ), name_type, declonly, !type_array_is_decl_as_ptr( t ) );
+            if (type_array_is_decl_as_ptr( t )) write_pointer_left( h, type_array_get_element_type( t ) );
         }
         break;
-      case TYPE_FUNCTION:
-      {
-        write_type_left(h, type_function_get_ret(t), name_type, define, TRUE);
+    case TYPE_FUNCTION:
+        write_type_left( h, type_function_get_ret( t ), name_type, declonly, TRUE );
 
         /* A pointer to a function has to write the calling convention inside
          * the parentheses. There's no way to handle that here, so we have to
@@ -373,173 +596,118 @@ void write_type_left(FILE *h, const decl_spec_t *ds, enum name_type name_type, b
          * convention or not. */
         if (write_callconv)
         {
-            const char *callconv = get_attrp(t->attrs, ATTR_CALLCONV);
+            const char *callconv = get_attrp( t->attrs, ATTR_CALLCONV );
             if (!callconv && is_object_interface) callconv = "STDMETHODCALLTYPE";
-            if (callconv) fprintf(h, " %s ", callconv);
+            if (callconv) fprintf( h, " %s ", callconv );
         }
         break;
-      }
-      case TYPE_BASIC:
-        if (type_basic_get_type(t) != TYPE_BASIC_INT32 &&
-            type_basic_get_type(t) != TYPE_BASIC_INT64 &&
-            type_basic_get_type(t) != TYPE_BASIC_LONG &&
-            type_basic_get_type(t) != TYPE_BASIC_HYPER)
-        {
-          if (type_basic_get_sign(t) < 0) fprintf(h, "signed ");
-          else if (type_basic_get_sign(t) > 0) fprintf(h, "unsigned ");
-        }
-        switch (type_basic_get_type(t))
-        {
-        case TYPE_BASIC_INT8: fprintf(h, "small"); break;
-        case TYPE_BASIC_INT16: fprintf(h, "short"); break;
-        case TYPE_BASIC_INT: fprintf(h, "int"); break;
-        case TYPE_BASIC_INT3264: fprintf(h, "__int3264"); break;
-        case TYPE_BASIC_BYTE: fprintf(h, "byte"); break;
-        case TYPE_BASIC_CHAR: fprintf(h, "char"); break;
-        case TYPE_BASIC_FLOAT: fprintf(h, "float"); break;
-        case TYPE_BASIC_DOUBLE: fprintf(h, "double"); break;
-        case TYPE_BASIC_ERROR_STATUS_T: fprintf(h, "error_status_t"); break;
-        case TYPE_BASIC_HANDLE: fprintf(h, "handle_t"); break;
-        case TYPE_BASIC_INT32:
-          if (type_basic_get_sign(t) > 0)
-            fprintf(h, "UINT32");
-          else
-            fprintf(h, "INT32");
-          break;
-        case TYPE_BASIC_LONG:
-          if (type_basic_get_sign(t) > 0)
-            fprintf(h, "ULONG");
-          else
-            fprintf(h, "LONG");
-          break;
-        case TYPE_BASIC_INT64:
-          if (type_basic_get_sign(t) > 0)
-            fprintf(h, "UINT64");
-          else
-            fprintf(h, "INT64");
-          break;
-        case TYPE_BASIC_HYPER:
-          if (type_basic_get_sign(t) > 0)
-            fprintf(h, "MIDL_uhyper");
-          else
-            fprintf(h, "hyper");
-          break;
-        }
+    case TYPE_BASIC: write_basic_type( h, t ); break;
+    case TYPE_INTERFACE:
+    case TYPE_MODULE:
+    case TYPE_COCLASS:
+        fprintf( h, "%s", type_get_name( t, name_type ) );
         break;
-      case TYPE_INTERFACE:
-      case TYPE_MODULE:
-      case TYPE_COCLASS:
-        fprintf(h, "%s", type_get_name(t, name_type));
+    case TYPE_RUNTIMECLASS:
+        fprintf( h, "%s", type_get_name( type_runtimeclass_get_default_iface( t, TRUE ), name_type ) );
         break;
-      case TYPE_RUNTIMECLASS:
-        fprintf(h, "%s", type_get_name(type_runtimeclass_get_default_iface(t, TRUE), name_type));
+    case TYPE_DELEGATE:
+        fprintf( h, "%s", type_get_name( type_delegate_get_iface( t ), name_type ) );
         break;
-      case TYPE_DELEGATE:
-        fprintf(h, "%s", type_get_name(type_delegate_get_iface(t), name_type));
+    case TYPE_VOID: fprintf( h, "void" ); break;
+    case TYPE_BITFIELD:
+    {
+        const decl_spec_t ds = {.type = type_bitfield_get_field( t )};
+        write_type_left( h, &ds, name_type, declonly, TRUE );
         break;
-      case TYPE_VOID:
-        fprintf(h, "void");
-        break;
-      case TYPE_BITFIELD:
-      {
-        const decl_spec_t ds = {.type = type_bitfield_get_field(t)};
-        write_type_left(h, &ds, name_type, define, TRUE);
-        break;
-      }
+    }
       case TYPE_ALIAS:
         /* handled elsewhere */
         assert(0);
         break;
-      case TYPE_PARAMETERIZED_TYPE:
-      {
-        type_t *iface = type_parameterized_type_get_real_type(t);
-        if (type_get_type(iface) == TYPE_DELEGATE) iface = type_delegate_get_iface(iface);
-        args = format_parameterized_type_args(t, "", "_logical");
-        fprintf(h, "%s<%s>", iface->name, args);
-        free(args);
+    case TYPE_PARAMETERIZED_TYPE:
+    {
+        type_t *iface = type_parameterized_type_get_real_type( t );
+        if (type_get_type( iface ) == TYPE_DELEGATE) iface = type_delegate_get_iface( iface );
+        args = format_parameterized_type_args( t, "", "_logical" );
+        fprintf( h, "%s<%s>", iface->name, args );
+        free( args );
         break;
-      }
-      case TYPE_PARAMETER:
-        fprintf(h, "%s_abi", t->name);
+    }
+    case TYPE_PARAMETER:
+        fprintf( h, "%s_abi", t->name );
         break;
-      case TYPE_APICONTRACT:
+    case TYPE_APICONTRACT:
         /* shouldn't be here */
-        assert(0);
+        assert( 0 );
         break;
     }
-  }
 }
 
-void write_type_right(FILE *h, type_t *t, int is_field)
+static void write_type_right( FILE *file, type_t *type, int is_field )
 {
-  if (!h) return;
-  if (type_is_alias(t)) return;
+    if (!file) return;
+    if (type_is_alias( type )) return;
 
-  switch (type_get_type(t))
-  {
-  case TYPE_ARRAY:
-  {
-    type_t *elem = type_array_get_element_type(t);
-    if (type_array_is_decl_as_ptr(t))
+    switch (type_get_type( type ))
     {
-      if (decl_needs_parens(elem))
-        fprintf(h, ")");
-    }
-    else
+    case TYPE_ARRAY:
     {
-      if (is_conformant_array(t))
-        fprintf(h, "[%s]", is_field ? "1" : "");
-      else
-        fprintf(h, "[%u]", type_array_get_dim(t));
+        type_t *elem = type_array_get_element_type( type );
+        if (type_array_is_decl_as_ptr( type ))
+        {
+            if (decl_needs_parens( elem )) fprintf( file, ")" );
+        }
+        else
+        {
+            if (is_conformant_array( type )) fprintf( file, "[%s]", is_field ? "1" : "" );
+            else fprintf( file, "[%u]", type_array_get_dim( type ) );
+        }
+        write_type_right( file, elem, FALSE );
+        break;
     }
-    write_type_right(h, elem, FALSE);
-    break;
-  }
-  case TYPE_FUNCTION:
-  {
-    const var_list_t *args = type_function_get_args(t);
-    fputc('(', h);
-    if (args) write_args(h, args, NULL, 0, FALSE, NAME_DEFAULT);
-    else
-      fprintf(h, "void");
-    fputc(')', h);
-    write_type_right(h, type_function_get_rettype(t), FALSE);
-    break;
-  }
-  case TYPE_POINTER:
-  {
-    type_t *ref = type_pointer_get_ref_type(t);
-    if (decl_needs_parens(ref))
-      fprintf(h, ")");
-    write_type_right(h, ref, FALSE);
-    break;
-  }
-  case TYPE_BITFIELD:
-    fprintf(h, " : %u", type_bitfield_get_bits(t)->cval);
-    break;
-  case TYPE_VOID:
-  case TYPE_BASIC:
-  case TYPE_ENUM:
-  case TYPE_STRUCT:
-  case TYPE_ENCAPSULATED_UNION:
-  case TYPE_UNION:
-  case TYPE_ALIAS:
-  case TYPE_MODULE:
-  case TYPE_COCLASS:
-  case TYPE_INTERFACE:
-  case TYPE_RUNTIMECLASS:
-  case TYPE_DELEGATE:
-  case TYPE_PARAMETERIZED_TYPE:
-  case TYPE_PARAMETER:
-    break;
-  case TYPE_APICONTRACT:
-    /* not supposed to be here */
-    assert(0);
-    break;
-  }
+    case TYPE_FUNCTION:
+    {
+        const var_list_t *args = type_function_get_args( type );
+        fprintf( file, "(" );
+        if (args) write_args( file, args, NULL, 0, FALSE, NAME_DEFAULT );
+        else fprintf( file, "void" );
+        fprintf( file, ")" );
+        write_type_right( file, type_function_get_rettype( type ), FALSE );
+        break;
+    }
+    case TYPE_POINTER:
+    {
+        type_t *ref = type_pointer_get_ref_type( type );
+        if (decl_needs_parens( ref )) fprintf( file, ")" );
+        write_type_right( file, ref, FALSE );
+        break;
+    }
+    case TYPE_BITFIELD:
+        fprintf( file, " : %u", type_bitfield_get_bits( type )->cval );
+        break;
+    case TYPE_VOID:
+    case TYPE_BASIC:
+    case TYPE_ENUM:
+    case TYPE_STRUCT:
+    case TYPE_ENCAPSULATED_UNION:
+    case TYPE_UNION:
+    case TYPE_ALIAS:
+    case TYPE_MODULE:
+    case TYPE_COCLASS:
+    case TYPE_INTERFACE:
+    case TYPE_RUNTIMECLASS:
+    case TYPE_DELEGATE:
+    case TYPE_PARAMETERIZED_TYPE:
+    case TYPE_PARAMETER: break;
+    case TYPE_APICONTRACT:
+        /* not supposed to be here */
+        assert( 0 );
+        break;
+    }
 }
 
-static void write_type_v(FILE *h, const decl_spec_t *ds, int is_field, bool define, const char *name, enum name_type name_type)
+static void write_declspec_full( FILE *h, const decl_spec_t *ds, int is_field, bool define, int declonly,
+                                 const char *name, enum name_type name_type )
 {
     type_t *t = ds->type;
 
@@ -549,8 +717,7 @@ static void write_type_v(FILE *h, const decl_spec_t *ds, int is_field, bool defi
 
     if (name) fprintf(h, "%s%s", !t || needs_space_after(t) ? " " : "", name );
 
-    if (t)
-        write_type_right(h, t, is_field);
+    if (t) write_type_right( h, t, is_field );
 }
 
 static void write_type_definition(FILE *f, type_t *t, bool define)
@@ -582,9 +749,9 @@ static void write_type_definition(FILE *f, type_t *t, bool define)
     if (contract) write_apicontract_guard_end(f, contract);
 }
 
-void write_type_decl(FILE *f, const decl_spec_t *t, const char *name)
+void write_declspec( FILE *h, const decl_spec_t *ds, const char *name )
 {
-    write_type_v(f, t, FALSE, false, name, NAME_DEFAULT);
+    write_declspec_full( h, ds, FALSE, TRUE, name, NAME_DEFAULT );
 }
 
 void write_type_decl_left(FILE *f, const decl_spec_t *ds)
@@ -701,7 +868,7 @@ void check_for_additional_prototype_types(type_t *type)
        * using a wire marshaled type */
       break;
     }
-    else if (type_is_complete(type))
+    else if (type_is_defined(type))
     {
       var_list_t *vars;
       const var_t *v;
@@ -776,38 +943,38 @@ static int for_each_serializable(const statement_list_t *stmts, FILE *header,
     return 1;
 }
 
-static void write_user_types(FILE *header)
+static void put_user_types(void)
 {
-  user_type_t *ut;
-  LIST_FOR_EACH_ENTRY(ut, &user_type_list, user_type_t, entry)
-  {
-    const char *name = ut->name;
-    fprintf(header, "ULONG           __RPC_USER %s_UserSize     (ULONG *, ULONG, %s *);\n", name, name);
-    fprintf(header, "unsigned char * __RPC_USER %s_UserMarshal  (ULONG *, unsigned char *, %s *);\n", name, name);
-    fprintf(header, "unsigned char * __RPC_USER %s_UserUnmarshal(ULONG *, unsigned char *, %s *);\n", name, name);
-    fprintf(header, "void            __RPC_USER %s_UserFree     (ULONG *, %s *);\n", name, name);
-  }
+    const user_type_t *type;
+    LIST_FOR_EACH_ENTRY( type, &user_type_list, user_type_t, entry )
+    {
+        const char *name = type->name;
+        put_line( "ULONG           __RPC_USER %s_UserSize     (ULONG *, ULONG, %s *);", name, name );
+        put_line( "unsigned char * __RPC_USER %s_UserMarshal  (ULONG *, unsigned char *, %s *);", name, name );
+        put_line( "unsigned char * __RPC_USER %s_UserUnmarshal(ULONG *, unsigned char *, %s *);", name, name );
+        put_line( "void            __RPC_USER %s_UserFree     (ULONG *, %s *);", name, name );
+    }
 }
 
-static void write_context_handle_rundowns(FILE *header)
+static void put_context_handle_rundowns(void)
 {
-  context_handle_t *ch;
-  LIST_FOR_EACH_ENTRY(ch, &context_handle_list, context_handle_t, entry)
-  {
-    const char *name = ch->name;
-    fprintf(header, "void __RPC_USER %s_rundown(%s);\n", name, name);
-  }
+    const context_handle_t *handle;
+    LIST_FOR_EACH_ENTRY( handle, &context_handle_list, context_handle_t, entry )
+    {
+        const char *name = handle->name;
+        put_line( "void __RPC_USER %s_rundown(%s);", name, name );
+    }
 }
 
-static void write_generic_handle_routines(FILE *header)
+static void put_generic_handle_routines(void)
 {
-  generic_handle_t *gh;
-  LIST_FOR_EACH_ENTRY(gh, &generic_handle_list, generic_handle_t, entry)
-  {
-    const char *name = gh->name;
-    fprintf(header, "handle_t __RPC_USER %s_bind(%s);\n", name, name);
-    fprintf(header, "void __RPC_USER %s_unbind(%s, handle_t);\n", name, name);
-  }
+    const generic_handle_t *handle;
+    LIST_FOR_EACH_ENTRY( handle, &generic_handle_list, generic_handle_t, entry )
+    {
+        const char *name = handle->name;
+        put_line( "handle_t __RPC_USER %s_bind(%s);", name, name );
+        put_line( "void __RPC_USER %s_unbind(%s, handle_t);", name, name );
+    }
 }
 
 static void write_typedef(FILE *header, type_t *type, bool define)
@@ -817,7 +984,7 @@ static void write_typedef(FILE *header, type_t *type, bool define)
     {
         fprintf(header, "#ifndef __cplusplus\n");
         fprintf(header, "typedef ");
-        write_type_v(header, type_alias_get_aliasee(type), FALSE, define, type->c_name, NAME_C);
+        write_declspec_full( header, type_alias_get_aliasee( type ), FALSE, declonly, type->c_name, NAME_C );
         fprintf(header, ";\n");
         if (type_get_type_detect_alias(t) != TYPE_ENUM)
         {
@@ -825,7 +992,7 @@ static void write_typedef(FILE *header, type_t *type, bool define)
             if (t->namespace && !is_global_namespace(t->namespace)) write_namespace_start(header, t->namespace);
             indent(header, 0);
             fprintf(header, "typedef ");
-            write_type_v(header, type_alias_get_aliasee(type), FALSE, false, type->name, NAME_DEFAULT);
+            write_declspec_full( header, type_alias_get_aliasee( type ), FALSE, TRUE, type->name, NAME_DEFAULT );
             fprintf(header, ";\n");
             if (t->namespace && !is_global_namespace(t->namespace)) write_namespace_end(header, t->namespace);
         }
@@ -834,7 +1001,7 @@ static void write_typedef(FILE *header, type_t *type, bool define)
     else
     {
         fprintf(header, "typedef ");
-        write_type_v(header, type_alias_get_aliasee(type), FALSE, define, type->name, NAME_DEFAULT);
+        write_declspec_full( header, type_alias_get_aliasee( type ), FALSE, declonly, type->name, NAME_DEFAULT );
         fprintf(header, ";\n");
     }
 }
@@ -879,7 +1046,7 @@ static void write_declaration(FILE *header, const var_t *v)
         fprintf(header, "extern ");
         break;
     }
-    write_type_v(header, &v->declspec, FALSE, v->is_defined, v->name, NAME_DEFAULT);
+    write_declspec_full( header, &v->declspec, FALSE, v->declonly, v->name, NAME_DEFAULT );
     fprintf(header, ";\n\n");
   }
 }
@@ -1008,32 +1175,6 @@ static int is_inherited_method(const type_t *iface, const var_t *func)
   return 0;
 }
 
-static int is_override_method(const type_t *iface, const type_t *child, const var_t *func)
-{
-  if (iface == child)
-    return 0;
-
-  do
-  {
-    const statement_t *stmt;
-    STATEMENTS_FOR_EACH_FUNC(stmt, type_iface_get_stmts(child))
-    {
-      const var_t *funccmp = stmt->u.var;
-
-      if (!is_callas(func->attrs))
-      {
-         char inherit_name[256];
-         /* compare full name including property prefix */
-         strcpy(inherit_name, get_name(funccmp));
-         if (!strcmp(inherit_name, get_name(func))) return 1;
-      }
-    }
-  }
-  while ((child = type_iface_get_inherit(child)) && child != iface);
-
-  return 0;
-}
-
 static int is_aggregate_return(const var_t *func)
 {
   enum type_type type = type_get_type(type_function_get_rettype(func->declspec.type));
@@ -1097,63 +1238,69 @@ static void write_method_macro(FILE *header, const type_t *iface, const type_t *
   }
 }
 
-void write_args(FILE *h, const var_list_t *args, const char *name, int method, int do_indent, enum name_type name_type)
+void write_args(FILE *file, const var_list_t *args, const char *name, int method, int do_indent, enum name_type name_type)
 {
-  const var_t *arg;
-  int count = 0;
+    const var_t *arg;
+    int count = 0;
 
-  if (do_indent)
-  {
-      indentation++;
-      indent(h, 0);
-  }
-  if (method == 1) {
-    fprintf(h, "%s* This", name);
-    count++;
-  }
-  if (args) LIST_FOR_EACH_ENTRY( arg, args, const var_t, entry ) {
-    if (count) {
-        if (do_indent)
-        {
-            fprintf(h, ",\n");
-            indent(h, 0);
-        }
-        else fprintf(h, ",");
+    if (do_indent)
+    {
+        indentation++;
+        indent( file, 0 );
     }
-    /* In theory we should be writing the definition using write_type_v(..., arg->define),
-     * but that causes redefinition in e.g. proxy files. In fact MIDL disallows
-     * defining UDTs inside of an argument list. */
-    write_type_v(h, &arg->declspec, FALSE, false, arg->name, name_type);
-    if (method == 2) {
-        const expr_t *expr = get_attrp(arg->attrs, ATTR_DEFAULTVALUE);
-        if (expr) {
-            const var_t *tail_arg;
+    if (method == 1)
+    {
+        fprintf( file, "%s* This", name );
+        count++;
+    }
+    if (args) LIST_FOR_EACH_ENTRY( arg, args, const var_t, entry )
+    {
+        if (count)
+        {
+            if (do_indent)
+            {
+                fprintf( file, ",\n" );
+                indent( file, 0 );
+            }
+            else fprintf( file, "," );
+        }
+        /* In theory we should be writing the definition using write_declspec_full(...,
+         * arg->declonly), but that causes redefinition in e.g. proxy files. In fact MIDL
+         * disallows defining UDTs inside of an argument list. */
+        write_declspec_full( file, &arg->declspec, FALSE, TRUE, arg->name, name_type );
+        if (method == 2)
+        {
+            const expr_t *expr = get_attrp( arg->attrs, ATTR_DEFAULTVALUE );
+            if (expr)
+            {
+                const var_t *tail_arg;
 
-            /* Output default value only if all following arguments also have default value. */
-            LIST_FOR_EACH_ENTRY_REV( tail_arg, args, const var_t, entry ) {
-                if(tail_arg == arg) {
-                    expr_t bstr;
-
-                    /* Fixup the expression type for a BSTR like midl does. */
-                    if (get_type_vt(arg->declspec.type) == VT_BSTR && expr->type == EXPR_STRLIT)
+                /* Output default value only if all following arguments also have default value. */
+                LIST_FOR_EACH_ENTRY_REV( tail_arg, args, const var_t, entry )
+                {
+                    if (tail_arg == arg)
                     {
-                        bstr = *expr;
-                        bstr.type = EXPR_WSTRLIT;
-                        expr = &bstr;
-                    }
+                        expr_t bstr;
 
-                    fprintf(h, " = ");
-                    write_expr( h, expr, 0, 1, NULL, NULL, "" );
-                    break;
+                        /* Fixup the expression type for a BSTR like midl does. */
+                        if (get_type_vt( arg->declspec.type ) == VT_BSTR && expr->type == EXPR_STRLIT)
+                        {
+                            bstr = *expr;
+                            bstr.type = EXPR_WSTRLIT;
+                            expr = &bstr;
+                        }
+
+                        fprintf( file, " = " );
+                        write_expr( file, expr, 0, 1, NULL, NULL, "" );
+                        break;
+                    }
+                    if (!get_attrp( tail_arg->attrs, ATTR_DEFAULTVALUE )) break;
                 }
-                if(!get_attrp(tail_arg->attrs, ATTR_DEFAULTVALUE))
-                    break;
             }
         }
+        count++;
     }
-    count++;
-  }
-  if (do_indent) indentation--;
+    if (do_indent) indentation--;
 }
 
 static void write_cpp_method_def(FILE *header, const type_t *iface)
@@ -1395,7 +1542,7 @@ static void write_locals(FILE *fp, const type_t *iface, int body)
             fprintf(fp, "    return E_NOTIMPL;\n");
           else if (type_get_type(rt->type) != TYPE_VOID) {
             fprintf(fp, "    ");
-            write_type_decl(fp, rt, "rv");
+            write_declspec( fp, rt, "rv" );
             fprintf(fp, ";\n");
             fprintf(fp, "    memset(&rv, 0, sizeof rv);\n");
             fprintf(fp, "    return rv;\n");
@@ -1419,6 +1566,14 @@ static void write_locals(FILE *fp, const type_t *iface, int body)
         error_loc("invalid call_as attribute (%s -> %s)\n", func->name, cas->name);
     }
   }
+}
+
+static void put_locals(FILE *fp, const type_t *iface, int body)
+{
+    fputs( (char *)output_buffer, fp );
+    free( output_buffer );
+    write_locals( fp, iface, body );
+    init_output_buffer();
 }
 
 static void write_local_stubs_stmts(FILE *local_stubs, const statement_list_t *stmts)
@@ -1467,28 +1622,29 @@ static void write_function_proto(FILE *header, const type_t *iface, const var_t 
   fprintf(header, ");\n\n");
 }
 
-static void write_parameterized_type_forward(FILE *header, type_t *type)
+static void put_parameterized_type_forward( const type_t *type )
 {
-    type_t *iface = type->details.parameterized.type;
+    const type_t *iface = type->details.parameterized.type;
     char *args;
 
     if (type_get_type(iface) == TYPE_DELEGATE) iface = type_delegate_get_iface(iface);
 
-    fprintf(header, "#if defined(__cplusplus) && !defined(CINTERFACE)\n");
-    write_namespace_start(header, type->namespace);
+    put_line( "#if defined(__cplusplus) && !defined(CINTERFACE)" );
+    put_namespace_start( type->namespace );
 
     args = format_parameterized_type_args(type, "class ", "");
-    write_line(header, 0, "template <%s>", args);
-    write_line(header, 0, "struct %s_impl;\n", iface->name);
-
-    write_line(header, 0, "template <%s>", args);
+    put_line( "template <%s>", args );
+    put_line( "struct %s_impl;", iface->name );
+    put_line( "" );
+    put_line( "template <%s>", args );
     free(args);
     args = format_parameterized_type_args(type, "", "");
-    write_line(header, 0, "struct %s : %s_impl<%s> {};", iface->name, iface->name, args);
+    put_line( "struct %s : %s_impl<%s> {};", iface->name, iface->name, args );
     free(args);
 
-    write_namespace_end(header, type->namespace);
-    fprintf(header, "#endif\n\n" );
+    put_namespace_end( type->namespace );
+    put_line( "#endif" );
+    put_line( "" );
 }
 
 static void write_parameterized_implementation(FILE *header, type_t *type, bool define)
@@ -1543,6 +1699,25 @@ static void write_parameterized_implementation(FILE *header, type_t *type, bool 
     write_line(header, 0, "#endif\n");
 }
 
+static void put_forward_interface( const type_t *iface )
+{
+    put_line( "#ifndef __%s_FWD_DEFINED__", iface->c_name );
+    put_line( "#define __%s_FWD_DEFINED__", iface->c_name );
+    put_line( "typedef interface %s %s;", iface->c_name, iface->c_name );
+    put_line( "#ifdef __cplusplus" );
+    if (iface->namespace && !is_global_namespace( iface->namespace ))
+        put_line( "#define %s %s", iface->c_name, iface->qualified_name );
+    if (!iface->impl_name)
+    {
+        put_namespace_start( iface->namespace );
+        put_line( "interface %s;", iface->name );
+        put_namespace_end( iface->namespace );
+    }
+    put_line( "#endif /* __cplusplus */" );
+    put_line( "#endif" );
+    put_line( "" );
+}
+
 static void write_forward(FILE *header, type_t *iface)
 {
   fprintf(header, "#ifndef __%s_FWD_DEFINED__\n", iface->c_name);
@@ -1561,40 +1736,6 @@ static void write_forward(FILE *header, type_t *iface)
   fprintf(header, "#endif\n\n" );
 }
 
-static char *format_apicontract_macro(const type_t *type)
-{
-    char *name = format_namespace(type->namespace, "", "_", type->name, NULL);
-    int i;
-    for (i = strlen(name); i > 0; --i) name[i - 1] = toupper(name[i - 1]);
-    return name;
-}
-
-static void write_apicontract_guard_start(FILE *header, const expr_t *expr)
-{
-    const type_t *type;
-    char *name;
-    int ver;
-    if (!winrt_mode) return;
-    type = expr->u.args[0]->u.decl->type;
-    ver = expr->u.args[1]->u.lval;
-    name = format_apicontract_macro(type);
-    fprintf(header, "#if %s_VERSION >= %#x\n", name, ver);
-    free(name);
-}
-
-static void write_apicontract_guard_end(FILE *header, const expr_t *expr)
-{
-    const type_t *type;
-    char *name;
-    int ver;
-    if (!winrt_mode) return;
-    type = expr->u.args[0]->u.decl->type;
-    ver = expr->u.args[1]->u.lval;
-    name = format_apicontract_macro(type);
-    fprintf(header, "#endif /* %s_VERSION >= %#x */\n", name, ver);
-    free(name);
-}
-
 static void write_com_interface_start(FILE *header, const type_t *iface)
 {
   int dispinterface = is_attr(iface->attrs, ATTR_DISPINTERFACE);
@@ -1605,47 +1746,6 @@ static void write_com_interface_start(FILE *header, const type_t *iface)
   if (contract) write_apicontract_guard_start(header, contract);
   fprintf(header,"#ifndef __%s_%sINTERFACE_DEFINED__\n", iface->c_name, dispinterface ? "DISP" : "");
   fprintf(header,"#define __%s_%sINTERFACE_DEFINED__\n\n", iface->c_name, dispinterface ? "DISP" : "");
-}
-
-static void write_widl_using_method_macros(FILE *header, const type_t *iface, const type_t *top_iface)
-{
-    const statement_t *stmt;
-    const char *name = top_iface->short_name ? top_iface->short_name : top_iface->name;
-
-    if (type_iface_get_inherit(iface)) write_widl_using_method_macros(header, type_iface_get_inherit(iface), top_iface);
-
-    STATEMENTS_FOR_EACH_FUNC(stmt, type_iface_get_stmts(iface))
-    {
-        const var_t *func = stmt->u.var;
-        const char *func_name;
-
-        if (is_override_method(iface, top_iface, func)) continue;
-        if (is_callas(func->attrs)) continue;
-
-        func_name = get_name(func);
-        fprintf(header, "#define %s_%s %s_%s\n", name, func_name, top_iface->c_name, func_name);
-    }
-}
-
-static void write_widl_using_macros(FILE *header, type_t *iface)
-{
-    const struct uuid *uuid = get_attrp(iface->attrs, ATTR_UUID);
-    const char *name = iface->short_name ? iface->short_name : iface->name;
-    char *macro;
-
-    if (!strcmp(iface->name, iface->c_name)) return;
-
-    macro = format_namespace(iface->namespace, "WIDL_using_", "_", NULL, NULL);
-    fprintf(header, "#ifdef %s\n", macro);
-
-    if (uuid) fprintf(header, "#define IID_%s IID_%s\n", name, iface->c_name);
-    if (iface->type_type == TYPE_INTERFACE) fprintf(header, "#define %sVtbl %sVtbl\n", name, iface->c_name);
-    fprintf(header, "#define %s %s\n", name, iface->c_name);
-
-    if (iface->type_type == TYPE_INTERFACE) write_widl_using_method_macros(header, iface, iface);
-
-    fprintf(header, "#endif /* %s */\n", macro);
-    free(macro);
 }
 
 static void write_com_interface_end(FILE *header, type_t *iface)
@@ -1758,7 +1858,7 @@ static void write_rpc_interface_start(FILE *header, const type_t *iface)
   if (var)
   {
       fprintf(header, "extern ");
-      write_type_decl( header, &var->declspec, var->name );
+      write_declspec( header, &var->declspec, var->name );
       fprintf(header, ";\n");
   }
   if (old_names)
@@ -1806,16 +1906,17 @@ static void write_coclass(FILE *header, type_t *cocl)
   fprintf(header, "\n");
 }
 
-static void write_coclass_forward(FILE *header, type_t *cocl)
+static void put_coclass_forward( const type_t *klass )
 {
-  fprintf(header, "#ifndef __%s_FWD_DEFINED__\n", cocl->name);
-  fprintf(header, "#define __%s_FWD_DEFINED__\n", cocl->name);
-  fprintf(header, "#ifdef __cplusplus\n");
-  fprintf(header, "typedef class %s %s;\n", cocl->name, cocl->name);
-  fprintf(header, "#else\n");
-  fprintf(header, "typedef struct %s %s;\n", cocl->name, cocl->name);
-  fprintf(header, "#endif /* defined __cplusplus */\n");
-  fprintf(header, "#endif /* defined __%s_FWD_DEFINED__ */\n\n", cocl->name );
+    put_line( "#ifndef __%s_FWD_DEFINED__", klass->name );
+    put_line( "#define __%s_FWD_DEFINED__", klass->name );
+    put_line( "#ifdef __cplusplus" );
+    put_line( "typedef class %s %s;", klass->name, klass->name );
+    put_line( "#else" );
+    put_line( "typedef struct %s %s;", klass->name, klass->name );
+    put_line( "#endif /* defined __cplusplus */" );
+    put_line( "#endif /* defined __%s_FWD_DEFINED__ */", klass->name );
+    put_line( "" );
 }
 
 static void write_apicontract(FILE *header, type_t *apicontract)
@@ -1859,104 +1960,104 @@ static void write_runtimeclass(FILE *header, type_t *runtimeclass)
     fprintf(header, "\n");
 }
 
-static void write_runtimeclass_forward(FILE *header, type_t *runtimeclass)
+static void put_runtimeclass_forward( const type_t *klass )
 {
-    fprintf(header, "#ifndef __%s_FWD_DEFINED__\n", runtimeclass->c_name);
-    fprintf(header, "#define __%s_FWD_DEFINED__\n", runtimeclass->c_name);
-    fprintf(header, "#ifdef __cplusplus\n");
-    write_namespace_start(header, runtimeclass->namespace);
-    write_line(header, 0, "class %s;", runtimeclass->name);
-    write_namespace_end(header, runtimeclass->namespace);
-    fprintf(header, "#else\n");
-    fprintf(header, "typedef struct %s %s;\n", runtimeclass->c_name, runtimeclass->c_name);
-    fprintf(header, "#endif /* defined __cplusplus */\n");
-    fprintf(header, "#endif /* defined __%s_FWD_DEFINED__ */\n\n", runtimeclass->c_name);
+    put_line( "#ifndef __%s_FWD_DEFINED__", klass->c_name );
+    put_line( "#define __%s_FWD_DEFINED__", klass->c_name );
+    put_line( "#ifdef __cplusplus" );
+    put_namespace_start( klass->namespace );
+    put_line( "class %s;", klass->name );
+    put_namespace_end( klass->namespace );
+    put_line( "#else" );
+    put_line( "typedef struct %s %s;", klass->c_name, klass->c_name );
+    put_line( "#endif /* defined __cplusplus */" );
+    put_line( "#endif /* defined __%s_FWD_DEFINED__ */", klass->c_name );
+    put_line( "" );
 }
 
-static void write_import(FILE *header, const char *fname)
+static void put_import( const char *import )
 {
-  char *hname = replace_extension( get_basename(fname), ".idl", "" );
-
-  if (!strendswith( hname, ".h" )) hname = strmake( "%s.h", hname );
-  fprintf(header, "#include <%s>\n", hname);
-  free(hname);
+    char *name = replace_extension( get_basename( import ), ".idl", "" );
+    if (!strendswith( name, ".h" )) name = strmake( "%s.h", name );
+    put_line( "#include <%s>", name );
+    free( name );
 }
 
-static void write_imports(FILE *header, const statement_list_t *stmts)
+static void put_imports( const statement_list_t *stmts )
 {
-  const statement_t *stmt;
-  if (stmts) LIST_FOR_EACH_ENTRY( stmt, stmts, const statement_t, entry )
-  {
-    switch (stmt->type)
+    const statement_t *stmt;
+    if (stmts) LIST_FOR_EACH_ENTRY( stmt, stmts, const statement_t, entry )
     {
-      case STMT_TYPE:
-        if (type_get_type(stmt->u.type) == TYPE_INTERFACE)
-          write_imports(header, type_iface_get_stmts(stmt->u.type));
-        break;
-      case STMT_TYPEREF:
-      case STMT_IMPORTLIB:
-        /* not included in header */
-        break;
-      case STMT_IMPORT:
-        write_import(header, stmt->u.str);
-        break;
-      case STMT_TYPEDEF:
-      case STMT_MODULE:
-      case STMT_CPPQUOTE:
-      case STMT_PRAGMA:
-      case STMT_DECLARATION:
-        /* not processed here */
-        break;
-      case STMT_LIBRARY:
-        write_imports(header, stmt->u.lib->stmts);
-        break;
-    }
-  }
-}
-
-static void write_forward_decls(FILE *header, const statement_list_t *stmts)
-{
-  const statement_t *stmt;
-  if (stmts) LIST_FOR_EACH_ENTRY( stmt, stmts, const statement_t, entry )
-  {
-    switch (stmt->type)
-    {
-      case STMT_TYPE:
-        if (type_get_type(stmt->u.type) == TYPE_INTERFACE || type_get_type(stmt->u.type) == TYPE_DELEGATE)
+        switch (stmt->type)
         {
-          type_t *iface = stmt->u.type;
-          if (type_get_type(iface) == TYPE_DELEGATE) iface = type_delegate_get_iface(iface);
-          if (is_object(iface) || is_attr(iface->attrs, ATTR_DISPINTERFACE))
-          {
-            write_forward(header, iface);
-            if (type_iface_get_async_iface(iface))
-              write_forward(header, type_iface_get_async_iface(iface));
-          }
+        case STMT_TYPE:
+            if (type_get_type( stmt->u.type ) == TYPE_INTERFACE)
+                put_imports( type_iface_get_stmts( stmt->u.type ) );
+            break;
+        case STMT_LIBRARY:
+            put_imports( stmt->u.lib->stmts );
+            break;
+        case STMT_IMPORT:
+            put_import( stmt->u.str );
+            break;
+        case STMT_TYPEREF:
+        case STMT_IMPORTLIB:
+            /* not included in header */
+            break;
+        case STMT_TYPEDEF:
+        case STMT_MODULE:
+        case STMT_CPPQUOTE:
+        case STMT_PRAGMA:
+        case STMT_DECLARATION:
+            /* not processed here */
+            break;
         }
-        else if (type_get_type(stmt->u.type) == TYPE_COCLASS)
-          write_coclass_forward(header, stmt->u.type);
-        else if (type_get_type(stmt->u.type) == TYPE_RUNTIMECLASS)
-          write_runtimeclass_forward(header, stmt->u.type);
-        else if (type_get_type(stmt->u.type) == TYPE_PARAMETERIZED_TYPE)
-          write_parameterized_type_forward(header, stmt->u.type);
-        break;
-      case STMT_TYPEREF:
-      case STMT_IMPORTLIB:
-        /* not included in header */
-        break;
-      case STMT_IMPORT:
-      case STMT_TYPEDEF:
-      case STMT_MODULE:
-      case STMT_CPPQUOTE:
-      case STMT_PRAGMA:
-      case STMT_DECLARATION:
-        /* not processed here */
-        break;
-      case STMT_LIBRARY:
-        write_forward_decls(header, stmt->u.lib->stmts);
-        break;
     }
-  }
+}
+
+static void put_forward_decls( const statement_list_t *stmts )
+{
+    const statement_t *stmt;
+    if (stmts) LIST_FOR_EACH_ENTRY( stmt, stmts, const statement_t, entry )
+    {
+        switch (stmt->type)
+        {
+        case STMT_TYPE:
+            if (type_get_type( stmt->u.type ) == TYPE_INTERFACE || type_get_type( stmt->u.type ) == TYPE_DELEGATE)
+            {
+                const type_t *iface = stmt->u.type;
+                if (type_get_type( iface ) == TYPE_DELEGATE) iface = type_delegate_get_iface( iface );
+                if (is_object( iface ) || is_attr( iface->attrs, ATTR_DISPINTERFACE ))
+                {
+                    put_forward_interface( iface );
+                    if (type_iface_get_async_iface( iface ))
+                        put_forward_interface( type_iface_get_async_iface( iface ) );
+                }
+            }
+            else if (type_get_type( stmt->u.type ) == TYPE_COCLASS)
+                put_coclass_forward( stmt->u.type );
+            else if (type_get_type( stmt->u.type ) == TYPE_RUNTIMECLASS)
+                put_runtimeclass_forward( stmt->u.type );
+            else if (type_get_type( stmt->u.type ) == TYPE_PARAMETERIZED_TYPE)
+                put_parameterized_type_forward( stmt->u.type );
+            break;
+        case STMT_LIBRARY:
+            put_forward_decls( stmt->u.lib->stmts );
+            break;
+        case STMT_TYPEREF:
+        case STMT_IMPORTLIB:
+            /* not included in header */
+            break;
+        case STMT_IMPORT:
+        case STMT_TYPEDEF:
+        case STMT_MODULE:
+        case STMT_CPPQUOTE:
+        case STMT_PRAGMA:
+        case STMT_DECLARATION:
+            /* not processed here */
+            break;
+        }
+    }
 }
 
 static void write_header_stmts(FILE *header, const statement_list_t *stmts, const type_t *iface, int ignore_funcs)
@@ -1972,7 +2073,7 @@ static void write_header_stmts(FILE *header, const statement_list_t *stmts, cons
           type_t *iface = stmt->u.type, *async_iface;
           if (type_get_type(stmt->u.type) == TYPE_DELEGATE) iface = type_delegate_get_iface(iface);
           async_iface = type_iface_get_async_iface(iface);
-          if (is_object(iface)) is_object_interface++;
+          if (is_object(iface) && !is_object_interface++) default_callconv = "STDMETHODCALLTYPE";
           if (is_attr(stmt->u.type->attrs, ATTR_DISPINTERFACE) || is_object(stmt->u.type))
           {
             write_com_interface_start(header, iface);
@@ -1990,7 +2091,7 @@ static void write_header_stmts(FILE *header, const statement_list_t *stmts, cons
             write_header_stmts(header, type_iface_get_stmts(iface), iface, FALSE);
             write_rpc_interface_end(header, iface);
           }
-          if (is_object(iface)) is_object_interface--;
+          if (is_object(iface) && !--is_object_interface) default_callconv = NULL;
         }
         else if (type_get_type(stmt->u.type) == TYPE_COCLASS)
           write_coclass(header, stmt->u.type);
@@ -2002,9 +2103,9 @@ static void write_header_stmts(FILE *header, const statement_list_t *stmts, cons
           write_type_definition(header, stmt->u.type, stmt->is_defined);
         else
         {
-          is_object_interface++;
-          write_parameterized_implementation(header, stmt->u.type, stmt->is_defined);
-          is_object_interface--;
+          if (!is_object_interface++) default_callconv = "STDMETHODCALLTYPE";
+          write_parameterized_implementation(header, stmt->u.type, stmt->declonly);
+          if (!--is_object_interface) default_callconv = NULL;
         }
         break;
       case STMT_TYPEREF:
@@ -2068,56 +2169,66 @@ static void write_header_stmts(FILE *header, const statement_list_t *stmts, cons
 
 void write_header(const statement_list_t *stmts)
 {
-  FILE *header;
+    FILE *header;
 
-  if (!do_header) return;
+    if (!do_header) return;
+    if (!(header = fopen( header_name, "w" ))) error( "Could not open %s for output\n", header_name );
 
-  if(!(header = fopen(header_name, "w"))) {
-    error("Could not open %s for output\n", header_name);
-    return;
-  }
-  fprintf(header, "/*** Autogenerated by WIDL %s from %s - Do not edit ***/\n\n", PACKAGE_VERSION, input_name);
+    init_output_buffer();
+    put_line( "/*** Autogenerated by WIDL %s from %s - Do not edit ***/", PACKAGE_VERSION, input_name );
+    put_line( "" );
+    put_line( "#ifdef _WIN32" );
+    put_line( "#ifndef __REQUIRED_RPCNDR_H_VERSION__" );
+    put_line( "#define __REQUIRED_RPCNDR_H_VERSION__ 475" );
+    put_line( "#endif" );
+    put_line( "#include <rpc.h>" );
+    put_line( "#include <rpcndr.h>" );
+    if (!for_each_serializable( stmts, NULL, serializable_exists ))
+        put_line( "#include <midles.h>" );
+    put_line( "#endif" );
+    put_line( "" );
+    put_line( "#ifndef COM_NO_WINDOWS_H" );
+    put_line( "#include <windows.h>" );
+    put_line( "#include <ole2.h>" );
+    put_line( "#endif" );
+    put_line( "" );
+    put_line( "#ifndef __%s__", header_token );
+    put_line( "#define __%s__", header_token );
+    put_line( "" );
+    put_line( "/* Forward declarations */" );
+    put_line( "" );
+    put_forward_decls( stmts );
+    put_line( "/* Headers for imported files */" );
+    put_line( "" );
+    put_imports( stmts );
+    put_line( "" );
+    put_line( "#ifdef __cplusplus" );
+    put_line( "extern \"C\" {" );
+    put_line( "#endif" );
+    put_line( "" );
+    fputs( (char *)output_buffer, header );
+    free( output_buffer );
 
-  fprintf(header, "#ifdef _WIN32\n");
-  fprintf(header, "#ifndef __REQUIRED_RPCNDR_H_VERSION__\n");
-  fprintf(header, "#define __REQUIRED_RPCNDR_H_VERSION__ 475\n");
-  fprintf(header, "#endif\n");
-  fprintf(header, "#include <rpc.h>\n" );
-  fprintf(header, "#include <rpcndr.h>\n" );
-  if (!for_each_serializable(stmts, NULL, serializable_exists))
-    fprintf(header, "#include <midles.h>\n" );
-  fprintf(header, "#endif\n\n");
+    write_header_stmts( header, stmts, NULL, FALSE );
 
-  fprintf(header, "#ifndef COM_NO_WINDOWS_H\n");
-  fprintf(header, "#include <windows.h>\n");
-  fprintf(header, "#include <ole2.h>\n");
-  fprintf(header, "#endif\n\n");
+    fprintf( header, "/* Begin additional prototypes for all interfaces */\n" );
+    fprintf( header, "\n" );
+    for_each_serializable( stmts, header, write_serialize_function_decl );
 
-  fprintf(header, "#ifndef __%s__\n", header_token);
-  fprintf(header, "#define __%s__\n\n", header_token);
+    init_output_buffer();
+    put_user_types();
+    put_generic_handle_routines();
+    put_context_handle_rundowns();
+    put_line( "" );
+    put_line( "/* End additional prototypes */" );
+    put_line( "" );
+    put_line( "#ifdef __cplusplus" );
+    put_line( "}"  /* extern \"C\" */ );
+    put_line( "#endif" );
+    put_line( "" );
+    put_line( "#endif /* __%s__ */", header_token );
+    fputs( (char *)output_buffer, header );
+    free( output_buffer );
 
-  fprintf(header, "/* Forward declarations */\n\n");
-  write_forward_decls(header, stmts);
-
-  fprintf(header, "/* Headers for imported files */\n\n");
-  write_imports(header, stmts);
-  fprintf(header, "\n");
-  start_cplusplus_guard(header);
-
-  write_header_stmts(header, stmts, NULL, FALSE);
-
-  fprintf(header, "/* Begin additional prototypes for all interfaces */\n");
-  fprintf(header, "\n");
-  for_each_serializable(stmts, header, write_serialize_function_decl);
-  write_user_types(header);
-  write_generic_handle_routines(header);
-  write_context_handle_rundowns(header);
-  fprintf(header, "\n");
-  fprintf(header, "/* End additional prototypes */\n");
-  fprintf(header, "\n");
-
-  end_cplusplus_guard(header);
-  fprintf(header, "#endif /* __%s__ */\n", header_token);
-
-  fclose(header);
+    fclose( header );
 }
