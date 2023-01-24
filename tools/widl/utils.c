@@ -258,21 +258,44 @@ void put_pword( unsigned int val )
     else put_dword( val );
 }
 
-void put_str( int indent, const char *format, ... )
+static int make_indent( const char *format )
 {
+    static int level;
+    char *out = (char *)output_buffer + output_buffer_pos;
     int n;
+
+    if (output_buffer_pos <= 1 || out[-1] != '\n') return 0;
+    if (!strcmp( out - 2, "{\n" ) || !strcmp( out - 2, "(\n" ) || !strcmp( out - 2, "[\n" )) level++;
+
+    if (!(n = strlen( format )) || !strcmp( format, "\n" )) return 0;
+    if (format[0] == '}' || format[0] == ')' || format[0] == ']') level--;
+
+    if (level < 0) level = 0;
+    return level;
+}
+
+void put_str( const char *format, ... )
+{
+    const char *tmp = format;
+    int n, indent;
     va_list args;
 
-    check_output_buffer_space( 4 * indent );
-    memset( output_buffer + output_buffer_pos, ' ', 4 * indent );
-    output_buffer_pos += 4 * indent;
+    while (*tmp == ' ') tmp++;
+    indent = make_indent( tmp );
+
+    if (*format != ' ')
+    {
+        check_output_buffer_space( 4 * indent );
+        memset( output_buffer + output_buffer_pos, ' ', 4 * indent );
+        output_buffer_pos += 4 * indent;
+    }
 
     for (;;)
     {
         size_t size = output_buffer_size - output_buffer_pos;
         va_start( args, format );
-	n = vsnprintf( (char *)output_buffer + output_buffer_pos, size, format, args );
-	va_end( args );
+        n = vsnprintf( (char *)output_buffer + output_buffer_pos, size, format, args );
+        va_end( args );
         if (n == -1) size *= 2;
         else if ((size_t)n >= size) size = n + 1;
         else
