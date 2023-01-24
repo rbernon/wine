@@ -120,7 +120,7 @@ static inline var_list_t *type_struct_get_fields(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_STRUCT);
-    return type->details.structure->fields;
+    return type->details.structure.fields;
 }
 
 static inline var_list_t *type_function_get_args(const type_t *type)
@@ -158,14 +158,14 @@ static inline var_t *type_union_get_switch_value(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_ENCAPSULATED_UNION);
-    return LIST_ENTRY(list_head(type->details.structure->fields), var_t, entry);
+    return LIST_ENTRY(list_head(type->details.structure.fields), var_t, entry);
 }
 
 static inline var_list_t *type_encapsulated_union_get_fields(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_ENCAPSULATED_UNION);
-    return type->details.structure->fields;
+    return type->details.structure.fields;
 }
 
 static inline var_list_t *type_union_get_cases(const type_t *type)
@@ -178,11 +178,11 @@ static inline var_list_t *type_union_get_cases(const type_t *type)
     assert(type_type == TYPE_UNION || type_type == TYPE_ENCAPSULATED_UNION);
     if (type_type == TYPE_ENCAPSULATED_UNION)
     {
-        const var_t *uv = LIST_ENTRY(list_tail(type->details.structure->fields), const var_t, entry);
-        return uv->declspec.type->details.structure->fields;
+        const var_t *uv = LIST_ENTRY(list_tail(type->details.structure.fields), const var_t, entry);
+        return uv->declspec.type->details.structure.fields;
     }
     else
-        return type->details.structure->fields;
+        return type->details.structure.fields;
 }
 
 static inline statement_list_t *type_iface_get_stmts(const type_t *type)

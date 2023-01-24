@@ -200,7 +200,7 @@ static size_t append_type_signature( struct strbuf *str, type_t *type )
     case TYPE_STRUCT:
         strappend( str, "struct(" );
         append_namespaces( str, type->namespace, "", ".", type->name, NULL );
-        append_var_list_signature( str, type->details.structure->fields );
+        append_var_list_signature( str, type->details.structure.fields );
         strappend( str, ")" );
         return n;
     case TYPE_BASIC:
@@ -564,8 +564,7 @@ type_t *type_new_struct(char *name, struct namespace *namespace, int defined, va
 
     if (!t->defined && defined)
     {
-        t->details.structure = xmalloc(sizeof(*t->details.structure));
-        t->details.structure->fields = fields;
+        t->details.structure.fields = fields;
         t->defined = TRUE;
     }
     else if (defined)
@@ -592,8 +591,7 @@ type_t *type_new_nonencapsulated_union(const char *name, struct namespace *names
 
     if (!t->defined && defined)
     {
-        t->details.structure = xmalloc(sizeof(*t->details.structure));
-        t->details.structure->fields = fields;
+        t->details.structure.fields = fields;
         t->defined = TRUE;
     }
     else if (defined)
@@ -624,9 +622,8 @@ type_t *type_new_encapsulated_union(char *name, var_t *switch_field, var_t *unio
             union_field = make_var(xstrdup("tagged_union"));
         union_field->declspec.type = type_new_nonencapsulated_union(gen_name(), NULL, TRUE, cases);
 
-        t->details.structure = xmalloc(sizeof(*t->details.structure));
-        t->details.structure->fields = append_var(NULL, switch_field);
-        t->details.structure->fields = append_var(t->details.structure->fields, union_field);
+        t->details.structure.fields = append_var(NULL, switch_field);
+        t->details.structure.fields = append_var(t->details.structure.fields, union_field);
         t->defined = TRUE;
     }
     else
