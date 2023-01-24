@@ -377,17 +377,6 @@ struct _attr_custdata_t {
   expr_t *pval;
 };
 
-struct iface_details
-{
-  statement_list_t *stmts;
-  var_list_t *disp_methods;
-  var_list_t *disp_props;
-  struct _type_t *inherit;
-  struct _type_t *disp_inherit;
-  struct _type_t *async_iface;
-  typeref_list_t *requires;
-};
-
 struct module_details
 {
   statement_list_t *stmts;
@@ -499,7 +488,16 @@ struct _type_t {
             var_list_t *args;
             struct _var_t *retval;
         } function;
-    struct iface_details *iface;
+        struct
+        {
+            statement_list_t *stmts;
+            var_list_t *disp_methods;
+            var_list_t *disp_props;
+            struct _type_t *inherit;
+            struct _type_t *disp_inherit;
+            struct _type_t *async_iface;
+            typeref_list_t *requires;
+        } iface;
     struct module_details *module;
     struct array_details array;
     struct coclass_details coclass;

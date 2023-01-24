@@ -202,49 +202,49 @@ static inline statement_list_t *type_iface_get_stmts(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_INTERFACE);
-    return type->details.iface->stmts;
+    return type->details.iface.stmts;
 }
 
 static inline type_t *type_iface_get_inherit(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_INTERFACE);
-    return type->details.iface->inherit;
+    return type->details.iface.inherit;
 }
 
 static inline typeref_list_t *type_iface_get_requires(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_INTERFACE);
-    return type->details.iface->requires;
+    return type->details.iface.requires;
 }
 
 static inline type_t *type_iface_get_async_iface(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_INTERFACE);
-    return type->details.iface->async_iface;
+    return type->details.iface.async_iface;
 }
 
 static inline var_list_t *type_dispiface_get_props(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_INTERFACE);
-    return type->details.iface->disp_props;
+    return type->details.iface.disp_props;
 }
 
 static inline var_list_t *type_dispiface_get_methods(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_INTERFACE);
-    return type->details.iface->disp_methods;
+    return type->details.iface.disp_methods;
 }
 
 static inline type_t *type_dispiface_get_inherit(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_INTERFACE);
-    return type->details.iface->disp_inherit;
+    return type->details.iface.disp_inherit;
 }
 
 static inline int type_is_defined(const type_t *type)

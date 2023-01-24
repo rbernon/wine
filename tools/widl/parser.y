@@ -2925,7 +2925,7 @@ static void check_async_uuid(type_t *iface)
     }
 
     type_interface_define(async_iface, map_attrs(iface->attrs, async_iface_attrs), inherit, stmts, NULL, &iface->where);
-    iface->details.iface->async_iface = async_iface->details.iface->async_iface = async_iface;
+    iface->details.iface.async_iface = async_iface->details.iface.async_iface = async_iface;
 }
 
 static statement_list_t *append_parameterized_type_stmts(statement_list_t *stmts)
