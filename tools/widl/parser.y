@@ -354,7 +354,6 @@ PARSER_LTYPE pop_import(void);
 %type <statement> statement typedef pragma_warning
 %type <stmt_list> gbl_statements imp_statements int_statements
 %type <stmt_list> decl_block decl_statements
-%type <stmt_list> imp_decl_block imp_decl_statements
 %type <warning_list> warnings
 %type <num> allocate_option_list allocate_option
 %type <namespace> namespace_pfx
@@ -398,24 +397,11 @@ m_acf
 	;
 
 decl_statements
-	: %empty				{ $$ = NULL; }
-	| decl_statements tINTERFACE qualified_type '<' parameterized_type_args '>' ';'
-						{ parameterized_type_stmts = append_statement(parameterized_type_stmts, make_statement_parameterized_type($3, $5));
-						  $$ = append_statement($1, make_statement_reference(type_parameterized_type_specialize_declare($3, $5)));
-						}
-	;
-
+        : %empty                                { $$ = NULL; }
+        | decl_statements[list] tINTERFACE qualified_type '<' parameterized_type_args '>' ';'
+                                                { $$ = append_statement( $list, make_statement_parameterized_type( $qualified_type, $parameterized_type_args ) ); }
+        ;
 decl_block: tDECLARE '{' decl_statements '}' { $$ = $3; }
-	;
-
-imp_decl_statements
-	: %empty				{ $$ = NULL; }
-	| imp_decl_statements tINTERFACE qualified_type '<' parameterized_type_args '>' ';'
-						{ $$ = append_statement($1, make_statement_reference(type_parameterized_type_specialize_declare($3, $5))); }
-	;
-
-imp_decl_block
-	: tDECLARE '{' imp_decl_statements '}'	{ $$ = $3; }
 	;
 
 gbl_statements
@@ -441,7 +427,7 @@ gbl_statements
 	| gbl_statements moduledef		{ $$ = append_statement($1, make_statement_module($2)); }
 	| gbl_statements librarydef		{ $$ = append_statement($1, make_statement_library($2)); }
 	| gbl_statements statement		{ $$ = append_statement($1, $2); }
-	| gbl_statements decl_block		{ $$ = append_statements($1, $2); }
+	| gbl_statements[list] decl_block	{ $$ = append_statements( $list, $decl_block ); }
 	;
 
 imp_statements
@@ -466,7 +452,7 @@ imp_statements
 	| imp_statements statement		{ $$ = append_statement($1, $2); }
 	| imp_statements importlib		{ $$ = append_statement($1, make_statement_importlib($2)); }
 	| imp_statements librarydef		{ $$ = append_statement($1, make_statement_library($2)); }
-	| imp_statements imp_decl_block		{ $$ = append_statements($1, $2); }
+	| imp_statements[list] decl_block	{ $$ = append_statements( $list, $decl_block ); }
 	;
 
 int_statements
@@ -2973,9 +2959,14 @@ static statement_t *make_statement_typedef(declarator_list_t *decls, bool is_def
 
 static statement_t *make_statement_parameterized_type(type_t *type, typeref_list_t *params)
 {
-    statement_t *stmt = make_statement(STMT_TYPE);
-    stmt->u.type = type_parameterized_type_specialize_partial(type, params);
-    return stmt;
+    if (!parse_only)
+    {
+        statement_t *stmt = make_statement( STMT_TYPE );
+        stmt->u.type = type_parameterized_type_specialize_partial( type, params );
+        parameterized_type_stmts = append_statement( parameterized_type_stmts, stmt );
+    }
+
+    return make_statement_reference( type_parameterized_type_specialize_declare( type, params ) );
 }
 
 static statement_t *make_statement_delegate(type_t *ret, var_list_t *args)
