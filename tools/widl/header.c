@@ -369,6 +369,37 @@ static void write_enum_type( FILE *file, type_t *type, enum name_type name_type 
     }
 }
 
+static void write_struct_type( FILE *file, type_t *type, enum name_type name_type )
+{
+    if (type->written)
+    {
+        const char *name = type_get_name( type, name_type );
+        if (winrt_mode && name_type == NAME_DEFAULT && name) fprintf( file, "%s", name );
+        else fprintf( file, "struct %s", name ? name : "" );
+    }
+    else
+    {
+        const char *decl_name = type_get_decl_name( type, name_type );
+        var_list_t *fields;
+
+        if (type_get_type( type ) == TYPE_STRUCT) fields = type_struct_get_fields( type );
+        else fields = type_encapsulated_union_get_fields( type );
+
+        assert( type->defined );
+        type->written = TRUE;
+
+        fprintf( file, "struct " );
+        if (decl_name) fprintf( file, "%s ", decl_name );
+        fprintf( file, "{\n" );
+        indentation++;
+
+        write_fields( file, fields, name_type );
+
+        indent( file, -1 );
+        fprintf( file, "}" );
+    }
+}
+
 static void write_type_left( FILE *h, const decl_spec_t *ds, enum name_type name_type,
                              int is_defined, int write_callconv )
 {
@@ -396,22 +427,8 @@ static void write_type_left( FILE *h, const decl_spec_t *ds, enum name_type name
         break;
       case TYPE_STRUCT:
       case TYPE_ENCAPSULATED_UNION:
-        if (!define) fprintf(h, "struct %s", decl_name ? decl_name : "");
-        else if (!t->written) {
-          assert(t->defined);
-          if (decl_name) fprintf(h, "struct %s {\n", decl_name);
-          else fprintf(h, "struct {\n");
-          t->written = TRUE;
-          indentation++;
-          if (type_get_type(t) != TYPE_STRUCT)
-            write_fields(h, type_encapsulated_union_get_fields(t), name_type);
-          else
-            write_fields(h, type_struct_get_fields(t), name_type);
-          indent(h, -1);
-          fprintf(h, "}");
-        }
-        else if (winrt_mode && name_type == NAME_DEFAULT && name) fprintf(h, "%s", name);
-        else fprintf(h, "struct %s", name ? name : "");
+        if (declonly) fprintf(h, "struct %s", decl_name ? decl_name : "");
+        else write_struct_type( h, t, name_type );
         break;
       case TYPE_UNION:
         if (!define) fprintf(h, "union %s", decl_name ? decl_name : "");
