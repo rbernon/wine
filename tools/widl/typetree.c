@@ -38,6 +38,12 @@ user_type_list_t user_type_list = LIST_INIT(user_type_list);
 context_handle_list_t context_handle_list = LIST_INIT(context_handle_list);
 generic_handle_list_t generic_handle_list = LIST_INIT(generic_handle_list);
 
+int winrt_mode = 0;
+int use_abi_namespace = 0;
+int win32_packing = 8;
+int win64_packing = 8;
+unsigned int pointer_size = 0;
+
 type_t *duptype(type_t *t, int dupname)
 {
   type_t *d = alloc_type();

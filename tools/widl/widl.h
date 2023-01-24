@@ -47,8 +47,6 @@ extern int do_regscript;
 extern int do_idfile;
 extern int do_dlldata;
 extern int old_names;
-extern int winrt_mode;
-extern int use_abi_namespace;
 
 extern char *typename_base;
 extern char *header_name;
@@ -66,8 +64,6 @@ extern char *regscript_name;
 extern char *regscript_token;
 extern const char *prefix_client;
 extern const char *prefix_server;
-extern unsigned int packing;
-extern unsigned int pointer_size;
 extern time_t now;
 
 enum stub_mode

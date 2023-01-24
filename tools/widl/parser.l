@@ -50,6 +50,7 @@ uuid  {hd}{8}-{hd}{4}-{hd}{4}-{hd}{4}-{hd}{12}
 #include "widl.h"
 #include "utils.h"
 #include "parser.h"
+#include "typetree.h"
 #include "wpp_private.h"
 
 #define YYerror PARSER_error

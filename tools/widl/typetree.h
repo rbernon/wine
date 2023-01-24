@@ -56,6 +56,12 @@ enum typegen_detect_flags
     TDT_IGNORE_RANGES =  1 << 2,
 };
 
+extern int winrt_mode;
+extern int use_abi_namespace;
+extern int win32_packing;
+extern int win64_packing;
+extern unsigned int pointer_size;
+
 type_t *find_parameterized_type(type_t *type, typeref_list_t *params);
 
 type_t *type_new_function(var_list_t *args);

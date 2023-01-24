@@ -109,8 +109,6 @@ int do_idfile = 0;
 int do_dlldata = 0;
 static int no_preprocess = 0;
 int old_names = 0;
-int winrt_mode = 0;
-int use_abi_namespace = 0;
 static int stdinc = 1;
 static enum stub_mode stub_mode = MODE_Os;
 
@@ -139,9 +137,6 @@ static const char *dlldir;
 static struct strarray dlldirs;
 static char *output_name;
 static const char *sysroot = "";
-
-unsigned int packing = 8;
-unsigned int pointer_size = 0;
 
 time_t now;
 

@@ -31,6 +31,7 @@
 #include "widl.h"
 #include "utils.h"
 #include "parser.h"
+#include "typetree.h"
 
 void error_at( const struct location *where, const char *s, ... )
 {
