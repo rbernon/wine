@@ -441,6 +441,7 @@ SAFEARRAY{ws}*/\(	return tSAFEARRAY;
     \"(\\.|[^"\\])*\"                           { return token_str( aSTRING, yytext, yylval ); }
     \'(\\.|[^'\\])*\'                           { return token_str( aSQSTRING, yytext, yylval ); }
 
+    \/\/[^\n]*\n                                { end_of_line( yylloc ); }
     \n                                          { end_of_line( yylloc ); }
     {ws}                                        {}
     \<\<                                        { return SHL; }
