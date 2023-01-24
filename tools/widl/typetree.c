@@ -687,9 +687,6 @@ static unsigned int compute_method_indexes(type_t *iface)
     unsigned int idx;
     statement_t *stmt;
 
-    if (!iface->details.iface)
-        return 0;
-
     if (type_iface_get_inherit(iface))
         idx = compute_method_indexes(type_iface_get_inherit(iface));
     else
@@ -723,14 +720,13 @@ type_t *type_interface_define(type_t *iface, attr_list_t *attrs, type_t *inherit
         error_loc("interface %s can't inherit from itself\n",
                   iface->name);
     iface->attrs = check_interface_attrs(iface->name, attrs);
-    iface->details.iface = xmalloc(sizeof(*iface->details.iface));
-    iface->details.iface->disp_props = NULL;
-    iface->details.iface->disp_methods = NULL;
-    iface->details.iface->stmts = stmts;
-    iface->details.iface->inherit = inherit;
-    iface->details.iface->disp_inherit = NULL;
-    iface->details.iface->async_iface = NULL;
-    iface->details.iface->requires = requires;
+    iface->details.iface.disp_props = NULL;
+    iface->details.iface.disp_methods = NULL;
+    iface->details.iface.stmts = stmts;
+    iface->details.iface.inherit = inherit;
+    iface->details.iface.disp_inherit = NULL;
+    iface->details.iface.async_iface = NULL;
+    iface->details.iface.requires = requires;
     iface->defined = TRUE;
     compute_method_indexes(iface);
     return iface;
@@ -751,15 +747,14 @@ type_t *type_dispinterface_define(type_t *iface, attr_list_t *attrs, var_list_t 
         error_loc( "dispinterface %s already defined at %s:%d\n", iface->name,
                    iface->where.input_name, iface->where.first_line );
     iface->attrs = check_dispiface_attrs(iface->name, attrs);
-    iface->details.iface = xmalloc(sizeof(*iface->details.iface));
-    iface->details.iface->disp_props = props;
-    iface->details.iface->disp_methods = methods;
-    iface->details.iface->stmts = NULL;
-    iface->details.iface->inherit = find_type("IDispatch", NULL, 0);
-    if (!iface->details.iface->inherit) error_loc("IDispatch is undefined\n");
-    iface->details.iface->disp_inherit = NULL;
-    iface->details.iface->async_iface = NULL;
-    iface->details.iface->requires = NULL;
+    iface->details.iface.disp_props = props;
+    iface->details.iface.disp_methods = methods;
+    iface->details.iface.stmts = NULL;
+    iface->details.iface.inherit = find_type("IDispatch", NULL, 0);
+    if (!iface->details.iface.inherit) error_loc("IDispatch is undefined\n");
+    iface->details.iface.disp_inherit = NULL;
+    iface->details.iface.async_iface = NULL;
+    iface->details.iface.requires = NULL;
     iface->defined = TRUE;
     compute_method_indexes(iface);
     return iface;
@@ -771,15 +766,14 @@ type_t *type_dispinterface_define_from_iface(type_t *dispiface, attr_list_t *att
         error_loc( "dispinterface %s already defined at %s:%d\n", dispiface->name,
                    dispiface->where.input_name, dispiface->where.first_line );
     dispiface->attrs = check_dispiface_attrs(dispiface->name, attrs);
-    dispiface->details.iface = xmalloc(sizeof(*dispiface->details.iface));
-    dispiface->details.iface->disp_props = NULL;
-    dispiface->details.iface->disp_methods = NULL;
-    dispiface->details.iface->stmts = NULL;
-    dispiface->details.iface->inherit = find_type("IDispatch", NULL, 0);
-    if (!dispiface->details.iface->inherit) error_loc("IDispatch is undefined\n");
-    dispiface->details.iface->disp_inherit = iface;
-    dispiface->details.iface->async_iface = NULL;
-    dispiface->details.iface->requires = NULL;
+    dispiface->details.iface.disp_props = NULL;
+    dispiface->details.iface.disp_methods = NULL;
+    dispiface->details.iface.stmts = NULL;
+    dispiface->details.iface.inherit = find_type("IDispatch", NULL, 0);
+    if (!dispiface->details.iface.inherit) error_loc("IDispatch is undefined\n");
+    dispiface->details.iface.disp_inherit = iface;
+    dispiface->details.iface.async_iface = NULL;
+    dispiface->details.iface.requires = NULL;
     dispiface->defined = TRUE;
     compute_method_indexes(dispiface);
     return dispiface;
@@ -926,15 +920,14 @@ type_t *type_delegate_define(type_t *delegate, attr_list_t *attrs, statement_lis
 
     iface = make_type(TYPE_INTERFACE);
     iface->attrs = delegate->attrs;
-    iface->details.iface = xmalloc(sizeof(*iface->details.iface));
-    iface->details.iface->disp_props = NULL;
-    iface->details.iface->disp_methods = NULL;
-    iface->details.iface->stmts = stmts;
-    iface->details.iface->inherit = find_type("IUnknown", NULL, 0);
-    if (!iface->details.iface->inherit) error_loc("IUnknown is undefined\n");
-    iface->details.iface->disp_inherit = NULL;
-    iface->details.iface->async_iface = NULL;
-    iface->details.iface->requires = NULL;
+    iface->details.iface.disp_props = NULL;
+    iface->details.iface.disp_methods = NULL;
+    iface->details.iface.stmts = stmts;
+    iface->details.iface.inherit = find_type("IUnknown", NULL, 0);
+    if (!iface->details.iface.inherit) error_loc("IUnknown is undefined\n");
+    iface->details.iface.disp_inherit = NULL;
+    iface->details.iface.async_iface = NULL;
+    iface->details.iface.requires = NULL;
     iface->defined = TRUE;
     compute_method_indexes(iface);
 
@@ -971,14 +964,13 @@ type_t *type_parameterized_interface_define(type_t *type, attr_list_t *attrs, ty
     type->attrs = check_interface_attrs(type->name, attrs);
 
     iface = type->details.parameterized.type;
-    iface->details.iface = xmalloc(sizeof(*iface->details.iface));
-    iface->details.iface->disp_props = NULL;
-    iface->details.iface->disp_methods = NULL;
-    iface->details.iface->stmts = stmts;
-    iface->details.iface->inherit = inherit;
-    iface->details.iface->disp_inherit = NULL;
-    iface->details.iface->async_iface = NULL;
-    iface->details.iface->requires = requires;
+    iface->details.iface.disp_props = NULL;
+    iface->details.iface.disp_methods = NULL;
+    iface->details.iface.stmts = stmts;
+    iface->details.iface.inherit = inherit;
+    iface->details.iface.disp_inherit = NULL;
+    iface->details.iface.async_iface = NULL;
+    iface->details.iface.requires = requires;
 
     iface->name = type->name;
 
@@ -1012,15 +1004,14 @@ type_t *type_parameterized_delegate_define(type_t *type, attr_list_t *attrs, sta
     delegate->details.delegate.iface = make_type(TYPE_INTERFACE);
 
     iface = delegate->details.delegate.iface;
-    iface->details.iface = xmalloc(sizeof(*iface->details.iface));
-    iface->details.iface->disp_props = NULL;
-    iface->details.iface->disp_methods = NULL;
-    iface->details.iface->stmts = stmts;
-    iface->details.iface->inherit = find_type("IUnknown", NULL, 0);
-    if (!iface->details.iface->inherit) error_loc("IUnknown is undefined\n");
-    iface->details.iface->disp_inherit = NULL;
-    iface->details.iface->async_iface = NULL;
-    iface->details.iface->requires = NULL;
+    iface->details.iface.disp_props = NULL;
+    iface->details.iface.disp_methods = NULL;
+    iface->details.iface.stmts = stmts;
+    iface->details.iface.inherit = find_type("IUnknown", NULL, 0);
+    if (!iface->details.iface.inherit) error_loc("IUnknown is undefined\n");
+    iface->details.iface.disp_inherit = NULL;
+    iface->details.iface.async_iface = NULL;
+    iface->details.iface.requires = NULL;
 
     delegate->name = type->name;
     compute_delegate_iface_names(delegate, type, type->details.parameterized.params);
@@ -1202,15 +1193,13 @@ static type_t *replace_type_parameters_in_type(type_t *type, typeref_list_t *ori
 
 static void type_parameterized_interface_specialize(type_t *tmpl, type_t *iface, typeref_list_t *orig, typeref_list_t *repl)
 {
-    iface->details.iface = xmalloc(sizeof(*iface->details.iface));
-    iface->details.iface->disp_methods = NULL;
-    iface->details.iface->disp_props = NULL;
-    iface->details.iface->stmts = replace_type_parameters_in_statement_list( tmpl->details.iface->stmts,
-                                                                             orig, repl, &tmpl->where );
-    iface->details.iface->inherit = replace_type_parameters_in_type(tmpl->details.iface->inherit, orig, repl);
-    iface->details.iface->disp_inherit = NULL;
-    iface->details.iface->async_iface = NULL;
-    iface->details.iface->requires = NULL;
+    iface->details.iface.disp_methods = NULL;
+    iface->details.iface.disp_props = NULL;
+    iface->details.iface.stmts = replace_type_parameters_in_statement_list(tmpl->details.iface.stmts, orig, repl, &tmpl->loc_info);
+    iface->details.iface.inherit = replace_type_parameters_in_type(tmpl->details.iface.inherit, orig, repl);
+    iface->details.iface.disp_inherit = NULL;
+    iface->details.iface.async_iface = NULL;
+    iface->details.iface.requires = NULL;
 }
 
 static void type_parameterized_delegate_specialize(type_t *tmpl, type_t *delegate, typeref_list_t *orig, typeref_list_t *repl)
