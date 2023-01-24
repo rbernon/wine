@@ -52,7 +52,7 @@ static void write_client_func_decl( const type_t *iface, const var_t *func )
     const decl_spec_t *rettype = type_function_get_ret(func->declspec.type);
 
     if (!callconv) callconv = "__cdecl";
-    write_type_decl_left(client, rettype);
+    write_declspec(client, rettype, NULL);
     fprintf(client, " %s ", callconv);
     fprintf(client, "%s%s(\n", prefix_client, get_name(func));
     indent++;

@@ -4861,31 +4861,36 @@ void write_func_param_struct( FILE *file, const type_t *iface, const type_t *fun
 
     if (args) LIST_FOR_EACH_ENTRY( arg, args, const var_t, entry )
     {
+        decl_spec_t declspec = arg->declspec;
         print_file(file, 2, "%s", "");
-        write_type_decl_left( file, &arg->declspec );
-        if (needs_space_after( arg->declspec.type )) fputc( ' ', file );
-        if (is_array( arg->declspec.type ) && !type_array_is_decl_as_ptr( arg->declspec.type )) fputc( '*', file );
+
+        if (is_array( declspec.type ) && !type_array_is_decl_as_ptr( declspec.type ))
+            declspec.type = type_new_pointer(type_array_get_element(declspec.type)->type);
 
         /* FIXME: should check for large args being passed by pointer */
         align = 0;
-        if (is_array( arg->declspec.type ) || is_ptr( arg->declspec.type )) align = pointer_size;
-        else type_memsize_and_alignment( arg->declspec.type, &align );
+        if (is_array( declspec.type ) || is_ptr( declspec.type )) align = pointer_size;
+        else type_memsize_and_alignment( declspec.type, &align );
 
-        if (align < pointer_size)
-            fprintf( file, "DECLSPEC_ALIGN(%u) ", pointer_size );
-        fprintf( file, "%s;\n", arg->name );
+        if (align >= pointer_size) write_declspec( file, &declspec, arg->name );
+        else write_declspec( file, &declspec, strmake( "DECLSPEC_ALIGN(%u) %s", pointer_size, arg->name ) );
+        fprintf( file, ";\n" );
     }
     if (add_retval && !is_void( retval->declspec.type ))
     {
+        decl_spec_t declspec = retval->declspec;
         print_file(file, 2, "%s", "");
-        write_type_decl_left( file, &retval->declspec );
-        if (needs_space_after( retval->declspec.type )) fputc( ' ', file );
-        if (!is_array( retval->declspec.type ) && !is_ptr( retval->declspec.type ) &&
-            type_memsize( retval->declspec.type ) != pointer_size)
-        {
-            fprintf( file, "DECLSPEC_ALIGN(%u) ", pointer_size );
-        }
-        fprintf( file, "%s;\n", retval->name );
+
+        if (is_array( declspec.type ) && !type_array_is_decl_as_ptr( declspec.type ))
+            declspec.type = type_new_pointer(type_array_get_element(declspec.type)->type);
+
+        if (is_array( declspec.type ) || is_ptr( declspec.type )) align = pointer_size;
+        else if (type_memsize( declspec.type ) == pointer_size) align = pointer_size;
+        else align = 0;
+
+        if (align >= pointer_size) write_declspec( file, &declspec, retval->name );
+        else write_declspec( file, &declspec, strmake( "DECLSPEC_ALIGN(%u) %s", pointer_size, retval->name ) );
+        fprintf( file, ";\n" );
     }
     print_file(file, 1, "} %s;\n", var_decl );
     if (needs_packing) print_file( file, 0, "#include <poppack.h>\n" );
@@ -4927,12 +4932,12 @@ int write_expr_eval_routines(FILE *file, const char *iface)
         }
         else
         {
-            decl_spec_t ds = {.type = (type_t *)eval->cont_type};
+            decl_spec_t ds = {.type = type_new_pointer((type_t *)eval->cont_type)};
             print_file(file, 1, "%s", "");
-            write_type_decl_left(file, &ds);
-            fprintf(file, " *%s = (", var_name);
-            write_type_decl_left(file, &ds);
-            fprintf(file, " *)(pStubMsg->StackTop - %u);\n", eval->baseoff);
+            write_declspec(file, &ds, var_name);
+            fprintf(file, "= (");
+            write_declspec(file, &ds, NULL);
+            fprintf(file, ")(pStubMsg->StackTop - %u);\n", eval->baseoff);
         }
         print_file(file, 1, "pStubMsg->Offset = 0;\n"); /* FIXME */
         print_file(file, 1, "pStubMsg->MaxCount = (ULONG_PTR)");
@@ -5075,7 +5080,7 @@ void write_client_call_routine( FILE *file, const type_t *iface, const var_t *fu
     if (has_ret)
     {
         print_file( file, 1, "return (" );
-        write_type_decl_left(file, rettype);
+        write_declspec(file, rettype, NULL);
         fprintf( file, ")%s;\n", pointer_size == 8 ? "_RetVal.Simple" : "*(LONG_PTR *)&_RetVal" );
     }
     print_file( file, 0, "}\n\n");
