@@ -1,5 +1,4 @@
 PROGRAMS = widl
-PARENTSRC = ../wrc
 
 SOURCES = \
 	attribute.c \
