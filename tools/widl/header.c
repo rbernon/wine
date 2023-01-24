@@ -1855,7 +1855,7 @@ static void write_com_interface_end(FILE *header, type_t *iface)
     if (uuid) put_guid( dispinterface ? "DIID" : "IID", iface->c_name, uuid );
 
     /* C++ interface */
-    fprintf( header, "#if defined(__cplusplus) && !defined(CINTERFACE)\n" );
+    put_line( "#if defined(__cplusplus) && !defined(CINTERFACE)" );
     if (!is_global_namespace( iface->namespace ))
     {
         put_line( "} /* extern \"C\" */" );
@@ -1870,29 +1870,29 @@ static void write_com_interface_end(FILE *header, type_t *iface)
     else
     {
         indent( header, 0 );
-        if (strchr( iface->name, '<' )) fprintf( header, "template<> struct " );
-        else fprintf( header, "interface " );
+        if (strchr( iface->name, '<' )) put_str( "template<> struct " );
+        else put_str( "interface " );
     }
     if (iface->impl_name)
     {
-        fprintf( header, "%s : %s\n", iface->name, iface->impl_name );
+        put_line( "%s : %s", iface->name, iface->impl_name );
         put_line( "{" );
     }
     else if (type_iface_get_inherit( iface ))
     {
-        fprintf( header, "%s : public %s\n", iface->name, type_iface_get_inherit( iface )->name );
+        put_line( "%s : public %s", iface->name, type_iface_get_inherit( iface )->name );
         put_line( "{" );
     }
     else
     {
-        fprintf( header, "%s\n", iface->name );
-        put_line( "{\n" );
-        put_line( "BEGIN_INTERFACE\n" );
+        put_line( "%s", iface->name );
+        put_line( "{" );
+        put_line( "BEGIN_INTERFACE" );
     }
     /* dispinterfaces don't have real functions, so don't write C++ functions for
      * them */
     if (!dispinterface && !iface->impl_name) put_cpp_method_def( header, iface );
-    if (!type_iface_get_inherit( iface ) && !iface->impl_name) put_line( "END_INTERFACE\n" );
+    if (!type_iface_get_inherit( iface ) && !iface->impl_name) put_line( "END_INTERFACE" );
     put_line( "};" );
     if (!is_global_namespace( iface->namespace ))
     {
@@ -1900,42 +1900,43 @@ static void write_com_interface_end(FILE *header, type_t *iface)
         put_line( "extern \"C\" {" );
     }
     if (uuid) put_uuid_decl( iface, uuid );
-    fprintf( header, "#else\n" );
+    put_line( "#else" );
     /* C interface */
     put_line( "typedef struct %sVtbl {", iface->c_name );
-    put_line( "BEGIN_INTERFACE\n" );
+    put_line( "BEGIN_INTERFACE" );
     if (dispinterface) put_c_disp_method_def( header, iface );
     else put_c_method_def( header, iface );
     put_line( "END_INTERFACE" );
-    put_line( "} %sVtbl;\n", iface->c_name );
-    fprintf( header, "interface %s {\n", iface->c_name );
-    fprintf( header, "    CONST_VTBL %sVtbl* lpVtbl;\n", iface->c_name );
-    fprintf( header, "};\n\n" );
-    fprintf( header, "#ifdef COBJMACROS\n" );
+    put_line( "} %sVtbl;", iface->c_name );
+    put_line( "interface %s {", iface->c_name );
+    put_line( "    CONST_VTBL %sVtbl* lpVtbl;", iface->c_name );
+    put_line( "};" );
+    put_line( "" );
+    put_line( "#ifdef COBJMACROS" );
     /* dispinterfaces don't have real functions, so don't write macros for them,
      * only for the interface this interface inherits from, i.e. IDispatch */
-    fprintf( header, "#ifndef WIDL_C_INLINE_WRAPPERS\n" );
+    put_line( "#ifndef WIDL_C_INLINE_WRAPPERS" );
     type = dispinterface ? type_iface_get_inherit( iface ) : iface;
     put_method_macro( header, type, type, iface->c_name );
-    fprintf( header, "#else\n" );
+    put_line( "#else" );
     put_inline_wrappers( header, type, type, iface->c_name );
-    fprintf( header, "#endif\n" );
+    put_line( "#endif" );
     if (winrt_mode) put_widl_using_macros( iface );
-    fprintf( header, "#endif\n" );
-    fprintf( header, "\n" );
-    fprintf( header, "#endif\n" );
-    fprintf( header, "\n" );
+    put_line( "#endif" );
+    put_line( "" );
+    put_line( "#endif" );
+    put_line( "" );
     /* dispinterfaces don't have real functions, so don't write prototypes for
      * them */
     if (!dispinterface && !winrt_mode)
     {
         put_method_proto( header, iface );
         put_locals( header, iface, FALSE );
-        fprintf( header, "\n" );
+        put_line( "" );
     }
-    fprintf( header, "#endif  /* __%s_%sINTERFACE_DEFINED__ */\n", iface->c_name, dispinterface ? "DISP" : "" );
+    put_line( "#endif  /* __%s_%sINTERFACE_DEFINED__ */", iface->c_name, dispinterface ? "DISP" : "" );
     if (contract) put_apicontract_guard_end( contract );
-    fprintf( header, "\n" );
+    put_line( "" );
 
     fputs( (char *)output_buffer, header );
     free( output_buffer );
