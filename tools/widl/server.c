@@ -258,55 +258,46 @@ static void write_function_stubs(type_t *iface, unsigned int *proc_offset)
     }
 }
 
-
-static void write_dispatchtable(type_t *iface)
+static void put_dispatch_table( type_t *iface )
 {
     unsigned int ver = get_attrv(iface->attrs, ATTR_VERSION);
     unsigned int method_count = 0;
     const statement_t *stmt;
 
-    print_server("static RPC_DISPATCH_FUNCTION %s_table[] =\n", iface->name);
-    print_server("{\n");
-    indent++;
-
+    put_line( "static RPC_DISPATCH_FUNCTION %s_table[] =", iface->name );
+    put_line( "{" );
     STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts(iface) )
     {
         var_t *func = stmt->u.var;
-        if (is_interpreted_func( iface, func ))
-            print_server("%s,\n", get_stub_mode() == MODE_Oif ? "NdrServerCall2" : "NdrServerCall");
-        else
-            print_server("%s_%s,\n", iface->name, get_name(func));
+        if (!is_interpreted_func( iface, func )) put_line( "%s_%s,", iface->name, get_name( func ) );
+        else put_line( "%s,", get_stub_mode() == MODE_Oif ? "NdrServerCall2" : "NdrServerCall" );
         method_count++;
     }
-    print_server("0\n");
-    indent--;
-    print_server("};\n");
-    print_server("static RPC_DISPATCH_TABLE %s_v%d_%d_DispatchTable =\n", iface->name, MAJORVERSION(ver), MINORVERSION(ver));
-    print_server("{\n");
-    indent++;
-    print_server("%u,\n", method_count);
-    print_server("%s_table\n", iface->name);
-    indent--;
-    print_server("};\n");
-    fprintf(server, "\n");
+    put_line( "0" );
+    put_line( "};" );
+    put_line( "static RPC_DISPATCH_TABLE %s_v%d_%d_DispatchTable =", iface->name,
+              MAJORVERSION( ver ), MINORVERSION( ver ) );
+    put_line( "{" );
+    put_line( "%u,", method_count );
+    put_line( "%s_table", iface->name );
+    put_line( "};" );
+    put_line( "" );
 }
 
-
-static void write_routinetable(type_t *iface)
+static void put_routine_table( type_t *iface )
 {
     const statement_t *stmt;
 
-    print_server( "static const SERVER_ROUTINE %s_ServerRoutineTable[] =\n", iface->name );
-    print_server( "{\n" );
-    indent++;
+    put_line( "static const SERVER_ROUTINE %s_ServerRoutineTable[] =", iface->name );
+    put_line( "{" );
     STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts(iface) )
     {
         var_t *func = stmt->u.var;
         if (is_local( func->attrs )) continue;
-        print_server( "(void *)%s%s,\n", prefix_server, get_name(func));
+        put_line( "(void *)%s%s,", prefix_server, get_name( func ) );
     }
-    indent--;
-    print_server( "};\n\n" );
+    put_line( "};" );
+    put_line( "" );
 }
 
 
@@ -329,22 +320,20 @@ static void write_rundown_routines(void)
     print_server( "};\n\n" );
 }
 
-
-static void write_serverinfo(type_t *iface)
+static void put_server_info( type_t *iface )
 {
-    print_server( "static const MIDL_SERVER_INFO %s_ServerInfo =\n", iface->name );
-    print_server( "{\n" );
-    indent++;
-    print_server( "&%s_StubDesc,\n", iface->name );
-    print_server( "%s_ServerRoutineTable,\n", iface->name );
-    print_server( "__MIDL_ProcFormatString.Format,\n" );
-    print_server( "%s_FormatStringOffsetTable,\n", iface->name );
-    print_server( "0,\n" );
-    print_server( "0,\n" );
-    print_server( "0,\n" );
-    print_server( "0\n" );
-    indent--;
-    print_server( "};\n\n" );
+    put_line( "static const MIDL_SERVER_INFO %s_ServerInfo =", iface->name );
+    put_line( "{" );
+    put_line( "&%s_StubDesc,", iface->name );
+    put_line( "%s_ServerRoutineTable,", iface->name );
+    put_line( "__MIDL_ProcFormatString.Format," );
+    put_line( "%s_FormatStringOffsetTable,", iface->name );
+    put_line( "0," );
+    put_line( "0," );
+    put_line( "0," );
+    put_line( "0" );
+    put_line( "};" );
+    put_line( "" );
 }
 
 
@@ -354,45 +343,36 @@ static void write_stubdescdecl(type_t *iface)
     fprintf(server, "\n");
 }
 
-
-static void write_stubdescriptor(type_t *iface, int expr_eval_routines)
+static void put_stub_desc( type_t *iface, int expr_eval_routines )
 {
-    print_server("static const MIDL_STUB_DESC %s_StubDesc =\n", iface->name);
-    print_server("{\n");
-    indent++;
-    print_server("(void *)& %s___RpcServerInterface,\n", iface->name);
-    print_server("MIDL_user_allocate,\n");
-    print_server("MIDL_user_free,\n");
-    print_server("{\n");
-    indent++;
-    print_server("0,\n");
-    indent--;
-    print_server("},\n");
-    if (!list_empty( &context_handle_list ))
-        print_server("RundownRoutines,\n");
-    else
-        print_server("0,\n");
-    print_server("0,\n");
-    if (expr_eval_routines)
-        print_server("ExprEvalRoutines,\n");
-    else
-        print_server("0,\n");
-    print_server("0,\n");
-    print_server("__MIDL_TypeFormatString.Format,\n");
-    print_server("1, /* -error bounds_check flag */\n");
-    print_server("0x%x, /* Ndr library version */\n", get_stub_mode() == MODE_Oif ? 0x50002 : 0x10001);
-    print_server("0,\n");
-    print_server("0x50200ca, /* MIDL Version 5.2.202 */\n");
-    print_server("0,\n");
-    print_server("%s,\n", list_empty(&user_type_list) ? "0" : "UserMarshalRoutines");
-    print_server("0,  /* notify & notify_flag routine table */\n");
-    print_server("1,  /* Flags */\n");
-    print_server("0,  /* Reserved3 */\n");
-    print_server("0,  /* Reserved4 */\n");
-    print_server("0   /* Reserved5 */\n");
-    indent--;
-    print_server("};\n");
-    fprintf(server, "\n");
+    put_line( "static const MIDL_STUB_DESC %s_StubDesc =", iface->name );
+    put_line( "{" );
+    put_line( "(void *)& %s___RpcServerInterface,", iface->name );
+    put_line( "MIDL_user_allocate," );
+    put_line( "MIDL_user_free," );
+    put_line( "{" );
+    put_line( "0," );
+    put_line( "}," );
+    if (list_empty( &context_handle_list )) put_line( "0," );
+    else put_line( "RundownRoutines," );
+    put_line( "0," );
+    if (!expr_eval_routines) put_line( "0," );
+    else put_line( "ExprEvalRoutines," );
+    put_line( "0," );
+    put_line( "__MIDL_TypeFormatString.Format," );
+    put_line( "1, /* -error bounds_check flag */" );
+    put_line( "0x%x, /* Ndr library version */", get_stub_mode() == MODE_Oif ? 0x50002 : 0x10001 );
+    put_line( "0," );
+    put_line( "0x50200ca, /* MIDL Version 5.2.202 */" );
+    put_line( "0," );
+    put_line( "%s,", list_empty( &user_type_list ) ? "0" : "UserMarshalRoutines" );
+    put_line( "0,  /* notify & notify_flag routine table */" );
+    put_line( "1,  /* Flags */" );
+    put_line( "0,  /* Reserved3 */" );
+    put_line( "0,  /* Reserved4 */" );
+    put_line( "0   /* Reserved5 */" );
+    put_line( "};" );
+    put_line( "" );
 }
 
 
@@ -471,10 +451,14 @@ static void write_server_stmts(const statement_list_t *stmts, int expr_eval_rout
 
                 fprintf(server, "\n");
                 write_procformatstring_offsets( server, iface );
-                write_stubdescriptor(iface, expr_eval_routines);
-                write_dispatchtable(iface);
-                write_routinetable(iface);
-                write_serverinfo(iface);
+
+                init_output_buffer();
+                put_stub_desc( iface, expr_eval_routines );
+                put_dispatch_table( iface );
+                put_routine_table( iface );
+                put_server_info( iface );
+                fputs( (char *)output_buffer, server );
+                free( output_buffer );
             }
         }
     }
