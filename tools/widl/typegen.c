@@ -1398,7 +1398,6 @@ static void write_proc_func_header( FILE *file, int indent, const type_t *iface,
         nb_args++;
     }
 
-    print_file( file, 0, "/* %u (procedure %s::%s) */\n", *offset, iface->name, func->name );
     print_file( file, indent, "0x%02x,\t/* %s */\n", implicit_fc,
                 implicit_fc ? string_of_type(implicit_fc) : "explicit handle" );
     print_file( file, indent, "0x%02x,\n", oi_flags );
@@ -1498,7 +1497,11 @@ static void write_procformatstring_func( FILE *file, int indent, const type_t *i
     int is_new_style = is_interpreted && (get_stub_mode() == MODE_Oif);
     var_t *retval = type_function_get_retval( func->declspec.type );
 
-    if (is_interpreted) write_proc_func_header( file, indent, iface, func, offset, num_proc );
+    if (is_interpreted)
+    {
+        print_file( file, 0, "/* %u (procedure %s::%s) */\n", *offset, iface->name, func->name );
+        write_proc_func_header( file, indent, iface, func, offset, num_proc );
+    }
 
     /* emit argument data */
     if (type_function_get_args(func->declspec.type))
