@@ -1151,63 +1151,69 @@ static void write_method_macro(FILE *header, const type_t *iface, const type_t *
   }
 }
 
-void write_args(FILE *h, const var_list_t *args, const char *name, int method, int do_indent, enum name_type name_type)
+void write_args(FILE *file, const var_list_t *args, const char *name, int method, int do_indent, enum name_type name_type)
 {
-  const var_t *arg;
-  int count = 0;
+    const var_t *arg;
+    int count = 0;
 
-  if (do_indent)
-  {
-      indentation++;
-      indent(h, 0);
-  }
-  if (method == 1) {
-    fprintf(h, "%s* This", name);
-    count++;
-  }
-  if (args) LIST_FOR_EACH_ENTRY( arg, args, const var_t, entry ) {
-    if (count) {
-        if (do_indent)
-        {
-            fprintf(h, ",\n");
-            indent(h, 0);
-        }
-        else fprintf(h, ",");
+    if (do_indent)
+    {
+        indentation++;
+        indent( file, 0 );
     }
-    /* In theory we should be writing the definition using write_declspec_full(..., arg->declonly),
-     * but that causes redefinition in e.g. proxy files. In fact MIDL disallows
-     * defining UDTs inside of an argument list. */
-    write_declspec_full( h, &arg->declspec, FALSE, TRUE, arg->name, name_type );
-    if (method == 2) {
-        const expr_t *expr = get_attrp(arg->attrs, ATTR_DEFAULTVALUE);
-        if (expr) {
-            const var_t *tail_arg;
+    if (method == 1)
+    {
+        fprintf( file, "%s* This", name );
+        count++;
+    }
+    if (args) LIST_FOR_EACH_ENTRY( arg, args, const var_t, entry )
+    {
+        if (count)
+        {
+            if (do_indent)
+            {
+                fprintf( file, ",\n" );
+                indent( file, 0 );
+            }
+            else fprintf( file, "," );
+        }
+        /* In theory we should be writing the definition using write_declspec_full(...,
+         * arg->declonly), but that causes redefinition in e.g. proxy files. In fact MIDL
+         * disallows defining UDTs inside of an argument list. */
+        write_declspec_full( file, &arg->declspec, FALSE, TRUE, arg->name, name_type );
+        if (method == 2)
+        {
+            const expr_t *expr = get_attrp( arg->attrs, ATTR_DEFAULTVALUE );
+            if (expr)
+            {
+                const var_t *tail_arg;
 
-            /* Output default value only if all following arguments also have default value. */
-            LIST_FOR_EACH_ENTRY_REV( tail_arg, args, const var_t, entry ) {
-                if(tail_arg == arg) {
-                    expr_t bstr;
-
-                    /* Fixup the expression type for a BSTR like midl does. */
-                    if (get_type_vt(arg->declspec.type) == VT_BSTR && expr->type == EXPR_STRLIT)
+                /* Output default value only if all following arguments also have default value. */
+                LIST_FOR_EACH_ENTRY_REV( tail_arg, args, const var_t, entry )
+                {
+                    if (tail_arg == arg)
                     {
-                        bstr = *expr;
-                        bstr.type = EXPR_WSTRLIT;
-                        expr = &bstr;
-                    }
+                        expr_t bstr;
 
-                    fprintf(h, " = ");
-                    write_expr( h, expr, 0, 1, NULL, NULL, "" );
-                    break;
+                        /* Fixup the expression type for a BSTR like midl does. */
+                        if (get_type_vt( arg->declspec.type ) == VT_BSTR && expr->type == EXPR_STRLIT)
+                        {
+                            bstr = *expr;
+                            bstr.type = EXPR_WSTRLIT;
+                            expr = &bstr;
+                        }
+
+                        fprintf( file, " = " );
+                        write_expr( file, expr, 0, 1, NULL, NULL, "" );
+                        break;
+                    }
+                    if (!get_attrp( tail_arg->attrs, ATTR_DEFAULTVALUE )) break;
                 }
-                if(!get_attrp(tail_arg->attrs, ATTR_DEFAULTVALUE))
-                    break;
             }
         }
+        count++;
     }
-    count++;
-  }
-  if (do_indent) indentation--;
+    if (do_indent) indentation--;
 }
 
 static void write_cpp_method_def(FILE *header, const type_t *iface)
