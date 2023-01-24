@@ -14,7 +14,7 @@ RC_SRCS = \
 	midl.rc
 
 LEX_SRCS = \
-	parser.l
+	idl.l
 
 BISON_SRCS = \
-	parser.y
+	idl.y
