@@ -39,12 +39,13 @@ user_type_list_t user_type_list = LIST_INIT(user_type_list);
 context_handle_list_t context_handle_list = LIST_INIT(context_handle_list);
 generic_handle_list_t generic_handle_list = LIST_INIT(generic_handle_list);
 
-static void write_type_v(FILE *f, const decl_spec_t *t, int is_field, bool define, const char *name, enum name_type name_type);
-
 static void write_apicontract_guard_start(FILE *header, const expr_t *expr);
 static void write_apicontract_guard_end(FILE *header, const expr_t *expr);
 
 static void write_widl_using_macros(FILE *header, type_t *iface);
+
+static void write_declspec_full( FILE *h, const decl_spec_t *ds, int is_field, int declonly,
+                                 const char *name, enum name_type name_type );
 
 static void indent(FILE *h, int delta)
 {
@@ -236,7 +237,7 @@ static void write_fields(FILE *h, var_list_t *fields, enum name_type name_type)
         default:
             ;
         }
-        write_type_v(h, &v->declspec, TRUE, v->is_defined, name, name_type);
+        write_declspec_full( h, &v->declspec, TRUE, v->is_defined, name, name_type );
         fprintf(h, ";\n");
         if (contract) write_apicontract_guard_end(h, contract);
     }
@@ -297,7 +298,8 @@ static void write_pointer_left(FILE *h, type_t *ref)
     fprintf(h, "*");
 }
 
-void write_type_left(FILE *h, const decl_spec_t *ds, enum name_type name_type, bool define, int write_callconv)
+static void write_type_left( FILE *h, const decl_spec_t *ds, enum name_type name_type,
+                             int is_defined, int write_callconv )
 {
   type_t *t = ds->type;
   const char *decl_name, *name;
@@ -490,7 +492,7 @@ void write_type_left(FILE *h, const decl_spec_t *ds, enum name_type name_type, b
   }
 }
 
-void write_type_right(FILE *h, type_t *t, int is_field)
+static void write_type_right( FILE *h, type_t *t, int is_field )
 {
   if (!h) return;
   if (type_is_alias(t)) return;
@@ -559,7 +561,8 @@ void write_type_right(FILE *h, type_t *t, int is_field)
   }
 }
 
-static void write_type_v(FILE *h, const decl_spec_t *ds, int is_field, bool define, const char *name, enum name_type name_type)
+static void write_declspec_full( FILE *h, const decl_spec_t *ds, int is_field, bool define, int declonly,
+                                 const char *name, enum name_type name_type )
 {
     type_t *t = ds->type;
 
@@ -569,8 +572,7 @@ static void write_type_v(FILE *h, const decl_spec_t *ds, int is_field, bool defi
 
     if (name) fprintf(h, "%s%s", !t || needs_space_after(t) ? " " : "", name );
 
-    if (t)
-        write_type_right(h, t, is_field);
+    if (t) write_type_right( h, t, is_field );
 }
 
 static void write_type_definition(FILE *f, type_t *t, bool define)
@@ -602,9 +604,9 @@ static void write_type_definition(FILE *f, type_t *t, bool define)
     if (contract) write_apicontract_guard_end(f, contract);
 }
 
-void write_type_decl(FILE *f, const decl_spec_t *t, const char *name)
+void write_declspec( FILE *h, const decl_spec_t *ds, const char *name )
 {
-    write_type_v(f, t, FALSE, false, name, NAME_DEFAULT);
+    write_declspec_full( h, ds, FALSE, TRUE, name, NAME_DEFAULT );
 }
 
 void write_type_decl_left(FILE *f, const decl_spec_t *ds)
@@ -837,7 +839,7 @@ static void write_typedef(FILE *header, type_t *type, bool define)
     {
         fprintf(header, "#ifndef __cplusplus\n");
         fprintf(header, "typedef ");
-        write_type_v(header, type_alias_get_aliasee(type), FALSE, define, type->c_name, NAME_C);
+        write_declspec_full( header, type_alias_get_aliasee( type ), FALSE, declonly, type->c_name, NAME_C );
         fprintf(header, ";\n");
         if (type_get_type_detect_alias(t) != TYPE_ENUM)
         {
@@ -845,7 +847,7 @@ static void write_typedef(FILE *header, type_t *type, bool define)
             if (t->namespace && !is_global_namespace(t->namespace)) write_namespace_start(header, t->namespace);
             indent(header, 0);
             fprintf(header, "typedef ");
-            write_type_v(header, type_alias_get_aliasee(type), FALSE, false, type->name, NAME_DEFAULT);
+            write_declspec_full( header, type_alias_get_aliasee( type ), FALSE, TRUE, type->name, NAME_DEFAULT );
             fprintf(header, ";\n");
             if (t->namespace && !is_global_namespace(t->namespace)) write_namespace_end(header, t->namespace);
         }
@@ -854,7 +856,7 @@ static void write_typedef(FILE *header, type_t *type, bool define)
     else
     {
         fprintf(header, "typedef ");
-        write_type_v(header, type_alias_get_aliasee(type), FALSE, define, type->name, NAME_DEFAULT);
+        write_declspec_full( header, type_alias_get_aliasee( type ), FALSE, declonly, type->name, NAME_DEFAULT );
         fprintf(header, ";\n");
     }
 }
@@ -899,7 +901,7 @@ static void write_declaration(FILE *header, const var_t *v)
         fprintf(header, "extern ");
         break;
     }
-    write_type_v(header, &v->declspec, FALSE, v->is_defined, v->name, NAME_DEFAULT);
+    write_declspec_full( header, &v->declspec, FALSE, v->declonly, v->name, NAME_DEFAULT );
     fprintf(header, ";\n\n");
   }
 }
@@ -1140,10 +1142,10 @@ void write_args(FILE *h, const var_list_t *args, const char *name, int method, i
         }
         else fprintf(h, ",");
     }
-    /* In theory we should be writing the definition using write_type_v(..., arg->define),
+    /* In theory we should be writing the definition using write_declspec_full(..., arg->declonly),
      * but that causes redefinition in e.g. proxy files. In fact MIDL disallows
      * defining UDTs inside of an argument list. */
-    write_type_v(h, &arg->declspec, FALSE, false, arg->name, name_type);
+    write_declspec_full( h, &arg->declspec, FALSE, TRUE, arg->name, name_type );
     if (method == 2) {
         const expr_t *expr = get_attrp(arg->attrs, ATTR_DEFAULTVALUE);
         if (expr) {
@@ -1415,7 +1417,7 @@ static void write_locals(FILE *fp, const type_t *iface, int body)
             fprintf(fp, "    return E_NOTIMPL;\n");
           else if (type_get_type(rt->type) != TYPE_VOID) {
             fprintf(fp, "    ");
-            write_type_decl(fp, rt, "rv");
+            write_declspec( fp, rt, "rv" );
             fprintf(fp, ";\n");
             fprintf(fp, "    memset(&rv, 0, sizeof rv);\n");
             fprintf(fp, "    return rv;\n");
@@ -1798,7 +1800,7 @@ static void write_rpc_interface_start(FILE *header, const type_t *iface)
   if (var)
   {
       fprintf(header, "extern ");
-      write_type_decl( header, &var->declspec, var->name );
+      write_declspec( header, &var->declspec, var->name );
       fprintf(header, ";\n");
   }
   if (old_names)
