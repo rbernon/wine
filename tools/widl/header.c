@@ -35,6 +35,7 @@
 
 static int indentation = 0;
 static int is_object_interface = 0;
+static const char *default_callconv;
 user_type_list_t user_type_list = LIST_INIT(user_type_list);
 context_handle_list_t context_handle_list = LIST_INIT(context_handle_list);
 generic_handle_list_t generic_handle_list = LIST_INIT(generic_handle_list);
@@ -2072,7 +2073,7 @@ static void write_header_stmts(FILE *header, const statement_list_t *stmts, cons
           type_t *iface = stmt->u.type, *async_iface;
           if (type_get_type(stmt->u.type) == TYPE_DELEGATE) iface = type_delegate_get_iface(iface);
           async_iface = type_iface_get_async_iface(iface);
-          if (is_object(iface)) is_object_interface++;
+          if (is_object(iface) && !is_object_interface++) default_callconv = "STDMETHODCALLTYPE";
           if (is_attr(stmt->u.type->attrs, ATTR_DISPINTERFACE) || is_object(stmt->u.type))
           {
             write_com_interface_start(header, iface);
@@ -2090,7 +2091,7 @@ static void write_header_stmts(FILE *header, const statement_list_t *stmts, cons
             write_header_stmts(header, type_iface_get_stmts(iface), iface, FALSE);
             write_rpc_interface_end(header, iface);
           }
-          if (is_object(iface)) is_object_interface--;
+          if (is_object(iface) && !--is_object_interface) default_callconv = NULL;
         }
         else if (type_get_type(stmt->u.type) == TYPE_COCLASS)
           write_coclass(header, stmt->u.type);
@@ -2102,9 +2103,9 @@ static void write_header_stmts(FILE *header, const statement_list_t *stmts, cons
           write_type_definition(header, stmt->u.type, stmt->is_defined);
         else
         {
-          is_object_interface++;
-          write_parameterized_implementation(header, stmt->u.type, stmt->is_defined);
-          is_object_interface--;
+          if (!is_object_interface++) default_callconv = "STDMETHODCALLTYPE";
+          write_parameterized_implementation(header, stmt->u.type, stmt->declonly);
+          if (!--is_object_interface) default_callconv = NULL;
         }
         break;
       case STMT_TYPEREF:
