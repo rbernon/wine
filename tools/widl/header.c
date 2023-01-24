@@ -1410,13 +1410,13 @@ static void write_cpp_method_def(FILE *header, const type_t *iface)
   }
 }
 
-static void write_inline_wrappers(FILE *header, const type_t *iface, const type_t *child, const char *name)
+static void put_inline_wrappers(FILE *header, const type_t *iface, const type_t *child, const char *name)
 {
     const statement_t *stmt;
     int first_iface = 1;
     const type_t *base;
 
-    if ((base = type_iface_get_inherit( iface ))) write_inline_wrappers( header, base, child, name );
+    if ((base = type_iface_get_inherit( iface ))) put_inline_wrappers( header, base, child, name );
 
     STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts( iface ) )
     {
@@ -1425,42 +1425,50 @@ static void write_inline_wrappers(FILE *header, const type_t *iface, const type_
 
         if (first_iface)
         {
-            fprintf( header, "/*** %s methods ***/\n", iface->name );
+            put_line( "/*** %s methods ***/", iface->name );
             first_iface = 0;
         }
 
         if (is_override_method( iface, child, func )) continue;
         if (is_callas( func->attrs )) continue;
 
-        fprintf( header, "static __WIDL_INLINE " );
-        write_declspec( header, type_function_get_ret( func->declspec.type ), NULL );
-        fprintf( header, " %s_%s(", name, get_name( func ) );
-        write_args( header, args, name, 1, FALSE, NAME_C );
-        fprintf( header, ") {\n" );
+        put_str( "static __WIDL_INLINE " );
+        put_declspec( header, type_function_get_ret( func->declspec.type ), NULL );
+        put_str( " %s_%s(", name, get_name( func ) );
+        put_args( header, args, name, 1, FALSE, NAME_C );
+        put_line( ") {" );
         ++indentation;
 
         if (!is_aggregate_return( func ))
         {
             indent( header, 0 );
-            fprintf( header, "%sThis->lpVtbl->%s(This",
+            put_str( "%sThis->lpVtbl->%s(This",
                      is_void( type_function_get_rettype( func->declspec.type ) ) ? "" : "return ",
                      get_vtbl_entry_name( iface, func ) );
         }
         else
         {
             indent( header, 0 );
-            write_declspec( header, type_function_get_ret( func->declspec.type ), NULL );
-            fprintf( header, " __ret;\n" );
+            put_declspec( header, type_function_get_ret( func->declspec.type ), NULL );
+            put_line( " __ret;" );
             indent( header, 0 );
-            fprintf( header, "return *This->lpVtbl->%s(This,&__ret", get_vtbl_entry_name( iface, func ) );
+            put_str( "return *This->lpVtbl->%s(This,&__ret", get_vtbl_entry_name( iface, func ) );
         }
         if (args) LIST_FOR_EACH_ENTRY( arg, args, const var_t, entry )
-            fprintf( header, ",%s", arg->name );
-        fprintf( header, ");\n" );
+            put_str( ",%s", arg->name );
+        put_line( ");" );
 
         --indentation;
-        fprintf( header, "}\n" );
+        put_line( "}" );
     }
+}
+
+static void write_inline_wrappers(FILE *header, const type_t *iface, const type_t *child, const char *name)
+{
+    init_output_buffer();
+    put_inline_wrappers(header, iface, child, name);
+    fputs( (char *)output_buffer, header );
+    free( output_buffer );
 }
 
 static void do_write_c_method_def(FILE *header, const type_t *iface, const char *name)
