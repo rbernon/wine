@@ -28,6 +28,13 @@
 
 static WCHAR midl_path[MAX_PATH];
 
+struct input
+{
+    struct list entry;
+    const WCHAR *name;
+    const char *text;
+};
+
 static BOOL midl_test_init(void)
 {
     const char *env = getenv( "WINEDLLOVERRIDES" );
@@ -119,9 +126,10 @@ static DWORD run_midl( const WCHAR *args, const WCHAR *cwd, enum midl_flags flag
     return exit_code;
 }
 
-static DWORD check_idl( const char *source, enum midl_flags flags )
+static DWORD check_idl( struct list *inputs, enum midl_flags flags )
 {
     WCHAR temp[MAX_PATH], args[5 * MAX_PATH], path[MAX_PATH], cwd[MAX_PATH];
+    struct input *in, *main = LIST_ENTRY( list_head( inputs ), struct input, entry );
     DWORD res;
 
     if (flags & MIDL_VERSION) trace( "Using MIDL from %s\n", debugstr_w(midl_path) );
@@ -132,18 +140,24 @@ static DWORD check_idl( const char *source, enum midl_flags flags )
     swprintf( cwd, ARRAY_SIZE(cwd), L"%s.dir", temp );
     CreateDirectoryW( cwd, NULL );
 
-    swprintf( path, ARRAY_SIZE(path), L"%s\\main.idl", cwd );
-    write_file( path, source );
+    LIST_FOR_EACH_ENTRY( in, inputs, struct input, entry )
+    {
+        swprintf( path, ARRAY_SIZE(path), L"%s\\%s", cwd, in->name );
+        write_file( path, in->text );
+    }
 
-    swprintf( args, ARRAY_SIZE(args), L"main.idl -nocpp -syntax_check" );
+    swprintf( args, ARRAY_SIZE(args), L"%s -I. -nocpp -syntax_check", main->name );
     if (!(flags & MIDL_VERSION)) wcscat( args, L" -nologo" );
     if (flags & MIDL_WERROR) wcscat( args, L" -W4 -WX" );
     if (flags & MIDL_WINRT) wcscat( args, L" -winrt -nomd -nomidl" );
 
     res = run_midl( args, cwd, flags );
 
-    swprintf( path, ARRAY_SIZE(path), L"%s\\main.idl", cwd );
-    DeleteFileW( path );
+    LIST_FOR_EACH_ENTRY( in, inputs, struct input, entry )
+    {
+        swprintf( path, ARRAY_SIZE(path), L"%s\\%s", cwd, in->name );
+        DeleteFileW( path );
+    }
 
     RemoveDirectoryW( cwd );
     DeleteFileW( temp );
@@ -191,86 +205,131 @@ static void test_cmdline(void)
 
 static void test_idl_parsing(void)
 {
-    const char *src;
+    struct input src = {.name = L"main.idl"}, unknwn = {.name = L"unknwn.idl"}, inspectable = {.name = L"inspectable.idl"};
+    struct list in = LIST_INIT( in );
     DWORD res;
 
+    list_add_tail( &in, &src.entry );
+
     /* check basic success */
-    src = "interface I;";
-    res = check_idl( src, MIDL_WERROR | MIDL_VERBOSE | MIDL_VERSION );
+    src.text = "interface I;";
+    res = check_idl( &in, MIDL_WERROR | MIDL_VERBOSE | MIDL_VERSION );
     todo_wine
     ok( !res, "MIDL failed, error %#lx\n", res );
 
     /* check basic failure */
-    src = "interface {}";
-    res = check_idl( src, 0 );
+    src.text = "interface {}";
+    res = check_idl( &in, 0 );
     ok( res, "MIDL succeeded\n" );
 
     /* winrt mode degrades automatically */
-    src = "interface I {}; coclass C { [default] interface I; }";
-    res = check_idl( src, MIDL_WERROR | MIDL_WINRT );
+    src.text = "interface I {}; coclass C { [default] interface I; }";
+    res = check_idl( &in, MIDL_WERROR | MIDL_WINRT );
     todo_wine
     ok( !res, "MIDL failed, error %#lx\n", res );
 
     /* legacy mode doesn't upgrade */
-    src = "namespace N {}";
-    res = check_idl( src, 0 );
+    src.text = "namespace N {}";
+    res = check_idl( &in, 0 );
     ok( res, "MIDL succeeded\n" );
-    res = check_idl( src, MIDL_WERROR | MIDL_WINRT );
+    res = check_idl( &in, MIDL_WERROR | MIDL_WINRT );
     ok( !res, "MIDL failed, error %#lx\n", res );
 
     /* colon is sometimes optional */
-    src = "[local]interface I1 {}\n"
-          "[local]interface I2 {};\n"
-          "[uuid(00000000-0000-0000-0000-000000000000)]coclass C1{interface I1;interface I2;};\n"
-          "[uuid(00000000-0000-0000-0000-000000000001)]coclass C2{interface I1;interface I2;}\n";
-    res = check_idl( src, MIDL_WERROR );
+    src.text = "[local]interface I1 {}\n"
+               "[local]interface I2 {};\n"
+               "[uuid(00000000-0000-0000-0000-000000000000)]coclass C1{interface I1;interface I2;};\n"
+               "[uuid(00000000-0000-0000-0000-000000000001)]coclass C2{interface I1;interface I2;}\n";
+    res = check_idl( &in, MIDL_WERROR );
     todo_wine
     ok( !res, "MIDL failed, error %#lx\n", res );
 
     /* attribute syntax is flexible */
-    src = "[hidden,][,][,,local,][,,][,helpstring(\"\")]"
-          "interface I{}";
-    res = check_idl( src, MIDL_WERROR );
+    src.text = "[hidden,][,][,,local,][,,][,helpstring(\"\")]"
+               "interface I{}";
+    res = check_idl( &in, MIDL_WERROR );
     ok( !res, "MIDL failed, error %#lx\n", res );
 
     /* allowed but ignored on forward definitions */
-    src = "[local][local]interface I{}";
-    res = check_idl( src, MIDL_WERROR );
+    src.text = "[local][local]interface I{}";
+    res = check_idl( &in, MIDL_WERROR );
     todo_wine
     ok( res, "MIDL succeeded\n" );
-    src = "[local][local]interface I;";
-    res = check_idl( src, MIDL_WERROR );
+    src.text = "[local][local]interface I;";
+    res = check_idl( &in, MIDL_WERROR );
     todo_wine
     ok( !res, "MIDL failed, error %#lx\n", res );
 
     /* warning: object needs IUnknown */
-    src = "[uuid(00000000-0000-0000-0000-000000000000),object]\n"
-          "interface I{}\n";
-    res = check_idl( src, 0 );
+    src.text = "[uuid(00000000-0000-0000-0000-000000000000),object]\n"
+               "interface I{}\n";
+    res = check_idl( &in, 0 );
     todo_wine
     ok( !res, "MIDL failed, error %#lx\n", res );
-    res = check_idl( src, MIDL_WERROR );
+    res = check_idl( &in, MIDL_WERROR );
     todo_wine
     ok( res, "MIDL succeeded\n" );
 
     /* needs a unique uuid */
-    src = "[uuid(00000000-0000-0000-0000-000000000000),object]\n"
-          "interface IUnknown{}\n"
-          "[uuid(00000000-0000-0000-0000-000000000000),object]\n"
-          "interface I:IUnknown{}\n";
-    res = check_idl( src, 0 );
+    src.text = "[uuid(00000000-0000-0000-0000-000000000000),object]\n"
+               "interface IUnknown{}\n"
+               "[uuid(00000000-0000-0000-0000-000000000000),object]\n"
+               "interface I:IUnknown{}\n";
+    res = check_idl( &in, 0 );
     todo_wine
     ok( res, "MIDL succeeded\n" );
 
-    src = "[uuid(00000000-0000-0000-0000-000000000000),object]\n"
-          "interface IUnknown{}\n"
-          "[uuid(00000000-0000-0000-0000-000000000001),object]\n"
-          "interface I:IUnknown{}\n"
-          "[uuid(00000000-0000-0000-0000-000000000002),object]\n"
-          "interface J:I{}\n";
-    res = check_idl( src, 0 );
+    src.text = "[uuid(00000000-0000-0000-0000-000000000000),object]\n"
+               "interface IUnknown{}\n"
+               "[uuid(00000000-0000-0000-0000-000000000001),object]\n"
+               "interface I:IUnknown{}\n"
+               "[uuid(00000000-0000-0000-0000-000000000002),object]\n"
+               "interface J:I{}\n";
+    res = check_idl( &in, 0 );
     todo_wine
     ok( !res, "MIDL failed, error %#lx\n", res );
+
+    unknwn.text = "[uuid(00000000-0000-0000-0000-000000000000),object]"
+                  "interface IUnknown{}";
+    list_add_tail( &in, &unknwn.entry );
+
+    inspectable.text = "import\"unknwn.idl\";"
+                       "[uuid(00000000-0000-0000-0000-000000000001),object]"
+                       "interface IInspectable:IUnknown{}";
+    list_add_tail( &in, &inspectable.entry );
+
+    /* winrt requires IInspectable for all */
+    src.text = "import\"inspectable.idl\";\n"
+               "namespace N {\n"
+               "[uuid(00000000-0000-0000-0000-000000000002),version(1)]\n"
+               "interface I:IInspectable{}\n"
+               "}\n";
+    res = check_idl( &in, MIDL_WINRT | MIDL_WERROR );
+    ok( !res, "MIDL failed, error %#lx\n", res );
+    src.text = "import\"inspectable.idl\";\n"
+               "namespace N {\n"
+               "[uuid(00000000-0000-0000-0000-000000000002),version(1)]\n"
+               "interface I:IInspectable{}\n"
+               "[uuid(00000000-0000-0000-0000-000000000003),version(1)]\n"
+               "interface J:I{}\n"
+               "}\n";
+    res = check_idl( &in, MIDL_WINRT );
+    todo_wine
+    ok( res, "MIDL succeeded\n" );
+
+    /* warning: cannot mix non-winrt interface definition */
+    src.text = "import\"inspectable.idl\";\n"
+               "[uuid(00000000-0000-0000-0000-000000000002),object]\n"
+               "interface I:IUnknown{}\n"
+               "namespace N {\n"
+               "[uuid(00000000-0000-0000-0000-000000000003),version(1)]\n"
+               "interface J:IInspectable{}\n"
+               "}\n";
+    res = check_idl( &in, MIDL_WINRT );
+    ok( !res, "MIDL failed, error %#lx\n", res );
+    res = check_idl( &in, MIDL_WINRT | MIDL_WERROR );
+    todo_wine
+    ok( res, "MIDL succeeded\n" );
 }
 
 START_TEST( midl )
