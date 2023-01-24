@@ -90,48 +90,95 @@ enum midl_flags
     MIDL_VERSION = 2,
 };
 
-static DWORD check_idl( const char *source, enum midl_flags flags )
+static DWORD run_midl( const WCHAR *args, const WCHAR *cwd, enum midl_flags flags )
 {
-    WCHAR temp[MAX_PATH], cmd[5 * MAX_PATH], path[MAX_PATH], dir[MAX_PATH];
     STARTUPINFOW si = {.cb = sizeof(STARTUPINFOW)};
     PROCESS_INFORMATION pi = {0};
+    WCHAR cmd[5 * MAX_PATH];
     DWORD res, exit_code;
     BOOL ret;
+
+    swprintf( cmd, ARRAY_SIZE(cmd), L"\"%s\\midl.exe\" %s", midl_path, args );
+    if (flags & MIDL_VERBOSE) trace( "Running %s\n", debugstr_w(cmd) );
+
+    ret = CreateProcessW( NULL, cmd, NULL, NULL, FALSE, 0, NULL, cwd, &si, &pi );
+    ok( ret, "CreateProcessW failed, error %lu\n", GetLastError() );
+    res = WaitForSingleObject( pi.hProcess, 1000 );
+    ok( !res, "WaitForSingleObject returned %#lx\n", res );
+    ret = GetExitCodeProcess( pi.hProcess, &exit_code );
+    ok( ret, "GetExitCodeProcess failed, error %lu\n", GetLastError() );
+    CloseHandle( pi.hThread );
+    CloseHandle( pi.hProcess );
+
+    return exit_code;
+}
+
+static DWORD check_idl( const char *source, enum midl_flags flags )
+{
+    WCHAR temp[MAX_PATH], args[5 * MAX_PATH], path[MAX_PATH], cwd[MAX_PATH];
+    DWORD res;
 
     if (flags & MIDL_VERSION) trace( "Using MIDL from %s\n", debugstr_w(midl_path) );
 
     GetTempPathW( ARRAY_SIZE(temp), temp );
     GetTempFileNameW( temp, L"midl", 0, temp );
 
-    swprintf( dir, ARRAY_SIZE(dir), L"%s.dir", temp );
-    CreateDirectoryW( dir, NULL );
+    swprintf( cwd, ARRAY_SIZE(cwd), L"%s.dir", temp );
+    CreateDirectoryW( cwd, NULL );
 
-    swprintf( path, ARRAY_SIZE(path), L"%s\\main.idl", dir );
+    swprintf( path, ARRAY_SIZE(path), L"%s\\main.idl", cwd );
     write_file( path, source );
 
-    swprintf( path, ARRAY_SIZE(path), L"%s\\midl.exe", midl_path );
-    swprintf( cmd, ARRAY_SIZE(cmd), L"\"%s\" main.idl -nocpp -syntax_check", path );
-    if (!(flags & MIDL_VERSION)) wcscat( cmd, L" -nologo" );
+    swprintf( args, ARRAY_SIZE(args), L"main.idl -nocpp -syntax_check" );
+    if (!(flags & MIDL_VERSION)) wcscat( args, L" -nologo" );
 
-    if (flags & MIDL_VERBOSE) trace( "Running %s\n", debugstr_w(cmd) );
-    ret = CreateProcessW( NULL, cmd, NULL, NULL, FALSE, 0, NULL, dir, &si, &pi );
-    ok( ret, "CreateProcessW failed, error %lu\n", GetLastError() );
+    res = run_midl( args, cwd, flags );
 
-    res = WaitForSingleObject( pi.hProcess, 1000 );
-    ok( !res, "WaitForSingleObject returned %#lx\n", res );
-    ret = GetExitCodeProcess( pi.hProcess, &exit_code );
-    ok( ret, "GetExitCodeProcess failed, error %lu\n", GetLastError() );
-
-    CloseHandle( pi.hThread );
-    CloseHandle( pi.hProcess );
-
-    swprintf( path, ARRAY_SIZE(path), L"%s\\main.idl", dir );
+    swprintf( path, ARRAY_SIZE(path), L"%s\\main.idl", cwd );
     DeleteFileW( path );
 
-    RemoveDirectoryW( dir );
+    RemoveDirectoryW( cwd );
     DeleteFileW( temp );
 
-    return exit_code;
+    return res;
+}
+
+static void test_cmdline(void)
+{
+    static const WCHAR *prefixes[] = {L"-", L"/"};
+    WCHAR args[MAX_PATH];
+    DWORD i, res;
+
+    /* arg stating with either - or / is an option */
+    for (i = 0; i < ARRAY_SIZE(prefixes); ++i)
+    {
+        swprintf( args, ARRAY_SIZE(args), L"-WX %sconfirm", prefixes[i] );
+        res = run_midl( args, NULL, 0 );
+        todo_wine
+        ok( !res, "MIDL failed, error %#lx\n", res );
+
+        swprintf( args, ARRAY_SIZE(args), L"%sWX -confirm", prefixes[i] );
+        res = run_midl( args, NULL, 0 );
+        todo_wine
+        ok( !res, "MIDL failed, error %#lx\n", res );
+    }
+
+    /* there's no magic values for stdin or alike */
+    res = run_midl( L"-WX --", NULL, 0 );
+    ok( res, "MIDL succeeded\n" );
+    res = run_midl( L"-WX -", NULL, 0 );
+    ok( res, "MIDL succeeded\n" );
+    res = run_midl( L"-WX /", NULL, 0 );
+    ok( res, "MIDL succeeded\n" );
+
+    /* -- isn't accepted as a special prefix */
+    res = run_midl( L"-WX --confirm", NULL, 0 );
+    ok( res, "MIDL succeeded\n" );
+
+    /* unknown options are ignred unless WX is used */
+    res = run_midl( L"--confirm -confirm", NULL, 0 );
+    todo_wine
+    ok( !res, "MIDL failed, error %#lx\n", res );
 }
 
 static void test_idl_parsing(void)
@@ -194,5 +241,6 @@ START_TEST( midl )
         return;
     }
 
+    test_cmdline();
     test_idl_parsing();
 }
