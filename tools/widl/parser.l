@@ -441,6 +441,7 @@ SAFEARRAY{ws}*/\(	return tSAFEARRAY;
     \"(\\.|[^"\\])*\"                           { return token_str( aSTRING, yytext, yylval ); }
     \'(\\.|[^'\\])*\'                           { return token_str( aSQSTRING, yytext, yylval ); }
 
+    \/\/[^\n]*\n                                { end_of_line( yylloc ); }
     \n                                          { end_of_line( yylloc ); }
     {ws}                                        {}
     \<\<                                        { return SHL; }
@@ -510,6 +511,11 @@ void push_import( const char *import_name, struct location *where )
     struct import_state *state;
     struct import *import;
     FILE *file;
+
+    char *buf = strdup( import_name ), *tmp = strrchr( buf, '/' );
+    if (!tmp) tmp = buf;
+    while (*(tmp++)) tmp[-1] = tolower( tmp[-1] );
+    import_name = buf;
 
     state = xmalloc( sizeof(struct import_state ));
     list_add_head( &import_stack, &state->entry );
