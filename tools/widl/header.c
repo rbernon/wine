@@ -796,38 +796,38 @@ static int for_each_serializable(const statement_list_t *stmts, FILE *header,
     return 1;
 }
 
-static void write_user_types(FILE *header)
+static void put_user_types(void)
 {
-  user_type_t *ut;
-  LIST_FOR_EACH_ENTRY(ut, &user_type_list, user_type_t, entry)
-  {
-    const char *name = ut->name;
-    fprintf(header, "ULONG           __RPC_USER %s_UserSize     (ULONG *, ULONG, %s *);\n", name, name);
-    fprintf(header, "unsigned char * __RPC_USER %s_UserMarshal  (ULONG *, unsigned char *, %s *);\n", name, name);
-    fprintf(header, "unsigned char * __RPC_USER %s_UserUnmarshal(ULONG *, unsigned char *, %s *);\n", name, name);
-    fprintf(header, "void            __RPC_USER %s_UserFree     (ULONG *, %s *);\n", name, name);
-  }
+    const user_type_t *type;
+    LIST_FOR_EACH_ENTRY( type, &user_type_list, user_type_t, entry )
+    {
+        const char *name = type->name;
+        put_line( "ULONG           __RPC_USER %s_UserSize     (ULONG *, ULONG, %s *);", name, name );
+        put_line( "unsigned char * __RPC_USER %s_UserMarshal  (ULONG *, unsigned char *, %s *);", name, name );
+        put_line( "unsigned char * __RPC_USER %s_UserUnmarshal(ULONG *, unsigned char *, %s *);", name, name );
+        put_line( "void            __RPC_USER %s_UserFree     (ULONG *, %s *);", name, name );
+    }
 }
 
-static void write_context_handle_rundowns(FILE *header)
+static void put_context_handle_rundowns(void)
 {
-  context_handle_t *ch;
-  LIST_FOR_EACH_ENTRY(ch, &context_handle_list, context_handle_t, entry)
-  {
-    const char *name = ch->name;
-    fprintf(header, "void __RPC_USER %s_rundown(%s);\n", name, name);
-  }
+    const context_handle_t *handle;
+    LIST_FOR_EACH_ENTRY( handle, &context_handle_list, context_handle_t, entry )
+    {
+        const char *name = handle->name;
+        put_line( "void __RPC_USER %s_rundown(%s);", name, name );
+    }
 }
 
-static void write_generic_handle_routines(FILE *header)
+static void put_generic_handle_routines(void)
 {
-  generic_handle_t *gh;
-  LIST_FOR_EACH_ENTRY(gh, &generic_handle_list, generic_handle_t, entry)
-  {
-    const char *name = gh->name;
-    fprintf(header, "handle_t __RPC_USER %s_bind(%s);\n", name, name);
-    fprintf(header, "void __RPC_USER %s_unbind(%s, handle_t);\n", name, name);
-  }
+    const generic_handle_t *handle;
+    LIST_FOR_EACH_ENTRY( handle, &generic_handle_list, generic_handle_t, entry )
+    {
+        const char *name = handle->name;
+        put_line( "handle_t __RPC_USER %s_bind(%s);", name, name );
+        put_line( "void __RPC_USER %s_unbind(%s, handle_t);", name, name );
+    }
 }
 
 static void write_typedef(FILE *header, type_t *type, bool define)
@@ -2142,25 +2142,33 @@ void write_header(const statement_list_t *stmts)
     put_line( "" );
     put_imports( stmts );
     put_line( "" );
+    put_line( "#ifdef __cplusplus" );
+    put_line( "extern \"C\" {" );
+    put_line( "#endif" );
+    put_line( "" );
     fputs( (char *)output_buffer, header );
     free( output_buffer );
-
-    start_cplusplus_guard( header );
 
     write_header_stmts( header, stmts, NULL, FALSE );
 
     fprintf( header, "/* Begin additional prototypes for all interfaces */\n" );
     fprintf( header, "\n" );
     for_each_serializable( stmts, header, write_serialize_function_decl );
-    write_user_types( header );
-    write_generic_handle_routines( header );
-    write_context_handle_rundowns( header );
-    fprintf( header, "\n" );
-    fprintf( header, "/* End additional prototypes */\n" );
-    fprintf( header, "\n" );
 
-    end_cplusplus_guard( header );
-    fprintf( header, "#endif /* __%s__ */\n", header_token );
+    init_output_buffer();
+    put_user_types();
+    put_generic_handle_routines();
+    put_context_handle_rundowns();
+    put_line( "" );
+    put_line( "/* End additional prototypes */" );
+    put_line( "" );
+    put_line( "#ifdef __cplusplus" );
+    put_line( "}"  /* extern \"C\" */ );
+    put_line( "#endif" );
+    put_line( "" );
+    put_line( "#endif /* __%s__ */", header_token );
+    fputs( (char *)output_buffer, header );
+    free( output_buffer );
 
     fclose( header );
 }
