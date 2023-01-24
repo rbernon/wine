@@ -142,6 +142,8 @@ static inline decl_spec_t *peek_declaration_type(void)
 %code provides
 {
 
+void parser_warning( const PARSER_LTYPE *yylloc, struct idl_ctx *ctx, const char *message );
+void parser_error( const PARSER_LTYPE *yylloc, struct idl_ctx *ctx, const char *error );
 int parser_lex( PARSER_STYPE *yylval, PARSER_LTYPE *yylloc );
 void push_import( const char *fname, PARSER_LTYPE *yylloc );
 PARSER_LTYPE pop_import(void);
@@ -156,6 +158,7 @@ PARSER_LTYPE pop_import(void);
 %define api.pure full
 %define parse.error detailed
 %locations
+%parse-param {struct idl_ctx *ctx}
 
 %union {
 	attr_t *attr;
@@ -526,6 +529,7 @@ input: global_statements acf_input		{ $1 = append_parameterized_type_stmts( $1 )
 						  write_dlldata($1);
 						  write_local_stubs($1);
                                                   (void)parser_nerrs;  /* avoid unused variable warning */
+						  ctx->statements = $1;
 						}
 	;
 
