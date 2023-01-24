@@ -426,6 +426,7 @@ gbl_statements
 	                                          reg_type($2, $2->name, current_namespace, 0); }
 	| gbl_statements moduledef		{ $$ = append_statement($1, make_statement_module($2)); }
 	| gbl_statements librarydef		{ $$ = append_statement($1, make_statement_library($2)); }
+	| gbl_statements[list] importlib	{ $$ = append_statement( $list, make_statement_importlib( $importlib ) ); }
 	| gbl_statements statement		{ $$ = append_statement($1, $2); }
 	| gbl_statements[list] decl_block	{ $$ = append_statements( $list, $decl_block ); }
 	;
