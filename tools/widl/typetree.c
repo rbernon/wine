@@ -794,8 +794,7 @@ type_t *type_module_define(type_t* module, attr_list_t *attrs, statement_list_t 
         error_loc( "module %s already defined at %s:%d\n", module->name,
                    module->where.input_name, module->where.first_line );
     module->attrs = check_module_attrs(module->name, attrs);
-    module->details.module = xmalloc(sizeof(*module->details.module));
-    module->details.module->stmts = stmts;
+    module->details.module.stmts = stmts;
     module->defined = TRUE;
     return module;
 }
