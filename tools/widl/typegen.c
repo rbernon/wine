@@ -986,7 +986,8 @@ static void write_formatdesc(FILE *f, int indent, const char *str)
     print_file(f, indent, "\n");
 }
 
-void write_formatstringsdecl(FILE *f, int indent, const statement_list_t *stmts, type_pred_t pred)
+void write_formatstringsdecl(FILE *f, int indent, const statement_list_t *stmts, type_pred_t pred,
+                             unsigned int proc_format_string_size)
 {
     clear_all_offsets();
 
@@ -1532,8 +1533,8 @@ static void append_pfs_func( struct strbuf *str, const type_t *iface, const var_
 }
 
 static void for_each_iface(const statement_list_t *stmts,
-                           void (*proc)(type_t *iface, FILE *file, int indent, unsigned int *offset),
-                           type_pred_t pred, FILE *file, int indent, unsigned int *offset)
+                           void (*proc)(type_t *iface, void *context, unsigned int *offset),
+                           type_pred_t pred, void *context, unsigned int *offset)
 {
     const statement_t *stmt;
     type_t *iface;
@@ -1544,50 +1545,33 @@ static void for_each_iface(const statement_list_t *stmts,
             continue;
         iface = stmt->u.type;
         if (!pred(iface)) continue;
-        proc(iface, file, indent, offset);
+        proc(iface, context, offset);
         if (type_iface_get_async_iface(iface))
-            proc(type_iface_get_async_iface(iface), file, indent, offset);
+            proc(type_iface_get_async_iface(iface), context, offset);
     }
 }
 
-static void write_iface_procformatstring(type_t *iface, FILE *file, int indent, unsigned int *offset)
+static void append_pfs_iface(type_t *iface, void *context, unsigned int *offset)
 {
     const statement_t *stmt;
     const type_t *parent = type_iface_get_inherit( iface );
     int count = parent ? count_methods( parent ) : 0;
-    struct strbuf str = {0};
+    struct strbuf *str = context;
 
     STATEMENTS_FOR_EACH_FUNC(stmt, type_iface_get_stmts(iface))
     {
         var_t *func = stmt->u.var;
         if (is_local(func->attrs)) continue;
-        append_pfs_func( &str, iface, func, count++, offset );
+        append_pfs_func( str, iface, func, count++, offset );
     }
-
-    if (str.buf) print_file( file, 0, "%s", str.buf );
-    free( str.buf );
 }
 
-void write_procformatstring(FILE *file, const statement_list_t *stmts, type_pred_t pred)
+char *format_proc_format_string(const statement_list_t *stmts, type_pred_t pred, unsigned int *size)
 {
-    int indent = 0;
-    unsigned int offset = 0;
-
-    print_file(file, indent, "static const MIDL_PROC_FORMAT_STRING __MIDL_ProcFormatString =\n");
-    print_file(file, indent, "{\n");
-    indent++;
-    print_file(file, indent, "0,\n");
-    print_file(file, indent, "{\n");
-    indent++;
-
-    for_each_iface(stmts, write_iface_procformatstring, pred, file, indent, &offset);
-
-    print_file(file, indent, "0x0\n");
-    indent--;
-    print_file(file, indent, "}\n");
-    indent--;
-    print_file(file, indent, "};\n");
-    print_file(file, indent, "\n");
+    struct strbuf str = {0};
+    *size = 0;
+    for_each_iface(stmts, append_pfs_iface, pred, &str, size);
+    return str.buf;
 }
 
 void write_procformatstring_offsets( FILE *file, const type_t *iface )
@@ -3758,10 +3742,11 @@ static int write_embedded_types(FILE *file, const attr_list_t *attrs, type_t *ty
     return write_type_tfs(file, attrs, type, name, write_ptr ? TYPE_CONTEXT_CONTAINER : TYPE_CONTEXT_CONTAINER_NO_POINTERS, tfsoff);
 }
 
-static void process_tfs_iface(type_t *iface, FILE *file, int indent, unsigned int *offset)
+static void process_tfs_iface(type_t *iface, void *context, unsigned int *offset)
 {
     const statement_list_t *stmts = type_iface_get_stmts(iface);
     const statement_t *stmt;
+    FILE *file = context;
     var_t *var;
 
     current_iface = iface;
@@ -3814,7 +3799,7 @@ static void process_tfs_iface(type_t *iface, FILE *file, int indent, unsigned in
 static unsigned int process_tfs(FILE *file, const statement_list_t *stmts, type_pred_t pred)
 {
     unsigned int typeformat_offset = 2;
-    for_each_iface(stmts, process_tfs_iface, pred, file, 0, &typeformat_offset);
+    for_each_iface(stmts, process_tfs_iface, pred, file, &typeformat_offset);
     return typeformat_offset + 1;
 }
 
@@ -4650,7 +4635,7 @@ unsigned int get_size_procformatstring_func(const type_t *iface, const var_t *fu
     return offset;
 }
 
-static void get_size_procformatstring_iface(type_t *iface, FILE *file, int indent, unsigned int *size)
+static void get_size_procformatstring_iface(type_t *iface, void *context, unsigned int *size)
 {
     const statement_t *stmt;
     STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts(iface) )
@@ -4664,7 +4649,7 @@ static void get_size_procformatstring_iface(type_t *iface, FILE *file, int inden
 unsigned int get_size_procformatstring(const statement_list_t *stmts, type_pred_t pred)
 {
     unsigned int size = 1;
-    for_each_iface(stmts, get_size_procformatstring_iface, pred, NULL, 0, &size);
+    for_each_iface(stmts, get_size_procformatstring_iface, pred, NULL, &size);
     return size;
 }
 

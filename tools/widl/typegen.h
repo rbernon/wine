@@ -62,8 +62,10 @@ enum typegen_type
 
 typedef int (*type_pred_t)(const type_t *);
 
-void write_formatstringsdecl(FILE *f, int indent, const statement_list_t *stmts, type_pred_t pred);
-void write_procformatstring(FILE *file, const statement_list_t *stmts, type_pred_t pred);
+char *format_proc_format_string(const statement_list_t *stmts, type_pred_t pred, unsigned int *size);
+
+void write_formatstringsdecl(FILE *f, int indent, const statement_list_t *stmts, type_pred_t pred,
+                             unsigned int proc_format_string_size);
 void write_typeformatstring(FILE *file, const statement_list_t *stmts, type_pred_t pred);
 void write_procformatstring_offsets( FILE *file, const type_t *iface );
 void print_phase_basetype(FILE *file, int indent, const char *local_var_prefix, enum remoting_phase phase,
