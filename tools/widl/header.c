@@ -1915,45 +1915,44 @@ static void put_runtimeclass_forward( const type_t *klass )
     put_line( "" );
 }
 
-static void write_import(FILE *header, const char *fname)
+static void put_import( const char *import )
 {
-  char *hname = replace_extension( get_basename(fname), ".idl", "" );
-
-  if (!strendswith( hname, ".h" )) hname = strmake( "%s.h", hname );
-  fprintf(header, "#include <%s>\n", hname);
-  free(hname);
+    char *name = replace_extension( get_basename( import ), ".idl", "" );
+    if (!strendswith( name, ".h" )) name = strmake( "%s.h", name );
+    put_line( "#include <%s>", name );
+    free( name );
 }
 
-static void write_imports(FILE *header, const statement_list_t *stmts)
+static void put_imports( const statement_list_t *stmts )
 {
-  const statement_t *stmt;
-  if (stmts) LIST_FOR_EACH_ENTRY( stmt, stmts, const statement_t, entry )
-  {
-    switch (stmt->type)
+    const statement_t *stmt;
+    if (stmts) LIST_FOR_EACH_ENTRY( stmt, stmts, const statement_t, entry )
     {
-      case STMT_TYPE:
-        if (type_get_type(stmt->u.type) == TYPE_INTERFACE)
-          write_imports(header, type_iface_get_stmts(stmt->u.type));
-        break;
-      case STMT_TYPEREF:
-      case STMT_IMPORTLIB:
-        /* not included in header */
-        break;
-      case STMT_IMPORT:
-        write_import(header, stmt->u.str);
-        break;
-      case STMT_TYPEDEF:
-      case STMT_MODULE:
-      case STMT_CPPQUOTE:
-      case STMT_PRAGMA:
-      case STMT_DECLARATION:
-        /* not processed here */
-        break;
-      case STMT_LIBRARY:
-        write_imports(header, stmt->u.lib->stmts);
-        break;
+        switch (stmt->type)
+        {
+        case STMT_TYPE:
+            if (type_get_type( stmt->u.type ) == TYPE_INTERFACE)
+                put_imports( type_iface_get_stmts( stmt->u.type ) );
+            break;
+        case STMT_LIBRARY:
+            put_imports( stmt->u.lib->stmts );
+            break;
+        case STMT_IMPORT:
+            put_import( stmt->u.str );
+            break;
+        case STMT_TYPEREF:
+        case STMT_IMPORTLIB:
+            /* not included in header */
+            break;
+        case STMT_TYPEDEF:
+        case STMT_MODULE:
+        case STMT_CPPQUOTE:
+        case STMT_PRAGMA:
+        case STMT_DECLARATION:
+            /* not processed here */
+            break;
+        }
     }
-  }
 }
 
 static void put_forward_decls( const statement_list_t *stmts )
@@ -2141,11 +2140,11 @@ void write_header(const statement_list_t *stmts)
     put_forward_decls( stmts );
     put_line( "/* Headers for imported files */" );
     put_line( "" );
+    put_imports( stmts );
+    put_line( "" );
     fputs( (char *)output_buffer, header );
     free( output_buffer );
 
-    write_imports( header, stmts );
-    fprintf( header, "\n" );
     start_cplusplus_guard( header );
 
     write_header_stmts( header, stmts, NULL, FALSE );
