@@ -1912,7 +1912,7 @@ static void write_com_interface_end(FILE *header, type_t *iface)
     fprintf( header, "#else\n" );
     put_inline_wrappers( header, type, type, iface->c_name );
     fprintf( header, "#endif\n" );
-    if (winrt_mode) put_widl_using_macros( header, iface );
+    if (winrt_mode) put_widl_using_macros( iface );
     fprintf( header, "#endif\n" );
     fprintf( header, "\n" );
     fprintf( header, "#endif\n" );
