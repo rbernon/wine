@@ -140,14 +140,14 @@ static inline var_list_t *type_function_get_args(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_FUNCTION);
-    return type->details.function->args;
+    return type->details.function.args;
 }
 
 static inline var_t *type_function_get_retval(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_FUNCTION);
-    return type->details.function->retval;
+    return type->details.function.retval;
 }
 
 static inline const decl_spec_t *type_function_get_ret(const type_t *type)

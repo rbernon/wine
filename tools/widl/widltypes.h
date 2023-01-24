@@ -387,12 +387,6 @@ struct enumeration_details
   var_list_t *enums;
 };
 
-struct func_details
-{
-  var_list_t *args;
-  struct _var_t *retval;
-};
-
 struct iface_details
 {
   statement_list_t *stmts;
@@ -504,7 +498,11 @@ struct _type_t {
   {
     struct struct_details *structure;
     struct enumeration_details *enumeration;
-    struct func_details *function;
+        struct
+        {
+            var_list_t *args;
+            struct _var_t *retval;
+        } function;
     struct iface_details *iface;
     struct module_details *module;
     struct array_details array;
