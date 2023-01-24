@@ -116,16 +116,16 @@ static statement_list_t *parameterized_type_stmts = NULL;
 static typelib_t *current_typelib;
 
 static struct list declaration_stack = LIST_INIT(declaration_stack);
-static inline void push_declspec( decl_spec_t *declspec, attr_list_t *attrs )
+static inline void push_declaration_type( decl_spec_t *declspec, attr_list_t *attrs )
 {
     declspec->attrs = append_attribs( declspec->attrs, attrs );
     push( &declaration_stack, declspec );
 }
-static inline decl_spec_t *pop_declspec(void)
+static inline decl_spec_t *pop_declaration_type(void)
 {
     return pop( &declaration_stack );
 }
-static inline decl_spec_t *peek_declspec(void)
+static inline decl_spec_t *peek_declaration_type(void)
 {
     return peek( &declaration_stack );
 }
@@ -467,8 +467,7 @@ PARSER_LTYPE pop_import(void);
 %type <var_list> m_args arg_list args dispint_meths
 %type <var_list> fields ne_union_fields cases enums enum_list dispint_props field
 %type <var> m_ident ident
-%type <declarator> declarator direct_declarator init_declarator
-%type <var> struct_declarator
+%type <declarator> declarator direct_declarator init_declarator struct_declarator
 %type <declarator> m_any_declarator any_declarator any_declarator_no_direct any_direct_declarator
 %type <declarator> m_abstract_declarator abstract_declarator abstract_direct_declarator
 %type <declarator_list> declarator_list struct_declarator_list
@@ -1049,15 +1048,15 @@ fields
 	;
 
 field
-	: m_attributes decl_spec		{ push_declspec( $2, check_field_attrs( NULL, $1 ) ); }
-		struct_declarator_list ';'	{ pop_declspec();
+	: m_attributes decl_spec		{ push_declaration_type( $2, check_field_attrs( NULL, $1 ) ); }
+		struct_declarator_list ';'	{ pop_declaration_type();
 						  $$ = set_var_types($1, $2, $4); }
 	| m_attributes union_definition		{ push_declaration_type( make_decl_spec( $2, NULL, NULL, STG_NONE, 0, 0 ),
 						                         check_field_attrs( NULL, $1 ) ); }
 		 ';'				{ var_t *v = make_var(NULL);
 						  v->declspec.type = $2; v->attrs = $1;
 						  $$ = append_var(NULL, v);
-						  pop_declspec();
+						  pop_declaration_type();
 						}
 	;
 
@@ -1367,10 +1366,10 @@ declarator:
 	;
 
 direct_declarator:
-	  ident					{ $$ = $1; }
+	  ident					{ $$ = make_declarator($1); }
 	| '(' declarator ')'			{ $$ = $2; }
-	| direct_declarator array		{ $$ = $1; $1->type = type_new_array($$, $2); }
-	| direct_declarator '(' m_args ')'	{ $$ = $1; $1->type = type_new_function($1->type, $3); }
+	| direct_declarator array		{ $$ = $1; append_array($$, $2); }
+	| direct_declarator '(' m_args ')'	{ $$ = $1; append_chain_type($$, type_new_function($3), 0); }
 	;
 
 /* abstract declarator */
@@ -1394,10 +1393,12 @@ abstract_direct_declarator:
 	| array					{ $$ = make_declarator(NULL); append_array($$, $1); }
 	| '(' m_args ')'
 						{ $$ = make_declarator(NULL);
-						  $$->type = type_new_function($$->type, $3); }
+						  append_chain_type($$, type_new_function($2), 0);
+						}
 	| abstract_direct_declarator '(' m_args ')'
 						{ $$ = $1;
-						  $$->type = type_new_function($$->type, $3); }
+						  append_chain_type($$, type_new_function($3), 0);
+						}
 	;
 
 /* abstract or non-abstract declarator */
@@ -1438,19 +1439,22 @@ any_direct_declarator:
 	;
 
 declarator_list:
-	  declarator				{ $$ = append_var( NULL, $1 ); }
-	| declarator_list ',' declarator	{ $$ = append_var( $1, $3 ); }
+	  declarator				{ $$ = append_declarator( NULL, $1 ); }
+	| declarator_list ',' declarator	{ $$ = append_declarator( $1, $3 ); }
 	;
 
 struct_declarator
 	: any_declarator
-	| ident ':' expr_const			{ $$ = declare_var( NULL, type_new_bitfield( peek_declspec(), $3 ), $1, 0 ); }
+	| ident ':' expr_const			{ $$ = make_declarator($1); $$->bits = $3;
+						  if (!$$->bits && !$$->var->name)
+						    error_loc("unnamed fields are not allowed\n");
+						}
 	;
 
 struct_declarator_list:
-	  struct_declarator			{ $$ = append_var( NULL, $1 ); }
+	  struct_declarator			{ $$ = append_declarator( NULL, $1 ); }
 	| struct_declarator_list ',' struct_declarator
-						{ $$ = append_var( $1, $3 ); }
+						{ $$ = append_declarator( $1, $3 ); }
 	;
 
 init_declarator:
