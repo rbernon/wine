@@ -41,7 +41,7 @@ void error_at( const struct location *where, const char *s, ... )
     vsnprintf( buffer, sizeof(buffer), s, ap );
     va_end( ap );
 
-    parser_error( where, buffer );
+    parser_error( where, NULL, buffer );
     exit( 1 );
 }
 
@@ -73,7 +73,7 @@ void warning_at( const struct location *where, const char *s, ... )
     vsnprintf( buffer, sizeof(buffer), s, ap );
     va_end( ap );
 
-    parser_warning( where, buffer );
+    parser_warning( where, NULL, buffer );
 }
 
 void chat(const char *s, ...)
