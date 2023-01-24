@@ -530,73 +530,67 @@ static void write_type_left( FILE *h, const decl_spec_t *ds, enum name_type name
     }
 }
 
-static void write_type_right( FILE *h, type_t *t, int is_field )
+static void write_type_right( FILE *file, type_t *type, int is_field )
 {
-  if (!h) return;
-  if (type_is_alias(t)) return;
+    if (!file) return;
+    if (type_is_alias( type )) return;
 
-  switch (type_get_type(t))
-  {
-  case TYPE_ARRAY:
-  {
-    type_t *elem = type_array_get_element_type(t);
-    if (type_array_is_decl_as_ptr(t))
+    switch (type_get_type( type ))
     {
-      if (decl_needs_parens(elem))
-        fprintf(h, ")");
-    }
-    else
+    case TYPE_ARRAY:
     {
-      if (is_conformant_array(t))
-        fprintf(h, "[%s]", is_field ? "1" : "");
-      else
-        fprintf(h, "[%u]", type_array_get_dim(t));
+        type_t *elem = type_array_get_element_type( type );
+        if (type_array_is_decl_as_ptr( type ))
+        {
+            if (decl_needs_parens( elem )) fprintf( file, ")" );
+        }
+        else
+        {
+            if (is_conformant_array( type )) fprintf( file, "[%s]", is_field ? "1" : "" );
+            else fprintf( file, "[%u]", type_array_get_dim( type ) );
+        }
+        write_type_right( file, elem, FALSE );
+        break;
     }
-    write_type_right(h, elem, FALSE);
-    break;
-  }
-  case TYPE_FUNCTION:
-  {
-    const var_list_t *args = type_function_get_args(t);
-    fputc('(', h);
-    if (args) write_args(h, args, NULL, 0, FALSE, NAME_DEFAULT);
-    else
-      fprintf(h, "void");
-    fputc(')', h);
-    write_type_right(h, type_function_get_rettype(t), FALSE);
-    break;
-  }
-  case TYPE_POINTER:
-  {
-    type_t *ref = type_pointer_get_ref_type(t);
-    if (decl_needs_parens(ref))
-      fprintf(h, ")");
-    write_type_right(h, ref, FALSE);
-    break;
-  }
-  case TYPE_BITFIELD:
-    fprintf(h, " : %u", type_bitfield_get_bits(t)->cval);
-    break;
-  case TYPE_VOID:
-  case TYPE_BASIC:
-  case TYPE_ENUM:
-  case TYPE_STRUCT:
-  case TYPE_ENCAPSULATED_UNION:
-  case TYPE_UNION:
-  case TYPE_ALIAS:
-  case TYPE_MODULE:
-  case TYPE_COCLASS:
-  case TYPE_INTERFACE:
-  case TYPE_RUNTIMECLASS:
-  case TYPE_DELEGATE:
-  case TYPE_PARAMETERIZED_TYPE:
-  case TYPE_PARAMETER:
-    break;
-  case TYPE_APICONTRACT:
-    /* not supposed to be here */
-    assert(0);
-    break;
-  }
+    case TYPE_FUNCTION:
+    {
+        const var_list_t *args = type_function_get_args( type );
+        fprintf( file, "(" );
+        if (args) write_args( file, args, NULL, 0, FALSE, NAME_DEFAULT );
+        else fprintf( file, "void" );
+        fprintf( file, ")" );
+        write_type_right( file, type_function_get_rettype( type ), FALSE );
+        break;
+    }
+    case TYPE_POINTER:
+    {
+        type_t *ref = type_pointer_get_ref_type( type );
+        if (decl_needs_parens( ref )) fprintf( file, ")" );
+        write_type_right( file, ref, FALSE );
+        break;
+    }
+    case TYPE_BITFIELD:
+        fprintf( file, " : %u", type_bitfield_get_bits( type )->cval );
+        break;
+    case TYPE_VOID:
+    case TYPE_BASIC:
+    case TYPE_ENUM:
+    case TYPE_STRUCT:
+    case TYPE_ENCAPSULATED_UNION:
+    case TYPE_UNION:
+    case TYPE_ALIAS:
+    case TYPE_MODULE:
+    case TYPE_COCLASS:
+    case TYPE_INTERFACE:
+    case TYPE_RUNTIMECLASS:
+    case TYPE_DELEGATE:
+    case TYPE_PARAMETERIZED_TYPE:
+    case TYPE_PARAMETER: break;
+    case TYPE_APICONTRACT:
+        /* not supposed to be here */
+        assert( 0 );
+        break;
+    }
 }
 
 static void write_declspec_full( FILE *h, const decl_spec_t *ds, int is_field, bool define, int declonly,
