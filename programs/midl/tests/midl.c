@@ -35,6 +35,14 @@ struct input
     const char *text;
 };
 
+struct output
+{
+    struct list entry;
+    const WCHAR *flag;
+    const WCHAR *name;
+    unsigned char *data;
+};
+
 static BOOL midl_test_init(void)
 {
     const char *env = getenv( "WINEDLLOVERRIDES" );
@@ -73,6 +81,23 @@ found:
     RegCloseKey( key );
     if ((tmp = wcsrchr( midl_path, '\\' ))) *tmp = 0;
     return TRUE;
+}
+
+static void read_file( const WCHAR *filename, unsigned char **data )
+{
+    DWORD size = 0, total = 0;
+    HANDLE file;
+
+    file = CreateFileW( filename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+    ok( file != INVALID_HANDLE_VALUE, "CreateFileW failed, error %lu\n", GetLastError() );
+    do
+    {
+        *data = realloc( *data, total + 0x1000 );
+        ReadFile( file, *data + total, 0x1000, &size, NULL );
+        total += size;
+    } while (size == 0x1000);
+
+    CloseHandle( file );
 }
 
 static void write_file( const WCHAR *filename, const char *source )
@@ -126,10 +151,11 @@ static DWORD run_midl( const WCHAR *args, const WCHAR *cwd, enum midl_flags flag
     return exit_code;
 }
 
-static DWORD check_idl( struct list *inputs, enum midl_flags flags )
+static DWORD check_idl( struct list *inputs, struct list *outputs, enum midl_flags flags )
 {
     WCHAR temp[MAX_PATH], args[5 * MAX_PATH], path[MAX_PATH], cwd[MAX_PATH];
     struct input *in, *main = LIST_ENTRY( list_head( inputs ), struct input, entry );
+    struct output *out;
     DWORD res;
 
     if (flags & MIDL_VERSION) trace( "Using MIDL from %s\n", debugstr_w(midl_path) );
@@ -146,10 +172,19 @@ static DWORD check_idl( struct list *inputs, enum midl_flags flags )
         write_file( path, in->text );
     }
 
-    swprintf( args, ARRAY_SIZE(args), L"%s -I. -nocpp -syntax_check", main->name );
+    swprintf( args, ARRAY_SIZE(args), L"%s -I. -nocpp", main->name );
+    if (list_empty( outputs )) wcscat( args, L" -syntax_check" );
     if (!(flags & MIDL_VERSION)) wcscat( args, L" -nologo" );
     if (flags & MIDL_WERROR) wcscat( args, L" -W4 -WX" );
     if (flags & MIDL_WINRT) wcscat( args, L" -winrt -nomd -nomidl" );
+
+    LIST_FOR_EACH_ENTRY( out, outputs, struct output, entry )
+    {
+        wcscat( args, L" " );
+        wcscat( args, out->flag );
+        wcscat( args, L" " );
+        wcscat( args, out->name );
+    }
 
     res = run_midl( args, cwd, flags );
 
@@ -159,10 +194,72 @@ static DWORD check_idl( struct list *inputs, enum midl_flags flags )
         DeleteFileW( path );
     }
 
+    LIST_FOR_EACH_ENTRY( out, outputs, struct output, entry )
+    {
+        swprintf( path, ARRAY_SIZE(path), L"%s\\%s", cwd, out->name );
+        read_file( path, &out->data );
+        DeleteFileW( path );
+    }
+
     RemoveDirectoryW( cwd );
     DeleteFileW( temp );
 
     return res;
+}
+
+static void strip_comments( char *text )
+{
+    char *pos, *end, *next = strstr( text, "/*" );
+    int len = next - text;
+
+    while ((pos = next) && (end = strstr( pos, "*/" )))
+    {
+        if (!(next = strstr( end, "/*" ))) next = end + strlen( end );
+        memmove( text + len, end + 2, next - end - 2 );
+        len += next - end - 2;
+    }
+
+    text[len] = 0;
+}
+
+static int isident( char c )
+{
+    return isalnum(c) || c == '_';
+}
+
+static void squash_spaces( char *text )
+{
+    static const char *lookup = " \t\r\n";
+    char prev = 0, *pos, *end, *eod = NULL, *next = strpbrk( text, lookup );
+    int len = next - text;
+
+    while ((pos = next) && (end = pos + strspn( pos, lookup )) > pos)
+    {
+        if (!(next = strpbrk( end, lookup ))) next = end + strlen( end );
+        if (*end == '#' && len)
+        {
+            /* fold escaped newlines */
+            while ((eod = strchr( end, '\n' )) && (eod[-1] == '\\' || (eod[-1] == '\r' && eod[-2] == '\\')))
+            {
+                if (eod[-1] == '\r') eod[-2] = ' ';
+                eod[-1] = eod[0] = ' ';
+            }
+            *--end = '\n';
+        }
+        else if (pos <= eod && next >= eod) *--end = '\n';
+        else if (isident(prev) && isident(*end)) end--;
+        memmove( text + len, end, next - end );
+        len += next - end;
+        prev = next[-1];
+    }
+
+    text[len] = 0;
+}
+
+static void post_process_source( char *text )
+{
+    strip_comments( text );
+    squash_spaces( text );
 }
 
 static void test_cmdline(void)
@@ -206,33 +303,34 @@ static void test_cmdline(void)
 static void test_idl_parsing(void)
 {
     struct input src = {.name = L"main.idl"}, unknwn = {.name = L"unknwn.idl"}, inspectable = {.name = L"inspectable.idl"};
-    struct list in = LIST_INIT( in );
+    struct output header = {.name = L"main.h", .flag = L"-h" /* strcmp( winetest_platform, "wine" ) ? L"-h" : L"-H" */};
+    struct list in = LIST_INIT( in ), out = LIST_INIT( out );
     DWORD res;
 
     list_add_tail( &in, &src.entry );
 
     /* check basic success */
     src.text = "interface I;";
-    res = check_idl( &in, MIDL_WERROR | MIDL_VERBOSE | MIDL_VERSION );
+    res = check_idl( &in, &out, MIDL_WERROR | MIDL_VERBOSE | MIDL_VERSION );
     todo_wine
     ok( !res, "MIDL failed, error %#lx\n", res );
 
     /* check basic failure */
     src.text = "interface {}";
-    res = check_idl( &in, 0 );
+    res = check_idl( &in, &out, 0 );
     ok( res, "MIDL succeeded\n" );
 
     /* winrt mode degrades automatically */
     src.text = "interface I {}; coclass C { [default] interface I; }";
-    res = check_idl( &in, MIDL_WERROR | MIDL_WINRT );
+    res = check_idl( &in, &out, MIDL_WERROR | MIDL_WINRT );
     todo_wine
     ok( !res, "MIDL failed, error %#lx\n", res );
 
     /* legacy mode doesn't upgrade */
     src.text = "namespace N {}";
-    res = check_idl( &in, 0 );
+    res = check_idl( &in, &out, 0 );
     ok( res, "MIDL succeeded\n" );
-    res = check_idl( &in, MIDL_WERROR | MIDL_WINRT );
+    res = check_idl( &in, &out, MIDL_WERROR | MIDL_WINRT );
     ok( !res, "MIDL failed, error %#lx\n", res );
 
     /* colon is sometimes optional */
@@ -240,66 +338,66 @@ static void test_idl_parsing(void)
                "[local]interface I2 {};\n"
                "[uuid(00000000-0000-0000-0000-000000000000)]coclass C1{interface I1;interface I2;};\n"
                "[uuid(00000000-0000-0000-0000-000000000001)]coclass C2{interface I1;interface I2;}\n";
-    res = check_idl( &in, MIDL_WERROR );
+    res = check_idl( &in, &out, MIDL_WERROR );
     todo_wine
     ok( !res, "MIDL failed, error %#lx\n", res );
 
     /* attribute syntax is flexible */
     src.text = "[hidden,][,][,,local,][,,][,helpstring(\"\")]"
                "interface I{}";
-    res = check_idl( &in, MIDL_WERROR );
+    res = check_idl( &in, &out, MIDL_WERROR );
     ok( !res, "MIDL failed, error %#lx\n", res );
 
     /* allowed but ignored on forward definitions */
     src.text = "[local][local]interface I{}";
-    res = check_idl( &in, MIDL_WERROR );
+    res = check_idl( &in, &out, MIDL_WERROR );
     todo_wine
     ok( res, "MIDL succeeded\n" );
     src.text = "[local][local]interface I;";
-    res = check_idl( &in, MIDL_WERROR );
+    res = check_idl( &in, &out, MIDL_WERROR );
     todo_wine
     ok( !res, "MIDL failed, error %#lx\n", res );
 
     /* warning: object needs IUnknown */
     src.text = "[uuid(00000000-0000-0000-0000-000000000000),object]\n"
                "interface I{}\n";
-    res = check_idl( &in, 0 );
+    res = check_idl( &in, &out, 0 );
     todo_wine
     ok( !res, "MIDL failed, error %#lx\n", res );
-    res = check_idl( &in, MIDL_WERROR );
+    res = check_idl( &in, &out, MIDL_WERROR );
     todo_wine
     ok( res, "MIDL succeeded\n" );
 
     /* error: interface with method needs uuid */
     src.text = "typedef unsigned int HRESULT;\n"
                "interface I{HRESULT bla();}\n";
-    res = check_idl( &in, 0 );
+    res = check_idl( &in, &out, 0 );
     todo_wine
     ok( res, "MIDL succeeded\n" );
 
     /* warning: local doesn't needs uuid */
     src.text = "typedef unsigned int HRESULT;\n"
                "[local]interface I{}\n";
-    res = check_idl( &in, 0 );
+    res = check_idl( &in, &out, 0 );
     ok( !res, "MIDL failed, error %#lx\n", res );
 
     /* warning: local doesn't needs uuid */
     src.text = "typedef unsigned int HRESULT;\n"
                "[local]interface I{HRESULT bla();}\n";
-    res = check_idl( &in, 0 );
+    res = check_idl( &in, &out, 0 );
     ok( !res, "MIDL failed, error %#lx\n", res );
 
     /* warning: local doesn't needs uuid */
     src.text = "typedef unsigned int HRESULT;\n"
                "[local,uuid(00000000-0000-0000-0000-000000000000)]interface I{HRESULT bla();}\n";
-    res = check_idl( &in, 0 );
+    res = check_idl( &in, &out, 0 );
     ok( !res, "MIDL failed, error %#lx\n", res );
 
     /* warning: object needs uuid */
     src.text = "[uuid(00000000-0000-0000-0000-000000000000),object]\n"
                "interface IUnknown{}\n"
                "[object]interface I:IUnknown{}\n";
-    res = check_idl( &in, 0 );
+    res = check_idl( &in, &out, 0 );
     todo_wine
     ok( res, "MIDL succeeded\n" );
 
@@ -307,7 +405,7 @@ static void test_idl_parsing(void)
     src.text = "[uuid(00000000-0000-0000-0000-000000000000),object]\n"
                "interface IUnknown{}\n"
                "[object,local]interface I:IUnknown{}\n";
-    res = check_idl( &in, 0 );
+    res = check_idl( &in, &out, 0 );
     todo_wine
     ok( res, "MIDL succeeded\n" );
 
@@ -316,7 +414,7 @@ static void test_idl_parsing(void)
                "interface IUnknown{}\n"
                "[uuid(00000000-0000-0000-0000-000000000000),object]\n"
                "interface I:IUnknown{}\n";
-    res = check_idl( &in, 0 );
+    res = check_idl( &in, &out, 0 );
     todo_wine
     ok( res, "MIDL succeeded\n" );
 
@@ -326,7 +424,7 @@ static void test_idl_parsing(void)
                "interface I:IUnknown{}\n"
                "[uuid(00000000-0000-0000-0000-000000000002),object]\n"
                "interface J:I{}\n";
-    res = check_idl( &in, 0 );
+    res = check_idl( &in, &out, 0 );
     todo_wine
     ok( !res, "MIDL failed, error %#lx\n", res );
 
@@ -345,7 +443,7 @@ static void test_idl_parsing(void)
                "[uuid(00000000-0000-0000-0000-000000000002),version(1)]\n"
                "interface I:IInspectable{}\n"
                "}\n";
-    res = check_idl( &in, MIDL_WINRT | MIDL_WERROR );
+    res = check_idl( &in, &out, MIDL_WINRT | MIDL_WERROR );
     ok( !res, "MIDL failed, error %#lx\n", res );
     src.text = "import\"inspectable.idl\";\n"
                "namespace N {\n"
@@ -354,7 +452,7 @@ static void test_idl_parsing(void)
                "[uuid(00000000-0000-0000-0000-000000000003),version(1)]\n"
                "interface J:I{}\n"
                "}\n";
-    res = check_idl( &in, MIDL_WINRT );
+    res = check_idl( &in, &out, MIDL_WINRT );
     todo_wine
     ok( res, "MIDL succeeded\n" );
 
@@ -366,11 +464,26 @@ static void test_idl_parsing(void)
                "[uuid(00000000-0000-0000-0000-000000000003),version(1)]\n"
                "interface J:IInspectable{}\n"
                "}\n";
-    res = check_idl( &in, MIDL_WINRT );
+    res = check_idl( &in, &out, MIDL_WINRT );
     ok( !res, "MIDL failed, error %#lx\n", res );
-    res = check_idl( &in, MIDL_WINRT | MIDL_WERROR );
+    res = check_idl( &in, &out, MIDL_WINRT | MIDL_WERROR );
     todo_wine
     ok( res, "MIDL succeeded\n" );
+
+    /* check header generation */
+    src.text = "import\"unknwn.idl\";\n"
+               "typedef unsigned long HRESULT;\n"
+               "[uuid(00000000-0000-0000-0000-000000000002),object]\n"
+               "interface I:IUnknown{HRESULT Foo(void);}\n";
+    list_add_tail( &out, &header.entry );
+    res = check_idl( &in, &out, MIDL_WERROR | MIDL_VERBOSE | MIDL_VERSION );
+    ok( !res, "MIDL failed, error %#lx\n", res );
+
+    post_process_source( (char *)header.data );
+    printf( "%s:\n", debugstr_w(header.name) );
+    printf( "%s", header.data );
+
+    free( header.data );
 }
 
 START_TEST( midl )
