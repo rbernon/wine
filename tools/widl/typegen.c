@@ -1209,43 +1209,45 @@ static unsigned char get_func_oi2_flags( const var_t *func )
     return oi2_flags;
 }
 
-static unsigned int write_new_procformatstring_type(FILE *file, int indent, const var_t *var,
-                                                    int is_return, unsigned int *stack_offset)
+static unsigned int append_pfs_type_new( struct strbuf *str, const var_t *var,
+                                         int is_return, unsigned int *stack_offset )
 {
-    char buffer[128];
     unsigned int stack_size, typestring_offset;
     unsigned short flags;
     unsigned char fc = get_parameter_fc( var, is_return, &flags, &stack_size, &typestring_offset );
 
-    strcpy( buffer, "/* flags:" );
-    if (flags & MustSize) strcat( buffer, " must size," );
-    if (flags & MustFree) strcat( buffer, " must free," );
-    if (flags & IsPipe) strcat( buffer, " pipe," );
-    if (flags & IsIn) strcat( buffer, " in," );
-    if (flags & IsOut) strcat( buffer, " out," );
-    if (flags & IsReturn) strcat( buffer, " return," );
-    if (flags & IsBasetype) strcat( buffer, " base type," );
-    if (flags & IsByValue) strcat( buffer, " by value," );
-    if (flags & IsSimpleRef) strcat( buffer, " simple ref," );
-    if (flags >> 13) sprintf( buffer + strlen(buffer), " srv size=%u,", (flags >> 13) * 8 );
-    strcpy( buffer + strlen( buffer ) - 1, " */" );
-    print_file( file, indent, "NdrFcShort(0x%hx),\t%s\n", flags, buffer );
-    print_file( file, indent, "NdrFcShort(0x%x),	/* stack offset = %u */\n",
-                *stack_offset, *stack_offset );
+    strappend( str, "        NdrFcShort(0x%hx),\t/* flags:", flags );
+    if (flags & MustSize) strappend( str, " must size," );
+    if (flags & MustFree) strappend( str, " must free," );
+    if (flags & IsPipe) strappend( str, " pipe," );
+    if (flags & IsIn) strappend( str, " in," );
+    if (flags & IsOut) strappend( str, " out," );
+    if (flags & IsReturn) strappend( str, " return," );
+    if (flags & IsBasetype) strappend( str, " base type," );
+    if (flags & IsByValue) strappend( str, " by value," );
+    if (flags & IsSimpleRef) strappend( str, " simple ref," );
+    if (flags >> 13) strappend( str, " srv size=%u,", (flags >> 13) * 8 );
+    str->pos -= 1;
+    strappend( str, " */\n" );
+
+    strappend( str, "        NdrFcShort(0x%x),	/* stack offset = %u */\n",
+               *stack_offset, *stack_offset );
     if (flags & IsBasetype)
     {
-        print_file( file, indent, "0x%02x,	/* %s */\n", fc, string_of_type(fc) );
-        print_file( file, indent, "0x0,\n" );
+        strappend( str, "        0x%02x,	/* %s */\n", fc, string_of_type( fc ) );
+        strappend( str, "        0x0,\n" );
     }
     else
-        print_file( file, indent, "NdrFcShort(0x%x),	/* type offset = %u */\n",
-                    typestring_offset, typestring_offset );
+    {
+        strappend( str, "        NdrFcShort(0x%x),	/* type offset = %u */\n",
+                   typestring_offset, typestring_offset );
+    }
     *stack_offset += max( stack_size, pointer_size );
     return 6;
 }
 
-static unsigned int write_old_procformatstring_type(FILE *file, int indent, const var_t *var,
-                                                    int is_return, int is_interpreted)
+static unsigned int append_pfs_type_old( struct strbuf *str, const var_t *var,
+                                         int is_return, int is_interpreted )
 {
     unsigned int size;
 
@@ -1260,9 +1262,9 @@ static unsigned int write_old_procformatstring_type(FILE *file, int indent, cons
         unsigned char fc;
 
         if (is_return)
-            print_file(file, indent, "0x53,    /* FC_RETURN_PARAM_BASETYPE */\n");
+            strappend( str, "        0x53,    /* FC_RETURN_PARAM_BASETYPE */\n" );
         else
-            print_file(file, indent, "0x4e,    /* FC_IN_PARAM_BASETYPE */\n");
+            strappend( str, "        0x4e,    /* FC_IN_PARAM_BASETYPE */\n" );
 
         if (type_get_type(var->declspec.type) == TYPE_ENUM)
         {
@@ -1276,8 +1278,7 @@ static unsigned int write_old_procformatstring_type(FILE *file, int indent, cons
                 fc = FC_IGNORE;
         }
 
-        print_file(file, indent, "0x%02x,    /* %s */\n",
-                   fc, string_of_type(fc));
+        strappend( str, "        0x%02x,    /* %s */\n", fc, string_of_type( fc ) );
         size = 2; /* includes param type prefix */
     }
     else
@@ -1290,19 +1291,20 @@ static unsigned int write_old_procformatstring_type(FILE *file, int indent, cons
             offset = var->declspec.type->typestring_offset;
 
         if (is_return)
-            print_file(file, indent, "0x52,    /* FC_RETURN_PARAM */\n");
+            strappend( str, "        0x52,    /* FC_RETURN_PARAM */\n" );
         else if (is_in && is_out)
-            print_file(file, indent, "0x50,    /* FC_IN_OUT_PARAM */\n");
+            strappend( str, "        0x50,    /* FC_IN_OUT_PARAM */\n" );
         else if (is_out)
-            print_file(file, indent, "0x51,    /* FC_OUT_PARAM */\n");
+            strappend( str, "        0x51,    /* FC_OUT_PARAM */\n" );
         else
-            print_file(file, indent, "0x4d,    /* FC_IN_PARAM */\n");
+            strappend( str, "        0x4d,    /* FC_IN_PARAM */\n" );
 
         size = get_stack_size( var, NULL );
-        print_file(file, indent, "0x%02x,\n", size / pointer_size );
-        print_file(file, indent, "NdrFcShort(0x%x),	/* type offset = %u */\n", offset, offset);
+        strappend( str, "        0x%02x,\n", size / pointer_size );
+        strappend( str, "        NdrFcShort(0x%x),	/* type offset = %u */\n", offset, offset );
         size = 4; /* includes param type prefix */
     }
+
     return size;
 }
 
@@ -1356,9 +1358,8 @@ int is_interpreted_func( const type_t *iface, const var_t *func )
     return (get_stub_mode() != MODE_Os);
 }
 
-static void write_proc_func_header( FILE *file, int indent, const type_t *iface,
-                                    const var_t *func, unsigned int *offset,
-                                    unsigned short num_proc )
+static void append_pfs_func_header( struct strbuf *str, const type_t *iface, const var_t *func,
+                                    unsigned int *offset, unsigned short num_proc )
 {
     var_t *var;
     var_list_t *args = type_function_get_args( func->declspec.type );
@@ -1398,12 +1399,13 @@ static void write_proc_func_header( FILE *file, int indent, const type_t *iface,
         nb_args++;
     }
 
-    print_file( file, indent, "0x%02x,\t/* %s */\n", implicit_fc,
-                implicit_fc ? string_of_type(implicit_fc) : "explicit handle" );
-    print_file( file, indent, "0x%02x,\n", oi_flags );
-    print_file( file, indent, "NdrFcLong(0x%x),\n", rpc_flags );
-    print_file( file, indent, "NdrFcShort(0x%hx),\t/* method %hu */\n", num_proc, num_proc );
-    print_file( file, indent, "NdrFcShort(0x%x),\t/* stack size = %u */\n", stack_size, stack_size );
+    strappend( str, "/* %u (procedure %s::%s) */\n", *offset, iface->name, func->name );
+    strappend( str, "        0x%02x,\t/* %s */\n", implicit_fc,
+               implicit_fc ? string_of_type( implicit_fc ) : "explicit handle" );
+    strappend( str, "        0x%02x,\n", oi_flags );
+    strappend( str, "        NdrFcLong(0x%x),\n", rpc_flags );
+    strappend( str, "        NdrFcShort(0x%hx),\t/* method %hu */\n", num_proc, num_proc );
+    strappend( str, "        NdrFcShort(0x%x),\t/* stack size = %u */\n", stack_size, stack_size );
     *offset += 10;
 
     if (!implicit_fc)
@@ -1412,30 +1414,30 @@ static void write_proc_func_header( FILE *file, int indent, const type_t *iface,
         {
         case FC_BIND_PRIMITIVE:
             handle_flags = 0;
-            print_file( file, indent, "0x%02x,\t/* %s */\n", explicit_fc, string_of_type(explicit_fc) );
-            print_file( file, indent, "0x%02x,\n", handle_flags );
-            print_file( file, indent, "NdrFcShort(0x%hx),\t/* stack offset = %hu */\n",
-                        handle_stack_offset, handle_stack_offset );
+            strappend( str, "        0x%02x,\t/* %s */\n", explicit_fc, string_of_type( explicit_fc ) );
+            strappend( str, "        0x%02x,\n", handle_flags );
+            strappend( str, "        NdrFcShort(0x%hx),\t/* stack offset = %hu */\n",
+                       handle_stack_offset, handle_stack_offset );
             *offset += 4;
             break;
         case FC_BIND_GENERIC:
             handle_flags = type_memsize( handle_var->declspec.type );
-            print_file( file, indent, "0x%02x,\t/* %s */\n", explicit_fc, string_of_type(explicit_fc) );
-            print_file( file, indent, "0x%02x,\n", handle_flags );
-            print_file( file, indent, "NdrFcShort(0x%hx),\t/* stack offset = %hu */\n",
-                        handle_stack_offset, handle_stack_offset );
-            print_file( file, indent, "0x%02x,\n", get_generic_handle_offset( handle_var->declspec.type ) );
-            print_file( file, indent, "0x%x,\t/* FC_PAD */\n", FC_PAD);
+            strappend( str, "        0x%02x,\t/* %s */\n", explicit_fc, string_of_type( explicit_fc ) );
+            strappend( str, "        0x%02x,\n", handle_flags );
+            strappend( str, "        NdrFcShort(0x%hx),\t/* stack offset = %hu */\n",
+                       handle_stack_offset, handle_stack_offset );
+            strappend( str, "        0x%02x,\n", get_generic_handle_offset( handle_var->declspec.type ) );
+            strappend( str, "        0x%x,\t/* FC_PAD */\n", FC_PAD );
             *offset += 6;
             break;
         case FC_BIND_CONTEXT:
             handle_flags = get_contexthandle_flags( iface, handle_var->attrs, handle_var->declspec.type, 0 );
-            print_file( file, indent, "0x%02x,\t/* %s */\n", explicit_fc, string_of_type(explicit_fc) );
-            print_file( file, indent, "0x%02x,\n", handle_flags );
-            print_file( file, indent, "NdrFcShort(0x%hx),\t/* stack offset = %hu */\n",
-                        handle_stack_offset, handle_stack_offset );
-            print_file( file, indent, "0x%02x,\n", get_context_handle_offset( handle_var->declspec.type ) );
-            print_file( file, indent, "0x%02x,\t/* param %hu */\n", handle_param_num, handle_param_num );
+            strappend( str, "        0x%02x,\t/* %s */\n", explicit_fc, string_of_type( explicit_fc ) );
+            strappend( str, "        0x%02x,\n", handle_flags );
+            strappend( str, "        NdrFcShort(0x%hx),\t/* stack offset = %hu */\n",
+                       handle_stack_offset, handle_stack_offset );
+            strappend( str, "        0x%02x,\n", get_context_handle_offset( handle_var->declspec.type ) );
+            strappend( str, "        0x%02x,\t/* param %hu */\n", handle_param_num, handle_param_num );
             *offset += 6;
             break;
         }
@@ -1452,16 +1454,16 @@ static void write_proc_func_header( FILE *file, int indent, const type_t *iface,
         if (iface == type_iface_get_async_iface(iface)) oi2_flags |= 0x20;
 
         size = get_function_buffer_size( func, PASS_IN );
-        print_file( file, indent, "NdrFcShort(0x%x),\t/* client buffer = %u */\n", size, size );
+        strappend( str, "        NdrFcShort(0x%x),\t/* client buffer = %u */\n", size, size );
         size = get_function_buffer_size( func, PASS_OUT );
-        print_file( file, indent, "NdrFcShort(0x%x),\t/* server buffer = %u */\n", size, size );
-        print_file( file, indent, "0x%02x,\n", oi2_flags );
-        print_file( file, indent, "0x%02x,\t/* %u params */\n", nb_args, nb_args );
-        print_file( file, indent, "0x%02x,\n", pointer_size == 8 ? 10 : 8 );
-        print_file( file, indent, "0x%02x,\n", ext_flags );
-        print_file( file, indent, "NdrFcShort(0x0),\n" );  /* server corr hint */
-        print_file( file, indent, "NdrFcShort(0x0),\n" );  /* client corr hint */
-        print_file( file, indent, "NdrFcShort(0x0),\n" );  /* FIXME: notify index */
+        strappend( str, "        NdrFcShort(0x%x),\t/* server buffer = %u */\n", size, size );
+        strappend( str, "        0x%02x,\n", oi2_flags );
+        strappend( str, "        0x%02x,\t/* %u params */\n", nb_args, nb_args );
+        strappend( str, "        0x%02x,\n", pointer_size == 8 ? 10 : 8 );
+        strappend( str, "        0x%02x,\n", ext_flags );
+        strappend( str, "        NdrFcShort(0x0),\n" ); /* server corr hint */
+        strappend( str, "        NdrFcShort(0x0),\n" ); /* client corr hint */
+        strappend( str, "        NdrFcShort(0x0),\n" ); /* FIXME: notify index */
         *offset += 14;
         if (pointer_size == 8)
         {
@@ -1482,26 +1484,21 @@ static void write_proc_func_header( FILE *file, int indent, const type_t *iface,
                 pos += 2;
                 if (pos >= 16) break;
             }
-            print_file( file, indent, "NdrFcShort(0x%x),\n", fpu_mask );  /* floating point mask */
+            strappend( str, "        NdrFcShort(0x%x),\n", fpu_mask ); /* floating point mask */
             *offset += 2;
         }
     }
 }
 
-static void write_procformatstring_func( FILE *file, int indent, const type_t *iface,
-                                         const var_t *func, unsigned int *offset,
-                                         unsigned short num_proc )
+static void append_pfs_func( struct strbuf *str, const type_t *iface, const var_t *func,
+                             unsigned short num_proc, unsigned int *offset )
 {
     unsigned int stack_offset = is_object( iface ) ? pointer_size : 0;
     int is_interpreted = is_interpreted_func( iface, func );
     int is_new_style = is_interpreted && (get_stub_mode() == MODE_Oif);
     var_t *retval = type_function_get_retval( func->declspec.type );
 
-    if (is_interpreted)
-    {
-        print_file( file, 0, "/* %u (procedure %s::%s) */\n", *offset, iface->name, func->name );
-        write_proc_func_header( file, indent, iface, func, offset, num_proc );
-    }
+    if (is_interpreted) append_pfs_func_header( str, iface, func, offset, num_proc );
 
     /* emit argument data */
     if (type_function_get_args(func->declspec.type))
@@ -1509,11 +1506,9 @@ static void write_procformatstring_func( FILE *file, int indent, const type_t *i
         const var_t *var;
         LIST_FOR_EACH_ENTRY( var, type_function_get_args(func->declspec.type), const var_t, entry )
         {
-            print_file( file, 0, "/* %u (parameter %s) */\n", *offset, var->name );
-            if (is_new_style)
-                *offset += write_new_procformatstring_type(file, indent, var, FALSE, &stack_offset);
-            else
-                *offset += write_old_procformatstring_type(file, indent, var, FALSE, is_interpreted);
+            strappend( str, "/* %u (parameter %s) */\n", *offset, var->name );
+            if (is_new_style) *offset += append_pfs_type_new( str, var, FALSE, &stack_offset );
+            else *offset += append_pfs_type_old( str, var, FALSE, is_interpreted );
         }
     }
 
@@ -1522,19 +1517,17 @@ static void write_procformatstring_func( FILE *file, int indent, const type_t *i
     {
         if (!is_new_style)
         {
-            print_file(file, 0, "/* %u (void) */\n", *offset);
-            print_file(file, indent, "0x5b,\t/* FC_END */\n");
-            print_file(file, indent, "0x5c,\t/* FC_PAD */\n");
+            strappend( str, "/* %u (void) */\n", *offset );
+            strappend( str, "        0x5b,\t/* FC_END */\n" );
+            strappend( str, "        0x5c,\t/* FC_PAD */\n" );
             *offset += 2;
         }
     }
     else
     {
-        print_file( file, 0, "/* %u (return value) */\n", *offset );
-        if (is_new_style)
-            *offset += write_new_procformatstring_type(file, indent, retval, TRUE, &stack_offset);
-        else
-            *offset += write_old_procformatstring_type(file, indent, retval, TRUE, is_interpreted);
+        strappend( str, "/* %u (return value) */\n", *offset );
+        if (is_new_style) *offset += append_pfs_type_new( str, retval, TRUE, &stack_offset );
+        else *offset += append_pfs_type_old( str, retval, TRUE, is_interpreted );
     }
 }
 
@@ -1562,13 +1555,17 @@ static void write_iface_procformatstring(type_t *iface, FILE *file, int indent, 
     const statement_t *stmt;
     const type_t *parent = type_iface_get_inherit( iface );
     int count = parent ? count_methods( parent ) : 0;
+    struct strbuf str = {0};
 
     STATEMENTS_FOR_EACH_FUNC(stmt, type_iface_get_stmts(iface))
     {
         var_t *func = stmt->u.var;
         if (is_local(func->attrs)) continue;
-        write_procformatstring_func( file, indent, iface, func, offset, count++ );
+        append_pfs_func( &str, iface, func, count++, offset );
     }
+
+    if (str.buf) print_file( file, 0, "%s", str.buf );
+    free( str.buf );
 }
 
 void write_procformatstring(FILE *file, const statement_list_t *stmts, type_pred_t pred)
@@ -4647,7 +4644,9 @@ void write_remoting_arguments(FILE *file, int indent, const var_t *func, const c
 unsigned int get_size_procformatstring_func(const type_t *iface, const var_t *func)
 {
     unsigned int offset = 0;
-    write_procformatstring_func( NULL, 0, iface, func, &offset, 0 );
+    struct strbuf str = {0};
+    append_pfs_func( &str, iface, func, 0, &offset );
+    free( str.buf );
     return offset;
 }
 
