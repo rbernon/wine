@@ -64,7 +64,6 @@ typedef int (*type_pred_t)(const type_t *);
 
 void write_procformatstring(FILE *file, const statement_list_t *stmts, type_pred_t pred);
 void write_typeformatstring(FILE *file, const statement_list_t *stmts, type_pred_t pred);
-void write_procformatstring_offsets( FILE *file, const type_t *iface );
 void print_phase_basetype(FILE *file, int indent, const char *local_var_prefix, enum remoting_phase phase,
                           enum pass pass, const var_t *var, const char *varname);
 void write_parameter_conf_or_var_exprs(FILE *file, int indent, const char *local_var_prefix,
@@ -102,3 +101,4 @@ unsigned int type_memsize_and_alignment(const type_t *t, unsigned int *align);
 
 void put_exceptions(void);
 void put_format_string_decls( const statement_list_t *stmts, type_pred_t pred );
+void put_proc_format_string_offsets( const type_t *iface );
