@@ -1767,12 +1767,12 @@ void clear_all_offsets(void)
 
 static void type_function_add_head_arg(type_t *type, var_t *arg)
 {
-    if (!type->details.function->args)
+    if (!type->details.function.args)
     {
-        type->details.function->args = xmalloc( sizeof(*type->details.function->args) );
-        list_init( type->details.function->args );
+        type->details.function.args = xmalloc( sizeof(*type->details.function.args) );
+        list_init( type->details.function.args );
     }
-    list_add_head( type->details.function->args, &arg->entry );
+    list_add_head( type->details.function.args, &arg->entry );
 }
 
 static int is_allowed_range_type(const type_t *type)
@@ -1850,8 +1850,8 @@ static void append_chain_type(declarator_t *decl, type_t *type, enum type_qualif
     }
     else if (is_func(chain_type))
     {
-        chain_type->details.function->retval->declspec.type = type;
-        chain_type->details.function->retval->declspec.qualifier = qual;
+        chain_type->details.function.retval->declspec.type = type;
+        chain_type->details.function.retval->declspec.qualifier = qual;
     }
     else
         assert(0);
@@ -2914,13 +2914,13 @@ static void check_async_uuid(type_t *iface)
         begin_func = copy_var(func, strmake("Begin_%s", func->name), NULL);
         begin_func->declspec.type = type_new_function(begin_args);
         begin_func->declspec.type->attrs = func->attrs;
-        begin_func->declspec.type->details.function->retval = func->declspec.type->details.function->retval;
+        begin_func->declspec.type->details.function.retval = func->declspec.type->details.function.retval;
         stmts = append_statement(stmts, make_statement_declaration(begin_func));
 
         finish_func = copy_var(func, strmake("Finish_%s", func->name), NULL);
         finish_func->declspec.type = type_new_function(finish_args);
         finish_func->declspec.type->attrs = func->attrs;
-        finish_func->declspec.type->details.function->retval = func->declspec.type->details.function->retval;
+        finish_func->declspec.type->details.function.retval = func->declspec.type->details.function.retval;
         stmts = append_statement(stmts, make_statement_declaration(finish_func));
     }
 
