@@ -1763,14 +1763,21 @@ static void write_forward(FILE *header, type_t *iface)
 
 static void write_com_interface_start(FILE *header, const type_t *iface)
 {
-  int dispinterface = is_attr(iface->attrs, ATTR_DISPINTERFACE);
-  expr_t *contract = get_attrp(iface->attrs, ATTR_CONTRACT);
-  fprintf(header, "/*****************************************************************************\n");
-  fprintf(header, " * %s %sinterface\n", iface->name, dispinterface ? "disp" : "");
-  fprintf(header, " */\n");
-  if (contract) put_apicontract_guard_start( contract, fprintf, header );
-  fprintf(header,"#ifndef __%s_%sINTERFACE_DEFINED__\n", iface->c_name, dispinterface ? "DISP" : "");
-  fprintf(header,"#define __%s_%sINTERFACE_DEFINED__\n\n", iface->c_name, dispinterface ? "DISP" : "");
+    int dispinterface = is_attr( iface->attrs, ATTR_DISPINTERFACE );
+    expr_t *contract = get_attrp( iface->attrs, ATTR_CONTRACT );
+
+    init_output_buffer();
+
+    put_line( "/*****************************************************************************" );
+    put_line( " * %s %sinterface", iface->name, dispinterface ? "disp" : "" );
+    put_line( " */" );
+    if (contract) put_apicontract_guard_start( contract );
+    put_line( "#ifndef __%s_%sINTERFACE_DEFINED__", iface->c_name, dispinterface ? "DISP" : "" );
+    put_line( "#define __%s_%sINTERFACE_DEFINED__", iface->c_name, dispinterface ? "DISP" : "" );
+    put_line( "" );
+
+    fputs( (char *)output_buffer, header );
+    free( output_buffer );
 }
 
 static void write_com_interface_end(FILE *header, type_t *iface)
