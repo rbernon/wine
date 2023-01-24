@@ -464,10 +464,7 @@ PARSER_LTYPE pop_import(void);
 %type <typeref_list> requires required_types
 %type <var> arg ne_union_field union_field s_field case enum enum_member declaration
 %type <var> funcdef
-%type <var> arg_ellipsis
-%type <var_list> arg_list
-%type <var_list> arg_list_no_ellipsis
-%type <var_list> dispint_meths
+%type <var_list> m_args arg_list args dispint_meths
 %type <var_list> fields ne_union_fields cases enums enum_list dispint_props field
 %type <var> m_ident ident
 %type <declarator> declarator direct_declarator init_declarator struct_declarator
@@ -653,21 +650,21 @@ library_start: attributes libraryhdr '{'	{ $$ = make_library($2, check_library_a
 librarydef: library_start global_statements '}' { $$ = $1; $$->stmts = $2; }
         ;
 
-arg_list
-        : %empty                                { $$ = NULL; }
-        | arg_list_no_ellipsis
-        | arg_list_no_ellipsis ',' arg_ellipsis { $$ = append_var( $1, $3 ); }
-        ;
-arg_list_no_ellipsis
-        : arg                                   { $$ = append_var( NULL, $1 ); }
-        | arg_list_no_ellipsis ',' arg          { $$ = append_var( $1, $3 ); }
-        ;
-arg_ellipsis: ELLIPSIS                          { $$ = make_var( xstrdup( "..." ) ); }
-        ;
+m_args
+	: %empty				{ $$ = NULL; }
+	| args
+	;
+
+arg_list: arg					{ $$ = append_var( NULL, $1 ); }
+	| arg_list ',' arg			{ $$ = append_var( $1, $3 ); }
+	;
+
+args:	  arg_list
+	| arg_list ',' ELLIPSIS			{ $$ = append_var( $1, make_var(xstrdup("...")) ); }
+	;
 
 /* split into two rules to get bison to resolve a tVOID conflict */
-arg
-        : attributes decl_spec m_any_declarator	{ if ($2->stgclass != STG_NONE && $2->stgclass != STG_REGISTER)
+arg:	  attributes decl_spec m_any_declarator	{ if ($2->stgclass != STG_NONE && $2->stgclass != STG_REGISTER)
 						    error_loc("invalid storage class for function parameter\n");
 						  $$ = declare_var( check_arg_attrs( $1, $3->var->name ), $2, $3, TRUE );
 						  free($2); free($3);
@@ -1256,13 +1253,13 @@ interface:
 						{ $$ = type_parameterized_interface_declare($2, current_namespace, $5); }
 	;
 
-delegatedef: m_attributes tDELEGATE type ident '(' arg_list ')'
+delegatedef: m_attributes tDELEGATE type ident '(' m_args ')'
 						{ $$ = type_delegate_declare($4->name, current_namespace);
 						  $$ = type_delegate_define($$, $1, append_statement(NULL, make_statement_delegate($3, $6)), &@4);
 						}
 	| m_attributes tDELEGATE type ident
 	  '<' { push_parameters_namespace($4->name); } type_parameters '>'
-	  '(' arg_list ')' { pop_parameters_namespace($4->name); }
+	  '(' m_args ')' { pop_parameters_namespace($4->name); }
 						{ $$ = type_parameterized_delegate_declare($4->name, current_namespace, $7);
 						  $$ = type_parameterized_delegate_define($$, $1, append_statement(NULL, make_statement_delegate($3, $10)), &@4);
 						}
@@ -1372,7 +1369,7 @@ direct_declarator:
 	  ident					{ $$ = make_declarator($1); }
 	| '(' declarator ')'			{ $$ = $2; }
 	| direct_declarator array		{ $$ = $1; append_array($$, $2); }
-	| direct_declarator '(' arg_list ')'	{ $$ = $1; append_chain_type($$, type_new_function($3), 0); }
+	| direct_declarator '(' m_args ')'	{ $$ = $1; append_chain_type($$, type_new_function($3), 0); }
 	;
 
 /* abstract declarator */
@@ -1394,11 +1391,11 @@ abstract_direct_declarator:
 	  '(' any_declarator_no_direct ')'	{ $$ = $2; }
 	| abstract_direct_declarator array	{ $$ = $1; append_array($$, $2); }
 	| array					{ $$ = make_declarator(NULL); append_array($$, $1); }
-	| '(' arg_list ')'
+	| '(' m_args ')'
 						{ $$ = make_declarator(NULL);
 						  append_chain_type($$, type_new_function($2), 0);
 						}
-	| abstract_direct_declarator '(' arg_list ')'
+	| abstract_direct_declarator '(' m_args ')'
 						{ $$ = $1;
 						  append_chain_type($$, type_new_function($3), 0);
 						}
@@ -1431,11 +1428,11 @@ any_direct_declarator:
 	| '(' any_declarator_no_direct ')'	{ $$ = $2; }
 	| any_direct_declarator array		{ $$ = $1; append_array($$, $2); }
 	| array					{ $$ = make_declarator(NULL); append_array($$, $1); }
-	| '(' arg_list ')'
+	| '(' m_args ')'
 						{ $$ = make_declarator(NULL);
 						  append_chain_type($$, type_new_function($2), 0);
 						}
-	| any_direct_declarator '(' arg_list ')'
+	| any_direct_declarator '(' m_args ')'
 						{ $$ = $1;
 						  append_chain_type($$, type_new_function($3), 0);
 						}
