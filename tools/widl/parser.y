@@ -450,7 +450,7 @@ PARSER_LTYPE pop_import(void);
 %type <var> m_ident ident
 %type <declarator> declarator direct_declarator init_declarator struct_declarator
 %type <declarator> m_any_declarator any_declarator any_declarator_no_direct any_direct_declarator
-%type <declarator> m_abstract_declarator abstract_declarator abstract_declarator_no_direct abstract_direct_declarator
+%type <declarator> m_abstract_declarator abstract_declarator abstract_direct_declarator
 %type <declarator_list> declarator_list struct_declarator_list
 %type <type> coclass coclassdef
 %type <type> runtimeclass runtimeclass_def
@@ -1359,13 +1359,6 @@ abstract_declarator:
 	| abstract_direct_declarator
 	;
 
-/* abstract declarator without accepting direct declarator */
-abstract_declarator_no_direct:
-	  '*' m_type_qual_list m_any_declarator %prec PPTR
-						{ $$ = $3; append_chain_type($$, type_new_pointer(NULL), $2); }
-	| callconv m_any_declarator		{ $$ = $2; append_chain_callconv( @$, $$->type, $1 ); }
-	;
-
 /* abstract declarator or empty */
 m_abstract_declarator
 	: %empty 				{ $$ = make_declarator(NULL); }
@@ -1374,7 +1367,7 @@ m_abstract_declarator
 
 /* abstract direct declarator */
 abstract_direct_declarator:
-	  '(' abstract_declarator_no_direct ')'	{ $$ = $2; }
+	  '(' any_declarator_no_direct ')'	{ $$ = $2; }
 	| abstract_direct_declarator array	{ $$ = $1; append_array($$, $2); }
 	| array					{ $$ = make_declarator(NULL); append_array($$, $1); }
 	| '(' m_args ')'
@@ -1388,10 +1381,8 @@ abstract_direct_declarator:
 	;
 
 /* abstract or non-abstract declarator */
-any_declarator:
-	  '*' m_type_qual_list m_any_declarator %prec PPTR
-						{ $$ = $3; append_chain_type($$, type_new_pointer(NULL), $2); }
-	| callconv m_any_declarator		{ $$ = $2; append_chain_callconv( @$, $$->type, $1 ); }
+any_declarator
+	: any_declarator_no_direct
 	| any_direct_declarator
 	;
 
