@@ -177,69 +177,71 @@ const char *get_name(const var_t *v)
     return v->name;
 }
 
-static void write_fields(FILE *h, var_list_t *fields, enum name_type name_type)
+static void write_fields( FILE *file, var_list_t *fields, enum name_type name_type )
 {
     unsigned nameless_struct_cnt = 0, nameless_struct_i = 0, nameless_union_cnt = 0, nameless_union_i = 0;
     const char *name;
     char buf[32];
-    var_t *v;
+    var_t *field;
 
     if (!fields) return;
 
-    LIST_FOR_EACH_ENTRY( v, fields, var_t, entry ) {
-        if (!v->declspec.type) continue;
+    LIST_FOR_EACH_ENTRY( field, fields, var_t, entry )
+    {
+        if (!field->declspec.type) continue;
 
-        switch(type_get_type_detect_alias(v->declspec.type)) {
+        switch (type_get_type_detect_alias( field->declspec.type ))
+        {
         case TYPE_STRUCT:
-        case TYPE_ENCAPSULATED_UNION:
-            nameless_struct_cnt++;
-            break;
-        case TYPE_UNION:
-            nameless_union_cnt++;
-            break;
-        default:
-            ;
+        case TYPE_ENCAPSULATED_UNION: nameless_struct_cnt++; break;
+        case TYPE_UNION: nameless_union_cnt++; break;
+        default:;
         }
     }
 
-    LIST_FOR_EACH_ENTRY( v, fields, var_t, entry ) {
-        expr_t *contract = get_attrp(v->attrs, ATTR_CONTRACT);
-        if (!v->declspec.type) continue;
-        if (contract) write_apicontract_guard_start(h, contract);
+    LIST_FOR_EACH_ENTRY( field, fields, var_t, entry )
+    {
+        expr_t *contract = get_attrp( field->attrs, ATTR_CONTRACT );
+        if (!field->declspec.type) continue;
+        if (contract) write_apicontract_guard_start( file, contract );
 
-        indent(h, 0);
-        name = v->name;
+        indent( file, 0 );
+        name = field->name;
 
-        switch(type_get_type_detect_alias(v->declspec.type)) {
+        switch (type_get_type_detect_alias( field->declspec.type ))
+        {
         case TYPE_STRUCT:
         case TYPE_ENCAPSULATED_UNION:
-            if(!v->name) {
-                fprintf(h, "__C89_NAMELESS ");
-                if(nameless_struct_cnt == 1) {
+            if (!field->name)
+            {
+                fprintf( file, "__C89_NAMELESS " );
+                if (nameless_struct_cnt == 1)
                     name = "__C89_NAMELESSSTRUCTNAME";
-                }else if(nameless_struct_i < 5 /* # of supporting macros */) {
-                    snprintf(buf, sizeof(buf), "__C89_NAMELESSSTRUCTNAME%d", ++nameless_struct_i);
+                else if (nameless_struct_i < 5 /* # of supporting macros */)
+                {
+                    snprintf( buf, sizeof(buf), "__C89_NAMELESSSTRUCTNAME%d", ++nameless_struct_i );
                     name = buf;
                 }
             }
             break;
         case TYPE_UNION:
-            if(!v->name) {
-                fprintf(h, "__C89_NAMELESS ");
-                if(nameless_union_cnt == 1) {
+            if (!field->name)
+            {
+                fprintf( file, "__C89_NAMELESS " );
+                if (nameless_union_cnt == 1)
                     name = "__C89_NAMELESSUNIONNAME";
-                }else if(nameless_union_i < 8 /* # of supporting macros */ ) {
-                    snprintf(buf, sizeof(buf), "__C89_NAMELESSUNIONNAME%d", ++nameless_union_i);
+                else if (nameless_union_i < 8 /* # of supporting macros */)
+                {
+                    snprintf( buf, sizeof(buf), "__C89_NAMELESSUNIONNAME%d", ++nameless_union_i );
                     name = buf;
                 }
             }
             break;
-        default:
-            ;
+        default: break;
         }
-        write_declspec_full( h, &v->declspec, TRUE, v->is_defined, name, name_type );
-        fprintf(h, ";\n");
-        if (contract) write_apicontract_guard_end(h, contract);
+        write_declspec_full( file, &field->declspec, TRUE, field->declonly, name, name_type );
+        fprintf( file, ";\n" );
+        if (contract) write_apicontract_guard_end( file, contract );
     }
 }
 
