@@ -446,9 +446,8 @@ type_t *type_new_function(var_list_t *args)
     }
 
     t = make_type(TYPE_FUNCTION);
-    t->details.function = xmalloc(sizeof(*t->details.function));
-    t->details.function->args = args;
-    t->details.function->retval = make_var(xstrdup("_RetVal"));
+    t->details.function.args = args;
+    t->details.function.retval = make_var(xstrdup("_RetVal"));
     t->defined = TRUE;
     return t;
 }
@@ -1167,9 +1166,8 @@ static type_t *replace_type_parameters_in_type(type_t *type, typeref_list_t *ori
         return type;
     case TYPE_FUNCTION:
         t = duptype(type, 0);
-        t->details.function = xmalloc(sizeof(*t->details.function));
-        t->details.function->args = replace_type_parameters_in_var_list(type->details.function->args, orig, repl);
-        t->details.function->retval = replace_type_parameters_in_var(type->details.function->retval, orig, repl);
+        t->details.function.args = replace_type_parameters_in_var_list(type->details.function.args, orig, repl);
+        t->details.function.retval = replace_type_parameters_in_var(type->details.function.retval, orig, repl);
         return t;
     case TYPE_PARAMETERIZED_TYPE:
         t = type->details.parameterized.type;
