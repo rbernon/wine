@@ -124,7 +124,7 @@ extern attr_list_t *check_runtimeclass_attrs( const char *name, attr_list_t *att
 extern attr_list_t *check_struct_attrs( attr_list_t *attrs );
 extern attr_list_t *check_typedef_attrs( attr_list_t *attrs );
 extern attr_list_t *check_union_attrs( attr_list_t *attrs );
-extern void check_arg_attrs( const var_t *arg );
+extern attr_list_t *check_arg_attrs( attr_list_t *attrs, const char *name );
 
 /* expr.c */
 
