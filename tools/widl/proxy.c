@@ -44,12 +44,6 @@ static void print_proxy( const char *format, ... )
   va_end( va );
 }
 
-static void write_stubdescproto(void)
-{
-  print_proxy( "static const MIDL_STUB_DESC Object_StubDesc;\n");
-  print_proxy( "\n");
-}
-
 static void write_stubdesc(int expr_eval_routines)
 {
   print_proxy( "static const MIDL_STUB_DESC Object_StubDesc =\n{\n");
@@ -462,13 +456,13 @@ static const statement_t * get_callas_source(const type_t * iface, const var_t *
   return NULL;
 }
 
-static void write_proxy_procformatstring_offsets( const type_t *iface, int skip )
+static void put_proxy_procformatstring_offsets( const type_t *iface, int skip )
 {
     const statement_t *stmt;
     type_t *base;
 
     if (!(base = type_iface_get_inherit( iface ))) return; /* skip IUnknown */
-    write_proxy_procformatstring_offsets( base, need_delegation( iface ) );
+    put_proxy_procformatstring_offsets( base, need_delegation( iface ) );
 
     STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts(iface) )
     {
@@ -485,19 +479,19 @@ static void write_proxy_procformatstring_offsets( const type_t *iface, int skip 
                 func = callas_source->u.var;
         }
         if (skip || missing)
-            print_proxy( "(unsigned short)-1,  /* %s::%s */\n", iface->name, get_name(func));
+            put_line( "(unsigned short)-1,  /* %s::%s */", iface->name, get_name( func ) );
         else
-            print_proxy( "%u,  /* %s::%s */\n", func->procstring_offset, iface->name, get_name(func));
+            put_line( "%u,  /* %s::%s */", func->procstring_offset, iface->name, get_name( func ) );
     }
 }
 
-static int write_proxy_methods(type_t *iface, int skip)
+static int put_proxy_methods( type_t *iface, int skip )
 {
     const statement_t *stmt;
     type_t *base;
     int i = 0;
 
-    if ((base = type_iface_get_inherit( iface ))) i = write_proxy_methods( base, need_delegation( iface ) );
+    if ((base = type_iface_get_inherit( iface ))) i = put_proxy_methods( base, need_delegation( iface ) );
 
     STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts( iface ) )
     {
@@ -505,26 +499,26 @@ static int write_proxy_methods(type_t *iface, int skip)
         if (!is_callas( func->attrs ))
         {
             if (skip || (is_local( func->attrs ) && !get_callas_source( iface, func )))
-                print_proxy( "0,  /* %s::%s */\n", iface->name, get_name( func ) );
+                put_line( "0,  /* %s::%s */", iface->name, get_name( func ) );
             else if (is_interpreted_func( iface, func ) && get_stub_mode() == MODE_Oif &&
                      !is_local( func->attrs ) && base)
-                print_proxy( "(void *)-1,  /* %s::%s */\n", iface->name, get_name( func ) );
+                put_line( "(void *)-1,  /* %s::%s */", iface->name, get_name( func ) );
             else
-                print_proxy( "%s_%s_Proxy,\n", iface->name, get_name( func ) );
+                put_line( "%s_%s_Proxy,", iface->name, get_name( func ) );
             i++;
         }
     }
     return i;
 }
 
-static int write_stub_methods(type_t *iface, int skip)
+static int put_stub_methods( type_t *iface, int skip )
 {
     const statement_t *stmt;
     type_t *base;
     int i = 0;
 
     if (!(base = type_iface_get_inherit( iface ))) return i; /* skip IUnknown */
-    i = write_stub_methods( base, need_delegation( iface ) );
+    i = put_stub_methods( base, need_delegation( iface ) );
 
     STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts( iface ) )
     {
@@ -539,26 +533,26 @@ static int write_stub_methods(type_t *iface, int skip)
                 if (!callas_source) missing = 1;
                 else fname = get_name( callas_source->u.var );
             }
-            if (i) fprintf( proxy, ",\n" );
+            if (i) put_line( "," );
             if (skip || missing)
-                print_proxy( "STUB_FORWARDING_FUNCTION" );
+                put_str( "STUB_FORWARDING_FUNCTION" );
             else if (is_interpreted_func( iface, func ))
-                print_proxy( "(PRPC_STUB_FUNCTION)%s", get_stub_mode() == MODE_Oif ? "NdrStubCall2" : "NdrStubCall" );
+                put_str( "(PRPC_STUB_FUNCTION)%s", get_stub_mode() == MODE_Oif ? "NdrStubCall2" : "NdrStubCall" );
             else
-                print_proxy( "%s_%s_Stub", iface->name, fname );
+                put_str( "%s_%s_Stub", iface->name, fname );
             i++;
         }
     }
     return i;
 }
 
-static void write_thunk_methods( type_t *iface, int skip )
+static void put_thunk_methods( type_t *iface, int skip )
 {
     const statement_t *stmt;
     type_t *base;
 
     if (!(base = type_iface_get_inherit( iface ))) return; /* skip IUnknown */
-    write_thunk_methods( base, need_delegation( iface ) );
+    put_thunk_methods( base, need_delegation( iface ) );
 
     STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts(iface) )
     {
@@ -569,13 +563,13 @@ static void write_thunk_methods( type_t *iface, int skip )
         if (is_local(func->attrs)) callas_source = get_callas_source(iface, func);
 
         if (!skip && callas_source && is_interpreted_func( iface, func ))
-            print_proxy( "%s_%s_Thunk,\n", iface->name, get_name(callas_source->u.var) );
+            put_line( "%s_%s_Thunk,", iface->name, get_name( callas_source->u.var ) );
         else
-            print_proxy( "0, /* %s::%s */\n", iface->name, get_name(func) );
+            put_line( "0, /* %s::%s */", iface->name, get_name( func ) );
     }
 }
 
-static void write_proxy(type_t *iface, unsigned int *proc_offset)
+static void write_proxy( type_t *iface, unsigned int *proc_offset )
 {
     int count;
     const statement_t *stmt;
@@ -623,111 +617,122 @@ static void write_proxy(type_t *iface, unsigned int *proc_offset)
         }
     }
 
+    init_output_buffer();
+
     count = count_methods( iface );
 
-    print_proxy( "static const unsigned short %s_FormatStringOffsetTable[] =\n", iface->name );
-    print_proxy( "{\n" );
+    put_line( "static const unsigned short %s_FormatStringOffsetTable[] =", iface->name );
+    put_line( "{" );
     indent++;
-    write_proxy_procformatstring_offsets( iface, 0 );
+    put_proxy_procformatstring_offsets( iface, 0 );
     indent--;
-    print_proxy( "};\n\n" );
+    put_line( "};" );
+    put_line( "" );
 
     /* proxy info */
     if (get_stub_mode() == MODE_Oif)
     {
-        print_proxy( "static const MIDL_STUBLESS_PROXY_INFO %s_ProxyInfo =\n", iface->name );
-        print_proxy( "{\n" );
+        put_line( "static const MIDL_STUBLESS_PROXY_INFO %s_ProxyInfo =", iface->name );
+        put_line( "{" );
         indent++;
-        print_proxy( "&Object_StubDesc,\n" );
-        print_proxy( "__MIDL_ProcFormatString.Format,\n" );
-        print_proxy( "&%s_FormatStringOffsetTable[-3],\n", iface->name );
-        print_proxy( "0,\n" );
-        print_proxy( "0,\n" );
-        print_proxy( "0\n" );
+        put_line( "&Object_StubDesc," );
+        put_line( "__MIDL_ProcFormatString.Format," );
+        put_line( "&%s_FormatStringOffsetTable[-3],", iface->name );
+        put_line( "0," );
+        put_line( "0," );
+        put_line( "0" );
         indent--;
-        print_proxy( "};\n\n" );
+        put_line( "};" );
+        put_line( "" );
     }
 
     /* proxy vtable */
-    print_proxy( "static %sCINTERFACE_PROXY_VTABLE(%d) _%sProxyVtbl =\n",
-                 (get_stub_mode() != MODE_Os || need_delegation_indirect( iface )) ? "" : "const ",
-                 count, iface->name );
-    print_proxy( "{\n" );
+    put_line( "static %sCINTERFACE_PROXY_VTABLE(%d) _%sProxyVtbl =",
+              (get_stub_mode() != MODE_Os || need_delegation_indirect( iface )) ? "" : "const ",
+              count, iface->name );
+    put_line( "{" );
     indent++;
-    print_proxy( "{\n" );
+    put_line( "{" );
     indent++;
-    if (get_stub_mode() == MODE_Oif) print_proxy( "&%s_ProxyInfo,\n", iface->name );
-    print_proxy( "&IID_%s,\n", iface->name );
+    if (get_stub_mode() == MODE_Oif) put_line( "&%s_ProxyInfo,", iface->name );
+    put_line( "&IID_%s,", iface->name );
     indent--;
-    print_proxy( "},\n" );
-    print_proxy( "{\n" );
+    put_line( "}," );
+    put_line( "{" );
     indent++;
-    write_proxy_methods( iface, FALSE );
+    put_proxy_methods( iface, FALSE );
     indent--;
-    print_proxy( "}\n" );
+    put_line( "}" );
     indent--;
-    print_proxy( "};\n\n" );
+    put_line( "};" );
+    put_line( "" );
 
     /* stub thunk table */
     if (needs_stub_thunks)
     {
-        print_proxy( "static const STUB_THUNK %s_StubThunkTable[] =\n", iface->name );
-        print_proxy( "{\n" );
+        put_line( "static const STUB_THUNK %s_StubThunkTable[] =", iface->name );
+        put_line( "{" );
         indent++;
-        write_thunk_methods( iface, 0 );
+        put_thunk_methods( iface, 0 );
         indent--;
-        print_proxy( "};\n\n" );
+        put_line( "};" );
+        put_line( "" );
     }
 
     /* server info */
-    print_proxy( "static const MIDL_SERVER_INFO %s_ServerInfo =\n", iface->name );
-    print_proxy( "{\n" );
+    put_line( "static const MIDL_SERVER_INFO %s_ServerInfo =", iface->name );
+    put_line( "{" );
     indent++;
-    print_proxy( "&Object_StubDesc,\n" );
-    print_proxy( "0,\n" );
-    print_proxy( "__MIDL_ProcFormatString.Format,\n" );
-    print_proxy( "&%s_FormatStringOffsetTable[-3],\n", iface->name );
-    if (needs_stub_thunks) print_proxy( "&%s_StubThunkTable[-3],\n", iface->name );
-    else print_proxy( "0,\n" );
-    print_proxy( "0,\n" );
-    print_proxy( "0,\n" );
-    print_proxy( "0\n" );
+    put_line( "&Object_StubDesc," );
+    put_line( "0," );
+    put_line( "__MIDL_ProcFormatString.Format," );
+    put_line( "&%s_FormatStringOffsetTable[-3],", iface->name );
+    if (needs_stub_thunks) put_line( "&%s_StubThunkTable[-3],", iface->name );
+    else put_line( "0," );
+    put_line( "0," );
+    put_line( "0," );
+    put_line( "0" );
     indent--;
-    print_proxy( "};\n\n" );
+    put_line( "};" );
+    put_line( "" );
 
     /* stub vtable */
     if (needs_inline_stubs)
     {
-        print_proxy( "static const PRPC_STUB_FUNCTION %s_table[] =\n", iface->name );
-        print_proxy( "{\n" );
+        put_line( "static const PRPC_STUB_FUNCTION %s_table[] =", iface->name );
+        put_line( "{" );
         indent++;
-        write_stub_methods( iface, FALSE );
-        fprintf( proxy, "\n" );
+        put_stub_methods( iface, FALSE );
+        put_line( "" );
         indent--;
-        fprintf( proxy, "};\n\n" );
+        put_line( "};" );
+        put_line( "" );
     }
-    print_proxy( "static %sCInterfaceStubVtbl _%sStubVtbl =\n",
-                 need_delegation_indirect( iface ) ? "" : "const ", iface->name );
-    print_proxy( "{\n" );
+    put_line( "static %sCInterfaceStubVtbl _%sStubVtbl =", need_delegation_indirect( iface ) ? "" : "const ",
+              iface->name );
+    put_line( "{" );
     indent++;
-    print_proxy( "{\n" );
+    put_line( "{" );
     indent++;
-    print_proxy( "&IID_%s,\n", iface->name );
-    print_proxy( "&%s_ServerInfo,\n", iface->name );
-    print_proxy( "%d,\n", count );
-    if (needs_inline_stubs) print_proxy( "&%s_table[-3]\n", iface->name );
-    else print_proxy( "0\n" );
+    put_line( "&IID_%s,", iface->name );
+    put_line( "&%s_ServerInfo,", iface->name );
+    put_line( "%d,", count );
+    if (needs_inline_stubs) put_line( "&%s_table[-3]", iface->name );
+    else put_line( "0" );
     indent--;
-    print_proxy( "},\n" );
-    print_proxy( "{\n" );
+    put_line( "}," );
+    put_line( "{" );
     indent++;
-    print_proxy( "%s_%s\n", type_iface_get_async_iface( iface ) == iface ? "CStdAsyncStubBuffer" : "CStdStubBuffer",
-                 need_delegation_indirect( iface ) ? "DELEGATING_METHODS" : "METHODS" );
+    put_line( "%s_%s", type_iface_get_async_iface( iface ) == iface ? "CStdAsyncStubBuffer" : "CStdStubBuffer",
+              need_delegation_indirect( iface ) ? "DELEGATING_METHODS" : "METHODS" );
     indent--;
-    print_proxy( "}\n" );
+    put_line( "}" );
     indent--;
-    print_proxy( "};\n" );
-    print_proxy( "\n" );
+    put_line( "};" );
+    put_line( "" );
+
+    fputs( (char *)output_buffer, proxy );
+    free( output_buffer );
 }
 
 static int does_any_iface(const statement_list_t *stmts, type_pred_t pred)
@@ -811,7 +816,7 @@ int need_inline_stubs_file(const statement_list_t *stmts)
   return does_any_iface(stmts, need_inline_stubs);
 }
 
-static void write_proxy_stmts(const statement_list_t *stmts, unsigned int *proc_offset)
+static void write_proxy_stmts( const statement_list_t *stmts, unsigned int *proc_offset )
 {
     const statement_t *stmt;
     if (stmts) LIST_FOR_EACH_ENTRY( stmt, stmts, const statement_t, entry )
@@ -932,11 +937,13 @@ void write_proxies( const statement_list_t *stmts )
     }
 
     put_format_string_decls( stmts, need_proxy );
+    put_line( "static const MIDL_STUB_DESC Object_StubDesc;" );
+    put_line( "" );
+
     fputs( (char *)output_buffer, proxy );
     free( output_buffer );
 
-  write_stubdescproto();
-  write_proxy_stmts(stmts, &proc_offset);
+    write_proxy_stmts( stmts, &proc_offset );
 
   expr_eval_routines = write_expr_eval_routines(proxy, proxy_token);
   if (expr_eval_routines)
