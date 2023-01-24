@@ -62,7 +62,6 @@ enum typegen_type
 
 typedef int (*type_pred_t)(const type_t *);
 
-void write_formatstringsdecl(FILE *f, int indent, const statement_list_t *stmts, type_pred_t pred);
 void write_procformatstring(FILE *file, const statement_list_t *stmts, type_pred_t pred);
 void write_typeformatstring(FILE *file, const statement_list_t *stmts, type_pred_t pred);
 void write_procformatstring_offsets( FILE *file, const type_t *iface );
@@ -102,3 +101,4 @@ enum typegen_type typegen_detect_type(const type_t *type, const attr_list_t *att
 unsigned int type_memsize_and_alignment(const type_t *t, unsigned int *align);
 
 void put_exceptions(void);
+void put_format_string_decls( const statement_list_t *stmts, type_pred_t pred );

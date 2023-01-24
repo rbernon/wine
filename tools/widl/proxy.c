@@ -929,10 +929,10 @@ void write_proxies( const statement_list_t *stmts )
         put_line( "" );
     }
 
+    put_format_string_decls( stmts, need_proxy );
     fputs( (char *)output_buffer, proxy );
     free( output_buffer );
 
-  write_formatstringsdecl(proxy, indent, stmts, need_proxy);
   write_stubdescproto();
   write_proxy_stmts(stmts, &proc_offset);
 

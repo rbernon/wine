@@ -593,10 +593,10 @@ void write_client( const statement_list_t *stmts )
         put_line( "" );
     }
 
+    put_format_string_decls( stmts, need_stub );
     fputs( (char *)output_buffer, client );
     free( output_buffer );
 
-    write_formatstringsdecl(client, indent, stmts, need_stub);
     expr_eval_routines = write_expr_eval_routines(client, client_token);
     if (expr_eval_routines)
         write_expr_eval_routine_list(client, client_token);

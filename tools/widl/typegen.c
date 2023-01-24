@@ -976,33 +976,29 @@ void write_parameters_init(FILE *file, int indent, const var_t *func, const char
     fprintf(file, "\n");
 }
 
-static void write_formatdesc(FILE *f, int indent, const char *str)
+static void put_format_desc( const char *str )
 {
-    print_file(f, indent, "typedef struct _MIDL_%s_FORMAT_STRING\n", str);
-    print_file(f, indent, "{\n");
-    print_file(f, indent + 1, "short Pad;\n");
-    print_file(f, indent + 1, "unsigned char Format[%s_FORMAT_STRING_SIZE];\n", str);
-    print_file(f, indent, "} MIDL_%s_FORMAT_STRING;\n", str);
-    print_file(f, indent, "\n");
+    put_line( "typedef struct _MIDL_%s_FORMAT_STRING", str );
+    put_line( "{" );
+    put_line( "short Pad;" );
+    put_line( "unsigned char Format[%s_FORMAT_STRING_SIZE];", str );
+    put_line( "} MIDL_%s_FORMAT_STRING;", str );
+    put_line( "" );
 }
 
-void write_formatstringsdecl(FILE *f, int indent, const statement_list_t *stmts, type_pred_t pred)
+void put_format_string_decls( const statement_list_t *stmts, type_pred_t pred )
 {
     clear_all_offsets();
 
-    print_file(f, indent, "#define TYPE_FORMAT_STRING_SIZE %d\n",
-               get_size_typeformatstring(stmts, pred));
-
-    print_file(f, indent, "#define PROC_FORMAT_STRING_SIZE %d\n",
-               get_size_procformatstring(stmts, pred));
-
-    fprintf(f, "\n");
-    write_formatdesc(f, indent, "TYPE");
-    write_formatdesc(f, indent, "PROC");
-    fprintf(f, "\n");
-    print_file(f, indent, "static const MIDL_TYPE_FORMAT_STRING __MIDL_TypeFormatString;\n");
-    print_file(f, indent, "static const MIDL_PROC_FORMAT_STRING __MIDL_ProcFormatString;\n");
-    print_file(f, indent, "\n");
+    put_line( "#define TYPE_FORMAT_STRING_SIZE %d", get_size_typeformatstring( stmts, pred ) );
+    put_line( "#define PROC_FORMAT_STRING_SIZE %d", get_size_procformatstring( stmts, pred ) );
+    put_line( "" );
+    put_format_desc( "TYPE" );
+    put_format_desc( "PROC" );
+    put_line( "" );
+    put_line( "static const MIDL_TYPE_FORMAT_STRING __MIDL_TypeFormatString;" );
+    put_line( "static const MIDL_PROC_FORMAT_STRING __MIDL_ProcFormatString;" );
+    put_line( "" );
 }
 
 int decl_indirect(const type_t *t)
