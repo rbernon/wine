@@ -28,14 +28,13 @@ struct idl_ctx
     const char *input;
     statement_list_t *statements;
 };
-
-int parser_parse( struct idl_ctx *ctx );
+extern int idl_compile( struct idl_ctx *ctx, const char *input, const char *acf );
 
 extern void parser_warning( const struct location *yylloc, struct idl_ctx *ctx, const char *message );
 extern void parser_error( const struct location *where, const char *message );
 extern void init_location( struct location *copy, const struct location *begin, const struct location *end );
 
-extern FILE *parser_in;
+extern char *input_name;
 extern int parser_debug;
 extern int yy_flex_debug;
 

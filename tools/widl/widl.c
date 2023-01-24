@@ -114,9 +114,7 @@ int interpreted_mode = 1;
 int use_abi_namespace = 0;
 static int stdinc = 1;
 
-char *input_name;
 char *typename_base;
-char *acf_name;
 char *header_name;
 char *local_stubs_name;
 char *header_token;
@@ -130,6 +128,7 @@ char *server_name;
 char *server_token;
 char *regscript_name;
 char *regscript_token;
+static char *acf_name;
 static char *idfile_name;
 struct strarray temp_files = { 0 };
 const char *temp_dir = NULL;
@@ -771,7 +770,7 @@ int main(int argc,char *argv[])
     }
     else
     {
-      ctx.input = input_name = xstrdup( files.str[0] );
+      ctx.input = xstrdup( files.str[0] );
     }
   }
   else {
@@ -822,18 +821,18 @@ int main(int argc,char *argv[])
   wpp_add_cmdline_define("_WIN32=1");
 
   atexit(rm_tempfile);
-  if (preprocess_only) exit( wpp_parse( input_name, stdout ) );
-  parser_in = open_input_file( input_name );
+  if (preprocess_only) exit( wpp_parse( ctx.input, stdout ) );
 
   header_token = make_token(header_name);
 
   typename_base = replace_extension( get_basename( ctx.input ), ".idl", "" );
   for (tmp = typename_base; *tmp; ++tmp) if (!isalnum( (unsigned char)*tmp )) *tmp = '_';
 
-  init_types();
-  ret = parser_parse();
-  close_all_inputs();
-  if (ret) exit(1);
+  if ((ret = idl_compile( &ctx, ctx.input, acf_name )))
+  {
+      close_all_inputs();
+      if (ret) exit(1);
+  }
 
   write_header( &ctx );
   write_id_data( &ctx );
