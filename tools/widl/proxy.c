@@ -948,101 +948,100 @@ void write_proxies( const statement_list_t *stmts )
   write_procformatstring(proxy, stmts, need_proxy);
   write_typeformatstring(proxy, stmts, need_proxy);
 
-  interfaces = sort_interfaces(stmts, &count);
-  fprintf(proxy, "static const CInterfaceProxyVtbl* const _%s_ProxyVtblList[] =\n", file_id);
-  fprintf(proxy, "{\n");
-  for (i = 0; i < count; i++)
-      fprintf(proxy, "    (const CInterfaceProxyVtbl*)&_%sProxyVtbl,\n", interfaces[i]->name);
-  fprintf(proxy, "    0\n");
-  fprintf(proxy, "};\n");
-  fprintf(proxy, "\n");
+    init_output_buffer();
+    interfaces = sort_interfaces( stmts, &count );
+    put_line( "static const CInterfaceProxyVtbl* const _%s_ProxyVtblList[] =", file_id );
+    put_line( "{" );
+    for (i = 0; i < count; i++)
+        put_line( "    (const CInterfaceProxyVtbl*)&_%sProxyVtbl,", interfaces[i]->name );
+    put_line( "    0" );
+    put_line( "};" );
+    put_line( "" );
 
-  fprintf(proxy, "static const CInterfaceStubVtbl* const _%s_StubVtblList[] =\n", file_id);
-  fprintf(proxy, "{\n");
-  for (i = 0; i < count; i++)
-      fprintf(proxy, "    &_%sStubVtbl,\n", interfaces[i]->name);
-  fprintf(proxy, "    0\n");
-  fprintf(proxy, "};\n");
-  fprintf(proxy, "\n");
+    put_line( "static const CInterfaceStubVtbl* const _%s_StubVtblList[] =", file_id );
+    put_line( "{" );
+    for (i = 0; i < count; i++) put_line( "    &_%sStubVtbl,", interfaces[i]->name );
+    put_line( "    0" );
+    put_line( "};" );
+    put_line( "" );
 
-  fprintf(proxy, "static PCInterfaceName const _%s_InterfaceNamesList[] =\n", file_id);
-  fprintf(proxy, "{\n");
-  for (i = 0; i < count; i++)
-      fprintf(proxy, "    \"%s\",\n", interfaces[i]->name);
-  fprintf(proxy, "    0\n");
-  fprintf(proxy, "};\n");
-  fprintf(proxy, "\n");
+    put_line( "static PCInterfaceName const _%s_InterfaceNamesList[] =", file_id );
+    put_line( "{" );
+    for (i = 0; i < count; i++) put_line( "    \"%s\",", interfaces[i]->name );
+    put_line( "    0" );
+    put_line( "};" );
+    put_line( "" );
 
-  for (i = 0; i < count; i++)
-      if ((have_baseiid = get_delegation_indirect( interfaces[i], NULL ))) break;
+    for (i = 0; i < count; i++)
+        if ((have_baseiid = get_delegation_indirect( interfaces[i], NULL ))) break;
 
-  if (have_baseiid)
-  {
-      fprintf(proxy, "static const IID * _%s_BaseIIDList[] =\n", file_id);
-      fprintf(proxy, "{\n");
-      for (i = 0; i < count; i++)
-      {
-          if (get_delegation_indirect(interfaces[i], &delegate_to))
-              fprintf( proxy, "    &IID_%s,  /* %s */\n", delegate_to->name, interfaces[i]->name );
-          else
-              fprintf( proxy, "    0,\n" );
-      }
-      fprintf(proxy, "    0\n");
-      fprintf(proxy, "};\n");
-      fprintf(proxy, "\n");
-  }
+    if (have_baseiid)
+    {
+        put_line( "static const IID * _%s_BaseIIDList[] =", file_id );
+        put_line( "{" );
+        for (i = 0; i < count; i++)
+        {
+            if (!get_delegation_indirect( interfaces[i], &delegate_to )) put_line( "    0," );
+            else put_line( "    &IID_%s,  /* %s */", delegate_to->name, interfaces[i]->name );
+        }
+        put_line( "    0" );
+        put_line( "};" );
+        put_line( "" );
+    }
 
-  fprintf(proxy, "static int __stdcall _%s_IID_Lookup(const IID* pIID, int* pIndex)\n", file_id);
-  fprintf(proxy, "{\n");
-  fprintf(proxy, "    int low = 0, high = %d;\n", count - 1);
-  fprintf(proxy, "\n");
-  fprintf(proxy, "    while (low <= high)\n");
-  fprintf(proxy, "    {\n");
-  fprintf(proxy, "        int pos = (low + high) / 2;\n");
-  fprintf(proxy, "        int res = IID_GENERIC_CHECK_IID(_%s, pIID, pos);\n", file_id);
-  fprintf(proxy, "        if (!res) { *pIndex = pos; return 1; }\n");
-  fprintf(proxy, "        if (res > 0) low = pos + 1;\n");
-  fprintf(proxy, "        else high = pos - 1;\n");
-  fprintf(proxy, "    }\n");
-  fprintf(proxy, "    return 0;\n");
-  fprintf(proxy, "}\n");
-  fprintf(proxy, "\n");
+    put_line( "static int __stdcall _%s_IID_Lookup(const IID* pIID, int* pIndex)", file_id );
+    put_line( "{" );
+    put_line( "    int low = 0, high = %d;", count - 1 );
+    put_line( "" );
+    put_line( "    while (low <= high)" );
+    put_line( "    {" );
+    put_line( "        int pos = (low + high) / 2;" );
+    put_line( "        int res = IID_GENERIC_CHECK_IID(_%s, pIID, pos);", file_id );
+    put_line( "        if (!res) { *pIndex = pos; return 1; }" );
+    put_line( "        if (res > 0) low = pos + 1;" );
+    put_line( "        else high = pos - 1;" );
+    put_line( "    }" );
+    put_line( "    return 0;" );
+    put_line( "}" );
+    put_line( "" );
 
-  table_version = get_stub_mode() == MODE_Oif ? 2 : 1;
-  for (i = 0; i < count; i++)
-  {
-      if (type_iface_get_async_iface(interfaces[i]) != interfaces[i]) continue;
-      if (table_version != 6)
-      {
-          fprintf(proxy, "static const IID *_AsyncInterfaceTable[] =\n");
-          fprintf(proxy, "{\n");
-          table_version = 6;
-      }
-      fprintf(proxy, "    &IID_%s,\n", interfaces[i]->name);
-      fprintf(proxy, "    (IID*)(LONG_PTR)-1,\n");
-  }
-  if (table_version == 6)
-  {
-      fprintf(proxy, "    0\n");
-      fprintf(proxy, "};\n");
-      fprintf(proxy, "\n");
-  }
+    table_version = get_stub_mode() == MODE_Oif ? 2 : 1;
+    for (i = 0; i < count; i++)
+    {
+        if (type_iface_get_async_iface( interfaces[i] ) != interfaces[i]) continue;
+        if (table_version != 6)
+        {
+            put_line( "static const IID *_AsyncInterfaceTable[] =" );
+            put_line( "{" );
+            table_version = 6;
+        }
+        put_line( "    &IID_%s,", interfaces[i]->name );
+        put_line( "    (IID*)(LONG_PTR)-1," );
+    }
+    if (table_version == 6)
+    {
+        put_line( "    0" );
+        put_line( "};" );
+        put_line( "" );
+    }
 
-  fprintf(proxy, "const ExtendedProxyFileInfo %s_ProxyFileInfo =\n", file_id);
-  fprintf(proxy, "{\n");
-  fprintf(proxy, "    (const PCInterfaceProxyVtblList*)_%s_ProxyVtblList,\n", file_id);
-  fprintf(proxy, "    (const PCInterfaceStubVtblList*)_%s_StubVtblList,\n", file_id);
-  fprintf(proxy, "    _%s_InterfaceNamesList,\n", file_id);
-  if (have_baseiid) fprintf(proxy, "    _%s_BaseIIDList,\n", file_id);
-  else fprintf(proxy, "    0,\n");
-  fprintf(proxy, "    _%s_IID_Lookup,\n", file_id);
-  fprintf(proxy, "    %d,\n", count);
-  fprintf(proxy, "    %u,\n", table_version);
-  fprintf(proxy, "    %s,\n", table_version == 6 ? "_AsyncInterfaceTable" : "0");
-  fprintf(proxy, "    0,\n");
-  fprintf(proxy, "    0,\n");
-  fprintf(proxy, "    0\n");
-  fprintf(proxy, "};\n");
+    put_line( "const ExtendedProxyFileInfo %s_ProxyFileInfo =", file_id );
+    put_line( "{" );
+    put_line( "    (const PCInterfaceProxyVtblList*)_%s_ProxyVtblList,", file_id );
+    put_line( "    (const PCInterfaceStubVtblList*)_%s_StubVtblList,", file_id );
+    put_line( "    _%s_InterfaceNamesList,", file_id );
+    if (have_baseiid) put_line( "    _%s_BaseIIDList,", file_id );
+    else put_line( "    0," );
+    put_line( "    _%s_IID_Lookup,", file_id );
+    put_line( "    %d,", count );
+    put_line( "    %u,", table_version );
+    put_line( "    %s,", table_version == 6 ? "_AsyncInterfaceTable" : "0" );
+    put_line( "    0," );
+    put_line( "    0," );
+    put_line( "    0" );
+    put_line( "};" );
+    fputs( (char *)output_buffer, proxy );
+    free( output_buffer );
 
     fclose( proxy );
 }
