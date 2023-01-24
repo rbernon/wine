@@ -115,7 +115,7 @@ int use_abi_namespace = 0;
 static int stdinc = 1;
 
 char *input_name;
-char *idl_name;
+char *typename_base;
 char *acf_name;
 char *header_name;
 char *local_stubs_name;
@@ -684,6 +684,7 @@ int main(int argc,char *argv[])
   int i;
   int ret = 0;
   struct strarray files;
+  char *tmp;
 
   init_signals( exit_on_signal );
   bindir = get_bindir( argv[0] );
@@ -771,7 +772,6 @@ int main(int argc,char *argv[])
     else
     {
       ctx.input = input_name = xstrdup( files.str[0] );
-      idl_name = get_basename( input_name );
     }
   }
   else {
@@ -826,6 +826,9 @@ int main(int argc,char *argv[])
   parser_in = open_input_file( input_name );
 
   header_token = make_token(header_name);
+
+  typename_base = replace_extension( get_basename( ctx.input ), ".idl", "" );
+  for (tmp = typename_base; *tmp; ++tmp) if (!isalnum( (unsigned char)*tmp )) *tmp = '_';
 
   init_types();
   ret = parser_parse();

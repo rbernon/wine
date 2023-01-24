@@ -52,7 +52,7 @@ extern int interpreted_mode;
 extern int use_abi_namespace;
 
 extern char *input_name;
-extern char *idl_name;
+extern char *typename_base;
 extern char *acf_name;
 extern char *header_name;
 extern char *header_token;
