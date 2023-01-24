@@ -120,6 +120,18 @@ typedef struct _msft_typeinfo_t
 } msft_typeinfo_t;
 
 
+static void chat(const char *s, ...) __attribute__((format (printf, 1, 2)));
+static void chat( const char *s, ... )
+{
+    if (debuglevel & DEBUGLEVEL_CHAT)
+    {
+        va_list ap;
+        va_start( ap, s );
+        fprintf( stderr, "chat: " );
+        vfprintf( stderr, s, ap );
+        va_end( ap );
+    }
+}
 
 /*================== Internal functions ===================================*/
 
