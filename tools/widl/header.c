@@ -243,29 +243,29 @@ static void write_fields(FILE *h, var_list_t *fields, enum name_type name_type)
     }
 }
 
-static void write_enums(FILE *h, var_list_t *enums, const char *enum_name)
+static void write_enums( FILE *file, var_list_t *enums, const char *enum_name )
 {
-  var_t *v;
-  if (!enums) return;
-  LIST_FOR_EACH_ENTRY( v, enums, var_t, entry )
-  {
-    expr_t *contract = get_attrp(v->attrs, ATTR_CONTRACT);
-    if (contract) write_apicontract_guard_start(h, contract);
-    if (v->name) {
-      indent(h, 0);
-      if(!enum_name)
-          fprintf(h, "%s", get_name(v));
-      else
-          fprintf(h, "%s_%s", enum_name, get_name(v));
-      if (v->eval) {
-        fprintf(h, " = ");
-        write_expr(h, v->eval, 0, 1, NULL, NULL, "");
-      }
+    var_t *value;
+    if (!enums) return;
+    LIST_FOR_EACH_ENTRY( value, enums, var_t, entry )
+    {
+        expr_t *contract = get_attrp( value->attrs, ATTR_CONTRACT );
+        if (contract) write_apicontract_guard_start( file, contract );
+        if (value->name)
+        {
+            indent( file, 0 );
+            if (!enum_name) fprintf( file, "%s", get_name( value ) );
+            else fprintf( file, "%s_%s", enum_name, get_name( value ) );
+            if (value->eval)
+            {
+                fprintf( file, " = " );
+                write_expr( file, value->eval, 0, 1, NULL, NULL, "" );
+            }
+        }
+        if (list_next( enums, &value->entry )) fprintf( file, ",\n" );
+        else fprintf( file, "\n" );
+        if (contract) write_apicontract_guard_end( file, contract );
     }
-    if (list_next( enums, &v->entry )) fprintf(h, ",\n");
-    else fprintf(h, "\n");
-    if (contract) write_apicontract_guard_end(h, contract);
-  }
 }
 
 int needs_space_after(type_t *t)
