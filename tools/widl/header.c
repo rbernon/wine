@@ -341,6 +341,34 @@ static void write_basic_type( FILE *file, type_t *type )
     }
 }
 
+static void write_enum_type( FILE *file, type_t *type, enum name_type name_type )
+{
+    if (type->written)
+    {
+        const char *name = type_get_name( type, name_type );
+        if (winrt_mode && name_type == NAME_DEFAULT && name) fprintf( file, "%s", name );
+        else fprintf( file, "enum %s", name ? name : "" );
+    }
+    else
+    {
+        const char *decl_name = type_get_decl_name( type, name_type );
+        var_list_t *values = type_enum_get_values( type );
+
+        assert( type->defined );
+        type->written = TRUE;
+
+        fprintf( file, "enum " );
+        if (decl_name) fprintf( file, "%s ", decl_name );
+        fprintf( file, "{\n" );
+        indentation++;
+
+        write_enums( file, values, is_global_namespace( type->namespace ) ? NULL : type->name );
+
+        indent( file, -1 );
+        fprintf( file, "}" );
+    }
+}
+
 static void write_type_left( FILE *h, const decl_spec_t *ds, enum name_type name_type,
                              int is_defined, int write_callconv )
 {
@@ -363,19 +391,8 @@ static void write_type_left( FILE *h, const decl_spec_t *ds, enum name_type name
   else {
     switch (type_get_type_detect_alias(t)) {
       case TYPE_ENUM:
-        if (!define) fprintf(h, "enum %s", decl_name ? decl_name : "");
-        else if (!t->written) {
-          assert(t->defined);
-          if (decl_name) fprintf(h, "enum %s {\n", decl_name);
-          else fprintf(h, "enum {\n");
-          t->written = TRUE;
-          indentation++;
-          write_enums(h, type_enum_get_values(t), is_global_namespace(t->namespace) ? NULL : t->name);
-          indent(h, -1);
-          fprintf(h, "}");
-        }
-        else if (winrt_mode && name_type == NAME_DEFAULT && name) fprintf(h, "%s", name);
-        else fprintf(h, "enum %s", name ? name : "");
+        if (declonly) fprintf(h, "enum %s", decl_name ? decl_name : "");
+        else write_enum_type( h, t, name_type );
         break;
       case TYPE_STRUCT:
       case TYPE_ENCAPSULATED_UNION:
