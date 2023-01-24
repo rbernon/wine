@@ -117,7 +117,6 @@ unsigned short get_type_vt(type_t *t)
 {
   unsigned short vt;
 
-  chat("get_type_vt: %p type->name %s\n", t, t->name);
   if (t->name) {
     vt = builtin_vt(t);
     if (vt) return vt;
@@ -386,8 +385,6 @@ void add_importlib(const char *name, typelib_t *typelib)
     LIST_FOR_EACH_ENTRY( importlib, &typelib->importlibs, importlib_t, entry )
         if(!strcmp(name, importlib->name))
             return;
-
-    chat("add_importlib: %s\n", name);
 
     importlib = xmalloc(sizeof(*importlib));
     memset( importlib, 0, sizeof(*importlib) );
