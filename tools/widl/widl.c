@@ -141,8 +141,6 @@ static struct strarray dlldirs;
 static char *output_name;
 static const char *sysroot = "";
 
-static FILE *idfile;
-
 unsigned int packing = 8;
 unsigned int pointer_size = 0;
 
@@ -371,55 +369,56 @@ void write_dlldata(const statement_list_t *stmts)
   write_dlldata_list(filenames, define_proxy_delegation);
 }
 
-static void write_id_guid(FILE *f, const char *type, const char *guid_prefix, const char *name, const struct uuid *uuid)
+static void put_id_guid( const char *type, const char *guid_prefix, const char *name, const struct uuid *uuid )
 {
-  if (!uuid) return;
-  fprintf(f, "MIDL_DEFINE_GUID(%s, %s_%s, 0x%08x, 0x%04x, 0x%04x, 0x%02x,0x%02x, 0x%02x,"
-        "0x%02x,0x%02x,0x%02x,0x%02x,0x%02x);\n",
-        type, guid_prefix, name, uuid->Data1, uuid->Data2, uuid->Data3, uuid->Data4[0],
-        uuid->Data4[1], uuid->Data4[2], uuid->Data4[3], uuid->Data4[4], uuid->Data4[5],
-        uuid->Data4[6], uuid->Data4[7]);
+    if (!uuid) return;
+    put_line( "MIDL_DEFINE_GUID(%s, %s_%s, 0x%08x, 0x%04x, 0x%04x, 0x%02x,0x%02x, 0x%02x,"
+              "0x%02x,0x%02x,0x%02x,0x%02x,0x%02x);",
+              type, guid_prefix, name, uuid->Data1, uuid->Data2, uuid->Data3, uuid->Data4[0],
+              uuid->Data4[1], uuid->Data4[2], uuid->Data4[3], uuid->Data4[4], uuid->Data4[5],
+              uuid->Data4[6], uuid->Data4[7] );
 }
 
-static void write_id_data_stmts(const statement_list_t *stmts)
+static void put_id_data_stmts( const statement_list_t *stmts )
 {
-  const statement_t *stmt;
-  if (stmts) LIST_FOR_EACH_ENTRY( stmt, stmts, const statement_t, entry )
-  {
-    if (stmt->type == STMT_TYPE)
+    const statement_t *stmt;
+    if (stmts) LIST_FOR_EACH_ENTRY( stmt, stmts, const statement_t, entry )
     {
-      const type_t *type = stmt->u.type;
-      if (type_get_type(type) == TYPE_INTERFACE)
-      {
-        const struct uuid *uuid;
-        if (!is_object(type) && !is_attr(type->attrs, ATTR_DISPINTERFACE))
-          continue;
-        uuid = get_attrp(type->attrs, ATTR_UUID);
-        write_id_guid(idfile, "IID", is_attr(type->attrs, ATTR_DISPINTERFACE) ? "DIID" : "IID",
-                   type->name, uuid);
-        if (type_iface_get_async_iface(type))
+        if (stmt->type == STMT_TYPE)
         {
-          uuid = get_attrp(type_iface_get_async_iface(type)->attrs, ATTR_UUID);
-          write_id_guid(idfile, "IID", "IID", type_iface_get_async_iface(type)->name, uuid);
+            const type_t *type = stmt->u.type;
+            if (type_get_type( type ) == TYPE_INTERFACE)
+            {
+                const struct uuid *uuid;
+                if (!is_object( type ) && !is_attr( type->attrs, ATTR_DISPINTERFACE )) continue;
+                uuid = get_attrp( type->attrs, ATTR_UUID );
+                put_id_guid( "IID", is_attr( type->attrs, ATTR_DISPINTERFACE ) ? "DIID" : "IID",
+                             type->name, uuid );
+                if (type_iface_get_async_iface( type ))
+                {
+                    uuid = get_attrp( type_iface_get_async_iface( type )->attrs, ATTR_UUID );
+                    put_id_guid( "IID", "IID", type_iface_get_async_iface( type )->name, uuid );
+                }
+            }
+            else if (type_get_type( type ) == TYPE_COCLASS)
+            {
+                const struct uuid *uuid = get_attrp( type->attrs, ATTR_UUID );
+                put_id_guid( "CLSID", "CLSID", type->name, uuid );
+            }
         }
-      }
-      else if (type_get_type(type) == TYPE_COCLASS)
-      {
-        const struct uuid *uuid = get_attrp(type->attrs, ATTR_UUID);
-        write_id_guid(idfile, "CLSID", "CLSID", type->name, uuid);
-      }
+        else if (stmt->type == STMT_LIBRARY)
+        {
+            const struct uuid *uuid = get_attrp( stmt->u.lib->attrs, ATTR_UUID );
+            put_id_guid( "IID", "LIBID", stmt->u.lib->name, uuid );
+            put_id_data_stmts( stmt->u.lib->stmts );
+        }
     }
-    else if (stmt->type == STMT_LIBRARY)
-    {
-      const struct uuid *uuid = get_attrp(stmt->u.lib->attrs, ATTR_UUID);
-      write_id_guid(idfile, "IID", "LIBID", stmt->u.lib->name, uuid);
-      write_id_data_stmts(stmt->u.lib->stmts);
-    }
-  }
 }
 
 void write_id_data(const statement_list_t *stmts)
 {
+    FILE *idfile;
+
     if (!do_idfile) return;
     if (!(idfile = fopen( idfile_name, "w" ))) error( "Could not open %s for output\n", idfile_name );
 
@@ -457,12 +456,7 @@ void write_id_data(const statement_list_t *stmts)
     put_line( "extern \"C\" {" );
     put_line( "#endif" );
     put_line( "" );
-    fputs( (char *)output_buffer, idfile );
-    free( output_buffer );
-
-    write_id_data_stmts(stmts);
-
-    init_output_buffer();
+    put_id_data_stmts( stmts );
     put_line( "" );
     put_line( "#ifdef __cplusplus" );
     put_line( "}" /* extern \"C\" */ );
