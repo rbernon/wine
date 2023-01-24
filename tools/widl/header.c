@@ -1567,6 +1567,14 @@ static void write_locals(FILE *fp, const type_t *iface, int body)
   }
 }
 
+static void put_locals(FILE *fp, const type_t *iface, int body)
+{
+    fputs( (char *)output_buffer, fp );
+    free( output_buffer );
+    write_locals( fp, iface, body );
+    init_output_buffer();
+}
+
 static void write_local_stubs_stmts(FILE *local_stubs, const statement_list_t *stmts)
 {
   const statement_t *stmt;
