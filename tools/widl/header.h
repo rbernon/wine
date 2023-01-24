@@ -24,9 +24,8 @@
 #include "typetree.h"
 
 extern const char* get_name(const var_t *v);
-extern void write_declspec( FILE *, const decl_spec_t *ds, const char *name );
-extern void put_declspec( const decl_spec_t *ds, const char *name,
-                          int (*put_str)( FILE *, const char *, ... ), FILE *file );
+extern void write_declspec( FILE *h, const decl_spec_t *ds, const char *name );
+extern void put_declspec( FILE *h, const decl_spec_t *ds, const char *name );
 extern unsigned int get_context_handle_offset( const type_t *type );
 extern unsigned int get_generic_handle_offset( const type_t *type );
 extern int needs_space_after(type_t *t);

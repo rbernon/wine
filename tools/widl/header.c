@@ -767,9 +767,18 @@ void write_declspec( FILE *h, const decl_spec_t *ds, const char *name )
     write_declspec_full( h, ds, FALSE, TRUE, name, NAME_DEFAULT );
 }
 
-void put_declspec( const decl_spec_t *ds, const char *name, int (*put_str)( FILE *, const char *, ... ), FILE *file )
+static void put_declspec_full( FILE *out, const decl_spec_t *declspec, int is_field, int declonly,
+                               const char *name, enum name_type name_type )
 {
-    put_declspec_full( ds, FALSE, TRUE, name, NAME_DEFAULT, put_str, file );
+    fputs( (char *)output_buffer, out );
+    free( output_buffer );
+    write_declspec_full( out, declspec, is_field, declonly, name, name_type );
+    init_output_buffer();
+}
+
+void put_declspec( FILE *out, const decl_spec_t *declspec, const char *name )
+{
+    put_declspec_full( out, declspec, FALSE, TRUE, name, NAME_DEFAULT );
 }
 
 static int user_type_registered(const char *name)
