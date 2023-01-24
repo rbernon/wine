@@ -331,6 +331,7 @@ struct str_list_entry_t
 struct _decl_spec_t
 {
   type_t *type;
+  attr_list_t *attrs;
   enum storage_class stgclass;
   enum type_qualifier qualifier;
   enum function_specifier func_specifier;
