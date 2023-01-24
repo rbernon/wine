@@ -494,15 +494,14 @@ static void put_enum_type( type_t *type, enum name_type name_type,
         assert( type->defined );
         type->written = TRUE;
 
-        put_str( file, "enum " );
-        if (decl_name) put_str( file, "%s ", decl_name );
-        put_str( file, "{\n" );
-        indentation++;
+        put_str( "enum " );
+        if (decl_name) put_str( "%s ", decl_name );
+        put_line( "{" );
+        write_enums( out, values, is_global_namespace( type->namespace ) ? NULL : type->name );
+        put_str( "}" );
 
-        put_enums( values, is_global_namespace( type->namespace ) ? NULL : type->name, put_str, file );
-
-        indent( file, -1 );
-        put_str( file, "}" );
+        fputs( (char *)output_buffer, out );
+        free( output_buffer );
     }
 }
 

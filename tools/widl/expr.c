@@ -615,8 +615,8 @@ const type_t *expr_resolve_type( const type_t *cont_type, const expr_t *expr,
     return expr_type.type;
 }
 
-static void put_expr( FILE *h, const expr_t *e, int brackets, int toplevel, const char *toplevel_prefix,
-                      const type_t *cont_type, const char *local_var_prefix )
+void put_expr( FILE *h, const expr_t *e, int brackets, int toplevel, const char *toplevel_prefix,
+               const type_t *cont_type, const char *local_var_prefix )
 {
     switch (e->type)
     {
