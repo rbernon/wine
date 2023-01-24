@@ -1,9 +1,20 @@
 MODULE    = midl.exe
+PARENTSRC = ../../tools/widl
 
 EXTRADLLFLAGS = -mconsole
 
 C_SRCS = \
-	midl.c
+	expr.c \
+	hash.c \
+	midl.c \
+	typetree.c \
+	utils.c
 
 RC_SRCS = \
 	midl.rc
+
+LEX_SRCS = \
+	parser.l
+
+BISON_SRCS = \
+	parser.y
