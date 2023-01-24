@@ -265,8 +265,10 @@ static int make_indent( const char *format )
     int n;
 
     if (output_buffer_pos <= 1 || out[-1] != '\n') return 0;
+    if (output_buffer_pos >= 13 && !strcmp( out - 13, "extern \"C\" {\n" )) return 0;
     if (!strcmp( out - 2, "{\n" ) || !strcmp( out - 2, "(\n" ) || !strcmp( out - 2, "[\n" )) level++;
 
+    if (!strcmp( format, "} /* extern \"C\" */\n" )) return 0;
     if (!(n = strlen( format )) || !strcmp( format, "\n" )) return 0;
     if (format[0] == '}' || format[0] == ')' || format[0] == ']') level--;
 
