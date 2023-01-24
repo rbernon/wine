@@ -207,6 +207,16 @@ static void write_guid(FILE *f, const char *guid_prefix, const char *name, const
         uuid->Data4[6], uuid->Data4[7]);
 }
 
+static void put_guid( const char *guid_prefix, const char *name, const struct uuid *uuid )
+{
+    if (!uuid) return;
+    put_line( "DEFINE_GUID(%s_%s, 0x%08x, 0x%04x, 0x%04x, 0x%02x,0x%02x, 0x%02x,"
+              "0x%02x,0x%02x,0x%02x,0x%02x,0x%02x);",
+              guid_prefix, name, uuid->Data1, uuid->Data2, uuid->Data3, uuid->Data4[0],
+              uuid->Data4[1], uuid->Data4[2], uuid->Data4[3], uuid->Data4[4], uuid->Data4[5],
+              uuid->Data4[6], uuid->Data4[7] );
+}
+
 static void write_uuid_decl(FILE *f, type_t *type, const struct uuid *uuid)
 {
   fprintf(f, "#ifdef __CRT_UUID_DECL\n");
@@ -216,6 +226,16 @@ static void write_uuid_decl(FILE *f, type_t *type, const struct uuid *uuid)
         uuid->Data4[2], uuid->Data4[3], uuid->Data4[4], uuid->Data4[5], uuid->Data4[6],
         uuid->Data4[7]);
   fprintf(f, "#endif\n");
+}
+
+static void put_uuid_decl( type_t *type, const struct uuid *uuid )
+{
+    put_line( "#ifdef __CRT_UUID_DECL" );
+    put_line( "__CRT_UUID_DECL(%s, 0x%08x, 0x%04x, 0x%04x, 0x%02x,0x%02x, 0x%02x,"
+              "0x%02x,0x%02x,0x%02x,0x%02x,0x%02x)",
+              type->c_name, uuid->Data1, uuid->Data2, uuid->Data3, uuid->Data4[0], uuid->Data4[1],
+              uuid->Data4[2], uuid->Data4[3], uuid->Data4[4], uuid->Data4[5], uuid->Data4[6], uuid->Data4[7] );
+    put_line( "#endif" );
 }
 
 static const char *uuid_string(const struct uuid *uuid)
@@ -1223,49 +1243,46 @@ static char *get_vtbl_entry_name(const type_t *iface, const var_t *func)
   return buff;
 }
 
-static void write_method_macro(FILE *header, const type_t *iface, const type_t *child, const char *name)
+static void put_method_macro(FILE *header, const type_t *iface, const type_t *child, const char *name)
 {
-  const statement_t *stmt;
-  int first_iface = 1;
+    const statement_t *stmt;
+    int first_iface = 1;
 
-  if (type_iface_get_inherit(iface))
-    write_method_macro(header, type_iface_get_inherit(iface), child, name);
+    if (type_iface_get_inherit( iface )) put_method_macro( header, type_iface_get_inherit( iface ), child, name );
 
-  STATEMENTS_FOR_EACH_FUNC(stmt, type_iface_get_stmts(iface))
-  {
-    const var_t *func = stmt->u.var;
-
-    if (first_iface)
+    STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts( iface ) )
     {
-      fprintf(header, "/*** %s methods ***/\n", iface->name);
-      first_iface = 0;
+        const var_t *arg, *func = stmt->u.var;
+        var_list_t *args;
+
+        if (first_iface)
+        {
+            put_line( "/*** %s methods ***/", iface->name );
+            first_iface = 0;
+        }
+
+        if (is_override_method( iface, child, func )) continue;
+        if (is_callas( func->attrs )) continue;
+
+        put_str( "#define %s_%s(This", name, get_name( func ) );
+        if ((args = type_function_get_args( func->declspec.type )))
+            LIST_FOR_EACH_ENTRY( arg, args, const var_t, entry )
+                put_str( ",%s", arg->name );
+        put_str( ") " );
+
+        if (is_aggregate_return( func ))
+        {
+            put_line( "%s_%s_define_WIDL_C_INLINE_WRAPPERS_for_aggregate_return_support",
+                      name, get_name( func ) );
+            continue;
+        }
+
+        put_str( "(This)->lpVtbl->%s(This", get_vtbl_entry_name( iface, func ) );
+        if ((args = type_function_get_args( func->declspec.type )))
+            LIST_FOR_EACH_ENTRY( arg, args, const var_t, entry )
+                put_str( ",%s", arg->name );
+        put_line( ")" );
     }
-
-    if (is_override_method(iface, child, func))
-      continue;
-
-    if (!is_callas(func->attrs)) {
-      const var_t *arg;
-
-      fprintf(header, "#define %s_%s(This", name, get_name(func));
-      if (type_function_get_args(func->declspec.type))
-          LIST_FOR_EACH_ENTRY( arg, type_function_get_args(func->declspec.type), const var_t, entry )
-              fprintf(header, ",%s", arg->name);
-      fprintf(header, ") ");
-
-      if (is_aggregate_return(func))
-      {
-        fprintf(header, "%s_%s_define_WIDL_C_INLINE_WRAPPERS_for_aggregate_return_support\n", name, get_name(func));
-        continue;
-      }
-
-      fprintf(header, "(This)->lpVtbl->%s(This", get_vtbl_entry_name(iface, func));
-      if (type_function_get_args(func->declspec.type))
-          LIST_FOR_EACH_ENTRY( arg, type_function_get_args(func->declspec.type), const var_t, entry )
-              fprintf(header, ",%s", arg->name);
-      fprintf(header, ")\n");
-    }
-  }
 }
 
 static void put_args( const var_list_t *args, const char *name, int method, int do_indent,
@@ -1339,75 +1356,74 @@ void write_args( FILE *file, const var_list_t *args, const char *name, int metho
     put_args( args, name, method, do_indent, name_type, fprintf, file );
 }
 
-static void write_cpp_method_def(FILE *header, const type_t *iface)
+static void put_cpp_method_def( FILE *header, const type_t *iface )
 {
-  const statement_t *stmt;
+    const statement_t *stmt;
 
-  STATEMENTS_FOR_EACH_FUNC(stmt, type_iface_get_stmts(iface))
-  {
-    const var_t *func = stmt->u.var;
-    if (!is_callas(func->attrs)) {
-      const decl_spec_t *ret = type_function_get_ret(func->declspec.type);
-      const char *callconv = get_attrp(func->declspec.type->attrs, ATTR_CALLCONV);
-      const var_list_t *args = type_function_get_args(func->declspec.type);
-      const var_t *arg;
+    STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts( iface ) )
+    {
+        const var_t *func = stmt->u.var;
+        const decl_spec_t *ret = type_function_get_ret( func->declspec.type );
+        const char *callconv = get_attrp( func->declspec.type->attrs, ATTR_CALLCONV );
+        const var_list_t *args = type_function_get_args( func->declspec.type );
+        const var_t *arg;
 
-      if (!callconv) callconv = "STDMETHODCALLTYPE";
+        if (is_callas( func->attrs )) continue;
+        if (!callconv) callconv = "STDMETHODCALLTYPE";
 
-      if (is_aggregate_return(func)) {
-        fprintf(header, "#ifdef WIDL_EXPLICIT_AGGREGATE_RETURNS\n");
+        if (is_aggregate_return( func ))
+        {
+            put_line( "#ifdef WIDL_EXPLICIT_AGGREGATE_RETURNS" );
 
-        indent(header, 0);
-        fprintf(header, "virtual ");
-        write_declspec(header, ret, NULL);
-        fprintf(header, "* %s %s(\n", callconv, get_name(func));
-        ++indentation;
-        indent(header, 0);
-        write_declspec(header, ret, NULL);
-        fprintf(header, " *__ret");
-        --indentation;
-        if (args) {
-          fprintf(header, ",\n");
-          write_args(header, args, iface->name, 2, TRUE, NAME_DEFAULT);
+            indent( header, 0 );
+            put_str( "virtual " );
+            put_declspec( header, ret, NULL );
+            put_line( "* %s %s(", callconv, get_name( func ) );
+            ++indentation;
+            indent( header, 0 );
+            put_declspec( header, ret, NULL );
+            put_str( " *__ret" );
+            --indentation;
+            if (args)
+            {
+                put_line( "," );
+                put_args( header, args, iface->name, 2, TRUE, NAME_DEFAULT );
+            }
+            put_line( ") = 0;" );
+
+            indent( header, 0 );
+            put_declspec( header, ret, NULL );
+            put_line( " %s %s(", callconv, get_name( func ) );
+            put_args( header, args, iface->name, 2, TRUE, NAME_DEFAULT );
+            put_line( ")" );
+            indent( header, 0 );
+            put_line( "{" );
+            ++indentation;
+            indent( header, 0 );
+            put_declspec( header, ret, NULL );
+            put_line( " __ret;" );
+            indent( header, 0 );
+            put_str( "return *%s(&__ret", get_name( func ) );
+            if (args) LIST_FOR_EACH_ENTRY( arg, args, const var_t, entry )
+                put_str( ", %s", arg->name );
+            put_line( ");" );
+            --indentation;
+            indent( header, 0 );
+            put_line( "}" );
+
+            put_line( "#else" );
         }
-        fprintf(header, ") = 0;\n");
 
-        indent(header, 0);
-        write_declspec(header, ret, NULL);
-        fprintf(header, " %s %s(\n", callconv, get_name(func));
-        write_args(header, args, iface->name, 2, TRUE, NAME_DEFAULT);
-        fprintf(header, ")\n");
-        indent(header, 0);
-        fprintf(header, "{\n");
-        ++indentation;
-        indent(header, 0);
-        write_declspec(header, ret, NULL);
-        fprintf(header, " __ret;\n");
-        indent(header, 0);
-        fprintf(header, "return *%s(&__ret", get_name(func));
-        if (args)
-            LIST_FOR_EACH_ENTRY(arg, args, const var_t, entry)
-                fprintf(header, ", %s", arg->name);
-        fprintf(header, ");\n");
-        --indentation;
-        indent(header, 0);
-        fprintf(header, "}\n");
+        indent( header, 0 );
+        put_str( "virtual " );
+        put_declspec( header, ret, NULL );
+        put_line( " %s %s(", callconv, get_name( func ) );
+        put_args( header, args, iface->name, 2, TRUE, NAME_DEFAULT );
+        put_line( ") = 0;" );
 
-        fprintf(header, "#else\n");
-      }
-
-      indent(header, 0);
-      fprintf(header, "virtual ");
-      write_declspec(header, ret, NULL);
-      fprintf(header, " %s %s(\n", callconv, get_name(func));
-      write_args(header, args, iface->name, 2, TRUE, NAME_DEFAULT);
-      fprintf(header, ") = 0;\n");
-
-      if (is_aggregate_return(func))
-        fprintf(header, "#endif\n");
-      fprintf(header, "\n");
+        if (is_aggregate_return( func )) put_line( "#endif" );
+        put_str( "\n" );
     }
-  }
 }
 
 static void put_inline_wrappers(FILE *header, const type_t *iface, const type_t *child, const char *name)
@@ -1471,61 +1487,63 @@ static void write_inline_wrappers(FILE *header, const type_t *iface, const type_
     free( output_buffer );
 }
 
-static void do_write_c_method_def(FILE *header, const type_t *iface, const char *name)
+static void do_put_c_method_def(FILE *header, const type_t *iface, const char *name)
 {
-  const statement_t *stmt;
-  int first_iface = 1;
+    const statement_t *stmt;
+    int first_iface = 1;
 
-  if (type_iface_get_inherit(iface))
-    do_write_c_method_def(header, type_iface_get_inherit(iface), name);
+    if (type_iface_get_inherit( iface ))
+        do_put_c_method_def( header, type_iface_get_inherit( iface ), name );
 
-  STATEMENTS_FOR_EACH_FUNC(stmt, type_iface_get_stmts(iface))
-  {
-    const var_t *func = stmt->u.var;
-    if (first_iface) {
-      indent(header, 0);
-      fprintf(header, "/*** %s methods ***/\n", iface->name);
-      first_iface = 0;
+    STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts( iface ) )
+    {
+        const var_t *func = stmt->u.var;
+        const char *callconv = get_attrp( func->declspec.type->attrs, ATTR_CALLCONV );
+
+        if (first_iface)
+        {
+            indent( header, 0 );
+            fprintf( header, "/*** %s methods ***/\n", iface->name );
+            first_iface = 0;
+        }
+
+        if (is_callas( func->attrs )) continue;
+
+        if (!callconv) callconv = "STDMETHODCALLTYPE";
+        indent( header, 0 );
+        put_declspec( header, type_function_get_ret( func->declspec.type ), NULL );
+        if (is_aggregate_return( func )) put_str( " *" );
+        if (!is_inherited_method( iface, func )) put_line( " (%s *%s)(", callconv, get_name( func ) );
+        else put_line( " (%s *%s_%s)(", callconv, iface->name, func->name );
+        ++indentation;
+        indent( header, 0 );
+        put_str( "%s *This", name );
+        if (is_aggregate_return( func ))
+        {
+            put_line( "," );
+            indent( header, 0 );
+            put_declspec( header, type_function_get_ret( func->declspec.type ), NULL );
+            put_str( " *__ret" );
+        }
+        --indentation;
+        if (type_function_get_args( func->declspec.type ))
+        {
+            put_line( "," );
+            write_args( header, type_function_get_args( func->declspec.type ), name, 0, TRUE, NAME_C );
+        }
+        put_line( ");" );
+        put_line( "" );
     }
-    if (!is_callas(func->attrs)) {
-      const char *callconv = get_attrp(func->declspec.type->attrs, ATTR_CALLCONV);
-      if (!callconv) callconv = "STDMETHODCALLTYPE";
-      indent(header, 0);
-      write_declspec(header, type_function_get_ret(func->declspec.type), NULL);
-      if (is_aggregate_return(func))
-        fprintf(header, " *");
-      if (is_inherited_method(iface, func))
-        fprintf(header, " (%s *%s_%s)(\n", callconv, iface->name, func->name);
-      else
-        fprintf(header, " (%s *%s)(\n", callconv, get_name(func));
-      ++indentation;
-      indent(header, 0);
-      fprintf(header, "%s *This", name);
-      if (is_aggregate_return(func)) {
-        fprintf(header, ",\n");
-        indent(header, 0);
-        write_declspec(header, type_function_get_ret(func->declspec.type), NULL);
-        fprintf(header, " *__ret");
-      }
-      --indentation;
-      if (type_function_get_args(func->declspec.type)) {
-        fprintf(header, ",\n");
-        write_args(header, type_function_get_args(func->declspec.type), name, 0, TRUE, NAME_C);
-      }
-      fprintf(header, ");\n");
-      fprintf(header, "\n");
-    }
-  }
 }
 
-static void write_c_method_def(FILE *header, const type_t *iface)
+static void put_c_method_def( FILE *header, const type_t *iface )
 {
-  do_write_c_method_def(header, iface, iface->c_name);
+    do_put_c_method_def( header, iface, iface->c_name );
 }
 
-static void write_c_disp_method_def(FILE *header, const type_t *iface)
+static void put_c_disp_method_def( FILE *header, const type_t *iface )
 {
-  do_write_c_method_def(header, type_iface_get_inherit(iface), iface->c_name);
+    do_put_c_method_def( header, type_iface_get_inherit( iface ), iface->c_name );
 }
 
 static void put_method_proto(FILE *header, const type_t *iface)
@@ -1819,97 +1837,100 @@ static void write_com_interface_start(FILE *header, const type_t *iface)
 
 static void write_com_interface_end(FILE *header, type_t *iface)
 {
-  int dispinterface = is_attr(iface->attrs, ATTR_DISPINTERFACE);
-  const struct uuid *uuid = get_attrp(iface->attrs, ATTR_UUID);
-  expr_t *contract = get_attrp(iface->attrs, ATTR_CONTRACT);
-  type_t *type;
+    int dispinterface = is_attr( iface->attrs, ATTR_DISPINTERFACE );
+    const struct uuid *uuid = get_attrp( iface->attrs, ATTR_UUID );
+    expr_t *contract = get_attrp( iface->attrs, ATTR_CONTRACT );
+    type_t *type;
 
-  if (uuid)
-      write_guid(header, dispinterface ? "DIID" : "IID", iface->c_name, uuid);
+    init_output_buffer();
 
-  /* C++ interface */
-  fprintf(header, "#if defined(__cplusplus) && !defined(CINTERFACE)\n");
-  if (!is_global_namespace(iface->namespace)) {
-      write_line(header, 0, "} /* extern \"C\" */");
-      write_namespace_start(header, iface->namespace);
-  }
-  if (uuid) {
-      if (strchr(iface->name, '<')) write_line(header, 0, "template<>");
-      write_line(header, 0, "MIDL_INTERFACE(\"%s\")", uuid_string(uuid));
-      indent(header, 0);
-  }else {
-      indent(header, 0);
-      if (strchr(iface->name, '<')) fprintf(header, "template<> struct ");
-      else fprintf(header, "interface ");
-  }
-  if (iface->impl_name)
-  {
-    fprintf(header, "%s : %s\n", iface->name, iface->impl_name);
-    write_line(header, 1, "{");
-  }
-  else if (type_iface_get_inherit(iface))
-  {
-    fprintf(header, "%s : public %s\n", iface->name,
-            type_iface_get_inherit(iface)->name);
-    write_line(header, 1, "{");
-  }
-  else
-  {
-    fprintf(header, "%s\n", iface->name);
-    write_line(header, 1, "{\n");
-    write_line(header, 0, "BEGIN_INTERFACE\n");
-  }
-  /* dispinterfaces don't have real functions, so don't write C++ functions for
-   * them */
-  if (!dispinterface && !iface->impl_name)
-    write_cpp_method_def(header, iface);
-  if (!type_iface_get_inherit(iface) && !iface->impl_name)
-    write_line(header, 0, "END_INTERFACE\n");
-  write_line(header, -1, "};");
-  if (!is_global_namespace(iface->namespace)) {
-      write_namespace_end(header, iface->namespace);
-      write_line(header, 0, "extern \"C\" {");
-  }
-  if (uuid)
-      write_uuid_decl(header, iface, uuid);
-  fprintf(header, "#else\n");
-  /* C interface */
-  write_line(header, 1, "typedef struct %sVtbl {", iface->c_name);
-  write_line(header, 0, "BEGIN_INTERFACE\n");
-  if (dispinterface)
-    write_c_disp_method_def(header, iface);
-  else
-    write_c_method_def(header, iface);
-  write_line(header, 0, "END_INTERFACE");
-  write_line(header, -1, "} %sVtbl;\n", iface->c_name);
-  fprintf(header, "interface %s {\n", iface->c_name);
-  fprintf(header, "    CONST_VTBL %sVtbl* lpVtbl;\n", iface->c_name);
-  fprintf(header, "};\n\n");
-  fprintf(header, "#ifdef COBJMACROS\n");
-  /* dispinterfaces don't have real functions, so don't write macros for them,
-   * only for the interface this interface inherits from, i.e. IDispatch */
-  fprintf(header, "#ifndef WIDL_C_INLINE_WRAPPERS\n");
-  type = dispinterface ? type_iface_get_inherit(iface) : iface;
-  write_method_macro(header, type, type, iface->c_name);
-  fprintf(header, "#else\n");
-  write_inline_wrappers(header, type, type, iface->c_name);
-  fprintf(header, "#endif\n");
-  if (winrt_mode) write_widl_using_macros(header, iface);
-  fprintf(header, "#endif\n");
-  fprintf(header, "\n");
-  fprintf(header, "#endif\n");
-  fprintf(header, "\n");
-  /* dispinterfaces don't have real functions, so don't write prototypes for
-   * them */
-  if (!dispinterface && !winrt_mode)
-  {
-    write_method_proto(header, iface);
-    write_locals(header, iface, FALSE);
-    fprintf(header, "\n");
-  }
-  fprintf(header, "#endif  /* __%s_%sINTERFACE_DEFINED__ */\n", iface->c_name, dispinterface ? "DISP" : "");
-  if (contract) put_apicontract_guard_end( contract, fprintf, header );
-  fprintf(header, "\n");
+    if (uuid) put_guid( dispinterface ? "DIID" : "IID", iface->c_name, uuid );
+
+    /* C++ interface */
+    fprintf( header, "#if defined(__cplusplus) && !defined(CINTERFACE)\n" );
+    if (!is_global_namespace( iface->namespace ))
+    {
+        put_line( "} /* extern \"C\" */" );
+        put_namespace_start( iface->namespace );
+    }
+    if (uuid)
+    {
+        if (strchr( iface->name, '<' )) put_line( "template<>" );
+        put_line( "MIDL_INTERFACE(\"%s\")", uuid_string( uuid ) );
+        indent( header, 0 );
+    }
+    else
+    {
+        indent( header, 0 );
+        if (strchr( iface->name, '<' )) fprintf( header, "template<> struct " );
+        else fprintf( header, "interface " );
+    }
+    if (iface->impl_name)
+    {
+        fprintf( header, "%s : %s\n", iface->name, iface->impl_name );
+        put_line( "{" );
+    }
+    else if (type_iface_get_inherit( iface ))
+    {
+        fprintf( header, "%s : public %s\n", iface->name, type_iface_get_inherit( iface )->name );
+        put_line( "{" );
+    }
+    else
+    {
+        fprintf( header, "%s\n", iface->name );
+        put_line( "{\n" );
+        put_line( "BEGIN_INTERFACE\n" );
+    }
+    /* dispinterfaces don't have real functions, so don't write C++ functions for
+     * them */
+    if (!dispinterface && !iface->impl_name) put_cpp_method_def( header, iface );
+    if (!type_iface_get_inherit( iface ) && !iface->impl_name) put_line( "END_INTERFACE\n" );
+    put_line( "};" );
+    if (!is_global_namespace( iface->namespace ))
+    {
+        put_namespace_end( iface->namespace );
+        put_line( "extern \"C\" {" );
+    }
+    if (uuid) put_uuid_decl( iface, uuid );
+    fprintf( header, "#else\n" );
+    /* C interface */
+    put_line( "typedef struct %sVtbl {", iface->c_name );
+    put_line( "BEGIN_INTERFACE\n" );
+    if (dispinterface) put_c_disp_method_def( header, iface );
+    else put_c_method_def( header, iface );
+    put_line( "END_INTERFACE" );
+    put_line( "} %sVtbl;\n", iface->c_name );
+    fprintf( header, "interface %s {\n", iface->c_name );
+    fprintf( header, "    CONST_VTBL %sVtbl* lpVtbl;\n", iface->c_name );
+    fprintf( header, "};\n\n" );
+    fprintf( header, "#ifdef COBJMACROS\n" );
+    /* dispinterfaces don't have real functions, so don't write macros for them,
+     * only for the interface this interface inherits from, i.e. IDispatch */
+    fprintf( header, "#ifndef WIDL_C_INLINE_WRAPPERS\n" );
+    type = dispinterface ? type_iface_get_inherit( iface ) : iface;
+    put_method_macro( header, type, type, iface->c_name );
+    fprintf( header, "#else\n" );
+    put_inline_wrappers( header, type, type, iface->c_name );
+    fprintf( header, "#endif\n" );
+    if (winrt_mode) put_widl_using_macros( header, iface );
+    fprintf( header, "#endif\n" );
+    fprintf( header, "\n" );
+    fprintf( header, "#endif\n" );
+    fprintf( header, "\n" );
+    /* dispinterfaces don't have real functions, so don't write prototypes for
+     * them */
+    if (!dispinterface && !winrt_mode)
+    {
+        put_method_proto( header, iface );
+        put_locals( header, iface, FALSE );
+        fprintf( header, "\n" );
+    }
+    fprintf( header, "#endif  /* __%s_%sINTERFACE_DEFINED__ */\n", iface->c_name, dispinterface ? "DISP" : "" );
+    if (contract) put_apicontract_guard_end( contract );
+    fprintf( header, "\n" );
+
+    fputs( (char *)output_buffer, header );
+    free( output_buffer );
 }
 
 static void write_rpc_interface_start(FILE *header, const type_t *iface)
