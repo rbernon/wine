@@ -48,6 +48,7 @@ extern void add_output_to_resources( const char *type, const char *name );
 extern void flush_output_resources( const char *name );
 extern void put_pword( unsigned int val );
 
+extern int put_str_cb( FILE *, const char *format, ... ) __attribute__((format(printf, 2, 3)));
 extern void put_str( const char *format, ... ) __attribute__((format(printf, 1, 2)));
 #define put_line( format, ... ) put_str( format "\n", ## __VA_ARGS__ )
 

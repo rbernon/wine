@@ -940,12 +940,12 @@ void write_proxies( const statement_list_t *stmts )
     put_line( "static const MIDL_STUB_DESC Object_StubDesc;" );
     put_line( "" );
 
+    expr_eval_routines = put_expr_eval_routines( proxy_token );
     fputs( (char *)output_buffer, proxy );
     free( output_buffer );
 
     write_proxy_stmts( stmts, &proc_offset );
 
-  expr_eval_routines = write_expr_eval_routines(proxy, proxy_token);
   if (expr_eval_routines)
       write_expr_eval_routine_list(proxy, proxy_token);
   write_user_quad_list(proxy);

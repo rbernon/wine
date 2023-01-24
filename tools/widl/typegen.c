@@ -4838,9 +4838,9 @@ void assign_stub_out_args( FILE *file, int indent, const var_t *func, const char
         fprintf(file, "\n");
 }
 
-
-void write_func_param_struct( FILE *file, const type_t *iface, const type_t *func,
-                              const char *var_decl, int add_retval )
+static void put_func_param_struct( const type_t *iface, const type_t *func,
+                                   const char *var_decl, int add_retval,
+                                   int (*put_str)( FILE *, const char *, ... ), FILE *file )
 {
     var_t *retval = type_function_get_retval( func );
     const var_list_t *args = type_function_get_args( func );
@@ -4854,15 +4854,15 @@ void write_func_param_struct( FILE *file, const type_t *iface, const type_t *fun
 
     needs_packing = (align > pointer_size);
 
-    if (needs_packing) print_file( file, 0, "#include <pshpack%u.h>\n", pointer_size );
-    print_file(file, 1, "struct _PARAM_STRUCT\n" );
-    print_file(file, 1, "{\n" );
-    if (is_object( iface )) print_file(file, 2, "%s *This;\n", iface->name );
+    if (needs_packing) put_str( file, "#include <pshpack%u.h>\n", pointer_size );
+    put_str( file, "    struct _PARAM_STRUCT\n" );
+    put_str( file, "    {\n" );
+    if (is_object( iface )) put_str( file, "        %s *This;\n", iface->name );
 
     if (args) LIST_FOR_EACH_ENTRY( arg, args, const var_t, entry )
     {
         decl_spec_t declspec = arg->declspec;
-        print_file(file, 2, "%s", "");
+        put_str( file, "        %s", "");
 
         if (is_array( declspec.type ) && !type_array_is_decl_as_ptr( declspec.type ))
             declspec.type = type_new_pointer(type_array_get_element(declspec.type)->type);
@@ -4872,14 +4872,14 @@ void write_func_param_struct( FILE *file, const type_t *iface, const type_t *fun
         if (is_array( declspec.type ) || is_ptr( declspec.type )) align = pointer_size;
         else type_memsize_and_alignment( declspec.type, &align );
 
-        if (align >= pointer_size) write_declspec( file, &declspec, arg->name );
-        else write_declspec( file, &declspec, strmake( "DECLSPEC_ALIGN(%u) %s", pointer_size, arg->name ) );
-        fprintf( file, ";\n" );
+        if (align >= pointer_size) put_declspec( &declspec, arg->name, put_str, file );
+        else put_declspec( &declspec, strmake( "DECLSPEC_ALIGN(%u) %s", pointer_size, arg->name ), put_str, file );
+        put_str( file, ";\n" );
     }
     if (add_retval && !is_void( retval->declspec.type ))
     {
         decl_spec_t declspec = retval->declspec;
-        print_file(file, 2, "%s", "");
+        put_str( file, "        %s", "");
 
         if (is_array( declspec.type ) && !type_array_is_decl_as_ptr( declspec.type ))
             declspec.type = type_new_pointer(type_array_get_element(declspec.type)->type);
@@ -4888,13 +4888,19 @@ void write_func_param_struct( FILE *file, const type_t *iface, const type_t *fun
         else if (type_memsize( declspec.type ) == pointer_size) align = pointer_size;
         else align = 0;
 
-        if (align >= pointer_size) write_declspec( file, &declspec, retval->name );
-        else write_declspec( file, &declspec, strmake( "DECLSPEC_ALIGN(%u) %s", pointer_size, retval->name ) );
-        fprintf( file, ";\n" );
+        if (align >= pointer_size) put_declspec( &declspec, retval->name, put_str, file );
+        else put_declspec( &declspec, strmake( "DECLSPEC_ALIGN(%u) %s", pointer_size, retval->name ), put_str, file );
+        put_str( file, ";\n" );
     }
-    print_file(file, 1, "} %s;\n", var_decl );
-    if (needs_packing) print_file( file, 0, "#include <poppack.h>\n" );
-    print_file( file, 0, "\n" );
+    put_str( file, "    } %s;\n", var_decl );
+    if (needs_packing) put_str( file, "#include <poppack.h>\n" );
+    put_str( file, "\n" );
+}
+
+void write_func_param_struct( FILE *file, const type_t *iface, const type_t *func,
+                              const char *var_decl, int add_retval )
+{
+    put_func_param_struct( iface, func, var_decl, add_retval, fprintf, file );
 }
 
 void write_pointer_checks( FILE *file, int indent, const var_t *func )
@@ -4909,7 +4915,7 @@ void write_pointer_checks( FILE *file, int indent, const var_t *func )
             print_file( file, indent, "if (!%s) RpcRaiseException(RPC_X_NULL_REF_POINTER);\n", var->name );
 }
 
-int write_expr_eval_routines(FILE *file, const char *iface)
+int put_expr_eval_routines(const char *iface)
 {
     static const char *var_name = "pS";
     static const char *var_name_expr = "pS->";
@@ -4922,28 +4928,30 @@ int write_expr_eval_routines(FILE *file, const char *iface)
         const char *name = eval->name;
         result = 1;
 
-        print_file(file, 0, "static void __RPC_USER %s_%sExprEval_%04u(PMIDL_STUB_MESSAGE pStubMsg)\n",
+        put_line( "static void __RPC_USER %s_%sExprEval_%04u(PMIDL_STUB_MESSAGE pStubMsg)",
                    eval->iface ? eval->iface->name : iface, name, callback_offset);
-        print_file(file, 0, "{\n");
+        put_line( "{");
         if (type_get_type( eval->cont_type ) == TYPE_FUNCTION)
         {
-            write_func_param_struct( file, eval->iface, eval->cont_type,
-                                     "*pS = (struct _PARAM_STRUCT *)pStubMsg->StackTop", FALSE );
+            put_func_param_struct( eval->iface, eval->cont_type,
+                                   "*pS = (struct _PARAM_STRUCT *)pStubMsg->StackTop", FALSE,
+                                   put_str_cb, NULL );
         }
         else
         {
             decl_spec_t ds = {.type = type_new_pointer((type_t *)eval->cont_type)};
-            print_file(file, 1, "%s", "");
-            write_declspec(file, &ds, var_name);
-            fprintf(file, "= (");
-            write_declspec(file, &ds, NULL);
-            fprintf(file, ")(pStubMsg->StackTop - %u);\n", eval->baseoff);
+            put_str( "    %s", "");
+            put_declspec( &ds, var_name, put_str_cb, NULL );
+            put_str( "= (" );
+            put_declspec( &ds, NULL, put_str_cb, NULL );
+            put_line( ")(pStubMsg->StackTop - %u);", eval->baseoff );
         }
-        print_file(file, 1, "pStubMsg->Offset = 0;\n"); /* FIXME */
-        print_file(file, 1, "pStubMsg->MaxCount = (ULONG_PTR)");
-        write_expr(file, eval->expr, 1, 1, var_name_expr, eval->cont_type, "");
-        fprintf(file, ";\n");
-        print_file(file, 0, "}\n\n");
+        put_line( "    pStubMsg->Offset = 0;"); /* FIXME */
+        put_str( "    pStubMsg->MaxCount = (ULONG_PTR)");
+        put_expr( eval->expr, 1, 1, var_name_expr, eval->cont_type, "", put_str_cb, NULL );
+        put_line( ";" );
+        put_line( "}");
+        put_line( "");
         callback_offset++;
     }
     return result;

@@ -594,10 +594,10 @@ void write_client( const statement_list_t *stmts )
     }
 
     put_format_string_decls( stmts, need_stub );
+    expr_eval_routines = put_expr_eval_routines( client_token );
     fputs( (char *)output_buffer, client );
     free( output_buffer );
 
-    expr_eval_routines = write_expr_eval_routines(client, client_token);
     if (expr_eval_routines)
         write_expr_eval_routine_list(client, client_token);
     write_generic_handle_routine_list();

@@ -78,7 +78,6 @@ void declare_stub_args( FILE *file, int indent, const var_t *func );
 void write_func_param_struct( FILE *file, const type_t *iface, const type_t *func,
                               const char *var_decl, int add_retval );
 void write_pointer_checks( FILE *file, int indent, const var_t *func );
-int write_expr_eval_routines(FILE *file, const char *iface);
 void write_expr_eval_routine_list(FILE *file, const char *iface);
 void write_user_quad_list(FILE *file);
 void write_endpoints( FILE *f, const char *prefix, const str_list_t *list );
@@ -102,3 +101,4 @@ unsigned int type_memsize_and_alignment(const type_t *t, unsigned int *align);
 void put_exceptions(void);
 void put_format_string_decls( const statement_list_t *stmts, type_pred_t pred );
 void put_proc_format_string_offsets( const type_t *iface );
+extern int put_expr_eval_routines(const char *iface);

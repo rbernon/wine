@@ -308,3 +308,36 @@ void put_str( const char *format, ... )
         check_output_buffer_space( size );
     }
 }
+
+int put_str_cb( FILE *file, const char *format, ... )
+{
+    const char *tmp = format;
+    int n, indent;
+    va_list args;
+
+    while (*tmp == ' ') tmp++;
+    indent = make_indent( tmp );
+
+    if (*format != ' ')
+    {
+        check_output_buffer_space( 4 * indent );
+        memset( output_buffer + output_buffer_pos, ' ', 4 * indent );
+        output_buffer_pos += 4 * indent;
+    }
+
+    for (;;)
+    {
+        size_t size = output_buffer_size - output_buffer_pos;
+        va_start( args, format );
+        n = vsnprintf( (char *)output_buffer + output_buffer_pos, size, format, args );
+        va_end( args );
+        if (n == -1) size *= 2;
+        else if ((size_t)n >= size) size = n + 1;
+        else
+        {
+            output_buffer_pos += n;
+            return n;
+        }
+        check_output_buffer_space( size );
+    }
+}

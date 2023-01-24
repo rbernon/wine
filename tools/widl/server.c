@@ -505,10 +505,10 @@ void write_server( const statement_list_t *stmts )
     }
 
     put_format_string_decls( stmts, need_stub );
+    expr_eval_routines = put_expr_eval_routines( server_token );
     fputs( (char *)output_buffer, server );
     free( output_buffer );
 
-    expr_eval_routines = write_expr_eval_routines(server, server_token);
     if (expr_eval_routines)
         write_expr_eval_routine_list(server, server_token);
     write_user_quad_list(server);
