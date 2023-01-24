@@ -30,7 +30,6 @@ void error_at( const struct location *, const char *s, ... ) __attribute__((form
 void warning(const char *s, ...) __attribute__((format (printf, 1, 2)));
 void warning_at( const struct location *, const char *s, ... ) __attribute__((format( printf, 2, 3 )));
 #define warning_loc( ... ) warning_at( NULL, ## __VA_ARGS__ )
-void chat(const char *s, ...) __attribute__((format (printf, 1, 2)));
 
 struct strbuf
 {
