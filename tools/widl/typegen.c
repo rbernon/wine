@@ -1776,7 +1776,10 @@ void write_procformatstring(FILE *file, const statement_list_t *stmts, type_pred
     print_file(file, indent, "{\n");
     indent++;
 
+    init_output_buffer();
     for_each_iface(stmts, write_iface_procformatstring, pred, file, indent, &offset);
+    fputs( (char *)output_buffer, file );
+    free( output_buffer );
 
     print_file(file, indent, "0x0\n");
     indent--;
