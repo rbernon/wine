@@ -89,6 +89,7 @@ enum midl_flags
     MIDL_VERBOSE = 1,
     MIDL_VERSION = 2,
     MIDL_WERROR = 4,
+    MIDL_WINRT = 8,
 };
 
 static DWORD run_midl( const WCHAR *args, const WCHAR *cwd, enum midl_flags flags )
@@ -97,9 +98,13 @@ static DWORD run_midl( const WCHAR *args, const WCHAR *cwd, enum midl_flags flag
     PROCESS_INFORMATION pi = {0};
     WCHAR cmd[5 * MAX_PATH];
     DWORD res, exit_code;
+    const WCHAR *suffix;
     BOOL ret;
 
-    swprintf( cmd, ARRAY_SIZE(cmd), L"\"%s\\midl.exe\" %s", midl_path, args );
+    if (!strcmp( winetest_platform, "wine" )) suffix = L"";
+    else suffix = (flags & MIDL_WINRT ? L"rt" : L"");
+
+    swprintf( cmd, ARRAY_SIZE(cmd), L"\"%s\\midl%s.exe\" %s", midl_path, suffix, args );
     if (flags & MIDL_VERBOSE) trace( "Running %s\n", debugstr_w(cmd) );
 
     ret = CreateProcessW( NULL, cmd, NULL, NULL, FALSE, 0, NULL, cwd, &si, &pi );
@@ -133,6 +138,7 @@ static DWORD check_idl( const char *source, enum midl_flags flags )
     swprintf( args, ARRAY_SIZE(args), L"main.idl -nocpp -syntax_check" );
     if (!(flags & MIDL_VERSION)) wcscat( args, L" -nologo" );
     if (flags & MIDL_WERROR) wcscat( args, L" -W4 -WX" );
+    if (flags & MIDL_WINRT) wcscat( args, L" -winrt -nomd -nomidl" );
 
     res = run_midl( args, cwd, flags );
 
@@ -198,6 +204,19 @@ static void test_idl_parsing(void)
     src = "interface {}";
     res = check_idl( src, 0 );
     ok( res, "MIDL succeeded\n" );
+
+    /* winrt mode degrades automatically */
+    src = "interface I {}; coclass C { [default] interface I; }";
+    res = check_idl( src, MIDL_WERROR | MIDL_WINRT );
+    todo_wine
+    ok( !res, "MIDL failed, error %#lx\n", res );
+
+    /* legacy mode doesn't upgrade */
+    src = "namespace N {}";
+    res = check_idl( src, 0 );
+    ok( res, "MIDL succeeded\n" );
+    res = check_idl( src, MIDL_WERROR | MIDL_WINRT );
+    ok( !res, "MIDL failed, error %#lx\n", res );
 
     /* colon is sometimes optional */
     src = "[local]interface I1 {}\n"
