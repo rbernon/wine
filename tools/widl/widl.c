@@ -862,31 +862,39 @@ static void rm_tempfile(void)
 
 char *find_input_file( const char *name, const char *parent )
 {
-    char *path;
+    char *path, *buf = strdup( name ), *tmp = strrchr( buf, '/' );
+
+    if (!tmp) tmp = buf;
+    while (*(tmp++)) tmp[-1] = tolower( tmp[-1] );
 
     /* don't search for a file name with a path in the include directories, for compatibility with MIDL */
     if (strchr( name, '/' ) || strchr( name, '\\' )) path = xstrdup( name );
-    else if (!(path = wpp_find_include( name, parent ))) error_loc( "Unable to open include file %s\n", name );
+    else if (!(path = wpp_find_include( buf, parent ))) error_loc( "Unable to open include file %s\n", buf );
 
     return path;
 }
 
 FILE *open_input_file( const char *path )
 {
+    char *name, *buf = strdup( path ), *tmp = strrchr( buf, '/' );
     FILE *file;
-    char *name;
     int ret;
+
+    if (!tmp) tmp = buf;
+    while (*(tmp++)) tmp[-1] = tolower( tmp[-1] );
 
     if (no_preprocess)
     {
-        if (!(file = fopen( path, "r" ))) error_loc( "Unable to open %s\n", path );
+        if (!(file = fopen( buf, "r" ))) error_loc( "Unable to open %s\n", buf );
+        free( buf );
         return file;
     }
 
     name = make_temp_file( "widl", NULL );
     if (!(file = fopen( name, "wt" ))) error_loc( "Could not open %s for writing\n", name );
-    ret = wpp_parse( path, file );
+    ret = wpp_parse( buf, file );
     fclose( file );
+    free( buf );
     if (ret) exit( 1 );
 
     if (!(file = fopen( name, "r" ))) error_loc( "Unable to open %s\n", name );

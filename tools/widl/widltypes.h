@@ -190,7 +190,8 @@ enum attr_type
 enum expr_type
 {
     EXPR_VOID,
-    EXPR_NUM,
+    EXPR_DECL,
+    EXPR_INT,
     EXPR_DOUBLE,
     EXPR_IDENTIFIER,
     EXPR_NEG,
@@ -207,7 +208,6 @@ enum expr_type
     EXPR_AND,
     EXPR_OR,
     EXPR_COND,
-    EXPR_TRUEFALSE,
     EXPR_ADDRESSOF,
     EXPR_MEMBER,
     EXPR_ARRAY,
@@ -303,7 +303,6 @@ enum type_basic_type
     TYPE_BASIC_CHAR,
     TYPE_BASIC_HYPER,
     TYPE_BASIC_BYTE,
-    TYPE_BASIC_WCHAR,
     TYPE_BASIC_FLOAT,
     TYPE_BASIC_DOUBLE,
     TYPE_BASIC_ERROR_STATUS_T,
@@ -358,19 +357,18 @@ struct integer
 
 struct _expr_t {
   enum expr_type type;
-  const expr_t *ref;
   union {
     struct integer integer;
     double dval;
     const char *sval;
-    const expr_t *ext;
-    decl_spec_t tref;
+    decl_spec_t *decl;
+    const expr_t *args[3];
   } u;
-  const expr_t *ext2;
   int is_const;
   int cval;
   /* parser-internal */
   struct list entry;
+  const char *text;
 };
 
 struct _attr_custdata_t {
