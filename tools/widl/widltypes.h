@@ -377,11 +377,6 @@ struct _attr_custdata_t {
   expr_t *pval;
 };
 
-struct struct_details
-{
-  var_list_t *fields;
-};
-
 struct enumeration_details
 {
   var_list_t *enums;
@@ -496,7 +491,10 @@ struct _type_t {
   attr_list_t *attrs;
   union
   {
-    struct struct_details *structure;
+        struct
+        {
+            var_list_t *fields;
+        } structure;
     struct enumeration_details *enumeration;
         struct
         {
