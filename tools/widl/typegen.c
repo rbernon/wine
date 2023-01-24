@@ -285,90 +285,6 @@ static unsigned char get_enum_fc(const type_t *type)
         return FC_ENUM16;
 }
 
-static type_t *get_user_type(const type_t *t, const char **pname)
-{
-    for (;;)
-    {
-        type_t *ut = get_attrp(t->attrs, ATTR_WIREMARSHAL);
-        if (ut)
-        {
-            if (pname)
-                *pname = t->name;
-            return ut;
-        }
-
-        if (type_is_alias(t))
-            t = type_alias_get_aliasee_type(t);
-        else
-            return NULL;
-    }
-}
-
-static int is_user_type(const type_t *t)
-{
-    return get_user_type(t, NULL) != NULL;
-}
-
-enum typegen_type typegen_detect_type(const type_t *type, const attr_list_t *attrs, unsigned int flags)
-{
-    if (is_user_type(type))
-        return TGT_USER_TYPE;
-
-    if (is_aliaschain_attr(type, ATTR_CONTEXTHANDLE))
-        return TGT_CTXT_HANDLE;
-
-    if (!(flags & TDT_IGNORE_STRINGS) && is_string_type(attrs, type))
-        return TGT_STRING;
-
-    switch (type_get_type(type))
-    {
-    case TYPE_BASIC:
-        if (!(flags & TDT_IGNORE_RANGES) &&
-            (is_attr(attrs, ATTR_RANGE) || is_aliaschain_attr(type, ATTR_RANGE)))
-            return TGT_RANGE;
-        return TGT_BASIC;
-    case TYPE_ENUM:
-        if (!(flags & TDT_IGNORE_RANGES) &&
-            (is_attr(attrs, ATTR_RANGE) || is_aliaschain_attr(type, ATTR_RANGE)))
-            return TGT_RANGE;
-        return TGT_ENUM;
-    case TYPE_POINTER:
-        if (type_get_type(type_pointer_get_ref_type(type)) == TYPE_INTERFACE ||
-            type_get_type(type_pointer_get_ref_type(type)) == TYPE_RUNTIMECLASS ||
-            type_get_type(type_pointer_get_ref_type(type)) == TYPE_DELEGATE ||
-            (type_get_type(type_pointer_get_ref_type(type)) == TYPE_VOID && is_attr(attrs, ATTR_IIDIS)))
-            return TGT_IFACE_POINTER;
-        else if (is_aliaschain_attr(type_pointer_get_ref_type(type), ATTR_CONTEXTHANDLE))
-            return TGT_CTXT_HANDLE_POINTER;
-        else
-            return TGT_POINTER;
-    case TYPE_STRUCT:
-        return TGT_STRUCT;
-    case TYPE_ENCAPSULATED_UNION:
-    case TYPE_UNION:
-        return TGT_UNION;
-    case TYPE_ARRAY:
-        return TGT_ARRAY;
-    case TYPE_FUNCTION:
-    case TYPE_COCLASS:
-    case TYPE_INTERFACE:
-    case TYPE_MODULE:
-    case TYPE_VOID:
-    case TYPE_ALIAS:
-    case TYPE_BITFIELD:
-    case TYPE_RUNTIMECLASS:
-    case TYPE_DELEGATE:
-        break;
-    case TYPE_APICONTRACT:
-    case TYPE_PARAMETERIZED_TYPE:
-    case TYPE_PARAMETER:
-        /* not supposed to be here */
-        assert(0);
-        break;
-    }
-    return TGT_INVALID;
-}
-
 static int cant_be_null(const var_t *v)
 {
     switch (typegen_detect_type(v->declspec.type, v->attrs, TDT_IGNORE_STRINGS))
@@ -999,16 +915,6 @@ void put_format_string_decls( const statement_list_t *stmts, type_pred_t pred )
     put_line( "static const MIDL_TYPE_FORMAT_STRING __MIDL_TypeFormatString;" );
     put_line( "static const MIDL_PROC_FORMAT_STRING __MIDL_ProcFormatString;" );
     put_line( "" );
-}
-
-int decl_indirect(const type_t *t)
-{
-    if (is_user_type(t))
-        return TRUE;
-    return (type_get_type(t) != TYPE_BASIC &&
-            type_get_type(t) != TYPE_ENUM &&
-            type_get_type(t) != TYPE_POINTER &&
-            type_get_type(t) != TYPE_ARRAY);
 }
 
 static unsigned char get_parameter_fc( const var_t *var, int is_return, unsigned short *flags,
@@ -1911,126 +1817,6 @@ static unsigned int union_memsize(const var_list_t *fields, unsigned int *pmaxa)
     }
 
     return maxs;
-}
-
-unsigned int type_memsize_and_alignment(const type_t *t, unsigned int *align)
-{
-    unsigned int size = 0;
-
-    switch (type_get_type(t))
-    {
-    case TYPE_BASIC:
-        switch (get_basic_fc(t))
-        {
-        case FC_BYTE:
-        case FC_CHAR:
-        case FC_USMALL:
-        case FC_SMALL:
-            size = 1;
-            if (size > *align) *align = size;
-            break;
-        case FC_WCHAR:
-        case FC_USHORT:
-        case FC_SHORT:
-            size = 2;
-            if (size > *align) *align = size;
-            break;
-        case FC_ULONG:
-        case FC_LONG:
-        case FC_ERROR_STATUS_T:
-        case FC_FLOAT:
-            size = 4;
-            if (size > *align) *align = size;
-            break;
-        case FC_HYPER:
-        case FC_DOUBLE:
-            size = 8;
-            if (size > *align) *align = size;
-            break;
-        case FC_INT3264:
-        case FC_UINT3264:
-        case FC_BIND_PRIMITIVE:
-            assert( pointer_size );
-            size = pointer_size;
-            if (size > *align) *align = size;
-            break;
-        default:
-            error("type_memsize: Unknown type 0x%x\n", get_basic_fc(t));
-            size = 0;
-        }
-        break;
-    case TYPE_ENUM:
-        switch (get_enum_fc(t))
-        {
-        case FC_ENUM16:
-        case FC_ENUM32:
-            size = 4;
-            if (size > *align) *align = size;
-            break;
-        default:
-            error("type_memsize: Unknown enum type\n");
-            size = 0;
-        }
-        break;
-    case TYPE_STRUCT:
-        size = fields_memsize(type_struct_get_fields(t), align);
-        break;
-    case TYPE_ENCAPSULATED_UNION:
-        size = fields_memsize(type_encapsulated_union_get_fields(t), align);
-        break;
-    case TYPE_UNION:
-        size = union_memsize(type_union_get_cases(t), align);
-        break;
-    case TYPE_POINTER:
-    case TYPE_INTERFACE:
-        assert( pointer_size );
-        size = pointer_size;
-        if (size > *align) *align = size;
-        break;
-    case TYPE_ARRAY:
-        if (!type_array_is_decl_as_ptr(t))
-        {
-            if (is_conformant_array(t))
-            {
-                type_memsize_and_alignment(type_array_get_element_type(t), align);
-                size = 0;
-            }
-            else
-                size = type_array_get_dim(t) *
-                    type_memsize_and_alignment(type_array_get_element_type(t), align);
-        }
-        else /* declared as a pointer */
-        {
-            assert( pointer_size );
-            size = pointer_size;
-            if (size > *align) *align = size;
-        }
-        break;
-    case TYPE_ALIAS:
-    case TYPE_VOID:
-    case TYPE_COCLASS:
-    case TYPE_MODULE:
-    case TYPE_FUNCTION:
-    case TYPE_BITFIELD:
-    case TYPE_APICONTRACT:
-    case TYPE_RUNTIMECLASS:
-    case TYPE_PARAMETERIZED_TYPE:
-    case TYPE_PARAMETER:
-    case TYPE_DELEGATE:
-        /* these types should not be encountered here due to language
-         * restrictions (interface, void, coclass, module), logical
-         * restrictions (alias - due to type_get_type call above) or
-         * checking restrictions (function, bitfield). */
-        assert(0);
-    }
-
-    return size;
-}
-
-unsigned int type_memsize(const type_t *t)
-{
-    unsigned int align = 0;
-    return type_memsize_and_alignment( t, &align );
 }
 
 static unsigned int type_buffer_alignment(const type_t *t)
@@ -3367,7 +3153,7 @@ static unsigned int write_union_tfs(FILE *file, const attr_list_t *attrs,
     unsigned int nbranch = 0;
     type_t *deftype = NULL;
     short nodeftype = 0xffff;
-    unsigned int dummy;
+    unsigned int dummy = 0;
     var_t *f;
 
     if (processed(type) &&

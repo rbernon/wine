@@ -1957,9 +1957,9 @@ static var_t *declare_var(attr_list_t *attrs, decl_spec_t *decl_spec, declarator
     }
 
     if (type_get_type(t) != TYPE_BASIC &&
-        (get_basic_fc(t) != FC_CHAR &&
-         get_basic_fc(t) != FC_BYTE &&
-         get_basic_fc(t) != FC_WCHAR))
+        (type_basic_get_type(t) != TYPE_BASIC_CHAR &&
+         type_basic_get_type(t) != TYPE_BASIC_BYTE &&
+         type_basic_get_type(t) != TYPE_BASIC_WCHAR))
     {
       error_loc("'%s': [string] attribute is only valid on 'char', 'byte', or 'wchar_t' pointers and arrays\n",
                 v->name);

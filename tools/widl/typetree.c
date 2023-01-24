@@ -31,6 +31,9 @@
 #include "header.h"
 #include "hash.h"
 
+/* round size up to multiple of alignment */
+#define ROUND_SIZE(size, alignment) (((size) + ((alignment) - 1)) & ~((alignment) - 1))
+
 user_type_list_t user_type_list = LIST_INIT(user_type_list);
 context_handle_list_t context_handle_list = LIST_INIT(context_handle_list);
 generic_handle_list_t generic_handle_list = LIST_INIT(generic_handle_list);
@@ -1580,4 +1583,236 @@ void check_for_additional_prototype_types( type_t *type )
         else if (is_array( type )) type = type_array_get_element_type( type );
         else return;
     }
+}
+
+static inline unsigned int clamp_align( unsigned int align )
+{
+    unsigned int packing = (pointer_size == 4) ? win32_packing : win64_packing;
+    if (align > packing) align = packing;
+    return align;
+}
+
+static unsigned int fields_memsize( const var_list_t *fields, unsigned int *align )
+{
+    unsigned int size = 0;
+    unsigned int max_align;
+    const var_t *v;
+
+    if (!fields) return 0;
+    LIST_FOR_EACH_ENTRY( v, fields, const var_t, entry )
+    {
+        unsigned int falign = 0;
+        unsigned int fsize = type_memsize_and_alignment( v->declspec.type, &falign );
+        if (*align < falign) *align = falign;
+        falign = clamp_align( falign );
+        size = ROUND_SIZE( size, falign );
+        size += fsize;
+    }
+
+    max_align = clamp_align( *align );
+    size = ROUND_SIZE( size, max_align );
+
+    return size;
+}
+
+static unsigned int union_memsize( const var_list_t *fields, unsigned int *pmaxa )
+{
+    unsigned int size, maxs = 0;
+    unsigned int align = *pmaxa;
+    const var_t *v;
+
+    if (fields) LIST_FOR_EACH_ENTRY( v, fields, const var_t, entry )
+    {
+        /* we could have an empty default field with NULL type */
+        if (v->declspec.type)
+        {
+            size = type_memsize_and_alignment( v->declspec.type, &align );
+            if (maxs < size) maxs = size;
+            if (*pmaxa < align) *pmaxa = align;
+        }
+    }
+
+    return maxs;
+}
+
+unsigned int type_memsize_and_alignment( const type_t *t, unsigned int *align )
+{
+    unsigned int size = 0;
+
+    switch (type_get_type( t ))
+    {
+    case TYPE_BASIC:
+        switch (type_basic_get_type( t ))
+        {
+        case TYPE_BASIC_INT8:
+        case TYPE_BASIC_CHAR:
+        case TYPE_BASIC_BYTE:
+            size = 1;
+            if (size > *align) *align = size;
+            break;
+        case TYPE_BASIC_INT16:
+        case TYPE_BASIC_WCHAR:
+            size = 2;
+            if (size > *align) *align = size;
+            break;
+        case TYPE_BASIC_INT:
+        case TYPE_BASIC_LONG:
+        case TYPE_BASIC_INT32:
+        case TYPE_BASIC_FLOAT:
+        case TYPE_BASIC_ERROR_STATUS_T:
+            size = 4;
+            if (size > *align) *align = size;
+            break;
+        case TYPE_BASIC_HYPER:
+        case TYPE_BASIC_INT64:
+        case TYPE_BASIC_DOUBLE:
+            size = 8;
+            if (size > *align) *align = size;
+            break;
+        case TYPE_BASIC_INT3264:
+        case TYPE_BASIC_HANDLE:
+            assert( pointer_size );
+            size = pointer_size;
+            if (size > *align) *align = size;
+            break;
+        default:
+            size = 0;
+            error( "type_memsize: Unknown type 0x%x\n", type_basic_get_type( t ) );
+        }
+        break;
+    case TYPE_ENUM:
+        size = 4;
+        if (size > *align) *align = size;
+        break;
+    case TYPE_STRUCT: size = fields_memsize( type_struct_get_fields( t ), align ); break;
+    case TYPE_ENCAPSULATED_UNION:
+        size = fields_memsize( type_encapsulated_union_get_fields( t ), align );
+        break;
+    case TYPE_UNION: size = union_memsize( type_union_get_cases( t ), align ); break;
+    case TYPE_POINTER:
+    case TYPE_INTERFACE:
+        assert( pointer_size );
+        size = pointer_size;
+        if (size > *align) *align = size;
+        break;
+    case TYPE_ARRAY:
+        if (!type_array_is_decl_as_ptr( t ))
+        {
+            if (is_conformant_array( t ))
+            {
+                type_memsize_and_alignment( type_array_get_element_type( t ), align );
+                size = 0;
+            }
+            else size = type_array_get_dim( t ) * type_memsize_and_alignment( type_array_get_element_type( t ), align );
+        }
+        else /* declared as a pointer */
+        {
+            assert( pointer_size );
+            size = pointer_size;
+            if (size > *align) *align = size;
+        }
+        break;
+    case TYPE_ALIAS:
+    case TYPE_VOID:
+    case TYPE_COCLASS:
+    case TYPE_MODULE:
+    case TYPE_FUNCTION:
+    case TYPE_BITFIELD:
+    case TYPE_APICONTRACT:
+    case TYPE_RUNTIMECLASS:
+    case TYPE_PARAMETERIZED_TYPE:
+    case TYPE_PARAMETER:
+    case TYPE_DELEGATE:
+        /* these types should not be encountered here due to language
+         * restrictions (interface, void, coclass, module), logical
+         * restrictions (alias - due to type_get_type call above) or
+         * checking restrictions (function, bitfield). */
+        assert( 0 );
+    }
+
+    return size;
+}
+
+unsigned int type_memsize( const type_t *t )
+{
+    unsigned int align = 0;
+    return type_memsize_and_alignment( t, &align );
+}
+
+type_t *get_user_type( const type_t *t, const char **pname )
+{
+    for (;;)
+    {
+        type_t *ut = get_attrp( t->attrs, ATTR_WIREMARSHAL );
+        if (ut)
+        {
+            if (pname) *pname = t->name;
+            return ut;
+        }
+
+        if (type_is_alias( t )) t = type_alias_get_aliasee_type( t );
+        else return NULL;
+    }
+}
+
+int is_user_type( const type_t *t )
+{
+    return get_user_type( t, NULL ) != NULL;
+}
+
+enum typegen_type typegen_detect_type( const type_t *type, const attr_list_t *attrs, unsigned int flags )
+{
+    if (is_user_type( type )) return TGT_USER_TYPE;
+
+    if (is_aliaschain_attr( type, ATTR_CONTEXTHANDLE )) return TGT_CTXT_HANDLE;
+
+    if (!(flags & TDT_IGNORE_STRINGS) && is_string_type( attrs, type )) return TGT_STRING;
+
+    switch (type_get_type( type ))
+    {
+    case TYPE_BASIC:
+        if (!(flags & TDT_IGNORE_RANGES) && (is_attr( attrs, ATTR_RANGE ) || is_aliaschain_attr( type, ATTR_RANGE )))
+            return TGT_RANGE;
+        return TGT_BASIC;
+    case TYPE_ENUM:
+        if (!(flags & TDT_IGNORE_RANGES) && (is_attr( attrs, ATTR_RANGE ) || is_aliaschain_attr( type, ATTR_RANGE )))
+            return TGT_RANGE;
+        return TGT_ENUM;
+    case TYPE_POINTER:
+        if (type_get_type( type_pointer_get_ref_type( type ) ) == TYPE_INTERFACE ||
+            type_get_type( type_pointer_get_ref_type( type ) ) == TYPE_RUNTIMECLASS ||
+            type_get_type( type_pointer_get_ref_type( type ) ) == TYPE_DELEGATE ||
+            (type_get_type( type_pointer_get_ref_type( type ) ) == TYPE_VOID && is_attr( attrs, ATTR_IIDIS )))
+            return TGT_IFACE_POINTER;
+        else if (is_aliaschain_attr( type_pointer_get_ref_type( type ), ATTR_CONTEXTHANDLE ))
+            return TGT_CTXT_HANDLE_POINTER;
+        else return TGT_POINTER;
+    case TYPE_STRUCT: return TGT_STRUCT;
+    case TYPE_ENCAPSULATED_UNION:
+    case TYPE_UNION: return TGT_UNION;
+    case TYPE_ARRAY: return TGT_ARRAY;
+    case TYPE_FUNCTION:
+    case TYPE_COCLASS:
+    case TYPE_INTERFACE:
+    case TYPE_MODULE:
+    case TYPE_VOID:
+    case TYPE_ALIAS:
+    case TYPE_BITFIELD:
+    case TYPE_RUNTIMECLASS:
+    case TYPE_DELEGATE: break;
+    case TYPE_APICONTRACT:
+    case TYPE_PARAMETERIZED_TYPE:
+    case TYPE_PARAMETER:
+        /* not supposed to be here */
+        assert( 0 );
+        break;
+    }
+    return TGT_INVALID;
+}
+
+int decl_indirect( const type_t *t )
+{
+    if (is_user_type( t )) return TRUE;
+    return (type_get_type( t ) != TYPE_BASIC && type_get_type( t ) != TYPE_ENUM &&
+            type_get_type( t ) != TYPE_POINTER && type_get_type( t ) != TYPE_ARRAY);
 }

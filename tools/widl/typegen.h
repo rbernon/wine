@@ -36,30 +36,6 @@ enum remoting_phase
     PHASE_FREE
 };
 
-enum typegen_detect_flags
-{
-    TDT_ALL_TYPES =      1 << 0,
-    TDT_IGNORE_STRINGS = 1 << 1,
-    TDT_IGNORE_RANGES =  1 << 2,
-};
-
-enum typegen_type
-{
-    TGT_INVALID,
-    TGT_USER_TYPE,
-    TGT_CTXT_HANDLE,
-    TGT_CTXT_HANDLE_POINTER,
-    TGT_STRING,
-    TGT_POINTER,
-    TGT_ARRAY,
-    TGT_IFACE_POINTER,
-    TGT_BASIC,
-    TGT_ENUM,
-    TGT_STRUCT,
-    TGT_UNION,
-    TGT_RANGE,
-};
-
 typedef int (*type_pred_t)(const type_t *);
 
 void write_procformatstring(FILE *file, const statement_list_t *stmts, type_pred_t pred);
@@ -83,7 +59,6 @@ void write_user_quad_list(FILE *file);
 void write_endpoints( FILE *f, const char *prefix, const str_list_t *list );
 void write_client_call_routine( FILE *file, const type_t *iface, const var_t *func,
                                 const char *prefix, unsigned int proc_offset );
-unsigned int type_memsize(const type_t *t);
 int decl_indirect(const type_t *t);
 int is_interpreted_func(const type_t *iface, const var_t *func);
 void write_parameters_init(FILE *file, int indent, const var_t *func, const char *local_var_prefix);

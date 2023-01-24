@@ -32,6 +32,30 @@ enum name_type {
     NAME_C
 };
 
+enum typegen_type
+{
+    TGT_INVALID,
+    TGT_USER_TYPE,
+    TGT_CTXT_HANDLE,
+    TGT_CTXT_HANDLE_POINTER,
+    TGT_STRING,
+    TGT_POINTER,
+    TGT_ARRAY,
+    TGT_IFACE_POINTER,
+    TGT_BASIC,
+    TGT_ENUM,
+    TGT_STRUCT,
+    TGT_UNION,
+    TGT_RANGE,
+};
+
+enum typegen_detect_flags
+{
+    TDT_ALL_TYPES =      1 << 0,
+    TDT_IGNORE_STRINGS = 1 << 1,
+    TDT_IGNORE_RANGES =  1 << 2,
+};
+
 type_t *find_parameterized_type(type_t *type, typeref_list_t *params);
 
 type_t *type_new_function(var_list_t *args);
@@ -70,9 +94,13 @@ type_t *type_parameterized_type_specialize_partial(type_t *type, typeref_list_t 
 type_t *type_parameterized_type_specialize_declare(type_t *type, typeref_list_t *params);
 type_t *type_parameterized_type_specialize_define(type_t *type);
 int type_is_equal(const type_t *type1, const type_t *type2);
+unsigned int type_memsize_and_alignment(const type_t *t, unsigned int *align);
+unsigned int type_memsize(const type_t *t);
 const char *type_get_decl_name(const type_t *type, enum name_type name_type);
 const char *type_get_name(const type_t *type, enum name_type name_type);
 char *gen_name(void);
+extern type_t *get_user_type(const type_t *t, const char **pname);
+extern int is_user_type(const type_t *t);
 
 typeref_t *make_typeref(type_t *type);
 typeref_list_t *append_typeref(typeref_list_t *list, typeref_t *ref);
