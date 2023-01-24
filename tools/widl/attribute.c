@@ -527,14 +527,15 @@ attr_list_t *check_union_attrs( attr_list_t *attrs )
     return attrs;
 }
 
-void check_arg_attrs( const var_t *arg )
+attr_list_t *check_arg_attrs( attr_list_t *attrs, const char *name )
 {
     const attr_t *attr;
-    if (!arg->attrs) return;
-    LIST_FOR_EACH_ENTRY( attr, arg->attrs, const attr_t, entry )
+    if (!attrs) return attrs;
+    LIST_FOR_EACH_ENTRY( attr, attrs, const attr_t, entry )
     {
         if (!allowed_attr[attr->type].on_arg)
             error_at( &attr->where, "inapplicable attribute %s for argument %s\n",
-                      allowed_attr[attr->type].display_name, arg->name );
+                      allowed_attr[attr->type].display_name, name );
     }
+    return attrs;
 }
