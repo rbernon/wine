@@ -430,22 +430,20 @@ static void write_union_type( FILE *file, type_t *type, enum name_type name_type
 static void write_type_left( FILE *h, const decl_spec_t *ds, enum name_type name_type,
                              int is_defined, int write_callconv )
 {
-  type_t *t = ds->type;
-  const char *decl_name;
-  char *args;
+    type_t *t = ds->type;
+    const char *decl_name;
+    char *args;
 
-  if (!h) return;
+    if (!h) return;
 
-  decl_name = type_get_decl_name(t, name_type);
+    decl_name = type_get_decl_name( t, name_type );
 
-  if (ds->func_specifier & FUNCTION_SPECIFIER_INLINE)
-    fprintf(h, "inline ");
+    if (ds->func_specifier & FUNCTION_SPECIFIER_INLINE)
+        fprintf( h, "inline " );
 
-  if ((ds->qualifier & TYPE_QUALIFIER_CONST) && (type_is_alias(t) || !is_ptr(t)))
-    fprintf(h, "const ");
+    if ((ds->qualifier & TYPE_QUALIFIER_CONST) && (type_is_alias( t ) || !is_ptr( t )))
+        fprintf( h, "const " );
 
-  if (type_is_alias(t)) fprintf(h, "%s", name);
-  else {
     switch (type_get_type_detect_alias(t)) {
       case TYPE_ENUM:
         if (declonly) fprintf(h, "enum %s", decl_name ? decl_name : "");
@@ -535,7 +533,6 @@ static void write_type_left( FILE *h, const decl_spec_t *ds, enum name_type name
         assert(0);
         break;
     }
-  }
 }
 
 static void write_type_right( FILE *h, type_t *t, int is_field )
