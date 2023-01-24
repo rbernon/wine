@@ -35,10 +35,6 @@
 
 static int indentation = 0;
 static int is_object_interface = 0;
-static const char *default_callconv;
-user_type_list_t user_type_list = LIST_INIT(user_type_list);
-context_handle_list_t context_handle_list = LIST_INIT(context_handle_list);
-generic_handle_list_t generic_handle_list = LIST_INIT(generic_handle_list);
 
 static void put_declspec_full( const decl_spec_t *ds, int is_field, int declonly, const char *name,
                                enum name_type name_type, int (*put_str)( FILE *, const char *, ... ), FILE *file );
@@ -61,141 +57,6 @@ static void write_line(FILE *f, int delta, const char *fmt, ...)
     vfprintf(f, fmt, ap);
     va_end(ap);
     fprintf(f, "\n");
-}
-
-static int is_override_method( const type_t *iface, const type_t *child, const var_t *func )
-{
-    if (iface == child) return 0;
-
-    do
-    {
-        const statement_t *stmt;
-        STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts( child ) )
-        {
-            const var_t *funccmp = stmt->u.var;
-
-            if (!is_callas( func->attrs ))
-            {
-                char inherit_name[256];
-                /* compare full name including property prefix */
-                strcpy( inherit_name, get_name( funccmp ) );
-                if (!strcmp( inherit_name, get_name( func ) )) return 1;
-            }
-        }
-    } while ((child = type_iface_get_inherit( child )) && child != iface);
-
-    return 0;
-}
-
-void *get_attrp(const attr_list_t *list, enum attr_type t)
-{
-    const attr_t *attr;
-    if (list) LIST_FOR_EACH_ENTRY( attr, list, const attr_t, entry )
-        if (attr->type == t) return attr->u.pval;
-    return NULL;
-}
-
-unsigned int get_attrv(const attr_list_t *list, enum attr_type t)
-{
-    const attr_t *attr;
-    if (list) LIST_FOR_EACH_ENTRY( attr, list, const attr_t, entry )
-        if (attr->type == t) return attr->u.ival;
-    return 0;
-}
-
-static char *format_parameterized_type_args(const type_t *type, const char *prefix, const char *suffix)
-{
-    struct strbuf str = {0};
-    typeref_list_t *params;
-    typeref_t *ref;
-
-    params = type->details.parameterized.params;
-    if (params) LIST_FOR_EACH_ENTRY(ref, params, typeref_t, entry)
-    {
-        assert(ref->type->type_type != TYPE_POINTER);
-        strappend( &str, "%s%s%s", prefix, ref->type->name, suffix );
-        if (list_next( params, &ref->entry )) strappend( &str, ", " );
-    }
-
-    if (!str.buf) return xstrdup( "" );
-    return str.buf;
-}
-
-static char *format_apicontract_macro( const type_t *type )
-{
-    char *name = format_namespace( type->namespace, "", "_", type->name, NULL );
-    int i;
-    for (i = strlen( name ); i > 0; --i) name[i - 1] = toupper( name[i - 1] );
-    return name;
-}
-
-static void put_apicontract_guard_start( const expr_t *expr, int (*put_str)( FILE *, const char *, ... ), FILE *file )
-{
-    const type_t *type;
-    char *name;
-    int ver;
-    if (!winrt_mode) return;
-    type = expr->u.args[0]->u.decl->type;
-    ver = expr->u.args[1]->u.lval;
-    name = format_apicontract_macro( type );
-    put_str( file, "#if %s_VERSION >= %#x\n", name, ver );
-    free( name );
-}
-
-static void put_apicontract_guard_end( const expr_t *expr, int (*put_str)( FILE *, const char *, ... ), FILE *file )
-{
-    const type_t *type;
-    char *name;
-    int ver;
-    if (!winrt_mode) return;
-    type = expr->u.args[0]->u.decl->type;
-    ver = expr->u.args[1]->u.lval;
-    name = format_apicontract_macro( type );
-    put_str( file, "#endif /* %s_VERSION >= %#x */\n", name, ver );
-    free( name );
-}
-
-static void write_widl_using_method_macros( FILE *header, const type_t *iface, const type_t *top_iface )
-{
-    const statement_t *stmt;
-    const char *name = top_iface->short_name ? top_iface->short_name : top_iface->name;
-
-    if (type_iface_get_inherit( iface ))
-        write_widl_using_method_macros( header, type_iface_get_inherit( iface ), top_iface );
-
-    STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts( iface ) )
-    {
-        const var_t *func = stmt->u.var;
-        const char *func_name;
-
-        if (is_override_method( iface, top_iface, func )) continue;
-        if (is_callas( func->attrs )) continue;
-
-        func_name = get_name( func );
-        fprintf( header, "#define %s_%s %s_%s\n", name, func_name, top_iface->c_name, func_name );
-    }
-}
-
-static void write_widl_using_macros( FILE *header, type_t *iface )
-{
-    const struct uuid *uuid = get_attrp( iface->attrs, ATTR_UUID );
-    const char *name = iface->short_name ? iface->short_name : iface->name;
-    char *macro;
-
-    if (!strcmp( iface->name, iface->c_name )) return;
-
-    macro = format_namespace( iface->namespace, "WIDL_using_", "_", NULL, NULL );
-    fprintf( header, "#ifdef %s\n", macro );
-
-    if (uuid) fprintf( header, "#define IID_%s IID_%s\n", name, iface->c_name );
-    if (iface->type_type == TYPE_INTERFACE)
-        fprintf( header, "#define %sVtbl %sVtbl\n", name, iface->c_name );
-    fprintf( header, "#define %s %s\n", name, iface->c_name );
-
-    if (iface->type_type == TYPE_INTERFACE) write_widl_using_method_macros( header, iface, iface );
-
-    fprintf( header, "#endif /* %s */\n", macro );
-    free( macro );
 }
 
 static void write_guid(FILE *f, const char *guid_prefix, const char *name, const struct uuid *uuid)
@@ -922,33 +783,6 @@ void write_expr( FILE *out, const expr_t *expr, int brackets, int toplevel, cons
     }
 }
 
-static int user_type_registered(const char *name)
-{
-  user_type_t *ut;
-  LIST_FOR_EACH_ENTRY(ut, &user_type_list, user_type_t, entry)
-    if (!strcmp(name, ut->name))
-      return 1;
-  return 0;
-}
-
-static int context_handle_registered(const char *name)
-{
-  context_handle_t *ch;
-  LIST_FOR_EACH_ENTRY(ch, &context_handle_list, context_handle_t, entry)
-    if (!strcmp(name, ch->name))
-      return 1;
-  return 0;
-}
-
-static int generic_handle_registered(const char *name)
-{
-  generic_handle_t *gh;
-  LIST_FOR_EACH_ENTRY(gh, &generic_handle_list, generic_handle_t, entry)
-    if (!strcmp(name, gh->name))
-      return 1;
-  return 0;
-}
-
 unsigned int get_context_handle_offset( const type_t *type )
 {
     context_handle_t *ch;
@@ -987,82 +821,6 @@ unsigned int get_generic_handle_offset( const type_t *type )
     }
     error( "internal error: %s is not registered as a generic handle\n", type->name );
     return index;
-}
-
-/* check for types which require additional prototypes to be generated in the
- * header */
-void check_for_additional_prototype_types(type_t *type)
-{
-  if (!type) return;
-  for (;;) {
-    const char *name = type->name;
-    if (type->user_types_registered) break;
-    type->user_types_registered = 1;
-    if (is_attr(type->attrs, ATTR_CONTEXTHANDLE)) {
-      if (!context_handle_registered(name))
-      {
-        context_handle_t *ch = xmalloc(sizeof(*ch));
-        ch->name = xstrdup(name);
-        list_add_tail(&context_handle_list, &ch->entry);
-      }
-      /* don't carry on parsing fields within this type */
-      break;
-    }
-    if ((type_get_type(type) != TYPE_BASIC ||
-         type_basic_get_type(type) != TYPE_BASIC_HANDLE) &&
-        is_attr(type->attrs, ATTR_HANDLE)) {
-      if (!generic_handle_registered(name))
-      {
-        generic_handle_t *gh = xmalloc(sizeof(*gh));
-        gh->name = xstrdup(name);
-        list_add_tail(&generic_handle_list, &gh->entry);
-      }
-      /* don't carry on parsing fields within this type */
-      break;
-    }
-    if (is_attr(type->attrs, ATTR_WIREMARSHAL)) {
-      if (!user_type_registered(name))
-      {
-        user_type_t *ut = xmalloc(sizeof *ut);
-        ut->name = xstrdup(name);
-        list_add_tail(&user_type_list, &ut->entry);
-      }
-      /* don't carry on parsing fields within this type as we are already
-       * using a wire marshaled type */
-      break;
-    }
-    else if (type_is_defined(type))
-    {
-      var_list_t *vars;
-      const var_t *v;
-      switch (type_get_type_detect_alias(type))
-      {
-      case TYPE_ENUM:
-        vars = type_enum_get_values(type);
-        break;
-      case TYPE_STRUCT:
-        vars = type_struct_get_fields(type);
-        break;
-      case TYPE_UNION:
-        vars = type_union_get_cases(type);
-        break;
-      default:
-        vars = NULL;
-        break;
-      }
-      if (vars) LIST_FOR_EACH_ENTRY( v, vars, const var_t, entry )
-        check_for_additional_prototype_types(v->declspec.type);
-    }
-
-    if (type_is_alias(type))
-      type = type_alias_get_aliasee_type(type);
-    else if (is_ptr(type))
-      type = type_pointer_get_ref_type(type);
-    else if (is_array(type))
-      type = type_array_get_element_type(type);
-    else
-      break;
-  }
 }
 
 static int put_serialize_function_decl( FILE *header, const type_t *type )
@@ -1169,24 +927,6 @@ static void write_typedef(FILE *header, type_t *type, int declonly)
     }
 }
 
-int is_const_decl(const var_t *var)
-{
-  const decl_spec_t *t;
-  /* strangely, MIDL accepts a const attribute on any pointer in the
-  * declaration to mean that data isn't being instantiated. this appears
-  * to be a bug, but there is no benefit to being incompatible with MIDL,
-  * so we'll do the same thing */
-  for (t = &var->declspec; ; )
-  {
-    if (t->qualifier & TYPE_QUALIFIER_CONST)
-      return TRUE;
-    else if (is_ptr(t->type))
-      t = type_pointer_get_ref(t->type);
-    else break;
-  }
-  return FALSE;
-}
-
 static void write_declaration(FILE *header, const var_t *v)
 {
   if (is_const_decl(v) && v->eval)
@@ -1222,60 +962,6 @@ static void write_library(FILE *header, const typelib_t *typelib)
   fprintf(header, "\n");
 }
 
-
-const type_t* get_explicit_generic_handle_type(const var_t* var)
-{
-    const type_t *t;
-    for (t = var->declspec.type;
-         is_ptr(t) || type_is_alias(t);
-         t = type_is_alias(t) ? type_alias_get_aliasee_type(t) : type_pointer_get_ref_type(t))
-        if ((type_get_type_detect_alias(t) != TYPE_BASIC || type_basic_get_type(t) != TYPE_BASIC_HANDLE) &&
-            is_attr(t->attrs, ATTR_HANDLE))
-            return t;
-    return NULL;
-}
-
-const var_t *get_func_handle_var( const type_t *iface, const var_t *func,
-                                  unsigned char *explicit_fc, unsigned char *implicit_fc )
-{
-    const var_t *var;
-    const var_list_t *args = type_function_get_args( func->declspec.type );
-
-    *explicit_fc = *implicit_fc = 0;
-    if (args) LIST_FOR_EACH_ENTRY( var, args, const var_t, entry )
-    {
-        if (!is_attr( var->attrs, ATTR_IN ) && is_attr( var->attrs, ATTR_OUT )) continue;
-        if (type_get_type( var->declspec.type ) == TYPE_BASIC && type_basic_get_type( var->declspec.type ) == TYPE_BASIC_HANDLE)
-        {
-            *explicit_fc = FC_BIND_PRIMITIVE;
-            return var;
-        }
-        if (get_explicit_generic_handle_type( var ))
-        {
-            *explicit_fc = FC_BIND_GENERIC;
-            return var;
-        }
-        if (is_context_handle( var->declspec.type ))
-        {
-            *explicit_fc = FC_BIND_CONTEXT;
-            return var;
-        }
-    }
-
-    if ((var = get_attrp( iface->attrs, ATTR_IMPLICIT_HANDLE )))
-    {
-        if (type_get_type( var->declspec.type ) == TYPE_BASIC &&
-            type_basic_get_type( var->declspec.type ) == TYPE_BASIC_HANDLE)
-            *implicit_fc = FC_BIND_PRIMITIVE;
-        else
-            *implicit_fc = FC_BIND_GENERIC;
-        return var;
-    }
-
-    *implicit_fc = FC_AUTO_HANDLE;
-    return NULL;
-}
-
 int has_out_arg_or_return(const var_t *func)
 {
     const var_t *var;
@@ -1295,26 +981,6 @@ int has_out_arg_or_return(const var_t *func)
 
 
 /********** INTERFACES **********/
-
-int is_object(const type_t *iface)
-{
-    const attr_t *attr;
-    if (type_is_defined(iface) && (type_get_type(iface) == TYPE_DELEGATE || type_iface_get_inherit(iface)))
-        return 1;
-    if (iface->attrs) LIST_FOR_EACH_ENTRY( attr, iface->attrs, const attr_t, entry )
-        if (attr->type == ATTR_OBJECT || attr->type == ATTR_ODL) return 1;
-    return 0;
-}
-
-int is_local(const attr_list_t *a)
-{
-  return is_attr(a, ATTR_LOCAL);
-}
-
-const var_t *is_callas(const attr_list_t *a)
-{
-  return get_attrp(a, ATTR_CALLAS);
-}
 
 static int is_inherited_method(const type_t *iface, const var_t *func)
 {

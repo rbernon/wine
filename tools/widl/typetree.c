@@ -31,6 +31,10 @@
 #include "header.h"
 #include "hash.h"
 
+user_type_list_t user_type_list = LIST_INIT(user_type_list);
+context_handle_list_t context_handle_list = LIST_INIT(context_handle_list);
+generic_handle_list_t generic_handle_list = LIST_INIT(generic_handle_list);
+
 type_t *duptype(type_t *t, int dupname)
 {
   type_t *d = alloc_type();
@@ -1320,4 +1324,260 @@ int type_is_equal(const type_t *type1, const type_t *type2)
     /* FIXME: do deep inspection of types to determine if they are equal */
 
     return FALSE;
+}
+
+int is_ptrchain_attr( const var_t *var, enum attr_type t )
+{
+    if (is_attr( var->attrs, t )) return 1;
+    else
+    {
+        type_t *type = var->declspec.type;
+        for (;;)
+        {
+            if (is_attr( type->attrs, t )) return 1;
+            else if (type_is_alias( type )) type = type_alias_get_aliasee_type( type );
+            else if (is_ptr( type )) type = type_pointer_get_ref_type( type );
+            else return 0;
+        }
+    }
+}
+
+int is_aliaschain_attr( const type_t *type, enum attr_type attr )
+{
+    const type_t *t = type;
+
+    for (;;)
+    {
+        if (is_attr( t->attrs, attr )) return 1;
+        else if (type_is_alias( t )) t = type_alias_get_aliasee_type( t );
+        else return 0;
+    }
+}
+
+int is_attr( const attr_list_t *list, enum attr_type t )
+{
+    const attr_t *attr;
+
+    if (list) LIST_FOR_EACH_ENTRY( attr, list, const attr_t, entry )
+        if (attr->type == t) return 1;
+
+    return 0;
+}
+
+void *get_attrp( const attr_list_t *list, enum attr_type t )
+{
+    const attr_t *attr;
+
+    if (list) LIST_FOR_EACH_ENTRY( attr, list, const attr_t, entry )
+        if (attr->type == t) return attr->u.pval;
+
+    return NULL;
+}
+
+unsigned int get_attrv( const attr_list_t *list, enum attr_type t )
+{
+    const attr_t *attr;
+
+    if (list) LIST_FOR_EACH_ENTRY( attr, list, const attr_t, entry )
+        if (attr->type == t) return attr->u.ival;
+
+    return 0;
+}
+
+int is_object( const type_t *iface )
+{
+    const attr_t *attr;
+
+    if (type_is_defined( iface ) && (type_get_type( iface ) == TYPE_DELEGATE || type_iface_get_inherit( iface ))) return 1;
+
+    if (iface->attrs) LIST_FOR_EACH_ENTRY( attr, iface->attrs, const attr_t, entry )
+        if (attr->type == ATTR_OBJECT || attr->type == ATTR_ODL) return 1;
+
+    return 0;
+}
+
+int is_local( const attr_list_t *a )
+{
+    return is_attr( a, ATTR_LOCAL );
+}
+
+const var_t *is_callas( const attr_list_t *a )
+{
+    return get_attrp( a, ATTR_CALLAS );
+}
+
+int is_const_decl( const var_t *var )
+{
+    const decl_spec_t *t = &var->declspec;
+
+    /* strangely, MIDL accepts a const attribute on any pointer in the
+     * declaration to mean that data isn't being instantiated. this appears
+     * to be a bug, but there is no benefit to being incompatible with MIDL,
+     * so we'll do the same thing */
+    for (;;)
+    {
+        if (t->qualifier & TYPE_QUALIFIER_CONST) return TRUE;
+        else if (is_ptr( t->type )) t = type_pointer_get_ref( t->type );
+        else break;
+    }
+
+    return FALSE;
+}
+
+const type_t *get_explicit_generic_handle_type( const var_t *var )
+{
+    const type_t *t;
+
+    for (t = var->declspec.type; is_ptr( t ) || type_is_alias( t );
+         t = type_is_alias( t ) ? type_alias_get_aliasee_type( t ) : type_pointer_get_ref_type( t ))
+    {
+        if ((type_get_type_detect_alias( t ) != TYPE_BASIC || type_basic_get_type( t ) != TYPE_BASIC_HANDLE) &&
+            is_attr( t->attrs, ATTR_HANDLE ))
+            return t;
+    }
+
+    return NULL;
+}
+
+const var_t *get_func_handle_var( const type_t *iface, const var_t *func, unsigned char *explicit_fc, unsigned char *implicit_fc )
+{
+    const var_t *var;
+    const var_list_t *args = type_function_get_args( func->declspec.type );
+
+    *explicit_fc = *implicit_fc = 0;
+    if (args) LIST_FOR_EACH_ENTRY( var, args, const var_t, entry )
+    {
+        if (!is_attr( var->attrs, ATTR_IN ) && is_attr( var->attrs, ATTR_OUT )) continue;
+        if (type_get_type( var->declspec.type ) == TYPE_BASIC &&
+            type_basic_get_type( var->declspec.type ) == TYPE_BASIC_HANDLE)
+        {
+            *explicit_fc = FC_BIND_PRIMITIVE;
+            return var;
+        }
+        if (get_explicit_generic_handle_type( var ))
+        {
+            *explicit_fc = FC_BIND_GENERIC;
+            return var;
+        }
+        if (is_context_handle( var->declspec.type ))
+        {
+            *explicit_fc = FC_BIND_CONTEXT;
+            return var;
+        }
+    }
+
+    if ((var = get_attrp( iface->attrs, ATTR_IMPLICIT_HANDLE )))
+    {
+        if (type_get_type( var->declspec.type ) == TYPE_BASIC &&
+            type_basic_get_type( var->declspec.type ) == TYPE_BASIC_HANDLE)
+            *implicit_fc = FC_BIND_PRIMITIVE;
+        else *implicit_fc = FC_BIND_GENERIC;
+        return var;
+    }
+
+    *implicit_fc = FC_AUTO_HANDLE;
+    return NULL;
+}
+
+static int user_type_registered( const char *name )
+{
+    user_type_t *ut;
+
+    LIST_FOR_EACH_ENTRY( ut, &user_type_list, user_type_t, entry )
+        if (!strcmp( name, ut->name )) return 1;
+
+    return 0;
+}
+
+static int context_handle_registered( const char *name )
+{
+    context_handle_t *ch;
+
+    LIST_FOR_EACH_ENTRY( ch, &context_handle_list, context_handle_t, entry )
+        if (!strcmp( name, ch->name )) return 1;
+
+    return 0;
+}
+
+static int generic_handle_registered( const char *name )
+{
+    generic_handle_t *gh;
+
+    LIST_FOR_EACH_ENTRY( gh, &generic_handle_list, generic_handle_t, entry )
+        if (!strcmp( name, gh->name )) return 1;
+
+    return 0;
+}
+
+/* check for types which require additional prototypes to be generated in the
+ * header */
+void check_for_additional_prototype_types( type_t *type )
+{
+    if (!type) return;
+
+    for (;;)
+    {
+        const char *name = type->name;
+
+        if (type->user_types_registered) return;
+        type->user_types_registered = 1;
+
+        if (is_attr( type->attrs, ATTR_CONTEXTHANDLE ))
+        {
+            if (!context_handle_registered( name ))
+            {
+                context_handle_t *ch = xmalloc( sizeof(*ch) );
+                ch->name = xstrdup( name );
+                list_add_tail( &context_handle_list, &ch->entry );
+            }
+            /* don't carry on parsing fields within this type */
+            return;
+        }
+
+        if ((type_get_type( type ) != TYPE_BASIC || type_basic_get_type( type ) != TYPE_BASIC_HANDLE) && is_attr( type->attrs, ATTR_HANDLE ))
+        {
+            if (!generic_handle_registered( name ))
+            {
+                generic_handle_t *gh = xmalloc( sizeof(*gh) );
+                gh->name = xstrdup( name );
+                list_add_tail( &generic_handle_list, &gh->entry );
+            }
+            /* don't carry on parsing fields within this type */
+            return;
+        }
+
+        if (is_attr( type->attrs, ATTR_WIREMARSHAL ))
+        {
+            if (!user_type_registered( name ))
+            {
+                user_type_t *ut = xmalloc( sizeof *ut );
+                ut->name = xstrdup( name );
+                list_add_tail( &user_type_list, &ut->entry );
+            }
+            /* don't carry on parsing fields within this type as we are already using a wire marshaled type */
+            return;
+        }
+
+        if (type_is_complete( type ))
+        {
+            var_list_t *vars;
+            const var_t *v;
+
+            switch (type_get_type_detect_alias( type ))
+            {
+            case TYPE_ENUM: vars = type_enum_get_values( type ); break;
+            case TYPE_STRUCT: vars = type_struct_get_fields( type ); break;
+            case TYPE_UNION: vars = type_union_get_cases( type ); break;
+            default: vars = NULL; break;
+            }
+
+            if (vars) LIST_FOR_EACH_ENTRY( v, vars, const var_t, entry )
+                check_for_additional_prototype_types( v->declspec.type );
+        }
+
+        if (type_is_alias( type )) type = type_alias_get_aliasee_type( type );
+        else if (is_ptr( type )) type = type_pointer_get_ref_type( type );
+        else if (is_array( type )) type = type_array_get_element_type( type );
+        else return;
+    }
 }
