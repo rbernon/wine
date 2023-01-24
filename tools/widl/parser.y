@@ -2458,18 +2458,7 @@ var_t *find_const(const char *name, int f)
 char *gen_name(void)
 {
   static unsigned long n = 0;
-  static const char *file_id;
-
-  if (! file_id)
-  {
-    char *dst = replace_extension( idl_name, ".idl", "" );
-    file_id = dst;
-
-    for (; *dst; ++dst)
-      if (! isalnum((unsigned char) *dst))
-        *dst = '_';
-  }
-  return strmake("__WIDL_%s_generated_name_%08lX", file_id, n++);
+  return strmake("__WIDL_%s_generated_name_%08lX", typename_base, n++);
 }
 
 static int is_allowed_conf_type(const type_t *type)
