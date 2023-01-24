@@ -133,21 +133,21 @@ static inline var_list_t *type_struct_get_fields(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_STRUCT);
-    return type->details.structure->fields;
+    return type->details.structure.fields;
 }
 
 static inline var_list_t *type_function_get_args(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_FUNCTION);
-    return type->details.function->args;
+    return type->details.function.args;
 }
 
 static inline var_t *type_function_get_retval(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_FUNCTION);
-    return type->details.function->retval;
+    return type->details.function.retval;
 }
 
 static inline const decl_spec_t *type_function_get_ret(const type_t *type)
@@ -164,21 +164,21 @@ static inline var_list_t *type_enum_get_values(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_ENUM);
-    return type->details.enumeration->enums;
+    return type->details.enumeration.enums;
 }
 
 static inline var_t *type_union_get_switch_value(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_ENCAPSULATED_UNION);
-    return LIST_ENTRY(list_head(type->details.structure->fields), var_t, entry);
+    return LIST_ENTRY(list_head(type->details.structure.fields), var_t, entry);
 }
 
 static inline var_list_t *type_encapsulated_union_get_fields(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_ENCAPSULATED_UNION);
-    return type->details.structure->fields;
+    return type->details.structure.fields;
 }
 
 static inline var_list_t *type_union_get_cases(const type_t *type)
@@ -191,99 +191,65 @@ static inline var_list_t *type_union_get_cases(const type_t *type)
     assert(type_type == TYPE_UNION || type_type == TYPE_ENCAPSULATED_UNION);
     if (type_type == TYPE_ENCAPSULATED_UNION)
     {
-        const var_t *uv = LIST_ENTRY(list_tail(type->details.structure->fields), const var_t, entry);
-        return uv->declspec.type->details.structure->fields;
+        const var_t *uv = LIST_ENTRY(list_tail(type->details.structure.fields), const var_t, entry);
+        return uv->declspec.type->details.structure.fields;
     }
     else
-        return type->details.structure->fields;
+        return type->details.structure.fields;
 }
 
 static inline statement_list_t *type_iface_get_stmts(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_INTERFACE);
-    return type->details.iface->stmts;
+    return type->details.iface.stmts;
 }
 
 static inline type_t *type_iface_get_inherit(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_INTERFACE);
-    return type->details.iface->inherit;
+    return type->details.iface.inherit;
 }
 
 static inline typeref_list_t *type_iface_get_requires(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_INTERFACE);
-    return type->details.iface->requires;
+    return type->details.iface.requires;
 }
 
 static inline type_t *type_iface_get_async_iface(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_INTERFACE);
-    return type->details.iface->async_iface;
+    return type->details.iface.async_iface;
 }
 
 static inline var_list_t *type_dispiface_get_props(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_INTERFACE);
-    return type->details.iface->disp_props;
+    return type->details.iface.disp_props;
 }
 
 static inline var_list_t *type_dispiface_get_methods(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_INTERFACE);
-    return type->details.iface->disp_methods;
+    return type->details.iface.disp_methods;
 }
 
 static inline type_t *type_dispiface_get_inherit(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_INTERFACE);
-    return type->details.iface->disp_inherit;
+    return type->details.iface.disp_inherit;
 }
 
 static inline int type_is_defined(const type_t *type)
 {
     return type->defined;
-}
-
-static inline int type_is_complete(const type_t *type)
-{
-    switch (type_get_type_detect_alias(type))
-    {
-    case TYPE_FUNCTION:
-        return (type->details.function != NULL);
-    case TYPE_INTERFACE:
-        return (type->details.iface != NULL);
-    case TYPE_ENUM:
-        return (type->details.enumeration != NULL);
-    case TYPE_UNION:
-    case TYPE_ENCAPSULATED_UNION:
-    case TYPE_STRUCT:
-        return (type->details.structure != NULL);
-    case TYPE_VOID:
-    case TYPE_BASIC:
-    case TYPE_ALIAS:
-    case TYPE_MODULE:
-    case TYPE_COCLASS:
-    case TYPE_POINTER:
-    case TYPE_ARRAY:
-    case TYPE_BITFIELD:
-    case TYPE_RUNTIMECLASS:
-    case TYPE_DELEGATE:
-        return TRUE;
-    case TYPE_APICONTRACT:
-    case TYPE_PARAMETERIZED_TYPE:
-    case TYPE_PARAMETER:
-        assert(0);
-        break;
-    }
-    return FALSE;
 }
 
 static inline int type_array_has_conformance(const type_t *type)
