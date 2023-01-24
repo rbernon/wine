@@ -114,6 +114,26 @@ static const char *uuid_string(const struct uuid *uuid)
   return buf;
 }
 
+static void put_namespace_start( struct namespace *namespace )
+{
+    if (!is_global_namespace( namespace ))
+    {
+        put_namespace_start( namespace->parent );
+        put_line( "namespace %s {", namespace->name );
+    }
+    else if (use_abi_namespace) put_line( "namespace ABI {" );
+}
+
+static void put_namespace_end( struct namespace *namespace )
+{
+    if (!is_global_namespace( namespace ))
+    {
+        put_line( "}" );
+        put_namespace_end( namespace->parent );
+    }
+    else if (use_abi_namespace) put_line( "}" );
+}
+
 static void write_namespace_start(FILE *header, struct namespace *namespace)
 {
     if(is_global_namespace(namespace)) {
@@ -1467,28 +1487,29 @@ static void write_function_proto(FILE *header, const type_t *iface, const var_t 
   fprintf(header, ");\n\n");
 }
 
-static void write_parameterized_type_forward(FILE *header, type_t *type)
+static void put_parameterized_type_forward( const type_t *type )
 {
-    type_t *iface = type->details.parameterized.type;
+    const type_t *iface = type->details.parameterized.type;
     char *args;
 
     if (type_get_type(iface) == TYPE_DELEGATE) iface = type_delegate_get_iface(iface);
 
-    fprintf(header, "#if defined(__cplusplus) && !defined(CINTERFACE)\n");
-    write_namespace_start(header, type->namespace);
+    put_line( "#if defined(__cplusplus) && !defined(CINTERFACE)" );
+    put_namespace_start( type->namespace );
 
     args = format_parameterized_type_args(type, "class ", "");
-    write_line(header, 0, "template <%s>", args);
-    write_line(header, 0, "struct %s_impl;\n", iface->name);
-
-    write_line(header, 0, "template <%s>", args);
+    put_line( "template <%s>", args );
+    put_line( "struct %s_impl;", iface->name );
+    put_line( "" );
+    put_line( "template <%s>", args );
     free(args);
     args = format_parameterized_type_args(type, "", "");
-    write_line(header, 0, "struct %s : %s_impl<%s> {};", iface->name, iface->name, args);
+    put_line( "struct %s : %s_impl<%s> {};", iface->name, iface->name, args );
     free(args);
 
-    write_namespace_end(header, type->namespace);
-    fprintf(header, "#endif\n\n" );
+    put_namespace_end( type->namespace );
+    put_line( "#endif" );
+    put_line( "" );
 }
 
 static void write_parameterized_implementation(FILE *header, type_t *type, bool define)
@@ -1541,6 +1562,25 @@ static void write_parameterized_implementation(FILE *header, type_t *type, bool 
     write_namespace_end(header, type->namespace);
     write_line(header, 0, "extern \"C\" {");
     write_line(header, 0, "#endif\n");
+}
+
+static void put_forward_interface( const type_t *iface )
+{
+    put_line( "#ifndef __%s_FWD_DEFINED__", iface->c_name );
+    put_line( "#define __%s_FWD_DEFINED__", iface->c_name );
+    put_line( "typedef interface %s %s;", iface->c_name, iface->c_name );
+    put_line( "#ifdef __cplusplus" );
+    if (iface->namespace && !is_global_namespace( iface->namespace ))
+        put_line( "#define %s %s", iface->c_name, iface->qualified_name );
+    if (!iface->impl_name)
+    {
+        put_namespace_start( iface->namespace );
+        put_line( "interface %s;", iface->name );
+        put_namespace_end( iface->namespace );
+    }
+    put_line( "#endif /* __cplusplus */" );
+    put_line( "#endif" );
+    put_line( "" );
 }
 
 static void write_forward(FILE *header, type_t *iface)
@@ -1806,16 +1846,17 @@ static void write_coclass(FILE *header, type_t *cocl)
   fprintf(header, "\n");
 }
 
-static void write_coclass_forward(FILE *header, type_t *cocl)
+static void put_coclass_forward( const type_t *klass )
 {
-  fprintf(header, "#ifndef __%s_FWD_DEFINED__\n", cocl->name);
-  fprintf(header, "#define __%s_FWD_DEFINED__\n", cocl->name);
-  fprintf(header, "#ifdef __cplusplus\n");
-  fprintf(header, "typedef class %s %s;\n", cocl->name, cocl->name);
-  fprintf(header, "#else\n");
-  fprintf(header, "typedef struct %s %s;\n", cocl->name, cocl->name);
-  fprintf(header, "#endif /* defined __cplusplus */\n");
-  fprintf(header, "#endif /* defined __%s_FWD_DEFINED__ */\n\n", cocl->name );
+    put_line( "#ifndef __%s_FWD_DEFINED__", klass->name );
+    put_line( "#define __%s_FWD_DEFINED__", klass->name );
+    put_line( "#ifdef __cplusplus" );
+    put_line( "typedef class %s %s;", klass->name, klass->name );
+    put_line( "#else" );
+    put_line( "typedef struct %s %s;", klass->name, klass->name );
+    put_line( "#endif /* defined __cplusplus */" );
+    put_line( "#endif /* defined __%s_FWD_DEFINED__ */", klass->name );
+    put_line( "" );
 }
 
 static void write_apicontract(FILE *header, type_t *apicontract)
@@ -1859,18 +1900,19 @@ static void write_runtimeclass(FILE *header, type_t *runtimeclass)
     fprintf(header, "\n");
 }
 
-static void write_runtimeclass_forward(FILE *header, type_t *runtimeclass)
+static void put_runtimeclass_forward( const type_t *klass )
 {
-    fprintf(header, "#ifndef __%s_FWD_DEFINED__\n", runtimeclass->c_name);
-    fprintf(header, "#define __%s_FWD_DEFINED__\n", runtimeclass->c_name);
-    fprintf(header, "#ifdef __cplusplus\n");
-    write_namespace_start(header, runtimeclass->namespace);
-    write_line(header, 0, "class %s;", runtimeclass->name);
-    write_namespace_end(header, runtimeclass->namespace);
-    fprintf(header, "#else\n");
-    fprintf(header, "typedef struct %s %s;\n", runtimeclass->c_name, runtimeclass->c_name);
-    fprintf(header, "#endif /* defined __cplusplus */\n");
-    fprintf(header, "#endif /* defined __%s_FWD_DEFINED__ */\n\n", runtimeclass->c_name);
+    put_line( "#ifndef __%s_FWD_DEFINED__", klass->c_name );
+    put_line( "#define __%s_FWD_DEFINED__", klass->c_name );
+    put_line( "#ifdef __cplusplus" );
+    put_namespace_start( klass->namespace );
+    put_line( "class %s;", klass->name );
+    put_namespace_end( klass->namespace );
+    put_line( "#else" );
+    put_line( "typedef struct %s %s;", klass->c_name, klass->c_name );
+    put_line( "#endif /* defined __cplusplus */" );
+    put_line( "#endif /* defined __%s_FWD_DEFINED__ */", klass->c_name );
+    put_line( "" );
 }
 
 static void write_import(FILE *header, const char *fname)
@@ -1914,49 +1956,49 @@ static void write_imports(FILE *header, const statement_list_t *stmts)
   }
 }
 
-static void write_forward_decls(FILE *header, const statement_list_t *stmts)
+static void put_forward_decls( const statement_list_t *stmts )
 {
-  const statement_t *stmt;
-  if (stmts) LIST_FOR_EACH_ENTRY( stmt, stmts, const statement_t, entry )
-  {
-    switch (stmt->type)
+    const statement_t *stmt;
+    if (stmts) LIST_FOR_EACH_ENTRY( stmt, stmts, const statement_t, entry )
     {
-      case STMT_TYPE:
-        if (type_get_type(stmt->u.type) == TYPE_INTERFACE || type_get_type(stmt->u.type) == TYPE_DELEGATE)
+        switch (stmt->type)
         {
-          type_t *iface = stmt->u.type;
-          if (type_get_type(iface) == TYPE_DELEGATE) iface = type_delegate_get_iface(iface);
-          if (is_object(iface) || is_attr(iface->attrs, ATTR_DISPINTERFACE))
-          {
-            write_forward(header, iface);
-            if (type_iface_get_async_iface(iface))
-              write_forward(header, type_iface_get_async_iface(iface));
-          }
+        case STMT_TYPE:
+            if (type_get_type( stmt->u.type ) == TYPE_INTERFACE || type_get_type( stmt->u.type ) == TYPE_DELEGATE)
+            {
+                const type_t *iface = stmt->u.type;
+                if (type_get_type( iface ) == TYPE_DELEGATE) iface = type_delegate_get_iface( iface );
+                if (is_object( iface ) || is_attr( iface->attrs, ATTR_DISPINTERFACE ))
+                {
+                    put_forward_interface( iface );
+                    if (type_iface_get_async_iface( iface ))
+                        put_forward_interface( type_iface_get_async_iface( iface ) );
+                }
+            }
+            else if (type_get_type( stmt->u.type ) == TYPE_COCLASS)
+                put_coclass_forward( stmt->u.type );
+            else if (type_get_type( stmt->u.type ) == TYPE_RUNTIMECLASS)
+                put_runtimeclass_forward( stmt->u.type );
+            else if (type_get_type( stmt->u.type ) == TYPE_PARAMETERIZED_TYPE)
+                put_parameterized_type_forward( stmt->u.type );
+            break;
+        case STMT_LIBRARY:
+            put_forward_decls( stmt->u.lib->stmts );
+            break;
+        case STMT_TYPEREF:
+        case STMT_IMPORTLIB:
+            /* not included in header */
+            break;
+        case STMT_IMPORT:
+        case STMT_TYPEDEF:
+        case STMT_MODULE:
+        case STMT_CPPQUOTE:
+        case STMT_PRAGMA:
+        case STMT_DECLARATION:
+            /* not processed here */
+            break;
         }
-        else if (type_get_type(stmt->u.type) == TYPE_COCLASS)
-          write_coclass_forward(header, stmt->u.type);
-        else if (type_get_type(stmt->u.type) == TYPE_RUNTIMECLASS)
-          write_runtimeclass_forward(header, stmt->u.type);
-        else if (type_get_type(stmt->u.type) == TYPE_PARAMETERIZED_TYPE)
-          write_parameterized_type_forward(header, stmt->u.type);
-        break;
-      case STMT_TYPEREF:
-      case STMT_IMPORTLIB:
-        /* not included in header */
-        break;
-      case STMT_IMPORT:
-      case STMT_TYPEDEF:
-      case STMT_MODULE:
-      case STMT_CPPQUOTE:
-      case STMT_PRAGMA:
-      case STMT_DECLARATION:
-        /* not processed here */
-        break;
-      case STMT_LIBRARY:
-        write_forward_decls(header, stmt->u.lib->stmts);
-        break;
     }
-  }
 }
 
 static void write_header_stmts(FILE *header, const statement_list_t *stmts, const type_t *iface, int ignore_funcs)
@@ -2096,12 +2138,12 @@ void write_header(const statement_list_t *stmts)
     put_line( "" );
     put_line( "/* Forward declarations */" );
     put_line( "" );
+    put_forward_decls( stmts );
+    put_line( "/* Headers for imported files */" );
+    put_line( "" );
     fputs( (char *)output_buffer, header );
     free( output_buffer );
 
-    write_forward_decls( header, stmts );
-
-    fprintf( header, "/* Headers for imported files */\n\n" );
     write_imports( header, stmts );
     fprintf( header, "\n" );
     start_cplusplus_guard( header );
