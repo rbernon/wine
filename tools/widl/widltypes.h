@@ -377,11 +377,6 @@ struct _attr_custdata_t {
   expr_t *pval;
 };
 
-struct module_details
-{
-  statement_list_t *stmts;
-};
-
 struct array_details
 {
   expr_t *size_is;
@@ -498,7 +493,10 @@ struct _type_t {
             struct _type_t *async_iface;
             typeref_list_t *requires;
         } iface;
-    struct module_details *module;
+        struct
+        {
+            statement_list_t *stmts;
+        } module;
     struct array_details array;
     struct coclass_details coclass;
     struct basic_details basic;
