@@ -489,6 +489,117 @@ static void test_idl_parsing(void)
     free( header.data );
 }
 
+static void test_attributes(void)
+{
+    struct input oaidl =
+    {
+        .name = L"oaidl.idl",
+        .text = "interface ITypeLib;\n",
+    };
+    struct input unknwn =
+    {
+        .name = L"unknwn.idl",
+        .text = "[uuid(00000000-0000-0000-0000-000000000000),object]"
+                "interface IUnknown{}",
+    };
+    struct input inspectable =
+    {
+        .name = L"inspectable.idl",
+        .text = "import\"unknwn.idl\";"
+                "[uuid(00000000-0000-0000-0000-000000000001),object]"
+                "interface IInspectable:IUnknown{}",
+    };
+    struct input src = {.name = L"main.idl"};
+    struct list in = LIST_INIT( in ), out = LIST_INIT( out );
+    DWORD res;
+
+    list_add_tail( &in, &src.entry );
+    list_add_tail( &in, &oaidl.entry );
+    list_add_tail( &in, &unknwn.entry );
+    list_add_tail( &in, &inspectable.entry );
+
+    src.text = "struct A[helpstring(\"\")];\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "struct [helpstring(\"\")]A;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+
+    src.text = "static [helpstring(\"\")]struct A *a;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "static struct [helpstring(\"\")]A *a;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "static struct A [helpstring(\"\")]*a;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "static struct A *[helpstring(\"\")]a;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "static struct A *a[helpstring(\"\")];\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+
+    src.text = "typedef const [helpstring(\"\")]struct A *B;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "typedef const struct [helpstring(\"\")]A *B;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "typedef const struct A [helpstring(\"\")]*B;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "typedef const struct A *[helpstring(\"\")]B;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "typedef const struct A *B[helpstring(\"\")];\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+
+    /* error duplicate attribute */
+    src.text = "[helpstring(\"\")]typedef [helpstring(\"\")]struct A *B;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+
+    src.text = "import \"unknwn.idl\";\n"
+               "[helpstring(\"\")] enum A;\n"
+               "[helpstring(\"\")] union A;\n"
+               "[helpstring(\"\")] struct A;\n"
+               "[helpstring(\"\")] static enum A *a;\n"
+               "[helpstring(\"\")] static union A *b;\n"
+               "[helpstring(\"\")] static struct A *c;\n"
+               "[helpstring(\"\")] typedef [version(1)] const enum A *B;\n"
+               "[helpstring(\"\")] typedef [version(1)] const union A *C;\n"
+               "[helpstring(\"\")] typedef [version(1)] const struct A *D;\n"
+               "[helpstring(\"\")] typedef [version(1)] A const *E;\n"
+               "[helpstring(\"\"),object,uuid(00000000-0000-0000-0000-000000000001)]"
+               "interface A;\n"
+               "[helpstring(\"\"),object,uuid(00000000-0000-0000-0000-000000000002)]"
+               "interface A;\n" /* different redeclaration is fine */
+               "[helpstring(\"\"),object,uuid(00000000-0000-0000-0000-000000000003)]\n"
+               "interface A:IUnknown{};\n"; /* different definition is fine */
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( !res, "got %#lx\n", res );
+
+    src.text = "[helpstring(\"\")]dispinterface A;\n"
+               "[helpstring(\"\")]coclass A;\n"
+               "[helpstring(\"\")]module A;\n"
+               "[uuid(00000000-0000-0000-0000-000000000000)]"
+               "library A{};\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( !res, "got %#lx\n", res );
+
+    src.text = "import \"inspectable.idl\";\n"
+               "[helpstring(\"\")]namespace N{\n"
+               "[contractversion(1)]apicontract A{};\n"
+               "[version(1)]delegate A;\n"
+               "[version(1)]runtimeclass A;\n"
+               "}\n";
+    res = check_idl( &in, &out, MIDL_WERROR | MIDL_VERBOSE | MIDL_WINRT );
+    ok( !res, "got %#lx\n", res );
+}
+
 START_TEST( midl )
 {
     if (!midl_test_init())
@@ -497,6 +608,9 @@ START_TEST( midl )
         return;
     }
 
+    test_attributes();
+
     test_cmdline();
     test_idl_parsing();
+    test_attributes();
 }
