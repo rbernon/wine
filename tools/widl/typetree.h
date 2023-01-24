@@ -23,6 +23,7 @@
 #include <stdio.h>
 
 #include "utils.h"
+#include "expr.h"
 
 #ifndef WIDL_TYPE_TREE_H
 #define WIDL_TYPE_TREE_H
