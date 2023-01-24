@@ -2691,8 +2691,7 @@ static void check_field_common(const type_t *container_type,
             break;
         case TGT_ENUM:
             type = type_get_real_type(type);
-            if (!type_is_complete(type))
-                error_at( &arg->where, "undefined type declaration \"enum %s\"\n", type->name );
+            if (!type_is_defined( type )) error_at( &arg->loc_info, "undefined type declaration \"enum %s\"\n", type->name );
         case TGT_USER_TYPE:
         case TGT_IFACE_POINTER:
         case TGT_BASIC:
@@ -2717,17 +2716,13 @@ static void check_remoting_fields(const var_t *var, type_t *type)
 
     if (type_get_type(type) == TYPE_STRUCT)
     {
-        if (type_is_complete(type))
-            fields = type_struct_get_fields(type);
-        else
-            error_at( &var->where, "undefined type declaration \"struct %s\"\n", type->name );
+        if (!type_is_defined(type)) error_at( &var->loc_info, "undefined type declaration \"struct %s\"\n", type->name );
+        fields = type_struct_get_fields(type);
     }
     else if (type_get_type(type) == TYPE_UNION || type_get_type(type) == TYPE_ENCAPSULATED_UNION)
     {
-        if (type_is_complete(type))
-            fields = type_union_get_cases(type);
-        else
-            error_at( &var->where, "undefined type declaration \"union %s\"\n", type->name );
+        if (!type_is_defined(type)) error_at( &var->loc_info, "undefined type declaration \"union %s\"\n", type->name );
+        fields = type_union_get_cases(type);
     }
 
     if (fields) LIST_FOR_EACH_ENTRY( field, fields, const var_t, entry )
