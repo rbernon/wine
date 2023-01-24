@@ -311,8 +311,7 @@ const char *get_name(const var_t *v)
     return v->name;
 }
 
-static void put_fields( var_list_t *fields, enum name_type name_type,
-                        int (*put_str)( FILE *, const char *, ... ), FILE *file )
+static void put_fields( var_list_t *fields, enum name_type name_type )
 {
     unsigned nameless_struct_cnt = 0, nameless_struct_i = 0, nameless_union_cnt = 0, nameless_union_i = 0;
     const char *name;
@@ -421,20 +420,20 @@ static int decl_needs_parens(const type_t *t)
     return is_func(t);
 }
 
-static void put_pointer_left( type_t *ref, int (*put_str)( FILE *, const char *, ... ), FILE *file )
+static void put_pointer_left( type_t *ref )
 {
-    if (needs_space_after( ref )) put_str( file, " " );
-    if (decl_needs_parens( ref )) put_str( file, "(" );
-    if (type_get_type_detect_alias( ref ) == TYPE_FUNCTION)
+    if (needs_space_after( ref )) put_str( " " );
+    if (decl_needs_parens( ref )) put_str( "(" );
+    if (type_get_type_detect_alias(ref) == TYPE_FUNCTION)
     {
-        const char *callconv = get_attrp( ref->attrs, ATTR_CALLCONV );
+        const char *callconv = get_attrp(ref->attrs, ATTR_CALLCONV);
         if (!callconv && is_object_interface) callconv = "STDMETHODCALLTYPE";
-        if (callconv) put_str( file, "%s ", callconv );
+        if (callconv) put_str( "%s ", callconv );
     }
-    put_str( file, "*" );
+    put_str( "*" );
 }
 
-static void put_basic_type( type_t *type, int (*put_str)( FILE *, const char *, ... ), FILE *file )
+static void put_basic_type( type_t *type )
 {
     if (type_basic_get_type( type ) != TYPE_BASIC_INT32 &&
         type_basic_get_type( type ) != TYPE_BASIC_INT64 &&
@@ -477,14 +476,13 @@ static void put_basic_type( type_t *type, int (*put_str)( FILE *, const char *, 
     }
 }
 
-static void put_enum_type( type_t *type, enum name_type name_type,
-                           int (*put_str)( FILE *, const char *, ... ), FILE *file )
+static void put_enum_type( type_t *type, enum name_type name_type )
 {
     if (type->written)
     {
         const char *name = type_get_name( type, name_type );
-        if (winrt_mode && name_type == NAME_DEFAULT && name) put_str( file, "%s", name );
-        else put_str( file, "enum %s", name ? name : "" );
+        if (winrt_mode && name_type == NAME_DEFAULT && name) put_str( "%s", name );
+        else put_str( "enum %s", name ? name : "" );
     }
     else
     {
@@ -497,22 +495,18 @@ static void put_enum_type( type_t *type, enum name_type name_type,
         put_str( "enum " );
         if (decl_name) put_str( "%s ", decl_name );
         put_line( "{" );
-        write_enums( out, values, is_global_namespace( type->namespace ) ? NULL : type->name );
+        put_enums( values, is_global_namespace( type->namespace ) ? NULL : type->name );
         put_str( "}" );
-
-        fputs( (char *)output_buffer, out );
-        free( output_buffer );
     }
 }
 
-static void put_struct_type( type_t *type, enum name_type name_type,
-                             int (*put_str)( FILE *, const char *, ... ), FILE *file )
+static void put_struct_type( type_t *type, enum name_type name_type )
 {
     if (type->written)
     {
         const char *name = type_get_name( type, name_type );
-        if (winrt_mode && name_type == NAME_DEFAULT && name) put_str( file, "%s", name );
-        else put_str( file, "struct %s", name ? name : "" );
+        if (winrt_mode && name_type == NAME_DEFAULT && name) put_str( "%s", name );
+        else put_str( "struct %s", name ? name : "" );
     }
     else
     {
@@ -525,26 +519,21 @@ static void put_struct_type( type_t *type, enum name_type name_type,
         assert( type->defined );
         type->written = TRUE;
 
-        put_str( file, "struct " );
-        if (decl_name) put_str( file, "%s ", decl_name );
-        put_str( file, "{\n" );
-        indentation++;
-
-        put_fields( fields, name_type, put_str, file );
-
-        indent( file, -1 );
-        put_str( file, "}" );
+        put_str( "struct " );
+        if (decl_name) put_str( "%s ", decl_name );
+        put_line( "{" );
+        put_fields( fields, name_type );
+        put_str( "}" );
     }
 }
 
-static void put_union_type( type_t *type, enum name_type name_type,
-                            int (*put_str)( FILE *, const char *, ... ), FILE *file )
+static void put_union_type( type_t *type, enum name_type name_type )
 {
     if (type->written)
     {
         const char *name = type_get_name( type, name_type );
-        if (winrt_mode && name_type == NAME_DEFAULT && name) put_str( file, "%s", name );
-        else put_str( file, "union %s", name ? name : "" );
+        if (winrt_mode && name_type == NAME_DEFAULT && name) put_str( "%s", name );
+        else put_str( "union %s", name ? name : "" );
     }
     else
     {
@@ -553,22 +542,19 @@ static void put_union_type( type_t *type, enum name_type name_type,
         assert( type->defined );
         type->written = TRUE;
 
-        put_str( file, "union " );
-        if (decl_name) put_str( file, "%s ", decl_name );
-        put_str( file, "{\n" );
-        indentation++;
-
-        put_fields( type_union_get_cases( type ), name_type, put_str, file );
-
-        indent( file, -1 );
-        put_str( file, "}" );
+        put_str( "union " );
+        if (decl_name) put_str( "%s ", decl_name );
+        put_line( "{" );
+        put_fields( type_union_get_cases( type ), name_type );
+        put_str( "}" );
     }
 }
 
-static void put_type_left( const decl_spec_t *ds, enum name_type name_type, int declonly,
-                           int write_callconv, int (*put_str)( FILE *, const char *, ... ), FILE *file )
+static void put_type_left( const decl_spec_t *declspec, enum name_type name_type, int declonly, int write_callconv )
 {
-    type_t *t = ds->type;
+    const int is_inline = declspec->func_specifier & FUNCTION_SPECIFIER_INLINE;
+    const int is_const = declspec->qualifier & TYPE_QUALIFIER_CONST;
+    type_t *t = declspec->type;
     const char *decl_name;
     char *args;
 
@@ -786,26 +772,9 @@ void write_declspec( FILE *h, const decl_spec_t *ds, const char *name )
     write_declspec_full( h, ds, FALSE, TRUE, name, NAME_DEFAULT );
 }
 
-static void put_declspec_full( FILE *out, const decl_spec_t *declspec, int is_field, int declonly,
-                               const char *name, enum name_type name_type )
+void put_declspec( const decl_spec_t *ds, const char *name )
 {
-    fputs( (char *)output_buffer, out );
-    free( output_buffer );
-    write_declspec_full( out, declspec, is_field, declonly, name, name_type );
-    init_output_buffer();
-}
-
-void put_declspec( FILE *out, const decl_spec_t *declspec, const char *name )
-{
-    put_declspec_full( out, declspec, FALSE, TRUE, name, NAME_DEFAULT );
-}
-
-void put_args( FILE *out, const var_list_t *args, const char *name, int method, int do_indent, enum name_type name_type )
-{
-    fputs( (char *)output_buffer, out );
-    free( output_buffer );
-    write_args( out, args, name, method, do_indent, name_type );
-    init_output_buffer();
+    put_declspec_full( ds, FALSE, TRUE, name, NAME_DEFAULT );
 }
 
 static int user_type_registered(const char *name)
@@ -1353,6 +1322,14 @@ static void put_args( const var_list_t *args, const char *name, int method, int 
 void write_args( FILE *file, const var_list_t *args, const char *name, int method, int do_indent, enum name_type name_type )
 {
     put_args( args, name, method, do_indent, name_type, fprintf, file );
+}
+
+void write_args( FILE *h, const var_list_t *arg, const char *name, int obj, int do_indent, enum name_type name_type )
+{
+    init_output_buffer();
+    put_args( arg, name, obj, do_indent, name_type );
+    fputs( (char *)output_buffer, h );
+    free( output_buffer );
 }
 
 static void put_cpp_method_def( FILE *header, const type_t *iface )
