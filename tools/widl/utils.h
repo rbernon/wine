@@ -49,6 +49,7 @@ extern void flush_output_resources( const char *name );
 extern void put_pword( unsigned int val );
 
 extern void put_str( const char *format, ... ) __attribute__((format(printf, 1, 2)));
+#define put_line( format, ... ) put_str( format "\n", ## __VA_ARGS__ )
 
 /* typelibs expect the minor version to be stored in the higher bits and
  * major to be stored in the lower bits */
