@@ -117,20 +117,20 @@ size_t widl_getline(char **linep, size_t *lenp, FILE *fp)
     return n;
 }
 
-size_t strappend(char **buf, size_t *len, size_t pos, const char* fmt, ...)
+void strappend( struct strbuf *str, const char *fmt, ... )
 {
     size_t size;
     va_list ap;
     char *ptr;
     int n;
 
-    assert( buf && len );
-    assert( (*len == 0 && *buf == NULL) || (*len != 0 && *buf != NULL) );
+    assert( (str->len == 0 && str->buf == NULL) ||
+            (str->len != 0 && str->buf != NULL) );
 
-    if (*buf)
+    if (str->buf)
     {
-        size = *len;
-        ptr = *buf;
+        size = str->len;
+        ptr = str->buf;
     }
     else
     {
@@ -141,17 +141,17 @@ size_t strappend(char **buf, size_t *len, size_t pos, const char* fmt, ...)
     for (;;)
     {
         va_start( ap, fmt );
-        n = vsnprintf( ptr + pos, size - pos, fmt, ap );
+        n = vsnprintf( ptr + str->pos, size - str->pos, fmt, ap );
         va_end( ap );
         if (n == -1) size *= 2;
-        else if (pos + (size_t)n >= size) size = pos + n + 1;
+        else if (str->pos + (size_t)n >= size) size = str->pos + n + 1;
         else break;
         ptr = xrealloc( ptr, size );
     }
 
-    *len = size;
-    *buf = ptr;
-    return n;
+    str->len = size;
+    str->buf = ptr;
+    str->pos += n;
 }
 
 /*******************************************************************
