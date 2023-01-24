@@ -82,7 +82,7 @@ static void pop_namespaces(str_list_t *names);
 static void push_parameters_namespace(const char *name);
 static void pop_parameters_namespace(const char *name);
 
-static statement_list_t *append_parameterized_type_stmts(statement_list_t *stmts);
+static statement_list_t *add_parameterized_type_stmts( statement_list_t *stmts );
 static void check_statements(const statement_list_t *stmts, int is_inside_library);
 static void check_all_user_types(const statement_list_t *stmts);
 static void add_explicit_handle_if_necessary(const type_t *iface, var_t *func);
@@ -102,8 +102,9 @@ static statement_t *make_statement_typedef(var_list_t *names, bool is_defined);
 static statement_t *make_statement_import(const char *str);
 static statement_t *make_statement_parameterized_type(type_t *type, typeref_list_t *params);
 static statement_t *make_statement_delegate(type_t *ret, var_list_t *args);
-static statement_list_t *append_statement(statement_list_t *list, statement_t *stmt);
-static statement_list_t *append_statements(statement_list_t *, statement_list_t *);
+
+static struct list *append( struct list *, struct list * );
+static struct list *merge( struct list *, struct list * );
 
 static struct namespace global_namespace = {
     NULL, NULL, LIST_INIT(global_namespace.entry), LIST_INIT(global_namespace.children)
@@ -111,7 +112,7 @@ static struct namespace global_namespace = {
 
 static struct namespace *current_namespace = &global_namespace;
 static struct namespace *parameters_namespace = NULL;
-static statement_list_t *parameterized_type_stmts = NULL;
+static statement_list_t parameterized_type_stmts = LIST_INIT(parameterized_type_stmts);
 
 static typelib_t *current_typelib;
 
@@ -516,7 +517,7 @@ PARSER_LTYPE pop_import(void);
 
 %%
 
-input: global_statements acf_input		{ $1 = append_parameterized_type_stmts( $1 );
+input: global_statements acf_input		{ $1 = add_parameterized_type_stmts( $1 );
 						  check_statements($1, FALSE);
 						  check_all_user_types($1);
 						  write_header($1);
@@ -2889,7 +2890,7 @@ static int arg_out_attrs(attr_list_t *attrs, const attr_t *attr)
 static void check_async_uuid(type_t *iface)
 {
     statement_list_t *stmts = NULL;
-    statement_t *stmt;
+    statement_t *stmt, *declaration;
     type_t *async_iface;
     type_t *inherit;
 
@@ -2923,32 +2924,34 @@ static void check_async_uuid(type_t *iface)
         begin_func->declspec.type = type_new_function(begin_args);
         begin_func->declspec.type->attrs = func->attrs;
         begin_func->declspec.type->details.function->retval = func->declspec.type->details.function->retval;
-        stmts = append_statement(stmts, make_statement_declaration(begin_func));
+        declaration = make_statement_declaration( begin_func );
+        stmts = append( stmts, &declaration->entry );
 
         finish_func = copy_var(func, strmake("Finish_%s", func->name), NULL);
         finish_func->declspec.type = type_new_function(finish_args);
         finish_func->declspec.type->attrs = func->attrs;
         finish_func->declspec.type->details.function->retval = func->declspec.type->details.function->retval;
-        stmts = append_statement(stmts, make_statement_declaration(finish_func));
+        declaration = make_statement_declaration( finish_func );
+        stmts = append( stmts, &declaration->entry );
     }
 
     type_interface_define(async_iface, map_attrs(iface->attrs, async_iface_attrs), inherit, stmts, NULL, &iface->where);
     iface->details.iface->async_iface = async_iface->details.iface->async_iface = async_iface;
 }
 
-static statement_list_t *append_parameterized_type_stmts(statement_list_t *stmts)
+static statement_list_t *add_parameterized_type_stmts( statement_list_t *stmts )
 {
     statement_t *stmt, *next;
 
-    if (stmts && parameterized_type_stmts) LIST_FOR_EACH_ENTRY_SAFE(stmt, next, parameterized_type_stmts, statement_t, entry)
+    LIST_FOR_EACH_ENTRY_SAFE( stmt, next, &parameterized_type_stmts, statement_t, entry )
     {
         switch(stmt->type)
         {
         case STMT_TYPE:
             stmt->u.type = type_parameterized_type_specialize_define(stmt->u.type);
             stmt->is_defined = 1;
-            list_remove(&stmt->entry);
-            stmts = append_statement(stmts, stmt);
+            list_remove( &stmt->entry );
+            stmts = append( stmts, &stmt->entry );
             break;
         default:
             assert(0); /* should not be there */
@@ -3123,7 +3126,7 @@ static statement_t *make_statement_parameterized_type(type_t *type, typeref_list
     {
         statement_t *stmt = make_statement( STMT_TYPE );
         stmt->u.type = type_parameterized_type_specialize_partial( type, params );
-        parameterized_type_stmts = append_statement( parameterized_type_stmts, stmt );
+        list_add_tail( &parameterized_type_stmts, &stmt->entry );
     }
 
     return make_statement_reference( type_parameterized_type_specialize_declare( type, params ) );
@@ -3137,23 +3140,24 @@ static statement_t *make_statement_delegate(type_t *ret, var_list_t *args)
     return make_statement_declaration(declare_var(NULL, spec, decl, FALSE));
 }
 
-static statement_list_t *append_statements(statement_list_t *l1, statement_list_t *l2)
+static struct list *merge( struct list *list1, struct list *list2 )
 {
-    if (!l2) return l1;
-    if (!l1 || l1 == l2) return l2;
-    list_move_tail (l1, l2);
-    return l1;
+    if (!list2) return list1;
+    if (!list1 || list1 == list2) return list2;
+    list_move_tail( list1, list2 );
+    free( list2 );
+    return list1;
 }
 
-static statement_list_t *append_statement(statement_list_t *list, statement_t *stmt)
+static struct list *append( struct list *list, struct list *entry )
 {
-    if (!stmt) return list;
+    if (!entry) return list;
     if (!list)
     {
         list = xmalloc( sizeof(*list) );
         list_init( list );
     }
-    list_add_tail( list, &stmt->entry );
+    list_add_tail( list, entry );
     return list;
 }
 
