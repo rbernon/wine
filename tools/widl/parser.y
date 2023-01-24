@@ -169,132 +169,240 @@ PARSER_LTYPE pop_import(void);
 	struct namespace *namespace;
 }
 
-%token <str> aIDENTIFIER aPRAGMA
-%token <str> aKNOWNTYPE
-%token <integer> aNUM aHEXNUM
-%token <dbl> aDOUBLE
-%token <str> aSTRING aWSTRING aSQSTRING
-%token <str> tCDECL
-%token <str> tFASTCALL
-%token <str> tPASCAL
-%token <str> tSTDCALL
-%token <uuid> aUUID
-%token aEOF aACF
-%token SHL SHR
-%token MEMBERPTR
-%token EQUALITY INEQUALITY
-%token GREATEREQUAL LESSEQUAL
-%token LOGICALOR LOGICALAND
-%token ELLIPSIS
-%token tACTIVATABLE
-%token tAGGREGATABLE
-%token tAGILE
-%token tALLNODES tALLOCATE tANNOTATION
-%token tAPICONTRACT
-%token tAPPOBJECT tASYNC tASYNCUUID
-%token tAUTOHANDLE tBINDABLE tBOOLEAN tBROADCAST tBYTE tBYTECOUNT
-%token tCALLAS tCALLBACK tCASE tCHAR tCOCLASS tCODE tCOMMSTATUS
-%token tCOMPOSABLE
-%token tCONST tCONTEXTHANDLE tCONTEXTHANDLENOSERIALIZE
-%token tCONTEXTHANDLESERIALIZE
-%token tCONTRACT
-%token tCONTRACTVERSION
-%token tCONTROL tCPPQUOTE
-%token tCUSTOM
-%token tDECLARE
-%token tDECODE tDEFAULT tDEFAULTBIND
-%token tDELEGATE
-%token tDEFAULT_OVERLOAD
-%token tDEFAULTCOLLELEM
-%token tDEFAULTVALUE
-%token tDEFAULTVTABLE
-%token tDEPRECATED
-%token tDISABLECONSISTENCYCHECK tDISPLAYBIND
-%token tDISPINTERFACE
-%token tDLLNAME tDONTFREE tDOUBLE tDUAL
-%token tENABLEALLOCATE tENCODE tENDPOINT
-%token tENTRY tENUM tERRORSTATUST
-%token tEVENTADD tEVENTREMOVE
-%token tEXCLUSIVETO
-%token tEXPLICITHANDLE tEXTERN
-%token tFALSE
-%token tFAULTSTATUS
-%token tFLAGS
-%token tFLOAT tFORCEALLOCATE
-%token tHANDLE
-%token tHANDLET
-%token tHELPCONTEXT tHELPFILE
-%token tHELPSTRING tHELPSTRINGCONTEXT tHELPSTRINGDLL
-%token tHIDDEN
-%token tHYPER tID tIDEMPOTENT
-%token tIGNORE tIIDIS
-%token tIMMEDIATEBIND
-%token tIMPLICITHANDLE
-%token tIMPORT tIMPORTLIB
-%token tIN tIN_LINE tINLINE
-%token tINPUTSYNC
-%token tINT tINT32 tINT3264 tINT64
-%token tINTERFACE
-%token tLCID
-%token tLENGTHIS tLIBRARY
-%token tLICENSED tLOCAL
-%token tLONG
-%token tMARSHALINGBEHAVIOR
-%token tMAYBE tMESSAGE
-%token tMETHODS
-%token tMODULE
-%token tMTA
-%token tNAMESPACE
-%token tNOCODE tNONBROWSABLE
-%token tNONCREATABLE
-%token tNONE
-%token tNONEXTENSIBLE
-%token tNOTIFY tNOTIFYFLAG
-%token tNULL
-%token tOBJECT tODL tOLEAUTOMATION
-%token tOPTIMIZE tOPTIONAL
-%token tOUT
-%token tOVERLOAD
-%token tPARTIALIGNORE
-%token tPOINTERDEFAULT
-%token tPRAGMA_WARNING
-%token tPROGID tPROPERTIES
-%token tPROPGET tPROPPUT tPROPPUTREF
-%token tPROTECTED
-%token tPROXY tPTR
-%token tPUBLIC
-%token tRANGE
-%token tREADONLY tREF
-%token tREGISTER tREPRESENTAS
-%token tREQUESTEDIT
-%token tREQUIRES
-%token tRESTRICTED
-%token tRETVAL
-%token tRUNTIMECLASS
-%token tSAFEARRAY
-%token tSHORT
-%token tSIGNED tSINGLENODE
-%token tSIZEIS tSIZEOF
-%token tSMALL
-%token tSOURCE
-%token tSTANDARD
-%token tSTATIC
-%token tSTRICTCONTEXTHANDLE
-%token tSTRING tSTRUCT
-%token tSWITCH tSWITCHIS tSWITCHTYPE
-%token tTHREADING tTRANSMITAS
-%token tTRUE
-%token tTYPEDEF
-%token tUIDEFAULT tUNION
-%token tUNIQUE
-%token tUNSIGNED
-%token tUSESGETLASTERROR tUSERMARSHAL tUUID
-%token tV1ENUM
-%token tVARARG
-%token tVERSION tVIPROGID
-%token tVOID
-%token tWCHAR tWIREMARSHAL
-%token tAPARTMENT tNEUTRAL tSINGLE tFREE tBOTH
+/* pseudo-token */
+%token aEOF "end of file"
+%token aACF "acf file"
+
+/* meta */
+%token <str> aPRAGMA "pragma"
+%token tPRAGMA_WARNING "pragma_warning"
+%token tCPPQUOTE "cppquote"
+%token tIMPORT "import"
+
+/* literals */
+%token <dbl> aDOUBLE "floating point literal"
+%token <num> aHEXNUM "hexadecimal integer literal"
+%token <num> aNUM "integer literal"
+%token <str> aSQSTRING "character literal"
+%token <str> aSTRING "string literal"
+%token <str> aWSTRING "wide string literal"
+%token <uuid> aUUID "uuid literal"
+%token tFALSE "FALSE"
+%token tNULL "NULL"
+%token tTRUE "TRUE"
+
+/* identifiers */
+%token <str> aIDENTIFIER "identifier"
+%token <str> aKNOWNTYPE "typename"
+
+/* operators */
+%token ELLIPSIS "..."
+%token EQUALITY "=="
+%token GREATEREQUAL ">="
+%token INEQUALITY "!="
+%token LESSEQUAL "<="
+%token LOGICALAND "&&"
+%token LOGICALOR "||"
+%token MEMBERPTR "->"
+%token SHL "<<"
+%token SHR ">>"
+%token tSIZEOF "sizeof"
+
+/* storage qualifiers */
+%token tEXTERN "extern"
+%token tREGISTER "register"
+%token tSTATIC "static" /* also an attribute */
+
+/* type qualifiers */
+%token tCONST "const"
+%token tINLINE "inline"
+
+/* control flow */
+%token tCASE "case" /* also an attribute */
+%token tDEFAULT "default" /* also an attribute */
+%token tSWITCH "switch"
+
+/* calling conventions */
+%token <str> tCDECL "cdecl"
+%token <str> tFASTCALL "fastcall"
+%token <str> tPASCAL "pascal"
+%token <str> tSTDCALL "stdcall"
+
+/* basic types */
+%token tBOOLEAN "boolean"
+%token tBYTE "byte"
+%token tCHAR "char"
+%token tDOUBLE "double"
+%token tERRORSTATUST "error_status_t"
+%token tFLOAT "float"
+%token tHANDLET "handle_t"
+%token tHYPER "hyper"
+%token tINT "int"
+%token tINT32 "__int32"
+%token tINT3264 "__int3264"
+%token tINT64 "__int64"
+%token tLONG "long"
+%token tSHORT "short"
+%token tSMALL "small"
+%token tVOID "void"
+%token tWCHAR "wchar"
+
+/* sign specifiers */
+%token tSIGNED "signed"
+%token tUNSIGNED "unsigned"
+
+/* keywords */
+%token tAPICONTRACT "apicontract"
+%token tCALLBACK "callback" /* FIXME: unused */
+%token tCOCLASS "coclass"
+%token tDECLARE "declare"
+%token tDELEGATE "delegate"
+%token tDISPINTERFACE "dispinterface"
+%token tENUM "enum"
+%token tIMPORTLIB "importlib"
+%token tIN_LINE "in_line" /* FIXME: unused */
+%token tINTERFACE "interface"
+%token tLIBRARY "library"
+%token tMETHODS "methods"
+%token tMODULE "module"
+%token tNAMESPACE "namespace"
+%token tPROPERTIES "properties"
+%token tREQUIRES "requires"
+%token tRUNTIMECLASS "runtimeclass"
+%token tSAFEARRAY "safearray"
+%token tSTRUCT "struct"
+%token tTYPEDEF "typedef"
+%token tUNION "union"
+
+/* attributes */
+%token tACTIVATABLE "activatable"
+%token tAGGREGATABLE "aggregatable"
+%token tANNOTATION "annotation"
+%token tAPPOBJECT "appobject"
+%token tASYNC "async"
+%token tASYNCUUID "asyncuuid"
+%token tAUTOHANDLE "autohandle"
+%token tBINDABLE "bindable"
+%token tBROADCAST "broadcast"
+%token tCALLAS "callas"
+%token tCODE "code"
+%token tCOMMSTATUS "commstatus"
+%token tCOMPOSABLE "composable"
+%token tCONTEXTHANDLE "contexthandle"
+%token tCONTEXTHANDLENOSERIALIZE "contexthandlenoserialize"
+%token tCONTEXTHANDLESERIALIZE "contexthandleserialize"
+%token tCONTRACT "contract"
+%token tCONTRACTVERSION "contractversion"
+%token tCONTROL "control"
+%token tCUSTOM "custom"
+%token tDECODE "decode"
+%token tDEFAULT_OVERLOAD "default_overload"
+%token tDEFAULTBIND "defaultbind"
+%token tDEFAULTCOLLELEM "defaultcollelem"
+%token tDEFAULTVALUE "defaultvalue"
+%token tDEFAULTVTABLE "defaultvtable"
+%token tDEPRECATED "deprecated"
+%token tDISABLECONSISTENCYCHECK "disableconsistencycheck"
+%token tDISPLAYBIND "displaybind"
+%token tDLLNAME "dllname"
+%token tDUAL "dual"
+%token tENABLEALLOCATE "enableallocate"
+%token tENCODE "encode"
+%token tENDPOINT "endpoint"
+%token tENTRY "entry"
+%token tEVENTADD "eventadd"
+%token tEVENTREMOVE "eventremove"
+%token tEXCLUSIVETO "exclusiveto"
+%token tEXPLICITHANDLE "explicithandle"
+%token tFAULTSTATUS "faultstatus"
+%token tFLAGS "flags"
+%token tFORCEALLOCATE "forceallocate"
+%token tHANDLE "handle"
+%token tHELPCONTEXT "helpcontext"
+%token tHELPFILE "helpfile"
+%token tHELPSTRING "helpstring"
+%token tHELPSTRINGCONTEXT "helpstringcontext"
+%token tHELPSTRINGDLL "helpstringdll"
+%token tHIDDEN "hidden"
+%token tID "id"
+%token tIDEMPOTENT "idempotent"
+%token tIGNORE "ignore"
+%token tIIDIS "iidis"
+%token tIMMEDIATEBIND "immediatebind"
+%token tIMPLICITHANDLE "implicithandle"
+%token tIN "in"
+%token tINPUTSYNC "inputsync"
+%token tLCID "lcid"
+%token tLENGTHIS "lengthis"
+%token tLICENSED "licensed"
+%token tLOCAL "local"
+%token tMARSHALINGBEHAVIOR "marshalingbehavior"
+%token tMAYBE "maybe"
+%token tMESSAGE "message"
+%token tNOCODE "nocode"
+%token tNONBROWSABLE "nonbrowsable"
+%token tNONCREATABLE "noncreatable"
+%token tNONEXTENSIBLE "nonextensible"
+%token tNOTIFY "notify"
+%token tNOTIFYFLAG "notifyflag"
+%token tOBJECT "object"
+%token tODL "odl"
+%token tOLEAUTOMATION "oleautomation"
+%token tOPTIMIZE "optimize"
+%token tOPTIONAL "optional"
+%token tOUT "out"
+%token tOVERLOAD "overload"
+%token tPARTIALIGNORE "partialignore"
+%token tPOINTERDEFAULT "pointerdefault"
+%token tPROGID "progid"
+%token tPROPGET "propget"
+%token tPROPPUT "propput"
+%token tPROPPUTREF "propputref"
+%token tPROXY "proxy"
+%token tPROTECTED "protected"
+%token tPUBLIC "public"
+%token tRANGE "range"
+%token tREADONLY "readonly"
+%token tREPRESENTAS "representas"
+%token tREQUESTEDIT "requestedit"
+%token tRESTRICTED "restricted"
+%token tRETVAL "retval"
+%token tSIZEIS "sizeis"
+%token tSOURCE "source"
+%token tSTRICTCONTEXTHANDLE "strictcontexthandle"
+%token tSTRING "string"
+%token tSWITCHIS "switchis"
+%token tSWITCHTYPE "switchtype"
+%token tTHREADING "threading"
+%token tTRANSMITAS "transmitas"
+%token tUIDEFAULT "uidefault"
+%token tUSERMARSHAL "usermarshal"
+%token tUSESGETLASTERROR "usesgetlasterror"
+%token tUUID "uuid"
+%token tV1ENUM "v1enum"
+%token tVARARG "vararg"
+%token tVERSION "version"
+%token tVIPROGID "viprogid"
+%token tWIREMARSHAL "wiremarshal"
+
+/* attribute arguments */
+%token tAGILE "agile"
+%token tALLNODES "allnodes"
+%token tALLOCATE "allocate"
+%token tAPARTMENT "apartment"
+%token tBOTH "both"
+%token tBYTECOUNT "bytecount"
+%token tDONTFREE "dontfree"
+%token tFREE "free"
+%token tMTA "mta"
+%token tNEUTRAL "neutral"
+%token tNONE "none"
+%token tPTR "ptr"
+%token tREF "ref"
+%token tSINGLE "single"
+%token tSINGLENODE "singlenode"
+%token tSTANDARD "standard"
+%token tUNIQUE "unique"
 
 %type <attr> access_attr
 %type <attr> attribute acf_attribute
