@@ -377,11 +377,6 @@ struct _attr_custdata_t {
   expr_t *pval;
 };
 
-struct enumeration_details
-{
-  var_list_t *enums;
-};
-
 struct iface_details
 {
   statement_list_t *stmts;
@@ -495,7 +490,10 @@ struct _type_t {
         {
             var_list_t *fields;
         } structure;
-    struct enumeration_details *enumeration;
+        struct
+        {
+            var_list_t *enums;
+        } enumeration;
         struct
         {
             var_list_t *args;

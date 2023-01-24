@@ -164,7 +164,7 @@ static inline var_list_t *type_enum_get_values(const type_t *type)
 {
     type = type_get_real_type(type);
     assert(type_get_type(type) == TYPE_ENUM);
-    return type->details.enumeration->enums;
+    return type->details.enumeration.enums;
 }
 
 static inline var_t *type_union_get_switch_value(const type_t *type)
