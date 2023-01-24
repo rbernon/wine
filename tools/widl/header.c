@@ -760,9 +760,9 @@ void check_for_additional_prototype_types(type_t *type)
   }
 }
 
-static int write_serialize_function_decl(FILE *header, const type_t *type)
+static int put_serialize_function_decl( FILE *header, const type_t *type )
 {
-    write_serialize_functions(header, type, NULL);
+    put_serialize_functions( type, NULL );
     return 1;
 }
 
@@ -2159,11 +2159,10 @@ void write_header(const statement_list_t *stmts)
 
     write_header_stmts( header, stmts, NULL, FALSE );
 
-    fprintf( header, "/* Begin additional prototypes for all interfaces */\n" );
-    fprintf( header, "\n" );
-    for_each_serializable( stmts, header, write_serialize_function_decl );
-
     init_output_buffer();
+    put_line( "/* Begin additional prototypes for all interfaces */" );
+    put_line( "" );
+    for_each_serializable( stmts, header, put_serialize_function_decl );
     put_user_types();
     put_generic_handle_routines();
     put_context_handle_rundowns();
