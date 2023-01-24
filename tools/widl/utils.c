@@ -76,18 +76,6 @@ void warning_at( const struct location *where, const char *s, ... )
     parser_warning( where, NULL, buffer );
 }
 
-void chat(const char *s, ...)
-{
-	if(debuglevel & DEBUGLEVEL_CHAT)
-	{
-		va_list ap;
-		va_start(ap, s);
-		fprintf(stderr, "chat: ");
-		vfprintf(stderr, s, ap);
-		va_end(ap);
-	}
-}
-
 size_t widl_getline(char **linep, size_t *lenp, FILE *fp)
 {
     char *line = *linep;
