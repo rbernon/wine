@@ -1893,34 +1893,40 @@ static void write_com_interface_end(FILE *header, type_t *iface)
 
 static void write_rpc_interface_start(FILE *header, const type_t *iface)
 {
-  unsigned int ver = get_attrv(iface->attrs, ATTR_VERSION);
-  const var_t *var = get_attrp(iface->attrs, ATTR_IMPLICIT_HANDLE);
-  expr_t *contract = get_attrp(iface->attrs, ATTR_CONTRACT);
+    unsigned int ver = get_attrv( iface->attrs, ATTR_VERSION );
+    const var_t *var = get_attrp( iface->attrs, ATTR_IMPLICIT_HANDLE );
+    expr_t *contract = get_attrp( iface->attrs, ATTR_CONTRACT );
 
-  fprintf(header, "/*****************************************************************************\n");
-  fprintf(header, " * %s interface (v%d.%d)\n", iface->name, MAJORVERSION(ver), MINORVERSION(ver));
-  fprintf(header, " */\n");
-  if (contract) put_apicontract_guard_start( contract, fprintf, header );
-  fprintf(header,"#ifndef __%s_INTERFACE_DEFINED__\n", iface->name);
-  fprintf(header,"#define __%s_INTERFACE_DEFINED__\n\n", iface->name);
-  if (var)
-  {
-      fprintf(header, "extern ");
-      write_declspec( header, &var->declspec, var->name );
-      fprintf(header, ";\n");
-  }
-  if (old_names)
-  {
-      fprintf(header, "extern RPC_IF_HANDLE %s%s_ClientIfHandle;\n", prefix_client, iface->name);
-      fprintf(header, "extern RPC_IF_HANDLE %s%s_ServerIfHandle;\n", prefix_server, iface->name);
-  }
-  else
-  {
-      fprintf(header, "extern RPC_IF_HANDLE %s%s_v%d_%d_c_ifspec;\n",
-              prefix_client, iface->name, MAJORVERSION(ver), MINORVERSION(ver));
-      fprintf(header, "extern RPC_IF_HANDLE %s%s_v%d_%d_s_ifspec;\n",
-              prefix_server, iface->name, MAJORVERSION(ver), MINORVERSION(ver));
-  }
+    init_output_buffer();
+
+    put_line( "/*****************************************************************************" );
+    put_line( " * %s interface (v%d.%d)", iface->name, MAJORVERSION( ver ), MINORVERSION( ver ) );
+    put_line( " */" );
+    if (contract) put_apicontract_guard_start( contract );
+    put_line( "#ifndef __%s_INTERFACE_DEFINED__", iface->name );
+    put_line( "#define __%s_INTERFACE_DEFINED__", iface->name );
+    put_line( "" );
+    if (var)
+    {
+        put_str( "extern " );
+        put_declspec( header, &var->declspec, var->name );
+        put_line( ";" );
+    }
+    if (old_names)
+    {
+        put_line( "extern RPC_IF_HANDLE %s%s_ClientIfHandle;", prefix_client, iface->name );
+        put_line( "extern RPC_IF_HANDLE %s%s_ServerIfHandle;", prefix_server, iface->name );
+    }
+    else
+    {
+        put_line( "extern RPC_IF_HANDLE %s%s_v%d_%d_c_ifspec;", prefix_client, iface->name,
+                  MAJORVERSION( ver ), MINORVERSION( ver ) );
+        put_line( "extern RPC_IF_HANDLE %s%s_v%d_%d_s_ifspec;", prefix_server, iface->name,
+                  MAJORVERSION( ver ), MINORVERSION( ver ) );
+    }
+
+    fputs( (char *)output_buffer, header );
+    free( output_buffer );
 }
 
 static void write_rpc_interface_end(FILE *header, const type_t *iface)
