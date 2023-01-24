@@ -298,6 +298,49 @@ static void write_pointer_left(FILE *h, type_t *ref)
     fprintf(h, "*");
 }
 
+static void write_basic_type( FILE *file, type_t *type )
+{
+    if (type_basic_get_type( type ) != TYPE_BASIC_INT32 &&
+        type_basic_get_type( type ) != TYPE_BASIC_INT64 &&
+        type_basic_get_type( type ) != TYPE_BASIC_LONG &&
+        type_basic_get_type( type ) != TYPE_BASIC_HYPER)
+    {
+        if (type_basic_get_sign( type ) < 0) fprintf( file, "signed " );
+        else if (type_basic_get_sign( type ) > 0) fprintf( file, "unsigned " );
+    }
+
+    switch (type_basic_get_type( type ))
+    {
+    case TYPE_BASIC_INT8:           fprintf( file, "small" ); break;
+    case TYPE_BASIC_INT16:          fprintf( file, "short" ); break;
+    case TYPE_BASIC_INT3264:        fprintf( file, "__int3264" ); break;
+    case TYPE_BASIC_INT:            fprintf( file, "int" ); break;
+    case TYPE_BASIC_BYTE:           fprintf( file, "byte" ); break;
+    case TYPE_BASIC_CHAR:           fprintf( file, "char" ); break;
+    case TYPE_BASIC_WCHAR:          fprintf( file, "wchar_t" ); break;
+    case TYPE_BASIC_FLOAT:          fprintf( file, "float" ); break;
+    case TYPE_BASIC_DOUBLE:         fprintf( file, "double" ); break;
+    case TYPE_BASIC_HANDLE:         fprintf( file, "handle_t" ); break;
+    case TYPE_BASIC_ERROR_STATUS_T: fprintf( file, "error_status_t" ); break;
+    case TYPE_BASIC_INT32:
+        if (type_basic_get_sign( type ) > 0) fprintf( file, "UINT32" );
+        else fprintf( file, "INT32" );
+        break;
+    case TYPE_BASIC_LONG:
+        if (type_basic_get_sign( type ) > 0) fprintf( file, "ULONG" );
+        else fprintf( file, "LONG" );
+        break;
+    case TYPE_BASIC_INT64:
+        if (type_basic_get_sign( type ) > 0) fprintf( file, "UINT64" );
+        else fprintf( file, "INT64" );
+        break;
+    case TYPE_BASIC_HYPER:
+        if (type_basic_get_sign( type ) > 0) fprintf( file, "MIDL_uhyper" );
+        else fprintf( file, "hyper" );
+        break;
+    }
+}
+
 static void write_type_left( FILE *h, const decl_spec_t *ds, enum name_type name_type,
                              int is_defined, int write_callconv )
 {
@@ -401,53 +444,7 @@ static void write_type_left( FILE *h, const decl_spec_t *ds, enum name_type name
         }
         break;
       }
-      case TYPE_BASIC:
-        if (type_basic_get_type(t) != TYPE_BASIC_INT32 &&
-            type_basic_get_type(t) != TYPE_BASIC_INT64 &&
-            type_basic_get_type(t) != TYPE_BASIC_LONG &&
-            type_basic_get_type(t) != TYPE_BASIC_HYPER)
-        {
-          if (type_basic_get_sign(t) < 0) fprintf(h, "signed ");
-          else if (type_basic_get_sign(t) > 0) fprintf(h, "unsigned ");
-        }
-        switch (type_basic_get_type(t))
-        {
-        case TYPE_BASIC_INT8: fprintf(h, "small"); break;
-        case TYPE_BASIC_INT16: fprintf(h, "short"); break;
-        case TYPE_BASIC_INT: fprintf(h, "int"); break;
-        case TYPE_BASIC_INT3264: fprintf(h, "__int3264"); break;
-        case TYPE_BASIC_BYTE: fprintf(h, "byte"); break;
-        case TYPE_BASIC_CHAR: fprintf(h, "char"); break;
-        case TYPE_BASIC_FLOAT: fprintf(h, "float"); break;
-        case TYPE_BASIC_DOUBLE: fprintf(h, "double"); break;
-        case TYPE_BASIC_ERROR_STATUS_T: fprintf(h, "error_status_t"); break;
-        case TYPE_BASIC_HANDLE: fprintf(h, "handle_t"); break;
-        case TYPE_BASIC_INT32:
-          if (type_basic_get_sign(t) > 0)
-            fprintf(h, "UINT32");
-          else
-            fprintf(h, "INT32");
-          break;
-        case TYPE_BASIC_LONG:
-          if (type_basic_get_sign(t) > 0)
-            fprintf(h, "ULONG");
-          else
-            fprintf(h, "LONG");
-          break;
-        case TYPE_BASIC_INT64:
-          if (type_basic_get_sign(t) > 0)
-            fprintf(h, "UINT64");
-          else
-            fprintf(h, "INT64");
-          break;
-        case TYPE_BASIC_HYPER:
-          if (type_basic_get_sign(t) > 0)
-            fprintf(h, "MIDL_uhyper");
-          else
-            fprintf(h, "hyper");
-          break;
-        }
-        break;
+      case TYPE_BASIC: write_basic_type( h, t ); break;
       case TYPE_INTERFACE:
       case TYPE_MODULE:
       case TYPE_COCLASS:
