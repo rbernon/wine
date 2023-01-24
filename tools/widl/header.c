@@ -1981,31 +1981,37 @@ static void write_runtimeclass(FILE *header, type_t *runtimeclass)
     expr_t *contract = get_attrp(runtimeclass->attrs, ATTR_CONTRACT);
     char *name, *c_name;
     size_t i, len;
+
+    init_output_buffer();
+
     name = format_namespace(runtimeclass->namespace, "", ".", runtimeclass->name, NULL);
     c_name = format_namespace(runtimeclass->namespace, "", "_", runtimeclass->name, NULL);
-    fprintf(header, "/*\n");
-    fprintf(header, " * Class %s\n", name);
-    fprintf(header, " */\n");
-    if (contract) put_apicontract_guard_start( contract, fprintf, header );
-    fprintf(header, "#ifndef RUNTIMECLASS_%s_DEFINED\n", c_name);
-    fprintf(header, "#define RUNTIMECLASS_%s_DEFINED\n", c_name);
-    fprintf(header, "#if !defined(_MSC_VER) && !defined(__MINGW32__)\n");
-    fprintf(header, "static const WCHAR RuntimeClass_%s[] = {", c_name);
-    for (i = 0, len = strlen(name); i < len; ++i) fprintf(header, "'%c',", name[i]);
-    fprintf(header, "0};\n");
-    fprintf(header, "#elif defined(__GNUC__) && !defined(__cplusplus)\n");
+    put_line( "/*" );
+    put_line( " * Class %s", name );
+    put_line( " */" );
+    if (contract) put_apicontract_guard_start( contract );
+    put_line( "#ifndef RUNTIMECLASS_%s_DEFINED", c_name );
+    put_line( "#define RUNTIMECLASS_%s_DEFINED", c_name );
+    put_line( "#if !defined(_MSC_VER) && !defined(__MINGW32__)" );
+    put_str( "static const WCHAR RuntimeClass_%s[] = {", c_name );
+    for (i = 0, len = strlen( name ); i < len; ++i) put_str( "'%c',", name[i] );
+    put_line( "0};" );
+    put_line( "#elif defined(__GNUC__) && !defined(__cplusplus)" );
     /* FIXME: MIDL generates extern const here but GCC warns if extern is initialized */
-    fprintf(header, "const DECLSPEC_SELECTANY WCHAR RuntimeClass_%s[] = L\"%s\";\n", c_name, name);
-    fprintf(header, "#else\n");
-    fprintf(header, "extern const DECLSPEC_SELECTANY WCHAR RuntimeClass_%s[] = {", c_name);
-    for (i = 0, len = strlen(name); i < len; ++i) fprintf(header, "'%c',", name[i]);
-    fprintf(header, "0};\n");
-    fprintf(header, "#endif\n");
-    fprintf(header, "#endif /* RUNTIMECLASS_%s_DEFINED */\n", c_name);
-    free(c_name);
-    free(name);
-    if (contract) put_apicontract_guard_end( contract, fprintf, header );
-    fprintf(header, "\n");
+    put_line( "const DECLSPEC_SELECTANY WCHAR RuntimeClass_%s[] = L\"%s\";", c_name, name );
+    put_line( "#else" );
+    put_str( "extern const DECLSPEC_SELECTANY WCHAR RuntimeClass_%s[] = {", c_name );
+    for (i = 0, len = strlen( name ); i < len; ++i) put_str( "'%c',", name[i] );
+    put_line( "0};" );
+    put_line( "#endif" );
+    put_line( "#endif /* RUNTIMECLASS_%s_DEFINED */", c_name );
+    free( c_name );
+    free( name );
+    if (contract) put_apicontract_guard_end( contract );
+    put_line( "" );
+
+    fputs( (char *)output_buffer, header );
+    free( output_buffer );
 }
 
 static void put_runtimeclass_forward( const type_t *klass )
