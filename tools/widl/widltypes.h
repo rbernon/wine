@@ -515,6 +515,10 @@ struct _var_t {
 
   unsigned int declonly : 1;
 
+    /* for rpc client / server / proxy */
+    size_t proc_format_string_size;
+    char *proc_format_string;
+
   /* parser-internal */
   struct list entry;
 };
