@@ -1528,7 +1528,7 @@ static void write_c_disp_method_def(FILE *header, const type_t *iface)
   do_write_c_method_def(header, type_iface_get_inherit(iface), iface->c_name);
 }
 
-static void write_method_proto(FILE *header, const type_t *iface)
+static void put_method_proto(FILE *header, const type_t *iface)
 {
     const statement_t *stmt;
 
@@ -1543,18 +1543,27 @@ static void write_method_proto(FILE *header, const type_t *iface)
         if (!callconv) callconv = "STDMETHODCALLTYPE";
 
         /* proxy prototype */
-        write_declspec( header, type_function_get_ret( func->declspec.type ), NULL );
-        fprintf( header, " %s %s_%s_Proxy(\n", callconv, iface->name, get_name( func ) );
-        write_args( header, type_function_get_args( func->declspec.type ), iface->name, 1, TRUE, NAME_DEFAULT );
-        fprintf( header, ");\n" );
+        put_declspec( header, type_function_get_ret( func->declspec.type ), NULL );
+        put_line( " %s %s_%s_Proxy(", callconv, iface->name, get_name( func ) );
+        put_args( header, type_function_get_args( func->declspec.type ), iface->name, 1, TRUE, NAME_DEFAULT );
+        put_line( ");" );
 
         /* stub prototype */
-        fprintf( header, "void __RPC_STUB %s_%s_Stub(\n", iface->name, get_name( func ) );
-        fprintf( header, "    IRpcStubBuffer* This,\n" );
-        fprintf( header, "    IRpcChannelBuffer* pRpcChannelBuffer,\n" );
-        fprintf( header, "    PRPC_MESSAGE pRpcMessage,\n" );
-        fprintf( header, "    DWORD* pdwStubPhase);\n" );
+        put_line( "void __RPC_STUB %s_%s_Stub(", iface->name, get_name( func ) );
+        put_line( "    IRpcStubBuffer* This," );
+        put_line( "    IRpcChannelBuffer* pRpcChannelBuffer," );
+        put_line( "    PRPC_MESSAGE pRpcMessage," );
+        put_line( "    DWORD* pdwStubPhase);" );
     }
+}
+
+static void write_method_proto(FILE *header, const type_t *iface)
+{
+    init_output_buffer();
+    *output_buffer = 0;
+    put_method_proto(header, iface);
+    fputs( (char *)output_buffer, header );
+    free( output_buffer );
 }
 
 static void write_locals(FILE *fp, const type_t *iface, int body)
