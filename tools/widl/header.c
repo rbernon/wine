@@ -400,17 +400,43 @@ static void write_struct_type( FILE *file, type_t *type, enum name_type name_typ
     }
 }
 
+static void write_union_type( FILE *file, type_t *type, enum name_type name_type )
+{
+    if (type->written)
+    {
+        const char *name = type_get_name( type, name_type );
+        if (winrt_mode && name_type == NAME_DEFAULT && name) fprintf( file, "%s", name );
+        else fprintf( file, "union %s", name ? name : "" );
+    }
+    else
+    {
+        const char *decl_name = type_get_decl_name( type, name_type );
+
+        assert( type->defined );
+        type->written = TRUE;
+
+        fprintf( file, "union " );
+        if (decl_name) fprintf( file, "%s ", decl_name );
+        fprintf( file, "{\n" );
+        indentation++;
+
+        write_fields( file, type_union_get_cases( type ), name_type );
+
+        indent( file, -1 );
+        fprintf( file, "}" );
+    }
+}
+
 static void write_type_left( FILE *h, const decl_spec_t *ds, enum name_type name_type,
                              int is_defined, int write_callconv )
 {
   type_t *t = ds->type;
-  const char *decl_name, *name;
+  const char *decl_name;
   char *args;
 
   if (!h) return;
 
   decl_name = type_get_decl_name(t, name_type);
-  name = type_get_name(t, name_type);
 
   if (ds->func_specifier & FUNCTION_SPECIFIER_INLINE)
     fprintf(h, "inline ");
@@ -431,19 +457,8 @@ static void write_type_left( FILE *h, const decl_spec_t *ds, enum name_type name
         else write_struct_type( h, t, name_type );
         break;
       case TYPE_UNION:
-        if (!define) fprintf(h, "union %s", decl_name ? decl_name : "");
-        else if (!t->written) {
-          assert(t->defined);
-          if (decl_name) fprintf(h, "union %s {\n", decl_name);
-          else fprintf(h, "union {\n");
-          t->written = TRUE;
-          indentation++;
-          write_fields(h, type_union_get_cases(t), name_type);
-          indent(h, -1);
-          fprintf(h, "}");
-        }
-        else if (winrt_mode && name_type == NAME_DEFAULT && name) fprintf(h, "%s", name);
-        else fprintf(h, "union %s", name ? name : "");
+        if (declonly) fprintf(h, "union %s", decl_name ? decl_name : "");
+        else write_union_type( h, t, name_type );
         break;
       case TYPE_POINTER:
       {
