@@ -76,16 +76,16 @@ extern time_t now;
 
 extern int open_typelib( const char *name );
 
-extern void write_header(const statement_list_t *stmts);
-extern void write_id_data(const statement_list_t *stmts);
-extern void write_proxies(const statement_list_t *stmts);
-extern void write_client(const statement_list_t *stmts);
-extern void write_server(const statement_list_t *stmts);
-extern void write_regscript(const statement_list_t *stmts);
-extern void write_typelib_regscript(const statement_list_t *stmts);
+struct idl_ctx;
+extern void write_header( const struct idl_ctx *ctx );
+extern void write_proxies( const struct idl_ctx *ctx );
+extern void write_client( const struct idl_ctx *ctx );
+extern void write_server( const struct idl_ctx *ctx );
+extern void write_regscript( const struct idl_ctx *ctx );
+extern void write_typelib_regscript( const struct idl_ctx *ctx );
 extern void output_typelib_regscript( const typelib_t *typelib );
-extern void write_local_stubs(const statement_list_t *stmts);
-extern void write_dlldata(const statement_list_t *stmts);
+extern void write_local_stubs( const struct idl_ctx *ctx );
+extern void write_dlldata( const struct idl_ctx *ctx );
 
 extern void start_cplusplus_guard(FILE *fp);
 extern void end_cplusplus_guard(FILE *fp);

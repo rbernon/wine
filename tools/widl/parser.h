@@ -23,11 +23,16 @@
 
 #include "widltypes.h"
 
-int parser_parse(void);
+struct idl_ctx
+{
+    const char *input;
+    statement_list_t *statements;
+};
 
-#define parser_error(a,b) parser_error_(a, b, parser_nerrs)
-extern void parser_warning( const struct location *where, const char *message );
-extern void parser_error_( const struct location *where, const char *message, int error_count );
+int parser_parse( struct idl_ctx *ctx );
+
+extern void parser_warning( const struct location *yylloc, struct idl_ctx *ctx, const char *message );
+extern void parser_error( const struct location *where, const char *message );
 extern void init_location( struct location *copy, const struct location *begin, const struct location *end );
 
 extern FILE *parser_in;

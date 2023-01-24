@@ -1586,24 +1586,20 @@ static void write_local_stubs_stmts(FILE *local_stubs, const statement_list_t *s
   }
 }
 
-void write_local_stubs(const statement_list_t *stmts)
+void write_local_stubs( const struct idl_ctx *ctx )
 {
-  FILE *local_stubs;
+    FILE *local_stubs;
 
-  if (!local_stubs_name) return;
+    if (!local_stubs_name) return;
+    if (!(local_stubs = fopen( local_stubs_name, "w" ))) error( "Could not open %s for output\n", local_stubs_name );
 
-  local_stubs = fopen(local_stubs_name, "w");
-  if (!local_stubs) {
-    error("Could not open %s for output\n", local_stubs_name);
-    return;
-  }
-  fprintf(local_stubs, "/* call_as/local stubs for %s */\n\n", input_name);
-  fprintf(local_stubs, "#include <objbase.h>\n");
-  fprintf(local_stubs, "#include \"%s\"\n\n", header_name);
+    fprintf( local_stubs, "/* call_as/local stubs for %s */\n\n", ctx->input );
+    fprintf( local_stubs, "#include <objbase.h>\n" );
+    fprintf( local_stubs, "#include \"%s\"\n\n", header_name );
 
-  write_local_stubs_stmts(local_stubs, stmts);
+    write_local_stubs_stmts( local_stubs, ctx->statements );
 
-  fclose(local_stubs);
+    fclose(local_stubs);
 }
 
 static void write_function_proto(FILE *header, const type_t *iface, const var_t *fun, const char *prefix)
@@ -2167,7 +2163,7 @@ static void write_header_stmts(FILE *header, const statement_list_t *stmts, cons
   }
 }
 
-void write_header(const statement_list_t *stmts)
+void write_header( const struct idl_ctx *ctx )
 {
     FILE *header;
 

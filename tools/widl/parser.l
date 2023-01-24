@@ -54,7 +54,7 @@ uuid  {hd}{8}-{hd}{4}-{hd}{4}-{hd}{4}-{hd}{12}
 
 #define YYerror PARSER_error
 #define YYSTYPE PARSER_STYPE
-#define YYLTYPE PARSER_LTYPE
+#define struct location PARSER_LTYPE
 #define YYUNDEF PARSER_UNDEF
 #define yyerror parser_error
 
@@ -506,7 +506,7 @@ struct location pop_import(void)
     return where;
 }
 
-void push_import( const char *import_name, struct location *where )
+void push_import( const char *import_name, struct location *yylloc )
 {
     struct import_state *state;
     struct import *import;
@@ -632,12 +632,12 @@ static void diagnostic( const struct location *where, const char *type, const ch
     fprintf( stderr, "%s\n", buffer );
 }
 
-void parser_error_( const struct location *where, const char *message, int error_count )
+void parser_error_( const struct location *yylloc, struct idl_ctx *ctx, const char *message, int error_count )
 {
     diagnostic( where, "error", message );
 }
 
-void parser_warning( const struct location *where, const char *message )
+void parser_warning( const struct location *yylloc, struct idl_ctx *ctx, const char *message )
 {
     diagnostic( where, "warning", message );
 }
