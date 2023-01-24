@@ -1,0 +1,9 @@
+MODULE    = midl.exe
+
+EXTRADLLFLAGS = -mconsole
+
+C_SRCS = \
+	midl.c
+
+RC_SRCS = \
+	midl.rc
