@@ -42,6 +42,11 @@ static char const usage[] =
     "  Output options:\n"
     "    -Zs, -syntax_check    Only check syntax, do not generate any output.\n"
     "\n"
+    "  WinRT options:\n"
+    "    -winrt                Enable WinRT mode with IDL 3.0 support.\n"
+    "    -nomidl               Skip running MIDL again after WinRT mode.\n"
+    "    -nomd                 Do not use WinMD metadata files.\n"
+    "\n"
     "  Preprocessing options:\n"
     "    -nocpp                Disable C preprocessing entirely.\n"
     "\n"
@@ -57,6 +62,9 @@ static char const usage[] =
 struct options
 {
     int syntax_check;
+    int winrt;
+    int nomidl;
+    int nomd;
     int nocpp;
     int confirm;
     int nologo;
@@ -138,6 +146,24 @@ int __cdecl main( int argc, char *argv[] )
                     options.syntax_check = 1;
                     continue;
                 }
+                if (!strcmp( opt, "winrt" ))
+                {
+                    FIXME( "-winrt option not implemented!\n" );
+                    options.winrt = 1;
+                    continue;
+                }
+                if (!strcmp( opt, "nomidl" ))
+                {
+                    FIXME( "-nomidl option not implemented!\n" );
+                    options.nomidl = 1;
+                    continue;
+                }
+                if (!strcmp( opt, "nomd" ))
+                {
+                    FIXME( "-nomd option not implemented!\n" );
+                    options.nomd = 1;
+                    continue;
+                }
                 if (!strcmp( opt, "nocpp" ))
                 {
                     FIXME( "-nocpp option not implemented!\n" );
@@ -176,6 +202,9 @@ int __cdecl main( int argc, char *argv[] )
         printf( "Current options:\n" );
         printf( "  input_idl:      %s\n", debugstr_a(ctx.input) );
         printf( "  syntax_check:   %d\n", options.syntax_check );
+        printf( "  winrt:          %d\n", options.winrt );
+        printf( "  nomidl:         %d\n", options.nomidl );
+        printf( "  nomd:           %d\n", options.nomd );
         printf( "  nocpp:          %d\n", options.nocpp );
         printf( "  confirm:        %d\n", options.confirm );
         printf( "  nologo:         %d\n", options.nologo );
@@ -190,5 +219,6 @@ int __cdecl main( int argc, char *argv[] )
         return 1;
     }
 
+    winrt_mode = options.winrt;
     return idl_compile( &ctx, ctx.input, NULL );
 }
