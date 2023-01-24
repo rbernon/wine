@@ -52,7 +52,7 @@ static void write_client_func_decl( const type_t *iface, const var_t *func )
     const decl_spec_t *rettype = type_function_get_ret(func->declspec.type);
 
     if (!callconv) callconv = "__cdecl";
-    write_type_decl_left(client, rettype);
+    write_declspec(client, rettype, NULL);
     fprintf(client, " %s ", callconv);
     fprintf(client, "%s%s(\n", prefix_client, get_name(func));
     indent++;
@@ -130,7 +130,7 @@ static void write_function_stub( const type_t *iface, const var_t *func,
     if (has_ret)
     {
         print_client("%s", "");
-        write_type_decl(client, &retval->declspec, retval->name);
+        write_declspec( client, &retval->declspec, retval->name );
         fprintf(client, ";\n");
     }
     print_client("RPC_MESSAGE _RpcMessage;\n");
@@ -281,8 +281,7 @@ static void write_function_stub( const type_t *iface, const var_t *func,
     fprintf(client, "\n");
 }
 
-static void write_serialize_function(FILE *file, const type_t *type, const type_t *iface,
-                                     const char *func_name, const char *ret_type)
+static void put_serialize_function( const type_t *type, const type_t *iface, const char *func_name, const char *ret_type )
 {
     enum stub_mode mode = get_stub_mode();
     static int emitted_pickling_info;
@@ -297,49 +296,46 @@ static void write_serialize_function(FILE *file, const type_t *type, const type_
 
     if (!emitted_pickling_info && iface && mode != MODE_Os)
     {
-        fprintf(file, "static const MIDL_TYPE_PICKLING_INFO __MIDL_TypePicklingInfo =\n");
-        fprintf(file, "{\n");
-        fprintf(file, "    0x33205054,\n");
-        fprintf(file, "    0x3,\n");
-        fprintf(file, "    0,\n");
-        fprintf(file, "    0,\n");
-        fprintf(file, "    0\n");
-        fprintf(file, "};\n");
-        fprintf(file, "\n");
+        put_line( "static const MIDL_TYPE_PICKLING_INFO __MIDL_TypePicklingInfo =" );
+        put_line( "{" );
+        put_line( "    0x33205054," );
+        put_line( "    0x3," );
+        put_line( "    0," );
+        put_line( "    0," );
+        put_line( "    0" );
+        put_line( "};" );
+        put_line( "" );
         emitted_pickling_info = 1;
     }
 
     /* FIXME: Assuming explicit handle */
 
-    fprintf(file, "%s __cdecl %s_%s(handle_t IDL_handle, %s *IDL_type)%s\n",
-            ret_type ? ret_type : "void", type->name, func_name, type->name, iface ? "" : ";");
+    put_line( "%s __cdecl %s_%s(handle_t IDL_handle, %s *IDL_type)%s", ret_type ? ret_type : "void",
+              type->name, func_name, type->name, iface ? "" : ";" );
     if (!iface) return; /* declaration only */
 
-    fprintf(file, "{\n");
-    fprintf(file, "    %sNdrMesType%s%s(\n", ret_type ? "return " : "", func_name,
-            mode != MODE_Os ? "2" : "");
-    fprintf(file, "        IDL_handle,\n");
-    if (mode != MODE_Os)
-        fprintf(file, "        (MIDL_TYPE_PICKLING_INFO*)&__MIDL_TypePicklingInfo,\n");
-    fprintf(file, "        &%s_StubDesc,\n", iface->name);
-    fprintf(file, "        (PFORMAT_STRING)&__MIDL_TypeFormatString.Format[%u],\n",
-            type->typestring_offset);
-    fprintf(file, "        IDL_type);\n");
-    fprintf(file, "}\n");
-    fprintf(file, "\n");
+    put_line( "{" );
+    put_line( "    %sNdrMesType%s%s(", ret_type ? "return " : "", func_name, mode != MODE_Os ? "2" : "" );
+    put_line( "        IDL_handle," );
+    if (mode != MODE_Os) put_line( "        (MIDL_TYPE_PICKLING_INFO*)&__MIDL_TypePicklingInfo," );
+    put_line( "        &%s_StubDesc,", iface->name );
+    put_line( "        (PFORMAT_STRING)&__MIDL_TypeFormatString.Format[%u],", type->typestring_offset );
+    put_line( "        IDL_type);" );
+    put_line( "}" );
+    put_line( "" );
 }
 
-void write_serialize_functions(FILE *file, const type_t *type, const type_t *iface)
+void put_serialize_functions( const type_t *type, const type_t *iface )
 {
     if (is_attr(type->attrs, ATTR_ENCODE))
     {
-        write_serialize_function(file, type, iface, "AlignSize", "SIZE_T");
-        write_serialize_function(file, type, iface, "Encode", NULL);
+        put_serialize_function( type, iface, "AlignSize", "SIZE_T" );
+        put_serialize_function( type, iface, "Encode", NULL );
     }
     if (is_attr(type->attrs, ATTR_DECODE))
     {
-        write_serialize_function(file, type, iface, "Decode", NULL);
-        write_serialize_function(file, type, iface, "Free", NULL);
+        put_serialize_function( type, iface, "Decode", NULL );
+        put_serialize_function( type, iface, "Free", NULL );
     }
 }
 
@@ -369,8 +365,12 @@ static void write_function_stubs(type_t *iface, unsigned int *proc_offset)
         case STMT_TYPEDEF:
         {
             typeref_t *ref;
+
+            init_output_buffer();
             if (stmt->u.type_list) LIST_FOR_EACH_ENTRY(ref, stmt->u.type_list, typeref_t, entry)
-                write_serialize_functions(client, ref->type, iface);
+                put_serialize_functions( ref->type, iface );
+            if (output_buffer_pos) fputs( (char *)output_buffer, client );
+            free( output_buffer );
             break;
         }
         default:
@@ -482,25 +482,10 @@ static void write_implicithandledecl(type_t *iface)
 
     if (implicit_handle)
     {
-        write_type_decl(client, &implicit_handle->declspec, implicit_handle->name);
+        write_declspec( client, &implicit_handle->declspec, implicit_handle->name );
         fprintf(client, ";\n\n");
     }
 }
-
-
-static void init_client(void)
-{
-    if (client) return;
-    if (!(client = fopen(client_name, "w")))
-        error("Could not open %s for output\n", client_name);
-
-    print_client("/*** Autogenerated by WIDL %s from %s - Do not edit ***/\n", PACKAGE_VERSION, input_name);
-    print_client("#include <string.h>\n");
-    print_client( "\n");
-    print_client("#include \"%s\"\n", header_name);
-    print_client( "\n");
-}
-
 
 static void write_client_ifaces(const statement_list_t *stmts, int expr_eval_routines, unsigned int *proc_offset)
 {
@@ -580,19 +565,39 @@ static void write_generic_handle_routine_list(void)
     print_client( "};\n\n" );
 }
 
-static void write_client_routines(const statement_list_t *stmts)
+void write_client( const statement_list_t *stmts )
 {
     unsigned int proc_offset = 0;
     int expr_eval_routines;
 
+    if (!do_client) return;
+    if (do_everything && !need_stub_files( stmts )) return;
+
+    if (!client && !(client = fopen( client_name, "w" ))) error( "Could not open %s for output\n", client_name );
+    if (!client) return;
+
+    init_output_buffer();
+    put_line( "/*** Autogenerated by WIDL %s from %s - Do not edit ***/", PACKAGE_VERSION, input_name );
+    put_line( "#include <string.h>" );
+    put_line( "" );
+    put_line( "#include \"%s\"", header_name );
+    put_line( "" );
+    put_line( "#ifndef DECLSPEC_HIDDEN" );
+    put_line( "#define DECLSPEC_HIDDEN" );
+    put_line( "#endif" );
+    put_line( "" );
+
     if (need_inline_stubs_file( stmts ))
     {
-        write_exceptions( client );
-        print_client( "\n");
+        put_exceptions();
+        put_line( "" );
     }
 
-    write_formatstringsdecl(client, indent, stmts, need_stub);
-    expr_eval_routines = write_expr_eval_routines(client, client_token);
+    put_format_string_decls( stmts, need_stub );
+    expr_eval_routines = put_expr_eval_routines( client_token );
+    fputs( (char *)output_buffer, client );
+    free( output_buffer );
+
     if (expr_eval_routines)
         write_expr_eval_routine_list(client, client_token);
     write_generic_handle_routine_list();
@@ -604,19 +609,5 @@ static void write_client_routines(const statement_list_t *stmts)
 
     write_procformatstring(client, stmts, need_stub);
     write_typeformatstring(client, stmts, need_stub);
-}
-
-void write_client(const statement_list_t *stmts)
-{
-    if (!do_client)
-        return;
-    if (do_everything && !need_stub_files(stmts))
-        return;
-
-    init_client();
-    if (!client)
-        return;
-
-    write_client_routines( stmts );
     fclose(client);
 }

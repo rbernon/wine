@@ -24,10 +24,8 @@
 #include "typetree.h"
 
 extern const char* get_name(const var_t *v);
-extern void write_type_left(FILE *h, const decl_spec_t *ds, enum name_type name_type, int declonly, int write_callconv);
-extern void write_type_right(FILE *h, type_t *t, int is_field);
-extern void write_type_decl(FILE *f, const decl_spec_t *t, const char *name);
-extern void write_type_decl_left(FILE *f, const decl_spec_t *ds);
+extern void write_declspec( FILE *h, const decl_spec_t *ds, const char *name );
+extern void put_declspec( const decl_spec_t *ds, const char *name );
 extern unsigned int get_context_handle_offset( const type_t *type );
 extern unsigned int get_generic_handle_offset( const type_t *type );
 extern int needs_space_after(type_t *t);
@@ -49,7 +47,7 @@ extern const var_t *get_func_handle_var( const type_t *iface, const var_t *func,
 extern int has_out_arg_or_return(const var_t *func);
 extern int is_const_decl(const var_t *var);
 
-extern void write_serialize_functions(FILE *file, const type_t *type, const type_t *iface);
+extern void put_serialize_functions( const type_t *type, const type_t *iface );
 
 static inline int is_ptr(const type_t *t)
 {

@@ -976,33 +976,29 @@ void write_parameters_init(FILE *file, int indent, const var_t *func, const char
     fprintf(file, "\n");
 }
 
-static void write_formatdesc(FILE *f, int indent, const char *str)
+static void put_format_desc( const char *str )
 {
-    print_file(f, indent, "typedef struct _MIDL_%s_FORMAT_STRING\n", str);
-    print_file(f, indent, "{\n");
-    print_file(f, indent + 1, "short Pad;\n");
-    print_file(f, indent + 1, "unsigned char Format[%s_FORMAT_STRING_SIZE];\n", str);
-    print_file(f, indent, "} MIDL_%s_FORMAT_STRING;\n", str);
-    print_file(f, indent, "\n");
+    put_line( "typedef struct _MIDL_%s_FORMAT_STRING", str );
+    put_line( "{" );
+    put_line( "short Pad;" );
+    put_line( "unsigned char Format[%s_FORMAT_STRING_SIZE];", str );
+    put_line( "} MIDL_%s_FORMAT_STRING;", str );
+    put_line( "" );
 }
 
-void write_formatstringsdecl(FILE *f, int indent, const statement_list_t *stmts, type_pred_t pred)
+void put_format_string_decls( const statement_list_t *stmts, type_pred_t pred )
 {
     clear_all_offsets();
 
-    print_file(f, indent, "#define TYPE_FORMAT_STRING_SIZE %d\n",
-               get_size_typeformatstring(stmts, pred));
-
-    print_file(f, indent, "#define PROC_FORMAT_STRING_SIZE %d\n",
-               get_size_procformatstring(stmts, pred));
-
-    fprintf(f, "\n");
-    write_formatdesc(f, indent, "TYPE");
-    write_formatdesc(f, indent, "PROC");
-    fprintf(f, "\n");
-    print_file(f, indent, "static const MIDL_TYPE_FORMAT_STRING __MIDL_TypeFormatString;\n");
-    print_file(f, indent, "static const MIDL_PROC_FORMAT_STRING __MIDL_ProcFormatString;\n");
-    print_file(f, indent, "\n");
+    put_line( "#define TYPE_FORMAT_STRING_SIZE %d", get_size_typeformatstring( stmts, pred ) );
+    put_line( "#define PROC_FORMAT_STRING_SIZE %d", get_size_procformatstring( stmts, pred ) );
+    put_line( "" );
+    put_format_desc( "TYPE" );
+    put_format_desc( "PROC" );
+    put_line( "" );
+    put_line( "static const MIDL_TYPE_FORMAT_STRING __MIDL_TypeFormatString;" );
+    put_line( "static const MIDL_PROC_FORMAT_STRING __MIDL_ProcFormatString;" );
+    put_line( "" );
 }
 
 int decl_indirect(const type_t *t)
@@ -1209,43 +1205,45 @@ static unsigned char get_func_oi2_flags( const var_t *func )
     return oi2_flags;
 }
 
-static unsigned int write_new_procformatstring_type(FILE *file, int indent, const var_t *var,
-                                                    int is_return, unsigned int *stack_offset)
+static unsigned int append_pfs_type_new( struct strbuf *str, const var_t *var,
+                                         int is_return, unsigned int *stack_offset )
 {
-    char buffer[128];
     unsigned int stack_size, typestring_offset;
     unsigned short flags;
     unsigned char fc = get_parameter_fc( var, is_return, &flags, &stack_size, &typestring_offset );
 
-    strcpy( buffer, "/* flags:" );
-    if (flags & MustSize) strcat( buffer, " must size," );
-    if (flags & MustFree) strcat( buffer, " must free," );
-    if (flags & IsPipe) strcat( buffer, " pipe," );
-    if (flags & IsIn) strcat( buffer, " in," );
-    if (flags & IsOut) strcat( buffer, " out," );
-    if (flags & IsReturn) strcat( buffer, " return," );
-    if (flags & IsBasetype) strcat( buffer, " base type," );
-    if (flags & IsByValue) strcat( buffer, " by value," );
-    if (flags & IsSimpleRef) strcat( buffer, " simple ref," );
-    if (flags >> 13) sprintf( buffer + strlen(buffer), " srv size=%u,", (flags >> 13) * 8 );
-    strcpy( buffer + strlen( buffer ) - 1, " */" );
-    print_file( file, indent, "NdrFcShort(0x%hx),\t%s\n", flags, buffer );
-    print_file( file, indent, "NdrFcShort(0x%x),	/* stack offset = %u */\n",
-                *stack_offset, *stack_offset );
+    strappend( str, "        NdrFcShort(0x%hx),\t/* flags:", flags );
+    if (flags & MustSize) strappend( str, " must size," );
+    if (flags & MustFree) strappend( str, " must free," );
+    if (flags & IsPipe) strappend( str, " pipe," );
+    if (flags & IsIn) strappend( str, " in," );
+    if (flags & IsOut) strappend( str, " out," );
+    if (flags & IsReturn) strappend( str, " return," );
+    if (flags & IsBasetype) strappend( str, " base type," );
+    if (flags & IsByValue) strappend( str, " by value," );
+    if (flags & IsSimpleRef) strappend( str, " simple ref," );
+    if (flags >> 13) strappend( str, " srv size=%u,", (flags >> 13) * 8 );
+    str->pos -= 1;
+    strappend( str, " */\n" );
+
+    strappend( str, "        NdrFcShort(0x%x),	/* stack offset = %u */\n",
+               *stack_offset, *stack_offset );
     if (flags & IsBasetype)
     {
-        print_file( file, indent, "0x%02x,	/* %s */\n", fc, string_of_type(fc) );
-        print_file( file, indent, "0x0,\n" );
+        strappend( str, "        0x%02x,	/* %s */\n", fc, string_of_type( fc ) );
+        strappend( str, "        0x0,\n" );
     }
     else
-        print_file( file, indent, "NdrFcShort(0x%x),	/* type offset = %u */\n",
-                    typestring_offset, typestring_offset );
+    {
+        strappend( str, "        NdrFcShort(0x%x),	/* type offset = %u */\n",
+                   typestring_offset, typestring_offset );
+    }
     *stack_offset += max( stack_size, pointer_size );
     return 6;
 }
 
-static unsigned int write_old_procformatstring_type(FILE *file, int indent, const var_t *var,
-                                                    int is_return, int is_interpreted)
+static unsigned int append_pfs_type_old( struct strbuf *str, const var_t *var,
+                                         int is_return, int is_interpreted )
 {
     unsigned int size;
 
@@ -1260,9 +1258,9 @@ static unsigned int write_old_procformatstring_type(FILE *file, int indent, cons
         unsigned char fc;
 
         if (is_return)
-            print_file(file, indent, "0x53,    /* FC_RETURN_PARAM_BASETYPE */\n");
+            strappend( str, "        0x53,    /* FC_RETURN_PARAM_BASETYPE */\n" );
         else
-            print_file(file, indent, "0x4e,    /* FC_IN_PARAM_BASETYPE */\n");
+            strappend( str, "        0x4e,    /* FC_IN_PARAM_BASETYPE */\n" );
 
         if (type_get_type(var->declspec.type) == TYPE_ENUM)
         {
@@ -1276,8 +1274,7 @@ static unsigned int write_old_procformatstring_type(FILE *file, int indent, cons
                 fc = FC_IGNORE;
         }
 
-        print_file(file, indent, "0x%02x,    /* %s */\n",
-                   fc, string_of_type(fc));
+        strappend( str, "        0x%02x,    /* %s */\n", fc, string_of_type( fc ) );
         size = 2; /* includes param type prefix */
     }
     else
@@ -1290,19 +1287,20 @@ static unsigned int write_old_procformatstring_type(FILE *file, int indent, cons
             offset = var->declspec.type->typestring_offset;
 
         if (is_return)
-            print_file(file, indent, "0x52,    /* FC_RETURN_PARAM */\n");
+            strappend( str, "        0x52,    /* FC_RETURN_PARAM */\n" );
         else if (is_in && is_out)
-            print_file(file, indent, "0x50,    /* FC_IN_OUT_PARAM */\n");
+            strappend( str, "        0x50,    /* FC_IN_OUT_PARAM */\n" );
         else if (is_out)
-            print_file(file, indent, "0x51,    /* FC_OUT_PARAM */\n");
+            strappend( str, "        0x51,    /* FC_OUT_PARAM */\n" );
         else
-            print_file(file, indent, "0x4d,    /* FC_IN_PARAM */\n");
+            strappend( str, "        0x4d,    /* FC_IN_PARAM */\n" );
 
         size = get_stack_size( var, NULL );
-        print_file(file, indent, "0x%02x,\n", size / pointer_size );
-        print_file(file, indent, "NdrFcShort(0x%x),	/* type offset = %u */\n", offset, offset);
+        strappend( str, "        0x%02x,\n", size / pointer_size );
+        strappend( str, "        NdrFcShort(0x%x),	/* type offset = %u */\n", offset, offset );
         size = 4; /* includes param type prefix */
     }
+
     return size;
 }
 
@@ -1356,9 +1354,8 @@ int is_interpreted_func( const type_t *iface, const var_t *func )
     return (get_stub_mode() != MODE_Os);
 }
 
-static void write_proc_func_header( FILE *file, int indent, const type_t *iface,
-                                    const var_t *func, unsigned int *offset,
-                                    unsigned short num_proc )
+static void append_pfs_func_header( struct strbuf *str, const type_t *iface, const var_t *func,
+                                    unsigned int *offset, unsigned short num_proc )
 {
     var_t *var;
     var_list_t *args = type_function_get_args( func->declspec.type );
@@ -1398,13 +1395,13 @@ static void write_proc_func_header( FILE *file, int indent, const type_t *iface,
         nb_args++;
     }
 
-    print_file( file, 0, "/* %u (procedure %s::%s) */\n", *offset, iface->name, func->name );
-    print_file( file, indent, "0x%02x,\t/* %s */\n", implicit_fc,
-                implicit_fc ? string_of_type(implicit_fc) : "explicit handle" );
-    print_file( file, indent, "0x%02x,\n", oi_flags );
-    print_file( file, indent, "NdrFcLong(0x%x),\n", rpc_flags );
-    print_file( file, indent, "NdrFcShort(0x%hx),\t/* method %hu */\n", num_proc, num_proc );
-    print_file( file, indent, "NdrFcShort(0x%x),\t/* stack size = %u */\n", stack_size, stack_size );
+    strappend( str, "/* %u (procedure %s::%s) */\n", *offset, iface->name, func->name );
+    strappend( str, "        0x%02x,\t/* %s */\n", implicit_fc,
+               implicit_fc ? string_of_type( implicit_fc ) : "explicit handle" );
+    strappend( str, "        0x%02x,\n", oi_flags );
+    strappend( str, "        NdrFcLong(0x%x),\n", rpc_flags );
+    strappend( str, "        NdrFcShort(0x%hx),\t/* method %hu */\n", num_proc, num_proc );
+    strappend( str, "        NdrFcShort(0x%x),\t/* stack size = %u */\n", stack_size, stack_size );
     *offset += 10;
 
     if (!implicit_fc)
@@ -1413,30 +1410,30 @@ static void write_proc_func_header( FILE *file, int indent, const type_t *iface,
         {
         case FC_BIND_PRIMITIVE:
             handle_flags = 0;
-            print_file( file, indent, "0x%02x,\t/* %s */\n", explicit_fc, string_of_type(explicit_fc) );
-            print_file( file, indent, "0x%02x,\n", handle_flags );
-            print_file( file, indent, "NdrFcShort(0x%hx),\t/* stack offset = %hu */\n",
-                        handle_stack_offset, handle_stack_offset );
+            strappend( str, "        0x%02x,\t/* %s */\n", explicit_fc, string_of_type( explicit_fc ) );
+            strappend( str, "        0x%02x,\n", handle_flags );
+            strappend( str, "        NdrFcShort(0x%hx),\t/* stack offset = %hu */\n",
+                       handle_stack_offset, handle_stack_offset );
             *offset += 4;
             break;
         case FC_BIND_GENERIC:
             handle_flags = type_memsize( handle_var->declspec.type );
-            print_file( file, indent, "0x%02x,\t/* %s */\n", explicit_fc, string_of_type(explicit_fc) );
-            print_file( file, indent, "0x%02x,\n", handle_flags );
-            print_file( file, indent, "NdrFcShort(0x%hx),\t/* stack offset = %hu */\n",
-                        handle_stack_offset, handle_stack_offset );
-            print_file( file, indent, "0x%02x,\n", get_generic_handle_offset( handle_var->declspec.type ) );
-            print_file( file, indent, "0x%x,\t/* FC_PAD */\n", FC_PAD);
+            strappend( str, "        0x%02x,\t/* %s */\n", explicit_fc, string_of_type( explicit_fc ) );
+            strappend( str, "        0x%02x,\n", handle_flags );
+            strappend( str, "        NdrFcShort(0x%hx),\t/* stack offset = %hu */\n",
+                       handle_stack_offset, handle_stack_offset );
+            strappend( str, "        0x%02x,\n", get_generic_handle_offset( handle_var->declspec.type ) );
+            strappend( str, "        0x%x,\t/* FC_PAD */\n", FC_PAD );
             *offset += 6;
             break;
         case FC_BIND_CONTEXT:
             handle_flags = get_contexthandle_flags( iface, handle_var->attrs, handle_var->declspec.type, 0 );
-            print_file( file, indent, "0x%02x,\t/* %s */\n", explicit_fc, string_of_type(explicit_fc) );
-            print_file( file, indent, "0x%02x,\n", handle_flags );
-            print_file( file, indent, "NdrFcShort(0x%hx),\t/* stack offset = %hu */\n",
-                        handle_stack_offset, handle_stack_offset );
-            print_file( file, indent, "0x%02x,\n", get_context_handle_offset( handle_var->declspec.type ) );
-            print_file( file, indent, "0x%02x,\t/* param %hu */\n", handle_param_num, handle_param_num );
+            strappend( str, "        0x%02x,\t/* %s */\n", explicit_fc, string_of_type( explicit_fc ) );
+            strappend( str, "        0x%02x,\n", handle_flags );
+            strappend( str, "        NdrFcShort(0x%hx),\t/* stack offset = %hu */\n",
+                       handle_stack_offset, handle_stack_offset );
+            strappend( str, "        0x%02x,\n", get_context_handle_offset( handle_var->declspec.type ) );
+            strappend( str, "        0x%02x,\t/* param %hu */\n", handle_param_num, handle_param_num );
             *offset += 6;
             break;
         }
@@ -1453,16 +1450,16 @@ static void write_proc_func_header( FILE *file, int indent, const type_t *iface,
         if (iface == type_iface_get_async_iface(iface)) oi2_flags |= 0x20;
 
         size = get_function_buffer_size( func, PASS_IN );
-        print_file( file, indent, "NdrFcShort(0x%x),\t/* client buffer = %u */\n", size, size );
+        strappend( str, "        NdrFcShort(0x%x),\t/* client buffer = %u */\n", size, size );
         size = get_function_buffer_size( func, PASS_OUT );
-        print_file( file, indent, "NdrFcShort(0x%x),\t/* server buffer = %u */\n", size, size );
-        print_file( file, indent, "0x%02x,\n", oi2_flags );
-        print_file( file, indent, "0x%02x,\t/* %u params */\n", nb_args, nb_args );
-        print_file( file, indent, "0x%02x,\n", pointer_size == 8 ? 10 : 8 );
-        print_file( file, indent, "0x%02x,\n", ext_flags );
-        print_file( file, indent, "NdrFcShort(0x0),\n" );  /* server corr hint */
-        print_file( file, indent, "NdrFcShort(0x0),\n" );  /* client corr hint */
-        print_file( file, indent, "NdrFcShort(0x0),\n" );  /* FIXME: notify index */
+        strappend( str, "        NdrFcShort(0x%x),\t/* server buffer = %u */\n", size, size );
+        strappend( str, "        0x%02x,\n", oi2_flags );
+        strappend( str, "        0x%02x,\t/* %u params */\n", nb_args, nb_args );
+        strappend( str, "        0x%02x,\n", pointer_size == 8 ? 10 : 8 );
+        strappend( str, "        0x%02x,\n", ext_flags );
+        strappend( str, "        NdrFcShort(0x0),\n" ); /* server corr hint */
+        strappend( str, "        NdrFcShort(0x0),\n" ); /* client corr hint */
+        strappend( str, "        NdrFcShort(0x0),\n" ); /* FIXME: notify index */
         *offset += 14;
         if (pointer_size == 8)
         {
@@ -1483,22 +1480,21 @@ static void write_proc_func_header( FILE *file, int indent, const type_t *iface,
                 pos += 2;
                 if (pos >= 16) break;
             }
-            print_file( file, indent, "NdrFcShort(0x%x),\n", fpu_mask );  /* floating point mask */
+            strappend( str, "        NdrFcShort(0x%x),\n", fpu_mask ); /* floating point mask */
             *offset += 2;
         }
     }
 }
 
-static void write_procformatstring_func( FILE *file, int indent, const type_t *iface,
-                                         const var_t *func, unsigned int *offset,
-                                         unsigned short num_proc )
+static void append_pfs_func( struct strbuf *str, const type_t *iface, const var_t *func,
+                             unsigned short num_proc, unsigned int *offset )
 {
     unsigned int stack_offset = is_object( iface ) ? pointer_size : 0;
     int is_interpreted = is_interpreted_func( iface, func );
     int is_new_style = is_interpreted && (get_stub_mode() == MODE_Oif);
     var_t *retval = type_function_get_retval( func->declspec.type );
 
-    if (is_interpreted) write_proc_func_header( file, indent, iface, func, offset, num_proc );
+    if (is_interpreted) append_pfs_func_header( str, iface, func, offset, num_proc );
 
     /* emit argument data */
     if (type_function_get_args(func->declspec.type))
@@ -1506,11 +1502,9 @@ static void write_procformatstring_func( FILE *file, int indent, const type_t *i
         const var_t *var;
         LIST_FOR_EACH_ENTRY( var, type_function_get_args(func->declspec.type), const var_t, entry )
         {
-            print_file( file, 0, "/* %u (parameter %s) */\n", *offset, var->name );
-            if (is_new_style)
-                *offset += write_new_procformatstring_type(file, indent, var, FALSE, &stack_offset);
-            else
-                *offset += write_old_procformatstring_type(file, indent, var, FALSE, is_interpreted);
+            strappend( str, "/* %u (parameter %s) */\n", *offset, var->name );
+            if (is_new_style) *offset += append_pfs_type_new( str, var, FALSE, &stack_offset );
+            else *offset += append_pfs_type_old( str, var, FALSE, is_interpreted );
         }
     }
 
@@ -1519,19 +1513,17 @@ static void write_procformatstring_func( FILE *file, int indent, const type_t *i
     {
         if (!is_new_style)
         {
-            print_file(file, 0, "/* %u (void) */\n", *offset);
-            print_file(file, indent, "0x5b,\t/* FC_END */\n");
-            print_file(file, indent, "0x5c,\t/* FC_PAD */\n");
+            strappend( str, "/* %u (void) */\n", *offset );
+            strappend( str, "        0x5b,\t/* FC_END */\n" );
+            strappend( str, "        0x5c,\t/* FC_PAD */\n" );
             *offset += 2;
         }
     }
     else
     {
-        print_file( file, 0, "/* %u (return value) */\n", *offset );
-        if (is_new_style)
-            *offset += write_new_procformatstring_type(file, indent, retval, TRUE, &stack_offset);
-        else
-            *offset += write_old_procformatstring_type(file, indent, retval, TRUE, is_interpreted);
+        strappend( str, "/* %u (return value) */\n", *offset );
+        if (is_new_style) *offset += append_pfs_type_new( str, retval, TRUE, &stack_offset );
+        else *offset += append_pfs_type_old( str, retval, TRUE, is_interpreted );
     }
 }
 
@@ -1559,13 +1551,17 @@ static void write_iface_procformatstring(type_t *iface, FILE *file, int indent, 
     const statement_t *stmt;
     const type_t *parent = type_iface_get_inherit( iface );
     int count = parent ? count_methods( parent ) : 0;
+    struct strbuf str = {0};
 
     STATEMENTS_FOR_EACH_FUNC(stmt, type_iface_get_stmts(iface))
     {
         var_t *func = stmt->u.var;
         if (is_local(func->attrs)) continue;
-        write_procformatstring_func( file, indent, iface, func, offset, count++ );
+        append_pfs_func( &str, iface, func, count++, offset );
     }
+
+    if (str.buf) print_file( file, 0, "%s", str.buf );
+    free( str.buf );
 }
 
 void write_procformatstring(FILE *file, const statement_list_t *stmts, type_pred_t pred)
@@ -1590,23 +1586,20 @@ void write_procformatstring(FILE *file, const statement_list_t *stmts, type_pred
     print_file(file, indent, "\n");
 }
 
-void write_procformatstring_offsets( FILE *file, const type_t *iface )
+void put_proc_format_string_offsets( const type_t *iface )
 {
     const statement_t *stmt;
-    int indent = 0;
 
-    print_file( file, indent,  "static const unsigned short %s_FormatStringOffsetTable[] =\n",
-                iface->name );
-    print_file( file, indent,  "{\n" );
-    indent++;
+    put_line( "static const unsigned short %s_FormatStringOffsetTable[] =", iface->name );
+    put_line( "{" );
     STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts(iface) )
     {
         var_t *func = stmt->u.var;
         if (is_local( func->attrs )) continue;
-        print_file( file, indent,  "%u,  /* %s */\n", func->procstring_offset, func->name );
+        put_line( "%u,  /* %s */", func->procstring_offset, func->name );
     }
-    indent--;
-    print_file( file, indent,  "};\n\n" );
+    put_line( "};" );
+    put_line( "" );
 }
 
 static int write_base_type(FILE *file, const type_t *type, unsigned int *typestring_offset)
@@ -2290,7 +2283,7 @@ static void print_start_tfs_comment(FILE *file, type_t *t, unsigned int tfsoff)
 {
     const decl_spec_t ds = {.type = t};
     print_file(file, 0, "/* %u (", tfsoff);
-    write_type_decl(file, &ds, NULL);
+    write_declspec( file, &ds, NULL );
     print_file(file, 0, ") */\n");
 }
 
@@ -4126,7 +4119,7 @@ void print_phase_basetype(FILE *file, int indent, const char *local_var_prefix,
         if (phase == PHASE_MARSHAL)
         {
             print_file(file, indent, "*(");
-            write_type_decl(file, ref, NULL);
+            write_declspec( file, ref, NULL );
             if (is_ptr(type))
                 fprintf(file, " *)__frame->_StubMsg.Buffer = *");
             else
@@ -4137,7 +4130,7 @@ void print_phase_basetype(FILE *file, int indent, const char *local_var_prefix,
         else if (phase == PHASE_UNMARSHAL)
         {
             print_file(file, indent, "if (__frame->_StubMsg.Buffer + sizeof(");
-            write_type_decl(file, ref, NULL);
+            write_declspec( file, ref, NULL );
             fprintf(file, ") > __frame->_StubMsg.BufferEnd)\n");
             print_file(file, indent, "{\n");
             print_file(file, indent + 1, "RpcRaiseException(RPC_X_BAD_STUB_DATA);\n");
@@ -4149,12 +4142,12 @@ void print_phase_basetype(FILE *file, int indent, const char *local_var_prefix,
                 fprintf(file, " = (");
             else
                 fprintf(file, " = *(");
-            write_type_decl(file, ref, NULL);
+            write_declspec( file, ref, NULL );
             fprintf(file, " *)__frame->_StubMsg.Buffer;\n");
         }
 
         print_file(file, indent, "__frame->_StubMsg.Buffer += sizeof(");
-        write_type_decl(file, ref, NULL);
+        write_declspec( file, ref, NULL );
         fprintf(file, ");\n");
     }
 }
@@ -4459,9 +4452,9 @@ static void write_remoting_arg(FILE *file, int indent, const var_t *func, const 
             range_max = LIST_ENTRY(list_next(range_list, list_head(range_list)), const expr_t, entry);
 
             print_file(file, indent, "if ((%s%s < (", local_var_prefix, var->name);
-            write_type_decl(file, &var->declspec, NULL);
+            write_declspec( file, &var->declspec, NULL );
             fprintf(file, ")0x%x) || (%s%s > (", range_min->cval, local_var_prefix, var->name);
-            write_type_decl(file, &var->declspec, NULL);
+            write_declspec( file, &var->declspec, NULL );
             fprintf(file, ")0x%x))\n", range_max->cval);
             print_file(file, indent, "{\n");
             print_file(file, indent+1, "RpcRaiseException(RPC_S_INVALID_BOUND);\n");
@@ -4644,7 +4637,9 @@ void write_remoting_arguments(FILE *file, int indent, const var_t *func, const c
 unsigned int get_size_procformatstring_func(const type_t *iface, const var_t *func)
 {
     unsigned int offset = 0;
-    write_procformatstring_func( NULL, 0, iface, func, &offset, 0 );
+    struct strbuf str = {0};
+    append_pfs_func( &str, iface, func, 0, &offset );
+    free( str.buf );
     return offset;
 }
 
@@ -4686,7 +4681,7 @@ void declare_stub_args( FILE *file, int indent, const var_t *func )
         else
         {
             print_file(file, indent, "%s", "");
-            write_type_decl(file, &var->declspec, var->name);
+            write_declspec( file, &var->declspec, var->name );
             fprintf(file, ";\n");
         }
     }
@@ -4705,30 +4700,23 @@ void declare_stub_args( FILE *file, int indent, const var_t *func )
             print_file(file, indent, "NDR_SCONTEXT %s;\n", var->name);
         else
         {
+            type_t pointer_type = {.type_type = TYPE_POINTER, .details.pointer.ref = var->declspec};
+            decl_spec_t declspec = var->declspec;
+
+            if (type_get_type( declspec.type ) == TYPE_ARRAY && !type_array_is_decl_as_ptr( declspec.type ))
+                declspec.type = &pointer_type;
+
             if (!in_attr && !is_conformant_array(var->declspec.type))
             {
-                const decl_spec_t *type_to_print;
                 char name[16];
                 print_file(file, indent, "%s", "");
-                if (type_get_type(var->declspec.type) == TYPE_ARRAY &&
-                    !type_array_is_decl_as_ptr(var->declspec.type))
-                    type_to_print = &var->declspec;
-                else
-                    type_to_print = type_pointer_get_ref(var->declspec.type);
                 sprintf(name, "_W%u", i++);
-                write_type_decl(file, type_to_print, name);
+                write_declspec( file, type_pointer_get_ref( declspec.type ), name );
                 fprintf(file, ";\n");
             }
 
             print_file(file, indent, "%s", "");
-            write_type_decl_left(file, &var->declspec);
-            fprintf(file, " ");
-            if (type_get_type(var->declspec.type) == TYPE_ARRAY &&
-                !type_array_is_decl_as_ptr(var->declspec.type)) {
-                fprintf(file, "(*%s)", var->name);
-            } else
-                fprintf(file, "%s", var->name);
-            write_type_right(file, var->declspec.type, FALSE);
+            write_declspec( file, &declspec, var->name );
             fprintf(file, ";\n");
 
             if (decl_indirect(var->declspec.type))
@@ -4850,9 +4838,9 @@ void assign_stub_out_args( FILE *file, int indent, const var_t *func, const char
         fprintf(file, "\n");
 }
 
-
-void write_func_param_struct( FILE *file, const type_t *iface, const type_t *func,
-                              const char *var_decl, int add_retval )
+static void put_func_param_struct( const type_t *iface, const type_t *func,
+                                   const char *var_decl, int add_retval,
+                                   int (*put_str)( FILE *, const char *, ... ), FILE *file )
 {
     var_t *retval = type_function_get_retval( func );
     const var_list_t *args = type_function_get_args( func );
@@ -4866,42 +4854,53 @@ void write_func_param_struct( FILE *file, const type_t *iface, const type_t *fun
 
     needs_packing = (align > pointer_size);
 
-    if (needs_packing) print_file( file, 0, "#include <pshpack%u.h>\n", pointer_size );
-    print_file(file, 1, "struct _PARAM_STRUCT\n" );
-    print_file(file, 1, "{\n" );
-    if (is_object( iface )) print_file(file, 2, "%s *This;\n", iface->name );
+    if (needs_packing) put_str( file, "#include <pshpack%u.h>\n", pointer_size );
+    put_str( file, "    struct _PARAM_STRUCT\n" );
+    put_str( file, "    {\n" );
+    if (is_object( iface )) put_str( file, "        %s *This;\n", iface->name );
 
     if (args) LIST_FOR_EACH_ENTRY( arg, args, const var_t, entry )
     {
-        print_file(file, 2, "%s", "");
-        write_type_left( file, &arg->declspec, NAME_DEFAULT, TRUE, TRUE );
-        if (needs_space_after( arg->declspec.type )) fputc( ' ', file );
-        if (is_array( arg->declspec.type ) && !type_array_is_decl_as_ptr( arg->declspec.type )) fputc( '*', file );
+        decl_spec_t declspec = arg->declspec;
+        put_str( file, "        %s", "");
+
+        if (is_array( declspec.type ) && !type_array_is_decl_as_ptr( declspec.type ))
+            declspec.type = type_new_pointer(type_array_get_element(declspec.type)->type);
 
         /* FIXME: should check for large args being passed by pointer */
         align = 0;
-        if (is_array( arg->declspec.type ) || is_ptr( arg->declspec.type )) align = pointer_size;
-        else type_memsize_and_alignment( arg->declspec.type, &align );
+        if (is_array( declspec.type ) || is_ptr( declspec.type )) align = pointer_size;
+        else type_memsize_and_alignment( declspec.type, &align );
 
-        if (align < pointer_size)
-            fprintf( file, "DECLSPEC_ALIGN(%u) ", pointer_size );
-        fprintf( file, "%s;\n", arg->name );
+        if (align >= pointer_size) put_declspec( &declspec, arg->name, put_str, file );
+        else put_declspec( &declspec, strmake( "DECLSPEC_ALIGN(%u) %s", pointer_size, arg->name ), put_str, file );
+        put_str( file, ";\n" );
     }
     if (add_retval && !is_void( retval->declspec.type ))
     {
-        print_file(file, 2, "%s", "");
-        write_type_left( file, &retval->declspec, NAME_DEFAULT, TRUE, TRUE );
-        if (needs_space_after( retval->declspec.type )) fputc( ' ', file );
-        if (!is_array( retval->declspec.type ) && !is_ptr( retval->declspec.type ) &&
-            type_memsize( retval->declspec.type ) != pointer_size)
-        {
-            fprintf( file, "DECLSPEC_ALIGN(%u) ", pointer_size );
-        }
-        fprintf( file, "%s;\n", retval->name );
+        decl_spec_t declspec = retval->declspec;
+        put_str( file, "        %s", "");
+
+        if (is_array( declspec.type ) && !type_array_is_decl_as_ptr( declspec.type ))
+            declspec.type = type_new_pointer(type_array_get_element(declspec.type)->type);
+
+        if (is_array( declspec.type ) || is_ptr( declspec.type )) align = pointer_size;
+        else if (type_memsize( declspec.type ) == pointer_size) align = pointer_size;
+        else align = 0;
+
+        if (align >= pointer_size) put_declspec( &declspec, retval->name, put_str, file );
+        else put_declspec( &declspec, strmake( "DECLSPEC_ALIGN(%u) %s", pointer_size, retval->name ), put_str, file );
+        put_str( file, ";\n" );
     }
-    print_file(file, 1, "} %s;\n", var_decl );
-    if (needs_packing) print_file( file, 0, "#include <poppack.h>\n" );
-    print_file( file, 0, "\n" );
+    put_str( file, "    } %s;\n", var_decl );
+    if (needs_packing) put_str( file, "#include <poppack.h>\n" );
+    put_str( file, "\n" );
+}
+
+void write_func_param_struct( FILE *file, const type_t *iface, const type_t *func,
+                              const char *var_decl, int add_retval )
+{
+    put_func_param_struct( iface, func, var_decl, add_retval, fprintf, file );
 }
 
 void write_pointer_checks( FILE *file, int indent, const var_t *func )
@@ -4916,7 +4915,7 @@ void write_pointer_checks( FILE *file, int indent, const var_t *func )
             print_file( file, indent, "if (!%s) RpcRaiseException(RPC_X_NULL_REF_POINTER);\n", var->name );
 }
 
-int write_expr_eval_routines(FILE *file, const char *iface)
+int put_expr_eval_routines(const char *iface)
 {
     static const char *var_name = "pS";
     static const char *var_name_expr = "pS->";
@@ -4929,28 +4928,30 @@ int write_expr_eval_routines(FILE *file, const char *iface)
         const char *name = eval->name;
         result = 1;
 
-        print_file(file, 0, "static void __RPC_USER %s_%sExprEval_%04u(PMIDL_STUB_MESSAGE pStubMsg)\n",
+        put_line( "static void __RPC_USER %s_%sExprEval_%04u(PMIDL_STUB_MESSAGE pStubMsg)",
                    eval->iface ? eval->iface->name : iface, name, callback_offset);
-        print_file(file, 0, "{\n");
+        put_line( "{");
         if (type_get_type( eval->cont_type ) == TYPE_FUNCTION)
         {
-            write_func_param_struct( file, eval->iface, eval->cont_type,
-                                     "*pS = (struct _PARAM_STRUCT *)pStubMsg->StackTop", FALSE );
+            put_func_param_struct( eval->iface, eval->cont_type,
+                                   "*pS = (struct _PARAM_STRUCT *)pStubMsg->StackTop", FALSE,
+                                   put_str_cb, NULL );
         }
         else
         {
-            decl_spec_t ds = {.type = (type_t *)eval->cont_type};
-            print_file(file, 1, "%s", "");
-            write_type_left(file, &ds, NAME_DEFAULT, TRUE, TRUE);
-            fprintf(file, " *%s = (", var_name);
-            write_type_left(file, &ds, NAME_DEFAULT, TRUE, TRUE);
-            fprintf(file, " *)(pStubMsg->StackTop - %u);\n", eval->baseoff);
+            decl_spec_t ds = {.type = type_new_pointer((type_t *)eval->cont_type)};
+            put_str( "    %s", "");
+            put_declspec( &ds, var_name, put_str_cb, NULL );
+            put_str( "= (" );
+            put_declspec( &ds, NULL, put_str_cb, NULL );
+            put_line( ")(pStubMsg->StackTop - %u);", eval->baseoff );
         }
-        print_file(file, 1, "pStubMsg->Offset = 0;\n"); /* FIXME */
-        print_file(file, 1, "pStubMsg->MaxCount = (ULONG_PTR)");
-        write_expr(file, eval->expr, 1, 1, var_name_expr, eval->cont_type, "");
-        fprintf(file, ";\n");
-        print_file(file, 0, "}\n\n");
+        put_line( "    pStubMsg->Offset = 0;"); /* FIXME */
+        put_str( "    pStubMsg->MaxCount = (ULONG_PTR)");
+        put_expr( eval->expr, 1, 1, var_name_expr, eval->cont_type, "", put_str_cb, NULL );
+        put_line( ";" );
+        put_line( "}");
+        put_line( "");
         callback_offset++;
     }
     return result;
@@ -5087,128 +5088,128 @@ void write_client_call_routine( FILE *file, const type_t *iface, const var_t *fu
     if (has_ret)
     {
         print_file( file, 1, "return (" );
-        write_type_decl_left(file, rettype);
+        write_declspec(file, rettype, NULL);
         fprintf( file, ")%s;\n", pointer_size == 8 ? "_RetVal.Simple" : "*(LONG_PTR *)&_RetVal" );
     }
     print_file( file, 0, "}\n\n");
 }
 
-void write_exceptions( FILE *file )
+void put_exceptions(void)
 {
-    fprintf( file, "#ifndef USE_COMPILER_EXCEPTIONS\n");
-    fprintf( file, "\n");
-    fprintf( file, "#include \"wine/exception.h\"\n");
-    fprintf( file, "#undef RpcTryExcept\n");
-    fprintf( file, "#undef RpcExcept\n");
-    fprintf( file, "#undef RpcEndExcept\n");
-    fprintf( file, "#undef RpcTryFinally\n");
-    fprintf( file, "#undef RpcFinally\n");
-    fprintf( file, "#undef RpcEndFinally\n");
-    fprintf( file, "#undef RpcExceptionCode\n");
-    fprintf( file, "#undef RpcAbnormalTermination\n");
-    fprintf( file, "\n");
-    fprintf( file, "struct __exception_frame;\n");
-    fprintf( file, "typedef int (*__filter_func)(struct __exception_frame *);\n");
-    fprintf( file, "typedef void (*__finally_func)(struct __exception_frame *);\n");
-    fprintf( file, "\n");
-    fprintf( file, "#define __DECL_EXCEPTION_FRAME \\\n");
-    fprintf( file, "    EXCEPTION_REGISTRATION_RECORD frame; \\\n");
-    fprintf( file, "    __filter_func                 filter; \\\n");
-    fprintf( file, "    __finally_func                finally; \\\n");
-    fprintf( file, "    __wine_jmp_buf                jmp; \\\n");
-    fprintf( file, "    DWORD                         code; \\\n");
-    fprintf( file, "    unsigned char                 abnormal_termination; \\\n");
-    fprintf( file, "    unsigned char                 filter_level; \\\n");
-    fprintf( file, "    unsigned char                 finally_level;\n");
-    fprintf( file, "\n");
-    fprintf( file, "struct __exception_frame\n{\n");
-    fprintf( file, "    __DECL_EXCEPTION_FRAME\n");
-    fprintf( file, "};\n");
-    fprintf( file, "\n");
-    fprintf( file, "static inline void __widl_unwind_target(void)\n" );
-    fprintf( file, "{\n");
-    fprintf( file, "    struct __exception_frame *exc_frame = (struct __exception_frame *)__wine_get_frame();\n" );
-    fprintf( file, "    if (exc_frame->finally_level > exc_frame->filter_level)\n" );
-    fprintf( file, "    {\n");
-    fprintf( file, "        exc_frame->abnormal_termination = 1;\n");
-    fprintf( file, "        exc_frame->finally( exc_frame );\n");
-    fprintf( file, "        __wine_pop_frame( &exc_frame->frame );\n");
-    fprintf( file, "    }\n");
-    fprintf( file, "    exc_frame->filter_level = 0;\n");
-    fprintf( file, "    __wine_longjmp( &exc_frame->jmp, 1 );\n");
-    fprintf( file, "}\n");
-    fprintf( file, "\n");
-    fprintf( file, "static DWORD __cdecl __widl_exception_handler( EXCEPTION_RECORD *record,\n");
-    fprintf( file, "                                               EXCEPTION_REGISTRATION_RECORD *frame,\n");
-    fprintf( file, "                                               CONTEXT *context,\n");
-    fprintf( file, "                                               EXCEPTION_REGISTRATION_RECORD **pdispatcher )\n");
-    fprintf( file, "{\n");
-    fprintf( file, "    struct __exception_frame *exc_frame = (struct __exception_frame *)frame;\n");
-    fprintf( file, "\n");
-    fprintf( file, "    if (record->ExceptionFlags & (EXCEPTION_UNWINDING | EXCEPTION_EXIT_UNWIND | EXCEPTION_NESTED_CALL))\n");
-    fprintf( file, "    {\n" );
-    fprintf( file, "        if (exc_frame->finally_level && (record->ExceptionFlags & (EXCEPTION_UNWINDING | EXCEPTION_EXIT_UNWIND)))\n");
-    fprintf( file, "        {\n" );
-    fprintf( file, "            exc_frame->abnormal_termination = 1;\n");
-    fprintf( file, "            exc_frame->finally( exc_frame );\n");
-    fprintf( file, "        }\n" );
-    fprintf( file, "        return ExceptionContinueSearch;\n");
-    fprintf( file, "    }\n" );
-    fprintf( file, "    exc_frame->code = record->ExceptionCode;\n");
-    fprintf( file, "    if (exc_frame->filter_level && exc_frame->filter( exc_frame ) == EXCEPTION_EXECUTE_HANDLER)\n" );
-    fprintf( file, "        __wine_rtl_unwind( frame, record, __widl_unwind_target );\n");
-    fprintf( file, "    return ExceptionContinueSearch;\n");
-    fprintf( file, "}\n");
-    fprintf( file, "\n");
-    fprintf( file, "#define RpcTryExcept \\\n");
-    fprintf( file, "    if (!__wine_setjmpex( &__frame->jmp, &__frame->frame )) \\\n");
-    fprintf( file, "    { \\\n");
-    fprintf( file, "        if (!__frame->finally_level) \\\n" );
-    fprintf( file, "            __wine_push_frame( &__frame->frame ); \\\n");
-    fprintf( file, "        __frame->filter_level = __frame->finally_level + 1;\n" );
-    fprintf( file, "\n");
-    fprintf( file, "#define RpcExcept(expr) \\\n");
-    fprintf( file, "        if (!__frame->finally_level) \\\n" );
-    fprintf( file, "            __wine_pop_frame( &__frame->frame ); \\\n");
-    fprintf( file, "        __frame->filter_level = 0; \\\n" );
-    fprintf( file, "    } \\\n");
-    fprintf( file, "    else \\\n");
-    fprintf( file, "\n");
-    fprintf( file, "#define RpcEndExcept\n");
-    fprintf( file, "\n");
-    fprintf( file, "#define RpcExceptionCode() (__frame->code)\n");
-    fprintf( file, "\n");
-    fprintf( file, "#define RpcTryFinally \\\n");
-    fprintf( file, "    if (!__frame->filter_level) \\\n");
-    fprintf( file, "        __wine_push_frame( &__frame->frame ); \\\n");
-    fprintf( file, "    __frame->finally_level = __frame->filter_level + 1;\n");
-    fprintf( file, "\n");
-    fprintf( file, "#define RpcFinally \\\n");
-    fprintf( file, "    if (!__frame->filter_level) \\\n");
-    fprintf( file, "        __wine_pop_frame( &__frame->frame ); \\\n");
-    fprintf( file, "    __frame->finally_level = 0;\n");
-    fprintf( file, "\n");
-    fprintf( file, "#define RpcEndFinally\n");
-    fprintf( file, "\n");
-    fprintf( file, "#define RpcAbnormalTermination() (__frame->abnormal_termination)\n");
-    fprintf( file, "\n");
-    fprintf( file, "#define RpcExceptionInit(filter_func,finally_func) \\\n");
-    fprintf( file, "    do { \\\n");
-    fprintf( file, "        __frame->frame.Handler = __widl_exception_handler; \\\n");
-    fprintf( file, "        __frame->filter = (__filter_func)(filter_func); \\\n" );
-    fprintf( file, "        __frame->finally = (__finally_func)(finally_func); \\\n");
-    fprintf( file, "        __frame->abnormal_termination = 0; \\\n");
-    fprintf( file, "        __frame->filter_level = 0; \\\n");
-    fprintf( file, "        __frame->finally_level = 0; \\\n");
-    fprintf( file, "    } while (0)\n");
-    fprintf( file, "\n");
-    fprintf( file, "#else /* USE_COMPILER_EXCEPTIONS */\n");
-    fprintf( file, "\n");
-    fprintf( file, "#define RpcExceptionInit(filter_func,finally_func) \\\n");
-    fprintf( file, "    do { (void)(filter_func); } while(0)\n");
-    fprintf( file, "\n");
-    fprintf( file, "#define __DECL_EXCEPTION_FRAME \\\n");
-    fprintf( file, "    DWORD code;\n");
-    fprintf( file, "\n");
-    fprintf( file, "#endif /* USE_COMPILER_EXCEPTIONS */\n");
+    put_line( "#ifndef USE_COMPILER_EXCEPTIONS" );
+    put_line( "" );
+    put_line( "#include \"wine/exception.h\"" );
+    put_line( "#undef RpcTryExcept" );
+    put_line( "#undef RpcExcept" );
+    put_line( "#undef RpcEndExcept" );
+    put_line( "#undef RpcTryFinally" );
+    put_line( "#undef RpcFinally" );
+    put_line( "#undef RpcEndFinally" );
+    put_line( "#undef RpcExceptionCode" );
+    put_line( "#undef RpcAbnormalTermination" );
+    put_line( "" );
+    put_line( "struct __exception_frame;" );
+    put_line( "typedef int (*__filter_func)(struct __exception_frame *);" );
+    put_line( "typedef void (*__finally_func)(struct __exception_frame *);" );
+    put_line( "" );
+    put_line( "#define __DECL_EXCEPTION_FRAME \\" );
+    put_line( "    EXCEPTION_REGISTRATION_RECORD frame; \\" );
+    put_line( "    __filter_func                 filter; \\" );
+    put_line( "    __finally_func                finally; \\" );
+    put_line( "    __wine_jmp_buf                jmp; \\" );
+    put_line( "    DWORD                         code; \\" );
+    put_line( "    unsigned char                 abnormal_termination; \\" );
+    put_line( "    unsigned char                 filter_level; \\" );
+    put_line( "    unsigned char                 finally_level;" );
+    put_line( "" );
+    put_line( "struct __exception_frame\n{" );
+    put_line( "    __DECL_EXCEPTION_FRAME" );
+    put_line( "};" );
+    put_line( "" );
+    put_line( "static inline void __widl_unwind_target(void)" );
+    put_line( "{" );
+    put_line( "    struct __exception_frame *exc_frame = (struct __exception_frame *)__wine_get_frame();" );
+    put_line( "    if (exc_frame->finally_level > exc_frame->filter_level)" );
+    put_line( "    {" );
+    put_line( "        exc_frame->abnormal_termination = 1;" );
+    put_line( "        exc_frame->finally( exc_frame );" );
+    put_line( "        __wine_pop_frame( &exc_frame->frame );" );
+    put_line( "    }" );
+    put_line( "    exc_frame->filter_level = 0;" );
+    put_line( "    __wine_longjmp( &exc_frame->jmp, 1 );" );
+    put_line( "}" );
+    put_line( "" );
+    put_line( "static DWORD __cdecl __widl_exception_handler( EXCEPTION_RECORD *record," );
+    put_line( "                                               EXCEPTION_REGISTRATION_RECORD *frame," );
+    put_line( "                                               CONTEXT *context," );
+    put_line( "                                               EXCEPTION_REGISTRATION_RECORD **pdispatcher )" );
+    put_line( "{" );
+    put_line( "    struct __exception_frame *exc_frame = (struct __exception_frame *)frame;" );
+    put_line( "" );
+    put_line( "    if (record->ExceptionFlags & (EXCEPTION_UNWINDING | EXCEPTION_EXIT_UNWIND | EXCEPTION_NESTED_CALL))" );
+    put_line( "    {" );
+    put_line( "        if (exc_frame->finally_level && (record->ExceptionFlags & (EXCEPTION_UNWINDING | EXCEPTION_EXIT_UNWIND)))" );
+    put_line( "        {" );
+    put_line( "            exc_frame->abnormal_termination = 1;" );
+    put_line( "            exc_frame->finally( exc_frame );" );
+    put_line( "        }" );
+    put_line( "        return ExceptionContinueSearch;" );
+    put_line( "    }" );
+    put_line( "    exc_frame->code = record->ExceptionCode;" );
+    put_line( "    if (exc_frame->filter_level && exc_frame->filter( exc_frame ) == EXCEPTION_EXECUTE_HANDLER)" );
+    put_line( "        __wine_rtl_unwind( frame, record, __widl_unwind_target );" );
+    put_line( "    return ExceptionContinueSearch;" );
+    put_line( "}" );
+    put_line( "" );
+    put_line( "#define RpcTryExcept \\" );
+    put_line( "    if (!__wine_setjmpex( &__frame->jmp, &__frame->frame )) \\" );
+    put_line( "    { \\" );
+    put_line( "        if (!__frame->finally_level) \\" );
+    put_line( "            __wine_push_frame( &__frame->frame ); \\" );
+    put_line( "        __frame->filter_level = __frame->finally_level + 1;" );
+    put_line( "" );
+    put_line( "#define RpcExcept(expr) \\" );
+    put_line( "        if (!__frame->finally_level) \\" );
+    put_line( "            __wine_pop_frame( &__frame->frame ); \\" );
+    put_line( "        __frame->filter_level = 0; \\" );
+    put_line( "    } \\" );
+    put_line( "    else \\" );
+    put_line( "" );
+    put_line( "#define RpcEndExcept" );
+    put_line( "" );
+    put_line( "#define RpcExceptionCode() (__frame->code)" );
+    put_line( "" );
+    put_line( "#define RpcTryFinally \\" );
+    put_line( "    if (!__frame->filter_level) \\" );
+    put_line( "        __wine_push_frame( &__frame->frame ); \\" );
+    put_line( "    __frame->finally_level = __frame->filter_level + 1;" );
+    put_line( "" );
+    put_line( "#define RpcFinally \\" );
+    put_line( "    if (!__frame->filter_level) \\" );
+    put_line( "        __wine_pop_frame( &__frame->frame ); \\" );
+    put_line( "    __frame->finally_level = 0;" );
+    put_line( "" );
+    put_line( "#define RpcEndFinally" );
+    put_line( "" );
+    put_line( "#define RpcAbnormalTermination() (__frame->abnormal_termination)" );
+    put_line( "" );
+    put_line( "#define RpcExceptionInit(filter_func,finally_func) \\" );
+    put_line( "    do { \\" );
+    put_line( "        __frame->frame.Handler = __widl_exception_handler; \\" );
+    put_line( "        __frame->filter = (__filter_func)(filter_func); \\" );
+    put_line( "        __frame->finally = (__finally_func)(finally_func); \\" );
+    put_line( "        __frame->abnormal_termination = 0; \\" );
+    put_line( "        __frame->filter_level = 0; \\" );
+    put_line( "        __frame->finally_level = 0; \\" );
+    put_line( "    } while (0)" );
+    put_line( "" );
+    put_line( "#else /* USE_COMPILER_EXCEPTIONS */" );
+    put_line( "" );
+    put_line( "#define RpcExceptionInit(filter_func,finally_func) \\" );
+    put_line( "    do { (void)(filter_func); } while(0)" );
+    put_line( "" );
+    put_line( "#define __DECL_EXCEPTION_FRAME \\" );
+    put_line( "    DWORD code;" );
+    put_line( "" );
+    put_line( "#endif /* USE_COMPILER_EXCEPTIONS */" );
 }

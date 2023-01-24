@@ -615,9 +615,8 @@ const type_t *expr_resolve_type( const type_t *cont_type, const expr_t *expr,
     return expr_type.type;
 }
 
-void write_expr(FILE *h, const expr_t *e, int brackets,
-                int toplevel, const char *toplevel_prefix,
-                const type_t *cont_type, const char *local_var_prefix)
+void put_expr( FILE *h, const expr_t *e, int brackets, int toplevel, const char *toplevel_prefix,
+               const type_t *cont_type, const char *local_var_prefix )
 {
     switch (e->type)
     {
@@ -625,67 +624,67 @@ void write_expr(FILE *h, const expr_t *e, int brackets,
     case EXPR_DECL:
         break;
     case EXPR_INT:
-        fprintf(h, "%s", e->text);
+        put_str( "%s", e->text );
         break;
     case EXPR_DOUBLE:
-        fprintf(h, "%#.15g", e->u.dval);
+        put_str( "%#.15g", e->u.dval );
         break;
     case EXPR_IDENTIFIER:
         if (toplevel && toplevel_prefix && cont_type)
         {
             int found_in_cont_type;
-            find_identifier(e->u.sval, cont_type, &found_in_cont_type);
+            find_identifier( e->u.sval, cont_type, &found_in_cont_type );
             if (found_in_cont_type)
             {
-                fprintf(h, "%s%s", toplevel_prefix, e->u.sval);
+                put_str( "%s%s", toplevel_prefix, e->u.sval );
                 break;
             }
         }
-        fprintf(h, "%s%s", local_var_prefix, e->u.sval);
+        put_str( "%s%s", local_var_prefix, e->u.sval );
         break;
     case EXPR_STRLIT:
-        fprintf(h, "\"%s\"", e->u.sval);
+        put_str( "\"%s\"", e->u.sval );
         break;
     case EXPR_WSTRLIT:
-        fprintf(h, "L\"%s\"", e->u.sval);
+        put_str( "L\"%s\"", e->u.sval );
         break;
     case EXPR_CHARCONST:
-        fprintf(h, "'%s'", e->u.sval);
+        put_str( "'%s'", e->u.sval );
         break;
     case EXPR_LOGNOT:
-        fprintf(h, "!");
-        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
+        put_str( "!" );
+        put_expr( e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix, put_str, file );
         break;
     case EXPR_NOT:
-        fprintf(h, "~");
-        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
+        put_str( "~" );
+        put_expr( e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix, put_str, file );
         break;
     case EXPR_POS:
-        fprintf(h, "+");
-        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
+        put_str( "+" );
+        put_expr( e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix, put_str, file );
         break;
     case EXPR_NEG:
-        fprintf(h, "-");
-        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
+        put_str( "-" );
+        put_expr( e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix, put_str, file );
         break;
     case EXPR_ADDRESSOF:
-        fprintf(h, "&");
-        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
+        put_str( "&" );
+        put_expr( e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix, put_str, file );
         break;
     case EXPR_PPTR:
-        fprintf(h, "*");
-        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
+        put_str( "*" );
+        put_expr( e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix, put_str, file );
         break;
     case EXPR_CAST:
-        fprintf(h, "(");
-        write_type_decl( h, e->u.args[0]->u.decl, NULL );
-        fprintf(h, ")");
-        write_expr( h, e->u.args[1], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
+        put_str( "(" );
+        put_declspec( e->u.args[0]->u.decl, NULL, put_str, file );
+        put_str( ")" );
+        put_expr( e->u.args[1], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix, put_str, file );
         break;
     case EXPR_SIZEOF:
-        fprintf(h, "sizeof(");
-        write_type_decl( h, e->u.args[0]->u.decl, NULL );
-        fprintf(h, ")");
+        put_str( "sizeof(" );
+        put_declspec( e->u.args[0]->u.decl, NULL, put_str, file );
+        put_str( ")" );
         break;
     case EXPR_SHL:
     case EXPR_SHR:
@@ -705,66 +704,76 @@ void write_expr(FILE *h, const expr_t *e, int brackets,
     case EXPR_LESS:
     case EXPR_GTREQL:
     case EXPR_LESSEQL:
-        if (brackets) fprintf(h, "(");
-        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
+        if (brackets) put_str( "(" );
+        put_expr( e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix, put_str, file );
         switch (e->type)
         {
-        case EXPR_SHL:          fprintf(h, " << "); break;
-        case EXPR_SHR:          fprintf(h, " >> "); break;
-        case EXPR_MOD:          fprintf(h, " %% "); break;
-        case EXPR_MUL:          fprintf(h, " * "); break;
-        case EXPR_DIV:          fprintf(h, " / "); break;
-        case EXPR_ADD:          fprintf(h, " + "); break;
-        case EXPR_SUB:          fprintf(h, " - "); break;
-        case EXPR_AND:          fprintf(h, " & "); break;
-        case EXPR_OR:           fprintf(h, " | "); break;
-        case EXPR_LOGOR:        fprintf(h, " || "); break;
-        case EXPR_LOGAND:       fprintf(h, " && "); break;
-        case EXPR_XOR:          fprintf(h, " ^ "); break;
-        case EXPR_EQUALITY:     fprintf(h, " == "); break;
-        case EXPR_INEQUALITY:   fprintf(h, " != "); break;
-        case EXPR_GTR:          fprintf(h, " > "); break;
-        case EXPR_LESS:         fprintf(h, " < "); break;
-        case EXPR_GTREQL:       fprintf(h, " >= "); break;
-        case EXPR_LESSEQL:      fprintf(h, " <= "); break;
+        case EXPR_SHL:          put_str( " << " ); break;
+        case EXPR_SHR:          put_str( " >> " ); break;
+        case EXPR_MOD:          put_str( " %% " ); break;
+        case EXPR_MUL:          put_str( " * " ); break;
+        case EXPR_DIV:          put_str( " / " ); break;
+        case EXPR_ADD:          put_str( " + " ); break;
+        case EXPR_SUB:          put_str( " - " ); break;
+        case EXPR_AND:          put_str( " & " ); break;
+        case EXPR_OR:           put_str( " | " ); break;
+        case EXPR_LOGOR:        put_str( " || " ); break;
+        case EXPR_LOGAND:       put_str( " && " ); break;
+        case EXPR_XOR:          put_str( " ^ " ); break;
+        case EXPR_EQUALITY:     put_str( " == " ); break;
+        case EXPR_INEQUALITY:   put_str( " != " ); break;
+        case EXPR_GTR:          put_str( " > " ); break;
+        case EXPR_LESS:         put_str( " < " ); break;
+        case EXPR_GTREQL:       put_str( " >= " ); break;
+        case EXPR_LESSEQL:      put_str( " <= " ); break;
         default: break;
         }
-        write_expr( h, e->u.args[1], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
-        if (brackets) fprintf(h, ")");
+        put_expr( e->u.args[1], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix, put_str, file );
+        if (brackets) put_str( ")" );
         break;
     case EXPR_MEMBER:
-        if (brackets) fprintf(h, "(");
-        if (e->u.args[0]->type == EXPR_PPTR)
+        if (brackets) put_str( "(" );
+        if (e->ref->type == EXPR_PPTR)
         {
-            write_expr( h, e->u.args[0]->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
-            fprintf(h, "->");
+            put_expr( e->u.args[0]->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix, put_str, file );
+            put_str( "->" );
         }
         else
         {
-            write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
-            fprintf(h, ".");
+            put_expr( e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix, put_str, file );
+            put_str( "." );
         }
-        write_expr( h, e->u.args[1], 1, 0, toplevel_prefix, cont_type, "" );
-        if (brackets) fprintf(h, ")");
+        put_expr( e->u.args[1], 1, 0, toplevel_prefix, cont_type, "", put_str, file );
+        if (brackets) put_str( ")" );
         break;
     case EXPR_COND:
-        if (brackets) fprintf(h, "(");
-        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
-        fprintf(h, " ? ");
-        write_expr( h, e->u.args[1], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
-        fprintf(h, " : ");
-        write_expr( h, e->u.args[2], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
-        if (brackets) fprintf(h, ")");
+        if (brackets) put_str( "(" );
+        put_expr( e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix, put_str, file );
+        put_str( " ? " );
+        put_expr( e->u.args[1], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix, put_str, file );
+        put_str( " : " );
+        put_expr( e->u.args[2], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix, put_str, file );
+        if (brackets) put_str( ")" );
         break;
     case EXPR_ARRAY:
-        if (brackets) fprintf(h, "(");
-        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
-        fprintf(h, "[");
-        write_expr( h, e->u.args[1], 1, 1, toplevel_prefix, cont_type, local_var_prefix );
-        fprintf(h, "]");
-        if (brackets) fprintf(h, ")");
+        if (brackets) put_str( "(" );
+        put_expr( e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix, put_str, file );
+        put_str( "[" );
+        put_expr( e->u.args[1], 1, 1, toplevel_prefix, cont_type, local_var_prefix, put_str, file );
+        put_str( "]" );
+        if (brackets) put_str( ")" );
         break;
     }
+}
+
+void write_expr( FILE *h, const expr_t *e, int brackets,
+                 int toplevel, const char *toplevel_prefix,
+                 const type_t *cont_type, const char *local_var_prefix )
+{
+    init_output_buffer();
+    put_expr( h, e, brackets, toplevel, toplevel_prefix, cont_type, local_var_prefix );
+    fputs( (char *)output_buffer, h );
+    free( output_buffer );
 }
 
 /* This is actually fairly involved to implement precisely, due to the

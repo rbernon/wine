@@ -146,5 +146,8 @@ extern int compare_expr( const expr_t *a, const expr_t *b );
 
 extern void write_expr( FILE *h, const expr_t *e, int brackets, int toplevel, const char *toplevel_prefix,
                         const type_t *cont_type, const char *local_var_prefix );
+extern void put_expr( const expr_t *e, int brackets, int toplevel, const char *toplevel_prefix,
+                      const type_t *cont_type, const char *local_var_prefix,
+                      int (*put_str)( FILE *, const char *, ... ), FILE *file );
 
 #endif

@@ -62,10 +62,8 @@ enum typegen_type
 
 typedef int (*type_pred_t)(const type_t *);
 
-void write_formatstringsdecl(FILE *f, int indent, const statement_list_t *stmts, type_pred_t pred);
 void write_procformatstring(FILE *file, const statement_list_t *stmts, type_pred_t pred);
 void write_typeformatstring(FILE *file, const statement_list_t *stmts, type_pred_t pred);
-void write_procformatstring_offsets( FILE *file, const type_t *iface );
 void print_phase_basetype(FILE *file, int indent, const char *local_var_prefix, enum remoting_phase phase,
                           enum pass pass, const var_t *var, const char *varname);
 void write_parameter_conf_or_var_exprs(FILE *file, int indent, const char *local_var_prefix,
@@ -80,13 +78,11 @@ void declare_stub_args( FILE *file, int indent, const var_t *func );
 void write_func_param_struct( FILE *file, const type_t *iface, const type_t *func,
                               const char *var_decl, int add_retval );
 void write_pointer_checks( FILE *file, int indent, const var_t *func );
-int write_expr_eval_routines(FILE *file, const char *iface);
 void write_expr_eval_routine_list(FILE *file, const char *iface);
 void write_user_quad_list(FILE *file);
 void write_endpoints( FILE *f, const char *prefix, const str_list_t *list );
 void write_client_call_routine( FILE *file, const type_t *iface, const var_t *func,
                                 const char *prefix, unsigned int proc_offset );
-void write_exceptions( FILE *file );
 unsigned int type_memsize(const type_t *t);
 int decl_indirect(const type_t *t);
 int is_interpreted_func(const type_t *iface, const var_t *func);
@@ -101,3 +97,8 @@ unsigned char get_pointer_fc(const type_t *type, const attr_list_t *attrs, int t
 unsigned char get_struct_fc(const type_t *type);
 enum typegen_type typegen_detect_type(const type_t *type, const attr_list_t *attrs, unsigned int flags);
 unsigned int type_memsize_and_alignment(const type_t *t, unsigned int *align);
+
+void put_exceptions(void);
+void put_format_string_decls( const statement_list_t *stmts, type_pred_t pred );
+void put_proc_format_string_offsets( const type_t *iface );
+extern int put_expr_eval_routines(const char *iface);
