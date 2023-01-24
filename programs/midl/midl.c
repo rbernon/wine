@@ -24,6 +24,10 @@
 #include "windef.h"
 #include "winbase.h"
 
+#include "typetree.h"
+#include "parser.h"
+#include "parser.tab.h"
+
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(midl);
@@ -60,12 +64,47 @@ struct options
     int warning_error;
 };
 
-char *input_name = NULL;
+int do_typelib = 0;
+char typename_base[1] = {""};
+
+char *find_input_file( const char *name, const char *parent )
+{
+    FIXME( "name %s, parent %s stub!\n", debugstr_a(name), debugstr_a(parent) );
+    return strdup( name );
+}
+
+FILE *open_input_file( const char *path, char **temp_name )
+{
+    FILE *file;
+
+    FIXME( "path %s, temp_name %p stub!\n", debugstr_a(path), temp_name );
+
+    if (!(file = fopen( path, "r" )))
+    {
+        fprintf( stderr, "Unable to open %s\n", path );
+        exit( 1 );
+    }
+    *temp_name = NULL;
+
+    return file;
+}
+
+void close_input_file( FILE *file, char *temp_name )
+{
+    fclose( file );
+    if (temp_name) unlink( temp_name );
+    free( temp_name );
+}
+
+void add_importlib( const char *name, typelib_t *typelib )
+{
+    FIXME( "name %s, typelib %p stub!\n", debugstr_a(name), typelib );
+}
 
 int __cdecl main( int argc, char *argv[] )
 {
     struct options options = {0};
-    const char *input = NULL;
+    struct idl_ctx ctx = {0};
     int i;
 
     for (i = 1; i < argc; i++)
@@ -124,7 +163,7 @@ int __cdecl main( int argc, char *argv[] )
             continue;
         }
 
-        if (!input) input = strdup( argv[i] );
+        if (!ctx.input) ctx.input = strdup( argv[i] );
         else
         {
             ERR( "duplicate input file: %s\n", debugstr_a(argv[i]) );
@@ -135,7 +174,7 @@ int __cdecl main( int argc, char *argv[] )
     if (options.confirm)
     {
         printf( "Current options:\n" );
-        printf( "  input_idl:      %s\n", debugstr_a(input) );
+        printf( "  input_idl:      %s\n", debugstr_a(ctx.input) );
         printf( "  syntax_check:   %d\n", options.syntax_check );
         printf( "  nocpp:          %d\n", options.nocpp );
         printf( "  confirm:        %d\n", options.confirm );
@@ -145,9 +184,11 @@ int __cdecl main( int argc, char *argv[] )
         return 0;
     }
 
-    if (!input)
+    if (!ctx.input)
     {
         fprintf( stderr, "error: No input file specified\n" );
         return 1;
     }
+
+    return idl_compile( &ctx, ctx.input, NULL );
 }

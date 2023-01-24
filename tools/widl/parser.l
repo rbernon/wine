@@ -36,8 +36,6 @@ uuid  {hd}{8}-{hd}{4}-{hd}{4}-{hd}{4}-{hd}{12}
 
 %{
 
-#include "config.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
