@@ -232,12 +232,12 @@ static void write_progids( const statement_list_t *stmts )
     }
 }
 
-void write_regscript( const statement_list_t *stmts )
+void write_regscript( const struct idl_ctx *ctx )
 {
     const type_t *ps_factory;
 
     if (!do_regscript) return;
-    if (do_everything && !need_proxy_file( stmts )) return;
+    if (do_everything && !need_proxy_file( ctx->statements )) return;
 
     init_output_buffer();
 
@@ -299,13 +299,13 @@ void write_regscript( const statement_list_t *stmts )
     }
 }
 
-void write_typelib_regscript( const statement_list_t *stmts )
+void write_typelib_regscript( const struct idl_ctx *ctx )
 {
     const statement_t *stmt;
     unsigned int count = 0;
 
     if (!do_typelib) return;
-    if (stmts) LIST_FOR_EACH_ENTRY( stmt, stmts, const statement_t, entry )
+    if (ctx->statements) LIST_FOR_EACH_ENTRY( stmt, ctx->statements, const statement_t, entry )
     {
         if (stmt->type != STMT_LIBRARY) continue;
         if (count && !strendswith( typelib_name, ".res" ))
