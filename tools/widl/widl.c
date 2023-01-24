@@ -19,7 +19,9 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#ifndef PACKAGE_VERSION
 #include "config.h"
+#endif
 
 #include <errno.h>
 #include <limits.h>
@@ -196,7 +198,9 @@ static const struct long_option long_options[] = {
     { NULL }
 };
 
+#ifndef _WIN32
 static void rm_tempfile(void);
+#endif
 
 static char *make_token(const char *name)
 {
@@ -851,6 +855,7 @@ int main(int argc,char *argv[])
   return 0;
 }
 
+#ifndef _WIN32
 static void rm_tempfile(void)
 {
   if (do_header)
