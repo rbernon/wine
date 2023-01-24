@@ -1746,6 +1746,90 @@ static void for_each_iface(const statement_list_t *stmts,
     }
 }
 
+static void init_proc_format_string_arg( type_t *iface, var_t *func, var_t *arg )
+{
+    int is_interpreted = is_interpreted_func( iface, func );
+    int is_new_style = is_interpreted && get_stub_mode() == MODE_Oif;
+
+    if (is_new_style) *offset += write_new_procformatstring_type(file, indent, var, FALSE, &stack_offset);
+    else *offset += write_old_procformatstring_type(file, indent, var, FALSE, is_interpreted);
+}
+
+static void init_proc_format_string_ret( type_t *iface, var_t *func, var_t *arg )
+{
+    int is_interpreted = is_interpreted_func( iface, func );
+    int is_new_style = is_interpreted && get_stub_mode() == MODE_Oif;
+
+    /* emit return value data */
+    if (is_void(arg->declspec.type))
+    {
+        if (!is_new_style)
+        {
+            print_file(file, indent, "0x5b,\t/* FC_END */\n");
+            print_file(file, indent, "0x5c,\t/* FC_PAD */\n");
+            *offset += 2;
+        }
+    }
+    else
+    {
+        if (is_new_style) *offset += write_new_procformatstring_type(file, indent, arg, TRUE, &stack_offset);
+        else *offset += write_old_procformatstring_type(file, indent, arg, TRUE, is_interpreted);
+    }
+}
+
+static void init_proc_format_string_func( type_t *iface, unsigned int index, var_t *func )
+{
+    unsigned int stack_offset = is_object( iface ) ? pointer_size : 0;
+    int is_interpreted = is_interpreted_func( iface, func );
+    int is_new_style = is_interpreted && get_stub_mode() == MODE_Oif;
+    var_list_t *args;
+    var_t *arg;
+
+    if (is_interpreted)
+        write_proc_func_header( file, indent, iface, func, offset, num_proc );
+    else
+    {
+        func->proc_format_string_size = 0;
+        func->proc_format_string = NULL;
+    }
+
+    args = type_function_get_args( func->declspec.type );
+    if (args) LIST_FOR_EACH_ENTRY( arg, args, const var_t, entry )
+        init_proc_format_string_arg( iface, func, arg );
+
+    arg = type_function_get_retval( func->declspec.type )
+    init_proc_format_string_ret( iface, func, arg );
+}
+
+static void init_proc_format_string_iface( type_t *iface )
+{
+    const type_t *parent = type_iface_get_inherit( iface );
+    int count = parent ? count_methods( parent ) : 0;
+    const statement_t *stmt;
+
+    STATEMENTS_FOR_EACH_FUNC(stmt, type_iface_get_stmts(iface))
+    {
+        var_t *func = stmt->u.var;
+        if (is_local(func->attrs)) continue;
+        init_proc_format_string_func( iface, count++, func );
+    }
+}
+
+static void init_proc_format_strings( statement_list_t *stmts )
+{
+    const statement_t *stmt;
+
+    if (stmts) LIST_FOR_EACH_ENTRY( stmt, stmts, const statement_t, entry )
+    {
+        type_t *iface = stmt->u.type;
+        if (stmt->type != STMT_TYPE) continue;
+        if (type_get_type(iface) != TYPE_INTERFACE) continue;
+        init_proc_format_string_iface( iface );
+        if (!(iface = type_iface_get_async_iface( iface ))) continue;
+        init_proc_format_string_iface( iface );
+    }
+}
+
 static void write_iface_procformatstring(type_t *iface, FILE *file, int indent, unsigned int *offset)
 {
     const statement_t *stmt;
