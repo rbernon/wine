@@ -449,6 +449,7 @@ type_t *type_new_function(var_list_t *args)
     t->details.function = xmalloc(sizeof(*t->details.function));
     t->details.function->args = args;
     t->details.function->retval = make_var(xstrdup("_RetVal"));
+    t->defined = TRUE;
     return t;
 }
 
