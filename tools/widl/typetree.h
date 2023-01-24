@@ -252,40 +252,6 @@ static inline int type_is_defined(const type_t *type)
     return type->defined;
 }
 
-static inline int type_is_complete(const type_t *type)
-{
-    switch (type_get_type_detect_alias(type))
-    {
-    case TYPE_FUNCTION:
-        return (type->details.function != NULL);
-    case TYPE_INTERFACE:
-        return (type->details.iface != NULL);
-    case TYPE_ENUM:
-        return (type->details.enumeration != NULL);
-    case TYPE_UNION:
-    case TYPE_ENCAPSULATED_UNION:
-    case TYPE_STRUCT:
-        return (type->details.structure != NULL);
-    case TYPE_VOID:
-    case TYPE_BASIC:
-    case TYPE_ALIAS:
-    case TYPE_MODULE:
-    case TYPE_COCLASS:
-    case TYPE_POINTER:
-    case TYPE_ARRAY:
-    case TYPE_BITFIELD:
-    case TYPE_RUNTIMECLASS:
-    case TYPE_DELEGATE:
-        return TRUE;
-    case TYPE_APICONTRACT:
-    case TYPE_PARAMETERIZED_TYPE:
-    case TYPE_PARAMETER:
-        assert(0);
-        break;
-    }
-    return FALSE;
-}
-
 static inline int type_array_has_conformance(const type_t *type)
 {
     type = type_get_real_type(type);
