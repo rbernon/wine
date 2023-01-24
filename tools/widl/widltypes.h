@@ -187,47 +187,6 @@ enum attr_type
     ATTR_WIREMARSHAL
 };
 
-enum expr_type
-{
-    EXPR_VOID,
-    EXPR_DECL,
-    EXPR_INT,
-    EXPR_DOUBLE,
-    EXPR_IDENTIFIER,
-    EXPR_NEG,
-    EXPR_NOT,
-    EXPR_PPTR,
-    EXPR_CAST,
-    EXPR_SIZEOF,
-    EXPR_SHL,
-    EXPR_SHR,
-    EXPR_MUL,
-    EXPR_DIV,
-    EXPR_ADD,
-    EXPR_SUB,
-    EXPR_AND,
-    EXPR_OR,
-    EXPR_COND,
-    EXPR_ADDRESSOF,
-    EXPR_MEMBER,
-    EXPR_ARRAY,
-    EXPR_MOD,
-    EXPR_LOGOR,
-    EXPR_LOGAND,
-    EXPR_XOR,
-    EXPR_EQUALITY,
-    EXPR_INEQUALITY,
-    EXPR_GTR,
-    EXPR_LESS,
-    EXPR_GTREQL,
-    EXPR_LESSEQL,
-    EXPR_LOGNOT,
-    EXPR_POS,
-    EXPR_STRLIT,
-    EXPR_WSTRLIT,
-    EXPR_CHARCONST,
-};
-
 enum type_kind
 {
     TKIND_PRIMITIVE = -1,
@@ -346,30 +305,6 @@ struct _attr_t {
   /* parser-internal */
   struct list entry;
   struct location where;
-};
-
-struct integer
-{
-    int value;
-    int is_unsigned;
-    int is_long;
-    int is_hex;
-};
-
-struct _expr_t {
-  enum expr_type type;
-  union {
-    struct integer integer;
-    double dval;
-    const char *sval;
-    decl_spec_t *decl;
-    const expr_t *args[3];
-  } u;
-  int is_const;
-  int cval;
-  /* parser-internal */
-  struct list entry;
-  const char *text;
 };
 
 struct _attr_custdata_t {
