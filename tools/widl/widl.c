@@ -34,6 +34,7 @@
 #include "widl.h"
 #include "utils.h"
 #include "parser.h"
+#include "parser.tab.h"
 #include "wpp_private.h"
 #include "header.h"
 
@@ -314,16 +315,15 @@ static char *eat_space(char *s)
   return s;
 }
 
-void write_dlldata(const statement_list_t *stmts)
+void write_dlldata( const struct idl_ctx *ctx )
 {
   struct strarray filenames = empty_strarray;
   int define_proxy_delegation = 0;
   FILE *dlldata;
 
-  if (!do_dlldata || !need_proxy_file(stmts))
-    return;
+  if (!do_dlldata || !need_proxy_file( ctx->statements )) return;
 
-  define_proxy_delegation = need_proxy_delegation(stmts);
+  define_proxy_delegation = need_proxy_delegation( ctx->statements );
 
   dlldata = fopen(dlldata_name, "r");
   if (dlldata) {
@@ -415,7 +415,7 @@ static void put_id_data_stmts( const statement_list_t *stmts )
     }
 }
 
-void write_id_data(const statement_list_t *stmts)
+static void write_id_data( const struct idl_ctx *ctx )
 {
     FILE *idfile;
 
@@ -680,6 +680,7 @@ int open_typelib( const char *name )
 
 int main(int argc,char *argv[])
 {
+  struct idl_ctx ctx = {0};
   int i;
   int ret = 0;
   struct strarray files;
@@ -769,7 +770,7 @@ int main(int argc,char *argv[])
     }
     else
     {
-      input_name = xstrdup( files.str[0] );
+      ctx.input = input_name = xstrdup( files.str[0] );
       idl_name = get_basename( input_name );
     }
   }
@@ -792,25 +793,25 @@ int main(int argc,char *argv[])
                  (debuglevel & DEBUGLEVEL_PPMSG) != 0 );
 
   if (!header_name)
-      header_name = replace_extension( get_basename(input_name), ".idl", ".h" );
+      header_name = replace_extension( get_basename( ctx.input ), ".idl", ".h" );
 
   if (!typelib_name && do_typelib)
-      typelib_name = replace_extension( get_basename(input_name), ".idl", ".tlb" );
+      typelib_name = replace_extension( get_basename( ctx.input ), ".idl", ".tlb" );
 
   if (!proxy_name && do_proxies)
-      proxy_name = replace_extension( get_basename(input_name), ".idl", "_p.c" );
+      proxy_name = replace_extension( get_basename( ctx.input ), ".idl", "_p.c" );
 
   if (!client_name && do_client)
-      client_name = replace_extension( get_basename(input_name), ".idl", "_c.c" );
+      client_name = replace_extension( get_basename( ctx.input ), ".idl", "_c.c" );
 
   if (!server_name && do_server)
-      server_name = replace_extension( get_basename(input_name), ".idl", "_s.c" );
+      server_name = replace_extension( get_basename( ctx.input ), ".idl", "_s.c" );
 
   if (!regscript_name && do_regscript)
-      regscript_name = replace_extension( get_basename(input_name), ".idl", "_r.rgs" );
+      regscript_name = replace_extension( get_basename( ctx.input ), ".idl", "_r.rgs" );
 
   if (!idfile_name && do_idfile)
-      idfile_name = replace_extension( get_basename(input_name), ".idl", "_i.c" );
+      idfile_name = replace_extension( get_basename( ctx.input ), ".idl", "_i.c" );
 
   if (do_proxies) proxy_token = dup_basename_token(proxy_name,"_p.c");
   if (do_client) client_token = dup_basename_token(client_name,"_c.c");
@@ -830,6 +831,16 @@ int main(int argc,char *argv[])
   ret = parser_parse();
   close_all_inputs();
   if (ret) exit(1);
+
+  write_header( &ctx );
+  write_id_data( &ctx );
+  write_proxies( &ctx );
+  write_client( &ctx );
+  write_server( &ctx );
+  write_regscript( &ctx );
+  write_typelib_regscript( &ctx );
+  write_dlldata( &ctx );
+  write_local_stubs( &ctx );
 
   /* Everything has been done successfully, don't delete any files.  */
   set_everything(FALSE);
