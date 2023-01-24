@@ -781,6 +781,14 @@ void put_declspec( FILE *out, const decl_spec_t *declspec, const char *name )
     put_declspec_full( out, declspec, FALSE, TRUE, name, NAME_DEFAULT );
 }
 
+void put_args( FILE *out, const var_list_t *args, const char *name, int method, int do_indent, enum name_type name_type )
+{
+    fputs( (char *)output_buffer, out );
+    free( output_buffer );
+    write_args( out, args, name, method, do_indent, name_type );
+    init_output_buffer();
+}
+
 static int user_type_registered(const char *name)
 {
   user_type_t *ut;
@@ -1675,30 +1683,34 @@ static void write_parameterized_implementation(FILE *header, type_t *type, int d
     type_t *iface = type->details.parameterized.type, *base;
     char *args = NULL;
 
-    fprintf(header, "#if defined(__cplusplus) && !defined(CINTERFACE)\n");
-    write_line(header, 0, "} /* extern \"C\" */");
-    write_namespace_start(header, type->namespace);
+    init_output_buffer();
+
+    put_line( "#if defined(__cplusplus) && !defined(CINTERFACE)" );
+    put_line( "} /* extern \"C\" */" );
+    put_namespace_start( type->namespace );
 
     if (type_get_type(iface) == TYPE_DELEGATE) iface = type_delegate_get_iface(iface);
     base = type_iface_get_inherit(iface);
 
     args = format_parameterized_type_args(type, "class ", "");
-    write_line(header, 0, "template <%s>", args);
+    put_line( "template <%s>", args );
     free(args);
-    write_line(header, 0, "struct %s_impl%s", iface->name, base ? strmake(" : %s", base->name) : "");
-    write_line(header, 0, "{");
+    put_line( "struct %s_impl%s", iface->name, base ? strmake( " : %s", base->name ) : "" );
+    put_line( "{" );
 
-    write_line(header, 1, "private:");
+    put_line( "private:" );
     if (params) LIST_FOR_EACH_ENTRY(ref, params, typeref_t, entry)
     {
-        write_line(header, 0, "typedef typename Windows::Foundation::Internal::GetAbiType<%s>::type     %s_abi;", ref->type->name, ref->type->name);
-        write_line(header, 0, "typedef typename Windows::Foundation::Internal::GetLogicalType<%s>::type %s_logical;", ref->type->name, ref->type->name);
+        put_line( "typedef typename Windows::Foundation::Internal::GetAbiType<%s>::type     %s_abi;",
+                  ref->type->name, ref->type->name );
+        put_line( "typedef typename Windows::Foundation::Internal::GetLogicalType<%s>::type %s_logical;",
+                  ref->type->name, ref->type->name );
     }
     indentation -= 1;
 
-    write_line(header, 1, "public:");
-    if (params) LIST_FOR_EACH_ENTRY(ref, params, typeref_t, entry)
-        write_line(header, 0, "typedef %s %s_complex;", ref->type->name, ref->type->name);
+    put_line( "public:" );
+    if (params) LIST_FOR_EACH_ENTRY( ref, params, typeref_t, entry )
+        put_line( "typedef %s %s_complex;", ref->type->name, ref->type->name );
 
     STATEMENTS_FOR_EACH_FUNC(stmt, type_iface_get_stmts(iface))
     {
@@ -1710,18 +1722,22 @@ static void write_parameterized_implementation(FILE *header, type_t *type, int d
         if (!callconv) callconv = "STDMETHODCALLTYPE";
 
         indent(header, 1);
-        fprintf(header, "virtual ");
-        write_declspec(header, type_function_get_ret(func->declspec.type), NULL);
-        fprintf(header, " %s %s(", callconv, get_name(func));
-        write_args(header, type_function_get_args(func->declspec.type), NULL, 0, 0, NAME_DEFAULT);
-        fprintf(header, ") = 0;\n");
+        put_str( "virtual " );
+        put_declspec( header, type_function_get_ret( func->declspec.type ), NULL );
+        put_str( " %s %s(", callconv, get_name( func ) );
+        put_args( header, type_function_get_args( func->declspec.type ), NULL, 0, 0, NAME_DEFAULT );
+        put_line( ") = 0;" );
         indentation -= 1;
     }
-    write_line(header, -1, "};");
+    put_line( "};" );
 
-    write_namespace_end(header, type->namespace);
-    write_line(header, 0, "extern \"C\" {");
-    write_line(header, 0, "#endif\n");
+    put_namespace_end( type->namespace );
+    put_line( "extern \"C\" {" );
+    put_line( "#endif" );
+    put_line( "" );
+
+    fputs( (char *)output_buffer, header );
+    free( output_buffer );
 }
 
 static void put_forward_interface( const type_t *iface )
