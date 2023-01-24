@@ -525,6 +525,10 @@ struct _var_t {
   /* Should we define the UDT in this var, when writing a header? */
   unsigned int is_defined : 1;
 
+    /* for rpc client / server / proxy */
+    size_t proc_format_string_size;
+    char *proc_format_string;
+
   /* parser-internal */
   struct list entry;
 };
