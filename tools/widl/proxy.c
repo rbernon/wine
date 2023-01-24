@@ -910,26 +910,27 @@ void write_proxies( const statement_list_t *stmts )
     put_line( "" );
     put_line( "#include \"%s\"", header_name );
     put_line( "" );
+
+    if (does_any_iface(stmts, need_proxy_and_inline_stubs))
+    {
+        put_exceptions();
+        put_line( "" );
+        put_line( "struct __proxy_frame" );
+        put_line( "{" );
+        put_line( "    __DECL_EXCEPTION_FRAME" );
+        put_line( "    MIDL_STUB_MESSAGE _StubMsg;" );
+        put_line( "    void             *This;" );
+        put_line( "};" );
+        put_line( "" );
+        put_line( "static int __proxy_filter( struct __proxy_frame *__frame )" );
+        put_line( "{" );
+        put_line( "    return (__frame->_StubMsg.dwStubPhase != PROXY_SENDRECEIVE);" );
+        put_line( "}" );
+        put_line( "" );
+    }
+
     fputs( (char *)output_buffer, proxy );
     free( output_buffer );
-
-  if (does_any_iface(stmts, need_proxy_and_inline_stubs))
-  {
-      write_exceptions( proxy );
-      print_proxy( "\n");
-      print_proxy( "struct __proxy_frame\n");
-      print_proxy( "{\n");
-      print_proxy( "    __DECL_EXCEPTION_FRAME\n");
-      print_proxy( "    MIDL_STUB_MESSAGE _StubMsg;\n");
-      print_proxy( "    void             *This;\n");
-      print_proxy( "};\n");
-      print_proxy( "\n");
-      print_proxy("static int __proxy_filter( struct __proxy_frame *__frame )\n");
-      print_proxy( "{\n");
-      print_proxy( "    return (__frame->_StubMsg.dwStubPhase != PROXY_SENDRECEIVE);\n");
-      print_proxy( "}\n");
-      print_proxy( "\n");
-  }
 
   write_formatstringsdecl(proxy, indent, stmts, need_proxy);
   write_stubdescproto();

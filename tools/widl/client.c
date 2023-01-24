@@ -586,14 +586,15 @@ void write_client( const statement_list_t *stmts )
     put_line( "#define DECLSPEC_HIDDEN" );
     put_line( "#endif" );
     put_line( "" );
-    fputs( (char *)output_buffer, client );
-    free( output_buffer );
 
     if (need_inline_stubs_file( stmts ))
     {
-        write_exceptions( client );
-        print_client( "\n");
+        put_exceptions();
+        put_line( "" );
     }
+
+    fputs( (char *)output_buffer, client );
+    free( output_buffer );
 
     write_formatstringsdecl(client, indent, stmts, need_stub);
     expr_eval_routines = write_expr_eval_routines(client, client_token);

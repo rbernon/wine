@@ -86,7 +86,6 @@ void write_user_quad_list(FILE *file);
 void write_endpoints( FILE *f, const char *prefix, const str_list_t *list );
 void write_client_call_routine( FILE *file, const type_t *iface, const var_t *func,
                                 const char *prefix, unsigned int proc_offset );
-void write_exceptions( FILE *file );
 unsigned int type_memsize(const type_t *t);
 int decl_indirect(const type_t *t);
 int is_interpreted_func(const type_t *iface, const var_t *func);
@@ -101,3 +100,5 @@ unsigned char get_pointer_fc(const type_t *type, const attr_list_t *attrs, int t
 unsigned char get_struct_fc(const type_t *type);
 enum typegen_type typegen_detect_type(const type_t *type, const attr_list_t *attrs, unsigned int flags);
 unsigned int type_memsize_and_alignment(const type_t *t, unsigned int *align);
+
+void put_exceptions(void);

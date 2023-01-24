@@ -501,28 +501,29 @@ void write_server( const statement_list_t *stmts )
     put_line( "#define DECLSPEC_HIDDEN" );
     put_line( "#endif" );
     put_line( "" );
-    fputs( (char *)output_buffer, server );
-    free( output_buffer );
 
     if (need_inline_stubs_file( stmts ))
     {
-        write_exceptions( server );
-        print_server("\n");
-        print_server("struct __server_frame\n");
-        print_server("{\n");
-        print_server("    __DECL_EXCEPTION_FRAME\n");
-        print_server("    MIDL_STUB_MESSAGE _StubMsg;\n");
-        print_server("};\n");
-        print_server("\n");
-        print_server("static int __server_filter( struct __server_frame *__frame )\n");
-        print_server( "{\n");
-        print_server( "    return (__frame->code == STATUS_ACCESS_VIOLATION) ||\n");
-        print_server( "           (__frame->code == STATUS_DATATYPE_MISALIGNMENT) ||\n");
-        print_server( "           (__frame->code == RPC_X_BAD_STUB_DATA) ||\n");
-        print_server( "           (__frame->code == RPC_S_INVALID_BOUND);\n");
-        print_server( "}\n");
-        print_server( "\n");
+        put_exceptions();
+        put_line( "" );
+        put_line( "struct __server_frame" );
+        put_line( "{" );
+        put_line( "    __DECL_EXCEPTION_FRAME" );
+        put_line( "    MIDL_STUB_MESSAGE _StubMsg;" );
+        put_line( "};" );
+        put_line( "" );
+        put_line( "static int __server_filter( struct __server_frame *__frame )" );
+        put_line( "{" );
+        put_line( "    return (__frame->code == STATUS_ACCESS_VIOLATION) ||" );
+        put_line( "           (__frame->code == STATUS_DATATYPE_MISALIGNMENT) ||" );
+        put_line( "           (__frame->code == RPC_X_BAD_STUB_DATA) ||" );
+        put_line( "           (__frame->code == RPC_S_INVALID_BOUND);" );
+        put_line( "}" );
+        put_line( "" );
     }
+
+    fputs( (char *)output_buffer, server );
+    free( output_buffer );
 
     write_formatstringsdecl(server, indent, stmts, need_stub);
     expr_eval_routines = write_expr_eval_routines(server, server_token);
