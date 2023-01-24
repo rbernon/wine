@@ -51,6 +51,10 @@ static char *make_str( char *str, const char *data )
     return str;
 }
 
+static void push( struct list *stack, void *data );
+static void *pop( struct list *stack );
+static void *peek( struct list *stack );
+
 static str_list_t *append_str(str_list_t *list, char *str);
 static decl_spec_t *make_decl_spec(type_t *type, decl_spec_t *left, decl_spec_t *right,
         enum storage_class stgclass, enum type_qualifier qual, enum function_specifier func_specifier);
@@ -110,6 +114,21 @@ static struct namespace *parameters_namespace = NULL;
 static statement_list_t *parameterized_type_stmts = NULL;
 
 static typelib_t *current_typelib;
+
+static struct list declaration_stack = LIST_INIT(declaration_stack);
+static inline void push_declaration_type( decl_spec_t *declspec, attr_list_t *attrs )
+{
+    declspec->attrs = append_attribs( declspec->attrs, attrs );
+    push( &declaration_stack, declspec );
+}
+static inline decl_spec_t *pop_declaration_type(void)
+{
+    return pop( &declaration_stack );
+}
+static inline decl_spec_t *peek_declaration_type(void)
+{
+    return peek( &declaration_stack );
+}
 
 %}
 
@@ -411,7 +430,7 @@ PARSER_LTYPE pop_import(void);
 %type <attr_list> dispattributes
 %type <str> str
 %type <str_list> str_list
-%type <expr> m_expr expr expr_const expr_int_const array m_bitfield
+%type <expr> m_expr expr expr_const expr_int_const array
 %type <expr_list> m_exprs /* exprs expr_list */ expr_list_int_const
 %type <expr> contract_req
 %type <expr> static_attr
@@ -450,7 +469,7 @@ PARSER_LTYPE pop_import(void);
 %type <var> m_ident ident
 %type <declarator> declarator direct_declarator init_declarator struct_declarator
 %type <declarator> m_any_declarator any_declarator any_declarator_no_direct any_direct_declarator
-%type <declarator> m_abstract_declarator abstract_declarator abstract_declarator_no_direct abstract_direct_declarator
+%type <declarator> m_abstract_declarator abstract_declarator abstract_direct_declarator
 %type <declarator_list> declarator_list struct_declarator_list
 %type <type> coclass coclassdef
 %type <type> runtimeclass runtimeclass_def
@@ -1028,14 +1047,16 @@ fields
 	| fields field				{ $$ = append_var_list($1, $2); }
 	;
 
-field:	  m_attributes decl_spec struct_declarator_list ';'
-						{ const char *first = LIST_ENTRY(list_head($3), declarator_t, entry)->var->name;
-						  check_field_attrs(first, $1);
-						  $$ = set_var_types($1, $2, $3);
-						}
-	| m_attributes union_definition ';'	{ var_t *v = make_var(NULL);
+field
+	: m_attributes decl_spec		{ push_declaration_type( $2, check_field_attrs( NULL, $1 ) ); }
+		struct_declarator_list ';'	{ pop_declaration_type();
+						  $$ = set_var_types($1, $2, $4); }
+	| m_attributes union_definition		{ push_declaration_type( make_decl_spec( $2, NULL, NULL, STG_NONE, 0, 0 ),
+						                         check_field_attrs( NULL, $1 ) ); }
+		 ';'				{ var_t *v = make_var(NULL);
 						  v->declspec.type = $2; v->attrs = $1;
 						  $$ = append_var(NULL, v);
+						  pop_declaration_type();
 						}
 	;
 
@@ -1359,13 +1380,6 @@ abstract_declarator:
 	| abstract_direct_declarator
 	;
 
-/* abstract declarator without accepting direct declarator */
-abstract_declarator_no_direct:
-	  '*' m_type_qual_list m_any_declarator %prec PPTR
-						{ $$ = $3; append_chain_type($$, type_new_pointer(NULL), $2); }
-	| callconv m_any_declarator		{ $$ = $2; append_chain_callconv( @$, $$->type, $1 ); }
-	;
-
 /* abstract declarator or empty */
 m_abstract_declarator
 	: %empty 				{ $$ = make_declarator(NULL); }
@@ -1374,7 +1388,7 @@ m_abstract_declarator
 
 /* abstract direct declarator */
 abstract_direct_declarator:
-	  '(' abstract_declarator_no_direct ')'	{ $$ = $2; }
+	  '(' any_declarator_no_direct ')'	{ $$ = $2; }
 	| abstract_direct_declarator array	{ $$ = $1; append_array($$, $2); }
 	| array					{ $$ = make_declarator(NULL); append_array($$, $1); }
 	| '(' m_args ')'
@@ -1388,10 +1402,8 @@ abstract_direct_declarator:
 	;
 
 /* abstract or non-abstract declarator */
-any_declarator:
-	  '*' m_type_qual_list m_any_declarator %prec PPTR
-						{ $$ = $3; append_chain_type($$, type_new_pointer(NULL), $2); }
-	| callconv m_any_declarator		{ $$ = $2; append_chain_callconv( @$, $$->type, $1 ); }
+any_declarator
+	: any_declarator_no_direct
 	| any_direct_declarator
 	;
 
@@ -1431,12 +1443,9 @@ declarator_list:
 	| declarator_list ',' declarator	{ $$ = append_declarator( $1, $3 ); }
 	;
 
-m_bitfield
-	: %empty				{ $$ = NULL; }
-	| ':' expr_const			{ $$ = $2; }
-	;
-
-struct_declarator: any_declarator m_bitfield	{ $$ = $1; $$->bits = $2;
+struct_declarator
+	: any_declarator
+	| ident ':' expr_const			{ $$ = make_declarator($1); $$->bits = $3;
 						  if (!$$->bits && !$$->var->name)
 						    error_loc("unnamed fields are not allowed\n");
 						}
@@ -1491,14 +1500,14 @@ type:
 	;
 
 type_definition
-        : m_attributes[attrs] tTYPEDEF
-          m_attributes[attrs_decl] decl_spec[decl]
-          declarator_list[types]                {
-                                                    $attrs = append_attribs( $attrs, $attrs_decl );
-                                                    reg_typedefs( @$, $decl, $types, check_typedef_attrs( $attrs ) );
-                                                    $$ = make_statement_typedef( $types, $decl->type->defined && !$decl->type->defined_in_import );
-                                                }
-        ;
+	: m_attributes[attrs] tTYPEDEF
+	  m_attributes[attrs_decl] 		{ $attrs = check_typedef_attrs( append_attribs( $attrs, $attrs_decl ) ); }
+	  decl_spec[decl] 			{ push_declaration_type( $decl, $attrs ); }
+	  declarator_list[types] 		{ pop_declaration_type(); }
+						{ reg_typedefs( @$, $decl, $types, $attrs );
+						  $$ = make_statement_typedef( $types, $decl->type->defined && !$decl->type->defined_in_import );
+						}
+	;
 
 union_definition
         : tUNION m_typename[name]
@@ -1578,6 +1587,42 @@ allocate_option
 	;
 
 %%
+
+struct entry
+{
+    struct list entry;
+    void *data;
+};
+
+static void push( struct list *stack, void *data )
+{
+    struct entry *entry;
+    entry = xmalloc( sizeof(*entry) );
+    entry->data = data;
+    list_add_tail( stack, &entry->entry );
+}
+
+static void *pop( struct list *stack )
+{
+    struct list *ptr = list_tail( stack );
+    struct entry *entry;
+    void *data;
+
+    assert( !!ptr );
+    entry = LIST_ENTRY( ptr, struct entry, entry );
+    data = entry->data;
+    list_remove( &entry->entry );
+
+    free( entry );
+    return data;
+}
+
+static void *peek( struct list *stack )
+{
+    struct list *ptr = list_tail( stack );
+    assert( !!ptr );
+    return LIST_ENTRY( ptr, struct entry, entry )->data;
+}
 
 static void decl_builtin_basic(const char *name, enum type_basic_type type)
 {
@@ -1722,12 +1767,12 @@ void clear_all_offsets(void)
 
 static void type_function_add_head_arg(type_t *type, var_t *arg)
 {
-    if (!type->details.function->args)
+    if (!type->details.function.args)
     {
-        type->details.function->args = xmalloc( sizeof(*type->details.function->args) );
-        list_init( type->details.function->args );
+        type->details.function.args = xmalloc( sizeof(*type->details.function.args) );
+        list_init( type->details.function.args );
     }
-    list_add_head( type->details.function->args, &arg->entry );
+    list_add_head( type->details.function.args, &arg->entry );
 }
 
 static int is_allowed_range_type(const type_t *type)
@@ -1805,8 +1850,8 @@ static void append_chain_type(declarator_t *decl, type_t *type, enum type_qualif
     }
     else if (is_func(chain_type))
     {
-        chain_type->details.function->retval->declspec.type = type;
-        chain_type->details.function->retval->declspec.qualifier = qual;
+        chain_type->details.function.retval->declspec.type = type;
+        chain_type->details.function.retval->declspec.qualifier = qual;
     }
     else
         assert(0);
@@ -2646,8 +2691,7 @@ static void check_field_common(const type_t *container_type,
             break;
         case TGT_ENUM:
             type = type_get_real_type(type);
-            if (!type_is_complete(type))
-                error_at( &arg->where, "undefined type declaration \"enum %s\"\n", type->name );
+            if (!type_is_defined( type )) error_at( &arg->loc_info, "undefined type declaration \"enum %s\"\n", type->name );
         case TGT_USER_TYPE:
         case TGT_IFACE_POINTER:
         case TGT_BASIC:
@@ -2672,17 +2716,13 @@ static void check_remoting_fields(const var_t *var, type_t *type)
 
     if (type_get_type(type) == TYPE_STRUCT)
     {
-        if (type_is_complete(type))
-            fields = type_struct_get_fields(type);
-        else
-            error_at( &var->where, "undefined type declaration \"struct %s\"\n", type->name );
+        if (!type_is_defined(type)) error_at( &var->loc_info, "undefined type declaration \"struct %s\"\n", type->name );
+        fields = type_struct_get_fields(type);
     }
     else if (type_get_type(type) == TYPE_UNION || type_get_type(type) == TYPE_ENCAPSULATED_UNION)
     {
-        if (type_is_complete(type))
-            fields = type_union_get_cases(type);
-        else
-            error_at( &var->where, "undefined type declaration \"union %s\"\n", type->name );
+        if (!type_is_defined(type)) error_at( &var->loc_info, "undefined type declaration \"union %s\"\n", type->name );
+        fields = type_union_get_cases(type);
     }
 
     if (fields) LIST_FOR_EACH_ENTRY( field, fields, const var_t, entry )
@@ -2874,18 +2914,18 @@ static void check_async_uuid(type_t *iface)
         begin_func = copy_var(func, strmake("Begin_%s", func->name), NULL);
         begin_func->declspec.type = type_new_function(begin_args);
         begin_func->declspec.type->attrs = func->attrs;
-        begin_func->declspec.type->details.function->retval = func->declspec.type->details.function->retval;
+        begin_func->declspec.type->details.function.retval = func->declspec.type->details.function.retval;
         stmts = append_statement(stmts, make_statement_declaration(begin_func));
 
         finish_func = copy_var(func, strmake("Finish_%s", func->name), NULL);
         finish_func->declspec.type = type_new_function(finish_args);
         finish_func->declspec.type->attrs = func->attrs;
-        finish_func->declspec.type->details.function->retval = func->declspec.type->details.function->retval;
+        finish_func->declspec.type->details.function.retval = func->declspec.type->details.function.retval;
         stmts = append_statement(stmts, make_statement_declaration(finish_func));
     }
 
     type_interface_define(async_iface, map_attrs(iface->attrs, async_iface_attrs), inherit, stmts, NULL, &iface->where);
-    iface->details.iface->async_iface = async_iface->details.iface->async_iface = async_iface;
+    iface->details.iface.async_iface = async_iface->details.iface.async_iface = async_iface;
 }
 
 static statement_list_t *append_parameterized_type_stmts(statement_list_t *stmts)
