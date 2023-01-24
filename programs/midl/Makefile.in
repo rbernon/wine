@@ -12,9 +12,3 @@ C_SRCS = \
 
 RC_SRCS = \
 	midl.rc
-
-LEX_SRCS = \
-	idl.l
-
-BISON_SRCS = \
-	idl.y
