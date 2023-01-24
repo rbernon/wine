@@ -323,7 +323,9 @@ PARSER_LTYPE pop_import(void);
 %type <type> module moduledef
 %type <str_list> namespacedef
 %type <type> base_type int_std
-%type <type> enumdef structdef uniondef typedecl
+%type <type> enumdef structdef
+%type <type> union_definition
+%type <type> typedecl
 %type <type> type unqualified_type qualified_type
 %type <type> type_parameter
 %type <typeref_list> type_parameters
@@ -493,11 +495,11 @@ typedecl:
 	| tENUM typename                        { $$ = type_new_enum($2, current_namespace, FALSE, NULL, &@$); }
 	| structdef
 	| tSTRUCT typename                      { $$ = type_new_struct($2, current_namespace, FALSE, NULL, &@$); }
-	| uniondef
+	| union_definition
 	| tUNION typename                       { $$ = type_new_nonencapsulated_union($2, current_namespace, FALSE, NULL, &@$); }
 	| attributes enumdef                    { $$ = $2; $$->attrs = check_enum_attrs($1); }
 	| attributes structdef                  { $$ = $2; $$->attrs = check_struct_attrs($1); }
-	| attributes uniondef                   { $$ = $2; $$->attrs = check_union_attrs($1); }
+	| attributes union_definition           { $$ = $2; $$->attrs = check_union_attrs($1); }
 	;
 
 cppquote: tCPPQUOTE '(' str ')'                 { $$ = $str; }
@@ -922,7 +924,7 @@ field:	  m_attributes decl_spec struct_declarator_list ';'
 						  check_field_attrs(first, $1);
 						  $$ = set_var_types($1, $2, $3);
 						}
-	| m_attributes uniondef ';'		{ var_t *v = make_var(NULL);
+	| m_attributes union_definition ';'	{ var_t *v = make_var(NULL);
 						  v->declspec.type = $2; v->attrs = $1;
 						  $$ = append_var(NULL, v);
 						}
@@ -1367,7 +1369,7 @@ unqualified_type:
         | tENUM typename                        { $$ = type_new_enum($2, current_namespace, FALSE, NULL, &@$); }
         | structdef                             { $$ = $1; }
         | tSTRUCT typename                      { $$ = type_new_struct($2, current_namespace, FALSE, NULL, &@$); }
-        | uniondef                              { $$ = $1; }
+	| union_definition			{ $$ = $1; }
         | tUNION typename                       { $$ = type_new_nonencapsulated_union($2, current_namespace, FALSE, NULL, &@$); }
         | tSAFEARRAY '(' type ')'               { $$ = make_safearray($3); }
         | aKNOWNTYPE                            { $$ = find_type_or_error(current_namespace, $1); }
@@ -1386,12 +1388,15 @@ typedef: m_attributes tTYPEDEF m_attributes decl_spec declarator_list
 						}
 	;
 
-uniondef: tUNION m_typename '{' ne_union_fields '}'
-						{ $$ = type_new_nonencapsulated_union($2, current_namespace, TRUE, $4, &@2); }
-	| tUNION m_typename
-	  tSWITCH '(' s_field ')'
-	  m_ident '{' cases '}'			{ $$ = type_new_encapsulated_union($2, $5, $7, $9, &@2); }
-	;
+union_definition
+        : tUNION m_typename[name]
+          '{' ne_union_fields[fields] '}'       { $$ = type_new_nonencapsulated_union( $name, current_namespace, TRUE, $fields, &@name ); }
+
+        | tUNION m_typename[name]
+          tSWITCH '(' s_field[switch] ')'
+          m_ident[field] '{' cases '}'          { $$ = type_new_encapsulated_union( $name, $switch, $field, $cases, &@name ); }
+
+        ;
 
 version:
 	  aNUM					{ $$ = MAKEVERSION($1.value, 0); }
