@@ -4,4 +4,5 @@ IMPORTS   = mf mfplat dmoguids mfuuid strmiids uuid wmcodecdspuuid ole32 user32 
 SOURCES = \
 	mf.c \
 	resource.rc \
-	transform.c
+	transform.c \
+	mock.idl
