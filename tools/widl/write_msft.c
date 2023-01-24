@@ -2417,7 +2417,8 @@ static void add_module_typeinfo(msft_typelib_t *typelib, type_t *module)
     msft_typeinfo = create_msft_typeinfo(typelib, TKIND_MODULE, module->name, module->attrs);
     msft_typeinfo->typeinfo->typekind |= 0x0a00;
 
-    STATEMENTS_FOR_EACH_FUNC( stmt, module->details.module->stmts ) {
+    STATEMENTS_FOR_EACH_FUNC( stmt, module->details.module.stmts )
+    {
         var_t *func = stmt->u.var;
         if(add_func_desc(msft_typeinfo, func, idx))
             idx++;
