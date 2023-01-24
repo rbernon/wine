@@ -1530,28 +1530,31 @@ static void write_c_disp_method_def(FILE *header, const type_t *iface)
 
 static void write_method_proto(FILE *header, const type_t *iface)
 {
-  const statement_t *stmt;
+    const statement_t *stmt;
 
-  STATEMENTS_FOR_EACH_FUNC(stmt, type_iface_get_stmts(iface))
-  {
-    const var_t *func = stmt->u.var;
+    STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts( iface ) )
+    {
+        const var_t *func = stmt->u.var;
+        const char *callconv;
 
-    if (is_callas(func->attrs)) {
-      const char *callconv = get_attrp(func->declspec.type->attrs, ATTR_CALLCONV);
-      if (!callconv) callconv = "STDMETHODCALLTYPE";
-      /* proxy prototype */
-      write_declspec(header, type_function_get_ret(func->declspec.type), NULL);
-      fprintf(header, " %s %s_%s_Proxy(\n", callconv, iface->name, get_name(func));
-      write_args(header, type_function_get_args(func->declspec.type), iface->name, 1, TRUE, NAME_DEFAULT);
-      fprintf(header, ");\n");
-      /* stub prototype */
-      fprintf(header, "void __RPC_STUB %s_%s_Stub(\n", iface->name, get_name(func));
-      fprintf(header, "    IRpcStubBuffer* This,\n");
-      fprintf(header, "    IRpcChannelBuffer* pRpcChannelBuffer,\n");
-      fprintf(header, "    PRPC_MESSAGE pRpcMessage,\n");
-      fprintf(header, "    DWORD* pdwStubPhase);\n");
+        if (!is_callas( func->attrs )) continue;
+
+        callconv = get_attrp( func->declspec.type->attrs, ATTR_CALLCONV );
+        if (!callconv) callconv = "STDMETHODCALLTYPE";
+
+        /* proxy prototype */
+        write_declspec( header, type_function_get_ret( func->declspec.type ), NULL );
+        fprintf( header, " %s %s_%s_Proxy(\n", callconv, iface->name, get_name( func ) );
+        write_args( header, type_function_get_args( func->declspec.type ), iface->name, 1, TRUE, NAME_DEFAULT );
+        fprintf( header, ");\n" );
+
+        /* stub prototype */
+        fprintf( header, "void __RPC_STUB %s_%s_Stub(\n", iface->name, get_name( func ) );
+        fprintf( header, "    IRpcStubBuffer* This,\n" );
+        fprintf( header, "    IRpcChannelBuffer* pRpcChannelBuffer,\n" );
+        fprintf( header, "    PRPC_MESSAGE pRpcMessage,\n" );
+        fprintf( header, "    DWORD* pdwStubPhase);\n" );
     }
-  }
 }
 
 static void write_locals(FILE *fp, const type_t *iface, int body)
