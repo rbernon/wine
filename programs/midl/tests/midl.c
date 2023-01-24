@@ -88,6 +88,7 @@ enum midl_flags
 {
     MIDL_VERBOSE = 1,
     MIDL_VERSION = 2,
+    MIDL_WERROR = 4,
 };
 
 static DWORD run_midl( const WCHAR *args, const WCHAR *cwd, enum midl_flags flags )
@@ -131,6 +132,7 @@ static DWORD check_idl( const char *source, enum midl_flags flags )
 
     swprintf( args, ARRAY_SIZE(args), L"main.idl -nocpp -syntax_check" );
     if (!(flags & MIDL_VERSION)) wcscat( args, L" -nologo" );
+    if (flags & MIDL_WERROR) wcscat( args, L" -W4 -WX" );
 
     res = run_midl( args, cwd, flags );
 
@@ -188,7 +190,7 @@ static void test_idl_parsing(void)
 
     /* check basic success */
     src = "interface I;";
-    res = check_idl( src, MIDL_VERBOSE | MIDL_VERSION );
+    res = check_idl( src, MIDL_WERROR | MIDL_VERBOSE | MIDL_VERSION );
     todo_wine
     ok( !res, "MIDL failed, error %#lx\n", res );
 
@@ -202,16 +204,35 @@ static void test_idl_parsing(void)
           "[local]interface I2 {};\n"
           "[uuid(00000000-0000-0000-0000-000000000000)]coclass C1{interface I1;interface I2;};\n"
           "[uuid(00000000-0000-0000-0000-000000000001)]coclass C2{interface I1;interface I2;}\n";
-    res = check_idl( src, 0 );
+    res = check_idl( src, MIDL_WERROR );
     todo_wine
     ok( !res, "MIDL failed, error %#lx\n", res );
 
     /* attribute syntax is flexible */
     src = "[hidden,][,][,,local,][,,][,helpstring(\"\")]"
           "interface I{}";
+    res = check_idl( src, MIDL_WERROR );
+    ok( !res, "MIDL failed, error %#lx\n", res );
+
+    /* allowed but ignored on forward definitions */
+    src = "[local][local]interface I{}";
+    res = check_idl( src, MIDL_WERROR );
+    todo_wine
+    ok( res, "MIDL succeeded\n" );
+    src = "[local][local]interface I;";
+    res = check_idl( src, MIDL_WERROR );
+    todo_wine
+    ok( !res, "MIDL failed, error %#lx\n", res );
+
+    /* warning: object needs IUnknown */
+    src = "[uuid(00000000-0000-0000-0000-000000000000),object]\n"
+          "interface I{}\n";
     res = check_idl( src, 0 );
     todo_wine
     ok( !res, "MIDL failed, error %#lx\n", res );
+    res = check_idl( src, MIDL_WERROR );
+    todo_wine
+    ok( res, "MIDL succeeded\n" );
 
     /* needs a unique uuid */
     src = "[uuid(00000000-0000-0000-0000-000000000000),object]\n"
