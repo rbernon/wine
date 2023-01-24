@@ -51,6 +51,10 @@ static char *make_str( char *str, const char *data )
     return str;
 }
 
+static void push( struct list *stack, void *data );
+static void *pop( struct list *stack );
+static void *peek( struct list *stack );
+
 static str_list_t *append_str(str_list_t *list, char *str);
 static decl_spec_t *make_decl_spec(type_t *type, decl_spec_t *left, decl_spec_t *right,
         enum storage_class stgclass, enum type_qualifier qual, enum function_specifier func_specifier);
@@ -110,6 +114,21 @@ static struct namespace *parameters_namespace = NULL;
 static statement_list_t *parameterized_type_stmts = NULL;
 
 static typelib_t *current_typelib;
+
+static struct list declaration_stack = LIST_INIT(declaration_stack);
+static inline void push_declaration_type( decl_spec_t *declspec, attr_list_t *attrs )
+{
+    declspec->attrs = append_attribs( declspec->attrs, attrs );
+    push( &declaration_stack, declspec );
+}
+static inline decl_spec_t *pop_declaration_type(void)
+{
+    return pop( &declaration_stack );
+}
+static inline decl_spec_t *peek_declaration_type(void)
+{
+    return peek( &declaration_stack );
+}
 
 %}
 
@@ -1028,14 +1047,16 @@ fields
 	| fields field				{ $$ = append_var_list($1, $2); }
 	;
 
-field:	  m_attributes decl_spec struct_declarator_list ';'
-						{ const char *first = LIST_ENTRY(list_head($3), declarator_t, entry)->var->name;
-						  check_field_attrs(first, $1);
-						  $$ = set_var_types($1, $2, $3);
-						}
-	| m_attributes union_definition ';'	{ var_t *v = make_var(NULL);
+field
+	: m_attributes decl_spec		{ push_declaration_type( $2, check_field_attrs( NULL, $1 ) ); }
+		struct_declarator_list ';'	{ pop_declaration_type();
+						  $$ = set_var_types($1, $2, $4); }
+	| m_attributes union_definition		{ push_declaration_type( make_decl_spec( $2, NULL, NULL, STG_NONE, 0, 0 ),
+						                         check_field_attrs( NULL, $1 ) ); }
+		 ';'				{ var_t *v = make_var(NULL);
 						  v->declspec.type = $2; v->attrs = $1;
 						  $$ = append_var(NULL, v);
+						  pop_declaration_type();
 						}
 	;
 
@@ -1479,14 +1500,14 @@ type:
 	;
 
 type_definition
-        : m_attributes[attrs] tTYPEDEF
-          m_attributes[attrs_decl] decl_spec[decl]
-          declarator_list[types]                {
-                                                    $attrs = append_attribs( $attrs, $attrs_decl );
-                                                    reg_typedefs( @$, $decl, $types, check_typedef_attrs( $attrs ) );
-                                                    $$ = make_statement_typedef( $types, $decl->type->defined && !$decl->type->defined_in_import );
-                                                }
-        ;
+	: m_attributes[attrs] tTYPEDEF
+	  m_attributes[attrs_decl] 		{ $attrs = check_typedef_attrs( append_attribs( $attrs, $attrs_decl ) ); }
+	  decl_spec[decl] 			{ push_declaration_type( $decl, $attrs ); }
+	  declarator_list[types] 		{ pop_declaration_type(); }
+						{ reg_typedefs( @$, $decl, $types, $attrs );
+						  $$ = make_statement_typedef( $types, $decl->type->defined && !$decl->type->defined_in_import );
+						}
+	;
 
 union_definition
         : tUNION m_typename[name]
@@ -1566,6 +1587,42 @@ allocate_option
 	;
 
 %%
+
+struct entry
+{
+    struct list entry;
+    void *data;
+};
+
+static void push( struct list *stack, void *data )
+{
+    struct entry *entry;
+    entry = xmalloc( sizeof(*entry) );
+    entry->data = data;
+    list_add_tail( stack, &entry->entry );
+}
+
+static void *pop( struct list *stack )
+{
+    struct list *ptr = list_tail( stack );
+    struct entry *entry;
+    void *data;
+
+    assert( !!ptr );
+    entry = LIST_ENTRY( ptr, struct entry, entry );
+    data = entry->data;
+    list_remove( &entry->entry );
+
+    free( entry );
+    return data;
+}
+
+static void *peek( struct list *stack )
+{
+    struct list *ptr = list_tail( stack );
+    assert( !!ptr );
+    return LIST_ENTRY( ptr, struct entry, entry )->data;
+}
 
 static void decl_builtin_basic(const char *name, enum type_basic_type type)
 {
