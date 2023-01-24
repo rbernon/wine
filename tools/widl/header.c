@@ -701,7 +701,7 @@ void check_for_additional_prototype_types(type_t *type)
        * using a wire marshaled type */
       break;
     }
-    else if (type_is_complete(type))
+    else if (type_is_defined(type))
     {
       var_list_t *vars;
       const var_t *v;
