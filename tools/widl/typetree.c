@@ -547,8 +547,7 @@ type_t *type_new_enum(const char *name, struct namespace *namespace,
 
     if (defined)
     {
-        t->details.enumeration = xmalloc(sizeof(*t->details.enumeration));
-        t->details.enumeration->enums = enums;
+        t->details.enumeration.enums = enums;
         define_type(t, where);
     }
 
