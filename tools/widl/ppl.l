@@ -111,10 +111,6 @@
  *
  */
 
-%top{
-#include "config.h"
-}
-
 /*
  * Special flex options and exclusive scanner start-conditions
  */
