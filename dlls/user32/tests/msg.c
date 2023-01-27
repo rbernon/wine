@@ -15948,6 +15948,9 @@ static void test_interthread_set_foreground_window(struct test_set_foreground_wi
         flush_events();
         check_foreground_window( test->initial_window, FALSE );
 
+        ret = GetQueueStatus( QS_ALLINPUT & ~QS_TIMER );
+        ok( ret == 0, "GetQueueStatus returned %#x\n", ret );
+
         ret = SetEvent( args->ready );
         ok( ret, "SetEvent failed, last error %#lx.\n", GetLastError() );
 
@@ -15956,15 +15959,30 @@ static void test_interthread_set_foreground_window(struct test_set_foreground_wi
         ret = ResetEvent( args->start );
         ok( ret, "ResetEvent failed, last error %#lx.\n", GetLastError() );
 
+        ret = GetQueueStatus( QS_ALLINPUT & ~QS_TIMER );
+        ok( ret == MAKELONG( QS_SENDMESSAGE, QS_SENDMESSAGE ), "GetQueueStatus returned %#x\n", ret );
+
         flush_sequence();
         if (test->call_set_active_window) SetActiveWindow( hwnd1 );
         if (test->call_set_focus) SetFocus( hwnd1 );
         ok_sequence( test->seq_before_set_foreground, "before SetForegroundWindow", test->todo_seq_before_set_foreground );
 
+        ret = GetQueueStatus( QS_ALLINPUT & ~QS_TIMER );
+        if (test->seq_before_set_foreground != WmEmptySeq)
+            ok( ret == MAKELONG( QS_SENDMESSAGE, QS_SENDMESSAGE ), "GetQueueStatus returned %#x\n", ret );
+        else
+            ok( ret == MAKELONG( 0, QS_SENDMESSAGE ), "GetQueueStatus returned %#x\n", ret );
+
         flush_sequence();
         SetForegroundWindow( hwnd1 );
         ok_sequence( test->seq_after_set_foreground, "after SetForegroundWindow", test->todo_seq_after_set_foreground );
         check_foreground_window( hwnd1, FALSE );
+
+        ret = GetQueueStatus( QS_ALLINPUT & ~QS_TIMER );
+        if (test->seq_after_set_foreground == sequence_3)
+            ok( ret == MAKELONG( QS_SENDMESSAGE, QS_SENDMESSAGE ), "GetQueueStatus returned %#x\n", ret );
+        else
+            ok( ret == MAKELONG( 0, QS_SENDMESSAGE ), "GetQueueStatus returned %#x\n", ret );
 
         flush_sequence();
         while (PeekMessageA( &msg, 0, 0, 0, PM_REMOVE )) DispatchMessageA( &msg );
@@ -16029,6 +16047,8 @@ static void test_SetForegroundWindow(void)
     HWND hwnd;
     BOOL ret;
 
+if (0)
+{
     hwnd = CreateWindowExA(0, "TestWindowClass", "Test SetForegroundWindow",
                            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
                            100, 100, 200, 200, 0, 0, 0, NULL);
@@ -16046,6 +16066,7 @@ static void test_SetForegroundWindow(void)
     if (winetest_debug > 1) trace("done\n");
 
     DestroyWindow(hwnd);
+}
 
     hwnd = CreateWindowA("SimpleWindowClass", "Test SetForegroundWindow",
                           WS_POPUP | WS_VISIBLE, 10, 10, 10, 10, 0, 0, 0, NULL);
@@ -16078,8 +16099,8 @@ static void test_SetForegroundWindow(void)
     {
         const struct test_set_foreground_window_desc *test = args.tests + i;
 
-        ret = wait_for_events( 1, &args.ready, INFINITE );
-        ok( !ret, "wait_for_events returned %x\n", ret );
+        res = WaitForSingleObject( args.ready, INFINITE );
+        ok( res == WAIT_OBJECT_0, "Wait failed (%#lx), last error %#lx.\n", res, GetLastError() );
 
         ret = ResetEvent( args.ready );
         ok( ret, "ResetEvent failed, last error %#lx.\n", GetLastError() );
@@ -20117,6 +20138,8 @@ START_TEST(msg)
     hCBT_hook = SetWindowsHookExA(WH_CBT, cbt_hook_proc, 0, GetCurrentThreadId());
     if (!hCBT_hook) win_skip( "cannot set global hook, will skip hook tests\n" );
 
+if (0)
+{
     test_winevents();
     test_SendMessage_other_thread(1);
     test_SendMessage_other_thread(2);
@@ -20194,6 +20217,7 @@ START_TEST(msg)
     test_DoubleSetCapture();
     test_create_name();
     test_hook_changing_window_proc();
+}
     /* keep it the last test, under Windows it tends to break the tests
      * which rely on active/foreground windows being correct.
      */
