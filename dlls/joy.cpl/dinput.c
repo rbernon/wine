@@ -195,7 +195,7 @@ static void clear_effects(void)
     }
 }
 
-static void set_selected_device( IDirectInputDevice8W *device )
+static void set_selected_device( HWND hwnd, IDirectInputDevice8W *device )
 {
     IDirectInputDevice8W *previous;
 
@@ -211,6 +211,7 @@ static void set_selected_device( IDirectInputDevice8W *device )
     if ((device_selected = device))
     {
         IDirectInputDevice8_AddRef( device );
+        IDirectInputDevice8_SetCooperativeLevel( device, GetAncestor( hwnd, GA_ROOT ), DISCL_FOREGROUND | DISCL_NONEXCLUSIVE );
         IDirectInputDevice8_SetEventNotification( device, state_event );
         IDirectInputDevice8_Acquire( device );
     }
@@ -251,7 +252,7 @@ static void clear_devices(void)
 {
     struct device *entry, *next;
 
-    set_selected_device( NULL );
+    set_selected_device( 0, NULL );
 
     LIST_FOR_EACH_ENTRY_SAFE( entry, next, &devices, struct device, entry )
     {
@@ -643,7 +644,7 @@ static void handle_di_effects_change( HWND hwnd )
     if ((device = get_selected_device()))
     {
         IDirectInputDevice8_Unacquire( device );
-        IDirectInputDevice8_SetCooperativeLevel( device, GetAncestor( hwnd, GA_ROOT ), DISCL_BACKGROUND | DISCL_EXCLUSIVE );
+        IDirectInputDevice8_SetCooperativeLevel( device, GetAncestor( hwnd, GA_ROOT ), DISCL_FOREGROUND | DISCL_EXCLUSIVE );
         IDirectInputDevice8_Acquire( device );
         IDirectInputDevice8_Release( device );
     }
@@ -694,7 +695,7 @@ static void handle_di_devices_change( HWND hwnd )
     struct list *entry;
     int i;
 
-    set_selected_device( NULL );
+    set_selected_device( 0, NULL );
 
     i = SendDlgItemMessageW( hwnd, IDC_DI_DEVICES, CB_GETCURSEL, 0, 0 );
     if (i < 0) return;
@@ -706,7 +707,7 @@ static void handle_di_devices_change( HWND hwnd )
     device = LIST_ENTRY( entry, struct device, entry )->device;
     if (FAILED(IDirectInputDevice8_GetCapabilities( device, &caps ))) return;
 
-    set_selected_device( device );
+    set_selected_device( hwnd, device );
     update_di_effects( hwnd, device );
 }
 
