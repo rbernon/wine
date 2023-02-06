@@ -718,7 +718,7 @@ static void update_di_devices( HWND hwnd )
     clear_devices();
 
     DirectInput8Create( GetModuleHandleW( NULL ), DIRECTINPUT_VERSION, &IID_IDirectInput8W, (void **)&dinput, NULL );
-    IDirectInput8_EnumDevices( dinput, DI8DEVCLASS_GAMECTRL, enum_devices, dinput, DIEDFL_ATTACHEDONLY );
+    IDirectInput8_EnumDevices( dinput, DI8DEVCLASS_ALL, enum_devices, dinput, DIEDFL_ATTACHEDONLY );
     IDirectInput8_Release( dinput );
 
     SendDlgItemMessageW( hwnd, IDC_DI_DEVICES, CB_RESETCONTENT, 0, 0 );
