@@ -215,12 +215,6 @@ failed:
     return hr;
 }
 
-static HRESULT keyboard_poll( IDirectInputDevice8W *iface )
-{
-    check_dinput_events();
-    return DI_OK;
-}
-
 static HRESULT keyboard_acquire( IDirectInputDevice8W *iface )
 {
     return DI_OK;
@@ -299,7 +293,7 @@ static HRESULT keyboard_get_property( IDirectInputDevice8W *iface, DWORD propert
 static const struct dinput_device_vtbl keyboard_vtbl =
 {
     NULL,
-    keyboard_poll,
+    NULL,
     NULL,
     keyboard_acquire,
     keyboard_unacquire,
