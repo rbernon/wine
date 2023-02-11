@@ -678,6 +678,11 @@ static void init_visuals( Display *display, int screen )
            default_visual.visualid, default_visual.class, argb_visual.visualid );
 }
 
+static int x11drv_after_function( Display *display )
+{
+    return 0;
+}
+
 /***********************************************************************
  *           X11DRV process initialisation routine
  */
@@ -728,6 +733,7 @@ static NTSTATUS x11drv_init( void *arg )
     init_win_context();
 
     if (TRACE_ON(synchronous)) XSynchronize( display, True );
+    else XSetAfterFunction( display, x11drv_after_function );
 
     xinerama_init( DisplayWidth( display, default_visual.screen ),
                    DisplayHeight( display, default_visual.screen ));
@@ -824,6 +830,7 @@ struct x11drv_thread_data *x11drv_init_thread_data(void)
     XkbUseExtension( data->display, NULL, NULL );
     XkbSetDetectableAutoRepeat( data->display, True, NULL );
     if (TRACE_ON(synchronous)) XSynchronize( data->display, True );
+    else XSetAfterFunction( data->display, x11drv_after_function );
 
     set_queue_display_fd( data->display );
     NtUserGetThreadInfo()->driver_data = (UINT_PTR)data;
