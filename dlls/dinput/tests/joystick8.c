@@ -5596,14 +5596,41 @@ static BOOL test_rawbuffer;
 
 static LRESULT CALLBACK rawinput_wndproc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
 {
+    INPUT_MESSAGE_SOURCE source;
+    DWORD ret;
+
     if (msg == WM_INPUT_DEVICE_CHANGE)
     {
+        DWORD flags = InSendMessageEx( 0 );
+        LPARAM info;
+        ok( flags == 0xdeadbeef, "got WM_INPUT_DEVICE_CHANGE flags %#lx\n", flags );
+        info = GetMessageExtraInfo();
+        ok( info == 0xdeadbeef, "got info %#Ix\n", info );
+        ret = GetCurrentInputMessageSource( &source );
+        ok( ret, "GetCurrentInputMessageSource failed\n" );
+        ok( source.deviceType == 0, "got deviceType %u\n", source.deviceType );
+        ok( source.originId == 0, "got originId %u\n", source.originId );
         if (wparam == GIDC_ARRIVAL) ReleaseSemaphore( rawinput_device_added, 1, NULL );
         else ReleaseSemaphore( rawinput_device_removed, 1, NULL );
     }
     if (msg == WM_INPUT)
     {
         UINT size = rawbuffer_size, i = rawinput_calls++;
+
+        RAWINPUT *rawinput = (RAWINPUT *)rawbuffer;
+        rawinput_len = GetRawInputData( (HRAWINPUT)lparam, RID_INPUT, rawinput,
+
+        DWORD flags = InSendMessageEx( 0 );
+        LPARAM info;
+        ok( flags == 0xdeadbeef, "got WM_INPUT flags %#lx\n", flags );
+        info = GetMessageExtraInfo();
+        ok( info == 0xdeadbeef, "got info %#Ix\n", info );
+        ret = GetCurrentInputMessageSource( &source );
+        ok( ret, "GetCurrentInputMessageSource failed\n" );
+        ok( source.deviceType == 0, "got deviceType %u\n", source.deviceType );
+        ok( source.originId == 0, "got originId %u\n", source.originId );
+        wm_input_len = GetRawInputData( (HRAWINPUT)lparam, RID_INPUT, (RAWINPUT *)wm_input_buf,
+                                        &size, sizeof(RAWINPUTHEADER) );
 
         if (test_rawbuffer)
         {

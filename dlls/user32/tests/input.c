@@ -2234,6 +2234,7 @@ static LRESULT CALLBACK rawinputbuffer_wndproc(HWND hwnd, UINT msg, WPARAM wpara
         RAWINPUT rawinput = {{0}};
 
         winetest_push_context( "%u", iteration );
+        ok_ret( 0xdeadbeef, InSendMessageEx( 0 ) );
 
         if (is_wow64) rawinput_size = sizeof(RAWINPUTHEADER64) + sizeof(RAWKEYBOARD);
         else rawinput_size = sizeof(RAWINPUTHEADER) + sizeof(RAWKEYBOARD);
@@ -2645,6 +2646,9 @@ static LRESULT CALLBACK rawinput_wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPA
 
     if (msg == WM_INPUT)
     {
+        DWORD flags = InSendMessageEx( 0 );
+        ok( flags == 0xdeadbeef, "got WM_INPUT flags %#lx\n", flags );
+
         todo_wine_if(rawinput_test_received_raw)
         ok(!rawinput_test_received_raw, "Unexpected spurious WM_INPUT message.\n");
         ok(wparam == RIM_INPUT || wparam == RIM_INPUTSINK, "Unexpected wparam: %Iu\n", wparam);
