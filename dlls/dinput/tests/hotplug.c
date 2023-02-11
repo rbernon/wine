@@ -82,6 +82,7 @@ DWORD msg_wait_for_events_( const char *file, int line, DWORD count, HANDLE *eve
     {
         while (PeekMessageW( &msg, 0, 0, 0, PM_REMOVE ))
         {
+            ok( 0, "got msg %#x hwnd %p\n", msg.message, msg.hwnd );
             TranslateMessage( &msg );
             DispatchMessageW( &msg );
         }
