@@ -2434,6 +2434,15 @@ static void test_hidp( HANDLE file, HANDLE async_file, int report_id, BOOL polle
                 .ret_status = STATUS_SUCCESS,
             },
         };
+        struct hid_expect expect_timestamp[] =
+        {
+            {
+                .code = IOCTL_HID_READ_REPORT,
+                .report_len = caps.InputReportByteLength - (report_id ? 0 : 1),
+                .report_buf = {report_id ? report_id : 0},
+                .timestamp = 1,
+            },
+        };
 
         send_hid_input( file, expect, sizeof(expect) );
 
@@ -2527,6 +2536,38 @@ static void test_hidp( HANDLE file, HANDLE async_file, int report_id, BOOL polle
         ok( ret, "GetOverlappedResult failed, last error %lu\n", GetLastError() );
         ok( value == report_id ? 2 : caps.InputReportByteLength - 1,
             "got length %lu, expected %u\n", value, report_id ? 2 : caps.InputReportByteLength - 1 );
+
+        send_hid_input( file, expect_timestamp, sizeof(expect_timestamp) );
+
+        Sleep( 600 );
+
+        for (i = 0; i < 10; ++i)
+        {
+            LARGE_INTEGER counter, frequency;
+            QueryPerformanceFrequency( &frequency );
+
+            /* drain available input reports */
+            SetLastError( 0xdeadbeef );
+            memset( report, 0, sizeof(report) );
+            while (ReadFile( async_file, report, caps.InputReportByteLength, NULL, &overlapped ))
+            {
+                QueryPerformanceCounter( &counter );
+                counter.QuadPart -= ((LARGE_INTEGER *)(report + (report_id ? 2 : 3)))->QuadPart;
+                ok( 0, "diff %llu ns\n", counter.QuadPart * 1000000000 / frequency.QuadPart );
+                memset( report, 0, sizeof(report) );
+                ResetEvent( overlapped.hEvent );
+            }
+            ok( GetLastError() == ERROR_IO_PENDING, "ReadFile returned error %lu\n", GetLastError() );
+            ret = GetOverlappedResult( async_file, &overlapped, &value, TRUE );
+            ok( ret, "GetOverlappedResult failed, last error %lu\n", GetLastError() );
+            ok( value == caps.InputReportByteLength, "GetOverlappedResult returned length %lu, expected %u\n",
+                value, caps.InputReportByteLength );
+            ResetEvent( overlapped.hEvent );
+
+            QueryPerformanceCounter( &counter );
+            counter.QuadPart -= ((LARGE_INTEGER *)(report + (report_id ? 2 : 3)))->QuadPart;
+            ok( 0, "diff %llu ns\n", counter.QuadPart * 1000000000 / frequency.QuadPart );
+        }
 
         CloseHandle( overlapped.hEvent );
         CloseHandle( overlapped2.hEvent );
