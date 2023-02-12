@@ -60,6 +60,7 @@ struct hid_expect
     BYTE todo;   /* missing on wine */
     BYTE broken_id; /* different or missing (-1) report on some win versions */
     BYTE wine_only;
+    BYTE timestamp;
     BYTE report_id;
     BYTE report_len;
     BYTE report_buf[128];
