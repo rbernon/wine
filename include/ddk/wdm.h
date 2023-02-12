@@ -1828,6 +1828,7 @@ BOOLEAN   WINAPI KeInsertDeviceQueue(KDEVICE_QUEUE*,KDEVICE_QUEUE_ENTRY*);
 void      WINAPI KeLeaveCriticalRegion(void);
 ULONG     WINAPI KeQueryActiveProcessorCountEx(USHORT);
 KAFFINITY WINAPI KeQueryActiveProcessors(void);
+ULONGLONG WINAPI KeQueryPerformanceCounter(LARGE_INTEGER *frequency);
 void      WINAPI KeQuerySystemTime(LARGE_INTEGER*);
 void      WINAPI KeQueryTickCount(LARGE_INTEGER*);
 ULONG     WINAPI KeQueryTimeIncrement(void);
