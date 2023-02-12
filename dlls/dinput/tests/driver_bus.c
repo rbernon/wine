@@ -412,11 +412,17 @@ static BOOL input_queue_read_locked( struct input_queue *queue, IRP *irp )
     IO_STACK_LOCATION *stack = IoGetCurrentIrpStackLocation( irp );
     ULONG out_size = stack->Parameters.DeviceIoControl.OutputBufferLength;
     struct hid_expect *tmp = queue->pos;
+    LARGE_INTEGER counter, frequency;
 
     if (tmp >= queue->end) return FALSE;
     if (tmp->ret_length) out_size = tmp->ret_length;
 
     memcpy( irp->UserBuffer, tmp->report_buf, out_size );
+    if (tmp->timestamp)
+    {
+        counter.QuadPart = KeQueryPerformanceCounter( &frequency );
+        memcpy( (char *)irp->UserBuffer + 2, &counter, min( sizeof(counter), out_size ) );
+    }
     irp->IoStatus.Information = out_size;
     irp->IoStatus.Status = tmp->ret_status;
     if (tmp < queue->end) queue->pos = tmp + 1;
