@@ -24,6 +24,7 @@
 #include "windef.h"
 #include "winbase.h"
 #include "wingdi.h"
+#include "winuser.h"
 
 #include "imm.h"
 #include "immdev.h"
@@ -34,6 +35,23 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(imm);
 
+static LRESULT CALLBACK ime_ui_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
+{
+    TRACE( "hwnd %p, msg %#x, wparam %#Ix, lparam %#Ix\n", hwnd, msg, wparam, lparam );
+
+    if (ImmIsUIMessageW( 0, msg, wparam, lparam )) return 0;
+    return DefWindowProcW( hwnd, msg, wparam, lparam );
+}
+
+static WNDCLASSEXW ime_ui_class =
+{
+    .cbSize = sizeof(WNDCLASSEXW),
+    .style = CS_IME,
+    .lpfnWndProc = ime_ui_window_proc,
+    .cbWndExtra = 2 * sizeof(LONG_PTR),
+    .lpszClassName = L"WineIME",
+};
+
 BOOL WINAPI ImeInquire( IMEINFO *info, WCHAR *ui_class, DWORD flags )
 {
     NTSTATUS status;
@@ -43,6 +61,8 @@ BOOL WINAPI ImeInquire( IMEINFO *info, WCHAR *ui_class, DWORD flags )
     if ((status = UNIX_CALL( ime_init, NULL )))
         WARN( "Failed to initialize IME, status %#lx\n", status );
     if (status) return FALSE;
+
+    wcscpy( ui_class, ime_ui_class.lpszClassName );
 
     return TRUE;
 }
@@ -122,6 +142,7 @@ BOOL WINAPI ImeSetCompositionString( HIMC himc, DWORD index, const void *comp, D
 {
     FIXME( "himc %p, index %lu, comp %p, comp_len %lu, read %p, read_len %lu stub!\n", himc, index,
            comp, comp_len, read, read_len );
+    SetLastError( ERROR_CALL_NOT_IMPLEMENTED );
     return FALSE;
 }
 
@@ -169,8 +190,13 @@ BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, LPVOID reserved )
             ERR( "Failed to load unixlib, status %#lx\n", status );
             return FALSE;
         }
+
+        ime_ui_class.hInstance = instance;
+        RegisterClassExW( &ime_ui_class );
         break;
+
     case DLL_PROCESS_DETACH:
+        UnregisterClassW( ime_ui_class.lpszClassName, instance );
         break;
     }
 
