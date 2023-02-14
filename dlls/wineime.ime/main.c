@@ -23,6 +23,7 @@
 #define WIN32_NO_STATUS
 #include "windef.h"
 #include "winbase.h"
+#include "winuser.h"
 #include "wingdi.h"
 #include "winuser.h"
 
@@ -185,8 +186,20 @@ UINT WINAPI ImeGetRegisterWordStyle( UINT item, STYLEBUFW *style_buf )
 
 BOOL WINAPI ImeProcessKey( HIMC himc, UINT vkey, LPARAM key_data, BYTE *key_state )
 {
-    FIXME( "himc %p, vkey %u, key_data %#Ix, key_state %p stub!\n", himc, vkey, key_data, key_state );
-    return FALSE;
+    struct ime_process_key_params params = {.vkey = vkey, .scan = HIWORD(key_data) & 0x1ff};
+    struct ime_context *ctx;
+
+    TRACE( "himc %p, vkey %u, key_data %#Ix, key_state %p\n", himc, vkey, key_data, key_state );
+
+    if (!(ctx = ime_acquire_context( himc ))) return FALSE;
+
+    ToUnicode( vkey, params.scan, key_state, params.wchr, ARRAY_SIZE(params.wchr), 0 );
+
+    params.handle = ctx->handle;
+    UNIX_CALL( ime_process_key, &params );
+
+    ime_release_context( ctx );
+    return params.ret;
 }
 
 BOOL WINAPI ImeRegisterWord( const WCHAR *reading, DWORD style, const WCHAR *string )

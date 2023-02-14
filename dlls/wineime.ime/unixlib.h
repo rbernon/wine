@@ -46,6 +46,15 @@ struct ime_activate_context_params
     UINT active;
 };
 
+struct ime_process_key_params
+{
+    UINT64 handle;
+    UINT scan;
+    UINT vkey;
+    WCHAR wchr[2];
+    BOOL ret;
+};
+
 enum unix_funcs
 {
     unix_ime_init,
@@ -54,6 +63,7 @@ enum unix_funcs
     unix_ime_create_context,
     unix_ime_delete_context,
     unix_ime_activate_context,
+    unix_ime_process_key,
 };
 
 #define UNIX_CALL( code, params ) WINE_UNIX_CALL( unix_ ## code, params )

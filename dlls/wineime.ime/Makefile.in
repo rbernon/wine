@@ -1,6 +1,6 @@
 MODULE    = wineime.ime
 UNIXLIB   = wineime.so
-IMPORTS   = imm32
+IMPORTS   = imm32 user32
 
 UNIX_LIBS    = $(IBUS_LIBS)
 UNIX_CFLAGS  = $(IBUS_CFLAGS)
