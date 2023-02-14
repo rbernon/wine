@@ -56,6 +56,15 @@ struct ime_process_key_params
     BOOL ret;
 };
 
+struct ime_event
+{
+    UINT64 handle;
+    UINT index;
+    UINT cursor_pos;
+    UINT buffer_len;
+    WCHAR buffer[];
+};
+
 enum unix_funcs
 {
     unix_ime_init,
@@ -65,6 +74,7 @@ enum unix_funcs
     unix_ime_delete_context,
     unix_ime_activate_context,
     unix_ime_process_key,
+    unix_ime_get_event,
 };
 
 #define UNIX_CALL( code, params ) WINE_UNIX_CALL( unix_ ## code, params )

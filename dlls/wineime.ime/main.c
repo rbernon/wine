@@ -91,6 +91,35 @@ static LRESULT CALLBACK ime_ui_window_proc( HWND hwnd, UINT msg, WPARAM wparam, 
 {
     TRACE( "hwnd %p, msg %#x, wparam %#Ix, lparam %#Ix\n", hwnd, msg, wparam, lparam );
 
+    if (msg == WM_IME_NOTIFY && wparam == IMN_PRIVATE)
+    {
+        struct ime_context *ctx;
+        struct ime_event *event;
+        NTSTATUS status;
+        HIMC himc;
+
+        if (wparam != IMN_PRIVATE) return 0;
+        if (!(himc = (HIMC)GetWindowLongPtrW( hwnd, IMMGWL_IMC ))) return 0;
+        himc = *(HIMC *)himc; /* FIXME */
+
+        if (!(ctx = ime_acquire_context( himc ))) return 0;
+
+        if (!(event = malloc( lparam ))) goto error;
+        event->handle = ctx->handle;
+        event->buffer_len = lparam;
+
+        if ((status = UNIX_CALL( ime_get_event, event )))
+            WARN( "Failed to get IME event, status %#lx\n", status );
+        else
+            FIXME( "index %#x, cursor_pos %u, comp %s\n", event->index, event->cursor_pos,
+                   debugstr_wn( event->buffer, event->buffer_len ) );
+
+    error:
+        ime_release_context( ctx );
+        free( event );
+        return 0;
+    }
+
     if (ImmIsUIMessageW( 0, msg, wparam, lparam )) return 0;
     return DefWindowProcW( hwnd, msg, wparam, lparam );
 }
@@ -275,7 +304,7 @@ BOOL WINAPI ImeSetCompositionString( HIMC himc, DWORD index, const void *comp, D
 
 UINT WINAPI ImeToAsciiEx( UINT vkey, UINT scan_code, BYTE *key_state, TRANSMSGLIST *list, UINT state, HIMC himc )
 {
-    FIXME( "vkey %u, scan_code %u, key_state %p, list %p, state %u, himc %p stub!\n", vkey,
+    TRACE( "vkey %u, scan_code %u, key_state %p, list %p, state %u, himc %p\n", vkey,
            scan_code, key_state, list, state, himc );
     return 0;
 }

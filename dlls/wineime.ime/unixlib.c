@@ -137,6 +137,55 @@ POINT virtual_screen_to_root( INT x, INT y )
     return pt;
 }
 
+static inline LRESULT send_message( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
+{
+    return NtUserMessageCall( hwnd, msg, wparam, lparam, NULL, NtUserSendDriverMessage, FALSE );
+}
+
+static void ime_send_event( IBusInputContext *ctx, UINT index, const char *str, guint len, guint cursor_pos )
+{
+    ULONG size = offsetof( struct ime_event, buffer[len] );
+    GUITHREADINFO info = {.cbSize = sizeof(GUITHREADINFO)};
+    struct ime_event *event;
+    HWND hwnd;
+
+    if (!NtUserGetGUIThreadInfo( 0, &info ) || !(hwnd = NtUserGetDefaultImeWindow( info.hwndFocus ))) return;
+    if (!(event = calloc( 1, size ))) return;
+
+    event->handle = (ULONG_PTR)(void *)ctx;
+    if (index != GCS_COMP) event->cursor_pos = 0;
+    else event->cursor_pos = cursor_pos;
+    event->buffer_len = ntdll_umbstowcs( str, len, event->buffer, len );
+    event->index = index;
+
+    g_object_set_data( G_OBJECT(ctx), "wine-ime-event", event );
+    send_message( hwnd, WM_IME_NOTIFY, IMN_PRIVATE, (LPARAM)size );
+    g_object_set_data( G_OBJECT(ctx), "wine-ime-event", NULL );
+
+    free( event );
+}
+
+static void ibus_ctx_commit_text( IBusInputContext *ctx, IBusText *text, void *user )
+{
+    const gchar *str = ibus_text_get_text( text );
+    TRACE( "text %s\n", debugstr_a( str ) );
+    ime_send_event( ctx, GCS_RESULT, str, strlen( str ), 0 );
+}
+
+static void ibus_ctx_update_preedit_text( IBusInputContext *ctx, IBusText *text,
+                                          guint cursor_pos, gboolean arg2, gpointer user )
+{
+    const gchar *str = ibus_text_get_text( text );
+    TRACE( "text %s cursor_pos %u arg2 %u\n", debugstr_a( str ), cursor_pos, arg2 );
+    ime_send_event( ctx, GCS_COMP, str, strlen( str ), cursor_pos );
+}
+
+static void ibus_ctx_hide_preedit_text( IBusInputContext *ctx, void *user )
+{
+    TRACE( "\n" );
+    ime_send_event( ctx, GCS_COMP, "", 0, 0 );
+}
+
 static NTSTATUS ime_init( void *arg )
 {
     ibus_init();
@@ -188,6 +237,10 @@ static NTSTATUS ime_create_context( void *arg )
         ERR( "Failed to create IBus input context.\n" );
         return STATUS_UNSUCCESSFUL;
     }
+
+    g_signal_connect( ctx, "commit-text", G_CALLBACK( ibus_ctx_commit_text ), ctx );
+    g_signal_connect( ctx, "update-preedit-text", G_CALLBACK( ibus_ctx_update_preedit_text ), ctx );
+    g_signal_connect( ctx, "hide-preedit-text", G_CALLBACK( ibus_ctx_hide_preedit_text ), ctx );
 
     ibus_input_context_set_content_type( ctx, IBUS_INPUT_PURPOSE_FREE_FORM, IBUS_INPUT_HINT_NONE );
     ibus_input_context_set_capabilities( ctx, IBUS_CAP_FOCUS | IBUS_CAP_PREEDIT_TEXT | IBUS_CAP_SYNC_PROCESS_KEY );
@@ -254,6 +307,19 @@ static NTSTATUS ime_process_key( void *arg )
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS ime_get_event( void *arg )
+{
+    struct ime_event *params = arg, *event;
+    IBusInputContext *ctx = (void *)(UINT_PTR)params->handle;
+
+    if (!(event = g_object_get_data( G_OBJECT(ctx), "wine-ime-event" ))) return STATUS_UNSUCCESSFUL;
+    if (event->buffer_len > params->buffer_len) return STATUS_BUFFER_TOO_SMALL;
+
+    memcpy( params, event, offsetof( struct ime_event, buffer[event->buffer_len] ) );
+
+    return STATUS_SUCCESS;
+}
+
 #else
 
 static NTSTATUS ime_init( void *arg )
@@ -292,6 +358,12 @@ static NTSTATUS ime_process_key( void *arg )
     return STATUS_NOT_SUPPORTED;
 }
 
+static NTSTATUS ime_get_event( void *arg )
+{
+    FIXME( "Not supported!\n" );
+    return STATUS_NOT_SUPPORTED;
+}
+
 #endif /* SONAME_LIBIBUS_1_0 */
 
 const unixlib_entry_t __wine_unix_call_funcs[] =
@@ -304,5 +376,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X( ime_delete_context ),
     X( ime_activate_context ),
     X( ime_process_key ),
+    X( ime_get_event ),
 #undef X
 };
