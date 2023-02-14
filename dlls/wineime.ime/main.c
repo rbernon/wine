@@ -225,8 +225,22 @@ BOOL WINAPI ImeSelect( HIMC himc, BOOL select )
 
 BOOL WINAPI ImeSetActiveContext( HIMC himc, BOOL flag )
 {
-    FIXME( "himc %p, flag %#x stub!\n", himc, flag );
-    return TRUE;
+    struct ime_activate_context_params params = {.active = flag};
+    struct ime_context *ctx;
+    NTSTATUS status;
+
+    TRACE( "himc %p, flag %#x\n", himc, flag );
+
+    if (!(ctx = ime_acquire_context( himc ))) return FALSE;
+
+    params.handle = ctx->handle;
+    if ((status = UNIX_CALL( ime_activate_context, &params )))
+        WARN( "Failed to create context, status %#lx\n", status );
+    else
+        ImmSetOpenStatus( himc, flag );
+
+    ime_release_context( ctx );
+    return !status;
 }
 
 BOOL WINAPI ImeSetCompositionString( HIMC himc, DWORD index, const void *comp, DWORD comp_len,

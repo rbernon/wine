@@ -112,6 +112,19 @@ static NTSTATUS ime_delete_context( void *arg )
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS ime_activate_context( void *arg )
+{
+    struct ime_activate_context_params *params = arg;
+    IBusInputContext *ctx = (void *)(UINT_PTR)params->handle;
+
+    TRACE( "ctx %p, active %u\n", ctx, params->active );
+
+    if (params->active) ibus_input_context_focus_in( ctx );
+    else ibus_input_context_focus_out( ctx );
+
+    return STATUS_SUCCESS;
+}
+
 #else
 
 static NTSTATUS ime_init( void *arg )
@@ -154,5 +167,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X( ime_main ),
     X( ime_create_context ),
     X( ime_delete_context ),
+    X( ime_activate_context ),
 #undef X
 };
