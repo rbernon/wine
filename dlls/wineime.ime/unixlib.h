@@ -52,6 +52,7 @@ struct ime_process_key_params
     UINT scan;
     UINT vkey;
     WCHAR wchr[2];
+    POINT pos;
     BOOL ret;
 };
 

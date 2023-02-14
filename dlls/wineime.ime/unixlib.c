@@ -35,9 +35,11 @@
 #include "winbase.h"
 #include "winuser.rh"
 
+#include "ntuser.h"
 #include "unixlib.h"
 
 #include "wine/debug.h"
+#include "wine/server.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(imm);
 
@@ -125,6 +127,15 @@ static guint32 vk2ibus[] =
 };
 
 static IBusBus *ibus_bus;
+
+POINT virtual_screen_to_root( INT x, INT y )
+{
+    RECT virtual = NtUserGetVirtualScreenRect();
+    POINT pt;
+    pt.x = x - virtual.left;
+    pt.y = y - virtual.top;
+    return pt;
+}
 
 static NTSTATUS ime_init( void *arg )
 {
@@ -216,14 +227,28 @@ static NTSTATUS ime_process_key( void *arg )
 {
     struct ime_process_key_params *params = arg;
     IBusInputContext *ctx = (void *)(UINT_PTR)params->handle;
+    POINT pos = virtual_screen_to_root( params->pos.x, params->pos.y );
+    SIZE size = {16, 16};
     guint32 keyval = 0;
 
     if (params->vkey <= ARRAY_SIZE(vk2ibus)) keyval = vk2ibus[params->vkey];
     if (!keyval) keyval = ibus_unicode_to_keyval( params->wchr[0] );
 
-    TRACE( "scan %#x, vkey %#x, wchr %s keyval %#x\n",
-           params->scan, params->vkey, debugstr_w(params->wchr), keyval );
+    TRACE( "scan %#x, vkey %#x, wchr %s keyval %#x, pos %s\n",
+           params->scan, params->vkey, debugstr_w(params->wchr), keyval,
+           wine_dbgstr_point( &params->pos ) );
 
+    SERVER_START_REQ( set_caret_info )
+    {
+        if (!wine_server_call_err( req ))
+        {
+            size.cx = reply->old_rect.right - reply->old_rect.left;
+            size.cy = reply->old_rect.bottom - reply->old_rect.top;
+        }
+    }
+    SERVER_END_REQ;
+
+    ibus_input_context_set_cursor_location( ctx, pos.x, pos.y, size.cx, size.cy );
     params->ret = ibus_input_context_process_key_event( ctx, keyval, params->scan, 0 );
 
     return STATUS_SUCCESS;

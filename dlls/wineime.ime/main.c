@@ -188,12 +188,20 @@ BOOL WINAPI ImeProcessKey( HIMC himc, UINT vkey, LPARAM key_data, BYTE *key_stat
 {
     struct ime_process_key_params params = {.vkey = vkey, .scan = HIWORD(key_data) & 0x1ff};
     struct ime_context *ctx;
+    RECT client;
 
     TRACE( "himc %p, vkey %u, key_data %#Ix, key_state %p\n", himc, vkey, key_data, key_state );
 
     if (!(ctx = ime_acquire_context( himc ))) return FALSE;
 
     ToUnicode( vkey, params.scan, key_state, params.wchr, ARRAY_SIZE(params.wchr), 0 );
+
+    GetClientRect( GetFocus(), &client );
+    MapWindowPoints( GetFocus(), HWND_DESKTOP, (POINT *)&client, 2 );
+
+    GetCaretPos( &params.pos );
+    params.pos.x += client.left;
+    params.pos.y += client.top;
 
     params.handle = ctx->handle;
     UNIX_CALL( ime_process_key, &params );
