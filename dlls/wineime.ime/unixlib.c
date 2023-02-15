@@ -80,6 +80,38 @@ static NTSTATUS ime_main( void *arg )
     return STATUS_THREAD_IS_TERMINATING;
 }
 
+static NTSTATUS ime_create_context( void *arg )
+{
+    struct ime_create_context_params *params = arg;
+    IBusInputContext *ctx;
+
+    if (!(ctx = ibus_bus_create_input_context( ibus_bus, "WineIME" )))
+    {
+        ERR( "Failed to create IBus input context.\n" );
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    ibus_input_context_set_content_type( ctx, IBUS_INPUT_PURPOSE_FREE_FORM, IBUS_INPUT_HINT_NONE );
+    ibus_input_context_set_capabilities( ctx, IBUS_CAP_FOCUS | IBUS_CAP_PREEDIT_TEXT | IBUS_CAP_SYNC_PROCESS_KEY );
+
+    TRACE( "created IBusInputContext %p\n", ctx );
+
+    params->handle = (UINT_PTR)(void *)ctx;
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS ime_delete_context( void *arg )
+{
+    struct ime_delete_context_params *params = arg;
+    IBusInputContext *ctx = (void *)(UINT_PTR)params->handle;
+
+    TRACE( "ctx %p\n", ctx );
+
+    g_object_unref( ctx );
+
+    return STATUS_SUCCESS;
+}
+
 #else
 
 static NTSTATUS ime_init( void *arg )
@@ -100,6 +132,18 @@ static NTSTATUS ime_main( void *arg )
     return STATUS_NOT_SUPPORTED;
 }
 
+static NTSTATUS ime_create_context( void *arg )
+{
+    FIXME( "Not supported!\n" );
+    return STATUS_NOT_SUPPORTED;
+}
+
+static NTSTATUS ime_delete_context( void *arg )
+{
+    FIXME( "Not supported!\n" );
+    return STATUS_NOT_SUPPORTED;
+}
+
 #endif /* SONAME_LIBIBUS_1_0 */
 
 const unixlib_entry_t __wine_unix_call_funcs[] =
@@ -108,5 +152,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X( ime_init ),
     X( ime_exit ),
     X( ime_main ),
+    X( ime_create_context ),
+    X( ime_delete_context ),
 #undef X
 };

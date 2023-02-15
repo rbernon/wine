@@ -30,11 +30,23 @@
 
 #include "wine/unixlib.h"
 
+struct ime_create_context_params
+{
+    UINT64 handle;
+};
+
+struct ime_delete_context_params
+{
+    UINT64 handle;
+};
+
 enum unix_funcs
 {
     unix_ime_init,
     unix_ime_exit,
     unix_ime_main,
+    unix_ime_create_context,
+    unix_ime_delete_context,
 };
 
 #define UNIX_CALL( code, params ) WINE_UNIX_CALL( unix_ ## code, params )

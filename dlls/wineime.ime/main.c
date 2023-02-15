@@ -35,6 +35,40 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(imm);
 
+struct ime_context
+{
+    HIMC imc;
+    INPUTCONTEXT *input;
+    UINT64 handle;
+};
+
+static struct ime_context *ime_acquire_context( HIMC imc )
+{
+    struct ime_context *ctx = NULL;
+    INPUTCONTEXT *input;
+
+    if (!(input = ImmLockIMC( imc )))
+        WARN( "Failed to lock IME context\n" );
+    else if (!(ctx = ImmLockIMCC( input->hPrivate )))
+    {
+        WARN( "Failed to lock private IME data\n" );
+        ImmUnlockIMC( imc );
+    }
+    else
+    {
+        ctx->imc = imc;
+        ctx->input = input;
+    }
+
+    return ctx;
+}
+
+static void ime_release_context( struct ime_context *ctx )
+{
+    ImmUnlockIMCC( ctx->input->hPrivate );
+    ImmUnlockIMC( ctx->imc );
+}
+
 static HANDLE ime_thread;
 
 static DWORD CALLBACK ime_thread_proc( void *arg )
@@ -84,6 +118,13 @@ BOOL WINAPI ImeInquire( IMEINFO *info, WCHAR *ui_class, DWORD flags )
     }
     if (status) return FALSE;
 
+    info->dwPrivateDataSize = sizeof(struct ime_context);
+    info->fdwProperty = IME_PROP_UNICODE | IME_PROP_AT_CARET;
+    info->fdwConversionCaps = IME_CMODE_NATIVE | IME_CMODE_FULLSHAPE;
+    info->fdwSentenceCaps = IME_SMODE_AUTOMATIC;
+    info->fdwUICaps = UI_CAP_2700;
+    info->fdwSCSCaps = 0;
+    info->fdwSelectCaps = SELECT_CAP_CONVERSION;
     wcscpy( ui_class, ime_ui_class.lpszClassName );
 
     return TRUE;
@@ -157,8 +198,29 @@ BOOL WINAPI ImeRegisterWord( const WCHAR *reading, DWORD style, const WCHAR *str
 
 BOOL WINAPI ImeSelect( HIMC himc, BOOL select )
 {
-    FIXME( "himc %p, select %d stub!\n", himc, select );
-    return FALSE;
+    struct ime_context *ctx;
+
+    TRACE( "himc %p, select %d\n", himc, select );
+
+    if (!(ctx = ime_acquire_context( himc ))) return FALSE;
+
+    if (select)
+    {
+        struct ime_create_context_params params = {0};
+        NTSTATUS status = UNIX_CALL( ime_create_context, &params );
+        if (status) WARN( "Failed to create context, status %#lx\n", status );
+        else ctx->handle = params.handle;
+    }
+    else
+    {
+        struct ime_delete_context_params params = {.handle = ctx->handle};
+        NTSTATUS status = UNIX_CALL( ime_delete_context, &params );
+        if (status) WARN( "Failed to delete context, status %#lx\n", status );
+        else ctx->handle = 0;
+    }
+
+    ime_release_context( ctx );
+    return TRUE;
 }
 
 BOOL WINAPI ImeSetActiveContext( HIMC himc, BOOL flag )
