@@ -35,6 +35,23 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(imm);
 
+static HANDLE ime_thread;
+
+static DWORD CALLBACK ime_thread_proc( void *arg )
+{
+    NTSTATUS status;
+
+    TRACE( "Starting IME thread\n" );
+
+    SetThreadDescription( GetCurrentThread(), L"wine_wineime_worker" );
+
+    status = UNIX_CALL( ime_main, NULL );
+    if (status == STATUS_THREAD_IS_TERMINATING) TRACE( "Exiting IME thread\n" );
+    else WARN( "Exiting IME thread with status %#lx\n", status );
+
+    return status;
+}
+
 static LRESULT CALLBACK ime_ui_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
 {
     TRACE( "hwnd %p, msg %#x, wparam %#Ix, lparam %#Ix\n", hwnd, msg, wparam, lparam );
@@ -60,6 +77,11 @@ BOOL WINAPI ImeInquire( IMEINFO *info, WCHAR *ui_class, DWORD flags )
 
     if ((status = UNIX_CALL( ime_init, NULL )))
         WARN( "Failed to initialize IME, status %#lx\n", status );
+    else if (!(ime_thread = CreateThread( NULL, 0, ime_thread_proc, NULL, 0, NULL )))
+    {
+        WARN( "Failed to spawn IME helper thread\n" );
+        status = STATUS_UNSUCCESSFUL;
+    }
     if (status) return FALSE;
 
     wcscpy( ui_class, ime_ui_class.lpszClassName );
@@ -69,9 +91,17 @@ BOOL WINAPI ImeInquire( IMEINFO *info, WCHAR *ui_class, DWORD flags )
 
 BOOL WINAPI ImeDestroy( UINT force )
 {
-    FIXME( "force %u stub!\n", force );
-    SetLastError( ERROR_CALL_NOT_IMPLEMENTED );
-    return FALSE;
+    TRACE( "force %u\n", force );
+
+    if (ime_thread)
+    {
+        UNIX_CALL( ime_exit, NULL );
+        WaitForSingleObject( ime_thread, INFINITE );
+        CloseHandle( ime_thread );
+        ime_thread = NULL;
+    }
+
+    return TRUE;
 }
 
 BOOL WINAPI ImeConfigure( HKL hkl, HWND hwnd, DWORD mode, void *data )

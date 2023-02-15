@@ -33,6 +33,8 @@
 enum unix_funcs
 {
     unix_ime_init,
+    unix_ime_exit,
+    unix_ime_main,
 };
 
 #define UNIX_CALL( code, params ) WINE_UNIX_CALL( unix_ ## code, params )

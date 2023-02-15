@@ -37,15 +37,64 @@ WINE_DEFAULT_DEBUG_CHANNEL(imm);
 
 #ifdef SONAME_LIBIBUS_1_0
 
+static IBusBus *ibus_bus;
+
 static NTSTATUS ime_init( void *arg )
 {
-    FIXME( "stub!\n" );
-    return STATUS_NOT_IMPLEMENTED;
+    ibus_init();
+
+    if (!(ibus_bus = ibus_bus_new()))
+    {
+        ERR( "Failed to create IBus bus.\n" );
+        goto error;
+    }
+    if (!(ibus_bus_is_connected( ibus_bus )))
+    {
+        ERR( "Failed to connect to ibus-daemon.\n" );
+        goto error;
+    }
+
+    return STATUS_SUCCESS;
+
+error:
+    if (ibus_bus) g_object_unref( ibus_bus );
+    ibus_bus = NULL;
+    return STATUS_UNSUCCESSFUL;
+}
+
+static NTSTATUS ime_exit( void *arg )
+{
+    TRACE( "\n" );
+
+    if (ibus_bus) g_object_unref( ibus_bus );
+    ibus_bus = NULL;
+
+    ibus_quit();
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS ime_main( void *arg )
+{
+    ibus_main();
+    return STATUS_THREAD_IS_TERMINATING;
 }
 
 #else
 
 static NTSTATUS ime_init( void *arg )
+{
+    FIXME( "Not supported!\n" );
+    return STATUS_NOT_SUPPORTED;
+}
+
+static NTSTATUS ime_exit( void *arg )
+{
+    FIXME( "Not supported!\n" );
+    return STATUS_NOT_SUPPORTED;
+}
+
+static NTSTATUS ime_main( void *arg )
 {
     FIXME( "Not supported!\n" );
     return STATUS_NOT_SUPPORTED;
@@ -57,5 +106,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
 {
 #define X( x ) [unix_ ## x] = x
     X( ime_init ),
+    X( ime_exit ),
+    X( ime_main ),
 #undef X
 };
