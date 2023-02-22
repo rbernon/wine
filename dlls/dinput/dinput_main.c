@@ -435,7 +435,7 @@ void input_thread_start(void)
 
     if (!(start_event = CreateEventW( NULL, FALSE, FALSE, NULL )))
         ERR( "Failed to create start event, error %lu\n", GetLastError() );
-    else if (!(dinput_thread = CreateThread( NULL, 0, dinput_thread_proc, start_event, 0, NULL )))
+    else if (!(dinput_thread = CreateThread( NULL, 0x100000, dinput_thread_proc, start_event, 0, NULL )))
         ERR( "Failed to create internal thread, error %lu\n", GetLastError() );
     else
         WaitForSingleObject( start_event, INFINITE );
