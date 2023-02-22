@@ -830,7 +830,8 @@ static BOOL WINAPI start_update_thread_once( INIT_ONCE *once, void *param, void 
     update_event = CreateEventA(NULL, FALSE, FALSE, NULL);
     if (!update_event) ERR("failed to create update event, error %lu\n", GetLastError());
 
-    thread = CreateThread(NULL, 0, hid_update_thread_proc, NULL, 0, NULL);
+    thread = CreateThread(NULL, 0x100000, hid_update_thread_proc, NULL,
+                          STACK_SIZE_PARAM_IS_A_RESERVATION, NULL);
     if (!thread) ERR("failed to create update thread, error %lu\n", GetLastError());
     CloseHandle(thread);
 
