@@ -40,25 +40,34 @@ struct ime_context
 {
     HIMC imc;
     INPUTCONTEXT *input;
+    COMPOSITIONSTRING *composition;
     UINT64 handle;
 };
 
 static struct ime_context *ime_acquire_context( HIMC imc )
 {
     struct ime_context *ctx = NULL;
+    COMPOSITIONSTRING *composition;
     INPUTCONTEXT *input;
 
     if (!(input = ImmLockIMC( imc )))
         WARN( "Failed to lock IME context\n" );
+    else if (!(composition = ImmLockIMCC( input->hCompStr )))
+    {
+        WARN( "Failed to lock IME composition string\n" );
+        ImmUnlockIMC( imc );
+    }
     else if (!(ctx = ImmLockIMCC( input->hPrivate )))
     {
         WARN( "Failed to lock private IME data\n" );
+        ImmUnlockIMC( input->hCompStr );
         ImmUnlockIMC( imc );
     }
     else
     {
         ctx->imc = imc;
         ctx->input = input;
+        ctx->composition = composition;
     }
 
     return ctx;
@@ -66,6 +75,7 @@ static struct ime_context *ime_acquire_context( HIMC imc )
 
 static void ime_release_context( struct ime_context *ctx )
 {
+    if (ctx->composition) ImmUnlockIMCC( ctx->input->hCompStr );
     ImmUnlockIMCC( ctx->input->hPrivate );
     ImmUnlockIMC( ctx->imc );
 }
@@ -85,6 +95,176 @@ static DWORD CALLBACK ime_thread_proc( void *arg )
     else WARN( "Exiting IME thread with status %#lx\n", status );
 
     return status;
+}
+
+static const char *debugstr_composition_string( COMPOSITIONSTRING *str )
+{
+    char buffer[1024], *end = buffer + sizeof(buffer), *buf = buffer;
+
+    if (!str) return "(null)";
+
+    buf += snprintf( buf, end - buf, "str %p (%#lx), ", str, str->dwSize );
+
+    if (str->dwCompReadAttrOffset)
+        buf += snprintf( buf, end - buf, "comp read attr %#lx (%#lx), ", str->dwCompReadAttrOffset,
+                         str->dwCompReadAttrLen );
+    if (str->dwCompReadClauseOffset)
+        buf += snprintf( buf, end - buf, "comp read clause %#lx (%#lx), ",
+                         str->dwCompReadClauseOffset, str->dwCompReadClauseLen );
+    if (str->dwCompReadStrOffset)
+        buf += snprintf( buf, end - buf, "comp read str %#lx (%s), ", str->dwCompReadStrOffset,
+                         debugstr_wn((WCHAR *)( (BYTE *)str + str->dwCompReadStrOffset ), str->dwCompReadStrLen) );
+
+    if (str->dwCompAttrOffset)
+        buf += snprintf( buf, end - buf, "comp attr %#lx (%#lx), ", str->dwCompAttrOffset, str->dwCompAttrLen );
+    if (str->dwCompClauseOffset)
+        buf += snprintf( buf, end - buf, "comp clause %#lx (%#lx), ", str->dwCompClauseOffset, str->dwCompClauseLen );
+    if (str->dwCompStrOffset)
+        buf += snprintf( buf, end - buf, "comp str %#lx (%s), ", str->dwCompStrOffset,
+                         debugstr_wn((WCHAR *)( (BYTE *)str + str->dwCompStrOffset ), str->dwCompStrLen) );
+
+    buf += snprintf( buf, end - buf, "cursor %#lx, delta %#lx, ", str->dwCursorPos, str->dwDeltaStart );
+
+    if (str->dwResultReadClauseOffset)
+        buf += snprintf( buf, end - buf, "result read clause %#lx (%#lx), ",
+                         str->dwResultReadClauseOffset, str->dwResultReadClauseLen );
+    if (str->dwResultReadStrOffset)
+        buf += snprintf( buf, end - buf, "result read str %#lx (%s), ", str->dwResultReadStrOffset,
+                         debugstr_wn((WCHAR *)( (BYTE *)str + str->dwResultReadStrOffset ), str->dwResultReadStrLen) );
+
+    if (str->dwResultClauseOffset)
+        buf += snprintf( buf, end - buf, "result clause %#lx (%#lx), ", str->dwResultClauseOffset,
+                         str->dwResultClauseLen );
+    if (str->dwResultStrOffset)
+        buf += snprintf( buf, end - buf, "result str %#lx (%s), ", str->dwResultStrOffset,
+                         debugstr_wn((WCHAR *)( (BYTE *)str + str->dwResultStrOffset ), str->dwResultStrLen) );
+
+    buf += snprintf( buf, end - buf, "private %#lx (%#lx)", str->dwPrivateOffset, str->dwPrivateSize );
+
+    return wine_dbg_sprintf( "%s", buffer );
+}
+
+static COMPOSITIONSTRING *composition_string_realloc( struct ime_context *ctx, SIZE_T grow )
+{
+    INPUTCONTEXT *input = ctx->input;
+    COMPOSITIONSTRING *str = NULL;
+    HIMCC tmp;
+
+    if (!(tmp = ImmCreateIMCC( ctx->composition->dwSize + grow )))
+        WARN( "Failed to resize IME composition string\n" );
+    else if (!(str = ImmLockIMCC( tmp )))
+        WARN( "Failed to lock IME composition string\n" );
+    else
+        memcpy( str, ctx->composition, ctx->composition->dwSize );
+
+    ImmUnlockIMCC( input->hCompStr );
+    ImmDestroyIMCC( input->hCompStr );
+    input->hCompStr = tmp;
+    ctx->composition = str;
+
+    return ctx->composition;
+}
+
+static void *composition_string_insert( COMPOSITIONSTRING *str, DWORD offset, DWORD old_len, DWORD new_len )
+{
+    BYTE *dst = (BYTE *)str + offset, *new_end = (BYTE *)dst + new_len, *old_end = (BYTE *)dst + old_len;
+
+    if (str->dwCompReadAttrOffset > offset) str->dwCompReadAttrOffset += new_len - old_len;
+    if (str->dwCompReadClauseOffset > offset) str->dwCompReadClauseOffset += new_len - old_len;
+    if (str->dwCompReadStrOffset > offset) str->dwCompReadStrOffset += new_len - old_len;
+    if (str->dwCompAttrOffset > offset) str->dwCompAttrOffset += new_len - old_len;
+    if (str->dwCompClauseOffset > offset) str->dwCompClauseOffset += new_len - old_len;
+    if (str->dwCompStrOffset > offset) str->dwCompStrOffset += new_len - old_len;
+    if (str->dwResultReadClauseOffset > offset) str->dwResultReadClauseOffset += new_len - old_len;
+    if (str->dwResultReadStrOffset > offset) str->dwResultReadStrOffset += new_len - old_len;
+    if (str->dwResultClauseOffset > offset) str->dwResultClauseOffset += new_len - old_len;
+    if (str->dwResultStrOffset > offset) str->dwResultStrOffset += new_len - old_len;
+    if (str->dwPrivateOffset > offset) str->dwPrivateOffset += new_len - old_len;
+
+    memmove( new_end, old_end, str->dwSize - (old_end - (BYTE *)str) );
+
+    str->dwSize += new_len - old_len;
+    return dst;
+}
+
+static BOOL ime_update_comp_string( struct ime_context *ctx, const WCHAR *preedit_str, SIZE_T preedit_len )
+{
+    COMPOSITIONSTRING *str = ctx->composition;
+    DWORD grow = 0;
+    BYTE *dst;
+
+    if (str->dwCompStrLen < preedit_len) grow += (preedit_len - str->dwCompStrLen) * sizeof(WCHAR);
+    if (str->dwCompClauseLen < 2 * sizeof(DWORD)) grow += 2 * sizeof(DWORD) - str->dwCompClauseLen;
+    if (str->dwCompAttrLen < preedit_len) grow += preedit_len - str->dwCompAttrLen;
+    if (grow && !(str = composition_string_realloc( ctx, grow ))) return FALSE;
+
+    if (!str->dwCompStrOffset) str->dwCompStrOffset = str->dwSize;
+    dst = composition_string_insert( str, str->dwCompStrOffset, str->dwCompStrLen * sizeof(WCHAR), preedit_len * sizeof(WCHAR) );
+    if (preedit_str) memcpy( dst, preedit_str, preedit_len * sizeof(WCHAR) );
+    if (!(str->dwCompStrLen = preedit_len)) str->dwCompStrOffset = 0;
+
+    if (!str->dwCompClauseOffset) str->dwCompClauseOffset = str->dwSize;
+    dst = composition_string_insert( str, str->dwCompClauseOffset, str->dwCompClauseLen, 2 * sizeof(DWORD) );
+    *(DWORD *)(dst + 0 * sizeof(DWORD)) = 0;
+    *(DWORD *)(dst + 1 * sizeof(DWORD)) = preedit_len;
+    str->dwCompClauseLen = 2 * sizeof(DWORD);
+
+    if (!str->dwCompAttrOffset) str->dwCompAttrOffset = str->dwSize;
+    dst = composition_string_insert( str, str->dwCompAttrOffset, str->dwCompAttrLen, preedit_len );
+    memset( dst, ATTR_INPUT, preedit_len );
+    if (!(str->dwCompAttrLen = preedit_len)) str->dwCompAttrOffset = 0;
+
+    str->dwDeltaStart = 0;
+    return TRUE;
+}
+
+static BOOL ime_update_result_string( struct ime_context *ctx, const WCHAR *result_str, SIZE_T result_len )
+{
+    COMPOSITIONSTRING *str = ctx->composition;
+    DWORD grow = 0;
+    BYTE *dst;
+
+    if (str->dwResultStrLen < result_len) grow += (result_len - str->dwResultStrLen) * sizeof(WCHAR);
+    if (str->dwResultClauseLen < 2 * sizeof(DWORD)) grow += 2 * sizeof(DWORD) - str->dwResultClauseLen;
+    if (grow && !(str = composition_string_realloc( ctx, grow ))) return FALSE;
+
+    if (!str->dwResultStrOffset) str->dwResultStrOffset = str->dwSize;
+    dst = composition_string_insert( str, str->dwResultStrOffset, str->dwResultStrLen * sizeof(WCHAR), result_len * sizeof(WCHAR) );
+    if (result_str) memcpy( dst, result_str, result_len * sizeof(WCHAR) );
+    if (!(str->dwResultStrLen = result_len)) str->dwResultStrOffset = 0;
+
+    if (!str->dwResultClauseOffset) str->dwResultClauseOffset = str->dwSize;
+    dst = composition_string_insert( str, str->dwResultClauseOffset, str->dwResultClauseLen, 2 * sizeof(DWORD) );
+    *(DWORD *)(dst + 0 * sizeof(DWORD)) = 0;
+    *(DWORD *)(dst + 1 * sizeof(DWORD)) = result_len;
+    str->dwResultClauseLen = 2 * sizeof(DWORD);
+
+    str->dwDeltaStart = 0;
+    return TRUE;
+}
+
+static void ime_send_message( struct ime_context *ctx, UINT msg, WPARAM wparam, LPARAM lparam )
+{
+    TRANSMSG *messages, message = {.message = msg, .wParam = wparam, .lParam = lparam};
+    INPUTCONTEXT *input = ctx->input;
+    DWORD count = input->dwNumMsgBuf + 1;
+    HIMCC tmp = input->hMsgBuf;
+
+    if (!(tmp = ImmReSizeIMCC( input->hMsgBuf, count * sizeof(message) )))
+    {
+        WARN( "Failed to resize input context message buffer\n" );
+        return;
+    }
+
+    input->hMsgBuf = tmp;
+    if (!(messages = ImmLockIMCC( input->hMsgBuf )))
+        WARN( "Failed to lock input context message buffer\n" );
+    else
+    {
+        messages[input->dwNumMsgBuf++] = message;
+        ImmUnlockIMCC( input->hMsgBuf );
+        ImmGenerateMessage( ctx->imc );
+    }
 }
 
 static LRESULT CALLBACK ime_ui_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
@@ -110,9 +290,39 @@ static LRESULT CALLBACK ime_ui_window_proc( HWND hwnd, UINT msg, WPARAM wparam, 
 
         if ((status = UNIX_CALL( ime_get_event, event )))
             WARN( "Failed to get IME event, status %#lx\n", status );
+        else if (event->index == GCS_RESULT)
+        {
+            TRACE( "index %#x, cursor_pos %u, result %s\n", event->index, event->cursor_pos,
+                   debugstr_wn( event->buffer, event->buffer_len ) );
+
+            if (!ctx->composition->dwCompStrLen) ime_send_message( ctx, WM_IME_STARTCOMPOSITION, 0, 0 );
+            if (!ime_update_result_string( ctx, event->buffer, event->buffer_len )) goto error;
+            if (!ime_update_comp_string( ctx, NULL, 0 )) goto error;
+            ctx->composition->dwCursorPos = event->cursor_pos;
+
+            TRACE( "Received result %s\n", debugstr_composition_string( ctx->composition ) );
+            ime_send_message( ctx, WM_IME_COMPOSITION, event->buffer[0], GCS_RESULT | GCS_COMP | GCS_CURSORPOS );
+            ime_send_message( ctx, WM_IME_ENDCOMPOSITION, 0, 0 );
+        }
+        else if (event->index == GCS_COMP)
+        {
+            TRACE( "index %#x, cursor_pos %u, comp %s\n", event->index, event->cursor_pos,
+                   debugstr_wn( event->buffer, event->buffer_len ) );
+
+            if (!ctx->composition->dwCompStrLen) ime_send_message( ctx, WM_IME_STARTCOMPOSITION, 0, 0 );
+            if (!ime_update_comp_string( ctx, event->buffer, event->buffer_len )) goto error;
+            if (!ime_update_result_string( ctx, NULL, 0 )) goto error;
+            ctx->composition->dwCursorPos = event->cursor_pos;
+
+            TRACE( "Received preedit %s\n", debugstr_composition_string( ctx->composition ) );
+            ime_send_message( ctx, WM_IME_COMPOSITION, 0, GCS_COMP | GCS_CURSORPOS );
+            if (!ctx->composition->dwCompStrLen) ime_send_message( ctx, WM_IME_ENDCOMPOSITION, 0, 0 );
+        }
         else
+        {
             FIXME( "index %#x, cursor_pos %u, comp %s\n", event->index, event->cursor_pos,
                    debugstr_wn( event->buffer, event->buffer_len ) );
+        }
 
     error:
         ime_release_context( ctx );
