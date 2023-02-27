@@ -675,7 +675,6 @@ extern void X11DRV_InitMouse( Display *display );
 extern BOOL process_events( Display *display, Bool (*filter)(Display*, XEvent*, XPointer), ULONG_PTR arg );
 extern BOOL X11DRV_ProcessEvents( DWORD mask );
 extern HWND *build_hwnd_list(void);
-extern LANGID x11drv_keyboard_detect( Display *display, int group );
 
 typedef int (*x11drv_error_callback)( Display *display, XErrorEvent *event, void *arg );
 
