@@ -1583,6 +1583,65 @@ X11DRV_KEYBOARD_DetectLayout( Display *display )
   TRACE("detected layout is \"%s\"\n", main_key_tab[kbd_layout].comment);
 }
 
+static void init_xkb_layouts( Display *display )
+{
+    const char *rules, *model, *layouts, *layout, *variants, *variant, *options;
+    unsigned long count, remaining;
+    unsigned char *data;
+    int i, format;
+    Atom type;
+
+    if (XGetWindowProperty( display, DefaultRootWindow( display ), x11drv_atom(_XKB_RULES_NAMES), 0,
+                            1024, False, XA_STRING, &type, &format, &count, &remaining, &data ))
+        data = NULL;
+
+    if (!data || type != XA_STRING || format != 8 || remaining)
+    {
+        rules = model = layouts = variants = options = "";
+        ERR( "Failed to read _XKB_RULES_NAMES property, assuming en-US QWERTY keyboard\n" );
+    }
+    else
+    {
+        int pos = 0;
+
+        rules = (char *)data + pos;
+        pos += strlen( rules ) + 1;
+        model = (char *)data + pos;
+        pos += strlen( model ) + 1;
+        layouts = (char *)data + pos;
+        pos += strlen( layouts ) + 1;
+        variants = (char *)data + pos;
+        pos += strlen( variants ) + 1;
+        options = (char *)data + pos;
+        pos += strlen( options ) + 1;
+
+        TRACE( "Found rules %s, model %s, layouts %s, variants %s, options %s\n", debugstr_a(rules),
+               debugstr_a(model), debugstr_a(layouts), debugstr_a(variants), debugstr_a(options) );
+    }
+
+    /* There can be up to 4 active layouts, exposed as Xkb groups,
+     * with round robin if there is less than 4 configured layouts
+     */
+    for (layout = layouts, variant = variants, i = 0; i < 4; ++i)
+    {
+        const char *next_layout = strchr( layout, ',' ), *next_variant = strchr( variant, ',' );
+        int layout_len, variant_len;
+
+        if (!next_layout) next_layout = layout + strlen( layout );
+        if (!next_variant) next_variant = variant + strlen( variant );
+
+        layout_len = next_layout - layout;
+        variant_len = next_variant - variant;
+
+        TRACE( "Found group %u layout %s variant %s\n", i, debugstr_an(layout, layout_len), debugstr_an(variant, variant_len) );
+
+        layout = *next_layout ? next_layout + 1 : layouts;
+        variant = *next_layout ? (*next_variant ? next_variant + 1 : next_variant) : variants;
+    }
+
+    XFree( data );
+}
+
 
 /**********************************************************************
  *		X11DRV_InitKeyboard
@@ -1852,6 +1911,8 @@ void X11DRV_InitKeyboard( Display *display )
 	TRACE_(key)("assigning scancode %02x to unidentified keycode %u (%s)\n",scan,keyc,ksname);
 	keyc2scan[keyc]=scan++;
       }
+
+    init_xkb_layouts( display );
 
     pthread_mutex_unlock( &kbd_mutex );
 }
