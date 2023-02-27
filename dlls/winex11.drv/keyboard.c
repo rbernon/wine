@@ -1108,6 +1108,7 @@ BOOL X11DRV_ActivateKeyboardLayout(HKL hkl, UINT flags)
 static BOOL X11DRV_KeyboardMappingNotify( HWND dummy, XEvent *event )
 {
     XRefreshKeyboardMapping(&event->xmapping);
+    XkbSelectEvents( event->xmapping.display, XkbUseCoreKbd, XkbAllEventsMask, XkbAllEventsMask );
     return FALSE;
 }
 
@@ -1369,4 +1370,61 @@ const KBDTABLES *X11DRV_KbdLayerDescriptor( HKL hkl )
  */
 void X11DRV_ReleaseKbdTables( const KBDTABLES *tables )
 {
+}
+
+int xkb_event = 0;
+
+/***********************************************************************
+ *    x11drv_init_keyboard
+ */
+void x11drv_init_keyboard( Display *display )
+{
+#ifdef HAVE_XKB
+    if (use_xkb && (use_xkb = XkbUseExtension( display, NULL, NULL )) && display != gdi_display)
+        XkbSetDetectableAutoRepeat( display, True, NULL );
+#endif
+
+    if (display != gdi_display)
+        XkbSelectEvents( display, XkbUseCoreKbd, XkbAllEventsMask, XkbAllEventsMask );
+    else
+    {
+        int opcode, error, major, minor;
+        XkbQueryExtension( display, &opcode, &xkb_event, &error, &major, &minor );
+        ERR( "Xkb opcode %u event %u error %u major %u minor %u\n", opcode, xkb_event, error, major, minor );
+        X11DRV_InitKeyboard( display );
+    }
+}
+
+BOOL X11DRV_XkbEvent( HWND hwnd, XEvent *xev )
+{
+    XkbEvent *event = (XkbEvent *)xev;
+ERR("event->xkb_type %u event->device %u\n", event->any.xkb_type, event->any.device);
+
+    switch (event->any.xkb_type)
+    {
+    case XkbStateNotify:
+    {
+      ERR("changed %#x\n", event->state.changed);  /* mask of changed state components */
+      ERR("group %#x\n", event->state.group);    /* keyboard group */
+      ERR("base_group %#x\n", event->state.base_group); /* base keyboard group */
+      ERR("latched_group %#x\n", event->state.latched_group);  /* latched keyboard group */
+      ERR("locked_group %#x\n", event->state.locked_group); /* locked keyboard group */
+      ERR("mods %#x\n", event->state.mods);   /* modifier state */
+      ERR("base_mods %#x\n", event->state.base_mods);  /* base modifier state */
+      ERR("latched_mods %#x\n", event->state.latched_mods); /* latched modifiers */
+      ERR("locked_mods %#x\n", event->state.locked_mods);  /* locked modifiers */
+      ERR("compat_state %#x\n", event->state.compat_state); /* compatibility state */
+      ERR("grab_mods %#x\n", event->state.grab_mods);  /* mods used for grabs */
+      ERR("compat_grab_mods %#x\n", event->state.compat_grab_mods);/* grab mods for non-XKB clients */
+      ERR("lookup_mods %#x\n", event->state.lookup_mods);  /* mods sent to clients */
+      ERR("compat_lookup_mods %#x\n", event->state.compat_lookup_mods); /* mods sent to non-XKB clients */
+      ERR("ptr_buttons %#x\n", event->state.ptr_buttons);  /* pointer button state */
+      ERR("keycode %#x\n", event->state.keycode);  /* keycode that caused the change */
+      ERR("event_type %#x\n", event->state.event_type); /* KeyPress or KeyRelease */
+      ERR("req_major %#x\n", event->state.req_major);  /* Major opcode of request */
+      ERR("req_minor %#x\n", event->state.req_minor);  /* Minor opcode of request */
+    }
+    }
+
+    return 0;
 }
