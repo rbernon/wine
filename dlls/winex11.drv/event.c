@@ -510,6 +510,7 @@ static inline BOOL call_event_handler( Display *display, XEvent *event )
     struct x11drv_thread_data *thread_data;
     BOOL ret;
 
+    if (event->type == xkb_event) handlers[event->type] = X11DRV_XkbEvent;
     if (!handlers[event->type])
     {
         TRACE( "%s for win %lx, ignoring\n", dbgstr_event( event->type ), event->xany.window );
