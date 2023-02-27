@@ -15,7 +15,6 @@ SOURCES = \
 	graphics.c \
 	init.c \
 	keyboard.c \
-	keymaps.c \
 	mouse.c \
 	opengl.c \
 	palette.c \

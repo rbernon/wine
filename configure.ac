@@ -1228,14 +1228,6 @@ then
                       X11/extensions/xf86vmproto.h],,,
                       [$xlib_includes])
 
-        dnl *** Check for X keyboard extension
-        if test "$ac_cv_header_X11_XKBlib_h" = "yes"
-        then
-              AC_CHECK_LIB(X11, XkbQueryExtension,
-              AC_DEFINE(HAVE_XKB, 1, [Define if you have the XKB extension]),,[$X_LIBS $X_EXTRA_LIBS])
-              AC_CHECK_LIB(xkbfile,XkbRF_GetNamesProp,[AC_SUBST(XKBFILE_LIBS,"-lxkbfile")],[enable_make_keymap=${enable_make_keymap:-no}])
-        fi
-
         dnl *** Check for X cursor
         AC_CHECK_HEADER([X11/Xcursor/Xcursor.h],
                         [WINE_CHECK_SONAME(Xcursor,XcursorImageLoadCursor,,,[$X_LIBS])],,
@@ -3612,7 +3604,6 @@ WINE_CONFIG_MAKEFILE(programs/xcopy)
 WINE_CONFIG_MAKEFILE(programs/xcopy/tests)
 WINE_CONFIG_MAKEFILE(server)
 WINE_CONFIG_MAKEFILE(tools,,[test "x$enable_tools" = xno])
-WINE_CONFIG_MAKEFILE(tools/make_keymap,,[test "x$enable_tools" = xno])
 WINE_CONFIG_MAKEFILE(tools/sfnt2fon,,[test "x$enable_tools" = xno])
 WINE_CONFIG_MAKEFILE(tools/widl,,[test "x$enable_tools" = xno])
 WINE_CONFIG_MAKEFILE(tools/wine,,[test "x$enable_tools" = xno])
