@@ -197,6 +197,7 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls, struc
     if (context && cls < ARRAY_SIZE( debug_classes ))
     {
         const char *tmp, *function, *file;
+        const void *retaddr;
         int line;
 
         if (context->compat) function = (const char *)context;
@@ -211,8 +212,11 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls, struc
         if (context->compat || context->version != WINE_DEBUG_CONTEXT_VERSION) line = 0;
         else line = context->line;
 
-        pos += snprintf( pos, sizeof(buffer) - (pos - buffer), "%s:%s:%s:%d:%s ",
-                         debug_classes[cls], channel->name, file, line, function );
+        if (context->compat || context->version != WINE_DEBUG_CONTEXT_VERSION) retaddr = NULL;
+        else retaddr = context->retaddr;
+
+        pos += snprintf( pos, sizeof(buffer) - (pos - buffer), "%012Ix:%s:%s:%s:%d:%s ",
+                         (SIZE_T)retaddr, debug_classes[cls], channel->name, file, line, function );
     }
 
     return fwrite( buffer, 1, strlen(buffer), stderr );
