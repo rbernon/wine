@@ -196,14 +196,23 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls, struc
     pos += sprintf( pos, "%04x:", (UINT)GetCurrentThreadId() );
     if (context && cls < ARRAY_SIZE( debug_classes ))
     {
-        const char *function;
+        const char *tmp, *function, *file;
+        int line;
 
         if (context->compat) function = (const char *)context;
         else if (context->version != WINE_DEBUG_CONTEXT_VERSION) function = "";
         else function = context->function;
 
-        snprintf( pos, sizeof(buffer) - (pos - buffer), "%s:%s:%s ",
-                  debug_classes[cls], channel->name, function );
+        if (context->compat || context->version != WINE_DEBUG_CONTEXT_VERSION) file = "";
+        else file = (tmp = strrchr( context->file, '/' )) ? tmp + 1
+                  : (tmp = strrchr( context->file, '\\' )) ? tmp + 1
+                  : context->file;
+
+        if (context->compat || context->version != WINE_DEBUG_CONTEXT_VERSION) line = 0;
+        else line = context->line;
+
+        pos += snprintf( pos, sizeof(buffer) - (pos - buffer), "%s:%s:%s:%d:%s ",
+                         debug_classes[cls], channel->name, file, line, function );
     }
 
     return fwrite( buffer, 1, strlen(buffer), stderr );
