@@ -326,6 +326,7 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
     if (context && cls < ARRAY_SIZE( classes ))
     {
         const char *tmp, *function, *file;
+        const void *retaddr;
         int line;
 
         if (context->compat) function = (const char *)context;
@@ -338,8 +339,11 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
         if (context->compat || context->version != WINE_DEBUG_CONTEXT_VERSION) line = 0;
         else line = context->line;
 
-        pos += snprintf( pos, sizeof(info->output) - (pos - info->output), "%s:%s:%s:%d:%s ",
-                         classes[cls], channel->name, file, line, function );
+        if (context->compat || context->version != WINE_DEBUG_CONTEXT_VERSION) retaddr = NULL;
+        else retaddr = context->retaddr;
+
+        pos += snprintf( pos, sizeof(info->output) - (pos - info->output), "%012zx:%s:%s:%s:%d:%s ",
+                         (size_t)retaddr, classes[cls], channel->name, file, line, function );
     }
     info->out_pos = pos - info->output;
     return info->out_pos;
