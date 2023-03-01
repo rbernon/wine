@@ -208,6 +208,8 @@ extern INT X11DRV_ToUnicodeEx( UINT virtKey, UINT scanCode, const BYTE *lpKeySta
 extern UINT X11DRV_ImeProcessKey( HIMC himc, UINT wparam, UINT lparam, const BYTE *key_state );
 extern SHORT X11DRV_VkKeyScanEx( WCHAR wChar, HKL hkl );
 extern void X11DRV_NotifyIMEStatus( HWND hwnd, UINT status );
+extern const KBDTABLES *X11DRV_KbdLayerDescriptor( HKL hkl );
+extern void X11DRV_ReleaseKbdTables( const KBDTABLES *tables );
 extern void X11DRV_DestroyCursorIcon( HCURSOR handle );
 extern void X11DRV_SetCursor( HWND hwnd, HCURSOR handle );
 extern BOOL X11DRV_SetCursorPos( INT x, INT y );
