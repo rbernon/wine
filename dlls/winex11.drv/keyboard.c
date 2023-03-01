@@ -2858,3 +2858,19 @@ UINT X11DRV_ImeProcessKey( HIMC himc, UINT wparam, UINT lparam, const BYTE *key_
 
     return xim_process_key( hwnd, event );
 }
+
+
+/***********************************************************************
+ *    KbdLayerDescriptor (X11DRV.@)
+ */
+const KBDTABLES *X11DRV_KbdLayerDescriptor( HKL hkl )
+{
+    return NULL;
+}
+
+/***********************************************************************
+ *    ReleaseKbdTables (X11DRV.@)
+ */
+void X11DRV_ReleaseKbdTables( const KBDTABLES *tables )
+{
+}
