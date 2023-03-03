@@ -429,7 +429,6 @@ static const struct user_driver_funcs x11drv_funcs =
     .pKbdLayerDescriptor = X11DRV_KbdLayerDescriptor,
     .pReleaseKbdTables = X11DRV_ReleaseKbdTables,
     .pToUnicodeEx = X11DRV_ToUnicodeEx,
-    .pVkKeyScanEx = X11DRV_VkKeyScanEx,
     .pKbdLayerDescriptor = X11DRV_KbdLayerDescriptor,
     .pReleaseKbdTables = X11DRV_ReleaseKbdTables,
     .pImeProcessKey = X11DRV_ImeProcessKey,
