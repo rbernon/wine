@@ -30,6 +30,7 @@
 #include "wincrypt.h"
 #include "winreg.h"
 #include "winsvc.h"
+#include "wingdi.h"
 #include "winuser.h"
 #include "winnls.h"
 
@@ -59,6 +60,8 @@
 #include "wine/mssign.h"
 
 #include "dinput_test.h"
+
+#define DESKTOP_ALL_ACCESS 0x01ff
 
 HINSTANCE instance;
 BOOL localized; /* object names get translated */
@@ -3598,6 +3601,39 @@ DWORD WINAPI monitor_thread_proc( void *stop_event )
 
     CloseHandle( stop_event );
     return 0;
+}
+
+void run_in_desktop_( const char *file, int line, const char *test_name,
+                      void (*test_func)(void) )
+{
+    STARTUPINFOA startup = {.cb = sizeof(STARTUPINFOA)};
+    PROCESS_INFORMATION info = {0};
+    char cmdline[MAX_PATH * 2];
+    HDESK desktop;
+    char **argv;
+    DWORD ret;
+
+    if (winetest_get_mainargs( &argv ) >= 3)
+    {
+        if (!strcmp( argv[2], test_name )) test_func();
+        return;
+    }
+
+    desktop = CreateDesktopA( "WineTest", NULL, NULL, 0, DESKTOP_ALL_ACCESS, NULL );
+    ok_(file, line)( !!desktop, "CreateDesktopA failed, error %lu\n", GetLastError() );
+
+    startup.lpDesktop = (char *)"WineTest";
+    sprintf( cmdline, "%s %s %s", argv[0], argv[1], test_name );
+    ret = CreateProcessA( NULL, cmdline, NULL, NULL, FALSE, 0, NULL, NULL, &startup, &info );
+    ok_(file, line)( ret, "CreateProcessA failed, error %lu\n", GetLastError() );
+    if (!ret) return;
+
+    wait_child_process( info.hProcess );
+    CloseHandle( info.hThread );
+    CloseHandle( info.hProcess );
+
+    ret = CloseDesktop( desktop );
+    ok_(file, line)( ret, "CloseDesktop failed, error %lu\n", GetLastError() );
 }
 
 void dinput_test_init_( const char *file, int line )
