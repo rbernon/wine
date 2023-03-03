@@ -1923,6 +1923,27 @@ UINT X11DRV_ImeProcessKey( HIMC himc, UINT wparam, UINT lparam, const BYTE *key_
  */
 const KBDTABLES *X11DRV_KbdLayerDescriptor( HKL hkl )
 {
+    struct layout *layout;
+
+    TRACE( "hkl %p\n", hkl );
+
+    pthread_mutex_lock( &kbd_mutex );
+    LIST_FOR_EACH_ENTRY( layout, &xkb_layouts, struct layout, entry )
+    {
+        if (!layout->layout_id && layout->lang == HIWORD(hkl)) break;
+        if (layout->layout_id && (layout->layout_id | 0xf000) == HIWORD(hkl)) break;
+    }
+    if (&layout->entry == &xkb_layouts) layout = NULL;
+    pthread_mutex_unlock( &kbd_mutex );
+
+    if (!layout)
+    {
+        WARN( "Failed to find Xkb layout for HKL %p\n", hkl );
+        return NULL;
+    }
+
+    TRACE( "Found layout entry %p, hkl %04x%04x id %04x\n",
+           layout, layout->index, layout->lang, layout->layout_id );
     return NULL;
 }
 
