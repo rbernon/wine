@@ -775,7 +775,11 @@ NTSTATUS unwind_builtin_dll( void *args )
     DISPATCHER_CONTEXT *dispatch = params->dispatch;
     CONTEXT *context = params->context;
     struct dwarf_eh_bases bases;
+#ifdef __clang__
+    const struct dwarf_fde *fde = NULL;
+#else
     const struct dwarf_fde *fde = _Unwind_Find_FDE( (void *)(context->Rip - 1), &bases );
+#endif
 
     if (fde)
         return dwarf_virtual_unwind( context->Rip, &dispatch->EstablisherFrame, context, fde,
