@@ -157,6 +157,11 @@ struct layout
 
     int xkb_group;
     char *xkb_layout;
+
+    LANGID lang;
+    WORD index;
+    /* "Layout Id", used by NtUserGetKeyboardLayoutName / LoadKeyboardLayoutW */
+    WORD layout_id;
 };
 
 static const unsigned int ControlMask = 1 << 2;
@@ -171,20 +176,136 @@ static struct list xkb_layouts = LIST_INIT( xkb_layouts );
 
 static char KEYBOARD_MapDeadKeysym(KeySym keysym);
 
-static void create_layout_from_xkb( int xkb_group, const char *xkb_layout )
+static inline LANGID langid_from_xkb_layout( const char *layout, size_t layout_len )
 {
-    struct layout *layout;
+#define MAKEINDEX(c0, c1) (MAKEWORD(c0, c1) - MAKEWORD('a', 'a'))
+    static const LANGID langids[] =
+    {
+        [MAKEINDEX('a','f')] = MAKELANGID(LANG_DARI, SUBLANG_DEFAULT),
+        [MAKEINDEX('a','l')] = MAKELANGID(LANG_ALBANIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('a','m')] = MAKELANGID(LANG_ARMENIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('a','t')] = MAKELANGID(LANG_GERMAN, SUBLANG_GERMAN_AUSTRIAN),
+        [MAKEINDEX('a','z')] = MAKELANGID(LANG_AZERBAIJANI, SUBLANG_DEFAULT),
+        [MAKEINDEX('b','a')] = MAKELANGID(LANG_BOSNIAN, SUBLANG_BOSNIAN_BOSNIA_HERZEGOVINA_CYRILLIC),
+        [MAKEINDEX('b','d')] = MAKELANGID(LANG_BANGLA, SUBLANG_DEFAULT),
+        [MAKEINDEX('b','e')] = MAKELANGID(LANG_FRENCH, SUBLANG_FRENCH_BELGIAN),
+        [MAKEINDEX('b','g')] = MAKELANGID(LANG_BULGARIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('b','r')] = MAKELANGID(LANG_PORTUGUESE, 2),
+        [MAKEINDEX('b','t')] = MAKELANGID(LANG_TIBETAN, 3),
+        [MAKEINDEX('b','w')] = MAKELANGID(LANG_TSWANA, SUBLANG_TSWANA_BOTSWANA),
+        [MAKEINDEX('b','y')] = MAKELANGID(LANG_BELARUSIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('c','a')] = MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_CAN),
+        [MAKEINDEX('c','d')] = MAKELANGID(LANG_FRENCH, SUBLANG_CUSTOM_UNSPECIFIED),
+        [MAKEINDEX('c','h')] = MAKELANGID(LANG_GERMAN, SUBLANG_GERMAN_SWISS),
+        [MAKEINDEX('c','m')] = MAKELANGID(LANG_FRENCH, 11),
+        [MAKEINDEX('c','n')] = MAKELANGID(LANG_CHINESE, SUBLANG_DEFAULT),
+        [MAKEINDEX('c','z')] = MAKELANGID(LANG_CZECH, SUBLANG_DEFAULT),
+        [MAKEINDEX('d','e')] = MAKELANGID(LANG_GERMAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('d','k')] = MAKELANGID(LANG_DANISH, SUBLANG_DEFAULT),
+        [MAKEINDEX('d','z')] = MAKELANGID(LANG_TAMAZIGHT, SUBLANG_TAMAZIGHT_ALGERIA_LATIN),
+        [MAKEINDEX('e','e')] = MAKELANGID(LANG_ESTONIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('e','s')] = MAKELANGID(LANG_SPANISH, SUBLANG_DEFAULT),
+        [MAKEINDEX('e','t')] = MAKELANGID(LANG_AMHARIC, SUBLANG_DEFAULT),
+        [MAKEINDEX('f','i')] = MAKELANGID(LANG_FINNISH, SUBLANG_DEFAULT),
+        [MAKEINDEX('f','o')] = MAKELANGID(LANG_FAEROESE, SUBLANG_DEFAULT),
+        [MAKEINDEX('f','r')] = MAKELANGID(LANG_FRENCH, SUBLANG_DEFAULT),
+        [MAKEINDEX('g','b')] = MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_UK),
+        [MAKEINDEX('g','e')] = MAKELANGID(LANG_GEORGIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('g','h')] = MAKELANGID(LANG_ENGLISH, SUBLANG_CUSTOM_UNSPECIFIED),
+        [MAKEINDEX('g','n')] = MAKELANGID(LANG_NEUTRAL, SUBLANG_CUSTOM_DEFAULT),
+        [MAKEINDEX('g','r')] = MAKELANGID(LANG_GREEK, SUBLANG_DEFAULT),
+        [MAKEINDEX('h','r')] = MAKELANGID(LANG_CROATIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('h','u')] = MAKELANGID(LANG_HUNGARIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('i','d')] = MAKELANGID(LANG_INDONESIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('i','e')] = MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_EIRE),
+        [MAKEINDEX('i','l')] = MAKELANGID(LANG_HEBREW, SUBLANG_DEFAULT),
+        [MAKEINDEX('i','n')] = MAKELANGID(LANG_HINDI, SUBLANG_DEFAULT),
+        [MAKEINDEX('i','q')] = MAKELANGID(LANG_ARABIC, SUBLANG_ARABIC_IRAQ),
+        [MAKEINDEX('i','r')] = MAKELANGID(LANG_PERSIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('i','s')] = MAKELANGID(LANG_ICELANDIC, SUBLANG_DEFAULT),
+        [MAKEINDEX('i','t')] = MAKELANGID(LANG_ITALIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('j','p')] = MAKELANGID(LANG_JAPANESE, SUBLANG_DEFAULT),
+        [MAKEINDEX('j','v')] = MAKELANGID(LANG_INDONESIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('k','e')] = MAKELANGID(LANG_NEUTRAL, SUBLANG_CUSTOM_DEFAULT),
+        [MAKEINDEX('k','g')] = MAKELANGID(LANG_KYRGYZ, SUBLANG_DEFAULT),
+        [MAKEINDEX('k','h')] = MAKELANGID(LANG_KHMER, SUBLANG_DEFAULT),
+        [MAKEINDEX('k','r')] = MAKELANGID(LANG_KOREAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('k','z')] = MAKELANGID(LANG_KAZAK, SUBLANG_DEFAULT),
+        [MAKEINDEX('l','a')] = MAKELANGID(LANG_LAO, SUBLANG_DEFAULT),
+        [MAKEINDEX('l','k')] = MAKELANGID(LANG_SINHALESE, SUBLANG_DEFAULT),
+        [MAKEINDEX('l','t')] = MAKELANGID(LANG_LITHUANIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('l','v')] = MAKELANGID(LANG_LATVIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('m','a')] = MAKELANGID(LANG_ARABIC, SUBLANG_ARABIC_MOROCCO),
+        [MAKEINDEX('m','d')] = MAKELANGID(LANG_ROMANIAN, SUBLANG_CUSTOM_UNSPECIFIED),
+        [MAKEINDEX('m','e')] = MAKELANGID(LANG_SERBIAN, SUBLANG_SERBIAN_MONTENEGRO_LATIN),
+        [MAKEINDEX('m','k')] = MAKELANGID(LANG_MACEDONIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('m','l')] = MAKELANGID(LANG_NEUTRAL, SUBLANG_CUSTOM_DEFAULT),
+        [MAKEINDEX('m','m')] = MAKELANGID(0x55 /*LANG_BURMESE*/, SUBLANG_DEFAULT),
+        [MAKEINDEX('m','n')] = MAKELANGID(LANG_MONGOLIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('m','t')] = MAKELANGID(LANG_MALTESE, SUBLANG_DEFAULT),
+        [MAKEINDEX('m','v')] = MAKELANGID(LANG_DIVEHI, SUBLANG_DEFAULT),
+        [MAKEINDEX('m','y')] = MAKELANGID(LANG_MALAY, SUBLANG_DEFAULT),
+        [MAKEINDEX('n','g')] = MAKELANGID(LANG_ENGLISH, SUBLANG_CUSTOM_UNSPECIFIED),
+        [MAKEINDEX('n','l')] = MAKELANGID(LANG_DUTCH, SUBLANG_DEFAULT),
+        [MAKEINDEX('n','p')] = MAKELANGID(LANG_NEPALI, SUBLANG_DEFAULT),
+        [MAKEINDEX('p','h')] = MAKELANGID(LANG_FILIPINO, SUBLANG_DEFAULT),
+        [MAKEINDEX('p','k')] = MAKELANGID(LANG_URDU, SUBLANG_DEFAULT),
+        [MAKEINDEX('p','l')] = MAKELANGID(LANG_POLISH, SUBLANG_DEFAULT),
+        [MAKEINDEX('p','t')] = MAKELANGID(LANG_PORTUGUESE, SUBLANG_DEFAULT),
+        [MAKEINDEX('r','o')] = MAKELANGID(LANG_ROMANIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('r','s')] = MAKELANGID(LANG_SERBIAN, SUBLANG_SERBIAN_LATIN),
+        [MAKEINDEX('r','u')] = MAKELANGID(LANG_RUSSIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('s','e')] = MAKELANGID(LANG_SWEDISH, SUBLANG_DEFAULT),
+        [MAKEINDEX('s','i')] = MAKELANGID(LANG_SLOVENIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('s','k')] = MAKELANGID(LANG_SLOVAK, SUBLANG_DEFAULT),
+        [MAKEINDEX('s','n')] = MAKELANGID(LANG_WOLOF, SUBLANG_DEFAULT),
+        [MAKEINDEX('s','y')] = MAKELANGID(LANG_SYRIAC, SUBLANG_DEFAULT),
+        [MAKEINDEX('t','g')] = MAKELANGID(LANG_FRENCH, SUBLANG_CUSTOM_UNSPECIFIED),
+        [MAKEINDEX('t','h')] = MAKELANGID(LANG_THAI, SUBLANG_DEFAULT),
+        [MAKEINDEX('t','j')] = MAKELANGID(LANG_TAJIK, SUBLANG_DEFAULT),
+        [MAKEINDEX('t','m')] = MAKELANGID(LANG_TURKMEN, SUBLANG_DEFAULT),
+        [MAKEINDEX('t','r')] = MAKELANGID(LANG_TURKISH, SUBLANG_DEFAULT),
+        [MAKEINDEX('t','w')] = MAKELANGID(LANG_CHINESE, SUBLANG_CUSTOM_UNSPECIFIED),
+        [MAKEINDEX('t','z')] = MAKELANGID(LANG_SWAHILI, SUBLANG_CUSTOM_UNSPECIFIED),
+        [MAKEINDEX('u','a')] = MAKELANGID(LANG_UKRAINIAN, SUBLANG_DEFAULT),
+        [MAKEINDEX('u','s')] = MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT),
+        [MAKEINDEX('u','z')] = MAKELANGID(LANG_UZBEK, 2),
+        [MAKEINDEX('v','n')] = MAKELANGID(LANG_VIETNAMESE, SUBLANG_DEFAULT),
+        [MAKEINDEX('z','a')] = MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_SOUTH_AFRICA),
+    };
+    LANGID langid;
 
-    TRACE( "xkb_group %u, xkb_layout %s\n", xkb_group, xkb_layout );
+    if (layout_len == 2 && (langid = langids[MAKEINDEX(layout[0], layout[1])])) return langid;
+    if (layout_len == 3 && !memcmp( layout, "ara", layout_len )) return MAKELANGID(LANG_ARABIC, SUBLANG_DEFAULT);
+    if (layout_len == 3 && !memcmp( layout, "epo", layout_len )) return MAKELANGID(LANG_NEUTRAL, SUBLANG_CUSTOM_DEFAULT);
+    if (layout_len == 3 && !memcmp( layout, "mao", layout_len )) return MAKELANGID(LANG_MAORI, SUBLANG_DEFAULT);
+    if (layout_len == 4 && !memcmp( layout, "brai", layout_len )) return MAKELANGID(LANG_NEUTRAL, SUBLANG_CUSTOM_DEFAULT);
+    if (layout_len == 5 && !memcmp( layout, "latam", layout_len )) return MAKELANGID(LANG_SPANISH, SUBLANG_CUSTOM_UNSPECIFIED);
+
+    FIXME( "Unknown layout language %s\n", debugstr_a(layout) );
+    return MAKELANGID(LANG_NEUTRAL, SUBLANG_CUSTOM_UNSPECIFIED);
+#undef MAKEINDEX
+};
+
+static void create_layout_from_xkb( int xkb_group, const char *xkb_layout, LANGID lang )
+{
+    static WORD next_layout_id = 1;
+
+    struct layout *layout;
+    WORD index = 0;
+
+    TRACE( "lang %04x, xkb_group %u, xkb_layout %s\n", lang, xkb_group, xkb_layout );
 
     LIST_FOR_EACH_ENTRY( layout, &xkb_layouts, struct layout, entry )
     {
         if (!strcmp( layout->xkb_layout, xkb_layout ))
         {
-            TRACE( "Found existing layout entry %p\n", layout );
+            TRACE( "Found existing layout entry %p, hkl %04x%04x id %04x\n",
+                   layout, layout->index, layout->lang, layout->layout_id );
             if (layout->xkb_group == -1) layout->xkb_group = xkb_group;
             return;
         }
+        if (layout->lang == lang) index++;
     }
 
     if (!(layout = calloc( 1, sizeof(*layout) + strlen( xkb_layout ) + 1 )))
@@ -197,7 +318,11 @@ static void create_layout_from_xkb( int xkb_group, const char *xkb_layout )
     layout->xkb_group = xkb_group;
     layout->xkb_layout = strcpy( (char *)(layout + 1), xkb_layout );
 
-    TRACE( "Created layout entry %p\n", layout );
+    layout->lang = lang;
+    layout->index = index;
+    if (index) layout->layout_id = next_layout_id++;
+
+    TRACE( "Created layout entry %p, hkl %04x%04x id %04x\n", layout, layout->index, layout->lang, layout->layout_id );
 }
 
 /* Keyboard translation tables */
@@ -1671,6 +1796,7 @@ static void init_xkb_layouts( Display *display )
         const char *next_layout = strchr( layout, ',' ), *next_variant = strchr( variant, ',' );
         int layout_len, variant_len;
         char buffer[1024];
+        LANGID lang;
 
         if (!next_layout) next_layout = layout + strlen( layout );
         if (!next_variant) next_variant = variant + strlen( variant );
@@ -1678,8 +1804,9 @@ static void init_xkb_layouts( Display *display )
         layout_len = next_layout - layout;
         variant_len = next_variant - variant;
 
+        lang = langid_from_xkb_layout( layout, layout_len );
         snprintf( buffer, ARRAY_SIZE(buffer), "%.*s:%.*s:%s", layout_len, layout, variant_len, variant, options );
-        create_layout_from_xkb( i, buffer );
+        create_layout_from_xkb( i, buffer, lang );
 
         layout = *next_layout ? next_layout + 1 : layouts;
         variant = *next_layout ? (*next_variant ? next_variant + 1 : next_variant) : variants;
