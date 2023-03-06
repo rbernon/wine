@@ -49,6 +49,7 @@
 #include "kbd.h"
 #include "wine/server.h"
 #include "wine/debug.h"
+#include "wine/list.h"
 
 #ifdef HAVE_LINUX_INPUT_H
 # include <linux/input.h>
@@ -150,6 +151,14 @@ static WORD key2scan( UINT key )
     return 0x200 | (key & 0x7f);
 }
 
+struct layout
+{
+    struct list entry;
+
+    int xkb_group;
+    char *xkb_layout;
+};
+
 static const unsigned int ControlMask = 1 << 2;
 
 static int min_keycode, max_keycode, keysyms_per_keycode;
@@ -158,8 +167,38 @@ static WORD keyc2vkey[256], keyc2scan[256];
 static int NumLockMask, ScrollLockMask, AltGrMask; /* mask in the XKeyEvent state */
 
 static pthread_mutex_t kbd_mutex = PTHREAD_MUTEX_INITIALIZER;
+static struct list xkb_layouts = LIST_INIT( xkb_layouts );
 
 static char KEYBOARD_MapDeadKeysym(KeySym keysym);
+
+static void create_layout_from_xkb( int xkb_group, const char *xkb_layout )
+{
+    struct layout *layout;
+
+    TRACE( "xkb_group %u, xkb_layout %s\n", xkb_group, xkb_layout );
+
+    LIST_FOR_EACH_ENTRY( layout, &xkb_layouts, struct layout, entry )
+    {
+        if (!strcmp( layout->xkb_layout, xkb_layout ))
+        {
+            TRACE( "Found existing layout entry %p\n", layout );
+            if (layout->xkb_group == -1) layout->xkb_group = xkb_group;
+            return;
+        }
+    }
+
+    if (!(layout = calloc( 1, sizeof(*layout) + strlen( xkb_layout ) + 1 )))
+    {
+        WARN( "Failed to allocate memory for Xkb layout entry\n" );
+        return;
+    }
+    list_add_tail( &xkb_layouts, &layout->entry );
+
+    layout->xkb_group = xkb_group;
+    layout->xkb_layout = strcpy( (char *)(layout + 1), xkb_layout );
+
+    TRACE( "Created layout entry %p\n", layout );
+}
 
 /* Keyboard translation tables */
 #define MAIN_LEN 49
@@ -1587,6 +1626,7 @@ static void init_xkb_layouts( Display *display )
 {
     const char *rules, *model, *layouts, *layout, *variants, *variant, *options;
     unsigned long count, remaining;
+    struct layout *entry;
     unsigned char *data;
     int i, format;
     Atom type;
@@ -1619,6 +1659,10 @@ static void init_xkb_layouts( Display *display )
                debugstr_a(model), debugstr_a(layouts), debugstr_a(variants), debugstr_a(options) );
     }
 
+    /* Flag any previously created Xkb layout as invalid */
+    LIST_FOR_EACH_ENTRY( entry, &xkb_layouts, struct layout, entry )
+        entry->xkb_group = -1;
+
     /* There can be up to 4 active layouts, exposed as Xkb groups,
      * with round robin if there is less than 4 configured layouts
      */
@@ -1626,6 +1670,7 @@ static void init_xkb_layouts( Display *display )
     {
         const char *next_layout = strchr( layout, ',' ), *next_variant = strchr( variant, ',' );
         int layout_len, variant_len;
+        char buffer[1024];
 
         if (!next_layout) next_layout = layout + strlen( layout );
         if (!next_variant) next_variant = variant + strlen( variant );
@@ -1633,7 +1678,8 @@ static void init_xkb_layouts( Display *display )
         layout_len = next_layout - layout;
         variant_len = next_variant - variant;
 
-        TRACE( "Found group %u layout %s variant %s\n", i, debugstr_an(layout, layout_len), debugstr_an(variant, variant_len) );
+        snprintf( buffer, ARRAY_SIZE(buffer), "%.*s:%.*s:%s", layout_len, layout, variant_len, variant, options );
+        create_layout_from_xkb( i, buffer );
 
         layout = *next_layout ? next_layout + 1 : layouts;
         variant = *next_layout ? (*next_variant ? next_variant + 1 : next_variant) : variants;
