@@ -405,6 +405,7 @@ static const KBDTABLES kbdus_tables =
 };
 
 static LONG clipping_cursor; /* clipping thread counter */
+static HKL global_layout;
 
 LONG global_key_state_counter = 0;
 BOOL grab_pointer = TRUE;
@@ -1219,6 +1220,8 @@ HKL WINAPI NtUserActivateKeyboardLayout( HKL layout, UINT flags )
     if (!user_driver->pActivateKeyboardLayout( layout, flags ))
         return 0;
 
+    InterlockedExchangePointer( (void *)&global_layout, layout );
+
     old_layout = info->kbd_layout;
     if (old_layout != layout)
     {
@@ -1792,6 +1795,7 @@ BOOL release_capture(void)
 static HWND set_focus_window( HWND hwnd )
 {
     HWND previous = 0, ime_hwnd;
+    HKL layout;
     BOOL ret;
 
     SERVER_START_REQ( set_focus_window )
@@ -1818,6 +1822,9 @@ static HWND set_focus_window( HWND hwnd )
     if (is_window(hwnd))
     {
         user_driver->pSetFocus(hwnd);
+
+        if ((layout = InterlockedCompareExchangePointer( (void *)&global_layout, NULL, NULL )))
+            NtUserActivateKeyboardLayout( layout, 0 );
 
         ime_hwnd = get_default_ime_window( hwnd );
         if (ime_hwnd)
