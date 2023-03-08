@@ -3764,7 +3764,7 @@ static BOOL WINAPI ime_NotifyIME( HIMC himc, DWORD action, DWORD index, DWORD va
     };
     ime_trace( "himc %p, action %#lx, index %lu, value %lu\n", himc, action, index, value );
     ime_calls[ime_call_count++] = call;
-    return FALSE;
+    return TRUE;
 }
 
 static BOOL WINAPI ime_DllMain( HINSTANCE instance, DWORD reason, LPVOID reserved )
@@ -8496,6 +8496,80 @@ static void test_ImmTranslateMessage( BOOL unicode )
     ime_cleanup( hkl );
 }
 
+static void test_ImmCreateContext(void)
+{
+    struct ime_call activate_sequence[] =
+    {
+        {.func = IME_SET_ACTIVE_CONTEXT, .active = {.flag = 0}},
+        {.func = IME_UI_MSG, .ui = {.msg = WM_IME_SETCONTEXT, .wparam = 0, .lparam = ISC_SHOWUIALL, .flags = {.wp = 1, .lp = 1}}},
+        {.func = IME_SELECT, .select = 1},
+        {.func = IME_SET_ACTIVE_CONTEXT, .active = {.flag = 1}},
+        {.func = IME_UI_MSG, .ui = {.msg = WM_IME_SETCONTEXT, .wparam = 1, .lparam = ISC_SHOWUIALL, .flags = {.wp = 1, .lp = 1}}},
+        {0},
+    };
+    struct ime_call destroy_sequence[] =
+    {
+        {.func = IME_SELECT, .select = 0},
+        {0},
+    };
+    HKL hkl, old_hkl = GetKeyboardLayout( 0 ), tmp_hkl;
+    HIMC himc, old_himc, tmp_himc;
+    UINT ret, i;
+
+    himc = ImmCreateContext();
+    ok( !!himc, "got himc %p\n", himc );
+    ret = ImmDestroyContext( himc );
+    ok( ret, "ImmDestroyContext failed, error %lu\n", GetLastError() );
+
+    ime_info.fdwProperty = IME_PROP_END_UNLOAD | IME_PROP_UNICODE;
+    ime_info.dwPrivateDataSize = sizeof(struct ime_context);
+
+    if (!(hkl = ime_install())) return;
+
+    hwnd = CreateWindowW( L"static", L"static", WS_VISIBLE | WS_POPUP,
+                          100, 100, 100, 100, 0, NULL, NULL, NULL );
+    ok( !!hwnd, "CreateWindow failed, error %lu\n", GetLastError() );
+    old_himc = ImmGetContext( hwnd );
+    ok( !!old_himc, "got himc %p\n", old_himc );
+    flush_events();
+
+    tmp_hkl = ActivateKeyboardLayout( hkl, 0 );
+    ok( tmp_hkl == old_hkl, "got HKL %p\n", tmp_hkl );
+    clear_calls();
+
+    himc = ImmCreateContext();
+    ok( himc != old_himc, "got himc %p\n", himc );
+    todo_wine check_calls( empty_sequence );
+
+    tmp_himc = ImmAssociateContext( hwnd, himc );
+    ok( tmp_himc == old_himc, "got himc %p\n", tmp_himc );
+    for (i = 0; i < 2; ++i) activate_sequence[i].himc = old_himc;
+    for (; i < ARRAY_SIZE(activate_sequence); ++i) activate_sequence[i].himc = himc;
+    todo_wine check_calls( activate_sequence );
+
+    tmp_himc = ImmGetContext( hwnd );
+    ok( tmp_himc == himc, "got himc %p\n", tmp_himc );
+
+    /* cannot destroy the default input context */
+    ret = ImmDestroyContext( old_himc );
+    ok( !ret, "ImmDestroyContext succeeded\n" );
+    check_calls( empty_sequence );
+
+    ret = ImmDestroyContext( himc );
+    ok( ret, "ImmDestroyContext failed, error %lu\n", GetLastError() );
+    destroy_sequence[0].himc = himc;
+    check_calls( destroy_sequence );
+
+    tmp_hkl = ActivateKeyboardLayout( old_hkl, 0 );
+    ok( tmp_hkl == hkl, "got HKL %p\n", tmp_hkl );
+    clear_calls();
+
+    DestroyWindow( hwnd );
+    flush_events();
+
+    ime_cleanup( hkl );
+}
+
 START_TEST(imm32)
 {
     default_hkl = GetKeyboardLayout( 0 );
@@ -8549,6 +8623,7 @@ START_TEST(imm32)
     test_ImmTranslateMessage( FALSE );
     test_ImmGenerateMessage( TRUE );
     test_ImmGenerateMessage( FALSE );
+    test_ImmCreateContext();
 
     test_ImmGetCandidateList( TRUE );
     test_ImmGetCandidateList( FALSE );
