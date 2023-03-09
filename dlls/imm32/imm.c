@@ -699,6 +699,26 @@ BOOL WINAPI ImmActivateLayout( HKL hkl )
 
     ImmEnumInputContext( 0, enum_activate_layout, 0 );
 
+    if ((ime = ime_acquire( hkl )))
+    {
+        BOOL ret = EnumThreadWindows( GetCurrentThreadId(), enum_window_select_ime, (LPARAM)ime );
+
+        if (ret && !ime->ui_hwnd)
+        {
+            ime->ui_hwnd = CreateWindowExW( WS_EX_TOOLWINDOW, ime->ui_class, ime->ui_class,
+                                            WS_POPUP, 0, 0, 1, 1, 0, 0, ime->module, 0 );
+            SetWindowLongPtrW( ime->ui_hwnd, IMMGWL_IMC, (LONG_PTR)NtUserGetThreadInfo()->default_imc );
+        }
+
+        ime_release( ime );
+    }
+
+    if ((ime = ime_acquire( old_hkl )))
+    {
+        if (ime->ui_hwnd) DestroyWindow( ime->ui_hwnd );
+        ime_release( ime );
+    }
+
     return TRUE;
 }
 
