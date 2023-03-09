@@ -3961,6 +3961,57 @@ static void test_ImmEnumInputContext(void)
     ok_ret( 1, ImmEnumInputContext( GetCurrentThreadId(), enum_find_context, (LPARAM)himc ) );
 }
 
+static BOOL CALLBACK enum_default_context( HIMC himc, LPARAM lparam )
+{
+    *(HIMC *)lparam = himc;
+    return TRUE;
+}
+
+static void test_ImmCreateContext(void)
+{
+    INPUTCONTEXT *ctx, expect =
+    {
+        .fdwConversion = 1,
+        .fdwSentence = 8,
+        .cfCandForm =
+        {
+            {.dwIndex = ~0},
+            {.dwIndex = ~0},
+            {.dwIndex = ~0},
+            {.dwIndex = ~0},
+        },
+        .hPrivate = ImmCreateIMCC(4),
+        .hMsgBuf = ImmCreateIMCC(4),
+        .fdwInit = 10,
+    };
+    HIMC himc;
+    UINT ret;
+
+    himc = 0;
+    ret = ImmEnumInputContext( 0, enum_default_context, (LPARAM)&himc );
+    ok( ret, "ImmEnumInputContext returned %u\n", ret );
+    ok( !!himc, "got HIMC %p\n", himc );
+
+    ctx = ImmLockIMC( himc );
+    ok( !!ctx, "got context %p\n", ctx );
+    ret = IsWindow( ctx->hWnd );
+    ok( !ret, "GetWindowTextW failed, error %lu\n", GetLastError() );
+    check_input_context( ctx, &expect );
+    expect = *ctx;
+    ret = ImmUnlockIMC( himc );
+    ok( ret, "ImmUnlockIMC failed, error %lu\n", GetLastError() );
+
+    himc = ImmCreateContext();
+    ok( !!himc, "ImmCreateContext failed, error %lu\n", GetLastError() );
+    ctx = ImmLockIMC( himc );
+    ok( !ctx, "got context %p\n", ctx );
+    ret = ImmDestroyContext( himc );
+    ok( ret, "ImmDestroyContext failed, error %lu\n", GetLastError() );
+
+    ImmDestroyIMCC( expect.hPrivate );
+    ImmDestroyIMCC( expect.hMsgBuf );
+}
+
 static void test_ImmInstallIME(void)
 {
     UINT ret;
@@ -5438,6 +5489,68 @@ static void test_ImmActivateLayout(void)
 cleanup:
     SET_ENABLE( ImeInquire, FALSE );
     SET_ENABLE( ImeDestroy, FALSE );
+}
+
+static void test_ImmGenerateMessage( BOOL unicode )
+{
+    HKL hkl, old_hkl = GetKeyboardLayout( 0 );
+    INPUTCONTEXT *ctx, expect =
+    {
+        .fdwConversion = 1,
+        .fdwSentence = 8,
+        .cfCandForm =
+        {
+            {.dwIndex = ~0},
+            {.dwIndex = ~0},
+            {.dwIndex = ~0},
+            {.dwIndex = ~0},
+        },
+        .hPrivate = ImmCreateIMCC(4),
+        .hMsgBuf = ImmCreateIMCC(4),
+        .fdwInit = 10,
+    };
+    HIMC himc;
+    UINT ret;
+
+    ret = ImmActivateLayout( old_hkl );
+    ok( ret, "ImmActivateLayout returned %u\n", ret );
+
+    himc = 0;
+    ret = ImmEnumInputContext( 0, enum_default_context, (LPARAM)&himc );
+    ok( ret, "ImmEnumInputContext returned %u\n", ret );
+    ok( !!himc, "got HIMC %p\n", himc );
+
+    ctx = ImmLockIMC( himc );
+    ok( !!ctx, "got context %p\n", ctx );
+    check_input_context( ctx, &expect );
+    expect = *ctx;
+    ret = ImmUnlockIMC( himc );
+    ok( ret, "ImmUnlockIMC failed, error %lu\n", GetLastError() );
+
+    ime_info.fdwProperty = IME_PROP_END_UNLOAD | IME_PROP_UNICODE;
+
+    if (!(hkl = ime_install())) return;
+
+    ret = ImmActivateLayout( hkl );
+    ok( ret, "ImmActivateLayout returned %u\n", ret );
+    memset( ime_calls, 0, sizeof(ime_calls) );
+    ime_call_count = 0;
+
+    ctx = ImmLockIMC( himc );
+    ok( !!ctx, "got context %p\n", ctx );
+    check_input_context( ctx, &expect );
+    ret = ImmUnlockIMC( himc );
+    ok( ret, "ImmUnlockIMC failed, error %lu\n", GetLastError() );
+
+    ret = ImmActivateLayout( old_hkl );
+    ok( ret, "ImmActivateLayout returned %u\n", ret );
+    ok_seq( empty_sequence );
+
+    ret = ImmFreeLayout( hkl );
+    ok( ret, "ImmFreeLayout returned %u\n", ret );
+    ime_cleanup( hkl );
+    memset( ime_calls, 0, sizeof(ime_calls) );
+    ime_call_count = 0;
 }
 
 static void test_ImmCreateInputContext(void)
@@ -8112,6 +8225,7 @@ START_TEST(imm32)
     test_com_initialization();
 
     test_ImmEnumInputContext();
+    test_ImmCreateContext();
 
     test_ImmInstallIME();
     wineime_hkl = ime_install();
@@ -8145,6 +8259,8 @@ START_TEST(imm32)
     test_ImmRequestMessage();
     test_ImmTranslateMessage( TRUE );
     test_ImmTranslateMessage( FALSE );
+    test_ImmGenerateMessage( TRUE );
+    test_ImmGenerateMessage( FALSE );
 
     test_ImmGetCandidateList( TRUE );
     test_ImmGetCandidateList( FALSE );
