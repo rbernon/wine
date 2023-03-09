@@ -3971,8 +3971,8 @@ static void test_ImmCreateContext(void)
 {
     INPUTCONTEXT *ctx, expect =
     {
-        .fdwConversion = 1,
-        .fdwSentence = 8,
+        .fdwConversion = IME_CMODE_NATIVE,
+        .fdwSentence = IME_SMODE_PHRASEPREDICT,
         .cfCandForm =
         {
             {.dwIndex = ~0},
@@ -5496,8 +5496,8 @@ static void test_ImmGenerateMessage( BOOL unicode )
     HKL hkl, old_hkl = GetKeyboardLayout( 0 );
     INPUTCONTEXT *ctx, expect =
     {
-        .fdwConversion = 1,
-        .fdwSentence = 8,
+        .fdwConversion = IME_CMODE_NATIVE,
+        .fdwSentence = IME_SMODE_PHRASEPREDICT,
         .cfCandForm =
         {
             {.dwIndex = ~0},
@@ -5588,6 +5588,122 @@ static void test_ImmSetOpenStatus(void)
     ret = ImmSetOpenStatus( himc, FALSE );
     ok( ret, "ImmSetOpenStatus failed, error %lu\n", GetLastError() );
     ok_seq( empty_sequence );
+
+    ret = ImmActivateLayout( old_hkl );
+    ok( ret, "ImmActivateLayout returned %u\n", ret );
+
+    ret = ImmFreeLayout( hkl );
+    ok( ret, "ImmFreeLayout returned %u\n", ret );
+    ime_cleanup( hkl );
+    memset( ime_calls, 0, sizeof(ime_calls) );
+    ime_call_count = 0;
+}
+
+static void test_ImmSetConversionStatus(void)
+{
+    HKL hkl, old_hkl = GetKeyboardLayout( 0 );
+    INPUTCONTEXT *ctx, expect =
+    {
+        .fdwConversion = IME_CMODE_NATIVE,
+        .fdwSentence = IME_SMODE_PHRASEPREDICT,
+        .cfCandForm =
+        {
+            {.dwIndex = ~0},
+            {.dwIndex = ~0},
+            {.dwIndex = ~0},
+            {.dwIndex = ~0},
+        },
+        .hPrivate = ImmCreateIMCC(4),
+        .hMsgBuf = ImmCreateIMCC(4),
+        .fdwInit = 10,
+    };
+    DWORD conversion, sentence;
+    HIMC himc;
+    UINT ret;
+
+    ret = ImmActivateLayout( old_hkl );
+    ok( ret, "ImmActivateLayout returned %u\n", ret );
+
+    himc = 0;
+    ret = ImmEnumInputContext( 0, enum_default_context, (LPARAM)&himc );
+    ok( ret, "ImmEnumInputContext returned %u\n", ret );
+    ok( !!himc, "got HIMC %p\n", himc );
+
+    ctx = ImmLockIMC( himc );
+    ok( !!ctx, "got context %p\n", ctx );
+    check_input_context( ctx, &expect );
+    ret = ImmUnlockIMC( himc );
+    ok( ret, "ImmUnlockIMC failed, error %lu\n", GetLastError() );
+
+    ret = ImmGetConversionStatus( himc, &conversion, &sentence );
+    ok( ret, "ImmGetConversionStatus failed, error %lu\n", GetLastError() );
+    ok( conversion == expect.fdwConversion, "got conversion %lu\n", conversion );
+    ok( sentence == expect.fdwSentence, "got sentence %lu\n", sentence );
+
+    ret = ImmSetConversionStatus( himc, IME_CMODE_NOCONVERSION, IME_SMODE_AUTOMATIC );
+    ok( ret, "ImmSetConversionStatus failed, error %lu\n", GetLastError() );
+
+    ret = ImmGetConversionStatus( himc, &conversion, &sentence );
+    ok( ret, "ImmGetConversionStatus failed, error %lu\n", GetLastError() );
+    ok( conversion == expect.fdwConversion, "got conversion %lu\n", conversion );
+    ok( sentence == expect.fdwSentence, "got sentence %lu\n", sentence );
+
+    ret = ImmSetConversionStatus( himc, expect.fdwConversion, expect.fdwSentence );
+    ok( ret, "ImmSetConversionStatus failed, error %lu\n", GetLastError() );
+
+    ret = ImmGetConversionStatus( himc, &conversion, &sentence );
+    ok( ret, "ImmGetConversionStatus failed, error %lu\n", GetLastError() );
+    ok( conversion == expect.fdwConversion, "got conversion %lu\n", conversion );
+    ok( sentence == expect.fdwSentence, "got sentence %lu\n", sentence );
+
+    ctx = ImmLockIMC( himc );
+    ok( !!ctx, "got context %p\n", ctx );
+    check_input_context( ctx, &expect );
+    ret = ImmUnlockIMC( himc );
+    ok( ret, "ImmUnlockIMC failed, error %lu\n", GetLastError() );
+
+    ime_info.fdwProperty = IME_PROP_END_UNLOAD | IME_PROP_UNICODE;
+
+    if (!(hkl = ime_install())) return;
+
+    ret = ImmActivateLayout( hkl );
+    ok( ret, "ImmActivateLayout returned %u\n", ret );
+    memset( ime_calls, 0, sizeof(ime_calls) );
+    ime_call_count = 0;
+
+
+    ret = ImmGetConversionStatus( himc, &conversion, &sentence );
+    ok( ret, "ImmGetConversionStatus failed, error %lu\n", GetLastError() );
+    ok( conversion == expect.fdwConversion, "got conversion %lu\n", conversion );
+    ok( sentence == expect.fdwSentence, "got sentence %lu\n", sentence );
+    ok_seq( empty_sequence );
+
+    ret = ImmSetConversionStatus( himc, conversion + 1, sentence );
+    ok( ret, "ImmSetConversionStatus failed, error %lu\n", GetLastError() );
+    ok_seq( empty_sequence );
+
+    ret = ImmGetConversionStatus( himc, &conversion, &sentence );
+    ok( ret, "ImmGetConversionStatus failed, error %lu\n", GetLastError() );
+    ok( conversion == expect.fdwConversion, "got conversion %lu\n", conversion );
+    ok( sentence == expect.fdwSentence, "got sentence %lu\n", sentence );
+    ok_seq( empty_sequence );
+
+    ret = ImmSetConversionStatus( himc, conversion, sentence + 1 );
+    ok( ret, "ImmSetConversionStatus failed, error %lu\n", GetLastError() );
+    ok_seq( empty_sequence );
+
+    ret = ImmGetConversionStatus( himc, &conversion, &sentence );
+    ok( ret, "ImmGetConversionStatus failed, error %lu\n", GetLastError() );
+    ok( conversion == expect.fdwConversion, "got conversion %lu\n", conversion );
+    ok( sentence == expect.fdwSentence, "got sentence %lu\n", sentence );
+    ok_seq( empty_sequence );
+
+    ctx = ImmLockIMC( himc );
+    ok( !!ctx, "got context %p\n", ctx );
+    check_input_context( ctx, &expect );
+    ret = ImmUnlockIMC( himc );
+    ok( ret, "ImmUnlockIMC failed, error %lu\n", GetLastError() );
+
 
     ret = ImmActivateLayout( old_hkl );
     ok( ret, "ImmActivateLayout returned %u\n", ret );
