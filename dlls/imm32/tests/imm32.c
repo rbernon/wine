@@ -5553,6 +5553,52 @@ static void test_ImmGenerateMessage( BOOL unicode )
     ime_call_count = 0;
 }
 
+static void test_ImmSetOpenStatus(void)
+{
+    HKL hkl, old_hkl = GetKeyboardLayout( 0 );
+    HIMC himc;
+    UINT ret;
+
+    ret = ImmActivateLayout( old_hkl );
+    ok( ret, "ImmActivateLayout returned %u\n", ret );
+
+    himc = 0;
+    ret = ImmEnumInputContext( 0, enum_default_context, (LPARAM)&himc );
+    ok( ret, "ImmEnumInputContext returned %u\n", ret );
+    ok( !!himc, "got HIMC %p\n", himc );
+
+    ret = ImmSetOpenStatus( himc, TRUE );
+    ok( ret, "ImmSetOpenStatus failed, error %lu\n", GetLastError() );
+    ret = ImmSetOpenStatus( himc, FALSE );
+    ok( ret, "ImmSetOpenStatus failed, error %lu\n", GetLastError() );
+
+    ime_info.fdwProperty = IME_PROP_END_UNLOAD | IME_PROP_UNICODE;
+
+    if (!(hkl = ime_install())) return;
+
+    ret = ImmActivateLayout( hkl );
+    ok( ret, "ImmActivateLayout returned %u\n", ret );
+    memset( ime_calls, 0, sizeof(ime_calls) );
+    ime_call_count = 0;
+
+    ret = ImmSetOpenStatus( himc, TRUE );
+    ok( ret, "ImmSetOpenStatus failed, error %lu\n", GetLastError() );
+    ok_seq( empty_sequence );
+
+    ret = ImmSetOpenStatus( himc, FALSE );
+    ok( ret, "ImmSetOpenStatus failed, error %lu\n", GetLastError() );
+    ok_seq( empty_sequence );
+
+    ret = ImmActivateLayout( old_hkl );
+    ok( ret, "ImmActivateLayout returned %u\n", ret );
+
+    ret = ImmFreeLayout( hkl );
+    ok( ret, "ImmFreeLayout returned %u\n", ret );
+    ime_cleanup( hkl );
+    memset( ime_calls, 0, sizeof(ime_calls) );
+    ime_call_count = 0;
+}
+
 static void test_ImmCreateInputContext(void)
 {
     struct ime_call activate_seq[] =
