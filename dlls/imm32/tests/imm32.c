@@ -8072,6 +8072,30 @@ static void test_ImmNotifyIME(void)
     ime_call_count = 0;
 }
 
+static void test_ImmTranslateMessage( BOOL unicode )
+{
+    UINT ret;
+    HKL hkl;
+
+    ret = ImmTranslateMessage( 0, WM_KEYDOWN, 'A', 0 );
+    todo_wine ok( ret, "ImmTranslateMessage returned %u\n", ret );
+    ret = ImmTranslateMessage( 0, WM_KEYUP, 'A', 0 );
+    todo_wine ok( ret, "ImmTranslateMessage returned %u\n", ret );
+
+    ime_info.fdwProperty = IME_PROP_END_UNLOAD;
+    if (unicode) ime_info.fdwProperty |= IME_PROP_UNICODE;
+
+    if (!(hkl = ime_install())) return;
+
+    ret = ImmTranslateMessage( 0, WM_KEYDOWN, 'A', 0 );
+    todo_wine ok( ret, "ImmTranslateMessage returned %u\n", ret );
+    ret = ImmTranslateMessage( 0, WM_KEYUP, 'A', 0 );
+    todo_wine ok( ret, "ImmTranslateMessage returned %u\n", ret );
+    check_calls( empty_sequence );
+
+    ime_cleanup( hkl );
+}
+
 START_TEST(imm32)
 {
     default_hkl = GetKeyboardLayout( 0 );
@@ -8119,6 +8143,8 @@ START_TEST(imm32)
     test_DefWindowProc();
     test_ImmSetActiveContext();
     test_ImmRequestMessage();
+    test_ImmTranslateMessage( TRUE );
+    test_ImmTranslateMessage( FALSE );
 
     test_ImmGetCandidateList( TRUE );
     test_ImmGetCandidateList( FALSE );
