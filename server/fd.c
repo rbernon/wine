@@ -364,11 +364,13 @@ static void atomic_store_long(volatile LONG *ptr, LONG value)
 
 static void set_user_shared_data_time(void)
 {
-    timeout_t tick_count = monotonic_time / 10000;
-    static timeout_t last_timezone_update;
-    timeout_t timezone_bias;
+    static timeout_t boot_time = -1, last_timezone_update;
+    timeout_t tick_count, timezone_bias;
     struct tm *tm;
     time_t now;
+
+    if (boot_time == -1) boot_time = monotonic_time;
+    tick_count = (monotonic_time - boot_time) / 10000;
 
     if (monotonic_time - last_timezone_update > TICKS_PER_SEC)
     {
