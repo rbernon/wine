@@ -99,6 +99,7 @@ BOOL WINAPI ImmSetActiveContext(HWND, HIMC, BOOL);
 
 static BOOL (WINAPI *pImmAssociateContextEx)(HWND,HIMC,DWORD);
 static UINT (WINAPI *pNtUserAssociateInputContext)(HWND,HIMC,ULONG);
+static HKL  (WINAPI *pNtUserActivateKeyboardLayout)(HKL,UINT);
 static BOOL (WINAPI *pImmIsUIMessageA)(HWND,UINT,WPARAM,LPARAM);
 static UINT (WINAPI *pSendInput) (UINT, INPUT*, size_t);
 
@@ -1082,6 +1083,8 @@ static BOOL init(void) {
     pSendInput = (void*)GetProcAddress(huser, "SendInput");
     pNtUserAssociateInputContext = (void*)GetProcAddress(GetModuleHandleW(L"win32u.dll"),
                                                          "NtUserAssociateInputContext");
+    pNtUserActivateKeyboardLayout = (void*)GetProcAddress(GetModuleHandleW(L"win32u.dll"),
+                                                         "NtUserActivateKeyboardLayout");
 
     wc.cbSize        = sizeof(WNDCLASSEXA);
     wc.style         = 0;
@@ -5435,6 +5438,31 @@ static void test_ImmActivateLayout(void)
     ret = ImmFreeLayout( hkl );
     ok( ret, "ImmFreeLayout returned %u\n", ret );
     check_calls( empty_sequence );
+
+
+    if (pNtUserActivateKeyboardLayout)
+    {
+        if (!(hkl = ime_install())) goto cleanup;
+
+        tmp_hkl = pNtUserActivateKeyboardLayout( hkl, 0 );
+        todo_wine ok( tmp_hkl == old_hkl, "NtUserActivateKeyboardLayout returned %p\n", tmp_hkl );
+        check_calls( activate_wihout_window );
+
+        tmp_hkl = GetKeyboardLayout( 0 );
+        todo_wine ok( tmp_hkl == hkl, "got HKL %p\n", tmp_hkl );
+
+        tmp_hkl = pNtUserActivateKeyboardLayout( old_hkl, 0 );
+        todo_wine ok( tmp_hkl == hkl, "NtUserActivateKeyboardLayout returned %p\n", tmp_hkl );
+        check_calls( deactivate_wihout_window );
+
+        tmp_hkl = GetKeyboardLayout( 0 );
+        ok( tmp_hkl == old_hkl, "got HKL %p\n", tmp_hkl );
+
+        ret = ImmFreeLayout( hkl );
+        ok( ret, "ImmFreeLayout returned %u\n", ret );
+        ime_cleanup( hkl );
+        check_calls( empty_sequence );
+    }
 
 
     /* ImmActivateLayout with existing window */
