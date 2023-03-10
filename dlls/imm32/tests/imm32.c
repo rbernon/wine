@@ -5485,6 +5485,22 @@ static void test_ImmActivateLayout(void)
     tmp_hkl = GetKeyboardLayout( 0 );
     todo_wine ok( tmp_hkl == hkl, "got HKL %p\n", tmp_hkl );
 
+ret = ImmNotifyIME( default_himc, 0, 1, 0 );
+ok( !!ret, "ImmNotifyIME failed, error %lu\n", GetLastError() );
+check_calls( empty_sequence );
+ret = ImmNotifyIME( default_himc, 1, 1, 0 );
+ok( !!ret, "ImmNotifyIME failed, error %lu\n", GetLastError() );
+check_calls( empty_sequence );
+ret = ImmNotifyIME( default_himc, 2, 1, 0 );
+ok( !!ret, "ImmNotifyIME failed, error %lu\n", GetLastError() );
+check_calls( empty_sequence );
+ret = ImmNotifyIME( default_himc, 3, 1, 0 );
+ok( !!ret, "ImmNotifyIME failed, error %lu\n", GetLastError() );
+check_calls( empty_sequence );
+ret = ImmNotifyIME( default_himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0 );
+ok( !!ret, "ImmNotifyIME failed, error %lu\n", GetLastError() );
+check_calls( empty_sequence );
+
     expect.hWnd = hwnd;
     ctx = ImmLockIMC( himc );
     ok( !!ctx, "got context %p\n", ctx );
@@ -5492,6 +5508,66 @@ static void test_ImmActivateLayout(void)
     expect = *ctx;
     ret = ImmUnlockIMC( himc );
     ok( ret, "ImmUnlockIMC failed, error %lu\n", GetLastError() );
+
+
+{
+    INPUTCONTEXT *ctx;
+    HIMC himc, tmp_himc;
+
+    himc = ImmCreateContext();
+    ok( !!himc, "ImmCreateContext failed, error %lu\n", GetLastError() );
+    check_calls( empty_sequence );
+
+    ctx = ImmLockIMC( himc );
+    ok( !!ctx, "got context %p\n", ctx );
+    check_calls( empty_sequence );
+
+    check_input_context( ctx, &expect );
+    ret = ImmUnlockIMC( himc );
+    ok( ret, "ImmUnlockIMC failed, error %lu\n", GetLastError() );
+    check_calls( empty_sequence );
+
+    ImmSetOpenStatus(himc, TRUE);
+    check_calls( empty_sequence );
+
+    ret = ImmSetActiveContext( hwnd, himc, TRUE );
+    ok( !!ret, "ImmSetActiveContext failed, error %lu\n", GetLastError() );
+    check_calls( empty_sequence );
+
+ret = ImmProcessKey( hwnd, hkl, VK_CONTROL, 0x801d0001, 0 );
+ok( !!ret, "ImmProcessKey failed, error %lu\n", GetLastError() );
+check_calls( empty_sequence );
+
+SetFocus(hwnd);
+
+keybd_event( 'A', 0x10, 0, 0 );
+process_messages();
+
+keybd_event( 'A', 0x10, KEYEVENTF_KEYUP, 0 );
+process_messages();
+
+tmp_himc = ImmAssociateContext( hwnd, himc );
+ok( tmp_himc == default_himc, "ImmAssociateContextEx failed, error %lu\n", GetLastError() );
+check_calls( empty_sequence );
+
+ret = ImmAssociateContextEx( hwnd, himc, 0 );
+ok( !!ret, "ImmAssociateContextEx failed, error %lu\n", GetLastError() );
+check_calls( empty_sequence );
+
+    ret = ImmDestroyContext( himc );
+    ok( !!ret, "ImmDestroyContext failed, error %lu\n", GetLastError() );
+    check_calls( empty_sequence );
+}
+
+    thread_params.hkl = hkl;
+    thread = CreateThread( NULL, 0, test_activate_layout_thread, &thread_params, 0, NULL );
+    ok( !!thread, "CreateThread failed, error %lu\n", GetLastError() );
+    ret = WaitForSingleObject( thread, INFINITE );
+    ok( !ret, "WaitForSingleObject returned %#x\n", ret );
+    CloseHandle( thread );
+
+    ok( ime_windows.ime_hwnd != other_ime_windows.ime_hwnd, "got same IME window\n" );
+    ok( ime_windows.ime_ui_hwnd != other_ime_windows.ime_ui_hwnd, "got same IME UI window\n" );
 
     ret = ImmActivateLayout( old_hkl );
     todo_wine ok( ret, "ImmActivateLayout returned %u\n", ret );
