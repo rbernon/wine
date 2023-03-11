@@ -3494,9 +3494,9 @@ static BOOL WINAPI ime_ImeInquire( IMEINFO *info, WCHAR *ui_class, DWORD flags )
     todo_wine_if( todo_ImeInquire )
     CHECK_EXPECT( ImeInquire );
 
-    ok( !!info, "got info %p\n", info );
-    ok( !!ui_class, "got ui_class %p\n", ui_class );
-    ok( !flags, "got flags %#lx\n", flags );
+    ok_ne( 0, info, void *, "%p" );
+    ok_ne( 0, ui_class, void *, "%p" );
+    ok_eq( 0, flags, UINT, "%#x" );
 
     *info = ime_info;
 
@@ -3832,13 +3832,13 @@ static HKL ime_install(void)
     ret = MoveFileW( buffer, L"c:\\windows\\system32\\winetest_ime.dll" );
     if (!ret)
     {
-        ok( GetLastError() == ERROR_ACCESS_DENIED, "got error %lu\n", GetLastError() );
+        ok_ret( ERROR_ACCESS_DENIED, GetLastError() );
         win_skip( "Failed to copy DLL to system directory\n" );
         return 0;
     }
 
     module = LoadLibraryW( L"c:\\windows\\system32\\winetest_ime.dll" );
-    ok( !!module, "LoadLibraryW failed, error %lu\n", GetLastError() );
+    ok_ne( 0, module, HMODULE, "%p" );
     *(struct ime_functions *)GetProcAddress( module, "ime_functions" ) = ime_functions;
 
     /* install the actual IME module, it will lookup the functions from the DLL */
@@ -3848,38 +3848,34 @@ static HKL ime_install(void)
     swprintf( ime_path, ARRAY_SIZE(ime_path), L"c:\\windows\\system32\\wine%04x.ime", ime_count++ );
     ret = MoveFileW( buffer, ime_path );
     todo_wine_if( GetLastError() == ERROR_ALREADY_EXISTS )
-    ok( ret || broken( !ret ) /* sometimes still in use */,
+    ok( ret == 1 || broken( !ret ) /* sometimes still in use */,
         "MoveFileW failed, error %lu\n", GetLastError() );
 
     hkl = ImmInstallIMEW( ime_path, L"WineTest IME" );
-    ok( hkl == expect_ime, "ImmInstallIMEW returned %p, error %lu\n", hkl, GetLastError() );
+    todo_wine
+    ok_eq( expect_ime, hkl, HKL, "%p" );
 
     swprintf( buffer, ARRAY_SIZE(buffer), L"System\\CurrentControlSet\\Control\\Keyboard Layouts\\%08x", hkl );
-    ret = RegOpenKeyW( HKEY_LOCAL_MACHINE, buffer, &hkey );
-    ok( !ret, "RegOpenKeyW returned %#lx, error %lu\n", ret, GetLastError() );
+    ok_ret( 0, RegOpenKeyW( HKEY_LOCAL_MACHINE, buffer, &hkey ) );
 
     len = sizeof(buffer);
     memset( buffer, 0xcd, sizeof(buffer) );
-    ret = RegQueryValueExW( hkey, L"Ime File", NULL, NULL, (BYTE *)buffer, &len );
-    ok( !ret, "RegQueryValueExW returned %#lx, error %lu\n", ret, GetLastError() );
+    ok_ret( 0, RegQueryValueExW( hkey, L"Ime File", NULL, NULL, (BYTE *)buffer, &len ) );
     ok( !wcsicmp( buffer, wcsrchr( ime_path, '\\' ) + 1 ), "got Ime File %s\n", debugstr_w(buffer) );
 
     len = sizeof(buffer);
     memset( buffer, 0xcd, sizeof(buffer) );
-    ret = RegQueryValueExW( hkey, L"Layout Text", NULL, NULL, (BYTE *)buffer, &len );
-    ok( !ret, "RegQueryValueExW returned %#lx, error %lu\n", ret, GetLastError() );
-    ok( !wcscmp( buffer, L"WineTest IME" ), "got Layout Text %s\n", debugstr_w(buffer) );
+    ok_ret( 0, RegQueryValueExW( hkey, L"Layout Text", NULL, NULL, (BYTE *)buffer, &len ) );
+    ok_wcs( L"WineTest IME", buffer );
 
     len = sizeof(buffer);
     memset( buffer, 0, sizeof(buffer) );
-    ret = RegQueryValueExW( hkey, L"Layout File", NULL, NULL, (BYTE *)buffer, &len );
     todo_wine
-    ok( !ret, "RegQueryValueExW returned %#lx, error %lu\n", ret, GetLastError() );
+    ok_ret( 0, RegQueryValueExW( hkey, L"Layout File", NULL, NULL, (BYTE *)buffer, &len ) );
     todo_wine
-    ok( !wcscmp( buffer, L"kbdus.dll" ), "got Layout File %s\n", debugstr_w(buffer) );
+    ok_wcs( L"kbdus.dll", buffer );
 
-    ret = RegCloseKey( hkey );
-    ok( !ret, "RegCloseKey returned %#lx, error %lu\n", ret, GetLastError() );
+    ok_ret( 0, RegCloseKey( hkey ) );
 
     return hkl;
 }
@@ -3888,21 +3884,18 @@ static void ime_cleanup( HKL hkl, BOOL free )
 {
     HMODULE module = GetModuleHandleW( L"winetest_ime.dll" );
     WCHAR buffer[MAX_PATH], value[MAX_PATH];
-    DWORD i, buffer_len, value_len, ret;
+    DWORD i, buffer_len, value_len;
     HKEY hkey;
+    UINT ret;
 
-    ret = UnloadKeyboardLayout( hkl );
     todo_wine
-    ok( ret, "UnloadKeyboardLayout failed, error %lu\n", GetLastError() );
+    ok_ret( 1, UnloadKeyboardLayout( hkl ) );
 
     if (free) ok_ret( 1, ImmFreeLayout( hkl ) );
 
     swprintf( buffer, ARRAY_SIZE(buffer), L"System\\CurrentControlSet\\Control\\Keyboard Layouts\\%08x", hkl );
-    ret = RegDeleteKeyW( HKEY_LOCAL_MACHINE, buffer );
-    ok( !ret, "RegDeleteKeyW returned %#lx, error %lu\n", ret, GetLastError() );
-
-    ret = RegOpenKeyW( HKEY_CURRENT_USER, L"Keyboard Layout\\Preload", &hkey );
-    ok( !ret, "RegOpenKeyW returned %#lx, error %lu\n", ret, GetLastError() );
+    ok_ret( 0, RegDeleteKeyW( HKEY_LOCAL_MACHINE, buffer ) );
+    ok_ret( 0, RegOpenKeyW( HKEY_CURRENT_USER, L"Keyboard Layout\\Preload", &hkey ) );
 
     value_len = ARRAY_SIZE(value);
     buffer_len = sizeof(buffer);
@@ -3911,23 +3904,18 @@ static void ime_cleanup( HKL hkl, BOOL free )
         value_len = ARRAY_SIZE(value);
         buffer_len = sizeof(buffer);
         if (hkl != UlongToHandle( wcstoul( buffer, NULL, 16 ) )) continue;
-        ret = RegDeleteValueW( hkey, value );
-        ok( !ret, "RegDeleteValueW returned %#lx, error %lu\n", ret, GetLastError() );
+        ok_ret( 0, RegDeleteValueW( hkey, value ) );
     }
 
-    ret = RegCloseKey( hkey );
-    ok( !ret, "RegCloseKey returned %#lx, error %lu\n", ret, GetLastError() );
+    ok_ret( 0, RegCloseKey( hkey ) );
 
     ret = DeleteFileW( ime_path );
     todo_wine_if( GetLastError() == ERROR_ACCESS_DENIED )
-    ok( ret || broken( !ret ) /* sometimes still in use */,
+    ok( ret == 1 || broken( !ret ) /* sometimes still in use */,
         "DeleteFileW failed, error %lu\n", GetLastError() );
 
-    ret = FreeLibrary( module );
-    ok( ret, "FreeLibrary failed, error %lu\n", GetLastError() );
-
-    ret = DeleteFileW( L"c:\\windows\\system32\\winetest_ime.dll" );
-    ok( ret, "DeleteFileW failed, error %lu\n", GetLastError() );
+    ok_ret( 1, FreeLibrary( module ) );
+    ok_ret( 1, DeleteFileW( L"c:\\windows\\system32\\winetest_ime.dll" ) );
 }
 
 static BOOL CALLBACK enum_get_context( HIMC himc, LPARAM lparam )
@@ -4017,7 +4005,6 @@ static void test_ImmCreateContext(void)
 
 static void test_ImmInstallIME(void)
 {
-    UINT ret;
     HKL hkl;
 
     SET_ENABLE( IME_DLL_PROCESS_ATTACH, TRUE );
@@ -4032,45 +4019,31 @@ static void test_ImmInstallIME(void)
 
     SET_EXPECT( IME_DLL_PROCESS_ATTACH );
     SET_EXPECT( ImeInquire );
-    ret = ImmLoadIME( hkl );
-    ok( ret, "ImmLoadIME returned %#x\n", ret );
+    ok_ret( 1, ImmLoadIME( hkl ) );
     CHECK_CALLED( IME_DLL_PROCESS_ATTACH );
     CHECK_CALLED( ImeInquire );
-
-    ret = ImmLoadIME( hkl );
-    ok( ret, "ImmLoadIME returned %#x\n", ret );
-
+    ok_ret( 1, ImmLoadIME( hkl ) );
     SET_EXPECT( ImeDestroy );
     SET_EXPECT( IME_DLL_PROCESS_DETACH );
-    ret = ImmFreeLayout( hkl );
-    ok( ret, "ImmFreeLayout returned %#x\n", ret );
+    ok_ret( 1, ImmFreeLayout( hkl ) );
     CHECK_CALLED( ImeDestroy );
     CHECK_CALLED( IME_DLL_PROCESS_DETACH );
-
-    ret = ImmFreeLayout( hkl );
-    ok( ret, "ImmFreeLayout returned %#x\n", ret );
+    ok_ret( 1, ImmFreeLayout( hkl ) );
 
     ime_info.fdwProperty = 0;
 
     SET_EXPECT( IME_DLL_PROCESS_ATTACH );
     SET_EXPECT( ImeInquire );
-    ret = ImmLoadIME( hkl );
-    ok( ret, "ImmLoadIME returned %#x\n", ret );
+    ok_ret( 1, ImmLoadIME( hkl ) );
     CHECK_CALLED( IME_DLL_PROCESS_ATTACH );
     CHECK_CALLED( ImeInquire );
-
-    ret = ImmLoadIME( hkl );
-    ok( ret, "ImmLoadIME returned %#x\n", ret );
-
+    ok_ret( 1, ImmLoadIME( hkl ) );
     SET_EXPECT( ImeDestroy );
     SET_EXPECT( IME_DLL_PROCESS_DETACH );
-    ret = ImmFreeLayout( hkl );
-    ok( ret, "ImmFreeLayout returned %#x\n", ret );
+    ok_ret( 1, ImmFreeLayout( hkl ) );
     CHECK_CALLED( ImeDestroy );
     CHECK_CALLED( IME_DLL_PROCESS_DETACH );
-
-    ret = ImmFreeLayout( hkl );
-    ok( ret, "ImmFreeLayout returned %#x\n", ret );
+    ok_ret( 1, ImmFreeLayout( hkl ) );
 
     ime_cleanup( hkl, FALSE );
 
@@ -4214,7 +4187,6 @@ static void test_ImmGetDescription(void)
     HKL hkl = GetKeyboardLayout( 0 );
     WCHAR bufferW[MAX_PATH];
     char bufferA[MAX_PATH];
-    DWORD ret;
 
     SET_ENABLE( IME_DLL_PROCESS_ATTACH, TRUE );
     SET_ENABLE( ImeInquire, TRUE );
@@ -4222,58 +4194,43 @@ static void test_ImmGetDescription(void)
     SET_ENABLE( IME_DLL_PROCESS_DETACH, TRUE );
 
     SetLastError( 0xdeadbeef );
-    ret = ImmGetDescriptionW( NULL, NULL, 0 );
-    ok( !ret, "ImmGetDescriptionW returned %lu\n", ret );
-    ret = ImmGetDescriptionA( NULL, NULL, 0 );
-    ok( !ret, "ImmGetDescriptionA returned %lu\n", ret );
-    ret = ImmGetDescriptionW( NULL, NULL, 100 );
-    ok( !ret, "ImmGetDescriptionW returned %lu\n", ret );
-    ret = ImmGetDescriptionA( NULL, NULL, 100 );
-    ok( !ret, "ImmGetDescriptionA returned %lu\n", ret );
-    ret = ImmGetDescriptionW( hkl, bufferW, 100 );
-    ok( !ret, "ImmGetDescriptionW returned %lu\n", ret );
-    ret = ImmGetDescriptionA( hkl, bufferA, 100 );
-    ok( !ret, "ImmGetDescriptionA returned %lu\n", ret );
-    ret = GetLastError();
-    ok( ret == 0xdeadbeef, "got error %lu\n", ret );
+    ok_ret( 0, ImmGetDescriptionW( NULL, NULL, 0 ) );
+    ok_ret( 0, ImmGetDescriptionA( NULL, NULL, 0 ) );
+    ok_ret( 0, ImmGetDescriptionW( NULL, NULL, 100 ) );
+    ok_ret( 0, ImmGetDescriptionA( NULL, NULL, 100 ) );
+    ok_ret( 0, ImmGetDescriptionW( hkl, bufferW, 100 ) );
+    ok_ret( 0, ImmGetDescriptionA( hkl, bufferA, 100 ) );
+    ok_ret( 0xdeadbeef, GetLastError() );
 
     if (!(hkl = wineime_hkl)) goto cleanup;
 
     memset( bufferW, 0xcd, sizeof(bufferW) );
-    ret = ImmGetDescriptionW( hkl, bufferW, 2 );
-    ok( ret == 1, "ImmGetDescriptionW returned %lu\n", ret );
-    ok( !wcscmp( bufferW, L"W" ), "got bufferW %s\n", debugstr_w(bufferW) );
+    ok_ret( 1, ImmGetDescriptionW( hkl, bufferW, 2 ) );
+    ok_wcs( L"W", bufferW );
     memset( bufferA, 0xcd, sizeof(bufferA) );
-    ret = ImmGetDescriptionA( hkl, bufferA, 2 );
-    ok( ret == 0, "ImmGetDescriptionA returned %lu\n", ret );
-    ok( !strcmp( bufferA, "" ), "got bufferA %s\n", debugstr_a(bufferA) );
+    ok_ret( 0, ImmGetDescriptionA( hkl, bufferA, 2 ) );
+    ok_str( "", bufferA );
 
     memset( bufferW, 0xcd, sizeof(bufferW) );
-    ret = ImmGetDescriptionW( hkl, bufferW, 11 );
-    ok( ret == 10, "ImmGetDescriptionW returned %lu\n", ret );
-    ok( !wcscmp( bufferW, L"WineTest I" ), "got bufferW %s\n", debugstr_w(bufferW) );
+    ok_ret( 10, ImmGetDescriptionW( hkl, bufferW, 11 ) );
+    ok_wcs( L"WineTest I", bufferW );
     memset( bufferA, 0xcd, sizeof(bufferA) );
-    ret = ImmGetDescriptionA( hkl, bufferA, 11 );
-    ok( ret == 0, "ImmGetDescriptionA returned %lu\n", ret );
-    ok( !strcmp( bufferA, "" ), "got bufferA %s\n", debugstr_a(bufferA) );
+    ok_ret( 0, ImmGetDescriptionA( hkl, bufferA, 11 ) );
+    ok_str( "", bufferA );
 
     memset( bufferW, 0xcd, sizeof(bufferW) );
-    ret = ImmGetDescriptionW( hkl, bufferW, 12 );
-    ok( ret == 11, "ImmGetDescriptionW returned %lu\n", ret );
-    ok( !wcscmp( bufferW, L"WineTest IM" ), "got bufferW %s\n", debugstr_w(bufferW) );
+    ok_ret( 11, ImmGetDescriptionW( hkl, bufferW, 12 ) );
+    ok_wcs( L"WineTest IM", bufferW );
     memset( bufferA, 0xcd, sizeof(bufferA) );
-    ret = ImmGetDescriptionA( hkl, bufferA, 12 );
-    ok( ret == 12, "ImmGetDescriptionA returned %lu\n", ret );
-    ok( !strcmp( bufferA, "WineTest IME" ), "got bufferA %s\n", debugstr_a(bufferA) );
+    ok_ret( 12, ImmGetDescriptionA( hkl, bufferA, 12 ) );
+    ok_str( "WineTest IME", bufferA );
 
     memset( bufferW, 0xcd, sizeof(bufferW) );
-    ret = ImmGetDescriptionW( hkl, bufferW, 13 );
-    ok( ret == 12, "ImmGetDescriptionW returned %lu\n", ret );
-    ok( !wcscmp( bufferW, L"WineTest IME" ), "got bufferW %s\n", debugstr_w(bufferW) );
+    ok_ret( 12, ImmGetDescriptionW( hkl, bufferW, 13 ) );
+    ok_wcs( L"WineTest IME", bufferW );
     memset( bufferA, 0xcd, sizeof(bufferA) );
-    ret = ImmGetDescriptionA( hkl, bufferA, 13 );
-    ok( ret == 12, "ImmGetDescriptionA returned %lu\n", ret );
-    ok( !strcmp( bufferA, "WineTest IME" ), "got bufferA %s\n", debugstr_a(bufferA) );
+    ok_ret( 12, ImmGetDescriptionA( hkl, bufferA, 13 ) );
+    ok_str( "WineTest IME", bufferA );
 
 cleanup:
     SET_ENABLE( IME_DLL_PROCESS_ATTACH, FALSE );
