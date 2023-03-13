@@ -590,6 +590,54 @@ HRESULT wg_source_get_stream_type(wg_source_t source, UINT32 index, IMFMediaType
     return hr;
 }
 
+HRESULT wg_source_get_stream_name(wg_source_t source, UINT32 index, WCHAR *buffer, UINT32 len)
+{
+    struct wg_source_get_stream_name_params params =
+    {
+        .source = source,
+        .index = index,
+    };
+    NTSTATUS status;
+
+    TRACE("source %#I64x, index %u, buffer %p, len %u\n", source, index, buffer, len);
+
+    if ((status = WINE_UNIX_CALL(unix_wg_source_get_stream_name, &params)))
+    {
+        WARN("Failed to get stream name, status %#lx\n", status);
+        return HRESULT_FROM_NT(status);
+    }
+
+    len = MultiByteToWideChar(CP_UTF8, 0, params.buffer, -1, buffer, len);
+    buffer[len - 1] = 0;
+
+    TRACE("Returning name %s\n", debugstr_w(buffer));
+    return S_OK;
+}
+
+HRESULT wg_source_get_stream_lang(wg_source_t source, UINT32 index, WCHAR *buffer, UINT32 len)
+{
+    struct wg_source_get_stream_name_params params =
+    {
+        .source = source,
+        .index = index,
+    };
+    NTSTATUS status;
+
+    TRACE("source %#I64x, index %u, buffer %p, len %u\n", source, index, buffer, len);
+
+    if ((status = WINE_UNIX_CALL(unix_wg_source_get_stream_lang, &params)))
+    {
+        WARN("Failed to get stream lang, status %#lx\n", status);
+        return HRESULT_FROM_NT(status);
+    }
+
+    len = MultiByteToWideChar(CP_UTF8, 0, params.buffer, -1, buffer, len);
+    buffer[len - 1] = 0;
+
+    TRACE("Returning lang %s\n", debugstr_w(buffer));
+    return S_OK;
+}
+
 HRESULT wg_transform_create_mf(IMFMediaType *input_type, IMFMediaType *output_type,
         const struct wg_transform_attrs *attrs, wg_transform_t *transform)
 {

@@ -373,6 +373,20 @@ struct wg_source_get_stream_type_params
     struct wg_media_type media_type;
 };
 
+struct wg_source_get_stream_name_params
+{
+    wg_source_t source;
+    UINT32 index;
+    char buffer[256];
+};
+
+struct wg_source_get_stream_lang_params
+{
+    wg_source_t source;
+    UINT32 index;
+    char buffer[32];
+};
+
 struct wg_transform_attrs
 {
     UINT32 output_plane_align;
@@ -495,6 +509,8 @@ enum unix_funcs
     unix_wg_source_get_position,
     unix_wg_source_push_data,
     unix_wg_source_get_stream_type,
+    unix_wg_source_get_stream_name,
+    unix_wg_source_get_stream_lang,
 
     unix_wg_transform_create,
     unix_wg_transform_destroy,

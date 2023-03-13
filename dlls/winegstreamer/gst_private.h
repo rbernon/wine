@@ -113,6 +113,8 @@ HRESULT wg_source_get_duration(wg_source_t source, uint64_t *duration);
 HRESULT wg_source_get_position(wg_source_t source, uint64_t *read_offset);
 HRESULT wg_source_push_data(wg_source_t source, UINT64 offset, const void *data, uint32_t size);
 HRESULT wg_source_get_stream_type(wg_source_t source, UINT32 index, IMFMediaType **media_type);
+HRESULT wg_source_get_stream_name(wg_source_t source, UINT32 index, WCHAR *buffer, UINT32 size);
+HRESULT wg_source_get_stream_lang(wg_source_t source, UINT32 index, WCHAR *buffer, UINT32 size);
 
 HRESULT wg_transform_create_mf(IMFMediaType *input_type, IMFMediaType *output_type,
         const struct wg_transform_attrs *attrs, wg_transform_t *transform);

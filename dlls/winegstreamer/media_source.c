@@ -402,32 +402,6 @@ static HRESULT wg_format_from_stream_descriptor(IMFStreamDescriptor *descriptor,
     return hr;
 }
 
-static HRESULT stream_descriptor_set_tag(IMFStreamDescriptor *descriptor, wg_parser_stream_t stream,
-    const GUID *attr, enum wg_parser_tag tag)
-{
-    WCHAR *strW;
-    HRESULT hr;
-    DWORD len;
-    char *str;
-
-    if (!(str = wg_parser_stream_get_tag(stream, tag))
-            || !(len = MultiByteToWideChar(CP_UTF8, 0, str, -1, NULL, 0)))
-        hr = S_OK;
-    else if (!(strW = malloc(len * sizeof(*strW))))
-        hr = E_OUTOFMEMORY;
-    else
-    {
-        if (MultiByteToWideChar(CP_UTF8, 0, str, -1, strW, len))
-            hr = IMFStreamDescriptor_SetString(descriptor, attr, strW);
-        else
-            hr = E_FAIL;
-        free(strW);
-    }
-
-    free(str);
-    return hr;
-}
-
 static HRESULT init_video_media_types(struct wg_format *format, IMFMediaType *types[6], DWORD *types_count)
 {
     /* Try to prefer YUV formats over RGB ones. Most decoders output in the
@@ -1756,19 +1730,19 @@ static void media_source_init_stream_map(struct media_source *source, UINT strea
 
 static void media_source_init_descriptors(struct media_source *source)
 {
-    HRESULT hr = S_OK;
+    HRESULT hr;
     UINT i;
 
     for (i = 0; i < source->stream_count; i++)
     {
-        struct media_stream *stream = source->streams[i];
-        IMFStreamDescriptor *descriptor = stream->descriptor;
+        IMFStreamDescriptor *descriptor = source->descriptors[i];
+        WCHAR buffer[512];
 
-        if (FAILED(hr = stream_descriptor_set_tag(descriptor, stream->wg_stream,
-                &MF_SD_LANGUAGE, WG_PARSER_TAG_LANGUAGE)))
+        if (FAILED(hr = wg_source_get_stream_lang(source->wg_source, source->stream_map[i], buffer, ARRAY_SIZE(buffer)))
+                || FAILED(IMFStreamDescriptor_SetString(descriptor, &MF_SD_LANGUAGE, buffer)))
             WARN("Failed to set stream descriptor language, hr %#lx\n", hr);
-        if (FAILED(hr = stream_descriptor_set_tag(descriptor, stream->wg_stream,
-                &MF_SD_STREAM_NAME, WG_PARSER_TAG_NAME)))
+        if (FAILED(hr = wg_source_get_stream_name(source->wg_source, source->stream_map[i], buffer, ARRAY_SIZE(buffer)))
+                || FAILED(IMFStreamDescriptor_SetString(descriptor, &MF_SD_STREAM_NAME, buffer)))
             WARN("Failed to set stream descriptor name, hr %#lx\n", hr);
     }
 }
