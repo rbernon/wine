@@ -91,6 +91,8 @@ HRESULT wg_source_get_position(wg_source_t source, uint64_t *read_offset);
 HRESULT wg_source_push_data(wg_source_t source, const void *data, uint32_t size);
 bool wg_source_get_stream_format(wg_source_t source, UINT32 index,
         struct wg_format *format);
+char *wg_source_get_stream_tag(wg_source_t source, UINT32 index,
+        wg_parser_tag tag);
 
 HRESULT wg_transform_create_mf(IMFMediaType *input_type, IMFMediaType *output_type,
         const struct wg_transform_attrs *attrs, wg_transform_t *transform);
