@@ -46,6 +46,8 @@ WINE_DEFAULT_DEBUG_CHANNEL(mfplat);
 #include "devpkey.h"
 #include "evr9.h"
 
+DEFINE_MEDIATYPE_GUID(MFVideoFormat_mpg1,MAKEFOURCC('m','p','g','1'));
+extern GUID MFAudioFormat_RAW_AAC1;
 static BOOL has_mp4_media_source;
 
 #define DEFINE_EXPECT(func) \
@@ -8481,6 +8483,7 @@ struct stream_desc
     UINT id;
     BOOL selected;
     struct attribute_desc attributes[16];
+    struct attribute_desc media_type[32];
 };
 
 struct presentation_desc
@@ -8584,9 +8587,18 @@ static void subtest_media_source_streams(const WCHAR *resource, const struct pre
 
         hr = IMFStreamDescriptor_GetMediaTypeHandler(stream_descriptor, &type_handler);
         ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = IMFMediaTypeHandler_GetCurrentMediaType(type_handler, &media_type);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        check_media_type(media_type, expect_stream->media_type, -1);
+        IMFMediaType_Release(media_type);
+
         hr = IMFMediaTypeHandler_GetMediaTypeCount(type_handler, &type_count);
         ok(hr == S_OK, "got hr %#lx\n", hr);
         todo_wine ok(type_count == 1, "got type_count %lu\n", type_count);
+        hr = IMFMediaTypeHandler_GetMediaTypeByIndex(type_handler, 0, &media_type);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        check_media_type(media_type, expect_stream->media_type, -1);
+        IMFMediaType_Release(media_type);
 
         IMFMediaTypeHandler_Release(type_handler);
         IMFStreamDescriptor_Release(stream_descriptor);
@@ -8663,6 +8675,23 @@ static void test_media_source_streams(void)
                     ATTR_WSTR(MF_SD_LANGUAGE, L"fr", /* flaky, .todo = TRUE */),
                     ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
                 },
+                .media_type =
+                {
+                    ATTR_GUID(MF_MT_AM_FORMAT_TYPE, FORMAT_WaveFormatEx),
+                    ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
+                    ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_MP3),
+                    ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
+                    ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 4545),
+                    ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 1),
+                    ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 1),
+                    ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1),
+                    ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
+                    ATTR_UINT32(MF_MT_AVG_BITRATE, 36360),
+                    ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1),
+                    ATTR_UINT32(MF_MT_MPEG4_CURRENT_SAMPLE_ENTRY, 0),
+                    ATTR_UINT32(MF_MT_SAMPLE_SIZE, 1),
+                    /* MF_MT_MPEG4_SAMPLE_DESCRIPTION and MF_MT_USER_DATA */
+                },
             },
             {
                 .id = 2,
@@ -8673,6 +8702,26 @@ static void test_media_source_streams(void)
                     ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
                     ATTR_WSTR(MF_SD_STREAM_NAME, L"This is a very long audio stream title string", /* flaky, .todo_value = TRUE */),
                 },
+                .media_type =
+                {
+                    ATTR_GUID(MF_MT_AM_FORMAT_TYPE, FORMAT_WaveFormatEx),
+                    ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
+                    ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_AAC),
+                    ATTR_UINT32(MF_MT_AAC_AUDIO_PROFILE_LEVEL_INDICATION, 0),
+                    ATTR_UINT32(MF_MT_AAC_PAYLOAD_TYPE, 0),
+                    ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
+                    ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 8729),
+                    ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16),
+                    ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 1),
+                    ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 1),
+                    ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1),
+                    ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
+                    ATTR_UINT32(MF_MT_AVG_BITRATE, 69832),
+                    ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1),
+                    ATTR_UINT32(MF_MT_MPEG4_CURRENT_SAMPLE_ENTRY, 0),
+                    ATTR_UINT32(MF_MT_SAMPLE_SIZE, 1),
+                    /* MF_MT_MPEG4_SAMPLE_DESCRIPTION and MF_MT_USER_DATA */
+                },
             },
             {
                 .id = 3,
@@ -8681,12 +8730,50 @@ static void test_media_source_streams(void)
                     ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
                     ATTR_WSTR(MF_SD_STREAM_NAME, L"First Video", /* flaky, .todo = TRUE */),
                 },
+                .media_type =
+                {
+                    ATTR_GUID(MF_MT_AM_FORMAT_TYPE, FORMAT_MPEG2Video),
+                    ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
+                    ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_H264),
+                    ATTR_RATIO(MF_MT_FRAME_RATE, 10000000, 333611),
+                    ATTR_RATIO(MF_MT_FRAME_SIZE, 64, 96),
+                    ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1),
+                    ATTR_UINT32(MF_MT_AVG_BITRATE, 9422),
+                    ATTR_UINT32(MF_MT_INTERLACE_MODE, 7),
+                    ATTR_UINT32(MF_MT_MPEG4_CURRENT_SAMPLE_ENTRY, 0),
+                    ATTR_UINT32(MF_MT_SAMPLE_SIZE, 1),
+                    ATTR_UINT32(MF_MT_VIDEO_LEVEL, 20),
+                    ATTR_UINT32(MF_MT_VIDEO_PROFILE, 100),
+                    ATTR_UINT32(MF_MT_VIDEO_ROTATION, 0),
+                    ATTR_UINT32(MF_NALU_LENGTH_SET, 1),
+                    ATTR_UINT32(MF_PROGRESSIVE_CODING_CONTENT, 1),
+                    /* MF_MT_MPEG4_SAMPLE_DESCRIPTION and MF_MT_MPEG_SEQUENCE_HEADER */
+                },
             },
             {
                 .id = 4,
                 .attributes =
                 {
                     ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
+                },
+                .media_type =
+                {
+                    ATTR_GUID(MF_MT_AM_FORMAT_TYPE, FORMAT_MPEG2Video),
+                    ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
+                    ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_H264),
+                    ATTR_RATIO(MF_MT_FRAME_RATE, 10000000, 417049),
+                    ATTR_RATIO(MF_MT_FRAME_SIZE, 64, 64),
+                    ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1),
+                    ATTR_UINT32(MF_MT_AVG_BITRATE, 7469),
+                    ATTR_UINT32(MF_MT_INTERLACE_MODE, 7),
+                    ATTR_UINT32(MF_MT_MPEG4_CURRENT_SAMPLE_ENTRY, 0),
+                    ATTR_UINT32(MF_MT_SAMPLE_SIZE, 1),
+                    ATTR_UINT32(MF_MT_VIDEO_LEVEL, 20),
+                    ATTR_UINT32(MF_MT_VIDEO_PROFILE, 100),
+                    ATTR_UINT32(MF_MT_VIDEO_ROTATION, 0),
+                    ATTR_UINT32(MF_NALU_LENGTH_SET, 1),
+                    ATTR_UINT32(MF_PROGRESSIVE_CODING_CONTENT, 1),
+                    /* MF_MT_MPEG4_SAMPLE_DESCRIPTION and MF_MT_MPEG_SEQUENCE_HEADER */
                 },
             },
             {
@@ -8697,6 +8784,25 @@ static void test_media_source_streams(void)
                     ATTR_WSTR(MF_SD_LANGUAGE, L"de", /* flaky, .todo_value = TRUE */),
                     ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
                     ATTR_WSTR(MF_SD_STREAM_NAME, L"Other Video", /* flaky, .todo = TRUE */),
+                },
+                .media_type =
+                {
+                    ATTR_GUID(MF_MT_AM_FORMAT_TYPE, FORMAT_MPEG2Video),
+                    ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
+                    ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_H264),
+                    ATTR_RATIO(MF_MT_FRAME_RATE, 10000000, 333611),
+                    ATTR_RATIO(MF_MT_FRAME_SIZE, 72, 72),
+                    ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1),
+                    ATTR_UINT32(MF_MT_AVG_BITRATE, 9490),
+                    ATTR_UINT32(MF_MT_INTERLACE_MODE, 7),
+                    ATTR_UINT32(MF_MT_MPEG4_CURRENT_SAMPLE_ENTRY, 0),
+                    ATTR_UINT32(MF_MT_SAMPLE_SIZE, 1),
+                    ATTR_UINT32(MF_MT_VIDEO_LEVEL, 20),
+                    ATTR_UINT32(MF_MT_VIDEO_PROFILE, 100),
+                    ATTR_UINT32(MF_MT_VIDEO_ROTATION, 0),
+                    ATTR_UINT32(MF_NALU_LENGTH_SET, 1),
+                    ATTR_UINT32(MF_PROGRESSIVE_CODING_CONTENT, 1),
+                    /* MF_MT_MPEG4_SAMPLE_DESCRIPTION and MF_MT_MPEG_SEQUENCE_HEADER */
                 },
             },
         },
@@ -8722,6 +8828,18 @@ static void test_media_source_streams(void)
                     ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
                     ATTR_WSTR(MF_SD_STREAM_NAME, L"This is a very long audio stream title string", /* flaky, .todo = TRUE */),
                 },
+                .media_type =
+                {
+                    ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
+                    ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_mpg1),
+                    ATTR_RATIO(MF_MT_FRAME_RATE, 30000, 1001),
+                    ATTR_RATIO(MF_MT_FRAME_SIZE, 64, 64),
+                    ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1),
+                    ATTR_UINT32(MF_MT_INTERLACE_MODE, 7),
+                    ATTR_UINT32(MF_MT_SAMPLE_SIZE, 12288),
+                    ATTR_UINT32(MF_MT_TIMESTAMP_CAN_BE_DTS, 1),
+                    /* MF_MT_USER_DATA and unknown GUID */
+                },
             },
             {
                 .id = 2,
@@ -8730,12 +8848,35 @@ static void test_media_source_streams(void)
                 {
                     ATTR_WSTR(MF_SD_STREAM_NAME, L"Video", /* flaky, .todo = TRUE */),
                 },
+                .media_type =
+                {
+                    ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
+                    ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_RAW_AAC1),
+                    ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 8728),
+                    ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16),
+                    ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 768),
+                    ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 1),
+                    ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1),
+                    ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
+                    /* MF_MT_USER_DATA */
+                },
             },
             {
                 .id = 3,
                 .attributes =
                 {
                     ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
+                },
+                .media_type =
+                {
+                    ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
+                    ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_MP3),
+                    ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 4544),
+                    ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 1152),
+                    ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 1),
+                    ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1),
+                    ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
+                    /* MF_MT_USER_DATA */
                 },
             },
         },
