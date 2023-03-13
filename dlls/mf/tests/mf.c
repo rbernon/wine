@@ -8299,20 +8299,30 @@ static void load_resource_stream(const WCHAR *name, IMFByteStream **stream)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 }
 
+struct stream_desc
+{
+    UINT id;
+    BOOL selected;
+    struct attribute_desc attributes[16];
+};
+
 struct presentation_desc
 {
     UINT stream_count;
     struct attribute_desc attributes[16];
+    struct stream_desc streams[16];
 };
 
 static void subtest_media_source_streams(const WCHAR *resource, const struct presentation_desc *expect)
 {
     IMFPresentationDescriptor *presentation;
+    IMFStreamDescriptor *stream_descriptor;
     DWORD i, min_time = -1, stream_count;
     IMFMediaSource *media_source;
     IMFSourceResolver *resolver;
     MF_OBJECT_TYPE object_type;
     IMFByteStream *stream;
+    BOOL selected;
     HRESULT hr;
 
     winetest_push_context("%s", debugstr_w(resource));
@@ -8364,6 +8374,47 @@ static void subtest_media_source_streams(const WCHAR *resource, const struct pre
     todo_wine_if(expect->stream_count == 5 && sizeof(void *) == 4) /* only 3 streams for the mp4 the 32-bit testbot VMs */
     ok(stream_count == expect->stream_count, "got stream_count %lu\n", stream_count);
     check_attributes((IMFAttributes *)presentation, expect->attributes, -1);
+
+    hr = IMFPresentationDescriptor_GetStreamDescriptorByIndex(presentation, 1, &selected, &stream_descriptor);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    hr = IMFStreamDescriptor_GetItem(stream_descriptor, &MF_SD_STREAM_NAME, NULL);
+    flaky_wine
+    ok(hr == S_OK || broken(hr == MF_E_ATTRIBUTENOTFOUND), "got hr %#lx\n", hr);
+    IMFStreamDescriptor_Release(stream_descriptor);
+
+    /* w7 and w1064v1507 miss the MF_SD_STREAM_NAME attribute */
+    if (broken(hr == MF_E_ATTRIBUTENOTFOUND))
+        win_skip("Skipping stream attributes checks\n");
+    else for (i = 0; i < stream_count; ++i)
+    {
+        const struct stream_desc *expect_stream = expect->streams + i;
+        IMFMediaTypeHandler *type_handler;
+        DWORD id, type_count;
+
+        winetest_push_context("%lu", i);
+
+        hr = IMFPresentationDescriptor_GetStreamDescriptorByIndex(presentation, i, &selected, &stream_descriptor);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        todo_wine_if(!expect_stream->selected)
+        ok(selected == expect_stream->selected, "got selected %u\n", selected);
+        hr = IMFStreamDescriptor_GetStreamIdentifier(stream_descriptor, &id);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        todo_wine ok(id == expect_stream->id, "got id %lu\n", id);
+
+        flaky_wine check_attributes((IMFAttributes *)stream_descriptor, expect_stream->attributes, -1);
+
+        hr = IMFStreamDescriptor_GetMediaTypeHandler(stream_descriptor, &type_handler);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = IMFMediaTypeHandler_GetMediaTypeCount(type_handler, &type_count);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        todo_wine ok(type_count == 1, "got type_count %lu\n", type_count);
+
+        IMFMediaTypeHandler_Release(type_handler);
+        IMFStreamDescriptor_Release(stream_descriptor);
+
+        winetest_pop_context();
+    }
+
     IMFPresentationDescriptor_Release(presentation);
 
     hr = IMFMediaSource_Shutdown(media_source);
@@ -8392,6 +8443,52 @@ static void test_media_source_streams(void)
             ATTR_RATIO(MF_PD_TOTAL_FILE_SIZE, 0, 33041, .todo = TRUE),
             ATTR_WSTR_OR_NONE(MF_PD_MIME_TYPE, L"video/mp4", .todo = TRUE),
         },
+        .streams =
+        {
+            {
+                .id = 1,
+                .attributes =
+                {
+                    ATTR_WSTR(MF_SD_LANGUAGE, L"fr", /* flaky, .todo = TRUE */),
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
+                },
+            },
+            {
+                .id = 2,
+                .selected = 1,
+                .attributes =
+                {
+                    ATTR_WSTR(MF_SD_LANGUAGE, L"en", /* flaky, .todo_value = TRUE */),
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
+                    ATTR_WSTR(MF_SD_STREAM_NAME, L"This is a very long audio stream title string", /* flaky, .todo_value = TRUE */),
+                },
+            },
+            {
+                .id = 3,
+                .attributes =
+                {
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
+                    ATTR_WSTR(MF_SD_STREAM_NAME, L"First Video", /* flaky, .todo = TRUE */),
+                },
+            },
+            {
+                .id = 4,
+                .attributes =
+                {
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
+                },
+            },
+            {
+                .id = 5,
+                .selected = 1,
+                .attributes =
+                {
+                    ATTR_WSTR(MF_SD_LANGUAGE, L"de", /* flaky, .todo_value = TRUE */),
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
+                    ATTR_WSTR(MF_SD_STREAM_NAME, L"Other Video", /* flaky, .todo = TRUE */),
+                },
+            },
+        },
     };
     const struct presentation_desc avi_desc =
     {
@@ -8403,6 +8500,33 @@ static void test_media_source_streams(void)
             ATTR_UINT32(MF_PD_AUDIO_ENCODING_BITRATE, 106176, .todo = TRUE),
             ATTR_UINT32(MF_PD_VIDEO_ENCODING_BITRATE, 1125200, .todo = TRUE),
             ATTR_WSTR_OR_NONE(MF_PD_MIME_TYPE, L"video/avi", .todo = TRUE),
+        },
+        .streams =
+        {
+            {
+                .id = 1,
+                .selected = 1,
+                .attributes =
+                {
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
+                    ATTR_WSTR(MF_SD_STREAM_NAME, L"This is a very long audio stream title string", /* flaky, .todo = TRUE */),
+                },
+            },
+            {
+                .id = 2,
+                .selected = 1,
+                .attributes =
+                {
+                    ATTR_WSTR(MF_SD_STREAM_NAME, L"Video", /* flaky, .todo = TRUE */),
+                },
+            },
+            {
+                .id = 3,
+                .attributes =
+                {
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
+                },
+            },
         },
     };
 #undef ATTR_WSTR_OR_NONE
