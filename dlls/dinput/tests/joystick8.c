@@ -454,6 +454,89 @@ static void check_dinput_devices( DWORD version, DIDEVICEINSTANCEW *devinst )
     }
 }
 
+static BOOL CALLBACK enum_file_effects( const DIFILEEFFECT *effect, void *args )
+{
+    DWORD *count = args;
+    *count = *count + 1;
+    return DIENUM_CONTINUE;
+}
+
+static void test_effect_file( IDirectInputDevice8W *device, DWORD version )
+{
+    static const DWORD expect_axes[3] =
+    {
+        DIDFT_ABSAXIS | DIDFT_MAKEINSTANCE( 2 ) | DIDFT_FFACTUATOR,
+        DIDFT_ABSAXIS | DIDFT_MAKEINSTANCE( 0 ) | DIDFT_FFACTUATOR,
+        DIDFT_ABSAXIS | DIDFT_MAKEINSTANCE( 1 ) | DIDFT_FFACTUATOR,
+    };
+    static const LONG expect_directions[3] =
+    {
+        +3000,
+        -6000,
+        0,
+    };
+    static const DIENVELOPE expect_envelope =
+    {
+        .dwSize = sizeof(DIENVELOPE),
+        .dwAttackLevel = 1000,
+        .dwAttackTime = 2000,
+        .dwFadeLevel = 3000,
+        .dwFadeTime = 4000,
+    };
+    static const DIPERIODIC expect_periodic =
+    {
+        .dwMagnitude = 1000,
+        .lOffset = 2000,
+        .dwPhase = 3000,
+        .dwPeriod = 4000,
+    };
+    const DIEFFECT expect_desc =
+    {
+        .dwSize = version >= 0x700 ? sizeof(DIEFFECT_DX6) : sizeof(DIEFFECT_DX5),
+        .dwFlags = DIEFF_SPHERICAL | DIEFF_OBJECTIDS,
+        .dwDuration = 1000,
+        .dwSamplePeriod = 2000,
+        .dwGain = 3000,
+        .dwTriggerButton = DIDFT_PSHBUTTON | DIDFT_MAKEINSTANCE( 0 ) | DIDFT_FFEFFECTTRIGGER,
+        .dwTriggerRepeatInterval = 5000,
+        .cAxes = 3,
+        .rgdwAxes = (void *)expect_axes,
+        .rglDirection = (void *)expect_directions,
+        .lpEnvelope = (void *)&expect_envelope,
+        .cbTypeSpecificParams = sizeof(DIPERIODIC),
+        .lpvTypeSpecificParams = (void *)&expect_periodic,
+        .dwStartDelay = 6000,
+    };
+    DIFILEEFFECT effects[2] =
+    {
+        {
+            .dwSize = sizeof(DIFILEEFFECT),
+            .GuidEffect = GUID_Sine,
+            .lpDiEffect = &expect_desc,
+            .szFriendlyName = "Sine Effect",
+        },
+        {
+            .dwSize = sizeof(DIFILEEFFECT),
+            .GuidEffect = GUID_Square,
+            .lpDiEffect = &expect_desc,
+            .szFriendlyName = "Square Effect",
+        },
+    };
+    DWORD flags = 0;
+    HRESULT hr;
+    DWORD res;
+
+    hr = IDirectInputDevice8_WriteEffectToFile( device, L"effects.tmp", ARRAY_SIZE(effects), effects, flags );
+    todo_wine
+    ok( hr == S_OK, "WriteEffectToFile returned %#lx\n", hr );
+
+    res = 0;
+    hr = IDirectInputDevice8_EnumEffectsInFile( device, L"effects.tmp", enum_file_effects, &res, flags );
+    todo_wine
+    ok( hr == S_OK, "EnumEffectsInFile returned %#lx\n", hr );
+    ok( res == 2, "got %lu effects\n", res );
+}
+
 static BOOL CALLBACK enum_devices_by_semantic( const DIDEVICEINSTANCEW *instance, IDirectInputDevice8W *device,
                                                DWORD flags, DWORD remaining, void *context )
 {
@@ -3299,6 +3382,7 @@ static void test_simple_joystick( DWORD version )
     todo_wine
     ok( hr == DIERR_UNSUPPORTED, "Escape returned: %#lx\n", hr );
 
+    test_effect_file( device, version );
     if (version == 0x800) test_action_map( device, file, event );
 
     ref = IDirectInputDevice8_Release( device );
