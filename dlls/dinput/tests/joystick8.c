@@ -526,6 +526,15 @@ static BOOL CALLBACK enum_devices_by_semantic( const DIDEVICEINSTANCEW *instance
 
 static void test_action_map( IDirectInputDevice8W *device, HANDLE file, HANDLE event )
 {
+    DIDEVICEIMAGEINFOW images[64] = {0};
+    DIDEVICEIMAGEINFOHEADERW image_info =
+    {
+        .dwSize = sizeof(DIDEVICEIMAGEINFOHEADERW),
+        .dwSizeImageInfo = sizeof(*images),
+        .dwBufferSize = sizeof(images),
+        .lprgImageInfoArray = images,
+    };
+
     const DIACTIONW expect_actions[] =
     {
         {
@@ -1449,6 +1458,10 @@ static void test_action_map( IDirectInputDevice8W *device, HANDLE file, HANDLE e
     ok( hr == DI_OK, "EnumDevicesBySemantics returned %#lx\n", hr );
 
     IDirectInput8_Release( dinput );
+
+    hr = IDirectInputDevice8_GetImageInfo( device, &image_info );
+    todo_wine
+    ok( hr == DIERR_NOTFOUND, "GetImageInfo returned %#lx\n", hr );
 }
 
 static void test_simple_joystick( DWORD version )
