@@ -53,7 +53,8 @@ RUN export DEBIAN_FRONTEND=noninteractive; \
                        samba-dev:amd64 \
                        unixodbc-dev:amd64 unixodbc-dev:i386 \
                        x11proto-dev && \
-    apt-get install -y ccache netbase curl ca-certificates xserver-xorg-video-dummy xserver-xorg xfonts-base xinit fvwm \
+    apt-get install -y ccache netbase curl ca-certificates xserver-xorg-video-dummy xserver-xorg xfonts-base \
+                       xinit x11-xserver-utils x11-utils fvwm openbox mutter kwin-x11 \
                        winbind fonts-liberation2 fonts-noto-core fonts-noto-cjk pulseaudio && \
     curl -O https://www.deb-multimedia.org/pool/main/d/deb-multimedia-keyring/deb-multimedia-keyring_2016.8.1_all.deb && \
     dpkg -i deb-multimedia-keyring_2016.8.1_all.deb && \
