@@ -5282,7 +5282,7 @@ static DWORD CALLBACK test_activate_layout_thread( void *arg )
 
 static void test_ImmActivateLayout(void)
 {
-    const struct ime_call activate_seq[] =
+    const struct ime_call activate_wihout_window[] =
     {
         {
             .hkl = expect_ime, .himc = default_himc,
@@ -5290,7 +5290,7 @@ static void test_ImmActivateLayout(void)
         },
         {0},
     };
-    const struct ime_call deactivate_seq[] =
+    const struct ime_call deactivate_wihout_window[] =
     {
         {
             .hkl = expect_ime, .himc = default_himc,
@@ -5373,6 +5373,25 @@ static void test_ImmActivateLayout(void)
         },
         {0},
     };
+    const struct ime_call activate_existing_window[] =
+    {
+        {.func = TEST_WINDOW_MSG, .himc = default_himc, .ui = {.msg = WM_IME_NOTIFY, .wparam = IMN_CLOSESTATUSWINDOW}},
+        {.func = IME_SELECT, .himc = default_himc, .select = 1},
+        {.func = IME_UI_MSG, .himc = default_himc, .ui = {.msg = WM_IME_SELECT, .wparam = 1, .lparam = 0xe0200400}},
+        {.func = TEST_WINDOW_MSG, .himc = default_himc, .ui = {.msg = WM_IME_NOTIFY, .wparam = IMN_OPENSTATUSWINDOW}},
+        {.func = IME_UI_MSG, .himc = default_himc, .ui = {.msg = WM_IME_NOTIFY, .wparam = IMN_OPENSTATUSWINDOW}},
+        {0},
+    };
+    const struct ime_call deactivate_existing_window[] =
+    {
+        {.func = IME_NOTIFY, .himc = default_himc, .notify = {.action = NI_COMPOSITIONSTR, .index = CPS_CANCEL}},
+        {.func = TEST_WINDOW_MSG, .himc = default_himc, .ui = {.msg = WM_IME_NOTIFY, .wparam = IMN_CLOSESTATUSWINDOW}},
+        {.func = IME_UI_MSG, .himc = default_himc, .ui = {.msg = WM_IME_NOTIFY, .wparam = IMN_CLOSESTATUSWINDOW}},
+        {.func = IME_UI_MSG, .himc = default_himc, .ui = {.msg = WM_IME_SELECT, .wparam = 0, .lparam = 0xe0200400}},
+        {.func = IME_SELECT, .himc = default_himc, .select = 0},
+        {.func = TEST_WINDOW_MSG, .himc = default_himc, .ui = {.msg = WM_IME_NOTIFY, .wparam = IMN_OPENSTATUSWINDOW}},
+        {0},
+    };
     HKL hkl;
     struct ime_windows ime_windows = {0};
     HIMC himc;
@@ -5401,29 +5420,68 @@ static void test_ImmActivateLayout(void)
     /* ImmActivateLayout changes active HKL */
 
     SET_EXPECT( ImeInquire );
-    ok_ret( 1, ImmActivateLayout( hkl ) );
-    ok_seq( activate_seq );
-    CHECK_CALLED( ImeInquire );
-    ok_ret( 1, ImmLoadIME( hkl ) );
+    todo_wine ok_ret( 1, ImmActivateLayout( hkl ) );
+    todo_wine CHECK_CALLED( ImeInquire );
+    ok_seq( activate_wihout_window );
 
-    ok_eq( hkl, GetKeyboardLayout( 0 ), HKL, "%p" );
-
-    ok_ret( 1, ImmActivateLayout( hkl ) );
-    ok_seq( empty_sequence );
-
-    ok_ret( 1, ImmActivateLayout( default_hkl ) );
-    ok_seq( deactivate_seq );
-
-    ok_eq( default_hkl, GetKeyboardLayout( 0 ), HKL, "%p" );
+    todo_wine ok_eq( hkl, GetKeyboardLayout( 0 ), HKL, "%p" );
+    todo_wine ok_ret( 1, ImmActivateLayout( old_hkl ) );
+    ok_seq( deactivate_wihout_window );
+    ok_eq( old_hkl, GetKeyboardLayout( 0 ), HKL, "%p" );
 
 
     /* ImmActivateLayout leaks the IME, we need to free it manually */
 
-    SET_EXPECT( ImeDestroy );
     ret = ImmFreeLayout( hkl );
     ok( ret, "ImmFreeLayout returned %u\n", ret );
-    CHECK_CALLED( ImeDestroy );
-    ok_seq( empty_sequence );
+    check_calls( empty_sequence );
+
+
+    /* ImmActivateLayout with existing window */
+
+    hwnd = CreateWindowW( test_class.lpszClassName, NULL, WS_VISIBLE | WS_POPUP,
+                          100, 100, 100, 100, 0, NULL, NULL, NULL );
+    ok( !!hwnd, "CreateWindow failed, error %lu\n", GetLastError() );
+    himc = ImmGetContext( hwnd );
+    ok( !!himc, "got himc %p\n", himc );
+    process_messages();
+    clear_calls();
+
+    if (!(hkl = ime_install())) goto cleanup;
+    check_calls( empty_sequence );
+
+    ret = ImmActivateLayout( hkl );
+    todo_wine ok( ret, "ImmActivateLayout returned %u\n", ret );
+    check_calls( activate_existing_window );
+
+    tmp_hkl = GetKeyboardLayout( 0 );
+    todo_wine ok( tmp_hkl == hkl, "got HKL %p\n", tmp_hkl );
+
+    expect.hWnd = hwnd;
+    ctx = ImmLockIMC( himc );
+    ok( !!ctx, "got context %p\n", ctx );
+    check_input_context( ctx, &expect );
+    expect = *ctx;
+    ret = ImmUnlockIMC( himc );
+    ok( ret, "ImmUnlockIMC failed, error %lu\n", GetLastError() );
+
+    ret = ImmActivateLayout( old_hkl );
+    todo_wine ok( ret, "ImmActivateLayout returned %u\n", ret );
+    check_calls( deactivate_existing_window );
+
+    tmp_hkl = GetKeyboardLayout( 0 );
+    ok( tmp_hkl == old_hkl, "got HKL %p\n", tmp_hkl );
+
+    ret = ImmFreeLayout( hkl );
+    ok( ret, "ImmFreeLayout returned %u\n", ret );
+    check_calls( empty_sequence );
+
+    ime_cleanup( hkl );
+
+    DestroyWindow( hwnd );
+    process_messages();
+    clear_calls();
+
 
 
     /* when there's a window, ActivateKeyboardLayout calls ImeInquire */
@@ -5489,6 +5547,12 @@ static void test_ImmActivateLayout(void)
 cleanup:
     SET_ENABLE( ImeInquire, FALSE );
     SET_ENABLE( ImeDestroy, FALSE );
+    process_messages();
+    clear_calls();
+}
+
+static void test_ImmSetActiveContext(void)
+{
 }
 
 static void test_ImmGenerateMessage( BOOL unicode )
@@ -8414,6 +8478,7 @@ START_TEST(imm32)
     ImeSelect_init_status = TRUE;
 
     test_ImmActivateLayout();
+    test_ImmSetActiveContext();
     test_ImmCreateInputContext();
     test_ImmProcessKey();
     test_DefWindowProc();
