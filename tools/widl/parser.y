@@ -43,6 +43,14 @@ struct _import_t
   int import_performed;
 };
 
+static char *make_str( char *str, const char *data )
+{
+    if (!str) return xstrdup( data );
+    str = xrealloc( str, strlen( str ) + strlen( data ) + 1 );
+    strcat( str, data );
+    return str;
+}
+
 static str_list_t *append_str(str_list_t *list, char *str);
 static decl_spec_t *make_decl_spec(type_t *type, decl_spec_t *left, decl_spec_t *right,
         enum storage_class stgclass, enum type_qualifier qual, enum function_specifier func_specifier);
@@ -293,6 +301,7 @@ PARSER_LTYPE pop_import(void);
 %type <attr_list> m_attributes attributes attrib_list
 %type <attr_list> acf_attributes acf_attribute_list
 %type <attr_list> dispattributes
+%type <str> str
 %type <str_list> str_list
 %type <expr> m_expr expr expr_const expr_int_const array m_bitfield
 %type <expr_list> m_exprs /* exprs expr_list */ expr_list_int_const
@@ -512,17 +521,17 @@ typedecl:
 	| attributes uniondef                   { $$ = $2; $$->attrs = check_union_attrs($1); }
 	;
 
-cppquote: tCPPQUOTE '(' aSTRING ')'		{ $$ = $3; }
-	;
+cppquote: tCPPQUOTE '(' str ')'                 { $$ = $str; }
+        ;
 
-import_start: tIMPORT aSTRING ';'		{ $$ = $2; push_import( $2, &yylloc ); }
-	;
+import_start: tIMPORT str ';'                   { $$ = $str; push_import( $str, &yylloc ); }
+        ;
 import: import_start imp_statements aEOF	{ yylloc = pop_import(); }
 	;
 
-importlib: tIMPORTLIB '(' aSTRING ')'
-	   semicolon_opt			{ $$ = $3; if(!parse_only) add_importlib($3, current_typelib); }
-	;
+importlib: tIMPORTLIB '(' str ')'
+           semicolon_opt                        { $$ = $str; if (!parse_only) add_importlib( $str, current_typelib ); }
+        ;
 
 libraryhdr: tLIBRARY typename			{ $$ = $2; }
 	;
@@ -582,9 +591,12 @@ attrib_list: attribute                          { $$ = append_attr( NULL, $1 ); 
 	| attrib_list ']' '[' attribute         { $$ = append_attr( $1, $4 ); }
 	;
 
-str_list: aSTRING                               { $$ = append_str( NULL, $1 ); }
-	| str_list ',' aSTRING                  { $$ = append_str( $1, $3 ); }
-	;
+str: aSTRING                                    { $$ = make_str( NULL, $aSTRING ); }
+        | str[prev] aSTRING                     { $$ = make_str( $prev, $aSTRING ); }
+        ;
+str_list: str                                   { $$ = append_str( NULL, $str ); }
+        | str_list[list] ',' str                { $$ = append_str( $list, $str ); }
+        ;
 
 marshaling_behavior:
 	  tAGILE				{ $$ = MARSHALING_AGILE; }
@@ -654,7 +666,7 @@ attribute
         : %empty                                { $$ = NULL; }
         | tACTIVATABLE '(' activatable_attr ')' { $$ = attr_ptr( @$, ATTR_ACTIVATABLE, $3 ); }
         | tAGGREGATABLE                         { $$ = attr_int( @$, ATTR_AGGREGATABLE, 0 ); }
-        | tANNOTATION '(' aSTRING ')'           { $$ = attr_ptr( @$, ATTR_ANNOTATION, $3 ); }
+        | tANNOTATION '(' str ')'               { $$ = attr_ptr( @$, ATTR_ANNOTATION, $str ); }
         | tAPPOBJECT                            { $$ = attr_int( @$, ATTR_APPOBJECT, 0 ); }
         | tASYNC                                { $$ = attr_int( @$, ATTR_ASYNC, 0 ); }
         | tAUTOHANDLE                           { $$ = attr_int( @$, ATTR_AUTO_HANDLE, 0 ); }
@@ -685,7 +697,7 @@ attribute
         | tDEPRECATED '(' deprecated_attr ')'   { $$ = attr_ptr( @$, ATTR_DEPRECATED, $3 ); }
         | tDISABLECONSISTENCYCHECK              { $$ = attr_int( @$, ATTR_DISABLECONSISTENCYCHECK, 0 ); }
         | tDISPLAYBIND                          { $$ = attr_int( @$, ATTR_DISPLAYBIND, 0 ); }
-        | tDLLNAME '(' aSTRING ')'              { $$ = attr_ptr( @$, ATTR_DLLNAME, $3 ); }
+        | tDLLNAME '(' str ')'                  { $$ = attr_ptr( @$, ATTR_DLLNAME, $str ); }
         | tDUAL                                 { $$ = attr_int( @$, ATTR_DUAL, 0 ); }
         | tENABLEALLOCATE                       { $$ = attr_int( @$, ATTR_ENABLEALLOCATE, 0 ); }
         | tENCODE                               { $$ = attr_int( @$, ATTR_ENCODE, 0 ); }
@@ -703,11 +715,11 @@ attribute
         | tFORCEALLOCATE                        { $$ = attr_int( @$, ATTR_FORCEALLOCATE, 0 ); }
         | tHANDLE                               { $$ = attr_int( @$, ATTR_HANDLE, 0 ); }
         | tHELPCONTEXT '(' expr_int_const ')'   { $$ = attr_ptr( @$, ATTR_HELPCONTEXT, $3 ); }
-        | tHELPFILE '(' aSTRING ')'             { $$ = attr_ptr( @$, ATTR_HELPFILE, $3 ); }
-        | tHELPSTRING '(' aSTRING ')'           { $$ = attr_ptr( @$, ATTR_HELPSTRING, $3 ); }
+        | tHELPFILE '(' str ')'                 { $$ = attr_ptr( @$, ATTR_HELPFILE, $str ); }
+        | tHELPSTRING '(' str ')'               { $$ = attr_ptr( @$, ATTR_HELPSTRING, $str ); }
         | tHELPSTRINGCONTEXT '(' expr_int_const ')'
                                                 { $$ = attr_ptr( @$, ATTR_HELPSTRINGCONTEXT, $3 ); }
-        | tHELPSTRINGDLL '(' aSTRING ')'        { $$ = attr_ptr( @$, ATTR_HELPSTRINGDLL, $3 ); }
+        | tHELPSTRINGDLL '(' str ')'            { $$ = attr_ptr( @$, ATTR_HELPSTRINGDLL, $str ); }
         | tHIDDEN                               { $$ = attr_int( @$, ATTR_HIDDEN, 0 ); }
         | tID '(' expr_int_const ')'            { $$ = attr_ptr( @$, ATTR_ID, $3 ); }
         | tIDEMPOTENT                           { $$ = attr_int( @$, ATTR_IDEMPOTENT, 0 ); }
@@ -735,13 +747,13 @@ attribute
         | tOBJECT                               { $$ = attr_int( @$, ATTR_OBJECT, 0 ); }
         | tODL                                  { $$ = attr_int( @$, ATTR_ODL, 0 ); }
         | tOLEAUTOMATION                        { $$ = attr_int( @$, ATTR_OLEAUTOMATION, 0 ); }
-        | tOPTIMIZE '(' aSTRING ')'             { $$ = attr_ptr( @$, ATTR_OPTIMIZE, $3 ); }
+        | tOPTIMIZE '(' str ')'                 { $$ = attr_ptr( @$, ATTR_OPTIMIZE, $str ); }
         | tOPTIONAL                             { $$ = attr_int( @$, ATTR_OPTIONAL, 0 ); }
         | tOUT                                  { $$ = attr_int( @$, ATTR_OUT, 0 ); }
-        | tOVERLOAD '(' aSTRING ')'             { $$ = attr_ptr( @$, ATTR_OVERLOAD, $3 ); }
+        | tOVERLOAD '(' str ')'                 { $$ = attr_ptr( @$, ATTR_OVERLOAD, $str ); }
         | tPARTIALIGNORE                        { $$ = attr_int( @$, ATTR_PARTIALIGNORE, 0 ); }
         | tPOINTERDEFAULT '(' pointer_type ')'  { $$ = attr_int( @$, ATTR_POINTERDEFAULT, $3 ); }
-        | tPROGID '(' aSTRING ')'               { $$ = attr_ptr( @$, ATTR_PROGID, $3 ); }
+        | tPROGID '(' str ')'                   { $$ = attr_ptr( @$, ATTR_PROGID, $str ); }
         | tPROPGET                              { $$ = attr_int( @$, ATTR_PROPGET, 0 ); }
         | tPROPPUT                              { $$ = attr_int( @$, ATTR_PROPPUT, 0 ); }
         | tPROPPUTREF                           { $$ = attr_int( @$, ATTR_PROPPUTREF, 0 ); }
@@ -775,7 +787,7 @@ attribute
         | tV1ENUM                               { $$ = attr_int( @$, ATTR_V1ENUM, 0 ); }
         | tVARARG                               { $$ = attr_int( @$, ATTR_VARARG, 0 ); }
         | tVERSION '(' version ')'              { $$ = attr_int( @$, ATTR_VERSION, $3 ); }
-        | tVIPROGID '(' aSTRING ')'             { $$ = attr_ptr( @$, ATTR_VIPROGID, $3 ); }
+        | tVIPROGID '(' str ')'                 { $$ = attr_ptr( @$, ATTR_VIPROGID, $str ); }
         | tWIREMARSHAL '(' type ')'             { $$ = attr_ptr( @$, ATTR_WIREMARSHAL, $3 ); }
         | pointer_type                          { $$ = attr_int( @$, ATTR_POINTERTYPE, $1 ); }
         ;
@@ -855,7 +867,7 @@ expr:     aNUM                                  { $$ = expr_int( $aNUM, strmake(
         | tFALSE                                { $$ = expr_int( 0, "FALSE" ); }
         | tNULL                                 { $$ = expr_int( 0, "NULL" ); }
         | tTRUE                                 { $$ = expr_int( 1, "TRUE" ); }
-        | aSTRING                               { $$ = expr_str( EXPR_STRLIT, $aSTRING ); }
+        | str                                   { $$ = expr_str( EXPR_STRLIT, $str ); }
         | aWSTRING                              { $$ = expr_str( EXPR_WSTRLIT, $aWSTRING ); }
         | aSQSTRING                             { $$ = expr_str( EXPR_CHARCONST, $aSQSTRING ); }
         | aIDENTIFIER                           { $$ = expr_str( EXPR_IDENTIFIER, $aIDENTIFIER ); }
