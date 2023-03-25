@@ -5167,6 +5167,68 @@ cleanup:
     ok_ret( 1, DestroyWindow( hwnd ) );
 }
 
+struct test_activate_layout_params
+{
+    HKL hkl;
+    struct ime_windows *ime_windows;
+};
+
+static DWORD CALLBACK test_activate_layout_thread( void *arg )
+{
+    struct test_activate_layout_params *params = arg;
+    struct ime_windows *ime_windows = params->ime_windows;
+    struct ime_windows ime_windows = {0};
+    HKL old_hkl = GetKeyboardLayout( 0 );
+    HWND hwnd, other_hwnd;
+    HIMC himc;
+
+    todo_wine ok( hkl == params->hkl || broken(hkl == default_hkl) /* win7 */, "got HKL %p\n", hkl );
+
+    hwnd = CreateWindowW( L"static", NULL, WS_VISIBLE | WS_POPUP,
+                          100, 100, 100, 100, 0, NULL, NULL, NULL );
+    ok( !!hwnd, "CreateWindow failed, error %lu\n", GetLastError() );
+    himc = ImmGetContext( hwnd );
+    ok( !!himc, "got himc %p\n", himc );
+    process_messages();
+
+    other_hwnd = CreateWindowW( L"static", NULL, WS_VISIBLE | WS_POPUP,
+                          100, 100, 100, 100, 0, NULL, NULL, NULL );
+    ok( !!other_hwnd, "CreateWindow failed, error %lu\n", GetLastError() );
+    himc = ImmGetContext( other_hwnd );
+    ok( !!himc, "got himc %p\n", himc );
+    process_messages();
+
+    ok_ret( 1, ImmActivateLayout( params->hkl ) );
+    ok_ret( 1, EnumThreadWindows( GetCurrentThreadId(), enum_thread_ime_windows, (LPARAM)&ime_windows ) );
+    ok( !!ime_windows.ime_hwnd, "missing IME window\n" );
+    ok( !!ime_windows.ime_ui_hwnd, "missing IME UI window\n" );
+
+    SetFocus( hwnd );
+
+    ok_eq( old_hkl, GetKeyboardLayout( 0 ), HKL, "%p" );
+    ok_ret( 1, ImmActivateLayout( params->hkl ) );
+    ok_eq( params->hkl, GetKeyboardLayout( 0 ), HKL, "%p" );
+
+    ok_ret( 1, EnumThreadWindows( GetCurrentThreadId(), enum_thread_ime_windows, (LPARAM)ime_windows ) );
+    ok( !!ime_windows->ime_hwnd, "missing IME window\n" );
+    ok( !!ime_windows->ime_ui_hwnd, "missing IME UI window\n" );
+    ok_ret( (UINT_PTR)ime_windows->ime_hwnd, (UINT_PTR)GetParent( ime_windows->ime_ui_hwnd ) );
+
+    ok( ime_windows.ime_hwnd == params->ime_windows->ime_hwnd, "got different IME window\n" );
+    ok( ime_windows.ime_ui_hwnd != params->ime_windows->ime_ui_hwnd, "got same IME UI window\n" );
+
+    ok_ret( 1, ImmActivateLayout( old_hkl ) );
+    ok_eq( old_hkl, GetKeyboardLayout( 0 ), HKL, "%p" );
+
+    DestroyWindow( other_hwnd );
+    DestroyWindow( hwnd );
+    process_messages();
+    memset( ime_calls, 0, sizeof(ime_calls) );
+    ime_call_count = 0;
+
+    return 0;
+}
+
 static void test_ImmActivateLayout(void)
 {
     const struct ime_call activate_seq[] =
