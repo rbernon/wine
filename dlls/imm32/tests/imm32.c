@@ -5182,7 +5182,6 @@ static void test_ImmActivateLayout(void)
         {
             .hkl = expect_ime, .himc = default_himc,
             .func = IME_NOTIFY, .notify = {.action = NI_COMPOSITIONSTR, .index = CPS_CANCEL, .value = 0},
-            .todo = TRUE,
         },
         {
             .hkl = default_hkl, .himc = default_himc,
@@ -5233,12 +5232,12 @@ static void test_ImmActivateLayout(void)
         {
             .hkl = expect_ime, .himc = default_himc,
             .func = IME_NOTIFY, .notify = {.action = NI_COMPOSITIONSTR, .index = CPS_CANCEL, .value = 0},
-            .todo = TRUE, .flaky_himc = TRUE,
+            .flaky_himc = TRUE,
         },
         {
             .hkl = expect_ime, .himc = 0/*himc*/,
             .func = IME_NOTIFY, .notify = {.action = NI_COMPOSITIONSTR, .index = CPS_CANCEL, .value = 0},
-            .todo = TRUE, .flaky_himc = TRUE,
+            .flaky_himc = TRUE,
         },
         {
             .hkl = expect_ime, .himc = default_himc,
@@ -5445,12 +5444,12 @@ static void test_ImmCreateInputContext(void)
         {
             .hkl = expect_ime, .himc = default_himc,
             .func = IME_NOTIFY, .notify = {.action = NI_COMPOSITIONSTR, .index = CPS_CANCEL, .value = 0},
-            .todo = TRUE, .flaky_himc = TRUE,
+            .flaky_himc = TRUE,
         },
         {
             .hkl = expect_ime, .himc = 0/*himc[0]*/,
             .func = IME_NOTIFY, .notify = {.action = NI_COMPOSITIONSTR, .index = CPS_CANCEL, .value = 0},
-            .todo = TRUE, .flaky_himc = TRUE,
+            .flaky_himc = TRUE,
         },
         {
             .hkl = expect_ime, .himc = default_himc,

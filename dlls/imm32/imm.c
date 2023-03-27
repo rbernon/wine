@@ -674,6 +674,12 @@ static struct ime *imc_select_ime( struct imc *imc )
     return imc->ime;
 }
 
+static BOOL CALLBACK enum_notify_cancel( HIMC himc, LPARAM lparam )
+{
+    ImmNotifyIME( himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0 );
+    return TRUE;
+}
+
 static BOOL CALLBACK enum_activate_layout( HIMC himc, LPARAM lparam )
 {
     if (ImmLockIMC( himc )) ImmUnlockIMC( himc );
@@ -685,6 +691,10 @@ BOOL WINAPI ImmActivateLayout( HKL hkl )
     TRACE( "hkl %p\n", hkl );
 
     if (hkl == GetKeyboardLayout( 0 )) return TRUE;
+
+    if (!(ImmGetProperty( hkl, IGP_PROPERTY ) & IME_PROP_COMPLETE_ON_UNSELECT))
+        ImmEnumInputContext( 0, enum_notify_cancel, 0 );
+
     if (!ActivateKeyboardLayout( hkl, 0 )) return FALSE;
 
     ImmEnumInputContext( 0, enum_activate_layout, 0 );
@@ -3247,6 +3257,7 @@ static LRESULT ime_internal_msg( WPARAM wparam, LPARAM lparam)
         SendMessageW( hwnd, WM_IME_SELECT, TRUE, lparam );
         break;
    case IME_INTERNAL_HKL_DEACTIVATE:
+        ImmEnumInputContext( 0, enum_notify_cancel, 0 );
         if (!(hwnd = get_ime_ui_window())) break;
         SendMessageW( hwnd, WM_IME_SELECT, FALSE, lparam );
         break;
