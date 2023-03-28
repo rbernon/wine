@@ -7904,41 +7904,109 @@ static void test_nihongo_no(void)
 
 static void test_ImmNotifyIME(void)
 {
+    const struct ime_call deadbeef_seq[] =
+    {
+        {
+            .hkl = expect_ime, .himc = default_himc,
+            .func = IME_NOTIFY, .notify = {.action = 0xdeadbeef, .index = 0xfeedcafe, .value = 0xcdcdcdcd},
+            .todo = TRUE,
+        },
+        {0},
+    };
+    const struct ime_call comp_cancel_notify_seq[] =
+    {
+        {
+            .hkl = expect_ime, .himc = default_himc,
+            .func = IME_NOTIFY, .notify = {.action = NI_COMPOSITIONSTR, .index = CPS_CANCEL, .value = 0},
+            .todo = TRUE,
+        },
+        {0},
+    };
+    const struct ime_call comp_cancel_message_seq[] =
+    {
+        {
+            .hkl = default_hkl, .himc = default_himc,
+            .func = MSG_TEST_WIN, .message = {.msg = WM_IME_ENDCOMPOSITION, .wparam = 0, .lparam = 0},
+            .todo = TRUE,
+        },
+        {
+            .hkl = default_hkl, .himc = default_himc,
+            .func = MSG_TEST_WIN, .message = {.msg = WM_IME_NOTIFY, .wparam = 0xf, .lparam = (LPARAM)default_himc},
+            .todo = TRUE,
+        },
+        {0},
+    };
     HKL hkl, old_hkl = GetKeyboardLayout( 0 );
-    INPUTCONTEXT *ctx;
+    char buffer[16];
     HIMC himc;
 
-    /* IME_PROP_END_UNLOAD for the IME to unload / reload. */
-    ime_info.fdwProperty = IME_PROP_END_UNLOAD | IME_PROP_UNICODE;
 
-    if (!(hkl = ime_install())) return;
+    himc = ImmCreateContext();
+    ok( !!himc, "ImmCreateContext failed, error %lu\n", GetLastError() );
+    ok_ret( 1, ImmDestroyContext( himc ) );
+
+    SetLastError(0xdeadbeef);
+    ok_ret( 0, ImmNotifyIME( (HIMC)0xdeadcafe, NI_COMPOSITIONSTR, CPS_CANCEL, 0 ) );
+    ok_ret( ERROR_INVALID_HANDLE, GetLastError() );
+    SetLastError(0xdeadbeef);
+    ok_ret( 0, ImmNotifyIME( 0x00000000, NI_COMPOSITIONSTR, CPS_CANCEL, 0 ) );
+    ok_ret( ERROR_SUCCESS, GetLastError() );
+    SetLastError(0xdeadbeef);
+    ok_ret( 0, ImmNotifyIME( himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0 ) );
+    ok_ret( ERROR_INVALID_HANDLE, GetLastError() );
+
 
     hwnd = CreateWindowW( test_class.lpszClassName, NULL, WS_OVERLAPPEDWINDOW | WS_VISIBLE,
                           100, 100, 100, 100, NULL, NULL, NULL, NULL );
     ok( !!hwnd, "CreateWindowW failed, error %lu\n", GetLastError() );
-
-    ok_ret( 1, ImmActivateLayout( hkl ) );
-    ok_ret( 1, ImmLoadIME( hkl ) );
-    himc = ImmCreateContext();
-    ok_ne( NULL, himc, HIMC, "%p" );
-    ctx = ImmLockIMC( himc );
-    ok_ne( NULL, ctx, INPUTCONTEXT *, "%p" );
     process_messages();
     memset( ime_calls, 0, sizeof(ime_calls) );
     ime_call_count = 0;
 
-    ok_seq( empty_sequence );
-    ok_ret( 1, ImmNotifyIME( himc, NI_CONTEXTUPDATED, 0, IMC_SETOPENSTATUS ) );
+    ok_ret( 1, ImmNotifyIME( default_himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0) );
+    process_messages();
     ok_seq( empty_sequence );
 
-    ok_ret( 1, ImmUnlockIMC( himc ) );
-    ok_ret( 1, ImmDestroyContext( himc ) );
+    ok_ret( 1, ImmSetCompositionStringA( default_himc, SCS_SETSTR, "wine", sizeof("wine"), NULL, 0 ) );
+    process_messages();
+    /* FIXME: check produced messages */
+    memset( ime_calls, 0, sizeof(ime_calls) );
+    ime_call_count = 0;
+
+    ok_ret( 1, ImmNotifyIME( default_himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0 ) );
+    ok_seq( comp_cancel_message_seq );
+    process_messages();
+    ok_seq( empty_sequence );
+
+    ok_ret( 0, ImmGetCompositionStringA( default_himc, GCS_COMPSTR, buffer, sizeof(buffer) ) );
+    ok_ret( 1, ImmNotifyIME( default_himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0 ) );
+    process_messages();
+    ok_seq( empty_sequence );
+
+
+    ime_info.fdwProperty = IME_PROP_END_UNLOAD | IME_PROP_UNICODE;
+
+    if (!(hkl = ime_install())) return;
+
+    ok_ret( 1, ImmActivateLayout( hkl ) );
+    process_messages();
+    memset( ime_calls, 0, sizeof(ime_calls) );
+    ime_call_count = 0;
+
+    ok_ret( 0, ImmNotifyIME( default_himc, 0xdeadbeef, 0xfeedcafe, 0xcdcdcdcd ) );
+    ok_seq( deadbeef_seq );
+
+    ok_ret( 0, ImmNotifyIME( default_himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0) );
+    ok_seq( comp_cancel_notify_seq );
+    ok_ret( 0, ImmSetCompositionStringA( default_himc, SCS_SETSTR, "wine", sizeof("wine"), NULL, 0 ) );
+    process_messages();
+    ok_seq( empty_sequence );
 
     ok_ret( 1, ImmActivateLayout( old_hkl ) );
     ok_ret( 1, DestroyWindow( hwnd ) );
-    process_messages();
 
-    ime_cleanup( hkl, TRUE );
+    ok_ret( 1, ImmFreeLayout( hkl ) );
+    ime_cleanup( hkl );
     memset( ime_calls, 0, sizeof(ime_calls) );
     ime_call_count = 0;
 }
