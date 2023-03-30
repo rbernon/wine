@@ -30,6 +30,7 @@ enum x11drv_funcs
     unix_tablet_get_packet,
     unix_tablet_info,
     unix_tablet_load_info,
+    unix_ime_get_event,
     unix_funcs_count,
 };
 
@@ -57,13 +58,6 @@ struct tablet_info_params
     UINT category;
     UINT index;
     void *output;
-};
-
-/* x11drv_xim_preedit_state params */
-struct xim_preedit_state_params
-{
-    HWND hwnd;
-    BOOL open;
 };
 
 /* driver client callbacks exposed with KernelCallbackTable interface */
