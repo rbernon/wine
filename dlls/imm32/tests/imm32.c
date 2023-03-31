@@ -185,6 +185,87 @@ static void check_candidate_list_( int line, CANDIDATELIST *list, const CANDIDAT
     }
 }
 
+#define check_candidate_info( a, b ) check_candidate_info_( __LINE__, a, b, TRUE )
+static void check_candidate_info_( int line, CANDIDATEINFO *info, const CANDIDATEINFO *expect, BOOL unicode )
+{
+    UINT i;
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwSize );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwCount );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x00] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x01] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x02] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x03] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x04] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x05] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x06] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x07] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x08] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x09] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x0a] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x0b] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x0c] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x0d] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x0e] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x0f] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x10] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x11] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x12] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x13] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x14] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x15] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x16] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x17] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x18] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x19] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x1a] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x1b] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x1c] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x1d] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x1e] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwOffset[0x1f] );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwPrivateSize );
+    check_member_( __FILE__, line, *info, *expect, "%lu", dwPrivateOffset );
+    for (i = 0; i < info->dwCount && i < expect->dwCount; ++i)
+    {
+        void *info_list = (BYTE *)(info + 1) + info->dwOffset[i], *expect_list = (BYTE *)(expect + 1) + info->dwOffset[i];
+        check_candidate_list_( line, info_list, expect_list, unicode );
+    }
+}
+
+#define check_guideline( a, b ) check_guideline_( __LINE__, a, b )
+static void check_guideline_( int line, GUIDELINE *guideline, const GUIDELINE *expect )
+{
+    check_member_( __FILE__, line, *guideline, *expect, "%lu", dwSize );
+    check_member_( __FILE__, line, *guideline, *expect, "%lu", dwLevel );
+    check_member_( __FILE__, line, *guideline, *expect, "%lu", dwIndex );
+    check_member_( __FILE__, line, *guideline, *expect, "%lu", dwStrLen );
+    check_member_( __FILE__, line, *guideline, *expect, "%lu", dwStrOffset );
+    check_member_( __FILE__, line, *guideline, *expect, "%lu", dwPrivateSize );
+    check_member_( __FILE__, line, *guideline, *expect, "%lu", dwPrivateOffset );
+}
+
+#define check_member_himcc( val, exp, member ) check_member_himcc_( __FILE__, __LINE__, #member, val, exp, member )
+static void check_member_himcc_( const char *file, int line, const char *context, HIMCC value, HIMCC expect )
+{
+    void *value_data, *expect_data;
+    DWORD value_size, expect_size;
+
+    value_size = ImmGetIMCCSize( value );
+    expect_size = ImmGetIMCCSize( expect );
+    value_data = ImmLockIMCC( value );
+    expect_data = ImmLockIMCC( expect );
+
+    if (value_size == expect_size)
+        ok_(file, line)( !memcmp( value_data, expect_data, value_size ),
+                         "got %s diff\n", context );
+    else
+        todo_wine
+        ok_(file, line)( 0, "got %s size %#lx\n", context, value_size );
+
+    ImmUnlockIMCC( value );
+    ImmUnlockIMCC( expect );
+}
+
 #define check_candidate_form( a, b ) check_candidate_form_( __LINE__, a, b )
 static void check_candidate_form_( int line, CANDIDATEFORM *form, const CANDIDATEFORM *expect )
 {
@@ -238,6 +319,111 @@ static void check_logfont_a_( int line, LOGFONTA *font, const LOGFONTA *expect )
     check_member_( __FILE__, line, *font, *expect, "%u", lfQuality );
     check_member_( __FILE__, line, *font, *expect, "%u", lfPitchAndFamily );
     check_member_str_( __FILE__, line, *font, *expect, lfFaceName );
+}
+
+#define check_ime_char_position( a, b ) check_ime_char_position_( __LINE__, a, b )
+static void check_ime_char_position_( int line, IMECHARPOSITION *value, const IMECHARPOSITION *expect )
+{
+    check_member_( __FILE__, line, *value, *expect, "%#lx", dwSize );
+    check_member_( __FILE__, line, *value, *expect, "%lu", dwCharPos );
+    check_member_point_( __FILE__, line, *value, *expect, pt );
+    check_member_( __FILE__, line, *value, *expect, "%u", cLineHeight );
+    check_member_rect_( __FILE__, line, *value, *expect, rcDocument );
+}
+
+#define check_reconvert_string( a, b ) check_reconvert_string_( __LINE__, a, b )
+static void check_reconvert_string_( int line, RECONVERTSTRING *value, const RECONVERTSTRING *expect )
+{
+    check_member_( __FILE__, line, *value, *expect, "%#lx", dwSize );
+    check_member_( __FILE__, line, *value, *expect, "%#lx", dwVersion );
+    check_member_( __FILE__, line, *value, *expect, "%#lx", dwStrLen );
+    check_member_( __FILE__, line, *value, *expect, "%#lx", dwStrOffset );
+    check_member_( __FILE__, line, *value, *expect, "%#lx", dwCompStrLen );
+    check_member_( __FILE__, line, *value, *expect, "%#lx", dwCompStrOffset );
+    check_member_( __FILE__, line, *value, *expect, "%#lx", dwTargetStrLen );
+    check_member_( __FILE__, line, *value, *expect, "%#lx", dwTargetStrOffset );
+}
+
+#define check_input_context( a, b ) check_input_context_( __LINE__, a, b, FALSE, FALSE )
+static void check_input_context_( int line, INPUTCONTEXT *context, const INPUTCONTEXT *expect, BOOL todo, BOOL todo_window )
+{
+    COMPOSITIONSTRING *context_compstr, *expect_compstr;
+    CANDIDATEINFO *context_candinfo, *expect_candinfo;
+    GUIDELINE *context_guideline, *expect_guideline;
+    UINT i;
+
+    todo_wine_if(todo_window)
+    check_member_( __FILE__, line, *context, *expect, "%p", hWnd );
+    check_member_( __FILE__, line, *context, *expect, "%u", fOpen );
+    check_member_point_( __FILE__, line, *context, *expect, ptStatusWndPos );
+    check_member_point_( __FILE__, line, *context, *expect, ptSoftKbdPos );
+    todo_wine_if(todo)
+    check_member_( __FILE__, line, *context, *expect, "%#lx", fdwConversion );
+    todo_wine_if(todo)
+    check_member_( __FILE__, line, *context, *expect, "%#lx", fdwSentence );
+
+    /* FIXME: check lfFont member */
+
+    check_composition_form_( line, &context->cfCompForm, &expect->cfCompForm );
+
+    for (i = 0; i < ARRAY_SIZE(context->cfCandForm); ++i)
+    {
+        winetest_push_context( "%u", i );
+        check_candidate_form_( line, context->cfCandForm + i, expect->cfCandForm + i );
+        winetest_pop_context();
+    }
+
+    if (!(context_compstr = ImmLockIMCC( context->hCompStr )))
+        ok( 0, "ImmLockIMCC hCompStr failed, error %lu\n", GetLastError() );
+    else
+    {
+        COMPOSITIONSTRING empty_compstr = {.dwSize = sizeof(COMPOSITIONSTRING)};
+        if (!(expect_compstr = ImmLockIMCC( context->hCompStr )))
+            check_composition_string_( line, context_compstr, &empty_compstr );
+        else
+        {
+            check_composition_string_( line, context_compstr, expect_compstr );
+            ImmUnlockIMCC( expect->hCompStr );
+        }
+        ImmUnlockIMCC( context->hCompStr );
+    }
+
+    if (!(context_candinfo = ImmLockIMCC( context->hCandInfo )))
+        ok( 0, "ImmLockIMCC hCandInfo failed, error %lu\n", GetLastError() );
+    else
+    {
+        CANDIDATEINFO empty_candinfo = {.dwSize = sizeof(CANDIDATEINFO)};
+        if (!(expect_candinfo = ImmLockIMCC( context->hCandInfo )))
+            check_candidate_info_( line, context_candinfo, &empty_candinfo, TRUE );
+        else
+        {
+            check_candidate_info_( line, context_candinfo, expect_candinfo, TRUE );
+            ImmUnlockIMCC( expect->hCandInfo );
+        }
+        ImmUnlockIMCC( context->hCandInfo );
+    }
+
+    if (!(context_guideline = ImmLockIMCC( context->hGuideLine )))
+        ok( 0, "ImmLockIMCC hGuideLine failed, error %lu\n", GetLastError() );
+    else
+    {
+        GUIDELINE empty_guideline = {.dwSize = sizeof(GUIDELINE)};
+        if (!(expect_guideline = ImmLockIMCC( context->hGuideLine )))
+            check_guideline_( line, context_guideline, &empty_guideline );
+        else
+        {
+            check_guideline_( line, context_guideline, expect_guideline );
+            ImmUnlockIMCC( expect->hGuideLine );
+        }
+        ImmUnlockIMCC( context->hGuideLine );
+    }
+
+    check_member_himcc_( __FILE__, line, "hPrivate", context->hPrivate, expect->hPrivate );
+    check_member_( __FILE__, line, *context, *expect, "%lu", dwNumMsgBuf );
+    todo_wine
+    check_member_himcc_( __FILE__, line, "hMsgBuf", context->hMsgBuf, expect->hMsgBuf );
+    todo_wine_if( expect->fdwInit )
+    check_member_( __FILE__, line, *context, *expect, "%lu", fdwInit );
 }
 
 #define DEFINE_EXPECT(func) \
@@ -5288,7 +5474,17 @@ static void test_ImmCreateInputContext(void)
         {0},
     };
     HKL hkl;
-    INPUTCONTEXT *ctx;
+    INPUTCONTEXT *ctx, expect_ctx =
+    {
+        .cfCandForm =
+        {
+            {.dwIndex = -1},
+            {.dwIndex = -1},
+            {.dwIndex = -1},
+            {.dwIndex = -1},
+        },
+        .hMsgBuf = ImmCreateIMCC(4),
+    };
     HIMC himc[2];
     HWND hwnd;
 
@@ -5314,10 +5510,12 @@ static void test_ImmCreateInputContext(void)
 
     ctx = ImmLockIMC( default_himc );
     ok( !!ctx, "ImmLockIMC failed, error %lu\n", GetLastError() );
+    ok_eq( hwnd, ctx->hWnd, HWND, "%p" );
     ok_ret( 1, ImmUnlockIMC( default_himc ) );
 
     ctx = ImmLockIMC( himc[0] );
     ok( !!ctx, "ImmLockIMC failed, error %lu\n", GetLastError() );
+    ok_eq( NULL, ctx->hWnd, HWND, "%p" );
     ok_ret( 1, ImmUnlockIMC( himc[0] ) );
 
 
@@ -5337,12 +5535,19 @@ static void test_ImmCreateInputContext(void)
 
     ok_eq( hkl, GetKeyboardLayout( 0 ), HKL, "%p" );
 
+    expect_ctx.hPrivate = ImmCreateIMCC( ime_info.dwPrivateDataSize );
+    ok( !!expect_ctx.hPrivate, "ImmCreateIMCC failed, error %lu\n", GetLastError() );
+
     ctx = ImmLockIMC( default_himc );
     ok( !!ctx, "ImmLockIMC failed, error %lu\n", GetLastError() );
+    expect_ctx.hWnd = hwnd;
+    check_input_context( ctx, &expect_ctx );
     ok_ret( 1, ImmUnlockIMC( default_himc ) );
 
     ctx = ImmLockIMC( himc[0] );
     ok( !!ctx, "ImmLockIMC failed, error %lu\n", GetLastError() );
+    expect_ctx.hWnd = NULL;
+    check_input_context( ctx, &expect_ctx );
     ok_ret( 1, ImmUnlockIMC( himc[0] ) );
 
 
@@ -5357,6 +5562,8 @@ static void test_ImmCreateInputContext(void)
     select1_seq[0].himc = himc[0];
     select1_seq[4].himc = himc[1];
     ok_seq( select1_seq );
+    expect_ctx.hWnd = NULL;
+    check_input_context( ctx, &expect_ctx );
 
     ok_ret( 1, ImmUnlockIMC( himc[1] ) );
 
@@ -5386,6 +5593,8 @@ cleanup:
     ime_call_count = 0;
 
     ime_info.dwPrivateDataSize = 0;
+    ok_ret( 0, (UINT_PTR)ImmDestroyIMCC( expect_ctx.hPrivate ) );
+    ok_ret( 0, (UINT_PTR)ImmDestroyIMCC( expect_ctx.hMsgBuf ) );
 }
 
 static void test_DefWindowProc(void)
@@ -5554,6 +5763,18 @@ static void test_ImmSetActiveContext(void)
         },
         {0},
     };
+    INPUTCONTEXT expect_ctx =
+    {
+        .cfCandForm =
+        {
+            {.dwIndex = -1},
+            {.dwIndex = -1},
+            {.dwIndex = -1},
+            {.dwIndex = -1},
+        },
+        .hPrivate = ImmCreateIMCC(4),
+        .hMsgBuf = ImmCreateIMCC(4),
+    };
     HKL hkl;
     struct ime_windows ime_windows = {0};
     INPUTCONTEXT *ctx;
@@ -5589,6 +5810,12 @@ static void test_ImmSetActiveContext(void)
     ok_ret( 1, ImmSetActiveContext( hwnd, default_himc, FALSE ) );
     ok_seq( deactivate_0_seq );
 
+    ctx = ImmLockIMC( default_himc );
+    ok( !!ctx, "ImmLockIMC failed, error %lu\n", GetLastError() );
+    expect_ctx.hWnd = hwnd;
+    check_input_context_( __LINE__, ctx, &expect_ctx, FALSE, TRUE );
+    ok_ret( 1, ImmUnlockIMC( default_himc ) );
+
     himc = ImmCreateContext();
     ok_ne( NULL, himc, HIMC, "%p" );
     ctx = ImmLockIMC( himc );
@@ -5599,6 +5826,12 @@ static void test_ImmSetActiveContext(void)
     deactivate_1_seq[3].himc = himc;
     deactivate_1_seq[4].himc = himc;
     ok_seq( deactivate_1_seq );
+
+    ctx = ImmLockIMC( himc );
+    ok( !!ctx, "ImmLockIMC failed, error %lu\n", GetLastError() );
+    check_input_context( ctx, &expect_ctx );
+    ok_ret( 1, ImmUnlockIMC( himc ) );
+
     ok_ret( 1, ImmSetActiveContext( hwnd, himc, TRUE ) );
     activate_1_seq[0].himc = himc;
     ok_seq( activate_1_seq );
