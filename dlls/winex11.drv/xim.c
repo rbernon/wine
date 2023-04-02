@@ -104,6 +104,34 @@ static void xim_update_comp_string( UINT offset, UINT old_len, const WCHAR *text
     ime_comp_updated = TRUE;
 }
 
+static void xic_update_position( XIC xic, HWND hwnd )
+{
+    struct x11drv_win_data *data;
+    XVaNestedList attr;
+    XPoint spot;
+    RECT rect;
+
+    send_ime_ui_message( hwnd, WM_WINE_IME_GET_CHAR_RECT, MAKELONG(0, 1), (LPARAM)&rect );
+    NtUserMapWindowPoints( 0, hwnd, (POINT *)&rect, 2 );
+    spot.x = rect.left;
+    spot.y = rect.bottom;
+
+    if ((data = get_win_data( hwnd )))
+    {
+        if (NtUserGetWindowLongW( hwnd, GWL_EXSTYLE ) & WS_EX_LAYOUTRTL)
+            spot.x = data->client_rect.right - data->client_rect.left - 1 - spot.x;
+        spot.x += data->client_rect.left - data->whole_rect.left;
+        spot.y += data->client_rect.top - data->whole_rect.top;
+        release_win_data( data );
+    }
+
+    if ((attr = XVaCreateNestedList( 0, XNSpotLocation, &spot, NULL )))
+    {
+        XSetICValues( xic, XNPreeditAttributes, attr, NULL );
+        XFree( attr );
+    }
+}
+
 static void xim_set_result_string( HWND hwnd, const char *str, UINT count )
 {
     WCHAR *output;
