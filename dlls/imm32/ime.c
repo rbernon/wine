@@ -568,7 +568,14 @@ BOOL WINAPI ImeSelect( HIMC himc, BOOL select )
 
 BOOL WINAPI ImeSetActiveContext( HIMC himc, BOOL flag )
 {
-    TRACE( "himc %p, flag %#x stub!\n", himc, flag );
+    TRACE( "himc %p, flag %#x\n", himc, flag );
+
+    if (!ime_driver_call( WINE_IME_CONTEXT_ACTIVATE, (WPARAM)himc, flag ))
+    {
+        WARN( "WINE_IME_CONTEXT_ACTIVATE call failed, error %lu\n", GetLastError() );
+        return FALSE;
+    }
+
     return TRUE;
 }
 

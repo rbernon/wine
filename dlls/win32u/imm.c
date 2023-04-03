@@ -49,6 +49,7 @@ struct ime_funcs
     BOOL (*p_destroy)(void);
     BOOL (*p_context_create)( HIMC himc );
     BOOL (*p_context_delete)( HIMC himc );
+    BOOL (*p_context_activate)( HIMC himc, BOOL active );
 };
 
 struct imc
@@ -239,12 +240,33 @@ static BOOL ime_context_delete_ibus( HIMC himc )
     return TRUE;
 }
 
+static BOOL ime_context_activate_ibus( HIMC himc, BOOL active )
+{
+    IBusInputContext *ctx;
+
+    TRACE( "himc %p, active %u\n", himc, active );
+
+    pthread_mutex_lock( &ibus_lock );
+    if ((ctx = g_hash_table_lookup( ibus_contexts, himc ))) g_object_ref( ctx );
+    pthread_mutex_unlock( &ibus_lock );
+
+    if (ctx)
+    {
+        if (active) ibus_input_context_focus_in( ctx );
+        else ibus_input_context_focus_out( ctx );
+        g_object_unref( ctx );
+    }
+
+    return TRUE;
+}
+
 struct ime_funcs ime_funcs_ibus =
 {
     .p_inquire = ime_inquire_ibus,
     .p_destroy = ime_destroy_ibus,
     .p_context_create = ime_context_create_ibus,
     .p_context_delete = ime_context_delete_ibus,
+    .p_context_activate = ime_context_activate_ibus,
 };
 
 void ime_thread_ibus(void)
@@ -654,6 +676,10 @@ LRESULT ime_driver_call( HWND hwnd, enum wine_ime_call call, WPARAM wparam, LPAR
     case WINE_IME_CONTEXT_DELETE:
         if (!ime_funcs || !ime_funcs->p_context_delete) return TRUE;
         return ime_funcs->p_context_delete( (HIMC)wparam );
+
+    case WINE_IME_CONTEXT_ACTIVATE:
+        if (!ime_funcs || !ime_funcs->p_context_activate) return TRUE;
+        return ime_funcs->p_context_activate( (HIMC)wparam, lparam );
 
     case WINE_IME_PROCESS_KEY:
         return user_driver->pImeProcessKey( params->himc, wparam, lparam, params->state );
