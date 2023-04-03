@@ -503,6 +503,8 @@ enum wine_internal_message
 /* builtin IME driver calls */
 enum wine_ime_call
 {
+    WINE_IME_INQUIRE,
+    WINE_IME_DESTROY,
     WINE_IME_PROCESS_KEY,
     WINE_IME_TO_ASCII_EX,
 };

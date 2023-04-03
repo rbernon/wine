@@ -454,6 +454,12 @@ BOOL WINAPI ImeInquire( IMEINFO *info, WCHAR *ui_class, DWORD flags )
 {
     TRACE( "info %p, ui_class %p, flags %#lx\n", info, ui_class, flags );
 
+    if (!ime_driver_call( WINE_IME_INQUIRE, 0, 0 ))
+    {
+        WARN( "WINE_IME_INQUIRE failed, error %lu\n", GetLastError() );
+        return FALSE;
+    }
+
     ime_ui_class.hInstance = imm32_module;
     ime_ui_class.hCursor = LoadCursorW( NULL, (LPWSTR)IDC_ARROW );
     ime_ui_class.hIcon = LoadIconW( NULL, (LPWSTR)IDI_APPLICATION );
@@ -477,6 +483,13 @@ BOOL WINAPI ImeDestroy( UINT force )
 {
     TRACE( "force %u\n", force );
     UnregisterClassW( ime_ui_class.lpszClassName, imm32_module );
+
+    if (!ime_driver_call( WINE_IME_DESTROY, 0, 0 ))
+    {
+        WARN( "WINE_IME_DESTROY failed, error %lu\n", GetLastError() );
+        return FALSE;
+    }
+
     return TRUE;
 }
 

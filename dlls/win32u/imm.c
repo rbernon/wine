@@ -24,6 +24,15 @@
 #pragma makedep unix
 #endif
 
+#include "config.h"
+
+#ifdef HAVE_IBUS_H
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wstrict-prototypes"
+# include <ibus.h>
+# pragma GCC diagnostic pop
+#endif
+
 #include <pthread.h>
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -34,6 +43,11 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(imm);
 
+struct ime_funcs
+{
+    BOOL (*p_inquire)(void);
+    BOOL (*p_destroy)(void);
+};
 
 struct imc
 {
@@ -53,6 +67,7 @@ struct imm_thread_data
 
 static struct list thread_data_list = LIST_INIT( thread_data_list );
 static pthread_mutex_t imm_mutex = PTHREAD_MUTEX_INITIALIZER;
+static struct ime_funcs *ime_funcs;
 static BOOL disable_ime;
 
 static struct imc *get_imc_ptr( HIMC handle )
@@ -68,6 +83,58 @@ static void release_imc_ptr( struct imc *imc )
 {
     release_user_handle_ptr( imc );
 }
+
+#ifdef SONAME_LIBIBUS_1_0
+
+static IBusBus *ibus_bus;
+
+static BOOL ime_inquire_ibus(void)
+{
+    ibus_init();
+
+    if (!(ibus_bus = ibus_bus_new()))
+    {
+        ERR( "Failed to create IBus bus.\n" );
+        goto error;
+    }
+    if (!(ibus_bus_is_connected( ibus_bus )))
+    {
+        ERR( "Failed to connect to ibus-daemon.\n" );
+        goto error;
+    }
+
+    TRACE( "created IBusBus %p\n", ibus_bus );
+    return TRUE;
+
+error:
+    if (ibus_bus) g_object_unref( ibus_bus );
+    ibus_bus = NULL;
+    return FALSE;
+}
+
+static BOOL ime_destroy_ibus(void)
+{
+    TRACE( "\n" );
+
+    if (ibus_bus) g_object_unref( ibus_bus );
+    ibus_bus = NULL;
+
+    ibus_quit();
+
+    return TRUE;
+}
+
+struct ime_funcs ime_funcs_ibus =
+{
+    .p_inquire = ime_inquire_ibus,
+    .p_destroy = ime_destroy_ibus,
+};
+
+#else /* SONAME_LIBIBUS_1_0 */
+
+struct ime_funcs ime_funcs_ibus = {0};
+
+#endif /* SONAME_LIBIBUS_1_0 */
 
 /******************************************************************************
  *           NtUserCreateInputContext   (win32u.@)
@@ -426,6 +493,24 @@ LRESULT ime_driver_call( HWND hwnd, enum wine_ime_call call, WPARAM wparam, LPAR
 {
     switch (call)
     {
+    case WINE_IME_INQUIRE:
+        if (ime_funcs_ibus.p_inquire && ime_funcs_ibus.p_inquire())
+        {
+            TRACE( "using IBus IME backend\n" );
+            ime_funcs = &ime_funcs_ibus;
+        }
+        else
+        {
+            TRACE( "using user driver IME backend\n" );
+        }
+
+        return TRUE;
+
+    case WINE_IME_DESTROY:
+        if (ime_funcs) ime_funcs->p_destroy();
+        ime_funcs = NULL;
+        return 0;
+
     case WINE_IME_PROCESS_KEY:
         return user_driver->pImeProcessKey( params->himc, wparam, lparam, params->state );
     case WINE_IME_TO_ASCII_EX:
