@@ -289,7 +289,7 @@ extern const struct gdi_dc_funcs *X11DRV_XRender_Init(void);
 extern struct opengl_funcs *get_glx_driver(UINT);
 extern UINT X11DRV_VulkanInit( UINT, void *, const struct vulkan_driver_funcs ** );
 
-extern struct format_entry *import_xdnd_selection( Display *display, Window win, Atom selection,
+extern struct dnd_enter_event_params *import_xdnd_selection( Display *display, Window win, Atom selection,
                                                    Atom *targets, UINT count,
                                                    size_t *size );
 
@@ -444,6 +444,11 @@ extern int xrender_error_base;
 extern char *process_name;
 extern Display *clipboard_display;
 extern WNDPROC client_foreign_window_proc;
+extern UINT64 dnd_enter_event_callback;
+extern UINT64 dnd_position_event_callback;
+extern UINT64 dnd_post_drop_callback;
+extern UINT64 dnd_drop_event_callback;
+extern UINT64 dnd_leave_event_callback;
 
 /* atoms */
 
@@ -653,8 +658,8 @@ extern void change_systray_owner( Display *display, Window systray_window );
 extern HWND create_foreign_window( Display *display, Window window );
 extern BOOL update_clipboard( HWND hwnd );
 extern void init_win_context(void);
-extern void *file_list_to_drop_files( const void *data, size_t size, size_t *ret_size );
-extern void *uri_list_to_drop_files( const void *data, size_t size, size_t *ret_size );
+extern struct dnd_post_drop_params *file_list_to_drop_files( const void *data, size_t size, size_t *ret_size );
+extern struct dnd_post_drop_params *uri_list_to_drop_files( const void *data, size_t size, size_t *ret_size );
 
 static inline void mirror_rect( const RECT *window_rect, RECT *rect )
 {
@@ -846,9 +851,6 @@ extern NTSTATUS x11drv_tablet_attach_queue( void *arg );
 extern NTSTATUS x11drv_tablet_get_packet( void *arg );
 extern NTSTATUS x11drv_tablet_load_info( void *arg );
 extern NTSTATUS x11drv_tablet_info( void *arg );
-
-extern NTSTATUS x11drv_client_func( enum x11drv_client_funcs func, const void *params,
-                                    ULONG size );
 
 /* GDI helpers */
 
