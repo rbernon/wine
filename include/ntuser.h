@@ -58,9 +58,6 @@ enum
     NtUserRenderSynthesizedFormat,
     NtUserUnpackDDEMessage,
     NtUserDispatchCallback,
-    /* Driver-specific callbacks */
-    NtUserDriverCallbackFirst,
-    NtUserDriverCallbackLast = NtUserDriverCallbackFirst + 9,
     NtUserCallCount
 };
 
