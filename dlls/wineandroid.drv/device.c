@@ -1177,8 +1177,9 @@ void start_android_device(void)
 {
     void *ret_ptr;
     ULONG ret_len;
-    KeUserModeCallback( client_start_device, NULL, 0, &ret_ptr, &ret_len );
-    if (ret_len == sizeof(thread)) thread = *(HANDLE *)ret_ptr;
+    struct dispatch_callback_params params = {.func = start_device_callback};
+    NTSTATUS ret = KeUserModeCallback( NtUserDispatchCallback, &params, sizeof(params), &ret_ptr, &ret_len );
+    thread = ULongToHandle( ret );
 }
 
 
