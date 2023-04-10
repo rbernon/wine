@@ -117,7 +117,7 @@ static const char *uuid_string(const struct uuid *uuid)
 
 static void write_namespace_start( FILE *header, const struct namespace *namespace )
 {
-    if (!namespace)
+    if (namespace_is_global( namespace ))
     {
         if(use_abi_namespace)
             write_line(header, 1, "namespace ABI {");
@@ -130,7 +130,7 @@ static void write_namespace_start( FILE *header, const struct namespace *namespa
 
 static void write_namespace_end( FILE *header, const struct namespace *namespace )
 {
-    if (!namespace)
+    if (namespace_is_global( namespace ))
     {
         if(use_abi_namespace)
             write_line(header, -1, "}");
@@ -308,7 +308,7 @@ void write_type_left(FILE *h, const decl_spec_t *ds, enum name_type name_type, i
           else fprintf(h, "enum {\n");
           t->written = TRUE;
           indentation++;
-          write_enums( h, type_enum_get_values( t ), !t->namespace ? NULL : t->name );
+          write_enums( h, type_enum_get_values( t ), namespace_is_global( t->namespace ) ? NULL : t->name );
           indent(h, -1);
           fprintf(h, "}");
         }
@@ -453,7 +453,7 @@ void write_type_left(FILE *h, const decl_spec_t *ds, enum name_type name_type, i
       case TYPE_ALIAS:
       {
         const decl_spec_t *ds = type_alias_get_aliasee(t);
-        int in_namespace = ds && ds->type && ds->type->namespace;
+        int in_namespace = ds && ds->type && ds->type->namespace && !namespace_is_global( ds->type->namespace );
         if (!in_namespace) fprintf(h, "%s", t->name);
         else write_type_left(h, ds, name_type, declonly, write_callconv);
         break;
@@ -563,7 +563,7 @@ static void write_type_v(FILE *h, const decl_spec_t *ds, int is_field, int declo
 
 static void write_type_definition(FILE *f, type_t *t, int declonly)
 {
-    int in_namespace = !!t->namespace;
+    int in_namespace = t->namespace && !namespace_is_global( t->namespace );
     int save_written = t->written;
     decl_spec_t ds = {.type = t};
     expr_t *contract = get_attrp(t->attrs, ATTR_CONTRACT);
@@ -821,7 +821,7 @@ static void write_generic_handle_routines(FILE *header)
 static void write_typedef(FILE *header, type_t *type, int declonly)
 {
     type_t *t = type_alias_get_aliasee_type(type);
-    if (winrt_mode && t->namespace)
+    if (winrt_mode && t->namespace && !namespace_is_global( t->namespace ))
     {
         fprintf(header, "#ifndef __cplusplus\n");
         fprintf(header, "typedef ");
@@ -1557,7 +1557,7 @@ static void write_forward(FILE *header, type_t *iface)
   fprintf(header, "#define __%s_FWD_DEFINED__\n", iface->c_name);
   fprintf(header, "typedef interface %s %s;\n", iface->c_name, iface->c_name);
   fprintf(header, "#ifdef __cplusplus\n");
-  if (iface->namespace)
+  if (iface->namespace && !namespace_is_global( iface->namespace ))
       fprintf( header, "#define %s %s\n", iface->c_name, iface->qualified_name );
   if (!iface->impl_name)
   {
@@ -1668,7 +1668,7 @@ static void write_com_interface_end(FILE *header, type_t *iface)
 
   /* C++ interface */
   fprintf(header, "#if defined(__cplusplus) && !defined(CINTERFACE)\n");
-  if (iface->namespace)
+  if (!namespace_is_global( iface->namespace ))
   {
       write_line(header, 0, "} /* extern \"C\" */");
       write_namespace_start(header, iface->namespace);
@@ -1706,7 +1706,7 @@ static void write_com_interface_end(FILE *header, type_t *iface)
   if (!type_iface_get_inherit(iface) && !iface->impl_name)
     write_line(header, 0, "END_INTERFACE\n");
   write_line(header, -1, "};");
-  if (iface->namespace)
+  if (!namespace_is_global( iface->namespace ))
   {
       write_namespace_end(header, iface->namespace);
       write_line(header, 0, "extern \"C\" {");
