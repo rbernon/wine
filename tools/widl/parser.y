@@ -1001,7 +1001,7 @@ int_std:  tINT					{ $$ = type_new_int(TYPE_BASIC_INT, 0); }
 	;
 
 namespace_pfx:
-	  aIDENTIFIER '.'			{ $$ = find_namespace_or_error(global_namespace, $1); }
+	  aIDENTIFIER '.'			{ $$ = find_namespace_or_error(NULL, $1); }
 	| namespace_pfx aIDENTIFIER '.'		{ $$ = find_namespace_or_error($1, $2); }
 	;
 
