@@ -48,30 +48,35 @@ struct namespace
     struct rtype *type_hash[HASHMAX];
 };
 
-static struct rtype *global_type_hash[HASHMAX];
-static struct list global_namespaces = LIST_INIT( global_namespaces );
-
-struct namespace *current_namespace = NULL;
+static struct namespace global_namespace_value =
+{
+    .entry = LIST_INIT( global_namespace_value.entry ),
+    .children = LIST_INIT( global_namespace_value.children ),
+};
+struct namespace *global_namespace = &global_namespace_value;
+struct namespace *current_namespace = &global_namespace_value;
 struct namespace *parameters_namespace = NULL;
+
+int namespace_is_global( const struct namespace *namespace )
+{
+    return namespace == global_namespace;
+}
 
 const struct namespace *namespace_get_parent( const struct namespace *namespace )
 {
-    if (!namespace) return NULL;
     return namespace->parent;
 }
 
 const char *namespace_get_name( const struct namespace *namespace )
 {
-    if (!namespace) return NULL;
     return namespace->name;
 }
 
 static struct namespace *find_sub_namespace( struct namespace *namespace, const char *name )
 {
-    struct list *children = namespace ? &namespace->children : &global_namespaces;
     struct namespace *cur;
 
-    LIST_FOR_EACH_ENTRY( cur, children, struct namespace, entry )
+    LIST_FOR_EACH_ENTRY( cur, &namespace->children, struct namespace, entry )
     {
         if (!strcmp( cur->name, name )) return cur;
     }
@@ -79,9 +84,45 @@ static struct namespace *find_sub_namespace( struct namespace *namespace, const 
     return NULL;
 }
 
-static struct namespace *push_namespace( const char *name )
+static void push_namespace( const char *name )
 {
-    struct list *children = current_namespace ? &current_namespace->children : &global_namespaces;
+    struct namespace *namespace;
+
+    namespace = find_sub_namespace( current_namespace, name );
+    if (!namespace)
+    {
+        namespace = xmalloc( sizeof(*namespace) );
+        namespace->name = xstrdup( name );
+        namespace->parent = current_namespace;
+        list_add_tail( &current_namespace->children, &namespace->entry );
+        list_init( &namespace->children );
+        memset( namespace->type_hash, 0, sizeof(namespace->type_hash) );
+    }
+
+    current_namespace = namespace;
+}
+
+static void pop_namespace( const char *name )
+{
+    assert( !strcmp( current_namespace->name, name ) && current_namespace->parent );
+    current_namespace = current_namespace->parent;
+}
+
+void push_namespaces( str_list_t *names )
+{
+    const struct str_list_entry_t *name;
+    LIST_FOR_EACH_ENTRY( name, names, const struct str_list_entry_t, entry ) push_namespace( name->str );
+}
+
+void pop_namespaces( str_list_t *names )
+{
+    const struct str_list_entry_t *name;
+    LIST_FOR_EACH_ENTRY_REV( name, names, const struct str_list_entry_t, entry )
+        pop_namespace( name->str );
+}
+
+void push_parameters_namespace( const char *name )
+{
     struct namespace *namespace;
 
     if (!(namespace = find_sub_namespace( current_namespace, name )))
@@ -89,39 +130,17 @@ static struct namespace *push_namespace( const char *name )
         namespace = xmalloc( sizeof(*namespace) );
         namespace->name = xstrdup( name );
         namespace->parent = current_namespace;
-        list_add_tail( children, &namespace->entry );
+        list_add_tail( &current_namespace->children, &namespace->entry );
         list_init( &namespace->children );
         memset( namespace->type_hash, 0, sizeof(namespace->type_hash) );
     }
 
-    return namespace;
-}
-
-void push_namespaces( str_list_t *names )
-{
-    const struct str_list_entry_t *name;
-    LIST_FOR_EACH_ENTRY( name, names, const struct str_list_entry_t, entry )
-        current_namespace = push_namespace( name->str );
-}
-
-void pop_namespaces( str_list_t *names )
-{
-    const struct str_list_entry_t *name;
-    LIST_FOR_EACH_ENTRY_REV( name, names, const struct str_list_entry_t, entry )
-    {
-        assert( current_namespace && !strcmp( current_namespace->name, name->str ) );
-        current_namespace = current_namespace->parent;
-    }
-}
-
-void push_parameters_namespace( const char *name )
-{
-    parameters_namespace = push_namespace( name );
+    parameters_namespace = namespace;
 }
 
 void pop_parameters_namespace( const char *name )
 {
-    assert( parameters_namespace && !strcmp( parameters_namespace->name, name ) );
+    assert( !strcmp( parameters_namespace->name, name ) && parameters_namespace->parent );
     parameters_namespace = NULL;
 }
 
@@ -140,7 +159,6 @@ static int hash_ident( const char *name )
 
 type_t *reg_type( type_t *type, const char *name, struct namespace *namespace, int t )
 {
-    struct rtype **type_hash = namespace ? namespace->type_hash : global_type_hash;
     struct rtype *nt;
     int hash;
     if (!name)
@@ -148,10 +166,11 @@ type_t *reg_type( type_t *type, const char *name, struct namespace *namespace, i
         error_loc( "registering named type without name\n" );
         return type;
     }
+    if (!namespace) namespace = global_namespace;
     hash = hash_ident( name );
     nt = xmalloc( sizeof(struct rtype) );
     nt->name = name;
-    if (!namespace)
+    if (namespace_is_global( namespace ))
     {
         type->c_name = name;
         type->qualified_name = name;
@@ -163,8 +182,8 @@ type_t *reg_type( type_t *type, const char *name, struct namespace *namespace, i
     }
     nt->type = type;
     nt->t = t;
-    nt->next = type_hash[hash];
-    type_hash[hash] = nt;
+    nt->next = namespace->type_hash[hash];
+    namespace->type_hash[hash] = nt;
     return type;
 }
 
@@ -228,12 +247,20 @@ type_t *reg_typedefs( struct location where, decl_spec_t *decl_spec, declarator_
 
 type_t *find_type( const char *name, struct namespace *namespace, int t )
 {
-    struct rtype *cur, **type_hash = namespace ? namespace->type_hash : global_type_hash;
+    struct rtype *cur;
 
-    for (cur = type_hash[hash_ident( name )]; cur; cur = cur->next)
+    if (namespace && namespace != global_namespace)
+    {
+        for (cur = namespace->type_hash[hash_ident( name )]; cur; cur = cur->next)
+        {
+            if (cur->t == t && !strcmp( cur->name, name )) return cur->type;
+        }
+    }
+    for (cur = global_namespace->type_hash[hash_ident( name )]; cur; cur = cur->next)
+    {
         if (cur->t == t && !strcmp( cur->name, name )) return cur->type;
-
-    return namespace ? find_type( name, NULL, t ) : NULL;
+    }
+    return NULL;
 }
 
 type_t *find_type_or_error( struct namespace *namespace, const char *name )
@@ -267,6 +294,7 @@ int is_type( const char *name )
 type_t *get_type( enum type_type type, char *name, struct namespace *namespace, int t )
 {
     type_t *tp;
+    if (!namespace) namespace = global_namespace;
     if (name)
     {
         tp = find_type( name, namespace, t );
@@ -362,10 +390,11 @@ const char *type_get_name(const type_t *type, enum name_type name_type)
 
 static size_t append_namespace(char **buf, size_t *len, size_t pos, struct namespace *namespace, const char *separator, const char *abi_prefix)
 {
-    const char *name = namespace ? namespace->name : abi_prefix;
+    int nested = namespace && !namespace_is_global( namespace );
+    const char *name = nested ? namespace->name : abi_prefix;
     size_t n = 0;
     if (!name) return 0;
-    if (namespace) n += append_namespace(buf, len, pos + n, namespace->parent, separator, abi_prefix);
+    if (nested) n += append_namespace(buf, len, pos + n, namespace->parent, separator, abi_prefix);
     n += strappend(buf, len, pos + n, "%s%s", name, separator);
     return n;
 }
@@ -373,11 +402,12 @@ static size_t append_namespace(char **buf, size_t *len, size_t pos, struct names
 static size_t append_namespaces(char **buf, size_t *len, size_t pos, struct namespace *namespace, const char *prefix,
                                 const char *separator, const char *suffix, const char *abi_prefix)
 {
+    int nested = namespace && !namespace_is_global( namespace );
     size_t n = 0;
     n += strappend(buf, len, pos + n, "%s", prefix);
-    if (namespace) n += append_namespace(buf, len, pos + n, namespace, separator, abi_prefix);
+    if (nested) n += append_namespace(buf, len, pos + n, namespace, separator, abi_prefix);
     if (suffix) n += strappend(buf, len, pos + n, "%s", suffix);
-    else if (namespace)
+    else if (nested)
     {
         n -= strlen(separator);
         (*buf)[n] = 0;
