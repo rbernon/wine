@@ -55,7 +55,6 @@ static str_list_t *append_str(str_list_t *list, char *str);
 static decl_spec_t *make_decl_spec(type_t *type, decl_spec_t *left, decl_spec_t *right,
         enum storage_class stgclass, enum type_qualifier qual, enum function_specifier func_specifier);
 static expr_list_t *append_expr(expr_list_t *list, expr_t *expr);
-static var_t *declare_var(attr_list_t *attrs, decl_spec_t *decl_spec, declarator_t *decl, int top);
 static var_list_t *set_var_types(attr_list_t *attrs, decl_spec_t *decl_spec, declarator_list_t *decls);
 static var_list_t *append_var_list(var_list_t *list, var_list_t *vars);
 static declarator_list_t *append_declarator(declarator_list_t *list, declarator_t *p);
@@ -67,16 +66,7 @@ static void append_chain_type(declarator_t *decl, type_t *type, enum type_qualif
 static void append_chain_callconv( struct location where, type_t *chain, char *callconv );
 static warning_list_t *append_warning(warning_list_t *, int);
 
-static type_t *reg_typedefs( struct location where, decl_spec_t *decl_spec, var_list_t *names, attr_list_t *attrs );
-static type_t *find_type_or_error(struct namespace *parent, const char *name);
-static struct namespace *find_namespace_or_error(struct namespace *namespace, const char *name);
-
 static var_t *reg_const(var_t *var);
-
-static void push_namespaces(str_list_t *names);
-static void pop_namespaces(str_list_t *names);
-static void push_parameters_namespace(const char *name);
-static void pop_parameters_namespace(const char *name);
 
 static statement_list_t *append_parameterized_type_stmts(statement_list_t *stmts);
 static void check_statements(const statement_list_t *stmts, int is_inside_library);
@@ -101,12 +91,6 @@ static statement_t *make_statement_delegate(type_t *ret, var_list_t *args);
 static statement_list_t *append_statement(statement_list_t *list, statement_t *stmt);
 static statement_list_t *append_statements(statement_list_t *, statement_list_t *);
 
-static struct namespace global_namespace = {
-    NULL, NULL, LIST_INIT(global_namespace.entry), LIST_INIT(global_namespace.children)
-};
-
-static struct namespace *current_namespace = &global_namespace;
-static struct namespace *parameters_namespace = NULL;
 static statement_list_t *parameterized_type_stmts = NULL;
 
 static typelib_t *current_typelib;
@@ -1017,7 +1001,7 @@ int_std:  tINT					{ $$ = type_new_int(TYPE_BASIC_INT, 0); }
 	;
 
 namespace_pfx:
-	  aIDENTIFIER '.'			{ $$ = find_namespace_or_error(&global_namespace, $1); }
+	  aIDENTIFIER '.'			{ $$ = find_namespace_or_error(global_namespace, $1); }
 	| namespace_pfx aIDENTIFIER '.'		{ $$ = find_namespace_or_error($1, $2); }
 	;
 
@@ -1723,7 +1707,7 @@ static warning_list_t *append_warning(warning_list_t *list, int num)
     return list;
 }
 
-static var_t *declare_var(attr_list_t *attrs, decl_spec_t *decl_spec, declarator_t *decl,
+var_t *declare_var(attr_list_t *attrs, decl_spec_t *decl_spec, declarator_t *decl,
                        int top)
 {
   var_t *v = decl->var;
@@ -2011,243 +1995,6 @@ static int hash_ident(const char *name)
     p++;
   }
   return sum & (HASHMAX-1);
-}
-
-/***** type repository *****/
-
-static struct namespace *find_sub_namespace(struct namespace *namespace, const char *name)
-{
-  struct namespace *cur;
-
-  LIST_FOR_EACH_ENTRY(cur, &namespace->children, struct namespace, entry) {
-    if(!strcmp(cur->name, name))
-      return cur;
-  }
-
-  return NULL;
-}
-
-static void push_namespace(const char *name)
-{
-  struct namespace *namespace;
-
-  namespace = find_sub_namespace(current_namespace, name);
-  if(!namespace) {
-    namespace = xmalloc(sizeof(*namespace));
-    namespace->name = xstrdup(name);
-    namespace->parent = current_namespace;
-    list_add_tail(&current_namespace->children, &namespace->entry);
-    list_init(&namespace->children);
-    memset(namespace->type_hash, 0, sizeof(namespace->type_hash));
-  }
-
-  current_namespace = namespace;
-}
-
-static void pop_namespace(const char *name)
-{
-  assert(!strcmp(current_namespace->name, name) && current_namespace->parent);
-  current_namespace = current_namespace->parent;
-}
-
-static void push_namespaces(str_list_t *names)
-{
-  const struct str_list_entry_t *name;
-  LIST_FOR_EACH_ENTRY(name, names, const struct str_list_entry_t, entry)
-    push_namespace(name->str);
-}
-
-static void pop_namespaces(str_list_t *names)
-{
-  const struct str_list_entry_t *name;
-  LIST_FOR_EACH_ENTRY_REV(name, names, const struct str_list_entry_t, entry)
-    pop_namespace(name->str);
-}
-
-static void push_parameters_namespace(const char *name)
-{
-    struct namespace *namespace;
-
-    if (!(namespace = find_sub_namespace(current_namespace, name)))
-    {
-        namespace = xmalloc(sizeof(*namespace));
-        namespace->name = xstrdup(name);
-        namespace->parent = current_namespace;
-        list_add_tail(&current_namespace->children, &namespace->entry);
-        list_init(&namespace->children);
-        memset(namespace->type_hash, 0, sizeof(namespace->type_hash));
-    }
-
-    parameters_namespace = namespace;
-}
-
-static void pop_parameters_namespace(const char *name)
-{
-    assert(!strcmp(parameters_namespace->name, name) && parameters_namespace->parent);
-    parameters_namespace = NULL;
-}
-
-struct rtype {
-  const char *name;
-  type_t *type;
-  int t;
-  struct rtype *next;
-};
-
-type_t *reg_type(type_t *type, const char *name, struct namespace *namespace, int t)
-{
-  struct rtype *nt;
-  int hash;
-  if (!name) {
-    error_loc("registering named type without name\n");
-    return type;
-  }
-  if (!namespace)
-    namespace = &global_namespace;
-  hash = hash_ident(name);
-  nt = xmalloc(sizeof(struct rtype));
-  nt->name = name;
-  if (is_global_namespace(namespace))
-  {
-    type->c_name = name;
-    type->qualified_name = name;
-  }
-  else
-  {
-    type->c_name = format_namespace(namespace, "__x_", "_C", name, use_abi_namespace ? "ABI" : NULL);
-    type->qualified_name = format_namespace(namespace, "", "::", name, use_abi_namespace ? "ABI" : NULL);
-  }
-  nt->type = type;
-  nt->t = t;
-  nt->next = namespace->type_hash[hash];
-  namespace->type_hash[hash] = nt;
-  return type;
-}
-
-static type_t *reg_typedefs( struct location where, decl_spec_t *decl_spec, declarator_list_t *decls, attr_list_t *attrs )
-{
-  declarator_t *decl;
-  type_t *type = decl_spec->type;
-
-  if (is_attr(attrs, ATTR_UUID) && !is_attr(attrs, ATTR_PUBLIC))
-    attrs = append_attr( attrs, attr_int( where, ATTR_PUBLIC, 0 ) );
-
-  /* We must generate names for tagless enum, struct or union.
-     Typedef-ing a tagless enum, struct or union means we want the typedef
-     to be included in a library hence the public attribute.  */
-  if (type_get_type_detect_alias(type) == TYPE_ENUM ||
-      type_get_type_detect_alias(type) == TYPE_STRUCT ||
-      type_get_type_detect_alias(type) == TYPE_UNION ||
-      type_get_type_detect_alias(type) == TYPE_ENCAPSULATED_UNION)
-  {
-    if (!type->name)
-    {
-      type->name = gen_name();
-      if (!is_attr(attrs, ATTR_PUBLIC))
-        attrs = append_attr( attrs, attr_int( where, ATTR_PUBLIC, 0 ) );
-    }
-
-    /* replace existing attributes when generating a typelib */
-    if (do_typelib)
-        type->attrs = attrs;
-  }
-
-  LIST_FOR_EACH_ENTRY( decl, decls, declarator_t, entry )
-  {
-
-    if (decl->var->name) {
-      type_t *cur;
-      var_t *name;
-
-      cur = find_type(decl->var->name, current_namespace, 0);
-
-      /*
-       * MIDL allows shadowing types that are declared in imported files.
-       * We don't throw an error in this case and instead add a new type
-       * (which is earlier on the list in hash table, so it will be used
-       * instead of shadowed type).
-       *
-       * FIXME: We may consider string separated type tables for each input
-       *        for cleaner solution.
-       */
-      if (cur && input_name == cur->where.input_name)
-          error_loc( "%s: redefinition error; original definition was at %s:%d\n",
-                     cur->name, cur->where.input_name, cur->where.first_line );
-
-      name = declare_var(attrs, decl_spec, decl, 0);
-      cur = type_new_alias(&name->declspec, name->name);
-      cur->attrs = attrs;
-
-      reg_type(cur, cur->name, current_namespace, 0);
-    }
-  }
-  return type;
-}
-
-type_t *find_type(const char *name, struct namespace *namespace, int t)
-{
-  struct rtype *cur;
-
-  if(namespace && namespace != &global_namespace) {
-    for(cur = namespace->type_hash[hash_ident(name)]; cur; cur = cur->next) {
-      if(cur->t == t && !strcmp(cur->name, name))
-        return cur->type;
-    }
-  }
-  for(cur = global_namespace.type_hash[hash_ident(name)]; cur; cur = cur->next) {
-    if(cur->t == t && !strcmp(cur->name, name))
-      return cur->type;
-  }
-  return NULL;
-}
-
-static type_t *find_type_or_error(struct namespace *namespace, const char *name)
-{
-    type_t *type;
-    if (!(type = find_type(name, namespace, 0)) &&
-        !(type = find_type(name, parameters_namespace, 0)))
-    {
-        error_loc("type '%s' not found in %s namespace\n", name, namespace && namespace->name ? namespace->name : "global");
-        return NULL;
-    }
-    return type;
-}
-
-static struct namespace *find_namespace_or_error(struct namespace *parent, const char *name)
-{
-    struct namespace *namespace = NULL;
-
-    if (!winrt_mode)
-        error_loc("namespaces are only supported in winrt mode.\n");
-    else if (!(namespace = find_sub_namespace(parent, name)))
-        error_loc("namespace '%s' not found in '%s'\n", name, parent->name);
-
-    return namespace;
-}
-
-int is_type(const char *name)
-{
-    return find_type(name, current_namespace, 0) != NULL ||
-           find_type(name, parameters_namespace, 0);
-}
-
-type_t *get_type(enum type_type type, char *name, struct namespace *namespace, int t)
-{
-  type_t *tp;
-  if (!namespace)
-    namespace = &global_namespace;
-  if (name) {
-    tp = find_type(name, namespace, t);
-    if (tp) {
-      free(name);
-      return tp;
-    }
-  }
-  tp = make_type(type);
-  tp->name = name;
-  tp->namespace = namespace;
-  if (!name) return tp;
-  return reg_type(tp, name, namespace, t);
 }
 
 /***** constant repository *****/
