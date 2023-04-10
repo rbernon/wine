@@ -32,9 +32,7 @@ enum name_type {
     NAME_C
 };
 
-extern struct namespace *global_namespace, *current_namespace, *parameters_namespace;
-
-extern int namespace_is_global( const struct namespace *namespace );
+extern struct namespace *current_namespace, *parameters_namespace;
 extern const struct namespace *namespace_get_parent( const struct namespace *namespace );
 extern const char *namespace_get_name( const struct namespace *namespace );
 
