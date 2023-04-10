@@ -32,6 +32,21 @@ enum name_type {
     NAME_C
 };
 
+extern struct namespace *global_namespace, *current_namespace, *parameters_namespace;
+
+extern int namespace_is_global( const struct namespace *namespace );
+extern const struct namespace *namespace_get_parent( const struct namespace *namespace );
+extern const char *namespace_get_name( const struct namespace *namespace );
+
+extern void push_namespaces( str_list_t *names );
+extern void pop_namespaces( str_list_t *names );
+extern void push_parameters_namespace( const char *name );
+extern void pop_parameters_namespace( const char *name );
+extern struct namespace *find_namespace_or_error( struct namespace *namespace, const char *name );
+
+extern type_t *reg_typedefs( struct location where, decl_spec_t *decl_spec, var_list_t *names, attr_list_t *attrs );
+extern type_t *find_type_or_error( struct namespace *parent, const char *name );
+
 type_t *find_parameterized_type(type_t *type, typeref_list_t *params);
 
 type_t *type_new_function(var_list_t *args);
