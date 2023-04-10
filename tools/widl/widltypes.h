@@ -463,14 +463,6 @@ struct delegate_details
 
 #define HASHMAX 64
 
-struct namespace {
-    const char *name;
-    struct namespace *parent;
-    struct list entry;
-    struct list children;
-    struct rtype *type_hash[HASHMAX];
-};
-
 enum type_type
 {
     TYPE_VOID,
@@ -694,11 +686,6 @@ static inline int statements_has_func(const statement_list_t *stmts)
     break;
   }
   return has_func;
-}
-
-static inline int is_global_namespace(const struct namespace *namespace)
-{
-    return !namespace->name;
 }
 
 static inline decl_spec_t *init_declspec(decl_spec_t *declspec, type_t *type)
