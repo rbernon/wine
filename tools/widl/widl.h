@@ -147,8 +147,4 @@ extern int compare_expr( const expr_t *a, const expr_t *b );
 extern void write_expr( FILE *h, const expr_t *e, int brackets, int toplevel, const char *toplevel_prefix,
                         const type_t *cont_type, const char *local_var_prefix );
 
-/* parser.y */
-
-var_t *declare_var( attr_list_t *attrs, decl_spec_t *decl_spec, declarator_t *decl, int top );
-
 #endif
