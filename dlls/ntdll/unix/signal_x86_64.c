@@ -2186,10 +2186,19 @@ static void abrt_handler( int signal, siginfo_t *siginfo, void *sigcontext )
  *
  * Handler for SIGQUIT.
  */
-static void quit_handler( int signal, siginfo_t *siginfo, void *ucontext )
+static void quit_handler( int signal, siginfo_t *siginfo, void *sigcontext )
 {
-    init_handler( ucontext );
-    abort_thread(0);
+    ucontext_t *ucontext = init_handler( sigcontext );
+    UINT_PTR *stack = (void *)RSP_sig(ucontext);
+
+    if (!is_inside_syscall( stack )) stack = (void *)amd64_thread_data()->syscall_frame;
+
+    *(--stack) = 0xdeadbabe;  /* return address */
+    RDI_sig(ucontext) = 0;
+    RSP_sig(ucontext) = (UINT_PTR)stack;
+    RIP_sig(ucontext) = (UINT_PTR)abort_thread;
+
+    leave_handler( sigcontext );
 }
 
 

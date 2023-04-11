@@ -1469,7 +1469,13 @@ static void abrt_handler( int signal, siginfo_t *siginfo, void *sigcontext )
  */
 static void quit_handler( int signal, siginfo_t *siginfo, void *sigcontext )
 {
-    abort_thread(0);
+    UINT_PTR *stack = (void *)SP_sig(sigcontext);
+
+    if (!is_inside_syscall( stack )) stack = (void *)arm_thread_data()->syscall_frame;
+
+    SP_sig(sigcontext)      = stack;
+    REGn_sig(0, sigcontext) = 0;
+    PC_sig(sigcontext)      = (ULONG_PTR)abort_thread;
 }
 
 

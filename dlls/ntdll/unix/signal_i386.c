@@ -2065,8 +2065,16 @@ static void abrt_handler( int signal, siginfo_t *siginfo, void *sigcontext )
  */
 static void quit_handler( int signal, siginfo_t *siginfo, void *sigcontext )
 {
-    init_handler( sigcontext );
-    abort_thread(0);
+    ucontext_t *ucontext = init_handler( sigcontext );
+    UINT_PTR *stack = (void *)ESP_sig(ucontext);
+
+    if (!is_inside_syscall( stack )) stack = (void *)x86_thread_data()->syscall_frame;
+
+    *(--stack) = 0;
+    *(--stack) = 0;
+    *(--stack) = 0xdeadbabe;  /* return address */
+    ESP_sig(ucontext) = (DWORD)stack;
+    EIP_sig(ucontext) = (DWORD)abort_thread;
 }
 
 
