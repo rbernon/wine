@@ -1078,19 +1078,6 @@ static void contexts_from_server( CONTEXT *context, context_t server_contexts[2]
 
 
 /***********************************************************************
- *           pthread_exit_wrapper
- */
-static void pthread_exit_wrapper( int status )
-{
-    close( ntdll_get_thread_data()->wait_fd[0] );
-    close( ntdll_get_thread_data()->wait_fd[1] );
-    close( ntdll_get_thread_data()->reply_fd );
-    close( ntdll_get_thread_data()->request_fd );
-    pthread_exit( UIntToPtr(status) );
-}
-
-
-/***********************************************************************
  *           start_thread
  *
  * Startup routine for a newly created thread.
@@ -1408,7 +1395,11 @@ void abort_thread( int status )
 {
     pthread_sigmask( SIG_BLOCK, &server_block_set, NULL );
     if (InterlockedDecrement( &nb_threads ) <= 0) abort_process( status );
-    signal_exit_thread( status, pthread_exit_wrapper, NtCurrentTeb() );
+
+    /* pthread_exit isn't safe to call, wait for the process exit instead */
+    server_exit_thread();
+    select( 0, 0, 0, 0, 0 );
+    abort();
 }
 
 
@@ -1443,7 +1434,9 @@ static DECLSPEC_NORETURN void exit_thread( int status )
             virtual_free_teb( teb );
         }
     }
-    signal_exit_thread( status, pthread_exit_wrapper, NtCurrentTeb() );
+
+    server_exit_thread();
+    pthread_exit( UIntToPtr(status) );
 }
 
 
@@ -1453,7 +1446,7 @@ static DECLSPEC_NORETURN void exit_thread( int status )
 void exit_process( int status )
 {
     pthread_sigmask( SIG_BLOCK, &server_block_set, NULL );
-    signal_exit_thread( get_unix_exit_code( status ), process_exit_wrapper, NtCurrentTeb() );
+    process_exit_wrapper( get_unix_exit_code( status ) );
 }
 
 
