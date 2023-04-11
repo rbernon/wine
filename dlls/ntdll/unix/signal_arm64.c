@@ -148,13 +148,11 @@ C_ASSERT( sizeof( struct syscall_frame ) == 0x330 );
 
 struct arm64_thread_data
 {
-    void                 *exit_frame;    /* 02f0 exit frame pointer */
-    struct syscall_frame *syscall_frame; /* 02f8 frame pointer on syscall entry */
+    struct syscall_frame *syscall_frame; /* 02f0 frame pointer on syscall entry */
 };
 
 C_ASSERT( sizeof(struct arm64_thread_data) <= sizeof(((struct ntdll_thread_data *)0)->cpu_data) );
-C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct arm64_thread_data, exit_frame ) == 0x2f0 );
-C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct arm64_thread_data, syscall_frame ) == 0x2f8 );
+C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct arm64_thread_data, syscall_frame ) == 0x2f0 );
 
 static inline struct arm64_thread_data *arm64_thread_data(void)
 {
@@ -1114,9 +1112,9 @@ __ASM_GLOBAL_FUNC( call_user_mode_callback,
                    "ldr x4, [x18]\n\t"            /* teb->Tib.ExceptionList */
                    "stp x3, x4, [x29, #0xb0]\n\t"
 
-                   "ldr x7, [x18, #0x2f8]\n\t"    /* arm64_thread_data()->syscall_frame */
+                   "ldr x7, [x18, #0x2f0]\n\t"    /* arm64_thread_data()->syscall_frame */
                    "sub x3, sp, #0x330\n\t"       /* sizeof(struct syscall_frame) */
-                   "str x3, [x18, #0x2f8]\n\t"    /* arm64_thread_data()->syscall_frame */
+                   "str x3, [x18, #0x2f0]\n\t"    /* arm64_thread_data()->syscall_frame */
                    "ldr x8, [x7, #0x118]\n\t"     /* prev_frame->syscall_table */
                    "mov sp, x1\n\t"               /* stack */
                    "stp x7, x8, [x3, #0x110]\n\t" /* frame->prev_frame, frame->syscall_table */
@@ -1129,9 +1127,9 @@ __ASM_GLOBAL_FUNC( call_user_mode_callback,
 extern void DECLSPEC_NORETURN user_mode_callback_return( void *ret_ptr, ULONG ret_len,
                                                          NTSTATUS status, TEB *teb ) DECLSPEC_HIDDEN;
 __ASM_GLOBAL_FUNC( user_mode_callback_return,
-                   "ldr x4, [x3, #0x2f8]\n\t"     /* arm64_thread_data()->syscall_frame */
+                   "ldr x4, [x3, #0x2f0]\n\t"     /* arm64_thread_data()->syscall_frame */
                    "ldr x5, [x4, #0x110]\n\t"     /* prev_frame */
-                   "str x5, [x3, #0x2f8]\n\t"     /* arm64_thread_data()->syscall_frame */
+                   "str x5, [x3, #0x2f0]\n\t"     /* arm64_thread_data()->syscall_frame */
                    "add x29, x4, #0x330\n\t"      /* sizeof(struct syscall_frame) */
                    "ldp x5, x6, [x29, #0xb0]\n\t"
                    "str x6, [x3]\n\t"             /* teb->Tib.ExceptionList */
@@ -1654,36 +1652,20 @@ void DECLSPEC_HIDDEN call_init_thunk( LPTHREAD_START_ROUTINE entry, void *arg, B
  *           signal_start_thread
  */
 __ASM_GLOBAL_FUNC( signal_start_thread,
-                   "stp x29, x30, [sp,#-16]!\n\t"
-                   /* store exit frame */
-                   "mov x29, sp\n\t"
-                   "str x29, [x3, #0x2f0]\n\t"  /* arm64_thread_data()->exit_frame */
                    /* set syscall frame */
-                   "ldr x8, [x3, #0x2f8]\n\t"   /* arm64_thread_data()->syscall_frame */
+                   "ldr x8, [x3, #0x2f0]\n\t"   /* arm64_thread_data()->syscall_frame */
                    "cbnz x8, 1f\n\t"
                    "sub x8, sp, #0x330\n\t"     /* sizeof(struct syscall_frame) */
-                   "str x8, [x3, #0x2f8]\n\t"   /* arm64_thread_data()->syscall_frame */
+                   "str x8, [x3, #0x2f0]\n\t"   /* arm64_thread_data()->syscall_frame */
                    "1:\tmov sp, x8\n\t"
                    "bl " __ASM_NAME("call_init_thunk") )
-
-/***********************************************************************
- *           signal_exit_thread
- */
-__ASM_GLOBAL_FUNC( signal_exit_thread,
-                   "stp x29, x30, [sp,#-16]!\n\t"
-                   "ldr x3, [x2, #0x2f0]\n\t"  /* arm64_thread_data()->exit_frame */
-                   "str xzr, [x2, #0x2f0]\n\t"
-                   "cbz x3, 1f\n\t"
-                   "mov sp, x3\n"
-                   "1:\tldp x29, x30, [sp], #16\n\t"
-                   "br x1" )
 
 
 /***********************************************************************
  *           __wine_syscall_dispatcher
  */
 __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
-                   "ldr x10, [x18, #0x2f8]\n\t" /* arm64_thread_data()->syscall_frame */
+                   "ldr x10, [x18, #0x2f0]\n\t" /* arm64_thread_data()->syscall_frame */
                    "stp x18, x19, [x10, #0x90]\n\t"
                    "stp x20, x21, [x10, #0xa0]\n\t"
                    "stp x22, x23, [x10, #0xb0]\n\t"
@@ -1795,7 +1777,7 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
  *           __wine_unix_call_dispatcher
  */
 __ASM_GLOBAL_FUNC( __wine_unix_call_dispatcher,
-                   "ldr x10, [x18, #0x2f8]\n\t" /* arm64_thread_data()->syscall_frame */
+                   "ldr x10, [x18, #0x2f0]\n\t" /* arm64_thread_data()->syscall_frame */
                    "stp x18, x19, [x10, #0x90]\n\t"
                    "stp x20, x21, [x10, #0xa0]\n\t"
                    "stp x22, x23, [x10, #0xb0]\n\t"
