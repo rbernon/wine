@@ -161,10 +161,10 @@ static inline struct arm64_thread_data *arm64_thread_data(void)
     return (struct arm64_thread_data *)ntdll_get_thread_data()->cpu_data;
 }
 
-static BOOL is_inside_syscall( ucontext_t *sigcontext )
+static BOOL is_inside_syscall( void *addr )
 {
-    return ((char *)SP_sig(sigcontext) >= (char *)ntdll_get_thread_data()->kernel_stack &&
-            (char *)SP_sig(sigcontext) <= (char *)arm64_thread_data()->syscall_frame);
+    return ((char *)addr >= (char *)ntdll_get_thread_data()->kernel_stack &&
+            (char *)addr <= (char *)arm64_thread_data()->syscall_frame);
 }
 
 extern void raise_func_trampoline( EXCEPTION_RECORD *rec, CONTEXT *context, void *dispatcher );
@@ -1193,7 +1193,7 @@ static BOOL handle_syscall_fault( ucontext_t *context, EXCEPTION_RECORD *rec )
     struct syscall_frame *frame = arm64_thread_data()->syscall_frame;
     DWORD i;
 
-    if (!is_inside_syscall( context )) return FALSE;
+    if (!is_inside_syscall( (void *)SP_sig(context) )) return FALSE;
 
     TRACE( "code=%x flags=%x addr=%p pc=%p tid=%04x\n",
            rec->ExceptionCode, rec->ExceptionFlags, rec->ExceptionAddress,
@@ -1438,7 +1438,7 @@ static void usr1_handler( int signal, siginfo_t *siginfo, void *sigcontext )
 {
     CONTEXT context;
 
-    if (is_inside_syscall( sigcontext ))
+    if (is_inside_syscall( (void *)SP_sig(sigcontext) ))
     {
         context.ContextFlags = CONTEXT_FULL;
         NtGetContextThread( GetCurrentThread(), &context );
@@ -1465,7 +1465,7 @@ static void usr2_handler( int signal, siginfo_t *siginfo, void *sigcontext )
     ucontext_t *context = sigcontext;
     DWORD i;
 
-    if (!is_inside_syscall( sigcontext )) return;
+    if (!is_inside_syscall( (void *)SP_sig(sigcontext) )) return;
 
     FP_sig(context)     = frame->fp;
     LR_sig(context)     = frame->lr;
