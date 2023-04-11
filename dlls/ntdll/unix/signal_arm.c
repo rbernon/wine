@@ -203,13 +203,11 @@ C_ASSERT( sizeof( struct syscall_frame ) == 0x160);
 
 struct arm_thread_data
 {
-    void                 *exit_frame;    /* 1d4 exit frame pointer */
-    struct syscall_frame *syscall_frame; /* 1d8 frame pointer on syscall entry */
+    struct syscall_frame *syscall_frame; /* 1d4 frame pointer on syscall entry */
 };
 
 C_ASSERT( sizeof(struct arm_thread_data) <= sizeof(((struct ntdll_thread_data *)0)->cpu_data) );
-C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct arm_thread_data, exit_frame ) == 0x1d4 );
-C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct arm_thread_data, syscall_frame ) == 0x1d8 );
+C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct arm_thread_data, syscall_frame ) == 0x1d4 );
 
 static inline struct arm_thread_data *arm_thread_data(void)
 {
@@ -1167,9 +1165,9 @@ __ASM_GLOBAL_FUNC( call_user_mode_callback,
                    "str r6, [r5, #0x80]\n\t"
 #endif
                    "sub sp, sp, #0x160\n\t"   /* sizeof(struct syscall_frame) + registers */
-                   "ldr r5, [r4, #0x1d8]\n\t" /* arm_thread_data()->syscall_frame */
+                   "ldr r5, [r4, #0x1d4]\n\t" /* arm_thread_data()->syscall_frame */
                    "str r5, [sp, #0x4c]\n\t"  /* frame->prev_frame */
-                   "str sp, [r4, #0x1d8]\n\t" /* arm_thread_data()->syscall_frame */
+                   "str sp, [r4, #0x1d4]\n\t" /* arm_thread_data()->syscall_frame */
                    "ldr r6, [r5, #0x50]\n\t"  /* prev_frame->syscall_table */
                    "str r6, [sp, #0x50]\n\t"  /* frame->syscall_table */
                    "mov ip, r0\n\t"
@@ -1184,9 +1182,9 @@ __ASM_GLOBAL_FUNC( call_user_mode_callback,
 extern void CDECL DECLSPEC_NORETURN user_mode_callback_return( void *ret_ptr, ULONG ret_len,
                                                                NTSTATUS status, TEB *teb ) DECLSPEC_HIDDEN;
 __ASM_GLOBAL_FUNC( user_mode_callback_return,
-                   "ldr r4, [r3, #0x1d8]\n\t" /* arm_thread_data()->syscall_frame */
+                   "ldr r4, [r3, #0x1d4]\n\t" /* arm_thread_data()->syscall_frame */
                    "ldr r5, [r4, #0x4c]\n\t"  /* frame->prev_frame */
-                   "str r5, [r3, #0x1d8]\n\t" /* arm_thread_data()->syscall_frame */
+                   "str r5, [r3, #0x1d4]\n\t" /* arm_thread_data()->syscall_frame */
                    "add r5, r4, #0x160\n\t"
 #ifndef __SOFTFP__
                    "vldm r5, {d8-d15}\n\t"
@@ -1629,30 +1627,13 @@ void DECLSPEC_HIDDEN call_init_thunk( LPTHREAD_START_ROUTINE entry, void *arg, B
  */
 __ASM_GLOBAL_FUNC( signal_start_thread,
                    __ASM_EHABI(".cantunwind\n\t")
-                   "push {r4-r12,lr}\n\t"
-                   /* store exit frame */
-                   "str sp, [r3, #0x1d4]\n\t" /* arm_thread_data()->exit_frame */
                    /* set syscall frame */
-                   "ldr r6, [r3, #0x1d8]\n\t" /* arm_thread_data()->syscall_frame */
+                   "ldr r6, [r3, #0x1d4]\n\t" /* arm_thread_data()->syscall_frame */
                    "cbnz r6, 1f\n\t"
                    "sub r6, sp, #0x160\n\t"   /* sizeof(struct syscall_frame) */
-                   "str r6, [r3, #0x1d8]\n\t" /* arm_thread_data()->syscall_frame */
+                   "str r6, [r3, #0x1d4]\n\t" /* arm_thread_data()->syscall_frame */
                    "1:\tmov sp, r6\n\t"
                    "bl " __ASM_NAME("call_init_thunk") )
-
-
-/***********************************************************************
- *           signal_exit_thread
- */
-__ASM_GLOBAL_FUNC( signal_exit_thread,
-                   __ASM_EHABI(".cantunwind\n\t")
-                   "ldr r3, [r2, #0x1d4]\n\t"  /* arm_thread_data()->exit_frame */
-                   "mov ip, #0\n\t"
-                   "str ip, [r2, #0x1d4]\n\t"
-                   "cmp r3, ip\n\t"
-                   "it ne\n\t"
-                   "movne sp, r3\n\t"
-                   "blx r1" )
 
 
 /***********************************************************************
@@ -1661,7 +1642,7 @@ __ASM_GLOBAL_FUNC( signal_exit_thread,
 __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    __ASM_EHABI(".cantunwind\n\t")
                    "mrc p15, 0, r1, c13, c0, 2\n\t" /* NtCurrentTeb() */
-                   "ldr r1, [r1, #0x1d8]\n\t"       /* arm_thread_data()->syscall_frame */
+                   "ldr r1, [r1, #0x1d4]\n\t"       /* arm_thread_data()->syscall_frame */
                    "add r0, r1, #0x10\n\t"
                    "stm r0, {r4-r12,lr}\n\t"
                    "add r2, sp, #0x10\n\t"
@@ -1739,7 +1720,7 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
 __ASM_GLOBAL_FUNC( __wine_unix_call_dispatcher,
                    __ASM_EHABI(".cantunwind\n\t")
                    "mrc p15, 0, r1, c13, c0, 2\n\t" /* NtCurrentTeb() */
-                   "ldr r1, [r1, #0x1d8]\n\t"       /* arm_thread_data()->syscall_frame */
+                   "ldr r1, [r1, #0x1d4]\n\t"       /* arm_thread_data()->syscall_frame */
                    "add ip, r1, #0x10\n\t"
                    "stm ip, {r4-r12,lr}\n\t"
                    "str sp, [r1, #0x38]\n\t"
