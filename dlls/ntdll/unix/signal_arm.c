@@ -216,10 +216,10 @@ static inline struct arm_thread_data *arm_thread_data(void)
     return (struct arm_thread_data *)ntdll_get_thread_data()->cpu_data;
 }
 
-static BOOL is_inside_syscall( ucontext_t *sigcontext )
+static BOOL is_inside_syscall( void *addr )
 {
-    return ((char *)SP_sig(sigcontext) >= (char *)ntdll_get_thread_data()->kernel_stack &&
-            (char *)SP_sig(sigcontext) <= (char *)arm_thread_data()->syscall_frame);
+    return ((char *)addr >= (char *)ntdll_get_thread_data()->kernel_stack &&
+            (char *)addr <= (char *)arm_thread_data()->syscall_frame);
 }
 
 extern void raise_func_trampoline( EXCEPTION_RECORD *rec, CONTEXT *context, void *dispatcher );
@@ -1214,8 +1214,7 @@ NTSTATUS WINAPI KeUserModeCallback( ULONG id, const void *args, ULONG len, void 
     ULONG_PTR *stack = args_data;
 
     /* if we have no syscall frame, call the callback directly */
-    if ((char *)&frame < (char *)ntdll_get_thread_data()->kernel_stack ||
-        (char *)&frame > (char *)arm_thread_data()->syscall_frame)
+    if (!is_inside_syscall( &frame ))
     {
         NTSTATUS (WINAPI *func)(const void *, ULONG) = ((void **)NtCurrentTeb()->Peb->KernelCallbackTable)[id];
         return func( args, len );
@@ -1254,7 +1253,7 @@ static BOOL handle_syscall_fault( ucontext_t *context, EXCEPTION_RECORD *rec )
     struct syscall_frame *frame = arm_thread_data()->syscall_frame;
     UINT i;
 
-    if (!is_inside_syscall( context ) && !ntdll_get_thread_data()->jmp_buf) return FALSE;
+    if (!is_inside_syscall( (void *)SP_sig(context) ) && !ntdll_get_thread_data()->jmp_buf) return FALSE;
 
     TRACE( "code=%lx flags=%lx addr=%p pc=%08lx\n",
            rec->ExceptionCode, rec->ExceptionFlags, rec->ExceptionAddress, (DWORD)PC_sig(context) );
@@ -1483,7 +1482,7 @@ static void usr1_handler( int signal, siginfo_t *siginfo, void *sigcontext )
 {
     CONTEXT context;
 
-    if (is_inside_syscall( sigcontext ))
+    if (is_inside_syscall( (void *)SP_sig(sigcontext) ))
     {
         context.ContextFlags = CONTEXT_FULL;
         NtGetContextThread( GetCurrentThread(), &context );

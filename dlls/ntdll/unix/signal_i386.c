@@ -552,10 +552,10 @@ static inline TEB *get_current_teb(void)
 /***********************************************************************
  *           is_inside_syscall
  */
-static BOOL is_inside_syscall( ucontext_t *sigcontext )
+static BOOL is_inside_syscall( void *addr )
 {
-    return ((char *)ESP_sig(sigcontext) >= (char *)ntdll_get_thread_data()->kernel_stack &&
-            (char *)ESP_sig(sigcontext) <= (char *)x86_thread_data()->syscall_frame);
+    return ((char *)addr >= (char *)ntdll_get_thread_data()->kernel_stack &&
+            (char *)addr <= (char *)x86_thread_data()->syscall_frame);
 }
 
 
@@ -1654,8 +1654,7 @@ NTSTATUS WINAPI KeUserModeCallback( ULONG id, const void *args, ULONG len, void 
     ULONG_PTR *stack = args_data;
 
     /* if we have no syscall frame, call the callback directly */
-    if ((char *)&frame < (char *)ntdll_get_thread_data()->kernel_stack ||
-        (char *)&frame > (char *)x86_thread_data()->syscall_frame)
+    if (!is_inside_syscall( &frame ))
     {
         NTSTATUS (WINAPI *func)(const void *, ULONG) = ((void **)NtCurrentTeb()->Peb->KernelCallbackTable)[id];
         return func( args, len );
@@ -1771,7 +1770,7 @@ static BOOL handle_syscall_fault( ucontext_t *sigcontext, void *stack_ptr,
     struct syscall_frame *frame = x86_thread_data()->syscall_frame;
     UINT i, *stack;
 
-    if (!is_inside_syscall( sigcontext ) && !ntdll_get_thread_data()->jmp_buf) return FALSE;
+    if (!is_inside_syscall( (void *)ESP_sig(sigcontext) ) && !ntdll_get_thread_data()->jmp_buf) return FALSE;
 
     TRACE( "code=%lx flags=%lx addr=%p ip=%08lx\n",
            rec->ExceptionCode, rec->ExceptionFlags, rec->ExceptionAddress, context->Eip );
@@ -2078,10 +2077,11 @@ static void quit_handler( int signal, siginfo_t *siginfo, void *sigcontext )
  */
 static void usr1_handler( int signal, siginfo_t *siginfo, void *sigcontext )
 {
+    ucontext_t *ucontext = sigcontext;
     struct xcontext xcontext;
 
     init_handler( sigcontext );
-    if (is_inside_syscall( sigcontext ))
+    if (is_inside_syscall( (void *)ESP_sig(ucontext) ))
     {
         DECLSPEC_ALIGN(64) XSTATE xs;
         xcontext.c.ContextFlags = CONTEXT_FULL;

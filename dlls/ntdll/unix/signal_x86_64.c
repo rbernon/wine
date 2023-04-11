@@ -447,10 +447,10 @@ static inline TEB *get_current_teb(void)
 }
 #endif
 
-static BOOL is_inside_syscall( const ucontext_t *sigcontext )
+static BOOL is_inside_syscall( void *addr )
 {
-    return ((char *)RSP_sig(sigcontext) >= (char *)ntdll_get_thread_data()->kernel_stack &&
-            (char *)RSP_sig(sigcontext) <= (char *)amd64_thread_data()->syscall_frame);
+    return ((char *)addr >= (char *)ntdll_get_thread_data()->kernel_stack &&
+            (char *)addr <= (char *)amd64_thread_data()->syscall_frame);
 }
 
 
@@ -833,7 +833,8 @@ static inline ucontext_t *init_handler( void *sigcontext )
 static inline void leave_handler( const ucontext_t *sigcontext )
 {
 #ifdef __linux__
-    if (fs32_sel && !is_inside_signal_stack( (void *)RSP_sig(sigcontext )) && !is_inside_syscall(sigcontext))
+    if (fs32_sel && !is_inside_signal_stack( (void *)RSP_sig(sigcontext )) &&
+        !is_inside_syscall( (void *)RSP_sig(sigcontext) ))
         __asm__ volatile( "movw %0,%%fs" :: "r" (fs32_sel) );
 #endif
 }
@@ -1725,8 +1726,7 @@ NTSTATUS WINAPI KeUserModeCallback( ULONG id, const void *args, ULONG len, void 
     ULONG_PTR *stack = args_data;
 
     /* if we have no syscall frame, call the callback directly */
-    if ((char *)&frame < (char *)ntdll_get_thread_data()->kernel_stack ||
-        (char *)&frame > (char *)amd64_thread_data()->syscall_frame)
+    if (!is_inside_syscall( &frame ))
     {
         NTSTATUS (WINAPI *func)(const void *, ULONG) = ((void **)NtCurrentTeb()->Peb->KernelCallbackTable)[id];
         return func( args, len );
@@ -1898,7 +1898,7 @@ static BOOL handle_syscall_fault( ucontext_t *sigcontext, EXCEPTION_RECORD *rec,
     struct syscall_frame *frame = amd64_thread_data()->syscall_frame;
     DWORD i;
 
-    if (!is_inside_syscall( sigcontext ) && !ntdll_get_thread_data()->jmp_buf) return FALSE;
+    if (!is_inside_syscall( (void *)RSP_sig(sigcontext) ) && !ntdll_get_thread_data()->jmp_buf) return FALSE;
 
     TRACE_(seh)( "code=%x flags=%x addr=%p ip=%lx tid=%04x\n",
                  rec->ExceptionCode, rec->ExceptionFlags, rec->ExceptionAddress,
@@ -2203,7 +2203,7 @@ static void usr1_handler( int signal, siginfo_t *siginfo, void *sigcontext )
     ucontext_t *ucontext = init_handler( sigcontext );
     struct xcontext context;
 
-    if (is_inside_syscall( ucontext ))
+    if (is_inside_syscall( (void *)RSP_sig(ucontext) ))
     {
         DECLSPEC_ALIGN(64) XSTATE xs;
         context.c.ContextFlags = CONTEXT_FULL;
