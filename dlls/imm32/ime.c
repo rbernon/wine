@@ -533,7 +533,18 @@ BOOL WINAPI ImeSelect( HIMC himc, BOOL select )
 
     TRACE( "himc %p, select %u\n", himc, select );
 
-    if (!himc || !select) return TRUE;
+    if (!himc) return TRUE;
+
+    if (!select)
+    {
+        if (!ime_driver_call( WINE_IME_CONTEXT_DELETE, (WPARAM)himc, select ))
+        {
+            WARN( "WINE_IME_CONTEXT_DELETE call failed, error %lu\n", GetLastError() );
+            return FALSE;
+        }
+        return TRUE;
+    }
+
     if (!(ctx = ImmLockIMC( himc ))) return FALSE;
 
     ImmSetOpenStatus( himc, FALSE );
@@ -545,6 +556,13 @@ BOOL WINAPI ImeSelect( HIMC himc, BOOL select )
     }
 
     ImmUnlockIMC( himc );
+
+    if (!ime_driver_call( WINE_IME_CONTEXT_CREATE, (WPARAM)himc, select ))
+    {
+        WARN( "WINE_IME_CONTEXT_CREATE call failed, error %lu\n", GetLastError() );
+        return FALSE;
+    }
+
     return TRUE;
 }
 

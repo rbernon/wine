@@ -47,6 +47,8 @@ struct ime_funcs
 {
     BOOL (*p_inquire)(void);
     BOOL (*p_destroy)(void);
+    BOOL (*p_context_create)( HIMC himc );
+    BOOL (*p_context_delete)( HIMC himc );
 };
 
 struct imc
@@ -86,7 +88,74 @@ static void release_imc_ptr( struct imc *imc )
 
 #ifdef SONAME_LIBIBUS_1_0
 
+static pthread_mutex_t ibus_lock = PTHREAD_MUTEX_INITIALIZER;
+static GHashTable *ibus_contexts;
 static IBusBus *ibus_bus;
+
+/* sends a message to the IME UI window */
+static LRESULT send_ime_ui_message( UINT msg, WPARAM wparam, LPARAM lparam )
+{
+    static const WCHAR WINE_IME_UI_CLASS[] = {'W','i','n','e',' ','I','M','E',0};
+    WCHAR buffer[64];
+    UNICODE_STRING name = {.Buffer = buffer, .MaximumLength = sizeof(buffer)};
+    GUITHREADINFO info = {.cbSize = sizeof(GUITHREADINFO)};
+    HWND hwnd;
+    HIMC himc;
+
+    TRACE( "msg %#x, wparam %#zx, lparam %#zx\n", msg, (size_t)wparam, (size_t)lparam );
+
+    if (!NtUserGetGUIThreadInfo( 0, &info )) return 0;
+    hwnd = info.hwndFocus;
+    if (!(himc = NtUserGetWindowInputContext( hwnd ))) return 0;
+    if (!(hwnd = (HWND)NtUserQueryInputContext( himc, NtUserInputContextUIHwnd ))) return 0;
+    if (!NtUserGetClassName( hwnd, 0, &name ) || wcscmp( buffer, WINE_IME_UI_CLASS )) return 0;
+    return NtUserMessageCall( hwnd, msg, wparam, lparam, NULL, NtUserSendDriverMessage, FALSE );
+}
+
+static void ibus_ctx_commit_text( IBusInputContext *ctx, IBusText *text, void *user )
+{
+    const gchar *str = ibus_text_get_text( text );
+    UINT len = strlen( str );
+    WCHAR *tmp;
+
+    TRACE( "text %s\n", debugstr_a( str ) );
+
+    send_ime_ui_message( WM_WINE_IME_SET_OPEN_STATUS, TRUE, 0 );
+    send_ime_ui_message( WM_WINE_IME_SET_COMP_STATUS, TRUE, 0 );
+
+    if (!(tmp = malloc( (len + 1) * sizeof(WCHAR) ))) return;
+    ntdll_umbstowcs( str, len + 1, tmp, len + 1 );
+    send_ime_ui_message( WM_WINE_IME_SET_COMP_TEXT, FALSE, (LPARAM)tmp );
+    free( tmp );
+}
+
+static void ibus_ctx_update_preedit_text( IBusInputContext *ctx, IBusText *text,
+                                          guint cursor_pos, gboolean arg2, gpointer user )
+{
+    const gchar *str = ibus_text_get_text( text );
+    UINT len = strlen( str );
+    WCHAR *tmp;
+
+    TRACE( "text %s cursor_pos %u arg2 %u\n", debugstr_a( str ), cursor_pos, arg2 );
+
+    send_ime_ui_message( WM_WINE_IME_SET_OPEN_STATUS, TRUE, 0 );
+    send_ime_ui_message( WM_WINE_IME_SET_COMP_STATUS, TRUE, 0 );
+
+    if (!(tmp = malloc( (len + 1) * sizeof(WCHAR) ))) return;
+    ntdll_umbstowcs( str, len + 1, tmp, len + 1 );
+    send_ime_ui_message( WM_WINE_IME_SET_COMP_TEXT, TRUE, (LPARAM)tmp );
+    free( tmp );
+
+    send_ime_ui_message( WM_WINE_IME_SET_CURSOR_POS, cursor_pos, 0 );
+}
+
+static void ibus_ctx_hide_preedit_text( IBusInputContext *ctx, void *user )
+{
+    TRACE( "\n" );
+    send_ime_ui_message( WM_WINE_IME_SET_OPEN_STATUS, TRUE, 0 );
+    send_ime_ui_message( WM_WINE_IME_SET_COMP_STATUS, TRUE, 0 );
+    send_ime_ui_message( WM_WINE_IME_SET_COMP_TEXT, FALSE, (LPARAM)L"" );
+}
 
 static BOOL ime_inquire_ibus(void)
 {
@@ -100,6 +169,11 @@ static BOOL ime_inquire_ibus(void)
     if (!(ibus_bus_is_connected( ibus_bus )))
     {
         ERR( "Failed to connect to ibus-daemon.\n" );
+        goto error;
+    }
+    if (!(ibus_contexts = g_hash_table_new( NULL, NULL )))
+    {
+        ERR( "Failed to create ibus context table\n" );
         goto error;
     }
 
@@ -124,10 +198,53 @@ static BOOL ime_destroy_ibus(void)
     return TRUE;
 }
 
+static BOOL ime_context_create_ibus( HIMC himc )
+{
+    IBusInputContext *ctx;
+
+    TRACE( "himc %p\n", himc );
+
+    if (!(ctx = ibus_bus_create_input_context( ibus_bus, "WineIME" )))
+    {
+        ERR( "Failed to create IBus input context.\n" );
+        return FALSE;
+    }
+
+    g_signal_connect( ctx, "commit-text", G_CALLBACK( ibus_ctx_commit_text ), ctx );
+    g_signal_connect( ctx, "update-preedit-text", G_CALLBACK( ibus_ctx_update_preedit_text ), ctx );
+    g_signal_connect( ctx, "hide-preedit-text", G_CALLBACK( ibus_ctx_hide_preedit_text ), ctx );
+
+    ibus_input_context_set_content_type( ctx, IBUS_INPUT_PURPOSE_FREE_FORM, IBUS_INPUT_HINT_NONE );
+    ibus_input_context_set_capabilities( ctx, IBUS_CAP_FOCUS | IBUS_CAP_PREEDIT_TEXT | IBUS_CAP_SYNC_PROCESS_KEY );
+
+    TRACE( "created IBusInputContext %p\n", ctx );
+
+    pthread_mutex_lock( &ibus_lock );
+    if (!g_hash_table_insert( ibus_contexts, himc, ctx )) WARN( "Failed to insert context %p\n", ctx );
+    pthread_mutex_unlock( &ibus_lock );
+
+    return TRUE;
+}
+
+static BOOL ime_context_delete_ibus( HIMC himc )
+{
+    IBusInputContext *ctx;
+
+    TRACE( "himc %p\n", himc );
+
+    pthread_mutex_lock( &ibus_lock );
+    if ((ctx = g_hash_table_lookup( ibus_contexts, himc ))) g_object_unref( ctx );
+    pthread_mutex_unlock( &ibus_lock );
+
+    return TRUE;
+}
+
 struct ime_funcs ime_funcs_ibus =
 {
     .p_inquire = ime_inquire_ibus,
     .p_destroy = ime_destroy_ibus,
+    .p_context_create = ime_context_create_ibus,
+    .p_context_delete = ime_context_delete_ibus,
 };
 
 void ime_thread_ibus(void)
@@ -529,6 +646,14 @@ LRESULT ime_driver_call( HWND hwnd, enum wine_ime_call call, WPARAM wparam, LPAR
     case WINE_IME_THREAD:
         if (ime_funcs == &ime_funcs_ibus) ime_thread_ibus();
         return 0;
+
+    case WINE_IME_CONTEXT_CREATE:
+        if (!ime_funcs || !ime_funcs->p_context_create) return TRUE;
+        return ime_funcs->p_context_create( (HIMC)wparam );
+
+    case WINE_IME_CONTEXT_DELETE:
+        if (!ime_funcs || !ime_funcs->p_context_delete) return TRUE;
+        return ime_funcs->p_context_delete( (HIMC)wparam );
 
     case WINE_IME_PROCESS_KEY:
         return user_driver->pImeProcessKey( params->himc, wparam, lparam, params->state );
