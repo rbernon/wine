@@ -50,6 +50,7 @@ struct ime_funcs
     BOOL (*p_context_create)( HIMC himc );
     BOOL (*p_context_delete)( HIMC himc );
     BOOL (*p_context_activate)( HIMC himc, BOOL active );
+    BOOL (*p_process_key)( HIMC himc, UINT wparam, UINT lparam, const BYTE *state );
 };
 
 struct imc
@@ -88,6 +89,87 @@ static void release_imc_ptr( struct imc *imc )
 }
 
 #ifdef SONAME_LIBIBUS_1_0
+
+static guint32 vk2ibus[] =
+{
+    [VK_CANCEL] = IBUS_Cancel,
+    [VK_BACK] = IBUS_BackSpace,
+    [VK_TAB] = IBUS_Tab,
+    [VK_CLEAR] = IBUS_Clear,
+    [VK_RETURN] = IBUS_Return,
+    [VK_SHIFT] = IBUS_Shift_L,
+    [VK_CONTROL] = IBUS_Control_L,
+    [VK_MENU] = IBUS_Menu,
+    [VK_PAUSE] = IBUS_Pause,
+    [VK_CAPITAL] = IBUS_Caps_Lock,
+    [VK_ESCAPE] = IBUS_Escape,
+    [VK_MODECHANGE] = IBUS_Mode_switch,
+    [VK_SPACE] = IBUS_space,
+    [VK_PRIOR] = IBUS_Prior,
+    [VK_NEXT] = IBUS_Next,
+    [VK_END] = IBUS_End,
+    [VK_HOME] = IBUS_Home,
+    [VK_LEFT] = IBUS_Left,
+    [VK_UP] = IBUS_Up,
+    [VK_RIGHT] = IBUS_Right,
+    [VK_DOWN] = IBUS_Down,
+    [VK_SELECT] = IBUS_Select,
+    [VK_PRINT] = IBUS_Print,
+    [VK_EXECUTE] = IBUS_Execute,
+    [VK_INSERT] = IBUS_Insert,
+    [VK_DELETE] = IBUS_Delete,
+    [VK_HELP] = IBUS_Help,
+    [VK_LWIN] = IBUS_Super_L,
+    [VK_RWIN] = IBUS_Super_R,
+    [VK_NUMPAD0] = IBUS_KP_0,
+    [VK_NUMPAD1] = IBUS_KP_1,
+    [VK_NUMPAD2] = IBUS_KP_2,
+    [VK_NUMPAD3] = IBUS_KP_3,
+    [VK_NUMPAD4] = IBUS_KP_4,
+    [VK_NUMPAD5] = IBUS_KP_5,
+    [VK_NUMPAD6] = IBUS_KP_6,
+    [VK_NUMPAD7] = IBUS_KP_7,
+    [VK_NUMPAD8] = IBUS_KP_8,
+    [VK_NUMPAD9] = IBUS_KP_9,
+    [VK_MULTIPLY] = IBUS_KP_Multiply,
+    [VK_ADD] = IBUS_KP_Add,
+    [VK_SEPARATOR] = IBUS_KP_Separator,
+    [VK_SUBTRACT] = IBUS_KP_Subtract,
+    [VK_DECIMAL] = IBUS_KP_Decimal,
+    [VK_DIVIDE] = IBUS_KP_Divide,
+    [VK_F1] = IBUS_F1,
+    [VK_F2] = IBUS_F2,
+    [VK_F3] = IBUS_F3,
+    [VK_F4] = IBUS_F4,
+    [VK_F5] = IBUS_F5,
+    [VK_F6] = IBUS_F6,
+    [VK_F7] = IBUS_F7,
+    [VK_F8] = IBUS_F8,
+    [VK_F9] = IBUS_F9,
+    [VK_F10] = IBUS_F10,
+    [VK_F11] = IBUS_F11,
+    [VK_F12] = IBUS_F12,
+    [VK_F13] = IBUS_F13,
+    [VK_F14] = IBUS_F14,
+    [VK_F15] = IBUS_F15,
+    [VK_F16] = IBUS_F16,
+    [VK_F17] = IBUS_F17,
+    [VK_F18] = IBUS_F18,
+    [VK_F19] = IBUS_F19,
+    [VK_F20] = IBUS_F20,
+    [VK_F21] = IBUS_F21,
+    [VK_F22] = IBUS_F22,
+    [VK_F23] = IBUS_F23,
+    [VK_F24] = IBUS_F24,
+    [VK_NUMLOCK] = IBUS_Num_Lock,
+    [VK_SCROLL] = IBUS_Scroll_Lock,
+    [VK_LSHIFT] = IBUS_Shift_L,
+    [VK_RSHIFT] = IBUS_Shift_R,
+    [VK_LCONTROL] = IBUS_Control_L,
+    [VK_RCONTROL] = IBUS_Control_R,
+    [VK_LMENU] = IBUS_Alt_L,
+    [VK_RMENU] = IBUS_Alt_R,
+};
 
 static pthread_mutex_t ibus_lock = PTHREAD_MUTEX_INITIALIZER;
 static GHashTable *ibus_contexts;
@@ -260,6 +342,31 @@ static BOOL ime_context_activate_ibus( HIMC himc, BOOL active )
     return TRUE;
 }
 
+static BOOL ime_process_key_ibus( HIMC himc, UINT wparam, UINT lparam, const BYTE *state )
+{
+    WORD scan = HIWORD(lparam) & 0x1ff, vkey = LOWORD(wparam);
+    BOOL press = !(lparam >> 31);
+    IBusInputContext *ctx;
+    guint32 keyval = 0;
+    WCHAR wchr[2];
+
+    TRACE( "himc %p, wparam %#x, lparam %#x, state %p\n", himc, wparam, lparam, state );
+
+    pthread_mutex_lock( &ibus_lock );
+    if ((ctx = g_hash_table_lookup( ibus_contexts, himc ))) g_object_ref( ctx );
+    pthread_mutex_unlock( &ibus_lock );
+
+    if (!ctx) return FALSE;
+    if (!press) return FALSE;
+
+    NtUserToUnicodeEx( vkey, scan, state, wchr, ARRAY_SIZE(wchr), 0, NtUserGetKeyboardLayout( 0 ) );
+
+    if (vkey <= ARRAY_SIZE(vk2ibus)) keyval = vk2ibus[vkey];
+    if (!keyval) keyval = ibus_unicode_to_keyval( wchr[0] );
+
+    return ibus_input_context_process_key_event( ctx, keyval, scan, 0 );
+}
+
 struct ime_funcs ime_funcs_ibus =
 {
     .p_inquire = ime_inquire_ibus,
@@ -267,6 +374,7 @@ struct ime_funcs ime_funcs_ibus =
     .p_context_create = ime_context_create_ibus,
     .p_context_delete = ime_context_delete_ibus,
     .p_context_activate = ime_context_activate_ibus,
+    .p_process_key = ime_process_key_ibus,
 };
 
 void ime_thread_ibus(void)
@@ -682,7 +790,8 @@ LRESULT ime_driver_call( HWND hwnd, enum wine_ime_call call, WPARAM wparam, LPAR
         return ime_funcs->p_context_activate( (HIMC)wparam, lparam );
 
     case WINE_IME_PROCESS_KEY:
-        return user_driver->pImeProcessKey( params->himc, wparam, lparam, params->state );
+        if (!ime_funcs || !ime_funcs->p_process_key) return user_driver->pImeProcessKey( params->himc, wparam, lparam, params->state );
+        return ime_funcs->p_process_key( params->himc, wparam, lparam, params->state );
     case WINE_IME_TO_ASCII_EX:
         return user_driver->pImeToAsciiEx( wparam, lparam, params->state, params->compstr, params->himc );
     default:
