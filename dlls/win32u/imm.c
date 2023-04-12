@@ -130,9 +130,18 @@ struct ime_funcs ime_funcs_ibus =
     .p_destroy = ime_destroy_ibus,
 };
 
+void ime_thread_ibus(void)
+{
+    ibus_main();
+}
+
 #else /* SONAME_LIBIBUS_1_0 */
 
 struct ime_funcs ime_funcs_ibus = {0};
+
+void ime_thread_ibus(void)
+{
+}
 
 #endif /* SONAME_LIBIBUS_1_0 */
 
@@ -494,21 +503,31 @@ LRESULT ime_driver_call( HWND hwnd, enum wine_ime_call call, WPARAM wparam, LPAR
     switch (call)
     {
     case WINE_IME_INQUIRE:
+    {
+        BOOL *needs_thread = (BOOL *)lparam;
+
         if (ime_funcs_ibus.p_inquire && ime_funcs_ibus.p_inquire())
         {
             TRACE( "using IBus IME backend\n" );
             ime_funcs = &ime_funcs_ibus;
+            *needs_thread = TRUE;
         }
         else
         {
             TRACE( "using user driver IME backend\n" );
+            *needs_thread = FALSE;
         }
 
         return TRUE;
+    }
 
     case WINE_IME_DESTROY:
         if (ime_funcs) ime_funcs->p_destroy();
         ime_funcs = NULL;
+        return 0;
+
+    case WINE_IME_THREAD:
+        if (ime_funcs == &ime_funcs_ibus) ime_thread_ibus();
         return 0;
 
     case WINE_IME_PROCESS_KEY:

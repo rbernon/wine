@@ -450,14 +450,40 @@ static WNDCLASSEXW ime_ui_class =
     .hbrBackground = (HBRUSH)(COLOR_WINDOW + 1),
 };
 
+static HANDLE ime_thread;
+
+static DWORD CALLBACK ime_thread_proc( void *arg )
+{
+    TRACE( "Starting IME thread\n" );
+
+    SetThreadDescription( GetCurrentThread(), L"wine_ime_worker" );
+
+    if (!ime_driver_call( WINE_IME_THREAD, 0, 0 ))
+    {
+        WARN( "WINE_IME_THREAD call failed, error %lu\n", GetLastError() );
+        return -1;
+    }
+
+    TRACE( "Exiting IME thread\n" );
+    return 0;
+}
+
 BOOL WINAPI ImeInquire( IMEINFO *info, WCHAR *ui_class, DWORD flags )
 {
+    BOOL needs_thread;
+
     TRACE( "info %p, ui_class %p, flags %#lx\n", info, ui_class, flags );
 
-    if (!ime_driver_call( WINE_IME_INQUIRE, 0, 0 ))
+    if (!ime_driver_call( WINE_IME_INQUIRE, 0, (LPARAM)&needs_thread ))
     {
         WARN( "WINE_IME_INQUIRE failed, error %lu\n", GetLastError() );
         return FALSE;
+    }
+
+    if (needs_thread)
+    {
+        ime_thread = CreateThread( NULL, 0, ime_thread_proc, NULL, 0, NULL );
+        if (!ime_thread) WARN( "Failed to spawn IME helper thread\n" );
     }
 
     ime_ui_class.hInstance = imm32_module;
@@ -488,6 +514,13 @@ BOOL WINAPI ImeDestroy( UINT force )
     {
         WARN( "WINE_IME_DESTROY failed, error %lu\n", GetLastError() );
         return FALSE;
+    }
+
+    if (ime_thread)
+    {
+        WaitForSingleObject( ime_thread, INFINITE );
+        CloseHandle( ime_thread );
+        ime_thread = NULL;
     }
 
     return TRUE;
