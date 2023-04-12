@@ -175,6 +175,15 @@ static pthread_mutex_t ibus_lock = PTHREAD_MUTEX_INITIALIZER;
 static GHashTable *ibus_contexts;
 static IBusBus *ibus_bus;
 
+static POINT virtual_screen_to_root( INT x, INT y )
+{
+    RECT virtual = NtUserGetVirtualScreenRect();
+    POINT pt;
+    pt.x = x - virtual.left;
+    pt.y = y - virtual.top;
+    return pt;
+}
+
 /* sends a message to the IME UI window */
 static LRESULT send_ime_ui_message( UINT msg, WPARAM wparam, LPARAM lparam )
 {
@@ -344,11 +353,13 @@ static BOOL ime_context_activate_ibus( HIMC himc, BOOL active )
 
 static BOOL ime_process_key_ibus( HIMC himc, UINT wparam, UINT lparam, const BYTE *state )
 {
+    GUITHREADINFO info = {.cbSize = sizeof(GUITHREADINFO)};
     WORD scan = HIWORD(lparam) & 0x1ff, vkey = LOWORD(wparam);
     BOOL press = !(lparam >> 31);
     IBusInputContext *ctx;
     guint32 keyval = 0;
     WCHAR wchr[2];
+    RECT root;
 
     TRACE( "himc %p, wparam %#x, lparam %#x, state %p\n", himc, wparam, lparam, state );
 
@@ -359,11 +370,18 @@ static BOOL ime_process_key_ibus( HIMC himc, UINT wparam, UINT lparam, const BYT
     if (!ctx) return FALSE;
     if (!press) return FALSE;
 
+    if (!NtUserGetGUIThreadInfo( 0, &info )) memset( &info.rcCaret, 0, sizeof(info.rcCaret) );
+    else NtUserMapWindowPoints( info.hwndCaret, HWND_DESKTOP, (POINT *)&info.rcCaret, 2 );
+
     NtUserToUnicodeEx( vkey, scan, state, wchr, ARRAY_SIZE(wchr), 0, NtUserGetKeyboardLayout( 0 ) );
 
     if (vkey <= ARRAY_SIZE(vk2ibus)) keyval = vk2ibus[vkey];
     if (!keyval) keyval = ibus_unicode_to_keyval( wchr[0] );
 
+    *(POINT *)&root.left = virtual_screen_to_root( info.rcCaret.left, info.rcCaret.top );
+    *(POINT *)&root.right = virtual_screen_to_root( info.rcCaret.right, info.rcCaret.bottom );
+
+    ibus_input_context_set_cursor_location( ctx, root.left, root.top, root.right - root.left, root.bottom - root.top );
     return ibus_input_context_process_key_event( ctx, keyval, scan, 0 );
 }
 
