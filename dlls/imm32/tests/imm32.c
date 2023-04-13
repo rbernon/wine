@@ -4640,6 +4640,17 @@ static void test_ImmSetConversionStatus(void)
     ok_eq( 0xfeedcafe, sentence, UINT, "%#x" );
     ok_eq( 0xdeadbeef, ctx->fdwConversion, UINT, "%#x" );
     ok_eq( 0xfeedcafe, ctx->fdwSentence, UINT, "%#x" );
+    ok( !(ctx->fdwInit & INIT_CONVERSION), "got fdwInit %#lx\n", ctx->fdwInit );
+    ok( !(ctx->fdwInit & INIT_SENTENCE), "got fdwInit %#lx\n", ctx->fdwInit );
+
+    conversion = sentence = 0xcdcdcdcd;
+    ok_ret( 1, ImmGetConversionStatus( default_himc, &conversion, &sentence ) );
+    ok_eq( 0xdeadbeef, conversion, UINT, "%#x" );
+    ok_eq( 0xfeedcafe, sentence, UINT, "%#x" );
+    ok_ret( 1, ImmSetConversionStatus( default_himc, 0xdeadbeef, 0xfeedcafe ) );
+    ok( !(ctx->fdwInit & INIT_CONVERSION), "got fdwInit %#lx\n", ctx->fdwInit );
+    ok( !(ctx->fdwInit & INIT_SENTENCE), "got fdwInit %#lx\n", ctx->fdwInit );
+    ok_seq( empty_sequence );
 
     ok_ret( 1, ImmSetConversionStatus( default_himc, 0xdeadbeef, 0xfeedcafe ) );
     ok_seq( empty_sequence );
