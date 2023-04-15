@@ -71,6 +71,33 @@ static const char *debugstr_xim_style( XIMStyle style )
     return wine_dbg_sprintf( "%s", buffer );
 }
 
+void xim_update_caret_pos( XIC xic, HWND hwnd )
+{
+    struct x11drv_win_data *data;
+    XVaNestedList attr;
+    XPoint spot;
+    POINT pos;
+
+    NtUserGetCaretPos( &pos );
+    spot.x = pos.x;
+    spot.y = pos.y;
+
+    if ((data = get_win_data( hwnd )))
+    {
+        if (NtUserGetWindowLongW( hwnd, GWL_EXSTYLE ) & WS_EX_LAYOUTRTL)
+            spot.x = data->client_rect.right - data->client_rect.left - 1 - spot.x;
+        spot.x += data->client_rect.left - data->whole_rect.left;
+        spot.y += data->client_rect.top - data->whole_rect.top + 15;
+        release_win_data( data );
+    }
+
+    if ((attr = XVaCreateNestedList( 0, XNSpotLocation, &spot, NULL )))
+    {
+        XSetICValues( xic, XNPreeditAttributes, attr, NULL );
+        XFree( attr );
+    }
+}
+
 BOOL xim_in_compose_mode(void)
 {
     return !!ime_comp_buf;
