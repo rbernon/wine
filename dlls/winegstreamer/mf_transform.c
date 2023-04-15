@@ -87,12 +87,6 @@ static const GUID *const h264_decoder_output_types[] =
     &MFVideoFormat_YUY2,
 };
 
-static const GUID *resampler_audio_formats[] =
-{
-    &MFAudioFormat_Float,
-    &MFAudioFormat_PCM,
-};
-
 static const GUID *const video_processor_input_types[] =
 {
     &MFVideoFormat_IYUV,
@@ -485,72 +479,6 @@ static HRESULT WINAPI h264_decoder_transform_GetInputAvailableType(IMFTransform 
     return hr;
 }
 
-static HRESULT resampler_get_available_media_type(DWORD index, IMFMediaType **type, BOOL output)
-{
-    UINT32 sample_size, sample_rate = 48000, block_alignment, channel_count = 2;
-    IMFMediaType *media_type;
-    const GUID *subtype;
-    HRESULT hr;
-
-    if (FAILED(hr = MFCreateMediaType(&media_type)))
-        return hr;
-
-    *type = NULL;
-
-    if (index >= (output ? 2 : 1) * ARRAY_SIZE(resampler_audio_formats))
-        return MF_E_NO_MORE_TYPES;
-    subtype = resampler_audio_formats[index % ARRAY_SIZE(resampler_audio_formats)];
-
-    if (FAILED(hr = IMFMediaType_SetGUID(media_type, &MF_MT_MAJOR_TYPE, &MFMediaType_Audio)))
-        goto done;
-    if (FAILED(hr = IMFMediaType_SetGUID(media_type, &MF_MT_SUBTYPE, subtype)))
-        goto done;
-    if (FAILED(hr = IMFMediaType_SetUINT32(media_type, &MF_MT_ALL_SAMPLES_INDEPENDENT, 1)))
-        goto done;
-    if (index < ARRAY_SIZE(resampler_audio_formats))
-        goto done;
-
-    if (IsEqualGUID(subtype, &MFAudioFormat_Float))
-        sample_size = 32;
-    else if (IsEqualGUID(subtype, &MFAudioFormat_PCM))
-        sample_size = 16;
-    else
-    {
-        FIXME("Subtype %s not implemented!\n", debugstr_guid(subtype));
-        hr = E_NOTIMPL;
-        goto done;
-    }
-
-    if (FAILED(hr = IMFMediaType_SetUINT32(media_type, &MF_MT_AUDIO_BITS_PER_SAMPLE, sample_size)))
-        goto done;
-    if (FAILED(hr = IMFMediaType_SetUINT32(media_type, &MF_MT_AUDIO_NUM_CHANNELS, channel_count)))
-        goto done;
-    if (FAILED(hr = IMFMediaType_SetUINT32(media_type, &MF_MT_AUDIO_SAMPLES_PER_SECOND, sample_rate)))
-        goto done;
-
-    block_alignment = sample_size * channel_count / 8;
-    if (FAILED(hr = IMFMediaType_SetUINT32(media_type, &MF_MT_AUDIO_BLOCK_ALIGNMENT, block_alignment)))
-        goto done;
-    if (FAILED(hr = IMFMediaType_SetUINT32(media_type, &MF_MT_AUDIO_AVG_BYTES_PER_SECOND, sample_rate * block_alignment)))
-        goto done;
-    if (FAILED(hr = IMFMediaType_SetUINT32(media_type, &MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1)))
-        goto done;
-
-done:
-    if (SUCCEEDED(hr))
-        IMFMediaType_AddRef((*type = media_type));
-
-    IMFMediaType_Release(media_type);
-    return hr;
-}
-
-static HRESULT WINAPI resampler_transform_GetInputAvailableType(IMFTransform *iface, DWORD id, DWORD index,
-        IMFMediaType **type)
-{
-    TRACE("iface %p, id %#lx, index %#lx, type %p.\n", iface, id, index, type);
-    return resampler_get_available_media_type(index, type, FALSE);
-}
-
 static HRESULT WINAPI video_processor_transform_GetInputAvailableType(IMFTransform *iface, DWORD id, DWORD index,
         IMFMediaType **type)
 {
@@ -754,13 +682,6 @@ done:
     return hr;
 }
 
-static HRESULT WINAPI resampler_transform_GetOutputAvailableType(IMFTransform *iface, DWORD id, DWORD index,
-        IMFMediaType **type)
-{
-    TRACE("iface %p, id %#lx, index %#lx, type %p.\n", iface, id, index, type);
-    return resampler_get_available_media_type(index, type, TRUE);
-}
-
 static HRESULT WINAPI video_processor_transform_GetOutputAvailableType(IMFTransform *iface, DWORD id, DWORD index,
         IMFMediaType **type)
 {
@@ -913,78 +834,6 @@ static HRESULT WINAPI h264_decoder_transform_SetInputType(IMFTransform *iface, D
     }
 
     return S_OK;
-}
-
-static HRESULT resampler_check_media_type(IMFMediaType *type)
-{
-    MF_ATTRIBUTE_TYPE item_type;
-    GUID major, subtype;
-    HRESULT hr;
-    ULONG i;
-
-    if (FAILED(hr = IMFMediaType_GetGUID(type, &MF_MT_MAJOR_TYPE, &major)) ||
-            FAILED(hr = IMFMediaType_GetGUID(type, &MF_MT_SUBTYPE, &subtype)))
-        return MF_E_ATTRIBUTENOTFOUND;
-
-    if (!IsEqualGUID(&major, &MFMediaType_Audio))
-        return MF_E_INVALIDMEDIATYPE;
-
-    for (i = 0; i < ARRAY_SIZE(resampler_audio_formats); ++i)
-        if (IsEqualGUID(&subtype, resampler_audio_formats[i]))
-            break;
-    if (i == ARRAY_SIZE(resampler_audio_formats))
-        return MF_E_INVALIDMEDIATYPE;
-
-    if (FAILED(IMFMediaType_GetItemType(type, &MF_MT_AUDIO_BITS_PER_SAMPLE, &item_type)) ||
-        item_type != MF_ATTRIBUTE_UINT32)
-        return MF_E_INVALIDMEDIATYPE;
-    if (FAILED(IMFMediaType_GetItemType(type, &MF_MT_AUDIO_AVG_BYTES_PER_SECOND, &item_type)) ||
-        item_type != MF_ATTRIBUTE_UINT32)
-        return MF_E_INVALIDMEDIATYPE;
-    if (FAILED(IMFMediaType_GetItemType(type, &MF_MT_AUDIO_NUM_CHANNELS, &item_type)) ||
-        item_type != MF_ATTRIBUTE_UINT32)
-        return MF_E_INVALIDMEDIATYPE;
-    if (FAILED(IMFMediaType_GetItemType(type, &MF_MT_AUDIO_SAMPLES_PER_SECOND, &item_type)) ||
-        item_type != MF_ATTRIBUTE_UINT32)
-        return MF_E_INVALIDMEDIATYPE;
-
-    return S_OK;
-}
-
-static HRESULT WINAPI resampler_transform_SetInputType(IMFTransform *iface, DWORD id, IMFMediaType *type, DWORD flags)
-{
-    struct transform *impl = impl_from_IMFTransform(iface);
-    UINT32 block_alignment;
-    HRESULT hr;
-
-    TRACE("iface %p, id %#lx, type %p, flags %#lx.\n", iface, id, type, flags);
-
-    if (FAILED(hr = resampler_check_media_type(type)))
-        return hr;
-    if (FAILED(hr = IMFMediaType_GetUINT32(type, &MF_MT_AUDIO_BLOCK_ALIGNMENT, &block_alignment)))
-        return MF_E_INVALIDMEDIATYPE;
-    if (flags & MFT_SET_TYPE_TEST_ONLY)
-        return S_OK;
-
-    if (!impl->input_type && FAILED(hr = MFCreateMediaType(&impl->input_type)))
-        return hr;
-
-    if (impl->output_type)
-    {
-        IMFMediaType_Release(impl->output_type);
-        impl->output_type = NULL;
-    }
-
-    if (SUCCEEDED(hr = IMFMediaType_CopyAllItems(type, (IMFAttributes *)impl->input_type)))
-        impl->input_info.cbSize = block_alignment;
-    else
-    {
-        IMFMediaType_Release(impl->input_type);
-        impl->input_info.cbSize = 0;
-        impl->input_type = NULL;
-    }
-
-    return hr;
 }
 
 static HRESULT WINAPI video_processor_transform_SetInputType(IMFTransform *iface, DWORD id, IMFMediaType *type, DWORD flags)
@@ -1163,43 +1012,6 @@ static HRESULT WINAPI h264_decoder_transform_SetOutputType(IMFTransform *iface, 
     return hr;
 }
 
-static HRESULT WINAPI resampler_transform_SetOutputType(IMFTransform *iface, DWORD id, IMFMediaType *type, DWORD flags)
-{
-    struct transform *impl = impl_from_IMFTransform(iface);
-    UINT32 block_alignment;
-    HRESULT hr;
-
-    TRACE("iface %p, id %#lx, type %p, flags %#lx.\n", iface, id, type, flags);
-
-    if (!impl->input_type)
-        return MF_E_TRANSFORM_TYPE_NOT_SET;
-
-    if (FAILED(hr = resampler_check_media_type(type)))
-        return hr;
-    if (FAILED(hr = IMFMediaType_GetUINT32(type, &MF_MT_AUDIO_BLOCK_ALIGNMENT, &block_alignment)))
-        return MF_E_INVALIDMEDIATYPE;
-    if (flags & MFT_SET_TYPE_TEST_ONLY)
-        return S_OK;
-
-    if (!impl->output_type && FAILED(hr = MFCreateMediaType(&impl->output_type)))
-        return hr;
-
-    if (FAILED(hr = IMFMediaType_CopyAllItems(type, (IMFAttributes *)impl->output_type)))
-        goto failed;
-
-    if (FAILED(hr = try_create_wg_transform(impl)))
-        goto failed;
-
-    impl->output_info.cbSize = block_alignment;
-    return hr;
-
-failed:
-    IMFMediaType_Release(impl->output_type);
-    impl->output_info.cbSize = 0;
-    impl->output_type = NULL;
-    return hr;
-}
-
 static HRESULT WINAPI video_processor_transform_SetOutputType(IMFTransform *iface, DWORD id, IMFMediaType *type, DWORD flags)
 {
     struct transform *impl = impl_from_IMFTransform(iface);
@@ -1357,12 +1169,9 @@ static HRESULT WINAPI transform_ProcessOutput(IMFTransform *iface, DWORD flags, 
     if (!impl->wg_transform)
         return MF_E_TRANSFORM_TYPE_NOT_SET;
 
-    *status = samples->dwStatus = 0;
+    samples->dwStatus = 0;
     if (!samples->pSample)
-    {
-        samples->dwStatus = MFT_OUTPUT_DATA_BUFFER_NO_SAMPLE;
-        return MF_E_TRANSFORM_NEED_MORE_INPUT;
-    }
+        return E_INVALIDARG;
 
     if (FAILED(hr = IMFTransform_GetOutputStreamInfo(iface, 0, &info)))
         return hr;
@@ -1486,36 +1295,6 @@ static const IMFTransformVtbl h264_decoder_transform_vtbl =
     h264_decoder_transform_ProcessOutput,
 };
 
-static const IMFTransformVtbl resampler_transform_vtbl =
-{
-    transform_QueryInterface,
-    transform_AddRef,
-    transform_Release,
-    transform_GetStreamLimits,
-    transform_GetStreamCount,
-    transform_GetStreamIDs,
-    transform_GetInputStreamInfo,
-    transform_GetOutputStreamInfo,
-    transform_GetAttributes,
-    transform_GetInputStreamAttributes,
-    transform_GetOutputStreamAttributes,
-    transform_DeleteInputStream,
-    transform_AddInputStreams,
-    resampler_transform_GetInputAvailableType,
-    resampler_transform_GetOutputAvailableType,
-    resampler_transform_SetInputType,
-    resampler_transform_SetOutputType,
-    transform_GetInputCurrentType,
-    transform_GetOutputCurrentType,
-    transform_GetInputStatus,
-    transform_GetOutputStatus,
-    transform_SetOutputBounds,
-    transform_ProcessEvent,
-    transform_ProcessMessage,
-    transform_ProcessInput,
-    transform_ProcessOutput,
-};
-
 static const IMFTransformVtbl video_processor_transform_vtbl =
 {
     transform_QueryInterface,
@@ -1568,9 +1347,8 @@ static ULONG WINAPI media_object_Release(IMediaObject *iface)
 
 static HRESULT WINAPI media_object_GetStreamCount(IMediaObject *iface, DWORD *input, DWORD *output)
 {
-    FIXME("iface %p, input %p, output %p semi-stub!\n", iface, input, output);
-    *input = *output = 1;
-    return S_OK;
+    FIXME("iface %p, input %p, output %p stub!\n", iface, input, output);
+    return E_NOTIMPL;
 }
 
 static HRESULT WINAPI media_object_GetInputStreamInfo(IMediaObject *iface, DWORD index, DWORD *flags)
@@ -1958,68 +1736,6 @@ failed:
         IMFAttributes_Release(impl->attributes);
     free(impl);
     return hr;
-}
-
-HRESULT resampler_create(IUnknown *outer, IUnknown **out)
-{
-    static const struct wg_format input_format =
-    {
-        .major_type = WG_MAJOR_TYPE_AUDIO,
-        .u.audio =
-        {
-            .format = WG_AUDIO_FORMAT_S16LE,
-            .channel_mask = 1,
-            .channels = 1,
-            .rate = 44100,
-        },
-    };
-    static const struct wg_format output_format =
-    {
-        .major_type = WG_MAJOR_TYPE_AUDIO,
-        .u.audio =
-        {
-            .format = WG_AUDIO_FORMAT_F32LE,
-            .channel_mask = 1,
-            .channels = 1,
-            .rate = 44100,
-        },
-    };
-    struct wg_transform *transform;
-    struct transform *impl;
-    HRESULT hr;
-
-    TRACE("outer %p, out %p.\n", outer, out);
-
-    if (!(transform = wg_transform_create(&input_format, &output_format)))
-    {
-        ERR_(winediag)("GStreamer doesn't support audio resampling, please install appropriate plugins.\n");
-        return E_FAIL;
-    }
-    wg_transform_destroy(transform);
-
-    if (!(impl = calloc(1, sizeof(*impl))))
-        return E_OUTOFMEMORY;
-
-    if (FAILED(hr = wg_sample_queue_create(&impl->wg_sample_queue)))
-    {
-        free(impl);
-        return hr;
-    }
-
-    impl->IUnknown_inner.lpVtbl = &unknown_vtbl;
-    impl->IMFTransform_iface.lpVtbl = &resampler_transform_vtbl;
-    impl->IMediaObject_iface.lpVtbl = &media_object_vtbl;
-    impl->IPropertyBag_iface.lpVtbl = &property_bag_vtbl;
-    impl->IPropertyStore_iface.lpVtbl = &property_store_vtbl;
-    impl->refcount = 1;
-    impl->outer = outer ? outer : &impl->IUnknown_inner;
-
-    impl->input_info.cbAlignment = 1;
-    impl->output_info.cbAlignment = 1;
-
-    *out = &impl->IUnknown_inner;
-    TRACE("Created %p\n", *out);
-    return S_OK;
 }
 
 HRESULT video_processor_create(REFIID riid, void **ret)

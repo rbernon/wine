@@ -14,6 +14,7 @@ C_SRCS = \
 	mfplat.c \
 	quartz_parser.c \
 	quartz_transform.c \
+	resampler.c \
 	unixlib.c \
 	video_decoder.c \
 	wg_allocator.c \
