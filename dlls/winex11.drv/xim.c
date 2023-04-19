@@ -49,6 +49,7 @@ static WCHAR *ime_comp_buf;
 
 static XIMStyle input_style = 0;
 static XIMStyle input_style_req = XIMPreeditCallbacks | XIMStatusCallbacks;
+static XIMPreeditState xim_preedit_state;
 
 static const char *debugstr_xim_style( XIMStyle style )
 {
@@ -262,6 +263,25 @@ static int xic_status_draw( XIC xic, XPointer user, XPointer arg )
     return 0;
 }
 
+NTSTATUS x11drv_xim_preedit_state( void *arg )
+{
+    struct xim_preedit_state_params *params = arg;
+    HWND hwnd = NtUserGetAncestor( params->hwnd, GA_ROOT );
+    XIMPreeditState state = params->open ? XIMPreeditEnable : XIMPreeditDisable;
+    XVaNestedList attr;
+    XIC xic;
+
+    if (!(xic = X11DRV_get_ic( hwnd ))) return 0;
+    if (xim_preedit_state && state != xim_preedit_state &&
+        (attr = XVaCreateNestedList( 0, XNPreeditState, state, NULL )))
+    {
+        XSetICValues( xic, XNPreeditAttributes, attr, NULL );
+        XFree( attr );
+    }
+
+    return 0;
+}
+
 /***********************************************************************
  *      NotifyIMEStatus (X11DRV.@)
  */
@@ -334,6 +354,8 @@ static XIM xim_create( struct x11drv_thread_data *data )
 {
     XIMCallback destroy = {.callback = xim_destroy, .client_data = (XPointer)data};
     XIMStyle input_style_fallback = XIMPreeditNone | XIMStatusNone;
+    BOOL has_preedit_state_callback = FALSE;
+    XIMValuesList *values = NULL;
     XIMStyles *styles = NULL;
     INT i;
     XIM xim;
@@ -372,6 +394,20 @@ static XIM xim_create( struct x11drv_thread_data *data )
 
     if (!input_style) input_style = input_style_fallback;
     TRACE( "selected style %#lx %s\n", input_style, debugstr_xim_style( input_style ) );
+
+    XGetIMValues( xim, XNQueryICValuesList, &values, NULL );
+    TRACE( "xic values count %u\n", values ? values->count_values : 0 );
+    for (i = 0; values && i < values->count_values; ++i)
+    {
+        const char *value = values->supported_values[i];
+        TRACE( "  %u: %s\n", i, debugstr_a( value ) );
+        if (!strcmp( value, XNPreeditState )) xim_preedit_state = XIMPreeditDisable;
+        if (!strcmp( value, XNPreeditStateNotifyCallback )) has_preedit_state_callback = TRUE;
+    }
+    XFree( values );
+
+    if (!has_preedit_state_callback) xim_preedit_state = XIMPreeditUnKnown;
+    if (!xim_preedit_state) WARN( "XIM doesn't support preedit state or callback.\n" );
 
     return xim;
 }
