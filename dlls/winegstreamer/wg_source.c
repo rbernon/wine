@@ -122,6 +122,16 @@ static gboolean src_query_duration(struct wg_source *source, GstQuery *query)
     return true;
 }
 
+static gboolean src_query_scheduling(struct wg_source *source, GstQuery *query)
+{
+    GST_LOG("source %p, query %" GST_PTR_FORMAT, source, query);
+
+    gst_query_set_scheduling(query, GST_SCHEDULING_FLAG_SEEKABLE, 1, -1, 0);
+    gst_query_add_scheduling_mode(query, GST_PAD_MODE_PUSH);
+
+    return true;
+}
+
 static gboolean src_query_uri(struct wg_source *source, GstQuery *query)
 {
     gchar *uri;
@@ -142,6 +152,8 @@ static gboolean src_query_cb(GstPad *pad, GstObject *parent, GstQuery *query)
     {
     case GST_QUERY_DURATION:
         return src_query_duration(source, query);
+    case GST_QUERY_SCHEDULING:
+        return src_query_scheduling(source, query);
     case GST_QUERY_URI:
         if (!source->url)
             return false;
