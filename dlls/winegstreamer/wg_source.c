@@ -44,6 +44,7 @@
 struct source_stream
 {
     GstPad *pad;
+    GstStream *stream;
 };
 
 struct wg_source
@@ -60,6 +61,14 @@ struct wg_source
 static struct wg_source *get_source(wg_source_t source)
 {
     return (struct wg_source *)(ULONG_PTR)source;
+}
+
+static struct source_stream *source_stream_from_pad(struct wg_source *source, GstPad *pad)
+{
+    struct source_stream *stream, *end;
+    for (stream = source->streams, end = stream + source->stream_count; stream != end; stream++)
+        if (stream->pad == pad) return stream;
+    return NULL;
 }
 
 static GstCaps *detect_caps_from_data(const char *url, const void *data, guint size)
@@ -286,10 +295,53 @@ static GstFlowReturn sink_chain_cb(GstPad *pad, GstObject *parent, GstBuffer *bu
     return GST_FLOW_EOS;
 }
 
+static gboolean sink_event_stream_start(struct wg_source *source, GstPad *pad, GstEvent *event)
+{
+    struct source_stream *stream = source_stream_from_pad(source, pad);
+    const gchar *new_id, *old_id = gst_stream_get_stream_id(stream->stream);
+    GstStream *new_stream, *old_stream = stream->stream;
+    guint group, flags;
+
+    GST_LOG("source %p, pad %" GST_PTR_FORMAT ", event %" GST_PTR_FORMAT, source, pad, event);
+
+    gst_event_parse_stream_start(event, &new_id);
+    gst_event_parse_stream(event, &new_stream);
+    gst_event_parse_stream_flags(event, &flags);
+    if (!gst_event_parse_group_id(event, &group))
+        group = -1;
+
+    if (strcmp(old_id, new_id))
+    {
+        if (!(stream->stream = new_stream))
+            stream->stream = gst_stream_new(new_id, NULL, GST_STREAM_TYPE_UNKNOWN, 0);
+        else
+            gst_object_ref(stream->stream);
+        gst_object_unref(old_stream);
+    }
+
+    gst_event_unref(event);
+    return true;
+}
+
+static gboolean sink_event_cb(GstPad *pad, GstObject *parent, GstEvent *event)
+{
+    struct wg_source *source = gst_pad_get_element_private(pad);
+
+    switch (GST_EVENT_TYPE(event))
+    {
+    case GST_EVENT_STREAM_START:
+        return sink_event_stream_start(source, pad, event);
+    default:
+        GST_TRACE("source %p, pad %" GST_PTR_FORMAT ", ignoring %" GST_PTR_FORMAT, source, pad, event);
+        return gst_pad_event_default(pad, parent, event);
+    }
+}
+
 static void pad_added_cb(GstElement *element, GstPad *pad, gpointer user)
 {
     struct wg_source *source = user;
     struct source_stream *stream;
+    char *id;
 
     GST_LOG("source %p, element %" GST_PTR_FORMAT ", pad %" GST_PTR_FORMAT, source, element, pad);
 
@@ -302,6 +354,25 @@ static void pad_added_cb(GstElement *element, GstPad *pad, gpointer user)
 
     if (gst_pad_link(pad, stream->pad) < 0 || !gst_pad_set_active(stream->pad, true))
         GST_ERROR("Failed to link new pad to sink pad %" GST_PTR_FORMAT, stream->pad);
+
+    if ((stream->stream = gst_pad_get_stream(pad)))
+        GST_TRACE("Found stream %" GST_PTR_FORMAT " for pad %" GST_PTR_FORMAT, stream->stream, pad);
+    else
+    {
+        if (!(id = gst_pad_get_stream_id(pad)))
+        {
+            char buffer[256];
+            snprintf(buffer, ARRAY_SIZE(buffer), "wg_source/%03zu", stream - source->streams);
+            id = g_strdup(buffer);
+        }
+
+        if (!(stream->stream = gst_stream_new(id, NULL, GST_STREAM_TYPE_UNKNOWN, 0)))
+            GST_ERROR("Failed to create stream event for sink pad %" GST_PTR_FORMAT, stream->pad);
+        else
+            GST_TRACE("Created stream %" GST_PTR_FORMAT " for pad %" GST_PTR_FORMAT, stream->stream, stream->pad);
+
+        g_free(id);
+    }
 }
 
 NTSTATUS wg_source_create(void *args)
@@ -340,6 +411,7 @@ NTSTATUS wg_source_create(void *args)
             goto error;
         gst_pad_set_element_private(source->streams[i].pad, source);
         gst_pad_set_chain_function(source->streams[i].pad, sink_chain_cb);
+        gst_pad_set_event_function(source->streams[i].pad, sink_event_cb);
     }
 
     if (!(element = find_element(GST_ELEMENT_FACTORY_TYPE_DECODABLE, src_caps, GST_CAPS_ANY))
