@@ -344,6 +344,27 @@ static gboolean sink_event_caps(struct wg_source *source, GstPad *pad, GstEvent 
     return true;
 }
 
+static gboolean sink_event_tag(struct wg_source *source, GstPad *pad, GstEvent *event)
+{
+    struct source_stream *stream = source_stream_from_pad(source, pad);
+    GstTagList *new_tags, *old_tags = gst_stream_get_tags(stream->stream);
+
+    GST_LOG("source %p, pad %" GST_PTR_FORMAT ", event %" GST_PTR_FORMAT, source, pad, event);
+
+    gst_event_parse_tag(event, &new_tags);
+
+    if ((new_tags = gst_tag_list_merge(old_tags, new_tags, GST_TAG_MERGE_REPLACE)))
+    {
+        gst_stream_set_tags(stream->stream, new_tags);
+        gst_tag_list_unref(new_tags);
+    }
+    if (old_tags)
+        gst_tag_list_unref(old_tags);
+
+    gst_event_unref(event);
+    return true;
+}
+
 static gboolean sink_event_stream_start(struct wg_source *source, GstPad *pad, GstEvent *event)
 {
     struct source_stream *stream = source_stream_from_pad(source, pad);
@@ -388,6 +409,8 @@ static gboolean sink_event_cb(GstPad *pad, GstObject *parent, GstEvent *event)
     {
     case GST_EVENT_CAPS:
         return sink_event_caps(source, pad, event);
+    case GST_EVENT_TAG:
+        return sink_event_tag(source, pad, event);
     case GST_EVENT_STREAM_START:
         return sink_event_stream_start(source, pad, event);
     default:
