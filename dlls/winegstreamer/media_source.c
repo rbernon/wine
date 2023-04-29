@@ -1151,9 +1151,6 @@ static HRESULT media_stream_create(IMFMediaSource *source, IMFStreamDescriptor *
     object->media_source = source;
     IMFStreamDescriptor_AddRef(descriptor);
     object->descriptor = descriptor;
-
-    object->active = TRUE;
-    object->eos = FALSE;
     object->wg_stream = wg_stream;
 
     TRACE("Created stream object %p.\n", object);
@@ -1477,6 +1474,8 @@ static HRESULT WINAPI media_source_CreatePresentationDescriptor(IMFMediaSource *
 
         for (i = 0; i < source->stream_count; ++i)
         {
+            if (!source->streams[i]->active)
+                continue;
             if (FAILED(hr = IMFPresentationDescriptor_SelectStream(*descriptor, i)))
                 WARN("Failed to select stream %u, hr %#lx\n", i, hr);
         }
@@ -1743,7 +1742,7 @@ static void media_source_init_stream_map(struct media_source *source, UINT strea
 
 static void media_source_init_descriptors(struct media_source *source)
 {
-    UINT i, last_audio = -1, last_video = -1;
+    UINT i, last_audio = -1, last_video = -1, first_audio = -1, first_video = -1;
     HRESULT hr;
 
     for (i = 0; i < source->stream_count; i++)
@@ -1758,11 +1757,15 @@ static void media_source_init_descriptors(struct media_source *source)
 
         if (IsEqualGUID(&major, &MFMediaType_Audio))
         {
+            if (first_audio == -1)
+                first_audio = i;
             exclude = last_audio;
             last_audio = i;
         }
         else if (IsEqualGUID(&major, &MFMediaType_Video))
         {
+            if (first_video == -1)
+                first_video = i;
             exclude = last_video;
             last_video = i;
         }
@@ -1781,6 +1784,21 @@ static void media_source_init_descriptors(struct media_source *source)
         if (FAILED(hr = wg_source_get_stream_name(source->wg_source, source->stream_map[i], buffer, ARRAY_SIZE(buffer)))
                 || FAILED(IMFStreamDescriptor_SetString(descriptor, &MF_SD_STREAM_NAME, buffer)))
             WARN("Failed to set stream descriptor name, hr %#lx\n", hr);
+    }
+
+    if (!wcscmp(source->mime_type, L"video/mp4"))
+    {
+        if (last_audio != -1)
+            source->streams[last_audio]->active = TRUE;
+        if (last_video != -1)
+            source->streams[last_video]->active = TRUE;
+    }
+    else
+    {
+        if (first_audio != -1)
+            source->streams[first_audio]->active = TRUE;
+        if (first_video != -1)
+            source->streams[first_video]->active = TRUE;
     }
 }
 
