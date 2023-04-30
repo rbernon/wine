@@ -5714,11 +5714,11 @@ static void test_ImmRequestMessage(void)
         {0},
     };
     HKL hkl;
-    COMPOSITIONFORM comp_form = {0};
-    IMECHARPOSITION char_pos = {0};
-    RECONVERTSTRING reconv = {0};
-    CANDIDATEFORM cand_form = {0};
-    LOGFONTW log_font = {0};
+    COMPOSITIONFORM comp_form = {0}, expect_comp_form = {0};
+    IMECHARPOSITION char_pos = {0}, expect_char_pos = {0};
+    RECONVERTSTRING reconv = {0}, expect_reconv = {0};
+    CANDIDATEFORM cand_form = {0}, expect_cand_form = {0};
+    LOGFONTW log_font = {0}, expect_log_font = {0};
     INPUTCONTEXT *ctx;
     HIMC himc;
     HWND hwnd;
@@ -5743,30 +5743,55 @@ static void test_ImmRequestMessage(void)
 
     ok_ret( 0, ImmRequestMessageW( default_himc, 0xdeadbeef, 0 ) );
     todo_wine ok_seq( empty_sequence );
+
+    memset( &comp_form, 0xcd, sizeof(comp_form) );
     ok_ret( 0, ImmRequestMessageW( default_himc, IMR_COMPOSITIONWINDOW, (LPARAM)&comp_form ) );
     composition_window_seq[0].message.lparam = (LPARAM)&comp_form;
     ok_seq( composition_window_seq );
+    check_composition_form( &comp_form, &expect_comp_form );
+
+    memset( &cand_form, 0xcd, sizeof(cand_form) );
     ok_ret( 0, ImmRequestMessageW( default_himc, IMR_CANDIDATEWINDOW, (LPARAM)&cand_form ) );
     candidate_window_seq[0].message.lparam = (LPARAM)&cand_form;
     ok_seq( candidate_window_seq );
+    check_candidate_form( &cand_form, &expect_cand_form );
+
+    memset( &log_font, 0xcd, sizeof(log_font) );
     ok_ret( 0, ImmRequestMessageW( default_himc, IMR_COMPOSITIONFONT, (LPARAM)&log_font ) );
     composition_font_seq[0].message.lparam = (LPARAM)&log_font;
     ok_seq( composition_font_seq );
+    check_logfont_w( &log_font, &expect_log_font );
+
     ok_ret( 0, ImmRequestMessageW( default_himc, IMR_RECONVERTSTRING, (LPARAM)&reconv ) );
     todo_wine ok_seq( empty_sequence );
+    check_reconvert_string( &reconv, &expect_reconv );
+
     reconv.dwSize = sizeof(RECONVERTSTRING);
+    ok_ret( 0, ImmRequestMessageW( default_himc, IMR_RECONVERTSTRING, 0 ) );
+    ok_seq( reconvert_string_seq );
     ok_ret( 0, ImmRequestMessageW( default_himc, IMR_RECONVERTSTRING, (LPARAM)&reconv ) );
     reconvert_string_seq[0].message.lparam = (LPARAM)&reconv;
     ok_seq( reconvert_string_seq );
+    check_reconvert_string( &reconv, &expect_reconv );
+
+    reconv.dwSize = sizeof(RECONVERTSTRING);
     ok_ret( 0, ImmRequestMessageW( default_himc, IMR_CONFIRMRECONVERTSTRING, (LPARAM)&reconv ) );
     confirm_reconvert_string_seq[0].message.lparam = (LPARAM)&reconv;
     ok_seq( confirm_reconvert_string_seq );
+    check_reconvert_string( &reconv, &expect_reconv );
+
+    memset( &char_pos, 0xcd, sizeof(char_pos) );
     ok_ret( 0, ImmRequestMessageW( default_himc, IMR_QUERYCHARPOSITION, (LPARAM)&char_pos ) );
     query_char_position_seq[0].message.lparam = (LPARAM)&char_pos;
     ok_seq( query_char_position_seq );
+    check_ime_char_position( &char_pos, &expect_char_pos );
+
+    ok_ret( 0, ImmRequestMessageW( default_himc, IMR_DOCUMENTFEED, 0 ) );
+    ok_seq( document_feed_seq );
     ok_ret( 0, ImmRequestMessageW( default_himc, IMR_DOCUMENTFEED, (LPARAM)&reconv ) );
     document_feed_seq[0].message.lparam = (LPARAM)&reconv;
     ok_seq( document_feed_seq );
+    check_reconvert_string( &reconv, &expect_reconv );
 
     ok_ret( 0, ImmRequestMessageW( himc, IMR_CANDIDATEWINDOW, (LPARAM)&cand_form ) );
     ok_seq( empty_sequence );
