@@ -4535,6 +4535,11 @@ static BOOL CALLBACK enum_thread_ime_windows( HWND hwnd, LPARAM lparam )
         ok( !params->ime_ui_hwnd, "Found extra IME UI window %p\n", hwnd );
         params->ime_ui_hwnd = hwnd;
     }
+    if (!wcscmp( buffer, L"MSCTFIME UI" ))
+    {
+        ok( !params->ime_ui_hwnd, "Found extra IME UI window %p\n", hwnd );
+        params->ime_ui_hwnd = hwnd;
+    }
 
     return TRUE;
 }
@@ -7755,6 +7760,73 @@ static void test_ga_na_da(void)
     ime_call_count = 0;
 }
 
+static LRESULT (CALLBACK *old_ime_window_proc)( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam );
+static LRESULT (CALLBACK *old_ime_ui_window_proc)( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam );
+
+static LRESULT CALLBACK hook_ime_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
+{
+    winetest_debug = 2;
+    ime_trace( "hwnd %p, msg %s, wparam %#Ix, lparam %#Ix\n", hwnd, debugstr_wm_ime(msg), wparam, lparam );
+    winetest_debug = 1;
+    return CallWindowProcW( old_ime_window_proc, hwnd, msg, wparam, lparam );
+}
+
+static LRESULT CALLBACK hook_ime_ui_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
+{
+    winetest_debug = 2;
+    ime_trace( "hwnd %p, msg %s, wparam %#Ix, lparam %#Ix\n", hwnd, debugstr_wm_ime(msg), wparam, lparam );
+    winetest_debug = 1;
+
+    if (msg == WM_IME_NOTIFY)
+    {
+    winetest_debug = 2;
+    switch (wparam)
+    {
+    case IMN_OPENCANDIDATE:
+    case 0x13:
+    case 0x18:
+    case 0x10d:
+    case 0x10e:
+        break;
+    case 0x0f:
+    case 0x10:
+        ime_trace( "  himc %p\n", ImmGetContext( hwnd ) );
+        break;
+    case 0x11:
+    case 0x14:
+        ime_trace( "  himc %p\n", ImmGetContext( hwnd ) );
+        do
+        {
+            const unsigned char *ptr = (void *)lparam, *end = ptr + 16;
+            for (int i = 0, j; ptr + i < end;)
+            {
+                char buffer[256], *buf = buffer;
+                buf += sprintf(buf, "%08x ", i);
+                for (j = 0; j < 8 && ptr + i + j < end; ++j)
+                    buf += sprintf(buf, " %02x", ptr[i + j]);
+                for (; j < 8 && ptr + i + j >= end; ++j)
+                    buf += sprintf(buf, "   ");
+                buf += sprintf(buf, " ");
+                for (j = 8; j < 16 && ptr + i + j < end; ++j)
+                    buf += sprintf(buf, " %02x", ptr[i + j]);
+                for (; j < 16 && ptr + i + j >= end; ++j)
+                    buf += sprintf(buf, "   ");
+                buf += sprintf(buf, "  |");
+                for (j = 0; j < 16 && ptr + i < end; ++j, ++i)
+                    buf += sprintf(buf, "%c", ptr[i] >= ' ' && ptr[i] <= '~' ? ptr[i] : '.');
+                buf += sprintf(buf, "|");
+                ime_trace("    %s\n", buffer);
+            }
+        }
+        while(0);
+        break;
+    }
+    winetest_debug = 1;
+    }
+
+    return CallWindowProcW( old_ime_ui_window_proc, hwnd, msg, wparam, lparam );
+}
+
 static void test_nihongo_no(void)
 {
     /* These sequences have some additional WM_IME_NOTIFY messages with wparam > IMN_PRIVATE */
@@ -7911,6 +7983,13 @@ static void test_nihongo_no(void)
     ignore_IME_NOTIFY = TRUE;
 
 
+    ok_ret( 1, EnumThreadWindows( GetCurrentThreadId(), enum_thread_ime_windows, (LPARAM)&ime_windows ) );
+    ok_ne( NULL, ime_windows.ime_hwnd, HWND, "%p" );
+    ok_ne( NULL, ime_windows.ime_ui_hwnd, HWND, "%p" );
+
+    if (0) old_ime_window_proc = (WNDPROC)SetWindowLongPtrW( ime_windows.ime_hwnd, GWLP_WNDPROC, (ULONG_PTR)hook_ime_window_proc );
+    old_ime_ui_window_proc = (WNDPROC)SetWindowLongPtrW( ime_windows.ime_ui_hwnd, GWLP_WNDPROC, (ULONG_PTR)hook_ime_ui_window_proc );
+
     keybd_event( 'N', 0x31, 0, 0 );
     flush_events();
     keybd_event( 'N', 0x31, KEYEVENTF_KEYUP, 0 );
@@ -7965,6 +8044,9 @@ static void test_nihongo_no(void)
 
     flush_events();
     todo_wine ok_seq( complete_seq );
+
+    if (0) SetWindowLongPtrW( ime_windows.ime_hwnd, GWLP_WNDPROC, (ULONG_PTR)old_ime_window_proc );
+    SetWindowLongPtrW( ime_windows.ime_ui_hwnd, GWLP_WNDPROC, (ULONG_PTR)old_ime_ui_window_proc );
 
     ignore_WM_IME_REQUEST = FALSE;
     ignore_WM_IME_NOTIFY = FALSE;
