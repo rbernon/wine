@@ -490,11 +490,11 @@ static inline void mark_block_tail( struct block *block, DWORD flags )
     {
         valgrind_make_writable( tail, BLOCK_ALIGN );
         memset( tail, BLOCK_FILL_TAIL, BLOCK_ALIGN );
+        valgrind_make_noaccess( tail, BLOCK_ALIGN );
     }
-    valgrind_make_noaccess( tail, BLOCK_ALIGN );
     if (flags & HEAP_ADD_USER_INFO)
     {
-        if (flags & HEAP_TAIL_CHECKING_ENABLED || RUNNING_ON_VALGRIND) tail += BLOCK_ALIGN;
+        if (flags & HEAP_TAIL_CHECKING_ENABLED) tail += BLOCK_ALIGN;
         valgrind_make_writable( tail, BLOCK_ALIGN );
         memset( tail, 0, BLOCK_ALIGN );
     }
@@ -1278,7 +1278,7 @@ static BOOL validate_used_block( const struct heap *heap, const SUBHEAP *subheap
             ptr += sizeof(DWORD);
         }
     }
-    else if (!err && (flags & HEAP_TAIL_CHECKING_ENABLED))
+    else if (!err && (flags & HEAP_TAIL_CHECKING_ENABLED) && !RUNNING_ON_VALGRIND)
     {
         const unsigned char *tail = (unsigned char *)block + block_get_size( block ) - block->tail_size;
         for (i = 0; !err && i < BLOCK_ALIGN; i++) if (tail[i] != BLOCK_FILL_TAIL) err = "invalid block tail";
@@ -1448,7 +1448,7 @@ static void heap_set_debug_flags( HANDLE handle )
     if (global_flags & FLG_HEAP_ENABLE_TAGGING) flags |= HEAP_SHARED;
     if (!(global_flags & FLG_HEAP_PAGE_ALLOCS)) force_flags &= ~(HEAP_GROWABLE|HEAP_PRIVATE);
 
-    if (RUNNING_ON_VALGRIND) flags = 0; /* no sense in validating since Valgrind catches accesses */
+    if (RUNNING_ON_VALGRIND) flags = HEAP_TAIL_CHECKING_ENABLED; /* no sense in validating since Valgrind catches accesses */
 
     heap->flags |= flags;
     heap->force_flags |= force_flags;
@@ -1689,7 +1689,7 @@ static SIZE_T heap_get_block_size( const struct heap *heap, ULONG flags, SIZE_T 
     if ((flags & check_flags)) overhead = BLOCK_ALIGN;
     else overhead = sizeof(struct block);
 
-    if ((flags & HEAP_TAIL_CHECKING_ENABLED) || RUNNING_ON_VALGRIND) overhead += BLOCK_ALIGN;
+    if (flags & HEAP_TAIL_CHECKING_ENABLED) overhead += BLOCK_ALIGN;
     if (flags & padd_flags) overhead += BLOCK_ALIGN;
 
     if (size < BLOCK_ALIGN) size = BLOCK_ALIGN;
@@ -2649,7 +2649,7 @@ BOOLEAN WINAPI RtlGetUserInfoHeap( HANDLE handle, ULONG flags, void *ptr, void *
         heap_lock( heap, heap_flags );
 
         tmp = (char *)block + block_get_size( block ) - block->tail_size + sizeof(void *);
-        if ((heap_flags & HEAP_TAIL_CHECKING_ENABLED) || RUNNING_ON_VALGRIND) tmp += BLOCK_ALIGN;
+        if (heap_flags & HEAP_TAIL_CHECKING_ENABLED) tmp += BLOCK_ALIGN;
         *user_flags = *user_flags & ~HEAP_ADD_USER_INFO;
         *user_value = *(void **)tmp;
 
@@ -2690,7 +2690,7 @@ BOOLEAN WINAPI RtlSetUserValueHeap( HANDLE handle, ULONG flags, void *ptr, void 
         heap_lock( heap, heap_flags );
 
         tmp = (char *)block + block_get_size( block ) - block->tail_size + sizeof(void *);
-        if ((heap_flags & HEAP_TAIL_CHECKING_ENABLED) || RUNNING_ON_VALGRIND) tmp += BLOCK_ALIGN;
+        if (heap_flags & HEAP_TAIL_CHECKING_ENABLED) tmp += BLOCK_ALIGN;
         *(void **)tmp = user_value;
         ret = TRUE;
 
