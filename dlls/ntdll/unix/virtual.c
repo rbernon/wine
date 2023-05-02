@@ -2918,6 +2918,7 @@ static unsigned int virtual_map_section( HANDLE handle, PVOID *addr_ptr, ULONG_P
         if (res == STATUS_IMAGE_ALREADY_LOADED)
             res = virtual_map_image( handle, addr_ptr, size_ptr, shared_file, limit,
                                      alloc_type, machine, image_info, &nt_name, FALSE );
+        if (!res || res == STATUS_IMAGE_NOT_AT_BASE) notify_gdb_native_dll_loaded( *addr_ptr, &nt_name );
         if (shared_file) NtClose( shared_file );
         free( image_info );
         return res;
@@ -3199,6 +3200,7 @@ NTSTATUS virtual_map_module( HANDLE mapping, void **module, SIZE_T *size, SECTIO
     if (status == STATUS_IMAGE_ALREADY_LOADED)
         status = virtual_map_image( mapping, module, size, shared_file, limit, 0,
                                     machine, image_info, &nt_name, FALSE );
+    if (!status || status == STATUS_IMAGE_NOT_AT_BASE) notify_gdb_native_dll_loaded( *module, &nt_name );
 
     virtual_fill_image_information( image_info, info );
     if (shared_file) NtClose( shared_file );
@@ -5228,6 +5230,10 @@ static NTSTATUS unmap_view_of_section( HANDLE process, PVOID addr, ULONG flags )
     SERVER_END_REQ;
     if (!status)
     {
+        static void (*wine_gdb_dll_unload)( const void *module );
+        if (!wine_gdb_dll_unload) wine_gdb_dll_unload = dlsym( RTLD_DEFAULT, "wine_gdb_dll_unload" );
+        if (wine_gdb_dll_unload) wine_gdb_dll_unload( view->base );
+
         if (view->protect & SEC_IMAGE) release_builtin_module( view->base );
         if (flags & MEM_PRESERVE_PLACEHOLDER) free_pages_preserve_placeholder( view, view->base, view->size );
         else delete_view( view );
