@@ -1956,7 +1956,6 @@ static NTSTATUS heap_free_block_lfh( struct heap *heap, ULONG flags, struct bloc
     if (bin == last) return STATUS_UNSUCCESSFUL;
 
     i = block_get_group_index( block );
-    valgrind_make_writable( block, sizeof(*block) );
     block_set_type( block, BLOCK_TYPE_FREE );
     block_set_flags( block, (BYTE)~BLOCK_FLAG_LFH, BLOCK_FLAG_FREE );
     mark_block_free( block + 1, (char *)block + block_size - (char *)(block + 1), flags );
