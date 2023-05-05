@@ -3472,6 +3472,7 @@ static LRESULT EDIT_WM_LButtonDown(EDITSTATE *es, DWORD keys, INT x, INT y)
 {
 	INT e;
 	BOOL after_wrap;
+	HIMC himc;
 
 	es->bCaptureState = TRUE;
 	SetCapture(es->hwndSelf);
@@ -3479,6 +3480,12 @@ static LRESULT EDIT_WM_LButtonDown(EDITSTATE *es, DWORD keys, INT x, INT y)
 	e = EDIT_CharFromPos(es, x, y, &after_wrap);
 	EDIT_EM_SetSel(es, (keys & MK_SHIFT) ? es->selection_start : e, e, after_wrap);
 	EDIT_EM_ScrollCaret(es);
+
+    if ((himc = ImmGetContext( es->hwndSelf )))
+    {
+        ImmNotifyIME( himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0 );
+        ImmReleaseContext( es->hwndSelf, himc );
+    }
 
 	if (!(es->flags & EF_FOCUSED))
             SetFocus(es->hwndSelf);
@@ -3509,7 +3516,14 @@ static LRESULT EDIT_WM_LButtonUp(EDITSTATE *es)
  */
 static LRESULT EDIT_WM_MButtonDown(EDITSTATE *es)
 {
-    SendMessageW(es->hwndSelf, WM_PASTE, 0, 0);
+	HIMC himc;
+
+    if ((himc = ImmGetContext( es->hwndSelf )))
+    {
+        ImmNotifyIME( himc, NI_COMPOSITIONSTR, CPS_COMPLETE, 0 );
+        ImmReleaseContext( es->hwndSelf, himc );
+    }
+
     return 0;
 }
 
