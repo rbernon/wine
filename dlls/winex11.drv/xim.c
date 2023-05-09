@@ -267,21 +267,23 @@ static int xic_status_draw( XIC xic, XPointer user, XPointer arg )
  */
 void X11DRV_NotifyIMEStatus( HWND hwnd, UINT status )
 {
-    XIMPreeditState state = status ? XIMPreeditEnable : XIMPreeditDisable;
-    XVaNestedList attr;
+    Window win;
     XIC xic;
 
     TRACE( "hwnd %p, status %#x\n", hwnd, status );
 
+    if (status) return; /* there's no reliable way to force preedit state open */
+
+    hwnd = NtUserGetAncestor( hwnd, GA_ROOT );
+
     if (!(xic = X11DRV_get_ic( hwnd ))) return;
 
-    if ((attr = XVaCreateNestedList( 0, XNPreeditState, state, NULL )))
+    if ((win = X11DRV_get_whole_window( hwnd )))
     {
-        XSetICValues( xic, XNPreeditAttributes, attr, NULL );
-        XFree( attr );
+        XEvent event = {.xkey = {.type = KeyPress, .display = XDisplayOfIM( XIMOfIC( xic ) )}};
+        event.xkey.keycode = XKeysymToKeycode( event.xkey.display, XK_Escape );
+        XFilterEvent( &event, win );
     }
-
-    if (!status) XFree( XmbResetIC( xic ) );
 }
 
 /***********************************************************************
