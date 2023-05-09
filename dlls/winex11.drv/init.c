@@ -437,6 +437,7 @@ static const struct user_driver_funcs x11drv_funcs =
     .pImeProcessKey = X11DRV_ImeProcessKey,
     .pNotifyIMEStatus = X11DRV_NotifyIMEStatus,
     .pSetIMECompositionRect = X11DRV_SetIMECompositionRect,
+    .pSetCaretPos = X11DRV_SetCaretPos,
     .pDestroyCursorIcon = X11DRV_DestroyCursorIcon,
     .pSetCursor = X11DRV_SetCursor,
     .pSetCursorPos = X11DRV_SetCursorPos,
