@@ -197,10 +197,7 @@ static void ime_ui_paint( HIMC himc, HWND hwnd )
     PAINTSTRUCT ps;
     RECT rect, new_rect;
     HDC hdc;
-    HMONITOR monitor;
-    MONITORINFO mon_info;
     INPUTCONTEXT *ctx;
-    POINT offset;
     WCHAR *str;
     UINT len;
 
@@ -219,13 +216,9 @@ static void ime_ui_paint( HIMC himc, HWND hwnd )
     if ((str = input_context_get_comp_str( ctx, FALSE, &len )))
     {
         HFONT font = input_context_select_ui_font( ctx, hdc );
-        SIZE size;
-        POINT pt;
-
-        GetTextExtentPoint32W( hdc, str, len, &size );
-        pt.x = size.cx;
-        pt.y = size.cy;
-        LPtoDP( hdc, &pt, 1 );
+        RECT target, rect = ctx->cfCompForm.rcArea;
+        POINT offset = {10, 10};
+        UINT flags = 0;
 
         /*
          * How this works based on tests on windows:
@@ -239,62 +232,35 @@ static void ime_ui_paint( HIMC himc, HWND hwnd )
          * CFS_FORCE_POSITION: appears to behave just like CFS_POINT
          *    maybe because the default MSIME does not do any IME adjusting.
          */
+        OffsetRect( &rect, -rect.left, -rect.top );
+        if (ctx->cfCompForm.dwStyle == CFS_RECT) flags |= DT_WORDBREAK;
+        DrawTextW( hdc, str, len, &rect, flags | DT_CALCRECT );
+
         if (ctx->cfCompForm.dwStyle != CFS_DEFAULT)
         {
-            POINT cpt = ctx->cfCompForm.ptCurrentPos;
-            ClientToScreen( ctx->hWnd, &cpt );
-            rect.left = cpt.x;
-            rect.top = cpt.y;
-            rect.right = rect.left + pt.x;
-            rect.bottom = rect.top + pt.y;
+            POINT pt = ctx->cfCompForm.ptCurrentPos;
+            ClientToScreen( ctx->hWnd, &pt );
+            OffsetRect( &rect, pt.x, pt.y );
             offset.x = offset.y = 0;
-            monitor = MonitorFromPoint( cpt, MONITOR_DEFAULTTOPRIMARY );
+
         }
-        else /* CFS_DEFAULT */
+        else
         {
             /* Windows places the default IME window in the bottom left */
-            HWND target = ctx->hWnd;
-            if (!target) target = GetFocus();
-
-            GetWindowRect( target, &rect );
-            rect.top = rect.bottom;
-            rect.right = rect.left + pt.x + 20;
-            rect.bottom = rect.top + pt.y + 20;
-            offset.x = offset.y = 10;
-            monitor = MonitorFromWindow( target, MONITOR_DEFAULTTOPRIMARY );
-        }
-
-        if (ctx->cfCompForm.dwStyle == CFS_RECT)
-        {
-            RECT client = ctx->cfCompForm.rcArea;
-            MapWindowPoints( ctx->hWnd, 0, (POINT *)&client, 2 );
-            IntersectRect( &rect, &rect, &client );
-            DrawTextW( hdc, str, len, &rect, DT_WORDBREAK | DT_CALCRECT );
+            GetWindowRect( ctx->hWnd, &target );
+            InflateRect( &rect, offset.x, offset.y );
+            OffsetRect( &rect, target.left - rect.left, target.bottom - rect.top );
         }
 
         if (ctx->cfCompForm.dwStyle == CFS_DEFAULT)
         {
             /* make sure we are on the desktop */
-            mon_info.cbSize = sizeof(mon_info);
-            GetMonitorInfoW( monitor, &mon_info );
-
-            if (rect.bottom > mon_info.rcWork.bottom)
-            {
-                int shift = rect.bottom - mon_info.rcWork.bottom;
-                rect.top -= shift;
-                rect.bottom -= shift;
-            }
-            if (rect.left < 0)
-            {
-                rect.right -= rect.left;
-                rect.left = 0;
-            }
-            if (rect.right > mon_info.rcWork.right)
-            {
-                int shift = rect.right - mon_info.rcWork.right;
-                rect.left -= shift;
-                rect.right -= shift;
-            }
+            HMONITOR monitor = MonitorFromWindow( ctx->hWnd, MONITOR_DEFAULTTOPRIMARY );
+            MONITORINFO info = {.cbSize = sizeof(info)};
+            GetMonitorInfoW( monitor, &info );
+            if (rect.bottom > info.rcWork.bottom) OffsetRect( &rect, 0, info.rcWork.bottom - rect.bottom );
+            if (rect.left < 0) OffsetRect( &rect, -rect.left, 0 );
+            if (rect.right > info.rcWork.right) OffsetRect( &rect, info.rcWork.right - rect.right, 0 );
         }
 
         new_rect = rect;
