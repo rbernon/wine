@@ -2378,6 +2378,8 @@ BOOL set_caret_pos( int x, int y )
         display_caret( hwnd, &r );
         NtUserSetSystemTimer( hwnd, SYSTEM_TIMER_CARET, caret.timeout );
     }
+
+    user_driver->pSetCaretPos( &r );
     return ret;
 }
 

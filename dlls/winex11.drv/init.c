@@ -386,6 +386,7 @@ static const struct user_driver_funcs x11drv_funcs =
     .pReleaseKbdTables = X11DRV_ReleaseKbdTables,
     .pImeProcessKey = X11DRV_ImeProcessKey,
     .pNotifyIMEStatus = X11DRV_NotifyIMEStatus,
+    .pSetCaretPos = X11DRV_SetCaretPos,
     .pDestroyCursorIcon = X11DRV_DestroyCursorIcon,
     .pSetCursor = X11DRV_SetCursor,
     .pSetCursorPos = X11DRV_SetCursorPos,
