@@ -352,6 +352,15 @@ void macdrv_NotifyIMEStatus( HWND hwnd, UINT status )
 
 
 /***********************************************************************
+ *      SetCaretPos (X11DRV.@)
+ */
+void macdrv_SetCaretPos( const RECT *caret )
+{
+    TRACE_(imm)( "caret %s\n", wine_dbgstr_rect(caret) );
+}
+
+
+/***********************************************************************
  *              macdrv_query_event
  *
  * Handler for QUERY_EVENT and QUERY_EVENT_NO_PREEMPT_WAIT queries.
