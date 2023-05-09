@@ -2451,6 +2451,8 @@ BOOL set_caret_pos( int x, int y )
         set_ime_composition_window_pos( hwnd, &pt );
         NtUserSetSystemTimer( hwnd, SYSTEM_TIMER_CARET, caret.timeout );
     }
+
+    user_driver->pSetCaretPos( &r );
     return ret;
 }
 

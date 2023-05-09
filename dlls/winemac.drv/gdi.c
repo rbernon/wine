@@ -302,6 +302,7 @@ static const struct user_driver_funcs macdrv_funcs =
     .pVkKeyScanEx = macdrv_VkKeyScanEx,
     .pImeProcessKey = macdrv_ImeProcessKey,
     .pNotifyIMEStatus = macdrv_NotifyIMEStatus,
+    .pSetCaretPos = macdrv_SetCaretPos,
     .pWindowMessage = macdrv_WindowMessage,
     .pWindowPosChanged = macdrv_WindowPosChanged,
     .pWindowPosChanging = macdrv_WindowPosChanging,
