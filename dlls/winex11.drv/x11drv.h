@@ -204,6 +204,7 @@ extern void X11DRV_ReleaseKbdTables( const KBDTABLES *tables );
 extern UINT X11DRV_ImeProcessKey( HIMC himc, UINT wparam, UINT lparam, const BYTE *key_state );
 extern void X11DRV_NotifyIMEStatus( HWND hwnd, UINT status );
 extern BOOL X11DRV_SetIMECompositionRect( HWND hwnd, RECT rect );
+extern void X11DRV_SetCaretPos( const RECT *caret );
 extern const KBDTABLES *X11DRV_KbdLayerDescriptor( HKL hkl );
 extern void X11DRV_ReleaseKbdTables( const KBDTABLES *tables );
 extern void X11DRV_DestroyCursorIcon( HCURSOR handle );
