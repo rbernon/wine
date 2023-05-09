@@ -287,6 +287,14 @@ void X11DRV_NotifyIMEStatus( HWND hwnd, UINT status )
 }
 
 /***********************************************************************
+ *      SetCaretPos (X11DRV.@)
+ */
+void X11DRV_SetCaretPos( const RECT *caret )
+{
+    TRACE( "caret %s\n", wine_dbgstr_rect(caret) );
+}
+
+/***********************************************************************
  *           xim_init
  */
 BOOL xim_init( const WCHAR *input_style )
