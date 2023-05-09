@@ -29,6 +29,11 @@ struct ime_private
     HFONT hfont;
 };
 
+struct ime_ui_private
+{
+    HWND edit;
+};
+
 static const char *debugstr_imn( WPARAM wparam )
 {
     switch (wparam)
@@ -195,7 +200,7 @@ static UINT ime_set_composition_status( HIMC himc, BOOL composition )
 static void ime_ui_paint( HIMC himc, HWND hwnd )
 {
     PAINTSTRUCT ps;
-    RECT rect, new_rect;
+    RECT rect;
     HDC hdc;
     INPUTCONTEXT *ctx;
     WCHAR *str;
@@ -211,7 +216,6 @@ static void ime_ui_paint( HIMC himc, HWND hwnd )
 
     GetClientRect( hwnd, &rect );
     FillRect( hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1) );
-    new_rect = rect;
 
     if ((str = input_context_get_comp_str( ctx, FALSE, &len )))
     {
@@ -263,10 +267,6 @@ static void ime_ui_paint( HIMC himc, HWND hwnd )
             if (rect.right > info.rcWork.right) OffsetRect( &rect, info.rcWork.right - rect.right, 0 );
         }
 
-        new_rect = rect;
-        OffsetRect( &rect, offset.x - rect.left, offset.y - rect.top );
-        DrawTextW( hdc, str, len, &rect, DT_WORDBREAK );
-
         if (font) SelectObject( hdc, font );
         free( str );
     }
@@ -274,9 +274,8 @@ static void ime_ui_paint( HIMC himc, HWND hwnd )
     EndPaint( hwnd, &ps );
     ImmUnlockIMC( himc );
 
-    if (!EqualRect( &rect, &new_rect ))
-        SetWindowPos( hwnd, HWND_TOPMOST, new_rect.left, new_rect.top, new_rect.right - new_rect.left,
-                      new_rect.bottom - new_rect.top, SWP_NOACTIVATE );
+    SetWindowPos( hwnd, HWND_TOPMOST, rect.left, rect.top, rect.right - rect.left,
+                  rect.bottom - rect.top, SWP_NOACTIVATE );
 }
 
 static void ime_set_open_status( INPUTCONTEXT *ctx, BOOL open )
@@ -290,10 +289,11 @@ static void ime_set_open_status( INPUTCONTEXT *ctx, BOOL open )
 
 static void ime_ui_update_window( INPUTCONTEXT *ctx, HWND hwnd )
 {
+    struct ime_ui_private *ui = (void *)GetWindowLongPtrW( hwnd, IMMGWL_PRIVATE );
     WCHAR *str;
     UINT len;
 
-    if (!(str = input_context_get_comp_str( ctx, FALSE, &len )) || !*str)
+    if (!(str = input_context_get_comp_str( ctx, FALSE, &len )))
     {
         ShowWindow( hwnd, SW_HIDE );
         ime_set_open_status( ctx, FALSE );
@@ -302,6 +302,7 @@ static void ime_ui_update_window( INPUTCONTEXT *ctx, HWND hwnd )
     else
     {
         ctx->hWnd = GetFocus();
+        SendMessageW( ui->edit, WM_SETTEXT, 0, (LPARAM)str );
         ShowWindow( hwnd, SW_SHOWNOACTIVATE );
         RedrawWindow( hwnd, NULL, NULL, RDW_ERASENOW | RDW_INVALIDATE );
         ime_set_open_status( ctx, TRUE );
@@ -370,6 +371,8 @@ static UINT ime_set_comp_string( HIMC himc, LPARAM lparam )
 
 static LRESULT ime_ui_notify( HIMC himc, HWND hwnd, WPARAM wparam, LPARAM lparam )
 {
+    struct ime_ui_private *ui = (void *)GetWindowLongPtrW( hwnd, IMMGWL_PRIVATE );
+
     TRACE( "himc %p, hwnd %p, wparam %s, lparam %#Ix\n", hwnd, himc, debugstr_imn(wparam), lparam );
 
     switch (wparam)
@@ -380,6 +383,24 @@ static LRESULT ime_ui_notify( HIMC himc, HWND hwnd, WPARAM wparam, LPARAM lparam
     case IMN_OPENSTATUSWINDOW:
         ShowWindow( hwnd, SW_SHOWNOACTIVATE );
         return 0;
+    case IMN_SETCOMPOSITIONFONT:
+    {
+        LOGFONTW font;
+        HFONT hfont;
+
+        ImmGetCompositionFontW( himc, &font );
+        hfont = CreateFontIndirectW( &font );
+
+        SendMessageW( ui->edit, WM_SETFONT, (WPARAM)hfont, FALSE );
+        return 0;
+    }
+    case IMN_SETCOMPOSITIONWINDOW:
+    {
+        COMPOSITIONFORM form;
+        ImmGetCompositionWindow( himc, &form );
+        ERR("form %#lx, pt %s, rect %s\n", form.dwStyle, wine_dbgstr_point(&form.ptCurrentPos), wine_dbgstr_rect(&form.rcArea) );
+        return 0;
+    }
     case IMN_WINE_SET_COMP_STRING:
         return ime_set_comp_string( himc, lparam );
     default:
@@ -425,18 +446,27 @@ static LRESULT ime_ui_control( HIMC himc, HWND hwnd, WPARAM wparam, LPARAM lpara
 
 static LRESULT WINAPI ime_ui_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
 {
+    struct ime_ui_private *ui = (void *)GetWindowLongPtrW( hwnd, IMMGWL_PRIVATE );
     HIMC himc = (HIMC)GetWindowLongPtrW( hwnd, IMMGWL_IMC );
 
-    TRACE( "hwnd %p, himc %p, msg %s, wparam %#Ix, lparam %#Ix\n",
+    ERR( "hwnd %p, himc %p, msg %s, wparam %#Ix, lparam %#Ix\n",
            hwnd, himc, debugstr_wm_ime(msg), wparam, lparam );
 
     switch (msg)
     {
     case WM_CREATE:
+        if (!(ui = calloc( 1, sizeof(*ui) ))) return FALSE;
+        ui->edit = CreateWindowExW( 0, L"edit", NULL, WS_CHILD | WS_VISIBLE | ES_AUTOVSCROLL | ES_MULTILINE | ES_NOHIDESEL | ES_READONLY,
+                                    0, 0, 0, 0, hwnd, 0, imm32_module, NULL );
+        SendMessageW( ui->edit, EM_LIMITTEXT, 0, 0 );
+        SetWindowLongPtrW( hwnd, IMMGWL_PRIVATE, (LPARAM)ui );
         return TRUE;
     case WM_PAINT:
         ime_ui_paint( himc, hwnd );
         return FALSE;
+    case WM_SIZE:
+        MoveWindow( ui->edit, 0, 0, LOWORD(lparam), HIWORD(lparam), TRUE );
+        return 0;
     case WM_SETFOCUS:
         if (wparam) SetFocus( (HWND)wparam );
         else FIXME( "Received focus, should never have focus\n" );
