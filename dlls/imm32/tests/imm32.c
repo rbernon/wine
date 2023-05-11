@@ -7606,6 +7606,10 @@ static void test_ga_na_da(void)
     process_messages();
     todo_wine ok_seq( partial_ga_seq );
 
+    ImmNotifyIME( himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0 );
+    process_messages();
+    todo_wine ok_seq( empty_sequence );
+
     todo_wine ok_ret( 2, ImmProcessKey( hwnd, default_hkl, 'S', MAKELONG(1, 0x1f), 0 ) );
     ok_ret( 0, ImmTranslateMessage( hwnd, WM_KEYDOWN, 'S', MAKELONG(1, 0x1f) ) );
     process_messages();
@@ -7615,6 +7619,10 @@ static void test_ga_na_da(void)
     ok_ret( 0, ImmTranslateMessage( hwnd, WM_KEYDOWN, 'K', MAKELONG(1, 0x25) ) );
     process_messages();
     todo_wine ok_seq( partial_na_seq );
+
+    ImmNotifyIME( himc, NI_COMPOSITIONSTR, CPS_COMPLETE, 0 );
+    process_messages();
+    todo_wine ok_seq( empty_sequence );
 
     todo_wine ok_ret( 2, ImmProcessKey( hwnd, default_hkl, 'E', MAKELONG(1, 0x12), 0 ) );
     ok_ret( 0, ImmTranslateMessage( hwnd, WM_KEYDOWN, 'E', MAKELONG(1, 0x12) ) );
@@ -7886,6 +7894,10 @@ static void test_nihongo_no(void)
     flush_events();
     keybd_event( 'I', 0x17, KEYEVENTF_KEYUP, 0 );
 
+    flush_events_(1000, 1000);
+    ImmNotifyIME( himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0 );
+    flush_events();
+
     keybd_event( 'H', 0x23, 0, 0 );
     flush_events();
     keybd_event( 'H', 0x23, KEYEVENTF_KEYUP, 0 );
@@ -7897,6 +7909,10 @@ static void test_nihongo_no(void)
     keybd_event( 'N', 0x31, 0, 0 );
     flush_events();
     keybd_event( 'N', 0x31, KEYEVENTF_KEYUP, 0 );
+
+    flush_events_(1000, 1000);
+    ImmNotifyIME( himc, NI_COMPOSITIONSTR, CPS_COMPLETE, 0 );
+    flush_events();
 
     keybd_event( 'G', 0x22, 0, 0 );
     flush_events();
