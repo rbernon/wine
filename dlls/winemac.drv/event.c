@@ -339,7 +339,15 @@ BOOL macdrv_SetIMECompositionRect(HWND hwnd, RECT rect)
 void macdrv_NotifyIMEStatus( HWND hwnd, UINT status )
 {
     TRACE_(imm)( "hwnd %p, status %#x\n", hwnd, status );
-    if (!status) macdrv_clear_ime_text();
+
+    if (!status)
+    {
+        macdrv_clear_ime_text();
+        free(ime_update.result_str);
+        ime_update.result_str = NULL;
+        free(ime_update.comp_str);
+        ime_update.comp_str = NULL;
+    }
 }
 
 
