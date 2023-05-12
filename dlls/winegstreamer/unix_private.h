@@ -111,6 +111,10 @@ static inline BYTE *wg_sample_data(struct wg_sample *sample)
     return (BYTE *)(UINT_PTR)sample->data;
 }
 
+/* wg_task_pool.c */
+
+extern GstTaskPool *wg_task_pool_new(void) DECLSPEC_HIDDEN;
+
 /* wg_allocator_release_sample can be used to release any sample that was requested. */
 typedef struct wg_sample *(*wg_allocator_request_sample_cb)(gsize size, void *context);
 extern GstAllocator *wg_allocator_create(void);
