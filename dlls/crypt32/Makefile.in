@@ -25,7 +25,6 @@ SOURCES = \
 	pfx.c \
 	proplist.c \
 	protectdata.c \
-	rootstore.c \
 	serialize.c \
 	sip.c \
 	store.c \
@@ -35,5 +34,6 @@ SOURCES = \
 	store_memory.c \
 	store_provider.c \
 	store_registry.c \
+	store_system.c \
 	str.c \
 	unixlib.c
