@@ -34,5 +34,6 @@ SOURCES = \
 	sip.c \
 	store.c \
 	store_empty.c \
+	store_memory.c \
 	str.c \
 	unixlib.c
