@@ -354,6 +354,10 @@ typedef struct WINE_CRYPTCERTSTORE
 } WINECRYPT_CERTSTORE;
 
 extern WINECRYPT_CERTSTORE *CRYPT_MemOpenStore( HCRYPTPROV hCryptProv, DWORD dwFlags, const void *pvPara );
+extern WINECRYPT_CERTSTORE *CRYPT_SysRegOpenStoreW( HCRYPTPROV hCryptProv, DWORD dwFlags, const void *pvPara );
+extern WINECRYPT_CERTSTORE *CRYPT_SysRegOpenStoreA( HCRYPTPROV hCryptProv, DWORD dwFlags, const void *pvPara );
+extern WINECRYPT_CERTSTORE *CRYPT_SysOpenStoreW( HCRYPTPROV hCryptProv, DWORD dwFlags, const void *pvPara );
+extern WINECRYPT_CERTSTORE *CRYPT_SysOpenStoreA( HCRYPTPROV hCryptProv, DWORD dwFlags, const void *pvPara );
 
 void CRYPT_InitStore( WINECRYPT_CERTSTORE *store, DWORD dwFlags, CertStoreType type, const store_vtbl_t * ) DECLSPEC_HIDDEN;
 void CRYPT_FreeStore(WINECRYPT_CERTSTORE *store) DECLSPEC_HIDDEN;
