@@ -17,7 +17,6 @@ SOURCES = \
 	ctl.c \
 	decode.c \
 	encode.c \
-	filestore.c \
 	main.c \
 	message.c \
 	msg.c \
@@ -33,6 +32,7 @@ SOURCES = \
 	store.c \
 	store_collection.c \
 	store_empty.c \
+	store_file.c \
 	store_memory.c \
 	store_provider.c \
 	str.c \
