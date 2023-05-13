@@ -34,7 +34,7 @@ typedef struct _WINE_FILESTOREINFO
     BOOL       dirty;
 } WINE_FILESTOREINFO;
 
-static void WINAPI CRYPT_FileCloseStore(HCERTSTORE hCertStore, DWORD dwFlags)
+static void WINAPI CRYPT_FileCloseStore( HCERTSTORE hCertStore, DWORD dwFlags )
 {
     WINE_FILESTOREINFO *store = hCertStore;
 
@@ -106,7 +106,7 @@ static BOOL WINAPI CRYPT_FileDeleteCTL(HCERTSTORE hCertStore,
     return TRUE;
 }
 
-static BOOL CRYPT_ReadBlobFromFile(HANDLE file, PCERT_BLOB blob)
+static BOOL CRYPT_ReadBlobFromFile( HANDLE file, PCERT_BLOB blob )
 {
     BOOL ret = TRUE;
 
