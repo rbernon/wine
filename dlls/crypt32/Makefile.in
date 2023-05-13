@@ -33,5 +33,6 @@ SOURCES = \
 	serialize.c \
 	sip.c \
 	store.c \
+	store_empty.c \
 	str.c \
 	unixlib.c
