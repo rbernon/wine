@@ -353,9 +353,10 @@ typedef struct WINE_CRYPTCERTSTORE
     struct properties          *properties;
 } WINECRYPT_CERTSTORE;
 
-void CRYPT_InitStore(WINECRYPT_CERTSTORE *store, DWORD dwFlags,
- CertStoreType type, const store_vtbl_t*);
-void CRYPT_FreeStore(WINECRYPT_CERTSTORE *store);
+extern WINECRYPT_CERTSTORE *CRYPT_MemOpenStore( HCRYPTPROV hCryptProv, DWORD dwFlags, const void *pvPara );
+
+void CRYPT_InitStore( WINECRYPT_CERTSTORE *store, DWORD dwFlags, CertStoreType type, const store_vtbl_t * ) DECLSPEC_HIDDEN;
+void CRYPT_FreeStore(WINECRYPT_CERTSTORE *store) DECLSPEC_HIDDEN;
 BOOL WINAPI I_CertUpdateStore(HCERTSTORE store1, HCERTSTORE store2, DWORD unk0,
  DWORD unk1);
 
