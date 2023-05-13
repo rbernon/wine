@@ -11,7 +11,6 @@ SOURCES = \
 	base64.c \
 	cert.c \
 	chain.c \
-	collectionstore.c \
 	context.c \
 	crl.c \
 	crypt32.rc \
@@ -33,6 +32,7 @@ SOURCES = \
 	serialize.c \
 	sip.c \
 	store.c \
+	store_collection.c \
 	store_empty.c \
 	store_memory.c \
 	str.c \
