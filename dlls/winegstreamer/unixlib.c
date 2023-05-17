@@ -151,6 +151,9 @@ if (getenv("NOVAAPI") && !strncmp(name, "vaapi", 5)) continue;
             continue;
         }
 
+if (getenv("NOVAAPI") && !strncmp(name, "vaapi", 5)) continue;
+if (getenv("NOAVDEC") && !strncmp(name, "avdec", 5)) continue;
+
         element = factory_create_element(GST_ELEMENT_FACTORY(tmp->data));
     }
 
