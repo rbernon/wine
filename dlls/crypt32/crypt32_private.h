@@ -173,7 +173,7 @@ void default_chain_engine_free(void);
 /* (Internal) certificate store types and functions */
 struct WINE_CRYPTCERTSTORE;
 
-typedef struct _CONTEXT_PROPERTY_LIST CONTEXT_PROPERTY_LIST;
+typedef struct properties CONTEXT_PROPERTY_LIST;
 
 typedef struct _context_t context_t;
 

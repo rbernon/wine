@@ -26,10 +26,10 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(crypt);
 
-struct _CONTEXT_PROPERTY_LIST
+struct properties
 {
     CRITICAL_SECTION cs;
-    struct list      properties;
+    struct list list;
 };
 
 typedef struct _CONTEXT_PROPERTY
@@ -40,9 +40,9 @@ typedef struct _CONTEXT_PROPERTY
     struct list entry;
 } CONTEXT_PROPERTY;
 
-CONTEXT_PROPERTY_LIST *ContextPropertyList_Create(void)
+struct properties *ContextPropertyList_Create(void)
 {
-    CONTEXT_PROPERTY_LIST *list = CryptMemAlloc(sizeof(CONTEXT_PROPERTY_LIST));
+    struct properties *props;
 
     if (list)
     {
@@ -53,32 +53,30 @@ CONTEXT_PROPERTY_LIST *ContextPropertyList_Create(void)
     return list;
 }
 
-void ContextPropertyList_Free(CONTEXT_PROPERTY_LIST *list)
+void ContextPropertyList_Free( struct properties *props )
 {
     CONTEXT_PROPERTY *prop, *next;
 
-    LIST_FOR_EACH_ENTRY_SAFE(prop, next, &list->properties, CONTEXT_PROPERTY,
-     entry)
+    LIST_FOR_EACH_ENTRY_SAFE( prop, next, &props->list, CONTEXT_PROPERTY, entry )
     {
         list_remove(&prop->entry);
         CryptMemFree(prop->pbData);
         CryptMemFree(prop);
     }
-    list->cs.DebugInfo->Spare[0] = 0;
-    DeleteCriticalSection(&list->cs);
-    CryptMemFree(list);
+    props->cs.DebugInfo->Spare[0] = 0;
+    DeleteCriticalSection( &props->cs );
+    CryptMemFree( props );
 }
 
-BOOL ContextPropertyList_FindProperty(CONTEXT_PROPERTY_LIST *list, DWORD id,
- PCRYPT_DATA_BLOB blob)
+BOOL ContextPropertyList_FindProperty( struct properties *props, DWORD id, PCRYPT_DATA_BLOB blob )
 {
     CONTEXT_PROPERTY *prop;
     BOOL ret = FALSE;
 
-    TRACE("(%p, %ld, %p)\n", list, id, blob);
+    TRACE( "(%p, %ld, %p)\n", props, id, blob );
 
-    EnterCriticalSection(&list->cs);
-    LIST_FOR_EACH_ENTRY(prop, &list->properties, CONTEXT_PROPERTY, entry)
+    EnterCriticalSection( &props->cs );
+    LIST_FOR_EACH_ENTRY( prop, &props->list, CONTEXT_PROPERTY, entry )
     {
         if (prop->propID == id)
         {
@@ -88,12 +86,11 @@ BOOL ContextPropertyList_FindProperty(CONTEXT_PROPERTY_LIST *list, DWORD id,
             break;
         }
     }
-    LeaveCriticalSection(&list->cs);
+    LeaveCriticalSection( &props->cs );
     return ret;
 }
 
-BOOL ContextPropertyList_SetProperty(CONTEXT_PROPERTY_LIST *list, DWORD id,
- const BYTE *pbData, size_t cbData)
+BOOL ContextPropertyList_SetProperty( struct properties *props, DWORD id, const BYTE *pbData, size_t cbData )
 {
     LPBYTE data;
     BOOL ret = FALSE;
@@ -111,8 +108,8 @@ BOOL ContextPropertyList_SetProperty(CONTEXT_PROPERTY_LIST *list, DWORD id,
         CONTEXT_PROPERTY *prop;
         BOOL found = FALSE;
 
-        EnterCriticalSection(&list->cs);
-        LIST_FOR_EACH_ENTRY(prop, &list->properties, CONTEXT_PROPERTY, entry)
+        EnterCriticalSection( &props->cs );
+        LIST_FOR_EACH_ENTRY( prop, &props->list, CONTEXT_PROPERTY, entry )
         {
             if (prop->propID == id)
             {
@@ -135,23 +132,23 @@ BOOL ContextPropertyList_SetProperty(CONTEXT_PROPERTY_LIST *list, DWORD id,
                 prop->propID = id;
                 prop->cbData = cbData;
                 prop->pbData = data;
-                list_add_tail(&list->properties, &prop->entry);
+                list_add_tail( &props->list, &prop->entry );
                 ret = TRUE;
             }
             else
                 CryptMemFree(data);
         }
-        LeaveCriticalSection(&list->cs);
+        LeaveCriticalSection( &props->cs );
     }
     return ret;
 }
 
-void ContextPropertyList_RemoveProperty(CONTEXT_PROPERTY_LIST *list, DWORD id)
+void ContextPropertyList_RemoveProperty( struct properties *props, DWORD id )
 {
     CONTEXT_PROPERTY *prop;
 
-    EnterCriticalSection(&list->cs);
-    LIST_FOR_EACH_ENTRY(prop, &list->properties, CONTEXT_PROPERTY, entry)
+    EnterCriticalSection( &props->cs );
+    LIST_FOR_EACH_ENTRY( prop, &props->list, CONTEXT_PROPERTY, entry )
     {
         if (prop->propID == id)
         {
@@ -161,22 +158,22 @@ void ContextPropertyList_RemoveProperty(CONTEXT_PROPERTY_LIST *list, DWORD id)
             break;
         }
     }
-    LeaveCriticalSection(&list->cs);
+    LeaveCriticalSection( &props->cs );
 }
 
 /* Since the properties are stored in a list, this is a tad inefficient
  * (O(n^2)) since I have to find the previous position every time.
  */
-DWORD ContextPropertyList_EnumPropIDs(CONTEXT_PROPERTY_LIST *list, DWORD id)
+DWORD ContextPropertyList_EnumPropIDs( struct properties *props, DWORD id )
 {
     DWORD ret;
 
-    EnterCriticalSection(&list->cs);
+    EnterCriticalSection( &props->cs );
     if (id)
     {
         CONTEXT_PROPERTY *cursor = NULL, *prop;
 
-        LIST_FOR_EACH_ENTRY(prop, &list->properties, CONTEXT_PROPERTY, entry)
+        LIST_FOR_EACH_ENTRY( prop, &props->list, CONTEXT_PROPERTY, entry )
         {
             if (prop->propID == id)
             {
@@ -186,30 +183,28 @@ DWORD ContextPropertyList_EnumPropIDs(CONTEXT_PROPERTY_LIST *list, DWORD id)
         }
         if (cursor)
         {
-            if (cursor->entry.next != &list->properties)
-                ret = LIST_ENTRY(cursor->entry.next, CONTEXT_PROPERTY,
-                 entry)->propID;
+            if (cursor->entry.next != &props->list)
+                ret = LIST_ENTRY( cursor->entry.next, CONTEXT_PROPERTY, entry )->propID;
             else
                 ret = 0;
         }
         else
             ret = 0;
     }
-    else if (!list_empty(&list->properties))
-        ret = LIST_ENTRY(list->properties.next, CONTEXT_PROPERTY,
-         entry)->propID;
+    else if (!list_empty( &props->list ))
+        ret = LIST_ENTRY( props->list.next, CONTEXT_PROPERTY, entry )->propID;
     else
         ret = 0;
-    LeaveCriticalSection(&list->cs);
+    LeaveCriticalSection( &props->cs );
     return ret;
 }
 
-void ContextPropertyList_Copy(CONTEXT_PROPERTY_LIST *to, CONTEXT_PROPERTY_LIST *from)
+void ContextPropertyList_Copy( struct properties *to, struct properties *from )
 {
     CONTEXT_PROPERTY *prop;
 
     EnterCriticalSection(&from->cs);
-    LIST_FOR_EACH_ENTRY(prop, &from->properties, CONTEXT_PROPERTY, entry)
+    LIST_FOR_EACH_ENTRY( prop, &from->list, CONTEXT_PROPERTY, entry )
     {
         ContextPropertyList_SetProperty(to, prop->propID, prop->pbData,
          prop->cbData);
