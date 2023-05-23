@@ -68,6 +68,14 @@ void ContextPropertyList_Free( struct properties *props )
     CryptMemFree( props );
 }
 
+static struct property *find_property_from_id( struct properties *props, DWORD id )
+{
+    struct property *prop;
+    LIST_FOR_EACH_ENTRY( prop, &props->list, struct property, entry )
+        if (prop->id == id) return prop;
+    return NULL;
+}
+
 BOOL ContextPropertyList_FindProperty( struct properties *props, DWORD id, PCRYPT_DATA_BLOB blob )
 {
     struct property *prop;
@@ -76,15 +84,11 @@ BOOL ContextPropertyList_FindProperty( struct properties *props, DWORD id, PCRYP
     TRACE( "(%p, %ld, %p)\n", props, id, blob );
 
     EnterCriticalSection( &props->cs );
-    LIST_FOR_EACH_ENTRY( prop, &props->list, struct property, entry )
+    if ((prop = find_property_from_id( props, id )))
     {
-        if (prop->id == id)
-        {
-            blob->cbData = prop->size;
-            blob->pbData = prop->data;
-            ret = TRUE;
-            break;
-        }
+        blob->cbData = prop->size;
+        blob->pbData = prop->data;
+        ret = TRUE;
     }
     LeaveCriticalSection( &props->cs );
     return ret;
@@ -106,18 +110,9 @@ BOOL ContextPropertyList_SetProperty( struct properties *props, DWORD id, const 
     if (!cbData || data)
     {
         struct property *prop;
-        BOOL found = FALSE;
 
         EnterCriticalSection( &props->cs );
-        LIST_FOR_EACH_ENTRY( prop, &props->list, struct property, entry )
-        {
-            if (prop->id == id)
-            {
-                found = TRUE;
-                break;
-            }
-        }
-        if (found)
+        if ((prop = find_property_from_id( props, id )))
         {
             CryptMemFree( prop->data );
             prop->size = cbData;
@@ -148,15 +143,11 @@ void ContextPropertyList_RemoveProperty( struct properties *props, DWORD id )
     struct property *prop;
 
     EnterCriticalSection( &props->cs );
-    LIST_FOR_EACH_ENTRY( prop, &props->list, struct property, entry )
+    if ((prop = find_property_from_id( props, id )))
     {
-        if (prop->id == id)
-        {
-            list_remove(&prop->entry);
-            CryptMemFree( prop->data );
-            CryptMemFree(prop);
-            break;
-        }
+        list_remove( &prop->entry );
+        CryptMemFree( prop->data );
+        CryptMemFree( prop );
     }
     LeaveCriticalSection( &props->cs );
 }
@@ -166,36 +157,18 @@ void ContextPropertyList_RemoveProperty( struct properties *props, DWORD id )
  */
 DWORD ContextPropertyList_EnumPropIDs( struct properties *props, DWORD id )
 {
-    DWORD ret;
+    struct property *prop;
+    struct list *entry;
+    DWORD ret = 0;
 
     EnterCriticalSection( &props->cs );
-    if (id)
-    {
-        struct property *cursor = NULL, *prop;
+    if (!id) entry = list_head( &props->list );
+    else if (!(prop = find_property_from_id( props, id ))) entry = NULL;
+    else entry = list_next( &props->list, &prop->entry );
 
-        LIST_FOR_EACH_ENTRY( prop, &props->list, struct property, entry )
-        {
-            if (prop->id == id)
-            {
-                cursor = prop;
-                break;
-            }
-        }
-        if (cursor)
-        {
-            if (cursor->entry.next != &props->list)
-                ret = LIST_ENTRY( cursor->entry.next, struct property, entry )->id;
-            else
-                ret = 0;
-        }
-        else
-            ret = 0;
-    }
-    else if (!list_empty( &props->list ))
-        ret = LIST_ENTRY( props->list.next, struct property, entry )->id;
-    else
-        ret = 0;
+    if (entry) ret = LIST_ENTRY( entry, struct property, entry )->id;
     LeaveCriticalSection( &props->cs );
+
     return ret;
 }
 
