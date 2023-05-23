@@ -32,13 +32,13 @@ struct properties
     struct list list;
 };
 
-typedef struct _CONTEXT_PROPERTY
+struct property
 {
-    DWORD       propID;
-    DWORD       cbData;
-    LPBYTE      pbData;
+    DWORD id;
+    DWORD size;
+    BYTE *data;
     struct list entry;
-} CONTEXT_PROPERTY;
+};
 
 struct properties *ContextPropertyList_Create(void)
 {
@@ -55,13 +55,13 @@ struct properties *ContextPropertyList_Create(void)
 
 void ContextPropertyList_Free( struct properties *props )
 {
-    CONTEXT_PROPERTY *prop, *next;
+    struct property *prop, *next;
 
-    LIST_FOR_EACH_ENTRY_SAFE( prop, next, &props->list, CONTEXT_PROPERTY, entry )
+    LIST_FOR_EACH_ENTRY_SAFE( prop, next, &props->list, struct property, entry )
     {
-        list_remove(&prop->entry);
-        CryptMemFree(prop->pbData);
-        CryptMemFree(prop);
+        list_remove( &prop->entry );
+        CryptMemFree( prop->data );
+        CryptMemFree( prop );
     }
     props->cs.DebugInfo->Spare[0] = 0;
     DeleteCriticalSection( &props->cs );
@@ -70,18 +70,18 @@ void ContextPropertyList_Free( struct properties *props )
 
 BOOL ContextPropertyList_FindProperty( struct properties *props, DWORD id, PCRYPT_DATA_BLOB blob )
 {
-    CONTEXT_PROPERTY *prop;
+    struct property *prop;
     BOOL ret = FALSE;
 
     TRACE( "(%p, %ld, %p)\n", props, id, blob );
 
     EnterCriticalSection( &props->cs );
-    LIST_FOR_EACH_ENTRY( prop, &props->list, CONTEXT_PROPERTY, entry )
+    LIST_FOR_EACH_ENTRY( prop, &props->list, struct property, entry )
     {
-        if (prop->propID == id)
+        if (prop->id == id)
         {
-            blob->cbData = prop->cbData;
-            blob->pbData = prop->pbData;
+            blob->cbData = prop->size;
+            blob->pbData = prop->data;
             ret = TRUE;
             break;
         }
@@ -105,13 +105,13 @@ BOOL ContextPropertyList_SetProperty( struct properties *props, DWORD id, const 
         data = NULL;
     if (!cbData || data)
     {
-        CONTEXT_PROPERTY *prop;
+        struct property *prop;
         BOOL found = FALSE;
 
         EnterCriticalSection( &props->cs );
-        LIST_FOR_EACH_ENTRY( prop, &props->list, CONTEXT_PROPERTY, entry )
+        LIST_FOR_EACH_ENTRY( prop, &props->list, struct property, entry )
         {
-            if (prop->propID == id)
+            if (prop->id == id)
             {
                 found = TRUE;
                 break;
@@ -119,20 +119,20 @@ BOOL ContextPropertyList_SetProperty( struct properties *props, DWORD id, const 
         }
         if (found)
         {
-            CryptMemFree(prop->pbData);
-            prop->cbData = cbData;
-            prop->pbData = data;
+            CryptMemFree( prop->data );
+            prop->size = cbData;
+            prop->data = data;
             ret = TRUE;
         }
         else
         {
-            prop = CryptMemAlloc(sizeof(CONTEXT_PROPERTY));
+            prop = CryptMemAlloc( sizeof(struct property) );
             if (prop)
             {
-                prop->propID = id;
-                prop->cbData = cbData;
-                prop->pbData = data;
-                list_add_tail( &props->list, &prop->entry );
+                prop->id = id;
+                prop->size = cbData;
+                prop->data = data;
+                list_add_tail(&props->list, &prop->entry);
                 ret = TRUE;
             }
             else
@@ -145,15 +145,15 @@ BOOL ContextPropertyList_SetProperty( struct properties *props, DWORD id, const 
 
 void ContextPropertyList_RemoveProperty( struct properties *props, DWORD id )
 {
-    CONTEXT_PROPERTY *prop;
+    struct property *prop;
 
     EnterCriticalSection( &props->cs );
-    LIST_FOR_EACH_ENTRY( prop, &props->list, CONTEXT_PROPERTY, entry )
+    LIST_FOR_EACH_ENTRY( prop, &props->list, struct property, entry )
     {
-        if (prop->propID == id)
+        if (prop->id == id)
         {
             list_remove(&prop->entry);
-            CryptMemFree(prop->pbData);
+            CryptMemFree( prop->data );
             CryptMemFree(prop);
             break;
         }
@@ -171,11 +171,11 @@ DWORD ContextPropertyList_EnumPropIDs( struct properties *props, DWORD id )
     EnterCriticalSection( &props->cs );
     if (id)
     {
-        CONTEXT_PROPERTY *cursor = NULL, *prop;
+        struct property *cursor = NULL, *prop;
 
-        LIST_FOR_EACH_ENTRY( prop, &props->list, CONTEXT_PROPERTY, entry )
+        LIST_FOR_EACH_ENTRY( prop, &props->list, struct property, entry )
         {
-            if (prop->propID == id)
+            if (prop->id == id)
             {
                 cursor = prop;
                 break;
@@ -184,7 +184,7 @@ DWORD ContextPropertyList_EnumPropIDs( struct properties *props, DWORD id )
         if (cursor)
         {
             if (cursor->entry.next != &props->list)
-                ret = LIST_ENTRY( cursor->entry.next, CONTEXT_PROPERTY, entry )->propID;
+                ret = LIST_ENTRY( cursor->entry.next, struct property, entry )->id;
             else
                 ret = 0;
         }
@@ -192,22 +192,19 @@ DWORD ContextPropertyList_EnumPropIDs( struct properties *props, DWORD id )
             ret = 0;
     }
     else if (!list_empty( &props->list ))
-        ret = LIST_ENTRY( props->list.next, CONTEXT_PROPERTY, entry )->propID;
+        ret = LIST_ENTRY( props->list.next, struct property, entry )->id;
     else
         ret = 0;
     LeaveCriticalSection( &props->cs );
     return ret;
 }
 
-void ContextPropertyList_Copy( struct properties *to, struct properties *from )
+void ContextPropertyList_Copy( struct properties *dst, struct properties *src )
 {
-    CONTEXT_PROPERTY *prop;
+    struct property *prop;
 
-    EnterCriticalSection(&from->cs);
-    LIST_FOR_EACH_ENTRY( prop, &from->list, CONTEXT_PROPERTY, entry )
-    {
-        ContextPropertyList_SetProperty(to, prop->propID, prop->pbData,
-         prop->cbData);
-    }
-    LeaveCriticalSection(&from->cs);
+    EnterCriticalSection( &src->cs );
+    LIST_FOR_EACH_ENTRY( prop, &src->list, struct property, entry )
+        ContextPropertyList_SetProperty( dst, prop->id, prop->data, prop->size );
+    LeaveCriticalSection( &src->cs );
 }
