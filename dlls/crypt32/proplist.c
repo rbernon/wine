@@ -34,11 +34,13 @@ struct properties
 
 struct property
 {
+    struct list entry;
     DWORD id;
     DWORD size;
-    BYTE *data;
-    struct list entry;
+    BYTE data[];
 };
+
+C_ASSERT( sizeof(struct property) == offsetof(struct property, data[0]) );
 
 struct properties *ContextPropertyList_Create(void)
 {
@@ -60,7 +62,6 @@ void ContextPropertyList_Free( struct properties *props )
     LIST_FOR_EACH_ENTRY_SAFE( prop, next, &props->list, struct property, entry )
     {
         list_remove( &prop->entry );
-        CryptMemFree( prop->data );
         CryptMemFree( prop );
     }
     props->cs.DebugInfo->Spare[0] = 0;
@@ -94,48 +95,28 @@ BOOL ContextPropertyList_FindProperty( struct properties *props, DWORD id, PCRYP
     return ret;
 }
 
-BOOL ContextPropertyList_SetProperty( struct properties *props, DWORD id, const BYTE *pbData, size_t cbData )
+BOOL ContextPropertyList_SetProperty( struct properties *props, DWORD id, const BYTE *data, size_t size )
 {
-    LPBYTE data;
-    BOOL ret = FALSE;
+    struct property *prop, *prev;
 
-    if (cbData)
-    {
-        data = CryptMemAlloc(cbData);
-        if (data)
-            memcpy(data, pbData, cbData);
-    }
+    if (!(prop = CryptMemAlloc( offsetof( struct property, data[size] ) ))) return FALSE;
+
+    prop->id = id;
+    prop->size = size;
+    if (size) memcpy( prop->data, data, size );
+
+    EnterCriticalSection( &props->cs );
+    if (!(prev = find_property_from_id( props, id )))
+        list_add_tail( &props->list, &prop->entry );
     else
-        data = NULL;
-    if (!cbData || data)
     {
-        struct property *prop;
-
-        EnterCriticalSection( &props->cs );
-        if ((prop = find_property_from_id( props, id )))
-        {
-            CryptMemFree( prop->data );
-            prop->size = cbData;
-            prop->data = data;
-            ret = TRUE;
-        }
-        else
-        {
-            prop = CryptMemAlloc( sizeof(struct property) );
-            if (prop)
-            {
-                prop->id = id;
-                prop->size = cbData;
-                prop->data = data;
-                list_add_tail(&props->list, &prop->entry);
-                ret = TRUE;
-            }
-            else
-                CryptMemFree(data);
-        }
-        LeaveCriticalSection( &props->cs );
+        list_add_before( &prev->entry, &prop->entry );
+        list_remove( &prev->entry );
+        CryptMemFree( prev );
     }
-    return ret;
+    LeaveCriticalSection( &props->cs );
+
+    return TRUE;
 }
 
 void ContextPropertyList_RemoveProperty( struct properties *props, DWORD id )
@@ -146,7 +127,6 @@ void ContextPropertyList_RemoveProperty( struct properties *props, DWORD id )
     if ((prop = find_property_from_id( props, id )))
     {
         list_remove( &prop->entry );
-        CryptMemFree( prop->data );
         CryptMemFree( prop );
     }
     LeaveCriticalSection( &props->cs );
