@@ -1156,7 +1156,7 @@ HRESULT wait_media_event_(const char *file, int line, IMFMediaSession *session, 
 
     do
     {
-        hr = IMFMediaSession_BeginGetEvent(session, &impl->IMFAsyncCallback_iface, (IUnknown *)session);
+        hr = IMFMediaEventGenerator_BeginGetEvent(session, &impl->IMFAsyncCallback_iface, (IUnknown *)session);
         ok_(file, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
         ret = WaitForSingleObject(impl->event, timeout);
         ok_(file, line)(ret == WAIT_OBJECT_0, "WaitForSingleObject returned %lu\n", ret);
@@ -8320,8 +8320,10 @@ static void subtest_media_source_streams(const WCHAR *resource, const struct pre
     DWORD i, min_time = -1, stream_count;
     IMFMediaSource *media_source;
     IMFSourceResolver *resolver;
+    IMFAsyncCallback *callback;
     MF_OBJECT_TYPE object_type;
     IMFByteStream *stream;
+    PROPVARIANT propvar;
     BOOL selected;
     HRESULT hr;
 
@@ -8415,6 +8417,38 @@ static void subtest_media_source_streams(const WCHAR *resource, const struct pre
         winetest_pop_context();
     }
 
+    /* check that Start stream selection is reflected by CreatePresentationDescriptor */
+
+    for (i = 0; i < stream_count; ++i)
+    {
+        hr = IMFPresentationDescriptor_DeselectStream(presentation, i);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+    }
+    hr = IMFPresentationDescriptor_SelectStream(presentation, 2);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    PropVariantInit(&propvar);
+    hr = IMFMediaSource_Start(media_source, presentation, &GUID_NULL, &propvar);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    IMFPresentationDescriptor_Release(presentation);
+
+    callback = create_test_callback(TRUE);
+    ok(!!callback, "got callback %p\n", callback);
+    hr = wait_media_event(media_source, callback, MESourceStarted, INFINITE, &propvar);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    IMFAsyncCallback_Release(callback);
+
+    hr = IMFMediaSource_CreatePresentationDescriptor(media_source, &presentation);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    for (i = 0; i < stream_count; ++i)
+    {
+        IMFStreamDescriptor *stream;
+        BOOL selected;
+        hr = IMFPresentationDescriptor_GetStreamDescriptorByIndex(presentation, i, &selected, &stream);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        if (i == 2) ok(selected, "got selected %u\n", selected);
+        else todo_wine ok(!selected, "got selected %u\n", selected);
+        IMFStreamDescriptor_Release(stream);
+    }
     IMFPresentationDescriptor_Release(presentation);
 
     hr = IMFMediaSource_Shutdown(media_source);
