@@ -283,6 +283,7 @@ void check_attributes_(const char *file, int line, IMFAttributes *attributes,
         switch (value.vt)
         {
         default: sprintf(buffer, "??"); break;
+        case VT_LPWSTR: sprintf(buffer, "%s", debugstr_w(value.pwszVal)); break;
         case VT_CLSID: sprintf(buffer, "%s", debugstr_guid(value.puuid)); break;
         case VT_UI4: sprintf(buffer, "%lu", value.ulVal); break;
         case VT_UI8:
