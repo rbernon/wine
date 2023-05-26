@@ -208,3 +208,25 @@ ffmpeg -y -i dlls/mf/tests/multiple-streams.tmp \
 */
 /* @makedep: multiple-streams.mp4 */
 multiple-streams.mp4 RCDATA multiple-streams.mp4
+
+/* Generated with:
+gst-launch-1.0 videotestsrc num-buffers=60 pattern=smpte100 ! \
+      taginject tags="title='Video 1',language-code=ger" ! \
+      video/x-raw,format=I420,width=64,height=64,framerate=30000/1001 ! \
+      videoflip method=clockwise ! videoconvert ! mpeg2enc ! mux. \
+      \
+      audiotestsrc num-buffers=60 ! audio/x-raw,format=F32LE,channels=1 ! \
+      taginject tags="language-code=eng" ! \
+      audioconvert ! audioresample ! avenc_aac ! mux. \
+      \
+      audiotestsrc num-buffers=60 ! audio/x-raw,format=S16LE,layout=interleaved ! \
+      taginject tags="language-code=fre" ! \
+      audioconvert ! audioresample ! lamemp3enc ! mux. \
+      \
+      avimux name=mux ! filesink location=dlls/mf/tests/multiple-streams.tmp && \
+ffmpeg -y -i dlls/mf/tests/multiple-streams.tmp -metadata:s:v:0 title="Video" \
+       -metadata:s:a:0 title="This is a very long audio stream title string" \
+       -codec copy -map 0:a:0 -map 0:v:0 -map 0:a:1 dlls/mf/tests/multiple-streams.avi
+*/
+/* @makedep: multiple-streams.avi */
+multiple-streams.avi RCDATA multiple-streams.avi
