@@ -71,6 +71,7 @@ typedef struct attribute_desc media_type_desc[32];
 #define ATTR_BLOB(k, p, n, ...)   {.key = &k, .name = #k, {.vt = VT_VECTOR | VT_UI1, .caub = {.pElems = (void *)p, .cElems = n}}, __VA_ARGS__ }
 #define ATTR_RATIO(k, n, d, ...)  {.key = &k, .name = #k, {.vt = VT_UI8, .uhVal = {.HighPart = n, .LowPart = d}}, .ratio = TRUE, __VA_ARGS__ }
 #define ATTR_UINT64(k, v, ...)    {.key = &k, .name = #k, {.vt = VT_UI8, .uhVal = {.QuadPart = v}}, __VA_ARGS__ }
+#define ATTR_WSTR(k, v, ...)      {.key = &k, .name = #k, {.vt = VT_LPWSTR, .pwszVal = (WCHAR *)v}, __VA_ARGS__ }
 
 #define check_media_type(a, b, c) check_attributes_(__FILE__, __LINE__, (IMFAttributes *)a, b, c)
 #define check_attributes(a, b, c) check_attributes_(__FILE__, __LINE__, a, b, c)

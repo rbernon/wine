@@ -43,6 +43,8 @@
 #include "devpkey.h"
 #include "evr9.h"
 
+static BOOL has_mp4_media_source;
+
 #define DEFINE_EXPECT(func) \
     static BOOL expect_ ## func = FALSE, called_ ## func = FALSE
 
@@ -3891,6 +3893,7 @@ static void test_sample_grabber_orientation(GUID subtype)
         win_skip("MP4 media source is not supported, skipping tests.\n");
         goto done;
     }
+    has_mp4_media_source = TRUE;
 
     callback = create_test_callback(TRUE);
     grabber_callback = impl_from_IMFSampleGrabberSinkCallback(create_test_grabber_callback());
@@ -8296,14 +8299,23 @@ static void load_resource_stream(const WCHAR *name, IMFByteStream **stream)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 }
 
-static void subtest_media_source_streams(const WCHAR *resource)
+struct presentation_desc
 {
+    UINT stream_count;
+    struct attribute_desc attributes[16];
+};
+
+static void subtest_media_source_streams(const WCHAR *resource, const struct presentation_desc *expect)
+{
+    IMFPresentationDescriptor *presentation;
+    DWORD i, min_time = -1, stream_count;
     IMFMediaSource *media_source;
     IMFSourceResolver *resolver;
     MF_OBJECT_TYPE object_type;
-    DWORD i, min_time = -1;
     IMFByteStream *stream;
     HRESULT hr;
+
+    winetest_push_context("%s", debugstr_w(resource));
 
     hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
     ok(hr == S_OK, "got hr %#lx\n", hr);
@@ -8344,6 +8356,16 @@ static void subtest_media_source_streams(const WCHAR *resource)
     }
     todo_wine ok(min_time <= 2, "source resolution took %lums\n", min_time);
 
+    hr = IMFMediaSource_CreatePresentationDescriptor(media_source, &presentation);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+
+    hr = IMFPresentationDescriptor_GetStreamDescriptorCount(presentation, &stream_count);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    todo_wine_if(expect->stream_count == 5 && sizeof(void *) == 4) /* only 3 streams for the mp4 the 32-bit testbot VMs */
+    ok(stream_count == expect->stream_count, "got stream_count %lu\n", stream_count);
+    check_attributes((IMFAttributes *)presentation, expect->attributes, -1);
+    IMFPresentationDescriptor_Release(presentation);
+
     hr = IMFMediaSource_Shutdown(media_source);
     ok(hr == S_OK, "got hr %#lx\n", hr);
     IMFMediaSource_Release(media_source);
@@ -8353,11 +8375,40 @@ skip_tests:
 
     hr = MFShutdown();
     ok(hr == S_OK, "got hr %#lx\n", hr);
+
+    winetest_pop_context();
 }
 
 static void test_media_source_streams(void)
 {
-    subtest_media_source_streams(L"test.mp4");
+/* w7 doesn't have MF_PD_MIME_TYPE */
+#define ATTR_WSTR_OR_NONE(k, v, ...) {.key = has_video_processor ? &k : NULL, .name = #k, {.vt = VT_LPWSTR, .pwszVal = (WCHAR *)v}, __VA_ARGS__ }
+    const struct presentation_desc mp4_desc =
+    {
+        .stream_count = 5,
+        .attributes =
+        {
+            ATTR_RATIO(MF_PD_DURATION, 0, 25000000),
+            ATTR_RATIO(MF_PD_TOTAL_FILE_SIZE, 0, 33041, .todo = TRUE),
+            ATTR_WSTR_OR_NONE(MF_PD_MIME_TYPE, L"video/mp4", .todo = TRUE),
+        },
+    };
+    const struct presentation_desc avi_desc =
+    {
+        .stream_count = 3,
+        .attributes =
+        {
+            ATTR_RATIO(MF_PD_DURATION, 0, 20020000),
+            ATTR_RATIO(MF_PD_TOTAL_FILE_SIZE, 0, 47250, .todo = TRUE),
+            ATTR_UINT32(MF_PD_AUDIO_ENCODING_BITRATE, 106176, .todo = TRUE),
+            ATTR_UINT32(MF_PD_VIDEO_ENCODING_BITRATE, 1125200, .todo = TRUE),
+            ATTR_WSTR_OR_NONE(MF_PD_MIME_TYPE, L"video/avi", .todo = TRUE),
+        },
+    };
+#undef ATTR_WSTR_OR_NONE
+
+    subtest_media_source_streams(L"multiple-streams.mp4", &mp4_desc);
+    subtest_media_source_streams(L"multiple-streams.avi", &avi_desc);
 }
 
 START_TEST(mf)
