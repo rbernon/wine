@@ -520,10 +520,7 @@ static BOOL CRLContext_GetProperty(crl_t *crl, DWORD dwPropId,
 
     TRACE("(%p, %ld, %p, %p)\n", crl, dwPropId, pvData, pcbData);
 
-    if (crl->base.properties) ret = properties_lookup( crl->base.properties, dwPropId, &blob );
-    else
-        ret = FALSE;
-    if (ret)
+    if ((ret = properties_lookup( crl->base.properties, dwPropId, &blob )))
     {
         if (!pvData)
             *pcbData = blob.cbData;
@@ -608,9 +605,7 @@ static BOOL CRLContext_SetProperty(crl_t *crl, DWORD dwPropId,
 
     TRACE("(%p, %ld, %08lx, %p)\n", crl, dwPropId, dwFlags, pvData);
 
-    if (!crl->base.properties)
-        ret = FALSE;
-    else if (!pvData)
+    if (!pvData)
     {
         properties_remove( crl->base.properties, dwPropId );
         ret = TRUE;
