@@ -309,15 +309,15 @@ DWORD WINAPI CertEnumCertificateContextProperties( const CERT_CONTEXT *cert, DWO
     return properties_enum_ids( cert_from_ptr( cert )->base.properties, id );
 }
 
-static BOOL cert_get_hash_property( cert_t *cert, DWORD prop_id, ALG_ID alg_id, const BYTE *key_buf,
-                                    DWORD key_len, void *data_buf, DWORD *data_len )
+static BOOL cert_get_hash_property( const CERT_CONTEXT *cert, DWORD prop_id, ALG_ID alg_id,
+                                    const BYTE *key_buf, DWORD key_len, void *data_buf, DWORD *data_len )
 {
     BOOL ret = CryptHashCertificate( 0, alg_id, 0, key_buf, key_len, data_buf, data_len );
 
     if (ret && data_buf)
     {
         CRYPT_DATA_BLOB blob = {.cbData = *data_len, .pbData = data_buf};
-        ret = CertSetCertificateContextProperty( &cert->ctx, prop_id, 0, &blob );
+        ret = CertSetCertificateContextProperty( cert, prop_id, 0, &blob );
     }
 
     return ret;
@@ -383,12 +383,13 @@ static void fixup_crypt_key_prov_info( CRYPT_KEY_PROV_INFO *info )
     }
 }
 
-static BOOL cert_get_property( cert_t *cert, DWORD id, void *buf, DWORD *len )
+static BOOL cert_get_property( const CERT_CONTEXT *cert, DWORD id, void *buf, DWORD *len )
 {
+    context_t *context = &cert_from_ptr( cert )->base;
     BOOL ret;
     CRYPT_DATA_BLOB blob;
 
-    if ((ret = properties_lookup( cert->base.properties, id, &blob )))
+    if ((ret = properties_lookup( context->properties, id, &blob )))
     {
         CERT_KEY_CONTEXT key;
 
@@ -407,39 +408,38 @@ static BOOL cert_get_property( cert_t *cert, DWORD id, void *buf, DWORD *len )
         switch (id)
         {
         case CERT_SHA1_HASH_PROP_ID:
-            ret = cert_get_hash_property( cert, id, CALG_SHA1, cert->ctx.pbCertEncoded,
-                                           cert->ctx.cbCertEncoded, buf, len );
+            ret = cert_get_hash_property( cert, id, CALG_SHA1, cert->pbCertEncoded,
+                                          cert->cbCertEncoded, buf, len );
             break;
         case CERT_MD5_HASH_PROP_ID:
-            ret = cert_get_hash_property( cert, id, CALG_MD5, cert->ctx.pbCertEncoded,
-                                           cert->ctx.cbCertEncoded, buf, len );
+            ret = cert_get_hash_property( cert, id, CALG_MD5, cert->pbCertEncoded,
+                                          cert->cbCertEncoded, buf, len );
             break;
         case CERT_SUBJECT_NAME_MD5_HASH_PROP_ID:
-            ret = cert_get_hash_property( cert, id, CALG_MD5, cert->ctx.pCertInfo->Subject.pbData,
-                                           cert->ctx.pCertInfo->Subject.cbData, buf, len );
+            ret = cert_get_hash_property( cert, id, CALG_MD5, cert->pCertInfo->Subject.pbData,
+                                          cert->pCertInfo->Subject.cbData, buf, len );
             break;
         case CERT_SUBJECT_PUBLIC_KEY_MD5_HASH_PROP_ID:
-            ret = cert_get_hash_property( cert, id, CALG_MD5, cert->ctx.pCertInfo->SubjectPublicKeyInfo.PublicKey.pbData,
-                                           cert->ctx.pCertInfo->SubjectPublicKeyInfo.PublicKey.cbData, buf, len );
+            ret = cert_get_hash_property( cert, id, CALG_MD5, cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.pbData,
+                                          cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.cbData, buf, len );
             break;
         case CERT_ISSUER_SERIAL_NUMBER_MD5_HASH_PROP_ID:
-            ret = cert_get_hash_property( cert, id, CALG_MD5, cert->ctx.pCertInfo->SerialNumber.pbData,
-                                           cert->ctx.pCertInfo->SerialNumber.cbData, buf, len );
+            ret = cert_get_hash_property( cert, id, CALG_MD5, cert->pCertInfo->SerialNumber.pbData,
+                                          cert->pCertInfo->SerialNumber.cbData, buf, len );
             break;
         case CERT_SIGNATURE_HASH_PROP_ID:
-            ret = CryptHashToBeSigned( 0, cert->ctx.dwCertEncodingType, cert->ctx.pbCertEncoded,
-                                       cert->ctx.cbCertEncoded, buf, len );
+            ret = CryptHashToBeSigned( 0, cert->dwCertEncodingType, cert->pbCertEncoded,
+                                       cert->cbCertEncoded, buf, len );
             if (ret && buf)
             {
                 CRYPT_DATA_BLOB blob = {.cbData = *len, .pbData = buf};
-                ret = CertSetCertificateContextProperty( &cert->ctx, id, 0, &blob );
+                ret = CertSetCertificateContextProperty( cert, id, 0, &blob );
             }
             break;
         case CERT_KEY_IDENTIFIER_PROP_ID:
         {
-            CERT_EXTENSION *ext = CertFindExtension( szOID_SUBJECT_KEY_IDENTIFIER,
-                                                     cert->ctx.pCertInfo->cExtension,
-                                                     cert->ctx.pCertInfo->rgExtension );
+            CERT_EXTENSION *ext = CertFindExtension( szOID_SUBJECT_KEY_IDENTIFIER, cert->pCertInfo->cExtension,
+                                                     cert->pCertInfo->rgExtension );
             if (ext)
             {
                 CRYPT_DATA_BLOB value;
@@ -451,7 +451,7 @@ static BOOL cert_get_property( cert_t *cert, DWORD id, void *buf, DWORD *len )
                 if (ret)
                 {
                     ret = copy_property_data( buf, len, value.pbData, value.cbData );
-                    CertSetCertificateContextProperty( &cert->ctx, id, 0, &value );
+                    CertSetCertificateContextProperty( cert, id, 0, &value );
                 }
             }
             else SetLastError( ERROR_INVALID_DATA );
@@ -466,9 +466,8 @@ static BOOL cert_get_property( cert_t *cert, DWORD id, void *buf, DWORD *len )
     return ret;
 }
 
-BOOL WINAPI CertGetCertificateContextProperty( const CERT_CONTEXT *pCertContext, DWORD id, void *buf, DWORD *len )
+BOOL WINAPI CertGetCertificateContextProperty( const CERT_CONTEXT *cert, DWORD id, void *buf, DWORD *len )
 {
-    cert_t *cert = cert_from_ptr( pCertContext );
     BOOL ret;
 
     TRACE( "cert %p, id %#lx, buf %p, len %p\n", cert, id, buf, len );
@@ -483,7 +482,7 @@ BOOL WINAPI CertGetCertificateContextProperty( const CERT_CONTEXT *pCertContext,
         ret = FALSE;
         break;
     case CERT_ACCESS_STATE_PROP_ID:
-        ret = CertGetStoreProperty( cert->ctx.hCertStore, id, buf, len );
+        ret = CertGetStoreProperty( cert->hCertStore, id, buf, len );
         break;
     case CERT_KEY_PROV_HANDLE_PROP_ID:
     {
@@ -592,8 +591,9 @@ static BOOL cert_set_crypt_key_context_property( struct properties *properties, 
     return properties_insert( properties, CERT_KEY_CONTEXT_PROP_ID, (const BYTE *)&ctx, ctx.cbSize );
 }
 
-static BOOL cert_set_property( cert_t *cert, DWORD id, DWORD flags, const void *data )
+static BOOL cert_set_property( const CERT_CONTEXT *cert, DWORD id, DWORD flags, const void *data )
 {
+    context_t *context = &cert_from_ptr( cert )->base;
     BOOL ret;
 
     if (id >= CERT_FIRST_USER_PROP_ID && id <= CERT_LAST_USER_PROP_ID)
@@ -601,11 +601,11 @@ static BOOL cert_set_property( cert_t *cert, DWORD id, DWORD flags, const void *
         if (data)
         {
             const CRYPT_DATA_BLOB *blob = data;
-            ret = properties_insert( cert->base.properties, id, blob->pbData, blob->cbData );
+            ret = properties_insert( context->properties, id, blob->pbData, blob->cbData );
         }
         else
         {
-            properties_remove( cert->base.properties, id );
+            properties_remove( context->properties, id );
             ret = TRUE;
         }
     }
@@ -635,20 +635,20 @@ static BOOL cert_set_property( cert_t *cert, DWORD id, DWORD flags, const void *
             if (data)
             {
                 const CRYPT_DATA_BLOB *blob = data;
-                ret = properties_insert( cert->base.properties, id, blob->pbData, blob->cbData );
+                ret = properties_insert( context->properties, id, blob->pbData, blob->cbData );
             }
             else
             {
-                properties_remove( cert->base.properties, id );
+                properties_remove( context->properties, id );
                 ret = TRUE;
             }
             break;
         case CERT_DATE_STAMP_PROP_ID:
             if (data)
-                ret = properties_insert( cert->base.properties, id, data, sizeof(FILETIME) );
+                ret = properties_insert( context->properties, id, data, sizeof(FILETIME) );
             else
             {
-                properties_remove( cert->base.properties, id );
+                properties_remove( context->properties, id );
                 ret = TRUE;
             }
             break;
@@ -664,21 +664,21 @@ static BOOL cert_set_property( cert_t *cert, DWORD id, DWORD flags, const void *
                 }
                 else
                 {
-                    ret = cert_set_crypt_key_context_property( cert->base.properties, data );
+                    ret = cert_set_crypt_key_context_property( context->properties, data );
                 }
             }
             else
             {
-                properties_remove( cert->base.properties, id );
+                properties_remove( context->properties, id );
                 ret = TRUE;
             }
             break;
         case CERT_KEY_PROV_INFO_PROP_ID:
             if (data)
-                ret = cert_set_crypt_key_prov_info_property( cert->base.properties, data );
+                ret = cert_set_crypt_key_prov_info_property( context->properties, data );
             else
             {
-                properties_remove( cert->base.properties, id );
+                properties_remove( context->properties, id );
                 ret = TRUE;
             }
             break;
@@ -687,7 +687,7 @@ static BOOL cert_set_property( cert_t *cert, DWORD id, DWORD flags, const void *
             CERT_KEY_CONTEXT key;
             DWORD size = sizeof(key);
 
-            ret = CertGetCertificateContextProperty( &cert->ctx, CERT_KEY_CONTEXT_PROP_ID, &key, &size );
+            ret = CertGetCertificateContextProperty( cert, CERT_KEY_CONTEXT_PROP_ID, &key, &size );
             if (ret && !(flags & CERT_STORE_NO_CRYPT_RELEASE_FLAG)) CryptReleaseContext( key.hCryptProv, 0 );
 
             key.cbSize = sizeof(key);
@@ -732,7 +732,7 @@ BOOL WINAPI CertSetCertificateContextProperty( const CERT_CONTEXT *cert, DWORD i
         return FALSE;
     }
 
-    ret = cert_set_property( cert_from_ptr( cert ), id, flags, data );
+    ret = cert_set_property( cert, id, flags, data );
     TRACE( "returning %d\n", ret );
     return ret;
 }
