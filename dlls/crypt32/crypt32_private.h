@@ -214,15 +214,10 @@ struct WINE_CRYPTCERTSTORE;
 struct properties;
 
 typedef struct _context_t context_t;
-
-typedef struct {
-    void (*free)(context_t*);
-    struct _context_t *(*link)( context_t *, struct WINE_CRYPTCERTSTORE * );
-    struct _context_t *(*clone)( context_t *, struct WINE_CRYPTCERTSTORE * );
-} context_vtbl_t;
+struct context_vtbl;
 
 struct _context_t {
-    const context_vtbl_t *vtbl;
+    const struct context_vtbl *vtbl;
     LONG ref;
     struct WINE_CRYPTCERTSTORE *store;
     struct _context_t *linked;
@@ -433,19 +428,8 @@ DWORD cert_name_to_str_with_indent(DWORD dwCertEncodingType, DWORD indent,
  *  Context functions
  */
 
-/* Allocates a new data context, a context which owns properties directly.
- * contextSize is the size of the public data type associated with context,
- * which should be one of CERT_CONTEXT, CRL_CONTEXT, or CTL_CONTEXT.
- * Free with Context_Release.
- */
-context_t *Context_CreateDataContext(size_t contextSize, const context_vtbl_t *vtbl, struct WINE_CRYPTCERTSTORE*);
-
-/* Creates a new link context.  The context refers to linked
- * rather than owning its own properties.  If addRef is TRUE (which ordinarily
- * it should be) linked is addref'd.
- * Free with Context_Release.
- */
-context_t *Context_CreateLinkContext(unsigned contextSize, context_t *linked, struct WINE_CRYPTCERTSTORE*);
+extern context_t *context_create_copy( context_t *source, struct WINE_CRYPTCERTSTORE *store );
+extern context_t *context_create_link( context_t *source, struct WINE_CRYPTCERTSTORE *store );
 
 extern void cert_context_copy_properties( const CERT_CONTEXT *dst, const CERT_CONTEXT *src );
 extern void crl_context_copy_properties( const CRL_CONTEXT *dst, const CRL_CONTEXT *src );
