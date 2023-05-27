@@ -402,42 +402,30 @@ BOOL WINAPI CertIsValidCRLForCertificate(PCCERT_CONTEXT pCert,
     return ret;
 }
 
-static PCRL_ENTRY CRYPT_FindCertificateInCRL(PCERT_INFO cert, const CRL_INFO *crl)
+static CRL_ENTRY *find_certificate_in_crl( CERT_INFO *cert, const CRL_INFO *crl )
 {
     DWORD i;
-    PCRL_ENTRY entry = NULL;
 
-    for (i = 0; !entry && i < crl->cCRLEntry; i++)
-        if (CertCompareIntegerBlob(&crl->rgCRLEntry[i].SerialNumber,
-         &cert->SerialNumber))
-            entry = &crl->rgCRLEntry[i];
-    return entry;
+    for (i = 0; i < crl->cCRLEntry; i++)
+        if (CertCompareIntegerBlob( &crl->rgCRLEntry[i].SerialNumber, &cert->SerialNumber ))
+            return &crl->rgCRLEntry[i];
+
+    return NULL;
 }
 
-BOOL WINAPI CertFindCertificateInCRL(PCCERT_CONTEXT pCert,
- PCCRL_CONTEXT pCrlContext, DWORD dwFlags, void *pvReserved,
- PCRL_ENTRY *ppCrlEntry)
+BOOL WINAPI CertFindCertificateInCRL( const CERT_CONTEXT *cert, const CRL_CONTEXT *crl,
+                                      DWORD flags, void *reserved, CRL_ENTRY **entry )
 {
-    TRACE("(%p, %p, %08lx, %p, %p)\n", pCert, pCrlContext, dwFlags, pvReserved,
-     ppCrlEntry);
-
-    *ppCrlEntry = CRYPT_FindCertificateInCRL(pCert->pCertInfo,
-     pCrlContext->pCrlInfo);
+    TRACE( "cert %p, crl %p, flags %#lx, reserved %p, entry %p\n", cert, crl, flags, reserved, entry );
+    *entry = find_certificate_in_crl( cert->pCertInfo, crl->pCrlInfo );
     return TRUE;
 }
 
-BOOL WINAPI CertVerifyCRLRevocation(DWORD dwCertEncodingType,
- PCERT_INFO pCertId, DWORD cCrlInfo, PCRL_INFO rgpCrlInfo[])
+BOOL WINAPI CertVerifyCRLRevocation( DWORD encoding, CERT_INFO *cert, DWORD count, CRL_INFO **crls )
 {
-    DWORD i;
-    PCRL_ENTRY entry = NULL;
-
-    TRACE("(%08lx, %p, %ld, %p)\n", dwCertEncodingType, pCertId, cCrlInfo,
-     rgpCrlInfo);
-
-    for (i = 0; !entry && i < cCrlInfo; i++)
-        entry = CRYPT_FindCertificateInCRL(pCertId, rgpCrlInfo[i]);
-    return entry == NULL;
+    TRACE( "encoding %#lx, cert %p, count %lu, crls %p\n", encoding, cert, count, crls );
+    while (count--) if (find_certificate_in_crl( cert, crls[count] )) return FALSE;
+    return TRUE;
 }
 
 LONG WINAPI CertVerifyCRLTimeValidity( FILETIME *time, CRL_INFO *crl )
