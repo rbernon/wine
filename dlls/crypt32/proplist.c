@@ -26,12 +26,6 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(crypt);
 
-struct properties
-{
-    CRITICAL_SECTION cs;
-    struct list list;
-};
-
 struct property
 {
     struct list entry;
@@ -41,6 +35,13 @@ struct property
 };
 
 C_ASSERT( sizeof(struct property) == offsetof(struct property, data[0]) );
+
+struct properties
+{
+    CRITICAL_SECTION cs;
+    struct list list;
+    struct property *iter;
+};
 
 struct properties *properties_create(void)
 {
@@ -72,6 +73,7 @@ void properties_destroy( struct properties *props )
 static struct property *find_property_from_id( struct properties *props, DWORD id )
 {
     struct property *prop;
+    if (props->iter && props->iter->id == id) return props->iter;
     LIST_FOR_EACH_ENTRY( prop, &props->list, struct property, entry )
         if (prop->id == id) return prop;
     return NULL;
@@ -110,6 +112,7 @@ BOOL properties_insert( struct properties *props, DWORD id, const BYTE *data, si
         list_add_tail( &props->list, &prop->entry );
     else
     {
+        if (prev == props->iter) props->iter = prop;
         list_add_before( &prev->entry, &prop->entry );
         list_remove( &prev->entry );
         CryptMemFree( prev );
@@ -126,15 +129,13 @@ void properties_remove( struct properties *props, DWORD id )
     EnterCriticalSection( &props->cs );
     if ((prop = find_property_from_id( props, id )))
     {
+        if (prop == props->iter) props->iter = NULL;
         list_remove( &prop->entry );
         CryptMemFree( prop );
     }
     LeaveCriticalSection( &props->cs );
 }
 
-/* Since the properties are stored in a list, this is a tad inefficient
- * (O(n^2)) since I have to find the previous position every time.
- */
 DWORD properties_enum_ids( struct properties *props, DWORD id )
 {
     struct property *prop;
@@ -146,7 +147,11 @@ DWORD properties_enum_ids( struct properties *props, DWORD id )
     else if (!(prop = find_property_from_id( props, id ))) entry = NULL;
     else entry = list_next( &props->list, &prop->entry );
 
-    if (entry) ret = LIST_ENTRY( entry, struct property, entry )->id;
+    if (entry)
+    {
+        props->iter = LIST_ENTRY( entry, struct property, entry );
+        ret = props->iter->id;
+    }
     LeaveCriticalSection( &props->cs );
 
     return ret;
