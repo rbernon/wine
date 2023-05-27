@@ -159,12 +159,14 @@ static BOOL store_collection_add_cert( WINECRYPT_CERTSTORE *store, context_t *ce
     context_t *childContext = NULL;
     WINE_COLLECTIONSTORE *cs = (WINE_COLLECTIONSTORE*)store;
     WINE_STORE_LIST_ENTRY *storeEntry = NULL;
+    const CERT_CONTEXT *child;
 
     ret = FALSE;
     if (toReplace)
     {
         storeEntry = toReplace->u.ptr;
-        ret = storeEntry->store->vtbl->certs.addContext( storeEntry->store, cert, toReplace->linked, &childContext, TRUE );
+        ret = CertAddCertificateLinkToStore( storeEntry->store, context_ptr(cert), CERT_STORE_ADD_REPLACE_EXISTING, &child );
+        childContext = context_from_ptr( child );
     }
     else
     {
@@ -176,7 +178,8 @@ static BOOL store_collection_add_cert( WINECRYPT_CERTSTORE *store, context_t *ce
             if (entry->dwUpdateFlags & CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG)
             {
                 storeEntry = entry;
-                ret = storeEntry->store->vtbl->certs.addContext( entry->store, cert, NULL, &childContext, TRUE );
+                ret = CertAddCertificateLinkToStore( storeEntry->store, context_ptr(cert), CERT_STORE_ADD_REPLACE_EXISTING, &child );
+                childContext = context_from_ptr( child );
                 break;
             }
         }
@@ -243,12 +246,14 @@ static BOOL store_collection_add_crl( WINECRYPT_CERTSTORE *store, context_t *crl
     context_t *childContext = NULL;
     WINE_COLLECTIONSTORE *cs = (WINE_COLLECTIONSTORE*)store;
     WINE_STORE_LIST_ENTRY *storeEntry = NULL;
+    const CRL_CONTEXT *child;
 
     ret = FALSE;
     if (toReplace)
     {
         storeEntry = toReplace->u.ptr;
-        ret = storeEntry->store->vtbl->crls.addContext( storeEntry->store, crl, toReplace->linked, &childContext, TRUE );
+        ret = CertAddCRLLinkToStore( storeEntry->store, context_ptr(crl), CERT_STORE_ADD_REPLACE_EXISTING, &child );
+        childContext = context_from_ptr( child );
     }
     else
     {
@@ -260,7 +265,8 @@ static BOOL store_collection_add_crl( WINECRYPT_CERTSTORE *store, context_t *crl
             if (entry->dwUpdateFlags & CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG)
             {
                 storeEntry = entry;
-                ret = storeEntry->store->vtbl->crls.addContext( entry->store, crl, NULL, &childContext, TRUE );
+                ret = CertAddCRLLinkToStore( storeEntry->store, context_ptr(crl), CERT_STORE_ADD_REPLACE_EXISTING, &child );
+                childContext = context_from_ptr( child );
                 break;
             }
         }
@@ -327,12 +333,14 @@ static BOOL store_collection_add_ctl( WINECRYPT_CERTSTORE *store, context_t *ctl
     context_t *childContext = NULL;
     WINE_COLLECTIONSTORE *cs = (WINE_COLLECTIONSTORE*)store;
     WINE_STORE_LIST_ENTRY *storeEntry = NULL;
+    const CTL_CONTEXT *child;
 
     ret = FALSE;
     if (toReplace)
     {
         storeEntry = toReplace->u.ptr;
-        ret = storeEntry->store->vtbl->ctls.addContext( storeEntry->store, ctl, toReplace->linked, &childContext, TRUE );
+        ret = CertAddCTLLinkToStore( storeEntry->store, context_ptr(ctl), CERT_STORE_ADD_REPLACE_EXISTING, &child );
+        childContext = context_from_ptr( child );
     }
     else
     {
@@ -344,7 +352,8 @@ static BOOL store_collection_add_ctl( WINECRYPT_CERTSTORE *store, context_t *ctl
             if (entry->dwUpdateFlags & CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG)
             {
                 storeEntry = entry;
-                ret = storeEntry->store->vtbl->ctls.addContext( entry->store, ctl, NULL, &childContext, TRUE );
+                ret = CertAddCTLLinkToStore( storeEntry->store, context_ptr(ctl), CERT_STORE_ADD_REPLACE_EXISTING, &child );
+                childContext = context_from_ptr( child );
                 break;
             }
         }
