@@ -1200,7 +1200,7 @@ DWORD WINAPI CertEnumCTLContextProperties( const CTL_CONTEXT *ctl, DWORD id )
     return properties_enum_ids( ctl_from_ptr( ctl )->base.properties, id );
 }
 
-static BOOL ctl_get_hashed_property( ctl_t *ctl, DWORD prop_id, ALG_ID alg_id, const BYTE *hash_buf,
+static BOOL ctl_get_hashed_property( const CTL_CONTEXT *ctl, DWORD prop_id, ALG_ID alg_id, const BYTE *hash_buf,
                                      DWORD hash_len, void *data_buf, DWORD *data_len )
 {
     BOOL ret = CryptHashCertificate( 0, alg_id, 0, hash_buf, hash_len, data_buf, data_len );
@@ -1208,18 +1208,19 @@ static BOOL ctl_get_hashed_property( ctl_t *ctl, DWORD prop_id, ALG_ID alg_id, c
     if (ret && data_buf)
     {
         CRYPT_DATA_BLOB blob = {.cbData = *data_len, .pbData = data_buf};
-        ret = CertSetCTLContextProperty( &ctl->ctx, prop_id, 0, &blob );
+        ret = CertSetCTLContextProperty( ctl, prop_id, 0, &blob );
     }
 
     return ret;
 }
 
-static BOOL ctl_get_property( ctl_t *ctl, DWORD id, void *buf, DWORD *len )
+static BOOL ctl_get_property( const CTL_CONTEXT *ctl, DWORD id, void *buf, DWORD *len )
 {
+    context_t *context = &ctl_from_ptr( ctl )->base;
     BOOL ret;
     CRYPT_DATA_BLOB blob;
 
-    if ((ret = properties_lookup( ctl->base.properties, id, &blob )))
+    if ((ret = properties_lookup( context->properties, id, &blob )))
     {
         if (!buf)
             *len = blob.cbData;
@@ -1241,12 +1242,12 @@ static BOOL ctl_get_property( ctl_t *ctl, DWORD id, void *buf, DWORD *len )
         switch (id)
         {
         case CERT_SHA1_HASH_PROP_ID:
-            ret = ctl_get_hashed_property( ctl, id, CALG_SHA1, ctl->ctx.pbCtlEncoded,
-                                           ctl->ctx.cbCtlEncoded, buf, len );
+            ret = ctl_get_hashed_property( ctl, id, CALG_SHA1, ctl->pbCtlEncoded,
+                                           ctl->cbCtlEncoded, buf, len );
             break;
         case CERT_MD5_HASH_PROP_ID:
-            ret = ctl_get_hashed_property( ctl, id, CALG_MD5, ctl->ctx.pbCtlEncoded,
-                                           ctl->ctx.cbCtlEncoded, buf, len );
+            ret = ctl_get_hashed_property( ctl, id, CALG_MD5, ctl->pbCtlEncoded,
+                                           ctl->cbCtlEncoded, buf, len );
             break;
         default:
             SetLastError( CRYPT_E_NOT_FOUND );
@@ -1290,7 +1291,7 @@ BOOL WINAPI CertGetCTLContextProperty( const CTL_CONTEXT *ctl, DWORD id, void *b
         }
         break;
     default:
-        ret = ctl_get_property( ctl_from_ptr( ctl ), id, buf, len );
+        ret = ctl_get_property( ctl, id, buf, len );
         break;
     }
 
@@ -1298,13 +1299,14 @@ BOOL WINAPI CertGetCTLContextProperty( const CTL_CONTEXT *ctl, DWORD id, void *b
     return ret;
 }
 
-static BOOL ctl_set_property( ctl_t *ctl, DWORD id, DWORD flags, const void *data )
+static BOOL ctl_set_property( const CTL_CONTEXT *ctl, DWORD id, DWORD flags, const void *data )
 {
+    context_t *context = &ctl_from_ptr( ctl )->base;
     BOOL ret;
 
     if (!data)
     {
-        properties_remove( ctl->base.properties, id );
+        properties_remove( context->properties, id );
         ret = TRUE;
     }
     else
@@ -1330,11 +1332,11 @@ static BOOL ctl_set_property( ctl_t *ctl, DWORD id, DWORD flags, const void *dat
         case CERT_RENEWAL_PROP_ID:
         {
             CRYPT_DATA_BLOB *blob = (CRYPT_DATA_BLOB *)data;
-            ret = properties_insert( ctl->base.properties, id, blob->pbData, blob->cbData );
+            ret = properties_insert( context->properties, id, blob->pbData, blob->cbData );
             break;
         }
         case CERT_DATE_STAMP_PROP_ID:
-            ret = properties_insert( ctl->base.properties, id, data, sizeof(FILETIME) );
+            ret = properties_insert( context->properties, id, data, sizeof(FILETIME) );
             break;
         default:
             FIXME( "%ld: stub\n", id );
@@ -1366,7 +1368,7 @@ BOOL WINAPI CertSetCTLContextProperty( const CTL_CONTEXT *ctl, DWORD id, DWORD f
         return FALSE;
     }
 
-    ret = ctl_set_property( ctl_from_ptr( ctl ), id, flags, data );
+    ret = ctl_set_property( ctl, id, flags, data );
 
     TRACE( "returning %d\n", ret );
     return ret;
