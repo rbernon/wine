@@ -90,53 +90,6 @@ static context_t *CRYPT_CollectionCreateContextFromChild(WINE_COLLECTIONSTORE *s
     return ret;
 }
 
-static BOOL CRYPT_CollectionAddContext(WINE_COLLECTIONSTORE *store,
- unsigned int contextFuncsOffset, context_t *context, context_t *toReplace,
- context_t **pChildContext)
-{
-    BOOL ret;
-    context_t *childContext = NULL;
-    WINE_STORE_LIST_ENTRY *storeEntry = NULL;
-
-    TRACE("(%p, %d, %p, %p)\n", store, contextFuncsOffset, context, toReplace);
-
-    ret = FALSE;
-    if (toReplace)
-    {
-        context_t *existingLinked = toReplace->linked;
-        CONTEXT_FUNCS *contextFuncs;
-
-        storeEntry = toReplace->u.ptr;
-        contextFuncs = (CONTEXT_FUNCS*)((LPBYTE)storeEntry->store->vtbl +
-         contextFuncsOffset);
-        ret = contextFuncs->addContext(storeEntry->store, context,
-         existingLinked, &childContext, TRUE);
-    }
-    else
-    {
-        WINE_STORE_LIST_ENTRY *entry;
-
-        EnterCriticalSection(&store->cs);
-        LIST_FOR_EACH_ENTRY(entry, &store->stores, WINE_STORE_LIST_ENTRY, entry)
-        {
-            if (entry->dwUpdateFlags & CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG)
-            {
-                CONTEXT_FUNCS *contextFuncs = (CONTEXT_FUNCS*)(
-                 (LPBYTE)entry->store->vtbl + contextFuncsOffset);
-
-                storeEntry = entry;
-                ret = contextFuncs->addContext(entry->store, context, NULL, &childContext, TRUE);
-                break;
-            }
-        }
-        LeaveCriticalSection(&store->cs);
-        if (!storeEntry)
-            SetLastError(E_ACCESSDENIED);
-    }
-    *pChildContext = childContext;
-    return ret;
-}
-
 /* Advances a collection enumeration by one context, if possible, where
  * advancing means:
  * - calling the current store's enumeration function once, and returning
@@ -205,9 +158,32 @@ static BOOL store_collection_add_cert( WINECRYPT_CERTSTORE *store, context_t *ce
     BOOL ret;
     context_t *childContext = NULL;
     WINE_COLLECTIONSTORE *cs = (WINE_COLLECTIONSTORE*)store;
+    WINE_STORE_LIST_ENTRY *storeEntry = NULL;
 
-    ret = CRYPT_CollectionAddContext(cs, offsetof(store_vtbl_t, certs),
-     cert, toReplace, &childContext);
+    ret = FALSE;
+    if (toReplace)
+    {
+        storeEntry = toReplace->u.ptr;
+        ret = storeEntry->store->vtbl->certs.addContext( storeEntry->store, cert, toReplace->linked, &childContext, TRUE );
+    }
+    else
+    {
+        WINE_STORE_LIST_ENTRY *entry;
+
+        EnterCriticalSection( &cs->cs );
+        LIST_FOR_EACH_ENTRY( entry, &cs->stores, WINE_STORE_LIST_ENTRY, entry )
+        {
+            if (entry->dwUpdateFlags & CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG)
+            {
+                storeEntry = entry;
+                ret = storeEntry->store->vtbl->certs.addContext( entry->store, cert, NULL, &childContext, TRUE );
+                break;
+            }
+        }
+        LeaveCriticalSection( &cs->cs );
+        if (!storeEntry) SetLastError( E_ACCESSDENIED );
+    }
+
     if (ppStoreContext && childContext)
     {
         WINE_STORE_LIST_ENTRY *storeEntry = childContext->u.ptr;
@@ -266,9 +242,32 @@ static BOOL store_collection_add_crl( WINECRYPT_CERTSTORE *store, context_t *crl
     BOOL ret;
     context_t *childContext = NULL;
     WINE_COLLECTIONSTORE *cs = (WINE_COLLECTIONSTORE*)store;
+    WINE_STORE_LIST_ENTRY *storeEntry = NULL;
 
-    ret = CRYPT_CollectionAddContext(cs, offsetof(store_vtbl_t, crls),
-     crl, toReplace, &childContext);
+    ret = FALSE;
+    if (toReplace)
+    {
+        storeEntry = toReplace->u.ptr;
+        ret = storeEntry->store->vtbl->crls.addContext( storeEntry->store, crl, toReplace->linked, &childContext, TRUE );
+    }
+    else
+    {
+        WINE_STORE_LIST_ENTRY *entry;
+
+        EnterCriticalSection( &cs->cs );
+        LIST_FOR_EACH_ENTRY( entry, &cs->stores, WINE_STORE_LIST_ENTRY, entry )
+        {
+            if (entry->dwUpdateFlags & CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG)
+            {
+                storeEntry = entry;
+                ret = storeEntry->store->vtbl->crls.addContext( entry->store, crl, NULL, &childContext, TRUE );
+                break;
+            }
+        }
+        LeaveCriticalSection( &cs->cs );
+        if (!storeEntry) SetLastError( E_ACCESSDENIED );
+    }
+
     if (ppStoreContext && childContext)
     {
         WINE_STORE_LIST_ENTRY *storeEntry = childContext->u.ptr;
@@ -327,9 +326,32 @@ static BOOL store_collection_add_ctl( WINECRYPT_CERTSTORE *store, context_t *ctl
     BOOL ret;
     context_t *childContext = NULL;
     WINE_COLLECTIONSTORE *cs = (WINE_COLLECTIONSTORE*)store;
+    WINE_STORE_LIST_ENTRY *storeEntry = NULL;
 
-    ret = CRYPT_CollectionAddContext(cs, offsetof(store_vtbl_t, ctls),
-     ctl, toReplace, &childContext);
+    ret = FALSE;
+    if (toReplace)
+    {
+        storeEntry = toReplace->u.ptr;
+        ret = storeEntry->store->vtbl->ctls.addContext( storeEntry->store, ctl, toReplace->linked, &childContext, TRUE );
+    }
+    else
+    {
+        WINE_STORE_LIST_ENTRY *entry;
+
+        EnterCriticalSection( &cs->cs );
+        LIST_FOR_EACH_ENTRY( entry, &cs->stores, WINE_STORE_LIST_ENTRY, entry )
+        {
+            if (entry->dwUpdateFlags & CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG)
+            {
+                storeEntry = entry;
+                ret = storeEntry->store->vtbl->ctls.addContext( entry->store, ctl, NULL, &childContext, TRUE );
+                break;
+            }
+        }
+        LeaveCriticalSection( &cs->cs );
+        if (!storeEntry) SetLastError( E_ACCESSDENIED );
+    }
+
     if (ppStoreContext && childContext)
     {
         WINE_STORE_LIST_ENTRY *storeEntry = childContext->u.ptr;
