@@ -173,7 +173,7 @@ void default_chain_engine_free(void);
 /* (Internal) certificate store types and functions */
 struct WINE_CRYPTCERTSTORE;
 
-typedef struct properties CONTEXT_PROPERTY_LIST;
+struct properties;
 
 typedef struct _context_t context_t;
 
@@ -187,7 +187,7 @@ struct _context_t {
     LONG ref;
     struct WINE_CRYPTCERTSTORE *store;
     struct _context_t *linked;
-    CONTEXT_PROPERTY_LIST *properties;
+    struct properties *properties;
     union {
         struct list entry;
         void *ptr;
@@ -323,7 +323,7 @@ typedef struct WINE_CRYPTCERTSTORE
     DWORD                       dwOpenFlags;
     CertStoreType               type;
     const store_vtbl_t         *vtbl;
-    CONTEXT_PROPERTY_LIST      *properties;
+    struct properties          *properties;
 } WINECRYPT_CERTSTORE;
 
 void CRYPT_InitStore(WINECRYPT_CERTSTORE *store, DWORD dwFlags,
@@ -422,30 +422,15 @@ void Context_AddRef(context_t*);
 void Context_Release(context_t *context);
 void Context_Free(context_t*);
 
-/**
- *  Context property list functions
- */
+/* properties.c */
 
-CONTEXT_PROPERTY_LIST *ContextPropertyList_Create(void);
-
-/* Searches for the property with ID id in the context.  Returns TRUE if found,
- * and copies the property's length and a pointer to its data to blob.
- * Otherwise returns FALSE.
- */
-BOOL ContextPropertyList_FindProperty(CONTEXT_PROPERTY_LIST *list, DWORD id,
- PCRYPT_DATA_BLOB blob);
-
-BOOL ContextPropertyList_SetProperty(CONTEXT_PROPERTY_LIST *list, DWORD id,
- const BYTE *pbData, size_t cbData);
-
-void ContextPropertyList_RemoveProperty(CONTEXT_PROPERTY_LIST *list, DWORD id);
-
-DWORD ContextPropertyList_EnumPropIDs(CONTEXT_PROPERTY_LIST *list, DWORD id);
-
-void ContextPropertyList_Copy(CONTEXT_PROPERTY_LIST *to,
- CONTEXT_PROPERTY_LIST *from);
-
-void ContextPropertyList_Free(CONTEXT_PROPERTY_LIST *list);
+struct properties *properties_create(void) DECLSPEC_HIDDEN;
+void properties_destroy( struct properties *list ) DECLSPEC_HIDDEN;
+BOOL properties_lookup( struct properties *list, DWORD id, CRYPT_DATA_BLOB *blob ) DECLSPEC_HIDDEN;
+BOOL properties_insert( struct properties *list, DWORD id, const BYTE *data, size_t size ) DECLSPEC_HIDDEN;
+void properties_remove( struct properties *list, DWORD id ) DECLSPEC_HIDDEN;
+DWORD properties_enum_ids( struct properties *list, DWORD id ) DECLSPEC_HIDDEN;
+void properties_copy( struct properties *dst, struct properties *src ) DECLSPEC_HIDDEN;
 
 extern WINECRYPT_CERTSTORE empty_store;
 void init_empty_store(void);
