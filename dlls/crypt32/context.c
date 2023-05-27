@@ -899,7 +899,7 @@ DWORD WINAPI CertEnumCRLContextProperties( const CRL_CONTEXT *crl, DWORD id )
     return properties_enum_ids( crl_from_ptr( crl )->base.properties, id );
 }
 
-static BOOL crl_get_hash_property( crl_t *crl, DWORD prop_id, ALG_ID alg_id, const BYTE *key_buf,
+static BOOL crl_get_hash_property( const CRL_CONTEXT *crl, DWORD prop_id, ALG_ID alg_id, const BYTE *key_buf,
                                    DWORD key_len, void *data_buf, DWORD *data_len )
 {
     BOOL ret = CryptHashCertificate( 0, alg_id, 0, key_buf, key_len, data_buf, data_len );
@@ -907,18 +907,19 @@ static BOOL crl_get_hash_property( crl_t *crl, DWORD prop_id, ALG_ID alg_id, con
     if (ret && data_buf)
     {
         CRYPT_DATA_BLOB blob = {.cbData = *data_len, .pbData = data_buf};
-        ret = CertSetCRLContextProperty( &crl->ctx, prop_id, 0, &blob );
+        ret = CertSetCRLContextProperty( crl, prop_id, 0, &blob );
     }
 
     return ret;
 }
 
-static BOOL crl_get_property( crl_t *crl, DWORD id, void *buf, DWORD *len )
+static BOOL crl_get_property( const CRL_CONTEXT *crl, DWORD id, void *buf, DWORD *len )
 {
+    context_t *context = &crl_from_ptr( crl )->base;
     BOOL ret;
     CRYPT_DATA_BLOB blob;
 
-    if ((ret = properties_lookup( crl->base.properties, id, &blob )))
+    if ((ret = properties_lookup( context->properties, id, &blob )))
     {
         if (!buf) *len = blob.cbData;
         else if (*len < blob.cbData)
@@ -939,12 +940,12 @@ static BOOL crl_get_property( crl_t *crl, DWORD id, void *buf, DWORD *len )
         switch (id)
         {
         case CERT_SHA1_HASH_PROP_ID:
-            ret = crl_get_hash_property( crl, id, CALG_SHA1, crl->ctx.pbCrlEncoded,
-                                         crl->ctx.cbCrlEncoded, buf, len );
+            ret = crl_get_hash_property( crl, id, CALG_SHA1, crl->pbCrlEncoded,
+                                         crl->cbCrlEncoded, buf, len );
             break;
         case CERT_MD5_HASH_PROP_ID:
-            ret = crl_get_hash_property( crl, id, CALG_MD5, crl->ctx.pbCrlEncoded,
-                                         crl->ctx.cbCrlEncoded, buf, len );
+            ret = crl_get_hash_property( crl, id, CALG_MD5, crl->pbCrlEncoded,
+                                         crl->cbCrlEncoded, buf, len );
             break;
         default:
             SetLastError( CRYPT_E_NOT_FOUND );
@@ -988,7 +989,7 @@ BOOL WINAPI CertGetCRLContextProperty( const CRL_CONTEXT *crl, DWORD id, void *b
         }
         break;
     default:
-        ret = crl_get_property( crl_from_ptr( crl ), id, buf, len );
+        ret = crl_get_property( crl, id, buf, len );
         break;
     }
 
@@ -996,13 +997,14 @@ BOOL WINAPI CertGetCRLContextProperty( const CRL_CONTEXT *crl, DWORD id, void *b
     return ret;
 }
 
-static BOOL crl_set_property( crl_t *crl, DWORD id, DWORD flags, const void *data )
+static BOOL crl_set_property( const CRL_CONTEXT *crl, DWORD id, DWORD flags, const void *data )
 {
+    context_t *context = &crl_from_ptr( crl )->base;
     BOOL ret;
 
     if (!data)
     {
-        properties_remove( crl->base.properties, id );
+        properties_remove( context->properties, id );
         ret = TRUE;
     }
     else
@@ -1028,11 +1030,11 @@ static BOOL crl_set_property( crl_t *crl, DWORD id, DWORD flags, const void *dat
         case CERT_RENEWAL_PROP_ID:
         {
             CRYPT_DATA_BLOB *blob = (CRYPT_DATA_BLOB *)data;
-            ret = properties_insert( crl->base.properties, id, blob->pbData, blob->cbData );
+            ret = properties_insert( context->properties, id, blob->pbData, blob->cbData );
             break;
         }
         case CERT_DATE_STAMP_PROP_ID:
-            ret = properties_insert( crl->base.properties, id, data, sizeof(FILETIME) );
+            ret = properties_insert( context->properties, id, data, sizeof(FILETIME) );
             break;
         default:
             FIXME( "%ld: stub\n", id );
@@ -1064,7 +1066,7 @@ BOOL WINAPI CertSetCRLContextProperty( const CRL_CONTEXT *crl, DWORD id, DWORD f
         return FALSE;
     }
 
-    ret = crl_set_property( crl_from_ptr( crl ), id, flags, data );
+    ret = crl_set_property( crl, id, flags, data );
 
     TRACE( "returning %d\n", ret );
     return ret;
