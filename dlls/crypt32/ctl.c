@@ -509,14 +509,8 @@ DWORD WINAPI CertEnumCTLContextProperties(PCCTL_CONTEXT pCTLContext,
  DWORD dwPropId)
 {
     ctl_t *ctl = ctl_from_ptr(pCTLContext);
-    DWORD ret;
-
     TRACE("(%p, %ld)\n", pCTLContext, dwPropId);
-
-    if (ctl->base.properties) ret = properties_enum_ids( ctl->base.properties, dwPropId );
-    else
-        ret = 0;
-    return ret;
+    return properties_enum_ids( ctl->base.properties, dwPropId );
 }
 
 static BOOL CTLContext_SetProperty(ctl_t *ctl, DWORD dwPropId,
@@ -545,10 +539,7 @@ static BOOL CTLContext_GetProperty(ctl_t *ctl, DWORD dwPropId,
 
     TRACE("(%p, %ld, %p, %p)\n", ctl, dwPropId, pvData, pcbData);
 
-    if (ctl->base.properties) ret = properties_lookup( ctl->base.properties, dwPropId, &blob );
-    else
-        ret = FALSE;
-    if (ret)
+    if ((ret = properties_lookup( ctl->base.properties, dwPropId, &blob )))
     {
         if (!pvData)
             *pcbData = blob.cbData;
@@ -632,9 +623,7 @@ static BOOL CTLContext_SetProperty(ctl_t *ctl, DWORD dwPropId,
 
     TRACE("(%p, %ld, %08lx, %p)\n", ctl, dwPropId, dwFlags, pvData);
 
-    if (!ctl->base.properties)
-        ret = FALSE;
-    else if (!pvData)
+    if (!pvData)
     {
         properties_remove( ctl->base.properties, dwPropId );
         ret = TRUE;

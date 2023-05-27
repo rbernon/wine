@@ -379,14 +379,8 @@ DWORD WINAPI CertEnumCertificateContextProperties(PCCERT_CONTEXT pCertContext,
  DWORD dwPropId)
 {
     cert_t *cert = cert_from_ptr(pCertContext);
-    DWORD ret;
-
     TRACE("(%p, %ld)\n", pCertContext, dwPropId);
-
-    if (cert->base.properties) ret = properties_enum_ids( cert->base.properties, dwPropId );
-    else
-        ret = 0;
-    return ret;
+    return properties_enum_ids( cert->base.properties, dwPropId );
 }
 
 static BOOL CertContext_GetHashProp(cert_t *cert, DWORD dwPropId,
@@ -518,10 +512,7 @@ static BOOL CertContext_GetProperty(cert_t *cert, DWORD dwPropId,
 
     TRACE("(%p, %ld, %p, %p)\n", cert, dwPropId, pvData, pcbData);
 
-    if (cert->base.properties) ret = properties_lookup( cert->base.properties, dwPropId, &blob );
-    else
-        ret = FALSE;
-    if (ret)
+    if ((ret = properties_lookup( cert->base.properties, dwPropId, &blob )))
     {
         CERT_KEY_CONTEXT ctx;
         if (dwPropId == CERT_KEY_CONTEXT_PROP_ID)
@@ -707,9 +698,7 @@ static BOOL CertContext_SetProperty(cert_t *cert, DWORD dwPropId,
 
     TRACE("(%p, %ld, %08lx, %p)\n", cert, dwPropId, dwFlags, pvData);
 
-    if (!cert->base.properties)
-        ret = FALSE;
-    else if (dwPropId >= CERT_FIRST_USER_PROP_ID && dwPropId <= CERT_LAST_USER_PROP_ID)
+    if (dwPropId >= CERT_FIRST_USER_PROP_ID && dwPropId <= CERT_LAST_USER_PROP_ID)
     {
         if (pvData)
         {
