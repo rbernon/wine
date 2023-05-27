@@ -971,26 +971,55 @@ HCERTSTORE WINAPI CertDuplicateStore(HCERTSTORE hCertStore)
     return hCertStore;
 }
 
-BOOL WINAPI CertCloseStore(HCERTSTORE hCertStore, DWORD dwFlags)
+static BOOL cert_close_store_check( HCERTSTORE handle )
 {
-    WINECRYPT_CERTSTORE *hcs = hCertStore;
-    DWORD res;
+    WINECRYPT_CERTSTORE *store = handle;
+    const CERT_CONTEXT *cert = NULL;
+    const CRL_CONTEXT *crl = NULL;
+    const CTL_CONTEXT *ctl = NULL;
+    BOOL ret = TRUE;
 
-    TRACE("(%p, %08lx)\n", hCertStore, dwFlags);
+    if (InterlockedIncrement( &store->ref ) > 2) return FALSE;
+    InterlockedDecrement( &store->ref );
 
-    if( ! hCertStore )
-        return TRUE;
-
-    if ( hcs->dwMagic != WINE_CRYPTCERTSTORE_MAGIC )
-        return FALSE;
-
-    res = hcs->vtbl->release(hcs, dwFlags);
-    if (res != ERROR_SUCCESS) {
-        SetLastError(res);
-        return FALSE;
+    while ((cert = CertEnumCertificatesInStore( store, cert )))
+    {
+        context_t *ctx = context_from_ptr( cert );
+        if (InterlockedIncrement( &ctx->ref ) > 2) ret = FALSE;
+        InterlockedDecrement( &ctx->ref );
     }
+    if (!ret) return FALSE;
 
-    return TRUE;
+    while ((crl = CertEnumCRLsInStore( store, crl )))
+    {
+        context_t *ctx = context_from_ptr( crl );
+        if (InterlockedIncrement( &ctx->ref ) > 2) ret = FALSE;
+        InterlockedDecrement( &ctx->ref );
+    }
+    if (!ret) return FALSE;
+
+    while ((ctl = CertEnumCTLsInStore( store, ctl )))
+    {
+        context_t *ctx = context_from_ptr( ctl );
+        if (InterlockedIncrement( &ctx->ref ) > 2) ret = FALSE;
+        InterlockedDecrement( &ctx->ref );
+    }
+    return ret;
+}
+
+BOOL WINAPI CertCloseStore( HCERTSTORE handle, DWORD flags )
+{
+    WINECRYPT_CERTSTORE *store = handle;
+    DWORD err, ret = TRUE;
+
+    TRACE( "handle %p, flags %#lx\n", handle, flags );
+
+    if (!handle) return TRUE;
+    if (store->dwMagic != WINE_CRYPTCERTSTORE_MAGIC) return FALSE;
+
+    if ((flags & CERT_CLOSE_STORE_CHECK_FLAG) && !(ret = cert_close_store_check( handle ))) SetLastError( CRYPT_E_PENDING_CLOSE );
+    if ((err = store->vtbl->release( store, flags ))) SetLastError( err );
+    return ret && !err;
 }
 
 BOOL WINAPI CertControlStore(HCERTSTORE hCertStore, DWORD dwFlags,
