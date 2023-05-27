@@ -2084,7 +2084,7 @@ typedef struct _CDecodeMsg
     } u;
     CRYPT_DATA_BLOB        msg_data;
     CRYPT_DATA_BLOB        detached_data;
-    CONTEXT_PROPERTY_LIST *properties;
+    struct properties     *properties;
 } CDecodeMsg;
 
 static void CDecodeMsg_Close(HCRYPTMSG hCryptMsg)
@@ -2115,7 +2115,7 @@ static void CDecodeMsg_Close(HCRYPTMSG hCryptMsg)
     }
     CryptMemFree(msg->msg_data.pbData);
     CryptMemFree(msg->detached_data.pbData);
-    ContextPropertyList_Free(msg->properties);
+    properties_destroy( msg->properties );
 }
 
 static BOOL CDecodeMsg_CopyData(CRYPT_DATA_BLOB *blob, const BYTE *pbData,
@@ -2151,8 +2151,7 @@ static BOOL CDecodeMsg_DecodeDataContent(CDecodeMsg *msg, const CRYPT_DER_BLOB *
      blob->pbData, blob->cbData, CRYPT_DECODE_ALLOC_FLAG, NULL, &data, &size);
     if (ret)
     {
-        ret = ContextPropertyList_SetProperty(msg->properties,
-         CMSG_CONTENT_PARAM, data->pbData, data->cbData);
+        ret = properties_insert( msg->properties, CMSG_CONTENT_PARAM, data->pbData, data->cbData );
         LocalFree(data);
     }
     return ret;
@@ -2188,8 +2187,7 @@ static void CDecodeMsg_SaveAlgorithmID(CDecodeMsg *msg, DWORD param,
         if (copy->Parameters.cbData)
             memcpy(copy->Parameters.pbData, id->Parameters.pbData,
              id->Parameters.cbData);
-        ContextPropertyList_SetProperty(msg->properties, param, (BYTE *)copy,
-         len);
+        properties_insert( msg->properties, param, (BYTE *)copy, len );
         CryptMemFree(copy);
     }
 }
@@ -2212,26 +2210,22 @@ static BOOL CDecodeMsg_DecodeHashedContent(CDecodeMsg *msg,
      &size);
     if (ret)
     {
-        ContextPropertyList_SetProperty(msg->properties, CMSG_VERSION_PARAM,
-         (const BYTE *)&digestedData->version, sizeof(digestedData->version));
+        properties_insert( msg->properties, CMSG_VERSION_PARAM,
+                           (const BYTE *)&digestedData->version, sizeof(digestedData->version) );
         CDecodeMsg_SaveAlgorithmID(msg, CMSG_HASH_ALGORITHM_PARAM,
          &digestedData->DigestAlgorithm);
-        ContextPropertyList_SetProperty(msg->properties,
-         CMSG_INNER_CONTENT_TYPE_PARAM,
-         (const BYTE *)digestedData->ContentInfo.pszObjId,
-         digestedData->ContentInfo.pszObjId ?
-         strlen(digestedData->ContentInfo.pszObjId) + 1 : 0);
+        properties_insert( msg->properties, CMSG_INNER_CONTENT_TYPE_PARAM,
+                           (const BYTE *)digestedData->ContentInfo.pszObjId,
+                           digestedData->ContentInfo.pszObjId ? strlen( digestedData->ContentInfo.pszObjId ) + 1 : 0 );
         if (!(msg->base.open_flags & CMSG_DETACHED_FLAG))
         {
             if (digestedData->ContentInfo.Content.cbData)
                 CDecodeMsg_DecodeDataContent(msg,
                  &digestedData->ContentInfo.Content);
-            else
-                ContextPropertyList_SetProperty(msg->properties,
-                 CMSG_CONTENT_PARAM, NULL, 0);
+            else properties_insert( msg->properties, CMSG_CONTENT_PARAM, NULL, 0 );
         }
-        ContextPropertyList_SetProperty(msg->properties, CMSG_HASH_DATA_PARAM,
-         digestedData->hash.pbData, digestedData->hash.cbData);
+        properties_insert( msg->properties, CMSG_HASH_DATA_PARAM, digestedData->hash.pbData,
+                           digestedData->hash.cbData );
         LocalFree(digestedData);
     }
     return ret;
@@ -2363,9 +2357,7 @@ static BOOL CDecodeMsg_FinalizeHashedContent(CDecodeMsg *msg,
             content.pbData = msg->detached_data.pbData;
             content.cbData = msg->detached_data.cbData;
         }
-        else
-            ret = ContextPropertyList_FindProperty(msg->properties,
-             CMSG_CONTENT_PARAM, &content);
+        else ret = properties_lookup( msg->properties, CMSG_CONTENT_PARAM, &content );
         if (ret)
             ret = CryptHashData(msg->u.hash, content.pbData, content.cbData, 0);
     }
@@ -2557,8 +2549,7 @@ static BOOL CDecodeHashMsg_GetParam(CDecodeMsg *msg, DWORD dwParamType,
     {
         CRYPT_DATA_BLOB blob;
 
-        ret = ContextPropertyList_FindProperty(msg->properties, dwParamType,
-         &blob);
+        ret = properties_lookup( msg->properties, dwParamType, &blob );
         if (ret)
         {
             ret = CRYPT_CopyParam(pvData, pcbData, blob.pbData, blob.cbData);
@@ -2576,8 +2567,7 @@ static BOOL CDecodeHashMsg_GetParam(CDecodeMsg *msg, DWORD dwParamType,
     {
         CRYPT_DATA_BLOB blob;
 
-        ret = ContextPropertyList_FindProperty(msg->properties, dwParamType,
-         &blob);
+        ret = properties_lookup( msg->properties, dwParamType, &blob );
         if (ret)
             ret = CRYPT_CopyParam(pvData, pcbData, blob.pbData, blob.cbData);
         else
@@ -3257,8 +3247,7 @@ static BOOL CDecodeMsg_GetParam(HCRYPTMSG hCryptMsg, DWORD dwParamType,
         {
             CRYPT_DATA_BLOB blob;
 
-            ret = ContextPropertyList_FindProperty(msg->properties, dwParamType,
-             &blob);
+            ret = properties_lookup( msg->properties, dwParamType, &blob );
             if (ret)
                 ret = CRYPT_CopyParam(pvData, pcbData, blob.pbData,
                  blob.cbData);
@@ -3275,8 +3264,7 @@ static BOOL CDecodeHashMsg_VerifyHash(CDecodeMsg *msg)
     BOOL ret;
     CRYPT_DATA_BLOB hashBlob;
 
-    ret = ContextPropertyList_FindProperty(msg->properties,
-     CMSG_HASH_DATA_PARAM, &hashBlob);
+    ret = properties_lookup( msg->properties, CMSG_HASH_DATA_PARAM, &hashBlob );
     if (ret)
     {
         DWORD computedHashSize = 0;
@@ -3656,7 +3644,7 @@ HCRYPTMSG WINAPI CryptMsgOpenToDecode(DWORD dwMsgEncodingType, DWORD dwFlags,
         msg->msg_data.pbData = NULL;
         msg->detached_data.cbData = 0;
         msg->detached_data.pbData = NULL;
-        msg->properties = ContextPropertyList_Create();
+        msg->properties = properties_create();
     }
     return msg;
 }

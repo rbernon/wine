@@ -42,7 +42,7 @@ struct property
 
 C_ASSERT( sizeof(struct property) == offsetof(struct property, data[0]) );
 
-struct properties *ContextPropertyList_Create(void)
+struct properties *properties_create(void)
 {
     struct properties *props;
 
@@ -55,7 +55,7 @@ struct properties *ContextPropertyList_Create(void)
     return list;
 }
 
-void ContextPropertyList_Free( struct properties *props )
+void properties_destroy( struct properties *props )
 {
     struct property *prop, *next;
 
@@ -77,7 +77,7 @@ static struct property *find_property_from_id( struct properties *props, DWORD i
     return NULL;
 }
 
-BOOL ContextPropertyList_FindProperty( struct properties *props, DWORD id, PCRYPT_DATA_BLOB blob )
+BOOL properties_lookup( struct properties *props, DWORD id, PCRYPT_DATA_BLOB blob )
 {
     struct property *prop;
     BOOL ret = FALSE;
@@ -95,7 +95,7 @@ BOOL ContextPropertyList_FindProperty( struct properties *props, DWORD id, PCRYP
     return ret;
 }
 
-BOOL ContextPropertyList_SetProperty( struct properties *props, DWORD id, const BYTE *data, size_t size )
+BOOL properties_insert( struct properties *props, DWORD id, const BYTE *data, size_t size )
 {
     struct property *prop, *prev;
 
@@ -119,7 +119,7 @@ BOOL ContextPropertyList_SetProperty( struct properties *props, DWORD id, const 
     return TRUE;
 }
 
-void ContextPropertyList_RemoveProperty( struct properties *props, DWORD id )
+void properties_remove( struct properties *props, DWORD id )
 {
     struct property *prop;
 
@@ -135,7 +135,7 @@ void ContextPropertyList_RemoveProperty( struct properties *props, DWORD id )
 /* Since the properties are stored in a list, this is a tad inefficient
  * (O(n^2)) since I have to find the previous position every time.
  */
-DWORD ContextPropertyList_EnumPropIDs( struct properties *props, DWORD id )
+DWORD properties_enum_ids( struct properties *props, DWORD id )
 {
     struct property *prop;
     struct list *entry;
@@ -152,12 +152,12 @@ DWORD ContextPropertyList_EnumPropIDs( struct properties *props, DWORD id )
     return ret;
 }
 
-void ContextPropertyList_Copy( struct properties *dst, struct properties *src )
+void properties_copy( struct properties *dst, struct properties *src )
 {
     struct property *prop;
 
     EnterCriticalSection( &src->cs );
     LIST_FOR_EACH_ENTRY( prop, &src->list, struct property, entry )
-        ContextPropertyList_SetProperty( dst, prop->id, prop->data, prop->size );
+        properties_insert( dst, prop->id, prop->data, prop->size );
     LeaveCriticalSection( &src->cs );
 }

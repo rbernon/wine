@@ -33,7 +33,7 @@ context_t *Context_CreateDataContext(size_t contextSize, const context_vtbl_t *v
     if (!context)
         return NULL;
 
-    context->properties = ContextPropertyList_Create();
+    context->properties = properties_create();
     if (!context->properties)
     {
         CryptMemFree(context);
@@ -94,7 +94,7 @@ void Context_Free(context_t *context)
     assert(!context->ref);
 
     if (!context->linked) {
-        ContextPropertyList_Free(context->properties);
+        properties_destroy( context->properties );
         context->vtbl->free(context);
     }else {
         Context_Release(context->linked);
@@ -122,10 +122,10 @@ void Context_Release(context_t *context)
 
 void Context_CopyProperties(const void *to, const void *from)
 {
-    CONTEXT_PROPERTY_LIST *toProperties, *fromProperties;
+    struct properties *toProperties, *fromProperties;
 
     toProperties = context_from_ptr(to)->properties;
     fromProperties = context_from_ptr(from)->properties;
     assert(toProperties && fromProperties);
-    ContextPropertyList_Copy(toProperties, fromProperties);
+    properties_copy( toProperties, fromProperties );
 }
