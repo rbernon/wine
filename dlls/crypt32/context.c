@@ -33,8 +33,7 @@ context_t *Context_CreateDataContext(size_t contextSize, const context_vtbl_t *v
     if (!context)
         return NULL;
 
-    context->properties = properties_create();
-    if (!context->properties)
+    if (!(context->properties = properties_create()))
     {
         CryptMemFree(context);
         return NULL;
