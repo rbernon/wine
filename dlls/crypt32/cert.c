@@ -383,8 +383,7 @@ DWORD WINAPI CertEnumCertificateContextProperties(PCCERT_CONTEXT pCertContext,
 
     TRACE("(%p, %ld)\n", pCertContext, dwPropId);
 
-    if (cert->base.properties)
-        ret = ContextPropertyList_EnumPropIDs(cert->base.properties, dwPropId);
+    if (cert->base.properties) ret = properties_enum_ids( cert->base.properties, dwPropId );
     else
         ret = 0;
     return ret;
@@ -519,8 +518,7 @@ static BOOL CertContext_GetProperty(cert_t *cert, DWORD dwPropId,
 
     TRACE("(%p, %ld, %p, %p)\n", cert, dwPropId, pvData, pcbData);
 
-    if (cert->base.properties)
-        ret = ContextPropertyList_FindProperty(cert->base.properties, dwPropId, &blob);
+    if (cert->base.properties) ret = properties_lookup( cert->base.properties, dwPropId, &blob );
     else
         ret = FALSE;
     if (ret)
@@ -662,7 +660,7 @@ BOOL WINAPI CertGetCertificateContextProperty(PCCERT_CONTEXT pCertContext,
  * Create a continuous block of memory for CRYPT_KEY_PROV_INFO with
  * its associated data, and add it to the certificate properties.
  */
-static BOOL CertContext_SetKeyProvInfoProperty(CONTEXT_PROPERTY_LIST *properties, const CRYPT_KEY_PROV_INFO *info)
+static BOOL CertContext_SetKeyProvInfoProperty( struct properties *properties, const CRYPT_KEY_PROV_INFO *info )
 {
     CRYPT_KEY_PROV_INFO *prop;
     DWORD size = sizeof(CRYPT_KEY_PROV_INFO), i;
@@ -685,14 +683,13 @@ static BOOL CertContext_SetKeyProvInfoProperty(CONTEXT_PROPERTY_LIST *properties
 
     copy_KeyProvInfoProperty(info, prop);
 
-    ret = ContextPropertyList_SetProperty(properties, CERT_KEY_PROV_INFO_PROP_ID, (const BYTE *)prop, size);
+    ret = properties_insert( properties, CERT_KEY_PROV_INFO_PROP_ID, (const BYTE *)prop, size );
     CryptMemFree(prop);
 
     return ret;
 }
 
-static BOOL CertContext_SetKeyContextProperty(CONTEXT_PROPERTY_LIST *properties,
- const CERT_KEY_CONTEXT *keyContext)
+static BOOL CertContext_SetKeyContextProperty( struct properties *properties, const CERT_KEY_CONTEXT *keyContext )
 {
     struct store_CERT_KEY_CONTEXT ctx;
 
@@ -700,8 +697,7 @@ static BOOL CertContext_SetKeyContextProperty(CONTEXT_PROPERTY_LIST *properties,
     ctx.hCryptProv = keyContext->hCryptProv;
     ctx.dwKeySpec = keyContext->dwKeySpec;
 
-    return ContextPropertyList_SetProperty(properties, CERT_KEY_CONTEXT_PROP_ID,
-     (const BYTE *)&ctx, ctx.cbSize);
+    return properties_insert( properties, CERT_KEY_CONTEXT_PROP_ID, (const BYTE *)&ctx, ctx.cbSize );
 }
 
 static BOOL CertContext_SetProperty(cert_t *cert, DWORD dwPropId,
@@ -718,11 +714,11 @@ static BOOL CertContext_SetProperty(cert_t *cert, DWORD dwPropId,
         if (pvData)
         {
             const CRYPT_DATA_BLOB *blob = pvData;
-            ret = ContextPropertyList_SetProperty(cert->base.properties, dwPropId, blob->pbData, blob->cbData);
+            ret = properties_insert( cert->base.properties, dwPropId, blob->pbData, blob->cbData );
         }
         else
         {
-            ContextPropertyList_RemoveProperty(cert->base.properties, dwPropId);
+            properties_remove( cert->base.properties, dwPropId );
             ret = TRUE;
         }
     }
@@ -754,23 +750,21 @@ static BOOL CertContext_SetProperty(cert_t *cert, DWORD dwPropId,
             {
                 const CRYPT_DATA_BLOB *blob = pvData;
 
-                ret = ContextPropertyList_SetProperty(cert->base.properties, dwPropId,
-                 blob->pbData, blob->cbData);
+                ret = properties_insert( cert->base.properties, dwPropId, blob->pbData, blob->cbData );
             }
             else
             {
-                ContextPropertyList_RemoveProperty(cert->base.properties, dwPropId);
+                properties_remove( cert->base.properties, dwPropId );
                 ret = TRUE;
             }
             break;
         }
         case CERT_DATE_STAMP_PROP_ID:
             if (pvData)
-                ret = ContextPropertyList_SetProperty(cert->base.properties, dwPropId,
-                 pvData, sizeof(FILETIME));
+                ret = properties_insert( cert->base.properties, dwPropId, pvData, sizeof(FILETIME) );
             else
             {
-                ContextPropertyList_RemoveProperty(cert->base.properties, dwPropId);
+                properties_remove( cert->base.properties, dwPropId );
                 ret = TRUE;
             }
             break;
@@ -789,7 +783,7 @@ static BOOL CertContext_SetProperty(cert_t *cert, DWORD dwPropId,
             }
             else
             {
-                ContextPropertyList_RemoveProperty(cert->base.properties, dwPropId);
+                properties_remove( cert->base.properties, dwPropId );
                 ret = TRUE;
             }
             break;
@@ -798,7 +792,7 @@ static BOOL CertContext_SetProperty(cert_t *cert, DWORD dwPropId,
                 ret = CertContext_SetKeyProvInfoProperty(cert->base.properties, pvData);
             else
             {
-                ContextPropertyList_RemoveProperty(cert->base.properties, dwPropId);
+                properties_remove( cert->base.properties, dwPropId );
                 ret = TRUE;
             }
             break;
