@@ -1225,8 +1225,9 @@ BOOL WINAPI CertAddCRLContextToStore(HCERTSTORE hCertStore,
     {
         if (store) {
             context_t *ret_context;
-            ret = store->vtbl->crls.addContext(store, context_from_ptr(toAdd),
-             existing ? context_from_ptr(existing) : NULL, ppStoreContext ? &ret_context : NULL, FALSE);
+            ret = store->vtbl->crls.addContext( store, context_from_crl( toAdd ),
+                                                existing ? context_from_crl( existing ) : NULL,
+                                                ppStoreContext ? &ret_context : NULL, FALSE );
             if (ret && ppStoreContext)
                 *ppStoreContext = context_ptr(ret_context);
         }else if (ppStoreContext) {
