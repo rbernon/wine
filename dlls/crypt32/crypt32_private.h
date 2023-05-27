@@ -19,8 +19,45 @@
 #ifndef __CRYPT32_PRIVATE_H__
 #define __CRYPT32_PRIVATE_H__
 
+#include <stddef.h>
+#include <stdarg.h>
+
+#include "windef.h"
+#include "winbase.h"
+#include "wincrypt.h"
+
 #include "wine/list.h"
 #include "wine/unixlib.h"
+
+struct store_prov_vtbl
+{
+    PFN_CERT_STORE_PROV_CLOSE              close;
+    PFN_CERT_STORE_PROV_CONTROL            control;
+
+    PFN_CERT_STORE_PROV_READ_CERT          read_cert;
+    PFN_CERT_STORE_PROV_WRITE_CERT         write_cert;
+    PFN_CERT_STORE_PROV_DELETE_CERT        delete_cert;
+    PFN_CERT_STORE_PROV_FIND_CERT          find_cert;
+    PFN_CERT_STORE_PROV_FREE_FIND_CERT     free_find_cert;
+    PFN_CERT_STORE_PROV_SET_CERT_PROPERTY  set_cert_property;
+    PFN_CERT_STORE_PROV_GET_CERT_PROPERTY  get_cert_property;
+
+    PFN_CERT_STORE_PROV_READ_CRL           read_crl;
+    PFN_CERT_STORE_PROV_WRITE_CRL          write_crl;
+    PFN_CERT_STORE_PROV_DELETE_CRL         delete_crl;
+    PFN_CERT_STORE_PROV_FIND_CRL           find_crl;
+    PFN_CERT_STORE_PROV_FREE_FIND_CRL      free_find_crl;
+    PFN_CERT_STORE_PROV_SET_CRL_PROPERTY   set_crl_property;
+    PFN_CERT_STORE_PROV_GET_CRL_PROPERTY   get_crl_property;
+
+    PFN_CERT_STORE_PROV_READ_CTL           read_ctl;
+    PFN_CERT_STORE_PROV_WRITE_CTL          write_ctl;
+    PFN_CERT_STORE_PROV_DELETE_CTL         delete_ctl;
+    PFN_CERT_STORE_PROV_FIND_CTL           find_ctl;
+    PFN_CERT_STORE_PROV_FREE_FIND_CTL      free_find_ctl;
+    PFN_CERT_STORE_PROV_SET_CTL_PROPERTY   set_ctl_property;
+    PFN_CERT_STORE_PROV_GET_CTL_PROPERTY   get_ctl_property;
+};
 
 BOOL CNG_ImportPubKey(CERT_PUBLIC_KEY_INFO *pubKeyInfo, BCRYPT_KEY_HANDLE *key);
 BOOL cng_prepare_signature(const char *alg_oid, BYTE *encoded_sig, DWORD encoded_sig_len,
