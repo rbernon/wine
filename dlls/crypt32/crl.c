@@ -288,10 +288,9 @@ static BOOL compare_dist_point_name( const CRL_DIST_POINT_NAME *name1, const CRL
     return TRUE;
 }
 
-static BOOL match_dist_point_with_issuing_dist_point(
- const CRL_DIST_POINT *distPoint, const CRL_ISSUING_DIST_POINT *idp)
+static BOOL match_dist_point_with_issuing_dist_point( const CRL_DIST_POINT *dist, const CRL_ISSUING_DIST_POINT *idp )
 {
-    BOOL match;
+    const CRYPT_BIT_BLOB *dist_flags = &dist->ReasonFlags, *idp_flags = &idp->OnlySomeReasonFlags;
 
     /* While RFC 5280, section 4.2.1.13 recommends against segmenting
      * CRL distribution points by reasons, it doesn't preclude doing so.
@@ -300,27 +299,9 @@ static BOOL match_dist_point_with_issuing_dist_point(
      * some reasons, only match if the reasons covered also match the
      * reasons in the CRL distribution point.
      */
-    if (idp->OnlySomeReasonFlags.cbData)
-    {
-        if (idp->OnlySomeReasonFlags.cbData == distPoint->ReasonFlags.cbData)
-        {
-            DWORD i;
-
-            match = TRUE;
-            for (i = 0; match && i < distPoint->ReasonFlags.cbData; i++)
-                if (idp->OnlySomeReasonFlags.pbData[i] !=
-                 distPoint->ReasonFlags.pbData[i])
-                    match = FALSE;
-        }
-        else
-            match = FALSE;
-    }
-    else
-        match = TRUE;
-    if (match)
-        match = compare_dist_point_name(&idp->DistPointName,
-         &distPoint->DistPointName);
-    return match;
+    if (idp_flags->cbData && idp_flags->cbData != dist_flags->cbData) return FALSE;
+    if (memcmp( idp_flags->pbData, dist_flags->pbData, dist_flags->cbData )) return FALSE;
+    return compare_dist_point_name( &idp->DistPointName, &dist->DistPointName );
 }
 
 BOOL WINAPI CertIsValidCRLForCertificate(PCCERT_CONTEXT pCert,
