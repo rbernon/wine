@@ -82,7 +82,7 @@ static context_t *CRYPT_CollectionCreateContextFromChild(WINE_COLLECTIONSTORE *s
 {
     context_t *ret;
 
-    ret = child->vtbl->link( child, &store->hdr );
+    ret = context_create_link(child, &store->hdr);
     if (!ret)
         return NULL;
 

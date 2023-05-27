@@ -35,6 +35,13 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(context);
 
+struct context_vtbl
+{
+    void (*free)(context_t*);
+    struct _context_t *(*link)( context_t *, struct WINE_CRYPTCERTSTORE * );
+    struct _context_t *(*clone)( context_t *, struct WINE_CRYPTCERTSTORE * );
+};
+
 static BYTE *copy_string( BYTE *ptr, char **dst, const char *src )
 {
     size_t size;
@@ -65,7 +72,7 @@ static BYTE *copy_extension( BYTE *ptr, CERT_EXTENSION *dst, const CERT_EXTENSIO
     return copy_blob( ptr, &dst->Value, &src->Value );
 }
 
-context_t *Context_CreateDataContext(size_t contextSize, const context_vtbl_t *vtbl, WINECRYPT_CERTSTORE *store)
+static context_t *Context_CreateDataContext(size_t contextSize, const struct context_vtbl *vtbl, WINECRYPT_CERTSTORE *store)
 {
     context_t *context;
 
@@ -90,7 +97,7 @@ context_t *Context_CreateDataContext(size_t contextSize, const context_vtbl_t *v
     return context;
 }
 
-context_t *Context_CreateLinkContext(unsigned int contextSize, context_t *linked, WINECRYPT_CERTSTORE *store)
+static context_t *Context_CreateLinkContext(unsigned int contextSize, context_t *linked, WINECRYPT_CERTSTORE *store)
 {
     context_t *context;
 
@@ -174,7 +181,7 @@ void ctl_context_copy_properties( const CTL_CONTEXT *dst, const CTL_CONTEXT *src
     properties_copy( context_from_ctl(dst)->properties, context_from_ctl(src)->properties );
 }
 
-static const context_vtbl_t cert_vtbl;
+static const struct context_vtbl cert_vtbl;
 
 static void Cert_free( context_t *context )
 {
@@ -246,7 +253,7 @@ static context_t *Cert_clone( context_t *source, WINECRYPT_CERTSTORE *store )
     return context;
 }
 
-static const context_vtbl_t cert_vtbl =
+static const struct context_vtbl cert_vtbl =
 {
     Cert_free,
     Cert_link,
@@ -740,7 +747,7 @@ BOOL WINAPI CertSetCertificateContextProperty( const CERT_CONTEXT *cert, DWORD i
     return ret;
 }
 
-static const context_vtbl_t crl_vtbl;
+static const struct context_vtbl crl_vtbl;
 
 static void CRL_free( context_t *context )
 {
@@ -833,7 +840,7 @@ static context_t *CRL_clone( context_t *source, WINECRYPT_CERTSTORE *store )
     return context;
 }
 
-static const context_vtbl_t crl_vtbl =
+static const struct context_vtbl crl_vtbl =
 {
     CRL_free,
     CRL_link,
@@ -1093,7 +1100,7 @@ static context_t *CTL_clone( context_t *context, WINECRYPT_CERTSTORE *store )
     return NULL;
 }
 
-static const context_vtbl_t ctl_vtbl =
+static const struct context_vtbl ctl_vtbl =
 {
     CTL_free,
     CTL_link,
@@ -1368,4 +1375,16 @@ BOOL WINAPI CertSetCTLContextProperty( const CTL_CONTEXT *ctl, DWORD id, DWORD f
 
     TRACE( "returning %d\n", ret );
     return ret;
+}
+
+context_t *context_create_copy( context_t *source, struct WINE_CRYPTCERTSTORE *store )
+{
+    TRACE( "source %p, store %p\n", source, store );
+    return source->vtbl->clone( source, store, FALSE );
+}
+
+context_t *context_create_link( context_t *source, struct WINE_CRYPTCERTSTORE *store )
+{
+    TRACE( "source %p, store %p\n", source, store );
+    return source->vtbl->clone( source, store, TRUE );
 }
