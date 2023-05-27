@@ -97,8 +97,7 @@ void CRYPT_InitStore(WINECRYPT_CERTSTORE *store, DWORD dwFlags, CertStoreType ty
 
 void CRYPT_FreeStore(WINECRYPT_CERTSTORE *store)
 {
-    if (store->properties)
-        ContextPropertyList_Free(store->properties);
+    if (store->properties) properties_destroy( store->properties );
     store->dwMagic = 0;
     CryptMemFree(store);
 }
@@ -1200,8 +1199,7 @@ BOOL WINAPI CertGetStoreProperty(HCERTSTORE hCertStore, DWORD dwPropId,
         {
             CRYPT_DATA_BLOB blob;
 
-            ret = ContextPropertyList_FindProperty(store->properties, dwPropId,
-             &blob);
+            ret = properties_lookup( store->properties, dwPropId, &blob );
             if (ret)
             {
                 if (!pvData)
@@ -1235,8 +1233,7 @@ BOOL WINAPI CertSetStoreProperty(HCERTSTORE hCertStore, DWORD dwPropId,
 
     TRACE("(%p, %ld, %08lx, %p)\n", hCertStore, dwPropId, dwFlags, pvData);
 
-    if (!store->properties)
-        store->properties = ContextPropertyList_Create();
+    if (!store->properties) store->properties = properties_create();
     switch (dwPropId)
     {
     case CERT_ACCESS_STATE_PROP_ID:
@@ -1247,12 +1244,11 @@ BOOL WINAPI CertSetStoreProperty(HCERTSTORE hCertStore, DWORD dwPropId,
         {
             const CRYPT_DATA_BLOB *blob = pvData;
 
-            ret = ContextPropertyList_SetProperty(store->properties, dwPropId,
-             blob->pbData, blob->cbData);
+            ret = properties_insert( store->properties, dwPropId, blob->pbData, blob->cbData );
         }
         else
         {
-            ContextPropertyList_RemoveProperty(store->properties, dwPropId);
+            properties_remove( store->properties, dwPropId );
             ret = TRUE;
         }
     }

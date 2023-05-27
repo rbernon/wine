@@ -491,7 +491,7 @@ DWORD WINAPI CertEnumCRLContextProperties(PCCRL_CONTEXT pCRLContext,
 {
     TRACE("(%p, %ld)\n", pCRLContext, dwPropId);
 
-    return ContextPropertyList_EnumPropIDs(crl_from_ptr(pCRLContext)->base.properties, dwPropId);
+    return properties_enum_ids( crl_from_ptr( pCRLContext )->base.properties, dwPropId );
 }
 
 static BOOL CRLContext_SetProperty(crl_t *crl, DWORD dwPropId,
@@ -520,8 +520,7 @@ static BOOL CRLContext_GetProperty(crl_t *crl, DWORD dwPropId,
 
     TRACE("(%p, %ld, %p, %p)\n", crl, dwPropId, pvData, pcbData);
 
-    if (crl->base.properties)
-        ret = ContextPropertyList_FindProperty(crl->base.properties, dwPropId, &blob);
+    if (crl->base.properties) ret = properties_lookup( crl->base.properties, dwPropId, &blob );
     else
         ret = FALSE;
     if (ret)
@@ -613,7 +612,7 @@ static BOOL CRLContext_SetProperty(crl_t *crl, DWORD dwPropId,
         ret = FALSE;
     else if (!pvData)
     {
-        ContextPropertyList_RemoveProperty(crl->base.properties, dwPropId);
+        properties_remove( crl->base.properties, dwPropId );
         ret = TRUE;
     }
     else
@@ -640,13 +639,11 @@ static BOOL CRLContext_SetProperty(crl_t *crl, DWORD dwPropId,
         {
             PCRYPT_DATA_BLOB blob = (PCRYPT_DATA_BLOB)pvData;
 
-            ret = ContextPropertyList_SetProperty(crl->base.properties, dwPropId,
-             blob->pbData, blob->cbData);
+            ret = properties_insert( crl->base.properties, dwPropId, blob->pbData, blob->cbData );
             break;
         }
         case CERT_DATE_STAMP_PROP_ID:
-            ret = ContextPropertyList_SetProperty(crl->base.properties, dwPropId,
-             pvData, sizeof(FILETIME));
+            ret = properties_insert( crl->base.properties, dwPropId, pvData, sizeof(FILETIME) );
             break;
         default:
             FIXME("%ld: stub\n", dwPropId);
