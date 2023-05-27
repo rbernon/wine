@@ -437,14 +437,7 @@ static BOOL store_collection_control( WINECRYPT_CERTSTORE *cert_store, DWORD dwF
     ret = TRUE;
     EnterCriticalSection(&store->cs);
     LIST_FOR_EACH_ENTRY(entry, &store->stores, WINE_STORE_LIST_ENTRY, entry)
-    {
-        if (entry->store->vtbl->control)
-        {
-            ret = entry->store->vtbl->control(entry->store, dwFlags, dwCtrlType, pvCtrlPara);
-            if (!ret)
-                break;
-        }
-    }
+        if (!(ret = CertControlStore( entry->store, dwFlags, dwCtrlType, pvCtrlPara ))) break;
     LeaveCriticalSection(&store->cs);
     return ret;
 }
