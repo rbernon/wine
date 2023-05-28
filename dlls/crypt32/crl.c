@@ -440,22 +440,19 @@ BOOL WINAPI CertVerifyCRLRevocation(DWORD dwCertEncodingType,
     return entry == NULL;
 }
 
-LONG WINAPI CertVerifyCRLTimeValidity(LPFILETIME pTimeToVerify,
- PCRL_INFO pCrlInfo)
+LONG WINAPI CertVerifyCRLTimeValidity( FILETIME *time, CRL_INFO *crl )
 {
-    FILETIME fileTime;
+    FILETIME tmp;
     LONG ret;
 
-    if (!pTimeToVerify)
+    TRACE( "time %p, crl %p\n", time, crl );
+
+    if (!time) GetSystemTimeAsFileTime( (time = &tmp) );
+    if ((ret = CompareFileTime( time, &crl->ThisUpdate )) >= 0)
     {
-        GetSystemTimeAsFileTime(&fileTime);
-        pTimeToVerify = &fileTime;
+        ret = CompareFileTime( time, &crl->NextUpdate );
+        if (ret < 0) ret = 0;
     }
-    if ((ret = CompareFileTime(pTimeToVerify, &pCrlInfo->ThisUpdate)) >= 0)
-    {
-        ret = CompareFileTime(pTimeToVerify, &pCrlInfo->NextUpdate);
-        if (ret < 0)
-            ret = 0;
-    }
+
     return ret;
 }
