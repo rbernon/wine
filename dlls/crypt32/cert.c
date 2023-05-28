@@ -36,14 +36,6 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(crypt);
 
-/* Internal version of CertSetCertificateContextProperty that sets properties
- * directly on the context (or the context it's linked to, depending on its
- * type.) Doesn't handle special cases, since they're handled by
- * CertSetCertificateContextProperty anyway.
- */
-static BOOL CertContext_SetProperty(cert_t *cert, DWORD dwPropId,
- DWORD dwFlags, const void *pvData);
-
 DWORD WINAPI CertEnumCertificateContextProperties(PCCERT_CONTEXT pCertContext,
  DWORD dwPropId)
 {
@@ -62,7 +54,7 @@ static BOOL CertContext_GetHashProp(cert_t *cert, DWORD dwPropId,
     {
         CRYPT_DATA_BLOB blob = { *pcbData, pvData };
 
-        ret = CertContext_SetProperty(cert, dwPropId, 0, &blob);
+        ret = CertSetCertificateContextProperty(&cert->ctx, dwPropId, 0, &blob);
     }
     return ret;
 }
@@ -233,7 +225,7 @@ static BOOL CertContext_GetProperty(cert_t *cert, DWORD dwPropId,
             {
                 CRYPT_DATA_BLOB blob = { *pcbData, pvData };
 
-                ret = CertContext_SetProperty(cert, dwPropId, 0, &blob);
+                ret = CertSetCertificateContextProperty(&cert->ctx, dwPropId, 0, &blob);
             }
             break;
         case CERT_KEY_IDENTIFIER_PROP_ID:
@@ -255,7 +247,7 @@ static BOOL CertContext_GetProperty(cert_t *cert, DWORD dwPropId,
                 {
                     ret = CertContext_CopyParam(pvData, pcbData, value.pbData,
                      value.cbData);
-                    CertContext_SetProperty(cert, dwPropId, 0, &value);
+                    CertSetCertificateContextProperty(&cert->ctx, dwPropId, 0, &value);
                 }
             }
             else
@@ -474,7 +466,7 @@ static BOOL CertContext_SetProperty(cert_t *cert, DWORD dwPropId,
                 keyContext.hCryptProv = 0;
                 keyContext.dwKeySpec = AT_SIGNATURE;
             }
-            ret = CertContext_SetProperty(cert, CERT_KEY_CONTEXT_PROP_ID,
+            ret = CertSetCertificateContextProperty(&cert->ctx, CERT_KEY_CONTEXT_PROP_ID,
              0, &keyContext);
             break;
         }
