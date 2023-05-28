@@ -36,15 +36,6 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(crypt);
 
-/* Internal version of CertGetCertificateContextProperty that gets properties
- * directly from the context (or the context it's linked to, depending on its
- * type.) Doesn't handle special-case properties, since they are handled by
- * CertGetCertificateContextProperty, and are particular to the store in which
- * the property exists (which is separate from the context.)
- */
-static BOOL CertContext_GetProperty(cert_t *cert, DWORD dwPropId,
- void *pvData, DWORD *pcbData);
-
 /* Internal version of CertSetCertificateContextProperty that sets properties
  * directly on the context (or the context it's linked to, depending on its
  * type.) Doesn't handle special cases, since they're handled by
@@ -468,7 +459,7 @@ static BOOL CertContext_SetProperty(cert_t *cert, DWORD dwPropId,
             CERT_KEY_CONTEXT keyContext;
             DWORD size = sizeof(keyContext);
 
-            ret = CertContext_GetProperty(cert, CERT_KEY_CONTEXT_PROP_ID,
+            ret = CertGetCertificateContextProperty(&cert->ctx, CERT_KEY_CONTEXT_PROP_ID,
              &keyContext, &size);
             if (ret)
             {
