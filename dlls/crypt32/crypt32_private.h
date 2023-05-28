@@ -447,8 +447,9 @@ context_t *Context_CreateDataContext(size_t contextSize, const context_vtbl_t *v
  */
 context_t *Context_CreateLinkContext(unsigned contextSize, context_t *linked, struct WINE_CRYPTCERTSTORE*);
 
-/* Copies properties from fromContext to toContext. */
-void Context_CopyProperties(const void *to, const void *from);
+extern void cert_context_copy_properties( const CERT_CONTEXT *dst, const CERT_CONTEXT *src );
+extern void crl_context_copy_properties( const CRL_CONTEXT *dst, const CRL_CONTEXT *src );
+extern void ctl_context_copy_properties( const CTL_CONTEXT *dst, const CTL_CONTEXT *src );
 
 void Context_AddRef(context_t*);
 void Context_Release(context_t *context);

@@ -159,14 +159,19 @@ void Context_Release(context_t *context)
     }
 }
 
-void Context_CopyProperties(const void *to, const void *from)
+void cert_context_copy_properties( const CERT_CONTEXT *dst, const CERT_CONTEXT *src )
 {
-    struct properties *toProperties, *fromProperties;
+    properties_copy( context_from_cert(dst)->properties, context_from_cert(src)->properties );
+}
 
-    toProperties = context_from_ptr(to)->properties;
-    fromProperties = context_from_ptr(from)->properties;
-    assert(toProperties && fromProperties);
-    properties_copy( toProperties, fromProperties );
+void crl_context_copy_properties( const CRL_CONTEXT *dst, const CRL_CONTEXT *src )
+{
+    properties_copy( context_from_crl(dst)->properties, context_from_crl(src)->properties );
+}
+
+void ctl_context_copy_properties( const CTL_CONTEXT *dst, const CTL_CONTEXT *src )
+{
+    properties_copy( context_from_ctl(dst)->properties, context_from_ctl(src)->properties );
 }
 
 static const context_vtbl_t cert_vtbl;
@@ -223,7 +228,7 @@ static context_t *Cert_clone( context_t *source, WINECRYPT_CERTSTORE *store )
     context_t *context;
 
     if (!(context = Context_CreateDataContext( sizeof(CERT_CONTEXT), &cert_vtbl, store ))) return NULL;
-    Context_CopyProperties( &context->cert, &source->cert );
+    properties_copy( context->properties, source->properties );
 
     context->cert.dwCertEncodingType = source->cert.dwCertEncodingType;
     context->cert.pbCertEncoded = CryptMemAlloc( source->cert.cbCertEncoded );
@@ -810,7 +815,7 @@ static context_t *CRL_clone( context_t *source, WINECRYPT_CERTSTORE *store )
     context_t *context;
 
     if (!(context = Context_CreateDataContext( sizeof(CRL_CONTEXT), &crl_vtbl, store ))) return NULL;
-    Context_CopyProperties( &context->crl, &source->crl );
+    properties_copy( context->properties, source->properties );
 
     context->crl.dwCertEncodingType = source->crl.dwCertEncodingType;
     context->crl.pbCrlEncoded = CryptMemAlloc( source->crl.cbCrlEncoded );
