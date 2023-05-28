@@ -975,7 +975,7 @@ static BOOL add_cert_to_store( WINECRYPT_CERTSTORE *store, const CERT_CONTEXT *c
         if (use_link) FIXME( "CERT_STORE_ADD_USE_EXISTING: semi-stub for links\n" );
         if (existing)
         {
-            Context_CopyProperties( existing, cert );
+            cert_context_copy_properties(existing, cert);
             if (out) *out = CertDuplicateCertificateContext( existing );
             return TRUE;
         }
@@ -1013,7 +1013,7 @@ static BOOL add_cert_to_store( WINECRYPT_CERTSTORE *store, const CERT_CONTEXT *c
                                          (out || inherit_props) ? &new_context : NULL, use_link );
     if (!ret) return FALSE;
 
-    if (inherit_props) Context_CopyProperties( context_ptr( new_context ), existing );
+    if (inherit_props) cert_context_copy_properties( context_ptr( new_context ), existing );
 
     if (out) *out = context_ptr( new_context );
     else if (new_context) Context_Release( new_context );
@@ -1186,7 +1186,7 @@ BOOL WINAPI CertAddCRLContextToStore(HCERTSTORE hCertStore,
             if (newer < 0)
             {
                 toAdd = CertDuplicateCRLContext(pCrlContext);
-                Context_CopyProperties(toAdd, existing);
+                crl_context_copy_properties(toAdd, existing);
             }
             else
             {
@@ -1204,12 +1204,12 @@ BOOL WINAPI CertAddCRLContextToStore(HCERTSTORE hCertStore,
     case CERT_STORE_ADD_REPLACE_EXISTING_INHERIT_PROPERTIES:
         toAdd = CertDuplicateCRLContext(pCrlContext);
         if (existing)
-            Context_CopyProperties(toAdd, existing);
+            crl_context_copy_properties(toAdd, existing);
         break;
     case CERT_STORE_ADD_USE_EXISTING:
         if (existing)
         {
-            Context_CopyProperties(existing, pCrlContext);
+            crl_context_copy_properties(existing, pCrlContext);
             if (ppStoreContext)
                 *ppStoreContext = CertDuplicateCRLContext(existing);
         }
@@ -1351,7 +1351,7 @@ BOOL WINAPI CertAddCTLContextToStore(HCERTSTORE hCertStore,
             if (newer < 0)
             {
                 toAdd = CertDuplicateCTLContext(pCtlContext);
-                Context_CopyProperties(existing, pCtlContext);
+                ctl_context_copy_properties(existing, pCtlContext);
             }
             else
             {
@@ -1369,12 +1369,12 @@ BOOL WINAPI CertAddCTLContextToStore(HCERTSTORE hCertStore,
     case CERT_STORE_ADD_REPLACE_EXISTING_INHERIT_PROPERTIES:
         toAdd = CertDuplicateCTLContext(pCtlContext);
         if (existing)
-            Context_CopyProperties(toAdd, existing);
+            ctl_context_copy_properties(toAdd, existing);
         break;
     case CERT_STORE_ADD_USE_EXISTING:
         if (existing)
         {
-            Context_CopyProperties(existing, pCtlContext);
+            ctl_context_copy_properties(existing, pCtlContext);
             if (ppStoreContext)
                 *ppStoreContext = CertDuplicateCTLContext(existing);
         }
