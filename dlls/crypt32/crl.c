@@ -255,59 +255,37 @@ PCCRL_CONTEXT WINAPI CertGetCRLFromStore(HCERTSTORE hCertStore,
     return ret;
 }
 
-static BOOL compare_dist_point_name(const CRL_DIST_POINT_NAME *name1,
- const CRL_DIST_POINT_NAME *name2)
+static BOOL compare_dist_point_name( const CRL_DIST_POINT_NAME *name1, const CRL_DIST_POINT_NAME *name2 )
 {
-    BOOL match;
+    DWORD i;
 
-    if (name1->dwDistPointNameChoice == name2->dwDistPointNameChoice)
+    if (name1->dwDistPointNameChoice != name2->dwDistPointNameChoice) return FALSE;
+    if (name1->dwDistPointNameChoice != CRL_DIST_POINT_FULL_NAME) return TRUE;
+
+    if (name1->u.FullName.cAltEntry != name2->u.FullName.cAltEntry) return FALSE;
+    for (i = 0; i < name1->u.FullName.cAltEntry; i++)
     {
-        match = TRUE;
-        if (name1->dwDistPointNameChoice == CRL_DIST_POINT_FULL_NAME)
+        const CERT_ALT_NAME_ENTRY *entry1 = &name1->u.FullName.rgAltEntry[i];
+        const CERT_ALT_NAME_ENTRY *entry2 = &name2->u.FullName.rgAltEntry[i];
+
+        if (entry1->dwAltNameChoice != entry2->dwAltNameChoice) return FALSE;
+        switch (entry1->dwAltNameChoice)
         {
-            if (name1->FullName.cAltEntry == name2->FullName.cAltEntry)
-            {
-                DWORD i;
-
-                for (i = 0; match && i < name1->FullName.cAltEntry; i++)
-                {
-                    const CERT_ALT_NAME_ENTRY *entry1 =
-                     &name1->FullName.rgAltEntry[i];
-                    const CERT_ALT_NAME_ENTRY *entry2 =
-                     &name2->FullName.rgAltEntry[i];
-
-                    if (entry1->dwAltNameChoice == entry2->dwAltNameChoice)
-                    {
-                        switch (entry1->dwAltNameChoice)
-                        {
-                        case CERT_ALT_NAME_URL:
-                            match = !wcsicmp(entry1->pwszURL,
-                             entry2->pwszURL);
-                            break;
-                        case CERT_ALT_NAME_DIRECTORY_NAME:
-                            match = (entry1->DirectoryName.cbData ==
-                             entry2->DirectoryName.cbData) &&
-                             !memcmp(entry1->DirectoryName.pbData,
-                             entry2->DirectoryName.pbData,
-                             entry1->DirectoryName.cbData);
-                            break;
-                        default:
-                            FIXME("unimplemented for type %ld\n",
-                             entry1->dwAltNameChoice);
-                            match = FALSE;
-                        }
-                    }
-                    else
-                        match = FALSE;
-                }
-            }
-            else
-                match = FALSE;
+        case CERT_ALT_NAME_URL:
+            if (wcsicmp( entry1->u.pwszURL, entry2->u.pwszURL )) return FALSE;
+            break;
+        case CERT_ALT_NAME_DIRECTORY_NAME:
+            if (entry1->u.DirectoryName.cbData != entry2->u.DirectoryName.cbData) return FALSE;
+            if (memcmp( entry1->u.DirectoryName.pbData, entry2->u.DirectoryName.pbData,
+                        entry1->u.DirectoryName.cbData )) return FALSE;
+            break;
+        default:
+            FIXME( "unimplemented for type %ld\n", entry1->dwAltNameChoice );
+            return FALSE;
         }
     }
-    else
-        match = FALSE;
-    return match;
+
+    return TRUE;
 }
 
 static BOOL match_dist_point_with_issuing_dist_point(
