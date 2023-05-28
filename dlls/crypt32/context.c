@@ -892,3 +892,106 @@ BOOL WINAPI CertFreeCRLContext( const CRL_CONTEXT *crl )
     if (crl) Context_Release( &crl_from_ptr( crl )->base );
     return TRUE;
 }
+
+DWORD WINAPI CertEnumCRLContextProperties( const CRL_CONTEXT *crl, DWORD id )
+{
+    TRACE( "crl %p, id %#lx\n", crl, id );
+    return properties_enum_ids( crl_from_ptr( crl )->base.properties, id );
+}
+
+static BOOL crl_get_hash_property( crl_t *crl, DWORD prop_id, ALG_ID alg_id, const BYTE *key_buf,
+                                   DWORD key_len, void *data_buf, DWORD *data_len )
+{
+    BOOL ret = CryptHashCertificate( 0, alg_id, 0, key_buf, key_len, data_buf, data_len );
+
+    if (ret && data_buf)
+    {
+        CRYPT_DATA_BLOB blob = {.cbData = *data_len, .pbData = data_buf};
+        ret = CertSetCRLContextProperty( &crl->ctx, prop_id, 0, &blob );
+    }
+
+    return ret;
+}
+
+static BOOL crl_get_property( crl_t *crl, DWORD id, void *buf, DWORD *len )
+{
+    BOOL ret;
+    CRYPT_DATA_BLOB blob;
+
+    if ((ret = properties_lookup( crl->base.properties, id, &blob )))
+    {
+        if (!buf) *len = blob.cbData;
+        else if (*len < blob.cbData)
+        {
+            SetLastError( ERROR_MORE_DATA );
+            *len = blob.cbData;
+            ret = FALSE;
+        }
+        else
+        {
+            memcpy( buf, blob.pbData, blob.cbData );
+            *len = blob.cbData;
+        }
+    }
+    else
+    {
+        /* Implicit properties */
+        switch (id)
+        {
+        case CERT_SHA1_HASH_PROP_ID:
+            ret = crl_get_hash_property( crl, id, CALG_SHA1, crl->ctx.pbCrlEncoded,
+                                         crl->ctx.cbCrlEncoded, buf, len );
+            break;
+        case CERT_MD5_HASH_PROP_ID:
+            ret = crl_get_hash_property( crl, id, CALG_MD5, crl->ctx.pbCrlEncoded,
+                                         crl->ctx.cbCrlEncoded, buf, len );
+            break;
+        default:
+            SetLastError( CRYPT_E_NOT_FOUND );
+            break;
+        }
+    }
+
+    return ret;
+}
+
+BOOL WINAPI CertGetCRLContextProperty( const CRL_CONTEXT *crl, DWORD id, void *buf, DWORD *len )
+{
+    BOOL ret;
+
+    TRACE( "crl %p, id %#lx, buf %p, len %p\n", crl, id, buf, len );
+
+    switch (id)
+    {
+    case 0:
+    case CERT_CERT_PROP_ID:
+    case CERT_CRL_PROP_ID:
+    case CERT_CTL_PROP_ID:
+        SetLastError( E_INVALIDARG );
+        ret = FALSE;
+        break;
+    case CERT_ACCESS_STATE_PROP_ID:
+        if (!buf)
+        {
+            *len = sizeof(DWORD);
+            ret = TRUE;
+        }
+        else if (*len < sizeof(DWORD))
+        {
+            SetLastError( ERROR_MORE_DATA );
+            *len = sizeof(DWORD);
+            ret = FALSE;
+        }
+        else
+        {
+            ret = CertGetStoreProperty( crl->hCertStore, id, buf, len );
+        }
+        break;
+    default:
+        ret = crl_get_property( crl_from_ptr( crl ), id, buf, len );
+        break;
+    }
+
+    TRACE( "returning %d\n", ret );
+    return ret;
+}
