@@ -263,9 +263,6 @@ DWORD WINAPI CertEnumCRLContextProperties(PCCRL_CONTEXT pCRLContext,
     return properties_enum_ids( crl_from_ptr( pCRLContext )->base.properties, dwPropId );
 }
 
-static BOOL CRLContext_SetProperty(crl_t *crl, DWORD dwPropId,
-                                   DWORD dwFlags, const void *pvData);
-
 static BOOL CRLContext_GetHashProp(crl_t *crl, DWORD dwPropId,
  ALG_ID algID, const BYTE *toHash, DWORD toHashLen, void *pvData,
  DWORD *pcbData)
@@ -276,7 +273,7 @@ static BOOL CRLContext_GetHashProp(crl_t *crl, DWORD dwPropId,
     {
         CRYPT_DATA_BLOB blob = { *pcbData, pvData };
 
-        ret = CRLContext_SetProperty(crl, dwPropId, 0, &blob);
+        ret = CertSetCRLContextProperty(&crl->ctx, dwPropId, 0, &blob);
     }
     return ret;
 }
