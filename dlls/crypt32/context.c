@@ -506,3 +506,233 @@ BOOL WINAPI CertGetCertificateContextProperty( const CERT_CONTEXT *pCertContext,
     TRACE( "returning %d\n", ret );
     return ret;
 }
+
+/*
+ * Copy to a continuous block of memory of CRYPT_KEY_PROV_INFO with
+ * its associated data.
+ */
+static void copy_crypt_key_prov_info( const CRYPT_KEY_PROV_INFO *from, CRYPT_KEY_PROV_INFO *to )
+{
+    BYTE *data;
+    DWORD i;
+
+    data = (BYTE *)(to + 1) + sizeof(CRYPT_KEY_PROV_PARAM) * from->cProvParam;
+
+    if (from->pwszContainerName)
+    {
+        to->pwszContainerName = (LPWSTR)data;
+        lstrcpyW( (LPWSTR)data, from->pwszContainerName );
+        data += (lstrlenW( from->pwszContainerName ) + 1) * sizeof(WCHAR);
+    }
+    else to->pwszContainerName = NULL;
+
+    if (from->pwszProvName)
+    {
+        to->pwszProvName = (LPWSTR)data;
+        lstrcpyW( (LPWSTR)data, from->pwszProvName );
+        data += (lstrlenW( from->pwszProvName ) + 1) * sizeof(WCHAR);
+    }
+    else to->pwszProvName = NULL;
+
+    to->dwProvType = from->dwProvType;
+    to->dwFlags = from->dwFlags;
+    to->cProvParam = from->cProvParam;
+    to->rgProvParam = from->cProvParam ? (CRYPT_KEY_PROV_PARAM *)(to + 1) : NULL;
+    to->dwKeySpec = from->dwKeySpec;
+
+    for (i = 0; i < from->cProvParam; i++)
+    {
+        to->rgProvParam[i].dwParam = from->rgProvParam[i].dwParam;
+        to->rgProvParam[i].dwFlags = from->rgProvParam[i].dwFlags;
+        to->rgProvParam[i].cbData = from->rgProvParam[i].cbData;
+        to->rgProvParam[i].pbData = from->rgProvParam[i].cbData ? data : NULL;
+        memcpy( data, from->rgProvParam[i].pbData, from->rgProvParam[i].cbData );
+        data += from->rgProvParam[i].cbData;
+    }
+}
+
+/*
+ * Create a continuous block of memory for CRYPT_KEY_PROV_INFO with
+ * its associated data, and add it to the certificate properties.
+ */
+static BOOL cert_set_crypt_key_prov_info_property( struct properties *properties, const CRYPT_KEY_PROV_INFO *info )
+{
+    CRYPT_KEY_PROV_INFO *prop;
+    DWORD size = sizeof(CRYPT_KEY_PROV_INFO), i;
+    BOOL ret;
+
+    if (info->pwszContainerName) size += (lstrlenW( info->pwszContainerName ) + 1) * sizeof(WCHAR);
+    if (info->pwszProvName) size += (lstrlenW( info->pwszProvName ) + 1) * sizeof(WCHAR);
+
+    for (i = 0; i < info->cProvParam; i++)
+        size += sizeof(CRYPT_KEY_PROV_PARAM) + info->rgProvParam[i].cbData;
+
+    if (!(prop = CryptMemAlloc( size )))
+    {
+        SetLastError( ERROR_OUTOFMEMORY );
+        return FALSE;
+    }
+
+    copy_crypt_key_prov_info( info, prop );
+
+    ret = properties_insert( properties, CERT_KEY_PROV_INFO_PROP_ID, (const BYTE *)prop, size );
+    CryptMemFree( prop );
+
+    return ret;
+}
+
+static BOOL cert_set_crypt_key_context_property( struct properties *properties, const CERT_KEY_CONTEXT *keyContext )
+{
+    struct store_CERT_KEY_CONTEXT ctx;
+
+    ctx.cbSize = sizeof(ctx);
+    ctx.hCryptProv = keyContext->hCryptProv;
+    ctx.dwKeySpec = keyContext->dwKeySpec;
+
+    return properties_insert( properties, CERT_KEY_CONTEXT_PROP_ID, (const BYTE *)&ctx, ctx.cbSize );
+}
+
+static BOOL cert_set_property( cert_t *cert, DWORD id, DWORD flags, const void *data )
+{
+    BOOL ret;
+
+    if (id >= CERT_FIRST_USER_PROP_ID && id <= CERT_LAST_USER_PROP_ID)
+    {
+        if (data)
+        {
+            const CRYPT_DATA_BLOB *blob = data;
+            ret = properties_insert( cert->base.properties, id, blob->pbData, blob->cbData );
+        }
+        else
+        {
+            properties_remove( cert->base.properties, id );
+            ret = TRUE;
+        }
+    }
+    else
+    {
+        switch (id)
+        {
+        case CERT_AUTO_ENROLL_PROP_ID:
+        case CERT_CTL_USAGE_PROP_ID: /* same as CERT_ENHKEY_USAGE_PROP_ID */
+        case CERT_DESCRIPTION_PROP_ID:
+        case CERT_FRIENDLY_NAME_PROP_ID:
+        case CERT_HASH_PROP_ID:
+        case CERT_KEY_IDENTIFIER_PROP_ID:
+        case CERT_MD5_HASH_PROP_ID:
+        case CERT_NEXT_UPDATE_LOCATION_PROP_ID:
+        case CERT_PUBKEY_ALG_PARA_PROP_ID:
+        case CERT_PVK_FILE_PROP_ID:
+        case CERT_SIGNATURE_HASH_PROP_ID:
+        case CERT_ISSUER_PUBLIC_KEY_MD5_HASH_PROP_ID:
+        case CERT_SUBJECT_NAME_MD5_HASH_PROP_ID:
+        case CERT_EXTENDED_ERROR_INFO_PROP_ID:
+        case CERT_SUBJECT_PUBLIC_KEY_MD5_HASH_PROP_ID:
+        case CERT_ENROLLMENT_PROP_ID:
+        case CERT_CROSS_CERT_DIST_POINTS_PROP_ID:
+        case CERT_OCSP_RESPONSE_PROP_ID:
+        case CERT_RENEWAL_PROP_ID:
+            if (data)
+            {
+                const CRYPT_DATA_BLOB *blob = data;
+                ret = properties_insert( cert->base.properties, id, blob->pbData, blob->cbData );
+            }
+            else
+            {
+                properties_remove( cert->base.properties, id );
+                ret = TRUE;
+            }
+            break;
+        case CERT_DATE_STAMP_PROP_ID:
+            if (data)
+                ret = properties_insert( cert->base.properties, id, data, sizeof(FILETIME) );
+            else
+            {
+                properties_remove( cert->base.properties, id );
+                ret = TRUE;
+            }
+            break;
+        case CERT_KEY_CONTEXT_PROP_ID:
+            if (data)
+            {
+                const CERT_KEY_CONTEXT *keyContext = data;
+
+                if (keyContext->cbSize != sizeof(CERT_KEY_CONTEXT))
+                {
+                    SetLastError( E_INVALIDARG );
+                    ret = FALSE;
+                }
+                else
+                {
+                    ret = cert_set_crypt_key_context_property( cert->base.properties, data );
+                }
+            }
+            else
+            {
+                properties_remove( cert->base.properties, id );
+                ret = TRUE;
+            }
+            break;
+        case CERT_KEY_PROV_INFO_PROP_ID:
+            if (data)
+                ret = cert_set_crypt_key_prov_info_property( cert->base.properties, data );
+            else
+            {
+                properties_remove( cert->base.properties, id );
+                ret = TRUE;
+            }
+            break;
+        case CERT_KEY_PROV_HANDLE_PROP_ID:
+        {
+            CERT_KEY_CONTEXT key;
+            DWORD size = sizeof(key);
+
+            ret = CertGetCertificateContextProperty( &cert->ctx, CERT_KEY_CONTEXT_PROP_ID, &key, &size );
+            if (ret && !(flags & CERT_STORE_NO_CRYPT_RELEASE_FLAG)) CryptReleaseContext( key.hCryptProv, 0 );
+
+            key.cbSize = sizeof(key);
+            if (data)
+                key.hCryptProv = *(const HCRYPTPROV *)data;
+            else
+            {
+                key.hCryptProv = 0;
+                key.dwKeySpec = AT_SIGNATURE;
+            }
+
+            ret = cert_set_property( cert, CERT_KEY_CONTEXT_PROP_ID, 0, &key );
+            break;
+        }
+        default:
+            FIXME( "%ld: stub\n", id );
+            ret = FALSE;
+            break;
+        }
+    }
+
+    return ret;
+}
+
+BOOL WINAPI CertSetCertificateContextProperty( const CERT_CONTEXT *cert, DWORD id, DWORD flags, const void *data )
+{
+    BOOL ret;
+
+    TRACE( "cert %p, id %#lx, data %p\n", cert, id, data );
+
+    /* Handle special cases for "read-only"/invalid prop IDs.  Windows just
+     * crashes on most of these, I'll be safer.
+     */
+    switch (id)
+    {
+    case 0:
+    case CERT_ACCESS_STATE_PROP_ID:
+    case CERT_CERT_PROP_ID:
+    case CERT_CRL_PROP_ID:
+    case CERT_CTL_PROP_ID:
+        SetLastError( E_INVALIDARG );
+        return FALSE;
+    }
+
+    ret = cert_set_property( cert_from_ptr( cert ), id, flags, data );
+    TRACE( "returning %d\n", ret );
+    return ret;
+}
