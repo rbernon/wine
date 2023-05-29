@@ -166,6 +166,7 @@ static context_t *CRL_clone( context_t *context, WINECRYPT_CERTSTORE *store )
         CertFreeCRLContext( &dst->ctx );
         return NULL;
     }
+    dst->base.info_size = src->base.info_size;
 
     dst->ctx.hCertStore = store;
     return &dst->base;
@@ -183,9 +184,9 @@ PCCRL_CONTEXT WINAPI CertCreateCRLContext(DWORD dwCertEncodingType,
 {
     crl_t *crl = NULL;
     BOOL ret;
-    PCRL_INFO crlInfo = NULL;
+    PCRL_INFO info = NULL;
     BYTE *data = NULL;
-    DWORD size = 0;
+    DWORD info_size = 0;
 
     TRACE("(%08lx, %p, %ld)\n", dwCertEncodingType, pbCrlEncoded,
      cbCrlEncoded);
@@ -197,7 +198,7 @@ PCCRL_CONTEXT WINAPI CertCreateCRLContext(DWORD dwCertEncodingType,
     }
     ret = CryptDecodeObjectEx(dwCertEncodingType, X509_CERT_CRL_TO_BE_SIGNED,
      pbCrlEncoded, cbCrlEncoded, CRYPT_DECODE_ALLOC_FLAG, NULL,
-     &crlInfo, &size);
+     &info, &info_size);
     if (!ret)
         return NULL;
 
@@ -216,8 +217,9 @@ PCCRL_CONTEXT WINAPI CertCreateCRLContext(DWORD dwCertEncodingType,
     crl->ctx.dwCertEncodingType = dwCertEncodingType;
     crl->ctx.pbCrlEncoded       = data;
     crl->ctx.cbCrlEncoded       = cbCrlEncoded;
-    crl->ctx.pCrlInfo           = crlInfo;
+    crl->ctx.pCrlInfo           = info;
     crl->ctx.hCertStore         = &empty_store;
+    crl->base.info_size         = info_size;
 
     return &crl->ctx;
 }
