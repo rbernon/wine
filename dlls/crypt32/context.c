@@ -173,18 +173,16 @@ static const context_vtbl_t cert_vtbl;
 
 static void Cert_free( context_t *context )
 {
-    cert_t *cert = (cert_t *)context;
-
-    CryptMemFree( cert->ctx.pbCertEncoded );
-    LocalFree( cert->ctx.pCertInfo );
+    CryptMemFree( context->cert.pbCertEncoded );
+    LocalFree( context->cert.pCertInfo );
 }
 
-static context_t *Cert_link( context_t *context, WINECRYPT_CERTSTORE *store )
+static context_t *Cert_link( context_t *source, WINECRYPT_CERTSTORE *store )
 {
-    cert_t *cert;
-    if (!(cert = (cert_t *)Context_CreateLinkContext( sizeof(CERT_CONTEXT), context, store ))) return NULL;
-    cert->ctx.hCertStore = store;
-    return &cert->base;
+    context_t *context;
+    if (!(context = Context_CreateLinkContext( sizeof(CERT_CONTEXT), source, store ))) return NULL;
+    context->cert.hCertStore = store;
+    return context;
 }
 
 static CERT_INFO *cert_info_clone( const CERT_INFO *src, UINT size )
@@ -220,28 +218,27 @@ static CERT_INFO *cert_info_clone( const CERT_INFO *src, UINT size )
     return dst;
 }
 
-static context_t *Cert_clone( context_t *context, WINECRYPT_CERTSTORE *store )
+static context_t *Cert_clone( context_t *source, WINECRYPT_CERTSTORE *store )
 {
-    const cert_t *cloned = (const cert_t *)context;
-    cert_t *cert;
+    context_t *context;
 
-    if (!(cert = (cert_t *)Context_CreateDataContext( sizeof(CERT_CONTEXT), &cert_vtbl, store ))) return NULL;
-    Context_CopyProperties( &cert->ctx, &cloned->ctx );
+    if (!(context = Context_CreateDataContext( sizeof(CERT_CONTEXT), &cert_vtbl, store ))) return NULL;
+    Context_CopyProperties( &context->cert, &source->cert );
 
-    cert->ctx.dwCertEncodingType = cloned->ctx.dwCertEncodingType;
-    cert->ctx.pbCertEncoded = CryptMemAlloc( cloned->ctx.cbCertEncoded );
-    memcpy( cert->ctx.pbCertEncoded, cloned->ctx.pbCertEncoded, cloned->ctx.cbCertEncoded );
-    cert->ctx.cbCertEncoded = cloned->ctx.cbCertEncoded;
+    context->cert.dwCertEncodingType = source->cert.dwCertEncodingType;
+    context->cert.pbCertEncoded = CryptMemAlloc( source->cert.cbCertEncoded );
+    memcpy( context->cert.pbCertEncoded, source->cert.pbCertEncoded, source->cert.cbCertEncoded );
+    context->cert.cbCertEncoded = source->cert.cbCertEncoded;
 
-    if (!(cert->ctx.pCertInfo = cert_info_clone( cloned->ctx.pCertInfo, cloned->base.info_size )))
+    if (!(context->cert.pCertInfo = cert_info_clone( source->cert.pCertInfo, source->info_size )))
     {
-        CertFreeCertificateContext( &cert->ctx );
+        CertFreeCertificateContext( &context->cert );
         return NULL;
     }
-    cert->base.info_size = cloned->base.info_size;
+    context->info_size = source->info_size;
 
-    cert->ctx.hCertStore = store;
-    return &cert->base;
+    context->cert.hCertStore = store;
+    return context;
 }
 
 static const context_vtbl_t cert_vtbl =
@@ -253,7 +250,7 @@ static const context_vtbl_t cert_vtbl =
 
 const CERT_CONTEXT *WINAPI CertCreateCertificateContext( DWORD encoding, const BYTE *buf, DWORD size )
 {
-    cert_t *cert = NULL;
+    context_t *cert = NULL;
     BYTE *data = NULL;
     BOOL ret;
     CERT_INFO *info;
@@ -271,42 +268,43 @@ const CERT_CONTEXT *WINAPI CertCreateCertificateContext( DWORD encoding, const B
                                CRYPT_DECODE_ALLOC_FLAG, NULL, &info, &info_size );
     if (!ret) return NULL;
 
-    if (!(cert = (cert_t *)Context_CreateDataContext( sizeof(CERT_CONTEXT), &cert_vtbl, &empty_store ))) return NULL;
+    if (!(cert = Context_CreateDataContext( sizeof(CERT_CONTEXT), &cert_vtbl, &empty_store ))) return NULL;
     if (!(data = CryptMemAlloc( size )))
     {
-        Context_Release( &cert->base );
+        Context_Release( cert );
         return NULL;
     }
 
     memcpy( data, buf, size );
-    cert->ctx.dwCertEncodingType = encoding;
-    cert->ctx.pbCertEncoded = data;
-    cert->ctx.cbCertEncoded = size;
-    cert->ctx.pCertInfo = info;
-    cert->ctx.hCertStore = &empty_store;
-    cert->base.info_size = info_size;
+    cert->cert.dwCertEncodingType = encoding;
+    cert->cert.pbCertEncoded = data;
+    cert->cert.cbCertEncoded = size;
+    cert->cert.pCertInfo = info;
+    cert->cert.hCertStore = &empty_store;
+    cert->info_size = info_size;
 
-    return &cert->ctx;
+    return &cert->cert;
 }
 
 const CERT_CONTEXT *WINAPI CertDuplicateCertificateContext( const CERT_CONTEXT *cert )
 {
     TRACE( "cert %p\n", cert );
-    if (cert) Context_AddRef( &cert_from_ptr( cert )->base );
+    if (cert) Context_AddRef( context_from_cert( cert ) );
     return cert;
 }
 
 BOOL WINAPI CertFreeCertificateContext( const CERT_CONTEXT *cert )
 {
     TRACE( "cert %p\n", cert );
-    if (cert) Context_Release( &cert_from_ptr( cert )->base );
+    if (cert) Context_Release( context_from_cert( cert ) );
     return TRUE;
 }
 
 DWORD WINAPI CertEnumCertificateContextProperties( const CERT_CONTEXT *cert, DWORD id )
 {
+    context_t *context = context_from_cert( cert );
     TRACE( "cert %p, id %#lx\n", cert, id );
-    return properties_enum_ids( cert_from_ptr( cert )->base.properties, id );
+    return properties_enum_ids( context->properties, id );
 }
 
 static BOOL cert_get_hash_property( const CERT_CONTEXT *cert, DWORD prop_id, ALG_ID alg_id,
@@ -385,7 +383,7 @@ static void fixup_crypt_key_prov_info( CRYPT_KEY_PROV_INFO *info )
 
 static BOOL cert_get_property( const CERT_CONTEXT *cert, DWORD id, void *buf, DWORD *len )
 {
-    context_t *context = &cert_from_ptr( cert )->base;
+    context_t *context = context_from_cert( cert );
     BOOL ret;
     CRYPT_DATA_BLOB blob;
 
@@ -593,7 +591,7 @@ static BOOL cert_set_crypt_key_context_property( struct properties *properties, 
 
 static BOOL cert_set_property( const CERT_CONTEXT *cert, DWORD id, DWORD flags, const void *data )
 {
-    context_t *context = &cert_from_ptr( cert )->base;
+    context_t *context = context_from_cert( cert );
     BOOL ret;
 
     if (id >= CERT_FIRST_USER_PROP_ID && id <= CERT_LAST_USER_PROP_ID)
@@ -741,18 +739,16 @@ static const context_vtbl_t crl_vtbl;
 
 static void CRL_free( context_t *context )
 {
-    crl_t *crl = (crl_t *)context;
-
-    CryptMemFree( crl->ctx.pbCrlEncoded );
-    LocalFree( crl->ctx.pCrlInfo );
+    CryptMemFree( context->crl.pbCrlEncoded );
+    LocalFree( context->crl.pCrlInfo );
 }
 
-static context_t *CRL_link( context_t *context, WINECRYPT_CERTSTORE *store )
+static context_t *CRL_link( context_t *source, WINECRYPT_CERTSTORE *store )
 {
-    crl_t *crl;
-    if (!(crl = (crl_t *)Context_CreateLinkContext( sizeof(CRL_CONTEXT), context, store ))) return NULL;
-    crl->ctx.hCertStore = store;
-    return &crl->base;
+    context_t *context;
+    if (!(context = Context_CreateLinkContext( sizeof(CRL_CONTEXT), source, store ))) return NULL;
+    context->crl.hCertStore = store;
+    return context;
 }
 
 static CRL_INFO *crl_info_clone( const CRL_INFO *src, UINT size )
@@ -809,28 +805,27 @@ static CRL_INFO *crl_info_clone( const CRL_INFO *src, UINT size )
     return dst;
 }
 
-static context_t *CRL_clone( context_t *context, WINECRYPT_CERTSTORE *store )
+static context_t *CRL_clone( context_t *source, WINECRYPT_CERTSTORE *store )
 {
-    const crl_t *src = (const crl_t *)context;
-    crl_t *dst;
+    context_t *context;
 
-    if (!(dst = (crl_t *)Context_CreateDataContext( sizeof(CRL_CONTEXT), &crl_vtbl, store ))) return NULL;
-    Context_CopyProperties( &dst->ctx, &src->ctx );
+    if (!(context = Context_CreateDataContext( sizeof(CRL_CONTEXT), &crl_vtbl, store ))) return NULL;
+    Context_CopyProperties( &context->crl, &source->crl );
 
-    dst->ctx.dwCertEncodingType = src->ctx.dwCertEncodingType;
-    dst->ctx.pbCrlEncoded = CryptMemAlloc( src->ctx.cbCrlEncoded );
-    memcpy( dst->ctx.pbCrlEncoded, src->ctx.pbCrlEncoded, src->ctx.cbCrlEncoded );
-    dst->ctx.cbCrlEncoded = src->ctx.cbCrlEncoded;
+    context->crl.dwCertEncodingType = source->crl.dwCertEncodingType;
+    context->crl.pbCrlEncoded = CryptMemAlloc( source->crl.cbCrlEncoded );
+    memcpy( context->crl.pbCrlEncoded, source->crl.pbCrlEncoded, source->crl.cbCrlEncoded );
+    context->crl.cbCrlEncoded = source->crl.cbCrlEncoded;
 
-    if (!(dst->ctx.pCrlInfo = crl_info_clone( src->ctx.pCrlInfo, src->base.info_size )))
+    if (!(context->crl.pCrlInfo = crl_info_clone( source->crl.pCrlInfo, source->info_size )))
     {
-        CertFreeCRLContext( &dst->ctx );
+        CertFreeCRLContext( &context->crl );
         return NULL;
     }
-    dst->base.info_size = src->base.info_size;
+    context->info_size = source->info_size;
 
-    dst->ctx.hCertStore = store;
-    return &dst->base;
+    context->crl.hCertStore = store;
+    return context;
 }
 
 static const context_vtbl_t crl_vtbl =
@@ -842,7 +837,7 @@ static const context_vtbl_t crl_vtbl =
 
 const CRL_CONTEXT *WINAPI CertCreateCRLContext( DWORD encoding, const BYTE *buf, DWORD size )
 {
-    crl_t *crl = NULL;
+    context_t *context = NULL;
     BOOL ret;
     CRL_INFO *info = NULL;
     BYTE *data = NULL;
@@ -860,43 +855,42 @@ const CRL_CONTEXT *WINAPI CertCreateCRLContext( DWORD encoding, const BYTE *buf,
                                CRYPT_DECODE_ALLOC_FLAG, NULL, &info, &info_size );
     if (!ret) return NULL;
 
-    if (!(crl = (crl_t *)Context_CreateDataContext( sizeof(CRL_CONTEXT), &crl_vtbl, &empty_store )))
-        return NULL;
+    if (!(context = Context_CreateDataContext( sizeof(CRL_CONTEXT), &crl_vtbl, &empty_store ))) return NULL;
     if (!(data = CryptMemAlloc( size )))
     {
-        Context_Release( &crl->base );
+        Context_Release( context );
         return NULL;
     }
 
     memcpy( data, buf, size );
-    crl->ctx.dwCertEncodingType = encoding;
-    crl->ctx.pbCrlEncoded = data;
-    crl->ctx.cbCrlEncoded = size;
-    crl->ctx.pCrlInfo = info;
-    crl->ctx.hCertStore = &empty_store;
-    crl->base.info_size = info_size;
+    context->crl.dwCertEncodingType = encoding;
+    context->crl.pbCrlEncoded = data;
+    context->crl.cbCrlEncoded = size;
+    context->crl.pCrlInfo = info;
+    context->crl.hCertStore = &empty_store;
+    context->info_size = info_size;
 
-    return &crl->ctx;
+    return &context->crl;
 }
 
 const CRL_CONTEXT *WINAPI CertDuplicateCRLContext( const CRL_CONTEXT *crl )
 {
     TRACE( "crl %p\n", crl );
-    if (crl) Context_AddRef( &crl_from_ptr( crl )->base );
+    if (crl) Context_AddRef( context_from_crl( crl ) );
     return crl;
 }
 
 BOOL WINAPI CertFreeCRLContext( const CRL_CONTEXT *crl )
 {
-    TRACE( "crl %p\n", crl );
-    if (crl) Context_Release( &crl_from_ptr( crl )->base );
+    TRACE( "crl %p)\n", crl );
+    if (crl) Context_Release( context_from_crl( crl ) );
     return TRUE;
 }
 
 DWORD WINAPI CertEnumCRLContextProperties( const CRL_CONTEXT *crl, DWORD id )
 {
     TRACE( "crl %p, id %#lx\n", crl, id );
-    return properties_enum_ids( crl_from_ptr( crl )->base.properties, id );
+    return properties_enum_ids( context_from_crl( crl )->properties, id );
 }
 
 static BOOL crl_get_hash_property( const CRL_CONTEXT *crl, DWORD prop_id, ALG_ID alg_id, const BYTE *key_buf,
@@ -915,7 +909,7 @@ static BOOL crl_get_hash_property( const CRL_CONTEXT *crl, DWORD prop_id, ALG_ID
 
 static BOOL crl_get_property( const CRL_CONTEXT *crl, DWORD id, void *buf, DWORD *len )
 {
-    context_t *context = &crl_from_ptr( crl )->base;
+    context_t *context = context_from_crl( crl );
     BOOL ret;
     CRYPT_DATA_BLOB blob;
 
@@ -999,7 +993,7 @@ BOOL WINAPI CertGetCRLContextProperty( const CRL_CONTEXT *crl, DWORD id, void *b
 
 static BOOL crl_set_property( const CRL_CONTEXT *crl, DWORD id, DWORD flags, const void *data )
 {
-    context_t *context = &crl_from_ptr( crl )->base;
+    context_t *context = context_from_crl( crl );
     BOOL ret;
 
     if (!data)
@@ -1074,20 +1068,18 @@ BOOL WINAPI CertSetCRLContextProperty( const CRL_CONTEXT *crl, DWORD id, DWORD f
 
 static void CTL_free( context_t *context )
 {
-    ctl_t *ctl = (ctl_t *)context;
-
-    CryptMsgClose( ctl->ctx.hCryptMsg );
-    CryptMemFree( ctl->ctx.pbCtlEncoded );
-    CryptMemFree( ctl->ctx.pbCtlContext );
-    LocalFree( ctl->ctx.pCtlInfo );
+    CryptMsgClose( context->ctl.hCryptMsg );
+    CryptMemFree( context->ctl.pbCtlEncoded );
+    CryptMemFree( context->ctl.pbCtlContext );
+    LocalFree( context->ctl.pCtlInfo );
 }
 
-static context_t *CTL_link( context_t *context, WINECRYPT_CERTSTORE *store )
+static context_t *CTL_link( context_t *source, WINECRYPT_CERTSTORE *store )
 {
-    ctl_t *ctl;
-    if (!(ctl = (ctl_t *)Context_CreateLinkContext( sizeof(CTL_CONTEXT), context, store ))) return NULL;
-    ctl->ctx.hCertStore = store;
-    return &ctl->base;
+    context_t *context;
+    if (!(context = Context_CreateLinkContext( sizeof(CTL_CONTEXT), source, store ))) return NULL;
+    context->ctl.hCertStore = store;
+    return context;
 }
 
 static context_t *CTL_clone( context_t *context, WINECRYPT_CERTSTORE *store )
@@ -1137,7 +1129,7 @@ error:
 
 const CTL_CONTEXT *WINAPI CertCreateCTLContext( DWORD encoding, const BYTE *buf, DWORD size )
 {
-    ctl_t *ctl = NULL;
+    context_t *context = NULL;
 
     TRACE( "encoding %#lx, buf %p, size %lu\n", encoding, buf, size );
 
@@ -1152,52 +1144,51 @@ const CTL_CONTEXT *WINAPI CertCreateCTLContext( DWORD encoding, const BYTE *buf,
         return NULL;
     }
 
-    if (!(ctl = (ctl_t *)Context_CreateDataContext( sizeof(CTL_CONTEXT), &ctl_vtbl, &empty_store )))
+    if (!(context = Context_CreateDataContext( sizeof(CTL_CONTEXT), &ctl_vtbl, &empty_store )))
     {
         SetLastError( ERROR_OUTOFMEMORY );
         return NULL;
     }
-    if (!(ctl->ctx.pbCtlEncoded = CryptMemAlloc( size )))
+    if (!(context->ctl.pbCtlEncoded = CryptMemAlloc( size )))
     {
-        Context_Release( &ctl->base );
+        Context_Release( context );
         SetLastError( ERROR_OUTOFMEMORY );
         return NULL;
     }
 
-    memcpy( ctl->ctx.pbCtlEncoded, buf, size );
-    ctl->ctx.dwMsgAndCertEncodingType = X509_ASN_ENCODING | PKCS_7_ASN_ENCODING;
-    ctl->ctx.cbCtlEncoded = size;
-    ctl->ctx.hCertStore = &empty_store;
+    memcpy( context->ctl.pbCtlEncoded, buf, size );
+    context->ctl.dwMsgAndCertEncodingType = X509_ASN_ENCODING | PKCS_7_ASN_ENCODING;
+    context->ctl.cbCtlEncoded = size;
+    context->ctl.hCertStore = &empty_store;
 
-    if (!ctl_decode_content( &ctl->ctx, encoding, &ctl->base.info_size ))
+    if (!ctl_decode_content( &context->ctl, encoding, &context->info_size ))
     {
-        CryptMemFree( ctl->ctx.pbCtlEncoded );
-        Context_Release( &ctl->base );
+        CryptMemFree( context->ctl.pbCtlEncoded );
+        Context_Release( context );
         SetLastError( ERROR_INVALID_DATA );
         return NULL;
     }
-
-    return &ctl->ctx;
+    return &context->ctl;
 }
 
 const CTL_CONTEXT *WINAPI CertDuplicateCTLContext( const CTL_CONTEXT *ctl )
 {
     TRACE( "ctl %p\n", ctl );
-    if (ctl) Context_AddRef( &ctl_from_ptr( ctl )->base );
+    if (ctl) Context_AddRef( context_from_ctl( ctl ) );
     return ctl;
 }
 
 BOOL WINAPI CertFreeCTLContext( const CTL_CONTEXT *ctl )
 {
     TRACE( "ctl %p\n", ctl );
-    if (ctl) Context_Release( &ctl_from_ptr( ctl )->base );
+    if (ctl) Context_Release( context_from_ctl( ctl ) );
     return TRUE;
 }
 
 DWORD WINAPI CertEnumCTLContextProperties( const CTL_CONTEXT *ctl, DWORD id )
 {
     TRACE( "cert %p, id %#lx\n", ctl, id );
-    return properties_enum_ids( ctl_from_ptr( ctl )->base.properties, id );
+    return properties_enum_ids( context_from_ctl( ctl )->properties, id );
 }
 
 static BOOL ctl_get_hashed_property( const CTL_CONTEXT *ctl, DWORD prop_id, ALG_ID alg_id, const BYTE *hash_buf,
@@ -1216,7 +1207,7 @@ static BOOL ctl_get_hashed_property( const CTL_CONTEXT *ctl, DWORD prop_id, ALG_
 
 static BOOL ctl_get_property( const CTL_CONTEXT *ctl, DWORD id, void *buf, DWORD *len )
 {
-    context_t *context = &ctl_from_ptr( ctl )->base;
+    context_t *context = context_from_ctl( ctl );
     BOOL ret;
     CRYPT_DATA_BLOB blob;
 
@@ -1301,7 +1292,7 @@ BOOL WINAPI CertGetCTLContextProperty( const CTL_CONTEXT *ctl, DWORD id, void *b
 
 static BOOL ctl_set_property( const CTL_CONTEXT *ctl, DWORD id, DWORD flags, const void *data )
 {
-    context_t *context = &ctl_from_ptr( ctl )->base;
+    context_t *context = context_from_ctl( ctl );
     BOOL ret;
 
     if (!data)
