@@ -46,105 +46,87 @@ static context_t *CRL_link( context_t *context, WINECRYPT_CERTSTORE *store )
     return &crl->base;
 }
 
-static char *copy_string(char *p, char **dst, const char *src)
+static BYTE *copy_string( BYTE *ptr, char **dst, const char *src )
 {
-    size_t size = strlen(src) + 1;
-
-    *dst = memcpy(p, src, size);
-    return p + size;
+    size_t size;
+    if (!src) return ptr;
+    size = strlen( src ) + 1;
+    *dst = memcpy( ptr, src, size );
+    return ptr + size;
 }
 
-static char *copy_blob(char *p, DATA_BLOB *dst, const DATA_BLOB *src)
+static BYTE *copy_blob( BYTE *ptr, DATA_BLOB *dst, const DATA_BLOB *src )
 {
-    size_t size = src->cbData;
-
-    dst->cbData = size;
-    dst->pbData = memcpy(p, src->pbData, size);
-    return p + size;
+    *dst = *src;
+    dst->pbData = memcpy( ptr, src->pbData, src->cbData );
+    return ptr + src->cbData;
 }
 
-static char *copy_extension(char *p, CERT_EXTENSION *dst, const CERT_EXTENSION *src)
+static BYTE *copy_bit_blob( BYTE *ptr, CRYPT_BIT_BLOB *dst, const CRYPT_BIT_BLOB *src )
 {
-    p = copy_string(p, &dst->pszObjId, src->pszObjId);
-    dst->fCritical = src->fCritical;
-    return copy_blob(p, &dst->Value, &src->Value);
+    *dst = *src;
+    dst->pbData = memcpy( ptr, src->pbData, src->cbData );
+    return ptr + src->cbData;
 }
 
-static CRL_INFO *clone_crl_info(const CRL_INFO *src)
+static BYTE *copy_extension( BYTE *ptr, CERT_EXTENSION *dst, const CERT_EXTENSION *src)
 {
-    size_t size = sizeof(CRL_INFO);
+    *dst = *src;
+    ptr = copy_string( ptr, &dst->pszObjId, src->pszObjId );
+    return copy_blob( ptr, &dst->Value, &src->Value );
+}
+
+static CRL_INFO *crl_info_clone( const CRL_INFO *src, UINT size )
+{
     CRL_INFO *dst;
     DWORD i, j;
-    char *p;
+    BYTE *ptr;
 
-    if (src->SignatureAlgorithm.pszObjId)
-        size += strlen(src->SignatureAlgorithm.pszObjId) + 1;
-    size += src->SignatureAlgorithm.Parameters.cbData;
-    size += src->Issuer.cbData;
-    for (i = 0; i < src->cCRLEntry; ++i)
-    {
-        const CRL_ENTRY *entry = &src->rgCRLEntry[i];
-
-        size += sizeof(CRL_ENTRY);
-        size += entry->SerialNumber.cbData;
-        for (j = 0; j < entry->cExtension; ++j)
-        {
-            const CERT_EXTENSION *ext = &entry->rgExtension[j];
-
-            size += sizeof(CERT_EXTENSION);
-            size += strlen(ext->pszObjId) + 1;
-            size += ext->Value.cbData;
-        }
-    }
-
-    for (j = 0; j < src->cExtension; ++j)
-    {
-        const CERT_EXTENSION *ext = &src->rgExtension[j];
-
-        size += sizeof(CERT_EXTENSION);
-        size += strlen(ext->pszObjId) + 1;
-        size += ext->Value.cbData;
-    }
-
-    if (!(dst = LocalAlloc(LPTR, size)))
-        return NULL;
-    p = (char *)(dst + 1);
+    if (!(dst = LocalAlloc( LPTR, size ))) return NULL;
+    ptr = (BYTE *)(dst + 1);
 
     dst->dwVersion = src->dwVersion;
-    if (src->SignatureAlgorithm.pszObjId)
-        p = copy_string(p, &dst->SignatureAlgorithm.pszObjId, src->SignatureAlgorithm.pszObjId);
-    p = copy_blob(p, &dst->SignatureAlgorithm.Parameters, &src->SignatureAlgorithm.Parameters);
-    p = copy_blob(p, &dst->Issuer, &src->Issuer);
+    ptr = copy_string( ptr, &dst->SignatureAlgorithm.pszObjId, src->SignatureAlgorithm.pszObjId );
+    ptr = copy_blob( ptr, &dst->SignatureAlgorithm.Parameters, &src->SignatureAlgorithm.Parameters );
+    ptr = copy_blob( ptr, &dst->Issuer, &src->Issuer );
     dst->ThisUpdate = src->ThisUpdate;
     dst->NextUpdate = src->NextUpdate;
 
     dst->cCRLEntry = src->cCRLEntry;
-    dst->rgCRLEntry = (CRL_ENTRY *)p;
-    p += src->cCRLEntry * sizeof(CRL_ENTRY);
+    dst->rgCRLEntry = (CRL_ENTRY *)ptr;
+    ptr += src->cCRLEntry * sizeof(CRL_ENTRY);
 
     dst->cExtension = src->cExtension;
-    dst->rgExtension = (CERT_EXTENSION *)p;
-    p += src->cExtension * sizeof(CERT_EXTENSION);
+    dst->rgExtension = (CERT_EXTENSION *)ptr;
+    ptr += src->cExtension * sizeof(CERT_EXTENSION);
 
     for (i = 0; i < src->cCRLEntry; ++i)
     {
         const CRL_ENTRY *src_entry = &src->rgCRLEntry[i];
         CRL_ENTRY *dst_entry = &dst->rgCRLEntry[i];
 
-        p = copy_blob(p, &dst_entry->SerialNumber, &src_entry->SerialNumber);
+        ptr = copy_blob( ptr, &dst_entry->SerialNumber, &src_entry->SerialNumber );
         dst_entry->RevocationDate = src_entry->RevocationDate;
         dst_entry->cExtension = src_entry->cExtension;
-        dst_entry->rgExtension = (CERT_EXTENSION *)p;
-        p += src_entry->cExtension * sizeof(CERT_EXTENSION);
+        dst_entry->rgExtension = (CERT_EXTENSION *)ptr;
+        ptr += src_entry->cExtension * sizeof(CERT_EXTENSION);
 
         for (j = 0; j < src_entry->cExtension; ++j)
-            p = copy_extension(p, &dst_entry->rgExtension[j], &src_entry->rgExtension[j]);
+        {
+            const CERT_EXTENSION *src_ext = &src_entry->rgExtension[j];
+            CERT_EXTENSION *dst_ext = &dst_entry->rgExtension[j];
+            ptr = copy_extension( ptr, dst_ext, src_ext );
+        }
     }
 
     for (j = 0; j < src->cExtension; ++j)
-        p = copy_extension(p, &dst->rgExtension[j], &src->rgExtension[j]);
+    {
+        const CERT_EXTENSION *src_ext = &src->rgExtension[j];
+        CERT_EXTENSION *dst_ext = &dst->rgExtension[j];
+        ptr = copy_extension( ptr, dst_ext, src_ext );
+    }
 
-    assert(p - (char *)dst == size);
+    assert( ptr - (BYTE *)dst == size );
     return dst;
 }
 
@@ -161,7 +143,7 @@ static context_t *CRL_clone( context_t *context, WINECRYPT_CERTSTORE *store )
     memcpy( dst->ctx.pbCrlEncoded, src->ctx.pbCrlEncoded, src->ctx.cbCrlEncoded );
     dst->ctx.cbCrlEncoded = src->ctx.cbCrlEncoded;
 
-    if (!(dst->ctx.pCrlInfo = clone_crl_info( src->ctx.pCrlInfo )))
+    if (!(dst->ctx.pCrlInfo = crl_info_clone( src->ctx.pCrlInfo, src->base.info_size )))
     {
         CertFreeCRLContext( &dst->ctx );
         return NULL;
