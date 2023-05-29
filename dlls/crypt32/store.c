@@ -918,6 +918,135 @@ HCERTSTORE WINAPI CertOpenSystemStoreW(HCRYPTPROV_LEGACY hProv,
      CERT_SYSTEM_STORE_CURRENT_USER, szSubSystemProtocol);
 }
 
+static BOOL add_cert_to_store( WINECRYPT_CERTSTORE *store, const CERT_CONTEXT *cert, DWORD disposition,
+                               BOOL use_link, const CERT_CONTEXT **out )
+{
+    const CERT_CONTEXT *existing = NULL;
+    BOOL ret = TRUE, inherit_props = FALSE;
+    context_t *new_context = NULL;
+
+    switch (disposition)
+    {
+    case CERT_STORE_ADD_ALWAYS:
+        break;
+    case CERT_STORE_ADD_NEW:
+    case CERT_STORE_ADD_REPLACE_EXISTING:
+    case CERT_STORE_ADD_REPLACE_EXISTING_INHERIT_PROPERTIES:
+    case CERT_STORE_ADD_USE_EXISTING:
+    case CERT_STORE_ADD_NEWER:
+    case CERT_STORE_ADD_NEWER_INHERIT_PROPERTIES:
+    {
+        BYTE hash[20];
+        DWORD size = sizeof(hash);
+
+        if ((ret = CertGetCertificateContextProperty( cert, CERT_HASH_PROP_ID, hash, &size )))
+        {
+            CRYPT_HASH_BLOB blob = {.cbData = sizeof(hash), .pbData = hash};
+            existing = CertFindCertificateInStore( store, cert->dwCertEncodingType, 0, CERT_FIND_SHA1_HASH, &blob, NULL );
+        }
+        break;
+    }
+    default:
+        FIXME( "Unimplemented add disposition %ld\n", disposition );
+        SetLastError( E_INVALIDARG );
+        return FALSE;
+    }
+
+    switch (disposition)
+    {
+    case CERT_STORE_ADD_ALWAYS:
+        break;
+    case CERT_STORE_ADD_NEW:
+        if (existing)
+        {
+            TRACE( "found matching certificate, not adding\n" );
+            SetLastError( CRYPT_E_EXISTS );
+            return FALSE;
+        }
+        break;
+    case CERT_STORE_ADD_REPLACE_EXISTING:
+        break;
+    case CERT_STORE_ADD_REPLACE_EXISTING_INHERIT_PROPERTIES:
+        if (use_link) FIXME( "CERT_STORE_ADD_REPLACE_EXISTING_INHERIT_PROPERTIES: semi-stub for links\n" );
+        if (existing) inherit_props = TRUE;
+        break;
+    case CERT_STORE_ADD_USE_EXISTING:
+        if (use_link) FIXME( "CERT_STORE_ADD_USE_EXISTING: semi-stub for links\n" );
+        if (existing)
+        {
+            Context_CopyProperties( existing, cert );
+            if (out) *out = CertDuplicateCertificateContext( existing );
+            return TRUE;
+        }
+        break;
+    case CERT_STORE_ADD_NEWER:
+        if (existing && CompareFileTime( &existing->pCertInfo->NotBefore, &cert->pCertInfo->NotBefore ) >= 0)
+        {
+            TRACE( "existing certificate is newer, not adding\n" );
+            SetLastError( CRYPT_E_EXISTS );
+            return FALSE;
+        }
+        break;
+    case CERT_STORE_ADD_NEWER_INHERIT_PROPERTIES:
+        if (existing)
+        {
+            if (CompareFileTime( &existing->pCertInfo->NotBefore, &cert->pCertInfo->NotBefore ) >= 0)
+            {
+                TRACE( "existing certificate is newer, not adding\n" );
+                SetLastError( CRYPT_E_EXISTS );
+                return FALSE;
+            }
+            inherit_props = TRUE;
+        }
+        break;
+    }
+
+    /* FIXME: We have tests that this works, but what should we really do in this case? */
+    if (!store)
+    {
+        if (out) *out = CertDuplicateCertificateContext( cert );
+        return TRUE;
+    }
+
+    ret = store->vtbl->certs.addContext( store, context_from_ptr( cert ), existing ? context_from_ptr( existing ) : NULL,
+                                         (out || inherit_props) ? &new_context : NULL, use_link );
+    if (!ret) return FALSE;
+
+    if (inherit_props) Context_CopyProperties( context_ptr( new_context ), existing );
+
+    if (out) *out = context_ptr( new_context );
+    else if (new_context) Context_Release( new_context );
+
+    TRACE( "returning %d\n", ret );
+    return ret;
+}
+
+BOOL WINAPI CertAddCertificateContextToStore( HCERTSTORE store, const CERT_CONTEXT *cert,
+                                              DWORD disposition, const CERT_CONTEXT **out )
+{
+    TRACE( "store %p, cert %p, disposition %#lx, out %p\n", store, cert, disposition, out );
+    return add_cert_to_store( store, cert, disposition, FALSE, out );
+}
+
+BOOL WINAPI CertAddCertificateLinkToStore( HCERTSTORE store, const CERT_CONTEXT *cert,
+                                           DWORD disposition, const CERT_CONTEXT **out )
+{
+    static int once;
+    WINECRYPT_CERTSTORE *impl = (WINECRYPT_CERTSTORE *)store;
+
+    if (!once++) FIXME( "store %p, cert %p, disposition %#lx, out %p semi-stub!\n", store, cert, disposition, out );
+    else TRACE( "store %p, cert %p, disposition %#lx, out %p semi-stub!\n", store, cert, disposition, out );
+
+    if (impl->dwMagic != WINE_CRYPTCERTSTORE_MAGIC) return FALSE;
+    if (impl->type == StoreTypeCollection)
+    {
+        SetLastError( E_INVALIDARG );
+        return FALSE;
+    }
+
+    return add_cert_to_store( store, cert, disposition, TRUE, out );
+}
+
 BOOL WINAPI CertAddEncodedCertificateToStore( HCERTSTORE store, DWORD encoding, const BYTE *buf, DWORD size,
                                               DWORD disposition, const CERT_CONTEXT **out )
 {
