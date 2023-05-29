@@ -71,12 +71,73 @@ static context_t *Cert_link( context_t *context, WINECRYPT_CERTSTORE *store )
     return &cert->base;
 }
 
+static BYTE *copy_string( BYTE *ptr, char **dst, const char *src )
+{
+    size_t size;
+    if (!src) return ptr;
+    size = strlen( src ) + 1;
+    *dst = memcpy( ptr, src, size );
+    return ptr + size;
+}
+
+static BYTE *copy_blob( BYTE *ptr, DATA_BLOB *dst, const DATA_BLOB *src )
+{
+    *dst = *src;
+    dst->pbData = memcpy( ptr, src->pbData, src->cbData );
+    return ptr + src->cbData;
+}
+
+static BYTE *copy_bit_blob( BYTE *ptr, CRYPT_BIT_BLOB *dst, const CRYPT_BIT_BLOB *src )
+{
+    *dst = *src;
+    dst->pbData = memcpy( ptr, src->pbData, src->cbData );
+    return ptr + src->cbData;
+}
+
+static BYTE *copy_extension( BYTE *ptr, CERT_EXTENSION *dst, const CERT_EXTENSION *src)
+{
+    *dst = *src;
+    ptr = copy_string( ptr, &dst->pszObjId, src->pszObjId );
+    return copy_blob( ptr, &dst->Value, &src->Value );
+}
+
+static CERT_INFO *cert_info_clone( const CERT_INFO *src, UINT size )
+{
+    CERT_INFO *dst;
+    BYTE *ptr;
+    UINT i;
+
+    if (!(dst = LocalAlloc( LPTR, size ))) return NULL;
+    ptr = (BYTE *)(dst + 1);
+
+    *dst = *src;
+    ptr = copy_blob( ptr, &dst->SerialNumber, &src->SerialNumber );
+    ptr = copy_string( ptr, &dst->SignatureAlgorithm.pszObjId, src->SignatureAlgorithm.pszObjId );
+    ptr = copy_blob( ptr, &dst->SignatureAlgorithm.Parameters, &src->SignatureAlgorithm.Parameters );
+    ptr = copy_blob( ptr, &dst->Issuer, &src->Issuer );
+    ptr = copy_blob( ptr, &dst->Subject, &src->Subject );
+    ptr = copy_string( ptr, &dst->SubjectPublicKeyInfo.Algorithm.pszObjId, src->SubjectPublicKeyInfo.Algorithm.pszObjId );
+    ptr = copy_blob( ptr, &dst->SubjectPublicKeyInfo.Algorithm.Parameters, &src->SubjectPublicKeyInfo.Algorithm.Parameters );
+    ptr = copy_bit_blob( ptr, &dst->SubjectPublicKeyInfo.PublicKey, &src->SubjectPublicKeyInfo.PublicKey );
+    ptr = copy_bit_blob( ptr, &dst->IssuerUniqueId, &src->IssuerUniqueId );
+    ptr = copy_bit_blob( ptr, &dst->SubjectUniqueId, &src->SubjectUniqueId );
+
+    dst->rgExtension = (CERT_EXTENSION *)ptr;
+    ptr += src->cExtension * sizeof(CERT_EXTENSION);
+    for (i = 0; i < src->cExtension; ++i)
+    {
+        const CERT_EXTENSION *src_ext = &src->rgExtension[i];
+        CERT_EXTENSION *dst_ext = &dst->rgExtension[i];
+        ptr = copy_extension( ptr, dst_ext, src_ext );
+    }
+
+    return dst;
+}
+
 static context_t *Cert_clone( context_t *context, WINECRYPT_CERTSTORE *store )
 {
     const cert_t *cloned = (const cert_t *)context;
-    DWORD size = 0;
     cert_t *cert;
-    BOOL res;
 
     if (!(cert = (cert_t *)Context_CreateDataContext( sizeof(CERT_CONTEXT), &cert_vtbl, store ))) return NULL;
     Context_CopyProperties( &cert->ctx, &cloned->ctx );
@@ -86,11 +147,7 @@ static context_t *Cert_clone( context_t *context, WINECRYPT_CERTSTORE *store )
     memcpy( cert->ctx.pbCertEncoded, cloned->ctx.pbCertEncoded, cloned->ctx.cbCertEncoded );
     cert->ctx.cbCertEncoded = cloned->ctx.cbCertEncoded;
 
-    /* FIXME: We don't need to decode the object here, we could just clone cert info. */
-    res = CryptDecodeObjectEx( cert->ctx.dwCertEncodingType, X509_CERT_TO_BE_SIGNED,
-                               cert->ctx.pbCertEncoded, cert->ctx.cbCertEncoded,
-                               CRYPT_DECODE_ALLOC_FLAG, NULL, &cert->ctx.pCertInfo, &size );
-    if (!res)
+    if (!(cert->ctx.pCertInfo = cert_info_clone( cloned->ctx.pCertInfo, cloned->base.info_size )))
     {
         CertFreeCertificateContext( &cert->ctx );
         return NULL;
