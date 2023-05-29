@@ -28,28 +28,6 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(crypt);
 
-BOOL WINAPI CertAddEncodedCRLToStore(HCERTSTORE hCertStore,
- DWORD dwCertEncodingType, const BYTE *pbCrlEncoded, DWORD cbCrlEncoded,
- DWORD dwAddDisposition, PCCRL_CONTEXT *ppCrlContext)
-{
-    PCCRL_CONTEXT crl = CertCreateCRLContext(dwCertEncodingType,
-     pbCrlEncoded, cbCrlEncoded);
-    BOOL ret;
-
-    TRACE("(%p, %08lx, %p, %ld, %08lx, %p)\n", hCertStore, dwCertEncodingType,
-     pbCrlEncoded, cbCrlEncoded, dwAddDisposition, ppCrlContext);
-
-    if (crl)
-    {
-        ret = CertAddCRLContextToStore(hCertStore, crl, dwAddDisposition,
-         ppCrlContext);
-        CertFreeCRLContext(crl);
-    }
-    else
-        ret = FALSE;
-    return ret;
-}
-
 typedef BOOL (*CrlCompareFunc)(PCCRL_CONTEXT pCrlContext, DWORD dwType,
  DWORD dwFlags, const void *pvPara);
 
