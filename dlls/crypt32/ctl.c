@@ -366,8 +366,8 @@ PCCTL_CONTEXT WINAPI CertCreateCTLContext(DWORD dwMsgAndCertEncodingType,
     HCRYPTMSG msg;
     BOOL ret;
     BYTE *content = NULL;
-    DWORD contentSize = 0, size;
-    PCTL_INFO ctlInfo = NULL;
+    DWORD contentSize = 0, size, info_size;
+    CTL_INFO *info = NULL;
 
     TRACE("(%08lx, %p, %ld)\n", dwMsgAndCertEncodingType, pbCtlEncoded,
      cbCtlEncoded);
@@ -432,7 +432,7 @@ PCCTL_CONTEXT WINAPI CertCreateCTLContext(DWORD dwMsgAndCertEncodingType,
         {
             ret = CryptDecodeObjectEx(dwMsgAndCertEncodingType, PKCS_CTL,
              content, contentSize, CRYPT_DECODE_ALLOC_FLAG, NULL,
-             &ctlInfo, &size);
+             &info, &info_size);
             if (ret)
             {
                 ctl = (ctl_t*)Context_CreateDataContext(sizeof(CTL_CONTEXT), &ctl_vtbl, &empty_store);
@@ -447,11 +447,12 @@ PCCTL_CONTEXT WINAPI CertCreateCTLContext(DWORD dwMsgAndCertEncodingType,
                          X509_ASN_ENCODING | PKCS_7_ASN_ENCODING;
                         ctl->ctx.pbCtlEncoded             = data;
                         ctl->ctx.cbCtlEncoded             = cbCtlEncoded;
-                        ctl->ctx.pCtlInfo                 = ctlInfo;
+                        ctl->ctx.pCtlInfo                 = info;
                         ctl->ctx.hCertStore               = &empty_store;
                         ctl->ctx.hCryptMsg                = msg;
                         ctl->ctx.pbCtlContext             = content;
                         ctl->ctx.cbCtlContext             = contentSize;
+                        ctl->base.info_size               = info_size;
                     }
                     else
                     {
@@ -479,7 +480,7 @@ end:
         if(ctl)
             Context_Release(&ctl->base);
         ctl = NULL;
-        LocalFree(ctlInfo);
+        LocalFree(info);
         CryptMemFree(content);
         CryptMsgClose(msg);
         return NULL;

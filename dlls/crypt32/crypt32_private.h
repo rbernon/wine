@@ -230,6 +230,7 @@ struct _context_t {
         struct list entry;
         void *ptr;
     } u;
+    DWORD info_size;
 };
 
 static inline context_t *context_from_ptr(const void *ptr)
