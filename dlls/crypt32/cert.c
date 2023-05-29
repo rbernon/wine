@@ -63,47 +63,48 @@ static void Cert_free(context_t *context)
     LocalFree(cert->ctx.pCertInfo);
 }
 
-static context_t *Cert_clone(context_t *context, WINECRYPT_CERTSTORE *store, BOOL use_link)
+static context_t *Cert_link( context_t *context, WINECRYPT_CERTSTORE *store )
 {
     cert_t *cert;
+    if (!(cert = (cert_t *)Context_CreateLinkContext( sizeof(CERT_CONTEXT), context, store ))) return NULL;
+    cert->ctx.hCertStore = store;
+    return &cert->base;
+}
 
-    if(use_link) {
-        cert = (cert_t*)Context_CreateLinkContext(sizeof(CERT_CONTEXT), context, store);
-        if(!cert)
-            return NULL;
-    }else {
-        const cert_t *cloned = (const cert_t*)context;
-        DWORD size = 0;
-        BOOL res;
+static context_t *Cert_clone( context_t *context, WINECRYPT_CERTSTORE *store )
+{
+    const cert_t *cloned = (const cert_t *)context;
+    DWORD size = 0;
+    cert_t *cert;
+    BOOL res;
 
-        cert = (cert_t*)Context_CreateDataContext(sizeof(CERT_CONTEXT), &cert_vtbl, store);
-        if(!cert)
-            return NULL;
+    if (!(cert = (cert_t *)Context_CreateDataContext( sizeof(CERT_CONTEXT), &cert_vtbl, store ))) return NULL;
+    Context_CopyProperties( &cert->ctx, &cloned->ctx );
 
-        Context_CopyProperties(&cert->ctx, &cloned->ctx);
+    cert->ctx.dwCertEncodingType = cloned->ctx.dwCertEncodingType;
+    cert->ctx.pbCertEncoded = CryptMemAlloc( cloned->ctx.cbCertEncoded );
+    memcpy( cert->ctx.pbCertEncoded, cloned->ctx.pbCertEncoded, cloned->ctx.cbCertEncoded );
+    cert->ctx.cbCertEncoded = cloned->ctx.cbCertEncoded;
 
-        cert->ctx.dwCertEncodingType = cloned->ctx.dwCertEncodingType;
-        cert->ctx.pbCertEncoded = CryptMemAlloc(cloned->ctx.cbCertEncoded);
-        memcpy(cert->ctx.pbCertEncoded, cloned->ctx.pbCertEncoded, cloned->ctx.cbCertEncoded);
-        cert->ctx.cbCertEncoded = cloned->ctx.cbCertEncoded;
-
-        /* FIXME: We don't need to decode the object here, we could just clone cert info. */
-        res = CryptDecodeObjectEx(cert->ctx.dwCertEncodingType, X509_CERT_TO_BE_SIGNED,
-         cert->ctx.pbCertEncoded, cert->ctx.cbCertEncoded, CRYPT_DECODE_ALLOC_FLAG, NULL,
-         &cert->ctx.pCertInfo, &size);
-        if(!res) {
-            CertFreeCertificateContext(&cert->ctx);
-            return NULL;
-        }
+    /* FIXME: We don't need to decode the object here, we could just clone cert info. */
+    res = CryptDecodeObjectEx( cert->ctx.dwCertEncodingType, X509_CERT_TO_BE_SIGNED,
+                               cert->ctx.pbCertEncoded, cert->ctx.cbCertEncoded,
+                               CRYPT_DECODE_ALLOC_FLAG, NULL, &cert->ctx.pCertInfo, &size );
+    if (!res)
+    {
+        CertFreeCertificateContext( &cert->ctx );
+        return NULL;
     }
 
     cert->ctx.hCertStore = store;
     return &cert->base;
 }
 
-static const context_vtbl_t cert_vtbl = {
+static const context_vtbl_t cert_vtbl =
+{
     Cert_free,
-    Cert_clone
+    Cert_link,
+    Cert_clone,
 };
 
 PCCERT_CONTEXT WINAPI CertCreateCertificateContext(DWORD dwCertEncodingType,

@@ -28,6 +28,8 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(crypt);
 
+static const context_vtbl_t crl_vtbl;
+
 static void CRL_free(context_t *context)
 {
     crl_t *crl = (crl_t*)context;
@@ -36,7 +38,13 @@ static void CRL_free(context_t *context)
     LocalFree(crl->ctx.pCrlInfo);
 }
 
-static const context_vtbl_t crl_vtbl;
+static context_t *CRL_link( context_t *context, WINECRYPT_CERTSTORE *store )
+{
+    crl_t *crl;
+    if (!(crl = (crl_t *)Context_CreateLinkContext( sizeof(CRL_CONTEXT), context, store ))) return NULL;
+    crl->ctx.hCertStore = store;
+    return &crl->base;
+}
 
 static char *copy_string(char *p, char **dst, const char *src)
 {
@@ -140,40 +148,34 @@ static CRL_INFO *clone_crl_info(const CRL_INFO *src)
     return dst;
 }
 
-static context_t *CRL_clone(context_t *context, WINECRYPT_CERTSTORE *store, BOOL use_link)
+static context_t *CRL_clone( context_t *context, WINECRYPT_CERTSTORE *store )
 {
+    const crl_t *src = (const crl_t *)context;
     crl_t *dst;
 
-    if(use_link) {
-        if (!(dst = (crl_t *)Context_CreateLinkContext(sizeof(CRL_CONTEXT), context, store)))
-            return NULL;
-    }else {
-        const crl_t *src = (const crl_t*)context;
+    if (!(dst = (crl_t *)Context_CreateDataContext( sizeof(CRL_CONTEXT), &crl_vtbl, store ))) return NULL;
+    Context_CopyProperties( &dst->ctx, &src->ctx );
 
-        if (!(dst = (crl_t *)Context_CreateDataContext(sizeof(CRL_CONTEXT), &crl_vtbl, store)))
-            return NULL;
+    dst->ctx.dwCertEncodingType = src->ctx.dwCertEncodingType;
+    dst->ctx.pbCrlEncoded = CryptMemAlloc( src->ctx.cbCrlEncoded );
+    memcpy( dst->ctx.pbCrlEncoded, src->ctx.pbCrlEncoded, src->ctx.cbCrlEncoded );
+    dst->ctx.cbCrlEncoded = src->ctx.cbCrlEncoded;
 
-        Context_CopyProperties(&dst->ctx, &src->ctx);
-
-        dst->ctx.dwCertEncodingType = src->ctx.dwCertEncodingType;
-        dst->ctx.pbCrlEncoded = CryptMemAlloc(src->ctx.cbCrlEncoded);
-        memcpy(dst->ctx.pbCrlEncoded, src->ctx.pbCrlEncoded, src->ctx.cbCrlEncoded);
-        dst->ctx.cbCrlEncoded = src->ctx.cbCrlEncoded;
-
-        if (!(dst->ctx.pCrlInfo = clone_crl_info(src->ctx.pCrlInfo)))
-        {
-            CertFreeCRLContext(&dst->ctx);
-            return NULL;
-        }
+    if (!(dst->ctx.pCrlInfo = clone_crl_info( src->ctx.pCrlInfo )))
+    {
+        CertFreeCRLContext( &dst->ctx );
+        return NULL;
     }
 
     dst->ctx.hCertStore = store;
     return &dst->base;
 }
 
-static const context_vtbl_t crl_vtbl = {
+static const context_vtbl_t crl_vtbl =
+{
     CRL_free,
-    CRL_clone
+    CRL_link,
+    CRL_clone,
 };
 
 PCCRL_CONTEXT WINAPI CertCreateCRLContext(DWORD dwCertEncodingType,

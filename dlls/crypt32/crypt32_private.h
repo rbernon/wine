@@ -216,7 +216,8 @@ typedef struct _context_t context_t;
 
 typedef struct {
     void (*free)(context_t*);
-    struct _context_t *(*clone)(context_t*,struct WINE_CRYPTCERTSTORE*,BOOL);
+    struct _context_t *(*link)( context_t *, struct WINE_CRYPTCERTSTORE * );
+    struct _context_t *(*clone)( context_t *, struct WINE_CRYPTCERTSTORE * );
 } context_vtbl_t;
 
 struct _context_t {
