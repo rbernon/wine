@@ -232,46 +232,38 @@ struct _context_t {
         void *ptr;
     } u;
     DWORD info_size;
+    union
+    {
+        CERT_CONTEXT cert;
+        CRL_CONTEXT crl;
+        CTL_CONTEXT ctl;
+        BYTE ptr[1];
+    };
 };
 
 static inline context_t *context_from_ptr(const void *ptr)
 {
-    return (context_t*)ptr-1;
+    return CONTAINING_RECORD( ptr, context_t, ptr );
 }
 
 static inline void *context_ptr(context_t *context)
 {
-    return context+1;
+    return &context->ptr;
 }
 
-typedef struct {
-    context_t base;
-    CERT_CONTEXT ctx;
-} cert_t;
-
-static inline cert_t *cert_from_ptr(const CERT_CONTEXT *ptr)
+static inline context_t *context_from_cert( const CERT_CONTEXT *cert )
 {
-    return CONTAINING_RECORD(ptr, cert_t, ctx);
+    return CONTAINING_RECORD( cert, context_t, cert );
 }
 
-typedef struct {
-    context_t base;
-    CRL_CONTEXT ctx;
-} crl_t;
-
-static inline crl_t *crl_from_ptr(const CRL_CONTEXT *ptr)
+static inline context_t *context_from_crl( const CRL_CONTEXT *crl )
 {
-    return CONTAINING_RECORD(ptr, crl_t, ctx);
+    return CONTAINING_RECORD( crl, context_t, crl );
 }
 
-typedef struct {
-    context_t base;
-    CTL_CONTEXT ctx;
-} ctl_t;
-
-static inline ctl_t *ctl_from_ptr(const CTL_CONTEXT *ptr)
+static inline context_t *context_from_ctl( const CTL_CONTEXT *ctl )
 {
-    return CONTAINING_RECORD(ptr, ctl_t, ctx);
+    return CONTAINING_RECORD( ctl, context_t, ctl );
 }
 
 /* Some typedefs that make it easier to abstract which type of context we're
