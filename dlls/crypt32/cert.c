@@ -95,6 +95,7 @@ static context_t *Cert_clone( context_t *context, WINECRYPT_CERTSTORE *store )
         CertFreeCertificateContext( &cert->ctx );
         return NULL;
     }
+    cert->base.info_size = cloned->base.info_size;
 
     cert->ctx.hCertStore = store;
     return &cert->base;
@@ -113,8 +114,8 @@ PCCERT_CONTEXT WINAPI CertCreateCertificateContext(DWORD dwCertEncodingType,
     cert_t *cert = NULL;
     BYTE *data = NULL;
     BOOL ret;
-    PCERT_INFO certInfo = NULL;
-    DWORD size = 0;
+    CERT_INFO *info = NULL;
+    DWORD info_size = 0;
 
     TRACE("(%08lx, %p, %ld)\n", dwCertEncodingType, pbCertEncoded,
      cbCertEncoded);
@@ -127,7 +128,7 @@ PCCERT_CONTEXT WINAPI CertCreateCertificateContext(DWORD dwCertEncodingType,
 
     ret = CryptDecodeObjectEx(dwCertEncodingType, X509_CERT_TO_BE_SIGNED,
      pbCertEncoded, cbCertEncoded, CRYPT_DECODE_ALLOC_FLAG, NULL,
-     &certInfo, &size);
+     &info, &info_size);
     if (!ret)
         return NULL;
 
@@ -145,8 +146,9 @@ PCCERT_CONTEXT WINAPI CertCreateCertificateContext(DWORD dwCertEncodingType,
     cert->ctx.dwCertEncodingType = dwCertEncodingType;
     cert->ctx.pbCertEncoded      = data;
     cert->ctx.cbCertEncoded      = cbCertEncoded;
-    cert->ctx.pCertInfo          = certInfo;
+    cert->ctx.pCertInfo          = info;
     cert->ctx.hCertStore         = &empty_store;
+    cert->base.info_size         = info_size;
 
     return &cert->ctx;
 }
