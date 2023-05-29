@@ -1295,3 +1295,77 @@ BOOL WINAPI CertGetCTLContextProperty( const CTL_CONTEXT *ctl, DWORD id, void *b
     TRACE( "returning %d\n", ret );
     return ret;
 }
+
+static BOOL ctl_set_property( ctl_t *ctl, DWORD id, DWORD flags, const void *data )
+{
+    BOOL ret;
+
+    if (!data)
+    {
+        properties_remove( ctl->base.properties, id );
+        ret = TRUE;
+    }
+    else
+    {
+        switch (id)
+        {
+        case CERT_AUTO_ENROLL_PROP_ID:
+        case CERT_CTL_USAGE_PROP_ID: /* same as CERT_ENHKEY_USAGE_PROP_ID */
+        case CERT_DESCRIPTION_PROP_ID:
+        case CERT_FRIENDLY_NAME_PROP_ID:
+        case CERT_HASH_PROP_ID:
+        case CERT_KEY_IDENTIFIER_PROP_ID:
+        case CERT_MD5_HASH_PROP_ID:
+        case CERT_NEXT_UPDATE_LOCATION_PROP_ID:
+        case CERT_PUBKEY_ALG_PARA_PROP_ID:
+        case CERT_PVK_FILE_PROP_ID:
+        case CERT_SIGNATURE_HASH_PROP_ID:
+        case CERT_ISSUER_PUBLIC_KEY_MD5_HASH_PROP_ID:
+        case CERT_SUBJECT_NAME_MD5_HASH_PROP_ID:
+        case CERT_SUBJECT_PUBLIC_KEY_MD5_HASH_PROP_ID:
+        case CERT_ENROLLMENT_PROP_ID:
+        case CERT_CROSS_CERT_DIST_POINTS_PROP_ID:
+        case CERT_RENEWAL_PROP_ID:
+        {
+            CRYPT_DATA_BLOB *blob = (CRYPT_DATA_BLOB *)data;
+            ret = properties_insert( ctl->base.properties, id, blob->pbData, blob->cbData );
+            break;
+        }
+        case CERT_DATE_STAMP_PROP_ID:
+            ret = properties_insert( ctl->base.properties, id, data, sizeof(FILETIME) );
+            break;
+        default:
+            FIXME( "%ld: stub\n", id );
+            ret = FALSE;
+            break;
+        }
+    }
+
+    return ret;
+}
+
+BOOL WINAPI CertSetCTLContextProperty( const CTL_CONTEXT *ctl, DWORD id, DWORD flags, const void *data )
+{
+    BOOL ret;
+
+    TRACE( "ctl %p, id %#lx, flags %#lx, data %p\n", ctl, id, flags, data );
+
+    /* Handle special cases for "read-only"/invalid prop IDs.  Windows just
+     * crashes on most of these, I'll be safer.
+     */
+    switch (id)
+    {
+    case 0:
+    case CERT_ACCESS_STATE_PROP_ID:
+    case CERT_CERT_PROP_ID:
+    case CERT_CRL_PROP_ID:
+    case CERT_CTL_PROP_ID:
+        SetLastError( E_INVALIDARG );
+        return FALSE;
+    }
+
+    ret = ctl_set_property( ctl_from_ptr( ctl ), id, flags, data );
+
+    TRACE( "returning %d\n", ret );
+    return ret;
+}
