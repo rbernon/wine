@@ -1241,6 +1241,21 @@ BOOL WINAPI CertAddCRLContextToStore(HCERTSTORE hCertStore,
     return ret;
 }
 
+BOOL WINAPI CertAddEncodedCRLToStore( HCERTSTORE store, DWORD encoding, const BYTE *buf, DWORD size,
+                                      DWORD disposition, const CRL_CONTEXT **out )
+{
+    const CRL_CONTEXT *crl;
+    BOOL ret;
+
+    TRACE( "store %p, encoding %#lx, buf %p, size %lu, disposition %#lx, out %p\n",
+           store, encoding, buf, size, disposition, out );
+
+    if (!(crl = CertCreateCRLContext( encoding, buf, size ))) return FALSE;
+    ret = CertAddCRLContextToStore( store, crl, disposition, out );
+    CertFreeCRLContext( crl );
+    return ret;
+}
+
 BOOL WINAPI CertDeleteCRLFromStore(PCCRL_CONTEXT pCrlContext)
 {
     WINECRYPT_CERTSTORE *hcs;
