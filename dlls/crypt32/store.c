@@ -1091,7 +1091,7 @@ BOOL WINAPI CertAddEncodedCertificateToSystemStoreW( const WCHAR *name, const BY
 
 PCCERT_CONTEXT WINAPI CertEnumCertificatesInStore(HCERTSTORE hCertStore, PCCERT_CONTEXT pPrev)
 {
-    cert_t *prev = pPrev ? cert_from_ptr(pPrev) : NULL, *ret;
+    context_t *prev = pPrev ? context_from_cert( pPrev ) : NULL, *ret;
     WINECRYPT_CERTSTORE *hcs = hCertStore;
 
     TRACE("(%p, %p)\n", hCertStore, pPrev);
@@ -1100,8 +1100,8 @@ PCCERT_CONTEXT WINAPI CertEnumCertificatesInStore(HCERTSTORE hCertStore, PCCERT_
     else if (hcs->dwMagic != WINE_CRYPTCERTSTORE_MAGIC)
         ret = NULL;
     else
-        ret = (cert_t*)hcs->vtbl->certs.enumContext(hcs, prev ? &prev->base : NULL);
-    return ret ? &ret->ctx : NULL;
+        ret = hcs->vtbl->certs.enumContext( hcs, prev );
+    return ret ? &ret->cert : NULL;
 }
 
 BOOL WINAPI CertDeleteCertificateFromStore(PCCERT_CONTEXT pCertContext)
@@ -1118,7 +1118,7 @@ BOOL WINAPI CertDeleteCertificateFromStore(PCCERT_CONTEXT pCertContext)
     if (hcs->dwMagic != WINE_CRYPTCERTSTORE_MAGIC)
         return FALSE;
 
-    return hcs->vtbl->certs.delete(hcs, &cert_from_ptr(pCertContext)->base);
+    return hcs->vtbl->certs.delete( hcs, context_from_cert( pCertContext ) );
 }
 
 BOOL WINAPI CertAddCRLContextToStore(HCERTSTORE hCertStore,
@@ -1271,7 +1271,7 @@ BOOL WINAPI CertDeleteCRLFromStore(PCCRL_CONTEXT pCrlContext)
     if (hcs->dwMagic != WINE_CRYPTCERTSTORE_MAGIC)
         return FALSE;
 
-    ret = hcs->vtbl->crls.delete(hcs, &crl_from_ptr(pCrlContext)->base);
+    ret = hcs->vtbl->crls.delete( hcs, context_from_crl( pCrlContext ) );
     if (ret)
         ret = CertFreeCRLContext(pCrlContext);
     return ret;
@@ -1279,7 +1279,7 @@ BOOL WINAPI CertDeleteCRLFromStore(PCCRL_CONTEXT pCrlContext)
 
 PCCRL_CONTEXT WINAPI CertEnumCRLsInStore(HCERTSTORE hCertStore, PCCRL_CONTEXT pPrev)
 {
-    crl_t *ret, *prev = pPrev ? crl_from_ptr(pPrev) : NULL;
+    context_t *ret, *prev = pPrev ? context_from_crl( pPrev ) : NULL;
     WINECRYPT_CERTSTORE *hcs = hCertStore;
 
     TRACE("(%p, %p)\n", hCertStore, pPrev);
@@ -1288,8 +1288,8 @@ PCCRL_CONTEXT WINAPI CertEnumCRLsInStore(HCERTSTORE hCertStore, PCCRL_CONTEXT pP
     else if (hcs->dwMagic != WINE_CRYPTCERTSTORE_MAGIC)
         ret = NULL;
     else
-        ret = (crl_t*)hcs->vtbl->crls.enumContext(hcs, prev ? &prev->base : NULL);
-    return ret ? &ret->ctx : NULL;
+        ret = hcs->vtbl->crls.enumContext( hcs, prev );
+    return ret ? &ret->crl : NULL;
 }
 
 BOOL WINAPI CertAddCTLContextToStore(HCERTSTORE hCertStore,
@@ -1432,7 +1432,6 @@ BOOL WINAPI CertAddEncodedCTLToStore(HCERTSTORE hCertStore,
 BOOL WINAPI CertDeleteCTLFromStore(PCCTL_CONTEXT pCtlContext)
 {
     WINECRYPT_CERTSTORE *hcs;
-    ctl_t *ctl = ctl_from_ptr(pCtlContext);
     BOOL ret;
 
     TRACE("(%p)\n", pCtlContext);
@@ -1445,7 +1444,7 @@ BOOL WINAPI CertDeleteCTLFromStore(PCCTL_CONTEXT pCtlContext)
     if (hcs->dwMagic != WINE_CRYPTCERTSTORE_MAGIC)
             return FALSE;
 
-    ret = hcs->vtbl->ctls.delete(hcs, &ctl->base);
+    ret = hcs->vtbl->ctls.delete( hcs, context_from_ctl( pCtlContext ) );
     if (ret)
         ret = CertFreeCTLContext(pCtlContext);
     return ret;
@@ -1453,7 +1452,7 @@ BOOL WINAPI CertDeleteCTLFromStore(PCCTL_CONTEXT pCtlContext)
 
 PCCTL_CONTEXT WINAPI CertEnumCTLsInStore(HCERTSTORE hCertStore, PCCTL_CONTEXT pPrev)
 {
-    ctl_t *prev = pPrev ? ctl_from_ptr(pPrev) : NULL, *ret;
+    context_t *prev = pPrev ? context_from_ctl(pPrev) : NULL, *ret;
     WINECRYPT_CERTSTORE *hcs = hCertStore;
 
     TRACE("(%p, %p)\n", hCertStore, pPrev);
@@ -1462,8 +1461,8 @@ PCCTL_CONTEXT WINAPI CertEnumCTLsInStore(HCERTSTORE hCertStore, PCCTL_CONTEXT pP
     else if (hcs->dwMagic != WINE_CRYPTCERTSTORE_MAGIC)
         ret = NULL;
     else
-        ret = (ctl_t*)hcs->vtbl->ctls.enumContext(hcs, prev ? &prev->base : NULL);
-    return ret ? &ret->ctx : NULL;
+        ret = hcs->vtbl->ctls.enumContext( hcs, prev );
+    return ret ? &ret->ctl : NULL;
 }
 
 HCERTSTORE WINAPI CertDuplicateStore(HCERTSTORE hCertStore)
