@@ -144,7 +144,8 @@ static BOOL MemStore_addContext(WINE_MEMSTORE *store, struct list *list, context
 {
     context_t *context;
 
-    context = orig_context->vtbl->clone(orig_context, &store->hdr, use_link);
+    if (use_link) context = orig_context->vtbl->link( orig_context, &store->hdr );
+    else context = orig_context->vtbl->clone( orig_context, &store->hdr );
     if (!context)
         return FALSE;
 
