@@ -736,3 +736,159 @@ BOOL WINAPI CertSetCertificateContextProperty( const CERT_CONTEXT *cert, DWORD i
     TRACE( "returning %d\n", ret );
     return ret;
 }
+
+static const context_vtbl_t crl_vtbl;
+
+static void CRL_free( context_t *context )
+{
+    crl_t *crl = (crl_t *)context;
+
+    CryptMemFree( crl->ctx.pbCrlEncoded );
+    LocalFree( crl->ctx.pCrlInfo );
+}
+
+static context_t *CRL_link( context_t *context, WINECRYPT_CERTSTORE *store )
+{
+    crl_t *crl;
+    if (!(crl = (crl_t *)Context_CreateLinkContext( sizeof(CRL_CONTEXT), context, store ))) return NULL;
+    crl->ctx.hCertStore = store;
+    return &crl->base;
+}
+
+static CRL_INFO *crl_info_clone( const CRL_INFO *src, UINT size )
+{
+    CRL_INFO *dst;
+    DWORD i, j;
+    BYTE *ptr;
+
+    if (!(dst = LocalAlloc( LPTR, size ))) return NULL;
+    ptr = (BYTE *)(dst + 1);
+
+    dst->dwVersion = src->dwVersion;
+    ptr = copy_string( ptr, &dst->SignatureAlgorithm.pszObjId, src->SignatureAlgorithm.pszObjId );
+    ptr = copy_blob( ptr, &dst->SignatureAlgorithm.Parameters, &src->SignatureAlgorithm.Parameters );
+    ptr = copy_blob( ptr, &dst->Issuer, &src->Issuer );
+    dst->ThisUpdate = src->ThisUpdate;
+    dst->NextUpdate = src->NextUpdate;
+
+    dst->cCRLEntry = src->cCRLEntry;
+    dst->rgCRLEntry = (CRL_ENTRY *)ptr;
+    ptr += src->cCRLEntry * sizeof(CRL_ENTRY);
+
+    dst->cExtension = src->cExtension;
+    dst->rgExtension = (CERT_EXTENSION *)ptr;
+    ptr += src->cExtension * sizeof(CERT_EXTENSION);
+
+    for (i = 0; i < src->cCRLEntry; ++i)
+    {
+        const CRL_ENTRY *src_entry = &src->rgCRLEntry[i];
+        CRL_ENTRY *dst_entry = &dst->rgCRLEntry[i];
+
+        ptr = copy_blob( ptr, &dst_entry->SerialNumber, &src_entry->SerialNumber );
+        dst_entry->RevocationDate = src_entry->RevocationDate;
+        dst_entry->cExtension = src_entry->cExtension;
+        dst_entry->rgExtension = (CERT_EXTENSION *)ptr;
+        ptr += src_entry->cExtension * sizeof(CERT_EXTENSION);
+
+        for (j = 0; j < src_entry->cExtension; ++j)
+        {
+            const CERT_EXTENSION *src_ext = &src_entry->rgExtension[j];
+            CERT_EXTENSION *dst_ext = &dst_entry->rgExtension[j];
+            ptr = copy_extension( ptr, dst_ext, src_ext );
+        }
+    }
+
+    for (j = 0; j < src->cExtension; ++j)
+    {
+        const CERT_EXTENSION *src_ext = &src->rgExtension[j];
+        CERT_EXTENSION *dst_ext = &dst->rgExtension[j];
+        ptr = copy_extension( ptr, dst_ext, src_ext );
+    }
+
+    assert( ptr - (BYTE *)dst == size );
+    return dst;
+}
+
+static context_t *CRL_clone( context_t *context, WINECRYPT_CERTSTORE *store )
+{
+    const crl_t *src = (const crl_t *)context;
+    crl_t *dst;
+
+    if (!(dst = (crl_t *)Context_CreateDataContext( sizeof(CRL_CONTEXT), &crl_vtbl, store ))) return NULL;
+    Context_CopyProperties( &dst->ctx, &src->ctx );
+
+    dst->ctx.dwCertEncodingType = src->ctx.dwCertEncodingType;
+    dst->ctx.pbCrlEncoded = CryptMemAlloc( src->ctx.cbCrlEncoded );
+    memcpy( dst->ctx.pbCrlEncoded, src->ctx.pbCrlEncoded, src->ctx.cbCrlEncoded );
+    dst->ctx.cbCrlEncoded = src->ctx.cbCrlEncoded;
+
+    if (!(dst->ctx.pCrlInfo = crl_info_clone( src->ctx.pCrlInfo, src->base.info_size )))
+    {
+        CertFreeCRLContext( &dst->ctx );
+        return NULL;
+    }
+    dst->base.info_size = src->base.info_size;
+
+    dst->ctx.hCertStore = store;
+    return &dst->base;
+}
+
+static const context_vtbl_t crl_vtbl =
+{
+    CRL_free,
+    CRL_link,
+    CRL_clone,
+};
+
+const CRL_CONTEXT *WINAPI CertCreateCRLContext( DWORD encoding, const BYTE *buf, DWORD size )
+{
+    crl_t *crl = NULL;
+    BOOL ret;
+    CRL_INFO *info = NULL;
+    BYTE *data = NULL;
+    DWORD info_size = 0;
+
+    TRACE( "encoding %#lx, buf %p, size %lu\n", encoding, buf, size );
+
+    if ((encoding & CERT_ENCODING_TYPE_MASK) != X509_ASN_ENCODING)
+    {
+        SetLastError( E_INVALIDARG );
+        return NULL;
+    }
+
+    ret = CryptDecodeObjectEx( encoding, X509_CERT_CRL_TO_BE_SIGNED, buf, size,
+                               CRYPT_DECODE_ALLOC_FLAG, NULL, &info, &info_size );
+    if (!ret) return NULL;
+
+    if (!(crl = (crl_t *)Context_CreateDataContext( sizeof(CRL_CONTEXT), &crl_vtbl, &empty_store )))
+        return NULL;
+    if (!(data = CryptMemAlloc( size )))
+    {
+        Context_Release( &crl->base );
+        return NULL;
+    }
+
+    memcpy( data, buf, size );
+    crl->ctx.dwCertEncodingType = encoding;
+    crl->ctx.pbCrlEncoded = data;
+    crl->ctx.cbCrlEncoded = size;
+    crl->ctx.pCrlInfo = info;
+    crl->ctx.hCertStore = &empty_store;
+    crl->base.info_size = info_size;
+
+    return &crl->ctx;
+}
+
+const CRL_CONTEXT *WINAPI CertDuplicateCRLContext( const CRL_CONTEXT *crl )
+{
+    TRACE( "crl %p\n", crl );
+    if (crl) Context_AddRef( &crl_from_ptr( crl )->base );
+    return crl;
+}
+
+BOOL WINAPI CertFreeCRLContext( const CRL_CONTEXT *crl )
+{
+    TRACE( "crl %p\n", crl );
+    if (crl) Context_Release( &crl_from_ptr( crl )->base );
+    return TRUE;
+}
