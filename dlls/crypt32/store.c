@@ -918,6 +918,47 @@ HCERTSTORE WINAPI CertOpenSystemStoreW(HCRYPTPROV_LEGACY hProv,
      CERT_SYSTEM_STORE_CURRENT_USER, szSubSystemProtocol);
 }
 
+BOOL WINAPI CertAddEncodedCertificateToStore( HCERTSTORE store, DWORD encoding, const BYTE *buf, DWORD size,
+                                              DWORD disposition, const CERT_CONTEXT **out )
+{
+    const CERT_CONTEXT *cert;
+    BOOL ret;
+
+    TRACE( "store %p, encoding %#lx, buf %p, size %lu, disposition %#lx, out %p\n",
+           store, encoding, buf, size, disposition, out );
+
+    if (!(cert = CertCreateCertificateContext( encoding, buf, size ))) return FALSE;
+    ret = CertAddCertificateContextToStore( store, cert, disposition, out );
+    CertFreeCertificateContext( cert );
+    return ret;
+}
+
+BOOL WINAPI CertAddEncodedCertificateToSystemStoreA( const char *name, const BYTE *buf, DWORD size )
+{
+    HCERTSTORE store;
+    BOOL ret;
+
+    TRACE( "name %s, buf %p, size %lu\n", debugstr_a(name), buf, size );
+
+    if (!(store = CertOpenSystemStoreA( 0, name ))) return FALSE;
+    ret = CertAddEncodedCertificateToStore( store, X509_ASN_ENCODING, buf, size, CERT_STORE_ADD_USE_EXISTING, NULL );
+    CertCloseStore( store, 0 );
+    return ret;
+}
+
+BOOL WINAPI CertAddEncodedCertificateToSystemStoreW( const WCHAR *name, const BYTE *buf, DWORD size )
+{
+    HCERTSTORE store;
+    BOOL ret;
+
+    TRACE( "name %s, buf %p, size %lu\n", debugstr_w(name), buf, size );
+
+    if (!(store = CertOpenSystemStoreW( 0, name ))) return FALSE;
+    ret = CertAddEncodedCertificateToStore( store, X509_ASN_ENCODING, buf, size, CERT_STORE_ADD_USE_EXISTING, NULL );
+    CertCloseStore( store, 0 );
+    return ret;
+}
+
 PCCERT_CONTEXT WINAPI CertEnumCertificatesInStore(HCERTSTORE hCertStore, PCCERT_CONTEXT pPrev)
 {
     cert_t *prev = pPrev ? cert_from_ptr(pPrev) : NULL, *ret;

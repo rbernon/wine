@@ -53,66 +53,6 @@ static BOOL CertContext_GetProperty(cert_t *cert, DWORD dwPropId,
 static BOOL CertContext_SetProperty(cert_t *cert, DWORD dwPropId,
  DWORD dwFlags, const void *pvData);
 
-BOOL WINAPI CertAddEncodedCertificateToStore(HCERTSTORE hCertStore,
- DWORD dwCertEncodingType, const BYTE *pbCertEncoded, DWORD cbCertEncoded,
- DWORD dwAddDisposition, PCCERT_CONTEXT *ppCertContext)
-{
-    PCCERT_CONTEXT cert = CertCreateCertificateContext(dwCertEncodingType,
-     pbCertEncoded, cbCertEncoded);
-    BOOL ret;
-
-    TRACE("(%p, %08lx, %p, %ld, %08lx, %p)\n", hCertStore, dwCertEncodingType,
-     pbCertEncoded, cbCertEncoded, dwAddDisposition, ppCertContext);
-
-    if (cert)
-    {
-        ret = CertAddCertificateContextToStore(hCertStore, cert,
-         dwAddDisposition, ppCertContext);
-        CertFreeCertificateContext(cert);
-    }
-    else
-        ret = FALSE;
-    return ret;
-}
-
-BOOL WINAPI CertAddEncodedCertificateToSystemStoreA(LPCSTR pszCertStoreName,
- const BYTE *pbCertEncoded, DWORD cbCertEncoded)
-{
-    HCERTSTORE store;
-    BOOL ret = FALSE;
-
-    TRACE("(%s, %p, %ld)\n", debugstr_a(pszCertStoreName), pbCertEncoded,
-     cbCertEncoded);
-
-    store = CertOpenSystemStoreA(0, pszCertStoreName);
-    if (store)
-    {
-        ret = CertAddEncodedCertificateToStore(store, X509_ASN_ENCODING,
-         pbCertEncoded, cbCertEncoded, CERT_STORE_ADD_USE_EXISTING, NULL);
-        CertCloseStore(store, 0);
-    }
-    return ret;
-}
-
-BOOL WINAPI CertAddEncodedCertificateToSystemStoreW(LPCWSTR pszCertStoreName,
- const BYTE *pbCertEncoded, DWORD cbCertEncoded)
-{
-    HCERTSTORE store;
-    BOOL ret = FALSE;
-
-    TRACE("(%s, %p, %ld)\n", debugstr_w(pszCertStoreName), pbCertEncoded,
-     cbCertEncoded);
-
-    store = CertOpenSystemStoreW(0, pszCertStoreName);
-    if (store)
-    {
-        ret = CertAddEncodedCertificateToStore(store, X509_ASN_ENCODING,
-         pbCertEncoded, cbCertEncoded, CERT_STORE_ADD_USE_EXISTING, NULL);
-        CertCloseStore(store, 0);
-    }
-    return ret;
-}
-
 static const context_vtbl_t cert_vtbl;
 
 static void Cert_free(context_t *context)
