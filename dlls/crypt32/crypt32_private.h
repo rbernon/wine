@@ -26,6 +26,7 @@
 #include "winbase.h"
 #include "wincrypt.h"
 
+#include "wine/debug.h"
 #include "wine/list.h"
 #include "wine/unixlib.h"
 
