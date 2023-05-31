@@ -157,7 +157,6 @@ extern void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, UINT swp_flags
                                     const RECT *visible_rect, const RECT *valid_rects,
                                     struct window_surface *surface);
 extern void macdrv_DestroyCursorIcon(HCURSOR cursor);
-extern BOOL macdrv_GetCursorPos(LPPOINT pos);
 extern void macdrv_SetCapture(HWND hwnd, UINT flags);
 extern void macdrv_SetCursor(HWND hwnd, HCURSOR cursor);
 extern BOOL macdrv_SetCursorPos(INT x, INT y);

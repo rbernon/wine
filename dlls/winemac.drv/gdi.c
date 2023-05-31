@@ -278,7 +278,6 @@ static const struct user_driver_funcs macdrv_funcs =
     .pGetCurrentDisplaySettings = macdrv_GetCurrentDisplaySettings,
     .pGetDisplayDepth = macdrv_GetDisplayDepth,
     .pUpdateDisplayDevices = macdrv_UpdateDisplayDevices,
-    .pGetCursorPos = macdrv_GetCursorPos,
     .pGetKeyboardLayoutList = macdrv_GetKeyboardLayoutList,
     .pGetKeyNameText = macdrv_GetKeyNameText,
     .pMapVirtualKeyEx = macdrv_MapVirtualKeyEx,
