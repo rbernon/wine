@@ -5656,7 +5656,6 @@ static void test_h264_decoder_concat_streams(void)
             MFT_OUTPUT_DATA_BUFFER data = {.pSample = create_sample(NULL, info.cbSize)};
 
             hr = IMFTransform_ProcessOutput(transform, 0, 1, &data, &output_status);
-            todo_wine_if(hr == 0xd0000001)
             ok(hr == S_OK || hr == MF_E_TRANSFORM_NEED_MORE_INPUT || hr == MF_E_TRANSFORM_STREAM_CHANGE,
                "ProcessOutput returned %#lx\n", hr);
 
