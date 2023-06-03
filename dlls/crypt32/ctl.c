@@ -359,15 +359,42 @@ BOOL WINAPI CertDeleteCTLFromStore(PCCTL_CONTEXT pCtlContext)
     return ret;
 }
 
+static BOOL ctl_decode_content( CTL_CONTEXT *ctl, DWORD encoding, DWORD *info_size )
+{
+    char content_type[sizeof(szOID_CTL)];
+    DWORD size = sizeof(content_type);
+    BYTE *content = NULL;
+    HCRYPTMSG msg;
+
+    if (!(msg = CryptMsgOpenToDecode( PKCS_7_ASN_ENCODING | X509_ASN_ENCODING, 0, 0, 0, NULL, NULL ))) return FALSE;
+    if (!CryptMsgUpdate( msg, ctl->pbCtlEncoded, ctl->cbCtlEncoded, TRUE )) goto error;
+
+    if (!CryptMsgGetParam( msg, CMSG_INNER_CONTENT_TYPE_PARAM, 0, content_type, &size )) goto error;
+    if (strcmp( content_type, szOID_CTL )) goto error;
+
+    if (!CryptMsgGetParam( msg, CMSG_CONTENT_PARAM, 0, NULL, &size )) goto error;
+    if (!(content = CryptMemAlloc( size ))) goto error;
+    if (!CryptMsgGetParam( msg, CMSG_CONTENT_PARAM, 0, content, &size )) goto error;
+
+    if (!CryptDecodeObjectEx( encoding, PKCS_CTL, content, size, CRYPT_DECODE_ALLOC_FLAG, NULL,
+                              &ctl->pCtlInfo, info_size ))
+        goto error;
+
+    ctl->hCryptMsg = msg;
+    ctl->pbCtlContext = content;
+    ctl->cbCtlContext = size;
+    return TRUE;
+
+error:
+    CryptMemFree( content );
+    CryptMsgClose( msg );
+    return FALSE;
+}
+
 PCCTL_CONTEXT WINAPI CertCreateCTLContext(DWORD dwMsgAndCertEncodingType,
  const BYTE *pbCtlEncoded, DWORD cbCtlEncoded)
 {
     ctl_t *ctl = NULL;
-    HCRYPTMSG msg;
-    BOOL ret;
-    BYTE *content = NULL;
-    DWORD contentSize = 0, size, info_size;
-    CTL_INFO *info = NULL;
 
     TRACE("(%08lx, %p, %ld)\n", dwMsgAndCertEncodingType, pbCtlEncoded,
      cbCtlEncoded);
@@ -382,109 +409,32 @@ PCCTL_CONTEXT WINAPI CertCreateCTLContext(DWORD dwMsgAndCertEncodingType,
         SetLastError(ERROR_INVALID_DATA);
         return NULL;
     }
-    msg = CryptMsgOpenToDecode(PKCS_7_ASN_ENCODING | X509_ASN_ENCODING, 0, 0,
-     0, NULL, NULL);
-    if (!msg)
-        return NULL;
-    ret = CryptMsgUpdate(msg, pbCtlEncoded, cbCtlEncoded, TRUE);
-    if (!ret)
-    {
-        SetLastError(ERROR_INVALID_DATA);
-        goto end;
-    }
-    /* Check that it's really a CTL */
-    ret = CryptMsgGetParam(msg, CMSG_INNER_CONTENT_TYPE_PARAM, 0, NULL, &size);
-    if (ret)
-    {
-        char *innerContent = CryptMemAlloc(size);
 
-        if (innerContent)
-        {
-            ret = CryptMsgGetParam(msg, CMSG_INNER_CONTENT_TYPE_PARAM, 0,
-             innerContent, &size);
-            if (ret)
-            {
-                if (strcmp(innerContent, szOID_CTL))
-                {
-                    SetLastError(ERROR_INVALID_DATA);
-                    ret = FALSE;
-                }
-            }
-            CryptMemFree(innerContent);
-        }
-        else
-        {
-            SetLastError(ERROR_OUTOFMEMORY);
-            ret = FALSE;
-        }
-    }
-    if (!ret)
-        goto end;
-    ret = CryptMsgGetParam(msg, CMSG_CONTENT_PARAM, 0, NULL, &contentSize);
-    if (!ret)
-        goto end;
-    content = CryptMemAlloc(contentSize);
-    if (content)
+    if (!(ctl = (ctl_t *)Context_CreateDataContext( sizeof(CTL_CONTEXT), &ctl_vtbl, &empty_store )))
     {
-        ret = CryptMsgGetParam(msg, CMSG_CONTENT_PARAM, 0, content,
-         &contentSize);
-        if (ret)
-        {
-            ret = CryptDecodeObjectEx(dwMsgAndCertEncodingType, PKCS_CTL,
-             content, contentSize, CRYPT_DECODE_ALLOC_FLAG, NULL,
-             &info, &info_size);
-            if (ret)
-            {
-                ctl = (ctl_t*)Context_CreateDataContext(sizeof(CTL_CONTEXT), &ctl_vtbl, &empty_store);
-                if (ctl)
-                {
-                    BYTE *data = CryptMemAlloc(cbCtlEncoded);
-
-                    if (data)
-                    {
-                        memcpy(data, pbCtlEncoded, cbCtlEncoded);
-                        ctl->ctx.dwMsgAndCertEncodingType =
-                         X509_ASN_ENCODING | PKCS_7_ASN_ENCODING;
-                        ctl->ctx.pbCtlEncoded             = data;
-                        ctl->ctx.cbCtlEncoded             = cbCtlEncoded;
-                        ctl->ctx.pCtlInfo                 = info;
-                        ctl->ctx.hCertStore               = &empty_store;
-                        ctl->ctx.hCryptMsg                = msg;
-                        ctl->ctx.pbCtlContext             = content;
-                        ctl->ctx.cbCtlContext             = contentSize;
-                        ctl->base.info_size               = info_size;
-                    }
-                    else
-                    {
-                        SetLastError(ERROR_OUTOFMEMORY);
-                        ret = FALSE;
-                    }
-                }
-                else
-                {
-                    SetLastError(ERROR_OUTOFMEMORY);
-                    ret = FALSE;
-                }
-            }
-        }
-    }
-    else
-    {
-        SetLastError(ERROR_OUTOFMEMORY);
-        ret = FALSE;
-    }
-
-end:
-    if (!ret)
-    {
-        if(ctl)
-            Context_Release(&ctl->base);
-        ctl = NULL;
-        LocalFree(info);
-        CryptMemFree(content);
-        CryptMsgClose(msg);
+        SetLastError( ERROR_OUTOFMEMORY );
         return NULL;
     }
+    if (!(ctl->ctx.pbCtlEncoded = CryptMemAlloc( cbCtlEncoded )))
+    {
+        Context_Release( &ctl->base );
+        SetLastError( ERROR_OUTOFMEMORY );
+        return NULL;
+    }
+
+    memcpy( ctl->ctx.pbCtlEncoded, pbCtlEncoded, cbCtlEncoded );
+    ctl->ctx.dwMsgAndCertEncodingType = X509_ASN_ENCODING | PKCS_7_ASN_ENCODING;
+    ctl->ctx.cbCtlEncoded = cbCtlEncoded;
+    ctl->ctx.hCertStore = &empty_store;
+
+    if (!ctl_decode_content( &ctl->ctx, dwMsgAndCertEncodingType, &ctl->base.info_size ))
+    {
+        CryptMemFree( ctl->ctx.pbCtlEncoded );
+        Context_Release( &ctl->base );
+        SetLastError( ERROR_INVALID_DATA );
+        return NULL;
+    }
+
     return &ctl->ctx;
 }
 
