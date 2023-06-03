@@ -1069,3 +1069,125 @@ BOOL WINAPI CertSetCRLContextProperty( const CRL_CONTEXT *crl, DWORD id, DWORD f
     TRACE( "returning %d\n", ret );
     return ret;
 }
+
+static void CTL_free( context_t *context )
+{
+    ctl_t *ctl = (ctl_t *)context;
+
+    CryptMsgClose( ctl->ctx.hCryptMsg );
+    CryptMemFree( ctl->ctx.pbCtlEncoded );
+    CryptMemFree( ctl->ctx.pbCtlContext );
+    LocalFree( ctl->ctx.pCtlInfo );
+}
+
+static context_t *CTL_link( context_t *context, WINECRYPT_CERTSTORE *store )
+{
+    ctl_t *ctl;
+    if (!(ctl = (ctl_t *)Context_CreateLinkContext( sizeof(CTL_CONTEXT), context, store ))) return NULL;
+    ctl->ctx.hCertStore = store;
+    return &ctl->base;
+}
+
+static context_t *CTL_clone( context_t *context, WINECRYPT_CERTSTORE *store )
+{
+    FIXME( "Only links supported\n" );
+    return NULL;
+}
+
+static const context_vtbl_t ctl_vtbl =
+{
+    CTL_free,
+    CTL_link,
+    CTL_clone,
+};
+
+static BOOL ctl_decode_content( CTL_CONTEXT *ctl, DWORD encoding, DWORD *info_size )
+{
+    char content_type[sizeof(szOID_CTL)];
+    DWORD size = sizeof(content_type);
+    BYTE *content = NULL;
+    HCRYPTMSG msg;
+
+    if (!(msg = CryptMsgOpenToDecode( PKCS_7_ASN_ENCODING | X509_ASN_ENCODING, 0, 0, 0, NULL, NULL ))) return FALSE;
+    if (!CryptMsgUpdate( msg, ctl->pbCtlEncoded, ctl->cbCtlEncoded, TRUE )) goto error;
+
+    if (!CryptMsgGetParam( msg, CMSG_INNER_CONTENT_TYPE_PARAM, 0, content_type, &size )) goto error;
+    if (strcmp( content_type, szOID_CTL )) goto error;
+
+    if (!CryptMsgGetParam( msg, CMSG_CONTENT_PARAM, 0, NULL, &size )) goto error;
+    if (!(content = CryptMemAlloc( size ))) goto error;
+    if (!CryptMsgGetParam( msg, CMSG_CONTENT_PARAM, 0, content, &size )) goto error;
+
+    if (!CryptDecodeObjectEx( encoding, PKCS_CTL, content, size, CRYPT_DECODE_ALLOC_FLAG, NULL,
+                              &ctl->pCtlInfo, info_size ))
+        goto error;
+
+    ctl->hCryptMsg = msg;
+    ctl->pbCtlContext = content;
+    ctl->cbCtlContext = size;
+    return TRUE;
+
+error:
+    CryptMemFree( content );
+    CryptMsgClose( msg );
+    return FALSE;
+}
+
+PCCTL_CONTEXT WINAPI CertCreateCTLContext( DWORD encoding, const BYTE *buf, DWORD size )
+{
+    ctl_t *ctl = NULL;
+
+    TRACE( "encoding %#lx, buf %p, size %lu\n", encoding, buf, size );
+
+    if (GET_CERT_ENCODING_TYPE( encoding ) != X509_ASN_ENCODING)
+    {
+        SetLastError( E_INVALIDARG );
+        return NULL;
+    }
+    if (!buf || !size)
+    {
+        SetLastError( ERROR_INVALID_DATA );
+        return NULL;
+    }
+
+    if (!(ctl = (ctl_t *)Context_CreateDataContext( sizeof(CTL_CONTEXT), &ctl_vtbl, &empty_store )))
+    {
+        SetLastError( ERROR_OUTOFMEMORY );
+        return NULL;
+    }
+    if (!(ctl->ctx.pbCtlEncoded = CryptMemAlloc( size )))
+    {
+        Context_Release( &ctl->base );
+        SetLastError( ERROR_OUTOFMEMORY );
+        return NULL;
+    }
+
+    memcpy( ctl->ctx.pbCtlEncoded, buf, size );
+    ctl->ctx.dwMsgAndCertEncodingType = X509_ASN_ENCODING | PKCS_7_ASN_ENCODING;
+    ctl->ctx.cbCtlEncoded = size;
+    ctl->ctx.hCertStore = &empty_store;
+
+    if (!ctl_decode_content( &ctl->ctx, encoding, &ctl->base.info_size ))
+    {
+        CryptMemFree( ctl->ctx.pbCtlEncoded );
+        Context_Release( &ctl->base );
+        SetLastError( ERROR_INVALID_DATA );
+        return NULL;
+    }
+
+    return &ctl->ctx;
+}
+
+const CTL_CONTEXT *WINAPI CertDuplicateCTLContext( const CTL_CONTEXT *ctl )
+{
+    TRACE( "ctl %p\n", ctl );
+    if (ctl) Context_AddRef( &ctl_from_ptr( ctl )->base );
+    return ctl;
+}
+
+BOOL WINAPI CertFreeCTLContext( const CTL_CONTEXT *ctl )
+{
+    TRACE( "ctl %p\n", ctl );
+    if (ctl) Context_Release( &ctl_from_ptr( ctl )->base );
+    return TRUE;
+}
