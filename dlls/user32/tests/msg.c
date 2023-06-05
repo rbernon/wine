@@ -20614,3 +20614,4 @@ START_TEST(msg)
     }
     DeleteCriticalSection( &sequence_cs );
 }
+
