@@ -16058,3 +16058,4 @@ START_TEST(ddraw1)
     test_multiple_devices();
     test_sysmem_x_channel();
 }
+
