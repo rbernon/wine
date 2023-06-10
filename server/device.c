@@ -146,6 +146,7 @@ struct device
     struct object          obj;           /* object header */
     struct device_manager *manager;       /* manager for this device (or NULL if deleted) */
     char                  *unix_path;     /* path to unix device if any */
+    struct fd             *fd;
     struct list            kernel_object; /* list of kernel object pointers */
     struct list            entry;         /* entry in device manager list */
     struct list            files;         /* list of open files */
@@ -413,6 +414,7 @@ static void device_destroy( struct object *obj )
     assert( list_empty( &device->files ));
 
     free( device->unix_path );
+    if (device->fd) release_object( device->fd );
     if (device->manager) list_remove( &device->entry );
 }
 
@@ -445,16 +447,15 @@ static struct object *device_open_file( struct object *obj, unsigned int access,
         access = file->obj.ops->map_access( &file->obj, access );
         nt_name.str = device->obj.ops->get_full_name( &device->obj, &nt_name.len );
         file->fd = open_fd( NULL, device->unix_path, nt_name, O_NONBLOCK, &mode, access, sharing, options );
-        if (file->fd) set_fd_user( file->fd, &device_file_fd_ops, &file->obj );
     }
-    else file->fd = alloc_pseudo_fd( &device_file_fd_ops, &file->obj, options );
+    else file->fd = dup_fd_object( device->fd, access, sharing, options );
 
     if (!file->fd)
     {
         release_object( file );
         return NULL;
     }
-
+    set_fd_user( file->fd, &device_file_fd_ops, &file->obj );
     allow_fd_caching( file->fd );
 
     if (device->manager)
@@ -720,6 +721,12 @@ static struct device *create_device( struct object *root, const struct unicode_s
         list_add_tail( &manager->devices, &device->entry );
         list_init( &device->kernel_object );
         list_init( &device->files );
+
+        if (!(device->fd = alloc_pseudo_fd( &device_file_fd_ops, &device->obj, 0 )))
+        {
+            release_object( device );
+            device = NULL;
+        }
     }
     return device;
 }
@@ -736,6 +743,7 @@ struct object *create_unix_device( struct object *root, const struct unicode_str
         device->manager = NULL;  /* no manager, requests go straight to the Unix device */
         list_init( &device->kernel_object );
         list_init( &device->files );
+        device->fd = NULL;
     }
     return &device->obj;
 
