@@ -808,7 +808,8 @@ static void release_topo_node(struct topo_node *node)
 
 static void session_shutdown_current_topology(struct media_session *session)
 {
-    unsigned int shutdown, force_shutdown;
+    unsigned int needs_shutdown, force_shutdown;
+    struct topo_node *topo_node;
     MF_TOPOLOGY_TYPE node_type;
     IMFStreamSink *stream_sink;
     IMFTopology *topology;
@@ -821,17 +822,30 @@ static void session_shutdown_current_topology(struct media_session *session)
     topology = session->presentation.current_topology;
     force_shutdown = session->state == SESSION_STATE_SHUT_DOWN;
 
-    /* FIXME: should handle async MFTs, but these are not supported by the rest of the pipeline currently. */
+    LIST_FOR_EACH_ENTRY(topo_node, &session->presentation.nodes, struct topo_node, entry)
+    {
+        IMFShutdown *shutdown;
+
+        if (topo_node->type != MF_TOPOLOGY_TRANSFORM_NODE)
+            continue;
+
+        if (SUCCEEDED(IMFTransform_QueryInterface(topo_node->object.transform, &IID_IMFShutdown, (void **)&shutdown)))
+        {
+            if (FAILED(IMFShutdown_Shutdown(shutdown)))
+                WARN("Failed to shutdown async transform\n");
+            IMFShutdown_Release(shutdown);
+        }
+    }
 
     while (SUCCEEDED(IMFTopology_GetNode(topology, idx++, &node)))
     {
         if (SUCCEEDED(IMFTopologyNode_GetNodeType(node, &node_type)) &&
                 node_type == MF_TOPOLOGY_OUTPUT_NODE)
         {
-            shutdown = 1;
-            IMFTopologyNode_GetUINT32(node, &MF_TOPONODE_NOSHUTDOWN_ON_REMOVE, &shutdown);
+            if (FAILED(IMFTopologyNode_GetUINT32(node, &MF_TOPONODE_NOSHUTDOWN_ON_REMOVE, &needs_shutdown)))
+                needs_shutdown = 1;
 
-            if (force_shutdown || shutdown)
+            if (force_shutdown || needs_shutdown)
             {
                 if (SUCCEEDED(IMFTopologyNode_GetUnknown(node, &_MF_TOPONODE_IMFActivate, &IID_IMFActivate,
                         (void **)&activate)))
