@@ -1932,15 +1932,23 @@ static HRESULT session_append_node(struct media_session *session, IMFTopologyNod
 
             break;
         case MF_TOPOLOGY_TRANSFORM_NODE:
+        {
+            IMFTransform *transform;
 
-            if (SUCCEEDED(hr = topology_node_get_object(node, &IID_IMFTransform, (void **)&topo_node->object.transform)))
-            {
-                hr = session_set_transform_stream_info(topo_node);
-            }
-            else
+            if (FAILED(hr = topology_node_get_object(node, &IID_IMFTransform, (void **)&transform)))
                 WARN("Failed to get IMFTransform for MFT node, hr %#lx.\n", hr);
+            else
+            {
+                /* FIXME handle already async transforms */
+                if (FAILED(hr = async_transform_create(transform, &topo_node->object.transform)))
+                    WARN("Failed to create async IMFTransform wrapper, hr %#lx.\n", hr);
+                else
+                    hr = session_set_transform_stream_info(topo_node);
+                IMFTransform_Release(transform);
+            }
 
             break;
+        }
         case MF_TOPOLOGY_TEE_NODE:
             FIXME("Unsupported node type %d.\n", topo_node->type);
 
