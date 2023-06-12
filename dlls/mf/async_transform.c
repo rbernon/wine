@@ -32,6 +32,7 @@ struct async_transform
     IMFTransform IMFTransform_iface;
     LONG refcount;
 
+    CRITICAL_SECTION cs;
     IMFTransform *transform;
 };
 
@@ -78,6 +79,8 @@ static ULONG WINAPI transform_Release(IMFTransform *iface)
     if (!refcount)
     {
         IMFTransform_Release(impl->transform);
+        impl->cs.DebugInfo->Spare[0] = 0;
+        DeleteCriticalSection(&impl->cs);
         free(impl);
     }
 
@@ -88,214 +91,306 @@ static HRESULT WINAPI transform_GetStreamLimits(IMFTransform *iface, DWORD *inpu
         DWORD *input_maximum, DWORD *output_minimum, DWORD *output_maximum)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, input_minimum %p, input_maximum %p, output_minimum %p, output_maximum %p.\n",
             iface, input_minimum, input_maximum, output_minimum, output_maximum);
 
-    return IMFTransform_GetStreamLimits(impl->transform, input_minimum, input_maximum, output_minimum, output_maximum);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_GetStreamLimits(impl->transform, input_minimum, input_maximum, output_minimum, output_maximum);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_GetStreamCount(IMFTransform *iface, DWORD *inputs, DWORD *outputs)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, inputs %p, outputs %p.\n", iface, inputs, outputs);
 
-    return IMFTransform_GetStreamCount(impl->transform, inputs, outputs);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_GetStreamCount(impl->transform, inputs, outputs);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_GetStreamIDs(IMFTransform *iface, DWORD input_size, DWORD *inputs,
         DWORD output_size, DWORD *outputs)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, input_size %lu, inputs %p, output_size %lu, outputs %p.\n", iface,
             input_size, inputs, output_size, outputs);
 
-    return IMFTransform_GetStreamIDs(impl->transform, input_size, inputs, output_size, outputs);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_GetStreamIDs(impl->transform, input_size, inputs, output_size, outputs);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_GetInputStreamInfo(IMFTransform *iface, DWORD id, MFT_INPUT_STREAM_INFO *info)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, id %#lx, info %p.\n", iface, id, info);
 
-    return IMFTransform_GetInputStreamInfo(impl->transform, id, info);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_GetInputStreamInfo(impl->transform, id, info);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_GetOutputStreamInfo(IMFTransform *iface, DWORD id, MFT_OUTPUT_STREAM_INFO *info)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, id %#lx, info %p.\n", iface, id, info);
 
-    return IMFTransform_GetOutputStreamInfo(impl->transform, id, info);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_GetOutputStreamInfo(impl->transform, id, info);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_GetAttributes(IMFTransform *iface, IMFAttributes **attributes)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, attributes %p.\n", iface, attributes);
 
-    return IMFTransform_GetAttributes(impl->transform, attributes);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_GetAttributes(impl->transform, attributes);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_GetInputStreamAttributes(IMFTransform *iface, DWORD id, IMFAttributes **attributes)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, id %#lx, attributes %p.\n", iface, id, attributes);
 
-    return IMFTransform_GetInputStreamAttributes(impl->transform, id, attributes);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_GetInputStreamAttributes(impl->transform, id, attributes);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_GetOutputStreamAttributes(IMFTransform *iface, DWORD id, IMFAttributes **attributes)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, id %#lx, attributes %p.\n", iface, id, attributes);
 
-    return IMFTransform_GetOutputStreamAttributes(impl->transform, id, attributes);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_GetOutputStreamAttributes(impl->transform, id, attributes);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_DeleteInputStream(IMFTransform *iface, DWORD id)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, id %#lx.\n", iface, id);
 
-    return IMFTransform_DeleteInputStream(impl->transform, id);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_DeleteInputStream(impl->transform, id);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_AddInputStreams(IMFTransform *iface, DWORD streams, DWORD *ids)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, streams %lu, ids %p.\n", iface, streams, ids);
 
-    return IMFTransform_AddInputStreams(impl->transform, streams, ids);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_AddInputStreams(impl->transform, streams, ids);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_GetInputAvailableType(IMFTransform *iface, DWORD id, DWORD index,
         IMFMediaType **type)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, id %#lx, index %#lx, type %p.\n", iface, id, index, type);
 
-    return IMFTransform_GetInputAvailableType(impl->transform, id, index, type);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_GetInputAvailableType(impl->transform, id, index, type);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_GetOutputAvailableType(IMFTransform *iface, DWORD id,
         DWORD index, IMFMediaType **type)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, id %#lx, index %#lx, type %p.\n", iface, id, index, type);
 
-    return IMFTransform_GetOutputAvailableType(impl->transform, id, index, type);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_GetOutputAvailableType(impl->transform, id, index, type);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_SetInputType(IMFTransform *iface, DWORD id, IMFMediaType *type, DWORD flags)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, id %#lx, type %p, flags %#lx.\n", iface, id, type, flags);
 
-    return IMFTransform_SetInputType(impl->transform, id, type, flags);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_SetInputType(impl->transform, id, type, flags);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_SetOutputType(IMFTransform *iface, DWORD id, IMFMediaType *type, DWORD flags)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, id %#lx, type %p, flags %#lx.\n", iface, id, type, flags);
 
-    return IMFTransform_SetOutputType(impl->transform, id, type, flags);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_SetOutputType(impl->transform, id, type, flags);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_GetInputCurrentType(IMFTransform *iface, DWORD id, IMFMediaType **type)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, id %#lx, type %p.\n", iface, id, type);
 
-    return IMFTransform_GetInputCurrentType(impl->transform, id, type);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_GetInputCurrentType(impl->transform, id, type);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_GetOutputCurrentType(IMFTransform *iface, DWORD id, IMFMediaType **type)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, id %#lx, type %p.\n", iface, id, type);
 
-    return IMFTransform_GetOutputCurrentType(impl->transform, id, type);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_GetOutputCurrentType(impl->transform, id, type);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_GetInputStatus(IMFTransform *iface, DWORD id, DWORD *flags)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, id %#lx, flags %p.\n", iface, id, flags);
 
-    return IMFTransform_GetInputStatus(impl->transform, id, flags);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_GetInputStatus(impl->transform, id, flags);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_GetOutputStatus(IMFTransform *iface, DWORD *flags)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, flags %p.\n", iface, flags);
 
-    return IMFTransform_GetOutputStatus(impl->transform, flags);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_GetOutputStatus(impl->transform, flags);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_SetOutputBounds(IMFTransform *iface, LONGLONG lower, LONGLONG upper)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, lower %I64d, upper %I64d.\n", iface, lower, upper);
 
-    return IMFTransform_SetOutputBounds(impl->transform, lower, upper);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_SetOutputBounds(impl->transform, lower, upper);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_ProcessEvent(IMFTransform *iface, DWORD id, IMFMediaEvent *event)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, id %#lx, event %p.\n", iface, id, event);
 
-    return IMFTransform_ProcessEvent(impl->transform, id, event);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_ProcessEvent(impl->transform, id, event);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_ProcessMessage(IMFTransform *iface, MFT_MESSAGE_TYPE message, ULONG_PTR param)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, message %#x, param %Ix.\n", iface, message, param);
 
-    return IMFTransform_ProcessMessage(impl->transform, message, param);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_ProcessMessage(impl->transform, message, param);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_ProcessInput(IMFTransform *iface, DWORD id, IMFSample *sample, DWORD flags)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, id %#lx, sample %p, flags %#lx.\n", iface, id, sample, flags);
 
-    return IMFTransform_ProcessInput(impl->transform, id, sample, flags);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_ProcessInput(impl->transform, id, sample, flags);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static HRESULT WINAPI transform_ProcessOutput(IMFTransform *iface, DWORD flags, DWORD count,
         MFT_OUTPUT_DATA_BUFFER *samples, DWORD *status)
 {
     struct async_transform *impl = impl_from_IMFTransform(iface);
+    HRESULT hr;
 
     TRACE("iface %p, flags %#lx, count %lu, samples %p, status %p.\n", iface, flags, count, samples, status);
 
-    return IMFTransform_ProcessOutput(impl->transform, flags, count, samples, status);
+    EnterCriticalSection(&impl->cs);
+    hr = IMFTransform_ProcessOutput(impl->transform, flags, count, samples, status);
+    LeaveCriticalSection(&impl->cs);
+    return hr;
 }
 
 static const IMFTransformVtbl transform_vtbl =
@@ -336,6 +431,9 @@ HRESULT async_transform_create(IMFTransform *transform, IMFTransform **out)
         return E_OUTOFMEMORY;
     impl->IMFTransform_iface.lpVtbl = &transform_vtbl;
     impl->refcount = 1;
+
+    InitializeCriticalSection(&impl->cs);
+    impl->cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": cs");
 
     impl->transform = transform;
     IMFTransform_AddRef(impl->transform);
