@@ -6,6 +6,7 @@ DELAYIMPORTS = evr urlmon user32
 EXTRADLLFLAGS = -Wb,--prefer-native
 
 SOURCES = \
+	async_transform.c \
 	clock.c \
 	copier.c \
 	evr.c \
