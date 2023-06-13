@@ -439,6 +439,7 @@ NTSTATUS wg_transform_create(void *args)
         return STATUS_NO_MEMORY;
     if (!(transform->container = gst_bin_new("wg_transform")))
         goto out;
+    gst_element_set_bus(transform->container, wg_bus);
     if (!(transform->input_queue = gst_atomic_queue_new(8)))
         goto out;
     if (!(transform->output_queue = gst_atomic_queue_new(8)))

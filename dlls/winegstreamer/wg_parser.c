@@ -66,7 +66,6 @@ struct wg_parser
 
     GstElement *container, *decodebin;
     GstBus *bus;
-    GstTaskPool *task_pool;
     GstPad *my_src;
 
     guint64 file_size, start_offset, next_offset, stop_offset;
@@ -1419,7 +1418,7 @@ static GstBusSyncReply bus_handler_cb(GstBus *bus, GstMessage *msg, gpointer use
 
         if (G_VALUE_TYPE(val) == GST_TYPE_TASK && (task = g_value_get_object(val))
                 && type == GST_STREAM_STATUS_TYPE_CREATE)
-            gst_task_set_pool(task, parser->task_pool);
+            gst_task_set_pool(task, wg_task_pool);
 
         break;
     }
@@ -1806,7 +1805,6 @@ static NTSTATUS wg_parser_disconnect(void *args)
         parser->input_cache_chunks[i].data = NULL;
     }
 
-    gst_task_pool_cleanup(parser->task_pool);
     return S_OK;
 }
 
@@ -1841,16 +1839,9 @@ static NTSTATUS wg_parser_create(void *args)
 {
     struct wg_parser_create_params *params = args;
     struct wg_parser *parser;
-    GError *error;
 
     if (!(parser = calloc(1, sizeof(*parser))))
         return E_OUTOFMEMORY;
-    if (!(parser->task_pool = wg_task_pool_new()))
-    {
-        free(parser);
-        return E_OUTOFMEMORY;
-    }
-    gst_task_pool_prepare(parser->task_pool, &error);
 
     pthread_mutex_init(&parser->mutex, NULL);
     pthread_cond_init(&parser->init_cond, NULL);
@@ -1873,7 +1864,6 @@ static NTSTATUS wg_parser_destroy(void *args)
         gst_bus_set_sync_handler(parser->bus, NULL, NULL, NULL);
         gst_object_unref(parser->bus);
     }
-    gst_object_unref(parser->task_pool);
 
     pthread_mutex_destroy(&parser->mutex);
     pthread_cond_destroy(&parser->init_cond);

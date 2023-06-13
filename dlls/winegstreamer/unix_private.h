@@ -32,6 +32,8 @@ GST_DEBUG_CATEGORY_EXTERN(wine);
 #define GST_CAT_DEFAULT wine
 
 extern NTSTATUS wg_init_gstreamer(void *args);
+extern GstTaskPool *wg_task_pool;
+extern GstBus *wg_bus;
 
 extern GstStreamType stream_type_from_caps(GstCaps *caps);
 extern GstElement *create_element(const char *name, const char *plugin_set);
