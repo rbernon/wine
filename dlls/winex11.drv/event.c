@@ -669,6 +669,9 @@ static void set_focus( Display *display, HWND hwnd, Time time )
     Window win;
     GUITHREADINFO threadinfo;
 
+    /* wait for the pointer to be released if the window title bar was clicked */
+    wait_for_pointer_grab();
+
     TRACE( "setting foreground window to %p\n", hwnd );
     NtUserSetForegroundWindow( hwnd );
 
