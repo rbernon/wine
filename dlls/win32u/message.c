@@ -2798,6 +2798,7 @@ int peek_message( MSG *msg, const struct peek_message_filter *filter )
                 thread_info->wake_mask = filter->mask & (QS_SENDMESSAGE | QS_SMRESULT);
                 thread_info->changed_mask = filter->mask;
                 if (buffer != buffer_init) free( buffer );
+                NtYieldExecution();
                 return 0;
             }
             if (res != STATUS_BUFFER_OVERFLOW)
