@@ -194,6 +194,8 @@ extern void user_unlock(void);
 extern void user_check_not_lock(void);
 
 /* winstation.c */
+extern const desktop_shm_t *get_desktop_shared_memory(void);
+extern void cleanup_thread_desktop(void);
 extern BOOL is_virtual_desktop(void);
 
 /* window.c */
@@ -361,5 +363,28 @@ static inline BOOL intersect_rect( RECT *dst, const RECT *src1, const RECT *src2
     dst->bottom = min( src1->bottom, src2->bottom );
     return !IsRectEmpty( dst );
 }
+
+#if defined(__i386__) || defined(__x86_64__)
+/* this prevents compilers from incorrectly reordering non-volatile reads (e.g., memcpy) from shared memory */
+#define __SHARED_READ_FENCE     do { __asm__ __volatile__( "" ::: "memory" ); } while (0)
+#else
+#define __SHARED_READ_FENCE     __atomic_thread_fence( __ATOMIC_ACQUIRE )
+#endif
+
+#define SHARED_READ_BEGIN( ptr, type )                                  \
+    do {                                                                \
+        const type *__shared = (ptr);                                   \
+        LONG64 __seq;                                                   \
+        do {                                                            \
+            while ((__seq = ReadNoFence64( &__shared->seq )) & 1)       \
+                YieldProcessor();                                       \
+            __SHARED_READ_FENCE;                                        \
+            do
+
+#define SHARED_READ_END                                                 \
+            while (0);                                                  \
+            __SHARED_READ_FENCE;                                        \
+        } while (ReadNoFence64( &__shared->seq ) != __seq);             \
+    } while(0)
 
 #endif /* __WINE_WIN32U_PRIVATE */

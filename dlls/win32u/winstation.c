@@ -40,6 +40,60 @@ WINE_DECLARE_DEBUG_CHANNEL(win);
 
 #define DESKTOP_ALL_ACCESS 0x01ff
 
+static void *map_object_shared_memory( HANDLE object, SIZE_T size )
+{
+    static const WCHAR object_mappingW[] =
+    {
+        '_','_','w','i','n','e','_','m','a','p','p','i','n','g',0
+    };
+    UNICODE_STRING section_str = RTL_CONSTANT_STRING( object_mappingW );
+    OBJECT_ATTRIBUTES attr;
+    unsigned int status;
+    HANDLE handle;
+    void *ptr;
+
+    InitializeObjectAttributes( &attr, &section_str, 0, object, NULL );
+    if (!(status = NtOpenSection( &handle, SECTION_MAP_READ, &attr )))
+    {
+        ptr = NULL;
+        status = NtMapViewOfSection( handle, GetCurrentProcess(), &ptr, 0, 0, NULL,
+                                     &size, ViewUnmap, 0, PAGE_READONLY );
+        NtClose( handle );
+    }
+
+    if (status)
+    {
+        ERR( "Failed to map object %p mapping, status %#x\n", object, status );
+        return NULL;
+    }
+
+    return ptr;
+}
+
+const desktop_shm_t *get_desktop_shared_memory(void)
+{
+    struct user_thread_info *thread_info = get_user_thread_info();
+
+    if (!thread_info->desktop_shm)
+    {
+        HANDLE desktop = NtUserGetThreadDesktop( GetCurrentThreadId() );
+        thread_info->desktop_shm = map_object_shared_memory( desktop, sizeof(*thread_info->desktop_shm) );
+    }
+
+    return thread_info->desktop_shm;
+}
+
+void cleanup_thread_desktop(void)
+{
+    struct user_thread_info *thread_info = get_user_thread_info();
+
+    if (thread_info->desktop_shm)
+    {
+        NtUnmapViewOfSection( GetCurrentProcess(), (void *)thread_info->desktop_shm );
+        thread_info->desktop_shm = NULL;
+    }
+}
+
 BOOL is_virtual_desktop(void)
 {
     HANDLE desktop = NtUserGetThreadDesktop( GetCurrentThreadId() );
@@ -265,6 +319,7 @@ BOOL WINAPI NtUserSetThreadDesktop( HDESK handle )
         thread_info->client_info.msg_window = 0;
         if (key_state_info) key_state_info->time = 0;
         if (was_virtual_desktop != is_virtual_desktop()) update_display_cache( TRUE );
+        cleanup_thread_desktop();
     }
     return ret;
 }

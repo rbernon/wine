@@ -127,6 +127,7 @@ struct user_thread_info
     UINT                          spy_indent;             /* Current spy indent */
     BOOL                          clipping_cursor;        /* thread is currently clipping */
     DWORD                         clipping_reset;         /* time when clipping was last reset */
+    const desktop_shm_t          *desktop_shm;            /* ptr to server's desktop shared memory */
 };
 
 C_ASSERT( sizeof(struct user_thread_info) <= sizeof(((TEB *)0)->Win32ClientInfo) );
