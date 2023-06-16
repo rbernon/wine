@@ -243,7 +243,6 @@ static struct desktop *create_desktop( const struct unicode_str *name, unsigned 
             desktop->cursor_win = 0;
             desktop->cursor_handle = 0;
             desktop->last_press_alt = 0;
-            memset( desktop->keystate, 0, sizeof(desktop->keystate) );
             list_add_tail( &winstation->desktops, &desktop->entry );
             list_init( &desktop->hotkeys );
             desktop->shared_mapping = NULL;
