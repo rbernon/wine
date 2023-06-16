@@ -796,11 +796,26 @@ BOOL get_cursor_pos( POINT *pt )
  */
 BOOL WINAPI NtUserGetCursorInfo( CURSORINFO *info )
 {
+    const input_shm_t *shared;
     BOOL ret;
 
     if (!info) return FALSE;
 
-    SERVER_START_REQ( get_thread_input )
+    while ((shared = get_input_shared_memory( 0 )))
+    {
+        SHARED_READ_BEGIN( shared, input_shm_t )
+        {
+            if (!(ret = !!shared->foreground)) break; /* foreground has changed, retry */
+            info->hCursor = wine_server_ptr_handle( shared->cursor );
+            info->flags = (shared->cursor_count >= 0) ? CURSOR_SHOWING : 0;
+        }
+        SHARED_READ_END;
+
+        if (ret) break;
+        cleanup_thread_input( 0 );
+    }
+
+    if (!ret) SERVER_START_REQ( get_thread_input )
     {
         req->tid = 0;
         if ((ret = !wine_server_call( req )))
