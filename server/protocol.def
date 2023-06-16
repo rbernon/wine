@@ -896,6 +896,7 @@ typedef volatile struct
 {
     object_shm_t         obj;
     struct shared_cursor cursor;           /* global cursor information */
+    unsigned char        keystate[256];    /* asynchronous key state */
 } desktop_shm_t;
 
 typedef volatile union

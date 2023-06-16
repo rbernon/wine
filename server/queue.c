@@ -256,6 +256,7 @@ static void set_caret_window( struct thread_input *input, user_handle_t win )
 /* create a thread input object */
 static struct thread_input *create_thread_input( struct thread *thread )
 {
+    const desktop_shm_t *desktop_shm;
     struct thread_input *input;
 
     if ((input = alloc_object( &thread_input_ops )))
@@ -277,7 +278,10 @@ static struct thread_input *create_thread_input( struct thread *thread )
             release_object( input );
             return NULL;
         }
-        memcpy( input->desktop_keystate, input->desktop->keystate, sizeof(input->desktop_keystate) );
+        desktop_shm = get_shared_desktop( input->desktop->session_index );
+
+        memcpy( input->desktop_keystate, (void *)desktop_shm->keystate,
+                sizeof(input->desktop_keystate) );
     }
     return input;
 }
@@ -337,12 +341,16 @@ void free_msg_queue( struct thread *thread )
 /* synchronize thread input keystate with the desktop */
 static void sync_input_keystate( struct thread_input *input )
 {
+    const desktop_shm_t *desktop_shm;
     int i;
+
     if (!input->desktop || input->keystate_lock) return;
+    desktop_shm = get_shared_desktop( input->desktop->session_index );
+
     for (i = 0; i < sizeof(input->keystate); ++i)
     {
-        if (input->desktop_keystate[i] == input->desktop->keystate[i]) continue;
-        input->keystate[i] = input->desktop_keystate[i] = input->desktop->keystate[i];
+        if (input->desktop_keystate[i] == desktop_shm->keystate[i]) continue;
+        input->keystate[i] = input->desktop_keystate[i] = desktop_shm->keystate[i];
     }
 }
 
@@ -1463,7 +1471,7 @@ static struct timer *set_timer( struct msg_queue *queue, unsigned int rate )
 }
 
 /* change the input key state for a given key */
-static void set_input_key_state( unsigned char *keystate, unsigned char key, unsigned char down )
+static void set_input_key_state( volatile unsigned char *keystate, unsigned char key, unsigned char down )
 {
     if (down)
     {
@@ -1474,7 +1482,7 @@ static void set_input_key_state( unsigned char *keystate, unsigned char key, uns
 }
 
 /* update the input key state for a keyboard message */
-static void update_key_state( unsigned char *keystate, unsigned int msg,
+static void update_key_state( volatile unsigned char *keystate, unsigned int msg,
                               lparam_t wparam, int desktop )
 {
     unsigned char key, down = 0, down_val = desktop ? 0xc0 : 0x80;
@@ -1543,7 +1551,12 @@ static void update_input_key_state( struct thread_input *input, unsigned int msg
 
 static void update_desktop_key_state( struct desktop *desktop, unsigned int msg, lparam_t wparam )
 {
-    update_key_state( desktop->keystate, msg, wparam, 1 );
+    const desktop_shm_t *desktop_shm = get_shared_desktop( desktop->session_index );
+    SHARED_WRITE_BEGIN( desktop_shm, desktop_shm_t )
+    {
+        update_key_state( shared->keystate, msg, wparam, 1 );
+    }
+    SHARED_WRITE_END;
 }
 
 /* update the desktop key state according to a mouse message flags */
@@ -1599,15 +1612,16 @@ static void release_hardware_message( struct msg_queue *queue, unsigned int hw_i
 
 static int queue_hotkey_message( struct desktop *desktop, struct message *msg )
 {
+    const desktop_shm_t *desktop_shm = get_shared_desktop( desktop->session_index );
     struct hotkey *hotkey;
     unsigned int modifiers = 0;
 
     if (msg->msg != WM_KEYDOWN && msg->msg != WM_SYSKEYDOWN) return 0;
 
-    if (desktop->keystate[VK_MENU] & 0x80) modifiers |= MOD_ALT;
-    if (desktop->keystate[VK_CONTROL] & 0x80) modifiers |= MOD_CONTROL;
-    if (desktop->keystate[VK_SHIFT] & 0x80) modifiers |= MOD_SHIFT;
-    if ((desktop->keystate[VK_LWIN] & 0x80) || (desktop->keystate[VK_RWIN] & 0x80)) modifiers |= MOD_WIN;
+    if (desktop_shm->keystate[VK_MENU] & 0x80) modifiers |= MOD_ALT;
+    if (desktop_shm->keystate[VK_CONTROL] & 0x80) modifiers |= MOD_CONTROL;
+    if (desktop_shm->keystate[VK_SHIFT] & 0x80) modifiers |= MOD_SHIFT;
+    if ((desktop_shm->keystate[VK_LWIN] & 0x80) || (desktop_shm->keystate[VK_RWIN] & 0x80)) modifiers |= MOD_WIN;
 
     LIST_FOR_EACH_ENTRY( hotkey, &desktop->hotkeys, struct hotkey, entry )
     {
@@ -1713,7 +1727,7 @@ static void queue_hardware_message( struct desktop *desktop, struct message *msg
     {
     case QS_KEY:
         if (queue_hotkey_message( desktop, msg )) return;
-        if (desktop->keystate[VK_MENU] & 0x80) msg->lparam |= KF_ALTDOWN << 16;
+        if (desktop_shm->keystate[VK_MENU] & 0x80) msg->lparam |= KF_ALTDOWN << 16;
         if (msg->wparam == VK_SHIFT || msg->wparam == VK_LSHIFT || msg->wparam == VK_RSHIFT)
             msg->lparam &= ~(KF_EXTENDED << 16);
         break;
@@ -1722,13 +1736,13 @@ static void queue_hardware_message( struct desktop *desktop, struct message *msg
         /* fallthrough */
     case QS_MOUSEBUTTON:
         if (update_desktop_cursor_pos( desktop, msg->win, msg->x, msg->y )) always_queue = 1;
-        if (desktop->keystate[VK_LBUTTON] & 0x80)  msg->wparam |= MK_LBUTTON;
-        if (desktop->keystate[VK_MBUTTON] & 0x80)  msg->wparam |= MK_MBUTTON;
-        if (desktop->keystate[VK_RBUTTON] & 0x80)  msg->wparam |= MK_RBUTTON;
-        if (desktop->keystate[VK_SHIFT] & 0x80)    msg->wparam |= MK_SHIFT;
-        if (desktop->keystate[VK_CONTROL] & 0x80)  msg->wparam |= MK_CONTROL;
-        if (desktop->keystate[VK_XBUTTON1] & 0x80) msg->wparam |= MK_XBUTTON1;
-        if (desktop->keystate[VK_XBUTTON2] & 0x80) msg->wparam |= MK_XBUTTON2;
+        if (desktop_shm->keystate[VK_LBUTTON] & 0x80)  msg->wparam |= MK_LBUTTON;
+        if (desktop_shm->keystate[VK_MBUTTON] & 0x80)  msg->wparam |= MK_MBUTTON;
+        if (desktop_shm->keystate[VK_RBUTTON] & 0x80)  msg->wparam |= MK_RBUTTON;
+        if (desktop_shm->keystate[VK_SHIFT] & 0x80)    msg->wparam |= MK_SHIFT;
+        if (desktop_shm->keystate[VK_CONTROL] & 0x80)  msg->wparam |= MK_CONTROL;
+        if (desktop_shm->keystate[VK_XBUTTON1] & 0x80) msg->wparam |= MK_XBUTTON1;
+        if (desktop_shm->keystate[VK_XBUTTON2] & 0x80) msg->wparam |= MK_XBUTTON2;
         break;
     }
     msg->x = desktop_shm->cursor.x;
@@ -2128,6 +2142,7 @@ static int queue_mouse_message( struct desktop *desktop, user_handle_t win, cons
 static int queue_keyboard_message( struct desktop *desktop, user_handle_t win, const hw_input_t *input,
                                    unsigned int origin, struct msg_queue *sender )
 {
+    const desktop_shm_t *desktop_shm = get_shared_desktop( desktop->session_index );
     struct hw_msg_source source = { IMDT_KEYBOARD, origin };
     const struct rawinput_device *device;
     struct hardware_msg_data *msg_data;
@@ -2169,14 +2184,14 @@ static int queue_keyboard_message( struct desktop *desktop, user_handle_t win, c
         if (input->kbd.flags & KEYEVENTF_KEYUP)
         {
             /* send WM_SYSKEYUP if Alt still pressed and no other key in between */
-            if (!(desktop->keystate[VK_MENU] & 0x80) || !desktop->last_press_alt) break;
+            if (!(desktop_shm->keystate[VK_MENU] & 0x80) || !desktop->last_press_alt) break;
             message_code = WM_SYSKEYUP;
             desktop->last_press_alt = 0;
         }
         else
         {
             /* send WM_SYSKEYDOWN for Alt except with Ctrl */
-            if (desktop->keystate[VK_CONTROL] & 0x80) break;
+            if (desktop_shm->keystate[VK_CONTROL] & 0x80) break;
             message_code = WM_SYSKEYDOWN;
             desktop->last_press_alt = 1;
         }
@@ -2186,15 +2201,15 @@ static int queue_keyboard_message( struct desktop *desktop, user_handle_t win, c
     case VK_RCONTROL:
         /* send WM_SYSKEYUP on release if Alt still pressed */
         if (!(input->kbd.flags & KEYEVENTF_KEYUP)) break;
-        if (!(desktop->keystate[VK_MENU] & 0x80)) break;
+        if (!(desktop_shm->keystate[VK_MENU] & 0x80)) break;
         message_code = WM_SYSKEYUP;
         desktop->last_press_alt = 0;
         break;
 
     default:
         /* send WM_SYSKEY for Alt-anykey and for F10 */
-        if (desktop->keystate[VK_CONTROL] & 0x80) break;
-        if (!(desktop->keystate[VK_MENU] & 0x80)) break;
+        if (desktop_shm->keystate[VK_CONTROL] & 0x80) break;
+        if (!(desktop_shm->keystate[VK_MENU] & 0x80)) break;
         /* fall through */
     case VK_F10:
         message_code = (input->kbd.flags & KEYEVENTF_KEYUP) ? WM_SYSKEYUP : WM_SYSKEYDOWN;
@@ -2241,7 +2256,7 @@ static int queue_keyboard_message( struct desktop *desktop, user_handle_t win, c
         if (input->kbd.flags & KEYEVENTF_EXTENDEDKEY) flags |= KF_EXTENDED;
         /* FIXME: set KF_DLGMODE and KF_MENUMODE when needed */
         if (input->kbd.flags & KEYEVENTF_KEYUP) flags |= KF_REPEAT | KF_UP;
-        else if (desktop->keystate[vkey] & 0x80) flags |= KF_REPEAT;
+        else if (desktop_shm->keystate[vkey] & 0x80) flags |= KF_REPEAT;
 
         msg->wparam = vkey;
         msg->lparam |= flags << 16;
@@ -3473,18 +3488,24 @@ DECL_HANDLER(get_thread_input)
 /* retrieve queue keyboard state for current thread or global async state */
 DECL_HANDLER(get_key_state)
 {
+    const desktop_shm_t *desktop_shm;
     struct desktop *desktop;
     data_size_t size = min( 256, get_reply_max_size() );
 
     if (req->async)  /* get global async key state */
     {
         if (!(desktop = get_thread_desktop( current, 0 ))) return;
+        desktop_shm = get_shared_desktop( desktop->session_index );
         if (req->key >= 0)
         {
-            reply->state = desktop->keystate[req->key & 0xff];
-            desktop->keystate[req->key & 0xff] &= ~0x40;
+            SHARED_WRITE_BEGIN( desktop_shm, desktop_shm_t )
+            {
+                reply->state = shared->keystate[req->key & 0xff];
+                shared->keystate[req->key & 0xff] &= ~0x40;
+            }
+            SHARED_WRITE_END;
         }
-        set_reply_data( desktop->keystate, size );
+        set_reply_data( (void *)desktop_shm->keystate, size );
         release_object( desktop );
     }
     else
@@ -3504,15 +3525,25 @@ DECL_HANDLER(get_key_state)
 /* set queue keyboard state for current thread */
 DECL_HANDLER(set_key_state)
 {
-    struct desktop *desktop;
     struct msg_queue *queue = get_current_queue();
+    struct desktop *desktop = queue->input->desktop;
+    const desktop_shm_t *desktop_shm;
     data_size_t size = min( 256, get_req_data_size() );
 
+    desktop_shm = get_shared_desktop( desktop->session_index );
     memcpy( queue->input->keystate, get_req_data(), size );
-    memcpy( queue->input->desktop_keystate, queue->input->desktop->keystate, 256 );
+    memcpy( queue->input->desktop_keystate, (void *)desktop_shm->keystate,
+            sizeof(queue->input->desktop_keystate) );
+
     if (req->async && (desktop = get_thread_desktop( current, 0 )))
     {
-        memcpy( desktop->keystate, get_req_data(), size );
+        desktop_shm = get_shared_desktop( desktop->session_index );
+        SHARED_WRITE_BEGIN( desktop_shm, desktop_shm_t )
+        {
+            memcpy( (void *)shared->keystate, get_req_data(), size );
+        }
+        SHARED_WRITE_END;
+
         release_object( desktop );
     }
 }

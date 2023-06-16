@@ -297,7 +297,6 @@ static struct desktop *create_desktop( const struct unicode_str *name, unsigned 
             desktop->cursor_win = 0;
             desktop->clip_flags = 0;
             desktop->last_press_alt = 0;
-            memset( desktop->keystate, 0, sizeof(desktop->keystate) );
             list_add_tail( &winstation->desktops, &desktop->entry );
             list_init( &desktop->hotkeys );
             list_init( &desktop->pointers );
@@ -318,6 +317,7 @@ static struct desktop *create_desktop( const struct unicode_str *name, unsigned 
                 shared->cursor.clip.top = 0;
                 shared->cursor.clip.right = 0;
                 shared->cursor.clip.bottom = 0;
+                memset((void *)shared->keystate, 0, sizeof(shared->keystate));
             }
             SHARED_WRITE_END;
         }
