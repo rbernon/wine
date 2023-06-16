@@ -950,9 +950,25 @@ HKL WINAPI NtUserGetKeyboardLayout( DWORD thread_id )
  */
 SHORT WINAPI NtUserGetKeyState( INT vkey )
 {
+    const input_shm_t *shared;
+    BOOL ret, locked = FALSE;
     SHORT retval = 0;
 
-    SERVER_START_REQ( get_key_state )
+    while ((shared = get_input_shared_memory( GetCurrentThreadId() )))
+    {
+        SHARED_READ_BEGIN( shared, input_shm_t )
+        {
+            if (!(ret = !!shared->foreground)) break; /* foreground has changed, retry */
+            if (!(locked = !!shared->keystate_lock)) break; /* needs a request for sync_input_keystate */
+            retval = (signed char)(shared->keystate[vkey & 0xff] & 0x81);
+        }
+        SHARED_READ_END;
+
+        if (ret) break;
+        cleanup_thread_input( GetCurrentThreadId() );
+    }
+
+    if (!locked) SERVER_START_REQ( get_key_state )
     {
         req->key = vkey;
         if (!wine_server_call( req )) retval = (signed char)(reply->state & 0x81);
