@@ -3422,24 +3422,21 @@ DECL_HANDLER(attach_thread_input)
 /* get thread input data */
 DECL_HANDLER(get_thread_input)
 {
-    struct thread *thread = NULL;
-    struct desktop *desktop;
     struct thread_input *input;
 
     if (req->tid)
     {
+        struct thread *thread;
         if (!(thread = get_thread_from_id( req->tid ))) return;
-        if (!(desktop = get_thread_desktop( thread, 0 )))
-        {
-            release_object( thread );
-            return;
-        }
         input = thread->queue ? thread->queue->input : NULL;
+        release_object( thread );
     }
     else
     {
+        struct desktop *desktop;
         if (!(desktop = get_thread_desktop( current, 0 ))) return;
         input = desktop->foreground_input;  /* get the foreground thread info */
+        release_object( desktop );
     }
 
     if (input)
@@ -3453,11 +3450,6 @@ DECL_HANDLER(get_thread_input)
         reply->rect       = input->shared->caret_rect;
         if (req->open) reply->handle = alloc_handle( current->process, input, SYNCHRONIZE, 0 );
     }
-
-    /* foreground window is active window of foreground thread */
-    reply->foreground = desktop->foreground_input ? desktop->foreground_input->shared->active : 0;
-    if (thread) release_object( thread );
-    release_object( desktop );
 }
 
 

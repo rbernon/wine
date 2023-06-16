@@ -551,8 +551,8 @@ static WCHAR kbd_tables_vkey_to_wchar( const KBDTABLES *tables, UINT vkey, const
 HWND WINAPI NtUserGetForegroundWindow(void)
 {
     const input_shm_t *shared;
-    BOOL skip = FALSE;
-    HWND hwnd;
+    HWND hwnd = 0;
+    BOOL skip;
 
     while ((shared = get_input_shared_memory( 0 )))
     {
@@ -567,13 +567,6 @@ HWND WINAPI NtUserGetForegroundWindow(void)
         cleanup_thread_input( 0 );
     }
 
-    if (!skip) SERVER_START_REQ( get_thread_input )
-    {
-        req->tid = 0;
-        if (wine_server_call_err( req )) hwnd = 0;
-        else hwnd = wine_server_ptr_handle( reply->foreground );
-    }
-    SERVER_END_REQ;
     return hwnd;
 }
 
