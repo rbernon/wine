@@ -3684,7 +3684,7 @@ DECL_HANDLER(get_key_state)
             }
             SHARED_WRITE_END;
         }
-        set_reply_data( (void *)desktop_shm->keystate, size );
+        else set_reply_data( (void *)desktop_shm->keystate, size );
         release_object( desktop );
     }
     else
@@ -3696,7 +3696,7 @@ DECL_HANDLER(get_key_state)
             sync_input_keystate( queue->input );
             reply->state = keystate[req->key & 0xff];
         }
-        set_reply_data( keystate, size );
+        else set_reply_data( keystate, size );
     }
 }
 
