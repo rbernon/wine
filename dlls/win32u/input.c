@@ -777,14 +777,22 @@ BOOL get_cursor_pos( POINT *pt )
  */
 BOOL WINAPI NtUserGetCursorInfo( CURSORINFO *info )
 {
-    BOOL ret;
+    struct object_lock lock = {0};
+    const input_shm_t *input_shm;
+    NTSTATUS status;
 
     if (!info) return FALSE;
 
-    SERVER_START_REQ( get_thread_input )
+    while ((status = get_shared_input( 0, &lock, &input_shm )) == STATUS_PENDING)
+    {
+        info->hCursor = wine_server_ptr_handle( input_shm->cursor );
+        info->flags = (input_shm->cursor_count >= 0) ? CURSOR_SHOWING : 0;
+    }
+
+    if (status) SERVER_START_REQ( get_thread_input )
     {
         req->tid = 0;
-        if ((ret = !wine_server_call( req )))
+        if (!(status = wine_server_call( req )))
         {
             info->hCursor = wine_server_ptr_handle( reply->cursor );
             info->flags = reply->show_count >= 0 ? CURSOR_SHOWING : 0;
@@ -792,7 +800,7 @@ BOOL WINAPI NtUserGetCursorInfo( CURSORINFO *info )
     }
     SERVER_END_REQ;
     get_cursor_pos( &info->ptScreenPos );
-    return ret;
+    return !status;
 }
 
 static void check_for_events( UINT flags )
