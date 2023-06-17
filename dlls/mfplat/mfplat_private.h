@@ -35,7 +35,8 @@ struct attributes
 {
     IMFAttributes IMFAttributes_iface;
     LONG ref;
-    CRITICAL_SECTION cs;
+    SRWLOCK lock;
+    DWORD lock_tid;
     struct attribute *attributes;
     size_t capacity;
     size_t count;
