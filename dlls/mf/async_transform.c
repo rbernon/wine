@@ -27,12 +27,15 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(mfplat);
 
+#define ASYNC_TRANSFORM_MAX_STREAMS 8
+
 struct async_transform
 {
     IMFTransform IMFTransform_iface;
     IMFShutdown IMFShutdown_iface;
     LONG refcount;
 
+    UINT output_count;
     CRITICAL_SECTION cs;
     IMFTransform *transform;
 };
@@ -573,7 +576,17 @@ static const IMFShutdownVtbl shutdown_vtbl =
 
 HRESULT async_transform_create(IMFTransform *transform, IMFTransform **out)
 {
+    DWORD input_count = 1, output_count = 1;
     struct async_transform *impl;
+    HRESULT hr;
+
+    if (FAILED(hr = IMFTransform_GetStreamCount(transform, &input_count, &output_count)))
+        WARN("Failed to get transform stream count, hr %#lx\n", hr);
+    else if (output_count > ASYNC_TRANSFORM_MAX_STREAMS)
+    {
+        FIXME("Only %u streams supported, need %lu\n", ASYNC_TRANSFORM_MAX_STREAMS, output_count);
+        return E_INVALIDARG;
+    }
 
     if (!(impl = calloc(1, sizeof(*impl))))
         return E_OUTOFMEMORY;
@@ -586,6 +599,8 @@ HRESULT async_transform_create(IMFTransform *transform, IMFTransform **out)
 
     impl->transform = transform;
     IMFTransform_AddRef(impl->transform);
+
+    impl->output_count = output_count;
 
     *out = &impl->IMFTransform_iface;
     TRACE("Created async transform %p for transform %p\n", *out, transform);
