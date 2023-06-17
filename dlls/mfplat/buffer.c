@@ -82,10 +82,7 @@ static ULONG WINAPI media_buffer_Release(IMFMediaBuffer *iface)
     TRACE("%p, refcount %lu.\n", iface, refcount);
 
     if (!refcount)
-    {
         _aligned_free(buffer->data);
-        free(buffer);
-    }
 
     return refcount;
 }
@@ -157,7 +154,7 @@ static HRESULT WINAPI media_buffer_GetMaxLength(IMFMediaBuffer *iface, DWORD *ma
     return S_OK;
 }
 
-static const IMFMediaBufferVtbl memory_1d_buffer_vtbl =
+static const IMFMediaBufferVtbl media_buffer_vtbl =
 {
     media_buffer_QueryInterface,
     media_buffer_AddRef,
@@ -169,9 +166,36 @@ static const IMFMediaBufferVtbl memory_1d_buffer_vtbl =
     media_buffer_GetMaxLength,
 };
 
-static HRESULT media_buffer_init(struct buffer *buffer, DWORD max_length, DWORD alignment,
-        const IMFMediaBufferVtbl *vtbl)
+static struct buffer *buffer_alloc(DWORD max_length, DWORD alignment)
 {
+    SIZE_T alloc_size = max_length + sizeof(struct buffer);
+    struct buffer *buffer;
+    BYTE *data;
+
+    if (!(data = _aligned_malloc(alloc_size, alignment)))
+        return NULL;
+
+    buffer = (struct buffer *)(data + max_length);
+    buffer->IMFMediaBuffer_iface.lpVtbl = &media_buffer_vtbl;
+    buffer->refcount = 1;
+    buffer->data = data;
+    buffer->max_length = max_length;
+    buffer->current_length = 0;
+
+    return buffer;
+}
+
+static HRESULT create_1d_buffer(DWORD max_length, DWORD alignment, IMFMediaBuffer **out)
+{
+    struct buffer *buffer;
+
+    if (!out)
+        return E_POINTER;
+    *out = NULL;
+
+    if (!(buffer = buffer_alloc(max_length, alignment)))
+        return E_OUTOFMEMORY;
+
     if (alignment < MF_16_BYTE_ALIGNMENT)
         alignment = MF_16_BYTE_ALIGNMENT;
     alignment++;
@@ -187,40 +211,8 @@ static HRESULT media_buffer_init(struct buffer *buffer, DWORD max_length, DWORD 
         alignment++;
     }
 
-    if (!(buffer->data = _aligned_malloc(max_length, alignment)))
-        return E_OUTOFMEMORY;
-    memset(buffer->data, 0, max_length);
-
-    buffer->IMFMediaBuffer_iface.lpVtbl = vtbl;
-    buffer->refcount = 1;
-    buffer->max_length = max_length;
-    buffer->current_length = 0;
-
-    return S_OK;
-}
-
-static HRESULT create_1d_buffer(DWORD max_length, DWORD alignment, IMFMediaBuffer **buffer)
-{
-    struct buffer *object;
-    HRESULT hr;
-
-    if (!buffer)
-        return E_POINTER;
-
-    *buffer = NULL;
-
-    if (!(object = calloc(1, sizeof(*object))))
-        return E_OUTOFMEMORY;
-
-    hr = media_buffer_init(object, max_length, alignment, &memory_1d_buffer_vtbl);
-    if (FAILED(hr))
-    {
-        free(object);
-        return hr;
-    }
-
-    *buffer = &object->IMFMediaBuffer_iface;
-
+    *out = &buffer->IMFMediaBuffer_iface;
+    TRACE("Created buffer %p\n", *out);
     return S_OK;
 }
 
