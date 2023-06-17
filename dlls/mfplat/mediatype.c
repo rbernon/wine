@@ -2001,7 +2001,7 @@ static HRESULT WINAPI mediatype_handler_IsMediaTypeSupported(IMFMediaTypeHandler
     if (out_type)
         *out_type = NULL;
 
-    EnterCriticalSection(&stream_desc->attributes.cs);
+    AcquireSRWLockExclusive(&stream_desc->attributes.lock);
 
     supported = stream_desc->current_type && stream_descriptor_is_mediatype_supported(stream_desc->current_type, in_type);
     if (!supported)
@@ -2013,7 +2013,7 @@ static HRESULT WINAPI mediatype_handler_IsMediaTypeSupported(IMFMediaTypeHandler
         }
     }
 
-    LeaveCriticalSection(&stream_desc->attributes.cs);
+    ReleaseSRWLockExclusive(&stream_desc->attributes.lock);
 
     return supported ? S_OK : MF_E_INVALIDMEDIATYPE;
 }
@@ -2057,12 +2057,12 @@ static HRESULT WINAPI mediatype_handler_SetCurrentMediaType(IMFMediaTypeHandler 
     if (!type)
         return E_POINTER;
 
-    EnterCriticalSection(&stream_desc->attributes.cs);
+    AcquireSRWLockExclusive(&stream_desc->attributes.lock);
     if (stream_desc->current_type)
         IMFMediaType_Release(stream_desc->current_type);
     stream_desc->current_type = type;
     IMFMediaType_AddRef(stream_desc->current_type);
-    LeaveCriticalSection(&stream_desc->attributes.cs);
+    ReleaseSRWLockExclusive(&stream_desc->attributes.lock);
 
     return S_OK;
 }
@@ -2074,7 +2074,7 @@ static HRESULT WINAPI mediatype_handler_GetCurrentMediaType(IMFMediaTypeHandler 
 
     TRACE("%p, %p.\n", iface, type);
 
-    EnterCriticalSection(&stream_desc->attributes.cs);
+    AcquireSRWLockShared(&stream_desc->attributes.lock);
     if (stream_desc->current_type)
     {
         *type = stream_desc->current_type;
@@ -2082,7 +2082,7 @@ static HRESULT WINAPI mediatype_handler_GetCurrentMediaType(IMFMediaTypeHandler 
     }
     else
         hr = MF_E_NOT_INITIALIZED;
-    LeaveCriticalSection(&stream_desc->attributes.cs);
+    ReleaseSRWLockShared(&stream_desc->attributes.lock);
 
     return hr;
 }
@@ -2094,10 +2094,10 @@ static HRESULT WINAPI mediatype_handler_GetMajorType(IMFMediaTypeHandler *iface,
 
     TRACE("%p, %p.\n", iface, type);
 
-    EnterCriticalSection(&stream_desc->attributes.cs);
+    AcquireSRWLockShared(&stream_desc->attributes.lock);
     hr = IMFMediaType_GetGUID(stream_desc->current_type ? stream_desc->current_type :
             stream_desc->media_types[0], &MF_MT_MAJOR_TYPE, type);
-    LeaveCriticalSection(&stream_desc->attributes.cs);
+    ReleaseSRWLockShared(&stream_desc->attributes.lock);
 
     return hr;
 }
@@ -2517,9 +2517,9 @@ static HRESULT WINAPI presentation_descriptor_GetStreamDescriptorByIndex(IMFPres
     if (index >= presentation_desc->count)
         return E_INVALIDARG;
 
-    EnterCriticalSection(&presentation_desc->attributes.cs);
+    AcquireSRWLockShared(&presentation_desc->attributes.lock);
     *selected = presentation_desc->descriptors[index].selected;
-    LeaveCriticalSection(&presentation_desc->attributes.cs);
+    ReleaseSRWLockShared(&presentation_desc->attributes.lock);
 
     *descriptor = presentation_desc->descriptors[index].descriptor;
     IMFStreamDescriptor_AddRef(*descriptor);
@@ -2536,9 +2536,9 @@ static HRESULT WINAPI presentation_descriptor_SelectStream(IMFPresentationDescri
     if (index >= presentation_desc->count)
         return E_INVALIDARG;
 
-    EnterCriticalSection(&presentation_desc->attributes.cs);
+    AcquireSRWLockExclusive(&presentation_desc->attributes.lock);
     presentation_desc->descriptors[index].selected = TRUE;
-    LeaveCriticalSection(&presentation_desc->attributes.cs);
+    ReleaseSRWLockExclusive(&presentation_desc->attributes.lock);
 
     return S_OK;
 }
@@ -2552,9 +2552,9 @@ static HRESULT WINAPI presentation_descriptor_DeselectStream(IMFPresentationDesc
     if (index >= presentation_desc->count)
         return E_INVALIDARG;
 
-    EnterCriticalSection(&presentation_desc->attributes.cs);
+    AcquireSRWLockExclusive(&presentation_desc->attributes.lock);
     presentation_desc->descriptors[index].selected = FALSE;
-    LeaveCriticalSection(&presentation_desc->attributes.cs);
+    ReleaseSRWLockExclusive(&presentation_desc->attributes.lock);
 
     return S_OK;
 }
@@ -2573,7 +2573,7 @@ static HRESULT WINAPI presentation_descriptor_Clone(IMFPresentationDescriptor *i
 
     presentation_descriptor_init(object, presentation_desc->count);
 
-    EnterCriticalSection(&presentation_desc->attributes.cs);
+    IMFPresentationDescriptor_LockStore(iface);
 
     for (i = 0; i < presentation_desc->count; ++i)
     {
@@ -2583,7 +2583,7 @@ static HRESULT WINAPI presentation_descriptor_Clone(IMFPresentationDescriptor *i
 
     attributes_CopyAllItems(&presentation_desc->attributes, (IMFAttributes *)&object->IMFPresentationDescriptor_iface);
 
-    LeaveCriticalSection(&presentation_desc->attributes.cs);
+    IMFPresentationDescriptor_UnlockStore(iface);
 
     *descriptor = &object->IMFPresentationDescriptor_iface;
 

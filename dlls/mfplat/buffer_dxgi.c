@@ -639,7 +639,7 @@ static HRESULT WINAPI dxgi_buffer_SetUnknown(IMFDXGIBuffer *iface, REFIID guid, 
 
     TRACE("%p, %s, %p.\n", iface, debugstr_guid(guid), data);
 
-    EnterCriticalSection(&buffer->attributes.cs);
+    attributes_LockStore(&buffer->attributes);
     if (data)
     {
         if (SUCCEEDED(attributes_GetItem(&buffer->attributes, guid, NULL)))
@@ -651,7 +651,7 @@ static HRESULT WINAPI dxgi_buffer_SetUnknown(IMFDXGIBuffer *iface, REFIID guid, 
     {
         attributes_DeleteItem(&buffer->attributes, guid);
     }
-    LeaveCriticalSection(&buffer->attributes.cs);
+    attributes_UnlockStore(&buffer->attributes);
 
     return hr;
 }
