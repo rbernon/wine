@@ -1711,6 +1711,12 @@ static NTSTATUS wg_parser_connect(void *args)
 
     pthread_mutex_unlock(&parser->mutex);
 
+{
+char buffer[256];
+sprintf(buffer, "wg_parser-%p", parser);
+GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN(parser->container), GST_DEBUG_GRAPH_SHOW_VERBOSE, buffer);
+}
+
     parser->next_offset = 0;
     return S_OK;
 
