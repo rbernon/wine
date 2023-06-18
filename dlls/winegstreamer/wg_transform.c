@@ -611,6 +611,12 @@ NTSTATUS wg_transform_create(void *args)
     gst_caps_unref(src_caps);
     gst_caps_unref(sink_caps);
 
+{
+char buffer[256];
+sprintf(buffer, "wg_transform-%p", transform);
+GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN(transform->container), GST_DEBUG_GRAPH_SHOW_VERBOSE, buffer);
+}
+
     GST_INFO("Created winegstreamer transform %p.", transform);
     params->transform = (wg_transform_t)(ULONG_PTR)transform;
     return STATUS_SUCCESS;
@@ -1058,6 +1064,12 @@ NTSTATUS wg_transform_read_data(void *args)
         /* set the desired output buffer alignment on the dest video info */
         align_video_info_planes(plane_align, &dst_video_info, &align);
     }
+
+{
+char buffer[256];
+sprintf(buffer, "wg_transform-%p", transform);
+GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN(transform->container), GST_DEBUG_GRAPH_SHOW_VERBOSE, buffer);
+}
 
     if (GST_MINI_OBJECT_FLAG_IS_SET(transform->output_sample, GST_SAMPLE_FLAG_WG_CAPS_CHANGED))
     {
