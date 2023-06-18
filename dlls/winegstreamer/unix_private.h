@@ -59,6 +59,7 @@ extern uint32_t wg_channel_mask_from_gst(const GstAudioInfo *info);
 
 extern NTSTATUS wg_source_create(void *args);
 extern NTSTATUS wg_source_destroy(void *args);
+extern NTSTATUS wg_source_get_stream_count(void *args);
 extern NTSTATUS wg_source_push_data(void *args);
 
 /* wg_transform.c */
