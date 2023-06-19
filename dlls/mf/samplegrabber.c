@@ -756,7 +756,9 @@ static ULONG WINAPI async_process_sample_Release(IMFAsyncCallback *iface)
 static HRESULT WINAPI async_process_sample_GetParameters(IMFAsyncCallback *iface, DWORD *flags,
         DWORD *queue)
 {
-    return E_NOTIMPL;
+    *flags = 0;
+    *queue = MFASYNC_CALLBACK_QUEUE_MULTITHREADED;
+    return S_OK;
 }
 
 static HRESULT WINAPI async_process_sample_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
@@ -842,7 +844,9 @@ static ULONG WINAPI async_request_sample_Release(IMFAsyncCallback *iface)
 static HRESULT WINAPI async_request_sample_GetParameters(IMFAsyncCallback *iface, DWORD *flags,
         DWORD *queue)
 {
-    return E_NOTIMPL;
+    *flags = 0;
+    *queue = MFASYNC_CALLBACK_QUEUE_MULTITHREADED;
+    return S_OK;
 }
 
 static HRESULT WINAPI async_request_sample_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
