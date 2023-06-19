@@ -117,6 +117,8 @@ struct thread_input
     unsigned char          keystate[256]; /* state of each key */
     unsigned char          desktop_keystate[256]; /* desktop keystate when keystate was synced */
     int                    keystate_lock; /* keystate is locked */
+    struct object         *shared_mapping;/* thread input shared memory mapping */
+    const input_shm_t     *shared;        /* thread input shared memory (const outside SHARED_WRITE_BEGIN/END) */
 };
 
 struct msg_queue
@@ -163,6 +165,7 @@ static struct mapping *msg_queue_get_object_mapping( struct object *obj );
 static void msg_queue_destroy( struct object *obj );
 static void msg_queue_poll_event( struct fd *fd, int event );
 static void thread_input_dump( struct object *obj, int verbose );
+static struct mapping *thread_input_get_object_mapping( struct object *obj );
 static void thread_input_destroy( struct object *obj );
 static void timer_callback( void *private );
 
@@ -224,7 +227,7 @@ static const struct object_ops thread_input_ops =
     NULL,                         /* unlink_name */
     no_open_file,                 /* open_file */
     no_kernel_obj_list,           /* get_kernel_obj_list */
-    no_object_mapping,            /* get_object_mapping */
+    thread_input_get_object_mapping, /* get_object_mapping */
     no_close_handle,              /* close_handle */
     thread_input_destroy          /* destroy */
 };
@@ -286,6 +289,8 @@ static struct thread_input *create_thread_input( struct thread *thread )
         set_caret_window( input, 0 );
         memset( input->keystate, 0, sizeof(input->keystate) );
         input->keystate_lock = 0;
+        input->shared_mapping = NULL;
+        input->shared         = NULL;
 
         if (!(input->desktop = get_thread_desktop( thread, 0 /* FIXME: access rights */ )))
         {
@@ -294,6 +299,13 @@ static struct thread_input *create_thread_input( struct thread *thread )
         }
         memcpy( input->desktop_keystate, (void *)input->desktop->shared->keystate,
                 sizeof(input->desktop_keystate) );
+
+        if (!(input->shared_mapping = create_object_mapping( &input->obj, sizeof(*input->shared),
+                                                             (void **)&input->shared )))
+        {
+            release_object( input );
+            return NULL;
+        }
     }
     return input;
 }
@@ -1261,6 +1273,13 @@ static void thread_input_dump( struct object *obj, int verbose )
              input->focus, input->capture, input->active );
 }
 
+static struct mapping *thread_input_get_object_mapping( struct object *obj )
+{
+    struct thread_input *input = (struct thread_input *)obj;
+    assert( obj->ops == &thread_input_ops );
+    return (struct mapping *)grab_object( input->shared_mapping );
+}
+
 static void thread_input_destroy( struct object *obj )
 {
     struct thread_input *input = (struct thread_input *)obj;
@@ -1272,6 +1291,8 @@ static void thread_input_destroy( struct object *obj )
         if (desktop->foreground_input == input) desktop->foreground_input = NULL;
         release_object( desktop );
     }
+    if (input->shared_mapping) release_object( input->shared_mapping );
+    if (input->shared) munmap( (void *)input->shared, sizeof(*input->shared) );
 }
 
 /* fix the thread input data when a window is destroyed */
