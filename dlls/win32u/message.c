@@ -2135,12 +2135,41 @@ static LRESULT handle_internal_message( HWND hwnd, UINT msg, WPARAM wparam, LPAR
  */
 BOOL WINAPI NtUserGetGUIThreadInfo( DWORD id, GUITHREADINFO *info )
 {
+    const input_shm_t *shared;
     BOOL ret;
 
     if (info->cbSize != sizeof(*info))
     {
         RtlSetLastWin32Error( ERROR_INVALID_PARAMETER );
         return FALSE;
+    }
+
+    while ((shared = get_input_shared_memory( id )))
+    {
+        SHARED_READ_BEGIN( shared, input_shm_t )
+        {
+            if ((ret = !shared->detached))
+            {
+                info->flags          = 0;
+                info->hwndActive     = wine_server_ptr_handle( shared->active );
+                info->hwndFocus      = wine_server_ptr_handle( shared->focus );
+                info->hwndCapture    = wine_server_ptr_handle( shared->capture );
+                info->hwndMenuOwner  = wine_server_ptr_handle( shared->menu_owner );
+                info->hwndMoveSize   = wine_server_ptr_handle( shared->move_size );
+                info->hwndCaret      = wine_server_ptr_handle( shared->caret );
+                info->rcCaret.left   = shared->caret_rect.left;
+                info->rcCaret.top    = shared->caret_rect.top;
+                info->rcCaret.right  = shared->caret_rect.right;
+                info->rcCaret.bottom = shared->caret_rect.bottom;
+                if (shared->menu_owner) info->flags |= GUI_INMENUMODE;
+                if (shared->move_size) info->flags |= GUI_INMOVESIZE;
+                if (shared->caret) info->flags |= GUI_CARETBLINKING;
+            }
+        }
+        SHARED_READ_END;
+
+        if (ret) return TRUE;
+        cleanup_thread_input( id );
     }
 
     SERVER_START_REQ( get_thread_input )

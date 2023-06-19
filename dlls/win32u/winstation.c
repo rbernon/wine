@@ -118,6 +118,47 @@ void cleanup_thread_queue(void)
     }
 }
 
+static HANDLE get_thread_input_handle( UINT id )
+{
+    SERVER_START_REQ( get_thread_input )
+    {
+        req->tid = id;
+        req->open = 1;
+        if (wine_server_call_err( req )) return NULL;
+        return wine_server_ptr_handle( reply->handle );
+    }
+    SERVER_END_REQ;
+}
+
+const input_shm_t *get_input_shared_memory( UINT id )
+{
+    struct user_thread_info *thread_info = get_user_thread_info();
+
+    if (id != GetCurrentThreadId()) return NULL;
+
+    if (!thread_info->input_shm)
+    {
+        HANDLE handle = get_thread_input_handle( id );
+        thread_info->input_shm = map_object_shared_memory( handle, sizeof(*thread_info->input_shm) );
+        NtClose( handle );
+    }
+
+    return thread_info->input_shm;
+}
+
+void cleanup_thread_input( UINT id )
+{
+    struct user_thread_info *thread_info = get_user_thread_info();
+
+    if (id != GetCurrentThreadId()) return;
+
+    if (thread_info->input_shm)
+    {
+        NtUnmapViewOfSection( GetCurrentProcess(), (void *)thread_info->input_shm );
+        thread_info->input_shm = NULL;
+    }
+}
+
 BOOL is_virtual_desktop(void)
 {
     HANDLE desktop = NtUserGetThreadDesktop( GetCurrentThreadId() );

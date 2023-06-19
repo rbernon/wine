@@ -393,6 +393,13 @@ static int assign_thread_input( struct thread *thread, struct thread_input *new_
     {
         queue->input->cursor_count -= queue->cursor_count;
         if (queue->keystate_lock) unlock_input_keystate( queue->input );
+
+        SHARED_WRITE_BEGIN( queue->input, input_shm_t )
+        {
+            shared->detached = TRUE;
+        }
+        SHARED_WRITE_END;
+
         release_object( queue->input );
     }
     queue->input = (struct thread_input *)grab_object( new_input );
@@ -3418,6 +3425,7 @@ DECL_HANDLER(get_thread_input)
         reply->cursor     = input->cursor;
         reply->show_count = input->cursor_count;
         reply->rect       = input->shared->caret_rect;
+        if (req->open) reply->handle = alloc_handle( current->process, input, SYNCHRONIZE, 0 );
     }
 
     /* foreground window is active window of foreground thread */

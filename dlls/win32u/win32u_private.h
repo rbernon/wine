@@ -197,6 +197,8 @@ extern const desktop_shm_t *get_desktop_shared_memory(void);
 extern void cleanup_thread_desktop(void);
 extern const queue_shm_t *get_queue_shared_memory(void);
 extern void cleanup_thread_queue(void);
+extern const input_shm_t *get_input_shared_memory( UINT id );
+extern void cleanup_thread_input( UINT id );
 extern BOOL is_virtual_desktop(void);
 
 /* window.c */
