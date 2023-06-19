@@ -756,9 +756,7 @@ static ULONG WINAPI async_process_sample_Release(IMFAsyncCallback *iface)
 static HRESULT WINAPI async_process_sample_GetParameters(IMFAsyncCallback *iface, DWORD *flags,
         DWORD *queue)
 {
-    *flags = 0;
-    *queue = MFASYNC_CALLBACK_QUEUE_MULTITHREADED;
-    return S_OK;
+    return E_NOTIMPL;
 }
 
 static HRESULT WINAPI async_process_sample_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
