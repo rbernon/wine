@@ -4143,6 +4143,25 @@ static void test_quality_manager(void)
     ok(hr == S_OK, "Shutdown failure, hr %#lx.\n", hr);
 }
 
+static void test_create_from_url(void)
+{
+    IMFSourceResolver *resolver;
+    MF_OBJECT_TYPE type;
+    IUnknown *source;
+    HRESULT hr;
+
+    hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
+    ok(hr == S_OK, "Startup failure, hr %#lx.\n", hr);
+
+    MFCreateSourceResolver(&resolver);
+    hr = IMFSourceResolver_CreateObjectFromURL(resolver, L"http://sample.vodobox.net/skate_phantom_flex_4k/skate_phantom_flex_4k.m3u8", MF_RESOLUTION_MEDIASOURCE, NULL,
+            &type, (IUnknown **)&source);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    IMFSourceResolver_Release(resolver);
+
+    MFShutdown();
+}
+
 static void check_sar_rate_support(IMFMediaSink *sink)
 {
     IMFRateSupport *rate_support;
@@ -8740,6 +8759,7 @@ START_TEST(mf)
 
     test_MFGetService();
     test_sequencer_source();
+    test_create_from_url();
     test_media_session();
     test_media_session_events();
     test_media_session_rate_control();
