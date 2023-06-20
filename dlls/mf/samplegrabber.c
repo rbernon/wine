@@ -70,7 +70,7 @@ struct sample_grabber
     IMFRateSupport IMFRateSupport_iface;
     IMFStreamSink IMFStreamSink_iface;
     IMFMediaTypeHandler IMFMediaTypeHandler_iface;
-    IMFAsyncCallback timer_callback;
+    IMFAsyncCallback async_process_sample_iface;
     LONG refcount;
     IMFSampleGrabberSinkCallback *callback;
     IMFSampleGrabberSinkCallback2 *callback2;
@@ -146,11 +146,6 @@ static struct sample_grabber *impl_from_IMFStreamSink(IMFStreamSink *iface)
 static struct sample_grabber *impl_from_IMFMediaTypeHandler(IMFMediaTypeHandler *iface)
 {
     return CONTAINING_RECORD(iface, struct sample_grabber, IMFMediaTypeHandler_iface);
-}
-
-static struct sample_grabber *impl_from_IMFAsyncCallback(IMFAsyncCallback *iface)
-{
-    return CONTAINING_RECORD(iface, struct sample_grabber, timer_callback);
 }
 
 static HRESULT WINAPI sample_grabber_stream_QueryInterface(IMFStreamSink *iface, REFIID riid, void **obj)
@@ -380,7 +375,7 @@ static HRESULT stream_schedule_sample(struct sample_grabber *grabber, struct sch
     }
 
     if (FAILED(hr = IMFTimer_SetTimer(grabber->timer, 0, sampletime - grabber->sample_time_offset,
-            &grabber->timer_callback, NULL, &grabber->cancel_key)))
+            &grabber->async_process_sample_iface, NULL, &grabber->cancel_key)))
     {
         grabber->cancel_key = NULL;
     }
@@ -720,7 +715,7 @@ static const IMFMediaTypeHandlerVtbl sample_grabber_stream_type_handler_vtbl =
     sample_grabber_stream_type_handler_GetMajorType,
 };
 
-static HRESULT WINAPI sample_grabber_stream_timer_callback_QueryInterface(IMFAsyncCallback *iface, REFIID riid,
+static HRESULT WINAPI async_process_sample_QueryInterface(IMFAsyncCallback *iface, REFIID riid,
         void **obj)
 {
     if (IsEqualIID(riid, &IID_IMFAsyncCallback) || IsEqualIID(riid, &IID_IUnknown))
@@ -735,27 +730,32 @@ static HRESULT WINAPI sample_grabber_stream_timer_callback_QueryInterface(IMFAsy
     return E_NOINTERFACE;
 }
 
-static ULONG WINAPI sample_grabber_stream_timer_callback_AddRef(IMFAsyncCallback *iface)
+static struct sample_grabber *impl_from_async_process_sample(IMFAsyncCallback *iface)
 {
-    struct sample_grabber *grabber = impl_from_IMFAsyncCallback(iface);
+    return CONTAINING_RECORD(iface, struct sample_grabber, async_process_sample_iface);
+}
+
+static ULONG WINAPI async_process_sample_AddRef(IMFAsyncCallback *iface)
+{
+    struct sample_grabber *grabber = impl_from_async_process_sample(iface);
     return IMFStreamSink_AddRef(&grabber->IMFStreamSink_iface);
 }
 
-static ULONG WINAPI sample_grabber_stream_timer_callback_Release(IMFAsyncCallback *iface)
+static ULONG WINAPI async_process_sample_Release(IMFAsyncCallback *iface)
 {
-    struct sample_grabber *grabber = impl_from_IMFAsyncCallback(iface);
+    struct sample_grabber *grabber = impl_from_async_process_sample(iface);
     return IMFStreamSink_Release(&grabber->IMFStreamSink_iface);
 }
 
-static HRESULT WINAPI sample_grabber_stream_timer_callback_GetParameters(IMFAsyncCallback *iface, DWORD *flags,
+static HRESULT WINAPI async_process_sample_GetParameters(IMFAsyncCallback *iface, DWORD *flags,
         DWORD *queue)
 {
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI sample_grabber_stream_timer_callback_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
+static HRESULT WINAPI async_process_sample_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
 {
-    struct sample_grabber *grabber = impl_from_IMFAsyncCallback(iface);
+    struct sample_grabber *grabber = impl_from_async_process_sample(iface);
     BOOL sample_reported = FALSE, sample_delivered = FALSE;
     struct scheduled_item *item, *item2;
     HRESULT hr;
@@ -794,13 +794,13 @@ static HRESULT WINAPI sample_grabber_stream_timer_callback_Invoke(IMFAsyncCallba
     return S_OK;
 }
 
-static const IMFAsyncCallbackVtbl sample_grabber_stream_timer_callback_vtbl =
+static const IMFAsyncCallbackVtbl async_process_sample_vtbl =
 {
-    sample_grabber_stream_timer_callback_QueryInterface,
-    sample_grabber_stream_timer_callback_AddRef,
-    sample_grabber_stream_timer_callback_Release,
-    sample_grabber_stream_timer_callback_GetParameters,
-    sample_grabber_stream_timer_callback_Invoke,
+    async_process_sample_QueryInterface,
+    async_process_sample_AddRef,
+    async_process_sample_Release,
+    async_process_sample_GetParameters,
+    async_process_sample_Invoke,
 };
 
 static HRESULT WINAPI sample_grabber_sink_QueryInterface(IMFMediaSink *iface, REFIID riid, void **obj)
@@ -1522,7 +1522,7 @@ static HRESULT sample_grabber_create_object(IMFAttributes *attributes, void *use
     object->IMFRateSupport_iface.lpVtbl = &sample_grabber_rate_support_vtbl;
     object->IMFStreamSink_iface.lpVtbl = &sample_grabber_stream_vtbl;
     object->IMFMediaTypeHandler_iface.lpVtbl = &sample_grabber_stream_type_handler_vtbl;
-    object->timer_callback.lpVtbl = &sample_grabber_stream_timer_callback_vtbl;
+    object->async_process_sample_iface.lpVtbl = &async_process_sample_vtbl;
     object->sample_count = MAX_SAMPLE_QUEUE_LENGTH;
     object->refcount = 1;
     object->rate = 1.0f;
