@@ -13611,6 +13611,203 @@ static void test_2dbuffer_copy(void)
     ID3D11Device_Release(device);
 }
 
+
+#define async_trace( msg, ... ) if (winetest_debug > 1 || 1) trace( "%04lx:%s " msg, GetCurrentThreadId(), __func__, ## __VA_ARGS__ )
+
+#define DEFINE_MF_ASYNC_CALLBACK_(pfx, impl_type, impl_from, iface_mem, expr, queue_expr)           \
+    static inline impl_type *impl_from(IMFAsyncCallback *iface)                                     \
+    {                                                                                               \
+        return CONTAINING_RECORD(iface, impl_type, iface_mem);                                      \
+    }                                                                                               \
+    static HRESULT WINAPI pfx##_QueryInterface(IMFAsyncCallback *iface, REFIID iid, void **out)     \
+    {                                                                                               \
+        if (IsEqualIID(iid, &IID_IUnknown) || IsEqualIID(iid, &IID_IMFAsyncCallback))               \
+        {                                                                                           \
+            IMFAsyncCallback_AddRef((*out = iface));                                                \
+            return S_OK;                                                                            \
+        }                                                                                           \
+        *out = NULL;                                                                                \
+        return E_NOINTERFACE;                                                                       \
+    }                                                                                               \
+    static ULONG WINAPI pfx##_AddRef(IMFAsyncCallback *iface)                                       \
+    {                                                                                               \
+        impl_type *impl = impl_from(iface);                                                         \
+        return IUnknown_AddRef((IUnknown *)(expr));                                                 \
+    }                                                                                               \
+    static ULONG WINAPI pfx##_Release(IMFAsyncCallback *iface)                                      \
+    {                                                                                               \
+        impl_type *impl = impl_from(iface);                                                         \
+        return IUnknown_Release((IUnknown *)(expr));                                                \
+    }                                                                                               \
+    static HRESULT WINAPI pfx##_GetParameters(IMFAsyncCallback *iface, DWORD *flags, DWORD *queue); \
+    static HRESULT WINAPI pfx##_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result);            \
+    static const IMFAsyncCallbackVtbl pfx##_vtbl =                                                  \
+    {                                                                                               \
+        pfx##_QueryInterface,                                                                       \
+        pfx##_AddRef,                                                                               \
+        pfx##_Release,                                                                              \
+        pfx##_GetParameters,                                                                        \
+        pfx##_Invoke,                                                                               \
+    };                                                                                              \
+
+#define DEFINE_MF_ASYNC_CALLBACK(name, impl_type, base_iface, queue_expr) \
+    DEFINE_MF_ASYNC_CALLBACK_(name, impl_type, impl_from_##name, name##_iface, &impl->base_iface, queue_expr)
+
+struct async_callback
+{
+    IUnknown IUnknown_iface;
+    IMFAsyncCallback async_call_iface;
+    LONG refcount;
+};
+
+static HRESULT WINAPI async_callback_QueryInterface(IUnknown *iface, REFIID riid, void **obj)
+{
+    if (IsEqualIID(riid, &IID_IUnknown))
+    {
+        *obj = iface;
+        IUnknown_AddRef(iface);
+        return S_OK;
+    }
+
+    *obj = NULL;
+    return E_NOINTERFACE;
+}
+
+static ULONG WINAPI async_callback_AddRef(IUnknown *iface)
+{
+    struct async_callback *callback = CONTAINING_RECORD(iface, struct async_callback, IUnknown_iface);
+    return InterlockedIncrement(&callback->refcount);
+}
+
+static ULONG WINAPI async_callback_Release(IUnknown *iface)
+{
+    struct async_callback *callback = CONTAINING_RECORD(iface, struct async_callback, IUnknown_iface);
+    ULONG refcount = InterlockedDecrement(&callback->refcount);
+
+    if (!refcount)
+        free(callback);
+
+    return refcount;
+}
+
+static const IUnknownVtbl async_callback_vtbl =
+{
+    async_callback_QueryInterface,
+    async_callback_AddRef,
+    async_callback_Release,
+};
+
+DEFINE_MF_ASYNC_CALLBACK(async_call, struct async_callback, IUnknown_iface, MFASYNC_CALLBACK_QUEUE_MULTITHREADED)
+
+static HRESULT WINAPI async_call_GetParameters(IMFAsyncCallback *iface, DWORD *flags, DWORD *queue)
+{
+    struct async_callback *callback = impl_from_async_call(iface);
+    async_trace("callback %p flags %p queue %p\n", callback, flags, queue);
+    *queue = MFASYNC_CALLBACK_QUEUE_MULTITHREADED;
+    *flags = MFASYNC_BLOCKING_CALLBACK;
+    return S_OK;
+}
+
+static HRESULT WINAPI async_call_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
+{
+    struct async_callback *callback = impl_from_async_call(iface);
+    async_trace("callback %p, result %p\n", callback, result);
+    Sleep(1000);
+    return S_OK;
+}
+
+static HRESULT async_callback_create(IMFAsyncCallback **out)
+{
+    struct async_callback *callback;
+
+    *out = NULL;
+    if (!(callback = calloc(1, sizeof(*callback))))
+        return E_OUTOFMEMORY;
+
+    callback->IUnknown_iface.lpVtbl = &async_callback_vtbl;
+    callback->async_call_iface.lpVtbl = &async_call_vtbl;
+    callback->refcount = 1;
+
+    *out = &callback->async_call_iface;
+    return S_OK;
+}
+
+static void test_async_callbacks(void)
+{
+    IMFAsyncCallback *callback;
+    IMFAsyncResult *result;
+    HRESULT hr;
+
+    hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
+    ok(hr == S_OK, "hr %#lx.\n", hr);
+
+    hr = async_callback_create(&callback);
+    async_trace("hr %#lx callback %p\n", hr, callback);
+
+    hr = MFPutWorkItem(MFASYNC_CALLBACK_QUEUE_MULTITHREADED, callback, NULL);
+    async_trace("MFASYNC_CALLBACK_QUEUE_MULTITHREADED hr %#lx\n", hr);
+    hr = MFPutWorkItem(MFASYNC_CALLBACK_QUEUE_MULTITHREADED, callback, NULL);
+    async_trace("MFASYNC_CALLBACK_QUEUE_MULTITHREADED hr %#lx\n", hr);
+    hr = MFPutWorkItem(0, callback, NULL);
+    async_trace("0 hr %#lx\n", hr);
+    hr = MFPutWorkItem(1, callback, NULL);
+    async_trace("1 hr %#lx\n", hr);
+    hr = MFPutWorkItem(MFASYNC_CALLBACK_QUEUE_ALL, callback, NULL);
+    async_trace("MFASYNC_CALLBACK_QUEUE_ALL hr %#lx\n", hr);
+
+
+Sleep(5000);
+async_trace("***\n");
+
+    hr = MFCreateAsyncResult(NULL, callback, NULL, &result);
+    async_trace("hr %#lx result %p\n", hr, result);
+
+    hr = MFPutWorkItemEx(MFASYNC_CALLBACK_QUEUE_MULTITHREADED, result);
+    async_trace("MFASYNC_CALLBACK_QUEUE_MULTITHREADED hr %#lx\n", hr);
+    hr = MFPutWorkItemEx(MFASYNC_CALLBACK_QUEUE_MULTITHREADED, result);
+    async_trace("MFASYNC_CALLBACK_QUEUE_MULTITHREADED hr %#lx\n", hr);
+    hr = MFPutWorkItemEx(0, result);
+    async_trace("0 hr %#lx\n", hr);
+    hr = MFPutWorkItemEx(1, result);
+    async_trace("1 hr %#lx\n", hr);
+
+Sleep(5000);
+async_trace("***\n");
+
+
+hr = MFInvokeCallback(result);
+async_trace("hr %#lx\n", hr);
+hr = MFInvokeCallback(result);
+async_trace("hr %#lx\n", hr);
+hr = MFInvokeCallback(result);
+async_trace("hr %#lx\n", hr);
+hr = MFInvokeCallback(result);
+async_trace("hr %#lx\n", hr);
+
+Sleep(5000);
+async_trace("***\n");
+
+
+    IMFAsyncCallback_Release(callback);
+
+    hr = MFShutdown();
+    ok(hr == S_OK, "hr %#lx.\n", hr);
+/*
+    MFPutWorkItem(DWORD queue, IMFAsyncCallback *callback, IUnknown *state);
+    MFPutWorkItem2(DWORD queue, LONG priority, IMFAsyncCallback *callback, IUnknown *state);
+    MFScheduleWorkItem(IMFAsyncCallback *callback, IUnknown *state, INT64 timeout, MFWORKITEM_KEY *key);
+    MFAllocateSerialWorkQueue(DWORD target_queue, DWORD *queue);
+    MFCancelWorkItem(MFWORKITEM_KEY key);
+
+    MFCreateAsyncResult(IUnknown *object, IMFAsyncCallback *callback, IUnknown *state, IMFAsyncResult **result);
+    MFPutWorkItemEx(DWORD queue, IMFAsyncResult *result);
+    MFPutWorkItemEx2(DWORD queue, LONG priority, IMFAsyncResult *result);
+    MFInvokeCallback(IMFAsyncResult *result);
+    MFScheduleWorkItemEx(IMFAsyncResult *result, INT64 timeout, MFWORKITEM_KEY *key);
+    MFPutWaitingWorkItem(HANDLE event, LONG priority, IMFAsyncResult *result, MFWORKITEM_KEY *key);
+*/
+}
+
 static void test_undefined_queue_id(void)
 {
     struct test_callback *callback;
@@ -13744,6 +13941,8 @@ START_TEST(mfplat)
     test_MFCreatePathFromURL();
     test_2dbuffer_copy();
     test_undefined_queue_id();
+done:
+    test_async_callbacks();
 
     CoUninitialize();
 }
