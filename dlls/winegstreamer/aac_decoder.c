@@ -75,7 +75,10 @@ static struct aac_decoder *impl_from_IMFTransform(IMFTransform *iface)
 
 static HRESULT try_create_wg_transform(struct aac_decoder *decoder)
 {
-    struct wg_transform_attrs attrs = {0};
+    struct wg_transform_attrs attrs =
+    {
+        .input_queue_length = 7,
+    };
 
     if (decoder->wg_transform)
     {
