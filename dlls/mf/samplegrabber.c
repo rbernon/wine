@@ -764,14 +764,17 @@ static HRESULT WINAPI async_process_sample_GetParameters(IMFAsyncCallback *iface
 static HRESULT WINAPI async_process_sample_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
 {
     struct sample_grabber *grabber = impl_from_async_process_sample(iface);
-    BOOL sample_reported = FALSE, sample_delivered = FALSE;
     struct scheduled_item *item, *item2;
+    BOOL sample_delivered = FALSE;
     HRESULT hr;
 
     EnterCriticalSection(&grabber->cs);
 
     LIST_FOR_EACH_ENTRY_SAFE(item, item2, &grabber->items, struct scheduled_item, entry)
     {
+        if (&item2->entry != &grabber->items && FAILED(hr = stream_schedule_sample(grabber, item2)))
+            WARN("Failed to schedule a sample, hr %#lx.\n", hr);
+
         if (item->type == ITEM_TYPE_MARKER)
         {
             sample_grabber_stream_report_marker(grabber, &item->u.marker.context, S_OK);
@@ -779,20 +782,12 @@ static HRESULT WINAPI async_process_sample_Invoke(IMFAsyncCallback *iface, IMFAs
         }
         else if (item->type == ITEM_TYPE_SAMPLE)
         {
-            if (!sample_reported)
-            {
-                if (FAILED(hr = sample_grabber_report_sample(grabber, item->u.sample, &sample_delivered)))
-                    WARN("Failed to report a sample, hr %#lx.\n", hr);
-                stream_release_pending_item(item);
-                sample_reported = TRUE;
-            }
-            else
-            {
-                if (FAILED(hr = stream_schedule_sample(grabber, item)))
-                    WARN("Failed to schedule a sample, hr %#lx.\n", hr);
-                break;
-            }
+            if (FAILED(hr = sample_grabber_report_sample(grabber, item->u.sample, &sample_delivered)))
+                WARN("Failed to report a sample, hr %#lx.\n", hr);
+            stream_release_pending_item(item);
         }
+
+        break;
     }
 
     LeaveCriticalSection(&grabber->cs);
