@@ -3042,7 +3042,9 @@ static ULONG WINAPI session_events_callback_Release(IMFAsyncCallback *iface)
 
 static HRESULT WINAPI session_events_callback_GetParameters(IMFAsyncCallback *iface, DWORD *flags, DWORD *queue)
 {
-    return E_NOTIMPL;
+    *queue = MFASYNC_CALLBACK_QUEUE_MULTITHREADED;
+    *flags = 0;
+    return S_OK;
 }
 
 static HRESULT session_add_media_stream(struct media_session *session, IMFMediaSource *source, IMFMediaStream *stream)
