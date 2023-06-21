@@ -6712,7 +6712,7 @@ static void queue_notify_subscriber(struct event_queue *queue)
         return;
 
     queue->notified = TRUE;
-    RtwqPutWorkItem(MFASYNC_CALLBACK_QUEUE_STANDARD, 0, queue->subscriber);
+    RtwqInvokeCallback(queue->subscriber);
 }
 
 static HRESULT WINAPI eventqueue_BeginGetEvent(IMFMediaEventQueue *iface, IMFAsyncCallback *callback, IUnknown *state)
