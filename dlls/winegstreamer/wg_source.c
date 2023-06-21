@@ -792,11 +792,6 @@ NTSTATUS wg_source_read_data(void *args)
                 sample->flags |= WG_SAMPLE_FLAG_HAS_PTS;
                 sample->pts = GST_BUFFER_PTS(buffer) / 100;
             }
-            else if (GST_BUFFER_DTS_IS_VALID(buffer))
-            {
-                sample->flags |= WG_SAMPLE_FLAG_HAS_PTS;
-                sample->pts = GST_BUFFER_DTS(buffer) / 100;
-            }
             if (GST_BUFFER_DURATION_IS_VALID(buffer))
             {
                 GstClockTime duration = GST_BUFFER_DURATION(buffer) / 100;
