@@ -2726,6 +2726,18 @@ static inline const char *debugstr_time(LONGLONG time)
 
 IMFPresentationClock *presentation_clock;
 
+static DWORD WINAPI test_thread(void *arg)
+{
+    volatile LARGE_INTEGER buffer[512];
+    LARGE_INTEGER counter;
+    while (1)
+    {
+        QueryPerformanceCounter(&counter);
+        for (UINT i = 0; i < ARRAY_SIZE(buffer); i++) buffer[i] = counter;
+    }
+    return 0;
+}
+
 static HRESULT WINAPI test_grabber_callback_OnProcessSample(IMFSampleGrabberSinkCallback *iface, REFGUID major_type,
         DWORD sample_flags, LONGLONG sample_time, LONGLONG sample_duration, const BYTE *buffer, DWORD sample_size)
 {
@@ -2744,8 +2756,8 @@ time -= first_time;
 
 ERR("time %s (%s) clock %s (%s) sample_time %s sample_duration %s size %#lx\n",
     debugstr_time(time), debugstr_time(time-sample_time),
-    debugstr_time(clock_time), debugstr_time(clock_time-sample_time),
-    debugstr_time(sample_time), debugstr_time(sample_duration), sample_size);
+    debugstr_time(sample_time), sample_size);
+if (sample_size > 0x10000) Sleep(10);
 
     if (!grabber->ready_event)
         return S_OK;
