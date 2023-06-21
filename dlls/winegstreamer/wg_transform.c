@@ -514,6 +514,9 @@ NTSTATUS wg_transform_create(void *args)
             if (!(element = find_element(GST_ELEMENT_FACTORY_TYPE_DECODER, parsed_caps, sink_caps))
                     || !append_element(transform->container, element, &first, &last))
                 goto out;
+
+            if (output_format.major_type == WG_MAJOR_TYPE_AUDIO)
+                gst_util_set_object_arg(G_OBJECT(element), "max-threads", "1");
             break;
 
         case WG_MAJOR_TYPE_AUDIO:
