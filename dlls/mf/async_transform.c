@@ -33,6 +33,7 @@ struct async_transform
 {
     IMFTransform IMFTransform_iface;
     IMFShutdown IMFShutdown_iface;
+    IMFSampleAllocatorControl IMFSampleAllocatorControl_iface;
     LONG refcount;
 
     UINT output_count;
@@ -56,6 +57,8 @@ static HRESULT WINAPI transform_QueryInterface(IMFTransform *iface, REFIID iid, 
         *out = &impl->IMFTransform_iface;
     else if (IsEqualGUID(iid, &IID_IMFShutdown))
         *out = &impl->IMFShutdown_iface;
+    else if (IsEqualGUID(iid, &IID_IMFSampleAllocatorControl))
+        *out = &impl->IMFSampleAllocatorControl_iface;
     else
     {
         *out = NULL;
@@ -574,6 +577,65 @@ static const IMFShutdownVtbl shutdown_vtbl =
     shutdown_GetShutdownStatus,
 };
 
+static struct async_transform *impl_from_IMFSampleAllocatorControl(IMFSampleAllocatorControl *iface)
+{
+    return CONTAINING_RECORD(iface, struct async_transform, IMFSampleAllocatorControl_iface);
+}
+
+static HRESULT WINAPI sample_allocator_control_QueryInterface(IMFSampleAllocatorControl *iface, REFIID iid, void **out)
+{
+    struct async_transform *impl = impl_from_IMFSampleAllocatorControl(iface);
+    return IMFTransform_QueryInterface(&impl->IMFTransform_iface, iid, out);
+}
+
+static ULONG WINAPI sample_allocator_control_AddRef(IMFSampleAllocatorControl *iface)
+{
+    struct async_transform *impl = impl_from_IMFSampleAllocatorControl(iface);
+    return IMFTransform_AddRef(&impl->IMFTransform_iface);
+}
+
+static ULONG WINAPI sample_allocator_control_Release(IMFSampleAllocatorControl *iface)
+{
+    struct async_transform *impl = impl_from_IMFSampleAllocatorControl(iface);
+    return IMFTransform_Release(&impl->IMFTransform_iface);
+}
+
+static HRESULT WINAPI sample_allocator_control_SetDefaultAllocator(IMFSampleAllocatorControl *iface,
+        DWORD id, IUnknown *object)
+{
+    struct async_transform *impl = impl_from_IMFSampleAllocatorControl(iface);
+    HRESULT hr;
+
+    TRACE("iface %p, id %#lx, object %p.\n", iface, id, object);
+
+    EnterCriticalSection(&impl->cs);
+    if (!impl->transform)
+        hr = MF_E_SHUTDOWN;
+    else if (!object)
+        hr = E_INVALIDARG;
+    else
+        hr = S_OK;
+    LeaveCriticalSection(&impl->cs);
+
+    return hr;
+}
+
+static HRESULT WINAPI sample_allocator_control_GetAllocatorUsage(IMFSampleAllocatorControl *iface,
+        DWORD output_id, DWORD *input_id, MFSampleAllocatorUsage *usage)
+{
+    FIXME("iface %p, output_id %#lx, input_id %p, usage %p stub!\n", iface, output_id, input_id, usage);
+    return E_NOTIMPL;
+}
+
+static const IMFSampleAllocatorControlVtbl sample_allocator_control_vtbl =
+{
+    sample_allocator_control_QueryInterface,
+    sample_allocator_control_AddRef,
+    sample_allocator_control_Release,
+    sample_allocator_control_SetDefaultAllocator,
+    sample_allocator_control_GetAllocatorUsage,
+};
+
 HRESULT async_transform_create(IMFTransform *transform, IMFTransform **out)
 {
     DWORD input_count = 1, output_count = 1;
@@ -592,6 +654,7 @@ HRESULT async_transform_create(IMFTransform *transform, IMFTransform **out)
         return E_OUTOFMEMORY;
     impl->IMFTransform_iface.lpVtbl = &transform_vtbl;
     impl->IMFShutdown_iface.lpVtbl = &shutdown_vtbl;
+    impl->IMFSampleAllocatorControl_iface.lpVtbl = &sample_allocator_control_vtbl;
     impl->refcount = 1;
 
     InitializeCriticalSection(&impl->cs);
