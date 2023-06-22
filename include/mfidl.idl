@@ -1202,6 +1202,25 @@ interface IMFVideoSampleAllocatorEx : IMFVideoSampleAllocator
     );
 }
 
+typedef enum MFSampleAllocatorUsage
+{
+    MFSampleAllocatorUsage_UsesProvidedAllocator,
+    MFSampleAllocatorUsage_UsesCustomAllocator,
+    MFSampleAllocatorUsage_DoesNotAllocate,
+} MFSampleAllocatorUsage;
+
+[
+    object,
+    uuid(da62b958-3a38-4a97-bd27-149c640c0771),
+    local,
+    pointer_default(unique)
+]
+interface IMFSampleAllocatorControl : IUnknown
+{
+    HRESULT SetDefaultAllocator(DWORD stream_id, IUnknown *allocator);
+    HRESULT GetAllocatorUsage(DWORD stream_id, DWORD *input_stream_id, MFSampleAllocatorUsage *usage);
+};
+
 typedef enum _MF_VIDEO_PROCESSOR_MIRROR
 {
     MIRROR_NONE,
