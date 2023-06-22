@@ -1734,8 +1734,31 @@ static DWORD transform_node_get_stream_id(struct topo_node *node, BOOL output, u
     return map ? map[index] : index;
 }
 
-static HRESULT session_set_transform_stream_info(struct topo_node *node)
+static HRESULT session_set_transform_output_allocator(struct media_session *session, IMFSampleAllocatorControl *allocator_control,
+        IMFTopologyNode *node, UINT output)
 {
+    IMFTopologyNode *downstream_node;
+    struct topo_node *topo_node;
+    DWORD downstream_input;
+    TOPOID node_id;
+    HRESULT hr;
+
+    if (SUCCEEDED(hr = IMFTopologyNode_GetOutput(node, output, &downstream_node, &downstream_input)))
+    {
+        hr = IMFTopologyNode_GetTopoNodeID(downstream_node, &node_id);
+        IMFTopologyNode_Release(downstream_node);
+    }
+
+    if (SUCCEEDED(hr) && (topo_node = session_get_node_by_id(session, node_id))
+            && topo_node->type == MF_TOPOLOGY_OUTPUT_NODE && topo_node->u.sink.allocator)
+        hr = IMFSampleAllocatorControl_SetDefaultAllocator(allocator_control, output, (IUnknown *)topo_node->u.sink.allocator);
+
+    return hr;
+}
+
+static HRESULT session_set_transform_stream_info(struct media_session *session, struct topo_node *node)
+{
+    IMFSampleAllocatorControl *allocator_control;
     DWORD *input_map = NULL, *output_map = NULL;
     DWORD i, input_count, output_count;
     struct transform_stream *streams;
@@ -1759,6 +1782,10 @@ static HRESULT session_set_transform_stream_info(struct topo_node *node)
             input_map = output_map = NULL;
         }
     }
+
+    if (FAILED(IMFTransform_QueryInterface(node->object.transform, &IID_IMFSampleAllocatorControl,
+            (void **)&allocator_control)))
+        allocator_control = NULL;
 
     if (SUCCEEDED(hr))
     {
@@ -1788,6 +1815,9 @@ static HRESULT session_set_transform_stream_info(struct topo_node *node)
                 }
                 IMFMediaType_Release(media_type);
             }
+
+            if (allocator_control && FAILED(hr = session_set_transform_output_allocator(session, allocator_control, node->node, i)))
+                WARN("Failed to set transform output sample allocator, hr %#lx\n", hr);
         }
         node->u.transform.outputs = streams;
         node->u.transform.output_count = output_count;
@@ -1957,7 +1987,7 @@ static HRESULT session_append_node(struct media_session *session, IMFTopologyNod
                 if (FAILED(hr = async_transform_create(transform, &topo_node->object.transform)))
                     WARN("Failed to create async IMFTransform wrapper, hr %#lx.\n", hr);
                 else
-                    hr = session_set_transform_stream_info(topo_node);
+                    hr = session_set_transform_stream_info(session, topo_node);
                 IMFTransform_Release(transform);
             }
 
