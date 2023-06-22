@@ -23,6 +23,7 @@
 #include "windef.h"
 #include "winbase.h"
 
+#include "evr.h"
 #include "mf_private.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(mfplat);
@@ -39,7 +40,27 @@ struct async_transform
     UINT output_count;
     CRITICAL_SECTION cs;
     IMFTransform *transform;
+
+    IMFVideoSampleAllocator *allocators[ASYNC_TRANSFORM_MAX_STREAMS];
 };
+
+static int async_transform_get_output_index(struct async_transform *impl, DWORD id)
+{
+    DWORD i, output_ids[ASYNC_TRANSFORM_MAX_STREAMS] = {0};
+    HRESULT hr;
+
+    if (FAILED(hr = IMFTransform_GetStreamIDs(impl->transform, 0, NULL, ARRAY_SIZE(output_ids), output_ids)))
+    {
+        WARN("Failed to get inner transform stream ids, hr %#lx\n", hr);
+        return id > ASYNC_TRANSFORM_MAX_STREAMS ? -1 : id - 1;
+    }
+
+    for (i = 0; i < ARRAY_SIZE(output_ids); i++)
+        if (output_ids[i] == id)
+            return i;
+
+    return -1;
+}
 
 static struct async_transform *impl_from_IMFTransform(IMFTransform *iface)
 {
@@ -524,10 +545,22 @@ static ULONG WINAPI shutdown_Release(IMFShutdown *iface)
     return IMFTransform_Release(&impl->IMFTransform_iface);
 }
 
+static void async_transform_release_allocator(struct async_transform *impl, UINT output)
+{
+    IMFVideoSampleAllocator *allocator;
+
+    if (!(allocator = impl->allocators[output]))
+        return;
+    impl->allocators[output] = NULL;
+
+    IMFVideoSampleAllocator_Release(allocator);
+}
+
 static HRESULT WINAPI shutdown_Shutdown(IMFShutdown *iface)
 {
     struct async_transform *impl = impl_from_IMFShutdown(iface);
     HRESULT hr;
+    UINT i;
 
     TRACE("iface %p.\n", iface);
 
@@ -538,6 +571,10 @@ static HRESULT WINAPI shutdown_Shutdown(IMFShutdown *iface)
     {
         IMFTransform_Release(impl->transform);
         impl->transform = NULL;
+
+        for (i = 0; i < impl->output_count; ++i)
+            async_transform_release_allocator(impl, i);
+
         hr = S_OK;
     }
     LeaveCriticalSection(&impl->cs);
@@ -604,7 +641,9 @@ static HRESULT WINAPI sample_allocator_control_SetDefaultAllocator(IMFSampleAllo
         DWORD id, IUnknown *object)
 {
     struct async_transform *impl = impl_from_IMFSampleAllocatorControl(iface);
+    IMFVideoSampleAllocator *allocator;
     HRESULT hr;
+    int index;
 
     TRACE("iface %p, id %#lx, object %p.\n", iface, id, object);
 
@@ -613,8 +652,18 @@ static HRESULT WINAPI sample_allocator_control_SetDefaultAllocator(IMFSampleAllo
         hr = MF_E_SHUTDOWN;
     else if (!object)
         hr = E_INVALIDARG;
+    else if ((index = async_transform_get_output_index(impl, id)) == -1)
+        hr = MF_E_INVALIDSTREAMNUMBER;
     else
-        hr = S_OK;
+    {
+        if (impl->allocators[index])
+            async_transform_release_allocator(impl, index);
+
+        if (FAILED(hr = IUnknown_QueryInterface(object, &IID_IMFVideoSampleAllocator, (void **)&allocator)))
+            WARN("Failed to query the IMFVideoSampleAllocator allocator interface, hr %#lx\n", hr);
+        else
+            impl->allocators[index] = allocator;
+    }
     LeaveCriticalSection(&impl->cs);
 
     return hr;
