@@ -7,6 +7,7 @@ EXTRADLLFLAGS = -Wb,--prefer-native
 
 SOURCES = \
 	buffer.c \
+	buffer_2d.c \
 	buffer_d3d9.c \
 	buffer_dxgi.c \
 	main.c \
