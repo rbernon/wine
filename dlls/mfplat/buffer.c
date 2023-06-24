@@ -32,8 +32,6 @@ WINE_DEFAULT_DEBUG_CHANNEL(mfplat);
 
 #define ALIGN_SIZE(size, alignment) (((size) + (alignment)) & ~((alignment)))
 
-typedef void (*p_copy_image_func)(BYTE *dest, LONG dest_stride, const BYTE *src, LONG src_stride, DWORD width, DWORD lines);
-
 struct buffer
 {
     IMFMediaBuffer IMFMediaBuffer_iface;
@@ -48,6 +46,7 @@ struct buffer
 
     struct
     {
+        DWORD fourcc;
         BYTE *linear_buffer;
         DWORD plane_size;
 
@@ -57,7 +56,6 @@ struct buffer
         int pitch;
         unsigned int locks;
         MF2DBuffer_LockFlags lock_flags;
-        p_copy_image_func copy_image;
     } _2d;
     struct
     {
@@ -76,32 +74,33 @@ struct buffer
     CRITICAL_SECTION cs;
 };
 
-static void copy_image(const struct buffer *buffer, BYTE *dest, LONG dest_stride, const BYTE *src,
+static void copy_image(DWORD fourcc, BYTE *dest, LONG dest_stride, const BYTE *src,
         LONG src_stride, DWORD width, DWORD lines)
 {
     MFCopyImage(dest, dest_stride, src, src_stride, width, lines);
+    dest += dest_stride * lines;
+    src += src_stride * lines;
 
-    if (buffer->_2d.copy_image)
+    switch (fourcc)
     {
-        dest += dest_stride * lines;
-        src += src_stride * lines;
-        buffer->_2d.copy_image(dest, dest_stride, src, src_stride, width, lines);
+    case MAKEFOURCC('I','M','C','1'):
+    case MAKEFOURCC('I','M','C','3'):
+        MFCopyImage(dest, dest_stride, src, src_stride, width / 2, lines);
+        break;
+    case MAKEFOURCC('I','M','C','2'):
+    case MAKEFOURCC('I','M','C','4'):
+    case MAKEFOURCC('N','V','1','1'):
+    case MAKEFOURCC('Y','V','1','2'):
+    case MAKEFOURCC('I','4','2','0'):
+    case MAKEFOURCC('I','Y','U','V'):
+        MFCopyImage(dest, dest_stride / 2, src, src_stride / 2, width / 2, lines);
+        break;
+    case MAKEFOURCC('N','V','1','2'):
+        MFCopyImage(dest, dest_stride, src, src_stride, width, lines / 2);
+        break;
+    default:
+        break;
     }
-}
-
-static void copy_image_nv12(BYTE *dest, LONG dest_stride, const BYTE *src, LONG src_stride, DWORD width, DWORD lines)
-{
-    MFCopyImage(dest, dest_stride, src, src_stride, width, lines / 2);
-}
-
-static void copy_image_imc1(BYTE *dest, LONG dest_stride, const BYTE *src, LONG src_stride, DWORD width, DWORD lines)
-{
-    MFCopyImage(dest, dest_stride, src, src_stride, width / 2, lines);
-}
-
-static void copy_image_imc2(BYTE *dest, LONG dest_stride, const BYTE *src, LONG src_stride, DWORD width, DWORD lines)
-{
-    MFCopyImage(dest, dest_stride / 2, src, src_stride / 2, width / 2, lines);
 }
 
 static inline struct buffer *impl_from_IMFMediaBuffer(IMFMediaBuffer *iface)
@@ -318,7 +317,7 @@ static HRESULT WINAPI memory_1d_2d_buffer_Lock(IMFMediaBuffer *iface, BYTE **dat
 
             if (pitch < 0)
                 pitch = -pitch;
-            copy_image(buffer, buffer->_2d.linear_buffer, buffer->_2d.width, buffer->data, pitch,
+            copy_image(buffer->_2d.fourcc, buffer->_2d.linear_buffer, buffer->_2d.width, buffer->data, pitch,
                     buffer->_2d.width, buffer->_2d.height);
         }
     }
@@ -352,7 +351,7 @@ static HRESULT WINAPI memory_1d_2d_buffer_Unlock(IMFMediaBuffer *iface)
 
         if (pitch < 0)
             pitch = -pitch;
-        copy_image(buffer, buffer->data, pitch, buffer->_2d.linear_buffer, buffer->_2d.width,
+        copy_image(buffer->_2d.fourcc, buffer->data, pitch, buffer->_2d.linear_buffer, buffer->_2d.width,
                 buffer->_2d.width, buffer->_2d.height);
 
         free(buffer->_2d.linear_buffer);
@@ -402,7 +401,7 @@ static HRESULT WINAPI d3d9_surface_buffer_Lock(IMFMediaBuffer *iface, BYTE **dat
             hr = IDirect3DSurface9_LockRect(buffer->d3d9_surface.surface, &rect, NULL, 0);
             if (SUCCEEDED(hr))
             {
-                copy_image(buffer, buffer->_2d.linear_buffer, buffer->_2d.width, rect.pBits, rect.Pitch,
+                copy_image(buffer->_2d.fourcc, buffer->_2d.linear_buffer, buffer->_2d.width, rect.pBits, rect.Pitch,
                         buffer->_2d.width, buffer->_2d.height);
                 IDirect3DSurface9_UnlockRect(buffer->d3d9_surface.surface);
             }
@@ -441,7 +440,7 @@ static HRESULT WINAPI d3d9_surface_buffer_Unlock(IMFMediaBuffer *iface)
 
         if (SUCCEEDED(hr = IDirect3DSurface9_LockRect(buffer->d3d9_surface.surface, &rect, NULL, 0)))
         {
-            copy_image(buffer, rect.pBits, rect.Pitch, buffer->_2d.linear_buffer, buffer->_2d.width,
+            copy_image(buffer->_2d.fourcc, rect.pBits, rect.Pitch, buffer->_2d.linear_buffer, buffer->_2d.width,
                     buffer->_2d.width, buffer->_2d.height);
             IDirect3DSurface9_UnlockRect(buffer->d3d9_surface.surface);
         }
@@ -628,7 +627,7 @@ static HRESULT WINAPI memory_2d_buffer_ContiguousCopyTo(IMF2DBuffer2 *iface, BYT
     {
         if (src_pitch < 0)
             src_pitch = -src_pitch;
-        copy_image(buffer, dest_buffer, buffer->_2d.width, src_buffer_start, src_pitch,
+        copy_image(buffer->_2d.fourcc, dest_buffer, buffer->_2d.width, src_buffer_start, src_pitch,
                 buffer->_2d.width, buffer->_2d.height);
 
         if (FAILED(IMF2DBuffer2_Unlock2D(iface)))
@@ -657,7 +656,7 @@ static HRESULT WINAPI memory_2d_buffer_ContiguousCopyFrom(IMF2DBuffer2 *iface, c
     {
         if (dst_pitch < 0)
             dst_pitch = -dst_pitch;
-        copy_image(buffer, dst_buffer_start, dst_pitch, src_buffer, buffer->_2d.width,
+        copy_image(buffer->_2d.fourcc, dst_buffer_start, dst_pitch, src_buffer, buffer->_2d.width,
                 buffer->_2d.width, buffer->_2d.height);
 
         if (FAILED(IMF2DBuffer2_Unlock2D(iface)))
@@ -710,7 +709,7 @@ static HRESULT WINAPI memory_2d_buffer_Copy2DTo(IMF2DBuffer2 *iface, IMF2DBuffer
         goto end;
     dst_locked = TRUE;
 
-    copy_image(buffer, dst_scanline0, dst_pitch, src_scanline0, src_pitch,
+    copy_image(buffer->_2d.fourcc, dst_scanline0, dst_pitch, src_scanline0, src_pitch,
             buffer->_2d.width, buffer->_2d.height);
 
 end:
@@ -1076,7 +1075,7 @@ static HRESULT WINAPI dxgi_surface_buffer_Lock(IMFMediaBuffer *iface, BYTE **dat
             hr = dxgi_surface_buffer_map(buffer, MF2DBuffer_LockFlags_ReadWrite);
             if (SUCCEEDED(hr))
             {
-                copy_image(buffer, buffer->_2d.linear_buffer, buffer->_2d.width, buffer->dxgi_surface.map_desc.pData,
+                copy_image(buffer->_2d.fourcc, buffer->_2d.linear_buffer, buffer->_2d.width, buffer->dxgi_surface.map_desc.pData,
                         buffer->dxgi_surface.map_desc.RowPitch, buffer->_2d.width, buffer->_2d.height);
             }
         }
@@ -1110,7 +1109,7 @@ static HRESULT WINAPI dxgi_surface_buffer_Unlock(IMFMediaBuffer *iface)
         hr = HRESULT_FROM_WIN32(ERROR_WAS_UNLOCKED);
     else if (!--buffer->_2d.locks)
     {
-        copy_image(buffer, buffer->dxgi_surface.map_desc.pData, buffer->dxgi_surface.map_desc.RowPitch,
+        copy_image(buffer->_2d.fourcc, buffer->dxgi_surface.map_desc.pData, buffer->dxgi_surface.map_desc.RowPitch,
                 buffer->_2d.linear_buffer, buffer->_2d.width, buffer->_2d.width, buffer->_2d.height);
         dxgi_surface_buffer_unmap(buffer, MF2DBuffer_LockFlags_ReadWrite);
 
@@ -1429,30 +1428,6 @@ static HRESULT create_1d_buffer(DWORD max_length, DWORD alignment, IMFMediaBuffe
     return S_OK;
 }
 
-static p_copy_image_func get_2d_buffer_copy_func(DWORD fourcc)
-{
-    switch (fourcc)
-    {
-        case MAKEFOURCC('I','M','C','1'):
-        case MAKEFOURCC('I','M','C','3'):
-            return copy_image_imc1;
-
-        case MAKEFOURCC('I','M','C','2'):
-        case MAKEFOURCC('I','M','C','4'):
-        case MAKEFOURCC('N','V','1','1'):
-        case MAKEFOURCC('Y','V','1','2'):
-        case MAKEFOURCC('I','4','2','0'):
-        case MAKEFOURCC('I','Y','U','V'):
-            return copy_image_imc2;
-
-        case MAKEFOURCC('N','V','1','2'):
-            return copy_image_nv12;
-
-        default:
-            return NULL;
-    }
-}
-
 static HRESULT create_2d_buffer(DWORD width, DWORD height, DWORD fourcc, BOOL bottom_up, IMFMediaBuffer **buffer)
 {
     unsigned int stride, max_length;
@@ -1547,12 +1522,12 @@ static HRESULT create_2d_buffer(DWORD width, DWORD height, DWORD fourcc, BOOL bo
 
     object->IMF2DBuffer2_iface.lpVtbl = &memory_2d_buffer_vtbl;
     object->IMFGetService_iface.lpVtbl = &memory_2d_buffer_gs_vtbl;
+    object->_2d.fourcc = fourcc;
     object->_2d.plane_size = plane_size;
     object->_2d.width = stride;
     object->_2d.height = height;
     object->_2d.pitch = bottom_up ? -pitch : pitch;
     object->_2d.scanline0 = bottom_up ? object->data + pitch * (object->_2d.height - 1) : object->data;
-    object->_2d.copy_image = get_2d_buffer_copy_func(fourcc);
 
     *buffer = &object->IMFMediaBuffer_iface;
 
@@ -1588,10 +1563,10 @@ static HRESULT create_d3d9_surface_buffer(IUnknown *surface, BOOL bottom_up, IMF
     IUnknown_AddRef(surface);
 
     MFGetPlaneSize(desc.Format, desc.Width, desc.Height, &object->_2d.plane_size);
+    object->_2d.fourcc = desc.Format;
     object->_2d.width = stride;
     object->_2d.height = desc.Height;
     object->max_length = object->_2d.plane_size;
-    object->_2d.copy_image = get_2d_buffer_copy_func(desc.Format);
 
     *buffer = &object->IMFMediaBuffer_iface;
 
@@ -1643,10 +1618,10 @@ static HRESULT create_dxgi_surface_buffer(IUnknown *surface, unsigned int sub_re
     object->dxgi_surface.sub_resource_idx = sub_resource_idx;
 
     MFGetPlaneSize(format, desc.Width, desc.Height, &object->_2d.plane_size);
+    object->_2d.fourcc = format;
     object->_2d.width = stride;
     object->_2d.height = desc.Height;
     object->max_length = object->_2d.plane_size;
-    object->_2d.copy_image = get_2d_buffer_copy_func(format);
 
     if (FAILED(hr = init_attributes_object(&object->dxgi_surface.attributes, 0)))
     {
