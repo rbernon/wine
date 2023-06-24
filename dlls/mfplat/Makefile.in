@@ -7,6 +7,7 @@ EXTRADLLFLAGS = -Wb,--prefer-native
 
 SOURCES = \
 	buffer.c \
+	buffer_dxgi.c \
 	main.c \
 	mediatype.c \
 	queue.c \
