@@ -589,6 +589,11 @@ static void test_declarations(void)
                "\n";
     res = check_idl( &in, MIDL_WERROR );
     ok( !res, "got %#lx\n", res );
+
+    src.text = "[local]interface IDummy {}\n"
+               "\n";
+    res = check_idl( &in, MIDL_WERROR );
+    ok( !res, "got %#lx\n", res );
 }
 
 START_TEST( midl )
