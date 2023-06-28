@@ -120,3 +120,11 @@ struct sample_desc
 #define check_mf_sample_collection(a, b, c) check_mf_sample_collection_(__FILE__, __LINE__, a, b, c, FALSE)
 extern DWORD check_mf_sample_collection_(const char *file, int line, IMFCollection *samples,
         const struct sample_desc *expect_samples, const WCHAR *expect_data_filename, BOOL use_2d_buffer);
+
+extern IMFMediaSource *create_media_source(const WCHAR *name, const WCHAR *mime);
+extern IMFSampleGrabberSinkCallback *create_test_grabber_callback(void);
+extern IMFAsyncCallback *create_test_callback(BOOL check_media_event);
+
+#define wait_media_event(a, b, c, d, e) wait_media_event_(__FILE__, __LINE__, a, b, c, d, e)
+extern HRESULT wait_media_event_(const char *file, int line, IMFMediaSession *session, IMFAsyncCallback *callback,
+        MediaEventType expect_type, DWORD timeout, PROPVARIANT *value);
