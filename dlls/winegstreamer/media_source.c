@@ -139,6 +139,9 @@ struct media_stream
     DWORD stream_id;
     BOOL active;
     BOOL eos;
+
+    DWORD busy;
+    CONDITION_VARIABLE cond;
 };
 
 enum source_async_op
@@ -696,15 +699,33 @@ static HRESULT wait_on_sample(struct media_stream *stream, IUnknown *token)
 {
     struct media_source *source = impl_from_IMFMediaSource(stream->media_source);
     struct wg_parser_buffer buffer;
+    HRESULT hr;
+    BOOL ret;
 
     TRACE("%p, %p\n", stream, token);
 
-    while (wg_parser_stream_get_buffer(source->wg_parser, stream->wg_stream, &buffer))
+for (;;)
+{
+    stream->busy = TRUE;
+    LeaveCriticalSection(&source->cs);
+    ret = wg_parser_stream_get_buffer(source->wg_parser, stream->wg_stream, &buffer);
+    EnterCriticalSection(&source->cs);
+    stream->busy = FALSE;
+    WakeConditionVariable(&stream->cond);
+
+    if (source->state == SOURCE_SHUTDOWN)
     {
-        HRESULT hr = media_stream_send_sample(stream, &buffer, token);
-        if (hr != S_FALSE)
-            return hr;
+        WARN("media source has been shutdown, returning\n");
+        return MF_E_SHUTDOWN;
     }
+
+    if (!ret)
+        break;
+        
+    hr = media_stream_send_sample(stream, &buffer, token);
+    if (hr != S_FALSE)
+        return hr;
+}
 
     return media_stream_send_eos(source, stream);
 }
@@ -1467,6 +1488,7 @@ static HRESULT WINAPI media_source_Pause(IMFMediaSource *iface)
 static HRESULT WINAPI media_source_Shutdown(IMFMediaSource *iface)
 {
     struct media_source *source = impl_from_IMFMediaSource(iface);
+    UINT i;
 
     TRACE("%p.\n", iface);
 
@@ -1479,6 +1501,14 @@ static HRESULT WINAPI media_source_Shutdown(IMFMediaSource *iface)
     }
 
     source->state = SOURCE_SHUTDOWN;
+
+    for (i = 0; i < source->stream_count; i++)
+    {
+        struct media_stream *stream = source->streams[i];
+        wg_parser_stream_disable(stream->wg_stream);
+        while (stream->busy)
+            SleepConditionVariableCS(&stream->cond, &source->cs, INFINITE);
+    }
 
     wg_parser_disconnect(source->wg_parser);
 
