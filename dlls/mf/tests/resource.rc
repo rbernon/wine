@@ -177,3 +177,18 @@ rgb24frame.bmp RCDATA rgb24frame.bmp
  */
 /* @makedep: test.mp4 */
 test.mp4 RCDATA test.mp4
+
+/* Generated with:
+gst-launch-1.0 \
+      audiotestsrc num-buffers=60 ! audio/x-raw,format=F32LE,channels=1 ! \
+      taginject tags="language-code=eng" ! \
+      audioconvert ! audioresample ! avenc_aac ! mux. \
+      \
+      audiotestsrc num-buffers=60 ! audio/x-raw,format=S16LE,layout=interleaved ! \
+      taginject tags="language-code=fre" ! \
+      audioconvert ! audioresample ! lamemp3enc ! mux. \
+      \
+      mp4mux name=mux ! filesink location=dlls/mf/tests/multiple-streams.mp4
+*/
+/* @makedep: multiple-streams.mp4 */
+multiple-streams.mp4 RCDATA multiple-streams.mp4
