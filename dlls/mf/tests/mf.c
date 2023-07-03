@@ -7770,6 +7770,195 @@ done:
     ok(hr == S_OK, "got hr %#lx\n", hr);
 }
 
+static void test_media_session_transform_multiple_sources(void)
+{
+    IMFAsyncCallback *media_event_callback;
+    IMFSampleGrabberSinkCallback *grabber_callback;
+    IMFTopologyNode *up_nodes[2], *node;
+    IMFMediaType *media_types[2];
+    UINT32 i;
+    IMFMediaSession *session;
+    LONGLONG time, duration;
+    IMFTransform *transform;
+    IMFMediaSource *source;
+    IMFTopology *topology;
+    PROPVARIANT propvar;
+    DWORD res, stream;
+    IMFSample *sample;
+    HRESULT hr;
+
+    hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+
+    if (!(source = create_media_source(L"multiple-streams.mp4", L"video/mp4")))
+    {
+        win_skip("MP4 media source is not supported, skipping tests.\n");
+        goto done;
+    }
+
+    grabber_callback = create_test_grabber_callback();
+    media_event_callback = create_test_callback(TRUE);
+
+    hr = MFCreateMediaSession(NULL, &session);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+
+
+    /* create the topology with 2 sources -> MFT -> 1 output */
+    hr = MFCreateTopology(&topology);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+
+    up_nodes[0] = test_transform_create_source_node(topology, source, 0, &media_types[0]);
+    up_nodes[1] = test_transform_create_source_node(topology, source, 1, &media_types[1]);
+
+    node = test_transform_create_transform_node(topology, 2, media_types, 1, media_types, &transform);
+    hr = IMFTopologyNode_ConnectOutput(up_nodes[0], 0, node, 0);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    IMFTopologyNode_Release(up_nodes[0]);
+    hr = IMFTopologyNode_ConnectOutput(up_nodes[1], 0, node, 1);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    IMFTopologyNode_Release(up_nodes[1]);
+    up_nodes[0] = node;
+
+    node = test_transform_create_output_node(topology, media_types[0], grabber_callback);
+    IMFMediaType_Release(media_types[0]);
+    hr = IMFTopologyNode_ConnectOutput(up_nodes[0], 0, node, 0);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    IMFTopologyNode_Release(up_nodes[0]);
+    IMFTopologyNode_Release(node);
+    IMFMediaSource_Release(source);
+
+
+    hr = IMFMediaSession_SetTopology(session, 0, topology);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+
+    hr = wait_media_event(session, media_event_callback, MESessionTopologySet, 1000, &propvar);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    ok(propvar.vt == VT_UNKNOWN, "got vt %u\n", propvar.vt);
+    ok(propvar.punkVal != (IUnknown *)topology, "got punkVal %p\n", propvar.punkVal);
+    IMFTopology_Release(topology);
+    IMFTopology_AddRef((topology = (IMFTopology *)propvar.punkVal));
+    PropVariantClear(&propvar);
+
+    hr = wait_media_event(session, media_event_callback, MESessionTopologyStatus, 1000, &propvar);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    ok(propvar.vt == VT_UNKNOWN, "got vt %u\n", propvar.vt);
+    ok(propvar.punkVal == (IUnknown *)topology, "got punkVal %p\n", propvar.punkVal);
+    PropVariantClear(&propvar);
+
+    hr = IMFMediaSession_Start(session, &GUID_NULL, &propvar);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+
+
+    /* starts with a ProcessOutput call */
+
+    res = test_transform_wait_process_input(transform, 0);
+    ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+    res = test_transform_wait_process_output(transform, 1000);
+    ok(res == 0, "got res %#lx\n", res);
+
+    /* ProcessOutput call loops until it fails */
+
+    for (i = 0, time = 0, duration = 1000; i < 20; i++)
+    {
+        IMFMediaBuffer *buffer;
+
+        winetest_push_context("%u", i);
+
+        hr = MFCreateSample(&sample);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = MFCreateMemoryBuffer(0x1000, &buffer);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = IMFSample_AddBuffer(sample, buffer);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        IMFMediaBuffer_Release(buffer);
+
+        hr = IMFSample_SetSampleTime(sample, time + duration);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = IMFSample_SetSampleDuration(sample, duration);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+
+        test_transform_set_output(transform, 0, sample);
+
+        IMFSample_Release(sample);
+        time += duration;
+
+        res = test_transform_wait_process_output(transform, 1000);
+        ok(res == 0, "got res %#lx\n", res);
+
+        winetest_pop_context();
+    }
+
+    res = test_transform_wait_process_input(transform, 0);
+    ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+    res = test_transform_wait_process_output(transform, 0);
+    ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+    test_transform_set_output(transform, 0, NULL);
+
+    for (i = 0; i < 10; i++)
+    {
+        winetest_push_context("%u", i);
+
+        /* a single ProcessInput call for stream 0 or 1, depending on the media source */
+        res = test_transform_wait_process_input(transform, 1000);
+        ok(res == 0 || res == 1, "got res %#lx\n", res);
+        stream = res;
+        res = test_transform_wait_process_input(transform, 0);
+        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        res = test_transform_wait_process_output(transform, 0);
+        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        /* take the sample and return S_OK */
+        test_transform_get_input(transform, stream, &sample);
+
+        /* ProcessOutput call loop */
+        res = test_transform_wait_process_output(transform, 1000);
+        ok(res == 0, "got res %#lx\n", res);
+        test_transform_set_output(transform, 0, sample);
+
+        res = test_transform_wait_process_output(transform, 1000);
+        ok(res == 0, "got res %#lx\n", res);
+        test_transform_set_output(transform, 0, NULL);
+
+        IMFSample_Release(sample);
+
+
+        /* a single ProcessInput call for stream 0 or 1, depending on the media source */
+        res = test_transform_wait_process_input(transform, 1000);
+        ok(res == 0 || res == 1, "got res %#lx\n", res);
+        stream = res;
+        res = test_transform_wait_process_input(transform, 0);
+        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        res = test_transform_wait_process_output(transform, 0);
+        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        /* release the sample and return MF_E_NOTACCEPTING */
+        test_transform_get_input(transform, stream, NULL);
+
+        /* ProcessOutput call loop */
+        res = test_transform_wait_process_output(transform, 1000);
+        ok(res == 0, "got res %#lx\n", res);
+        test_transform_set_output(transform, 0, NULL);
+
+        /* needs to fail at least twice */
+        res = test_transform_wait_process_output(transform, 1000);
+        ok(res == 0, "got res %#lx\n", res);
+        test_transform_set_output(transform, 0, NULL);
+
+        winetest_pop_context();
+    }
+
+    test_transform_shutdown(transform);
+
+    IMFTransform_Release(transform);
+    hr = IMFMediaSession_Shutdown(session);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    IMFMediaSession_Release(session);
+
+    IMFAsyncCallback_Release(media_event_callback);
+
+done:
+    hr = MFShutdown();
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+}
+
 START_TEST(mf)
 {
     init_functions();
@@ -7808,4 +7997,5 @@ START_TEST(mf)
     test_media_session_source_shutdown();
     test_media_session_transform_simple();
     test_media_session_transform_multiple_outputs();
+    test_media_session_transform_multiple_sources();
 }
