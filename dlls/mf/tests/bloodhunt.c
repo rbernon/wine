@@ -40,7 +40,7 @@
 
 static void test_bloodhunt(void)
 {
-    const WCHAR *url = L"file://Z:/media/rbernon/LaCie/Games/Bloodhunt/Tiger/Content/Movies/V_INTRO_INTRO_01.mp4";
+    const WCHAR *url = L"file://Z:/home/rbernon/Code/build-wine/test.mp4";
     IMFAttributes *attributes;
     IMFMediaSession *session;
     IMFSourceResolver *resolver;
@@ -70,6 +70,15 @@ static void test_bloodhunt(void)
     MFCLOCK_STATE clock_state;
     UINT time = 0;
     HRESULT hr;
+
+CloseHandle(CreateThread(NULL, 0, test_thread, NULL, 0, NULL));
+CloseHandle(CreateThread(NULL, 0, test_thread, NULL, 0, NULL));
+CloseHandle(CreateThread(NULL, 0, test_thread, NULL, 0, NULL));
+CloseHandle(CreateThread(NULL, 0, test_thread, NULL, 0, NULL));
+CloseHandle(CreateThread(NULL, 0, test_thread, NULL, 0, NULL));
+CloseHandle(CreateThread(NULL, 0, test_thread, NULL, 0, NULL));
+CloseHandle(CreateThread(NULL, 0, test_thread, NULL, 0, NULL));
+CloseHandle(CreateThread(NULL, 0, test_thread, NULL, 0, NULL));
 
     hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
     ok( hr == S_OK, "got hr %#lx\n", hr );
@@ -104,9 +113,9 @@ hr = IMFPresentationDescriptor_GetStreamDescriptorCount( presentation, &stream_c
 ok( hr == S_OK, "got hr %#lx\n", hr );
 
 
-hr = IMFPresentationDescriptor_GetStreamDescriptorByIndex( presentation, 1, &selected, &video_stream );
+hr = IMFPresentationDescriptor_GetStreamDescriptorByIndex( presentation, 0, &selected, &video_stream );
 ok( hr == S_OK, "got hr %#lx\n", hr );
-hr = IMFPresentationDescriptor_DeselectStream( presentation, 1 );
+hr = IMFPresentationDescriptor_DeselectStream( presentation, 0 );
 ok( hr == S_OK, "got hr %#lx\n", hr );
 
 hr = IMFStreamDescriptor_GetMediaTypeHandler( video_stream, &handler );
@@ -158,7 +167,7 @@ ok( hr == S_OK, "got hr %#lx\n", hr );
 IMFMediaTypeHandler_Release( handler );
 IMFMediaType_Release( current_type );
 
-hr = IMFPresentationDescriptor_SelectStream( presentation, 1 );
+hr = IMFPresentationDescriptor_SelectStream( presentation, 0 );
 ok( hr == S_OK, "got hr %#lx\n", hr );
 hr = IMFStreamDescriptor_GetAllocatedString( video_stream, &MF_SD_LANGUAGE, &lang, &length );
 ok( hr == S_OK, "got hr %#lx\n", hr );
@@ -166,6 +175,7 @@ hr = IMFStreamDescriptor_GetAllocatedString( video_stream, &MF_SD_STREAM_NAME, &
 ok( hr == MF_E_ATTRIBUTENOTFOUND, "got hr %#lx\n", hr );
 
 
+if (0) {
 hr = IMFPresentationDescriptor_GetStreamDescriptorByIndex( presentation, 0, &selected, &audio_stream );
 ok( hr == S_OK, "got hr %#lx\n", hr );
 hr = IMFPresentationDescriptor_DeselectStream( presentation, 0 );
@@ -225,18 +235,19 @@ hr = IMFStreamDescriptor_GetAllocatedString( audio_stream, &MF_SD_LANGUAGE, &lan
 ok( hr == S_OK, "got hr %#lx\n", hr );
 hr = IMFStreamDescriptor_GetAllocatedString( audio_stream, &MF_SD_STREAM_NAME, &name, &length );
 ok( hr == MF_E_ATTRIBUTENOTFOUND, "got hr %#lx\n", hr );
-
+}
 
 hr = MFCreateTopology( &topology );
 ok( hr == S_OK, "got hr %#lx\n", hr );
 
+if (0) {
 hr = MFCreateTopologyNode( 0, &sink_node );
 ok( hr == S_OK, "got hr %#lx\n", hr );
 hr = MFCreateSampleGrabberSinkActivate( audio_type, audio_grabber, &activate );
 ok( hr == S_OK, "got hr %#lx\n", hr );
 IMFMediaType_Release( audio_type );
 
-if (1) IMFActivate_SetUINT32(activate, &MF_SAMPLEGRABBERSINK_IGNORE_CLOCK, 1);
+IMFActivate_SetUINT32(activate, &MF_SAMPLEGRABBERSINK_IGNORE_CLOCK, 1);
 
 hr = IMFTopologyNode_SetObject( sink_node, (IUnknown *)activate );
 ok( hr == S_OK, "got hr %#lx\n", hr );
@@ -262,6 +273,7 @@ hr = IMFTopologyNode_ConnectOutput( src_node, 0, sink_node, 0 );
 ok( hr == S_OK, "got hr %#lx\n", hr );
 IMFTopologyNode_Release( src_node );
 IMFTopologyNode_Release( sink_node );
+}
 
 
 hr = MFCreateTopologyNode( 0, &sink_node );
@@ -270,7 +282,7 @@ hr = MFCreateSampleGrabberSinkActivate( video_type, video_grabber, &activate );
 ok( hr == S_OK, "got hr %#lx\n", hr );
 IMFMediaType_Release( video_type );
 
-if (1) IMFActivate_SetUINT32(activate, &MF_SAMPLEGRABBERSINK_IGNORE_CLOCK, 1);
+IMFActivate_SetUINT32(activate, &MF_SAMPLEGRABBERSINK_IGNORE_CLOCK, 1);
 
 hr = IMFTopologyNode_SetObject( sink_node, (IUnknown *)activate );
 ok( hr == S_OK, "got hr %#lx\n", hr );
