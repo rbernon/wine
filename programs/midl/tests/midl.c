@@ -270,6 +270,47 @@ static void test_idl_parsing(void)
     todo_wine
     ok( res, "MIDL succeeded\n" );
 
+    /* error: interface with method needs uuid */
+    src.text = "typedef unsigned int HRESULT;\n"
+               "interface I{HRESULT bla();}\n";
+    res = check_idl( &in, 0 );
+    todo_wine
+    ok( res, "MIDL succeeded\n" );
+
+    /* warning: local doesn't needs uuid */
+    src.text = "typedef unsigned int HRESULT;\n"
+               "[local]interface I{}\n";
+    res = check_idl( &in, 0 );
+    ok( !res, "MIDL failed, error %#lx\n", res );
+
+    /* warning: local doesn't needs uuid */
+    src.text = "typedef unsigned int HRESULT;\n"
+               "[local]interface I{HRESULT bla();}\n";
+    res = check_idl( &in, 0 );
+    ok( !res, "MIDL failed, error %#lx\n", res );
+
+    /* warning: local doesn't needs uuid */
+    src.text = "typedef unsigned int HRESULT;\n"
+               "[local,uuid(00000000-0000-0000-0000-000000000000)]interface I{HRESULT bla();}\n";
+    res = check_idl( &in, 0 );
+    ok( !res, "MIDL failed, error %#lx\n", res );
+
+    /* warning: object needs uuid */
+    src.text = "[uuid(00000000-0000-0000-0000-000000000000),object]\n"
+               "interface IUnknown{}\n"
+               "[object]interface I:IUnknown{}\n";
+    res = check_idl( &in, 0 );
+    todo_wine
+    ok( res, "MIDL succeeded\n" );
+
+    /* warning: object needs uuid */
+    src.text = "[uuid(00000000-0000-0000-0000-000000000000),object]\n"
+               "interface IUnknown{}\n"
+               "[object,local]interface I:IUnknown{}\n";
+    res = check_idl( &in, 0 );
+    todo_wine
+    ok( res, "MIDL succeeded\n" );
+
     /* needs a unique uuid */
     src.text = "[uuid(00000000-0000-0000-0000-000000000000),object]\n"
                "interface IUnknown{}\n"
