@@ -306,6 +306,8 @@ static HRESULT WINAPI sample_grabber_stream_GetMediaTypeHandler(IMFStreamSink *i
     return S_OK;
 }
 
+extern const char *debugstr_mf_guid(const GUID *guid) DECLSPEC_HIDDEN;
+
 static HRESULT sample_grabber_report_sample(struct sample_grabber *grabber, IMFSample *sample, BOOL *sample_delivered)
 {
     LONGLONG sample_time, sample_duration = 0;
@@ -341,12 +343,16 @@ static HRESULT sample_grabber_report_sample(struct sample_grabber *grabber, IMFS
             {
                 hr = IMFSample_CopyAllItems(sample, grabber->sample_attributes);
                 if (SUCCEEDED(hr))
+                {
                     hr = IMFSampleGrabberSinkCallback2_OnProcessSampleEx(grabber->callback2, &major_type, flags,
                             sample_time, sample_duration, data, size, grabber->sample_attributes);
+                }
             }
             else
+            {
                 hr = IMFSampleGrabberSinkCallback_OnProcessSample(grabber->callback, &major_type, flags, sample_time,
                             sample_duration, data, size);
+            }
             IMFMediaBuffer_Unlock(buffer);
         }
 
