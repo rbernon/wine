@@ -122,10 +122,6 @@ struct sample_desc
 extern DWORD check_mf_sample_collection_(const char *file, int line, IMFCollection *samples,
         const struct sample_desc *expect_samples, const WCHAR *expect_data_filename, BOOL use_2d_buffer);
 
-extern IMFSampleGrabberSinkCallback *create_test_grabber_callback(void);
-extern IMFAsyncCallback *create_test_callback(BOOL check_media_event);
-extern IMFPresentationClock *presentation_clock;
-
 extern IMFMediaSource *create_media_source(const WCHAR *name, const WCHAR *mime);
 extern IMFSampleGrabberSinkCallback *create_test_grabber_callback(void);
 extern IMFAsyncCallback *create_test_callback(BOOL check_media_event);
