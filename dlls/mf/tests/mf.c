@@ -37,9 +37,6 @@
 #include "mf_test.h"
 
 #include "wine/test.h"
-#include "wine/debug.h"
-
-WINE_DEFAULT_DEBUG_CHANNEL(mfplat);
 
 #include "initguid.h"
 #include "mmdeviceapi.h"
@@ -1126,7 +1123,7 @@ static const IMFAsyncCallbackVtbl testcallbackvtbl =
     testcallback_Invoke,
 };
 
-IMFAsyncCallback *create_test_callback(BOOL check_media_event)
+static IMFAsyncCallback *create_test_callback(BOOL check_media_event)
 {
     struct test_callback *callback;
 
@@ -1165,7 +1162,6 @@ HRESULT wait_media_event_(const char *file, int line, void *session, IMFAsyncCal
         ok_(file, line)(ret == WAIT_OBJECT_0, "WaitForSingleObject returned %lu\n", ret);
         hr = IMFMediaEvent_GetType(impl->media_event, &type);
         ok_(file, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-ok(0, "got type %s\n", debugstr_mf_media_event_type(type));
     } while (type != expect_type);
 
     ok_(file, line)(type == expect_type, "got type %lu\n", type);
@@ -2714,52 +2710,16 @@ static HRESULT WINAPI test_grabber_callback_OnSetPresentationClock(IMFSampleGrab
     return S_OK;
 }
 
-extern const char *debugstr_mf_guid(const GUID *guid) DECLSPEC_HIDDEN;
-
-static inline const char *debugstr_time(LONGLONG time)
-{
-    ULONGLONG abstime = time >= 0 ? time : -time;
-    unsigned int i = 0, j = 0;
-    char buffer[23], rev[23];
-
-    while (abstime || i <= 8)
-    {
-        buffer[i++] = '0' + (abstime % 10);
-        abstime /= 10;
-        if (i == 7) buffer[i++] = '.';
-    }
-    if (time < 0) buffer[i++] = '-';
-
-    while (i--) rev[j++] = buffer[i];
-    while (rev[j-1] == '0' && rev[j-2] != '.') --j;
-    rev[j] = 0;
-
-    return wine_dbg_sprintf("%s", rev);
-}
-
-IMFPresentationClock *presentation_clock;
-
 static HRESULT WINAPI test_grabber_callback_OnProcessSample(IMFSampleGrabberSinkCallback *iface, REFGUID major_type,
         DWORD sample_flags, LONGLONG sample_time, LONGLONG sample_duration, const BYTE *buffer, DWORD sample_size)
 {
-    static LONGLONG first_time = 0;
     struct test_grabber_callback *grabber = CONTAINING_RECORD(iface, struct test_grabber_callback, IMFSampleGrabberSinkCallback_iface);
-    MFTIME time, system_time;
-    LONGLONG clock_time;
     IMFSample *sample;
     HRESULT hr;
     DWORD res;
 
-IMFPresentationClock_GetTime(presentation_clock, &time);
-IMFPresentationClock_GetCorrelatedTime(presentation_clock, 0, &clock_time, &system_time);
-if (!first_time) first_time = time;
-time -= first_time;
-
-ERR("time %s clock %s system %s, sample_time %s, sample_duration %s, size %#lx\n", debugstr_time(time), debugstr_time(clock_time), debugstr_time(system_time),
-    debugstr_time(sample_time), debugstr_time(sample_duration), sample_size);
-
     if (!grabber->ready_event)
-        return S_OK;
+        return E_NOTIMPL;
 
     sample = create_sample(buffer, sample_size);
     hr = IMFSample_SetSampleFlags(sample, sample_flags);
@@ -2799,7 +2759,7 @@ static const IMFSampleGrabberSinkCallbackVtbl test_grabber_callback_vtbl =
     test_grabber_callback_OnShutdown,
 };
 
-IMFSampleGrabberSinkCallback *create_test_grabber_callback(void)
+static IMFSampleGrabberSinkCallback *create_test_grabber_callback(void)
 {
     struct test_grabber_callback *grabber;
     HRESULT hr;
