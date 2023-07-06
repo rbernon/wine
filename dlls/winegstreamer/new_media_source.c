@@ -303,6 +303,7 @@ struct media_source
     UINT64 file_size;
     UINT64 duration;
     BYTE *read_buffer;
+    BOOL read_pending;
 
     IMFStreamDescriptor **descriptors;
     struct media_stream **streams;
@@ -772,7 +773,7 @@ static void media_source_deliver_requested_samples(struct media_source *source)
             hr = E_PENDING;
     }
 
-    if (hr != E_PENDING)
+    if (hr != E_PENDING || source->read_pending)
         return;
 
     if (FAILED(hr = wg_source_get_position(source->wg_source, &next_offset)))
@@ -790,6 +791,8 @@ static void media_source_deliver_requested_samples(struct media_source *source)
             if (FAILED(hr = IMFByteStream_BeginRead(source->byte_stream, source->read_buffer, read_size,
                     &source->async_read_iface, NULL)))
                 WARN("Failed to being reading from stream, hr %#lx\n", hr);
+            else
+                source->read_pending = TRUE;
         }
     }
 }
@@ -895,6 +898,8 @@ static HRESULT WINAPI media_source_async_read_Invoke(IMFAsyncCallback *iface, IM
     HRESULT hr;
 
     EnterCriticalSection(&source->cs);
+
+    source->read_pending = FALSE;
 
     if (FAILED(hr = IMFByteStream_EndRead(source->byte_stream, result, &size)))
         WARN("Failed to complete stream read, hr %#lx\n", hr);
