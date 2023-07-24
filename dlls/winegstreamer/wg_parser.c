@@ -1885,6 +1885,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_source_create),
     X(wg_source_destroy),
     X(wg_source_get_stream_count),
+    X(wg_source_get_position),
     X(wg_source_push_data),
 
     X(wg_transform_create),
@@ -2295,6 +2296,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
     X64(wg_source_create),
     X(wg_source_destroy),
     X(wg_source_get_stream_count),
+    X(wg_source_get_position),
     X64(wg_source_push_data),
 
     X64(wg_transform_create),
