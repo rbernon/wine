@@ -1898,6 +1898,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_source_get_stream_type),
     X(wg_source_get_stream_name),
     X(wg_source_get_stream_lang),
+    X(wg_source_set_stream_flags),
 
     X(wg_transform_create),
     X(wg_transform_destroy),

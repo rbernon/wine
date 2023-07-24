@@ -387,6 +387,13 @@ struct wg_source_get_stream_lang_params
     char buffer[32];
 };
 
+struct wg_source_set_stream_flags_params
+{
+    wg_source_t source;
+    UINT32 index;
+    UINT32 select;
+};
+
 struct wg_transform_attrs
 {
     UINT32 output_plane_align;
@@ -511,6 +518,7 @@ enum unix_funcs
     unix_wg_source_get_stream_type,
     unix_wg_source_get_stream_name,
     unix_wg_source_get_stream_lang,
+    unix_wg_source_set_stream_flags,
 
     unix_wg_transform_create,
     unix_wg_transform_destroy,

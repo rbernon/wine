@@ -638,6 +638,20 @@ HRESULT wg_source_get_stream_lang(wg_source_t source, UINT32 index, WCHAR *buffe
     return S_OK;
 }
 
+void wg_source_set_stream_flags(wg_source_t source, UINT32 index, BOOL select)
+{
+    struct wg_source_set_stream_flags_params params =
+    {
+        .source = source,
+        .index = index,
+        .select = select,
+    };
+
+    TRACE("source %#I64x, index %u, select %u\n", source, index, select);
+
+    WINE_UNIX_CALL(unix_wg_source_set_stream_flags, &params);
+}
+
 HRESULT wg_transform_create_mf(IMFMediaType *input_type, IMFMediaType *output_type,
         const struct wg_transform_attrs *attrs, wg_transform_t *transform)
 {

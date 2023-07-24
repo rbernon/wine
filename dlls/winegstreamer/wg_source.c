@@ -112,6 +112,7 @@ static GstEvent *create_stream_start_event(const char *stream_id)
     if ((event = gst_event_new_stream_start(stream_id)))
     {
         GstStream *stream = gst_stream_new(stream_id, NULL, GST_STREAM_TYPE_UNKNOWN, 0);
+        gst_stream_set_stream_flags(stream, GST_STREAM_FLAG_SELECT);
         gst_event_set_stream(event, stream);
         gst_event_set_group_id(event, 1);
         gst_object_unref(stream);
@@ -182,6 +183,16 @@ static GstTagList *source_get_stream_tags(struct wg_source *source, guint index)
     tags = gst_stream_get_tags(stream);
     gst_object_unref(stream);
     return tags;
+}
+
+static bool source_set_stream_flags(struct wg_source *source, guint index, GstStreamFlags flags)
+{
+    GstStream *stream;
+    if (!(stream = source_get_stream(source, index)))
+        return false;
+    gst_stream_set_stream_flags(stream, flags);
+    gst_object_unref(stream);
+    return true;
 }
 
 static void source_handle_seek(struct wg_source *source, GstEvent *event)
@@ -457,7 +468,10 @@ static void pad_added_cb(GstElement *element, GstPad *pad, gpointer user)
         GST_ERROR("Failed to link new pad to sink pad %" GST_PTR_FORMAT, stream->pad);
 
     if ((stream->stream = gst_pad_get_stream(pad)))
+    {
         GST_TRACE("Found stream %" GST_PTR_FORMAT " for pad %" GST_PTR_FORMAT, stream->stream, pad);
+        gst_stream_set_stream_flags(stream->stream, GST_STREAM_FLAG_SELECT);
+    }
     else
     {
         if (!(id = gst_pad_get_stream_id(pad)))
@@ -470,7 +484,10 @@ static void pad_added_cb(GstElement *element, GstPad *pad, gpointer user)
         if (!(stream->stream = gst_stream_new(id, NULL, GST_STREAM_TYPE_UNKNOWN, 0)))
             GST_ERROR("Failed to create stream event for sink pad %" GST_PTR_FORMAT, stream->pad);
         else
+        {
             GST_TRACE("Created stream %" GST_PTR_FORMAT " for pad %" GST_PTR_FORMAT, stream->stream, stream->pad);
+            gst_stream_set_stream_flags(stream->stream, GST_STREAM_FLAG_SELECT);
+        }
 
         g_free(id);
     }
@@ -804,4 +821,21 @@ NTSTATUS wg_source_get_stream_lang(void *args)
 
     gst_tag_list_unref(tags);
     return status;
+}
+
+NTSTATUS wg_source_set_stream_flags(void *args)
+{
+    struct wg_source_set_stream_flags_params *params = args;
+    struct wg_source *source = get_source(params->source);
+    BOOL select = params->select;
+    guint index = params->index;
+    GstStreamFlags flags;
+
+    GST_TRACE("source %p, index %u, select %u", source, index, select);
+
+    flags = select ? GST_STREAM_FLAG_SELECT : GST_STREAM_FLAG_UNSELECT;
+    if (!source_set_stream_flags(source, index, flags))
+        return STATUS_UNSUCCESSFUL;
+
+    return STATUS_SUCCESS;
 }
