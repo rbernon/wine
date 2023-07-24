@@ -2062,6 +2062,7 @@ NTSTATUS wow64_wg_source_create(void *args)
         PTR32 url;
         PTR32 data;
         UINT32 size;
+        char mime_type[256];
         wg_source_t source;
     } *params32 = args;
     struct wg_source_create_params params =
@@ -2073,6 +2074,7 @@ NTSTATUS wow64_wg_source_create(void *args)
     NTSTATUS ret;
 
     ret = wg_source_create(&params);
+    strcpy(params32->mime_type, params.mime_type);
     params32->source = params.source;
     return ret;
 }
