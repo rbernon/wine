@@ -116,6 +116,7 @@ bool wg_source_get_stream_format(wg_source_t source, UINT32 index,
         struct wg_format *format);
 char *wg_source_get_stream_tag(wg_source_t source, UINT32 index,
         wg_parser_tag tag);
+void wg_source_set_stream_flags(wg_source_t source, UINT32 index, BOOL select);
 
 HRESULT wg_transform_create_mf(IMFMediaType *input_type, IMFMediaType *output_type,
         const struct wg_transform_attrs *attrs, wg_transform_t *transform);
