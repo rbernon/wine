@@ -6799,6 +6799,94 @@ static void test_media_session_Close(void)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 }
 
+static void load_resource_stream(const WCHAR *name, IMFByteStream **stream)
+{
+    HRSRC resource = FindResourceW(NULL, name, (const WCHAR *)RT_RCDATA);
+    void *resource_data;
+    DWORD resource_len;
+    HRESULT hr;
+
+    ok(resource != 0, "FindResourceW %s failed, error %lu\n", debugstr_w(name), GetLastError());
+    resource_data = LockResource(LoadResource(GetModuleHandleW(NULL), resource));
+    resource_len = SizeofResource(GetModuleHandleW(NULL), resource);
+
+    hr = MFCreateTempFile(MF_ACCESSMODE_READWRITE, MF_OPENMODE_DELETE_IF_EXIST, MF_FILEFLAGS_NONE, stream);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFByteStream_Write(*stream, resource_data, resource_len, &resource_len);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFByteStream_SetCurrentPosition(*stream, 0);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+}
+
+static void subtest_media_source_streams(const WCHAR *resource)
+{
+    QWORD max_time = 0, min_time = -1;
+    IMFMediaSource *media_source;
+    IMFSourceResolver *resolver;
+    MF_OBJECT_TYPE object_type;
+    IMFByteStream *stream;
+    HRESULT hr;
+    DWORD i;
+
+    hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    hr = MFCreateSourceResolver(&resolver);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+
+
+    load_resource_stream(resource, &stream);
+    hr = IMFSourceResolver_CreateObjectFromByteStream(resolver, stream, resource, MF_RESOLUTION_MEDIASOURCE,
+            NULL, &object_type, (IUnknown **)&media_source);
+    ok(hr == S_OK || broken(hr == MF_E_UNSUPPORTED_BYTESTREAM_TYPE), "got hr %#lx\n", hr);
+    IMFByteStream_Release(stream);
+    if (hr == MF_E_UNSUPPORTED_BYTESTREAM_TYPE)
+    {
+        win_skip("MP4 media source is not supported, skipping tests.\n");
+        goto skip_tests;
+    }
+
+    for (i = 0; i < 100; ++i)
+    {
+        LARGE_INTEGER time = {0}, count, freq;
+        QueryPerformanceFrequency(&freq);
+
+        hr = IMFMediaSource_Shutdown(media_source);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        IMFMediaSource_Release(media_source);
+
+        load_resource_stream(resource, &stream);
+        QueryPerformanceCounter(&count);
+        time.QuadPart -= count.QuadPart;
+        hr = IMFSourceResolver_CreateObjectFromByteStream(resolver, stream, resource, MF_RESOLUTION_MEDIASOURCE,
+                NULL, &object_type, (IUnknown **)&media_source);
+        QueryPerformanceCounter(&count);
+        time.QuadPart += count.QuadPart;
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        ok(object_type == MF_OBJECT_MEDIASOURCE, "got type %#x\n", object_type);
+        IMFByteStream_Release(stream);
+
+        time.QuadPart = time.QuadPart * 1000000 / freq.QuadPart;
+        min_time = min(time.QuadPart, min_time);
+        max_time = max(time.QuadPart, max_time);
+    }
+    ok(0, "source resolution took [%f; %f]ms\n", min_time / 1000.0, max_time / 1000.0);
+
+    hr = IMFMediaSource_Shutdown(media_source);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    IMFMediaSource_Release(media_source);
+
+skip_tests:
+    IMFSourceResolver_Release(resolver);
+
+    hr = MFShutdown();
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+}
+
+static void test_media_source_streams(void)
+{
+    subtest_media_source_streams(L"test.mp4");
+}
+
 START_TEST(mf)
 {
     init_functions();
@@ -6808,6 +6896,9 @@ START_TEST(mf)
         win_skip("Skipping tests on Vista.\n");
         return;
     }
+
+    test_media_source_streams();
+    return;
 
     test_MFGetService();
     test_sequencer_source();
@@ -6835,4 +6926,5 @@ START_TEST(mf)
     test_MFEnumDeviceSources();
     test_media_session_Close();
     test_media_session_source_shutdown();
+    test_media_source_streams();
 }
