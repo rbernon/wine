@@ -77,6 +77,12 @@ coclass decodebin_parser {}
 coclass VideoProcessorMFT {}
 
 [
+    threading(both),
+    uuid(480b1517-c8e9-4eae-b006-e6300718d85d)
+]
+coclass GStreamerAudioDecoder {}
+
+[
     helpstring("Generic Decodebin Byte Stream Handler"),
     threading(both),
     uuid(317df618-5e5a-468a-9f15-d827a9a08162)

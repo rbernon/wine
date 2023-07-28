@@ -42,6 +42,7 @@ DEFINE_MEDIATYPE_GUID(MFAudioFormat_RAW_AAC,WAVE_FORMAT_RAW_AAC1);
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_VC1S,MAKEFOURCC('V','C','1','S'));
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_IV50,MAKEFOURCC('I','V','5','0'));
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_ABGR32,D3DFMT_A8B8G8R8);
+DEFINE_MEDIATYPE_GUID(MFAudioFormat_GStreamer,MAKEFOURCC('G','S','T','a'));
 DEFINE_GUID(MEDIASUBTYPE_WMV_Unknown, 0x7ce12ca9,0xbfbf,0x43d9,0x9d,0x00,0x82,0xb8,0xed,0x54,0x31,0x6b);
 
 struct class_factory
@@ -120,6 +121,7 @@ static const IClassFactoryVtbl class_factory_vtbl =
     class_factory_LockServer,
 };
 
+static const GUID CLSID_GStreamerAudioDecoder = {0x480b1517, 0xc8e9, 0x4eae, {0xb0, 0x06, 0xe6, 0x30, 0x07, 0x18, 0xd8, 0x5d}};
 static const GUID CLSID_GStreamerByteStreamHandler = {0x317df618, 0x5e5a, 0x468a, {0x9f, 0x15, 0xd8, 0x27, 0xa9, 0xa0, 0x81, 0x62}};
 
 static const struct class_object
@@ -129,6 +131,7 @@ static const struct class_object
 }
 class_objects[] =
 {
+    { &CLSID_GStreamerAudioDecoder, &audio_decoder_create },
     { &CLSID_VideoProcessorMFT, &video_processor_create },
     { &CLSID_GStreamerByteStreamHandler, &gstreamer_byte_stream_handler_create },
     { &CLSID_MSAACDecMFT, &aac_decoder_create },
@@ -341,6 +344,16 @@ HRESULT mfplat_DllRegisterServer(void)
         {MFMediaType_Video, MFVideoFormat_NV11},
     };
 
+    MFT_REGISTER_TYPE_INFO audio_decoder_input_types[] =
+    {
+        {MFMediaType_Audio, MFAudioFormat_GStreamer},
+    };
+    MFT_REGISTER_TYPE_INFO audio_decoder_output_types[] =
+    {
+        {MFMediaType_Audio, MFAudioFormat_Float},
+        {MFMediaType_Audio, MFAudioFormat_PCM},
+    };
+
     struct mft
     {
         GUID clsid;
@@ -433,6 +446,16 @@ HRESULT mfplat_DllRegisterServer(void)
             color_convert_input_types,
             ARRAY_SIZE(color_convert_output_types),
             color_convert_output_types,
+        },
+        {
+            CLSID_GStreamerAudioDecoder,
+            MFT_CATEGORY_AUDIO_DECODER,
+            L"Wine Audio Decoder MFT",
+            MFT_ENUM_FLAG_SYNCMFT,
+            ARRAY_SIZE(audio_decoder_input_types),
+            audio_decoder_input_types,
+            ARRAY_SIZE(audio_decoder_output_types),
+            audio_decoder_output_types,
         },
     };
 
