@@ -111,6 +111,7 @@ HRESULT wg_transform_drain(wg_transform_t transform);
 HRESULT wg_transform_flush(wg_transform_t transform);
 void wg_transform_notify_qos(wg_transform_t transform,
         bool underflow, double proportion, int64_t diff, uint64_t timestamp);
+HRESULT wg_transform_eos(wg_transform_t transform);
 
 HRESULT check_audio_transform_support(const WAVEFORMATEX *input, const WAVEFORMATEX *output);
 HRESULT check_video_transform_support(const MFVIDEOFORMAT *input, const MFVIDEOFORMAT *output);

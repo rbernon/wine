@@ -712,6 +712,21 @@ void wg_transform_notify_qos(wg_transform_t transform,
     WINE_UNIX_CALL(unix_wg_transform_notify_qos, &params);
 }
 
+HRESULT wg_transform_eos(wg_transform_t transform)
+{
+    NTSTATUS status;
+
+    TRACE("transform %#I64x.\n", transform);
+
+    if ((status = WINE_UNIX_CALL(unix_wg_transform_eos, &transform)))
+    {
+        WARN("wg_transform_eos returned status %#lx\n", status);
+        return HRESULT_FROM_NT(status);
+    }
+
+    return S_OK;
+}
+
 HRESULT wg_muxer_create(const char *format, wg_muxer_t *muxer)
 {
     struct wg_muxer_create_params params =

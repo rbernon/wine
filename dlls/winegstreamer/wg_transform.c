@@ -51,6 +51,7 @@ struct wg_transform
     GstSegment segment;
     GstQuery *drain_query;
 
+    bool eos;
     GstAtomicQueue *input_queue;
 
     bool input_is_flipped;
@@ -970,6 +971,27 @@ static NTSTATUS read_transform_output(struct wg_sample *sample, GstBuffer *buffe
     return STATUS_SUCCESS;
 }
 
+static bool push_end_of_stream(struct wg_transform *transform)
+{
+    GstEvent *event;
+
+    if (!(event = gst_event_new_segment_done(GST_FORMAT_TIME, -1))
+            || !push_event(transform->my_src, event))
+        return false;
+    if (!(event = gst_event_new_eos())
+            || !push_event(transform->my_src, event))
+        return false;
+    if (!(event = gst_event_new_stream_start("stream"))
+            || !push_event(transform->my_src, event))
+        return false;
+    if (!(event = gst_event_new_segment(&transform->segment))
+            || !push_event(transform->my_src, event))
+        return false;
+
+    transform->eos = false;
+    return true;
+}
+
 static bool get_transform_output(struct wg_transform *transform, struct wg_sample *sample)
 {
     GstBuffer *input_buffer;
@@ -982,6 +1004,13 @@ static bool get_transform_output(struct wg_transform *transform, struct wg_sampl
     {
         if ((ret = gst_pad_push(transform->my_src, input_buffer)))
             GST_WARNING("Failed to push transform input, error %d", ret);
+    }
+
+    if (!transform->output_sample && !input_buffer && transform->eos)
+    {
+        if (!push_end_of_stream(transform))
+            GST_ERROR("Failed to push transform %p EOS events", transform);
+        transform->output_sample = gst_atomic_queue_pop(transform->output_queue);
     }
 
     /* Remove the sample so the allocator cannot use it */
@@ -1089,7 +1118,6 @@ NTSTATUS wg_transform_drain(void *args)
     struct wg_transform *transform = get_transform(*(wg_transform_t *)args);
     GstBuffer *input_buffer;
     GstFlowReturn ret;
-    GstEvent *event;
 
     GST_LOG("transform %p", transform);
 
@@ -1099,24 +1127,13 @@ NTSTATUS wg_transform_drain(void *args)
             GST_WARNING("Failed to push transform input, error %d", ret);
     }
 
-    if (!(event = gst_event_new_segment_done(GST_FORMAT_TIME, -1))
-            || !push_event(transform->my_src, event))
-        goto error;
-    if (!(event = gst_event_new_eos())
-            || !push_event(transform->my_src, event))
-        goto error;
-    if (!(event = gst_event_new_stream_start("stream"))
-            || !push_event(transform->my_src, event))
-        goto error;
-    if (!(event = gst_event_new_segment(&transform->segment))
-            || !push_event(transform->my_src, event))
-        goto error;
+    if (!push_end_of_stream(transform))
+    {
+        GST_ERROR("Failed to drain transform %p.", transform);
+        return STATUS_UNSUCCESSFUL;
+    }
 
     return STATUS_SUCCESS;
-
-error:
-    GST_ERROR("Failed to drain transform %p.", transform);
-    return STATUS_UNSUCCESSFUL;
 }
 
 NTSTATUS wg_transform_flush(void *args)
@@ -1169,4 +1186,12 @@ NTSTATUS wg_transform_notify_qos(void *args)
     push_event(transform->my_sink, event);
 
     return S_OK;
+}
+
+NTSTATUS wg_transform_eos(void *args)
+{
+    struct wg_transform *transform = get_transform(*(wg_transform_t *)args);
+    GST_LOG("transform %p", transform);
+    transform->eos = true;
+    return STATUS_SUCCESS;
 }

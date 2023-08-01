@@ -508,6 +508,7 @@ enum unix_funcs
     unix_wg_transform_drain,
     unix_wg_transform_flush,
     unix_wg_transform_notify_qos,
+    unix_wg_transform_eos,
 
     unix_wg_muxer_create,
     unix_wg_muxer_destroy,
