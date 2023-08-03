@@ -649,23 +649,6 @@ static void send_mouse_input( HWND hwnd, Window window, unsigned int state, INPU
     if (!(data = get_win_data( hwnd ))) return;
     release_win_data( data );
 
-    /* update the wine server Z-order */
-
-    if (hwnd != x11drv_thread_data()->grab_hwnd &&
-        /* ignore event if a button is pressed, since the mouse is then grabbed too */
-        !(state & (Button1Mask|Button2Mask|Button3Mask|Button4Mask|Button5Mask|Button6Mask|Button7Mask)))
-    {
-        RECT rect = { input->mi.dx, input->mi.dy, input->mi.dx + 1, input->mi.dy + 1 };
-
-        SERVER_START_REQ( update_window_zorder )
-        {
-            req->window      = wine_server_user_handle( hwnd );
-            req->rect        = wine_server_rectangle( rect );
-            wine_server_call( req );
-        }
-        SERVER_END_REQ;
-    }
-
     NtUserSendHardwareInput( hwnd, SEND_HWMSG_NO_RAW, input, 0 );
 }
 
