@@ -627,31 +627,6 @@ static void map_event_coords( HWND hwnd, Window window, Window event_root, int x
     input->mi.dy = pt.y;
 }
 
-/***********************************************************************
- *		send_mouse_input
- *
- * Update the various window states on a mouse event.
- */
-static void send_mouse_input( HWND hwnd, Window window, unsigned int state, INPUT *input )
-{
-    struct x11drv_win_data *data;
-
-    input->type = INPUT_MOUSE;
-
-    if (!hwnd)
-    {
-        struct x11drv_thread_data *thread_data = x11drv_thread_data();
-        if (!thread_data->clipping_cursor || thread_data->clip_window != window) return;
-        NtUserSendHardwareInput( hwnd, SEND_HWMSG_NO_RAW, input, 0 );
-        return;
-    }
-
-    if (!(data = get_win_data( hwnd ))) return;
-    release_win_data( data );
-
-    NtUserSendHardwareInput( hwnd, SEND_HWMSG_NO_RAW, input, 0 );
-}
-
 #ifdef SONAME_LIBXCURSOR
 
 /***********************************************************************
@@ -1622,7 +1597,7 @@ BOOL X11DRV_ButtonPress( HWND hwnd, XEvent *xev )
 {
     XButtonEvent *event = &xev->xbutton;
     int buttonNum = event->button - 1;
-    INPUT input;
+    INPUT input = {.type = INPUT_MOUSE};
 
     if (buttonNum >= NB_BUTTONS) return FALSE;
 
@@ -1637,7 +1612,7 @@ BOOL X11DRV_ButtonPress( HWND hwnd, XEvent *xev )
 
     update_user_time( event->time );
     map_event_coords( hwnd, event->window, event->root, event->x_root, event->y_root, &input );
-    send_mouse_input( hwnd, event->window, event->state, &input );
+    __wine_send_input( hwnd, &input, NULL );
     return TRUE;
 }
 
@@ -1649,7 +1624,7 @@ BOOL X11DRV_ButtonRelease( HWND hwnd, XEvent *xev )
 {
     XButtonEvent *event = &xev->xbutton;
     int buttonNum = event->button - 1;
-    INPUT input;
+    INPUT input = {.type = INPUT_MOUSE};
 
     if (buttonNum >= NB_BUTTONS || !button_up_flags[buttonNum]) return FALSE;
 
@@ -1663,7 +1638,7 @@ BOOL X11DRV_ButtonRelease( HWND hwnd, XEvent *xev )
     input.mi.dwExtraInfo = 0;
 
     map_event_coords( hwnd, event->window, event->root, event->x_root, event->y_root, &input );
-    send_mouse_input( hwnd, event->window, event->state, &input );
+    __wine_send_input( hwnd, &input, NULL );
     return TRUE;
 }
 
@@ -1674,7 +1649,7 @@ BOOL X11DRV_ButtonRelease( HWND hwnd, XEvent *xev )
 BOOL X11DRV_MotionNotify( HWND hwnd, XEvent *xev )
 {
     XMotionEvent *event = &xev->xmotion;
-    INPUT input;
+    INPUT input = {.type = INPUT_MOUSE};
 
     TRACE( "hwnd %p/%lx pos %d,%d is_hint %d serial %lu\n",
            hwnd, event->window, event->x, event->y, event->is_hint, event->serial );
@@ -1692,7 +1667,7 @@ BOOL X11DRV_MotionNotify( HWND hwnd, XEvent *xev )
         return FALSE;
     }
     map_event_coords( hwnd, event->window, event->root, event->x_root, event->y_root, &input );
-    send_mouse_input( hwnd, event->window, event->state, &input );
+    __wine_send_input( hwnd, &input, NULL );
     return TRUE;
 }
 
@@ -1703,7 +1678,7 @@ BOOL X11DRV_MotionNotify( HWND hwnd, XEvent *xev )
 BOOL X11DRV_EnterNotify( HWND hwnd, XEvent *xev )
 {
     XCrossingEvent *event = &xev->xcrossing;
-    INPUT input;
+    INPUT input = {.type = INPUT_MOUSE};
 
     TRACE( "hwnd %p/%lx pos %d,%d detail %d\n", hwnd, event->window, event->x, event->y, event->detail );
 
@@ -1725,7 +1700,7 @@ BOOL X11DRV_EnterNotify( HWND hwnd, XEvent *xev )
         return FALSE;
     }
     map_event_coords( hwnd, event->window, event->root, event->x_root, event->y_root, &input );
-    send_mouse_input( hwnd, event->window, event->state, &input );
+    __wine_send_input( hwnd, &input, NULL );
     return TRUE;
 }
 
@@ -1835,7 +1810,7 @@ static BOOL X11DRV_RawMotion( XGenericEventCookie *xev )
     struct x11drv_thread_data *thread_data = x11drv_thread_data();
     UINT flags = thread_data->xinput2_rawinput ? SEND_HWMSG_NO_MSG : SEND_HWMSG_NO_RAW;
     XIRawEvent *event = xev->data;
-    INPUT input;
+    INPUT input = {.type = INPUT_MOUSE};
 
     if (broken_rawevents && is_old_motion_event( xev->serial ))
     {
@@ -1843,7 +1818,6 @@ static BOOL X11DRV_RawMotion( XGenericEventCookie *xev )
         return FALSE;
     }
 
-    input.type = INPUT_MOUSE;
     input.mi.mouseData   = 0;
     input.mi.dwFlags     = MOUSEEVENTF_MOVE;
     input.mi.time        = EVENT_x11_time_to_win32_time( event->time );
