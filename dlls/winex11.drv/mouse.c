@@ -1693,8 +1693,6 @@ BOOL X11DRV_EnterNotify( HWND hwnd, XEvent *xev )
 
     x11drv_thread_data()->keymapnotify_hwnd = hwnd;
 
-    if (hwnd == x11drv_thread_data()->grab_hwnd) return FALSE;
-
     /* simulate a mouse motion event */
     input.mi.dx          = event->x;
     input.mi.dy          = event->y;
