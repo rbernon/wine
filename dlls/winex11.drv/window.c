@@ -2816,23 +2816,6 @@ BOOL X11DRV_ScrollDC( HDC hdc, INT dx, INT dy, HRGN update )
 }
 
 
-/***********************************************************************
- *		SetCapture  (X11DRV.@)
- */
-void X11DRV_SetCapture( HWND hwnd, UINT flags )
-{
-    struct x11drv_win_data *data;
-
-    if (!(flags & (GUI_INMOVESIZE | GUI_INMENUMODE))) return;
-
-    if (hwnd)
-    {
-        if (!(data = get_win_data( NtUserGetAncestor( hwnd, GA_ROOT )))) return;
-        release_win_data( data );
-    }
-}
-
-
 /*****************************************************************
  *		SetParent   (X11DRV.@)
  */
