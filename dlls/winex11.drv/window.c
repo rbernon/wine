@@ -2821,7 +2821,6 @@ BOOL X11DRV_ScrollDC( HDC hdc, INT dx, INT dy, HRGN update )
  */
 void X11DRV_SetCapture( HWND hwnd, UINT flags )
 {
-    struct x11drv_thread_data *thread_data = x11drv_thread_data();
     struct x11drv_win_data *data;
 
     if (!(flags & (GUI_INMOVESIZE | GUI_INMENUMODE))) return;
@@ -2829,13 +2828,6 @@ void X11DRV_SetCapture( HWND hwnd, UINT flags )
     if (hwnd)
     {
         if (!(data = get_win_data( NtUserGetAncestor( hwnd, GA_ROOT )))) return;
-        if (data->whole_window) thread_data->grab_hwnd = data->hwnd;
-        release_win_data( data );
-    }
-    else  /* release capture */
-    {
-        if (!(data = get_win_data( thread_data->grab_hwnd ))) return;
-        thread_data->grab_hwnd = NULL;
         release_win_data( data );
     }
 }
