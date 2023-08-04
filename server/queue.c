@@ -237,10 +237,15 @@ static unsigned int cursor_history_latest;
     do {                                                          \
         const type *__shared = (object)->shared;                  \
         type *shared = (type *)__shared;                          \
+        LONG64 __seq = shared->seq + 1, __end = __seq + 1;        \
+        assert( (__seq & 1) != 0 );                               \
+        __WINE_ATOMIC_STORE_RELEASE( &shared->seq, &__seq );      \
         do
 
 #define SHARED_WRITE_END                                          \
         while(0);                                                 \
+        assert( __seq == shared->seq );                           \
+        __WINE_ATOMIC_STORE_RELEASE( &shared->seq, &__end );      \
     } while(0)
 
 static void queue_hardware_message( struct desktop *desktop, struct message *msg, int always_queue );
