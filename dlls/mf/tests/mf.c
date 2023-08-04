@@ -6828,6 +6828,8 @@ struct test_transform
     IMFSample *output_samples[4];
     HRESULT output_results[4];
     HANDLE process_output_event[4];
+
+    UINT sample_count;
 };
 
 static HRESULT WINAPI test_transform_QueryInterface(IMFTransform *iface, REFIID iid, void **out)
@@ -6876,6 +6878,7 @@ static ULONG WINAPI test_transform_Release(IMFTransform *iface)
 static HRESULT WINAPI test_transform_GetStreamLimits(IMFTransform *iface, DWORD *input_minimum,
         DWORD *input_maximum, DWORD *output_minimum, DWORD *output_maximum)
 {
+    ok(0, "unexpected %s\n", __func__);
     return E_NOTIMPL;
 }
 
@@ -6936,11 +6939,13 @@ static HRESULT WINAPI test_transform_GetOutputStreamAttributes(IMFTransform *ifa
 
 static HRESULT WINAPI test_transform_DeleteInputStream(IMFTransform *iface, DWORD id)
 {
+    ok(0, "unexpected %s\n", __func__);
     return E_NOTIMPL;
 }
 
 static HRESULT WINAPI test_transform_AddInputStreams(IMFTransform *iface, DWORD streams, DWORD *ids)
 {
+    ok(0, "unexpected %s\n", __func__);
     return E_NOTIMPL;
 }
 
@@ -7066,26 +7071,32 @@ static HRESULT WINAPI test_transform_GetOutputCurrentType(IMFTransform *iface, D
 
 static HRESULT WINAPI test_transform_GetInputStatus(IMFTransform *iface, DWORD id, DWORD *flags)
 {
+    ok(0, "unexpected %s\n", __func__);
     return E_NOTIMPL;
 }
 
 static HRESULT WINAPI test_transform_GetOutputStatus(IMFTransform *iface, DWORD *flags)
 {
+    ok(0, "unexpected %s\n", __func__);
     return E_NOTIMPL;
 }
 
 static HRESULT WINAPI test_transform_SetOutputBounds(IMFTransform *iface, LONGLONG lower, LONGLONG upper)
 {
+    ok(0, "unexpected %s\n", __func__);
     return E_NOTIMPL;
 }
 
 static HRESULT WINAPI test_transform_ProcessEvent(IMFTransform *iface, DWORD id, IMFMediaEvent *event)
 {
+    ok(0, "unexpected %s\n", __func__);
     return E_NOTIMPL;
 }
 
 static HRESULT WINAPI test_transform_ProcessMessage(IMFTransform *iface, MFT_MESSAGE_TYPE message, ULONG_PTR param)
 {
+    struct test_transform *impl = CONTAINING_RECORD(iface, struct test_transform, IMFTransform_iface);
+    ok(0, "%u: message %#x param %#Ix\n", impl->sample_count, message, param);
     return S_OK;
 }
 
@@ -7101,6 +7112,8 @@ static HRESULT WINAPI test_transform_ProcessInput(IMFTransform *iface, DWORD id,
         hr = MF_E_SHUTDOWN;
     else
     {
+        impl->sample_count++;
+
         if ((previous = impl->input_samples[id]))
         {
             /* samples should be received again after MF_E_NOTACCEPTING */
@@ -7562,7 +7575,7 @@ static void test_media_session_transform_simple(void)
     res = wait_async_callback(async_callback, 1000);
     ok(res == 0, "got res %#lx\n", res);
 
-    for (i = 0; i < 10; i++)
+    for (i = 0; i < 30; i++)
     {
         winetest_push_context("%u", i);
 
@@ -7637,6 +7650,40 @@ static void test_media_session_transform_simple(void)
         res = test_transform_wait_process_output(transform, 1000);
         ok(res == 0, "got res %#lx\n", res);
         test_transform_set_output(transform, 0, NULL);
+
+        winetest_pop_context();
+    }
+
+Sleep(1000);
+
+    /* ProcessOutput call loops until it fails */
+
+    for (i = 0, time = 0, duration = 1000; i < 20; i++)
+    {
+        IMFMediaBuffer *buffer;
+
+        winetest_push_context("%u", i);
+
+        hr = MFCreateSample(&sample);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = MFCreateMemoryBuffer(0x1000, &buffer);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = IMFSample_AddBuffer(sample, buffer);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        IMFMediaBuffer_Release(buffer);
+
+        hr = IMFSample_SetSampleTime(sample, time + duration);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = IMFSample_SetSampleDuration(sample, duration);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+
+        test_transform_set_output(transform, 0, sample);
+
+        IMFSample_Release(sample);
+        time += duration;
+
+        res = test_transform_wait_process_output(transform, 1000);
+        ok(res == 0, "got res %#lx\n", res);
 
         winetest_pop_context();
     }
@@ -7851,7 +7898,7 @@ static void test_media_session_transform_multiple_outputs(void)
     res = wait_async_callback(async_callback, 1000);
     ok(res == 0, "got res %#lx\n", res);
 
-    for (i = 0; i < 10; i++)
+    for (i = 0; i < 30; i++)
     {
         winetest_push_context("%u", i);
 
@@ -7938,6 +7985,42 @@ static void test_media_session_transform_multiple_outputs(void)
         ok(res == 1, "got res %#lx\n", res);
         test_transform_set_output(transform, 0, NULL);
         test_transform_set_output(transform, 1, NULL);
+
+        winetest_pop_context();
+    }
+
+Sleep(1000);
+
+    /* ProcessOutput call loops until it fails */
+
+    for (i = 0, time = 0, duration = 1000; i < 20; i++)
+    {
+        IMFMediaBuffer *buffer;
+
+        winetest_push_context("%u", i);
+
+        hr = MFCreateSample(&sample);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = MFCreateMemoryBuffer(0x1000, &buffer);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = IMFSample_AddBuffer(sample, buffer);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        IMFMediaBuffer_Release(buffer);
+
+        hr = IMFSample_SetSampleTime(sample, time + duration);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = IMFSample_SetSampleDuration(sample, duration);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+
+        test_transform_set_output(transform, 0, sample);
+        test_transform_set_output(transform, 1, sample);
+        IMFSample_Release(sample);
+        time += duration;
+
+        res = test_transform_wait_process_output(transform, 1000);
+        ok(res == 0, "got res %#lx\n", res);
+        res = test_transform_wait_process_output(transform, 1000);
+        ok(res == 1, "got res %#lx\n", res);
 
         winetest_pop_context();
     }
@@ -8152,7 +8235,7 @@ static void test_media_session_transform_multiple_sources(void)
     res = wait_async_callback(async_callback, 1000);
     ok(res == 0, "got res %#lx\n", res);
 
-    for (i = 0; i < 10; i++)
+    for (i = 0; i < 30; i++)
     {
         winetest_push_context("%u", i);
 
@@ -8261,6 +8344,40 @@ static void test_media_session_transform_multiple_sources(void)
             res = wait_async_callback(async_callback, 1000);
             ok(res == 0, "got res %#lx\n", res);
         }
+
+        winetest_pop_context();
+    }
+
+Sleep(1000);
+
+    /* ProcessOutput call loops until it fails */
+
+    for (i = 0, time = 0, duration = 1000; i < 20; i++)
+    {
+        IMFMediaBuffer *buffer;
+
+        winetest_push_context("%u", i);
+
+        hr = MFCreateSample(&sample);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = MFCreateMemoryBuffer(0x1000, &buffer);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = IMFSample_AddBuffer(sample, buffer);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        IMFMediaBuffer_Release(buffer);
+
+        hr = IMFSample_SetSampleTime(sample, time + duration);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = IMFSample_SetSampleDuration(sample, duration);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+
+        test_transform_set_output(transform, 0, sample);
+
+        IMFSample_Release(sample);
+        time += duration;
+
+        res = test_transform_wait_process_output(transform, 1000);
+        ok(res == 0, "got res %#lx\n", res);
 
         winetest_pop_context();
     }
