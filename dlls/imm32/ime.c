@@ -408,11 +408,53 @@ static LRESULT ime_ui_notify( HIMC himc, HWND hwnd, WPARAM wparam, LPARAM lparam
 
     switch (wparam)
     {
+    case IMN_CLOSESTATUSWINDOW:
+        ShowWindow( hwnd, SW_HIDE );
+        return 0;
+    case IMN_OPENSTATUSWINDOW:
+        ShowWindow( hwnd, SW_SHOWNOACTIVATE );
+        return 0;
     case IMN_WINE_SET_COMP_STRING:
         return ime_set_comp_string( himc, lparam );
     default:
         return 0;
     }
+}
+
+static LRESULT ime_ui_control( HIMC himc, HWND hwnd, WPARAM wparam, LPARAM lparam )
+{
+    INPUTCONTEXT *ctx;
+
+    TRACE( "himc %p, hwnd %p, wparam %s, lparam %#Ix\n", hwnd, himc, debugstr_imn(wparam), lparam );
+
+    if (!(ctx = ImmLockIMC( himc ))) return 0;
+
+    switch (wparam)
+    {
+    case IMC_CLOSESTATUSWINDOW:
+        if (!IsWindowVisible( hwnd )) return 0;
+        return SendMessageW( ctx->hWnd, WM_IME_NOTIFY, IMN_CLOSESTATUSWINDOW, 0 );
+
+    case IMC_OPENSTATUSWINDOW:
+        if (IsWindowVisible( hwnd )) return 0;
+        return SendMessageW( ctx->hWnd, WM_IME_NOTIFY, IMN_OPENSTATUSWINDOW, 0 );
+
+    case IMC_GETCANDIDATEPOS:
+    case IMC_GETCOMPOSITIONFONT:
+    case IMC_GETCOMPOSITIONWINDOW:
+    case IMC_GETSTATUSWINDOWPOS:
+    case IMC_SETCANDIDATEPOS:
+    case IMC_SETCOMPOSITIONFONT:
+    case IMC_SETCOMPOSITIONWINDOW:
+    case IMC_SETSTATUSWINDOWPOS:
+    default:
+        FIXME( "hwnd %p, himc %p, wparam %s, lparam %#Ix stub!\n", hwnd, himc, debugstr_imc(wparam), lparam );
+        break;
+    }
+
+    ImmUnlockIMC( himc );
+
+    return 0;
 }
 
 static LRESULT WINAPI ime_ui_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
@@ -445,9 +487,7 @@ static LRESULT WINAPI ime_ui_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LP
     case WM_IME_NOTIFY:
         return ime_ui_notify( himc, hwnd, wparam, lparam );
     case WM_IME_CONTROL:
-        FIXME( "hwnd %p, himc %p, msg %s, wparam %s, lparam %#Ix stub!\n", hwnd, himc,
-               debugstr_wm_ime(msg), debugstr_imc(wparam), lparam );
-        return 1;
+        return ime_ui_control( himc, hwnd, wparam, lparam );
     }
 
     return DefWindowProcW( hwnd, msg, wparam, lparam );
