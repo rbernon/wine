@@ -77,6 +77,7 @@
     expect_ ## func = called_ ## func = FALSE
 
 extern GUID DMOVideoFormat_RGB32;
+DEFINE_GUID(mf_toponode_work_queue,0x6d7e1a30,0x106c,0x43b9,0xac,0xce,0xad,0xba,0x94,0x3f,0x42,0xec);
 
 HRESULT (WINAPI *pMFCreateSampleCopierMFT)(IMFTransform **copier);
 HRESULT (WINAPI *pMFGetTopoNodeCurrentType)(IMFTopologyNode *node, DWORD stream, BOOL output, IMFMediaType **type);
@@ -1134,6 +1135,12 @@ static IMFAsyncCallback *create_test_callback(BOOL check_media_event)
     ok(!!callback->event, "CreateEventW failed, error %lu\n", GetLastError());
 
     return &callback->IMFAsyncCallback_iface;
+}
+
+static DWORD wait_async_callback(IMFAsyncCallback *iface, DWORD timeout)
+{
+    struct test_callback *callback = impl_from_IMFAsyncCallback(iface);
+    return WaitForSingleObject(callback->event, timeout);
 }
 
 HRESULT wait_media_event_(const char *file, int line, IMFMediaSession *session, IMFAsyncCallback *callback,
@@ -7206,7 +7213,7 @@ static IMFTopologyNode *test_transform_create_output_node(IMFTopology *topology,
 
 static void test_media_session_transform_simple(void)
 {
-    IMFAsyncCallback *media_event_callback;
+    IMFAsyncCallback *media_event_callback, *async_callback;
     IMFSampleGrabberSinkCallback *grabber_callback;
     IMFTopologyNode *up_node, *node;
     IMFMediaType *media_type;
@@ -7214,11 +7221,12 @@ static void test_media_session_transform_simple(void)
     LONGLONG time, duration;
     IMFTransform *transform;
     IMFMediaSource *source;
-    UINT32 i;
+    UINT32 i, count, queue;
     IMFTopology *topology;
     PROPVARIANT propvar;
     IMFSample *sample;
     HRESULT hr;
+    TOPOID id;
     DWORD res;
 
     hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
@@ -7232,6 +7240,7 @@ static void test_media_session_transform_simple(void)
 
     grabber_callback = create_test_grabber_callback();
     media_event_callback = create_test_callback(TRUE);
+    async_callback = create_test_callback(FALSE);
 
     hr = MFCreateMediaSession(NULL, &session);
     ok(hr == S_OK, "got hr %#lx\n", hr);
@@ -7243,6 +7252,11 @@ static void test_media_session_transform_simple(void)
     ok(hr == S_OK, "got hr %#lx\n", hr);
 
     up_node = test_transform_create_source_node(topology, source, 0, &media_type);
+    hr = IMFTopologyNode_SetUINT32(up_node, &MF_TOPONODE_WORKQUEUE_ID, 0);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+
+    hr = IMFTopologyNode_GetTopoNodeID(up_node, &id);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
 
     node = test_transform_create_transform_node(topology, 1, &media_type, 1, &media_type, &transform);
     hr = IMFTopologyNode_ConnectOutput(up_node, 0, node, 0);
@@ -7276,6 +7290,30 @@ static void test_media_session_transform_simple(void)
     ok(propvar.punkVal == (IUnknown *)topology, "got punkVal %p\n", propvar.punkVal);
     PropVariantClear(&propvar);
 
+
+    hr = IMFTopology_GetNodeByID(topology, id, &node);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    hr = IMFTopologyNode_GetUINT32(node, &mf_toponode_work_queue, &queue);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    ok(queue != 0, "got queue %#x\n", queue);
+    IMFTopologyNode_Release(node);
+
+    hr = IMFTopology_GetCount(topology, &count);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    for (i = 0; i < count; i++)
+    {
+        UINT32 tmp;
+
+        hr = IMFTopology_GetNode(topology, i, &node);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = IMFTopologyNode_GetUINT32(node, &mf_toponode_work_queue, &tmp);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        ok(queue == tmp, "got queue %#x\n", tmp);
+        IMFTopologyNode_Release(node);
+    }
+    IMFTopology_Release(topology);
+
+
     hr = IMFMediaSession_Start(session, &GUID_NULL, &propvar);
     ok(hr == S_OK, "got hr %#lx\n", hr);
 
@@ -7286,6 +7324,12 @@ static void test_media_session_transform_simple(void)
     ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
     res = test_transform_wait_process_output(transform, 1000);
     ok(res == 0, "got res %#lx\n", res);
+
+    /* work queue is now blocked */
+    hr = MFPutWorkItem(queue, async_callback, NULL);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    res = wait_async_callback(async_callback, 100);
+    ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
 
     /* ProcessOutput call loops until it fails */
 
@@ -7310,11 +7354,21 @@ static void test_media_session_transform_simple(void)
 
         test_transform_set_output(transform, 0, sample);
 
+        /* work queue is now unblocked */
+        res = wait_async_callback(async_callback, 1000);
+        ok(res == 0, "got res %#lx\n", res);
+
         IMFSample_Release(sample);
         time += duration;
 
         res = test_transform_wait_process_output(transform, 1000);
         ok(res == 0, "got res %#lx\n", res);
+
+        /* work queue is now blocked */
+        hr = MFPutWorkItem(queue, async_callback, NULL);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        res = wait_async_callback(async_callback, 0);
+        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
 
         winetest_pop_context();
     }
@@ -7324,6 +7378,10 @@ static void test_media_session_transform_simple(void)
     res = test_transform_wait_process_output(transform, 0);
     ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
     test_transform_set_output(transform, 0, NULL);
+
+    /* work queue is now unblocked */
+    res = wait_async_callback(async_callback, 1000);
+    ok(res == 0, "got res %#lx\n", res);
 
     for (i = 0; i < 10; i++)
     {
@@ -7336,17 +7394,48 @@ static void test_media_session_transform_simple(void)
         ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
         res = test_transform_wait_process_output(transform, 0);
         ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+
+        if (i == 0)
+        {
+            /* work queue is now blocked */
+            hr = MFPutWorkItem(queue, async_callback, NULL);
+            ok(hr == S_OK, "got hr %#lx\n", hr);
+            res = wait_async_callback(async_callback, 0);
+            ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        }
+
         /* take the sample and return S_OK */
         test_transform_get_input(transform, 0, &sample);
+
+        if (i == 0)
+        {
+            /* work queue is still blocked */
+            res = wait_async_callback(async_callback, 0);
+            ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        }
 
         /* ProcessOutput call loop */
         res = test_transform_wait_process_output(transform, 1000);
         ok(res == 0, "got res %#lx\n", res);
         test_transform_set_output(transform, 0, sample);
 
+        if (i == 0)
+        {
+            /* work queue is still blocked */
+            res = wait_async_callback(async_callback, 0);
+            ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        }
+
         res = test_transform_wait_process_output(transform, 1000);
         ok(res == 0, "got res %#lx\n", res);
         test_transform_set_output(transform, 0, NULL);
+
+        if (i == 0)
+        {
+            /* work queue is now unblocked */
+            res = wait_async_callback(async_callback, 1000);
+            ok(res == 0, "got res %#lx\n", res);
+        }
 
         IMFSample_Release(sample);
 
@@ -7381,6 +7470,7 @@ static void test_media_session_transform_simple(void)
     IMFMediaSession_Release(session);
 
     IMFAsyncCallback_Release(media_event_callback);
+    IMFAsyncCallback_Release(async_callback);
 
 done:
     hr = MFShutdown();
@@ -7389,7 +7479,7 @@ done:
 
 static void test_media_session_transform_multiple_outputs(void)
 {
-    IMFAsyncCallback *media_event_callback;
+    IMFAsyncCallback *media_event_callback, *async_callback;
     IMFSampleGrabberSinkCallback *grabber_callback;
     IMFTopologyNode *up_node, *node;
     IMFMediaType *media_types[2];
@@ -7397,11 +7487,12 @@ static void test_media_session_transform_multiple_outputs(void)
     LONGLONG time, duration;
     IMFTransform *transform;
     IMFMediaSource *source;
-    UINT32 i;
+    UINT32 i, count, queue;
     IMFTopology *topology;
     PROPVARIANT propvar;
     IMFSample *sample;
     HRESULT hr;
+    TOPOID id;
     DWORD res;
 
     hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
@@ -7415,6 +7506,7 @@ static void test_media_session_transform_multiple_outputs(void)
 
     grabber_callback = create_test_grabber_callback();
     media_event_callback = create_test_callback(TRUE);
+    async_callback = create_test_callback(FALSE);
 
     hr = MFCreateMediaSession(NULL, &session);
     ok(hr == S_OK, "got hr %#lx\n", hr);
@@ -7425,7 +7517,12 @@ static void test_media_session_transform_multiple_outputs(void)
     ok(hr == S_OK, "got hr %#lx\n", hr);
 
     up_node = test_transform_create_source_node(topology, source, 0, &media_types[0]);
+    hr = IMFTopologyNode_SetUINT32(up_node, &MF_TOPONODE_WORKQUEUE_ID, 0);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
     IMFMediaType_AddRef((media_types[1] = media_types[0]));
+
+    hr = IMFTopologyNode_GetTopoNodeID(up_node, &id);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
 
     node = test_transform_create_transform_node(topology, 1, media_types, 2, media_types, &transform);
     hr = IMFTopologyNode_ConnectOutput(up_node, 0, node, 0);
@@ -7466,6 +7563,30 @@ static void test_media_session_transform_multiple_outputs(void)
     ok(propvar.punkVal == (IUnknown *)topology, "got punkVal %p\n", propvar.punkVal);
     PropVariantClear(&propvar);
 
+
+    hr = IMFTopology_GetNodeByID(topology, id, &node);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    hr = IMFTopologyNode_GetUINT32(node, &mf_toponode_work_queue, &queue);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    ok(queue != 0, "got queue %#x\n", queue);
+    IMFTopologyNode_Release(node);
+
+    hr = IMFTopology_GetCount(topology, &count);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    for (i = 0; i < count; i++)
+    {
+        UINT32 tmp;
+
+        hr = IMFTopology_GetNode(topology, i, &node);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = IMFTopologyNode_GetUINT32(node, &mf_toponode_work_queue, &tmp);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        ok(queue == tmp, "got queue %#x\n", tmp);
+        IMFTopologyNode_Release(node);
+    }
+    IMFTopology_Release(topology);
+
+
     hr = IMFMediaSession_Start(session, &GUID_NULL, &propvar);
     ok(hr == S_OK, "got hr %#lx\n", hr);
 
@@ -7478,6 +7599,12 @@ static void test_media_session_transform_multiple_outputs(void)
     ok(res == 0, "got res %#lx\n", res);
     res = test_transform_wait_process_output(transform, 1000);
     ok(res == 1, "got res %#lx\n", res);
+
+    /* work queue is now blocked */
+    hr = MFPutWorkItem(queue, async_callback, NULL);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    res = wait_async_callback(async_callback, 100);
+    ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
 
     /* ProcessOutput call loops until it fails */
 
@@ -7505,10 +7632,31 @@ static void test_media_session_transform_multiple_outputs(void)
         IMFSample_Release(sample);
         time += duration;
 
+        if (i == 0)
+        {
+            /* workqueue is still blocked */
+            res = wait_async_callback(async_callback, 100);
+            ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        }
+        else
+        {
+            /* work queue is now unblocked */
+            res = wait_async_callback(async_callback, 1000);
+            ok(res == 0, "got res %#lx\n", res);
+        }
+
         res = test_transform_wait_process_output(transform, 1000);
         ok(res == 0, "got res %#lx\n", res);
         res = test_transform_wait_process_output(transform, 1000);
         ok(res == 1, "got res %#lx\n", res);
+
+        if (i > 0)
+        {
+            hr = MFPutWorkItem(queue, async_callback, NULL);
+            ok(hr == S_OK, "got hr %#lx\n", hr);
+            res = wait_async_callback(async_callback, 0);
+            ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        }
 
         winetest_pop_context();
     }
@@ -7519,6 +7667,10 @@ static void test_media_session_transform_multiple_outputs(void)
     ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
     test_transform_set_output(transform, 0, NULL);
     test_transform_set_output(transform, 1, NULL);
+
+    /* work queue is now unblocked */
+    res = wait_async_callback(async_callback, 1000);
+    ok(res == 0, "got res %#lx\n", res);
 
     for (i = 0; i < 10; i++)
     {
@@ -7531,8 +7683,25 @@ static void test_media_session_transform_multiple_outputs(void)
         ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
         res = test_transform_wait_process_output(transform, 0);
         ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+
+        if (i == 0)
+        {
+            /* work queue is now blocked */
+            hr = MFPutWorkItem(queue, async_callback, NULL);
+            ok(hr == S_OK, "got hr %#lx\n", hr);
+            res = wait_async_callback(async_callback, 0);
+            ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        }
+
         /* take the sample and return S_OK */
         test_transform_get_input(transform, 0, &sample);
+
+        if (i == 0)
+        {
+            /* work queue is still blocked */
+            res = wait_async_callback(async_callback, 0);
+            ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        }
 
         /* ProcessOutput call loop */
         res = test_transform_wait_process_output(transform, 1000);
@@ -7542,12 +7711,26 @@ static void test_media_session_transform_multiple_outputs(void)
         test_transform_set_output(transform, 0, NULL);
         test_transform_set_output(transform, 1, sample);
 
+        if (i == 0)
+        {
+            /* work queue is still blocked */
+            res = wait_async_callback(async_callback, 0);
+            ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        }
+
         res = test_transform_wait_process_output(transform, 1000);
         ok(res == 0, "got res %#lx\n", res);
         res = test_transform_wait_process_output(transform, 1000);
         ok(res == 1, "got res %#lx\n", res);
         test_transform_set_output(transform, 0, NULL);
         test_transform_set_output(transform, 1, NULL);
+
+        if (i == 0)
+        {
+            /* work queue is now unblocked */
+            res = wait_async_callback(async_callback, 1000);
+            ok(res == 0, "got res %#lx\n", res);
+        }
 
         IMFSample_Release(sample);
 
@@ -7588,6 +7771,7 @@ static void test_media_session_transform_multiple_outputs(void)
     IMFMediaSession_Release(session);
 
     IMFAsyncCallback_Release(media_event_callback);
+    IMFAsyncCallback_Release(async_callback);
 
 done:
     hr = MFShutdown();
@@ -7596,11 +7780,11 @@ done:
 
 static void test_media_session_transform_multiple_sources(void)
 {
-    IMFAsyncCallback *media_event_callback;
+    IMFAsyncCallback *media_event_callback, *async_callback;
     IMFSampleGrabberSinkCallback *grabber_callback;
     IMFTopologyNode *up_nodes[2], *node;
     IMFMediaType *media_types[2];
-    UINT32 i;
+    UINT32 i, count, queues[2];
     IMFMediaSession *session;
     LONGLONG time, duration;
     IMFTransform *transform;
@@ -7609,6 +7793,7 @@ static void test_media_session_transform_multiple_sources(void)
     PROPVARIANT propvar;
     DWORD res, stream;
     IMFSample *sample;
+    TOPOID ids[2];
     HRESULT hr;
 
     hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
@@ -7622,6 +7807,7 @@ static void test_media_session_transform_multiple_sources(void)
 
     grabber_callback = create_test_grabber_callback();
     media_event_callback = create_test_callback(TRUE);
+    async_callback = create_test_callback(FALSE);
 
     hr = MFCreateMediaSession(NULL, &session);
     ok(hr == S_OK, "got hr %#lx\n", hr);
@@ -7632,7 +7818,16 @@ static void test_media_session_transform_multiple_sources(void)
     ok(hr == S_OK, "got hr %#lx\n", hr);
 
     up_nodes[0] = test_transform_create_source_node(topology, source, 0, &media_types[0]);
+    hr = IMFTopologyNode_SetUINT32(up_nodes[0], &MF_TOPONODE_WORKQUEUE_ID, 0);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
     up_nodes[1] = test_transform_create_source_node(topology, source, 1, &media_types[1]);
+    hr = IMFTopologyNode_SetUINT32(up_nodes[1], &MF_TOPONODE_WORKQUEUE_ID, 1);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+
+    hr = IMFTopologyNode_GetTopoNodeID(up_nodes[0], &ids[0]);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    hr = IMFTopologyNode_GetTopoNodeID(up_nodes[1], &ids[1]);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
 
     node = test_transform_create_transform_node(topology, 2, media_types, 1, media_types, &transform);
     hr = IMFTopologyNode_ConnectOutput(up_nodes[0], 0, node, 0);
@@ -7669,6 +7864,40 @@ static void test_media_session_transform_multiple_sources(void)
     ok(propvar.punkVal == (IUnknown *)topology, "got punkVal %p\n", propvar.punkVal);
     PropVariantClear(&propvar);
 
+
+    hr = IMFTopology_GetNodeByID(topology, ids[1], &node);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    hr = IMFTopologyNode_GetUINT32(node, &mf_toponode_work_queue, &queues[1]);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    ok(queues[1] != 0, "got queue %#x\n", queues[1]);
+    IMFTopologyNode_Release(node);
+
+    hr = IMFTopology_GetCount(topology, &count);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    for (i = 0; i < count; i++)
+    {
+        UINT32 tmp;
+        TOPOID id;
+
+        hr = IMFTopology_GetNode(topology, i, &node);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        IMFTopologyNode_GetTopoNodeID(node, &id);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = IMFTopologyNode_GetUINT32(node, &mf_toponode_work_queue, &tmp);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        if (id != ids[0])
+            ok(tmp == queues[1], "got queue %#x\n", tmp);
+        else
+        {
+            ok(tmp != queues[1], "got queue %#x\n", tmp);
+            ok(tmp != 0, "got queue %#x\n", tmp);
+            queues[0] = tmp;
+        }
+        IMFTopologyNode_Release(node);
+    }
+    IMFTopology_Release(topology);
+
+
     hr = IMFMediaSession_Start(session, &GUID_NULL, &propvar);
     ok(hr == S_OK, "got hr %#lx\n", hr);
 
@@ -7678,6 +7907,18 @@ static void test_media_session_transform_multiple_sources(void)
     res = test_transform_wait_process_input(transform, 0);
     ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
     res = test_transform_wait_process_output(transform, 1000);
+    ok(res == 0, "got res %#lx\n", res);
+
+    /* output work queue is now blocked */
+    hr = MFPutWorkItem(queues[1], async_callback, NULL);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    res = wait_async_callback(async_callback, 100);
+    ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+
+    /* input work queue is unblocked */
+    hr = MFPutWorkItem(queues[0], async_callback, NULL);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    res = wait_async_callback(async_callback, 1000);
     ok(res == 0, "got res %#lx\n", res);
 
     /* ProcessOutput call loops until it fails */
@@ -7703,11 +7944,21 @@ static void test_media_session_transform_multiple_sources(void)
 
         test_transform_set_output(transform, 0, sample);
 
+        /* output work queue is now unblocked */
+        res = wait_async_callback(async_callback, 1000);
+        ok(res == 0, "got res %#lx\n", res);
+
         IMFSample_Release(sample);
         time += duration;
 
         res = test_transform_wait_process_output(transform, 1000);
         ok(res == 0, "got res %#lx\n", res);
+
+        /* output work queue is now blocked */
+        hr = MFPutWorkItem(queues[1], async_callback, NULL);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        res = wait_async_callback(async_callback, 0);
+        ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
 
         winetest_pop_context();
     }
@@ -7717,6 +7968,10 @@ static void test_media_session_transform_multiple_sources(void)
     res = test_transform_wait_process_output(transform, 0);
     ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
     test_transform_set_output(transform, 0, NULL);
+
+    /* output work queue is now unblocked */
+    res = wait_async_callback(async_callback, 1000);
+    ok(res == 0, "got res %#lx\n", res);
 
     for (i = 0; i < 10; i++)
     {
@@ -7730,17 +7985,48 @@ static void test_media_session_transform_multiple_sources(void)
         ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
         res = test_transform_wait_process_output(transform, 0);
         ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+
+        if (i == 0)
+        {
+            /* input work queue is now blocked */
+            hr = MFPutWorkItem(queues[stream], async_callback, NULL);
+            ok(hr == S_OK, "got hr %#lx\n", hr);
+            res = wait_async_callback(async_callback, 0);
+            ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        }
+
         /* take the sample and return S_OK */
         test_transform_get_input(transform, stream, &sample);
+
+        if (i == 0)
+        {
+            /* input work queue is still blocked */
+            res = wait_async_callback(async_callback, 0);
+            ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        }
 
         /* ProcessOutput call loop */
         res = test_transform_wait_process_output(transform, 1000);
         ok(res == 0, "got res %#lx\n", res);
         test_transform_set_output(transform, 0, sample);
 
+        if (i == 0)
+        {
+            /* input work queue is still blocked */
+            res = wait_async_callback(async_callback, 0);
+            ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        }
+
         res = test_transform_wait_process_output(transform, 1000);
         ok(res == 0, "got res %#lx\n", res);
         test_transform_set_output(transform, 0, NULL);
+
+        if (i == 0)
+        {
+            /* input work queue is now unblocked */
+            res = wait_async_callback(async_callback, 1000);
+            ok(res == 0, "got res %#lx\n", res);
+        }
 
         IMFSample_Release(sample);
 
@@ -7753,18 +8039,49 @@ static void test_media_session_transform_multiple_sources(void)
         ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
         res = test_transform_wait_process_output(transform, 0);
         ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+
+        if (i == 0)
+        {
+            /* input work queue is now blocked */
+            hr = MFPutWorkItem(queues[stream], async_callback, NULL);
+            ok(hr == S_OK, "got hr %#lx\n", hr);
+            res = wait_async_callback(async_callback, 0);
+            ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        }
+
         /* release the sample and return MF_E_NOTACCEPTING */
         test_transform_get_input(transform, stream, NULL);
+
+        if (i == 0)
+        {
+            /* input work queue is still blocked */
+            res = wait_async_callback(async_callback, 0);
+            ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        }
 
         /* ProcessOutput call loop */
         res = test_transform_wait_process_output(transform, 1000);
         ok(res == 0, "got res %#lx\n", res);
         test_transform_set_output(transform, 0, NULL);
 
+        if (i == 0)
+        {
+            /* input work queue is still blocked */
+            res = wait_async_callback(async_callback, 0);
+            ok(res == WAIT_TIMEOUT, "got res %#lx\n", res);
+        }
+
         /* needs to fail at least twice */
         res = test_transform_wait_process_output(transform, 1000);
         ok(res == 0, "got res %#lx\n", res);
         test_transform_set_output(transform, 0, NULL);
+
+        if (i == 0)
+        {
+            /* input work queue is now unblocked */
+            res = wait_async_callback(async_callback, 1000);
+            ok(res == 0, "got res %#lx\n", res);
+        }
 
         winetest_pop_context();
     }
@@ -7777,6 +8094,7 @@ static void test_media_session_transform_multiple_sources(void)
     IMFMediaSession_Release(session);
 
     IMFAsyncCallback_Release(media_event_callback);
+    IMFAsyncCallback_Release(async_callback);
 
 done:
     hr = MFShutdown();
