@@ -435,6 +435,31 @@ void wg_parser_stream_seek(wg_parser_stream_t stream, double rate,
     WINE_UNIX_CALL(unix_wg_parser_stream_seek, &params);
 }
 
+HRESULT wg_source_create(wg_source_t *out)
+{
+    struct wg_source_create_params params = {0};
+    NTSTATUS status;
+
+    TRACE("out %p\n", out);
+
+    if ((status = WINE_UNIX_CALL(unix_wg_source_create, &params)))
+        WARN("wg_source_create returned status %#lx\n", status);
+    else
+    {
+        TRACE("Returning source %#I64x.\n", params.source);
+        *out = params.source;
+    }
+
+    return HRESULT_FROM_NT(status);
+}
+
+void wg_source_destroy(wg_source_t source)
+{
+    TRACE("source %#I64x.\n", source);
+
+    WINE_UNIX_CALL(unix_wg_source_destroy, &source);
+}
+
 HRESULT wg_transform_create_mf(IMFMediaType *input_type, IMFMediaType *output_type,
         const struct wg_transform_attrs *attrs, wg_transform_t *transform)
 {

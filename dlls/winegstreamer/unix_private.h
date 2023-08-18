@@ -68,6 +68,11 @@ extern NTSTATUS wg_transform_drain(void *args);
 extern NTSTATUS wg_transform_flush(void *args);
 extern NTSTATUS wg_transform_notify_qos(void *args);
 
+/* wg_source.c */
+
+extern NTSTATUS wg_source_create(void *args);
+extern NTSTATUS wg_source_destroy(void *args);
+
 /* wg_media_type.c */
 
 static inline BOOL is_mf_video_area_empty(const MFVideoArea *area)

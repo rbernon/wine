@@ -205,6 +205,7 @@ C_ASSERT(sizeof(struct wg_parser_buffer) == 32);
 
 typedef UINT64 wg_parser_t;
 typedef UINT64 wg_parser_stream_t;
+typedef UINT64 wg_source_t;
 typedef UINT64 wg_transform_t;
 typedef UINT64 wg_muxer_t;
 
@@ -329,6 +330,11 @@ struct wg_parser_stream_seek_params
     DWORD start_flags, stop_flags;
 };
 
+struct wg_source_create_params
+{
+    wg_source_t source;
+};
+
 struct wg_transform_attrs
 {
     UINT32 output_plane_align;
@@ -443,6 +449,9 @@ enum unix_funcs
     unix_wg_parser_stream_get_duration,
     unix_wg_parser_stream_get_tag,
     unix_wg_parser_stream_seek,
+
+    unix_wg_source_create,
+    unix_wg_source_destroy,
 
     unix_wg_transform_create,
     unix_wg_transform_destroy,
