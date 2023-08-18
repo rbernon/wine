@@ -55,6 +55,11 @@ extern bool wg_format_compare(const struct wg_format *a, const struct wg_format 
 extern GstCaps *wg_format_to_caps(const struct wg_format *format);
 extern uint32_t wg_channel_mask_from_gst(const GstAudioInfo *info);
 
+/* wg_source.c */
+
+extern NTSTATUS wg_source_create(void *args);
+extern NTSTATUS wg_source_destroy(void *args);
+
 /* wg_transform.c */
 
 extern NTSTATUS wg_transform_create(void *args);
