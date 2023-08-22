@@ -52,7 +52,7 @@ static struct class_factory *impl_from_IClassFactory(IClassFactory *iface)
     return CONTAINING_RECORD(iface, struct class_factory, IClassFactory_iface);
 }
 
-static HRESULT WINAPI ClassFactory_QueryInterface(IClassFactory *iface, REFIID riid, void **ppv)
+static HRESULT WINAPI class_factory_QueryInterface(IClassFactory *iface, REFIID riid, void **ppv)
 {
         if (ppv == NULL)
                 return E_POINTER;
@@ -72,17 +72,18 @@ static HRESULT WINAPI ClassFactory_QueryInterface(IClassFactory *iface, REFIID r
         return S_OK;
 }
 
-static ULONG WINAPI ClassFactory_AddRef(IClassFactory *iface)
+static ULONG WINAPI class_factory_AddRef(IClassFactory *iface)
 {
         return 2; /* non-heap based object */
 }
 
-static ULONG WINAPI ClassFactory_Release(IClassFactory *iface)
+static ULONG WINAPI class_factory_Release(IClassFactory *iface)
 {
         return 1; /* non-heap based object */
 }
 
-static HRESULT WINAPI ClassFactory_CreateInstance(IClassFactory *iface, IUnknown *unk_outer, REFIID riid, void **ret_iface)
+static HRESULT WINAPI class_factory_CreateInstance(IClassFactory *iface, IUnknown *unk_outer,
+        REFIID riid, void **ret_iface)
 {
     struct class_factory *This = impl_from_IClassFactory(iface);
     IUnknown *object;
@@ -101,23 +102,23 @@ static HRESULT WINAPI ClassFactory_CreateInstance(IClassFactory *iface, IUnknown
     return hr;
 }
 
-static HRESULT WINAPI ClassFactory_LockServer(IClassFactory *iface, BOOL dolock)
+static HRESULT WINAPI class_factory_LockServer(IClassFactory *iface, BOOL dolock)
 {
         TRACE("(%d)\n", dolock);
         return S_OK;
 }
 
-static const IClassFactoryVtbl classfactory_vtbl = {
-        ClassFactory_QueryInterface,
-        ClassFactory_AddRef,
-        ClassFactory_Release,
-        ClassFactory_CreateInstance,
-        ClassFactory_LockServer
+static const IClassFactoryVtbl class_factory_vtbl =
+{
+    class_factory_QueryInterface,
+    class_factory_AddRef,
+    class_factory_Release,
+    class_factory_CreateInstance,
+    class_factory_LockServer
 };
 
-static struct class_factory DirectMusic_CF = {{&classfactory_vtbl}, music_create};
-static struct class_factory Collection_CF = {{&classfactory_vtbl}, collection_create};
-
+static struct class_factory DirectMusic_CF = {{&class_factory_vtbl}, music_create};
+static struct class_factory Collection_CF = {{&class_factory_vtbl}, collection_create};
 
 
 /******************************************************************
