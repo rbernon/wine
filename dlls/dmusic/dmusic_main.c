@@ -117,8 +117,8 @@ static const IClassFactoryVtbl class_factory_vtbl =
     class_factory_LockServer
 };
 
-static struct class_factory DirectMusic_CF = {{&class_factory_vtbl}, music_create};
-static struct class_factory Collection_CF = {{&class_factory_vtbl}, collection_create};
+static struct class_factory music_factory = {{&class_factory_vtbl}, music_create};
+static struct class_factory collection_factory = {{&class_factory_vtbl}, collection_create};
 
 
 /******************************************************************
@@ -126,20 +126,20 @@ static struct class_factory Collection_CF = {{&class_factory_vtbl}, collection_c
  *
  *
  */
-HRESULT WINAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, LPVOID *ppv)
+HRESULT WINAPI DllGetClassObject(REFCLSID clsid, REFIID iid, void **out)
 {
-	TRACE("(%s, %s, %p)\n", debugstr_dmguid(rclsid), debugstr_dmguid(riid), ppv);
-	if (IsEqualCLSID (rclsid, &CLSID_DirectMusic) && IsEqualIID (riid, &IID_IClassFactory)) {
-		*ppv = &DirectMusic_CF;
-		IClassFactory_AddRef((IClassFactory*)*ppv);
-		return S_OK;
-	} else if (IsEqualCLSID (rclsid, &CLSID_DirectMusicCollection) && IsEqualIID (riid, &IID_IClassFactory)) {
-		*ppv = &Collection_CF;
-		IClassFactory_AddRef((IClassFactory*)*ppv);
-		return S_OK;
-	}
-	
-    WARN("(%s, %s, %p): no interface found.\n", debugstr_dmguid(rclsid), debugstr_dmguid(riid), ppv);
+    TRACE("(%s, %s, %p)\n", debugstr_dmguid(clsid), debugstr_dmguid(iid), out);
+
+    *out = NULL;
+
+    if (IsEqualCLSID(clsid, &CLSID_DirectMusic))
+        IClassFactory_QueryInterface(&music_factory.IClassFactory_iface, iid, out);
+    if (IsEqualCLSID(clsid, &CLSID_DirectMusicCollection))
+        IClassFactory_QueryInterface(&collection_factory.IClassFactory_iface, iid, out);
+
+    if (*out) return S_OK;
+
+    WARN("(%s, %s, %p): no interface found.\n", debugstr_dmguid(clsid), debugstr_dmguid(iid), out);
     return CLASS_E_CLASSNOTAVAILABLE;
 }
 
