@@ -38,17 +38,18 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(dmusic);
 
-typedef struct {
+struct class_factory
+{
         IClassFactory IClassFactory_iface;
         HRESULT (*create_instance)(IUnknown **ret_iface);
-} IClassFactoryImpl;
+};
 
 /******************************************************************
  *      IClassFactory implementation
  */
-static inline IClassFactoryImpl *impl_from_IClassFactory(IClassFactory *iface)
+static struct class_factory *impl_from_IClassFactory(IClassFactory *iface)
 {
-        return CONTAINING_RECORD(iface, IClassFactoryImpl, IClassFactory_iface);
+    return CONTAINING_RECORD(iface, struct class_factory, IClassFactory_iface);
 }
 
 static HRESULT WINAPI ClassFactory_QueryInterface(IClassFactory *iface, REFIID riid, void **ppv)
@@ -83,7 +84,7 @@ static ULONG WINAPI ClassFactory_Release(IClassFactory *iface)
 
 static HRESULT WINAPI ClassFactory_CreateInstance(IClassFactory *iface, IUnknown *unk_outer, REFIID riid, void **ret_iface)
 {
-    IClassFactoryImpl *This = impl_from_IClassFactory(iface);
+    struct class_factory *This = impl_from_IClassFactory(iface);
     IUnknown *object;
     HRESULT hr;
 
@@ -114,8 +115,8 @@ static const IClassFactoryVtbl classfactory_vtbl = {
         ClassFactory_LockServer
 };
 
-static IClassFactoryImpl DirectMusic_CF = {{&classfactory_vtbl}, music_create};
-static IClassFactoryImpl Collection_CF = {{&classfactory_vtbl}, collection_create};
+static struct class_factory DirectMusic_CF = {{&classfactory_vtbl}, music_create};
+static struct class_factory Collection_CF = {{&classfactory_vtbl}, collection_create};
 
 
 
