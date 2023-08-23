@@ -28,6 +28,7 @@
 #include "initguid.h"
 #include "dmusici.h"
 #include "dmusicf.h"
+#include "dmusics.h"
 #include "dmksctrl.h"
 
 static ULONG get_refcount(void *iface)
