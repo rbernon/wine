@@ -20,6 +20,13 @@
 
 #include "config.h"
 
+#include <stdarg.h>
+#include <stddef.h>
+
+#include "windef.h"
+#include "winbase.h"
+#include "winnt.h"
+
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -40,6 +47,8 @@
 # include <sys/link.h>
 #endif
 
+#include "wine/list.h"
+
 #include "main.h"
 
 extern char **environ;
@@ -58,17 +67,42 @@ __attribute((visibility("default"))) rtld_notify_func wine_rtld_map_complete = N
 __attribute((visibility("default"))) rtld_notify_func wine_rtld_unmap_start = NULL;
 __attribute((visibility("default"))) rtld_notify_func wine_rtld_unmap_complete = NULL;
 
+struct link_map_entry
+{
+    struct link_map map;
+    const void *module;
+    struct list entry;
+};
+
 static pthread_mutex_t link_map_lock;
 static struct link_map link_map = {0};
+static struct list dll_map_entries = LIST_INIT( dll_map_entries );
+
+static char *link_realpath( const char *path )
+{
+    char *real;
+    if (!path) return NULL;
+    if (!(real = realpath( path, NULL ))) return strdup( path );
+    return real;
+}
 
 static void sync_wine_link_map(void)
 {
     static struct r_debug *_r_debug;
     struct link_map *next = &link_map, *last = NULL, **rtld_map, **wine_map;
+    struct link_map_entry *pe_entry = NULL;
+    struct list *ptr;
 
     if (!_r_debug) _r_debug = dlsym( RTLD_NEXT, "_r_debug" );
     rtld_map = &_r_debug->r_map;
     wine_map = &next;
+
+    /* detach the PE link map */
+    if ((ptr = list_head( &dll_map_entries )))
+    {
+        pe_entry = LIST_ENTRY( ptr, struct link_map_entry, entry );
+        if (pe_entry->map.l_prev) pe_entry->map.l_prev->l_next = NULL;
+    }
 
     while (*rtld_map)
     {
@@ -81,7 +115,7 @@ static void sync_wine_link_map(void)
         last = *wine_map;
         free( (*wine_map)->l_name );
         (*wine_map)->l_addr = (*rtld_map)->l_addr;
-        (*wine_map)->l_name = strdup( (*rtld_map)->l_name );
+        (*wine_map)->l_name = link_realpath( (*rtld_map)->l_name );
         (*wine_map)->l_ld = (*rtld_map)->l_ld;
         rtld_map = &(*rtld_map)->l_next;
         wine_map = &(*wine_map)->l_next;
@@ -100,6 +134,84 @@ static void sync_wine_link_map(void)
         free( tmp->l_name );
         free( tmp );
     }
+
+    if (pe_entry)
+    {
+        /* attach PE link map back */
+        pe_entry->map.l_prev = last;
+        last->l_next = &pe_entry->map;
+    }
+}
+
+static void add_dll_to_pe_link_map( const void *module, const char *unix_path, INT_PTR offset )
+{
+    struct link_map_entry *entry, *last_entry;
+    struct list *ptr;
+
+    if (!(entry = calloc( 1, sizeof(*entry) ))) return;
+
+    entry->module = module;
+    entry->map.l_addr = offset;
+    entry->map.l_name = link_realpath( unix_path );
+
+    if ((ptr = list_tail( &dll_map_entries )))
+    {
+        last_entry = LIST_ENTRY( ptr, struct link_map_entry, entry );
+        entry->map.l_prev = &last_entry->map;
+        last_entry->map.l_next = &entry->map;
+    }
+
+    list_add_tail( &dll_map_entries, &entry->entry );
+    if (!entry->map.l_prev) sync_wine_link_map();
+}
+
+__attribute((visibility("default"))) void wine_gdb_dll_loaded( const void *module, const char *unix_path, INT_PTR offset )
+{
+    struct link_map_entry *entry;
+
+    pthread_mutex_lock( &link_map_lock );
+
+    LIST_FOR_EACH_ENTRY( entry, &dll_map_entries, struct link_map_entry, entry )
+        if (entry->module == module) break;
+
+    if (&entry->entry == &dll_map_entries)
+        add_dll_to_pe_link_map( module, unix_path, offset );
+    else
+        entry->map.l_addr = offset;
+
+    if (wine_rtld_map_start) wine_rtld_map_start();
+    if (wine_rtld_map_complete) wine_rtld_map_complete();
+
+    pthread_mutex_unlock( &link_map_lock );
+}
+
+__attribute((visibility("default"))) void wine_gdb_dll_unload( const void *module )
+{
+    struct link_map *prev, *next;
+    struct link_map_entry *entry;
+
+    pthread_mutex_lock( &link_map_lock );
+
+    LIST_FOR_EACH_ENTRY( entry, &dll_map_entries, struct link_map_entry, entry )
+        if (entry->module == module) break;
+
+    if (&entry->entry == &dll_map_entries)
+    {
+        pthread_mutex_unlock( &link_map_lock );
+        return;
+    }
+
+    list_remove( &entry->entry );
+    if ((prev = entry->map.l_prev)) prev->l_next = entry->map.l_next;
+    if ((next = entry->map.l_next)) next->l_prev = entry->map.l_prev;
+
+    if (wine_rtld_unmap_start) wine_rtld_unmap_start();
+    if (wine_rtld_unmap_complete) wine_rtld_unmap_complete();
+
+    pthread_mutex_unlock( &link_map_lock );
+
+    free( entry->map.l_name );
+    free( entry );
 }
 
 __attribute((visibility("default"))) void *dlopen( const char *file, int mode )
