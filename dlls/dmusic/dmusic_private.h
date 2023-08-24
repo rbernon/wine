@@ -48,7 +48,6 @@
  * Interfaces
  */
 typedef struct IDirectMusic8Impl IDirectMusic8Impl;
-typedef struct IReferenceClockImpl IReferenceClockImpl;
 
 /*****************************************************************************
  * Some stuff to make my life easier :=)
@@ -108,19 +107,6 @@ extern HRESULT midi_out_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *
         DMUS_PORTCAPS *port_caps, IDirectMusicPort **port);
 extern HRESULT midi_in_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *port_params,
         DMUS_PORTCAPS *port_caps, IDirectMusicPort **port);
-
-/*****************************************************************************
- * IReferenceClockImpl implementation structure
- */
-struct IReferenceClockImpl {
-    /* IUnknown fields */
-    IReferenceClock IReferenceClock_iface;
-    LONG ref;
-
-    /* IReferenceClockImpl fields */
-    REFERENCE_TIME rtTime;
-    DMUS_CLOCKINFO pClockInfo;
-};
 
 /*****************************************************************************
  * Misc.
