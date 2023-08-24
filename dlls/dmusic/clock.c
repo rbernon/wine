@@ -22,6 +22,17 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(dmusic);
 
+struct IReferenceClockImpl
+{
+    IReferenceClock IReferenceClock_iface;
+    LONG ref;
+
+    REFERENCE_TIME rtTime;
+    DMUS_CLOCKINFO pClockInfo;
+};
+
+typedef struct IReferenceClockImpl IReferenceClockImpl;
+
 static inline IReferenceClockImpl *impl_from_IReferenceClock(IReferenceClock *iface)
 {
     return CONTAINING_RECORD(iface, IReferenceClockImpl, IReferenceClock_iface);
