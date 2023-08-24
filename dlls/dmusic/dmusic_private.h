@@ -48,7 +48,6 @@
  * Interfaces
  */
 typedef struct IDirectMusic8Impl IDirectMusic8Impl;
-typedef struct IDirectMusicBufferImpl IDirectMusicBufferImpl;
 typedef struct IReferenceClockImpl IReferenceClockImpl;
 
 /*****************************************************************************
@@ -102,22 +101,6 @@ struct IDirectMusic8Impl {
     int num_ports;
     port_info *system_ports;
     int num_system_ports;
-};
-
-/*****************************************************************************
- * IDirectMusicBufferImpl implementation structure
- */
-struct IDirectMusicBufferImpl {
-    /* IUnknown fields */
-    IDirectMusicBuffer IDirectMusicBuffer_iface;
-    LONG ref;
-
-    /* IDirectMusicBufferImpl fields */
-    GUID format;
-    DWORD size;
-    LPBYTE data;
-    DWORD write_pos;
-    REFERENCE_TIME start_time;
 };
 
 /** Internal factory */
