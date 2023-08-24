@@ -38,8 +38,7 @@ static inline IReferenceClockImpl *impl_from_IReferenceClock(IReferenceClock *if
     return CONTAINING_RECORD(iface, IReferenceClockImpl, IReferenceClock_iface);
 }
 
-/* IReferenceClockImpl IUnknown part: */
-static HRESULT WINAPI IReferenceClockImpl_QueryInterface(IReferenceClock *iface, REFIID riid, LPVOID *ppobj)
+static HRESULT WINAPI reference_clock_QueryInterface(IReferenceClock *iface, REFIID riid, LPVOID *ppobj)
 {
 	IReferenceClockImpl *This = impl_from_IReferenceClock(iface);
 	TRACE("(%p, %s, %p)\n", This, debugstr_dmguid(riid), ppobj);
@@ -54,7 +53,7 @@ static HRESULT WINAPI IReferenceClockImpl_QueryInterface(IReferenceClock *iface,
 	return E_NOINTERFACE;
 }
 
-static ULONG WINAPI IReferenceClockImpl_AddRef(IReferenceClock *iface)
+static ULONG WINAPI reference_clock_AddRef(IReferenceClock *iface)
 {
     IReferenceClockImpl *This = impl_from_IReferenceClock(iface);
     ULONG ref = InterlockedIncrement(&This->ref);
@@ -64,7 +63,7 @@ static ULONG WINAPI IReferenceClockImpl_AddRef(IReferenceClock *iface)
     return ref;
 }
 
-static ULONG WINAPI IReferenceClockImpl_Release(IReferenceClock *iface)
+static ULONG WINAPI reference_clock_Release(IReferenceClock *iface)
 {
     IReferenceClockImpl *This = impl_from_IReferenceClock(iface);
     ULONG ref = InterlockedDecrement(&This->ref);
@@ -78,8 +77,7 @@ static ULONG WINAPI IReferenceClockImpl_Release(IReferenceClock *iface)
     return ref;
 }
 
-/* IReferenceClockImpl IReferenceClock part: */
-static HRESULT WINAPI IReferenceClockImpl_GetTime(IReferenceClock *iface, REFERENCE_TIME* pTime)
+static HRESULT WINAPI reference_clock_GetTime(IReferenceClock *iface, REFERENCE_TIME* pTime)
 {
     IReferenceClockImpl *This = impl_from_IReferenceClock(iface);
 
@@ -90,7 +88,7 @@ static HRESULT WINAPI IReferenceClockImpl_GetTime(IReferenceClock *iface, REFERE
     return S_OK;
 }
 
-static HRESULT WINAPI IReferenceClockImpl_AdviseTime(IReferenceClock *iface, REFERENCE_TIME base,
+static HRESULT WINAPI reference_clock_AdviseTime(IReferenceClock *iface, REFERENCE_TIME base,
         REFERENCE_TIME offset, HEVENT event, DWORD_PTR *cookie)
 {
     IReferenceClockImpl *This = impl_from_IReferenceClock(iface);
@@ -98,7 +96,7 @@ static HRESULT WINAPI IReferenceClockImpl_AdviseTime(IReferenceClock *iface, REF
     return S_OK;
 }
 
-static HRESULT WINAPI IReferenceClockImpl_AdvisePeriodic(IReferenceClock *iface, REFERENCE_TIME start,
+static HRESULT WINAPI reference_clock_AdvisePeriodic(IReferenceClock *iface, REFERENCE_TIME start,
         REFERENCE_TIME period, HSEMAPHORE semaphore, DWORD_PTR *cookie)
 {
     IReferenceClockImpl *This = impl_from_IReferenceClock(iface);
@@ -106,21 +104,22 @@ static HRESULT WINAPI IReferenceClockImpl_AdvisePeriodic(IReferenceClock *iface,
     return S_OK;
 }
 
-static HRESULT WINAPI IReferenceClockImpl_Unadvise(IReferenceClock *iface, DWORD_PTR cookie)
+static HRESULT WINAPI reference_clock_Unadvise(IReferenceClock *iface, DWORD_PTR cookie)
 {
     IReferenceClockImpl *This = impl_from_IReferenceClock(iface);
     FIXME("(%p, %#Ix): stub\n", This, cookie);
     return S_OK;
 }
 
-static const IReferenceClockVtbl ReferenceClock_Vtbl = {
-	IReferenceClockImpl_QueryInterface,
-	IReferenceClockImpl_AddRef,
-	IReferenceClockImpl_Release,
-	IReferenceClockImpl_GetTime,
-	IReferenceClockImpl_AdviseTime,
-	IReferenceClockImpl_AdvisePeriodic,
-	IReferenceClockImpl_Unadvise
+static const IReferenceClockVtbl reference_clock_vtbl =
+{
+	reference_clock_QueryInterface,
+	reference_clock_AddRef,
+	reference_clock_Release,
+	reference_clock_GetTime,
+	reference_clock_AdviseTime,
+	reference_clock_AdvisePeriodic,
+	reference_clock_Unadvise,
 };
 
 HRESULT reference_clock_create(IReferenceClock **ret_iface)
@@ -131,7 +130,7 @@ HRESULT reference_clock_create(IReferenceClock **ret_iface)
 
     *ret_iface = NULL;
     if (!(clock = calloc(1, sizeof(*clock)))) return E_OUTOFMEMORY;
-    clock->IReferenceClock_iface.lpVtbl = &ReferenceClock_Vtbl;
+    clock->IReferenceClock_iface.lpVtbl = &reference_clock_vtbl;
     clock->ref = 1;
     clock->rtTime = 0;
     clock->pClockInfo.dwSize = sizeof (DMUS_CLOCKINFO);
