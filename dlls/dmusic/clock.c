@@ -22,7 +22,7 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(dmusic);
 
-struct IReferenceClockImpl
+struct reference_clock
 {
     IReferenceClock IReferenceClock_iface;
     LONG ref;
@@ -31,16 +31,14 @@ struct IReferenceClockImpl
     DMUS_CLOCKINFO pClockInfo;
 };
 
-typedef struct IReferenceClockImpl IReferenceClockImpl;
-
-static inline IReferenceClockImpl *impl_from_IReferenceClock(IReferenceClock *iface)
+static inline struct reference_clock *impl_from_IReferenceClock(IReferenceClock *iface)
 {
-    return CONTAINING_RECORD(iface, IReferenceClockImpl, IReferenceClock_iface);
+    return CONTAINING_RECORD(iface, struct reference_clock, IReferenceClock_iface);
 }
 
 static HRESULT WINAPI reference_clock_QueryInterface(IReferenceClock *iface, REFIID riid, LPVOID *ppobj)
 {
-	IReferenceClockImpl *This = impl_from_IReferenceClock(iface);
+	struct reference_clock *This = impl_from_IReferenceClock(iface);
 	TRACE("(%p, %s, %p)\n", This, debugstr_dmguid(riid), ppobj);
 
 	if (IsEqualIID (riid, &IID_IUnknown) || 
@@ -55,7 +53,7 @@ static HRESULT WINAPI reference_clock_QueryInterface(IReferenceClock *iface, REF
 
 static ULONG WINAPI reference_clock_AddRef(IReferenceClock *iface)
 {
-    IReferenceClockImpl *This = impl_from_IReferenceClock(iface);
+    struct reference_clock *This = impl_from_IReferenceClock(iface);
     ULONG ref = InterlockedIncrement(&This->ref);
 
     TRACE("(%p): new ref = %lu\n", This, ref);
@@ -65,7 +63,7 @@ static ULONG WINAPI reference_clock_AddRef(IReferenceClock *iface)
 
 static ULONG WINAPI reference_clock_Release(IReferenceClock *iface)
 {
-    IReferenceClockImpl *This = impl_from_IReferenceClock(iface);
+    struct reference_clock *This = impl_from_IReferenceClock(iface);
     ULONG ref = InterlockedDecrement(&This->ref);
 
     TRACE("(%p): new ref = %lu\n", This, ref);
@@ -79,7 +77,7 @@ static ULONG WINAPI reference_clock_Release(IReferenceClock *iface)
 
 static HRESULT WINAPI reference_clock_GetTime(IReferenceClock *iface, REFERENCE_TIME* pTime)
 {
-    IReferenceClockImpl *This = impl_from_IReferenceClock(iface);
+    struct reference_clock *This = impl_from_IReferenceClock(iface);
 
     TRACE("(%p)->(%p)\n", This, pTime);
 
@@ -91,7 +89,7 @@ static HRESULT WINAPI reference_clock_GetTime(IReferenceClock *iface, REFERENCE_
 static HRESULT WINAPI reference_clock_AdviseTime(IReferenceClock *iface, REFERENCE_TIME base,
         REFERENCE_TIME offset, HEVENT event, DWORD_PTR *cookie)
 {
-    IReferenceClockImpl *This = impl_from_IReferenceClock(iface);
+    struct reference_clock *This = impl_from_IReferenceClock(iface);
     FIXME("(%p)->(%I64d, %I64d, %#Ix, %p): stub\n", This, base, offset, event, cookie);
     return S_OK;
 }
@@ -99,14 +97,14 @@ static HRESULT WINAPI reference_clock_AdviseTime(IReferenceClock *iface, REFEREN
 static HRESULT WINAPI reference_clock_AdvisePeriodic(IReferenceClock *iface, REFERENCE_TIME start,
         REFERENCE_TIME period, HSEMAPHORE semaphore, DWORD_PTR *cookie)
 {
-    IReferenceClockImpl *This = impl_from_IReferenceClock(iface);
+    struct reference_clock *This = impl_from_IReferenceClock(iface);
     FIXME("(%p)->(%I64d, %I64d, %#Ix, %p): stub\n", This, start, period, semaphore, cookie);
     return S_OK;
 }
 
 static HRESULT WINAPI reference_clock_Unadvise(IReferenceClock *iface, DWORD_PTR cookie)
 {
-    IReferenceClockImpl *This = impl_from_IReferenceClock(iface);
+    struct reference_clock *This = impl_from_IReferenceClock(iface);
     FIXME("(%p, %#Ix): stub\n", This, cookie);
     return S_OK;
 }
@@ -124,7 +122,7 @@ static const IReferenceClockVtbl reference_clock_vtbl =
 
 HRESULT reference_clock_create(IReferenceClock **ret_iface)
 {
-    IReferenceClockImpl* clock;
+    struct reference_clock *clock;
 
     TRACE("(%p)\n", ret_iface);
 
