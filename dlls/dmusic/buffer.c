@@ -25,6 +25,20 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(dmusic);
 
+struct IDirectMusicBufferImpl
+{
+    IDirectMusicBuffer IDirectMusicBuffer_iface;
+    LONG ref;
+
+    GUID format;
+    DWORD size;
+    LPBYTE data;
+    DWORD write_pos;
+    REFERENCE_TIME start_time;
+};
+
+typedef struct IDirectMusicBufferImpl IDirectMusicBufferImpl;
+
 static inline IDirectMusicBufferImpl *impl_from_IDirectMusicBuffer(IDirectMusicBuffer *iface)
 {
     return CONTAINING_RECORD(iface, IDirectMusicBufferImpl, IDirectMusicBuffer_iface);
