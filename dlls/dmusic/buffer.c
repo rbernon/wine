@@ -44,8 +44,7 @@ static inline IDirectMusicBufferImpl *impl_from_IDirectMusicBuffer(IDirectMusicB
     return CONTAINING_RECORD(iface, IDirectMusicBufferImpl, IDirectMusicBuffer_iface);
 }
 
-/* IDirectMusicBufferImpl IUnknown part: */
-static HRESULT WINAPI IDirectMusicBufferImpl_QueryInterface(LPDIRECTMUSICBUFFER iface, REFIID riid, LPVOID *ret_iface)
+static HRESULT WINAPI buffer_QueryInterface(LPDIRECTMUSICBUFFER iface, REFIID riid, LPVOID *ret_iface)
 {
     TRACE("(%p)->(%s, %p)\n", iface, debugstr_dmguid(riid), ret_iface);
 
@@ -64,7 +63,7 @@ static HRESULT WINAPI IDirectMusicBufferImpl_QueryInterface(LPDIRECTMUSICBUFFER 
     return E_NOINTERFACE;
 }
 
-static ULONG WINAPI IDirectMusicBufferImpl_AddRef(LPDIRECTMUSICBUFFER iface)
+static ULONG WINAPI buffer_AddRef(LPDIRECTMUSICBUFFER iface)
 {
     IDirectMusicBufferImpl *This = impl_from_IDirectMusicBuffer(iface);
     ULONG ref = InterlockedIncrement(&This->ref);
@@ -74,7 +73,7 @@ static ULONG WINAPI IDirectMusicBufferImpl_AddRef(LPDIRECTMUSICBUFFER iface)
     return ref;
 }
 
-static ULONG WINAPI IDirectMusicBufferImpl_Release(LPDIRECTMUSICBUFFER iface)
+static ULONG WINAPI buffer_Release(LPDIRECTMUSICBUFFER iface)
 {
     IDirectMusicBufferImpl *This = impl_from_IDirectMusicBuffer(iface);
     ULONG ref = InterlockedDecrement(&This->ref);
@@ -89,8 +88,7 @@ static ULONG WINAPI IDirectMusicBufferImpl_Release(LPDIRECTMUSICBUFFER iface)
     return ref;
 }
 
-/* IDirectMusicBufferImpl IDirectMusicBuffer part: */
-static HRESULT WINAPI IDirectMusicBufferImpl_Flush(LPDIRECTMUSICBUFFER iface)
+static HRESULT WINAPI buffer_Flush(LPDIRECTMUSICBUFFER iface)
 {
     IDirectMusicBufferImpl *This = impl_from_IDirectMusicBuffer(iface);
 
@@ -101,7 +99,7 @@ static HRESULT WINAPI IDirectMusicBufferImpl_Flush(LPDIRECTMUSICBUFFER iface)
     return S_OK;
 }
 
-static HRESULT WINAPI IDirectMusicBufferImpl_TotalTime(LPDIRECTMUSICBUFFER iface, LPREFERENCE_TIME prtTime)
+static HRESULT WINAPI buffer_TotalTime(LPDIRECTMUSICBUFFER iface, LPREFERENCE_TIME prtTime)
 {
     IDirectMusicBufferImpl *This = impl_from_IDirectMusicBuffer(iface);
 
@@ -110,7 +108,7 @@ static HRESULT WINAPI IDirectMusicBufferImpl_TotalTime(LPDIRECTMUSICBUFFER iface
     return S_OK;
 }
 
-static HRESULT WINAPI IDirectMusicBufferImpl_PackStructured(LPDIRECTMUSICBUFFER iface, REFERENCE_TIME ref_time, DWORD channel_group, DWORD channel_message)
+static HRESULT WINAPI buffer_PackStructured(LPDIRECTMUSICBUFFER iface, REFERENCE_TIME ref_time, DWORD channel_group, DWORD channel_message)
 {
     IDirectMusicBufferImpl *This = impl_from_IDirectMusicBuffer(iface);
     DWORD new_write_pos = This->write_pos + DMUS_EVENT_SIZE(sizeof(channel_message));
@@ -144,7 +142,7 @@ static HRESULT WINAPI IDirectMusicBufferImpl_PackStructured(LPDIRECTMUSICBUFFER 
     return S_OK;
 }
 
-static HRESULT WINAPI IDirectMusicBufferImpl_PackUnstructured(IDirectMusicBuffer *iface,
+static HRESULT WINAPI buffer_PackUnstructured(IDirectMusicBuffer *iface,
         REFERENCE_TIME ref_time, DWORD channel_group, DWORD len, BYTE *data)
 {
     IDirectMusicBufferImpl *This = impl_from_IDirectMusicBuffer(iface);
@@ -171,7 +169,7 @@ static HRESULT WINAPI IDirectMusicBufferImpl_PackUnstructured(IDirectMusicBuffer
     return S_OK;
 }
 
-static HRESULT WINAPI IDirectMusicBufferImpl_ResetReadPtr(LPDIRECTMUSICBUFFER iface)
+static HRESULT WINAPI buffer_ResetReadPtr(LPDIRECTMUSICBUFFER iface)
 {
     IDirectMusicBufferImpl *This = impl_from_IDirectMusicBuffer(iface);
 
@@ -180,7 +178,7 @@ static HRESULT WINAPI IDirectMusicBufferImpl_ResetReadPtr(LPDIRECTMUSICBUFFER if
     return S_OK;
 }
 
-static HRESULT WINAPI IDirectMusicBufferImpl_GetNextEvent(LPDIRECTMUSICBUFFER iface, LPREFERENCE_TIME prt, LPDWORD pdwChannelGroup, LPDWORD pdwLength, LPBYTE* ppData)
+static HRESULT WINAPI buffer_GetNextEvent(LPDIRECTMUSICBUFFER iface, LPREFERENCE_TIME prt, LPDWORD pdwChannelGroup, LPDWORD pdwLength, LPBYTE* ppData)
 {
     IDirectMusicBufferImpl *This = impl_from_IDirectMusicBuffer(iface);
 
@@ -189,7 +187,7 @@ static HRESULT WINAPI IDirectMusicBufferImpl_GetNextEvent(LPDIRECTMUSICBUFFER if
     return S_OK;
 }
 
-static HRESULT WINAPI IDirectMusicBufferImpl_GetRawBufferPtr(LPDIRECTMUSICBUFFER iface, LPBYTE* data)
+static HRESULT WINAPI buffer_GetRawBufferPtr(LPDIRECTMUSICBUFFER iface, LPBYTE* data)
 {
     IDirectMusicBufferImpl *This = impl_from_IDirectMusicBuffer(iface);
 
@@ -203,7 +201,7 @@ static HRESULT WINAPI IDirectMusicBufferImpl_GetRawBufferPtr(LPDIRECTMUSICBUFFER
     return S_OK;
 }
 
-static HRESULT WINAPI IDirectMusicBufferImpl_GetStartTime(LPDIRECTMUSICBUFFER iface, LPREFERENCE_TIME ref_time)
+static HRESULT WINAPI buffer_GetStartTime(LPDIRECTMUSICBUFFER iface, LPREFERENCE_TIME ref_time)
 {
     IDirectMusicBufferImpl *This = impl_from_IDirectMusicBuffer(iface);
 
@@ -219,7 +217,7 @@ static HRESULT WINAPI IDirectMusicBufferImpl_GetStartTime(LPDIRECTMUSICBUFFER if
     return S_OK;
 }
 
-static HRESULT WINAPI IDirectMusicBufferImpl_GetUsedBytes(LPDIRECTMUSICBUFFER iface, LPDWORD used_bytes)
+static HRESULT WINAPI buffer_GetUsedBytes(LPDIRECTMUSICBUFFER iface, LPDWORD used_bytes)
 {
     IDirectMusicBufferImpl *This = impl_from_IDirectMusicBuffer(iface);
 
@@ -233,7 +231,7 @@ static HRESULT WINAPI IDirectMusicBufferImpl_GetUsedBytes(LPDIRECTMUSICBUFFER if
     return S_OK;
 }
 
-static HRESULT WINAPI IDirectMusicBufferImpl_GetMaxBytes(LPDIRECTMUSICBUFFER iface, LPDWORD max_bytes)
+static HRESULT WINAPI buffer_GetMaxBytes(LPDIRECTMUSICBUFFER iface, LPDWORD max_bytes)
 {
     IDirectMusicBufferImpl *This = impl_from_IDirectMusicBuffer(iface);
 
@@ -247,7 +245,7 @@ static HRESULT WINAPI IDirectMusicBufferImpl_GetMaxBytes(LPDIRECTMUSICBUFFER ifa
     return S_OK;
 }
 
-static HRESULT WINAPI IDirectMusicBufferImpl_GetBufferFormat(LPDIRECTMUSICBUFFER iface, LPGUID format)
+static HRESULT WINAPI buffer_GetBufferFormat(LPDIRECTMUSICBUFFER iface, LPGUID format)
 {
     IDirectMusicBufferImpl *This = impl_from_IDirectMusicBuffer(iface);
 
@@ -260,7 +258,7 @@ static HRESULT WINAPI IDirectMusicBufferImpl_GetBufferFormat(LPDIRECTMUSICBUFFER
     return S_OK;
 }
 
-static HRESULT WINAPI IDirectMusicBufferImpl_SetStartTime(LPDIRECTMUSICBUFFER iface, REFERENCE_TIME ref_time)
+static HRESULT WINAPI buffer_SetStartTime(LPDIRECTMUSICBUFFER iface, REFERENCE_TIME ref_time)
 {
     IDirectMusicBufferImpl *This = impl_from_IDirectMusicBuffer(iface);
 
@@ -271,7 +269,7 @@ static HRESULT WINAPI IDirectMusicBufferImpl_SetStartTime(LPDIRECTMUSICBUFFER if
     return S_OK;
 }
 
-static HRESULT WINAPI IDirectMusicBufferImpl_SetUsedBytes(LPDIRECTMUSICBUFFER iface, DWORD used_bytes)
+static HRESULT WINAPI buffer_SetUsedBytes(LPDIRECTMUSICBUFFER iface, DWORD used_bytes)
 {
     IDirectMusicBufferImpl *This = impl_from_IDirectMusicBuffer(iface);
 
@@ -285,23 +283,24 @@ static HRESULT WINAPI IDirectMusicBufferImpl_SetUsedBytes(LPDIRECTMUSICBUFFER if
     return S_OK;
 }
 
-static const IDirectMusicBufferVtbl DirectMusicBuffer_Vtbl = {
-	IDirectMusicBufferImpl_QueryInterface,
-	IDirectMusicBufferImpl_AddRef,
-	IDirectMusicBufferImpl_Release,
-	IDirectMusicBufferImpl_Flush,
-	IDirectMusicBufferImpl_TotalTime,
-	IDirectMusicBufferImpl_PackStructured,
-	IDirectMusicBufferImpl_PackUnstructured,
-	IDirectMusicBufferImpl_ResetReadPtr,
-	IDirectMusicBufferImpl_GetNextEvent,
-	IDirectMusicBufferImpl_GetRawBufferPtr,
-	IDirectMusicBufferImpl_GetStartTime,
-	IDirectMusicBufferImpl_GetUsedBytes,
-	IDirectMusicBufferImpl_GetMaxBytes,
-	IDirectMusicBufferImpl_GetBufferFormat,
-	IDirectMusicBufferImpl_SetStartTime,
-	IDirectMusicBufferImpl_SetUsedBytes
+static const IDirectMusicBufferVtbl buffer_vtbl =
+{
+	buffer_QueryInterface,
+	buffer_AddRef,
+	buffer_Release,
+	buffer_Flush,
+	buffer_TotalTime,
+	buffer_PackStructured,
+	buffer_PackUnstructured,
+	buffer_ResetReadPtr,
+	buffer_GetNextEvent,
+	buffer_GetRawBufferPtr,
+	buffer_GetStartTime,
+	buffer_GetUsedBytes,
+	buffer_GetMaxBytes,
+	buffer_GetBufferFormat,
+	buffer_SetStartTime,
+	buffer_SetUsedBytes,
 };
 
 HRESULT buffer_create(DMUS_BUFFERDESC *desc, IDirectMusicBuffer **ret_iface)
@@ -312,7 +311,7 @@ HRESULT buffer_create(DMUS_BUFFERDESC *desc, IDirectMusicBuffer **ret_iface)
 
     *ret_iface = NULL;
     if (!(buffer = calloc(1, sizeof(*buffer)))) return E_OUTOFMEMORY;
-    buffer->IDirectMusicBuffer_iface.lpVtbl = &DirectMusicBuffer_Vtbl;
+    buffer->IDirectMusicBuffer_iface.lpVtbl = &buffer_vtbl;
     buffer->ref = 1;
 
     if (IsEqualGUID(&desc->guidBufferFormat, &GUID_NULL))
