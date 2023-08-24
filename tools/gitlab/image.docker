@@ -51,6 +51,7 @@ RUN export DEBIAN_FRONTEND=noninteractive; \
                        linux-libc-dev:amd64 linux-libc-dev:i386 \
                        ocl-icd-opencl-dev:amd64 ocl-icd-opencl-dev:i386 \
                        samba-dev:amd64 \
+                       systemtap-sdt-dev:amd64 systemtap-sdt-dev:i386 \
                        unixodbc-dev:amd64 unixodbc-dev:i386 \
                        x11proto-dev && \
     apt-get install -y ccache netbase curl ca-certificates xserver-xorg-video-dummy xserver-xorg xfonts-base xinit fvwm \
