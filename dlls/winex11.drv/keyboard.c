@@ -325,6 +325,32 @@ static void create_layout_from_xkb( int xkb_group, const char *xkb_layout, LANGI
     TRACE( "Created layout entry %p, hkl %04x%04x id %04x\n", layout, layout->index, layout->lang, layout->layout_id );
 }
 
+static void set_current_xkb_group( HWND hwnd, int xkb_group )
+{
+    struct x11drv_thread_data *thread_data = x11drv_init_thread_data();
+    struct layout *layout;
+    LCID locale;
+    HKL hkl;
+
+    LIST_FOR_EACH_ENTRY( layout, &xkb_layouts, struct layout, entry )
+        if (layout->xkb_group == xkb_group) break;
+    if (&layout->entry == &xkb_layouts)
+    {
+        WARN( "Failed to find Xkb Layout for group %d\n", xkb_group );
+        return;
+    }
+
+    locale = LOWORD(NtUserGetKeyboardLayout( 0 ));
+    if (!layout->layout_id) hkl = (HKL)(UINT_PTR)MAKELONG(locale, layout->lang);
+    else hkl = (HKL)(UINT_PTR)MAKELONG(locale, 0xf000 | layout->layout_id);
+
+    if (hkl == thread_data->last_layout) return;
+    thread_data->last_layout = hkl;
+
+    TRACE( "Changing keyboard layout to %p\n", hkl );
+    send_message( hwnd, WM_INPUTLANGCHANGEREQUEST, 0 /*FIXME*/, (LPARAM)hkl );
+}
+
 /* Keyboard translation tables */
 #define MAIN_LEN 49
 static const WORD main_key_scan_qwerty[MAIN_LEN] =
@@ -1594,6 +1620,8 @@ BOOL X11DRV_KeyEvent( HWND hwnd, XEvent *xev )
     if (event->type == KeyPress) update_user_time( event->time );
 
     pthread_mutex_lock( &kbd_mutex );
+
+    set_current_xkb_group( hwnd, event->state >> 13 );
 
     /* If XKB extensions are used, the state mask for AltGr will use the group
        index instead of the modifier mask. The group index is set in bits
