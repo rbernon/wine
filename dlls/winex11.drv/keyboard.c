@@ -161,6 +161,12 @@ struct layout
     /* "Layout Id", used by NtUserGetKeyboardLayoutName / LoadKeyboardLayoutW */
     WORD layout_id;
     const USHORT *scan2vk;
+
+    KBDTABLES tables;
+
+    USHORT vsc2vk[0x100];
+    VSC_VK vsc2vk_e0[0x100];
+    VSC_VK vsc2vk_e1[0x100];
 };
 
 static const unsigned int ControlMask = 1 << 2;
@@ -460,7 +466,9 @@ static void create_layout_from_xkb( int xkb_group, const char *xkb_layout, LANGI
 {
     static WORD next_layout_id = 1;
 
+    VSC_VK *vsc2vk_e0_entry, *vsc2vk_e1_entry;
     struct layout *layout;
+    unsigned int keyc;
     WORD index = 0;
 
     TRACE( "lang %04x, xkb_group %u, xkb_layout %s\n", lang, xkb_group, xkb_layout );
@@ -501,6 +509,33 @@ static void create_layout_from_xkb( int xkb_group, const char *xkb_layout, LANGI
     default: layout->scan2vk = scan2vk_qwerty;
     }
     if (strstr( xkb_layout, "dvorak" )) layout->scan2vk = scan2vk_dvorak;
+
+    layout->tables.bMaxVSCtoVK = 0xff;
+    layout->tables.pusVSCtoVK = layout->vsc2vk;
+    layout->tables.pVSCtoVK_E0 = layout->vsc2vk_e0;
+    layout->tables.pVSCtoVK_E1 = layout->vsc2vk_e1;
+
+    vsc2vk_e0_entry = layout->tables.pVSCtoVK_E0;
+    vsc2vk_e1_entry = layout->tables.pVSCtoVK_E1;
+
+    for (keyc = min_keycode; keyc <= max_keycode; keyc++)
+    {
+        WORD scan = keyc2scan( keyc ), vkey = layout->scan2vk[scan];
+        VSC_VK *entry = NULL;
+
+        if (!(scan & 0xff) || !vkey) continue;
+        if (scan & 0x100) entry = vsc2vk_e0_entry++;
+        else if (scan & 0x200) entry = vsc2vk_e1_entry++;
+        else layout->tables.pusVSCtoVK[scan & 0xff] = vkey;
+
+        if (entry)
+        {
+            entry->Vsc = scan & 0xff;
+            entry->Vk = vkey;
+        }
+
+        TRACE( "keyc %#04x, scan %#05x -> vkey %#06x\n", keyc, scan, vkey );
+    }
 
     TRACE( "Created layout entry %p, hkl %04x%04x id %04x\n", layout, layout->index, layout->lang, layout->layout_id );
 }
@@ -884,6 +919,12 @@ void X11DRV_InitKeyboard( Display *display )
     pthread_mutex_lock( &kbd_mutex );
     XDisplayKeycodes(display, &min_keycode, &max_keycode);
     XFree( XGetKeyboardMapping( display, min_keycode, max_keycode + 1 - min_keycode, &keysyms_per_keycode ) );
+
+    if (min_keycode + 0xff < max_keycode)
+    {
+        FIXME( "Unsupported keycode min %u, max %u\n", min_keycode, max_keycode );
+        max_keycode = min_keycode + 0xff;
+    }
 
     mmp = XGetModifierMapping(display);
     kcp = mmp->modifiermap;
@@ -1944,7 +1985,7 @@ const KBDTABLES *X11DRV_KbdLayerDescriptor( HKL hkl )
 
     TRACE( "Found layout entry %p, hkl %04x%04x id %04x\n",
            layout, layout->index, layout->lang, layout->layout_id );
-    return NULL;
+    return &layout->tables;
 }
 
 /***********************************************************************
