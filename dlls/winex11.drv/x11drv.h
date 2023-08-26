@@ -201,8 +201,6 @@ extern BOOL X11DRV_ActivateKeyboardLayout( HKL hkl, UINT flags );
 extern void X11DRV_Beep(void);
 extern const KBDTABLES *X11DRV_KbdLayerDescriptor( HKL hkl );
 extern void X11DRV_ReleaseKbdTables( const KBDTABLES *tables );
-extern INT X11DRV_ToUnicodeEx( UINT virtKey, UINT scanCode, const BYTE *lpKeyState,
-                               LPWSTR bufW, int bufW_size, UINT flags, HKL hkl );
 extern UINT X11DRV_ImeProcessKey( HIMC himc, UINT wparam, UINT lparam, const BYTE *key_state );
 extern void X11DRV_NotifyIMEStatus( HWND hwnd, UINT status );
 extern BOOL X11DRV_SetIMECompositionRect( HWND hwnd, RECT rect );
