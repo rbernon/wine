@@ -3515,7 +3515,6 @@ static void test_keyboard_layout_name(void)
         ActivateKeyboardLayout(layouts[i], 0);
 
         tmplayout = GetKeyboardLayout(0);
-        todo_wine_if(tmplayout != layouts[i])
         ok( tmplayout == layouts[i], "Failed to activate keyboard layout\n");
         if (tmplayout != layouts[i])
         {
@@ -3530,21 +3529,25 @@ static void test_keyboard_layout_name(void)
             swprintf( tmpklid, KL_NAMELENGTH, L"%08X", layouts_preload[j] );
             if (!wcscmp( tmpklid, klid )) break;
         }
+        todo_wine_if( layouts[i] != layout )
         ok(j < len, "Could not find keyboard layout %s in preload list\n", wine_dbgstr_w(klid));
 
         if (id & 0x80000000)
         {
-            todo_wine ok((id >> 28) == 0xf, "hkl high bits %#lx, expected 0xf\n", id >> 28);
+            todo_wine_if((UINT_PTR)layout >> 28 == 0xe) /* FIXME: winex11 currently fakes an IME on CJK locale */
+            ok((id >> 28) == 0xf, "hkl high bits %#lx, expected 0xf\n", id >> 28);
 
             value_size = sizeof(value);
             wcscpy(layout_path, L"System\\CurrentControlSet\\Control\\Keyboard Layouts\\");
             wcscat(layout_path, klid);
             status = RegGetValueW(HKEY_LOCAL_MACHINE, layout_path, L"Layout Id", RRF_RT_REG_SZ, NULL, (void *)&value, &value_size);
-            todo_wine ok(!status, "RegGetValueW returned %lx\n", status);
+            todo_wine_if((UINT_PTR)layout >> 28 == 0xe) /* FIXME: winex11 currently fakes an IME on CJK locale */
+            ok(!status, "RegGetValueW returned %lx\n", status);
             ok(value_size == 5 * sizeof(WCHAR), "RegGetValueW returned size %ld\n", value_size);
 
             swprintf(tmpklid, KL_NAMELENGTH, L"%04X", (id >> 16) & 0x0fff);
-            todo_wine ok(!wcsicmp(value, tmpklid), "RegGetValueW returned %s, expected %s\n", debugstr_w(value), debugstr_w(tmpklid));
+            todo_wine_if((UINT_PTR)layout >> 28 == 0xe) /* FIXME: winex11 currently fakes an IME on CJK locale */
+            ok(!wcsicmp(value, tmpklid), "RegGetValueW returned %s, expected %s\n", debugstr_w(value), debugstr_w(tmpklid));
         }
         else
         {
@@ -3556,7 +3559,7 @@ static void test_keyboard_layout_name(void)
         tmplayout = LoadKeyboardLayoutW(klid, KLF_ACTIVATE);
 
         /* The low word of HKL is the selected user lang and may be different as LoadKeyboardLayoutW also selects the default lang from the layout */
-        ok(((UINT_PTR)tmplayout & ~0xffff) == ((UINT_PTR)layouts[i] & ~0xffff), "LoadKeyboardLayoutW returned %p, expected %p\n", tmplayout, layouts[i]);
+        ok(HIWORD(tmplayout) == HIWORD(layouts[i]), "LoadKeyboardLayoutW returned %p, expected %p\n", tmplayout, layouts[i]);
 
         /* The layout name only depends on the keyboard layout: the high word of HKL. */
         GetKeyboardLayoutNameW(tmpklid);
@@ -3601,6 +3604,7 @@ static LRESULT CALLBACK test_ActivateKeyboardLayout_window_proc( HWND hwnd, UINT
 
         ok( !got_setfocus, "got WM_SETFOCUS before WM_INPUTLANGCHANGE\n" );
         ok( layout == expect_hkl, "got layout %p\n", layout );
+        todo_wine_if( wparam == 0xfe )
         ok( wparam == info.ciCharset || broken(wparam == 0 && (HIWORD(layout) & 0x8000)),
             "got wparam %#Ix\n", wparam );
         ok( lparam == (LPARAM)expect_hkl, "got lparam %#Ix\n", lparam );
@@ -3656,11 +3660,10 @@ static void test_ActivateKeyboardLayout( char **argv )
         got_setfocus = 0;
         ActivateKeyboardLayout( other_layout, 0 );
         if (other_layout == layout) ok( change_hkl == 0, "got change_hkl %p\n", change_hkl );
-        else todo_wine ok( change_hkl == other_layout, "got change_hkl %p\n", change_hkl );
+        else ok( change_hkl == other_layout, "got change_hkl %p\n", change_hkl );
         change_hkl = expect_hkl = 0;
 
         tmp_layout = GetKeyboardLayout( 0 );
-        todo_wine_if(layout != other_layout)
         ok( tmp_layout == other_layout, "got tmp_layout %p\n", tmp_layout );
 
         /* changing the layout from another thread doesn't send the message */
@@ -3674,7 +3677,6 @@ static void test_ActivateKeyboardLayout( char **argv )
 
         empty_message_queue();
         tmp_layout = GetKeyboardLayout( 0 );
-        todo_wine_if(layout != other_layout)
         ok( tmp_layout == other_layout, "got tmp_layout %p\n", tmp_layout );
 
         /* but the change only takes effect after focus changes */
@@ -3682,7 +3684,6 @@ static void test_ActivateKeyboardLayout( char **argv )
         hwnd2 = create_foreground_window( FALSE );
 
         tmp_layout = GetKeyboardLayout( 0 );
-        todo_wine_if(layout != other_layout)
         ok( tmp_layout == layout || broken(layout != other_layout && tmp_layout == other_layout) /* w7u */,
             "got tmp_layout %p\n", tmp_layout );
         if (broken(layout != other_layout && tmp_layout == other_layout))
@@ -3698,7 +3699,6 @@ static void test_ActivateKeyboardLayout( char **argv )
         ok( change_hkl == 0, "got change_hkl %p\n", change_hkl );
 
         tmp_layout = GetKeyboardLayout( 0 );
-        todo_wine_if(layout != other_layout)
         ok( tmp_layout == other_layout, "got tmp_layout %p\n", tmp_layout );
 
         thread = CreateThread( NULL, 0, test_ActivateKeyboardLayout_thread_proc, layout, 0, 0 );
@@ -3707,7 +3707,6 @@ static void test_ActivateKeyboardLayout( char **argv )
         CloseHandle( thread );
 
         tmp_layout = GetKeyboardLayout( 0 );
-        todo_wine_if(layout != other_layout)
         ok( tmp_layout == other_layout, "got tmp_layout %p\n", tmp_layout );
 
         /* changing focus is enough for the layout change to take effect */
@@ -3726,11 +3725,10 @@ static void test_ActivateKeyboardLayout( char **argv )
         }
 
         if (other_layout == layout) ok( change_hkl == 0, "got change_hkl %p\n", change_hkl );
-        else todo_wine ok( change_hkl == layout, "got change_hkl %p\n", change_hkl );
+        else ok( change_hkl == layout, "got change_hkl %p\n", change_hkl );
         change_hkl = expect_hkl = 0;
 
         tmp_layout = GetKeyboardLayout( 0 );
-        todo_wine_if(layout != other_layout)
         ok( tmp_layout == layout, "got tmp_layout %p\n", tmp_layout );
 
         DestroyWindow( hwnd2 );

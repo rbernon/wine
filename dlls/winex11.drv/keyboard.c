@@ -40,6 +40,8 @@
 #include <stdarg.h>
 #include <string.h>
 
+#include "ntstatus.h"
+#define WIN32_NO_STATUS
 #include "x11drv.h"
 
 #include "wingdi.h"
@@ -147,6 +149,69 @@ static WORD key2scan( UINT key )
 
     /* otherwise just make up some extended scancode */
     return 0x200 | (key & 0x7f);
+}
+
+/* wrapper for NtCreateKey that creates the key recursively if necessary */
+static HKEY reg_create_key( HKEY root, const WCHAR *name, ULONG name_len,
+                            DWORD options, DWORD *disposition )
+{
+    UNICODE_STRING nameW = { name_len, name_len, (WCHAR *)name };
+    OBJECT_ATTRIBUTES attr;
+    NTSTATUS status;
+    HANDLE ret;
+
+    attr.Length = sizeof(attr);
+    attr.RootDirectory = root;
+    attr.ObjectName = &nameW;
+    attr.Attributes = 0;
+    attr.SecurityDescriptor = NULL;
+    attr.SecurityQualityOfService = NULL;
+
+    status = NtCreateKey( &ret, MAXIMUM_ALLOWED, &attr, 0, NULL, options, disposition );
+    if (status == STATUS_OBJECT_NAME_NOT_FOUND)
+    {
+        static const WCHAR registry_rootW[] = { '\\','R','e','g','i','s','t','r','y','\\' };
+        DWORD pos = 0, i = 0, len = name_len / sizeof(WCHAR);
+
+        /* don't try to create registry root */
+        if (!root && len > ARRAY_SIZE(registry_rootW) &&
+            !memcmp( name, registry_rootW, sizeof(registry_rootW) ))
+            i += ARRAY_SIZE(registry_rootW);
+
+        while (i < len && name[i] != '\\') i++;
+        if (i == len) return 0;
+        for (;;)
+        {
+            unsigned int subkey_options = options;
+            if (i < len) subkey_options &= ~(REG_OPTION_CREATE_LINK | REG_OPTION_OPEN_LINK);
+            nameW.Buffer = (WCHAR *)name + pos;
+            nameW.Length = (i - pos) * sizeof(WCHAR);
+            status = NtCreateKey( &ret, MAXIMUM_ALLOWED, &attr, 0, NULL, subkey_options, disposition );
+
+            if (attr.RootDirectory != root) NtClose( attr.RootDirectory );
+            if (!NT_SUCCESS(status)) return 0;
+            if (i == len) break;
+            attr.RootDirectory = ret;
+            while (i < len && name[i] == '\\') i++;
+            pos = i;
+            while (i < len && name[i] != '\\') i++;
+        }
+    }
+    return ret;
+}
+
+static BOOL set_reg_value( HKEY hkey, const WCHAR *name, UINT type, const void *value, DWORD count )
+{
+    unsigned int name_size = name ? lstrlenW( name ) * sizeof(WCHAR) : 0;
+    UNICODE_STRING nameW = { name_size, name_size, (WCHAR *)name };
+    return !NtSetValueKey( hkey, &nameW, 0, type, value, count );
+}
+
+static void set_reg_ascii_value( HKEY hkey, const char *name, const char *value )
+{
+    WCHAR nameW[64], valueW[128];
+    asciiz_to_unicode( nameW, name );
+    set_reg_value( hkey, nameW, REG_SZ, valueW, asciiz_to_unicode( valueW, value ));
 }
 
 struct layout
@@ -475,6 +540,12 @@ static inline LANGID langid_from_xkb_layout( const char *layout, size_t layout_l
 
 static void create_layout_from_xkb( Display *display, int xkb_group, const char *xkb_layout, LANGID lang )
 {
+    static WCHAR keyboard_layoutsW[] =
+    {
+        '\\','R','e','g','i','s','t','r','y','\\','M','a','c','h','i','n','e','\\','S','y','s','t','e','m',
+        '\\','C','u','r','r','e','n','t','C','o','n','t','r','o','l','S','e','t','\\','C','o','n','t','r','o','l',
+        '\\','K','e','y','b','o','a','r','d',' ','L','a','y','o','u','t','s',
+    };
     static WORD next_layout_id = 1;
 
     unsigned int mod, keyc, len, names_len, altgr_mod = 0;
@@ -483,6 +554,7 @@ static void create_layout_from_xkb( Display *display, int xkb_group, const char 
     VK_TO_WCHARS8 *vk2wchars_entry;
     XModifierKeymap *modmap;
     struct layout *layout;
+    HKEY hkey, subkey;
     WCHAR *names_str;
     WORD index = 0;
     char *ptr;
@@ -663,6 +735,27 @@ static void create_layout_from_xkb( Display *display, int xkb_group, const char 
 
         TRACE( "vkey %#06x -> %s\n", vkey2wch.VirtualKey, debugstr_wn(vkey2wch.wch, 8) );
         *vk2wchars_entry++ = vkey2wch;
+    }
+
+    if ((hkey = reg_create_key( NULL, keyboard_layoutsW, ARRAY_SIZE(keyboard_layoutsW), 0, NULL )))
+    {
+        WCHAR bufferW[MAX_PATH];
+        char buffer[MAX_PATH];
+
+        sprintf( buffer, "%04x%04x", layout->index, layout->lang );
+        len = asciiz_to_unicode( bufferW, buffer ) - sizeof(WCHAR);
+
+        if ((subkey = reg_create_key( hkey, bufferW, len, REG_OPTION_VOLATILE, NULL )))
+        {
+            if (layout->layout_id)
+            {
+                sprintf( buffer, "%04x", layout->layout_id );
+                set_reg_ascii_value( subkey, "Layout Id", buffer );
+            }
+            NtClose( subkey );
+        }
+
+        NtClose( hkey );
     }
 
     TRACE( "Created layout entry %p, hkl %04x%04x id %04x\n", layout, layout->index, layout->lang, layout->layout_id );
