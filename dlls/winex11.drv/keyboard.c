@@ -533,32 +533,6 @@ static void set_current_xkb_group( HWND hwnd, int xkb_group )
     send_message( hwnd, WM_INPUTLANGCHANGEREQUEST, 0 /*FIXME*/, (LPARAM)hkl );
 }
 
-/* Returns the Windows virtual key code associated with the X event <e> */
-/* kbd_section must be held */
-static WORD EVENT_event_to_vkey( XIC xic, XKeyEvent *e)
-{
-    KeySym keysym = 0;
-    Status status;
-    char buf[24];
-    WORD scan;
-
-    /* Clients should pass only KeyPress events to XmbLookupString */
-    if (xic && e->type == KeyPress)
-        XmbLookupString(xic, e, buf, sizeof(buf), &keysym, &status);
-    else
-        XLookupString(e, buf, sizeof(buf), &keysym, NULL);
-
-    /* Pressing the Pause/Break key alone produces VK_PAUSE vkey, while
-     * pressing Ctrl+Pause/Break produces VK_CANCEL. */
-    if ((e->state & ControlMask) && (keysym == XK_Break))
-        return VK_CANCEL;
-
-    TRACE_(key)("e->keycode = %u\n", e->keycode);
-
-    scan = keyc2scan( e->keycode );
-    return scan2vk[scan];
-}
-
 
 /***********************************************************************
  *           X11DRV_send_keyboard_input
@@ -808,7 +782,7 @@ BOOL X11DRV_KeyEvent( HWND hwnd, XEvent *xev )
     }
 
     scan = keyc2scan( event->keycode );
-    vkey = EVENT_event_to_vkey(xic,event);
+    vkey = scan2vk[scan];
 
     TRACE_(key)("keycode %u converted to vkey 0x%X scan %04x\n",
                 event->keycode, vkey, scan);
@@ -1175,7 +1149,7 @@ UINT X11DRV_MapVirtualKeyEx( UINT wCode, UINT wMapType, HKL hkl )
                 if  ((scan2vk[scan] & 0xFF) == wCode)
                 { /* We filter the extended bit, we don't know it */
                     e.keycode = keyc; /* Store it temporarily */
-                    if ((EVENT_event_to_vkey(0,&e) & 0xFF) != wCode) {
+                    if ((scan2vk[keyc2scan( keyc )] & 0xff) != wCode) {
                         e.keycode = 0; /* Wrong one (ex: because of the NumLock
                                           state), so set it to 0, we'll find another one */
                     }
@@ -1520,7 +1494,7 @@ INT X11DRV_ToUnicodeEx( UINT virtKey, UINT scanCode, const BYTE *lpKeyState,
           if  ((scan2vk[scan] & 0xFF) == virtKey)
           { /* We filter the extended bit, we don't know it */
               e.keycode = keyc; /* Store it temporarily */
-              if ((EVENT_event_to_vkey(xic,&e) & 0xFF) != virtKey) {
+              if ((scan2vk[keyc2scan( keyc )] & 0xff) != virtKey) {
                   e.keycode = 0; /* Wrong one (ex: because of the NumLock
                          state), so set it to 0, we'll find another one */
               }
