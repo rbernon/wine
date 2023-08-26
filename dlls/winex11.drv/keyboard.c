@@ -171,7 +171,7 @@ struct layout
     VSC_VK vsc2vk_e0[0x100];
     VSC_VK vsc2vk_e1[0x100];
 
-    VK_TO_WCHAR_TABLE vk_to_wchar_table;
+    VK_TO_WCHAR_TABLE vk_to_wchar_table[2];
     VK_TO_WCHARS8 vk_to_wchars8[0x100];
     VK_TO_BIT vk2bit[4];
     union
@@ -562,11 +562,11 @@ static void create_layout_from_xkb( Display *display, int xkb_group, const char 
     layout->tables.pVSCtoVK_E0 = layout->vsc2vk_e0;
     layout->tables.pVSCtoVK_E1 = layout->vsc2vk_e1;
     layout->tables.pCharModifiers = &layout->modifiers;
-    layout->tables.pVkToWcharTable = &layout->vk_to_wchar_table;
+    layout->tables.pVkToWcharTable = layout->vk_to_wchar_table;
 
-    layout->vk_to_wchar_table.pVkToWchars = (VK_TO_WCHARS1 *)layout->vk_to_wchars8;
-    layout->vk_to_wchar_table.cbSize = sizeof(*layout->vk_to_wchars8);
-    layout->vk_to_wchar_table.nModifications = 8;
+    layout->vk_to_wchar_table[0].pVkToWchars = (VK_TO_WCHARS1 *)layout->vk_to_wchars8;
+    layout->vk_to_wchar_table[0].cbSize = sizeof(*layout->vk_to_wchars8);
+    layout->vk_to_wchar_table[0].nModifications = 8;
 
     layout->vk2bit[0].Vk = VK_SHIFT;
     layout->vk2bit[0].ModBits = KBDSHIFT;
@@ -1213,93 +1213,6 @@ SHORT X11DRV_VkKeyScanEx( WCHAR wChar, HKL hkl )
      */
 
     TRACE(" ... returning %#.2x\n", ret);
-    return ret;
-}
-
-/***********************************************************************
- *		MapVirtualKeyEx (X11DRV.@)
- */
-UINT X11DRV_MapVirtualKeyEx( UINT wCode, UINT wMapType, HKL hkl )
-{
-    UINT ret = 0;
-    int keyc;
-    Display *display = thread_init_display();
-
-    if (use_server_x11) return -1;
-    if (wMapType != MAPVK_VK_TO_CHAR) return -1;
-
-    TRACE("wCode=0x%x, wMapType=%d, hkl %p\n", wCode, wMapType, hkl);
-
-    pthread_mutex_lock( &kbd_mutex );
-
-    switch(wMapType)
-    {
-        case MAPVK_VK_TO_CHAR: /* vkey-code to unshifted ANSI code */
-        {
-            /* we still don't know what "unshifted" means. in windows VK_W (0x57)
-             * returns 0x57, which is uppercase 'W'. So we have to return the uppercase
-             * key.. Looks like something is wrong with the MS docs?
-             * This is only true for letters, for example VK_0 returns '0' not ')'.
-             * - hence we use the lock mask to ensure this happens.
-             */
-            /* let's do vkey -> keycode -> (XLookupString) ansi char */
-            XKeyEvent e;
-            KeySym keysym;
-            int len;
-            char s[10];
-
-            e.display = display;
-            e.state = 0;
-            e.keycode = 0;
-            e.type = KeyPress;
-
-            /* We exit on the first keycode found, to speed up the thing. */
-            for (keyc=min_keycode; (keyc<=max_keycode) && (!e.keycode) ; keyc++)
-            { /* Find a keycode that could have generated this virtual key */
-                WORD scan = keyc2scan( keyc );
-                if  ((scan2vk[scan] & 0xFF) == wCode)
-                { /* We filter the extended bit, we don't know it */
-                    e.keycode = keyc; /* Store it temporarily */
-                    if ((scan2vk[keyc2scan( keyc )] & 0xff) != wCode) {
-                        e.keycode = 0; /* Wrong one (ex: because of the NumLock
-                                          state), so set it to 0, we'll find another one */
-                    }
-                }
-            }
-
-            if ((wCode>=VK_NUMPAD0) && (wCode<=VK_NUMPAD9))
-                e.keycode = XKeysymToKeycode(e.display, wCode-VK_NUMPAD0+XK_KP_0);
-
-            /* Windows always generates VK_DECIMAL for Del/. on keypad while some
-             * X11 keyboard layouts generate XK_KP_Separator instead of XK_KP_Decimal
-             * in order to produce a locale dependent numeric separator.
-             */
-            if (wCode == VK_DECIMAL || wCode == VK_SEPARATOR)
-            {
-                e.keycode = XKeysymToKeycode(e.display, XK_KP_Separator);
-                if (!e.keycode)
-                    e.keycode = XKeysymToKeycode(e.display, XK_KP_Decimal);
-            }
-
-            if (!e.keycode)
-            {
-                WARN("Unknown virtual key %X !!!\n", wCode);
-                break;
-            }
-            TRACE("Found keycode %u\n",e.keycode);
-
-            len = XLookupString(&e, s, sizeof(s), &keysym, NULL);
-            if (len)
-            {
-                WCHAR wch;
-                if (ntdll_umbstowcs( s, len, &wch, 1 )) ret = RtlUpcaseUnicodeChar( wch );
-            }
-            break;
-        }
-    }
-
-    pthread_mutex_unlock( &kbd_mutex );
-    TRACE( "returning 0x%x.\n", ret );
     return ret;
 }
 
