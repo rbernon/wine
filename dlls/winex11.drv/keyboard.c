@@ -645,7 +645,7 @@ static void create_layout_from_xkb( Display *display, int xkb_group, const char 
         for (mod = 0; mod < 8; ++mod)
         {
             char buffer[16] = {0};
-            unsigned int ret;
+            unsigned int ret = 0;
 
             if (mod & (1 << 0)) key.state |= ShiftMask;
             else key.state &= ~ShiftMask;
@@ -654,7 +654,8 @@ static void create_layout_from_xkb( Display *display, int xkb_group, const char 
             if (mod & (1 << 2)) key.state |= altgr_mod;
             else key.state &= ~altgr_mod;
 
-            if (!(ret = XLookupString( &key, buffer, sizeof(buffer), &keysym, NULL ))) vkey2wch.wch[mod] = WCH_NONE;
+            if (key.state & ControlMask) vkey2wch.wch[mod] = WCH_NONE; /* on Windows CTRL+key behave specifically */
+            else if (!(ret = XLookupString( &key, buffer, sizeof(buffer), &keysym, NULL ))) vkey2wch.wch[mod] = WCH_NONE;
             else ret = ntdll_umbstowcs( buffer, ret, &vkey2wch.wch[mod], 1 );
             if (ret) found = TRUE;
         }
