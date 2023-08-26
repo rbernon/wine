@@ -1355,7 +1355,7 @@ INT WINAPI NtUserToUnicodeEx( UINT virt, UINT scan, const BYTE *state,
 HKL WINAPI NtUserActivateKeyboardLayout( HKL layout, UINT flags )
 {
     struct user_thread_info *info = get_user_thread_info();
-    HKL old_layout;
+    HKL old_layout = NtUserGetKeyboardLayout( 0 );
     LCID locale;
     HWND focus;
 
@@ -1380,8 +1380,7 @@ HKL WINAPI NtUserActivateKeyboardLayout( HKL layout, UINT flags )
     if (!user_driver->pActivateKeyboardLayout( layout, flags ))
         return 0;
 
-    old_layout = info->kbd_layout;
-    if (old_layout != layout)
+    if (!info->kbd_layout || old_layout != layout)
     {
         HWND ime_hwnd = get_default_ime_window( 0 );
         const NLS_LOCALE_DATA *data;
@@ -1405,7 +1404,6 @@ HKL WINAPI NtUserActivateKeyboardLayout( HKL layout, UINT flags )
             send_message( focus, WM_INPUTLANGCHANGE, cs.ciCharset, (LPARAM)layout );
     }
 
-    if (!old_layout) return get_locale_kbd_layout();
     return old_layout;
 }
 
