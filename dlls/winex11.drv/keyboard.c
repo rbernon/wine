@@ -533,72 +533,6 @@ static void set_current_xkb_group( HWND hwnd, int xkb_group )
     send_message( hwnd, WM_INPUTLANGCHANGEREQUEST, 0 /*FIXME*/, (LPARAM)hkl );
 }
 
-/* maybe more of these scancodes should be extended? */
-                /* extended must be set for ALT_R, CTRL_R,
-                   INS, DEL, HOME, END, PAGE_UP, PAGE_DOWN, ARROW keys,
-                   keypad / and keypad ENTER (SDK 3.1 Vol.3 p 138) */
-                /* FIXME should we set extended bit for NumLock ? My
-                 * Windows does ... DF */
-                /* Yes, to distinguish based on scan codes, also
-                   for PrtScn key ... GA */
-
-static const WORD nonchar_key_vkey[256] =
-{
-    /* unused */
-    0, 0, 0, 0, 0, 0, 0, 0,                                     /* FF00 */
-    /* special keys */
-    VK_BACK, VK_TAB, 0, VK_CLEAR, 0, VK_RETURN, 0, 0,           /* FF08 */
-    0, 0, 0, VK_PAUSE, VK_SCROLL, 0, 0, 0,                      /* FF10 */
-    0, 0, 0, VK_ESCAPE, 0, 0, 0, 0,                             /* FF18 */
-    /* Japanese special keys */
-    0, VK_KANJI, VK_NONCONVERT, VK_CONVERT,                     /* FF20 */
-    VK_DBE_ROMAN, 0, 0, VK_DBE_HIRAGANA,
-    0, 0, VK_DBE_SBCSCHAR, 0, 0, 0, 0, 0,                       /* FF28 */
-    /* Korean special keys (FF31-) */
-    VK_DBE_ALPHANUMERIC, VK_HANGUL, 0, 0, VK_HANJA, 0, 0, 0,    /* FF30 */
-    0, 0, 0, 0, 0, 0, 0, 0,                                     /* FF38 */
-    /* unused */
-    0, 0, 0, 0, 0, 0, 0, 0,                                     /* FF40 */
-    0, 0, 0, 0, 0, 0, 0, 0,                                     /* FF48 */
-    /* cursor keys */
-    VK_HOME, VK_LEFT, VK_UP, VK_RIGHT,                          /* FF50 */
-    VK_DOWN, VK_PRIOR, VK_NEXT, VK_END,
-    0, 0, 0, 0, 0, 0, 0, 0,                                     /* FF58 */
-    /* misc keys */
-    VK_SELECT, VK_SNAPSHOT, VK_EXECUTE, VK_INSERT, 0,0,0, VK_APPS, /* FF60 */
-    0, VK_CANCEL, VK_HELP, VK_CANCEL, 0, 0, 0, 0,               /* FF68 */
-    0, 0, 0, 0, 0, 0, 0, 0,                                     /* FF70 */
-    /* keypad keys */
-    0, 0, 0, 0, 0, 0, 0, VK_NUMLOCK,                            /* FF78 */
-    0, 0, 0, 0, 0, 0, 0, 0,                                     /* FF80 */
-    0, 0, 0, 0, 0, VK_RETURN, 0, 0,                             /* FF88 */
-    0, 0, 0, 0, 0, VK_HOME, VK_LEFT, VK_UP,                     /* FF90 */
-    VK_RIGHT, VK_DOWN, VK_PRIOR, VK_NEXT,                       /* FF98 */
-    VK_END, VK_CLEAR, VK_INSERT, VK_DELETE,
-    0, 0, 0, 0, 0, 0, 0, 0,                                     /* FFA0 */
-    0, 0, VK_MULTIPLY, VK_ADD,                                  /* FFA8 */
-    /* Windows always generates VK_DECIMAL for Del/. on keypad while some
-     * X11 keyboard layouts generate XK_KP_Separator instead of XK_KP_Decimal
-     * in order to produce a locale dependent numeric separator.
-     */
-    VK_DECIMAL, VK_SUBTRACT, VK_DECIMAL, VK_DIVIDE,
-    VK_NUMPAD0, VK_NUMPAD1, VK_NUMPAD2, VK_NUMPAD3,             /* FFB0 */
-    VK_NUMPAD4, VK_NUMPAD5, VK_NUMPAD6, VK_NUMPAD7,
-    VK_NUMPAD8, VK_NUMPAD9, 0, 0, 0, VK_OEM_NEC_EQUAL,          /* FFB8 */
-    /* function keys */
-    VK_F1, VK_F2,
-    VK_F3, VK_F4, VK_F5, VK_F6, VK_F7, VK_F8, VK_F9, VK_F10,    /* FFC0 */
-    VK_F11, VK_F12, VK_F13, VK_F14, VK_F15, VK_F16, VK_F17, VK_F18, /* FFC8 */
-    VK_F19, VK_F20, VK_F21, VK_F22, VK_F23, VK_F24, 0, 0,       /* FFD0 */
-    0, 0, 0, 0, 0, 0, 0, 0,                                     /* FFD8 */
-    /* modifier keys */
-    0, VK_LSHIFT, VK_RSHIFT, VK_LCONTROL,                       /* FFE0 */
-    VK_RCONTROL, VK_CAPITAL, 0, VK_LMENU,
-    VK_RMENU, VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN, 0, 0, 0,    /* FFE8 */
-    0, 0, 0, 0, 0, 0, 0, 0,                                     /* FFF0 */
-    0, 0, 0, 0, 0, 0, 0, VK_DELETE                              /* FFF8 */
-};
-
 /* Returns the Windows virtual key code associated with the X event <e> */
 /* kbd_section must be held */
 static WORD EVENT_event_to_vkey( XIC xic, XKeyEvent *e)
@@ -613,13 +547,6 @@ static WORD EVENT_event_to_vkey( XIC xic, XKeyEvent *e)
         XmbLookupString(xic, e, buf, sizeof(buf), &keysym, &status);
     else
         XLookupString(e, buf, sizeof(buf), &keysym, NULL);
-
-    if ((e->state & NumLockMask) &&
-        (keysym == XK_KP_Separator || keysym == XK_KP_Decimal ||
-         (keysym >= XK_KP_0 && keysym <= XK_KP_9)))
-        /* Only the Keypad keys 0-9 and . send different keysyms
-         * depending on the NumLock state */
-        return nonchar_key_vkey[keysym & 0xFF];
 
     /* Pressing the Pause/Break key alone produces VK_PAUSE vkey, while
      * pressing Ctrl+Pause/Break produces VK_CANCEL. */
