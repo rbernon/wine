@@ -1233,8 +1233,170 @@ static void test_IDirectMusicSynth(void)
     ret = WriteFile(wave_file, &format_size, 4, &written, NULL);
     ok(ret, "WriteFile failed, error %lu.\n", GetLastError());
 
+{
+    DMUS_BUFFERDESC buffer_desc =
+    {
+        .dwSize = sizeof(DMUS_BUFFERDESC),
+        .dwFlags = 0,
+        .guidBufferFormat = GUID_NULL,
+        .cbBuffer = 4096,
+    };
+    IDirectMusicBuffer *music_buffer;
+    IReferenceClock *latency_clock;
+    IDirectMusic *dmusic;
+    REFERENCE_TIME time;
+    DWORD len;
+    BYTE *beg;
+
+    hr = IDirectMusicSynth_GetLatencyClock(synth, &latency_clock);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+if (0)
+{
+    BYTE private[] = {0xf0, 0x7e, 0x7f, 0x09, 0x01, 0xf7};
+
+    hr = IDirectMusic_CreateMusicBuffer(dmusic, &buffer_desc, &music_buffer, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IDirectMusicBuffer_PackUnstructured(music_buffer, 0, 1, 6, private);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    hr = IReferenceClock_GetTime(latency_clock, &time);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IDirectMusicBuffer_GetRawBufferPtr(music_buffer, (BYTE **)&beg);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IDirectMusicBuffer_GetUsedBytes(music_buffer, &len);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IDirectMusicSynth_PlayBuffer(synth, time, (BYTE *)beg, len);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+    IDirectMusicBuffer_Release(music_buffer);
+}
+
+    if (0)
+    {
+        test_sink_render(sink, buffer, sizeof(buffer));
+        ret = WriteFile(wave_file, buffer, sizeof(buffer), NULL, NULL);
+        ok(ret, "WriteFile failed, error %lu.\n", GetLastError());
+    }
+
+if (0)
+{
+    hr = IDirectMusic_CreateMusicBuffer(dmusic, &buffer_desc, &music_buffer, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    for (UINT i = 0; i < 0x10; i++)
+    {
+        hr = IDirectMusicBuffer_PackStructured(music_buffer, 0, 1, 0x0078b0 | i);
+        ok(hr == S_OK, "got %#lx\n", hr);
+    }
+    for (UINT i = 0; i < 0x10; i++)
+    {
+        hr = IDirectMusicBuffer_PackStructured(music_buffer, 0, 1, 0x0079b0 | i);
+        ok(hr == S_OK, "got %#lx\n", hr);
+    }
+
+    hr = IReferenceClock_GetTime(latency_clock, &time);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IDirectMusicBuffer_GetRawBufferPtr(music_buffer, (BYTE **)&beg);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IDirectMusicBuffer_GetUsedBytes(music_buffer, &len);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IDirectMusicSynth_PlayBuffer(synth, time, (BYTE *)beg, len);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+    IDirectMusicBuffer_Release(music_buffer);
+}
+
+    if (0)
+    {
+        test_sink_render(sink, buffer, sizeof(buffer));
+        ret = WriteFile(wave_file, buffer, sizeof(buffer), NULL, NULL);
+        ok(ret, "WriteFile failed, error %lu.\n", GetLastError());
+    }
+
+
+if (0)
+{
+    hr = IDirectMusic_CreateMusicBuffer(dmusic, &buffer_desc, &music_buffer, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    for (UINT i = 0; i < 0x10; i++)
+    {
+        hr = IDirectMusicBuffer_PackStructured(music_buffer, 0, 1, 0x0000b0 | i);
+        ok(hr == S_OK, "got %#lx\n", hr);
+    }
+    for (UINT i = 0; i < 0x10; i++)
+    {
+        hr = IDirectMusicBuffer_PackStructured(music_buffer, 0, 1, 0x0000c0 | i);
+        ok(hr == S_OK, "got %#lx\n", hr);
+    }
+    for (UINT i = 0; i < 0x10; i++)
+    {
+        hr = IDirectMusicBuffer_PackStructured(music_buffer, 0, 1, 0x7f07b0 | i);
+        ok(hr == S_OK, "got %#lx\n", hr);
+    }
+
+    hr = IReferenceClock_GetTime(latency_clock, &time);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IDirectMusicBuffer_GetRawBufferPtr(music_buffer, (BYTE **)&beg);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IDirectMusicBuffer_GetUsedBytes(music_buffer, &len);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IDirectMusicSynth_PlayBuffer(synth, time, (BYTE *)beg, len);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+    IDirectMusicBuffer_Release(music_buffer);
+}
+
     /* native needs to render at least once before producing samples */
     test_sink_render(sink, samples, sizeof(samples), wave_file);
+
+}
+
+{
+    struct download
+    {
+        DMUS_DOWNLOADINFO info;
+        ULONG offsets[2];
+        DMUS_WAVE wave;
+        union
+        {
+            DMUS_WAVEDATA wave_data;
+            struct
+            {
+                ULONG size;
+                BYTE samples[256];
+            };
+        };
+    } download =
+    {
+        .info =
+        {
+            .dwDLType = DMUS_DOWNLOADINFO_WAVE,
+            .dwDLId = 1,
+            .dwNumOffsetTableEntries = 2,
+            .cbSize = sizeof(download),
+        },
+        .offsets =
+        {
+            offsetof(struct download, wave),
+            offsetof(struct download, wave_data),
+        },
+        .wave =
+        {
+            .ulWaveDataIdx = 1,
+            .WaveformatEx =
+            {
+                .wFormatTag = WAVE_FORMAT_PCM,
+                .nChannels = 1,
+                .wBitsPerSample = 8,
+                .nSamplesPerSec = 44100,
+                .nAvgBytesPerSec = 44100,
+                .nBlockAlign = 1,
+            },
+        },
+        .wave_data =
+        {
+            .cbSize = sizeof(download.samples),
+        },
+    };
+    BOOL can_free = FALSE;
+    HANDLE handle;
 
     for (i = 0; i < ARRAY_SIZE(wave_download.samples); i++)
         wave_download.samples[i] = i;
@@ -1314,9 +1476,22 @@ if (0)
     ok(hr == S_OK, "got %#lx\n", hr);
     hr = IDirectMusic_CreateMusicBuffer(music, &buffer_desc, &buffer, NULL);
     ok(hr == S_OK, "got %#lx\n", hr);
-    /* status = 0x90 (NOTEON / channel 0), key = 0x27 (39), vel = 0x78 (120) */
-    hr = IDirectMusicBuffer_PackStructured(buffer, 0, 1, 0x782790);
-    ok(hr == S_OK, "got %#lx\n", hr);
+    if (0) for (UINT i = 0; i < 0x10; i++)
+    {
+        hr = IDirectMusicBuffer_PackStructured(music_buffer, 0, 1, 0x00c0 | i);
+        ok(hr == S_OK, "got %#lx\n", hr);
+    }
+    for (UINT i = 0; i < 1; i++)
+    {
+        /* status = 0x90 (NOTEON / channel 0), key = 0x27 (39), vel = 0x78 (120) */
+        hr = IDirectMusicBuffer_PackStructured(music_buffer, 0, 1, 0x782790 | i);
+        ok(hr == S_OK, "got %#lx\n", hr);
+    }
+    if (0) for (UINT i = 0; i < 0x10; i++)
+    {
+        hr = IDirectMusicBuffer_PackStructured(music_buffer, 2000, 1, 0x782780 | i);
+        ok(hr == S_OK, "got %#lx\n", hr);
+    }
     hr = IReferenceClock_GetTime(latency_clock, &time);
     ok(hr == S_OK, "got %#lx\n", hr);
     hr = IDirectMusicBuffer_GetRawBufferPtr(buffer, &raw);
@@ -1330,6 +1505,19 @@ if (0)
 
     for (i = 0; i < RENDER_ITERATIONS; i++)
         test_sink_render(sink, samples, sizeof(samples), wave_file);
+
+{
+    DMUS_SYNTHSTATS stats = {.dwSize = sizeof(DMUS_SYNTHSTATS)};
+    hr = IDirectMusicSynth_GetRunningStats(synth, &stats);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+    ok(0, "got %#lx\n", stats.dwValidStats);
+    ok(0, "got %lu\n", stats.dwVoices);
+    ok(0, "got %lu\n", stats.dwTotalCPU);
+    ok(0, "got %lu\n", stats.dwCPUPerVoice);
+    ok(0, "got %lu\n", stats.dwLostNotes);
+    ok(0, "got %lu\n", stats.dwFreeMemory);
+    ok(0, "got %ld\n", stats.lPeakVolume);
+}
 
     CloseHandle(wave_file);
     trace("Rendered samples to %s\n", debugstr_w(temp_file));
