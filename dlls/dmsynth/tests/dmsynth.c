@@ -1253,6 +1253,62 @@ static void test_IDirectMusicSynth(void)
     ok(!!instrument_handle, "got %p\n", instrument_handle);
     ok(can_free == TRUE, "got %u\n", can_free);
 
+if (0)
+{
+    struct download
+    {
+        DMUS_DOWNLOADINFO info;
+        ULONG offsets[4];
+        DMUS_INSTRUMENT instrument;
+        DMUS_REGION region;
+        DMUS_ARTICULATION2 articulation;
+        CONNECTIONLIST connection_list;
+        CONNECTION connections[16];
+    } download =
+    {
+        .info =
+        {
+            .dwDLType = DMUS_DOWNLOADINFO_INSTRUMENT2,
+            .dwDLId = 1,
+            .dwNumOffsetTableEntries = 4,
+            .cbSize = sizeof(download),
+        },
+        .offsets =
+        {
+            offsetof(struct download, instrument),
+            offsetof(struct download, region),
+            offsetof(struct download, articulation),
+            offsetof(struct download, connection_list),
+        },
+        .instrument =
+        {
+            .ulPatch = 0,
+            .ulFirstRegionIdx = 1,
+            .ulGlobalArtIdx = 2,
+        },
+        .region =
+        {
+            .RangeKey = {.usLow = 0, .usHigh = 127},
+            .RangeVelocity = {.usLow = 0, .usHigh = 127},
+            .fusOptions = F_RGN_OPTION_SELFNONEXCLUSIVE,
+            .WaveLink = {.ulChannel = 1, .ulTableIndex = 0},
+            .WSMP = {.cbSize = sizeof(WSMPL), .usUnityNote = 60, .fulOptions = F_WSMP_NO_TRUNCATION},
+            .WLOOP[0] = {.cbSize = sizeof(WLOOP), .ulType = WLOOP_TYPE_FORWARD},
+        },
+        .articulation = {.ulArtIdx = 3},
+        .connection_list =
+        {
+            .cbSize = sizeof(download.connection_list) + sizeof(download.connections),
+            .cConnections = ARRAY_SIZE(download.connections),
+        },
+    };
+    BOOL can_free = FALSE;
+    HANDLE handle;
+
+    hr = IDirectMusicSynth_Download(synth, &handle, &download, &can_free);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+}
+
     /* add a MIDI note to a buffer and play it */
     hr = IDirectMusicSynth_GetLatencyClock(synth, &latency_clock);
     ok(hr == S_OK, "got %#lx\n", hr);
