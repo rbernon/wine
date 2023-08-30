@@ -1393,6 +1393,56 @@ static void test_download_instrument(void)
     IPersistStream_Release(persist);
     IStream_Release(stream);
 
+if (0)
+{
+    DMUS_OBJECTDESC collection_desc =
+    {
+        .dwSize = sizeof(DMUS_OBJECTDESC),
+        .dwValidData = DMUS_OBJ_CLASS | DMUS_OBJ_FILENAME,
+        .guidClass = CLSID_DirectMusicCollection,
+        .wszFileName = L"ff8.dls",
+    };
+    IDirectMusicLoader *loader;
+    WCHAR path[MAX_PATH];
+
+    hr = CoCreateInstance(&CLSID_DirectMusicLoader, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectMusicLoader, (void **)&loader);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+
+    if (strcmp(winetest_platform, "wine")) wcscpy(path, L"Y:/Games/FINAL FANTASY VIII/Data/Music/dmusic/");
+    else wcscpy(path, L"Z:/media/rbernon/LaCie/Games/FINAL FANTASY VIII/Data/Music/dmusic/");
+    hr = IDirectMusicLoader_SetSearchDirectory(loader, &GUID_DirectMusicAllTypes, path, FALSE);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+
+    hr = IDirectMusicLoader_GetObject(loader, &collection_desc, &IID_IDirectMusicCollection, (void **)&collection);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+
+    patch = 0xdeadbeef;
+    wcscpy(name, L"DeadBeef");
+    hr = IDirectMusicCollection_EnumInstrument(collection, 0, &patch, name, ARRAY_SIZE(name));
+    ok(hr == S_OK, "got %#lx\n", hr);
+    ok(patch == 0x1234, "got %#lx\n", patch);
+    ok(*name == 0, "got %s\n", debugstr_w(name));
+
+    hr = IDirectMusicCollection_GetInstrument(collection, patch, &instrument);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    check_interface(instrument, &IID_IDirectMusicObject, FALSE);
+    check_interface(instrument, &IID_IDirectMusicDownload, FALSE);
+    check_interface(instrument, &IID_IDirectMusicDownloadedInstrument, FALSE);
+
+    hr = IDirectMusicPort_DownloadInstrument(port, instrument, &downloaded, NULL, 0);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+if (FAILED(hr)) goto skip_tests;
+
+    check_interface(downloaded, &IID_IDirectMusicObject, FALSE);
+    check_interface(downloaded, &IID_IDirectMusicDownload, FALSE);
+    check_interface(downloaded, &IID_IDirectMusicInstrument, FALSE);
+
+    hr = IDirectMusicPort_UnloadInstrument(port, downloaded);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    IDirectMusicDownloadedInstrument_Release(downloaded);
+}
+
     patch = 0xdeadbeef;
     wcscpy(name, L"DeadBeef");
     hr = IDirectMusicCollection_EnumInstrument(collection, 0, &patch, name, ARRAY_SIZE(name));
