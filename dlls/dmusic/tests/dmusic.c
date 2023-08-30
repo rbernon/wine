@@ -1372,73 +1372,13 @@ static void test_download_instrument(void)
     CHUNK_RIFF(stream, "DLS ")
     {
         DLSHEADER colh = {.cInstruments = 1};
-        struct
-        {
-            POOLTABLE head;
-            POOLCUE cues[1];
-        } ptbl =
-        {
-            .head = {.cbSize = sizeof(POOLTABLE), .cCues = ARRAY_SIZE(ptbl.cues)},
-            .cues = {{.ulOffset = 0}}, /* offsets in wvpl */
-        };
-
         CHUNK_DATA(stream, "colh", colh);
         CHUNK_LIST(stream, "lins")
         {
             CHUNK_LIST(stream, "ins ")
             {
-                INSTHEADER insh = {.cRegions = 1, .Locale = {.ulBank = 0x12, .ulInstrument = 0x34}};
-
+                INSTHEADER insh = {.cRegions = 0, .Locale = {.ulBank = 0x12, .ulInstrument = 0x34}};
                 CHUNK_DATA(stream, "insh", insh);
-                CHUNK_LIST(stream, "lrgn")
-                {
-                    CHUNK_LIST(stream, "rgn ")
-                    {
-                        RGNHEADER rgnh =
-                        {
-                            .RangeKey = {.usLow = 0, .usHigh = 127},
-                            .RangeVelocity = {.usLow = 1, .usHigh = 127},
-                        };
-                        WAVELINK wlnk = {.ulChannel = 1, .ulTableIndex = 0};
-                        WSMPL wsmp = {.cbSize = sizeof(WSMPL)};
-
-                        CHUNK_DATA(stream, "rgnh", rgnh);
-                        CHUNK_DATA(stream, "wsmp", wsmp);
-                        CHUNK_DATA(stream, "wlnk", wlnk);
-                    }
-                    CHUNK_END;
-                }
-                CHUNK_END;
-
-                CHUNK_LIST(stream, "lart")
-                {
-                    CONNECTIONLIST connections = {.cbSize = sizeof(connections)};
-                    CHUNK_DATA(stream, "art1", connections);
-                }
-                CHUNK_END;
-            }
-            CHUNK_END;
-        }
-        CHUNK_END;
-        CHUNK_DATA(stream, "ptbl", ptbl);
-        CHUNK_LIST(stream, "wvpl")
-        {
-            CHUNK_LIST(stream, "wave")
-            {
-                WAVEFORMATEX fmt =
-                {
-                    .wFormatTag = WAVE_FORMAT_PCM,
-                    .nChannels = 1,
-                    .wBitsPerSample = 8,
-                    .nSamplesPerSec = 22050,
-                    .nAvgBytesPerSec = 22050,
-                    .nBlockAlign = 1,
-                };
-                BYTE data[16] = {0};
-
-                /* native returns DMUS_E_INVALIDOFFSET from DownloadInstrument if data is last */
-                CHUNK_DATA(stream, "data", data);
-                CHUNK_DATA(stream, "fmt ", fmt);
             }
             CHUNK_END;
         }
@@ -1481,6 +1421,7 @@ static void test_download_instrument(void)
     ok(patch == 0x4321, "got %#lx\n", patch);
     IDirectMusicInstrument_Release(tmp_instrument);
 
+    check_interface(instrument, &IID_IPersistStream, FALSE);
     check_interface(instrument, &IID_IDirectMusicObject, FALSE);
     check_interface(instrument, &IID_IDirectMusicDownload, FALSE);
     check_interface(instrument, &IID_IDirectMusicDownloadedInstrument, FALSE);
