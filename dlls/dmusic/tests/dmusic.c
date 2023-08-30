@@ -82,6 +82,7 @@ static void stream_end_chunk(IStream *stream, ULARGE_INTEGER *offset)
     ULARGE_INTEGER position;
     HRESULT hr;
     UINT size;
+
     hr = IStream_Seek(stream, zero, STREAM_SEEK_CUR, &position);
     ok(hr == S_OK, "got %#lx\n", hr);
     hr = IStream_Seek(stream, *(LARGE_INTEGER *)offset, STREAM_SEEK_SET, NULL);
@@ -1637,6 +1638,261 @@ skip_tests:
     IDirectMusicLoader_Release(loader);
 }
 
+static void test_parse_wave(void)
+{
+    static const LARGE_INTEGER zero = {0};
+    IDirectMusicObject *wave;
+    IPersistStream *persist;
+    DMUS_OBJECTDESC desc;
+    IStream *stream;
+    HRESULT hr;
+
+    hr = CoCreateInstance(&CLSID_DirectSoundWave, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectMusicObject, (void **)&wave);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    hr = IDirectMusicObject_QueryInterface(wave, &IID_IPersistStream, (void **)&persist);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = CreateStreamOnHGlobal(0, TRUE, &stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    CHUNK_LIST(stream, "wave")
+    {
+        WAVEFORMATEX fmt =
+        {
+            .wFormatTag = WAVE_FORMAT_PCM,
+            .nChannels = 1,
+            .nSamplesPerSec = 22050,
+            .nAvgBytesPerSec = 22050,
+            .wBitsPerSample = 8,
+            .nBlockAlign = 1,
+        };
+        WSMPL wsmp = {.cbSize = sizeof(WSMPL), .usUnityNote = 60, .fulOptions = F_WSMP_NO_TRUNCATION};
+        BYTE data[64] = {0};
+        SHORT wavu = 1;
+
+        CHUNK_DATA(stream, "wavu", wavu);
+        CHUNK_DATA(stream, "fmt ", fmt);
+        CHUNK_DATA(stream, "wsmp", wsmp);
+        CHUNK_DATA(stream, "data", data);
+
+        CHUNK_LIST(stream, "INFO")
+        {
+            const char copyright[] = "copyright";
+            const char engine[] = "engine";
+            const char name[] = "name";
+            CHUNK_DATA(stream, "ICOP", copyright);
+            CHUNK_DATA(stream, "IENG", engine);
+            CHUNK_DATA(stream, "INAM", name);
+        }
+        CHUNK_END;
+    }
+    CHUNK_END;
+
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    memset(&desc, 0, sizeof(desc));
+    desc.dwSize = sizeof(desc);
+    hr = IDirectMusicObject_ParseDescriptor(wave, stream, &desc);
+    ok(hr == DMUS_E_CHUNKNOTFOUND, "got %s\n", debugstr_dmus_hr(hr));
+
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IPersistStream_Load(persist, stream);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+    IPersistStream_Release(persist);
+
+    memset(&desc, 0, sizeof(desc));
+    desc.dwSize = sizeof(desc);
+    hr = IDirectMusicObject_GetDescriptor(wave, &desc);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    IStream_Release(stream);
+
+
+    hr = CoCreateInstance(&CLSID_DirectSoundWave, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectMusicObject, (void **)&wave);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    hr = IDirectMusicObject_QueryInterface(wave, &IID_IPersistStream, (void **)&persist);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = CreateStreamOnHGlobal(0, TRUE, &stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    CHUNK_RIFF(stream, "wave")
+    {
+        WAVEFORMATEX fmt =
+        {
+            .wFormatTag = WAVE_FORMAT_PCM,
+            .nChannels = 1,
+            .nSamplesPerSec = 22050,
+            .nAvgBytesPerSec = 22050,
+            .wBitsPerSample = 8,
+            .nBlockAlign = 1,
+        };
+        WSMPL wsmp = {.cbSize = sizeof(WSMPL), .usUnityNote = 60, .fulOptions = F_WSMP_NO_TRUNCATION};
+        BYTE data[64] = {0};
+        SHORT wavu = 1;
+
+        CHUNK_DATA(stream, "wavu", wavu);
+        CHUNK_DATA(stream, "fmt ", fmt);
+        CHUNK_DATA(stream, "wsmp", wsmp);
+        CHUNK_DATA(stream, "data", data);
+
+        CHUNK_LIST(stream, "INFO")
+        {
+            const char copyright[] = "copyright";
+            const char engine[] = "engine";
+            const char name[] = "name";
+            CHUNK_DATA(stream, "ICOP", copyright);
+            CHUNK_DATA(stream, "IENG", engine);
+            CHUNK_DATA(stream, "INAM", name);
+        }
+        CHUNK_END;
+    }
+    CHUNK_END;
+
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    memset(&desc, 0, sizeof(desc));
+    desc.dwSize = sizeof(desc);
+    hr = IDirectMusicObject_ParseDescriptor(wave, stream, &desc);
+    ok(hr == DMUS_E_CHUNKNOTFOUND, "got %s\n", debugstr_dmus_hr(hr));
+
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IPersistStream_Load(persist, stream);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+    IPersistStream_Release(persist);
+
+    memset(&desc, 0, sizeof(desc));
+    desc.dwSize = sizeof(desc);
+    hr = IDirectMusicObject_GetDescriptor(wave, &desc);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    IStream_Release(stream);
+
+
+    hr = CoCreateInstance(&CLSID_DirectSoundWave, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectMusicObject, (void **)&wave);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    hr = IDirectMusicObject_QueryInterface(wave, &IID_IPersistStream, (void **)&persist);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = CreateStreamOnHGlobal(0, TRUE, &stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    CHUNK_LIST(stream, "WAVE")
+    {
+        WAVEFORMATEX fmt =
+        {
+            .wFormatTag = WAVE_FORMAT_PCM,
+            .nChannels = 1,
+            .nSamplesPerSec = 22050,
+            .nAvgBytesPerSec = 22050,
+            .wBitsPerSample = 8,
+            .nBlockAlign = 1,
+        };
+        WSMPL wsmp = {.cbSize = sizeof(WSMPL), .usUnityNote = 60, .fulOptions = F_WSMP_NO_TRUNCATION};
+        BYTE data[64] = {0};
+        SHORT wavu = 1;
+
+        CHUNK_DATA(stream, "wavu", wavu);
+        CHUNK_DATA(stream, "fmt ", fmt);
+        CHUNK_DATA(stream, "wsmp", wsmp);
+        CHUNK_DATA(stream, "data", data);
+
+        CHUNK_LIST(stream, "INFO")
+        {
+            const char copyright[] = "copyright";
+            const char engine[] = "engine";
+            const char name[] = "name";
+            CHUNK_DATA(stream, "ICOP", copyright);
+            CHUNK_DATA(stream, "IENG", engine);
+            CHUNK_DATA(stream, "INAM", name);
+        }
+        CHUNK_END;
+    }
+    CHUNK_END;
+
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    memset(&desc, 0, sizeof(desc));
+    desc.dwSize = sizeof(desc);
+    hr = IDirectMusicObject_ParseDescriptor(wave, stream, &desc);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IPersistStream_Load(persist, stream);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+    IPersistStream_Release(persist);
+
+    memset(&desc, 0, sizeof(desc));
+    desc.dwSize = sizeof(desc);
+    hr = IDirectMusicObject_GetDescriptor(wave, &desc);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    IStream_Release(stream);
+
+
+    hr = CoCreateInstance(&CLSID_DirectSoundWave, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectMusicObject, (void **)&wave);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    hr = IDirectMusicObject_QueryInterface(wave, &IID_IPersistStream, (void **)&persist);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = CreateStreamOnHGlobal(0, TRUE, &stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    CHUNK_RIFF(stream, "WAVE")
+    {
+        WAVEFORMATEX fmt =
+        {
+            .wFormatTag = WAVE_FORMAT_PCM,
+            .nChannels = 1,
+            .nSamplesPerSec = 22050,
+            .nAvgBytesPerSec = 22050,
+            .wBitsPerSample = 8,
+            .nBlockAlign = 1,
+        };
+        WSMPL wsmp = {.cbSize = sizeof(WSMPL), .usUnityNote = 60, .fulOptions = F_WSMP_NO_TRUNCATION};
+        BYTE data[64] = {0};
+        SHORT wavu = 1;
+
+        CHUNK_DATA(stream, "wavu", wavu);
+        CHUNK_DATA(stream, "fmt ", fmt);
+        CHUNK_DATA(stream, "wsmp", wsmp);
+        CHUNK_DATA(stream, "data", data);
+
+        CHUNK_LIST(stream, "INFO")
+        {
+            const char copyright[] = "copyright";
+            const char engine[] = "engine";
+            const char name[] = "name";
+            CHUNK_DATA(stream, "ICOP", copyright);
+            CHUNK_DATA(stream, "IENG", engine);
+            CHUNK_DATA(stream, "INAM", name);
+        }
+        CHUNK_END;
+    }
+    CHUNK_END;
+
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IPersistStream_Load(persist, stream);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+    IPersistStream_Release(persist);
+
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    memset(&desc, 0, sizeof(desc));
+    desc.dwSize = sizeof(desc);
+    hr = IDirectMusicObject_ParseDescriptor(wave, stream, &desc);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+
+    memset(&desc, 0, sizeof(desc));
+    desc.dwSize = sizeof(desc);
+    hr = IDirectMusicObject_GetDescriptor(wave, &desc);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    IStream_Release(stream);
+
+    IDirectMusicObject_Release(wave);
+}
+
 START_TEST(dmusic)
 {
     CoInitializeEx(NULL, COINIT_MULTITHREADED);
@@ -1660,6 +1916,7 @@ START_TEST(dmusic)
     test_port_download();
     test_download_instrument();
     test_default_gm_collection();
+    test_parse_wave();
 
     CoUninitialize();
 }
