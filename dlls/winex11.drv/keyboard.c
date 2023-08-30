@@ -1098,6 +1098,7 @@ UINT X11DRV_MapVirtualKeyEx( UINT wCode, UINT wMapType, HKL hkl )
     Display *display = thread_init_display();
 
     if (use_server_x11) return -1;
+    if (wMapType != MAPVK_VK_TO_CHAR) return -1;
 
     TRACE("wCode=0x%x, wMapType=%d, hkl %p\n", wCode, wMapType, hkl);
 
@@ -1105,65 +1106,6 @@ UINT X11DRV_MapVirtualKeyEx( UINT wCode, UINT wMapType, HKL hkl )
 
     switch(wMapType)
     {
-        case MAPVK_VK_TO_VSC: /* vkey-code to scan-code */
-        case MAPVK_VK_TO_VSC_EX:
-            switch (wCode)
-            {
-                case VK_SHIFT: wCode = VK_LSHIFT; break;
-                case VK_CONTROL: wCode = VK_LCONTROL; break;
-                case VK_MENU: wCode = VK_LMENU; break;
-            }
-
-            /* let's do vkey -> keycode -> scan */
-            for (keyc = min_keycode; keyc <= max_keycode; keyc++)
-            {
-                WORD scan = keyc2scan( keyc );
-                if ((scan2vk[scan] & 0xFF) == wCode)
-                {
-                    ret = scan & 0xFF;
-                    break;
-                }
-            }
-
-            /* set scan code prefix */
-            if (wMapType == MAPVK_VK_TO_VSC_EX &&
-                (wCode == VK_RCONTROL || wCode == VK_RMENU))
-                ret |= 0xe000;
-            break;
-
-        case MAPVK_VSC_TO_VK: /* scan-code to vkey-code */
-        case MAPVK_VSC_TO_VK_EX:
-
-            /* let's do scan -> keycode -> vkey */
-            for (keyc = min_keycode; keyc <= max_keycode; keyc++)
-            {
-                WORD scan = keyc2scan( keyc );
-                if ((scan & 0xFF) == (wCode & 0xFF))
-                {
-                    ret = scan2vk[scan] & 0xFF;
-                    /* Only stop if it's not a numpad vkey; otherwise keep
-                       looking for a potential better vkey. */
-                    if (ret && (ret < VK_NUMPAD0 || VK_DIVIDE < ret))
-                        break;
-                }
-            }
-
-            if (wMapType == MAPVK_VSC_TO_VK)
-                switch (ret)
-                {
-                    case VK_LSHIFT:
-                    case VK_RSHIFT:
-                        ret = VK_SHIFT; break;
-                    case VK_LCONTROL:
-                    case VK_RCONTROL:
-                        ret = VK_CONTROL; break;
-                    case VK_LMENU:
-                    case VK_RMENU:
-                        ret = VK_MENU; break;
-                }
-
-            break;
-
         case MAPVK_VK_TO_CHAR: /* vkey-code to unshifted ANSI code */
         {
             /* we still don't know what "unshifted" means. in windows VK_W (0x57)
@@ -1226,10 +1168,6 @@ UINT X11DRV_MapVirtualKeyEx( UINT wCode, UINT wMapType, HKL hkl )
             }
             break;
         }
-
-        default: /* reserved */
-            FIXME("Unknown wMapType %d !\n", wMapType);
-            break;
     }
 
     pthread_mutex_unlock( &kbd_mutex );
