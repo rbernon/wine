@@ -523,6 +523,7 @@ enum x11drv_atoms
     XATOM__GTK_WORKAREAS_D0,
     XATOM__XEMBED,
     XATOM__XEMBED_INFO,
+    XATOM__XKB_RULES_NAMES,
     XATOM_XdndAware,
     XATOM_XdndEnter,
     XATOM_XdndPosition,

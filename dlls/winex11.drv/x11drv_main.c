@@ -158,6 +158,7 @@ static const char * const atom_names[NB_XATOMS - FIRST_XATOM] =
     "_GTK_WORKAREAS_D0",
     "_XEMBED",
     "_XEMBED_INFO",
+    "_XKB_RULES_NAMES",
     "XdndAware",
     "XdndEnter",
     "XdndPosition",
@@ -770,6 +771,8 @@ struct x11drv_thread_data *x11drv_init_thread_data(void)
     if (use_xim) xim_thread_attach( data );
     x11drv_xinput2_init( data );
     net_supported_init( data );
+
+    XSelectInput( data->display, DefaultRootWindow( data->display ), PropertyChangeMask );
 
     return data;
 }
