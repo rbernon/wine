@@ -36,6 +36,172 @@ DEFINE_GUID(GUID_test_1,0x00000001,0xffff,0xffff,0x01,0x23,0x45,0x67,0x89,0xab,0
 DEFINE_GUID(GUID_test_2,0x00000002,0xffff,0xffff,0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef);
 DEFINE_GUID(GUID_test_3,0x00000003,0xffff,0xffff,0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef);
 
+static inline const char *debugstr_dmus_hr(HRESULT hr)
+{
+    switch (hr)
+    {
+    case DMUS_S_PARTIALLOAD: return "DMUS_S_PARTIALLOAD";
+    case DMUS_S_PARTIALDOWNLOAD: return "DMUS_S_PARTIALDOWNLOAD";
+    case DMUS_S_REQUEUE: return "DMUS_S_REQUEUE";
+    case DMUS_S_FREE: return "DMUS_S_FREE";
+    case DMUS_S_END: return "DMUS_S_END";
+    case DMUS_S_STRING_TRUNCATED: return "DMUS_S_STRING_TRUNCATED";
+    case DMUS_S_LAST_TOOL: return "DMUS_S_LAST_TOOL";
+    case DMUS_S_OVER_CHORD: return "DMUS_S_OVER_CHORD";
+    case DMUS_S_UP_OCTAVE: return "DMUS_S_UP_OCTAVE";
+    case DMUS_S_DOWN_OCTAVE: return "DMUS_S_DOWN_OCTAVE";
+    case DMUS_S_NOBUFFERCONTROL: return "DMUS_S_NOBUFFERCONTROL";
+    case DMUS_S_GARBAGE_COLLECTED: return "DMUS_S_GARBAGE_COLLECTED";
+    case DMUS_E_DRIVER_FAILED: return "DMUS_E_DRIVER_FAILED";
+    case DMUS_E_PORTS_OPEN: return "DMUS_E_PORTS_OPEN";
+    case DMUS_E_DEVICE_IN_USE: return "DMUS_E_DEVICE_IN_USE";
+    case DMUS_E_INSUFFICIENTBUFFER: return "DMUS_E_INSUFFICIENTBUFFER";
+    case DMUS_E_BUFFERNOTSET: return "DMUS_E_BUFFERNOTSET";
+    case DMUS_E_BUFFERNOTAVAILABLE: return "DMUS_E_BUFFERNOTAVAILABLE";
+    case DMUS_E_NOTADLSCOL: return "DMUS_E_NOTADLSCOL";
+    case DMUS_E_INVALIDOFFSET: return "DMUS_E_INVALIDOFFSET";
+    case DMUS_E_ALREADY_LOADED: return "DMUS_E_ALREADY_LOADED";
+    case DMUS_E_INVALIDPOS: return "DMUS_E_INVALIDPOS";
+    case DMUS_E_INVALIDPATCH: return "DMUS_E_INVALIDPATCH";
+    case DMUS_E_CANNOTSEEK: return "DMUS_E_CANNOTSEEK";
+    case DMUS_E_CANNOTWRITE: return "DMUS_E_CANNOTWRITE";
+    case DMUS_E_CHUNKNOTFOUND: return "DMUS_E_CHUNKNOTFOUND";
+    case DMUS_E_INVALID_DOWNLOADID: return "DMUS_E_INVALID_DOWNLOADID";
+    case DMUS_E_NOT_DOWNLOADED_TO_PORT: return "DMUS_E_NOT_DOWNLOADED_TO_PORT";
+    case DMUS_E_ALREADY_DOWNLOADED: return "DMUS_E_ALREADY_DOWNLOADED";
+    case DMUS_E_UNKNOWN_PROPERTY: return "DMUS_E_UNKNOWN_PROPERTY";
+    case DMUS_E_SET_UNSUPPORTED: return "DMUS_E_SET_UNSUPPORTED";
+    case DMUS_E_GET_UNSUPPORTED: return "DMUS_E_GET_UNSUPPORTED";
+    case DMUS_E_NOTMONO: return "DMUS_E_NOTMONO";
+    case DMUS_E_BADARTICULATION: return "DMUS_E_BADARTICULATION";
+    case DMUS_E_BADINSTRUMENT: return "DMUS_E_BADINSTRUMENT";
+    case DMUS_E_BADWAVELINK: return "DMUS_E_BADWAVELINK";
+    case DMUS_E_NOARTICULATION: return "DMUS_E_NOARTICULATION";
+    case DMUS_E_NOTPCM: return "DMUS_E_NOTPCM";
+    case DMUS_E_BADWAVE: return "DMUS_E_BADWAVE";
+    case DMUS_E_BADOFFSETTABLE: return "DMUS_E_BADOFFSETTABLE";
+    case DMUS_E_UNKNOWNDOWNLOAD: return "DMUS_E_UNKNOWNDOWNLOAD";
+    case DMUS_E_NOSYNTHSINK: return "DMUS_E_NOSYNTHSINK";
+    case DMUS_E_ALREADYOPEN: return "DMUS_E_ALREADYOPEN";
+    case DMUS_E_ALREADYCLOSED: return "DMUS_E_ALREADYCLOSED";
+    case DMUS_E_SYNTHNOTCONFIGURED: return "DMUS_E_SYNTHNOTCONFIGURED";
+    case DMUS_E_SYNTHACTIVE: return "DMUS_E_SYNTHACTIVE";
+    case DMUS_E_CANNOTREAD: return "DMUS_E_CANNOTREAD";
+    case DMUS_E_DMUSIC_RELEASED: return "DMUS_E_DMUSIC_RELEASED";
+    case DMUS_E_BUFFER_EMPTY: return "DMUS_E_BUFFER_EMPTY";
+    case DMUS_E_BUFFER_FULL: return "DMUS_E_BUFFER_FULL";
+    case DMUS_E_PORT_NOT_CAPTURE: return "DMUS_E_PORT_NOT_CAPTURE";
+    case DMUS_E_PORT_NOT_RENDER: return "DMUS_E_PORT_NOT_RENDER";
+    case DMUS_E_DSOUND_NOT_SET: return "DMUS_E_DSOUND_NOT_SET";
+    case DMUS_E_ALREADY_ACTIVATED: return "DMUS_E_ALREADY_ACTIVATED";
+    case DMUS_E_INVALIDBUFFER: return "DMUS_E_INVALIDBUFFER";
+    case DMUS_E_WAVEFORMATNOTSUPPORTED: return "DMUS_E_WAVEFORMATNOTSUPPORTED";
+    case DMUS_E_SYNTHINACTIVE: return "DMUS_E_SYNTHINACTIVE";
+    case DMUS_E_DSOUND_ALREADY_SET: return "DMUS_E_DSOUND_ALREADY_SET";
+    case DMUS_E_INVALID_EVENT: return "DMUS_E_INVALID_EVENT";
+    case DMUS_E_UNSUPPORTED_STREAM: return "DMUS_E_UNSUPPORTED_STREAM";
+    case DMUS_E_ALREADY_INITED: return "DMUS_E_ALREADY_INITED";
+    case DMUS_E_INVALID_BAND: return "DMUS_E_INVALID_BAND";
+    case DMUS_E_TRACK_HDR_NOT_FIRST_CK: return "DMUS_E_TRACK_HDR_NOT_FIRST_CK";
+    case DMUS_E_TOOL_HDR_NOT_FIRST_CK: return "DMUS_E_TOOL_HDR_NOT_FIRST_CK";
+    case DMUS_E_INVALID_TRACK_HDR: return "DMUS_E_INVALID_TRACK_HDR";
+    case DMUS_E_INVALID_TOOL_HDR: return "DMUS_E_INVALID_TOOL_HDR";
+    case DMUS_E_ALL_TOOLS_FAILED: return "DMUS_E_ALL_TOOLS_FAILED";
+    case DMUS_E_ALL_TRACKS_FAILED: return "DMUS_E_ALL_TRACKS_FAILED";
+    case DMUS_E_NOT_FOUND: return "DMUS_E_NOT_FOUND";
+    case DMUS_E_NOT_INIT: return "DMUS_E_NOT_INIT";
+    case DMUS_E_TYPE_DISABLED: return "DMUS_E_TYPE_DISABLED";
+    case DMUS_E_TYPE_UNSUPPORTED: return "DMUS_E_TYPE_UNSUPPORTED";
+    case DMUS_E_TIME_PAST: return "DMUS_E_TIME_PAST";
+    case DMUS_E_TRACK_NOT_FOUND: return "DMUS_E_TRACK_NOT_FOUND";
+    case DMUS_E_TRACK_NO_CLOCKTIME_SUPPORT: return "DMUS_E_TRACK_NO_CLOCKTIME_SUPPORT";
+    case DMUS_E_NO_MASTER_CLOCK: return "DMUS_E_NO_MASTER_CLOCK";
+    case DMUS_E_LOADER_NOCLASSID: return "DMUS_E_LOADER_NOCLASSID";
+    case DMUS_E_LOADER_BADPATH: return "DMUS_E_LOADER_BADPATH";
+    case DMUS_E_LOADER_FAILEDOPEN: return "DMUS_E_LOADER_FAILEDOPEN";
+    case DMUS_E_LOADER_FORMATNOTSUPPORTED: return "DMUS_E_LOADER_FORMATNOTSUPPORTED";
+    case DMUS_E_LOADER_FAILEDCREATE: return "DMUS_E_LOADER_FAILEDCREATE";
+    case DMUS_E_LOADER_OBJECTNOTFOUND: return "DMUS_E_LOADER_OBJECTNOTFOUND";
+    case DMUS_E_LOADER_NOFILENAME: return "DMUS_E_LOADER_NOFILENAME";
+    case DMUS_E_INVALIDFILE: return "DMUS_E_INVALIDFILE";
+    case DMUS_E_ALREADY_EXISTS: return "DMUS_E_ALREADY_EXISTS";
+    case DMUS_E_OUT_OF_RANGE: return "DMUS_E_OUT_OF_RANGE";
+    case DMUS_E_SEGMENT_INIT_FAILED: return "DMUS_E_SEGMENT_INIT_FAILED";
+    case DMUS_E_ALREADY_SENT: return "DMUS_E_ALREADY_SENT";
+    case DMUS_E_CANNOT_FREE: return "DMUS_E_CANNOT_FREE";
+    case DMUS_E_CANNOT_OPEN_PORT: return "DMUS_E_CANNOT_OPEN_PORT";
+    case DMUS_E_CANNOT_CONVERT: return "DMUS_E_CANNOT_CONVERT";
+    case DMUS_E_DESCEND_CHUNK_FAIL: return "DMUS_E_DESCEND_CHUNK_FAIL";
+    case DMUS_E_NOT_LOADED: return "DMUS_E_NOT_LOADED";
+    case DMUS_E_SCRIPT_LANGUAGE_INCOMPATIBLE: return "DMUS_E_SCRIPT_LANGUAGE_INCOMPATIBLE";
+    case DMUS_E_SCRIPT_UNSUPPORTED_VARTYPE: return "DMUS_E_SCRIPT_UNSUPPORTED_VARTYPE";
+    case DMUS_E_SCRIPT_ERROR_IN_SCRIPT: return "DMUS_E_SCRIPT_ERROR_IN_SCRIPT";
+    case DMUS_E_SCRIPT_CANTLOAD_OLEAUT32: return "DMUS_E_SCRIPT_CANTLOAD_OLEAUT32";
+    case DMUS_E_SCRIPT_LOADSCRIPT_ERROR: return "DMUS_E_SCRIPT_LOADSCRIPT_ERROR";
+    case DMUS_E_SCRIPT_INVALID_FILE: return "DMUS_E_SCRIPT_INVALID_FILE";
+    case DMUS_E_INVALID_SCRIPTTRACK: return "DMUS_E_INVALID_SCRIPTTRACK";
+    case DMUS_E_SCRIPT_VARIABLE_NOT_FOUND: return "DMUS_E_SCRIPT_VARIABLE_NOT_FOUND";
+    case DMUS_E_SCRIPT_ROUTINE_NOT_FOUND: return "DMUS_E_SCRIPT_ROUTINE_NOT_FOUND";
+    case DMUS_E_SCRIPT_CONTENT_READONLY: return "DMUS_E_SCRIPT_CONTENT_READONLY";
+    case DMUS_E_SCRIPT_NOT_A_REFERENCE: return "DMUS_E_SCRIPT_NOT_A_REFERENCE";
+    case DMUS_E_SCRIPT_VALUE_NOT_SUPPORTED: return "DMUS_E_SCRIPT_VALUE_NOT_SUPPORTED";
+    case DMUS_E_INVALID_SEGMENTTRIGGERTRACK: return "DMUS_E_INVALID_SEGMENTTRIGGERTRACK";
+    case DMUS_E_INVALID_LYRICSTRACK: return "DMUS_E_INVALID_LYRICSTRACK";
+    case DMUS_E_INVALID_PARAMCONTROLTRACK: return "DMUS_E_INVALID_PARAMCONTROLTRACK";
+    case DMUS_E_AUDIOVBSCRIPT_SYNTAXERROR: return "DMUS_E_AUDIOVBSCRIPT_SYNTAXERROR";
+    case DMUS_E_AUDIOVBSCRIPT_RUNTIMEERROR: return "DMUS_E_AUDIOVBSCRIPT_RUNTIMEERROR";
+    case DMUS_E_AUDIOVBSCRIPT_OPERATIONFAILURE: return "DMUS_E_AUDIOVBSCRIPT_OPERATIONFAILURE";
+    case DMUS_E_AUDIOPATHS_NOT_VALID: return "DMUS_E_AUDIOPATHS_NOT_VALID";
+    case DMUS_E_AUDIOPATHS_IN_USE: return "DMUS_E_AUDIOPATHS_IN_USE";
+    case DMUS_E_NO_AUDIOPATH_CONFIG: return "DMUS_E_NO_AUDIOPATH_CONFIG";
+    case DMUS_E_AUDIOPATH_INACTIVE: return "DMUS_E_AUDIOPATH_INACTIVE";
+    case DMUS_E_AUDIOPATH_NOBUFFER: return "DMUS_E_AUDIOPATH_NOBUFFER";
+    case DMUS_E_AUDIOPATH_NOPORT: return "DMUS_E_AUDIOPATH_NOPORT";
+    case DMUS_E_NO_AUDIOPATH: return "DMUS_E_NO_AUDIOPATH";
+    case DMUS_E_INVALIDCHUNK: return "DMUS_E_INVALIDCHUNK";
+    case DMUS_E_AUDIOPATH_NOGLOBALFXBUFFER: return "DMUS_E_AUDIOPATH_NOGLOBALFXBUFFER";
+    case DMUS_E_INVALID_CONTAINER_OBJECT: return "DMUS_E_INVALID_CONTAINER_OBJECT";
+    }
+    return wine_dbg_sprintf("%#lx", hr);
+}
+
+static inline void dump_stream(IStream *stream)
+{
+    static const LARGE_INTEGER zero = {0};
+    char tmp[1024];
+    DWORD len;
+
+    IStream_Seek(stream, zero, 0, NULL);
+    while (IStream_Read(stream, tmp, sizeof(tmp), &len) == S_OK && len)
+    {
+        do
+        {
+            const unsigned char *ptr = (void *)tmp, *end = ptr + len;
+            for (int i = 0, j; ptr + i < end;)
+            {
+                char buffer[256], *buf = buffer;
+                buf += sprintf(buf, "%08x ", i);
+                for (j = 0; j < 8 && ptr + i + j < end; ++j)
+                    buf += sprintf(buf, " %02x", ptr[i + j]);
+                for (; j < 8 && ptr + i + j >= end; ++j)
+                    buf += sprintf(buf, "   ");
+                buf += sprintf(buf, " ");
+                for (j = 8; j < 16 && ptr + i + j < end; ++j)
+                    buf += sprintf(buf, " %02x", ptr[i + j]);
+                for (; j < 16 && ptr + i + j >= end; ++j)
+                    buf += sprintf(buf, "   ");
+                buf += sprintf(buf, "  |");
+                for (j = 0; j < 16 && ptr + i < end; ++j, ++i)
+                    buf += sprintf(buf, "%c", ptr[i] >= ' ' && ptr[i] <= '~' ? ptr[i] : '.');
+                buf += sprintf(buf, "|");
+                ok(0, "%s\n", buffer);
+            }
+        }
+        while(0);
+    }
+    IStream_Seek(stream, zero, 0, NULL);
+}
+
 static ULONG get_refcount(void *iface)
 {
     IUnknown *unknown = iface;
