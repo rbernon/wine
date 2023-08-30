@@ -163,6 +163,9 @@ struct layout
     const USHORT *scan2vk;
 
     KBDTABLES tables;
+    VSC_LPWSTR key_names[0x100];
+    VSC_LPWSTR key_names_ext[0x200];
+    WCHAR *key_names_str;
 
     USHORT vsc2vk[0x100];
     VSC_VK vsc2vk_e0[0x100];
@@ -462,16 +465,19 @@ static inline LANGID langid_from_xkb_layout( const char *layout, size_t layout_l
 #undef MAKEINDEX
 };
 
-static void create_layout_from_xkb( int xkb_group, const char *xkb_layout, LANGID lang )
+static void create_layout_from_xkb( Display *display, int xkb_group, const char *xkb_layout, LANGID lang )
 {
     static WORD next_layout_id = 1;
 
+    VSC_LPWSTR *names_entry, *names_ext_entry;
     VSC_VK *vsc2vk_e0_entry, *vsc2vk_e1_entry;
+    unsigned int keyc, len, names_len;
     struct layout *layout;
-    unsigned int keyc;
+    WCHAR *names_str;
     WORD index = 0;
+    char *ptr;
 
-    TRACE( "lang %04x, xkb_group %u, xkb_layout %s\n", lang, xkb_group, xkb_layout );
+    TRACE( "lang %04x, display %p, xkb_group %u, xkb_layout %s\n", lang, display, xkb_group, xkb_layout );
 
     LIST_FOR_EACH_ENTRY( layout, &xkb_layouts, struct layout, entry )
     {
@@ -485,19 +491,34 @@ static void create_layout_from_xkb( int xkb_group, const char *xkb_layout, LANGI
         if (layout->lang == lang) index++;
     }
 
-    if (!(layout = calloc( 1, sizeof(*layout) + strlen( xkb_layout ) + 1 )))
+    for (names_len = 0, keyc = min_keycode; keyc <= max_keycode; keyc++)
+    {
+        unsigned int dummy;
+        const char *name;
+        KeySym keysym;
+
+        XkbLookupKeySym( display, keyc, xkb_group * 0x2000, &dummy, &keysym );
+        if ((name = XKeysymToString( keysym ))) names_len += strlen( name ) + 1;
+    }
+
+    names_len *= sizeof(WCHAR);
+    len = strlen( xkb_layout ) + 1;
+    if (!(layout = calloc( 1, sizeof(*layout) + names_len + len )))
     {
         WARN( "Failed to allocate memory for Xkb layout entry\n" );
         return;
     }
     list_add_tail( &xkb_layouts, &layout->entry );
+    ptr = (char *)(layout + 1);
 
     layout->xkb_group = xkb_group;
-    layout->xkb_layout = strcpy( (char *)(layout + 1), xkb_layout );
+    layout->xkb_layout = strcpy( ptr, xkb_layout );
+    ptr += len;
 
     layout->lang = lang;
     layout->index = index;
     if (index) layout->layout_id = next_layout_id++;
+    layout->key_names_str = names_str = (void *)ptr;
 
     switch (lang)
     {
@@ -510,13 +531,39 @@ static void create_layout_from_xkb( int xkb_group, const char *xkb_layout, LANGI
     }
     if (strstr( xkb_layout, "dvorak" )) layout->scan2vk = scan2vk_dvorak;
 
+    layout->tables.pKeyNames = layout->key_names;
+    layout->tables.pKeyNamesExt = layout->key_names_ext;
     layout->tables.bMaxVSCtoVK = 0xff;
     layout->tables.pusVSCtoVK = layout->vsc2vk;
     layout->tables.pVSCtoVK_E0 = layout->vsc2vk_e0;
     layout->tables.pVSCtoVK_E1 = layout->vsc2vk_e1;
 
+    names_entry = layout->tables.pKeyNames;
+    names_ext_entry = layout->tables.pKeyNamesExt;
     vsc2vk_e0_entry = layout->tables.pVSCtoVK_E0;
     vsc2vk_e1_entry = layout->tables.pVSCtoVK_E1;
+
+    for (keyc = min_keycode; keyc <= max_keycode; keyc++)
+    {
+        WORD scan = keyc2scan( keyc );
+        unsigned int dummy;
+        VSC_LPWSTR *entry;
+        const char *name;
+        KeySym keysym;
+
+        XkbLookupKeySym( display, keyc, xkb_group * 0x2000, &dummy, &keysym );
+        name = XKeysymToString( keysym );
+
+        if (!(scan & 0xff) || !name || !(len = strlen( name ))) continue;
+        if (!(scan & 0x300)) entry = names_entry++;
+        else entry = names_ext_entry++;
+
+        entry->vsc = (BYTE)scan;
+        entry->pwsz = names_str;
+        names_str += ntdll_umbstowcs( name, len + 1, entry->pwsz, len + 1 );
+
+        TRACE( "keyc %#04x, scan %#04x -> name %s\n", keyc, entry->vsc, debugstr_w(entry->pwsz) );
+    }
 
     for (keyc = min_keycode; keyc <= max_keycode; keyc++)
     {
@@ -895,7 +942,7 @@ static void init_xkb_layouts( Display *display )
 
         lang = langid_from_xkb_layout( layout, layout_len );
         snprintf( buffer, ARRAY_SIZE(buffer), "%.*s:%.*s:%s", layout_len, layout, variant_len, variant, options );
-        create_layout_from_xkb( i, buffer, lang );
+        create_layout_from_xkb( display, i, buffer, lang );
 
         layout = *next_layout ? next_layout + 1 : layouts;
         variant = *next_layout ? (*next_variant ? next_variant + 1 : next_variant) : variants;
