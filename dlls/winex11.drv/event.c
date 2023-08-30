@@ -1318,6 +1318,7 @@ static BOOL X11DRV_PropertyNotify( HWND hwnd, XEvent *xev )
 
     if (!hwnd) return FALSE;
     if (event->atom == x11drv_atom(WM_STATE)) handle_wm_state_notify( hwnd, event, TRUE );
+    if (event->atom == x11drv_atom(_XKB_RULES_NAMES)) X11DRV_InitKeyboard( event->display );
     return TRUE;
 }
 
