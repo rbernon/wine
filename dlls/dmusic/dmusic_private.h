@@ -101,11 +101,11 @@ struct IDirectMusic8Impl {
 };
 
 /** Internal factory */
-extern HRESULT synth_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *port_params,
+extern HRESULT synth_port_create(IReferenceClock *master_clock, DMUS_PORTPARAMS *port_params,
         DMUS_PORTCAPS *port_caps, IDirectMusicPort **port);
-extern HRESULT midi_out_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *port_params,
+extern HRESULT midi_out_port_create(IReferenceClock *master_clock, DMUS_PORTPARAMS *port_params,
         DMUS_PORTCAPS *port_caps, IDirectMusicPort **port);
-extern HRESULT midi_in_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *port_params,
+extern HRESULT midi_in_port_create(IReferenceClock *master_clock, DMUS_PORTPARAMS *port_params,
         DMUS_PORTCAPS *port_caps, IDirectMusicPort **port);
 
 /*****************************************************************************
