@@ -700,7 +700,6 @@ HRESULT synth_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *port_param
     obj->IKsControl_iface.lpVtbl = &ikscontrol_vtbl;
     obj->ref = 1;
     obj->parent = parent;
-    obj->active = FALSE;
     obj->params = *port_params;
     list_init(&obj->downloads);
 
