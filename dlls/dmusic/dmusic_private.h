@@ -55,17 +55,6 @@ typedef struct IReferenceClockImpl IReferenceClockImpl;
  * Some stuff to make my life easier :=)
  */
  
-/* some sort of aux. midi channel: big fake at the moment; accepts only priority
-   changes... more coming soon */
-typedef struct DMUSIC_PRIVATE_MCHANNEL_ {
-	DWORD priority;
-} DMUSIC_PRIVATE_MCHANNEL, *LPDMUSIC_PRIVATE_MCHANNEL;
-
-/* some sort of aux. channel group: collection of 16 midi channels */
-typedef struct DMUSIC_PRIVATE_CHANNEL_GROUP_ {
-	DMUSIC_PRIVATE_MCHANNEL channel[16]; /* 16 channels in a group */
-} DMUSIC_PRIVATE_CHANNEL_GROUP, *LPDMUSIC_PRIVATE_CHANNEL_GROUP;
-
 typedef struct port_info {
     DMUS_PORTCAPS caps;
     HRESULT (*create)(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *port_params,
@@ -150,10 +139,6 @@ struct IReferenceClockImpl {
     REFERENCE_TIME rtTime;
     DMUS_CLOCKINFO pClockInfo;
 };
-
-typedef struct _DMUS_PRIVATE_POOLCUE {
-	struct list entry; /* for listing elements */
-} DMUS_PRIVATE_POOLCUE, *LPDMUS_PRIVATE_POOLCUE;
 
 /*****************************************************************************
  * Misc.
