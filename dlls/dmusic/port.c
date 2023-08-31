@@ -680,7 +680,7 @@ static const IKsControlVtbl ikscontrol_vtbl = {
     IKsControlImpl_KsEvent
 };
 
-HRESULT synth_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *port_params,
+HRESULT synth_port_create(IReferenceClock *master_clock, DMUS_PORTPARAMS *port_params,
         DMUS_PORTCAPS *port_caps, IDirectMusicPort **port)
 {
     struct synth_port *obj;
@@ -699,7 +699,6 @@ HRESULT synth_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *port_param
     obj->IDirectMusicThru_iface.lpVtbl = &synth_port_thru_vtbl;
     obj->IKsControl_iface.lpVtbl = &ikscontrol_vtbl;
     obj->ref = 1;
-    obj->parent = parent;
     obj->params = *port_params;
     list_init(&obj->downloads);
 
@@ -713,10 +712,10 @@ HRESULT synth_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *port_param
         hr = IDirectMusicSynth_SetSynthSink(obj->synth, obj->synth_sink);
 
     if (SUCCEEDED(hr))
-        hr = IDirectMusicSynth_SetMasterClock(obj->synth, obj->parent->master_clock);
+        hr = IDirectMusicSynth_SetMasterClock(obj->synth, master_clock);
 
     if (SUCCEEDED(hr))
-        hr = IDirectMusicSynthSink_SetMasterClock(obj->synth_sink, obj->parent->master_clock);
+        hr = IDirectMusicSynthSink_SetMasterClock(obj->synth_sink, master_clock);
 
     if (SUCCEEDED(hr))
         hr = IDirectMusicSynth_Open(obj->synth, port_params);
@@ -1005,7 +1004,7 @@ static const IDirectMusicThruVtbl midi_thru_vtbl = {
     midi_IDirectMusicThru_ThruChannel,
 };
 
-static HRESULT midi_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *params,
+static HRESULT midi_port_create(DMUS_PORTPARAMS *params,
         DMUS_PORTCAPS *caps, IDirectMusicPort **port)
 {
     struct midi_port *obj;
@@ -1029,18 +1028,18 @@ static HRESULT midi_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *para
     return S_OK;
 }
 
-HRESULT midi_out_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *params,
+HRESULT midi_out_port_create(IReferenceClock *master_clock, DMUS_PORTPARAMS *params,
         DMUS_PORTCAPS *caps, IDirectMusicPort **port)
 {
-    TRACE("(%p, %p, %p, %p)\n", parent, params, caps, port);
+    TRACE("(%p, %p, %p, %p)\n", master_clock, params, caps, port);
 
-    return midi_port_create(parent, params, caps, port);
+    return midi_port_create(params, caps, port);
 }
 
-HRESULT midi_in_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *params,
+HRESULT midi_in_port_create(IReferenceClock *master_clock, DMUS_PORTPARAMS *params,
         DMUS_PORTCAPS *caps, IDirectMusicPort **port)
 {
-    TRACE("(%p, %p, %p, %p)\n", parent, params, caps, port);
+    TRACE("(%p, %p, %p, %p)\n", master_clock, params, caps, port);
 
-    return midi_port_create(parent, params, caps, port);
+    return midi_port_create(params, caps, port);
 }
