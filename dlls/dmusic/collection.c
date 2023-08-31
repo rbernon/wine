@@ -226,6 +226,36 @@ static const IDirectMusicCollectionVtbl collection_vtbl =
     collection_EnumInstrument,
 };
 
+static HRESULT parse_wave_pool_table(IDirectMusicCollectionImpl *This, IStream *stream, const struct chunk_entry *parent)
+{
+    struct chunk_entry chunk = {.parent = parent};
+    IPersistStream *persist;
+    IUnknown *wave;
+    HRESULT hr;
+
+    while ((hr = stream_next_chunk(stream, &chunk)) == S_OK)
+    {
+        switch (chunk.id)
+        {
+        case FOURCC_LIST:
+            if (FAILED(hr = wave_create(&wave, FOURCC_LIST, FOURCC_wave))) return hr;
+            if (SUCCEEDED(hr = IUnknown_QueryInterface(wave, &IID_IPersistStream, (void **)&persist)))
+            {
+                IPersistStream_Load(persist, stream);
+                IPersistStream_Release(persist);
+            }
+            IUnknown_Release(wave);
+            if (FAILED(hr)) return hr;
+            break;
+        default:
+            FIXME("skipping %s chunk\n", debugstr_fourcc(chunk.id));
+            break;
+        }
+    }
+
+    return SUCCEEDED(hr) ? S_OK : hr;
+}
+
 static HRESULT parse_lins_list(struct collection *This, IStream *stream, struct chunk_entry *parent)
 {
     struct chunk_entry chunk = {.parent = parent};
