@@ -21,6 +21,8 @@
 #include "dmusic_private.h"
 #include "soundfont.h"
 
+#include "fluidsynth.h"
+
 WINE_DEFAULT_DEBUG_CHANNEL(dmusic);
 
 struct instrument_entry
@@ -712,5 +714,27 @@ HRESULT collection_create(IUnknown **ret_iface)
 
     TRACE("Created DirectMusicCollection %p\n", collection);
     *ret_iface = (IUnknown *)&collection->IDirectMusicCollection_iface;
+    return S_OK;
+}
+
+HRESULT collection_create_default_gm(IDirectMusicCollection **out)
+{
+    fluid_settings_t *fluid_settings = new_fluid_settings();
+    fluid_synth_t *fluid_synth = new_fluid_synth(fluid_settings);
+    int sfont_id = fluid_synth_sfload(fluid_synth, "/usr/share/sounds/sf2/default-GM.sf2", TRUE);
+    fluid_sfont_t *fluid_sfont = fluid_synth_get_sfont(fluid_synth, sfont_id);
+    fluid_preset_t *fluid_preset;
+
+    ERR("%s\n", fluid_sfont_get_name(fluid_sfont));
+
+    fluid_sfont_iteration_start(fluid_sfont);
+    while ((fluid_preset = fluid_sfont_iteration_next(fluid_sfont)))
+    {
+        ERR("%s\n", fluid_preset_get_name(fluid_preset));
+    }
+
+    delete_fluid_synth(fluid_synth);
+    delete_fluid_settings(fluid_settings);
+
     return S_OK;
 }
