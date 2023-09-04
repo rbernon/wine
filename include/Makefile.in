@@ -255,7 +255,7 @@ SOURCES = \
 	dmodshow.idl \
 	dmoreg.h \
 	dmort.h \
-	dmplugin.idl \
+	dmplugin.h \
 	dmusbuff.h \
 	dmusicc.h \
 	dmusicf.h \
