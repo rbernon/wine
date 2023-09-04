@@ -144,7 +144,7 @@ static HRESULT WINAPI loader_QueryInterface(IDirectMusicLoader8 *iface, REFIID r
 	if (IsEqualIID (riid, &IID_IUnknown) || 
 	    IsEqualIID (riid, &IID_IDirectMusicLoader) ||
 	    IsEqualIID (riid, &IID_IDirectMusicLoader8)) {
-		IDirectMusicLoader_AddRef (iface);
+		IDirectMusicLoader8_AddRef (iface);
 		*ppobj = This;
 		return S_OK;
 	}
@@ -844,7 +844,7 @@ static HRESULT WINAPI loader_LoadObjectFromFile(IDirectMusicLoader8 *iface, REFG
 	
 	TRACE(": full file path = %s\n", debugstr_w (ObjDesc.wszFileName));
 	
-	return IDirectMusicLoader_GetObject(iface, &ObjDesc, iidInterfaceID, ppObject);
+	return IDirectMusicLoader8_GetObject(iface, &ObjDesc, iidInterfaceID, ppObject);
 }
 
 static const IDirectMusicLoader8Vtbl loader_vtbl =
