@@ -1019,7 +1019,7 @@ static HRESULT midi_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *para
     obj->IDirectMusicThru_iface.lpVtbl = &midi_thru_vtbl;
     obj->ref = 1;
 
-    hr = DMUSIC_CreateReferenceClockImpl(&IID_IReferenceClock, (void **)&obj->clock, NULL);
+    hr = reference_clock_create(&obj->clock);
     if (hr != S_OK) {
         free(obj);
         return hr;
