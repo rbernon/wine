@@ -260,7 +260,7 @@ SOURCES = \
 	dmusicc.h \
 	dmusicf.h \
 	dmusici.h \
-	dmusics.idl \
+	dmusics.h \
 	docobj.idl \
 	docobjectservice.idl \
 	documenttarget.idl \
