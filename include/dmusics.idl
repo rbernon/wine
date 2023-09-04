@@ -21,10 +21,21 @@
 import "unknwn.idl";
 import "objidl.idl";
 import "wtypes.idl";
-import "strmif.idl";
-import "dmusicc.idl";
+import "mmreg.h";
 
-cpp_quote("#include <dsound.h>")
+#ifndef REFERENCE_TIME_DEFINED
+#define REFERENCE_TIME_DEFINED
+typedef LONGLONG REFERENCE_TIME;
+#endif
+
+cpp_quote("#include \"dmusicc.h\"")
+
+typedef ULONGLONG SAMPLE_POSITION;
+typedef ULONGLONG SAMPLE_TIME;
+typedef struct _DMUS_PORTPARAMS8 *LPDMUS_PORTPARAMS;
+typedef struct _DMUS_SYNTHSTATS *LPDMUS_SYNTHSTATS;
+typedef struct _DMUS_PORTCAPS *LPDMUS_PORTCAPS;
+interface IReferenceClock;
 interface IDirectSound;
 interface IDirectSoundBuffer;
 
