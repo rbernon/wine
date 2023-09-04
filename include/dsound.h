@@ -678,7 +678,7 @@ DECLARE_INTERFACE_(IDirectSoundBuffer,IUnknown)
     /*** IDirectSoundBuffer methods ***/
     STDMETHOD(GetCaps)(THIS_ LPDSBCAPS lpDSBufferCaps) PURE;
     STDMETHOD(GetCurrentPosition)(THIS_ LPDWORD lpdwCurrentPlayCursor, LPDWORD lpdwCurrentWriteCursor) PURE;
-    STDMETHOD(GetFormat)(THIS_ WAVEFORMATEX *lpwfxFormat, DWORD dwSizeAllocated, LPDWORD lpdwSizeWritten) PURE;
+    STDMETHOD(GetFormat)(THIS_ LPWAVEFORMATEX lpwfxFormat, DWORD dwSizeAllocated, LPDWORD lpdwSizeWritten) PURE;
     STDMETHOD(GetVolume)(THIS_ LPLONG lplVolume) PURE;
     STDMETHOD(GetPan)(THIS_ LPLONG lplpan) PURE;
     STDMETHOD(GetFrequency)(THIS_ LPDWORD lpdwFrequency) PURE;
@@ -687,7 +687,7 @@ DECLARE_INTERFACE_(IDirectSoundBuffer,IUnknown)
     STDMETHOD(Lock)(THIS_ DWORD dwOffset, DWORD dwBytes, LPVOID *ppvAudioPtr1, LPDWORD pdwAudioBytes1, LPVOID *ppvAudioPtr2, LPDWORD pdwAudioBytes2, DWORD dwFlags) PURE;
     STDMETHOD(Play)(THIS_ DWORD dwReserved1, DWORD dwReserved2, DWORD dwFlags) PURE;
     STDMETHOD(SetCurrentPosition)(THIS_ DWORD dwNewPosition) PURE;
-    STDMETHOD(SetFormat)(THIS_ const WAVEFORMATEX *lpcfxFormat) PURE;
+    STDMETHOD(SetFormat)(THIS_ LPCWAVEFORMATEX lpcfxFormat) PURE;
     STDMETHOD(SetVolume)(THIS_ LONG lVolume) PURE;
     STDMETHOD(SetPan)(THIS_ LONG lPan) PURE;
     STDMETHOD(SetFrequency)(THIS_ DWORD dwFrequency) PURE;
@@ -761,7 +761,7 @@ DECLARE_INTERFACE_(IDirectSoundBuffer8,IUnknown)
     /*** IDirectSoundBuffer8 methods ***/
     STDMETHOD(GetCaps)(THIS_ LPDSBCAPS lpDSBufferCaps) PURE;
     STDMETHOD(GetCurrentPosition)(THIS_ LPDWORD lpdwCurrentPlayCursor, LPDWORD lpdwCurrentWriteCursor) PURE;
-    STDMETHOD(GetFormat)(THIS_ WAVEFORMATEX *lpwfxFormat, DWORD dwSizeAllocated, LPDWORD lpdwSizeWritten) PURE;
+    STDMETHOD(GetFormat)(THIS_ LPWAVEFORMATEX lpwfxFormat, DWORD dwSizeAllocated, LPDWORD lpdwSizeWritten) PURE;
     STDMETHOD(GetVolume)(THIS_ LPLONG lplVolume) PURE;
     STDMETHOD(GetPan)(THIS_ LPLONG lplpan) PURE;
     STDMETHOD(GetFrequency)(THIS_ LPDWORD lpdwFrequency) PURE;
@@ -770,7 +770,7 @@ DECLARE_INTERFACE_(IDirectSoundBuffer8,IUnknown)
     STDMETHOD(Lock)(THIS_ DWORD dwOffset, DWORD dwBytes, LPVOID *ppvAudioPtr1, LPDWORD pdwAudioBytes1, LPVOID *ppvAudioPtr2, LPDWORD pdwAudioBytes2, DWORD dwFlags) PURE;
     STDMETHOD(Play)(THIS_ DWORD dwReserved1, DWORD dwReserved2, DWORD dwFlags) PURE;
     STDMETHOD(SetCurrentPosition)(THIS_ DWORD dwNewPosition) PURE;
-    STDMETHOD(SetFormat)(THIS_ const WAVEFORMATEX *lpcfxFormat) PURE;
+    STDMETHOD(SetFormat)(THIS_ LPCWAVEFORMATEX lpcfxFormat) PURE;
     STDMETHOD(SetVolume)(THIS_ LONG lVolume) PURE;
     STDMETHOD(SetPan)(THIS_ LONG lPan) PURE;
     STDMETHOD(SetFrequency)(THIS_ DWORD dwFrequency) PURE;
