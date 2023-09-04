@@ -112,27 +112,20 @@ static const IReferenceClockVtbl ReferenceClock_Vtbl = {
 	IReferenceClockImpl_Unadvise
 };
 
-/* for ClassFactory */
-HRESULT DMUSIC_CreateReferenceClockImpl(LPCGUID riid, LPVOID* ret_iface, LPUNKNOWN unkouter)
+HRESULT reference_clock_create(IReferenceClock **ret_iface)
 {
     IReferenceClockImpl* clock;
-    HRESULT hr;
 
-    TRACE("(%s, %p, %p)\n", debugstr_guid(riid), ret_iface, unkouter);
+    TRACE("(%p)\n", ret_iface);
 
-    clock = calloc(1, sizeof(IReferenceClockImpl));
-    if (!clock) {
-        *ret_iface = NULL;
-        return E_OUTOFMEMORY;
-    }
-
+    *ret_iface = NULL;
+    if (!(clock = calloc(1, sizeof(*clock)))) return E_OUTOFMEMORY;
     clock->IReferenceClock_iface.lpVtbl = &ReferenceClock_Vtbl;
     clock->ref = 1;
     clock->rtTime = 0;
     clock->pClockInfo.dwSize = sizeof (DMUS_CLOCKINFO);
 
-    hr = IReferenceClockImpl_QueryInterface(&clock->IReferenceClock_iface, riid, ret_iface);
-    IReferenceClock_Release(&clock->IReferenceClock_iface);
-
-    return hr;
+    TRACE("Created ReferenceClock %p\n", clock);
+    *ret_iface = &clock->IReferenceClock_iface;
+    return S_OK;
 }
