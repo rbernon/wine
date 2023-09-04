@@ -290,34 +290,30 @@ static const IDirectMusicBufferVtbl DirectMusicBuffer_Vtbl = {
 	IDirectMusicBufferImpl_SetUsedBytes
 };
 
-HRESULT DMUSIC_CreateDirectMusicBufferImpl(LPDMUS_BUFFERDESC desc, LPVOID* ret_iface)
+HRESULT buffer_create(DMUS_BUFFERDESC *desc, IDirectMusicBuffer **ret_iface)
 {
-    IDirectMusicBufferImpl* dmbuffer;
+    IDirectMusicBufferImpl *buffer;
 
     TRACE("(%p, %p)\n", desc, ret_iface);
 
     *ret_iface = NULL;
-
-    dmbuffer = calloc(1, sizeof(IDirectMusicBufferImpl));
-    if (!dmbuffer)
-        return E_OUTOFMEMORY;
-
-    dmbuffer->IDirectMusicBuffer_iface.lpVtbl = &DirectMusicBuffer_Vtbl;
-    dmbuffer->ref = 1;
+    if (!(buffer = calloc(1, sizeof(*buffer)))) return E_OUTOFMEMORY;
+    buffer->IDirectMusicBuffer_iface.lpVtbl = &DirectMusicBuffer_Vtbl;
+    buffer->ref = 1;
 
     if (IsEqualGUID(&desc->guidBufferFormat, &GUID_NULL))
-        dmbuffer->format = KSDATAFORMAT_SUBTYPE_MIDI;
+        buffer->format = KSDATAFORMAT_SUBTYPE_MIDI;
     else
-        dmbuffer->format = desc->guidBufferFormat;
-    dmbuffer->size = (desc->cbBuffer + 3) & ~3; /* Buffer size must be multiple of 4 bytes */
+        buffer->format = desc->guidBufferFormat;
+    buffer->size = (desc->cbBuffer + 3) & ~3; /* Buffer size must be multiple of 4 bytes */
 
-    dmbuffer->data = malloc(dmbuffer->size);
-    if (!dmbuffer->data) {
-        free(dmbuffer);
+    if (!(buffer->data = malloc(buffer->size)))
+    {
+        free(buffer);
         return E_OUTOFMEMORY;
     }
 
-    *ret_iface = &dmbuffer->IDirectMusicBuffer_iface;
-
+    TRACE("Created DirectMusicBuffer %p\n", buffer);
+    *ret_iface = &buffer->IDirectMusicBuffer_iface;
     return S_OK;
 }
