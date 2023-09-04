@@ -233,7 +233,7 @@ static HRESULT WINAPI IDirectMusic8Impl_CreateMusicBuffer(LPDIRECTMUSIC8 iface, 
     if (!buffer_desc || !buffer)
         return E_POINTER;
 
-    return DMUSIC_CreateDirectMusicBufferImpl(buffer_desc, (LPVOID)buffer);
+    return buffer_create(buffer_desc, buffer);
 }
 
 static HRESULT WINAPI IDirectMusic8Impl_CreatePort(LPDIRECTMUSIC8 iface, REFCLSID rclsid_port, LPDMUS_PORTPARAMS port_params, LPDIRECTMUSICPORT* port, LPUNKNOWN unkouter)
