@@ -132,7 +132,6 @@ typedef struct IDirectMusicScript *LPDIRECTMUSICSCRIPT;
 typedef struct IDirectMusicScript       IDirectMusicScript8,       *LPDIRECTMUSICSCRIPT8;
 typedef struct IDirectMusicContainer *LPDIRECTMUSICCONTAINER;
 typedef struct IDirectMusicContainer    IDirectMusicContainer8,    *LPDIRECTMUSICCONTAINER8;
-typedef struct IDirectMusicGraph *LPDIRECTMUSICGRAPH;
 
 /* RPC declarations */
 typedef struct IDirectMusicBand   *LPDMUS_BAND;
