@@ -27,8 +27,8 @@ struct reference_clock
     IReferenceClock IReferenceClock_iface;
     LONG ref;
 
-    REFERENCE_TIME rtTime;
-    DMUS_CLOCKINFO pClockInfo;
+    REFERENCE_TIME time;
+    DMUS_CLOCKINFO info;
 };
 
 static inline struct reference_clock *impl_from_IReferenceClock(IReferenceClock *iface)
@@ -36,18 +36,18 @@ static inline struct reference_clock *impl_from_IReferenceClock(IReferenceClock 
     return CONTAINING_RECORD(iface, struct reference_clock, IReferenceClock_iface);
 }
 
-static HRESULT WINAPI reference_clock_QueryInterface(IReferenceClock *iface, REFIID riid, LPVOID *ppobj)
+static HRESULT WINAPI reference_clock_QueryInterface(IReferenceClock *iface, REFIID riid, void **ref_iface)
 {
 	struct reference_clock *This = impl_from_IReferenceClock(iface);
-	TRACE("(%p, %s, %p)\n", This, debugstr_dmguid(riid), ppobj);
+	TRACE("(%p, %s, %p)\n", This, debugstr_dmguid(riid), ref_iface);
 
 	if (IsEqualIID (riid, &IID_IUnknown) || 
 	    IsEqualIID (riid, &IID_IReferenceClock)) {
 		IUnknown_AddRef(iface);
-		*ppobj = This;
+		*ref_iface = This;
 		return S_OK;
 	}
-	WARN("(%p, %s, %p): not found\n", This, debugstr_dmguid(riid), ppobj);
+	WARN("(%p, %s, %p): not found\n", This, debugstr_dmguid(riid), ref_iface);
 	return E_NOINTERFACE;
 }
 
@@ -75,13 +75,13 @@ static ULONG WINAPI reference_clock_Release(IReferenceClock *iface)
     return ref;
 }
 
-static HRESULT WINAPI reference_clock_GetTime(IReferenceClock *iface, REFERENCE_TIME* pTime)
+static HRESULT WINAPI reference_clock_GetTime(IReferenceClock *iface, REFERENCE_TIME *time)
 {
     struct reference_clock *This = impl_from_IReferenceClock(iface);
 
-    TRACE("(%p)->(%p)\n", This, pTime);
+    TRACE("(%p)->(%p)\n", This, time);
 
-    *pTime = This->rtTime;
+    *time = This->time;
 
     return S_OK;
 }
@@ -130,8 +130,8 @@ HRESULT reference_clock_create(IReferenceClock **ret_iface)
     if (!(clock = calloc(1, sizeof(*clock)))) return E_OUTOFMEMORY;
     clock->IReferenceClock_iface.lpVtbl = &reference_clock_vtbl;
     clock->ref = 1;
-    clock->rtTime = 0;
-    clock->pClockInfo.dwSize = sizeof (DMUS_CLOCKINFO);
+    clock->time = 0;
+    clock->info.dwSize = sizeof(DMUS_CLOCKINFO);
 
     TRACE("Created ReferenceClock %p\n", clock);
     *ret_iface = &clock->IReferenceClock_iface;
