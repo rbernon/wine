@@ -1693,12 +1693,12 @@ static void test_parse_wave(void)
     memset(&desc, 0, sizeof(desc));
     desc.dwSize = sizeof(desc);
     hr = IDirectMusicObject_ParseDescriptor(wave, stream, &desc);
-    ok(hr == DMUS_E_CHUNKNOTFOUND, "got %s\n", debugstr_dmus_hr(hr));
+    ok(hr == DMUS_E_CHUNKNOTFOUND, "got %#lx\n", hr);
 
     hr = IStream_Seek(stream, zero, 0, NULL);
     ok(hr == S_OK, "got %#lx\n", hr);
     hr = IPersistStream_Load(persist, stream);
-    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+    ok(hr == S_OK, "got %#lx\n", hr);
     IPersistStream_Release(persist);
 
     memset(&desc, 0, sizeof(desc));
@@ -1754,12 +1754,12 @@ static void test_parse_wave(void)
     memset(&desc, 0, sizeof(desc));
     desc.dwSize = sizeof(desc);
     hr = IDirectMusicObject_ParseDescriptor(wave, stream, &desc);
-    ok(hr == DMUS_E_CHUNKNOTFOUND, "got %s\n", debugstr_dmus_hr(hr));
+    ok(hr == DMUS_E_CHUNKNOTFOUND, "got %#lx\n", hr);
 
     hr = IStream_Seek(stream, zero, 0, NULL);
     ok(hr == S_OK, "got %#lx\n", hr);
     hr = IPersistStream_Load(persist, stream);
-    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+    ok(hr == S_OK, "got %#lx\n", hr);
     IPersistStream_Release(persist);
 
     memset(&desc, 0, sizeof(desc));
@@ -1815,12 +1815,12 @@ static void test_parse_wave(void)
     memset(&desc, 0, sizeof(desc));
     desc.dwSize = sizeof(desc);
     hr = IDirectMusicObject_ParseDescriptor(wave, stream, &desc);
-    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+    ok(hr == S_OK, "got %#lx\n", hr);
 
     hr = IStream_Seek(stream, zero, 0, NULL);
     ok(hr == S_OK, "got %#lx\n", hr);
     hr = IPersistStream_Load(persist, stream);
-    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+    ok(hr == S_OK, "got %#lx\n", hr);
     IPersistStream_Release(persist);
 
     memset(&desc, 0, sizeof(desc));
@@ -1874,7 +1874,7 @@ static void test_parse_wave(void)
     hr = IStream_Seek(stream, zero, 0, NULL);
     ok(hr == S_OK, "got %#lx\n", hr);
     hr = IPersistStream_Load(persist, stream);
-    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+    ok(hr == S_OK, "got %#lx\n", hr);
     IPersistStream_Release(persist);
 
     hr = IStream_Seek(stream, zero, 0, NULL);
@@ -1882,7 +1882,7 @@ static void test_parse_wave(void)
     memset(&desc, 0, sizeof(desc));
     desc.dwSize = sizeof(desc);
     hr = IDirectMusicObject_ParseDescriptor(wave, stream, &desc);
-    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+    ok(hr == S_OK, "got %#lx\n", hr);
 
     memset(&desc, 0, sizeof(desc));
     desc.dwSize = sizeof(desc);
