@@ -75,11 +75,9 @@ extern HRESULT music_create(IUnknown **ret_iface);
 extern HRESULT collection_create(IUnknown **ret_iface);
 extern HRESULT wave_create(IUnknown **ret_iface);
 
-/* Internal */
-extern HRESULT DMUSIC_CreateReferenceClockImpl (LPCGUID lpcGUID, LPVOID* ppobj, LPUNKNOWN pUnkOuter);
-
 extern HRESULT buffer_create(DMUS_BUFFERDESC *desc, IDirectMusicBuffer **ret_iface);
 extern HRESULT download_create(DWORD size, IDirectMusicDownload **ret_iface);
+extern HRESULT reference_clock_create(IReferenceClock **ret_iface);
 
 extern HRESULT instrument_create_from_soundfont(struct soundfont *soundfont, UINT index,
         struct collection *collection, DMUS_OBJECTDESC *desc, IDirectMusicInstrument **ret_iface);
