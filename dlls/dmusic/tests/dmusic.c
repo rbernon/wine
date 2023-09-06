@@ -137,6 +137,131 @@ static BOOL compare_time(REFERENCE_TIME x, REFERENCE_TIME y, unsigned int max_di
     return diff <= max_diff;
 }
 
+static HRESULT WINAPI unk_QueryInterface(IUnknown *iface, REFIID riid, void **ret_iface)
+{
+    if (IsEqualGUID(riid, &IID_IUnknown))
+    {
+        *ret_iface = iface;
+        return S_OK;
+    }
+
+    *ret_iface = NULL;
+    return E_NOINTERFACE;
+}
+
+static ULONG WINAPI unk_AddRef(IUnknown *iface)
+{
+    return 2;
+}
+
+static ULONG WINAPI unk_Release(IUnknown *iface)
+{
+    return 1;
+}
+
+static const IUnknownVtbl unk_vtbl =
+{
+    unk_QueryInterface,
+    unk_AddRef,
+    unk_Release
+};
+
+static void test_COM_conformance(void)
+{
+    static void *invalid_ptr = (void *)0xdeadbeef;
+    const struct
+    {
+        const GUID guid;
+        const char *name;
+        const GUID *iface;
+    }
+    classes[] =
+    {
+#define X(x, ...) {.guid = CLSID_##x, .name = #x, ## __VA_ARGS__ }
+        X(DirectMusic, .iface = &IID_IDirectMusic),
+        X(DirectMusicAudioPathConfig),
+        X(DirectMusicAuditionTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicBand, .iface = &IID_IDirectMusicBand),
+        X(DirectMusicBandTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicChordMap, .iface = &IID_IDirectMusicChordMap),
+        X(DirectMusicChordMapTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicChordTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicCollection, .iface = &IID_IDirectMusicCollection),
+        X(DirectMusicCommandTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicComposer, .iface = &IID_IDirectMusicComposer),
+        X(DirectMusicContainer, .iface = &IID_IDirectMusicContainer),
+        X(DirectMusicGraph, .iface = &IID_IDirectMusicGraph),
+        X(DirectMusicLoader, .iface = &IID_IDirectMusicLoader),
+        X(DirectMusicLyricsTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicMarkerTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicMotifTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicMuteTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicParamControlTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicPatternTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicPerformance, .iface = &IID_IDirectMusicPerformance),
+        X(DirectMusicScript, .iface = &IID_IDirectMusicScript),
+        X(DirectMusicScriptTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicSegment, .iface = &IID_IDirectMusicSegment),
+        X(DirectMusicSegmentState, .iface = &IID_IDirectMusicSegmentState),
+        X(DirectMusicSegmentTriggerTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicSegTriggerTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicSeqTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicSignPostTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicStyle, .iface = &IID_IDirectMusicStyle),
+        X(DirectMusicStyleTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicSynth, .iface = &IID_IDirectMusicSynth),
+        X(DirectMusicSynthSink, .iface = &IID_IDirectMusicSynthSink),
+        X(DirectMusicSysExTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicTempoTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicTimeSigTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicWaveTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectSoundWave),
+#undef X
+    };
+    IUnknown outer = {&unk_vtbl};
+    HRESULT hr;
+    UINT i;
+
+    for (i = 0; i < ARRAY_SIZE(classes); i++)
+    {
+        IUnknown *obj;
+
+        winetest_push_context("%s", classes[i].name);
+
+        obj = invalid_ptr;
+        hr = CoCreateInstance(&classes[i].guid, &outer, CLSCTX_INPROC_SERVER, &IID_IUnknown, (void **)&obj);
+        ok(hr == CLASS_E_NOAGGREGATION || broken(hr == REGDB_E_CLASSNOTREG), "got %#lx\n", hr);
+        ok(!obj, "got %p\n", obj);
+
+        if (hr == REGDB_E_CLASSNOTREG) goto next;
+
+        obj = invalid_ptr;
+        hr = CoCreateInstance(&classes[i].guid, NULL, CLSCTX_INPROC_SERVER, &IID_IClassFactory, (void **)&obj);
+        ok(hr == E_NOINTERFACE, "got %#lx\n", hr);
+        ok(!obj, "got %p\n", obj);
+
+        obj = NULL;
+        hr = CoCreateInstance(&classes[i].guid, NULL, CLSCTX_INPROC_SERVER, &IID_IUnknown, (void **)&obj);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        ok(!!obj, "got %p\n", obj);
+        if (classes[i].iface)
+        {
+            check_interface(obj, classes[i].iface, TRUE);
+            IUnknown_Release(obj);
+
+            obj = NULL;
+            hr = CoCreateInstance(&classes[i].guid, NULL, CLSCTX_INPROC_SERVER, classes[i].iface, (void **)&obj);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            ok(!!obj, "got %p\n", obj);
+            check_interface(obj, &IID_IUnknown, TRUE);
+        }
+        IUnknown_Release(obj);
+
+    next:
+        winetest_pop_context();
+    }
+}
+
 static void test_dmusic(void)
 {
     IDirectMusic *dmusic = NULL;
@@ -148,6 +273,15 @@ static void test_dmusic(void)
 
     hr = CoCreateInstance(&CLSID_DirectMusic, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectMusic, (LPVOID*)&dmusic);
     ok(hr == S_OK, "Cannot create DirectMusic object: %#lx\n", hr);
+
+    check_interface(dmusic, &IID_IUnknown, TRUE);
+    check_interface(dmusic, &IID_IDirectMusic, TRUE);
+    check_interface(dmusic, &IID_IDirectMusic2, TRUE);
+    check_interface(dmusic, &IID_IDirectMusic8, TRUE);
+
+    check_interface(dmusic, &IID_IKsControl, FALSE);
+    check_interface(dmusic, &IID_IPersistStream, FALSE);
+    check_interface(dmusic, &IID_IDirectMusicObject, FALSE);
 
     port_params.dwSize = sizeof(port_params);
     port_params.dwValidParams = DMUS_PORTPARAMS_CHANNELGROUPS | DMUS_PORTPARAMS_AUDIOCHANNELS;
@@ -426,104 +560,6 @@ static void test_dmbuffer(void)
     IDirectMusic_Release(dmusic);
 }
 
-static void test_COM(void)
-{
-    IDirectMusic8 *dm8 = (IDirectMusic8*)0xdeadbeef;
-    IDirectMusic *dm;
-    IUnknown *unk;
-    ULONG refcount;
-    HRESULT hr;
-
-    /* COM aggregation */
-    hr = CoCreateInstance(&CLSID_DirectMusic, (IUnknown *)0xdeadbeef, CLSCTX_INPROC_SERVER, &IID_IUnknown,
-            (void**)&dm8);
-    ok(hr == CLASS_E_NOAGGREGATION,
-            "DirectMusic8 create failed: %#lx, expected CLASS_E_NOAGGREGATION\n", hr);
-    ok(!dm8, "dm8 = %p\n", dm8);
-
-    /* Invalid RIID */
-    hr = CoCreateInstance(&CLSID_DirectMusic, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectMusicObject,
-            (void**)&dm8);
-    ok(hr == E_NOINTERFACE, "DirectMusic8 create failed: %#lx, expected E_NOINTERFACE\n", hr);
-
-    /* Same refcount for DirectMusic and DirectMusic8 */
-    hr = CoCreateInstance(&CLSID_DirectMusic, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectMusic8,
-            (void**)&dm8);
-    if (hr == E_NOINTERFACE)
-    {
-        win_skip("DirectMusic too old (no IDirectMusic8)\n");
-        return;
-    }
-    ok(hr == S_OK, "DirectMusic8 create failed: %#lx, expected S_OK\n", hr);
-    refcount = IDirectMusic8_AddRef(dm8);
-    ok(refcount == 2, "refcount == %lu, expected 2\n", refcount);
-
-    hr = IDirectMusic8_QueryInterface(dm8, &IID_IDirectMusic, (void**)&dm);
-    ok(hr == S_OK, "QueryInterface for IID_IDirectMusic failed: %#lx\n", hr);
-    refcount = IDirectMusic_AddRef(dm);
-    ok(refcount == 4, "refcount == %lu, expected 4\n", refcount);
-    IDirectMusic_Release(dm);
-
-    hr = IDirectMusic8_QueryInterface(dm8, &IID_IUnknown, (void**)&unk);
-    ok(hr == S_OK, "QueryInterface for IID_IUnknown failed: %#lx\n", hr);
-    refcount = IUnknown_AddRef(unk);
-    ok(refcount == 5, "refcount == %lu, expected 5\n", refcount);
-    refcount = IUnknown_Release(unk);
-
-    ok(refcount == 4, "refcount == %lu, expected 4\n", refcount);
-    while (IDirectMusic8_Release(dm8));
-}
-
-static void test_COM_dmcoll(void)
-{
-    IDirectMusicCollection *dmc = (IDirectMusicCollection*)0xdeadbeef;
-    IDirectMusicObject *dmo;
-    IPersistStream *ps;
-    IUnknown *unk;
-    ULONG refcount;
-    HRESULT hr;
-
-    /* COM aggregation */
-    hr = CoCreateInstance(&CLSID_DirectMusicCollection, (IUnknown *)0xdeadbeef, CLSCTX_INPROC_SERVER,
-            &IID_IUnknown, (void**)&dmc);
-    ok(hr == CLASS_E_NOAGGREGATION,
-            "DirectMusicCollection create failed: %#lx, expected CLASS_E_NOAGGREGATION\n", hr);
-    ok(!dmc, "dmc = %p\n", dmc);
-
-    /* Invalid RIID */
-    hr = CoCreateInstance(&CLSID_DirectMusicCollection, NULL, CLSCTX_INPROC_SERVER,
-            &IID_IClassFactory, (void**)&dmc);
-    ok(hr == E_NOINTERFACE, "DirectMusicCollection create failed: %#lx, expected E_NOINTERFACE\n", hr);
-
-    /* Same refcount for all DirectMusicCollection interfaces */
-    hr = CoCreateInstance(&CLSID_DirectMusicCollection, NULL, CLSCTX_INPROC_SERVER,
-            &IID_IDirectMusicCollection, (void**)&dmc);
-    ok(hr == S_OK, "DirectMusicCollection create failed: %#lx, expected S_OK\n", hr);
-    refcount = IDirectMusicCollection_AddRef(dmc);
-    ok(refcount == 2, "refcount == %lu, expected 2\n", refcount);
-
-    hr = IDirectMusicCollection_QueryInterface(dmc, &IID_IDirectMusicObject, (void**)&dmo);
-    ok(hr == S_OK, "QueryInterface for IID_IDirectMusicObject failed: %#lx\n", hr);
-    refcount = IDirectMusicObject_AddRef(dmo);
-    ok(refcount == 4, "refcount == %lu, expected 4\n", refcount);
-    refcount = IDirectMusicObject_Release(dmo);
-
-    hr = IDirectMusicCollection_QueryInterface(dmc, &IID_IPersistStream, (void**)&ps);
-    ok(hr == S_OK, "QueryInterface for IID_IPersistStream failed: %#lx\n", hr);
-    refcount = IPersistStream_AddRef(ps);
-    ok(refcount == 5, "refcount == %lu, expected 5\n", refcount);
-    refcount = IPersistStream_Release(ps);
-
-    hr = IDirectMusicCollection_QueryInterface(dmc, &IID_IUnknown, (void**)&unk);
-    ok(hr == S_OK, "QueryInterface for IID_IUnknown failed: %#lx\n", hr);
-    refcount = IUnknown_AddRef(unk);
-    ok(refcount == 6, "refcount == %lu, expected 6\n", refcount);
-    refcount = IUnknown_Release(unk);
-
-    ok(refcount == 5, "refcount == %lu, expected 5\n", refcount);
-    while (IDirectMusicCollection_Release(dmc));
-}
-
 static void test_dmcoll(void)
 {
     IDirectMusicCollection *dmc;
@@ -537,6 +573,13 @@ static void test_dmcoll(void)
     hr = CoCreateInstance(&CLSID_DirectMusicCollection, NULL, CLSCTX_INPROC_SERVER,
             &IID_IDirectMusicCollection, (void**)&dmc);
     ok(hr == S_OK, "DirectMusicCollection create failed: %#lx, expected S_OK\n", hr);
+
+    check_interface(dmc, &IID_IUnknown, TRUE);
+    check_interface(dmc, &IID_IDirectMusicCollection, TRUE);
+    check_interface(dmc, &IID_IPersistStream, TRUE);
+    check_interface(dmc, &IID_IDirectMusicObject, TRUE);
+
+    check_interface(dmc, &IID_IKsControl, FALSE);
 
     /* IDirectMusicObject */
     hr = IDirectMusicCollection_QueryInterface(dmc, &IID_IDirectMusicObject, (void**)&dmo);
@@ -612,53 +655,6 @@ static IDirectMusicPort *create_synth_port(IDirectMusic **dmusic)
     ok(hr == S_OK, "IDirectMusic_CreatePort failed: %#lx\n", hr);
 
     return port;
-}
-
-static void test_COM_synthport(void)
-{
-    IDirectMusic *dmusic;
-    IDirectMusicPort *port;
-    IDirectMusicPortDownload *dmpd;
-    IDirectMusicThru *dmt;
-    IKsControl *iksc;
-    IReferenceClock *clock;
-    IUnknown *unk;
-    ULONG refcount;
-    HRESULT hr;
-
-    port = create_synth_port(&dmusic);
-
-    /* Same refcount for all DirectMusicPort interfaces */
-    refcount = IDirectMusicPort_AddRef(port);
-    ok(refcount == 2, "refcount == %lu, expected 2\n", refcount);
-
-    hr = IDirectMusicPort_QueryInterface(port, &IID_IDirectMusicPortDownload, (void**)&dmpd);
-    ok(hr == S_OK, "QueryInterface for IID_IDirectMusicPortDownload failed: %#lx\n", hr);
-    refcount = IDirectMusicPortDownload_AddRef(dmpd);
-    ok(refcount == 4, "refcount == %lu, expected 4\n", refcount);
-    IDirectMusicPortDownload_Release(dmpd);
-
-    hr = IDirectMusicPort_QueryInterface(port, &IID_IKsControl, (void**)&iksc);
-    ok(hr == S_OK, "QueryInterface for IID_IKsControl failed: %#lx\n", hr);
-    refcount = IKsControl_AddRef(iksc);
-    ok(refcount == 5, "refcount == %lu, expected 5\n", refcount);
-    IKsControl_Release(iksc);
-
-    hr = IDirectMusicPort_QueryInterface(port, &IID_IUnknown, (void**)&unk);
-    ok(hr == S_OK, "QueryInterface for IID_IUnknown failed: %#lx\n", hr);
-    refcount = IUnknown_AddRef(unk);
-    ok(refcount == 6, "refcount == %lu, expected 6\n", refcount);
-    IUnknown_Release(unk);
-
-    /* Unsupported interface */
-    hr = IDirectMusicPort_QueryInterface(port, &IID_IDirectMusicThru, (void**)&dmt);
-    todo_wine ok(hr == E_NOINTERFACE, "QueryInterface for IID_IDirectMusicThru failed: %#lx\n", hr);
-    hr = IDirectMusicPort_QueryInterface(port, &IID_IReferenceClock, (void**)&clock);
-    ok(hr == E_NOINTERFACE, "QueryInterface for IID_IReferenceClock failed: %#lx\n", hr);
-
-    while (IDirectMusicPort_Release(port));
-    refcount = IDirectMusic_Release(dmusic);
-    ok(!refcount, "Got outstanding refcount %ld.\n", refcount);
 }
 
 static void test_parsedescriptor(void)
@@ -964,6 +960,16 @@ static void test_synthport(void)
     HRESULT hr;
 
     port = create_synth_port(&dmusic);
+
+    check_interface(port, &IID_IUnknown, TRUE);
+    check_interface(port, &IID_IDirectMusicPort, TRUE);
+    check_interface(port, &IID_IDirectMusicPortDownload, TRUE);
+    check_interface(port, &IID_IDirectMusicThru, TRUE);
+    check_interface(port, &IID_IKsControl, TRUE);
+    todo_wine check_interface(port, &IID_IReferenceClock, TRUE);
+
+    check_interface(port, &IID_IPersistStream, FALSE);
+    check_interface(port, &IID_IDirectMusicObject, FALSE);
 
     /* Create a IDirectMusicPortBuffer */
     desc.dwSize = sizeof(DMUS_BUFFERDESC);
@@ -1903,9 +1909,9 @@ START_TEST(dmusic)
         CoUninitialize();
         return;
     }
-    test_COM();
-    test_COM_dmcoll();
-    test_COM_synthport();
+
+    test_COM_conformance();
+
     test_dmusic();
     test_setdsound();
     test_dmbuffer();
