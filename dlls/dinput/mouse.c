@@ -330,6 +330,13 @@ static void warp_check( struct mouse *impl, BOOL force )
             TRACE( "Warping mouse to x %+ld, y %+ld.\n", mapped_center.x, mapped_center.y );
             SetCursorPos( mapped_center.x, mapped_center.y );
         }
+        if (!impl->clipped)
+        {
+            mapped_center.x = (rect.left + rect.right) / 2;
+            mapped_center.y = (rect.top + rect.bottom) / 2;
+            TRACE( "Warping mouse to x %+ld, y %+ld.\n", mapped_center.x, mapped_center.y );
+            SetCursorPos( mapped_center.x, mapped_center.y );
+        }
     }
 }
 
