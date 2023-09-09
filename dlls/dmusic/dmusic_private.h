@@ -74,6 +74,7 @@ extern HRESULT collection_get_wave(struct collection *collection, DWORD index, I
 /* CLSID */
 extern HRESULT music_create(IUnknown **ret_iface);
 extern HRESULT collection_create(IUnknown **ret_iface);
+extern HRESULT wave_create(IUnknown **ret_iface);
 
 /* Internal */
 extern HRESULT DMUSIC_CreateDirectMusicBufferImpl(LPDMUS_BUFFERDESC desc, LPVOID* ret_iface);
