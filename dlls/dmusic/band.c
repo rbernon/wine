@@ -297,15 +297,11 @@ static HRESULT parse_lbil_list(struct band *This, IStream *stream, struct chunk_
     return hr;
 }
 
-static HRESULT parse_dmbd_chunk(struct band *This, IStream *stream, struct chunk_entry *parent)
+static HRESULT parse_dmbd_chunk(struct band *This, IStream *stream, struct chunk_entry *parent,
+        DMUS_OBJECTDESC *desc)
 {
     struct chunk_entry chunk = {.parent = parent};
     HRESULT hr;
-
-    if (FAILED(hr = dmobj_parsedescriptor(stream, parent, &This->dmobj.desc,
-                DMUS_OBJ_OBJECT|DMUS_OBJ_NAME|DMUS_OBJ_NAME_INAM|DMUS_OBJ_CATEGORY|DMUS_OBJ_VERSION))
-                || FAILED(hr = stream_reset_chunk_data(stream, parent)))
-        return hr;
 
     while ((hr = stream_next_chunk(stream, &chunk)) == S_OK)
     {
@@ -314,7 +310,7 @@ static HRESULT parse_dmbd_chunk(struct band *This, IStream *stream, struct chunk
         case DMUS_FOURCC_GUID_CHUNK:
         case DMUS_FOURCC_VERSION_CHUNK:
         case MAKE_IDTYPE(FOURCC_LIST, DMUS_FOURCC_UNFO_LIST):
-            /* already parsed by dmobj_parsedescriptor */
+            hr = stream_parse_desc_chunk(stream, &chunk, desc);
             break;
 
         case MAKE_IDTYPE(FOURCC_LIST, DMUS_FOURCC_INSTRUMENTS_LIST):
@@ -411,7 +407,7 @@ static HRESULT WINAPI band_persist_stream_Load(IPersistStream *iface, IStream *s
         switch (MAKE_IDTYPE(chunk.id, chunk.type))
         {
         case MAKE_IDTYPE(FOURCC_RIFF, DMUS_FOURCC_BAND_FORM):
-            hr = parse_dmbd_chunk(This, stream, &chunk);
+            hr = parse_dmbd_chunk(This, stream, &chunk, &This->dmobj.desc);
             break;
 
         default:
