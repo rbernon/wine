@@ -597,15 +597,30 @@ static HRESULT parse_info_list(IStream *stream, const struct chunk_entry *parent
     return hr;
 }
 
-static inline void unfo_get_name(IStream *stream, const struct chunk_entry *unfo,
-        DMUS_OBJECTDESC *desc, BOOL inam)
+static HRESULT parse_unfo_list(IStream *stream, const struct chunk_entry *parent, DMUS_OBJECTDESC *desc)
 {
-    struct chunk_entry chunk = {.parent = unfo};
+    struct chunk_entry chunk = {.parent = parent};
+    HRESULT hr;
 
-    while (stream_next_chunk(stream, &chunk) == S_OK)
-        if (chunk.id == DMUS_FOURCC_UNAM_CHUNK || (inam && chunk.id == mmioFOURCC('I','N','A','M')))
-            if (stream_chunk_get_wstr(stream, &chunk, desc->wszName, sizeof(desc->wszName)) == S_OK)
-                desc->dwValidData |= DMUS_OBJ_NAME;
+    while ((hr = stream_next_chunk(stream, &chunk)) == S_OK)
+    {
+        switch (MAKE_IDTYPE(chunk.id, chunk.type))
+        {
+        case DMUS_FOURCC_UNAM_CHUNK:
+        case mmioFOURCC('I','N','A','M'):
+            hr = stream_chunk_get_wstr(stream, &chunk, desc->wszName, sizeof(desc->wszName));
+            if (hr == S_OK) desc->dwValidData |= DMUS_OBJ_NAME;
+            break;
+
+        default:
+            FIXME("Ignoring chunk %s %s\n", debugstr_fourcc(chunk.id), debugstr_fourcc(chunk.type));
+            break;
+        }
+
+        if (FAILED(hr)) break;
+    }
+
+    return S_OK;
 }
 
 HRESULT stream_chunk_parse_desc(IStream *stream, const struct chunk_entry *chunk, DMUS_OBJECTDESC *desc)
@@ -614,10 +629,32 @@ HRESULT stream_chunk_parse_desc(IStream *stream, const struct chunk_entry *chunk
 
     switch (MAKE_IDTYPE(chunk->id, chunk->type))
     {
+    case DMUS_FOURCC_CATEGORY_CHUNK:
+        hr = stream_chunk_get_wstr(stream, chunk, desc->wszCategory, sizeof(desc->wszCategory));
+        if (hr == S_OK) desc->dwValidData |= DMUS_OBJ_CATEGORY;
+        return hr;
+
+    case DMUS_FOURCC_DATE_CHUNK:
+        hr = stream_chunk_get_data(stream, chunk, &desc->ftDate, sizeof(desc->ftDate));
+        if (hr == S_OK) desc->dwValidData |= DMUS_OBJ_DATE;
+        return hr;
+
+    case DMUS_FOURCC_FILE_CHUNK:
+        hr = stream_chunk_get_wstr(stream, chunk, desc->wszFileName, sizeof(desc->wszFileName));
+        if (hr == S_OK) desc->dwValidData |= DMUS_OBJ_FILENAME;
+        return hr;
+
     case FOURCC_DLID:
+    case DMUS_FOURCC_GUID_CHUNK:
         if (desc->dwValidData & DMUS_OBJ_OBJECT) return S_OK;
         hr = stream_chunk_get_data(stream, chunk, &desc->guidObject, sizeof(desc->guidObject));
         if (hr == S_OK) desc->dwValidData |= DMUS_OBJ_OBJECT;
+        return hr;
+
+    case DMUS_FOURCC_NAME_CHUNK:
+        if (desc->dwValidData & DMUS_OBJ_NAME) return S_OK;
+        hr = stream_chunk_get_wstr(stream, chunk, desc->wszName, sizeof(desc->wszName));
+        if (hr == S_OK) desc->dwValidData |= DMUS_OBJ_NAME;
         return hr;
 
     case FOURCC_VERS:
@@ -625,6 +662,9 @@ HRESULT stream_chunk_parse_desc(IStream *stream, const struct chunk_entry *chunk
         hr = stream_chunk_get_data(stream, chunk, &desc->vVersion, sizeof(desc->vVersion));
         if (hr == S_OK) desc->dwValidData |= DMUS_OBJ_VERSION;
         return hr;
+
+    case MAKE_IDTYPE(FOURCC_LIST, DMUS_FOURCC_UNFO_LIST):
+        return parse_unfo_list(stream, chunk, desc);
 
     case MAKE_IDTYPE(FOURCC_LIST, DMUS_FOURCC_INFO_LIST):
         return parse_info_list(stream, chunk, desc);
@@ -648,46 +688,26 @@ HRESULT dmobj_parsedescriptor(IStream *stream, const struct chunk_entry *riff,
     desc->dwValidData = 0;
     desc->dwSize = sizeof(*desc);
 
-    while ((hr = stream_next_chunk(stream, &chunk)) == S_OK) {
-        switch (chunk.id) {
-            case DMUS_FOURCC_CATEGORY_CHUNK:
-                if ((supported & DMUS_OBJ_CATEGORY) && stream_chunk_get_wstr(stream, &chunk,
-                            desc->wszCategory, sizeof(desc->wszCategory)) == S_OK)
-                    desc->dwValidData |= DMUS_OBJ_CATEGORY;
-                break;
-            case DMUS_FOURCC_DATE_CHUNK:
-                if ((supported & DMUS_OBJ_DATE) && stream_chunk_get_data(stream, &chunk,
-                            &desc->ftDate, sizeof(desc->ftDate)) == S_OK)
-                    desc->dwValidData |= DMUS_OBJ_DATE;
-                break;
-            case DMUS_FOURCC_FILE_CHUNK:
-                if ((supported & DMUS_OBJ_FILENAME) && stream_chunk_get_wstr(stream, &chunk,
-                            desc->wszFileName, sizeof(desc->wszFileName)) == S_OK)
-                    desc->dwValidData |= DMUS_OBJ_FILENAME;
-                break;
-            case DMUS_FOURCC_GUID_CHUNK:
-                if ((supported & DMUS_OBJ_OBJECT) && stream_chunk_get_data(stream, &chunk,
-                            &desc->guidObject, sizeof(desc->guidObject)) == S_OK)
-                    desc->dwValidData |= DMUS_OBJ_OBJECT;
-                break;
-            case DMUS_FOURCC_NAME_CHUNK:
-                if ((supported & DMUS_OBJ_NAME) && stream_chunk_get_wstr(stream, &chunk,
-                            desc->wszName, sizeof(desc->wszName)) == S_OK)
-                    desc->dwValidData |= DMUS_OBJ_NAME;
-                break;
-            case DMUS_FOURCC_VERSION_CHUNK:
-                if ((supported & DMUS_OBJ_VERSION) && stream_chunk_get_data(stream, &chunk,
-                            &desc->vVersion, sizeof(desc->vVersion)) == S_OK)
-                    desc->dwValidData |= DMUS_OBJ_VERSION;
-                break;
-            case FOURCC_LIST:
-                if (chunk.type == DMUS_FOURCC_UNFO_LIST && (supported & DMUS_OBJ_NAME))
-                    unfo_get_name(stream, &chunk, desc, supported & DMUS_OBJ_NAME_INAM);
-                else if (chunk.type == DMUS_FOURCC_INFO_LIST && (supported & DMUS_OBJ_NAME_INFO))
-                    parse_info_list(stream, &chunk, desc);
-                break;
+    while ((hr = stream_next_chunk(stream, &chunk)) == S_OK)
+    {
+        switch (MAKE_IDTYPE(chunk.id, chunk.type))
+        {
+        case DMUS_FOURCC_CATEGORY_CHUNK:
+        case DMUS_FOURCC_DATE_CHUNK:
+        case DMUS_FOURCC_FILE_CHUNK:
+        case DMUS_FOURCC_GUID_CHUNK:
+        case DMUS_FOURCC_NAME_CHUNK:
+        case DMUS_FOURCC_VERSION_CHUNK:
+        case MAKE_IDTYPE(FOURCC_LIST, DMUS_FOURCC_UNFO_LIST):
+        case MAKE_IDTYPE(FOURCC_LIST, DMUS_FOURCC_INFO_LIST):
+            hr = stream_parse_desc_chunk(stream, &chunk, desc);
+            break;
         }
+
+        if (FAILED(hr)) return hr;
     }
+
+    desc->dwValidData &= supported;
     TRACE("Found %#lx\n", desc->dwValidData);
 
     return hr;
