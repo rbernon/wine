@@ -61,9 +61,4 @@ typedef struct _DMUS_PRIVATE_COMMAND {
 	IDirectMusicCollection* ppReferenceCollection;
 } DMUS_PRIVATE_COMMAND, *LPDMUS_PRIVATE_COMMAND;
 
-/*****************************************************************************
- * Misc.
- */
-#include "dmutils.h"
-
 #endif	/* __WINE_DMSTYLE_PRIVATE_H */
