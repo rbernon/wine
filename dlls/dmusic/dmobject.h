@@ -85,6 +85,9 @@ void dmobject_init_ex(struct dmobject *dmobj, const GUID *class, IUnknown *outer
         parse_stream_callback parse_stream);
 void dmobject_init(struct dmobject *dmobj, const GUID *class, IUnknown *outer_unk);
 
+void track_init(struct dmobject *dmobj, const GUID *class, IUnknown *outer_unk,
+        parse_stream_callback parse_stream);
+
 /* Generic IDirectMusicObject methods */
 HRESULT WINAPI dmobj_IDirectMusicObject_QueryInterface(IDirectMusicObject *iface, REFIID riid,
         void **ret_iface);
