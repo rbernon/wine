@@ -634,8 +634,9 @@ static HRESULT parse_sfbk_chunk(struct collection *This, IStream *stream, struct
     return hr;
 }
 
-static HRESULT parse_stream(struct collection *This, IStream *stream, DMUS_OBJECTDESC *desc)
+static HRESULT collection_parse_stream(struct dmobject *object, IStream *stream, DMUS_OBJECTDESC *desc)
 {
+    struct collection *This = CONTAINING_RECORD(object, struct collection, dmobj);
     struct chunk_entry chunk = {0};
     HRESULT hr;
 
@@ -658,45 +659,12 @@ static HRESULT parse_stream(struct collection *This, IStream *stream, DMUS_OBJEC
         }
     }
 
-    stream_skip_chunk(stream, &chunk);
-    return hr;
-}
-
-static HRESULT WINAPI collection_object_ParseDescriptor(IDirectMusicObject *iface,
-        IStream *stream, DMUS_OBJECTDESC *desc)
-{
-    struct collection *This = CONTAINING_RECORD(iface, struct collection, dmobj.IDirectMusicObject_iface);
-
-    TRACE("(%p, %p, %p)\n", iface, stream, desc);
-
-    if (!stream || !desc) return E_POINTER;
-    if (FAILED(parse_stream(This, stream, desc))) return DMUS_E_NOTADLSCOL;
-
-    TRACE("returning descriptor:\n");
-    dump_DMUS_OBJECTDESC(desc);
-    return S_OK;
-}
-
-static const IDirectMusicObjectVtbl collection_object_vtbl =
-{
-    dmobj_IDirectMusicObject_QueryInterface,
-    dmobj_IDirectMusicObject_AddRef,
-    dmobj_IDirectMusicObject_Release,
-    dmobj_IDirectMusicObject_GetDescriptor,
-    dmobj_IDirectMusicObject_SetDescriptor,
-    collection_object_ParseDescriptor,
-};
-
-static HRESULT WINAPI collection_stream_Load(IPersistStream *iface, IStream *stream)
-{
-    struct collection *This = impl_from_IPersistStream(iface);
-
-    TRACE("(%p, %p)\n", This, stream);
-
-    if (!stream) return E_POINTER;
-    if (FAILED(parse_stream(This, stream, NULL))) return DMUS_E_UNSUPPORTED_STREAM;
-
-    if (TRACE_ON(dmusic))
+    if (desc)
+    {
+        TRACE("returning descriptor:\n");
+        dump_DMUS_OBJECTDESC(desc);
+    }
+    else if (TRACE_ON(dmusic))
     {
         struct instrument_entry *entry;
         struct wave_entry *wave_entry;
@@ -724,20 +692,9 @@ static HRESULT WINAPI collection_stream_Load(IPersistStream *iface, IStream *str
             TRACE("    - offset: %lu, wave %p\n", wave_entry->offset, wave_entry->wave);
     }
 
+    stream_skip_chunk(stream, &chunk);
     return hr;
 }
-
-static const IPersistStreamVtbl collection_stream_vtbl =
-{
-    dmobj_IPersistStream_QueryInterface,
-    dmobj_IPersistStream_AddRef,
-    dmobj_IPersistStream_Release,
-    unimpl_IPersistStream_GetClassID,
-    unimpl_IPersistStream_IsDirty,
-    collection_stream_Load,
-    unimpl_IPersistStream_Save,
-    unimpl_IPersistStream_GetSizeMax,
-};
 
 HRESULT collection_create(IUnknown **ret_iface)
 {
@@ -748,10 +705,8 @@ HRESULT collection_create(IUnknown **ret_iface)
     collection->IDirectMusicCollection_iface.lpVtbl = &collection_vtbl;
     collection->internal_ref = 1;
     collection->ref = 1;
-    dmobject_init(&collection->dmobj, &CLSID_DirectMusicCollection,
-            (IUnknown *)&collection->IDirectMusicCollection_iface);
-    collection->dmobj.IDirectMusicObject_iface.lpVtbl = &collection_object_vtbl;
-    collection->dmobj.IPersistStream_iface.lpVtbl = &collection_stream_vtbl;
+    dmobject_init_ex(&collection->dmobj, &CLSID_DirectMusicCollection, (IUnknown *)&collection->IDirectMusicCollection_iface,
+            collection_parse_stream);
     list_init(&collection->instruments);
     list_init(&collection->waves);
 
