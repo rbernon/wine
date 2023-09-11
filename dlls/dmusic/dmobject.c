@@ -807,11 +807,65 @@ HRESULT WINAPI unimpl_IPersistStream_GetSizeMax(IPersistStream *iface, ULARGE_IN
     return E_NOTIMPL;
 }
 
+static HRESULT WINAPI dmobj_IDirectMusicObject_ParseDescriptor(IDirectMusicObject *iface,
+        IStream *stream, DMUS_OBJECTDESC *desc)
+{
+    struct dmobject *This = impl_from_IDirectMusicObject(iface);
 
-void dmobject_init(struct dmobject *dmobj, const GUID *class, IUnknown *outer_unk)
+    TRACE("(%p, %p, %p)\n", iface, stream, desc);
+
+    if (!stream || !desc) return E_POINTER;
+    return This->parse_stream(This, stream, desc);
+}
+
+static const IDirectMusicObjectVtbl object_vtbl =
+{
+    dmobj_IDirectMusicObject_QueryInterface,
+    dmobj_IDirectMusicObject_AddRef,
+    dmobj_IDirectMusicObject_Release,
+    dmobj_IDirectMusicObject_GetDescriptor,
+    dmobj_IDirectMusicObject_SetDescriptor,
+    dmobj_IDirectMusicObject_ParseDescriptor,
+};
+
+static HRESULT WINAPI dmobj_IPersistStream_Load(IPersistStream *iface, IStream *stream)
+{
+    struct dmobject *This = impl_from_IPersistStream(iface);
+
+    TRACE("%p, %p\n", iface, stream);
+
+    if (!stream) return E_POINTER;
+    return This->parse_stream(This, stream, NULL);
+}
+
+static const IPersistStreamVtbl object_persist_stream_vtbl =
+{
+    dmobj_IPersistStream_QueryInterface,
+    dmobj_IPersistStream_AddRef,
+    dmobj_IPersistStream_Release,
+    unimpl_IPersistStream_GetClassID,
+    unimpl_IPersistStream_IsDirty,
+    dmobj_IPersistStream_Load,
+    unimpl_IPersistStream_Save,
+    unimpl_IPersistStream_GetSizeMax,
+};
+
+void dmobject_init_ex(struct dmobject *dmobj, const GUID *class, IUnknown *outer_unk,
+        parse_stream_callback parse_stream)
 {
     dmobj->outer_unk = outer_unk;
     dmobj->desc.dwSize = sizeof(dmobj->desc);
     dmobj->desc.dwValidData = DMUS_OBJ_CLASS;
     dmobj->desc.guidClass = *class;
+
+    if ((dmobj->parse_stream = parse_stream))
+    {
+        dmobj->IDirectMusicObject_iface.lpVtbl = &object_vtbl;
+        dmobj->IPersistStream_iface.lpVtbl = &object_persist_stream_vtbl;
+    }
+}
+
+void dmobject_init(struct dmobject *dmobj, const GUID *class, IUnknown *outer_unk)
+{
+    dmobject_init_ex(dmobj, class, outer_unk, NULL);
 }
