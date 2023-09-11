@@ -69,6 +69,8 @@ static inline HRESULT stream_reset_chunk_start(IStream *stream, const struct chu
     return IStream_Seek(stream, offset, STREAM_SEEK_SET, NULL);
 }
 
+struct dmobject;
+typedef HRESULT (*parse_stream_callback)(struct dmobject *object, IStream *stream, DMUS_OBJECTDESC *desc);
 
 /* IDirectMusicObject base object */
 struct dmobject {
@@ -76,8 +78,11 @@ struct dmobject {
     IPersistStream IPersistStream_iface;
     IUnknown *outer_unk;
     DMUS_OBJECTDESC desc;
+    parse_stream_callback parse_stream;
 };
 
+void dmobject_init_ex(struct dmobject *dmobj, const GUID *class, IUnknown *outer_unk,
+        parse_stream_callback parse_stream);
 void dmobject_init(struct dmobject *dmobj, const GUID *class, IUnknown *outer_unk);
 
 /* Generic IDirectMusicObject methods */
