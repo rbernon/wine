@@ -583,14 +583,9 @@ static HRESULT parse_dmbt_chunk(struct band_track *This, IStream *stream, struct
     return hr;
 }
 
-static inline struct band_track *impl_from_IPersistStream(IPersistStream *iface)
+static HRESULT band_track_parse_stream(struct dmobject *object, IStream *stream, DMUS_OBJECTDESC *desc)
 {
-    return CONTAINING_RECORD(iface, struct band_track, dmobj.IPersistStream_iface);
-}
-
-static HRESULT WINAPI band_track_persist_stream_Load(IPersistStream *iface, IStream *stream)
-{
-    struct band_track *This = impl_from_IPersistStream(iface);
+    struct band_track *This = CONTAINING_RECORD(object, struct band_track, dmobj);
     struct chunk_entry chunk = {0};
     HRESULT hr;
 
@@ -637,18 +632,6 @@ static HRESULT WINAPI band_track_persist_stream_Load(IPersistStream *iface, IStr
     return S_OK;
 }
 
-static const IPersistStreamVtbl band_track_persist_stream_vtbl =
-{
-    dmobj_IPersistStream_QueryInterface,
-    dmobj_IPersistStream_AddRef,
-    dmobj_IPersistStream_Release,
-    dmobj_IPersistStream_GetClassID,
-    unimpl_IPersistStream_IsDirty,
-    band_track_persist_stream_Load,
-    unimpl_IPersistStream_Save,
-    unimpl_IPersistStream_GetSizeMax,
-};
-
 /* for ClassFactory */
 HRESULT create_dmbandtrack(REFIID lpcGUID, void **ppobj)
 {
@@ -659,8 +642,8 @@ HRESULT create_dmbandtrack(REFIID lpcGUID, void **ppobj)
     if (!(track = calloc(1, sizeof(*track)))) return E_OUTOFMEMORY;
     track->IDirectMusicTrack8_iface.lpVtbl = &band_track_vtbl;
     track->ref = 1;
-    dmobject_init(&track->dmobj, &CLSID_DirectMusicBandTrack, (IUnknown *)&track->IDirectMusicTrack8_iface);
-    track->dmobj.IPersistStream_iface.lpVtbl = &band_track_persist_stream_vtbl;
+    track_init(&track->dmobj, &CLSID_DirectMusicBandTrack, (IUnknown *)&track->IDirectMusicTrack8_iface,
+            band_track_parse_stream);
     list_init(&track->bands);
 
     hr = IDirectMusicTrack8_QueryInterface(&track->IDirectMusicTrack8_iface, lpcGUID, ppobj);

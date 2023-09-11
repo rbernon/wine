@@ -869,3 +869,14 @@ void dmobject_init(struct dmobject *dmobj, const GUID *class, IUnknown *outer_un
 {
     dmobject_init_ex(dmobj, class, outer_unk, NULL);
 }
+
+void track_init(struct dmobject *dmobj, const GUID *class, IUnknown *outer_unk,
+        parse_stream_callback parse_stream)
+{
+    dmobj->IPersistStream_iface.lpVtbl = &object_persist_stream_vtbl;
+    dmobj->outer_unk = outer_unk;
+    dmobj->desc.dwSize = sizeof(dmobj->desc);
+    dmobj->desc.dwValidData = DMUS_OBJ_CLASS;
+    dmobj->desc.guidClass = *class;
+    dmobj->parse_stream = parse_stream;
+}
