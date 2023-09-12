@@ -750,12 +750,12 @@ static void test_parsedescriptor(void)
     memset(&desc, 0, sizeof(desc));
     hr = IDirectMusicObject_ParseDescriptor(dmo, stream, &desc);
     ok(hr == S_OK, "ParseDescriptor failed: %#lx, expected S_OK\n", hr);
-    todo_wine ok(desc.dwValidData == (DMUS_OBJ_CLASS | DMUS_OBJ_VERSION | DMUS_OBJ_OBJECT),
+    ok(desc.dwValidData == (DMUS_OBJ_CLASS | DMUS_OBJ_VERSION | DMUS_OBJ_OBJECT),
             "Got valid data %#lx, expected DMUS_OBJ_CLASS | DMUS_OBJ_VERSION\n", desc.dwValidData);
     ok(IsEqualGUID(&desc.guidClass, &CLSID_DirectMusicCollection),
             "Got class guid %s, expected CLSID_DirectMusicCollection\n",
             wine_dbgstr_guid(&desc.guidClass));
-    todo_wine ok(IsEqualGUID(&desc.guidObject, &GUID_test_1), "Got object guid %s, expected GUID_NULL\n",
+    ok(IsEqualGUID(&desc.guidObject, &GUID_test_1), "Got object guid %s, expected GUID_NULL\n",
             wine_dbgstr_guid(&desc.guidObject));
     ok(desc.vVersion.dwVersionMS == 5 && desc.vVersion.dwVersionLS == 8,
             "Got version %lu.%lu, expected 5.8\n", desc.vVersion.dwVersionMS,
@@ -838,12 +838,12 @@ static void test_parsedescriptor(void)
     memset(&desc, 0, sizeof(desc));
     hr = IDirectMusicObject_ParseDescriptor(dmo, stream, &desc);
     ok(hr == S_OK, "ParseDescriptor failed: %#lx, expected S_OK\n", hr);
-    todo_wine ok(desc.dwValidData == (DMUS_OBJ_CLASS | DMUS_OBJ_NAME | DMUS_OBJ_VERSION | DMUS_OBJ_OBJECT),
+    ok(desc.dwValidData == (DMUS_OBJ_CLASS | DMUS_OBJ_NAME | DMUS_OBJ_VERSION | DMUS_OBJ_OBJECT),
             "Got valid data %#lx, expected DMUS_OBJ_CLASS | DMUS_OBJ_NAME | DMUS_OBJ_VERSION\n",
             desc.dwValidData);
-    todo_wine ok(IsEqualGUID(&desc.guidObject, &GUID_test_2), "Got object guid %s, expected GUID_NULL\n",
+    ok(IsEqualGUID(&desc.guidObject, &GUID_test_2), "Got object guid %s, expected GUID_NULL\n",
             wine_dbgstr_guid(&desc.guidObject));
-    todo_wine ok(!lstrcmpW(desc.wszName, L"INAM"), "Got name '%s', expected 'INAM'\n",
+    ok(!lstrcmpW(desc.wszName, L"INAM"), "Got name '%s', expected 'INAM'\n",
             wine_dbgstr_w(desc.wszName));
     IStream_Release(stream);
 

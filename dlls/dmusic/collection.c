@@ -307,10 +307,15 @@ static HRESULT parse_ptbl_chunk(struct collection *This, IStream *stream, struct
     return hr;
 }
 
-static HRESULT parse_dls_chunk(struct collection *This, IStream *stream, struct chunk_entry *parent)
+static HRESULT parse_dls_chunk(struct collection *This, IStream *stream, struct chunk_entry *parent,
+        DMUS_OBJECTDESC *desc)
 {
+    DMUS_OBJECTDESC *descriptor = desc ? desc : &This->dmobj.desc;
     struct chunk_entry chunk = {.parent = parent};
     HRESULT hr;
+
+    descriptor->dwValidData = 0;
+    descriptor->dwSize = sizeof(*descriptor);
 
     while ((hr = stream_next_chunk(stream, &chunk)) == S_OK)
     {
@@ -319,19 +324,19 @@ static HRESULT parse_dls_chunk(struct collection *This, IStream *stream, struct 
         case FOURCC_DLID:
         case FOURCC_VERS:
         case MAKE_IDTYPE(FOURCC_LIST, DMUS_FOURCC_INFO_LIST):
-            hr = stream_chunk_parse_desc(stream, &chunk, &This->dmobj.desc);
+            hr = stream_chunk_parse_desc(stream, &chunk, descriptor);
             break;
 
         case FOURCC_COLH:
-            hr = stream_chunk_get_data(stream, &chunk, &This->header, sizeof(This->header));
+            if (!desc) hr = stream_chunk_get_data(stream, &chunk, &This->header, sizeof(This->header));
             break;
 
         case FOURCC_PTBL:
-            hr = parse_ptbl_chunk(This, stream, &chunk);
+            if (!desc) hr = parse_ptbl_chunk(This, stream, &chunk);
             break;
 
         case MAKE_IDTYPE(FOURCC_LIST, FOURCC_LINS):
-            hr = parse_lins_list(This, stream, &chunk);
+            if (!desc) hr = parse_lins_list(This, stream, &chunk);
             break;
 
         case MAKE_IDTYPE(FOURCC_LIST, FOURCC_WVPL):
@@ -344,6 +349,12 @@ static HRESULT parse_dls_chunk(struct collection *This, IStream *stream, struct 
         }
 
         if (FAILED(hr)) break;
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        descriptor->guidClass = CLSID_DirectMusicCollection;
+        descriptor->dwValidData |= DMUS_OBJ_CLASS;
     }
 
     return hr;
@@ -623,31 +634,43 @@ static HRESULT parse_sfbk_chunk(struct collection *This, IStream *stream, struct
     return hr;
 }
 
+static HRESULT parse_stream(struct collection *This, IStream *stream, DMUS_OBJECTDESC *desc)
+{
+    struct chunk_entry chunk = {0};
+    HRESULT hr;
+
+    if ((hr = stream_next_chunk(stream, &chunk)) == S_OK)
+    {
+        switch (MAKE_IDTYPE(chunk.id, chunk.type))
+        {
+        case MAKE_IDTYPE(FOURCC_RIFF, FOURCC_DLS):
+            hr = parse_dls_chunk(This, stream, &chunk, desc);
+            break;
+
+        case MAKE_IDTYPE(FOURCC_RIFF, mmioFOURCC('s','f','b','k')):
+            hr = parse_sfbk_chunk(This, stream, &chunk, desc);
+            break;
+
+        default:
+            WARN("Invalid collection chunk %s %s\n", debugstr_fourcc(chunk.id), debugstr_fourcc(chunk.type));
+            hr = DMUS_E_NOTADLSCOL;
+            break;
+        }
+    }
+
+    stream_skip_chunk(stream, &chunk);
+    return hr;
+}
+
 static HRESULT WINAPI collection_object_ParseDescriptor(IDirectMusicObject *iface,
         IStream *stream, DMUS_OBJECTDESC *desc)
 {
-    struct chunk_entry riff = {0};
-    HRESULT hr;
+    struct collection *This = CONTAINING_RECORD(iface, struct collection, dmobj.IDirectMusicObject_iface);
 
     TRACE("(%p, %p, %p)\n", iface, stream, desc);
 
-    if (!stream || !desc)
-        return E_POINTER;
-
-    if ((hr = stream_get_chunk(stream, &riff)) != S_OK)
-        return hr;
-    if (riff.id != FOURCC_RIFF || (riff.type != FOURCC_DLS && riff.type != mmioFOURCC('s','f','b','k'))) {
-        TRACE("loading failed: unexpected %s\n", debugstr_chunk(&riff));
-        stream_skip_chunk(stream, &riff);
-        return DMUS_E_NOTADLSCOL;
-    }
-
-    hr = dmobj_parsedescriptor(stream, &riff, desc, DMUS_OBJ_NAME_INFO|DMUS_OBJ_VERSION);
-    if (FAILED(hr))
-        return hr;
-
-    desc->guidClass = CLSID_DirectMusicCollection;
-    desc->dwValidData |= DMUS_OBJ_CLASS;
+    if (!stream || !desc) return E_POINTER;
+    if (FAILED(parse_stream(This, stream, desc))) return DMUS_E_NOTADLSCOL;
 
     TRACE("returning descriptor:\n");
     dump_DMUS_OBJECTDESC(desc);
@@ -667,31 +690,11 @@ static const IDirectMusicObjectVtbl collection_object_vtbl =
 static HRESULT WINAPI collection_stream_Load(IPersistStream *iface, IStream *stream)
 {
     struct collection *This = impl_from_IPersistStream(iface);
-    struct chunk_entry chunk = {0};
-    HRESULT hr;
 
     TRACE("(%p, %p)\n", This, stream);
 
-    if ((hr = stream_next_chunk(stream, &chunk)) == S_OK)
-    {
-        switch (MAKE_IDTYPE(chunk.id, chunk.type))
-        {
-        case MAKE_IDTYPE(FOURCC_RIFF, FOURCC_DLS):
-            hr = parse_dls_chunk(This, stream, &chunk);
-            break;
-
-        case MAKE_IDTYPE(FOURCC_RIFF, mmioFOURCC('s','f','b','k')):
-            hr = parse_sfbk_chunk(This, stream, &chunk);
-            break;
-
-        default:
-            WARN("Invalid collection chunk %s %s\n", debugstr_fourcc(chunk.id), debugstr_fourcc(chunk.type));
-            hr = DMUS_E_UNSUPPORTED_STREAM;
-            break;
-        }
-    }
-
-    if (FAILED(hr)) return hr;
+    if (!stream) return E_POINTER;
+    if (FAILED(parse_stream(This, stream, NULL))) return DMUS_E_UNSUPPORTED_STREAM;
 
     if (TRACE_ON(dmusic))
     {
@@ -721,8 +724,7 @@ static HRESULT WINAPI collection_stream_Load(IPersistStream *iface, IStream *str
             TRACE("    - offset: %lu, wave %p\n", wave_entry->offset, wave_entry->wave);
     }
 
-    stream_skip_chunk(stream, &chunk);
-    return S_OK;
+    return hr;
 }
 
 static const IPersistStreamVtbl collection_stream_vtbl =
