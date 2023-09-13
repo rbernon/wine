@@ -33,6 +33,8 @@
 
 DEFINE_GUID(GUID_test_0,0x00000000,0xffff,0xffff,0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef);
 DEFINE_GUID(GUID_test_1,0x00000001,0xffff,0xffff,0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef);
+DEFINE_GUID(GUID_test_2,0x00000002,0xffff,0xffff,0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef);
+DEFINE_GUID(GUID_test_3,0x00000003,0xffff,0xffff,0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef);
 
 static ULONG get_refcount(void *iface)
 {
@@ -728,8 +730,10 @@ static void test_parsedescriptor(void)
     {
         DMUS_VERSION vers = {5, 8};
         GUID guid = GUID_test_0;
+        GUID dlid = GUID_test_1;
         CHUNK_DATA(stream, "vers", vers);
         CHUNK_DATA(stream, "guid", guid);
+        CHUNK_DATA(stream, "dlid", dlid);
         CHUNK_DATA(stream, "catg", "Test category");
         CHUNK_LIST(stream, "UNFO")
         {
@@ -746,12 +750,12 @@ static void test_parsedescriptor(void)
     memset(&desc, 0, sizeof(desc));
     hr = IDirectMusicObject_ParseDescriptor(dmo, stream, &desc);
     ok(hr == S_OK, "ParseDescriptor failed: %#lx, expected S_OK\n", hr);
-    ok(desc.dwValidData == (DMUS_OBJ_CLASS | DMUS_OBJ_VERSION),
+    todo_wine ok(desc.dwValidData == (DMUS_OBJ_CLASS | DMUS_OBJ_VERSION | DMUS_OBJ_OBJECT),
             "Got valid data %#lx, expected DMUS_OBJ_CLASS | DMUS_OBJ_VERSION\n", desc.dwValidData);
     ok(IsEqualGUID(&desc.guidClass, &CLSID_DirectMusicCollection),
             "Got class guid %s, expected CLSID_DirectMusicCollection\n",
             wine_dbgstr_guid(&desc.guidClass));
-    ok(IsEqualGUID(&desc.guidObject, &GUID_NULL), "Got object guid %s, expected GUID_NULL\n",
+    todo_wine ok(IsEqualGUID(&desc.guidObject, &GUID_test_1), "Got object guid %s, expected GUID_NULL\n",
             wine_dbgstr_guid(&desc.guidObject));
     ok(desc.vVersion.dwVersionMS == 5 && desc.vVersion.dwVersionLS == 8,
             "Got version %lu.%lu, expected 5.8\n", desc.vVersion.dwVersionMS,
@@ -809,13 +813,16 @@ static void test_parsedescriptor(void)
     {
         DMUS_VERSION vers0 = {1, 2}, vers1 = {3, 4};
         GUID guid0 = GUID_test_0, guid1 = GUID_test_1;
+        GUID dlid0 = GUID_test_2, dlid1 = GUID_test_3;
         CHUNK_DATA(stream, "vers", vers0);
+        CHUNK_DATA(stream, "dlid", dlid0);
         CHUNK_DATA(stream, "guid", guid0);
         CHUNK_LIST(stream, "INFO")
         {
             CHUNK_DATA(stream, "INAM", "INAM");
         }
         CHUNK_END;
+        CHUNK_DATA(stream, "dlid", dlid1);
         CHUNK_DATA(stream, "vers", vers1);
         CHUNK_DATA(stream, "guid", guid1);
         CHUNK_LIST(stream, "INFO")
@@ -831,9 +838,11 @@ static void test_parsedescriptor(void)
     memset(&desc, 0, sizeof(desc));
     hr = IDirectMusicObject_ParseDescriptor(dmo, stream, &desc);
     ok(hr == S_OK, "ParseDescriptor failed: %#lx, expected S_OK\n", hr);
-    ok(desc.dwValidData == (DMUS_OBJ_CLASS | DMUS_OBJ_NAME | DMUS_OBJ_VERSION),
+    todo_wine ok(desc.dwValidData == (DMUS_OBJ_CLASS | DMUS_OBJ_NAME | DMUS_OBJ_VERSION | DMUS_OBJ_OBJECT),
             "Got valid data %#lx, expected DMUS_OBJ_CLASS | DMUS_OBJ_NAME | DMUS_OBJ_VERSION\n",
             desc.dwValidData);
+    todo_wine ok(IsEqualGUID(&desc.guidObject, &GUID_test_2), "Got object guid %s, expected GUID_NULL\n",
+            wine_dbgstr_guid(&desc.guidObject));
     todo_wine ok(!lstrcmpW(desc.wszName, L"INAM"), "Got name '%s', expected 'INAM'\n",
             wine_dbgstr_w(desc.wszName));
     IStream_Release(stream);
