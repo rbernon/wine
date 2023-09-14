@@ -557,24 +557,44 @@ HRESULT WINAPI dmobj_IDirectMusicObject_SetDescriptor(IDirectMusicObject *iface,
     return ret;
 }
 
-/* Helper for IDirectMusicObject::ParseDescriptor */
-static inline void info_get_name(IStream *stream, const struct chunk_entry *info,
-        DMUS_OBJECTDESC *desc)
+static HRESULT parse_info_list(IStream *stream, const struct chunk_entry *parent, DMUS_OBJECTDESC *desc)
 {
-    struct chunk_entry chunk = {.parent = info};
-    char name[DMUS_MAX_NAME];
-    ULONG len;
-    HRESULT hr = E_FAIL;
+    struct chunk_entry chunk = {.parent = parent};
+    char *buffer;
+    HRESULT hr;
 
-    while (stream_next_chunk(stream, &chunk) == S_OK)
-        if (chunk.id == mmioFOURCC('I','N','A','M'))
-            hr = IStream_Read(stream, name, min(chunk.size, sizeof(name)), &len);
+    while ((hr = stream_next_chunk(stream, &chunk)) == S_OK)
+    {
+        switch (MAKE_IDTYPE(chunk.id, chunk.type))
+        {
+        case mmioFOURCC('I','N','A','M'):
+            if (desc->dwValidData & DMUS_OBJ_NAME) continue;
+            if (!(buffer = malloc(chunk.size))) return E_OUTOFMEMORY;
+            if ((hr = stream_chunk_get_data(stream, &chunk, buffer, chunk.size)) == S_OK)
+            {
+                DWORD len = MultiByteToWideChar(CP_ACP, 0, buffer, chunk.size,
+                        desc->wszName, ARRAY_SIZE(desc->wszName));
+                desc->wszName[min(len, sizeof(desc->wszName) - 1)] = 0;
+                desc->dwValidData |= DMUS_OBJ_NAME;
+            }
+            free(buffer);
+            break;
 
-    if (SUCCEEDED(hr)) {
-        len = MultiByteToWideChar(CP_ACP, 0, name, len, desc->wszName, sizeof(desc->wszName));
-        desc->wszName[min(len, sizeof(desc->wszName) - 1)] = 0;
-        desc->dwValidData |= DMUS_OBJ_NAME;
+        case mmioFOURCC('I','C','O','P'):
+        case mmioFOURCC('I','E','N','G'):
+        case mmioFOURCC('I','S','B','J'):
+        case mmioFOURCC('I','S','F','T'):
+            break;
+
+        default:
+            FIXME("Ignoring chunk %s %s\n", debugstr_fourcc(chunk.id), debugstr_fourcc(chunk.type));
+            break;
+        }
+
+        if (FAILED(hr)) break;
     }
+
+    return hr;
 }
 
 static inline void unfo_get_name(IStream *stream, const struct chunk_entry *unfo,
@@ -586,6 +606,35 @@ static inline void unfo_get_name(IStream *stream, const struct chunk_entry *unfo
         if (chunk.id == DMUS_FOURCC_UNAM_CHUNK || (inam && chunk.id == mmioFOURCC('I','N','A','M')))
             if (stream_chunk_get_wstr(stream, &chunk, desc->wszName, sizeof(desc->wszName)) == S_OK)
                 desc->dwValidData |= DMUS_OBJ_NAME;
+}
+
+HRESULT stream_chunk_parse_desc(IStream *stream, const struct chunk_entry *chunk, DMUS_OBJECTDESC *desc)
+{
+    HRESULT hr;
+
+    switch (MAKE_IDTYPE(chunk->id, chunk->type))
+    {
+    case FOURCC_DLID:
+        if (desc->dwValidData & DMUS_OBJ_OBJECT) return S_OK;
+        hr = stream_chunk_get_data(stream, chunk, &desc->guidObject, sizeof(desc->guidObject));
+        if (hr == S_OK) desc->dwValidData |= DMUS_OBJ_OBJECT;
+        return hr;
+
+    case FOURCC_VERS:
+        if (desc->dwValidData & DMUS_OBJ_VERSION) return S_OK;
+        hr = stream_chunk_get_data(stream, chunk, &desc->vVersion, sizeof(desc->vVersion));
+        if (hr == S_OK) desc->dwValidData |= DMUS_OBJ_VERSION;
+        return hr;
+
+    case MAKE_IDTYPE(FOURCC_LIST, DMUS_FOURCC_INFO_LIST):
+        return parse_info_list(stream, chunk, desc);
+
+    default:
+        FIXME("Unsupported chunk %s %s\n", debugstr_fourcc(chunk->id), debugstr_fourcc(chunk->type));
+        break;
+    }
+
+    return E_NOTIMPL;
 }
 
 HRESULT dmobj_parsedescriptor(IStream *stream, const struct chunk_entry *riff,
@@ -616,14 +665,7 @@ HRESULT dmobj_parsedescriptor(IStream *stream, const struct chunk_entry *riff,
                             desc->wszFileName, sizeof(desc->wszFileName)) == S_OK)
                     desc->dwValidData |= DMUS_OBJ_FILENAME;
                 break;
-            case FOURCC_DLID:
-                if (!(supported & DMUS_OBJ_GUID_DLID)) break;
-                if ((supported & DMUS_OBJ_OBJECT) && stream_chunk_get_data(stream, &chunk,
-                            &desc->guidObject, sizeof(desc->guidObject)) == S_OK)
-                    desc->dwValidData |= DMUS_OBJ_OBJECT;
-                break;
             case DMUS_FOURCC_GUID_CHUNK:
-                if ((supported & DMUS_OBJ_GUID_DLID)) break;
                 if ((supported & DMUS_OBJ_OBJECT) && stream_chunk_get_data(stream, &chunk,
                             &desc->guidObject, sizeof(desc->guidObject)) == S_OK)
                     desc->dwValidData |= DMUS_OBJ_OBJECT;
@@ -642,7 +684,7 @@ HRESULT dmobj_parsedescriptor(IStream *stream, const struct chunk_entry *riff,
                 if (chunk.type == DMUS_FOURCC_UNFO_LIST && (supported & DMUS_OBJ_NAME))
                     unfo_get_name(stream, &chunk, desc, supported & DMUS_OBJ_NAME_INAM);
                 else if (chunk.type == DMUS_FOURCC_INFO_LIST && (supported & DMUS_OBJ_NAME_INFO))
-                    info_get_name(stream, &chunk, desc);
+                    parse_info_list(stream, &chunk, desc);
                 break;
         }
     }
