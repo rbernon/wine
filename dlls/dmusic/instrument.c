@@ -498,10 +498,6 @@ static HRESULT parse_ins_chunk(struct instrument *This, IStream *stream, struct 
     struct chunk_entry chunk = {.parent = parent};
     HRESULT hr;
 
-    if (FAILED(hr = dmobj_parsedescriptor(stream, parent, desc, DMUS_OBJ_NAME_INFO|DMUS_OBJ_GUID_DLID))
-            || FAILED(hr = stream_reset_chunk_data(stream, parent)))
-        return hr;
-
     while ((hr = stream_next_chunk(stream, &chunk)) == S_OK)
     {
         switch (MAKE_IDTYPE(chunk.id, chunk.type))
@@ -512,7 +508,7 @@ static HRESULT parse_ins_chunk(struct instrument *This, IStream *stream, struct 
 
         case FOURCC_DLID:
         case MAKE_IDTYPE(FOURCC_LIST, DMUS_FOURCC_INFO_LIST):
-            /* already parsed by dmobj_parsedescriptor */
+            hr = stream_chunk_parse_desc(stream, &chunk, desc);
             break;
 
         case MAKE_IDTYPE(FOURCC_LIST, FOURCC_LRGN):
