@@ -47,6 +47,8 @@ HRESULT stream_chunk_get_wstr(IStream *stream, const struct chunk_entry *chunk, 
 HRESULT stream_get_loader(IStream *stream, IDirectMusicLoader **ret_loader);
 HRESULT stream_get_object(IStream *stream, DMUS_OBJECTDESC *desc, REFIID riid, void **ret_iface);
 
+extern HRESULT stream_chunk_parse_desc(IStream *stream, const struct chunk_entry *chunk, DMUS_OBJECTDESC *desc);
+
 static inline HRESULT stream_reset_chunk_data(IStream *stream, const struct chunk_entry *chunk)
 {
     LARGE_INTEGER offset;
@@ -95,7 +97,6 @@ HRESULT dmobj_parsedescriptor(IStream *stream, const struct chunk_entry *riff,
    DMUS_OBJ_NAME is 'UNAM' chunk in UNFO list */
 #define DMUS_OBJ_NAME_INAM   0x1000     /* 'INAM' chunk in UNFO list */
 #define DMUS_OBJ_NAME_INFO   0x2000     /* 'INAM' chunk in INFO list */
-#define DMUS_OBJ_GUID_DLID   0x4000     /* 'dlid' chunk instead of 'guid' */
 
 /* 'DMRF' (reference list) helper */
 HRESULT dmobj_parsereference(IStream *stream, const struct chunk_entry *list,
