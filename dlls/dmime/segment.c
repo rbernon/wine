@@ -505,11 +505,11 @@ static HRESULT WINAPI segment_SetPChannelsUsed(IDirectMusicSegment8 *iface, DWOR
 }
 
 static HRESULT WINAPI segment_SetTrackConfig(IDirectMusicSegment8 *iface, REFGUID rguidTrackClassID,
-        DWORD dwGroupBits, DWORD dwIndex, DWORD dwFlagsOn, DWORD dwFlagsOff)
+        DWORD group, DWORD index, DWORD dwFlagsOn, DWORD dwFlagsOff)
 {
     struct segment *This = impl_from_IDirectMusicSegment8(iface);
-    FIXME("(%p, %s, %#lx, %ld, %ld, %ld): stub\n", This, debugstr_dmguid(rguidTrackClassID),
-            dwGroupBits, dwIndex, dwFlagsOn, dwFlagsOff);
+    FIXME("(%p, %s, %#lx, %ld, %ld, %ld): stub\n", This, debugstr_dmguid(rguidTrackClassID), group,
+            index, dwFlagsOn, dwFlagsOff);
     return S_OK;
 }
 
