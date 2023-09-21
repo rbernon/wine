@@ -348,7 +348,7 @@ static HRESULT WINAPI loader_GetObject(IDirectMusicLoader8 *iface, DMUS_OBJECTDE
         }
 
         TRACE(": loading from file (%s)\n", debugstr_w(file_name));
-        if (FAILED(hr = file_stream_create(file_name, &pStream))) return hr;
+        if (FAILED(hr = SHCreateStreamOnFileW(file_name, STGM_READ, &pStream))) return hr;
     }
     else if (pDesc->dwValidData & DMUS_OBJ_MEMORY)
     {
@@ -487,7 +487,7 @@ static HRESULT WINAPI loader_SetObject(IDirectMusicLoader8 *iface, DMUS_OBJECTDE
             if (FAILED(hr)) return hr;
         }
 
-        if (FAILED(hr = file_stream_create(file_name, &pStream))) return hr;
+        if (FAILED(hr = SHCreateStreamOnFileW(file_name, STGM_READ, &pStream))) return hr;
     }
     else if (pDesc->dwValidData & DMUS_OBJ_STREAM)
     {
