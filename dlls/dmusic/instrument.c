@@ -323,7 +323,7 @@ static HRESULT instrument_create(struct collection *collection, IDirectMusicInst
     return S_OK;
 }
 
-static inline HRESULT append_articparams_articulation(struct list *articulations, DMUS_ARTICPARAMS *params)
+static HRESULT append_articparams_articulation(struct list *articulations, DMUS_ARTICPARAMS *params)
 {
     struct articulation *articulation;
     CONNECTION *conn;
