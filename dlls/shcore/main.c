@@ -539,6 +539,7 @@ struct shstream
         {
             HANDLE handle;
             DWORD mode;
+            DWORD attributes;
             WCHAR *path;
         } file;
     } u;
@@ -1081,6 +1082,16 @@ static HRESULT WINAPI filestream_Stat(IStream *iface, STATSTG *statstg, DWORD fl
     return S_OK;
 }
 
+static HRESULT WINAPI filestream_Clone(IStream *iface, IStream **ret)
+{
+    struct shstream *stream = impl_from_IStream(iface);
+
+    TRACE("%p, %p.\n", iface, ret);
+
+    return SHCreateStreamOnFileEx(stream->u.file.path, stream->u.file.mode,
+            stream->u.file.attributes, FALSE, NULL, ret);
+}
+
 static const IStreamVtbl filestreamvtbl =
 {
     shstream_QueryInterface,
@@ -1096,7 +1107,7 @@ static const IStreamVtbl filestreamvtbl =
     shstream_LockRegion,
     shstream_UnlockRegion,
     filestream_Stat,
-    shstream_Clone,
+    filestream_Clone,
 };
 
 /*************************************************************************
@@ -1172,6 +1183,7 @@ HRESULT WINAPI SHCreateStreamOnFileEx(const WCHAR *path, DWORD mode, DWORD attri
     stream->refcount = 1;
     stream->u.file.handle = hFile;
     stream->u.file.mode = mode;
+    stream->u.file.attributes = attributes;
 
     len = lstrlenW(path);
     stream->u.file.path = malloc((len + 1) * sizeof(WCHAR));
