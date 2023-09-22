@@ -281,7 +281,7 @@ static void test_stream_qi(IStream *stream)
 
 static void test_SHCreateStreamOnFileA(DWORD mode, DWORD stgm)
 {
-    IStream * stream;
+    IStream * stream, *stream2;
     HRESULT ret;
     ULONG refcount;
     char test_file[MAX_PATH];
@@ -369,6 +369,10 @@ if (0) /* This test crashes on WinXP SP2 */
     ret = SHCreateStreamOnFileA(test_file, mode | STGM_CREATE | stgm, &stream);
     ok(ret == S_OK, "SHCreateStreamOnFileA: expected S_OK, got 0x%08lx\n", ret);
     ok(stream != NULL, "SHCreateStreamOnFileA: expected a valid IStream object, got NULL\n");
+
+    ret = IStream_Clone(stream, &stream2);
+    ok(ret == S_OK, "Failed to clone a stream, hr %#lx.\n", ret);
+    IStream_Release(stream2);
 
     if (stream) {
         BOOL delret;
