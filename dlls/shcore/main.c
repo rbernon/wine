@@ -799,6 +799,16 @@ static HRESULT WINAPI memstream_Stat(IStream *iface, STATSTG *statstg, DWORD fla
     return S_OK;
 }
 
+static HRESULT WINAPI memstream_Clone(IStream *iface, IStream **dest)
+{
+    struct shstream *stream = impl_from_IStream(iface);
+
+    TRACE("(%p, %p)\n", stream, dest);
+
+    *dest = SHCreateMemStream(stream->u.mem.buffer, stream->u.mem.length);
+    return *dest ? S_OK : E_OUTOFMEMORY;
+}
+
 static HRESULT WINAPI shstream_Clone(IStream *iface, IStream **dest)
 {
     struct shstream *stream = impl_from_IStream(iface);
@@ -826,7 +836,7 @@ static const IStreamVtbl memstreamvtbl =
     shstream_LockRegion,
     shstream_UnlockRegion,
     memstream_Stat,
-    shstream_Clone,
+    memstream_Clone,
 };
 
 static struct shstream *shstream_create(const IStreamVtbl *vtbl, const BYTE *data, UINT data_len)
