@@ -43,6 +43,84 @@ struct articulation
 
 C_ASSERT(sizeof(struct articulation) == offsetof(struct articulation, connections[0]));
 
+static const char *debugstr_conn_src(UINT src)
+{
+    switch (src)
+    {
+    case CONN_SRC_NONE: return "SRC_NONE";
+    case CONN_SRC_LFO: return "SRC_LFO";
+    case CONN_SRC_KEYONVELOCITY: return "SRC_KEYONVELOCITY";
+    case CONN_SRC_KEYNUMBER: return "SRC_KEYNUMBER";
+    case CONN_SRC_EG1: return "SRC_EG1";
+    case CONN_SRC_EG2: return "SRC_EG2";
+    case CONN_SRC_PITCHWHEEL: return "SRC_PITCHWHEEL";
+    case CONN_SRC_CC1: return "SRC_CC1";
+    case CONN_SRC_CC7: return "SRC_CC7";
+    case CONN_SRC_CC10: return "SRC_CC10";
+    case CONN_SRC_CC11: return "SRC_CC11";
+    case CONN_SRC_POLYPRESSURE: return "SRC_POLYPRESSURE";
+    case CONN_SRC_CHANNELPRESSURE: return "SRC_CHANNELPRESSURE";
+    case CONN_SRC_VIBRATO: return "SRC_VIBRATO";
+    case CONN_SRC_MONOPRESSURE: return "SRC_MONOPRESSURE";
+    case CONN_SRC_CC91: return "SRC_CC91";
+    case CONN_SRC_CC93: return "SRC_CC93";
+
+    case CONN_SRC_CC2: return "SRC_CC2";
+    case CONN_SRC_RPN0: return "SRC_RPN0";
+    }
+
+    return wine_dbg_sprintf("%#x", src);
+}
+
+static const char *debugstr_conn_dst(UINT dst)
+{
+    switch (dst)
+    {
+    case CONN_DST_NONE: return "DST_NONE";
+    /* case CONN_DST_ATTENUATION: return "DST_ATTENUATION"; Same as CONN_DST_GAIN */
+    case CONN_DST_PITCH: return "DST_PITCH";
+    case CONN_DST_PAN: return "DST_PAN";
+    case CONN_DST_LFO_FREQUENCY: return "DST_LFO_FREQUENCY";
+    case CONN_DST_LFO_STARTDELAY: return "DST_LFO_STARTDELAY";
+    case CONN_DST_EG1_ATTACKTIME: return "DST_EG1_ATTACKTIME";
+    case CONN_DST_EG1_DECAYTIME: return "DST_EG1_DECAYTIME";
+    case CONN_DST_EG1_RELEASETIME: return "DST_EG1_RELEASETIME";
+    case CONN_DST_EG1_SUSTAINLEVEL: return "DST_EG1_SUSTAINLEVEL";
+    case CONN_DST_EG2_ATTACKTIME: return "DST_EG2_ATTACKTIME";
+    case CONN_DST_EG2_DECAYTIME: return "DST_EG2_DECAYTIME";
+    case CONN_DST_EG2_RELEASETIME: return "DST_EG2_RELEASETIME";
+    case CONN_DST_EG2_SUSTAINLEVEL: return "DST_EG2_SUSTAINLEVEL";
+    case CONN_DST_GAIN: return "DST_GAIN";
+    case CONN_DST_KEYNUMBER: return "DST_KEYNUMBER";
+    case CONN_DST_LEFT: return "DST_LEFT";
+    case CONN_DST_RIGHT: return "DST_RIGHT";
+    case CONN_DST_CENTER: return "DST_CENTER";
+    case CONN_DST_LEFTREAR: return "DST_LEFTREAR";
+    case CONN_DST_RIGHTREAR: return "DST_RIGHTREAR";
+    case CONN_DST_LFE_CHANNEL: return "DST_LFE_CHANNEL";
+    case CONN_DST_CHORUS: return "DST_CHORUS";
+    case CONN_DST_REVERB: return "DST_REVERB";
+    case CONN_DST_VIB_FREQUENCY: return "DST_VIB_FREQUENCY";
+    case CONN_DST_VIB_STARTDELAY: return "DST_VIB_STARTDELAY";
+    case CONN_DST_EG1_DELAYTIME: return "DST_EG1_DELAYTIME";
+    case CONN_DST_EG1_HOLDTIME: return "DST_EG1_HOLDTIME";
+    case CONN_DST_EG1_SHUTDOWNTIME: return "DST_EG1_SHUTDOWNTIME";
+    case CONN_DST_EG2_DELAYTIME: return "DST_EG2_DELAYTIME";
+    case CONN_DST_EG2_HOLDTIME: return "DST_EG2_HOLDTIME";
+    case CONN_DST_FILTER_CUTOFF: return "DST_FILTER_CUTOFF";
+    case CONN_DST_FILTER_Q: return "DST_FILTER_Q";
+    }
+
+    return wine_dbg_sprintf("%#x", dst);
+}
+
+static const char *debugstr_connection(const CONNECTION *conn)
+{
+    return wine_dbg_sprintf("%s (%#x) x %s (%#x) -> %s (%#x): %ld", debugstr_conn_src(conn->usSource),
+            (conn->usTransform >> 10) & 0x3f, debugstr_conn_src(conn->usControl), (conn->usTransform >> 4) & 0x3f,
+            debugstr_conn_dst(conn->usDestination), (conn->usTransform & 0xf), conn->lScale);
+}
+
 struct region
 {
     struct list entry;
@@ -659,6 +737,7 @@ HRESULT instrument_create_from_soundfont(struct soundfont *soundfont, UINT index
 
     if (TRACE_ON(dmusic))
     {
+        struct articulation *articulation;
         struct region *region;
         UINT i;
 
@@ -690,6 +769,25 @@ HRESULT instrument_create_from_soundfont(struct soundfont *soundfont, UINT index
                 TRACE("     - wave_loop[%u]: {size: %lu, type: %lu, start: %lu, length: %lu}\n", i,
                         region->wave_loop.cbSize, region->wave_loop.ulType,
                         region->wave_loop.ulStart, region->wave_loop.ulLength);
+            TRACE("     - articulations:\n");
+            LIST_FOR_EACH_ENTRY(articulation, &region->articulations, struct articulation, entry)
+            {
+                for (i = 0; i < articulation->list.cConnections; i++)
+                {
+                    CONNECTION *conn = articulation->connections + i;
+                    TRACE("         - connection[%u]: %s\n", i, debugstr_connection(conn));
+                }
+            }
+        }
+
+        TRACE(" - articulations:\n");
+        LIST_FOR_EACH_ENTRY(articulation, &This->articulations, struct articulation, entry)
+        {
+            for (i = 0; i < articulation->list.cConnections; i++)
+            {
+                CONNECTION *conn = articulation->connections + i;
+                TRACE("     - connection[%u]: %s\n", i, debugstr_connection(conn));
+            }
         }
     }
 
