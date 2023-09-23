@@ -323,6 +323,52 @@ static HRESULT instrument_create(struct collection *collection, IDirectMusicInst
     return S_OK;
 }
 
+static inline HRESULT append_articparams_articulation(struct list *articulations, DMUS_ARTICPARAMS *params)
+{
+    struct articulation *articulation;
+    CONNECTION *conn;
+
+    UINT size = offsetof(struct articulation, connections[20]);
+    if (!(articulation = malloc(size))) return E_OUTOFMEMORY;
+    articulation->list.cbSize = sizeof(articulation->list);
+    articulation->list.cConnections = 20;
+    conn = articulation->connections;
+
+#define ADD_CONNECTION(conn, src, dst, value) \
+    (conn)->usSource = (src); \
+    (conn)->usDestination = (dst); \
+    (conn)->lScale = (value); \
+    (conn)++; \
+
+    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_LFO_FREQUENCY, params->LFO.pcFrequency);
+    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_LFO_STARTDELAY, params->LFO.tcDelay);
+    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_GAIN, params->LFO.gcVolumeScale); /* FIXME: is this right? */
+    ADD_CONNECTION(conn, CONN_SRC_VIBRATO, CONN_DST_PITCH, params->LFO.pcPitchScale);
+    ADD_CONNECTION(conn, CONN_SRC_LFO, CONN_DST_PITCH, params->LFO.pcMWToPitch);
+    ADD_CONNECTION(conn, CONN_SRC_LFO, CONN_DST_GAIN, params->LFO.gcMWToVolume);
+
+    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_EG1_ATTACKTIME, params->VolEG.tcAttack);
+    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_EG1_DECAYTIME, params->VolEG.tcDecay);
+    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_EG1_SUSTAINLEVEL, params->VolEG.ptSustain);
+    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_EG1_RELEASETIME, params->VolEG.tcRelease);
+    ADD_CONNECTION(conn, CONN_SRC_KEYONVELOCITY, CONN_DST_EG1_ATTACKTIME, params->PitchEG.tcVel2Attack);
+    ADD_CONNECTION(conn, CONN_SRC_KEYNUMBER, CONN_DST_EG1_DECAYTIME, params->PitchEG.tcKey2Decay);
+
+    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_EG2_ATTACKTIME, params->PitchEG.tcAttack);
+    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_EG2_DECAYTIME, params->PitchEG.tcDecay);
+    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_EG2_SUSTAINLEVEL, params->PitchEG.ptSustain);
+    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_EG2_RELEASETIME, params->PitchEG.tcRelease);
+    ADD_CONNECTION(conn, CONN_SRC_KEYONVELOCITY, CONN_DST_EG2_ATTACKTIME, params->PitchEG.tcVel2Attack);
+    ADD_CONNECTION(conn, CONN_SRC_KEYNUMBER, CONN_DST_EG2_DECAYTIME, params->PitchEG.tcKey2Decay);
+    ADD_CONNECTION(conn, CONN_SRC_EG2, CONN_DST_PITCH, params->PitchEG.pcRange);
+
+    ADD_CONNECTION(conn, CONN_SRC_NONE, CONN_DST_PAN, params->Misc.ptDefaultPan);
+#undef APPEND_CONNECTION
+
+    list_add_tail(articulations, &articulation->entry);
+    return S_OK;
+}
+
 static HRESULT parse_art1_chunk(struct instrument *This, IStream *stream, struct chunk_entry *chunk,
         struct list *articulations)
 {
