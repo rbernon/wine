@@ -182,7 +182,7 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls,
                                               struct __wine_debug_channel *channel,
                                               const char *function )
 {
-    char buffer[200], *pos = buffer;
+    char buffer[200], *pos = buffer, *end = pos + sizeof(buffer);
 
     if (!(__wine_dbg_get_channel_flags( channel ) & (1 << cls))) return -1;
 
@@ -192,13 +192,13 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls,
     if (TRACE_ON(timestamp))
     {
         UINT ticks = GetTickCount();
-        pos += sprintf( pos, "%3u.%03u:", ticks / 1000, ticks % 1000 );
+        pos += snprintf( pos, end - pos, "%3u.%03u:", ticks / 1000, ticks % 1000 );
     }
-    if (TRACE_ON(pid)) pos += sprintf( pos, "%04x:", (UINT)GetCurrentProcessId() );
-    pos += sprintf( pos, "%04x:", (UINT)GetCurrentThreadId() );
-    if (function && cls < ARRAY_SIZE( debug_classes ))
-        snprintf( pos, sizeof(buffer) - (pos - buffer), "%s:%s:%s ",
-                  debug_classes[cls], channel->name, function );
+    if (TRACE_ON(pid)) pos += snprintf( pos, end - pos, "%04x:", (UINT)GetCurrentProcessId() );
+    pos += snprintf( pos, end - pos, "%04x:", (UINT)GetCurrentThreadId() );
+    if (cls < ARRAY_SIZE( debug_classes )) pos += snprintf( pos, end - pos, "%s:", debug_classes[cls] );
+    pos += snprintf( pos, end - pos, "%s:", channel->name );
+    if (function) pos += snprintf( pos, end - pos, "%s ", function );
 
     return fwrite( buffer, 1, strlen(buffer), stderr );
 }
