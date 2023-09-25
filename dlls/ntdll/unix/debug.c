@@ -352,8 +352,8 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
         pos += snprintf( pos, end - pos, "%s ", (const char *)context );
     else if (context && context->version == WINE_DEBUG_CONTEXT_VERSION)
     {
-        if (TRACE_ON(retaddr)) pos += snprintf( pos, end - pos, "%012zx:", (size_t)context->retaddr );
-        if (TRACE_ON(source))
+        if (1 || TRACE_ON(retaddr)) pos += snprintf( pos, end - pos, "%012zx:", (size_t)context->retaddr );
+        if (1 || TRACE_ON(source))
         {
             const char *tmp, *file;
 
