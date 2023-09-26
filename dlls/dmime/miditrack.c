@@ -88,9 +88,9 @@ static HRESULT WINAPI midi_track_InitPlay(IDirectMusicTrack8 *iface,
         void **state_data, DWORD track_id, DWORD track_flags)
 {
     struct midi_track *This = impl_from_IDirectMusicTrack8(iface);
-    FIXME("(%p, %p, %p, %p, %ld, %ld): stub\n", This, segment_state, performance, state_data,
+    TRACE("(%p, %p, %p, %p, %ld, %ld)\n", This, segment_state, performance, state_data,
             track_id, track_flags);
-    return E_NOTIMPL;
+    return S_OK;
 }
 
 static HRESULT WINAPI midi_track_EndPlay(IDirectMusicTrack8 *iface, void *state_data)
@@ -105,9 +105,87 @@ static HRESULT WINAPI midi_track_Play(IDirectMusicTrack8 *iface, void *state_dat
         IDirectMusicPerformance *performance, IDirectMusicSegmentState *segment_state, DWORD track_id)
 {
     struct midi_track *This = impl_from_IDirectMusicTrack8(iface);
-    FIXME("(%p, %p, %ld, %ld, %ld, %#lx, %p, %p, %ld): stub\n", This, state_data, start_time, end_time,
+    IDirectMusicGraph *graph;
+    BYTE prev_status = 0;
+    UINT i, time = 0;
+    HRESULT hr;
+
+    TRACE("(%p, %p, %ld, %ld, %ld, %#lx, %p, %p, %ld)\n", This, state_data, start_time, end_time,
             time_offset, segment_flags, performance, segment_state, track_id);
-    return E_NOTIMPL;
+
+    if (start_time != 0) FIXME("start_time %ld not implemented\n", start_time);
+    if (end_time != -1) FIXME("end_time %ld not implemented\n", end_time);
+    if (time_offset != 0) FIXME("time_offset %ld not implemented\n", time_offset);
+    if (segment_flags) FIXME("segment_flags %#lx not implemented\n", segment_flags);
+    if (segment_state) FIXME("segment_state %p not implemented\n", segment_state);
+
+    if (FAILED(hr = IDirectMusicPerformance_QueryInterface(performance,
+            &IID_IDirectMusicGraph, (void **)&graph)))
+        return hr;
+
+    for (i = 0; i < This->events_size;)
+    {
+        UINT delta = 0;
+
+        while (This->events[i] & 0x80 && i < This->events_size) delta = (delta << 7) | (This->events[i++] & 0x7f);
+        if (i < This->events_size) delta = (delta << 7) | (This->events[i++] & 0x7f);
+        time += delta;
+
+        switch (This->events[i++])
+        {
+        case 0xf0:
+        case 0xf7:
+            FIXME("Skipping system exclusive event\n");
+            while (This->events[i] != 0xf7 && i < This->events_size) i++;
+            break;
+        case 0xff:
+        {
+            UINT len = 0, meta = This->events[i++];
+
+            while (This->events[i] & 0x80 && i < This->events_size) len = (len << 7) | (This->events[i++] & 0x7f);
+            if (i < This->events_size) len = (len << 7) | (This->events[i++] & 0x7f);
+
+            FIXME("Skipping meta event with type %#x, len %#x\n", meta, len);
+            i += len;
+            break;
+        }
+        default:
+        {
+            BYTE status = This->events[i];
+            DMUS_MIDI_PMSG *midi;
+
+            if (status & 0x80) i++;
+            else status = prev_status;
+            prev_status = status;
+
+            if (FAILED(hr = IDirectMusicPerformance_AllocPMsg(performance, sizeof(*midi), (DMUS_PMSG **)&midi)))
+                break;
+
+            midi->mtTime = time;
+            midi->dwFlags = DMUS_PMSGF_MUSICTIME;
+
+            midi->dwPChannel = status & 0xf;
+            midi->dwVirtualTrackID = track_id;
+            midi->dwType = DMUS_PMSGT_MIDI;
+            midi->bStatus = status & 0xf0;
+            midi->bByte1 = This->events[i++];
+            if (midi->bStatus != 0xc0 && midi->bStatus != 0xd0)
+                midi->bByte2 = This->events[i++];
+
+            TRACE("MIDI event status %#x, chan %#lx, byte1 %#x, byte2 %#x\n",
+                    midi->bStatus, midi->dwPChannel, midi->bByte1, midi->bByte2);
+
+            if (FAILED(hr = IDirectMusicGraph_StampPMsg(graph, (DMUS_PMSG *)midi)) ||
+                    FAILED(hr = IDirectMusicPerformance_SendPMsg(performance, (DMUS_PMSG *)midi)))
+                IDirectMusicPerformance_FreePMsg(performance, (DMUS_PMSG *)midi);
+
+            break;
+        }
+        }
+    }
+
+    IDirectMusicGraph_Release(graph);
+    return hr;
 }
 
 static HRESULT WINAPI midi_track_GetParam(IDirectMusicTrack8 *iface, REFGUID type, MUSIC_TIME time,
