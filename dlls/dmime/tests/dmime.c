@@ -2759,6 +2759,7 @@ static void test_performance_InitAudio(void)
     hr = IDirectMusicPerformance8_Init(performance, &dmusic, dsound, 0);
     ok(hr == S_OK, "Init failed: %#lx\n", hr);
     destroy_performance(performance, dmusic, dsound);
+    IDirectMusicPort_Release(port);
 
     /* InitAudio with perf channel count not a multiple of 16 rounds up */
     create_performance(&performance, NULL, NULL, TRUE);
@@ -2768,6 +2769,7 @@ static void test_performance_InitAudio(void)
     hr = IDirectMusicPerformance8_PChannelInfo(performance, 31, &port, &group, &channel);
     ok(hr == S_OK && group == 2 && channel == 15,
             "PChannelInfo failed, got %#lx, %lu, %lu\n", hr, group, channel);
+    IDirectMusicPort_Release(port);
     hr = IDirectMusicPerformance8_PChannelInfo(performance, 32, &port, NULL, NULL);
     ok(hr == E_INVALIDARG, "PChannelInfo failed, got %#lx\n", hr);
     destroy_performance(performance, NULL, NULL);
