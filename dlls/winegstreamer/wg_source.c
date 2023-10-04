@@ -837,6 +837,16 @@ NTSTATUS wg_source_get_stream_format(void *args)
     return STATUS_SUCCESS;
 }
 
+static void dump_tag(const GstTagList *tags, const char *name, void *tag)
+{
+    GST_ERROR("tags %" GST_PTR_FORMAT " %s %" GST_PTR_FORMAT, tags, name, tag);
+}
+
+static void dump_tag_list(GstTagList *tags)
+{
+    gst_tag_list_foreach(tags, dump_tag, NULL);
+}
+
 static gchar *stream_lang_from_tags(GstTagList *tags, bool is_quicktime)
 {
     gchar *value;
@@ -913,6 +923,8 @@ NTSTATUS wg_source_get_stream_tag(void *args)
         return STATUS_INVALID_PARAMETER;
     if (!(tags = source_get_stream_tags(source, index)))
         return STATUS_UNSUCCESSFUL;
+
+    dump_tag_list(tags);
 
     switch (tag)
     {
