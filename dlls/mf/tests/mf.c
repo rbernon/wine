@@ -1123,7 +1123,7 @@ static const IMFAsyncCallbackVtbl testcallbackvtbl =
     testcallback_Invoke,
 };
 
-static IMFAsyncCallback *create_test_callback(BOOL check_media_event)
+IMFAsyncCallback *create_test_callback(BOOL check_media_event)
 {
     struct test_callback *callback;
 
@@ -1145,7 +1145,7 @@ static DWORD wait_async_callback(IMFAsyncCallback *iface, DWORD timeout)
     return WaitForSingleObject(callback->event, timeout);
 }
 
-HRESULT wait_media_event_(const char *file, int line, IMFMediaSession *session, IMFAsyncCallback *callback,
+HRESULT wait_media_event_(const char *file, int line, void *session, IMFAsyncCallback *callback,
         MediaEventType expect_type, DWORD timeout, PROPVARIANT *value)
 {
     struct test_callback *impl = impl_from_IMFAsyncCallback(callback);
@@ -1156,7 +1156,7 @@ HRESULT wait_media_event_(const char *file, int line, IMFMediaSession *session, 
 
     do
     {
-        hr = IMFMediaEventGenerator_BeginGetEvent(session, &impl->IMFAsyncCallback_iface, (IUnknown *)session);
+        hr = IMFMediaEventGenerator_BeginGetEvent((IMFMediaEventGenerator *)session, &impl->IMFAsyncCallback_iface, (IUnknown *)session);
         ok_(file, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
         ret = WaitForSingleObject(impl->event, timeout);
         ok_(file, line)(ret == WAIT_OBJECT_0, "WaitForSingleObject returned %lu\n", ret);
@@ -2759,7 +2759,7 @@ static const IMFSampleGrabberSinkCallbackVtbl test_grabber_callback_vtbl =
     test_grabber_callback_OnShutdown,
 };
 
-static IMFSampleGrabberSinkCallback *create_test_grabber_callback(void)
+IMFSampleGrabberSinkCallback *create_test_grabber_callback(void)
 {
     struct test_grabber_callback *grabber;
     HRESULT hr;
