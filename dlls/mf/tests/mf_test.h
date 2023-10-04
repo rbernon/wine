@@ -127,5 +127,5 @@ extern IMFSampleGrabberSinkCallback *create_test_grabber_callback(void);
 extern IMFAsyncCallback *create_test_callback(BOOL check_media_event);
 
 #define wait_media_event(a, b, c, d, e) wait_media_event_(__FILE__, __LINE__, a, b, c, d, e)
-extern HRESULT wait_media_event_(const char *file, int line, IMFMediaSession *session, IMFAsyncCallback *callback,
+extern HRESULT wait_media_event_(const char *file, int line, void *session, IMFAsyncCallback *callback,
         MediaEventType expect_type, DWORD timeout, PROPVARIANT *value);
