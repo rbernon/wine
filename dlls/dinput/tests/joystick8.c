@@ -2764,6 +2764,56 @@ static void test_simple_joystick( DWORD version )
     hr = IDirectInputDevice8_SetProperty( device, DIPROP_PHYSICALRANGE, &prop_range.diph );
     ok( hr == DIERR_UNSUPPORTED, "SetProperty DIPROP_PHYSICALRANGE returned %#lx\n", hr );
 
+
+
+    dataformat.dwNumObjs = 3;
+    dataformat.dwDataSize = 8;
+    objdataformat[0].pguid = &GUID_XAxis;
+    objdataformat[0].dwOfs = 0;
+    objdataformat[0].dwType = DIDFT_OPTIONAL | DIDFT_AXIS | DIDFT_ANYINSTANCE;
+    objdataformat[0].dwFlags = 0;
+    objdataformat[1].pguid = &GUID_ZAxis;
+    objdataformat[1].dwOfs = 0;
+    objdataformat[1].dwType = DIDFT_OPTIONAL | DIDFT_AXIS | DIDFT_ANYINSTANCE;
+    objdataformat[1].dwFlags = 0;
+    objdataformat[2].pguid = &GUID_XAxis;
+    objdataformat[2].dwOfs = 4;
+    objdataformat[2].dwType = DIDFT_OPTIONAL | DIDFT_AXIS | DIDFT_ANYINSTANCE;
+    objdataformat[2].dwFlags = 0;
+    hr = IDirectInputDevice8_SetDataFormat( device, &dataformat );
+    ok( hr == DI_OK, "SetDataFormat returned: %#lx\n", hr );
+    hr = IDirectInputDevice8_Acquire( device );
+    ok( hr == DI_OK, "Unacquire returned: %#lx\n", hr );
+
+    send_hid_input( file, &injected_input[4], sizeof(*injected_input) );
+    res = WaitForSingleObject( event, 100 );
+    if (res == WAIT_TIMEOUT) /* Acquire is asynchronous */
+    {
+        send_hid_input( file, &injected_input[4], sizeof(*injected_input) );
+        res = WaitForSingleObject( event, 100 );
+    }
+    ok( res == WAIT_OBJECT_0, "WaitForSingleObject failed\n" );
+    ResetEvent( event );
+
+    send_hid_input( file, &injected_input[2], sizeof(*injected_input) );
+    res = WaitForSingleObject( event, 5000 );
+    ok( res == WAIT_OBJECT_0, "WaitForSingleObject failed\n" );
+    ResetEvent( event );
+
+    memset( buffer, 0xcd, sizeof(buffer) );
+    hr = IDirectInputDevice8_GetDeviceState( device, dataformat.dwDataSize, buffer );
+    ok( hr == DI_OK, "GetDeviceState returned: %#lx\n", hr );
+    ok( ((ULONG *)buffer)[0] == 0x7fff, "got %#lx, expected %#x\n", ((ULONG *)buffer)[0], 0x7fff );
+    ok( ((ULONG *)buffer)[1] == 0x512b, "got %#lx, expected %#x\n", ((ULONG *)buffer)[1], 0x512b );
+    hr = IDirectInputDevice8_Unacquire( device );
+    ok( hr == DI_OK, "Unacquire returned: %#lx\n", hr );
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_LOGICALRANGE, &prop_range.diph );
+    ok( hr == DIERR_UNSUPPORTED, "SetProperty DIPROP_LOGICALRANGE returned %#lx\n", hr );
+    hr = IDirectInputDevice8_SetProperty( device, DIPROP_PHYSICALRANGE, &prop_range.diph );
+    ok( hr == DIERR_UNSUPPORTED, "SetProperty DIPROP_PHYSICALRANGE returned %#lx\n", hr );
+
+
+
     hr = IDirectInputDevice8_SetDataFormat( device, &c_dfDIJoystick2 );
     ok( hr == DI_OK, "SetDataFormat returned: %#lx\n", hr );
     hr = IDirectInputDevice8_Acquire( device );
