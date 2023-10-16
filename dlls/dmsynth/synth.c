@@ -1128,6 +1128,9 @@ static HRESULT WINAPI synth_Render(IDirectMusicSynth8 *iface, short *buffer,
         case MIDI_NOTE_ON:
             fluid_synth_noteon(This->fluid_synth, chan, event->midi[1], event->midi[2]);
             break;
+        case 0xa0:
+            fluid_synth_key_pressure(This->fluid_synth, chan, event->midi[1], event->midi[2]);
+            break;
         case MIDI_CONTROL_CHANGE:
             fluid_synth_cc(This->fluid_synth, chan, event->midi[1], event->midi[2]);
             break;
@@ -1136,6 +1139,8 @@ static HRESULT WINAPI synth_Render(IDirectMusicSynth8 *iface, short *buffer,
             break;
         case MIDI_PITCH_BEND_CHANGE:
             fluid_synth_pitch_bend(This->fluid_synth, chan, event->midi[1] | (event->midi[2] << 7));
+        case 0xd0:
+            fluid_synth_channel_pressure(This->fluid_synth, chan, event->midi[1]);
             break;
         default:
             FIXME("MIDI event not implemented: %#x %#x %#x\n", event->midi[0], event->midi[1], event->midi[2]);
