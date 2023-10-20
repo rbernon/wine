@@ -512,6 +512,11 @@ void push_import( const char *import_name, struct location *where )
     struct import *import;
     FILE *file;
 
+    char *buf = strdup( import_name ), *tmp = strrchr( buf, '/' );
+    if (!tmp) tmp = buf;
+    while (*(tmp++)) tmp[-1] = tolower( tmp[-1] );
+    import_name = buf;
+
     state = xmalloc( sizeof(struct import_state ));
     list_add_head( &import_stack, &state->entry );
     parse_only = !list_empty( &import_stack );
