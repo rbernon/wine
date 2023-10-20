@@ -449,6 +449,8 @@ declare_statements
 declare_statement
         : tINTERFACE qualified_type '<' parameterized_type_args '>' ';'
                                                 { $$ = make_statement_parameterized_type( $qualified_type, $parameterized_type_args ); }
+        | tDELEGATE qualified_type '<' parameterized_type_args '>' ';'
+                                                { $$ = make_statement_parameterized_type( $qualified_type, $parameterized_type_args ); }
         ;
 
 statements
