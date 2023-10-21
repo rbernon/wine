@@ -836,7 +836,7 @@ m_expr
 
 expr:	  aNUM					{ $$ = make_exprl(EXPR_NUM, $1); }
 	| aHEXNUM				{ $$ = make_exprl(EXPR_HEXNUM, $1); }
-	| aDOUBLE				{ $$ = make_exprd(EXPR_DOUBLE, $1); }
+        | aDOUBLE                               { $$ = expr_double( $aDOUBLE ); }
 	| tFALSE				{ $$ = make_exprl(EXPR_TRUEFALSE, 0); }
 	| tNULL					{ $$ = make_exprl(EXPR_NUM, 0); }
 	| tTRUE					{ $$ = make_exprl(EXPR_TRUEFALSE, 1); }
