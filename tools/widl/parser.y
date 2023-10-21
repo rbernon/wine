@@ -1412,42 +1412,43 @@ acf_statements
 
 acf_statement
         : tTYPEDEF acf_attributes aKNOWNTYPE ';'
-                                                { type_t *type = find_type_or_error(current_namespace, $3);
-                                                  type->attrs = append_attr_list(type->attrs, $2);
+                                                { type_t *type = find_type_or_error( current_namespace, $aKNOWNTYPE );
+                                                  type->attrs = append_attr_list( type->attrs, $acf_attributes );
                                                 }
 	;
 
 acf_interface
         : acf_attributes tINTERFACE aKNOWNTYPE '{' acf_statements '}'
-                                                {  type_t *iface = find_type_or_error(current_namespace, $3);
+                                                {  type_t *iface = find_type_or_error( current_namespace, $aKNOWNTYPE );
                                                    if (type_get_type(iface) != TYPE_INTERFACE)
                                                        error_loc("%s is not an interface\n", iface->name);
-                                                   iface->attrs = append_attr_list(iface->attrs, $1);
+                                                   iface->attrs = append_attr_list( iface->attrs, $acf_attributes );
                                                 }
 	;
 
 acf_attributes
         : %empty                                { $$ = NULL; }
-        | '[' acf_attribute_list ']'            { $$ = $2; }
+        | '[' acf_attribute_list ']'            { $$ = $acf_attribute_list; }
 	;
 
 acf_attribute_list
-        : acf_attribute                         { $$ = append_attr(NULL, $1); }
-        | acf_attribute_list ',' acf_attribute  { $$ = append_attr($1, $3); }
+        : acf_attribute                         { $$ = append_attr( NULL, $acf_attribute ); }
+        | acf_attribute_list[list] ',' acf_attribute
+                                                { $$ = append_attr( $list, $acf_attribute ); }
 	;
 
 acf_attribute
         : tALLOCATE '(' allocate_option_list ')'
-                                                { $$ = attr_int( @$, ATTR_ALLOCATE, $3 ); }
+                                                { $$ = attr_int( @$, ATTR_ALLOCATE, $allocate_option_list ); }
         | tENCODE                               { $$ = attr_int( @$, ATTR_ENCODE, 0 ); }
         | tDECODE                               { $$ = attr_int( @$, ATTR_DECODE, 0 ); }
         | tEXPLICITHANDLE                       { $$ = attr_int( @$, ATTR_EXPLICIT_HANDLE, 0 ); }
         ;
 
 allocate_option_list
-	: allocate_option			{ $$ = $1; }
-	| allocate_option_list ',' allocate_option
-						{ $$ = $1 | $3; }
+        : allocate_option                       { $$ = $allocate_option; }
+        | allocate_option_list[list] ',' allocate_option
+                                                { $$ = $list | $allocate_option; }
 	;
 
 allocate_option
