@@ -110,22 +110,18 @@ static int is_float_type(const type_t *type)
 
 expr_t *make_expr(enum expr_type type)
 {
-    expr_t *e = xmalloc(sizeof(expr_t));
+    expr_t *e = xmalloc( sizeof(expr_t) );
+    memset( e, 0, sizeof(*e) );
     e->type = type;
-    e->ref = NULL;
-    e->u.lval = 0;
-    e->is_const = FALSE;
-    e->cval = 0;
     return e;
 }
 
 expr_t *make_exprl(enum expr_type type, int val)
 {
-    expr_t *e = xmalloc(sizeof(expr_t));
+    expr_t *e = xmalloc( sizeof(expr_t) );
+    memset( e, 0, sizeof(*e) );
     e->type = type;
-    e->ref = NULL;
     e->u.lval = val;
-    e->is_const = FALSE;
     /* check for numeric constant */
     if (type == EXPR_NUM || type == EXPR_HEXNUM || type == EXPR_TRUEFALSE)
     {
@@ -139,9 +135,9 @@ expr_t *make_exprl(enum expr_type type, int val)
 
 expr_t *make_exprd(enum expr_type type, double val)
 {
-    expr_t *e = xmalloc(sizeof(expr_t));
+    expr_t *e = xmalloc( sizeof(expr_t) );
+    memset( e, 0, sizeof(*e) );
     e->type = type;
-    e->ref = NULL;
     e->u.dval = val;
     e->is_const = TRUE;
     e->cval = val;
@@ -150,12 +146,10 @@ expr_t *make_exprd(enum expr_type type, double val)
 
 expr_t *make_exprs(enum expr_type type, char *val)
 {
-    expr_t *e;
-    e = xmalloc(sizeof(expr_t));
+    expr_t *e = xmalloc( sizeof(expr_t) );
+    memset( e, 0, sizeof(*e) );
     e->type = type;
-    e->ref = NULL;
     e->u.sval = val;
-    e->is_const = FALSE;
     /* check for predefined constants */
     switch (type)
     {
@@ -198,11 +192,11 @@ expr_t *make_exprt(enum expr_type type, var_t *var, expr_t *expr)
 
     tref = var->declspec.type;
 
-    e = xmalloc(sizeof(expr_t));
+    e = xmalloc( sizeof(expr_t) );
+    memset( e, 0, sizeof(*e) );
     e->type = type;
     e->ref = expr;
     e->u.tref = var->declspec;
-    e->is_const = FALSE;
     if (type == EXPR_SIZEOF)
     {
         /* only do this for types that should be the same on all platforms */
@@ -249,12 +243,10 @@ expr_t *make_exprt(enum expr_type type, var_t *var, expr_t *expr)
 
 expr_t *make_expr1(enum expr_type type, expr_t *expr)
 {
-    expr_t *e;
-    e = xmalloc(sizeof(expr_t));
+    expr_t *e = xmalloc( sizeof(expr_t) );
+    memset( e, 0, sizeof(*e) );
     e->type = type;
     e->ref = expr;
-    e->u.lval = 0;
-    e->is_const = FALSE;
     /* check for compile-time optimization */
     if (expr->is_const)
     {
@@ -283,12 +275,11 @@ expr_t *make_expr1(enum expr_type type, expr_t *expr)
 
 expr_t *make_expr2(enum expr_type type, expr_t *expr1, expr_t *expr2)
 {
-    expr_t *e;
-    e = xmalloc(sizeof(expr_t));
+    expr_t *e = xmalloc( sizeof(expr_t) );
+    memset( e, 0, sizeof(*e) );
     e->type = type;
     e->ref = expr1;
     e->u.ext = expr2;
-    e->is_const = FALSE;
     /* check for compile-time optimization */
     if (expr1->is_const && expr2->is_const)
     {
@@ -371,13 +362,12 @@ expr_t *make_expr2(enum expr_type type, expr_t *expr1, expr_t *expr2)
 
 expr_t *make_expr3(enum expr_type type, expr_t *expr1, expr_t *expr2, expr_t *expr3)
 {
-    expr_t *e;
-    e = xmalloc(sizeof(expr_t));
+    expr_t *e = xmalloc( sizeof(expr_t) );
+    memset( e, 0, sizeof(*e) );
     e->type = type;
     e->ref = expr1;
     e->u.ext = expr2;
     e->ext2 = expr3;
-    e->is_const = FALSE;
     /* check for compile-time optimization */
     if (expr1->is_const && expr2->is_const && expr3->is_const)
     {
