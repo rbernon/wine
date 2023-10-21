@@ -30,7 +30,6 @@
 
 #include "widl.h"
 #include "utils.h"
-#include "expr.h"
 #include "header.h"
 #include "typetree.h"
 #include "typegen.h"
