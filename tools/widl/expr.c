@@ -144,7 +144,7 @@ expr_t *expr_double( double val )
     return e;
 }
 
-expr_t *make_exprs(enum expr_type type, char *val)
+expr_t *expr_str( enum expr_type type, char *val )
 {
     expr_t *e = xmalloc( sizeof(*e) );
     memset( e, 0, sizeof(*e) );
