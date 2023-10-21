@@ -412,18 +412,23 @@ global_statements
 global_statement
         : interface ';'                         { $$ = make_statement_reference( $interface ); }
         | dispinterface ';'                     { $$ = make_statement_reference( $dispinterface ); }
-        | interfacedef                          { $$ = make_statement_type_decl( $interfacedef ); }
-        | delegatedef                           { $$ = make_statement_type_decl( $delegatedef ); }
+        | interfacedef m_semicolon              { $$ = make_statement_type_decl( $interfacedef ); }
+        | delegatedef m_semicolon               { $$ = make_statement_type_decl( $delegatedef ); }
         | coclass ';'                           { $$ = make_statement_reference( $coclass ); }
-        | coclassdef                            { $$ = make_statement_type_decl( $coclassdef ); }
+        | coclassdef m_semicolon                { $$ = make_statement_type_decl( $coclassdef ); }
         | apicontract ';'                       { $$ = make_statement_reference( $apicontract ); }
-        | apicontract_def                       { $$ = make_statement_type_decl( $apicontract_def ); }
+        | apicontract_def m_semicolon           { $$ = make_statement_type_decl( $apicontract_def ); }
         | runtimeclass ';'                      { $$ = make_statement_reference( $runtimeclass ); }
-        | runtimeclass_def                      { $$ = make_statement_type_decl( $runtimeclass_def ); }
-        | moduledef                             { $$ = make_statement_module( $moduledef ); }
-        | librarydef                            { $$ = make_statement_library( $librarydef ); }
-        | importlib                             { $$ = make_statement_importlib( $importlib ); }
+        | runtimeclass_def m_semicolon          { $$ = make_statement_type_decl( $runtimeclass_def ); }
+        | moduledef m_semicolon                 { $$ = make_statement_module( $moduledef ); }
+        | librarydef m_semicolon                { $$ = make_statement_library( $librarydef ); }
+        | importlib m_semicolon                 { $$ = make_statement_importlib( $importlib ); }
         | statement                             { $$ = $statement; }
+        ;
+
+m_semicolon
+        : %empty
+        | ';'
         ;
 
 namespace_block
@@ -445,11 +450,6 @@ declare_statement
         : tINTERFACE qualified_type '<' parameterized_type_args '>' ';'
                                                 { $$ = make_statement_parameterized_type( $qualified_type, $parameterized_type_args ); }
         ;
-
-semicolon_opt
-	: %empty
-	| ';'
-	;
 
 statements
         : %empty                                { $$ = NULL; }
@@ -506,8 +506,7 @@ import_start: tIMPORT str ';'                   { $$ = $str; push_import( $str, 
 import: import_start global_statements aEOF     { yylloc = pop_import(); }
         ;
 
-importlib: tIMPORTLIB '(' str ')'
-           semicolon_opt                        { $$ = $str; if (!parse_only) add_importlib( $str, current_typelib ); }
+importlib: tIMPORTLIB '(' str ')'               { $$ = $str; if (!parse_only) add_importlib( $str, current_typelib ); }
         ;
 
 libraryhdr: tLIBRARY typename			{ $$ = $2; }
@@ -516,9 +515,8 @@ library_start: attributes libraryhdr '{'	{ $$ = make_library($2, check_library_a
 						  if (!parse_only && do_typelib) current_typelib = $$;
 						}
 	;
-librarydef: library_start global_statements '}'
-	    semicolon_opt			{ $$ = $1; $$->stmts = $2; }
-	;
+librarydef: library_start global_statements '}' { $$ = $1; $$->stmts = $2; }
+        ;
 
 m_args
 	: %empty				{ $$ = NULL; }
@@ -1047,14 +1045,14 @@ parameterized_type_args:
 coclass:  tCOCLASS typename			{ $$ = type_coclass_declare($2); }
 	;
 
-coclassdef: attributes coclass '{' class_interfaces '}' semicolon_opt
+coclassdef: attributes coclass '{' class_interfaces '}'
 						{ $$ = type_coclass_define($2, $1, $4, &@2); }
 	;
 
 runtimeclass: tRUNTIMECLASS typename		{ $$ = type_runtimeclass_declare($2, current_namespace); }
 	;
 
-runtimeclass_def: attributes runtimeclass inherit '{' class_interfaces '}' semicolon_opt
+runtimeclass_def: attributes runtimeclass inherit '{' class_interfaces '}'
 						{ if ($3 && type_get_type($3) != TYPE_RUNTIMECLASS) error_loc("%s is not a runtimeclass\n", $3->name);
 						  $$ = type_runtimeclass_define($2, $1, $5, &@2); }
 	;
@@ -1062,7 +1060,7 @@ runtimeclass_def: attributes runtimeclass inherit '{' class_interfaces '}' semic
 apicontract: tAPICONTRACT typename		{ $$ = type_apicontract_declare($2, current_namespace); }
 	;
 
-apicontract_def: attributes apicontract '{' '}' semicolon_opt
+apicontract_def: attributes apicontract '{' '}'
 						{ $$ = type_apicontract_define($2, $1, &@2); }
 	;
 
@@ -1121,13 +1119,13 @@ interface:
 						{ $$ = type_parameterized_interface_declare($2, current_namespace, $5); }
 	;
 
-delegatedef: m_attributes tDELEGATE type ident '(' m_args ')' semicolon_opt
+delegatedef: m_attributes tDELEGATE type ident '(' m_args ')'
 						{ $$ = type_delegate_declare($4->name, current_namespace);
 						  $$ = type_delegate_define($$, $1, append_statement(NULL, make_statement_delegate($3, $6)), &@4);
 						}
 	| m_attributes tDELEGATE type ident
 	  '<' { push_parameters_namespace($4->name); } type_parameters '>'
-	  '(' m_args ')' { pop_parameters_namespace($4->name); } semicolon_opt
+	  '(' m_args ')' { pop_parameters_namespace($4->name); }
 						{ $$ = type_parameterized_delegate_declare($4->name, current_namespace, $7);
 						  $$ = type_parameterized_delegate_define($$, $1, append_statement(NULL, make_statement_delegate($3, $10)), &@4);
 						}
@@ -1146,7 +1144,7 @@ requires
 	;
 
 interfacedef: attributes interface		{ if ($2->type_type == TYPE_PARAMETERIZED_TYPE) push_parameters_namespace($2->name); }
-	  inherit requires '{' statements '}' semicolon_opt
+	  inherit requires '{' statements '}'
 						{ if ($2->type_type == TYPE_PARAMETERIZED_TYPE)
 						  {
 						      $$ = type_parameterized_interface_define($2, $1, $4, $7, $5, &@2);
@@ -1158,7 +1156,7 @@ interfacedef: attributes interface		{ if ($2->type_type == TYPE_PARAMETERIZED_TY
 						      check_async_uuid($$);
 						  }
 						}
-	| dispinterfacedef semicolon_opt	{ $$ = $1; }
+	| dispinterfacedef			{ $$ = $1; }
 	;
 
 interfaceref:
@@ -1174,7 +1172,7 @@ dispinterfaceref:
 module:   tMODULE typename			{ $$ = type_module_declare($2); }
 	;
 
-moduledef: m_attributes module '{' statements '}' semicolon_opt
+moduledef: m_attributes module '{' statements '}'
 						{ $$ = type_module_define($2, $1, $4, &@2); }
 	;
 
