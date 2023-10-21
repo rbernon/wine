@@ -636,7 +636,11 @@ composable_attr
 
 deprecated_attr
         : aSTRING ',' aIDENTIFIER ',' contract_req
-                                                { $$ = make_expr3( EXPR_MEMBER, make_exprs( EXPR_STRLIT, $1 ), make_exprs( EXPR_IDENTIFIER, $3 ), $5 ); }
+                                                {
+                                                  expr_t *message = expr_str( EXPR_STRLIT, $aSTRING );
+                                                  expr_t *action = expr_str( EXPR_IDENTIFIER, $aIDENTIFIER );
+                                                  $$ = make_expr3( EXPR_MEMBER, message, action, $contract_req );
+                                                }
         ;
 
 attribute
@@ -854,10 +858,10 @@ expr:     aNUM                                  { $$ = make_exprl(EXPR_NUM, &$1)
                                                   $$ = make_exprl(EXPR_NUM, &integer); }
         | tTRUE                                 { struct integer integer = {.value = 1};
                                                   $$ = make_exprl(EXPR_TRUEFALSE, &integer); }
-	| aSTRING				{ $$ = make_exprs(EXPR_STRLIT, $1); }
-	| aWSTRING				{ $$ = make_exprs(EXPR_WSTRLIT, $1); }
-	| aSQSTRING				{ $$ = make_exprs(EXPR_CHARCONST, $1); }
-	| aIDENTIFIER				{ $$ = make_exprs(EXPR_IDENTIFIER, $1); }
+        | aSTRING                               { $$ = expr_str( EXPR_STRLIT, $aSTRING ); }
+        | aWSTRING                              { $$ = expr_str( EXPR_WSTRLIT, $aWSTRING ); }
+        | aSQSTRING                             { $$ = expr_str( EXPR_CHARCONST, $aSQSTRING ); }
+        | aIDENTIFIER                           { $$ = expr_str( EXPR_IDENTIFIER, $aIDENTIFIER ); }
 	| expr '?' expr ':' expr		{ $$ = make_expr3(EXPR_COND, $1, $3, $5); }
 	| expr LOGICALOR expr			{ $$ = make_expr2(EXPR_LOGOR, $1, $3); }
 	| expr LOGICALAND expr			{ $$ = make_expr2(EXPR_LOGAND, $1, $3); }
@@ -883,8 +887,14 @@ expr:     aNUM                                  { $$ = make_exprl(EXPR_NUM, &$1)
 	| '-' expr %prec NEG			{ $$ = make_expr1(EXPR_NEG, $2); }
 	| '&' expr %prec ADDRESSOF		{ $$ = make_expr1(EXPR_ADDRESSOF, $2); }
 	| '*' expr %prec PPTR			{ $$ = make_expr1(EXPR_PPTR, $2); }
-	| expr MEMBERPTR aIDENTIFIER		{ $$ = make_expr2(EXPR_MEMBER, make_expr1(EXPR_PPTR, $1), make_exprs(EXPR_IDENTIFIER, $3)); }
-	| expr '.' aIDENTIFIER			{ $$ = make_expr2(EXPR_MEMBER, $1, make_exprs(EXPR_IDENTIFIER, $3)); }
+        | expr[obj] MEMBERPTR aIDENTIFIER       {
+                                                  expr_t *member = expr_str( EXPR_IDENTIFIER, $aIDENTIFIER );
+                                                  $$ = make_expr2( EXPR_MEMBER, make_expr1( EXPR_PPTR, $obj ), member );
+                                                }
+        | expr[obj] '.' aIDENTIFIER             {
+                                                  expr_t *member = expr_str( EXPR_IDENTIFIER, $aIDENTIFIER );
+                                                  $$ = make_expr2( EXPR_MEMBER, $obj, member );
+                                                }
 	| '(' unqualified_decl_spec m_abstract_declarator ')' expr %prec CAST
 						{ $$ = make_exprt(EXPR_CAST, declare_var(NULL, $2, $3, 0), $5); free($2); free($3); }
 	| tSIZEOF '(' unqualified_decl_spec m_abstract_declarator ')'
