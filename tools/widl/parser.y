@@ -35,7 +35,6 @@
 #include "header.h"
 #include "typelib.h"
 #include "typegen.h"
-#include "expr.h"
 #include "typetree.h"
 
 struct _import_t
