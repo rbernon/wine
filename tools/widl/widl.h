@@ -126,4 +126,27 @@ extern attr_list_t *check_typedef_attrs( attr_list_t *attrs );
 extern attr_list_t *check_union_attrs( attr_list_t *attrs );
 extern void check_arg_attrs( const var_t *arg );
 
+/* expr.c */
+
+struct expr_loc
+{
+    const var_t *v;
+    const char *attr;
+};
+
+extern expr_t *make_expr( enum expr_type type );
+extern expr_t *make_exprl( enum expr_type type, const struct integer *integer );
+extern expr_t *make_exprd( enum expr_type type, double val );
+extern expr_t *make_exprs( enum expr_type type, char *val );
+extern expr_t *make_exprt( enum expr_type type, var_t *var, expr_t *expr );
+extern expr_t *make_expr1( enum expr_type type, expr_t *expr );
+extern expr_t *make_expr2( enum expr_type type, expr_t *exp1, expr_t *exp2 );
+extern expr_t *make_expr3( enum expr_type type, expr_t *expr1, expr_t *expr2, expr_t *expr3 );
+
+extern const type_t *expr_resolve_type( const struct expr_loc *expr_loc, const type_t *cont_type, const expr_t *expr );
+extern int compare_expr( const expr_t *a, const expr_t *b );
+
+extern void write_expr( FILE *h, const expr_t *e, int brackets, int toplevel, const char *toplevel_prefix,
+                        const type_t *cont_type, const char *local_var_prefix );
+
 #endif

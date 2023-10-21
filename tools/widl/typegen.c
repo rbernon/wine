@@ -35,7 +35,6 @@
 #include "typetree.h"
 
 #include "typegen.h"
-#include "expr.h"
 
 /* round size up to multiple of alignment */
 #define ROUND_SIZE(size, alignment) (((size) + ((alignment) - 1)) & ~((alignment) - 1))
