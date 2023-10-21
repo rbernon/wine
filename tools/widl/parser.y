@@ -351,9 +351,17 @@ PARSER_LTYPE pop_import(void);
 %type <str> typename m_typename
 %type <str> import_start
 %type <typelib> library_start librarydef
-%type <statement> statement typedef pragma_warning
-%type <stmt_list> gbl_statements imp_statements int_statements
-%type <stmt_list> decl_block decl_statements
+%type <statement> typedef pragma_warning
+
+%type <stmt_list> global_statements
+%type <statement> global_statement
+%type <stmt_list> namespace_block
+%type <stmt_list> declare_block
+%type <stmt_list> declare_statements
+%type <statement> declare_statement
+%type <stmt_list> statements
+%type <statement> statement
+
 %type <warning_list> warnings
 %type <num> allocate_option_list allocate_option
 %type <namespace> namespace_pfx
@@ -375,7 +383,7 @@ PARSER_LTYPE pop_import(void);
 
 %%
 
-input: gbl_statements m_acf			{ $1 = append_parameterized_type_stmts($1);
+input: global_statements acf_input		{ $1 = append_parameterized_type_stmts( $1 );
 						  check_statements($1, FALSE);
 						  check_all_user_types($1);
 						  write_header($1);
@@ -391,80 +399,62 @@ input: gbl_statements m_acf			{ $1 = append_parameterized_type_stmts($1);
 						}
 	;
 
-m_acf
-	: %empty
-	| aACF acf_statements
-	;
-
-decl_statements
+global_statements
         : %empty                                { $$ = NULL; }
-        | decl_statements[list] tINTERFACE qualified_type '<' parameterized_type_args '>' ';'
-                                                { $$ = append_statement( $list, make_statement_parameterized_type( $qualified_type, $parameterized_type_args ) ); }
+        | global_statements[list] global_statement
+                                                { $$ = append_statement( $list, $global_statement ); }
+        | global_statements[list] namespace_block
+                                                { $$ = append_statements( $list, $namespace_block ); }
+        | global_statements[list] declare_block
+                                                { $$ = append_statements( $list, $declare_block ); }
         ;
-decl_block: tDECLARE '{' decl_statements '}' { $$ = $3; }
-	;
 
-gbl_statements
-	: %empty				{ $$ = NULL; }
-	| gbl_statements namespacedef '{' { push_namespaces($2); } gbl_statements '}'
-						{ pop_namespaces($2); $$ = append_statements($1, $5); }
-	| gbl_statements interface ';'		{ $$ = append_statement($1, make_statement_reference($2)); }
-	| gbl_statements dispinterface ';'	{ $$ = append_statement($1, make_statement_reference($2)); }
-	| gbl_statements interfacedef		{ $$ = append_statement($1, make_statement_type_decl($2)); }
-	| gbl_statements delegatedef		{ $$ = append_statement($1, make_statement_type_decl($2)); }
-	| gbl_statements coclass ';'		{ $$ = $1;
-						  reg_type($2, $2->name, current_namespace, 0);
-						}
-	| gbl_statements coclassdef		{ $$ = append_statement($1, make_statement_type_decl($2));
-						  reg_type($2, $2->name, current_namespace, 0);
-						}
-	| gbl_statements apicontract ';'	{ $$ = $1; reg_type($2, $2->name, current_namespace, 0); }
-	| gbl_statements apicontract_def	{ $$ = append_statement($1, make_statement_type_decl($2));
-						  reg_type($2, $2->name, current_namespace, 0); }
-	| gbl_statements runtimeclass ';'       { $$ = $1; reg_type($2, $2->name, current_namespace, 0); }
-	| gbl_statements runtimeclass_def       { $$ = append_statement($1, make_statement_type_decl($2));
-	                                          reg_type($2, $2->name, current_namespace, 0); }
-	| gbl_statements moduledef		{ $$ = append_statement($1, make_statement_module($2)); }
-	| gbl_statements librarydef		{ $$ = append_statement($1, make_statement_library($2)); }
-	| gbl_statements[list] importlib	{ $$ = append_statement( $list, make_statement_importlib( $importlib ) ); }
-	| gbl_statements statement		{ $$ = append_statement($1, $2); }
-	| gbl_statements[list] decl_block	{ $$ = append_statements( $list, $decl_block ); }
-	;
+global_statement
+        : interface ';'                         { $$ = make_statement_reference( $interface ); }
+        | dispinterface ';'                     { $$ = make_statement_reference( $dispinterface ); }
+        | interfacedef                          { $$ = make_statement_type_decl( $interfacedef ); }
+        | delegatedef                           { $$ = make_statement_type_decl( $delegatedef ); }
+        | coclass ';'                           { $$ = make_statement_reference( $coclass ); }
+        | coclassdef                            { $$ = make_statement_type_decl( $coclassdef ); }
+        | apicontract ';'                       { $$ = make_statement_reference( $apicontract ); }
+        | apicontract_def                       { $$ = make_statement_type_decl( $apicontract_def ); }
+        | runtimeclass ';'                      { $$ = make_statement_reference( $runtimeclass ); }
+        | runtimeclass_def                      { $$ = make_statement_type_decl( $runtimeclass_def ); }
+        | moduledef                             { $$ = make_statement_module( $moduledef ); }
+        | librarydef                            { $$ = make_statement_library( $librarydef ); }
+        | importlib                             { $$ = make_statement_importlib( $importlib ); }
+        | statement                             { $$ = $statement; }
+        ;
 
-imp_statements
-	: %empty				{ $$ = NULL; }
-	| imp_statements interface ';'		{ $$ = append_statement($1, make_statement_reference($2)); }
-	| imp_statements dispinterface ';'	{ $$ = append_statement($1, make_statement_reference($2)); }
-	| imp_statements namespacedef '{' { push_namespaces($2); } imp_statements '}'
-						{ pop_namespaces($2); $$ = append_statements($1, $5); }
-	| imp_statements interfacedef		{ $$ = append_statement($1, make_statement_type_decl($2)); }
-	| imp_statements delegatedef		{ $$ = append_statement($1, make_statement_type_decl($2)); }
-	| imp_statements coclass ';'		{ $$ = $1; reg_type($2, $2->name, current_namespace, 0); }
-	| imp_statements coclassdef		{ $$ = append_statement($1, make_statement_type_decl($2));
-						  reg_type($2, $2->name, current_namespace, 0);
-						}
-	| imp_statements apicontract ';'	{ $$ = $1; reg_type($2, $2->name, current_namespace, 0); }
-	| imp_statements apicontract_def	{ $$ = append_statement($1, make_statement_type_decl($2));
-						  reg_type($2, $2->name, current_namespace, 0); }
-	| imp_statements runtimeclass ';'       { $$ = $1; reg_type($2, $2->name, current_namespace, 0); }
-	| imp_statements runtimeclass_def       { $$ = append_statement($1, make_statement_type_decl($2));
-	                                          reg_type($2, $2->name, current_namespace, 0); }
-	| imp_statements moduledef		{ $$ = append_statement($1, make_statement_module($2)); }
-	| imp_statements statement		{ $$ = append_statement($1, $2); }
-	| imp_statements importlib		{ $$ = append_statement($1, make_statement_importlib($2)); }
-	| imp_statements librarydef		{ $$ = append_statement($1, make_statement_library($2)); }
-	| imp_statements[list] decl_block	{ $$ = append_statements( $list, $decl_block ); }
-	;
+namespace_block
+        : namespacedef                          { push_namespaces( $namespacedef ); }
+          '{' global_statements '}'             { pop_namespaces( $namespacedef ); $$ = $global_statements; }
+        ;
 
-int_statements
-	: %empty				{ $$ = NULL; }
-	| int_statements statement		{ $$ = append_statement($1, $2); }
-	;
+declare_block
+        : tDECLARE '{' declare_statements '}'   { $$ = $declare_statements; }
+        ;
+
+declare_statements
+        : %empty                                { $$ = NULL; }
+        | declare_statements[list] declare_statement
+                                                { $$ = append_statement( $list, $declare_statement ); }
+        ;
+
+declare_statement
+        : tINTERFACE qualified_type '<' parameterized_type_args '>' ';'
+                                                { $$ = make_statement_parameterized_type( $qualified_type, $parameterized_type_args ); }
+        ;
 
 semicolon_opt
 	: %empty
 	| ';'
 	;
+
+statements
+        : %empty                                { $$ = NULL; }
+        | statements[list] statement            { $$ = append_statement( $list, $statement ); }
+        ;
 
 statement:
 	  cppquote				{ $$ = make_statement_cppquote($1); }
@@ -513,8 +503,8 @@ cppquote: tCPPQUOTE '(' str ')'                 { $$ = $str; }
 
 import_start: tIMPORT str ';'                   { $$ = $str; push_import( $str, &yylloc ); }
         ;
-import: import_start imp_statements aEOF	{ yylloc = pop_import(); }
-	;
+import: import_start global_statements aEOF     { yylloc = pop_import(); }
+        ;
 
 importlib: tIMPORTLIB '(' str ')'
            semicolon_opt                        { $$ = $str; if (!parse_only) add_importlib( $str, current_typelib ); }
@@ -526,7 +516,7 @@ library_start: attributes libraryhdr '{'	{ $$ = make_library($2, check_library_a
 						  if (!parse_only && do_typelib) current_typelib = $$;
 						}
 	;
-librarydef: library_start imp_statements '}'
+librarydef: library_start global_statements '}'
 	    semicolon_opt			{ $$ = $1; $$->stmts = $2; }
 	;
 
@@ -1156,7 +1146,7 @@ requires
 	;
 
 interfacedef: attributes interface		{ if ($2->type_type == TYPE_PARAMETERIZED_TYPE) push_parameters_namespace($2->name); }
-	  inherit requires '{' int_statements '}' semicolon_opt
+	  inherit requires '{' statements '}' semicolon_opt
 						{ if ($2->type_type == TYPE_PARAMETERIZED_TYPE)
 						  {
 						      $$ = type_parameterized_interface_define($2, $1, $4, $7, $5, &@2);
@@ -1184,7 +1174,7 @@ dispinterfaceref:
 module:   tMODULE typename			{ $$ = type_module_declare($2); }
 	;
 
-moduledef: m_attributes module '{' int_statements '}' semicolon_opt
+moduledef: m_attributes module '{' statements '}' semicolon_opt
 						{ $$ = type_module_define($2, $1, $4, &@2); }
 	;
 
@@ -1409,17 +1399,20 @@ version:
 	| aHEXNUM				{ $$ = $1.value; }
 	;
 
+acf_input
+	: %empty
+	| aACF acf_global_statements
+	;
+acf_global_statements
+	: %empty
+	| acf_global_statements acf_interface
+	;
 acf_statements
-        : %empty
-        | acf_interface acf_statements
+	: %empty
+	| acf_statements acf_statement
 	;
 
-acf_int_statements
-        : %empty
-        | acf_int_statement acf_int_statements
-	;
-
-acf_int_statement
+acf_statement
         : tTYPEDEF acf_attributes aKNOWNTYPE ';'
                                                 { type_t *type = find_type_or_error(current_namespace, $3);
                                                   type->attrs = append_attr_list(type->attrs, $2);
@@ -1427,7 +1420,7 @@ acf_int_statement
 	;
 
 acf_interface
-        : acf_attributes tINTERFACE aKNOWNTYPE '{' acf_int_statements '}'
+        : acf_attributes tINTERFACE aKNOWNTYPE '{' acf_statements '}'
                                                 {  type_t *iface = find_type_or_error(current_namespace, $3);
                                                    if (type_get_type(iface) != TYPE_INTERFACE)
                                                        error_loc("%s is not an interface\n", iface->name);
