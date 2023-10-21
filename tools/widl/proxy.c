@@ -31,7 +31,6 @@
 #include "parser.h"
 #include "header.h"
 #include "typegen.h"
-#include "expr.h"
 
 static FILE* proxy;
 static int indent = 0;
