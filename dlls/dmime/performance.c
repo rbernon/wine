@@ -1039,10 +1039,7 @@ static HRESULT WINAPI performance_SetNotificationHandle(IDirectMusicPerformance8
     TRACE("(%p, %p, %I64d)\n", This, notification_event, minimum_time);
 
     This->notification_event = notification_event;
-    if (minimum_time)
-        This->notification_timeout = minimum_time;
-    else if (!This->notification_timeout)
-        This->notification_timeout = 20000000; /* 2 seconds */
+    if (minimum_time) This->notification_timeout = minimum_time;
 
     return S_OK;
 }
@@ -2308,6 +2305,7 @@ HRESULT create_dmperformance(REFIID iid, void **ret_iface)
     obj->latency_offset = 50;
     obj->dwBumperLength =   50; /* 50 ms default */
     obj->dwPrepareTime  = 1000; /* 1000 ms default */
+    obj->notification_timeout = 20000000; /* 2 seconds */
 
     hr = IDirectMusicPerformance8_QueryInterface(&obj->IDirectMusicPerformance8_iface, iid, ret_iface);
     IDirectMusicPerformance_Release(&obj->IDirectMusicPerformance8_iface);
