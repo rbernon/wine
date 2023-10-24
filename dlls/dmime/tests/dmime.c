@@ -5220,6 +5220,7 @@ skip_tests:
     test_performance_tool();
     test_performance_graph();
     test_performance_time();
+skip_tests:
     test_performance_pmsg();
     test_notification_pmsg();
     test_wave_pmsg(0);
