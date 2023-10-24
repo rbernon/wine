@@ -228,8 +228,8 @@ static HRESULT performance_send_pmsg(struct performance *This, MUSIC_TIME music_
     return hr;
 }
 
-static HRESULT performance_send_notification_pmsg(struct performance *This, MUSIC_TIME music_time, BOOL stamp,
-        GUID type, DWORD option, IUnknown *object)
+static HRESULT performance_send_notification_pmsg(struct performance *This, MUSIC_TIME music_time,
+        BOOL internal, GUID type, DWORD option, IUnknown *object)
 {
     IDirectMusicPerformance8 *performance = &This->IDirectMusicPerformance8_iface;
     IDirectMusicGraph *graph = &This->IDirectMusicGraph_iface;
@@ -247,9 +247,9 @@ static HRESULT performance_send_notification_pmsg(struct performance *This, MUSI
     msg->dwNotificationOption = option;
 
     /* only stamp the message if notifications are enabled, otherwise send them directly to the output tool */
-    if ((stamp && FAILED(hr = IDirectMusicGraph_StampPMsg(graph, (DMUS_PMSG *)msg)))
-            || FAILED(hr = IDirectMusicPerformance8_SendPMsg(performance, (DMUS_PMSG *)msg)))
-        IDirectMusicPerformance8_FreePMsg(performance, (DMUS_PMSG *)msg);
+    if (!internal) hr = IDirectMusicGraph_StampPMsg(graph, (DMUS_PMSG *)msg);
+    if (SUCCEEDED(hr)) hr = IDirectMusicPerformance8_SendPMsg(performance, (DMUS_PMSG *)msg);
+    if (FAILED(hr)) IDirectMusicPerformance8_FreePMsg(performance, (DMUS_PMSG *)msg);
 
     return hr;
 }
