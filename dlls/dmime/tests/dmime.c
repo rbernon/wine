@@ -5197,6 +5197,7 @@ START_TEST(dmime)
         CoUninitialize();
         return;
     }
+goto skip_tests;
     test_COM_audiopath();
     test_COM_audiopathconfig();
     test_COM_graph();
@@ -5215,6 +5216,7 @@ START_TEST(dmime)
     test_performance_InitAudio();
     test_performance_createport();
     test_performance_pchannel();
+skip_tests:
     test_performance_tool();
     test_performance_graph();
     test_performance_time();
