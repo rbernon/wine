@@ -313,51 +313,32 @@ static HRESULT parse_crdb_chunk(struct chord_track *This, IStream *stream, struc
     return hr;
 }
 
-static HRESULT parse_chordtrack_list(struct chord_track *This, DMUS_PRIVATE_CHUNK *pChunk,
-        IStream *pStm)
+static HRESULT parse_cord_list(struct chord_track *This, IStream *stream, struct chunk_entry *parent)
 {
-  DMUS_PRIVATE_CHUNK Chunk;
-  DWORD ListSize[3], ListCount[3];
-  LARGE_INTEGER liMove; /* used when skipping chunks */
+    struct chunk_entry chunk = {.parent = parent};
+    HRESULT hr;
 
-  if (pChunk->fccID != DMUS_FOURCC_CHORDTRACK_LIST) {
-    ERR_(dmfile)(": %s chunk should be a CHORDTRACK list\n", debugstr_fourcc (pChunk->fccID));
-    return E_FAIL;
-  }  
+    while ((hr = stream_next_chunk(stream, &chunk)) == S_OK)
+    {
+        switch (MAKE_IDTYPE(chunk.id, chunk.type))
+        {
+        case DMUS_FOURCC_CHORDTRACKHEADER_CHUNK:
+            hr = stream_chunk_get_data(stream, &chunk, &This->dwScale, sizeof(This->dwScale));
+            break;
 
-  ListSize[0] = pChunk->dwSize - sizeof(FOURCC);
-  ListCount[0] = 0;
+        case DMUS_FOURCC_CHORDTRACKBODY_CHUNK:
+            hr = parse_crdb_chunk(This, stream, &chunk);
+            break;
 
-  do {
-    IStream_Read (pStm, &Chunk, sizeof(FOURCC)+sizeof(DWORD), NULL);
-    ListCount[0] += sizeof(FOURCC) + sizeof(DWORD) + Chunk.dwSize;
-    TRACE_(dmfile)(": %s chunk (size = %ld)", debugstr_fourcc (Chunk.fccID), Chunk.dwSize);
-    switch (Chunk.fccID) { 
-    case DMUS_FOURCC_CHORDTRACKHEADER_CHUNK: {
-      TRACE_(dmfile)(": Chord track header chunk\n");
-      IStream_Read (pStm, &This->dwScale, sizeof(DWORD), NULL);
-      TRACE_(dmfile)(" - dwScale: %ld\n", This->dwScale);
-      break;
-    }
-    case DMUS_FOURCC_CHORDTRACKBODY_CHUNK: {
-      static const LARGE_INTEGER zero = {0};
-      struct chunk_entry chunk = {.id = Chunk.fccID, .size = Chunk.dwSize};
-      IStream_Seek(pStm, zero, STREAM_SEEK_CUR, &chunk.offset);
-      chunk.offset.QuadPart -= 12;
-      parse_crdb_chunk(This, pStm, &chunk);
-      break;
-    }
-    default: {
-      TRACE_(dmfile)(": unknown chunk (irrelevant & skipping)\n");
-      liMove.QuadPart = Chunk.dwSize;
-      IStream_Seek (pStm, liMove, STREAM_SEEK_CUR, NULL);
-      break;		
-    }
-    }
-    TRACE_(dmfile)(": ListCount[0] = %ld < ListSize[0] = %ld\n", ListCount[0], ListSize[0]);
-  } while (ListCount[0] < ListSize[0]);
+        default:
+            FIXME("Ignoring chunk %s %s\n", debugstr_fourcc(chunk.id), debugstr_fourcc(chunk.type));
+            break;
+        }
 
-  return S_OK;
+        if (FAILED(hr)) break;
+    }
+
+    return hr;
 }
 
 static inline struct chord_track *impl_from_IPersistStream(IPersistStream *iface)
@@ -382,8 +363,12 @@ static HRESULT WINAPI IPersistStreamImpl_Load(IPersistStream *iface, IStream *pS
     TRACE_(dmfile)(": %s chunk (size = %ld)", debugstr_fourcc (Chunk.fccID), Chunk.dwSize);
     switch (Chunk.fccID) { 
     case DMUS_FOURCC_CHORDTRACK_LIST: {
+      static const LARGE_INTEGER zero = {0};
+      struct chunk_entry chunk = {.id = Chunk.fccID, .size = Chunk.dwSize};
+      IStream_Seek(pStm, zero, STREAM_SEEK_CUR, &chunk.offset);
+      chunk.offset.QuadPart -= 12;
       TRACE_(dmfile)(": Chord track list\n");
-      hr = parse_chordtrack_list(This, &Chunk, pStm);
+      hr = parse_cord_list(This, pStm, &chunk);
       if (FAILED(hr)) return hr;
       break;    
     }
