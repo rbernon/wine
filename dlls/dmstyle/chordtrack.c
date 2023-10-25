@@ -383,28 +383,16 @@ static HRESULT WINAPI IPersistStreamImpl_Load(IPersistStream *iface, IStream *pS
   return S_OK;
 }
 
-static HRESULT WINAPI IPersistStreamImpl_Save(IPersistStream *iface, IStream *stream,
-        BOOL cleardirty)
+static const IPersistStreamVtbl persiststream_vtbl =
 {
-    struct chord_track *This = impl_from_IPersistStream(iface);
-
-    FIXME("(%p, %p, %d): stub\n", This, stream, cleardirty);
-
-    if (!stream)
-        return E_POINTER;
-
-    return E_NOTIMPL;
-}
-
-static const IPersistStreamVtbl persiststream_vtbl = {
     dmobj_IPersistStream_QueryInterface,
     dmobj_IPersistStream_AddRef,
     dmobj_IPersistStream_Release,
     dmobj_IPersistStream_GetClassID,
     unimpl_IPersistStream_IsDirty,
     IPersistStreamImpl_Load,
-    IPersistStreamImpl_Save,
-    unimpl_IPersistStream_GetSizeMax
+    unimpl_IPersistStream_Save,
+    unimpl_IPersistStream_GetSizeMax,
 };
 
 /* for ClassFactory */
