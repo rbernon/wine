@@ -23,12 +23,24 @@
 WINE_DEFAULT_DEBUG_CHANNEL(dmstyle);
 WINE_DECLARE_DEBUG_CHANNEL(dmfile);
 
+struct chord_entry
+{
+    DMUS_IO_CHORD chord;
+    UINT subchord_count;
+    struct list entry;
+    DMUS_IO_SUBCHORD subchord[];
+};
+
+C_ASSERT(sizeof(struct chord_entry) == offsetof(struct chord_entry, subchord[0]));
+
 struct chord_track
 {
     IDirectMusicTrack8 IDirectMusicTrack8_iface;
     struct dmobject dmobj;  /* IPersistStream only */
     LONG ref;
     DWORD dwScale;
+
+    struct list chords;
 };
 
 static inline struct chord_track *impl_from_IDirectMusicTrack8(IDirectMusicTrack8 *iface)
@@ -76,7 +88,18 @@ static ULONG WINAPI chord_track_Release(IDirectMusicTrack8 *iface)
 
     TRACE("(%p) ref=%ld\n", This, ref);
 
-    if (!ref) free(This);
+    if (!ref)
+    {
+        struct chord_entry *entry, *next;
+
+        LIST_FOR_EACH_ENTRY_SAFE(entry, next, &This->chords, struct chord_entry, entry)
+        {
+            list_remove(&entry->entry);
+            free(entry);
+        }
+
+        free(This);
+    }
 
     return ref;
 }
@@ -259,6 +282,37 @@ static const IDirectMusicTrack8Vtbl dmtrack8_vtbl = {
     chord_track_Join
 };
 
+static HRESULT parse_crdb_chunk(struct chord_track *This, IStream *stream, struct chunk_entry *chunk)
+{
+    DWORD i, size, sub_size, count;
+    struct chord_entry *entry;
+    DMUS_IO_CHORD chord = {0};
+    HRESULT hr;
+
+    if (chunk->size < sizeof(DWORD)) return E_INVALIDARG;
+    if (FAILED(hr = stream_read(stream, &size, sizeof(size)))) return hr;
+
+    if (size > sizeof(chord)) return E_INVALIDARG;
+    if (chunk->size < sizeof(DWORD) + size) return E_INVALIDARG;
+    if (FAILED(hr = stream_read(stream, &chord, size))) return hr;
+
+    if (chunk->size < 3 * sizeof(DWORD) + size) return E_INVALIDARG;
+    if (FAILED(hr = stream_read(stream, &count, sizeof(count)))) return hr;
+    if (FAILED(hr = stream_read(stream, &sub_size, sizeof(sub_size)))) return hr;
+    if (chunk->size != 3 * sizeof(DWORD) + size + count * sub_size) return E_INVALIDARG;
+
+    size = offsetof(struct chord_entry, subchord[count]);
+    if (!(entry = calloc(1, size))) return E_OUTOFMEMORY;
+    entry->chord = chord;
+    entry->subchord_count = count;
+    for (i = 0; SUCCEEDED(hr) && i < count; i++) hr = stream_read(stream, entry->subchord + i, sub_size);
+
+    if (SUCCEEDED(hr)) list_add_tail(&This->chords, &entry->entry);
+    else free(entry);
+
+    return hr;
+}
+
 static HRESULT parse_chordtrack_list(struct chord_track *This, DMUS_PRIVATE_CHUNK *pChunk,
         IStream *pStm)
 {
@@ -286,40 +340,11 @@ static HRESULT parse_chordtrack_list(struct chord_track *This, DMUS_PRIVATE_CHUN
       break;
     }
     case DMUS_FOURCC_CHORDTRACKBODY_CHUNK: {
-      DWORD sz;
-      DWORD it;
-      DWORD num;
-      DMUS_IO_CHORD body;
-      DMUS_IO_SUBCHORD subchords;
-
-      TRACE_(dmfile)(": Chord track body chunk\n");
-
-      IStream_Read (pStm, &sz, sizeof(DWORD), NULL);
-      TRACE_(dmfile)(" - sizeof(DMUS_IO_CHORD): %ld\n", sz);
-      if (sz != sizeof(DMUS_IO_CHORD)) return E_FAIL;
-      IStream_Read (pStm, &body, sizeof(DMUS_IO_CHORD), NULL);
-      TRACE_(dmfile)(" - wszName: %s\n", debugstr_w(body.wszName));
-      TRACE_(dmfile)(" - mtTime: %lu\n", body.mtTime);
-      TRACE_(dmfile)(" - wMeasure: %u\n", body.wMeasure);
-      TRACE_(dmfile)(" - bBeat:  %u\n", body.bBeat);
-      TRACE_(dmfile)(" - bFlags: 0x%02x\n", body.bFlags);
-      
-      IStream_Read (pStm, &num, sizeof(DWORD), NULL);
-      TRACE_(dmfile)(" - # DMUS_IO_SUBCHORDS: %ld\n", num);
-      IStream_Read (pStm, &sz, sizeof(DWORD), NULL);
-      TRACE_(dmfile)(" - sizeof(DMUS_IO_SUBCHORDS): %ld\n", sz);
-      if (sz != sizeof(DMUS_IO_SUBCHORD)) return E_FAIL;
-
-      for (it = 0; it < num; ++it) {
-	IStream_Read (pStm, &subchords, sizeof(DMUS_IO_SUBCHORD), NULL);
-	TRACE_(dmfile)("DMUS_IO_SUBCHORD #%ld\n", it+1);
-	TRACE_(dmfile)(" - dwChordPattern: %lu\n", subchords.dwChordPattern);
-	TRACE_(dmfile)(" - dwScalePattern: %lu\n", subchords.dwScalePattern);
-	TRACE_(dmfile)(" - dwInversionPoints: %lu\n", subchords.dwInversionPoints);
-	TRACE_(dmfile)(" - dwLevels: %lu\n", subchords.dwLevels);
-	TRACE_(dmfile)(" - bChordRoot:  %u\n", subchords.bChordRoot);
-	TRACE_(dmfile)(" - bScaleRoot: %u\n", subchords.bScaleRoot);
-      }
+      static const LARGE_INTEGER zero = {0};
+      struct chunk_entry chunk = {.id = Chunk.fccID, .size = Chunk.dwSize};
+      IStream_Seek(pStm, zero, STREAM_SEEK_CUR, &chunk.offset);
+      chunk.offset.QuadPart -= 12;
+      parse_crdb_chunk(This, pStm, &chunk);
       break;
     }
     default: {
@@ -408,6 +433,7 @@ HRESULT create_dmchordtrack(REFIID lpcGUID, void **ppobj)
     dmobject_init(&track->dmobj, &CLSID_DirectMusicChordTrack,
                   (IUnknown *)&track->IDirectMusicTrack8_iface);
     track->dmobj.IPersistStream_iface.lpVtbl = &persiststream_vtbl;
+    list_init(&track->chords);
 
     hr = IDirectMusicTrack8_QueryInterface(&track->IDirectMusicTrack8_iface, lpcGUID, ppobj);
     IDirectMusicTrack8_Release(&track->IDirectMusicTrack8_iface);
