@@ -1,5 +1,4 @@
-/* IDirectMusicChordTrack Implementation
- *
+/*
  * Copyright (C) 2003-2004 Rok Mandeljc
  * Copyright (C) 2003-2004 Raphael Junqueira
  *
@@ -24,26 +23,23 @@
 WINE_DEFAULT_DEBUG_CHANNEL(dmstyle);
 WINE_DECLARE_DEBUG_CHANNEL(dmfile);
 
-/*****************************************************************************
- * IDirectMusicChordTrack implementation
- */
-typedef struct IDirectMusicChordTrack {
+struct chord_track
+{
     IDirectMusicTrack8 IDirectMusicTrack8_iface;
     struct dmobject dmobj;  /* IPersistStream only */
     LONG ref;
     DWORD dwScale;
-}  IDirectMusicChordTrack;
+};
 
-/* IDirectMusicChordTrack IDirectMusicTrack8 part: */
-static inline IDirectMusicChordTrack *impl_from_IDirectMusicTrack8(IDirectMusicTrack8 *iface)
+static inline struct chord_track *impl_from_IDirectMusicTrack8(IDirectMusicTrack8 *iface)
 {
-    return CONTAINING_RECORD(iface, IDirectMusicChordTrack, IDirectMusicTrack8_iface);
+    return CONTAINING_RECORD(iface, struct chord_track, IDirectMusicTrack8_iface);
 }
 
 static HRESULT WINAPI chord_track_QueryInterface(IDirectMusicTrack8 *iface, REFIID riid,
         void **ret_iface)
 {
-    IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+    struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
 
     TRACE("(%p, %s, %p)\n", This, debugstr_dmguid(riid), ret_iface);
 
@@ -65,7 +61,7 @@ static HRESULT WINAPI chord_track_QueryInterface(IDirectMusicTrack8 *iface, REFI
 
 static ULONG WINAPI chord_track_AddRef(IDirectMusicTrack8 *iface)
 {
-    IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+    struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
     LONG ref = InterlockedIncrement(&This->ref);
 
     TRACE("(%p) ref=%ld\n", This, ref);
@@ -75,7 +71,7 @@ static ULONG WINAPI chord_track_AddRef(IDirectMusicTrack8 *iface)
 
 static ULONG WINAPI chord_track_Release(IDirectMusicTrack8 *iface)
 {
-    IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+    struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
     LONG ref = InterlockedDecrement(&This->ref);
 
     TRACE("(%p) ref=%ld\n", This, ref);
@@ -87,7 +83,7 @@ static ULONG WINAPI chord_track_Release(IDirectMusicTrack8 *iface)
 
 static HRESULT WINAPI chord_track_Init(IDirectMusicTrack8 *iface, IDirectMusicSegment *pSegment)
 {
-  IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+  struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
   FIXME("(%p, %p): stub\n", This, pSegment);
   return S_OK;
 }
@@ -96,14 +92,14 @@ static HRESULT WINAPI chord_track_InitPlay(IDirectMusicTrack8 *iface,
         IDirectMusicSegmentState *pSegmentState, IDirectMusicPerformance *pPerformance,
         void **ppStateData, DWORD dwVirtualTrack8ID, DWORD dwFlags)
 {
-  IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+  struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
   FIXME("(%p, %p, %p, %p, %ld, %ld): stub\n", This, pSegmentState, pPerformance, ppStateData, dwVirtualTrack8ID, dwFlags);
   return S_OK;
 }
 
 static HRESULT WINAPI chord_track_EndPlay(IDirectMusicTrack8 *iface, void *pStateData)
 {
-  IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+  struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
   FIXME("(%p, %p): stub\n", This, pStateData);
   return S_OK;
 }
@@ -112,7 +108,7 @@ static HRESULT WINAPI chord_track_Play(IDirectMusicTrack8 *iface, void *pStateDa
         MUSIC_TIME mtStart, MUSIC_TIME mtEnd, MUSIC_TIME mtOffset, DWORD dwFlags,
         IDirectMusicPerformance *pPerf, IDirectMusicSegmentState *pSegSt, DWORD dwVirtualID)
 {
-  IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+  struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
   FIXME("(%p, %p, %ld, %ld, %ld, %ld, %p, %p, %ld): stub\n", This, pStateData, mtStart, mtEnd, mtOffset, dwFlags, pPerf, pSegSt, dwVirtualID);
   return S_OK;
 }
@@ -120,7 +116,7 @@ static HRESULT WINAPI chord_track_Play(IDirectMusicTrack8 *iface, void *pStateDa
 static HRESULT WINAPI chord_track_GetParam(IDirectMusicTrack8 *iface, REFGUID type, MUSIC_TIME time,
         MUSIC_TIME *next, void *param)
 {
-    IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+    struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
 
     TRACE("(%p, %s, %ld, %p, %p):\n", This, debugstr_dmguid(type), time, next, param);
 
@@ -141,7 +137,7 @@ static HRESULT WINAPI chord_track_GetParam(IDirectMusicTrack8 *iface, REFGUID ty
 static HRESULT WINAPI chord_track_SetParam(IDirectMusicTrack8 *iface, REFGUID type, MUSIC_TIME time,
         void *param)
 {
-    IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+    struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
 
     TRACE("(%p, %s, %ld, %p)\n", This, debugstr_dmguid(type), time, param);
 
@@ -157,7 +153,7 @@ static HRESULT WINAPI chord_track_SetParam(IDirectMusicTrack8 *iface, REFGUID ty
 
 static HRESULT WINAPI chord_track_IsParamSupported(IDirectMusicTrack8 *iface, REFGUID type)
 {
-    IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+    struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
 
     TRACE("(%p, %s)\n", This, debugstr_dmguid(type));
 
@@ -174,7 +170,7 @@ static HRESULT WINAPI chord_track_IsParamSupported(IDirectMusicTrack8 *iface, RE
 static HRESULT WINAPI chord_track_AddNotificationType(IDirectMusicTrack8 *iface,
         REFGUID rguidNotificationType)
 {
-  IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+  struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
   FIXME("(%p, %s): stub\n", This, debugstr_dmguid(rguidNotificationType));
   return S_OK;
 }
@@ -182,7 +178,7 @@ static HRESULT WINAPI chord_track_AddNotificationType(IDirectMusicTrack8 *iface,
 static HRESULT WINAPI chord_track_RemoveNotificationType(IDirectMusicTrack8 *iface,
         REFGUID rguidNotificationType)
 {
-  IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+  struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
   FIXME("(%p, %s): stub\n", This, debugstr_dmguid(rguidNotificationType));
   return S_OK;
 }
@@ -190,7 +186,7 @@ static HRESULT WINAPI chord_track_RemoveNotificationType(IDirectMusicTrack8 *ifa
 static HRESULT WINAPI chord_track_Clone(IDirectMusicTrack8 *iface, MUSIC_TIME mtStart,
         MUSIC_TIME mtEnd, IDirectMusicTrack **ppTrack)
 {
-  IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+  struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
   FIXME("(%p, %ld, %ld, %p): stub\n", This, mtStart, mtEnd, ppTrack);
   return S_OK;
 }
@@ -199,7 +195,7 @@ static HRESULT WINAPI chord_track_PlayEx(IDirectMusicTrack8 *iface, void *pState
         REFERENCE_TIME rtStart, REFERENCE_TIME rtEnd, REFERENCE_TIME rtOffset, DWORD dwFlags,
         IDirectMusicPerformance *pPerf, IDirectMusicSegmentState *pSegSt, DWORD dwVirtualID)
 {
-  IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+  struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
   FIXME("(%p, %p, 0x%s, 0x%s, 0x%s, %ld, %p, %p, %ld): stub\n", This, pStateData, wine_dbgstr_longlong(rtStart),
       wine_dbgstr_longlong(rtEnd), wine_dbgstr_longlong(rtOffset), dwFlags, pPerf, pSegSt, dwVirtualID);
   return S_OK;
@@ -209,7 +205,7 @@ static HRESULT WINAPI chord_track_GetParamEx(IDirectMusicTrack8 *iface, REFGUID 
         REFERENCE_TIME rtTime, REFERENCE_TIME *prtNext, void *pParam, void *pStateData,
         DWORD dwFlags)
 {
-  IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+  struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
   FIXME("(%p, %s, 0x%s, %p, %p, %p, %ld): stub\n", This, debugstr_dmguid(rguidType),
       wine_dbgstr_longlong(rtTime), prtNext, pParam, pStateData, dwFlags);
   return S_OK;
@@ -218,7 +214,7 @@ static HRESULT WINAPI chord_track_GetParamEx(IDirectMusicTrack8 *iface, REFGUID 
 static HRESULT WINAPI chord_track_SetParamEx(IDirectMusicTrack8 *iface, REFGUID rguidType,
         REFERENCE_TIME rtTime, void *pParam, void *pStateData, DWORD dwFlags)
 {
-  IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+  struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
   FIXME("(%p, %s, 0x%s, %p, %p, %ld): stub\n", This, debugstr_dmguid(rguidType),
       wine_dbgstr_longlong(rtTime), pParam, pStateData, dwFlags);
   return S_OK;
@@ -227,7 +223,7 @@ static HRESULT WINAPI chord_track_SetParamEx(IDirectMusicTrack8 *iface, REFGUID 
 static HRESULT WINAPI chord_track_Compose(IDirectMusicTrack8 *iface, IUnknown *context,
         DWORD trackgroup, IDirectMusicTrack **track)
 {
-    IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+    struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
 
     TRACE("(%p, %p, %ld, %p): method not implemented\n", This, context, trackgroup, track);
     return E_NOTIMPL;
@@ -237,7 +233,7 @@ static HRESULT WINAPI chord_track_Join(IDirectMusicTrack8 *iface, IDirectMusicTr
         MUSIC_TIME mtJoin, IUnknown *pContext, DWORD dwTrackGroup,
         IDirectMusicTrack **ppResultTrack)
 {
-  IDirectMusicChordTrack *This = impl_from_IDirectMusicTrack8(iface);
+  struct chord_track *This = impl_from_IDirectMusicTrack8(iface);
   FIXME("(%p, %p, %ld, %p, %ld, %p): stub\n", This, pNewTrack, mtJoin, pContext, dwTrackGroup, ppResultTrack);
   return S_OK;
 }
@@ -263,7 +259,7 @@ static const IDirectMusicTrack8Vtbl dmtrack8_vtbl = {
     chord_track_Join
 };
 
-static HRESULT parse_chordtrack_list(IDirectMusicChordTrack *This, DMUS_PRIVATE_CHUNK *pChunk,
+static HRESULT parse_chordtrack_list(struct chord_track *This, DMUS_PRIVATE_CHUNK *pChunk,
         IStream *pStm)
 {
   DMUS_PRIVATE_CHUNK Chunk;
@@ -339,14 +335,14 @@ static HRESULT parse_chordtrack_list(IDirectMusicChordTrack *This, DMUS_PRIVATE_
   return S_OK;
 }
 
-static inline IDirectMusicChordTrack *impl_from_IPersistStream(IPersistStream *iface)
+static inline struct chord_track *impl_from_IPersistStream(IPersistStream *iface)
 {
-    return CONTAINING_RECORD(iface, IDirectMusicChordTrack, dmobj.IPersistStream_iface);
+    return CONTAINING_RECORD(iface, struct chord_track, dmobj.IPersistStream_iface);
 }
 
 static HRESULT WINAPI IPersistStreamImpl_Load(IPersistStream *iface, IStream *pStm)
 {
-  IDirectMusicChordTrack *This = impl_from_IPersistStream(iface);
+  struct chord_track *This = impl_from_IPersistStream(iface);
   DMUS_PRIVATE_CHUNK Chunk;
   LARGE_INTEGER liMove;
   HRESULT hr;
@@ -390,7 +386,7 @@ static HRESULT WINAPI IPersistStreamImpl_Load(IPersistStream *iface, IStream *pS
 static HRESULT WINAPI IPersistStreamImpl_Save(IPersistStream *iface, IStream *stream,
         BOOL cleardirty)
 {
-    IDirectMusicChordTrack *This = impl_from_IPersistStream(iface);
+    struct chord_track *This = impl_from_IPersistStream(iface);
 
     FIXME("(%p, %p, %d): stub\n", This, stream, cleardirty);
 
@@ -414,7 +410,7 @@ static const IPersistStreamVtbl persiststream_vtbl = {
 /* for ClassFactory */
 HRESULT create_dmchordtrack(REFIID lpcGUID, void **ppobj)
 {
-    IDirectMusicChordTrack *track;
+    struct chord_track *track;
     HRESULT hr;
 
     *ppobj = NULL;
