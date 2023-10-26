@@ -672,6 +672,53 @@ static HRESULT WINAPI IPersistStreamImpl_Load(IPersistStream *iface, IStream *st
     }
 
     stream_skip_chunk(stream, &chunk);
+    if (FAILED(hr)) return hr;
+
+    if (TRACE_ON(dmstyle))
+    {
+        struct style_pattern *pattern;
+        struct style_part *part;
+        struct style_band *band;
+        UINT i;
+
+        TRACE("parsed DirectMusicStyle %p\n", This);
+
+        i = 0;
+        TRACE("  - parts:\n");
+        LIST_FOR_EACH_ENTRY(part, &This->parts, struct style_part, entry)
+        {
+            TRACE("    - part[%u]: %p\n", i++, part);
+            TRACE("      wszName: %s\n", debugstr_w(part->desc.wszName));
+            TRACE("      header:\n");
+            TRACE("        - timeSig:\n");
+            TRACE("          bBeatsPerMeasure: %d\n", part->header.timeSig.bBeatsPerMeasure);
+            TRACE("          bBeat: %d\n", part->header.timeSig.bBeat);
+            TRACE("          wGridsPerBeat: %d\n", part->header.timeSig.wGridsPerBeat);
+            TRACE("        - dwVariationChoices: %ld...\n", part->header.dwVariationChoices[0]);
+            TRACE("        - guidPartID: %s\n", debugstr_guid(&part->header.guidPartID));
+            TRACE("        - wNbrMeasures: %d\n", part->header.wNbrMeasures);
+            TRACE("        - bPlayModeFlags: %d\n", part->header.bPlayModeFlags);
+            TRACE("        - bInvertUpper: %d\n", part->header.bInvertUpper);
+            TRACE("        - bInvertLower: %d\n", part->header.bInvertLower);
+            TRACE("        - dwFlags: %#lx\n", part->header.dwFlags);
+            TRACE("      notes_count: %u\n", part->notes_count);
+            TRACE("      curves_count: %u\n", part->curves_count);
+            TRACE("      markers_count: %u\n", part->markers_count);
+            TRACE("      resolutions_count: %u\n", part->resolutions_count);
+            TRACE("      anticipations_count: %u\n", part->anticipations_count);
+        }
+
+        i = 0;
+        TRACE("  - patterns:\n");
+        LIST_FOR_EACH_ENTRY(pattern, &This->patterns, struct style_pattern, entry)
+            TRACE("    - pattern[%u]: %p\n", i++, pattern);
+
+        i = 0;
+        TRACE("  - bands:\n");
+        LIST_FOR_EACH_ENTRY(band, &This->bands, struct style_band, entry)
+            TRACE("    - band[%u]: %p\n", i++, band->pBand);
+    }
+
     return hr;
 }
 
