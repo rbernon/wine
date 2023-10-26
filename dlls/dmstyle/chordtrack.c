@@ -21,7 +21,6 @@
 #include "dmobject.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(dmstyle);
-WINE_DECLARE_DEBUG_CHANNEL(dmfile);
 
 struct chord_entry
 {
@@ -346,51 +345,62 @@ static inline struct chord_track *impl_from_IPersistStream(IPersistStream *iface
     return CONTAINING_RECORD(iface, struct chord_track, dmobj.IPersistStream_iface);
 }
 
-static HRESULT WINAPI IPersistStreamImpl_Load(IPersistStream *iface, IStream *pStm)
+static HRESULT WINAPI IPersistStreamImpl_Load(IPersistStream *iface, IStream *stream)
 {
-  struct chord_track *This = impl_from_IPersistStream(iface);
-  DMUS_PRIVATE_CHUNK Chunk;
-  LARGE_INTEGER liMove;
-  HRESULT hr;
- 
-  TRACE("(%p, %p): Loading\n", This, pStm);
+    struct chord_track *This = impl_from_IPersistStream(iface);
+    struct chunk_entry chunk = {0};
+    HRESULT hr;
 
-  IStream_Read (pStm, &Chunk, sizeof(FOURCC)+sizeof(DWORD), NULL);
-  TRACE_(dmfile)(": %s chunk (size = %ld)", debugstr_fourcc (Chunk.fccID), Chunk.dwSize);
-  switch (Chunk.fccID) {	
-  case FOURCC_LIST: {
-    IStream_Read (pStm, &Chunk.fccID, sizeof(FOURCC), NULL);
-    TRACE_(dmfile)(": %s chunk (size = %ld)", debugstr_fourcc (Chunk.fccID), Chunk.dwSize);
-    switch (Chunk.fccID) { 
-    case DMUS_FOURCC_CHORDTRACK_LIST: {
-      static const LARGE_INTEGER zero = {0};
-      struct chunk_entry chunk = {.id = Chunk.fccID, .size = Chunk.dwSize};
-      IStream_Seek(pStm, zero, STREAM_SEEK_CUR, &chunk.offset);
-      chunk.offset.QuadPart -= 12;
-      TRACE_(dmfile)(": Chord track list\n");
-      hr = parse_cord_list(This, pStm, &chunk);
-      if (FAILED(hr)) return hr;
-      break;    
-    }
-    default: {
-      TRACE_(dmfile)(": unexpected chunk; loading failed)\n");
-      liMove.QuadPart = Chunk.dwSize;
-      IStream_Seek (pStm, liMove, STREAM_SEEK_CUR, NULL);
-      return E_FAIL;
-    }
-    }
-    TRACE_(dmfile)(": reading finished\n");
-    break;
-  }
-  default: {
-    TRACE_(dmfile)(": unexpected chunk; loading failed)\n");
-    liMove.QuadPart = Chunk.dwSize;
-    IStream_Seek (pStm, liMove, STREAM_SEEK_CUR, NULL); /* skip the rest of the chunk */
-    return E_FAIL;
-  }
-  }
+    TRACE("(%p, %p)\n", This, stream);
 
-  return S_OK;
+    if ((hr = stream_get_chunk(stream, &chunk)) == S_OK)
+    {
+        switch (MAKE_IDTYPE(chunk.id, chunk.type))
+        {
+        case MAKE_IDTYPE(FOURCC_LIST, DMUS_FOURCC_CHORDTRACK_LIST):
+            hr = parse_cord_list(This, stream, &chunk);
+            break;
+
+        default:
+            WARN("Invalid chord track chunk %s %s\n", debugstr_fourcc(chunk.id), debugstr_fourcc(chunk.type));
+            hr = DMUS_E_UNSUPPORTED_STREAM;
+            break;
+        }
+    }
+
+    stream_skip_chunk(stream, &chunk);
+    if (FAILED(hr)) return hr;
+
+    if (TRACE_ON(dmstyle))
+    {
+        struct chord_entry *entry;
+        UINT i = 0, j;
+
+        TRACE("Loaded DirectMusicChordTrack %p\n", This);
+
+        LIST_FOR_EACH_ENTRY(entry, &This->chords, struct chord_entry, entry)
+        {
+            TRACE("  - DMUS_IO_CHORD[%u]\n", i++);
+            TRACE("    - wszName: %s\n", debugstr_w(entry->chord.wszName));
+            TRACE("    - mtTime: %ld\n", entry->chord.mtTime);
+            TRACE("    - wMeasure: %d\n", entry->chord.wMeasure);
+            TRACE("    - bBeat: %d\n", entry->chord.bBeat);
+            TRACE("    - bFlags: %d\n", entry->chord.bFlags);
+
+            for (j = 0; j < entry->subchord_count; j++)
+            {
+                TRACE("    - DMUS_IO_SUBCHORD[%u]\n", j);
+                TRACE("      - dwChordPattern: %ld\n", entry->subchord[j].dwChordPattern);
+                TRACE("      - dwScalePattern: %ld\n", entry->subchord[j].dwScalePattern);
+                TRACE("      - dwInversionPoints: %ld\n", entry->subchord[j].dwInversionPoints);
+                TRACE("      - dwLevels: %ld\n", entry->subchord[j].dwLevels);
+                TRACE("      - bChordRoot: %d\n", entry->subchord[j].bChordRoot);
+                TRACE("      - bScaleRoot: %d\n", entry->subchord[j].bScaleRoot);
+            }
+        }
+    }
+
+    return S_OK;
 }
 
 static const IPersistStreamVtbl persiststream_vtbl =
