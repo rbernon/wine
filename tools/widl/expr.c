@@ -116,20 +116,15 @@ expr_t *expr_void(void)
     return e;
 }
 
-expr_t *expr_int( enum expr_type type, int val )
+expr_t *expr_int( int val, const char *text )
 {
     expr_t *e = xmalloc( sizeof(expr_t) );
     memset( e, 0, sizeof(*e) );
-    e->type = type;
+    e->text = text;
+    e->type = EXPR_INT;
     e->u.lval = val;
-    /* check for numeric constant */
-    if (type == EXPR_NUM || type == EXPR_HEXNUM || type == EXPR_TRUEFALSE)
-    {
-        /* make sure true/false value is valid */
-        assert(type != EXPR_TRUEFALSE || val == 0 || val == 1);
-        e->is_const = TRUE;
-        e->cval = val;
-    }
+    e->is_const = TRUE;
+    e->cval = val;
     return e;
 }
 
@@ -503,9 +498,7 @@ static struct expression_type resolve_expression(const struct expr_loc *expr_loc
     {
     case EXPR_VOID:
         break;
-    case EXPR_HEXNUM:
-    case EXPR_NUM:
-    case EXPR_TRUEFALSE:
+    case EXPR_INT:
         result.is_temporary = FALSE;
         result.type = type_new_int(TYPE_BASIC_INT, 0);
         break;
@@ -680,20 +673,11 @@ void write_expr(FILE *h, const expr_t *e, int brackets,
     {
     case EXPR_VOID:
         break;
-    case EXPR_NUM:
-        fprintf(h, "%u", e->u.lval);
-        break;
-    case EXPR_HEXNUM:
-        fprintf(h, "0x%x", e->u.lval);
+    case EXPR_INT:
+        fprintf(h, "%s", e->text);
         break;
     case EXPR_DOUBLE:
         fprintf(h, "%#.15g", e->u.dval);
-        break;
-    case EXPR_TRUEFALSE:
-        if (e->u.lval == 0)
-            fprintf(h, "FALSE");
-        else
-            fprintf(h, "TRUE");
         break;
     case EXPR_IDENTIFIER:
         if (toplevel && toplevel_prefix && cont_type)
@@ -857,9 +841,7 @@ int compare_expr(const expr_t *a, const expr_t *b)
 
     switch (a->type)
     {
-        case EXPR_NUM:
-        case EXPR_HEXNUM:
-        case EXPR_TRUEFALSE:
+        case EXPR_INT:
             return a->u.lval - b->u.lval;
         case EXPR_DOUBLE:
             return a->u.dval - b->u.dval;

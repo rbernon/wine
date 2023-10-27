@@ -140,7 +140,7 @@ struct expr_loc
 };
 
 extern expr_t *expr_void(void);
-extern expr_t *expr_int( enum expr_type type, int val );
+extern expr_t *expr_int( int val, const char *text );
 extern expr_t *expr_double( double val );
 extern expr_t *expr_str( enum expr_type type, char *val );
 extern expr_t *make_exprt( enum expr_type type, var_t *var, expr_t *expr );

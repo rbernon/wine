@@ -596,7 +596,7 @@ contract_ver:
 
 contract_req
         : decl_spec ',' contract_ver            {
-                                                  expr_t *contract = expr_int( EXPR_NUM, $contract_ver );
+                                                  expr_t *contract = expr_int( $3, strmake( "%u", $3 ) );
                                                   if ($decl_spec->type->type_type != TYPE_APICONTRACT)
                                                       error_loc( "type %s is not an apicontract\n", $decl_spec->type->name );
                                                   $$ = make_exprt( EXPR_GTREQL, declare_var( NULL, $decl_spec, make_declarator( NULL ), 0 ), contract );
@@ -798,17 +798,16 @@ enums
 	;
 
 enum_list: enum                                 {
-                                                  if (!$enum->eval) $enum->eval = expr_int( EXPR_NUM, 0 /* default for first enum entry */ );
+                                                  if (!$enum->eval) $enum->eval = expr_int( 0, "0" );
                                                   $$ = append_var( NULL, $enum );
                                                 }
         | enum_list[list] ',' enum              {
                                                   if (!$enum->eval)
                                                   {
-                                                      var_t *last = LIST_ENTRY( list_tail( $list ), var_t, entry );
-                                                      enum expr_type type = EXPR_NUM;
-                                                      if (last->eval->type == EXPR_HEXNUM) type = EXPR_HEXNUM;
-                                                      if (last->eval->cval + 1 < 0) type = EXPR_HEXNUM;
-                                                      $enum->eval = expr_int( type, last->eval->cval + 1 );
+                                                      expr_t *last = LIST_ENTRY( list_tail( $list ), var_t, entry )->eval;
+                                                      const char *fmt = last->cval + 1 < 0 ? "0x%x" : "%u";
+                                                      if (last->text && last->text[1] == 'x') fmt = "0x%x";
+                                                      $enum->eval = expr_int( last->cval + 1, strmake( fmt, last->cval + 1 ) );
                                                   }
                                                   $$ = append_var( $list, $enum );
                                                 }
@@ -840,12 +839,12 @@ m_expr
         | expr
         ;
 
-expr:     aNUM                                  { $$ = expr_int( EXPR_NUM, $aNUM ); }
-        | aHEXNUM                               { $$ = expr_int( EXPR_HEXNUM, $aHEXNUM ); }
+expr:     aNUM                                  { $$ = expr_int( $aNUM, strmake( "%u", $aNUM ) ); }
+        | aHEXNUM                               { $$ = expr_int( $aHEXNUM, strmake( "0x%x", $aHEXNUM ) ); }
         | aDOUBLE                               { $$ = expr_double( $aDOUBLE ); }
-        | tFALSE                                { $$ = expr_int( EXPR_TRUEFALSE, 0 ); }
-        | tNULL                                 { $$ = expr_int( EXPR_NUM, 0 ); }
-        | tTRUE                                 { $$ = expr_int( EXPR_TRUEFALSE, 1 ); }
+        | tFALSE                                { $$ = expr_int( 0, "FALSE" ); }
+        | tNULL                                 { $$ = expr_int( 0, "NULL" ); }
+        | tTRUE                                 { $$ = expr_int( 1, "TRUE" ); }
         | aSTRING                               { $$ = expr_str( EXPR_STRLIT, $aSTRING ); }
         | aWSTRING                              { $$ = expr_str( EXPR_WSTRLIT, $aWSTRING ); }
         | aSQSTRING                             { $$ = expr_str( EXPR_CHARCONST, $aSQSTRING ); }
