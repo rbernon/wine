@@ -116,7 +116,7 @@ expr_t *expr_void(void)
     return e;
 }
 
-expr_t *make_exprl(enum expr_type type, int val)
+expr_t *expr_int( enum expr_type type, int val )
 {
     expr_t *e = xmalloc( sizeof(expr_t) );
     memset( e, 0, sizeof(*e) );
