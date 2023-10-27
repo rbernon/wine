@@ -139,7 +139,6 @@ extern expr_t *expr_decl( decl_spec_t *decl );
 extern expr_t *expr_int( int val, const char *text );
 extern expr_t *expr_double( double val );
 extern expr_t *expr_str( enum expr_type type, char *val );
-extern expr_t *make_exprt( enum expr_type type, expr_t *decl, expr_t *expr );
 extern expr_t *expr_op( enum expr_type type, expr_t *arg0, expr_t *arg1, expr_t *arg2 );
 
 extern const type_t *expr_resolve_type( const struct expr_loc *expr_loc, const type_t *cont_type, const expr_t *expr );
