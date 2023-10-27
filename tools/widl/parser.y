@@ -306,6 +306,7 @@ PARSER_LTYPE pop_import(void);
 %type <type_qualifier> type_qualifier m_type_qual_list
 %type <function_specifier> function_specifier
 %type <declspec> decl_spec unqualified_decl_spec decl_spec_no_type m_decl_spec_no_type
+%type <declspec> cast_decl_spec
 %type <type> inherit interface interfacedef
 %type <type> interfaceref
 %type <type> dispinterfaceref
@@ -599,27 +600,31 @@ contract_ver:
 contract_req
         : decl_spec ',' contract_ver            {
                                                   expr_t *contract = expr_int( $3, strmake( "%u", $3 ) );
+                                                  expr_t *decl = expr_decl( $decl_spec );
                                                   if ($decl_spec->type->type_type != TYPE_APICONTRACT)
                                                       error_loc( "type %s is not an apicontract\n", $decl_spec->type->name );
-                                                  contract = expr_int( EXPR_NUM, &integer );
-                                                  $$ = make_exprt( EXPR_GTREQL, declare_var( NULL, $decl_spec, make_declarator( NULL ), 0 ), contract );
+                                                  $$ = make_exprt( EXPR_GTREQL, decl, contract );
                                                 }
         ;
 
 static_attr
-	: decl_spec ',' contract_req		{ if ($1->type->type_type != TYPE_INTERFACE)
-						      error_loc("type %s is not an interface\n", $1->type->name);
-						  $$ = make_exprt(EXPR_MEMBER, declare_var(NULL, $1, make_declarator(NULL), 0), $3);
-						}
-	;
+        : decl_spec ',' contract_req            {
+                                                  expr_t *decl = expr_decl( $decl_spec );
+                                                  if ($decl_spec->type->type_type != TYPE_INTERFACE)
+                                                      error_loc( "type %s is not an interface\n", $decl_spec->type->name );
+                                                  $$ = make_exprt( EXPR_MEMBER, decl, $contract_req );
+                                                }
+        ;
 
 activatable_attr:
-	  decl_spec ',' contract_req		{ if ($1->type->type_type != TYPE_INTERFACE)
-						      error_loc("type %s is not an interface\n", $1->type->name);
-						  $$ = make_exprt(EXPR_MEMBER, declare_var(NULL, $1, make_declarator(NULL), 0), $3);
-						}
-	| contract_req				{ $$ = $1; } /* activatable on the default activation factory */
-	;
+          decl_spec ',' contract_req            {
+                                                  expr_t *decl = expr_decl( $decl_spec );
+                                                  if ($decl_spec->type->type_type != TYPE_INTERFACE)
+                                                      error_loc( "type %s is not an interface\n", $decl_spec->type->name );
+                                                  $$ = make_exprt( EXPR_MEMBER, decl, $contract_req );
+                                                }
+        | contract_req                          { $$ = $contract_req; } /* activatable on the default activation factory */
+        ;
 
 access_attr
         : tPUBLIC                               { $$ = attr_int( @$, ATTR_PUBLIC, 0 ); }
@@ -628,9 +633,11 @@ access_attr
 
 composable_attr
         : decl_spec ',' access_attr ',' contract_req
-                                                { if ($1->type->type_type != TYPE_INTERFACE)
-                                                      error_loc( "type %s is not an interface\n", $1->type->name );
-                                                  $$ = make_exprt( EXPR_MEMBER, declare_var( append_attr( NULL, $3 ), $1, make_declarator( NULL ), 0 ), $5 );
+                                                {
+                                                  expr_t *decl = expr_decl( $decl_spec );
+                                                  if ($decl_spec->type->type_type != TYPE_INTERFACE)
+                                                      error_loc( "type %s is not an interface\n", $decl_spec->type->name );
+                                                  $$ = make_exprt( EXPR_MEMBER, decl, $contract_req );
                                                 }
         ;
 
@@ -887,10 +894,15 @@ expr:     aNUM                                  { $$ = expr_int( $aNUM, strmake(
                                                   expr_t *member = expr_str( EXPR_IDENTIFIER, $aIDENTIFIER );
                                                   $$ = expr_op( EXPR_MEMBER, $obj, member, NULL );
                                                 }
-	| '(' unqualified_decl_spec m_abstract_declarator ')' expr %prec CAST
-						{ $$ = make_exprt(EXPR_CAST, declare_var(NULL, $2, $3, 0), $5); free($2); free($3); }
-	| tSIZEOF '(' unqualified_decl_spec m_abstract_declarator ')'
-						{ $$ = make_exprt(EXPR_SIZEOF, declare_var(NULL, $3, $4, 0), NULL); free($3); free($4); }
+        | '(' cast_decl_spec ')' expr[value] %prec CAST
+                                                {
+                                                  expr_t *decl = expr_decl( $cast_decl_spec );
+                                                  $$ = make_exprt( EXPR_CAST, decl, $value );
+                                                }
+        | tSIZEOF '(' cast_decl_spec ')'        {
+                                                  expr_t *decl = expr_decl( $cast_decl_spec );
+                                                  $$ = make_exprt( EXPR_SIZEOF, decl, NULL );
+                                                }
         | expr[array] '[' expr[index] ']'       { $$ = expr_op( EXPR_ARRAY, $array, $index, NULL ); }
         | '(' expr ')'                          { $$ = $2; }
         ;
@@ -1206,6 +1218,13 @@ unqualified_decl_spec: unqualified_type m_decl_spec_no_type
 	| decl_spec_no_type unqualified_type m_decl_spec_no_type
 						{ $$ = make_decl_spec($2, $1, $3, STG_NONE, 0, 0); }
 	;
+
+cast_decl_spec: unqualified_decl_spec m_abstract_declarator
+                                                {
+                                                  append_chain_type( $m_abstract_declarator, $unqualified_decl_spec->type, $unqualified_decl_spec->qualifier );
+                                                  $$ = make_decl_spec( $m_abstract_declarator->type, $unqualified_decl_spec, NULL, STG_NONE, 0, 0 );
+                                                }
+        ;
 
 m_decl_spec_no_type
 	: %empty				{ $$ = NULL; }
