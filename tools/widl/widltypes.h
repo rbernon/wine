@@ -348,15 +348,13 @@ struct _attr_t {
 
 struct _expr_t {
   enum expr_type type;
-  const expr_t *ref;
   union {
     int lval;
     double dval;
     const char *sval;
-    const expr_t *ext;
-    decl_spec_t tref;
+    const expr_t *args[3];
   } u;
-  const expr_t *ext2;
+  decl_spec_t tref;
   int is_const;
   int cval;
   /* parser-internal */
