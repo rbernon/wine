@@ -336,28 +336,28 @@ struct expression_type
     type_t *type;
 };
 
-static void check_scalar_type(const struct expr_loc *expr_loc,
-                              const type_t *cont_type, const type_t *type)
+static void check_scalar_type( const type_t *cont_type, const type_t *type,
+                               const struct location *where, const char *attr )
 {
     if (!cont_type || (!is_integer_type( type ) && !is_ptr( type ) && !is_float_type( type )))
-        error_at( &expr_loc->v->where, "scalar type required in expression%s%s\n",
-                  expr_loc->attr ? " for attribute " : "", expr_loc->attr ? expr_loc->attr : "" );
+        error_at( where, "scalar type required in expression%s%s\n",
+                  attr ? " for attribute " : "", attr ? attr : "" );
 }
 
-static void check_arithmetic_type(const struct expr_loc *expr_loc,
-                                  const type_t *cont_type, const type_t *type)
+static void check_arithmetic_type( const type_t *cont_type, const type_t *type,
+                                   const struct location *where, const char *attr )
 {
     if (!cont_type || (!is_integer_type( type ) && !is_float_type( type )))
-        error_at( &expr_loc->v->where, "arithmetic type required in expression%s%s\n",
-                  expr_loc->attr ? " for attribute " : "", expr_loc->attr ? expr_loc->attr : "" );
+        error_at( where, "arithmetic type required in expression%s%s\n",
+                  attr ? " for attribute " : "", attr ? attr : "" );
 }
 
-static void check_integer_type(const struct expr_loc *expr_loc,
-                               const type_t *cont_type, const type_t *type)
+static void check_integer_type( const type_t *cont_type, const type_t *type,
+                                const struct location *where, const char *attr )
 {
     if (!cont_type || !is_integer_type( type ))
-        error_at( &expr_loc->v->where, "integer type required in expression%s%s\n",
-                  expr_loc->attr ? " for attribute " : "", expr_loc->attr ? expr_loc->attr : "" );
+        error_at( where, "integer type required in expression%s%s\n",
+                  attr ? " for attribute " : "", attr ? attr : "" );
 }
 
 static type_t *find_identifier(const char *identifier, const type_t *cont_type, int *found_in_cont_type)
@@ -435,9 +435,8 @@ static int is_valid_member_operand(const type_t *type)
     }
 }
 
-static struct expression_type resolve_expression(const struct expr_loc *expr_loc,
-                                                 const type_t *cont_type,
-                                                 const expr_t *e)
+static struct expression_type resolve_expression( const type_t *cont_type, const expr_t *e,
+                                                  const struct location *where, const char *attr )
 {
     struct expression_type result;
     result.is_variable = FALSE;
@@ -475,50 +474,50 @@ static struct expression_type resolve_expression(const struct expr_loc *expr_loc
         result.is_temporary = FALSE;
         result.type = find_identifier(e->u.sval, cont_type, &found_in_cont_type);
         if (!result.type)
-            error_at( &expr_loc->v->where, "identifier %s cannot be resolved in expression%s%s\n", e->u.sval,
-                      expr_loc->attr ? " for attribute " : "", expr_loc->attr ? expr_loc->attr : "" );
+            error_at( where, "identifier %s cannot be resolved in expression%s%s\n", e->u.sval,
+                      attr ? " for attribute " : "", attr ? attr : "" );
         break;
     }
     case EXPR_LOGNOT:
-        result = resolve_expression( expr_loc, cont_type, e->u.args[0] );
-        check_scalar_type(expr_loc, cont_type, result.type);
+        result = resolve_expression( cont_type, e->u.args[0], where, attr );
+        check_scalar_type( cont_type, result.type, where, attr );
         result.is_variable = FALSE;
         result.is_temporary = FALSE;
         result.type = type_new_int(TYPE_BASIC_INT, 0);
         break;
     case EXPR_NOT:
-        result = resolve_expression( expr_loc, cont_type, e->u.args[0] );
-        check_integer_type(expr_loc, cont_type, result.type);
+        result = resolve_expression( cont_type, e->u.args[0], where, attr );
+        check_integer_type( cont_type, result.type, where, attr );
         result.is_variable = FALSE;
         break;
     case EXPR_POS:
     case EXPR_NEG:
-        result = resolve_expression( expr_loc, cont_type, e->u.args[0] );
-        check_arithmetic_type(expr_loc, cont_type, result.type);
+        result = resolve_expression( cont_type, e->u.args[0], where, attr );
+        check_arithmetic_type( cont_type, result.type, where, attr );
         result.is_variable = FALSE;
         break;
     case EXPR_ADDRESSOF:
-        result = resolve_expression( expr_loc, cont_type, e->u.args[0] );
+        result = resolve_expression( cont_type, e->u.args[0], where, attr );
         if (!result.is_variable)
-            error_at( &expr_loc->v->where, "address-of operator applied to non-variable type in expression%s%s\n",
-                      expr_loc->attr ? " for attribute " : "", expr_loc->attr ? expr_loc->attr : "" );
+            error_at( where, "address-of operator applied to non-variable type in expression%s%s\n",
+                      attr ? " for attribute " : "", attr ? attr : "" );
         result.is_variable = FALSE;
         result.is_temporary = TRUE;
         result.type = type_new_pointer(result.type);
         break;
     case EXPR_PPTR:
-        result = resolve_expression( expr_loc, cont_type, e->u.args[0] );
+        result = resolve_expression( cont_type, e->u.args[0], where, attr );
         if (result.type && is_ptr(result.type))
             result.type = type_pointer_get_ref_type(result.type);
         else if(result.type && is_array(result.type)
                             && type_array_is_decl_as_ptr(result.type))
             result.type = type_array_get_element_type(result.type);
         else
-            error_at( &expr_loc->v->where, "dereference operator applied to non-pointer type in expression%s%s\n",
-                      expr_loc->attr ? " for attribute " : "", expr_loc->attr ? expr_loc->attr : "" );
+            error_at( where, "dereference operator applied to non-pointer type in expression%s%s\n",
+                      attr ? " for attribute " : "", attr ? attr : "" );
         break;
     case EXPR_CAST:
-        result = resolve_expression( expr_loc, cont_type, e->u.args[1] );
+        result = resolve_expression( cont_type, e->u.args[1], where, attr );
         result.type = e->u.args[0]->u.decl->type;
         break;
     case EXPR_SIZEOF:
@@ -537,12 +536,12 @@ static struct expression_type resolve_expression(const struct expr_loc *expr_loc
     case EXPR_XOR:
     {
         struct expression_type result_right;
-        result = resolve_expression( expr_loc, cont_type, e->u.args[0] );
+        result = resolve_expression( cont_type, e->u.args[0], where, attr );
         result.is_variable = FALSE;
-        result_right = resolve_expression( expr_loc, cont_type, e->u.args[1] );
+        result_right = resolve_expression( cont_type, e->u.args[1], where, attr );
         /* FIXME: these checks aren't strict enough for some of the operators */
-        check_scalar_type(expr_loc, cont_type, result.type);
-        check_scalar_type(expr_loc, cont_type, result_right.type);
+        check_scalar_type( cont_type, result.type, where, attr );
+        check_scalar_type( cont_type, result_right.type, where, attr );
         break;
     }
     case EXPR_LOGOR:
@@ -555,63 +554,64 @@ static struct expression_type resolve_expression(const struct expr_loc *expr_loc
     case EXPR_LESSEQL:
     {
         struct expression_type result_left, result_right;
-        result_left = resolve_expression( expr_loc, cont_type, e->u.args[0] );
-        result_right = resolve_expression( expr_loc, cont_type, e->u.args[1] );
-        check_scalar_type(expr_loc, cont_type, result_left.type);
-        check_scalar_type(expr_loc, cont_type, result_right.type);
+        result_left = resolve_expression( cont_type, e->u.args[0], where, attr );
+        result_right = resolve_expression( cont_type, e->u.args[1], where, attr );
+        check_scalar_type( cont_type, result_left.type, where, attr );
+        check_scalar_type( cont_type, result_right.type, where, attr );
         result.is_temporary = FALSE;
         result.type = type_new_int(TYPE_BASIC_INT, 0);
         break;
     }
     case EXPR_MEMBER:
-        result = resolve_expression( expr_loc, cont_type, e->u.args[0] );
+        result = resolve_expression( cont_type, e->u.args[0], where, attr );
         if (result.type && is_valid_member_operand( result.type ))
-            result = resolve_expression( expr_loc, result.type, e->u.args[1] );
+            result = resolve_expression( result.type, e->u.args[1], where, attr );
         else
-            error_at( &expr_loc->v->where, "'.' or '->' operator applied to a type that isn't a structure, union or enumeration in expression%s%s\n",
-                      expr_loc->attr ? " for attribute " : "", expr_loc->attr ? expr_loc->attr : "" );
+            error_at( where, "'.' or '->' operator applied to a type that isn't a structure, union or enumeration in expression%s%s\n",
+                      attr ? " for attribute " : "", attr ? attr : "" );
         break;
     case EXPR_COND:
     {
         struct expression_type result_first, result_second, result_third;
-        result_first = resolve_expression( expr_loc, cont_type, e->u.args[0] );
-        check_scalar_type(expr_loc, cont_type, result_first.type);
-        result_second = resolve_expression( expr_loc, cont_type, e->u.args[1] );
-        result_third = resolve_expression( expr_loc, cont_type, e->u.args[2] );
-        check_scalar_type(expr_loc, cont_type, result_second.type);
-        check_scalar_type(expr_loc, cont_type, result_third.type);
+        result_first = resolve_expression( cont_type, e->u.args[0], where, attr );
+        check_scalar_type( cont_type, result_first.type, where, attr );
+        result_second = resolve_expression( cont_type, e->u.args[1], where, attr );
+        result_third = resolve_expression( cont_type, e->u.args[2], where, attr );
+        check_scalar_type( cont_type, result_second.type, where, attr );
+        check_scalar_type( cont_type, result_third.type, where, attr );
         if (!is_ptr( result_second.type ) ^ !is_ptr( result_third.type ))
-            error_at( &expr_loc->v->where, "type mismatch in ?: expression\n" );
+            error_at( where, "type mismatch in ?: expression\n" );
         /* FIXME: determine the correct return type */
         result = result_second;
         result.is_variable = FALSE;
         break;
     }
     case EXPR_ARRAY:
-        result = resolve_expression( expr_loc, cont_type, e->u.args[0] );
+        result = resolve_expression( cont_type, e->u.args[0], where, attr );
         if (result.type && is_array(result.type))
         {
             struct expression_type index_result;
             result.type = type_array_get_element_type(result.type);
-            index_result = resolve_expression( expr_loc, cont_type /* FIXME */, e->u.args[1] );
+            index_result = resolve_expression( cont_type /* FIXME */, e->u.args[1], where, attr );
             if (!index_result.type || !is_integer_type( index_result.type ))
-                error_at( &expr_loc->v->where, "array subscript not of integral type in expression%s%s\n",
-                          expr_loc->attr ? " for attribute " : "", expr_loc->attr ? expr_loc->attr : "" );
+                error_at( where, "array subscript not of integral type in expression%s%s\n",
+                          attr ? " for attribute " : "", attr ? attr : "" );
         }
         else
         {
-            error_at( &expr_loc->v->where, "array subscript operator applied to non-array type in expression%s%s\n",
-                      expr_loc->attr ? " for attribute " : "", expr_loc->attr ? expr_loc->attr : "" );
+            error_at( where, "array subscript operator applied to non-array type in expression%s%s\n",
+                      attr ? " for attribute " : "", attr ? attr : "" );
         }
         break;
     }
     return result;
 }
 
-const type_t *expr_resolve_type(const struct expr_loc *expr_loc, const type_t *cont_type, const expr_t *expr)
+const type_t *expr_resolve_type( const type_t *cont_type, const expr_t *expr,
+                                 const struct location *where, const char *attr )
 {
     struct expression_type expr_type;
-    expr_type = resolve_expression(expr_loc, cont_type, expr);
+    expr_type = resolve_expression( cont_type, expr, where, attr );
     return expr_type.type;
 }
 

@@ -1718,10 +1718,10 @@ static unsigned int write_conf_or_var_desc(FILE *file, const type_t *cont_type,
     if (subexpr->type == EXPR_IDENTIFIER)
     {
         const type_t *correlation_variable = NULL;
+        const struct location *where = NULL;
         unsigned char param_type = 0;
         unsigned int offset = 0;
         const var_t *var;
-        struct expr_loc expr_loc;
 
         if (type_get_type(cont_type) == TYPE_FUNCTION)
         {
@@ -1732,7 +1732,7 @@ static unsigned int write_conf_or_var_desc(FILE *file, const type_t *cont_type,
             {
                 if (var->name && !strcmp(var->name, subexpr->u.sval))
                 {
-                    expr_loc.v = var;
+                    where = &var->where;
                     correlation_variable = var->declspec.type;
                     break;
                 }
@@ -1748,7 +1748,7 @@ static unsigned int write_conf_or_var_desc(FILE *file, const type_t *cont_type,
                 unsigned int size = field_memsize( var->declspec.type, &offset );
                 if (var->name && !strcmp(var->name, subexpr->u.sval))
                 {
-                    expr_loc.v = var;
+                    where = &var->where;
                     correlation_variable = var->declspec.type;
                     break;
                 }
@@ -1758,8 +1758,7 @@ static unsigned int write_conf_or_var_desc(FILE *file, const type_t *cont_type,
 
         if (!correlation_variable)
             error("write_conf_or_var_desc: couldn't find variable %s in %s\n", subexpr->u.sval, name);
-        expr_loc.attr = NULL;
-        correlation_variable = expr_resolve_type(&expr_loc, cont_type, expr);
+        correlation_variable = expr_resolve_type( cont_type, expr, where, NULL );
 
         offset -= baseoff;
 

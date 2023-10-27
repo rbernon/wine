@@ -133,12 +133,6 @@ extern void check_arg_attrs( const var_t *arg );
 
 /* expr.c */
 
-struct expr_loc
-{
-    const var_t *v;
-    const char *attr;
-};
-
 extern expr_t *expr_void(void);
 extern expr_t *expr_decl( decl_spec_t *decl );
 extern expr_t *expr_int( int val, const char *text );
@@ -146,7 +140,8 @@ extern expr_t *expr_double( double val );
 extern expr_t *expr_str( enum expr_type type, char *val );
 extern expr_t *expr_op( enum expr_type type, expr_t *arg0, expr_t *arg1, expr_t *arg2 );
 
-extern const type_t *expr_resolve_type( const struct expr_loc *expr_loc, const type_t *cont_type, const expr_t *expr );
+extern const type_t *expr_resolve_type( const type_t *cont_type, const expr_t *expr,
+                                        const struct location *where, const char *attr );
 extern int compare_expr( const expr_t *a, const expr_t *b );
 
 extern void write_expr( FILE *h, const expr_t *e, int brackets, int toplevel, const char *toplevel_prefix,

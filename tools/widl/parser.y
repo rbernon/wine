@@ -2375,15 +2375,14 @@ static int is_ptr_guid_type(const type_t *type)
 
 static void check_conformance_expr_list(const char *attr_name, const var_t *arg, const type_t *container_type, expr_list_t *expr_list)
 {
+    const struct location *where = &arg->where;
     expr_t *dim;
-    struct expr_loc expr_loc;
-    expr_loc.v = arg;
-    expr_loc.attr = attr_name;
+
     if (expr_list) LIST_FOR_EACH_ENTRY(dim, expr_list, expr_t, entry)
     {
         if (dim->type != EXPR_VOID)
         {
-            const type_t *expr_type = expr_resolve_type(&expr_loc, container_type, dim);
+            const type_t *expr_type = expr_resolve_type( container_type, dim, where, attr_name );
             if (!is_allowed_conf_type(expr_type))
                 error_at( &arg->where, "expression must resolve to integral type <= 32bits for attribute %s\n", attr_name );
         }
@@ -2441,30 +2440,26 @@ static void check_field_common(const type_t *container_type,
     }
     if (is_attr(arg->attrs, ATTR_IIDIS))
     {
-        struct expr_loc expr_loc;
         expr_t *expr = get_attrp(arg->attrs, ATTR_IIDIS);
         if (expr->type != EXPR_VOID)
         {
+            const struct location *where = &arg->where;
             const type_t *expr_type;
-            expr_loc.v = arg;
-            expr_loc.attr = "iid_is";
-            expr_type = expr_resolve_type(&expr_loc, container_type, expr);
+            expr_type = expr_resolve_type( container_type, expr, where, "iid_is" );
             if (!expr_type || !is_ptr_guid_type(expr_type))
                 error_at( &arg->where, "expression must resolve to pointer to GUID type for attribute iid_is\n" );
         }
     }
     if (is_attr(arg->attrs, ATTR_SWITCHIS))
     {
-        struct expr_loc expr_loc;
         expr_t *expr = get_attrp(arg->attrs, ATTR_SWITCHIS);
         if (expr->type != EXPR_VOID)
         {
+            const struct location *where = &arg->where;
             const type_t *expr_type;
-            expr_loc.v = arg;
-            expr_loc.attr = "switch_is";
-            expr_type = expr_resolve_type(&expr_loc, container_type, expr);
+            expr_type = expr_resolve_type( container_type, expr, where, "switch_is" );
             if (!expr_type || !is_allowed_conf_type(expr_type))
-                error_at( &arg->where, "expression must resolve to integral type <= 32bits for attribute %s\n", expr_loc.attr );
+                error_at( where, "expression must resolve to integral type <= 32bits for attribute switch_is\n" );
         }
     }
 
