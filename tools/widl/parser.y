@@ -639,7 +639,7 @@ deprecated_attr
                                                 {
                                                   expr_t *message = expr_str( EXPR_STRLIT, $aSTRING );
                                                   expr_t *action = expr_str( EXPR_IDENTIFIER, $aIDENTIFIER );
-                                                  $$ = make_expr3( EXPR_MEMBER, message, action, $contract_req );
+                                                  $$ = expr_op( EXPR_MEMBER, message, action, $contract_req );
                                                 }
         ;
 
@@ -852,46 +852,48 @@ expr:     aNUM                                  { $$ = expr_int( $aNUM, strmake(
         | aWSTRING                              { $$ = expr_str( EXPR_WSTRLIT, $aWSTRING ); }
         | aSQSTRING                             { $$ = expr_str( EXPR_CHARCONST, $aSQSTRING ); }
         | aIDENTIFIER                           { $$ = expr_str( EXPR_IDENTIFIER, $aIDENTIFIER ); }
-	| expr '?' expr ':' expr		{ $$ = make_expr3(EXPR_COND, $1, $3, $5); }
-	| expr LOGICALOR expr			{ $$ = make_expr2(EXPR_LOGOR, $1, $3); }
-	| expr LOGICALAND expr			{ $$ = make_expr2(EXPR_LOGAND, $1, $3); }
-	| expr '|' expr				{ $$ = make_expr2(EXPR_OR , $1, $3); }
-	| expr '^' expr				{ $$ = make_expr2(EXPR_XOR, $1, $3); }
-	| expr '&' expr				{ $$ = make_expr2(EXPR_AND, $1, $3); }
-	| expr EQUALITY expr			{ $$ = make_expr2(EXPR_EQUALITY, $1, $3); }
-	| expr INEQUALITY expr			{ $$ = make_expr2(EXPR_INEQUALITY, $1, $3); }
-	| expr '>' expr				{ $$ = make_expr2(EXPR_GTR, $1, $3); }
-	| expr '<' expr				{ $$ = make_expr2(EXPR_LESS, $1, $3); }
-	| expr GREATEREQUAL expr		{ $$ = make_expr2(EXPR_GTREQL, $1, $3); }
-	| expr LESSEQUAL expr			{ $$ = make_expr2(EXPR_LESSEQL, $1, $3); }
-	| expr SHL expr				{ $$ = make_expr2(EXPR_SHL, $1, $3); }
-	| expr SHR expr				{ $$ = make_expr2(EXPR_SHR, $1, $3); }
-	| expr '+' expr				{ $$ = make_expr2(EXPR_ADD, $1, $3); }
-	| expr '-' expr				{ $$ = make_expr2(EXPR_SUB, $1, $3); }
-	| expr '%' expr				{ $$ = make_expr2(EXPR_MOD, $1, $3); }
-	| expr '*' expr				{ $$ = make_expr2(EXPR_MUL, $1, $3); }
-	| expr '/' expr				{ $$ = make_expr2(EXPR_DIV, $1, $3); }
-	| '!' expr				{ $$ = make_expr1(EXPR_LOGNOT, $2); }
-	| '~' expr				{ $$ = make_expr1(EXPR_NOT, $2); }
-	| '+' expr %prec POS			{ $$ = make_expr1(EXPR_POS, $2); }
-	| '-' expr %prec NEG			{ $$ = make_expr1(EXPR_NEG, $2); }
-	| '&' expr %prec ADDRESSOF		{ $$ = make_expr1(EXPR_ADDRESSOF, $2); }
-	| '*' expr %prec PPTR			{ $$ = make_expr1(EXPR_PPTR, $2); }
+        | expr[cond] '?' expr[true] ':' expr[false]
+                                                { $$ = expr_op( EXPR_COND, $cond, $true, $false ); }
+        | expr[op1] LOGICALOR expr[op2]         { $$ = expr_op( EXPR_LOGOR, $op1, $op2, NULL ); }
+        | expr[op1] LOGICALAND expr[op2]        { $$ = expr_op( EXPR_LOGAND, $op1, $op2, NULL ); }
+        | expr[op1] '|' expr[op2]               { $$ = expr_op( EXPR_OR , $op1, $op2, NULL ); }
+        | expr[op1] '^' expr[op2]               { $$ = expr_op( EXPR_XOR, $op1, $op2, NULL ); }
+        | expr[op1] '&' expr[op2]               { $$ = expr_op( EXPR_AND, $op1, $op2, NULL ); }
+        | expr[op1] EQUALITY expr[op2]          { $$ = expr_op( EXPR_EQUALITY, $op1, $op2, NULL ); }
+        | expr[op1] INEQUALITY expr[op2]        { $$ = expr_op( EXPR_INEQUALITY, $op1, $op2, NULL ); }
+        | expr[op1] '>' expr[op2]               { $$ = expr_op( EXPR_GTR, $op1, $op2, NULL ); }
+        | expr[op1] '<' expr[op2]               { $$ = expr_op( EXPR_LESS, $op1, $op2, NULL ); }
+        | expr[op1] GREATEREQUAL expr[op2]      { $$ = expr_op( EXPR_GTREQL, $op1, $op2, NULL ); }
+        | expr[op1] LESSEQUAL expr[op2]         { $$ = expr_op( EXPR_LESSEQL, $op1, $op2, NULL ); }
+        | expr[op1] SHL expr[op2]               { $$ = expr_op( EXPR_SHL, $op1, $op2, NULL ); }
+        | expr[op1] SHR expr[op2]               { $$ = expr_op( EXPR_SHR, $op1, $op2, NULL ); }
+        | expr[op1] '+' expr[op2]               { $$ = expr_op( EXPR_ADD, $op1, $op2, NULL ); }
+        | expr[op1] '-' expr[op2]               { $$ = expr_op( EXPR_SUB, $op1, $op2, NULL ); }
+        | expr[op1] '%' expr[op2]               { $$ = expr_op( EXPR_MOD, $op1, $op2, NULL ); }
+        | expr[op1] '*' expr[op2]               { $$ = expr_op( EXPR_MUL, $op1, $op2, NULL ); }
+        | expr[op1] '/' expr[op2]               { $$ = expr_op( EXPR_DIV, $op1, $op2, NULL ); }
+        | '!' expr[op]                          { $$ = expr_op( EXPR_LOGNOT, $op, NULL, NULL ); }
+        | '~' expr[op]                          { $$ = expr_op( EXPR_NOT, $op, NULL, NULL ); }
+        | '+' expr[op] %prec POS                { $$ = expr_op( EXPR_POS, $op, NULL, NULL ); }
+        | '-' expr[op] %prec NEG                { $$ = expr_op( EXPR_NEG, $op, NULL, NULL ); }
+        | '&' expr[op] %prec ADDRESSOF          { $$ = expr_op( EXPR_ADDRESSOF, $op, NULL, NULL ); }
+        | '*' expr[op] %prec PPTR               { $$ = expr_op( EXPR_PPTR, $op, NULL, NULL ); }
         | expr[obj] MEMBERPTR aIDENTIFIER       {
                                                   expr_t *member = expr_str( EXPR_IDENTIFIER, $aIDENTIFIER );
-                                                  $$ = make_expr2( EXPR_MEMBER, make_expr1( EXPR_PPTR, $obj ), member );
+                                                  expr_t *deref = expr_op( EXPR_PPTR, $obj, NULL, NULL );
+                                                  $$ = expr_op( EXPR_MEMBER, deref, member, NULL );
                                                 }
         | expr[obj] '.' aIDENTIFIER             {
                                                   expr_t *member = expr_str( EXPR_IDENTIFIER, $aIDENTIFIER );
-                                                  $$ = make_expr2( EXPR_MEMBER, $obj, member );
+                                                  $$ = expr_op( EXPR_MEMBER, $obj, member, NULL );
                                                 }
 	| '(' unqualified_decl_spec m_abstract_declarator ')' expr %prec CAST
 						{ $$ = make_exprt(EXPR_CAST, declare_var(NULL, $2, $3, 0), $5); free($2); free($3); }
 	| tSIZEOF '(' unqualified_decl_spec m_abstract_declarator ')'
 						{ $$ = make_exprt(EXPR_SIZEOF, declare_var(NULL, $3, $4, 0), NULL); free($3); free($4); }
-	| expr '[' expr ']'			{ $$ = make_expr2(EXPR_ARRAY, $1, $3); }
-	| '(' expr ')'				{ $$ = $2; }
-	;
+        | expr[array] '[' expr[index] ']'       { $$ = expr_op( EXPR_ARRAY, $array, $index, NULL ); }
+        | '(' expr ')'                          { $$ = $2; }
+        ;
 
 expr_list_int_const: expr_int_const		{ $$ = append_expr( NULL, $1 ); }
 	| expr_list_int_const ',' expr_int_const	{ $$ = append_expr( $1, $3 ); }

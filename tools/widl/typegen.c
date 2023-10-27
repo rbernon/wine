@@ -1912,34 +1912,34 @@ static unsigned int write_conf_or_var_desc(FILE *file, const type_t *cont_type,
     switch (subexpr->type)
     {
     case EXPR_PPTR:
-        subexpr = subexpr->ref;
+        subexpr = subexpr->u.args[0];
         operator_type = FC_DEREFERENCE;
         break;
     case EXPR_DIV:
-        if (subexpr->u.ext->is_const && (subexpr->u.ext->cval == 2))
+        if (subexpr->u.args[1]->is_const && (subexpr->u.args[1]->cval == 2))
         {
-            subexpr = subexpr->ref;
+            subexpr = subexpr->u.args[0];
             operator_type = FC_DIV_2;
         }
         break;
     case EXPR_MUL:
-        if (subexpr->u.ext->is_const && (subexpr->u.ext->cval == 2))
+        if (subexpr->u.args[1]->is_const && (subexpr->u.args[1]->cval == 2))
         {
-            subexpr = subexpr->ref;
+            subexpr = subexpr->u.args[0];
             operator_type = FC_MULT_2;
         }
         break;
     case EXPR_SUB:
-        if (subexpr->u.ext->is_const && (subexpr->u.ext->cval == 1))
+        if (subexpr->u.args[1]->is_const && (subexpr->u.args[1]->cval == 1))
         {
-            subexpr = subexpr->ref;
+            subexpr = subexpr->u.args[0];
             operator_type = FC_SUB_1;
         }
         break;
     case EXPR_ADD:
-        if (subexpr->u.ext->is_const && (subexpr->u.ext->cval == 1))
+        if (subexpr->u.args[1]->is_const && (subexpr->u.args[1]->cval == 1))
         {
-            subexpr = subexpr->ref;
+            subexpr = subexpr->u.args[0];
             operator_type = FC_ADD_1;
         }
         break;

@@ -1576,8 +1576,8 @@ static void write_apicontract_guard_start(FILE *header, const expr_t *expr)
     char *name;
     int ver;
     if (!winrt_mode) return;
-    type = expr->u.tref.type;
-    ver = expr->ref->u.integer.value;
+    type = expr->tref.type;
+    ver = expr->u.args[0]->u.lval;
     name = format_apicontract_macro(type);
     fprintf(header, "#if %s_VERSION >= %#x\n", name, ver);
     free(name);
@@ -1589,8 +1589,8 @@ static void write_apicontract_guard_end(FILE *header, const expr_t *expr)
     char *name;
     int ver;
     if (!winrt_mode) return;
-    type = expr->u.tref.type;
-    ver = expr->ref->u.integer.value;
+    type = expr->tref.type;
+    ver = expr->u.args[0]->u.lval;
     name = format_apicontract_macro(type);
     fprintf(header, "#endif /* %s_VERSION >= %#x */\n", name, ver);
     free(name);
