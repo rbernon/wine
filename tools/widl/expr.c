@@ -190,8 +190,8 @@ expr_t *make_exprt(enum expr_type type, var_t *var, expr_t *expr)
     e = xmalloc( sizeof(*e) );
     memset( e, 0, sizeof(*e) );
     e->type = type;
-    e->ref = expr;
-    e->u.tref = var->declspec;
+    e->u.args[0] = expr;
+    e->tref = var->declspec;
     if (type == EXPR_SIZEOF)
     {
         /* only do this for types that should be the same on all platforms */
@@ -236,51 +236,37 @@ expr_t *make_exprt(enum expr_type type, var_t *var, expr_t *expr)
     return e;
 }
 
-expr_t *make_expr1(enum expr_type type, expr_t *expr)
+expr_t *expr_op( enum expr_type type, expr_t *expr1, expr_t *expr2, expr_t *expr3 )
 {
     expr_t *e = xmalloc( sizeof(*e) );
     memset( e, 0, sizeof(*e) );
     e->type = type;
-    e->ref = expr;
+    e->u.args[0] = expr1;
+    e->u.args[1] = expr2;
+    e->u.args[2] = expr3;
+
+    e->is_const = TRUE;
+    if (expr1 && !expr1->is_const) e->is_const = FALSE;
+    if (expr2 && !expr2->is_const) e->is_const = FALSE;
+    if (expr3 && !expr3->is_const) e->is_const = FALSE;
+
     /* check for compile-time optimization */
-    if (expr->is_const)
+    if (e->is_const)
     {
-        e->is_const = TRUE;
         switch (type)
         {
         case EXPR_LOGNOT:
-            e->cval = !expr->cval;
+            e->cval = !expr1->cval;
             break;
         case EXPR_POS:
-            e->cval = +expr->cval;
+            e->cval = +expr1->cval;
             break;
         case EXPR_NEG:
-            e->cval = -expr->cval;
+            e->cval = -expr1->cval;
             break;
         case EXPR_NOT:
-            e->cval = ~expr->cval;
+            e->cval = ~expr1->cval;
             break;
-        default:
-            e->is_const = FALSE;
-            break;
-        }
-    }
-    return e;
-}
-
-expr_t *make_expr2(enum expr_type type, expr_t *expr1, expr_t *expr2)
-{
-    expr_t *e = xmalloc( sizeof(*e) );
-    memset( e, 0, sizeof(*e) );
-    e->type = type;
-    e->ref = expr1;
-    e->u.ext = expr2;
-    /* check for compile-time optimization */
-    if (expr1->is_const && expr2->is_const)
-    {
-        e->is_const = TRUE;
-        switch (type)
-        {
         case EXPR_ADD:
             e->cval = expr1->cval + expr2->cval;
             break;
@@ -347,28 +333,6 @@ expr_t *make_expr2(enum expr_type type, expr_t *expr1, expr_t *expr2)
         case EXPR_LESSEQL:
             e->cval = expr1->cval <= expr2->cval;
             break;
-        default:
-            e->is_const = FALSE;
-            break;
-        }
-    }
-    return e;
-}
-
-expr_t *make_expr3(enum expr_type type, expr_t *expr1, expr_t *expr2, expr_t *expr3)
-{
-    expr_t *e = xmalloc( sizeof(*e) );
-    memset( e, 0, sizeof(*e) );
-    e->type = type;
-    e->ref = expr1;
-    e->u.ext = expr2;
-    e->ext2 = expr3;
-    /* check for compile-time optimization */
-    if (expr1->is_const && expr2->is_const && expr3->is_const)
-    {
-        e->is_const = TRUE;
-        switch (type)
-        {
         case EXPR_COND:
             e->cval = expr1->cval ? expr2->cval : expr3->cval;
             break;
@@ -377,6 +341,7 @@ expr_t *make_expr3(enum expr_type type, expr_t *expr1, expr_t *expr2, expr_t *ex
             break;
         }
     }
+
     return e;
 }
 
@@ -530,25 +495,25 @@ static struct expression_type resolve_expression(const struct expr_loc *expr_loc
         break;
     }
     case EXPR_LOGNOT:
-        result = resolve_expression(expr_loc, cont_type, e->ref);
+        result = resolve_expression( expr_loc, cont_type, e->u.args[0] );
         check_scalar_type(expr_loc, cont_type, result.type);
         result.is_variable = FALSE;
         result.is_temporary = FALSE;
         result.type = type_new_int(TYPE_BASIC_INT, 0);
         break;
     case EXPR_NOT:
-        result = resolve_expression(expr_loc, cont_type, e->ref);
+        result = resolve_expression( expr_loc, cont_type, e->u.args[0] );
         check_integer_type(expr_loc, cont_type, result.type);
         result.is_variable = FALSE;
         break;
     case EXPR_POS:
     case EXPR_NEG:
-        result = resolve_expression(expr_loc, cont_type, e->ref);
+        result = resolve_expression( expr_loc, cont_type, e->u.args[0] );
         check_arithmetic_type(expr_loc, cont_type, result.type);
         result.is_variable = FALSE;
         break;
     case EXPR_ADDRESSOF:
-        result = resolve_expression(expr_loc, cont_type, e->ref);
+        result = resolve_expression( expr_loc, cont_type, e->u.args[0] );
         if (!result.is_variable)
             error_at( &expr_loc->v->where, "address-of operator applied to non-variable type in expression%s%s\n",
                       expr_loc->attr ? " for attribute " : "", expr_loc->attr ? expr_loc->attr : "" );
@@ -557,7 +522,7 @@ static struct expression_type resolve_expression(const struct expr_loc *expr_loc
         result.type = type_new_pointer(result.type);
         break;
     case EXPR_PPTR:
-        result = resolve_expression(expr_loc, cont_type, e->ref);
+        result = resolve_expression( expr_loc, cont_type, e->u.args[0] );
         if (result.type && is_ptr(result.type))
             result.type = type_pointer_get_ref_type(result.type);
         else if(result.type && is_array(result.type)
@@ -568,8 +533,8 @@ static struct expression_type resolve_expression(const struct expr_loc *expr_loc
                       expr_loc->attr ? " for attribute " : "", expr_loc->attr ? expr_loc->attr : "" );
         break;
     case EXPR_CAST:
-        result = resolve_expression(expr_loc, cont_type, e->ref);
-        result.type = e->u.tref.type;
+        result = resolve_expression( expr_loc, cont_type, e->u.args[0] );
+        result.type = e->tref.type;
         break;
     case EXPR_SIZEOF:
         result.is_temporary = FALSE;
@@ -587,9 +552,9 @@ static struct expression_type resolve_expression(const struct expr_loc *expr_loc
     case EXPR_XOR:
     {
         struct expression_type result_right;
-        result = resolve_expression(expr_loc, cont_type, e->ref);
+        result = resolve_expression( expr_loc, cont_type, e->u.args[0] );
         result.is_variable = FALSE;
-        result_right = resolve_expression(expr_loc, cont_type, e->u.ext);
+        result_right = resolve_expression( expr_loc, cont_type, e->u.args[1] );
         /* FIXME: these checks aren't strict enough for some of the operators */
         check_scalar_type(expr_loc, cont_type, result.type);
         check_scalar_type(expr_loc, cont_type, result_right.type);
@@ -605,8 +570,8 @@ static struct expression_type resolve_expression(const struct expr_loc *expr_loc
     case EXPR_LESSEQL:
     {
         struct expression_type result_left, result_right;
-        result_left = resolve_expression(expr_loc, cont_type, e->ref);
-        result_right = resolve_expression(expr_loc, cont_type, e->u.ext);
+        result_left = resolve_expression( expr_loc, cont_type, e->u.args[0] );
+        result_right = resolve_expression( expr_loc, cont_type, e->u.args[1] );
         check_scalar_type(expr_loc, cont_type, result_left.type);
         check_scalar_type(expr_loc, cont_type, result_right.type);
         result.is_temporary = FALSE;
@@ -614,9 +579,9 @@ static struct expression_type resolve_expression(const struct expr_loc *expr_loc
         break;
     }
     case EXPR_MEMBER:
-        result = resolve_expression(expr_loc, cont_type, e->ref);
-        if (result.type && is_valid_member_operand(result.type))
-            result = resolve_expression(expr_loc, result.type, e->u.ext);
+        result = resolve_expression( expr_loc, cont_type, e->u.args[0] );
+        if (result.type && is_valid_member_operand( result.type ))
+            result = resolve_expression( expr_loc, result.type, e->u.args[1] );
         else
             error_at( &expr_loc->v->where, "'.' or '->' operator applied to a type that isn't a structure, union or enumeration in expression%s%s\n",
                       expr_loc->attr ? " for attribute " : "", expr_loc->attr ? expr_loc->attr : "" );
@@ -624,10 +589,10 @@ static struct expression_type resolve_expression(const struct expr_loc *expr_loc
     case EXPR_COND:
     {
         struct expression_type result_first, result_second, result_third;
-        result_first = resolve_expression(expr_loc, cont_type, e->ref);
+        result_first = resolve_expression( expr_loc, cont_type, e->u.args[0] );
         check_scalar_type(expr_loc, cont_type, result_first.type);
-        result_second = resolve_expression(expr_loc, cont_type, e->u.ext);
-        result_third = resolve_expression(expr_loc, cont_type, e->ext2);
+        result_second = resolve_expression( expr_loc, cont_type, e->u.args[1] );
+        result_third = resolve_expression( expr_loc, cont_type, e->u.args[2] );
         check_scalar_type(expr_loc, cont_type, result_second.type);
         check_scalar_type(expr_loc, cont_type, result_third.type);
         if (!is_ptr( result_second.type ) ^ !is_ptr( result_third.type ))
@@ -638,12 +603,12 @@ static struct expression_type resolve_expression(const struct expr_loc *expr_loc
         break;
     }
     case EXPR_ARRAY:
-        result = resolve_expression(expr_loc, cont_type, e->ref);
+        result = resolve_expression( expr_loc, cont_type, e->u.args[0] );
         if (result.type && is_array(result.type))
         {
             struct expression_type index_result;
             result.type = type_array_get_element_type(result.type);
-            index_result = resolve_expression(expr_loc, cont_type /* FIXME */, e->u.ext);
+            index_result = resolve_expression( expr_loc, cont_type /* FIXME */, e->u.args[1] );
             if (!index_result.type || !is_integer_type( index_result.type ))
                 error_at( &expr_loc->v->where, "array subscript not of integral type in expression%s%s\n",
                           expr_loc->attr ? " for attribute " : "", expr_loc->attr ? expr_loc->attr : "" );
@@ -703,37 +668,37 @@ void write_expr(FILE *h, const expr_t *e, int brackets,
         break;
     case EXPR_LOGNOT:
         fprintf(h, "!");
-        write_expr(h, e->ref, 1, toplevel, toplevel_prefix, cont_type, local_var_prefix);
+        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
         break;
     case EXPR_NOT:
         fprintf(h, "~");
-        write_expr(h, e->ref, 1, toplevel, toplevel_prefix, cont_type, local_var_prefix);
+        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
         break;
     case EXPR_POS:
         fprintf(h, "+");
-        write_expr(h, e->ref, 1, toplevel, toplevel_prefix, cont_type, local_var_prefix);
+        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
         break;
     case EXPR_NEG:
         fprintf(h, "-");
-        write_expr(h, e->ref, 1, toplevel, toplevel_prefix, cont_type, local_var_prefix);
+        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
         break;
     case EXPR_ADDRESSOF:
         fprintf(h, "&");
-        write_expr(h, e->ref, 1, toplevel, toplevel_prefix, cont_type, local_var_prefix);
+        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
         break;
     case EXPR_PPTR:
         fprintf(h, "*");
-        write_expr(h, e->ref, 1, toplevel, toplevel_prefix, cont_type, local_var_prefix);
+        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
         break;
     case EXPR_CAST:
         fprintf(h, "(");
-        write_type_decl(h, &e->u.tref, NULL);
+        write_type_decl( h, &e->tref, NULL );
         fprintf(h, ")");
-        write_expr(h, e->ref, 1, toplevel, toplevel_prefix, cont_type, local_var_prefix);
+        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
         break;
     case EXPR_SIZEOF:
         fprintf(h, "sizeof(");
-        write_type_decl(h, &e->u.tref, NULL);
+        write_type_decl( h, &e->tref, NULL );
         fprintf(h, ")");
         break;
     case EXPR_SHL:
@@ -755,7 +720,7 @@ void write_expr(FILE *h, const expr_t *e, int brackets,
     case EXPR_GTREQL:
     case EXPR_LESSEQL:
         if (brackets) fprintf(h, "(");
-        write_expr(h, e->ref, 1, toplevel, toplevel_prefix, cont_type, local_var_prefix);
+        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
         switch (e->type)
         {
         case EXPR_SHL:          fprintf(h, " << "); break;
@@ -778,38 +743,38 @@ void write_expr(FILE *h, const expr_t *e, int brackets,
         case EXPR_LESSEQL:      fprintf(h, " <= "); break;
         default: break;
         }
-        write_expr(h, e->u.ext, 1, toplevel, toplevel_prefix, cont_type, local_var_prefix);
+        write_expr( h, e->u.args[1], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
         if (brackets) fprintf(h, ")");
         break;
     case EXPR_MEMBER:
         if (brackets) fprintf(h, "(");
-        if (e->ref->type == EXPR_PPTR)
+        if (e->u.args[0]->type == EXPR_PPTR)
         {
-            write_expr(h, e->ref->ref, 1, toplevel, toplevel_prefix, cont_type, local_var_prefix);
+            write_expr( h, e->u.args[0]->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
             fprintf(h, "->");
         }
         else
         {
-            write_expr(h, e->ref, 1, toplevel, toplevel_prefix, cont_type, local_var_prefix);
+            write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
             fprintf(h, ".");
         }
-        write_expr(h, e->u.ext, 1, 0, toplevel_prefix, cont_type, "");
+        write_expr( h, e->u.args[1], 1, 0, toplevel_prefix, cont_type, "" );
         if (brackets) fprintf(h, ")");
         break;
     case EXPR_COND:
         if (brackets) fprintf(h, "(");
-        write_expr(h, e->ref, 1, toplevel, toplevel_prefix, cont_type, local_var_prefix);
+        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
         fprintf(h, " ? ");
-        write_expr(h, e->u.ext, 1, toplevel, toplevel_prefix, cont_type, local_var_prefix);
+        write_expr( h, e->u.args[1], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
         fprintf(h, " : ");
-        write_expr(h, e->ext2, 1, toplevel, toplevel_prefix, cont_type, local_var_prefix);
+        write_expr( h, e->u.args[2], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
         if (brackets) fprintf(h, ")");
         break;
     case EXPR_ARRAY:
         if (brackets) fprintf(h, "(");
-        write_expr(h, e->ref, 1, toplevel, toplevel_prefix, cont_type, local_var_prefix);
+        write_expr( h, e->u.args[0], 1, toplevel, toplevel_prefix, cont_type, local_var_prefix );
         fprintf(h, "[");
-        write_expr(h, e->u.ext, 1, 1, toplevel_prefix, cont_type, local_var_prefix);
+        write_expr( h, e->u.args[1], 1, 1, toplevel_prefix, cont_type, local_var_prefix );
         fprintf(h, "]");
         if (brackets) fprintf(h, ")");
         break;
@@ -851,13 +816,13 @@ int compare_expr(const expr_t *a, const expr_t *b)
         case EXPR_CHARCONST:
             return strcmp(a->u.sval, b->u.sval);
         case EXPR_COND:
-            ret = compare_expr(a->ref, b->ref);
+            ret = compare_expr( a->u.args[0], b->u.args[0] );
             if (ret != 0)
                 return ret;
-            ret = compare_expr(a->u.ext, b->u.ext);
+            ret = compare_expr( a->u.args[1], b->u.args[1] );
             if (ret != 0)
                 return ret;
-            return compare_expr(a->ext2, b->ext2);
+            return compare_expr( a->u.args[2], b->u.args[2] );
         case EXPR_OR:
         case EXPR_AND:
         case EXPR_ADD:
@@ -878,12 +843,12 @@ int compare_expr(const expr_t *a, const expr_t *b)
         case EXPR_LESS:
         case EXPR_GTREQL:
         case EXPR_LESSEQL:
-            ret = compare_expr(a->ref, b->ref);
+            ret = compare_expr( a->u.args[0], b->u.args[0] );
             if (ret != 0)
                 return ret;
-            return compare_expr(a->u.ext, b->u.ext);
+            return compare_expr( a->u.args[1], b->u.args[1] );
         case EXPR_CAST:
-            ret = compare_type(a->u.tref.type, b->u.tref.type);
+            ret = compare_type( a->tref.type, b->tref.type );
             if (ret != 0)
                 return ret;
             /* Fall through.  */
@@ -893,9 +858,9 @@ int compare_expr(const expr_t *a, const expr_t *b)
         case EXPR_ADDRESSOF:
         case EXPR_LOGNOT:
         case EXPR_POS:
-            return compare_expr(a->ref, b->ref);
+            return compare_expr( a->u.args[0], b->u.args[0] );
         case EXPR_SIZEOF:
-            return compare_type(a->u.tref.type, b->u.tref.type);
+            return compare_type( a->tref.type, b->tref.type );
         case EXPR_VOID:
             return 0;
     }
