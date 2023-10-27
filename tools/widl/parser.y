@@ -602,7 +602,7 @@ contract_req
                                                   expr_t *decl = expr_decl( $decl_spec );
                                                   if ($decl_spec->type->type_type != TYPE_APICONTRACT)
                                                       error_loc( "type %s is not an apicontract\n", $decl_spec->type->name );
-                                                  $$ = make_exprt( EXPR_GTREQL, decl, contract );
+                                                  $$ = expr_op( EXPR_GTREQL, decl, contract, NULL );
                                                 }
         ;
 
@@ -611,7 +611,7 @@ static_attr
                                                   expr_t *decl = expr_decl( $decl_spec );
                                                   if ($decl_spec->type->type_type != TYPE_INTERFACE)
                                                       error_loc( "type %s is not an interface\n", $decl_spec->type->name );
-                                                  $$ = make_exprt( EXPR_MEMBER, decl, $contract_req );
+                                                  $$ = expr_op( EXPR_MEMBER, decl, $contract_req, NULL );
                                                 }
         ;
 
@@ -620,7 +620,7 @@ activatable_attr:
                                                   expr_t *decl = expr_decl( $decl_spec );
                                                   if ($decl_spec->type->type_type != TYPE_INTERFACE)
                                                       error_loc( "type %s is not an interface\n", $decl_spec->type->name );
-                                                  $$ = make_exprt( EXPR_MEMBER, decl, $contract_req );
+                                                  $$ = expr_op( EXPR_MEMBER, decl, $contract_req, NULL );
                                                 }
         | contract_req                          { $$ = $contract_req; } /* activatable on the default activation factory */
         ;
@@ -636,7 +636,7 @@ composable_attr
                                                   expr_t *decl = expr_decl( $decl_spec );
                                                   if ($decl_spec->type->type_type != TYPE_INTERFACE)
                                                       error_loc( "type %s is not an interface\n", $decl_spec->type->name );
-                                                  $$ = make_exprt( EXPR_MEMBER, decl, $contract_req );
+                                                  $$ = expr_op( EXPR_MEMBER, decl, $contract_req, NULL );
                                                 }
         ;
 
@@ -896,11 +896,11 @@ expr:     aNUM                                  { $$ = expr_int( $aNUM, strmake(
         | '(' cast_decl_spec ')' expr[value] %prec CAST
                                                 {
                                                   expr_t *decl = expr_decl( $cast_decl_spec );
-                                                  $$ = make_exprt( EXPR_CAST, decl, $value );
+                                                  $$ = expr_op( EXPR_CAST, decl, $value, NULL );
                                                 }
         | tSIZEOF '(' cast_decl_spec ')'        {
                                                   expr_t *decl = expr_decl( $cast_decl_spec );
-                                                  $$ = make_exprt( EXPR_SIZEOF, decl, NULL );
+                                                  $$ = expr_op( EXPR_SIZEOF, decl, NULL, NULL );
                                                 }
         | expr[array] '[' expr[index] ']'       { $$ = expr_op( EXPR_ARRAY, $array, $index, NULL ); }
         | '(' expr ')'                          { $$ = $2; }

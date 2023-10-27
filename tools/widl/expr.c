@@ -187,65 +187,6 @@ expr_t *expr_str( enum expr_type type, char *val )
     return e;
 }
 
-expr_t *make_exprt(enum expr_type type, expr_t *decl, expr_t *expr)
-{
-    expr_t *e;
-    type_t *tref;
-
-    if (decl->u.decl->stgclass != STG_NONE && decl->u.decl->stgclass != STG_REGISTER)
-        error_loc("invalid storage class for type expression\n");
-
-    tref = decl->u.decl->type;
-
-    e = xmalloc( sizeof(*e) );
-    memset( e, 0, sizeof(*e) );
-    e->type = type;
-    e->u.args[0] = decl;
-    e->u.args[1] = expr;
-    if (type == EXPR_SIZEOF)
-    {
-        /* only do this for types that should be the same on all platforms */
-        if (is_integer_type(tref) || is_float_type(tref))
-        {
-            e->is_const = TRUE;
-            e->cval = type_memsize(tref);
-        }
-    }
-    /* check for cast of constant expression */
-    if (type == EXPR_CAST && expr->is_const)
-    {
-        if (is_integer_type(tref))
-        {
-            unsigned int cast_type_bits = type_memsize(tref) * 8;
-            unsigned int cast_mask;
-
-            e->is_const = TRUE;
-            if (is_signed_integer_type(tref))
-            {
-                cast_mask = (1u << (cast_type_bits - 1)) - 1;
-                if (expr->cval & (1u << (cast_type_bits - 1)))
-                    e->cval = -((-expr->cval) & cast_mask);
-                else
-                    e->cval = expr->cval & cast_mask;
-            }
-            else
-            {
-                /* calculate ((1 << cast_type_bits) - 1) avoiding overflow */
-                cast_mask = ((1u << (cast_type_bits - 1)) - 1) |
-                            1u << (cast_type_bits - 1);
-                e->cval = expr->cval & cast_mask;
-            }
-        }
-        else
-        {
-            e->is_const = TRUE;
-            e->cval = expr->cval;
-        }
-    }
-
-    return e;
-}
-
 expr_t *expr_op( enum expr_type type, expr_t *expr1, expr_t *expr2, expr_t *expr3 )
 {
     expr_t *e = xmalloc( sizeof(*e) );
@@ -345,6 +286,39 @@ expr_t *expr_op( enum expr_type type, expr_t *expr1, expr_t *expr2, expr_t *expr
             break;
         case EXPR_COND:
             e->cval = expr1->cval ? expr2->cval : expr3->cval;
+            break;
+        case EXPR_SIZEOF:
+            /* only do this for types that should be the same on all platforms */
+            if (!is_integer_type( expr1->u.decl->type ) && !is_float_type( expr1->u.decl->type ))
+                e->is_const = FALSE;
+            else
+                e->cval = type_memsize( expr1->u.decl->type );
+            break;
+
+        case EXPR_CAST:
+            /* check for cast of constant expression */
+            if (!is_integer_type( expr1->u.decl->type ))
+                e->cval = expr2->cval;
+            else
+            {
+                unsigned int cast_type_bits = type_memsize( expr1->u.decl->type ) * 8;
+                unsigned int cast_mask;
+
+                if (is_signed_integer_type( expr1->u.decl->type ))
+                {
+                    cast_mask = (1u << (cast_type_bits - 1)) - 1;
+                    if (expr2->cval & (1u << (cast_type_bits - 1)))
+                        e->cval = -((-expr2->cval) & cast_mask);
+                    else
+                        e->cval = expr2->cval & cast_mask;
+                }
+                else
+                {
+                    /* calculate ((1 << cast_type_bits) - 1) avoiding overflow */
+                    cast_mask = ((1u << (cast_type_bits - 1)) - 1) | 1u << (cast_type_bits - 1);
+                    e->cval = expr2->cval & cast_mask;
+                }
+            }
             break;
         default:
             e->is_const = FALSE;
