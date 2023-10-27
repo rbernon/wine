@@ -1237,7 +1237,7 @@ static void write_default_value(msft_typelib_t *typelib, type_t *type, expr_t *e
             case EXPR_DOUBLE:
                 vt = VT_R4;
                 break;
-            case EXPR_NUM:
+            case EXPR_INT:
                 vt = VT_I4;
                 break;
             default:
@@ -1299,8 +1299,8 @@ static void set_custdata_attr(msft_typelib_t *typelib, attr_custdata_t *custdata
         case EXPR_WSTRLIT:
             set_custdata(typelib, &custdata->id, VT_BSTR, custdata->pval->u.sval, offset);
             break;
-        case EXPR_NUM:
-            set_custdata(typelib, &custdata->id, VT_I4, &custdata->pval->u.integer.value, offset);
+        case EXPR_INT:
+            set_custdata(typelib, &custdata->id, VT_I4, &custdata->pval->u.lval, offset);
             break;
         default:
             error("custom() attribute with unknown type\n");
