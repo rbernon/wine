@@ -39,11 +39,6 @@ user_type_list_t user_type_list = LIST_INIT(user_type_list);
 context_handle_list_t context_handle_list = LIST_INIT(context_handle_list);
 generic_handle_list_t generic_handle_list = LIST_INIT(generic_handle_list);
 
-static void write_apicontract_guard_start(FILE *header, const expr_t *expr);
-static void write_apicontract_guard_end(FILE *header, const expr_t *expr);
-
-static void write_widl_using_macros(FILE *header, type_t *iface);
-
 static void write_declspec_full( FILE *h, const decl_spec_t *ds, int is_field, int declonly,
                                  const char *name, enum name_type name_type );
 
@@ -65,6 +60,46 @@ static void write_line(FILE *f, int delta, const char *fmt, ...)
     fprintf(f, "\n");
 }
 
+static int is_override_method( const type_t *iface, const type_t *child, const var_t *func )
+{
+    if (iface == child) return 0;
+
+    do
+    {
+        const statement_t *stmt;
+        STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts( child ) )
+        {
+            const var_t *funccmp = stmt->u.var;
+
+            if (!is_callas( func->attrs ))
+            {
+                char inherit_name[256];
+                /* compare full name including property prefix */
+                strcpy( inherit_name, get_name( funccmp ) );
+                if (!strcmp( inherit_name, get_name( func ) )) return 1;
+            }
+        }
+    } while ((child = type_iface_get_inherit( child )) && child != iface);
+
+    return 0;
+}
+
+void *get_attrp(const attr_list_t *list, enum attr_type t)
+{
+    const attr_t *attr;
+    if (list) LIST_FOR_EACH_ENTRY( attr, list, const attr_t, entry )
+        if (attr->type == t) return attr->u.pval;
+    return NULL;
+}
+
+unsigned int get_attrv(const attr_list_t *list, enum attr_type t)
+{
+    const attr_t *attr;
+    if (list) LIST_FOR_EACH_ENTRY( attr, list, const attr_t, entry )
+        if (attr->type == t) return attr->u.ival;
+    return 0;
+}
+
 static char *format_parameterized_type_args(const type_t *type, const char *prefix, const char *suffix)
 {
     struct strbuf str = {0};
@@ -81,6 +116,83 @@ static char *format_parameterized_type_args(const type_t *type, const char *pref
 
     if (!str.buf) return xstrdup( "" );
     return str.buf;
+}
+
+static char *format_apicontract_macro( const type_t *type )
+{
+    char *name = format_namespace( type->namespace, "", "_", type->name, NULL );
+    int i;
+    for (i = strlen( name ); i > 0; --i) name[i - 1] = toupper( name[i - 1] );
+    return name;
+}
+
+static void write_apicontract_guard_start( FILE *header, const expr_t *expr )
+{
+    const type_t *type;
+    char *name;
+    int ver;
+    if (!winrt_mode) return;
+    type = expr->u.args[0]->u.decl->type;
+    ver = expr->u.args[1]->u.lval;
+    name = format_apicontract_macro( type );
+    fprintf( header, "#if %s_VERSION >= %#x\n", name, ver );
+    free( name );
+}
+
+static void write_apicontract_guard_end( FILE *header, const expr_t *expr )
+{
+    const type_t *type;
+    char *name;
+    int ver;
+    if (!winrt_mode) return;
+    type = expr->u.args[0]->u.decl->type;
+    ver = expr->u.args[1]->u.lval;
+    name = format_apicontract_macro( type );
+    fprintf( header, "#endif /* %s_VERSION >= %#x */\n", name, ver );
+    free( name );
+}
+
+static void write_widl_using_method_macros( FILE *header, const type_t *iface, const type_t *top_iface )
+{
+    const statement_t *stmt;
+    const char *name = top_iface->short_name ? top_iface->short_name : top_iface->name;
+
+    if (type_iface_get_inherit( iface ))
+        write_widl_using_method_macros( header, type_iface_get_inherit( iface ), top_iface );
+
+    STATEMENTS_FOR_EACH_FUNC( stmt, type_iface_get_stmts( iface ) )
+    {
+        const var_t *func = stmt->u.var;
+        const char *func_name;
+
+        if (is_override_method( iface, top_iface, func )) continue;
+        if (is_callas( func->attrs )) continue;
+
+        func_name = get_name( func );
+        fprintf( header, "#define %s_%s %s_%s\n", name, func_name, top_iface->c_name, func_name );
+    }
+}
+
+static void write_widl_using_macros( FILE *header, type_t *iface )
+{
+    const struct uuid *uuid = get_attrp( iface->attrs, ATTR_UUID );
+    const char *name = iface->short_name ? iface->short_name : iface->name;
+    char *macro;
+
+    if (!strcmp( iface->name, iface->c_name )) return;
+
+    macro = format_namespace( iface->namespace, "WIDL_using_", "_", NULL, NULL );
+    fprintf( header, "#ifdef %s\n", macro );
+
+    if (uuid) fprintf( header, "#define IID_%s IID_%s\n", name, iface->c_name );
+    if (iface->type_type == TYPE_INTERFACE)
+        fprintf( header, "#define %sVtbl %sVtbl\n", name, iface->c_name );
+    fprintf( header, "#define %s %s\n", name, iface->c_name );
+
+    if (iface->type_type == TYPE_INTERFACE) write_widl_using_method_macros( header, iface, iface );
+
+    fprintf( header, "#endif /* %s */\n", macro );
+    free( macro );
 }
 
 static void write_guid(FILE *f, const char *guid_prefix, const char *name, const struct uuid *uuid)
@@ -1062,32 +1174,6 @@ static int is_inherited_method(const type_t *iface, const var_t *func)
   return 0;
 }
 
-static int is_override_method(const type_t *iface, const type_t *child, const var_t *func)
-{
-  if (iface == child)
-    return 0;
-
-  do
-  {
-    const statement_t *stmt;
-    STATEMENTS_FOR_EACH_FUNC(stmt, type_iface_get_stmts(child))
-    {
-      const var_t *funccmp = stmt->u.var;
-
-      if (!is_callas(func->attrs))
-      {
-         char inherit_name[256];
-         /* compare full name including property prefix */
-         strcpy(inherit_name, get_name(funccmp));
-         if (!strcmp(inherit_name, get_name(func))) return 1;
-      }
-    }
-  }
-  while ((child = type_iface_get_inherit(child)) && child != iface);
-
-  return 0;
-}
-
 static int is_aggregate_return(const var_t *func)
 {
   enum type_type type = type_get_type(type_function_get_rettype(func->declspec.type));
@@ -1641,40 +1727,6 @@ static void write_forward(FILE *header, type_t *iface)
   fprintf(header, "#endif\n\n" );
 }
 
-static char *format_apicontract_macro(const type_t *type)
-{
-    char *name = format_namespace(type->namespace, "", "_", type->name, NULL);
-    int i;
-    for (i = strlen(name); i > 0; --i) name[i - 1] = toupper(name[i - 1]);
-    return name;
-}
-
-static void write_apicontract_guard_start(FILE *header, const expr_t *expr)
-{
-    const type_t *type;
-    char *name;
-    int ver;
-    if (!winrt_mode) return;
-    type = expr->u.args[0]->u.decl->type;
-    ver = expr->u.args[1]->u.lval;
-    name = format_apicontract_macro(type);
-    fprintf(header, "#if %s_VERSION >= %#x\n", name, ver);
-    free(name);
-}
-
-static void write_apicontract_guard_end(FILE *header, const expr_t *expr)
-{
-    const type_t *type;
-    char *name;
-    int ver;
-    if (!winrt_mode) return;
-    type = expr->u.args[0]->u.decl->type;
-    ver = expr->u.args[1]->u.lval;
-    name = format_apicontract_macro(type);
-    fprintf(header, "#endif /* %s_VERSION >= %#x */\n", name, ver);
-    free(name);
-}
-
 static void write_com_interface_start(FILE *header, const type_t *iface)
 {
   int dispinterface = is_attr(iface->attrs, ATTR_DISPINTERFACE);
@@ -1685,47 +1737,6 @@ static void write_com_interface_start(FILE *header, const type_t *iface)
   if (contract) write_apicontract_guard_start(header, contract);
   fprintf(header,"#ifndef __%s_%sINTERFACE_DEFINED__\n", iface->c_name, dispinterface ? "DISP" : "");
   fprintf(header,"#define __%s_%sINTERFACE_DEFINED__\n\n", iface->c_name, dispinterface ? "DISP" : "");
-}
-
-static void write_widl_using_method_macros(FILE *header, const type_t *iface, const type_t *top_iface)
-{
-    const statement_t *stmt;
-    const char *name = top_iface->short_name ? top_iface->short_name : top_iface->name;
-
-    if (type_iface_get_inherit(iface)) write_widl_using_method_macros(header, type_iface_get_inherit(iface), top_iface);
-
-    STATEMENTS_FOR_EACH_FUNC(stmt, type_iface_get_stmts(iface))
-    {
-        const var_t *func = stmt->u.var;
-        const char *func_name;
-
-        if (is_override_method(iface, top_iface, func)) continue;
-        if (is_callas(func->attrs)) continue;
-
-        func_name = get_name(func);
-        fprintf(header, "#define %s_%s %s_%s\n", name, func_name, top_iface->c_name, func_name);
-    }
-}
-
-static void write_widl_using_macros(FILE *header, type_t *iface)
-{
-    const struct uuid *uuid = get_attrp(iface->attrs, ATTR_UUID);
-    const char *name = iface->short_name ? iface->short_name : iface->name;
-    char *macro;
-
-    if (!strcmp(iface->name, iface->c_name)) return;
-
-    macro = format_namespace(iface->namespace, "WIDL_using_", "_", NULL, NULL);
-    fprintf(header, "#ifdef %s\n", macro);
-
-    if (uuid) fprintf(header, "#define IID_%s IID_%s\n", name, iface->c_name);
-    if (iface->type_type == TYPE_INTERFACE) fprintf(header, "#define %sVtbl %sVtbl\n", name, iface->c_name);
-    fprintf(header, "#define %s %s\n", name, iface->c_name);
-
-    if (iface->type_type == TYPE_INTERFACE) write_widl_using_method_macros(header, iface, iface);
-
-    fprintf(header, "#endif /* %s */\n", macro);
-    free(macro);
 }
 
 static void write_com_interface_end(FILE *header, type_t *iface)
