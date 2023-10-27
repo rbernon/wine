@@ -190,6 +190,7 @@ enum attr_type
 enum expr_type
 {
     EXPR_VOID,
+    EXPR_DECL,
     EXPR_INT,
     EXPR_DOUBLE,
     EXPR_IDENTIFIER,
@@ -360,9 +361,9 @@ struct _expr_t {
     struct integer integer;
     double dval;
     const char *sval;
+    decl_spec_t *decl;
     const expr_t *args[3];
   } u;
-  decl_spec_t tref;
   int is_const;
   int cval;
   /* parser-internal */
