@@ -190,3 +190,20 @@ win10-21h2-64:
     - win10-21h2
   script:
     - ./winetest64.exe -q
+
+test-marvin:
+  stage: test
+  image: $CI_REGISTRY/wine/wine:debian-bookworm
+  interruptible: true
+  variables:
+    GIT_DEPTH: 0
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+  script:
+    - export URL="$CI_MERGE_REQUEST_PROJECT_URL/-/merge_requests/$CI_MERGE_REQUEST_IID"
+    - git diff $CI_MERGE_REQUEST_DIFF_BASE_SHA >patch
+    - echo $MARVIN_PASSWORD >secret
+    - cat secret
+    - echo $MARVIN_PASSWORD | tools/marvin-ctl login $MARVIN_USERNAME
+    - tools/marvin-ctl list $MARVIN_USERNAME --running | grep "$URL" | xargs -E $MARVIN_USERNAME tools/marvin-ctl cancel
+    - tools/marvin-ctl all --remarks "$URL" patch | xargs tools/marvin-ctl status --wait
