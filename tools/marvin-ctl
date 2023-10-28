@@ -1,0 +1,315 @@
+#!/usr/bin/env python3
+
+# marvin-ctl - Control the Marvin bot running at testbot.winehq.org
+# Copyright (C) 2021 Giovanni Mascellani for CodeWeavers
+# Copyright (C) 2022 Rémi Bernon for CodeWeavers
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+
+"""
+Usage:
+  marvin-ctl [options] login <username>
+  marvin-ctl [options] list [--running] [<user>]
+  marvin-ctl [options] cancel <url>
+  marvin-ctl [options] status [--wait] <url>
+  marvin-ctl [options] deb <patch> [--] [<cmdline>...]
+  marvin-ctl [options] win <patch> [--] [<cmdline>...]
+  marvin-ctl [options] all <patch> [--] [<cmdline>...]
+
+Commands:
+  login <username>            Login to Marvin
+  list [--running] [<user>]   List jobs
+  cancel <url>                Cancel job
+  status [--wait] <url>       Print job status
+  deb <patch> [<cmdline>...]  Run tests on Debian
+  win <patch> [<cmdline>...]  Run tests on Windows
+  all <patch> [<cmdline>...]  Run tests on Debian and Windows
+
+Options:
+  -V, --vms <vm>[,<vm>...]  Explicit VM list
+  -l, --lang <locale>       Run on localized VMs [default: en_US]
+  -e, --extra               Run on extra VMs
+  -d, --driver              Run on test signed driver VMs
+  -t, --test <test>         Run this test instead of detecting it
+  --remarks <remarks>       Set submitted job remarks
+  --debug <debug>           Set winetest debug level [default: 1]
+  --32                      Choose 32 bit Windows only
+  --64                      Choose 64 bit Windows only
+  -1, --one                 Choose just one Windows VM
+  -D, --dry-run             Dry run (just print the list of VMs and jobs)
+"""
+
+import collections
+import subprocess
+import requests
+import getpass
+import docopt
+import pickle
+import shutil
+import time
+import bs4
+import sys
+import os
+import re
+
+LOCALES = ['ar_MA', 'de_DE', 'el_GR', 'en_US', 'en_AE', 'es_ES', 'fr_FR', 'he_IL', 'hi_IN', 'ja_JP', 'ko_KR', 'mx_MX', 'pt_BR', 'pt_PT', 'ru_RU', 'zh_CN']
+
+VMS = {
+  'debian11':         { 'type': 'deb',   'default': True,  'driver': True,  'locales': LOCALES },
+  'debiant':          { 'type': 'deb',   'default': False, 'driver': True,  'locales': LOCALES },
+  'debiant11b':       { 'type': 'deb',   'default': False, 'driver': True,  'locales': LOCALES },
+
+  'w1064_tsign':      { 'type': 'win64', 'default': True,  'driver': True,  'locales': ['en_US'] },
+  'w864_tsign':       { 'type': 'win64', 'default': True,  'driver': True,  'locales': ['en_US'] },
+  'w7u_tsign':        { 'type': 'win32', 'default': True,  'driver': True,  'locales': ['en_US'] },
+  'w1064':            { 'type': 'win64', 'default': True,  'driver': False, 'locales': ['en_US'] },
+  'w1064_2qxl':       { 'type': 'win64', 'default': True,  'driver': False, 'locales': ['en_US'] },
+  'w1064v1507':       { 'type': 'win64', 'default': True,  'driver': False, 'locales': ['en_US'] },
+  'w1064v1809':       { 'type': 'win64', 'default': True,  'driver': False, 'locales': ['en_US'] },
+  'w10pro64':         { 'type': 'win64', 'default': True,  'driver': False, 'locales': ['en_US'] },
+  'w11pro64':         { 'type': 'win64', 'default': True,  'driver': False, 'locales': ['en_US'] },
+  'w864':             { 'type': 'win64', 'default': True,  'driver': False, 'locales': ['en_US'] },
+  'w10pro64_ar':      { 'type': 'win64', 'default': True,  'driver': False, 'locales': ['ar_MA'] },
+  'w10pro64_he':      { 'type': 'win64', 'default': True,  'driver': False, 'locales': ['he_IL'] },
+  'w10pro64_ja':      { 'type': 'win64', 'default': True,  'driver': False, 'locales': ['ja_JP'] },
+  'w10pro64_zh_CN':   { 'type': 'win64', 'default': True,  'driver': False, 'locales': ['zh_CN'] },
+  'w1064_1qxl':       { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'w1064_adm':        { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'w1064v1607':       { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'w1064v1709':       { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'w1064v1909':       { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'w1064v2009':       { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'w1064v21h2':       { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'w11pro64_amd':     { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'w11pro64_nv':      { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'w11pro64_en_AE_u8':{ 'type': 'win64', 'default': False, 'driver': False, 'locales': ['en_AE'] },
+  'w10pro64_de':      { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['de_DE'] },
+  'w10pro64_fr':      { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['fr_FR'] },
+  'w10pro64_hi':      { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['hi_IN'] },
+  'w10pro64_hi_u8':   { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['hi_IN'] },
+  'w10pro64_ko':      { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['ko_KR'] },
+  'w10pro64_mx_MX':   { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['mx_MX'] },
+  'w10pro64_pt_BR':   { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['pt_BR'] },
+  'w10pro64_pt_PT':   { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['pt_PT'] },
+  'w10pro64_ru':      { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['ru_RU'] },
+  'w10pro64v2004':    { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'w2008s64':         { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'w7pro64':          { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'wvistau64':        { 'type': 'win64', 'default': False, 'driver': False, 'locales': ['en_US'] },
+
+  'w7u_2qxl':         { 'type': 'win32', 'default': True,  'driver': True,  'locales': ['en_US'] },
+  'w8':               { 'type': 'win32', 'default': True,  'driver': True,  'locales': ['en_US'] },
+  'w7u_adm':          { 'type': 'win32', 'default': True,  'driver': False, 'locales': ['en_US'] },
+  'w8adm':            { 'type': 'win32', 'default': True,  'driver': False, 'locales': ['en_US'] },
+  'w7u_el':           { 'type': 'win32', 'default': True,  'driver': True,  'locales': ['el_GR'] },
+  'w2000pro':         { 'type': 'win32', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'w2003std':         { 'type': 'win32', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'w7u':              { 'type': 'win32', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'w7u_1qxl':         { 'type': 'win32', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'w7u_de':           { 'type': 'win32', 'default': False, 'driver': True,  'locales': ['de_DE'] },
+  'w7u_es':           { 'type': 'win32', 'default': False, 'driver': True,  'locales': ['es_ES'] },
+  'w7u_pt_PT':        { 'type': 'win32', 'default': False, 'driver': True,  'locales': ['pt_PT'] },
+  'wvista':           { 'type': 'win32', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'wvistaadm':        { 'type': 'win32', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'wxppro':           { 'type': 'win32', 'default': False, 'driver': False, 'locales': ['en_US'] },
+  'wxppro_2scr':      { 'type': 'win32', 'default': False, 'driver': False, 'locales': ['en_US'] },
+}
+
+def run(args, session):
+    data = {
+        'Page': '4',
+        'Branch': 'master',
+        'ShowAll': '1',
+        'UserVMSelection': '1',
+        'Remarks': args['remarks'],
+        'Run32': 'on',
+        'Run64': 'on',
+        'DebugLevel': args['debug'],
+        'Action': 'Submit',
+    }
+
+    if args['<patch>'].endswith('.exe'):
+        shutil.copy(args['<patch>'], 'test.exe')
+        args['<patch>'] = 'test.exe'
+    elif args['<patch>'][0] == '0' and '-' in args['<patch>']:
+        shutil.copy(args['<patch>'], args['<patch>'].split('-')[0] + '.patch')
+        args['<patch>'] = args['<patch>'].split('-')[0] + '.patch'
+    else:
+        shutil.copy(args['<patch>'], 'patch')
+        args['<patch>'] = 'patch'
+
+    files = {'Upload': open(args['<patch>'], 'rb')}
+
+    if args['lang'] != 'en_US': args['extra'] = True
+    if len(args['<cmdline>']) and args['<cmdline>'][0] == '--':
+        args['<cmdline>'] = args['<cmdline>'][1:]
+    if args['<patch>'].endswith('.exe') and not args['64']:
+        output = subprocess.check_output(['file', args['<patch>']],
+                                         encoding='utf-8')
+        args['64'] = 'PE32+' in output
+
+    if args['vms'] is not None:
+        vms = {k: v for k, v in VMS.items() if k in args['vms'].split(',')}
+    else: 
+        vms = {k: v for k, v in VMS.items()}
+        vms = {k: v for k, v in vms.items() if args['all'] or args[v['type'][:3]]}
+        vms = {k: v for k, v in vms.items() if v['default'] or args['extra'] or args['driver']}
+        vms = {k: v for k, v in vms.items() if args['lang'] in v['locales'] or args['driver']}
+        if args['driver']: vms = {k: v for k, v in vms.items() if v['driver']}
+        if args['32']: vms = {k: v for k, v in vms.items() if v['type'] != 'win64'}
+        if args['64']: vms = {k: v for k, v in vms.items() if v['type'] != 'win32'}
+        if args['one']: vms = {k: v for k, v in list(vms.items())[0:1]}
+    assert len(vms) > 0
+
+    if args['<patch>'].endswith('.exe'):
+        data['TestExecutable'] = os.path.basename(args['<patch>'])
+        data['CmdLineArg'] = ' '.join(args['<cmdline>'])
+        data['NoCmdLineArgWarn'] = '1'
+    elif args['test']:
+        assert len(args['<cmdline>']) > 0
+        data['CmdLineArg'] = ' '.join(args['<cmdline>'])
+        data['TestExecutable'] = f'{args["test"]}_test.exe'
+        print(f"Running {data['TestExecutable']} {data['CmdLineArg']} on {' '.join(vms.keys())}")
+    else:
+        assert len(args['<cmdline>']) > 0
+        data['CmdLineArg'] = ' '.join(args['<cmdline>'])
+        with open(args['<patch>'], 'r') as src:
+            for line in [l for l in src if 'diff --git' in l and
+                         'dlls' in l and 'tests' in l]:
+                split = line.strip().split("/")
+                data['TestExecutable'] = f'{split[2]}_test.exe'
+        print(f"Running {data['TestExecutable']} {data['CmdLineArg']} on {' '.join(vms.keys())}")
+
+    for k, v in vms.items():
+        if v['type'] == 'deb':
+            if not args['64']:
+                data[f'win32_{k}'] = 'on'
+                data[f'win32_{k}_lang'] = args['lang']
+            if not args['<patch>'].endswith('.exe') or args['64']:
+                data[f'wow64_{k}'] = 'on'
+                data[f'wow64_{k}_lang'] = args['lang']
+            if not args['64']:
+                data[f'wow32_{k}'] = 'on'
+                data[f'wow32_{k}_lang'] = args['lang']
+        else:
+            data[f'vm_{k}'] = 'on'
+
+    if args['dry_run']:
+        print(args)
+        print(data)
+        return
+
+    rep = session.post('https://testbot.winehq.org/Submit.pl',
+                       data=data, files=files, allow_redirects=False)
+    rep.raise_for_status()
+    try: print(rep.headers['Location'])
+    except: print(rep.content.decode('utf-8'))
+
+def login(args, session):
+    data = {'Name': args['<username>'], 'Password': getpass.getpass(), 'Action': 'Log in'}
+    rep = session.post('https://testbot.winehq.org/Login.pl', data=data)
+    rep.raise_for_status()
+    with open(os.path.expanduser('~/.cache/marvinctl'), 'wb') as cookies:
+        pickle.dump(session.cookies, cookies)
+
+def list(args, session):
+    rep = session.get('https://testbot.winehq.org')
+    rep.raise_for_status()
+    soup = bs4.BeautifulSoup(rep.content, 'html.parser')
+
+    for tr in soup.table.find_all('tr')[1:]:
+        fields = [td.get_text() for td in tr.find_all('td')]
+        key, user, _, _, status, remarks, submitted, elapsed = fields
+        if 'running' not in status and args['running']: continue
+        if args['<user>'] and user != args['<user>']: continue
+        print(f'{key} {user:16s} {status:16s} {remarks}')
+
+def cancel(args, session):
+    if '?Key=' not in args['<url>']: key = args['<url>']
+    else: key = args['<url>'].split('=')[1]
+
+    data = {'Action': 'Stop job', 'JobId': key}
+    rep = session.post(f'https://testbot.winehq.org/JobDetails.pl?Key={key}',
+                       data=data, allow_redirects=False)
+    rep.raise_for_status()
+    soup = bs4.BeautifulSoup(rep.content, 'html.parser')
+    for tag in soup.find_all('script'):
+        if 'alert' not in tag.get_text(): continue
+        print('error:', re.sub(r'.*alert\("(?:\\n)*(.*)"\).*', f'\\1',
+                               tag.get_text(), flags=re.DOTALL))
+
+def status(args, session):
+    if '?Key=' not in args['<url>']: key = args['<url>']
+    else: key = args['<url>'].split('=')[1]
+
+    while True:
+        rep = session.get(f'https://testbot.winehq.org/JobDetails.pl?Key={key}')
+        rep.raise_for_status()
+
+        soup = bs4.BeautifulSoup(rep.content, 'html.parser')
+        if len(soup.script.text.strip()) == 0: break
+        if not args['wait']: break
+        time.sleep(30)
+
+    ret = 0
+
+    for tr in soup.table.find_all('tr')[1:]:
+        fields = [td.get_text() for td in tr.find_all('td')]
+        _, status, vm, _, _, _, _, elapsed, warn, err, _ = fields
+
+        if len(warn.strip()) == 0: warn = '0/0'
+        elif '/' not in warn: warn = f'{warn}/0'
+        warn_new, warn_old = [int(w) for w in warn.split('/')]
+
+        if len(err.strip()) == 0: err = '0/0'
+        elif '/' not in err: err = f'{err}/0'
+        err_new, err_old = [int(w) for w in err.split('/')]
+
+        status = f'{err_new:3d} / {err_old:<3d} {warn_new:3d} / {warn_old:<3d}'
+        print(f'{vm:16s} {status:10s} {elapsed:8s} {status}')
+
+        ret += 1 if err_new or warn_new else 0
+
+    for tag in soup.find_all(['h2', 'code']):
+        if tag.name == 'h2':
+            title = tag.get_text().strip(' ↑↓')
+        else:
+            print(f'\n{"="*100}\n{title}\n{"="*100}')
+            print(tag.get_text().strip())
+
+    exit(ret)
+
+def main():
+    args = docopt.docopt(__doc__, version='marvin-ctl v1.0.0')
+    args = dict(((k if '--' not in k else k.strip('-').replace('-', '_'),v)
+               for k,v in args.items()))
+
+    session = requests.Session()
+    if args['login']:
+        login(args, session)
+    else:
+        with open(os.path.expanduser('~/.cache/marvinctl'), 'rb') as cookies:
+            session.cookies.update(pickle.load(cookies))
+        if args['list']:
+            list(args, session)
+        elif args['cancel']:
+            cancel(args, session)
+        elif args['status']:
+            status(args, session)
+        else:
+            run(args, session)
+
+if __name__ == '__main__':
+    main()
