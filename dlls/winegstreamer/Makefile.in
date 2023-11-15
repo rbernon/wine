@@ -29,4 +29,10 @@ SOURCES = \
 	wg_transform.c \
 	winegstreamer_classes.idl \
 	wm_reader.c \
-	wma_decoder.c
+	wma_decoder.c \
+	media-converter/audioconv.c \
+	media-converter/audioconvbin.c \
+	media-converter/fossilize.c \
+	media-converter/lib.c \
+	media-converter/murmur3.c \
+	media-converter/videoconv.c
