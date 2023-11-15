@@ -46,6 +46,8 @@
 
 GST_DEBUG_CATEGORY(wine);
 
+extern bool media_converter_init(void);
+
 static UINT thread_count;
 
 GstGLDisplay *gl_display;
@@ -342,6 +344,13 @@ NTSTATUS wg_init_gstreamer(void *arg)
             gst_object_unref(gl_display);
             gl_display = NULL;
         }
+    }
+
+    if (!media_converter_init())
+    {
+        GST_ERROR("Failed to init media converter.");
+        gst_object_unref(gl_display);
+        return STATUS_UNSUCCESSFUL;
     }
 
     return STATUS_SUCCESS;
