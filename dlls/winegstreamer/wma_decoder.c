@@ -1049,7 +1049,7 @@ static const IPropertyBagVtbl property_bag_vtbl =
     property_bag_Write,
 };
 
-HRESULT wma_decoder_create(IUnknown *outer, IUnknown **out)
+HRESULT wma_decoder_create2(IUnknown *outer, IUnknown **out)
 {
     static const WAVEFORMATEX output_format =
     {
