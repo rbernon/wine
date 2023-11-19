@@ -684,3 +684,21 @@ NTSTATUS wg_source_push_data(void *args)
 
     return STATUS_SUCCESS;
 }
+
+NTSTATUS wg_source_get_stream_type(void *args)
+{
+    struct wg_source_get_stream_type_params *params = args;
+    struct wg_source *source = get_source(params->source);
+    guint index = params->index;
+    NTSTATUS status;
+    GstCaps *caps;
+
+    GST_TRACE("source %p, index %u", source, index);
+
+    if (!(caps = source_get_stream_caps(source, index)))
+        return STATUS_UNSUCCESSFUL;
+    status = caps_to_media_type(caps, &params->media_type, 0);
+    gst_caps_unref(caps);
+    return status;
+}
+

@@ -1895,6 +1895,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_source_get_duration),
     X(wg_source_get_position),
     X(wg_source_push_data),
+    X(wg_source_get_stream_type),
 
     X(wg_transform_create),
     X(wg_transform_destroy),
@@ -2111,6 +2112,33 @@ NTSTATUS wow64_wg_source_push_data(void *args)
     };
 
     return wg_source_push_data(&params);
+}
+
+NTSTATUS wow64_wg_source_get_stream_type(void *args)
+{
+    struct
+    {
+        wg_source_t source;
+        UINT32 index;
+        struct wg_media_type32 media_type;
+    } *params32 = args;
+    struct wg_source_get_stream_type_params params =
+    {
+        .source = params32->source,
+        .index = params32->index,
+        .media_type =
+        {
+            .major = params32->media_type.major,
+            .format_size = params32->media_type.format_size,
+            .u.format = ULongToPtr(params32->media_type.format),
+        },
+    };
+    NTSTATUS status;
+
+    status = wg_source_get_stream_type(&params);
+    params32->media_type.major = params.media_type.major;
+    params32->media_type.format_size = params.media_type.format_size;
+    return status;
 }
 
 NTSTATUS wow64_wg_transform_create(void *args)
@@ -2343,6 +2371,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
     X(wg_source_get_duration),
     X(wg_source_get_position),
     X64(wg_source_push_data),
+    X64(wg_source_get_stream_type),
 
     X64(wg_transform_create),
     X(wg_transform_destroy),

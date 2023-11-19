@@ -558,6 +558,38 @@ HRESULT wg_source_push_data(wg_source_t source, UINT64 offset, const void *data,
     return HRESULT_FROM_NT(WINE_UNIX_CALL(unix_wg_source_push_data, &params));
 }
 
+HRESULT wg_source_get_stream_type(wg_source_t source, UINT32 index, IMFMediaType **media_type)
+{
+    struct wg_source_get_stream_type_params params =
+    {
+        .source = source,
+        .index = index,
+    };
+    NTSTATUS status;
+    HRESULT hr;
+
+    TRACE("source %#I64x, index %u, media_type %p\n", source, index, media_type);
+
+    if ((status = WINE_UNIX_CALL(unix_wg_source_get_stream_type, &params))
+            && status == STATUS_BUFFER_TOO_SMALL)
+    {
+        if (!(params.media_type.u.format = CoTaskMemAlloc(params.media_type.format_size)))
+            return ERROR_OUTOFMEMORY;
+        status = WINE_UNIX_CALL(unix_wg_source_get_stream_type, &params);
+    }
+
+    if (status)
+    {
+        CoTaskMemFree(params.media_type.u.format);
+        WARN("Failed to get output media type, status %#lx\n", status);
+        return HRESULT_FROM_NT(status);
+    }
+
+    hr = wg_media_type_to_mf(&params.media_type, media_type);
+    CoTaskMemFree(params.media_type.u.format);
+    return hr;
+}
+
 HRESULT wg_transform_create_mf(IMFMediaType *input_type, IMFMediaType *output_type,
         const struct wg_transform_attrs *attrs, wg_transform_t *transform)
 {
