@@ -225,6 +225,7 @@ struct media_source
     IMFStreamDescriptor **descriptors;
     struct media_stream **streams;
     ULONG stream_count;
+    UINT *stream_map;
 
     enum
     {
@@ -1613,6 +1614,7 @@ static HRESULT WINAPI media_source_Shutdown(IMFMediaSource *iface)
         IMFMediaEventQueue_Shutdown(stream->event_queue);
         IMFMediaStream_Release(&stream->IMFMediaStream_iface);
     }
+    free(source->stream_map);
     free(source->descriptors);
     free(source->streams);
 
@@ -1658,7 +1660,7 @@ static HRESULT map_stream_to_wg_parser_stream(struct media_source *source, UINT 
     {
         if (parser_streams[i])
             continue;
-        if (FAILED(hr = wg_source_get_stream_type(source->wg_source, i, &media_type)))
+        if (FAILED(hr = wg_source_get_stream_type(source->wg_source, source->stream_map[i], &media_type)))
             return hr;
         if (FAILED(hr = IMFMediaType_GetGUID(media_type, &MF_MT_MAJOR_TYPE, &major))
                 || is_audio != IsEqualGUID(&major, &MFMediaType_Audio)
@@ -1691,6 +1693,64 @@ static void media_source_init_parser_streams(struct media_source *source, UINT s
             continue;
         if (FAILED(hr = map_stream_to_wg_parser_stream(source, stream_count, parser_streams, parser_stream)))
             WARN("Failed to map parser stream %u, hr %#lx\n", i, hr);
+    }
+}
+
+static void media_source_init_stream_map(struct media_source *source, UINT stream_count)
+{
+    IMFMediaType *media_type;
+    int i, n = 0;
+    GUID major;
+
+    if (wcscmp(source->mime_type, L"video/mp4"))
+    {
+        for (i = stream_count - 1; i >= 0; i--)
+        {
+            TRACE("mapping stream %u to wg_source stream %u\n", i, i);
+            source->stream_map[i] = i;
+        }
+        return;
+    }
+
+    for (i = stream_count - 1; i >= 0; i--)
+    {
+        if (SUCCEEDED(wg_source_get_stream_type(source->wg_source, i, &media_type)))
+        {
+            if (SUCCEEDED(IMFMediaType_GetMajorType(media_type, &major))
+                    && IsEqualGUID(&major, &MFMediaType_Audio))
+            {
+                TRACE("mapping stream %u to wg_source stream %u\n", n, i);
+                source->stream_map[n++] = i;
+            }
+            IMFMediaType_Release(media_type);
+        }
+    }
+    for (i = stream_count - 1; i >= 0; i--)
+    {
+        if (SUCCEEDED(wg_source_get_stream_type(source->wg_source, i, &media_type)))
+        {
+            if (SUCCEEDED(IMFMediaType_GetMajorType(media_type, &major))
+                    && IsEqualGUID(&major, &MFMediaType_Video))
+            {
+                TRACE("mapping stream %u to wg_source stream %u\n", n, i);
+                source->stream_map[n++] = i;
+            }
+            IMFMediaType_Release(media_type);
+        }
+    }
+    for (i = stream_count - 1; i >= 0; i--)
+    {
+        if (SUCCEEDED(wg_source_get_stream_type(source->wg_source, i, &media_type)))
+        {
+            if (SUCCEEDED(IMFMediaType_GetMajorType(media_type, &major))
+                    && !IsEqualGUID(&major, &MFMediaType_Audio)
+                    && !IsEqualGUID(&major, &MFMediaType_Video))
+            {
+                TRACE("mapping stream %u to wg_source stream %u\n", n, i);
+                source->stream_map[n++] = i;
+            }
+            IMFMediaType_Release(media_type);
+        }
     }
 }
 
@@ -1764,12 +1824,14 @@ static HRESULT media_source_create(struct object_context *context, UINT32 stream
 
     if (!(object->descriptors = calloc(stream_count, sizeof(*object->descriptors)))
             || !(parser_streams = calloc(stream_count, sizeof(*parser_streams)))
+            || !(object->stream_map = calloc(stream_count, sizeof(*object->stream_map)))
             || !(object->streams = calloc(stream_count, sizeof(*object->streams))))
     {
         hr = E_OUTOFMEMORY;
         goto fail;
     }
 
+    media_source_init_stream_map(object, stream_count);
     media_source_init_parser_streams(object, stream_count, parser_streams);
 
     for (i = 0; i < stream_count; ++i)
@@ -1816,6 +1878,7 @@ fail:
         IMFMediaStream_Release(&stream->IMFMediaStream_iface);
     }
     free(parser_streams);
+    free(object->stream_map);
     free(object->descriptors);
     free(object->streams);
 
