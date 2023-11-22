@@ -557,6 +557,116 @@ static inline void winetest_add_failures( LONG new_failures )
     while (new_failures-- > 0) InterlockedIncrement( &winetest_failures );
 }
 
+#ifdef __IMFAttributes_INTERFACE_DEFINED__
+
+extern const char *debugstr_mf_guid(const GUID *guid);
+
+#define dump_media_type(a) dump_attributes_(__LINE__, (IMFAttributes *)a)
+#define dump_attributes(a) dump_attributes_(__LINE__, a)
+static inline void dump_attributes_(int line, IMFAttributes *attributes)
+{
+    PROPVARIANT value;
+    char buffer[256];
+    UINT32 count;
+    HRESULT hr;
+    GUID guid;
+    int i, j;
+
+    hr = IMFAttributes_GetCount(attributes, &count);
+    ok_(__FILE__, line)(hr == S_OK, "GetCount returned %#lx\n", hr);
+
+    for (i = 0; i < count; ++i)
+    {
+        PropVariantInit(&value);
+        hr = IMFAttributes_GetItemByIndex(attributes, i, &guid, &value);
+        ok_(__FILE__, line)(hr == S_OK, "GetItemByIndex returned %#lx\n", hr);
+        switch (value.vt)
+        {
+        default: sprintf(buffer, "{%s, .vt = %u, .value = %s},", debugstr_mf_guid(&guid), value.vt, buffer); break;
+        case VT_LPWSTR: sprintf(buffer, "ATTR_WSTR(%s, %s),", debugstr_mf_guid(&guid), debugstr_w(value.pwszVal)); break;
+        case VT_CLSID: sprintf(buffer, "ATTR_GUID(%s, %s),", debugstr_mf_guid(&guid), debugstr_mf_guid(value.puuid)); break;
+        case VT_UI4: sprintf(buffer, "ATTR_UINT32(%s, %lu),", debugstr_mf_guid(&guid), value.ulVal); break;
+        case VT_UI8: sprintf(buffer, "ATTR_RATIO(%s, %lu, %lu),", debugstr_mf_guid(&guid), value.uhVal.HighPart, value.uhVal.LowPart); break;
+        case VT_VECTOR | VT_UI1:
+        {
+            char *buf = buffer;
+            buf += sprintf(buf, "ATTR_BLOB(%s, {", debugstr_mf_guid(&guid));
+            for (j = 0; j < 16 && j < value.caub.cElems; ++j)
+                buf += sprintf(buf, "0x%02x,", value.caub.pElems[j]);
+            if (value.caub.cElems > 16)
+                buf += sprintf(buf, "...}");
+            else
+                buf += sprintf(buf - (j ? 1 : 0), "}") - (j ? 1 : 0);
+            buf += sprintf(buf, ", %lu),", value.caub.cElems);
+            break;
+        }
+        }
+
+        ok_(__FILE__, line)(0, "%s\n", buffer);
+        PropVariantClear(&value);
+    }
+}
+
+#if defined(__IPropertyStore_INTERFACE_DEFINED__) && defined(__WINE_OLEAUTO_H)
+
+static inline void dump_properties(IPropertyStore *store)
+{
+    PROPVARIANT value;
+    char buffer[256];
+    PROPERTYKEY key;
+    DWORD count;
+    HRESULT hr;
+    int i, j;
+
+    hr = IPropertyStore_GetCount(store, &count);
+    ok(hr == S_OK, "GetCount returned %#lx\n", hr);
+
+    for (i = 0; i < count; ++i)
+    {
+        hr = IPropertyStore_GetAt(store, i, &key);
+        ok(hr == S_OK, "GetItemByIndex returned %#lx\n", hr);
+
+        PropVariantInit(&value);
+        hr = IPropertyStore_GetValue(store, &key, &value);
+        ok(hr == S_OK, "GetItemByIndex returned %#lx\n", hr);
+        switch (value.vt)
+        {
+        default: sprintf(buffer, "??"); break;
+        case VT_EMPTY: break;
+        case VT_BSTR: sprintf(buffer, "%s", debugstr_w(value.bstrVal)); break;
+        case VT_CLSID: sprintf(buffer, "%s", debugstr_mf_guid(value.puuid)); break;
+        case VT_BOOL: sprintf(buffer, "%u", value.boolVal); break;
+        case VT_R4: sprintf(buffer, "%f", value.fltVal); break;
+        case VT_I4: sprintf(buffer, "%ld", value.lVal); break;
+        case VT_UI4: sprintf(buffer, "%lu", value.ulVal); break;
+        case VT_UI8: sprintf(buffer, "%lu:%lu", value.uhVal.HighPart, value.uhVal.LowPart); break;
+        case VT_ARRAY | VT_UI1:
+        case VT_ARRAY | VT_I4:
+        {
+            char *buf = buffer;
+            buf += sprintf(buf, "dim %u, data {", SafeArrayGetDim(value.parray));
+            for (j = 0; j < 16 && j < value.cai.cElems; ++j)
+            {
+                LONG dims[16] = {j}, elem = 0;
+                SafeArrayGetElement(value.parray, dims, &elem);
+                buf += sprintf(buf, "%#lx,", elem);
+            }
+            if (value.cai.cElems > 16)
+                buf += sprintf(buf, "...}");
+            else
+                buf += sprintf(buf - (j ? 1 : 0), "}");
+            break;
+        }
+        }
+
+        ok(0, "%s-%lu, type %u, value %s\n", debugstr_mf_guid(&key.fmtid), key.pid, value.vt, buffer);
+        PropVariantClear(&value);
+    }
+}
+
+#endif
+
+#endif
 
 /************************************************************************/
 /* Below is the implementation of the various functions, to be included
