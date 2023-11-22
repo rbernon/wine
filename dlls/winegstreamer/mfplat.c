@@ -123,6 +123,7 @@ static const IClassFactoryVtbl class_factory_vtbl =
 static const GUID CLSID_GStreamerAudioDecoder = {0x480b1517, 0xc8e9, 0x4eae, {0xb0, 0x06, 0xe6, 0x30, 0x07, 0x18, 0xd8, 0x5d}};
 static const GUID CLSID_GStreamerVideoDecoder = {0x480b1518, 0xc8e9, 0x4eae, {0xb0, 0x06, 0xe6, 0x30, 0x07, 0x18, 0xd8, 0x5d}};
 static const GUID CLSID_GStreamerByteStreamHandler = {0x317df618, 0x5e5a, 0x468a, {0x9f, 0x15, 0xd8, 0x27, 0xa9, 0xa0, 0x81, 0x62}};
+static const GUID CLSID_GStreamerByteStreamHandler2 = {0x317df619, 0x5e5a, 0x468a, {0x9f, 0x15, 0xd8, 0x27, 0xa9, 0xa0, 0x81, 0x62}};
 
 static const struct class_object
 {
@@ -135,6 +136,7 @@ class_objects[] =
     { &CLSID_GStreamerVideoDecoder, &video_decoder_create },
     { &CLSID_VideoProcessorMFT, &video_processor_create },
     { &CLSID_GStreamerByteStreamHandler, &gstreamer_byte_stream_handler_create },
+    { &CLSID_GStreamerByteStreamHandler2, &gstreamer_byte_stream_handler_2_create },
     { &CLSID_MSAACDecMFT, &aac_decoder_create },
     { &CLSID_MSH264DecoderMFT, &h264_decoder_create },
     { &CLSID_MSH264EncoderMFT, &h264_encoder_create },
