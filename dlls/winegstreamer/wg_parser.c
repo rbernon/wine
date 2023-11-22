@@ -1884,6 +1884,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
 
     X(wg_source_create),
     X(wg_source_destroy),
+    X(wg_source_push_data),
 
     X(wg_transform_create),
     X(wg_transform_destroy),
@@ -2078,6 +2079,24 @@ NTSTATUS wow64_wg_source_create(void *args)
     ret = wg_source_create(&params);
     params32->source = params.source;
     return ret;
+}
+
+NTSTATUS wow64_wg_source_push_data(void *args)
+{
+    struct
+    {
+        wg_source_t source;
+        PTR32 data;
+        UINT32 size;
+    } *params32 = args;
+    struct wg_source_push_data_params params =
+    {
+        .source = params32->source,
+        .data = ULongToPtr(params32->data),
+        .size = params32->size,
+    };
+
+    return wg_source_push_data(&params);
 }
 
 NTSTATUS wow64_wg_transform_create(void *args)
@@ -2306,6 +2325,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
 
     X64(wg_source_create),
     X(wg_source_destroy),
+    X64(wg_source_push_data),
 
     X64(wg_transform_create),
     X(wg_transform_destroy),
