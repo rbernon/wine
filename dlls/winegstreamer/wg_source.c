@@ -108,6 +108,20 @@ static GstPad *create_pad_with_caps(GstPadDirection direction, GstCaps *caps)
     return pad;
 }
 
+static gboolean src_query_duration(struct wg_source *source, GstQuery *query)
+{
+    GstFormat format;
+
+    GST_LOG("source %p, query %" GST_PTR_FORMAT, source, query);
+
+    gst_query_parse_duration(query, &format, NULL);
+    if (format != GST_FORMAT_BYTES)
+        return false;
+
+    gst_query_set_duration(query, format, source->segment.stop);
+    return true;
+}
+
 static gboolean src_query_uri(struct wg_source *source, GstQuery *query)
 {
     gchar *uri;
@@ -126,6 +140,8 @@ static gboolean src_query_cb(GstPad *pad, GstObject *parent, GstQuery *query)
 
     switch (GST_QUERY_TYPE(query))
     {
+    case GST_QUERY_DURATION:
+        return src_query_duration(source, query);
     case GST_QUERY_URI:
         if (!source->url)
             return false;
@@ -152,6 +168,7 @@ NTSTATUS wg_source_create(void *args)
     }
     source->url = params->url ? strdup(params->url) : NULL;
     gst_segment_init(&source->segment, GST_FORMAT_BYTES);
+    source->segment.stop = params->file_size;
 
     if (!(source->container = gst_bin_new("wg_source")))
         goto error;

@@ -2049,7 +2049,8 @@ static HRESULT WINAPI stream_handler_callback_Invoke(IMFAsyncCallback *iface, IM
 
     if (FAILED(hr = IMFByteStream_EndRead(context->stream, result, &size)))
         WARN("Failed to complete stream read, hr %#lx\n", hr);
-    else if (FAILED(hr = wg_source_create(context->url, context->buffer, size, &context->wg_source)))
+    else if (FAILED(hr = wg_source_create(context->url, context->file_size,
+            context->buffer, size, &context->wg_source)))
         WARN("Failed to create wg_source, hr %#lx\n", hr);
     else if (FAILED(hr = wg_source_push_data(context->wg_source, context->read_offset, context->buffer, size)))
         WARN("Failed to push wg_source data, hr %#lx\n", hr);
