@@ -8366,6 +8366,59 @@ static void test_MFInitAMMediaTypeFromMFMediaType(void)
     static const BYTE dummy_mpeg_sequence[] = {0x04,0x05,0x06,0x07,0x08};
     static const BYTE dummy_user_data[] = {0x01,0x02,0x03};
 
+    static const struct video_type_pair
+    {
+        const GUID *am_type;
+        const GUID *mf_type;
+        UINT extra_size;
+    } video_types[] =
+    {
+        /* these RGB formats are converted, MEDIASUBTYPE variant isn't
+         * defined using DEFINE_MEDIATYPE_GUID */
+        { &MEDIASUBTYPE_RGB1, &MFVideoFormat_RGB1, 0 },
+        { &MEDIASUBTYPE_RGB4, &MFVideoFormat_RGB4, 0 },
+        { &MEDIASUBTYPE_RGB8, &MFVideoFormat_RGB8, 0 },
+        { &MEDIASUBTYPE_RGB555, &MFVideoFormat_RGB555, 0 },
+        { &MEDIASUBTYPE_RGB565, &MFVideoFormat_RGB565, 12 },
+        { &MEDIASUBTYPE_RGB24, &MFVideoFormat_RGB24, 0 },
+        { &MEDIASUBTYPE_RGB32, &MFVideoFormat_RGB32, 0 },
+        { &MEDIASUBTYPE_ARGB1555, &MFVideoFormat_ARGB1555, 0 },
+        { &MEDIASUBTYPE_ARGB4444, &MFVideoFormat_ARGB4444, 0 },
+        { &MEDIASUBTYPE_ARGB32, &MFVideoFormat_ARGB32, 0 },
+        { &MEDIASUBTYPE_A2R10G10B10, &MFVideoFormat_A2B10G10R10, 0 },
+        { &MEDIASUBTYPE_A2B10G10R10, &MFVideoFormat_A2R10G10B10, 0 },
+
+        /* any other GUID is passed through */
+        { &MEDIASUBTYPE_I420, &MFVideoFormat_I420, 0 },
+        { &MEDIASUBTYPE_AYUV, &MFVideoFormat_AYUV, 0 },
+        { &MEDIASUBTYPE_YV12, &MFVideoFormat_YV12, 0 },
+        { &MEDIASUBTYPE_YUY2, &MFVideoFormat_YUY2, 0 },
+        { &MEDIASUBTYPE_UYVY, &MFVideoFormat_UYVY, 0 },
+        { &MEDIASUBTYPE_YVYU, &MFVideoFormat_YVYU, 0 },
+        { &MEDIASUBTYPE_NV12, &MFVideoFormat_NV12, 0 },
+
+        /* even formats that don't exist in MF */
+        { &DUMMY_GUID3, &DUMMY_GUID3, 0 },
+        { &MEDIASUBTYPE_NV24, &MEDIASUBTYPE_NV24, 0 },
+        { &MEDIASUBTYPE_P208, &MEDIASUBTYPE_P208, 0 },
+
+        /* if the mapping is ambiguous, it is not corrected */
+        { &MEDIASUBTYPE_h264, &MEDIASUBTYPE_h264, 0 },
+        { &MEDIASUBTYPE_H264, &MFVideoFormat_H264, 48 },
+    };
+
+    static const struct audio_type_pair
+    {
+        const GUID *am_type;
+        const GUID *mf_type;
+        UINT extra_size;
+    } audio_types[] =
+    {
+        { &MEDIASUBTYPE_WMAUDIO2, &MFAudioFormat_WMAudioV8, 0 },
+        { &MEDIASUBTYPE_WMAUDIO3, &MFAudioFormat_WMAudioV9, 0 },
+        { &MEDIASUBTYPE_WMAUDIO_LOSSLESS, &MFAudioFormat_WMAudio_Lossless, 0 },
+    };
+
     WAVEFORMATEXTENSIBLE *wave_format_ext;
     VIDEOINFOHEADER *video_info;
     WAVEFORMATEX *wave_format;
@@ -8376,6 +8429,7 @@ static void test_MFInitAMMediaTypeFromMFMediaType(void)
     MFVideoArea *area;
     UINT32 value32;
     HRESULT hr;
+    UINT i;
 
     hr = MFCreateMediaType(&media_type);
     ok(hr == S_OK, "Failed to create media type, hr %#lx.\n", hr);
@@ -9201,6 +9255,44 @@ static void test_MFInitAMMediaTypeFromMFMediaType(void)
 
 
     IMFMediaType_Release(media_type);
+
+    for (i = 0; i < ARRAY_SIZE(video_types); ++i)
+    {
+        winetest_push_context("%s", debugstr_guid(video_types[i].mf_type));
+
+        hr = MFCreateVideoMediaTypeFromSubtype(video_types[i].mf_type, (IMFVideoMediaType **)&media_type);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        hr = MFInitAMMediaTypeFromMFMediaType(media_type, GUID_NULL, &am_type);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        ok(IsEqualGUID(&am_type.majortype, &MFMediaType_Video), "got %s.\n", debugstr_guid(&am_type.majortype));
+        ok(IsEqualGUID(&am_type.subtype, video_types[i].am_type), "got %s.\n", debugstr_guid(&am_type.subtype));
+        ok(IsEqualGUID(&am_type.formattype, &FORMAT_VideoInfo), "got %s.\n", debugstr_guid(&am_type.formattype));
+        ok(am_type.cbFormat == sizeof(VIDEOINFOHEADER) + video_types[i].extra_size, "got %lu\n", am_type.cbFormat - (UINT)sizeof(VIDEOINFOHEADER));
+        CoTaskMemFree(am_type.pbFormat);
+
+        IMFMediaType_Release(media_type);
+        winetest_pop_context();
+    }
+
+    for (i = 0; i < ARRAY_SIZE(audio_types); ++i)
+    {
+        WAVEFORMATEX format = {.wFormatTag = audio_types[i].mf_type->Data1};
+
+        winetest_push_context("%s", debugstr_guid(audio_types[i].mf_type));
+
+        hr = MFCreateAudioMediaType(&format, (IMFAudioMediaType **)&media_type);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        hr = MFInitAMMediaTypeFromMFMediaType(media_type, GUID_NULL, &am_type);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        ok(IsEqualGUID(&am_type.majortype, &MFMediaType_Audio), "got %s.\n", debugstr_guid(&am_type.majortype));
+        ok(IsEqualGUID(&am_type.subtype, audio_types[i].am_type), "got %s.\n", debugstr_guid(&am_type.subtype));
+        ok(IsEqualGUID(&am_type.formattype, &FORMAT_WaveFormatEx), "got %s.\n", debugstr_guid(&am_type.formattype));
+        ok(am_type.cbFormat == sizeof(WAVEFORMATEX) + audio_types[i].extra_size, "got %lu\n", am_type.cbFormat - (UINT)sizeof(WAVEFORMATEX));
+        CoTaskMemFree(am_type.pbFormat);
+
+        IMFMediaType_Release(media_type);
+        winetest_pop_context();
+    }
 }
 
 static void test_MFCreateAMMediaTypeFromMFMediaType(void)
