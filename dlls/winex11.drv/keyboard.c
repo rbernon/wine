@@ -36,6 +36,10 @@
 #include <X11/Xutil.h>
 #include <X11/XKBlib.h>
 
+#include <X11/Xlib-xcb.h>
+#include <xkbcommon/xkbcommon.h>
+#include <xkbcommon/xkbcommon-x11.h>
+
 #include <ctype.h>
 #include <stdarg.h>
 #include <string.h>
@@ -1470,6 +1474,14 @@ BOOL X11DRV_KeyEvent( HWND hwnd, XEvent *xev )
 
     X11DRV_send_keyboard_input( hwnd, vkey & 0xff, bScan, dwFlags, event_time );
     return TRUE;
+}
+
+void x11drv_keyboard_init(void)
+{
+    xcb_connection_t *xcb_connection = XGetXCBConnection( gdi_display );
+    struct xkb_context *xkb_context = xkb_context_new( XKB_CONTEXT_NO_FLAGS );
+    uint32_t id = xkb_x11_get_core_keyboard_device_id( xcb_connection );
+    struct xkb_keymap *xkb_keymap = xkb_x11_keymap_new_from_device( xkb_context, xcb_connection, id, XKB_KEYMAP_COMPILE_NO_FLAGS );
 }
 
 /**********************************************************************
