@@ -33,6 +33,12 @@
 #ifdef HAVE_SYS_SYSCTL_H
 # include <sys/sysctl.h>
 #endif
+#ifdef HAVE_LINK_H
+# include <link.h>
+#endif
+#ifdef HAVE_SYS_LINK_H
+# include <sys/link.h>
+#endif
 
 #include "main.h"
 
@@ -40,6 +46,16 @@ extern char **environ;
 
 /* the preloader will set this variable */
 const __attribute((visibility("default"))) struct wine_preload_info *wine_main_preload_info = NULL;
+
+#ifdef __linux__
+
+/* the preloader will set this variable */
+typedef void (*rtld_init_func)( struct link_map *map );
+__attribute((visibility("default"))) rtld_init_func wine_rtld_init = NULL;
+
+static struct link_map link_map = {0};
+
+#endif /* __linux__ */
 
 /* canonicalize path and return its directory name */
 static char *realpath_dirname( const char *name )
@@ -176,6 +192,9 @@ static void *load_ntdll( char *argv0 )
 int main( int argc, char *argv[] )
 {
     void *handle;
+#ifdef __linux__
+    if (wine_rtld_init) wine_rtld_init( &link_map );
+#endif /* __linux__ */
 
     if ((handle = load_ntdll( argv[0] )))
     {
