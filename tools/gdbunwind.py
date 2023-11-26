@@ -51,15 +51,18 @@ def registers(pc, sp, pending_frame):
 
 
 class WineSyscallFrameId(object):
-    def __init__(self, sp, pc):
+    def __init__(self, sp, pc, special=False):
         self.sp = sp
         self.pc = pc
+        if special: self.special = sp
 
 
 class WineSyscallUnwinder(Unwinder):
     def __init__(self):
         super().__init__("WineSyscallUnwinder")
-        self.pattern = re.compile('__wine_(syscall|unix_call)')
+        self.pattern = re.compile('__wine_(syscall|unix_call)'
+                                  '|KiUserCallbackDispatcher')
+        self.unwind_infos = {}
 
     def __call__(self, pending_frame):
         pc = pending_frame.read_register("pc")
@@ -67,8 +70,18 @@ class WineSyscallUnwinder(Unwinder):
             return None
 
         sp = pending_frame.read_register("sp")
-        frame = WineSyscallFrameId(sp, pc)
+        thread = gdb.selected_thread()
 
+        if 'KiUserCallbackDispatcher' in str(pc):
+            unwind_info = self.unwind_infos[thread]
+            del self.unwind_infos[thread]
+            return unwind_info
+
+        frame = WineSyscallFrameId(sp, pc, True)
+        unwind_info = pending_frame.create_unwind_info(frame)
+        self.unwind_infos[thread] = unwind_info
+
+        frame = WineSyscallFrameId(sp, pc)
         unwind_info = pending_frame.create_unwind_info(frame)
         for reg, val in registers(pc, sp, pending_frame):
             unwind_info.add_saved_register(reg, val)
