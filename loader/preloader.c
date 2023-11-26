@@ -1427,6 +1427,28 @@ static void rtld_init( struct link_map *map )
     STAP_PROBE2( rtld, init_complete, LM_ID_BASE, &_r_debug );
 }
 
+static void rtld_map_start(void)
+{
+    STAP_PROBE2( rtld, map_start, LM_ID_BASE, &_r_debug );
+}
+
+static void rtld_map_complete(void)
+{
+    STAP_PROBE3( rtld, map_complete, LM_ID_BASE, &_r_debug, NULL );
+    STAP_PROBE2( rtld, reloc_start, LM_ID_BASE, &_r_debug );
+    STAP_PROBE3( rtld, reloc_complete, LM_ID_BASE, &_r_debug, NULL );
+}
+
+static void rtld_unmap_start(void)
+{
+    STAP_PROBE2( rtld, unmap_start, LM_ID_BASE, &_r_debug );
+}
+
+static void rtld_unmap_complete(void)
+{
+    STAP_PROBE2( rtld, unmap_complete, LM_ID_BASE, &_r_debug );
+}
+
 /*
  *  wld_start
  *
@@ -1520,6 +1542,20 @@ void* wld_start( void **stack )
     rtld_probe = find_symbol( &main_binary_map, "wine_rtld_init", STT_OBJECT );
     if (rtld_probe) *rtld_probe = rtld_init;
     else wld_printf( "wine_rtld_init not found\n" );
+
+    rtld_probe = find_symbol( &main_binary_map, "wine_rtld_map_start", STT_OBJECT );
+    if (rtld_probe) *rtld_probe = rtld_map_start;
+    else wld_printf( "wine_rtld_map_start not found\n" );
+    rtld_probe = find_symbol( &main_binary_map, "wine_rtld_map_complete", STT_OBJECT );
+    if (rtld_probe) *rtld_probe = rtld_map_complete;
+    else wld_printf( "wine_rtld_map_complete not found\n" );
+
+    rtld_probe = find_symbol( &main_binary_map, "wine_rtld_unmap_start", STT_OBJECT );
+    if (rtld_probe) *rtld_probe = rtld_unmap_start;
+    else wld_printf( "wine_rtld_unmap_start not found\n" );
+    rtld_probe = find_symbol( &main_binary_map, "wine_rtld_unmap_complete", STT_OBJECT );
+    if (rtld_probe) *rtld_probe = rtld_unmap_complete;
+    else wld_printf( "wine_rtld_unmap_complete not found\n" );
 
 #define SET_NEW_AV(n,type,val) new_av[n].a_type = (type); new_av[n].a_un.a_val = (val);
     SET_NEW_AV( 0, AT_PHDR, (unsigned long)main_binary_map.l_phdr );
