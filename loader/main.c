@@ -49,11 +49,96 @@ const __attribute((visibility("default"))) struct wine_preload_info *wine_main_p
 
 #ifdef __linux__
 
-/* the preloader will set this variable */
+/* the preloader will set these variables */
 typedef void (*rtld_init_func)( struct link_map *map );
 __attribute((visibility("default"))) rtld_init_func wine_rtld_init = NULL;
+typedef void (*rtld_notify_func)(void);
+__attribute((visibility("default"))) rtld_notify_func wine_rtld_map_start = NULL;
+__attribute((visibility("default"))) rtld_notify_func wine_rtld_map_complete = NULL;
+__attribute((visibility("default"))) rtld_notify_func wine_rtld_unmap_start = NULL;
+__attribute((visibility("default"))) rtld_notify_func wine_rtld_unmap_complete = NULL;
 
+static pthread_mutex_t link_map_lock;
 static struct link_map link_map = {0};
+
+static void sync_wine_link_map(void)
+{
+    static struct r_debug *_r_debug;
+    struct link_map *next = &link_map, *last = NULL, **rtld_map, **wine_map;
+
+    if (!_r_debug) _r_debug = dlsym( RTLD_NEXT, "_r_debug" );
+    rtld_map = &_r_debug->r_map;
+    wine_map = &next;
+
+    while (*rtld_map)
+    {
+        if (!*wine_map)
+        {
+            if (!(*wine_map = calloc( 1, sizeof(struct link_map) ))) break;
+            (*wine_map)->l_prev = last;
+        }
+
+        last = *wine_map;
+        free( (*wine_map)->l_name );
+        (*wine_map)->l_addr = (*rtld_map)->l_addr;
+        (*wine_map)->l_name = strdup( (*rtld_map)->l_name );
+        (*wine_map)->l_ld = (*rtld_map)->l_ld;
+        rtld_map = &(*rtld_map)->l_next;
+        wine_map = &(*wine_map)->l_next;
+    }
+
+    /* remove the remaining wine entries */
+    next = *wine_map;
+    *wine_map = NULL;
+
+    while (next)
+    {
+        struct link_map *tmp = next;
+        wine_map = &next->l_next;
+        next = *wine_map;
+        *wine_map = NULL;
+        free( tmp->l_name );
+        free( tmp );
+    }
+}
+
+__attribute((visibility("default"))) void *dlopen( const char *file, int mode )
+{
+    static typeof(dlopen) *rtld_dlopen;
+    void *ret;
+
+    pthread_mutex_lock( &link_map_lock );
+
+    if (!rtld_dlopen) rtld_dlopen = dlsym( RTLD_NEXT, "dlopen" );
+    ret = rtld_dlopen( file, mode );
+
+    if (wine_rtld_map_start) wine_rtld_map_start();
+    sync_wine_link_map();
+    if (wine_rtld_map_complete) wine_rtld_map_complete();
+
+    pthread_mutex_unlock( &link_map_lock );
+
+    return ret;
+}
+
+__attribute((visibility("default"))) int dlclose( void *handle )
+{
+    static typeof(dlclose) *rtld_dlclose;
+    int ret;
+
+    pthread_mutex_lock( &link_map_lock );
+
+    if (!rtld_dlclose) rtld_dlclose = dlsym( RTLD_NEXT, "dlclose" );
+    ret = rtld_dlclose( handle );
+
+    if (wine_rtld_unmap_start) wine_rtld_unmap_start();
+    sync_wine_link_map();
+    if (wine_rtld_unmap_complete) wine_rtld_unmap_complete();
+
+    pthread_mutex_unlock( &link_map_lock );
+
+    return ret;
+}
 
 #endif /* __linux__ */
 
@@ -193,6 +278,12 @@ int main( int argc, char *argv[] )
 {
     void *handle;
 #ifdef __linux__
+    pthread_mutexattr_t attr;
+    pthread_mutexattr_init( &attr );
+    pthread_mutexattr_settype( &attr, PTHREAD_MUTEX_RECURSIVE );
+    pthread_mutex_init( &link_map_lock, &attr );
+    pthread_mutexattr_destroy( &attr );
+
     if (wine_rtld_init) wine_rtld_init( &link_map );
 #endif /* __linux__ */
 
