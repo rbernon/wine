@@ -85,11 +85,19 @@
 #ifdef HAVE_SYS_LINK_H
 # include <sys/link.h>
 #endif
+#ifdef HAVE_SYS_SDT_H
+# include <sys/sdt.h>
+#else
+# define STAP_PROBE2(a,b,c,d)
+# define STAP_PROBE3(a,b,c,d,e)
+#endif
 
 #include "wine/asm.h"
 #include "main.h"
 
 #pragma GCC visibility push(hidden)
+
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 /* ELF definitions */
 #define ELF_PREFERRED_ADDRESS(loader, maplength, mapstartpref) (mapstartpref)
@@ -1387,6 +1395,37 @@ static void set_process_name( int argc, char *argv[] )
     for (i = 1; i < argc; i++) argv[i] -= off;
 }
 
+/* GDB integration */
+extern char __executable_start;
+__attribute((visibility("default"))) struct r_debug _r_debug = {0};
+__attribute((visibility("default"))) void _dl_debug_state(void) {}
+
+/* sets the preloader r_debug address into DT_DEBUG */
+static void init_r_debug( struct wld_auxv *av )
+{
+    const char *l_addr = &__executable_start;
+    ElfW(Phdr) *phdr, *ph;
+    ElfW(Dyn) *dyn = NULL;
+    int phnum;
+
+    if (!(phnum = get_auxiliary( av, AT_PHNUM, 0 ))) return;
+    if (!(phdr = (void *)get_auxiliary( av, AT_PHDR, 0 ))) return;
+
+    for (ph = phdr; ph < &phdr[phnum]; ++ph) if (ph->p_type == PT_DYNAMIC) break;
+    if (ph >= &phdr[phnum]) return;
+
+    dyn = (void *)(ph->p_vaddr + l_addr);
+    while (dyn->d_tag != DT_DEBUG) dyn++;
+
+    if (dyn->d_tag == DT_DEBUG) dyn->d_un.d_ptr = (uintptr_t)&_r_debug;
+}
+
+static void rtld_init( struct link_map *map )
+{
+    STAP_PROBE2( rtld, init_start, LM_ID_BASE, &_r_debug );
+    _r_debug.r_map = map;
+    STAP_PROBE2( rtld, init_complete, LM_ID_BASE, &_r_debug );
+}
 
 /*
  *  wld_start
@@ -1403,6 +1442,7 @@ void* wld_start( void **stack )
     struct wld_auxv new_av[8], delete_av[3], *av;
     struct wld_link_map main_binary_map, ld_so_map;
     struct wine_preload_info **wine_main_preload_info;
+    void **rtld_probe;
 
     pargc = *stack;
     argv = (char **)pargc + 1;
@@ -1431,6 +1471,8 @@ void* wld_start( void **stack )
     for( i = 0; i < *pargc; i++ ) wld_printf("argv[%lx] = %s\n", i, argv[i]);
     dump_auxiliary( av );
 #endif
+
+    init_r_debug( av );
 
     /* reserve memory that Wine needs */
     if (reserve) preload_reserve( reserve );
@@ -1474,6 +1516,10 @@ void* wld_start( void **stack )
     wine_main_preload_info = find_symbol( &main_binary_map, "wine_main_preload_info", STT_OBJECT );
     if (wine_main_preload_info) *wine_main_preload_info = preload_info;
     else wld_printf( "wine_main_preload_info not found\n" );
+
+    rtld_probe = find_symbol( &main_binary_map, "wine_rtld_init", STT_OBJECT );
+    if (rtld_probe) *rtld_probe = rtld_init;
+    else wld_printf( "wine_rtld_init not found\n" );
 
 #define SET_NEW_AV(n,type,val) new_av[n].a_type = (type); new_av[n].a_un.a_val = (val);
     SET_NEW_AV( 0, AT_PHDR, (unsigned long)main_binary_map.l_phdr );
