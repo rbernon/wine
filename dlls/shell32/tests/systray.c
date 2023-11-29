@@ -104,12 +104,15 @@ static void test_cbsize(void)
 
     /* same for Shell_NotifyIconA */
     ZeroMemory(&nidA, sizeof(nidA));
-    nidA.cbSize = NOTIFYICONDATAA_V1_SIZE;
+    nidA.cbSize = NOTIFYICONDATAA_V2_SIZE;
     nidA.hWnd = hMainWnd;
     nidA.uID = 1;
-    nidA.uFlags = NIF_ICON|NIF_MESSAGE;
+    nidA.uFlags = NIF_ICON|NIF_MESSAGE|NIF_INFO|NIF_TIP;
     nidA.hIcon = LoadIconA(NULL, (LPSTR)IDI_APPLICATION);
     nidA.uCallbackMessage = WM_USER+17;
+strcpy(nidA.szTip, "Tooltip");
+strcpy(nidA.szInfo, "Coucou!");
+strcpy(nidA.szInfoTitle, "Coucou titre!");
     SetLastError(0xdeadbeef);
     ok(Shell_NotifyIconA(NIM_ADD, &nidA), "NIM_ADD failed!\n");
     ok(GetLastError() == ERROR_SUCCESS || GetLastError() == ERROR_NO_TOKEN,
