@@ -681,6 +681,7 @@ static NTSTATUS x11drv_init( void *arg )
 #endif
     x11drv_xinput2_load();
 
+    XkbUseExtension( gdi_display, NULL, NULL );
     X11DRV_InitKeyboard( gdi_display );
     X11DRV_InitMouse( gdi_display );
     if (use_xim) use_xim = xim_init( input_style );
@@ -759,7 +760,8 @@ struct x11drv_thread_data *x11drv_init_thread_data(void)
 
     fcntl( ConnectionNumber(data->display), F_SETFD, 1 ); /* set close on exec flag */
 
-    x11drv_init_keyboard( data->display );
+    XkbUseExtension( data->display, NULL, NULL );
+    XkbSetDetectableAutoRepeat( data->display, True, NULL );
     if (TRACE_ON(synchronous)) XSynchronize( data->display, True );
 
     set_queue_display_fd( data->display );
