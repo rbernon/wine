@@ -575,9 +575,7 @@ extern BOOL X11DRV_SelectionRequest( HWND hWnd, XEvent *event );
 extern BOOL X11DRV_SelectionClear( HWND hWnd, XEvent *event );
 extern BOOL X11DRV_MappingNotify( HWND hWnd, XEvent *event );
 extern BOOL X11DRV_GenericEvent( HWND hwnd, XEvent *event );
-extern BOOL X11DRV_XkbEvent( HWND hwnd, XEvent *event );
 
-extern int xkb_event;
 extern int xinput2_opcode;
 extern void x11drv_xinput2_load(void);
 extern void x11drv_xinput2_init( struct x11drv_thread_data *data );
