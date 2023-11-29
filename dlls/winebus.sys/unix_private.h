@@ -232,10 +232,6 @@ extern NTSTATUS iohid_bus_init(void *);
 extern NTSTATUS iohid_bus_wait(void *);
 extern NTSTATUS iohid_bus_stop(void *);
 
-extern NTSTATUS x11_bus_init(void *);
-extern NTSTATUS x11_bus_wait(void *);
-extern NTSTATUS x11_bus_stop(void *);
-
 extern void bus_event_cleanup(struct bus_event *event);
 extern void bus_event_queue_destroy(struct list *queue);
 extern BOOL bus_event_queue_device_removed(struct list *queue, struct unix_device *device);
