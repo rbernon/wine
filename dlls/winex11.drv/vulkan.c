@@ -208,9 +208,7 @@ static void wine_vk_surface_release(struct wine_vk_surface *surface)
         pthread_mutex_unlock(&vulkan_mutex);
     }
 
-    if (surface->window)
-        XDestroyWindow(gdi_display, surface->window);
-
+    destroy_client_window( surface->hwnd, surface->window );
     free(surface);
 }
 
