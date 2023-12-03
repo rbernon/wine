@@ -17,6 +17,7 @@ SOURCES = \
 	file.c \
 	handle.c \
 	hook.c \
+	host_x11.c \
 	mach.c \
 	mailslot.c \
 	main.c \
@@ -48,6 +49,6 @@ SOURCES = \
 	wineserver.man.in \
 	winstation.c
 
-UNIX_LIBS = $(LDEXECFLAGS) $(RT_LIBS) $(INOTIFY_LIBS) $(PROCSTAT_LIBS)
+UNIX_LIBS = $(LDEXECFLAGS) $(RT_LIBS) $(INOTIFY_LIBS) $(PROCSTAT_LIBS) $(XCB_LIBS)
 
 unicode_EXTRADEFS = -DBINDIR="\"${bindir}\"" -DDATADIR="\"${datadir}\""
