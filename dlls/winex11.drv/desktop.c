@@ -32,6 +32,7 @@
 /* avoid conflict with field names in included win32 headers */
 #undef Status
 #include "wine/debug.h"
+#include "wine/server.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(x11drv);
 
@@ -56,6 +57,7 @@ void X11DRV_init_desktop( Window win, unsigned int width, unsigned int height )
     host_primary_rect = get_host_primary_monitor_rect();
     root_window = win;
     managed_mode = FALSE;  /* no managed windows in desktop mode */
+    use_server_x11 = FALSE;  /* don't use wineserver X11 in desktop mode */
 }
 
 /***********************************************************************
