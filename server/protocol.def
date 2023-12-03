@@ -4078,3 +4078,8 @@ struct handle_info
 @REPLY
     int enable;                /* previous state of auto-repeat enable */
 @END
+
+/* Connect a process to the host X11 server */
+@REQ(x11_connect)
+    VARARG(display,string);    /* DISPLAY environment variable */
+@END

@@ -24,6 +24,7 @@ AC_ARG_ENABLE(maintainer-mode, AS_HELP_STRING([--enable-maintainer-mode],[enable
 AC_ARG_ENABLE(sast,  AS_HELP_STRING([--enable-sast],[enable static application security testing using Clang]))
 AC_ARG_ENABLE(silent-rules, AS_HELP_STRING([--enable-silent-rules],[use silent build rules (override: "make V=1")]))
 AC_ARG_ENABLE(werror, AS_HELP_STRING([--enable-werror],[treat compilation warnings as errors]))
+AC_ARG_ENABLE(server-x11, AS_HELP_STRING([--disable-server-x11],[disable wineserver X11 client]))
 
 AC_ARG_WITH(alsa,      AS_HELP_STRING([--without-alsa],[do not use the Alsa sound support]))
 AC_ARG_WITH(capi,      AS_HELP_STRING([--without-capi],[do not use CAPI (ISDN support)]))
@@ -1870,6 +1871,21 @@ WINE_NOTICE_WITH(netapi,[test "x$ac_cv_lib_soname_netapi" = "x"],
                  [libnetapi not found, Samba NetAPI won't be supported.],
                  [enable_netapi])
 
+dnl **** Check for server X11 libs ****
+if test "x$enable_server_x11" != "xno"
+then
+    WINE_PACKAGE_FLAGS(XCB,[xcb xcb-event],,,,
+        [AC_CHECK_HEADERS([xcb/xcb.h])
+         AC_CHECK_LIB(xcb,xcb_connect,[:],[XCB_LIBS=""],[$XCB_LIBS])])
+
+    if test -z "$XCB_LIBS"
+    then
+        WINE_NOTICE([XCB ${notice_platform}development files not found, wineserver X11 client won't be supported.])
+        enable_server_x11=no
+    else
+        AC_DEFINE(ENABLE_SERVER_X11,1,[Define to 1 to enable wineserver X11 client])
+    fi
+fi
 
 dnl **** Check for any sound system ****
 if test "x$enable_winealsa_drv$enable_winecoreaudio_drv$enable_winepulse_drv$enable_wineoss_drv$enable_wineandroid_drv" = xnonononono -a \

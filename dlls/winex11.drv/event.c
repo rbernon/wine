@@ -93,7 +93,47 @@ static BOOL X11DRV_ClientMessage( HWND hwnd, XEvent *event );
 
 #define MAX_EVENT_HANDLERS 128
 
-static x11drv_event_handler handlers[MAX_EVENT_HANDLERS] =
+static x11drv_event_handler default_handlers[MAX_EVENT_HANDLERS] =
+{
+    NULL,                     /*  0 reserved */
+    NULL,                     /*  1 reserved */
+    X11DRV_KeyEvent,          /*  2 KeyPress */
+    X11DRV_KeyEvent,          /*  3 KeyRelease */
+    X11DRV_ButtonPress,       /*  4 ButtonPress */
+    X11DRV_ButtonRelease,     /*  5 ButtonRelease */
+    X11DRV_MotionNotify,      /*  6 MotionNotify */
+    X11DRV_EnterNotify,       /*  7 EnterNotify */
+    NULL,                     /*  8 LeaveNotify */
+    X11DRV_FocusIn,           /*  9 FocusIn */
+    X11DRV_FocusOut,          /* 10 FocusOut */
+    X11DRV_KeymapNotify,      /* 11 KeymapNotify */
+    X11DRV_Expose,            /* 12 Expose */
+    NULL,                     /* 13 GraphicsExpose */
+    NULL,                     /* 14 NoExpose */
+    NULL,                     /* 15 VisibilityNotify */
+    NULL,                     /* 16 CreateNotify */
+    X11DRV_DestroyNotify,     /* 17 DestroyNotify */
+    X11DRV_UnmapNotify,       /* 18 UnmapNotify */
+    X11DRV_MapNotify,         /* 19 MapNotify */
+    NULL,                     /* 20 MapRequest */
+    X11DRV_ReparentNotify,    /* 21 ReparentNotify */
+    X11DRV_ConfigureNotify,   /* 22 ConfigureNotify */
+    NULL,                     /* 23 ConfigureRequest */
+    X11DRV_GravityNotify,     /* 24 GravityNotify */
+    NULL,                     /* 25 ResizeRequest */
+    NULL,                     /* 26 CirculateNotify */
+    NULL,                     /* 27 CirculateRequest */
+    X11DRV_PropertyNotify,    /* 28 PropertyNotify */
+    X11DRV_SelectionClear,    /* 29 SelectionClear */
+    X11DRV_SelectionRequest,  /* 30 SelectionRequest */
+    NULL,                     /* 31 SelectionNotify */
+    NULL,                     /* 32 ColormapNotify */
+    X11DRV_ClientMessage,     /* 33 ClientMessage */
+    X11DRV_MappingNotify,     /* 34 MappingNotify */
+    X11DRV_GenericEvent       /* 35 GenericEvent */
+};
+
+static x11drv_event_handler server_x11_handlers[MAX_EVENT_HANDLERS] =
 {
     NULL,                     /*  0 reserved */
     NULL,                     /*  1 reserved */
@@ -269,6 +309,7 @@ static void xembed_request_focus( Display *display, Window window, DWORD timesta
  */
 void X11DRV_register_event_handler( int type, x11drv_event_handler handler, const char *name )
 {
+    x11drv_event_handler *handlers = use_server_x11 ? server_x11_handlers : default_handlers;
     assert( type < MAX_EVENT_HANDLERS );
     assert( !handlers[type] || handlers[type] == handler );
     handlers[type] = handler;
@@ -442,6 +483,7 @@ static enum event_merge_action merge_events( XEvent *prev, XEvent *next )
  */
 static inline BOOL call_event_handler( Display *display, XEvent *event )
 {
+    x11drv_event_handler *handlers = use_server_x11 ? server_x11_handlers : default_handlers;
     HWND hwnd;
     XEvent *prev;
     struct x11drv_thread_data *thread_data;

@@ -70,6 +70,7 @@ BOOL usexrandr = TRUE;
 BOOL usexcomposite = TRUE;
 BOOL use_take_focus = TRUE;
 BOOL use_primary_selection = FALSE;
+BOOL use_server_x11 = FALSE;
 BOOL use_system_cursors = TRUE;
 BOOL grab_fullscreen = FALSE;
 BOOL managed_mode = TRUE;
@@ -416,6 +417,7 @@ static void setup_options(void)
     static const WCHAR x11driverW[] = {'\\','X','1','1',' ','D','r','i','v','e','r',0};
     WCHAR buffer[MAX_PATH+16], *p, *appname;
     HKEY hkey, appkey = 0;
+    const char *env;
     DWORD len;
 
     /* @@ Wine registry key: HKCU\Software\Wine\X11 Driver */
@@ -445,6 +447,12 @@ static void setup_options(void)
             NtClose( tmpkey );
         }
     }
+
+    if (!get_config_key( hkey, appkey, "UseServerX11", buffer, sizeof(buffer) ))
+        use_server_x11 = IS_OPTION_TRUE( buffer[0] );
+
+    if ((env = getenv( "WINE_USE_SERVER_X11" )) && *env && *env != '0')
+        use_server_x11 = TRUE;
 
     if (!get_config_key( hkey, appkey, "Managed", buffer, sizeof(buffer) ))
         managed_mode = IS_OPTION_TRUE( buffer[0] );
@@ -617,6 +625,7 @@ static void init_visuals( Display *display, int screen )
  */
 static NTSTATUS x11drv_init( void *arg )
 {
+    const char *env;
     Display *display;
     void *libx11 = dlopen( SONAME_LIBX11, RTLD_NOW|RTLD_GLOBAL );
 
@@ -634,6 +643,15 @@ static NTSTATUS x11drv_init( void *arg )
     setup_options();
 
     /* Open display */
+
+    if (!use_server_x11) TRACE( "Not using wineserver X11 client\n" );
+    else if (!(env = getenv( "DISPLAY" ))) use_server_x11 = FALSE;
+    else SERVER_START_REQ( x11_connect )
+    {
+        wine_server_add_data( req, env, strlen( env ) + 1);
+        use_server_x11 = !wine_server_call( req );
+    }
+    SERVER_END_REQ;
 
     if (!XInitThreads()) ERR( "XInitThreads failed, trouble ahead\n" );
     if (!(display = XOpenDisplay( NULL ))) return STATUS_UNSUCCESSFUL;

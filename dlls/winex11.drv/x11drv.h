@@ -447,6 +447,7 @@ extern BOOL usexrandr;
 extern BOOL usexvidmode;
 extern BOOL use_take_focus;
 extern BOOL use_primary_selection;
+extern BOOL use_server_x11;
 extern BOOL use_system_cursors;
 extern BOOL grab_fullscreen;
 extern BOOL usexcomposite;
