@@ -73,6 +73,7 @@ struct process
     struct event        *idle_event;      /* event for input idle */
     obj_handle_t         winstation;      /* main handle to process window station */
     obj_handle_t         desktop;         /* handle to desktop to use for new threads */
+    struct object       *host;            /* interface with the host */
     struct token        *token;           /* security token associated with this process */
     struct list          views;           /* list of memory views */
     client_ptr_t         peb;             /* PEB address in client address space */
