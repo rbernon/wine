@@ -6203,6 +6203,7 @@ static void thread_detach(void)
     cleanup_imm_thread();
     NtClose( thread_info->server_queue );
     cleanup_thread_desktop();
+    cleanup_thread_queue();
 
     exiting_thread_id = 0;
 }

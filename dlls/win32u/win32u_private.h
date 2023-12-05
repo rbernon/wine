@@ -195,6 +195,8 @@ extern void user_check_not_lock(void);
 /* winstation.c */
 extern const desktop_shm_t *get_desktop_shared_memory(void);
 extern void cleanup_thread_desktop(void);
+extern const queue_shm_t *get_queue_shared_memory(void);
+extern void cleanup_thread_queue(void);
 extern BOOL is_virtual_desktop(void);
 
 /* window.c */

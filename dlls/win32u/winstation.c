@@ -94,6 +94,30 @@ void cleanup_thread_desktop(void)
     }
 }
 
+const queue_shm_t *get_queue_shared_memory(void)
+{
+    struct user_thread_info *thread_info = get_user_thread_info();
+
+    if (!thread_info->queue_shm)
+    {
+        HANDLE queue = get_server_queue_handle();
+        thread_info->queue_shm = map_object_shared_memory( queue, sizeof(*thread_info->queue_shm) );
+    }
+
+    return thread_info->queue_shm;
+}
+
+void cleanup_thread_queue(void)
+{
+    struct user_thread_info *thread_info = get_user_thread_info();
+
+    if (thread_info->queue_shm)
+    {
+        NtUnmapViewOfSection( GetCurrentProcess(), (void *)thread_info->queue_shm );
+        thread_info->queue_shm = NULL;
+    }
+}
+
 BOOL is_virtual_desktop(void)
 {
     HANDLE desktop = NtUserGetThreadDesktop( GetCurrentThreadId() );

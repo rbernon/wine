@@ -127,6 +127,7 @@ struct user_thread_info
     BOOL                          clipping_cursor;        /* thread is currently clipping */
     DWORD                         clipping_reset;         /* time when clipping was last reset */
     const desktop_shm_t          *desktop_shm;            /* ptr to server's desktop shared memory */
+    const queue_shm_t            *queue_shm;              /* ptr to server's thread queue shared memory */
 };
 
 C_ASSERT( sizeof(struct user_thread_info) <= sizeof(((TEB *)0)->Win32ClientInfo) );
@@ -232,6 +233,7 @@ extern void invalidate_dce( WND *win, const RECT *extra_rect );
 
 /* message.c */
 extern BOOL set_keyboard_auto_repeat( BOOL enable );
+extern HANDLE get_server_queue_handle(void);
 
 /* systray.c */
 extern LRESULT system_tray_call( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, void *data );
