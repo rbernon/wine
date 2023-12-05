@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <poll.h>
+#include <sys/mman.h>
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -143,6 +144,8 @@ struct msg_queue
     struct hook_table     *hooks;           /* hook table */
     timeout_t              last_get_msg;    /* time of last get message call */
     int                    keystate_lock;   /* owns an input keystate lock */
+    struct object         *shared_mapping;  /* queue shared memory mapping */
+    const queue_shm_t     *shared;          /* queue shared memory (const outside SHARED_WRITE_BEGIN/END) */
 };
 
 struct hotkey
@@ -160,6 +163,7 @@ static int msg_queue_add_queue( struct object *obj, struct wait_queue_entry *ent
 static void msg_queue_remove_queue( struct object *obj, struct wait_queue_entry *entry );
 static int msg_queue_signaled( struct object *obj, struct wait_queue_entry *entry );
 static void msg_queue_satisfied( struct object *obj, struct wait_queue_entry *entry );
+static struct mapping *msg_queue_get_object_mapping( struct object *obj );
 static void msg_queue_destroy( struct object *obj );
 static void msg_queue_poll_event( struct fd *fd, int event );
 static void thread_input_dump( struct object *obj, int verbose );
@@ -186,7 +190,7 @@ static const struct object_ops msg_queue_ops =
     NULL,                      /* unlink_name */
     no_open_file,              /* open_file */
     no_kernel_obj_list,        /* get_kernel_obj_list */
-    no_object_mapping,         /* get_object_mapping */
+    msg_queue_get_object_mapping, /* get_object_mapping */
     no_close_handle,           /* close_handle */
     msg_queue_destroy          /* destroy */
 };
@@ -334,6 +338,15 @@ static struct msg_queue *create_msg_queue( struct thread *thread, struct thread_
         list_init( &queue->pending_timers );
         list_init( &queue->expired_timers );
         for (i = 0; i < NB_MSG_KINDS; i++) list_init( &queue->msg_list[i] );
+        queue->shared_mapping  = NULL;
+        queue->shared          = NULL;
+
+        if (!(queue->shared_mapping = create_object_mapping( &queue->obj, sizeof(*queue->shared),
+                                                             (void **)&queue->shared )))
+        {
+            release_object( queue );
+            return NULL;
+        }
 
         thread->queue = queue;
     }
@@ -1174,6 +1187,13 @@ static void msg_queue_satisfied( struct object *obj, struct wait_queue_entry *en
     queue->changed_mask = 0;
 }
 
+static struct mapping *msg_queue_get_object_mapping( struct object *obj )
+{
+    struct msg_queue *queue = (struct msg_queue *)obj;
+    assert( obj->ops == &msg_queue_ops );
+    return (struct mapping *)grab_object( queue->shared_mapping );
+}
+
 static void msg_queue_destroy( struct object *obj )
 {
     struct msg_queue *queue = (struct msg_queue *)obj;
@@ -1211,6 +1231,8 @@ static void msg_queue_destroy( struct object *obj )
     release_object( queue->input );
     if (queue->hooks) release_object( queue->hooks );
     if (queue->fd) release_object( queue->fd );
+    if (queue->shared_mapping) release_object( queue->shared_mapping );
+    if (queue->shared) munmap( (void *)queue->shared, sizeof(*queue->shared) );
 }
 
 static void msg_queue_poll_event( struct fd *fd, int event )

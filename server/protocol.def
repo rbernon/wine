@@ -897,6 +897,11 @@ typedef volatile struct
     unsigned char        keystate[256];    /* asynchronous key state */
 } desktop_shm_t;
 
+typedef volatile struct
+{
+    LONG64               seq;              /* sequence number - server updating if (seq & 1) != 0 */
+} queue_shm_t;
+
 /****************************************************************/
 /* Request declarations */
 
