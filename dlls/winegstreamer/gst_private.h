@@ -110,6 +110,7 @@ HRESULT wg_source_create(const WCHAR *url, uint64_t file_size,
 void wg_source_destroy(wg_source_t source);
 HRESULT wg_source_get_stream_count(wg_source_t source, uint32_t *stream_count);
 HRESULT wg_source_get_duration(wg_source_t source, uint64_t *duration);
+HRESULT wg_source_set_position(wg_source_t source, uint64_t time);
 HRESULT wg_source_get_position(wg_source_t source, uint64_t *read_offset);
 HRESULT wg_source_push_data(wg_source_t source, UINT64 offset, const void *data, uint32_t size);
 HRESULT wg_source_get_stream_type(wg_source_t source, UINT32 index, IMFMediaType **media_type);

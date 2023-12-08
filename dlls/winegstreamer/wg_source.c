@@ -676,6 +676,21 @@ NTSTATUS wg_source_get_position(void *args)
     return STATUS_SUCCESS;
 }
 
+NTSTATUS wg_source_set_position(void *args)
+{
+    struct wg_source_set_position_params *params = args;
+    struct wg_source *source = get_source(params->source);
+    guint64 time = params->time * 100;
+
+    GST_TRACE("source %p, time %" G_GINT64_MODIFIER "u", source, time);
+
+    push_event(source->streams[0].pad, gst_event_new_seek(1.0, GST_FORMAT_TIME,
+            GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_SNAP_BEFORE | GST_SEEK_FLAG_KEY_UNIT,
+            GST_SEEK_TYPE_SET, time, GST_SEEK_TYPE_NONE, -1));
+
+    return STATUS_SUCCESS;
+}
+
 NTSTATUS wg_source_push_data(void *args)
 {
     struct wg_source_push_data_params *params = args;
