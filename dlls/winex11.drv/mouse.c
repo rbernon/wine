@@ -1482,6 +1482,8 @@ BOOL X11DRV_SetCursorPos( INT x, INT y )
     struct x11drv_thread_data *data = x11drv_init_thread_data();
     POINT pos = virtual_screen_to_root( x, y );
 
+    if (use_server_x11) return TRUE;
+
     if (keyboard_grabbed)
     {
         WARN( "refusing to warp to %u, %u\n", (int)pos.x, (int)pos.y );
