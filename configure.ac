@@ -1874,7 +1874,7 @@ WINE_NOTICE_WITH(netapi,[test "x$ac_cv_lib_soname_netapi" = "x"],
 dnl **** Check for server X11 libs ****
 if test "x$enable_server_x11" != "xno"
 then
-    WINE_PACKAGE_FLAGS(XCB,[xcb xcb-event xcb-xinput],,,,
+    WINE_PACKAGE_FLAGS(XCB,[xcb xcb-event xcb-xinput xcb-xfixes],,,,
         [AC_CHECK_HEADERS([xcb/xcb.h])
          AC_CHECK_LIB(xcb,xcb_connect,[:],[XCB_LIBS=""],[$XCB_LIBS])])
 

@@ -973,7 +973,7 @@ static BOOL X11DRV_FocusOut( HWND hwnd, XEvent *xev )
 
     /* in virtual desktop mode or when keyboard is grabbed, release any cursor grab but keep the clipping rect */
     keyboard_grabbed = event->mode == NotifyGrab || event->mode == NotifyWhileGrabbed;
-    if (is_virtual_desktop() || keyboard_grabbed) ungrab_clipping_window();
+    if ((is_virtual_desktop() || keyboard_grabbed) && !use_server_x11) ungrab_clipping_window();
     /* ignore wm specific NotifyUngrab / NotifyGrab events w.r.t focus */
     if (event->mode == NotifyGrab || event->mode == NotifyUngrab) return FALSE;
 
