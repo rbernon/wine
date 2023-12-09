@@ -8,6 +8,7 @@ SOURCES = \
 	clipboard.c \
 	completion.c \
 	console.c \
+	debug.c \
 	debugger.c \
 	device.c \
 	directory.c \
