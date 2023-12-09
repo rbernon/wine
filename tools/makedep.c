@@ -2180,7 +2180,7 @@ static int needs_delay_lib( const struct makefile *make, unsigned int arch )
  *         find_unix_libraries
  */
 static struct strarray find_unix_libraries( const struct makefile *make, struct strarray *all_libs,
-                                            struct strarray *deps )
+                                            struct strarray *deps, int static_only )
 {
     struct strarray ret = empty_strarray;
     unsigned int i, j;
@@ -2195,7 +2195,7 @@ static struct strarray find_unix_libraries( const struct makefile *make, struct 
             {
                 struct makefile *submake;
                 if (make == submakes[j]) continue;
-                if ((lib = get_native_unix_lib( submakes[j], all_libs->str[i] + 2 ))) break;
+                if (!static_only && (lib = get_native_unix_lib( submakes[j], all_libs->str[i] + 2 ))) break;
                 if (!(submake = get_static_lib( all_libs->str[i] + 2, 0 )) || !submake->staticlib) continue;
                 if ((lib = obj_dir_path( submake, strmake( "lib%s.a", all_libs->str[i] + 2 )))) break;
             }
@@ -3575,7 +3575,7 @@ static void output_unix_lib( struct makefile *make )
     strarray_add( &unix_libs, "-lwinecrtd" );
     strarray_addall( &unix_libs, get_expanded_make_var_array( make, "UNIX_LIBS" ) );
 
-    unix_libs = find_unix_libraries( make, &unix_libs, &unix_deps );
+    unix_libs = find_unix_libraries( make, &unix_libs, &unix_deps, 0 );
     strarray_addall( &unix_libs, libs );
 
     if (make->disabled[arch]) return;
@@ -3731,6 +3731,7 @@ static void output_programs( struct makefile *make )
         if (!strarray_exists( &all_libs, "-nodefaultlibs" ))
         {
             strarray_addall( &all_libs, get_expanded_make_var_array( make, "UNIX_LIBS" ));
+            all_libs = find_unix_libraries( make, &all_libs, &deps, 1 );
             strarray_addall( &all_libs, libs );
         }
 
