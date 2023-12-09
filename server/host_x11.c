@@ -76,6 +76,8 @@ struct host_x11
     xcb_input_valuator_class_t  x_class;          /* master pointer x axis valuator class */
     xcb_input_valuator_class_t  y_class;          /* master pointer y axis valuator class */
     uint64_t                    warp_sequence;    /* cursor warping request sequence */
+    int                         is_clipping;      /* whether clipping is currently active */
+    xcb_xfixes_barrier_t        clip_barrier[4];  /* barriers for cursor clipping */
 };
 
 static void host_x11_dump( struct object *obj, int verbose );
@@ -128,10 +130,12 @@ static const struct fd_ops host_x11_fd_ops =
 };
 
 static void host_x11_warp_cursor( struct object *obj, struct desktop *desktop );
+static void host_x11_clip_cursor( struct object *obj, struct desktop *desktop, const rectangle_t *rect );
 
 static const struct host_ops host_x11_host_ops =
 {
     host_x11_warp_cursor,             /* warp_cursor */
+    host_x11_clip_cursor,             /* clip_cursor */
 };
 
 static const struct host_ops *host_x11_get_host_ops( struct object *obj )
@@ -690,6 +694,65 @@ static void host_x11_warp_cursor( struct object *obj, struct desktop *desktop )
     host_set_needs_flush( host );
 }
 
+
+/* confine the host cursor in the given desktop rectangle / release the cursor from its confinement */
+static void host_x11_clip_cursor( struct object *obj, struct desktop *desktop, const rectangle_t *rect )
+{
+    struct host_x11 *host = (struct host_x11 *)obj;
+    xcb_void_cookie_t cookie;
+
+    assert( obj->ops == &host_x11_object_ops );
+
+    if (host->is_clipping)
+    {
+        cookie = xcb_xfixes_delete_pointer_barrier( host->xcb, host->clip_barrier[0] );
+        if (!debug_level) xcb_discard_reply( host->xcb, cookie.sequence );
+        cookie = xcb_xfixes_delete_pointer_barrier( host->xcb, host->clip_barrier[1] );
+        if (!debug_level) xcb_discard_reply( host->xcb, cookie.sequence );
+        cookie = xcb_xfixes_delete_pointer_barrier( host->xcb, host->clip_barrier[2] );
+        if (!debug_level) xcb_discard_reply( host->xcb, cookie.sequence );
+        cookie = xcb_xfixes_delete_pointer_barrier( host->xcb, host->clip_barrier[3] );
+        if (!debug_level) xcb_discard_reply( host->xcb, cookie.sequence );
+
+        host->is_clipping = 0;
+        host_set_needs_flush( host );
+    }
+
+    if (!rect) TRACE( "host %p releasing cursor\n", host );
+    else
+    {
+        rectangle_t host_rect = *rect;
+
+        virtual_screen_to_root( desktop, &host_rect.left, &host_rect.top );
+        virtual_screen_to_root( desktop, &host_rect.right, &host_rect.bottom );
+
+        TRACE( "host %p clipping cursor to (%+5d,%+5d)x(%+5d,%+5d) -> (%+5d,%+5d)x(%+5d,%+5d)\n", host,
+               rect->left, rect->top, rect->right, rect->bottom, host_rect.left, host_rect.top,
+               host_rect.right, host_rect.bottom );
+
+        cookie = xcb_xfixes_create_pointer_barrier( host->xcb, host->clip_barrier[0], host->root_window,
+                                                    0, host_rect.top, UINT16_MAX, host_rect.top,
+                                                    XCB_XFIXES_BARRIER_DIRECTIONS_POSITIVE_Y, 0, NULL );
+        if (!debug_level) xcb_discard_reply( host->xcb, cookie.sequence );
+        cookie = xcb_xfixes_create_pointer_barrier( host->xcb, host->clip_barrier[1], host->root_window,
+                                                    0, host_rect.bottom, UINT16_MAX, host_rect.bottom,
+                                                    XCB_XFIXES_BARRIER_DIRECTIONS_NEGATIVE_Y, 0, NULL );
+        if (!debug_level) xcb_discard_reply( host->xcb, cookie.sequence );
+        cookie = xcb_xfixes_create_pointer_barrier( host->xcb, host->clip_barrier[2], host->root_window,
+                                                    host_rect.left, 0, host_rect.left, UINT16_MAX,
+                                                    XCB_XFIXES_BARRIER_DIRECTIONS_POSITIVE_X, 0, NULL );
+        if (!debug_level) xcb_discard_reply( host->xcb, cookie.sequence );
+        cookie = xcb_xfixes_create_pointer_barrier( host->xcb, host->clip_barrier[3], host->root_window,
+                                                    host_rect.right, 0, host_rect.right, UINT16_MAX,
+                                                    XCB_XFIXES_BARRIER_DIRECTIONS_NEGATIVE_X, 0, NULL );
+        if (!debug_level) xcb_discard_reply( host->xcb, cookie.sequence );
+
+        host->is_clipping = 1;
+        host_set_needs_flush( host );
+    }
+}
+
+
 static void host_x11_fd_poll_event( struct fd *fd, int events )
 {
     struct object *obj = get_fd_user( fd );
@@ -814,6 +877,31 @@ static int init_xinput( struct host_x11 *host )
     return 0;
 }
 
+static int init_xfixes( struct host_x11 *host )
+{
+    xcb_xfixes_query_version_cookie_t version_cookie;
+    xcb_xfixes_query_version_reply_t *version_reply;
+    xcb_generic_error_t *error;
+
+    version_cookie = xcb_xfixes_query_version( host->xcb, XCB_XFIXES_MAJOR_VERSION, XCB_XFIXES_MINOR_VERSION );
+    if (!(version_reply = xcb_xfixes_query_version_reply( host->xcb, version_cookie, &error )))
+    {
+        handle_xcb_generic_error( host, error );
+        free( error );
+        return -1;
+    }
+
+    TRACE( "host %p xfixes version %u.%u enabled\n", host, version_reply->major_version, version_reply->minor_version );
+    free( version_reply );
+
+    host->clip_barrier[0] = xcb_generate_id( host->xcb );
+    host->clip_barrier[1] = xcb_generate_id( host->xcb );
+    host->clip_barrier[2] = xcb_generate_id( host->xcb );
+    host->clip_barrier[3] = xcb_generate_id( host->xcb );
+
+    return 0;
+}
+
 static struct object *create_host_x11( const char *display )
 {
     struct host_x11 *host;
@@ -842,6 +930,11 @@ static struct object *create_host_x11( const char *display )
     host->y_class.mode = XCB_INPUT_VALUATOR_MODE_ABSOLUTE;
     host->y_class.number = -1;
     host->warp_sequence = -1;
+    host->is_clipping = 0;
+    host->clip_barrier[0] = 0;
+    host->clip_barrier[1] = 0;
+    host->clip_barrier[2] = 0;
+    host->clip_barrier[3] = 0;
 
     if (!(host->display = strdup( display ))) goto failed;
     if (!(host->xcb = xcb_connect( display, &screen_num ))) goto failed;
@@ -853,6 +946,7 @@ static struct object *create_host_x11( const char *display )
         goto failed;
 
     host->root_window = screen->root;
+    if (init_xfixes( host )) goto failed;
     if (init_xinput( host )) goto failed;
 
     TRACE( "host %p connected to X11 display %s\n", host, display );
