@@ -75,11 +75,13 @@ struct host_x11
     xcb_input_device_id_t       pointer_id;       /* master pointer device id */
     xcb_input_valuator_class_t  x_class;          /* master pointer x axis valuator class */
     xcb_input_valuator_class_t  y_class;          /* master pointer y axis valuator class */
+    uint64_t                    warp_sequence;    /* cursor warping request sequence */
 };
 
 static void host_x11_dump( struct object *obj, int verbose );
 static struct fd *host_x11_get_fd( struct object *obj );
 static void host_x11_destroy( struct object *obj );
+static const struct host_ops *host_x11_get_host_ops( struct object *obj );
 
 static const struct object_ops host_x11_object_ops =
 {
@@ -103,7 +105,7 @@ static const struct object_ops host_x11_object_ops =
     no_kernel_obj_list,               /* get_kernel_obj_list */
     no_object_mapping,                /* get_object_mapping */
     no_close_handle,                  /* close_handle */
-    NULL,                             /* get_host_ops */
+    host_x11_get_host_ops,            /* get_host_ops */
     host_x11_destroy,                 /* destroy */
 };
 
@@ -124,6 +126,24 @@ static const struct fd_ops host_x11_fd_ops =
     NULL,                    /* queue_async */
     NULL,                    /* reselect_async */
 };
+
+static void host_x11_warp_cursor( struct object *obj, struct desktop *desktop );
+
+static const struct host_ops host_x11_host_ops =
+{
+    host_x11_warp_cursor,             /* warp_cursor */
+};
+
+static const struct host_ops *host_x11_get_host_ops( struct object *obj )
+{
+    return &host_x11_host_ops;
+}
+
+static void host_set_needs_flush( struct host_x11 *host )
+{
+    if (!host->needs_flush) set_fd_events( host->fd, POLLIN | POLLOUT );
+    host->needs_flush = TRUE;
+}
 
 
 typedef int (*window_data_cmp)(const struct window_data *, const void *);
@@ -263,6 +283,15 @@ static int fp1616_round( xcb_input_fp1616_t v )
     return round( double_from_fp1616( v ) );
 }
 
+
+/* convert x / y coordinates from virtual screen to host root window */
+static void virtual_screen_to_root( struct desktop *desktop, int *x, int *y )
+{
+    rectangle_t virtual_rect;
+    get_top_window_rectangle( desktop, &virtual_rect );
+    *x = *x - virtual_rect.left;
+    *y = *y - virtual_rect.top;
+}
 
 /* convert x / y coordinates from host root window to virtual screen */
 static void root_to_virtual_screen( struct desktop *desktop, int *x, int *y )
@@ -427,6 +456,7 @@ static void handle_xcb_input_enter( struct host_x11 *host, xcb_input_enter_event
 
     /* TODO: Move the cursor where it's supposed to be if it's in the window */
 
+    if (event->full_sequence == host->warp_sequence) return;
     send_mouse_input( host, event->event, event->root_x, event->root_y, 0, 0 );
 }
 
@@ -436,6 +466,7 @@ static void handle_xcb_input_leave( struct host_x11 *host, xcb_input_enter_event
 
     /* TODO: Don't warp the cursor if it's outside our windows */
 
+    if (event->full_sequence == host->warp_sequence) return;
     send_mouse_input( host, event->event, event->root_x, event->root_y, 0, 0 );
 }
 
@@ -443,6 +474,7 @@ static void handle_xcb_input_motion( struct host_x11 *host, xcb_input_motion_eve
 {
     TRACE( "host %p sequence %u time %u device %u\n", host, event->full_sequence, event->time, event->deviceid );
 
+    if (event->full_sequence == host->warp_sequence) return;
     send_mouse_input( host, event->event, event->root_x, event->root_y, 0, 0 );
 }
 
@@ -632,6 +664,32 @@ static void handle_xcb_generic_error( struct host_x11 *host, xcb_generic_error_t
          error->sequence, error->resource_id, error->minor_code, error->major_code );
 }
 
+
+/* warp the host cursor to the current desktop cursor position */
+static void host_x11_warp_cursor( struct object *obj, struct desktop *desktop )
+{
+    int x = desktop->cursor.x, y = desktop->cursor.y;
+    struct host_x11 *host = (struct host_x11 *)obj;
+    xcb_input_fp1616_t warp_x, warp_y;
+    xcb_void_cookie_t cookie;
+
+    assert( obj->ops == &host_x11_object_ops );
+
+    virtual_screen_to_root( desktop, &x, &y );
+    warp_x = x << 16;
+    warp_y = y << 16;
+
+    cookie = xcb_input_xi_warp_pointer( host->xcb, XCB_NONE, host->root_window, 0, 0, 0, 0,
+                                        warp_x, warp_y, host->pointer_id );
+    if (!debug_level) xcb_discard_reply( host->xcb, cookie.sequence );
+
+    TRACE( "host %p warping to (%+5d,%+5d) -> (%+8.2f,%+8.2f) cookie %u\n", host, x, y,
+           double_from_fp1616( warp_x ), double_from_fp1616( warp_y ), cookie.sequence );
+
+    host->warp_sequence = cookie.sequence;
+    host_set_needs_flush( host );
+}
+
 static void host_x11_fd_poll_event( struct fd *fd, int events )
 {
     struct object *obj = get_fd_user( fd );
@@ -783,6 +841,7 @@ static struct object *create_host_x11( const char *display )
     host->x_class.number = -1;
     host->y_class.mode = XCB_INPUT_VALUATOR_MODE_ABSOLUTE;
     host->y_class.number = -1;
+    host->warp_sequence = -1;
 
     if (!(host->display = strdup( display ))) goto failed;
     if (!(host->xcb = xcb_connect( display, &screen_num ))) goto failed;
@@ -843,8 +902,7 @@ DECL_HANDLER( x11_start_input )
         cookie = xcb_input_xi_select_events( host->xcb, req->x11_win, 1, &input_mask.head );
         if (!debug_level) xcb_discard_reply( host->xcb, cookie.sequence );
 
-        if (!host->needs_flush) set_fd_events( host->fd, POLLIN | POLLOUT );
-        host->needs_flush = TRUE;
+        host_set_needs_flush( host );
     }
 }
 
