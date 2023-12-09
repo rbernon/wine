@@ -69,6 +69,8 @@ struct host_ops
 {
     /* warp the host cursor to the current desktop cursor position */
     void (*warp_cursor)( struct object *obj, struct desktop *desktop );
+    /* confine the host cursor in the given desktop rectangle / release the cursor from its confinement */
+    void (*clip_cursor)( struct object *obj, struct desktop *desktop, const rectangle_t *rect );
 };
 
 /* operations valid on all objects */
@@ -225,6 +227,12 @@ static inline void host_warp_cursor( struct object *obj, struct desktop *desktop
 {
     const struct host_ops *host_ops = obj->ops->get_host_ops( obj );
     if (host_ops) host_ops->warp_cursor( obj, desktop );
+}
+
+static inline void host_clip_cursor( struct object *obj, struct desktop *desktop, const rectangle_t *rect )
+{
+    const struct host_ops *host_ops = obj->ops->get_host_ops( obj );
+    if (host_ops) host_ops->clip_cursor( obj, desktop, rect );
 }
 
 /* event functions */
