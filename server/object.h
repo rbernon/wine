@@ -67,7 +67,7 @@ struct type_descr
 /* operations for host bridge objects */
 struct host_ops
 {
-    /* warp the host cursor to the desktop cursor position */
+    /* warp the host cursor to the current desktop cursor position */
     void (*warp_cursor)( struct object *obj, struct desktop *desktop );
 };
 
