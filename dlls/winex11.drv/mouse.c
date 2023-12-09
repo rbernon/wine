@@ -560,7 +560,9 @@ void ungrab_clipping_window(void)
 void reapply_cursor_clipping(void)
 {
     RECT rect;
-    UINT context = NtUserSetThreadDpiAwarenessContext( NTUSER_DPI_PER_MONITOR_AWARE );
+    UINT context;
+    if (use_server_x11) return;
+    context = NtUserSetThreadDpiAwarenessContext( NTUSER_DPI_PER_MONITOR_AWARE );
     if (NtUserGetClipCursor( &rect )) NtUserClipCursor( &rect );
     NtUserSetThreadDpiAwarenessContext( context );
 }
@@ -1539,6 +1541,8 @@ BOOL X11DRV_GetCursorPos(LPPOINT pos)
  */
 BOOL X11DRV_ClipCursor( const RECT *clip, BOOL reset )
 {
+    if (use_server_x11) return TRUE;
+
     if (!reset && clip && grab_clipping_window( clip )) return TRUE;
     ungrab_clipping_window();
     return TRUE;
