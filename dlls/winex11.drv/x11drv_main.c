@@ -70,7 +70,7 @@ BOOL usexrandr = TRUE;
 BOOL usexcomposite = TRUE;
 BOOL use_take_focus = TRUE;
 BOOL use_primary_selection = FALSE;
-BOOL use_server_x11 = FALSE;
+BOOL use_server_x11 = TRUE;
 BOOL use_system_cursors = TRUE;
 BOOL grab_fullscreen = FALSE;
 BOOL managed_mode = TRUE;
@@ -417,7 +417,6 @@ static void setup_options(void)
     static const WCHAR x11driverW[] = {'\\','X','1','1',' ','D','r','i','v','e','r',0};
     WCHAR buffer[MAX_PATH+16], *p, *appname;
     HKEY hkey, appkey = 0;
-    const char *env;
     DWORD len;
 
     /* @@ Wine registry key: HKCU\Software\Wine\X11 Driver */
@@ -450,9 +449,6 @@ static void setup_options(void)
 
     if (!get_config_key( hkey, appkey, "UseServerX11", buffer, sizeof(buffer) ))
         use_server_x11 = IS_OPTION_TRUE( buffer[0] );
-
-    if ((env = getenv( "WINE_USE_SERVER_X11" )) && *env && *env != '0')
-        use_server_x11 = TRUE;
 
     if (!get_config_key( hkey, appkey, "Managed", buffer, sizeof(buffer) ))
         managed_mode = IS_OPTION_TRUE( buffer[0] );
