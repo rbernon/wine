@@ -272,6 +272,54 @@ static void send_mouse_input( struct host_x11 *host, xcb_window_t x11_win, xcb_i
 }
 
 
+static void handle_xcb_input_button_press( struct host_x11 *host, xcb_input_button_press_event_t *event )
+{
+    static const UINT flags[] =
+    {
+        MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_RIGHTDOWN,
+        MOUSEEVENTF_WHEEL, MOUSEEVENTF_WHEEL,
+        MOUSEEVENTF_HWHEEL, MOUSEEVENTF_HWHEEL,
+        MOUSEEVENTF_XDOWN, MOUSEEVENTF_XDOWN,
+    };
+    static const UINT data[ARRAY_SIZE(flags)] =
+    {
+        0, 0, 0,
+        WHEEL_DELTA, -WHEEL_DELTA,
+        -WHEEL_DELTA, WHEEL_DELTA,
+        XBUTTON1, XBUTTON2,
+    };
+    int button = event->detail - 1;
+
+    TRACE( "host %p sequence %u time %u device %u\n", host, event->full_sequence, event->time, event->deviceid );
+
+    if (button >= ARRAY_SIZE(flags)) return;
+    send_mouse_input( host, event->event, event->root_x, event->root_y, data[button], flags[button] );
+}
+
+static void handle_xcb_input_button_release( struct host_x11 *host, xcb_input_button_release_event_t *event )
+{
+    static const UINT flags[] =
+    {
+        MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_RIGHTUP,
+        0, 0,
+        0, 0,
+        MOUSEEVENTF_XUP, MOUSEEVENTF_XUP,
+    };
+    static const UINT data[ARRAY_SIZE(flags)] =
+    {
+        0, 0, 0,
+        0, 0,
+        0, 0,
+        XBUTTON1, XBUTTON2,
+    };
+    int button = event->detail - 1;
+
+    TRACE( "host %p sequence %u time %u device %u\n", host, event->full_sequence, event->time, event->deviceid );
+
+    if (button >= ARRAY_SIZE(flags)) return;
+    send_mouse_input( host, event->event, event->root_x, event->root_y, data[button], flags[button] );
+}
+
 static void handle_xcb_input_enter( struct host_x11 *host, xcb_input_enter_event_t *event )
 {
     TRACE( "host %p sequence %u time %u device %u\n", host, event->full_sequence, event->time, event->deviceid );
@@ -302,6 +350,8 @@ static void handle_xcb_ge_event( struct host_x11 *host, xcb_ge_event_t *event )
 {
     switch (event->event_type)
     {
+    case XCB_INPUT_BUTTON_PRESS: handle_xcb_input_button_press( host, (xcb_input_button_press_event_t *)event ); break;
+    case XCB_INPUT_BUTTON_RELEASE: handle_xcb_input_button_release( host, (xcb_input_button_release_event_t *)event ); break;
     case XCB_INPUT_MOTION: handle_xcb_input_motion( host, (xcb_input_motion_event_t *)event ); break;
     case XCB_INPUT_ENTER: handle_xcb_input_enter( host, (xcb_input_enter_event_t *)event ); break;
     case XCB_INPUT_LEAVE: handle_xcb_input_leave( host, (xcb_input_enter_event_t *)event ); break;
@@ -491,7 +541,8 @@ DECL_HANDLER( x11_start_input )
 
         input_mask.head.deviceid = XCB_INPUT_DEVICE_ALL_MASTER;
         input_mask.head.mask_len = sizeof(input_mask.mask) / sizeof(uint32_t);
-        input_mask.mask = XCB_INPUT_XI_EVENT_MASK_ENTER | XCB_INPUT_XI_EVENT_MASK_LEAVE |
+        input_mask.mask = XCB_INPUT_XI_EVENT_MASK_BUTTON_PRESS | XCB_INPUT_XI_EVENT_MASK_BUTTON_RELEASE |
+                          XCB_INPUT_XI_EVENT_MASK_ENTER | XCB_INPUT_XI_EVENT_MASK_LEAVE |
                           XCB_INPUT_XI_EVENT_MASK_MOTION;
 
         cookie = xcb_input_xi_select_events( host->xcb, req->x11_win, 1, &input_mask.head );

@@ -139,8 +139,8 @@ static x11drv_event_handler server_x11_handlers[MAX_EVENT_HANDLERS] =
     NULL,                     /*  1 reserved */
     X11DRV_KeyEvent,          /*  2 KeyPress */
     X11DRV_KeyEvent,          /*  3 KeyRelease */
-    X11DRV_ButtonPress,       /*  4 ButtonPress */
-    X11DRV_ButtonRelease,     /*  5 ButtonRelease */
+    NULL,                     /*  4 ButtonPress */
+    NULL,                     /*  5 ButtonRelease */
     NULL,                     /*  6 MotionNotify */
     NULL,                     /*  7 EnterNotify */
     NULL,                     /*  8 LeaveNotify */
