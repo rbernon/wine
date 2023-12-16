@@ -21,12 +21,6 @@
 #ifndef __WINE_WINE_ASM_H
 #define __WINE_WINE_ASM_H
 
-#define __ASM_STR_I(x) #x
-#define __ASM_STR(x) __ASM_STR_I(x)
-
-#define __ASM_CAT_I(x,y) x ## y
-#define __ASM_CAT(x,y) __ASM_CAT_I(x, y)
-
 #if defined(__APPLE__) || (defined(__WINE_PE_BUILD) && defined(__i386__))
 # define __ASM_NAME(name) "_" name
 #else
@@ -78,31 +72,18 @@
 #endif
 
 #if !defined(__GNUC__) && !defined(__clang__)
-# define __ASM_BLOCK_BEGIN(name) void __ASM_CAT(__asm_dummy_,name)(void) {
+# define __ASM_BLOCK_BEGIN(name) void __asm_dummy_##name(void) {
 # define __ASM_BLOCK_END         }
 #else
 # define __ASM_BLOCK_BEGIN(name)
 # define __ASM_BLOCK_END
 #endif
 
-#if !defined(__GNUC__)
-# define __ASM_FUNC_BEGIN(line) __ASM_BLOCK_BEGIN(line)
-# define __ASM_FUNC_END(line)   __ASM_BLOCK_END
-#else
-# define __ASM_FUNC_BEGIN(line) \
-    static void __attribute__((naked,used)) __ASM_CAT(__asm_dummy_,line)(void) { \
-        asm(__ASM_CFI("\n\t.cfi_endproc") __ASM_SEH("\n\t.seh_endproc"));
-# define __ASM_FUNC_END(line) \
-        asm(__ASM_SEH("\n\t.seh_proc .L__asm_dummy_" __ASM_STR(line) "\n.L__asm_dummy_" __ASM_STR(line) ":") \
-            __ASM_CFI("\n\t.cfi_startproc")); \
-    }
-#endif
-
 #define __ASM_DEFINE_FUNC(name,code)  \
-    __ASM_FUNC_BEGIN(__LINE__) \
-    asm(".align 4\n\t.globl " name "\n\t" __ASM_FUNC_TYPE(name) __ASM_SEH("\n\t.seh_proc " name) "\n" name ":\n\t" \
+    __ASM_BLOCK_BEGIN(__LINE__) \
+    asm(".text\n\t.align 4\n\t.globl " name "\n\t" __ASM_FUNC_TYPE(name) __ASM_SEH("\n\t.seh_proc " name) "\n" name ":\n\t" \
         __ASM_CFI(".cfi_startproc\n\t") __ASM_EHABI(".fnstart\n\t") code __ASM_CFI("\n\t.cfi_endproc") __ASM_EHABI("\n\t.fnend") __ASM_SEH("\n\t.seh_endproc") __ASM_FUNC_SIZE(name)); \
-    __ASM_FUNC_END(__LINE__)
+    __ASM_BLOCK_END
 
 #define __ASM_GLOBAL_FUNC(name,code) __ASM_DEFINE_FUNC(__ASM_NAME(#name),code)
 
