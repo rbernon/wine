@@ -44,6 +44,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(xim);
 #define XICProc XIMProc
 #endif
 
+static BOOL ime_comp_updated;
 static WCHAR *ime_comp_buf;
 
 static XIMStyle input_style = 0;
@@ -99,9 +100,10 @@ static void xim_update_comp_string( UINT offset, UINT old_len, const WCHAR *text
     memmove( ptr + new_len, ptr + old_len, (len - offset - old_len) * sizeof(WCHAR) );
     if (text) memcpy( ptr, text, new_len * sizeof(WCHAR) );
     ime_comp_buf[len + diff] = 0;
+    ime_comp_updated = TRUE;
 }
 
-void xim_set_result_string( HWND hwnd, const char *str, UINT count )
+static void xim_set_result_string( HWND hwnd, const char *str, UINT count )
 {
     WCHAR *output;
     DWORD len;
@@ -112,7 +114,7 @@ void xim_set_result_string( HWND hwnd, const char *str, UINT count )
     len = ntdll_umbstowcs( str, count, output, count );
     output[len] = 0;
 
-    post_ime_update( hwnd, 0, NULL, output );
+    post_ime_update( hwnd, 0, ime_comp_updated ? ime_comp_buf : NULL, output );
 
     free( output );
 }
@@ -504,4 +506,67 @@ BOOL X11DRV_SetIMECompositionRect( HWND hwnd, RECT rect )
 
     release_win_data( data );
     return TRUE;
+}
+
+static Bool is_same_key_event( Display *display, XEvent *event, XPointer arg )
+{
+    XKeyEvent *original = (XKeyEvent *)arg;
+    if (event->type != original->type) return FALSE;
+    if (!event->xkey.keycode) return TRUE;
+    return original->time == event->xkey.time && original->keycode == event->xkey.keycode &&
+           original->state == event->xkey.state;
+}
+
+/* Shamelessly stolen from Xlib, this effectively synchronizes with IME server
+ * and seems to be the only way to reliably do that. */
+static void synchronize_with_ime( XIC xic )
+{
+    CARD32 dummy;
+    XGetICValues( xic, XNFilterEvents, &dummy, NULL );
+}
+
+BOOL xim_process_key( HWND hwnd, XKeyEvent xkey )
+{
+    struct x11drv_thread_data *data = x11drv_thread_data();
+    XIC xic = X11DRV_get_ic( hwnd );
+    XEvent event;
+
+    TRACE( "hwnd %p, xic %p, xkey type %u, keycode %u, state %#x\n", hwnd, xic, xkey.type,
+           xkey.keycode, xkey.state );
+
+    if (!xic) return FALSE;
+
+    xkey.display = data->display;
+    xkey.root = DefaultRootWindow( data->display );
+    xkey.time = NtGetTickCount() + EVENT_x11_time_to_win32_time( 0 );
+    xkey.serial = XNextRequest( data->display );
+    xkey.same_screen = 1;
+    XNoOp( data->display );
+
+    ime_comp_updated = FALSE;
+    if (!XFilterEvent( (XEvent *)&xkey, None )) return FALSE;
+    synchronize_with_ime( xic );
+
+    if (!XCheckIfEvent( data->display, &event, is_same_key_event, (XPointer)&xkey )) return TRUE;
+    if (XFilterEvent( &event, None )) return TRUE;
+
+    if (event.type == KeyPress)
+    {
+        char buffer[24], *text = buffer;
+        Status status = 0;
+        KeySym keysym;
+        int len;
+
+        len = XmbLookupString( xic, &event.xkey, buffer, sizeof(buffer), &keysym, &status );
+        if (status == XBufferOverflow && (text = malloc( len )))
+            len = XmbLookupString( xic, &event.xkey, text, len, &keysym, &status );
+
+        if (status == XLookupChars)
+        {
+            xim_set_result_string( hwnd, text, len );
+            if (text != buffer) free( text );
+        }
+    }
+
+    return FALSE;
 }

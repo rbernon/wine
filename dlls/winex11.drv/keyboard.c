@@ -1327,49 +1327,16 @@ static void update_lock_state( HWND hwnd, WORD vkey, UINT state, UINT time )
 BOOL X11DRV_KeyEvent( HWND hwnd, XEvent *xev )
 {
     XKeyEvent *event = &xev->xkey;
-    char buf[24];
-    char *Str = buf;
     KeySym keysym = 0;
     WORD vkey = 0, bScan;
     DWORD dwFlags;
-    int ascii_chars;
     XIC xic = X11DRV_get_ic( hwnd );
     DWORD event_time = EVENT_x11_time_to_win32_time(event->time);
-    Status status = 0;
 
     TRACE_(key)("type %d, window %lx, state 0x%04x, keycode %u\n",
 		event->type, event->window, event->state, event->keycode);
 
     if (event->type == KeyPress) update_user_time( event->time );
-
-    /* Clients should pass only KeyPress events to XmbLookupString */
-    if (xic && event->type == KeyPress)
-    {
-        ascii_chars = XmbLookupString(xic, event, buf, sizeof(buf), &keysym, &status);
-        TRACE_(key)("XmbLookupString needs %i byte(s)\n", ascii_chars);
-        if (status == XBufferOverflow)
-        {
-            Str = malloc( ascii_chars );
-            if (Str == NULL)
-            {
-                ERR_(key)("Failed to allocate memory!\n");
-                return FALSE;
-            }
-            ascii_chars = XmbLookupString(xic, event, Str, ascii_chars, &keysym, &status);
-        }
-    }
-    else
-        ascii_chars = XLookupString(event, buf, sizeof(buf), &keysym, NULL);
-
-    TRACE_(key)("nbyte = %d, status %d\n", ascii_chars, status);
-
-    if (status == XLookupChars)
-    {
-        xim_set_result_string( hwnd, Str, ascii_chars );
-        if (buf != Str)
-            free( Str );
-        return TRUE;
-    }
 
     pthread_mutex_lock( &kbd_mutex );
 
@@ -1391,16 +1358,10 @@ BOOL X11DRV_KeyEvent( HWND hwnd, XEvent *xev )
         ksname = XKeysymToString(keysym);
 	if (!ksname)
 	  ksname = "No Name";
-	TRACE_(key)("%s : keysym=%lx (%s), # of chars=%d / %s\n",
-                    (event->type == KeyPress) ? "KeyPress" : "KeyRelease",
-                    keysym, ksname, ascii_chars, debugstr_an(Str, ascii_chars));
+	TRACE_(key)("%s : keysym=%lx (%s)\n", (event->type == KeyPress) ? "KeyPress" : "KeyRelease", keysym, ksname);
     }
-    if (buf != Str)
-        free( Str );
 
     vkey = EVENT_event_to_vkey(xic,event);
-    /* X returns keycode 0 for composed characters */
-    if (!vkey && ascii_chars) vkey = VK_NONAME;
     bScan = keyc2scan[event->keycode] & 0xFF;
 
     TRACE_(key)("keycode %u converted to vkey 0x%X scan %02x\n",
@@ -2597,4 +2558,40 @@ found:
 void X11DRV_Beep(void)
 {
     XBell(gdi_display, 0);
+}
+
+/***********************************************************************
+ *              ImeProcessKey (X11DRV.@)
+ */
+UINT X11DRV_ImeProcessKey( HIMC himc, UINT wparam, UINT lparam, const BYTE *key_state )
+{
+    WORD i, scan = HIWORD(lparam) & 0x1ff, vkey = LOWORD(wparam);
+    BOOL repeat = !!(lparam >> 30), pressed = !(lparam >> 31);
+    XKeyEvent event = {.type = pressed ? KeyPress : KeyRelease};
+    struct x11drv_win_data *data;
+    HWND hwnd;
+
+    TRACE( "himc %p, scan %#x, vkey %#x, repeat %u, pressed %u\n", himc, scan, vkey, repeat, pressed );
+
+    if (!(hwnd = NtUserGetAncestor( get_focus(), GA_ROOT ))) return FALSE;
+
+    if (!(data = get_win_data( hwnd ))) return FALSE;
+    event.display = data->display;
+    event.window = data->whole_window;
+    release_win_data( data );
+
+    for (i = 0; i < ARRAY_SIZE(keyc2scan); i++) if (keyc2scan[i] == scan) break;
+    if (i == ARRAY_SIZE(keyc2scan)) return FALSE;
+    event.keycode = i;
+
+    event.state |= AltGrMask & 0x6000; /* restore current Xkb group */
+    if (key_state[VK_SHIFT] & 0x80) event.state |= ShiftMask;
+    if (key_state[VK_CAPITAL] & 0x01) event.state |= LockMask;
+    if (key_state[VK_CONTROL] & 0x80 && key_state[VK_MENU]) event.state |= AltGrMask; /* FIXME: this isn't really AltGr */
+    else if (key_state[VK_CONTROL] & 0x80) event.state |= ControlMask;
+    else if (key_state[VK_MENU] & 0x80) event.state |= Mod5Mask;
+    if (key_state[VK_NUMLOCK] & 0x01) event.state |= NumLockMask;
+    if (key_state[VK_SCROLL] & 0x01) event.state |= ScrollLockMask;
+
+    return xim_process_key( hwnd, event );
 }

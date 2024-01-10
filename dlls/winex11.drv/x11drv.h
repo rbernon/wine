@@ -203,6 +203,7 @@ extern INT X11DRV_GetKeyNameText( LONG lparam, LPWSTR buffer, INT size );
 extern UINT X11DRV_MapVirtualKeyEx( UINT code, UINT map_type, HKL hkl );
 extern INT X11DRV_ToUnicodeEx( UINT virtKey, UINT scanCode, const BYTE *lpKeyState,
                                LPWSTR bufW, int bufW_size, UINT flags, HKL hkl );
+extern UINT X11DRV_ImeProcessKey( HIMC himc, UINT wparam, UINT lparam, const BYTE *key_state );
 extern SHORT X11DRV_VkKeyScanEx( WCHAR wChar, HKL hkl );
 extern void X11DRV_NotifyIMEStatus( HWND hwnd, UINT status );
 extern BOOL X11DRV_SetIMECompositionRect( HWND hwnd, RECT rect );
@@ -853,9 +854,9 @@ extern struct x11drv_display_device_handler desktop_handler;
 extern BOOL xim_init( const WCHAR *input_style );
 extern void xim_thread_attach( struct x11drv_thread_data *data );
 extern BOOL xim_in_compose_mode(void);
-extern void xim_set_result_string( HWND hwnd, const char *str, UINT count );
 extern XIC X11DRV_get_ic( HWND hwnd );
 extern void xim_set_focus( HWND hwnd, BOOL focus );
+extern BOOL xim_process_key( HWND hwnd, XKeyEvent xkey );
 
 #define XEMBED_MAPPED  (1 << 0)
 
