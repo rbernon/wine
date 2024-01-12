@@ -47,6 +47,7 @@
 #include <xcb/xcb.h>
 #include <xcb/xcbext.h>
 #include <xcb/xcb_util.h>
+#include <xcb/xcb_ewmh.h>
 #include <xcb/xinput.h>
 #include <xcb/xkb.h>
 
@@ -73,6 +74,9 @@ struct host_x11
     struct fd                  *fd;               /* file descriptor for this connection */
     char                       *display;          /* X display for this connection */
     xcb_connection_t           *xcb;              /* xcb connection to the host display */
+    xcb_ewmh_connection_t       ewmh;             /* ewmh xcb protocol state */
+    int                         window_manager;   /* host window manager (WINE_WM_X11_*) */
+    int                         screen_num;       /* connection screen number */
     int                         needs_flush;      /* whether xcb_flush should be called */
     int                         is_xwayland: 1;   /* whether the X11 server is XWayland */
 
@@ -417,6 +421,15 @@ static void send_raw_mouse_input( struct host_x11 *host, xcb_input_fp3232_t x, x
     release_object( desktop );
 }
 
+static void set_user_input_time( struct host_x11 *host, xcb_window_t window, xcb_timestamp_t time )
+{
+    xcb_void_cookie_t cookie;
+
+    cookie = xcb_ewmh_set_wm_user_time( &host->ewmh, window, time );
+    if (!debug_level) xcb_discard_reply( host->xcb, cookie.sequence );
+
+    host_set_needs_flush( host );
+}
 
 static void handle_xcb_input_button_press( struct host_x11 *host, xcb_input_button_press_event_t *event )
 {
@@ -438,6 +451,8 @@ static void handle_xcb_input_button_press( struct host_x11 *host, xcb_input_butt
     int button = event->detail - 1;
 
     TRACE( "host %p sequence %u time %u device %u\n", host, event->full_sequence, event->time, event->deviceid );
+
+    set_user_input_time( host, event->event, event->time );
 
     if (button >= ARRAY_SIZE(flags)) return;
     send_raw_mouse_input( host, fp3232_zero, fp3232_zero, data[button], flags[button] );
@@ -464,6 +479,8 @@ static void handle_xcb_input_button_release( struct host_x11 *host, xcb_input_bu
     int button = event->detail - 1;
 
     TRACE( "host %p sequence %u time %u device %u\n", host, event->full_sequence, event->time, event->deviceid );
+
+    set_user_input_time( host, event->event, event->time );
 
     if (button >= ARRAY_SIZE(flags)) return;
     send_raw_mouse_input( host, fp3232_zero, fp3232_zero, data[button], flags[button] );
@@ -1464,6 +1481,8 @@ static void handle_xcb_input_focus_in( struct host_x11 *host, xcb_input_focus_in
 
     TRACE( "host %p sequence %u time %u device %u\n", host, event->full_sequence, event->time, event->deviceid );
 
+    set_user_input_time( host, event->event, event->time );
+
     if (event->detail >= XCB_INPUT_NOTIFY_DETAIL_POINTER) return;
 
     host->keyboard_grabbed = event->mode == XCB_INPUT_NOTIFY_MODE_GRAB ||
@@ -1506,6 +1525,8 @@ static void handle_xcb_input_key_press( struct host_x11 *host, xcb_input_key_pre
 
     TRACE( "host %p sequence %u time %u device %u\n", host, event->full_sequence, event->time, event->deviceid );
 
+    set_user_input_time( host, event->event, event->time );
+
     if (!(data = window_data_lookup( host, compare_x11_win, &event->event )))
     {
         ERR( "host %p failed to find window %#x\n", host, event->event );
@@ -1523,6 +1544,8 @@ static void handle_xcb_input_key_release( struct host_x11 *host, xcb_input_key_r
     struct window_data *data;
 
     TRACE( "host %p sequence %u time %u device %u\n", host, event->full_sequence, event->time, event->deviceid );
+
+    set_user_input_time( host, event->event, event->time );
 
     if (!(data = window_data_lookup( host, compare_x11_win, &event->event )))
     {
@@ -1830,6 +1853,7 @@ static void host_x11_destroy( struct object *obj )
 
     free( host->windows );
     free( host->display );
+    xcb_ewmh_connection_wipe( &host->ewmh );
     if (host->fd) release_object( host->fd );
     if (host->xcb) xcb_disconnect( host->xcb );
     list_remove( &host->entry );
@@ -1949,11 +1973,53 @@ static int init_xkb( struct host_x11 *host )
     return 0;
 }
 
+static int init_ewmh( struct host_x11 *host )
+{
+    xcb_get_property_cookie_t property_cookie;
+    xcb_ewmh_get_utf8_strings_reply_t reply;
+    xcb_intern_atom_cookie_t *atom_cookie;
+    xcb_generic_error_t *error;
+    xcb_window_t window;
+
+    atom_cookie = xcb_ewmh_init_atoms( host->xcb, &host->ewmh );
+    if (!xcb_ewmh_init_atoms_replies( &host->ewmh, atom_cookie, &error ))
+    {
+        handle_xcb_generic_error( host, error );
+        return -1;
+    }
+
+    property_cookie = xcb_ewmh_get_supporting_wm_check( &host->ewmh, host->root_window );
+    if (!xcb_ewmh_get_supporting_wm_check_reply( &host->ewmh, property_cookie, &window, &error ))
+    {
+        handle_xcb_generic_error( host, error );
+        return -1;
+    }
+
+    property_cookie = xcb_ewmh_get_wm_name( &host->ewmh, window );
+    if (!xcb_ewmh_get_wm_name_reply( &host->ewmh, property_cookie, &reply, &error ))
+    {
+        handle_xcb_generic_error( host, error );
+        return -1;
+    }
+
+    TRACE("window manager name: %s len %u\n", debugstr_a(reply.strings), reply.strings_len);
+    if (!strcmp(reply.strings, "GNOME Shell") || !strcmp(reply.strings, "Mutter"))
+        host->window_manager = WINE_WM_X11_MUTTER;
+    else if (!strcmp(reply.strings, "steamcompmgr"))
+        host->window_manager = WINE_WM_X11_STEAMCOMPMGR;
+    else if (!strcmp(reply.strings, "KWin"))
+        host->window_manager = WINE_WM_X11_KDE;
+    else
+        host->window_manager = WINE_WM_UNKNOWN;
+    xcb_ewmh_get_utf8_strings_reply_wipe( &reply );
+
+    return 0;
+}
+
 static struct object *create_host_x11( const char *display )
 {
     struct host_x11 *host;
     xcb_screen_t *screen;
-    int screen_num;
 
     LIST_FOR_EACH_ENTRY( host, &connections, struct host_x11, entry )
         if (!strcmp( host->display, display )) return grab_object( host );
@@ -1990,15 +2056,16 @@ static struct object *create_host_x11( const char *display )
     host->keyboard_focus = 0;
 
     if (!(host->display = strdup( display ))) goto failed;
-    if (!(host->xcb = xcb_connect( display, &screen_num ))) goto failed;
+    if (!(host->xcb = xcb_connect( display, &host->screen_num ))) goto failed;
     if (xcb_connection_has_error( host->xcb )) goto failed;
     if (!(host->fd = create_anonymous_fd( &host_x11_fd_ops, xcb_get_file_descriptor( host->xcb ),
                                           &host->obj, FILE_SYNCHRONOUS_IO_NONALERT )))
         goto failed;
-    if (!(screen = xcb_aux_get_screen( host->xcb, screen_num )))
+    if (!(screen = xcb_aux_get_screen( host->xcb, host->screen_num )))
         goto failed;
 
     host->root_window = screen->root;
+    if (init_ewmh( host )) goto failed;
     if (init_xfixes( host )) goto failed;
     if (init_xinput( host )) goto failed;
     if (init_xkb( host )) goto failed;
