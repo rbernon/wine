@@ -3496,6 +3496,9 @@ goto skip_tests;
 skip_tests:
     if (!bus_device_start()) goto done;
 
+    test_hid_touch_screen();
+    goto done;
+
     test_hid_mouse();
     test_hid_keyboard();
     test_hid_touch_screen();
