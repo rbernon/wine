@@ -17,7 +17,6 @@
  */
 
 #pragma makedep header
-#pragma makedep impl
 
 #ifdef __WIDL__
 #pragma winrt ns_prefix
@@ -215,6 +214,5 @@ namespace Windows.Gaming.Input.Custom {
     {
         [default] interface Windows.Gaming.Input.Custom.IWineGameControllerProvider;
         interface Windows.Gaming.Input.Custom.IGameControllerProvider;
-        interface IAgileObject;
     }
 }

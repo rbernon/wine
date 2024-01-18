@@ -2063,8 +2063,6 @@ void write_header( const struct idl_ctx *ctx )
     FILE *header;
 
     if (!do_header) return;
-    if (strstr(header_name, "/mock.h")) return write_mock(stmts);
-
     if (!(header = fopen( header_name, "w" ))) error( "Could not open %s for output\n", header_name );
 
     init_output_buffer();

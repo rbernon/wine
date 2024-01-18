@@ -96,7 +96,6 @@ struct incl_file
 #define FLAG_IDL_TYPELIB    0x002000  /* generates a typelib (_l.res) file */
 #define FLAG_IDL_REGTYPELIB 0x004000  /* generates a registered typelib (_t.res) file */
 #define FLAG_IDL_HEADER     0x008000  /* generates a header (.h) file */
-#define FLAG_IDL_IMPL       0x100000  /* generates an impl (_impl.c) file */
 #define FLAG_RC_PO          0x010000  /* rc file contains translations */
 #define FLAG_RC_HEADER      0x020000  /* rc file is a header */
 #define FLAG_C_IMPLIB       0x040000  /* file is part of an import library */
@@ -116,7 +115,6 @@ static const struct
     { FLAG_IDL_PROXY,      "_p.c" },
     { FLAG_IDL_SERVER,     "_s.c" },
     { FLAG_IDL_REGISTER,   "_r.res" },
-    { FLAG_IDL_IMPL,       "_impl.c" },
 };
 
 #define HASH_SIZE 197
@@ -936,7 +934,6 @@ static void parse_pragma_directive( struct file *source, char *str )
         if (strendswith( source->name, ".idl" ))
         {
             if (!strcmp( flag, "header" )) source->flags |= FLAG_IDL_HEADER;
-            else if (!strcmp( flag, "impl" )) source->flags |= FLAG_IDL_IMPL;
             else if (!strcmp( flag, "proxy" )) source->flags |= FLAG_IDL_PROXY;
             else if (!strcmp( flag, "client" )) source->flags |= FLAG_IDL_CLIENT;
             else if (!strcmp( flag, "server" )) source->flags |= FLAG_IDL_SERVER;
@@ -1885,11 +1882,6 @@ static void add_generated_sources( struct makefile *make )
         if (source->file->flags & FLAG_IDL_HEADER)
         {
             add_generated_source( make, replace_extension( source->name, ".idl", ".h" ), NULL, 0 );
-        }
-        if (source->file->flags & FLAG_IDL_IMPL)
-        {
-            file = add_generated_source( make, replace_extension( source->name, ".idl", "_impl.c" ), NULL );
-            add_all_includes( make, file, file->file );
         }
         if (!source->file->flags && strendswith( source->name, ".idl" ))
         {

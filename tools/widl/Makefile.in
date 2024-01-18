@@ -6,7 +6,10 @@ SOURCES = \
 	expr.c \
 	hash.c \
 	header.c \
-	impl.c \
+	parser.l \
+	parser.y \
+	ppl.l \
+	ppy.y \
 	proxy.c \
 	register.c \
 	server.c \
