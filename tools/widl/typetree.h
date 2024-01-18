@@ -342,10 +342,26 @@ static inline int type_array_is_decl_as_ptr(const type_t *type)
     return type->details.array.declptr;
 }
 
+static inline int type_is_alias(const type_t *type)
+{
+    return type->type_type == TYPE_ALIAS;
+}
+
+static inline int type_is_ptr( const type_t *type )
+{
+    return type->type_type == TYPE_POINTER;
+}
+
 static inline const decl_spec_t *type_alias_get_aliasee(const type_t *type)
 {
     assert(type_is_alias(type));
     return &type->details.alias.aliasee;
+}
+
+static inline type_t *type_alias_get_aliasee_type(const type_t *type)
+{
+    assert(type_is_alias(type));
+    return type->details.alias.aliasee.type;
 }
 
 static inline typeref_list_t *type_coclass_get_ifaces(const type_t *type)

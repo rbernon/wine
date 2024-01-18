@@ -101,7 +101,6 @@ int pedantic = 0;
 int do_everything = 1;
 static int preprocess_only = 0;
 int do_header = 0;
-int do_impl = 0;
 int do_typelib = 0;
 int do_old_typelib = 0;
 int do_proxies = 0;
@@ -117,7 +116,6 @@ static enum stub_mode stub_mode = MODE_Os;
 
 char *typename_base;
 char *header_name;
-char *impl_name;
 char *local_stubs_name;
 char *header_token;
 char *typelib_name;
@@ -261,7 +259,6 @@ static void exit_on_signal( int sig )
 static void set_everything(int x)
 {
   do_header = x;
-  do_impl = x;
   do_typelib = x;
   do_old_typelib = x;
   do_proxies = x;
@@ -734,12 +731,11 @@ int main(int argc,char *argv[])
       pointer_size = get_target_ptr_size( target );
 
   /* if nothing specified, try to guess output type from the output file name */
-  if (output_name && do_everything && !do_header && !do_impl && !do_typelib && !do_proxies &&
+  if (output_name && do_everything && !do_header && !do_typelib && !do_proxies &&
       !do_client && !do_server && !do_regscript && !do_idfile && !do_dlldata)
   {
       do_everything = 0;
       if (strendswith( output_name, ".h" )) do_header = 1;
-      else if (strendswith( output_name, "_impl.c" )) do_impl = 1;
       else if (strendswith( output_name, ".tlb" )) do_typelib = 1;
       else if (strendswith( output_name, "_p.c" )) do_proxies = 1;
       else if (strendswith( output_name, "_c.c" )) do_client = 1;
@@ -756,11 +752,10 @@ int main(int argc,char *argv[])
     set_everything(TRUE);
   }
 
-  if (do_header + do_impl + do_typelib + do_proxies + do_client +
+  if (do_header + do_typelib + do_proxies + do_client +
       do_server + do_regscript + do_idfile + do_dlldata == 1 && output_name)
   {
       if (do_header && !header_name) header_name = output_name;
-      else if (do_impl && !impl_name) impl_name = output_name;
       else if (do_typelib && !typelib_name) typelib_name = output_name;
       else if (do_proxies && !proxy_name) proxy_name = output_name;
       else if (do_client && !client_name) client_name = output_name;
@@ -811,9 +806,6 @@ int main(int argc,char *argv[])
 
   if (!header_name)
       header_name = replace_extension( get_basename( ctx.input ), ".idl", ".h" );
-
-  if (!impl_name)
-      impl_name = replace_extension( get_basename(input_name), ".idl", "_impl.c" );
 
   if (!typelib_name && do_typelib)
       typelib_name = replace_extension( get_basename( ctx.input ), ".idl", ".tlb" );
@@ -877,8 +869,6 @@ static void rm_tempfile(void)
 {
   if (do_header)
     unlink(header_name);
-  if (do_impl)
-    unlink(impl_name);
   if (local_stubs_name)
     unlink(local_stubs_name);
   if (do_client)

@@ -367,21 +367,20 @@ void pop_import( YYLTYPE *yylloc );
 
 %%
 
-input: gbl_statements m_acf			{ $1 = append_parameterized_type_stmts($1);
-						  check_statements($1, FALSE);
-						  check_all_user_types($1);
-						  write_header($1);
-						  write_impl($1);
-						  write_id_data($1);
-						  write_proxies($1);
-						  write_client($1);
-						  write_server($1);
-						  write_regscript($1);
-						  write_typelib_regscript($1);
-						  write_dlldata($1);
-						  write_local_stubs($1);
-						}
-	;
+input: gbl_statements m_acf                     { $1 = append_parameterized_type_stmts($1);
+                                                  check_statements($1, FALSE);
+                                                  check_all_user_types($1);
+                                                  write_header($1);
+                                                  write_id_data($1);
+                                                  write_proxies($1);
+                                                  write_client($1);
+                                                  write_server($1);
+                                                  write_regscript($1);
+                                                  write_typelib_regscript($1);
+                                                  write_dlldata($1);
+                                                  write_local_stubs($1);
+                                                }
+        ;
 
 m_acf: /* empty */ | aACF acf_statements
 
