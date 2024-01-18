@@ -38,6 +38,7 @@ extern int debuglevel;
 extern int pedantic;
 extern int do_everything;
 extern int do_header;
+extern int do_impl;
 extern int do_typelib;
 extern int do_old_typelib;
 extern int do_proxies;
@@ -50,6 +51,7 @@ extern int old_names;
 
 extern char *typename_base;
 extern char *header_name;
+extern char *impl_name;
 extern char *header_token;
 extern char *local_stubs_name;
 extern char *typelib_name;
@@ -77,6 +79,8 @@ extern int open_typelib( const char *name );
 
 struct idl_ctx;
 extern void write_header( const struct idl_ctx *ctx );
+extern void write_mock( const struct idl_ctx *ctx );
+extern void write_impl( const struct idl_ctx *ctx );
 extern void write_proxies( const struct idl_ctx *ctx );
 extern void write_client( const struct idl_ctx *ctx );
 extern void write_server( const struct idl_ctx *ctx );

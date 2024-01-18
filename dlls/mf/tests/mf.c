@@ -449,6 +449,17 @@ static const IUnknownVtbl test_unk_vtbl =
     test_unk_Release,
 };
 
+#if 0
+struct test_stream_sink
+{
+    IMFStreamSink IMFStreamSink_iface;
+};
+
+static const IMFStreamSinkVtbl test_stream_sink_vtbl =
+{
+};
+#endif
+
 static void test_topology(void)
 {
     IMFMediaType *mediatype, *mediatype2, *mediatype3;

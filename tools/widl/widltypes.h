@@ -579,8 +579,20 @@ char *format_namespace(struct namespace *namespace, const char *prefix, const ch
                        const char *abi_prefix);
 char *format_parameterized_type_name(type_t *type, typeref_list_t *params);
 
+static inline int type_is_alias(const type_t *type)
+{
+    return type->type_type == TYPE_ALIAS;
+}
+
+static inline type_t *type_alias_get_aliasee_type(const type_t *type)
+{
+    assert(type_is_alias(type));
+    return type->details.alias.aliasee.type;
+}
+
 static inline enum type_type type_get_type_detect_alias(const type_t *type)
 {
+    if (type->type_type == TYPE_ALIAS) return type_get_type_detect_alias(type_alias_get_aliasee_type(type));
     return type->type_type;
 }
 

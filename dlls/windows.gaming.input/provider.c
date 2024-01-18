@@ -44,10 +44,7 @@ static struct list provider_list = LIST_INIT( provider_list );
 
 struct provider
 {
-    IWineGameControllerProvider IWineGameControllerProvider_iface;
-    IGameControllerProvider IGameControllerProvider_iface;
-    LONG ref;
-
+    WineGameControllerProvider klass;
     IDirectInputDevice8W *dinput_device;
     WCHAR device_path[MAX_PATH];
     struct list entry;
@@ -65,80 +62,22 @@ struct provider
     HANDLE device;
 };
 
-static inline struct provider *impl_from_IWineGameControllerProvider( IWineGameControllerProvider *iface )
+static inline struct provider *impl_from_WineGameControllerProvider( WineGameControllerProvider *klass )
 {
-    return CONTAINING_RECORD( iface, struct provider, IWineGameControllerProvider_iface );
+    return CONTAINING_RECORD( klass, struct provider, klass );
 }
 
-static HRESULT WINAPI wine_provider_QueryInterface( IWineGameControllerProvider *iface, REFIID iid, void **out )
+static ULONG WINAPI wine_provider_Release( WineGameControllerProvider *klass )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = impl_from_WineGameControllerProvider( klass );
 
-    TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
+    IDirectInputDevice8_Release( impl->dinput_device );
+    HidD_FreePreparsedData( impl->preparsed );
+    CloseHandle( impl->device );
+    free( impl->report_buf );
+    free( impl );
 
-    if (IsEqualGUID( iid, &IID_IUnknown ) ||
-        IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
-        IsEqualGUID( iid, &IID_IWineGameControllerProvider ))
-    {
-        IInspectable_AddRef( (*out = &impl->IWineGameControllerProvider_iface) );
-        return S_OK;
-    }
-
-    if (IsEqualGUID( iid, &IID_IGameControllerProvider ))
-    {
-        IInspectable_AddRef( (*out = &impl->IGameControllerProvider_iface) );
-        return S_OK;
-    }
-
-    FIXME( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid( iid ) );
-    *out = NULL;
-    return E_NOINTERFACE;
-}
-
-static ULONG WINAPI wine_provider_AddRef( IWineGameControllerProvider *iface )
-{
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
-    ULONG ref = InterlockedIncrement( &impl->ref );
-    TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
-    return ref;
-}
-
-static ULONG WINAPI wine_provider_Release( IWineGameControllerProvider *iface )
-{
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
-    ULONG ref = InterlockedDecrement( &impl->ref );
-
-    TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
-
-    if (!ref)
-    {
-        IDirectInputDevice8_Release( impl->dinput_device );
-        HidD_FreePreparsedData( impl->preparsed );
-        CloseHandle( impl->device );
-        free( impl->report_buf );
-        free( impl );
-    }
-
-    return ref;
-}
-
-static HRESULT WINAPI wine_provider_GetIids( IWineGameControllerProvider *iface, ULONG *iid_count, IID **iids )
-{
-    FIXME( "iface %p, iid_count %p, iids %p stub!\n", iface, iid_count, iids );
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI wine_provider_GetRuntimeClassName( IWineGameControllerProvider *iface, HSTRING *class_name )
-{
-    FIXME( "iface %p, class_name %p stub!\n", iface, class_name );
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI wine_provider_GetTrustLevel( IWineGameControllerProvider *iface, TrustLevel *trust_level )
-{
-    FIXME( "iface %p, trust_level %p stub!\n", iface, trust_level );
-    return E_NOTIMPL;
+    return 0;
 }
 
 static BOOL CALLBACK count_ffb_axes( const DIDEVICEOBJECTINSTANCEW *obj, void *args )
@@ -150,11 +89,11 @@ static BOOL CALLBACK count_ffb_axes( const DIDEVICEOBJECTINSTANCEW *obj, void *a
 
 static HRESULT WINAPI wine_provider_get_Type( IWineGameControllerProvider *iface, WineGameControllerType *value )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = impl_from_WineGameControllerProvider( klass );
     DIDEVICEINSTANCEW instance = {.dwSize = sizeof(DIDEVICEINSTANCEW)};
     HRESULT hr;
 
-    TRACE( "iface %p, value %p.\n", iface, value );
+    TRACE( "klass %p, value %p.\n", klass, value );
 
     if (FAILED(hr = IDirectInputDevice8_GetDeviceInfo( impl->dinput_device, &instance ))) return hr;
 
@@ -175,53 +114,53 @@ static HRESULT WINAPI wine_provider_get_Type( IWineGameControllerProvider *iface
     return S_OK;
 }
 
-static HRESULT WINAPI wine_provider_get_AxisCount( IWineGameControllerProvider *iface, INT32 *value )
+static HRESULT WINAPI wine_provider_get_AxisCount( WineGameControllerProvider *klass, INT32 *value )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = impl_from_WineGameControllerProvider( klass );
     DIDEVCAPS caps = {.dwSize = sizeof(DIDEVCAPS)};
     HRESULT hr;
 
-    TRACE( "iface %p, value %p.\n", iface, value );
+    TRACE( "klass %p, value %p.\n", klass, value );
 
     if (SUCCEEDED(hr = IDirectInputDevice8_GetCapabilities( impl->dinput_device, &caps )))
         *value = caps.dwAxes;
     return hr;
 }
 
-static HRESULT WINAPI wine_provider_get_ButtonCount( IWineGameControllerProvider *iface, INT32 *value )
+static HRESULT WINAPI wine_provider_get_ButtonCount( WineGameControllerProvider *klass, INT32 *value )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = impl_from_WineGameControllerProvider( klass );
     DIDEVCAPS caps = {.dwSize = sizeof(DIDEVCAPS)};
     HRESULT hr;
 
-    TRACE( "iface %p, value %p.\n", iface, value );
+    TRACE( "klass %p, value %p.\n", klass, value );
 
     if (SUCCEEDED(hr = IDirectInputDevice8_GetCapabilities( impl->dinput_device, &caps )))
         *value = caps.dwButtons;
     return hr;
 }
 
-static HRESULT WINAPI wine_provider_get_SwitchCount( IWineGameControllerProvider *iface, INT32 *value )
+static HRESULT WINAPI wine_provider_get_SwitchCount( WineGameControllerProvider *klass, INT32 *value )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = impl_from_WineGameControllerProvider( klass );
     DIDEVCAPS caps = {.dwSize = sizeof(DIDEVCAPS)};
     HRESULT hr;
 
-    TRACE( "iface %p, value %p.\n", iface, value );
+    TRACE( "klass %p, value %p.\n", klass, value );
 
     if (SUCCEEDED(hr = IDirectInputDevice8_GetCapabilities( impl->dinput_device, &caps )))
         *value = caps.dwPOVs;
     return hr;
 }
 
-static HRESULT WINAPI wine_provider_get_State( IWineGameControllerProvider *iface, struct WineGameControllerState *out )
+static HRESULT WINAPI wine_provider_get_State( WineGameControllerProvider *klass, struct WineGameControllerState *out )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = impl_from_WineGameControllerProvider( klass );
     DIJOYSTATE2 state = {0};
     UINT32 i = 0;
     HRESULT hr;
 
-    TRACE( "iface %p, out %p.\n", iface, out );
+    TRACE( "klass %p, out %p.\n", klass, out );
 
     if (FAILED(hr = IDirectInputDevice8_GetDeviceState( impl->dinput_device, sizeof(state), &state )))
     {
@@ -277,17 +216,17 @@ static HRESULT WINAPI wine_provider_get_State( IWineGameControllerProvider *ifac
     return S_OK;
 }
 
-static HRESULT WINAPI wine_provider_get_Vibration( IWineGameControllerProvider *iface, struct WineGameControllerVibration *out )
+static HRESULT WINAPI wine_provider_get_Vibration( WineGameControllerProvider *klass, struct WineGameControllerVibration *out )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
-    TRACE( "iface %p, out %p.\n", iface, out );
+    struct provider *impl = impl_from_WineGameControllerProvider( klass );
+    TRACE( "klass %p, out %p.\n", klass, out );
     *out = impl->vibration;
     return S_OK;
 }
 
-static HRESULT WINAPI wine_provider_put_Vibration( IWineGameControllerProvider *iface, struct WineGameControllerVibration value )
+static HRESULT WINAPI wine_provider_put_Vibration( WineGameControllerProvider *klass, struct WineGameControllerVibration value )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = impl_from_WineGameControllerProvider( klass );
     ULONG report_len = impl->caps.OutputReportByteLength;
     PHIDP_PREPARSED_DATA preparsed = impl->preparsed;
     char *report_buf = impl->report_buf;
@@ -295,7 +234,7 @@ static HRESULT WINAPI wine_provider_put_Vibration( IWineGameControllerProvider *
     NTSTATUS status;
     BOOL ret;
 
-    TRACE( "iface %p, value %p.\n", iface, &value );
+    TRACE( "klass %p, value %p.\n", klass, &value );
 
     if (!memcmp( &impl->vibration, &value, sizeof(value) )) return S_OK;
     impl->vibration = value;
@@ -329,13 +268,13 @@ static HRESULT WINAPI wine_provider_put_Vibration( IWineGameControllerProvider *
     return S_OK;
 }
 
-static HRESULT WINAPI wine_provider_get_ForceFeedbackMotor( IWineGameControllerProvider *iface, IForceFeedbackMotor **value )
+static HRESULT WINAPI wine_provider_get_ForceFeedbackMotor( WineGameControllerProvider *klass, IForceFeedbackMotor **value )
 {
-    struct provider *impl = impl_from_IWineGameControllerProvider( iface );
+    struct provider *impl = impl_from_WineGameControllerProvider( klass );
     DIDEVCAPS caps = {.dwSize = sizeof(DIDEVCAPS)};
     HRESULT hr;
 
-    TRACE( "iface %p, value %p.\n", iface, value );
+    TRACE( "klass %p, value %p.\n", klass, value );
 
     if (SUCCEEDED(hr = IDirectInputDevice8_GetCapabilities( impl->dinput_device, &caps )) && (caps.dwFlags & DIDC_FORCEFEEDBACK))
         return force_feedback_motor_create( impl->dinput_device, value );
@@ -344,87 +283,45 @@ static HRESULT WINAPI wine_provider_get_ForceFeedbackMotor( IWineGameControllerP
     return S_OK;
 }
 
-static const struct IWineGameControllerProviderVtbl wine_provider_vtbl =
-{
-    wine_provider_QueryInterface,
-    wine_provider_AddRef,
-    wine_provider_Release,
-    /* IInspectable methods */
-    wine_provider_GetIids,
-    wine_provider_GetRuntimeClassName,
-    wine_provider_GetTrustLevel,
-    /* IWineGameControllerProvider methods */
-    wine_provider_get_Type,
-    wine_provider_get_AxisCount,
-    wine_provider_get_ButtonCount,
-    wine_provider_get_SwitchCount,
-    wine_provider_get_State,
-    wine_provider_get_Vibration,
-    wine_provider_put_Vibration,
-    wine_provider_get_ForceFeedbackMotor,
-};
-
-DEFINE_IINSPECTABLE( game_provider, IGameControllerProvider, struct provider, IWineGameControllerProvider_iface )
-
-static HRESULT WINAPI game_provider_get_FirmwareVersionInfo( IGameControllerProvider *iface, GameControllerVersionInfo *value )
-{
-    FIXME( "iface %p, value %p stub!\n", iface, value );
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI game_provider_get_HardwareProductId( IGameControllerProvider *iface, UINT16 *value )
+static HRESULT WINAPI wine_provider_get_HardwareProductId( WineGameControllerProvider *klass, UINT16 *value )
 {
     DIPROPDWORD vid_pid = {.diph = {.dwHeaderSize = sizeof(DIPROPHEADER), .dwSize = sizeof(DIPROPDWORD)}};
-    struct provider *impl = impl_from_IGameControllerProvider( iface );
+    struct provider *impl = impl_from_WineGameControllerProvider( klass );
     HRESULT hr;
 
-    TRACE( "iface %p, value %p.\n", iface, value );
+    TRACE( "klass %p, value %p.\n", klass, value );
 
     if (SUCCEEDED(hr = IDirectInputDevice8_GetProperty( impl->dinput_device, DIPROP_VIDPID, &vid_pid.diph )))
         *value = HIWORD(vid_pid.dwData);
     return hr;
 }
 
-static HRESULT WINAPI game_provider_get_HardwareVendorId( IGameControllerProvider *iface, UINT16 *value )
+static HRESULT WINAPI wine_provider_get_HardwareVendorId( WineGameControllerProvider *klass, UINT16 *value )
 {
     DIPROPDWORD vid_pid = {.diph = {.dwHeaderSize = sizeof(DIPROPHEADER), .dwSize = sizeof(DIPROPDWORD)}};
-    struct provider *impl = impl_from_IGameControllerProvider( iface );
+    struct provider *impl = impl_from_WineGameControllerProvider( klass );
     HRESULT hr;
 
-    TRACE( "iface %p, value %p.\n", iface, value );
+    TRACE( "klass %p, value %p.\n", klass, value );
 
     if (SUCCEEDED(hr = IDirectInputDevice8_GetProperty( impl->dinput_device, DIPROP_VIDPID, &vid_pid.diph )))
         *value = LOWORD(vid_pid.dwData);
     return hr;
 }
 
-static HRESULT WINAPI game_provider_get_HardwareVersionInfo( IGameControllerProvider *iface, GameControllerVersionInfo *value )
+static const struct WineGameControllerProviderVtbl WineGameControllerProvider_vtbl =
 {
-    FIXME( "iface %p, value %p stub!\n", iface, value );
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI game_provider_get_IsConnected( IGameControllerProvider *iface, boolean *value )
-{
-    FIXME( "iface %p, value %p stub!\n", iface, value );
-    return E_NOTIMPL;
-}
-
-static const struct IGameControllerProviderVtbl game_provider_vtbl =
-{
-    game_provider_QueryInterface,
-    game_provider_AddRef,
-    game_provider_Release,
-    /* IInspectable methods */
-    game_provider_GetIids,
-    game_provider_GetRuntimeClassName,
-    game_provider_GetTrustLevel,
-    /* IGameControllerProvider methods */
-    game_provider_get_FirmwareVersionInfo,
-    game_provider_get_HardwareProductId,
-    game_provider_get_HardwareVendorId,
-    game_provider_get_HardwareVersionInfo,
-    game_provider_get_IsConnected,
+    .Release = wine_provider_Release,
+    .get_Type = wine_provider_get_Type,
+    .get_AxisCount = wine_provider_get_AxisCount,
+    .get_ButtonCount = wine_provider_get_ButtonCount,
+    .get_SwitchCount = wine_provider_get_SwitchCount,
+    .get_State = wine_provider_get_State,
+    .get_Vibration = wine_provider_get_Vibration,
+    .put_Vibration = wine_provider_put_Vibration,
+    .get_ForceFeedbackMotor = wine_provider_get_ForceFeedbackMotor,
+    .get_HardwareProductId = wine_provider_get_HardwareProductId,
+    .get_HardwareVendorId = wine_provider_get_HardwareVendorId,
 };
 
 static void check_haptics_caps( struct provider *provider, HANDLE device, PHIDP_PREPARSED_DATA preparsed,
@@ -571,17 +468,15 @@ void provider_create( const WCHAR *device_path )
     if (FAILED(hr = IDirectInputDevice8_Acquire( dinput_device ))) goto done;
 
     if (!(impl = calloc( 1, sizeof(*impl) ))) goto done;
-    impl->IWineGameControllerProvider_iface.lpVtbl = &wine_provider_vtbl;
-    impl->IGameControllerProvider_iface.lpVtbl = &game_provider_vtbl;
+    WineGameControllerProvider_init( &impl->klass );
     IDirectInputDevice_AddRef( dinput_device );
     impl->dinput_device = dinput_device;
-    impl->ref = 1;
 
     wcscpy( impl->device_path, device_path );
     list_init( &impl->entry );
     open_haptics_device( impl );
 
-    provider = &impl->IGameControllerProvider_iface;
+    provider = &impl->klass.IGameControllerProvider_iface;
     TRACE( "created WineGameControllerProvider %p\n", provider );
 
     EnterCriticalSection( &provider_cs );
@@ -613,7 +508,7 @@ void provider_remove( const WCHAR *device_path )
     if (!found) WARN( "provider not found for device %s\n", debugstr_w( device_path ) );
     else
     {
-        provider = &entry->IGameControllerProvider_iface;
+        provider = &entry->klass.IGameControllerProvider_iface;
         manager_on_provider_removed( provider );
         IGameControllerProvider_Release( provider );
     }
