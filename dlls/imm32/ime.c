@@ -46,7 +46,6 @@ static const char *debugstr_imn( WPARAM wparam )
     case IMN_SETCOMPOSITIONWINDOW: return "IMN_SETCOMPOSITIONWINDOW";
     case IMN_GUIDELINE: return "IMN_GUIDELINE";
     case IMN_SETSTATUSWINDOWPOS: return "IMN_SETSTATUSWINDOWPOS";
-    case IMN_WINE_SET_OPEN_STATUS: return "IMN_WINE_SET_OPEN_STATUS";
     case IMN_WINE_SET_COMP_STRING: return "IMN_WINE_SET_COMP_STRING";
     default: return wine_dbg_sprintf( "%#Ix", wparam );
     }
@@ -409,8 +408,6 @@ static LRESULT ime_ui_notify( HIMC himc, HWND hwnd, WPARAM wparam, LPARAM lparam
 
     switch (wparam)
     {
-    case IMN_WINE_SET_OPEN_STATUS:
-        return ImmSetOpenStatus( himc, lparam );
     case IMN_WINE_SET_COMP_STRING:
         return ime_set_comp_string( himc, lparam );
     default:
