@@ -81,6 +81,11 @@ static void post_ime_update( HWND hwnd, UINT cursor_pos, WCHAR *comp_str, WCHAR 
                        result_str, NtUserImeDriverCall, FALSE );
 }
 
+static void set_ime_status( HWND hwnd, BOOL open )
+{
+    NtUserMessageCall( hwnd, WINE_IME_SET_STATUS, open, 0, NULL, NtUserImeDriverCall, FALSE );
+}
+
 static void xim_update_comp_string( UINT offset, UINT old_len, const WCHAR *text, UINT new_len )
 {
     UINT len = ime_comp_buf ? wcslen( ime_comp_buf ) : 0;
@@ -125,6 +130,13 @@ static BOOL xic_preedit_state_notify( XIC xic, XPointer user, XPointer arg )
     const XIMPreeditState state = params->state;
     HWND hwnd = (HWND)user;
     TRACE( "xic %p, hwnd %p, state %lu\n", xic, hwnd, state );
+
+    switch (state)
+    {
+    case XIMPreeditEnable: set_ime_status( hwnd, TRUE ); break;
+    case XIMPreeditDisable: set_ime_status( hwnd, FALSE ); break;
+    }
+
     return TRUE;
 }
 
@@ -137,6 +149,7 @@ static int xic_preedit_start( XIC xic, XPointer user, XPointer arg )
     if ((ime_comp_buf = realloc( ime_comp_buf, sizeof(WCHAR) ))) *ime_comp_buf = 0;
     else ERR( "Failed to allocate preedit buffer\n" );
 
+    set_ime_status( hwnd, TRUE );
     post_ime_update( hwnd, 0, ime_comp_buf, NULL );
 
     return -1;
@@ -152,6 +165,7 @@ static int xic_preedit_done( XIC xic, XPointer user, XPointer arg )
     ime_comp_buf = NULL;
 
     post_ime_update( hwnd, 0, NULL, NULL );
+    set_ime_status( hwnd, FALSE );
 
     return 0;
 }
