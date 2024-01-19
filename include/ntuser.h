@@ -628,7 +628,6 @@ enum wine_internal_message
 #define IME_INTERNAL_HKL_DEACTIVATE  0x20
 
 /* internal WM_IME_NOTIFY wparams, not compatible with Windows */
-#define IMN_WINE_SET_OPEN_STATUS  0x000f
 #define IMN_WINE_SET_COMP_STRING  0x0010
 
 /* builtin IME driver calls */
