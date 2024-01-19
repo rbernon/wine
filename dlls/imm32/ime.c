@@ -559,16 +559,22 @@ UINT WINAPI ImeToAsciiEx( UINT vkey, UINT vsc, BYTE *state, TRANSMSGLIST *msgs, 
     if (status) WARN( "WINE_IME_TO_ASCII_EX returned status %#lx\n", status );
     else
     {
-        TRANSMSG status_msg = {.message = ime_set_composition_status( himc, !!compstr->dwCompStrOffset )};
-        if (status_msg.message) msgs->TransMsg[count++] = status_msg;
+        TRANSMSG status_msg = {0};
 
         if (compstr->dwResultStrOffset)
         {
             const WCHAR *result = (WCHAR *)((BYTE *)compstr + compstr->dwResultStrOffset);
             TRANSMSG msg = {.message = WM_IME_COMPOSITION, .wParam = result[0], .lParam = GCS_RESULTSTR};
+
+            if ((status_msg.message = ime_set_composition_status( himc, FALSE )))
+                msgs->TransMsg[count++] = status_msg;
+
             if (compstr->dwResultClauseOffset) msg.lParam |= GCS_RESULTCLAUSE;
             msgs->TransMsg[count++] = msg;
         }
+
+        if ((status_msg.message = ime_set_composition_status( himc, !!compstr->dwCompStrOffset )))
+            msgs->TransMsg[count++] = status_msg;
 
         if (compstr->dwCompStrOffset)
         {
