@@ -314,21 +314,34 @@ static void ime_ui_paint( HIMC himc, HWND hwnd )
                       new_rect.bottom - new_rect.top, SWP_NOACTIVATE );
 }
 
+static void ime_set_open_status( INPUTCONTEXT *ctx, BOOL open )
+{
+    if (ctx->fOpen != open)
+    {
+        ctx->fOpen = open;
+        SendMessageW( ctx->hWnd, WM_IME_NOTIFY, IMN_SETOPENSTATUS, 0 );
+    }
+}
+
 static void ime_ui_update_window( INPUTCONTEXT *ctx, HWND hwnd )
 {
     WCHAR *str;
     UINT len;
 
     if (!(str = input_context_get_comp_str( ctx, FALSE, &len )) || !*str)
+    {
         ShowWindow( hwnd, SW_HIDE );
+        ime_set_open_status( ctx, FALSE );
+        ctx->hWnd = GetFocus();
+    }
     else
     {
+        ctx->hWnd = GetFocus();
         ShowWindow( hwnd, SW_SHOWNOACTIVATE );
         RedrawWindow( hwnd, NULL, NULL, RDW_ERASENOW | RDW_INVALIDATE );
+        ime_set_open_status( ctx, TRUE );
     }
     free( str );
-
-    ctx->hWnd = GetFocus();
 }
 
 static void ime_ui_composition( HIMC himc, HWND hwnd, LPARAM lparam )
