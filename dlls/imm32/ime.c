@@ -694,14 +694,6 @@ BOOL WINAPI NotifyIME( HIMC himc, DWORD action, DWORD index, DWORD value )
                 COMPOSITIONSTRING tmp = *compstr;
                 UINT flags = 0;
 
-                if (compstr->dwResultStrOffset)
-                {
-                    if (tmp.dwResultStrLen) flags |= GCS_RESULTSTR;
-                    if (tmp.dwResultClauseLen) flags |= GCS_RESULTCLAUSE;
-                    if (flags) ime_send_message( himc, WM_IME_COMPOSITION, wchr, flags );
-                    flags = 0;
-                }
-
                 memset( compstr, 0, sizeof(*compstr) );
                 compstr->dwSize = tmp.dwSize;
                 compstr->dwResultStrLen = tmp.dwCompStrLen;
