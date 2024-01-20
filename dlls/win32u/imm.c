@@ -472,15 +472,6 @@ static void post_ime_update( HWND hwnd, UINT cursor_pos, WCHAR *comp_str, WCHAR 
     }
 }
 
-static void set_ime_status( HWND hwnd, BOOL open )
-{
-    struct imm_thread_data *data = get_imm_thread_data();
-
-    /* post the message only if we're not processing a key, otherwise it might
-     * incorrectly re-order with the IME composition messages */
-    if (!data->ime_process_vkey) NtUserPostMessage( hwnd, WM_IME_NOTIFY, IMN_WINE_SET_OPEN_STATUS, open );
-}
-
 static struct ime_update *find_ime_update( WORD vkey, WORD scan )
 {
     struct ime_update *update;
@@ -613,9 +604,6 @@ LRESULT ime_driver_call( HWND hwnd, enum wine_ime_call call, WPARAM wparam, LPAR
         return ime_to_tascii_ex( wparam, lparam, params->state, params->compstr, params->himc );
     case WINE_IME_POST_UPDATE:
         post_ime_update( hwnd, wparam, (WCHAR *)lparam, (WCHAR *)params );
-        return 0;
-    case WINE_IME_SET_STATUS:
-        set_ime_status( hwnd, wparam );
         return 0;
     default:
         ERR( "Unknown IME driver call %#x\n", call );
