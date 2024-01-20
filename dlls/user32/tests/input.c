@@ -2742,8 +2742,7 @@ static void rawinput_test_process(void)
         case 16:
             GetCursorPos(&pt);
 
-            hwnd = CreateWindowA("static", "static", WS_VISIBLE | WS_POPUP,
-                                 pt.x - 50, pt.y - 50, 100, 100, 0, NULL, NULL, NULL);
+            hwnd = create_foreground_window( FALSE );
             SetWindowLongPtrA(hwnd, GWLP_WNDPROC, (LONG_PTR)rawinput_wndproc);
             ok(hwnd != 0, "CreateWindow failed\n");
             empty_message_queue();
@@ -2845,8 +2844,7 @@ static DWORD WINAPI rawinput_test_desk_thread(void *arg)
         case 16:
             GetCursorPos(&pt);
 
-            hwnd = CreateWindowA("static", "static", WS_VISIBLE | WS_POPUP,
-                                 pt.x - 50, pt.y - 50, 100, 100, 0, NULL, NULL, NULL);
+            hwnd = create_foreground_window( FALSE );
             ok(hwnd != 0, "CreateWindow failed\n");
             SetWindowLongPtrA(hwnd, GWLP_WNDPROC, (LONG_PTR)rawinput_wndproc);
             empty_message_queue();
@@ -2906,8 +2904,7 @@ static DWORD WINAPI rawinput_test_thread(void *arg)
         case 5:
             GetCursorPos(&pt);
 
-            hwnd = CreateWindowA("static", "static", WS_VISIBLE | WS_POPUP,
-                                 pt.x - 50, pt.y - 50, 100, 100, 0, NULL, NULL, NULL);
+            hwnd = create_foreground_window( FALSE );
             ok(hwnd != 0, "CreateWindow failed\n");
             empty_message_queue();
 
@@ -2993,8 +2990,7 @@ static void test_rawinput(const char* argv0)
     {
         GetCursorPos(&pt);
 
-        hwnd = CreateWindowA("static", "static", WS_VISIBLE | WS_POPUP,
-                             pt.x - 50, pt.y - 50, 100, 100, 0, NULL, NULL, NULL);
+        hwnd = create_foreground_window( FALSE );
         ok(hwnd != 0, "CreateWindow failed\n");
         if (i != 14 && i != 15 && i != 16)
             SetWindowLongPtrA(hwnd, GWLP_WNDPROC, (LONG_PTR)rawinput_wndproc);
@@ -3040,9 +3036,7 @@ static void test_rawinput(const char* argv0)
         case 14:
         case 15:
             DestroyWindow(hwnd);
-            hwnd = CreateWindowA("static", "static", WS_VISIBLE | WS_POPUP,
-                                 pt.x - 50, pt.y - 50, 100, 100, 0, NULL, NULL, NULL);
-            ok(hwnd != 0, "CreateWindow failed\n");
+            hwnd = create_foreground_window( FALSE );
             SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE|SWP_NOMOVE);
             SetForegroundWindow(hwnd);
             empty_message_queue();
@@ -3634,11 +3628,7 @@ static void test_ActivateKeyboardLayout( char **argv )
     count = GetKeyboardLayoutList( count, layouts );
     ok( count > 0, "GetKeyboardLayoutList returned %d\n", count );
 
-    hwnd1 = CreateWindowA( "static", "static", WS_VISIBLE | WS_POPUP,
-                           100, 100, 100, 100, 0, NULL, NULL, NULL );
-    ok( !!hwnd1, "CreateWindow failed, error %lu\n", GetLastError() );
-    empty_message_queue();
-
+    hwnd1 = create_foreground_window( FALSE );
     SetWindowLongPtrA( hwnd1, GWLP_WNDPROC, (LONG_PTR)test_ActivateKeyboardLayout_window_proc );
 
     for (i = 0; i < count; ++i)
@@ -3678,9 +3668,7 @@ static void test_ActivateKeyboardLayout( char **argv )
 
         /* but the change only takes effect after focus changes */
 
-        hwnd2 = CreateWindowA( "static", "static", WS_VISIBLE | WS_POPUP,
-                               100, 100, 100, 100, 0, NULL, NULL, NULL );
-        ok( !!hwnd2, "CreateWindow failed, error %lu\n", GetLastError() );
+        hwnd2 = create_foreground_window( FALSE );
 
         tmp_layout = GetKeyboardLayout( 0 );
         todo_wine_if(layout != other_layout)
@@ -4915,10 +4903,7 @@ static void test_GetKeyState(void)
     params.semaphores[1] = CreateSemaphoreA(NULL, 0, 1, NULL);
     ok(params.semaphores[1] != NULL, "CreateSemaphoreA failed %lu\n", GetLastError());
 
-    hwnd = CreateWindowA("static", "Title", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-                         10, 10, 200, 200, NULL, NULL, NULL, NULL);
-    ok(hwnd != NULL, "CreateWindowA failed %lu\n", GetLastError());
-    empty_message_queue();
+    hwnd = create_foreground_window( FALSE );
 
     for (i = 0; i < ARRAY_SIZE(get_key_state_tests); ++i)
     {
@@ -5331,8 +5316,7 @@ static DWORD CALLBACK test_GetPointerInfo_thread( void *arg )
     HWND hwnd;
     BOOL ret;
 
-    hwnd = CreateWindowW( L"test", L"test name", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 100, 100, 200,
-                          200, 0, 0, NULL, 0 );
+    hwnd = create_foreground_window( FALSE );
 
     memset( &pointer_info, 0xcd, sizeof(pointer_info) );
     ret = pGetPointerInfo( 1, &pointer_info );
@@ -5407,9 +5391,7 @@ static void test_GetPointerInfo( BOOL mouse_in_pointer_enabled )
 
     SetCursorPos( 500, 500 );  /* avoid generating mouse message on window creation */
 
-    hwnd = CreateWindowW( L"test", L"test name", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 100, 100, 200,
-                          200, 0, 0, NULL, 0 );
-    empty_message_queue();
+    hwnd = create_foreground_window( TRUE );
 
     memset( pointer_info, 0xcd, sizeof(pointer_info) );
     ret = pGetPointerInfo( 1, pointer_info );
