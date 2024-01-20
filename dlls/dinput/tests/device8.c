@@ -1882,6 +1882,7 @@ static void test_hid_mouse(void)
 
 winetest_push_context( "single_button_press" );
     bus_send_hid_input( file, &desc, single_button_press, sizeof(single_button_press) );
+    bus_wait_hid_input( file, &desc, 100 );
 
     res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_ALLINPUT );
     todo_wine
@@ -1892,6 +1893,7 @@ winetest_pop_context();
 
 winetest_push_context( "single_button_release" );
     bus_send_hid_input( file, &desc, single_button_release, sizeof(single_button_release) );
+    bus_wait_hid_input( file, &desc, 100 );
 
     res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_ALLINPUT );
     todo_wine
@@ -1902,6 +1904,7 @@ winetest_pop_context();
 
 winetest_push_context( "move_button_press_release" );
     bus_send_hid_input( file, &desc, move_button_press_release, sizeof(move_button_press_release) );
+    bus_wait_hid_input( file, &desc, 100 );
 
     res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_ALLINPUT );
     todo_wine
@@ -1912,6 +1915,7 @@ winetest_pop_context();
 
 winetest_push_context( "button_press_move_release" );
     bus_send_hid_input( file, &desc, button_press_move_release, sizeof(button_press_move_release) );
+    bus_wait_hid_input( file, &desc, 100 );
 Sleep(1000);
 
     res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_ALLINPUT );
@@ -1927,6 +1931,7 @@ winetest_push_context( "multiple" );
     mouse_move_count = 0;
     left_button_count = 0;
     bus_send_hid_input( file, &desc, multiple_move, sizeof(multiple_move) );
+    bus_wait_hid_input( file, &desc, 100 );
 
     res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_ALLINPUT );
     todo_wine
