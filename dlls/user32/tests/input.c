@@ -1268,15 +1268,13 @@ static void test_SendInput_keyboard_messages( WORD vkey, WORD scan, WCHAR wch, W
 #undef KEY_MSG
 
     BOOL altgr = keyboard_layout_has_altgr(), skip_altgr = FALSE;
+    HWND hwnd = create_foreground_window( FALSE );
     LONG_PTR old_proc;
     HHOOK hook;
-    HWND hwnd;
 
     /* on 32-bit with ALTGR keyboard, the CONTROL key is sent to the hooks without the
      * LLKHF_INJECTED flag, skip the tests to keep it simple */
     if (altgr && sizeof(void *) == 4 && !is_wow64) skip_altgr = TRUE;
-
-    hwnd = create_foreground_window( FALSE );
 
     /* If we have had a spurious layout change, wch(_shift) may be incorrect. */
     if (GetKeyboardLayout( 0 ) != hkl)
@@ -5205,11 +5203,7 @@ static void test_SendInput( WORD vkey, WCHAR wch, HKL hkl )
 
     INPUT input[16];
     UINT res, i;
-    HWND hwnd;
-
-    hwnd = CreateWindowW( L"static", NULL, WS_POPUP | WS_VISIBLE, 0, 0, 100, 100, NULL, NULL, NULL, NULL );
-    ok_ne( NULL, hwnd, HWND, "%p" );
-    wait_messages( 100, FALSE );
+    HWND hwnd = create_foreground_window( FALSE );
 
     /* If we have had a spurious layout change, wch may be incorrect. */
     if (GetKeyboardLayout( 0 ) != hkl)
