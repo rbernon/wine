@@ -636,7 +636,6 @@ enum wine_ime_call
     WINE_IME_PROCESS_KEY,
     WINE_IME_TO_ASCII_EX,
     WINE_IME_POST_UPDATE,  /* for the user drivers */
-    WINE_IME_SET_STATUS,   /* for the user drivers */
 };
 
 /* NtUserImeDriverCall params */
