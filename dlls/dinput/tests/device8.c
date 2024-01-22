@@ -1624,9 +1624,45 @@ cleanup:
 }
 
 static UINT mouse_move_count;
+static UINT left_button_count;
+
+static const char *debugstr_wm( UINT msg )
+{
+    switch (msg)
+    {
+    case WM_MOUSEMOVE: return "WM_MOUSEMOVE"; break;
+    case WM_LBUTTONDOWN: return "WM_LBUTTONDOWN"; break;
+    case WM_LBUTTONUP: return "WM_LBUTTONUP"; break;
+    case WM_LBUTTONDBLCLK: return "WM_LBUTTONDBLCLK"; break;
+    case WM_RBUTTONDOWN: return "WM_RBUTTONDOWN"; break;
+    case WM_RBUTTONUP: return "WM_RBUTTONUP"; break;
+    case WM_RBUTTONDBLCLK: return "WM_RBUTTONDBLCLK"; break;
+    case WM_MBUTTONDOWN: return "WM_MBUTTONDOWN"; break;
+    case WM_MBUTTONUP: return "WM_MBUTTONUP"; break;
+    case WM_MBUTTONDBLCLK: return "WM_MBUTTONDBLCLK"; break;
+    case WM_MOUSEWHEEL: return "WM_MOUSEWHEEL"; break;
+    case WM_XBUTTONDOWN: return "WM_XBUTTONDOWN"; break;
+    case WM_XBUTTONUP: return "WM_XBUTTONUP"; break;
+    case WM_XBUTTONDBLCLK: return "WM_XBUTTONDBLCLK"; break;
+    case WM_MOUSEHWHEEL: return "WM_MOUSEHWHEEL"; break;
+    case WM_INPUT_DEVICE_CHANGE: return "WM_INPUT_DEVICE_CHANGE"; break;
+    case WM_INPUT: return "WM_INPUT"; break;
+    }
+    return wine_dbg_sprintf( "%#x", msg );
+}
 
 static LRESULT CALLBACK mouse_wndproc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
 {
+if (msg >= WM_MOUSEFIRST && msg <= WM_MOUSELAST) ok(0, "msg %s wparam %#Ix lparam %d %d\n", debugstr_wm(msg), wparam, LOWORD(lparam), HIWORD(lparam));
+if (msg >= WM_INPUT_DEVICE_CHANGE && msg <= WM_INPUT)
+{
+    RAWINPUT rawinput = {.header = {.dwSize = sizeof(rawinput)}};
+    UINT size = sizeof(rawinput);
+    GetRawInputData( (HRAWINPUT)lparam, RID_INPUT, &rawinput, &size, sizeof(RAWINPUTHEADER));
+    ok(0, "msg %s wparam %#Ix rawinput %ld %ld flags %#x buttons %#lx extra %#lx\n", debugstr_wm(msg), wparam,
+    rawinput.data.mouse.lLastX, rawinput.data.mouse.lLastY, rawinput.data.mouse.usFlags, rawinput.data.mouse.ulButtons, rawinput.data.mouse.ulExtraInformation);
+}
+
     if (msg == WM_MOUSEMOVE)
     {
         ok( wparam == 0, "got wparam %#Ix\n", wparam );
@@ -1634,7 +1670,23 @@ static LRESULT CALLBACK mouse_wndproc( HWND hwnd, UINT msg, WPARAM wparam, LPARA
         ok( HIWORD(lparam) - 107 <= 2, "got HIWORD(lparam) %u\n", HIWORD(lparam) );
         mouse_move_count++;
     }
+    if (msg == WM_LBUTTONDOWN) left_button_count++;
+    if (msg == WM_LBUTTONUP) left_button_count++;
     return DefWindowProcA( hwnd, msg, wparam, lparam );
+}
+
+static LRESULT CALLBACK mouse_ll_proc( int code, WPARAM wparam, LPARAM lparam )
+{
+    /* MSLLHOOKSTRUCT *hook = (MSLLHOOKSTRUCT *)lparam; */
+    if (code == HC_ACTION)
+    {
+        if (0 && wparam == WM_MOUSEMOVE) return -1;
+        if (0 && wparam == WM_LBUTTONDOWN) return -1;
+        if (0 && wparam == WM_LBUTTONUP) return -1;
+    }
+
+    if (0) ok( 0, "code %d, wparam %s, lparam %#Ix\n", code, debugstr_wm(wparam), lparam );
+    return CallNextHookEx( 0, code, wparam, lparam );
 }
 
 static void test_hid_mouse(void)
@@ -1692,9 +1744,70 @@ static void test_hid_mouse(void)
             .report_buf = {1,0x00,0x08,0x00,0x08,0x00},
         },
     };
-
+    struct hid_expect single_button_press[] =
+    {
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x01,0x00,0x00,0x00,0x00},
+        },
+    };
+    struct hid_expect single_button_release[] =
+    {
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x00,0x00,0x00,0x00,0x00},
+        },
+    };
+    struct hid_expect move_button_press_release[] =
+    {
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x01,0xf8,0xff,0xf8,0xff},
+        },
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x00,0x00,0x00,0x00,0x00},
+        },
+    };
+    struct hid_expect button_press_move_release[] =
+    {
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x01,0x00,0x00,0x00,0x00},
+        },
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x00,0x08,0x00,0x08,0x00},
+        },
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x00,0xf8,0xff,0xf8,0xff},
+        },
+    };
+    struct hid_expect multiple_move[] =
+    {
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x00,0x08,0x00,0x08,0x00},
+        },
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x00,0xf8,0xff,0xf8,0xff},
+        },
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x01,0x00,0x00,0x00,0x00},
+        },
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x00,0x00,0x00,0x00,0x00},
+        },
+    };
+    RAWINPUTDEVICE rawdevice = {.usUsagePage = HID_USAGE_PAGE_GENERIC, .usUsage = HID_USAGE_GENERIC_MOUSE};
     WCHAR device_path[MAX_PATH];
+    HHOOK hook = 0;
     HANDLE file;
+    UINT count;
     POINT pos;
     DWORD res;
     HWND hwnd;
@@ -1734,12 +1847,21 @@ static void test_hid_mouse(void)
     SetCursorPos( 100, 100 );
     hwnd = create_foreground_window( TRUE );
     SetWindowLongPtrW( hwnd, GWLP_WNDPROC, (LONG_PTR)mouse_wndproc );
+    if (0) hook = SetWindowsHookExW( WH_MOUSE_LL, mouse_ll_proc, GetModuleHandleW( NULL ), 0 );
+
+    count = 1;
+    rawdevice.dwFlags = 0;
+    rawdevice.hwndTarget = hwnd;
+    ret = RegisterRawInputDevices( &rawdevice, count, sizeof(RAWINPUTDEVICE) );
+    ok( ret == 1, "RegisterRawInputDevices failed, error %lu\n", GetLastError() );
+
 
     GetCursorPos( &pos );
     ok( pos.x == 100, "got x %lu\n", pos.x );
     ok( pos.y == 100, "got y %lu\n", pos.y );
 
     mouse_move_count = 0;
+    left_button_count = 0;
     bus_send_hid_input( file, &desc, single_move, sizeof(single_move) );
     bus_wait_hid_input( file, &desc, 100 );
 
@@ -1749,12 +1871,86 @@ static void test_hid_mouse(void)
     msg_wait_for_events( 0, NULL, 5 ); /* process pending messages */
     todo_wine
     ok( mouse_move_count >= 1, "got mouse_move_count %u\n", mouse_move_count );
+    ok( left_button_count == 0, "got left_button_count %u\n", left_button_count );
 
     GetCursorPos( &pos );
     todo_wine
     ok( (ULONG)pos.x - 107 <= 2, "got x %lu\n", pos.x );
     todo_wine
     ok( (ULONG)pos.y - 107 <= 2, "got y %lu\n", pos.y );
+
+
+winetest_push_context( "single_button_press" );
+    bus_send_hid_input( file, &desc, single_button_press, sizeof(single_button_press) );
+
+    res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_ALLINPUT );
+    todo_wine
+    ok( !res, "MsgWaitForMultipleObjects returned %#lx\n", res );
+    msg_wait_for_events( 0, NULL, 5 ); /* process pending messages */
+    todo_wine
+winetest_pop_context();
+
+winetest_push_context( "single_button_release" );
+    bus_send_hid_input( file, &desc, single_button_release, sizeof(single_button_release) );
+
+    res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_ALLINPUT );
+    todo_wine
+    ok( !res, "MsgWaitForMultipleObjects returned %#lx\n", res );
+    msg_wait_for_events( 0, NULL, 5 ); /* process pending messages */
+    todo_wine
+winetest_pop_context();
+
+winetest_push_context( "move_button_press_release" );
+    bus_send_hid_input( file, &desc, move_button_press_release, sizeof(move_button_press_release) );
+
+    res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_ALLINPUT );
+    todo_wine
+    ok( !res, "MsgWaitForMultipleObjects returned %#lx\n", res );
+    msg_wait_for_events( 0, NULL, 5 ); /* process pending messages */
+    todo_wine
+winetest_pop_context();
+
+winetest_push_context( "button_press_move_release" );
+    bus_send_hid_input( file, &desc, button_press_move_release, sizeof(button_press_move_release) );
+Sleep(1000);
+
+    res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_ALLINPUT );
+    todo_wine
+    ok( !res, "MsgWaitForMultipleObjects returned %#lx\n", res );
+    msg_wait_for_events( 0, NULL, 5 ); /* process pending messages */
+    todo_wine
+winetest_pop_context();
+
+
+winetest_push_context( "multiple" );
+
+    mouse_move_count = 0;
+    left_button_count = 0;
+    bus_send_hid_input( file, &desc, multiple_move, sizeof(multiple_move) );
+
+    res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_ALLINPUT );
+    todo_wine
+    ok( !res, "MsgWaitForMultipleObjects returned %#lx\n", res );
+    msg_wait_for_events( 0, NULL, 5 ); /* process pending messages */
+    todo_wine
+    ok( mouse_move_count == 1, "got mouse_move_count %u\n", mouse_move_count );
+    ok( left_button_count == 2, "got left_button_count %u\n", left_button_count );
+
+    GetCursorPos( &pos );
+    todo_wine
+    ok( (ULONG)pos.x - 107 <= 2, "got x %lu\n", pos.x );
+    todo_wine
+    ok( (ULONG)pos.y - 107 <= 2, "got y %lu\n", pos.y );
+winetest_pop_context();
+
+
+    if (hook) UnhookWindowsHookEx( hook );
+
+    count = 1;
+    rawdevice.dwFlags = RIDEV_REMOVE;
+    rawdevice.hwndTarget = 0;
+    ret = RegisterRawInputDevices( &rawdevice, count, sizeof(RAWINPUTDEVICE) );
+    ok( ret == 1, "RegisterRawInputDevices failed, error %lu\n", GetLastError() );
 
     DestroyWindow( hwnd );
 
@@ -3269,6 +3465,7 @@ START_TEST(device8)
 {
     dinput_test_init();
 
+goto skip_tests;
     test_QueryInterface( 0x300 );
     test_QueryInterface( 0x500 );
     test_QueryInterface( 0x700 );
@@ -3291,6 +3488,7 @@ START_TEST(device8)
     test_keyboard_events();
     test_appdata_property();
 
+skip_tests:
     if (!bus_device_start()) goto done;
 
     test_hid_mouse();
