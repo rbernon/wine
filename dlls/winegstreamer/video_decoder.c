@@ -65,6 +65,11 @@ static const struct subtype_info subtype_info_list[] =
     { &MEDIASUBTYPE_RGB32,   32, BI_RGB },
 };
 
+extern GUID MFVideoFormat_GStreamer;
+static const GUID *const video_decoder_input_types[] =
+{
+    &MFVideoFormat_GStreamer,
+};
 static const GUID *const video_decoder_output_types[] =
 {
     &MFVideoFormat_NV12,
@@ -1589,6 +1594,22 @@ failed:
     if (decoder->stream_type)
         IMFMediaType_Release(decoder->stream_type);
     free(decoder);
+    return hr;
+}
+
+HRESULT video_decoder_create(REFIID riid, void **out)
+{
+    IMFTransform *iface;
+    HRESULT hr;
+
+    TRACE("riid %s, out %p.\n", debugstr_guid(riid), out);
+
+    if (FAILED(hr = video_decoder_create_with_types(video_decoder_input_types, ARRAY_SIZE(video_decoder_input_types),
+            video_decoder_output_types, ARRAY_SIZE(video_decoder_output_types), &iface)))
+        return hr;
+
+    hr = IMFTransform_QueryInterface(iface, riid, out);
+    IMFTransform_Release(iface);
     return hr;
 }
 
