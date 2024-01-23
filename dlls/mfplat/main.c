@@ -5595,6 +5595,7 @@ static HRESULT resolver_create_gstreamer_handler(IMFByteStreamHandler **handler)
     static const GUID CLSID_GStreamerByteStreamHandler2 = {0x317df619, 0x5e5a, 0x468a, {0x9f, 0x15, 0xd8, 0x27, 0xa9, 0xa0, 0x81, 0x62}};
 
     const char *env = getenv("WINE_NEW_MEDIA_SOURCE"), *sgi = getenv("SteamGameId");
+    if (!env) env = "1";
     if (!env && sgi)
     {
         if (!strcmp(sgi, "399810") /* Call of Cthulhu */) env = "1";
