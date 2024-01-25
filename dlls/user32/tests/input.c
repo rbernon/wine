@@ -1276,9 +1276,7 @@ static void test_SendInput_keyboard_messages( WORD vkey, WORD scan, WCHAR wch, W
      * LLKHF_INJECTED flag, skip the tests to keep it simple */
     if (altgr && sizeof(void *) == 4 && !is_wow64) skip_altgr = TRUE;
 
-    hwnd = CreateWindowW( L"static", NULL, WS_POPUP | WS_VISIBLE, 0, 0, 100, 100, NULL, NULL, NULL, NULL );
-    ok_ne( NULL, hwnd, HWND, "%p" );
-    wait_messages( 100, FALSE );
+    hwnd = create_foreground_window( FALSE );
 
     /* If we have had a spurious layout change, wch(_shift) may be incorrect. */
     if (GetKeyboardLayout( 0 ) != hkl)
@@ -4062,9 +4060,7 @@ static void test_SendInput_mouse_messages(void)
     ok_ret( 1, SetCursorPos( 50, 50 ) );
     ok_ret( 1, SetDoubleClickTime( 1 ) );
 
-    hwnd = CreateWindowW( L"static", NULL, WS_POPUP | WS_VISIBLE, 0, 0, 100, 100, NULL, NULL, NULL, NULL );
-    ok_ne( NULL, hwnd, HWND, "%p" );
-    wait_messages( 100, FALSE );
+    hwnd = create_foreground_window( TRUE );
     trace( "hwnd %p\n", hwnd );
 
     hook = SetWindowsHookExW( WH_MOUSE_LL, ll_hook_ms_proc, GetModuleHandleW( NULL ), 0 );
@@ -4139,9 +4135,7 @@ static void test_SendInput_mouse_messages(void)
 
     /* click through top-level window */
 
-    other = CreateWindowW( L"static", NULL, WS_VISIBLE | WS_POPUP, 0, 0, 100, 100, NULL, NULL, NULL, NULL );
-    ok_ne( NULL, hwnd, HWND, "%p" );
-    wait_messages( 100, FALSE );
+    other = create_foreground_window( TRUE );
     current_sequence_len = 0;
 
     old_other_proc = SetWindowLongPtrW( other, GWLP_WNDPROC, (LONG_PTR)append_message_wndproc );
@@ -4185,9 +4179,7 @@ static void test_SendInput_mouse_messages(void)
 
     /* click through HTTRANSPARENT top-level window */
 
-    other = CreateWindowW( L"static", NULL, WS_VISIBLE | WS_POPUP, 0, 0, 100, 100, NULL, NULL, NULL, NULL );
-    ok_ne( NULL, hwnd, HWND, "%p" );
-    wait_messages( 100, FALSE );
+    other = create_foreground_window( TRUE );
     current_sequence_len = 0;
 
     old_other_proc = SetWindowLongPtrW( other, GWLP_WNDPROC, (LONG_PTR)httransparent_wndproc );
@@ -4280,9 +4272,7 @@ static void test_SendInput_mouse_messages(void)
 
     /* click on top-level window with SetCapture called for the underlying window */
 
-    other = CreateWindowW( L"static", NULL, WS_VISIBLE | WS_POPUP, 0, 0, 100, 100, NULL, NULL, NULL, NULL );
-    ok_ne( NULL, hwnd, HWND, "%p" );
-    wait_messages( 100, FALSE );
+    other = create_foreground_window( TRUE );
     current_sequence_len = 0;
 
     old_other_proc = SetWindowLongPtrW( other, GWLP_WNDPROC, (LONG_PTR)append_message_wndproc );
