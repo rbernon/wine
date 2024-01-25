@@ -880,6 +880,14 @@ typedef struct
 } cursor_pos_t;
 
 /****************************************************************/
+/* objects shared mapping structures */
+
+typedef volatile struct
+{
+    int placeholder;
+} desktop_shm_t;
+
+/****************************************************************/
 /* Request declarations */
 
 /* Create a new process from the context of the parent */

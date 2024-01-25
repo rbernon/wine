@@ -1256,6 +1256,23 @@ int get_page_size(void)
     return page_mask + 1;
 }
 
+struct object *create_object_mapping( struct object *object, mem_size_t size, void **ptr )
+{
+    static const unsigned int access = FILE_READ_DATA | FILE_WRITE_DATA;
+    struct mapping *mapping;
+    void *tmp;
+
+    if (!(mapping = create_mapping( object, NULL, 0, size, SEC_COMMIT, 0, access, NULL ))) return NULL;
+    if ((tmp = mmap( NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, get_unix_fd( mapping->fd ), 0 )) == MAP_FAILED)
+    {
+        release_object( &mapping->obj );
+        return NULL;
+    }
+
+    *ptr = tmp;
+    return &mapping->obj;
+}
+
 struct object *create_user_data_mapping( struct object *root, const struct unicode_str *name,
                                         unsigned int attr, const struct security_descriptor *sd )
 {

@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <sys/types.h>
+#include <sys/mman.h>
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -240,6 +241,15 @@ static struct desktop *create_desktop( const struct unicode_str *name, unsigned 
             memset( desktop->keystate, 0, sizeof(desktop->keystate) );
             list_add_tail( &winstation->desktops, &desktop->entry );
             list_init( &desktop->hotkeys );
+            desktop->shared_mapping = NULL;
+            desktop->shared = NULL;
+
+            if (!(desktop->shared_mapping = create_object_mapping( &desktop->obj, sizeof(*desktop->shared),
+                                                                   (void **)&desktop->shared )))
+            {
+                release_object( desktop );
+                return NULL;
+            }
         }
         else
         {
@@ -298,6 +308,8 @@ static void desktop_destroy( struct object *obj )
     if (desktop->close_timeout) remove_timeout_user( desktop->close_timeout );
     list_remove( &desktop->entry );
     release_object( desktop->winstation );
+    if (desktop->shared_mapping) release_object( desktop->shared_mapping );
+    if (desktop->shared) munmap( (void *)desktop->shared, sizeof(*desktop->shared) );
 }
 
 /* retrieve the thread desktop, checking the handle access rights */
