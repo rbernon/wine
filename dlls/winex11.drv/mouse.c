@@ -348,6 +348,7 @@ void x11drv_xinput2_enable( Display *display, Window window )
     unsigned char mask_bits[XIMaskLen(XI_LASTEVENT)];
 
     if (!xinput2_available) return;
+    if (use_server_x11) return;
 
     mask.mask     = mask_bits;
     mask.mask_len = sizeof(mask_bits);
@@ -386,6 +387,7 @@ void x11drv_xinput2_disable( Display *display, Window window )
     unsigned char mask_bits[XIMaskLen(XI_LASTEVENT)];
     XIEventMask mask;
 
+    if (use_server_x11) return;
     if (!xinput2_available) return;
     if (thread_data->xinput2_rawinput) return;
 

@@ -2048,8 +2048,8 @@ struct thread *get_foreground_thread( struct desktop *desktop, user_handle_t win
 #define WINE_MOUSE_HANDLE 1
 #define WINE_KEYBOARD_HANDLE 2
 
-static void rawmouse_init( struct rawinput *header, RAWMOUSE *rawmouse, int x, int y, unsigned int flags,
-                           unsigned int buttons, lparam_t info )
+void rawmouse_init( struct rawinput *header, RAWMOUSE *rawmouse, int x, int y, unsigned int flags,
+                    unsigned int buttons, lparam_t info )
 {
     static const unsigned int button_flags[] =
     {
@@ -2154,27 +2154,10 @@ static void rawhid_init( struct rawinput *rawinput, RAWHID *hid, const union hw_
     hid->dwSizeHid = input->hw.hid.length;
 }
 
-struct rawinput_message
-{
-    struct thread           *foreground;
-    struct hw_msg_source     source;
-    unsigned int             time;
-    unsigned int             message;
-    unsigned int             flags;
-    struct rawinput          rawinput;
-    union
-    {
-        RAWKEYBOARD         keyboard;
-        RAWMOUSE            mouse;
-        RAWHID              hid;
-    } data;
-    const void             *hid_report;
-};
-
 /* check if process is supposed to receive a WM_INPUT message and eventually queue it */
-static void queue_rawinput_message( struct desktop *desktop, struct process *process, void *args )
+static void queue_rawinput_message( struct desktop *desktop, struct process *process,
+                                    struct rawinput_message *raw_msg )
 {
-    const struct rawinput_message *raw_msg = args;
     const struct rawinput_device *device;
     struct hardware_msg_data *msg_data;
     struct message *msg;
@@ -2231,7 +2214,7 @@ static void queue_rawinput_message( struct desktop *desktop, struct process *pro
     queue_hardware_message( desktop, msg, 1 );
 }
 
-static void dispatch_rawinput_message( struct desktop *desktop, struct rawinput_message *raw_msg )
+void dispatch_rawinput_message( struct desktop *desktop, struct rawinput_message *raw_msg )
 {
     struct process *process;
 
