@@ -99,6 +99,8 @@ typedef void* HPOWERNOTIFY;
 #define UOI_NAME        2
 #define UOI_TYPE        3
 #define UOI_USER_SID    4
+#define UOI_HEAP_SIZE   5
+#define UOI_IO          6
 
 #define WSF_VISIBLE     1
 #define DF_ALLOWOTHERACCOUNTHOOK  1
