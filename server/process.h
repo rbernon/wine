@@ -116,6 +116,7 @@ extern void kill_process( struct process *process, int violent_death );
 extern void kill_console_processes( struct thread *renderer, int exit_code );
 extern void detach_debugged_processes( struct debug_obj *debug_obj, int exit_code );
 extern void enum_processes( int (*cb)(struct process*, void*), void *user);
+extern void enum_processes_for_host( struct object *host, int (*callback)( struct process *, void * ), void *user );
 
 /* console functions */
 extern struct thread *console_get_renderer( struct console *console );

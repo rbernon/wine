@@ -71,6 +71,10 @@ struct host_x11
     struct window_data         *windows;          /* X11 host window data array */
     unsigned int                windows_count;    /* number of windows in the mapping */
     unsigned int                windows_capacity; /* capacity of windows in the mapping */
+
+    xcb_input_device_id_t       pointer_id;       /* master pointer device id */
+    xcb_input_valuator_class_t  x_class;          /* master pointer x axis valuator class */
+    xcb_input_valuator_class_t  y_class;          /* master pointer y axis valuator class */
 };
 
 static void host_x11_dump( struct object *obj, int verbose );
@@ -208,6 +212,44 @@ static int window_data_remove( struct host_x11 *host, xcb_window_t x11_win )
 }
 
 
+/* xcb_input_fp3232_t utility functions */
+
+static double double_from_fp3232( xcb_input_fp3232_t v )
+{
+    return (double)v.integral + (double)v.frac / (double)UINT32_MAX;
+}
+
+static int fp3232_round( xcb_input_fp3232_t v )
+{
+    return round( double_from_fp3232( v ) );
+}
+
+static int64_t int64_from_fp3232( xcb_input_fp3232_t v )
+{
+    return (int64_t)v.integral << 32 | v.frac;
+}
+
+static xcb_input_fp3232_t fp3232_from_int64( int64_t v )
+{
+    xcb_input_fp3232_t fp = {.integral = v >> 32, .frac = (uint32_t)v};
+    return fp;
+}
+
+static xcb_input_fp3232_t fp3232_sub( xcb_input_fp3232_t a, xcb_input_fp3232_t b )
+{
+    int64_t a64 = int64_from_fp3232( a ), b64 = int64_from_fp3232( b );
+    return fp3232_from_int64( a64 - b64 );
+}
+
+/* scale an fp3232 value from its valuator range to the desired range */
+static int fp3232_scale( xcb_input_fp3232_t v, xcb_input_valuator_class_t *klass, int32_t min, int32_t max )
+{
+    xcb_input_fp3232_t klass_range = fp3232_sub( klass->max, klass->min );
+    double scale = klass_range.integral > 0 ? (max - min) / double_from_fp3232( klass_range ) : 1;
+    return round( double_from_fp3232( fp3232_sub( v, klass->min ) ) * scale );
+}
+
+
 /* xcb_input_fp1616_t utility functions */
 
 static double double_from_fp1616( xcb_input_fp1616_t v )
@@ -263,9 +305,63 @@ static void send_mouse_input( struct host_x11 *host, xcb_window_t x11_win, xcb_i
         TRACE( "host %p window %#x -> %#x pos (%+8.2f,%+8.2f) -> (%+5d,%+5d)\n", host, x11_win, data->window,
                double_from_fp1616( x ), double_from_fp1616( y ), input.mouse.x, input.mouse.y );
 
-        queue_mouse_message( desktop, data->window, &input, origin, NULL );
+        queue_mouse_message( desktop, data->window, &input, origin, NULL, 0 );
         release_object( current );
         current = NULL;
+    }
+
+    release_object( desktop );
+}
+
+
+/* send raw mouse input received on a window */
+static void send_raw_mouse_input( struct host_x11 *host, xcb_input_fp3232_t x, xcb_input_fp3232_t y,
+                                  int data, int flags )
+{
+    struct hw_msg_source source = {IMDT_UNAVAILABLE, IMO_HARDWARE};
+    struct thread *foreground;
+    struct desktop *desktop;
+    int raw_x = 0, raw_y = 0;
+
+    if (!(desktop = get_hardware_input_desktop( 0 ))) return;
+    if (!set_input_desktop( desktop->winstation, desktop ))
+    {
+        release_object( desktop );
+        return;
+    }
+
+    if (int64_from_fp3232( x ) || int64_from_fp3232( x ))
+    {
+        flags |= MOUSEEVENTF_MOVE;
+
+        if (host->x_class.mode == XCB_INPUT_VALUATOR_MODE_ABSOLUTE)
+        {
+            flags |= MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+            raw_x  = fp3232_scale( x, &host->x_class, 0, UINT16_MAX );
+            raw_y  = fp3232_scale( y, &host->y_class, 0, UINT16_MAX );
+        }
+        else
+        {
+            raw_x = fp3232_round( x );
+            raw_y = fp3232_round( y );
+        }
+    }
+
+    if ((foreground = get_foreground_thread( desktop, 0 )))
+    {
+        struct rawinput_message raw_msg = {0};
+        raw_msg.foreground = foreground;
+        raw_msg.source     = source;
+        raw_msg.time       = get_tick_count();
+        raw_msg.message    = WM_INPUT;
+        raw_msg.flags      = flags;
+        rawmouse_init( &raw_msg.rawinput, &raw_msg.data.mouse, raw_x, raw_y, flags, data, 0 );
+
+        TRACE( "host %p %s raw (%+8.2f,%+8.2f) -> (%+5d,%+5d)\n", host, flags & MOUSEEVENTF_ABSOLUTE ? "abs" : "rel",
+               double_from_fp3232( x ), double_from_fp3232( y ), raw_x, raw_y );
+
+        dispatch_rawinput_message( desktop, &raw_msg );
+        release_object( foreground );
     }
 
     release_object( desktop );
@@ -288,11 +384,13 @@ static void handle_xcb_input_button_press( struct host_x11 *host, xcb_input_butt
         -WHEEL_DELTA, WHEEL_DELTA,
         XBUTTON1, XBUTTON2,
     };
+    xcb_input_fp3232_t fp3232_zero = {0};
     int button = event->detail - 1;
 
     TRACE( "host %p sequence %u time %u device %u\n", host, event->full_sequence, event->time, event->deviceid );
 
     if (button >= ARRAY_SIZE(flags)) return;
+    send_raw_mouse_input( host, fp3232_zero, fp3232_zero, data[button], flags[button] );
     send_mouse_input( host, event->event, event->root_x, event->root_y, data[button], flags[button] );
 }
 
@@ -312,11 +410,13 @@ static void handle_xcb_input_button_release( struct host_x11 *host, xcb_input_bu
         0, 0,
         XBUTTON1, XBUTTON2,
     };
+    xcb_input_fp3232_t fp3232_zero = {0};
     int button = event->detail - 1;
 
     TRACE( "host %p sequence %u time %u device %u\n", host, event->full_sequence, event->time, event->deviceid );
 
     if (button >= ARRAY_SIZE(flags)) return;
+    send_raw_mouse_input( host, fp3232_zero, fp3232_zero, data[button], flags[button] );
     send_mouse_input( host, event->event, event->root_x, event->root_y, data[button], flags[button] );
 }
 
@@ -346,6 +446,99 @@ static void handle_xcb_input_motion( struct host_x11 *host, xcb_input_motion_eve
 }
 
 
+/* xinput2 device valuator class handling */
+
+static int host_classes_are_valid( struct host_x11 *host )
+{
+    return host->pointer_id != (xcb_input_device_id_t)-1 && host->x_class.mode == host->y_class.mode &&
+           host->x_class.number != (uint16_t)-1 && host->y_class.number != (uint16_t)-1;
+}
+
+static void handle_valuator_class( struct host_x11 *host, xcb_input_valuator_class_t *klass )
+{
+    if (klass->number == 0) host->x_class = *klass;
+    if (klass->number == 1) host->y_class = *klass;
+}
+
+static void handle_xcb_input_xi_query_device_reply( struct host_x11 *host, xcb_input_xi_query_device_reply_t *reply )
+{
+    xcb_input_xi_device_info_iterator_t iter;
+
+    for (iter = xcb_input_xi_query_device_infos_iterator( reply ); iter.rem;
+         xcb_input_xi_device_info_next( &iter ))
+    {
+        xcb_input_device_class_iterator_t class_iter;
+
+        if (iter.data->type != XCB_INPUT_DEVICE_TYPE_MASTER_POINTER) continue;
+        host->pointer_id = iter.data->deviceid;
+
+        for (class_iter = xcb_input_xi_device_info_classes_iterator( iter.data ); class_iter.rem;
+             xcb_input_device_class_next( &class_iter ))
+        {
+            if (class_iter.data->type != XCB_INPUT_DEVICE_CLASS_TYPE_VALUATOR) continue;
+            handle_valuator_class( host, (xcb_input_valuator_class_t *)class_iter.data );
+
+            if (host_classes_are_valid( host )) goto done;
+        }
+    }
+
+done:
+    /* TODO: Initialize the desktop cursor position once desktop is ready */
+
+    TRACE( "host %p pointer device %u is at (%+8.2f,%+8.2f)\n", host, host->pointer_id,
+           double_from_fp3232( host->x_class.value ), double_from_fp3232( host->y_class.value ) );
+}
+
+static void handle_xcb_input_device_changed( struct host_x11 *host, xcb_input_device_changed_event_t *event )
+{
+    xcb_input_device_class_iterator_t class_iter;
+
+    if (event->deviceid != host->pointer_id) return;
+    host->x_class.number = -1;
+    host->y_class.number = -1;
+
+    for (class_iter = xcb_input_device_changed_classes_iterator( event ); class_iter.rem;
+         xcb_input_device_class_next( &class_iter ))
+    {
+        if (class_iter.data->type != XCB_INPUT_DEVICE_CLASS_TYPE_VALUATOR) continue;
+        handle_valuator_class( host, (xcb_input_valuator_class_t *)class_iter.data );
+
+        if (host_classes_are_valid( host )) break;
+    }
+}
+
+/* extract x / y values from raw event valuators */
+static void extract_axisvalues( struct host_x11 *host, uint32_t *mask_buf, int mask_len,
+                                xcb_input_fp3232_t *values_buf, int values_len,
+                                xcb_input_fp3232_t *x, xcb_input_fp3232_t *y )
+{
+    uint32_t bit, mask, i = 0, *mask_end = mask_buf + mask_len;
+    xcb_input_fp3232_t *values_end = values_buf + values_len;
+
+    while (mask_buf < mask_end && values_buf < values_end)
+    {
+        for (mask = *mask_buf++, bit = 0; bit < 8 * sizeof(mask); bit++, i++, mask >>= 1)
+        {
+            if (!(mask & 1)) continue;
+            if (i == host->x_class.number) *x = *values_buf;
+            if (i == host->y_class.number) *y = *values_buf;
+            if (++values_buf == values_end) return;
+        }
+    }
+}
+
+static void handle_xcb_input_raw_motion( struct host_x11 *host, xcb_input_raw_motion_event_t *event )
+{
+    xcb_input_fp3232_t x = {0}, y = {0};
+
+    if (!host_classes_are_valid( host )) return;
+
+    extract_axisvalues( host, xcb_input_raw_button_press_valuator_mask( event ), xcb_input_raw_button_press_valuator_mask_length( event ),
+                        xcb_input_raw_button_press_axisvalues_raw( event ), xcb_input_raw_button_press_axisvalues_raw_length( event ), &x, &y );
+    send_raw_mouse_input( host, x, y, 0, 0 );
+}
+
+
 static void handle_xcb_ge_event( struct host_x11 *host, xcb_ge_event_t *event )
 {
     switch (event->event_type)
@@ -355,6 +548,10 @@ static void handle_xcb_ge_event( struct host_x11 *host, xcb_ge_event_t *event )
     case XCB_INPUT_MOTION: handle_xcb_input_motion( host, (xcb_input_motion_event_t *)event ); break;
     case XCB_INPUT_ENTER: handle_xcb_input_enter( host, (xcb_input_enter_event_t *)event ); break;
     case XCB_INPUT_LEAVE: handle_xcb_input_leave( host, (xcb_input_enter_event_t *)event ); break;
+
+    case XCB_INPUT_DEVICE_CHANGED: handle_xcb_input_device_changed( host, (xcb_input_device_changed_event_t *)event ); break;
+    case XCB_INPUT_RAW_MOTION: handle_xcb_input_raw_motion( host, (xcb_input_raw_motion_event_t *)event ); break;
+
     default: WARN( "host %p unexpected event type %u\n", host, event->event_type ); break;
     }
 }
@@ -453,7 +650,11 @@ static int init_xinput( struct host_x11 *host )
 {
     xcb_input_xi_query_version_cookie_t version_cookie;
     xcb_input_xi_query_version_reply_t *version_reply;
+    xcb_input_xi_query_device_cookie_t device_cookie;
+    xcb_input_xi_query_device_reply_t *device_reply;
+    struct xcb_input_mask input_mask;
     xcb_generic_error_t *error;
+    xcb_void_cookie_t cookie;
 
     version_cookie = xcb_input_xi_query_version( host->xcb, XCB_INPUT_MAJOR_VERSION, XCB_INPUT_MINOR_VERSION );
     if (!(version_reply = xcb_input_xi_query_version_reply( host->xcb, version_cookie, &error )))
@@ -465,6 +666,23 @@ static int init_xinput( struct host_x11 *host )
 
     TRACE( "host %p xinput version %u.%u enabled\n", host, version_reply->major_version, version_reply->minor_version );
     free( version_reply );
+
+    input_mask.head.deviceid = XCB_INPUT_DEVICE_ALL_MASTER;
+    input_mask.head.mask_len = sizeof(input_mask.mask) / sizeof(uint32_t);
+    input_mask.mask = XCB_INPUT_XI_EVENT_MASK_DEVICE_CHANGED | XCB_INPUT_XI_EVENT_MASK_RAW_MOTION;
+    cookie = xcb_input_xi_select_events( host->xcb, host->root_window, 1, &input_mask.head );
+    if (!debug_level) xcb_discard_reply( host->xcb, cookie.sequence );
+
+    device_cookie = xcb_input_xi_query_device( host->xcb, XCB_INPUT_DEVICE_ALL_MASTER );
+    if (!(device_reply = xcb_input_xi_query_device_reply( host->xcb, device_cookie, &error )))
+    {
+        handle_xcb_generic_error( host, error );
+        free( error );
+        return -1;
+    }
+
+    handle_xcb_input_xi_query_device_reply( host, device_reply );
+    free( device_reply );
 
     return 0;
 }
@@ -490,6 +708,12 @@ static struct object *create_host_x11( const char *display )
     host->windows = NULL;
     host->windows_count = 0;
     host->windows_capacity = 0;
+
+    host->pointer_id = -1;
+    host->x_class.mode = XCB_INPUT_VALUATOR_MODE_ABSOLUTE;
+    host->x_class.number = -1;
+    host->y_class.mode = XCB_INPUT_VALUATOR_MODE_ABSOLUTE;
+    host->y_class.number = -1;
 
     if (!(host->display = strdup( display ))) goto failed;
     if (!(host->xcb = xcb_connect( display, &screen_num ))) goto failed;
