@@ -1115,6 +1115,20 @@ void enum_processes( int (*cb)(struct process*, void*), void *user )
     }
 }
 
+
+void enum_processes_for_host( struct object *host, int (*callback)( struct process *, void * ), void *user )
+{
+    struct list *ptr, *next;
+
+    LIST_FOR_EACH_SAFE( ptr, next, &process_list )
+    {
+        struct process *process = LIST_ENTRY( ptr, struct process, entry );
+        if (process->host != host) continue;
+        if (callback( process, user )) break;
+    }
+}
+
+
 /* set the debugged flag in the process PEB */
 int set_process_debug_flag( struct process *process, int flag )
 {
