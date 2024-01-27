@@ -45,66 +45,16 @@
  *
  */
 
-#include <stdarg.h>
-#include <assert.h>
+#include "user32_test.h"
 
-#include "windef.h"
-#include "winbase.h"
-#include "wingdi.h"
-#include "winuser.h"
-#include "wingdi.h"
-#include "winnls.h"
-#include "winreg.h"
 #include "ddk/hidsdi.h"
 #include "imm.h"
 #include "kbd.h"
-
-#include "wine/test.h"
 
 #define check_member_( file, line, val, exp, fmt, member )                                         \
     ok_(file, line)( (val).member == (exp).member, "got " #member " " fmt "\n", (val).member )
 #define check_member( val, exp, fmt, member )                                                      \
     check_member_( __FILE__, __LINE__, val, exp, fmt, member )
-
-static const char *debugstr_ok( const char *cond )
-{
-    int c, n = 0;
-    /* skip possible casts */
-    while ((c = *cond++))
-    {
-        if (c == '(') n++;
-        if (!n) break;
-        if (c == ')') n--;
-    }
-    if (!strchr( cond - 1, '(' )) return wine_dbg_sprintf( "got %s", cond - 1 );
-    return wine_dbg_sprintf( "%.*s returned", (int)strcspn( cond - 1, "( " ), cond - 1 );
-}
-
-#define ok_eq( e, r, t, f, ... )                                                                   \
-    do                                                                                             \
-    {                                                                                              \
-        t v = (r);                                                                                 \
-        ok( v == (e), "%s " f "\n", debugstr_ok( #r ), v, ##__VA_ARGS__ );                         \
-    } while (0)
-#define ok_ne( e, r, t, f, ... )                                                                   \
-    do                                                                                             \
-    {                                                                                              \
-        t v = (r);                                                                                 \
-        ok( v != (e), "%s " f "\n", debugstr_ok( #r ), v, ##__VA_ARGS__ );                         \
-    } while (0)
-#define ok_rect( e, r )                                                                            \
-    do                                                                                             \
-    {                                                                                              \
-        RECT v = (r);                                                                              \
-        ok( EqualRect( &v, &(e) ), "%s %s\n", debugstr_ok(#r), wine_dbgstr_rect(&v) );             \
-    } while (0)
-#define ok_point( e, r )                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        POINT v = (r);                                                                             \
-        ok( !memcmp( &v, &(e), sizeof(v) ), "%s %s\n", debugstr_ok(#r), wine_dbgstr_point(&v) );   \
-    } while (0)
-#define ok_ret( e, r ) ok_eq( e, r, UINT_PTR, "%Iu, error %ld", GetLastError() )
 
 enum user_function
 {
@@ -466,7 +416,7 @@ static void init_function_pointers(void)
 }
 
 #define run_in_process( a, b ) run_in_process_( __FILE__, __LINE__, a, b )
-static void run_in_process_( const char *file, int line, char **argv, const char *args )
+void run_in_process_( const char *file, int line, char **argv, const char *args )
 {
     STARTUPINFOA startup = {.cb = sizeof(STARTUPINFOA)};
     PROCESS_INFORMATION info = {0};
