@@ -170,7 +170,7 @@ static x11drv_event_handler server_x11_handlers[MAX_EVENT_HANDLERS] =
     NULL,                     /* 32 ColormapNotify */
     X11DRV_ClientMessage,     /* 33 ClientMessage */
     X11DRV_MappingNotify,     /* 34 MappingNotify */
-    X11DRV_GenericEvent       /* 35 GenericEvent */
+    NULL,                     /* 35 GenericEvent */
 };
 
 static const char * event_names[MAX_EVENT_HANDLERS] =
