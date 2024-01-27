@@ -833,6 +833,7 @@ DECL_HANDLER(set_user_object_info)
     {
         struct desktop *desktop = (struct desktop *)obj;
         reply->is_desktop = 1;
+        reply->has_input = desktop == desktop->winstation->input_desktop;
         reply->old_obj_flags = desktop->flags;
         if (req->flags & SET_USER_OBJECT_SET_FLAGS) desktop->flags = req->obj_flags;
     }
@@ -840,6 +841,7 @@ DECL_HANDLER(set_user_object_info)
     {
         struct winstation *winstation = (struct winstation *)obj;
         reply->is_desktop = 0;
+        reply->has_input = 0;
         reply->old_obj_flags = winstation->flags;
         if (req->flags & SET_USER_OBJECT_SET_FLAGS) winstation->flags = req->obj_flags;
     }

@@ -2869,6 +2869,7 @@ enum coords_relative
     unsigned int obj_flags;       /* new object flags */
 @REPLY
     int          is_desktop;      /* is object a desktop? */
+    int          has_input;       /* desktop has user input */
     unsigned int old_obj_flags;   /* old object flags */
     VARARG(name,unicode_str);     /* object name */
 @END
