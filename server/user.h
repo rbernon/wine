@@ -97,6 +97,23 @@ struct desktop
     const desktop_shm_t *shared;           /* desktop session shared memory */
 };
 
+struct rawinput_message
+{
+    struct thread           *foreground;
+    struct hw_msg_source     source;
+    unsigned int             time;
+    unsigned int             message;
+    unsigned int             flags;
+    struct rawinput          rawinput;
+    union
+    {
+        RAWKEYBOARD         keyboard;
+        RAWMOUSE            mouse;
+        RAWHID              hid;
+    } data;
+    const void             *hid_report;
+};
+
 /* user handles functions */
 
 extern user_handle_t alloc_user_handle( void *ptr, enum user_object type );
@@ -150,7 +167,11 @@ extern void set_rawinput_process( struct process *process, int enable );
 extern struct desktop *get_hardware_input_desktop( user_handle_t win );
 extern struct thread *get_foreground_thread( struct desktop *desktop, user_handle_t window );
 extern int queue_mouse_message( struct desktop *desktop, user_handle_t win, const hw_input_t *input,
-                                unsigned int origin, struct msg_queue *sender );
+                                unsigned int origin, struct msg_queue *sender, int send_rawinput );
+
+extern void rawmouse_init( struct rawinput *header, RAWMOUSE *rawmouse, int x, int y, unsigned int flags,
+                           unsigned int buttons, lparam_t info );
+extern void dispatch_rawinput_message( struct desktop *desktop, struct rawinput_message *raw_msg );
 
 /* region functions */
 
