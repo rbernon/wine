@@ -18,11 +18,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include "wine/test.h"
-#include "winbase.h"
-#include "wingdi.h"
-#include "winuser.h"
-#include "winnls.h"
+#include "user32_test.h"
+
 #include "winternl.h"
 
 static NTSTATUS (WINAPI *pNtQueryObject)(HANDLE, OBJECT_INFORMATION_CLASS, PVOID, ULONG, PULONG);
@@ -1114,12 +1111,147 @@ static void test_get_security(void)
     ok( IsValidSecurityDescriptor(buffer), "expected valid SD\n" );
 }
 
+static UINT desktops_enumerated;
+
+static BOOL CALLBACK test_defaults_enum( WCHAR *desktop, LPARAM lparam )
+{
+    ok_wcs( L"Default", desktop );
+    desktops_enumerated++;
+    return TRUE;
+}
+
+static DWORD WINAPI test_defaults_thread( void *args )
+{
+    WCHAR buffer[MAX_PATH];
+    HWINSTA winsta;
+    DWORD size;
+    HDESK desk;
+    BOOL input;
+
+    /* check that the default winstation is the one we created */
+    winsta = GetProcessWindowStation();
+    ok_ne( NULL, winsta, HWINSTA, "%p" );
+    memset( buffer, 0, sizeof(buffer) );
+    ok_ret( 1, GetUserObjectInformationW( winsta, UOI_NAME, buffer, sizeof(buffer), &size ) );
+    ok_wcs( L"WineTest Station", buffer );
+
+    /* and that the default desktop is not the input desktop */
+    desk = GetThreadDesktop( GetCurrentThreadId() );
+    ok_ne( NULL, desk, HDESK, "%p" );
+    memset( buffer, 0, sizeof(buffer) );
+    ok_ret( 1, GetUserObjectInformationW( desk, UOI_NAME, buffer, sizeof(buffer), &size ) );
+    ok_wcs( L"Default", buffer );
+
+    input = TRUE;
+    ok_ret( 1, GetUserObjectInformationW( desk, UOI_IO, &input, sizeof(input), &size ) );
+    ok_eq( FALSE, input, BOOL, "%u" );
+
+    return 0;
+}
+
+static void test_defaults_process( char **argv )
+{
+    WCHAR buffer[MAX_PATH];
+    HWINSTA winsta;
+    HANDLE thread;
+    DWORD size;
+    HDESK desk;
+    BOOL input;
+
+    /* check that the default winstation is the one we created */
+    winsta = GetProcessWindowStation();
+    ok_ne( NULL, winsta, HWINSTA, "%p" );
+    memset( buffer, 0, sizeof(buffer) );
+    ok_ret( 1, GetUserObjectInformationW( winsta, UOI_NAME, buffer, sizeof(buffer), &size ) );
+    ok_wcs( L"WinSta0", buffer );
+
+    /* a default desktop has now been created */
+    desktops_enumerated = 0;
+    ok_ret( 1, EnumDesktopsW( winsta, test_defaults_enum, 0 ) );
+    ok_eq( 1, desktops_enumerated, UINT, "%u" );
+
+    /* and that the default desktop is not the input desktop */
+    desk = GetThreadDesktop( GetCurrentThreadId() );
+    ok_ne( NULL, desk, HDESK, "%p" );
+    memset( buffer, 0, sizeof(buffer) );
+    ok_ret( 1, GetUserObjectInformationW( desk, UOI_NAME, buffer, sizeof(buffer), &size ) );
+    ok_wcs( L"Default", buffer );
+
+    input = TRUE;
+    ok_ret( 1, GetUserObjectInformationW( desk, UOI_IO, &input, sizeof(input), &size ) );
+    ok_eq( FALSE, input, BOOL, "%u" );
+
+    /* test that new threads also use the process default winstation / desktop */
+    thread = CreateThread( NULL, 0, test_defaults_thread, NULL, 0, NULL );
+    ok_ne( NULL, thread, HANDLE, "%p" );
+    ok_ret( 0, WaitForSingleObject( thread, INFINITE ) );
+    CloseHandle( thread );
+}
+
+static void test_defaults( char **argv )
+{
+    HWINSTA old_winsta, winsta;
+    WCHAR buffer[MAX_PATH];
+    DWORD size;
+    HDESK desk;
+    BOOL input;
+
+    /* check that the current winstation is the interactive WinSta0 */
+    old_winsta = GetProcessWindowStation();
+    ok_ne( NULL, old_winsta, HWINSTA, "%p" );
+    memset( buffer, 0, sizeof(buffer) );
+    ok_ret( 1, GetUserObjectInformationW( old_winsta, UOI_NAME, buffer, sizeof(buffer), &size ) );
+    ok_wcs( L"WinSta0", buffer );
+
+    /* check that the current desktop is the input desktop */
+    desk = GetThreadDesktop( GetCurrentThreadId() );
+    ok_ne( NULL, desk, HDESK, "%p" );
+    memset( buffer, 0, sizeof(buffer) );
+    ok_ret( 1, GetUserObjectInformationW( desk, UOI_NAME, buffer, sizeof(buffer), &size ) );
+    ok_wcs( L"Default", buffer );
+
+    input = FALSE;
+    todo_wine ok_ret( 1, GetUserObjectInformationW( desk, UOI_IO, &input, sizeof(input), &size ) );
+    todo_wine ok_eq( TRUE, input, BOOL, "%u" );
+
+    /* creating a new window station doesn't immediately create a new desktop */
+    winsta = CreateWindowStationW( L"WineTest Station", 0, WINSTA_ALL_ACCESS, NULL );
+    ok_ne( NULL, winsta, HWINSTA, "%p" );
+    memset( buffer, 0, sizeof(buffer) );
+    ok_ret( 1, GetUserObjectInformationW( winsta, UOI_NAME, buffer, sizeof(buffer), &size ) );
+    ok_wcs( L"WineTest Station", buffer );
+
+    desktops_enumerated = 0;
+    todo_wine ok_ret( 0, EnumDesktopsW( winsta, test_defaults_enum, 0 ) );
+    ok_eq( 0, desktops_enumerated, UINT, "%u" );
+
+    /* changing the process window station doesn't change the thread desktop */
+    ok_ret( 1, SetProcessWindowStation( winsta ) );
+
+    desk = GetThreadDesktop( GetCurrentThreadId() );
+    ok_ne( NULL, desk, HDESK, "%p" );
+    memset( buffer, 0, sizeof(buffer) );
+    ok_ret( 1, GetUserObjectInformationW( desk, UOI_NAME, buffer, sizeof(buffer), &size ) );
+    ok_wcs( L"Default", buffer );
+
+    /* run a new process which doesn't inherit handles but still connects to the created winstation */
+    run_in_process( argv, "test_defaults_process" );
+
+    ok_ret( 1, SetProcessWindowStation( old_winsta ) );
+    ok_ret( 1, CloseWindowStation( winsta ) );
+}
+
 START_TEST(winstation)
 {
+    HMODULE ntdll = GetModuleHandleA( "ntdll.dll" );
     char **argv;
     int argc;
-    HMODULE hntdll = GetModuleHandleA("ntdll.dll");
-    pNtQueryObject = (void *)GetProcAddress(hntdll, "NtQueryObject");
+
+    pNtQueryObject = (void *)GetProcAddress( ntdll, "NtQueryObject" );
+
+    argc = winetest_get_mainargs( &argv );
+    if (argc >= 3 && !strcmp( argv[2], "test_defaults_process" ))
+        return test_defaults_process( argv );
 
     /* Check whether this platform supports WindowStation calls */
 
@@ -1131,7 +1263,6 @@ START_TEST(winstation)
         return;
     }
 
-    argc = winetest_get_mainargs(&argv);
     if (argc > 2)
     {
         if (!lstrcmpA(argv[2], "invisible"))
@@ -1139,6 +1270,7 @@ START_TEST(winstation)
 
         return;
     }
+    test_defaults( argv );
     test_inputdesktop();
     test_inputdesktop2();
     test_enumstations();
