@@ -1648,14 +1648,22 @@ static void host_x11_warp_cursor( struct object *obj, struct desktop *desktop )
     warp_x = x << 16;
     warp_y = y << 16;
 
+    /* hide the cursor first so that XWayland is happy and execute the warp */
+    cookie = xcb_xfixes_hide_cursor( host->xcb, host->root_window );
+    if (!debug_level) xcb_discard_reply( host->xcb, cookie.sequence );
+
     cookie = xcb_input_xi_warp_pointer( host->xcb, XCB_NONE, host->root_window, 0, 0, 0, 0,
                                         warp_x, warp_y, host->pointer_id );
+    if (!debug_level) xcb_discard_reply( host->xcb, cookie.sequence );
+    host->warp_sequence = cookie.sequence;
+
+    /* this is orthogonal to cursor graphics, which might be invisible still */
+    cookie = xcb_xfixes_show_cursor( host->xcb, host->root_window );
     if (!debug_level) xcb_discard_reply( host->xcb, cookie.sequence );
 
     TRACE( "host %p warping to (%+5d,%+5d) -> (%+8.2f,%+8.2f) cookie %u\n", host, x, y,
            double_from_fp1616( warp_x ), double_from_fp1616( warp_y ), cookie.sequence );
 
-    host->warp_sequence = cookie.sequence;
     host_set_needs_flush( host );
 }
 
