@@ -52,6 +52,7 @@ static struct object *winstation_lookup_name( struct object *obj, struct unicode
 static void winstation_destroy( struct object *obj );
 static void desktop_dump( struct object *obj, int verbose );
 static int desktop_link_name( struct object *obj, struct object_name *name, struct object *parent );
+static struct mapping *desktop_get_object_mapping( struct object *obj );
 static int desktop_close_handle( struct object *obj, struct process *process, obj_handle_t handle );
 static void desktop_destroy( struct object *obj );
 
@@ -89,6 +90,7 @@ static const struct object_ops winstation_ops =
     default_unlink_name,          /* unlink_name */
     no_open_file,                 /* open_file */
     no_kernel_obj_list,           /* get_kernel_obj_list */
+    no_object_mapping,            /* get_object_mapping */
     winstation_close_handle,      /* close_handle */
     winstation_destroy            /* destroy */
 };
@@ -129,6 +131,7 @@ static const struct object_ops desktop_ops =
     default_unlink_name,          /* unlink_name */
     no_open_file,                 /* open_file */
     no_kernel_obj_list,           /* get_kernel_obj_list */
+    desktop_get_object_mapping,   /* get_object_mapping */
     desktop_close_handle,         /* close_handle */
     desktop_destroy               /* destroy */
 };
@@ -284,6 +287,13 @@ static int desktop_link_name( struct object *obj, struct object_name *name, stru
     }
     namespace_add( winstation->desktop_names, name );
     return 1;
+}
+
+static struct mapping *desktop_get_object_mapping( struct object *obj )
+{
+    struct desktop *desktop = (struct desktop *)obj;
+    assert( obj->ops == &desktop_ops );
+    return (struct mapping *)grab_object( desktop->shared_mapping );
 }
 
 static int desktop_close_handle( struct object *obj, struct process *process, obj_handle_t handle )

@@ -192,6 +192,7 @@ static const struct object_ops key_ops =
     key_unlink_name,         /* unlink_name */
     no_open_file,            /* open_file */
     no_kernel_obj_list,      /* get_kernel_obj_list */
+    no_object_mapping,       /* get_object_mapping */
     key_close_handle,        /* close_handle */
     key_destroy              /* destroy */
 };

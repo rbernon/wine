@@ -465,6 +465,7 @@ static const struct object_ops sock_ops =
     NULL,                         /* unlink_name */
     no_open_file,                 /* open_file */
     no_kernel_obj_list,           /* get_kernel_obj_list */
+    no_object_mapping,            /* get_object_mapping */
     sock_close_handle,            /* close_handle */
     sock_destroy                  /* destroy */
 };
@@ -3566,6 +3567,7 @@ static const struct object_ops ifchange_ops =
     NULL,                    /* unlink_name */
     no_open_file,            /* open_file */
     no_kernel_obj_list,      /* get_kernel_obj_list */
+    no_object_mapping,       /* get_object_mapping */
     no_close_handle,         /* close_handle */
     ifchange_destroy         /* destroy */
 };
@@ -3787,6 +3789,7 @@ static const struct object_ops socket_device_ops =
     default_unlink_name,        /* unlink_name */
     socket_device_open_file,    /* open_file */
     no_kernel_obj_list,         /* get_kernel_obj_list */
+    no_object_mapping,          /* get_object_mapping */
     no_close_handle,            /* close_handle */
     no_destroy                  /* destroy */
 };

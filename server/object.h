@@ -103,6 +103,8 @@ struct object_ops
                                 unsigned int options);
     /* return list of kernel objects */
     struct list *(*get_kernel_obj_list)(struct object *);
+    /* return the memory mapping for the object */
+    struct mapping *(*get_object_mapping)(struct object *);
     /* close a handle to this object */
     int (*close_handle)(struct object *,struct process *,obj_handle_t);
     /* destroy on refcount == 0 */
@@ -181,6 +183,7 @@ extern void default_unlink_name( struct object *obj, struct object_name *name );
 extern struct object *no_open_file( struct object *obj, unsigned int access, unsigned int sharing,
                                     unsigned int options );
 extern struct list *no_kernel_obj_list( struct object *obj );
+extern struct mapping *no_object_mapping( struct object *obj );
 extern int no_close_handle( struct object *obj, struct process *process, obj_handle_t handle );
 extern void no_destroy( struct object *obj );
 #ifdef DEBUG_OBJECTS

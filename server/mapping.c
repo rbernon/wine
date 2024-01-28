@@ -79,6 +79,7 @@ static const struct object_ops ranges_ops =
     NULL,                      /* unlink_name */
     no_open_file,              /* open_file */
     no_kernel_obj_list,        /* get_kernel_obj_list */
+    no_object_mapping,         /* get_object_mapping */
     no_close_handle,           /* close_handle */
     ranges_destroy             /* destroy */
 };
@@ -115,6 +116,7 @@ static const struct object_ops shared_map_ops =
     NULL,                      /* unlink_name */
     no_open_file,              /* open_file */
     no_kernel_obj_list,        /* get_kernel_obj_list */
+    no_object_mapping,         /* get_object_mapping */
     no_close_handle,           /* close_handle */
     shared_map_destroy         /* destroy */
 };
@@ -188,6 +190,7 @@ static const struct object_ops mapping_ops =
     default_unlink_name,         /* unlink_name */
     no_open_file,                /* open_file */
     no_kernel_obj_list,          /* get_kernel_obj_list */
+    no_object_mapping,           /* get_object_mapping */
     no_close_handle,             /* close_handle */
     mapping_destroy              /* destroy */
 };
@@ -1315,10 +1318,35 @@ DECL_HANDLER(create_mapping)
     if (root) release_object( root );
 }
 
+static struct mapping *open_object_mapping( obj_handle_t handle, const struct unicode_str *name )
+{
+    static const WCHAR object_mappingW[] = {'_','_','w','i','n','e','_','m','a','p','p','i','n','g'};
+    struct mapping *mapping;
+    struct object *object;
+
+    if (name->len != sizeof(object_mappingW) || memcmp( name->str, object_mappingW, name->len )) return NULL;
+    if (!(object = get_handle_obj( current->process, handle, 0, NULL )))
+    {
+        clear_error();
+        return NULL;
+    }
+    mapping = object->ops->get_object_mapping( object );
+    release_object( object );
+    return mapping;
+}
+
 /* open a handle to a mapping */
 DECL_HANDLER(open_mapping)
 {
     struct unicode_str name = get_req_unicode_str();
+    struct mapping *mapping;
+
+    if (req->rootdir && (mapping = open_object_mapping( req->rootdir, &name )))
+    {
+        reply->handle = alloc_handle( current->process, &mapping->obj, req->access, req->attributes );
+        release_object( mapping );
+        return;
+    }
 
     reply->handle = open_object( current->process, req->rootdir, req->access,
                                  &mapping_ops, &name, req->attributes );
