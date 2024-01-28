@@ -705,7 +705,6 @@ extern void X11DRV_SetFocus( HWND hwnd );
 extern void set_window_cursor( Window window, HCURSOR handle );
 extern void reapply_cursor_clipping(void);
 extern void ungrab_clipping_window(void);
-extern void wait_for_pointer_grab(void);
 extern void move_resize_window( HWND hwnd, int dir, POINT pos );
 extern void X11DRV_InitKeyboard( Display *display );
 extern void X11DRV_InitMouse( Display *display );

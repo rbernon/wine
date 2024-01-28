@@ -455,33 +455,6 @@ void x11drv_xinput2_init( struct x11drv_thread_data *data )
 
 #endif /* HAVE_X11_EXTENSIONS_XINPUT2_H */
 
-void wait_for_pointer_grab(void)
-{
-    Display *display = thread_init_display();
-    RECT rect;
-
-    /* release cursor grab held by any Wine process */
-    NtUserGetClipCursor( &rect );
-    NtUserClipCursor( NULL );
-
-ERR("rect %s\n", wine_dbgstr_rect(&rect));
-
-    while (XGrabPointer( display, root_window, False, 0, GrabModeAsync, GrabModeAsync,
-                         None, None, CurrentTime ) != GrabSuccess)
-    {
-        LARGE_INTEGER timeout = {.QuadPart = -10 * (ULONGLONG)10000};
-        NtDelayExecution( FALSE, &timeout );
-    }
-
-    XUngrabPointer( display, CurrentTime );
-    XFlush( display );
-
-ERR("rect %s\n", wine_dbgstr_rect(&rect));
-
-    /* restore the previously used clipping rect */
-    NtUserClipCursor( &rect );
-}
-
 /***********************************************************************
  *		grab_clipping_window
  *
