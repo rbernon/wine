@@ -74,6 +74,7 @@ struct host_x11
     char                       *display;          /* X display for this connection */
     xcb_connection_t           *xcb;              /* xcb connection to the host display */
     int                         needs_flush;      /* whether xcb_flush should be called */
+    int                         is_xwayland: 1;   /* whether the X11 server is XWayland */
 
     xcb_window_t                root_window;      /* default root window */
     struct window_data         *windows;          /* X11 host window data array */
@@ -1667,6 +1668,37 @@ static void host_x11_clip_cursor( struct object *obj, struct desktop *desktop, c
 
     assert( obj->ops == &host_x11_object_ops );
 
+    if (host->is_xwayland)
+    {
+        /* on XWayland, cursor clipping is not possible, confine the cursor to the foreground window instead */
+
+        if (host->is_clipping)
+        {
+            cookie = xcb_ungrab_pointer( host->xcb, XCB_CURRENT_TIME );
+            if (!debug_level) xcb_discard_reply( host->xcb, cookie.sequence );
+
+            host->is_clipping = 0;
+            host_set_needs_flush( host );
+        }
+
+        if (!rect) TRACE( "host %p releasing cursor\n", host );
+        else
+        {
+            xcb_grab_pointer_cookie_t grab_cookie;
+
+            TRACE( "host %p confining cursor to foreground window\n", host );
+
+            grab_cookie = xcb_grab_pointer( host->xcb, host->keyboard_focus, 0, XCB_EVENT_MASK_NO_EVENT, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC,
+                                            host->keyboard_focus, 0, XCB_CURRENT_TIME );
+            if (!debug_level) xcb_discard_reply( host->xcb, grab_cookie.sequence );
+
+            host->is_clipping = 0;
+            host_set_needs_flush( host );
+        }
+
+        return;
+    }
+
     if (host->is_clipping)
     {
         cookie = xcb_xfixes_delete_pointer_barrier( host->xcb, host->clip_barrier[0] );
@@ -1847,7 +1879,19 @@ static int init_xfixes( struct host_x11 *host )
 {
     xcb_xfixes_query_version_cookie_t version_cookie;
     xcb_xfixes_query_version_reply_t *version_reply;
+    xcb_query_extension_cookie_t xwayland_cookie;
+    xcb_query_extension_reply_t *xwayland_reply;
     xcb_generic_error_t *error;
+
+    xwayland_cookie = xcb_query_extension( host->xcb, sizeof("XWAYLAND"), "XWAYLAND" );
+    if (!(xwayland_reply = xcb_query_extension_reply( host->xcb, xwayland_cookie, NULL )))
+        host->is_xwayland = 0;
+    else
+    {
+        FIXME( "XWayland detected: cursor clipping is not possible, enabling confining fallback\n" );
+        host->is_xwayland = 1;
+        free( xwayland_reply );
+    }
 
     version_cookie = xcb_xfixes_query_version( host->xcb, XCB_XFIXES_MAJOR_VERSION, XCB_XFIXES_MINOR_VERSION );
     if (!(version_reply = xcb_xfixes_query_version_reply( host->xcb, version_cookie, &error )))
