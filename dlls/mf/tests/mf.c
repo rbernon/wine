@@ -5379,8 +5379,6 @@ static void test_scheme_resolvers(void)
     for (i = 0; i < ARRAY_SIZE(urls); i++)
     {
         hr = IMFSourceResolver_CreateObjectFromURL(resolver, urls[i], MF_RESOLUTION_BYTESTREAM, NULL, &type, &object);
-        todo_wine_if(i >= 2)
-        ok(hr == S_OK, "got hr %#lx\n", hr);
         if (hr != S_OK)
             continue;
 
