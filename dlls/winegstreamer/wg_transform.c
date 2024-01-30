@@ -82,6 +82,51 @@ static void align_video_info_planes(gsize plane_align, GstVideoInfo *info, GstVi
     gst_video_info_align(info, align);
 }
 
+typedef struct
+{
+    GstVideoBufferPool parent;
+} WgVideoBufferPool;
+
+typedef struct
+{
+    GstVideoBufferPoolClass parent_class;
+} WgVideoBufferPoolClass;
+
+G_DEFINE_TYPE(WgVideoBufferPool, wg_video_buffer_pool, GST_TYPE_VIDEO_BUFFER_POOL);
+
+static void wg_video_buffer_pool_init(WgVideoBufferPool * pool) {}
+static void wg_video_buffer_pool_class_init(WgVideoBufferPoolClass *klass) {}
+
+static WgVideoBufferPool *wg_video_buffer_pool_create(GstCaps *caps, gsize plane_align,
+        GstAllocator *allocator, GstVideoInfo *info, GstVideoAlignment *align)
+{
+    WgVideoBufferPool *pool;
+    GstStructure *config;
+
+    if (!(pool = g_object_new(wg_video_buffer_pool_get_type(), NULL)))
+        return NULL;
+
+    gst_video_info_from_caps(info, caps);
+    align_video_info_planes(plane_align, info, align);
+
+    if (!(config = gst_buffer_pool_get_config(GST_BUFFER_POOL(pool))))
+        GST_ERROR("Failed to get %"GST_PTR_FORMAT" config.", pool);
+    else
+    {
+        gst_buffer_pool_config_add_option(config, GST_BUFFER_POOL_OPTION_VIDEO_META);
+        gst_buffer_pool_config_add_option(config, GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT);
+        gst_buffer_pool_config_set_video_alignment(config, align);
+
+        gst_buffer_pool_config_set_params(config, caps, info->size, 0, 0);
+        gst_buffer_pool_config_set_allocator(config, allocator, NULL);
+        if (!gst_buffer_pool_set_config(GST_BUFFER_POOL(pool), config))
+            GST_ERROR("Failed to set %"GST_PTR_FORMAT" config.", pool);
+    }
+
+    GST_INFO("Created %"GST_PTR_FORMAT, pool);
+    return pool;
+}
+
 static GstFlowReturn transform_sink_chain_cb(GstPad *pad, GstObject *parent, GstBuffer *buffer)
 {
     struct wg_transform *transform = gst_pad_get_element_private(pad);
@@ -128,11 +173,10 @@ static gboolean transform_src_query_cb(GstPad *pad, GstObject *parent, GstQuery 
 
 static gboolean transform_sink_query_allocation(struct wg_transform *transform, GstQuery *query)
 {
-    gsize plane_align = transform->attrs.output_plane_align;
-    GstStructure *config, *params;
+    WgVideoBufferPool *pool;
     GstVideoAlignment align;
+    GstStructure *params;
     gboolean needs_pool;
-    GstBufferPool *pool;
     GstVideoInfo info;
     GstCaps *caps;
 
@@ -142,11 +186,9 @@ static gboolean transform_sink_query_allocation(struct wg_transform *transform, 
     if (stream_type_from_caps(caps) != GST_STREAM_TYPE_VIDEO || !needs_pool)
         return false;
 
-    if (!gst_video_info_from_caps(&info, caps)
-            || !(pool = gst_video_buffer_pool_new()))
+    if (!(pool = wg_video_buffer_pool_create(caps, transform->attrs.output_plane_align,
+            transform->allocator, &info, &align)))
         return false;
-
-    align_video_info_planes(plane_align, &info, &align);
 
     if ((params = gst_structure_new("video-meta",
             "padding-top", G_TYPE_UINT, align.padding_top,
@@ -159,26 +201,11 @@ static gboolean transform_sink_query_allocation(struct wg_transform *transform, 
         gst_structure_free(params);
     }
 
-    if (!(config = gst_buffer_pool_get_config(pool)))
-        GST_ERROR("Failed to get %"GST_PTR_FORMAT" config.", pool);
-    else
-    {
-        gst_buffer_pool_config_add_option(config, GST_BUFFER_POOL_OPTION_VIDEO_META);
-        gst_buffer_pool_config_add_option(config, GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT);
-        gst_buffer_pool_config_set_video_alignment(config, &align);
-
-        gst_buffer_pool_config_set_params(config, caps,
-                info.size, 0, 0);
-        gst_buffer_pool_config_set_allocator(config, transform->allocator, NULL);
-        if (!gst_buffer_pool_set_config(pool, config))
-            GST_ERROR("Failed to set %"GST_PTR_FORMAT" config.", pool);
-    }
-
     /* Prevent pool reconfiguration, we don't want another alignment. */
-    if (!gst_buffer_pool_set_active(pool, true))
+    if (!gst_buffer_pool_set_active(GST_BUFFER_POOL(pool), true))
         GST_ERROR("%"GST_PTR_FORMAT" failed to activate.", pool);
 
-    gst_query_add_allocation_pool(query, pool, info.size, 0, 0);
+    gst_query_add_allocation_pool(query, GST_BUFFER_POOL(pool), info.size, 0, 0);
     gst_query_add_allocation_param(query, transform->allocator, NULL);
 
     GST_INFO("Proposing %"GST_PTR_FORMAT", buffer size %#zx, %"GST_PTR_FORMAT", for %"GST_PTR_FORMAT,
