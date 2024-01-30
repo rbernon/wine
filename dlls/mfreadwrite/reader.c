@@ -2114,6 +2114,7 @@ static HRESULT source_reader_create_transform(struct source_reader *reader, BOOL
                 }
 
                 entry->attributes_initialized = !d3d_aware;
+                IMFAttributes_SetUINT32(attributes, &MF_LOW_LATENCY, 1);
                 IMFAttributes_Release(attributes);
             }
 
