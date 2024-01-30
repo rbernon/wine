@@ -2226,6 +2226,9 @@ static HRESULT source_reader_create_decoder_for_stream(struct source_reader *rea
                 IMFMediaType_Release(output_type);
             }
 
+            if (reader->device_manager)
+                IMFTransform_ProcessMessage(entry->transform, MFT_MESSAGE_SET_D3D_MANAGER, (ULONG_PTR)reader->device_manager);
+
             IMFMediaType_Release(input_type);
             return S_OK;
         }
