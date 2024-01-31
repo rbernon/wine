@@ -3,6 +3,7 @@ STATICLIB = libwinecrtd.a
 SOURCES = \
 	channel.c \
 	header.c \
+	log.c \
 	options.c \
 	output.c \
 	printf.c \
