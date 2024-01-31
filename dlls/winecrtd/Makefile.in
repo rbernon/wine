@@ -5,4 +5,5 @@ SOURCES = \
 	header.c \
 	options.c \
 	output.c \
+	printf.c \
 	sprintf.c
