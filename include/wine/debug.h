@@ -109,6 +109,7 @@ struct __wine_debug_channel
 #endif
 
 NTSYSAPI int WINAPI __wine_dbg_write( const char *str, unsigned int len );
+extern DECLSPEC_EXPORT int __cdecl __wine_dbg_init( struct __wine_debug_channel **options );
 extern DECLSPEC_EXPORT unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel *channel );
 extern DECLSPEC_EXPORT const char * __cdecl __wine_dbg_strdup( const char *str );
 extern DECLSPEC_EXPORT int __cdecl __wine_dbg_output( const char *str );
