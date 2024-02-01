@@ -64,20 +64,6 @@ struct debug_info *__cdecl __wine_dbg_get_info(void)
 #endif
 }
 
-/* add a string to the output buffer */
-static int append_output( struct debug_info *info, const char *str, size_t len )
-{
-    if (len >= sizeof(info->output) - info->out_pos)
-    {
-       fprintf( stderr, "wine_dbg_output: debugstr buffer overflow (contents: '%s')\n", info->output );
-       info->out_pos = 0;
-       abort();
-    }
-    memcpy( info->output + info->out_pos, str, len );
-    info->out_pos += len;
-    return len;
-}
-
 /* winecrtd/options.c */
 /* parse a set of debugging option specifications and add them to the option list */
 extern int __wine_dbg_parse_options( struct __wine_debug_channel *options, int max_options,
@@ -118,6 +104,11 @@ static void init_options(void)
     else nb_debug_options = __wine_dbg_parse_options( debug_options, max_debug_options, wine_debug, app_name );
 }
 
+int WINAPI __wine_dbg_write( const char *str, unsigned int len )
+{
+    return write( 2, str, len );
+}
+
 /***********************************************************************
  *		unixcall_wine_dbg_write
  */
@@ -143,26 +134,6 @@ NTSTATUS wow64_wine_dbg_write( void *args )
     return write( 2, ULongToPtr(params32->str), params32->len );
 }
 #endif
-
-/***********************************************************************
- *		__wine_dbg_output  (NTDLL.@)
- */
-int __cdecl __wine_dbg_output( const char *str )
-{
-    struct debug_info *info = __wine_dbg_get_info();
-    const char *end = strrchr( str, '\n' );
-    int ret = 0;
-
-    if (end)
-    {
-        ret += append_output( info, str, end + 1 - str );
-        write( 2, info->output, info->out_pos );
-        info->out_pos = 0;
-        str = end + 1;
-    }
-    if (*str) ret += append_output( info, str, strlen( str ));
-    return ret;
-}
 
 /***********************************************************************
  *		__wine_dbg_header  (NTDLL.@)
