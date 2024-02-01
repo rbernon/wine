@@ -141,26 +141,9 @@ extern DECLSPEC_EXPORT int __cdecl __wine_dbg_header( enum __wine_debug_class cl
 # define __wine_dbg_cdecl
 #endif
 
-static const char * __wine_dbg_cdecl wine_dbg_vsprintf( const char *format, va_list args ) __WINE_PRINTF_ATTR(1,0);
-static inline const char * __wine_dbg_cdecl wine_dbg_vsprintf( const char *format, va_list args )
-{
-    char buffer[200];
-
-    vsnprintf( buffer, sizeof(buffer), format, args );
-    return __wine_dbg_strdup( buffer );
-}
-
-static const char * __wine_dbg_cdecl wine_dbg_sprintf( const char *format, ... ) __WINE_PRINTF_ATTR(1,2);
-static inline const char * __wine_dbg_cdecl wine_dbg_sprintf( const char *format, ... )
-{
-    const char *ret;
-    va_list args;
-
-    va_start( args, format );
-    ret = wine_dbg_vsprintf( format, args );
-    va_end( args );
-    return ret;
-}
+/* winecrtd/sprintf.c */
+extern const char * __wine_dbg_cdecl wine_dbg_vsprintf( const char *format, va_list args ) __WINE_PRINTF_ATTR(1,0);
+extern const char * __wine_dbg_cdecl wine_dbg_sprintf( const char *format, ... ) __WINE_PRINTF_ATTR(1,2);
 
 static int __wine_dbg_cdecl wine_dbg_vprintf( const char *format, va_list args ) __WINE_PRINTF_ATTR(1,0);
 static inline int __wine_dbg_cdecl wine_dbg_vprintf( const char *format, va_list args )
