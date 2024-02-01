@@ -39,8 +39,6 @@ static int (__cdecl *p__wine_dbg_header)( enum __wine_debug_class cls,
                                           struct __wine_debug_channel *channel,
                                           const char *function );
 
-static const char * const debug_classes[] = { "fixme", "err", "warn", "trace" };
-
 static const int max_debug_options = 2048; /* see ntdll/unix/debug.c */
 static DWORD partial_line_tid;  /* id of the last thread to output a partial line */
 
@@ -59,73 +57,15 @@ static void load_func( void **func, const char *name, void *def )
 
 
 /* winecrtd/options.c */
-/* add a new debug option at the end of the option list */
-extern int __wine_dbg_add_option( struct __wine_debug_channel *options, int option_count, unsigned char default_flags,
-                                  const char *name, unsigned char set, unsigned char clear );
-
 /* parse a set of debugging option specifications and add them to the option list */
-static int parse_options( struct __wine_debug_channel *options, int max_options,
-                          const char *wine_debug )
-{
-    unsigned char default_flags = (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
-    const char *opt, *next;
-    unsigned int i, count = 0;
-
-    for (opt = wine_debug; opt; opt = next)
-    {
-        struct __wine_debug_channel option = {0};
-        const char *p, *end;
-        unsigned char set = 0, clear = 0;
-
-        if ((next = strchr( opt, ',' ))) end = next++;
-        else end = opt + strlen( opt );
-
-        p = opt + strcspn( opt, "+-" );
-        if (p == end) p = opt;  /* assume it's a debug channel name */
-
-        if (p > opt)
-        {
-            for (i = 0; i < ARRAY_SIZE(debug_classes); i++)
-            {
-                int len = strlen(debug_classes[i]);
-                if (len != (p - opt)) continue;
-                if (!memcmp( opt, debug_classes[i], len ))  /* found it */
-                {
-                    if (*p == '+') set |= 1 << i;
-                    else clear |= 1 << i;
-                    break;
-                }
-            }
-            if (i == ARRAY_SIZE(debug_classes)) /* bad class name, skip it */
-                continue;
-        }
-        else
-        {
-            if (*p == '-') clear = ~0;
-            else set = ~0;
-        }
-        if (*p == '+' || *p == '-') p++;
-        if (end - p >= sizeof(option.name)) continue; /* name too long */
-        memcpy( option.name, p, end - p );
-
-        if (!strcmp( option.name, "all" ) || !option.name[0])
-            default_flags = (default_flags & ~clear) | set;
-        else
-        {
-            count = __wine_dbg_add_option( options, count, default_flags, option.name, set, clear );
-            if (count >= max_debug_options - 1) break; /* too many options */
-        }
-    }
-
-    options[count++].flags = default_flags;
-    return count;
-}
+extern int __wine_dbg_parse_options( struct __wine_debug_channel *options, int max_options,
+                                     const char *wine_debug, const char *app_name );
 
 /* initialize all options at startup */
 static int __cdecl fallback__wine_dbg_init( struct __wine_debug_channel **options )
 {
     if (!(*options = heap_alloc( max_debug_options * sizeof(**options) ))) return 0;
-    return parse_options( *options, max_debug_options, getenv( "WINEDEBUG" ) );
+    return __wine_dbg_parse_options( *options, max_debug_options, getenv( "WINEDEBUG" ), "" );
 }
 
 int __cdecl __wine_dbg_init( struct __wine_debug_channel **options )
@@ -165,6 +105,7 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls,
                                               struct __wine_debug_channel *channel,
                                               const char *function )
 {
+    static const char *const debug_classes[] = {"fixme", "err", "warn", "trace"};
     char buffer[200], *pos = buffer;
 
     if (!(__wine_dbg_get_channel_flags( channel ) & (1 << cls))) return -1;
