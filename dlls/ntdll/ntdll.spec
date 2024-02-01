@@ -1750,7 +1750,6 @@
 @ stdcall -norelay __wine_dbg_write(ptr long)
 @ cdecl -norelay __wine_dbg_init(ptr)
 @ cdecl -norelay __wine_dbg_get_info()
-@ cdecl -norelay __wine_dbg_header(long long str)
 
 # Version
 @ cdecl wine_get_version()
