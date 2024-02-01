@@ -20,6 +20,9 @@
 
 #ifdef __WINE_PE_BUILD
 
+/* avoid __wine_dbg_write import */
+#define _NTSYSTEM_
+
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -33,7 +36,7 @@ WINE_DECLARE_DEBUG_CHANNEL(timestamp);
 
 static int __cdecl (__cdecl *p__wine_dbg_init)( struct __wine_debug_channel **options );
 static struct debug_info *(__cdecl *p__wine_dbg_get_info)(void);
-static int (__cdecl *p__wine_dbg_output)( const char *str );
+static int (WINAPI *p__wine_dbg_write)( const char *str, unsigned int len );
 static int (__cdecl *p__wine_dbg_header)( enum __wine_debug_class cls,
                                           struct __wine_debug_channel *channel,
                                           const char *function );
@@ -91,13 +94,11 @@ struct debug_info *__cdecl __wine_dbg_get_info(void)
     return p__wine_dbg_get_info();
 }
 
-static int __cdecl fallback__wine_dbg_output( const char *str )
+static int WINAPI fallback__wine_dbg_write( const char *str, unsigned int len )
 {
-    size_t len = strlen( str );
-
-    if (!len) return 0;
-    InterlockedExchange( (LONG *)&partial_line_tid, str[len - 1] != '\n' ? GetCurrentThreadId() : 0 );
-    return fwrite( str, 1, len, stderr );
+    len = fwrite( str, 1, len, stderr );
+    fflush( stderr );
+    return len;
 }
 
 static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls,
@@ -126,10 +127,10 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls,
     return fwrite( buffer, 1, strlen(buffer), stderr );
 }
 
-int __cdecl __wine_dbg_output( const char *str )
+int WINAPI __wine_dbg_write( const char *str, unsigned int len )
 {
-    LOAD_FUNC( __wine_dbg_output );
-    return p__wine_dbg_output( str );
+    LOAD_FUNC( __wine_dbg_write );
+    return p__wine_dbg_write( str, len );
 }
 
 int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
