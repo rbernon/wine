@@ -108,8 +108,19 @@ struct __wine_debug_channel
 #define WINE_FIXME_(ch) WINE_FIXME
 #endif
 
+struct debug_info
+{
+    unsigned int str_pos;       /* current position in strings buffer */
+    unsigned int out_pos;       /* current position in output buffer */
+    char         strings[1020]; /* buffer for temporary strings */
+    char         output[1020];  /* current output line */
+};
+
+C_ASSERT( sizeof(struct debug_info) == 0x800 );
+
 NTSYSAPI int WINAPI __wine_dbg_write( const char *str, unsigned int len );
 extern DECLSPEC_EXPORT int __cdecl __wine_dbg_init( struct __wine_debug_channel **options );
+extern DECLSPEC_EXPORT struct debug_info *__cdecl __wine_dbg_get_info(void);
 extern DECLSPEC_EXPORT unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel *channel );
 extern DECLSPEC_EXPORT const char * __cdecl __wine_dbg_strdup( const char *str );
 extern DECLSPEC_EXPORT int __cdecl __wine_dbg_output( const char *str );
