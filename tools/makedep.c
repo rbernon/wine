@@ -2273,6 +2273,7 @@ static struct strarray get_default_imports( const struct makefile *make, struct 
 
     strarray_add( &ret, "winecrt0" );
     if (crt_dll) strarray_add( &ret, crt_dll );
+    strarray_add( &ret, "winecrtd" );
 
     if (make->is_win16 && (!make->importlib || strcmp( make->importlib, "kernel" )))
         strarray_add( &ret, "kernel" );
@@ -3572,6 +3573,7 @@ static void output_unix_lib( struct makefile *make )
     unsigned int arch = 0;  /* unix libs are always native */
 
     if (strcmp( make->unixlib, "ntdll.so" )) strarray_add( &unix_libs, "-lntdll" );
+    strarray_add( &unix_libs, "-lwinecrtd" );
     strarray_addall( &unix_libs, get_expanded_make_var_array( make, "UNIX_LIBS" ) );
 
     unix_libs = find_unix_libraries( make, &unix_libs, &unix_deps );
