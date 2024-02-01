@@ -34,7 +34,6 @@ WINE_DECLARE_DEBUG_CHANNEL(timestamp);
 static int __cdecl (__cdecl *p__wine_dbg_init)( struct __wine_debug_channel **options );
 static struct debug_info *(__cdecl *p__wine_dbg_get_info)(void);
 static int (__cdecl *p__wine_dbg_output)( const char *str );
-static unsigned char (__cdecl *p__wine_dbg_get_channel_flags)( struct __wine_debug_channel *channel );
 static int (__cdecl *p__wine_dbg_header)( enum __wine_debug_class cls,
                                           struct __wine_debug_channel *channel,
                                           const char *function );
@@ -127,44 +126,10 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls,
     return fwrite( buffer, 1, strlen(buffer), stderr );
 }
 
-static unsigned char __cdecl fallback__wine_dbg_get_channel_flags( struct __wine_debug_channel *channel )
-{
-    static struct __wine_debug_channel *debug_options;
-    static int nb_debug_options = -1;
-
-    unsigned char default_flags;
-    int min, max, pos, res, count;
-
-    if (nb_debug_options < 0) nb_debug_options = __wine_dbg_init( &debug_options );
-    if (!nb_debug_options) return (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
-    count = nb_debug_options < 0 ? -nb_debug_options : nb_debug_options;
-
-    min = 0;
-    max = count - 2;
-    while (min <= max)
-    {
-        pos = (min + max) / 2;
-        res = strcmp( channel->name, debug_options[pos].name );
-        if (!res) return debug_options[pos].flags;
-        if (res < 0) max = pos - 1;
-        else min = pos + 1;
-    }
-    /* no option for this channel */
-    default_flags = debug_options[count - 1].flags;
-    if (channel->flags & (1 << __WINE_DBCL_INIT)) channel->flags = default_flags;
-    return default_flags;
-}
-
 int __cdecl __wine_dbg_output( const char *str )
 {
     LOAD_FUNC( __wine_dbg_output );
     return p__wine_dbg_output( str );
-}
-
-unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel *channel )
-{
-    LOAD_FUNC( __wine_dbg_get_channel_flags );
-    return p__wine_dbg_get_channel_flags( channel );
 }
 
 int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
