@@ -58,31 +58,10 @@ static void load_func( void **func, const char *name, void *def )
 #define LOAD_FUNC(name) load_func( (void **)&p ## name, #name, fallback ## name )
 
 
+/* winecrtd/options.c */
 /* add a new debug option at the end of the option list */
-static int add_option( struct __wine_debug_channel *options, int option_count, unsigned char default_flags,
-                       const char *name, unsigned char set, unsigned char clear )
-{
-    struct __wine_debug_channel *tmp, *opt = options, *end = opt + option_count;
-    int res;
-
-    while (opt < end)
-    {
-        tmp = opt + (end - opt) / 2;
-        if (!(res = strcmp( name, tmp->name )))
-        {
-            tmp->flags = (tmp->flags & ~clear) | set;
-            return option_count;
-        }
-        if (res < 0) end = tmp;
-        else opt = tmp + 1;
-    }
-
-    end = options + option_count;
-    memmove( opt + 1, opt, (char *)end - (char *)opt );
-    strcpy( opt->name, name );
-    opt->flags = (default_flags & ~clear) | set;
-    return option_count + 1;
-}
+extern int __wine_dbg_add_option( struct __wine_debug_channel *options, int option_count, unsigned char default_flags,
+                                  const char *name, unsigned char set, unsigned char clear );
 
 /* parse a set of debugging option specifications and add them to the option list */
 static int parse_options( struct __wine_debug_channel *options, int max_options,
@@ -133,8 +112,8 @@ static int parse_options( struct __wine_debug_channel *options, int max_options,
             default_flags = (default_flags & ~clear) | set;
         else
         {
-            count = add_option( options, count, default_flags, option.name, set, clear );
-            if (count >= max_options - 1) break; /* too many options */
+            count = __wine_dbg_add_option( options, count, default_flags, option.name, set, clear );
+            if (count >= max_debug_options - 1) break; /* too many options */
         }
     }
 
