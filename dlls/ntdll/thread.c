@@ -112,21 +112,6 @@ unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel 
 }
 
 /***********************************************************************
- *		__wine_dbg_strdup  (NTDLL.@)
- */
-const char * __cdecl __wine_dbg_strdup( const char *str )
-{
-    struct debug_info *info = __wine_dbg_get_info();
-    unsigned int pos = info->str_pos;
-    size_t n = strlen( str ) + 1;
-
-    assert( n <= sizeof(info->strings) );
-    if (pos + n > sizeof(info->strings)) pos = 0;
-    info->str_pos = pos + n;
-    return memcpy( info->strings + pos, str, n );
-}
-
-/***********************************************************************
  *		__wine_dbg_header  (NTDLL.@)
  */
 int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
