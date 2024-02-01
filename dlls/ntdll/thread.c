@@ -56,22 +56,6 @@ int __cdecl __wine_dbg_init( struct __wine_debug_channel **options )
     return count;
 }
 
-/* add a string to the output buffer */
-static int append_output( struct debug_info *info, const char *str, size_t len )
-{
-    if (len >= sizeof(info->output) - info->out_pos)
-    {
-        __wine_dbg_write( info->output, info->out_pos );
-        info->out_pos = 0;
-        ERR_(thread)( "debug buffer overflow:\n" );
-        __wine_dbg_write( str, len );
-        RtlRaiseStatus( STATUS_BUFFER_OVERFLOW );
-    }
-    memcpy( info->output + info->out_pos, str, len );
-    info->out_pos += len;
-    return len;
-}
-
 /***********************************************************************
  *		__wine_dbg_header  (NTDLL.@)
  */
@@ -110,27 +94,6 @@ int WINAPI __wine_dbg_write( const char *str, unsigned int len )
 
     return WINE_UNIX_CALL( unix_wine_dbg_write, &params );
 }
-
-/***********************************************************************
- *		__wine_dbg_output  (NTDLL.@)
- */
-int __cdecl __wine_dbg_output( const char *str )
-{
-    struct debug_info *info = __wine_dbg_get_info();
-    const char *end = strrchr( str, '\n' );
-    int ret = 0;
-
-    if (end)
-    {
-        ret += append_output( info, str, end + 1 - str );
-        __wine_dbg_write( info->output, info->out_pos );
-        info->out_pos = 0;
-        str = end + 1;
-    }
-    if (*str) ret += append_output( info, str, strlen( str ));
-    return ret;
-}
-
 
 /***********************************************************************
  *           set_native_thread_name
