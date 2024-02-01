@@ -95,9 +95,10 @@ unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel 
     unsigned char default_flags;
 
     if (!debug_options) init_options();
+    if (!nb_debug_options) return (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
 
     min = 0;
-    max = nb_debug_options - 1;
+    max = nb_debug_options - 2;
     while (min <= max)
     {
         pos = (min + max) / 2;
@@ -107,7 +108,7 @@ unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel 
         else min = pos + 1;
     }
     /* no option for this channel */
-    default_flags = debug_options[nb_debug_options].flags;
+    default_flags = debug_options[nb_debug_options - 1].flags;
     if (channel->flags & (1 << __WINE_DBCL_INIT)) channel->flags = default_flags;
     return default_flags;
 }
