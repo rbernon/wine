@@ -2176,29 +2176,25 @@ static int needs_delay_lib( const struct makefile *make, unsigned int arch )
     return strarray_exists( &delay_import_libs, make->importlib );
 }
 
-
 /*******************************************************************
- *         add_unix_libraries
+ *         find_unix_libraries
  */
-static struct strarray add_unix_libraries( const struct makefile *make, struct strarray *deps )
+static struct strarray find_unix_libraries( const struct makefile *make, struct strarray *all_libs,
+                                            struct strarray *deps )
 {
     struct strarray ret = empty_strarray;
-    struct strarray all_libs = empty_strarray;
     unsigned int i, j;
 
-    if (strcmp( make->unixlib, "ntdll.so" )) strarray_add( &all_libs, "-lntdll" );
-    strarray_addall( &all_libs, get_expanded_make_var_array( make, "UNIX_LIBS" ));
-
-    for (i = 0; i < all_libs.count; i++)
+    for (i = 0; i < all_libs->count; i++)
     {
         const char *lib = NULL;
 
-        if (!strncmp( all_libs.str[i], "-l", 2 ))
+        if (!strncmp( all_libs->str[i], "-l", 2 ))
         {
             for (j = 0; j < subdirs.count; j++)
             {
                 if (make == submakes[j]) continue;
-                if ((lib = get_native_unix_lib( submakes[j], all_libs.str[i] + 2 ))) break;
+                if ((lib = get_native_unix_lib( submakes[j], all_libs->str[i] + 2 ))) break;
             }
         }
         if (lib)
@@ -2206,10 +2202,9 @@ static struct strarray add_unix_libraries( const struct makefile *make, struct s
             strarray_add( deps, lib );
             strarray_add( &ret, lib );
         }
-        else strarray_add( &ret, all_libs.str[i] );
+        else strarray_add( &ret, all_libs->str[i] );
     }
 
-    strarray_addall( &ret, libs );
     return ret;
 }
 
@@ -3570,8 +3565,14 @@ static void output_import_lib( struct makefile *make, unsigned int arch )
 static void output_unix_lib( struct makefile *make )
 {
     struct strarray unix_deps = empty_strarray;
-    struct strarray unix_libs = add_unix_libraries( make, &unix_deps );
+    struct strarray unix_libs = empty_strarray;
     unsigned int arch = 0;  /* unix libs are always native */
+
+    if (strcmp( make->unixlib, "ntdll.so" )) strarray_add( &unix_libs, "-lntdll" );
+    strarray_addall( &unix_libs, get_expanded_make_var_array( make, "UNIX_LIBS" ) );
+
+    unix_libs = find_unix_libraries( make, &unix_libs, &unix_deps );
+    strarray_addall( &unix_libs, libs );
 
     if (make->disabled[arch]) return;
 
