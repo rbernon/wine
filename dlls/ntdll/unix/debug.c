@@ -118,17 +118,16 @@ static int add_option( struct __wine_debug_channel *options, int option_count, u
 }
 
 /* parse a set of debugging option specifications and add them to the option list */
-static void parse_options( const char *str, const char *app_name )
+static int parse_options( struct __wine_debug_channel *options, int max_options,
+                          const char *wine_debug, const char *app_name )
 {
-    char *opt, *next, *options;
-    unsigned int i;
+    char *opt, *next, *buf;
+    unsigned int i, count = 0;
 
-    nb_debug_options = 0;
+    if (!wine_debug) buf = NULL;
+    else buf = strdup( wine_debug );
 
-    if (!str) options = NULL;
-    else options = strdup( str );
-
-    for (opt = options; opt; opt = next)
+    for (opt = buf; opt; opt = next)
     {
         char *p;
         unsigned char set = 0, clear = 0;
@@ -170,13 +169,15 @@ static void parse_options( const char *str, const char *app_name )
 
         if (!strcmp( p, "all" ) || !p[0])
             default_flags = (default_flags & ~clear) | set;
-        else if (strlen( p ) < sizeof(debug_options[0].name))
+        else if (strlen( p ) < sizeof(options[0].name))
         {
-            nb_debug_options = add_option( debug_options, nb_debug_options, default_flags, p, set, clear );
-            if (nb_debug_options >= max_debug_options) break; /* too many options */
+            count = add_option( options, count, default_flags, p, set, clear );
+            if (count >= max_options) break; /* too many options */
         }
     }
-    free( options );
+    free( buf );
+
+    return count;
 }
 
 /* print the usage message */
@@ -211,7 +212,7 @@ static void init_options(void)
 
     assert( max_debug_options >= 2048 );
     if (!(debug_options = malloc( max_debug_options * sizeof(*debug_options) ))) nb_debug_options = 0;
-    else parse_options( wine_debug, app_name );
+    else nb_debug_options = parse_options( debug_options, max_debug_options, wine_debug, app_name );
 }
 
 /***********************************************************************
