@@ -46,16 +46,6 @@ WINE_DECLARE_DEBUG_CHANNEL(pid);
 WINE_DECLARE_DEBUG_CHANNEL(timestamp);
 WINE_DEFAULT_DEBUG_CHANNEL(ntdll);
 
-struct debug_info
-{
-    unsigned int str_pos;       /* current position in strings buffer */
-    unsigned int out_pos;       /* current position in output buffer */
-    char         strings[1020]; /* buffer for temporary strings */
-    char         output[1020];  /* current output line */
-};
-
-C_ASSERT( sizeof(struct debug_info) == 0x800 );
-
 static BOOL init_done;
 static struct debug_info initial_info;  /* debug info for initial thread */
 static int nb_debug_options = -1;
@@ -66,7 +56,7 @@ static const int max_debug_options = ((signal_stack_mask + 1) - peb_options_offs
 static const char * const debug_classes[] = { "fixme", "err", "warn", "trace" };
 
 /* get the debug info pointer for the current thread */
-static inline struct debug_info *get_info(void)
+struct debug_info *__cdecl __wine_dbg_get_info(void)
 {
     if (!init_done) return &initial_info;
 #ifdef _WIN64
@@ -259,7 +249,7 @@ unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel 
  */
 const char * __cdecl __wine_dbg_strdup( const char *str )
 {
-    struct debug_info *info = get_info();
+    struct debug_info *info = __wine_dbg_get_info();
     unsigned int pos = info->str_pos;
     size_t n = strlen( str ) + 1;
 
@@ -300,7 +290,7 @@ NTSTATUS wow64_wine_dbg_write( void *args )
  */
 int __cdecl __wine_dbg_output( const char *str )
 {
-    struct debug_info *info = get_info();
+    struct debug_info *info = __wine_dbg_get_info();
     const char *end = strrchr( str, '\n' );
     int ret = 0;
 
@@ -322,7 +312,7 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
                                const char *function )
 {
     static const char * const classes[] = { "fixme", "err", "warn", "trace" };
-    struct debug_info *info = get_info();
+    struct debug_info *info = __wine_dbg_get_info();
     char *pos = info->output;
 
     if (!(__wine_dbg_get_channel_flags( channel ) & (1 << cls))) return -1;
