@@ -58,7 +58,6 @@ C_ASSERT( sizeof(struct debug_info) == 0x800 );
 
 static BOOL init_done;
 static struct debug_info initial_info;  /* debug info for initial thread */
-static unsigned char default_flags = (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
 static int nb_debug_options = -1;
 static struct __wine_debug_channel *debug_options;
 static const int peb_options_offset = (is_win64 ? 2 : 1) * page_size;
@@ -121,6 +120,7 @@ static int add_option( struct __wine_debug_channel *options, int option_count, u
 static int parse_options( struct __wine_debug_channel *options, int max_options,
                           const char *wine_debug, const char *app_name )
 {
+    unsigned char default_flags = (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
     char *opt, *next, *buf;
     unsigned int i, count = 0;
 
@@ -172,11 +172,12 @@ static int parse_options( struct __wine_debug_channel *options, int max_options,
         else if (strlen( p ) < sizeof(options[0].name))
         {
             count = add_option( options, count, default_flags, p, set, clear );
-            if (count >= max_options) break; /* too many options */
+            if (count >= max_options - 1) break; /* too many options */
         }
     }
     free( buf );
 
+    options[count++].flags = default_flags;
     return count;
 }
 
@@ -228,10 +229,11 @@ unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel 
     if (!(channel->flags & (1 << __WINE_DBCL_INIT))) return channel->flags;
 
     if (nb_debug_options == -1) init_options();
+    if (!nb_debug_options) return (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
 
-    flags = default_flags;
+    flags = debug_options[nb_debug_options - 1].flags;
     min = 0;
-    max = nb_debug_options - 1;
+    max = nb_debug_options - 2;
     while (min <= max)
     {
         pos = (min + max) / 2;
@@ -347,7 +349,7 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
  */
 void dbg_init(void)
 {
-    struct __wine_debug_channel *options, default_option = { default_flags };
+    struct __wine_debug_channel *options;
 
     setbuf( stdout, NULL );
     setbuf( stderr, NULL );
@@ -358,7 +360,6 @@ void dbg_init(void)
     memcpy( options, debug_options, nb_debug_options * sizeof(*options) );
     free( debug_options );
     debug_options = options;
-    options[nb_debug_options] = default_option;
     init_done = TRUE;
 }
 
