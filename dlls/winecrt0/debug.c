@@ -32,6 +32,7 @@ WINE_DECLARE_DEBUG_CHANNEL(pid);
 WINE_DECLARE_DEBUG_CHANNEL(timestamp);
 
 static int __cdecl (__cdecl *p__wine_dbg_init)( struct __wine_debug_channel **options );
+static struct debug_info *(__cdecl *p__wine_dbg_get_info)(void);
 static const char * (__cdecl *p__wine_dbg_strdup)( const char *str );
 static int (__cdecl *p__wine_dbg_output)( const char *str );
 static unsigned char (__cdecl *p__wine_dbg_get_channel_flags)( struct __wine_debug_channel *channel );
@@ -153,6 +154,24 @@ int __cdecl __wine_dbg_init( struct __wine_debug_channel **options )
 {
     LOAD_FUNC( __wine_dbg_init );
     return p__wine_dbg_init( options );
+}
+
+static struct debug_info *__cdecl fallback__wine_dbg_get_info(void)
+{
+    static DWORD debug_info_tls;
+    struct debug_info *debug_info;
+
+    if (!debug_info_tls) debug_info_tls = TlsAlloc();
+    if ((debug_info = TlsGetValue( debug_info_tls ))) return debug_info;
+    debug_info = heap_alloc_zero( sizeof(struct debug_info) );
+    TlsSetValue( debug_info_tls, debug_info );
+    return debug_info;
+}
+
+struct debug_info *__cdecl __wine_dbg_get_info(void)
+{
+    LOAD_FUNC( __wine_dbg_get_info );
+    return p__wine_dbg_get_info();
 }
 
 /* FIXME: this is not 100% thread-safe */
