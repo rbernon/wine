@@ -38,17 +38,7 @@ WINE_DECLARE_DEBUG_CHANNEL(timestamp);
 
 struct _KUSER_SHARED_DATA *user_shared_data = (void *)0x7ffe0000;
 
-struct debug_info
-{
-    unsigned int str_pos;       /* current position in strings buffer */
-    unsigned int out_pos;       /* current position in output buffer */
-    char         strings[1020]; /* buffer for temporary strings */
-    char         output[1020];  /* current output line */
-};
-
-C_ASSERT( sizeof(struct debug_info) == 0x800 );
-
-static inline struct debug_info *get_info(void)
+struct debug_info *__cdecl __wine_dbg_get_info(void)
 {
 #ifdef _WIN64
     return (struct debug_info *)((TEB32 *)((char *)NtCurrentTeb() + 0x2000) + 1);
@@ -126,7 +116,7 @@ unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel 
  */
 const char * __cdecl __wine_dbg_strdup( const char *str )
 {
-    struct debug_info *info = get_info();
+    struct debug_info *info = __wine_dbg_get_info();
     unsigned int pos = info->str_pos;
     size_t n = strlen( str ) + 1;
 
@@ -143,7 +133,7 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
                                const char *function )
 {
     static const char * const classes[] = { "fixme", "err", "warn", "trace" };
-    struct debug_info *info = get_info();
+    struct debug_info *info = __wine_dbg_get_info();
     char *pos = info->output;
 
     if (!(__wine_dbg_get_channel_flags( channel ) & (1 << cls))) return -1;
@@ -180,7 +170,7 @@ int WINAPI __wine_dbg_write( const char *str, unsigned int len )
  */
 int __cdecl __wine_dbg_output( const char *str )
 {
-    struct debug_info *info = get_info();
+    struct debug_info *info = __wine_dbg_get_info();
     const char *end = strrchr( str, '\n' );
     int ret = 0;
 
