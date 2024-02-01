@@ -2195,8 +2195,11 @@ static struct strarray find_unix_libraries( const struct makefile *make, struct 
         {
             for (j = 0; j < subdirs.count; j++)
             {
+                struct makefile *submake;
                 if (make == submakes[j]) continue;
                 if ((lib = get_native_unix_lib( submakes[j], all_libs->str[i] + 2 ))) break;
+                if (!(submake = get_static_lib( all_libs->str[i] + 2, 0 )) || !submake->staticlib) continue;
+                if ((lib = obj_dir_path( submake, strmake( "lib%s.a", all_libs->str[i] + 2 )))) break;
             }
         }
         if (lib)
