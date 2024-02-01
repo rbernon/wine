@@ -73,45 +73,6 @@ static int append_output( struct debug_info *info, const char *str, size_t len )
 }
 
 /***********************************************************************
- *		__wine_dbg_get_channel_flags  (NTDLL.@)
- *
- * Get the flags to use for a given channel, possibly setting them too in case of lazy init
- */
-unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel *channel )
-{
-    static struct __wine_debug_channel *debug_options;
-    static int nb_debug_options = -1;
-
-    int min, max, pos, res, count;
-    unsigned char flags;
-
-    if (!(channel->flags & (1 << __WINE_DBCL_INIT))) return channel->flags;
-
-    if (nb_debug_options < 0) nb_debug_options = __wine_dbg_init( &debug_options );
-    if (!nb_debug_options) return (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
-    count = nb_debug_options < 0 ? -nb_debug_options : nb_debug_options;
-
-    flags = debug_options[count - 1].flags;
-    min = 0;
-    max = count - 2;
-    while (min <= max)
-    {
-        pos = (min + max) / 2;
-        res = strcmp( channel->name, debug_options[pos].name );
-        if (!res)
-        {
-            flags = debug_options[pos].flags;
-            break;
-        }
-        if (res < 0) max = pos - 1;
-        else min = pos + 1;
-    }
-
-    if (!(flags & (1 << __WINE_DBCL_INIT))) channel->flags = flags; /* not dynamically changeable */
-    return flags;
-}
-
-/***********************************************************************
  *		__wine_dbg_header  (NTDLL.@)
  */
 int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_channel *channel,
