@@ -1,5 +1,6 @@
 STATICLIB = libwinecrtd.a
 
 SOURCES = \
+	channel.c \
 	options.c \
 	sprintf.c
