@@ -1,7 +1,7 @@
 EXTRADEFS = -D_CRTIMP=
 MODULE    = msvcr90.dll
 IMPORTLIB = msvcr90
-IMPORTS   = $(MUSL_PE_LIBS) ntdll
+IMPORTS   = $(MUSL_PE_LIBS) winecrtd ntdll
 DELAYIMPORTS = advapi32 user32
 PARENTSRC = ../msvcrt
 

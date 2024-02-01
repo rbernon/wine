@@ -1,0 +1,4 @@
+STATICLIB = libwinecrtd.a
+
+SOURCES = \
+	sprintf.c
