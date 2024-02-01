@@ -31,6 +31,7 @@
 WINE_DECLARE_DEBUG_CHANNEL(pid);
 WINE_DECLARE_DEBUG_CHANNEL(timestamp);
 
+static int __cdecl (__cdecl *p__wine_dbg_init)( struct __wine_debug_channel **options );
 static const char * (__cdecl *p__wine_dbg_strdup)( const char *str );
 static int (__cdecl *p__wine_dbg_output)( const char *str );
 static unsigned char (__cdecl *p__wine_dbg_get_channel_flags)( struct __wine_debug_channel *channel );
@@ -40,8 +41,6 @@ static int (__cdecl *p__wine_dbg_header)( enum __wine_debug_class cls,
 
 static const char * const debug_classes[] = { "fixme", "err", "warn", "trace" };
 
-static int nb_debug_options = -1;
-static struct __wine_debug_channel *debug_options;
 static const int max_debug_options = 2048; /* see ntdll/unix/debug.c */
 static DWORD partial_line_tid;  /* id of the last thread to output a partial line */
 
@@ -144,10 +143,16 @@ static int parse_options( struct __wine_debug_channel *options, int max_options,
 }
 
 /* initialize all options at startup */
-static void init_options(void)
+static int __cdecl fallback__wine_dbg_init( struct __wine_debug_channel **options )
 {
-    if (!(debug_options = heap_alloc( max_debug_options * sizeof(*debug_options) ))) nb_debug_options = 0;
-    else nb_debug_options = parse_options( debug_options, max_debug_options, getenv( "WINEDEBUG" ) );
+    if (!(*options = heap_alloc( max_debug_options * sizeof(**options) ))) return 0;
+    return parse_options( *options, max_debug_options, getenv( "WINEDEBUG" ) );
+}
+
+int __cdecl __wine_dbg_init( struct __wine_debug_channel **options )
+{
+    LOAD_FUNC( __wine_dbg_init );
+    return p__wine_dbg_init( options );
 }
 
 /* FIXME: this is not 100% thread-safe */
@@ -199,14 +204,18 @@ static int __cdecl fallback__wine_dbg_header( enum __wine_debug_class cls,
 
 static unsigned char __cdecl fallback__wine_dbg_get_channel_flags( struct __wine_debug_channel *channel )
 {
-    unsigned char default_flags;
-    int min, max, pos, res;
+    static struct __wine_debug_channel *debug_options;
+    static int nb_debug_options = -1;
 
-    if (nb_debug_options == -1) init_options();
+    unsigned char default_flags;
+    int min, max, pos, res, count;
+
+    if (nb_debug_options < 0) nb_debug_options = __wine_dbg_init( &debug_options );
     if (!nb_debug_options) return (1 << __WINE_DBCL_ERR) | (1 << __WINE_DBCL_FIXME);
+    count = nb_debug_options < 0 ? -nb_debug_options : nb_debug_options;
 
     min = 0;
-    max = nb_debug_options - 2;
+    max = count - 2;
     while (min <= max)
     {
         pos = (min + max) / 2;
@@ -216,7 +225,7 @@ static unsigned char __cdecl fallback__wine_dbg_get_channel_flags( struct __wine
         else min = pos + 1;
     }
     /* no option for this channel */
-    default_flags = debug_options[nb_debug_options - 1].flags;
+    default_flags = debug_options[count - 1].flags;
     if (channel->flags & (1 << __WINE_DBCL_INIT)) channel->flags = default_flags;
     return default_flags;
 }
