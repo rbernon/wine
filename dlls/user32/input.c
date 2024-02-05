@@ -757,13 +757,32 @@ HWND WINAPI GetActiveWindow(void)
     return (HWND)NtUserGetThreadState( UserThreadStateActiveWindow );
 }
 
-
 /*****************************************************************
  *           GetFocus  (USER32.@)
  */
 HWND WINAPI GetFocus(void)
 {
-    return (HWND)NtUserGetThreadState( UserThreadStateFocusWindow );
+    GUITHREADINFO info;
+    HWND retValueWindow;
+    static HWND prev = 0;
+
+    info.cbSize = sizeof(info);
+    
+    retValueWindow = NtUserGetGUIThreadInfo( GetCurrentThreadId(), &info ) ? info.hwndFocus : 0;
+
+    if (retValueWindow == 0 && prev != 0)
+    {
+        int retAttachThreadInput = NtUserAttachThreadInput(0, 0, 1);
+	TRACE_(rawinput)("AttachThreadInput: %d\n", retAttachThreadInput);
+    }
+    else 
+    {
+        prev = retValueWindow;
+    }
+
+    TRACE_(rawinput)("GetFocus %p\n", retValueWindow);
+
+    return retValueWindow;
 }
 
 

@@ -598,7 +598,25 @@ HWND get_focus(void)
 BOOL WINAPI NtUserAttachThreadInput( DWORD from, DWORD to, BOOL attach )
 {
     BOOL ret;
+    static visited = 0;
+    static DWORD fromThreadForHack = 0;
+    static DWORD toThreadForHack = 0;
 
+    if (!visited) 
+    {
+	fromThreadForHack = from;
+	toThreadForHack = to;
+	visited = 1;
+	TRACE_(win)("fromThreadForHack: %lu toThreadForHack: %lu\n", fromThreadForHack, toThreadForHack);
+    }
+
+    if (from == 0 && to == 0 && visited)
+    {
+	from = fromThreadForHack;
+	to = toThreadForHack;
+    }
+
+    TRACE_(win)("from:%lu to:%lu attach:%d\n", from, to, attach);
     SERVER_START_REQ( attach_thread_input )
     {
         req->tid_from = from;
