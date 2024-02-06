@@ -13,24 +13,24 @@ np.set_printoptions(floatmode='unique')
 dir = sys.argv[2]
 test = int(sys.argv[3])
 ranges = [
-  (0x38800000, 0x39000000, 0),
-  (0x39000000, 0x39800000, 0),
-  (0x39800000, 0x39ffffff, 0),
-  (0x39ffffff, 0x3a7ffffd, 0),
-  (0x3a7ffffd, 0x3afffff5, 0),
-  (0x3afffff5, 0x3b7fffd5, 0),
-  (0x3b7fffd5, 0x3bffff55, 0),
-  (0x3bffff55, 0x3c7ffd55, 0),
-  (0x3c7ffd55, 0x3cfff555, 0),
-  (0x3cfff555, 0x3d7fd557, 0),
-  (0x3d7fd557, 0x3dff5577, 0),
-  (0x3dff5577, 0x3e7d5777, 0),
-  (0x3e7d5777, 0x3ef57744, 0),
+  # (0x38800000, 0x39000000, 0),
+  # (0x39000000, 0x39800000, 0),
+  # (0x39800000, 0x39ffffff, 0),
+  # (0x39ffffff, 0x3a7ffffd, 0),
+  # (0x3a7ffffd, 0x3afffff5, 0),
+  # (0x3afffff5, 0x3b7fffd5, 0),
+  # (0x3b7fffd5, 0x3bffff55, 0),
+  # (0x3bffff55, 0x3c7ffd55, 0),
+  # (0x3c7ffd55, 0x3cfff555, 0),
+  # (0x3cfff555, 0x3d7fd557, 0),
+  # (0x3d7fd557, 0x3dff5577, 0),
+  # (0x3dff5577, 0x3e7d5777, 0),
+  # (0x3e7d5777, 0x3ef57744, 0),
   (0x3ef57744, 0x3f000000, 0),
-  (0x3f000000, 0x3f576aa5, 0),
-  (0x3f576aa5, 0x3f800000, 0),
+  # (0x3f000000, 0x3f576aa5, 0),
+  # (0x3f576aa5, 0x3f800000, 0),
 ]
-step = 1000
+step = 10
 
 x = [[],[],[],[]]
 wine_asinf = [[],[],[],[]]
@@ -63,7 +63,7 @@ if test < 3:
 
   elif test == 2:
     Z = np.float64(x**2).reshape(-1, 1)
-    P = polyrat.StabilizedSKRationalApproximation(10, 10)
+    P = polyrat.StabilizedSKRationalApproximation(8, 1)
     P.fit(Z, msvc_core)
 
     poly_core = P(Z)
@@ -108,14 +108,21 @@ else:
       # q = qe + z * qo
 
       J = np.full((m + n, len(z)), 1, dtype=dtype)
-      for i, pn in enumerate(P[:n]): J[0:0+i+1] *= z
-      for i, qn in enumerate(Q[:m]): J[n:n+i+1] *= z
-      for i, pn in enumerate(P[n:-1]): J[:n] *= z
-      for i, qn in enumerate(Q[m:-1]): J[n:] *= z
+      for i in range(len(Qf)): J[n:] *= z
+      for i in range(m): J[n:n+i] *= z
+      J[n:] *= -p / q
 
-      J = np.transpose(J) * np.float32(s / q).reshape(-1,1)
-      J[:,n:] *= -np.float32(p / q).reshape(-1,1)
-      return np.float64(J)
+      for i in range(len(Pf)): J[:n] *= z
+      for i in range(n): J[:i] *= z
+      J /= q
+
+      # for i in range(n): J[0:0+1+i] *= z
+      # for i in range(len(Pf)): J[:n] *= z
+      # for i, qn in enumerate(Q[:m]): J[n:n+1+i] *= z
+      # for i in range(len(Pf) - 1): J[:n] *= z
+      # for i, qn in enumerate(Q[m:-1]): J[n:] *= z
+
+      return np.transpose(J)
 
   def asinf_lo(A):
       return asinf_R(A) * x + x
