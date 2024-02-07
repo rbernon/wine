@@ -7,5 +7,5 @@ images/asin.png: images/asin.py images/utils.py
 	python $< $@ /home/rbernon/Code/build-wine
 
 least-squares: images/approx.py
-	bin/python $< $@ /home/rbernon/Code/build-wine 2
+	bin/python $< $@ /home/rbernon/Code/build-wine 4
 .PHONY: least-squares

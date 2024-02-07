@@ -13,19 +13,19 @@ np.set_printoptions(floatmode='unique')
 dir = sys.argv[2]
 test = int(sys.argv[3])
 ranges = [
-  # (0x38800000, 0x39000000, 0),
-  # (0x39000000, 0x39800000, 0),
-  # (0x39800000, 0x39ffffff, 0),
-  # (0x39ffffff, 0x3a7ffffd, 0),
-  # (0x3a7ffffd, 0x3afffff5, 0),
-  # (0x3afffff5, 0x3b7fffd5, 0),
-  # (0x3b7fffd5, 0x3bffff55, 0),
-  # (0x3bffff55, 0x3c7ffd55, 0),
-  # (0x3c7ffd55, 0x3cfff555, 0),
-  # (0x3cfff555, 0x3d7fd557, 0),
-  # (0x3d7fd557, 0x3dff5577, 0),
-  # (0x3dff5577, 0x3e7d5777, 0),
-  # (0x3e7d5777, 0x3ef57744, 0),
+  (0x38800000, 0x39000000, 0),
+  (0x39000000, 0x39800000, 0),
+  (0x39800000, 0x39ffffff, 0),
+  (0x39ffffff, 0x3a7ffffd, 0),
+  (0x3a7ffffd, 0x3afffff5, 0),
+  (0x3afffff5, 0x3b7fffd5, 0),
+  (0x3b7fffd5, 0x3bffff55, 0),
+  (0x3bffff55, 0x3c7ffd55, 0),
+  (0x3c7ffd55, 0x3cfff555, 0),
+  (0x3cfff555, 0x3d7fd557, 0),
+  (0x3d7fd557, 0x3dff5577, 0),
+  (0x3dff5577, 0x3e7d5777, 0),
+  (0x3e7d5777, 0x3ef57744, 0),
   (0x3ef57744, 0x3f000000, 0),
   # (0x3f000000, 0x3f576aa5, 0),
   # (0x3f576aa5, 0x3f800000, 0),
@@ -44,9 +44,11 @@ for xmin, xmax, mode in ranges:
   print(f'Loaded {xmin:08x}-{xmax:08x}')
 
 x = np.concatenate(x[0])
-wine_asinf = np.concatenate(wine_asinf[0])
-msvc_asinf = np.concatenate(msvc_asinf[0])
+idx = np.random.default_rng().choice(len(x), size=int(len(x) / 10), replace=False)
+wine_asinf = np.concatenate(wine_asinf[0])[idx]
+msvc_asinf = np.concatenate(msvc_asinf[0])[idx]
 asin_ulp = utils.Float.ulp(msvc_asinf)
+x = x[idx]
 
 if test < 3:
   X = np.float64(x)
@@ -77,37 +79,29 @@ else:
 
   z = np.where(x <= 0.5, x**2, (1 - x) / 2)
   s = np.where(x <= 0.5, x, np.sqrt(z))
-
   f = utils.Float.from_repr(utils.Float.repr(s) & 0xffff0000)
   c = (z - f**2) / (s + f)
+  xzfc = [s,z,f,c]
 
-  def asinf_R(A):
-      p = po = pe = q = qo = qe = dtype(0)
-      P = np.array(np.concatenate((A[:n], Pf), dtype=dtype))
-      Q = np.array(np.concatenate((A[n:], Qf), dtype=dtype))
+  def asinf_R(xzfc, A):
+      z, p, q = np.float64(xzfc[1]), np.float64(0), np.float64(0)
+
+      P = np.array(np.concatenate((A[:n], Pf), dtype=np.float64))
+      Q = np.array(np.concatenate((A[n:], Qf), dtype=np.float64))
       for pn in P: p = pn + z * p
       for qn in Q: q = qn + z * q
-      # for pn in P[-1::-2][::-1]: pe = pn + (z*z) * pe
-      # for pn in P[-2::-2][::-1]: po = pn + (z*z) * po
-      # p = pe + z * po
-      # for qn in Q[-1::-2][::-1]: qe = qn + (z*z) * qe
-      # for qn in Q[-2::-2][::-1]: qo = qn + (z*z) * qo
-      # q = qe + z * qo
+
       return np.float32(p / q)
-  def asinf_R_jac(A):
-      p = po = pe = q = qo = qe = dtype(0)
-      P = np.array(np.concatenate((A[:n], Pf), dtype=dtype))
-      Q = np.array(np.concatenate((A[n:], Qf), dtype=dtype))
+
+  def asinf_R_jac(xzfc, A):
+      z, p, q = np.float64(xzfc[1]), np.float64(0), np.float64(0)
+
+      P = np.array(np.concatenate((A[:n], Pf), dtype=np.float64))
+      Q = np.array(np.concatenate((A[n:], Qf), dtype=np.float64))
       for pn in P: p = pn + z * p
       for qn in Q: q = qn + z * q
-      # for pn in P[-1::-2][::-1]: pe = pn + (z*z) * pe
-      # for pn in P[-2::-2][::-1]: po = pn + (z*z) * po
-      # p = pe + z * po
-      # for qn in Q[-1::-2][::-1]: qe = qn + (z*z) * qe
-      # for qn in Q[-2::-2][::-1]: qo = qn + (z*z) * qo
-      # q = qe + z * qo
 
-      J = np.full((m + n, len(z)), 1, dtype=dtype)
+      J = np.full((m + n, len(z)), 1, dtype=np.float64)
       for i in range(len(Qf)): J[n:] *= z
       for i in range(m): J[n:n+i] *= z
       J[n:] *= -p / q
@@ -116,35 +110,35 @@ else:
       for i in range(n): J[:i] *= z
       J /= q
 
-      # for i in range(n): J[0:0+1+i] *= z
-      # for i in range(len(Pf)): J[:n] *= z
-      # for i, qn in enumerate(Q[:m]): J[n:n+1+i] *= z
-      # for i in range(len(Pf) - 1): J[:n] *= z
-      # for i, qn in enumerate(Q[m:-1]): J[n:] *= z
-
       return np.transpose(J)
 
-  def asinf_lo(A):
-      return asinf_R(A) * x + x
-  def asinf_lo_jac(A):
-      return asinf_R_jac(A)
+  def asinf_lo(xzfc, A):
+      x, z, f, c = xzfc
+      return asinf_R(xzfc, A) * x + x
+  def asinf_lo_jac(x, A):
+      x, z, f, c = xzfc
+      return asinf_R_jac(xzfc, A) * x.reshape(-1,1)
 
-  def asinf_hi(A):
+  def asinf_hi(xzfc, A):
       pio4_hi = np.float32(0.785398125648)
       pio2_lo = np.float32(7.54978941586e-08)
-      return pio4_hi - (2 * s * asinf_R(A) - (pio2_lo - 2 * c) - (pio4_hi - 2 * f))
-  def asinf_hi_jac(A):
-      return -2 * asinf_R_jac(A)
+      x, z, f, c = xzfc
+      return pio4_hi - (2 * x * asinf_R(z, A) - (pio2_lo - 2 * c) - (pio4_hi - 2 * f))
+  def asinf_hi_jac(xzfc, A):
+      x, z, f, c = xzfc
+      return -2 * asinf_R_jac(xzfc, A) * x.reshape(-1,1)
 
-  def asinf(A):
-      return np.where(x <= 0.5, asinf_lo(A), asinf_hi(A))
-  def asin_jac(A):
-      return np.where(x.reshape(-1,1) <= 0.5, asinf_lo_jac(A), asinf_hi_jac(A))
+  def asinf(xzfc, A):
+      x, z, f, c = xzfc
+      return np.where(x <= 0.5, asinf_lo(xzfc, A), asinf_hi(xzfc, A))
+  def asin_jac(xzfc, A):
+      x, z, f, c = xzfc
+      return np.where(x.reshape(-1,1) <= 0.5, asinf_lo_jac(xzfc, A), asinf_hi_jac(xzfc, A))
 
   def err(A):
-      return (np.float64(asinf(A)) - np.float64(msvc_asinf)) / asin_ulp
+      return (np.float64(asinf(xzfc, A)) - np.float64(msvc_asinf)) / asin_ulp
   def err_jac(A):
-      return np.float64(asin_jac(A)) / asin_ulp.reshape(-1,1)
+      return np.float64(asin_jac(xzfc, A)) / asin_ulp.reshape(-1,1)
 
   def min_err(A):
       return np.sum(err(A)**2)
@@ -152,13 +146,13 @@ else:
       return np.sum(2 * err_jac(A) * err(A).reshape(-1,1), axis=0)
 
   Pi, Qi = [], [1]
-  # Pi = [-1.4500209e-06, -2.3519241e-03, -1.2172896e-02, -4.8798278e-02, 7.0307620e-02, 1/6, 0]
+  Pi = [0.13964994 , -0.09971586 ,  0.057573214,  0.015529047,
+        0.030934423,  0.044625875]
   # Qi = [1.0557944e-06, -5.4810822e-01, -2.8148992e-02, 1]
 
   A = np.float64([0] * (n + m))
   A[0:][max(0, n - len(Pi)):n] = Pi[max(0, len(Pi) - n):len(Pi)]
   A[n:][max(0, m - len(Qi)):m] = Qi[max(0, len(Qi) - m):len(Qi)]
-  A = dtype(A)
 
   if test == 3:
     out = opt.leastsq(err, A, Dfun=err_jac)
@@ -168,7 +162,7 @@ else:
   elif test == 4:
     print(min_err(A), repr(A))
 
-    out = opt.least_squares(err, A, jac=err_jac, bounds=np.transpose([(-1, 1)] * (m+n)), verbose=2)
+    out = opt.least_squares(err, A, method='lm', x_scale='jac', jac=err_jac, verbose=2)
     A = dtype(out.x)
     print(out)
     print(min_err(A), repr(A))
@@ -178,8 +172,13 @@ else:
     # print(out)
     # print(min_err(A), repr(A))
 
+    # out = opt.minimize(asinf, np.float64(A), np.float64(msvc_asinf))
+    # A = dtype(out.x)
+    # print(out)
+    # print(min_err(A), repr(A))
+
   off, step = 0, 1
-  poly_asinf = asinf(A)
+  poly_asinf = asinf(xzfc, A)
 
 
 asin = np.arcsin(np.float64(x))
