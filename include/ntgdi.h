@@ -140,6 +140,7 @@ enum
     NtGdiGetROP2,
     NtGdiGetTextColor,
     NtGdiIsMemDC,
+    NtGdiIsDisplay,
 };
 
 /* NtGdiGetDCPoint parameter, not compatible with Windows */
