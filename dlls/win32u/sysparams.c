@@ -2151,13 +2151,33 @@ static void release_display_dc( HDC hdc )
     pthread_mutex_unlock( &display_dc_lock );
 }
 
+static UINT get_source_dpi( struct source *source )
+{
+    if (!source) return system_dpi;
+    return system_dpi * max( source->dpi_factor[0], source->dpi_factor[1] );
+}
+
 /**********************************************************************
  *           get_monitor_dpi
  */
-UINT get_monitor_dpi( HMONITOR monitor )
+UINT get_monitor_dpi( HMONITOR handle )
 {
-    /* FIXME: use the monitor DPI instead */
-    return system_dpi;
+    struct monitor *monitor;
+    UINT dpi = system_dpi;
+
+    if (!lock_display_devices()) return system_dpi;
+
+    LIST_FOR_EACH_ENTRY(monitor, &monitors, struct monitor, entry)
+    {
+        if (monitor->handle == handle)
+        {
+            dpi = get_source_dpi( monitor->source );
+            break;
+        }
+    }
+
+    unlock_display_devices();
+    return dpi;
 }
 
 static RECT get_monitor_rect( struct monitor *monitor, BOOL work, UINT dpi )
@@ -2171,8 +2191,8 @@ static RECT get_monitor_rect( struct monitor *monitor, BOOL work, UINT dpi )
  */
 UINT get_win_monitor_dpi( HWND hwnd )
 {
-    /* FIXME: use the monitor DPI instead */
-    return system_dpi;
+    HMONITOR handle = monitor_from_window( hwnd, MONITOR_DEFAULTTONEAREST, 0 );
+    return get_monitor_dpi( handle );
 }
 
 /* keep in sync with user32 */
