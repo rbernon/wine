@@ -39,6 +39,8 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(system);
 
+#define WINE_ENUM_PHYSICAL_SETTINGS  ((DWORD) -3)
+
 static LONG dpi_context; /* process DPI awareness context */
 
 static HKEY video_key, enum_key, control_key, config_key, volatile_base_key;
@@ -1985,6 +1987,42 @@ static BOOL add_virtual_source( struct device_manager_ctx *ctx )
     return STATUS_SUCCESS;
 }
 
+static void write_current_mode( struct device_manager_ctx *ctx )
+{
+    DEVMODEW tmp_mode = {.dmSize = sizeof(DEVMODEW)}, *current = &ctx->current, detached;
+
+    detached = *current;
+    detached.dmPelsWidth = 0;
+    detached.dmPelsHeight = 0;
+
+    if (!(ctx->source.state_flags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
+        current = &detached;
+
+    if (current == &detached || !read_source_mode( ctx->source_key, ENUM_REGISTRY_SETTINGS, &tmp_mode ))
+        write_source_mode( ctx->source_key, ENUM_REGISTRY_SETTINGS, current );
+
+    if (ctx->source.mode_count > 1 || current == &detached)
+        write_source_mode( ctx->source_key, ENUM_CURRENT_SETTINGS, current );
+    else
+    {
+        DEVMODEW physical = *current;
+
+        current = &tmp_mode;
+        if (!read_source_mode( ctx->source_key, ENUM_CURRENT_SETTINGS, current ))
+        {
+            write_source_mode( ctx->source_key, ENUM_CURRENT_SETTINGS, &physical );
+            *current = physical;
+        }
+
+        write_source_mode( ctx->source_key, WINE_ENUM_PHYSICAL_SETTINGS, &physical );
+
+        if (!is_same_devmode( &physical, current )) add_mode( current, FALSE, ctx );
+        add_virtual_modes( ctx, &physical, &physical, current );
+    }
+
+    ctx->source.mode_count = 0;
+}
+
 static UINT update_display_devices( struct device_manager_ctx *ctx )
 {
     UINT status;
@@ -3432,6 +3470,7 @@ BOOL WINAPI NtUserEnumDisplaySettings( UNICODE_STRING *device, DWORD index, DEVM
 
     if (index == ENUM_REGISTRY_SETTINGS) ret = source_get_registry_settings( source, devmode );
     else if (index == ENUM_CURRENT_SETTINGS) ret = source_get_current_settings( source, devmode );
+    else if (index == WINE_ENUM_PHYSICAL_SETTINGS) ret = FALSE;
     else ret = source_enum_display_settings( source, index, devmode, flags );
     source_release( source );
 
