@@ -11,15 +11,22 @@
 #include <windef.h>
 #include <winbase.h>
 #include <winreg.h>
+#include <wingdi.h>
 #include <winuser.h>
 #include <winstring.h>
 #include <setupapi.h>
 #include <ddk/hidsdi.h>
 
 #include <initguid.h>
+#include <d3d9.h>
+#include <dxgi1_6.h>
 #include <dinput.h>
 #include <xinput.h>
 #include <roapi.h>
+#include <setupapi.h>
+#include <devpkey.h>
+#include <devguid.h>
+#include <ddk/d3dkmthk.h>
 
 #define WIDL_using_Windows_Foundation
 #define WIDL_using_Windows_Foundation_Collections
@@ -838,6 +845,353 @@ static DWORD CALLBACK xinput_thread( void *arg )
     return 0;
 }
 
+static const char *debugstr_adapter_flags( UINT flags )
+{
+    char buffer[1024] = {0};
+    if (flags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) strcat( buffer, "DISPLAY_DEVICE_ATTACHED_TO_DESKTOP " );
+    if (flags & DISPLAY_DEVICE_MULTI_DRIVER) strcat( buffer, "DISPLAY_DEVICE_MULTI_DRIVER " );
+    if (flags & DISPLAY_DEVICE_PRIMARY_DEVICE) strcat( buffer, "DISPLAY_DEVICE_PRIMARY_DEVICE " );
+    if (flags & DISPLAY_DEVICE_MIRRORING_DRIVER) strcat( buffer, "DISPLAY_DEVICE_MIRRORING_DRIVER " );
+    if (flags & DISPLAY_DEVICE_VGA_COMPATIBLE) strcat( buffer, "DISPLAY_DEVICE_VGA_COMPATIBLE " );
+    if (flags & DISPLAY_DEVICE_REMOVABLE) strcat( buffer, "DISPLAY_DEVICE_REMOVABLE " );
+    if (flags & DISPLAY_DEVICE_ACC_DRIVER) strcat( buffer, "DISPLAY_DEVICE_ACC_DRIVER " );
+    if (flags & DISPLAY_DEVICE_UNSAFE_MODES_ON) strcat( buffer, "DISPLAY_DEVICE_UNSAFE_MODES_ON " );
+    if (flags & DISPLAY_DEVICE_TS_COMPATIBLE) strcat( buffer, "DISPLAY_DEVICE_TS_COMPATIBLE " );
+    if (flags & DISPLAY_DEVICE_RDPUDD) strcat( buffer, "DISPLAY_DEVICE_RDPUDD " );
+    if (flags & DISPLAY_DEVICE_DISCONNECT) strcat( buffer, "DISPLAY_DEVICE_DISCONNECT " );
+    if (flags & DISPLAY_DEVICE_REMOTE) strcat( buffer, "DISPLAY_DEVICE_REMOTE " );
+    if (flags & DISPLAY_DEVICE_MODESPRUNED) strcat( buffer, "DISPLAY_DEVICE_MODESPRUNED " );
+    return wine_dbg_sprintf( "%s", buffer );
+}
+
+static const char *debugstr_monitor_flags( UINT flags )
+{
+    char buffer[1024] = {0};
+    if (flags & DISPLAY_DEVICE_ATTACHED) strcat( buffer, "DISPLAY_DEVICE_ATTACHED " );
+    if (flags & DISPLAY_DEVICE_ACTIVE) strcat( buffer, "DISPLAY_DEVICE_ACTIVE " );
+    return wine_dbg_sprintf( "%s", buffer );
+}
+
+static BOOL CALLBACK enum_monitor( HMONITOR handle, HDC hdc, RECT *rect, LPARAM lparam )
+{
+    MONITORINFO info = {.cbSize = sizeof(MONITORINFO)};
+    UINT dpi_x, dpi_y;
+
+    GetMonitorInfoW( handle, &info );
+
+    trace( "%p %s %#x\n", handle, wine_dbgstr_rect(rect), info.dwFlags );
+    trace( "  - monitor: %s\n", wine_dbgstr_rect(&info.rcMonitor) );
+    trace( "  - work: %s\n", wine_dbgstr_rect(&info.rcWork) );
+
+    GetDpiForMonitorInternal( handle, 0, &dpi_x, &dpi_y );
+    trace( "  - dpi: %d %d\n", dpi_x, dpi_y );
+
+    return TRUE;
+}
+
+static const char *debugstr_devmodew(const DEVMODEW *devmode)
+{
+    char position[32] = {0};
+
+    if (devmode->dmFields & DM_POSITION)
+    {
+        snprintf(position, sizeof(position), " at (%d,%d)",
+                 (int)devmode->dmPosition.x, (int)devmode->dmPosition.y);
+    }
+
+    return wine_dbg_sprintf("(%4u,%4u) %2ubits %2uHz rotated %3u degrees %sstretched %sinterlaced%s",
+                            (unsigned int)devmode->dmPelsWidth,
+                            (unsigned int)devmode->dmPelsHeight,
+                            (unsigned int)devmode->dmBitsPerPel,
+                            (unsigned int)devmode->dmDisplayFrequency,
+                            (unsigned int)devmode->dmDisplayOrientation * 90,
+                            devmode->dmDisplayFixedOutput == DMDFO_STRETCH ? "" : "un",
+                            devmode->dmDisplayFlags & DM_INTERLACED ? "" : "non-",
+                            position);
+}
+
+static void list_devmode( const WCHAR *device )
+{
+    DEVMODEW mode = {.dmSize = sizeof(DEVMODEW)};
+    UINT i;
+
+    for (i = 0; EnumDisplaySettingsExW( device, i, &mode, 0 ); ++i)
+        trace( "    %3u: %s\n", i, debugstr_devmodew( &mode ) );
+
+    if (EnumDisplaySettingsExW( device, ENUM_REGISTRY_SETTINGS, &mode, 0 ))
+        trace( "    reg: %s\n", debugstr_devmodew( &mode ) );
+    if (EnumDisplaySettingsExW( device, ENUM_CURRENT_SETTINGS, &mode, 0 ))
+        trace( "    cur: %s\n", debugstr_devmodew( &mode ) );
+}
+
+static void set_display_settings(void)
+{
+    DEVMODEW mode = {.dmSize = sizeof(DEVMODEW)};
+
+    mode.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
+    mode.dmBitsPerPel = 32;
+    mode.dmPelsWidth = 800;
+    mode.dmPelsHeight = 600;
+
+    ChangeDisplaySettingsExW( L"\\\\.\\DISPLAY1", &mode, 0, CDS_UPDATEREGISTRY | CDS_NORESET, NULL );
+    ChangeDisplaySettingsExW( NULL, NULL, NULL, 0, NULL );
+}
+
+static void list_display_dxgi(void)
+{
+    IDXGIFactory *factory;
+    IDXGIAdapter *adapter;
+    IDXGIOutput *output;
+    DXGI_ADAPTER_DESC adapter_desc;
+    HRESULT hr;
+
+    hr = CreateDXGIFactory( &IID_IDXGIFactory, (void **)&factory );
+    assert( hr == S_OK );
+
+    for (int i = 0; (hr = IDXGIFactory_EnumAdapters( factory, i, &adapter )) == S_OK; ++i)
+    {
+        memset( &adapter_desc, 0, sizeof(adapter_desc) );
+        hr = IDXGIAdapter_GetDesc( adapter, &adapter_desc );
+        assert( hr == S_OK );
+
+        trace( "%u %s\n", i, debugstr_w( adapter_desc.Description ) );
+        trace( "  vid/dev/sub/rev: %#x/%#x/%#x/%#x\n", adapter_desc.VendorId, adapter_desc.DeviceId, adapter_desc.SubSysId, adapter_desc.Revision );
+        trace( "  vram/sys/shared: %I64d/%I64d/%I64d (MiB)\n", adapter_desc.DedicatedVideoMemory / 1024 / 1024, adapter_desc.DedicatedSystemMemory / 1024 / 1024, adapter_desc.SharedSystemMemory / 1024 / 1024 );
+        trace( "  luid: %#x:%#x\n", adapter_desc.AdapterLuid.HighPart, adapter_desc.AdapterLuid.LowPart );
+
+        for (int j = 0; (hr = IDXGIAdapter_EnumOutputs( adapter, j, &output )) == S_OK; ++j)
+        {
+            DXGI_OUTPUT_DESC output_desc = {0};
+            DXGI_MODE_DESC *modes;
+            UINT mode_count = 0;
+
+            hr = IDXGIOutput_GetDesc( output, &output_desc );
+            assert( hr == S_OK );
+
+            trace( "  %u %s\n", j, debugstr_w( output_desc.DeviceName ) );
+            trace( "    DesktopCoordinates: %s\n", wine_dbgstr_rect(&output_desc.DesktopCoordinates) );
+            trace( "    AttachedToDesktop: %u\n", output_desc.AttachedToDesktop );
+            trace( "    Rotation: %u\n", output_desc.Rotation );
+            trace( "    Monitor: %#x\n", output_desc.Monitor );
+
+            hr = IDXGIOutput_GetDisplayModeList( output, DXGI_FORMAT_R8G8B8A8_UNORM, 0, &mode_count, NULL );
+            assert( hr == S_OK );
+
+            modes = calloc( mode_count, sizeof(*modes) );
+            assert( modes != NULL );
+
+            hr = IDXGIOutput_GetDisplayModeList( output, DXGI_FORMAT_R8G8B8A8_UNORM, 0, &mode_count, modes );
+            assert( hr == S_OK );
+
+            for (int k = 0; k < mode_count; ++k)
+                trace( "      %ux%u@%uHz\n", modes[k].Width, modes[k].Height,
+                       modes[k].RefreshRate.Numerator / modes[k].RefreshRate.Denominator );
+
+            free( modes );
+            IDXGIOutput_Release( output );
+        }
+
+        IDXGIAdapter_Release( adapter );
+    }
+
+    IDXGIFactory_Release( factory );
+}
+
+static void list_display_d3d9(void)
+{
+    UINT adapter_count;
+    IDirect3D9 *d3d9;
+    D3DCAPS9 caps;
+
+    d3d9 = Direct3DCreate9( D3D_SDK_VERSION );
+    assert( !!d3d9 );
+
+    adapter_count = IDirect3D9_GetAdapterCount( d3d9 );
+
+    for (int i = 0; i < adapter_count; ++i)
+    {
+        HMONITOR monitor = IDirect3D9_GetAdapterMonitor( d3d9, i );
+        IDirect3D9_GetDeviceCaps( d3d9, i, D3DDEVTYPE_HAL, &caps );
+        trace( "%u monitor: %p\n", i, monitor );
+        trace( "  AdapterOrdinal: %d\n", caps.AdapterOrdinal );
+    }
+
+    IDirect3D9_Release( d3d9 );
+}
+
+DEFINE_DEVPROPKEY( DEVPROPKEY_GPU_LUID, 0x60b193cb, 0x5276, 0x4d0f, 0x96, 0xfc, 0xf1, 0x73, 0xab,
+                   0xad, 0x3e, 0xc6, 2 );
+DEFINE_DEVPROPKEY( DEVPROPKEY_MONITOR_GPU_LUID, 0xca085853, 0x16ce, 0x48aa, 0xb1, 0x14, 0xde, 0x9c,
+                   0x72, 0x33, 0x42, 0x23, 1 );
+DEFINE_DEVPROPKEY( DEVPROPKEY_MONITOR_OUTPUT_ID, 0xca085853, 0x16ce, 0x48aa, 0xb1, 0x14, 0xde, 0x9c,
+                   0x72, 0x33, 0x42, 0x23, 2 );
+
+static void list_display_setupapi(void)
+{
+    HDEVINFO devinfo;
+    SP_DEVINFO_DATA device_data = {sizeof(device_data)};
+    DWORD type;
+    DWORD i = 0;
+    LUID luid;
+    INT id;
+    BOOL ret;
+
+    trace( "GPU:\n" );
+    devinfo = SetupDiGetClassDevsW( &GUID_DEVCLASS_DISPLAY, L"PCI", NULL, 0 );
+    while (SetupDiEnumDeviceInfo( devinfo, i++, &device_data ))
+    {
+        BOOL present = FALSE;
+        ret = SetupDiGetDevicePropertyW( devinfo, &device_data, &DEVPKEY_Device_IsPresent, &type,
+                                         (BYTE *)&present, sizeof(present), NULL, 0 );
+        assert( ret );
+        if (!present) continue;
+
+        ret = SetupDiGetDevicePropertyW( devinfo, &device_data, &DEVPROPKEY_GPU_LUID, &type,
+                                         (BYTE *)&luid, sizeof(luid), NULL, 0 );
+        assert( ret );
+        trace( "%u luid: %#x:%#x type: %#lx\n", i - 1, luid.HighPart, luid.LowPart, type );
+    }
+    SetupDiDestroyDeviceInfoList( devinfo );
+
+    trace( "Monitor:\n" );
+    devinfo = SetupDiGetClassDevsW( &GUID_DEVCLASS_MONITOR, L"DISPLAY", NULL, 0 );
+    i = 0;
+    while (SetupDiEnumDeviceInfo( devinfo, i++, &device_data ))
+    {
+if (0)
+{
+        BOOL present = FALSE;
+        ret = SetupDiGetDevicePropertyW( devinfo, &device_data, &DEVPKEY_Device_IsPresent, &type,
+                                         (BYTE *)&present, sizeof(present), NULL, 0 );
+        assert( ret );
+        if (!present) continue;
+}
+
+        ret = SetupDiGetDevicePropertyW( devinfo, &device_data, &DEVPROPKEY_MONITOR_GPU_LUID, &type,
+                                         (BYTE *)&luid, sizeof(luid), NULL, 0 );
+        assert( ret );
+        trace( "%u luid: %#x:%#x type: %#lx\n", i - 1, luid.HighPart, luid.LowPart, type );
+
+        ret = SetupDiGetDevicePropertyW( devinfo, &device_data, &DEVPROPKEY_MONITOR_OUTPUT_ID,
+                                         &type, (BYTE *)&id, sizeof(id), NULL, 0 );
+        assert( ret );
+        trace( "  id: %#x type: %#lx \n", id, type );
+    }
+    SetupDiDestroyDeviceInfoList( devinfo );
+}
+
+static void list_display_d3dkmt(void)
+{
+    DISPLAY_DEVICEW display_device = {sizeof(display_device)};
+    D3DKMT_OPENADAPTERFROMGDIDISPLAYNAME open_desc;
+    D3DKMT_CLOSEADAPTER close_desc;
+    NTSTATUS status;
+
+    for (int i = 0; EnumDisplayDevicesW( NULL, i, &display_device, 0 ); i++)
+    {
+        if (!(display_device.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP)) continue;
+
+        lstrcpyW( open_desc.DeviceName, display_device.DeviceName );
+        status = D3DKMTOpenAdapterFromGdiDisplayName( &open_desc );
+        assert( !status );
+        trace( "%u luid: %#x:%#x vidsourceid %d\n", i, open_desc.AdapterLuid.HighPart,
+                open_desc.AdapterLuid.LowPart, open_desc.VidPnSourceId );
+        close_desc.hAdapter = open_desc.hAdapter;
+        D3DKMTCloseAdapter( &close_desc );
+    }
+}
+
+static void list_display(void)
+{
+    DISPLAY_DEVICEW adapter = {.cb = sizeof(adapter)};
+    UINT i, j;
+
+    trace( "primary modes:\n" );
+    list_devmode( NULL );
+
+    for (i = 0; EnumDisplayDevicesW( NULL, i, &adapter, 0 ); ++i)
+    {
+        DISPLAY_DEVICEW monitor = {.cb = sizeof(monitor)};
+
+        trace( "%u %s %s %#x\n", i, debugstr_w(adapter.DeviceName), debugstr_w(adapter.DeviceString), adapter.StateFlags);
+        trace( "  - flags: %s\n", debugstr_adapter_flags(adapter.StateFlags) );
+        trace( "  - id: %s\n", debugstr_w(adapter.DeviceID) );
+        trace( "  - key: %s\n", debugstr_w(adapter.DeviceKey) );
+
+        EnumDisplayDevicesW( NULL, i, &adapter, EDD_GET_DEVICE_INTERFACE_NAME );
+        trace( "    - name: %s\n", debugstr_w(adapter.DeviceName) );
+        trace( "    - string: %s\n", debugstr_w(adapter.DeviceString) );
+        trace( "    - id: %s\n", debugstr_w(adapter.DeviceID) );
+        trace( "    - key: %s\n", debugstr_w(adapter.DeviceKey) );
+        EnumDisplayDevicesW( NULL, i, &adapter, 0 );
+
+        trace( "  - monitors:\n" );
+        for (j = 0; EnumDisplayDevicesW( adapter.DeviceName, j, &monitor, 0 ); ++j)
+        {
+            trace( "    %u %s %s %#x\n", j, debugstr_w(monitor.DeviceName), debugstr_w(monitor.DeviceString), monitor.StateFlags);
+            trace( "      - flags: %s\n", debugstr_monitor_flags(monitor.StateFlags) );
+            trace( "      - id: %s\n", debugstr_w(monitor.DeviceID) );
+            trace( "      - key: %s\n", debugstr_w(monitor.DeviceKey) );
+
+            EnumDisplayDevicesW( adapter.DeviceName, j, &monitor, EDD_GET_DEVICE_INTERFACE_NAME );
+            trace( "          - name: %s\n", debugstr_w(monitor.DeviceName) );
+            trace( "          - string: %s\n", debugstr_w(monitor.DeviceString) );
+            trace( "          - id: %s\n", debugstr_w(monitor.DeviceID) );
+            trace( "          - key: %s\n", debugstr_w(monitor.DeviceKey) );
+        }
+
+        trace( "  - modes:\n" );
+        list_devmode( adapter.DeviceName );
+    }
+
+{
+    LARGE_INTEGER time, freq, total = {0};
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&time);
+    total.QuadPart -= time.QuadPart;
+
+    for (int i = 0; i < 10000; i++) EnumDisplayDevicesW( NULL, 0, &adapter, 0 );
+
+    QueryPerformanceCounter(&time);
+    total.QuadPart += time.QuadPart;
+    total.QuadPart *= 10000000 / freq.QuadPart;
+    trace("EnumDisplayDevicesW NULL %I64u ns\n", total.QuadPart / 10000);
+}
+
+{
+    LARGE_INTEGER time, freq, total = {0};
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&time);
+    total.QuadPart -= time.QuadPart;
+
+    for (int i = 0; i < 10000; i++) EnumDisplayDevicesW( L"\\\\.\\DISPLAY1", 0, &adapter, 0 );
+
+    QueryPerformanceCounter(&time);
+    total.QuadPart += time.QuadPart;
+    total.QuadPart *= 10000000 / freq.QuadPart;
+    trace("EnumDisplayDevicesW DISPLAY1 %I64u ns\n", total.QuadPart / 10000);
+}
+
+    trace( "primary (%d,%d)\n", GetSystemMetrics( SM_CXSCREEN ), GetSystemMetrics( SM_CYSCREEN ) );
+    trace( "virtual (%d,%d)-(%d,%d)\n", GetSystemMetrics( SM_XVIRTUALSCREEN ), GetSystemMetrics( SM_YVIRTUALSCREEN ),
+           GetSystemMetrics( SM_CXVIRTUALSCREEN ), GetSystemMetrics( SM_CYVIRTUALSCREEN ) );
+    trace( "monitors %u\n", GetSystemMetrics( SM_CMONITORS ) );
+
+    trace( "system dpi %u\n", GetDpiForSystem() );
+    SetThreadDpiAwarenessContext( DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 );
+
+    EnumDisplayMonitors( 0, NULL, enum_monitor, 0 );
+
+    trace( "dxgi\n" );
+    list_display_dxgi();
+    trace( "d3d9\n" );
+    list_display_d3d9();
+    trace( "d3dkmt\n" );
+    list_display_d3dkmt();
+    trace( "setupapi\n" );
+    list_display_setupapi();
+}
+
 int WINAPI wWinMain( HINSTANCE instance, HINSTANCE previous, WCHAR *cmdline, int cmdshow )
 {
     HHOOK cbt_hook, getmessage_hook, callwndproc_hook, callwndprocret_hook, mouse_hook = NULL, keyboard_hook = NULL;
@@ -1036,6 +1390,9 @@ int WINAPI wWinMain( HINSTANCE instance, HINSTANCE previous, WCHAR *cmdline, int
         IVectorView_RawGameController_Release( controllers );
         IRawGameControllerStatics_Release( controller_statics );
     }
+
+    if (wcsstr( cmdline, L"set-display" )) set_display_settings();
+    if (wcsstr( cmdline, L"list-display" )) list_display();
 
     if (wcsstr( cmdline, L"list-" )) exit( 0 );
 
