@@ -882,9 +882,16 @@ typedef struct
 /****************************************************************/
 /* objects shared mapping structures */
 
+struct shared_cursor
+{
+    int                  x;                /* cursor position */
+    int                  y;
+    unsigned int         last_change;      /* time of last position change */
+};
+
 typedef volatile struct
 {
-    int placeholder;
+    struct shared_cursor cursor;           /* global cursor information */
 } desktop_shm_t;
 
 /****************************************************************/
