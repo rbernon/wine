@@ -1,13 +1,17 @@
 use std::env;
+use std::ffi;
 use std::fs;
 use std::path;
+use std::rc;
 use std::thread;
 
+use std::os::fd::FromRawFd;
 use std::os::linux::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 
 const SOCKET_NAME: &str = "socket";
+const SERVER_PROTOCOL_VERSION: u32 = 1;
 
 fn get_prefix_dir() -> path::PathBuf {
     match env::var("WINEPREFIX") {
@@ -51,8 +55,45 @@ fn create_server_dir() {
     }
 }
 
-fn handle_client(_stream: UnixStream) {
+struct Thread {
+    stream: UnixStream,
+    process: rc::Weak<Process>,
+}
+
+struct Process {
+    stream: UnixStream,
+    threads: Vec<Thread>,
+}
+
+extern "C" {
+    fn pipe(fds: *mut ffi::c_int) -> ffi::c_int;
+    fn close(fd: ffi::c_int) -> ffi::c_int;
+}
+
+fn send_client_fd(stream: UnixStream, fd: ffi::c_int, handle: u32) {
+}
+
+fn send_process_pipe(stream: UnixStream) -> UnixStream {
+    let mut fds: [ffi::c_int; 2] = [-1, -1];
+
+    assert!(unsafe { pipe(&mut fds as *mut ffi::c_int) } != -1);
+    send_client_fd(stream, fds[1], SERVER_PROTOCOL_VERSION);
+    assert!(unsafe { close(fds[1]) } != -1);
+
+    return unsafe { UnixStream::from_raw_fd(fds[0]) };
+}
+
+fn handle_client(stream: UnixStream) {
     println!("new client");
+
+    send_process_pipe(stream);
+    /*
+            if ((process = create_process( client, NULL, 0, NULL, NULL, NULL, 0, NULL )))
+            {
+                create_thread( -1, process, NULL );
+                release_object( process );
+            }
+    */
 }
 
 fn open_master_socket() {
