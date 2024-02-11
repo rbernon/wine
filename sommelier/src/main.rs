@@ -7,6 +7,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixListener;
 
 mod fd;
+mod ipc;
 mod thread;
 
 const SOCKET_NAME: &str = "socket";
