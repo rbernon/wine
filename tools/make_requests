@@ -75,6 +75,50 @@ my $file_header =
     " * Edit server/protocol.def instead and re-run tools/make_requests\n" .
     " */\n\n";
 
+my %rust_types =
+(
+    "short int" => "i16",
+    "int" => "i32",
+    "unsigned char" => "u8",
+    "unsigned short" => "u16",
+    "unsigned int" => "u32",
+
+    "affinity_t" => "Affinity",
+    "file_pos_t" => "FilePos",
+    "ioctl_code_t" => "IoctlCode",
+    "data_size_t" => "DataSize",
+    "atom_t" => "Atom",
+    "lparam_t" => "LParam",
+    "mem_size_t" => "MemSize",
+
+    "apc_param_t" => "ApcParam",
+    "apc_result_t" => "ApcResult",
+
+    "abstime_t" => "AbsoluteTime",
+    "async_data_t" => "AsyncData",
+    "generic_map_t" => "GenericMap",
+    "hw_input_t" => "HardwareInput",
+    "irp_params_t" => "IrpParam",
+    "struct luid" => "LUID",
+    "timeout_t" => "Timeout",
+
+    "rectangle_t" => "Rect",
+    "thread_id_t" => "ThreadId",
+    "process_id_t" => "ProcessId",
+    "client_ptr_t" => "ClientPtr",
+
+    "mod_handle_t" => "ModHandle",
+    "obj_handle_t" => "ObjHandle",
+    "user_handle_t" => "UserHandle",
+);
+
+my %rust_names =
+(
+    "async" => "_async",
+    "self" => "_self",
+    "type" => "_type",
+);
+
 my @requests = ();
 my %replies = ();
 my %dump_funcs = ();
@@ -94,6 +138,7 @@ sub add_padding($$)
     {
         my $count = $padding - ($offset % $padding);
         push @protocol_lines,  "    char __pad_$offset\[$count\];\n";
+        push @requests_lines,  "    __pad_$offset: \[u8; $count\],\n";
         $offset += $count;
     }
     return $offset;
@@ -194,6 +239,13 @@ sub PARSE_REQUESTS()
             $offset = 12;
             push @protocol_lines,  "struct ${name}_request\n{\n";
             push @protocol_lines,  "    struct request_header __header;\n";
+
+            my $rust_name = $name;
+            $rust_name =~ s/(^|_+)(\w)/\U$2/g;
+            print REQUESTS_RS "#[repr(C)]\n";
+            print REQUESTS_RS "#[derive(Clone, Copy, Debug, Default)]\n";
+            print REQUESTS_RS "pub struct ${rust_name}Request {\n";
+            print REQUESTS_RS "    pub header: RequestHeader,\n";
             $state++;
             next;
         }
@@ -207,6 +259,14 @@ sub PARSE_REQUESTS()
             push @protocol_lines,  "};\n";
             push @protocol_lines,  "struct ${name}_reply\n{\n";
             push @protocol_lines,  "    struct reply_header __header;\n";
+
+            my $rust_name = $name;
+            $rust_name =~ s/(^|_+)(\w)/\U$2/g;
+            print REQUESTS_RS "}\n";
+            print REQUESTS_RS "#[repr(C)]\n";
+            print REQUESTS_RS "#[derive(Clone, Copy, Debug, Default)]\n";
+            print REQUESTS_RS "pub struct ${rust_name}Reply {\n";
+            print REQUESTS_RS "    pub header: ReplyHeader,\n";
             $offset = 8;
             $state++;
             next;
@@ -218,6 +278,8 @@ sub PARSE_REQUESTS()
 
             $offset = add_padding( $offset, 8 ); # all requests should be 8-byte aligned
             push @protocol_lines,  "};\n";
+            print REQUESTS_RS "}\n";
+
             if ($state == 2)  # build dummy reply struct
             {
                 die "request $name too large ($offset)" if ($offset > $max_req_size);
@@ -225,6 +287,14 @@ sub PARSE_REQUESTS()
                 push @protocol_lines,  "struct ${name}_reply\n{\n";
                 push @protocol_lines,  "    struct reply_header __header;\n";
                 push @protocol_lines,  "};\n";
+
+                my $rust_name = $name;
+                $rust_name =~ s/(^|_+)(\w)/\U$2/g;
+                print REQUESTS_RS "#[repr(C)]\n";
+                print REQUESTS_RS "#[derive(Clone, Copy, Debug, Default)]\n";
+                print REQUESTS_RS "pub struct ${rust_name}Reply {\n";
+                print REQUESTS_RS "    pub header: ReplyHeader,\n";
+                print REQUESTS_RS "}\n";
             }
             else
             {
@@ -258,6 +328,7 @@ sub PARSE_REQUESTS()
                 $type = "dump_varargs_$2( \"%s\", min( cur_size, req->" . $3 . " ))";
                 $dump_funcs{"varargs_$2"} = $2;
                 s!(VARARG\(.*\)\s*;)!/* $1 */!;
+                print REQUESTS_RS $_ . "\n";
             }
             elsif (/^\s*VARARG\((\w+),(\w+)\)/)
             {
@@ -265,6 +336,7 @@ sub PARSE_REQUESTS()
                 $type = "dump_varargs_$2( \"%s\", cur_size )";
                 $dump_funcs{"varargs_$2"} = $2;
                 s!(VARARG\(.*\)\s*;)!/* $1 */!;
+                print REQUESTS_RS $_ . "\n";
             }
             elsif (/^\s*(\w+\**(\s+\w+\**)*)\s+(\w+);/)
             {
@@ -277,6 +349,7 @@ sub PARSE_REQUESTS()
                     my $count = $fmt[1] - ($offset & ($fmt[1] - 1));
                     print "protocol.def:$.: warning: $name $offset $type $var needs padding\n" if $warnings;
                     push @protocol_lines,  "    char __pad_$offset\[$count\];\n";
+                    print REQUESTS_RS "    __pad_$offset: \[u8; $count\],\n";
                     $offset += $count;
                 }
                 if ($state == 2)
@@ -288,6 +361,14 @@ sub PARSE_REQUESTS()
                     push @asserts, "C_ASSERT( offsetof(struct ${name}_reply, $var) == $offset );\n";
                 }
                 $offset += $fmt[0];
+
+                if (defined($rust_types{$type})) {
+                    my $rust_var = $rust_names{$var};
+                    $rust_var = $var unless defined($rust_names{$var});
+                    print REQUESTS_RS "    pub $rust_var: $rust_types{$type},\n";
+                } else {
+                    print $type . "\n";
+                }
             }
             else
             {
@@ -303,6 +384,10 @@ sub PARSE_REQUESTS()
                 @{$formats{$2}} = @{$formats{$1}};
                 $formats{$2}->[2] = $1;
             }
+        }
+        elsif (!/^$/)
+        {
+            print REQUESTS_RS "/*" . $_ . "*/\n";
         }
 
 
@@ -386,6 +471,53 @@ my $protocol = GET_PROTOCOL_VERSION();
 my %errors = GET_ERROR_NAMES();
 
 ### Create server_protocol.h and print header
+
+open REQUESTS_RS, ">sommelier/src/ipc.rs" or die "Cannot create sommelier/ipc.rs";
+
+print REQUESTS_RS "pub type Affinity = u64;\n";
+print REQUESTS_RS "pub type FilePos = u64;\n";
+print REQUESTS_RS "pub type IoctlCode = u32;\n";
+print REQUESTS_RS "pub type DataSize = u32;\n";
+print REQUESTS_RS "pub type Atom = u32;\n";
+print REQUESTS_RS "pub type LParam = u64;\n";
+print REQUESTS_RS "pub type MemSize = u64;\n";
+print REQUESTS_RS "pub type ApcParam = u64;\n";
+print REQUESTS_RS "#[derive(Clone, Copy, Debug, Default)]\n";
+print REQUESTS_RS "pub struct ApcResult {}\n";
+print REQUESTS_RS "pub type AbsoluteTime = i64;\n";
+print REQUESTS_RS "#[derive(Clone, Copy, Debug, Default)]\n";
+print REQUESTS_RS "pub struct AsyncData {}\n";
+print REQUESTS_RS "#[derive(Clone, Copy, Debug, Default)]\n";
+print REQUESTS_RS "pub struct GenericMap {}\n";
+print REQUESTS_RS "#[derive(Clone, Copy, Debug, Default)]\n";
+print REQUESTS_RS "pub struct HardwareInput {}\n";
+print REQUESTS_RS "#[derive(Clone, Copy, Debug, Default)]\n";
+print REQUESTS_RS "pub struct IrpParam {}\n";
+print REQUESTS_RS "#[derive(Clone, Copy, Debug, Default)]\n";
+print REQUESTS_RS "pub struct LUID {}\n";
+print REQUESTS_RS "pub type Timeout = i64;\n";
+print REQUESTS_RS "#[derive(Clone, Copy, Debug, Default)]\n";
+print REQUESTS_RS "pub struct Rect {}\n";
+print REQUESTS_RS "pub type ThreadId = u32;\n";
+print REQUESTS_RS "pub type ProcessId = u32;\n";
+print REQUESTS_RS "pub type ClientPtr = u64;\n";
+print REQUESTS_RS "pub type ModHandle = u64;\n";
+print REQUESTS_RS "pub type ObjHandle = u32;\n";
+print REQUESTS_RS "pub type UserHandle = u32;\n";
+
+print REQUESTS_RS "#[repr(C)]\n";
+print REQUESTS_RS "#[derive(Clone, Copy, Debug, Default)]\n";
+print REQUESTS_RS "pub struct RequestHeader {\n";
+print REQUESTS_RS "    pub req: RequestType,\n";
+print REQUESTS_RS "    pub request_size: DataSize,\n";
+print REQUESTS_RS "    pub reply_size: DataSize,\n";
+print REQUESTS_RS "}\n";
+print REQUESTS_RS "#[repr(C)]\n";
+print REQUESTS_RS "#[derive(Clone, Copy, Debug, Default)]\n";
+print REQUESTS_RS "pub struct ReplyHeader {\n";
+print REQUESTS_RS "    pub error: u32,\n";
+print REQUESTS_RS "    pub reply_size: DataSize,\n";
+print REQUESTS_RS "}\n";
 
 push @protocol_lines,  "#ifndef __WINE_WINE_SERVER_PROTOCOL_H\n";
 push @protocol_lines,  "#define __WINE_WINE_SERVER_PROTOCOL_H\n";
@@ -502,3 +634,28 @@ foreach my $type (sort keys %formats)
 }
 
 update_file( "server/request_handlers.h", @request_lines, @asserts );
+
+print REQUESTS_RS "#[repr(C)]\n";
+print REQUESTS_RS "#[allow(dead_code)]\n";
+print REQUESTS_RS "#[derive(Clone, Copy, Debug, Default)]\n";
+print REQUESTS_RS "pub enum RequestType {\n";
+print REQUESTS_RS "    #[default]\n";
+foreach my $i (0 .. $#requests) { my $name = $requests[$i]; $name =~ s/(^|_+)(\w)/\U$2/g; print REQUESTS_RS "    $name = $i,\n"; }
+print REQUESTS_RS "}\n";
+
+print REQUESTS_RS "#[repr(C)]\n";
+print REQUESTS_RS "#[derive(Clone, Copy)]\n";
+print REQUESTS_RS "pub union GenericRequest {\n";
+print REQUESTS_RS "    pub header: RequestHeader,\n";
+foreach my $req (@requests) { my $type = $req; $type =~ s/(^|_+)(\w)/\U$2/g; print REQUESTS_RS "    pub $req: ${type}Request,\n"; }
+print REQUESTS_RS "}\n";
+
+print REQUESTS_RS "#[repr(C)]\n";
+print REQUESTS_RS "#[derive(Clone, Copy)]\n";
+print REQUESTS_RS "pub union GenericReply {\n";
+print REQUESTS_RS "    pub header: ReplyHeader,\n";
+foreach my $req (@requests) { my $type = $req; $type =~ s/(^|_+)(\w)/\U$2/g; print REQUESTS_RS "    pub $req: ${type}Reply,\n"; }
+print REQUESTS_RS "}\n";
+
+printf REQUESTS_RS "pub const SERVER_PROTOCOL_VERSION: u32 = %d;\n", $protocol;
+close REQUESTS_RS;
