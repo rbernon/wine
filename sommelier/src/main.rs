@@ -1,99 +1,19 @@
 use std::env;
 use std::fs;
-use std::mem;
 use std::path;
-use std::ptr;
-use std::rc;
+use std::sync::mpsc;
 use std::thread;
 
-use std::os::fd::AsRawFd;
-use std::os::fd::FromRawFd;
+use std::collections::HashMap;
+use std::io::Read;
 use std::os::linux::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 
 const SOCKET_NAME: &str = "socket";
-const SERVER_PROTOCOL_VERSION: u32 = 1;
+const SERVER_PROTOCOL_VERSION: u32 = 793;
 
-#[repr(C)]
-struct iovec {
-    iov_base: *mut u8,
-    iov_len: usize,
-}
-
-#[repr(C)]
-struct cmsghdr {
-    cmsg_len: usize,
-    cmsg_level: i32,
-    cmsg_type: i32,
-}
-
-#[repr(C)]
-struct msghdr {
-    msg_name: *mut u8,
-    msg_namelen: u32,
-    msg_iov: *mut iovec,
-    msg_iovlen: usize,
-    msg_control: *mut cmsghdr,
-    msg_controllen: usize,
-    msg_flags: i32,
-}
-
-extern "C" {
-    fn pipe(fds: *mut i32) -> i32;
-    fn close(fd: i32) -> i32;
-    fn sendmsg(fd: i32, msg: *const msghdr, flags: i32) -> isize;
-}
-
-fn send_client_fd(stream: UnixStream, fd: i32, handle: u32) {
-    #[cfg(target_pointer_width = "32")]
-    #[repr(C, align(4))]
-    struct cmsg {
-        hdr: cmsghdr,
-        fd: i32,
-    }
-
-    #[cfg(target_pointer_width = "64")]
-    #[repr(C, align(8))]
-    struct cmsg {
-        hdr: cmsghdr,
-        fd: i32,
-    }
-
-    let mut ctrl = cmsg {
-        hdr: cmsghdr {
-            cmsg_len: mem::size_of::<cmsg>(),
-            cmsg_level: 1, /*SOL_SOCKET*/
-            cmsg_type: 1,  /*SCM_RIGHTS*/
-        },
-        fd: fd,
-    };
-
-    let msg = msghdr {
-        msg_name: ptr::null_mut(),
-        msg_namelen: 0,
-        msg_iov: &mut iovec {
-            iov_base: handle.to_le_bytes().as_mut_ptr(),
-            iov_len: mem::size_of_val(&handle),
-        },
-        msg_iovlen: 1,
-        msg_control: &mut ctrl.hdr,
-        msg_controllen: ctrl.hdr.cmsg_len,
-        msg_flags: 0,
-    };
-
-    assert!(unsafe { sendmsg(stream.as_raw_fd(), &msg, 0) } != -1);
-}
-
-fn send_process_pipe(stream: UnixStream) -> UnixStream {
-    let mut fds = [-1, -1];
-
-    assert!(unsafe { pipe(fds.as_mut_ptr()) } != -1);
-    send_client_fd(stream, fds[1], SERVER_PROTOCOL_VERSION);
-    assert!(unsafe { close(fds[1]) } != -1);
-
-    return unsafe { UnixStream::from_raw_fd(fds[0]) };
-}
+mod fd;
 
 fn get_prefix_dir() -> path::PathBuf {
     match env::var("WINEPREFIX") {
@@ -138,26 +58,78 @@ fn create_server_dir() {
 }
 
 struct Thread {
-    stream: UnixStream,
-    process: rc::Weak<Process>,
+    stream: fs::File,
+    fds_queue: mpsc::Receiver<(fd::ClientFd, fd::ServerFd)>,
+    server_fds: HashMap<fd::ClientFd, fd::ServerFd>,
+    client_fds: HashMap<fd::ServerFd, fd::ClientFd>,
+}
+
+impl Thread {
+    fn spawn(stream: fs::File) -> mpsc::Sender<(fd::ClientFd, fd::ServerFd)> {
+        let (tx, rx) = mpsc::channel::<(fd::ClientFd, fd::ServerFd)>();
+        thread::spawn(|| {
+            Thread {
+                stream,
+                fds_queue: rx,
+                server_fds: HashMap::new(),
+                client_fds: HashMap::new(),
+            }
+            .run()
+        });
+        tx
+    }
+
+    fn run(&mut self) {
+        let mut buffer = [0; 1024];
+        let n = self.stream.read(&mut buffer[..]).expect("error");
+        println!("thread message: {:?}", &buffer[..n]);
+    }
 }
 
 struct Process {
     stream: UnixStream,
-    threads: Vec<Thread>,
+    fd_queues: HashMap<u32, mpsc::Sender<(fd::ClientFd, fd::ServerFd)>>,
 }
 
-fn handle_client(stream: UnixStream) {
-    println!("new client");
-
-    send_process_pipe(stream);
-    /*
-            if ((process = create_process( client, NULL, 0, NULL, NULL, NULL, 0, NULL )))
-            {
-                create_thread( -1, process, NULL );
-                release_object( process );
+impl Process {
+    fn spawn(stream: UnixStream) {
+        thread::spawn(|| {
+            Process {
+                stream,
+                fd_queues: HashMap::new(),
             }
-    */
+            .run()
+        });
+    }
+
+    fn run(&mut self) {
+        println!("new client");
+
+        let pipe = fd::send_process_pipe(&self.stream, SERVER_PROTOCOL_VERSION);
+        let thread = Thread::spawn(pipe);
+
+        let mut buffer = [0; 1024];
+        let n = self.stream.read(&mut buffer[..]).expect("error");
+        println!("process message: {:?}", &buffer[..n]);
+
+        loop {
+            let (tid, client, server) = fd::recv_client_fd(&self.stream);
+            println!("tid {} client {} server {}", tid, client, server);
+            if tid == 0 {
+                thread.send((client, server)).unwrap();
+            } else {
+                self.fd_queues[&tid].send((client, server)).unwrap();
+            }
+        }
+
+        /*
+                if ((process = create_process( client, NULL, 0, NULL, NULL, NULL, 0, NULL )))
+                {
+                    create_thread( -1, process, NULL );
+                    release_object( process );
+                }
+        */
+    }
 }
 
 fn open_master_socket() {
@@ -169,7 +141,7 @@ fn open_master_socket() {
 
     for stream in socket.incoming() {
         match stream {
-            Ok(stream) => thread::spawn(|| handle_client(stream)),
+            Ok(stream) => Process::spawn(stream),
             Err(err) => panic!("{err}"),
         };
     }
