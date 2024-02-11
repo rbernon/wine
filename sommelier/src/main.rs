@@ -1,6 +1,9 @@
+#![feature(unix_socket_ancillary_data)]
+
 use std::env;
 use std::ffi;
 use std::fs;
+use std::io;
 use std::path;
 use std::rc;
 use std::thread;
@@ -8,7 +11,7 @@ use std::thread;
 use std::os::fd::FromRawFd;
 use std::os::linux::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
-use std::os::unix::net::{UnixListener, UnixStream};
+use std::os::unix::net::{SocketAncillary, UnixListener, UnixStream};
 
 const SOCKET_NAME: &str = "socket";
 const SERVER_PROTOCOL_VERSION: u32 = 1;
@@ -71,6 +74,14 @@ extern "C" {
 }
 
 fn send_client_fd(stream: UnixStream, fd: ffi::c_int, handle: u32) {
+    let data: [u8; 4] = handle.to_le_bytes();
+    let data_buf = &[io::IoSlice::new(&data)];
+
+    let mut ancillary_buf = [0; 128];
+    let mut ancillary = SocketAncillary::new(&mut ancillary_buf);
+    ancillary.add_fds(&[fd]);
+
+    stream.send_vectored_with_ancillary(data_buf, &mut ancillary).unwrap();
 }
 
 fn send_process_pipe(stream: UnixStream) -> UnixStream {
