@@ -28,7 +28,179 @@
 #include "initguid.h"
 #include "dmusici.h"
 #include "dmusicf.h"
+#include "dmusics.h"
 #include "dmksctrl.h"
+
+DEFINE_GUID(GUID_test_0,0x00000000,0xffff,0xffff,0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef);
+DEFINE_GUID(GUID_test_1,0x00000001,0xffff,0xffff,0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef);
+DEFINE_GUID(GUID_test_2,0x00000002,0xffff,0xffff,0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef);
+DEFINE_GUID(GUID_test_3,0x00000003,0xffff,0xffff,0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef);
+
+static inline const char *debugstr_dmus_hr(HRESULT hr)
+{
+    switch (hr)
+    {
+    case DMUS_S_PARTIALLOAD: return "DMUS_S_PARTIALLOAD";
+    case DMUS_S_PARTIALDOWNLOAD: return "DMUS_S_PARTIALDOWNLOAD";
+    case DMUS_S_REQUEUE: return "DMUS_S_REQUEUE";
+    case DMUS_S_FREE: return "DMUS_S_FREE";
+    case DMUS_S_END: return "DMUS_S_END";
+    case DMUS_S_STRING_TRUNCATED: return "DMUS_S_STRING_TRUNCATED";
+    case DMUS_S_LAST_TOOL: return "DMUS_S_LAST_TOOL";
+    case DMUS_S_OVER_CHORD: return "DMUS_S_OVER_CHORD";
+    case DMUS_S_UP_OCTAVE: return "DMUS_S_UP_OCTAVE";
+    case DMUS_S_DOWN_OCTAVE: return "DMUS_S_DOWN_OCTAVE";
+    case DMUS_S_NOBUFFERCONTROL: return "DMUS_S_NOBUFFERCONTROL";
+    case DMUS_S_GARBAGE_COLLECTED: return "DMUS_S_GARBAGE_COLLECTED";
+    case DMUS_E_DRIVER_FAILED: return "DMUS_E_DRIVER_FAILED";
+    case DMUS_E_PORTS_OPEN: return "DMUS_E_PORTS_OPEN";
+    case DMUS_E_DEVICE_IN_USE: return "DMUS_E_DEVICE_IN_USE";
+    case DMUS_E_INSUFFICIENTBUFFER: return "DMUS_E_INSUFFICIENTBUFFER";
+    case DMUS_E_BUFFERNOTSET: return "DMUS_E_BUFFERNOTSET";
+    case DMUS_E_BUFFERNOTAVAILABLE: return "DMUS_E_BUFFERNOTAVAILABLE";
+    case DMUS_E_NOTADLSCOL: return "DMUS_E_NOTADLSCOL";
+    case DMUS_E_INVALIDOFFSET: return "DMUS_E_INVALIDOFFSET";
+    case DMUS_E_ALREADY_LOADED: return "DMUS_E_ALREADY_LOADED";
+    case DMUS_E_INVALIDPOS: return "DMUS_E_INVALIDPOS";
+    case DMUS_E_INVALIDPATCH: return "DMUS_E_INVALIDPATCH";
+    case DMUS_E_CANNOTSEEK: return "DMUS_E_CANNOTSEEK";
+    case DMUS_E_CANNOTWRITE: return "DMUS_E_CANNOTWRITE";
+    case DMUS_E_CHUNKNOTFOUND: return "DMUS_E_CHUNKNOTFOUND";
+    case DMUS_E_INVALID_DOWNLOADID: return "DMUS_E_INVALID_DOWNLOADID";
+    case DMUS_E_NOT_DOWNLOADED_TO_PORT: return "DMUS_E_NOT_DOWNLOADED_TO_PORT";
+    case DMUS_E_ALREADY_DOWNLOADED: return "DMUS_E_ALREADY_DOWNLOADED";
+    case DMUS_E_UNKNOWN_PROPERTY: return "DMUS_E_UNKNOWN_PROPERTY";
+    case DMUS_E_SET_UNSUPPORTED: return "DMUS_E_SET_UNSUPPORTED";
+    case DMUS_E_GET_UNSUPPORTED: return "DMUS_E_GET_UNSUPPORTED";
+    case DMUS_E_NOTMONO: return "DMUS_E_NOTMONO";
+    case DMUS_E_BADARTICULATION: return "DMUS_E_BADARTICULATION";
+    case DMUS_E_BADINSTRUMENT: return "DMUS_E_BADINSTRUMENT";
+    case DMUS_E_BADWAVELINK: return "DMUS_E_BADWAVELINK";
+    case DMUS_E_NOARTICULATION: return "DMUS_E_NOARTICULATION";
+    case DMUS_E_NOTPCM: return "DMUS_E_NOTPCM";
+    case DMUS_E_BADWAVE: return "DMUS_E_BADWAVE";
+    case DMUS_E_BADOFFSETTABLE: return "DMUS_E_BADOFFSETTABLE";
+    case DMUS_E_UNKNOWNDOWNLOAD: return "DMUS_E_UNKNOWNDOWNLOAD";
+    case DMUS_E_NOSYNTHSINK: return "DMUS_E_NOSYNTHSINK";
+    case DMUS_E_ALREADYOPEN: return "DMUS_E_ALREADYOPEN";
+    case DMUS_E_ALREADYCLOSED: return "DMUS_E_ALREADYCLOSED";
+    case DMUS_E_SYNTHNOTCONFIGURED: return "DMUS_E_SYNTHNOTCONFIGURED";
+    case DMUS_E_SYNTHACTIVE: return "DMUS_E_SYNTHACTIVE";
+    case DMUS_E_CANNOTREAD: return "DMUS_E_CANNOTREAD";
+    case DMUS_E_DMUSIC_RELEASED: return "DMUS_E_DMUSIC_RELEASED";
+    case DMUS_E_BUFFER_EMPTY: return "DMUS_E_BUFFER_EMPTY";
+    case DMUS_E_BUFFER_FULL: return "DMUS_E_BUFFER_FULL";
+    case DMUS_E_PORT_NOT_CAPTURE: return "DMUS_E_PORT_NOT_CAPTURE";
+    case DMUS_E_PORT_NOT_RENDER: return "DMUS_E_PORT_NOT_RENDER";
+    case DMUS_E_DSOUND_NOT_SET: return "DMUS_E_DSOUND_NOT_SET";
+    case DMUS_E_ALREADY_ACTIVATED: return "DMUS_E_ALREADY_ACTIVATED";
+    case DMUS_E_INVALIDBUFFER: return "DMUS_E_INVALIDBUFFER";
+    case DMUS_E_WAVEFORMATNOTSUPPORTED: return "DMUS_E_WAVEFORMATNOTSUPPORTED";
+    case DMUS_E_SYNTHINACTIVE: return "DMUS_E_SYNTHINACTIVE";
+    case DMUS_E_DSOUND_ALREADY_SET: return "DMUS_E_DSOUND_ALREADY_SET";
+    case DMUS_E_INVALID_EVENT: return "DMUS_E_INVALID_EVENT";
+    case DMUS_E_UNSUPPORTED_STREAM: return "DMUS_E_UNSUPPORTED_STREAM";
+    case DMUS_E_ALREADY_INITED: return "DMUS_E_ALREADY_INITED";
+    case DMUS_E_INVALID_BAND: return "DMUS_E_INVALID_BAND";
+    case DMUS_E_TRACK_HDR_NOT_FIRST_CK: return "DMUS_E_TRACK_HDR_NOT_FIRST_CK";
+    case DMUS_E_TOOL_HDR_NOT_FIRST_CK: return "DMUS_E_TOOL_HDR_NOT_FIRST_CK";
+    case DMUS_E_INVALID_TRACK_HDR: return "DMUS_E_INVALID_TRACK_HDR";
+    case DMUS_E_INVALID_TOOL_HDR: return "DMUS_E_INVALID_TOOL_HDR";
+    case DMUS_E_ALL_TOOLS_FAILED: return "DMUS_E_ALL_TOOLS_FAILED";
+    case DMUS_E_ALL_TRACKS_FAILED: return "DMUS_E_ALL_TRACKS_FAILED";
+    case DMUS_E_NOT_FOUND: return "DMUS_E_NOT_FOUND";
+    case DMUS_E_NOT_INIT: return "DMUS_E_NOT_INIT";
+    case DMUS_E_TYPE_DISABLED: return "DMUS_E_TYPE_DISABLED";
+    case DMUS_E_TYPE_UNSUPPORTED: return "DMUS_E_TYPE_UNSUPPORTED";
+    case DMUS_E_TIME_PAST: return "DMUS_E_TIME_PAST";
+    case DMUS_E_TRACK_NOT_FOUND: return "DMUS_E_TRACK_NOT_FOUND";
+    case DMUS_E_TRACK_NO_CLOCKTIME_SUPPORT: return "DMUS_E_TRACK_NO_CLOCKTIME_SUPPORT";
+    case DMUS_E_NO_MASTER_CLOCK: return "DMUS_E_NO_MASTER_CLOCK";
+    case DMUS_E_LOADER_NOCLASSID: return "DMUS_E_LOADER_NOCLASSID";
+    case DMUS_E_LOADER_BADPATH: return "DMUS_E_LOADER_BADPATH";
+    case DMUS_E_LOADER_FAILEDOPEN: return "DMUS_E_LOADER_FAILEDOPEN";
+    case DMUS_E_LOADER_FORMATNOTSUPPORTED: return "DMUS_E_LOADER_FORMATNOTSUPPORTED";
+    case DMUS_E_LOADER_FAILEDCREATE: return "DMUS_E_LOADER_FAILEDCREATE";
+    case DMUS_E_LOADER_OBJECTNOTFOUND: return "DMUS_E_LOADER_OBJECTNOTFOUND";
+    case DMUS_E_LOADER_NOFILENAME: return "DMUS_E_LOADER_NOFILENAME";
+    case DMUS_E_INVALIDFILE: return "DMUS_E_INVALIDFILE";
+    case DMUS_E_ALREADY_EXISTS: return "DMUS_E_ALREADY_EXISTS";
+    case DMUS_E_OUT_OF_RANGE: return "DMUS_E_OUT_OF_RANGE";
+    case DMUS_E_SEGMENT_INIT_FAILED: return "DMUS_E_SEGMENT_INIT_FAILED";
+    case DMUS_E_ALREADY_SENT: return "DMUS_E_ALREADY_SENT";
+    case DMUS_E_CANNOT_FREE: return "DMUS_E_CANNOT_FREE";
+    case DMUS_E_CANNOT_OPEN_PORT: return "DMUS_E_CANNOT_OPEN_PORT";
+    case DMUS_E_CANNOT_CONVERT: return "DMUS_E_CANNOT_CONVERT";
+    case DMUS_E_DESCEND_CHUNK_FAIL: return "DMUS_E_DESCEND_CHUNK_FAIL";
+    case DMUS_E_NOT_LOADED: return "DMUS_E_NOT_LOADED";
+    case DMUS_E_SCRIPT_LANGUAGE_INCOMPATIBLE: return "DMUS_E_SCRIPT_LANGUAGE_INCOMPATIBLE";
+    case DMUS_E_SCRIPT_UNSUPPORTED_VARTYPE: return "DMUS_E_SCRIPT_UNSUPPORTED_VARTYPE";
+    case DMUS_E_SCRIPT_ERROR_IN_SCRIPT: return "DMUS_E_SCRIPT_ERROR_IN_SCRIPT";
+    case DMUS_E_SCRIPT_CANTLOAD_OLEAUT32: return "DMUS_E_SCRIPT_CANTLOAD_OLEAUT32";
+    case DMUS_E_SCRIPT_LOADSCRIPT_ERROR: return "DMUS_E_SCRIPT_LOADSCRIPT_ERROR";
+    case DMUS_E_SCRIPT_INVALID_FILE: return "DMUS_E_SCRIPT_INVALID_FILE";
+    case DMUS_E_INVALID_SCRIPTTRACK: return "DMUS_E_INVALID_SCRIPTTRACK";
+    case DMUS_E_SCRIPT_VARIABLE_NOT_FOUND: return "DMUS_E_SCRIPT_VARIABLE_NOT_FOUND";
+    case DMUS_E_SCRIPT_ROUTINE_NOT_FOUND: return "DMUS_E_SCRIPT_ROUTINE_NOT_FOUND";
+    case DMUS_E_SCRIPT_CONTENT_READONLY: return "DMUS_E_SCRIPT_CONTENT_READONLY";
+    case DMUS_E_SCRIPT_NOT_A_REFERENCE: return "DMUS_E_SCRIPT_NOT_A_REFERENCE";
+    case DMUS_E_SCRIPT_VALUE_NOT_SUPPORTED: return "DMUS_E_SCRIPT_VALUE_NOT_SUPPORTED";
+    case DMUS_E_INVALID_SEGMENTTRIGGERTRACK: return "DMUS_E_INVALID_SEGMENTTRIGGERTRACK";
+    case DMUS_E_INVALID_LYRICSTRACK: return "DMUS_E_INVALID_LYRICSTRACK";
+    case DMUS_E_INVALID_PARAMCONTROLTRACK: return "DMUS_E_INVALID_PARAMCONTROLTRACK";
+    case DMUS_E_AUDIOVBSCRIPT_SYNTAXERROR: return "DMUS_E_AUDIOVBSCRIPT_SYNTAXERROR";
+    case DMUS_E_AUDIOVBSCRIPT_RUNTIMEERROR: return "DMUS_E_AUDIOVBSCRIPT_RUNTIMEERROR";
+    case DMUS_E_AUDIOVBSCRIPT_OPERATIONFAILURE: return "DMUS_E_AUDIOVBSCRIPT_OPERATIONFAILURE";
+    case DMUS_E_AUDIOPATHS_NOT_VALID: return "DMUS_E_AUDIOPATHS_NOT_VALID";
+    case DMUS_E_AUDIOPATHS_IN_USE: return "DMUS_E_AUDIOPATHS_IN_USE";
+    case DMUS_E_NO_AUDIOPATH_CONFIG: return "DMUS_E_NO_AUDIOPATH_CONFIG";
+    case DMUS_E_AUDIOPATH_INACTIVE: return "DMUS_E_AUDIOPATH_INACTIVE";
+    case DMUS_E_AUDIOPATH_NOBUFFER: return "DMUS_E_AUDIOPATH_NOBUFFER";
+    case DMUS_E_AUDIOPATH_NOPORT: return "DMUS_E_AUDIOPATH_NOPORT";
+    case DMUS_E_NO_AUDIOPATH: return "DMUS_E_NO_AUDIOPATH";
+    case DMUS_E_INVALIDCHUNK: return "DMUS_E_INVALIDCHUNK";
+    case DMUS_E_AUDIOPATH_NOGLOBALFXBUFFER: return "DMUS_E_AUDIOPATH_NOGLOBALFXBUFFER";
+    case DMUS_E_INVALID_CONTAINER_OBJECT: return "DMUS_E_INVALID_CONTAINER_OBJECT";
+    }
+    return wine_dbg_sprintf("%#lx", hr);
+}
+
+static inline void dump_stream(IStream *stream)
+{
+    static const LARGE_INTEGER zero = {0};
+    char tmp[1024];
+    DWORD len;
+
+    IStream_Seek(stream, zero, 0, NULL);
+    while (IStream_Read(stream, tmp, sizeof(tmp), &len) == S_OK && len)
+    {
+        do
+        {
+            const unsigned char *ptr = (void *)tmp, *end = ptr + len;
+            for (int i = 0, j; ptr + i < end;)
+            {
+                char buffer[256], *buf = buffer;
+                buf += sprintf(buf, "%08x ", i);
+                for (j = 0; j < 8 && ptr + i + j < end; ++j)
+                    buf += sprintf(buf, " %02x", ptr[i + j]);
+                for (; j < 8 && ptr + i + j >= end; ++j)
+                    buf += sprintf(buf, "   ");
+                buf += sprintf(buf, " ");
+                for (j = 8; j < 16 && ptr + i + j < end; ++j)
+                    buf += sprintf(buf, " %02x", ptr[i + j]);
+                for (; j < 16 && ptr + i + j >= end; ++j)
+                    buf += sprintf(buf, "   ");
+                buf += sprintf(buf, "  |");
+                for (j = 0; j < 16 && ptr + i < end; ++j, ++i)
+                    buf += sprintf(buf, "%c", ptr[i] >= ' ' && ptr[i] <= '~' ? ptr[i] : '.');
+                buf += sprintf(buf, "|");
+                ok(0, "%s\n", buffer);
+            }
+        }
+        while(0);
+    }
+    IStream_Seek(stream, zero, 0, NULL);
+}
 
 static ULONG get_refcount(void *iface)
 {
@@ -76,6 +248,7 @@ static void stream_end_chunk(IStream *stream, ULARGE_INTEGER *offset)
     ULARGE_INTEGER position;
     HRESULT hr;
     UINT size;
+
     hr = IStream_Seek(stream, zero, STREAM_SEEK_CUR, &position);
     ok(hr == S_OK, "got %#lx\n", hr);
     hr = IStream_Seek(stream, *(LARGE_INTEGER *)offset, STREAM_SEEK_SET, NULL);
@@ -130,6 +303,131 @@ static BOOL compare_time(REFERENCE_TIME x, REFERENCE_TIME y, unsigned int max_di
     return diff <= max_diff;
 }
 
+static HRESULT WINAPI unk_QueryInterface(IUnknown *iface, REFIID riid, void **ret_iface)
+{
+    if (IsEqualGUID(riid, &IID_IUnknown))
+    {
+        *ret_iface = iface;
+        return S_OK;
+    }
+
+    *ret_iface = NULL;
+    return E_NOINTERFACE;
+}
+
+static ULONG WINAPI unk_AddRef(IUnknown *iface)
+{
+    return 2;
+}
+
+static ULONG WINAPI unk_Release(IUnknown *iface)
+{
+    return 1;
+}
+
+static const IUnknownVtbl unk_vtbl =
+{
+    unk_QueryInterface,
+    unk_AddRef,
+    unk_Release
+};
+
+static void test_COM_conformance(void)
+{
+    static void *invalid_ptr = (void *)0xdeadbeef;
+    const struct
+    {
+        const GUID guid;
+        const char *name;
+        const GUID *iface;
+    }
+    classes[] =
+    {
+#define X(x, ...) {.guid = CLSID_##x, .name = #x, ## __VA_ARGS__ }
+        X(DirectMusic, .iface = &IID_IDirectMusic),
+        X(DirectMusicAudioPathConfig),
+        X(DirectMusicAuditionTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicBand, .iface = &IID_IDirectMusicBand),
+        X(DirectMusicBandTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicChordMap, .iface = &IID_IDirectMusicChordMap),
+        X(DirectMusicChordMapTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicChordTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicCollection, .iface = &IID_IDirectMusicCollection),
+        X(DirectMusicCommandTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicComposer, .iface = &IID_IDirectMusicComposer),
+        X(DirectMusicContainer, .iface = &IID_IDirectMusicContainer),
+        X(DirectMusicGraph, .iface = &IID_IDirectMusicGraph),
+        X(DirectMusicLoader, .iface = &IID_IDirectMusicLoader),
+        X(DirectMusicLyricsTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicMarkerTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicMotifTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicMuteTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicParamControlTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicPatternTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicPerformance, .iface = &IID_IDirectMusicPerformance),
+        X(DirectMusicScript, .iface = &IID_IDirectMusicScript),
+        X(DirectMusicScriptTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicSegment, .iface = &IID_IDirectMusicSegment),
+        X(DirectMusicSegmentState, .iface = &IID_IDirectMusicSegmentState),
+        X(DirectMusicSegmentTriggerTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicSegTriggerTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicSeqTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicSignPostTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicStyle, .iface = &IID_IDirectMusicStyle),
+        X(DirectMusicStyleTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicSynth, .iface = &IID_IDirectMusicSynth),
+        X(DirectMusicSynthSink, .iface = &IID_IDirectMusicSynthSink),
+        X(DirectMusicSysExTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicTempoTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicTimeSigTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectMusicWaveTrack, .iface = &IID_IDirectMusicTrack),
+        X(DirectSoundWave),
+#undef X
+    };
+    IUnknown outer = {&unk_vtbl};
+    HRESULT hr;
+    UINT i;
+
+    for (i = 0; i < ARRAY_SIZE(classes); i++)
+    {
+        IUnknown *obj;
+
+        winetest_push_context("%s", classes[i].name);
+
+        obj = invalid_ptr;
+        hr = CoCreateInstance(&classes[i].guid, &outer, CLSCTX_INPROC_SERVER, &IID_IUnknown, (void **)&obj);
+        ok(hr == CLASS_E_NOAGGREGATION || broken(hr == REGDB_E_CLASSNOTREG), "got %#lx\n", hr);
+        ok(!obj, "got %p\n", obj);
+
+        if (hr == REGDB_E_CLASSNOTREG) goto next;
+
+        obj = invalid_ptr;
+        hr = CoCreateInstance(&classes[i].guid, NULL, CLSCTX_INPROC_SERVER, &IID_IClassFactory, (void **)&obj);
+        ok(hr == E_NOINTERFACE, "got %#lx\n", hr);
+        ok(!obj, "got %p\n", obj);
+
+        obj = NULL;
+        hr = CoCreateInstance(&classes[i].guid, NULL, CLSCTX_INPROC_SERVER, &IID_IUnknown, (void **)&obj);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        ok(!!obj, "got %p\n", obj);
+        if (classes[i].iface)
+        {
+            check_interface(obj, classes[i].iface, TRUE);
+            IUnknown_Release(obj);
+
+            obj = NULL;
+            hr = CoCreateInstance(&classes[i].guid, NULL, CLSCTX_INPROC_SERVER, classes[i].iface, (void **)&obj);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            ok(!!obj, "got %p\n", obj);
+            check_interface(obj, &IID_IUnknown, TRUE);
+        }
+        IUnknown_Release(obj);
+
+    next:
+        winetest_pop_context();
+    }
+}
+
 static void test_dmusic(void)
 {
     IDirectMusic *dmusic = NULL;
@@ -141,6 +439,15 @@ static void test_dmusic(void)
 
     hr = CoCreateInstance(&CLSID_DirectMusic, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectMusic, (LPVOID*)&dmusic);
     ok(hr == S_OK, "Cannot create DirectMusic object: %#lx\n", hr);
+
+    check_interface(dmusic, &IID_IUnknown, TRUE);
+    check_interface(dmusic, &IID_IDirectMusic, TRUE);
+    check_interface(dmusic, &IID_IDirectMusic2, TRUE);
+    check_interface(dmusic, &IID_IDirectMusic8, TRUE);
+
+    check_interface(dmusic, &IID_IKsControl, FALSE);
+    check_interface(dmusic, &IID_IPersistStream, FALSE);
+    check_interface(dmusic, &IID_IDirectMusicObject, FALSE);
 
     port_params.dwSize = sizeof(port_params);
     port_params.dwValidParams = DMUS_PORTPARAMS_CHANNELGROUPS | DMUS_PORTPARAMS_AUDIOCHANNELS;
@@ -419,104 +726,6 @@ static void test_dmbuffer(void)
     IDirectMusic_Release(dmusic);
 }
 
-static void test_COM(void)
-{
-    IDirectMusic8 *dm8 = (IDirectMusic8*)0xdeadbeef;
-    IDirectMusic *dm;
-    IUnknown *unk;
-    ULONG refcount;
-    HRESULT hr;
-
-    /* COM aggregation */
-    hr = CoCreateInstance(&CLSID_DirectMusic, (IUnknown *)0xdeadbeef, CLSCTX_INPROC_SERVER, &IID_IUnknown,
-            (void**)&dm8);
-    ok(hr == CLASS_E_NOAGGREGATION,
-            "DirectMusic8 create failed: %#lx, expected CLASS_E_NOAGGREGATION\n", hr);
-    ok(!dm8, "dm8 = %p\n", dm8);
-
-    /* Invalid RIID */
-    hr = CoCreateInstance(&CLSID_DirectMusic, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectMusicObject,
-            (void**)&dm8);
-    ok(hr == E_NOINTERFACE, "DirectMusic8 create failed: %#lx, expected E_NOINTERFACE\n", hr);
-
-    /* Same refcount for DirectMusic and DirectMusic8 */
-    hr = CoCreateInstance(&CLSID_DirectMusic, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectMusic8,
-            (void**)&dm8);
-    if (hr == E_NOINTERFACE)
-    {
-        win_skip("DirectMusic too old (no IDirectMusic8)\n");
-        return;
-    }
-    ok(hr == S_OK, "DirectMusic8 create failed: %#lx, expected S_OK\n", hr);
-    refcount = IDirectMusic8_AddRef(dm8);
-    ok(refcount == 2, "refcount == %lu, expected 2\n", refcount);
-
-    hr = IDirectMusic8_QueryInterface(dm8, &IID_IDirectMusic, (void**)&dm);
-    ok(hr == S_OK, "QueryInterface for IID_IDirectMusic failed: %#lx\n", hr);
-    refcount = IDirectMusic_AddRef(dm);
-    ok(refcount == 4, "refcount == %lu, expected 4\n", refcount);
-    IDirectMusic_Release(dm);
-
-    hr = IDirectMusic8_QueryInterface(dm8, &IID_IUnknown, (void**)&unk);
-    ok(hr == S_OK, "QueryInterface for IID_IUnknown failed: %#lx\n", hr);
-    refcount = IUnknown_AddRef(unk);
-    ok(refcount == 5, "refcount == %lu, expected 5\n", refcount);
-    refcount = IUnknown_Release(unk);
-
-    ok(refcount == 4, "refcount == %lu, expected 4\n", refcount);
-    while (IDirectMusic8_Release(dm8));
-}
-
-static void test_COM_dmcoll(void)
-{
-    IDirectMusicCollection *dmc = (IDirectMusicCollection*)0xdeadbeef;
-    IDirectMusicObject *dmo;
-    IPersistStream *ps;
-    IUnknown *unk;
-    ULONG refcount;
-    HRESULT hr;
-
-    /* COM aggregation */
-    hr = CoCreateInstance(&CLSID_DirectMusicCollection, (IUnknown *)0xdeadbeef, CLSCTX_INPROC_SERVER,
-            &IID_IUnknown, (void**)&dmc);
-    ok(hr == CLASS_E_NOAGGREGATION,
-            "DirectMusicCollection create failed: %#lx, expected CLASS_E_NOAGGREGATION\n", hr);
-    ok(!dmc, "dmc = %p\n", dmc);
-
-    /* Invalid RIID */
-    hr = CoCreateInstance(&CLSID_DirectMusicCollection, NULL, CLSCTX_INPROC_SERVER,
-            &IID_IClassFactory, (void**)&dmc);
-    ok(hr == E_NOINTERFACE, "DirectMusicCollection create failed: %#lx, expected E_NOINTERFACE\n", hr);
-
-    /* Same refcount for all DirectMusicCollection interfaces */
-    hr = CoCreateInstance(&CLSID_DirectMusicCollection, NULL, CLSCTX_INPROC_SERVER,
-            &IID_IDirectMusicCollection, (void**)&dmc);
-    ok(hr == S_OK, "DirectMusicCollection create failed: %#lx, expected S_OK\n", hr);
-    refcount = IDirectMusicCollection_AddRef(dmc);
-    ok(refcount == 2, "refcount == %lu, expected 2\n", refcount);
-
-    hr = IDirectMusicCollection_QueryInterface(dmc, &IID_IDirectMusicObject, (void**)&dmo);
-    ok(hr == S_OK, "QueryInterface for IID_IDirectMusicObject failed: %#lx\n", hr);
-    refcount = IDirectMusicObject_AddRef(dmo);
-    ok(refcount == 4, "refcount == %lu, expected 4\n", refcount);
-    refcount = IDirectMusicObject_Release(dmo);
-
-    hr = IDirectMusicCollection_QueryInterface(dmc, &IID_IPersistStream, (void**)&ps);
-    ok(hr == S_OK, "QueryInterface for IID_IPersistStream failed: %#lx\n", hr);
-    refcount = IPersistStream_AddRef(ps);
-    ok(refcount == 5, "refcount == %lu, expected 5\n", refcount);
-    refcount = IPersistStream_Release(ps);
-
-    hr = IDirectMusicCollection_QueryInterface(dmc, &IID_IUnknown, (void**)&unk);
-    ok(hr == S_OK, "QueryInterface for IID_IUnknown failed: %#lx\n", hr);
-    refcount = IUnknown_AddRef(unk);
-    ok(refcount == 6, "refcount == %lu, expected 6\n", refcount);
-    refcount = IUnknown_Release(unk);
-
-    ok(refcount == 5, "refcount == %lu, expected 5\n", refcount);
-    while (IDirectMusicCollection_Release(dmc));
-}
-
 static void test_dmcoll(void)
 {
     IDirectMusicCollection *dmc;
@@ -530,6 +739,13 @@ static void test_dmcoll(void)
     hr = CoCreateInstance(&CLSID_DirectMusicCollection, NULL, CLSCTX_INPROC_SERVER,
             &IID_IDirectMusicCollection, (void**)&dmc);
     ok(hr == S_OK, "DirectMusicCollection create failed: %#lx, expected S_OK\n", hr);
+
+    check_interface(dmc, &IID_IUnknown, TRUE);
+    check_interface(dmc, &IID_IDirectMusicCollection, TRUE);
+    check_interface(dmc, &IID_IPersistStream, TRUE);
+    check_interface(dmc, &IID_IDirectMusicObject, TRUE);
+
+    check_interface(dmc, &IID_IKsControl, FALSE);
 
     /* IDirectMusicObject */
     hr = IDirectMusicCollection_QueryInterface(dmc, &IID_IDirectMusicObject, (void**)&dmo);
@@ -580,7 +796,7 @@ static BOOL missing_dmusic(void)
 
     if (hr == S_OK && dm)
     {
-        IDirectMusic_Release(dm);
+        IDirectMusic8_Release(dm);
         return FALSE;
     }
     return TRUE;
@@ -607,163 +823,14 @@ static IDirectMusicPort *create_synth_port(IDirectMusic **dmusic)
     return port;
 }
 
-static void test_COM_synthport(void)
-{
-    IDirectMusic *dmusic;
-    IDirectMusicPort *port;
-    IDirectMusicPortDownload *dmpd;
-    IDirectMusicThru *dmt;
-    IKsControl *iksc;
-    IReferenceClock *clock;
-    IUnknown *unk;
-    ULONG refcount;
-    HRESULT hr;
-
-    port = create_synth_port(&dmusic);
-
-    /* Same refcount for all DirectMusicPort interfaces */
-    refcount = IDirectMusicPort_AddRef(port);
-    ok(refcount == 2, "refcount == %lu, expected 2\n", refcount);
-
-    hr = IDirectMusicPort_QueryInterface(port, &IID_IDirectMusicPortDownload, (void**)&dmpd);
-    ok(hr == S_OK, "QueryInterface for IID_IDirectMusicPortDownload failed: %#lx\n", hr);
-    refcount = IDirectMusicPortDownload_AddRef(dmpd);
-    ok(refcount == 4, "refcount == %lu, expected 4\n", refcount);
-    IDirectMusicPortDownload_Release(dmpd);
-
-    hr = IDirectMusicPort_QueryInterface(port, &IID_IKsControl, (void**)&iksc);
-    ok(hr == S_OK, "QueryInterface for IID_IKsControl failed: %#lx\n", hr);
-    refcount = IKsControl_AddRef(iksc);
-    ok(refcount == 5, "refcount == %lu, expected 5\n", refcount);
-    IKsControl_Release(iksc);
-
-    hr = IDirectMusicPort_QueryInterface(port, &IID_IUnknown, (void**)&unk);
-    ok(hr == S_OK, "QueryInterface for IID_IUnknown failed: %#lx\n", hr);
-    refcount = IUnknown_AddRef(unk);
-    ok(refcount == 6, "refcount == %lu, expected 6\n", refcount);
-    IUnknown_Release(unk);
-
-    /* Unsupported interface */
-    hr = IDirectMusicPort_QueryInterface(port, &IID_IDirectMusicThru, (void**)&dmt);
-    todo_wine ok(hr == E_NOINTERFACE, "QueryInterface for IID_IDirectMusicThru failed: %#lx\n", hr);
-    hr = IDirectMusicPort_QueryInterface(port, &IID_IReferenceClock, (void**)&clock);
-    ok(hr == E_NOINTERFACE, "QueryInterface for IID_IReferenceClock failed: %#lx\n", hr);
-
-    while (IDirectMusicPort_Release(port));
-    refcount = IDirectMusic_Release(dmusic);
-    ok(!refcount, "Got outstanding refcount %ld.\n", refcount);
-}
-
-struct chunk {
-    FOURCC id;
-    DWORD size;
-    FOURCC type;
-};
-
-#define CHUNK_HDR_SIZE (sizeof(FOURCC) + sizeof(DWORD))
-
-/* Generate a RIFF file format stream from an array of FOURCC ids.
-   RIFF and LIST need to be followed by the form type respectively list type,
-   followed by the chunks of the list and terminated with 0. */
-static IStream *gen_riff_stream(const FOURCC *ids)
-{
-    static const LARGE_INTEGER zero;
-    int level = -1;
-    DWORD *sizes[4];    /* Stack for the sizes of RIFF and LIST chunks */
-    char riff[1024];
-    char *p = riff;
-    struct chunk *ck;
-    IStream *stream;
-
-    do {
-        ck = (struct chunk *)p;
-        ck->id = *ids++;
-        switch (ck->id) {
-            case 0:
-                *sizes[level] = p - (char *)sizes[level] - sizeof(DWORD);
-                level--;
-                break;
-            case FOURCC_LIST:
-            case FOURCC_RIFF:
-                level++;
-                sizes[level] = &ck->size;
-                ck->type = *ids++;
-                p += sizeof(*ck);
-                break;
-            case DMUS_FOURCC_GUID_CHUNK:
-                ck->size = sizeof(GUID_NULL);
-                p += CHUNK_HDR_SIZE;
-                memcpy(p, &GUID_NULL, sizeof(GUID_NULL));
-                p += ck->size;
-                break;
-            case DMUS_FOURCC_VERSION_CHUNK:
-            {
-                DMUS_VERSION ver = {5, 8};
-
-                ck->size = sizeof(ver);
-                p += CHUNK_HDR_SIZE;
-                memcpy(p, &ver, sizeof(ver));
-                p += ck->size;
-                break;
-            }
-            case mmioFOURCC('I','N','A','M'):
-                ck->size = 5;
-                p += CHUNK_HDR_SIZE;
-                strcpy(p, "INAM");
-                p += ck->size + 1; /* WORD aligned */
-                break;
-            default:
-            {
-                /* Just convert the FOURCC id to a WCHAR string */
-                WCHAR *s;
-
-                ck->size = 5 * sizeof(WCHAR);
-                p += CHUNK_HDR_SIZE;
-                s = (WCHAR *)p;
-                s[0] = (char)(ck->id);
-                s[1] = (char)(ck->id >> 8);
-                s[2] = (char)(ck->id >> 16);
-                s[3] = (char)(ck->id >> 24);
-                s[4] = 0;
-                p += ck->size;
-            }
-        }
-    } while (level >= 0);
-
-    ck = (struct chunk *)riff;
-    CreateStreamOnHGlobal(NULL, TRUE, &stream);
-    IStream_Write(stream, riff, ck->size + CHUNK_HDR_SIZE, NULL);
-    IStream_Seek(stream, zero, STREAM_SEEK_SET, NULL);
-
-    return stream;
-}
-
 static void test_parsedescriptor(void)
 {
+    static const LARGE_INTEGER zero = {0};
+
     IDirectMusicObject *dmo;
     IStream *stream;
     DMUS_OBJECTDESC desc = {0};
     HRESULT hr;
-    const FOURCC alldesc[] =
-    {
-        FOURCC_RIFF, FOURCC_DLS, DMUS_FOURCC_CATEGORY_CHUNK, FOURCC_LIST,
-        DMUS_FOURCC_UNFO_LIST, DMUS_FOURCC_UNAM_CHUNK, DMUS_FOURCC_UCOP_CHUNK,
-        DMUS_FOURCC_UCMT_CHUNK, DMUS_FOURCC_USBJ_CHUNK, 0, DMUS_FOURCC_VERSION_CHUNK,
-        DMUS_FOURCC_GUID_CHUNK, 0
-    };
-    const FOURCC dupes[] =
-    {
-        FOURCC_RIFF, FOURCC_DLS, DMUS_FOURCC_CATEGORY_CHUNK, DMUS_FOURCC_CATEGORY_CHUNK,
-        DMUS_FOURCC_VERSION_CHUNK, DMUS_FOURCC_VERSION_CHUNK, DMUS_FOURCC_GUID_CHUNK,
-        DMUS_FOURCC_GUID_CHUNK, FOURCC_LIST, DMUS_FOURCC_INFO_LIST, mmioFOURCC('I','N','A','M'), 0,
-        FOURCC_LIST, DMUS_FOURCC_INFO_LIST, mmioFOURCC('I','N','A','M'), 0, 0
-    };
-    FOURCC empty[] = {FOURCC_RIFF, FOURCC_DLS, 0};
-    FOURCC inam[] =
-    {
-        FOURCC_RIFF, FOURCC_DLS, FOURCC_LIST, DMUS_FOURCC_UNFO_LIST,
-        mmioFOURCC('I','N','A','M'), 0, 0
-    };
 
     hr = CoCreateInstance(&CLSID_DirectMusicCollection, NULL, CLSCTX_INPROC_SERVER,
             &IID_IDirectMusicObject, (void **)&dmo);
@@ -779,7 +846,16 @@ static void test_parsedescriptor(void)
             wine_dbgstr_guid(&desc.guidClass));
 
     /* Empty RIFF stream */
-    stream = gen_riff_stream(empty);
+    hr = CreateStreamOnHGlobal(0, TRUE, &stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    CHUNK_RIFF(stream, "DLS ")
+    {
+        BYTE data = 0;
+        CHUNK_DATA(stream, "data", data);
+    }
+    CHUNK_END;
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
     memset(&desc, 0, sizeof(desc));
     hr = IDirectMusicObject_ParseDescriptor(dmo, stream, &desc);
     ok(hr == S_OK, "ParseDescriptor failed: %#lx, expected S_OK\n", hr);
@@ -798,32 +874,71 @@ static void test_parsedescriptor(void)
     ok(hr == E_POINTER, "ParseDescriptor failed: %#lx, expected E_POINTER\n", hr);
 
     /* Wrong form */
-    empty[1] = DMUS_FOURCC_CONTAINER_FORM;
-    stream = gen_riff_stream(empty);
+    hr = CreateStreamOnHGlobal(0, TRUE, &stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    CHUNK_RIFF(stream, "DMCN")
+    {
+    }
+    CHUNK_END;
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
     hr = IDirectMusicObject_ParseDescriptor(dmo, stream, &desc);
     ok(hr == DMUS_E_NOTADLSCOL, "ParseDescriptor failed: %#lx, expected DMUS_E_NOTADLSCOL\n", hr);
     IStream_Release(stream);
 
     /* All desc chunks */
-    stream = gen_riff_stream(alldesc);
+    hr = CreateStreamOnHGlobal(0, TRUE, &stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    CHUNK_RIFF(stream, "DLS ")
+    {
+        DMUS_VERSION vers = {5, 8};
+        GUID guid = GUID_test_0;
+        GUID dlid = GUID_test_1;
+        CHUNK_DATA(stream, "vers", vers);
+        CHUNK_DATA(stream, "guid", guid);
+        CHUNK_DATA(stream, "dlid", dlid);
+        CHUNK_DATA(stream, "catg", "Test category");
+        CHUNK_LIST(stream, "UNFO")
+        {
+            CHUNK_DATA(stream, "UNAM", "Test collection");
+            CHUNK_DATA(stream, "UCOP", "Test copyright");
+            CHUNK_DATA(stream, "UCMT", "Test comment");
+            CHUNK_DATA(stream, "USBJ", "Test subject");
+        }
+        CHUNK_END;
+    }
+    CHUNK_END;
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
     memset(&desc, 0, sizeof(desc));
     hr = IDirectMusicObject_ParseDescriptor(dmo, stream, &desc);
     ok(hr == S_OK, "ParseDescriptor failed: %#lx, expected S_OK\n", hr);
-    ok(desc.dwValidData == (DMUS_OBJ_CLASS | DMUS_OBJ_VERSION),
+    ok(desc.dwValidData == (DMUS_OBJ_CLASS | DMUS_OBJ_VERSION | DMUS_OBJ_OBJECT),
             "Got valid data %#lx, expected DMUS_OBJ_CLASS | DMUS_OBJ_VERSION\n", desc.dwValidData);
     ok(IsEqualGUID(&desc.guidClass, &CLSID_DirectMusicCollection),
             "Got class guid %s, expected CLSID_DirectMusicCollection\n",
             wine_dbgstr_guid(&desc.guidClass));
-    ok(IsEqualGUID(&desc.guidObject, &GUID_NULL), "Got object guid %s, expected GUID_NULL\n",
-            wine_dbgstr_guid(&desc.guidClass));
+    ok(IsEqualGUID(&desc.guidObject, &GUID_test_1), "Got object guid %s, expected GUID_NULL\n",
+            wine_dbgstr_guid(&desc.guidObject));
     ok(desc.vVersion.dwVersionMS == 5 && desc.vVersion.dwVersionLS == 8,
             "Got version %lu.%lu, expected 5.8\n", desc.vVersion.dwVersionMS,
             desc.vVersion.dwVersionLS);
     IStream_Release(stream);
 
     /* UNFO list with INAM */
-    inam[3] = DMUS_FOURCC_UNFO_LIST;
-    stream = gen_riff_stream(inam);
+    hr = CreateStreamOnHGlobal(0, TRUE, &stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    CHUNK_RIFF(stream, "DLS ")
+    {
+        CHUNK_LIST(stream, "UNFO")
+        {
+            CHUNK_DATA(stream, "INAM", "Test collection");
+        }
+        CHUNK_END;
+    }
+    CHUNK_END;
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
     memset(&desc, 0, sizeof(desc));
     hr = IDirectMusicObject_ParseDescriptor(dmo, stream, &desc);
     ok(hr == S_OK, "ParseDescriptor failed: %#lx, expected S_OK\n", hr);
@@ -832,8 +947,19 @@ static void test_parsedescriptor(void)
     IStream_Release(stream);
 
     /* INFO list with INAM */
-    inam[3] = DMUS_FOURCC_INFO_LIST;
-    stream = gen_riff_stream(inam);
+    hr = CreateStreamOnHGlobal(0, TRUE, &stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    CHUNK_RIFF(stream, "DLS ")
+    {
+        CHUNK_LIST(stream, "INFO")
+        {
+            CHUNK_DATA(stream, "INAM", "INAM");
+        }
+        CHUNK_END;
+    }
+    CHUNK_END;
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
     memset(&desc, 0, sizeof(desc));
     hr = IDirectMusicObject_ParseDescriptor(dmo, stream, &desc);
     ok(hr == S_OK, "ParseDescriptor failed: %#lx, expected S_OK\n", hr);
@@ -844,13 +970,42 @@ static void test_parsedescriptor(void)
     IStream_Release(stream);
 
     /* Duplicated chunks */
-    stream = gen_riff_stream(dupes);
+    hr = CreateStreamOnHGlobal(0, TRUE, &stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    CHUNK_RIFF(stream, "DLS ")
+    {
+        DMUS_VERSION vers0 = {1, 2}, vers1 = {3, 4};
+        GUID guid0 = GUID_test_0, guid1 = GUID_test_1;
+        GUID dlid0 = GUID_test_2, dlid1 = GUID_test_3;
+        CHUNK_DATA(stream, "vers", vers0);
+        CHUNK_DATA(stream, "dlid", dlid0);
+        CHUNK_DATA(stream, "guid", guid0);
+        CHUNK_LIST(stream, "INFO")
+        {
+            CHUNK_DATA(stream, "INAM", "INAM");
+        }
+        CHUNK_END;
+        CHUNK_DATA(stream, "dlid", dlid1);
+        CHUNK_DATA(stream, "vers", vers1);
+        CHUNK_DATA(stream, "guid", guid1);
+        CHUNK_LIST(stream, "INFO")
+        {
+            CHUNK_DATA(stream, "INAM", "Name 1");
+            CHUNK_DATA(stream, "INAM", "Name 2");
+        }
+        CHUNK_END;
+    }
+    CHUNK_END;
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
     memset(&desc, 0, sizeof(desc));
     hr = IDirectMusicObject_ParseDescriptor(dmo, stream, &desc);
     ok(hr == S_OK, "ParseDescriptor failed: %#lx, expected S_OK\n", hr);
-    ok(desc.dwValidData == (DMUS_OBJ_CLASS | DMUS_OBJ_NAME | DMUS_OBJ_VERSION),
+    ok(desc.dwValidData == (DMUS_OBJ_CLASS | DMUS_OBJ_NAME | DMUS_OBJ_VERSION | DMUS_OBJ_OBJECT),
             "Got valid data %#lx, expected DMUS_OBJ_CLASS | DMUS_OBJ_NAME | DMUS_OBJ_VERSION\n",
             desc.dwValidData);
+    ok(IsEqualGUID(&desc.guidObject, &GUID_test_2), "Got object guid %s, expected GUID_NULL\n",
+            wine_dbgstr_guid(&desc.guidObject));
     ok(!lstrcmpW(desc.wszName, L"INAM"), "Got name '%s', expected 'INAM'\n",
             wine_dbgstr_w(desc.wszName));
     IStream_Release(stream);
@@ -971,6 +1126,16 @@ static void test_synthport(void)
     HRESULT hr;
 
     port = create_synth_port(&dmusic);
+
+    check_interface(port, &IID_IUnknown, TRUE);
+    check_interface(port, &IID_IDirectMusicPort, TRUE);
+    check_interface(port, &IID_IDirectMusicPortDownload, TRUE);
+    check_interface(port, &IID_IDirectMusicThru, TRUE);
+    check_interface(port, &IID_IKsControl, TRUE);
+    todo_wine check_interface(port, &IID_IReferenceClock, TRUE);
+
+    check_interface(port, &IID_IPersistStream, FALSE);
+    check_interface(port, &IID_IDirectMusicObject, FALSE);
 
     /* Create a IDirectMusicPortBuffer */
     desc.dwSize = sizeof(DMUS_BUFFERDESC);
@@ -1207,73 +1372,13 @@ static void test_download_instrument(void)
     CHUNK_RIFF(stream, "DLS ")
     {
         DLSHEADER colh = {.cInstruments = 1};
-        struct
-        {
-            POOLTABLE head;
-            POOLCUE cues[1];
-        } ptbl =
-        {
-            .head = {.cbSize = sizeof(POOLTABLE), .cCues = ARRAY_SIZE(ptbl.cues)},
-            .cues = {{.ulOffset = 0}}, /* offsets in wvpl */
-        };
-
         CHUNK_DATA(stream, "colh", colh);
         CHUNK_LIST(stream, "lins")
         {
             CHUNK_LIST(stream, "ins ")
             {
-                INSTHEADER insh = {.cRegions = 1, .Locale = {.ulBank = 0x12, .ulInstrument = 0x34}};
-
+                INSTHEADER insh = {.cRegions = 0, .Locale = {.ulBank = 0x12, .ulInstrument = 0x34}};
                 CHUNK_DATA(stream, "insh", insh);
-                CHUNK_LIST(stream, "lrgn")
-                {
-                    CHUNK_LIST(stream, "rgn ")
-                    {
-                        RGNHEADER rgnh =
-                        {
-                            .RangeKey = {.usLow = 0, .usHigh = 127},
-                            .RangeVelocity = {.usLow = 1, .usHigh = 127},
-                        };
-                        WAVELINK wlnk = {.ulChannel = 1, .ulTableIndex = 0};
-                        WSMPL wsmp = {.cbSize = sizeof(WSMPL)};
-
-                        CHUNK_DATA(stream, "rgnh", rgnh);
-                        CHUNK_DATA(stream, "wsmp", wsmp);
-                        CHUNK_DATA(stream, "wlnk", wlnk);
-                    }
-                    CHUNK_END;
-                }
-                CHUNK_END;
-
-                CHUNK_LIST(stream, "lart")
-                {
-                    CONNECTIONLIST connections = {.cbSize = sizeof(connections)};
-                    CHUNK_DATA(stream, "art1", connections);
-                }
-                CHUNK_END;
-            }
-            CHUNK_END;
-        }
-        CHUNK_END;
-        CHUNK_DATA(stream, "ptbl", ptbl);
-        CHUNK_LIST(stream, "wvpl")
-        {
-            CHUNK_LIST(stream, "wave")
-            {
-                WAVEFORMATEX fmt =
-                {
-                    .wFormatTag = WAVE_FORMAT_PCM,
-                    .nChannels = 1,
-                    .wBitsPerSample = 8,
-                    .nSamplesPerSec = 22050,
-                    .nAvgBytesPerSec = 22050,
-                    .nBlockAlign = 1,
-                };
-                BYTE data[16] = {0};
-
-                /* native returns DMUS_E_INVALIDOFFSET from DownloadInstrument if data is last */
-                CHUNK_DATA(stream, "data", data);
-                CHUNK_DATA(stream, "fmt ", fmt);
             }
             CHUNK_END;
         }
@@ -1287,6 +1392,56 @@ static void test_download_instrument(void)
     ok(hr == S_OK, "got %#lx\n", hr);
     IPersistStream_Release(persist);
     IStream_Release(stream);
+
+if (0)
+{
+    DMUS_OBJECTDESC collection_desc =
+    {
+        .dwSize = sizeof(DMUS_OBJECTDESC),
+        .dwValidData = DMUS_OBJ_CLASS | DMUS_OBJ_FILENAME,
+        .guidClass = CLSID_DirectMusicCollection,
+        .wszFileName = L"ff8.dls",
+    };
+    IDirectMusicLoader *loader;
+    WCHAR path[MAX_PATH];
+
+    hr = CoCreateInstance(&CLSID_DirectMusicLoader, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectMusicLoader, (void **)&loader);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+
+    if (strcmp(winetest_platform, "wine")) wcscpy(path, L"Y:/Games/FINAL FANTASY VIII/Data/Music/dmusic/");
+    else wcscpy(path, L"Z:/media/rbernon/LaCie/Games/FINAL FANTASY VIII/Data/Music/dmusic/");
+    hr = IDirectMusicLoader_SetSearchDirectory(loader, &GUID_DirectMusicAllTypes, path, FALSE);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+
+    hr = IDirectMusicLoader_GetObject(loader, &collection_desc, &IID_IDirectMusicCollection, (void **)&collection);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+
+    patch = 0xdeadbeef;
+    wcscpy(name, L"DeadBeef");
+    hr = IDirectMusicCollection_EnumInstrument(collection, 0, &patch, name, ARRAY_SIZE(name));
+    ok(hr == S_OK, "got %#lx\n", hr);
+    ok(patch == 0x1234, "got %#lx\n", patch);
+    ok(*name == 0, "got %s\n", debugstr_w(name));
+
+    hr = IDirectMusicCollection_GetInstrument(collection, patch, &instrument);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    check_interface(instrument, &IID_IDirectMusicObject, FALSE);
+    check_interface(instrument, &IID_IDirectMusicDownload, FALSE);
+    check_interface(instrument, &IID_IDirectMusicDownloadedInstrument, FALSE);
+
+    hr = IDirectMusicPort_DownloadInstrument(port, instrument, &downloaded, NULL, 0);
+    ok(hr == S_OK, "got %s\n", debugstr_dmus_hr(hr));
+if (FAILED(hr)) goto skip_tests;
+
+    check_interface(downloaded, &IID_IDirectMusicObject, FALSE);
+    check_interface(downloaded, &IID_IDirectMusicDownload, FALSE);
+    check_interface(downloaded, &IID_IDirectMusicInstrument, FALSE);
+
+    hr = IDirectMusicPort_UnloadInstrument(port, downloaded);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    IDirectMusicDownloadedInstrument_Release(downloaded);
+}
 
     patch = 0xdeadbeef;
     wcscpy(name, L"DeadBeef");
@@ -1316,6 +1471,7 @@ static void test_download_instrument(void)
     ok(patch == 0x4321, "got %#lx\n", patch);
     IDirectMusicInstrument_Release(tmp_instrument);
 
+    check_interface(instrument, &IID_IPersistStream, FALSE);
     check_interface(instrument, &IID_IDirectMusicObject, FALSE);
     check_interface(instrument, &IID_IDirectMusicDownload, FALSE);
     check_interface(instrument, &IID_IDirectMusicDownloadedInstrument, FALSE);
@@ -1645,6 +1801,261 @@ skip_tests:
     IDirectMusicLoader_Release(loader);
 }
 
+static void test_parse_wave(void)
+{
+    static const LARGE_INTEGER zero = {0};
+    IDirectMusicObject *wave;
+    IPersistStream *persist;
+    DMUS_OBJECTDESC desc;
+    IStream *stream;
+    HRESULT hr;
+
+    hr = CoCreateInstance(&CLSID_DirectSoundWave, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectMusicObject, (void **)&wave);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    hr = IDirectMusicObject_QueryInterface(wave, &IID_IPersistStream, (void **)&persist);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = CreateStreamOnHGlobal(0, TRUE, &stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    CHUNK_LIST(stream, "wave")
+    {
+        WAVEFORMATEX fmt =
+        {
+            .wFormatTag = WAVE_FORMAT_PCM,
+            .nChannels = 1,
+            .nSamplesPerSec = 22050,
+            .nAvgBytesPerSec = 22050,
+            .wBitsPerSample = 8,
+            .nBlockAlign = 1,
+        };
+        WSMPL wsmp = {.cbSize = sizeof(WSMPL), .usUnityNote = 60, .fulOptions = F_WSMP_NO_TRUNCATION};
+        BYTE data[64] = {0};
+        SHORT wavu = 1;
+
+        CHUNK_DATA(stream, "wavu", wavu);
+        CHUNK_DATA(stream, "fmt ", fmt);
+        CHUNK_DATA(stream, "wsmp", wsmp);
+        CHUNK_DATA(stream, "data", data);
+
+        CHUNK_LIST(stream, "INFO")
+        {
+            const char copyright[] = "copyright";
+            const char engine[] = "engine";
+            const char name[] = "name";
+            CHUNK_DATA(stream, "ICOP", copyright);
+            CHUNK_DATA(stream, "IENG", engine);
+            CHUNK_DATA(stream, "INAM", name);
+        }
+        CHUNK_END;
+    }
+    CHUNK_END;
+
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    memset(&desc, 0, sizeof(desc));
+    desc.dwSize = sizeof(desc);
+    hr = IDirectMusicObject_ParseDescriptor(wave, stream, &desc);
+    ok(hr == DMUS_E_CHUNKNOTFOUND, "got %#lx\n", hr);
+
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IPersistStream_Load(persist, stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    IPersistStream_Release(persist);
+
+    memset(&desc, 0, sizeof(desc));
+    desc.dwSize = sizeof(desc);
+    hr = IDirectMusicObject_GetDescriptor(wave, &desc);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    IStream_Release(stream);
+
+
+    hr = CoCreateInstance(&CLSID_DirectSoundWave, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectMusicObject, (void **)&wave);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    hr = IDirectMusicObject_QueryInterface(wave, &IID_IPersistStream, (void **)&persist);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = CreateStreamOnHGlobal(0, TRUE, &stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    CHUNK_RIFF(stream, "wave")
+    {
+        WAVEFORMATEX fmt =
+        {
+            .wFormatTag = WAVE_FORMAT_PCM,
+            .nChannels = 1,
+            .nSamplesPerSec = 22050,
+            .nAvgBytesPerSec = 22050,
+            .wBitsPerSample = 8,
+            .nBlockAlign = 1,
+        };
+        WSMPL wsmp = {.cbSize = sizeof(WSMPL), .usUnityNote = 60, .fulOptions = F_WSMP_NO_TRUNCATION};
+        BYTE data[64] = {0};
+        SHORT wavu = 1;
+
+        CHUNK_DATA(stream, "wavu", wavu);
+        CHUNK_DATA(stream, "fmt ", fmt);
+        CHUNK_DATA(stream, "wsmp", wsmp);
+        CHUNK_DATA(stream, "data", data);
+
+        CHUNK_LIST(stream, "INFO")
+        {
+            const char copyright[] = "copyright";
+            const char engine[] = "engine";
+            const char name[] = "name";
+            CHUNK_DATA(stream, "ICOP", copyright);
+            CHUNK_DATA(stream, "IENG", engine);
+            CHUNK_DATA(stream, "INAM", name);
+        }
+        CHUNK_END;
+    }
+    CHUNK_END;
+
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    memset(&desc, 0, sizeof(desc));
+    desc.dwSize = sizeof(desc);
+    hr = IDirectMusicObject_ParseDescriptor(wave, stream, &desc);
+    ok(hr == DMUS_E_CHUNKNOTFOUND, "got %#lx\n", hr);
+
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IPersistStream_Load(persist, stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    IPersistStream_Release(persist);
+
+    memset(&desc, 0, sizeof(desc));
+    desc.dwSize = sizeof(desc);
+    hr = IDirectMusicObject_GetDescriptor(wave, &desc);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    IStream_Release(stream);
+
+
+    hr = CoCreateInstance(&CLSID_DirectSoundWave, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectMusicObject, (void **)&wave);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    hr = IDirectMusicObject_QueryInterface(wave, &IID_IPersistStream, (void **)&persist);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = CreateStreamOnHGlobal(0, TRUE, &stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    CHUNK_LIST(stream, "WAVE")
+    {
+        WAVEFORMATEX fmt =
+        {
+            .wFormatTag = WAVE_FORMAT_PCM,
+            .nChannels = 1,
+            .nSamplesPerSec = 22050,
+            .nAvgBytesPerSec = 22050,
+            .wBitsPerSample = 8,
+            .nBlockAlign = 1,
+        };
+        WSMPL wsmp = {.cbSize = sizeof(WSMPL), .usUnityNote = 60, .fulOptions = F_WSMP_NO_TRUNCATION};
+        BYTE data[64] = {0};
+        SHORT wavu = 1;
+
+        CHUNK_DATA(stream, "wavu", wavu);
+        CHUNK_DATA(stream, "fmt ", fmt);
+        CHUNK_DATA(stream, "wsmp", wsmp);
+        CHUNK_DATA(stream, "data", data);
+
+        CHUNK_LIST(stream, "INFO")
+        {
+            const char copyright[] = "copyright";
+            const char engine[] = "engine";
+            const char name[] = "name";
+            CHUNK_DATA(stream, "ICOP", copyright);
+            CHUNK_DATA(stream, "IENG", engine);
+            CHUNK_DATA(stream, "INAM", name);
+        }
+        CHUNK_END;
+    }
+    CHUNK_END;
+
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    memset(&desc, 0, sizeof(desc));
+    desc.dwSize = sizeof(desc);
+    hr = IDirectMusicObject_ParseDescriptor(wave, stream, &desc);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IPersistStream_Load(persist, stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    IPersistStream_Release(persist);
+
+    memset(&desc, 0, sizeof(desc));
+    desc.dwSize = sizeof(desc);
+    hr = IDirectMusicObject_GetDescriptor(wave, &desc);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    IStream_Release(stream);
+
+
+    hr = CoCreateInstance(&CLSID_DirectSoundWave, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectMusicObject, (void **)&wave);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    hr = IDirectMusicObject_QueryInterface(wave, &IID_IPersistStream, (void **)&persist);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = CreateStreamOnHGlobal(0, TRUE, &stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    CHUNK_RIFF(stream, "WAVE")
+    {
+        WAVEFORMATEX fmt =
+        {
+            .wFormatTag = WAVE_FORMAT_PCM,
+            .nChannels = 1,
+            .nSamplesPerSec = 22050,
+            .nAvgBytesPerSec = 22050,
+            .wBitsPerSample = 8,
+            .nBlockAlign = 1,
+        };
+        WSMPL wsmp = {.cbSize = sizeof(WSMPL), .usUnityNote = 60, .fulOptions = F_WSMP_NO_TRUNCATION};
+        BYTE data[64] = {0};
+        SHORT wavu = 1;
+
+        CHUNK_DATA(stream, "wavu", wavu);
+        CHUNK_DATA(stream, "fmt ", fmt);
+        CHUNK_DATA(stream, "wsmp", wsmp);
+        CHUNK_DATA(stream, "data", data);
+
+        CHUNK_LIST(stream, "INFO")
+        {
+            const char copyright[] = "copyright";
+            const char engine[] = "engine";
+            const char name[] = "name";
+            CHUNK_DATA(stream, "ICOP", copyright);
+            CHUNK_DATA(stream, "IENG", engine);
+            CHUNK_DATA(stream, "INAM", name);
+        }
+        CHUNK_END;
+    }
+    CHUNK_END;
+
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = IPersistStream_Load(persist, stream);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    IPersistStream_Release(persist);
+
+    hr = IStream_Seek(stream, zero, 0, NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    memset(&desc, 0, sizeof(desc));
+    desc.dwSize = sizeof(desc);
+    hr = IDirectMusicObject_ParseDescriptor(wave, stream, &desc);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+    memset(&desc, 0, sizeof(desc));
+    desc.dwSize = sizeof(desc);
+    hr = IDirectMusicObject_GetDescriptor(wave, &desc);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    IStream_Release(stream);
+
+    IDirectMusicObject_Release(wave);
+}
+
 START_TEST(dmusic)
 {
     CoInitializeEx(NULL, COINIT_MULTITHREADED);
@@ -1655,9 +2066,9 @@ START_TEST(dmusic)
         CoUninitialize();
         return;
     }
-    test_COM();
-    test_COM_dmcoll();
-    test_COM_synthport();
+
+    test_COM_conformance();
+
     test_dmusic();
     test_setdsound();
     test_dmbuffer();
@@ -1668,6 +2079,7 @@ START_TEST(dmusic)
     test_port_download();
     test_download_instrument();
     test_default_gm_collection();
+    test_parse_wave();
 
     CoUninitialize();
 }
