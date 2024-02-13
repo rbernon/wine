@@ -259,7 +259,7 @@ SOURCES = \
 	dmusbuff.h \
 	dmusicc.idl \
 	dmusicf.h \
-	dmusici.h \
+	dmusici.idl \
 	dmusics.idl \
 	docobj.idl \
 	docobjectservice.idl \
