@@ -93,6 +93,9 @@
 #include "wine/list.h"
 #include "ntsyscalls.h"
 #include "wine/debug.h"
+#ifdef HAVE_VALGRIND_VALGRIND_H
+# include <valgrind/valgrind.h>
+#endif
 
 WINE_DEFAULT_DEBUG_CHANNEL(module);
 
@@ -525,6 +528,7 @@ char *get_alternate_wineloader( WORD machine )
 
 static void preloader_exec( char **argv )
 {
+    if (RUNNING_ON_VALGRIND) execv( argv[1], argv + 1 );
 #ifdef HAVE_WINE_PRELOADER
     asprintf( &argv[0], "%s-preloader", argv[1] );
 #ifdef __APPLE__
