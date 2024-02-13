@@ -22,15 +22,16 @@ import "unknwn.idl";
 import "objidl.idl";
 import "wtypes.idl";
 
-interface IDirectMusicGraph;
-interface IDirectMusicPerformance;
-interface IDirectMusicSegment;
-interface IDirectMusicSegmentState;
-
 #ifndef REFERENCE_TIME_DEFINED
 #define REFERENCE_TIME_DEFINED
 typedef LONGLONG REFERENCE_TIME;
 #endif
+
+cpp_quote("#include \"dmusici.h\"")
+interface IDirectMusicGraph;
+interface IDirectMusicPerformance;
+interface IDirectMusicSegment;
+interface IDirectMusicSegmentState;
 
 cpp_quote("#define DMUS_REGSTR_PATH_TOOLS \"Software\\\\Microsoft\\\\DirectMusic\\\\Tools\"")
 
@@ -74,11 +75,6 @@ typedef enum enumDMUS_TRACKF_FLAGS
 	DMUS_TRACKF_RECOMPOSE  = 0x200,
 	DMUS_TRACKF_CLOCK      = 0x400,
 } DMUS_TRACKF_FLAGS;
-
-interface IDirectMusicTool;
-interface IDirectMusicTool8;
-interface IDirectMusicTrack;
-interface IDirectMusicTrack8;
 
 [
     local,
