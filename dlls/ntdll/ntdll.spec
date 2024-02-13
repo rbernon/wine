@@ -1747,10 +1747,8 @@
 
 # Debugging
 @ stdcall -norelay __wine_dbg_write(ptr long)
-@ cdecl -norelay __wine_dbg_get_channel_flags(ptr)
-@ cdecl -norelay __wine_dbg_header(long long str)
-@ cdecl -norelay __wine_dbg_output(str)
-@ cdecl -norelay __wine_dbg_strdup(str)
+@ cdecl -norelay __wine_dbg_init(ptr)
+@ cdecl -norelay __wine_dbg_get_info()
 
 # Version
 @ cdecl wine_get_version()
