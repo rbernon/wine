@@ -75,6 +75,7 @@ static const struct object_ops handler_ops =
     no_open_file,             /* open_file */
     no_kernel_obj_list,       /* get_kernel_obj_list */
     no_close_handle,          /* close_handle */
+    NULL,                     /* get_host_ops */
     handler_destroy           /* destroy */
 };
 
@@ -224,7 +225,19 @@ static void do_sigchld( int signum )
 /* SIGSEGV handler */
 static void do_sigsegv( int signum )
 {
+    static const char gdbdump[] = "gdb -batch -nx -p %d"
+                                  "  -ex \"thread apply all bt\""
+                                  "  -ex \"kill\" 1>&2";
+    static const char lldbdump[] = "echo \"thread backtrace all\" && echo \"quit\" | lldb -p %d";
+    char buffer[1024];
+
     fprintf( stderr, "wineserver crashed, please enable coredumps (ulimit -c unlimited) and restart.\n");
+
+    sprintf( buffer, gdbdump, getpid() );
+    system( buffer );
+    sprintf( buffer, lldbdump, getpid() );
+    system( buffer );
+
     abort();
 }
 

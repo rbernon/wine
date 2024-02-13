@@ -42,6 +42,7 @@ struct async;
 struct async_queue;
 struct winstation;
 struct object_type;
+struct desktop;
 
 
 struct unicode_str
@@ -61,6 +62,15 @@ struct type_descr
     unsigned int       handle_count;  /* count of handles of this type */
     unsigned int       obj_max;       /* max count of objects of this type */
     unsigned int       handle_max;    /* max count of handles of this type */
+};
+
+/* operations for host bridge objects */
+struct host_ops
+{
+    /* warp the host cursor to the current desktop cursor position */
+    void (*warp_cursor)( struct object *obj, struct desktop *desktop );
+    /* confine the host cursor in the given desktop rectangle / release the cursor from its confinement */
+    void (*clip_cursor)( struct object *obj, struct desktop *desktop, const rectangle_t *rect );
 };
 
 /* operations valid on all objects */
@@ -105,6 +115,8 @@ struct object_ops
     struct list *(*get_kernel_obj_list)(struct object *);
     /* close a handle to this object */
     int (*close_handle)(struct object *,struct process *,obj_handle_t);
+    /* return the host operations for host bridges */
+    const struct host_ops *(*get_host_ops)(struct object *);
     /* destroy on refcount == 0 */
     void (*destroy)(struct object *);
 };
@@ -200,6 +212,20 @@ static inline unsigned int map_access( unsigned int access, const generic_map_t 
     if (access & GENERIC_EXECUTE) access |= mapping->exec;
     if (access & GENERIC_ALL)     access |= mapping->all;
     return access & ~(GENERIC_READ | GENERIC_WRITE | GENERIC_EXECUTE | GENERIC_ALL);
+}
+
+/* host functions */
+
+static inline void host_warp_cursor( struct object *obj, struct desktop *desktop )
+{
+    const struct host_ops *host_ops = obj->ops->get_host_ops( obj );
+    if (host_ops) host_ops->warp_cursor( obj, desktop );
+}
+
+static inline void host_clip_cursor( struct object *obj, struct desktop *desktop, const rectangle_t *rect )
+{
+    const struct host_ops *host_ops = obj->ops->get_host_ops( obj );
+    if (host_ops) host_ops->clip_cursor( obj, desktop, rect );
 }
 
 /* event functions */

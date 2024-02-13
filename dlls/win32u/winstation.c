@@ -607,6 +607,26 @@ BOOL WINAPI NtUserGetObjectInformation( HANDLE handle, INT index, void *info,
         }
         return ret;
 
+    case UOI_IO:
+    {
+        BOOL *input = info;
+        if (needed) *needed = sizeof(*input);
+        if (len < sizeof(*input))
+        {
+            RtlSetLastWin32Error( ERROR_BUFFER_OVERFLOW );
+            return FALSE;
+        }
+        SERVER_START_REQ( set_user_object_info )
+        {
+            req->handle = wine_server_obj_handle( handle );
+            req->flags  = 0;
+            ret = !wine_server_call_err( req );
+            if (ret) *input = reply->has_input;
+        }
+        SERVER_END_REQ;
+        return ret;
+    }
+
     case UOI_USER_SID:
         FIXME( "not supported index %d\n", index );
         /* fall through */
