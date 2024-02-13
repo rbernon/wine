@@ -1,0 +1,12 @@
+MODULE    = wglchild.exe
+IMPORTS   = opengl32 user32 gdi32 winmm vulkan-1
+
+EXTRADLLFLAGS = -mwindows
+
+SOURCES = \
+	glad.c \
+	glad_wgl.c \
+	gdi.c \
+	opengl.c \
+	vulkan.c \
+	wglgears.c
