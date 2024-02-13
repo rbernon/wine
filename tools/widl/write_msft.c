@@ -27,7 +27,9 @@
  *
  */
 
+#ifndef PACKAGE_VERSION
 #include "config.h"
+#endif
 
 #include <stdlib.h>
 #include <string.h>
@@ -120,6 +122,18 @@ typedef struct _msft_typeinfo_t
 } msft_typeinfo_t;
 
 
+static void chat(const char *s, ...) __attribute__((format (printf, 1, 2)));
+static void chat( const char *s, ... )
+{
+    if (debuglevel & DEBUGLEVEL_CHAT)
+    {
+        va_list ap;
+        va_start( ap, s );
+        fprintf( stderr, "chat: " );
+        vfprintf( stderr, s, ap );
+        va_end( ap );
+    }
+}
 
 /*================== Internal functions ===================================*/
 
@@ -1237,7 +1251,7 @@ static void write_default_value(msft_typelib_t *typelib, type_t *type, expr_t *e
             case EXPR_DOUBLE:
                 vt = VT_R4;
                 break;
-            case EXPR_NUM:
+            case EXPR_INT:
                 vt = VT_I4;
                 break;
             default:
@@ -1299,8 +1313,8 @@ static void set_custdata_attr(msft_typelib_t *typelib, attr_custdata_t *custdata
         case EXPR_WSTRLIT:
             set_custdata(typelib, &custdata->id, VT_BSTR, custdata->pval->u.sval, offset);
             break;
-        case EXPR_NUM:
-            set_custdata(typelib, &custdata->id, VT_I4, &custdata->pval->u.integer.value, offset);
+        case EXPR_INT:
+            set_custdata(typelib, &custdata->id, VT_I4, &custdata->pval->u.lval, offset);
             break;
         default:
             error("custom() attribute with unknown type\n");
@@ -2114,8 +2128,8 @@ static void add_dispinterface_typeinfo(msft_typelib_t *typelib, type_t *dispinte
     msft_typeinfo->typeinfo->cImplTypes = 1;    /* IDispatch */
 
     /* count the no of methods, as the variable indices come after the funcs */
-    if (dispinterface->details.iface->disp_methods)
-        LIST_FOR_EACH_ENTRY( func, dispinterface->details.iface->disp_methods, var_t, entry )
+    if (dispinterface->details.iface.disp_methods)
+        LIST_FOR_EACH_ENTRY( func, dispinterface->details.iface.disp_methods, var_t, entry )
             idx++;
 
     if (type_dispiface_get_props(dispinterface))
@@ -2149,7 +2163,7 @@ static void add_interface_typeinfo(msft_typelib_t *typelib, type_t *interface)
     if (-1 < interface->typelib_idx)
         return;
 
-    if (!interface->details.iface)
+    if (!interface->defined)
     {
         error( "interface %s is referenced but not defined\n", interface->name );
         return;
@@ -2417,7 +2431,8 @@ static void add_module_typeinfo(msft_typelib_t *typelib, type_t *module)
     msft_typeinfo = create_msft_typeinfo(typelib, TKIND_MODULE, module->name, module->attrs);
     msft_typeinfo->typeinfo->typekind |= 0x0a00;
 
-    STATEMENTS_FOR_EACH_FUNC( stmt, module->details.module->stmts ) {
+    STATEMENTS_FOR_EACH_FUNC( stmt, module->details.module.stmts )
+    {
         var_t *func = stmt->u.var;
         if(add_func_desc(msft_typeinfo, func, idx))
             idx++;
