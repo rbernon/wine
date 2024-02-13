@@ -51,6 +51,7 @@ struct wg_transform
     GstSegment segment;
     GstQuery *drain_query;
 
+    bool eos;
     GstAtomicQueue *input_queue;
 
     bool input_is_flipped;
@@ -80,6 +81,51 @@ static void align_video_info_planes(gsize plane_align, GstVideoInfo *info, GstVi
     align->stride_align[3] = plane_align;
 
     gst_video_info_align(info, align);
+}
+
+typedef struct
+{
+    GstVideoBufferPool parent;
+} WgVideoBufferPool;
+
+typedef struct
+{
+    GstVideoBufferPoolClass parent_class;
+} WgVideoBufferPoolClass;
+
+G_DEFINE_TYPE(WgVideoBufferPool, wg_video_buffer_pool, GST_TYPE_VIDEO_BUFFER_POOL);
+
+static void wg_video_buffer_pool_init(WgVideoBufferPool * pool) {}
+static void wg_video_buffer_pool_class_init(WgVideoBufferPoolClass *klass) {}
+
+static WgVideoBufferPool *wg_video_buffer_pool_create(GstCaps *caps, gsize plane_align,
+        GstAllocator *allocator, GstVideoInfo *info, GstVideoAlignment *align)
+{
+    WgVideoBufferPool *pool;
+    GstStructure *config;
+
+    if (!(pool = g_object_new(wg_video_buffer_pool_get_type(), NULL)))
+        return NULL;
+
+    gst_video_info_from_caps(info, caps);
+    align_video_info_planes(plane_align, info, align);
+
+    if (!(config = gst_buffer_pool_get_config(GST_BUFFER_POOL(pool))))
+        GST_ERROR("Failed to get %"GST_PTR_FORMAT" config.", pool);
+    else
+    {
+        gst_buffer_pool_config_add_option(config, GST_BUFFER_POOL_OPTION_VIDEO_META);
+        gst_buffer_pool_config_add_option(config, GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT);
+        gst_buffer_pool_config_set_video_alignment(config, align);
+
+        gst_buffer_pool_config_set_params(config, caps, info->size, 0, 0);
+        gst_buffer_pool_config_set_allocator(config, allocator, NULL);
+        if (!gst_buffer_pool_set_config(GST_BUFFER_POOL(pool), config))
+            GST_ERROR("Failed to set %"GST_PTR_FORMAT" config.", pool);
+    }
+
+    GST_INFO("Created %"GST_PTR_FORMAT, pool);
+    return pool;
 }
 
 static GstFlowReturn transform_sink_chain_cb(GstPad *pad, GstObject *parent, GstBuffer *buffer)
@@ -128,11 +174,10 @@ static gboolean transform_src_query_cb(GstPad *pad, GstObject *parent, GstQuery 
 
 static gboolean transform_sink_query_allocation(struct wg_transform *transform, GstQuery *query)
 {
-    gsize plane_align = transform->attrs.output_plane_align;
-    GstStructure *config, *params;
+    WgVideoBufferPool *pool;
     GstVideoAlignment align;
+    GstStructure *params;
     gboolean needs_pool;
-    GstBufferPool *pool;
     GstVideoInfo info;
     GstCaps *caps;
 
@@ -142,11 +187,9 @@ static gboolean transform_sink_query_allocation(struct wg_transform *transform, 
     if (stream_type_from_caps(caps) != GST_STREAM_TYPE_VIDEO || !needs_pool)
         return false;
 
-    if (!gst_video_info_from_caps(&info, caps)
-            || !(pool = gst_video_buffer_pool_new()))
+    if (!(pool = wg_video_buffer_pool_create(caps, transform->attrs.output_plane_align,
+            transform->allocator, &info, &align)))
         return false;
-
-    align_video_info_planes(plane_align, &info, &align);
 
     if ((params = gst_structure_new("video-meta",
             "padding-top", G_TYPE_UINT, align.padding_top,
@@ -159,26 +202,11 @@ static gboolean transform_sink_query_allocation(struct wg_transform *transform, 
         gst_structure_free(params);
     }
 
-    if (!(config = gst_buffer_pool_get_config(pool)))
-        GST_ERROR("Failed to get %"GST_PTR_FORMAT" config.", pool);
-    else
-    {
-        gst_buffer_pool_config_add_option(config, GST_BUFFER_POOL_OPTION_VIDEO_META);
-        gst_buffer_pool_config_add_option(config, GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT);
-        gst_buffer_pool_config_set_video_alignment(config, &align);
-
-        gst_buffer_pool_config_set_params(config, caps,
-                info.size, 0, 0);
-        gst_buffer_pool_config_set_allocator(config, transform->allocator, NULL);
-        if (!gst_buffer_pool_set_config(pool, config))
-            GST_ERROR("Failed to set %"GST_PTR_FORMAT" config.", pool);
-    }
-
     /* Prevent pool reconfiguration, we don't want another alignment. */
-    if (!gst_buffer_pool_set_active(pool, true))
+    if (!gst_buffer_pool_set_active(GST_BUFFER_POOL(pool), true))
         GST_ERROR("%"GST_PTR_FORMAT" failed to activate.", pool);
 
-    gst_query_add_allocation_pool(query, pool, info.size, 0, 0);
+    gst_query_add_allocation_pool(query, GST_BUFFER_POOL(pool), info.size, 0, 0);
     gst_query_add_allocation_param(query, transform->allocator, NULL);
 
     GST_INFO("Proposing %"GST_PTR_FORMAT", buffer size %#zx, %"GST_PTR_FORMAT", for %"GST_PTR_FORMAT,
@@ -411,6 +439,7 @@ NTSTATUS wg_transform_create(void *args)
         return STATUS_NO_MEMORY;
     if (!(transform->container = gst_bin_new("wg_transform")))
         goto out;
+    gst_element_set_bus(transform->container, wg_bus);
     if (!(transform->input_queue = gst_atomic_queue_new(8)))
         goto out;
     if (!(transform->output_queue = gst_atomic_queue_new(8)))
@@ -486,6 +515,9 @@ NTSTATUS wg_transform_create(void *args)
             if (!(element = find_element(GST_ELEMENT_FACTORY_TYPE_DECODER, parsed_caps, sink_caps))
                     || !append_element(transform->container, element, &first, &last))
                 goto out;
+
+            if (output_format.major_type == WG_MAJOR_TYPE_AUDIO)
+                gst_util_set_object_arg(G_OBJECT(element), "max-threads", "1");
             break;
 
         case WG_MAJOR_TYPE_AUDIO:
@@ -578,6 +610,12 @@ NTSTATUS wg_transform_create(void *args)
     gst_caps_unref(parsed_caps);
     gst_caps_unref(src_caps);
     gst_caps_unref(sink_caps);
+
+{
+char buffer[256];
+sprintf(buffer, "wg_transform-%p", transform);
+GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN(transform->container), GST_DEBUG_GRAPH_SHOW_VERBOSE, buffer);
+}
 
     GST_INFO("Created winegstreamer transform %p.", transform);
     params->transform = (wg_transform_t)(ULONG_PTR)transform;
@@ -943,6 +981,27 @@ static NTSTATUS read_transform_output(struct wg_sample *sample, GstBuffer *buffe
     return STATUS_SUCCESS;
 }
 
+static bool push_end_of_stream(struct wg_transform *transform)
+{
+    GstEvent *event;
+
+    if (!(event = gst_event_new_segment_done(GST_FORMAT_TIME, -1))
+            || !push_event(transform->my_src, event))
+        return false;
+    if (!(event = gst_event_new_eos())
+            || !push_event(transform->my_src, event))
+        return false;
+    if (!(event = gst_event_new_stream_start("stream"))
+            || !push_event(transform->my_src, event))
+        return false;
+    if (!(event = gst_event_new_segment(&transform->segment))
+            || !push_event(transform->my_src, event))
+        return false;
+
+    transform->eos = false;
+    return true;
+}
+
 static bool get_transform_output(struct wg_transform *transform, struct wg_sample *sample)
 {
     GstBuffer *input_buffer;
@@ -955,6 +1014,13 @@ static bool get_transform_output(struct wg_transform *transform, struct wg_sampl
     {
         if ((ret = gst_pad_push(transform->my_src, input_buffer)))
             GST_WARNING("Failed to push transform input, error %d", ret);
+    }
+
+    if (!transform->output_sample && !input_buffer && transform->eos)
+    {
+        if (!push_end_of_stream(transform))
+            GST_ERROR("Failed to push transform %p EOS events", transform);
+        transform->output_sample = gst_atomic_queue_pop(transform->output_queue);
     }
 
     /* Remove the sample so the allocator cannot use it */
@@ -998,6 +1064,12 @@ NTSTATUS wg_transform_read_data(void *args)
         /* set the desired output buffer alignment on the dest video info */
         align_video_info_planes(plane_align, &dst_video_info, &align);
     }
+
+{
+char buffer[256];
+sprintf(buffer, "wg_transform-%p", transform);
+GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN(transform->container), GST_DEBUG_GRAPH_SHOW_VERBOSE, buffer);
+}
 
     if (GST_MINI_OBJECT_FLAG_IS_SET(transform->output_sample, GST_SAMPLE_FLAG_WG_CAPS_CHANGED))
     {
@@ -1062,7 +1134,6 @@ NTSTATUS wg_transform_drain(void *args)
     struct wg_transform *transform = get_transform(*(wg_transform_t *)args);
     GstBuffer *input_buffer;
     GstFlowReturn ret;
-    GstEvent *event;
 
     GST_LOG("transform %p", transform);
 
@@ -1072,24 +1143,13 @@ NTSTATUS wg_transform_drain(void *args)
             GST_WARNING("Failed to push transform input, error %d", ret);
     }
 
-    if (!(event = gst_event_new_segment_done(GST_FORMAT_TIME, -1))
-            || !push_event(transform->my_src, event))
-        goto error;
-    if (!(event = gst_event_new_eos())
-            || !push_event(transform->my_src, event))
-        goto error;
-    if (!(event = gst_event_new_stream_start("stream"))
-            || !push_event(transform->my_src, event))
-        goto error;
-    if (!(event = gst_event_new_segment(&transform->segment))
-            || !push_event(transform->my_src, event))
-        goto error;
+    if (!push_end_of_stream(transform))
+    {
+        GST_ERROR("Failed to drain transform %p.", transform);
+        return STATUS_UNSUCCESSFUL;
+    }
 
     return STATUS_SUCCESS;
-
-error:
-    GST_ERROR("Failed to drain transform %p.", transform);
-    return STATUS_UNSUCCESSFUL;
 }
 
 NTSTATUS wg_transform_flush(void *args)
@@ -1142,4 +1202,12 @@ NTSTATUS wg_transform_notify_qos(void *args)
     push_event(transform->my_sink, event);
 
     return S_OK;
+}
+
+NTSTATUS wg_transform_eos(void *args)
+{
+    struct wg_transform *transform = get_transform(*(wg_transform_t *)args);
+    GST_LOG("transform %p", transform);
+    transform->eos = true;
+    return STATUS_SUCCESS;
 }

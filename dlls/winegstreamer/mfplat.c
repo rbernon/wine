@@ -17,6 +17,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#include "ntstatus.h"
+#define WIN32_NO_STATUS
 #include "gst_private.h"
 
 #include "ks.h"
@@ -25,6 +27,7 @@
 #include "d3d9types.h"
 #include "mfapi.h"
 #include "mmreg.h"
+#include "mferror.h"
 
 #include "wine/debug.h"
 #include "wine/list.h"
@@ -43,6 +46,8 @@ DEFINE_MEDIATYPE_GUID(MFVideoFormat_VC1S,MAKEFOURCC('V','C','1','S'));
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_IV50,MAKEFOURCC('I','V','5','0'));
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_ABGR32,D3DFMT_A8B8G8R8);
 DEFINE_GUID(MEDIASUBTYPE_WMV_Unknown, 0x7ce12ca9,0xbfbf,0x43d9,0x9d,0x00,0x82,0xb8,0xed,0x54,0x31,0x6b);
+DEFINE_MEDIATYPE_GUID(MFAudioFormat_GStreamer,MAKEFOURCC('G','S','T','a'));
+DEFINE_MEDIATYPE_GUID(MFVideoFormat_GStreamer,MAKEFOURCC('G','S','T','v'));
 
 struct class_factory
 {
@@ -120,7 +125,10 @@ static const IClassFactoryVtbl class_factory_vtbl =
     class_factory_LockServer,
 };
 
+static const GUID CLSID_GStreamerAudioDecoder = {0x480b1517, 0xc8e9, 0x4eae, {0xb0, 0x06, 0xe6, 0x30, 0x07, 0x18, 0xd8, 0x5d}};
+static const GUID CLSID_GStreamerVideoDecoder = {0x480b1518, 0xc8e9, 0x4eae, {0xb0, 0x06, 0xe6, 0x30, 0x07, 0x18, 0xd8, 0x5d}};
 static const GUID CLSID_GStreamerByteStreamHandler = {0x317df618, 0x5e5a, 0x468a, {0x9f, 0x15, 0xd8, 0x27, 0xa9, 0xa0, 0x81, 0x62}};
+static const GUID CLSID_GStreamerByteStreamHandler2 = {0x317df619, 0x5e5a, 0x468a, {0x9f, 0x15, 0xd8, 0x27, 0xa9, 0xa0, 0x81, 0x62}};
 
 static const struct class_object
 {
@@ -129,8 +137,11 @@ static const struct class_object
 }
 class_objects[] =
 {
+    { &CLSID_GStreamerAudioDecoder, &audio_decoder_create },
+    { &CLSID_GStreamerVideoDecoder, &video_decoder_create },
     { &CLSID_VideoProcessorMFT, &video_processor_create },
     { &CLSID_GStreamerByteStreamHandler, &gstreamer_byte_stream_handler_create },
+    { &CLSID_GStreamerByteStreamHandler2, &gstreamer_byte_stream_handler_2_create },
     { &CLSID_MSAACDecMFT, &aac_decoder_create },
     { &CLSID_MSH264DecoderMFT, &h264_decoder_create },
     { &CLSID_MSH264EncoderMFT, &h264_encoder_create },
@@ -341,6 +352,34 @@ HRESULT mfplat_DllRegisterServer(void)
         {MFMediaType_Video, MFVideoFormat_NV11},
     };
 
+    MFT_REGISTER_TYPE_INFO audio_decoder_input_types[] =
+    {
+        {MFMediaType_Audio, MFAudioFormat_GStreamer},
+    };
+    MFT_REGISTER_TYPE_INFO audio_decoder_output_types[] =
+    {
+        {MFMediaType_Audio, MFAudioFormat_Float},
+        {MFMediaType_Audio, MFAudioFormat_PCM},
+    };
+
+    MFT_REGISTER_TYPE_INFO video_decoder_input_types[] =
+    {
+        {MFMediaType_Video, MFVideoFormat_GStreamer},
+        {MFMediaType_Video, MFVideoFormat_IV50},
+    };
+    MFT_REGISTER_TYPE_INFO video_decoder_output_types[] =
+    {
+        {MFMediaType_Video, MFVideoFormat_YV12},
+        {MFMediaType_Video, MFVideoFormat_YUY2},
+        {MFMediaType_Video, MFVideoFormat_NV11},
+        {MFMediaType_Video, MFVideoFormat_NV12},
+        {MFMediaType_Video, MFVideoFormat_RGB32},
+        {MFMediaType_Video, MFVideoFormat_RGB24},
+        {MFMediaType_Video, MFVideoFormat_RGB565},
+        {MFMediaType_Video, MFVideoFormat_RGB555},
+        {MFMediaType_Video, MFVideoFormat_RGB8},
+    };
+
     struct mft
     {
         GUID clsid;
@@ -433,6 +472,26 @@ HRESULT mfplat_DllRegisterServer(void)
             color_convert_input_types,
             ARRAY_SIZE(color_convert_output_types),
             color_convert_output_types,
+        },
+        {
+            CLSID_GStreamerAudioDecoder,
+            MFT_CATEGORY_AUDIO_DECODER,
+            L"Wine Audio Decoder MFT",
+            MFT_ENUM_FLAG_SYNCMFT,
+            ARRAY_SIZE(audio_decoder_input_types),
+            audio_decoder_input_types,
+            ARRAY_SIZE(audio_decoder_output_types),
+            audio_decoder_output_types,
+        },
+        {
+            CLSID_GStreamerVideoDecoder,
+            MFT_CATEGORY_VIDEO_DECODER,
+            L"Wine Video Decoder MFT",
+            MFT_ENUM_FLAG_SYNCMFT,
+            ARRAY_SIZE(video_decoder_input_types),
+            video_decoder_input_types,
+            ARRAY_SIZE(video_decoder_output_types),
+            video_decoder_output_types,
         },
     };
 
@@ -586,6 +645,74 @@ static IMFMediaType *mf_media_type_from_wg_format_video(const struct wg_format *
     return NULL;
 }
 
+static IMFMediaType *mf_media_type_from_wg_format_unknown_audio(const struct wg_format *format)
+{
+    IMFMediaType *type;
+    UINT32 value;
+    HRESULT hr;
+
+    if (FAILED(MFCreateMediaType(&type)))
+        return NULL;
+    if (FAILED(hr = IMFMediaType_SetGUID(type, &MF_MT_MAJOR_TYPE, &MFMediaType_Audio)))
+        goto done;
+    if (FAILED(hr = IMFMediaType_SetGUID(type, &MF_MT_SUBTYPE, &MFAudioFormat_GStreamer)))
+        goto done;
+
+    value = format->u.unknown_audio.rate;
+    if (value && FAILED(hr = IMFMediaType_SetUINT32(type, &MF_MT_AUDIO_SAMPLES_PER_SECOND, value)))
+        goto done;
+    value = format->u.unknown_audio.channels;
+    if (value && FAILED(hr = IMFMediaType_SetUINT32(type, &MF_MT_AUDIO_NUM_CHANNELS, value)))
+        goto done;
+    if (FAILED(hr = IMFMediaType_SetBlob(type, &MF_MT_USER_DATA, (BYTE *)format->u.unknown_audio.caps,
+            strlen(format->u.unknown_audio.caps) + 1)))
+        goto done;
+
+done:
+    if (FAILED(hr))
+    {
+        IMFMediaType_Release(type);
+        return NULL;
+    }
+    return type;
+}
+
+static IMFMediaType *mf_media_type_from_wg_format_unknown_video(const struct wg_format *format)
+{
+    UINT64 frame_rate, frame_size;
+    IMFMediaType *type;
+    HRESULT hr;
+
+    if (FAILED(MFCreateMediaType(&type)))
+        return NULL;
+    if (FAILED(hr = IMFMediaType_SetGUID(type, &MF_MT_MAJOR_TYPE, &MFMediaType_Video)))
+        goto done;
+    if (FAILED(hr = IMFMediaType_SetGUID(type, &MF_MT_SUBTYPE, &MFVideoFormat_GStreamer)))
+        goto done;
+    if (FAILED(hr = IMFMediaType_SetUINT32(type, &MF_MT_VIDEO_ROTATION, MFVideoRotationFormat_0)))
+        goto done;
+    if (FAILED(hr = IMFMediaType_SetUINT32(type, &MF_MT_COMPRESSED, TRUE)))
+        goto done;
+
+    frame_size = (UINT64)format->u.unknown_video.width << 32 | format->u.unknown_video.height;
+    if (FAILED(hr = IMFMediaType_SetUINT64(type, &MF_MT_FRAME_SIZE, frame_size)))
+        goto done;
+    frame_rate = (UINT64)format->u.unknown_video.fps_n << 32 | format->u.unknown_video.fps_d;
+    if (FAILED(hr = IMFMediaType_SetUINT64(type, &MF_MT_FRAME_RATE, frame_rate)))
+        goto done;
+    if (FAILED(hr = IMFMediaType_SetBlob(type, &MF_MT_USER_DATA, (BYTE *)format->u.unknown_video.caps,
+            strlen(format->u.unknown_video.caps) + 1)))
+        goto done;
+
+done:
+    if (FAILED(hr))
+    {
+        IMFMediaType_Release(type);
+        return NULL;
+    }
+    return type;
+}
+
 IMFMediaType *mf_media_type_from_wg_format(const struct wg_format *format)
 {
     switch (format->major_type)
@@ -605,9 +732,13 @@ IMFMediaType *mf_media_type_from_wg_format(const struct wg_format *format)
 
         case WG_MAJOR_TYPE_AUDIO:
             return mf_media_type_from_wg_format_audio(format);
+        case WG_MAJOR_TYPE_UNKNOWN_AUDIO:
+            return mf_media_type_from_wg_format_unknown_audio(format);
 
         case WG_MAJOR_TYPE_VIDEO:
             return mf_media_type_from_wg_format_video(format);
+        case WG_MAJOR_TYPE_UNKNOWN_VIDEO:
+            return mf_media_type_from_wg_format_unknown_video(format);
     }
 
     assert(0);
@@ -752,6 +883,29 @@ static void mf_media_type_to_wg_format_audio_mpeg4(IMFMediaType *type, const GUI
         format->u.audio.payload_type = 0;
 
     format->u.audio.codec_data_len = codec_data_size;
+}
+
+static void mf_media_type_to_wg_format_unknown_audio(IMFMediaType *type, struct wg_format *format)
+{
+    UINT32 caps_len;
+    BYTE *caps;
+    HRESULT hr;
+
+    memset(format, 0, sizeof(*format));
+    format->major_type = WG_MAJOR_TYPE_UNKNOWN_AUDIO;
+
+    if (FAILED(hr = IMFMediaType_GetUINT32(type, &MF_MT_AUDIO_SAMPLES_PER_SECOND, &format->u.unknown_audio.rate)))
+        WARN("Failed to get MF_MT_AUDIO_SAMPLES_PER_SECOND for type %p, hr %#lx.\n", type, hr);
+    if (FAILED(hr = IMFMediaType_GetUINT32(type, &MF_MT_AUDIO_NUM_CHANNELS, &format->u.unknown_audio.channels)))
+        WARN("Failed to get MF_MT_AUDIO_NUM_CHANNELS for type %p, hr %#lx.\n", type, hr);
+
+    if (FAILED(hr = IMFMediaType_GetAllocatedBlob(type, &MF_MT_USER_DATA, &caps, &caps_len)))
+        WARN("Failed to get MF_MT_USER_DATA for type %p, hr %#lx.\n", type, hr);
+    else
+    {
+        strcpy(format->u.unknown_audio.caps, (char *)caps);
+        CoTaskMemFree(caps);
+    }
 }
 
 static enum wg_video_format mf_video_format_to_wg(const GUID *subtype)
@@ -1003,6 +1157,41 @@ static void mf_media_type_to_wg_format_video_wmv(IMFMediaType *type, const GUID 
     }
 }
 
+static void mf_media_type_to_wg_format_unknown_video(IMFMediaType *type, struct wg_format *format)
+{
+    UINT64 frame_rate, frame_size;
+    UINT32 caps_len;
+    HRESULT hr;
+    BYTE *caps;
+
+    memset(format, 0, sizeof(*format));
+    format->major_type = WG_MAJOR_TYPE_UNKNOWN_VIDEO;
+
+    if (FAILED(hr = IMFMediaType_GetUINT64(type, &MF_MT_FRAME_SIZE, &frame_size)))
+        WARN("Failed to get MF_MT_FRAME_SIZE for type %p, hr %#lx.\n", type, hr);
+    else
+    {
+        format->u.unknown_video.width = frame_size >> 32;
+        format->u.unknown_video.height = (UINT32)frame_size;
+    }
+
+    if (FAILED(IMFMediaType_GetUINT64(type, &MF_MT_FRAME_RATE, &frame_rate)) && (UINT32)frame_rate)
+        WARN("Failed to get MF_MT_FRAME_RATE for type %p, hr %#lx.\n", type, hr);
+    else
+    {
+        format->u.unknown_video.fps_n = frame_rate >> 32;
+        format->u.unknown_video.fps_d = (UINT32)frame_rate;
+    }
+
+    if (FAILED(hr = IMFMediaType_GetAllocatedBlob(type, &MF_MT_USER_DATA, &caps, &caps_len)))
+        WARN("Failed to get MF_MT_USER_DATA for type %p, hr %#lx.\n", type, hr);
+    else
+    {
+        strcpy(format->u.unknown_video.caps, (char *)caps);
+        CoTaskMemFree(caps);
+    }
+}
+
 void mf_media_type_to_wg_format(IMFMediaType *type, struct wg_format *format)
 {
     GUID major_type, subtype;
@@ -1033,6 +1222,8 @@ void mf_media_type_to_wg_format(IMFMediaType *type, struct wg_format *format)
             mf_media_type_to_wg_format_audio_wma(type, &subtype, format);
         else if (IsEqualGUID(&subtype, &MFAudioFormat_AAC) || IsEqualGUID(&subtype, &MFAudioFormat_RAW_AAC))
             mf_media_type_to_wg_format_audio_mpeg4(type, &subtype, format);
+        else if (IsEqualGUID(&subtype, &MFAudioFormat_GStreamer))
+            mf_media_type_to_wg_format_unknown_audio(type, format);
         else
             mf_media_type_to_wg_format_audio(type, &subtype, format);
     }
@@ -1052,6 +1243,8 @@ void mf_media_type_to_wg_format(IMFMediaType *type, struct wg_format *format)
                 || IsEqualGUID(&subtype, &MEDIASUBTYPE_WMV3)
                 || IsEqualGUID(&subtype, &MFVideoFormat_VC1S))
             mf_media_type_to_wg_format_video_wmv(type, &subtype, format);
+        else if (IsEqualGUID(&subtype, &MFVideoFormat_GStreamer))
+            mf_media_type_to_wg_format_unknown_video(type, format);
         else
             mf_media_type_to_wg_format_video(type, &subtype, format);
     }
