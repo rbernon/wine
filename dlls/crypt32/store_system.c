@@ -23,7 +23,9 @@
 #define WIN32_NO_STATUS
 #include "windef.h"
 #include "winbase.h"
+#include "winnls.h"
 #include "winreg.h"
+#include "winuser.h"
 #include "wincrypt.h"
 #include "winternl.h"
 #include "wine/debug.h"
@@ -790,4 +792,208 @@ done:
     root_certs_imported = TRUE;
     ReleaseSemaphore(hsem, 1, NULL);
     CloseHandle(hsem);
+}
+
+WINECRYPT_CERTSTORE *CRYPT_SysRegOpenStoreW( HCRYPTPROV hCryptProv, DWORD dwFlags, const void *pvPara )
+{
+    LPCWSTR storeName = pvPara;
+    LPWSTR storePath;
+    WINECRYPT_CERTSTORE *store = NULL;
+    HKEY root;
+    LPCWSTR base;
+
+    TRACE( "(%Id, %08lx, %s)\n", hCryptProv, dwFlags, debugstr_w(pvPara) );
+
+    if (!pvPara)
+    {
+        SetLastError( E_INVALIDARG );
+        return NULL;
+    }
+
+    switch (dwFlags & CERT_SYSTEM_STORE_LOCATION_MASK)
+    {
+    case CERT_SYSTEM_STORE_LOCAL_MACHINE:
+        root = HKEY_LOCAL_MACHINE;
+        base = CERT_LOCAL_MACHINE_SYSTEM_STORE_REGPATH;
+        /* If the HKLM\Root certs are requested, expressing system certs into the registry */
+        if (!lstrcmpiW( storeName, L"Root" )) CRYPT_ImportSystemRootCertsToReg();
+        break;
+    case CERT_SYSTEM_STORE_CURRENT_USER:
+        root = HKEY_CURRENT_USER;
+        base = CERT_LOCAL_MACHINE_SYSTEM_STORE_REGPATH;
+        break;
+    case CERT_SYSTEM_STORE_CURRENT_SERVICE:
+        /* hklm\Software\Microsoft\Cryptography\Services\servicename\
+         * SystemCertificates
+         */
+        FIXME( "CERT_SYSTEM_STORE_CURRENT_SERVICE, %s: stub\n", debugstr_w(storeName) );
+        return NULL;
+    case CERT_SYSTEM_STORE_SERVICES:
+        /* hklm\Software\Microsoft\Cryptography\Services\servicename\
+         * SystemCertificates
+         */
+        FIXME( "CERT_SYSTEM_STORE_SERVICES, %s: stub\n", debugstr_w(storeName) );
+        return NULL;
+    case CERT_SYSTEM_STORE_USERS:
+        /* hku\user sid\Software\Microsoft\SystemCertificates */
+        FIXME( "CERT_SYSTEM_STORE_USERS, %s: stub\n", debugstr_w(storeName) );
+        return NULL;
+    case CERT_SYSTEM_STORE_CURRENT_USER_GROUP_POLICY:
+        root = HKEY_CURRENT_USER;
+        base = CERT_GROUP_POLICY_SYSTEM_STORE_REGPATH;
+        break;
+    case CERT_SYSTEM_STORE_LOCAL_MACHINE_GROUP_POLICY:
+        root = HKEY_LOCAL_MACHINE;
+        base = CERT_GROUP_POLICY_SYSTEM_STORE_REGPATH;
+        break;
+    case CERT_SYSTEM_STORE_LOCAL_MACHINE_ENTERPRISE:
+        /* hklm\Software\Microsoft\EnterpriseCertificates */
+        FIXME( "CERT_SYSTEM_STORE_LOCAL_MACHINE_ENTERPRISE, %s: stub\n", debugstr_w(storeName) );
+        return NULL;
+    default: SetLastError( E_INVALIDARG ); return NULL;
+    }
+
+    storePath = CryptMemAlloc( (lstrlenW( base ) + lstrlenW( storeName ) + 2) * sizeof(WCHAR) );
+    if (storePath)
+    {
+        LONG rc;
+        HKEY key;
+        REGSAM sam = dwFlags & CERT_STORE_READONLY_FLAG ? KEY_READ : KEY_ALL_ACCESS;
+
+        wsprintfW( storePath, L"%s\\%s", base, storeName );
+        if (dwFlags & CERT_STORE_OPEN_EXISTING_FLAG) rc = RegOpenKeyExW( root, storePath, 0, sam, &key );
+        else
+        {
+            DWORD disp;
+
+            rc = RegCreateKeyExW( root, storePath, 0, NULL, 0, sam, NULL, &key, &disp );
+            if (!rc && dwFlags & CERT_STORE_CREATE_NEW_FLAG && disp == REG_OPENED_EXISTING_KEY)
+            {
+                RegCloseKey( key );
+                rc = ERROR_FILE_EXISTS;
+            }
+        }
+        if (!rc)
+        {
+            store = CRYPT_RegOpenStore( hCryptProv, dwFlags, key );
+            RegCloseKey( key );
+        }
+        else SetLastError( rc );
+        CryptMemFree( storePath );
+    }
+    return store;
+}
+
+WINECRYPT_CERTSTORE *CRYPT_SysRegOpenStoreA( HCRYPTPROV hCryptProv, DWORD dwFlags, const void *pvPara )
+{
+    int len;
+    WINECRYPT_CERTSTORE *ret = NULL;
+
+    TRACE( "(%Id, %08lx, %s)\n", hCryptProv, dwFlags, debugstr_a(pvPara) );
+
+    if (!pvPara)
+    {
+        SetLastError( ERROR_FILE_NOT_FOUND );
+        return NULL;
+    }
+    len = MultiByteToWideChar( CP_ACP, 0, pvPara, -1, NULL, 0 );
+    if (len)
+    {
+        LPWSTR storeName = CryptMemAlloc( len * sizeof(WCHAR) );
+
+        if (storeName)
+        {
+            MultiByteToWideChar( CP_ACP, 0, pvPara, -1, storeName, len );
+            ret = CRYPT_SysRegOpenStoreW( hCryptProv, dwFlags, storeName );
+            CryptMemFree( storeName );
+        }
+    }
+    return ret;
+}
+
+WINECRYPT_CERTSTORE *CRYPT_SysOpenStoreW( HCRYPTPROV hCryptProv, DWORD dwFlags, const void *pvPara )
+{
+    HCERTSTORE store = 0;
+    BOOL ret;
+
+    TRACE( "(%Id, %08lx, %s)\n", hCryptProv, dwFlags, debugstr_w(pvPara) );
+
+    if (!pvPara)
+    {
+        SetLastError( ERROR_FILE_NOT_FOUND );
+        return NULL;
+    }
+    /* This returns a different error than system registry stores if the
+     * location is invalid.
+     */
+    switch (dwFlags & CERT_SYSTEM_STORE_LOCATION_MASK)
+    {
+    case CERT_SYSTEM_STORE_LOCAL_MACHINE:
+    case CERT_SYSTEM_STORE_CURRENT_USER:
+    case CERT_SYSTEM_STORE_CURRENT_SERVICE:
+    case CERT_SYSTEM_STORE_SERVICES:
+    case CERT_SYSTEM_STORE_USERS:
+    case CERT_SYSTEM_STORE_CURRENT_USER_GROUP_POLICY:
+    case CERT_SYSTEM_STORE_LOCAL_MACHINE_GROUP_POLICY:
+    case CERT_SYSTEM_STORE_LOCAL_MACHINE_ENTERPRISE: ret = TRUE; break;
+    default: SetLastError( ERROR_FILE_NOT_FOUND ); ret = FALSE;
+    }
+    if (ret)
+    {
+        HCERTSTORE regStore = CertOpenStore( CERT_STORE_PROV_SYSTEM_REGISTRY_W, 0, 0, dwFlags, pvPara );
+
+        if (regStore)
+        {
+            store = CertOpenStore( CERT_STORE_PROV_COLLECTION, 0, 0, CERT_STORE_CREATE_NEW_FLAG, NULL );
+            CertAddStoreToCollection( store, regStore, dwFlags & CERT_STORE_READONLY_FLAG ? 0 : CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG,
+                                      0 );
+            CertCloseStore( regStore, 0 );
+            /* CERT_SYSTEM_STORE_CURRENT_USER returns both the HKCU and HKLM
+             * stores.
+             */
+            if ((dwFlags & CERT_SYSTEM_STORE_LOCATION_MASK) == CERT_SYSTEM_STORE_CURRENT_USER)
+            {
+                dwFlags &= ~CERT_SYSTEM_STORE_CURRENT_USER;
+                dwFlags |= CERT_SYSTEM_STORE_LOCAL_MACHINE;
+                regStore = CertOpenStore( CERT_STORE_PROV_SYSTEM_REGISTRY_W, 0, 0, dwFlags, pvPara );
+                if (regStore)
+                {
+                    CertAddStoreToCollection( store, regStore, dwFlags & CERT_STORE_READONLY_FLAG ? 0 : CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG,
+                                              0 );
+                    CertCloseStore( regStore, 0 );
+                }
+            }
+            /* System store doesn't need crypto provider, so close it */
+            if (hCryptProv && !(dwFlags & CERT_STORE_NO_CRYPT_RELEASE_FLAG))
+                CryptReleaseContext( hCryptProv, 0 );
+        }
+    }
+    return store;
+}
+
+WINECRYPT_CERTSTORE *CRYPT_SysOpenStoreA( HCRYPTPROV hCryptProv, DWORD dwFlags, const void *pvPara )
+{
+    int len;
+    WINECRYPT_CERTSTORE *ret = NULL;
+
+    TRACE( "(%Id, %08lx, %s)\n", hCryptProv, dwFlags, debugstr_a(pvPara) );
+
+    if (!pvPara)
+    {
+        SetLastError( ERROR_FILE_NOT_FOUND );
+        return NULL;
+    }
+    len = MultiByteToWideChar( CP_ACP, 0, pvPara, -1, NULL, 0 );
+    if (len)
+    {
+        LPWSTR storeName = CryptMemAlloc( len * sizeof(WCHAR) );
+
+        if (storeName)
+        {
+            MultiByteToWideChar( CP_ACP, 0, pvPara, -1, storeName, len );
+            ret = CRYPT_SysOpenStoreW( hCryptProv, dwFlags, storeName );
+            CryptMemFree( storeName );
+        }
+    }
+    return ret;
 }
