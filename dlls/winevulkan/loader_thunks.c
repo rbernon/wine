@@ -9,6 +9,7 @@
  *
  */
 
+#define VK_DEFINE_DISPATCHER
 #include "vulkan_loader.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(vulkan);
@@ -214,6 +215,10 @@ VkResult WINAPI vkBuildMicromapsEXT(VkDevice device, VkDeferredOperationKHR defe
     return params.result;
 }
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdBeginConditionalRenderingEXT == 20 );
+VK_FAST_THUNK( vkCmdBeginConditionalRenderingEXT, "20", 2 )
+#else
 void WINAPI vkCmdBeginConditionalRenderingEXT(VkCommandBuffer commandBuffer, const VkConditionalRenderingBeginInfoEXT *pConditionalRenderingBegin)
 {
     struct vkCmdBeginConditionalRenderingEXT_params params;
@@ -221,7 +226,12 @@ void WINAPI vkCmdBeginConditionalRenderingEXT(VkCommandBuffer commandBuffer, con
     params.pConditionalRenderingBegin = pConditionalRenderingBegin;
     UNIX_CALL(vkCmdBeginConditionalRenderingEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdBeginDebugUtilsLabelEXT == 21 );
+VK_FAST_THUNK( vkCmdBeginDebugUtilsLabelEXT, "21", 2 )
+#else
 void WINAPI vkCmdBeginDebugUtilsLabelEXT(VkCommandBuffer commandBuffer, const VkDebugUtilsLabelEXT *pLabelInfo)
 {
     struct vkCmdBeginDebugUtilsLabelEXT_params params;
@@ -229,7 +239,12 @@ void WINAPI vkCmdBeginDebugUtilsLabelEXT(VkCommandBuffer commandBuffer, const Vk
     params.pLabelInfo = pLabelInfo;
     UNIX_CALL(vkCmdBeginDebugUtilsLabelEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdBeginQuery == 22 );
+VK_FAST_THUNK( vkCmdBeginQuery, "22", 4 )
+#else
 void WINAPI vkCmdBeginQuery(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uint32_t query, VkQueryControlFlags flags)
 {
     struct vkCmdBeginQuery_params params;
@@ -239,7 +254,12 @@ void WINAPI vkCmdBeginQuery(VkCommandBuffer commandBuffer, VkQueryPool queryPool
     params.flags = flags;
     UNIX_CALL(vkCmdBeginQuery, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdBeginQueryIndexedEXT == 23 );
+VK_FAST_THUNK( vkCmdBeginQueryIndexedEXT, "23", 5 )
+#else
 void WINAPI vkCmdBeginQueryIndexedEXT(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uint32_t query, VkQueryControlFlags flags, uint32_t index)
 {
     struct vkCmdBeginQueryIndexedEXT_params params;
@@ -250,7 +270,12 @@ void WINAPI vkCmdBeginQueryIndexedEXT(VkCommandBuffer commandBuffer, VkQueryPool
     params.index = index;
     UNIX_CALL(vkCmdBeginQueryIndexedEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdBeginRenderPass == 24 );
+VK_FAST_THUNK( vkCmdBeginRenderPass, "24", 3 )
+#else
 void WINAPI vkCmdBeginRenderPass(VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo *pRenderPassBegin, VkSubpassContents contents)
 {
     struct vkCmdBeginRenderPass_params params;
@@ -259,7 +284,12 @@ void WINAPI vkCmdBeginRenderPass(VkCommandBuffer commandBuffer, const VkRenderPa
     params.contents = contents;
     UNIX_CALL(vkCmdBeginRenderPass, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdBeginRenderPass2 == 25 );
+VK_FAST_THUNK( vkCmdBeginRenderPass2, "25", 3 )
+#else
 void WINAPI vkCmdBeginRenderPass2(VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo *pRenderPassBegin, const VkSubpassBeginInfo *pSubpassBeginInfo)
 {
     struct vkCmdBeginRenderPass2_params params;
@@ -268,7 +298,12 @@ void WINAPI vkCmdBeginRenderPass2(VkCommandBuffer commandBuffer, const VkRenderP
     params.pSubpassBeginInfo = pSubpassBeginInfo;
     UNIX_CALL(vkCmdBeginRenderPass2, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdBeginRenderPass2KHR == 26 );
+VK_FAST_THUNK( vkCmdBeginRenderPass2KHR, "26", 3 )
+#else
 void WINAPI vkCmdBeginRenderPass2KHR(VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo *pRenderPassBegin, const VkSubpassBeginInfo *pSubpassBeginInfo)
 {
     struct vkCmdBeginRenderPass2KHR_params params;
@@ -277,7 +312,12 @@ void WINAPI vkCmdBeginRenderPass2KHR(VkCommandBuffer commandBuffer, const VkRend
     params.pSubpassBeginInfo = pSubpassBeginInfo;
     UNIX_CALL(vkCmdBeginRenderPass2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdBeginRendering == 27 );
+VK_FAST_THUNK( vkCmdBeginRendering, "27", 2 )
+#else
 void WINAPI vkCmdBeginRendering(VkCommandBuffer commandBuffer, const VkRenderingInfo *pRenderingInfo)
 {
     struct vkCmdBeginRendering_params params;
@@ -285,7 +325,12 @@ void WINAPI vkCmdBeginRendering(VkCommandBuffer commandBuffer, const VkRendering
     params.pRenderingInfo = pRenderingInfo;
     UNIX_CALL(vkCmdBeginRendering, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdBeginRenderingKHR == 28 );
+VK_FAST_THUNK( vkCmdBeginRenderingKHR, "28", 2 )
+#else
 void WINAPI vkCmdBeginRenderingKHR(VkCommandBuffer commandBuffer, const VkRenderingInfo *pRenderingInfo)
 {
     struct vkCmdBeginRenderingKHR_params params;
@@ -293,7 +338,12 @@ void WINAPI vkCmdBeginRenderingKHR(VkCommandBuffer commandBuffer, const VkRender
     params.pRenderingInfo = pRenderingInfo;
     UNIX_CALL(vkCmdBeginRenderingKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdBeginTransformFeedbackEXT == 29 );
+VK_FAST_THUNK( vkCmdBeginTransformFeedbackEXT, "29", 5 )
+#else
 void WINAPI vkCmdBeginTransformFeedbackEXT(VkCommandBuffer commandBuffer, uint32_t firstCounterBuffer, uint32_t counterBufferCount, const VkBuffer *pCounterBuffers, const VkDeviceSize *pCounterBufferOffsets)
 {
     struct vkCmdBeginTransformFeedbackEXT_params params;
@@ -304,7 +354,12 @@ void WINAPI vkCmdBeginTransformFeedbackEXT(VkCommandBuffer commandBuffer, uint32
     params.pCounterBufferOffsets = pCounterBufferOffsets;
     UNIX_CALL(vkCmdBeginTransformFeedbackEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdBindDescriptorBufferEmbeddedSamplers2EXT == 30 );
+VK_FAST_THUNK( vkCmdBindDescriptorBufferEmbeddedSamplers2EXT, "30", 2 )
+#else
 void WINAPI vkCmdBindDescriptorBufferEmbeddedSamplers2EXT(VkCommandBuffer commandBuffer, const VkBindDescriptorBufferEmbeddedSamplersInfoEXT *pBindDescriptorBufferEmbeddedSamplersInfo)
 {
     struct vkCmdBindDescriptorBufferEmbeddedSamplers2EXT_params params;
@@ -312,7 +367,12 @@ void WINAPI vkCmdBindDescriptorBufferEmbeddedSamplers2EXT(VkCommandBuffer comman
     params.pBindDescriptorBufferEmbeddedSamplersInfo = pBindDescriptorBufferEmbeddedSamplersInfo;
     UNIX_CALL(vkCmdBindDescriptorBufferEmbeddedSamplers2EXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdBindDescriptorBufferEmbeddedSamplersEXT == 31 );
+VK_FAST_THUNK( vkCmdBindDescriptorBufferEmbeddedSamplersEXT, "31", 4 )
+#else
 void WINAPI vkCmdBindDescriptorBufferEmbeddedSamplersEXT(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t set)
 {
     struct vkCmdBindDescriptorBufferEmbeddedSamplersEXT_params params;
@@ -322,7 +382,12 @@ void WINAPI vkCmdBindDescriptorBufferEmbeddedSamplersEXT(VkCommandBuffer command
     params.set = set;
     UNIX_CALL(vkCmdBindDescriptorBufferEmbeddedSamplersEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdBindDescriptorBuffersEXT == 32 );
+VK_FAST_THUNK( vkCmdBindDescriptorBuffersEXT, "32", 3 )
+#else
 void WINAPI vkCmdBindDescriptorBuffersEXT(VkCommandBuffer commandBuffer, uint32_t bufferCount, const VkDescriptorBufferBindingInfoEXT *pBindingInfos)
 {
     struct vkCmdBindDescriptorBuffersEXT_params params;
@@ -331,7 +396,12 @@ void WINAPI vkCmdBindDescriptorBuffersEXT(VkCommandBuffer commandBuffer, uint32_
     params.pBindingInfos = pBindingInfos;
     UNIX_CALL(vkCmdBindDescriptorBuffersEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 8
+C_ASSERT( unix_vkCmdBindDescriptorSets == 33 );
+VK_FAST_THUNK( vkCmdBindDescriptorSets, "33", 8 )
+#else
 void WINAPI vkCmdBindDescriptorSets(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t firstSet, uint32_t descriptorSetCount, const VkDescriptorSet *pDescriptorSets, uint32_t dynamicOffsetCount, const uint32_t *pDynamicOffsets)
 {
     struct vkCmdBindDescriptorSets_params params;
@@ -345,7 +415,12 @@ void WINAPI vkCmdBindDescriptorSets(VkCommandBuffer commandBuffer, VkPipelineBin
     params.pDynamicOffsets = pDynamicOffsets;
     UNIX_CALL(vkCmdBindDescriptorSets, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdBindDescriptorSets2KHR == 34 );
+VK_FAST_THUNK( vkCmdBindDescriptorSets2KHR, "34", 2 )
+#else
 void WINAPI vkCmdBindDescriptorSets2KHR(VkCommandBuffer commandBuffer, const VkBindDescriptorSetsInfoKHR *pBindDescriptorSetsInfo)
 {
     struct vkCmdBindDescriptorSets2KHR_params params;
@@ -353,7 +428,12 @@ void WINAPI vkCmdBindDescriptorSets2KHR(VkCommandBuffer commandBuffer, const VkB
     params.pBindDescriptorSetsInfo = pBindDescriptorSetsInfo;
     UNIX_CALL(vkCmdBindDescriptorSets2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdBindIndexBuffer == 35 );
+VK_FAST_THUNK( vkCmdBindIndexBuffer, "35", 4 )
+#else
 void WINAPI vkCmdBindIndexBuffer(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkIndexType indexType)
 {
     struct vkCmdBindIndexBuffer_params params;
@@ -363,7 +443,12 @@ void WINAPI vkCmdBindIndexBuffer(VkCommandBuffer commandBuffer, VkBuffer buffer,
     params.indexType = indexType;
     UNIX_CALL(vkCmdBindIndexBuffer, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdBindIndexBuffer2KHR == 36 );
+VK_FAST_THUNK( vkCmdBindIndexBuffer2KHR, "36", 5 )
+#else
 void WINAPI vkCmdBindIndexBuffer2KHR(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkDeviceSize size, VkIndexType indexType)
 {
     struct vkCmdBindIndexBuffer2KHR_params params;
@@ -374,7 +459,12 @@ void WINAPI vkCmdBindIndexBuffer2KHR(VkCommandBuffer commandBuffer, VkBuffer buf
     params.indexType = indexType;
     UNIX_CALL(vkCmdBindIndexBuffer2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdBindInvocationMaskHUAWEI == 37 );
+VK_FAST_THUNK( vkCmdBindInvocationMaskHUAWEI, "37", 3 )
+#else
 void WINAPI vkCmdBindInvocationMaskHUAWEI(VkCommandBuffer commandBuffer, VkImageView imageView, VkImageLayout imageLayout)
 {
     struct vkCmdBindInvocationMaskHUAWEI_params params;
@@ -383,7 +473,12 @@ void WINAPI vkCmdBindInvocationMaskHUAWEI(VkCommandBuffer commandBuffer, VkImage
     params.imageLayout = imageLayout;
     UNIX_CALL(vkCmdBindInvocationMaskHUAWEI, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdBindPipeline == 38 );
+VK_FAST_THUNK( vkCmdBindPipeline, "38", 3 )
+#else
 void WINAPI vkCmdBindPipeline(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipeline pipeline)
 {
     struct vkCmdBindPipeline_params params;
@@ -392,7 +487,12 @@ void WINAPI vkCmdBindPipeline(VkCommandBuffer commandBuffer, VkPipelineBindPoint
     params.pipeline = pipeline;
     UNIX_CALL(vkCmdBindPipeline, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdBindPipelineShaderGroupNV == 39 );
+VK_FAST_THUNK( vkCmdBindPipelineShaderGroupNV, "39", 4 )
+#else
 void WINAPI vkCmdBindPipelineShaderGroupNV(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipeline pipeline, uint32_t groupIndex)
 {
     struct vkCmdBindPipelineShaderGroupNV_params params;
@@ -402,7 +502,12 @@ void WINAPI vkCmdBindPipelineShaderGroupNV(VkCommandBuffer commandBuffer, VkPipe
     params.groupIndex = groupIndex;
     UNIX_CALL(vkCmdBindPipelineShaderGroupNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdBindShadersEXT == 40 );
+VK_FAST_THUNK( vkCmdBindShadersEXT, "40", 4 )
+#else
 void WINAPI vkCmdBindShadersEXT(VkCommandBuffer commandBuffer, uint32_t stageCount, const VkShaderStageFlagBits *pStages, const VkShaderEXT *pShaders)
 {
     struct vkCmdBindShadersEXT_params params;
@@ -412,7 +517,12 @@ void WINAPI vkCmdBindShadersEXT(VkCommandBuffer commandBuffer, uint32_t stageCou
     params.pShaders = pShaders;
     UNIX_CALL(vkCmdBindShadersEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdBindShadingRateImageNV == 41 );
+VK_FAST_THUNK( vkCmdBindShadingRateImageNV, "41", 3 )
+#else
 void WINAPI vkCmdBindShadingRateImageNV(VkCommandBuffer commandBuffer, VkImageView imageView, VkImageLayout imageLayout)
 {
     struct vkCmdBindShadingRateImageNV_params params;
@@ -421,7 +531,12 @@ void WINAPI vkCmdBindShadingRateImageNV(VkCommandBuffer commandBuffer, VkImageVi
     params.imageLayout = imageLayout;
     UNIX_CALL(vkCmdBindShadingRateImageNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+C_ASSERT( unix_vkCmdBindTransformFeedbackBuffersEXT == 42 );
+VK_FAST_THUNK( vkCmdBindTransformFeedbackBuffersEXT, "42", 6 )
+#else
 void WINAPI vkCmdBindTransformFeedbackBuffersEXT(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBuffer *pBuffers, const VkDeviceSize *pOffsets, const VkDeviceSize *pSizes)
 {
     struct vkCmdBindTransformFeedbackBuffersEXT_params params;
@@ -433,7 +548,12 @@ void WINAPI vkCmdBindTransformFeedbackBuffersEXT(VkCommandBuffer commandBuffer, 
     params.pSizes = pSizes;
     UNIX_CALL(vkCmdBindTransformFeedbackBuffersEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdBindVertexBuffers == 43 );
+VK_FAST_THUNK( vkCmdBindVertexBuffers, "43", 5 )
+#else
 void WINAPI vkCmdBindVertexBuffers(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBuffer *pBuffers, const VkDeviceSize *pOffsets)
 {
     struct vkCmdBindVertexBuffers_params params;
@@ -444,7 +564,12 @@ void WINAPI vkCmdBindVertexBuffers(VkCommandBuffer commandBuffer, uint32_t first
     params.pOffsets = pOffsets;
     UNIX_CALL(vkCmdBindVertexBuffers, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdBindVertexBuffers2 == 44 );
+VK_FAST_THUNK( vkCmdBindVertexBuffers2, "44", 7 )
+#else
 void WINAPI vkCmdBindVertexBuffers2(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBuffer *pBuffers, const VkDeviceSize *pOffsets, const VkDeviceSize *pSizes, const VkDeviceSize *pStrides)
 {
     struct vkCmdBindVertexBuffers2_params params;
@@ -457,7 +582,12 @@ void WINAPI vkCmdBindVertexBuffers2(VkCommandBuffer commandBuffer, uint32_t firs
     params.pStrides = pStrides;
     UNIX_CALL(vkCmdBindVertexBuffers2, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdBindVertexBuffers2EXT == 45 );
+VK_FAST_THUNK( vkCmdBindVertexBuffers2EXT, "45", 7 )
+#else
 void WINAPI vkCmdBindVertexBuffers2EXT(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBuffer *pBuffers, const VkDeviceSize *pOffsets, const VkDeviceSize *pSizes, const VkDeviceSize *pStrides)
 {
     struct vkCmdBindVertexBuffers2EXT_params params;
@@ -470,7 +600,12 @@ void WINAPI vkCmdBindVertexBuffers2EXT(VkCommandBuffer commandBuffer, uint32_t f
     params.pStrides = pStrides;
     UNIX_CALL(vkCmdBindVertexBuffers2EXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 8
+C_ASSERT( unix_vkCmdBlitImage == 46 );
+VK_FAST_THUNK( vkCmdBlitImage, "46", 8 )
+#else
 void WINAPI vkCmdBlitImage(VkCommandBuffer commandBuffer, VkImage srcImage, VkImageLayout srcImageLayout, VkImage dstImage, VkImageLayout dstImageLayout, uint32_t regionCount, const VkImageBlit *pRegions, VkFilter filter)
 {
     struct vkCmdBlitImage_params params;
@@ -484,7 +619,12 @@ void WINAPI vkCmdBlitImage(VkCommandBuffer commandBuffer, VkImage srcImage, VkIm
     params.filter = filter;
     UNIX_CALL(vkCmdBlitImage, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdBlitImage2 == 47 );
+VK_FAST_THUNK( vkCmdBlitImage2, "47", 2 )
+#else
 void WINAPI vkCmdBlitImage2(VkCommandBuffer commandBuffer, const VkBlitImageInfo2 *pBlitImageInfo)
 {
     struct vkCmdBlitImage2_params params;
@@ -492,7 +632,12 @@ void WINAPI vkCmdBlitImage2(VkCommandBuffer commandBuffer, const VkBlitImageInfo
     params.pBlitImageInfo = pBlitImageInfo;
     UNIX_CALL(vkCmdBlitImage2, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdBlitImage2KHR == 48 );
+VK_FAST_THUNK( vkCmdBlitImage2KHR, "48", 2 )
+#else
 void WINAPI vkCmdBlitImage2KHR(VkCommandBuffer commandBuffer, const VkBlitImageInfo2 *pBlitImageInfo)
 {
     struct vkCmdBlitImage2KHR_params params;
@@ -500,7 +645,12 @@ void WINAPI vkCmdBlitImage2KHR(VkCommandBuffer commandBuffer, const VkBlitImageI
     params.pBlitImageInfo = pBlitImageInfo;
     UNIX_CALL(vkCmdBlitImage2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 9
+C_ASSERT( unix_vkCmdBuildAccelerationStructureNV == 49 );
+VK_FAST_THUNK( vkCmdBuildAccelerationStructureNV, "49", 9 )
+#else
 void WINAPI vkCmdBuildAccelerationStructureNV(VkCommandBuffer commandBuffer, const VkAccelerationStructureInfoNV *pInfo, VkBuffer instanceData, VkDeviceSize instanceOffset, VkBool32 update, VkAccelerationStructureNV dst, VkAccelerationStructureNV src, VkBuffer scratch, VkDeviceSize scratchOffset)
 {
     struct vkCmdBuildAccelerationStructureNV_params params;
@@ -515,7 +665,12 @@ void WINAPI vkCmdBuildAccelerationStructureNV(VkCommandBuffer commandBuffer, con
     params.scratchOffset = scratchOffset;
     UNIX_CALL(vkCmdBuildAccelerationStructureNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+C_ASSERT( unix_vkCmdBuildAccelerationStructuresIndirectKHR == 50 );
+VK_FAST_THUNK( vkCmdBuildAccelerationStructuresIndirectKHR, "50", 6 )
+#else
 void WINAPI vkCmdBuildAccelerationStructuresIndirectKHR(VkCommandBuffer commandBuffer, uint32_t infoCount, const VkAccelerationStructureBuildGeometryInfoKHR *pInfos, const VkDeviceAddress *pIndirectDeviceAddresses, const uint32_t *pIndirectStrides, const uint32_t * const*ppMaxPrimitiveCounts)
 {
     struct vkCmdBuildAccelerationStructuresIndirectKHR_params params;
@@ -527,7 +682,12 @@ void WINAPI vkCmdBuildAccelerationStructuresIndirectKHR(VkCommandBuffer commandB
     params.ppMaxPrimitiveCounts = ppMaxPrimitiveCounts;
     UNIX_CALL(vkCmdBuildAccelerationStructuresIndirectKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdBuildAccelerationStructuresKHR == 51 );
+VK_FAST_THUNK( vkCmdBuildAccelerationStructuresKHR, "51", 4 )
+#else
 void WINAPI vkCmdBuildAccelerationStructuresKHR(VkCommandBuffer commandBuffer, uint32_t infoCount, const VkAccelerationStructureBuildGeometryInfoKHR *pInfos, const VkAccelerationStructureBuildRangeInfoKHR * const*ppBuildRangeInfos)
 {
     struct vkCmdBuildAccelerationStructuresKHR_params params;
@@ -537,7 +697,12 @@ void WINAPI vkCmdBuildAccelerationStructuresKHR(VkCommandBuffer commandBuffer, u
     params.ppBuildRangeInfos = ppBuildRangeInfos;
     UNIX_CALL(vkCmdBuildAccelerationStructuresKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdBuildMicromapsEXT == 52 );
+VK_FAST_THUNK( vkCmdBuildMicromapsEXT, "52", 3 )
+#else
 void WINAPI vkCmdBuildMicromapsEXT(VkCommandBuffer commandBuffer, uint32_t infoCount, const VkMicromapBuildInfoEXT *pInfos)
 {
     struct vkCmdBuildMicromapsEXT_params params;
@@ -546,7 +711,12 @@ void WINAPI vkCmdBuildMicromapsEXT(VkCommandBuffer commandBuffer, uint32_t infoC
     params.pInfos = pInfos;
     UNIX_CALL(vkCmdBuildMicromapsEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdClearAttachments == 53 );
+VK_FAST_THUNK( vkCmdClearAttachments, "53", 5 )
+#else
 void WINAPI vkCmdClearAttachments(VkCommandBuffer commandBuffer, uint32_t attachmentCount, const VkClearAttachment *pAttachments, uint32_t rectCount, const VkClearRect *pRects)
 {
     struct vkCmdClearAttachments_params params;
@@ -557,7 +727,12 @@ void WINAPI vkCmdClearAttachments(VkCommandBuffer commandBuffer, uint32_t attach
     params.pRects = pRects;
     UNIX_CALL(vkCmdClearAttachments, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+C_ASSERT( unix_vkCmdClearColorImage == 54 );
+VK_FAST_THUNK( vkCmdClearColorImage, "54", 6 )
+#else
 void WINAPI vkCmdClearColorImage(VkCommandBuffer commandBuffer, VkImage image, VkImageLayout imageLayout, const VkClearColorValue *pColor, uint32_t rangeCount, const VkImageSubresourceRange *pRanges)
 {
     struct vkCmdClearColorImage_params params;
@@ -569,7 +744,12 @@ void WINAPI vkCmdClearColorImage(VkCommandBuffer commandBuffer, VkImage image, V
     params.pRanges = pRanges;
     UNIX_CALL(vkCmdClearColorImage, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+C_ASSERT( unix_vkCmdClearDepthStencilImage == 55 );
+VK_FAST_THUNK( vkCmdClearDepthStencilImage, "55", 6 )
+#else
 void WINAPI vkCmdClearDepthStencilImage(VkCommandBuffer commandBuffer, VkImage image, VkImageLayout imageLayout, const VkClearDepthStencilValue *pDepthStencil, uint32_t rangeCount, const VkImageSubresourceRange *pRanges)
 {
     struct vkCmdClearDepthStencilImage_params params;
@@ -581,7 +761,12 @@ void WINAPI vkCmdClearDepthStencilImage(VkCommandBuffer commandBuffer, VkImage i
     params.pRanges = pRanges;
     UNIX_CALL(vkCmdClearDepthStencilImage, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdCopyAccelerationStructureKHR == 56 );
+VK_FAST_THUNK( vkCmdCopyAccelerationStructureKHR, "56", 2 )
+#else
 void WINAPI vkCmdCopyAccelerationStructureKHR(VkCommandBuffer commandBuffer, const VkCopyAccelerationStructureInfoKHR *pInfo)
 {
     struct vkCmdCopyAccelerationStructureKHR_params params;
@@ -589,7 +774,12 @@ void WINAPI vkCmdCopyAccelerationStructureKHR(VkCommandBuffer commandBuffer, con
     params.pInfo = pInfo;
     UNIX_CALL(vkCmdCopyAccelerationStructureKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdCopyAccelerationStructureNV == 57 );
+VK_FAST_THUNK( vkCmdCopyAccelerationStructureNV, "57", 4 )
+#else
 void WINAPI vkCmdCopyAccelerationStructureNV(VkCommandBuffer commandBuffer, VkAccelerationStructureNV dst, VkAccelerationStructureNV src, VkCopyAccelerationStructureModeKHR mode)
 {
     struct vkCmdCopyAccelerationStructureNV_params params;
@@ -599,7 +789,12 @@ void WINAPI vkCmdCopyAccelerationStructureNV(VkCommandBuffer commandBuffer, VkAc
     params.mode = mode;
     UNIX_CALL(vkCmdCopyAccelerationStructureNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdCopyAccelerationStructureToMemoryKHR == 58 );
+VK_FAST_THUNK( vkCmdCopyAccelerationStructureToMemoryKHR, "58", 2 )
+#else
 void WINAPI vkCmdCopyAccelerationStructureToMemoryKHR(VkCommandBuffer commandBuffer, const VkCopyAccelerationStructureToMemoryInfoKHR *pInfo)
 {
     struct vkCmdCopyAccelerationStructureToMemoryKHR_params params;
@@ -607,7 +802,12 @@ void WINAPI vkCmdCopyAccelerationStructureToMemoryKHR(VkCommandBuffer commandBuf
     params.pInfo = pInfo;
     UNIX_CALL(vkCmdCopyAccelerationStructureToMemoryKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdCopyBuffer == 59 );
+VK_FAST_THUNK( vkCmdCopyBuffer, "59", 5 )
+#else
 void WINAPI vkCmdCopyBuffer(VkCommandBuffer commandBuffer, VkBuffer srcBuffer, VkBuffer dstBuffer, uint32_t regionCount, const VkBufferCopy *pRegions)
 {
     struct vkCmdCopyBuffer_params params;
@@ -618,7 +818,12 @@ void WINAPI vkCmdCopyBuffer(VkCommandBuffer commandBuffer, VkBuffer srcBuffer, V
     params.pRegions = pRegions;
     UNIX_CALL(vkCmdCopyBuffer, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdCopyBuffer2 == 60 );
+VK_FAST_THUNK( vkCmdCopyBuffer2, "60", 2 )
+#else
 void WINAPI vkCmdCopyBuffer2(VkCommandBuffer commandBuffer, const VkCopyBufferInfo2 *pCopyBufferInfo)
 {
     struct vkCmdCopyBuffer2_params params;
@@ -626,7 +831,12 @@ void WINAPI vkCmdCopyBuffer2(VkCommandBuffer commandBuffer, const VkCopyBufferIn
     params.pCopyBufferInfo = pCopyBufferInfo;
     UNIX_CALL(vkCmdCopyBuffer2, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdCopyBuffer2KHR == 61 );
+VK_FAST_THUNK( vkCmdCopyBuffer2KHR, "61", 2 )
+#else
 void WINAPI vkCmdCopyBuffer2KHR(VkCommandBuffer commandBuffer, const VkCopyBufferInfo2 *pCopyBufferInfo)
 {
     struct vkCmdCopyBuffer2KHR_params params;
@@ -634,7 +844,12 @@ void WINAPI vkCmdCopyBuffer2KHR(VkCommandBuffer commandBuffer, const VkCopyBuffe
     params.pCopyBufferInfo = pCopyBufferInfo;
     UNIX_CALL(vkCmdCopyBuffer2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+C_ASSERT( unix_vkCmdCopyBufferToImage == 62 );
+VK_FAST_THUNK( vkCmdCopyBufferToImage, "62", 6 )
+#else
 void WINAPI vkCmdCopyBufferToImage(VkCommandBuffer commandBuffer, VkBuffer srcBuffer, VkImage dstImage, VkImageLayout dstImageLayout, uint32_t regionCount, const VkBufferImageCopy *pRegions)
 {
     struct vkCmdCopyBufferToImage_params params;
@@ -646,7 +861,12 @@ void WINAPI vkCmdCopyBufferToImage(VkCommandBuffer commandBuffer, VkBuffer srcBu
     params.pRegions = pRegions;
     UNIX_CALL(vkCmdCopyBufferToImage, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdCopyBufferToImage2 == 63 );
+VK_FAST_THUNK( vkCmdCopyBufferToImage2, "63", 2 )
+#else
 void WINAPI vkCmdCopyBufferToImage2(VkCommandBuffer commandBuffer, const VkCopyBufferToImageInfo2 *pCopyBufferToImageInfo)
 {
     struct vkCmdCopyBufferToImage2_params params;
@@ -654,7 +874,12 @@ void WINAPI vkCmdCopyBufferToImage2(VkCommandBuffer commandBuffer, const VkCopyB
     params.pCopyBufferToImageInfo = pCopyBufferToImageInfo;
     UNIX_CALL(vkCmdCopyBufferToImage2, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdCopyBufferToImage2KHR == 64 );
+VK_FAST_THUNK( vkCmdCopyBufferToImage2KHR, "64", 2 )
+#else
 void WINAPI vkCmdCopyBufferToImage2KHR(VkCommandBuffer commandBuffer, const VkCopyBufferToImageInfo2 *pCopyBufferToImageInfo)
 {
     struct vkCmdCopyBufferToImage2KHR_params params;
@@ -662,7 +887,12 @@ void WINAPI vkCmdCopyBufferToImage2KHR(VkCommandBuffer commandBuffer, const VkCo
     params.pCopyBufferToImageInfo = pCopyBufferToImageInfo;
     UNIX_CALL(vkCmdCopyBufferToImage2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdCopyImage == 65 );
+VK_FAST_THUNK( vkCmdCopyImage, "65", 7 )
+#else
 void WINAPI vkCmdCopyImage(VkCommandBuffer commandBuffer, VkImage srcImage, VkImageLayout srcImageLayout, VkImage dstImage, VkImageLayout dstImageLayout, uint32_t regionCount, const VkImageCopy *pRegions)
 {
     struct vkCmdCopyImage_params params;
@@ -675,7 +905,12 @@ void WINAPI vkCmdCopyImage(VkCommandBuffer commandBuffer, VkImage srcImage, VkIm
     params.pRegions = pRegions;
     UNIX_CALL(vkCmdCopyImage, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdCopyImage2 == 66 );
+VK_FAST_THUNK( vkCmdCopyImage2, "66", 2 )
+#else
 void WINAPI vkCmdCopyImage2(VkCommandBuffer commandBuffer, const VkCopyImageInfo2 *pCopyImageInfo)
 {
     struct vkCmdCopyImage2_params params;
@@ -683,7 +918,12 @@ void WINAPI vkCmdCopyImage2(VkCommandBuffer commandBuffer, const VkCopyImageInfo
     params.pCopyImageInfo = pCopyImageInfo;
     UNIX_CALL(vkCmdCopyImage2, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdCopyImage2KHR == 67 );
+VK_FAST_THUNK( vkCmdCopyImage2KHR, "67", 2 )
+#else
 void WINAPI vkCmdCopyImage2KHR(VkCommandBuffer commandBuffer, const VkCopyImageInfo2 *pCopyImageInfo)
 {
     struct vkCmdCopyImage2KHR_params params;
@@ -691,7 +931,12 @@ void WINAPI vkCmdCopyImage2KHR(VkCommandBuffer commandBuffer, const VkCopyImageI
     params.pCopyImageInfo = pCopyImageInfo;
     UNIX_CALL(vkCmdCopyImage2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+C_ASSERT( unix_vkCmdCopyImageToBuffer == 68 );
+VK_FAST_THUNK( vkCmdCopyImageToBuffer, "68", 6 )
+#else
 void WINAPI vkCmdCopyImageToBuffer(VkCommandBuffer commandBuffer, VkImage srcImage, VkImageLayout srcImageLayout, VkBuffer dstBuffer, uint32_t regionCount, const VkBufferImageCopy *pRegions)
 {
     struct vkCmdCopyImageToBuffer_params params;
@@ -703,7 +948,12 @@ void WINAPI vkCmdCopyImageToBuffer(VkCommandBuffer commandBuffer, VkImage srcIma
     params.pRegions = pRegions;
     UNIX_CALL(vkCmdCopyImageToBuffer, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdCopyImageToBuffer2 == 69 );
+VK_FAST_THUNK( vkCmdCopyImageToBuffer2, "69", 2 )
+#else
 void WINAPI vkCmdCopyImageToBuffer2(VkCommandBuffer commandBuffer, const VkCopyImageToBufferInfo2 *pCopyImageToBufferInfo)
 {
     struct vkCmdCopyImageToBuffer2_params params;
@@ -711,7 +961,12 @@ void WINAPI vkCmdCopyImageToBuffer2(VkCommandBuffer commandBuffer, const VkCopyI
     params.pCopyImageToBufferInfo = pCopyImageToBufferInfo;
     UNIX_CALL(vkCmdCopyImageToBuffer2, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdCopyImageToBuffer2KHR == 70 );
+VK_FAST_THUNK( vkCmdCopyImageToBuffer2KHR, "70", 2 )
+#else
 void WINAPI vkCmdCopyImageToBuffer2KHR(VkCommandBuffer commandBuffer, const VkCopyImageToBufferInfo2 *pCopyImageToBufferInfo)
 {
     struct vkCmdCopyImageToBuffer2KHR_params params;
@@ -719,7 +974,12 @@ void WINAPI vkCmdCopyImageToBuffer2KHR(VkCommandBuffer commandBuffer, const VkCo
     params.pCopyImageToBufferInfo = pCopyImageToBufferInfo;
     UNIX_CALL(vkCmdCopyImageToBuffer2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdCopyMemoryIndirectNV == 71 );
+VK_FAST_THUNK( vkCmdCopyMemoryIndirectNV, "71", 4 )
+#else
 void WINAPI vkCmdCopyMemoryIndirectNV(VkCommandBuffer commandBuffer, VkDeviceAddress copyBufferAddress, uint32_t copyCount, uint32_t stride)
 {
     struct vkCmdCopyMemoryIndirectNV_params params;
@@ -729,7 +989,12 @@ void WINAPI vkCmdCopyMemoryIndirectNV(VkCommandBuffer commandBuffer, VkDeviceAdd
     params.stride = stride;
     UNIX_CALL(vkCmdCopyMemoryIndirectNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdCopyMemoryToAccelerationStructureKHR == 72 );
+VK_FAST_THUNK( vkCmdCopyMemoryToAccelerationStructureKHR, "72", 2 )
+#else
 void WINAPI vkCmdCopyMemoryToAccelerationStructureKHR(VkCommandBuffer commandBuffer, const VkCopyMemoryToAccelerationStructureInfoKHR *pInfo)
 {
     struct vkCmdCopyMemoryToAccelerationStructureKHR_params params;
@@ -737,7 +1002,12 @@ void WINAPI vkCmdCopyMemoryToAccelerationStructureKHR(VkCommandBuffer commandBuf
     params.pInfo = pInfo;
     UNIX_CALL(vkCmdCopyMemoryToAccelerationStructureKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdCopyMemoryToImageIndirectNV == 73 );
+VK_FAST_THUNK( vkCmdCopyMemoryToImageIndirectNV, "73", 7 )
+#else
 void WINAPI vkCmdCopyMemoryToImageIndirectNV(VkCommandBuffer commandBuffer, VkDeviceAddress copyBufferAddress, uint32_t copyCount, uint32_t stride, VkImage dstImage, VkImageLayout dstImageLayout, const VkImageSubresourceLayers *pImageSubresources)
 {
     struct vkCmdCopyMemoryToImageIndirectNV_params params;
@@ -750,7 +1020,12 @@ void WINAPI vkCmdCopyMemoryToImageIndirectNV(VkCommandBuffer commandBuffer, VkDe
     params.pImageSubresources = pImageSubresources;
     UNIX_CALL(vkCmdCopyMemoryToImageIndirectNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdCopyMemoryToMicromapEXT == 74 );
+VK_FAST_THUNK( vkCmdCopyMemoryToMicromapEXT, "74", 2 )
+#else
 void WINAPI vkCmdCopyMemoryToMicromapEXT(VkCommandBuffer commandBuffer, const VkCopyMemoryToMicromapInfoEXT *pInfo)
 {
     struct vkCmdCopyMemoryToMicromapEXT_params params;
@@ -758,7 +1033,12 @@ void WINAPI vkCmdCopyMemoryToMicromapEXT(VkCommandBuffer commandBuffer, const Vk
     params.pInfo = pInfo;
     UNIX_CALL(vkCmdCopyMemoryToMicromapEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdCopyMicromapEXT == 75 );
+VK_FAST_THUNK( vkCmdCopyMicromapEXT, "75", 2 )
+#else
 void WINAPI vkCmdCopyMicromapEXT(VkCommandBuffer commandBuffer, const VkCopyMicromapInfoEXT *pInfo)
 {
     struct vkCmdCopyMicromapEXT_params params;
@@ -766,7 +1046,12 @@ void WINAPI vkCmdCopyMicromapEXT(VkCommandBuffer commandBuffer, const VkCopyMicr
     params.pInfo = pInfo;
     UNIX_CALL(vkCmdCopyMicromapEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdCopyMicromapToMemoryEXT == 76 );
+VK_FAST_THUNK( vkCmdCopyMicromapToMemoryEXT, "76", 2 )
+#else
 void WINAPI vkCmdCopyMicromapToMemoryEXT(VkCommandBuffer commandBuffer, const VkCopyMicromapToMemoryInfoEXT *pInfo)
 {
     struct vkCmdCopyMicromapToMemoryEXT_params params;
@@ -774,7 +1059,12 @@ void WINAPI vkCmdCopyMicromapToMemoryEXT(VkCommandBuffer commandBuffer, const Vk
     params.pInfo = pInfo;
     UNIX_CALL(vkCmdCopyMicromapToMemoryEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 8
+C_ASSERT( unix_vkCmdCopyQueryPoolResults == 77 );
+VK_FAST_THUNK( vkCmdCopyQueryPoolResults, "77", 8 )
+#else
 void WINAPI vkCmdCopyQueryPoolResults(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount, VkBuffer dstBuffer, VkDeviceSize dstOffset, VkDeviceSize stride, VkQueryResultFlags flags)
 {
     struct vkCmdCopyQueryPoolResults_params params;
@@ -788,7 +1078,12 @@ void WINAPI vkCmdCopyQueryPoolResults(VkCommandBuffer commandBuffer, VkQueryPool
     params.flags = flags;
     UNIX_CALL(vkCmdCopyQueryPoolResults, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdCuLaunchKernelNVX == 78 );
+VK_FAST_THUNK( vkCmdCuLaunchKernelNVX, "78", 2 )
+#else
 void WINAPI vkCmdCuLaunchKernelNVX(VkCommandBuffer commandBuffer, const VkCuLaunchInfoNVX *pLaunchInfo)
 {
     struct vkCmdCuLaunchKernelNVX_params params;
@@ -796,7 +1091,12 @@ void WINAPI vkCmdCuLaunchKernelNVX(VkCommandBuffer commandBuffer, const VkCuLaun
     params.pLaunchInfo = pLaunchInfo;
     UNIX_CALL(vkCmdCuLaunchKernelNVX, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdCudaLaunchKernelNV == 79 );
+VK_FAST_THUNK( vkCmdCudaLaunchKernelNV, "79", 2 )
+#else
 void WINAPI vkCmdCudaLaunchKernelNV(VkCommandBuffer commandBuffer, const VkCudaLaunchInfoNV *pLaunchInfo)
 {
     struct vkCmdCudaLaunchKernelNV_params params;
@@ -804,7 +1104,12 @@ void WINAPI vkCmdCudaLaunchKernelNV(VkCommandBuffer commandBuffer, const VkCudaL
     params.pLaunchInfo = pLaunchInfo;
     UNIX_CALL(vkCmdCudaLaunchKernelNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdDebugMarkerBeginEXT == 80 );
+VK_FAST_THUNK( vkCmdDebugMarkerBeginEXT, "80", 2 )
+#else
 void WINAPI vkCmdDebugMarkerBeginEXT(VkCommandBuffer commandBuffer, const VkDebugMarkerMarkerInfoEXT *pMarkerInfo)
 {
     struct vkCmdDebugMarkerBeginEXT_params params;
@@ -812,14 +1117,24 @@ void WINAPI vkCmdDebugMarkerBeginEXT(VkCommandBuffer commandBuffer, const VkDebu
     params.pMarkerInfo = pMarkerInfo;
     UNIX_CALL(vkCmdDebugMarkerBeginEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+C_ASSERT( unix_vkCmdDebugMarkerEndEXT == 81 );
+VK_FAST_THUNK( vkCmdDebugMarkerEndEXT, "81", 1 )
+#else
 void WINAPI vkCmdDebugMarkerEndEXT(VkCommandBuffer commandBuffer)
 {
     struct vkCmdDebugMarkerEndEXT_params params;
     params.commandBuffer = commandBuffer;
     UNIX_CALL(vkCmdDebugMarkerEndEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdDebugMarkerInsertEXT == 82 );
+VK_FAST_THUNK( vkCmdDebugMarkerInsertEXT, "82", 2 )
+#else
 void WINAPI vkCmdDebugMarkerInsertEXT(VkCommandBuffer commandBuffer, const VkDebugMarkerMarkerInfoEXT *pMarkerInfo)
 {
     struct vkCmdDebugMarkerInsertEXT_params params;
@@ -827,7 +1142,12 @@ void WINAPI vkCmdDebugMarkerInsertEXT(VkCommandBuffer commandBuffer, const VkDeb
     params.pMarkerInfo = pMarkerInfo;
     UNIX_CALL(vkCmdDebugMarkerInsertEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdDecompressMemoryIndirectCountNV == 83 );
+VK_FAST_THUNK( vkCmdDecompressMemoryIndirectCountNV, "83", 4 )
+#else
 void WINAPI vkCmdDecompressMemoryIndirectCountNV(VkCommandBuffer commandBuffer, VkDeviceAddress indirectCommandsAddress, VkDeviceAddress indirectCommandsCountAddress, uint32_t stride)
 {
     struct vkCmdDecompressMemoryIndirectCountNV_params params;
@@ -837,7 +1157,12 @@ void WINAPI vkCmdDecompressMemoryIndirectCountNV(VkCommandBuffer commandBuffer, 
     params.stride = stride;
     UNIX_CALL(vkCmdDecompressMemoryIndirectCountNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdDecompressMemoryNV == 84 );
+VK_FAST_THUNK( vkCmdDecompressMemoryNV, "84", 3 )
+#else
 void WINAPI vkCmdDecompressMemoryNV(VkCommandBuffer commandBuffer, uint32_t decompressRegionCount, const VkDecompressMemoryRegionNV *pDecompressMemoryRegions)
 {
     struct vkCmdDecompressMemoryNV_params params;
@@ -846,7 +1171,12 @@ void WINAPI vkCmdDecompressMemoryNV(VkCommandBuffer commandBuffer, uint32_t deco
     params.pDecompressMemoryRegions = pDecompressMemoryRegions;
     UNIX_CALL(vkCmdDecompressMemoryNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdDispatch == 85 );
+VK_FAST_THUNK( vkCmdDispatch, "85", 4 )
+#else
 void WINAPI vkCmdDispatch(VkCommandBuffer commandBuffer, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ)
 {
     struct vkCmdDispatch_params params;
@@ -856,7 +1186,12 @@ void WINAPI vkCmdDispatch(VkCommandBuffer commandBuffer, uint32_t groupCountX, u
     params.groupCountZ = groupCountZ;
     UNIX_CALL(vkCmdDispatch, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdDispatchBase == 86 );
+VK_FAST_THUNK( vkCmdDispatchBase, "86", 7 )
+#else
 void WINAPI vkCmdDispatchBase(VkCommandBuffer commandBuffer, uint32_t baseGroupX, uint32_t baseGroupY, uint32_t baseGroupZ, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ)
 {
     struct vkCmdDispatchBase_params params;
@@ -869,7 +1204,12 @@ void WINAPI vkCmdDispatchBase(VkCommandBuffer commandBuffer, uint32_t baseGroupX
     params.groupCountZ = groupCountZ;
     UNIX_CALL(vkCmdDispatchBase, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdDispatchBaseKHR == 87 );
+VK_FAST_THUNK( vkCmdDispatchBaseKHR, "87", 7 )
+#else
 void WINAPI vkCmdDispatchBaseKHR(VkCommandBuffer commandBuffer, uint32_t baseGroupX, uint32_t baseGroupY, uint32_t baseGroupZ, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ)
 {
     struct vkCmdDispatchBaseKHR_params params;
@@ -882,7 +1222,12 @@ void WINAPI vkCmdDispatchBaseKHR(VkCommandBuffer commandBuffer, uint32_t baseGro
     params.groupCountZ = groupCountZ;
     UNIX_CALL(vkCmdDispatchBaseKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdDispatchIndirect == 88 );
+VK_FAST_THUNK( vkCmdDispatchIndirect, "88", 3 )
+#else
 void WINAPI vkCmdDispatchIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset)
 {
     struct vkCmdDispatchIndirect_params params;
@@ -891,7 +1236,12 @@ void WINAPI vkCmdDispatchIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer
     params.offset = offset;
     UNIX_CALL(vkCmdDispatchIndirect, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdDraw == 89 );
+VK_FAST_THUNK( vkCmdDraw, "89", 5 )
+#else
 void WINAPI vkCmdDraw(VkCommandBuffer commandBuffer, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
 {
     struct vkCmdDraw_params params;
@@ -902,7 +1252,12 @@ void WINAPI vkCmdDraw(VkCommandBuffer commandBuffer, uint32_t vertexCount, uint3
     params.firstInstance = firstInstance;
     UNIX_CALL(vkCmdDraw, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdDrawClusterHUAWEI == 90 );
+VK_FAST_THUNK( vkCmdDrawClusterHUAWEI, "90", 4 )
+#else
 void WINAPI vkCmdDrawClusterHUAWEI(VkCommandBuffer commandBuffer, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ)
 {
     struct vkCmdDrawClusterHUAWEI_params params;
@@ -912,7 +1267,12 @@ void WINAPI vkCmdDrawClusterHUAWEI(VkCommandBuffer commandBuffer, uint32_t group
     params.groupCountZ = groupCountZ;
     UNIX_CALL(vkCmdDrawClusterHUAWEI, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdDrawClusterIndirectHUAWEI == 91 );
+VK_FAST_THUNK( vkCmdDrawClusterIndirectHUAWEI, "91", 3 )
+#else
 void WINAPI vkCmdDrawClusterIndirectHUAWEI(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset)
 {
     struct vkCmdDrawClusterIndirectHUAWEI_params params;
@@ -921,7 +1281,12 @@ void WINAPI vkCmdDrawClusterIndirectHUAWEI(VkCommandBuffer commandBuffer, VkBuff
     params.offset = offset;
     UNIX_CALL(vkCmdDrawClusterIndirectHUAWEI, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+C_ASSERT( unix_vkCmdDrawIndexed == 92 );
+VK_FAST_THUNK( vkCmdDrawIndexed, "92", 6 )
+#else
 void WINAPI vkCmdDrawIndexed(VkCommandBuffer commandBuffer, uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance)
 {
     struct vkCmdDrawIndexed_params params;
@@ -933,7 +1298,12 @@ void WINAPI vkCmdDrawIndexed(VkCommandBuffer commandBuffer, uint32_t indexCount,
     params.firstInstance = firstInstance;
     UNIX_CALL(vkCmdDrawIndexed, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdDrawIndexedIndirect == 93 );
+VK_FAST_THUNK( vkCmdDrawIndexedIndirect, "93", 5 )
+#else
 void WINAPI vkCmdDrawIndexedIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride)
 {
     struct vkCmdDrawIndexedIndirect_params params;
@@ -944,7 +1314,12 @@ void WINAPI vkCmdDrawIndexedIndirect(VkCommandBuffer commandBuffer, VkBuffer buf
     params.stride = stride;
     UNIX_CALL(vkCmdDrawIndexedIndirect, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdDrawIndexedIndirectCount == 94 );
+VK_FAST_THUNK( vkCmdDrawIndexedIndirectCount, "94", 7 )
+#else
 void WINAPI vkCmdDrawIndexedIndirectCount(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride)
 {
     struct vkCmdDrawIndexedIndirectCount_params params;
@@ -957,7 +1332,12 @@ void WINAPI vkCmdDrawIndexedIndirectCount(VkCommandBuffer commandBuffer, VkBuffe
     params.stride = stride;
     UNIX_CALL(vkCmdDrawIndexedIndirectCount, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdDrawIndexedIndirectCountAMD == 95 );
+VK_FAST_THUNK( vkCmdDrawIndexedIndirectCountAMD, "95", 7 )
+#else
 void WINAPI vkCmdDrawIndexedIndirectCountAMD(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride)
 {
     struct vkCmdDrawIndexedIndirectCountAMD_params params;
@@ -970,7 +1350,12 @@ void WINAPI vkCmdDrawIndexedIndirectCountAMD(VkCommandBuffer commandBuffer, VkBu
     params.stride = stride;
     UNIX_CALL(vkCmdDrawIndexedIndirectCountAMD, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdDrawIndexedIndirectCountKHR == 96 );
+VK_FAST_THUNK( vkCmdDrawIndexedIndirectCountKHR, "96", 7 )
+#else
 void WINAPI vkCmdDrawIndexedIndirectCountKHR(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride)
 {
     struct vkCmdDrawIndexedIndirectCountKHR_params params;
@@ -983,7 +1368,12 @@ void WINAPI vkCmdDrawIndexedIndirectCountKHR(VkCommandBuffer commandBuffer, VkBu
     params.stride = stride;
     UNIX_CALL(vkCmdDrawIndexedIndirectCountKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdDrawIndirect == 97 );
+VK_FAST_THUNK( vkCmdDrawIndirect, "97", 5 )
+#else
 void WINAPI vkCmdDrawIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride)
 {
     struct vkCmdDrawIndirect_params params;
@@ -994,7 +1384,12 @@ void WINAPI vkCmdDrawIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, Vk
     params.stride = stride;
     UNIX_CALL(vkCmdDrawIndirect, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdDrawIndirectByteCountEXT == 98 );
+VK_FAST_THUNK( vkCmdDrawIndirectByteCountEXT, "98", 7 )
+#else
 void WINAPI vkCmdDrawIndirectByteCountEXT(VkCommandBuffer commandBuffer, uint32_t instanceCount, uint32_t firstInstance, VkBuffer counterBuffer, VkDeviceSize counterBufferOffset, uint32_t counterOffset, uint32_t vertexStride)
 {
     struct vkCmdDrawIndirectByteCountEXT_params params;
@@ -1007,7 +1402,12 @@ void WINAPI vkCmdDrawIndirectByteCountEXT(VkCommandBuffer commandBuffer, uint32_
     params.vertexStride = vertexStride;
     UNIX_CALL(vkCmdDrawIndirectByteCountEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdDrawIndirectCount == 99 );
+VK_FAST_THUNK( vkCmdDrawIndirectCount, "99", 7 )
+#else
 void WINAPI vkCmdDrawIndirectCount(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride)
 {
     struct vkCmdDrawIndirectCount_params params;
@@ -1020,7 +1420,12 @@ void WINAPI vkCmdDrawIndirectCount(VkCommandBuffer commandBuffer, VkBuffer buffe
     params.stride = stride;
     UNIX_CALL(vkCmdDrawIndirectCount, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdDrawIndirectCountAMD == 100 );
+VK_FAST_THUNK( vkCmdDrawIndirectCountAMD, "100", 7 )
+#else
 void WINAPI vkCmdDrawIndirectCountAMD(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride)
 {
     struct vkCmdDrawIndirectCountAMD_params params;
@@ -1033,7 +1438,12 @@ void WINAPI vkCmdDrawIndirectCountAMD(VkCommandBuffer commandBuffer, VkBuffer bu
     params.stride = stride;
     UNIX_CALL(vkCmdDrawIndirectCountAMD, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdDrawIndirectCountKHR == 101 );
+VK_FAST_THUNK( vkCmdDrawIndirectCountKHR, "101", 7 )
+#else
 void WINAPI vkCmdDrawIndirectCountKHR(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride)
 {
     struct vkCmdDrawIndirectCountKHR_params params;
@@ -1046,7 +1456,12 @@ void WINAPI vkCmdDrawIndirectCountKHR(VkCommandBuffer commandBuffer, VkBuffer bu
     params.stride = stride;
     UNIX_CALL(vkCmdDrawIndirectCountKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdDrawMeshTasksEXT == 102 );
+VK_FAST_THUNK( vkCmdDrawMeshTasksEXT, "102", 4 )
+#else
 void WINAPI vkCmdDrawMeshTasksEXT(VkCommandBuffer commandBuffer, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ)
 {
     struct vkCmdDrawMeshTasksEXT_params params;
@@ -1056,7 +1471,12 @@ void WINAPI vkCmdDrawMeshTasksEXT(VkCommandBuffer commandBuffer, uint32_t groupC
     params.groupCountZ = groupCountZ;
     UNIX_CALL(vkCmdDrawMeshTasksEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdDrawMeshTasksIndirectCountEXT == 103 );
+VK_FAST_THUNK( vkCmdDrawMeshTasksIndirectCountEXT, "103", 7 )
+#else
 void WINAPI vkCmdDrawMeshTasksIndirectCountEXT(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride)
 {
     struct vkCmdDrawMeshTasksIndirectCountEXT_params params;
@@ -1069,7 +1489,12 @@ void WINAPI vkCmdDrawMeshTasksIndirectCountEXT(VkCommandBuffer commandBuffer, Vk
     params.stride = stride;
     UNIX_CALL(vkCmdDrawMeshTasksIndirectCountEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdDrawMeshTasksIndirectCountNV == 104 );
+VK_FAST_THUNK( vkCmdDrawMeshTasksIndirectCountNV, "104", 7 )
+#else
 void WINAPI vkCmdDrawMeshTasksIndirectCountNV(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride)
 {
     struct vkCmdDrawMeshTasksIndirectCountNV_params params;
@@ -1082,7 +1507,12 @@ void WINAPI vkCmdDrawMeshTasksIndirectCountNV(VkCommandBuffer commandBuffer, VkB
     params.stride = stride;
     UNIX_CALL(vkCmdDrawMeshTasksIndirectCountNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdDrawMeshTasksIndirectEXT == 105 );
+VK_FAST_THUNK( vkCmdDrawMeshTasksIndirectEXT, "105", 5 )
+#else
 void WINAPI vkCmdDrawMeshTasksIndirectEXT(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride)
 {
     struct vkCmdDrawMeshTasksIndirectEXT_params params;
@@ -1093,7 +1523,12 @@ void WINAPI vkCmdDrawMeshTasksIndirectEXT(VkCommandBuffer commandBuffer, VkBuffe
     params.stride = stride;
     UNIX_CALL(vkCmdDrawMeshTasksIndirectEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdDrawMeshTasksIndirectNV == 106 );
+VK_FAST_THUNK( vkCmdDrawMeshTasksIndirectNV, "106", 5 )
+#else
 void WINAPI vkCmdDrawMeshTasksIndirectNV(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride)
 {
     struct vkCmdDrawMeshTasksIndirectNV_params params;
@@ -1104,7 +1539,12 @@ void WINAPI vkCmdDrawMeshTasksIndirectNV(VkCommandBuffer commandBuffer, VkBuffer
     params.stride = stride;
     UNIX_CALL(vkCmdDrawMeshTasksIndirectNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdDrawMeshTasksNV == 107 );
+VK_FAST_THUNK( vkCmdDrawMeshTasksNV, "107", 3 )
+#else
 void WINAPI vkCmdDrawMeshTasksNV(VkCommandBuffer commandBuffer, uint32_t taskCount, uint32_t firstTask)
 {
     struct vkCmdDrawMeshTasksNV_params params;
@@ -1113,7 +1553,12 @@ void WINAPI vkCmdDrawMeshTasksNV(VkCommandBuffer commandBuffer, uint32_t taskCou
     params.firstTask = firstTask;
     UNIX_CALL(vkCmdDrawMeshTasksNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+C_ASSERT( unix_vkCmdDrawMultiEXT == 108 );
+VK_FAST_THUNK( vkCmdDrawMultiEXT, "108", 6 )
+#else
 void WINAPI vkCmdDrawMultiEXT(VkCommandBuffer commandBuffer, uint32_t drawCount, const VkMultiDrawInfoEXT *pVertexInfo, uint32_t instanceCount, uint32_t firstInstance, uint32_t stride)
 {
     struct vkCmdDrawMultiEXT_params params;
@@ -1125,7 +1570,12 @@ void WINAPI vkCmdDrawMultiEXT(VkCommandBuffer commandBuffer, uint32_t drawCount,
     params.stride = stride;
     UNIX_CALL(vkCmdDrawMultiEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdDrawMultiIndexedEXT == 109 );
+VK_FAST_THUNK( vkCmdDrawMultiIndexedEXT, "109", 7 )
+#else
 void WINAPI vkCmdDrawMultiIndexedEXT(VkCommandBuffer commandBuffer, uint32_t drawCount, const VkMultiDrawIndexedInfoEXT *pIndexInfo, uint32_t instanceCount, uint32_t firstInstance, uint32_t stride, const int32_t *pVertexOffset)
 {
     struct vkCmdDrawMultiIndexedEXT_params params;
@@ -1138,21 +1588,36 @@ void WINAPI vkCmdDrawMultiIndexedEXT(VkCommandBuffer commandBuffer, uint32_t dra
     params.pVertexOffset = pVertexOffset;
     UNIX_CALL(vkCmdDrawMultiIndexedEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+C_ASSERT( unix_vkCmdEndConditionalRenderingEXT == 110 );
+VK_FAST_THUNK( vkCmdEndConditionalRenderingEXT, "110", 1 )
+#else
 void WINAPI vkCmdEndConditionalRenderingEXT(VkCommandBuffer commandBuffer)
 {
     struct vkCmdEndConditionalRenderingEXT_params params;
     params.commandBuffer = commandBuffer;
     UNIX_CALL(vkCmdEndConditionalRenderingEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+C_ASSERT( unix_vkCmdEndDebugUtilsLabelEXT == 111 );
+VK_FAST_THUNK( vkCmdEndDebugUtilsLabelEXT, "111", 1 )
+#else
 void WINAPI vkCmdEndDebugUtilsLabelEXT(VkCommandBuffer commandBuffer)
 {
     struct vkCmdEndDebugUtilsLabelEXT_params params;
     params.commandBuffer = commandBuffer;
     UNIX_CALL(vkCmdEndDebugUtilsLabelEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdEndQuery == 112 );
+VK_FAST_THUNK( vkCmdEndQuery, "112", 3 )
+#else
 void WINAPI vkCmdEndQuery(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uint32_t query)
 {
     struct vkCmdEndQuery_params params;
@@ -1161,7 +1626,12 @@ void WINAPI vkCmdEndQuery(VkCommandBuffer commandBuffer, VkQueryPool queryPool, 
     params.query = query;
     UNIX_CALL(vkCmdEndQuery, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdEndQueryIndexedEXT == 113 );
+VK_FAST_THUNK( vkCmdEndQueryIndexedEXT, "113", 4 )
+#else
 void WINAPI vkCmdEndQueryIndexedEXT(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uint32_t query, uint32_t index)
 {
     struct vkCmdEndQueryIndexedEXT_params params;
@@ -1171,14 +1641,24 @@ void WINAPI vkCmdEndQueryIndexedEXT(VkCommandBuffer commandBuffer, VkQueryPool q
     params.index = index;
     UNIX_CALL(vkCmdEndQueryIndexedEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+C_ASSERT( unix_vkCmdEndRenderPass == 114 );
+VK_FAST_THUNK( vkCmdEndRenderPass, "114", 1 )
+#else
 void WINAPI vkCmdEndRenderPass(VkCommandBuffer commandBuffer)
 {
     struct vkCmdEndRenderPass_params params;
     params.commandBuffer = commandBuffer;
     UNIX_CALL(vkCmdEndRenderPass, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdEndRenderPass2 == 115 );
+VK_FAST_THUNK( vkCmdEndRenderPass2, "115", 2 )
+#else
 void WINAPI vkCmdEndRenderPass2(VkCommandBuffer commandBuffer, const VkSubpassEndInfo *pSubpassEndInfo)
 {
     struct vkCmdEndRenderPass2_params params;
@@ -1186,7 +1666,12 @@ void WINAPI vkCmdEndRenderPass2(VkCommandBuffer commandBuffer, const VkSubpassEn
     params.pSubpassEndInfo = pSubpassEndInfo;
     UNIX_CALL(vkCmdEndRenderPass2, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdEndRenderPass2KHR == 116 );
+VK_FAST_THUNK( vkCmdEndRenderPass2KHR, "116", 2 )
+#else
 void WINAPI vkCmdEndRenderPass2KHR(VkCommandBuffer commandBuffer, const VkSubpassEndInfo *pSubpassEndInfo)
 {
     struct vkCmdEndRenderPass2KHR_params params;
@@ -1194,21 +1679,36 @@ void WINAPI vkCmdEndRenderPass2KHR(VkCommandBuffer commandBuffer, const VkSubpas
     params.pSubpassEndInfo = pSubpassEndInfo;
     UNIX_CALL(vkCmdEndRenderPass2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+C_ASSERT( unix_vkCmdEndRendering == 117 );
+VK_FAST_THUNK( vkCmdEndRendering, "117", 1 )
+#else
 void WINAPI vkCmdEndRendering(VkCommandBuffer commandBuffer)
 {
     struct vkCmdEndRendering_params params;
     params.commandBuffer = commandBuffer;
     UNIX_CALL(vkCmdEndRendering, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+C_ASSERT( unix_vkCmdEndRenderingKHR == 118 );
+VK_FAST_THUNK( vkCmdEndRenderingKHR, "118", 1 )
+#else
 void WINAPI vkCmdEndRenderingKHR(VkCommandBuffer commandBuffer)
 {
     struct vkCmdEndRenderingKHR_params params;
     params.commandBuffer = commandBuffer;
     UNIX_CALL(vkCmdEndRenderingKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdEndTransformFeedbackEXT == 119 );
+VK_FAST_THUNK( vkCmdEndTransformFeedbackEXT, "119", 5 )
+#else
 void WINAPI vkCmdEndTransformFeedbackEXT(VkCommandBuffer commandBuffer, uint32_t firstCounterBuffer, uint32_t counterBufferCount, const VkBuffer *pCounterBuffers, const VkDeviceSize *pCounterBufferOffsets)
 {
     struct vkCmdEndTransformFeedbackEXT_params params;
@@ -1219,7 +1719,12 @@ void WINAPI vkCmdEndTransformFeedbackEXT(VkCommandBuffer commandBuffer, uint32_t
     params.pCounterBufferOffsets = pCounterBufferOffsets;
     UNIX_CALL(vkCmdEndTransformFeedbackEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdExecuteCommands == 120 );
+VK_FAST_THUNK( vkCmdExecuteCommands, "120", 3 )
+#else
 void WINAPI vkCmdExecuteCommands(VkCommandBuffer commandBuffer, uint32_t commandBufferCount, const VkCommandBuffer *pCommandBuffers)
 {
     struct vkCmdExecuteCommands_params params;
@@ -1228,7 +1733,12 @@ void WINAPI vkCmdExecuteCommands(VkCommandBuffer commandBuffer, uint32_t command
     params.pCommandBuffers = pCommandBuffers;
     UNIX_CALL(vkCmdExecuteCommands, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdExecuteGeneratedCommandsNV == 121 );
+VK_FAST_THUNK( vkCmdExecuteGeneratedCommandsNV, "121", 3 )
+#else
 void WINAPI vkCmdExecuteGeneratedCommandsNV(VkCommandBuffer commandBuffer, VkBool32 isPreprocessed, const VkGeneratedCommandsInfoNV *pGeneratedCommandsInfo)
 {
     struct vkCmdExecuteGeneratedCommandsNV_params params;
@@ -1237,7 +1747,12 @@ void WINAPI vkCmdExecuteGeneratedCommandsNV(VkCommandBuffer commandBuffer, VkBoo
     params.pGeneratedCommandsInfo = pGeneratedCommandsInfo;
     UNIX_CALL(vkCmdExecuteGeneratedCommandsNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdFillBuffer == 122 );
+VK_FAST_THUNK( vkCmdFillBuffer, "122", 5 )
+#else
 void WINAPI vkCmdFillBuffer(VkCommandBuffer commandBuffer, VkBuffer dstBuffer, VkDeviceSize dstOffset, VkDeviceSize size, uint32_t data)
 {
     struct vkCmdFillBuffer_params params;
@@ -1248,7 +1763,12 @@ void WINAPI vkCmdFillBuffer(VkCommandBuffer commandBuffer, VkBuffer dstBuffer, V
     params.data = data;
     UNIX_CALL(vkCmdFillBuffer, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdInsertDebugUtilsLabelEXT == 123 );
+VK_FAST_THUNK( vkCmdInsertDebugUtilsLabelEXT, "123", 2 )
+#else
 void WINAPI vkCmdInsertDebugUtilsLabelEXT(VkCommandBuffer commandBuffer, const VkDebugUtilsLabelEXT *pLabelInfo)
 {
     struct vkCmdInsertDebugUtilsLabelEXT_params params;
@@ -1256,7 +1776,12 @@ void WINAPI vkCmdInsertDebugUtilsLabelEXT(VkCommandBuffer commandBuffer, const V
     params.pLabelInfo = pLabelInfo;
     UNIX_CALL(vkCmdInsertDebugUtilsLabelEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdNextSubpass == 124 );
+VK_FAST_THUNK( vkCmdNextSubpass, "124", 2 )
+#else
 void WINAPI vkCmdNextSubpass(VkCommandBuffer commandBuffer, VkSubpassContents contents)
 {
     struct vkCmdNextSubpass_params params;
@@ -1264,7 +1789,12 @@ void WINAPI vkCmdNextSubpass(VkCommandBuffer commandBuffer, VkSubpassContents co
     params.contents = contents;
     UNIX_CALL(vkCmdNextSubpass, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdNextSubpass2 == 125 );
+VK_FAST_THUNK( vkCmdNextSubpass2, "125", 3 )
+#else
 void WINAPI vkCmdNextSubpass2(VkCommandBuffer commandBuffer, const VkSubpassBeginInfo *pSubpassBeginInfo, const VkSubpassEndInfo *pSubpassEndInfo)
 {
     struct vkCmdNextSubpass2_params params;
@@ -1273,7 +1803,12 @@ void WINAPI vkCmdNextSubpass2(VkCommandBuffer commandBuffer, const VkSubpassBegi
     params.pSubpassEndInfo = pSubpassEndInfo;
     UNIX_CALL(vkCmdNextSubpass2, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdNextSubpass2KHR == 126 );
+VK_FAST_THUNK( vkCmdNextSubpass2KHR, "126", 3 )
+#else
 void WINAPI vkCmdNextSubpass2KHR(VkCommandBuffer commandBuffer, const VkSubpassBeginInfo *pSubpassBeginInfo, const VkSubpassEndInfo *pSubpassEndInfo)
 {
     struct vkCmdNextSubpass2KHR_params params;
@@ -1282,7 +1817,12 @@ void WINAPI vkCmdNextSubpass2KHR(VkCommandBuffer commandBuffer, const VkSubpassB
     params.pSubpassEndInfo = pSubpassEndInfo;
     UNIX_CALL(vkCmdNextSubpass2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdOpticalFlowExecuteNV == 127 );
+VK_FAST_THUNK( vkCmdOpticalFlowExecuteNV, "127", 3 )
+#else
 void WINAPI vkCmdOpticalFlowExecuteNV(VkCommandBuffer commandBuffer, VkOpticalFlowSessionNV session, const VkOpticalFlowExecuteInfoNV *pExecuteInfo)
 {
     struct vkCmdOpticalFlowExecuteNV_params params;
@@ -1291,7 +1831,12 @@ void WINAPI vkCmdOpticalFlowExecuteNV(VkCommandBuffer commandBuffer, VkOpticalFl
     params.pExecuteInfo = pExecuteInfo;
     UNIX_CALL(vkCmdOpticalFlowExecuteNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 10
+C_ASSERT( unix_vkCmdPipelineBarrier == 128 );
+VK_FAST_THUNK( vkCmdPipelineBarrier, "128", 10 )
+#else
 void WINAPI vkCmdPipelineBarrier(VkCommandBuffer commandBuffer, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkDependencyFlags dependencyFlags, uint32_t memoryBarrierCount, const VkMemoryBarrier *pMemoryBarriers, uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier *pBufferMemoryBarriers, uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier *pImageMemoryBarriers)
 {
     struct vkCmdPipelineBarrier_params params;
@@ -1307,7 +1852,12 @@ void WINAPI vkCmdPipelineBarrier(VkCommandBuffer commandBuffer, VkPipelineStageF
     params.pImageMemoryBarriers = pImageMemoryBarriers;
     UNIX_CALL(vkCmdPipelineBarrier, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdPipelineBarrier2 == 129 );
+VK_FAST_THUNK( vkCmdPipelineBarrier2, "129", 2 )
+#else
 void WINAPI vkCmdPipelineBarrier2(VkCommandBuffer commandBuffer, const VkDependencyInfo *pDependencyInfo)
 {
     struct vkCmdPipelineBarrier2_params params;
@@ -1315,7 +1865,12 @@ void WINAPI vkCmdPipelineBarrier2(VkCommandBuffer commandBuffer, const VkDepende
     params.pDependencyInfo = pDependencyInfo;
     UNIX_CALL(vkCmdPipelineBarrier2, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdPipelineBarrier2KHR == 130 );
+VK_FAST_THUNK( vkCmdPipelineBarrier2KHR, "130", 2 )
+#else
 void WINAPI vkCmdPipelineBarrier2KHR(VkCommandBuffer commandBuffer, const VkDependencyInfo *pDependencyInfo)
 {
     struct vkCmdPipelineBarrier2KHR_params params;
@@ -1323,7 +1878,12 @@ void WINAPI vkCmdPipelineBarrier2KHR(VkCommandBuffer commandBuffer, const VkDepe
     params.pDependencyInfo = pDependencyInfo;
     UNIX_CALL(vkCmdPipelineBarrier2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdPreprocessGeneratedCommandsNV == 131 );
+VK_FAST_THUNK( vkCmdPreprocessGeneratedCommandsNV, "131", 2 )
+#else
 void WINAPI vkCmdPreprocessGeneratedCommandsNV(VkCommandBuffer commandBuffer, const VkGeneratedCommandsInfoNV *pGeneratedCommandsInfo)
 {
     struct vkCmdPreprocessGeneratedCommandsNV_params params;
@@ -1331,7 +1891,12 @@ void WINAPI vkCmdPreprocessGeneratedCommandsNV(VkCommandBuffer commandBuffer, co
     params.pGeneratedCommandsInfo = pGeneratedCommandsInfo;
     UNIX_CALL(vkCmdPreprocessGeneratedCommandsNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+C_ASSERT( unix_vkCmdPushConstants == 132 );
+VK_FAST_THUNK( vkCmdPushConstants, "132", 6 )
+#else
 void WINAPI vkCmdPushConstants(VkCommandBuffer commandBuffer, VkPipelineLayout layout, VkShaderStageFlags stageFlags, uint32_t offset, uint32_t size, const void *pValues)
 {
     struct vkCmdPushConstants_params params;
@@ -1343,7 +1908,12 @@ void WINAPI vkCmdPushConstants(VkCommandBuffer commandBuffer, VkPipelineLayout l
     params.pValues = pValues;
     UNIX_CALL(vkCmdPushConstants, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdPushConstants2KHR == 133 );
+VK_FAST_THUNK( vkCmdPushConstants2KHR, "133", 2 )
+#else
 void WINAPI vkCmdPushConstants2KHR(VkCommandBuffer commandBuffer, const VkPushConstantsInfoKHR *pPushConstantsInfo)
 {
     struct vkCmdPushConstants2KHR_params params;
@@ -1351,7 +1921,12 @@ void WINAPI vkCmdPushConstants2KHR(VkCommandBuffer commandBuffer, const VkPushCo
     params.pPushConstantsInfo = pPushConstantsInfo;
     UNIX_CALL(vkCmdPushConstants2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdPushDescriptorSet2KHR == 134 );
+VK_FAST_THUNK( vkCmdPushDescriptorSet2KHR, "134", 2 )
+#else
 void WINAPI vkCmdPushDescriptorSet2KHR(VkCommandBuffer commandBuffer, const VkPushDescriptorSetInfoKHR *pPushDescriptorSetInfo)
 {
     struct vkCmdPushDescriptorSet2KHR_params params;
@@ -1359,7 +1934,12 @@ void WINAPI vkCmdPushDescriptorSet2KHR(VkCommandBuffer commandBuffer, const VkPu
     params.pPushDescriptorSetInfo = pPushDescriptorSetInfo;
     UNIX_CALL(vkCmdPushDescriptorSet2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+C_ASSERT( unix_vkCmdPushDescriptorSetKHR == 135 );
+VK_FAST_THUNK( vkCmdPushDescriptorSetKHR, "135", 6 )
+#else
 void WINAPI vkCmdPushDescriptorSetKHR(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t set, uint32_t descriptorWriteCount, const VkWriteDescriptorSet *pDescriptorWrites)
 {
     struct vkCmdPushDescriptorSetKHR_params params;
@@ -1371,7 +1951,12 @@ void WINAPI vkCmdPushDescriptorSetKHR(VkCommandBuffer commandBuffer, VkPipelineB
     params.pDescriptorWrites = pDescriptorWrites;
     UNIX_CALL(vkCmdPushDescriptorSetKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdPushDescriptorSetWithTemplate2KHR == 136 );
+VK_FAST_THUNK( vkCmdPushDescriptorSetWithTemplate2KHR, "136", 2 )
+#else
 void WINAPI vkCmdPushDescriptorSetWithTemplate2KHR(VkCommandBuffer commandBuffer, const VkPushDescriptorSetWithTemplateInfoKHR *pPushDescriptorSetWithTemplateInfo)
 {
     struct vkCmdPushDescriptorSetWithTemplate2KHR_params params;
@@ -1379,7 +1964,12 @@ void WINAPI vkCmdPushDescriptorSetWithTemplate2KHR(VkCommandBuffer commandBuffer
     params.pPushDescriptorSetWithTemplateInfo = pPushDescriptorSetWithTemplateInfo;
     UNIX_CALL(vkCmdPushDescriptorSetWithTemplate2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdPushDescriptorSetWithTemplateKHR == 137 );
+VK_FAST_THUNK( vkCmdPushDescriptorSetWithTemplateKHR, "137", 5 )
+#else
 void WINAPI vkCmdPushDescriptorSetWithTemplateKHR(VkCommandBuffer commandBuffer, VkDescriptorUpdateTemplate descriptorUpdateTemplate, VkPipelineLayout layout, uint32_t set, const void *pData)
 {
     struct vkCmdPushDescriptorSetWithTemplateKHR_params params;
@@ -1390,7 +1980,12 @@ void WINAPI vkCmdPushDescriptorSetWithTemplateKHR(VkCommandBuffer commandBuffer,
     params.pData = pData;
     UNIX_CALL(vkCmdPushDescriptorSetWithTemplateKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdResetEvent == 138 );
+VK_FAST_THUNK( vkCmdResetEvent, "138", 3 )
+#else
 void WINAPI vkCmdResetEvent(VkCommandBuffer commandBuffer, VkEvent event, VkPipelineStageFlags stageMask)
 {
     struct vkCmdResetEvent_params params;
@@ -1399,7 +1994,12 @@ void WINAPI vkCmdResetEvent(VkCommandBuffer commandBuffer, VkEvent event, VkPipe
     params.stageMask = stageMask;
     UNIX_CALL(vkCmdResetEvent, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdResetEvent2 == 139 );
+VK_FAST_THUNK( vkCmdResetEvent2, "139", 3 )
+#else
 void WINAPI vkCmdResetEvent2(VkCommandBuffer commandBuffer, VkEvent event, VkPipelineStageFlags2 stageMask)
 {
     struct vkCmdResetEvent2_params params;
@@ -1408,7 +2008,12 @@ void WINAPI vkCmdResetEvent2(VkCommandBuffer commandBuffer, VkEvent event, VkPip
     params.stageMask = stageMask;
     UNIX_CALL(vkCmdResetEvent2, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdResetEvent2KHR == 140 );
+VK_FAST_THUNK( vkCmdResetEvent2KHR, "140", 3 )
+#else
 void WINAPI vkCmdResetEvent2KHR(VkCommandBuffer commandBuffer, VkEvent event, VkPipelineStageFlags2 stageMask)
 {
     struct vkCmdResetEvent2KHR_params params;
@@ -1417,7 +2022,12 @@ void WINAPI vkCmdResetEvent2KHR(VkCommandBuffer commandBuffer, VkEvent event, Vk
     params.stageMask = stageMask;
     UNIX_CALL(vkCmdResetEvent2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdResetQueryPool == 141 );
+VK_FAST_THUNK( vkCmdResetQueryPool, "141", 4 )
+#else
 void WINAPI vkCmdResetQueryPool(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount)
 {
     struct vkCmdResetQueryPool_params params;
@@ -1427,7 +2037,12 @@ void WINAPI vkCmdResetQueryPool(VkCommandBuffer commandBuffer, VkQueryPool query
     params.queryCount = queryCount;
     UNIX_CALL(vkCmdResetQueryPool, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdResolveImage == 142 );
+VK_FAST_THUNK( vkCmdResolveImage, "142", 7 )
+#else
 void WINAPI vkCmdResolveImage(VkCommandBuffer commandBuffer, VkImage srcImage, VkImageLayout srcImageLayout, VkImage dstImage, VkImageLayout dstImageLayout, uint32_t regionCount, const VkImageResolve *pRegions)
 {
     struct vkCmdResolveImage_params params;
@@ -1440,7 +2055,12 @@ void WINAPI vkCmdResolveImage(VkCommandBuffer commandBuffer, VkImage srcImage, V
     params.pRegions = pRegions;
     UNIX_CALL(vkCmdResolveImage, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdResolveImage2 == 143 );
+VK_FAST_THUNK( vkCmdResolveImage2, "143", 2 )
+#else
 void WINAPI vkCmdResolveImage2(VkCommandBuffer commandBuffer, const VkResolveImageInfo2 *pResolveImageInfo)
 {
     struct vkCmdResolveImage2_params params;
@@ -1448,7 +2068,12 @@ void WINAPI vkCmdResolveImage2(VkCommandBuffer commandBuffer, const VkResolveIma
     params.pResolveImageInfo = pResolveImageInfo;
     UNIX_CALL(vkCmdResolveImage2, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdResolveImage2KHR == 144 );
+VK_FAST_THUNK( vkCmdResolveImage2KHR, "144", 2 )
+#else
 void WINAPI vkCmdResolveImage2KHR(VkCommandBuffer commandBuffer, const VkResolveImageInfo2 *pResolveImageInfo)
 {
     struct vkCmdResolveImage2KHR_params params;
@@ -1456,7 +2081,12 @@ void WINAPI vkCmdResolveImage2KHR(VkCommandBuffer commandBuffer, const VkResolve
     params.pResolveImageInfo = pResolveImageInfo;
     UNIX_CALL(vkCmdResolveImage2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetAlphaToCoverageEnableEXT == 145 );
+VK_FAST_THUNK( vkCmdSetAlphaToCoverageEnableEXT, "145", 2 )
+#else
 void WINAPI vkCmdSetAlphaToCoverageEnableEXT(VkCommandBuffer commandBuffer, VkBool32 alphaToCoverageEnable)
 {
     struct vkCmdSetAlphaToCoverageEnableEXT_params params;
@@ -1464,7 +2094,12 @@ void WINAPI vkCmdSetAlphaToCoverageEnableEXT(VkCommandBuffer commandBuffer, VkBo
     params.alphaToCoverageEnable = alphaToCoverageEnable;
     UNIX_CALL(vkCmdSetAlphaToCoverageEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetAlphaToOneEnableEXT == 146 );
+VK_FAST_THUNK( vkCmdSetAlphaToOneEnableEXT, "146", 2 )
+#else
 void WINAPI vkCmdSetAlphaToOneEnableEXT(VkCommandBuffer commandBuffer, VkBool32 alphaToOneEnable)
 {
     struct vkCmdSetAlphaToOneEnableEXT_params params;
@@ -1472,7 +2107,12 @@ void WINAPI vkCmdSetAlphaToOneEnableEXT(VkCommandBuffer commandBuffer, VkBool32 
     params.alphaToOneEnable = alphaToOneEnable;
     UNIX_CALL(vkCmdSetAlphaToOneEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetAttachmentFeedbackLoopEnableEXT == 147 );
+VK_FAST_THUNK( vkCmdSetAttachmentFeedbackLoopEnableEXT, "147", 2 )
+#else
 void WINAPI vkCmdSetAttachmentFeedbackLoopEnableEXT(VkCommandBuffer commandBuffer, VkImageAspectFlags aspectMask)
 {
     struct vkCmdSetAttachmentFeedbackLoopEnableEXT_params params;
@@ -1480,7 +2120,12 @@ void WINAPI vkCmdSetAttachmentFeedbackLoopEnableEXT(VkCommandBuffer commandBuffe
     params.aspectMask = aspectMask;
     UNIX_CALL(vkCmdSetAttachmentFeedbackLoopEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetBlendConstants == 148 );
+VK_FAST_THUNK( vkCmdSetBlendConstants, "148", 2 )
+#else
 void WINAPI vkCmdSetBlendConstants(VkCommandBuffer commandBuffer, const float blendConstants[4])
 {
     struct vkCmdSetBlendConstants_params params;
@@ -1488,7 +2133,12 @@ void WINAPI vkCmdSetBlendConstants(VkCommandBuffer commandBuffer, const float bl
     params.blendConstants = blendConstants;
     UNIX_CALL(vkCmdSetBlendConstants, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetCheckpointNV == 149 );
+VK_FAST_THUNK( vkCmdSetCheckpointNV, "149", 2 )
+#else
 void WINAPI vkCmdSetCheckpointNV(VkCommandBuffer commandBuffer, const void *pCheckpointMarker)
 {
     struct vkCmdSetCheckpointNV_params params;
@@ -1496,7 +2146,12 @@ void WINAPI vkCmdSetCheckpointNV(VkCommandBuffer commandBuffer, const void *pChe
     params.pCheckpointMarker = pCheckpointMarker;
     UNIX_CALL(vkCmdSetCheckpointNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdSetCoarseSampleOrderNV == 150 );
+VK_FAST_THUNK( vkCmdSetCoarseSampleOrderNV, "150", 4 )
+#else
 void WINAPI vkCmdSetCoarseSampleOrderNV(VkCommandBuffer commandBuffer, VkCoarseSampleOrderTypeNV sampleOrderType, uint32_t customSampleOrderCount, const VkCoarseSampleOrderCustomNV *pCustomSampleOrders)
 {
     struct vkCmdSetCoarseSampleOrderNV_params params;
@@ -1506,7 +2161,12 @@ void WINAPI vkCmdSetCoarseSampleOrderNV(VkCommandBuffer commandBuffer, VkCoarseS
     params.pCustomSampleOrders = pCustomSampleOrders;
     UNIX_CALL(vkCmdSetCoarseSampleOrderNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdSetColorBlendAdvancedEXT == 151 );
+VK_FAST_THUNK( vkCmdSetColorBlendAdvancedEXT, "151", 4 )
+#else
 void WINAPI vkCmdSetColorBlendAdvancedEXT(VkCommandBuffer commandBuffer, uint32_t firstAttachment, uint32_t attachmentCount, const VkColorBlendAdvancedEXT *pColorBlendAdvanced)
 {
     struct vkCmdSetColorBlendAdvancedEXT_params params;
@@ -1516,7 +2176,12 @@ void WINAPI vkCmdSetColorBlendAdvancedEXT(VkCommandBuffer commandBuffer, uint32_
     params.pColorBlendAdvanced = pColorBlendAdvanced;
     UNIX_CALL(vkCmdSetColorBlendAdvancedEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdSetColorBlendEnableEXT == 152 );
+VK_FAST_THUNK( vkCmdSetColorBlendEnableEXT, "152", 4 )
+#else
 void WINAPI vkCmdSetColorBlendEnableEXT(VkCommandBuffer commandBuffer, uint32_t firstAttachment, uint32_t attachmentCount, const VkBool32 *pColorBlendEnables)
 {
     struct vkCmdSetColorBlendEnableEXT_params params;
@@ -1526,7 +2191,12 @@ void WINAPI vkCmdSetColorBlendEnableEXT(VkCommandBuffer commandBuffer, uint32_t 
     params.pColorBlendEnables = pColorBlendEnables;
     UNIX_CALL(vkCmdSetColorBlendEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdSetColorBlendEquationEXT == 153 );
+VK_FAST_THUNK( vkCmdSetColorBlendEquationEXT, "153", 4 )
+#else
 void WINAPI vkCmdSetColorBlendEquationEXT(VkCommandBuffer commandBuffer, uint32_t firstAttachment, uint32_t attachmentCount, const VkColorBlendEquationEXT *pColorBlendEquations)
 {
     struct vkCmdSetColorBlendEquationEXT_params params;
@@ -1536,7 +2206,12 @@ void WINAPI vkCmdSetColorBlendEquationEXT(VkCommandBuffer commandBuffer, uint32_
     params.pColorBlendEquations = pColorBlendEquations;
     UNIX_CALL(vkCmdSetColorBlendEquationEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdSetColorWriteEnableEXT == 154 );
+VK_FAST_THUNK( vkCmdSetColorWriteEnableEXT, "154", 3 )
+#else
 void WINAPI vkCmdSetColorWriteEnableEXT(VkCommandBuffer commandBuffer, uint32_t attachmentCount, const VkBool32 *pColorWriteEnables)
 {
     struct vkCmdSetColorWriteEnableEXT_params params;
@@ -1545,7 +2220,12 @@ void WINAPI vkCmdSetColorWriteEnableEXT(VkCommandBuffer commandBuffer, uint32_t 
     params.pColorWriteEnables = pColorWriteEnables;
     UNIX_CALL(vkCmdSetColorWriteEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdSetColorWriteMaskEXT == 155 );
+VK_FAST_THUNK( vkCmdSetColorWriteMaskEXT, "155", 4 )
+#else
 void WINAPI vkCmdSetColorWriteMaskEXT(VkCommandBuffer commandBuffer, uint32_t firstAttachment, uint32_t attachmentCount, const VkColorComponentFlags *pColorWriteMasks)
 {
     struct vkCmdSetColorWriteMaskEXT_params params;
@@ -1555,7 +2235,12 @@ void WINAPI vkCmdSetColorWriteMaskEXT(VkCommandBuffer commandBuffer, uint32_t fi
     params.pColorWriteMasks = pColorWriteMasks;
     UNIX_CALL(vkCmdSetColorWriteMaskEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetConservativeRasterizationModeEXT == 156 );
+VK_FAST_THUNK( vkCmdSetConservativeRasterizationModeEXT, "156", 2 )
+#else
 void WINAPI vkCmdSetConservativeRasterizationModeEXT(VkCommandBuffer commandBuffer, VkConservativeRasterizationModeEXT conservativeRasterizationMode)
 {
     struct vkCmdSetConservativeRasterizationModeEXT_params params;
@@ -1563,7 +2248,12 @@ void WINAPI vkCmdSetConservativeRasterizationModeEXT(VkCommandBuffer commandBuff
     params.conservativeRasterizationMode = conservativeRasterizationMode;
     UNIX_CALL(vkCmdSetConservativeRasterizationModeEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetCoverageModulationModeNV == 157 );
+VK_FAST_THUNK( vkCmdSetCoverageModulationModeNV, "157", 2 )
+#else
 void WINAPI vkCmdSetCoverageModulationModeNV(VkCommandBuffer commandBuffer, VkCoverageModulationModeNV coverageModulationMode)
 {
     struct vkCmdSetCoverageModulationModeNV_params params;
@@ -1571,7 +2261,12 @@ void WINAPI vkCmdSetCoverageModulationModeNV(VkCommandBuffer commandBuffer, VkCo
     params.coverageModulationMode = coverageModulationMode;
     UNIX_CALL(vkCmdSetCoverageModulationModeNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetCoverageModulationTableEnableNV == 158 );
+VK_FAST_THUNK( vkCmdSetCoverageModulationTableEnableNV, "158", 2 )
+#else
 void WINAPI vkCmdSetCoverageModulationTableEnableNV(VkCommandBuffer commandBuffer, VkBool32 coverageModulationTableEnable)
 {
     struct vkCmdSetCoverageModulationTableEnableNV_params params;
@@ -1579,7 +2274,12 @@ void WINAPI vkCmdSetCoverageModulationTableEnableNV(VkCommandBuffer commandBuffe
     params.coverageModulationTableEnable = coverageModulationTableEnable;
     UNIX_CALL(vkCmdSetCoverageModulationTableEnableNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdSetCoverageModulationTableNV == 159 );
+VK_FAST_THUNK( vkCmdSetCoverageModulationTableNV, "159", 3 )
+#else
 void WINAPI vkCmdSetCoverageModulationTableNV(VkCommandBuffer commandBuffer, uint32_t coverageModulationTableCount, const float *pCoverageModulationTable)
 {
     struct vkCmdSetCoverageModulationTableNV_params params;
@@ -1588,7 +2288,12 @@ void WINAPI vkCmdSetCoverageModulationTableNV(VkCommandBuffer commandBuffer, uin
     params.pCoverageModulationTable = pCoverageModulationTable;
     UNIX_CALL(vkCmdSetCoverageModulationTableNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetCoverageReductionModeNV == 160 );
+VK_FAST_THUNK( vkCmdSetCoverageReductionModeNV, "160", 2 )
+#else
 void WINAPI vkCmdSetCoverageReductionModeNV(VkCommandBuffer commandBuffer, VkCoverageReductionModeNV coverageReductionMode)
 {
     struct vkCmdSetCoverageReductionModeNV_params params;
@@ -1596,7 +2301,12 @@ void WINAPI vkCmdSetCoverageReductionModeNV(VkCommandBuffer commandBuffer, VkCov
     params.coverageReductionMode = coverageReductionMode;
     UNIX_CALL(vkCmdSetCoverageReductionModeNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetCoverageToColorEnableNV == 161 );
+VK_FAST_THUNK( vkCmdSetCoverageToColorEnableNV, "161", 2 )
+#else
 void WINAPI vkCmdSetCoverageToColorEnableNV(VkCommandBuffer commandBuffer, VkBool32 coverageToColorEnable)
 {
     struct vkCmdSetCoverageToColorEnableNV_params params;
@@ -1604,7 +2314,12 @@ void WINAPI vkCmdSetCoverageToColorEnableNV(VkCommandBuffer commandBuffer, VkBoo
     params.coverageToColorEnable = coverageToColorEnable;
     UNIX_CALL(vkCmdSetCoverageToColorEnableNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetCoverageToColorLocationNV == 162 );
+VK_FAST_THUNK( vkCmdSetCoverageToColorLocationNV, "162", 2 )
+#else
 void WINAPI vkCmdSetCoverageToColorLocationNV(VkCommandBuffer commandBuffer, uint32_t coverageToColorLocation)
 {
     struct vkCmdSetCoverageToColorLocationNV_params params;
@@ -1612,7 +2327,12 @@ void WINAPI vkCmdSetCoverageToColorLocationNV(VkCommandBuffer commandBuffer, uin
     params.coverageToColorLocation = coverageToColorLocation;
     UNIX_CALL(vkCmdSetCoverageToColorLocationNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetCullMode == 163 );
+VK_FAST_THUNK( vkCmdSetCullMode, "163", 2 )
+#else
 void WINAPI vkCmdSetCullMode(VkCommandBuffer commandBuffer, VkCullModeFlags cullMode)
 {
     struct vkCmdSetCullMode_params params;
@@ -1620,7 +2340,12 @@ void WINAPI vkCmdSetCullMode(VkCommandBuffer commandBuffer, VkCullModeFlags cull
     params.cullMode = cullMode;
     UNIX_CALL(vkCmdSetCullMode, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetCullModeEXT == 164 );
+VK_FAST_THUNK( vkCmdSetCullModeEXT, "164", 2 )
+#else
 void WINAPI vkCmdSetCullModeEXT(VkCommandBuffer commandBuffer, VkCullModeFlags cullMode)
 {
     struct vkCmdSetCullModeEXT_params params;
@@ -1628,6 +2353,7 @@ void WINAPI vkCmdSetCullModeEXT(VkCommandBuffer commandBuffer, VkCullModeFlags c
     params.cullMode = cullMode;
     UNIX_CALL(vkCmdSetCullModeEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
 void WINAPI vkCmdSetDepthBias(VkCommandBuffer commandBuffer, float depthBiasConstantFactor, float depthBiasClamp, float depthBiasSlopeFactor)
 {
@@ -1639,6 +2365,10 @@ void WINAPI vkCmdSetDepthBias(VkCommandBuffer commandBuffer, float depthBiasCons
     UNIX_CALL(vkCmdSetDepthBias, &params);
 }
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDepthBias2EXT == 166 );
+VK_FAST_THUNK( vkCmdSetDepthBias2EXT, "166", 2 )
+#else
 void WINAPI vkCmdSetDepthBias2EXT(VkCommandBuffer commandBuffer, const VkDepthBiasInfoEXT *pDepthBiasInfo)
 {
     struct vkCmdSetDepthBias2EXT_params params;
@@ -1646,7 +2376,12 @@ void WINAPI vkCmdSetDepthBias2EXT(VkCommandBuffer commandBuffer, const VkDepthBi
     params.pDepthBiasInfo = pDepthBiasInfo;
     UNIX_CALL(vkCmdSetDepthBias2EXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDepthBiasEnable == 167 );
+VK_FAST_THUNK( vkCmdSetDepthBiasEnable, "167", 2 )
+#else
 void WINAPI vkCmdSetDepthBiasEnable(VkCommandBuffer commandBuffer, VkBool32 depthBiasEnable)
 {
     struct vkCmdSetDepthBiasEnable_params params;
@@ -1654,7 +2389,12 @@ void WINAPI vkCmdSetDepthBiasEnable(VkCommandBuffer commandBuffer, VkBool32 dept
     params.depthBiasEnable = depthBiasEnable;
     UNIX_CALL(vkCmdSetDepthBiasEnable, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDepthBiasEnableEXT == 168 );
+VK_FAST_THUNK( vkCmdSetDepthBiasEnableEXT, "168", 2 )
+#else
 void WINAPI vkCmdSetDepthBiasEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthBiasEnable)
 {
     struct vkCmdSetDepthBiasEnableEXT_params params;
@@ -1662,6 +2402,7 @@ void WINAPI vkCmdSetDepthBiasEnableEXT(VkCommandBuffer commandBuffer, VkBool32 d
     params.depthBiasEnable = depthBiasEnable;
     UNIX_CALL(vkCmdSetDepthBiasEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
 void WINAPI vkCmdSetDepthBounds(VkCommandBuffer commandBuffer, float minDepthBounds, float maxDepthBounds)
 {
@@ -1672,6 +2413,10 @@ void WINAPI vkCmdSetDepthBounds(VkCommandBuffer commandBuffer, float minDepthBou
     UNIX_CALL(vkCmdSetDepthBounds, &params);
 }
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDepthBoundsTestEnable == 170 );
+VK_FAST_THUNK( vkCmdSetDepthBoundsTestEnable, "170", 2 )
+#else
 void WINAPI vkCmdSetDepthBoundsTestEnable(VkCommandBuffer commandBuffer, VkBool32 depthBoundsTestEnable)
 {
     struct vkCmdSetDepthBoundsTestEnable_params params;
@@ -1679,7 +2424,12 @@ void WINAPI vkCmdSetDepthBoundsTestEnable(VkCommandBuffer commandBuffer, VkBool3
     params.depthBoundsTestEnable = depthBoundsTestEnable;
     UNIX_CALL(vkCmdSetDepthBoundsTestEnable, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDepthBoundsTestEnableEXT == 171 );
+VK_FAST_THUNK( vkCmdSetDepthBoundsTestEnableEXT, "171", 2 )
+#else
 void WINAPI vkCmdSetDepthBoundsTestEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthBoundsTestEnable)
 {
     struct vkCmdSetDepthBoundsTestEnableEXT_params params;
@@ -1687,7 +2437,12 @@ void WINAPI vkCmdSetDepthBoundsTestEnableEXT(VkCommandBuffer commandBuffer, VkBo
     params.depthBoundsTestEnable = depthBoundsTestEnable;
     UNIX_CALL(vkCmdSetDepthBoundsTestEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDepthClampEnableEXT == 172 );
+VK_FAST_THUNK( vkCmdSetDepthClampEnableEXT, "172", 2 )
+#else
 void WINAPI vkCmdSetDepthClampEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthClampEnable)
 {
     struct vkCmdSetDepthClampEnableEXT_params params;
@@ -1695,7 +2450,12 @@ void WINAPI vkCmdSetDepthClampEnableEXT(VkCommandBuffer commandBuffer, VkBool32 
     params.depthClampEnable = depthClampEnable;
     UNIX_CALL(vkCmdSetDepthClampEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDepthClipEnableEXT == 173 );
+VK_FAST_THUNK( vkCmdSetDepthClipEnableEXT, "173", 2 )
+#else
 void WINAPI vkCmdSetDepthClipEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthClipEnable)
 {
     struct vkCmdSetDepthClipEnableEXT_params params;
@@ -1703,7 +2463,12 @@ void WINAPI vkCmdSetDepthClipEnableEXT(VkCommandBuffer commandBuffer, VkBool32 d
     params.depthClipEnable = depthClipEnable;
     UNIX_CALL(vkCmdSetDepthClipEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDepthClipNegativeOneToOneEXT == 174 );
+VK_FAST_THUNK( vkCmdSetDepthClipNegativeOneToOneEXT, "174", 2 )
+#else
 void WINAPI vkCmdSetDepthClipNegativeOneToOneEXT(VkCommandBuffer commandBuffer, VkBool32 negativeOneToOne)
 {
     struct vkCmdSetDepthClipNegativeOneToOneEXT_params params;
@@ -1711,7 +2476,12 @@ void WINAPI vkCmdSetDepthClipNegativeOneToOneEXT(VkCommandBuffer commandBuffer, 
     params.negativeOneToOne = negativeOneToOne;
     UNIX_CALL(vkCmdSetDepthClipNegativeOneToOneEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDepthCompareOp == 175 );
+VK_FAST_THUNK( vkCmdSetDepthCompareOp, "175", 2 )
+#else
 void WINAPI vkCmdSetDepthCompareOp(VkCommandBuffer commandBuffer, VkCompareOp depthCompareOp)
 {
     struct vkCmdSetDepthCompareOp_params params;
@@ -1719,7 +2489,12 @@ void WINAPI vkCmdSetDepthCompareOp(VkCommandBuffer commandBuffer, VkCompareOp de
     params.depthCompareOp = depthCompareOp;
     UNIX_CALL(vkCmdSetDepthCompareOp, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDepthCompareOpEXT == 176 );
+VK_FAST_THUNK( vkCmdSetDepthCompareOpEXT, "176", 2 )
+#else
 void WINAPI vkCmdSetDepthCompareOpEXT(VkCommandBuffer commandBuffer, VkCompareOp depthCompareOp)
 {
     struct vkCmdSetDepthCompareOpEXT_params params;
@@ -1727,7 +2502,12 @@ void WINAPI vkCmdSetDepthCompareOpEXT(VkCommandBuffer commandBuffer, VkCompareOp
     params.depthCompareOp = depthCompareOp;
     UNIX_CALL(vkCmdSetDepthCompareOpEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDepthTestEnable == 177 );
+VK_FAST_THUNK( vkCmdSetDepthTestEnable, "177", 2 )
+#else
 void WINAPI vkCmdSetDepthTestEnable(VkCommandBuffer commandBuffer, VkBool32 depthTestEnable)
 {
     struct vkCmdSetDepthTestEnable_params params;
@@ -1735,7 +2515,12 @@ void WINAPI vkCmdSetDepthTestEnable(VkCommandBuffer commandBuffer, VkBool32 dept
     params.depthTestEnable = depthTestEnable;
     UNIX_CALL(vkCmdSetDepthTestEnable, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDepthTestEnableEXT == 178 );
+VK_FAST_THUNK( vkCmdSetDepthTestEnableEXT, "178", 2 )
+#else
 void WINAPI vkCmdSetDepthTestEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthTestEnable)
 {
     struct vkCmdSetDepthTestEnableEXT_params params;
@@ -1743,7 +2528,12 @@ void WINAPI vkCmdSetDepthTestEnableEXT(VkCommandBuffer commandBuffer, VkBool32 d
     params.depthTestEnable = depthTestEnable;
     UNIX_CALL(vkCmdSetDepthTestEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDepthWriteEnable == 179 );
+VK_FAST_THUNK( vkCmdSetDepthWriteEnable, "179", 2 )
+#else
 void WINAPI vkCmdSetDepthWriteEnable(VkCommandBuffer commandBuffer, VkBool32 depthWriteEnable)
 {
     struct vkCmdSetDepthWriteEnable_params params;
@@ -1751,7 +2541,12 @@ void WINAPI vkCmdSetDepthWriteEnable(VkCommandBuffer commandBuffer, VkBool32 dep
     params.depthWriteEnable = depthWriteEnable;
     UNIX_CALL(vkCmdSetDepthWriteEnable, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDepthWriteEnableEXT == 180 );
+VK_FAST_THUNK( vkCmdSetDepthWriteEnableEXT, "180", 2 )
+#else
 void WINAPI vkCmdSetDepthWriteEnableEXT(VkCommandBuffer commandBuffer, VkBool32 depthWriteEnable)
 {
     struct vkCmdSetDepthWriteEnableEXT_params params;
@@ -1759,7 +2554,12 @@ void WINAPI vkCmdSetDepthWriteEnableEXT(VkCommandBuffer commandBuffer, VkBool32 
     params.depthWriteEnable = depthWriteEnable;
     UNIX_CALL(vkCmdSetDepthWriteEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDescriptorBufferOffsets2EXT == 181 );
+VK_FAST_THUNK( vkCmdSetDescriptorBufferOffsets2EXT, "181", 2 )
+#else
 void WINAPI vkCmdSetDescriptorBufferOffsets2EXT(VkCommandBuffer commandBuffer, const VkSetDescriptorBufferOffsetsInfoEXT *pSetDescriptorBufferOffsetsInfo)
 {
     struct vkCmdSetDescriptorBufferOffsets2EXT_params params;
@@ -1767,7 +2567,12 @@ void WINAPI vkCmdSetDescriptorBufferOffsets2EXT(VkCommandBuffer commandBuffer, c
     params.pSetDescriptorBufferOffsetsInfo = pSetDescriptorBufferOffsetsInfo;
     UNIX_CALL(vkCmdSetDescriptorBufferOffsets2EXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+C_ASSERT( unix_vkCmdSetDescriptorBufferOffsetsEXT == 182 );
+VK_FAST_THUNK( vkCmdSetDescriptorBufferOffsetsEXT, "182", 7 )
+#else
 void WINAPI vkCmdSetDescriptorBufferOffsetsEXT(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t firstSet, uint32_t setCount, const uint32_t *pBufferIndices, const VkDeviceSize *pOffsets)
 {
     struct vkCmdSetDescriptorBufferOffsetsEXT_params params;
@@ -1780,7 +2585,12 @@ void WINAPI vkCmdSetDescriptorBufferOffsetsEXT(VkCommandBuffer commandBuffer, Vk
     params.pOffsets = pOffsets;
     UNIX_CALL(vkCmdSetDescriptorBufferOffsetsEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDeviceMask == 183 );
+VK_FAST_THUNK( vkCmdSetDeviceMask, "183", 2 )
+#else
 void WINAPI vkCmdSetDeviceMask(VkCommandBuffer commandBuffer, uint32_t deviceMask)
 {
     struct vkCmdSetDeviceMask_params params;
@@ -1788,7 +2598,12 @@ void WINAPI vkCmdSetDeviceMask(VkCommandBuffer commandBuffer, uint32_t deviceMas
     params.deviceMask = deviceMask;
     UNIX_CALL(vkCmdSetDeviceMask, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDeviceMaskKHR == 184 );
+VK_FAST_THUNK( vkCmdSetDeviceMaskKHR, "184", 2 )
+#else
 void WINAPI vkCmdSetDeviceMaskKHR(VkCommandBuffer commandBuffer, uint32_t deviceMask)
 {
     struct vkCmdSetDeviceMaskKHR_params params;
@@ -1796,7 +2611,12 @@ void WINAPI vkCmdSetDeviceMaskKHR(VkCommandBuffer commandBuffer, uint32_t device
     params.deviceMask = deviceMask;
     UNIX_CALL(vkCmdSetDeviceMaskKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdSetDiscardRectangleEXT == 185 );
+VK_FAST_THUNK( vkCmdSetDiscardRectangleEXT, "185", 4 )
+#else
 void WINAPI vkCmdSetDiscardRectangleEXT(VkCommandBuffer commandBuffer, uint32_t firstDiscardRectangle, uint32_t discardRectangleCount, const VkRect2D *pDiscardRectangles)
 {
     struct vkCmdSetDiscardRectangleEXT_params params;
@@ -1806,7 +2626,12 @@ void WINAPI vkCmdSetDiscardRectangleEXT(VkCommandBuffer commandBuffer, uint32_t 
     params.pDiscardRectangles = pDiscardRectangles;
     UNIX_CALL(vkCmdSetDiscardRectangleEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDiscardRectangleEnableEXT == 186 );
+VK_FAST_THUNK( vkCmdSetDiscardRectangleEnableEXT, "186", 2 )
+#else
 void WINAPI vkCmdSetDiscardRectangleEnableEXT(VkCommandBuffer commandBuffer, VkBool32 discardRectangleEnable)
 {
     struct vkCmdSetDiscardRectangleEnableEXT_params params;
@@ -1814,7 +2639,12 @@ void WINAPI vkCmdSetDiscardRectangleEnableEXT(VkCommandBuffer commandBuffer, VkB
     params.discardRectangleEnable = discardRectangleEnable;
     UNIX_CALL(vkCmdSetDiscardRectangleEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetDiscardRectangleModeEXT == 187 );
+VK_FAST_THUNK( vkCmdSetDiscardRectangleModeEXT, "187", 2 )
+#else
 void WINAPI vkCmdSetDiscardRectangleModeEXT(VkCommandBuffer commandBuffer, VkDiscardRectangleModeEXT discardRectangleMode)
 {
     struct vkCmdSetDiscardRectangleModeEXT_params params;
@@ -1822,7 +2652,12 @@ void WINAPI vkCmdSetDiscardRectangleModeEXT(VkCommandBuffer commandBuffer, VkDis
     params.discardRectangleMode = discardRectangleMode;
     UNIX_CALL(vkCmdSetDiscardRectangleModeEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdSetEvent == 188 );
+VK_FAST_THUNK( vkCmdSetEvent, "188", 3 )
+#else
 void WINAPI vkCmdSetEvent(VkCommandBuffer commandBuffer, VkEvent event, VkPipelineStageFlags stageMask)
 {
     struct vkCmdSetEvent_params params;
@@ -1831,7 +2666,12 @@ void WINAPI vkCmdSetEvent(VkCommandBuffer commandBuffer, VkEvent event, VkPipeli
     params.stageMask = stageMask;
     UNIX_CALL(vkCmdSetEvent, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdSetEvent2 == 189 );
+VK_FAST_THUNK( vkCmdSetEvent2, "189", 3 )
+#else
 void WINAPI vkCmdSetEvent2(VkCommandBuffer commandBuffer, VkEvent event, const VkDependencyInfo *pDependencyInfo)
 {
     struct vkCmdSetEvent2_params params;
@@ -1840,7 +2680,12 @@ void WINAPI vkCmdSetEvent2(VkCommandBuffer commandBuffer, VkEvent event, const V
     params.pDependencyInfo = pDependencyInfo;
     UNIX_CALL(vkCmdSetEvent2, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdSetEvent2KHR == 190 );
+VK_FAST_THUNK( vkCmdSetEvent2KHR, "190", 3 )
+#else
 void WINAPI vkCmdSetEvent2KHR(VkCommandBuffer commandBuffer, VkEvent event, const VkDependencyInfo *pDependencyInfo)
 {
     struct vkCmdSetEvent2KHR_params params;
@@ -1849,7 +2694,12 @@ void WINAPI vkCmdSetEvent2KHR(VkCommandBuffer commandBuffer, VkEvent event, cons
     params.pDependencyInfo = pDependencyInfo;
     UNIX_CALL(vkCmdSetEvent2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdSetExclusiveScissorEnableNV == 191 );
+VK_FAST_THUNK( vkCmdSetExclusiveScissorEnableNV, "191", 4 )
+#else
 void WINAPI vkCmdSetExclusiveScissorEnableNV(VkCommandBuffer commandBuffer, uint32_t firstExclusiveScissor, uint32_t exclusiveScissorCount, const VkBool32 *pExclusiveScissorEnables)
 {
     struct vkCmdSetExclusiveScissorEnableNV_params params;
@@ -1859,7 +2709,12 @@ void WINAPI vkCmdSetExclusiveScissorEnableNV(VkCommandBuffer commandBuffer, uint
     params.pExclusiveScissorEnables = pExclusiveScissorEnables;
     UNIX_CALL(vkCmdSetExclusiveScissorEnableNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdSetExclusiveScissorNV == 192 );
+VK_FAST_THUNK( vkCmdSetExclusiveScissorNV, "192", 4 )
+#else
 void WINAPI vkCmdSetExclusiveScissorNV(VkCommandBuffer commandBuffer, uint32_t firstExclusiveScissor, uint32_t exclusiveScissorCount, const VkRect2D *pExclusiveScissors)
 {
     struct vkCmdSetExclusiveScissorNV_params params;
@@ -1869,6 +2724,7 @@ void WINAPI vkCmdSetExclusiveScissorNV(VkCommandBuffer commandBuffer, uint32_t f
     params.pExclusiveScissors = pExclusiveScissors;
     UNIX_CALL(vkCmdSetExclusiveScissorNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
 void WINAPI vkCmdSetExtraPrimitiveOverestimationSizeEXT(VkCommandBuffer commandBuffer, float extraPrimitiveOverestimationSize)
 {
@@ -1878,6 +2734,10 @@ void WINAPI vkCmdSetExtraPrimitiveOverestimationSizeEXT(VkCommandBuffer commandB
     UNIX_CALL(vkCmdSetExtraPrimitiveOverestimationSizeEXT, &params);
 }
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdSetFragmentShadingRateEnumNV == 194 );
+VK_FAST_THUNK( vkCmdSetFragmentShadingRateEnumNV, "194", 3 )
+#else
 void WINAPI vkCmdSetFragmentShadingRateEnumNV(VkCommandBuffer commandBuffer, VkFragmentShadingRateNV shadingRate, const VkFragmentShadingRateCombinerOpKHR combinerOps[2])
 {
     struct vkCmdSetFragmentShadingRateEnumNV_params params;
@@ -1886,7 +2746,12 @@ void WINAPI vkCmdSetFragmentShadingRateEnumNV(VkCommandBuffer commandBuffer, VkF
     params.combinerOps = combinerOps;
     UNIX_CALL(vkCmdSetFragmentShadingRateEnumNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdSetFragmentShadingRateKHR == 195 );
+VK_FAST_THUNK( vkCmdSetFragmentShadingRateKHR, "195", 3 )
+#else
 void WINAPI vkCmdSetFragmentShadingRateKHR(VkCommandBuffer commandBuffer, const VkExtent2D *pFragmentSize, const VkFragmentShadingRateCombinerOpKHR combinerOps[2])
 {
     struct vkCmdSetFragmentShadingRateKHR_params params;
@@ -1895,7 +2760,12 @@ void WINAPI vkCmdSetFragmentShadingRateKHR(VkCommandBuffer commandBuffer, const 
     params.combinerOps = combinerOps;
     UNIX_CALL(vkCmdSetFragmentShadingRateKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetFrontFace == 196 );
+VK_FAST_THUNK( vkCmdSetFrontFace, "196", 2 )
+#else
 void WINAPI vkCmdSetFrontFace(VkCommandBuffer commandBuffer, VkFrontFace frontFace)
 {
     struct vkCmdSetFrontFace_params params;
@@ -1903,7 +2773,12 @@ void WINAPI vkCmdSetFrontFace(VkCommandBuffer commandBuffer, VkFrontFace frontFa
     params.frontFace = frontFace;
     UNIX_CALL(vkCmdSetFrontFace, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetFrontFaceEXT == 197 );
+VK_FAST_THUNK( vkCmdSetFrontFaceEXT, "197", 2 )
+#else
 void WINAPI vkCmdSetFrontFaceEXT(VkCommandBuffer commandBuffer, VkFrontFace frontFace)
 {
     struct vkCmdSetFrontFaceEXT_params params;
@@ -1911,7 +2786,12 @@ void WINAPI vkCmdSetFrontFaceEXT(VkCommandBuffer commandBuffer, VkFrontFace fron
     params.frontFace = frontFace;
     UNIX_CALL(vkCmdSetFrontFaceEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetLineRasterizationModeEXT == 198 );
+VK_FAST_THUNK( vkCmdSetLineRasterizationModeEXT, "198", 2 )
+#else
 void WINAPI vkCmdSetLineRasterizationModeEXT(VkCommandBuffer commandBuffer, VkLineRasterizationModeEXT lineRasterizationMode)
 {
     struct vkCmdSetLineRasterizationModeEXT_params params;
@@ -1919,7 +2799,12 @@ void WINAPI vkCmdSetLineRasterizationModeEXT(VkCommandBuffer commandBuffer, VkLi
     params.lineRasterizationMode = lineRasterizationMode;
     UNIX_CALL(vkCmdSetLineRasterizationModeEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdSetLineStippleEXT == 199 );
+VK_FAST_THUNK( vkCmdSetLineStippleEXT, "199", 3 )
+#else
 void WINAPI vkCmdSetLineStippleEXT(VkCommandBuffer commandBuffer, uint32_t lineStippleFactor, uint16_t lineStipplePattern)
 {
     struct vkCmdSetLineStippleEXT_params params;
@@ -1928,7 +2813,12 @@ void WINAPI vkCmdSetLineStippleEXT(VkCommandBuffer commandBuffer, uint32_t lineS
     params.lineStipplePattern = lineStipplePattern;
     UNIX_CALL(vkCmdSetLineStippleEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetLineStippleEnableEXT == 200 );
+VK_FAST_THUNK( vkCmdSetLineStippleEnableEXT, "200", 2 )
+#else
 void WINAPI vkCmdSetLineStippleEnableEXT(VkCommandBuffer commandBuffer, VkBool32 stippledLineEnable)
 {
     struct vkCmdSetLineStippleEnableEXT_params params;
@@ -1936,7 +2826,12 @@ void WINAPI vkCmdSetLineStippleEnableEXT(VkCommandBuffer commandBuffer, VkBool32
     params.stippledLineEnable = stippledLineEnable;
     UNIX_CALL(vkCmdSetLineStippleEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdSetLineStippleKHR == 201 );
+VK_FAST_THUNK( vkCmdSetLineStippleKHR, "201", 3 )
+#else
 void WINAPI vkCmdSetLineStippleKHR(VkCommandBuffer commandBuffer, uint32_t lineStippleFactor, uint16_t lineStipplePattern)
 {
     struct vkCmdSetLineStippleKHR_params params;
@@ -1945,6 +2840,7 @@ void WINAPI vkCmdSetLineStippleKHR(VkCommandBuffer commandBuffer, uint32_t lineS
     params.lineStipplePattern = lineStipplePattern;
     UNIX_CALL(vkCmdSetLineStippleKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
 void WINAPI vkCmdSetLineWidth(VkCommandBuffer commandBuffer, float lineWidth)
 {
@@ -1954,6 +2850,10 @@ void WINAPI vkCmdSetLineWidth(VkCommandBuffer commandBuffer, float lineWidth)
     UNIX_CALL(vkCmdSetLineWidth, &params);
 }
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetLogicOpEXT == 203 );
+VK_FAST_THUNK( vkCmdSetLogicOpEXT, "203", 2 )
+#else
 void WINAPI vkCmdSetLogicOpEXT(VkCommandBuffer commandBuffer, VkLogicOp logicOp)
 {
     struct vkCmdSetLogicOpEXT_params params;
@@ -1961,7 +2861,12 @@ void WINAPI vkCmdSetLogicOpEXT(VkCommandBuffer commandBuffer, VkLogicOp logicOp)
     params.logicOp = logicOp;
     UNIX_CALL(vkCmdSetLogicOpEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetLogicOpEnableEXT == 204 );
+VK_FAST_THUNK( vkCmdSetLogicOpEnableEXT, "204", 2 )
+#else
 void WINAPI vkCmdSetLogicOpEnableEXT(VkCommandBuffer commandBuffer, VkBool32 logicOpEnable)
 {
     struct vkCmdSetLogicOpEnableEXT_params params;
@@ -1969,7 +2874,12 @@ void WINAPI vkCmdSetLogicOpEnableEXT(VkCommandBuffer commandBuffer, VkBool32 log
     params.logicOpEnable = logicOpEnable;
     UNIX_CALL(vkCmdSetLogicOpEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetPatchControlPointsEXT == 205 );
+VK_FAST_THUNK( vkCmdSetPatchControlPointsEXT, "205", 2 )
+#else
 void WINAPI vkCmdSetPatchControlPointsEXT(VkCommandBuffer commandBuffer, uint32_t patchControlPoints)
 {
     struct vkCmdSetPatchControlPointsEXT_params params;
@@ -1977,7 +2887,12 @@ void WINAPI vkCmdSetPatchControlPointsEXT(VkCommandBuffer commandBuffer, uint32_
     params.patchControlPoints = patchControlPoints;
     UNIX_CALL(vkCmdSetPatchControlPointsEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetPolygonModeEXT == 206 );
+VK_FAST_THUNK( vkCmdSetPolygonModeEXT, "206", 2 )
+#else
 void WINAPI vkCmdSetPolygonModeEXT(VkCommandBuffer commandBuffer, VkPolygonMode polygonMode)
 {
     struct vkCmdSetPolygonModeEXT_params params;
@@ -1985,7 +2900,12 @@ void WINAPI vkCmdSetPolygonModeEXT(VkCommandBuffer commandBuffer, VkPolygonMode 
     params.polygonMode = polygonMode;
     UNIX_CALL(vkCmdSetPolygonModeEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetPrimitiveRestartEnable == 207 );
+VK_FAST_THUNK( vkCmdSetPrimitiveRestartEnable, "207", 2 )
+#else
 void WINAPI vkCmdSetPrimitiveRestartEnable(VkCommandBuffer commandBuffer, VkBool32 primitiveRestartEnable)
 {
     struct vkCmdSetPrimitiveRestartEnable_params params;
@@ -1993,7 +2913,12 @@ void WINAPI vkCmdSetPrimitiveRestartEnable(VkCommandBuffer commandBuffer, VkBool
     params.primitiveRestartEnable = primitiveRestartEnable;
     UNIX_CALL(vkCmdSetPrimitiveRestartEnable, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetPrimitiveRestartEnableEXT == 208 );
+VK_FAST_THUNK( vkCmdSetPrimitiveRestartEnableEXT, "208", 2 )
+#else
 void WINAPI vkCmdSetPrimitiveRestartEnableEXT(VkCommandBuffer commandBuffer, VkBool32 primitiveRestartEnable)
 {
     struct vkCmdSetPrimitiveRestartEnableEXT_params params;
@@ -2001,7 +2926,12 @@ void WINAPI vkCmdSetPrimitiveRestartEnableEXT(VkCommandBuffer commandBuffer, VkB
     params.primitiveRestartEnable = primitiveRestartEnable;
     UNIX_CALL(vkCmdSetPrimitiveRestartEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetPrimitiveTopology == 209 );
+VK_FAST_THUNK( vkCmdSetPrimitiveTopology, "209", 2 )
+#else
 void WINAPI vkCmdSetPrimitiveTopology(VkCommandBuffer commandBuffer, VkPrimitiveTopology primitiveTopology)
 {
     struct vkCmdSetPrimitiveTopology_params params;
@@ -2009,7 +2939,12 @@ void WINAPI vkCmdSetPrimitiveTopology(VkCommandBuffer commandBuffer, VkPrimitive
     params.primitiveTopology = primitiveTopology;
     UNIX_CALL(vkCmdSetPrimitiveTopology, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetPrimitiveTopologyEXT == 210 );
+VK_FAST_THUNK( vkCmdSetPrimitiveTopologyEXT, "210", 2 )
+#else
 void WINAPI vkCmdSetPrimitiveTopologyEXT(VkCommandBuffer commandBuffer, VkPrimitiveTopology primitiveTopology)
 {
     struct vkCmdSetPrimitiveTopologyEXT_params params;
@@ -2017,7 +2952,12 @@ void WINAPI vkCmdSetPrimitiveTopologyEXT(VkCommandBuffer commandBuffer, VkPrimit
     params.primitiveTopology = primitiveTopology;
     UNIX_CALL(vkCmdSetPrimitiveTopologyEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetProvokingVertexModeEXT == 211 );
+VK_FAST_THUNK( vkCmdSetProvokingVertexModeEXT, "211", 2 )
+#else
 void WINAPI vkCmdSetProvokingVertexModeEXT(VkCommandBuffer commandBuffer, VkProvokingVertexModeEXT provokingVertexMode)
 {
     struct vkCmdSetProvokingVertexModeEXT_params params;
@@ -2025,7 +2965,12 @@ void WINAPI vkCmdSetProvokingVertexModeEXT(VkCommandBuffer commandBuffer, VkProv
     params.provokingVertexMode = provokingVertexMode;
     UNIX_CALL(vkCmdSetProvokingVertexModeEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetRasterizationSamplesEXT == 212 );
+VK_FAST_THUNK( vkCmdSetRasterizationSamplesEXT, "212", 2 )
+#else
 void WINAPI vkCmdSetRasterizationSamplesEXT(VkCommandBuffer commandBuffer, VkSampleCountFlagBits rasterizationSamples)
 {
     struct vkCmdSetRasterizationSamplesEXT_params params;
@@ -2033,7 +2978,12 @@ void WINAPI vkCmdSetRasterizationSamplesEXT(VkCommandBuffer commandBuffer, VkSam
     params.rasterizationSamples = rasterizationSamples;
     UNIX_CALL(vkCmdSetRasterizationSamplesEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetRasterizationStreamEXT == 213 );
+VK_FAST_THUNK( vkCmdSetRasterizationStreamEXT, "213", 2 )
+#else
 void WINAPI vkCmdSetRasterizationStreamEXT(VkCommandBuffer commandBuffer, uint32_t rasterizationStream)
 {
     struct vkCmdSetRasterizationStreamEXT_params params;
@@ -2041,7 +2991,12 @@ void WINAPI vkCmdSetRasterizationStreamEXT(VkCommandBuffer commandBuffer, uint32
     params.rasterizationStream = rasterizationStream;
     UNIX_CALL(vkCmdSetRasterizationStreamEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetRasterizerDiscardEnable == 214 );
+VK_FAST_THUNK( vkCmdSetRasterizerDiscardEnable, "214", 2 )
+#else
 void WINAPI vkCmdSetRasterizerDiscardEnable(VkCommandBuffer commandBuffer, VkBool32 rasterizerDiscardEnable)
 {
     struct vkCmdSetRasterizerDiscardEnable_params params;
@@ -2049,7 +3004,12 @@ void WINAPI vkCmdSetRasterizerDiscardEnable(VkCommandBuffer commandBuffer, VkBoo
     params.rasterizerDiscardEnable = rasterizerDiscardEnable;
     UNIX_CALL(vkCmdSetRasterizerDiscardEnable, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetRasterizerDiscardEnableEXT == 215 );
+VK_FAST_THUNK( vkCmdSetRasterizerDiscardEnableEXT, "215", 2 )
+#else
 void WINAPI vkCmdSetRasterizerDiscardEnableEXT(VkCommandBuffer commandBuffer, VkBool32 rasterizerDiscardEnable)
 {
     struct vkCmdSetRasterizerDiscardEnableEXT_params params;
@@ -2057,7 +3017,12 @@ void WINAPI vkCmdSetRasterizerDiscardEnableEXT(VkCommandBuffer commandBuffer, Vk
     params.rasterizerDiscardEnable = rasterizerDiscardEnable;
     UNIX_CALL(vkCmdSetRasterizerDiscardEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetRayTracingPipelineStackSizeKHR == 216 );
+VK_FAST_THUNK( vkCmdSetRayTracingPipelineStackSizeKHR, "216", 2 )
+#else
 void WINAPI vkCmdSetRayTracingPipelineStackSizeKHR(VkCommandBuffer commandBuffer, uint32_t pipelineStackSize)
 {
     struct vkCmdSetRayTracingPipelineStackSizeKHR_params params;
@@ -2065,7 +3030,12 @@ void WINAPI vkCmdSetRayTracingPipelineStackSizeKHR(VkCommandBuffer commandBuffer
     params.pipelineStackSize = pipelineStackSize;
     UNIX_CALL(vkCmdSetRayTracingPipelineStackSizeKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetRenderingAttachmentLocationsKHR == 217 );
+VK_FAST_THUNK( vkCmdSetRenderingAttachmentLocationsKHR, "217", 2 )
+#else
 void WINAPI vkCmdSetRenderingAttachmentLocationsKHR(VkCommandBuffer commandBuffer, const VkRenderingAttachmentLocationInfoKHR *pLocationInfo)
 {
     struct vkCmdSetRenderingAttachmentLocationsKHR_params params;
@@ -2073,7 +3043,12 @@ void WINAPI vkCmdSetRenderingAttachmentLocationsKHR(VkCommandBuffer commandBuffe
     params.pLocationInfo = pLocationInfo;
     UNIX_CALL(vkCmdSetRenderingAttachmentLocationsKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetRenderingInputAttachmentIndicesKHR == 218 );
+VK_FAST_THUNK( vkCmdSetRenderingInputAttachmentIndicesKHR, "218", 2 )
+#else
 void WINAPI vkCmdSetRenderingInputAttachmentIndicesKHR(VkCommandBuffer commandBuffer, const VkRenderingInputAttachmentIndexInfoKHR *pLocationInfo)
 {
     struct vkCmdSetRenderingInputAttachmentIndicesKHR_params params;
@@ -2081,7 +3056,12 @@ void WINAPI vkCmdSetRenderingInputAttachmentIndicesKHR(VkCommandBuffer commandBu
     params.pLocationInfo = pLocationInfo;
     UNIX_CALL(vkCmdSetRenderingInputAttachmentIndicesKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetRepresentativeFragmentTestEnableNV == 219 );
+VK_FAST_THUNK( vkCmdSetRepresentativeFragmentTestEnableNV, "219", 2 )
+#else
 void WINAPI vkCmdSetRepresentativeFragmentTestEnableNV(VkCommandBuffer commandBuffer, VkBool32 representativeFragmentTestEnable)
 {
     struct vkCmdSetRepresentativeFragmentTestEnableNV_params params;
@@ -2089,7 +3069,12 @@ void WINAPI vkCmdSetRepresentativeFragmentTestEnableNV(VkCommandBuffer commandBu
     params.representativeFragmentTestEnable = representativeFragmentTestEnable;
     UNIX_CALL(vkCmdSetRepresentativeFragmentTestEnableNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetSampleLocationsEXT == 220 );
+VK_FAST_THUNK( vkCmdSetSampleLocationsEXT, "220", 2 )
+#else
 void WINAPI vkCmdSetSampleLocationsEXT(VkCommandBuffer commandBuffer, const VkSampleLocationsInfoEXT *pSampleLocationsInfo)
 {
     struct vkCmdSetSampleLocationsEXT_params params;
@@ -2097,7 +3082,12 @@ void WINAPI vkCmdSetSampleLocationsEXT(VkCommandBuffer commandBuffer, const VkSa
     params.pSampleLocationsInfo = pSampleLocationsInfo;
     UNIX_CALL(vkCmdSetSampleLocationsEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetSampleLocationsEnableEXT == 221 );
+VK_FAST_THUNK( vkCmdSetSampleLocationsEnableEXT, "221", 2 )
+#else
 void WINAPI vkCmdSetSampleLocationsEnableEXT(VkCommandBuffer commandBuffer, VkBool32 sampleLocationsEnable)
 {
     struct vkCmdSetSampleLocationsEnableEXT_params params;
@@ -2105,7 +3095,12 @@ void WINAPI vkCmdSetSampleLocationsEnableEXT(VkCommandBuffer commandBuffer, VkBo
     params.sampleLocationsEnable = sampleLocationsEnable;
     UNIX_CALL(vkCmdSetSampleLocationsEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdSetSampleMaskEXT == 222 );
+VK_FAST_THUNK( vkCmdSetSampleMaskEXT, "222", 3 )
+#else
 void WINAPI vkCmdSetSampleMaskEXT(VkCommandBuffer commandBuffer, VkSampleCountFlagBits samples, const VkSampleMask *pSampleMask)
 {
     struct vkCmdSetSampleMaskEXT_params params;
@@ -2114,7 +3109,12 @@ void WINAPI vkCmdSetSampleMaskEXT(VkCommandBuffer commandBuffer, VkSampleCountFl
     params.pSampleMask = pSampleMask;
     UNIX_CALL(vkCmdSetSampleMaskEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdSetScissor == 223 );
+VK_FAST_THUNK( vkCmdSetScissor, "223", 4 )
+#else
 void WINAPI vkCmdSetScissor(VkCommandBuffer commandBuffer, uint32_t firstScissor, uint32_t scissorCount, const VkRect2D *pScissors)
 {
     struct vkCmdSetScissor_params params;
@@ -2124,7 +3124,12 @@ void WINAPI vkCmdSetScissor(VkCommandBuffer commandBuffer, uint32_t firstScissor
     params.pScissors = pScissors;
     UNIX_CALL(vkCmdSetScissor, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdSetScissorWithCount == 224 );
+VK_FAST_THUNK( vkCmdSetScissorWithCount, "224", 3 )
+#else
 void WINAPI vkCmdSetScissorWithCount(VkCommandBuffer commandBuffer, uint32_t scissorCount, const VkRect2D *pScissors)
 {
     struct vkCmdSetScissorWithCount_params params;
@@ -2133,7 +3138,12 @@ void WINAPI vkCmdSetScissorWithCount(VkCommandBuffer commandBuffer, uint32_t sci
     params.pScissors = pScissors;
     UNIX_CALL(vkCmdSetScissorWithCount, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdSetScissorWithCountEXT == 225 );
+VK_FAST_THUNK( vkCmdSetScissorWithCountEXT, "225", 3 )
+#else
 void WINAPI vkCmdSetScissorWithCountEXT(VkCommandBuffer commandBuffer, uint32_t scissorCount, const VkRect2D *pScissors)
 {
     struct vkCmdSetScissorWithCountEXT_params params;
@@ -2142,7 +3152,12 @@ void WINAPI vkCmdSetScissorWithCountEXT(VkCommandBuffer commandBuffer, uint32_t 
     params.pScissors = pScissors;
     UNIX_CALL(vkCmdSetScissorWithCountEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetShadingRateImageEnableNV == 226 );
+VK_FAST_THUNK( vkCmdSetShadingRateImageEnableNV, "226", 2 )
+#else
 void WINAPI vkCmdSetShadingRateImageEnableNV(VkCommandBuffer commandBuffer, VkBool32 shadingRateImageEnable)
 {
     struct vkCmdSetShadingRateImageEnableNV_params params;
@@ -2150,7 +3165,12 @@ void WINAPI vkCmdSetShadingRateImageEnableNV(VkCommandBuffer commandBuffer, VkBo
     params.shadingRateImageEnable = shadingRateImageEnable;
     UNIX_CALL(vkCmdSetShadingRateImageEnableNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdSetStencilCompareMask == 227 );
+VK_FAST_THUNK( vkCmdSetStencilCompareMask, "227", 3 )
+#else
 void WINAPI vkCmdSetStencilCompareMask(VkCommandBuffer commandBuffer, VkStencilFaceFlags faceMask, uint32_t compareMask)
 {
     struct vkCmdSetStencilCompareMask_params params;
@@ -2159,7 +3179,12 @@ void WINAPI vkCmdSetStencilCompareMask(VkCommandBuffer commandBuffer, VkStencilF
     params.compareMask = compareMask;
     UNIX_CALL(vkCmdSetStencilCompareMask, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+C_ASSERT( unix_vkCmdSetStencilOp == 228 );
+VK_FAST_THUNK( vkCmdSetStencilOp, "228", 6 )
+#else
 void WINAPI vkCmdSetStencilOp(VkCommandBuffer commandBuffer, VkStencilFaceFlags faceMask, VkStencilOp failOp, VkStencilOp passOp, VkStencilOp depthFailOp, VkCompareOp compareOp)
 {
     struct vkCmdSetStencilOp_params params;
@@ -2171,7 +3196,12 @@ void WINAPI vkCmdSetStencilOp(VkCommandBuffer commandBuffer, VkStencilFaceFlags 
     params.compareOp = compareOp;
     UNIX_CALL(vkCmdSetStencilOp, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+C_ASSERT( unix_vkCmdSetStencilOpEXT == 229 );
+VK_FAST_THUNK( vkCmdSetStencilOpEXT, "229", 6 )
+#else
 void WINAPI vkCmdSetStencilOpEXT(VkCommandBuffer commandBuffer, VkStencilFaceFlags faceMask, VkStencilOp failOp, VkStencilOp passOp, VkStencilOp depthFailOp, VkCompareOp compareOp)
 {
     struct vkCmdSetStencilOpEXT_params params;
@@ -2183,7 +3213,12 @@ void WINAPI vkCmdSetStencilOpEXT(VkCommandBuffer commandBuffer, VkStencilFaceFla
     params.compareOp = compareOp;
     UNIX_CALL(vkCmdSetStencilOpEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdSetStencilReference == 230 );
+VK_FAST_THUNK( vkCmdSetStencilReference, "230", 3 )
+#else
 void WINAPI vkCmdSetStencilReference(VkCommandBuffer commandBuffer, VkStencilFaceFlags faceMask, uint32_t reference)
 {
     struct vkCmdSetStencilReference_params params;
@@ -2192,7 +3227,12 @@ void WINAPI vkCmdSetStencilReference(VkCommandBuffer commandBuffer, VkStencilFac
     params.reference = reference;
     UNIX_CALL(vkCmdSetStencilReference, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetStencilTestEnable == 231 );
+VK_FAST_THUNK( vkCmdSetStencilTestEnable, "231", 2 )
+#else
 void WINAPI vkCmdSetStencilTestEnable(VkCommandBuffer commandBuffer, VkBool32 stencilTestEnable)
 {
     struct vkCmdSetStencilTestEnable_params params;
@@ -2200,7 +3240,12 @@ void WINAPI vkCmdSetStencilTestEnable(VkCommandBuffer commandBuffer, VkBool32 st
     params.stencilTestEnable = stencilTestEnable;
     UNIX_CALL(vkCmdSetStencilTestEnable, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetStencilTestEnableEXT == 232 );
+VK_FAST_THUNK( vkCmdSetStencilTestEnableEXT, "232", 2 )
+#else
 void WINAPI vkCmdSetStencilTestEnableEXT(VkCommandBuffer commandBuffer, VkBool32 stencilTestEnable)
 {
     struct vkCmdSetStencilTestEnableEXT_params params;
@@ -2208,7 +3253,12 @@ void WINAPI vkCmdSetStencilTestEnableEXT(VkCommandBuffer commandBuffer, VkBool32
     params.stencilTestEnable = stencilTestEnable;
     UNIX_CALL(vkCmdSetStencilTestEnableEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdSetStencilWriteMask == 233 );
+VK_FAST_THUNK( vkCmdSetStencilWriteMask, "233", 3 )
+#else
 void WINAPI vkCmdSetStencilWriteMask(VkCommandBuffer commandBuffer, VkStencilFaceFlags faceMask, uint32_t writeMask)
 {
     struct vkCmdSetStencilWriteMask_params params;
@@ -2217,7 +3267,12 @@ void WINAPI vkCmdSetStencilWriteMask(VkCommandBuffer commandBuffer, VkStencilFac
     params.writeMask = writeMask;
     UNIX_CALL(vkCmdSetStencilWriteMask, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetTessellationDomainOriginEXT == 234 );
+VK_FAST_THUNK( vkCmdSetTessellationDomainOriginEXT, "234", 2 )
+#else
 void WINAPI vkCmdSetTessellationDomainOriginEXT(VkCommandBuffer commandBuffer, VkTessellationDomainOrigin domainOrigin)
 {
     struct vkCmdSetTessellationDomainOriginEXT_params params;
@@ -2225,7 +3280,12 @@ void WINAPI vkCmdSetTessellationDomainOriginEXT(VkCommandBuffer commandBuffer, V
     params.domainOrigin = domainOrigin;
     UNIX_CALL(vkCmdSetTessellationDomainOriginEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdSetVertexInputEXT == 235 );
+VK_FAST_THUNK( vkCmdSetVertexInputEXT, "235", 5 )
+#else
 void WINAPI vkCmdSetVertexInputEXT(VkCommandBuffer commandBuffer, uint32_t vertexBindingDescriptionCount, const VkVertexInputBindingDescription2EXT *pVertexBindingDescriptions, uint32_t vertexAttributeDescriptionCount, const VkVertexInputAttributeDescription2EXT *pVertexAttributeDescriptions)
 {
     struct vkCmdSetVertexInputEXT_params params;
@@ -2236,7 +3296,12 @@ void WINAPI vkCmdSetVertexInputEXT(VkCommandBuffer commandBuffer, uint32_t verte
     params.pVertexAttributeDescriptions = pVertexAttributeDescriptions;
     UNIX_CALL(vkCmdSetVertexInputEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdSetViewport == 236 );
+VK_FAST_THUNK( vkCmdSetViewport, "236", 4 )
+#else
 void WINAPI vkCmdSetViewport(VkCommandBuffer commandBuffer, uint32_t firstViewport, uint32_t viewportCount, const VkViewport *pViewports)
 {
     struct vkCmdSetViewport_params params;
@@ -2246,7 +3311,12 @@ void WINAPI vkCmdSetViewport(VkCommandBuffer commandBuffer, uint32_t firstViewpo
     params.pViewports = pViewports;
     UNIX_CALL(vkCmdSetViewport, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdSetViewportShadingRatePaletteNV == 237 );
+VK_FAST_THUNK( vkCmdSetViewportShadingRatePaletteNV, "237", 4 )
+#else
 void WINAPI vkCmdSetViewportShadingRatePaletteNV(VkCommandBuffer commandBuffer, uint32_t firstViewport, uint32_t viewportCount, const VkShadingRatePaletteNV *pShadingRatePalettes)
 {
     struct vkCmdSetViewportShadingRatePaletteNV_params params;
@@ -2256,7 +3326,12 @@ void WINAPI vkCmdSetViewportShadingRatePaletteNV(VkCommandBuffer commandBuffer, 
     params.pShadingRatePalettes = pShadingRatePalettes;
     UNIX_CALL(vkCmdSetViewportShadingRatePaletteNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdSetViewportSwizzleNV == 238 );
+VK_FAST_THUNK( vkCmdSetViewportSwizzleNV, "238", 4 )
+#else
 void WINAPI vkCmdSetViewportSwizzleNV(VkCommandBuffer commandBuffer, uint32_t firstViewport, uint32_t viewportCount, const VkViewportSwizzleNV *pViewportSwizzles)
 {
     struct vkCmdSetViewportSwizzleNV_params params;
@@ -2266,7 +3341,12 @@ void WINAPI vkCmdSetViewportSwizzleNV(VkCommandBuffer commandBuffer, uint32_t fi
     params.pViewportSwizzles = pViewportSwizzles;
     UNIX_CALL(vkCmdSetViewportSwizzleNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdSetViewportWScalingEnableNV == 239 );
+VK_FAST_THUNK( vkCmdSetViewportWScalingEnableNV, "239", 2 )
+#else
 void WINAPI vkCmdSetViewportWScalingEnableNV(VkCommandBuffer commandBuffer, VkBool32 viewportWScalingEnable)
 {
     struct vkCmdSetViewportWScalingEnableNV_params params;
@@ -2274,7 +3354,12 @@ void WINAPI vkCmdSetViewportWScalingEnableNV(VkCommandBuffer commandBuffer, VkBo
     params.viewportWScalingEnable = viewportWScalingEnable;
     UNIX_CALL(vkCmdSetViewportWScalingEnableNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdSetViewportWScalingNV == 240 );
+VK_FAST_THUNK( vkCmdSetViewportWScalingNV, "240", 4 )
+#else
 void WINAPI vkCmdSetViewportWScalingNV(VkCommandBuffer commandBuffer, uint32_t firstViewport, uint32_t viewportCount, const VkViewportWScalingNV *pViewportWScalings)
 {
     struct vkCmdSetViewportWScalingNV_params params;
@@ -2284,7 +3369,12 @@ void WINAPI vkCmdSetViewportWScalingNV(VkCommandBuffer commandBuffer, uint32_t f
     params.pViewportWScalings = pViewportWScalings;
     UNIX_CALL(vkCmdSetViewportWScalingNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdSetViewportWithCount == 241 );
+VK_FAST_THUNK( vkCmdSetViewportWithCount, "241", 3 )
+#else
 void WINAPI vkCmdSetViewportWithCount(VkCommandBuffer commandBuffer, uint32_t viewportCount, const VkViewport *pViewports)
 {
     struct vkCmdSetViewportWithCount_params params;
@@ -2293,7 +3383,12 @@ void WINAPI vkCmdSetViewportWithCount(VkCommandBuffer commandBuffer, uint32_t vi
     params.pViewports = pViewports;
     UNIX_CALL(vkCmdSetViewportWithCount, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdSetViewportWithCountEXT == 242 );
+VK_FAST_THUNK( vkCmdSetViewportWithCountEXT, "242", 3 )
+#else
 void WINAPI vkCmdSetViewportWithCountEXT(VkCommandBuffer commandBuffer, uint32_t viewportCount, const VkViewport *pViewports)
 {
     struct vkCmdSetViewportWithCountEXT_params params;
@@ -2302,14 +3397,24 @@ void WINAPI vkCmdSetViewportWithCountEXT(VkCommandBuffer commandBuffer, uint32_t
     params.pViewports = pViewports;
     UNIX_CALL(vkCmdSetViewportWithCountEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+C_ASSERT( unix_vkCmdSubpassShadingHUAWEI == 243 );
+VK_FAST_THUNK( vkCmdSubpassShadingHUAWEI, "243", 1 )
+#else
 void WINAPI vkCmdSubpassShadingHUAWEI(VkCommandBuffer commandBuffer)
 {
     struct vkCmdSubpassShadingHUAWEI_params params;
     params.commandBuffer = commandBuffer;
     UNIX_CALL(vkCmdSubpassShadingHUAWEI, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+C_ASSERT( unix_vkCmdTraceRaysIndirect2KHR == 244 );
+VK_FAST_THUNK( vkCmdTraceRaysIndirect2KHR, "244", 2 )
+#else
 void WINAPI vkCmdTraceRaysIndirect2KHR(VkCommandBuffer commandBuffer, VkDeviceAddress indirectDeviceAddress)
 {
     struct vkCmdTraceRaysIndirect2KHR_params params;
@@ -2317,7 +3422,12 @@ void WINAPI vkCmdTraceRaysIndirect2KHR(VkCommandBuffer commandBuffer, VkDeviceAd
     params.indirectDeviceAddress = indirectDeviceAddress;
     UNIX_CALL(vkCmdTraceRaysIndirect2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+C_ASSERT( unix_vkCmdTraceRaysIndirectKHR == 245 );
+VK_FAST_THUNK( vkCmdTraceRaysIndirectKHR, "245", 6 )
+#else
 void WINAPI vkCmdTraceRaysIndirectKHR(VkCommandBuffer commandBuffer, const VkStridedDeviceAddressRegionKHR *pRaygenShaderBindingTable, const VkStridedDeviceAddressRegionKHR *pMissShaderBindingTable, const VkStridedDeviceAddressRegionKHR *pHitShaderBindingTable, const VkStridedDeviceAddressRegionKHR *pCallableShaderBindingTable, VkDeviceAddress indirectDeviceAddress)
 {
     struct vkCmdTraceRaysIndirectKHR_params params;
@@ -2329,7 +3439,12 @@ void WINAPI vkCmdTraceRaysIndirectKHR(VkCommandBuffer commandBuffer, const VkStr
     params.indirectDeviceAddress = indirectDeviceAddress;
     UNIX_CALL(vkCmdTraceRaysIndirectKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 8
+C_ASSERT( unix_vkCmdTraceRaysKHR == 246 );
+VK_FAST_THUNK( vkCmdTraceRaysKHR, "246", 8 )
+#else
 void WINAPI vkCmdTraceRaysKHR(VkCommandBuffer commandBuffer, const VkStridedDeviceAddressRegionKHR *pRaygenShaderBindingTable, const VkStridedDeviceAddressRegionKHR *pMissShaderBindingTable, const VkStridedDeviceAddressRegionKHR *pHitShaderBindingTable, const VkStridedDeviceAddressRegionKHR *pCallableShaderBindingTable, uint32_t width, uint32_t height, uint32_t depth)
 {
     struct vkCmdTraceRaysKHR_params params;
@@ -2343,7 +3458,12 @@ void WINAPI vkCmdTraceRaysKHR(VkCommandBuffer commandBuffer, const VkStridedDevi
     params.depth = depth;
     UNIX_CALL(vkCmdTraceRaysKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 15
+C_ASSERT( unix_vkCmdTraceRaysNV == 247 );
+VK_FAST_THUNK( vkCmdTraceRaysNV, "247", 15 )
+#else
 void WINAPI vkCmdTraceRaysNV(VkCommandBuffer commandBuffer, VkBuffer raygenShaderBindingTableBuffer, VkDeviceSize raygenShaderBindingOffset, VkBuffer missShaderBindingTableBuffer, VkDeviceSize missShaderBindingOffset, VkDeviceSize missShaderBindingStride, VkBuffer hitShaderBindingTableBuffer, VkDeviceSize hitShaderBindingOffset, VkDeviceSize hitShaderBindingStride, VkBuffer callableShaderBindingTableBuffer, VkDeviceSize callableShaderBindingOffset, VkDeviceSize callableShaderBindingStride, uint32_t width, uint32_t height, uint32_t depth)
 {
     struct vkCmdTraceRaysNV_params params;
@@ -2364,7 +3484,12 @@ void WINAPI vkCmdTraceRaysNV(VkCommandBuffer commandBuffer, VkBuffer raygenShade
     params.depth = depth;
     UNIX_CALL(vkCmdTraceRaysNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdUpdateBuffer == 248 );
+VK_FAST_THUNK( vkCmdUpdateBuffer, "248", 5 )
+#else
 void WINAPI vkCmdUpdateBuffer(VkCommandBuffer commandBuffer, VkBuffer dstBuffer, VkDeviceSize dstOffset, VkDeviceSize dataSize, const void *pData)
 {
     struct vkCmdUpdateBuffer_params params;
@@ -2375,7 +3500,12 @@ void WINAPI vkCmdUpdateBuffer(VkCommandBuffer commandBuffer, VkBuffer dstBuffer,
     params.pData = pData;
     UNIX_CALL(vkCmdUpdateBuffer, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+C_ASSERT( unix_vkCmdUpdatePipelineIndirectBufferNV == 249 );
+VK_FAST_THUNK( vkCmdUpdatePipelineIndirectBufferNV, "249", 3 )
+#else
 void WINAPI vkCmdUpdatePipelineIndirectBufferNV(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipeline pipeline)
 {
     struct vkCmdUpdatePipelineIndirectBufferNV_params params;
@@ -2384,7 +3514,12 @@ void WINAPI vkCmdUpdatePipelineIndirectBufferNV(VkCommandBuffer commandBuffer, V
     params.pipeline = pipeline;
     UNIX_CALL(vkCmdUpdatePipelineIndirectBufferNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 11
+C_ASSERT( unix_vkCmdWaitEvents == 250 );
+VK_FAST_THUNK( vkCmdWaitEvents, "250", 11 )
+#else
 void WINAPI vkCmdWaitEvents(VkCommandBuffer commandBuffer, uint32_t eventCount, const VkEvent *pEvents, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, uint32_t memoryBarrierCount, const VkMemoryBarrier *pMemoryBarriers, uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier *pBufferMemoryBarriers, uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier *pImageMemoryBarriers)
 {
     struct vkCmdWaitEvents_params params;
@@ -2401,7 +3536,12 @@ void WINAPI vkCmdWaitEvents(VkCommandBuffer commandBuffer, uint32_t eventCount, 
     params.pImageMemoryBarriers = pImageMemoryBarriers;
     UNIX_CALL(vkCmdWaitEvents, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdWaitEvents2 == 251 );
+VK_FAST_THUNK( vkCmdWaitEvents2, "251", 4 )
+#else
 void WINAPI vkCmdWaitEvents2(VkCommandBuffer commandBuffer, uint32_t eventCount, const VkEvent *pEvents, const VkDependencyInfo *pDependencyInfos)
 {
     struct vkCmdWaitEvents2_params params;
@@ -2411,7 +3551,12 @@ void WINAPI vkCmdWaitEvents2(VkCommandBuffer commandBuffer, uint32_t eventCount,
     params.pDependencyInfos = pDependencyInfos;
     UNIX_CALL(vkCmdWaitEvents2, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdWaitEvents2KHR == 252 );
+VK_FAST_THUNK( vkCmdWaitEvents2KHR, "252", 4 )
+#else
 void WINAPI vkCmdWaitEvents2KHR(VkCommandBuffer commandBuffer, uint32_t eventCount, const VkEvent *pEvents, const VkDependencyInfo *pDependencyInfos)
 {
     struct vkCmdWaitEvents2KHR_params params;
@@ -2421,7 +3566,12 @@ void WINAPI vkCmdWaitEvents2KHR(VkCommandBuffer commandBuffer, uint32_t eventCou
     params.pDependencyInfos = pDependencyInfos;
     UNIX_CALL(vkCmdWaitEvents2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+C_ASSERT( unix_vkCmdWriteAccelerationStructuresPropertiesKHR == 253 );
+VK_FAST_THUNK( vkCmdWriteAccelerationStructuresPropertiesKHR, "253", 6 )
+#else
 void WINAPI vkCmdWriteAccelerationStructuresPropertiesKHR(VkCommandBuffer commandBuffer, uint32_t accelerationStructureCount, const VkAccelerationStructureKHR *pAccelerationStructures, VkQueryType queryType, VkQueryPool queryPool, uint32_t firstQuery)
 {
     struct vkCmdWriteAccelerationStructuresPropertiesKHR_params params;
@@ -2433,7 +3583,12 @@ void WINAPI vkCmdWriteAccelerationStructuresPropertiesKHR(VkCommandBuffer comman
     params.firstQuery = firstQuery;
     UNIX_CALL(vkCmdWriteAccelerationStructuresPropertiesKHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+C_ASSERT( unix_vkCmdWriteAccelerationStructuresPropertiesNV == 254 );
+VK_FAST_THUNK( vkCmdWriteAccelerationStructuresPropertiesNV, "254", 6 )
+#else
 void WINAPI vkCmdWriteAccelerationStructuresPropertiesNV(VkCommandBuffer commandBuffer, uint32_t accelerationStructureCount, const VkAccelerationStructureNV *pAccelerationStructures, VkQueryType queryType, VkQueryPool queryPool, uint32_t firstQuery)
 {
     struct vkCmdWriteAccelerationStructuresPropertiesNV_params params;
@@ -2445,7 +3600,12 @@ void WINAPI vkCmdWriteAccelerationStructuresPropertiesNV(VkCommandBuffer command
     params.firstQuery = firstQuery;
     UNIX_CALL(vkCmdWriteAccelerationStructuresPropertiesNV, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdWriteBufferMarker2AMD == 255 );
+VK_FAST_THUNK( vkCmdWriteBufferMarker2AMD, "255", 5 )
+#else
 void WINAPI vkCmdWriteBufferMarker2AMD(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 stage, VkBuffer dstBuffer, VkDeviceSize dstOffset, uint32_t marker)
 {
     struct vkCmdWriteBufferMarker2AMD_params params;
@@ -2456,7 +3616,12 @@ void WINAPI vkCmdWriteBufferMarker2AMD(VkCommandBuffer commandBuffer, VkPipeline
     params.marker = marker;
     UNIX_CALL(vkCmdWriteBufferMarker2AMD, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkCmdWriteBufferMarkerAMD == 256 );
+VK_FAST_THUNK( vkCmdWriteBufferMarkerAMD, "256", 5 )
+#else
 void WINAPI vkCmdWriteBufferMarkerAMD(VkCommandBuffer commandBuffer, VkPipelineStageFlagBits pipelineStage, VkBuffer dstBuffer, VkDeviceSize dstOffset, uint32_t marker)
 {
     struct vkCmdWriteBufferMarkerAMD_params params;
@@ -2467,7 +3632,12 @@ void WINAPI vkCmdWriteBufferMarkerAMD(VkCommandBuffer commandBuffer, VkPipelineS
     params.marker = marker;
     UNIX_CALL(vkCmdWriteBufferMarkerAMD, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+C_ASSERT( unix_vkCmdWriteMicromapsPropertiesEXT == 257 );
+VK_FAST_THUNK( vkCmdWriteMicromapsPropertiesEXT, "257", 6 )
+#else
 void WINAPI vkCmdWriteMicromapsPropertiesEXT(VkCommandBuffer commandBuffer, uint32_t micromapCount, const VkMicromapEXT *pMicromaps, VkQueryType queryType, VkQueryPool queryPool, uint32_t firstQuery)
 {
     struct vkCmdWriteMicromapsPropertiesEXT_params params;
@@ -2479,7 +3649,12 @@ void WINAPI vkCmdWriteMicromapsPropertiesEXT(VkCommandBuffer commandBuffer, uint
     params.firstQuery = firstQuery;
     UNIX_CALL(vkCmdWriteMicromapsPropertiesEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdWriteTimestamp == 258 );
+VK_FAST_THUNK( vkCmdWriteTimestamp, "258", 4 )
+#else
 void WINAPI vkCmdWriteTimestamp(VkCommandBuffer commandBuffer, VkPipelineStageFlagBits pipelineStage, VkQueryPool queryPool, uint32_t query)
 {
     struct vkCmdWriteTimestamp_params params;
@@ -2489,7 +3664,12 @@ void WINAPI vkCmdWriteTimestamp(VkCommandBuffer commandBuffer, VkPipelineStageFl
     params.query = query;
     UNIX_CALL(vkCmdWriteTimestamp, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdWriteTimestamp2 == 259 );
+VK_FAST_THUNK( vkCmdWriteTimestamp2, "259", 4 )
+#else
 void WINAPI vkCmdWriteTimestamp2(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 stage, VkQueryPool queryPool, uint32_t query)
 {
     struct vkCmdWriteTimestamp2_params params;
@@ -2499,7 +3679,12 @@ void WINAPI vkCmdWriteTimestamp2(VkCommandBuffer commandBuffer, VkPipelineStageF
     params.query = query;
     UNIX_CALL(vkCmdWriteTimestamp2, &params);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkCmdWriteTimestamp2KHR == 260 );
+VK_FAST_THUNK( vkCmdWriteTimestamp2KHR, "260", 4 )
+#else
 void WINAPI vkCmdWriteTimestamp2KHR(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 stage, VkQueryPool queryPool, uint32_t query)
 {
     struct vkCmdWriteTimestamp2KHR_params params;
@@ -2509,6 +3694,7 @@ void WINAPI vkCmdWriteTimestamp2KHR(VkCommandBuffer commandBuffer, VkPipelineSta
     params.query = query;
     UNIX_CALL(vkCmdWriteTimestamp2KHR, &params);
 }
+#endif /* VK_FAST_THUNK */
 
 VkResult WINAPI vkCompileDeferredNV(VkDevice device, VkPipeline pipeline, uint32_t shader)
 {
@@ -4040,6 +5226,10 @@ VkResult WINAPI vkGetDeferredOperationResultKHR(VkDevice device, VkDeferredOpera
     return params.result;
 }
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkGetDescriptorEXT == 397 );
+VK_FAST_THUNK( vkGetDescriptorEXT, "397", 4 )
+#else
 void WINAPI vkGetDescriptorEXT(VkDevice device, const VkDescriptorGetInfoEXT *pDescriptorInfo, size_t dataSize, void *pDescriptor)
 {
     struct vkGetDescriptorEXT_params params;
@@ -4049,6 +5239,7 @@ void WINAPI vkGetDescriptorEXT(VkDevice device, const VkDescriptorGetInfoEXT *pD
     params.pDescriptor = pDescriptor;
     UNIX_CALL(vkGetDescriptorEXT, &params);
 }
+#endif /* VK_FAST_THUNK */
 
 void WINAPI vkGetDescriptorSetHostMappingVALVE(VkDevice device, VkDescriptorSet descriptorSet, void **ppData)
 {
@@ -5936,6 +7127,10 @@ VkResult WINAPI vkUnmapMemory2KHR(VkDevice device, const VkMemoryUnmapInfoKHR *p
     return params.result;
 }
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+C_ASSERT( unix_vkUpdateDescriptorSetWithTemplate == 560 );
+VK_FAST_THUNK( vkUpdateDescriptorSetWithTemplate, "560", 4 )
+#else
 void WINAPI vkUpdateDescriptorSetWithTemplate(VkDevice device, VkDescriptorSet descriptorSet, VkDescriptorUpdateTemplate descriptorUpdateTemplate, const void *pData)
 {
     struct vkUpdateDescriptorSetWithTemplate_params params;
@@ -5945,6 +7140,7 @@ void WINAPI vkUpdateDescriptorSetWithTemplate(VkDevice device, VkDescriptorSet d
     params.pData = pData;
     UNIX_CALL(vkUpdateDescriptorSetWithTemplate, &params);
 }
+#endif /* VK_FAST_THUNK */
 
 void WINAPI vkUpdateDescriptorSetWithTemplateKHR(VkDevice device, VkDescriptorSet descriptorSet, VkDescriptorUpdateTemplate descriptorUpdateTemplate, const void *pData)
 {
@@ -5958,6 +7154,10 @@ void WINAPI vkUpdateDescriptorSetWithTemplateKHR(VkDevice device, VkDescriptorSe
     assert(!status && "vkUpdateDescriptorSetWithTemplateKHR");
 }
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+C_ASSERT( unix_vkUpdateDescriptorSets == 562 );
+VK_FAST_THUNK( vkUpdateDescriptorSets, "562", 5 )
+#else
 void WINAPI vkUpdateDescriptorSets(VkDevice device, uint32_t descriptorWriteCount, const VkWriteDescriptorSet *pDescriptorWrites, uint32_t descriptorCopyCount, const VkCopyDescriptorSet *pDescriptorCopies)
 {
     struct vkUpdateDescriptorSets_params params;
@@ -5968,6 +7168,7 @@ void WINAPI vkUpdateDescriptorSets(VkDevice device, uint32_t descriptorWriteCoun
     params.pDescriptorCopies = pDescriptorCopies;
     UNIX_CALL(vkUpdateDescriptorSets, &params);
 }
+#endif /* VK_FAST_THUNK */
 
 VkResult WINAPI vkWaitForFences(VkDevice device, uint32_t fenceCount, const VkFence *pFences, VkBool32 waitAll, uint64_t timeout)
 {
