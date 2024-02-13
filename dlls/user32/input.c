@@ -649,28 +649,8 @@ LRESULT WINAPI DefRawInputProc( RAWINPUT **data, INT data_count, UINT header_siz
  */
 BOOL WINAPI CloseTouchInputHandle( HTOUCHINPUT handle )
 {
-    FIXME( "handle %p stub!\n", handle );
-    SetLastError( ERROR_CALL_NOT_IMPLEMENTED );
-    return FALSE;
-}
-
-/*****************************************************************************
- * GetTouchInputInfo (USER32.@)
- */
-BOOL WINAPI GetTouchInputInfo( HTOUCHINPUT handle, UINT count, TOUCHINPUT *ptr, int size )
-{
-    FIXME( "handle %p, count %u, ptr %p, size %u stub!\n", handle, count, ptr, size );
-    SetLastError( ERROR_CALL_NOT_IMPLEMENTED );
-    return FALSE;
-}
-
-/**********************************************************************
- * IsTouchWindow (USER32.@)
- */
-BOOL WINAPI IsTouchWindow( HWND hwnd, ULONG *flags )
-{
-    FIXME( "hwnd %p, flags %p stub!\n", hwnd, flags );
-    return FALSE;
+    TRACE( "handle %p.\n", handle );
+    return TRUE;
 }
 
 /*****************************************************************************
@@ -678,8 +658,8 @@ BOOL WINAPI IsTouchWindow( HWND hwnd, ULONG *flags )
  */
 BOOL WINAPI RegisterTouchWindow( HWND hwnd, ULONG flags )
 {
-    FIXME( "hwnd %p, flags %#lx stub!\n", hwnd, flags );
-    return TRUE;
+    TRACE( "hwnd %p, flags %#lx.\n", hwnd, flags );
+    return NtUserCallTwoParam( (ULONG_PTR)hwnd, flags, NtUserCallTwoParam_RegisterTouchWindow );
 }
 
 /*****************************************************************************
@@ -687,8 +667,8 @@ BOOL WINAPI RegisterTouchWindow( HWND hwnd, ULONG flags )
  */
 BOOL WINAPI UnregisterTouchWindow( HWND hwnd )
 {
-    FIXME( "hwnd %p stub!\n", hwnd );
-    return TRUE;
+    TRACE( "hwnd %p.\n", hwnd );
+    return NtUserCallOneParam( (ULONG_PTR)hwnd, NtUserCallOneParam_UnregisterTouchWindow );
 }
 
 /*****************************************************************************
@@ -777,13 +757,32 @@ HWND WINAPI GetActiveWindow(void)
     return (HWND)NtUserGetThreadState( UserThreadStateActiveWindow );
 }
 
-
 /*****************************************************************
  *           GetFocus  (USER32.@)
  */
 HWND WINAPI GetFocus(void)
 {
-    return (HWND)NtUserGetThreadState( UserThreadStateFocusWindow );
+    GUITHREADINFO info;
+    HWND retValueWindow;
+    static HWND prev = 0;
+
+    info.cbSize = sizeof(info);
+    
+    retValueWindow = NtUserGetGUIThreadInfo( GetCurrentThreadId(), &info ) ? info.hwndFocus : 0;
+
+    if (retValueWindow == 0 && prev != 0)
+    {
+        int retAttachThreadInput = NtUserAttachThreadInput(0, 0, 1);
+	TRACE_(rawinput)("AttachThreadInput: %d\n", retAttachThreadInput);
+    }
+    else 
+    {
+        prev = retValueWindow;
+    }
+
+    TRACE_(rawinput)("GetFocus %p\n", retValueWindow);
+
+    return retValueWindow;
 }
 
 

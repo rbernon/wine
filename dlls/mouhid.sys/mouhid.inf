@@ -7,6 +7,8 @@ Class=System
 Wine=mfg_section
 
 [mfg_section]
+HID system mouse device=device_section,HID_SYSTEM_MOUSE
+HID generic mouse device=device_section,HID_DEVICE_UP:0001_U:0002
 HID touch screen device=device_section,HID_DEVICE_UP:000D_U:0004
 
 [device_section.Services]

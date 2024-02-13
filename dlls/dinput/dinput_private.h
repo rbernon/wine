@@ -74,10 +74,8 @@ extern void dinput_mouse_rawinput_hook( IDirectInputDevice8W *iface, WPARAM wpar
                                         RAWINPUT *raw );
 extern void dinput_keyboard_rawinput_hook( IDirectInputDevice8W *iface, WPARAM wparam, LPARAM lparam,
                                            RAWINPUT *raw );
-
-extern void check_dinput_events(void);
-
 extern HRESULT _configure_devices(IDirectInput8W *iface, LPDICONFIGUREDEVICESCALLBACK lpdiCallback, LPDICONFIGUREDEVICESPARAMSW lpdiCDParams, DWORD dwFlags, LPVOID pvRefData);
+extern HRESULT save_mapping_settings(IDirectInputDevice8W *iface, LPDIACTIONFORMATW lpdiaf, LPCWSTR lpszUsername);
 
 extern WCHAR* get_mapping_path(const WCHAR *device, const WCHAR *username);
 extern DWORD get_device_type(DWORD version, BOOL is_joystick);
