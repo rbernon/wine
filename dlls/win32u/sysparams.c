@@ -39,6 +39,8 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(system);
 
+#define WINE_ENUM_PHYSICAL_SETTINGS  ((DWORD) -3)
+
 static LONG dpi_context; /* process DPI awareness context */
 
 static HKEY video_key, enum_key, control_key, config_key, volatile_base_key;
@@ -70,6 +72,7 @@ static const WCHAR yesW[] = {'Y','e','s',0};
 static const WCHAR noW[] = {'N','o',0};
 static const WCHAR modesW[] = {'M','o','d','e','s',0};
 static const WCHAR mode_countW[] = {'M','o','d','e','C','o','u','n','t',0};
+static const WCHAR dpi_factorW[] = {'D','p','i','F','a','c','t','o','r',0};
 
 static const char  guid_devclass_displayA[] = "{4D36E968-E325-11CE-BFC1-08002BE10318}";
 static const WCHAR guid_devclass_displayW[] =
@@ -107,6 +110,7 @@ struct source
     unsigned int id;
     struct gpu *gpu;
     UINT state_flags;
+    float dpi_factor[2];
     UINT monitor_count;
     UINT mode_count;
     DEVMODEW *modes;
@@ -534,6 +538,14 @@ static BOOL source_set_current_settings( const struct source *source, const DEVM
     if (!(hkey = reg_open_ascii_key( config_key, source->path ))) ret = FALSE;
     else
     {
+        DEVMODEW physical = {.dmSize = sizeof(DEVMODEW)};
+
+        if (read_source_mode( hkey, WINE_ENUM_PHYSICAL_SETTINGS, &physical ))
+        {
+            float dpi_factor[2] = {(float)mode->dmPelsWidth / physical.dmPelsWidth, (float)mode->dmPelsHeight / physical.dmPelsHeight};
+            set_reg_value( hkey, dpi_factorW, REG_BINARY, &dpi_factor, sizeof(dpi_factor) );
+        }
+
         ret = write_source_mode( hkey, ENUM_CURRENT_SETTINGS, mode );
         NtClose( hkey );
     }
@@ -658,6 +670,12 @@ static BOOL reade_source_from_registry( unsigned int index, struct source *sourc
         qsort( source->modes, source->mode_count, sizeof(*source->modes), mode_compare );
     }
     value = (void *)buffer;
+
+    /* DpiFactor */
+    if (query_reg_value( hkey, dpi_factorW, value, sizeof(buffer) ) && value->Type == REG_BINARY)
+        memcpy( source->dpi_factor, (float *)value->Data, sizeof(source->dpi_factor) );
+    else
+        source->dpi_factor[0] = source->dpi_factor[1] = 1.0;
 
     /* DeviceID */
     size = query_reg_ascii_value( hkey, "GPUID", value, sizeof(buffer) );
@@ -1985,6 +2003,46 @@ static BOOL add_virtual_source( struct device_manager_ctx *ctx )
     return STATUS_SUCCESS;
 }
 
+static void write_current_mode( struct device_manager_ctx *ctx )
+{
+    DEVMODEW tmp_mode = {.dmSize = sizeof(DEVMODEW)}, *current = &ctx->current, detached;
+
+    detached = *current;
+    detached.dmPelsWidth = 0;
+    detached.dmPelsHeight = 0;
+
+    if (!(ctx->source.state_flags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
+        current = &detached;
+
+    if (current == &detached || !read_source_mode( ctx->source_key, ENUM_REGISTRY_SETTINGS, &tmp_mode ))
+        write_source_mode( ctx->source_key, ENUM_REGISTRY_SETTINGS, current );
+
+    if (ctx->source.mode_count > 1 || current == &detached)
+        write_source_mode( ctx->source_key, ENUM_CURRENT_SETTINGS, current );
+    else
+    {
+        DEVMODEW physical = *current;
+        float dpi_factor[2];
+
+        current = &tmp_mode;
+        if (!read_source_mode( ctx->source_key, ENUM_CURRENT_SETTINGS, current ))
+        {
+            write_source_mode( ctx->source_key, ENUM_CURRENT_SETTINGS, &physical );
+            *current = physical;
+        }
+
+        write_source_mode( ctx->source_key, WINE_ENUM_PHYSICAL_SETTINGS, &physical );
+        dpi_factor[0] = (float)current->dmPelsWidth / physical.dmPelsWidth;
+        dpi_factor[1] = (float)current->dmPelsHeight / physical.dmPelsHeight;
+        set_reg_value( ctx->source_key, dpi_factorW, REG_BINARY, &dpi_factor, sizeof(dpi_factor) );
+
+        if (!is_same_devmode( &physical, current )) add_mode( current, FALSE, ctx );
+        add_virtual_modes( ctx, &physical, &physical, current );
+    }
+
+    ctx->source.mode_count = 0;
+}
+
 static UINT update_display_devices( struct device_manager_ctx *ctx )
 {
     UINT status;
@@ -2093,13 +2151,32 @@ static void release_display_dc( HDC hdc )
     pthread_mutex_unlock( &display_dc_lock );
 }
 
+static UINT get_source_dpi( struct source *source )
+{
+    return system_dpi * max( source->dpi_factor[0], source->dpi_factor[1] );
+}
+
 /**********************************************************************
  *           get_monitor_dpi
  */
-UINT get_monitor_dpi( HMONITOR monitor )
+UINT get_monitor_dpi( HMONITOR handle )
 {
-    /* FIXME: use the monitor DPI instead */
-    return system_dpi;
+    struct monitor *monitor;
+    UINT dpi = system_dpi;
+
+    if (!lock_display_devices()) return system_dpi;
+
+    LIST_FOR_EACH_ENTRY(monitor, &monitors, struct monitor, entry)
+    {
+        if (monitor->handle == handle)
+        {
+            dpi = get_source_dpi( monitor->source );
+            break;
+        }
+    }
+
+    unlock_display_devices();
+    return dpi;
 }
 
 static RECT get_monitor_rect( struct monitor *monitor, BOOL work, UINT dpi )
@@ -2113,8 +2190,8 @@ static RECT get_monitor_rect( struct monitor *monitor, BOOL work, UINT dpi )
  */
 UINT get_win_monitor_dpi( HWND hwnd )
 {
-    /* FIXME: use the monitor DPI instead */
-    return system_dpi;
+    HMONITOR handle = monitor_from_window( hwnd, MONITOR_DEFAULTTONEAREST, 0 );
+    return get_monitor_dpi( handle );
 }
 
 /* keep in sync with user32 */
@@ -3432,6 +3509,7 @@ BOOL WINAPI NtUserEnumDisplaySettings( UNICODE_STRING *device, DWORD index, DEVM
 
     if (index == ENUM_REGISTRY_SETTINGS) ret = source_get_registry_settings( source, devmode );
     else if (index == ENUM_CURRENT_SETTINGS) ret = source_get_current_settings( source, devmode );
+    else if (index == WINE_ENUM_PHYSICAL_SETTINGS) ret = FALSE;
     else ret = source_enum_display_settings( source, index, devmode, flags );
     source_release( source );
 
