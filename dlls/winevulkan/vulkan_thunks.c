@@ -35994,6 +35994,16 @@ static NTSTATUS thunk32_vkBuildMicromapsEXT(void *args)
     return STATUS_SUCCESS;
 }
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdBeginConditionalRenderingEXT(void)
+{
+    struct vkCmdBeginConditionalRenderingEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pConditionalRenderingBegin);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBeginConditionalRenderingEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pConditionalRenderingBegin);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBeginConditionalRenderingEXT(void *args)
 {
@@ -36002,7 +36012,24 @@ static void thunk64_vkCmdBeginConditionalRenderingEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBeginConditionalRenderingEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pConditionalRenderingBegin);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdBeginConditionalRenderingEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pConditionalRenderingBegin;
+    } params;
+    VkConditionalRenderingBeginInfoEXT pConditionalRenderingBegin_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pConditionalRenderingBegin);
+    convert_VkConditionalRenderingBeginInfoEXT_win32_to_host((const VkConditionalRenderingBeginInfoEXT32 *)UlongToPtr(params.pConditionalRenderingBegin), &pConditionalRenderingBegin_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBeginConditionalRenderingEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pConditionalRenderingBegin_host);
+}
+#else
 static void thunk32_vkCmdBeginConditionalRenderingEXT(void *args)
 {
     struct
@@ -36015,7 +36042,18 @@ static void thunk32_vkCmdBeginConditionalRenderingEXT(void *args)
     convert_VkConditionalRenderingBeginInfoEXT_win32_to_host((const VkConditionalRenderingBeginInfoEXT32 *)UlongToPtr(params->pConditionalRenderingBegin), &pConditionalRenderingBegin_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBeginConditionalRenderingEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pConditionalRenderingBegin_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdBeginDebugUtilsLabelEXT(void)
+{
+    struct vkCmdBeginDebugUtilsLabelEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pLabelInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBeginDebugUtilsLabelEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pLabelInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBeginDebugUtilsLabelEXT(void *args)
 {
@@ -36024,7 +36062,24 @@ static void thunk64_vkCmdBeginDebugUtilsLabelEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBeginDebugUtilsLabelEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pLabelInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdBeginDebugUtilsLabelEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pLabelInfo;
+    } params;
+    VkDebugUtilsLabelEXT pLabelInfo_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pLabelInfo);
+    convert_VkDebugUtilsLabelEXT_win32_to_host((const VkDebugUtilsLabelEXT32 *)UlongToPtr(params.pLabelInfo), &pLabelInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBeginDebugUtilsLabelEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pLabelInfo_host);
+}
+#else
 static void thunk32_vkCmdBeginDebugUtilsLabelEXT(void *args)
 {
     struct
@@ -36037,7 +36092,20 @@ static void thunk32_vkCmdBeginDebugUtilsLabelEXT(void *args)
     convert_VkDebugUtilsLabelEXT_win32_to_host((const VkDebugUtilsLabelEXT32 *)UlongToPtr(params->pLabelInfo), &pLabelInfo_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBeginDebugUtilsLabelEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pLabelInfo_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdBeginQuery(void)
+{
+    struct vkCmdBeginQuery_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.query);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.flags);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBeginQuery(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.queryPool, params.query, params.flags);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBeginQuery(void *args)
 {
@@ -36046,7 +36114,26 @@ static void thunk64_vkCmdBeginQuery(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBeginQuery(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->queryPool, params->query, params->flags);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdBeginQuery(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkQueryPool DECLSPEC_ALIGN(8) queryPool;
+        uint32_t query;
+        VkQueryControlFlags flags;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.query);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.flags);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBeginQuery(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.queryPool, params.query, params.flags);
+}
+#else
 static void thunk32_vkCmdBeginQuery(void *args)
 {
     struct
@@ -36059,7 +36146,21 @@ static void thunk32_vkCmdBeginQuery(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBeginQuery(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->queryPool, params->query, params->flags);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdBeginQueryIndexedEXT(void)
+{
+    struct vkCmdBeginQueryIndexedEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.query);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.flags);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.index);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBeginQueryIndexedEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.queryPool, params.query, params.flags, params.index);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBeginQueryIndexedEXT(void *args)
 {
@@ -36068,7 +36169,28 @@ static void thunk64_vkCmdBeginQueryIndexedEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBeginQueryIndexedEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->queryPool, params->query, params->flags, params->index);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdBeginQueryIndexedEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkQueryPool DECLSPEC_ALIGN(8) queryPool;
+        uint32_t query;
+        VkQueryControlFlags flags;
+        uint32_t index;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.query);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.flags);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.index);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBeginQueryIndexedEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.queryPool, params.query, params.flags, params.index);
+}
+#else
 static void thunk32_vkCmdBeginQueryIndexedEXT(void *args)
 {
     struct
@@ -36082,7 +36204,19 @@ static void thunk32_vkCmdBeginQueryIndexedEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBeginQueryIndexedEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->queryPool, params->query, params->flags, params->index);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdBeginRenderPass(void)
+{
+    struct vkCmdBeginRenderPass_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pRenderPassBegin);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.contents);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBeginRenderPass(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pRenderPassBegin, params.contents);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBeginRenderPass(void *args)
 {
@@ -36091,7 +36225,30 @@ static void thunk64_vkCmdBeginRenderPass(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBeginRenderPass(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pRenderPassBegin, params->contents);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdBeginRenderPass(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pRenderPassBegin;
+        VkSubpassContents contents;
+    } params;
+    VkRenderPassBeginInfo pRenderPassBegin_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pRenderPassBegin);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.contents);
+    init_conversion_context(ctx);
+    convert_VkRenderPassBeginInfo_win32_to_host(ctx, (const VkRenderPassBeginInfo32 *)UlongToPtr(params.pRenderPassBegin), &pRenderPassBegin_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBeginRenderPass(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pRenderPassBegin_host, params.contents);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdBeginRenderPass(void *args)
 {
     struct
@@ -36109,7 +36266,19 @@ static void thunk32_vkCmdBeginRenderPass(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBeginRenderPass(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pRenderPassBegin_host, params->contents);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdBeginRenderPass2(void)
+{
+    struct vkCmdBeginRenderPass2_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pRenderPassBegin);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pSubpassBeginInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBeginRenderPass2(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pRenderPassBegin, params.pSubpassBeginInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBeginRenderPass2(void *args)
 {
@@ -36118,7 +36287,32 @@ static void thunk64_vkCmdBeginRenderPass2(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBeginRenderPass2(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pRenderPassBegin, params->pSubpassBeginInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdBeginRenderPass2(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pRenderPassBegin;
+        PTR32 pSubpassBeginInfo;
+    } params;
+    VkRenderPassBeginInfo pRenderPassBegin_host;
+    VkSubpassBeginInfo pSubpassBeginInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pRenderPassBegin);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pSubpassBeginInfo);
+    init_conversion_context(ctx);
+    convert_VkRenderPassBeginInfo_win32_to_host(ctx, (const VkRenderPassBeginInfo32 *)UlongToPtr(params.pRenderPassBegin), &pRenderPassBegin_host);
+    convert_VkSubpassBeginInfo_win32_to_host((const VkSubpassBeginInfo32 *)UlongToPtr(params.pSubpassBeginInfo), &pSubpassBeginInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBeginRenderPass2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pRenderPassBegin_host, &pSubpassBeginInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdBeginRenderPass2(void *args)
 {
     struct
@@ -36138,7 +36332,19 @@ static void thunk32_vkCmdBeginRenderPass2(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBeginRenderPass2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pRenderPassBegin_host, &pSubpassBeginInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdBeginRenderPass2KHR(void)
+{
+    struct vkCmdBeginRenderPass2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pRenderPassBegin);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pSubpassBeginInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBeginRenderPass2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pRenderPassBegin, params.pSubpassBeginInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBeginRenderPass2KHR(void *args)
 {
@@ -36147,7 +36353,32 @@ static void thunk64_vkCmdBeginRenderPass2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBeginRenderPass2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pRenderPassBegin, params->pSubpassBeginInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdBeginRenderPass2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pRenderPassBegin;
+        PTR32 pSubpassBeginInfo;
+    } params;
+    VkRenderPassBeginInfo pRenderPassBegin_host;
+    VkSubpassBeginInfo pSubpassBeginInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pRenderPassBegin);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pSubpassBeginInfo);
+    init_conversion_context(ctx);
+    convert_VkRenderPassBeginInfo_win32_to_host(ctx, (const VkRenderPassBeginInfo32 *)UlongToPtr(params.pRenderPassBegin), &pRenderPassBegin_host);
+    convert_VkSubpassBeginInfo_win32_to_host((const VkSubpassBeginInfo32 *)UlongToPtr(params.pSubpassBeginInfo), &pSubpassBeginInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBeginRenderPass2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pRenderPassBegin_host, &pSubpassBeginInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdBeginRenderPass2KHR(void *args)
 {
     struct
@@ -36167,7 +36398,18 @@ static void thunk32_vkCmdBeginRenderPass2KHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBeginRenderPass2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pRenderPassBegin_host, &pSubpassBeginInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdBeginRendering(void)
+{
+    struct vkCmdBeginRendering_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pRenderingInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBeginRendering(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pRenderingInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBeginRendering(void *args)
 {
@@ -36176,7 +36418,28 @@ static void thunk64_vkCmdBeginRendering(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBeginRendering(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pRenderingInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdBeginRendering(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pRenderingInfo;
+    } params;
+    VkRenderingInfo pRenderingInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pRenderingInfo);
+    init_conversion_context(ctx);
+    convert_VkRenderingInfo_win32_to_host(ctx, (const VkRenderingInfo32 *)UlongToPtr(params.pRenderingInfo), &pRenderingInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBeginRendering(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pRenderingInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdBeginRendering(void *args)
 {
     struct
@@ -36193,7 +36456,18 @@ static void thunk32_vkCmdBeginRendering(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBeginRendering(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pRenderingInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdBeginRenderingKHR(void)
+{
+    struct vkCmdBeginRenderingKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pRenderingInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBeginRenderingKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pRenderingInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBeginRenderingKHR(void *args)
 {
@@ -36202,7 +36476,28 @@ static void thunk64_vkCmdBeginRenderingKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBeginRenderingKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pRenderingInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdBeginRenderingKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pRenderingInfo;
+    } params;
+    VkRenderingInfo pRenderingInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pRenderingInfo);
+    init_conversion_context(ctx);
+    convert_VkRenderingInfo_win32_to_host(ctx, (const VkRenderingInfo32 *)UlongToPtr(params.pRenderingInfo), &pRenderingInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBeginRenderingKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pRenderingInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdBeginRenderingKHR(void *args)
 {
     struct
@@ -36219,7 +36514,21 @@ static void thunk32_vkCmdBeginRenderingKHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBeginRenderingKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pRenderingInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdBeginTransformFeedbackEXT(void)
+{
+    struct vkCmdBeginTransformFeedbackEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstCounterBuffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.counterBufferCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pCounterBuffers);
+    VK_FAST_THUNK_GET_ARG(4, void *, params.pCounterBufferOffsets);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBeginTransformFeedbackEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstCounterBuffer, params.counterBufferCount, params.pCounterBuffers, params.pCounterBufferOffsets);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBeginTransformFeedbackEXT(void *args)
 {
@@ -36228,7 +36537,28 @@ static void thunk64_vkCmdBeginTransformFeedbackEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBeginTransformFeedbackEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstCounterBuffer, params->counterBufferCount, params->pCounterBuffers, params->pCounterBufferOffsets);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdBeginTransformFeedbackEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstCounterBuffer;
+        uint32_t counterBufferCount;
+        PTR32 pCounterBuffers;
+        PTR32 pCounterBufferOffsets;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstCounterBuffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.counterBufferCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pCounterBuffers);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.pCounterBufferOffsets);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBeginTransformFeedbackEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstCounterBuffer, params.counterBufferCount, (const VkBuffer *)UlongToPtr(params.pCounterBuffers), (const VkDeviceSize *)UlongToPtr(params.pCounterBufferOffsets));
+}
+#else
 static void thunk32_vkCmdBeginTransformFeedbackEXT(void *args)
 {
     struct
@@ -36242,7 +36572,18 @@ static void thunk32_vkCmdBeginTransformFeedbackEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBeginTransformFeedbackEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstCounterBuffer, params->counterBufferCount, (const VkBuffer *)UlongToPtr(params->pCounterBuffers), (const VkDeviceSize *)UlongToPtr(params->pCounterBufferOffsets));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdBeginVideoCodingKHR(void)
+{
+    struct vkCmdBeginVideoCodingKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pBeginInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBeginVideoCodingKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pBeginInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBeginVideoCodingKHR(void *args)
 {
@@ -36251,7 +36592,28 @@ static void thunk64_vkCmdBeginVideoCodingKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBeginVideoCodingKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pBeginInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdBeginVideoCodingKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pBeginInfo;
+    } params;
+    VkVideoBeginCodingInfoKHR pBeginInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pBeginInfo);
+    init_conversion_context(ctx);
+    convert_VkVideoBeginCodingInfoKHR_win32_to_host(ctx, (const VkVideoBeginCodingInfoKHR32 *)UlongToPtr(params.pBeginInfo), &pBeginInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBeginVideoCodingKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pBeginInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdBeginVideoCodingKHR(void *args)
 {
     struct
@@ -36268,7 +36630,18 @@ static void thunk32_vkCmdBeginVideoCodingKHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBeginVideoCodingKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pBeginInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdBindDescriptorBufferEmbeddedSamplers2EXT(void)
+{
+    struct vkCmdBindDescriptorBufferEmbeddedSamplers2EXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pBindDescriptorBufferEmbeddedSamplersInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBindDescriptorBufferEmbeddedSamplers2EXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pBindDescriptorBufferEmbeddedSamplersInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBindDescriptorBufferEmbeddedSamplers2EXT(void *args)
 {
@@ -36277,7 +36650,28 @@ static void thunk64_vkCmdBindDescriptorBufferEmbeddedSamplers2EXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBindDescriptorBufferEmbeddedSamplers2EXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pBindDescriptorBufferEmbeddedSamplersInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdBindDescriptorBufferEmbeddedSamplers2EXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pBindDescriptorBufferEmbeddedSamplersInfo;
+    } params;
+    VkBindDescriptorBufferEmbeddedSamplersInfoEXT pBindDescriptorBufferEmbeddedSamplersInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pBindDescriptorBufferEmbeddedSamplersInfo);
+    init_conversion_context(ctx);
+    convert_VkBindDescriptorBufferEmbeddedSamplersInfoEXT_win32_to_host(ctx, (const VkBindDescriptorBufferEmbeddedSamplersInfoEXT32 *)UlongToPtr(params.pBindDescriptorBufferEmbeddedSamplersInfo), &pBindDescriptorBufferEmbeddedSamplersInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBindDescriptorBufferEmbeddedSamplers2EXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pBindDescriptorBufferEmbeddedSamplersInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdBindDescriptorBufferEmbeddedSamplers2EXT(void *args)
 {
     struct
@@ -36294,7 +36688,20 @@ static void thunk32_vkCmdBindDescriptorBufferEmbeddedSamplers2EXT(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBindDescriptorBufferEmbeddedSamplers2EXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pBindDescriptorBufferEmbeddedSamplersInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdBindDescriptorBufferEmbeddedSamplersEXT(void)
+{
+    struct vkCmdBindDescriptorBufferEmbeddedSamplersEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineBindPoint);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.layout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.set);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBindDescriptorBufferEmbeddedSamplersEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pipelineBindPoint, params.layout, params.set);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBindDescriptorBufferEmbeddedSamplersEXT(void *args)
 {
@@ -36303,7 +36710,26 @@ static void thunk64_vkCmdBindDescriptorBufferEmbeddedSamplersEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBindDescriptorBufferEmbeddedSamplersEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pipelineBindPoint, params->layout, params->set);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdBindDescriptorBufferEmbeddedSamplersEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkPipelineBindPoint pipelineBindPoint;
+        VkPipelineLayout DECLSPEC_ALIGN(8) layout;
+        uint32_t set;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineBindPoint);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.layout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.set);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBindDescriptorBufferEmbeddedSamplersEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.pipelineBindPoint, params.layout, params.set);
+}
+#else
 static void thunk32_vkCmdBindDescriptorBufferEmbeddedSamplersEXT(void *args)
 {
     struct
@@ -36316,7 +36742,19 @@ static void thunk32_vkCmdBindDescriptorBufferEmbeddedSamplersEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBindDescriptorBufferEmbeddedSamplersEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->pipelineBindPoint, params->layout, params->set);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdBindDescriptorBuffersEXT(void)
+{
+    struct vkCmdBindDescriptorBuffersEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.bufferCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pBindingInfos);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBindDescriptorBuffersEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.bufferCount, params.pBindingInfos);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBindDescriptorBuffersEXT(void *args)
 {
@@ -36325,7 +36763,30 @@ static void thunk64_vkCmdBindDescriptorBuffersEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBindDescriptorBuffersEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->bufferCount, params->pBindingInfos);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdBindDescriptorBuffersEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t bufferCount;
+        PTR32 pBindingInfos;
+    } params;
+    const VkDescriptorBufferBindingInfoEXT *pBindingInfos_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.bufferCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pBindingInfos);
+    init_conversion_context(ctx);
+    pBindingInfos_host = convert_VkDescriptorBufferBindingInfoEXT_array_win32_to_host(ctx, (const VkDescriptorBufferBindingInfoEXT32 *)UlongToPtr(params.pBindingInfos), params.bufferCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBindDescriptorBuffersEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.bufferCount, pBindingInfos_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdBindDescriptorBuffersEXT(void *args)
 {
     struct
@@ -36343,7 +36804,24 @@ static void thunk32_vkCmdBindDescriptorBuffersEXT(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBindDescriptorBuffersEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->bufferCount, pBindingInfos_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 8
+static void thunk64_vkCmdBindDescriptorSets(void)
+{
+    struct vkCmdBindDescriptorSets_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineBindPoint);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.layout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.firstSet);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.descriptorSetCount);
+    VK_FAST_THUNK_GET_ARG(5, void *, params.pDescriptorSets);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.dynamicOffsetCount);
+    VK_FAST_THUNK_GET_ARG(7, void *, params.pDynamicOffsets);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBindDescriptorSets(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pipelineBindPoint, params.layout, params.firstSet, params.descriptorSetCount, params.pDescriptorSets, params.dynamicOffsetCount, params.pDynamicOffsets);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBindDescriptorSets(void *args)
 {
@@ -36352,7 +36830,34 @@ static void thunk64_vkCmdBindDescriptorSets(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBindDescriptorSets(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pipelineBindPoint, params->layout, params->firstSet, params->descriptorSetCount, params->pDescriptorSets, params->dynamicOffsetCount, params->pDynamicOffsets);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 8
+static void thunk32_vkCmdBindDescriptorSets(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkPipelineBindPoint pipelineBindPoint;
+        VkPipelineLayout DECLSPEC_ALIGN(8) layout;
+        uint32_t firstSet;
+        uint32_t descriptorSetCount;
+        PTR32 pDescriptorSets;
+        uint32_t dynamicOffsetCount;
+        PTR32 pDynamicOffsets;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineBindPoint);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.layout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.firstSet);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.descriptorSetCount);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.pDescriptorSets);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.dynamicOffsetCount);
+    VK_FAST_THUNK_GET_ARG(7, UINT_PTR, params.pDynamicOffsets);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBindDescriptorSets(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.pipelineBindPoint, params.layout, params.firstSet, params.descriptorSetCount, (const VkDescriptorSet *)UlongToPtr(params.pDescriptorSets), params.dynamicOffsetCount, (const uint32_t *)UlongToPtr(params.pDynamicOffsets));
+}
+#else
 static void thunk32_vkCmdBindDescriptorSets(void *args)
 {
     struct
@@ -36369,7 +36874,18 @@ static void thunk32_vkCmdBindDescriptorSets(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBindDescriptorSets(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->pipelineBindPoint, params->layout, params->firstSet, params->descriptorSetCount, (const VkDescriptorSet *)UlongToPtr(params->pDescriptorSets), params->dynamicOffsetCount, (const uint32_t *)UlongToPtr(params->pDynamicOffsets));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdBindDescriptorSets2KHR(void)
+{
+    struct vkCmdBindDescriptorSets2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pBindDescriptorSetsInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBindDescriptorSets2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pBindDescriptorSetsInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBindDescriptorSets2KHR(void *args)
 {
@@ -36378,7 +36894,28 @@ static void thunk64_vkCmdBindDescriptorSets2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBindDescriptorSets2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pBindDescriptorSetsInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdBindDescriptorSets2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pBindDescriptorSetsInfo;
+    } params;
+    VkBindDescriptorSetsInfoKHR pBindDescriptorSetsInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pBindDescriptorSetsInfo);
+    init_conversion_context(ctx);
+    convert_VkBindDescriptorSetsInfoKHR_win32_to_host(ctx, (const VkBindDescriptorSetsInfoKHR32 *)UlongToPtr(params.pBindDescriptorSetsInfo), &pBindDescriptorSetsInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBindDescriptorSets2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pBindDescriptorSetsInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdBindDescriptorSets2KHR(void *args)
 {
     struct
@@ -36395,7 +36932,20 @@ static void thunk32_vkCmdBindDescriptorSets2KHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBindDescriptorSets2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pBindDescriptorSetsInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdBindIndexBuffer(void)
+{
+    struct vkCmdBindIndexBuffer_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.indexType);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBindIndexBuffer(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.buffer, params.offset, params.indexType);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBindIndexBuffer(void *args)
 {
@@ -36404,7 +36954,26 @@ static void thunk64_vkCmdBindIndexBuffer(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBindIndexBuffer(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->buffer, params->offset, params->indexType);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdBindIndexBuffer(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) buffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) offset;
+        VkIndexType indexType;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.indexType);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBindIndexBuffer(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.buffer, params.offset, params.indexType);
+}
+#else
 static void thunk32_vkCmdBindIndexBuffer(void *args)
 {
     struct
@@ -36417,7 +36986,21 @@ static void thunk32_vkCmdBindIndexBuffer(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBindIndexBuffer(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->buffer, params->offset, params->indexType);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdBindIndexBuffer2KHR(void)
+{
+    struct vkCmdBindIndexBuffer2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.size);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.indexType);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBindIndexBuffer2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.buffer, params.offset, params.size, params.indexType);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBindIndexBuffer2KHR(void *args)
 {
@@ -36426,7 +37009,28 @@ static void thunk64_vkCmdBindIndexBuffer2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBindIndexBuffer2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->buffer, params->offset, params->size, params->indexType);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdBindIndexBuffer2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) buffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) offset;
+        VkDeviceSize DECLSPEC_ALIGN(8) size;
+        VkIndexType indexType;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.size);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.indexType);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBindIndexBuffer2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.buffer, params.offset, params.size, params.indexType);
+}
+#else
 static void thunk32_vkCmdBindIndexBuffer2KHR(void *args)
 {
     struct
@@ -36440,7 +37044,19 @@ static void thunk32_vkCmdBindIndexBuffer2KHR(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBindIndexBuffer2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->buffer, params->offset, params->size, params->indexType);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdBindInvocationMaskHUAWEI(void)
+{
+    struct vkCmdBindInvocationMaskHUAWEI_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.imageView);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.imageLayout);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBindInvocationMaskHUAWEI(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.imageView, params.imageLayout);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBindInvocationMaskHUAWEI(void *args)
 {
@@ -36449,7 +37065,24 @@ static void thunk64_vkCmdBindInvocationMaskHUAWEI(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBindInvocationMaskHUAWEI(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->imageView, params->imageLayout);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdBindInvocationMaskHUAWEI(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkImageView DECLSPEC_ALIGN(8) imageView;
+        VkImageLayout imageLayout;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.imageView);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.imageLayout);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBindInvocationMaskHUAWEI(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.imageView, params.imageLayout);
+}
+#else
 static void thunk32_vkCmdBindInvocationMaskHUAWEI(void *args)
 {
     struct
@@ -36461,7 +37094,19 @@ static void thunk32_vkCmdBindInvocationMaskHUAWEI(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBindInvocationMaskHUAWEI(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->imageView, params->imageLayout);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdBindPipeline(void)
+{
+    struct vkCmdBindPipeline_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineBindPoint);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pipeline);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBindPipeline(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pipelineBindPoint, params.pipeline);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBindPipeline(void *args)
 {
@@ -36470,7 +37115,24 @@ static void thunk64_vkCmdBindPipeline(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBindPipeline(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pipelineBindPoint, params->pipeline);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdBindPipeline(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkPipelineBindPoint pipelineBindPoint;
+        VkPipeline DECLSPEC_ALIGN(8) pipeline;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineBindPoint);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pipeline);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBindPipeline(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.pipelineBindPoint, params.pipeline);
+}
+#else
 static void thunk32_vkCmdBindPipeline(void *args)
 {
     struct
@@ -36482,7 +37144,20 @@ static void thunk32_vkCmdBindPipeline(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBindPipeline(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->pipelineBindPoint, params->pipeline);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdBindPipelineShaderGroupNV(void)
+{
+    struct vkCmdBindPipelineShaderGroupNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineBindPoint);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pipeline);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.groupIndex);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBindPipelineShaderGroupNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pipelineBindPoint, params.pipeline, params.groupIndex);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBindPipelineShaderGroupNV(void *args)
 {
@@ -36491,7 +37166,26 @@ static void thunk64_vkCmdBindPipelineShaderGroupNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBindPipelineShaderGroupNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pipelineBindPoint, params->pipeline, params->groupIndex);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdBindPipelineShaderGroupNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkPipelineBindPoint pipelineBindPoint;
+        VkPipeline DECLSPEC_ALIGN(8) pipeline;
+        uint32_t groupIndex;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineBindPoint);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pipeline);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.groupIndex);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBindPipelineShaderGroupNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.pipelineBindPoint, params.pipeline, params.groupIndex);
+}
+#else
 static void thunk32_vkCmdBindPipelineShaderGroupNV(void *args)
 {
     struct
@@ -36504,7 +37198,20 @@ static void thunk32_vkCmdBindPipelineShaderGroupNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBindPipelineShaderGroupNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->pipelineBindPoint, params->pipeline, params->groupIndex);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdBindShadersEXT(void)
+{
+    struct vkCmdBindShadersEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.stageCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pStages);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pShaders);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBindShadersEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.stageCount, params.pStages, params.pShaders);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBindShadersEXT(void *args)
 {
@@ -36513,7 +37220,26 @@ static void thunk64_vkCmdBindShadersEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBindShadersEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->stageCount, params->pStages, params->pShaders);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdBindShadersEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t stageCount;
+        PTR32 pStages;
+        PTR32 pShaders;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.stageCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pStages);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pShaders);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBindShadersEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.stageCount, (const VkShaderStageFlagBits *)UlongToPtr(params.pStages), (const VkShaderEXT *)UlongToPtr(params.pShaders));
+}
+#else
 static void thunk32_vkCmdBindShadersEXT(void *args)
 {
     struct
@@ -36526,7 +37252,19 @@ static void thunk32_vkCmdBindShadersEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBindShadersEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->stageCount, (const VkShaderStageFlagBits *)UlongToPtr(params->pStages), (const VkShaderEXT *)UlongToPtr(params->pShaders));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdBindShadingRateImageNV(void)
+{
+    struct vkCmdBindShadingRateImageNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.imageView);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.imageLayout);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBindShadingRateImageNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.imageView, params.imageLayout);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBindShadingRateImageNV(void *args)
 {
@@ -36535,7 +37273,24 @@ static void thunk64_vkCmdBindShadingRateImageNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBindShadingRateImageNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->imageView, params->imageLayout);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdBindShadingRateImageNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkImageView DECLSPEC_ALIGN(8) imageView;
+        VkImageLayout imageLayout;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.imageView);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.imageLayout);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBindShadingRateImageNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.imageView, params.imageLayout);
+}
+#else
 static void thunk32_vkCmdBindShadingRateImageNV(void *args)
 {
     struct
@@ -36547,7 +37302,22 @@ static void thunk32_vkCmdBindShadingRateImageNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBindShadingRateImageNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->imageView, params->imageLayout);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk64_vkCmdBindTransformFeedbackBuffersEXT(void)
+{
+    struct vkCmdBindTransformFeedbackBuffersEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstBinding);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.bindingCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pBuffers);
+    VK_FAST_THUNK_GET_ARG(4, void *, params.pOffsets);
+    VK_FAST_THUNK_GET_ARG(5, void *, params.pSizes);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBindTransformFeedbackBuffersEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstBinding, params.bindingCount, params.pBuffers, params.pOffsets, params.pSizes);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBindTransformFeedbackBuffersEXT(void *args)
 {
@@ -36556,7 +37326,30 @@ static void thunk64_vkCmdBindTransformFeedbackBuffersEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBindTransformFeedbackBuffersEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstBinding, params->bindingCount, params->pBuffers, params->pOffsets, params->pSizes);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk32_vkCmdBindTransformFeedbackBuffersEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstBinding;
+        uint32_t bindingCount;
+        PTR32 pBuffers;
+        PTR32 pOffsets;
+        PTR32 pSizes;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstBinding);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.bindingCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pBuffers);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.pOffsets);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.pSizes);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBindTransformFeedbackBuffersEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstBinding, params.bindingCount, (const VkBuffer *)UlongToPtr(params.pBuffers), (const VkDeviceSize *)UlongToPtr(params.pOffsets), (const VkDeviceSize *)UlongToPtr(params.pSizes));
+}
+#else
 static void thunk32_vkCmdBindTransformFeedbackBuffersEXT(void *args)
 {
     struct
@@ -36571,7 +37364,21 @@ static void thunk32_vkCmdBindTransformFeedbackBuffersEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBindTransformFeedbackBuffersEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstBinding, params->bindingCount, (const VkBuffer *)UlongToPtr(params->pBuffers), (const VkDeviceSize *)UlongToPtr(params->pOffsets), (const VkDeviceSize *)UlongToPtr(params->pSizes));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdBindVertexBuffers(void)
+{
+    struct vkCmdBindVertexBuffers_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstBinding);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.bindingCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pBuffers);
+    VK_FAST_THUNK_GET_ARG(4, void *, params.pOffsets);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBindVertexBuffers(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstBinding, params.bindingCount, params.pBuffers, params.pOffsets);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBindVertexBuffers(void *args)
 {
@@ -36580,7 +37387,28 @@ static void thunk64_vkCmdBindVertexBuffers(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBindVertexBuffers(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstBinding, params->bindingCount, params->pBuffers, params->pOffsets);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdBindVertexBuffers(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstBinding;
+        uint32_t bindingCount;
+        PTR32 pBuffers;
+        PTR32 pOffsets;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstBinding);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.bindingCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pBuffers);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.pOffsets);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBindVertexBuffers(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstBinding, params.bindingCount, (const VkBuffer *)UlongToPtr(params.pBuffers), (const VkDeviceSize *)UlongToPtr(params.pOffsets));
+}
+#else
 static void thunk32_vkCmdBindVertexBuffers(void *args)
 {
     struct
@@ -36594,7 +37422,23 @@ static void thunk32_vkCmdBindVertexBuffers(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBindVertexBuffers(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstBinding, params->bindingCount, (const VkBuffer *)UlongToPtr(params->pBuffers), (const VkDeviceSize *)UlongToPtr(params->pOffsets));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdBindVertexBuffers2(void)
+{
+    struct vkCmdBindVertexBuffers2_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstBinding);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.bindingCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pBuffers);
+    VK_FAST_THUNK_GET_ARG(4, void *, params.pOffsets);
+    VK_FAST_THUNK_GET_ARG(5, void *, params.pSizes);
+    VK_FAST_THUNK_GET_ARG(6, void *, params.pStrides);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBindVertexBuffers2(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstBinding, params.bindingCount, params.pBuffers, params.pOffsets, params.pSizes, params.pStrides);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBindVertexBuffers2(void *args)
 {
@@ -36603,7 +37447,32 @@ static void thunk64_vkCmdBindVertexBuffers2(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBindVertexBuffers2(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstBinding, params->bindingCount, params->pBuffers, params->pOffsets, params->pSizes, params->pStrides);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdBindVertexBuffers2(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstBinding;
+        uint32_t bindingCount;
+        PTR32 pBuffers;
+        PTR32 pOffsets;
+        PTR32 pSizes;
+        PTR32 pStrides;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstBinding);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.bindingCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pBuffers);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.pOffsets);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.pSizes);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.pStrides);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBindVertexBuffers2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstBinding, params.bindingCount, (const VkBuffer *)UlongToPtr(params.pBuffers), (const VkDeviceSize *)UlongToPtr(params.pOffsets), (const VkDeviceSize *)UlongToPtr(params.pSizes), (const VkDeviceSize *)UlongToPtr(params.pStrides));
+}
+#else
 static void thunk32_vkCmdBindVertexBuffers2(void *args)
 {
     struct
@@ -36619,7 +37488,23 @@ static void thunk32_vkCmdBindVertexBuffers2(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBindVertexBuffers2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstBinding, params->bindingCount, (const VkBuffer *)UlongToPtr(params->pBuffers), (const VkDeviceSize *)UlongToPtr(params->pOffsets), (const VkDeviceSize *)UlongToPtr(params->pSizes), (const VkDeviceSize *)UlongToPtr(params->pStrides));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdBindVertexBuffers2EXT(void)
+{
+    struct vkCmdBindVertexBuffers2EXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstBinding);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.bindingCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pBuffers);
+    VK_FAST_THUNK_GET_ARG(4, void *, params.pOffsets);
+    VK_FAST_THUNK_GET_ARG(5, void *, params.pSizes);
+    VK_FAST_THUNK_GET_ARG(6, void *, params.pStrides);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBindVertexBuffers2EXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstBinding, params.bindingCount, params.pBuffers, params.pOffsets, params.pSizes, params.pStrides);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBindVertexBuffers2EXT(void *args)
 {
@@ -36628,7 +37513,32 @@ static void thunk64_vkCmdBindVertexBuffers2EXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBindVertexBuffers2EXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstBinding, params->bindingCount, params->pBuffers, params->pOffsets, params->pSizes, params->pStrides);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdBindVertexBuffers2EXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstBinding;
+        uint32_t bindingCount;
+        PTR32 pBuffers;
+        PTR32 pOffsets;
+        PTR32 pSizes;
+        PTR32 pStrides;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstBinding);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.bindingCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pBuffers);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.pOffsets);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.pSizes);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.pStrides);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBindVertexBuffers2EXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstBinding, params.bindingCount, (const VkBuffer *)UlongToPtr(params.pBuffers), (const VkDeviceSize *)UlongToPtr(params.pOffsets), (const VkDeviceSize *)UlongToPtr(params.pSizes), (const VkDeviceSize *)UlongToPtr(params.pStrides));
+}
+#else
 static void thunk32_vkCmdBindVertexBuffers2EXT(void *args)
 {
     struct
@@ -36644,7 +37554,24 @@ static void thunk32_vkCmdBindVertexBuffers2EXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBindVertexBuffers2EXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstBinding, params->bindingCount, (const VkBuffer *)UlongToPtr(params->pBuffers), (const VkDeviceSize *)UlongToPtr(params->pOffsets), (const VkDeviceSize *)UlongToPtr(params->pSizes), (const VkDeviceSize *)UlongToPtr(params->pStrides));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 8
+static void thunk64_vkCmdBlitImage(void)
+{
+    struct vkCmdBlitImage_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.srcImage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.srcImageLayout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dstImage);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.dstImageLayout);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.regionCount);
+    VK_FAST_THUNK_GET_ARG(6, void *, params.pRegions);
+    VK_FAST_THUNK_GET_ARG(7, UINT_PTR, params.filter);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBlitImage(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.srcImage, params.srcImageLayout, params.dstImage, params.dstImageLayout, params.regionCount, params.pRegions, params.filter);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBlitImage(void *args)
 {
@@ -36653,7 +37580,34 @@ static void thunk64_vkCmdBlitImage(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBlitImage(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->srcImage, params->srcImageLayout, params->dstImage, params->dstImageLayout, params->regionCount, params->pRegions, params->filter);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 8
+static void thunk32_vkCmdBlitImage(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkImage DECLSPEC_ALIGN(8) srcImage;
+        VkImageLayout srcImageLayout;
+        VkImage DECLSPEC_ALIGN(8) dstImage;
+        VkImageLayout dstImageLayout;
+        uint32_t regionCount;
+        PTR32 pRegions;
+        VkFilter filter;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.srcImage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.srcImageLayout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dstImage);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.dstImageLayout);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.regionCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.pRegions);
+    VK_FAST_THUNK_GET_ARG(7, UINT_PTR, params.filter);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBlitImage(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.srcImage, params.srcImageLayout, params.dstImage, params.dstImageLayout, params.regionCount, (const VkImageBlit *)UlongToPtr(params.pRegions), params.filter);
+}
+#else
 static void thunk32_vkCmdBlitImage(void *args)
 {
     struct
@@ -36670,7 +37624,18 @@ static void thunk32_vkCmdBlitImage(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBlitImage(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->srcImage, params->srcImageLayout, params->dstImage, params->dstImageLayout, params->regionCount, (const VkImageBlit *)UlongToPtr(params->pRegions), params->filter);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdBlitImage2(void)
+{
+    struct vkCmdBlitImage2_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pBlitImageInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBlitImage2(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pBlitImageInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBlitImage2(void *args)
 {
@@ -36679,7 +37644,28 @@ static void thunk64_vkCmdBlitImage2(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBlitImage2(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pBlitImageInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdBlitImage2(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pBlitImageInfo;
+    } params;
+    VkBlitImageInfo2 pBlitImageInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pBlitImageInfo);
+    init_conversion_context(ctx);
+    convert_VkBlitImageInfo2_win32_to_host(ctx, (const VkBlitImageInfo232 *)UlongToPtr(params.pBlitImageInfo), &pBlitImageInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBlitImage2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pBlitImageInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdBlitImage2(void *args)
 {
     struct
@@ -36696,7 +37682,18 @@ static void thunk32_vkCmdBlitImage2(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBlitImage2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pBlitImageInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdBlitImage2KHR(void)
+{
+    struct vkCmdBlitImage2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pBlitImageInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBlitImage2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pBlitImageInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBlitImage2KHR(void *args)
 {
@@ -36705,7 +37702,28 @@ static void thunk64_vkCmdBlitImage2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBlitImage2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pBlitImageInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdBlitImage2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pBlitImageInfo;
+    } params;
+    VkBlitImageInfo2 pBlitImageInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pBlitImageInfo);
+    init_conversion_context(ctx);
+    convert_VkBlitImageInfo2_win32_to_host(ctx, (const VkBlitImageInfo232 *)UlongToPtr(params.pBlitImageInfo), &pBlitImageInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBlitImage2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pBlitImageInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdBlitImage2KHR(void *args)
 {
     struct
@@ -36722,7 +37740,25 @@ static void thunk32_vkCmdBlitImage2KHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBlitImage2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pBlitImageInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 9
+static void thunk64_vkCmdBuildAccelerationStructureNV(void)
+{
+    struct vkCmdBuildAccelerationStructureNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pInfo);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.instanceData);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.instanceOffset);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.update);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.dst);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.src);
+    VK_FAST_THUNK_GET_ARG(7, UINT_PTR, params.scratch);
+    VK_FAST_THUNK_GET_ARG(8, UINT_PTR, params.scratchOffset);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBuildAccelerationStructureNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pInfo, params.instanceData, params.instanceOffset, params.update, params.dst, params.src, params.scratch, params.scratchOffset);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBuildAccelerationStructureNV(void *args)
 {
@@ -36731,7 +37767,42 @@ static void thunk64_vkCmdBuildAccelerationStructureNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBuildAccelerationStructureNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pInfo, params->instanceData, params->instanceOffset, params->update, params->dst, params->src, params->scratch, params->scratchOffset);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 9
+static void thunk32_vkCmdBuildAccelerationStructureNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pInfo;
+        VkBuffer DECLSPEC_ALIGN(8) instanceData;
+        VkDeviceSize DECLSPEC_ALIGN(8) instanceOffset;
+        VkBool32 update;
+        VkAccelerationStructureNV DECLSPEC_ALIGN(8) dst;
+        VkAccelerationStructureNV DECLSPEC_ALIGN(8) src;
+        VkBuffer DECLSPEC_ALIGN(8) scratch;
+        VkDeviceSize DECLSPEC_ALIGN(8) scratchOffset;
+    } params;
+    VkAccelerationStructureInfoNV pInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pInfo);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.instanceData);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.instanceOffset);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.update);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.dst);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.src);
+    VK_FAST_THUNK_GET_ARG(7, UINT_PTR, params.scratch);
+    VK_FAST_THUNK_GET_ARG(8, UINT_PTR, params.scratchOffset);
+    init_conversion_context(ctx);
+    convert_VkAccelerationStructureInfoNV_win32_to_host(ctx, (const VkAccelerationStructureInfoNV32 *)UlongToPtr(params.pInfo), &pInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBuildAccelerationStructureNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pInfo_host, params.instanceData, params.instanceOffset, params.update, params.dst, params.src, params.scratch, params.scratchOffset);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdBuildAccelerationStructureNV(void *args)
 {
     struct
@@ -36755,7 +37826,22 @@ static void thunk32_vkCmdBuildAccelerationStructureNV(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBuildAccelerationStructureNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pInfo_host, params->instanceData, params->instanceOffset, params->update, params->dst, params->src, params->scratch, params->scratchOffset);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk64_vkCmdBuildAccelerationStructuresIndirectKHR(void)
+{
+    struct vkCmdBuildAccelerationStructuresIndirectKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.infoCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pInfos);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pIndirectDeviceAddresses);
+    VK_FAST_THUNK_GET_ARG(4, void *, params.pIndirectStrides);
+    VK_FAST_THUNK_GET_ARG(5, void *, params.ppMaxPrimitiveCounts);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBuildAccelerationStructuresIndirectKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.infoCount, params.pInfos, params.pIndirectDeviceAddresses, params.pIndirectStrides, params.ppMaxPrimitiveCounts);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBuildAccelerationStructuresIndirectKHR(void *args)
 {
@@ -36764,7 +37850,39 @@ static void thunk64_vkCmdBuildAccelerationStructuresIndirectKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBuildAccelerationStructuresIndirectKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->infoCount, params->pInfos, params->pIndirectDeviceAddresses, params->pIndirectStrides, params->ppMaxPrimitiveCounts);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk32_vkCmdBuildAccelerationStructuresIndirectKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t infoCount;
+        PTR32 pInfos;
+        PTR32 pIndirectDeviceAddresses;
+        PTR32 pIndirectStrides;
+        PTR32 ppMaxPrimitiveCounts;
+    } params;
+    const VkAccelerationStructureBuildGeometryInfoKHR *pInfos_host;
+    const uint32_t* const *ppMaxPrimitiveCounts_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.infoCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pInfos);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pIndirectDeviceAddresses);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.pIndirectStrides);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.ppMaxPrimitiveCounts);
+    init_conversion_context(ctx);
+    pInfos_host = convert_VkAccelerationStructureBuildGeometryInfoKHR_array_win32_to_host(ctx, (const VkAccelerationStructureBuildGeometryInfoKHR32 *)UlongToPtr(params.pInfos), params.infoCount);
+    ppMaxPrimitiveCounts_host = convert_uint32_t_array_win32_to_host(ctx, (const PTR32 *)UlongToPtr(params.ppMaxPrimitiveCounts), params.infoCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBuildAccelerationStructuresIndirectKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.infoCount, pInfos_host, (const VkDeviceAddress *)UlongToPtr(params.pIndirectDeviceAddresses), (const uint32_t *)UlongToPtr(params.pIndirectStrides), ppMaxPrimitiveCounts_host);
+    convert_uint32_t_array_host_to_win32(ppMaxPrimitiveCounts_host, (PTR32 *)UlongToPtr(params.ppMaxPrimitiveCounts), params.infoCount);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdBuildAccelerationStructuresIndirectKHR(void *args)
 {
     struct
@@ -36788,7 +37906,20 @@ static void thunk32_vkCmdBuildAccelerationStructuresIndirectKHR(void *args)
     convert_uint32_t_array_host_to_win32(ppMaxPrimitiveCounts_host, (PTR32 *)UlongToPtr(params->ppMaxPrimitiveCounts), params->infoCount);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdBuildAccelerationStructuresKHR(void)
+{
+    struct vkCmdBuildAccelerationStructuresKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.infoCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pInfos);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.ppBuildRangeInfos);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBuildAccelerationStructuresKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.infoCount, params.pInfos, params.ppBuildRangeInfos);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBuildAccelerationStructuresKHR(void *args)
 {
@@ -36797,7 +37928,34 @@ static void thunk64_vkCmdBuildAccelerationStructuresKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBuildAccelerationStructuresKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->infoCount, params->pInfos, params->ppBuildRangeInfos);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdBuildAccelerationStructuresKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t infoCount;
+        PTR32 pInfos;
+        PTR32 ppBuildRangeInfos;
+    } params;
+    const VkAccelerationStructureBuildGeometryInfoKHR *pInfos_host;
+    const VkAccelerationStructureBuildRangeInfoKHR* const *ppBuildRangeInfos_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.infoCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pInfos);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.ppBuildRangeInfos);
+    init_conversion_context(ctx);
+    pInfos_host = convert_VkAccelerationStructureBuildGeometryInfoKHR_array_win32_to_host(ctx, (const VkAccelerationStructureBuildGeometryInfoKHR32 *)UlongToPtr(params.pInfos), params.infoCount);
+    ppBuildRangeInfos_host = convert_VkAccelerationStructureBuildRangeInfoKHR_array_win32_to_host(ctx, (const PTR32 *)UlongToPtr(params.ppBuildRangeInfos), params.infoCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBuildAccelerationStructuresKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.infoCount, pInfos_host, ppBuildRangeInfos_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdBuildAccelerationStructuresKHR(void *args)
 {
     struct
@@ -36818,7 +37976,19 @@ static void thunk32_vkCmdBuildAccelerationStructuresKHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBuildAccelerationStructuresKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->infoCount, pInfos_host, ppBuildRangeInfos_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdBuildMicromapsEXT(void)
+{
+    struct vkCmdBuildMicromapsEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.infoCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pInfos);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdBuildMicromapsEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.infoCount, params.pInfos);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdBuildMicromapsEXT(void *args)
 {
@@ -36827,7 +37997,30 @@ static void thunk64_vkCmdBuildMicromapsEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdBuildMicromapsEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->infoCount, params->pInfos);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdBuildMicromapsEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t infoCount;
+        PTR32 pInfos;
+    } params;
+    const VkMicromapBuildInfoEXT *pInfos_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.infoCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pInfos);
+    init_conversion_context(ctx);
+    pInfos_host = convert_VkMicromapBuildInfoEXT_array_win32_to_host(ctx, (const VkMicromapBuildInfoEXT32 *)UlongToPtr(params.pInfos), params.infoCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdBuildMicromapsEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.infoCount, pInfos_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdBuildMicromapsEXT(void *args)
 {
     struct
@@ -36845,7 +38038,21 @@ static void thunk32_vkCmdBuildMicromapsEXT(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdBuildMicromapsEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->infoCount, pInfos_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdClearAttachments(void)
+{
+    struct vkCmdClearAttachments_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.attachmentCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pAttachments);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.rectCount);
+    VK_FAST_THUNK_GET_ARG(4, void *, params.pRects);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdClearAttachments(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.attachmentCount, params.pAttachments, params.rectCount, params.pRects);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdClearAttachments(void *args)
 {
@@ -36854,7 +38061,28 @@ static void thunk64_vkCmdClearAttachments(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdClearAttachments(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->attachmentCount, params->pAttachments, params->rectCount, params->pRects);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdClearAttachments(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t attachmentCount;
+        PTR32 pAttachments;
+        uint32_t rectCount;
+        PTR32 pRects;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.attachmentCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pAttachments);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.rectCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.pRects);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdClearAttachments(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.attachmentCount, (const VkClearAttachment *)UlongToPtr(params.pAttachments), params.rectCount, (const VkClearRect *)UlongToPtr(params.pRects));
+}
+#else
 static void thunk32_vkCmdClearAttachments(void *args)
 {
     struct
@@ -36868,7 +38096,22 @@ static void thunk32_vkCmdClearAttachments(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdClearAttachments(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->attachmentCount, (const VkClearAttachment *)UlongToPtr(params->pAttachments), params->rectCount, (const VkClearRect *)UlongToPtr(params->pRects));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk64_vkCmdClearColorImage(void)
+{
+    struct vkCmdClearColorImage_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.image);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.imageLayout);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pColor);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.rangeCount);
+    VK_FAST_THUNK_GET_ARG(5, void *, params.pRanges);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdClearColorImage(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.image, params.imageLayout, params.pColor, params.rangeCount, params.pRanges);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdClearColorImage(void *args)
 {
@@ -36877,7 +38120,30 @@ static void thunk64_vkCmdClearColorImage(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdClearColorImage(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->image, params->imageLayout, params->pColor, params->rangeCount, params->pRanges);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk32_vkCmdClearColorImage(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkImage DECLSPEC_ALIGN(8) image;
+        VkImageLayout imageLayout;
+        PTR32 pColor;
+        uint32_t rangeCount;
+        PTR32 pRanges;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.image);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.imageLayout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pColor);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.rangeCount);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.pRanges);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdClearColorImage(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.image, params.imageLayout, (const VkClearColorValue *)UlongToPtr(params.pColor), params.rangeCount, (const VkImageSubresourceRange *)UlongToPtr(params.pRanges));
+}
+#else
 static void thunk32_vkCmdClearColorImage(void *args)
 {
     struct
@@ -36892,7 +38158,22 @@ static void thunk32_vkCmdClearColorImage(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdClearColorImage(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->image, params->imageLayout, (const VkClearColorValue *)UlongToPtr(params->pColor), params->rangeCount, (const VkImageSubresourceRange *)UlongToPtr(params->pRanges));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk64_vkCmdClearDepthStencilImage(void)
+{
+    struct vkCmdClearDepthStencilImage_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.image);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.imageLayout);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pDepthStencil);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.rangeCount);
+    VK_FAST_THUNK_GET_ARG(5, void *, params.pRanges);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdClearDepthStencilImage(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.image, params.imageLayout, params.pDepthStencil, params.rangeCount, params.pRanges);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdClearDepthStencilImage(void *args)
 {
@@ -36901,7 +38182,30 @@ static void thunk64_vkCmdClearDepthStencilImage(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdClearDepthStencilImage(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->image, params->imageLayout, params->pDepthStencil, params->rangeCount, params->pRanges);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk32_vkCmdClearDepthStencilImage(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkImage DECLSPEC_ALIGN(8) image;
+        VkImageLayout imageLayout;
+        PTR32 pDepthStencil;
+        uint32_t rangeCount;
+        PTR32 pRanges;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.image);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.imageLayout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pDepthStencil);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.rangeCount);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.pRanges);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdClearDepthStencilImage(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.image, params.imageLayout, (const VkClearDepthStencilValue *)UlongToPtr(params.pDepthStencil), params.rangeCount, (const VkImageSubresourceRange *)UlongToPtr(params.pRanges));
+}
+#else
 static void thunk32_vkCmdClearDepthStencilImage(void *args)
 {
     struct
@@ -36916,7 +38220,18 @@ static void thunk32_vkCmdClearDepthStencilImage(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdClearDepthStencilImage(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->image, params->imageLayout, (const VkClearDepthStencilValue *)UlongToPtr(params->pDepthStencil), params->rangeCount, (const VkImageSubresourceRange *)UlongToPtr(params->pRanges));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdControlVideoCodingKHR(void)
+{
+    struct vkCmdControlVideoCodingKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pCodingControlInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdControlVideoCodingKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pCodingControlInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdControlVideoCodingKHR(void *args)
 {
@@ -36925,7 +38240,28 @@ static void thunk64_vkCmdControlVideoCodingKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdControlVideoCodingKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pCodingControlInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdControlVideoCodingKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pCodingControlInfo;
+    } params;
+    VkVideoCodingControlInfoKHR pCodingControlInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pCodingControlInfo);
+    init_conversion_context(ctx);
+    convert_VkVideoCodingControlInfoKHR_win32_to_host(ctx, (const VkVideoCodingControlInfoKHR32 *)UlongToPtr(params.pCodingControlInfo), &pCodingControlInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdControlVideoCodingKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pCodingControlInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdControlVideoCodingKHR(void *args)
 {
     struct
@@ -36942,7 +38278,18 @@ static void thunk32_vkCmdControlVideoCodingKHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdControlVideoCodingKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pCodingControlInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdCopyAccelerationStructureKHR(void)
+{
+    struct vkCmdCopyAccelerationStructureKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyAccelerationStructureKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyAccelerationStructureKHR(void *args)
 {
@@ -36951,7 +38298,24 @@ static void thunk64_vkCmdCopyAccelerationStructureKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyAccelerationStructureKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdCopyAccelerationStructureKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pInfo;
+    } params;
+    VkCopyAccelerationStructureInfoKHR pInfo_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pInfo);
+    convert_VkCopyAccelerationStructureInfoKHR_win32_to_host((const VkCopyAccelerationStructureInfoKHR32 *)UlongToPtr(params.pInfo), &pInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyAccelerationStructureKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pInfo_host);
+}
+#else
 static void thunk32_vkCmdCopyAccelerationStructureKHR(void *args)
 {
     struct
@@ -36964,7 +38328,20 @@ static void thunk32_vkCmdCopyAccelerationStructureKHR(void *args)
     convert_VkCopyAccelerationStructureInfoKHR_win32_to_host((const VkCopyAccelerationStructureInfoKHR32 *)UlongToPtr(params->pInfo), &pInfo_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyAccelerationStructureKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pInfo_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdCopyAccelerationStructureNV(void)
+{
+    struct vkCmdCopyAccelerationStructureNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.dst);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.src);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.mode);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyAccelerationStructureNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.dst, params.src, params.mode);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyAccelerationStructureNV(void *args)
 {
@@ -36973,7 +38350,26 @@ static void thunk64_vkCmdCopyAccelerationStructureNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyAccelerationStructureNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->dst, params->src, params->mode);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdCopyAccelerationStructureNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkAccelerationStructureNV DECLSPEC_ALIGN(8) dst;
+        VkAccelerationStructureNV DECLSPEC_ALIGN(8) src;
+        VkCopyAccelerationStructureModeKHR mode;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.dst);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.src);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.mode);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyAccelerationStructureNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.dst, params.src, params.mode);
+}
+#else
 static void thunk32_vkCmdCopyAccelerationStructureNV(void *args)
 {
     struct
@@ -36986,7 +38382,18 @@ static void thunk32_vkCmdCopyAccelerationStructureNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyAccelerationStructureNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->dst, params->src, params->mode);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdCopyAccelerationStructureToMemoryKHR(void)
+{
+    struct vkCmdCopyAccelerationStructureToMemoryKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyAccelerationStructureToMemoryKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyAccelerationStructureToMemoryKHR(void *args)
 {
@@ -36995,7 +38402,24 @@ static void thunk64_vkCmdCopyAccelerationStructureToMemoryKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyAccelerationStructureToMemoryKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdCopyAccelerationStructureToMemoryKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pInfo;
+    } params;
+    VkCopyAccelerationStructureToMemoryInfoKHR pInfo_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pInfo);
+    convert_VkCopyAccelerationStructureToMemoryInfoKHR_win32_to_host((const VkCopyAccelerationStructureToMemoryInfoKHR32 *)UlongToPtr(params.pInfo), &pInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyAccelerationStructureToMemoryKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pInfo_host);
+}
+#else
 static void thunk32_vkCmdCopyAccelerationStructureToMemoryKHR(void *args)
 {
     struct
@@ -37008,7 +38432,21 @@ static void thunk32_vkCmdCopyAccelerationStructureToMemoryKHR(void *args)
     convert_VkCopyAccelerationStructureToMemoryInfoKHR_win32_to_host((const VkCopyAccelerationStructureToMemoryInfoKHR32 *)UlongToPtr(params->pInfo), &pInfo_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyAccelerationStructureToMemoryKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pInfo_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdCopyBuffer(void)
+{
+    struct vkCmdCopyBuffer_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.srcBuffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.dstBuffer);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.regionCount);
+    VK_FAST_THUNK_GET_ARG(4, void *, params.pRegions);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyBuffer(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.srcBuffer, params.dstBuffer, params.regionCount, params.pRegions);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyBuffer(void *args)
 {
@@ -37017,7 +38455,34 @@ static void thunk64_vkCmdCopyBuffer(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyBuffer(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->srcBuffer, params->dstBuffer, params->regionCount, params->pRegions);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdCopyBuffer(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) srcBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) dstBuffer;
+        uint32_t regionCount;
+        PTR32 pRegions;
+    } params;
+    const VkBufferCopy *pRegions_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.srcBuffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.dstBuffer);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.regionCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.pRegions);
+    init_conversion_context(ctx);
+    pRegions_host = convert_VkBufferCopy_array_win32_to_host(ctx, (const VkBufferCopy32 *)UlongToPtr(params.pRegions), params.regionCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyBuffer(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.srcBuffer, params.dstBuffer, params.regionCount, pRegions_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdCopyBuffer(void *args)
 {
     struct
@@ -37037,7 +38502,18 @@ static void thunk32_vkCmdCopyBuffer(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyBuffer(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->srcBuffer, params->dstBuffer, params->regionCount, pRegions_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdCopyBuffer2(void)
+{
+    struct vkCmdCopyBuffer2_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pCopyBufferInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyBuffer2(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pCopyBufferInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyBuffer2(void *args)
 {
@@ -37046,7 +38522,28 @@ static void thunk64_vkCmdCopyBuffer2(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyBuffer2(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pCopyBufferInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdCopyBuffer2(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pCopyBufferInfo;
+    } params;
+    VkCopyBufferInfo2 pCopyBufferInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pCopyBufferInfo);
+    init_conversion_context(ctx);
+    convert_VkCopyBufferInfo2_win32_to_host(ctx, (const VkCopyBufferInfo232 *)UlongToPtr(params.pCopyBufferInfo), &pCopyBufferInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyBuffer2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pCopyBufferInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdCopyBuffer2(void *args)
 {
     struct
@@ -37063,7 +38560,18 @@ static void thunk32_vkCmdCopyBuffer2(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyBuffer2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pCopyBufferInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdCopyBuffer2KHR(void)
+{
+    struct vkCmdCopyBuffer2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pCopyBufferInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyBuffer2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pCopyBufferInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyBuffer2KHR(void *args)
 {
@@ -37072,7 +38580,28 @@ static void thunk64_vkCmdCopyBuffer2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyBuffer2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pCopyBufferInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdCopyBuffer2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pCopyBufferInfo;
+    } params;
+    VkCopyBufferInfo2 pCopyBufferInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pCopyBufferInfo);
+    init_conversion_context(ctx);
+    convert_VkCopyBufferInfo2_win32_to_host(ctx, (const VkCopyBufferInfo232 *)UlongToPtr(params.pCopyBufferInfo), &pCopyBufferInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyBuffer2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pCopyBufferInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdCopyBuffer2KHR(void *args)
 {
     struct
@@ -37089,7 +38618,22 @@ static void thunk32_vkCmdCopyBuffer2KHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyBuffer2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pCopyBufferInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk64_vkCmdCopyBufferToImage(void)
+{
+    struct vkCmdCopyBufferToImage_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.srcBuffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.dstImage);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dstImageLayout);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.regionCount);
+    VK_FAST_THUNK_GET_ARG(5, void *, params.pRegions);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyBufferToImage(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.srcBuffer, params.dstImage, params.dstImageLayout, params.regionCount, params.pRegions);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyBufferToImage(void *args)
 {
@@ -37098,7 +38642,36 @@ static void thunk64_vkCmdCopyBufferToImage(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyBufferToImage(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->srcBuffer, params->dstImage, params->dstImageLayout, params->regionCount, params->pRegions);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk32_vkCmdCopyBufferToImage(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) srcBuffer;
+        VkImage DECLSPEC_ALIGN(8) dstImage;
+        VkImageLayout dstImageLayout;
+        uint32_t regionCount;
+        PTR32 pRegions;
+    } params;
+    const VkBufferImageCopy *pRegions_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.srcBuffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.dstImage);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dstImageLayout);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.regionCount);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.pRegions);
+    init_conversion_context(ctx);
+    pRegions_host = convert_VkBufferImageCopy_array_win32_to_host(ctx, (const VkBufferImageCopy32 *)UlongToPtr(params.pRegions), params.regionCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyBufferToImage(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.srcBuffer, params.dstImage, params.dstImageLayout, params.regionCount, pRegions_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdCopyBufferToImage(void *args)
 {
     struct
@@ -37119,7 +38692,18 @@ static void thunk32_vkCmdCopyBufferToImage(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyBufferToImage(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->srcBuffer, params->dstImage, params->dstImageLayout, params->regionCount, pRegions_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdCopyBufferToImage2(void)
+{
+    struct vkCmdCopyBufferToImage2_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pCopyBufferToImageInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyBufferToImage2(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pCopyBufferToImageInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyBufferToImage2(void *args)
 {
@@ -37128,7 +38712,28 @@ static void thunk64_vkCmdCopyBufferToImage2(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyBufferToImage2(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pCopyBufferToImageInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdCopyBufferToImage2(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pCopyBufferToImageInfo;
+    } params;
+    VkCopyBufferToImageInfo2 pCopyBufferToImageInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pCopyBufferToImageInfo);
+    init_conversion_context(ctx);
+    convert_VkCopyBufferToImageInfo2_win32_to_host(ctx, (const VkCopyBufferToImageInfo232 *)UlongToPtr(params.pCopyBufferToImageInfo), &pCopyBufferToImageInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyBufferToImage2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pCopyBufferToImageInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdCopyBufferToImage2(void *args)
 {
     struct
@@ -37145,7 +38750,18 @@ static void thunk32_vkCmdCopyBufferToImage2(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyBufferToImage2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pCopyBufferToImageInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdCopyBufferToImage2KHR(void)
+{
+    struct vkCmdCopyBufferToImage2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pCopyBufferToImageInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyBufferToImage2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pCopyBufferToImageInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyBufferToImage2KHR(void *args)
 {
@@ -37154,7 +38770,28 @@ static void thunk64_vkCmdCopyBufferToImage2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyBufferToImage2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pCopyBufferToImageInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdCopyBufferToImage2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pCopyBufferToImageInfo;
+    } params;
+    VkCopyBufferToImageInfo2 pCopyBufferToImageInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pCopyBufferToImageInfo);
+    init_conversion_context(ctx);
+    convert_VkCopyBufferToImageInfo2_win32_to_host(ctx, (const VkCopyBufferToImageInfo232 *)UlongToPtr(params.pCopyBufferToImageInfo), &pCopyBufferToImageInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyBufferToImage2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pCopyBufferToImageInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdCopyBufferToImage2KHR(void *args)
 {
     struct
@@ -37171,7 +38808,23 @@ static void thunk32_vkCmdCopyBufferToImage2KHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyBufferToImage2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pCopyBufferToImageInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdCopyImage(void)
+{
+    struct vkCmdCopyImage_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.srcImage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.srcImageLayout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dstImage);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.dstImageLayout);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.regionCount);
+    VK_FAST_THUNK_GET_ARG(6, void *, params.pRegions);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyImage(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.srcImage, params.srcImageLayout, params.dstImage, params.dstImageLayout, params.regionCount, params.pRegions);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyImage(void *args)
 {
@@ -37180,7 +38833,32 @@ static void thunk64_vkCmdCopyImage(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyImage(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->srcImage, params->srcImageLayout, params->dstImage, params->dstImageLayout, params->regionCount, params->pRegions);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdCopyImage(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkImage DECLSPEC_ALIGN(8) srcImage;
+        VkImageLayout srcImageLayout;
+        VkImage DECLSPEC_ALIGN(8) dstImage;
+        VkImageLayout dstImageLayout;
+        uint32_t regionCount;
+        PTR32 pRegions;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.srcImage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.srcImageLayout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dstImage);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.dstImageLayout);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.regionCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.pRegions);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyImage(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.srcImage, params.srcImageLayout, params.dstImage, params.dstImageLayout, params.regionCount, (const VkImageCopy *)UlongToPtr(params.pRegions));
+}
+#else
 static void thunk32_vkCmdCopyImage(void *args)
 {
     struct
@@ -37196,7 +38874,18 @@ static void thunk32_vkCmdCopyImage(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyImage(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->srcImage, params->srcImageLayout, params->dstImage, params->dstImageLayout, params->regionCount, (const VkImageCopy *)UlongToPtr(params->pRegions));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdCopyImage2(void)
+{
+    struct vkCmdCopyImage2_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pCopyImageInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyImage2(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pCopyImageInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyImage2(void *args)
 {
@@ -37205,7 +38894,28 @@ static void thunk64_vkCmdCopyImage2(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyImage2(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pCopyImageInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdCopyImage2(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pCopyImageInfo;
+    } params;
+    VkCopyImageInfo2 pCopyImageInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pCopyImageInfo);
+    init_conversion_context(ctx);
+    convert_VkCopyImageInfo2_win32_to_host(ctx, (const VkCopyImageInfo232 *)UlongToPtr(params.pCopyImageInfo), &pCopyImageInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyImage2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pCopyImageInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdCopyImage2(void *args)
 {
     struct
@@ -37222,7 +38932,18 @@ static void thunk32_vkCmdCopyImage2(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyImage2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pCopyImageInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdCopyImage2KHR(void)
+{
+    struct vkCmdCopyImage2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pCopyImageInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyImage2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pCopyImageInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyImage2KHR(void *args)
 {
@@ -37231,7 +38952,28 @@ static void thunk64_vkCmdCopyImage2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyImage2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pCopyImageInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdCopyImage2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pCopyImageInfo;
+    } params;
+    VkCopyImageInfo2 pCopyImageInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pCopyImageInfo);
+    init_conversion_context(ctx);
+    convert_VkCopyImageInfo2_win32_to_host(ctx, (const VkCopyImageInfo232 *)UlongToPtr(params.pCopyImageInfo), &pCopyImageInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyImage2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pCopyImageInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdCopyImage2KHR(void *args)
 {
     struct
@@ -37248,7 +38990,22 @@ static void thunk32_vkCmdCopyImage2KHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyImage2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pCopyImageInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk64_vkCmdCopyImageToBuffer(void)
+{
+    struct vkCmdCopyImageToBuffer_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.srcImage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.srcImageLayout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dstBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.regionCount);
+    VK_FAST_THUNK_GET_ARG(5, void *, params.pRegions);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyImageToBuffer(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.srcImage, params.srcImageLayout, params.dstBuffer, params.regionCount, params.pRegions);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyImageToBuffer(void *args)
 {
@@ -37257,7 +39014,36 @@ static void thunk64_vkCmdCopyImageToBuffer(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyImageToBuffer(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->srcImage, params->srcImageLayout, params->dstBuffer, params->regionCount, params->pRegions);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk32_vkCmdCopyImageToBuffer(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkImage DECLSPEC_ALIGN(8) srcImage;
+        VkImageLayout srcImageLayout;
+        VkBuffer DECLSPEC_ALIGN(8) dstBuffer;
+        uint32_t regionCount;
+        PTR32 pRegions;
+    } params;
+    const VkBufferImageCopy *pRegions_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.srcImage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.srcImageLayout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dstBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.regionCount);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.pRegions);
+    init_conversion_context(ctx);
+    pRegions_host = convert_VkBufferImageCopy_array_win32_to_host(ctx, (const VkBufferImageCopy32 *)UlongToPtr(params.pRegions), params.regionCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyImageToBuffer(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.srcImage, params.srcImageLayout, params.dstBuffer, params.regionCount, pRegions_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdCopyImageToBuffer(void *args)
 {
     struct
@@ -37278,7 +39064,18 @@ static void thunk32_vkCmdCopyImageToBuffer(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyImageToBuffer(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->srcImage, params->srcImageLayout, params->dstBuffer, params->regionCount, pRegions_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdCopyImageToBuffer2(void)
+{
+    struct vkCmdCopyImageToBuffer2_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pCopyImageToBufferInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyImageToBuffer2(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pCopyImageToBufferInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyImageToBuffer2(void *args)
 {
@@ -37287,7 +39084,28 @@ static void thunk64_vkCmdCopyImageToBuffer2(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyImageToBuffer2(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pCopyImageToBufferInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdCopyImageToBuffer2(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pCopyImageToBufferInfo;
+    } params;
+    VkCopyImageToBufferInfo2 pCopyImageToBufferInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pCopyImageToBufferInfo);
+    init_conversion_context(ctx);
+    convert_VkCopyImageToBufferInfo2_win32_to_host(ctx, (const VkCopyImageToBufferInfo232 *)UlongToPtr(params.pCopyImageToBufferInfo), &pCopyImageToBufferInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyImageToBuffer2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pCopyImageToBufferInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdCopyImageToBuffer2(void *args)
 {
     struct
@@ -37304,7 +39122,18 @@ static void thunk32_vkCmdCopyImageToBuffer2(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyImageToBuffer2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pCopyImageToBufferInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdCopyImageToBuffer2KHR(void)
+{
+    struct vkCmdCopyImageToBuffer2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pCopyImageToBufferInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyImageToBuffer2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pCopyImageToBufferInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyImageToBuffer2KHR(void *args)
 {
@@ -37313,7 +39142,28 @@ static void thunk64_vkCmdCopyImageToBuffer2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyImageToBuffer2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pCopyImageToBufferInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdCopyImageToBuffer2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pCopyImageToBufferInfo;
+    } params;
+    VkCopyImageToBufferInfo2 pCopyImageToBufferInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pCopyImageToBufferInfo);
+    init_conversion_context(ctx);
+    convert_VkCopyImageToBufferInfo2_win32_to_host(ctx, (const VkCopyImageToBufferInfo232 *)UlongToPtr(params.pCopyImageToBufferInfo), &pCopyImageToBufferInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyImageToBuffer2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pCopyImageToBufferInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdCopyImageToBuffer2KHR(void *args)
 {
     struct
@@ -37330,7 +39180,20 @@ static void thunk32_vkCmdCopyImageToBuffer2KHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyImageToBuffer2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pCopyImageToBufferInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdCopyMemoryIndirectNV(void)
+{
+    struct vkCmdCopyMemoryIndirectNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.copyBufferAddress);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.copyCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyMemoryIndirectNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.copyBufferAddress, params.copyCount, params.stride);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyMemoryIndirectNV(void *args)
 {
@@ -37339,7 +39202,26 @@ static void thunk64_vkCmdCopyMemoryIndirectNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyMemoryIndirectNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->copyBufferAddress, params->copyCount, params->stride);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdCopyMemoryIndirectNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkDeviceAddress DECLSPEC_ALIGN(8) copyBufferAddress;
+        uint32_t copyCount;
+        uint32_t stride;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.copyBufferAddress);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.copyCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyMemoryIndirectNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.copyBufferAddress, params.copyCount, params.stride);
+}
+#else
 static void thunk32_vkCmdCopyMemoryIndirectNV(void *args)
 {
     struct
@@ -37352,7 +39234,18 @@ static void thunk32_vkCmdCopyMemoryIndirectNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyMemoryIndirectNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->copyBufferAddress, params->copyCount, params->stride);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdCopyMemoryToAccelerationStructureKHR(void)
+{
+    struct vkCmdCopyMemoryToAccelerationStructureKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyMemoryToAccelerationStructureKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyMemoryToAccelerationStructureKHR(void *args)
 {
@@ -37361,7 +39254,24 @@ static void thunk64_vkCmdCopyMemoryToAccelerationStructureKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyMemoryToAccelerationStructureKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdCopyMemoryToAccelerationStructureKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pInfo;
+    } params;
+    VkCopyMemoryToAccelerationStructureInfoKHR pInfo_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pInfo);
+    convert_VkCopyMemoryToAccelerationStructureInfoKHR_win32_to_host((const VkCopyMemoryToAccelerationStructureInfoKHR32 *)UlongToPtr(params.pInfo), &pInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyMemoryToAccelerationStructureKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pInfo_host);
+}
+#else
 static void thunk32_vkCmdCopyMemoryToAccelerationStructureKHR(void *args)
 {
     struct
@@ -37374,7 +39284,23 @@ static void thunk32_vkCmdCopyMemoryToAccelerationStructureKHR(void *args)
     convert_VkCopyMemoryToAccelerationStructureInfoKHR_win32_to_host((const VkCopyMemoryToAccelerationStructureInfoKHR32 *)UlongToPtr(params->pInfo), &pInfo_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyMemoryToAccelerationStructureKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pInfo_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdCopyMemoryToImageIndirectNV(void)
+{
+    struct vkCmdCopyMemoryToImageIndirectNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.copyBufferAddress);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.copyCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.stride);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.dstImage);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.dstImageLayout);
+    VK_FAST_THUNK_GET_ARG(6, void *, params.pImageSubresources);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyMemoryToImageIndirectNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.copyBufferAddress, params.copyCount, params.stride, params.dstImage, params.dstImageLayout, params.pImageSubresources);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyMemoryToImageIndirectNV(void *args)
 {
@@ -37383,7 +39309,32 @@ static void thunk64_vkCmdCopyMemoryToImageIndirectNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyMemoryToImageIndirectNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->copyBufferAddress, params->copyCount, params->stride, params->dstImage, params->dstImageLayout, params->pImageSubresources);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdCopyMemoryToImageIndirectNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkDeviceAddress DECLSPEC_ALIGN(8) copyBufferAddress;
+        uint32_t copyCount;
+        uint32_t stride;
+        VkImage DECLSPEC_ALIGN(8) dstImage;
+        VkImageLayout dstImageLayout;
+        PTR32 pImageSubresources;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.copyBufferAddress);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.copyCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.stride);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.dstImage);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.dstImageLayout);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.pImageSubresources);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyMemoryToImageIndirectNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.copyBufferAddress, params.copyCount, params.stride, params.dstImage, params.dstImageLayout, (const VkImageSubresourceLayers *)UlongToPtr(params.pImageSubresources));
+}
+#else
 static void thunk32_vkCmdCopyMemoryToImageIndirectNV(void *args)
 {
     struct
@@ -37399,7 +39350,18 @@ static void thunk32_vkCmdCopyMemoryToImageIndirectNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyMemoryToImageIndirectNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->copyBufferAddress, params->copyCount, params->stride, params->dstImage, params->dstImageLayout, (const VkImageSubresourceLayers *)UlongToPtr(params->pImageSubresources));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdCopyMemoryToMicromapEXT(void)
+{
+    struct vkCmdCopyMemoryToMicromapEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyMemoryToMicromapEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyMemoryToMicromapEXT(void *args)
 {
@@ -37408,7 +39370,24 @@ static void thunk64_vkCmdCopyMemoryToMicromapEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyMemoryToMicromapEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdCopyMemoryToMicromapEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pInfo;
+    } params;
+    VkCopyMemoryToMicromapInfoEXT pInfo_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pInfo);
+    convert_VkCopyMemoryToMicromapInfoEXT_win32_to_host((const VkCopyMemoryToMicromapInfoEXT32 *)UlongToPtr(params.pInfo), &pInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyMemoryToMicromapEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pInfo_host);
+}
+#else
 static void thunk32_vkCmdCopyMemoryToMicromapEXT(void *args)
 {
     struct
@@ -37421,7 +39400,18 @@ static void thunk32_vkCmdCopyMemoryToMicromapEXT(void *args)
     convert_VkCopyMemoryToMicromapInfoEXT_win32_to_host((const VkCopyMemoryToMicromapInfoEXT32 *)UlongToPtr(params->pInfo), &pInfo_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyMemoryToMicromapEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pInfo_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdCopyMicromapEXT(void)
+{
+    struct vkCmdCopyMicromapEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyMicromapEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyMicromapEXT(void *args)
 {
@@ -37430,7 +39420,24 @@ static void thunk64_vkCmdCopyMicromapEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyMicromapEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdCopyMicromapEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pInfo;
+    } params;
+    VkCopyMicromapInfoEXT pInfo_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pInfo);
+    convert_VkCopyMicromapInfoEXT_win32_to_host((const VkCopyMicromapInfoEXT32 *)UlongToPtr(params.pInfo), &pInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyMicromapEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pInfo_host);
+}
+#else
 static void thunk32_vkCmdCopyMicromapEXT(void *args)
 {
     struct
@@ -37443,7 +39450,18 @@ static void thunk32_vkCmdCopyMicromapEXT(void *args)
     convert_VkCopyMicromapInfoEXT_win32_to_host((const VkCopyMicromapInfoEXT32 *)UlongToPtr(params->pInfo), &pInfo_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyMicromapEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pInfo_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdCopyMicromapToMemoryEXT(void)
+{
+    struct vkCmdCopyMicromapToMemoryEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyMicromapToMemoryEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyMicromapToMemoryEXT(void *args)
 {
@@ -37452,7 +39470,24 @@ static void thunk64_vkCmdCopyMicromapToMemoryEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyMicromapToMemoryEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdCopyMicromapToMemoryEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pInfo;
+    } params;
+    VkCopyMicromapToMemoryInfoEXT pInfo_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pInfo);
+    convert_VkCopyMicromapToMemoryInfoEXT_win32_to_host((const VkCopyMicromapToMemoryInfoEXT32 *)UlongToPtr(params.pInfo), &pInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyMicromapToMemoryEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pInfo_host);
+}
+#else
 static void thunk32_vkCmdCopyMicromapToMemoryEXT(void *args)
 {
     struct
@@ -37465,7 +39500,24 @@ static void thunk32_vkCmdCopyMicromapToMemoryEXT(void *args)
     convert_VkCopyMicromapToMemoryInfoEXT_win32_to_host((const VkCopyMicromapToMemoryInfoEXT32 *)UlongToPtr(params->pInfo), &pInfo_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyMicromapToMemoryEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pInfo_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 8
+static void thunk64_vkCmdCopyQueryPoolResults(void)
+{
+    struct vkCmdCopyQueryPoolResults_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.firstQuery);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.queryCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.dstBuffer);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.dstOffset);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    VK_FAST_THUNK_GET_ARG(7, UINT_PTR, params.flags);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCopyQueryPoolResults(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.queryPool, params.firstQuery, params.queryCount, params.dstBuffer, params.dstOffset, params.stride, params.flags);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCopyQueryPoolResults(void *args)
 {
@@ -37474,7 +39526,34 @@ static void thunk64_vkCmdCopyQueryPoolResults(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCopyQueryPoolResults(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->queryPool, params->firstQuery, params->queryCount, params->dstBuffer, params->dstOffset, params->stride, params->flags);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 8
+static void thunk32_vkCmdCopyQueryPoolResults(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkQueryPool DECLSPEC_ALIGN(8) queryPool;
+        uint32_t firstQuery;
+        uint32_t queryCount;
+        VkBuffer DECLSPEC_ALIGN(8) dstBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) dstOffset;
+        VkDeviceSize DECLSPEC_ALIGN(8) stride;
+        VkQueryResultFlags flags;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.firstQuery);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.queryCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.dstBuffer);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.dstOffset);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    VK_FAST_THUNK_GET_ARG(7, UINT_PTR, params.flags);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCopyQueryPoolResults(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.queryPool, params.firstQuery, params.queryCount, params.dstBuffer, params.dstOffset, params.stride, params.flags);
+}
+#else
 static void thunk32_vkCmdCopyQueryPoolResults(void *args)
 {
     struct
@@ -37491,7 +39570,18 @@ static void thunk32_vkCmdCopyQueryPoolResults(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCopyQueryPoolResults(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->queryPool, params->firstQuery, params->queryCount, params->dstBuffer, params->dstOffset, params->stride, params->flags);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdCuLaunchKernelNVX(void)
+{
+    struct vkCmdCuLaunchKernelNVX_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pLaunchInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCuLaunchKernelNVX(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pLaunchInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCuLaunchKernelNVX(void *args)
 {
@@ -37500,7 +39590,24 @@ static void thunk64_vkCmdCuLaunchKernelNVX(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCuLaunchKernelNVX(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pLaunchInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdCuLaunchKernelNVX(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pLaunchInfo;
+    } params;
+    VkCuLaunchInfoNVX pLaunchInfo_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pLaunchInfo);
+    convert_VkCuLaunchInfoNVX_win32_to_host((const VkCuLaunchInfoNVX32 *)UlongToPtr(params.pLaunchInfo), &pLaunchInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCuLaunchKernelNVX(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pLaunchInfo_host);
+}
+#else
 static void thunk32_vkCmdCuLaunchKernelNVX(void *args)
 {
     struct
@@ -37513,7 +39620,18 @@ static void thunk32_vkCmdCuLaunchKernelNVX(void *args)
     convert_VkCuLaunchInfoNVX_win32_to_host((const VkCuLaunchInfoNVX32 *)UlongToPtr(params->pLaunchInfo), &pLaunchInfo_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCuLaunchKernelNVX(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pLaunchInfo_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdCudaLaunchKernelNV(void)
+{
+    struct vkCmdCudaLaunchKernelNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pLaunchInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdCudaLaunchKernelNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pLaunchInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdCudaLaunchKernelNV(void *args)
 {
@@ -37522,7 +39640,24 @@ static void thunk64_vkCmdCudaLaunchKernelNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdCudaLaunchKernelNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pLaunchInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdCudaLaunchKernelNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pLaunchInfo;
+    } params;
+    VkCudaLaunchInfoNV pLaunchInfo_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pLaunchInfo);
+    convert_VkCudaLaunchInfoNV_win32_to_host((const VkCudaLaunchInfoNV32 *)UlongToPtr(params.pLaunchInfo), &pLaunchInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdCudaLaunchKernelNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pLaunchInfo_host);
+}
+#else
 static void thunk32_vkCmdCudaLaunchKernelNV(void *args)
 {
     struct
@@ -37535,7 +39670,18 @@ static void thunk32_vkCmdCudaLaunchKernelNV(void *args)
     convert_VkCudaLaunchInfoNV_win32_to_host((const VkCudaLaunchInfoNV32 *)UlongToPtr(params->pLaunchInfo), &pLaunchInfo_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdCudaLaunchKernelNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pLaunchInfo_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdDebugMarkerBeginEXT(void)
+{
+    struct vkCmdDebugMarkerBeginEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pMarkerInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDebugMarkerBeginEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pMarkerInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDebugMarkerBeginEXT(void *args)
 {
@@ -37544,7 +39690,24 @@ static void thunk64_vkCmdDebugMarkerBeginEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDebugMarkerBeginEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pMarkerInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdDebugMarkerBeginEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pMarkerInfo;
+    } params;
+    VkDebugMarkerMarkerInfoEXT pMarkerInfo_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pMarkerInfo);
+    convert_VkDebugMarkerMarkerInfoEXT_win32_to_host((const VkDebugMarkerMarkerInfoEXT32 *)UlongToPtr(params.pMarkerInfo), &pMarkerInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDebugMarkerBeginEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pMarkerInfo_host);
+}
+#else
 static void thunk32_vkCmdDebugMarkerBeginEXT(void *args)
 {
     struct
@@ -37557,7 +39720,17 @@ static void thunk32_vkCmdDebugMarkerBeginEXT(void *args)
     convert_VkDebugMarkerMarkerInfoEXT_win32_to_host((const VkDebugMarkerMarkerInfoEXT32 *)UlongToPtr(params->pMarkerInfo), &pMarkerInfo_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDebugMarkerBeginEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pMarkerInfo_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+static void thunk64_vkCmdDebugMarkerEndEXT(void)
+{
+    struct vkCmdDebugMarkerEndEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDebugMarkerEndEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDebugMarkerEndEXT(void *args)
 {
@@ -37566,7 +39739,20 @@ static void thunk64_vkCmdDebugMarkerEndEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDebugMarkerEndEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+static void thunk32_vkCmdDebugMarkerEndEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDebugMarkerEndEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer);
+}
+#else
 static void thunk32_vkCmdDebugMarkerEndEXT(void *args)
 {
     struct
@@ -37576,7 +39762,18 @@ static void thunk32_vkCmdDebugMarkerEndEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDebugMarkerEndEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdDebugMarkerInsertEXT(void)
+{
+    struct vkCmdDebugMarkerInsertEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pMarkerInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDebugMarkerInsertEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pMarkerInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDebugMarkerInsertEXT(void *args)
 {
@@ -37585,7 +39782,24 @@ static void thunk64_vkCmdDebugMarkerInsertEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDebugMarkerInsertEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pMarkerInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdDebugMarkerInsertEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pMarkerInfo;
+    } params;
+    VkDebugMarkerMarkerInfoEXT pMarkerInfo_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pMarkerInfo);
+    convert_VkDebugMarkerMarkerInfoEXT_win32_to_host((const VkDebugMarkerMarkerInfoEXT32 *)UlongToPtr(params.pMarkerInfo), &pMarkerInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDebugMarkerInsertEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pMarkerInfo_host);
+}
+#else
 static void thunk32_vkCmdDebugMarkerInsertEXT(void *args)
 {
     struct
@@ -37598,7 +39812,18 @@ static void thunk32_vkCmdDebugMarkerInsertEXT(void *args)
     convert_VkDebugMarkerMarkerInfoEXT_win32_to_host((const VkDebugMarkerMarkerInfoEXT32 *)UlongToPtr(params->pMarkerInfo), &pMarkerInfo_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDebugMarkerInsertEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pMarkerInfo_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdDecodeVideoKHR(void)
+{
+    struct vkCmdDecodeVideoKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pDecodeInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDecodeVideoKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pDecodeInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDecodeVideoKHR(void *args)
 {
@@ -37607,7 +39832,28 @@ static void thunk64_vkCmdDecodeVideoKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDecodeVideoKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pDecodeInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdDecodeVideoKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pDecodeInfo;
+    } params;
+    VkVideoDecodeInfoKHR pDecodeInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pDecodeInfo);
+    init_conversion_context(ctx);
+    convert_VkVideoDecodeInfoKHR_win32_to_host(ctx, (const VkVideoDecodeInfoKHR32 *)UlongToPtr(params.pDecodeInfo), &pDecodeInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDecodeVideoKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pDecodeInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdDecodeVideoKHR(void *args)
 {
     struct
@@ -37624,7 +39870,20 @@ static void thunk32_vkCmdDecodeVideoKHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDecodeVideoKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pDecodeInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdDecompressMemoryIndirectCountNV(void)
+{
+    struct vkCmdDecompressMemoryIndirectCountNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.indirectCommandsAddress);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.indirectCommandsCountAddress);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDecompressMemoryIndirectCountNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.indirectCommandsAddress, params.indirectCommandsCountAddress, params.stride);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDecompressMemoryIndirectCountNV(void *args)
 {
@@ -37633,7 +39892,26 @@ static void thunk64_vkCmdDecompressMemoryIndirectCountNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDecompressMemoryIndirectCountNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->indirectCommandsAddress, params->indirectCommandsCountAddress, params->stride);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdDecompressMemoryIndirectCountNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkDeviceAddress DECLSPEC_ALIGN(8) indirectCommandsAddress;
+        VkDeviceAddress DECLSPEC_ALIGN(8) indirectCommandsCountAddress;
+        uint32_t stride;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.indirectCommandsAddress);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.indirectCommandsCountAddress);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDecompressMemoryIndirectCountNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.indirectCommandsAddress, params.indirectCommandsCountAddress, params.stride);
+}
+#else
 static void thunk32_vkCmdDecompressMemoryIndirectCountNV(void *args)
 {
     struct
@@ -37646,7 +39924,19 @@ static void thunk32_vkCmdDecompressMemoryIndirectCountNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDecompressMemoryIndirectCountNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->indirectCommandsAddress, params->indirectCommandsCountAddress, params->stride);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdDecompressMemoryNV(void)
+{
+    struct vkCmdDecompressMemoryNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.decompressRegionCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pDecompressMemoryRegions);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDecompressMemoryNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.decompressRegionCount, params.pDecompressMemoryRegions);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDecompressMemoryNV(void *args)
 {
@@ -37655,7 +39945,30 @@ static void thunk64_vkCmdDecompressMemoryNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDecompressMemoryNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->decompressRegionCount, params->pDecompressMemoryRegions);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdDecompressMemoryNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t decompressRegionCount;
+        PTR32 pDecompressMemoryRegions;
+    } params;
+    const VkDecompressMemoryRegionNV *pDecompressMemoryRegions_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.decompressRegionCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pDecompressMemoryRegions);
+    init_conversion_context(ctx);
+    pDecompressMemoryRegions_host = convert_VkDecompressMemoryRegionNV_array_win32_to_host(ctx, (const VkDecompressMemoryRegionNV32 *)UlongToPtr(params.pDecompressMemoryRegions), params.decompressRegionCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDecompressMemoryNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.decompressRegionCount, pDecompressMemoryRegions_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdDecompressMemoryNV(void *args)
 {
     struct
@@ -37673,7 +39986,20 @@ static void thunk32_vkCmdDecompressMemoryNV(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDecompressMemoryNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->decompressRegionCount, pDecompressMemoryRegions_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdDispatch(void)
+{
+    struct vkCmdDispatch_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.groupCountX);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.groupCountY);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.groupCountZ);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDispatch(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.groupCountX, params.groupCountY, params.groupCountZ);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDispatch(void *args)
 {
@@ -37682,7 +40008,26 @@ static void thunk64_vkCmdDispatch(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDispatch(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->groupCountX, params->groupCountY, params->groupCountZ);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdDispatch(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t groupCountX;
+        uint32_t groupCountY;
+        uint32_t groupCountZ;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.groupCountX);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.groupCountY);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.groupCountZ);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDispatch(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.groupCountX, params.groupCountY, params.groupCountZ);
+}
+#else
 static void thunk32_vkCmdDispatch(void *args)
 {
     struct
@@ -37695,7 +40040,23 @@ static void thunk32_vkCmdDispatch(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDispatch(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->groupCountX, params->groupCountY, params->groupCountZ);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdDispatchBase(void)
+{
+    struct vkCmdDispatchBase_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.baseGroupX);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.baseGroupY);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.baseGroupZ);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.groupCountX);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.groupCountY);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.groupCountZ);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDispatchBase(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.baseGroupX, params.baseGroupY, params.baseGroupZ, params.groupCountX, params.groupCountY, params.groupCountZ);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDispatchBase(void *args)
 {
@@ -37704,7 +40065,32 @@ static void thunk64_vkCmdDispatchBase(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDispatchBase(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->baseGroupX, params->baseGroupY, params->baseGroupZ, params->groupCountX, params->groupCountY, params->groupCountZ);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdDispatchBase(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t baseGroupX;
+        uint32_t baseGroupY;
+        uint32_t baseGroupZ;
+        uint32_t groupCountX;
+        uint32_t groupCountY;
+        uint32_t groupCountZ;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.baseGroupX);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.baseGroupY);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.baseGroupZ);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.groupCountX);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.groupCountY);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.groupCountZ);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDispatchBase(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.baseGroupX, params.baseGroupY, params.baseGroupZ, params.groupCountX, params.groupCountY, params.groupCountZ);
+}
+#else
 static void thunk32_vkCmdDispatchBase(void *args)
 {
     struct
@@ -37720,7 +40106,23 @@ static void thunk32_vkCmdDispatchBase(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDispatchBase(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->baseGroupX, params->baseGroupY, params->baseGroupZ, params->groupCountX, params->groupCountY, params->groupCountZ);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdDispatchBaseKHR(void)
+{
+    struct vkCmdDispatchBaseKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.baseGroupX);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.baseGroupY);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.baseGroupZ);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.groupCountX);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.groupCountY);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.groupCountZ);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDispatchBaseKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.baseGroupX, params.baseGroupY, params.baseGroupZ, params.groupCountX, params.groupCountY, params.groupCountZ);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDispatchBaseKHR(void *args)
 {
@@ -37729,7 +40131,32 @@ static void thunk64_vkCmdDispatchBaseKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDispatchBaseKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->baseGroupX, params->baseGroupY, params->baseGroupZ, params->groupCountX, params->groupCountY, params->groupCountZ);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdDispatchBaseKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t baseGroupX;
+        uint32_t baseGroupY;
+        uint32_t baseGroupZ;
+        uint32_t groupCountX;
+        uint32_t groupCountY;
+        uint32_t groupCountZ;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.baseGroupX);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.baseGroupY);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.baseGroupZ);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.groupCountX);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.groupCountY);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.groupCountZ);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDispatchBaseKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.baseGroupX, params.baseGroupY, params.baseGroupZ, params.groupCountX, params.groupCountY, params.groupCountZ);
+}
+#else
 static void thunk32_vkCmdDispatchBaseKHR(void *args)
 {
     struct
@@ -37745,7 +40172,19 @@ static void thunk32_vkCmdDispatchBaseKHR(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDispatchBaseKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->baseGroupX, params->baseGroupY, params->baseGroupZ, params->groupCountX, params->groupCountY, params->groupCountZ);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdDispatchIndirect(void)
+{
+    struct vkCmdDispatchIndirect_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDispatchIndirect(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.buffer, params.offset);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDispatchIndirect(void *args)
 {
@@ -37754,7 +40193,24 @@ static void thunk64_vkCmdDispatchIndirect(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDispatchIndirect(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->buffer, params->offset);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdDispatchIndirect(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) buffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) offset;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDispatchIndirect(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.buffer, params.offset);
+}
+#else
 static void thunk32_vkCmdDispatchIndirect(void *args)
 {
     struct
@@ -37766,7 +40222,21 @@ static void thunk32_vkCmdDispatchIndirect(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDispatchIndirect(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->buffer, params->offset);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdDraw(void)
+{
+    struct vkCmdDraw_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.vertexCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.instanceCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.firstVertex);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.firstInstance);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDraw(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.vertexCount, params.instanceCount, params.firstVertex, params.firstInstance);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDraw(void *args)
 {
@@ -37775,7 +40245,28 @@ static void thunk64_vkCmdDraw(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDraw(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->vertexCount, params->instanceCount, params->firstVertex, params->firstInstance);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdDraw(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t vertexCount;
+        uint32_t instanceCount;
+        uint32_t firstVertex;
+        uint32_t firstInstance;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.vertexCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.instanceCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.firstVertex);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.firstInstance);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDraw(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.vertexCount, params.instanceCount, params.firstVertex, params.firstInstance);
+}
+#else
 static void thunk32_vkCmdDraw(void *args)
 {
     struct
@@ -37789,7 +40280,20 @@ static void thunk32_vkCmdDraw(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDraw(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->vertexCount, params->instanceCount, params->firstVertex, params->firstInstance);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdDrawClusterHUAWEI(void)
+{
+    struct vkCmdDrawClusterHUAWEI_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.groupCountX);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.groupCountY);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.groupCountZ);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawClusterHUAWEI(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.groupCountX, params.groupCountY, params.groupCountZ);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawClusterHUAWEI(void *args)
 {
@@ -37798,7 +40302,26 @@ static void thunk64_vkCmdDrawClusterHUAWEI(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawClusterHUAWEI(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->groupCountX, params->groupCountY, params->groupCountZ);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdDrawClusterHUAWEI(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t groupCountX;
+        uint32_t groupCountY;
+        uint32_t groupCountZ;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.groupCountX);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.groupCountY);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.groupCountZ);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawClusterHUAWEI(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.groupCountX, params.groupCountY, params.groupCountZ);
+}
+#else
 static void thunk32_vkCmdDrawClusterHUAWEI(void *args)
 {
     struct
@@ -37811,7 +40334,19 @@ static void thunk32_vkCmdDrawClusterHUAWEI(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawClusterHUAWEI(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->groupCountX, params->groupCountY, params->groupCountZ);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdDrawClusterIndirectHUAWEI(void)
+{
+    struct vkCmdDrawClusterIndirectHUAWEI_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawClusterIndirectHUAWEI(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.buffer, params.offset);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawClusterIndirectHUAWEI(void *args)
 {
@@ -37820,7 +40355,24 @@ static void thunk64_vkCmdDrawClusterIndirectHUAWEI(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawClusterIndirectHUAWEI(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->buffer, params->offset);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdDrawClusterIndirectHUAWEI(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) buffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) offset;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawClusterIndirectHUAWEI(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.buffer, params.offset);
+}
+#else
 static void thunk32_vkCmdDrawClusterIndirectHUAWEI(void *args)
 {
     struct
@@ -37832,7 +40384,22 @@ static void thunk32_vkCmdDrawClusterIndirectHUAWEI(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawClusterIndirectHUAWEI(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->buffer, params->offset);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk64_vkCmdDrawIndexed(void)
+{
+    struct vkCmdDrawIndexed_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.indexCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.instanceCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.firstIndex);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.vertexOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.firstInstance);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawIndexed(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.indexCount, params.instanceCount, params.firstIndex, params.vertexOffset, params.firstInstance);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawIndexed(void *args)
 {
@@ -37841,7 +40408,30 @@ static void thunk64_vkCmdDrawIndexed(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawIndexed(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->indexCount, params->instanceCount, params->firstIndex, params->vertexOffset, params->firstInstance);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk32_vkCmdDrawIndexed(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t indexCount;
+        uint32_t instanceCount;
+        uint32_t firstIndex;
+        int32_t vertexOffset;
+        uint32_t firstInstance;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.indexCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.instanceCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.firstIndex);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.vertexOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.firstInstance);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawIndexed(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.indexCount, params.instanceCount, params.firstIndex, params.vertexOffset, params.firstInstance);
+}
+#else
 static void thunk32_vkCmdDrawIndexed(void *args)
 {
     struct
@@ -37856,7 +40446,21 @@ static void thunk32_vkCmdDrawIndexed(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawIndexed(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->indexCount, params->instanceCount, params->firstIndex, params->vertexOffset, params->firstInstance);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdDrawIndexedIndirect(void)
+{
+    struct vkCmdDrawIndexedIndirect_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.drawCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawIndexedIndirect(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.buffer, params.offset, params.drawCount, params.stride);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawIndexedIndirect(void *args)
 {
@@ -37865,7 +40469,28 @@ static void thunk64_vkCmdDrawIndexedIndirect(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawIndexedIndirect(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->buffer, params->offset, params->drawCount, params->stride);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdDrawIndexedIndirect(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) buffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) offset;
+        uint32_t drawCount;
+        uint32_t stride;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.drawCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawIndexedIndirect(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.buffer, params.offset, params.drawCount, params.stride);
+}
+#else
 static void thunk32_vkCmdDrawIndexedIndirect(void *args)
 {
     struct
@@ -37879,7 +40504,23 @@ static void thunk32_vkCmdDrawIndexedIndirect(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawIndexedIndirect(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->buffer, params->offset, params->drawCount, params->stride);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdDrawIndexedIndirectCount(void)
+{
+    struct vkCmdDrawIndexedIndirectCount_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.countBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.countBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.maxDrawCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawIndexedIndirectCount(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.buffer, params.offset, params.countBuffer, params.countBufferOffset, params.maxDrawCount, params.stride);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawIndexedIndirectCount(void *args)
 {
@@ -37888,7 +40529,32 @@ static void thunk64_vkCmdDrawIndexedIndirectCount(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawIndexedIndirectCount(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->buffer, params->offset, params->countBuffer, params->countBufferOffset, params->maxDrawCount, params->stride);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdDrawIndexedIndirectCount(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) buffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) offset;
+        VkBuffer DECLSPEC_ALIGN(8) countBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) countBufferOffset;
+        uint32_t maxDrawCount;
+        uint32_t stride;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.countBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.countBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.maxDrawCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawIndexedIndirectCount(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.buffer, params.offset, params.countBuffer, params.countBufferOffset, params.maxDrawCount, params.stride);
+}
+#else
 static void thunk32_vkCmdDrawIndexedIndirectCount(void *args)
 {
     struct
@@ -37904,7 +40570,23 @@ static void thunk32_vkCmdDrawIndexedIndirectCount(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawIndexedIndirectCount(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->buffer, params->offset, params->countBuffer, params->countBufferOffset, params->maxDrawCount, params->stride);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdDrawIndexedIndirectCountAMD(void)
+{
+    struct vkCmdDrawIndexedIndirectCountAMD_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.countBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.countBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.maxDrawCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawIndexedIndirectCountAMD(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.buffer, params.offset, params.countBuffer, params.countBufferOffset, params.maxDrawCount, params.stride);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawIndexedIndirectCountAMD(void *args)
 {
@@ -37913,7 +40595,32 @@ static void thunk64_vkCmdDrawIndexedIndirectCountAMD(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawIndexedIndirectCountAMD(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->buffer, params->offset, params->countBuffer, params->countBufferOffset, params->maxDrawCount, params->stride);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdDrawIndexedIndirectCountAMD(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) buffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) offset;
+        VkBuffer DECLSPEC_ALIGN(8) countBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) countBufferOffset;
+        uint32_t maxDrawCount;
+        uint32_t stride;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.countBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.countBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.maxDrawCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawIndexedIndirectCountAMD(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.buffer, params.offset, params.countBuffer, params.countBufferOffset, params.maxDrawCount, params.stride);
+}
+#else
 static void thunk32_vkCmdDrawIndexedIndirectCountAMD(void *args)
 {
     struct
@@ -37929,7 +40636,23 @@ static void thunk32_vkCmdDrawIndexedIndirectCountAMD(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawIndexedIndirectCountAMD(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->buffer, params->offset, params->countBuffer, params->countBufferOffset, params->maxDrawCount, params->stride);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdDrawIndexedIndirectCountKHR(void)
+{
+    struct vkCmdDrawIndexedIndirectCountKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.countBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.countBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.maxDrawCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawIndexedIndirectCountKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.buffer, params.offset, params.countBuffer, params.countBufferOffset, params.maxDrawCount, params.stride);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawIndexedIndirectCountKHR(void *args)
 {
@@ -37938,7 +40661,32 @@ static void thunk64_vkCmdDrawIndexedIndirectCountKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawIndexedIndirectCountKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->buffer, params->offset, params->countBuffer, params->countBufferOffset, params->maxDrawCount, params->stride);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdDrawIndexedIndirectCountKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) buffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) offset;
+        VkBuffer DECLSPEC_ALIGN(8) countBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) countBufferOffset;
+        uint32_t maxDrawCount;
+        uint32_t stride;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.countBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.countBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.maxDrawCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawIndexedIndirectCountKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.buffer, params.offset, params.countBuffer, params.countBufferOffset, params.maxDrawCount, params.stride);
+}
+#else
 static void thunk32_vkCmdDrawIndexedIndirectCountKHR(void *args)
 {
     struct
@@ -37954,7 +40702,21 @@ static void thunk32_vkCmdDrawIndexedIndirectCountKHR(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawIndexedIndirectCountKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->buffer, params->offset, params->countBuffer, params->countBufferOffset, params->maxDrawCount, params->stride);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdDrawIndirect(void)
+{
+    struct vkCmdDrawIndirect_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.drawCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawIndirect(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.buffer, params.offset, params.drawCount, params.stride);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawIndirect(void *args)
 {
@@ -37963,7 +40725,28 @@ static void thunk64_vkCmdDrawIndirect(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawIndirect(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->buffer, params->offset, params->drawCount, params->stride);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdDrawIndirect(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) buffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) offset;
+        uint32_t drawCount;
+        uint32_t stride;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.drawCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawIndirect(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.buffer, params.offset, params.drawCount, params.stride);
+}
+#else
 static void thunk32_vkCmdDrawIndirect(void *args)
 {
     struct
@@ -37977,7 +40760,23 @@ static void thunk32_vkCmdDrawIndirect(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawIndirect(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->buffer, params->offset, params->drawCount, params->stride);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdDrawIndirectByteCountEXT(void)
+{
+    struct vkCmdDrawIndirectByteCountEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.instanceCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.firstInstance);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.counterBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.counterBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.counterOffset);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.vertexStride);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawIndirectByteCountEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.instanceCount, params.firstInstance, params.counterBuffer, params.counterBufferOffset, params.counterOffset, params.vertexStride);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawIndirectByteCountEXT(void *args)
 {
@@ -37986,7 +40785,32 @@ static void thunk64_vkCmdDrawIndirectByteCountEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawIndirectByteCountEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->instanceCount, params->firstInstance, params->counterBuffer, params->counterBufferOffset, params->counterOffset, params->vertexStride);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdDrawIndirectByteCountEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t instanceCount;
+        uint32_t firstInstance;
+        VkBuffer DECLSPEC_ALIGN(8) counterBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) counterBufferOffset;
+        uint32_t counterOffset;
+        uint32_t vertexStride;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.instanceCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.firstInstance);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.counterBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.counterBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.counterOffset);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.vertexStride);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawIndirectByteCountEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.instanceCount, params.firstInstance, params.counterBuffer, params.counterBufferOffset, params.counterOffset, params.vertexStride);
+}
+#else
 static void thunk32_vkCmdDrawIndirectByteCountEXT(void *args)
 {
     struct
@@ -38002,7 +40826,23 @@ static void thunk32_vkCmdDrawIndirectByteCountEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawIndirectByteCountEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->instanceCount, params->firstInstance, params->counterBuffer, params->counterBufferOffset, params->counterOffset, params->vertexStride);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdDrawIndirectCount(void)
+{
+    struct vkCmdDrawIndirectCount_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.countBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.countBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.maxDrawCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawIndirectCount(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.buffer, params.offset, params.countBuffer, params.countBufferOffset, params.maxDrawCount, params.stride);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawIndirectCount(void *args)
 {
@@ -38011,7 +40851,32 @@ static void thunk64_vkCmdDrawIndirectCount(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawIndirectCount(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->buffer, params->offset, params->countBuffer, params->countBufferOffset, params->maxDrawCount, params->stride);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdDrawIndirectCount(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) buffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) offset;
+        VkBuffer DECLSPEC_ALIGN(8) countBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) countBufferOffset;
+        uint32_t maxDrawCount;
+        uint32_t stride;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.countBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.countBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.maxDrawCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawIndirectCount(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.buffer, params.offset, params.countBuffer, params.countBufferOffset, params.maxDrawCount, params.stride);
+}
+#else
 static void thunk32_vkCmdDrawIndirectCount(void *args)
 {
     struct
@@ -38027,7 +40892,23 @@ static void thunk32_vkCmdDrawIndirectCount(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawIndirectCount(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->buffer, params->offset, params->countBuffer, params->countBufferOffset, params->maxDrawCount, params->stride);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdDrawIndirectCountAMD(void)
+{
+    struct vkCmdDrawIndirectCountAMD_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.countBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.countBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.maxDrawCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawIndirectCountAMD(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.buffer, params.offset, params.countBuffer, params.countBufferOffset, params.maxDrawCount, params.stride);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawIndirectCountAMD(void *args)
 {
@@ -38036,7 +40917,32 @@ static void thunk64_vkCmdDrawIndirectCountAMD(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawIndirectCountAMD(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->buffer, params->offset, params->countBuffer, params->countBufferOffset, params->maxDrawCount, params->stride);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdDrawIndirectCountAMD(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) buffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) offset;
+        VkBuffer DECLSPEC_ALIGN(8) countBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) countBufferOffset;
+        uint32_t maxDrawCount;
+        uint32_t stride;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.countBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.countBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.maxDrawCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawIndirectCountAMD(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.buffer, params.offset, params.countBuffer, params.countBufferOffset, params.maxDrawCount, params.stride);
+}
+#else
 static void thunk32_vkCmdDrawIndirectCountAMD(void *args)
 {
     struct
@@ -38052,7 +40958,23 @@ static void thunk32_vkCmdDrawIndirectCountAMD(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawIndirectCountAMD(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->buffer, params->offset, params->countBuffer, params->countBufferOffset, params->maxDrawCount, params->stride);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdDrawIndirectCountKHR(void)
+{
+    struct vkCmdDrawIndirectCountKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.countBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.countBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.maxDrawCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawIndirectCountKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.buffer, params.offset, params.countBuffer, params.countBufferOffset, params.maxDrawCount, params.stride);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawIndirectCountKHR(void *args)
 {
@@ -38061,7 +40983,32 @@ static void thunk64_vkCmdDrawIndirectCountKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawIndirectCountKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->buffer, params->offset, params->countBuffer, params->countBufferOffset, params->maxDrawCount, params->stride);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdDrawIndirectCountKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) buffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) offset;
+        VkBuffer DECLSPEC_ALIGN(8) countBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) countBufferOffset;
+        uint32_t maxDrawCount;
+        uint32_t stride;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.countBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.countBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.maxDrawCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawIndirectCountKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.buffer, params.offset, params.countBuffer, params.countBufferOffset, params.maxDrawCount, params.stride);
+}
+#else
 static void thunk32_vkCmdDrawIndirectCountKHR(void *args)
 {
     struct
@@ -38077,7 +41024,20 @@ static void thunk32_vkCmdDrawIndirectCountKHR(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawIndirectCountKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->buffer, params->offset, params->countBuffer, params->countBufferOffset, params->maxDrawCount, params->stride);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdDrawMeshTasksEXT(void)
+{
+    struct vkCmdDrawMeshTasksEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.groupCountX);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.groupCountY);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.groupCountZ);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawMeshTasksEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.groupCountX, params.groupCountY, params.groupCountZ);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawMeshTasksEXT(void *args)
 {
@@ -38086,7 +41046,26 @@ static void thunk64_vkCmdDrawMeshTasksEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawMeshTasksEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->groupCountX, params->groupCountY, params->groupCountZ);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdDrawMeshTasksEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t groupCountX;
+        uint32_t groupCountY;
+        uint32_t groupCountZ;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.groupCountX);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.groupCountY);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.groupCountZ);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawMeshTasksEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.groupCountX, params.groupCountY, params.groupCountZ);
+}
+#else
 static void thunk32_vkCmdDrawMeshTasksEXT(void *args)
 {
     struct
@@ -38099,7 +41078,23 @@ static void thunk32_vkCmdDrawMeshTasksEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawMeshTasksEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->groupCountX, params->groupCountY, params->groupCountZ);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdDrawMeshTasksIndirectCountEXT(void)
+{
+    struct vkCmdDrawMeshTasksIndirectCountEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.countBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.countBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.maxDrawCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawMeshTasksIndirectCountEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.buffer, params.offset, params.countBuffer, params.countBufferOffset, params.maxDrawCount, params.stride);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawMeshTasksIndirectCountEXT(void *args)
 {
@@ -38108,7 +41103,32 @@ static void thunk64_vkCmdDrawMeshTasksIndirectCountEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawMeshTasksIndirectCountEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->buffer, params->offset, params->countBuffer, params->countBufferOffset, params->maxDrawCount, params->stride);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdDrawMeshTasksIndirectCountEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) buffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) offset;
+        VkBuffer DECLSPEC_ALIGN(8) countBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) countBufferOffset;
+        uint32_t maxDrawCount;
+        uint32_t stride;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.countBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.countBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.maxDrawCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawMeshTasksIndirectCountEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.buffer, params.offset, params.countBuffer, params.countBufferOffset, params.maxDrawCount, params.stride);
+}
+#else
 static void thunk32_vkCmdDrawMeshTasksIndirectCountEXT(void *args)
 {
     struct
@@ -38124,7 +41144,23 @@ static void thunk32_vkCmdDrawMeshTasksIndirectCountEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawMeshTasksIndirectCountEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->buffer, params->offset, params->countBuffer, params->countBufferOffset, params->maxDrawCount, params->stride);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdDrawMeshTasksIndirectCountNV(void)
+{
+    struct vkCmdDrawMeshTasksIndirectCountNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.countBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.countBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.maxDrawCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawMeshTasksIndirectCountNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.buffer, params.offset, params.countBuffer, params.countBufferOffset, params.maxDrawCount, params.stride);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawMeshTasksIndirectCountNV(void *args)
 {
@@ -38133,7 +41169,32 @@ static void thunk64_vkCmdDrawMeshTasksIndirectCountNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawMeshTasksIndirectCountNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->buffer, params->offset, params->countBuffer, params->countBufferOffset, params->maxDrawCount, params->stride);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdDrawMeshTasksIndirectCountNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) buffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) offset;
+        VkBuffer DECLSPEC_ALIGN(8) countBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) countBufferOffset;
+        uint32_t maxDrawCount;
+        uint32_t stride;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.countBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.countBufferOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.maxDrawCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawMeshTasksIndirectCountNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.buffer, params.offset, params.countBuffer, params.countBufferOffset, params.maxDrawCount, params.stride);
+}
+#else
 static void thunk32_vkCmdDrawMeshTasksIndirectCountNV(void *args)
 {
     struct
@@ -38149,7 +41210,21 @@ static void thunk32_vkCmdDrawMeshTasksIndirectCountNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawMeshTasksIndirectCountNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->buffer, params->offset, params->countBuffer, params->countBufferOffset, params->maxDrawCount, params->stride);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdDrawMeshTasksIndirectEXT(void)
+{
+    struct vkCmdDrawMeshTasksIndirectEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.drawCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawMeshTasksIndirectEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.buffer, params.offset, params.drawCount, params.stride);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawMeshTasksIndirectEXT(void *args)
 {
@@ -38158,7 +41233,28 @@ static void thunk64_vkCmdDrawMeshTasksIndirectEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawMeshTasksIndirectEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->buffer, params->offset, params->drawCount, params->stride);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdDrawMeshTasksIndirectEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) buffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) offset;
+        uint32_t drawCount;
+        uint32_t stride;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.drawCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawMeshTasksIndirectEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.buffer, params.offset, params.drawCount, params.stride);
+}
+#else
 static void thunk32_vkCmdDrawMeshTasksIndirectEXT(void *args)
 {
     struct
@@ -38172,7 +41268,21 @@ static void thunk32_vkCmdDrawMeshTasksIndirectEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawMeshTasksIndirectEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->buffer, params->offset, params->drawCount, params->stride);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdDrawMeshTasksIndirectNV(void)
+{
+    struct vkCmdDrawMeshTasksIndirectNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.drawCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawMeshTasksIndirectNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.buffer, params.offset, params.drawCount, params.stride);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawMeshTasksIndirectNV(void *args)
 {
@@ -38181,7 +41291,28 @@ static void thunk64_vkCmdDrawMeshTasksIndirectNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawMeshTasksIndirectNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->buffer, params->offset, params->drawCount, params->stride);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdDrawMeshTasksIndirectNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) buffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) offset;
+        uint32_t drawCount;
+        uint32_t stride;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.buffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.drawCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawMeshTasksIndirectNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.buffer, params.offset, params.drawCount, params.stride);
+}
+#else
 static void thunk32_vkCmdDrawMeshTasksIndirectNV(void *args)
 {
     struct
@@ -38195,7 +41326,19 @@ static void thunk32_vkCmdDrawMeshTasksIndirectNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawMeshTasksIndirectNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->buffer, params->offset, params->drawCount, params->stride);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdDrawMeshTasksNV(void)
+{
+    struct vkCmdDrawMeshTasksNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.taskCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.firstTask);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawMeshTasksNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.taskCount, params.firstTask);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawMeshTasksNV(void *args)
 {
@@ -38204,7 +41347,24 @@ static void thunk64_vkCmdDrawMeshTasksNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawMeshTasksNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->taskCount, params->firstTask);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdDrawMeshTasksNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t taskCount;
+        uint32_t firstTask;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.taskCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.firstTask);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawMeshTasksNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.taskCount, params.firstTask);
+}
+#else
 static void thunk32_vkCmdDrawMeshTasksNV(void *args)
 {
     struct
@@ -38216,7 +41376,22 @@ static void thunk32_vkCmdDrawMeshTasksNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawMeshTasksNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->taskCount, params->firstTask);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk64_vkCmdDrawMultiEXT(void)
+{
+    struct vkCmdDrawMultiEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.drawCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pVertexInfo);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.instanceCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.firstInstance);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawMultiEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.drawCount, params.pVertexInfo, params.instanceCount, params.firstInstance, params.stride);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawMultiEXT(void *args)
 {
@@ -38225,7 +41400,30 @@ static void thunk64_vkCmdDrawMultiEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawMultiEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->drawCount, params->pVertexInfo, params->instanceCount, params->firstInstance, params->stride);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk32_vkCmdDrawMultiEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t drawCount;
+        PTR32 pVertexInfo;
+        uint32_t instanceCount;
+        uint32_t firstInstance;
+        uint32_t stride;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.drawCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pVertexInfo);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.instanceCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.firstInstance);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.stride);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawMultiEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.drawCount, (const VkMultiDrawInfoEXT *)UlongToPtr(params.pVertexInfo), params.instanceCount, params.firstInstance, params.stride);
+}
+#else
 static void thunk32_vkCmdDrawMultiEXT(void *args)
 {
     struct
@@ -38240,7 +41438,23 @@ static void thunk32_vkCmdDrawMultiEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawMultiEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->drawCount, (const VkMultiDrawInfoEXT *)UlongToPtr(params->pVertexInfo), params->instanceCount, params->firstInstance, params->stride);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdDrawMultiIndexedEXT(void)
+{
+    struct vkCmdDrawMultiIndexedEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.drawCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pIndexInfo);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.instanceCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.firstInstance);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.stride);
+    VK_FAST_THUNK_GET_ARG(6, void *, params.pVertexOffset);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdDrawMultiIndexedEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.drawCount, params.pIndexInfo, params.instanceCount, params.firstInstance, params.stride, params.pVertexOffset);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdDrawMultiIndexedEXT(void *args)
 {
@@ -38249,7 +41463,32 @@ static void thunk64_vkCmdDrawMultiIndexedEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdDrawMultiIndexedEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->drawCount, params->pIndexInfo, params->instanceCount, params->firstInstance, params->stride, params->pVertexOffset);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdDrawMultiIndexedEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t drawCount;
+        PTR32 pIndexInfo;
+        uint32_t instanceCount;
+        uint32_t firstInstance;
+        uint32_t stride;
+        PTR32 pVertexOffset;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.drawCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pIndexInfo);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.instanceCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.firstInstance);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.stride);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.pVertexOffset);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdDrawMultiIndexedEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.drawCount, (const VkMultiDrawIndexedInfoEXT *)UlongToPtr(params.pIndexInfo), params.instanceCount, params.firstInstance, params.stride, (const int32_t *)UlongToPtr(params.pVertexOffset));
+}
+#else
 static void thunk32_vkCmdDrawMultiIndexedEXT(void *args)
 {
     struct
@@ -38265,7 +41504,18 @@ static void thunk32_vkCmdDrawMultiIndexedEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdDrawMultiIndexedEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->drawCount, (const VkMultiDrawIndexedInfoEXT *)UlongToPtr(params->pIndexInfo), params->instanceCount, params->firstInstance, params->stride, (const int32_t *)UlongToPtr(params->pVertexOffset));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdEncodeVideoKHR(void)
+{
+    struct vkCmdEncodeVideoKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pEncodeInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdEncodeVideoKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pEncodeInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdEncodeVideoKHR(void *args)
 {
@@ -38274,7 +41524,28 @@ static void thunk64_vkCmdEncodeVideoKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdEncodeVideoKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pEncodeInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdEncodeVideoKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pEncodeInfo;
+    } params;
+    VkVideoEncodeInfoKHR pEncodeInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pEncodeInfo);
+    init_conversion_context(ctx);
+    convert_VkVideoEncodeInfoKHR_win32_to_host(ctx, (const VkVideoEncodeInfoKHR32 *)UlongToPtr(params.pEncodeInfo), &pEncodeInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdEncodeVideoKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pEncodeInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdEncodeVideoKHR(void *args)
 {
     struct
@@ -38291,7 +41562,17 @@ static void thunk32_vkCmdEncodeVideoKHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdEncodeVideoKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pEncodeInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+static void thunk64_vkCmdEndConditionalRenderingEXT(void)
+{
+    struct vkCmdEndConditionalRenderingEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdEndConditionalRenderingEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdEndConditionalRenderingEXT(void *args)
 {
@@ -38300,7 +41581,20 @@ static void thunk64_vkCmdEndConditionalRenderingEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdEndConditionalRenderingEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+static void thunk32_vkCmdEndConditionalRenderingEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdEndConditionalRenderingEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer);
+}
+#else
 static void thunk32_vkCmdEndConditionalRenderingEXT(void *args)
 {
     struct
@@ -38310,7 +41604,17 @@ static void thunk32_vkCmdEndConditionalRenderingEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdEndConditionalRenderingEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+static void thunk64_vkCmdEndDebugUtilsLabelEXT(void)
+{
+    struct vkCmdEndDebugUtilsLabelEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdEndDebugUtilsLabelEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdEndDebugUtilsLabelEXT(void *args)
 {
@@ -38319,7 +41623,20 @@ static void thunk64_vkCmdEndDebugUtilsLabelEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdEndDebugUtilsLabelEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+static void thunk32_vkCmdEndDebugUtilsLabelEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdEndDebugUtilsLabelEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer);
+}
+#else
 static void thunk32_vkCmdEndDebugUtilsLabelEXT(void *args)
 {
     struct
@@ -38329,7 +41646,19 @@ static void thunk32_vkCmdEndDebugUtilsLabelEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdEndDebugUtilsLabelEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdEndQuery(void)
+{
+    struct vkCmdEndQuery_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.query);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdEndQuery(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.queryPool, params.query);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdEndQuery(void *args)
 {
@@ -38338,7 +41667,24 @@ static void thunk64_vkCmdEndQuery(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdEndQuery(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->queryPool, params->query);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdEndQuery(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkQueryPool DECLSPEC_ALIGN(8) queryPool;
+        uint32_t query;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.query);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdEndQuery(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.queryPool, params.query);
+}
+#else
 static void thunk32_vkCmdEndQuery(void *args)
 {
     struct
@@ -38350,7 +41696,20 @@ static void thunk32_vkCmdEndQuery(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdEndQuery(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->queryPool, params->query);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdEndQueryIndexedEXT(void)
+{
+    struct vkCmdEndQueryIndexedEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.query);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.index);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdEndQueryIndexedEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.queryPool, params.query, params.index);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdEndQueryIndexedEXT(void *args)
 {
@@ -38359,7 +41718,26 @@ static void thunk64_vkCmdEndQueryIndexedEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdEndQueryIndexedEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->queryPool, params->query, params->index);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdEndQueryIndexedEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkQueryPool DECLSPEC_ALIGN(8) queryPool;
+        uint32_t query;
+        uint32_t index;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.query);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.index);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdEndQueryIndexedEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.queryPool, params.query, params.index);
+}
+#else
 static void thunk32_vkCmdEndQueryIndexedEXT(void *args)
 {
     struct
@@ -38372,7 +41750,17 @@ static void thunk32_vkCmdEndQueryIndexedEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdEndQueryIndexedEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->queryPool, params->query, params->index);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+static void thunk64_vkCmdEndRenderPass(void)
+{
+    struct vkCmdEndRenderPass_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdEndRenderPass(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdEndRenderPass(void *args)
 {
@@ -38381,7 +41769,20 @@ static void thunk64_vkCmdEndRenderPass(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdEndRenderPass(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+static void thunk32_vkCmdEndRenderPass(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdEndRenderPass(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer);
+}
+#else
 static void thunk32_vkCmdEndRenderPass(void *args)
 {
     struct
@@ -38391,7 +41792,18 @@ static void thunk32_vkCmdEndRenderPass(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdEndRenderPass(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdEndRenderPass2(void)
+{
+    struct vkCmdEndRenderPass2_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pSubpassEndInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdEndRenderPass2(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pSubpassEndInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdEndRenderPass2(void *args)
 {
@@ -38400,7 +41812,28 @@ static void thunk64_vkCmdEndRenderPass2(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdEndRenderPass2(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pSubpassEndInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdEndRenderPass2(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pSubpassEndInfo;
+    } params;
+    VkSubpassEndInfo pSubpassEndInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pSubpassEndInfo);
+    init_conversion_context(ctx);
+    convert_VkSubpassEndInfo_win32_to_host(ctx, (const VkSubpassEndInfo32 *)UlongToPtr(params.pSubpassEndInfo), &pSubpassEndInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdEndRenderPass2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pSubpassEndInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdEndRenderPass2(void *args)
 {
     struct
@@ -38417,7 +41850,18 @@ static void thunk32_vkCmdEndRenderPass2(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdEndRenderPass2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pSubpassEndInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdEndRenderPass2KHR(void)
+{
+    struct vkCmdEndRenderPass2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pSubpassEndInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdEndRenderPass2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pSubpassEndInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdEndRenderPass2KHR(void *args)
 {
@@ -38426,7 +41870,28 @@ static void thunk64_vkCmdEndRenderPass2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdEndRenderPass2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pSubpassEndInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdEndRenderPass2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pSubpassEndInfo;
+    } params;
+    VkSubpassEndInfo pSubpassEndInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pSubpassEndInfo);
+    init_conversion_context(ctx);
+    convert_VkSubpassEndInfo_win32_to_host(ctx, (const VkSubpassEndInfo32 *)UlongToPtr(params.pSubpassEndInfo), &pSubpassEndInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdEndRenderPass2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pSubpassEndInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdEndRenderPass2KHR(void *args)
 {
     struct
@@ -38443,7 +41908,17 @@ static void thunk32_vkCmdEndRenderPass2KHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdEndRenderPass2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pSubpassEndInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+static void thunk64_vkCmdEndRendering(void)
+{
+    struct vkCmdEndRendering_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdEndRendering(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdEndRendering(void *args)
 {
@@ -38452,7 +41927,20 @@ static void thunk64_vkCmdEndRendering(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdEndRendering(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+static void thunk32_vkCmdEndRendering(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdEndRendering(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer);
+}
+#else
 static void thunk32_vkCmdEndRendering(void *args)
 {
     struct
@@ -38462,7 +41950,17 @@ static void thunk32_vkCmdEndRendering(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdEndRendering(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+static void thunk64_vkCmdEndRenderingKHR(void)
+{
+    struct vkCmdEndRenderingKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdEndRenderingKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdEndRenderingKHR(void *args)
 {
@@ -38471,7 +41969,20 @@ static void thunk64_vkCmdEndRenderingKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdEndRenderingKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+static void thunk32_vkCmdEndRenderingKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdEndRenderingKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer);
+}
+#else
 static void thunk32_vkCmdEndRenderingKHR(void *args)
 {
     struct
@@ -38481,7 +41992,21 @@ static void thunk32_vkCmdEndRenderingKHR(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdEndRenderingKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdEndTransformFeedbackEXT(void)
+{
+    struct vkCmdEndTransformFeedbackEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstCounterBuffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.counterBufferCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pCounterBuffers);
+    VK_FAST_THUNK_GET_ARG(4, void *, params.pCounterBufferOffsets);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdEndTransformFeedbackEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstCounterBuffer, params.counterBufferCount, params.pCounterBuffers, params.pCounterBufferOffsets);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdEndTransformFeedbackEXT(void *args)
 {
@@ -38490,7 +42015,28 @@ static void thunk64_vkCmdEndTransformFeedbackEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdEndTransformFeedbackEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstCounterBuffer, params->counterBufferCount, params->pCounterBuffers, params->pCounterBufferOffsets);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdEndTransformFeedbackEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstCounterBuffer;
+        uint32_t counterBufferCount;
+        PTR32 pCounterBuffers;
+        PTR32 pCounterBufferOffsets;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstCounterBuffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.counterBufferCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pCounterBuffers);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.pCounterBufferOffsets);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdEndTransformFeedbackEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstCounterBuffer, params.counterBufferCount, (const VkBuffer *)UlongToPtr(params.pCounterBuffers), (const VkDeviceSize *)UlongToPtr(params.pCounterBufferOffsets));
+}
+#else
 static void thunk32_vkCmdEndTransformFeedbackEXT(void *args)
 {
     struct
@@ -38504,7 +42050,18 @@ static void thunk32_vkCmdEndTransformFeedbackEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdEndTransformFeedbackEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstCounterBuffer, params->counterBufferCount, (const VkBuffer *)UlongToPtr(params->pCounterBuffers), (const VkDeviceSize *)UlongToPtr(params->pCounterBufferOffsets));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdEndVideoCodingKHR(void)
+{
+    struct vkCmdEndVideoCodingKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pEndCodingInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdEndVideoCodingKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pEndCodingInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdEndVideoCodingKHR(void *args)
 {
@@ -38513,7 +42070,24 @@ static void thunk64_vkCmdEndVideoCodingKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdEndVideoCodingKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pEndCodingInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdEndVideoCodingKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pEndCodingInfo;
+    } params;
+    VkVideoEndCodingInfoKHR pEndCodingInfo_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pEndCodingInfo);
+    convert_VkVideoEndCodingInfoKHR_win32_to_host((const VkVideoEndCodingInfoKHR32 *)UlongToPtr(params.pEndCodingInfo), &pEndCodingInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdEndVideoCodingKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pEndCodingInfo_host);
+}
+#else
 static void thunk32_vkCmdEndVideoCodingKHR(void *args)
 {
     struct
@@ -38526,7 +42100,25 @@ static void thunk32_vkCmdEndVideoCodingKHR(void *args)
     convert_VkVideoEndCodingInfoKHR_win32_to_host((const VkVideoEndCodingInfoKHR32 *)UlongToPtr(params->pEndCodingInfo), &pEndCodingInfo_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdEndVideoCodingKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pEndCodingInfo_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdExecuteCommands(void)
+{
+    struct vkCmdExecuteCommands_params params;
+    const VkCommandBuffer *pCommandBuffers_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.commandBufferCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pCommandBuffers);
+    init_conversion_context(ctx);
+    pCommandBuffers_host = convert_VkCommandBuffer_array_win64_to_host(ctx, params.pCommandBuffers, params.commandBufferCount);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdExecuteCommands(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.commandBufferCount, pCommandBuffers_host);
+    free_conversion_context(ctx);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdExecuteCommands(void *args)
 {
@@ -38541,7 +42133,30 @@ static void thunk64_vkCmdExecuteCommands(void *args)
     free_conversion_context(ctx);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdExecuteCommands(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t commandBufferCount;
+        PTR32 pCommandBuffers;
+    } params;
+    const VkCommandBuffer *pCommandBuffers_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.commandBufferCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pCommandBuffers);
+    init_conversion_context(ctx);
+    pCommandBuffers_host = convert_VkCommandBuffer_array_win32_to_host(ctx, (const PTR32 *)UlongToPtr(params.pCommandBuffers), params.commandBufferCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdExecuteCommands(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.commandBufferCount, pCommandBuffers_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdExecuteCommands(void *args)
 {
     struct
@@ -38559,7 +42174,19 @@ static void thunk32_vkCmdExecuteCommands(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdExecuteCommands(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->commandBufferCount, pCommandBuffers_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdExecuteGeneratedCommandsEXT(void)
+{
+    struct vkCmdExecuteGeneratedCommandsEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.isPreprocessed);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pGeneratedCommandsInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdExecuteGeneratedCommandsEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.isPreprocessed, params.pGeneratedCommandsInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdExecuteGeneratedCommandsEXT(void *args)
 {
@@ -38568,7 +42195,30 @@ static void thunk64_vkCmdExecuteGeneratedCommandsEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdExecuteGeneratedCommandsEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->isPreprocessed, params->pGeneratedCommandsInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdExecuteGeneratedCommandsEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 isPreprocessed;
+        PTR32 pGeneratedCommandsInfo;
+    } params;
+    VkGeneratedCommandsInfoEXT pGeneratedCommandsInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.isPreprocessed);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pGeneratedCommandsInfo);
+    init_conversion_context(ctx);
+    convert_VkGeneratedCommandsInfoEXT_win32_to_host(ctx, (const VkGeneratedCommandsInfoEXT32 *)UlongToPtr(params.pGeneratedCommandsInfo), &pGeneratedCommandsInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdExecuteGeneratedCommandsEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.isPreprocessed, &pGeneratedCommandsInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdExecuteGeneratedCommandsEXT(void *args)
 {
     struct
@@ -38586,7 +42236,19 @@ static void thunk32_vkCmdExecuteGeneratedCommandsEXT(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdExecuteGeneratedCommandsEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->isPreprocessed, &pGeneratedCommandsInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdExecuteGeneratedCommandsNV(void)
+{
+    struct vkCmdExecuteGeneratedCommandsNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.isPreprocessed);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pGeneratedCommandsInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdExecuteGeneratedCommandsNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.isPreprocessed, params.pGeneratedCommandsInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdExecuteGeneratedCommandsNV(void *args)
 {
@@ -38595,7 +42257,30 @@ static void thunk64_vkCmdExecuteGeneratedCommandsNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdExecuteGeneratedCommandsNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->isPreprocessed, params->pGeneratedCommandsInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdExecuteGeneratedCommandsNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 isPreprocessed;
+        PTR32 pGeneratedCommandsInfo;
+    } params;
+    VkGeneratedCommandsInfoNV pGeneratedCommandsInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.isPreprocessed);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pGeneratedCommandsInfo);
+    init_conversion_context(ctx);
+    convert_VkGeneratedCommandsInfoNV_win32_to_host(ctx, (const VkGeneratedCommandsInfoNV32 *)UlongToPtr(params.pGeneratedCommandsInfo), &pGeneratedCommandsInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdExecuteGeneratedCommandsNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.isPreprocessed, &pGeneratedCommandsInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdExecuteGeneratedCommandsNV(void *args)
 {
     struct
@@ -38613,7 +42298,21 @@ static void thunk32_vkCmdExecuteGeneratedCommandsNV(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdExecuteGeneratedCommandsNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->isPreprocessed, &pGeneratedCommandsInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdFillBuffer(void)
+{
+    struct vkCmdFillBuffer_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.dstBuffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.dstOffset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.size);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.data);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdFillBuffer(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.dstBuffer, params.dstOffset, params.size, params.data);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdFillBuffer(void *args)
 {
@@ -38622,7 +42321,28 @@ static void thunk64_vkCmdFillBuffer(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdFillBuffer(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->dstBuffer, params->dstOffset, params->size, params->data);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdFillBuffer(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) dstBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) dstOffset;
+        VkDeviceSize DECLSPEC_ALIGN(8) size;
+        uint32_t data;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.dstBuffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.dstOffset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.size);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.data);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdFillBuffer(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.dstBuffer, params.dstOffset, params.size, params.data);
+}
+#else
 static void thunk32_vkCmdFillBuffer(void *args)
 {
     struct
@@ -38636,7 +42356,18 @@ static void thunk32_vkCmdFillBuffer(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdFillBuffer(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->dstBuffer, params->dstOffset, params->size, params->data);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdInsertDebugUtilsLabelEXT(void)
+{
+    struct vkCmdInsertDebugUtilsLabelEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pLabelInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdInsertDebugUtilsLabelEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pLabelInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdInsertDebugUtilsLabelEXT(void *args)
 {
@@ -38645,7 +42376,24 @@ static void thunk64_vkCmdInsertDebugUtilsLabelEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdInsertDebugUtilsLabelEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pLabelInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdInsertDebugUtilsLabelEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pLabelInfo;
+    } params;
+    VkDebugUtilsLabelEXT pLabelInfo_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pLabelInfo);
+    convert_VkDebugUtilsLabelEXT_win32_to_host((const VkDebugUtilsLabelEXT32 *)UlongToPtr(params.pLabelInfo), &pLabelInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdInsertDebugUtilsLabelEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pLabelInfo_host);
+}
+#else
 static void thunk32_vkCmdInsertDebugUtilsLabelEXT(void *args)
 {
     struct
@@ -38658,7 +42406,18 @@ static void thunk32_vkCmdInsertDebugUtilsLabelEXT(void *args)
     convert_VkDebugUtilsLabelEXT_win32_to_host((const VkDebugUtilsLabelEXT32 *)UlongToPtr(params->pLabelInfo), &pLabelInfo_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdInsertDebugUtilsLabelEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pLabelInfo_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdNextSubpass(void)
+{
+    struct vkCmdNextSubpass_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.contents);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdNextSubpass(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.contents);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdNextSubpass(void *args)
 {
@@ -38667,7 +42426,22 @@ static void thunk64_vkCmdNextSubpass(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdNextSubpass(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->contents);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdNextSubpass(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkSubpassContents contents;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.contents);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdNextSubpass(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.contents);
+}
+#else
 static void thunk32_vkCmdNextSubpass(void *args)
 {
     struct
@@ -38678,7 +42452,19 @@ static void thunk32_vkCmdNextSubpass(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdNextSubpass(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->contents);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdNextSubpass2(void)
+{
+    struct vkCmdNextSubpass2_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pSubpassBeginInfo);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pSubpassEndInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdNextSubpass2(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pSubpassBeginInfo, params.pSubpassEndInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdNextSubpass2(void *args)
 {
@@ -38687,7 +42473,32 @@ static void thunk64_vkCmdNextSubpass2(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdNextSubpass2(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pSubpassBeginInfo, params->pSubpassEndInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdNextSubpass2(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pSubpassBeginInfo;
+        PTR32 pSubpassEndInfo;
+    } params;
+    VkSubpassBeginInfo pSubpassBeginInfo_host;
+    VkSubpassEndInfo pSubpassEndInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pSubpassBeginInfo);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pSubpassEndInfo);
+    init_conversion_context(ctx);
+    convert_VkSubpassBeginInfo_win32_to_host((const VkSubpassBeginInfo32 *)UlongToPtr(params.pSubpassBeginInfo), &pSubpassBeginInfo_host);
+    convert_VkSubpassEndInfo_win32_to_host(ctx, (const VkSubpassEndInfo32 *)UlongToPtr(params.pSubpassEndInfo), &pSubpassEndInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdNextSubpass2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pSubpassBeginInfo_host, &pSubpassEndInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdNextSubpass2(void *args)
 {
     struct
@@ -38707,7 +42518,19 @@ static void thunk32_vkCmdNextSubpass2(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdNextSubpass2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pSubpassBeginInfo_host, &pSubpassEndInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdNextSubpass2KHR(void)
+{
+    struct vkCmdNextSubpass2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pSubpassBeginInfo);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pSubpassEndInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdNextSubpass2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pSubpassBeginInfo, params.pSubpassEndInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdNextSubpass2KHR(void *args)
 {
@@ -38716,7 +42539,32 @@ static void thunk64_vkCmdNextSubpass2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdNextSubpass2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pSubpassBeginInfo, params->pSubpassEndInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdNextSubpass2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pSubpassBeginInfo;
+        PTR32 pSubpassEndInfo;
+    } params;
+    VkSubpassBeginInfo pSubpassBeginInfo_host;
+    VkSubpassEndInfo pSubpassEndInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pSubpassBeginInfo);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pSubpassEndInfo);
+    init_conversion_context(ctx);
+    convert_VkSubpassBeginInfo_win32_to_host((const VkSubpassBeginInfo32 *)UlongToPtr(params.pSubpassBeginInfo), &pSubpassBeginInfo_host);
+    convert_VkSubpassEndInfo_win32_to_host(ctx, (const VkSubpassEndInfo32 *)UlongToPtr(params.pSubpassEndInfo), &pSubpassEndInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdNextSubpass2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pSubpassBeginInfo_host, &pSubpassEndInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdNextSubpass2KHR(void *args)
 {
     struct
@@ -38736,7 +42584,19 @@ static void thunk32_vkCmdNextSubpass2KHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdNextSubpass2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pSubpassBeginInfo_host, &pSubpassEndInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdOpticalFlowExecuteNV(void)
+{
+    struct vkCmdOpticalFlowExecuteNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.session);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pExecuteInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdOpticalFlowExecuteNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.session, params.pExecuteInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdOpticalFlowExecuteNV(void *args)
 {
@@ -38745,7 +42605,26 @@ static void thunk64_vkCmdOpticalFlowExecuteNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdOpticalFlowExecuteNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->session, params->pExecuteInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdOpticalFlowExecuteNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkOpticalFlowSessionNV DECLSPEC_ALIGN(8) session;
+        PTR32 pExecuteInfo;
+    } params;
+    VkOpticalFlowExecuteInfoNV pExecuteInfo_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.session);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pExecuteInfo);
+    convert_VkOpticalFlowExecuteInfoNV_win32_to_host((const VkOpticalFlowExecuteInfoNV32 *)UlongToPtr(params.pExecuteInfo), &pExecuteInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdOpticalFlowExecuteNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.session, &pExecuteInfo_host);
+}
+#else
 static void thunk32_vkCmdOpticalFlowExecuteNV(void *args)
 {
     struct
@@ -38759,7 +42638,26 @@ static void thunk32_vkCmdOpticalFlowExecuteNV(void *args)
     convert_VkOpticalFlowExecuteInfoNV_win32_to_host((const VkOpticalFlowExecuteInfoNV32 *)UlongToPtr(params->pExecuteInfo), &pExecuteInfo_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdOpticalFlowExecuteNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->session, &pExecuteInfo_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 10
+static void thunk64_vkCmdPipelineBarrier(void)
+{
+    struct vkCmdPipelineBarrier_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.srcStageMask);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.dstStageMask);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dependencyFlags);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.memoryBarrierCount);
+    VK_FAST_THUNK_GET_ARG(5, void *, params.pMemoryBarriers);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.bufferMemoryBarrierCount);
+    VK_FAST_THUNK_GET_ARG(7, void *, params.pBufferMemoryBarriers);
+    VK_FAST_THUNK_GET_ARG(8, UINT_PTR, params.imageMemoryBarrierCount);
+    VK_FAST_THUNK_GET_ARG(9, void *, params.pImageMemoryBarriers);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdPipelineBarrier(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.srcStageMask, params.dstStageMask, params.dependencyFlags, params.memoryBarrierCount, params.pMemoryBarriers, params.bufferMemoryBarrierCount, params.pBufferMemoryBarriers, params.imageMemoryBarrierCount, params.pImageMemoryBarriers);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdPipelineBarrier(void *args)
 {
@@ -38768,7 +42666,48 @@ static void thunk64_vkCmdPipelineBarrier(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdPipelineBarrier(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->srcStageMask, params->dstStageMask, params->dependencyFlags, params->memoryBarrierCount, params->pMemoryBarriers, params->bufferMemoryBarrierCount, params->pBufferMemoryBarriers, params->imageMemoryBarrierCount, params->pImageMemoryBarriers);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 10
+static void thunk32_vkCmdPipelineBarrier(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkPipelineStageFlags srcStageMask;
+        VkPipelineStageFlags dstStageMask;
+        VkDependencyFlags dependencyFlags;
+        uint32_t memoryBarrierCount;
+        PTR32 pMemoryBarriers;
+        uint32_t bufferMemoryBarrierCount;
+        PTR32 pBufferMemoryBarriers;
+        uint32_t imageMemoryBarrierCount;
+        PTR32 pImageMemoryBarriers;
+    } params;
+    const VkMemoryBarrier *pMemoryBarriers_host;
+    const VkBufferMemoryBarrier *pBufferMemoryBarriers_host;
+    const VkImageMemoryBarrier *pImageMemoryBarriers_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.srcStageMask);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.dstStageMask);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dependencyFlags);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.memoryBarrierCount);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.pMemoryBarriers);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.bufferMemoryBarrierCount);
+    VK_FAST_THUNK_GET_ARG(7, UINT_PTR, params.pBufferMemoryBarriers);
+    VK_FAST_THUNK_GET_ARG(8, UINT_PTR, params.imageMemoryBarrierCount);
+    VK_FAST_THUNK_GET_ARG(9, UINT_PTR, params.pImageMemoryBarriers);
+    init_conversion_context(ctx);
+    pMemoryBarriers_host = convert_VkMemoryBarrier_array_win32_to_host(ctx, (const VkMemoryBarrier32 *)UlongToPtr(params.pMemoryBarriers), params.memoryBarrierCount);
+    pBufferMemoryBarriers_host = convert_VkBufferMemoryBarrier_array_win32_to_host(ctx, (const VkBufferMemoryBarrier32 *)UlongToPtr(params.pBufferMemoryBarriers), params.bufferMemoryBarrierCount);
+    pImageMemoryBarriers_host = convert_VkImageMemoryBarrier_array_win32_to_host(ctx, (const VkImageMemoryBarrier32 *)UlongToPtr(params.pImageMemoryBarriers), params.imageMemoryBarrierCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdPipelineBarrier(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.srcStageMask, params.dstStageMask, params.dependencyFlags, params.memoryBarrierCount, pMemoryBarriers_host, params.bufferMemoryBarrierCount, pBufferMemoryBarriers_host, params.imageMemoryBarrierCount, pImageMemoryBarriers_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdPipelineBarrier(void *args)
 {
     struct
@@ -38797,7 +42736,18 @@ static void thunk32_vkCmdPipelineBarrier(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdPipelineBarrier(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->srcStageMask, params->dstStageMask, params->dependencyFlags, params->memoryBarrierCount, pMemoryBarriers_host, params->bufferMemoryBarrierCount, pBufferMemoryBarriers_host, params->imageMemoryBarrierCount, pImageMemoryBarriers_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdPipelineBarrier2(void)
+{
+    struct vkCmdPipelineBarrier2_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pDependencyInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdPipelineBarrier2(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pDependencyInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdPipelineBarrier2(void *args)
 {
@@ -38806,7 +42756,28 @@ static void thunk64_vkCmdPipelineBarrier2(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdPipelineBarrier2(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pDependencyInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdPipelineBarrier2(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pDependencyInfo;
+    } params;
+    VkDependencyInfo pDependencyInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pDependencyInfo);
+    init_conversion_context(ctx);
+    convert_VkDependencyInfo_win32_to_host(ctx, (const VkDependencyInfo32 *)UlongToPtr(params.pDependencyInfo), &pDependencyInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdPipelineBarrier2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pDependencyInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdPipelineBarrier2(void *args)
 {
     struct
@@ -38823,7 +42794,18 @@ static void thunk32_vkCmdPipelineBarrier2(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdPipelineBarrier2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pDependencyInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdPipelineBarrier2KHR(void)
+{
+    struct vkCmdPipelineBarrier2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pDependencyInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdPipelineBarrier2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pDependencyInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdPipelineBarrier2KHR(void *args)
 {
@@ -38832,7 +42814,28 @@ static void thunk64_vkCmdPipelineBarrier2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdPipelineBarrier2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pDependencyInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdPipelineBarrier2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pDependencyInfo;
+    } params;
+    VkDependencyInfo pDependencyInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pDependencyInfo);
+    init_conversion_context(ctx);
+    convert_VkDependencyInfo_win32_to_host(ctx, (const VkDependencyInfo32 *)UlongToPtr(params.pDependencyInfo), &pDependencyInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdPipelineBarrier2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pDependencyInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdPipelineBarrier2KHR(void *args)
 {
     struct
@@ -38849,7 +42852,19 @@ static void thunk32_vkCmdPipelineBarrier2KHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdPipelineBarrier2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pDependencyInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdPreprocessGeneratedCommandsEXT(void)
+{
+    struct vkCmdPreprocessGeneratedCommandsEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pGeneratedCommandsInfo);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.stateCommandBuffer);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdPreprocessGeneratedCommandsEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pGeneratedCommandsInfo, wine_cmd_buffer_from_handle(params.stateCommandBuffer)->host_command_buffer);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdPreprocessGeneratedCommandsEXT(void *args)
 {
@@ -38858,7 +42873,30 @@ static void thunk64_vkCmdPreprocessGeneratedCommandsEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdPreprocessGeneratedCommandsEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pGeneratedCommandsInfo, wine_cmd_buffer_from_handle(params->stateCommandBuffer)->host_command_buffer);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdPreprocessGeneratedCommandsEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pGeneratedCommandsInfo;
+        PTR32 stateCommandBuffer;
+    } params;
+    VkGeneratedCommandsInfoEXT pGeneratedCommandsInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pGeneratedCommandsInfo);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.stateCommandBuffer);
+    init_conversion_context(ctx);
+    convert_VkGeneratedCommandsInfoEXT_win32_to_host(ctx, (const VkGeneratedCommandsInfoEXT32 *)UlongToPtr(params.pGeneratedCommandsInfo), &pGeneratedCommandsInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdPreprocessGeneratedCommandsEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pGeneratedCommandsInfo_host, wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.stateCommandBuffer))->host_command_buffer);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdPreprocessGeneratedCommandsEXT(void *args)
 {
     struct
@@ -38876,7 +42914,18 @@ static void thunk32_vkCmdPreprocessGeneratedCommandsEXT(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdPreprocessGeneratedCommandsEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pGeneratedCommandsInfo_host, wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->stateCommandBuffer))->host_command_buffer);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdPreprocessGeneratedCommandsNV(void)
+{
+    struct vkCmdPreprocessGeneratedCommandsNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pGeneratedCommandsInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdPreprocessGeneratedCommandsNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pGeneratedCommandsInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdPreprocessGeneratedCommandsNV(void *args)
 {
@@ -38885,7 +42934,28 @@ static void thunk64_vkCmdPreprocessGeneratedCommandsNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdPreprocessGeneratedCommandsNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pGeneratedCommandsInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdPreprocessGeneratedCommandsNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pGeneratedCommandsInfo;
+    } params;
+    VkGeneratedCommandsInfoNV pGeneratedCommandsInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pGeneratedCommandsInfo);
+    init_conversion_context(ctx);
+    convert_VkGeneratedCommandsInfoNV_win32_to_host(ctx, (const VkGeneratedCommandsInfoNV32 *)UlongToPtr(params.pGeneratedCommandsInfo), &pGeneratedCommandsInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdPreprocessGeneratedCommandsNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pGeneratedCommandsInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdPreprocessGeneratedCommandsNV(void *args)
 {
     struct
@@ -38902,7 +42972,22 @@ static void thunk32_vkCmdPreprocessGeneratedCommandsNV(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdPreprocessGeneratedCommandsNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pGeneratedCommandsInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk64_vkCmdPushConstants(void)
+{
+    struct vkCmdPushConstants_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.layout);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.stageFlags);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.size);
+    VK_FAST_THUNK_GET_ARG(5, void *, params.pValues);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdPushConstants(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.layout, params.stageFlags, params.offset, params.size, params.pValues);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdPushConstants(void *args)
 {
@@ -38911,7 +42996,30 @@ static void thunk64_vkCmdPushConstants(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdPushConstants(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->layout, params->stageFlags, params->offset, params->size, params->pValues);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk32_vkCmdPushConstants(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkPipelineLayout DECLSPEC_ALIGN(8) layout;
+        VkShaderStageFlags stageFlags;
+        uint32_t offset;
+        uint32_t size;
+        PTR32 pValues;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.layout);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.stageFlags);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.offset);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.size);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.pValues);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdPushConstants(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.layout, params.stageFlags, params.offset, params.size, (const void *)UlongToPtr(params.pValues));
+}
+#else
 static void thunk32_vkCmdPushConstants(void *args)
 {
     struct
@@ -38926,7 +43034,18 @@ static void thunk32_vkCmdPushConstants(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdPushConstants(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->layout, params->stageFlags, params->offset, params->size, (const void *)UlongToPtr(params->pValues));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdPushConstants2KHR(void)
+{
+    struct vkCmdPushConstants2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pPushConstantsInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdPushConstants2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pPushConstantsInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdPushConstants2KHR(void *args)
 {
@@ -38935,7 +43054,28 @@ static void thunk64_vkCmdPushConstants2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdPushConstants2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pPushConstantsInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdPushConstants2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pPushConstantsInfo;
+    } params;
+    VkPushConstantsInfoKHR pPushConstantsInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pPushConstantsInfo);
+    init_conversion_context(ctx);
+    convert_VkPushConstantsInfoKHR_win32_to_host(ctx, (const VkPushConstantsInfoKHR32 *)UlongToPtr(params.pPushConstantsInfo), &pPushConstantsInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdPushConstants2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pPushConstantsInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdPushConstants2KHR(void *args)
 {
     struct
@@ -38952,7 +43092,18 @@ static void thunk32_vkCmdPushConstants2KHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdPushConstants2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pPushConstantsInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdPushDescriptorSet2KHR(void)
+{
+    struct vkCmdPushDescriptorSet2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pPushDescriptorSetInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdPushDescriptorSet2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pPushDescriptorSetInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdPushDescriptorSet2KHR(void *args)
 {
@@ -38961,7 +43112,28 @@ static void thunk64_vkCmdPushDescriptorSet2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdPushDescriptorSet2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pPushDescriptorSetInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdPushDescriptorSet2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pPushDescriptorSetInfo;
+    } params;
+    VkPushDescriptorSetInfoKHR pPushDescriptorSetInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pPushDescriptorSetInfo);
+    init_conversion_context(ctx);
+    convert_VkPushDescriptorSetInfoKHR_win32_to_host(ctx, (const VkPushDescriptorSetInfoKHR32 *)UlongToPtr(params.pPushDescriptorSetInfo), &pPushDescriptorSetInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdPushDescriptorSet2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pPushDescriptorSetInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdPushDescriptorSet2KHR(void *args)
 {
     struct
@@ -38978,7 +43150,22 @@ static void thunk32_vkCmdPushDescriptorSet2KHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdPushDescriptorSet2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pPushDescriptorSetInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk64_vkCmdPushDescriptorSetKHR(void)
+{
+    struct vkCmdPushDescriptorSetKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineBindPoint);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.layout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.set);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.descriptorWriteCount);
+    VK_FAST_THUNK_GET_ARG(5, void *, params.pDescriptorWrites);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdPushDescriptorSetKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pipelineBindPoint, params.layout, params.set, params.descriptorWriteCount, params.pDescriptorWrites);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdPushDescriptorSetKHR(void *args)
 {
@@ -38987,7 +43174,36 @@ static void thunk64_vkCmdPushDescriptorSetKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdPushDescriptorSetKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pipelineBindPoint, params->layout, params->set, params->descriptorWriteCount, params->pDescriptorWrites);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk32_vkCmdPushDescriptorSetKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkPipelineBindPoint pipelineBindPoint;
+        VkPipelineLayout DECLSPEC_ALIGN(8) layout;
+        uint32_t set;
+        uint32_t descriptorWriteCount;
+        PTR32 pDescriptorWrites;
+    } params;
+    const VkWriteDescriptorSet *pDescriptorWrites_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineBindPoint);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.layout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.set);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.descriptorWriteCount);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.pDescriptorWrites);
+    init_conversion_context(ctx);
+    pDescriptorWrites_host = convert_VkWriteDescriptorSet_array_win32_to_host(ctx, (const VkWriteDescriptorSet32 *)UlongToPtr(params.pDescriptorWrites), params.descriptorWriteCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdPushDescriptorSetKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.pipelineBindPoint, params.layout, params.set, params.descriptorWriteCount, pDescriptorWrites_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdPushDescriptorSetKHR(void *args)
 {
     struct
@@ -39008,7 +43224,18 @@ static void thunk32_vkCmdPushDescriptorSetKHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdPushDescriptorSetKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->pipelineBindPoint, params->layout, params->set, params->descriptorWriteCount, pDescriptorWrites_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdPushDescriptorSetWithTemplate2KHR(void)
+{
+    struct vkCmdPushDescriptorSetWithTemplate2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pPushDescriptorSetWithTemplateInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdPushDescriptorSetWithTemplate2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pPushDescriptorSetWithTemplateInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdPushDescriptorSetWithTemplate2KHR(void *args)
 {
@@ -39017,7 +43244,28 @@ static void thunk64_vkCmdPushDescriptorSetWithTemplate2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdPushDescriptorSetWithTemplate2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pPushDescriptorSetWithTemplateInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdPushDescriptorSetWithTemplate2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pPushDescriptorSetWithTemplateInfo;
+    } params;
+    VkPushDescriptorSetWithTemplateInfoKHR pPushDescriptorSetWithTemplateInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pPushDescriptorSetWithTemplateInfo);
+    init_conversion_context(ctx);
+    convert_VkPushDescriptorSetWithTemplateInfoKHR_win32_to_host(ctx, (const VkPushDescriptorSetWithTemplateInfoKHR32 *)UlongToPtr(params.pPushDescriptorSetWithTemplateInfo), &pPushDescriptorSetWithTemplateInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdPushDescriptorSetWithTemplate2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pPushDescriptorSetWithTemplateInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdPushDescriptorSetWithTemplate2KHR(void *args)
 {
     struct
@@ -39034,7 +43282,21 @@ static void thunk32_vkCmdPushDescriptorSetWithTemplate2KHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdPushDescriptorSetWithTemplate2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pPushDescriptorSetWithTemplateInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdPushDescriptorSetWithTemplateKHR(void)
+{
+    struct vkCmdPushDescriptorSetWithTemplateKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.descriptorUpdateTemplate);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.layout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.set);
+    VK_FAST_THUNK_GET_ARG(4, void *, params.pData);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdPushDescriptorSetWithTemplateKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.descriptorUpdateTemplate, params.layout, params.set, params.pData);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdPushDescriptorSetWithTemplateKHR(void *args)
 {
@@ -39043,7 +43305,28 @@ static void thunk64_vkCmdPushDescriptorSetWithTemplateKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdPushDescriptorSetWithTemplateKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->descriptorUpdateTemplate, params->layout, params->set, params->pData);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdPushDescriptorSetWithTemplateKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkDescriptorUpdateTemplate DECLSPEC_ALIGN(8) descriptorUpdateTemplate;
+        VkPipelineLayout DECLSPEC_ALIGN(8) layout;
+        uint32_t set;
+        PTR32 pData;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.descriptorUpdateTemplate);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.layout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.set);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.pData);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdPushDescriptorSetWithTemplateKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.descriptorUpdateTemplate, params.layout, params.set, (const void *)UlongToPtr(params.pData));
+}
+#else
 static void thunk32_vkCmdPushDescriptorSetWithTemplateKHR(void *args)
 {
     struct
@@ -39057,7 +43340,19 @@ static void thunk32_vkCmdPushDescriptorSetWithTemplateKHR(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdPushDescriptorSetWithTemplateKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->descriptorUpdateTemplate, params->layout, params->set, (const void *)UlongToPtr(params->pData));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdResetEvent(void)
+{
+    struct vkCmdResetEvent_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.event);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.stageMask);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdResetEvent(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.event, params.stageMask);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdResetEvent(void *args)
 {
@@ -39066,7 +43361,24 @@ static void thunk64_vkCmdResetEvent(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdResetEvent(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->event, params->stageMask);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdResetEvent(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkEvent DECLSPEC_ALIGN(8) event;
+        VkPipelineStageFlags stageMask;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.event);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.stageMask);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdResetEvent(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.event, params.stageMask);
+}
+#else
 static void thunk32_vkCmdResetEvent(void *args)
 {
     struct
@@ -39078,7 +43390,19 @@ static void thunk32_vkCmdResetEvent(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdResetEvent(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->event, params->stageMask);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdResetEvent2(void)
+{
+    struct vkCmdResetEvent2_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.event);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.stageMask);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdResetEvent2(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.event, params.stageMask);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdResetEvent2(void *args)
 {
@@ -39087,7 +43411,24 @@ static void thunk64_vkCmdResetEvent2(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdResetEvent2(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->event, params->stageMask);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdResetEvent2(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkEvent DECLSPEC_ALIGN(8) event;
+        VkPipelineStageFlags2 DECLSPEC_ALIGN(8) stageMask;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.event);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.stageMask);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdResetEvent2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.event, params.stageMask);
+}
+#else
 static void thunk32_vkCmdResetEvent2(void *args)
 {
     struct
@@ -39099,7 +43440,19 @@ static void thunk32_vkCmdResetEvent2(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdResetEvent2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->event, params->stageMask);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdResetEvent2KHR(void)
+{
+    struct vkCmdResetEvent2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.event);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.stageMask);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdResetEvent2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.event, params.stageMask);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdResetEvent2KHR(void *args)
 {
@@ -39108,7 +43461,24 @@ static void thunk64_vkCmdResetEvent2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdResetEvent2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->event, params->stageMask);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdResetEvent2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkEvent DECLSPEC_ALIGN(8) event;
+        VkPipelineStageFlags2 DECLSPEC_ALIGN(8) stageMask;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.event);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.stageMask);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdResetEvent2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.event, params.stageMask);
+}
+#else
 static void thunk32_vkCmdResetEvent2KHR(void *args)
 {
     struct
@@ -39120,7 +43490,20 @@ static void thunk32_vkCmdResetEvent2KHR(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdResetEvent2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->event, params->stageMask);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdResetQueryPool(void)
+{
+    struct vkCmdResetQueryPool_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.firstQuery);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.queryCount);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdResetQueryPool(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.queryPool, params.firstQuery, params.queryCount);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdResetQueryPool(void *args)
 {
@@ -39129,7 +43512,26 @@ static void thunk64_vkCmdResetQueryPool(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdResetQueryPool(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->queryPool, params->firstQuery, params->queryCount);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdResetQueryPool(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkQueryPool DECLSPEC_ALIGN(8) queryPool;
+        uint32_t firstQuery;
+        uint32_t queryCount;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.firstQuery);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.queryCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdResetQueryPool(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.queryPool, params.firstQuery, params.queryCount);
+}
+#else
 static void thunk32_vkCmdResetQueryPool(void *args)
 {
     struct
@@ -39142,7 +43544,23 @@ static void thunk32_vkCmdResetQueryPool(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdResetQueryPool(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->queryPool, params->firstQuery, params->queryCount);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdResolveImage(void)
+{
+    struct vkCmdResolveImage_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.srcImage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.srcImageLayout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dstImage);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.dstImageLayout);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.regionCount);
+    VK_FAST_THUNK_GET_ARG(6, void *, params.pRegions);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdResolveImage(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.srcImage, params.srcImageLayout, params.dstImage, params.dstImageLayout, params.regionCount, params.pRegions);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdResolveImage(void *args)
 {
@@ -39151,7 +43569,32 @@ static void thunk64_vkCmdResolveImage(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdResolveImage(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->srcImage, params->srcImageLayout, params->dstImage, params->dstImageLayout, params->regionCount, params->pRegions);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdResolveImage(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkImage DECLSPEC_ALIGN(8) srcImage;
+        VkImageLayout srcImageLayout;
+        VkImage DECLSPEC_ALIGN(8) dstImage;
+        VkImageLayout dstImageLayout;
+        uint32_t regionCount;
+        PTR32 pRegions;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.srcImage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.srcImageLayout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dstImage);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.dstImageLayout);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.regionCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.pRegions);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdResolveImage(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.srcImage, params.srcImageLayout, params.dstImage, params.dstImageLayout, params.regionCount, (const VkImageResolve *)UlongToPtr(params.pRegions));
+}
+#else
 static void thunk32_vkCmdResolveImage(void *args)
 {
     struct
@@ -39167,7 +43610,18 @@ static void thunk32_vkCmdResolveImage(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdResolveImage(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->srcImage, params->srcImageLayout, params->dstImage, params->dstImageLayout, params->regionCount, (const VkImageResolve *)UlongToPtr(params->pRegions));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdResolveImage2(void)
+{
+    struct vkCmdResolveImage2_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pResolveImageInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdResolveImage2(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pResolveImageInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdResolveImage2(void *args)
 {
@@ -39176,7 +43630,28 @@ static void thunk64_vkCmdResolveImage2(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdResolveImage2(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pResolveImageInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdResolveImage2(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pResolveImageInfo;
+    } params;
+    VkResolveImageInfo2 pResolveImageInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pResolveImageInfo);
+    init_conversion_context(ctx);
+    convert_VkResolveImageInfo2_win32_to_host(ctx, (const VkResolveImageInfo232 *)UlongToPtr(params.pResolveImageInfo), &pResolveImageInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdResolveImage2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pResolveImageInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdResolveImage2(void *args)
 {
     struct
@@ -39193,7 +43668,18 @@ static void thunk32_vkCmdResolveImage2(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdResolveImage2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pResolveImageInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdResolveImage2KHR(void)
+{
+    struct vkCmdResolveImage2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pResolveImageInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdResolveImage2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pResolveImageInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdResolveImage2KHR(void *args)
 {
@@ -39202,7 +43688,28 @@ static void thunk64_vkCmdResolveImage2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdResolveImage2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pResolveImageInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdResolveImage2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pResolveImageInfo;
+    } params;
+    VkResolveImageInfo2 pResolveImageInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pResolveImageInfo);
+    init_conversion_context(ctx);
+    convert_VkResolveImageInfo2_win32_to_host(ctx, (const VkResolveImageInfo232 *)UlongToPtr(params.pResolveImageInfo), &pResolveImageInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdResolveImage2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pResolveImageInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdResolveImage2KHR(void *args)
 {
     struct
@@ -39219,7 +43726,18 @@ static void thunk32_vkCmdResolveImage2KHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdResolveImage2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pResolveImageInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetAlphaToCoverageEnableEXT(void)
+{
+    struct vkCmdSetAlphaToCoverageEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.alphaToCoverageEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetAlphaToCoverageEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.alphaToCoverageEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetAlphaToCoverageEnableEXT(void *args)
 {
@@ -39228,7 +43746,22 @@ static void thunk64_vkCmdSetAlphaToCoverageEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetAlphaToCoverageEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->alphaToCoverageEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetAlphaToCoverageEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 alphaToCoverageEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.alphaToCoverageEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetAlphaToCoverageEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.alphaToCoverageEnable);
+}
+#else
 static void thunk32_vkCmdSetAlphaToCoverageEnableEXT(void *args)
 {
     struct
@@ -39239,7 +43772,18 @@ static void thunk32_vkCmdSetAlphaToCoverageEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetAlphaToCoverageEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->alphaToCoverageEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetAlphaToOneEnableEXT(void)
+{
+    struct vkCmdSetAlphaToOneEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.alphaToOneEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetAlphaToOneEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.alphaToOneEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetAlphaToOneEnableEXT(void *args)
 {
@@ -39248,7 +43792,22 @@ static void thunk64_vkCmdSetAlphaToOneEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetAlphaToOneEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->alphaToOneEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetAlphaToOneEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 alphaToOneEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.alphaToOneEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetAlphaToOneEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.alphaToOneEnable);
+}
+#else
 static void thunk32_vkCmdSetAlphaToOneEnableEXT(void *args)
 {
     struct
@@ -39259,7 +43818,18 @@ static void thunk32_vkCmdSetAlphaToOneEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetAlphaToOneEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->alphaToOneEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetAttachmentFeedbackLoopEnableEXT(void)
+{
+    struct vkCmdSetAttachmentFeedbackLoopEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.aspectMask);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetAttachmentFeedbackLoopEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.aspectMask);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetAttachmentFeedbackLoopEnableEXT(void *args)
 {
@@ -39268,7 +43838,22 @@ static void thunk64_vkCmdSetAttachmentFeedbackLoopEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetAttachmentFeedbackLoopEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->aspectMask);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetAttachmentFeedbackLoopEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkImageAspectFlags aspectMask;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.aspectMask);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetAttachmentFeedbackLoopEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.aspectMask);
+}
+#else
 static void thunk32_vkCmdSetAttachmentFeedbackLoopEnableEXT(void *args)
 {
     struct
@@ -39279,7 +43864,18 @@ static void thunk32_vkCmdSetAttachmentFeedbackLoopEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetAttachmentFeedbackLoopEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->aspectMask);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetBlendConstants(void)
+{
+    struct vkCmdSetBlendConstants_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.blendConstants);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetBlendConstants(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.blendConstants);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetBlendConstants(void *args)
 {
@@ -39288,7 +43884,22 @@ static void thunk64_vkCmdSetBlendConstants(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetBlendConstants(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->blendConstants);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetBlendConstants(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 blendConstants;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.blendConstants);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetBlendConstants(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, (const float *)UlongToPtr(params.blendConstants));
+}
+#else
 static void thunk32_vkCmdSetBlendConstants(void *args)
 {
     struct
@@ -39299,7 +43910,18 @@ static void thunk32_vkCmdSetBlendConstants(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetBlendConstants(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, (const float *)UlongToPtr(params->blendConstants));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetCheckpointNV(void)
+{
+    struct vkCmdSetCheckpointNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pCheckpointMarker);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetCheckpointNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pCheckpointMarker);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetCheckpointNV(void *args)
 {
@@ -39308,7 +43930,22 @@ static void thunk64_vkCmdSetCheckpointNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetCheckpointNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pCheckpointMarker);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetCheckpointNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pCheckpointMarker;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pCheckpointMarker);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetCheckpointNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, (const void *)UlongToPtr(params.pCheckpointMarker));
+}
+#else
 static void thunk32_vkCmdSetCheckpointNV(void *args)
 {
     struct
@@ -39319,7 +43956,20 @@ static void thunk32_vkCmdSetCheckpointNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetCheckpointNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, (const void *)UlongToPtr(params->pCheckpointMarker));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdSetCoarseSampleOrderNV(void)
+{
+    struct vkCmdSetCoarseSampleOrderNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.sampleOrderType);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.customSampleOrderCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pCustomSampleOrders);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetCoarseSampleOrderNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.sampleOrderType, params.customSampleOrderCount, params.pCustomSampleOrders);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetCoarseSampleOrderNV(void *args)
 {
@@ -39328,7 +43978,32 @@ static void thunk64_vkCmdSetCoarseSampleOrderNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetCoarseSampleOrderNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->sampleOrderType, params->customSampleOrderCount, params->pCustomSampleOrders);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdSetCoarseSampleOrderNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkCoarseSampleOrderTypeNV sampleOrderType;
+        uint32_t customSampleOrderCount;
+        PTR32 pCustomSampleOrders;
+    } params;
+    const VkCoarseSampleOrderCustomNV *pCustomSampleOrders_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.sampleOrderType);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.customSampleOrderCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pCustomSampleOrders);
+    init_conversion_context(ctx);
+    pCustomSampleOrders_host = convert_VkCoarseSampleOrderCustomNV_array_win32_to_host(ctx, (const VkCoarseSampleOrderCustomNV32 *)UlongToPtr(params.pCustomSampleOrders), params.customSampleOrderCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetCoarseSampleOrderNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.sampleOrderType, params.customSampleOrderCount, pCustomSampleOrders_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdSetCoarseSampleOrderNV(void *args)
 {
     struct
@@ -39347,7 +44022,20 @@ static void thunk32_vkCmdSetCoarseSampleOrderNV(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetCoarseSampleOrderNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->sampleOrderType, params->customSampleOrderCount, pCustomSampleOrders_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdSetColorBlendAdvancedEXT(void)
+{
+    struct vkCmdSetColorBlendAdvancedEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstAttachment);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.attachmentCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pColorBlendAdvanced);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetColorBlendAdvancedEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstAttachment, params.attachmentCount, params.pColorBlendAdvanced);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetColorBlendAdvancedEXT(void *args)
 {
@@ -39356,7 +44044,26 @@ static void thunk64_vkCmdSetColorBlendAdvancedEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetColorBlendAdvancedEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstAttachment, params->attachmentCount, params->pColorBlendAdvanced);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdSetColorBlendAdvancedEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstAttachment;
+        uint32_t attachmentCount;
+        PTR32 pColorBlendAdvanced;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstAttachment);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.attachmentCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pColorBlendAdvanced);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetColorBlendAdvancedEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstAttachment, params.attachmentCount, (const VkColorBlendAdvancedEXT *)UlongToPtr(params.pColorBlendAdvanced));
+}
+#else
 static void thunk32_vkCmdSetColorBlendAdvancedEXT(void *args)
 {
     struct
@@ -39369,7 +44076,20 @@ static void thunk32_vkCmdSetColorBlendAdvancedEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetColorBlendAdvancedEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstAttachment, params->attachmentCount, (const VkColorBlendAdvancedEXT *)UlongToPtr(params->pColorBlendAdvanced));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdSetColorBlendEnableEXT(void)
+{
+    struct vkCmdSetColorBlendEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstAttachment);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.attachmentCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pColorBlendEnables);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetColorBlendEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstAttachment, params.attachmentCount, params.pColorBlendEnables);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetColorBlendEnableEXT(void *args)
 {
@@ -39378,7 +44098,26 @@ static void thunk64_vkCmdSetColorBlendEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetColorBlendEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstAttachment, params->attachmentCount, params->pColorBlendEnables);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdSetColorBlendEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstAttachment;
+        uint32_t attachmentCount;
+        PTR32 pColorBlendEnables;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstAttachment);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.attachmentCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pColorBlendEnables);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetColorBlendEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstAttachment, params.attachmentCount, (const VkBool32 *)UlongToPtr(params.pColorBlendEnables));
+}
+#else
 static void thunk32_vkCmdSetColorBlendEnableEXT(void *args)
 {
     struct
@@ -39391,7 +44130,20 @@ static void thunk32_vkCmdSetColorBlendEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetColorBlendEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstAttachment, params->attachmentCount, (const VkBool32 *)UlongToPtr(params->pColorBlendEnables));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdSetColorBlendEquationEXT(void)
+{
+    struct vkCmdSetColorBlendEquationEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstAttachment);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.attachmentCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pColorBlendEquations);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetColorBlendEquationEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstAttachment, params.attachmentCount, params.pColorBlendEquations);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetColorBlendEquationEXT(void *args)
 {
@@ -39400,7 +44152,26 @@ static void thunk64_vkCmdSetColorBlendEquationEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetColorBlendEquationEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstAttachment, params->attachmentCount, params->pColorBlendEquations);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdSetColorBlendEquationEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstAttachment;
+        uint32_t attachmentCount;
+        PTR32 pColorBlendEquations;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstAttachment);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.attachmentCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pColorBlendEquations);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetColorBlendEquationEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstAttachment, params.attachmentCount, (const VkColorBlendEquationEXT *)UlongToPtr(params.pColorBlendEquations));
+}
+#else
 static void thunk32_vkCmdSetColorBlendEquationEXT(void *args)
 {
     struct
@@ -39413,7 +44184,19 @@ static void thunk32_vkCmdSetColorBlendEquationEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetColorBlendEquationEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstAttachment, params->attachmentCount, (const VkColorBlendEquationEXT *)UlongToPtr(params->pColorBlendEquations));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetColorWriteEnableEXT(void)
+{
+    struct vkCmdSetColorWriteEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.attachmentCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pColorWriteEnables);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetColorWriteEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.attachmentCount, params.pColorWriteEnables);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetColorWriteEnableEXT(void *args)
 {
@@ -39422,7 +44205,24 @@ static void thunk64_vkCmdSetColorWriteEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetColorWriteEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->attachmentCount, params->pColorWriteEnables);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetColorWriteEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t attachmentCount;
+        PTR32 pColorWriteEnables;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.attachmentCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pColorWriteEnables);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetColorWriteEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.attachmentCount, (const VkBool32 *)UlongToPtr(params.pColorWriteEnables));
+}
+#else
 static void thunk32_vkCmdSetColorWriteEnableEXT(void *args)
 {
     struct
@@ -39434,7 +44234,20 @@ static void thunk32_vkCmdSetColorWriteEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetColorWriteEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->attachmentCount, (const VkBool32 *)UlongToPtr(params->pColorWriteEnables));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdSetColorWriteMaskEXT(void)
+{
+    struct vkCmdSetColorWriteMaskEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstAttachment);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.attachmentCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pColorWriteMasks);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetColorWriteMaskEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstAttachment, params.attachmentCount, params.pColorWriteMasks);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetColorWriteMaskEXT(void *args)
 {
@@ -39443,7 +44256,26 @@ static void thunk64_vkCmdSetColorWriteMaskEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetColorWriteMaskEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstAttachment, params->attachmentCount, params->pColorWriteMasks);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdSetColorWriteMaskEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstAttachment;
+        uint32_t attachmentCount;
+        PTR32 pColorWriteMasks;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstAttachment);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.attachmentCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pColorWriteMasks);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetColorWriteMaskEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstAttachment, params.attachmentCount, (const VkColorComponentFlags *)UlongToPtr(params.pColorWriteMasks));
+}
+#else
 static void thunk32_vkCmdSetColorWriteMaskEXT(void *args)
 {
     struct
@@ -39456,7 +44288,18 @@ static void thunk32_vkCmdSetColorWriteMaskEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetColorWriteMaskEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstAttachment, params->attachmentCount, (const VkColorComponentFlags *)UlongToPtr(params->pColorWriteMasks));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetConservativeRasterizationModeEXT(void)
+{
+    struct vkCmdSetConservativeRasterizationModeEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.conservativeRasterizationMode);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetConservativeRasterizationModeEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.conservativeRasterizationMode);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetConservativeRasterizationModeEXT(void *args)
 {
@@ -39465,7 +44308,22 @@ static void thunk64_vkCmdSetConservativeRasterizationModeEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetConservativeRasterizationModeEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->conservativeRasterizationMode);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetConservativeRasterizationModeEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkConservativeRasterizationModeEXT conservativeRasterizationMode;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.conservativeRasterizationMode);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetConservativeRasterizationModeEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.conservativeRasterizationMode);
+}
+#else
 static void thunk32_vkCmdSetConservativeRasterizationModeEXT(void *args)
 {
     struct
@@ -39476,7 +44334,18 @@ static void thunk32_vkCmdSetConservativeRasterizationModeEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetConservativeRasterizationModeEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->conservativeRasterizationMode);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetCoverageModulationModeNV(void)
+{
+    struct vkCmdSetCoverageModulationModeNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.coverageModulationMode);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetCoverageModulationModeNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.coverageModulationMode);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetCoverageModulationModeNV(void *args)
 {
@@ -39485,7 +44354,22 @@ static void thunk64_vkCmdSetCoverageModulationModeNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetCoverageModulationModeNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->coverageModulationMode);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetCoverageModulationModeNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkCoverageModulationModeNV coverageModulationMode;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.coverageModulationMode);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetCoverageModulationModeNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.coverageModulationMode);
+}
+#else
 static void thunk32_vkCmdSetCoverageModulationModeNV(void *args)
 {
     struct
@@ -39496,7 +44380,18 @@ static void thunk32_vkCmdSetCoverageModulationModeNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetCoverageModulationModeNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->coverageModulationMode);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetCoverageModulationTableEnableNV(void)
+{
+    struct vkCmdSetCoverageModulationTableEnableNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.coverageModulationTableEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetCoverageModulationTableEnableNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.coverageModulationTableEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetCoverageModulationTableEnableNV(void *args)
 {
@@ -39505,7 +44400,22 @@ static void thunk64_vkCmdSetCoverageModulationTableEnableNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetCoverageModulationTableEnableNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->coverageModulationTableEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetCoverageModulationTableEnableNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 coverageModulationTableEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.coverageModulationTableEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetCoverageModulationTableEnableNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.coverageModulationTableEnable);
+}
+#else
 static void thunk32_vkCmdSetCoverageModulationTableEnableNV(void *args)
 {
     struct
@@ -39516,7 +44426,19 @@ static void thunk32_vkCmdSetCoverageModulationTableEnableNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetCoverageModulationTableEnableNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->coverageModulationTableEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetCoverageModulationTableNV(void)
+{
+    struct vkCmdSetCoverageModulationTableNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.coverageModulationTableCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pCoverageModulationTable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetCoverageModulationTableNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.coverageModulationTableCount, params.pCoverageModulationTable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetCoverageModulationTableNV(void *args)
 {
@@ -39525,7 +44447,24 @@ static void thunk64_vkCmdSetCoverageModulationTableNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetCoverageModulationTableNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->coverageModulationTableCount, params->pCoverageModulationTable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetCoverageModulationTableNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t coverageModulationTableCount;
+        PTR32 pCoverageModulationTable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.coverageModulationTableCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pCoverageModulationTable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetCoverageModulationTableNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.coverageModulationTableCount, (const float *)UlongToPtr(params.pCoverageModulationTable));
+}
+#else
 static void thunk32_vkCmdSetCoverageModulationTableNV(void *args)
 {
     struct
@@ -39537,7 +44476,18 @@ static void thunk32_vkCmdSetCoverageModulationTableNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetCoverageModulationTableNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->coverageModulationTableCount, (const float *)UlongToPtr(params->pCoverageModulationTable));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetCoverageReductionModeNV(void)
+{
+    struct vkCmdSetCoverageReductionModeNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.coverageReductionMode);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetCoverageReductionModeNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.coverageReductionMode);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetCoverageReductionModeNV(void *args)
 {
@@ -39546,7 +44496,22 @@ static void thunk64_vkCmdSetCoverageReductionModeNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetCoverageReductionModeNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->coverageReductionMode);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetCoverageReductionModeNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkCoverageReductionModeNV coverageReductionMode;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.coverageReductionMode);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetCoverageReductionModeNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.coverageReductionMode);
+}
+#else
 static void thunk32_vkCmdSetCoverageReductionModeNV(void *args)
 {
     struct
@@ -39557,7 +44522,18 @@ static void thunk32_vkCmdSetCoverageReductionModeNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetCoverageReductionModeNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->coverageReductionMode);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetCoverageToColorEnableNV(void)
+{
+    struct vkCmdSetCoverageToColorEnableNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.coverageToColorEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetCoverageToColorEnableNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.coverageToColorEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetCoverageToColorEnableNV(void *args)
 {
@@ -39566,7 +44542,22 @@ static void thunk64_vkCmdSetCoverageToColorEnableNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetCoverageToColorEnableNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->coverageToColorEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetCoverageToColorEnableNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 coverageToColorEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.coverageToColorEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetCoverageToColorEnableNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.coverageToColorEnable);
+}
+#else
 static void thunk32_vkCmdSetCoverageToColorEnableNV(void *args)
 {
     struct
@@ -39577,7 +44568,18 @@ static void thunk32_vkCmdSetCoverageToColorEnableNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetCoverageToColorEnableNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->coverageToColorEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetCoverageToColorLocationNV(void)
+{
+    struct vkCmdSetCoverageToColorLocationNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.coverageToColorLocation);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetCoverageToColorLocationNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.coverageToColorLocation);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetCoverageToColorLocationNV(void *args)
 {
@@ -39586,7 +44588,22 @@ static void thunk64_vkCmdSetCoverageToColorLocationNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetCoverageToColorLocationNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->coverageToColorLocation);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetCoverageToColorLocationNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t coverageToColorLocation;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.coverageToColorLocation);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetCoverageToColorLocationNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.coverageToColorLocation);
+}
+#else
 static void thunk32_vkCmdSetCoverageToColorLocationNV(void *args)
 {
     struct
@@ -39597,7 +44614,18 @@ static void thunk32_vkCmdSetCoverageToColorLocationNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetCoverageToColorLocationNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->coverageToColorLocation);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetCullMode(void)
+{
+    struct vkCmdSetCullMode_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.cullMode);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetCullMode(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.cullMode);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetCullMode(void *args)
 {
@@ -39606,7 +44634,22 @@ static void thunk64_vkCmdSetCullMode(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetCullMode(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->cullMode);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetCullMode(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkCullModeFlags cullMode;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.cullMode);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetCullMode(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.cullMode);
+}
+#else
 static void thunk32_vkCmdSetCullMode(void *args)
 {
     struct
@@ -39617,7 +44660,18 @@ static void thunk32_vkCmdSetCullMode(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetCullMode(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->cullMode);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetCullModeEXT(void)
+{
+    struct vkCmdSetCullModeEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.cullMode);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetCullModeEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.cullMode);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetCullModeEXT(void *args)
 {
@@ -39626,7 +44680,22 @@ static void thunk64_vkCmdSetCullModeEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetCullModeEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->cullMode);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetCullModeEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkCullModeFlags cullMode;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.cullMode);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetCullModeEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.cullMode);
+}
+#else
 static void thunk32_vkCmdSetCullModeEXT(void *args)
 {
     struct
@@ -39637,6 +44706,7 @@ static void thunk32_vkCmdSetCullModeEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetCullModeEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->cullMode);
 }
+#endif /* VK_FAST_THUNK */
 
 #ifdef _WIN64
 static void thunk64_vkCmdSetDepthBias(void *args)
@@ -39660,6 +44730,16 @@ static void thunk32_vkCmdSetDepthBias(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDepthBias(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->depthBiasConstantFactor, params->depthBiasClamp, params->depthBiasSlopeFactor);
 }
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDepthBias2EXT(void)
+{
+    struct vkCmdSetDepthBias2EXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pDepthBiasInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDepthBias2EXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pDepthBiasInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDepthBias2EXT(void *args)
 {
@@ -39668,7 +44748,28 @@ static void thunk64_vkCmdSetDepthBias2EXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDepthBias2EXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pDepthBiasInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDepthBias2EXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pDepthBiasInfo;
+    } params;
+    VkDepthBiasInfoEXT pDepthBiasInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pDepthBiasInfo);
+    init_conversion_context(ctx);
+    convert_VkDepthBiasInfoEXT_win32_to_host(ctx, (const VkDepthBiasInfoEXT32 *)UlongToPtr(params.pDepthBiasInfo), &pDepthBiasInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDepthBias2EXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pDepthBiasInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdSetDepthBias2EXT(void *args)
 {
     struct
@@ -39685,7 +44786,18 @@ static void thunk32_vkCmdSetDepthBias2EXT(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDepthBias2EXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pDepthBiasInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDepthBiasEnable(void)
+{
+    struct vkCmdSetDepthBiasEnable_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthBiasEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDepthBiasEnable(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.depthBiasEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDepthBiasEnable(void *args)
 {
@@ -39694,7 +44806,22 @@ static void thunk64_vkCmdSetDepthBiasEnable(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDepthBiasEnable(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->depthBiasEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDepthBiasEnable(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 depthBiasEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthBiasEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDepthBiasEnable(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.depthBiasEnable);
+}
+#else
 static void thunk32_vkCmdSetDepthBiasEnable(void *args)
 {
     struct
@@ -39705,7 +44832,18 @@ static void thunk32_vkCmdSetDepthBiasEnable(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDepthBiasEnable(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->depthBiasEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDepthBiasEnableEXT(void)
+{
+    struct vkCmdSetDepthBiasEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthBiasEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDepthBiasEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.depthBiasEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDepthBiasEnableEXT(void *args)
 {
@@ -39714,7 +44852,22 @@ static void thunk64_vkCmdSetDepthBiasEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDepthBiasEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->depthBiasEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDepthBiasEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 depthBiasEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthBiasEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDepthBiasEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.depthBiasEnable);
+}
+#else
 static void thunk32_vkCmdSetDepthBiasEnableEXT(void *args)
 {
     struct
@@ -39725,6 +44878,7 @@ static void thunk32_vkCmdSetDepthBiasEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDepthBiasEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->depthBiasEnable);
 }
+#endif /* VK_FAST_THUNK */
 
 #ifdef _WIN64
 static void thunk64_vkCmdSetDepthBounds(void *args)
@@ -39747,6 +44901,16 @@ static void thunk32_vkCmdSetDepthBounds(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDepthBounds(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->minDepthBounds, params->maxDepthBounds);
 }
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDepthBoundsTestEnable(void)
+{
+    struct vkCmdSetDepthBoundsTestEnable_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthBoundsTestEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDepthBoundsTestEnable(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.depthBoundsTestEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDepthBoundsTestEnable(void *args)
 {
@@ -39755,7 +44919,22 @@ static void thunk64_vkCmdSetDepthBoundsTestEnable(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDepthBoundsTestEnable(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->depthBoundsTestEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDepthBoundsTestEnable(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 depthBoundsTestEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthBoundsTestEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDepthBoundsTestEnable(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.depthBoundsTestEnable);
+}
+#else
 static void thunk32_vkCmdSetDepthBoundsTestEnable(void *args)
 {
     struct
@@ -39766,7 +44945,18 @@ static void thunk32_vkCmdSetDepthBoundsTestEnable(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDepthBoundsTestEnable(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->depthBoundsTestEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDepthBoundsTestEnableEXT(void)
+{
+    struct vkCmdSetDepthBoundsTestEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthBoundsTestEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDepthBoundsTestEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.depthBoundsTestEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDepthBoundsTestEnableEXT(void *args)
 {
@@ -39775,7 +44965,22 @@ static void thunk64_vkCmdSetDepthBoundsTestEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDepthBoundsTestEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->depthBoundsTestEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDepthBoundsTestEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 depthBoundsTestEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthBoundsTestEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDepthBoundsTestEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.depthBoundsTestEnable);
+}
+#else
 static void thunk32_vkCmdSetDepthBoundsTestEnableEXT(void *args)
 {
     struct
@@ -39786,7 +44991,18 @@ static void thunk32_vkCmdSetDepthBoundsTestEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDepthBoundsTestEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->depthBoundsTestEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDepthClampEnableEXT(void)
+{
+    struct vkCmdSetDepthClampEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthClampEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDepthClampEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.depthClampEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDepthClampEnableEXT(void *args)
 {
@@ -39795,7 +45011,22 @@ static void thunk64_vkCmdSetDepthClampEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDepthClampEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->depthClampEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDepthClampEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 depthClampEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthClampEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDepthClampEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.depthClampEnable);
+}
+#else
 static void thunk32_vkCmdSetDepthClampEnableEXT(void *args)
 {
     struct
@@ -39806,7 +45037,19 @@ static void thunk32_vkCmdSetDepthClampEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDepthClampEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->depthClampEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetDepthClampRangeEXT(void)
+{
+    struct vkCmdSetDepthClampRangeEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthClampMode);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pDepthClampRange);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDepthClampRangeEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.depthClampMode, params.pDepthClampRange);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDepthClampRangeEXT(void *args)
 {
@@ -39815,7 +45058,24 @@ static void thunk64_vkCmdSetDepthClampRangeEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDepthClampRangeEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->depthClampMode, params->pDepthClampRange);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetDepthClampRangeEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkDepthClampModeEXT depthClampMode;
+        PTR32 pDepthClampRange;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthClampMode);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pDepthClampRange);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDepthClampRangeEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.depthClampMode, (const VkDepthClampRangeEXT *)UlongToPtr(params.pDepthClampRange));
+}
+#else
 static void thunk32_vkCmdSetDepthClampRangeEXT(void *args)
 {
     struct
@@ -39827,7 +45087,18 @@ static void thunk32_vkCmdSetDepthClampRangeEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDepthClampRangeEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->depthClampMode, (const VkDepthClampRangeEXT *)UlongToPtr(params->pDepthClampRange));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDepthClipEnableEXT(void)
+{
+    struct vkCmdSetDepthClipEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthClipEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDepthClipEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.depthClipEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDepthClipEnableEXT(void *args)
 {
@@ -39836,7 +45107,22 @@ static void thunk64_vkCmdSetDepthClipEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDepthClipEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->depthClipEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDepthClipEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 depthClipEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthClipEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDepthClipEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.depthClipEnable);
+}
+#else
 static void thunk32_vkCmdSetDepthClipEnableEXT(void *args)
 {
     struct
@@ -39847,7 +45133,18 @@ static void thunk32_vkCmdSetDepthClipEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDepthClipEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->depthClipEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDepthClipNegativeOneToOneEXT(void)
+{
+    struct vkCmdSetDepthClipNegativeOneToOneEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.negativeOneToOne);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDepthClipNegativeOneToOneEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.negativeOneToOne);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDepthClipNegativeOneToOneEXT(void *args)
 {
@@ -39856,7 +45153,22 @@ static void thunk64_vkCmdSetDepthClipNegativeOneToOneEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDepthClipNegativeOneToOneEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->negativeOneToOne);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDepthClipNegativeOneToOneEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 negativeOneToOne;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.negativeOneToOne);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDepthClipNegativeOneToOneEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.negativeOneToOne);
+}
+#else
 static void thunk32_vkCmdSetDepthClipNegativeOneToOneEXT(void *args)
 {
     struct
@@ -39867,7 +45179,18 @@ static void thunk32_vkCmdSetDepthClipNegativeOneToOneEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDepthClipNegativeOneToOneEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->negativeOneToOne);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDepthCompareOp(void)
+{
+    struct vkCmdSetDepthCompareOp_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthCompareOp);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDepthCompareOp(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.depthCompareOp);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDepthCompareOp(void *args)
 {
@@ -39876,7 +45199,22 @@ static void thunk64_vkCmdSetDepthCompareOp(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDepthCompareOp(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->depthCompareOp);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDepthCompareOp(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkCompareOp depthCompareOp;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthCompareOp);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDepthCompareOp(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.depthCompareOp);
+}
+#else
 static void thunk32_vkCmdSetDepthCompareOp(void *args)
 {
     struct
@@ -39887,7 +45225,18 @@ static void thunk32_vkCmdSetDepthCompareOp(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDepthCompareOp(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->depthCompareOp);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDepthCompareOpEXT(void)
+{
+    struct vkCmdSetDepthCompareOpEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthCompareOp);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDepthCompareOpEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.depthCompareOp);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDepthCompareOpEXT(void *args)
 {
@@ -39896,7 +45245,22 @@ static void thunk64_vkCmdSetDepthCompareOpEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDepthCompareOpEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->depthCompareOp);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDepthCompareOpEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkCompareOp depthCompareOp;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthCompareOp);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDepthCompareOpEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.depthCompareOp);
+}
+#else
 static void thunk32_vkCmdSetDepthCompareOpEXT(void *args)
 {
     struct
@@ -39907,7 +45271,18 @@ static void thunk32_vkCmdSetDepthCompareOpEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDepthCompareOpEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->depthCompareOp);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDepthTestEnable(void)
+{
+    struct vkCmdSetDepthTestEnable_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthTestEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDepthTestEnable(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.depthTestEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDepthTestEnable(void *args)
 {
@@ -39916,7 +45291,22 @@ static void thunk64_vkCmdSetDepthTestEnable(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDepthTestEnable(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->depthTestEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDepthTestEnable(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 depthTestEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthTestEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDepthTestEnable(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.depthTestEnable);
+}
+#else
 static void thunk32_vkCmdSetDepthTestEnable(void *args)
 {
     struct
@@ -39927,7 +45317,18 @@ static void thunk32_vkCmdSetDepthTestEnable(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDepthTestEnable(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->depthTestEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDepthTestEnableEXT(void)
+{
+    struct vkCmdSetDepthTestEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthTestEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDepthTestEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.depthTestEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDepthTestEnableEXT(void *args)
 {
@@ -39936,7 +45337,22 @@ static void thunk64_vkCmdSetDepthTestEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDepthTestEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->depthTestEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDepthTestEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 depthTestEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthTestEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDepthTestEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.depthTestEnable);
+}
+#else
 static void thunk32_vkCmdSetDepthTestEnableEXT(void *args)
 {
     struct
@@ -39947,7 +45363,18 @@ static void thunk32_vkCmdSetDepthTestEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDepthTestEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->depthTestEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDepthWriteEnable(void)
+{
+    struct vkCmdSetDepthWriteEnable_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthWriteEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDepthWriteEnable(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.depthWriteEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDepthWriteEnable(void *args)
 {
@@ -39956,7 +45383,22 @@ static void thunk64_vkCmdSetDepthWriteEnable(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDepthWriteEnable(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->depthWriteEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDepthWriteEnable(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 depthWriteEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthWriteEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDepthWriteEnable(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.depthWriteEnable);
+}
+#else
 static void thunk32_vkCmdSetDepthWriteEnable(void *args)
 {
     struct
@@ -39967,7 +45409,18 @@ static void thunk32_vkCmdSetDepthWriteEnable(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDepthWriteEnable(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->depthWriteEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDepthWriteEnableEXT(void)
+{
+    struct vkCmdSetDepthWriteEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthWriteEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDepthWriteEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.depthWriteEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDepthWriteEnableEXT(void *args)
 {
@@ -39976,7 +45429,22 @@ static void thunk64_vkCmdSetDepthWriteEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDepthWriteEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->depthWriteEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDepthWriteEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 depthWriteEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.depthWriteEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDepthWriteEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.depthWriteEnable);
+}
+#else
 static void thunk32_vkCmdSetDepthWriteEnableEXT(void *args)
 {
     struct
@@ -39987,7 +45455,18 @@ static void thunk32_vkCmdSetDepthWriteEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDepthWriteEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->depthWriteEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDescriptorBufferOffsets2EXT(void)
+{
+    struct vkCmdSetDescriptorBufferOffsets2EXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pSetDescriptorBufferOffsetsInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDescriptorBufferOffsets2EXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pSetDescriptorBufferOffsetsInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDescriptorBufferOffsets2EXT(void *args)
 {
@@ -39996,7 +45475,28 @@ static void thunk64_vkCmdSetDescriptorBufferOffsets2EXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDescriptorBufferOffsets2EXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pSetDescriptorBufferOffsetsInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDescriptorBufferOffsets2EXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pSetDescriptorBufferOffsetsInfo;
+    } params;
+    VkSetDescriptorBufferOffsetsInfoEXT pSetDescriptorBufferOffsetsInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pSetDescriptorBufferOffsetsInfo);
+    init_conversion_context(ctx);
+    convert_VkSetDescriptorBufferOffsetsInfoEXT_win32_to_host(ctx, (const VkSetDescriptorBufferOffsetsInfoEXT32 *)UlongToPtr(params.pSetDescriptorBufferOffsetsInfo), &pSetDescriptorBufferOffsetsInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDescriptorBufferOffsets2EXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pSetDescriptorBufferOffsetsInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdSetDescriptorBufferOffsets2EXT(void *args)
 {
     struct
@@ -40013,7 +45513,23 @@ static void thunk32_vkCmdSetDescriptorBufferOffsets2EXT(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDescriptorBufferOffsets2EXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pSetDescriptorBufferOffsetsInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk64_vkCmdSetDescriptorBufferOffsetsEXT(void)
+{
+    struct vkCmdSetDescriptorBufferOffsetsEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineBindPoint);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.layout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.firstSet);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.setCount);
+    VK_FAST_THUNK_GET_ARG(5, void *, params.pBufferIndices);
+    VK_FAST_THUNK_GET_ARG(6, void *, params.pOffsets);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDescriptorBufferOffsetsEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pipelineBindPoint, params.layout, params.firstSet, params.setCount, params.pBufferIndices, params.pOffsets);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDescriptorBufferOffsetsEXT(void *args)
 {
@@ -40022,7 +45538,32 @@ static void thunk64_vkCmdSetDescriptorBufferOffsetsEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDescriptorBufferOffsetsEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pipelineBindPoint, params->layout, params->firstSet, params->setCount, params->pBufferIndices, params->pOffsets);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 7
+static void thunk32_vkCmdSetDescriptorBufferOffsetsEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkPipelineBindPoint pipelineBindPoint;
+        VkPipelineLayout DECLSPEC_ALIGN(8) layout;
+        uint32_t firstSet;
+        uint32_t setCount;
+        PTR32 pBufferIndices;
+        PTR32 pOffsets;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineBindPoint);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.layout);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.firstSet);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.setCount);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.pBufferIndices);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.pOffsets);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDescriptorBufferOffsetsEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.pipelineBindPoint, params.layout, params.firstSet, params.setCount, (const uint32_t *)UlongToPtr(params.pBufferIndices), (const VkDeviceSize *)UlongToPtr(params.pOffsets));
+}
+#else
 static void thunk32_vkCmdSetDescriptorBufferOffsetsEXT(void *args)
 {
     struct
@@ -40038,7 +45579,18 @@ static void thunk32_vkCmdSetDescriptorBufferOffsetsEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDescriptorBufferOffsetsEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->pipelineBindPoint, params->layout, params->firstSet, params->setCount, (const uint32_t *)UlongToPtr(params->pBufferIndices), (const VkDeviceSize *)UlongToPtr(params->pOffsets));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDeviceMask(void)
+{
+    struct vkCmdSetDeviceMask_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.deviceMask);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDeviceMask(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.deviceMask);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDeviceMask(void *args)
 {
@@ -40047,7 +45599,22 @@ static void thunk64_vkCmdSetDeviceMask(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDeviceMask(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->deviceMask);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDeviceMask(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t deviceMask;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.deviceMask);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDeviceMask(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.deviceMask);
+}
+#else
 static void thunk32_vkCmdSetDeviceMask(void *args)
 {
     struct
@@ -40058,7 +45625,18 @@ static void thunk32_vkCmdSetDeviceMask(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDeviceMask(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->deviceMask);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDeviceMaskKHR(void)
+{
+    struct vkCmdSetDeviceMaskKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.deviceMask);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDeviceMaskKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.deviceMask);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDeviceMaskKHR(void *args)
 {
@@ -40067,7 +45645,22 @@ static void thunk64_vkCmdSetDeviceMaskKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDeviceMaskKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->deviceMask);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDeviceMaskKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t deviceMask;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.deviceMask);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDeviceMaskKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.deviceMask);
+}
+#else
 static void thunk32_vkCmdSetDeviceMaskKHR(void *args)
 {
     struct
@@ -40078,7 +45671,20 @@ static void thunk32_vkCmdSetDeviceMaskKHR(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDeviceMaskKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->deviceMask);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdSetDiscardRectangleEXT(void)
+{
+    struct vkCmdSetDiscardRectangleEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstDiscardRectangle);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.discardRectangleCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pDiscardRectangles);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDiscardRectangleEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstDiscardRectangle, params.discardRectangleCount, params.pDiscardRectangles);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDiscardRectangleEXT(void *args)
 {
@@ -40087,7 +45693,26 @@ static void thunk64_vkCmdSetDiscardRectangleEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDiscardRectangleEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstDiscardRectangle, params->discardRectangleCount, params->pDiscardRectangles);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdSetDiscardRectangleEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstDiscardRectangle;
+        uint32_t discardRectangleCount;
+        PTR32 pDiscardRectangles;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstDiscardRectangle);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.discardRectangleCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pDiscardRectangles);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDiscardRectangleEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstDiscardRectangle, params.discardRectangleCount, (const VkRect2D *)UlongToPtr(params.pDiscardRectangles));
+}
+#else
 static void thunk32_vkCmdSetDiscardRectangleEXT(void *args)
 {
     struct
@@ -40100,7 +45725,18 @@ static void thunk32_vkCmdSetDiscardRectangleEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDiscardRectangleEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstDiscardRectangle, params->discardRectangleCount, (const VkRect2D *)UlongToPtr(params->pDiscardRectangles));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDiscardRectangleEnableEXT(void)
+{
+    struct vkCmdSetDiscardRectangleEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.discardRectangleEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDiscardRectangleEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.discardRectangleEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDiscardRectangleEnableEXT(void *args)
 {
@@ -40109,7 +45745,22 @@ static void thunk64_vkCmdSetDiscardRectangleEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDiscardRectangleEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->discardRectangleEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDiscardRectangleEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 discardRectangleEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.discardRectangleEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDiscardRectangleEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.discardRectangleEnable);
+}
+#else
 static void thunk32_vkCmdSetDiscardRectangleEnableEXT(void *args)
 {
     struct
@@ -40120,7 +45771,18 @@ static void thunk32_vkCmdSetDiscardRectangleEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDiscardRectangleEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->discardRectangleEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetDiscardRectangleModeEXT(void)
+{
+    struct vkCmdSetDiscardRectangleModeEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.discardRectangleMode);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetDiscardRectangleModeEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.discardRectangleMode);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetDiscardRectangleModeEXT(void *args)
 {
@@ -40129,7 +45791,22 @@ static void thunk64_vkCmdSetDiscardRectangleModeEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetDiscardRectangleModeEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->discardRectangleMode);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetDiscardRectangleModeEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkDiscardRectangleModeEXT discardRectangleMode;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.discardRectangleMode);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetDiscardRectangleModeEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.discardRectangleMode);
+}
+#else
 static void thunk32_vkCmdSetDiscardRectangleModeEXT(void *args)
 {
     struct
@@ -40140,7 +45817,19 @@ static void thunk32_vkCmdSetDiscardRectangleModeEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetDiscardRectangleModeEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->discardRectangleMode);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetEvent(void)
+{
+    struct vkCmdSetEvent_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.event);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.stageMask);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetEvent(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.event, params.stageMask);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetEvent(void *args)
 {
@@ -40149,7 +45838,24 @@ static void thunk64_vkCmdSetEvent(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetEvent(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->event, params->stageMask);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetEvent(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkEvent DECLSPEC_ALIGN(8) event;
+        VkPipelineStageFlags stageMask;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.event);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.stageMask);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetEvent(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.event, params.stageMask);
+}
+#else
 static void thunk32_vkCmdSetEvent(void *args)
 {
     struct
@@ -40161,7 +45867,19 @@ static void thunk32_vkCmdSetEvent(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetEvent(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->event, params->stageMask);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetEvent2(void)
+{
+    struct vkCmdSetEvent2_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.event);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pDependencyInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetEvent2(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.event, params.pDependencyInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetEvent2(void *args)
 {
@@ -40170,7 +45888,30 @@ static void thunk64_vkCmdSetEvent2(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetEvent2(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->event, params->pDependencyInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetEvent2(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkEvent DECLSPEC_ALIGN(8) event;
+        PTR32 pDependencyInfo;
+    } params;
+    VkDependencyInfo pDependencyInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.event);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pDependencyInfo);
+    init_conversion_context(ctx);
+    convert_VkDependencyInfo_win32_to_host(ctx, (const VkDependencyInfo32 *)UlongToPtr(params.pDependencyInfo), &pDependencyInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetEvent2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.event, &pDependencyInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdSetEvent2(void *args)
 {
     struct
@@ -40188,7 +45929,19 @@ static void thunk32_vkCmdSetEvent2(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetEvent2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->event, &pDependencyInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetEvent2KHR(void)
+{
+    struct vkCmdSetEvent2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.event);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pDependencyInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetEvent2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.event, params.pDependencyInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetEvent2KHR(void *args)
 {
@@ -40197,7 +45950,30 @@ static void thunk64_vkCmdSetEvent2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetEvent2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->event, params->pDependencyInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetEvent2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkEvent DECLSPEC_ALIGN(8) event;
+        PTR32 pDependencyInfo;
+    } params;
+    VkDependencyInfo pDependencyInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.event);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pDependencyInfo);
+    init_conversion_context(ctx);
+    convert_VkDependencyInfo_win32_to_host(ctx, (const VkDependencyInfo32 *)UlongToPtr(params.pDependencyInfo), &pDependencyInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetEvent2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.event, &pDependencyInfo_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdSetEvent2KHR(void *args)
 {
     struct
@@ -40215,7 +45991,20 @@ static void thunk32_vkCmdSetEvent2KHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetEvent2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->event, &pDependencyInfo_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdSetExclusiveScissorEnableNV(void)
+{
+    struct vkCmdSetExclusiveScissorEnableNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstExclusiveScissor);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.exclusiveScissorCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pExclusiveScissorEnables);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetExclusiveScissorEnableNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstExclusiveScissor, params.exclusiveScissorCount, params.pExclusiveScissorEnables);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetExclusiveScissorEnableNV(void *args)
 {
@@ -40224,7 +46013,26 @@ static void thunk64_vkCmdSetExclusiveScissorEnableNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetExclusiveScissorEnableNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstExclusiveScissor, params->exclusiveScissorCount, params->pExclusiveScissorEnables);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdSetExclusiveScissorEnableNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstExclusiveScissor;
+        uint32_t exclusiveScissorCount;
+        PTR32 pExclusiveScissorEnables;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstExclusiveScissor);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.exclusiveScissorCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pExclusiveScissorEnables);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetExclusiveScissorEnableNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstExclusiveScissor, params.exclusiveScissorCount, (const VkBool32 *)UlongToPtr(params.pExclusiveScissorEnables));
+}
+#else
 static void thunk32_vkCmdSetExclusiveScissorEnableNV(void *args)
 {
     struct
@@ -40237,7 +46045,20 @@ static void thunk32_vkCmdSetExclusiveScissorEnableNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetExclusiveScissorEnableNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstExclusiveScissor, params->exclusiveScissorCount, (const VkBool32 *)UlongToPtr(params->pExclusiveScissorEnables));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdSetExclusiveScissorNV(void)
+{
+    struct vkCmdSetExclusiveScissorNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstExclusiveScissor);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.exclusiveScissorCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pExclusiveScissors);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetExclusiveScissorNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstExclusiveScissor, params.exclusiveScissorCount, params.pExclusiveScissors);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetExclusiveScissorNV(void *args)
 {
@@ -40246,7 +46067,26 @@ static void thunk64_vkCmdSetExclusiveScissorNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetExclusiveScissorNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstExclusiveScissor, params->exclusiveScissorCount, params->pExclusiveScissors);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdSetExclusiveScissorNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstExclusiveScissor;
+        uint32_t exclusiveScissorCount;
+        PTR32 pExclusiveScissors;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstExclusiveScissor);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.exclusiveScissorCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pExclusiveScissors);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetExclusiveScissorNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstExclusiveScissor, params.exclusiveScissorCount, (const VkRect2D *)UlongToPtr(params.pExclusiveScissors));
+}
+#else
 static void thunk32_vkCmdSetExclusiveScissorNV(void *args)
 {
     struct
@@ -40259,6 +46099,7 @@ static void thunk32_vkCmdSetExclusiveScissorNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetExclusiveScissorNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstExclusiveScissor, params->exclusiveScissorCount, (const VkRect2D *)UlongToPtr(params->pExclusiveScissors));
 }
+#endif /* VK_FAST_THUNK */
 
 #ifdef _WIN64
 static void thunk64_vkCmdSetExtraPrimitiveOverestimationSizeEXT(void *args)
@@ -40280,6 +46121,17 @@ static void thunk32_vkCmdSetExtraPrimitiveOverestimationSizeEXT(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetExtraPrimitiveOverestimationSizeEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->extraPrimitiveOverestimationSize);
 }
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetFragmentShadingRateEnumNV(void)
+{
+    struct vkCmdSetFragmentShadingRateEnumNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.shadingRate);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.combinerOps);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetFragmentShadingRateEnumNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.shadingRate, params.combinerOps);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetFragmentShadingRateEnumNV(void *args)
 {
@@ -40288,7 +46140,24 @@ static void thunk64_vkCmdSetFragmentShadingRateEnumNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetFragmentShadingRateEnumNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->shadingRate, params->combinerOps);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetFragmentShadingRateEnumNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkFragmentShadingRateNV shadingRate;
+        PTR32 combinerOps;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.shadingRate);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.combinerOps);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetFragmentShadingRateEnumNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.shadingRate, (const VkFragmentShadingRateCombinerOpKHR *)UlongToPtr(params.combinerOps));
+}
+#else
 static void thunk32_vkCmdSetFragmentShadingRateEnumNV(void *args)
 {
     struct
@@ -40300,7 +46169,19 @@ static void thunk32_vkCmdSetFragmentShadingRateEnumNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetFragmentShadingRateEnumNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->shadingRate, (const VkFragmentShadingRateCombinerOpKHR *)UlongToPtr(params->combinerOps));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetFragmentShadingRateKHR(void)
+{
+    struct vkCmdSetFragmentShadingRateKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pFragmentSize);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.combinerOps);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetFragmentShadingRateKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pFragmentSize, params.combinerOps);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetFragmentShadingRateKHR(void *args)
 {
@@ -40309,7 +46190,24 @@ static void thunk64_vkCmdSetFragmentShadingRateKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetFragmentShadingRateKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pFragmentSize, params->combinerOps);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetFragmentShadingRateKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pFragmentSize;
+        PTR32 combinerOps;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pFragmentSize);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.combinerOps);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetFragmentShadingRateKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, (const VkExtent2D *)UlongToPtr(params.pFragmentSize), (const VkFragmentShadingRateCombinerOpKHR *)UlongToPtr(params.combinerOps));
+}
+#else
 static void thunk32_vkCmdSetFragmentShadingRateKHR(void *args)
 {
     struct
@@ -40321,7 +46219,18 @@ static void thunk32_vkCmdSetFragmentShadingRateKHR(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetFragmentShadingRateKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, (const VkExtent2D *)UlongToPtr(params->pFragmentSize), (const VkFragmentShadingRateCombinerOpKHR *)UlongToPtr(params->combinerOps));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetFrontFace(void)
+{
+    struct vkCmdSetFrontFace_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.frontFace);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetFrontFace(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.frontFace);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetFrontFace(void *args)
 {
@@ -40330,7 +46239,22 @@ static void thunk64_vkCmdSetFrontFace(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetFrontFace(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->frontFace);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetFrontFace(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkFrontFace frontFace;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.frontFace);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetFrontFace(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.frontFace);
+}
+#else
 static void thunk32_vkCmdSetFrontFace(void *args)
 {
     struct
@@ -40341,7 +46265,18 @@ static void thunk32_vkCmdSetFrontFace(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetFrontFace(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->frontFace);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetFrontFaceEXT(void)
+{
+    struct vkCmdSetFrontFaceEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.frontFace);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetFrontFaceEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.frontFace);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetFrontFaceEXT(void *args)
 {
@@ -40350,7 +46285,22 @@ static void thunk64_vkCmdSetFrontFaceEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetFrontFaceEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->frontFace);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetFrontFaceEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkFrontFace frontFace;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.frontFace);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetFrontFaceEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.frontFace);
+}
+#else
 static void thunk32_vkCmdSetFrontFaceEXT(void *args)
 {
     struct
@@ -40361,7 +46311,18 @@ static void thunk32_vkCmdSetFrontFaceEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetFrontFaceEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->frontFace);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetLineRasterizationModeEXT(void)
+{
+    struct vkCmdSetLineRasterizationModeEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.lineRasterizationMode);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetLineRasterizationModeEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.lineRasterizationMode);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetLineRasterizationModeEXT(void *args)
 {
@@ -40370,7 +46331,22 @@ static void thunk64_vkCmdSetLineRasterizationModeEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetLineRasterizationModeEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->lineRasterizationMode);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetLineRasterizationModeEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkLineRasterizationModeEXT lineRasterizationMode;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.lineRasterizationMode);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetLineRasterizationModeEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.lineRasterizationMode);
+}
+#else
 static void thunk32_vkCmdSetLineRasterizationModeEXT(void *args)
 {
     struct
@@ -40381,7 +46357,19 @@ static void thunk32_vkCmdSetLineRasterizationModeEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetLineRasterizationModeEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->lineRasterizationMode);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetLineStippleEXT(void)
+{
+    struct vkCmdSetLineStippleEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.lineStippleFactor);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.lineStipplePattern);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetLineStippleEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.lineStippleFactor, params.lineStipplePattern);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetLineStippleEXT(void *args)
 {
@@ -40390,7 +46378,24 @@ static void thunk64_vkCmdSetLineStippleEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetLineStippleEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->lineStippleFactor, params->lineStipplePattern);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetLineStippleEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t lineStippleFactor;
+        uint16_t lineStipplePattern;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.lineStippleFactor);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.lineStipplePattern);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetLineStippleEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.lineStippleFactor, params.lineStipplePattern);
+}
+#else
 static void thunk32_vkCmdSetLineStippleEXT(void *args)
 {
     struct
@@ -40402,7 +46407,18 @@ static void thunk32_vkCmdSetLineStippleEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetLineStippleEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->lineStippleFactor, params->lineStipplePattern);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetLineStippleEnableEXT(void)
+{
+    struct vkCmdSetLineStippleEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.stippledLineEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetLineStippleEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.stippledLineEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetLineStippleEnableEXT(void *args)
 {
@@ -40411,7 +46427,22 @@ static void thunk64_vkCmdSetLineStippleEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetLineStippleEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->stippledLineEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetLineStippleEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 stippledLineEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.stippledLineEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetLineStippleEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.stippledLineEnable);
+}
+#else
 static void thunk32_vkCmdSetLineStippleEnableEXT(void *args)
 {
     struct
@@ -40422,7 +46453,19 @@ static void thunk32_vkCmdSetLineStippleEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetLineStippleEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->stippledLineEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetLineStippleKHR(void)
+{
+    struct vkCmdSetLineStippleKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.lineStippleFactor);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.lineStipplePattern);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetLineStippleKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.lineStippleFactor, params.lineStipplePattern);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetLineStippleKHR(void *args)
 {
@@ -40431,7 +46474,24 @@ static void thunk64_vkCmdSetLineStippleKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetLineStippleKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->lineStippleFactor, params->lineStipplePattern);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetLineStippleKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t lineStippleFactor;
+        uint16_t lineStipplePattern;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.lineStippleFactor);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.lineStipplePattern);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetLineStippleKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.lineStippleFactor, params.lineStipplePattern);
+}
+#else
 static void thunk32_vkCmdSetLineStippleKHR(void *args)
 {
     struct
@@ -40443,6 +46503,7 @@ static void thunk32_vkCmdSetLineStippleKHR(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetLineStippleKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->lineStippleFactor, params->lineStipplePattern);
 }
+#endif /* VK_FAST_THUNK */
 
 #ifdef _WIN64
 static void thunk64_vkCmdSetLineWidth(void *args)
@@ -40464,6 +46525,16 @@ static void thunk32_vkCmdSetLineWidth(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetLineWidth(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->lineWidth);
 }
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetLogicOpEXT(void)
+{
+    struct vkCmdSetLogicOpEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.logicOp);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetLogicOpEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.logicOp);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetLogicOpEXT(void *args)
 {
@@ -40472,7 +46543,22 @@ static void thunk64_vkCmdSetLogicOpEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetLogicOpEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->logicOp);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetLogicOpEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkLogicOp logicOp;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.logicOp);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetLogicOpEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.logicOp);
+}
+#else
 static void thunk32_vkCmdSetLogicOpEXT(void *args)
 {
     struct
@@ -40483,7 +46569,18 @@ static void thunk32_vkCmdSetLogicOpEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetLogicOpEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->logicOp);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetLogicOpEnableEXT(void)
+{
+    struct vkCmdSetLogicOpEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.logicOpEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetLogicOpEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.logicOpEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetLogicOpEnableEXT(void *args)
 {
@@ -40492,7 +46589,22 @@ static void thunk64_vkCmdSetLogicOpEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetLogicOpEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->logicOpEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetLogicOpEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 logicOpEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.logicOpEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetLogicOpEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.logicOpEnable);
+}
+#else
 static void thunk32_vkCmdSetLogicOpEnableEXT(void *args)
 {
     struct
@@ -40503,7 +46615,18 @@ static void thunk32_vkCmdSetLogicOpEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetLogicOpEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->logicOpEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetPatchControlPointsEXT(void)
+{
+    struct vkCmdSetPatchControlPointsEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.patchControlPoints);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetPatchControlPointsEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.patchControlPoints);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetPatchControlPointsEXT(void *args)
 {
@@ -40512,7 +46635,22 @@ static void thunk64_vkCmdSetPatchControlPointsEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetPatchControlPointsEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->patchControlPoints);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetPatchControlPointsEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t patchControlPoints;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.patchControlPoints);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetPatchControlPointsEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.patchControlPoints);
+}
+#else
 static void thunk32_vkCmdSetPatchControlPointsEXT(void *args)
 {
     struct
@@ -40523,7 +46661,18 @@ static void thunk32_vkCmdSetPatchControlPointsEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetPatchControlPointsEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->patchControlPoints);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetPolygonModeEXT(void)
+{
+    struct vkCmdSetPolygonModeEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.polygonMode);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetPolygonModeEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.polygonMode);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetPolygonModeEXT(void *args)
 {
@@ -40532,7 +46681,22 @@ static void thunk64_vkCmdSetPolygonModeEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetPolygonModeEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->polygonMode);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetPolygonModeEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkPolygonMode polygonMode;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.polygonMode);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetPolygonModeEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.polygonMode);
+}
+#else
 static void thunk32_vkCmdSetPolygonModeEXT(void *args)
 {
     struct
@@ -40543,7 +46707,18 @@ static void thunk32_vkCmdSetPolygonModeEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetPolygonModeEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->polygonMode);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetPrimitiveRestartEnable(void)
+{
+    struct vkCmdSetPrimitiveRestartEnable_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.primitiveRestartEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetPrimitiveRestartEnable(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.primitiveRestartEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetPrimitiveRestartEnable(void *args)
 {
@@ -40552,7 +46727,22 @@ static void thunk64_vkCmdSetPrimitiveRestartEnable(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetPrimitiveRestartEnable(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->primitiveRestartEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetPrimitiveRestartEnable(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 primitiveRestartEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.primitiveRestartEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetPrimitiveRestartEnable(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.primitiveRestartEnable);
+}
+#else
 static void thunk32_vkCmdSetPrimitiveRestartEnable(void *args)
 {
     struct
@@ -40563,7 +46753,18 @@ static void thunk32_vkCmdSetPrimitiveRestartEnable(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetPrimitiveRestartEnable(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->primitiveRestartEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetPrimitiveRestartEnableEXT(void)
+{
+    struct vkCmdSetPrimitiveRestartEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.primitiveRestartEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetPrimitiveRestartEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.primitiveRestartEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetPrimitiveRestartEnableEXT(void *args)
 {
@@ -40572,7 +46773,22 @@ static void thunk64_vkCmdSetPrimitiveRestartEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetPrimitiveRestartEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->primitiveRestartEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetPrimitiveRestartEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 primitiveRestartEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.primitiveRestartEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetPrimitiveRestartEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.primitiveRestartEnable);
+}
+#else
 static void thunk32_vkCmdSetPrimitiveRestartEnableEXT(void *args)
 {
     struct
@@ -40583,7 +46799,18 @@ static void thunk32_vkCmdSetPrimitiveRestartEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetPrimitiveRestartEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->primitiveRestartEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetPrimitiveTopology(void)
+{
+    struct vkCmdSetPrimitiveTopology_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.primitiveTopology);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetPrimitiveTopology(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.primitiveTopology);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetPrimitiveTopology(void *args)
 {
@@ -40592,7 +46819,22 @@ static void thunk64_vkCmdSetPrimitiveTopology(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetPrimitiveTopology(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->primitiveTopology);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetPrimitiveTopology(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkPrimitiveTopology primitiveTopology;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.primitiveTopology);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetPrimitiveTopology(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.primitiveTopology);
+}
+#else
 static void thunk32_vkCmdSetPrimitiveTopology(void *args)
 {
     struct
@@ -40603,7 +46845,18 @@ static void thunk32_vkCmdSetPrimitiveTopology(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetPrimitiveTopology(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->primitiveTopology);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetPrimitiveTopologyEXT(void)
+{
+    struct vkCmdSetPrimitiveTopologyEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.primitiveTopology);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetPrimitiveTopologyEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.primitiveTopology);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetPrimitiveTopologyEXT(void *args)
 {
@@ -40612,7 +46865,22 @@ static void thunk64_vkCmdSetPrimitiveTopologyEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetPrimitiveTopologyEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->primitiveTopology);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetPrimitiveTopologyEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkPrimitiveTopology primitiveTopology;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.primitiveTopology);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetPrimitiveTopologyEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.primitiveTopology);
+}
+#else
 static void thunk32_vkCmdSetPrimitiveTopologyEXT(void *args)
 {
     struct
@@ -40623,7 +46891,18 @@ static void thunk32_vkCmdSetPrimitiveTopologyEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetPrimitiveTopologyEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->primitiveTopology);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetProvokingVertexModeEXT(void)
+{
+    struct vkCmdSetProvokingVertexModeEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.provokingVertexMode);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetProvokingVertexModeEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.provokingVertexMode);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetProvokingVertexModeEXT(void *args)
 {
@@ -40632,7 +46911,22 @@ static void thunk64_vkCmdSetProvokingVertexModeEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetProvokingVertexModeEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->provokingVertexMode);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetProvokingVertexModeEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkProvokingVertexModeEXT provokingVertexMode;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.provokingVertexMode);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetProvokingVertexModeEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.provokingVertexMode);
+}
+#else
 static void thunk32_vkCmdSetProvokingVertexModeEXT(void *args)
 {
     struct
@@ -40643,7 +46937,18 @@ static void thunk32_vkCmdSetProvokingVertexModeEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetProvokingVertexModeEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->provokingVertexMode);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetRasterizationSamplesEXT(void)
+{
+    struct vkCmdSetRasterizationSamplesEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.rasterizationSamples);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetRasterizationSamplesEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.rasterizationSamples);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetRasterizationSamplesEXT(void *args)
 {
@@ -40652,7 +46957,22 @@ static void thunk64_vkCmdSetRasterizationSamplesEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetRasterizationSamplesEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->rasterizationSamples);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetRasterizationSamplesEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkSampleCountFlagBits rasterizationSamples;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.rasterizationSamples);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetRasterizationSamplesEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.rasterizationSamples);
+}
+#else
 static void thunk32_vkCmdSetRasterizationSamplesEXT(void *args)
 {
     struct
@@ -40663,7 +46983,18 @@ static void thunk32_vkCmdSetRasterizationSamplesEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetRasterizationSamplesEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->rasterizationSamples);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetRasterizationStreamEXT(void)
+{
+    struct vkCmdSetRasterizationStreamEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.rasterizationStream);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetRasterizationStreamEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.rasterizationStream);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetRasterizationStreamEXT(void *args)
 {
@@ -40672,7 +47003,22 @@ static void thunk64_vkCmdSetRasterizationStreamEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetRasterizationStreamEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->rasterizationStream);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetRasterizationStreamEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t rasterizationStream;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.rasterizationStream);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetRasterizationStreamEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.rasterizationStream);
+}
+#else
 static void thunk32_vkCmdSetRasterizationStreamEXT(void *args)
 {
     struct
@@ -40683,7 +47029,18 @@ static void thunk32_vkCmdSetRasterizationStreamEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetRasterizationStreamEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->rasterizationStream);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetRasterizerDiscardEnable(void)
+{
+    struct vkCmdSetRasterizerDiscardEnable_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.rasterizerDiscardEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetRasterizerDiscardEnable(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.rasterizerDiscardEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetRasterizerDiscardEnable(void *args)
 {
@@ -40692,7 +47049,22 @@ static void thunk64_vkCmdSetRasterizerDiscardEnable(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetRasterizerDiscardEnable(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->rasterizerDiscardEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetRasterizerDiscardEnable(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 rasterizerDiscardEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.rasterizerDiscardEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetRasterizerDiscardEnable(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.rasterizerDiscardEnable);
+}
+#else
 static void thunk32_vkCmdSetRasterizerDiscardEnable(void *args)
 {
     struct
@@ -40703,7 +47075,18 @@ static void thunk32_vkCmdSetRasterizerDiscardEnable(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetRasterizerDiscardEnable(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->rasterizerDiscardEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetRasterizerDiscardEnableEXT(void)
+{
+    struct vkCmdSetRasterizerDiscardEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.rasterizerDiscardEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetRasterizerDiscardEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.rasterizerDiscardEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetRasterizerDiscardEnableEXT(void *args)
 {
@@ -40712,7 +47095,22 @@ static void thunk64_vkCmdSetRasterizerDiscardEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetRasterizerDiscardEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->rasterizerDiscardEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetRasterizerDiscardEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 rasterizerDiscardEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.rasterizerDiscardEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetRasterizerDiscardEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.rasterizerDiscardEnable);
+}
+#else
 static void thunk32_vkCmdSetRasterizerDiscardEnableEXT(void *args)
 {
     struct
@@ -40723,7 +47121,18 @@ static void thunk32_vkCmdSetRasterizerDiscardEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetRasterizerDiscardEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->rasterizerDiscardEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetRayTracingPipelineStackSizeKHR(void)
+{
+    struct vkCmdSetRayTracingPipelineStackSizeKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineStackSize);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetRayTracingPipelineStackSizeKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pipelineStackSize);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetRayTracingPipelineStackSizeKHR(void *args)
 {
@@ -40732,7 +47141,22 @@ static void thunk64_vkCmdSetRayTracingPipelineStackSizeKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetRayTracingPipelineStackSizeKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pipelineStackSize);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetRayTracingPipelineStackSizeKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t pipelineStackSize;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineStackSize);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetRayTracingPipelineStackSizeKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.pipelineStackSize);
+}
+#else
 static void thunk32_vkCmdSetRayTracingPipelineStackSizeKHR(void *args)
 {
     struct
@@ -40743,7 +47167,18 @@ static void thunk32_vkCmdSetRayTracingPipelineStackSizeKHR(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetRayTracingPipelineStackSizeKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->pipelineStackSize);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetRenderingAttachmentLocationsKHR(void)
+{
+    struct vkCmdSetRenderingAttachmentLocationsKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pLocationInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetRenderingAttachmentLocationsKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pLocationInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetRenderingAttachmentLocationsKHR(void *args)
 {
@@ -40752,7 +47187,24 @@ static void thunk64_vkCmdSetRenderingAttachmentLocationsKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetRenderingAttachmentLocationsKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pLocationInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetRenderingAttachmentLocationsKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pLocationInfo;
+    } params;
+    VkRenderingAttachmentLocationInfoKHR pLocationInfo_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pLocationInfo);
+    convert_VkRenderingAttachmentLocationInfoKHR_win32_to_host((const VkRenderingAttachmentLocationInfoKHR32 *)UlongToPtr(params.pLocationInfo), &pLocationInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetRenderingAttachmentLocationsKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pLocationInfo_host);
+}
+#else
 static void thunk32_vkCmdSetRenderingAttachmentLocationsKHR(void *args)
 {
     struct
@@ -40765,7 +47217,18 @@ static void thunk32_vkCmdSetRenderingAttachmentLocationsKHR(void *args)
     convert_VkRenderingAttachmentLocationInfoKHR_win32_to_host((const VkRenderingAttachmentLocationInfoKHR32 *)UlongToPtr(params->pLocationInfo), &pLocationInfo_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetRenderingAttachmentLocationsKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pLocationInfo_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetRenderingInputAttachmentIndicesKHR(void)
+{
+    struct vkCmdSetRenderingInputAttachmentIndicesKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pInputAttachmentIndexInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetRenderingInputAttachmentIndicesKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pInputAttachmentIndexInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetRenderingInputAttachmentIndicesKHR(void *args)
 {
@@ -40774,7 +47237,24 @@ static void thunk64_vkCmdSetRenderingInputAttachmentIndicesKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetRenderingInputAttachmentIndicesKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pInputAttachmentIndexInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetRenderingInputAttachmentIndicesKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pInputAttachmentIndexInfo;
+    } params;
+    VkRenderingInputAttachmentIndexInfoKHR pInputAttachmentIndexInfo_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pInputAttachmentIndexInfo);
+    convert_VkRenderingInputAttachmentIndexInfoKHR_win32_to_host((const VkRenderingInputAttachmentIndexInfoKHR32 *)UlongToPtr(params.pInputAttachmentIndexInfo), &pInputAttachmentIndexInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetRenderingInputAttachmentIndicesKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pInputAttachmentIndexInfo_host);
+}
+#else
 static void thunk32_vkCmdSetRenderingInputAttachmentIndicesKHR(void *args)
 {
     struct
@@ -40787,7 +47267,18 @@ static void thunk32_vkCmdSetRenderingInputAttachmentIndicesKHR(void *args)
     convert_VkRenderingInputAttachmentIndexInfoKHR_win32_to_host((const VkRenderingInputAttachmentIndexInfoKHR32 *)UlongToPtr(params->pInputAttachmentIndexInfo), &pInputAttachmentIndexInfo_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetRenderingInputAttachmentIndicesKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pInputAttachmentIndexInfo_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetRepresentativeFragmentTestEnableNV(void)
+{
+    struct vkCmdSetRepresentativeFragmentTestEnableNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.representativeFragmentTestEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetRepresentativeFragmentTestEnableNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.representativeFragmentTestEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetRepresentativeFragmentTestEnableNV(void *args)
 {
@@ -40796,7 +47287,22 @@ static void thunk64_vkCmdSetRepresentativeFragmentTestEnableNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetRepresentativeFragmentTestEnableNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->representativeFragmentTestEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetRepresentativeFragmentTestEnableNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 representativeFragmentTestEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.representativeFragmentTestEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetRepresentativeFragmentTestEnableNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.representativeFragmentTestEnable);
+}
+#else
 static void thunk32_vkCmdSetRepresentativeFragmentTestEnableNV(void *args)
 {
     struct
@@ -40807,7 +47313,18 @@ static void thunk32_vkCmdSetRepresentativeFragmentTestEnableNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetRepresentativeFragmentTestEnableNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->representativeFragmentTestEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetSampleLocationsEXT(void)
+{
+    struct vkCmdSetSampleLocationsEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pSampleLocationsInfo);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetSampleLocationsEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pSampleLocationsInfo);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetSampleLocationsEXT(void *args)
 {
@@ -40816,7 +47333,24 @@ static void thunk64_vkCmdSetSampleLocationsEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetSampleLocationsEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pSampleLocationsInfo);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetSampleLocationsEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pSampleLocationsInfo;
+    } params;
+    VkSampleLocationsInfoEXT pSampleLocationsInfo_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pSampleLocationsInfo);
+    convert_VkSampleLocationsInfoEXT_win32_to_host((const VkSampleLocationsInfoEXT32 *)UlongToPtr(params.pSampleLocationsInfo), &pSampleLocationsInfo_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetSampleLocationsEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pSampleLocationsInfo_host);
+}
+#else
 static void thunk32_vkCmdSetSampleLocationsEXT(void *args)
 {
     struct
@@ -40829,7 +47363,18 @@ static void thunk32_vkCmdSetSampleLocationsEXT(void *args)
     convert_VkSampleLocationsInfoEXT_win32_to_host((const VkSampleLocationsInfoEXT32 *)UlongToPtr(params->pSampleLocationsInfo), &pSampleLocationsInfo_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetSampleLocationsEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pSampleLocationsInfo_host);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetSampleLocationsEnableEXT(void)
+{
+    struct vkCmdSetSampleLocationsEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.sampleLocationsEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetSampleLocationsEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.sampleLocationsEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetSampleLocationsEnableEXT(void *args)
 {
@@ -40838,7 +47383,22 @@ static void thunk64_vkCmdSetSampleLocationsEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetSampleLocationsEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->sampleLocationsEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetSampleLocationsEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 sampleLocationsEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.sampleLocationsEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetSampleLocationsEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.sampleLocationsEnable);
+}
+#else
 static void thunk32_vkCmdSetSampleLocationsEnableEXT(void *args)
 {
     struct
@@ -40849,7 +47409,19 @@ static void thunk32_vkCmdSetSampleLocationsEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetSampleLocationsEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->sampleLocationsEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetSampleMaskEXT(void)
+{
+    struct vkCmdSetSampleMaskEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.samples);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pSampleMask);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetSampleMaskEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.samples, params.pSampleMask);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetSampleMaskEXT(void *args)
 {
@@ -40858,7 +47430,24 @@ static void thunk64_vkCmdSetSampleMaskEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetSampleMaskEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->samples, params->pSampleMask);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetSampleMaskEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkSampleCountFlagBits samples;
+        PTR32 pSampleMask;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.samples);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pSampleMask);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetSampleMaskEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.samples, (const VkSampleMask *)UlongToPtr(params.pSampleMask));
+}
+#else
 static void thunk32_vkCmdSetSampleMaskEXT(void *args)
 {
     struct
@@ -40870,7 +47459,20 @@ static void thunk32_vkCmdSetSampleMaskEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetSampleMaskEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->samples, (const VkSampleMask *)UlongToPtr(params->pSampleMask));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdSetScissor(void)
+{
+    struct vkCmdSetScissor_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstScissor);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.scissorCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pScissors);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetScissor(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstScissor, params.scissorCount, params.pScissors);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetScissor(void *args)
 {
@@ -40879,7 +47481,26 @@ static void thunk64_vkCmdSetScissor(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetScissor(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstScissor, params->scissorCount, params->pScissors);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdSetScissor(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstScissor;
+        uint32_t scissorCount;
+        PTR32 pScissors;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstScissor);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.scissorCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pScissors);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetScissor(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstScissor, params.scissorCount, (const VkRect2D *)UlongToPtr(params.pScissors));
+}
+#else
 static void thunk32_vkCmdSetScissor(void *args)
 {
     struct
@@ -40892,7 +47513,19 @@ static void thunk32_vkCmdSetScissor(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetScissor(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstScissor, params->scissorCount, (const VkRect2D *)UlongToPtr(params->pScissors));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetScissorWithCount(void)
+{
+    struct vkCmdSetScissorWithCount_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.scissorCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pScissors);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetScissorWithCount(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.scissorCount, params.pScissors);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetScissorWithCount(void *args)
 {
@@ -40901,7 +47534,24 @@ static void thunk64_vkCmdSetScissorWithCount(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetScissorWithCount(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->scissorCount, params->pScissors);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetScissorWithCount(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t scissorCount;
+        PTR32 pScissors;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.scissorCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pScissors);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetScissorWithCount(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.scissorCount, (const VkRect2D *)UlongToPtr(params.pScissors));
+}
+#else
 static void thunk32_vkCmdSetScissorWithCount(void *args)
 {
     struct
@@ -40913,7 +47563,19 @@ static void thunk32_vkCmdSetScissorWithCount(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetScissorWithCount(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->scissorCount, (const VkRect2D *)UlongToPtr(params->pScissors));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetScissorWithCountEXT(void)
+{
+    struct vkCmdSetScissorWithCountEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.scissorCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pScissors);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetScissorWithCountEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.scissorCount, params.pScissors);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetScissorWithCountEXT(void *args)
 {
@@ -40922,7 +47584,24 @@ static void thunk64_vkCmdSetScissorWithCountEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetScissorWithCountEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->scissorCount, params->pScissors);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetScissorWithCountEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t scissorCount;
+        PTR32 pScissors;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.scissorCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pScissors);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetScissorWithCountEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.scissorCount, (const VkRect2D *)UlongToPtr(params.pScissors));
+}
+#else
 static void thunk32_vkCmdSetScissorWithCountEXT(void *args)
 {
     struct
@@ -40934,7 +47613,18 @@ static void thunk32_vkCmdSetScissorWithCountEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetScissorWithCountEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->scissorCount, (const VkRect2D *)UlongToPtr(params->pScissors));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetShadingRateImageEnableNV(void)
+{
+    struct vkCmdSetShadingRateImageEnableNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.shadingRateImageEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetShadingRateImageEnableNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.shadingRateImageEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetShadingRateImageEnableNV(void *args)
 {
@@ -40943,7 +47633,22 @@ static void thunk64_vkCmdSetShadingRateImageEnableNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetShadingRateImageEnableNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->shadingRateImageEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetShadingRateImageEnableNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 shadingRateImageEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.shadingRateImageEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetShadingRateImageEnableNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.shadingRateImageEnable);
+}
+#else
 static void thunk32_vkCmdSetShadingRateImageEnableNV(void *args)
 {
     struct
@@ -40954,7 +47659,19 @@ static void thunk32_vkCmdSetShadingRateImageEnableNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetShadingRateImageEnableNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->shadingRateImageEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetStencilCompareMask(void)
+{
+    struct vkCmdSetStencilCompareMask_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.faceMask);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.compareMask);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetStencilCompareMask(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.faceMask, params.compareMask);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetStencilCompareMask(void *args)
 {
@@ -40963,7 +47680,24 @@ static void thunk64_vkCmdSetStencilCompareMask(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetStencilCompareMask(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->faceMask, params->compareMask);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetStencilCompareMask(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkStencilFaceFlags faceMask;
+        uint32_t compareMask;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.faceMask);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.compareMask);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetStencilCompareMask(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.faceMask, params.compareMask);
+}
+#else
 static void thunk32_vkCmdSetStencilCompareMask(void *args)
 {
     struct
@@ -40975,7 +47709,22 @@ static void thunk32_vkCmdSetStencilCompareMask(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetStencilCompareMask(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->faceMask, params->compareMask);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk64_vkCmdSetStencilOp(void)
+{
+    struct vkCmdSetStencilOp_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.faceMask);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.failOp);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.passOp);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.depthFailOp);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.compareOp);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetStencilOp(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.faceMask, params.failOp, params.passOp, params.depthFailOp, params.compareOp);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetStencilOp(void *args)
 {
@@ -40984,7 +47733,30 @@ static void thunk64_vkCmdSetStencilOp(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetStencilOp(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->faceMask, params->failOp, params->passOp, params->depthFailOp, params->compareOp);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk32_vkCmdSetStencilOp(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkStencilFaceFlags faceMask;
+        VkStencilOp failOp;
+        VkStencilOp passOp;
+        VkStencilOp depthFailOp;
+        VkCompareOp compareOp;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.faceMask);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.failOp);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.passOp);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.depthFailOp);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.compareOp);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetStencilOp(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.faceMask, params.failOp, params.passOp, params.depthFailOp, params.compareOp);
+}
+#else
 static void thunk32_vkCmdSetStencilOp(void *args)
 {
     struct
@@ -40999,7 +47771,22 @@ static void thunk32_vkCmdSetStencilOp(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetStencilOp(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->faceMask, params->failOp, params->passOp, params->depthFailOp, params->compareOp);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk64_vkCmdSetStencilOpEXT(void)
+{
+    struct vkCmdSetStencilOpEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.faceMask);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.failOp);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.passOp);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.depthFailOp);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.compareOp);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetStencilOpEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.faceMask, params.failOp, params.passOp, params.depthFailOp, params.compareOp);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetStencilOpEXT(void *args)
 {
@@ -41008,7 +47795,30 @@ static void thunk64_vkCmdSetStencilOpEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetStencilOpEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->faceMask, params->failOp, params->passOp, params->depthFailOp, params->compareOp);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk32_vkCmdSetStencilOpEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkStencilFaceFlags faceMask;
+        VkStencilOp failOp;
+        VkStencilOp passOp;
+        VkStencilOp depthFailOp;
+        VkCompareOp compareOp;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.faceMask);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.failOp);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.passOp);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.depthFailOp);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.compareOp);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetStencilOpEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.faceMask, params.failOp, params.passOp, params.depthFailOp, params.compareOp);
+}
+#else
 static void thunk32_vkCmdSetStencilOpEXT(void *args)
 {
     struct
@@ -41023,7 +47833,19 @@ static void thunk32_vkCmdSetStencilOpEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetStencilOpEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->faceMask, params->failOp, params->passOp, params->depthFailOp, params->compareOp);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetStencilReference(void)
+{
+    struct vkCmdSetStencilReference_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.faceMask);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.reference);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetStencilReference(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.faceMask, params.reference);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetStencilReference(void *args)
 {
@@ -41032,7 +47854,24 @@ static void thunk64_vkCmdSetStencilReference(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetStencilReference(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->faceMask, params->reference);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetStencilReference(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkStencilFaceFlags faceMask;
+        uint32_t reference;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.faceMask);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.reference);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetStencilReference(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.faceMask, params.reference);
+}
+#else
 static void thunk32_vkCmdSetStencilReference(void *args)
 {
     struct
@@ -41044,7 +47883,18 @@ static void thunk32_vkCmdSetStencilReference(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetStencilReference(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->faceMask, params->reference);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetStencilTestEnable(void)
+{
+    struct vkCmdSetStencilTestEnable_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.stencilTestEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetStencilTestEnable(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.stencilTestEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetStencilTestEnable(void *args)
 {
@@ -41053,7 +47903,22 @@ static void thunk64_vkCmdSetStencilTestEnable(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetStencilTestEnable(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->stencilTestEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetStencilTestEnable(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 stencilTestEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.stencilTestEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetStencilTestEnable(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.stencilTestEnable);
+}
+#else
 static void thunk32_vkCmdSetStencilTestEnable(void *args)
 {
     struct
@@ -41064,7 +47929,18 @@ static void thunk32_vkCmdSetStencilTestEnable(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetStencilTestEnable(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->stencilTestEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetStencilTestEnableEXT(void)
+{
+    struct vkCmdSetStencilTestEnableEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.stencilTestEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetStencilTestEnableEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.stencilTestEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetStencilTestEnableEXT(void *args)
 {
@@ -41073,7 +47949,22 @@ static void thunk64_vkCmdSetStencilTestEnableEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetStencilTestEnableEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->stencilTestEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetStencilTestEnableEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 stencilTestEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.stencilTestEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetStencilTestEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.stencilTestEnable);
+}
+#else
 static void thunk32_vkCmdSetStencilTestEnableEXT(void *args)
 {
     struct
@@ -41084,7 +47975,19 @@ static void thunk32_vkCmdSetStencilTestEnableEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetStencilTestEnableEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->stencilTestEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetStencilWriteMask(void)
+{
+    struct vkCmdSetStencilWriteMask_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.faceMask);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.writeMask);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetStencilWriteMask(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.faceMask, params.writeMask);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetStencilWriteMask(void *args)
 {
@@ -41093,7 +47996,24 @@ static void thunk64_vkCmdSetStencilWriteMask(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetStencilWriteMask(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->faceMask, params->writeMask);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetStencilWriteMask(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkStencilFaceFlags faceMask;
+        uint32_t writeMask;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.faceMask);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.writeMask);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetStencilWriteMask(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.faceMask, params.writeMask);
+}
+#else
 static void thunk32_vkCmdSetStencilWriteMask(void *args)
 {
     struct
@@ -41105,7 +48025,18 @@ static void thunk32_vkCmdSetStencilWriteMask(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetStencilWriteMask(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->faceMask, params->writeMask);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetTessellationDomainOriginEXT(void)
+{
+    struct vkCmdSetTessellationDomainOriginEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.domainOrigin);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetTessellationDomainOriginEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.domainOrigin);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetTessellationDomainOriginEXT(void *args)
 {
@@ -41114,7 +48045,22 @@ static void thunk64_vkCmdSetTessellationDomainOriginEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetTessellationDomainOriginEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->domainOrigin);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetTessellationDomainOriginEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkTessellationDomainOrigin domainOrigin;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.domainOrigin);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetTessellationDomainOriginEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.domainOrigin);
+}
+#else
 static void thunk32_vkCmdSetTessellationDomainOriginEXT(void *args)
 {
     struct
@@ -41125,7 +48071,21 @@ static void thunk32_vkCmdSetTessellationDomainOriginEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetTessellationDomainOriginEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->domainOrigin);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdSetVertexInputEXT(void)
+{
+    struct vkCmdSetVertexInputEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.vertexBindingDescriptionCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pVertexBindingDescriptions);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.vertexAttributeDescriptionCount);
+    VK_FAST_THUNK_GET_ARG(4, void *, params.pVertexAttributeDescriptions);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetVertexInputEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.vertexBindingDescriptionCount, params.pVertexBindingDescriptions, params.vertexAttributeDescriptionCount, params.pVertexAttributeDescriptions);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetVertexInputEXT(void *args)
 {
@@ -41134,7 +48094,36 @@ static void thunk64_vkCmdSetVertexInputEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetVertexInputEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->vertexBindingDescriptionCount, params->pVertexBindingDescriptions, params->vertexAttributeDescriptionCount, params->pVertexAttributeDescriptions);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdSetVertexInputEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t vertexBindingDescriptionCount;
+        PTR32 pVertexBindingDescriptions;
+        uint32_t vertexAttributeDescriptionCount;
+        PTR32 pVertexAttributeDescriptions;
+    } params;
+    const VkVertexInputBindingDescription2EXT *pVertexBindingDescriptions_host;
+    const VkVertexInputAttributeDescription2EXT *pVertexAttributeDescriptions_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.vertexBindingDescriptionCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pVertexBindingDescriptions);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.vertexAttributeDescriptionCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.pVertexAttributeDescriptions);
+    init_conversion_context(ctx);
+    pVertexBindingDescriptions_host = convert_VkVertexInputBindingDescription2EXT_array_win32_to_host(ctx, (const VkVertexInputBindingDescription2EXT32 *)UlongToPtr(params.pVertexBindingDescriptions), params.vertexBindingDescriptionCount);
+    pVertexAttributeDescriptions_host = convert_VkVertexInputAttributeDescription2EXT_array_win32_to_host(ctx, (const VkVertexInputAttributeDescription2EXT32 *)UlongToPtr(params.pVertexAttributeDescriptions), params.vertexAttributeDescriptionCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetVertexInputEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.vertexBindingDescriptionCount, pVertexBindingDescriptions_host, params.vertexAttributeDescriptionCount, pVertexAttributeDescriptions_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdSetVertexInputEXT(void *args)
 {
     struct
@@ -41156,7 +48145,20 @@ static void thunk32_vkCmdSetVertexInputEXT(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetVertexInputEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->vertexBindingDescriptionCount, pVertexBindingDescriptions_host, params->vertexAttributeDescriptionCount, pVertexAttributeDescriptions_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdSetViewport(void)
+{
+    struct vkCmdSetViewport_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstViewport);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.viewportCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pViewports);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetViewport(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstViewport, params.viewportCount, params.pViewports);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetViewport(void *args)
 {
@@ -41165,7 +48167,26 @@ static void thunk64_vkCmdSetViewport(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetViewport(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstViewport, params->viewportCount, params->pViewports);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdSetViewport(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstViewport;
+        uint32_t viewportCount;
+        PTR32 pViewports;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstViewport);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.viewportCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pViewports);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetViewport(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstViewport, params.viewportCount, (const VkViewport *)UlongToPtr(params.pViewports));
+}
+#else
 static void thunk32_vkCmdSetViewport(void *args)
 {
     struct
@@ -41178,7 +48199,20 @@ static void thunk32_vkCmdSetViewport(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetViewport(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstViewport, params->viewportCount, (const VkViewport *)UlongToPtr(params->pViewports));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdSetViewportShadingRatePaletteNV(void)
+{
+    struct vkCmdSetViewportShadingRatePaletteNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstViewport);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.viewportCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pShadingRatePalettes);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetViewportShadingRatePaletteNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstViewport, params.viewportCount, params.pShadingRatePalettes);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetViewportShadingRatePaletteNV(void *args)
 {
@@ -41187,7 +48221,32 @@ static void thunk64_vkCmdSetViewportShadingRatePaletteNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetViewportShadingRatePaletteNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstViewport, params->viewportCount, params->pShadingRatePalettes);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdSetViewportShadingRatePaletteNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstViewport;
+        uint32_t viewportCount;
+        PTR32 pShadingRatePalettes;
+    } params;
+    const VkShadingRatePaletteNV *pShadingRatePalettes_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstViewport);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.viewportCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pShadingRatePalettes);
+    init_conversion_context(ctx);
+    pShadingRatePalettes_host = convert_VkShadingRatePaletteNV_array_win32_to_host(ctx, (const VkShadingRatePaletteNV32 *)UlongToPtr(params.pShadingRatePalettes), params.viewportCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetViewportShadingRatePaletteNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstViewport, params.viewportCount, pShadingRatePalettes_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdSetViewportShadingRatePaletteNV(void *args)
 {
     struct
@@ -41206,7 +48265,20 @@ static void thunk32_vkCmdSetViewportShadingRatePaletteNV(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetViewportShadingRatePaletteNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstViewport, params->viewportCount, pShadingRatePalettes_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdSetViewportSwizzleNV(void)
+{
+    struct vkCmdSetViewportSwizzleNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstViewport);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.viewportCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pViewportSwizzles);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetViewportSwizzleNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstViewport, params.viewportCount, params.pViewportSwizzles);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetViewportSwizzleNV(void *args)
 {
@@ -41215,7 +48287,26 @@ static void thunk64_vkCmdSetViewportSwizzleNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetViewportSwizzleNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstViewport, params->viewportCount, params->pViewportSwizzles);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdSetViewportSwizzleNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstViewport;
+        uint32_t viewportCount;
+        PTR32 pViewportSwizzles;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstViewport);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.viewportCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pViewportSwizzles);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetViewportSwizzleNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstViewport, params.viewportCount, (const VkViewportSwizzleNV *)UlongToPtr(params.pViewportSwizzles));
+}
+#else
 static void thunk32_vkCmdSetViewportSwizzleNV(void *args)
 {
     struct
@@ -41228,7 +48319,18 @@ static void thunk32_vkCmdSetViewportSwizzleNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetViewportSwizzleNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstViewport, params->viewportCount, (const VkViewportSwizzleNV *)UlongToPtr(params->pViewportSwizzles));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdSetViewportWScalingEnableNV(void)
+{
+    struct vkCmdSetViewportWScalingEnableNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.viewportWScalingEnable);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetViewportWScalingEnableNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.viewportWScalingEnable);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetViewportWScalingEnableNV(void *args)
 {
@@ -41237,7 +48339,22 @@ static void thunk64_vkCmdSetViewportWScalingEnableNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetViewportWScalingEnableNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->viewportWScalingEnable);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdSetViewportWScalingEnableNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBool32 viewportWScalingEnable;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.viewportWScalingEnable);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetViewportWScalingEnableNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.viewportWScalingEnable);
+}
+#else
 static void thunk32_vkCmdSetViewportWScalingEnableNV(void *args)
 {
     struct
@@ -41248,7 +48365,20 @@ static void thunk32_vkCmdSetViewportWScalingEnableNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetViewportWScalingEnableNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->viewportWScalingEnable);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdSetViewportWScalingNV(void)
+{
+    struct vkCmdSetViewportWScalingNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstViewport);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.viewportCount);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pViewportWScalings);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetViewportWScalingNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.firstViewport, params.viewportCount, params.pViewportWScalings);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetViewportWScalingNV(void *args)
 {
@@ -41257,7 +48387,26 @@ static void thunk64_vkCmdSetViewportWScalingNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetViewportWScalingNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->firstViewport, params->viewportCount, params->pViewportWScalings);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdSetViewportWScalingNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t firstViewport;
+        uint32_t viewportCount;
+        PTR32 pViewportWScalings;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.firstViewport);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.viewportCount);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pViewportWScalings);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetViewportWScalingNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.firstViewport, params.viewportCount, (const VkViewportWScalingNV *)UlongToPtr(params.pViewportWScalings));
+}
+#else
 static void thunk32_vkCmdSetViewportWScalingNV(void *args)
 {
     struct
@@ -41270,7 +48419,19 @@ static void thunk32_vkCmdSetViewportWScalingNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetViewportWScalingNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->firstViewport, params->viewportCount, (const VkViewportWScalingNV *)UlongToPtr(params->pViewportWScalings));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetViewportWithCount(void)
+{
+    struct vkCmdSetViewportWithCount_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.viewportCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pViewports);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetViewportWithCount(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.viewportCount, params.pViewports);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetViewportWithCount(void *args)
 {
@@ -41279,7 +48440,24 @@ static void thunk64_vkCmdSetViewportWithCount(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetViewportWithCount(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->viewportCount, params->pViewports);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetViewportWithCount(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t viewportCount;
+        PTR32 pViewports;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.viewportCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pViewports);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetViewportWithCount(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.viewportCount, (const VkViewport *)UlongToPtr(params.pViewports));
+}
+#else
 static void thunk32_vkCmdSetViewportWithCount(void *args)
 {
     struct
@@ -41291,7 +48469,19 @@ static void thunk32_vkCmdSetViewportWithCount(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetViewportWithCount(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->viewportCount, (const VkViewport *)UlongToPtr(params->pViewports));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdSetViewportWithCountEXT(void)
+{
+    struct vkCmdSetViewportWithCountEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.viewportCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pViewports);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSetViewportWithCountEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.viewportCount, params.pViewports);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSetViewportWithCountEXT(void *args)
 {
@@ -41300,7 +48490,24 @@ static void thunk64_vkCmdSetViewportWithCountEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSetViewportWithCountEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->viewportCount, params->pViewports);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdSetViewportWithCountEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t viewportCount;
+        PTR32 pViewports;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.viewportCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pViewports);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSetViewportWithCountEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.viewportCount, (const VkViewport *)UlongToPtr(params.pViewports));
+}
+#else
 static void thunk32_vkCmdSetViewportWithCountEXT(void *args)
 {
     struct
@@ -41312,7 +48519,17 @@ static void thunk32_vkCmdSetViewportWithCountEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSetViewportWithCountEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->viewportCount, (const VkViewport *)UlongToPtr(params->pViewports));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+static void thunk64_vkCmdSubpassShadingHUAWEI(void)
+{
+    struct vkCmdSubpassShadingHUAWEI_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdSubpassShadingHUAWEI(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdSubpassShadingHUAWEI(void *args)
 {
@@ -41321,7 +48538,20 @@ static void thunk64_vkCmdSubpassShadingHUAWEI(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdSubpassShadingHUAWEI(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 1
+static void thunk32_vkCmdSubpassShadingHUAWEI(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdSubpassShadingHUAWEI(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer);
+}
+#else
 static void thunk32_vkCmdSubpassShadingHUAWEI(void *args)
 {
     struct
@@ -41331,7 +48561,18 @@ static void thunk32_vkCmdSubpassShadingHUAWEI(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdSubpassShadingHUAWEI(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk64_vkCmdTraceRaysIndirect2KHR(void)
+{
+    struct vkCmdTraceRaysIndirect2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.indirectDeviceAddress);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdTraceRaysIndirect2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.indirectDeviceAddress);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdTraceRaysIndirect2KHR(void *args)
 {
@@ -41340,7 +48581,22 @@ static void thunk64_vkCmdTraceRaysIndirect2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdTraceRaysIndirect2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->indirectDeviceAddress);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 2
+static void thunk32_vkCmdTraceRaysIndirect2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkDeviceAddress DECLSPEC_ALIGN(8) indirectDeviceAddress;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.indirectDeviceAddress);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdTraceRaysIndirect2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.indirectDeviceAddress);
+}
+#else
 static void thunk32_vkCmdTraceRaysIndirect2KHR(void *args)
 {
     struct
@@ -41351,7 +48607,22 @@ static void thunk32_vkCmdTraceRaysIndirect2KHR(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdTraceRaysIndirect2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->indirectDeviceAddress);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk64_vkCmdTraceRaysIndirectKHR(void)
+{
+    struct vkCmdTraceRaysIndirectKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pRaygenShaderBindingTable);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pMissShaderBindingTable);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pHitShaderBindingTable);
+    VK_FAST_THUNK_GET_ARG(4, void *, params.pCallableShaderBindingTable);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.indirectDeviceAddress);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdTraceRaysIndirectKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pRaygenShaderBindingTable, params.pMissShaderBindingTable, params.pHitShaderBindingTable, params.pCallableShaderBindingTable, params.indirectDeviceAddress);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdTraceRaysIndirectKHR(void *args)
 {
@@ -41360,7 +48631,38 @@ static void thunk64_vkCmdTraceRaysIndirectKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdTraceRaysIndirectKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pRaygenShaderBindingTable, params->pMissShaderBindingTable, params->pHitShaderBindingTable, params->pCallableShaderBindingTable, params->indirectDeviceAddress);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk32_vkCmdTraceRaysIndirectKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pRaygenShaderBindingTable;
+        PTR32 pMissShaderBindingTable;
+        PTR32 pHitShaderBindingTable;
+        PTR32 pCallableShaderBindingTable;
+        VkDeviceAddress DECLSPEC_ALIGN(8) indirectDeviceAddress;
+    } params;
+    VkStridedDeviceAddressRegionKHR pRaygenShaderBindingTable_host;
+    VkStridedDeviceAddressRegionKHR pMissShaderBindingTable_host;
+    VkStridedDeviceAddressRegionKHR pHitShaderBindingTable_host;
+    VkStridedDeviceAddressRegionKHR pCallableShaderBindingTable_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pRaygenShaderBindingTable);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pMissShaderBindingTable);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pHitShaderBindingTable);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.pCallableShaderBindingTable);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.indirectDeviceAddress);
+    convert_VkStridedDeviceAddressRegionKHR_win32_to_host((const VkStridedDeviceAddressRegionKHR32 *)UlongToPtr(params.pRaygenShaderBindingTable), &pRaygenShaderBindingTable_host);
+    convert_VkStridedDeviceAddressRegionKHR_win32_to_host((const VkStridedDeviceAddressRegionKHR32 *)UlongToPtr(params.pMissShaderBindingTable), &pMissShaderBindingTable_host);
+    convert_VkStridedDeviceAddressRegionKHR_win32_to_host((const VkStridedDeviceAddressRegionKHR32 *)UlongToPtr(params.pHitShaderBindingTable), &pHitShaderBindingTable_host);
+    convert_VkStridedDeviceAddressRegionKHR_win32_to_host((const VkStridedDeviceAddressRegionKHR32 *)UlongToPtr(params.pCallableShaderBindingTable), &pCallableShaderBindingTable_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdTraceRaysIndirectKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pRaygenShaderBindingTable_host, &pMissShaderBindingTable_host, &pHitShaderBindingTable_host, &pCallableShaderBindingTable_host, params.indirectDeviceAddress);
+}
+#else
 static void thunk32_vkCmdTraceRaysIndirectKHR(void *args)
 {
     struct
@@ -41383,7 +48685,24 @@ static void thunk32_vkCmdTraceRaysIndirectKHR(void *args)
     convert_VkStridedDeviceAddressRegionKHR_win32_to_host((const VkStridedDeviceAddressRegionKHR32 *)UlongToPtr(params->pCallableShaderBindingTable), &pCallableShaderBindingTable_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdTraceRaysIndirectKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pRaygenShaderBindingTable_host, &pMissShaderBindingTable_host, &pHitShaderBindingTable_host, &pCallableShaderBindingTable_host, params->indirectDeviceAddress);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 8
+static void thunk64_vkCmdTraceRaysKHR(void)
+{
+    struct vkCmdTraceRaysKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pRaygenShaderBindingTable);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pMissShaderBindingTable);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pHitShaderBindingTable);
+    VK_FAST_THUNK_GET_ARG(4, void *, params.pCallableShaderBindingTable);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.width);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.height);
+    VK_FAST_THUNK_GET_ARG(7, UINT_PTR, params.depth);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdTraceRaysKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pRaygenShaderBindingTable, params.pMissShaderBindingTable, params.pHitShaderBindingTable, params.pCallableShaderBindingTable, params.width, params.height, params.depth);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdTraceRaysKHR(void *args)
 {
@@ -41392,7 +48711,42 @@ static void thunk64_vkCmdTraceRaysKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdTraceRaysKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pRaygenShaderBindingTable, params->pMissShaderBindingTable, params->pHitShaderBindingTable, params->pCallableShaderBindingTable, params->width, params->height, params->depth);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 8
+static void thunk32_vkCmdTraceRaysKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        PTR32 pRaygenShaderBindingTable;
+        PTR32 pMissShaderBindingTable;
+        PTR32 pHitShaderBindingTable;
+        PTR32 pCallableShaderBindingTable;
+        uint32_t width;
+        uint32_t height;
+        uint32_t depth;
+    } params;
+    VkStridedDeviceAddressRegionKHR pRaygenShaderBindingTable_host;
+    VkStridedDeviceAddressRegionKHR pMissShaderBindingTable_host;
+    VkStridedDeviceAddressRegionKHR pHitShaderBindingTable_host;
+    VkStridedDeviceAddressRegionKHR pCallableShaderBindingTable_host;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pRaygenShaderBindingTable);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pMissShaderBindingTable);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pHitShaderBindingTable);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.pCallableShaderBindingTable);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.width);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.height);
+    VK_FAST_THUNK_GET_ARG(7, UINT_PTR, params.depth);
+    convert_VkStridedDeviceAddressRegionKHR_win32_to_host((const VkStridedDeviceAddressRegionKHR32 *)UlongToPtr(params.pRaygenShaderBindingTable), &pRaygenShaderBindingTable_host);
+    convert_VkStridedDeviceAddressRegionKHR_win32_to_host((const VkStridedDeviceAddressRegionKHR32 *)UlongToPtr(params.pMissShaderBindingTable), &pMissShaderBindingTable_host);
+    convert_VkStridedDeviceAddressRegionKHR_win32_to_host((const VkStridedDeviceAddressRegionKHR32 *)UlongToPtr(params.pHitShaderBindingTable), &pHitShaderBindingTable_host);
+    convert_VkStridedDeviceAddressRegionKHR_win32_to_host((const VkStridedDeviceAddressRegionKHR32 *)UlongToPtr(params.pCallableShaderBindingTable), &pCallableShaderBindingTable_host);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdTraceRaysKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, &pRaygenShaderBindingTable_host, &pMissShaderBindingTable_host, &pHitShaderBindingTable_host, &pCallableShaderBindingTable_host, params.width, params.height, params.depth);
+}
+#else
 static void thunk32_vkCmdTraceRaysKHR(void *args)
 {
     struct
@@ -41417,7 +48771,31 @@ static void thunk32_vkCmdTraceRaysKHR(void *args)
     convert_VkStridedDeviceAddressRegionKHR_win32_to_host((const VkStridedDeviceAddressRegionKHR32 *)UlongToPtr(params->pCallableShaderBindingTable), &pCallableShaderBindingTable_host);
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdTraceRaysKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, &pRaygenShaderBindingTable_host, &pMissShaderBindingTable_host, &pHitShaderBindingTable_host, &pCallableShaderBindingTable_host, params->width, params->height, params->depth);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 15
+static void thunk64_vkCmdTraceRaysNV(void)
+{
+    struct vkCmdTraceRaysNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.raygenShaderBindingTableBuffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.raygenShaderBindingOffset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.missShaderBindingTableBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.missShaderBindingOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.missShaderBindingStride);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.hitShaderBindingTableBuffer);
+    VK_FAST_THUNK_GET_ARG(7, UINT_PTR, params.hitShaderBindingOffset);
+    VK_FAST_THUNK_GET_ARG(8, UINT_PTR, params.hitShaderBindingStride);
+    VK_FAST_THUNK_GET_ARG(9, UINT_PTR, params.callableShaderBindingTableBuffer);
+    VK_FAST_THUNK_GET_ARG(10, UINT_PTR, params.callableShaderBindingOffset);
+    VK_FAST_THUNK_GET_ARG(11, UINT_PTR, params.callableShaderBindingStride);
+    VK_FAST_THUNK_GET_ARG(12, UINT_PTR, params.width);
+    VK_FAST_THUNK_GET_ARG(13, UINT_PTR, params.height);
+    VK_FAST_THUNK_GET_ARG(14, UINT_PTR, params.depth);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdTraceRaysNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.raygenShaderBindingTableBuffer, params.raygenShaderBindingOffset, params.missShaderBindingTableBuffer, params.missShaderBindingOffset, params.missShaderBindingStride, params.hitShaderBindingTableBuffer, params.hitShaderBindingOffset, params.hitShaderBindingStride, params.callableShaderBindingTableBuffer, params.callableShaderBindingOffset, params.callableShaderBindingStride, params.width, params.height, params.depth);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdTraceRaysNV(void *args)
 {
@@ -41426,7 +48804,48 @@ static void thunk64_vkCmdTraceRaysNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdTraceRaysNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->raygenShaderBindingTableBuffer, params->raygenShaderBindingOffset, params->missShaderBindingTableBuffer, params->missShaderBindingOffset, params->missShaderBindingStride, params->hitShaderBindingTableBuffer, params->hitShaderBindingOffset, params->hitShaderBindingStride, params->callableShaderBindingTableBuffer, params->callableShaderBindingOffset, params->callableShaderBindingStride, params->width, params->height, params->depth);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 15
+static void thunk32_vkCmdTraceRaysNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) raygenShaderBindingTableBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) raygenShaderBindingOffset;
+        VkBuffer DECLSPEC_ALIGN(8) missShaderBindingTableBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) missShaderBindingOffset;
+        VkDeviceSize DECLSPEC_ALIGN(8) missShaderBindingStride;
+        VkBuffer DECLSPEC_ALIGN(8) hitShaderBindingTableBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) hitShaderBindingOffset;
+        VkDeviceSize DECLSPEC_ALIGN(8) hitShaderBindingStride;
+        VkBuffer DECLSPEC_ALIGN(8) callableShaderBindingTableBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) callableShaderBindingOffset;
+        VkDeviceSize DECLSPEC_ALIGN(8) callableShaderBindingStride;
+        uint32_t width;
+        uint32_t height;
+        uint32_t depth;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.raygenShaderBindingTableBuffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.raygenShaderBindingOffset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.missShaderBindingTableBuffer);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.missShaderBindingOffset);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.missShaderBindingStride);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.hitShaderBindingTableBuffer);
+    VK_FAST_THUNK_GET_ARG(7, UINT_PTR, params.hitShaderBindingOffset);
+    VK_FAST_THUNK_GET_ARG(8, UINT_PTR, params.hitShaderBindingStride);
+    VK_FAST_THUNK_GET_ARG(9, UINT_PTR, params.callableShaderBindingTableBuffer);
+    VK_FAST_THUNK_GET_ARG(10, UINT_PTR, params.callableShaderBindingOffset);
+    VK_FAST_THUNK_GET_ARG(11, UINT_PTR, params.callableShaderBindingStride);
+    VK_FAST_THUNK_GET_ARG(12, UINT_PTR, params.width);
+    VK_FAST_THUNK_GET_ARG(13, UINT_PTR, params.height);
+    VK_FAST_THUNK_GET_ARG(14, UINT_PTR, params.depth);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdTraceRaysNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.raygenShaderBindingTableBuffer, params.raygenShaderBindingOffset, params.missShaderBindingTableBuffer, params.missShaderBindingOffset, params.missShaderBindingStride, params.hitShaderBindingTableBuffer, params.hitShaderBindingOffset, params.hitShaderBindingStride, params.callableShaderBindingTableBuffer, params.callableShaderBindingOffset, params.callableShaderBindingStride, params.width, params.height, params.depth);
+}
+#else
 static void thunk32_vkCmdTraceRaysNV(void *args)
 {
     struct
@@ -41450,7 +48869,21 @@ static void thunk32_vkCmdTraceRaysNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdTraceRaysNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->raygenShaderBindingTableBuffer, params->raygenShaderBindingOffset, params->missShaderBindingTableBuffer, params->missShaderBindingOffset, params->missShaderBindingStride, params->hitShaderBindingTableBuffer, params->hitShaderBindingOffset, params->hitShaderBindingStride, params->callableShaderBindingTableBuffer, params->callableShaderBindingOffset, params->callableShaderBindingStride, params->width, params->height, params->depth);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdUpdateBuffer(void)
+{
+    struct vkCmdUpdateBuffer_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.dstBuffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.dstOffset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dataSize);
+    VK_FAST_THUNK_GET_ARG(4, void *, params.pData);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdUpdateBuffer(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.dstBuffer, params.dstOffset, params.dataSize, params.pData);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdUpdateBuffer(void *args)
 {
@@ -41459,7 +48892,28 @@ static void thunk64_vkCmdUpdateBuffer(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdUpdateBuffer(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->dstBuffer, params->dstOffset, params->dataSize, params->pData);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdUpdateBuffer(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkBuffer DECLSPEC_ALIGN(8) dstBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) dstOffset;
+        VkDeviceSize DECLSPEC_ALIGN(8) dataSize;
+        PTR32 pData;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.dstBuffer);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.dstOffset);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dataSize);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.pData);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdUpdateBuffer(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.dstBuffer, params.dstOffset, params.dataSize, (const void *)UlongToPtr(params.pData));
+}
+#else
 static void thunk32_vkCmdUpdateBuffer(void *args)
 {
     struct
@@ -41473,7 +48927,19 @@ static void thunk32_vkCmdUpdateBuffer(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdUpdateBuffer(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->dstBuffer, params->dstOffset, params->dataSize, (const void *)UlongToPtr(params->pData));
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk64_vkCmdUpdatePipelineIndirectBufferNV(void)
+{
+    struct vkCmdUpdatePipelineIndirectBufferNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineBindPoint);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pipeline);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdUpdatePipelineIndirectBufferNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pipelineBindPoint, params.pipeline);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdUpdatePipelineIndirectBufferNV(void *args)
 {
@@ -41482,7 +48948,24 @@ static void thunk64_vkCmdUpdatePipelineIndirectBufferNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdUpdatePipelineIndirectBufferNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pipelineBindPoint, params->pipeline);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 3
+static void thunk32_vkCmdUpdatePipelineIndirectBufferNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkPipelineBindPoint pipelineBindPoint;
+        VkPipeline DECLSPEC_ALIGN(8) pipeline;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineBindPoint);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pipeline);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdUpdatePipelineIndirectBufferNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.pipelineBindPoint, params.pipeline);
+}
+#else
 static void thunk32_vkCmdUpdatePipelineIndirectBufferNV(void *args)
 {
     struct
@@ -41494,7 +48977,27 @@ static void thunk32_vkCmdUpdatePipelineIndirectBufferNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdUpdatePipelineIndirectBufferNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->pipelineBindPoint, params->pipeline);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 11
+static void thunk64_vkCmdWaitEvents(void)
+{
+    struct vkCmdWaitEvents_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.eventCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pEvents);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.srcStageMask);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.dstStageMask);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.memoryBarrierCount);
+    VK_FAST_THUNK_GET_ARG(6, void *, params.pMemoryBarriers);
+    VK_FAST_THUNK_GET_ARG(7, UINT_PTR, params.bufferMemoryBarrierCount);
+    VK_FAST_THUNK_GET_ARG(8, void *, params.pBufferMemoryBarriers);
+    VK_FAST_THUNK_GET_ARG(9, UINT_PTR, params.imageMemoryBarrierCount);
+    VK_FAST_THUNK_GET_ARG(10, void *, params.pImageMemoryBarriers);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdWaitEvents(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.eventCount, params.pEvents, params.srcStageMask, params.dstStageMask, params.memoryBarrierCount, params.pMemoryBarriers, params.bufferMemoryBarrierCount, params.pBufferMemoryBarriers, params.imageMemoryBarrierCount, params.pImageMemoryBarriers);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdWaitEvents(void *args)
 {
@@ -41503,7 +49006,50 @@ static void thunk64_vkCmdWaitEvents(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdWaitEvents(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->eventCount, params->pEvents, params->srcStageMask, params->dstStageMask, params->memoryBarrierCount, params->pMemoryBarriers, params->bufferMemoryBarrierCount, params->pBufferMemoryBarriers, params->imageMemoryBarrierCount, params->pImageMemoryBarriers);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 11
+static void thunk32_vkCmdWaitEvents(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t eventCount;
+        PTR32 pEvents;
+        VkPipelineStageFlags srcStageMask;
+        VkPipelineStageFlags dstStageMask;
+        uint32_t memoryBarrierCount;
+        PTR32 pMemoryBarriers;
+        uint32_t bufferMemoryBarrierCount;
+        PTR32 pBufferMemoryBarriers;
+        uint32_t imageMemoryBarrierCount;
+        PTR32 pImageMemoryBarriers;
+    } params;
+    const VkMemoryBarrier *pMemoryBarriers_host;
+    const VkBufferMemoryBarrier *pBufferMemoryBarriers_host;
+    const VkImageMemoryBarrier *pImageMemoryBarriers_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.eventCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pEvents);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.srcStageMask);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.dstStageMask);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.memoryBarrierCount);
+    VK_FAST_THUNK_GET_ARG(6, UINT_PTR, params.pMemoryBarriers);
+    VK_FAST_THUNK_GET_ARG(7, UINT_PTR, params.bufferMemoryBarrierCount);
+    VK_FAST_THUNK_GET_ARG(8, UINT_PTR, params.pBufferMemoryBarriers);
+    VK_FAST_THUNK_GET_ARG(9, UINT_PTR, params.imageMemoryBarrierCount);
+    VK_FAST_THUNK_GET_ARG(10, UINT_PTR, params.pImageMemoryBarriers);
+    init_conversion_context(ctx);
+    pMemoryBarriers_host = convert_VkMemoryBarrier_array_win32_to_host(ctx, (const VkMemoryBarrier32 *)UlongToPtr(params.pMemoryBarriers), params.memoryBarrierCount);
+    pBufferMemoryBarriers_host = convert_VkBufferMemoryBarrier_array_win32_to_host(ctx, (const VkBufferMemoryBarrier32 *)UlongToPtr(params.pBufferMemoryBarriers), params.bufferMemoryBarrierCount);
+    pImageMemoryBarriers_host = convert_VkImageMemoryBarrier_array_win32_to_host(ctx, (const VkImageMemoryBarrier32 *)UlongToPtr(params.pImageMemoryBarriers), params.imageMemoryBarrierCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdWaitEvents(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.eventCount, (const VkEvent *)UlongToPtr(params.pEvents), params.srcStageMask, params.dstStageMask, params.memoryBarrierCount, pMemoryBarriers_host, params.bufferMemoryBarrierCount, pBufferMemoryBarriers_host, params.imageMemoryBarrierCount, pImageMemoryBarriers_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdWaitEvents(void *args)
 {
     struct
@@ -41533,7 +49079,20 @@ static void thunk32_vkCmdWaitEvents(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdWaitEvents(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->eventCount, (const VkEvent *)UlongToPtr(params->pEvents), params->srcStageMask, params->dstStageMask, params->memoryBarrierCount, pMemoryBarriers_host, params->bufferMemoryBarrierCount, pBufferMemoryBarriers_host, params->imageMemoryBarrierCount, pImageMemoryBarriers_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdWaitEvents2(void)
+{
+    struct vkCmdWaitEvents2_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.eventCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pEvents);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pDependencyInfos);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdWaitEvents2(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.eventCount, params.pEvents, params.pDependencyInfos);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdWaitEvents2(void *args)
 {
@@ -41542,7 +49101,32 @@ static void thunk64_vkCmdWaitEvents2(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdWaitEvents2(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->eventCount, params->pEvents, params->pDependencyInfos);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdWaitEvents2(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t eventCount;
+        PTR32 pEvents;
+        PTR32 pDependencyInfos;
+    } params;
+    const VkDependencyInfo *pDependencyInfos_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.eventCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pEvents);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pDependencyInfos);
+    init_conversion_context(ctx);
+    pDependencyInfos_host = convert_VkDependencyInfo_array_win32_to_host(ctx, (const VkDependencyInfo32 *)UlongToPtr(params.pDependencyInfos), params.eventCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdWaitEvents2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.eventCount, (const VkEvent *)UlongToPtr(params.pEvents), pDependencyInfos_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdWaitEvents2(void *args)
 {
     struct
@@ -41561,7 +49145,20 @@ static void thunk32_vkCmdWaitEvents2(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdWaitEvents2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->eventCount, (const VkEvent *)UlongToPtr(params->pEvents), pDependencyInfos_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdWaitEvents2KHR(void)
+{
+    struct vkCmdWaitEvents2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.eventCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pEvents);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pDependencyInfos);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdWaitEvents2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.eventCount, params.pEvents, params.pDependencyInfos);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdWaitEvents2KHR(void *args)
 {
@@ -41570,7 +49167,32 @@ static void thunk64_vkCmdWaitEvents2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdWaitEvents2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->eventCount, params->pEvents, params->pDependencyInfos);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdWaitEvents2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t eventCount;
+        PTR32 pEvents;
+        PTR32 pDependencyInfos;
+    } params;
+    const VkDependencyInfo *pDependencyInfos_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.eventCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pEvents);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pDependencyInfos);
+    init_conversion_context(ctx);
+    pDependencyInfos_host = convert_VkDependencyInfo_array_win32_to_host(ctx, (const VkDependencyInfo32 *)UlongToPtr(params.pDependencyInfos), params.eventCount);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdWaitEvents2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.eventCount, (const VkEvent *)UlongToPtr(params.pEvents), pDependencyInfos_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkCmdWaitEvents2KHR(void *args)
 {
     struct
@@ -41589,7 +49211,22 @@ static void thunk32_vkCmdWaitEvents2KHR(void *args)
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdWaitEvents2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->eventCount, (const VkEvent *)UlongToPtr(params->pEvents), pDependencyInfos_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk64_vkCmdWriteAccelerationStructuresPropertiesKHR(void)
+{
+    struct vkCmdWriteAccelerationStructuresPropertiesKHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.accelerationStructureCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pAccelerationStructures);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.queryType);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.firstQuery);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdWriteAccelerationStructuresPropertiesKHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.accelerationStructureCount, params.pAccelerationStructures, params.queryType, params.queryPool, params.firstQuery);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdWriteAccelerationStructuresPropertiesKHR(void *args)
 {
@@ -41598,7 +49235,30 @@ static void thunk64_vkCmdWriteAccelerationStructuresPropertiesKHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdWriteAccelerationStructuresPropertiesKHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->accelerationStructureCount, params->pAccelerationStructures, params->queryType, params->queryPool, params->firstQuery);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk32_vkCmdWriteAccelerationStructuresPropertiesKHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t accelerationStructureCount;
+        PTR32 pAccelerationStructures;
+        VkQueryType queryType;
+        VkQueryPool DECLSPEC_ALIGN(8) queryPool;
+        uint32_t firstQuery;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.accelerationStructureCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pAccelerationStructures);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.queryType);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.firstQuery);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdWriteAccelerationStructuresPropertiesKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.accelerationStructureCount, (const VkAccelerationStructureKHR *)UlongToPtr(params.pAccelerationStructures), params.queryType, params.queryPool, params.firstQuery);
+}
+#else
 static void thunk32_vkCmdWriteAccelerationStructuresPropertiesKHR(void *args)
 {
     struct
@@ -41613,7 +49273,22 @@ static void thunk32_vkCmdWriteAccelerationStructuresPropertiesKHR(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdWriteAccelerationStructuresPropertiesKHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->accelerationStructureCount, (const VkAccelerationStructureKHR *)UlongToPtr(params->pAccelerationStructures), params->queryType, params->queryPool, params->firstQuery);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk64_vkCmdWriteAccelerationStructuresPropertiesNV(void)
+{
+    struct vkCmdWriteAccelerationStructuresPropertiesNV_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.accelerationStructureCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pAccelerationStructures);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.queryType);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.firstQuery);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdWriteAccelerationStructuresPropertiesNV(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.accelerationStructureCount, params.pAccelerationStructures, params.queryType, params.queryPool, params.firstQuery);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdWriteAccelerationStructuresPropertiesNV(void *args)
 {
@@ -41622,7 +49297,30 @@ static void thunk64_vkCmdWriteAccelerationStructuresPropertiesNV(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdWriteAccelerationStructuresPropertiesNV(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->accelerationStructureCount, params->pAccelerationStructures, params->queryType, params->queryPool, params->firstQuery);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk32_vkCmdWriteAccelerationStructuresPropertiesNV(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t accelerationStructureCount;
+        PTR32 pAccelerationStructures;
+        VkQueryType queryType;
+        VkQueryPool DECLSPEC_ALIGN(8) queryPool;
+        uint32_t firstQuery;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.accelerationStructureCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pAccelerationStructures);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.queryType);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.firstQuery);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdWriteAccelerationStructuresPropertiesNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.accelerationStructureCount, (const VkAccelerationStructureNV *)UlongToPtr(params.pAccelerationStructures), params.queryType, params.queryPool, params.firstQuery);
+}
+#else
 static void thunk32_vkCmdWriteAccelerationStructuresPropertiesNV(void *args)
 {
     struct
@@ -41637,7 +49335,21 @@ static void thunk32_vkCmdWriteAccelerationStructuresPropertiesNV(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdWriteAccelerationStructuresPropertiesNV(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->accelerationStructureCount, (const VkAccelerationStructureNV *)UlongToPtr(params->pAccelerationStructures), params->queryType, params->queryPool, params->firstQuery);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdWriteBufferMarker2AMD(void)
+{
+    struct vkCmdWriteBufferMarker2AMD_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.stage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.dstBuffer);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dstOffset);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.marker);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdWriteBufferMarker2AMD(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.stage, params.dstBuffer, params.dstOffset, params.marker);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdWriteBufferMarker2AMD(void *args)
 {
@@ -41646,7 +49358,28 @@ static void thunk64_vkCmdWriteBufferMarker2AMD(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdWriteBufferMarker2AMD(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->stage, params->dstBuffer, params->dstOffset, params->marker);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdWriteBufferMarker2AMD(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkPipelineStageFlags2 DECLSPEC_ALIGN(8) stage;
+        VkBuffer DECLSPEC_ALIGN(8) dstBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) dstOffset;
+        uint32_t marker;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.stage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.dstBuffer);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dstOffset);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.marker);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdWriteBufferMarker2AMD(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.stage, params.dstBuffer, params.dstOffset, params.marker);
+}
+#else
 static void thunk32_vkCmdWriteBufferMarker2AMD(void *args)
 {
     struct
@@ -41660,7 +49393,21 @@ static void thunk32_vkCmdWriteBufferMarker2AMD(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdWriteBufferMarker2AMD(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->stage, params->dstBuffer, params->dstOffset, params->marker);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkCmdWriteBufferMarkerAMD(void)
+{
+    struct vkCmdWriteBufferMarkerAMD_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineStage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.dstBuffer);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dstOffset);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.marker);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdWriteBufferMarkerAMD(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pipelineStage, params.dstBuffer, params.dstOffset, params.marker);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdWriteBufferMarkerAMD(void *args)
 {
@@ -41669,7 +49416,28 @@ static void thunk64_vkCmdWriteBufferMarkerAMD(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdWriteBufferMarkerAMD(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pipelineStage, params->dstBuffer, params->dstOffset, params->marker);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkCmdWriteBufferMarkerAMD(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkPipelineStageFlagBits pipelineStage;
+        VkBuffer DECLSPEC_ALIGN(8) dstBuffer;
+        VkDeviceSize DECLSPEC_ALIGN(8) dstOffset;
+        uint32_t marker;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineStage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.dstBuffer);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.dstOffset);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.marker);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdWriteBufferMarkerAMD(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.pipelineStage, params.dstBuffer, params.dstOffset, params.marker);
+}
+#else
 static void thunk32_vkCmdWriteBufferMarkerAMD(void *args)
 {
     struct
@@ -41683,7 +49451,22 @@ static void thunk32_vkCmdWriteBufferMarkerAMD(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdWriteBufferMarkerAMD(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->pipelineStage, params->dstBuffer, params->dstOffset, params->marker);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk64_vkCmdWriteMicromapsPropertiesEXT(void)
+{
+    struct vkCmdWriteMicromapsPropertiesEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.micromapCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pMicromaps);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.queryType);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.firstQuery);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdWriteMicromapsPropertiesEXT(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.micromapCount, params.pMicromaps, params.queryType, params.queryPool, params.firstQuery);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdWriteMicromapsPropertiesEXT(void *args)
 {
@@ -41692,7 +49475,30 @@ static void thunk64_vkCmdWriteMicromapsPropertiesEXT(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdWriteMicromapsPropertiesEXT(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->micromapCount, params->pMicromaps, params->queryType, params->queryPool, params->firstQuery);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 6
+static void thunk32_vkCmdWriteMicromapsPropertiesEXT(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        uint32_t micromapCount;
+        PTR32 pMicromaps;
+        VkQueryType queryType;
+        VkQueryPool DECLSPEC_ALIGN(8) queryPool;
+        uint32_t firstQuery;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.micromapCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pMicromaps);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.queryType);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(5, UINT_PTR, params.firstQuery);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdWriteMicromapsPropertiesEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.micromapCount, (const VkMicromapEXT *)UlongToPtr(params.pMicromaps), params.queryType, params.queryPool, params.firstQuery);
+}
+#else
 static void thunk32_vkCmdWriteMicromapsPropertiesEXT(void *args)
 {
     struct
@@ -41707,7 +49513,20 @@ static void thunk32_vkCmdWriteMicromapsPropertiesEXT(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdWriteMicromapsPropertiesEXT(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->micromapCount, (const VkMicromapEXT *)UlongToPtr(params->pMicromaps), params->queryType, params->queryPool, params->firstQuery);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdWriteTimestamp(void)
+{
+    struct vkCmdWriteTimestamp_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineStage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.query);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdWriteTimestamp(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.pipelineStage, params.queryPool, params.query);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdWriteTimestamp(void *args)
 {
@@ -41716,7 +49535,26 @@ static void thunk64_vkCmdWriteTimestamp(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdWriteTimestamp(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->pipelineStage, params->queryPool, params->query);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdWriteTimestamp(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkPipelineStageFlagBits pipelineStage;
+        VkQueryPool DECLSPEC_ALIGN(8) queryPool;
+        uint32_t query;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pipelineStage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.query);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdWriteTimestamp(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.pipelineStage, params.queryPool, params.query);
+}
+#else
 static void thunk32_vkCmdWriteTimestamp(void *args)
 {
     struct
@@ -41729,7 +49567,20 @@ static void thunk32_vkCmdWriteTimestamp(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdWriteTimestamp(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->pipelineStage, params->queryPool, params->query);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdWriteTimestamp2(void)
+{
+    struct vkCmdWriteTimestamp2_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.stage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.query);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdWriteTimestamp2(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.stage, params.queryPool, params.query);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdWriteTimestamp2(void *args)
 {
@@ -41738,7 +49589,26 @@ static void thunk64_vkCmdWriteTimestamp2(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdWriteTimestamp2(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->stage, params->queryPool, params->query);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdWriteTimestamp2(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkPipelineStageFlags2 DECLSPEC_ALIGN(8) stage;
+        VkQueryPool DECLSPEC_ALIGN(8) queryPool;
+        uint32_t query;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.stage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.query);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdWriteTimestamp2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.stage, params.queryPool, params.query);
+}
+#else
 static void thunk32_vkCmdWriteTimestamp2(void *args)
 {
     struct
@@ -41751,7 +49621,20 @@ static void thunk32_vkCmdWriteTimestamp2(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdWriteTimestamp2(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->stage, params->queryPool, params->query);
 }
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkCmdWriteTimestamp2KHR(void)
+{
+    struct vkCmdWriteTimestamp2KHR_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.stage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.query);
+    wine_cmd_buffer_from_handle(params.commandBuffer)->device->funcs.p_vkCmdWriteTimestamp2KHR(wine_cmd_buffer_from_handle(params.commandBuffer)->host_command_buffer, params.stage, params.queryPool, params.query);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkCmdWriteTimestamp2KHR(void *args)
 {
@@ -41760,7 +49643,26 @@ static void thunk64_vkCmdWriteTimestamp2KHR(void *args)
     wine_cmd_buffer_from_handle(params->commandBuffer)->device->funcs.p_vkCmdWriteTimestamp2KHR(wine_cmd_buffer_from_handle(params->commandBuffer)->host_command_buffer, params->stage, params->queryPool, params->query);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkCmdWriteTimestamp2KHR(void)
+{
+    struct
+    {
+        PTR32 commandBuffer;
+        VkPipelineStageFlags2 DECLSPEC_ALIGN(8) stage;
+        VkQueryPool DECLSPEC_ALIGN(8) queryPool;
+        uint32_t query;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.commandBuffer);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.stage);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.queryPool);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.query);
+    wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->device->funcs.p_vkCmdWriteTimestamp2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params.commandBuffer))->host_command_buffer, params.stage, params.queryPool, params.query);
+}
+#else
 static void thunk32_vkCmdWriteTimestamp2KHR(void *args)
 {
     struct
@@ -41773,6 +49675,7 @@ static void thunk32_vkCmdWriteTimestamp2KHR(void *args)
 
     wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->device->funcs.p_vkCmdWriteTimestamp2KHR(wine_cmd_buffer_from_handle((VkCommandBuffer)UlongToPtr(params->commandBuffer))->host_command_buffer, params->stage, params->queryPool, params->query);
 }
+#endif /* VK_FAST_THUNK */
 
 #ifdef _WIN64
 static NTSTATUS thunk64_vkCompileDeferredNV(void *args)
@@ -46339,6 +54242,18 @@ static NTSTATUS thunk32_vkGetDeferredOperationResultKHR(void *args)
     return STATUS_SUCCESS;
 }
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkGetDescriptorEXT(void)
+{
+    struct vkGetDescriptorEXT_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.device);
+    VK_FAST_THUNK_GET_ARG(1, void *, params.pDescriptorInfo);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.dataSize);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pDescriptor);
+    wine_device_from_handle(params.device)->funcs.p_vkGetDescriptorEXT(wine_device_from_handle(params.device)->host_device, params.pDescriptorInfo, params.dataSize, params.pDescriptor);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkGetDescriptorEXT(void *args)
 {
@@ -46347,7 +54262,32 @@ static void thunk64_vkGetDescriptorEXT(void *args)
     wine_device_from_handle(params->device)->funcs.p_vkGetDescriptorEXT(wine_device_from_handle(params->device)->host_device, params->pDescriptorInfo, params->dataSize, params->pDescriptor);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkGetDescriptorEXT(void)
+{
+    struct
+    {
+        PTR32 device;
+        PTR32 pDescriptorInfo;
+        PTR32 dataSize;
+        PTR32 pDescriptor;
+    } params;
+    VkDescriptorGetInfoEXT pDescriptorInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.device);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.pDescriptorInfo);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.dataSize);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pDescriptor);
+    init_conversion_context(ctx);
+    convert_VkDescriptorGetInfoEXT_win32_to_host(ctx, (const VkDescriptorGetInfoEXT32 *)UlongToPtr(params.pDescriptorInfo), &pDescriptorInfo_host);
+    wine_device_from_handle((VkDevice)UlongToPtr(params.device))->funcs.p_vkGetDescriptorEXT(wine_device_from_handle((VkDevice)UlongToPtr(params.device))->host_device, &pDescriptorInfo_host, params.dataSize, (void *)UlongToPtr(params.pDescriptor));
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkGetDescriptorEXT(void *args)
 {
     struct
@@ -46366,6 +54306,7 @@ static void thunk32_vkGetDescriptorEXT(void *args)
     wine_device_from_handle((VkDevice)UlongToPtr(params->device))->funcs.p_vkGetDescriptorEXT(wine_device_from_handle((VkDevice)UlongToPtr(params->device))->host_device, &pDescriptorInfo_host, params->dataSize, (void *)UlongToPtr(params->pDescriptor));
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
 #ifdef _WIN64
 static NTSTATUS thunk64_vkGetDescriptorSetHostMappingVALVE(void *args)
@@ -51941,6 +59882,18 @@ static NTSTATUS thunk32_vkUnmapMemory2KHR(void *args)
     return STATUS_SUCCESS;
 }
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk64_vkUpdateDescriptorSetWithTemplate(void)
+{
+    struct vkUpdateDescriptorSetWithTemplate_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.device);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.descriptorSet);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.descriptorUpdateTemplate);
+    VK_FAST_THUNK_GET_ARG(3, void *, params.pData);
+    wine_device_from_handle(params.device)->funcs.p_vkUpdateDescriptorSetWithTemplate(wine_device_from_handle(params.device)->host_device, params.descriptorSet, params.descriptorUpdateTemplate, params.pData);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkUpdateDescriptorSetWithTemplate(void *args)
 {
@@ -51949,7 +59902,26 @@ static void thunk64_vkUpdateDescriptorSetWithTemplate(void *args)
     wine_device_from_handle(params->device)->funcs.p_vkUpdateDescriptorSetWithTemplate(wine_device_from_handle(params->device)->host_device, params->descriptorSet, params->descriptorUpdateTemplate, params->pData);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 4
+static void thunk32_vkUpdateDescriptorSetWithTemplate(void)
+{
+    struct
+    {
+        PTR32 device;
+        VkDescriptorSet DECLSPEC_ALIGN(8) descriptorSet;
+        VkDescriptorUpdateTemplate DECLSPEC_ALIGN(8) descriptorUpdateTemplate;
+        PTR32 pData;
+    } params;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.device);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.descriptorSet);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.descriptorUpdateTemplate);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.pData);
+    wine_device_from_handle((VkDevice)UlongToPtr(params.device))->funcs.p_vkUpdateDescriptorSetWithTemplate(wine_device_from_handle((VkDevice)UlongToPtr(params.device))->host_device, params.descriptorSet, params.descriptorUpdateTemplate, (const void *)UlongToPtr(params.pData));
+}
+#else
 static void thunk32_vkUpdateDescriptorSetWithTemplate(void *args)
 {
     struct
@@ -51962,6 +59934,7 @@ static void thunk32_vkUpdateDescriptorSetWithTemplate(void *args)
 
     wine_device_from_handle((VkDevice)UlongToPtr(params->device))->funcs.p_vkUpdateDescriptorSetWithTemplate(wine_device_from_handle((VkDevice)UlongToPtr(params->device))->host_device, params->descriptorSet, params->descriptorUpdateTemplate, (const void *)UlongToPtr(params->pData));
 }
+#endif /* VK_FAST_THUNK */
 
 #ifdef _WIN64
 static NTSTATUS thunk64_vkUpdateDescriptorSetWithTemplateKHR(void *args)
@@ -51991,6 +59964,19 @@ static NTSTATUS thunk32_vkUpdateDescriptorSetWithTemplateKHR(void *args)
     return STATUS_SUCCESS;
 }
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk64_vkUpdateDescriptorSets(void)
+{
+    struct vkUpdateDescriptorSets_params params;
+
+    VK_FAST_THUNK_GET_ARG(0, void *, params.device);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.descriptorWriteCount);
+    VK_FAST_THUNK_GET_ARG(2, void *, params.pDescriptorWrites);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.descriptorCopyCount);
+    VK_FAST_THUNK_GET_ARG(4, void *, params.pDescriptorCopies);
+    wine_device_from_handle(params.device)->funcs.p_vkUpdateDescriptorSets(wine_device_from_handle(params.device)->host_device, params.descriptorWriteCount, params.pDescriptorWrites, params.descriptorCopyCount, params.pDescriptorCopies);
+}
+#else
 #ifdef _WIN64
 static void thunk64_vkUpdateDescriptorSets(void *args)
 {
@@ -51999,7 +59985,36 @@ static void thunk64_vkUpdateDescriptorSets(void *args)
     wine_device_from_handle(params->device)->funcs.p_vkUpdateDescriptorSets(wine_device_from_handle(params->device)->host_device, params->descriptorWriteCount, params->pDescriptorWrites, params->descriptorCopyCount, params->pDescriptorCopies);
 }
 #endif /* _WIN64 */
+#endif /* VK_FAST_THUNK */
 
+#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= 5
+static void thunk32_vkUpdateDescriptorSets(void)
+{
+    struct
+    {
+        PTR32 device;
+        uint32_t descriptorWriteCount;
+        PTR32 pDescriptorWrites;
+        uint32_t descriptorCopyCount;
+        PTR32 pDescriptorCopies;
+    } params;
+    const VkWriteDescriptorSet *pDescriptorWrites_host;
+    const VkCopyDescriptorSet *pDescriptorCopies_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
+
+    VK_FAST_THUNK_GET_ARG(0, UINT_PTR, params.device);
+    VK_FAST_THUNK_GET_ARG(1, UINT_PTR, params.descriptorWriteCount);
+    VK_FAST_THUNK_GET_ARG(2, UINT_PTR, params.pDescriptorWrites);
+    VK_FAST_THUNK_GET_ARG(3, UINT_PTR, params.descriptorCopyCount);
+    VK_FAST_THUNK_GET_ARG(4, UINT_PTR, params.pDescriptorCopies);
+    init_conversion_context(ctx);
+    pDescriptorWrites_host = convert_VkWriteDescriptorSet_array_win32_to_host(ctx, (const VkWriteDescriptorSet32 *)UlongToPtr(params.pDescriptorWrites), params.descriptorWriteCount);
+    pDescriptorCopies_host = convert_VkCopyDescriptorSet_array_win32_to_host(ctx, (const VkCopyDescriptorSet32 *)UlongToPtr(params.pDescriptorCopies), params.descriptorCopyCount);
+    wine_device_from_handle((VkDevice)UlongToPtr(params.device))->funcs.p_vkUpdateDescriptorSets(wine_device_from_handle((VkDevice)UlongToPtr(params.device))->host_device, params.descriptorWriteCount, pDescriptorWrites_host, params.descriptorCopyCount, pDescriptorCopies_host);
+    free_conversion_context(ctx);
+}
+#else
 static void thunk32_vkUpdateDescriptorSets(void *args)
 {
     struct
@@ -52021,6 +60036,7 @@ static void thunk32_vkUpdateDescriptorSets(void *args)
     wine_device_from_handle((VkDevice)UlongToPtr(params->device))->funcs.p_vkUpdateDescriptorSets(wine_device_from_handle((VkDevice)UlongToPtr(params->device))->host_device, params->descriptorWriteCount, pDescriptorWrites_host, params->descriptorCopyCount, pDescriptorCopies_host);
     free_conversion_context(ctx);
 }
+#endif /* VK_FAST_THUNK */
 
 #ifdef _WIN64
 static NTSTATUS thunk64_vkUpdateIndirectExecutionSetPipelineEXT(void *args)
