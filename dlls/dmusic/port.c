@@ -46,7 +46,6 @@ struct synth_port {
     BOOL active;
     DMUS_PORTPARAMS params;
     int nrofgroups;
-    DMUSIC_PRIVATE_CHANNEL_GROUP group[1];
 
     struct list downloads;
     DWORD next_dlid;
@@ -211,7 +210,7 @@ static HRESULT WINAPI synth_port_GetLatencyClock(IDirectMusicPort *iface, IRefer
 
     TRACE("(%p, %p)\n", iface, clock);
 
-    return IDirectMusicSynth8_GetLatencyClock(This->synth, clock);
+    return IDirectMusicSynth_GetLatencyClock(This->synth, clock);
 }
 
 static HRESULT WINAPI synth_port_GetRunningStats(IDirectMusicPort *iface, DMUS_SYNTHSTATS *stats)
@@ -325,11 +324,9 @@ static HRESULT WINAPI synth_port_SetChannelPriority(IDirectMusicPort *iface, DWO
 static HRESULT WINAPI synth_port_GetChannelPriority(IDirectMusicPort *iface, DWORD channel_group,
         DWORD channel, DWORD *priority)
 {
-    struct synth_port *This = synth_from_IDirectMusicPort(iface);
+    FIXME("(%p, %lu, %lu, %p): stub!\n", iface, channel_group, channel, priority);
 
-    TRACE("(%p, %lu, %lu, %p)\n", iface, channel_group, channel, priority);
-
-    *priority = This->group[channel_group - 1].channel[channel].priority;
+    *priority = DAUD_STANDARD_VOICE_PRIORITY | (0xe - channel);
 
     return S_OK;
 }
@@ -683,12 +680,11 @@ static const IKsControlVtbl ikscontrol_vtbl = {
     IKsControlImpl_KsEvent
 };
 
-HRESULT synth_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *port_params,
+HRESULT synth_port_create(IReferenceClock *master_clock, DMUS_PORTPARAMS *port_params,
         DMUS_PORTCAPS *port_caps, IDirectMusicPort **port)
 {
     struct synth_port *obj;
     HRESULT hr = E_FAIL;
-    int i;
 
     TRACE("(%p, %p)\n", port_params, port);
 
@@ -703,8 +699,6 @@ HRESULT synth_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *port_param
     obj->IDirectMusicThru_iface.lpVtbl = &synth_port_thru_vtbl;
     obj->IKsControl_iface.lpVtbl = &ikscontrol_vtbl;
     obj->ref = 1;
-    obj->parent = parent;
-    obj->active = FALSE;
     obj->params = *port_params;
     list_init(&obj->downloads);
 
@@ -718,40 +712,13 @@ HRESULT synth_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *port_param
         hr = IDirectMusicSynth_SetSynthSink(obj->synth, obj->synth_sink);
 
     if (SUCCEEDED(hr))
-        hr = IDirectMusicSynth_SetMasterClock(obj->synth, obj->parent->master_clock);
+        hr = IDirectMusicSynth_SetMasterClock(obj->synth, master_clock);
 
     if (SUCCEEDED(hr))
-        hr = IDirectMusicSynthSink_SetMasterClock(obj->synth_sink, obj->parent->master_clock);
+        hr = IDirectMusicSynthSink_SetMasterClock(obj->synth_sink, master_clock);
 
     if (SUCCEEDED(hr))
         hr = IDirectMusicSynth_Open(obj->synth, port_params);
-
-    if (0)
-    {
-        if (port_params->dwValidParams & DMUS_PORTPARAMS_CHANNELGROUPS) {
-            obj->nrofgroups = port_params->dwChannelGroups;
-            /* Setting default priorities */
-            for (i = 0; i < obj->nrofgroups; i++) {
-                TRACE ("Setting default channel priorities on channel group %i\n", i + 1);
-                obj->group[i].channel[0].priority = DAUD_CHAN1_DEF_VOICE_PRIORITY;
-                obj->group[i].channel[1].priority = DAUD_CHAN2_DEF_VOICE_PRIORITY;
-                obj->group[i].channel[2].priority = DAUD_CHAN3_DEF_VOICE_PRIORITY;
-                obj->group[i].channel[3].priority = DAUD_CHAN4_DEF_VOICE_PRIORITY;
-                obj->group[i].channel[4].priority = DAUD_CHAN5_DEF_VOICE_PRIORITY;
-                obj->group[i].channel[5].priority = DAUD_CHAN6_DEF_VOICE_PRIORITY;
-                obj->group[i].channel[6].priority = DAUD_CHAN7_DEF_VOICE_PRIORITY;
-                obj->group[i].channel[7].priority = DAUD_CHAN8_DEF_VOICE_PRIORITY;
-                obj->group[i].channel[8].priority = DAUD_CHAN9_DEF_VOICE_PRIORITY;
-                obj->group[i].channel[9].priority = DAUD_CHAN10_DEF_VOICE_PRIORITY;
-                obj->group[i].channel[10].priority = DAUD_CHAN11_DEF_VOICE_PRIORITY;
-                obj->group[i].channel[11].priority = DAUD_CHAN12_DEF_VOICE_PRIORITY;
-                obj->group[i].channel[12].priority = DAUD_CHAN13_DEF_VOICE_PRIORITY;
-                obj->group[i].channel[13].priority = DAUD_CHAN14_DEF_VOICE_PRIORITY;
-                obj->group[i].channel[14].priority = DAUD_CHAN15_DEF_VOICE_PRIORITY;
-                obj->group[i].channel[15].priority = DAUD_CHAN16_DEF_VOICE_PRIORITY;
-            }
-        }
-    }
 
     if (SUCCEEDED(hr)) {
         *port = &obj->IDirectMusicPort_iface;
@@ -1037,7 +1004,7 @@ static const IDirectMusicThruVtbl midi_thru_vtbl = {
     midi_IDirectMusicThru_ThruChannel,
 };
 
-static HRESULT midi_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *params,
+static HRESULT midi_port_create(DMUS_PORTPARAMS *params,
         DMUS_PORTCAPS *caps, IDirectMusicPort **port)
 {
     struct midi_port *obj;
@@ -1050,7 +1017,7 @@ static HRESULT midi_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *para
     obj->IDirectMusicThru_iface.lpVtbl = &midi_thru_vtbl;
     obj->ref = 1;
 
-    hr = DMUSIC_CreateReferenceClockImpl(&IID_IReferenceClock, (void **)&obj->clock, NULL);
+    hr = reference_clock_create(&obj->clock);
     if (hr != S_OK) {
         free(obj);
         return hr;
@@ -1061,18 +1028,18 @@ static HRESULT midi_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *para
     return S_OK;
 }
 
-HRESULT midi_out_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *params,
+HRESULT midi_out_port_create(IReferenceClock *master_clock, DMUS_PORTPARAMS *params,
         DMUS_PORTCAPS *caps, IDirectMusicPort **port)
 {
-    TRACE("(%p, %p, %p, %p)\n", parent, params, caps, port);
+    TRACE("(%p, %p, %p, %p)\n", master_clock, params, caps, port);
 
-    return midi_port_create(parent, params, caps, port);
+    return midi_port_create(params, caps, port);
 }
 
-HRESULT midi_in_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *params,
+HRESULT midi_in_port_create(IReferenceClock *master_clock, DMUS_PORTPARAMS *params,
         DMUS_PORTCAPS *caps, IDirectMusicPort **port)
 {
-    TRACE("(%p, %p, %p, %p)\n", parent, params, caps, port);
+    TRACE("(%p, %p, %p, %p)\n", master_clock, params, caps, port);
 
-    return midi_port_create(parent, params, caps, port);
+    return midi_port_create(params, caps, port);
 }

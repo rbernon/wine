@@ -174,6 +174,35 @@ static void dump_dmus_region(DMUS_REGION *region)
     }
 }
 
+static void dump_dmus_articparams(DMUS_ARTICPARAMS *params)
+{
+    TRACE("DMUS_ARTICPARAMS:\n");
+    TRACE(" - LFO:\n");
+    TRACE("   - pcFrequency   = %lu\n", params->LFO.pcFrequency);
+    TRACE("   - tcDelay       = %lu\n", params->LFO.tcDelay);
+    TRACE("   - gcVolumeScale = %lu\n", params->LFO.gcVolumeScale);
+    TRACE("   - pcPitchScale  = %lu\n", params->LFO.pcPitchScale);
+    TRACE("   - gcMWToVolume  = %lu\n", params->LFO.gcMWToVolume);
+    TRACE("   - pcMWToPitch   = %lu\n", params->LFO.pcMWToPitch);
+    TRACE(" - VolEG:\n");
+    TRACE("   - tcAttack      = %lu\n", params->VolEG.tcAttack);
+    TRACE("   - tcDecay       = %lu\n", params->VolEG.tcDecay);
+    TRACE("   - ptSustain     = %lu\n", params->VolEG.ptSustain);
+    TRACE("   - tcRelease     = %lu\n", params->VolEG.tcRelease);
+    TRACE("   - tcVel2Attack  = %lu\n", params->VolEG.tcVel2Attack);
+    TRACE("   - tcKey2Decay   = %lu\n", params->VolEG.tcKey2Decay);
+    TRACE(" - PitchEG:\n");
+    TRACE("   - tcAttack      = %lu\n", params->PitchEG.tcAttack);
+    TRACE("   - tcDecay       = %lu\n", params->PitchEG.tcDecay);
+    TRACE("   - ptSustain     = %lu\n", params->PitchEG.ptSustain);
+    TRACE("   - tcRelease     = %lu\n", params->PitchEG.tcRelease);
+    TRACE("   - tcVel2Attack  = %lu\n", params->PitchEG.tcVel2Attack);
+    TRACE("   - tcKey2Decay   = %lu\n", params->PitchEG.tcKey2Decay);
+    TRACE("   - pcRange       = %lu\n", params->PitchEG.pcRange);
+    TRACE(" - Misc:\n");
+    TRACE("   - ptDefaultPan  = %lu\n", params->Misc.ptDefaultPan);
+}
+
 static void dump_connectionlist(CONNECTIONLIST *list)
 {
     CONNECTION *connections = (CONNECTION *)(list + 1);
@@ -235,8 +264,13 @@ static void wave_release(struct wave *wave)
 
 struct articulation
 {
+    UINT version;
     struct list entry;
-    CONNECTIONLIST list;
+    union
+    {
+        CONNECTIONLIST list;
+        DMUS_ARTICPARAMS params;
+    };
     CONNECTION connections[];
 };
 
@@ -672,10 +706,32 @@ static HRESULT synth_download_articulation2(struct synth *This, ULONG *offsets, 
 
         size = offsetof(struct articulation, connections[list->cConnections]);
         if (!(articulation = calloc(1, size))) return E_OUTOFMEMORY;
+        articulation->version = 2;
         articulation->list = *list;
         memcpy(articulation->connections, connections, list->cConnections * sizeof(*connections));
         list_add_tail(articulations, &articulation->entry);
     }
+
+    return S_OK;
+}
+
+static HRESULT synth_download_articulation1(struct synth *This, ULONG *offsets, BYTE *data,
+        UINT index, struct list *list)
+{
+    DMUS_ARTICPARAMS *articulation_params;
+    DMUS_ARTICULATION *articulation_info;
+    struct articulation *articulation;
+
+    articulation_info = (DMUS_ARTICULATION *)(data + offsets[index]);
+    if (articulation_info->ulFirstExtCkIdx) FIXME("Articulation extensions not implemented\n");
+
+    articulation_params = (DMUS_ARTICPARAMS *)(data + offsets[articulation_info->ulArt1Idx]);
+    if (TRACE_ON(dmsynth)) dump_dmus_articparams(articulation_params);
+
+    if (!(articulation = calloc(1, sizeof(struct articulation)))) return E_OUTOFMEMORY;
+    articulation->version = 1;
+    articulation->params = *articulation_params;
+    list_add_tail(list, &articulation->entry);
 
     return S_OK;
 }
@@ -686,10 +742,7 @@ static HRESULT synth_download_articulation(struct synth *This, DMUS_DOWNLOADINFO
     if (info->dwDLType == DMUS_DOWNLOADINFO_INSTRUMENT2)
         return synth_download_articulation2(This, offsets, data, index, list);
     else
-    {
-        FIXME("DMUS_ARTICPARAMS support not implemented\n");
-        return S_OK;
-    }
+        return synth_download_articulation1(This, offsets, data, index, list);
 }
 
 static struct wave *synth_find_wave_from_id(struct synth *This, DWORD id)
@@ -1128,6 +1181,9 @@ static HRESULT WINAPI synth_Render(IDirectMusicSynth8 *iface, short *buffer,
         case MIDI_NOTE_ON:
             fluid_synth_noteon(This->fluid_synth, chan, event->midi[1], event->midi[2]);
             break;
+        case 0xa0:
+            fluid_synth_key_pressure(This->fluid_synth, chan, event->midi[1], event->midi[2]);
+            break;
         case MIDI_CONTROL_CHANGE:
             fluid_synth_cc(This->fluid_synth, chan, event->midi[1], event->midi[2]);
             break;
@@ -1136,6 +1192,8 @@ static HRESULT WINAPI synth_Render(IDirectMusicSynth8 *iface, short *buffer,
             break;
         case MIDI_PITCH_BEND_CHANGE:
             fluid_synth_pitch_bend(This->fluid_synth, chan, event->midi[1] | (event->midi[2] << 7));
+        case 0xd0:
+            fluid_synth_channel_pressure(This->fluid_synth, chan, event->midi[1]);
             break;
         default:
             FIXME("MIDI event not implemented: %#x %#x %#x\n", event->midi[0], event->midi[1], event->midi[2]);
