@@ -35,7 +35,8 @@ struct attributes
 {
     IMFAttributes IMFAttributes_iface;
     LONG ref;
-    CRITICAL_SECTION cs;
+    SRWLOCK lock;
+    DWORD lock_tid;
     struct attribute *attributes;
     size_t capacity;
     size_t count;
@@ -84,6 +85,9 @@ extern HRESULT attributes_GetCount(struct attributes *object, UINT32 *items);
 extern HRESULT attributes_GetItemByIndex(struct attributes *object, UINT32 index, GUID *key,
         PROPVARIANT *value);
 extern HRESULT attributes_CopyAllItems(struct attributes *object, IMFAttributes *dest);
+
+extern void buffer_2d_copy_image(DWORD fourcc, BYTE *dest, LONG dest_stride,
+        const BYTE *src, LONG src_stride, DWORD width, DWORD lines) DECLSPEC_HIDDEN;
 
 static inline BOOL mf_array_reserve(void **elements, size_t *capacity, size_t count, size_t size)
 {
