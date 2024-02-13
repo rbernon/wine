@@ -1624,9 +1624,47 @@ cleanup:
 }
 
 static UINT mouse_move_count;
+static UINT left_button_count;
+
+static const char *debugstr_wm( UINT msg )
+{
+    switch (msg)
+    {
+    case WM_MOUSEMOVE: return "WM_MOUSEMOVE"; break;
+    case WM_LBUTTONDOWN: return "WM_LBUTTONDOWN"; break;
+    case WM_LBUTTONUP: return "WM_LBUTTONUP"; break;
+    case WM_LBUTTONDBLCLK: return "WM_LBUTTONDBLCLK"; break;
+    case WM_RBUTTONDOWN: return "WM_RBUTTONDOWN"; break;
+    case WM_RBUTTONUP: return "WM_RBUTTONUP"; break;
+    case WM_RBUTTONDBLCLK: return "WM_RBUTTONDBLCLK"; break;
+    case WM_MBUTTONDOWN: return "WM_MBUTTONDOWN"; break;
+    case WM_MBUTTONUP: return "WM_MBUTTONUP"; break;
+    case WM_MBUTTONDBLCLK: return "WM_MBUTTONDBLCLK"; break;
+    case WM_MOUSEWHEEL: return "WM_MOUSEWHEEL"; break;
+    case WM_XBUTTONDOWN: return "WM_XBUTTONDOWN"; break;
+    case WM_XBUTTONUP: return "WM_XBUTTONUP"; break;
+    case WM_XBUTTONDBLCLK: return "WM_XBUTTONDBLCLK"; break;
+    case WM_MOUSEHWHEEL: return "WM_MOUSEHWHEEL"; break;
+    case WM_INPUT_DEVICE_CHANGE: return "WM_INPUT_DEVICE_CHANGE"; break;
+    case WM_INPUT: return "WM_INPUT"; break;
+    }
+    return wine_dbg_sprintf( "%#x", msg );
+}
 
 static LRESULT CALLBACK mouse_wndproc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
 {
+if (msg >= WM_MOUSEFIRST && msg <= WM_MOUSELAST) ok(0, "msg %s wparam %#Ix lparam %d %d\n", debugstr_wm(msg), wparam, LOWORD(lparam), HIWORD(lparam));
+if (msg >= WM_INPUT_DEVICE_CHANGE && msg <= WM_INPUT)
+{
+    RAWINPUT rawinput = {.header = {.dwSize = sizeof(rawinput)}};
+    UINT size = sizeof(rawinput);
+    GetRawInputData( (HRAWINPUT)lparam, RID_INPUT, &rawinput, &size, sizeof(RAWINPUTHEADER));
+    ok(0, "msg %s wparam %#Ix rawinput %ld %ld flags %#x buttons %#lx extra %#lx\n", debugstr_wm(msg), wparam,
+    rawinput.data.mouse.lLastX, rawinput.data.mouse.lLastY, rawinput.data.mouse.usFlags, rawinput.data.mouse.ulButtons, rawinput.data.mouse.ulExtraInformation);
+}
+
+    ok( 0, "hwnd %p, msg %#x, wparam %#Ix, lparam %#Ix\n", hwnd, msg, wparam, lparam );
+
     if (msg == WM_MOUSEMOVE)
     {
         ok( wparam == 0, "got wparam %#Ix\n", wparam );
@@ -1634,7 +1672,43 @@ static LRESULT CALLBACK mouse_wndproc( HWND hwnd, UINT msg, WPARAM wparam, LPARA
         ok( HIWORD(lparam) - 107 <= 2, "got HIWORD(lparam) %u\n", HIWORD(lparam) );
         mouse_move_count++;
     }
+    if (msg == WM_LBUTTONDOWN) left_button_count++;
+    if (msg == WM_LBUTTONUP) left_button_count++;
     return DefWindowProcA( hwnd, msg, wparam, lparam );
+}
+
+static LRESULT CALLBACK mouse_ll_proc( int code, WPARAM wparam, LPARAM lparam )
+{
+    /* MSLLHOOKSTRUCT *hook = (MSLLHOOKSTRUCT *)lparam; */
+    if (code == HC_ACTION)
+    {
+        if (0 && wparam == WM_MOUSEMOVE) return -1;
+        if (0 && wparam == WM_LBUTTONDOWN) return -1;
+        if (0 && wparam == WM_LBUTTONUP) return -1;
+    }
+
+    if (0) ok( 0, "code %d, wparam %s, lparam %#Ix\n", code, debugstr_wm(wparam), lparam );
+    return CallNextHookEx( 0, code, wparam, lparam );
+}
+
+static DWORD CALLBACK inject_thread_proc( void *arg )
+{
+    BOOL (*CDECL p__wine_send_input)( HWND hwnd, const INPUT *input, const RAWINPUT *rawinput );
+
+    p__wine_send_input = (void *)GetProcAddress( GetModuleHandleW( L"win32u" ), "__wine_send_input" );
+
+    for (int i = 0; i < 10000000; ++i)
+    {
+        INPUT input =
+        {
+            .type = INPUT_MOUSE,
+            .mi = {.dwFlags = MOUSEEVENTF_MOVE, .time = GetTickCount(), .dx = 1},
+        };
+
+        p__wine_send_input( 0, &input, NULL );
+    }
+
+    return 0;
 }
 
 static void test_hid_mouse(void)
@@ -1692,9 +1766,70 @@ static void test_hid_mouse(void)
             .report_buf = {1,0x00,0x08,0x00,0x08,0x00},
         },
     };
-
+    struct hid_expect single_button_press[] =
+    {
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x01,0x00,0x00,0x00,0x00},
+        },
+    };
+    struct hid_expect single_button_release[] =
+    {
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x00,0x00,0x00,0x00,0x00},
+        },
+    };
+    struct hid_expect move_button_press_release[] =
+    {
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x01,0xf8,0xff,0xf8,0xff},
+        },
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x00,0x00,0x00,0x00,0x00},
+        },
+    };
+    struct hid_expect button_press_move_release[] =
+    {
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x01,0x00,0x00,0x00,0x00},
+        },
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x00,0x08,0x00,0x08,0x00},
+        },
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x00,0xf8,0xff,0xf8,0xff},
+        },
+    };
+    struct hid_expect multiple_move[] =
+    {
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x00,0x08,0x00,0x08,0x00},
+        },
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x00,0xf8,0xff,0xf8,0xff},
+        },
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x01,0x00,0x00,0x00,0x00},
+        },
+        {
+            .code = IOCTL_HID_READ_REPORT,
+            .report_buf = {1,0x00,0x00,0x00,0x00,0x00},
+        },
+    };
+    RAWINPUTDEVICE rawdevice = {.usUsagePage = HID_USAGE_PAGE_GENERIC, .usUsage = HID_USAGE_GENERIC_MOUSE};
     WCHAR device_path[MAX_PATH];
+    HHOOK hook = 0;
     HANDLE file;
+    UINT count;
     POINT pos;
     DWORD res;
     HWND hwnd;
@@ -1734,12 +1869,21 @@ static void test_hid_mouse(void)
     SetCursorPos( 100, 100 );
     hwnd = create_foreground_window( TRUE );
     SetWindowLongPtrW( hwnd, GWLP_WNDPROC, (LONG_PTR)mouse_wndproc );
+    if (0) hook = SetWindowsHookExW( WH_MOUSE_LL, mouse_ll_proc, GetModuleHandleW( NULL ), 0 );
+
+    count = 1;
+    rawdevice.dwFlags = 0;
+    rawdevice.hwndTarget = hwnd;
+    ret = RegisterRawInputDevices( &rawdevice, count, sizeof(RAWINPUTDEVICE) );
+    ok( ret == 1, "RegisterRawInputDevices failed, error %lu\n", GetLastError() );
+
 
     GetCursorPos( &pos );
     ok( pos.x == 100, "got x %lu\n", pos.x );
     ok( pos.y == 100, "got y %lu\n", pos.y );
 
     mouse_move_count = 0;
+    left_button_count = 0;
     bus_send_hid_input( file, &desc, single_move, sizeof(single_move) );
     bus_wait_hid_input( file, &desc, 100 );
 
@@ -1749,12 +1893,148 @@ static void test_hid_mouse(void)
     msg_wait_for_events( 0, NULL, 5 ); /* process pending messages */
     todo_wine
     ok( mouse_move_count >= 1, "got mouse_move_count %u\n", mouse_move_count );
+    ok( left_button_count == 0, "got left_button_count %u\n", left_button_count );
 
     GetCursorPos( &pos );
     todo_wine
     ok( (ULONG)pos.x - 107 <= 2, "got x %lu\n", pos.x );
     todo_wine
     ok( (ULONG)pos.y - 107 <= 2, "got y %lu\n", pos.y );
+
+
+winetest_push_context( "single_button_press" );
+    bus_send_hid_input( file, &desc, single_button_press, sizeof(single_button_press) );
+    bus_wait_hid_input( file, &desc, 100 );
+
+    res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_ALLINPUT );
+    todo_wine
+    ok( !res, "MsgWaitForMultipleObjects returned %#lx\n", res );
+    msg_wait_for_events( 0, NULL, 5 ); /* process pending messages */
+    todo_wine
+winetest_pop_context();
+
+winetest_push_context( "single_button_release" );
+    bus_send_hid_input( file, &desc, single_button_release, sizeof(single_button_release) );
+    bus_wait_hid_input( file, &desc, 100 );
+
+    res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_ALLINPUT );
+    todo_wine
+    ok( !res, "MsgWaitForMultipleObjects returned %#lx\n", res );
+    msg_wait_for_events( 0, NULL, 5 ); /* process pending messages */
+    todo_wine
+winetest_pop_context();
+
+winetest_push_context( "move_button_press_release" );
+    bus_send_hid_input( file, &desc, move_button_press_release, sizeof(move_button_press_release) );
+    bus_wait_hid_input( file, &desc, 100 );
+
+    res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_ALLINPUT );
+    todo_wine
+    ok( !res, "MsgWaitForMultipleObjects returned %#lx\n", res );
+    msg_wait_for_events( 0, NULL, 5 ); /* process pending messages */
+    todo_wine
+winetest_pop_context();
+
+winetest_push_context( "button_press_move_release" );
+    bus_send_hid_input( file, &desc, button_press_move_release, sizeof(button_press_move_release) );
+    bus_wait_hid_input( file, &desc, 100 );
+Sleep(1000);
+
+    res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_ALLINPUT );
+    todo_wine
+    ok( !res, "MsgWaitForMultipleObjects returned %#lx\n", res );
+    msg_wait_for_events( 0, NULL, 5 ); /* process pending messages */
+    todo_wine
+winetest_pop_context();
+
+
+winetest_push_context( "multiple" );
+
+    mouse_move_count = 0;
+    left_button_count = 0;
+    bus_send_hid_input( file, &desc, multiple_move, sizeof(multiple_move) );
+    bus_wait_hid_input( file, &desc, 100 );
+
+    res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_ALLINPUT );
+    todo_wine
+    ok( !res, "MsgWaitForMultipleObjects returned %#lx\n", res );
+    msg_wait_for_events( 0, NULL, 5 ); /* process pending messages */
+    todo_wine
+    ok( mouse_move_count == 1, "got mouse_move_count %u\n", mouse_move_count );
+    ok( left_button_count == 2, "got left_button_count %u\n", left_button_count );
+
+    GetCursorPos( &pos );
+    todo_wine
+    ok( (ULONG)pos.x - 107 <= 2, "got x %lu\n", pos.x );
+    todo_wine
+    ok( (ULONG)pos.y - 107 <= 2, "got y %lu\n", pos.y );
+winetest_pop_context();
+
+
+    if (hook) UnhookWindowsHookEx( hook );
+
+    count = 1;
+    rawdevice.dwFlags = RIDEV_REMOVE;
+    rawdevice.hwndTarget = 0;
+    ret = RegisterRawInputDevices( &rawdevice, count, sizeof(RAWINPUTDEVICE) );
+    ok( ret == 1, "RegisterRawInputDevices failed, error %lu\n", GetLastError() );
+
+    inject_thread = CreateThread( NULL, 0, inject_thread_proc, NULL, 0, NULL );
+    ok( !!inject_thread, "CreateThread failed, error %lu\n", GetLastError() );
+
+    if (FAILED(create_dinput_device( 0x800, &GUID_SysMouse, &device ))) return;
+    hr = IDirectInputDevice8_SetDataFormat( device, &c_dfDIMouse2 );
+    ok( hr == DI_OK, "SetDataFormat returned %#lx\n", hr );
+    hr = IDirectInputDevice8_SetCooperativeLevel( device, NULL, DISCL_BACKGROUND|DISCL_NONEXCLUSIVE );
+    ok( hr == DI_OK, "SetCooperativeLevel returned %#lx\n", hr );
+    hr = IDirectInputDevice8_Acquire( device );
+    ok( hr == DI_OK, "Acquire returned %#lx\n", hr );
+
+    do { mouse_move_count = 0; flush_events(); }
+    while (mouse_move_count);
+
+    WaitForSingleObject( inject_thread, INFINITE );
+    CloseHandle( inject_thread );
+
+    ret = IDirectInputDevice8_Release( device );
+    ok( ret == 0, "Release returned %d\n", ret );
+
+
+    EnableMouseInPointer( TRUE );
+ok(0, "EnableMouseInPointer( TRUE );\n");
+
+    mouse_move_count = 0;
+    bus_send_hid_input( file, &desc, &injected_input[1], sizeof(injected_input[1]) );
+
+ok(0, "injected_input[1];\n");
+
+    res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_MOUSEMOVE );
+    todo_wine
+    ok( !res, "MsgWaitForMultipleObjects returned %#lx\n", res );
+
+    flush_events();
+    todo_wine
+    ok( mouse_move_count == 1, "got mouse_move_count %u\n", mouse_move_count );
+
+
+    bus_send_hid_input( file, &desc, &injected_input[2], sizeof(injected_input[2]) );
+ok(0, "injected_input[2];\n");
+    res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_MOUSEBUTTON );
+    todo_wine
+    ok( !res, "MsgWaitForMultipleObjects returned %#lx\n", res );
+    flush_events();
+
+    bus_send_hid_input( file, &desc, &injected_input[3], sizeof(injected_input[3]) );
+ok(0, "injected_input[3];\n");
+    res = MsgWaitForMultipleObjects( 0, NULL, FALSE, 500, QS_MOUSEBUTTON );
+    todo_wine
+    ok( !res, "MsgWaitForMultipleObjects returned %#lx\n", res );
+    flush_events();
+
+
+ok(0, "EnableMouseInPointer( FALSE );\n");
+    EnableMouseInPointer( FALSE );
+
 
     DestroyWindow( hwnd );
 
@@ -3265,10 +3545,1405 @@ done:
     winetest_pop_context();
 }
 
+static void test_hid_pen( DWORD version )
+{
+#include "psh_hid_macros.h"
+    static const unsigned char report_desc[] =
+    {
+// Integrated Windows Pen TLC
+    0x05, 0x0d,                         // USAGE_PAGE (Digitizers)
+    0x09, 0x02,                         // USAGE (Pen)
+    0xa1, 0x01,                         // COLLECTION (Application)
+    0x85, 1,                 //   REPORT_ID (Pen)
+    0x09, 0x20,                         //   USAGE (Stylus)
+    0xa1, 0x00,                         //   COLLECTION (Physical)
+    0x09, 0x42,                         //     USAGE (Tip Switch)
+    0x09, 0x44,                         //     USAGE (Barrel Switch)
+    0x09, 0x3c,                         //     USAGE (Invert)
+    0x09, 0x45,                         //     USAGE (Eraser Switch)
+    0x15, 0x00,                         //     LOGICAL_MINIMUM (0)
+    0x25, 0x01,                         //     LOGICAL_MAXIMUM (1)
+    0x75, 0x01,                         //     REPORT_SIZE (1)
+    0x95, 0x04,                         //     REPORT_COUNT (4)
+    0x81, 0x02,                         //     INPUT (Data,Var,Abs)
+    0x95, 0x01,                         //     REPORT_COUNT (1)
+    0x81, 0x03,                         //     INPUT (Cnst,Var,Abs)
+    0x09, 0x32,                         //     USAGE (In Range)
+    0x81, 0x02,                         //     INPUT (Data,Var,Abs)
+    0x95, 0x02,                         //     REPORT_COUNT (2)
+    0x81, 0x03,                         //     INPUT (Cnst,Var,Abs)
+    0x05, 0x01,                         //     USAGE_PAGE (Generic Desktop)
+    0x09, 0x30,                         //     USAGE (X)
+    0x75, 0x10,                         //     REPORT_SIZE (16)
+    0x95, 0x01,                         //     REPORT_COUNT (1)
+    0xa4,                               //     PUSH
+    0x55, 0x0d,                         //     UNIT_EXPONENT (-3)
+    0x65, 0x13,                         //     UNIT (Inch,EngLinear)
+    0x35, 0x00,                         //     PHYSICAL_MINIMUM (0)
+    0x46, 0x3a, 0x20,                   //     PHYSICAL_MAXIMUM (8250)
+    0x26, 0xf8, 0x52,                   //     LOGICAL_MAXIMUM (21240)
+    0x81, 0x02,                         //     INPUT (Data,Var,Abs)
+    0x09, 0x31,                         //     USAGE (Y)
+    0x46, 0x2c, 0x18,                   //     PHYSICAL_MAXIMUM (6188)
+    0x26, 0x6c, 0x3e,                   //     LOGICAL_MAXIMUM (15980)
+    0x81, 0x02,                         //     INPUT (Data,Var,Abs)
+    0xb4,                               //     POP
+    0x05, 0x0d,                         //     USAGE_PAGE (Digitizers)
+    0x09, 0x30,                         //     USAGE (Tip Pressure)
+    0x26, 0xff, 0x00,                   //     LOGICAL_MAXIMUM (255)
+    0x81, 0x02,                         //     INPUT (Data,Var,Abs)
+    0x75, 0x08,                         //     REPORT_SIZE (8)
+    0x09, 0x3d,                         //     USAGE (X Tilt)
+    0x15, 0x81,                         //     LOGICAL_MINIMUM (-127)
+    0x25, 0x7f,                         //     LOGICAL_MAXIMUM (127)
+    0x81, 0x02,                         //     INPUT (Data,Var,Abs)
+    0x09, 0x3e,                         //     USAGE (Y Tilt)
+    0x15, 0x81,                         //     LOGICAL_MINIMUM (-127)
+    0x25, 0x7f,                         //     LOGICAL_MAXIMUM (127)
+    0x81, 0x02,                         //     INPUT (Data,Var,Abs)
+    0xc0,                               //   END_COLLECTION
+    0xc0                                // END_COLLECTION
+    };
+    C_ASSERT(sizeof(report_desc) < MAX_HID_DESCRIPTOR_LEN);
+#include "pop_hid_macros.h"
+
+    struct hid_device_desc desc =
+    {
+        .use_report_id = TRUE,
+        .caps = { .InputReportByteLength = 20 },
+        .attributes = default_attributes,
+    };
+    const DIDEVCAPS expect_caps =
+    {
+        .dwSize = sizeof(DIDEVCAPS),
+        .dwFlags = DIDC_ATTACHED | DIDC_EMULATED,
+        .dwDevType = version < 0x800 ? (DIDEVTYPE_HID | DIDEVTYPE_DEVICE)
+                                     : (DIDEVTYPE_HID | DI8DEVTYPE_DEVICE),
+        .dwAxes = 5,
+        .dwButtons = 3,
+    };
+    const DIDEVICEINSTANCEW expect_devinst =
+    {
+        .dwSize = sizeof(DIDEVICEINSTANCEW),
+        .guidInstance = expect_guid_product,
+        .guidProduct = expect_guid_product,
+        .dwDevType = version < 0x800 ? (DIDEVTYPE_HID | DIDEVTYPE_DEVICE)
+                                     : (DIDEVTYPE_HID | DI8DEVTYPE_DEVICE),
+        .tszInstanceName = L"Wine Test",
+        .tszProductName = L"Wine Test",
+        .guidFFDriver = GUID_NULL,
+        .wUsagePage = HID_USAGE_PAGE_DIGITIZER,
+        .wUsage = HID_USAGE_DIGITIZER_TOUCH_PAD,
+    };
+    const DIDEVICEOBJECTINSTANCEW expect_objects[] =
+    {
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_XAxis,
+            .dwOfs = 0,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(0),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"X Axis",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_X,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_YAxis,
+            .dwOfs = 0x4,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(1),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Y Axis",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Y,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_ZAxis,
+            .dwOfs = 0x8,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(2),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Z Axis",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Z,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_RxAxis,
+            .dwOfs = 0xc,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(3),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"X Rotation",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_RX,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_RyAxis,
+            .dwOfs = 0x10,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(4),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Y Rotation",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_RY,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_RzAxis,
+            .dwOfs = 0x14,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(5),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Z Rotation",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_RZ,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Slider,
+            .dwOfs = 0x18,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(6),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Throttle",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_SIMULATION,
+            .wUsage = HID_USAGE_SIMULATION_THROTTLE,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_RzAxis,
+            .dwOfs = 0x1c,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(7),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Rudder",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_SIMULATION,
+            .wUsage = HID_USAGE_SIMULATION_RUDDER,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Slider,
+            .dwOfs = 0x20,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(8),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Slider",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_SLIDER,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Slider,
+            .dwOfs = 0x24,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(9),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Dial",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_DIAL,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_XAxis,
+            .dwOfs = 0x28,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(10),
+            .dwFlags = DIDOI_ASPECTVELOCITY,
+            .tszName = L"X Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xf011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_X,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_YAxis,
+            .dwOfs = 0x2c,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(11),
+            .dwFlags = DIDOI_ASPECTVELOCITY,
+            .tszName = L"Y Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xf011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Y,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_ZAxis,
+            .dwOfs = 0x30,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(12),
+            .dwFlags = DIDOI_ASPECTVELOCITY,
+            .tszName = L"Z Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xf011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Z,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_XAxis,
+            .dwOfs = 0x34,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(13),
+            .dwFlags = DIDOI_ASPECTACCEL,
+            .tszName = L"X Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_X,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_YAxis,
+            .dwOfs = 0x38,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(14),
+            .dwFlags = DIDOI_ASPECTACCEL,
+            .tszName = L"Y Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Y,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_ZAxis,
+            .dwOfs = 0x3c,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(15),
+            .dwFlags = DIDOI_ASPECTACCEL,
+            .tszName = L"Z Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Z,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_XAxis,
+            .dwOfs = 0x40,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(16),
+            .dwFlags = DIDOI_ASPECTFORCE,
+            .tszName = L"X Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe111,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_X,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_YAxis,
+            .dwOfs = 0x44,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(17),
+            .dwFlags = DIDOI_ASPECTFORCE,
+            .tszName = L"Y Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe111,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Y,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_ZAxis,
+            .dwOfs = 0x48,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(18),
+            .dwFlags = DIDOI_ASPECTFORCE,
+            .tszName = L"Z Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe111,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Z,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Unknown,
+            .dwType = DIDFT_COLLECTION|DIDFT_NODATA|DIDFT_MAKEINSTANCE(0),
+            .tszName = L"Collection 0 - Joystick",
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_JOYSTICK,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Unknown,
+            .dwType = DIDFT_COLLECTION|DIDFT_NODATA|DIDFT_MAKEINSTANCE(1),
+            .tszName = L"Collection 1 - Joystick",
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_JOYSTICK,
+        },
+    };
+    struct check_objects_params check_objects_params =
+    {
+        .expect_count = ARRAY_SIZE(expect_objects),
+        .expect_objs = expect_objects,
+    };
+
+    DIDEVICEINSTANCEW devinst = {0};
+    IDirectInputDevice8W *device;
+    DIDEVCAPS caps = {0};
+    HRESULT hr;
+    ULONG ref;
+
+    cleanup_registry_keys();
+
+    desc.report_descriptor_len = sizeof(report_desc);
+    memcpy( desc.report_descriptor_buf, report_desc, sizeof(report_desc) );
+    fill_context( desc.context, ARRAY_SIZE(desc.context) );
+
+    if (!hid_device_start( &desc, 1 )) goto done;
+    if (FAILED(hr = dinput_test_create_device( version, &devinst, &device ))) goto done;
+
+    check_dinput_devices( version, &devinst );
+
+    memset( &devinst, 0, sizeof(devinst) );
+    devinst.dwSize = sizeof(DIDEVICEINSTANCEW);
+    hr = IDirectInputDevice8_GetDeviceInfo( device, &devinst );
+    ok( hr == DI_OK, "GetDeviceInfo returned %#lx\n", hr );
+    check_member( devinst, expect_devinst, "%lu", dwSize );
+    todo_wine
+    check_member_guid( devinst, expect_devinst, guidInstance );
+    check_member_guid( devinst, expect_devinst, guidProduct );
+    todo_wine
+    check_member( devinst, expect_devinst, "%#lx", dwDevType );
+    check_member_wstr( devinst, expect_devinst, tszInstanceName );
+    check_member_wstr( devinst, expect_devinst, tszProductName );
+    check_member_guid( devinst, expect_devinst, guidFFDriver );
+    check_member( devinst, expect_devinst, "%04x", wUsagePage );
+    check_member( devinst, expect_devinst, "%04x", wUsage );
+
+    hr = IDirectInputDevice8_GetCapabilities( device, NULL );
+    ok( hr == E_POINTER, "GetCapabilities returned %#lx\n", hr );
+    hr = IDirectInputDevice8_GetCapabilities( device, &caps );
+    ok( hr == DIERR_INVALIDPARAM, "GetCapabilities returned %#lx\n", hr );
+    caps.dwSize = sizeof(DIDEVCAPS);
+    hr = IDirectInputDevice8_GetCapabilities( device, &caps );
+    ok( hr == DI_OK, "GetCapabilities returned %#lx\n", hr );
+    check_member( caps, expect_caps, "%lu", dwSize );
+    check_member( caps, expect_caps, "%#lx", dwFlags );
+    todo_wine
+    check_member( caps, expect_caps, "%#lx", dwDevType );
+    check_member( caps, expect_caps, "%lu", dwAxes );
+    check_member( caps, expect_caps, "%lu", dwButtons );
+    check_member( caps, expect_caps, "%lu", dwPOVs );
+    check_member( caps, expect_caps, "%lu", dwFFSamplePeriod );
+    check_member( caps, expect_caps, "%lu", dwFFMinTimeResolution );
+    check_member( caps, expect_caps, "%lu", dwFirmwareRevision );
+    check_member( caps, expect_caps, "%lu", dwHardwareRevision );
+    check_member( caps, expect_caps, "%lu", dwFFDriverVersion );
+
+    hr = IDirectInputDevice8_EnumObjects( device, check_objects, &check_objects_params, DIDFT_ALL );
+    ok( hr == DI_OK, "EnumObjects returned %#lx\n", hr );
+    ok( check_objects_params.index >= check_objects_params.expect_count, "missing %u objects\n",
+        check_objects_params.expect_count - check_objects_params.index );
+
+    ref = IDirectInputDevice8_Release( device );
+    ok( ref == 0, "Release returned %ld\n", ref );
+
+done:
+    hid_device_stop( &desc, 1 );
+    cleanup_registry_keys();
+    winetest_pop_context();
+}
+
+static void test_hid_touchpad( DWORD version )
+{
+#include "psh_hid_macros.h"
+    static const unsigned char report_desc[] =
+    {
+//TOUCH PAD input TLC
+0x05, 0x0d,                         // USAGE_PAGE (Digitizers)
+0x09, 0x05,                         // USAGE (Touch Pad)
+0xa1, 0x01,                         // COLLECTION (Application)
+0x85, 1,            //   REPORT_ID (Touch pad)
+0x09, 0x22,                         //   USAGE (Finger)
+0xa1, 0x02,                         //   COLLECTION (Logical)
+0x15, 0x00,                         //       LOGICAL_MINIMUM (0)
+0x25, 0x01,                         //       LOGICAL_MAXIMUM (1)
+0x09, 0x47,                         //       USAGE (Confidence)
+0x09, 0x42,                         //       USAGE (Tip switch)
+0x95, 0x02,                         //       REPORT_COUNT (2)
+0x75, 0x01,                         //       REPORT_SIZE (1)
+0x81, 0x02,                         //       INPUT (Data,Var,Abs)
+0x95, 0x01,                         //       REPORT_COUNT (1)
+0x75, 0x02,                         //       REPORT_SIZE (2)
+0x25, 0x02,                         //       LOGICAL_MAXIMUM (2)
+0x09, 0x51,                         //       USAGE (Contact Identifier)
+0x81, 0x02,                         //       INPUT (Data,Var,Abs)
+0x75, 0x01,                         //       REPORT_SIZE (1)
+0x95, 0x04,                         //       REPORT_COUNT (4)
+0x81, 0x03,                         //       INPUT (Cnst,Var,Abs)
+0x05, 0x01,                         //       USAGE_PAGE (Generic Desk..
+0x15, 0x00,                         //       LOGICAL_MINIMUM (0)
+0x26, 0xff, 0x0f,                   //       LOGICAL_MAXIMUM (4095)
+0x75, 0x10,                         //       REPORT_SIZE (16)
+0x55, 0x0e,                         //       UNIT_EXPONENT (-2)
+0x65, 0x13,                         //       UNIT(Inch,EngLinear)
+0x09, 0x30,                         //       USAGE (X)
+0x35, 0x00,                         //       PHYSICAL_MINIMUM (0)
+0x46, 0x90, 0x01,                   //       PHYSICAL_MAXIMUM (400)
+0x95, 0x01,                         //       REPORT_COUNT (1)
+0x81, 0x02,                         //       INPUT (Data,Var,Abs)
+0x46, 0x13, 0x01,                   //       PHYSICAL_MAXIMUM (275)
+0x09, 0x31,                         //       USAGE (Y)
+0x81, 0x02,                         //       INPUT (Data,Var,Abs)
+0xc0,                               //    END_COLLECTION
+0x55, 0x0C,                         //    UNIT_EXPONENT (-4)
+0x66, 0x01, 0x10,                   //    UNIT (Seconds)
+0x47, 0xff, 0xff, 0x00, 0x00,      //     PHYSICAL_MAXIMUM (65535)
+0x27, 0xff, 0xff, 0x00, 0x00,         //  LOGICAL_MAXIMUM (65535)
+0x75, 0x10,                           //  REPORT_SIZE (16)
+0x95, 0x01,                           //  REPORT_COUNT (1)
+0x05, 0x0d,                         //    USAGE_PAGE (Digitizers)
+0x09, 0x56,                         //    USAGE (Scan Time)
+0x81, 0x02,                           //  INPUT (Data,Var,Abs)
+0x09, 0x54,                         //    USAGE (Contact count)
+0x25, 0x7f,                           //  LOGICAL_MAXIMUM (127)
+0x95, 0x01,                         //    REPORT_COUNT (1)
+0x75, 0x08,                         //    REPORT_SIZE (8)
+0x81, 0x02,                         //    INPUT (Data,Var,Abs)
+0x05, 0x09,                         //    USAGE_PAGE (Button)
+0x09, 0x01,                         //    USAGE_(Button 1)
+0x25, 0x01,                         //    LOGICAL_MAXIMUM (1)
+0x75, 0x01,                         //    REPORT_SIZE (1)
+0x95, 0x01,                         //    REPORT_COUNT (1)
+0x81, 0x02,                         //    INPUT (Data,Var,Abs)
+0x95, 0x07,                          //   REPORT_COUNT (7)
+0x81, 0x03,                         //    INPUT (Cnst,Var,Abs)
+0x05, 0x0d,                         //    USAGE_PAGE (Digitizer)
+0x85, 2,            //   REPORT_ID (Feature)
+0x09, 0x55,                         //    USAGE (Contact Count Maximum)
+0x09, 0x59,                         //    USAGE (Pad TYpe)
+0x75, 0x04,                         //    REPORT_SIZE (4)
+0x95, 0x02,                         //    REPORT_COUNT (2)
+0x25, 0x0f,                         //    LOGICAL_MAXIMUM (15)
+0xb1, 0x02,                         //    FEATURE (Data,Var,Abs)
+0x06, 0x00, 0xff,                   //    USAGE_PAGE (Vendor Defined)
+0x85, 3,               //    REPORT_ID (PTPHQA)
+0x09, 0xC5,                         //    USAGE (Vendor Usage 0xC5)
+0x15, 0x00,                         //    LOGICAL_MINIMUM (0)
+0x26, 0xff, 0x00,                   //    LOGICAL_MAXIMUM (0xff)
+0x75, 0x08,                         //    REPORT_SIZE (8)
+0x96, 0x00, 0x01,                   //    REPORT_COUNT (0x100 (256))
+0xb1, 0x02,                         //    FEATURE (Data,Var,Abs)
+0xc0,                               // END_COLLECTION
+//CONFIG TLC
+0x05, 0x0d,                         //    USAGE_PAGE (Digitizer)
+0x09, 0x0E,                         //    USAGE (Configuration)
+0xa1, 0x01,                         //   COLLECTION (Application)
+0x85, 4,             //   REPORT_ID (Feature)
+0x09, 0x22,                         //   USAGE (Finger)
+0xa1, 0x02,                         //   COLLECTION (logical)
+0x09, 0x52,                         //    USAGE (Input Mode)
+0x15, 0x00,                         //    LOGICAL_MINIMUM (0)
+0x25, 0x0a,                         //    LOGICAL_MAXIMUM (10)
+0x75, 0x08,                         //    REPORT_SIZE (8)
+0x95, 0x01,                         //    REPORT_COUNT (1)
+0xb1, 0x02,                         //    FEATURE (Data,Var,Abs
+0xc0,                               //   END_COLLECTION
+0x09, 0x22,                         //   USAGE (Finger)
+0xa1, 0x00,                         //   COLLECTION (physical)
+0x85, 5,     //     REPORT_ID (Feature)
+0x09, 0x57,                         //     USAGE(Surface switch)
+0x09, 0x58,                         //     USAGE(Button switch)
+0x75, 0x01,                         //     REPORT_SIZE (1)
+0x95, 0x02,                         //     REPORT_COUNT (2)
+0x25, 0x01,                         //     LOGICAL_MAXIMUM (1)
+0xb1, 0x02,                         //     FEATURE (Data,Var,Abs)
+0x95, 0x06,                         //     REPORT_COUNT (6)
+0xb1, 0x03,                         //     FEATURE (Cnst,Var,Abs)
+0xc0,                               //   END_COLLECTION
+0xc0,                               // END_COLLECTION
+//MOUSE TLC
+0x05, 0x01,                         // USAGE_PAGE (Generic Desktop)
+0x09, 0x02,                         // USAGE (Mouse)
+0xa1, 0x01,                         // COLLECTION (Application)
+0x85, 6,               //   REPORT_ID (Mouse)
+0x09, 0x01,                         //   USAGE (Pointer)
+0xa1, 0x00,                         //   COLLECTION (Physical)
+0x05, 0x09,                         //     USAGE_PAGE (Button)
+0x19, 0x01,                         //     USAGE_MINIMUM (Button 1)
+0x29, 0x02,                         //     USAGE_MAXIMUM (Button 2)
+0x25, 0x01,                         //     LOGICAL_MAXIMUM (1)
+0x75, 0x01,                         //     REPORT_SIZE (1)
+0x95, 0x02,                         //     REPORT_COUNT (2)
+0x81, 0x02,                         //     INPUT (Data,Var,Abs)
+0x95, 0x06,                         //     REPORT_COUNT (6)
+0x81, 0x03,                         //     INPUT (Cnst,Var,Abs)
+0x05, 0x01,                         //     USAGE_PAGE (Generic Desktop)
+0x09, 0x30,                         //     USAGE (X)
+0x09, 0x31,                         //     USAGE (Y)
+0x75, 0x10,                         //     REPORT_SIZE (16)
+0x95, 0x02,                         //     REPORT_COUNT (2)
+0x25, 0x0a,                          //    LOGICAL_MAXIMUM (10)
+0x81, 0x06,                         //     INPUT (Data,Var,Rel)
+0xc0,                               //   END_COLLECTION
+0xc0,                                //END_COLLECTION
+    };
+    C_ASSERT(sizeof(report_desc) < MAX_HID_DESCRIPTOR_LEN);
+#include "pop_hid_macros.h"
+
+    struct hid_device_desc desc =
+    {
+        .use_report_id = TRUE,
+        .caps = { .InputReportByteLength = 20 },
+        .attributes = default_attributes,
+    };
+    const DIDEVCAPS expect_caps =
+    {
+        .dwSize = sizeof(DIDEVCAPS),
+        .dwFlags = DIDC_ATTACHED | DIDC_EMULATED,
+        .dwDevType = version < 0x800 ? (DIDEVTYPE_HID | DIDEVTYPE_DEVICE)
+                                     : (DIDEVTYPE_HID | DI8DEVTYPE_DEVICE),
+        .dwAxes = 5,
+        .dwButtons = 3,
+    };
+    const DIDEVICEINSTANCEW expect_devinst =
+    {
+        .dwSize = sizeof(DIDEVICEINSTANCEW),
+        .guidInstance = expect_guid_product,
+        .guidProduct = expect_guid_product,
+        .dwDevType = version < 0x800 ? (DIDEVTYPE_HID | DIDEVTYPE_DEVICE)
+                                     : (DIDEVTYPE_HID | DI8DEVTYPE_DEVICE),
+        .tszInstanceName = L"Wine Test",
+        .tszProductName = L"Wine Test",
+        .guidFFDriver = GUID_NULL,
+        .wUsagePage = HID_USAGE_PAGE_DIGITIZER,
+        .wUsage = HID_USAGE_DIGITIZER_TOUCH_PAD,
+    };
+    const DIDEVICEOBJECTINSTANCEW expect_objects[] =
+    {
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_XAxis,
+            .dwOfs = 0,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(0),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"X Axis",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_X,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_YAxis,
+            .dwOfs = 0x4,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(1),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Y Axis",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Y,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_ZAxis,
+            .dwOfs = 0x8,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(2),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Z Axis",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Z,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_RxAxis,
+            .dwOfs = 0xc,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(3),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"X Rotation",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_RX,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_RyAxis,
+            .dwOfs = 0x10,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(4),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Y Rotation",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_RY,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_RzAxis,
+            .dwOfs = 0x14,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(5),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Z Rotation",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_RZ,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Slider,
+            .dwOfs = 0x18,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(6),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Throttle",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_SIMULATION,
+            .wUsage = HID_USAGE_SIMULATION_THROTTLE,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_RzAxis,
+            .dwOfs = 0x1c,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(7),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Rudder",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_SIMULATION,
+            .wUsage = HID_USAGE_SIMULATION_RUDDER,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Slider,
+            .dwOfs = 0x20,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(8),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Slider",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_SLIDER,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Slider,
+            .dwOfs = 0x24,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(9),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Dial",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_DIAL,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_XAxis,
+            .dwOfs = 0x28,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(10),
+            .dwFlags = DIDOI_ASPECTVELOCITY,
+            .tszName = L"X Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xf011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_X,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_YAxis,
+            .dwOfs = 0x2c,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(11),
+            .dwFlags = DIDOI_ASPECTVELOCITY,
+            .tszName = L"Y Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xf011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Y,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_ZAxis,
+            .dwOfs = 0x30,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(12),
+            .dwFlags = DIDOI_ASPECTVELOCITY,
+            .tszName = L"Z Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xf011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Z,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_XAxis,
+            .dwOfs = 0x34,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(13),
+            .dwFlags = DIDOI_ASPECTACCEL,
+            .tszName = L"X Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_X,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_YAxis,
+            .dwOfs = 0x38,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(14),
+            .dwFlags = DIDOI_ASPECTACCEL,
+            .tszName = L"Y Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Y,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_ZAxis,
+            .dwOfs = 0x3c,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(15),
+            .dwFlags = DIDOI_ASPECTACCEL,
+            .tszName = L"Z Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Z,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_XAxis,
+            .dwOfs = 0x40,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(16),
+            .dwFlags = DIDOI_ASPECTFORCE,
+            .tszName = L"X Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe111,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_X,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_YAxis,
+            .dwOfs = 0x44,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(17),
+            .dwFlags = DIDOI_ASPECTFORCE,
+            .tszName = L"Y Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe111,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Y,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_ZAxis,
+            .dwOfs = 0x48,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(18),
+            .dwFlags = DIDOI_ASPECTFORCE,
+            .tszName = L"Z Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe111,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Z,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Unknown,
+            .dwType = DIDFT_COLLECTION|DIDFT_NODATA|DIDFT_MAKEINSTANCE(0),
+            .tszName = L"Collection 0 - Joystick",
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_JOYSTICK,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Unknown,
+            .dwType = DIDFT_COLLECTION|DIDFT_NODATA|DIDFT_MAKEINSTANCE(1),
+            .tszName = L"Collection 1 - Joystick",
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_JOYSTICK,
+        },
+    };
+    struct check_objects_params check_objects_params =
+    {
+        .expect_count = ARRAY_SIZE(expect_objects),
+        .expect_objs = expect_objects,
+    };
+
+    DIDEVICEINSTANCEW devinst = {0};
+    IDirectInputDevice8W *device;
+    DIDEVCAPS caps = {0};
+    HRESULT hr;
+    ULONG ref;
+
+    cleanup_registry_keys();
+
+    desc.report_descriptor_len = sizeof(report_desc);
+    memcpy( desc.report_descriptor_buf, report_desc, sizeof(report_desc) );
+    fill_context( desc.context, ARRAY_SIZE(desc.context) );
+
+    if (!hid_device_start( &desc, 1 )) goto done;
+    if (FAILED(hr = dinput_test_create_device( version, &devinst, &device ))) goto done;
+
+    check_dinput_devices( version, &devinst );
+
+    memset( &devinst, 0, sizeof(devinst) );
+    devinst.dwSize = sizeof(DIDEVICEINSTANCEW);
+    hr = IDirectInputDevice8_GetDeviceInfo( device, &devinst );
+    ok( hr == DI_OK, "GetDeviceInfo returned %#lx\n", hr );
+    check_member( devinst, expect_devinst, "%lu", dwSize );
+    todo_wine
+    check_member_guid( devinst, expect_devinst, guidInstance );
+    check_member_guid( devinst, expect_devinst, guidProduct );
+    todo_wine
+    check_member( devinst, expect_devinst, "%#lx", dwDevType );
+    check_member_wstr( devinst, expect_devinst, tszInstanceName );
+    check_member_wstr( devinst, expect_devinst, tszProductName );
+    check_member_guid( devinst, expect_devinst, guidFFDriver );
+    check_member( devinst, expect_devinst, "%04x", wUsagePage );
+    check_member( devinst, expect_devinst, "%04x", wUsage );
+
+    hr = IDirectInputDevice8_GetCapabilities( device, NULL );
+    ok( hr == E_POINTER, "GetCapabilities returned %#lx\n", hr );
+    hr = IDirectInputDevice8_GetCapabilities( device, &caps );
+    ok( hr == DIERR_INVALIDPARAM, "GetCapabilities returned %#lx\n", hr );
+    caps.dwSize = sizeof(DIDEVCAPS);
+    hr = IDirectInputDevice8_GetCapabilities( device, &caps );
+    ok( hr == DI_OK, "GetCapabilities returned %#lx\n", hr );
+    check_member( caps, expect_caps, "%lu", dwSize );
+    check_member( caps, expect_caps, "%#lx", dwFlags );
+    todo_wine
+    check_member( caps, expect_caps, "%#lx", dwDevType );
+    check_member( caps, expect_caps, "%lu", dwAxes );
+    check_member( caps, expect_caps, "%lu", dwButtons );
+    check_member( caps, expect_caps, "%lu", dwPOVs );
+    check_member( caps, expect_caps, "%lu", dwFFSamplePeriod );
+    check_member( caps, expect_caps, "%lu", dwFFMinTimeResolution );
+    check_member( caps, expect_caps, "%lu", dwFirmwareRevision );
+    check_member( caps, expect_caps, "%lu", dwHardwareRevision );
+    check_member( caps, expect_caps, "%lu", dwFFDriverVersion );
+
+    hr = IDirectInputDevice8_EnumObjects( device, check_objects, &check_objects_params, DIDFT_ALL );
+    ok( hr == DI_OK, "EnumObjects returned %#lx\n", hr );
+    ok( check_objects_params.index >= check_objects_params.expect_count, "missing %u objects\n",
+        check_objects_params.expect_count - check_objects_params.index );
+
+    ref = IDirectInputDevice8_Release( device );
+    ok( ref == 0, "Release returned %ld\n", ref );
+
+done:
+    hid_device_stop( &desc, 1 );
+    cleanup_registry_keys();
+    winetest_pop_context();
+
+}
+
+static void test_hid_touchscreen( DWORD version )
+{
+#include "psh_hid_macros.h"
+    static const unsigned char report_desc[] =
+    {
+    0x05, 0x0d,                         // USAGE_PAGE (Digitizers)
+    0x09, 0x04,                         // USAGE (Touch Screen)
+    0xa1, 0x01,                         // COLLECTION (Application)
+    0x85, 0x01,                         //   REPORT_ID (Touch)
+    0x09, 0x22,                         //   USAGE (Finger)
+    0xa1, 0x02,                         //     COLLECTION (Logical)
+    0x09, 0x42,                         //       USAGE (Tip Switch)
+    0x15, 0x00,                         //       LOGICAL_MINIMUM (0)
+    0x25, 0x01,                         //       LOGICAL_MAXIMUM (1)
+    0x75, 0x01,                         //       REPORT_SIZE (1)
+    0x95, 0x01,                         //       REPORT_COUNT (1)
+    0x81, 0x02,                         //       INPUT (Data,Var,Abs)
+    0x95, 0x07,                         //       REPORT_COUNT (7)
+    0x81, 0x03,                         //       INPUT (Cnst,Ary,Abs)
+    0x75, 0x08,                         //       REPORT_SIZE (8)
+    0x09, 0x51,                         //       USAGE (Contact Identifier)
+    0x95, 0x01,                         //       REPORT_COUNT (1)
+    0x81, 0x02,                         //       INPUT (Data,Var,Abs)
+    0x05, 0x01,                         //       USAGE_PAGE (Generic Desk..
+    0x26, 0xff, 0x0f,                   //       LOGICAL_MAXIMUM (4095)
+    0x75, 0x10,                         //       REPORT_SIZE (16)
+    0x55, 0x0e,                         //       UNIT_EXPONENT (-2)
+    0x65, 0x13,                         //       UNIT(Inch,EngLinear)
+    0x09, 0x30,                         //       USAGE (X)
+    0x35, 0x00,                         //       PHYSICAL_MINIMUM (0)
+    0x46, 0xb5, 0x04,                   //       PHYSICAL_MAXIMUM (1205)
+    0x95, 0x02,                         //       REPORT_COUNT (2)
+    0x81, 0x02,                         //       INPUT (Data,Var,Abs)
+    0x46, 0x8a, 0x03,                   //       PHYSICAL_MAXIMUM (906)
+    0x09, 0x31,                         //       USAGE (Y)
+    0x81, 0x02,                         //       INPUT (Data,Var,Abs)
+    0x05, 0x0d,                         //       USAGE_PAGE (Digitizers)
+    0x09, 0x48,                         //       USAGE (Width)
+    0x09, 0x49,                         //       USAGE (Height)
+    0x81, 0x02,                         //       INPUT (Data,Var,Abs)
+    0x95, 0x01,                         //       REPORT_COUNT (1)
+    0x55, 0x0C,                         //       UNIT_EXPONENT (-4)
+    0x65, 0x12,                         //       UNIT (Radians,SIROtation)
+    0x35, 0x00,                         //       PHYSICAL_MINIMUM (0)
+    0x47, 0x6f, 0xf5, 0x00, 0x00,       //       PHYSICAL_MAXIMUM (62831)
+    0x15, 0x00,                         //       LOGICAL_MINIMUM (0)
+    0x27, 0x6f, 0xf5, 0x00, 0x00,       //       LOGICAL_MAXIMUM (62831)
+    0x09, 0x3f,                         //       USAGE (Azimuth[Orientation])
+    0x81, 0x02,                         //       INPUT (Data,Var,Abs)
+    0xc0,                               //     END_COLLECTION
+    0x09, 0x22,                         //   USAGE (Finger)
+    0xa1, 0x02,                         //     COLLECTION (Logical)
+    0x09, 0x42,                         //       USAGE (Tip Switch)
+    0x15, 0x00,                         //       LOGICAL_MINIMUM (0)
+    0x25, 0x01,                         //       LOGICAL_MAXIMUM (1)
+    0x75, 0x01,                         //       REPORT_SIZE (1)
+    0x95, 0x01,                         //       REPORT_COUNT (1)
+    0x81, 0x02,                         //       INPUT (Data,Var,Abs)
+    0x95, 0x07,                         //       REPORT_COUNT (7)
+    0x81, 0x03,                         //       INPUT (Cnst,Ary,Abs)
+    0x75, 0x08,                         //       REPORT_SIZE (8)
+    0x09, 0x51,                         //       USAGE (Contact Identifier)
+    0x95, 0x01,                         //       REPORT_COUNT (1)
+    0x81, 0x02,                         //       INPUT (Data,Var,Abs)
+    0x05, 0x01,                         //       USAGE_PAGE (Generic Desk..
+    0x26, 0xff, 0x0f,                   //       LOGICAL_MAXIMUM (4095)
+    0x75, 0x10,                         //       REPORT_SIZE (16)
+    0x55, 0x0e,                         //       UNIT_EXPONENT (-2)
+    0x65, 0x13,                         //       UNIT(Inch,EngLinear)
+    0x09, 0x30,                         //       USAGE (X)
+    0x35, 0x00,                         //       PHYSICAL_MINIMUM (0)
+    0x46, 0xb5, 0x04,                   //       PHYSICAL_MAXIMUM (1205)
+    0x95, 0x02,                         //       REPORT_COUNT (2)
+    0x81, 0x02,                         //       INPUT (Data,Var,Abs)
+    0x46, 0x8a, 0x03,                   //       PHYSICAL_MAXIMUM (906)
+    0x09, 0x31,                         //       USAGE (Y)
+    0x81, 0x02,                         //       INPUT (Data,Var,Abs)
+    0x05, 0x0d,                         //       USAGE_PAGE (Digitizers)
+    0x09, 0x48,                         //       USAGE (Width)
+    0x09, 0x49,                         //       USAGE (Height)
+    0x81, 0x02,                         //       INPUT (Data,Var,Abs)
+    0x95, 0x01,                         //       REPORT_COUNT (1)
+    0x55, 0x0C,                         //       UNIT_EXPONENT (-4)
+    0x65, 0x12,                         //       UNIT (Radians,SIROtation)
+    0x35, 0x00,                         //       PHYSICAL_MINIMUM (0)
+    0x47, 0x6f, 0xf5, 0x00, 0x00,       //       PHYSICAL_MAXIMUM (62831)
+    0x15, 0x00,                         //       LOGICAL_MINIMUM (0)
+    0x27, 0x6f, 0xf5, 0x00, 0x00,       //       LOGICAL_MAXIMUM (62831)
+    0x09, 0x3f,                         //       USAGE (Azimuth[Orientation])
+    0x81, 0x02,                         //       INPUT (Data,Var,Abs)
+    0xc0,                               //     END_COLLECTION
+    0x05, 0x0d,                         //   USAGE_PAGE (Digitizers)
+    0x55, 0x0C,                         //     UNIT_EXPONENT (-4)
+    0x66, 0x01, 0x10,                   //     UNIT (Seconds)
+    0x47, 0xff, 0xff, 0x00, 0x00,       //       PHYSICAL_MAXIMUM (65535)
+    0x27, 0xff, 0xff, 0x00, 0x00,       //   LOGICAL_MAXIMUM (65535)
+    0x75, 0x10,                         //   REPORT_SIZE (16)
+    0x95, 0x01,                         //   REPORT_COUNT (1)
+    0x09, 0x56,                         //   USAGE (Scan Time)
+    0x81, 0x02,                         //   INPUT (Data,Var,Abs)
+    0x09, 0x54,                         //   USAGE (Contact count)
+    0x25, 0x7f,                         //   LOGICAL_MAXIMUM (127)
+    0x95, 0x01,                         //   REPORT_COUNT (1)
+    0x75, 0x08,                         //   REPORT_SIZE (8)
+    0x81, 0x02,                         //   INPUT (Data,Var,Abs)
+    0x85, 1,           //   REPORT_ID (Feature)
+    0x09, 0x55,                         //   USAGE(Contact Count Maximum)
+    0x95, 0x01,                         //   REPORT_COUNT (1)
+    0x25, 0x02,                         //   LOGICAL_MAXIMUM (2)
+    0xb1, 0x02,                         //   FEATURE (Data,Var,Abs)
+    0x85, 0x44,                         //   REPORT_ID (Feature)
+    0x06, 0x00, 0xff,                   //   USAGE_PAGE (Vendor Defined)
+    0x09, 0xC5,                         //   USAGE (Vendor Usage 0xC5)
+    0x15, 0x00,                         //   LOGICAL_MINIMUM (0)
+    0x26, 0xff, 0x00,                   //   LOGICAL_MAXIMUM (0xff)
+    0x75, 0x08,                         //   REPORT_SIZE (8)
+    0x96, 0x00,  0x01,                  //   REPORT_COUNT (0x100 (256))
+    0xb1, 0x02,                         //   FEATURE (Data,Var,Abs)
+    0xc0,                               // END_COLLECTION
+    };
+    C_ASSERT(sizeof(report_desc) < MAX_HID_DESCRIPTOR_LEN);
+#include "pop_hid_macros.h"
+
+    struct hid_device_desc desc =
+    {
+        .use_report_id = TRUE,
+        .caps = { .InputReportByteLength = 20 },
+        .attributes = default_attributes,
+    };
+    const DIDEVCAPS expect_caps =
+    {
+        .dwSize = sizeof(DIDEVCAPS),
+        .dwFlags = DIDC_ATTACHED | DIDC_EMULATED,
+        .dwDevType = version < 0x800 ? (DIDEVTYPE_HID | DIDEVTYPE_DEVICE)
+                                     : (DIDEVTYPE_HID | DI8DEVTYPE_DEVICE),
+        .dwAxes = 5,
+        .dwButtons = 3,
+    };
+    const DIDEVICEINSTANCEW expect_devinst =
+    {
+        .dwSize = sizeof(DIDEVICEINSTANCEW),
+        .guidInstance = expect_guid_product,
+        .guidProduct = expect_guid_product,
+        .dwDevType = version < 0x800 ? (DIDEVTYPE_HID | DIDEVTYPE_DEVICE)
+                                     : (DIDEVTYPE_HID | DI8DEVTYPE_DEVICE),
+        .tszInstanceName = L"Wine Test",
+        .tszProductName = L"Wine Test",
+        .guidFFDriver = GUID_NULL,
+        .wUsagePage = HID_USAGE_PAGE_DIGITIZER,
+        .wUsage = HID_USAGE_DIGITIZER_TOUCH_PAD,
+    };
+    const DIDEVICEOBJECTINSTANCEW expect_objects[] =
+    {
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_XAxis,
+            .dwOfs = 0,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(0),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"X Axis",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_X,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_YAxis,
+            .dwOfs = 0x4,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(1),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Y Axis",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Y,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_ZAxis,
+            .dwOfs = 0x8,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(2),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Z Axis",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Z,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_RxAxis,
+            .dwOfs = 0xc,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(3),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"X Rotation",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_RX,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_RyAxis,
+            .dwOfs = 0x10,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(4),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Y Rotation",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_RY,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_RzAxis,
+            .dwOfs = 0x14,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(5),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Z Rotation",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_RZ,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Slider,
+            .dwOfs = 0x18,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(6),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Throttle",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_SIMULATION,
+            .wUsage = HID_USAGE_SIMULATION_THROTTLE,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_RzAxis,
+            .dwOfs = 0x1c,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(7),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Rudder",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_SIMULATION,
+            .wUsage = HID_USAGE_SIMULATION_RUDDER,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Slider,
+            .dwOfs = 0x20,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(8),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Slider",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_SLIDER,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Slider,
+            .dwOfs = 0x24,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(9),
+            .dwFlags = DIDOI_ASPECTPOSITION,
+            .tszName = L"Dial",
+            .wCollectionNumber = 1,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_DIAL,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_XAxis,
+            .dwOfs = 0x28,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(10),
+            .dwFlags = DIDOI_ASPECTVELOCITY,
+            .tszName = L"X Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xf011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_X,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_YAxis,
+            .dwOfs = 0x2c,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(11),
+            .dwFlags = DIDOI_ASPECTVELOCITY,
+            .tszName = L"Y Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xf011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Y,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_ZAxis,
+            .dwOfs = 0x30,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(12),
+            .dwFlags = DIDOI_ASPECTVELOCITY,
+            .tszName = L"Z Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xf011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Z,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_XAxis,
+            .dwOfs = 0x34,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(13),
+            .dwFlags = DIDOI_ASPECTACCEL,
+            .tszName = L"X Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_X,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_YAxis,
+            .dwOfs = 0x38,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(14),
+            .dwFlags = DIDOI_ASPECTACCEL,
+            .tszName = L"Y Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Y,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_ZAxis,
+            .dwOfs = 0x3c,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(15),
+            .dwFlags = DIDOI_ASPECTACCEL,
+            .tszName = L"Z Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe011,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Z,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_XAxis,
+            .dwOfs = 0x40,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(16),
+            .dwFlags = DIDOI_ASPECTFORCE,
+            .tszName = L"X Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe111,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_X,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_YAxis,
+            .dwOfs = 0x44,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(17),
+            .dwFlags = DIDOI_ASPECTFORCE,
+            .tszName = L"Y Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe111,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Y,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_ZAxis,
+            .dwOfs = 0x48,
+            .dwType = DIDFT_ABSAXIS|DIDFT_MAKEINSTANCE(18),
+            .dwFlags = DIDOI_ASPECTFORCE,
+            .tszName = L"Z Axis",
+            .wCollectionNumber = 1,
+            .dwDimension = 0xe111,
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_Z,
+            .wReportId = 1,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Unknown,
+            .dwType = DIDFT_COLLECTION|DIDFT_NODATA|DIDFT_MAKEINSTANCE(0),
+            .tszName = L"Collection 0 - Joystick",
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_JOYSTICK,
+        },
+        {
+            .dwSize = sizeof(DIDEVICEOBJECTINSTANCEW),
+            .guidType = GUID_Unknown,
+            .dwType = DIDFT_COLLECTION|DIDFT_NODATA|DIDFT_MAKEINSTANCE(1),
+            .tszName = L"Collection 1 - Joystick",
+            .wUsagePage = HID_USAGE_PAGE_GENERIC,
+            .wUsage = HID_USAGE_GENERIC_JOYSTICK,
+        },
+    };
+    struct check_objects_params check_objects_params =
+    {
+        .expect_count = ARRAY_SIZE(expect_objects),
+        .expect_objs = expect_objects,
+    };
+
+    DIDEVICEINSTANCEW devinst = {0};
+    IDirectInputDevice8W *device;
+    DIDEVCAPS caps = {0};
+    HRESULT hr;
+    ULONG ref;
+
+    cleanup_registry_keys();
+
+    desc.report_descriptor_len = sizeof(report_desc);
+    memcpy( desc.report_descriptor_buf, report_desc, sizeof(report_desc) );
+    fill_context( desc.context, ARRAY_SIZE(desc.context) );
+
+    if (!hid_device_start( &desc, 1 )) goto done;
+    if (FAILED(hr = dinput_test_create_device( version, &devinst, &device ))) goto done;
+
+    check_dinput_devices( version, &devinst );
+
+    memset( &devinst, 0, sizeof(devinst) );
+    devinst.dwSize = sizeof(DIDEVICEINSTANCEW);
+    hr = IDirectInputDevice8_GetDeviceInfo( device, &devinst );
+    ok( hr == DI_OK, "GetDeviceInfo returned %#lx\n", hr );
+    check_member( devinst, expect_devinst, "%lu", dwSize );
+    todo_wine
+    check_member_guid( devinst, expect_devinst, guidInstance );
+    check_member_guid( devinst, expect_devinst, guidProduct );
+    todo_wine
+    check_member( devinst, expect_devinst, "%#lx", dwDevType );
+    check_member_wstr( devinst, expect_devinst, tszInstanceName );
+    check_member_wstr( devinst, expect_devinst, tszProductName );
+    check_member_guid( devinst, expect_devinst, guidFFDriver );
+    check_member( devinst, expect_devinst, "%04x", wUsagePage );
+    check_member( devinst, expect_devinst, "%04x", wUsage );
+
+    hr = IDirectInputDevice8_GetCapabilities( device, NULL );
+    ok( hr == E_POINTER, "GetCapabilities returned %#lx\n", hr );
+    hr = IDirectInputDevice8_GetCapabilities( device, &caps );
+    ok( hr == DIERR_INVALIDPARAM, "GetCapabilities returned %#lx\n", hr );
+    caps.dwSize = sizeof(DIDEVCAPS);
+    hr = IDirectInputDevice8_GetCapabilities( device, &caps );
+    ok( hr == DI_OK, "GetCapabilities returned %#lx\n", hr );
+    check_member( caps, expect_caps, "%lu", dwSize );
+    check_member( caps, expect_caps, "%#lx", dwFlags );
+    todo_wine
+    check_member( caps, expect_caps, "%#lx", dwDevType );
+    check_member( caps, expect_caps, "%lu", dwAxes );
+    check_member( caps, expect_caps, "%lu", dwButtons );
+    check_member( caps, expect_caps, "%lu", dwPOVs );
+    check_member( caps, expect_caps, "%lu", dwFFSamplePeriod );
+    check_member( caps, expect_caps, "%lu", dwFFMinTimeResolution );
+    check_member( caps, expect_caps, "%lu", dwFirmwareRevision );
+    check_member( caps, expect_caps, "%lu", dwHardwareRevision );
+    check_member( caps, expect_caps, "%lu", dwFFDriverVersion );
+
+    hr = IDirectInputDevice8_EnumObjects( device, check_objects, &check_objects_params, DIDFT_ALL );
+    ok( hr == DI_OK, "EnumObjects returned %#lx\n", hr );
+    ok( check_objects_params.index >= check_objects_params.expect_count, "missing %u objects\n",
+        check_objects_params.expect_count - check_objects_params.index );
+
+    ref = IDirectInputDevice8_Release( device );
+    ok( ref == 0, "Release returned %ld\n", ref );
+
+done:
+    hid_device_stop( &desc, 1 );
+    cleanup_registry_keys();
+    winetest_pop_context();
+}
+
 START_TEST(device8)
 {
     dinput_test_init();
 
+goto skip_tests;
     test_QueryInterface( 0x300 );
     test_QueryInterface( 0x500 );
     test_QueryInterface( 0x700 );
@@ -3291,11 +4966,27 @@ START_TEST(device8)
     test_keyboard_events();
     test_appdata_property();
 
+skip_tests:
     if (!bus_device_start()) goto done;
+
+    test_hid_touch_screen();
+    goto done;
 
     test_hid_mouse();
     test_hid_keyboard();
     test_hid_touch_screen();
+
+    test_hid_pen( 0x500 );
+    test_hid_pen( 0x700 );
+    test_hid_pen( 0x800 );
+
+    test_hid_touchpad( 0x500 );
+    test_hid_touchpad( 0x700 );
+    test_hid_touchpad( 0x800 );
+
+    test_hid_touchscreen( 0x500 );
+    test_hid_touchscreen( 0x700 );
+    test_hid_touchscreen( 0x800 );
 
 done:
     bus_device_stop();

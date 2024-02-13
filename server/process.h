@@ -73,6 +73,7 @@ struct process
     struct event        *idle_event;      /* event for input idle */
     obj_handle_t         winstation;      /* main handle to process window station */
     obj_handle_t         desktop;         /* handle to desktop to use for new threads */
+    struct object       *host;            /* interface with the host */
     struct token        *token;           /* security token associated with this process */
     struct list          views;           /* list of memory views */
     client_ptr_t         peb;             /* PEB address in client address space */
@@ -116,6 +117,7 @@ extern void kill_process( struct process *process, int violent_death );
 extern void kill_console_processes( struct thread *renderer, int exit_code );
 extern void detach_debugged_processes( struct debug_obj *debug_obj, int exit_code );
 extern void enum_processes( int (*cb)(struct process*, void*), void *user);
+extern void enum_processes_for_host( struct object *host, int (*callback)( struct process *, void * ), void *user );
 
 /* console functions */
 extern struct thread *console_get_renderer( struct console *console );

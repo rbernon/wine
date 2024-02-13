@@ -118,6 +118,7 @@ static const struct object_ops process_ops =
     no_open_file,                /* open_file */
     process_get_kernel_obj_list, /* get_kernel_obj_list */
     no_close_handle,             /* close_handle */
+    NULL,                        /* get_host_ops */
     process_destroy              /* destroy */
 };
 
@@ -169,6 +170,7 @@ static const struct object_ops startup_info_ops =
     no_open_file,                  /* open_file */
     no_kernel_obj_list,            /* get_kernel_obj_list */
     no_close_handle,               /* close_handle */
+    NULL,                          /* get_host_ops */
     startup_info_destroy           /* destroy */
 };
 
@@ -230,6 +232,7 @@ static const struct object_ops job_ops =
     no_open_file,                  /* open_file */
     no_kernel_obj_list,            /* get_kernel_obj_list */
     job_close_handle,              /* close_handle */
+    NULL,                          /* get_host_ops */
     job_destroy                    /* destroy */
 };
 
@@ -684,6 +687,7 @@ struct process *create_process( int fd, struct process *parent, unsigned int fla
     process->rawinput_device_count = 0;
     process->rawinput_mouse  = NULL;
     process->rawinput_kbd    = NULL;
+    process->host            = NULL;
     memset( &process->image_info, 0, sizeof(process->image_info) );
     list_init( &process->rawinput_entry );
     list_init( &process->kernel_object );
@@ -780,6 +784,7 @@ static void process_destroy( struct object *obj )
     if (process->idle_event) release_object( process->idle_event );
     if (process->id) free_ptid( process->id );
     if (process->token) release_object( process->token );
+    if (process->host) release_object( process->host );
     list_remove( &process->rawinput_entry );
     free( process->rawinput_devices );
     free( process->dir_cache );
@@ -1112,6 +1117,20 @@ void enum_processes( int (*cb)(struct process*, void*), void *user )
         if ((cb)(process, user)) break;
     }
 }
+
+
+void enum_processes_for_host( struct object *host, int (*callback)( struct process *, void * ), void *user )
+{
+    struct list *ptr, *next;
+
+    LIST_FOR_EACH_SAFE( ptr, next, &process_list )
+    {
+        struct process *process = LIST_ENTRY( ptr, struct process, entry );
+        if (process->host != host) continue;
+        if (callback( process, user )) break;
+    }
+}
+
 
 /* set the debugged flag in the process PEB */
 int set_process_debug_flag( struct process *process, int flag )

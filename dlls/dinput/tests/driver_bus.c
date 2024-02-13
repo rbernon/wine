@@ -34,6 +34,7 @@
 #include "ddk/wdm.h"
 #include "ddk/hidsdi.h"
 #include "ddk/hidport.h"
+#include "ddk/hidpddi.h"
 
 #include "wine/list.h"
 
@@ -288,7 +289,15 @@ static void expect_queue_next( struct expect_queue *queue, ULONG code, HID_XFER_
         *missing_end++ = *tmp++;
     }
     *index = tmp - queue->buffer;
-    if (tmp < queue->end) queue->pos = tmp + 1;
+    if (tmp < queue->end)
+    {
+        if (!tmp->repeat_count) queue->pos = tmp + 1;
+        else
+        {
+            tmp->repeat_count -= 1;
+            queue->pos = tmp - (tmp->repeat_length - 1);
+        }
+    }
     else tmp = &queue->spurious;
     *expect = *tmp;
 
@@ -412,14 +421,28 @@ static BOOL input_queue_read_locked( struct input_queue *queue, IRP *irp )
     IO_STACK_LOCATION *stack = IoGetCurrentIrpStackLocation( irp );
     ULONG out_size = stack->Parameters.DeviceIoControl.OutputBufferLength;
     struct hid_expect *tmp = queue->pos;
+    LARGE_INTEGER counter, frequency;
 
     if (tmp >= queue->end) return FALSE;
     if (tmp->ret_length) out_size = tmp->ret_length;
 
     memcpy( irp->UserBuffer, tmp->report_buf, out_size );
+    if (tmp->timestamp)
+    {
+        counter.QuadPart = KeQueryPerformanceCounter( &frequency );
+        memcpy( (char *)irp->UserBuffer + 2, &counter, min( sizeof(counter), out_size ) );
+    }
     irp->IoStatus.Information = out_size;
     irp->IoStatus.Status = tmp->ret_status;
-    if (tmp < queue->end) queue->pos = tmp + 1;
+    if (tmp < queue->end)
+    {
+        if (!tmp->repeat_count) queue->pos = tmp + 1;
+        else
+        {
+            tmp->repeat_count -= 1;
+            queue->pos = tmp - (tmp->repeat_length - 1);
+        }
+    }
 
     /* loop on the queue data in polled mode */
     if (queue->is_polled && queue->pos == queue->end) queue->pos = queue->buffer;
@@ -563,7 +586,7 @@ static NTSTATUS remove_child_device( struct func_device *impl, DEVICE_OBJECT *de
     for (i = 0; i < impl->devices->Count; ++i)
         if (impl->devices->Objects[i] == device) break;
     if (i == impl->devices->Count) status = STATUS_NOT_FOUND;
-    else impl->devices->Objects[i] = impl->devices->Objects[impl->devices->Count--];
+    else impl->devices->Objects[i] = impl->devices->Objects[--impl->devices->Count];
     KeReleaseSpinLock( &impl->base.lock, irql );
 
     return status;
@@ -847,7 +870,9 @@ static NTSTATUS pdo_pnp( DEVICE_OBJECT *device, IRP *irp )
         case EjectionRelations:
             if (winetest_debug > 1) trace( "pdo_pnp IRP_MN_QUERY_DEVICE_RELATIONS EjectionRelations\n" );
             ok( !irp->IoStatus.Information, "got unexpected EjectionRelations relations\n" );
-            status = irp->IoStatus.Status;
+            irp->IoStatus.Information = get_device_relations( device, (void *)irp->IoStatus.Information, 1, &device );
+            if (!irp->IoStatus.Information) status = STATUS_NO_MEMORY;
+            else status = STATUS_SUCCESS;
             break;
         case RemovalRelations:
             if (winetest_debug > 1) trace( "pdo_pnp IRP_MN_QUERY_DEVICE_RELATIONS RemovalRelations\n" );
@@ -884,6 +909,7 @@ static NTSTATUS create_child_pdo( DEVICE_OBJECT *device, struct hid_device_desc 
     static ULONG index;
 
     struct func_device *fdo = fdo_from_DEVICE_OBJECT( device );
+    HIDP_DEVICE_DESC device_desc;
     struct phys_device *impl;
     UNICODE_STRING name_str;
     DEVICE_OBJECT *child;
@@ -921,6 +947,25 @@ static NTSTATUS create_child_pdo( DEVICE_OBJECT *device, struct hid_device_desc 
     expect_queue_init( &impl->expect_queue );
     expect_queue_reset( &impl->expect_queue, desc->expect, desc->expect_size );
     memcpy( impl->expect_queue.context, desc->context, desc->context_size );
+
+    memset( &device_desc, 0xcd, sizeof(device_desc) );
+    status = HidP_GetCollectionDescription( (BYTE *)desc->report_descriptor_buf, desc->report_descriptor_len, PagedPool, &device_desc );
+    ok( !status, "HidP_GetCollectionDescription returned %#lx", status );
+
+    ok( 0, "got CollectionDesc %p\n", device_desc.CollectionDesc );
+    ok( 0, "got CollectionDescLength %lu\n", device_desc.CollectionDescLength );
+    ok( 0, "got ReportIDs %p\n", device_desc.ReportIDs );
+    ok( 0, "got ReportIDsLength %lu\n", device_desc.ReportIDsLength );
+    ok( 0, "got Dbg.BreakOffset %lu\n", device_desc.Dbg.BreakOffset );
+    ok( 0, "got Dbg.ErrorCode %#lx\n", device_desc.Dbg.ErrorCode );
+    ok( 0, "got Dbg.Args[0] %#lx\n", device_desc.Dbg.Args[0] );
+    ok( 0, "got Dbg.Args[1] %#lx\n", device_desc.Dbg.Args[1] );
+    ok( 0, "got Dbg.Args[2] %#lx\n", device_desc.Dbg.Args[2] );
+    ok( 0, "got Dbg.Args[3] %#lx\n", device_desc.Dbg.Args[3] );
+    ok( 0, "got Dbg.Args[4] %#lx\n", device_desc.Dbg.Args[4] );
+    ok( 0, "got Dbg.Args[5] %#lx\n", device_desc.Dbg.Args[5] );
+
+    HidP_FreeCollectionDescription( &device_desc );
 
     if (winetest_debug > 1) trace( "Created Bus PDO %p for Bus FDO %p\n", child, device );
 
