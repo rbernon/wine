@@ -93,6 +93,9 @@
 #include "wine/list.h"
 #include "ntsyscalls.h"
 #include "wine/debug.h"
+#ifdef HAVE_VALGRIND_VALGRIND_H
+# include <valgrind/valgrind.h>
+#endif
 
 WINE_DEFAULT_DEBUG_CHANNEL(module);
 
@@ -536,6 +539,8 @@ static void preloader_exec( char **argv )
 #ifdef HAVE_WINE_PRELOADER
     static const char *preloader = "wine-preloader";
     char *p;
+
+    if (RUNNING_ON_VALGRIND) return;
 
     if (!(p = strrchr( argv[1], '/' ))) p = argv[1];
     else p++;
