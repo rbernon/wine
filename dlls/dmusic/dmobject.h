@@ -47,6 +47,8 @@ HRESULT stream_chunk_get_wstr(IStream *stream, const struct chunk_entry *chunk, 
 HRESULT stream_get_loader(IStream *stream, IDirectMusicLoader **ret_loader);
 HRESULT stream_get_object(IStream *stream, DMUS_OBJECTDESC *desc, REFIID riid, void **ret_iface);
 
+extern HRESULT stream_chunk_parse_desc(IStream *stream, const struct chunk_entry *chunk, DMUS_OBJECTDESC *desc);
+
 static inline HRESULT stream_reset_chunk_data(IStream *stream, const struct chunk_entry *chunk)
 {
     LARGE_INTEGER offset;
@@ -67,6 +69,8 @@ static inline HRESULT stream_reset_chunk_start(IStream *stream, const struct chu
     return IStream_Seek(stream, offset, STREAM_SEEK_SET, NULL);
 }
 
+struct dmobject;
+typedef HRESULT (*parse_stream_callback)(struct dmobject *object, IStream *stream, DMUS_OBJECTDESC *desc);
 
 /* IDirectMusicObject base object */
 struct dmobject {
@@ -74,9 +78,15 @@ struct dmobject {
     IPersistStream IPersistStream_iface;
     IUnknown *outer_unk;
     DMUS_OBJECTDESC desc;
+    parse_stream_callback parse_stream;
 };
 
+void dmobject_init_ex(struct dmobject *dmobj, const GUID *class, IUnknown *outer_unk,
+        parse_stream_callback parse_stream);
 void dmobject_init(struct dmobject *dmobj, const GUID *class, IUnknown *outer_unk);
+
+void track_init(struct dmobject *dmobj, const GUID *class, IUnknown *outer_unk,
+        parse_stream_callback parse_stream);
 
 /* Generic IDirectMusicObject methods */
 HRESULT WINAPI dmobj_IDirectMusicObject_QueryInterface(IDirectMusicObject *iface, REFIID riid,
@@ -95,7 +105,6 @@ HRESULT dmobj_parsedescriptor(IStream *stream, const struct chunk_entry *riff,
    DMUS_OBJ_NAME is 'UNAM' chunk in UNFO list */
 #define DMUS_OBJ_NAME_INAM   0x1000     /* 'INAM' chunk in UNFO list */
 #define DMUS_OBJ_NAME_INFO   0x2000     /* 'INAM' chunk in INFO list */
-#define DMUS_OBJ_GUID_DLID   0x4000     /* 'dlid' chunk instead of 'guid' */
 
 /* 'DMRF' (reference list) helper */
 HRESULT dmobj_parsereference(IStream *stream, const struct chunk_entry *list,
