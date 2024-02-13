@@ -15802,3 +15802,4 @@ START_TEST(ddraw1)
     test_pinned_sysmem();
     test_multiple_devices();
 }
+

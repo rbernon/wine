@@ -156,7 +156,6 @@ extern BOOL macdrv_CreateWindowSurface(HWND hwnd, BOOL layered, const RECT *surf
 extern void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, UINT swp_flags, BOOL fullscreen,
                                     const struct window_rects *new_rects, struct window_surface *surface);
 extern void macdrv_DestroyCursorIcon(HCURSOR cursor);
-extern BOOL macdrv_GetCursorPos(LPPOINT pos);
 extern void macdrv_SetCapture(HWND hwnd, UINT flags);
 extern void macdrv_SetCursor(HWND hwnd, HCURSOR cursor);
 extern BOOL macdrv_SetCursorPos(INT x, INT y);
@@ -170,6 +169,7 @@ extern INT macdrv_ToUnicodeEx(UINT virtKey, UINT scanCode, const BYTE *lpKeyStat
 extern UINT macdrv_GetKeyboardLayoutList(INT size, HKL *list);
 extern INT macdrv_GetKeyNameText(LONG lparam, LPWSTR buffer, INT size);
 extern void macdrv_NotifyIMEStatus( HWND hwnd, UINT status );
+extern void macdrv_SetCaretPos( const RECT *caret );
 extern BOOL macdrv_SystemParametersInfo(UINT action, UINT int_param, void *ptr_param,
                                         UINT flags);
 extern BOOL macdrv_ProcessEvents(DWORD mask);
