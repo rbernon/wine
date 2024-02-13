@@ -29,6 +29,7 @@
 
 #include "initguid.h"
 #include "ole2.h"
+#include "propvarutil.h"
 
 DEFINE_GUID(GUID_NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
@@ -1117,6 +1118,306 @@ static void test_source_reader(const char *filename, bool video)
     IMFByteStream_Release(stream);
 
     winetest_pop_context();
+}
+
+static void test_source_reader_media_types(void)
+{
+    static const struct attribute_desc expect_native_type[] =
+    {
+        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
+        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_H264, .todo_value = TRUE),
+        /* ATTR_GUID(MF_MT_AM_FORMAT_TYPE, FORMAT_MPEG2Video), */
+        ATTR_RATIO(MF_MT_FRAME_RATE, 25, 1),
+        ATTR_RATIO(MF_MT_FRAME_SIZE, 160, 120),
+        ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1, .todo = TRUE),
+        ATTR_UINT32(MF_MT_AVG_BITRATE, 14384, .todo = TRUE),
+        ATTR_UINT32(MF_MT_INTERLACE_MODE, 7, .todo = TRUE),
+        ATTR_UINT32(MF_MT_MPEG4_CURRENT_SAMPLE_ENTRY, 0, .todo = TRUE),
+        ATTR_UINT32(MF_MT_SAMPLE_SIZE, 1, .todo = TRUE),
+        ATTR_UINT32(MF_MT_VIDEO_LEVEL, 11, .todo = TRUE),
+        ATTR_UINT32(MF_MT_VIDEO_PROFILE, 100, .todo = TRUE),
+        ATTR_UINT32(MF_MT_VIDEO_ROTATION, 0),
+        ATTR_UINT32(MF_PROGRESSIVE_CODING_CONTENT, 1, .todo = TRUE),
+        ATTR_UINT32(MF_NALU_LENGTH_SET, 1, .todo = TRUE),
+        /* ATTR_BLOB(MF_MT_MPEG4_SAMPLE_DESCRIPTION, {0x00,0x00,0x00,0xc0,0x73,0x74,0x73,0x64,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,...}, 192), */
+        /* ATTR_BLOB(MF_MT_MPEG_SEQUENCE_HEADER, {0x00,0x00,0x01,0x67,0x64,0x00,0x0b,0xac,0xd9,0x42,0x84,0x7e,0x5c,0x04,0x40,0x00,...}, 37), */
+        {0},
+    };
+    static const struct attribute_desc video_nv12_type[] =
+    {
+        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
+        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_NV12),
+        {0},
+    };
+    static const struct attribute_desc expect_nv12_type[] =
+    {
+        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
+        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_NV12),
+        ATTR_RATIO(MF_MT_FRAME_RATE, 25, 1),
+        ATTR_RATIO(MF_MT_FRAME_SIZE, 160, 120),
+        ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1, .todo = TRUE),
+        ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
+        ATTR_UINT32(MF_MT_AVG_BIT_ERROR_RATE, 0, .todo = TRUE),
+        ATTR_UINT32(MF_MT_AVG_BITRATE, 14384, .todo = TRUE),
+        ATTR_UINT32(MF_MT_COMPRESSED, 0),
+        ATTR_UINT32(MF_MT_DEFAULT_STRIDE, 160),
+        ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1, .todo = TRUE),
+        ATTR_UINT32(MF_MT_INTERLACE_MODE, 7, .todo = TRUE),
+        ATTR_UINT32(MF_MT_SAMPLE_SIZE, 28800, .todo = TRUE),
+        ATTR_UINT32(MF_MT_VIDEO_ROTATION, 0),
+        {0},
+    };
+    static const struct attribute_desc expect_nv12_full_type[] =
+    {
+        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
+        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_NV12),
+        ATTR_RATIO(MF_MT_FRAME_RATE, 25, 1),
+        ATTR_RATIO(MF_MT_FRAME_SIZE, 160, 128, .todo_value = TRUE),
+        ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1, .todo = TRUE),
+        ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
+        ATTR_UINT32(MF_MT_AVG_BIT_ERROR_RATE, 0, .todo = TRUE),
+        ATTR_UINT32(MF_MT_AVG_BITRATE, 14384, .todo = TRUE),
+        ATTR_UINT32(MF_MT_COMPRESSED, 0),
+        ATTR_UINT32(MF_MT_DEFAULT_STRIDE, 160),
+        ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1, .todo = TRUE),
+        ATTR_UINT32(MF_MT_INTERLACE_MODE, 7, .todo = TRUE),
+        ATTR_UINT32(MF_MT_SAMPLE_SIZE, 30720, .todo = TRUE),
+        ATTR_UINT32(MF_MT_VIDEO_ROTATION, 0),
+        {0},
+    };
+    static const struct attribute_desc video_rgb32_type[] =
+    {
+        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
+        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32),
+        {0},
+    };
+    static const struct attribute_desc expect_rgb32_type[] =
+    {
+        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
+        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32, .todo_value = TRUE),
+        ATTR_RATIO(MF_MT_FRAME_RATE, 25, 1),
+        ATTR_RATIO(MF_MT_FRAME_SIZE, 160, 120),
+        ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1, .todo = TRUE),
+        ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
+        ATTR_UINT32(MF_MT_AVG_BIT_ERROR_RATE, 0, .todo = TRUE),
+        ATTR_UINT32(MF_MT_AVG_BITRATE, 14384, .todo = TRUE),
+        ATTR_UINT32(MF_MT_COMPRESSED, 0),
+        ATTR_UINT32(MF_MT_DEFAULT_STRIDE, 640, .todo_value = TRUE),
+        ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1, .todo = TRUE),
+        ATTR_UINT32(MF_MT_INTERLACE_MODE, 2, .todo = TRUE),
+        ATTR_UINT32(MF_MT_SAMPLE_SIZE, 76800, .todo = TRUE),
+        ATTR_UINT32(MF_MT_VIDEO_ROTATION, 0),
+        {0},
+    };
+    static const struct attribute_desc expect_rgb32_full_type[] =
+    {
+        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
+        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32, .todo_value = TRUE),
+        ATTR_RATIO(MF_MT_FRAME_RATE, 25, 1),
+        ATTR_RATIO(MF_MT_FRAME_SIZE, 160, 128, .todo_value = TRUE),
+        ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1, .todo = TRUE),
+        ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
+        ATTR_UINT32(MF_MT_AVG_BIT_ERROR_RATE, 0, .todo = TRUE),
+        ATTR_UINT32(MF_MT_AVG_BITRATE, 14384, .todo = TRUE),
+        ATTR_UINT32(MF_MT_COMPRESSED, 0),
+        ATTR_UINT32(MF_MT_DEFAULT_STRIDE, 640, .todo_value = TRUE),
+        ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1, .todo = TRUE),
+        ATTR_UINT32(MF_MT_INTERLACE_MODE, 2, .todo = TRUE),
+        ATTR_UINT32(MF_MT_SAMPLE_SIZE, 81920, .todo = TRUE),
+        ATTR_UINT32(MF_MT_VIDEO_ROTATION, 0),
+        {0},
+    };
+
+    DWORD stream_flags, actual_index;
+    IMFByteStream *byte_stream;
+    IMFAttributes *attributes;
+    IMFMediaType *media_type;
+    IMFSourceReader *reader;
+    IMFTransform *transform;
+    LONGLONG timestamp;
+    IMFSample *sample;
+    HRESULT hr;
+    LONG ref;
+
+    if (!pMFCreateMFByteStreamOnStream)
+    {
+        win_skip("MFCreateMFByteStreamOnStream() not found\n");
+        return;
+    }
+
+    byte_stream = get_resource_stream("test.mp4");
+
+    hr = MFCreateSourceReaderFromByteStream(byte_stream, NULL, &reader);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    hr = IMFSourceReader_GetNativeMediaType(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, &media_type);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    check_media_type(media_type, expect_native_type, -1);
+    IMFMediaType_Release(media_type);
+    hr = IMFSourceReader_GetCurrentMediaType(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, &media_type);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    check_media_type(media_type, expect_native_type, -1);
+    IMFMediaType_Release(media_type);
+
+
+    hr = MFCreateMediaType(&media_type);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    init_media_type(media_type, video_nv12_type, -1);
+    hr = IMFSourceReader_SetCurrentMediaType(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, NULL, media_type);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ref = get_refcount(media_type);
+    ok(ref == 1, "Unexpected ref %ld.\n", ref);
+    IMFMediaType_Release(media_type);
+
+    hr = IMFSourceReader_GetCurrentMediaType(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, &media_type);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    check_media_type(media_type, expect_nv12_type, -1);
+    IMFMediaType_Release(media_type);
+
+    hr = MFCreateMediaType(&media_type);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    init_media_type(media_type, video_rgb32_type, -1);
+    hr = IMFSourceReader_SetCurrentMediaType(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, NULL, media_type);
+    todo_wine ok(hr == MF_E_INVALIDMEDIATYPE, "Unexpected hr %#lx.\n", hr);
+    IMFMediaType_Release(media_type);
+
+
+    hr = IMFSourceReader_GetServiceForStream(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, &GUID_NULL,
+            &IID_IMFTransform, (void **)&transform);
+    todo_wine ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    if (hr == S_OK)
+    {
+        hr = IMFTransform_GetInputCurrentType(transform, 0, &media_type);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        check_media_type(media_type, expect_native_type, -1);
+        IMFMediaType_Release(media_type);
+        hr = IMFTransform_GetOutputCurrentType(transform, 0, &media_type);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        check_media_type(media_type, expect_nv12_type, -1);
+        IMFMediaType_Release(media_type);
+        IMFTransform_Release(transform);
+    }
+
+    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0,
+            &actual_index, &stream_flags, &timestamp, &sample);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    todo_wine ok(actual_index == 1, "Unexpected stream index %lu.\n", actual_index);
+    todo_wine ok(stream_flags == MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED, "Unexpected stream flags %#lx.\n", stream_flags);
+    ok(!!sample, "Unexpected sample object.\n");
+    IMFSample_Release(sample);
+
+    hr = IMFSourceReader_GetCurrentMediaType(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, &media_type);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    check_media_type(media_type, expect_nv12_full_type, -1);
+    IMFMediaType_Release(media_type);
+
+    hr = IMFSourceReader_GetServiceForStream(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, &GUID_NULL,
+            &IID_IMFTransform, (void **)&transform);
+    todo_wine ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    if (hr == S_OK)
+    {
+        hr = IMFTransform_GetInputCurrentType(transform, 0, &media_type);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        check_media_type(media_type, expect_native_type, -1);
+        IMFMediaType_Release(media_type);
+        hr = IMFTransform_GetOutputCurrentType(transform, 0, &media_type);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        check_media_type(media_type, expect_nv12_full_type, -1);
+        IMFMediaType_Release(media_type);
+        IMFTransform_Release(transform);
+    }
+
+    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0,
+            &actual_index, &stream_flags, &timestamp, &sample);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    todo_wine ok(actual_index == 1, "Unexpected stream index %lu.\n", actual_index);
+    ok(stream_flags == 0, "Unexpected stream flags %#lx.\n", stream_flags);
+    ok(!!sample, "Unexpected sample object.\n");
+    IMFSample_Release(sample);
+
+    IMFSourceReader_Release(reader);
+
+
+    hr = MFCreateAttributes(&attributes, 1);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFAttributes_SetUINT32(attributes, &MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, TRUE);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = MFCreateSourceReaderFromByteStream(byte_stream, attributes, &reader);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    IMFAttributes_Release(attributes);
+
+    hr = MFCreateMediaType(&media_type);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    init_media_type(media_type, video_rgb32_type, -1);
+    hr = IMFSourceReader_SetCurrentMediaType(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, NULL, media_type);
+    todo_wine ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ref = get_refcount(media_type);
+    ok(ref == 1, "Unexpected ref %ld.\n", ref);
+    IMFMediaType_Release(media_type);
+
+    hr = IMFSourceReader_GetCurrentMediaType(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, &media_type);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    check_media_type(media_type, expect_rgb32_type, -1);
+    IMFMediaType_Release(media_type);
+
+    hr = IMFSourceReader_GetServiceForStream(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, &GUID_NULL,
+            &IID_IMFTransform, (void **)&transform);
+    todo_wine ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    if (hr == S_OK)
+    {
+        hr = IMFTransform_GetInputCurrentType(transform, 0, &media_type);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        check_media_type(media_type, expect_native_type, -1);
+        IMFMediaType_Release(media_type);
+        hr = IMFTransform_GetOutputCurrentType(transform, 0, &media_type);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        check_media_type(media_type, expect_nv12_type, -1);
+        IMFMediaType_Release(media_type);
+        IMFTransform_Release(transform);
+    }
+
+
+    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0,
+            &actual_index, &stream_flags, &timestamp, &sample);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    todo_wine ok(actual_index == 1, "Unexpected stream index %lu.\n", actual_index);
+    todo_wine ok(stream_flags == MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED, "Unexpected stream flags %#lx.\n", stream_flags);
+    ok(!!sample, "Unexpected sample object.\n");
+    IMFSample_Release(sample);
+
+    hr = IMFSourceReader_GetCurrentMediaType(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, &media_type);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    check_media_type(media_type, expect_rgb32_full_type, -1);
+    IMFMediaType_Release(media_type);
+
+    hr = IMFSourceReader_GetServiceForStream(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, &GUID_NULL,
+            &IID_IMFTransform, (void **)&transform);
+    todo_wine ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    if (hr == S_OK)
+    {
+        hr = IMFTransform_GetInputCurrentType(transform, 0, &media_type);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        check_media_type(media_type, expect_native_type, -1);
+        IMFMediaType_Release(media_type);
+        hr = IMFTransform_GetOutputCurrentType(transform, 0, &media_type);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        check_media_type(media_type, expect_nv12_full_type, -1);
+        IMFMediaType_Release(media_type);
+        IMFTransform_Release(transform);
+    }
+
+    hr = IMFSourceReader_ReadSample(reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0,
+            &actual_index, &stream_flags, &timestamp, &sample);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    todo_wine ok(actual_index == 1, "Unexpected stream index %lu.\n", actual_index);
+    ok(stream_flags == 0, "Unexpected stream flags %#lx.\n", stream_flags);
+    ok(!!sample, "Unexpected sample object.\n");
+    IMFSample_Release(sample);
+
+    IMFSourceReader_Release(reader);
+
+
+    IMFByteStream_Release(byte_stream);
 }
 
 static void test_source_reader_from_media_source(void)
@@ -3545,6 +3846,7 @@ START_TEST(mfplat)
     test_interfaces();
     test_source_reader("test.wav", false);
     test_source_reader("test.mp4", true);
+    test_source_reader_media_types();
     test_source_reader_from_media_source();
     test_source_reader_transforms(FALSE, FALSE);
     test_source_reader_transforms(TRUE, FALSE);
