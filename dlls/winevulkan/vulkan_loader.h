@@ -29,6 +29,7 @@
 #include "winbase.h"
 #include "winternl.h"
 #include "ntuser.h"
+#include "wine/asm.h"
 #include "wine/debug.h"
 #include "wine/vulkan.h"
 #include "wine/vulkan_driver.h"
@@ -171,5 +172,76 @@ struct is_available_device_function_params
 };
 
 #define UNIX_CALL(code, params) WINE_UNIX_CALL(unix_ ## code, params)
+
+#ifdef __x86_64__
+
+#define VK_FAST_THUNK_MAX_ARGS 7
+
+#define __VK_FAST_THUNK_ARGS_0
+#define __VK_FAST_THUNK_ARGS_1 __VK_FAST_THUNK_ARGS_0
+#define __VK_FAST_THUNK_ARGS_2 __VK_FAST_THUNK_ARGS_1
+#define __VK_FAST_THUNK_ARGS_3 __VK_FAST_THUNK_ARGS_2
+#define __VK_FAST_THUNK_ARGS_4 __VK_FAST_THUNK_ARGS_3
+#define __VK_FAST_THUNK_ARGS_5 "movq 0x28(%rsp),%r10\n\t"  __VK_FAST_THUNK_ARGS_4
+#define __VK_FAST_THUNK_ARGS_6 "movq 0x30(%rsp),%r11\n\t"  __VK_FAST_THUNK_ARGS_5
+#define __VK_FAST_THUNK_ARGS_7 "movq 0x38(%rsp),%xmm0\n\t" __VK_FAST_THUNK_ARGS_6
+
+#define VK_FAST_THUNK( name, code, args ) \
+    __ASM_GLOBAL_FUNC( name, __VK_FAST_THUNK_ARGS_ ## args \
+                       "movq $" code ",%rax\n\t" \
+                       "jmp vk_fast_thunk_dispatcher" )
+
+#define __VK_FAST_GET_ARG_0 "movq %%rcx,%0"
+#define __VK_FAST_GET_ARG_1 "movq %%rdx,%0"
+#define __VK_FAST_GET_ARG_2 "movq %%r8,%0"
+#define __VK_FAST_GET_ARG_3 "movq %%r9,%0"
+#define __VK_FAST_GET_ARG_4 "movq %%r10,%0"
+#define __VK_FAST_GET_ARG_5 "movq %%r11,%0"
+#define __VK_FAST_GET_ARG_6 "movq %%xmm0,%0"
+
+#define VK_FAST_THUNK_GET_ARG(n, type, param) do { \
+        void *__reg; \
+        __asm__ __volatile__(__VK_FAST_GET_ARG_ ## n : "=r"(__reg)); \
+        (param) = (type)__reg; \
+    } while(0)
+
+#ifdef VK_DEFINE_DISPATCHER
+__ASM_GLOBAL_FUNC( vk_fast_thunk_dispatcher,
+                   "pushq %rsi\n\t"
+                   "pushq %rdi\n\t"
+                   "subq $0xa8,%rsp\n\t"
+                   "movdqa %xmm6,0x00(%rsp)\n\t"
+                   "movdqa %xmm7,0x10(%rsp)\n\t"
+                   "movdqa %xmm8,0x20(%rsp)\n\t"
+                   "movdqa %xmm9,0x30(%rsp)\n\t"
+                   "movdqa %xmm10,0x40(%rsp)\n\t"
+                   "movdqa %xmm11,0x50(%rsp)\n\t"
+                   "movdqa %xmm12,0x60(%rsp)\n\t"
+                   "movdqa %xmm13,0x70(%rsp)\n\t"
+                   "movdqa %xmm14,0x80(%rsp)\n\t"
+                   "movdqa %xmm15,0x90(%rsp)\n\t"
+                   "movq %rsp,%rsi\n\t"
+                   "movq %gs:0x328,%rsp\n\t"
+                   "movq %rsi,0x88(%rsp)\n\t"
+                   "movq __wine_unixlib_handle(%rip),%rsi\n\t"
+                   "callq *(%rsi,%rax,8)\n\t"
+                   "movq 0x88(%rsp),%rsp\n\t"
+                   "movdqa 0x00(%rsp),%xmm6\n\t"
+                   "movdqa 0x10(%rsp),%xmm7\n\t"
+                   "movdqa 0x20(%rsp),%xmm8\n\t"
+                   "movdqa 0x30(%rsp),%xmm9\n\t"
+                   "movdqa 0x40(%rsp),%xmm10\n\t"
+                   "movdqa 0x50(%rsp),%xmm11\n\t"
+                   "movdqa 0x60(%rsp),%xmm12\n\t"
+                   "movdqa 0x70(%rsp),%xmm13\n\t"
+                   "movdqa 0x80(%rsp),%xmm14\n\t"
+                   "movdqa 0x90(%rsp),%xmm15\n\t"
+                   "addq $0xa8,%rsp\n\t"
+                   "popq %rdi\n\t"
+                   "popq %rsi\n\t"
+                   "ret" )
+#endif
+
+#endif /* __x86_64__ */
 
 #endif /* __WINE_VULKAN_LOADER_H */
