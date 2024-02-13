@@ -48,24 +48,11 @@
  * Interfaces
  */
 typedef struct IDirectMusic8Impl IDirectMusic8Impl;
-typedef struct IDirectMusicBufferImpl IDirectMusicBufferImpl;
-typedef struct IReferenceClockImpl IReferenceClockImpl;
 
 /*****************************************************************************
  * Some stuff to make my life easier :=)
  */
  
-/* some sort of aux. midi channel: big fake at the moment; accepts only priority
-   changes... more coming soon */
-typedef struct DMUSIC_PRIVATE_MCHANNEL_ {
-	DWORD priority;
-} DMUSIC_PRIVATE_MCHANNEL, *LPDMUSIC_PRIVATE_MCHANNEL;
-
-/* some sort of aux. channel group: collection of 16 midi channels */
-typedef struct DMUSIC_PRIVATE_CHANNEL_GROUP_ {
-	DMUSIC_PRIVATE_MCHANNEL channel[16]; /* 16 channels in a group */
-} DMUSIC_PRIVATE_CHANNEL_GROUP, *LPDMUSIC_PRIVATE_CHANNEL_GROUP;
-
 typedef struct port_info {
     DMUS_PORTCAPS caps;
     HRESULT (*create)(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *port_params,
@@ -85,12 +72,11 @@ extern HRESULT collection_get_wave(struct collection *collection, DWORD index, I
 /* CLSID */
 extern HRESULT music_create(IUnknown **ret_iface);
 extern HRESULT collection_create(IUnknown **ret_iface);
+extern HRESULT wave_create(IUnknown **ret_iface);
 
-/* Internal */
-extern HRESULT DMUSIC_CreateDirectMusicBufferImpl(LPDMUS_BUFFERDESC desc, LPVOID* ret_iface);
-extern HRESULT DMUSIC_CreateReferenceClockImpl (LPCGUID lpcGUID, LPVOID* ppobj, LPUNKNOWN pUnkOuter);
-
+extern HRESULT buffer_create(DMUS_BUFFERDESC *desc, IDirectMusicBuffer **ret_iface);
 extern HRESULT download_create(DWORD size, IDirectMusicDownload **ret_iface);
+extern HRESULT reference_clock_create(IReferenceClock **ret_iface);
 
 extern HRESULT instrument_create_from_soundfont(struct soundfont *soundfont, UINT index,
         struct collection *collection, DMUS_OBJECTDESC *desc, IDirectMusicInstrument **ret_iface);
@@ -114,46 +100,13 @@ struct IDirectMusic8Impl {
     int num_system_ports;
 };
 
-/*****************************************************************************
- * IDirectMusicBufferImpl implementation structure
- */
-struct IDirectMusicBufferImpl {
-    /* IUnknown fields */
-    IDirectMusicBuffer IDirectMusicBuffer_iface;
-    LONG ref;
-
-    /* IDirectMusicBufferImpl fields */
-    GUID format;
-    DWORD size;
-    LPBYTE data;
-    DWORD write_pos;
-    REFERENCE_TIME start_time;
-};
-
 /** Internal factory */
-extern HRESULT synth_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *port_params,
+extern HRESULT synth_port_create(IReferenceClock *master_clock, DMUS_PORTPARAMS *port_params,
         DMUS_PORTCAPS *port_caps, IDirectMusicPort **port);
-extern HRESULT midi_out_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *port_params,
+extern HRESULT midi_out_port_create(IReferenceClock *master_clock, DMUS_PORTPARAMS *port_params,
         DMUS_PORTCAPS *port_caps, IDirectMusicPort **port);
-extern HRESULT midi_in_port_create(IDirectMusic8Impl *parent, DMUS_PORTPARAMS *port_params,
+extern HRESULT midi_in_port_create(IReferenceClock *master_clock, DMUS_PORTPARAMS *port_params,
         DMUS_PORTCAPS *port_caps, IDirectMusicPort **port);
-
-/*****************************************************************************
- * IReferenceClockImpl implementation structure
- */
-struct IReferenceClockImpl {
-    /* IUnknown fields */
-    IReferenceClock IReferenceClock_iface;
-    LONG ref;
-
-    /* IReferenceClockImpl fields */
-    REFERENCE_TIME rtTime;
-    DMUS_CLOCKINFO pClockInfo;
-};
-
-typedef struct _DMUS_PRIVATE_POOLCUE {
-	struct list entry; /* for listing elements */
-} DMUS_PRIVATE_POOLCUE, *LPDMUS_PRIVATE_POOLCUE;
 
 /*****************************************************************************
  * Misc.

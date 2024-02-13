@@ -106,7 +106,7 @@ static HRESULT WINAPI band_QueryInterface(IDirectMusicBand *iface, REFIID riid,
         return E_NOINTERFACE;
     }
 
-    IDirectMusicBand_AddRef((IUnknown*)*ret_iface);
+    IUnknown_AddRef((IUnknown*)*ret_iface);
     return S_OK;
 }
 
@@ -297,15 +297,11 @@ static HRESULT parse_lbil_list(struct band *This, IStream *stream, struct chunk_
     return hr;
 }
 
-static HRESULT parse_dmbd_chunk(struct band *This, IStream *stream, struct chunk_entry *parent)
+static HRESULT parse_dmbd_chunk(struct band *This, IStream *stream, struct chunk_entry *parent,
+        DMUS_OBJECTDESC *desc)
 {
     struct chunk_entry chunk = {.parent = parent};
     HRESULT hr;
-
-    if (FAILED(hr = dmobj_parsedescriptor(stream, parent, &This->dmobj.desc,
-                DMUS_OBJ_OBJECT|DMUS_OBJ_NAME|DMUS_OBJ_NAME_INAM|DMUS_OBJ_CATEGORY|DMUS_OBJ_VERSION))
-                || FAILED(hr = stream_reset_chunk_data(stream, parent)))
-        return hr;
 
     while ((hr = stream_next_chunk(stream, &chunk)) == S_OK)
     {
@@ -314,11 +310,11 @@ static HRESULT parse_dmbd_chunk(struct band *This, IStream *stream, struct chunk
         case DMUS_FOURCC_GUID_CHUNK:
         case DMUS_FOURCC_VERSION_CHUNK:
         case MAKE_IDTYPE(FOURCC_LIST, DMUS_FOURCC_UNFO_LIST):
-            /* already parsed by dmobj_parsedescriptor */
+            hr = stream_parse_desc_chunk(stream, &chunk, desc ? desc : &This->dmobj.desc);
             break;
 
         case MAKE_IDTYPE(FOURCC_LIST, DMUS_FOURCC_INSTRUMENTS_LIST):
-            hr = parse_lbil_list(This, stream, &chunk);
+            if (!desc) hr = parse_lbil_list(This, stream, &chunk);
             break;
 
         default:
@@ -329,46 +325,70 @@ static HRESULT parse_dmbd_chunk(struct band *This, IStream *stream, struct chunk
         if (FAILED(hr)) break;
     }
 
+    if (SUCCEEDED(hr))
+    {
+        STATSTG stat;
+
+        if (!desc) desc = &This->dmobj.desc;
+        desc->guidClass = CLSID_DirectMusicBand;
+        desc->dwValidData |= DMUS_OBJ_CLASS;
+
+        if (!(desc->dwValidData & DMUS_OBJ_DATE)
+                && SUCCEEDED(IStream_Stat(stream, &stat, STATFLAG_NONAME)))
+        {
+            desc->ftDate = stat.mtime;
+            desc->dwValidData |= DMUS_OBJ_DATE;
+        }
+
+        struct instrument_entry *entry;
+
+        TRACE("Loaded IDirectMusicBand %p\n", This);
+        dump_DMUS_OBJECTDESC(&This->dmobj.desc);
+
+        TRACE(" - Instruments:\n");
+        LIST_FOR_EACH_ENTRY(entry, &This->instruments, struct instrument_entry, entry)
+        {
+            dump_DMUS_IO_INSTRUMENT(&entry->instrument);
+            TRACE(" - collection: %p\n", entry->collection);
+        }
+    }
+
+    return hr;
+}
+
+static HRESULT parse_stream(struct band *This, IStream *stream, DMUS_OBJECTDESC *desc)
+{
+    struct chunk_entry chunk = {0};
+    HRESULT hr;
+
+    if ((hr = stream_get_chunk(stream, &chunk)) == S_OK)
+    {
+        switch (MAKE_IDTYPE(chunk.id, chunk.type))
+        {
+        case MAKE_IDTYPE(FOURCC_RIFF, DMUS_FOURCC_BAND_FORM):
+            hr = parse_dmbd_chunk(This, stream, &chunk, desc);
+            break;
+
+        default:
+            WARN("Invalid band chunk %s %s\n", debugstr_fourcc(chunk.id), debugstr_fourcc(chunk.type));
+            hr = DMUS_E_INVALID_BAND;
+            break;
+        }
+    }
+
+    stream_skip_chunk(stream, &chunk);
     return hr;
 }
 
 static HRESULT WINAPI band_object_ParseDescriptor(IDirectMusicObject *iface,
         IStream *stream, DMUS_OBJECTDESC *desc)
 {
-    struct chunk_entry riff = {0};
-    STATSTG stat;
-    HRESULT hr;
+    struct band *This = CONTAINING_RECORD(iface, struct band, dmobj.IDirectMusicObject_iface);
 
     TRACE("(%p, %p, %p)\n", iface, stream, desc);
 
-    if (!stream || !desc)
-        return E_POINTER;
-
-    if ((hr = stream_get_chunk(stream, &riff)) != S_OK)
-        return hr;
-    if (riff.id != FOURCC_RIFF || riff.type != DMUS_FOURCC_BAND_FORM) {
-        TRACE("loading failed: unexpected %s\n", debugstr_chunk(&riff));
-        stream_skip_chunk(stream, &riff);
-        return DMUS_E_INVALID_BAND;
-    }
-
-    hr = dmobj_parsedescriptor(stream, &riff, desc,
-            DMUS_OBJ_OBJECT|DMUS_OBJ_NAME|DMUS_OBJ_NAME_INAM|DMUS_OBJ_CATEGORY|DMUS_OBJ_VERSION);
-    if (FAILED(hr))
-        return hr;
-
-    desc->guidClass = CLSID_DirectMusicBand;
-    desc->dwValidData |= DMUS_OBJ_CLASS;
-
-    if (desc->dwValidData & DMUS_OBJ_CATEGORY) {
-        IStream_Stat(stream, &stat, STATFLAG_NONAME);
-        desc->ftDate = stat.mtime;
-        desc->dwValidData |= DMUS_OBJ_DATE;
-    }
-
-    TRACE("returning descriptor:\n");
-    dump_DMUS_OBJECTDESC(desc);
-    return S_OK;
+    if (!stream || !desc) return E_POINTER;
+    return parse_stream(This, stream, desc);
 }
 
 static const IDirectMusicObjectVtbl band_object_vtbl =
@@ -396,8 +416,6 @@ static HRESULT WINAPI band_persist_stream_Load(IPersistStream *iface, IStream *s
         .guidClass = CLSID_DirectMusicCollection,
         .guidObject = GUID_DefaultGMCollection,
     };
-    struct chunk_entry chunk = {0};
-    HRESULT hr;
 
     TRACE("%p, %p\n", iface, stream);
 
@@ -406,38 +424,8 @@ static HRESULT WINAPI band_persist_stream_Load(IPersistStream *iface, IStream *s
             (void **)&This->collection)))
         WARN("Failed to load default collection from loader, hr %#lx\n", hr);
 
-    if ((hr = stream_get_chunk(stream, &chunk)) == S_OK)
-    {
-        switch (MAKE_IDTYPE(chunk.id, chunk.type))
-        {
-        case MAKE_IDTYPE(FOURCC_RIFF, DMUS_FOURCC_BAND_FORM):
-            hr = parse_dmbd_chunk(This, stream, &chunk);
-            break;
-
-        default:
-            WARN("Invalid band chunk %s %s\n", debugstr_fourcc(chunk.id), debugstr_fourcc(chunk.type));
-            hr = DMUS_E_UNSUPPORTED_STREAM;
-            break;
-        }
-    }
-
-    stream_skip_chunk(stream, &chunk);
-    if (FAILED(hr)) return hr;
-
-    if (TRACE_ON(dmband))
-    {
-        struct instrument_entry *entry;
-
-        TRACE("Loaded IDirectMusicBand %p\n", This);
-        dump_DMUS_OBJECTDESC(&This->dmobj.desc);
-
-        TRACE(" - Instruments:\n");
-        LIST_FOR_EACH_ENTRY(entry, &This->instruments, struct instrument_entry, entry)
-        {
-            dump_DMUS_IO_INSTRUMENT(&entry->instrument);
-            TRACE(" - collection: %p\n", entry->collection);
-        }
-    }
+    if (!stream) return E_POINTER;
+    if (FAILED(parse_stream(This, stream, NULL))) return DMUS_E_UNSUPPORTED_STREAM;
 
     return S_OK;
 }
