@@ -228,8 +228,8 @@ static HRESULT performance_send_pmsg(struct performance *This, MUSIC_TIME music_
     return hr;
 }
 
-static HRESULT performance_send_notification_pmsg(struct performance *This, MUSIC_TIME music_time, BOOL stamp,
-        GUID type, DWORD option, IUnknown *object)
+static HRESULT performance_send_notification_pmsg(struct performance *This, MUSIC_TIME music_time,
+        BOOL internal, GUID type, DWORD option, IUnknown *object)
 {
     IDirectMusicPerformance8 *performance = &This->IDirectMusicPerformance8_iface;
     IDirectMusicGraph *graph = &This->IDirectMusicGraph_iface;
@@ -247,9 +247,9 @@ static HRESULT performance_send_notification_pmsg(struct performance *This, MUSI
     msg->dwNotificationOption = option;
 
     /* only stamp the message if notifications are enabled, otherwise send them directly to the output tool */
-    if ((stamp && FAILED(hr = IDirectMusicGraph_StampPMsg(graph, (DMUS_PMSG *)msg)))
-            || FAILED(hr = IDirectMusicPerformance8_SendPMsg(performance, (DMUS_PMSG *)msg)))
-        IDirectMusicPerformance8_FreePMsg(performance, (DMUS_PMSG *)msg);
+    if (!internal) hr = IDirectMusicGraph_StampPMsg(graph, (DMUS_PMSG *)msg);
+    if (SUCCEEDED(hr)) hr = IDirectMusicPerformance8_SendPMsg(performance, (DMUS_PMSG *)msg);
+    if (FAILED(hr)) IDirectMusicPerformance8_FreePMsg(performance, (DMUS_PMSG *)msg);
 
     return hr;
 }
@@ -1039,10 +1039,7 @@ static HRESULT WINAPI performance_SetNotificationHandle(IDirectMusicPerformance8
     TRACE("(%p, %p, %I64d)\n", This, notification_event, minimum_time);
 
     This->notification_event = notification_event;
-    if (minimum_time)
-        This->notification_timeout = minimum_time;
-    else if (!This->notification_timeout)
-        This->notification_timeout = 20000000; /* 2 seconds */
+    if (minimum_time) This->notification_timeout = minimum_time;
 
     return S_OK;
 }
@@ -1583,13 +1580,20 @@ static HRESULT WINAPI performance_PlaySegmentEx(IDirectMusicPerformance8 *iface,
     if (FAILED(hr = IUnknown_QueryInterface(source, &IID_IDirectMusicSegment, (void **)&segment)))
         return hr;
 
+    if (primary && SUCCEEDED(hr = IDirectMusicPerformance8_GetSegmentState(iface, &state, start_time)))
+    {
+        if (FAILED(hr = IDirectMusicPerformance_Stop(&This->IDirectMusicPerformance8_iface, NULL, state, start_time, 0)))
+            ERR("Failed to stop current previous segment, hr %#lx\n", hr);
+        IDirectMusicSegmentState_Release(state);
+    }
+
     EnterCriticalSection(&This->safe);
 
     if (primary) performance_set_primary_segment(This, segment);
     if (control) performance_set_control_segment(This, segment);
 
     if ((!(music_time = start_time) && FAILED(hr = IDirectMusicPerformance8_GetTime(iface, NULL, &music_time)))
-            || FAILED(hr = segment_state_create(segment, music_time, iface, &state)))
+            || FAILED(hr = segment_state_create(segment, music_time, segment_flags, iface, &state)))
     {
         if (primary) performance_set_primary_segment(This, NULL);
         if (control) performance_set_control_segment(This, NULL);
@@ -2301,6 +2305,7 @@ HRESULT create_dmperformance(REFIID iid, void **ret_iface)
     obj->latency_offset = 50;
     obj->dwBumperLength =   50; /* 50 ms default */
     obj->dwPrepareTime  = 1000; /* 1000 ms default */
+    obj->notification_timeout = 20000000; /* 2 seconds */
 
     hr = IDirectMusicPerformance8_QueryInterface(&obj->IDirectMusicPerformance8_iface, iid, ret_iface);
     IDirectMusicPerformance_Release(&obj->IDirectMusicPerformance8_iface);
