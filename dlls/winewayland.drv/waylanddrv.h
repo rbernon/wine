@@ -25,6 +25,8 @@
 # error You must include config.h to use this header
 #endif
 
+#undef HAVE_XKBCOMMON_XKBCOMMON_COMPOSE_H
+
 #include <pthread.h>
 #include <wayland-client.h>
 #include <xkbcommon/xkbcommon.h>
@@ -35,6 +37,13 @@
 #include "viewporter-client-protocol.h"
 #include "xdg-output-unstable-v1-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
+
+#ifdef HAVE_XKBCOMMON_XKBCOMMON_COMPOSE_H
+#include <xkbcommon/xkbcommon-compose.h>
+#else
+struct xkb_compose_table;
+static inline void xkb_compose_table_unref(struct xkb_compose_table *table) {}
+#endif
 
 #include "windef.h"
 #include "winbase.h"

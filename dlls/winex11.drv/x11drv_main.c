@@ -70,6 +70,7 @@ BOOL usexrandr = TRUE;
 BOOL usexcomposite = TRUE;
 BOOL use_take_focus = TRUE;
 BOOL use_primary_selection = FALSE;
+BOOL use_server_x11 = TRUE;
 BOOL use_system_cursors = TRUE;
 BOOL grab_fullscreen = FALSE;
 BOOL managed_mode = TRUE;
@@ -157,6 +158,7 @@ static const char * const atom_names[NB_XATOMS - FIRST_XATOM] =
     "_GTK_WORKAREAS_D0",
     "_XEMBED",
     "_XEMBED_INFO",
+    "_XKB_RULES_NAMES",
     "XdndAware",
     "XdndEnter",
     "XdndPosition",
@@ -326,11 +328,61 @@ HKEY reg_open_key( HKEY root, const WCHAR *name, ULONG name_len )
     return NtOpenKeyEx( &ret, MAXIMUM_ALLOWED, &attr, 0 ) ? 0 : ret;
 }
 
+/* wrapper for NtCreateKey that creates the key recursively if necessary */
+static HKEY reg_create_key( HKEY root, const WCHAR *name, ULONG name_len,
+                            DWORD options, DWORD *disposition )
+{
+    UNICODE_STRING nameW = { name_len, name_len, (WCHAR *)name };
+    OBJECT_ATTRIBUTES attr;
+    NTSTATUS status;
+    HANDLE ret;
 
-HKEY open_hkcu_key( const char *name )
+    attr.Length = sizeof(attr);
+    attr.RootDirectory = root;
+    attr.ObjectName = &nameW;
+    attr.Attributes = 0;
+    attr.SecurityDescriptor = NULL;
+    attr.SecurityQualityOfService = NULL;
+
+    status = NtCreateKey( &ret, MAXIMUM_ALLOWED, &attr, 0, NULL, options, disposition );
+    if (status == STATUS_OBJECT_NAME_NOT_FOUND)
+    {
+        static const WCHAR registry_rootW[] = { '\\','R','e','g','i','s','t','r','y','\\' };
+        DWORD pos = 0, i = 0, len = name_len / sizeof(WCHAR);
+
+        /* don't try to create registry root */
+        if (!root && len > ARRAY_SIZE(registry_rootW) &&
+            !memcmp( name, registry_rootW, sizeof(registry_rootW) ))
+            i += ARRAY_SIZE(registry_rootW);
+
+        while (i < len && name[i] != '\\') i++;
+        if (i == len) return 0;
+        for (;;)
+        {
+            unsigned int subkey_options = options;
+            if (i < len) subkey_options &= ~(REG_OPTION_CREATE_LINK | REG_OPTION_OPEN_LINK);
+            nameW.Buffer = (WCHAR *)name + pos;
+            nameW.Length = (i - pos) * sizeof(WCHAR);
+            status = NtCreateKey( &ret, MAXIMUM_ALLOWED, &attr, 0, NULL, subkey_options, disposition );
+
+            if (attr.RootDirectory != root) NtClose( attr.RootDirectory );
+            if (!NT_SUCCESS(status)) return 0;
+            if (i == len) break;
+            attr.RootDirectory = ret;
+            while (i < len && name[i] == '\\') i++;
+            pos = i;
+            while (i < len && name[i] != '\\') i++;
+        }
+    }
+    return ret;
+}
+
+static HKEY reg_open_hkcu_key( const char *name, BOOL create )
 {
     WCHAR bufferW[256];
     static HKEY hkcu;
+    DWORD disp;
+    HKEY key;
 
     if (!hkcu)
     {
@@ -355,7 +407,18 @@ HKEY open_hkcu_key( const char *name )
         hkcu = reg_open_key( NULL, bufferW, len * sizeof(WCHAR) );
     }
 
-    return reg_open_key( hkcu, bufferW, asciiz_to_unicode( bufferW, name ) - sizeof(WCHAR) );
+    if ((key = reg_open_key( hkcu, bufferW, asciiz_to_unicode( bufferW, name ) - sizeof(WCHAR) )) || !create) return key;
+    return reg_create_key( hkcu, bufferW, asciiz_to_unicode( bufferW, name ) - sizeof(WCHAR), 0, &disp );
+}
+
+HKEY open_hkcu_key( const char *name )
+{
+    return reg_open_hkcu_key( name, FALSE );
+}
+
+static HKEY create_hkcu_key( const char *name )
+{
+    return reg_open_hkcu_key( name, TRUE );
 }
 
 
@@ -419,7 +482,7 @@ static void setup_options(void)
     DWORD len;
 
     /* @@ Wine registry key: HKCU\Software\Wine\X11 Driver */
-    hkey = open_hkcu_key( "Software\\Wine\\X11 Driver" );
+    hkey = create_hkcu_key( "Software\\Wine\\X11 Driver" );
 
     /* open the app-specific key */
 
@@ -445,6 +508,9 @@ static void setup_options(void)
             NtClose( tmpkey );
         }
     }
+
+    if (!get_config_key( hkey, appkey, "UseServerX11", buffer, sizeof(buffer) ))
+        use_server_x11 = IS_OPTION_TRUE( buffer[0] );
 
     if (!get_config_key( hkey, appkey, "Managed", buffer, sizeof(buffer) ))
         managed_mode = IS_OPTION_TRUE( buffer[0] );
@@ -612,11 +678,17 @@ static void init_visuals( Display *display, int screen )
            default_visual.visualid, default_visual.class, argb_visual.visualid );
 }
 
+static int x11drv_after_function( Display *display )
+{
+    return 0;
+}
+
 /***********************************************************************
  *           X11DRV process initialisation routine
  */
 static NTSTATUS x11drv_init( void *arg )
 {
+    const char *env;
     Display *display;
     void *libx11 = dlopen( SONAME_LIBX11, RTLD_NOW|RTLD_GLOBAL );
 
@@ -635,6 +707,15 @@ static NTSTATUS x11drv_init( void *arg )
 
     /* Open display */
 
+    if (!use_server_x11) TRACE( "Not using wineserver X11 client\n" );
+    else if (!(env = getenv( "DISPLAY" ))) use_server_x11 = FALSE;
+    else SERVER_START_REQ( x11_connect )
+    {
+        wine_server_add_data( req, env, strlen( env ) + 1);
+        use_server_x11 = !wine_server_call( req );
+    }
+    SERVER_END_REQ;
+
     if (!XInitThreads()) ERR( "XInitThreads failed, trouble ahead\n" );
     if (!(display = XOpenDisplay( NULL ))) return STATUS_UNSUCCESSFUL;
 
@@ -652,6 +733,7 @@ static NTSTATUS x11drv_init( void *arg )
     init_win_context();
 
     if (TRACE_ON(synchronous)) XSynchronize( display, True );
+    else XSetAfterFunction( display, x11drv_after_function );
 
     xinerama_init( DisplayWidth( display, default_visual.screen ),
                    DisplayHeight( display, default_visual.screen ));
@@ -668,6 +750,7 @@ static NTSTATUS x11drv_init( void *arg )
 
     XkbUseExtension( gdi_display, NULL, NULL );
     X11DRV_InitKeyboard( gdi_display );
+    X11DRV_InitMouse( gdi_display );
     if (use_xim) use_xim = xim_init( input_style );
 
     init_user_driver();
@@ -747,6 +830,7 @@ struct x11drv_thread_data *x11drv_init_thread_data(void)
     XkbUseExtension( data->display, NULL, NULL );
     XkbSetDetectableAutoRepeat( data->display, True, NULL );
     if (TRACE_ON(synchronous)) XSynchronize( data->display, True );
+    else XSetAfterFunction( data->display, x11drv_after_function );
 
     set_queue_display_fd( data->display );
     NtUserGetThreadInfo()->driver_data = (UINT_PTR)data;
@@ -755,6 +839,8 @@ struct x11drv_thread_data *x11drv_init_thread_data(void)
     if (use_xim) xim_thread_attach( data );
     x11drv_xinput2_init( data );
     net_supported_init( data );
+
+    XSelectInput( data->display, DefaultRootWindow( data->display ), PropertyChangeMask );
 
     return data;
 }

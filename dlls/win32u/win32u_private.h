@@ -86,8 +86,10 @@ extern BOOL register_imm_window( HWND hwnd );
 extern void unregister_imm_window( HWND hwnd );
 
 /* input.c */
+extern BOOL enable_mouse_in_pointer;
 extern BOOL grab_pointer;
 extern BOOL grab_fullscreen;
+extern LONG enable_mouse_in_pointer;
 extern HWND get_active_window(void);
 extern HWND get_capture(void);
 extern BOOL get_cursor_pos( POINT *pt );
@@ -104,6 +106,8 @@ extern void update_mouse_tracking_info( HWND hwnd );
 extern BOOL process_wine_clipcursor( HWND hwnd, UINT flags, BOOL reset );
 extern BOOL clip_fullscreen_window( HWND hwnd, BOOL reset );
 extern USHORT map_scan_to_kbd_vkey( USHORT scan, HKL layout );
+extern BOOL register_touch_window( HWND hwnd, UINT flags );
+extern BOOL unregister_touch_window( HWND hwnd );
 
 /* menu.c */
 extern UINT draw_nc_menu_bar( HDC hdc, RECT *rect, HWND hwnd );

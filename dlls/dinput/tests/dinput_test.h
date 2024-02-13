@@ -58,13 +58,17 @@ BOOL bus_device_start(void);
 void bus_device_stop(void);
 
 BOOL find_hid_device_path( WCHAR *device_path );
-void cleanup_registry_keys(void);
+void cleanup_registry_keys( const WCHAR *vidpid );
+BOOL find_hid_device_path( WCHAR *device_path );
+void check_dinput_devices( DWORD version, DIDEVICEINSTANCEW *devinst );
 
 #define dinput_test_init() dinput_test_init_( __FILE__, __LINE__ )
 void dinput_test_init_( const char *file, int line );
 void dinput_test_exit(void);
 
-HRESULT dinput_test_create_device( DWORD version, DIDEVICEINSTANCEW *devinst, IDirectInputDevice8W **device );
+#define dinput_test_create_device( a, b, c ) dinput_test_create_device_( a, b, c, NULL )
+HRESULT dinput_test_create_device_( DWORD version, DIDEVICEINSTANCEW *devinst,
+                                    IDirectInputDevice8W **device, IUnknown **dinput );
 DWORD WINAPI dinput_test_device_thread( void *stop_event );
 
 #define fill_context( a, b ) fill_context_( __FILE__, __LINE__, a, b )

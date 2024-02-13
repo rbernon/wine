@@ -199,17 +199,17 @@ extern BOOL X11DRV_UnrealizePalette( HPALETTE hpal );
 
 extern BOOL X11DRV_ActivateKeyboardLayout( HKL hkl, UINT flags );
 extern void X11DRV_Beep(void);
-extern INT X11DRV_GetKeyNameText( LONG lparam, LPWSTR buffer, INT size );
-extern UINT X11DRV_MapVirtualKeyEx( UINT code, UINT map_type, HKL hkl );
-extern INT X11DRV_ToUnicodeEx( UINT virtKey, UINT scanCode, const BYTE *lpKeyState,
-                               LPWSTR bufW, int bufW_size, UINT flags, HKL hkl );
-extern SHORT X11DRV_VkKeyScanEx( WCHAR wChar, HKL hkl );
+extern const KBDTABLES *X11DRV_KbdLayerDescriptor( HKL hkl );
+extern void X11DRV_ReleaseKbdTables( const KBDTABLES *tables );
+extern UINT X11DRV_ImeProcessKey( HIMC himc, UINT wparam, UINT lparam, const BYTE *key_state );
 extern void X11DRV_NotifyIMEStatus( HWND hwnd, UINT status );
 extern BOOL X11DRV_SetIMECompositionRect( HWND hwnd, RECT rect );
+extern void X11DRV_SetCaretPos( const RECT *caret );
+extern const KBDTABLES *X11DRV_KbdLayerDescriptor( HKL hkl );
+extern void X11DRV_ReleaseKbdTables( const KBDTABLES *tables );
 extern void X11DRV_DestroyCursorIcon( HCURSOR handle );
 extern void X11DRV_SetCursor( HWND hwnd, HCURSOR handle );
 extern BOOL X11DRV_SetCursorPos( INT x, INT y );
-extern BOOL X11DRV_GetCursorPos( LPPOINT pos );
 extern BOOL X11DRV_ClipCursor( const RECT *clip, BOOL reset );
 extern void X11DRV_SystrayDockInit( HWND systray );
 extern BOOL X11DRV_SystrayDockInsert( HWND owner, UINT cx, UINT cy, void *icon );
@@ -226,7 +226,6 @@ extern void X11DRV_GetDC( HDC hdc, HWND hwnd, HWND top, const RECT *win_rect,
                           const RECT *top_rect, DWORD flags );
 extern void X11DRV_ReleaseDC( HWND hwnd, HDC hdc );
 extern BOOL X11DRV_ScrollDC( HDC hdc, INT dx, INT dy, HRGN update );
-extern void X11DRV_SetCapture( HWND hwnd, UINT flags );
 extern void X11DRV_SetDesktopWindow( HWND hwnd );
 extern void X11DRV_SetLayeredWindowAttributes( HWND hwnd, COLORREF key, BYTE alpha,
                                                DWORD flags );
@@ -385,9 +384,9 @@ struct x11drv_thread_data
 {
     Display *display;
     XEvent  *current_event;        /* event currently being processed */
-    HWND     grab_hwnd;            /* window that currently grabs the mouse */
     HWND     last_focus;           /* last window that had focus */
     HWND     keymapnotify_hwnd;    /* window that should receive modifier release events */
+    HKL      last_layout;          /* last input keyboard layout */
     XIM      xim;                  /* input method */
     HWND     last_xic_hwnd;        /* last xic window */
     XFontSet font_set;             /* international text drawing font set */
@@ -402,6 +401,7 @@ struct x11drv_thread_data
     XIValuatorClassInfo x_valuator;
     XIValuatorClassInfo y_valuator;
     int      xinput2_pointer;      /* XInput2 master pointer device id */
+    int      xinput2_rawinput;     /* XInput2 rawinput-only thread */
 #endif /* HAVE_X11_EXTENSIONS_XINPUT2_H */
 };
 
@@ -445,6 +445,7 @@ extern BOOL usexrandr;
 extern BOOL usexvidmode;
 extern BOOL use_take_focus;
 extern BOOL use_primary_selection;
+extern BOOL use_server_x11;
 extern BOOL use_system_cursors;
 extern BOOL grab_fullscreen;
 extern BOOL usexcomposite;
@@ -516,6 +517,7 @@ enum x11drv_atoms
     XATOM__GTK_WORKAREAS_D0,
     XATOM__XEMBED,
     XATOM__XEMBED_INFO,
+    XATOM__XKB_RULES_NAMES,
     XATOM_XdndAware,
     XATOM_XdndEnter,
     XATOM_XdndPosition,
@@ -705,6 +707,7 @@ extern void reapply_cursor_clipping(void);
 extern void ungrab_clipping_window(void);
 extern void move_resize_window( HWND hwnd, int dir, POINT pos );
 extern void X11DRV_InitKeyboard( Display *display );
+extern void X11DRV_InitMouse( Display *display );
 extern BOOL X11DRV_ProcessEvents( DWORD mask );
 extern HWND *build_hwnd_list(void);
 
@@ -851,9 +854,9 @@ extern struct x11drv_display_device_handler desktop_handler;
 extern BOOL xim_init( const WCHAR *input_style );
 extern void xim_thread_attach( struct x11drv_thread_data *data );
 extern BOOL xim_in_compose_mode(void);
-extern void xim_set_result_string( HWND hwnd, const char *str, UINT count );
 extern XIC X11DRV_get_ic( HWND hwnd );
 extern void xim_set_focus( HWND hwnd, BOOL focus );
+extern BOOL xim_process_key( HWND hwnd, XKeyEvent xkey );
 
 #define XEMBED_MAPPED  (1 << 0)
 

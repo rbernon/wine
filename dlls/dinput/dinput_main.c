@@ -435,7 +435,7 @@ void input_thread_start(void)
 
     if (!(start_event = CreateEventW( NULL, FALSE, FALSE, NULL )))
         ERR( "Failed to create start event, error %lu\n", GetLastError() );
-    else if (!(dinput_thread = CreateThread( NULL, 0, dinput_thread_proc, start_event, 0, NULL )))
+    else if (!(dinput_thread = CreateThread( NULL, 0x100000, dinput_thread_proc, start_event, 0, NULL )))
         ERR( "Failed to create internal thread, error %lu\n", GetLastError() );
     else
         WaitForSingleObject( start_event, INFINITE );
@@ -490,22 +490,6 @@ void input_thread_remove_user(void)
         dinput_thread = NULL;
     }
     LeaveCriticalSection( &dinput_hook_crit );
-}
-
-void check_dinput_events(void)
-{
-    /* Windows does not do that, but our current implementation of winex11
-     * requires periodic event polling to forward events to the wineserver.
-     *
-     * We have to call this function from multiple places, because:
-     * - some games do not explicitly poll for mouse events
-     *   (for example Culpa Innata)
-     * - some games only poll the device, and neither keyboard nor mouse
-     *   (for example Civilization: Call to Power 2)
-     * - some games do not explicitly poll for keyboard events
-     *   (for example Morrowind in its key binding page)
-     */
-    MsgWaitForMultipleObjectsEx(0, NULL, 0, QS_ALLINPUT, 0);
 }
 
 BOOL WINAPI DllMain( HINSTANCE inst, DWORD reason, void *reserved )

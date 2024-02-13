@@ -44,10 +44,12 @@ WINE_DEFAULT_DEBUG_CHANNEL(xim);
 #define XICProc XIMProc
 #endif
 
+static BOOL ime_comp_updated;
 static WCHAR *ime_comp_buf;
 
 static XIMStyle input_style = 0;
 static XIMStyle input_style_req = XIMPreeditCallbacks | XIMStatusCallbacks;
+static XIMPreeditState xim_preedit_state;
 
 static const char *debugstr_xim_style( XIMStyle style )
 {
@@ -67,6 +69,33 @@ static const char *debugstr_xim_style( XIMStyle style )
     if (style & XIMStatusNone) buf += sprintf( buf, " none" );
 
     return wine_dbg_sprintf( "%s", buffer );
+}
+
+void xim_update_caret_pos( XIC xic, HWND hwnd )
+{
+    struct x11drv_win_data *data;
+    XVaNestedList attr;
+    XPoint spot;
+    POINT pos;
+
+    NtUserGetCaretPos( &pos );
+    spot.x = pos.x;
+    spot.y = pos.y;
+
+    if ((data = get_win_data( hwnd )))
+    {
+        if (NtUserGetWindowLongW( hwnd, GWL_EXSTYLE ) & WS_EX_LAYOUTRTL)
+            spot.x = data->client_rect.right - data->client_rect.left - 1 - spot.x;
+        spot.x += data->client_rect.left - data->whole_rect.left;
+        spot.y += data->client_rect.top - data->whole_rect.top + 15;
+        release_win_data( data );
+    }
+
+    if ((attr = XVaCreateNestedList( 0, XNSpotLocation, &spot, NULL )))
+    {
+        XSetICValues( xic, XNPreeditAttributes, attr, NULL );
+        XFree( attr );
+    }
 }
 
 BOOL xim_in_compose_mode(void)
@@ -99,9 +128,38 @@ static void xim_update_comp_string( UINT offset, UINT old_len, const WCHAR *text
     memmove( ptr + new_len, ptr + old_len, (len - offset - old_len) * sizeof(WCHAR) );
     if (text) memcpy( ptr, text, new_len * sizeof(WCHAR) );
     ime_comp_buf[len + diff] = 0;
+    ime_comp_updated = TRUE;
 }
 
-void xim_set_result_string( HWND hwnd, const char *str, UINT count )
+static void xic_update_position( XIC xic, HWND hwnd )
+{
+    struct x11drv_win_data *data;
+    XVaNestedList attr;
+    XPoint spot;
+    RECT rect;
+
+    send_ime_ui_message( hwnd, WM_WINE_IME_GET_CHAR_RECT, MAKELONG(0, 1), (LPARAM)&rect );
+    NtUserMapWindowPoints( 0, hwnd, (POINT *)&rect, 2 );
+    spot.x = rect.left;
+    spot.y = rect.bottom;
+
+    if ((data = get_win_data( hwnd )))
+    {
+        if (NtUserGetWindowLongW( hwnd, GWL_EXSTYLE ) & WS_EX_LAYOUTRTL)
+            spot.x = data->client_rect.right - data->client_rect.left - 1 - spot.x;
+        spot.x += data->client_rect.left - data->whole_rect.left;
+        spot.y += data->client_rect.top - data->whole_rect.top;
+        release_win_data( data );
+    }
+
+    if ((attr = XVaCreateNestedList( 0, XNSpotLocation, &spot, NULL )))
+    {
+        XSetICValues( xic, XNPreeditAttributes, attr, NULL );
+        XFree( attr );
+    }
+}
+
+static void xim_set_result_string( HWND hwnd, const char *str, UINT count )
 {
     WCHAR *output;
     DWORD len;
@@ -112,7 +170,7 @@ void xim_set_result_string( HWND hwnd, const char *str, UINT count )
     len = ntdll_umbstowcs( str, count, output, count );
     output[len] = 0;
 
-    post_ime_update( hwnd, 0, NULL, output );
+    post_ime_update( hwnd, 0, ime_comp_updated ? ime_comp_buf : NULL, output );
 
     free( output );
 }
@@ -122,19 +180,7 @@ static BOOL xic_preedit_state_notify( XIC xic, XPointer user, XPointer arg )
     XIMPreeditStateNotifyCallbackStruct *params = (void *)arg;
     const XIMPreeditState state = params->state;
     HWND hwnd = (HWND)user;
-
     TRACE( "xic %p, hwnd %p, state %lu\n", xic, hwnd, state );
-
-    switch (state)
-    {
-    case XIMPreeditEnable:
-        NtUserPostMessage( hwnd, WM_WINE_IME_NOTIFY, IMN_WINE_SET_OPEN_STATUS, TRUE );
-        break;
-    case XIMPreeditDisable:
-        NtUserPostMessage( hwnd, WM_WINE_IME_NOTIFY, IMN_WINE_SET_OPEN_STATUS, FALSE );
-        break;
-    }
-
     return TRUE;
 }
 
@@ -147,7 +193,6 @@ static int xic_preedit_start( XIC xic, XPointer user, XPointer arg )
     if ((ime_comp_buf = realloc( ime_comp_buf, sizeof(WCHAR) ))) *ime_comp_buf = 0;
     else ERR( "Failed to allocate preedit buffer\n" );
 
-    NtUserPostMessage( hwnd, WM_WINE_IME_NOTIFY, IMN_WINE_SET_OPEN_STATUS, TRUE );
     post_ime_update( hwnd, 0, ime_comp_buf, NULL );
 
     return -1;
@@ -163,7 +208,6 @@ static int xic_preedit_done( XIC xic, XPointer user, XPointer arg )
     ime_comp_buf = NULL;
 
     post_ime_update( hwnd, 0, NULL, NULL );
-    NtUserPostMessage( hwnd, WM_WINE_IME_NOTIFY, IMN_WINE_SET_OPEN_STATUS, FALSE );
 
     return 0;
 }
@@ -274,26 +318,55 @@ static int xic_status_draw( XIC xic, XPointer user, XPointer arg )
     return 0;
 }
 
-/***********************************************************************
- *      NotifyIMEStatus (X11DRV.@)
- */
-void X11DRV_NotifyIMEStatus( HWND hwnd, UINT status )
+NTSTATUS x11drv_xim_preedit_state( void *arg )
 {
-    XIMPreeditState state = status ? XIMPreeditEnable : XIMPreeditDisable;
+    struct xim_preedit_state_params *params = arg;
+    HWND hwnd = NtUserGetAncestor( params->hwnd, GA_ROOT );
+    XIMPreeditState state = params->open ? XIMPreeditEnable : XIMPreeditDisable;
     XVaNestedList attr;
     XIC xic;
 
-    TRACE( "hwnd %p, status %#x\n", hwnd, status );
-
-    if (!(xic = X11DRV_get_ic( hwnd ))) return;
-
-    if ((attr = XVaCreateNestedList( 0, XNPreeditState, state, NULL )))
+    if (!(xic = X11DRV_get_ic( hwnd ))) return 0;
+    if (xim_preedit_state && state != xim_preedit_state &&
+        (attr = XVaCreateNestedList( 0, XNPreeditState, state, NULL )))
     {
         XSetICValues( xic, XNPreeditAttributes, attr, NULL );
         XFree( attr );
     }
 
-    if (!status) XFree( XmbResetIC( xic ) );
+    return 0;
+}
+
+/***********************************************************************
+ *      NotifyIMEStatus (X11DRV.@)
+ */
+void X11DRV_NotifyIMEStatus( HWND hwnd, UINT status )
+{
+    Window win;
+    XIC xic;
+
+    TRACE( "hwnd %p, status %#x\n", hwnd, status );
+
+    if (status) return; /* there's no reliable way to force preedit state open */
+
+    hwnd = NtUserGetAncestor( hwnd, GA_ROOT );
+
+    if (!(xic = X11DRV_get_ic( hwnd ))) return;
+
+    if ((win = X11DRV_get_whole_window( hwnd )))
+    {
+        XEvent event = {.xkey = {.type = KeyPress, .display = XDisplayOfIM( XIMOfIC( xic ) )}};
+        event.xkey.keycode = XKeysymToKeycode( event.xkey.display, XK_Escape );
+        XFilterEvent( &event, win );
+    }
+}
+
+/***********************************************************************
+ *      SetCaretPos (X11DRV.@)
+ */
+void X11DRV_SetCaretPos( const RECT *caret )
+{
+    TRACE( "caret %s\n", wine_dbgstr_rect(caret) );
 }
 
 /***********************************************************************
@@ -336,6 +409,8 @@ static XIM xim_create( struct x11drv_thread_data *data )
 {
     XIMCallback destroy = {.callback = xim_destroy, .client_data = (XPointer)data};
     XIMStyle input_style_fallback = XIMPreeditNone | XIMStatusNone;
+    BOOL has_preedit_state_callback = FALSE;
+    XIMValuesList *values = NULL;
     XIMStyles *styles = NULL;
     INT i;
     XIM xim;
@@ -374,6 +449,20 @@ static XIM xim_create( struct x11drv_thread_data *data )
 
     if (!input_style) input_style = input_style_fallback;
     TRACE( "selected style %#lx %s\n", input_style, debugstr_xim_style( input_style ) );
+
+    XGetIMValues( xim, XNQueryICValuesList, &values, NULL );
+    TRACE( "xic values count %u\n", values ? values->count_values : 0 );
+    for (i = 0; values && i < values->count_values; ++i)
+    {
+        const char *value = values->supported_values[i];
+        TRACE( "  %u: %s\n", i, debugstr_a( value ) );
+        if (!strcmp( value, XNPreeditState )) xim_preedit_state = XIMPreeditDisable;
+        if (!strcmp( value, XNPreeditStateNotifyCallback )) has_preedit_state_callback = TRUE;
+    }
+    XFree( values );
+
+    if (!has_preedit_state_callback) xim_preedit_state = XIMPreeditUnKnown;
+    if (!xim_preedit_state) WARN( "XIM doesn't support preedit state or callback.\n" );
 
     return xim;
 }
@@ -518,4 +607,67 @@ BOOL X11DRV_SetIMECompositionRect( HWND hwnd, RECT rect )
 
     release_win_data( data );
     return TRUE;
+}
+
+static Bool is_same_key_event( Display *display, XEvent *event, XPointer arg )
+{
+    XKeyEvent *original = (XKeyEvent *)arg;
+    if (event->type != original->type) return FALSE;
+    if (!event->xkey.keycode) return TRUE;
+    return original->time == event->xkey.time && original->keycode == event->xkey.keycode &&
+           original->state == event->xkey.state;
+}
+
+/* Shamelessly stolen from Xlib, this effectively synchronizes with IME server
+ * and seems to be the only way to reliably do that. */
+static void synchronize_with_ime( XIC xic )
+{
+    CARD32 dummy;
+    XGetICValues( xic, XNFilterEvents, &dummy, NULL );
+}
+
+BOOL xim_process_key( HWND hwnd, XKeyEvent xkey )
+{
+    struct x11drv_thread_data *data = x11drv_thread_data();
+    XIC xic = X11DRV_get_ic( hwnd );
+    XEvent event;
+
+    TRACE( "hwnd %p, xic %p, xkey type %u, keycode %u, state %#x\n", hwnd, xic, xkey.type,
+           xkey.keycode, xkey.state );
+
+    if (!xic) return FALSE;
+
+    xkey.display = data->display;
+    xkey.root = DefaultRootWindow( data->display );
+    xkey.time = NtGetTickCount() + EVENT_x11_time_to_win32_time( 0 );
+    xkey.serial = XNextRequest( data->display );
+    xkey.same_screen = 1;
+    XNoOp( data->display );
+
+    ime_comp_updated = FALSE;
+    if (!XFilterEvent( (XEvent *)&xkey, None )) return FALSE;
+    synchronize_with_ime( xic );
+
+    if (!XCheckIfEvent( data->display, &event, is_same_key_event, (XPointer)&xkey )) return TRUE;
+    if (XFilterEvent( &event, None )) return TRUE;
+
+    if (event.type == KeyPress)
+    {
+        char buffer[24], *text = buffer;
+        Status status = 0;
+        KeySym keysym;
+        int len;
+
+        len = XmbLookupString( xic, &event.xkey, buffer, sizeof(buffer), &keysym, &status );
+        if (status == XBufferOverflow && (text = malloc( len )))
+            len = XmbLookupString( xic, &event.xkey, text, len, &keysym, &status );
+
+        if (status == XLookupChars)
+        {
+            xim_set_result_string( hwnd, text, len );
+            if (text != buffer) free( text );
+        }
+    }
+
+    return FALSE;
 }

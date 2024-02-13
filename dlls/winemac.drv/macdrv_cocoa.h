@@ -241,7 +241,6 @@ extern void macdrv_set_cocoa_retina_mode(int new_mode);
 
 /* cursor */
 extern void macdrv_set_cursor(CFStringRef name, CFArrayRef frames);
-extern int macdrv_get_cursor_position(CGPoint *pos);
 extern int macdrv_set_cursor_position(CGPoint pos);
 extern int macdrv_clip_cursor(CGRect rect);
 

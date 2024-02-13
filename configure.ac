@@ -24,6 +24,7 @@ AC_ARG_ENABLE(maintainer-mode, AS_HELP_STRING([--enable-maintainer-mode],[enable
 AC_ARG_ENABLE(sast,  AS_HELP_STRING([--enable-sast],[enable static application security testing using Clang]))
 AC_ARG_ENABLE(silent-rules, AS_HELP_STRING([--enable-silent-rules],[use silent build rules (override: "make V=1")]))
 AC_ARG_ENABLE(werror, AS_HELP_STRING([--enable-werror],[treat compilation warnings as errors]))
+AC_ARG_ENABLE(server-x11, AS_HELP_STRING([--disable-server-x11],[disable wineserver X11 client]))
 
 AC_ARG_WITH(alsa,      AS_HELP_STRING([--without-alsa],[do not use the Alsa sound support]))
 AC_ARG_WITH(capi,      AS_HELP_STRING([--without-capi],[do not use CAPI (ISDN support)]))
@@ -445,7 +446,8 @@ AC_CHECK_HEADERS(\
 	syscall.h \
 	utime.h \
 	valgrind/memcheck.h \
-	valgrind/valgrind.h
+	valgrind/valgrind.h \
+	xkbcommon/xkbcommon-compose.h
 )
 AC_HEADER_MAJOR()
 
@@ -1215,6 +1217,7 @@ then
 
     dnl *** All of the following tests require X11/Xlib.h
     AC_CHECK_HEADERS([X11/extensions/shape.h \
+                      X11/extensions/XInput.h \
                       X11/extensions/XInput2.h \
                       X11/extensions/XShm.h \
                       X11/extensions/Xfixes.h \
@@ -1367,6 +1370,18 @@ else
     X_LIBS=""
 fi
 
+dnl **** Check for libxkbcommon ****
+if test "x$with_wayland" != "xno" -o "x$enable_server_x11" != "xno"
+then
+    WINE_PACKAGE_FLAGS(XKBCOMMON,[xkbcommon],,,,
+        [AC_CHECK_HEADERS([xkbcommon/xkbcommon.h])
+         AC_CHECK_LIB(xkbcommon,xkb_context_new,[:],[XKBCOMMON_LIBS=""],[$XKBCOMMON_LIBS])])
+    WINE_PACKAGE_FLAGS(XKBREGISTRY,[xkbregistry],,,,
+        [AC_CHECK_HEADERS([xkbcommon/xkbregistry.h])
+         AC_CHECK_LIB(xkbregistry,rxkb_context_new,[:],[XKBREGISTRY_LIBS=""],[$XKBREGISTRY_LIBS])])
+fi
+
+dnl **** Check for winewayland.drv dependencies ****
 if test "x$with_wayland" != "xno"
 then
     WINE_PACKAGE_FLAGS(WAYLAND_CLIENT,[wayland-client],,,,
@@ -1375,12 +1390,6 @@ then
               [AC_PATH_PROG(WAYLAND_SCANNER,wayland-scanner,
                             [`test -n "$PKG_CONFIG" && $PKG_CONFIG --variable=wayland_scanner wayland-scanner 2>/dev/null`])],
               [WAYLAND_CLIENT_LIBS=""],[$WAYLAND_CLIENT_LIBS])])])
-    WINE_PACKAGE_FLAGS(XKBCOMMON,[xkbcommon],,,,
-        [AC_CHECK_HEADERS([xkbcommon/xkbcommon.h])
-         AC_CHECK_LIB(xkbcommon,xkb_context_new,[:],[XKBCOMMON_LIBS=""],[$XKBCOMMON_LIBS])])
-    WINE_PACKAGE_FLAGS(XKBREGISTRY,[xkbregistry],,,,
-        [AC_CHECK_HEADERS([xkbcommon/xkbregistry.h])
-         AC_CHECK_LIB(xkbregistry,rxkb_context_new,[:],[XKBREGISTRY_LIBS=""],[$XKBREGISTRY_LIBS])])
     if test "x$with_opengl" != "xno"
     then
         WINE_PACKAGE_FLAGS(EGL,[egl],[-lEGL],,,
@@ -1868,6 +1877,36 @@ WINE_NOTICE_WITH(netapi,[test "x$ac_cv_lib_soname_netapi" = "x"],
                  [libnetapi not found, Samba NetAPI won't be supported.],
                  [enable_netapi])
 
+dnl **** Check for server X11 libs ****
+if test "x$enable_server_x11" != "xno"
+then
+    WINE_PACKAGE_FLAGS(XCB,[xcb xcb-event xcb-xinput xcb-xfixes xcb-xkb xcb-ewmh],,,,
+        [AC_CHECK_HEADERS([xcb/xcb.h xcb/xcb_ewmh.h])
+         AC_CHECK_LIB(xcb,xcb_connect,[:],[XCB_LIBS=""],[$XCB_LIBS])])
+    WINE_PACKAGE_FLAGS(XKBCOMMON_X11,[xkbcommon-x11],,,,
+        [AC_CHECK_HEADERS([xkbcommon/xkbcommon-x11.h])
+         AC_CHECK_LIB(xkbcommon-x11,xkb_x11_keymap_new_from_device,[:],[XKBCOMMON_X11_LIBS=""],[$XKBCOMMON_X11_LIBS])])
+
+    if test -z "$XCB_LIBS"
+    then
+        WINE_NOTICE([XCB ${notice_platform}development files not found, wineserver X11 client won't be supported.])
+        enable_server_x11=no
+    elif test -z "$XKBCOMMON_LIBS"
+    then
+        WINE_NOTICE([xkbcommon ${notice_platform}development files not found, wineserver X11 client won't be supported.])
+        enable_server_x11=no
+    elif test -z "$XKBREGISTRY_LIBS"
+    then
+        WINE_NOTICE([xkbregistry ${notice_platform}development files not found, wineserver X11 client won't be supported.])
+        enable_server_x11=no
+    elif test -z "$XKBCOMMON_X11_LIBS"
+    then
+        WINE_NOTICE([xkbcommon-x11 ${notice_platform}development files not found, wineserver X11 client won't be supported.])
+        enable_server_x11=no
+    else
+        AC_DEFINE(ENABLE_SERVER_X11,1,[Define to 1 to enable wineserver X11 client])
+    fi
+fi
 
 dnl **** Check for any sound system ****
 if test "x$enable_winealsa_drv$enable_winecoreaudio_drv$enable_winepulse_drv$enable_wineoss_drv$enable_wineandroid_drv" = xnonononono -a \
@@ -3541,6 +3580,7 @@ WINE_CONFIG_MAKEFILE(programs/wineconsole)
 WINE_CONFIG_MAKEFILE(programs/winedbg)
 WINE_CONFIG_MAKEFILE(programs/winedevice)
 WINE_CONFIG_MAKEFILE(programs/winefile)
+WINE_CONFIG_MAKEFILE(programs/winejoy)
 WINE_CONFIG_MAKEFILE(programs/winemenubuilder)
 WINE_CONFIG_MAKEFILE(programs/winemine)
 WINE_CONFIG_MAKEFILE(programs/winemsibuilder)
@@ -3552,6 +3592,7 @@ WINE_CONFIG_MAKEFILE(programs/winhlp32)
 WINE_CONFIG_MAKEFILE(programs/winmgmt)
 WINE_CONFIG_MAKEFILE(programs/winoldap.mod16,enable_win16)
 WINE_CONFIG_MAKEFILE(programs/wintrace)
+WINE_CONFIG_MAKEFILE(programs/wintrace_a)
 WINE_CONFIG_MAKEFILE(programs/winver)
 WINE_CONFIG_MAKEFILE(programs/wmic)
 WINE_CONFIG_MAKEFILE(programs/wmplayer)
