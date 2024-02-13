@@ -2299,7 +2299,7 @@ enum message_type
 @REQ(send_hardware_message)
     user_handle_t   win;       /* window handle */
     union hw_input  input;     /* input data */
-    unsigned int    flags;     /* flags (see below) */
+    unsigned int    flags;     /* flags (see ntuser.h) */
     VARARG(report,bytes);      /* HID report data */
 @REPLY
     int             wait;      /* do we need to wait for a reply? */
@@ -2308,7 +2308,6 @@ enum message_type
     int             new_x;     /* new cursor position */
     int             new_y;
 @END
-#define SEND_HWMSG_INJECTED    0x01
 
 
 /* Get a message from the current queue */
@@ -4078,4 +4077,37 @@ struct handle_info
     int period;                /* auto-repeat period in ms */
 @REPLY
     int enable;                /* previous state of auto-repeat enable */
+@END
+
+/* Connect a process to the host X11 server */
+@REQ(x11_connect)
+    VARARG(display,string);    /* DISPLAY environment variable */
+@END
+
+
+/* Start listening for input on a top-level X11 window */
+@REQ(x11_start_input)
+    user_handle_t   window;    /* handle to the window */
+    unsigned int    x11_win;   /* top-level X11 window */
+@END
+
+
+/* Stop listening for input on a top-level X11 window */
+@REQ(x11_stop_input)
+    unsigned int    x11_win;   /* top-level X11 window */
+@END
+
+
+/* Retrieve the KDBTABLES for a X11 host layout */
+@REQ(x11_kbdtables)
+    unsigned int    layout;       /* HKL of the layout */
+@REPLY
+    unsigned int group_mask;      /* state mask for the layout group */
+    unsigned int shift_mask;      /* state mask for the shift key */
+    unsigned int ctrl_mask;       /* state mask for the ctrl key */
+    unsigned int alt_mask;        /* state mask for the alt key */
+    unsigned int altgr_mask;      /* state mask for the altgr key */
+    unsigned int caps_mask;       /* state mask for the caps lock key */
+    unsigned int num_mask;        /* state mask for the num lock key */
+    VARARG(kbdtables,bytes);      /* KBDTABLES data with name offets */
 @END

@@ -37,7 +37,6 @@ typedef BOOL (*enum_object_callback)( struct dinput_device *impl, UINT index, st
 struct dinput_device_vtbl
 {
     void (*destroy)( IDirectInputDevice8W *iface );
-    HRESULT (*poll)( IDirectInputDevice8W *iface );
     HRESULT (*read)( IDirectInputDevice8W *iface );
     HRESULT (*acquire)( IDirectInputDevice8W *iface );
     HRESULT (*unacquire)( IDirectInputDevice8W *iface );
@@ -115,6 +114,10 @@ struct dinput_device
 
     BYTE device_state_report_id;
     BYTE device_state[DEVICE_STATE_MAX_SIZE];
+    BYTE previous_state[DEVICE_STATE_MAX_SIZE];
+    ULONG update_time;
+    ULONG update_notify;
+    ULONG update_sequence;
 
     BOOL autocenter;
     LONG device_gain;
@@ -132,7 +135,12 @@ extern int dinput_device_object_index_from_id( IDirectInputDevice8W *iface, DWOR
 extern BOOL device_object_matches_semantic( const DIDEVICEINSTANCEW *instance, const DIOBJECTDATAFORMAT *object,
                                             DWORD semantic, BOOL exact );
 
-extern BOOL get_app_key(HKEY*, HKEY*);
+extern void dinput_device_update_begin( IDirectInputDevice8W *iface, ULONG time );
+extern void dinput_device_update_end( IDirectInputDevice8W *iface );
+extern void dinput_device_update_value( IDirectInputDevice8W *iface, const DIDEVICEOBJECTINSTANCEW *instance, LONG value );
+extern void dinput_device_update_button( IDirectInputDevice8W *iface, const DIDEVICEOBJECTINSTANCEW *instance, BYTE value );
+
+extern BOOL get_app_key( HKEY *, HKEY * );
 extern DWORD get_config_key( HKEY, HKEY, const WCHAR *, WCHAR *, DWORD );
 extern BOOL device_instance_is_disabled( DIDEVICEINSTANCEW *instance, BOOL *override );
 extern void queue_event( IDirectInputDevice8W *iface, int index, DWORD data, DWORD time, DWORD seq );

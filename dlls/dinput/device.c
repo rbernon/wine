@@ -266,6 +266,8 @@ static HRESULT dinput_device_init_user_format( struct dinput_device *impl, const
     BOOL identical = TRUE;
     DWORD i;
 
+    if (format->dwDataSize & 3) return DIERR_INVALIDPARAM;
+
     *user_format = *device_format;
     user_format->dwFlags = format->dwFlags;
     user_format->dwDataSize = format->dwDataSize;
@@ -281,6 +283,7 @@ static HRESULT dinput_device_init_user_format( struct dinput_device *impl, const
     for (i = 0; i < format->dwNumObjs; ++i)
     {
         match_obj = format->rgodf + i;
+        if ((DIDFT_GETTYPE(match_obj->dwType) & (DIDFT_AXIS|DIDFT_POV)) && (match_obj->dwOfs & 0x3)) goto failed;
 
         if (!match_device_object( device_format, user_format, match_obj, impl->dinput->dwVersion, &identical ))
         {
@@ -352,7 +355,7 @@ static HKEY get_mapping_key( const WCHAR *device, const WCHAR *username, const W
     return hkey;
 }
 
-static HRESULT save_mapping_settings(IDirectInputDevice8W *iface, LPDIACTIONFORMATW lpdiaf, LPCWSTR lpszUsername)
+HRESULT save_mapping_settings(IDirectInputDevice8W *iface, LPDIACTIONFORMATW lpdiaf, LPCWSTR lpszUsername)
 {
     WCHAR *guid_str = NULL;
     DIDEVICEINSTANCEW didev;
@@ -1456,8 +1459,6 @@ static HRESULT WINAPI dinput_device_GetDeviceState( IDirectInputDevice8W *iface,
 
     if (!data) return DIERR_INVALIDPARAM;
 
-    IDirectInputDevice2_Poll( iface );
-
     EnterCriticalSection( &impl->crit );
     if (impl->status == STATUS_UNPLUGGED)
         hr = DIERR_INPUTLOST;
@@ -1521,7 +1522,6 @@ static HRESULT WINAPI dinput_device_GetDeviceData( IDirectInputDevice8W *iface, 
         return DI_OK;
     if (size < sizeof(DIDEVICEOBJECTDATA_DX3)) return DIERR_INVALIDPARAM;
 
-    IDirectInputDevice2_Poll(iface);
     EnterCriticalSection(&This->crit);
 
     len = This->queue_head - This->queue_tail;
@@ -1769,9 +1769,7 @@ static HRESULT WINAPI dinput_device_Poll( IDirectInputDevice8W *iface )
     if (impl->status == STATUS_UNPLUGGED) hr = DIERR_INPUTLOST;
     else if (impl->status != STATUS_ACQUIRED) hr = DIERR_NOTACQUIRED;
     LeaveCriticalSection( &impl->crit );
-    if (FAILED(hr)) return hr;
 
-    if (impl->vtbl->poll) return impl->vtbl->poll( iface );
     return hr;
 }
 
@@ -2267,4 +2265,50 @@ HRESULT dinput_device_init_device_format( IDirectInputDevice8W *iface )
     }
 
     return DI_OK;
+}
+
+void dinput_device_update_begin( IDirectInputDevice8W *iface, ULONG time )
+{
+    struct dinput_device *impl = impl_from_IDirectInputDevice8W( iface );
+
+    EnterCriticalSection( &impl->crit );
+    impl->update_sequence = impl->dinput->evsequence++;
+    impl->update_notify = FALSE;
+    impl->update_time = time;
+}
+
+void dinput_device_update_end( IDirectInputDevice8W *iface )
+{
+    struct dinput_device *impl = impl_from_IDirectInputDevice8W( iface );
+
+    if (impl->hEvent && impl->update_notify) SetEvent( impl->hEvent );
+    LeaveCriticalSection( &impl->crit );
+}
+
+void dinput_device_update_value( IDirectInputDevice8W *iface, const DIDEVICEOBJECTINSTANCEW *instance, LONG value )
+{
+    struct dinput_device *impl = impl_from_IDirectInputDevice8W( iface );
+    LONG previous_value = *(LONG *)(impl->previous_state + instance->dwOfs);
+
+    *(LONG *)(impl->previous_state + instance->dwOfs) = value;
+    *(LONG *)(impl->device_state + instance->dwOfs) = value;
+    if (previous_value != value)
+    {
+        queue_event( iface, instance->dwType, value, impl->update_time, impl->update_sequence );
+        impl->update_notify = TRUE;
+    }
+}
+
+void dinput_device_update_button( IDirectInputDevice8W *iface, const DIDEVICEOBJECTINSTANCEW *instance, BYTE value )
+{
+    struct dinput_device *impl = impl_from_IDirectInputDevice8W( iface );
+    BYTE previous_value = impl->previous_state[instance->dwOfs];
+
+    impl->previous_state[instance->dwOfs] = value;
+    impl->device_state[instance->dwOfs] = value;
+    if (previous_value != value)
+    {
+        queue_event( iface, instance->dwType, value, impl->update_time, impl->update_sequence );
+        impl->update_notify = TRUE;
+    }
 }
