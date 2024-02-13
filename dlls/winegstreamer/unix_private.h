@@ -33,6 +33,8 @@ GST_DEBUG_CATEGORY_EXTERN(wine);
 #define GST_CAT_DEFAULT wine
 
 extern NTSTATUS wg_init_gstreamer(void *args);
+extern GstTaskPool *wg_task_pool;
+extern GstBus *wg_bus;
 
 extern GstStreamType stream_type_from_caps(GstCaps *caps);
 extern GstElement *create_element(const char *name, const char *plugin_set);
@@ -55,6 +57,20 @@ extern bool wg_format_compare(const struct wg_format *a, const struct wg_format 
 extern GstCaps *wg_format_to_caps(const struct wg_format *format);
 extern uint32_t wg_channel_mask_from_gst(const GstAudioInfo *info);
 
+/* wg_source.c */
+
+extern NTSTATUS wg_source_create(void *args);
+extern NTSTATUS wg_source_destroy(void *args);
+extern NTSTATUS wg_source_get_stream_count(void *args);
+extern NTSTATUS wg_source_get_duration(void *args);
+extern NTSTATUS wg_source_get_position(void *args);
+extern NTSTATUS wg_source_set_position(void *args);
+extern NTSTATUS wg_source_push_data(void *args);
+extern NTSTATUS wg_source_read_data(void *args);
+extern NTSTATUS wg_source_get_stream_format(void *args);
+extern NTSTATUS wg_source_get_stream_tag(void *args);
+extern NTSTATUS wg_source_set_stream_flags(void *args);
+
 /* wg_transform.c */
 
 extern NTSTATUS wg_transform_create(void *args);
@@ -67,6 +83,7 @@ extern NTSTATUS wg_transform_get_status(void *args);
 extern NTSTATUS wg_transform_drain(void *args);
 extern NTSTATUS wg_transform_flush(void *args);
 extern NTSTATUS wg_transform_notify_qos(void *args);
+extern NTSTATUS wg_transform_eos(void *args);
 
 /* wg_media_type.c */
 
@@ -95,6 +112,10 @@ static inline BYTE *wg_sample_data(struct wg_sample *sample)
 {
     return (BYTE *)(UINT_PTR)sample->data;
 }
+
+/* wg_task_pool.c */
+
+extern GstTaskPool *wg_task_pool_new(void) DECLSPEC_HIDDEN;
 
 /* wg_allocator_release_sample can be used to release any sample that was requested. */
 typedef struct wg_sample *(*wg_allocator_request_sample_cb)(gsize size, void *context);

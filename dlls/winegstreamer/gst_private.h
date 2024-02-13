@@ -104,6 +104,22 @@ char *wg_parser_stream_get_tag(wg_parser_stream_t stream, enum wg_parser_tag tag
 void wg_parser_stream_seek(wg_parser_stream_t stream, double rate,
         uint64_t start_pos, uint64_t stop_pos, DWORD start_flags, DWORD stop_flags);
 
+HRESULT wg_source_create(const WCHAR *url, uint64_t file_size,
+        const void *data, uint32_t size, WCHAR mime_type[256],
+        wg_source_t *out);
+void wg_source_destroy(wg_source_t source);
+HRESULT wg_source_get_stream_count(wg_source_t source, uint32_t *stream_count);
+HRESULT wg_source_get_duration(wg_source_t source, uint64_t *duration);
+HRESULT wg_source_set_position(wg_source_t source, uint64_t time);
+HRESULT wg_source_get_position(wg_source_t source, uint64_t *read_offset);
+HRESULT wg_source_push_data(wg_source_t source, const void *data, uint32_t size);
+HRESULT wg_source_read_data(wg_source_t source, UINT32 index, IMFSample **out);
+bool wg_source_get_stream_format(wg_source_t source, UINT32 index,
+        struct wg_format *format);
+char *wg_source_get_stream_tag(wg_source_t source, UINT32 index,
+        wg_parser_tag tag);
+void wg_source_set_stream_flags(wg_source_t source, UINT32 index, BOOL select);
+
 HRESULT wg_transform_create_mf(IMFMediaType *input_type, IMFMediaType *output_type,
         const struct wg_transform_attrs *attrs, wg_transform_t *transform);
 HRESULT wg_transform_create_quartz(const AM_MEDIA_TYPE *input_format, const AM_MEDIA_TYPE *output_format,
@@ -116,6 +132,7 @@ HRESULT wg_transform_drain(wg_transform_t transform);
 HRESULT wg_transform_flush(wg_transform_t transform);
 void wg_transform_notify_qos(wg_transform_t transform,
         bool underflow, double proportion, int64_t diff, uint64_t timestamp);
+HRESULT wg_transform_eos(wg_transform_t transform);
 
 HRESULT check_audio_transform_support(const WAVEFORMATEX *input, const WAVEFORMATEX *output);
 HRESULT check_video_transform_support(const MFVIDEOFORMAT *input, const MFVIDEOFORMAT *output);
@@ -179,11 +196,14 @@ HRESULT wg_transform_push_data(wg_transform_t transform, struct wg_sample *sampl
 HRESULT wg_transform_read_data(wg_transform_t transform, struct wg_sample *sample);
 
 HRESULT gstreamer_byte_stream_handler_create(REFIID riid, void **obj);
+HRESULT gstreamer_byte_stream_handler_2_create(REFIID riid, void **obj);
 
 unsigned int wg_format_get_stride(const struct wg_format *format);
 
 bool wg_video_format_is_rgb(enum wg_video_format format);
 
+HRESULT audio_decoder_create(REFIID riid, void **ret);
+HRESULT video_decoder_create(REFIID riid, void **ret);
 HRESULT aac_decoder_create(REFIID riid, void **ret);
 HRESULT h264_decoder_create(REFIID riid, void **ret);
 HRESULT video_processor_create(REFIID riid, void **ret);
