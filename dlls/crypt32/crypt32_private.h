@@ -19,8 +19,46 @@
 #ifndef __CRYPT32_PRIVATE_H__
 #define __CRYPT32_PRIVATE_H__
 
+#include <stddef.h>
+#include <stdarg.h>
+
+#include "windef.h"
+#include "winbase.h"
+#include "wincrypt.h"
+
+#include "wine/debug.h"
 #include "wine/list.h"
 #include "wine/unixlib.h"
+
+struct store_prov_vtbl
+{
+    PFN_CERT_STORE_PROV_CLOSE              close;
+    PFN_CERT_STORE_PROV_CONTROL            control;
+
+    PFN_CERT_STORE_PROV_READ_CERT          read_cert;
+    PFN_CERT_STORE_PROV_WRITE_CERT         write_cert;
+    PFN_CERT_STORE_PROV_DELETE_CERT        delete_cert;
+    PFN_CERT_STORE_PROV_FIND_CERT          find_cert;
+    PFN_CERT_STORE_PROV_FREE_FIND_CERT     free_find_cert;
+    PFN_CERT_STORE_PROV_SET_CERT_PROPERTY  set_cert_property;
+    PFN_CERT_STORE_PROV_GET_CERT_PROPERTY  get_cert_property;
+
+    PFN_CERT_STORE_PROV_READ_CRL           read_crl;
+    PFN_CERT_STORE_PROV_WRITE_CRL          write_crl;
+    PFN_CERT_STORE_PROV_DELETE_CRL         delete_crl;
+    PFN_CERT_STORE_PROV_FIND_CRL           find_crl;
+    PFN_CERT_STORE_PROV_FREE_FIND_CRL      free_find_crl;
+    PFN_CERT_STORE_PROV_SET_CRL_PROPERTY   set_crl_property;
+    PFN_CERT_STORE_PROV_GET_CRL_PROPERTY   get_crl_property;
+
+    PFN_CERT_STORE_PROV_READ_CTL           read_ctl;
+    PFN_CERT_STORE_PROV_WRITE_CTL          write_ctl;
+    PFN_CERT_STORE_PROV_DELETE_CTL         delete_ctl;
+    PFN_CERT_STORE_PROV_FIND_CTL           find_ctl;
+    PFN_CERT_STORE_PROV_FREE_FIND_CTL      free_find_ctl;
+    PFN_CERT_STORE_PROV_SET_CTL_PROPERTY   set_ctl_property;
+    PFN_CERT_STORE_PROV_GET_CTL_PROPERTY   get_ctl_property;
+};
 
 BOOL CNG_ImportPubKey(CERT_PUBLIC_KEY_INFO *pubKeyInfo, BCRYPT_KEY_HANDLE *key);
 BOOL cng_prepare_signature(const char *alg_oid, BYTE *encoded_sig, DWORD encoded_sig_len,
@@ -173,65 +211,54 @@ void default_chain_engine_free(void);
 /* (Internal) certificate store types and functions */
 struct WINE_CRYPTCERTSTORE;
 
-typedef struct _CONTEXT_PROPERTY_LIST CONTEXT_PROPERTY_LIST;
+struct properties;
 
 typedef struct _context_t context_t;
-
-typedef struct {
-    void (*free)(context_t*);
-    struct _context_t *(*clone)(context_t*,struct WINE_CRYPTCERTSTORE*,BOOL);
-} context_vtbl_t;
+struct context_vtbl;
 
 struct _context_t {
-    const context_vtbl_t *vtbl;
+    const struct context_vtbl *vtbl;
     LONG ref;
     struct WINE_CRYPTCERTSTORE *store;
     struct _context_t *linked;
-    CONTEXT_PROPERTY_LIST *properties;
+    struct properties *properties;
     union {
         struct list entry;
         void *ptr;
     } u;
+    DWORD info_size;
+    union
+    {
+        CERT_CONTEXT cert;
+        CRL_CONTEXT crl;
+        CTL_CONTEXT ctl;
+        BYTE ptr[1];
+    };
 };
 
 static inline context_t *context_from_ptr(const void *ptr)
 {
-    return (context_t*)ptr-1;
+    return CONTAINING_RECORD( ptr, context_t, ptr );
 }
 
 static inline void *context_ptr(context_t *context)
 {
-    return context+1;
+    return &context->ptr;
 }
 
-typedef struct {
-    context_t base;
-    CERT_CONTEXT ctx;
-} cert_t;
-
-static inline cert_t *cert_from_ptr(const CERT_CONTEXT *ptr)
+static inline context_t *context_from_cert( const CERT_CONTEXT *cert )
 {
-    return CONTAINING_RECORD(ptr, cert_t, ctx);
+    return CONTAINING_RECORD( cert, context_t, cert );
 }
 
-typedef struct {
-    context_t base;
-    CRL_CONTEXT ctx;
-} crl_t;
-
-static inline crl_t *crl_from_ptr(const CRL_CONTEXT *ptr)
+static inline context_t *context_from_crl( const CRL_CONTEXT *crl )
 {
-    return CONTAINING_RECORD(ptr, crl_t, ctx);
+    return CONTAINING_RECORD( crl, context_t, crl );
 }
 
-typedef struct {
-    context_t base;
-    CTL_CONTEXT ctx;
-} ctl_t;
-
-static inline ctl_t *ctl_from_ptr(const CTL_CONTEXT *ptr)
+static inline context_t *context_from_ctl( const CTL_CONTEXT *ctl )
 {
-    return CONTAINING_RECORD(ptr, ctl_t, ctx);
+    return CONTAINING_RECORD( ctl, context_t, ctl );
 }
 
 /* Some typedefs that make it easier to abstract which type of context we're
@@ -323,12 +350,17 @@ typedef struct WINE_CRYPTCERTSTORE
     DWORD                       dwOpenFlags;
     CertStoreType               type;
     const store_vtbl_t         *vtbl;
-    CONTEXT_PROPERTY_LIST      *properties;
+    struct properties          *properties;
 } WINECRYPT_CERTSTORE;
 
-void CRYPT_InitStore(WINECRYPT_CERTSTORE *store, DWORD dwFlags,
- CertStoreType type, const store_vtbl_t*);
-void CRYPT_FreeStore(WINECRYPT_CERTSTORE *store);
+extern WINECRYPT_CERTSTORE *CRYPT_MemOpenStore( HCRYPTPROV hCryptProv, DWORD dwFlags, const void *pvPara );
+extern WINECRYPT_CERTSTORE *CRYPT_SysRegOpenStoreW( HCRYPTPROV hCryptProv, DWORD dwFlags, const void *pvPara );
+extern WINECRYPT_CERTSTORE *CRYPT_SysRegOpenStoreA( HCRYPTPROV hCryptProv, DWORD dwFlags, const void *pvPara );
+extern WINECRYPT_CERTSTORE *CRYPT_SysOpenStoreW( HCRYPTPROV hCryptProv, DWORD dwFlags, const void *pvPara );
+extern WINECRYPT_CERTSTORE *CRYPT_SysOpenStoreA( HCRYPTPROV hCryptProv, DWORD dwFlags, const void *pvPara );
+
+void CRYPT_InitStore( WINECRYPT_CERTSTORE *store, DWORD dwFlags, CertStoreType type, const store_vtbl_t * ) DECLSPEC_HIDDEN;
+void CRYPT_FreeStore(WINECRYPT_CERTSTORE *store) DECLSPEC_HIDDEN;
 BOOL WINAPI I_CertUpdateStore(HCERTSTORE store1, HCERTSTORE store2, DWORD unk0,
  DWORD unk1);
 
@@ -401,51 +433,26 @@ DWORD cert_name_to_str_with_indent(DWORD dwCertEncodingType, DWORD indent,
  *  Context functions
  */
 
-/* Allocates a new data context, a context which owns properties directly.
- * contextSize is the size of the public data type associated with context,
- * which should be one of CERT_CONTEXT, CRL_CONTEXT, or CTL_CONTEXT.
- * Free with Context_Release.
- */
-context_t *Context_CreateDataContext(size_t contextSize, const context_vtbl_t *vtbl, struct WINE_CRYPTCERTSTORE*);
+extern context_t *context_create_copy( context_t *source, struct WINE_CRYPTCERTSTORE *store );
+extern context_t *context_create_link( context_t *source, struct WINE_CRYPTCERTSTORE *store );
 
-/* Creates a new link context.  The context refers to linked
- * rather than owning its own properties.  If addRef is TRUE (which ordinarily
- * it should be) linked is addref'd.
- * Free with Context_Release.
- */
-context_t *Context_CreateLinkContext(unsigned contextSize, context_t *linked, struct WINE_CRYPTCERTSTORE*);
-
-/* Copies properties from fromContext to toContext. */
-void Context_CopyProperties(const void *to, const void *from);
+extern void cert_context_copy_properties( const CERT_CONTEXT *dst, const CERT_CONTEXT *src );
+extern void crl_context_copy_properties( const CRL_CONTEXT *dst, const CRL_CONTEXT *src );
+extern void ctl_context_copy_properties( const CTL_CONTEXT *dst, const CTL_CONTEXT *src );
 
 void Context_AddRef(context_t*);
 void Context_Release(context_t *context);
 void Context_Free(context_t*);
 
-/**
- *  Context property list functions
- */
+/* properties.c */
 
-CONTEXT_PROPERTY_LIST *ContextPropertyList_Create(void);
-
-/* Searches for the property with ID id in the context.  Returns TRUE if found,
- * and copies the property's length and a pointer to its data to blob.
- * Otherwise returns FALSE.
- */
-BOOL ContextPropertyList_FindProperty(CONTEXT_PROPERTY_LIST *list, DWORD id,
- PCRYPT_DATA_BLOB blob);
-
-BOOL ContextPropertyList_SetProperty(CONTEXT_PROPERTY_LIST *list, DWORD id,
- const BYTE *pbData, size_t cbData);
-
-void ContextPropertyList_RemoveProperty(CONTEXT_PROPERTY_LIST *list, DWORD id);
-
-DWORD ContextPropertyList_EnumPropIDs(CONTEXT_PROPERTY_LIST *list, DWORD id);
-
-void ContextPropertyList_Copy(CONTEXT_PROPERTY_LIST *to,
- CONTEXT_PROPERTY_LIST *from);
-
-void ContextPropertyList_Free(CONTEXT_PROPERTY_LIST *list);
+struct properties *properties_create(void) DECLSPEC_HIDDEN;
+void properties_destroy( struct properties *list ) DECLSPEC_HIDDEN;
+BOOL properties_lookup( struct properties *list, DWORD id, CRYPT_DATA_BLOB *blob ) DECLSPEC_HIDDEN;
+BOOL properties_insert( struct properties *list, DWORD id, const BYTE *data, size_t size ) DECLSPEC_HIDDEN;
+void properties_remove( struct properties *list, DWORD id ) DECLSPEC_HIDDEN;
+DWORD properties_enum_ids( struct properties *list, DWORD id ) DECLSPEC_HIDDEN;
+void properties_copy( struct properties *dst, struct properties *src ) DECLSPEC_HIDDEN;
 
 extern WINECRYPT_CERTSTORE empty_store;
 void init_empty_store(void);
