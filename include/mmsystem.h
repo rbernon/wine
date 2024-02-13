@@ -1642,11 +1642,9 @@ typedef struct _MMCKINFO
 
 #define MMIO_DEFAULTBUFFER      8192    /* default buffer size */
 
-#ifndef mmioFOURCC
 #define mmioFOURCC( ch0, ch1, ch2, ch3 )                                \
                 ( (DWORD)(BYTE)(ch0) | ( (DWORD)(BYTE)(ch1) << 8 ) |    \
                 ( (DWORD)(BYTE)(ch2) << 16 ) | ( (DWORD)(BYTE)(ch3) << 24 ) )
-#endif
 
 WINMMAPI LPMMIOPROC  WINAPI mmioInstallIOProcA(FOURCC,LPMMIOPROC,DWORD);
 WINMMAPI LPMMIOPROC  WINAPI mmioInstallIOProcW(FOURCC,LPMMIOPROC,DWORD);
