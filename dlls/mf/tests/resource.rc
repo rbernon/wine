@@ -20,8 +20,25 @@
 
 #include "windef.h"
 
+/* Generated with:
+ *  gst-launch-1.0 audiomixer name=mix ! \
+ *      audio/x-raw,format=F32LE,rate=22050,channels=2 ! \
+ *        filesink location=dlls/mf/tests/audiodata.bin \
+ *      audiotestsrc freq=400 volume=0.2 num-buffers=1 \
+ *        samplesperbuffer=22050 ! mix. \
+ *      audiotestsrc freq=600 volume=0.2 num-buffers=1 \
+ *        samplesperbuffer=22050 timestamp-offset=20000000 ! mix.
+ */
 /* @makedep: audiodata.bin */
 audiodata.bin RCDATA audiodata.bin
+
+/* Generated with:
+ *  gst-launch-1.0 filesrc location=dlls/mf/tests/audiodata.bin num-buffers=10 ! \
+ *      audio/x-raw,format=F32LE,rate=22050,channels=2,layout=interleaved ! \
+ *      wavenc ! filesink location=dlls/mf/tests/audiodata.wav
+ */
+/* @makedep: audiodata.wav */
+audiodata.wav RCDATA audiodata.wav
 
 /* @makedep: audioconvdata.bin */
 audioconvdata.bin RCDATA audioconvdata.bin
