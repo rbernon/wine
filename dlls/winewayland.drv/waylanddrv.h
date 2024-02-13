@@ -63,6 +63,7 @@ enum wayland_window_message
     WM_WAYLAND_INIT_DISPLAY_DEVICES = WM_WINE_FIRST_DRIVER_MSG,
     WM_WAYLAND_CONFIGURE,
     WM_WAYLAND_SET_FOREGROUND,
+    WM_WAYLAND_REFRESH,
 };
 
 enum wayland_surface_config_state
@@ -135,7 +136,6 @@ struct wayland
 
 struct wayland_output_mode
 {
-    struct rb_entry entry;
     int32_t width;
     int32_t height;
     int32_t refresh;
@@ -143,9 +143,7 @@ struct wayland_output_mode
 
 struct wayland_output_state
 {
-    int modes_count;
-    struct rb_tree modes;
-    struct wayland_output_mode *current_mode;
+    struct wayland_output_mode mode;
     char *name;
     int logical_x, logical_y;
     int logical_w, logical_h;

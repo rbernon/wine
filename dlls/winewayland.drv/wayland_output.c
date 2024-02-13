@@ -35,7 +35,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(waylanddrv);
 static const int32_t default_refresh = 60000;
 static uint32_t next_output_id = 0;
 
-#define WAYLAND_OUTPUT_CHANGED_MODES      0x01
+#define WAYLAND_OUTPUT_CHANGED_MODE       0x01
 #define WAYLAND_OUTPUT_CHANGED_NAME       0x02
 #define WAYLAND_OUTPUT_CHANGED_LOGICAL_XY 0x04
 #define WAYLAND_OUTPUT_CHANGED_LOGICAL_WH 0x08
@@ -43,65 +43,6 @@ static uint32_t next_output_id = 0;
 /**********************************************************************
  *          Output handling
  */
-
-/* Compare a mode rb_tree key with the provided mode rb_entry and return -1 if
- * the key compares less than the entry, 0 if the key compares equal to the
- * entry, and 1 if the key compares greater than the entry.
- *
- * The comparison is based on comparing the width, height and refresh in that
- * order. */
-static int wayland_output_mode_cmp_rb(const void *key,
-                                      const struct rb_entry *entry)
-{
-    const struct wayland_output_mode *key_mode = key;
-    const struct wayland_output_mode *entry_mode =
-        RB_ENTRY_VALUE(entry, const struct wayland_output_mode, entry);
-
-    if (key_mode->width < entry_mode->width) return -1;
-    if (key_mode->width > entry_mode->width) return 1;
-    if (key_mode->height < entry_mode->height) return -1;
-    if (key_mode->height > entry_mode->height) return 1;
-    if (key_mode->refresh < entry_mode->refresh) return -1;
-    if (key_mode->refresh > entry_mode->refresh) return 1;
-
-    return 0;
-}
-
-static void wayland_output_state_add_mode(struct wayland_output_state *state,
-                                          int32_t width, int32_t height,
-                                          int32_t refresh, BOOL current)
-{
-    struct rb_entry *mode_entry;
-    struct wayland_output_mode *mode;
-    struct wayland_output_mode key =
-    {
-        .width = width,
-        .height = height,
-        .refresh = refresh,
-    };
-
-    mode_entry = rb_get(&state->modes, &key);
-    if (mode_entry)
-    {
-        mode = RB_ENTRY_VALUE(mode_entry, struct wayland_output_mode, entry);
-    }
-    else
-    {
-        mode = calloc(1, sizeof(*mode));
-        if (!mode)
-        {
-            ERR("Failed to allocate space for wayland_output_mode\n");
-            return;
-        }
-        mode->width = width;
-        mode->height = height;
-        mode->refresh = refresh;
-        rb_put(&state->modes, mode, &mode->entry);
-        state->modes_count++;
-    }
-
-    if (current) state->current_mode = mode;
-}
 
 static void maybe_init_display_devices(void)
 {
@@ -123,30 +64,13 @@ static void maybe_init_display_devices(void)
     NtUserPostMessage(desktop_hwnd, WM_WAYLAND_INIT_DISPLAY_DEVICES, 0, 0);
 }
 
-static void wayland_output_mode_free_rb(struct rb_entry *entry, void *ctx)
-{
-    free(RB_ENTRY_VALUE(entry, struct wayland_output_mode, entry));
-}
-
 static void wayland_output_done(struct wayland_output *output)
 {
-    struct wayland_output_mode *mode;
-
     /* Update current state from pending state. */
     pthread_mutex_lock(&process_wayland.output_mutex);
 
-    if (output->pending_flags & WAYLAND_OUTPUT_CHANGED_MODES)
-    {
-        RB_FOR_EACH_ENTRY(mode, &output->pending.modes, struct wayland_output_mode, entry)
-        {
-            wayland_output_state_add_mode(&output->current,
-                                          mode->width, mode->height, mode->refresh,
-                                          mode == output->pending.current_mode);
-        }
-        rb_destroy(&output->pending.modes, wayland_output_mode_free_rb, NULL);
-        rb_init(&output->pending.modes, wayland_output_mode_cmp_rb);
-        output->pending.modes_count = 0;
-    }
+    if (output->pending_flags & WAYLAND_OUTPUT_CHANGED_MODE)
+        output->current.mode = output->pending.mode;
 
     if (output->pending_flags & WAYLAND_OUTPUT_CHANGED_NAME)
     {
@@ -171,24 +95,19 @@ static void wayland_output_done(struct wayland_output *output)
 
     /* Ensure the logical dimensions have sane values. */
     if ((!output->current.logical_w || !output->current.logical_h) &&
-        output->current.current_mode)
+        output->current.mode.width && output->current.mode.height)
     {
-        output->current.logical_w = output->current.current_mode->width;
-        output->current.logical_h = output->current.current_mode->height;
+        output->current.logical_w = output->current.mode.width;
+        output->current.logical_h = output->current.mode.height;
     }
 
     pthread_mutex_unlock(&process_wayland.output_mutex);
 
-    TRACE("name=%s logical=%d,%d+%dx%d\n",
+    TRACE("name=%s logical=%d,%d+%dx%d mode=%dx%d@%d\n",
           output->current.name, output->current.logical_x, output->current.logical_y,
-          output->current.logical_w, output->current.logical_h);
-
-    RB_FOR_EACH_ENTRY(mode, &output->current.modes, struct wayland_output_mode, entry)
-    {
-        TRACE("mode %dx%d @ %d %s\n",
-              mode->width, mode->height, mode->refresh,
-              output->current.current_mode == mode ? "*" : "");
-    }
+          output->current.logical_w, output->current.logical_h,
+          output->current.mode.width, output->current.mode.height,
+          output->current.mode.refresh);
 
     maybe_init_display_devices();
 }
@@ -208,13 +127,17 @@ static void output_handle_mode(void *data, struct wl_output *wl_output,
 {
     struct wayland_output *output = data;
 
+    /* Non-current output modes are deprecated. */
+    if (!(flags & WL_OUTPUT_MODE_CURRENT)) return;
+
     /* Windows apps don't expect a zero refresh rate, so use a default value. */
     if (refresh == 0) refresh = default_refresh;
 
-    wayland_output_state_add_mode(&output->pending, width, height, refresh,
-                                  (flags & WL_OUTPUT_MODE_CURRENT));
+    output->pending.mode.width = width;
+    output->pending.mode.height = height;
+    output->pending.mode.refresh = refresh;
 
-    output->pending_flags |= WAYLAND_OUTPUT_CHANGED_MODES;
+    output->pending_flags |= WAYLAND_OUTPUT_CHANGED_MODE;
 }
 
 static void output_handle_done(void *data, struct wl_output *wl_output)
@@ -322,10 +245,6 @@ BOOL wayland_output_create(uint32_t id, uint32_t version)
     wl_output_add_listener(output->wl_output, &output_listener, output);
 
     wl_list_init(&output->link);
-    rb_init(&output->pending.modes, wayland_output_mode_cmp_rb);
-    output->pending.modes_count = 0;
-    rb_init(&output->current.modes, wayland_output_mode_cmp_rb);
-    output->current.modes_count = 0;
 
     /* Have a fallback while we don't have compositor given name. */
     name_len = snprintf(NULL, 0, "WaylandOutput%d", next_output_id);
@@ -356,7 +275,6 @@ err:
 
 static void wayland_output_state_deinit(struct wayland_output_state *state)
 {
-    rb_destroy(&state->modes, wayland_output_mode_free_rb, NULL);
     free(state->name);
 }
 
