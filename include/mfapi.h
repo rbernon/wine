@@ -23,6 +23,7 @@
 #include <mmreg.h>
 #include <avrt.h>
 #include <dxgiformat.h>
+#include <dvdmedia.h>
 
 #if defined(__cplusplus)
 extern "C" {

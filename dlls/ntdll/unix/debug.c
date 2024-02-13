@@ -84,9 +84,8 @@ static int append_output( struct debug_info *info, const char *str, size_t len )
 {
     if (len >= sizeof(info->output) - info->out_pos)
     {
-       fprintf( stderr, "wine_dbg_output: debugstr buffer overflow (contents: '%s')\n", info->output );
+       write( 2, info->output, info->out_pos );
        info->out_pos = 0;
-       abort();
     }
     memcpy( info->output + info->out_pos, str, len );
     info->out_pos += len;

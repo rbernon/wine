@@ -482,6 +482,7 @@ int send_client_fd( struct process *process, int fd, obj_handle_t handle )
     if (debug_level)
         fprintf( stderr, "%04x: *fd* %04x -> %d\n", current ? current->id : process->id, handle, fd );
 
+    if (!process->msg_fd) return -1;
     ret = sendmsg( get_unix_fd( process->msg_fd ), &msghdr, 0 );
 
     if (ret == sizeof(handle)) return 0;

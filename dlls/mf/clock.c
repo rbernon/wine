@@ -1120,8 +1120,11 @@ static HRESULT WINAPI present_clock_timer_callback_Invoke(IMFAsyncCallback *ifac
     }
     LeaveCriticalSection(&clock->cs);
 
-    timer = impl_clock_timer_from_IUnknown(object);
-    IMFAsyncCallback_Invoke(timer->callback, timer->result);
+    if (SUCCEEDED(hr = MFCreateAsyncResult(&timer->IUnknown_iface, timer->callback, NULL, &result)))
+    {
+        hr = MFInvokeCallback(result);
+        IMFAsyncResult_Release(result);
+    }
 
     IUnknown_Release(object);
 

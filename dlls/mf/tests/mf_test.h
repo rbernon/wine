@@ -71,6 +71,7 @@ typedef struct attribute_desc media_type_desc[32];
 #define ATTR_BLOB(k, p, n, ...)   {.key = &k, .name = #k, {.vt = VT_VECTOR | VT_UI1, .caub = {.pElems = (void *)p, .cElems = n}}, __VA_ARGS__ }
 #define ATTR_RATIO(k, n, d, ...)  {.key = &k, .name = #k, {.vt = VT_UI8, .uhVal = {.HighPart = n, .LowPart = d}}, .ratio = TRUE, __VA_ARGS__ }
 #define ATTR_UINT64(k, v, ...)    {.key = &k, .name = #k, {.vt = VT_UI8, .uhVal = {.QuadPart = v}}, __VA_ARGS__ }
+#define ATTR_WSTR(k, v, ...)      {.key = &k, .name = #k, {.vt = VT_LPWSTR, .pwszVal = (WCHAR *)v}, __VA_ARGS__ }
 
 #define check_media_type(a, b, c) check_attributes_(__FILE__, __LINE__, (IMFAttributes *)a, b, c)
 #define check_attributes(a, b, c) check_attributes_(__FILE__, __LINE__, a, b, c)
@@ -120,3 +121,15 @@ struct sample_desc
 #define check_mf_sample_collection(a, b, c) check_mf_sample_collection_(__FILE__, __LINE__, a, b, c, FALSE)
 extern DWORD check_mf_sample_collection_(const char *file, int line, IMFCollection *samples,
         const struct sample_desc *expect_samples, const WCHAR *expect_data_filename, BOOL use_2d_buffer);
+
+extern IMFSampleGrabberSinkCallback *create_test_grabber_callback(void);
+extern IMFAsyncCallback *create_test_callback(BOOL check_media_event);
+extern IMFPresentationClock *presentation_clock;
+
+extern IMFMediaSource *create_media_source(const WCHAR *name, const WCHAR *mime);
+extern IMFSampleGrabberSinkCallback *create_test_grabber_callback(void);
+extern IMFAsyncCallback *create_test_callback(BOOL check_media_event);
+
+#define wait_media_event(a, b, c, d, e) wait_media_event_(__FILE__, __LINE__, a, b, c, d, e)
+extern HRESULT wait_media_event_(const char *file, int line, void *session, IMFAsyncCallback *callback,
+        MediaEventType expect_type, DWORD timeout, PROPVARIANT *value);
