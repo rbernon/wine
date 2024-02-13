@@ -187,47 +187,6 @@ enum attr_type
     ATTR_WIREMARSHAL
 };
 
-enum expr_type
-{
-    EXPR_VOID,
-    EXPR_NUM,
-    EXPR_DOUBLE,
-    EXPR_IDENTIFIER,
-    EXPR_NEG,
-    EXPR_NOT,
-    EXPR_PPTR,
-    EXPR_CAST,
-    EXPR_SIZEOF,
-    EXPR_SHL,
-    EXPR_SHR,
-    EXPR_MUL,
-    EXPR_DIV,
-    EXPR_ADD,
-    EXPR_SUB,
-    EXPR_AND,
-    EXPR_OR,
-    EXPR_COND,
-    EXPR_TRUEFALSE,
-    EXPR_ADDRESSOF,
-    EXPR_MEMBER,
-    EXPR_ARRAY,
-    EXPR_MOD,
-    EXPR_LOGOR,
-    EXPR_LOGAND,
-    EXPR_XOR,
-    EXPR_EQUALITY,
-    EXPR_INEQUALITY,
-    EXPR_GTR,
-    EXPR_LESS,
-    EXPR_GTREQL,
-    EXPR_LESSEQL,
-    EXPR_LOGNOT,
-    EXPR_POS,
-    EXPR_STRLIT,
-    EXPR_WSTRLIT,
-    EXPR_CHARCONST,
-};
-
 enum type_kind
 {
     TKIND_PRIMITIVE = -1,
@@ -303,7 +262,6 @@ enum type_basic_type
     TYPE_BASIC_CHAR,
     TYPE_BASIC_HYPER,
     TYPE_BASIC_BYTE,
-    TYPE_BASIC_WCHAR,
     TYPE_BASIC_FLOAT,
     TYPE_BASIC_DOUBLE,
     TYPE_BASIC_ERROR_STATUS_T,
@@ -332,6 +290,7 @@ struct str_list_entry_t
 struct _decl_spec_t
 {
   type_t *type;
+  attr_list_t *attrs;
   enum storage_class stgclass;
   enum type_qualifier qualifier;
   enum function_specifier func_specifier;
@@ -348,119 +307,9 @@ struct _attr_t {
   struct location where;
 };
 
-struct integer
-{
-    int value;
-    int is_unsigned;
-    int is_long;
-    int is_hex;
-};
-
-struct _expr_t {
-  enum expr_type type;
-  const expr_t *ref;
-  union {
-    struct integer integer;
-    double dval;
-    const char *sval;
-    const expr_t *ext;
-    decl_spec_t tref;
-  } u;
-  const expr_t *ext2;
-  int is_const;
-  int cval;
-  /* parser-internal */
-  struct list entry;
-};
-
 struct _attr_custdata_t {
   struct uuid id;
   expr_t *pval;
-};
-
-struct struct_details
-{
-  var_list_t *fields;
-};
-
-struct enumeration_details
-{
-  var_list_t *enums;
-};
-
-struct func_details
-{
-  var_list_t *args;
-  struct _var_t *retval;
-};
-
-struct iface_details
-{
-  statement_list_t *stmts;
-  var_list_t *disp_methods;
-  var_list_t *disp_props;
-  struct _type_t *inherit;
-  struct _type_t *disp_inherit;
-  struct _type_t *async_iface;
-  typeref_list_t *requires;
-};
-
-struct module_details
-{
-  statement_list_t *stmts;
-};
-
-struct array_details
-{
-  expr_t *size_is;
-  expr_t *length_is;
-  struct _decl_spec_t elem;
-  unsigned int dim;
-  unsigned char declptr; /* if declared as a pointer */
-  unsigned short ptr_tfsoff;  /* offset of pointer definition for declptr */
-};
-
-struct coclass_details
-{
-  typeref_list_t *ifaces;
-};
-
-struct basic_details
-{
-  enum type_basic_type type;
-  int sign;
-};
-
-struct pointer_details
-{
-  struct _decl_spec_t ref;
-};
-
-struct bitfield_details
-{
-  struct _type_t *field;
-  const expr_t *bits;
-};
-
-struct alias_details
-{
-    struct _decl_spec_t aliasee;
-};
-
-struct runtimeclass_details
-{
-    typeref_list_t *ifaces;
-};
-
-struct parameterized_details
-{
-    type_t *type;
-    typeref_list_t *params;
-};
-
-struct delegate_details
-{
-    type_t *iface;
 };
 
 #define HASHMAX 64
@@ -496,45 +345,103 @@ enum type_type
     TYPE_DELEGATE,
 };
 
-struct _type_t {
-  const char *name;               /* C++ name with parameters in brackets */
-  struct namespace *namespace;
-  enum type_type type_type;
-  attr_list_t *attrs;
-  union
-  {
-    struct struct_details *structure;
-    struct enumeration_details *enumeration;
-    struct func_details *function;
-    struct iface_details *iface;
-    struct module_details *module;
-    struct array_details array;
-    struct coclass_details coclass;
-    struct basic_details basic;
-    struct pointer_details pointer;
-    struct bitfield_details bitfield;
-    struct alias_details alias;
-    struct runtimeclass_details runtimeclass;
-    struct parameterized_details parameterized;
-    struct delegate_details delegate;
-  } details;
-  const char *c_name;             /* mangled C name, with namespaces and parameters */
-  const char *signature;
-  const char *qualified_name;     /* C++ fully qualified name */
-  const char *impl_name;          /* C++ parameterized types impl base class name */
-  const char *param_name;         /* used to build c_name of a parameterized type, when used as a parameter */
-  const char *short_name;         /* widl specific short name */
-  unsigned int typestring_offset;
-  unsigned int ptrdesc;           /* used for complex structs */
-  int typelib_idx;
-  struct location where;
-  unsigned int ignore : 1;
-  unsigned int defined : 1;
-  unsigned int defined_in_import : 1;
-  unsigned int written : 1;
-  unsigned int user_types_registered : 1;
-  unsigned int tfswrite : 1;   /* if the type needs to be written to the TFS */
-  unsigned int checked : 1;
+struct _type_t
+{
+    const char *name;               /* C++ name with parameters in brackets */
+    struct namespace *namespace;
+    enum type_type type_type;
+    attr_list_t *attrs;
+    union
+    {
+        struct
+        {
+            var_list_t *fields;
+        } structure;
+        struct
+        {
+            var_list_t *enums;
+        } enumeration;
+        struct
+        {
+            var_list_t *args;
+            struct _var_t *retval;
+        } function;
+        struct
+        {
+            statement_list_t *stmts;
+            var_list_t *disp_methods;
+            var_list_t *disp_props;
+            struct _type_t *inherit;
+            struct _type_t *disp_inherit;
+            struct _type_t *async_iface;
+            typeref_list_t *requires;
+        } iface;
+        struct
+        {
+            statement_list_t *stmts;
+        } module;
+        struct
+        {
+            expr_t *size_is;
+            expr_t *length_is;
+            struct _decl_spec_t elem;
+            unsigned int dim;
+            unsigned char declptr; /* if declared as a pointer */
+            unsigned short ptr_tfsoff;  /* offset of pointer definition for declptr */
+        } array;
+        struct
+        {
+            typeref_list_t *ifaces;
+        } coclass;
+        struct
+        {
+            enum type_basic_type type;
+            int sign;
+        } basic;
+        struct
+        {
+            struct _decl_spec_t ref;
+        } pointer;
+        struct
+        {
+            struct _type_t *field;
+            const expr_t *bits;
+        } bitfield;
+        struct
+        {
+            struct _decl_spec_t aliasee;
+        } alias;
+        struct
+        {
+            typeref_list_t *ifaces;
+        } runtimeclass;
+        struct
+        {
+            type_t *type;
+            typeref_list_t *params;
+        } parameterized;
+        struct
+        {
+            type_t *iface;
+        } delegate;
+    } details;
+    const char *c_name;             /* mangled C name, with namespaces and parameters */
+    const char *signature;
+    const char *qualified_name;     /* C++ fully qualified name */
+    const char *impl_name;          /* C++ parameterized types impl base class name */
+    const char *param_name;         /* used to build c_name of a parameterized type, when used as a parameter */
+    const char *short_name;         /* widl specific short name */
+    unsigned int typestring_offset;
+    unsigned int ptrdesc;           /* used for complex structs */
+    int typelib_idx;
+    struct location where;
+    unsigned int ignore : 1;
+    unsigned int defined : 1;
+    unsigned int defined_in_import : 1;
+    unsigned int written : 1;
+    unsigned int user_types_registered : 1;
+    unsigned int tfswrite : 1;   /* if the type needs to be written to the TFS */
+    unsigned int checked : 1;
 };
 
 struct _var_t {
