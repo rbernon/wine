@@ -339,14 +339,6 @@ static inline int wld_prctl( int code, long arg )
     return SYSCALL_RET(ret);
 }
 
-static inline void *wld_executable_start(void)
-{
-    void *ret;
-    __asm__ __volatile__( ".globl __executable_start; movl $__executable_start,%0\n"
-                          : "=a" (ret) );
-    return ret;
-}
-
 #elif defined(__x86_64__)
 
 void *thread_data[256];
@@ -435,14 +427,6 @@ SYSCALL_NOERR( wld_geteuid, 107 /* SYS_geteuid */ );
 
 gid_t wld_getegid(void);
 SYSCALL_NOERR( wld_getegid, 108 /* SYS_getegid */ );
-
-static inline void *wld_executable_start(void)
-{
-    void *ret;
-    __asm__ __volatile__( ".globl __executable_start; movq __executable_start(%%rip),%0\n"
-                          : "=a" (ret) );
-    return ret;
-}
 
 #elif defined(__aarch64__)
 
@@ -550,9 +534,6 @@ SYSCALL_NOERR( wld_geteuid, 175 /* SYS_geteuid */ );
 
 gid_t wld_getegid(void);
 SYSCALL_NOERR( wld_getegid, 177 /* SYS_getegid */ );
-
-extern char __executable_start[];
-static inline void *wld_executable_start(void) { return __executable_start; }
 
 #elif defined(__arm__)
 
@@ -675,9 +656,6 @@ unsigned long long __aeabi_uidivmod(unsigned int num, unsigned int den)
     } while (bit);
     return ((unsigned long long)num << 32) | quota;
 }
-
-extern char __executable_start[];
-static inline void *wld_executable_start(void) { return __executable_start; }
 
 #else
 #error preloader not implemented for this CPU
@@ -1418,14 +1396,14 @@ static void set_process_name( int argc, char *argv[] )
 }
 
 /* GDB integration */
+extern char __executable_start;
 __attribute((visibility("default"))) struct r_debug _r_debug = {0};
 __attribute((visibility("default"))) void _dl_debug_state(void) {}
-
 
 /* sets the preloader r_debug address into DT_DEBUG */
 static void init_r_debug( struct wld_auxv *av )
 {
-    const char *l_addr = wld_executable_start();
+    const char *l_addr = &__executable_start;
     ElfW(Phdr) *phdr, *ph;
     ElfW(Dyn) *dyn = NULL;
     int phnum;
