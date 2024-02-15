@@ -2164,6 +2164,18 @@ static void create_whole_window( struct x11drv_win_data *data )
 
     XFlush( data->display );  /* make sure the window exists before we start painting to it */
 
+    if (use_server_x11)
+    {
+        XSync( data->display, False );  /* make sure the window exists for wineserver */
+        SERVER_START_REQ( x11_start_input )
+        {
+            req->window = wine_server_user_handle( data->hwnd );
+            req->x11_win = data->whole_window;
+            wine_server_call( req );
+        }
+        SERVER_END_REQ;
+    }
+
 done:
     if (win_rgn) NtGdiDeleteObjectApp( win_rgn );
 }
@@ -2176,6 +2188,16 @@ done:
  */
 static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_destroyed )
 {
+    if (use_server_x11 && data->whole_window)
+    {
+        SERVER_START_REQ( x11_stop_input )
+        {
+            req->x11_win = data->whole_window;
+            wine_server_call( req );
+        }
+        SERVER_END_REQ;
+    }
+
     TRACE( "win %p xwin %lx/%lx\n", data->hwnd, data->whole_window, data->client_window );
 
     if (!data->whole_window)
