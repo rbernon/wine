@@ -42,6 +42,7 @@ struct async;
 struct async_queue;
 struct winstation;
 struct object_type;
+struct desktop;
 
 
 struct unicode_str

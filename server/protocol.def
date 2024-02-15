@@ -4083,3 +4083,16 @@ struct handle_info
 @REQ(x11_connect)
     VARARG(display,string);    /* DISPLAY environment variable */
 @END
+
+
+/* Start listening for input on a top-level X11 window */
+@REQ(x11_start_input)
+    user_handle_t   window;    /* handle to the window */
+    unsigned int    x11_win;   /* top-level X11 window */
+@END
+
+
+/* Stop listening for input on a top-level X11 window */
+@REQ(x11_stop_input)
+    unsigned int    x11_win;   /* top-level X11 window */
+@END
