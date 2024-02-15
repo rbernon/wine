@@ -1518,6 +1518,8 @@ BOOL X11DRV_GetCursorPos(LPPOINT pos)
     unsigned int xstate;
     BOOL ret;
 
+    if (use_server_x11) return FALSE;
+
     ret = XQueryPointer( display, root_window, &root, &child, &rootX, &rootY, &winX, &winY, &xstate );
     if (ret)
     {
