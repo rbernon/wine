@@ -2031,7 +2031,7 @@ static int send_hook_ll_message( struct desktop *desktop, struct message *hardwa
 }
 
 /* get the foreground thread for a desktop and a window receiving input */
-static struct thread *get_foreground_thread( struct desktop *desktop, user_handle_t window )
+struct thread *get_foreground_thread( struct desktop *desktop, user_handle_t window )
 {
     /* if desktop has no foreground process, assume the receiving window is */
     if (desktop->foreground_input)
@@ -2240,8 +2240,8 @@ static void dispatch_rawinput_message( struct desktop *desktop, struct rawinput_
 }
 
 /* queue a hardware message for a mouse event */
-static int queue_mouse_message( struct desktop *desktop, user_handle_t win, const union hw_input *input,
-                                unsigned int origin, struct msg_queue *sender, unsigned int send_flags )
+int queue_mouse_message( struct desktop *desktop, user_handle_t win, const union hw_input *input,
+                         unsigned int origin, struct msg_queue *sender, unsigned int send_flags )
 {
     const desktop_shm_t *desktop_shm = desktop->shared;
     struct hardware_msg_data *msg_data;

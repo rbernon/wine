@@ -147,6 +147,11 @@ extern void free_hotkeys( struct desktop *desktop, user_handle_t window );
 extern void free_pointers( struct desktop *desktop );
 extern void set_rawinput_process( struct process *process, int enable );
 
+extern struct desktop *get_hardware_input_desktop( user_handle_t win );
+extern struct thread *get_foreground_thread( struct desktop *desktop, user_handle_t window );
+extern int queue_mouse_message( struct desktop *desktop, user_handle_t win, const hw_input_t *input,
+                                unsigned int origin, struct msg_queue *sender );
+
 /* region functions */
 
 extern struct region *create_empty_region(void);
