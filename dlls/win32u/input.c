@@ -797,7 +797,7 @@ BOOL get_cursor_pos( POINT *pt )
 BOOL WINAPI NtUserGetCursorInfo( CURSORINFO *info )
 {
     const input_shm_t *shared;
-    BOOL ret;
+    BOOL ret = FALSE;
 
     if (!info) return FALSE;
 
@@ -815,17 +815,7 @@ BOOL WINAPI NtUserGetCursorInfo( CURSORINFO *info )
         cleanup_thread_input( 0 );
     }
 
-    if (!ret) SERVER_START_REQ( get_thread_input )
-    {
-        req->tid = 0;
-        if ((ret = !wine_server_call( req )))
-        {
-            info->hCursor = wine_server_ptr_handle( reply->cursor );
-            info->flags = reply->show_count >= 0 ? CURSOR_SHOWING : 0;
-        }
-    }
-    SERVER_END_REQ;
-    get_cursor_pos( &info->ptScreenPos );
+    if (ret) get_cursor_pos( &info->ptScreenPos );
     return ret;
 }
 

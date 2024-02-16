@@ -3450,8 +3450,6 @@ DECL_HANDLER(get_thread_input)
         reply->menu_owner = input->shared->menu_owner;
         reply->move_size  = input->shared->move_size;
         reply->caret      = input->shared->caret;
-        reply->cursor     = input->shared->cursor;
-        reply->show_count = input->shared->cursor_count;
         reply->rect       = input->shared->caret_rect;
         if (req->open) reply->handle = alloc_handle( current->process, input, SYNCHRONIZE, 0 );
     }
