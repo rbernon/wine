@@ -4096,3 +4096,18 @@ struct handle_info
 @REQ(x11_stop_input)
     unsigned int    x11_win;   /* top-level X11 window */
 @END
+
+
+/* Retrieve the KDBTABLES for a X11 host layout */
+@REQ(x11_kbdtables)
+    unsigned int    layout;       /* HKL of the layout */
+@REPLY
+    unsigned int group_mask;      /* state mask for the layout group */
+    unsigned int shift_mask;      /* state mask for the shift key */
+    unsigned int ctrl_mask;       /* state mask for the ctrl key */
+    unsigned int alt_mask;        /* state mask for the alt key */
+    unsigned int altgr_mask;      /* state mask for the altgr key */
+    unsigned int caps_mask;       /* state mask for the caps lock key */
+    unsigned int num_mask;        /* state mask for the num lock key */
+    VARARG(kbdtables,bytes);      /* KBDTABLES data with name offets */
+@END
