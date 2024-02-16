@@ -199,6 +199,8 @@ extern BOOL X11DRV_UnrealizePalette( HPALETTE hpal );
 
 extern BOOL X11DRV_ActivateKeyboardLayout( HKL hkl, UINT flags );
 extern void X11DRV_Beep(void);
+extern const KBDTABLES *X11DRV_KbdLayerDescriptor( HKL hkl );
+extern void X11DRV_ReleaseKbdTables( const KBDTABLES *tables );
 extern INT X11DRV_GetKeyNameText( LONG lparam, LPWSTR buffer, INT size );
 extern UINT X11DRV_MapVirtualKeyEx( UINT code, UINT map_type, HKL hkl );
 extern INT X11DRV_ToUnicodeEx( UINT virtKey, UINT scanCode, const BYTE *lpKeyState,
