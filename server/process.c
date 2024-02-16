@@ -118,6 +118,7 @@ static const struct object_ops process_ops =
     no_open_file,                /* open_file */
     process_get_kernel_obj_list, /* get_kernel_obj_list */
     no_close_handle,             /* close_handle */
+    NULL,                        /* get_host_ops */
     process_destroy              /* destroy */
 };
 
@@ -169,6 +170,7 @@ static const struct object_ops startup_info_ops =
     no_open_file,                  /* open_file */
     no_kernel_obj_list,            /* get_kernel_obj_list */
     no_close_handle,               /* close_handle */
+    NULL,                          /* get_host_ops */
     startup_info_destroy           /* destroy */
 };
 
@@ -230,6 +232,7 @@ static const struct object_ops job_ops =
     no_open_file,                  /* open_file */
     no_kernel_obj_list,            /* get_kernel_obj_list */
     job_close_handle,              /* close_handle */
+    NULL,                          /* get_host_ops */
     job_destroy                    /* destroy */
 };
 
