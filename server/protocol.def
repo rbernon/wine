@@ -900,7 +900,9 @@ typedef volatile struct
 typedef volatile struct
 {
     LONG64               seq;              /* sequence number - server updating if (seq & 1) != 0 */
+    unsigned int         wake_bits;        /* wakeup bits */
     unsigned int         wake_mask;        /* wakeup mask */
+    unsigned int         changed_bits;     /* changed wakeup bits */
     unsigned int         changed_mask;     /* changed wakeup mask */
 } queue_shm_t;
 
