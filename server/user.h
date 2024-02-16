@@ -179,8 +179,7 @@ extern int queue_keyboard_message( struct desktop *desktop, user_handle_t win, c
 extern void rawkeyboard_init( struct rawinput *rawinput, RAWKEYBOARD *keyboard, unsigned short scan, unsigned short vkey,
                               unsigned int flags, unsigned int message, lparam_t info );
 
-extern void update_input_key_state( struct desktop *desktop, unsigned char *keystate,
-                                    unsigned int msg, lparam_t wparam );
+extern void update_desktop_key_state( struct desktop *desktop, unsigned int msg, lparam_t wparam );
 
 /* region functions */
 
