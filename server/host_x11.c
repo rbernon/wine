@@ -103,6 +103,7 @@ static const struct object_ops host_x11_object_ops =
     no_kernel_obj_list,               /* get_kernel_obj_list */
     no_object_mapping,                /* get_object_mapping */
     no_close_handle,                  /* close_handle */
+    NULL,                             /* get_host_ops */
     host_x11_destroy,                 /* destroy */
 };
 
