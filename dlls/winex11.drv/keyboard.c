@@ -50,6 +50,10 @@
 #include "wine/server.h"
 #include "wine/debug.h"
 
+#ifdef HAVE_LINUX_INPUT_H
+# include <linux/input.h>
+#endif
+
 /* log format (add 0-padding as appropriate):
     keycode  %u  as in output from xev
     keysym   %lx as in X11/keysymdef.h
@@ -58,6 +62,93 @@
 */
 WINE_DEFAULT_DEBUG_CHANNEL(keyboard);
 WINE_DECLARE_DEBUG_CHANNEL(key);
+
+/* keep in sync with winewayland and server/host_x11.c */
+static WORD key2scan( UINT key )
+{
+    /* base keys can be mapped directly */
+    if (key <= KEY_KPDOT) return key;
+
+    /* map keys found in KBDTABLES definitions (Txx Xxx Yxx macros) */
+    switch (key)
+    {
+    case 84 /* ISO_Level3_Shift */: return 0x005a; /* T5A / VK_OEM_WSCTRL */
+    case KEY_SYSRQ: return 0x0054; /* T54 / VK_SNAPSHOT */
+    case KEY_102ND: return 0x0056; /* T56 / VK_OEM_102 */
+    case KEY_F11: return 0x0057; /* T57 / VK_F11 */
+    case KEY_F12: return 0x0058; /* T58 / VK_F12 */
+    case KEY_LINEFEED: return 0x0059; /* T59 / VK_CLEAR */
+    case KEY_EXIT: return 0x005b; /* T5B / VK_OEM_FINISH */
+    case KEY_OPEN: return 0x005c; /* T5C / VK_OEM_JUMP */
+    /* FIXME: map a KEY to T5D / VK_EREOF */
+    /* FIXME: map a KEY to T5E / VK_OEM_BACKTAB */
+    case KEY_COMPOSE: return 0x005f; /* T5F / VK_OEM_AUTO */
+    case KEY_SCALE: return 0x0062; /* T62 / VK_ZOOM */
+    case KEY_HELP: return 0x0063; /* T63 / VK_HELP */
+    case KEY_F13: return 0x0064; /* T64 / VK_F13 */
+    case KEY_F14: return 0x0065; /* T65 / VK_F14 */
+    case KEY_F15: return 0x0066; /* T66 / VK_F15 */
+    case KEY_F16: return 0x0067; /* T67 / VK_F16 */
+    case KEY_F17: return 0x0068; /* T68 / VK_F17 */
+    case KEY_F18: return 0x0069; /* T69 / VK_F18 */
+    case KEY_F19: return 0x006a; /* T6A / VK_F19 */
+    case KEY_F20: return 0x006b; /* T6B / VK_F20 */
+    case KEY_F21: return 0x006c; /* T6C / VK_F21 */
+    case KEY_F22: return 0x006d; /* T6D / VK_F22 */
+    case KEY_F23: return 0x006e; /* T6E / VK_F23 */
+    /* FIXME: map a KEY to T6F / VK_OEM_PA3 */
+    case KEY_COMPUTER: return 0x0071; /* T71 / VK_OEM_RESET */
+    /* FIXME: map a KEY to T73 / VK_ABNT_C1 */
+    case KEY_F24: return 0x0076; /* T76 / VK_F24 */
+    case KEY_KPPLUSMINUS: return 0x007b; /* T7B / VK_OEM_PA1 */
+    /* FIXME: map a KEY to T7C / VK_TAB */
+    /* FIXME: map a KEY to T7E / VK_ABNT_C2 */
+    /* FIXME: map a KEY to T7F / VK_OEM_PA2 */
+    case KEY_PREVIOUSSONG: return 0x0110; /* X10 / VK_MEDIA_PREV_TRACK */
+    case KEY_NEXTSONG: return 0x0119; /* X19 / VK_MEDIA_NEXT_TRACK */
+    case KEY_KPENTER: return 0x011c; /* X1C / VK_RETURN */
+    case KEY_RIGHTCTRL: return 0x011d; /* X1D / VK_RCONTROL */
+    case KEY_MUTE: return 0x0120; /* X20 / VK_VOLUME_MUTE */
+    case KEY_PROG2: return 0x0121; /* X21 / VK_LAUNCH_APP2 */
+    case KEY_PLAYPAUSE: return 0x0122; /* X22 / VK_MEDIA_PLAY_PAUSE */
+    case KEY_STOPCD: return 0x0124; /* X24 / VK_MEDIA_STOP */
+    case KEY_VOLUMEDOWN: return 0x012e; /* X2E / VK_VOLUME_DOWN */
+    case KEY_VOLUMEUP: return 0x0130; /* X30 / VK_VOLUME_UP */
+    case KEY_HOMEPAGE: return 0x0132; /* X32 / VK_BROWSER_HOME */
+    case KEY_KPSLASH: return 0x0135; /* X35 / VK_DIVIDE */
+    case KEY_PRINT: return 0x0137; /* X37 / VK_SNAPSHOT */
+    case KEY_RIGHTALT: return 0x0138; /* X38 / VK_RMENU */
+    case KEY_CANCEL: return 0x0146; /* X46 / VK_CANCEL */
+    case KEY_HOME: return 0x0147; /* X47 / VK_HOME */
+    case KEY_UP: return 0x0148; /* X48 / VK_UP */
+    case KEY_PAGEUP: return 0x0149; /* X49 / VK_PRIOR */
+    case KEY_LEFT: return 0x014b; /* X4B / VK_LEFT */
+    case KEY_RIGHT: return 0x014d; /* X4D / VK_RIGHT */
+    case KEY_END: return 0x014f; /* X4F / VK_END */
+    case KEY_DOWN: return 0x0150; /* X50 / VK_DOWN */
+    case KEY_PAGEDOWN: return 0x0151; /* X51 / VK_NEXT */
+    case KEY_INSERT: return 0x0152; /* X52 / VK_INSERT */
+    case KEY_DELETE: return 0x0153; /* X53 / VK_DELETE */
+    case KEY_LEFTMETA: return 0x015b; /* X5B / VK_LWIN */
+    case KEY_RIGHTMETA: return 0x015c; /* X5C / VK_RWIN */
+    case KEY_MENU: return 0x015d; /* X5D / VK_APPS */
+    case KEY_POWER: return 0x015e; /* X5E / VK_POWER */
+    case KEY_SLEEP: return 0x015f; /* X5F / VK_SLEEP */
+    case KEY_FIND: return 0x0165; /* X65 / VK_BROWSER_SEARCH */
+    case KEY_BOOKMARKS: return 0x0166; /* X66 / VK_BROWSER_FAVORITES */
+    case KEY_REFRESH: return 0x0167; /* X67 / VK_BROWSER_REFRESH */
+    case KEY_STOP: return 0x0168; /* X68 / VK_BROWSER_STOP */
+    case KEY_FORWARD: return 0x0169; /* X69 / VK_BROWSER_FORWARD */
+    case KEY_BACK: return 0x016a; /* X6A / VK_BROWSER_BACK */
+    case KEY_PROG1: return 0x016b; /* X6B / VK_LAUNCH_APP1 */
+    case KEY_MAIL: return 0x016c; /* X6C / VK_LAUNCH_MAIL */
+    case KEY_MEDIA: return 0x016d; /* X6D / VK_LAUNCH_MEDIA_SELECT */
+    case KEY_PAUSE: return 0x021d; /* Y1D / VK_PAUSE */
+    }
+
+    /* otherwise just make up some extended scancode */
+    return 0x200 | (key & 0x7f);
+}
 
 static const unsigned int ControlMask = 1 << 2;
 
@@ -1527,6 +1618,8 @@ void X11DRV_InitKeyboard( Display *display )
     };
     int vkey_range;
 
+    if (use_server_x11) return;
+
     pthread_mutex_lock( &kbd_mutex );
     XDisplayKeycodes(display, &min_keycode, &max_keycode);
     XFree( XGetKeyboardMapping( display, min_keycode, max_keycode + 1 - min_keycode, &keysyms_per_keycode ) );
@@ -1771,6 +1864,8 @@ BOOL X11DRV_ActivateKeyboardLayout(HKL hkl, UINT flags)
 {
     FIXME("%p, %04x: semi-stub!\n", hkl, flags);
 
+    if (use_server_x11) return TRUE;
+
     if (flags & KLF_SETFORPROCESS)
     {
         RtlSetLastWin32Error( ERROR_CALL_NOT_IMPLEMENTED );
@@ -1827,6 +1922,8 @@ SHORT X11DRV_VkKeyScanEx( WCHAR wChar, HKL hkl )
     int index;
     CHAR cChar;
     SHORT ret;
+
+    if (use_server_x11) return -256;
 
     /* FIXME: what happens if wChar is not a Latin1 character and CP_UNIXCP
      * is UTF-8 (multibyte encoding)?
@@ -1906,6 +2003,8 @@ UINT X11DRV_MapVirtualKeyEx( UINT wCode, UINT wMapType, HKL hkl )
     UINT ret = 0;
     int keyc;
     Display *display = thread_init_display();
+
+    if (use_server_x11) return -1;
 
     TRACE("wCode=0x%x, wMapType=%d, hkl %p\n", wCode, wMapType, hkl);
 
@@ -2051,6 +2150,8 @@ INT X11DRV_GetKeyNameText( LONG lParam, LPWSTR lpBuffer, INT nSize )
   int keyi;
   KeySym keys;
   char *name;
+
+  if (use_server_x11) return -1;
 
   scanCode = lParam >> 16;
   scanCode &= 0x1ff;  /* keep "extended-key" flag with code */
@@ -2269,6 +2370,8 @@ INT X11DRV_ToUnicodeEx( UINT virtKey, UINT scanCode, const BYTE *lpKeyState,
     HWND focus;
     XIC xic;
     Status status = 0;
+
+    if (use_server_x11) return -2;
 
     if (scanCode & 0x8000)
     {
@@ -2560,6 +2663,144 @@ void X11DRV_Beep(void)
     XBell(gdi_display, 0);
 }
 
+struct layout
+{
+    struct list entry;
+    LONG ref;
+    HKL hkl;
+
+    UINT group_mask;
+    UINT shift_mask;
+    UINT ctrl_mask;
+    UINT alt_mask;
+    UINT altgr_mask;
+    UINT caps_mask;
+    UINT num_mask;
+
+    union
+    {
+        KBDTABLES tables;
+        char buffer[32 * 1024];
+    };
+};
+
+static pthread_mutex_t layout_mutex = PTHREAD_MUTEX_INITIALIZER;
+static struct list layouts = LIST_INIT( layouts );
+
+static void layout_addref( struct layout *layout )
+{
+    InterlockedIncrement( &layout->ref );
+}
+
+static void layout_release( struct layout *layout )
+{
+    if (!InterlockedDecrement( &layout->ref )) free( layout );
+}
+
+static struct layout *find_layout_from_hkl( HKL hkl )
+{
+    struct layout *layout;
+    VSC_LPWSTR *names;
+
+    pthread_mutex_lock( &layout_mutex );
+
+    LIST_FOR_EACH_ENTRY( layout, &layouts, struct layout, entry )
+        if (HIWORD(hkl) == HIWORD(layout->hkl)) break;
+    if (&layout->entry == &layouts) layout = NULL;
+    else layout_addref( layout );
+
+    pthread_mutex_unlock( &layout_mutex );
+
+    if (layout) return layout;
+    if (!(layout = malloc( sizeof(*layout) ))) return NULL;
+    layout->ref = 1;
+    layout->hkl = hkl;
+
+    SERVER_START_REQ( x11_kbdtables )
+    {
+        req->layout = HandleToULong( hkl );
+        wine_server_set_reply( req, &layout->buffer, sizeof(layout->buffer) );
+        if (!wine_server_call_err( req ))
+        {
+            layout->group_mask = reply->group_mask;
+            layout->shift_mask = reply->shift_mask;
+            layout->ctrl_mask = reply->ctrl_mask;
+            layout->alt_mask = reply->alt_mask;
+            layout->altgr_mask = reply->altgr_mask;
+            layout->caps_mask = reply->caps_mask;
+            layout->num_mask = reply->num_mask;
+        }
+        else
+        {
+            free( layout );
+            layout = NULL;
+        }
+    }
+    SERVER_END_REQ;
+
+    if (!layout)
+    {
+        ERR( "Failed to find layout for HKL %p\n", hkl );
+        return NULL;
+    }
+
+#define KBDTABLES_FIXUP_POINTER( base, ptr ) (ptr) = (void *)((char *)(base) + (size_t)(ptr))
+
+    KBDTABLES_FIXUP_POINTER( &layout->tables, layout->tables.pKeyNames );
+    KBDTABLES_FIXUP_POINTER( &layout->tables, layout->tables.pKeyNamesExt );
+    KBDTABLES_FIXUP_POINTER( &layout->tables, layout->tables.pusVSCtoVK );
+    KBDTABLES_FIXUP_POINTER( &layout->tables, layout->tables.pVSCtoVK_E0 );
+    KBDTABLES_FIXUP_POINTER( &layout->tables, layout->tables.pVSCtoVK_E1 );
+    KBDTABLES_FIXUP_POINTER( &layout->tables, layout->tables.pCharModifiers );
+    KBDTABLES_FIXUP_POINTER( &layout->tables, layout->tables.pVkToWcharTable );
+
+    KBDTABLES_FIXUP_POINTER( &layout->tables, layout->tables.pCharModifiers->pVkToBit );
+    KBDTABLES_FIXUP_POINTER( &layout->tables, layout->tables.pVkToWcharTable[0].pVkToWchars );
+
+    for (names = layout->tables.pKeyNames; names->vsc; names++)
+        KBDTABLES_FIXUP_POINTER( &layout->tables, names->pwsz );
+    for (names = layout->tables.pKeyNamesExt; names->vsc; names++)
+        KBDTABLES_FIXUP_POINTER( &layout->tables, names->pwsz );
+
+#undef KBDTABLES_FIXUP_POINTER
+
+    pthread_mutex_lock( &layout_mutex );
+    layout->ref++;
+    list_add_tail( &layouts, &layout->entry );
+    pthread_mutex_unlock( &layout_mutex );
+
+    return layout;
+}
+
+/***********************************************************************
+ *    KbdLayerDescriptor (X11DRV.@)
+ */
+const KBDTABLES *X11DRV_KbdLayerDescriptor( HKL hkl )
+{
+    struct layout *layout;
+
+    if (!use_server_x11) return NULL;
+
+    TRACE( "hkl %p\n", hkl );
+
+    if (!(layout = find_layout_from_hkl( hkl ))) return NULL;
+    return &layout->tables;
+}
+
+/***********************************************************************
+ *    ReleaseKbdTables (X11DRV.@)
+ */
+void X11DRV_ReleaseKbdTables( const KBDTABLES *tables )
+{
+    struct layout *layout = CONTAINING_RECORD( tables, struct layout, tables );
+
+    if (!use_server_x11) return;
+
+    TRACE( "tables %p\n", tables );
+
+    layout_release( layout );
+}
+
 /***********************************************************************
  *              ImeProcessKey (X11DRV.@)
  */
@@ -2579,6 +2820,28 @@ UINT X11DRV_ImeProcessKey( HIMC himc, UINT wparam, UINT lparam, const BYTE *key_
     event.display = data->display;
     event.window = data->whole_window;
     release_win_data( data );
+
+    if (use_server_x11)
+    {
+        struct layout *layout;
+
+        for (i = 0; i < 256; i++) if (key2scan( i ) == scan) break;
+        if (i == 256) return FALSE;
+        event.keycode = i + 8;
+
+        if (!(layout = find_layout_from_hkl( NtUserGetKeyboardLayout( 0 ) ))) return FALSE;
+        event.state = layout->group_mask;
+        if (key_state[VK_SHIFT] & 0x80) event.state |= layout->shift_mask;
+        if (key_state[VK_CAPITAL] & 0x01) event.state |= layout->caps_mask;
+        if (key_state[VK_CONTROL] & 0x80 && key_state[VK_MENU]) event.state |= layout->altgr_mask;
+        else if (key_state[VK_CONTROL] & 0x80) event.state |= layout->ctrl_mask;
+        else if (key_state[VK_MENU] & 0x80) event.state |= layout->alt_mask;
+        if (key_state[VK_NUMLOCK] & 0x01) event.state |= layout->num_mask;
+        /* FIXME: should we look for VK_SCROLL / Scroll Lock mask somehow? */
+        layout_release( layout );
+
+        return xim_process_key( hwnd, event );
+    }
 
     for (i = 0; i < ARRAY_SIZE(keyc2scan); i++) if (keyc2scan[i] == scan) break;
     if (i == ARRAY_SIZE(keyc2scan)) return FALSE;
