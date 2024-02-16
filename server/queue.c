@@ -177,6 +177,7 @@ static const struct object_ops msg_queue_ops =
     no_open_file,              /* open_file */
     no_kernel_obj_list,        /* get_kernel_obj_list */
     no_close_handle,           /* close_handle */
+    NULL,                      /* get_host_ops */
     msg_queue_destroy          /* destroy */
 };
 
@@ -214,6 +215,7 @@ static const struct object_ops thread_input_ops =
     no_open_file,                 /* open_file */
     no_kernel_obj_list,           /* get_kernel_obj_list */
     no_close_handle,              /* close_handle */
+    NULL,                         /* get_host_ops */
     thread_input_destroy          /* destroy */
 };
 
@@ -568,20 +570,21 @@ static void set_cursor_pos( struct desktop *desktop, int x, int y )
 {
     static const struct hw_msg_source source = { IMDT_UNAVAILABLE, IMO_SYSTEM };
     const struct rawinput_device *device;
+    struct process *process;
     struct message *msg;
 
     if ((device = current->process->rawinput_mouse) && (device->flags & RIDEV_NOLEGACY))
-    {
         update_desktop_cursor_pos( desktop, 0, x, y );
-        return;
+    else if ((msg = alloc_hardware_message( 0, source, get_tick_count(), 0 )))
+    {
+        msg->msg = WM_MOUSEMOVE;
+        msg->x   = x;
+        msg->y   = y;
+        queue_hardware_message( desktop, msg, 1 );
     }
 
-    if (!(msg = alloc_hardware_message( 0, source, get_tick_count(), 0 ))) return;
-
-    msg->msg = WM_MOUSEMOVE;
-    msg->x   = x;
-    msg->y   = y;
-    queue_hardware_message( desktop, msg, 1 );
+    if ((process = get_top_window_owner( desktop )) && process->host)
+        host_warp_cursor( process->host, desktop );
 }
 
 /* sync cursor position after window change */
@@ -607,7 +610,9 @@ static void get_message_defaults( struct msg_queue *queue, int *x, int *y, unsig
 /* set the cursor clip rectangle */
 void set_clip_rectangle( struct desktop *desktop, const struct rectangle *rect, unsigned int flags, int reset )
 {
+    struct process *process = get_top_window_owner( desktop );
     const desktop_shm_t *desktop_shm = desktop->shared;
+    struct object *host = process->host;
     struct rectangle top_rect, new_rect;
     unsigned int old_flags;
     int x, y;
@@ -637,6 +642,7 @@ void set_clip_rectangle( struct desktop *desktop, const struct rectangle *rect, 
     x = max( min( desktop_shm->cursor.x, new_rect.right - 1 ), new_rect.left );
     y = max( min( desktop_shm->cursor.y, new_rect.bottom - 1 ), new_rect.top );
     if (x != desktop_shm->cursor.x || y != desktop_shm->cursor.y) set_cursor_pos( desktop, x, y );
+    else if (rect && host) host_warp_cursor( host, desktop );
 
     /* request clip cursor rectangle reset to the desktop thread */
     if (reset) post_desktop_message( desktop, WM_WINE_CLIPCURSOR, flags, FALSE );
