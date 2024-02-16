@@ -651,7 +651,8 @@ void set_clip_rectangle( struct desktop *desktop, const struct rectangle *rect, 
     if (reset || flags != SET_CURSOR_NOCLIP || old_flags != SET_CURSOR_NOCLIP)
         queue_cursor_message( desktop, 0, WM_WINE_CLIPCURSOR, flags, reset );
 
-    if (host) host_clip_cursor( host, desktop, rect ? &desktop->cursor.clip : NULL );
+    new_rect = desktop->shared->cursor.clip;
+    if (host) host_clip_cursor( host, desktop, rect ? &new_rect : NULL );
 }
 
 /* change the foreground input and reset the cursor clip rect */
