@@ -668,7 +668,7 @@ static void handle_xcb_generic_error( struct host_x11 *host, xcb_generic_error_t
 /* warp the host cursor to the current desktop cursor position */
 static void host_x11_warp_cursor( struct object *obj, struct desktop *desktop )
 {
-    int x = desktop->cursor.x, y = desktop->cursor.y;
+    int x = desktop->shared->cursor.x, y = desktop->shared->cursor.y;
     struct host_x11 *host = (struct host_x11 *)obj;
     xcb_input_fp1616_t warp_x, warp_y;
     xcb_void_cookie_t cookie;
