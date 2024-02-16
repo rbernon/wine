@@ -2004,13 +2004,13 @@ static int init_ewmh( struct host_x11 *host )
 
     TRACE("window manager name: %s len %u\n", debugstr_a(reply.strings), reply.strings_len);
     if (!strcmp(reply.strings, "GNOME Shell") || !strcmp(reply.strings, "Mutter"))
-        host->window_manager = WINE_WM_X11_MUTTER;
+        host->window_manager = 0;
     else if (!strcmp(reply.strings, "steamcompmgr"))
-        host->window_manager = WINE_WM_X11_STEAMCOMPMGR;
+        host->window_manager = 0;
     else if (!strcmp(reply.strings, "KWin"))
-        host->window_manager = WINE_WM_X11_KDE;
+        host->window_manager = 0;
     else
-        host->window_manager = WINE_WM_UNKNOWN;
+        host->window_manager = 0;
     xcb_ewmh_get_utf8_strings_reply_wipe( &reply );
 
     return 0;
