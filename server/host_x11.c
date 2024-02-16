@@ -113,6 +113,8 @@ static const struct object_ops host_x11_object_ops =
     add_queue,                        /* add_queue */
     remove_queue,                     /* remove_queue */
     default_fd_signaled,              /* signaled */
+    NULL,
+    NULL,
     no_satisfied,                     /* satisfied */
     no_signal,                        /* signal */
     host_x11_get_fd,                  /* get_fd */
