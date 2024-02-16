@@ -1,4 +1,5 @@
 use std::fs;
+use std::io;
 use std::mem;
 use std::slice;
 use std::sync::{Arc, Mutex};
@@ -58,8 +59,8 @@ struct Tid(u32);
 struct Thread {
     process: Arc<Mutex<Process>>,
     request_file: fs::File,
-    reply_file: Option<fs::File>,
-    wait_file: Option<fs::File>,
+    reply_file: fs::File,
+    wait_file: fs::File,
     tid: Tid,
 }
 
@@ -75,26 +76,32 @@ const IMAGE_FILE_MACHINE_I386: u16 = 0x014c;
 impl Thread {
     fn run(&mut self) {
         loop {
-            let mut req_buf = [0; mem::size_of::<ipc::GenericRequest>()];
-            let size = self.request_file.read(&mut req_buf).unwrap();
-            assert!(size == mem::size_of::<ipc::GenericRequest>());
-
-            let req: ipc::GenericRequest = unsafe { mem::transmute(req_buf) };
-            let mut data = Vec::new();
-
-            if unsafe { req.header.request_size } > 0 {
-                data.resize(unsafe { req.header.request_size } as usize, 0);
-                self.request_file.read(&mut data).unwrap();
-            }
-
+            let (req, data) = self.request().expect("Failed to read request");
             match self.dispatch(req, data) {
-                Ok((reply, data)) => self.reply(reply, data),
-                Err(err) => self.error(err),
+                Ok((reply, data)) => self.reply(reply, data).expect("Failed to write reply"),
+                Err(err) => self.error(err).expect("Failed to write error"),
             }
         }
     }
 
-    fn error(&mut self, err: u32) {
+    fn request(&mut self) -> io::Result<(ipc::GenericRequest, Vec<u8>)> {
+        let mut buffer = [0; mem::size_of::<ipc::GenericRequest>()];
+        self.request_file.read_exact(&mut buffer)?;
+
+        let req: ipc::GenericRequest = unsafe { mem::transmute(buffer) };
+        let data_size = unsafe { req.header.request_size } as usize;
+        if data_size == 0 {
+            return Ok((req, Vec::new()));
+        }
+
+        let mut data = Vec::with_capacity(data_size);
+        let slice = unsafe { slice::from_raw_parts_mut(data.as_mut_ptr(), data_size) };
+        self.request_file.read_exact(slice)?;
+        unsafe { data.set_len(data_size) };
+        Ok((req, data))
+    }
+
+    fn error(&mut self, err: u32) -> io::Result<()> {
         let reply = ipc::GenericReply {
             header: ipc::ReplyHeader {
                 error: err,
@@ -102,19 +109,18 @@ impl Thread {
             },
         };
         let reply_buf: [u8; mem::size_of::<ipc::GenericReply>()] = unsafe { mem::transmute(reply) };
-
-        let out = self.reply_file.as_mut().unwrap();
-        out.write_all(&reply_buf).unwrap();
+        self.reply_file.write_all(&reply_buf)
     }
 
-    fn reply(&mut self, mut reply: ipc::GenericReply, data: Vec<u8>) {
+    fn reply(&mut self, mut reply: ipc::GenericReply, data: Vec<u8>) -> io::Result<()> {
         reply.header.reply_size = data.len() as u32;
         let reply_buf: [u8; mem::size_of::<ipc::GenericReply>()] = unsafe { mem::transmute(reply) };
 
-        let out = self.reply_file.as_mut().unwrap();
-        out.write_all(&reply_buf).unwrap();
-        if data.len() > 0 {
-            out.write_all(&data).unwrap();
+        if data.len() == 0 {
+            self.reply_file.write_all(&reply_buf)
+        } else {
+            self.reply_file.write_all(&reply_buf)?;
+            self.reply_file.write_all(&data)
         }
     }
 
@@ -424,41 +430,46 @@ impl Thread {
 
     fn new_process(
         &mut self,
-        _req: &ipc::NewProcessRequest,
+        req: &ipc::NewProcessRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::NewProcessReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_new_process_info(
         &mut self,
-        _req: &ipc::GetNewProcessInfoRequest,
+        req: &ipc::GetNewProcessInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetNewProcessInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn new_thread(
         &mut self,
-        _req: &ipc::NewThreadRequest,
+        req: &ipc::NewThreadRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::NewThreadReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_startup_info(
         &mut self,
-        _req: &ipc::GetStartupInfoRequest,
+        req: &ipc::GetStartupInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetStartupInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn init_process_done(
         &mut self,
-        _req: &ipc::InitProcessDoneRequest,
+        req: &ipc::InitProcessDoneRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::InitProcessDoneReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
@@ -471,18 +482,18 @@ impl Thread {
 
         let (client, server) = self.receive_fd();
         if client == req.reply_fd {
-            self.reply_file = Some(unsafe { fs::File::from_raw_fd(server) });
+            self.reply_file = unsafe { fs::File::from_raw_fd(server) };
         }
         if client == req.wait_fd {
-            self.wait_file = Some(unsafe { fs::File::from_raw_fd(server) });
+            self.wait_file = unsafe { fs::File::from_raw_fd(server) };
         }
 
         let (client, server) = self.receive_fd();
         if client == req.reply_fd {
-            self.reply_file = Some(unsafe { fs::File::from_raw_fd(server) });
+            self.reply_file = unsafe { fs::File::from_raw_fd(server) };
         }
         if client == req.wait_fd {
-            self.wait_file = Some(unsafe { fs::File::from_raw_fd(server) });
+            self.wait_file = unsafe { fs::File::from_raw_fd(server) };
         }
 
         let supported_machines = [IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_I386];
@@ -506,457 +517,514 @@ impl Thread {
 
     fn init_thread(
         &mut self,
-        _req: &ipc::InitThreadRequest,
+        req: &ipc::InitThreadRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::InitThreadReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn terminate_process(
         &mut self,
-        _req: &ipc::TerminateProcessRequest,
+        req: &ipc::TerminateProcessRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::TerminateProcessReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn terminate_thread(
         &mut self,
-        _req: &ipc::TerminateThreadRequest,
+        req: &ipc::TerminateThreadRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::TerminateThreadReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_process_info(
         &mut self,
-        _req: &ipc::GetProcessInfoRequest,
+        req: &ipc::GetProcessInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetProcessInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_process_debug_info(
         &mut self,
-        _req: &ipc::GetProcessDebugInfoRequest,
+        req: &ipc::GetProcessDebugInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetProcessDebugInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_process_image_name(
         &mut self,
-        _req: &ipc::GetProcessImageNameRequest,
+        req: &ipc::GetProcessImageNameRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetProcessImageNameReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_process_vm_counters(
         &mut self,
-        _req: &ipc::GetProcessVmCountersRequest,
+        req: &ipc::GetProcessVmCountersRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetProcessVmCountersReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_process_info(
         &mut self,
-        _req: &ipc::SetProcessInfoRequest,
+        req: &ipc::SetProcessInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetProcessInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_thread_info(
         &mut self,
-        _req: &ipc::GetThreadInfoRequest,
+        req: &ipc::GetThreadInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetThreadInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_thread_times(
         &mut self,
-        _req: &ipc::GetThreadTimesRequest,
+        req: &ipc::GetThreadTimesRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetThreadTimesReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_thread_info(
         &mut self,
-        _req: &ipc::SetThreadInfoRequest,
+        req: &ipc::SetThreadInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetThreadInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn suspend_thread(
         &mut self,
-        _req: &ipc::SuspendThreadRequest,
+        req: &ipc::SuspendThreadRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SuspendThreadReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn resume_thread(
         &mut self,
-        _req: &ipc::ResumeThreadRequest,
+        req: &ipc::ResumeThreadRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::ResumeThreadReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn queue_apc(
         &mut self,
-        _req: &ipc::QueueApcRequest,
+        req: &ipc::QueueApcRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::QueueApcReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_apc_result(
         &mut self,
-        _req: &ipc::GetApcResultRequest,
+        req: &ipc::GetApcResultRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetApcResultReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn close_handle(
         &mut self,
-        _req: &ipc::CloseHandleRequest,
+        req: &ipc::CloseHandleRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CloseHandleReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_handle_info(
         &mut self,
-        _req: &ipc::SetHandleInfoRequest,
+        req: &ipc::SetHandleInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetHandleInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn dup_handle(
         &mut self,
-        _req: &ipc::DupHandleRequest,
+        req: &ipc::DupHandleRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::DupHandleReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn compare_objects(
         &mut self,
-        _req: &ipc::CompareObjectsRequest,
+        req: &ipc::CompareObjectsRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CompareObjectsReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn make_temporary(
         &mut self,
-        _req: &ipc::MakeTemporaryRequest,
+        req: &ipc::MakeTemporaryRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::MakeTemporaryReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_process(
         &mut self,
-        _req: &ipc::OpenProcessRequest,
+        req: &ipc::OpenProcessRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenProcessReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_thread(
         &mut self,
-        _req: &ipc::OpenThreadRequest,
+        req: &ipc::OpenThreadRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenThreadReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn select(
         &mut self,
-        _req: &ipc::SelectRequest,
+        req: &ipc::SelectRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SelectReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_event(
         &mut self,
-        _req: &ipc::CreateEventRequest,
+        req: &ipc::CreateEventRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateEventReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn event_op(
         &mut self,
-        _req: &ipc::EventOpRequest,
+        req: &ipc::EventOpRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::EventOpReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn query_event(
         &mut self,
-        _req: &ipc::QueryEventRequest,
+        req: &ipc::QueryEventRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::QueryEventReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_event(
         &mut self,
-        _req: &ipc::OpenEventRequest,
+        req: &ipc::OpenEventRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenEventReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_keyed_event(
         &mut self,
-        _req: &ipc::CreateKeyedEventRequest,
+        req: &ipc::CreateKeyedEventRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateKeyedEventReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_keyed_event(
         &mut self,
-        _req: &ipc::OpenKeyedEventRequest,
+        req: &ipc::OpenKeyedEventRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenKeyedEventReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_mutex(
         &mut self,
-        _req: &ipc::CreateMutexRequest,
+        req: &ipc::CreateMutexRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateMutexReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn release_mutex(
         &mut self,
-        _req: &ipc::ReleaseMutexRequest,
+        req: &ipc::ReleaseMutexRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::ReleaseMutexReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_mutex(
         &mut self,
-        _req: &ipc::OpenMutexRequest,
+        req: &ipc::OpenMutexRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenMutexReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn query_mutex(
         &mut self,
-        _req: &ipc::QueryMutexRequest,
+        req: &ipc::QueryMutexRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::QueryMutexReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_semaphore(
         &mut self,
-        _req: &ipc::CreateSemaphoreRequest,
+        req: &ipc::CreateSemaphoreRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateSemaphoreReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn release_semaphore(
         &mut self,
-        _req: &ipc::ReleaseSemaphoreRequest,
+        req: &ipc::ReleaseSemaphoreRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::ReleaseSemaphoreReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn query_semaphore(
         &mut self,
-        _req: &ipc::QuerySemaphoreRequest,
+        req: &ipc::QuerySemaphoreRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::QuerySemaphoreReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_semaphore(
         &mut self,
-        _req: &ipc::OpenSemaphoreRequest,
+        req: &ipc::OpenSemaphoreRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenSemaphoreReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_file(
         &mut self,
-        _req: &ipc::CreateFileRequest,
+        req: &ipc::CreateFileRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateFileReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_file_object(
         &mut self,
-        _req: &ipc::OpenFileObjectRequest,
+        req: &ipc::OpenFileObjectRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenFileObjectReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn alloc_file_handle(
         &mut self,
-        _req: &ipc::AllocFileHandleRequest,
+        req: &ipc::AllocFileHandleRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::AllocFileHandleReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_handle_unix_name(
         &mut self,
-        _req: &ipc::GetHandleUnixNameRequest,
+        req: &ipc::GetHandleUnixNameRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetHandleUnixNameReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_handle_fd(
         &mut self,
-        _req: &ipc::GetHandleFdRequest,
+        req: &ipc::GetHandleFdRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetHandleFdReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_directory_cache_entry(
         &mut self,
-        _req: &ipc::GetDirectoryCacheEntryRequest,
+        req: &ipc::GetDirectoryCacheEntryRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetDirectoryCacheEntryReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn flush(
         &mut self,
-        _req: &ipc::FlushRequest,
+        req: &ipc::FlushRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::FlushReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_file_info(
         &mut self,
-        _req: &ipc::GetFileInfoRequest,
+        req: &ipc::GetFileInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetFileInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_volume_info(
         &mut self,
-        _req: &ipc::GetVolumeInfoRequest,
+        req: &ipc::GetVolumeInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetVolumeInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn lock_file(
         &mut self,
-        _req: &ipc::LockFileRequest,
+        req: &ipc::LockFileRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::LockFileReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn unlock_file(
         &mut self,
-        _req: &ipc::UnlockFileRequest,
+        req: &ipc::UnlockFileRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::UnlockFileReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn recv_socket(
         &mut self,
-        _req: &ipc::RecvSocketRequest,
+        req: &ipc::RecvSocketRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::RecvSocketReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn send_socket(
         &mut self,
-        _req: &ipc::SendSocketRequest,
+        req: &ipc::SendSocketRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SendSocketReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn socket_get_events(
         &mut self,
-        _req: &ipc::SocketGetEventsRequest,
+        req: &ipc::SocketGetEventsRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SocketGetEventsReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn socket_send_icmp_id(
         &mut self,
-        _req: &ipc::SocketSendIcmpIdRequest,
+        req: &ipc::SocketSendIcmpIdRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SocketSendIcmpIdReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn socket_get_icmp_id(
         &mut self,
-        _req: &ipc::SocketGetIcmpIdRequest,
+        req: &ipc::SocketGetIcmpIdRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SocketGetIcmpIdReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_next_console_request(
         &mut self,
-        _req: &ipc::GetNextConsoleRequestRequest,
+        req: &ipc::GetNextConsoleRequestRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetNextConsoleRequestReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn read_directory_changes(
         &mut self,
-        _req: &ipc::ReadDirectoryChangesRequest,
+        req: &ipc::ReadDirectoryChangesRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::ReadDirectoryChangesReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn read_change(
         &mut self,
-        _req: &ipc::ReadChangeRequest,
+        req: &ipc::ReadChangeRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::ReadChangeReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_mapping(
         &mut self,
-        _req: &ipc::CreateMappingRequest,
+        req: &ipc::CreateMappingRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateMappingReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
@@ -965,1768 +1033,1991 @@ impl Thread {
         req: &ipc::OpenMappingRequest,
         data: Vec<u8>,
     ) -> Result<(ipc::OpenMappingReply, Vec<u8>), u32> {
-        let utf16 = unsafe { slice::from_raw_parts(data.as_ptr() as *const u16, data.len()/2) };
+        let utf16 = unsafe { slice::from_raw_parts(data.as_ptr() as *const u16, data.len() / 2) };
         println!("{:?}, {:?}", req, String::from_utf16(&utf16).unwrap());
-        Err(0xdeadbeef)
+
+        let mut reply = ipc::OpenMappingReply::default();
+        reply.handle = 0xcd;
+        Ok((reply, Vec::new()))
     }
 
     fn get_mapping_info(
         &mut self,
-        _req: &ipc::GetMappingInfoRequest,
+        req: &ipc::GetMappingInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetMappingInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_image_map_address(
         &mut self,
-        _req: &ipc::GetImageMapAddressRequest,
+        req: &ipc::GetImageMapAddressRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetImageMapAddressReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn map_view(
         &mut self,
-        _req: &ipc::MapViewRequest,
+        req: &ipc::MapViewRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::MapViewReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn map_image_view(
         &mut self,
-        _req: &ipc::MapImageViewRequest,
+        req: &ipc::MapImageViewRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::MapImageViewReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn map_builtin_view(
         &mut self,
-        _req: &ipc::MapBuiltinViewRequest,
+        req: &ipc::MapBuiltinViewRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::MapBuiltinViewReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_image_view_info(
         &mut self,
-        _req: &ipc::GetImageViewInfoRequest,
+        req: &ipc::GetImageViewInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetImageViewInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn unmap_view(
         &mut self,
-        _req: &ipc::UnmapViewRequest,
+        req: &ipc::UnmapViewRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::UnmapViewReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_mapping_committed_range(
         &mut self,
-        _req: &ipc::GetMappingCommittedRangeRequest,
+        req: &ipc::GetMappingCommittedRangeRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetMappingCommittedRangeReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn add_mapping_committed_range(
         &mut self,
-        _req: &ipc::AddMappingCommittedRangeRequest,
+        req: &ipc::AddMappingCommittedRangeRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::AddMappingCommittedRangeReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn is_same_mapping(
         &mut self,
-        _req: &ipc::IsSameMappingRequest,
+        req: &ipc::IsSameMappingRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::IsSameMappingReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_mapping_filename(
         &mut self,
-        _req: &ipc::GetMappingFilenameRequest,
+        req: &ipc::GetMappingFilenameRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetMappingFilenameReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn list_processes(
         &mut self,
-        _req: &ipc::ListProcessesRequest,
+        req: &ipc::ListProcessesRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::ListProcessesReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_debug_obj(
         &mut self,
-        _req: &ipc::CreateDebugObjRequest,
+        req: &ipc::CreateDebugObjRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateDebugObjReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn wait_debug_event(
         &mut self,
-        _req: &ipc::WaitDebugEventRequest,
+        req: &ipc::WaitDebugEventRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::WaitDebugEventReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn queue_exception_event(
         &mut self,
-        _req: &ipc::QueueExceptionEventRequest,
+        req: &ipc::QueueExceptionEventRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::QueueExceptionEventReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_exception_status(
         &mut self,
-        _req: &ipc::GetExceptionStatusRequest,
+        req: &ipc::GetExceptionStatusRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetExceptionStatusReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn continue_debug_event(
         &mut self,
-        _req: &ipc::ContinueDebugEventRequest,
+        req: &ipc::ContinueDebugEventRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::ContinueDebugEventReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn debug_process(
         &mut self,
-        _req: &ipc::DebugProcessRequest,
+        req: &ipc::DebugProcessRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::DebugProcessReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_debug_obj_info(
         &mut self,
-        _req: &ipc::SetDebugObjInfoRequest,
+        req: &ipc::SetDebugObjInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetDebugObjInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn read_process_memory(
         &mut self,
-        _req: &ipc::ReadProcessMemoryRequest,
+        req: &ipc::ReadProcessMemoryRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::ReadProcessMemoryReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn write_process_memory(
         &mut self,
-        _req: &ipc::WriteProcessMemoryRequest,
+        req: &ipc::WriteProcessMemoryRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::WriteProcessMemoryReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_key(
         &mut self,
-        _req: &ipc::CreateKeyRequest,
+        req: &ipc::CreateKeyRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateKeyReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_key(
         &mut self,
-        _req: &ipc::OpenKeyRequest,
+        req: &ipc::OpenKeyRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenKeyReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn delete_key(
         &mut self,
-        _req: &ipc::DeleteKeyRequest,
+        req: &ipc::DeleteKeyRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::DeleteKeyReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn flush_key(
         &mut self,
-        _req: &ipc::FlushKeyRequest,
+        req: &ipc::FlushKeyRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::FlushKeyReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn enum_key(
         &mut self,
-        _req: &ipc::EnumKeyRequest,
+        req: &ipc::EnumKeyRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::EnumKeyReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_key_value(
         &mut self,
-        _req: &ipc::SetKeyValueRequest,
+        req: &ipc::SetKeyValueRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetKeyValueReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_key_value(
         &mut self,
-        _req: &ipc::GetKeyValueRequest,
+        req: &ipc::GetKeyValueRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetKeyValueReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn enum_key_value(
         &mut self,
-        _req: &ipc::EnumKeyValueRequest,
+        req: &ipc::EnumKeyValueRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::EnumKeyValueReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn delete_key_value(
         &mut self,
-        _req: &ipc::DeleteKeyValueRequest,
+        req: &ipc::DeleteKeyValueRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::DeleteKeyValueReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn load_registry(
         &mut self,
-        _req: &ipc::LoadRegistryRequest,
+        req: &ipc::LoadRegistryRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::LoadRegistryReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn unload_registry(
         &mut self,
-        _req: &ipc::UnloadRegistryRequest,
+        req: &ipc::UnloadRegistryRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::UnloadRegistryReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn save_registry(
         &mut self,
-        _req: &ipc::SaveRegistryRequest,
+        req: &ipc::SaveRegistryRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SaveRegistryReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_registry_notification(
         &mut self,
-        _req: &ipc::SetRegistryNotificationRequest,
+        req: &ipc::SetRegistryNotificationRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetRegistryNotificationReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn rename_key(
         &mut self,
-        _req: &ipc::RenameKeyRequest,
+        req: &ipc::RenameKeyRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::RenameKeyReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_timer(
         &mut self,
-        _req: &ipc::CreateTimerRequest,
+        req: &ipc::CreateTimerRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateTimerReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_timer(
         &mut self,
-        _req: &ipc::OpenTimerRequest,
+        req: &ipc::OpenTimerRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenTimerReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_timer(
         &mut self,
-        _req: &ipc::SetTimerRequest,
+        req: &ipc::SetTimerRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetTimerReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn cancel_timer(
         &mut self,
-        _req: &ipc::CancelTimerRequest,
+        req: &ipc::CancelTimerRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CancelTimerReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_timer_info(
         &mut self,
-        _req: &ipc::GetTimerInfoRequest,
+        req: &ipc::GetTimerInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetTimerInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_thread_context(
         &mut self,
-        _req: &ipc::GetThreadContextRequest,
+        req: &ipc::GetThreadContextRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetThreadContextReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_thread_context(
         &mut self,
-        _req: &ipc::SetThreadContextRequest,
+        req: &ipc::SetThreadContextRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetThreadContextReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_selector_entry(
         &mut self,
-        _req: &ipc::GetSelectorEntryRequest,
+        req: &ipc::GetSelectorEntryRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetSelectorEntryReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn add_atom(
         &mut self,
-        _req: &ipc::AddAtomRequest,
+        req: &ipc::AddAtomRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::AddAtomReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn delete_atom(
         &mut self,
-        _req: &ipc::DeleteAtomRequest,
+        req: &ipc::DeleteAtomRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::DeleteAtomReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn find_atom(
         &mut self,
-        _req: &ipc::FindAtomRequest,
+        req: &ipc::FindAtomRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::FindAtomReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_atom_information(
         &mut self,
-        _req: &ipc::GetAtomInformationRequest,
+        req: &ipc::GetAtomInformationRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetAtomInformationReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_msg_queue(
         &mut self,
-        _req: &ipc::GetMsgQueueRequest,
+        req: &ipc::GetMsgQueueRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetMsgQueueReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_queue_fd(
         &mut self,
-        _req: &ipc::SetQueueFdRequest,
+        req: &ipc::SetQueueFdRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetQueueFdReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_queue_mask(
         &mut self,
-        _req: &ipc::SetQueueMaskRequest,
+        req: &ipc::SetQueueMaskRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetQueueMaskReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_queue_status(
         &mut self,
-        _req: &ipc::GetQueueStatusRequest,
+        req: &ipc::GetQueueStatusRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetQueueStatusReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_process_idle_event(
         &mut self,
-        _req: &ipc::GetProcessIdleEventRequest,
+        req: &ipc::GetProcessIdleEventRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetProcessIdleEventReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn send_message(
         &mut self,
-        _req: &ipc::SendMessageRequest,
+        req: &ipc::SendMessageRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SendMessageReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn post_quit_message(
         &mut self,
-        _req: &ipc::PostQuitMessageRequest,
+        req: &ipc::PostQuitMessageRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::PostQuitMessageReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn send_hardware_message(
         &mut self,
-        _req: &ipc::SendHardwareMessageRequest,
+        req: &ipc::SendHardwareMessageRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SendHardwareMessageReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_message(
         &mut self,
-        _req: &ipc::GetMessageRequest,
+        req: &ipc::GetMessageRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetMessageReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn reply_message(
         &mut self,
-        _req: &ipc::ReplyMessageRequest,
+        req: &ipc::ReplyMessageRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::ReplyMessageReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn accept_hardware_message(
         &mut self,
-        _req: &ipc::AcceptHardwareMessageRequest,
+        req: &ipc::AcceptHardwareMessageRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::AcceptHardwareMessageReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_message_reply(
         &mut self,
-        _req: &ipc::GetMessageReplyRequest,
+        req: &ipc::GetMessageReplyRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetMessageReplyReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_win_timer(
         &mut self,
-        _req: &ipc::SetWinTimerRequest,
+        req: &ipc::SetWinTimerRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetWinTimerReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn kill_win_timer(
         &mut self,
-        _req: &ipc::KillWinTimerRequest,
+        req: &ipc::KillWinTimerRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::KillWinTimerReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn is_window_hung(
         &mut self,
-        _req: &ipc::IsWindowHungRequest,
+        req: &ipc::IsWindowHungRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::IsWindowHungReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_serial_info(
         &mut self,
-        _req: &ipc::GetSerialInfoRequest,
+        req: &ipc::GetSerialInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetSerialInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_serial_info(
         &mut self,
-        _req: &ipc::SetSerialInfoRequest,
+        req: &ipc::SetSerialInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetSerialInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn cancel_sync(
         &mut self,
-        _req: &ipc::CancelSyncRequest,
+        req: &ipc::CancelSyncRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CancelSyncReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn register_async(
         &mut self,
-        _req: &ipc::RegisterAsyncRequest,
+        req: &ipc::RegisterAsyncRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::RegisterAsyncReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn cancel_async(
         &mut self,
-        _req: &ipc::CancelAsyncRequest,
+        req: &ipc::CancelAsyncRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CancelAsyncReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_async_result(
         &mut self,
-        _req: &ipc::GetAsyncResultRequest,
+        req: &ipc::GetAsyncResultRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetAsyncResultReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_async_direct_result(
         &mut self,
-        _req: &ipc::SetAsyncDirectResultRequest,
+        req: &ipc::SetAsyncDirectResultRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetAsyncDirectResultReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn read(
         &mut self,
-        _req: &ipc::ReadRequest,
+        req: &ipc::ReadRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::ReadReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn write(
         &mut self,
-        _req: &ipc::WriteRequest,
+        req: &ipc::WriteRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::WriteReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn ioctl(
         &mut self,
-        _req: &ipc::IoctlRequest,
+        req: &ipc::IoctlRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::IoctlReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_irp_result(
         &mut self,
-        _req: &ipc::SetIrpResultRequest,
+        req: &ipc::SetIrpResultRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetIrpResultReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_named_pipe(
         &mut self,
-        _req: &ipc::CreateNamedPipeRequest,
+        req: &ipc::CreateNamedPipeRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateNamedPipeReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_named_pipe_info(
         &mut self,
-        _req: &ipc::SetNamedPipeInfoRequest,
+        req: &ipc::SetNamedPipeInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetNamedPipeInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_window(
         &mut self,
-        _req: &ipc::CreateWindowRequest,
+        req: &ipc::CreateWindowRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateWindowReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn destroy_window(
         &mut self,
-        _req: &ipc::DestroyWindowRequest,
+        req: &ipc::DestroyWindowRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::DestroyWindowReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_desktop_window(
         &mut self,
-        _req: &ipc::GetDesktopWindowRequest,
+        req: &ipc::GetDesktopWindowRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetDesktopWindowReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_window_owner(
         &mut self,
-        _req: &ipc::SetWindowOwnerRequest,
+        req: &ipc::SetWindowOwnerRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetWindowOwnerReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_window_info(
         &mut self,
-        _req: &ipc::GetWindowInfoRequest,
+        req: &ipc::GetWindowInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetWindowInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_window_info(
         &mut self,
-        _req: &ipc::SetWindowInfoRequest,
+        req: &ipc::SetWindowInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetWindowInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_parent(
         &mut self,
-        _req: &ipc::SetParentRequest,
+        req: &ipc::SetParentRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetParentReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_window_parents(
         &mut self,
-        _req: &ipc::GetWindowParentsRequest,
+        req: &ipc::GetWindowParentsRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetWindowParentsReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_window_children(
         &mut self,
-        _req: &ipc::GetWindowChildrenRequest,
+        req: &ipc::GetWindowChildrenRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetWindowChildrenReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_window_children_from_point(
         &mut self,
-        _req: &ipc::GetWindowChildrenFromPointRequest,
+        req: &ipc::GetWindowChildrenFromPointRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetWindowChildrenFromPointReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_window_tree(
         &mut self,
-        _req: &ipc::GetWindowTreeRequest,
+        req: &ipc::GetWindowTreeRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetWindowTreeReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_window_pos(
         &mut self,
-        _req: &ipc::SetWindowPosRequest,
+        req: &ipc::SetWindowPosRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetWindowPosReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_window_rectangles(
         &mut self,
-        _req: &ipc::GetWindowRectanglesRequest,
+        req: &ipc::GetWindowRectanglesRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetWindowRectanglesReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_window_text(
         &mut self,
-        _req: &ipc::GetWindowTextRequest,
+        req: &ipc::GetWindowTextRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetWindowTextReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_window_text(
         &mut self,
-        _req: &ipc::SetWindowTextRequest,
+        req: &ipc::SetWindowTextRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetWindowTextReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_windows_offset(
         &mut self,
-        _req: &ipc::GetWindowsOffsetRequest,
+        req: &ipc::GetWindowsOffsetRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetWindowsOffsetReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_visible_region(
         &mut self,
-        _req: &ipc::GetVisibleRegionRequest,
+        req: &ipc::GetVisibleRegionRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetVisibleRegionReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_surface_region(
         &mut self,
-        _req: &ipc::GetSurfaceRegionRequest,
+        req: &ipc::GetSurfaceRegionRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetSurfaceRegionReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_window_region(
         &mut self,
-        _req: &ipc::GetWindowRegionRequest,
+        req: &ipc::GetWindowRegionRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetWindowRegionReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_window_region(
         &mut self,
-        _req: &ipc::SetWindowRegionRequest,
+        req: &ipc::SetWindowRegionRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetWindowRegionReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_update_region(
         &mut self,
-        _req: &ipc::GetUpdateRegionRequest,
+        req: &ipc::GetUpdateRegionRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetUpdateRegionReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn update_window_zorder(
         &mut self,
-        _req: &ipc::UpdateWindowZorderRequest,
+        req: &ipc::UpdateWindowZorderRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::UpdateWindowZorderReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn redraw_window(
         &mut self,
-        _req: &ipc::RedrawWindowRequest,
+        req: &ipc::RedrawWindowRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::RedrawWindowReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_window_property(
         &mut self,
-        _req: &ipc::SetWindowPropertyRequest,
+        req: &ipc::SetWindowPropertyRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetWindowPropertyReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn remove_window_property(
         &mut self,
-        _req: &ipc::RemoveWindowPropertyRequest,
+        req: &ipc::RemoveWindowPropertyRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::RemoveWindowPropertyReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_window_property(
         &mut self,
-        _req: &ipc::GetWindowPropertyRequest,
+        req: &ipc::GetWindowPropertyRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetWindowPropertyReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_window_properties(
         &mut self,
-        _req: &ipc::GetWindowPropertiesRequest,
+        req: &ipc::GetWindowPropertiesRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetWindowPropertiesReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_winstation(
         &mut self,
-        _req: &ipc::CreateWinstationRequest,
+        req: &ipc::CreateWinstationRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateWinstationReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_winstation(
         &mut self,
-        _req: &ipc::OpenWinstationRequest,
+        req: &ipc::OpenWinstationRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenWinstationReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn close_winstation(
         &mut self,
-        _req: &ipc::CloseWinstationRequest,
+        req: &ipc::CloseWinstationRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CloseWinstationReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_process_winstation(
         &mut self,
-        _req: &ipc::GetProcessWinstationRequest,
+        req: &ipc::GetProcessWinstationRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetProcessWinstationReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_process_winstation(
         &mut self,
-        _req: &ipc::SetProcessWinstationRequest,
+        req: &ipc::SetProcessWinstationRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetProcessWinstationReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn enum_winstation(
         &mut self,
-        _req: &ipc::EnumWinstationRequest,
+        req: &ipc::EnumWinstationRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::EnumWinstationReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_desktop(
         &mut self,
-        _req: &ipc::CreateDesktopRequest,
+        req: &ipc::CreateDesktopRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateDesktopReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_desktop(
         &mut self,
-        _req: &ipc::OpenDesktopRequest,
+        req: &ipc::OpenDesktopRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenDesktopReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_input_desktop(
         &mut self,
-        _req: &ipc::OpenInputDesktopRequest,
+        req: &ipc::OpenInputDesktopRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenInputDesktopReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn close_desktop(
         &mut self,
-        _req: &ipc::CloseDesktopRequest,
+        req: &ipc::CloseDesktopRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CloseDesktopReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_thread_desktop(
         &mut self,
-        _req: &ipc::GetThreadDesktopRequest,
+        req: &ipc::GetThreadDesktopRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetThreadDesktopReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_thread_desktop(
         &mut self,
-        _req: &ipc::SetThreadDesktopRequest,
+        req: &ipc::SetThreadDesktopRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetThreadDesktopReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn enum_desktop(
         &mut self,
-        _req: &ipc::EnumDesktopRequest,
+        req: &ipc::EnumDesktopRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::EnumDesktopReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_user_object_info(
         &mut self,
-        _req: &ipc::SetUserObjectInfoRequest,
+        req: &ipc::SetUserObjectInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetUserObjectInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn register_hotkey(
         &mut self,
-        _req: &ipc::RegisterHotkeyRequest,
+        req: &ipc::RegisterHotkeyRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::RegisterHotkeyReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn unregister_hotkey(
         &mut self,
-        _req: &ipc::UnregisterHotkeyRequest,
+        req: &ipc::UnregisterHotkeyRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::UnregisterHotkeyReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn attach_thread_input(
         &mut self,
-        _req: &ipc::AttachThreadInputRequest,
+        req: &ipc::AttachThreadInputRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::AttachThreadInputReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_thread_input(
         &mut self,
-        _req: &ipc::GetThreadInputRequest,
+        req: &ipc::GetThreadInputRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetThreadInputReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_last_input_time(
         &mut self,
-        _req: &ipc::GetLastInputTimeRequest,
+        req: &ipc::GetLastInputTimeRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetLastInputTimeReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_key_state(
         &mut self,
-        _req: &ipc::GetKeyStateRequest,
+        req: &ipc::GetKeyStateRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetKeyStateReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_key_state(
         &mut self,
-        _req: &ipc::SetKeyStateRequest,
+        req: &ipc::SetKeyStateRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetKeyStateReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_foreground_window(
         &mut self,
-        _req: &ipc::SetForegroundWindowRequest,
+        req: &ipc::SetForegroundWindowRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetForegroundWindowReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_focus_window(
         &mut self,
-        _req: &ipc::SetFocusWindowRequest,
+        req: &ipc::SetFocusWindowRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetFocusWindowReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_active_window(
         &mut self,
-        _req: &ipc::SetActiveWindowRequest,
+        req: &ipc::SetActiveWindowRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetActiveWindowReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_capture_window(
         &mut self,
-        _req: &ipc::SetCaptureWindowRequest,
+        req: &ipc::SetCaptureWindowRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetCaptureWindowReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_caret_window(
         &mut self,
-        _req: &ipc::SetCaretWindowRequest,
+        req: &ipc::SetCaretWindowRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetCaretWindowReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_caret_info(
         &mut self,
-        _req: &ipc::SetCaretInfoRequest,
+        req: &ipc::SetCaretInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetCaretInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_hook(
         &mut self,
-        _req: &ipc::SetHookRequest,
+        req: &ipc::SetHookRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetHookReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn remove_hook(
         &mut self,
-        _req: &ipc::RemoveHookRequest,
+        req: &ipc::RemoveHookRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::RemoveHookReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn start_hook_chain(
         &mut self,
-        _req: &ipc::StartHookChainRequest,
+        req: &ipc::StartHookChainRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::StartHookChainReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn finish_hook_chain(
         &mut self,
-        _req: &ipc::FinishHookChainRequest,
+        req: &ipc::FinishHookChainRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::FinishHookChainReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_hook_info(
         &mut self,
-        _req: &ipc::GetHookInfoRequest,
+        req: &ipc::GetHookInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetHookInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_class(
         &mut self,
-        _req: &ipc::CreateClassRequest,
+        req: &ipc::CreateClassRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateClassReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn destroy_class(
         &mut self,
-        _req: &ipc::DestroyClassRequest,
+        req: &ipc::DestroyClassRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::DestroyClassReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_class_info(
         &mut self,
-        _req: &ipc::SetClassInfoRequest,
+        req: &ipc::SetClassInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetClassInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_clipboard(
         &mut self,
-        _req: &ipc::OpenClipboardRequest,
+        req: &ipc::OpenClipboardRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenClipboardReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn close_clipboard(
         &mut self,
-        _req: &ipc::CloseClipboardRequest,
+        req: &ipc::CloseClipboardRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CloseClipboardReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn empty_clipboard(
         &mut self,
-        _req: &ipc::EmptyClipboardRequest,
+        req: &ipc::EmptyClipboardRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::EmptyClipboardReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_clipboard_data(
         &mut self,
-        _req: &ipc::SetClipboardDataRequest,
+        req: &ipc::SetClipboardDataRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetClipboardDataReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_clipboard_data(
         &mut self,
-        _req: &ipc::GetClipboardDataRequest,
+        req: &ipc::GetClipboardDataRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetClipboardDataReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_clipboard_formats(
         &mut self,
-        _req: &ipc::GetClipboardFormatsRequest,
+        req: &ipc::GetClipboardFormatsRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetClipboardFormatsReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn enum_clipboard_formats(
         &mut self,
-        _req: &ipc::EnumClipboardFormatsRequest,
+        req: &ipc::EnumClipboardFormatsRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::EnumClipboardFormatsReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn release_clipboard(
         &mut self,
-        _req: &ipc::ReleaseClipboardRequest,
+        req: &ipc::ReleaseClipboardRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::ReleaseClipboardReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_clipboard_info(
         &mut self,
-        _req: &ipc::GetClipboardInfoRequest,
+        req: &ipc::GetClipboardInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetClipboardInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_clipboard_viewer(
         &mut self,
-        _req: &ipc::SetClipboardViewerRequest,
+        req: &ipc::SetClipboardViewerRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetClipboardViewerReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn add_clipboard_listener(
         &mut self,
-        _req: &ipc::AddClipboardListenerRequest,
+        req: &ipc::AddClipboardListenerRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::AddClipboardListenerReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn remove_clipboard_listener(
         &mut self,
-        _req: &ipc::RemoveClipboardListenerRequest,
+        req: &ipc::RemoveClipboardListenerRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::RemoveClipboardListenerReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_token(
         &mut self,
-        _req: &ipc::CreateTokenRequest,
+        req: &ipc::CreateTokenRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateTokenReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_token(
         &mut self,
-        _req: &ipc::OpenTokenRequest,
+        req: &ipc::OpenTokenRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenTokenReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_global_windows(
         &mut self,
-        _req: &ipc::SetGlobalWindowsRequest,
+        req: &ipc::SetGlobalWindowsRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetGlobalWindowsReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn adjust_token_privileges(
         &mut self,
-        _req: &ipc::AdjustTokenPrivilegesRequest,
+        req: &ipc::AdjustTokenPrivilegesRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::AdjustTokenPrivilegesReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_token_privileges(
         &mut self,
-        _req: &ipc::GetTokenPrivilegesRequest,
+        req: &ipc::GetTokenPrivilegesRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetTokenPrivilegesReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn check_token_privileges(
         &mut self,
-        _req: &ipc::CheckTokenPrivilegesRequest,
+        req: &ipc::CheckTokenPrivilegesRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CheckTokenPrivilegesReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn duplicate_token(
         &mut self,
-        _req: &ipc::DuplicateTokenRequest,
+        req: &ipc::DuplicateTokenRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::DuplicateTokenReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn filter_token(
         &mut self,
-        _req: &ipc::FilterTokenRequest,
+        req: &ipc::FilterTokenRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::FilterTokenReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn access_check(
         &mut self,
-        _req: &ipc::AccessCheckRequest,
+        req: &ipc::AccessCheckRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::AccessCheckReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_token_sid(
         &mut self,
-        _req: &ipc::GetTokenSidRequest,
+        req: &ipc::GetTokenSidRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetTokenSidReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_token_groups(
         &mut self,
-        _req: &ipc::GetTokenGroupsRequest,
+        req: &ipc::GetTokenGroupsRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetTokenGroupsReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_token_default_dacl(
         &mut self,
-        _req: &ipc::GetTokenDefaultDaclRequest,
+        req: &ipc::GetTokenDefaultDaclRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetTokenDefaultDaclReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_token_default_dacl(
         &mut self,
-        _req: &ipc::SetTokenDefaultDaclRequest,
+        req: &ipc::SetTokenDefaultDaclRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetTokenDefaultDaclReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_security_object(
         &mut self,
-        _req: &ipc::SetSecurityObjectRequest,
+        req: &ipc::SetSecurityObjectRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetSecurityObjectReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_security_object(
         &mut self,
-        _req: &ipc::GetSecurityObjectRequest,
+        req: &ipc::GetSecurityObjectRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetSecurityObjectReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_system_handles(
         &mut self,
-        _req: &ipc::GetSystemHandlesRequest,
+        req: &ipc::GetSystemHandlesRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetSystemHandlesReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_mailslot(
         &mut self,
-        _req: &ipc::CreateMailslotRequest,
+        req: &ipc::CreateMailslotRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateMailslotReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_mailslot_info(
         &mut self,
-        _req: &ipc::SetMailslotInfoRequest,
+        req: &ipc::SetMailslotInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetMailslotInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_directory(
         &mut self,
-        _req: &ipc::CreateDirectoryRequest,
+        req: &ipc::CreateDirectoryRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateDirectoryReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_directory(
         &mut self,
-        _req: &ipc::OpenDirectoryRequest,
+        req: &ipc::OpenDirectoryRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenDirectoryReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_directory_entry(
         &mut self,
-        _req: &ipc::GetDirectoryEntryRequest,
+        req: &ipc::GetDirectoryEntryRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetDirectoryEntryReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_symlink(
         &mut self,
-        _req: &ipc::CreateSymlinkRequest,
+        req: &ipc::CreateSymlinkRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateSymlinkReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_symlink(
         &mut self,
-        _req: &ipc::OpenSymlinkRequest,
+        req: &ipc::OpenSymlinkRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenSymlinkReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn query_symlink(
         &mut self,
-        _req: &ipc::QuerySymlinkRequest,
+        req: &ipc::QuerySymlinkRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::QuerySymlinkReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_object_info(
         &mut self,
-        _req: &ipc::GetObjectInfoRequest,
+        req: &ipc::GetObjectInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetObjectInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_object_name(
         &mut self,
-        _req: &ipc::GetObjectNameRequest,
+        req: &ipc::GetObjectNameRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetObjectNameReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_object_type(
         &mut self,
-        _req: &ipc::GetObjectTypeRequest,
+        req: &ipc::GetObjectTypeRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetObjectTypeReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_object_types(
         &mut self,
-        _req: &ipc::GetObjectTypesRequest,
+        req: &ipc::GetObjectTypesRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetObjectTypesReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn allocate_locally_unique_id(
         &mut self,
-        _req: &ipc::AllocateLocallyUniqueIdRequest,
+        req: &ipc::AllocateLocallyUniqueIdRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::AllocateLocallyUniqueIdReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_device_manager(
         &mut self,
-        _req: &ipc::CreateDeviceManagerRequest,
+        req: &ipc::CreateDeviceManagerRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateDeviceManagerReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_device(
         &mut self,
-        _req: &ipc::CreateDeviceRequest,
+        req: &ipc::CreateDeviceRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateDeviceReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn delete_device(
         &mut self,
-        _req: &ipc::DeleteDeviceRequest,
+        req: &ipc::DeleteDeviceRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::DeleteDeviceReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_next_device_request(
         &mut self,
-        _req: &ipc::GetNextDeviceRequestRequest,
+        req: &ipc::GetNextDeviceRequestRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetNextDeviceRequestReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_kernel_object_ptr(
         &mut self,
-        _req: &ipc::GetKernelObjectPtrRequest,
+        req: &ipc::GetKernelObjectPtrRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetKernelObjectPtrReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_kernel_object_ptr(
         &mut self,
-        _req: &ipc::SetKernelObjectPtrRequest,
+        req: &ipc::SetKernelObjectPtrRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetKernelObjectPtrReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn grab_kernel_object(
         &mut self,
-        _req: &ipc::GrabKernelObjectRequest,
+        req: &ipc::GrabKernelObjectRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GrabKernelObjectReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn release_kernel_object(
         &mut self,
-        _req: &ipc::ReleaseKernelObjectRequest,
+        req: &ipc::ReleaseKernelObjectRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::ReleaseKernelObjectReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_kernel_object_handle(
         &mut self,
-        _req: &ipc::GetKernelObjectHandleRequest,
+        req: &ipc::GetKernelObjectHandleRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetKernelObjectHandleReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn make_process_system(
         &mut self,
-        _req: &ipc::MakeProcessSystemRequest,
+        req: &ipc::MakeProcessSystemRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::MakeProcessSystemReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_token_info(
         &mut self,
-        _req: &ipc::GetTokenInfoRequest,
+        req: &ipc::GetTokenInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetTokenInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_linked_token(
         &mut self,
-        _req: &ipc::CreateLinkedTokenRequest,
+        req: &ipc::CreateLinkedTokenRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateLinkedTokenReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_completion(
         &mut self,
-        _req: &ipc::CreateCompletionRequest,
+        req: &ipc::CreateCompletionRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateCompletionReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_completion(
         &mut self,
-        _req: &ipc::OpenCompletionRequest,
+        req: &ipc::OpenCompletionRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenCompletionReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn add_completion(
         &mut self,
-        _req: &ipc::AddCompletionRequest,
+        req: &ipc::AddCompletionRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::AddCompletionReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn remove_completion(
         &mut self,
-        _req: &ipc::RemoveCompletionRequest,
+        req: &ipc::RemoveCompletionRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::RemoveCompletionReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn query_completion(
         &mut self,
-        _req: &ipc::QueryCompletionRequest,
+        req: &ipc::QueryCompletionRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::QueryCompletionReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_completion_info(
         &mut self,
-        _req: &ipc::SetCompletionInfoRequest,
+        req: &ipc::SetCompletionInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetCompletionInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn add_fd_completion(
         &mut self,
-        _req: &ipc::AddFdCompletionRequest,
+        req: &ipc::AddFdCompletionRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::AddFdCompletionReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_fd_completion_mode(
         &mut self,
-        _req: &ipc::SetFdCompletionModeRequest,
+        req: &ipc::SetFdCompletionModeRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetFdCompletionModeReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_fd_disp_info(
         &mut self,
-        _req: &ipc::SetFdDispInfoRequest,
+        req: &ipc::SetFdDispInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetFdDispInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_fd_name_info(
         &mut self,
-        _req: &ipc::SetFdNameInfoRequest,
+        req: &ipc::SetFdNameInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetFdNameInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_fd_eof_info(
         &mut self,
-        _req: &ipc::SetFdEofInfoRequest,
+        req: &ipc::SetFdEofInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetFdEofInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_window_layered_info(
         &mut self,
-        _req: &ipc::GetWindowLayeredInfoRequest,
+        req: &ipc::GetWindowLayeredInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetWindowLayeredInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_window_layered_info(
         &mut self,
-        _req: &ipc::SetWindowLayeredInfoRequest,
+        req: &ipc::SetWindowLayeredInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetWindowLayeredInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn alloc_user_handle(
         &mut self,
-        _req: &ipc::AllocUserHandleRequest,
+        req: &ipc::AllocUserHandleRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::AllocUserHandleReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn free_user_handle(
         &mut self,
-        _req: &ipc::FreeUserHandleRequest,
+        req: &ipc::FreeUserHandleRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::FreeUserHandleReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_cursor(
         &mut self,
-        _req: &ipc::SetCursorRequest,
+        req: &ipc::SetCursorRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetCursorReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_cursor_history(
         &mut self,
-        _req: &ipc::GetCursorHistoryRequest,
+        req: &ipc::GetCursorHistoryRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetCursorHistoryReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_rawinput_buffer(
         &mut self,
-        _req: &ipc::GetRawinputBufferRequest,
+        req: &ipc::GetRawinputBufferRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetRawinputBufferReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn update_rawinput_devices(
         &mut self,
-        _req: &ipc::UpdateRawinputDevicesRequest,
+        req: &ipc::UpdateRawinputDevicesRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::UpdateRawinputDevicesReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn create_job(
         &mut self,
-        _req: &ipc::CreateJobRequest,
+        req: &ipc::CreateJobRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::CreateJobReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn open_job(
         &mut self,
-        _req: &ipc::OpenJobRequest,
+        req: &ipc::OpenJobRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::OpenJobReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn assign_job(
         &mut self,
-        _req: &ipc::AssignJobRequest,
+        req: &ipc::AssignJobRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::AssignJobReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn process_in_job(
         &mut self,
-        _req: &ipc::ProcessInJobRequest,
+        req: &ipc::ProcessInJobRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::ProcessInJobReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_job_limits(
         &mut self,
-        _req: &ipc::SetJobLimitsRequest,
+        req: &ipc::SetJobLimitsRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetJobLimitsReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn set_job_completion_port(
         &mut self,
-        _req: &ipc::SetJobCompletionPortRequest,
+        req: &ipc::SetJobCompletionPortRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SetJobCompletionPortReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_job_info(
         &mut self,
-        _req: &ipc::GetJobInfoRequest,
+        req: &ipc::GetJobInfoRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetJobInfoReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn terminate_job(
         &mut self,
-        _req: &ipc::TerminateJobRequest,
+        req: &ipc::TerminateJobRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::TerminateJobReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn suspend_process(
         &mut self,
-        _req: &ipc::SuspendProcessRequest,
+        req: &ipc::SuspendProcessRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::SuspendProcessReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn resume_process(
         &mut self,
-        _req: &ipc::ResumeProcessRequest,
+        req: &ipc::ResumeProcessRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::ResumeProcessReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
     fn get_next_thread(
         &mut self,
-        _req: &ipc::GetNextThreadRequest,
+        req: &ipc::GetNextThreadRequest,
         _data: Vec<u8>,
     ) -> Result<(ipc::GetNextThreadReply, Vec<u8>), u32> {
+        println!("{:?}", req);
         Err(0xdeadbeef)
     }
 
@@ -2769,8 +3060,8 @@ impl Process {
             let mut thread = Thread {
                 process,
                 request_file,
-                reply_file: None,
-                wait_file: None,
+                reply_file: fs::File::open("/dev/null").unwrap(),
+                wait_file: fs::File::open("/dev/null").unwrap(),
                 tid,
             };
 
