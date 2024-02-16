@@ -6205,6 +6205,7 @@ static void thread_detach(void)
     cleanup_thread_desktop();
     cleanup_thread_queue();
     cleanup_thread_input( GetCurrentThreadId() );
+    cleanup_thread_input( 0 );
 
     exiting_thread_id = 0;
 }

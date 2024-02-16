@@ -130,7 +130,7 @@ struct user_thread_info
     DWORD                         clipping_reset;         /* time when clipping was last reset */
     const desktop_shm_t          *desktop_shm;            /* ptr to server's desktop shared memory */
     const queue_shm_t            *queue_shm;              /* ptr to server's thread queue shared memory */
-    const input_shm_t            *input_shm;              /* ptr to server's thread input shared memory */
+    const input_shm_t            *input_shm[2];           /* ptrs to server's thread and foreground input shared memory */
 };
 
 C_ASSERT( sizeof(struct user_thread_info) <= sizeof(((TEB *)0)->Win32ClientInfo) );

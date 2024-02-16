@@ -2148,7 +2148,8 @@ BOOL WINAPI NtUserGetGUIThreadInfo( DWORD id, GUITHREADINFO *info )
     {
         SHARED_READ_BEGIN( shared, input_shm_t )
         {
-            if ((ret = !shared->detached))
+            if (!id && !shared->foreground) ret = FALSE; /* foreground has changed, retry */
+            else if ((ret = !shared->detached))
             {
                 info->flags          = 0;
                 info->hwndActive     = wine_server_ptr_handle( shared->active );

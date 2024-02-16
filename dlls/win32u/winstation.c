@@ -133,29 +133,31 @@ static HANDLE get_thread_input_handle( UINT id )
 const input_shm_t *get_input_shared_memory( UINT id )
 {
     struct user_thread_info *thread_info = get_user_thread_info();
+    UINT index = !!id;
 
-    if (id != GetCurrentThreadId()) return NULL;
+    if (id && id != GetCurrentThreadId()) return NULL;
 
     if (!thread_info->input_shm)
     {
         HANDLE handle = get_thread_input_handle( id );
-        thread_info->input_shm = map_object_shared_memory( handle, sizeof(*thread_info->input_shm) );
+        thread_info->input_shm[index] = map_object_shared_memory( handle, sizeof(*thread_info->input_shm[index]) );
         NtClose( handle );
     }
 
-    return thread_info->input_shm;
+    return thread_info->input_shm[index];
 }
 
 void cleanup_thread_input( UINT id )
 {
     struct user_thread_info *thread_info = get_user_thread_info();
+    UINT index = !!id;
 
-    if (id != GetCurrentThreadId()) return;
+    if (id && id != GetCurrentThreadId()) return;
 
-    if (thread_info->input_shm)
+    if (thread_info->input_shm[index])
     {
-        NtUnmapViewOfSection( GetCurrentProcess(), (void *)thread_info->input_shm );
-        thread_info->input_shm = NULL;
+        NtUnmapViewOfSection( GetCurrentProcess(), (void *)thread_info->input_shm[index] );
+        thread_info->input_shm[index] = NULL;
     }
 }
 
