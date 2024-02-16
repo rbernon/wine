@@ -539,6 +539,70 @@ static void handle_xcb_input_raw_motion( struct host_x11 *host, xcb_input_raw_mo
 }
 
 
+/* send absolute touch input received on an x11 window */
+static void send_touch_input( struct host_x11 *host, xcb_window_t x11_win, xcb_input_fp1616_t x,
+                              xcb_input_fp1616_t y, unsigned int msg, unsigned int id, unsigned int flags )
+{
+    hw_input_t input = {.hw = {.type = INPUT_HARDWARE}};
+    unsigned int origin = IMO_HARDWARE;
+    struct window_data *data;
+    struct desktop *desktop;
+
+    if (!(data = window_data_lookup( host, compare_x11_win, &x11_win )))
+    {
+        ERR( "host %p failed to find window %#x\n", host, x11_win );
+        return;
+    }
+
+    if (!(desktop = get_hardware_input_desktop( data->window ))) return;
+    if (!set_input_desktop( desktop->winstation, desktop ))
+    {
+        release_object( desktop );
+        return;
+    }
+
+    if ((current = get_foreground_thread( desktop, data->window )))
+    {
+        int virtual_x, virtual_y;
+        rectangle_t virtual_rect;
+
+        get_top_window_rectangle( desktop, &virtual_rect );
+        virtual_x = fp1616_round( x ) * UINT16_MAX / (virtual_rect.right - virtual_rect.left);
+        virtual_y = fp1616_round( y ) * UINT16_MAX / (virtual_rect.bottom - virtual_rect.top);
+
+        input.hw.wparam = MAKELONG( id, POINTER_MESSAGE_FLAG_INRANGE | POINTER_MESSAGE_FLAG_INCONTACT | flags );
+        input.hw.lparam = MAKELPARAM( virtual_x, virtual_y );
+
+        TRACE( "host %p window %#x -> %#x pos (%+8.2f,%+8.2f) -> (%+5d,%+5d)\n", host, x11_win, data->window,
+               double_from_fp1616( x ), double_from_fp1616( y ), virtual_x, virtual_y );
+
+        queue_custom_hardware_message( desktop, data->window, origin, &input );
+        release_object( current );
+        current = NULL;
+    }
+
+    release_object( desktop );
+}
+
+static void handle_xcb_input_touch_event( struct host_x11 *host, xcb_input_touch_begin_event_t *event )
+{
+    TRACE( "host %p sequence %u time %u device %u\n", host, event->full_sequence, event->time, event->deviceid );
+
+    switch (event->event_type)
+    {
+    case XCB_INPUT_TOUCH_BEGIN:
+        send_touch_input( host, event->event, event->root_x, event->root_y, WM_POINTERDOWN, event->detail, POINTER_MESSAGE_FLAG_NEW );
+        break;
+    case XCB_INPUT_TOUCH_UPDATE:
+        send_touch_input( host, event->event, event->root_x, event->root_y, WM_POINTERUPDATE, event->detail, 0 );
+        break;
+    case XCB_INPUT_TOUCH_END:
+        send_touch_input( host, event->event, event->root_x, event->root_y, WM_POINTERUP, event->detail, 0 );
+        break;
+    }
+}
+
+
 static void handle_xcb_ge_event( struct host_x11 *host, xcb_ge_event_t *event )
 {
     switch (event->event_type)
@@ -551,6 +615,10 @@ static void handle_xcb_ge_event( struct host_x11 *host, xcb_ge_event_t *event )
 
     case XCB_INPUT_DEVICE_CHANGED: handle_xcb_input_device_changed( host, (xcb_input_device_changed_event_t *)event ); break;
     case XCB_INPUT_RAW_MOTION: handle_xcb_input_raw_motion( host, (xcb_input_raw_motion_event_t *)event ); break;
+
+    case XCB_INPUT_TOUCH_BEGIN: handle_xcb_input_touch_event( host, (xcb_input_touch_begin_event_t *)event ); break;
+    case XCB_INPUT_TOUCH_UPDATE: handle_xcb_input_touch_event( host, (xcb_input_touch_update_event_t *)event ); break;
+    case XCB_INPUT_TOUCH_END: handle_xcb_input_touch_event( host, (xcb_input_touch_end_event_t *)event ); break;
 
     default: WARN( "host %p unexpected event type %u\n", host, event->event_type ); break;
     }
