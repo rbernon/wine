@@ -3664,8 +3664,6 @@ DECL_HANDLER(get_thread_input)
         reply->menu_owner = input_shm->menu_owner;
         reply->move_size  = input_shm->move_size;
         reply->caret      = input_shm->caret;
-        reply->cursor     = input_shm->cursor;
-        reply->show_count = input_shm->cursor_count;
         reply->rect       = input_shm->caret_rect;
     }
 

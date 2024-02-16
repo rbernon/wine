@@ -789,18 +789,8 @@ BOOL WINAPI NtUserGetCursorInfo( CURSORINFO *info )
         info->flags = (input_shm->cursor_count >= 0) ? CURSOR_SHOWING : 0;
     }
 
-    if (status) SERVER_START_REQ( get_thread_input )
-    {
-        req->tid = 0;
-        if (!(status = wine_server_call( req )))
-        {
-            info->hCursor = wine_server_ptr_handle( reply->cursor );
-            info->flags = reply->show_count >= 0 ? CURSOR_SHOWING : 0;
-        }
-    }
-    SERVER_END_REQ;
     get_cursor_pos( &info->ptScreenPos );
-    return !status;
+    return TRUE;
 }
 
 static void check_for_events( UINT flags )
