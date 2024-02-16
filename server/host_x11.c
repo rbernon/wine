@@ -766,6 +766,8 @@ DECL_HANDLER( x11_start_input )
         input_mask.head.deviceid = XCB_INPUT_DEVICE_ALL_MASTER;
         input_mask.head.mask_len = sizeof(input_mask.mask) / sizeof(uint32_t);
         input_mask.mask = XCB_INPUT_XI_EVENT_MASK_BUTTON_PRESS | XCB_INPUT_XI_EVENT_MASK_BUTTON_RELEASE |
+                          XCB_INPUT_XI_EVENT_MASK_TOUCH_BEGIN | XCB_INPUT_XI_EVENT_MASK_TOUCH_END |
+                          XCB_INPUT_XI_EVENT_MASK_TOUCH_UPDATE |
                           XCB_INPUT_XI_EVENT_MASK_ENTER | XCB_INPUT_XI_EVENT_MASK_LEAVE |
                           XCB_INPUT_XI_EVENT_MASK_MOTION;
 
