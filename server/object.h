@@ -64,6 +64,13 @@ struct type_descr
     unsigned int       handle_max;    /* max count of handles of this type */
 };
 
+/* operations for host bridge objects */
+struct host_ops
+{
+    /* warp the host cursor to the desktop cursor position */
+    void (*warp_cursor)( struct object *obj, struct desktop *desktop );
+};
+
 /* operations valid on all objects */
 struct object_ops
 {
@@ -106,6 +113,8 @@ struct object_ops
     struct list *(*get_kernel_obj_list)(struct object *);
     /* close a handle to this object */
     int (*close_handle)(struct object *,struct process *,obj_handle_t);
+    /* return the host operations for host bridges */
+    const struct host_ops *(*get_host_ops)(struct object *);
     /* destroy on refcount == 0 */
     void (*destroy)(struct object *);
 };
@@ -208,6 +217,14 @@ static inline void *mem_append( void *ptr, const void *src, data_size_t len )
     if (!len) return ptr;
     memcpy( ptr, src, len );
     return (char *)ptr + len;
+}
+
+/* host functions */
+
+static inline void host_warp_cursor( struct object *obj, struct desktop *desktop )
+{
+    const struct host_ops *host_ops = obj->ops->get_host_ops( obj );
+    if (host_ops) host_ops->warp_cursor( obj, desktop );
 }
 
 /* event functions */

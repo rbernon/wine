@@ -94,6 +94,7 @@ static const struct object_ops console_ops =
     console_open_file,                /* open_file */
     no_kernel_obj_list,               /* get_kernel_obj_list */
     no_close_handle,                  /* close_handle */
+    NULL,                             /* get_host_ops */
     console_destroy                   /* destroy */
 };
 
@@ -171,6 +172,7 @@ static const struct object_ops console_server_ops =
     console_server_open_file,         /* open_file */
     no_kernel_obj_list,               /* get_kernel_obj_list */
     no_close_handle,                  /* close_handle */
+    NULL,                             /* get_host_ops */
     console_server_destroy            /* destroy */
 };
 
@@ -240,6 +242,7 @@ static const struct object_ops screen_buffer_ops =
     screen_buffer_open_file,          /* open_file */
     no_kernel_obj_list,               /* get_kernel_obj_list */
     no_close_handle,                  /* close_handle */
+    NULL,                             /* get_host_ops */
     screen_buffer_destroy             /* destroy */
 };
 
@@ -289,6 +292,7 @@ static const struct object_ops console_device_ops =
     console_device_open_file,         /* open_file */
     no_kernel_obj_list,               /* get_kernel_obj_list */
     no_close_handle,                  /* close_handle */
+    NULL,                             /* get_host_ops */
     no_destroy                        /* destroy */
 };
 
@@ -326,6 +330,7 @@ static const struct object_ops console_input_ops =
     console_input_open_file,          /* open_file */
     no_kernel_obj_list,               /* get_kernel_obj_list */
     no_close_handle,                  /* close_handle */
+    NULL,                             /* get_host_ops */
     console_input_destroy             /* destroy */
 };
 
@@ -383,6 +388,7 @@ static const struct object_ops console_output_ops =
     console_output_open_file,         /* open_file */
     no_kernel_obj_list,               /* get_kernel_obj_list */
     no_close_handle,                  /* close_handle */
+    NULL,                             /* get_host_ops */
     console_output_destroy            /* destroy */
 };
 
@@ -441,6 +447,7 @@ static const struct object_ops console_connection_ops =
     console_connection_open_file,     /* open_file */
     no_kernel_obj_list,               /* get_kernel_obj_list */
     console_connection_close_handle,  /* close_handle */
+    NULL,                             /* get_host_ops */
     console_connection_destroy        /* destroy */
 };
 
