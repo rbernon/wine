@@ -1365,7 +1365,7 @@ static int update_desktop_keystate( struct process *process, void *arg )
 
     if ((desktop = get_desktop_obj( process, process->desktop, 0 )))
     {
-        update_input_key_state( desktop, desktop->keystate, params->msg, params->wparam );
+        update_desktop_key_state( desktop, params->msg, params->wparam );
         release_object( desktop );
     }
 
