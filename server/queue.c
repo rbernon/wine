@@ -2589,8 +2589,8 @@ static struct pointer *find_pointer_from_id( struct desktop *desktop, unsigned i
 }
 
 /* queue a hardware message for a custom type of event */
-static void queue_custom_hardware_message( struct desktop *desktop, user_handle_t win,
-                                           unsigned int origin, const hw_input_t *input )
+void queue_custom_hardware_message( struct desktop *desktop, user_handle_t win,
+                                    unsigned int origin, const hw_input_t *input )
 {
     const desktop_shm_t *desktop_shm = desktop->shared;
     struct hw_msg_source source = { IMDT_UNAVAILABLE, origin };
