@@ -174,6 +174,14 @@ extern void rawmouse_init( struct rawinput *header, RAWMOUSE *rawmouse, int x, i
                            unsigned int buttons, lparam_t info );
 extern void dispatch_rawinput_message( struct desktop *desktop, struct rawinput_message *raw_msg );
 
+extern int queue_keyboard_message( struct desktop *desktop, user_handle_t win, const hw_input_t *input,
+                                   unsigned int origin, struct msg_queue *sender );
+extern void rawkeyboard_init( struct rawinput *rawinput, RAWKEYBOARD *keyboard, unsigned short scan, unsigned short vkey,
+                              unsigned int flags, unsigned int message, lparam_t info );
+
+extern void update_input_key_state( struct desktop *desktop, unsigned char *keystate,
+                                    unsigned int msg, lparam_t wparam );
+
 /* region functions */
 
 extern struct region *create_empty_region(void);
