@@ -1370,6 +1370,18 @@ else
     X_LIBS=""
 fi
 
+dnl **** Check for libxkbcommon ****
+if test "x$with_wayland" != "xno" -o "x$enable_server_x11" != "xno"
+then
+    WINE_PACKAGE_FLAGS(XKBCOMMON,[xkbcommon],,,,
+        [AC_CHECK_HEADERS([xkbcommon/xkbcommon.h])
+         AC_CHECK_LIB(xkbcommon,xkb_context_new,[:],[XKBCOMMON_LIBS=""],[$XKBCOMMON_LIBS])])
+    WINE_PACKAGE_FLAGS(XKBREGISTRY,[xkbregistry],,,,
+        [AC_CHECK_HEADERS([xkbcommon/xkbregistry.h])
+         AC_CHECK_LIB(xkbregistry,rxkb_context_new,[:],[XKBREGISTRY_LIBS=""],[$XKBREGISTRY_LIBS])])
+fi
+
+dnl **** Check for winewayland.drv dependencies ****
 if test "x$with_wayland" != "xno"
 then
     WINE_PACKAGE_FLAGS(WAYLAND_CLIENT,[wayland-client],,,,
@@ -1378,12 +1390,6 @@ then
               [AC_PATH_PROG(WAYLAND_SCANNER,wayland-scanner,
                             [`test -n "$PKG_CONFIG" && $PKG_CONFIG --variable=wayland_scanner wayland-scanner 2>/dev/null`])],
               [WAYLAND_CLIENT_LIBS=""],[$WAYLAND_CLIENT_LIBS])])])
-    WINE_PACKAGE_FLAGS(XKBCOMMON,[xkbcommon],,,,
-        [AC_CHECK_HEADERS([xkbcommon/xkbcommon.h])
-         AC_CHECK_LIB(xkbcommon,xkb_context_new,[:],[XKBCOMMON_LIBS=""],[$XKBCOMMON_LIBS])])
-    WINE_PACKAGE_FLAGS(XKBREGISTRY,[xkbregistry],,,,
-        [AC_CHECK_HEADERS([xkbcommon/xkbregistry.h])
-         AC_CHECK_LIB(xkbregistry,rxkb_context_new,[:],[XKBREGISTRY_LIBS=""],[$XKBREGISTRY_LIBS])])
     if test "x$with_opengl" != "xno"
     then
         WINE_PACKAGE_FLAGS(EGL,[egl],[-lEGL],,,
@@ -1874,13 +1880,28 @@ WINE_NOTICE_WITH(netapi,[test "x$ac_cv_lib_soname_netapi" = "x"],
 dnl **** Check for server X11 libs ****
 if test "x$enable_server_x11" != "xno"
 then
-    WINE_PACKAGE_FLAGS(XCB,[xcb xcb-event xcb-xinput xcb-xfixes],,,,
+    WINE_PACKAGE_FLAGS(XCB,[xcb xcb-event xcb-xinput xcb-xfixes xcb-xkb],,,,
         [AC_CHECK_HEADERS([xcb/xcb.h])
          AC_CHECK_LIB(xcb,xcb_connect,[:],[XCB_LIBS=""],[$XCB_LIBS])])
+    WINE_PACKAGE_FLAGS(XKBCOMMON_X11,[xkbcommon-x11],,,,
+        [AC_CHECK_HEADERS([xkbcommon/xkbcommon-x11.h])
+         AC_CHECK_LIB(xkbcommon-x11,xkb_x11_keymap_new_from_device,[:],[XKBCOMMON_X11_LIBS=""],[$XKBCOMMON_X11_LIBS])])
 
     if test -z "$XCB_LIBS"
     then
         WINE_NOTICE([XCB ${notice_platform}development files not found, wineserver X11 client won't be supported.])
+        enable_server_x11=no
+    elif test -z "$XKBCOMMON_LIBS"
+    then
+        WINE_NOTICE([xkbcommon ${notice_platform}development files not found, wineserver X11 client won't be supported.])
+        enable_server_x11=no
+    elif test -z "$XKBREGISTRY_LIBS"
+    then
+        WINE_NOTICE([xkbregistry ${notice_platform}development files not found, wineserver X11 client won't be supported.])
+        enable_server_x11=no
+    elif test -z "$XKBCOMMON_X11_LIBS"
+    then
+        WINE_NOTICE([xkbcommon-x11 ${notice_platform}development files not found, wineserver X11 client won't be supported.])
         enable_server_x11=no
     else
         AC_DEFINE(ENABLE_SERVER_X11,1,[Define to 1 to enable wineserver X11 client])

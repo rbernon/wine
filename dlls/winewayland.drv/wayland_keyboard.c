@@ -151,6 +151,7 @@ static const USHORT scan2vk_dvorak[0x280] =
     EXTRA_SCAN2VK
 };
 
+/* keep in sync with winex11 and server/host_x11.c */
 static WORD key2scan(UINT key)
 {
     /* base keys can be mapped directly */

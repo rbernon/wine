@@ -2113,8 +2113,8 @@ void rawmouse_init( struct rawinput *header, RAWMOUSE *rawmouse, int x, int y, u
     rawmouse->ulExtraInformation = info;
 }
 
-static void rawkeyboard_init( struct rawinput *rawinput, RAWKEYBOARD *keyboard, unsigned short scan, unsigned short vkey,
-                              unsigned int flags, unsigned int message, lparam_t info )
+void rawkeyboard_init( struct rawinput *rawinput, RAWKEYBOARD *keyboard, unsigned short scan, unsigned short vkey,
+                       unsigned int flags, unsigned int message, lparam_t info )
 {
     rawinput->type   = RIM_TYPEKEYBOARD;
     rawinput->device = WINE_KEYBOARD_HANDLE;
@@ -2360,8 +2360,8 @@ static void stop_key_repeat( struct desktop *desktop )
 }
 
 /* queue a hardware message for a keyboard event */
-static int queue_keyboard_message( struct desktop *desktop, user_handle_t win, const union hw_input *input,
-                                   unsigned int origin, struct msg_queue *sender, unsigned int send_flags, int repeat )
+int queue_keyboard_message( struct desktop *desktop, user_handle_t win, const union hw_input *input,
+                            unsigned int origin, struct msg_queue *sender, unsigned int send_flags, int repeat )
 {
     const desktop_shm_t *desktop_shm = desktop->shared;
     struct hw_msg_source source = { IMDT_KEYBOARD, origin };

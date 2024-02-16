@@ -137,8 +137,8 @@ static x11drv_event_handler server_x11_handlers[MAX_EVENT_HANDLERS] =
 {
     NULL,                     /*  0 reserved */
     NULL,                     /*  1 reserved */
-    X11DRV_KeyEvent,          /*  2 KeyPress */
-    X11DRV_KeyEvent,          /*  3 KeyRelease */
+    NULL,                     /*  2 KeyPress */
+    NULL,                     /*  3 KeyRelease */
     NULL,                     /*  4 ButtonPress */
     NULL,                     /*  5 ButtonRelease */
     NULL,                     /*  6 MotionNotify */
@@ -146,7 +146,7 @@ static x11drv_event_handler server_x11_handlers[MAX_EVENT_HANDLERS] =
     NULL,                     /*  8 LeaveNotify */
     X11DRV_FocusIn,           /*  9 FocusIn */
     X11DRV_FocusOut,          /* 10 FocusOut */
-    X11DRV_KeymapNotify,      /* 11 KeymapNotify */
+    NULL,                     /* 11 KeymapNotify */
     X11DRV_Expose,            /* 12 Expose */
     NULL,                     /* 13 GraphicsExpose */
     NULL,                     /* 14 NoExpose */
@@ -169,7 +169,7 @@ static x11drv_event_handler server_x11_handlers[MAX_EVENT_HANDLERS] =
     NULL,                     /* 31 SelectionNotify */
     NULL,                     /* 32 ColormapNotify */
     X11DRV_ClientMessage,     /* 33 ClientMessage */
-    X11DRV_MappingNotify,     /* 34 MappingNotify */
+    NULL,                     /* 34 MappingNotify */
     NULL,                     /* 35 GenericEvent */
 };
 

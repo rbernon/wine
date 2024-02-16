@@ -1371,9 +1371,8 @@ HKL WINAPI NtUserActivateKeyboardLayout( HKL layout, UINT flags )
     if (LOWORD(layout) != MAKELANGID(LANG_INVARIANT, SUBLANG_DEFAULT) &&
         (NtQueryDefaultLocale( TRUE, &locale ) || LOWORD(layout) != locale))
     {
-        RtlSetLastWin32Error( ERROR_CALL_NOT_IMPLEMENTED );
         FIXME_(keyboard)( "Changing user locale is not supported\n" );
-        return 0;
+        layout = (HKL)(UINT_PTR)MAKELONG(locale,HIWORD(layout));
     }
 
     if (!user_driver->pActivateKeyboardLayout( layout, flags ))
