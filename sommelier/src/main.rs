@@ -31,7 +31,7 @@ fn get_server_dir(config_dir: &path::PathBuf) -> io::Result<path::PathBuf> {
     Ok(buf)
 }
 
-fn create_server_dir() -> io::Result<()> {
+pub fn create_server_dir() -> io::Result<path::PathBuf> {
     let config_dir = get_prefix_dir();
     if let Err(e) = env::set_current_dir(&config_dir) {
         panic!(
@@ -54,10 +54,12 @@ fn create_server_dir() -> io::Result<()> {
         );
     }
 
-    Ok(())
+    Ok(server_dir)
 }
 
 fn open_master_socket() -> io::Result<()> {
+    fs::remove_file(SOCKET_NAME)?;
+
     let socket = UnixListener::bind(SOCKET_NAME)?;
 
     let mut perms = fs::metadata(SOCKET_NAME)?.permissions();
@@ -76,6 +78,7 @@ fn open_master_socket() -> io::Result<()> {
 
 fn main() -> io::Result<()> {
     create_server_dir()?;
+    fd::wait_for_lock()?;
     open_master_socket()?;
 
     Ok(())
