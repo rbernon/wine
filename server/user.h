@@ -168,7 +168,8 @@ extern struct desktop *get_hardware_input_desktop( user_handle_t win );
 extern struct thread *get_foreground_thread( struct desktop *desktop, user_handle_t window );
 extern int queue_mouse_message( struct desktop *desktop, user_handle_t win, const hw_input_t *input,
                                 unsigned int origin, struct msg_queue *sender, int send_rawinput );
-
+extern void queue_custom_hardware_message( struct desktop *desktop, user_handle_t win,
+                                           unsigned int origin, const hw_input_t *input );
 extern void rawmouse_init( struct rawinput *header, RAWMOUSE *rawmouse, int x, int y, unsigned int flags,
                            unsigned int buttons, lparam_t info );
 extern void dispatch_rawinput_message( struct desktop *desktop, struct rawinput_message *raw_msg );
