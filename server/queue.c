@@ -108,7 +108,6 @@ struct thread_input
     int                    caret_state;   /* caret on/off state */
     struct list            msg_list;      /* list of hardware messages */
     unsigned char          desktop_keystate[256]; /* desktop keystate when keystate was synced */
-    int                    keystate_lock; /* keystate is locked */
     int                    session_index; /* thread input index in session shared memory */
 };
 
@@ -252,7 +251,6 @@ static struct thread_input *create_thread_input( struct thread *thread )
     {
         const input_shm_t *input_shm;
         list_init( &input->msg_list );
-        input->keystate_lock = 0;
         input->session_index = -1;
 
         if (!(input->desktop = get_thread_desktop( thread, 0 /* FIXME: access rights */ )))
@@ -356,14 +354,13 @@ void free_msg_queue( struct thread *thread )
 /* synchronize thread input keystate with the desktop */
 static void sync_input_keystate( struct thread_input *input )
 {
+    const input_shm_t *input_shm = get_shared_input( input->session_index );
     const desktop_shm_t *desktop_shm;
-    const input_shm_t *input_shm;
     struct desktop *desktop;
     int i;
 
-    if (!(desktop = input->desktop) || input->keystate_lock) return;
+    if (!(desktop = input->desktop) || input_shm->keystate_lock) return;
     desktop_shm = get_shared_desktop( input->desktop->session_index );
-    input_shm = get_shared_input( input->session_index );
 
     SHARED_WRITE_BEGIN( input_shm, input_shm_t )
     {
@@ -379,14 +376,27 @@ static void sync_input_keystate( struct thread_input *input )
 /* locks thread input keystate to prevent synchronization */
 static void lock_input_keystate( struct thread_input *input )
 {
-    input->keystate_lock++;
+    const input_shm_t *input_shm = get_shared_input( input->session_index );
+
+    SHARED_WRITE_BEGIN( input_shm, input_shm_t )
+    {
+        shared->keystate_lock++;
+    }
+    SHARED_WRITE_END;
 }
 
 /* unlock the thread input keystate and synchronize it again */
 static void unlock_input_keystate( struct thread_input *input )
 {
-    input->keystate_lock--;
-    if (!input->keystate_lock) sync_input_keystate( input );
+    const input_shm_t *input_shm = get_shared_input( input->session_index );
+
+    SHARED_WRITE_BEGIN( input_shm, input_shm_t )
+    {
+        shared->keystate_lock--;
+    }
+    SHARED_WRITE_END;
+
+    if (!input_shm->keystate_lock) sync_input_keystate( input );
 }
 
 /* change the thread input data of a given thread */
