@@ -2,6 +2,18 @@ use std::sync::Arc;
 
 pub trait KernelObject {
     fn grab(&self) -> Arc<dyn KernelObject>;
+
+    fn make_permanent(&self) {
+        Arc::into_raw(self.grab());
+    }
+
+    fn make_temporary(&self) {
+        let ptr = Arc::into_raw(self.grab());
+        unsafe {
+            let _ = Arc::from_raw(ptr);
+            Arc::decrement_strong_count(ptr)
+        };
+    }
 }
 
 pub struct Handle(u32);
