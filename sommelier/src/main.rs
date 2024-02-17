@@ -14,6 +14,7 @@ mod mapping;
 mod object;
 mod thread;
 
+use crate::object::*;
 use crate::mapping::*;
 
 const SOCKET_NAME: &str = "socket";
@@ -72,9 +73,10 @@ fn open_master_socket() -> io::Result<()> {
     perms.set_mode(0o600);
     fs::set_permissions(SOCKET_NAME, perms)?;
 
+    let root = RootDirectory::new();
     for stream in socket.incoming() {
         match stream {
-            Ok(stream) => thread::Process::spawn(stream),
+            Ok(stream) => thread::Process::spawn(root.clone(), stream),
             Err(err) => panic!("{err}"),
         };
     }
