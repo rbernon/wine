@@ -1031,6 +1031,13 @@ impl Thread {
         let utf16 = unsafe { slice::from_raw_parts(data.as_ptr() as *const u16, data.len() / 2) };
         println!("{:?}, {:?}", req, String::from_utf16(&utf16).unwrap());
 
+        use crate::mapping::*;
+        if let usd = Mapping::new() {
+            use std::ops::DerefMut;
+            let mut process = self.process.lock().unwrap();
+            let handle = usd.open(process.deref_mut());
+        }
+
         let mut reply = ipc::OpenMappingReply::default();
         reply.handle = 0xcd;
         Ok((reply, Vec::new()))
