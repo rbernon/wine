@@ -14,47 +14,41 @@ use std::os::unix::net::UnixStream;
 use crate::fd;
 use crate::ipc;
 
+struct Tid(u32);
+
 struct TidPool {
     next: u32,
-    free: Vec<u32>,
+    used: Vec<u32>,
 }
 
 impl TidPool {
     fn alloc(&mut self) -> Tid {
-        match self.free.pop() {
-            Some(tid) => Tid(tid),
-            _ => {
-                let tid = self.next;
-                self.next += 4;
-                Tid(tid)
-            }
+        let (mut pos, idx) = match self.used.binary_search(&self.next) {
+            Err(pos) => (pos, self.next),
+            _ => panic!(),
+        };
+
+        self.used.insert(pos, idx);
+        while self.used.get(pos) == Some(&self.next) {
+            self.next += 1;
+            pos += 1;
         }
+
+        Tid(idx * 4)
     }
 
     fn free(&mut self, tid: &Tid) {
-        let mut val = tid.0;
-
-        while self.next - 4 == val {
-            self.next -= 4;
-            match self.free.pop() {
-                Some(next) => val = next,
-                _ => return,
-            }
-        }
-
-        match self.free.binary_search(&val) {
-            Err(pos) => self.free.insert(pos, val),
+        match self.used.binary_search(&(tid.0 / 4)) {
+            Ok(pos) => self.used.remove(pos),
             _ => panic!(),
-        }
+        };
     }
 }
 
 static TID_POOL: Mutex<TidPool> = Mutex::new(TidPool {
-    next: 4,
-    free: Vec::new(),
+    next: 8,
+    used: Vec::new(),
 });
-
-struct Tid(u32);
 
 struct Thread {
     process: Arc<Mutex<Process>>,
