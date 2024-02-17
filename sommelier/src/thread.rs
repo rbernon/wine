@@ -13,6 +13,7 @@ use std::os::unix::net::UnixStream;
 
 use crate::fd;
 use crate::ipc;
+use crate::object::*;
 
 struct Tid(u32);
 
@@ -3027,6 +3028,7 @@ pub struct Process {
     pid: Tid,
 
     fds: HashMap<u32, Vec<(fd::ClientFd, fd::ServerFd)>>,
+    pub handles: HandleTable,
 }
 
 impl Drop for Process {
@@ -3049,6 +3051,7 @@ impl Process {
                 pid,
 
                 fds: HashMap::new(),
+                handles: HandleTable::new(),
             }));
 
             let mut thread = Thread {
