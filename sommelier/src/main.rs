@@ -9,6 +9,7 @@ use std::os::unix::net::UnixListener;
 
 mod fd;
 mod ipc;
+mod mapping;
 mod object;
 mod thread;
 
