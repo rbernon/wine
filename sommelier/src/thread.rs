@@ -52,6 +52,7 @@ static TID_POOL: Mutex<TidPool> = Mutex::new(TidPool {
 });
 
 struct Thread {
+    root: Arc<Mutex<RootDirectory>>,
     process: Arc<Mutex<Process>>,
     request_file: fs::File,
     reply_file: fs::File,
@@ -1029,17 +1030,18 @@ impl Thread {
         data: Vec<u8>,
     ) -> Result<(ipc::OpenMappingReply, Vec<u8>), u32> {
         let utf16 = unsafe { slice::from_raw_parts(data.as_ptr() as *const u16, data.len() / 2) };
-        println!("{:?}, {:?}", req, String::from_utf16(&utf16).unwrap());
-
-        use crate::mapping::*;
-        if let usd = Mapping::new() {
-            use std::ops::DerefMut;
-            let mut process = self.process.lock().unwrap();
-            let handle = usd.open(process.deref_mut());
-        }
+        let path = String::from_utf16(&utf16).unwrap();
+        println!("{:?}, {:?}", req, path);
 
         let mut reply = ipc::OpenMappingReply::default();
-        reply.handle = 0xcd;
+
+        use crate::mapping::*;
+        if let Some(object) = self.root.lock().unwrap().lookup(&path) {
+            use std::ops::DerefMut;
+            let mut process = self.process.lock().unwrap();
+            reply.handle = object.open(process.deref_mut()).0;
+        }
+
         Ok((reply, Vec::new()))
     }
 
@@ -3045,8 +3047,8 @@ impl Drop for Process {
 }
 
 impl Process {
-    pub fn spawn(stream: UnixStream) {
-        thread::spawn(|| {
+    pub fn spawn(root: Arc<Mutex<RootDirectory>>, stream: UnixStream) {
+        thread::spawn(move || {
             let request_file = fd::send_process_pipe(&stream, ipc::SERVER_PROTOCOL_VERSION);
 
             let mut tids = TID_POOL.lock().unwrap();
@@ -3062,6 +3064,7 @@ impl Process {
             }));
 
             let mut thread = Thread {
+                root,
                 process,
                 request_file,
                 reply_file: fs::File::open("/dev/null").unwrap(),
