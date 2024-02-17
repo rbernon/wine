@@ -1,10 +1,14 @@
+use std::collections::HashMap;
+use std::sync::Mutex;
 use std::sync::Arc;
 
-pub trait KernelObject {
+use crate::thread::*;
+
+pub trait KernelObject : Send + Sync {
     fn grab(&self) -> Arc<dyn KernelObject>;
 
     fn make_permanent(&self) {
-        Arc::into_raw(self.grab());
+        let _ = Arc::into_raw(self.grab());
     }
 
     fn make_temporary(&self) {
@@ -14,9 +18,18 @@ pub trait KernelObject {
             Arc::decrement_strong_count(ptr)
         };
     }
+
+    fn open(&self, process: &mut Process) -> Handle {
+        process.handles.alloc(&self.grab())
+    }
 }
 
-pub struct Handle(u32);
+pub trait ObjectDirectory {
+    fn lookup(&self, path: &String) -> Option<Arc<dyn KernelObject>>;
+    fn insert(&mut self, path: &String, object: Arc<dyn KernelObject>);
+}
+
+pub struct Handle(pub u32);
 
 pub struct HandleTable {
     next: u32,
@@ -63,5 +76,27 @@ impl HandleTable {
             Ok(pos) => self.used.get(pos).map(|(_, b)| b.clone()),
             _ => None,
         }
+    }
+}
+
+pub struct RootDirectory {
+    objects: HashMap<String, Arc<dyn KernelObject>>,
+}
+
+impl RootDirectory {
+    pub fn new() -> Arc<Mutex<RootDirectory>> {
+        Arc::new(Mutex::new(RootDirectory {
+            objects: HashMap::new(),
+        }))
+    }
+}
+
+impl ObjectDirectory for RootDirectory {
+    fn lookup(&self, path: &String) -> Option<Arc<dyn KernelObject>> {
+        self.objects.get(path).map(|a| a.clone())
+    }
+
+    fn insert(&mut self, path: &String, object: Arc<dyn KernelObject>) {
+        self.objects.insert(path.to_string(), object);
     }
 }
