@@ -6,6 +6,7 @@ use std::path;
 use std::os::linux::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixListener;
+use std::sync::Arc;
 
 mod fd;
 mod ipc;
@@ -13,7 +14,10 @@ mod mapping;
 mod object;
 mod thread;
 
+use crate::mapping::*;
+
 const SOCKET_NAME: &str = "socket";
+pub static USER_SHARED_DATA: Option<Arc<Mapping>> = None;
 
 fn get_prefix_dir() -> path::PathBuf {
     match env::var("WINEPREFIX") {
