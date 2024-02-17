@@ -4,7 +4,7 @@ use std::fs;
 use std::sync::Arc;
 use std::sync::Weak;
 
-struct Mapping {
+pub struct Mapping {
     weak: Weak<Mapping>,
 }
 
