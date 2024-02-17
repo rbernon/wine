@@ -9,6 +9,7 @@ use std::os::unix::net::UnixListener;
 
 mod fd;
 mod ipc;
+mod object;
 mod thread;
 
 const SOCKET_NAME: &str = "socket";
