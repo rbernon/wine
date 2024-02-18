@@ -52,7 +52,7 @@ static TID_POOL: Mutex<TidPool> = Mutex::new(TidPool {
 });
 
 struct Thread {
-    root: Arc<Mutex<RootDirectory>>,
+    root: Arc<Mutex<Directory>>,
     process: Arc<Mutex<Process>>,
     request_file: fs::File,
     reply_file: fs::File,
@@ -72,10 +72,10 @@ const IMAGE_FILE_MACHINE_I386: u16 = 0x014c;
 impl Thread {
     fn run(&mut self) -> io::Result<()> {
         loop {
-            let (req, data) = self.request().expect("Failed to read request");
+            let (req, data) = self.request()?;
             match self.dispatch(req, data) {
-                Ok((reply, data)) => self.reply(reply, data).expect("Failed to write reply"),
-                Err(err) => self.error(err).expect("Failed to write error"),
+                Ok((reply, data)) => self.reply(reply, data)?,
+                Err(err) => self.error(err)?,
             }
         }
     }
@@ -1054,12 +1054,9 @@ impl Thread {
         println!("{:?}, {:?}", req, path);
 
         let mut reply = ipc::OpenMappingReply::default();
-
-        if let Ok(root) = self.root.lock() {
-            if let Some(object) = root.lookup(&path) {
-                if let Ok(mut process) = self.process.lock() {
-                    reply.handle = object.open(&mut process).0;
-                }
+        if let Some(object) = self.root.lookup_path(&path) {
+            if let Ok(mut process) = self.process.lock() {
+                reply.handle = object.open(&mut process).0;
             }
         }
 
@@ -1267,9 +1264,14 @@ impl Thread {
     fn open_key(
         &mut self,
         req: &ipc::OpenKeyRequest,
-        _data: Vec<u8>,
+        data: Vec<u8>,
     ) -> Result<(ipc::OpenKeyReply, Vec<u8>), u32> {
-        println!("{:?}", req);
+        let utf16 = unsafe { slice::from_raw_parts(data.as_ptr() as *const u16, data.len() / 2) };
+        let path = String::from_utf16(&utf16).unwrap();
+        println!("{:?}, {:?}", req, path);
+
+        if let Some(object) = self.root.lookup_path(&path) {}
+
         Err(0xdeadbeef)
     }
 
@@ -3067,7 +3069,7 @@ impl Drop for Process {
 }
 
 impl Process {
-    pub fn spawn(root: Arc<Mutex<RootDirectory>>, stream: UnixStream) {
+    pub fn spawn(root: Arc<Mutex<Directory>>, stream: UnixStream) {
         thread::spawn(move || -> io::Result<()> {
             let request_file = fd::send_process_pipe(&stream, ipc::SERVER_PROTOCOL_VERSION)?;
 
@@ -3087,8 +3089,8 @@ impl Process {
                 root,
                 process,
                 request_file,
-                reply_file: fs::File::open("/dev/null").unwrap(),
-                wait_file: fs::File::open("/dev/null").unwrap(),
+                reply_file: fs::File::open("/dev/null")?,
+                wait_file: fs::File::open("/dev/null")?,
                 tid,
             };
 
