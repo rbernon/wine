@@ -65,7 +65,7 @@ pub fn create_server_dir() -> io::Result<path::PathBuf> {
 }
 
 fn open_master_socket() -> io::Result<()> {
-    fs::remove_file(SOCKET_NAME)?;
+    fs::remove_file(SOCKET_NAME).ok();
 
     let socket = UnixListener::bind(SOCKET_NAME)?;
 
@@ -74,6 +74,8 @@ fn open_master_socket() -> io::Result<()> {
     fs::set_permissions(SOCKET_NAME, perms)?;
 
     let root = RootDirectory::new();
+    root.lock().unwrap().insert_str("\\KernelObjects\\__wine_user_shared_data", Mapping::new());
+
     for stream in socket.incoming() {
         match stream {
             Ok(stream) => thread::Process::spawn(root.clone(), stream),
