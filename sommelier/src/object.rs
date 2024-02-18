@@ -26,7 +26,16 @@ pub trait KernelObject : Send + Sync {
 
 pub trait ObjectDirectory {
     fn lookup(&self, path: &String) -> Option<Arc<dyn KernelObject>>;
+
+    fn lookup_str(&mut self, path: &str) -> Option<Arc<dyn KernelObject>> {
+        self.lookup(&path.to_string())
+    }
+
     fn insert(&mut self, path: &String, object: Arc<dyn KernelObject>);
+
+    fn insert_str(&mut self, path: &str, object: Arc<dyn KernelObject>) {
+        self.insert(&path.to_string(), object);
+    }
 }
 
 pub struct Handle(pub u32);
