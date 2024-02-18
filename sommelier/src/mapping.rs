@@ -14,8 +14,8 @@ impl Mapping {
     }
 }
 
-impl KernelObject for Mapping {
-    fn grab(&self) -> Arc<dyn KernelObject> {
+impl Object for Mapping {
+    fn grab(&self) -> Arc<dyn Object> {
         self.weak.upgrade().unwrap()
     }
 }
