@@ -57,7 +57,7 @@ extern "C" {
     fn fcntl(fd: i32, cmd: i32, ...) -> i32;
 }
 
-pub fn send_client_fd(stream: &UnixStream, fd: ServerFd, handle: u32) {
+pub fn send_client_fd(stream: &UnixStream, fd: ServerFd, handle: u32) -> io::Result<()> {
     let mut ctrl = cmsg {
         hdr: cmsghdr {
             cmsg_len: mem::size_of::<cmsg>(),
@@ -80,11 +80,14 @@ pub fn send_client_fd(stream: &UnixStream, fd: ServerFd, handle: u32) {
         msg_flags: 0,
     };
 
-    let socket = stream.as_raw_fd();
-    assert!(unsafe { sendmsg(socket, &msg, 0) } != -1);
+    if unsafe { sendmsg(stream.as_raw_fd(), &msg, 0) } == -1 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
 }
 
-pub fn recv_client_fd(stream: &UnixStream) -> (u32, ClientFd, ServerFd) {
+pub fn recv_client_fd(stream: &UnixStream) -> io::Result<(u32, ClientFd, ServerFd)> {
     #[derive(Default)]
     #[repr(C)]
     struct send_fd {
@@ -115,20 +118,25 @@ pub fn recv_client_fd(stream: &UnixStream) -> (u32, ClientFd, ServerFd) {
         msg_flags: 0,
     };
 
-    let socket = stream.as_raw_fd();
-    assert!(unsafe { recvmsg(socket, &msg, 0) } != -1);
-
-    (data[0].tid, data[0].fd, ctrl.fd)
+    if unsafe { recvmsg(stream.as_raw_fd(), &msg, 0) } == -1 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok((data[0].tid, data[0].fd, ctrl.fd))
+    }
 }
 
-pub fn send_process_pipe(stream: &UnixStream, version: u32) -> File {
+pub fn send_process_pipe(stream: &UnixStream, version: u32) -> io::Result<File> {
     let mut fds = [-1, -1];
 
-    assert!(unsafe { pipe(fds.as_mut_ptr()) } != -1);
-    send_client_fd(stream, fds[1], version);
-    assert!(unsafe { close(fds[1]) } != -1);
+    if unsafe { pipe(fds.as_mut_ptr()) } == -1 {
+        Err(io::Error::last_os_error())?
+    }
+    send_client_fd(stream, fds[1], version)?;
+    if unsafe { close(fds[1]) } == -1 {
+        Err(io::Error::last_os_error())?
+    }
 
-    return unsafe { File::from_raw_fd(fds[0]) };
+    Ok(unsafe { File::from_raw_fd(fds[0]) })
 }
 
 fn create_server_lock() -> io::Result<fs::File> {
@@ -162,30 +170,25 @@ struct flock {
 }
 
 pub fn wait_for_lock() -> io::Result<()> {
-    let server_dir = crate::create_server_dir()?;
-    let lock = create_server_lock()?;
+    const F_SETLKW: i32 = 7;
+    const F_RWLCK: i16 = 1;
+    const SEEK_SET: i16 = 0;
 
+    crate::create_server_dir()?;
+    let lock = create_server_lock()?;
     let fl = flock {
-        l_type: 1,   /*F_RWLCK*/
-        l_whence: 0, /*SEEK_SET*/
+        l_type: F_RWLCK,
+        l_whence: SEEK_SET,
         l_start: 0,
         l_len: 1,
         l_pid: 0,
     };
 
-    let ret = if cfg!(target_pointer_width = "32") {
-        unsafe {
-            fcntl(lock.as_raw_fd(), 7 /*F_SETLKW*/, &fl)
-        }
-    } else if cfg!(target_pointer_width = "64") {
-        unsafe {
-            fcntl(lock.as_raw_fd(), 14 /*F_SETLKW64*/, &fl)
-        }
+    if unsafe { fcntl(lock.as_raw_fd(), F_SETLKW, &fl) } == -1 {
+        Err(io::Error::last_os_error())
     } else {
-        unimplemented!();
-    };
-
-    Ok(())
+        Ok(())
+    }
 }
 
 /*
