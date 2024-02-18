@@ -43,6 +43,10 @@ pub trait Object: ObjectArc + Send + Sync {
     fn open(&self, process: &mut Process) -> Handle {
         process.handles.alloc(&self.grab())
     }
+
+    fn get_unix_fd(&self) -> i32 {
+        -1
+    }
 }
 
 pub trait ObjectDirectory {
