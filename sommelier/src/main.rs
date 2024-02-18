@@ -14,8 +14,8 @@ mod mapping;
 mod object;
 mod thread;
 
-use crate::object::*;
 use crate::mapping::*;
+use crate::object::*;
 
 const SOCKET_NAME: &str = "socket";
 pub static USER_SHARED_DATA: Option<Arc<Mapping>> = None;
@@ -54,6 +54,9 @@ pub fn create_server_dir() -> io::Result<path::PathBuf> {
             server_dir.display()
         );
     }
+    let perm = fs::Permissions::from_mode(0o700);
+    fs::set_permissions(&server_dir, perm)?;
+
     if let Err(e) = env::set_current_dir(&server_dir) {
         panic!(
             "Cannot set working directory to {}, {e}",
@@ -74,7 +77,9 @@ fn open_master_socket() -> io::Result<()> {
     fs::set_permissions(SOCKET_NAME, perms)?;
 
     let root = RootDirectory::new();
-    root.lock().unwrap().insert_str("\\KernelObjects\\__wine_user_shared_data", Mapping::new());
+    root.lock()
+        .unwrap()
+        .insert_str("\\KernelObjects\\__wine_user_shared_data", Mapping::new());
 
     for stream in socket.incoming() {
         match stream {
