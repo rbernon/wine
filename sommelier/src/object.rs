@@ -1,11 +1,32 @@
+use std::any::Any;
 use std::collections::HashMap;
-use std::sync::Mutex;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::thread::*;
 
-pub trait KernelObject : Send + Sync {
-    fn grab(&self) -> Arc<dyn KernelObject>;
+pub trait ObjectArc {
+    fn as_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync + 'static>;
+    fn from_object(object: Arc<dyn Object>) -> Arc<Self>
+    where
+        Self: Sized;
+}
+
+impl<T: Object + 'static> ObjectArc for T {
+    fn as_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync + 'static> {
+        self
+    }
+
+    fn from_object(object: Arc<dyn Object>) -> Arc<Self>
+    where
+        Self: Sized,
+    {
+        object.as_any().downcast::<Self>().unwrap()
+    }
+}
+
+pub trait Object: ObjectArc + Send + Sync {
+    fn grab(&self) -> Arc<dyn Object>;
 
     fn make_permanent(&self) {
         let _ = Arc::into_raw(self.grab());
@@ -25,15 +46,15 @@ pub trait KernelObject : Send + Sync {
 }
 
 pub trait ObjectDirectory {
-    fn lookup(&self, path: &String) -> Option<Arc<dyn KernelObject>>;
+    fn lookup(&self, path: &String) -> Option<Arc<dyn Object>>;
 
-    fn lookup_str(&mut self, path: &str) -> Option<Arc<dyn KernelObject>> {
+    fn lookup_str(&mut self, path: &str) -> Option<Arc<dyn Object>> {
         self.lookup(&path.to_string())
     }
 
-    fn insert(&mut self, path: &String, object: Arc<dyn KernelObject>);
+    fn insert(&mut self, path: &String, object: Arc<dyn Object>);
 
-    fn insert_str(&mut self, path: &str, object: Arc<dyn KernelObject>) {
+    fn insert_str(&mut self, path: &str, object: Arc<dyn Object>) {
         self.insert(&path.to_string(), object);
     }
 }
@@ -42,7 +63,7 @@ pub struct Handle(pub u32);
 
 pub struct HandleTable {
     next: u32,
-    used: Vec<(u32, Arc<dyn KernelObject>)>,
+    used: Vec<(u32, Arc<dyn Object>)>,
 }
 
 impl HandleTable {
@@ -53,7 +74,7 @@ impl HandleTable {
         }
     }
 
-    pub fn alloc(&mut self, obj: &Arc<dyn KernelObject>) -> Handle {
+    pub fn alloc(&mut self, obj: &Arc<dyn Object>) -> Handle {
         let (mut pos, idx) = match self.used.binary_search_by_key(&self.next, |&(a, _)| a) {
             Err(pos) => (pos, self.next),
             _ => panic!(),
@@ -79,7 +100,7 @@ impl HandleTable {
         };
     }
 
-    pub fn get(&self, handle: &Handle) -> Option<Arc<dyn KernelObject>> {
+    pub fn get(&self, handle: &Handle) -> Option<Arc<dyn Object>> {
         let idx = handle.0 / 4 - 1;
         match self.used.binary_search_by_key(&idx, |&(a, _)| a) {
             Ok(pos) => self.used.get(pos).map(|(_, b)| b.clone()),
@@ -89,7 +110,7 @@ impl HandleTable {
 }
 
 pub struct RootDirectory {
-    objects: HashMap<String, Arc<dyn KernelObject>>,
+    objects: HashMap<String, Arc<dyn Object>>,
 }
 
 impl RootDirectory {
@@ -101,11 +122,11 @@ impl RootDirectory {
 }
 
 impl ObjectDirectory for RootDirectory {
-    fn lookup(&self, path: &String) -> Option<Arc<dyn KernelObject>> {
+    fn lookup(&self, path: &String) -> Option<Arc<dyn Object>> {
         self.objects.get(path).map(|a| a.clone())
     }
 
-    fn insert(&mut self, path: &String, object: Arc<dyn KernelObject>) {
+    fn insert(&mut self, path: &String, object: Arc<dyn Object>) {
         self.objects.insert(path.to_string(), object);
     }
 }
