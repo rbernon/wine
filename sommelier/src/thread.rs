@@ -13,7 +13,6 @@ use std::os::unix::net::UnixStream;
 
 use crate::fd;
 use crate::ipc;
-use crate::mapping::*;
 use crate::object::*;
 
 struct Tid(u32);
@@ -71,7 +70,7 @@ const IMAGE_FILE_MACHINE_AMD64: u16 = 0x8664;
 const IMAGE_FILE_MACHINE_I386: u16 = 0x014c;
 
 impl Thread {
-    fn run(&mut self) {
+    fn run(&mut self) -> io::Result<()> {
         loop {
             let (req, data) = self.request().expect("Failed to read request");
             match self.dispatch(req, data) {
@@ -477,7 +476,7 @@ impl Thread {
     ) -> Result<(ipc::InitFirstThreadReply, Vec<u8>), u32> {
         println!("{:?}", req);
 
-        let (client, server) = self.receive_fd();
+        let (client, server) = self.receive_fd().unwrap();
         if client == req.reply_fd {
             self.reply_file = unsafe { fs::File::from_raw_fd(server) };
         }
@@ -485,7 +484,7 @@ impl Thread {
             self.wait_file = unsafe { fs::File::from_raw_fd(server) };
         }
 
-        let (client, server) = self.receive_fd();
+        let (client, server) = self.receive_fd().unwrap();
         if client == req.reply_fd {
             self.reply_file = unsafe { fs::File::from_raw_fd(server) };
         }
@@ -887,7 +886,22 @@ impl Thread {
         _data: Vec<u8>,
     ) -> Result<(ipc::GetHandleFdReply, Vec<u8>), u32> {
         println!("{:?}", req);
-        Err(0xdeadbeef)
+
+        let mut reply = ipc::GetHandleFdReply::default();
+        let process = self.process.lock().unwrap();
+
+        if let Some(object) = process.handles.get(&Handle(req.handle)) {
+            let fd = object.get_unix_fd();
+
+            reply._type = 0;
+            reply.options = 0;
+            reply.access = 0;
+            reply.cacheable = 0;
+
+            fd::send_client_fd(&process.stream, fd, req.handle).unwrap();
+        }
+
+        Ok((reply, Vec::new()))
     }
 
     fn get_directory_cache_entry(
@@ -1036,11 +1050,9 @@ impl Thread {
 
         let mut reply = ipc::OpenMappingReply::default();
 
-        use crate::mapping::*;
         if let Some(object) = self.root.lock().unwrap().lookup(&path) {
             use std::ops::DerefMut;
             let mut process = self.process.lock().unwrap();
-            let mapping = Mapping::from_object(object.clone());
             reply.handle = object.open(process.deref_mut()).0;
         }
 
@@ -3027,10 +3039,9 @@ impl Thread {
         Err(0xdeadbeef)
     }
 
-    fn receive_fd(&mut self) -> (fd::ClientFd, fd::ServerFd) {
+    fn receive_fd(&mut self) -> io::Result<(fd::ClientFd, fd::ServerFd)> {
         let mut process = self.process.lock().unwrap();
-        let (client, server) = process.receive_fd(self.tid.0);
-        (client, server)
+        process.receive_fd(self.tid.0)
     }
 }
 
@@ -3050,8 +3061,8 @@ impl Drop for Process {
 
 impl Process {
     pub fn spawn(root: Arc<Mutex<RootDirectory>>, stream: UnixStream) {
-        thread::spawn(move || {
-            let request_file = fd::send_process_pipe(&stream, ipc::SERVER_PROTOCOL_VERSION);
+        thread::spawn(move || -> io::Result<()> {
+            let request_file = fd::send_process_pipe(&stream, ipc::SERVER_PROTOCOL_VERSION)?;
 
             let mut tids = TID_POOL.lock().unwrap();
             let (pid, tid) = (tids.alloc(), tids.alloc());
@@ -3078,19 +3089,19 @@ impl Process {
         });
     }
 
-    fn receive_fd(&mut self, tid: u32) -> (fd::ClientFd, fd::ServerFd) {
+    fn receive_fd(&mut self, tid: u32) -> io::Result<(fd::ClientFd, fd::ServerFd)> {
         if !self.fds.contains_key(&tid) {
             self.fds.insert(tid, Vec::new());
         }
 
         loop {
             if let Some((client, server)) = self.fds.get_mut(&tid).unwrap().pop() {
-                return (client, server);
+                return Ok((client, server));
             }
 
-            let (dst, client, server) = fd::recv_client_fd(&self.stream);
+            let (dst, client, server) = fd::recv_client_fd(&self.stream)?;
             if dst == 0 {
-                return (client, server);
+                return Ok((client, server));
             }
 
             self.fds.get_mut(&dst).unwrap().push((client, server));
