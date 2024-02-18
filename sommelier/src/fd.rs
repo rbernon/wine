@@ -35,18 +35,18 @@ struct msghdr {
     msg_flags: i32,
 }
 
+#[repr(C)]
 #[cfg(target_pointer_width = "32")]
-#[repr(C, align(4))]
 struct cmsg {
     hdr: cmsghdr,
-    fd: ServerFd,
+    fd: i32,
 }
 
+#[repr(C)]
 #[cfg(target_pointer_width = "64")]
-#[repr(C, align(8))]
 struct cmsg {
     hdr: cmsghdr,
-    fd: ServerFd,
+    fd: i64,
 }
 
 extern "C" {
@@ -64,7 +64,7 @@ pub fn send_client_fd(stream: &UnixStream, fd: ServerFd, handle: u32) -> io::Res
             cmsg_level: 1, /*SOL_SOCKET*/
             cmsg_type: 1,  /*SCM_RIGHTS*/
         },
-        fd: fd,
+        fd: fd.into(),
     };
 
     let msg = msghdr {
@@ -121,7 +121,7 @@ pub fn recv_client_fd(stream: &UnixStream) -> io::Result<(u32, ClientFd, ServerF
     if unsafe { recvmsg(stream.as_raw_fd(), &msg, 0) } == -1 {
         Err(io::Error::last_os_error())
     } else {
-        Ok((data[0].tid, data[0].fd, ctrl.fd))
+        Ok((data[0].tid, data[0].fd, ctrl.fd as ServerFd))
     }
 }
 
