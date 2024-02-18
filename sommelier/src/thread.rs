@@ -13,6 +13,7 @@ use std::os::unix::net::UnixStream;
 
 use crate::fd;
 use crate::ipc;
+use crate::mapping::*;
 use crate::object::*;
 
 struct Tid(u32);
@@ -1039,6 +1040,7 @@ impl Thread {
         if let Some(object) = self.root.lock().unwrap().lookup(&path) {
             use std::ops::DerefMut;
             let mut process = self.process.lock().unwrap();
+            let mapping = Mapping::from_object(object.clone());
             reply.handle = object.open(process.deref_mut()).0;
         }
 
