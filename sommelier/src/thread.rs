@@ -652,7 +652,12 @@ impl Thread {
         _data: Vec<u8>,
     ) -> Result<(ipc::CloseHandleReply, Vec<u8>), u32> {
         println!("{:?}", req);
-        Err(0xdeadbeef)
+
+        if let Ok(mut process) = self.process.lock() {
+            process.handles.free(&Handle(req.handle));
+        }
+
+        Ok((ipc::CloseHandleReply::default(), Vec::new()))
     }
 
     fn set_handle_info(
@@ -1050,10 +1055,12 @@ impl Thread {
 
         let mut reply = ipc::OpenMappingReply::default();
 
-        if let Some(object) = self.root.lock().unwrap().lookup(&path) {
-            use std::ops::DerefMut;
-            let mut process = self.process.lock().unwrap();
-            reply.handle = object.open(process.deref_mut()).0;
+        if let Ok(root) = self.root.lock() {
+            if let Some(object) = root.lookup(&path) {
+                if let Ok(mut process) = self.process.lock() {
+                    reply.handle = object.open(&mut process).0;
+                }
+            }
         }
 
         Ok((reply, Vec::new()))
