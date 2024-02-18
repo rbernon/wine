@@ -76,11 +76,13 @@ fn open_master_socket() -> io::Result<()> {
     perms.set_mode(0o600);
     fs::set_permissions(SOCKET_NAME, perms)?;
 
-    let root = RootDirectory::new();
-    if let Ok(mut root) = root.lock() {
-        let usd = Mapping::new(0x1000)?;
-        root.insert_str("\\KernelObjects\\__wine_user_shared_data", usd);
-    }
+    let root = Directory::new();
+    let usd = Mapping::new(0x1000)?;
+    root.insert_path("\\KernelObjects\\__wine_user_shared_data", usd);
+    root.insert_path(
+        "\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Session Manager\\Environment",
+        Directory::new(),
+    );
 
     for stream in socket.incoming() {
         match stream {
