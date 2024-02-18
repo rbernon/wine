@@ -17,9 +17,8 @@ pub struct Mapping {
 
 impl Mapping {
     pub fn new(size: usize) -> io::Result<Arc<Mapping>> {
-        const WINE: *const u8 = &("wine".as_bytes()[0]) as *const u8;
-
-        let fd = unsafe { memfd_create(WINE, 0) };
+        let data: Vec<u8> = vec![0];
+        let fd = unsafe { memfd_create(data.as_ptr() as *const u8, 0) };
         if fd == -1 {
             Err(io::Error::last_os_error())?
         }
