@@ -77,9 +77,10 @@ fn open_master_socket() -> io::Result<()> {
     fs::set_permissions(SOCKET_NAME, perms)?;
 
     let root = RootDirectory::new();
-    root.lock()
-        .unwrap()
-        .insert_str("\\KernelObjects\\__wine_user_shared_data", Mapping::new());
+    if let Ok(mut root) = root.lock() {
+        let usd = Mapping::new(0x1000)?;
+        root.insert_str("\\KernelObjects\\__wine_user_shared_data", usd);
+    }
 
     for stream in socket.incoming() {
         match stream {
