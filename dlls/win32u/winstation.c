@@ -22,9 +22,12 @@
 #pragma makedep unix
 #endif
 
+#include <stdarg.h>
+#include <stddef.h>
+#include <pthread.h>
+
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
-#include <stdarg.h>
 #include "windef.h"
 #include "winbase.h"
 #include "ntuser.h"
@@ -37,128 +40,288 @@
 WINE_DEFAULT_DEBUG_CHANNEL(winstation);
 WINE_DECLARE_DEBUG_CHANNEL(win);
 
+static pthread_mutex_t shared_lock = PTHREAD_MUTEX_INITIALIZER;
+static struct shared_session *shared_session;
 
 #define DESKTOP_ALL_ACCESS 0x01ff
 
-static void *map_object_shared_memory( HANDLE object, SIZE_T size )
+static struct shared_session *shared_session_acquire( struct shared_session *session )
 {
-    static const WCHAR object_mappingW[] =
-    {
-        '_','_','w','i','n','e','_','m','a','p','p','i','n','g',0
-    };
-    UNICODE_STRING section_str = RTL_CONSTANT_STRING( object_mappingW );
-    OBJECT_ATTRIBUTES attr;
-    unsigned int status;
-    HANDLE handle;
-    void *ptr;
-
-    InitializeObjectAttributes( &attr, &section_str, 0, object, NULL );
-    if (!(status = NtOpenSection( &handle, SECTION_MAP_READ, &attr )))
-    {
-        ptr = NULL;
-        status = NtMapViewOfSection( handle, GetCurrentProcess(), &ptr, 0, 0, NULL,
-                                     &size, ViewUnmap, 0, PAGE_READONLY );
-        NtClose( handle );
-    }
-
-    if (status)
-    {
-        ERR( "Failed to map object %p mapping, status %#x\n", object, status );
-        return NULL;
-    }
-
-    return ptr;
+    InterlockedIncrement( &session->ref );
+    return session;
 }
 
-const desktop_shm_t *get_desktop_shared_memory(void)
+static void shared_session_release( struct shared_session *session )
+{
+    if (!InterlockedDecrement( &session->ref ))
+    {
+        NtUnmapViewOfSection( GetCurrentProcess(), (void *)session->shared );
+        free( session );
+    }
+}
+
+static struct shared_session *get_shared_session( BOOL force )
+{
+    struct shared_session *session;
+
+    pthread_mutex_lock( &shared_lock );
+
+    if (!shared_session) force = TRUE;
+    if (force && (session = calloc( 1, sizeof(*session) )))
+    {
+        static const WCHAR nameW[] =
+        {
+            '\\','K','e','r','n','e','l','O','b','j','e','c','t','s','\\',
+            '_','_','w','i','n','e','_','s','e','s','s','i','o','n',0
+        };
+        UNICODE_STRING name = RTL_CONSTANT_STRING( nameW );
+        OBJECT_ATTRIBUTES attr;
+        unsigned int status;
+        HANDLE handle;
+
+        session->ref = 1;
+
+        InitializeObjectAttributes( &attr, &name, 0, NULL, NULL );
+        if (!(status = NtOpenSection( &handle, SECTION_MAP_READ | SECTION_QUERY, &attr )))
+        {
+            SECTION_BASIC_INFORMATION info;
+
+            if (!(status = NtQuerySection( handle, SectionBasicInformation, &info, sizeof(info), NULL )))
+            {
+                session->size = info.Size.QuadPart;
+                status = NtMapViewOfSection( handle, GetCurrentProcess(), (void **)&session->shared,
+                                             0, 0, NULL, &session->size, ViewUnmap, 0, PAGE_READONLY );
+            }
+
+            NtClose( handle );
+        }
+
+        if (status)
+        {
+            ERR( "Failed to map session mapping, status %#x\n", status );
+            free( session );
+            session = NULL;
+        }
+        else
+        {
+            if (shared_session) shared_session_release( shared_session );
+            shared_session = session;
+        }
+    }
+
+    session = shared_session_acquire( shared_session );
+
+    pthread_mutex_unlock( &shared_lock );
+
+    return session;
+}
+
+static struct shared_desktop *shared_desktop_acquire( struct shared_desktop *desktop )
+{
+    InterlockedIncrement( &desktop->ref );
+    return desktop;
+}
+
+void shared_desktop_release( struct shared_desktop *desktop )
+{
+    if (!InterlockedDecrement( &desktop->ref ))
+    {
+        shared_session_release( desktop->session );
+        free( desktop );
+    }
+}
+
+struct shared_desktop *get_shared_desktop( BOOL force )
 {
     struct user_thread_info *thread_info = get_user_thread_info();
+    struct shared_desktop *desktop;
 
-    if (!thread_info->desktop_shm)
+    if (!thread_info->desktop) force = TRUE;
+    if (force && (desktop = calloc( 1, sizeof(*desktop) )))
     {
-        HANDLE desktop = NtUserGetThreadDesktop( GetCurrentThreadId() );
-        thread_info->desktop_shm = map_object_shared_memory( desktop, sizeof(*thread_info->desktop_shm) );
+        const desktop_shm_t *ptr = NULL;
+        struct shared_session *session;
+        BOOL invalid = FALSE;
+        unsigned int idx;
+
+        while ((session = get_shared_session( invalid )))
+        {
+            SERVER_START_REQ( get_thread_desktop )
+            {
+                req->tid = GetCurrentThreadId();
+                if (wine_server_call_err( req )) idx = -1;
+                else idx = reply->session_index;
+            }
+            SERVER_END_REQ;
+            if (idx == -1) break;
+
+            SHARED_READ_BEGIN( session->shared, session_shm_t )
+            {
+                if ((invalid = shared->obj.invalid)) ptr = NULL;
+                else ptr = &shared->objects[idx].desktop;
+            }
+            SHARED_READ_END;
+
+            if (!invalid) break;
+            shared_session_release( session );
+        }
+
+        if (idx == -1)
+        {
+            free( desktop );
+            return NULL;
+        }
+
+        desktop->ref = 1;
+        if (!(desktop->shared = ptr)) ERR( "Failed to map desktop shared memory\n" );
+        desktop->session = session;
+
+        if (thread_info->desktop) shared_desktop_release( thread_info->desktop );
+        thread_info->desktop = desktop;
     }
 
-    return thread_info->desktop_shm;
+    return shared_desktop_acquire( thread_info->desktop );
 }
 
-void cleanup_thread_desktop(void)
+static struct shared_queue *shared_queue_acquire( struct shared_queue *queue )
+{
+    InterlockedIncrement( &queue->ref );
+    return queue;
+}
+
+void shared_queue_release( struct shared_queue *queue )
+{
+    if (!InterlockedDecrement( &queue->ref ))
+    {
+        shared_session_release( queue->session );
+        free( queue );
+    }
+}
+
+struct shared_queue *get_shared_queue( BOOL force )
 {
     struct user_thread_info *thread_info = get_user_thread_info();
+    struct shared_queue *queue;
 
-    if (thread_info->desktop_shm)
+    if (!thread_info->queue) force = TRUE;
+    if (force && (queue = calloc( 1, sizeof(*queue) )))
     {
-        NtUnmapViewOfSection( GetCurrentProcess(), (void *)thread_info->desktop_shm );
-        thread_info->desktop_shm = NULL;
+        struct shared_session *session;
+        const queue_shm_t *ptr = NULL;
+        BOOL invalid = FALSE;
+        unsigned int idx;
+        HANDLE handle;
+
+        while ((session = get_shared_session( invalid )))
+        {
+            SERVER_START_REQ( get_msg_queue )
+            {
+                if (wine_server_call_err( req )) idx = -1;
+                else
+                {
+                    handle = wine_server_ptr_handle( reply->handle );
+                    idx = reply->session_index;
+                }
+            }
+            SERVER_END_REQ;
+            if (idx == -1) break;
+            NtClose( handle );
+
+            SHARED_READ_BEGIN( session->shared, session_shm_t )
+            {
+                if ((invalid = shared->obj.invalid)) ptr = NULL;
+                else ptr = &shared->objects[idx].queue;
+            }
+            SHARED_READ_END;
+
+            if (!invalid) break;
+            shared_session_release( session );
+        }
+
+        if (idx == -1)
+        {
+            free( queue );
+            return NULL;
+        }
+
+        queue->ref = 1;
+        if (!(queue->shared = ptr)) ERR( "Failed to map queue shared memory\n" );
+        queue->session = session;
+
+        if (thread_info->queue) shared_queue_release( thread_info->queue );
+        thread_info->queue = queue;
+    }
+
+    return shared_queue_acquire( thread_info->queue );
+}
+
+static struct shared_input *shared_input_acquire( struct shared_input *input )
+{
+    InterlockedIncrement( &input->ref );
+    return input;
+}
+
+void shared_input_release( struct shared_input *input )
+{
+    if (!InterlockedDecrement( &input->ref ))
+    {
+        shared_session_release( input->session );
+        free( input );
     }
 }
 
-const queue_shm_t *get_queue_shared_memory(void)
+struct shared_input *get_shared_input( UINT id, BOOL force )
 {
     struct user_thread_info *thread_info = get_user_thread_info();
-
-    if (!thread_info->queue_shm)
-    {
-        HANDLE queue = get_server_queue_handle();
-        thread_info->queue_shm = map_object_shared_memory( queue, sizeof(*thread_info->queue_shm) );
-    }
-
-    return thread_info->queue_shm;
-}
-
-void cleanup_thread_queue(void)
-{
-    struct user_thread_info *thread_info = get_user_thread_info();
-
-    if (thread_info->queue_shm)
-    {
-        NtUnmapViewOfSection( GetCurrentProcess(), (void *)thread_info->queue_shm );
-        thread_info->queue_shm = NULL;
-    }
-}
-
-static HANDLE get_thread_input_handle( UINT id )
-{
-    SERVER_START_REQ( get_thread_input )
-    {
-        req->tid = id;
-        req->open = 1;
-        if (wine_server_call_err( req )) return NULL;
-        return wine_server_ptr_handle( reply->handle );
-    }
-    SERVER_END_REQ;
-}
-
-const input_shm_t *get_input_shared_memory( UINT id )
-{
-    struct user_thread_info *thread_info = get_user_thread_info();
+    struct shared_input *input;
     UINT index = !!id;
 
-    if (id && id != GetCurrentThreadId()) return NULL;
-
-    if (!thread_info->input_shm)
+    if (!thread_info->input[index]) force = TRUE;
+    if (force && (input = calloc( 1, sizeof(*input) )))
     {
-        HANDLE handle = get_thread_input_handle( id );
-        thread_info->input_shm[index] = map_object_shared_memory( handle, sizeof(*thread_info->input_shm[index]) );
-        NtClose( handle );
+        struct shared_session *session;
+        const input_shm_t *ptr = NULL;
+        unsigned int idx;
+        BOOL invalid = FALSE;
+
+        while ((session = get_shared_session( invalid )))
+        {
+            SERVER_START_REQ( get_thread_input )
+            {
+                req->tid = id;
+                req->open = 1;
+                if (wine_server_call_err( req )) idx = -1;
+                else idx = reply->session_index;
+            }
+            SERVER_END_REQ;
+            if (idx == -1) break;
+
+            SHARED_READ_BEGIN( session->shared, session_shm_t )
+            {
+                if ((invalid = shared->obj.invalid)) ptr = NULL;
+                else ptr = &shared->objects[idx].input;
+            }
+            SHARED_READ_END;
+
+            if (!invalid) break;
+            shared_session_release( session );
+        }
+
+        if (idx == -1)
+        {
+            free( input );
+            return NULL;
+        }
+
+        input->ref = 1;
+        if (!(input->shared = ptr)) ERR( "Failed to map input shared memory\n" );
+        input->session = session;
+
+        if (thread_info->input[index]) shared_input_release( thread_info->input[index] );
+        thread_info->input[index] = input;
     }
 
-    return thread_info->input_shm[index];
-}
-
-void cleanup_thread_input( UINT id )
-{
-    struct user_thread_info *thread_info = get_user_thread_info();
-    UINT index = !!id;
-
-    if (id && id != GetCurrentThreadId()) return;
-
-    if (thread_info->input_shm[index])
-    {
-        NtUnmapViewOfSection( GetCurrentProcess(), (void *)thread_info->input_shm[index] );
-        thread_info->input_shm[index] = NULL;
-    }
+    return shared_input_acquire( thread_info->input[index] );
 }
 
 BOOL is_virtual_desktop(void)
@@ -383,8 +546,9 @@ BOOL WINAPI NtUserSetThreadDesktop( HDESK handle )
         struct user_thread_info *thread_info = get_user_thread_info();
         thread_info->client_info.top_window = 0;
         thread_info->client_info.msg_window = 0;
+        if (thread_info->desktop) shared_desktop_release( thread_info->desktop );
+        thread_info->desktop = NULL;
         if (was_virtual_desktop != is_virtual_desktop()) update_display_cache( TRUE );
-        cleanup_thread_desktop();
     }
     return ret;
 }

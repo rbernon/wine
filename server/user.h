@@ -69,8 +69,7 @@ struct desktop
     user_handle_t        cursor_handle;    /* last set cursor handle */
     unsigned char        keystate[256];    /* asynchronous key state */
     unsigned int         last_press_alt:1; /* last key press was Alt (used to determine msg on Alt release) */
-    struct object       *shared_mapping;   /* desktop shared memory mapping */
-    const desktop_shm_t *shared;           /* desktop shared memory (const outside SHARED_WRITE_BEGIN/END) */
+    int                  session_index;    /* desktop index in session shared memory */
 };
 
 /* user handles functions */

@@ -441,8 +441,10 @@ void init_directories( struct fd *intl_fd )
     /* mappings */
     static const WCHAR intlW[] = {'N','l','s','S','e','c','t','i','o','n','L','A','N','G','_','I','N','T','L'};
     static const WCHAR user_dataW[] = {'_','_','w','i','n','e','_','u','s','e','r','_','s','h','a','r','e','d','_','d','a','t','a'};
+    static const WCHAR sessionW[] = {'_','_','w','i','n','e','_','s','e','s','s','i','o','n'};
     static const struct unicode_str intl_str = {intlW, sizeof(intlW)};
     static const struct unicode_str user_data_str = {user_dataW, sizeof(user_dataW)};
+    static const struct unicode_str session_str = {sessionW, sizeof(sessionW)};
 
     struct directory *dir_driver, *dir_device, *dir_global, *dir_kernel, *dir_nls;
     struct object *named_pipe_device, *mailslot_device, *null_device;
@@ -491,6 +493,7 @@ void init_directories( struct fd *intl_fd )
     /* mappings */
     release_object( create_fd_mapping( &dir_nls->obj, &intl_str, intl_fd, OBJ_PERMANENT, NULL ));
     release_object( create_user_data_mapping( &dir_kernel->obj, &user_data_str, OBJ_PERMANENT, NULL ));
+    release_object( create_session_mapping( &dir_kernel->obj, &session_str, OBJ_PERMANENT, NULL ));
     release_object( intl_fd );
 
     release_object( named_pipe_device );

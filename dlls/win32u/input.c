@@ -550,21 +550,21 @@ static WCHAR kbd_tables_vkey_to_wchar( const KBDTABLES *tables, UINT vkey, const
  */
 HWND WINAPI NtUserGetForegroundWindow(void)
 {
-    const input_shm_t *shared;
+    struct shared_input *input;
+    BOOL invalid = FALSE;
     HWND hwnd = 0;
-    BOOL skip;
 
-    while ((shared = get_input_shared_memory( 0 )))
+    while ((input = get_shared_input( 0, invalid )))
     {
-        SHARED_READ_BEGIN( shared, input_shm_t )
+        SHARED_READ_BEGIN( input->shared, input_shm_t )
         {
-            if (!(skip = !!shared->foreground)) break; /* foreground has changed, retry */
+            if ((invalid = shared->obj.invalid)) break;
+            if ((invalid = !shared->foreground)) break; /* foreground has changed, retry */
             else hwnd = wine_server_ptr_handle( shared->active );
         }
         SHARED_READ_END;
-
-        if (skip) break;
-        cleanup_thread_input( 0 );
+        shared_input_release( input );
+        if (!invalid) break;
     }
 
     return hwnd;
@@ -757,22 +757,26 @@ BOOL WINAPI NtUserSetCursorPos( INT x, INT y )
  */
 BOOL get_cursor_pos( POINT *pt )
 {
-    BOOL ret;
-    const desktop_shm_t *shared;
+    BOOL invalid = FALSE, ret = FALSE;
+    struct shared_desktop *desktop;
     DWORD last_change;
     UINT dpi;
 
     if (!pt) return FALSE;
 
-    if (!(shared = get_desktop_shared_memory())) ret = FALSE;
-    else SHARED_READ_BEGIN( shared, desktop_shm_t )
+    while ((desktop = get_shared_desktop( invalid )))
     {
-        pt->x = shared->cursor.x;
-        pt->y = shared->cursor.y;
-        last_change = shared->cursor.last_change;
-        ret = TRUE;
+        SHARED_READ_BEGIN( desktop->shared, desktop_shm_t )
+        {
+            pt->x = shared->cursor.x;
+            pt->y = shared->cursor.y;
+            last_change = shared->cursor.last_change;
+            ret = TRUE;
+        }
+        SHARED_READ_END;
+        shared_desktop_release( desktop );
+        if ((ret = !invalid)) break;
     }
-    SHARED_READ_END;
 
     /* query new position from graphics driver if we haven't updated recently */
     if (ret && NtGetTickCount() - last_change > 100) ret = user_driver->pGetCursorPos( pt );
@@ -789,23 +793,24 @@ BOOL get_cursor_pos( POINT *pt )
  */
 BOOL WINAPI NtUserGetCursorInfo( CURSORINFO *info )
 {
-    const input_shm_t *shared;
-    BOOL ret = FALSE;
+    BOOL ret = FALSE, invalid = FALSE;
+    struct shared_input *input;
 
     if (!info) return FALSE;
 
-    while ((shared = get_input_shared_memory( 0 )))
+    while ((input = get_shared_input( 0, invalid )))
     {
-        SHARED_READ_BEGIN( shared, input_shm_t )
+        SHARED_READ_BEGIN( input->shared, input_shm_t )
         {
-            if (!(ret = !!shared->foreground)) break; /* foreground has changed, retry */
+            if ((invalid = shared->obj.invalid)) break;
+            if ((invalid = !shared->foreground)) break; /* foreground has changed, retry */
             info->hCursor = wine_server_ptr_handle( shared->cursor );
             info->flags = (shared->cursor_count >= 0) ? CURSOR_SHOWING : 0;
+            ret = TRUE;
         }
         SHARED_READ_END;
-
-        if (ret) break;
-        cleanup_thread_input( 0 );
+        shared_input_release( input );
+        if (!invalid) break;
     }
 
     if (ret) get_cursor_pos( &info->ptScreenPos );
@@ -823,24 +828,30 @@ static void check_for_events( UINT flags )
  */
 SHORT WINAPI NtUserGetAsyncKeyState( INT key )
 {
-    const desktop_shm_t *shared = get_desktop_shared_memory();
-    BYTE state;
-    SHORT ret;
+    struct shared_desktop *desktop;
+    BOOL invalid = FALSE;
+    BYTE state = 0;
+    SHORT ret = 0;
 
-    if (key < 0 || key >= 256 || !shared) return 0;
+    if (key < 0 || key >= 256) return 0;
 
     check_for_events( QS_INPUT );
 
-    SHARED_READ_BEGIN( shared, desktop_shm_t )
+    while ((desktop = get_shared_desktop( invalid )))
     {
-        state = shared->keystate[key];
+        SHARED_READ_BEGIN( desktop->shared, desktop_shm_t )
+        {
+            state = shared->keystate[key];
+            ret = 1;
+        }
+        SHARED_READ_END;
+        shared_desktop_release( desktop );
+        if (!invalid) break;
     }
-    SHARED_READ_END;
 
-    if (!(state & 0x40)) return (state & 0x80) << 8;
+    if (ret && !(state & 0x40)) return (state & 0x80) << 8;
 
     /* Need to make a server call to reset the last pressed bit */
-    ret = 0;
     SERVER_START_REQ( get_key_state )
     {
         req->async = 1;
@@ -950,25 +961,24 @@ HKL WINAPI NtUserGetKeyboardLayout( DWORD thread_id )
  */
 SHORT WINAPI NtUserGetKeyState( INT vkey )
 {
-    const input_shm_t *shared;
-    BOOL ret, locked = FALSE;
+    BOOL ret = FALSE, invalid = FALSE;
+    struct shared_input *input;
     SHORT retval = 0;
 
-    while ((shared = get_input_shared_memory( GetCurrentThreadId() )))
+    while ((input = get_shared_input( GetCurrentThreadId(), invalid )))
     {
-        SHARED_READ_BEGIN( shared, input_shm_t )
+        SHARED_READ_BEGIN( input->shared, input_shm_t )
         {
-            if (!(ret = !!shared->foreground)) break; /* foreground has changed, retry */
-            if (!(locked = !!shared->keystate_lock)) break; /* needs a request for sync_input_keystate */
+            if ((invalid = shared->obj.invalid)) break;
+            if (!(ret = !!shared->keystate_lock)) break; /* needs a request for sync_input_keystate */
             retval = (signed char)(shared->keystate[vkey & 0xff] & 0x81);
         }
         SHARED_READ_END;
-
-        if (ret) break;
-        cleanup_thread_input( GetCurrentThreadId() );
+        shared_input_release( input );
+        if (!invalid) break;
     }
 
-    if (!locked) SERVER_START_REQ( get_key_state )
+    if (!ret) SERVER_START_REQ( get_key_state )
     {
         req->key = vkey;
         if (!wine_server_call( req )) retval = (signed char)(reply->state & 0x81);
@@ -983,25 +993,25 @@ SHORT WINAPI NtUserGetKeyState( INT vkey )
  */
 BOOL WINAPI NtUserGetKeyboardState( BYTE *state )
 {
-    const input_shm_t *shared;
-    BOOL ret = FALSE;
+    BOOL ret = FALSE, invalid = FALSE;
+    struct shared_input *input;
     UINT i;
 
     TRACE("(%p)\n", state);
 
     memset( state, 0, 256 );
 
-    while ((shared = get_input_shared_memory( GetCurrentThreadId() )))
+    while ((input = get_shared_input( GetCurrentThreadId(), invalid )))
     {
-        SHARED_READ_BEGIN( shared, input_shm_t )
+        SHARED_READ_BEGIN( input->shared, input_shm_t )
         {
-            if (!(ret = !!shared->foreground)) break; /* foreground has changed, retry */
+            if ((invalid = shared->obj.invalid)) break;
             memcpy( state, (const void *)shared->keystate, 256 );
+            ret = TRUE;
         }
         SHARED_READ_END;
-
-        if (ret) break;
-        cleanup_thread_input( GetCurrentThreadId() );
+        shared_input_release( input );
+        if (!invalid) break;
     }
 
     if (!ret) SERVER_START_REQ( get_key_state )

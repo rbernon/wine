@@ -193,12 +193,44 @@ extern void user_unlock(void);
 extern void user_check_not_lock(void);
 
 /* winstation.c */
-extern const desktop_shm_t *get_desktop_shared_memory(void);
-extern void cleanup_thread_desktop(void);
-extern const queue_shm_t *get_queue_shared_memory(void);
-extern void cleanup_thread_queue(void);
-extern const input_shm_t *get_input_shared_memory( UINT id );
-extern void cleanup_thread_input( UINT id );
+
+struct shared_session
+{
+    LONG ref;
+    SIZE_T size;
+    const session_shm_t *shared;
+};
+
+struct shared_desktop
+{
+    LONG ref;
+    const desktop_shm_t *shared;
+    struct shared_session *session;
+};
+
+extern void shared_desktop_release( struct shared_desktop *desktop );
+extern struct shared_desktop *get_shared_desktop( BOOL force );
+
+struct shared_queue
+{
+    LONG ref;
+    const queue_shm_t *shared;
+    struct shared_session *session;
+};
+
+extern void shared_queue_release( struct shared_queue *queue );
+extern struct shared_queue *get_shared_queue( BOOL force );
+
+struct shared_input
+{
+    LONG ref;
+    const input_shm_t *shared;
+    struct shared_session *session;
+};
+
+extern void shared_input_release( struct shared_input *input );
+extern struct shared_input *get_shared_input( UINT id, BOOL force );
+
 extern BOOL is_virtual_desktop(void);
 
 /* window.c */
@@ -376,10 +408,10 @@ static inline BOOL intersect_rect( RECT *dst, const RECT *src1, const RECT *src2
 
 #define SHARED_READ_BEGIN( ptr, type )                                  \
     do {                                                                \
-        const type *__shared = (ptr);                                   \
+        const type *shared = (ptr);                                     \
         LONG64 __seq;                                                   \
         do {                                                            \
-            while ((__seq = ReadNoFence64( &__shared->seq )) & 1)       \
+            while ((__seq = ReadNoFence64( &shared->obj.seq )) & 1)     \
                 YieldProcessor();                                       \
             __SHARED_READ_FENCE;                                        \
             do
@@ -387,7 +419,7 @@ static inline BOOL intersect_rect( RECT *dst, const RECT *src1, const RECT *src2
 #define SHARED_READ_END                                                 \
             while (0);                                                  \
             __SHARED_READ_FENCE;                                        \
-        } while (ReadNoFence64( &__shared->seq ) != __seq);             \
+        } while (ReadNoFence64( &shared->obj.seq ) != __seq);           \
     } while(0)
 
 #endif /* __WINE_WIN32U_PRIVATE */

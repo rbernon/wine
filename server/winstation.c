@@ -52,7 +52,6 @@ static struct object *winstation_lookup_name( struct object *obj, struct unicode
 static void winstation_destroy( struct object *obj );
 static void desktop_dump( struct object *obj, int verbose );
 static int desktop_link_name( struct object *obj, struct object_name *name, struct object *parent );
-static struct mapping *desktop_get_object_mapping( struct object *obj );
 static int desktop_close_handle( struct object *obj, struct process *process, obj_handle_t handle );
 static void desktop_destroy( struct object *obj );
 
@@ -131,7 +130,7 @@ static const struct object_ops desktop_ops =
     default_unlink_name,          /* unlink_name */
     no_open_file,                 /* open_file */
     no_kernel_obj_list,           /* get_kernel_obj_list */
-    desktop_get_object_mapping,   /* get_object_mapping */
+    no_object_mapping,   /* get_object_mapping */
     desktop_close_handle,         /* close_handle */
     desktop_destroy               /* destroy */
 };
@@ -245,11 +244,9 @@ static struct desktop *create_desktop( const struct unicode_str *name, unsigned 
             desktop->last_press_alt = 0;
             list_add_tail( &winstation->desktops, &desktop->entry );
             list_init( &desktop->hotkeys );
-            desktop->shared_mapping = NULL;
-            desktop->shared = NULL;
+            desktop->session_index = -1;
 
-            if (!(desktop->shared_mapping = create_object_mapping( &desktop->obj, sizeof(*desktop->shared),
-                                                                   (void **)&desktop->shared )))
+            if ((desktop->session_index = alloc_shared_object()) == -1)
             {
                 release_object( desktop );
                 return NULL;
@@ -290,13 +287,6 @@ static int desktop_link_name( struct object *obj, struct object_name *name, stru
     return 1;
 }
 
-static struct mapping *desktop_get_object_mapping( struct object *obj )
-{
-    struct desktop *desktop = (struct desktop *)obj;
-    assert( obj->ops == &desktop_ops );
-    return (struct mapping *)grab_object( desktop->shared_mapping );
-}
-
 static int desktop_close_handle( struct object *obj, struct process *process, obj_handle_t handle )
 {
     struct thread *thread;
@@ -319,8 +309,7 @@ static void desktop_destroy( struct object *obj )
     if (desktop->close_timeout) remove_timeout_user( desktop->close_timeout );
     list_remove( &desktop->entry );
     release_object( desktop->winstation );
-    if (desktop->shared_mapping) release_object( desktop->shared_mapping );
-    if (desktop->shared) munmap( (void *)desktop->shared, sizeof(*desktop->shared) );
+    free_shared_object( desktop->session_index );
 }
 
 /* retrieve the thread desktop, checking the handle access rights */
@@ -624,10 +613,20 @@ DECL_HANDLER(close_desktop)
 /* get the thread current desktop */
 DECL_HANDLER(get_thread_desktop)
 {
+    struct desktop *desktop;
     struct thread *thread;
 
     if (!(thread = get_thread_from_id( req->tid ))) return;
     reply->handle = thread->desktop;
+
+    if (!(desktop = get_thread_desktop( thread, 0 )))
+        reply->session_index = -1;
+    else
+    {
+        reply->session_index = desktop->session_index;
+        release_object( desktop );
+    }
+
     release_object( thread );
 }
 

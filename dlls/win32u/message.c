@@ -2135,8 +2135,8 @@ static LRESULT handle_internal_message( HWND hwnd, UINT msg, WPARAM wparam, LPAR
  */
 BOOL WINAPI NtUserGetGUIThreadInfo( DWORD id, GUITHREADINFO *info )
 {
-    const input_shm_t *shared;
-    BOOL ret;
+    struct shared_input *input;
+    BOOL ret, invalid = FALSE;
 
     if (info->cbSize != sizeof(*info))
     {
@@ -2144,33 +2144,30 @@ BOOL WINAPI NtUserGetGUIThreadInfo( DWORD id, GUITHREADINFO *info )
         return FALSE;
     }
 
-    while ((shared = get_input_shared_memory( id )))
+    while ((input = get_shared_input( id, invalid )))
     {
-        SHARED_READ_BEGIN( shared, input_shm_t )
+        SHARED_READ_BEGIN( input->shared, input_shm_t )
         {
-            if (!id && !shared->foreground) ret = FALSE; /* foreground has changed, retry */
-            else if ((ret = !shared->detached))
-            {
-                info->flags          = 0;
-                info->hwndActive     = wine_server_ptr_handle( shared->active );
-                info->hwndFocus      = wine_server_ptr_handle( shared->focus );
-                info->hwndCapture    = wine_server_ptr_handle( shared->capture );
-                info->hwndMenuOwner  = wine_server_ptr_handle( shared->menu_owner );
-                info->hwndMoveSize   = wine_server_ptr_handle( shared->move_size );
-                info->hwndCaret      = wine_server_ptr_handle( shared->caret );
-                info->rcCaret.left   = shared->caret_rect.left;
-                info->rcCaret.top    = shared->caret_rect.top;
-                info->rcCaret.right  = shared->caret_rect.right;
-                info->rcCaret.bottom = shared->caret_rect.bottom;
-                if (shared->menu_owner) info->flags |= GUI_INMENUMODE;
-                if (shared->move_size) info->flags |= GUI_INMOVESIZE;
-                if (shared->caret) info->flags |= GUI_CARETBLINKING;
-            }
+            if ((invalid = shared->obj.invalid)) break;
+            if (!id && (invalid = !shared->foreground)) break; /* foreground has changed, retry */
+            info->flags          = 0;
+            info->hwndActive     = wine_server_ptr_handle( shared->active );
+            info->hwndFocus      = wine_server_ptr_handle( shared->focus );
+            info->hwndCapture    = wine_server_ptr_handle( shared->capture );
+            info->hwndMenuOwner  = wine_server_ptr_handle( shared->menu_owner );
+            info->hwndMoveSize   = wine_server_ptr_handle( shared->move_size );
+            info->hwndCaret      = wine_server_ptr_handle( shared->caret );
+            info->rcCaret.left   = shared->caret_rect.left;
+            info->rcCaret.top    = shared->caret_rect.top;
+            info->rcCaret.right  = shared->caret_rect.right;
+            info->rcCaret.bottom = shared->caret_rect.bottom;
+            if (shared->menu_owner) info->flags |= GUI_INMENUMODE;
+            if (shared->move_size) info->flags |= GUI_INMOVESIZE;
+            if (shared->caret) info->flags |= GUI_CARETBLINKING;
         }
         SHARED_READ_END;
-
-        if (ret) return TRUE;
-        cleanup_thread_input( id );
+        shared_input_release( input );
+        if (!invalid) return TRUE;
     }
 
     SERVER_START_REQ( get_thread_input )
@@ -2721,12 +2718,12 @@ static int peek_message( MSG *msg, HWND hwnd, UINT first, UINT last, UINT flags,
     LRESULT result;
     struct user_thread_info *thread_info = get_user_thread_info();
     INPUT_MESSAGE_SOURCE prev_source = thread_info->client_info.msg_source;
-    const queue_shm_t *shared = get_queue_shared_memory();
     struct received_message_info info;
     unsigned char buffer_init[1024];
+    struct shared_queue *queue;
     unsigned int hw_id = 0;  /* id of previous hardware message */
     void *buffer = buffer_init;
-    BOOL skip = FALSE;
+    BOOL skip = FALSE, invalid = FALSE;
     size_t buffer_size = 1024;
 
     if (!first && !last) last = ~0;
@@ -2752,22 +2749,26 @@ static int peek_message( MSG *msg, HWND hwnd, UINT first, UINT last, UINT flags,
 
         thread_info->client_info.msg_source = prev_source;
 
-        if (!shared || NtGetTickCount() - thread_info->last_getmsg_time >= 3000) skip = FALSE;
-        else SHARED_READ_BEGIN( shared, queue_shm_t )
+        if (NtGetTickCount() - thread_info->last_getmsg_time >= 3000) skip = FALSE;
+        else while ((queue = get_shared_queue( invalid )))
         {
-            /* if the masks need an update */
-            if (shared->wake_mask != wake_mask) skip = FALSE;
-            else if (shared->changed_mask != changed_mask) skip = FALSE;
-            /* or if the queue is signaled */
-            else if (shared->wake_bits & wake_mask) skip = FALSE;
-            else if (shared->changed_bits & changed_mask) skip = FALSE;
-            /* or if the filter matches some bits */
-            else if (shared->wake_bits & filter) skip = FALSE;
-            /* or if we should clear some bits */
-            else if (shared->changed_bits & clear_bits) skip = FALSE;
-            else skip = TRUE;
+            SHARED_READ_BEGIN( queue->shared, queue_shm_t )
+            {
+                /* if the masks need an update */
+                if (shared->wake_mask != wake_mask) skip = FALSE;
+                else if (shared->changed_mask != changed_mask) skip = FALSE;
+                /* or if the queue is signaled */
+                else if (shared->wake_bits & wake_mask) skip = FALSE;
+                else if (shared->changed_bits & changed_mask) skip = FALSE;
+                /* or if the filter matches some bits */
+                else if (shared->wake_bits & filter) skip = FALSE;
+                /* or if we should clear some bits */
+                else if (shared->changed_bits & clear_bits) skip = FALSE;
+                else skip = TRUE;
+            }
+            SHARED_READ_END;
+            if (!invalid) break;
         }
-        SHARED_READ_END;
 
         if (skip) res = STATUS_PENDING;
         else SERVER_START_REQ( get_message )

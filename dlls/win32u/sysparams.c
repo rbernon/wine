@@ -6202,10 +6202,10 @@ static void thread_detach(void)
     destroy_thread_windows();
     cleanup_imm_thread();
     NtClose( thread_info->server_queue );
-    cleanup_thread_desktop();
-    cleanup_thread_queue();
-    cleanup_thread_input( GetCurrentThreadId() );
-    cleanup_thread_input( 0 );
+    if (thread_info->desktop) shared_desktop_release( thread_info->desktop );
+    if (thread_info->queue) shared_queue_release( thread_info->queue );
+    if (thread_info->input[0]) shared_input_release( thread_info->input[0] );
+    if (thread_info->input[1]) shared_input_release( thread_info->input[1] );
 
     exiting_thread_id = 0;
 }
