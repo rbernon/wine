@@ -188,6 +188,8 @@ extern struct mapping *create_fd_mapping( struct object *root, const struct unic
                                           unsigned int attr, const struct security_descriptor *sd );
 extern struct object *create_user_data_mapping( struct object *root, const struct unicode_str *name,
                                                 unsigned int attr, const struct security_descriptor *sd );
+extern struct object *create_session_mapping( struct object *root, const struct unicode_str *name,
+                                              unsigned int attr, const struct security_descriptor *sd );
 extern struct object *create_object_mapping( struct object *object, mem_size_t size, void **ptr );
 
 /* device functions */

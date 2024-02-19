@@ -228,6 +228,15 @@ static const mem_size_t granularity_mask = 0xffff;
 static struct addr_range ranges32;
 static struct addr_range ranges64;
 
+struct session
+{
+    const session_shm_t *shared;
+    unsigned int object_count;
+    unsigned int object_capacity;
+};
+static struct mapping *session_mapping;
+static struct session session;
+
 #define ROUND_SIZE(size)  (((size) + page_mask) & ~page_mask)
 
 void init_memory(void)
@@ -1274,6 +1283,146 @@ struct object *create_object_mapping( struct object *object, mem_size_t size, vo
 
     *ptr = tmp;
     return &mapping->obj;
+}
+
+struct object *create_session_mapping( struct object *root, const struct unicode_str *name,
+                                       unsigned int attr, const struct security_descriptor *sd )
+{
+    static const unsigned int access = FILE_READ_DATA | FILE_WRITE_DATA;
+    struct mapping *mapping;
+    void *tmp;
+
+    if (!(mapping = create_mapping( root, name, attr, 0x10000, SEC_COMMIT, 0, access, sd ))) return NULL;
+    if ((tmp = mmap( NULL, mapping->size, PROT_READ | PROT_WRITE, MAP_SHARED, get_unix_fd( mapping->fd ), 0 )) == MAP_FAILED)
+    {
+        release_object( &mapping->obj );
+        return NULL;
+    }
+
+    session_mapping = mapping;
+    session.object_capacity = (mapping->size - offsetof(session_shm_t, objects[0])) / sizeof(session_obj_t);
+    session.shared = tmp;
+
+    return &mapping->obj;
+}
+
+static int grow_session_mapping(void)
+{
+    struct session new_session;
+    unsigned int capacity;
+    mem_size_t size;
+    int unix_fd, i;
+    struct fd *fd;
+
+    capacity = session.object_capacity * 3 / 2;
+    size = offsetof(session_shm_t, objects[capacity]);
+    size = (size + page_mask) & ~((mem_size_t)page_mask);
+
+    if ((unix_fd = create_temp_file( size )) == -1) return -1;
+    if (!(fd = create_anonymous_fd( &mapping_fd_ops, unix_fd, &session_mapping->obj, FILE_SYNCHRONOUS_IO_NONALERT )))
+    {
+        close( unix_fd );
+        return -1;
+    }
+    if ((new_session.shared = mmap( NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, unix_fd, 0 )) == MAP_FAILED)
+    {
+        release_object( fd );
+        return -1;
+    }
+    allow_fd_caching( fd );
+
+    SHARED_WRITE_BEGIN( new_session.shared, session_shm_t )
+    {
+        const session_shm_t *old_shared = session.shared;
+
+        /* copy the valid objects, mark the invalid ones as fully destroyed. No need
+         * to write-lock the objects as nothing can be using the new session yet. */
+        for (i = 0; i < session.object_count; i++)
+        {
+            const object_shm_t *old_object = &old_shared->objects[i].obj;
+            object_shm_t *object = &shared->objects[i].obj;
+
+            if (!old_object->invalid) *object = *old_object;
+            else object->destroyed = TRUE;
+        }
+
+        new_session.object_count = session.object_count;
+    }
+    SHARED_WRITE_END;
+
+    SHARED_WRITE_BEGIN( session.shared, session_shm_t )
+    {
+        shared->obj.invalid = TRUE;
+    }
+    SHARED_WRITE_END;
+
+    for (i = 0; i < session.object_count; i++)
+    {
+        const session_obj_t *object = &session.shared->objects[i];
+        SHARED_WRITE_BEGIN( object, session_obj_t )
+        {
+            shared->obj.invalid = TRUE;
+        }
+        SHARED_WRITE_END;
+    }
+
+    release_object( session_mapping->fd );
+    session_mapping->fd = fd;
+    session = new_session;
+
+    return 0;
+}
+
+int alloc_shared_object(void)
+{
+    int i;
+
+    for (i = 0; i < session.object_count; i++)
+    {
+        const session_obj_t *object = &session.shared->objects[i];
+        if (object->obj.destroyed)
+        {
+            SHARED_WRITE_BEGIN( object, session_obj_t )
+            {
+                shared->obj.destroyed = FALSE;
+            }
+            SHARED_WRITE_END;
+            return i;
+        }
+    }
+
+    if (session.object_count == session.object_capacity && grow_session_mapping()) return -1;
+    return session.object_count++;
+}
+
+void free_shared_object( int index )
+{
+    const session_obj_t *object = &session.shared->objects[index];
+
+    if (index < 0) return;
+    SHARED_WRITE_BEGIN( object, session_obj_t )
+    {
+        shared->obj.invalid = TRUE;
+    }
+    SHARED_WRITE_END;
+}
+
+const desktop_shm_t *get_shared_desktop( int index )
+{
+    if (index < 0) return NULL;
+    return &session.shared->objects[index].desktop;
+}
+
+const queue_shm_t *get_shared_queue( int index )
+{
+    if (index < 0) return NULL;
+    return &session.shared->objects[index].queue;
+}
+
+const input_shm_t *get_shared_input( int index )
+{
+    if (index < 0) return NULL;
+    return &session.shared->objects[index].input;
 }
 
 struct object *create_user_data_mapping( struct object *root, const struct unicode_str *name,

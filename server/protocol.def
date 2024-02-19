@@ -882,47 +882,25 @@ typedef struct
 /****************************************************************/
 /* objects shared mapping structures */
 
-struct shared_cursor
-{
-    int                  x;                /* cursor position */
-    int                  y;
-    unsigned int         last_change;      /* time of last position change */
-    rectangle_t          clip;             /* cursor clip rectangle */
-};
-
 typedef volatile struct
 {
     LONG64               seq;              /* sequence number - server updating if (seq & 1) != 0 */
-    struct shared_cursor cursor;           /* global cursor information */
-    unsigned char        keystate[256];    /* asynchronous key state */
-} desktop_shm_t;
+    unsigned int         invalid;          /* object has been invalidated, call wineserver */
+    unsigned int         destroyed;        /* object has been destroyed, can be reused */
+} object_shm_t;
+
+typedef volatile union
+{
+    object_shm_t         obj;
+} session_obj_t;
 
 typedef volatile struct
 {
-    LONG64               seq;              /* sequence number - server updating if (seq & 1) != 0 */
-    unsigned int         wake_bits;        /* wakeup bits */
-    unsigned int         wake_mask;        /* wakeup mask */
-    unsigned int         changed_bits;     /* changed wakeup bits */
-    unsigned int         changed_mask;     /* changed wakeup mask */
-} queue_shm_t;
+    object_shm_t         obj;
+    session_obj_t        objects[];
+} session_shm_t;
 
-typedef volatile struct
-{
-    LONG64               seq;              /* sequence number - server updating if (seq & 1) != 0 */
-    unsigned int         detached;         /* been detached from the thread queue */
-    unsigned int         foreground;       /* is desktop foreground thread input */
-    user_handle_t        focus;            /* handle to the focus window */
-    user_handle_t        capture;          /* handle to the capture window */
-    user_handle_t        active;           /* handle to the active window */
-    user_handle_t        menu_owner;       /* handle to the menu owner */
-    user_handle_t        move_size;        /* handle to the moving/resizing window */
-    user_handle_t        caret;            /* handle to the caret window */
-    user_handle_t        cursor;           /* handle to the cursor */
-    rectangle_t          caret_rect;       /* caret rectangle */
-    int                  cursor_count;     /* cursor show count */
-    unsigned char        keystate[256];    /* key state */
-    int                  keystate_lock;    /* keystate is locked */
-} input_shm_t;
+C_ASSERT(sizeof(session_shm_t) == offsetof(session_shm_t, objects[0]));
 
 /****************************************************************/
 /* Request declarations */
