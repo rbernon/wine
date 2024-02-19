@@ -878,6 +878,12 @@ typedef struct
 /****************************************************************/
 /* shared session mapping structures */
 
+struct shared_cursor
+{
+    int                  x;                /* cursor position */
+    int                  y;
+};
+
 typedef volatile struct
 {
     LONG64               seq;              /* sequence number - server updating if (seq & 1) != 0 */
@@ -887,6 +893,7 @@ typedef volatile struct
 typedef volatile struct
 {
     object_shm_t         obj;
+    struct shared_cursor cursor;           /* global cursor information */
 } desktop_shm_t;
 
 typedef volatile union

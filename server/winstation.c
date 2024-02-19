@@ -272,6 +272,8 @@ static struct desktop *create_desktop( const struct unicode_str *name, unsigned 
     {
         if (get_error() != STATUS_OBJECT_NAME_EXISTS)
         {
+            const desktop_shm_t *desktop_shm;
+
             /* initialize it if it didn't already exist */
 
             desktop->flags = flags;
@@ -299,11 +301,18 @@ static struct desktop *create_desktop( const struct unicode_str *name, unsigned 
             list_init( &desktop->pointers );
             desktop->session_index = alloc_shared_object();
 
-            if (!get_shared_desktop( desktop->session_index ))
+            if (!(desktop_shm = get_shared_desktop( desktop->session_index )))
             {
                 release_object( desktop );
                 return NULL;
             }
+
+            SHARED_WRITE_BEGIN( desktop_shm, desktop_shm_t )
+            {
+                shared->cursor.x = 0;
+                shared->cursor.y = 0;
+            }
+            SHARED_WRITE_END;
         }
         else
         {
