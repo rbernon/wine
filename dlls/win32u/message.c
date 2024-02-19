@@ -2135,6 +2135,9 @@ static LRESULT handle_internal_message( HWND hwnd, UINT msg, WPARAM wparam, LPAR
  */
 BOOL WINAPI NtUserGetGUIThreadInfo( DWORD id, GUITHREADINFO *info )
 {
+    struct object_lock lock = {0};
+    const input_shm_t *input_shm;
+    NTSTATUS status;
     BOOL ret;
 
     if (info->cbSize != sizeof(*info))
@@ -2142,6 +2145,26 @@ BOOL WINAPI NtUserGetGUIThreadInfo( DWORD id, GUITHREADINFO *info )
         RtlSetLastWin32Error( ERROR_INVALID_PARAMETER );
         return FALSE;
     }
+
+    while ((status = get_shared_input( id, &lock, &input_shm )) == STATUS_PENDING)
+    {
+        info->flags          = 0;
+        info->hwndActive     = wine_server_ptr_handle( input_shm->active );
+        info->hwndFocus      = wine_server_ptr_handle( input_shm->focus );
+        info->hwndCapture    = wine_server_ptr_handle( input_shm->capture );
+        info->hwndMenuOwner  = wine_server_ptr_handle( input_shm->menu_owner );
+        info->hwndMoveSize   = wine_server_ptr_handle( input_shm->move_size );
+        info->hwndCaret      = wine_server_ptr_handle( input_shm->caret );
+        info->rcCaret.left   = input_shm->caret_rect.left;
+        info->rcCaret.top    = input_shm->caret_rect.top;
+        info->rcCaret.right  = input_shm->caret_rect.right;
+        info->rcCaret.bottom = input_shm->caret_rect.bottom;
+        if (input_shm->menu_owner) info->flags |= GUI_INMENUMODE;
+        if (input_shm->move_size) info->flags |= GUI_INMOVESIZE;
+        if (input_shm->caret) info->flags |= GUI_CARETBLINKING;
+    }
+
+    if (!status) return TRUE;
 
     SERVER_START_REQ( get_thread_input )
     {

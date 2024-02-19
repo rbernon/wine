@@ -55,6 +55,7 @@ struct session_thread_data
 {
     struct object_info shared_desktop;         /* thread desktop shared session object info */
     struct object_info shared_queue;           /* thread message queue shared session object info */
+    struct object_info shared_input;           /* current thread input shared session object info */
 };
 
 struct shared_session
@@ -208,6 +209,7 @@ enum object_type
 {
     OBJECT_TYPE_DESKTOP = 1,
     OBJECT_TYPE_QUEUE,
+    OBJECT_TYPE_INPUT,
 };
 
 static NTSTATUS get_thread_session_object_info( UINT tid, enum object_type type,
@@ -237,6 +239,19 @@ static NTSTATUS get_thread_session_object_info( UINT tid, enum object_type type,
         SERVER_START_REQ( get_msg_queue )
         {
             req->index_only = 1;
+            if (!(status = wine_server_call( req )))
+            {
+                info->id = reply->object_id;
+                info->index = reply->index;
+            }
+            if (info->index == -1) status = STATUS_INVALID_HANDLE;
+        }
+        SERVER_END_REQ;
+        break;
+    case OBJECT_TYPE_INPUT:
+        SERVER_START_REQ( get_thread_input_info )
+        {
+            req->tid = tid;
             if (!(status = wine_server_call( req )))
             {
                 info->id = reply->object_id;
@@ -328,6 +343,20 @@ NTSTATUS get_shared_queue( struct object_lock *lock, const queue_shm_t **queue_s
 
     return get_thread_session_object( GetCurrentThreadId(), OBJECT_TYPE_QUEUE, info,
                                       lock, (const object_shm_t **)queue_shm );
+}
+
+NTSTATUS get_shared_input( UINT tid, struct object_lock *lock, const input_shm_t **input_shm )
+{
+    struct session_thread_data *data = get_session_thread_data();
+    struct object_info *info;
+
+    TRACE( "tid %04x, lock %p, input_shm %p\n", tid, lock, input_shm );
+
+    if (tid != GetCurrentThreadId()) return FALSE;
+    info = &data->shared_input;
+
+    return get_thread_session_object( tid, OBJECT_TYPE_INPUT, info,
+                                      lock, (const object_shm_t **)input_shm );
 }
 
 BOOL is_virtual_desktop(void)
