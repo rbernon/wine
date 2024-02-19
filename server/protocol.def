@@ -902,7 +902,9 @@ typedef volatile struct
 typedef volatile struct
 {
     object_shm_t         obj;
+    unsigned int         wake_bits;        /* wakeup bits */
     unsigned int         wake_mask;        /* wakeup mask */
+    unsigned int         changed_bits;     /* changed wakeup bits */
     unsigned int         changed_mask;     /* changed wakeup mask */
 } queue_shm_t;
 
