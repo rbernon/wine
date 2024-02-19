@@ -889,15 +889,51 @@ typedef volatile struct
     unsigned int         destroyed;        /* object has been destroyed, can be reused */
 } object_shm_t;
 
+typedef volatile struct
+{
+    object_shm_t         obj;
+    struct shared_cursor cursor;           /* global cursor information */
+    unsigned char        keystate[256];    /* asynchronous key state */
+} desktop_shm_t;
+
 typedef volatile union
 {
     object_shm_t         obj;
-} session_obj_t;
+    unsigned int         wake_bits;        /* wakeup bits */
+    unsigned int         wake_mask;        /* wakeup mask */
+    unsigned int         changed_bits;     /* changed wakeup bits */
+    unsigned int         changed_mask;     /* changed wakeup mask */
+} queue_shm_t;
 
 typedef volatile struct
 {
     object_shm_t         obj;
-    session_obj_t        objects[];
+    unsigned int         foreground;       /* is desktop foreground thread input */
+    user_handle_t        focus;            /* handle to the focus window */
+    user_handle_t        capture;          /* handle to the capture window */
+    user_handle_t        active;           /* handle to the active window */
+    user_handle_t        menu_owner;       /* handle to the menu owner */
+    user_handle_t        move_size;        /* handle to the moving/resizing window */
+    user_handle_t        caret;            /* handle to the caret window */
+    user_handle_t        cursor;           /* handle to the cursor */
+    rectangle_t          caret_rect;       /* caret rectangle */
+    int                  cursor_count;     /* cursor show count */
+    unsigned char        keystate[256];    /* key state */
+    int                  keystate_lock;    /* keystate is locked */
+} input_shm_t;
+
+typedef volatile union
+{
+    object_shm_t obj;
+    desktop_shm_t desktop;
+    queue_shm_t queue;
+    input_shm_t input;
+} session_obj_t;
+
+typedef volatile struct
+{
+    object_shm_t     obj;
+    session_obj_t    objects[];
 } session_shm_t;
 
 C_ASSERT(sizeof(session_shm_t) == offsetof(session_shm_t, objects[0]));
@@ -2079,7 +2115,8 @@ struct process_info
 /* Get the message queue of the current thread */
 @REQ(get_msg_queue)
 @REPLY
-    obj_handle_t handle;       /* handle to the queue */
+    obj_handle_t handle;          /* handle to the queue */
+    unsigned int session_index;   /* index of queue shared memory in session shared memory */
 @END
 
 
@@ -2802,6 +2839,7 @@ enum coords_relative
     thread_id_t  tid;             /* thread id */
 @REPLY
     obj_handle_t handle;          /* handle to the desktop */
+    unsigned int session_index;   /* index of desktop shared memory in session shared memory */
 @END
 
 
@@ -2871,7 +2909,7 @@ enum coords_relative
     thread_id_t    tid;           /* id of thread */
     int            open;          /* open a new handle for the thread input */
 @REPLY
-    obj_handle_t   handle;        /* handle to the thread input */
+    unsigned int   session_index; /* index of input shared memory in session shared memory */
     user_handle_t  focus;         /* handle to the focus window */
     user_handle_t  capture;       /* handle to the capture window */
     user_handle_t  active;        /* handle to the active window */

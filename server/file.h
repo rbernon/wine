@@ -192,6 +192,27 @@ extern struct object *create_session_mapping( struct object *root, const struct 
                                               unsigned int attr, const struct security_descriptor *sd );
 extern struct object *create_object_mapping( struct object *object, mem_size_t size, void **ptr );
 
+extern int alloc_shared_object(void);
+extern void free_shared_object( int index );
+extern const desktop_shm_t *get_shared_desktop( int index );
+extern const queue_shm_t *get_shared_queue( int index );
+extern const input_shm_t *get_shared_input( int index );
+
+#define SHARED_WRITE_BEGIN( object, type )                            \
+    do {                                                              \
+        const type *__shared = (object);                              \
+        type *shared = (type *)__shared;                              \
+        LONG64 __seq = shared->obj.seq + 1, __end = __seq + 1;        \
+        assert( (__seq & 1) != 0 );                                   \
+        __WINE_ATOMIC_STORE_RELEASE( &shared->obj.seq, &__seq );      \
+        do
+
+#define SHARED_WRITE_END                                              \
+        while(0);                                                     \
+        assert( __seq == shared->obj.seq );                           \
+        __WINE_ATOMIC_STORE_RELEASE( &shared->obj.seq, &__end );      \
+    } while(0)
+
 /* device functions */
 
 extern struct object *create_named_pipe_device( struct object *root, const struct unicode_str *name,
