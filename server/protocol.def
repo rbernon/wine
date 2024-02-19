@@ -902,6 +902,8 @@ typedef volatile struct
 typedef volatile struct
 {
     object_shm_t         obj;
+    unsigned int         wake_mask;        /* wakeup mask */
+    unsigned int         changed_mask;     /* changed wakeup mask */
 } queue_shm_t;
 
 typedef volatile union

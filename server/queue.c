@@ -126,9 +126,7 @@ struct msg_queue
     struct object          obj;             /* object header */
     struct fd             *fd;              /* optional file descriptor to poll */
     unsigned int           wake_bits;       /* wakeup bits */
-    unsigned int           wake_mask;       /* wakeup mask */
     unsigned int           changed_bits;    /* changed wakeup bits */
-    unsigned int           changed_mask;    /* changed wakeup mask */
     int                    paint_count;     /* pending paint messages count */
     int                    hotkey_count;    /* pending hotkey messages count */
     int                    quit_message;    /* is there a pending quit message? */
@@ -303,11 +301,10 @@ static struct msg_queue *create_msg_queue( struct thread *thread, struct thread_
 
     if ((queue = alloc_object( &msg_queue_ops )))
     {
+        const queue_shm_t *queue_shm;
         queue->fd              = NULL;
         queue->wake_bits       = 0;
-        queue->wake_mask       = 0;
         queue->changed_bits    = 0;
-        queue->changed_mask    = 0;
         queue->paint_count     = 0;
         queue->hotkey_count    = 0;
         queue->quit_message    = 0;
@@ -326,11 +323,18 @@ static struct msg_queue *create_msg_queue( struct thread *thread, struct thread_
         for (i = 0; i < NB_MSG_KINDS; i++) list_init( &queue->msg_list[i] );
         queue->session_index   = alloc_shared_object();
 
-        if (!get_shared_queue( queue->session_index ))
+        if (!(queue_shm = get_shared_queue( queue->session_index )))
         {
             release_object( queue );
             return NULL;
         }
+
+        SHARED_WRITE_BEGIN( queue_shm, queue_shm_t )
+        {
+            shared->wake_mask = 0;
+            shared->changed_mask = 0;
+        }
+        SHARED_WRITE_END;
 
         thread->queue = queue;
     }
@@ -619,7 +623,9 @@ void set_queue_hooks( struct thread *thread, struct hook_table *hooks )
 /* check the queue status */
 static inline int is_signaled( struct msg_queue *queue )
 {
-    return ((queue->wake_bits & queue->wake_mask) || (queue->changed_bits & queue->changed_mask));
+    const queue_shm_t *queue_shm = get_shared_queue( queue->session_index );
+    return (queue->wake_bits & queue_shm->wake_mask) ||
+           (queue->changed_bits & queue_shm->changed_mask);
 }
 
 /* set some queue bits */
@@ -1131,6 +1137,7 @@ static int msg_queue_add_queue( struct object *obj, struct wait_queue_entry *ent
 {
     struct msg_queue *queue = (struct msg_queue *)obj;
     struct process *process = get_wait_queue_thread(entry)->process;
+    const queue_shm_t *queue_shm = get_shared_queue( queue->session_index );
 
     /* a thread can only wait on its own queue */
     if (get_wait_queue_thread(entry)->queue != queue)
@@ -1138,7 +1145,7 @@ static int msg_queue_add_queue( struct object *obj, struct wait_queue_entry *ent
         set_error( STATUS_ACCESS_DENIED );
         return 0;
     }
-    if (process->idle_event && !(queue->wake_mask & QS_SMRESULT)) set_event( process->idle_event );
+    if (process->idle_event && !(queue_shm->wake_mask & QS_SMRESULT)) set_event( process->idle_event );
 
     if (queue->fd && list_empty( &obj->wait_queue ))  /* first on the queue */
         set_fd_events( queue->fd, POLLIN );
@@ -1158,8 +1165,9 @@ static void msg_queue_remove_queue(struct object *obj, struct wait_queue_entry *
 static void msg_queue_dump( struct object *obj, int verbose )
 {
     struct msg_queue *queue = (struct msg_queue *)obj;
+    const queue_shm_t *queue_shm = get_shared_queue( queue->session_index );
     fprintf( stderr, "Msg queue bits=%x mask=%x\n",
-             queue->wake_bits, queue->wake_mask );
+             queue->wake_bits, queue_shm->wake_mask );
 }
 
 static int msg_queue_signaled( struct object *obj, struct wait_queue_entry *entry )
@@ -1182,8 +1190,14 @@ static int msg_queue_signaled( struct object *obj, struct wait_queue_entry *entr
 static void msg_queue_satisfied( struct object *obj, struct wait_queue_entry *entry )
 {
     struct msg_queue *queue = (struct msg_queue *)obj;
-    queue->wake_mask = 0;
-    queue->changed_mask = 0;
+    const queue_shm_t *queue_shm = get_shared_queue( queue->session_index );
+
+    SHARED_WRITE_BEGIN( queue_shm, queue_shm_t )
+    {
+        shared->wake_mask = 0;
+        shared->changed_mask = 0;
+    }
+    SHARED_WRITE_END;
 }
 
 static void msg_queue_destroy( struct object *obj )
@@ -2876,14 +2890,28 @@ DECL_HANDLER(set_queue_mask)
 
     if (queue)
     {
-        queue->wake_mask    = req->wake_mask;
-        queue->changed_mask = req->changed_mask;
+        const queue_shm_t *queue_shm = get_shared_queue( queue->session_index );
+        SHARED_WRITE_BEGIN( queue_shm, queue_shm_t )
+        {
+            shared->wake_mask = req->wake_mask;
+            shared->changed_mask = req->changed_mask;
+        }
+        SHARED_WRITE_END;
+
         reply->wake_bits    = queue->wake_bits;
         reply->changed_bits = queue->changed_bits;
         if (is_signaled( queue ))
         {
             /* if skip wait is set, do what would have been done in the subsequent wait */
-            if (req->skip_wait) queue->wake_mask = queue->changed_mask = 0;
+            if (req->skip_wait)
+            {
+                SHARED_WRITE_BEGIN( queue_shm, queue_shm_t )
+                {
+                    shared->wake_mask = 0;
+                    shared->changed_mask = 0;
+                }
+                SHARED_WRITE_END;
+            }
             else wake_up( &queue->obj, 0 );
         }
     }
@@ -3047,6 +3075,7 @@ DECL_HANDLER(get_message)
     struct list *ptr;
     struct msg_queue *queue = get_current_queue();
     user_handle_t get_win = get_user_full_handle( req->get_win );
+    const queue_shm_t *queue_shm;
     unsigned int filter = req->flags >> 16;
 
     if (get_win && get_win != 1 && get_win != -1 && !get_user_object( get_win, USER_WINDOW ))
@@ -3056,6 +3085,7 @@ DECL_HANDLER(get_message)
     }
 
     if (!queue) return;
+    queue_shm = get_shared_queue( queue->session_index );
 
     /* check for any hardware internal message */
     if (get_hardware_message( current, req->hw_id, get_win, WM_WINE_FIRST_DRIVER_MSG,
@@ -3139,8 +3169,14 @@ DECL_HANDLER(get_message)
     }
 
     if (get_win == -1 && current->process->idle_event) set_event( current->process->idle_event );
-    queue->wake_mask = req->wake_mask;
-    queue->changed_mask = req->changed_mask;
+
+    SHARED_WRITE_BEGIN( queue_shm, queue_shm_t )
+    {
+        shared->wake_mask = req->wake_mask;
+        shared->changed_mask = req->changed_mask;
+    }
+    SHARED_WRITE_END;
+
     set_error( STATUS_PENDING );  /* FIXME */
 }
 
