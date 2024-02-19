@@ -1360,6 +1360,18 @@ void free_shared_object( int index )
     SHARED_WRITE_END;
 }
 
+/* invalidate client caches for a shared object by giving it a new id */
+void invalidate_shared_object( int index )
+{
+    if (index < 0) return;
+
+    SHARED_WRITE_BEGIN( &session.shared->objects[index], session_obj_t )
+    {
+        shared->obj.id = ++session.last_object_id;
+    }
+    SHARED_WRITE_END;
+}
+
 const desktop_shm_t *get_shared_desktop( int index )
 {
     if (index < 0) return NULL;
@@ -1370,6 +1382,12 @@ const queue_shm_t *get_shared_queue( int index )
 {
     if (index < 0) return NULL;
     return &session.shared->objects[index].queue;
+}
+
+const input_shm_t *get_shared_input( int index )
+{
+    if (index < 0) return NULL;
+    return &session.shared->objects[index].input;
 }
 
 struct object *create_user_data_mapping( struct object *root, const struct unicode_str *name,

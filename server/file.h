@@ -194,8 +194,10 @@ extern void set_session_mapping( struct mapping *mapping );
 
 extern int alloc_shared_object(void);
 extern void free_shared_object( int index );
+extern void invalidate_shared_object( int index );
 extern const desktop_shm_t *get_shared_desktop( int index );
 extern const queue_shm_t *get_shared_queue( int index );
+extern const input_shm_t *get_shared_input( int index );
 
 
 #define SHARED_WRITE_BEGIN( object, type )                              \

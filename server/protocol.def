@@ -908,11 +908,17 @@ typedef volatile struct
     unsigned int         changed_mask;     /* changed wakeup mask */
 } queue_shm_t;
 
+typedef volatile struct
+{
+    object_shm_t         obj;
+} input_shm_t;
+
 typedef volatile union
 {
     object_shm_t         obj;
     desktop_shm_t        desktop;
     queue_shm_t          queue;
+    input_shm_t          input;
 } session_obj_t;
 
 typedef volatile struct
@@ -2917,6 +2923,15 @@ enum coords_relative
     user_handle_t  cursor;        /* handle to the cursor */
     int            show_count;    /* cursor show count */
     rectangle_t    rect;          /* caret rectangle */
+@END
+
+
+/* Get thread input session object info */
+@REQ(get_thread_input_info)
+    thread_id_t    tid;           /* id of thread */
+@REPLY
+    int            index;         /* index of input object in session shared memory */
+    object_id_t    object_id;     /* id of the session object */
 @END
 
 

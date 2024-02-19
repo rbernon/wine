@@ -119,6 +119,7 @@ struct thread_input
     unsigned char          keystate[256]; /* state of each key */
     unsigned char          desktop_keystate[256]; /* desktop keystate when keystate was synced */
     int                    keystate_lock; /* keystate is locked */
+    int                    session_index; /* thread input index in session shared memory */
 };
 
 struct msg_queue
@@ -270,6 +271,7 @@ static struct thread_input *create_thread_input( struct thread *thread )
         set_caret_window( input, 0 );
         memset( input->keystate, 0, sizeof(input->keystate) );
         input->keystate_lock = 0;
+        input->session_index = -1;
 
         if (!(input->desktop = get_thread_desktop( thread, 0 /* FIXME: access rights */ )))
         {
@@ -280,6 +282,13 @@ static struct thread_input *create_thread_input( struct thread *thread )
 
         memcpy( input->desktop_keystate, (void *)desktop_shm->keystate,
                 sizeof(input->desktop_keystate) );
+        input->session_index = alloc_shared_object();
+
+        if (!get_shared_input( input->session_index ))
+        {
+            release_object( input );
+            return NULL;
+        }
     }
     return input;
 }
@@ -392,6 +401,9 @@ static int assign_thread_input( struct thread *thread, struct thread_input *new_
     {
         queue->input->cursor_count -= queue->cursor_count;
         if (queue->keystate_lock) unlock_input_keystate( queue->input );
+
+        /* invalidate the old object to force clients to refresh their cached thread input */
+        invalidate_shared_object( queue->input->session_index );
         release_object( queue->input );
     }
     queue->input = (struct thread_input *)grab_object( new_input );
@@ -1281,6 +1293,7 @@ static void thread_input_destroy( struct object *obj )
         if (desktop->foreground_input == input) desktop->foreground_input = NULL;
         release_object( desktop );
     }
+    free_shared_object( input->session_index );
 }
 
 /* fix the thread input data when a window is destroyed */
@@ -2860,6 +2873,7 @@ DECL_HANDLER(get_msg_queue)
     {
         reply->handle = 0;
         reply->index = -1;
+        reply->object_id = 0;
     }
     else
     {
@@ -3561,6 +3575,38 @@ DECL_HANDLER(get_thread_input)
     reply->foreground = desktop->foreground_input ? desktop->foreground_input->active : 0;
     if (thread) release_object( thread );
     release_object( desktop );
+}
+
+
+/* Get thread input session object info */
+DECL_HANDLER(get_thread_input_info)
+{
+    struct thread_input *input;
+
+    reply->index = -1;
+    reply->object_id = 0;
+
+    if (req->tid)
+    {
+        struct thread *thread;
+        if (!(thread = get_thread_from_id( req->tid ))) return;
+        input = thread->queue ? thread->queue->input : NULL;
+        release_object( thread );
+    }
+    else
+    {
+        struct desktop *desktop;
+        if (!(desktop = get_thread_desktop( current, 0 ))) return;
+        input = desktop->foreground_input;  /* get the foreground thread info */
+        release_object( desktop );
+    }
+
+    if (input)
+    {
+        const input_shm_t *input_shm = get_shared_input( input->session_index );
+        reply->index      = input->session_index;
+        reply->object_id  = input_shm->obj.id;
+    }
 }
 
 
