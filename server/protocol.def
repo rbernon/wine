@@ -899,10 +899,16 @@ typedef volatile struct
     unsigned char        keystate[256];    /* asynchronous key state */
 } desktop_shm_t;
 
+typedef volatile struct
+{
+    object_shm_t         obj;
+} queue_shm_t;
+
 typedef volatile union
 {
     object_shm_t         obj;
     desktop_shm_t        desktop;
+    queue_shm_t          queue;
 } session_obj_t;
 
 typedef volatile struct
@@ -2093,8 +2099,11 @@ struct process_info
 
 /* Get the message queue of the current thread */
 @REQ(get_msg_queue)
+    int          index_only;   /* request the session index only */
 @REPLY
     obj_handle_t handle;       /* handle to the queue */
+    int          index;        /* index of queue object in session shared memory */
+    object_id_t  object_id;    /* id of the session object */
 @END
 
 

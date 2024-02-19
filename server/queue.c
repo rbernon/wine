@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <poll.h>
+#include <sys/mman.h>
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -145,6 +146,7 @@ struct msg_queue
     struct hook_table     *hooks;           /* hook table */
     timeout_t              last_get_msg;    /* time of last get message call */
     int                    keystate_lock;   /* owns an input keystate lock */
+    int                    session_index;   /* thread queue index in session shared memory */
 };
 
 struct hotkey
@@ -322,6 +324,13 @@ static struct msg_queue *create_msg_queue( struct thread *thread, struct thread_
         list_init( &queue->pending_timers );
         list_init( &queue->expired_timers );
         for (i = 0; i < NB_MSG_KINDS; i++) list_init( &queue->msg_list[i] );
+        queue->session_index   = alloc_shared_object();
+
+        if (!get_shared_queue( queue->session_index ))
+        {
+            release_object( queue );
+            return NULL;
+        }
 
         thread->queue = queue;
     }
@@ -1214,6 +1223,7 @@ static void msg_queue_destroy( struct object *obj )
     release_object( queue->input );
     if (queue->hooks) release_object( queue->hooks );
     if (queue->fd) release_object( queue->fd );
+    free_shared_object( queue->session_index );
 }
 
 static void msg_queue_poll_event( struct fd *fd, int event )
@@ -2819,8 +2829,18 @@ DECL_HANDLER(get_msg_queue)
 {
     struct msg_queue *queue = get_current_queue();
 
-    reply->handle = 0;
-    if (queue) reply->handle = alloc_handle( current->process, queue, SYNCHRONIZE, 0 );
+    if (!queue)
+    {
+        reply->handle = 0;
+        reply->index = -1;
+    }
+    else
+    {
+        const queue_shm_t *queue_shm = get_shared_queue( queue->session_index );
+        if (!req->index_only) reply->handle = alloc_handle( current->process, queue, SYNCHRONIZE, 0 );
+        reply->index      = queue->session_index;
+        reply->object_id  = queue_shm->obj.id;
+    }
 }
 
 

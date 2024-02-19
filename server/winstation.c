@@ -760,9 +760,11 @@ DECL_HANDLER(get_thread_desktop)
     struct desktop *desktop;
     struct thread *thread;
 
+    reply->object_id = 0;
+    reply->index = -1;
+
     if (!(thread = get_thread_from_id( req->tid ))) return;
     reply->handle = thread->desktop;
-    reply->index = -1;
 
     if (!(desktop = get_thread_desktop( thread, 0 ))) clear_error();
     else

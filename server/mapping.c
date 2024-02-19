@@ -1366,6 +1366,12 @@ const desktop_shm_t *get_shared_desktop( int index )
     return &session.shared->objects[index].desktop;
 }
 
+const queue_shm_t *get_shared_queue( int index )
+{
+    if (index < 0) return NULL;
+    return &session.shared->objects[index].queue;
+}
+
 struct object *create_user_data_mapping( struct object *root, const struct unicode_str *name,
                                         unsigned int attr, const struct security_descriptor *sd )
 {
