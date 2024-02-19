@@ -13,9 +13,11 @@ mod ipc;
 mod mapping;
 mod object;
 mod thread;
+mod registry;
 
 use crate::mapping::*;
 use crate::object::*;
+use crate::registry::*;
 
 const SOCKET_NAME: &str = "socket";
 pub static USER_SHARED_DATA: Option<Arc<Mapping>> = None;
@@ -80,9 +82,10 @@ fn open_master_socket() -> io::Result<()> {
     let usd = Mapping::new(0x1000)?;
     root.insert_path("\\KernelObjects\\__wine_user_shared_data", usd);
     root.insert_path(
-        "\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Session Manager\\Environment",
-        Directory::new(),
+        "\\Registry",
+        Registry::new(),
     );
+    root.insert_path("\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Session Manager\\Environment", Registry::new());
 
     for stream in socket.incoming() {
         match stream {
