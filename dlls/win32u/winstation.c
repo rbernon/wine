@@ -22,9 +22,12 @@
 #pragma makedep unix
 #endif
 
+#include <stdarg.h>
+#include <stddef.h>
+#include <pthread.h>
+
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
-#include <stdarg.h>
 #include "windef.h"
 #include "winbase.h"
 #include "ntuser.h"
@@ -39,6 +42,146 @@ WINE_DECLARE_DEBUG_CHANNEL(win);
 
 
 #define DESKTOP_ALL_ACCESS 0x01ff
+
+struct shared_session
+{
+    LONG ref;
+    UINT object_capacity;
+    const session_shm_t *shared;
+};
+
+static pthread_mutex_t session_lock = PTHREAD_MUTEX_INITIALIZER;
+static struct shared_session *shared_session;
+
+#if defined(__i386__) || defined(__x86_64__)
+/* this prevents compilers from incorrectly reordering non-volatile reads (e.g., memcpy) from shared memory */
+#define __SHARED_READ_FENCE do { __asm__ __volatile__( "" ::: "memory" ); } while (0)
+#else
+#define __SHARED_READ_FENCE __atomic_thread_fence( __ATOMIC_ACQUIRE )
+#endif
+
+static void object_shm_acquire_seqlock( const object_shm_t *shared, UINT64 *seq )
+{
+    while ((*seq = ReadNoFence64( &shared->seq )) & 1) YieldProcessor();
+    __SHARED_READ_FENCE;
+}
+
+static BOOL object_shm_release_seqlock( const object_shm_t *shared, UINT64 seq )
+{
+    __SHARED_READ_FENCE;
+    return ReadNoFence64( &shared->seq ) == seq;
+}
+
+static struct shared_session *shared_session_acquire( struct shared_session *session )
+{
+    int ref = InterlockedIncrement( &session->ref );
+    TRACE( "session %p incrementing ref to %d\n", session, ref );
+    return session;
+}
+
+static void shared_session_release( struct shared_session *session )
+{
+    int ref = InterlockedDecrement( &session->ref );
+    TRACE( "session %p decrementing ref to %d\n", session, ref );
+    if (!ref)
+    {
+        NtUnmapViewOfSection( GetCurrentProcess(), (void *)session->shared );
+        free( session );
+    }
+}
+
+static BOOL shared_session_has_capacity( struct shared_session *session, SIZE_T capacity )
+{
+    TRACE( "session %p, capacity 0x%s\n", session, wine_dbgstr_longlong(capacity) );
+
+    for (;;)
+    {
+        const session_shm_t *session_shm = session->shared;
+        UINT64 seq;
+        BOOL ret;
+
+        object_shm_acquire_seqlock( &session_shm->obj, &seq );
+        ret = session_shm->object_capacity == capacity;
+        if (object_shm_release_seqlock( &session_shm->obj, seq )) return ret;
+    }
+}
+
+static NTSTATUS map_shared_session_section( struct shared_session *session, HANDLE handle )
+{
+    NTSTATUS status;
+    SIZE_T size = 0;
+
+    TRACE( "session %p, handle %p\n", session, handle );
+
+    while (!(status = NtMapViewOfSection( handle, GetCurrentProcess(), (void **)&session->shared, 0, 0,
+                                          NULL, &size, ViewUnmap, 0, PAGE_READONLY )))
+    {
+        SIZE_T capacity;
+
+        capacity = (size - offsetof(session_shm_t, objects[0])) / sizeof(session_obj_t);
+        if (shared_session_has_capacity( session, capacity ))
+        {
+            session->object_capacity = capacity;
+            break;
+        }
+
+        NtUnmapViewOfSection( GetCurrentProcess(), (void *)session->shared );
+        session->shared = NULL;
+        size = 0;
+    }
+
+    return status;
+}
+
+static struct shared_session *get_shared_session( BOOL force )
+{
+    struct shared_session *session;
+
+    TRACE( "force %u\n", force );
+
+    pthread_mutex_lock( &session_lock );
+
+    if (force || !shared_session)
+    {
+        static const WCHAR nameW[] =
+        {
+            '\\','K','e','r','n','e','l','O','b','j','e','c','t','s','\\',
+            '_','_','w','i','n','e','_','s','e','s','s','i','o','n',0
+        };
+        UNICODE_STRING name = RTL_CONSTANT_STRING( nameW );
+        OBJECT_ATTRIBUTES attr;
+        unsigned int status;
+        HANDLE handle;
+
+        if (!(session = calloc( 1, sizeof(*session) ))) goto done;
+        session->ref = 1;
+
+        InitializeObjectAttributes( &attr, &name, 0, NULL, NULL );
+        if (!(status = NtOpenSection( &handle, SECTION_MAP_READ, &attr )))
+        {
+            status = map_shared_session_section( session, handle );
+            NtClose( handle );
+        }
+
+        if (status)
+        {
+            ERR( "Failed to map session mapping, status %#x\n", status );
+            free( session );
+            session = NULL;
+            goto done;
+        }
+
+        if (shared_session) shared_session_release( shared_session );
+        shared_session = session;
+    }
+
+    session = shared_session_acquire( shared_session );
+
+done:
+    pthread_mutex_unlock( &session_lock );
+
+    return session;
+}
 
 BOOL is_virtual_desktop(void)
 {
@@ -630,11 +773,15 @@ void winstation_init(void)
 {
     RTL_USER_PROCESS_PARAMETERS *params = NtCurrentTeb()->Peb->ProcessParameters;
     WCHAR *winstation = NULL, *desktop = NULL, *buffer = NULL;
+    struct shared_session *session;
     HANDLE handle, dir = NULL;
     OBJECT_ATTRIBUTES attr;
     UNICODE_STRING str;
 
     static const WCHAR winsta0[] = {'W','i','n','S','t','a','0',0};
+
+    if ((session = get_shared_session( FALSE )))
+        shared_session_release( session );
 
     if (params->Desktop.Length)
     {
