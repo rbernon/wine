@@ -925,6 +925,7 @@ typedef volatile struct
 
 typedef volatile struct
 {
+    user_handle_t        active;           /* handle to the active window */
 } input_shm_t;
 
 typedef volatile union
