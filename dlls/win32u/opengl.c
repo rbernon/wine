@@ -42,6 +42,7 @@
 
 #include "wine/wgl.h"
 #include "wine/wgl_driver.h"
+#include "wine/egl_driver.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(wgl);
 
