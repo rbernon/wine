@@ -20,15 +20,23 @@
 #ifndef __WINE_OPENGL_DRIVER_H
 #define __WINE_OPENGL_DRIVER_H
 
+#include <stdarg.h>
+#include <stddef.h>
+
+#include "windef.h"
+#include "winbase.h"
+
+#include "winuser.h"
+
+struct opengl_surface;
+
 /* interface between win32u and the user drivers */
 struct opengl_driver_funcs
 {
-    EGLenum (*p_get_host_egl_platform)(void);
-
-    void *(*p_egl_surface_create)(EGLDisplay, HWND, EGLSurface *);
-    void (*p_egl_surface_destroy)(EGLDisplay, HWND, EGLSurface, void *);
-    void (*p_egl_surface_attach)(HWND, EGLSurface, void *, const RECT *);
-    void (*p_egl_surface_detach)(HWND, EGLSurface, void *, HDC *);
+    struct opengl_surface *(*p_opengl_surface_create)(HWND);
+    void (*p_opengl_surface_destroy)(HWND, struct opengl_surface *);
+    void (*p_opengl_surface_attach)(HWND, struct opengl_surface *, const RECT *);
+    void (*p_opengl_surface_detach)(HWND, struct opengl_surface *, HDC *);
 };
 
 #endif /* __WINE_OPENGL_DRIVER_H */
