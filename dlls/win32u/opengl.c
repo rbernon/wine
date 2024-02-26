@@ -49,6 +49,15 @@ WINE_DEFAULT_DEBUG_CHANNEL(wgl);
 static struct opengl_funcs *display_funcs;
 static struct opengl_funcs *memory_funcs;
 
+struct surface
+{
+    struct list entry;
+    struct opengl_surface *host_surface;
+    HDC offscreen_dc;
+    HRGN region;
+    HWND hwnd;
+};
+
 struct wgl_context
 {
     EGLContext *host_context;
@@ -75,6 +84,9 @@ struct egl_context
     UINT pixel_format_count;
     PIXELFORMATDESCRIPTOR *pixel_formats;
 } display_egl, memory_egl;
+
+static struct list offscreen_surfaces = LIST_INIT(offscreen_surfaces);
+static struct opengl_driver_funcs driver_funcs;
 
 #define DECL_FUNCPTR(f) static typeof(f) *p_##f
 #ifdef HAVE_EGL_EGL_H
@@ -698,6 +710,105 @@ static void opengl_init(void)
     if (!display_funcs || !memory_funcs) egl_init();
     if (!display_funcs && egl_handle) display_funcs = &egl_funcs;
     if (!memory_funcs && egl_handle) memory_funcs = &egl_funcs;
+}
+
+void opengl_window_detach( WND *win )
+{
+    struct surface *surface;
+
+    LIST_FOR_EACH_ENTRY( surface, &win->opengl_surfaces, struct surface, entry )
+        driver_funcs.p_opengl_surface_detach( surface->hwnd, surface->host_surface, NULL );
+
+    list_move_tail( &offscreen_surfaces, &win->opengl_surfaces );
+}
+
+void opengl_thread_detach(void)
+{
+    HANDLE handle = 0;
+    WND *win;
+
+    user_lock();
+    while ((win = next_process_user_handle_ptr( &handle, NTUSER_OBJ_WINDOW )))
+    {
+        if (win->tid != GetCurrentThreadId()) continue;
+        opengl_window_detach( win );
+    }
+    user_unlock();
+}
+
+void opengl_set_surfaces_region( HWND toplevel, WND *win, HRGN region )
+{
+    struct surface *surface;
+
+    LIST_FOR_EACH_ENTRY( surface, &win->opengl_surfaces, struct surface, entry )
+    {
+        RECT client_rect;
+
+        NtUserGetClientRect( surface->hwnd, &client_rect );
+        NtUserMapWindowPoints( surface->hwnd, toplevel, (POINT *)&client_rect, 2 );
+
+        if (NtGdiRectInRegion( region, &client_rect ))
+        {
+ERR("surface %p is now clipped\n", surface->hwnd);
+            driver_funcs.p_opengl_surface_detach( surface->hwnd, surface->host_surface, &surface->offscreen_dc );
+            surface->region = NtGdiCreateRectRgn( 0, 0, 0, 0 );
+            NtGdiCombineRgn( surface->region, region, 0, RGN_COPY );
+        }
+        else
+        {
+ERR("surface %p is now unclipped\n", surface->hwnd);
+            driver_funcs.p_opengl_surface_attach( surface->hwnd, surface->host_surface, &client_rect );
+            NtGdiDeleteObjectApp( surface->offscreen_dc );
+            surface->offscreen_dc = NULL;
+        }
+    }
+}
+
+static void get_window_surfaces( HWND hwnd, struct list *surfaces, struct list *window_surfaces )
+{
+    struct surface *surface, *next;
+
+    LIST_FOR_EACH_ENTRY_SAFE( surface, next, surfaces, struct surface, entry )
+    {
+        if (surface->hwnd != hwnd) continue;
+        list_remove( &surface->entry );
+        list_add_tail( window_surfaces, &surface->entry );
+    }
+}
+
+void opengl_set_surfaces_parent( HWND hwnd, HWND new_parent, HWND old_parent )
+{
+    struct list surfaces = LIST_INIT(surfaces);
+    HWND new_toplevel, old_toplevel;
+    struct surface *surface;
+    WND *win;
+
+ERR("hwnd %p new_parent %p old_parent %p\n", hwnd, new_parent, old_parent);
+
+    if (new_parent == NtUserGetDesktopWindow()) new_toplevel = hwnd;
+    else new_toplevel = NtUserGetAncestor( new_parent, GA_ROOT );
+    if (old_parent == NtUserGetDesktopWindow()) old_toplevel = hwnd;
+    else old_toplevel = NtUserGetAncestor( old_parent, GA_ROOT );
+
+    if (!(win = get_win_ptr( old_toplevel )) || win == WND_DESKTOP || win == WND_OTHER_PROCESS)
+        get_window_surfaces( hwnd, &offscreen_surfaces, &surfaces );
+    else
+    {
+        get_window_surfaces( hwnd, &win->opengl_surfaces, &surfaces );
+        release_win_ptr( win );
+    }
+
+    /* detach the surfaces for now, they'll get attached by surface updates later if needed */
+    LIST_FOR_EACH_ENTRY( surface, &surfaces, struct surface, entry )
+        driver_funcs.p_opengl_surface_detach( surface->hwnd, surface->host_surface, &surface->offscreen_dc );
+
+    if (!(win = get_win_ptr( new_toplevel )) || win == WND_DESKTOP || win == WND_OTHER_PROCESS)
+        list_move_tail( &offscreen_surfaces, &surfaces );
+    else
+    {
+        list_move_tail( &win->opengl_surfaces, &surfaces );
+        release_win_ptr( win );
+    }
 }
 
 /***********************************************************************

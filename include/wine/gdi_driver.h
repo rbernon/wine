@@ -394,9 +394,9 @@ struct user_driver_funcs
     BOOL    (*pSystemParametersInfo)(UINT,UINT,void*,UINT);
     /* vulkan support */
     UINT    (*pVulkanInit)(UINT,void *,const struct vulkan_driver_funcs **);
-    void *  (*pOpenGLInit)(UINT,struct opengl_driver_funcs *);
     /* opengl support */
     struct opengl_funcs * (*pwine_get_wgl_driver)(UINT);
+    void    (*pOpenGLInit)(UINT,struct opengl_driver_funcs *);
     /* thread management */
     void    (*pThreadDetach)(void);
 };

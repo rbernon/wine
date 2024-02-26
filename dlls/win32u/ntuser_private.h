@@ -74,6 +74,7 @@ typedef struct tagWND
     HIMC               imc;           /* window's input context */
     UINT               dpi_context;   /* window DPI awareness context */
     struct window_surface *surface;   /* Window surface if any */
+    struct list        opengl_surfaces; /* list of opengl surfaces attached to this window */
     struct list        vulkan_surfaces; /* list of vulkan surfaces created for this window */
     struct tagDIALOGINFO *dlgInfo;    /* Dialog additional info (dialogs only) */
     int                pixel_format;  /* Pixel format set by the graphics driver */
