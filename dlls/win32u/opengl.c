@@ -88,6 +88,8 @@ DECL_FUNCPTR( eglQueryDeviceStringEXT );
 #undef DECL_FUNCPTR
 
 #define DECL_FUNCPTR( ns, f ) static typeof(egl_funcs.ns.p_##f) p_##f
+DECL_FUNCPTR( gl, glFinish );
+DECL_FUNCPTR( gl, glFlush );
 DECL_FUNCPTR( ext, glBindFramebuffer );
 #undef DECL_FUNCPTR
 
@@ -345,6 +347,64 @@ static BOOL win32u_wglSwapBuffers( HDC hdc )
     return FALSE;
 }
 
+static void read_pixels_to_memory_dc( HDC hdc )
+{
+    HBITMAP bitmap;
+    BITMAPOBJ *bmp;
+    dib_info dib;
+
+    bitmap = NtGdiGetDCObject( hdc, NTGDI_OBJ_SURF );
+    bmp = GDI_GetObjPtr( bitmap, NTGDI_OBJ_BITMAP );
+    if (!bmp) return;
+
+    if (init_dib_info_from_bitmapobj( &dib, bmp ))
+    {
+        int width, height;
+        char *bits;
+
+        width = dib.rect.right - dib.rect.left;
+        height = dib.rect.bottom - dib.rect.top;
+        if (dib.stride < 0) bits = (char *)dib.bits.ptr + (dib.rect.bottom - 1) * dib.stride;
+        else bits = (char *)dib.bits.ptr + dib.rect.top * dib.stride;
+        bits += dib.rect.left * dib.bit_count / 8;
+
+        ERR( "hdc %p bpp %u bits %p size %ux%u stride %d\n", hdc, dib.bit_count, bits, width, height, dib.stride );
+
+        egl_funcs.gl.p_glReadPixels( 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, bits );
+        assert( !egl_funcs.gl.p_glGetError() );
+    }
+
+    GDI_ReleaseObj( bitmap );
+}
+
+static void win32u_glFinish(void)
+{
+    struct wgl_context *context = NtCurrentTeb()->glContext;
+    HDC hdc = NtCurrentTeb()->glReserved1[0];
+    DWORD is_memdc;
+
+    ERR( "\n" );
+
+    p_glFinish();
+
+    if (context && NtGdiGetDCDword( hdc, NtGdiIsMemDC, &is_memdc ) && is_memdc)
+        read_pixels_to_memory_dc( hdc );
+}
+
+static void win32u_glFlush(void)
+{
+    struct wgl_context *context = NtCurrentTeb()->glContext;
+    HDC hdc = NtCurrentTeb()->glReserved1[0];
+    DWORD is_memdc;
+
+    ERR( "\n" );
+
+    p_glFlush();
+
+    if (context && NtGdiGetDCDword( hdc, NtGdiIsMemDC, &is_memdc ) && is_memdc)
+        read_pixels_to_memory_dc( hdc );
+}
+
 static void win32u_glBindFramebuffer( GLenum target, GLuint framebuffer )
 {
     struct wgl_context *context = NtCurrentTeb()->glContext;
@@ -445,6 +505,8 @@ static void egl_init(void)
 #define OVERIDE_FUNC( ns, name )                                                                   \
     p_##name = egl_funcs.ns.p_##name;                                                              \
     egl_funcs.ns.p_##name = win32u_##name;
+    OVERIDE_FUNC( gl, glFinish );
+    OVERIDE_FUNC( gl, glFlush );
     OVERIDE_FUNC( ext, glBindFramebuffer );
 #undef OVERIDE_FUNC
 
