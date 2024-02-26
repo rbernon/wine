@@ -51,6 +51,9 @@ static struct opengl_funcs *memory_funcs;
 struct wgl_context
 {
     EGLContext *host_context;
+
+    GLuint framebuffer;
+    GLuint colorbuffer;
 };
 
 struct extension_buffer
@@ -82,6 +85,10 @@ DECL_FUNCPTR( eglQueryString );
 DECL_FUNCPTR( eglQueryDevicesEXT );
 DECL_FUNCPTR( eglQueryDeviceStringEXT );
 #endif /* HAVE_EGL_EGL_H */
+#undef DECL_FUNCPTR
+
+#define DECL_FUNCPTR( ns, f ) static typeof(egl_funcs.ns.p_##f) p_##f
+DECL_FUNCPTR( ext, glBindFramebuffer );
 #undef DECL_FUNCPTR
 
 static BOOL init_extensions( struct extension_buffer *extensions, const char *str )
@@ -286,12 +293,42 @@ static BOOL win32u_wglCopyContext( struct wgl_context *src, struct wgl_context *
 
 static BOOL win32u_wglMakeCurrent( HDC hdc, struct wgl_context *context )
 {
+    HBITMAP handle;
+    DWORD is_memdc;
+    BITMAP bm;
+
     FIXME( "hdc %p, context %p\n, stub!", hdc, context );
+
     if (!p_eglBindAPI( EGL_OPENGL_API )) return FALSE;
 
     NtCurrentTeb()->glContext = context;
     if (!context) return p_eglMakeCurrent( display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT );
     if (!p_eglMakeCurrent( display, EGL_NO_SURFACE, EGL_NO_SURFACE, context->host_context )) return FALSE;
+
+    if (NtGdiGetDCDword( hdc, NtGdiIsMemDC, &is_memdc ) && is_memdc && !context->framebuffer)
+    {
+        if ((handle = NtGdiGetDCObject( hdc, NTGDI_OBJ_SURF )))
+            NtGdiExtGetObjectW( handle, sizeof(BITMAP), &bm );
+
+        egl_funcs.gl.p_glGenTextures( 1, &context->colorbuffer );
+        assert( !egl_funcs.gl.p_glGetError() );
+        egl_funcs.gl.p_glBindTexture( GL_TEXTURE_2D, context->colorbuffer );
+        assert( !egl_funcs.gl.p_glGetError() );
+        egl_funcs.gl.p_glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, bm.bmWidth, bm.bmHeight,
+                                     0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
+        assert( !egl_funcs.gl.p_glGetError() );
+
+        egl_funcs.ext.p_glGenFramebuffers( 1, &context->framebuffer );
+        assert( !egl_funcs.gl.p_glGetError() );
+        egl_funcs.ext.p_glBindFramebuffer( GL_FRAMEBUFFER, context->framebuffer );
+        assert( !egl_funcs.gl.p_glGetError() );
+        egl_funcs.ext.p_glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                                                context->colorbuffer, 0 );
+        assert( !egl_funcs.gl.p_glGetError() );
+
+        egl_funcs.gl.p_glViewport( 0, 0, bm.bmWidth, bm.bmHeight );
+        assert( !egl_funcs.gl.p_glGetError() );
+    }
 
     return TRUE;
 }
@@ -306,6 +343,13 @@ static BOOL win32u_wglSwapBuffers( HDC hdc )
 {
     FIXME( "hdc %p\n", hdc );
     return FALSE;
+}
+
+static void win32u_glBindFramebuffer( GLenum target, GLuint framebuffer )
+{
+    struct wgl_context *context = NtCurrentTeb()->glContext;
+    if (context && !framebuffer) framebuffer = context->framebuffer;
+    p_glBindFramebuffer( target, framebuffer );
 }
 
 static void egl_init(void)
@@ -386,6 +430,23 @@ static void egl_init(void)
     }
     ALL_WGL_FUNCS
 #undef USE_GL_FUNC
+
+#define USE_EXT_FUNC( name )                                                                       \
+    if (!(egl_funcs.ext.p_##name = (void *)p_eglGetProcAddress( #name )))                          \
+    {                                                                                              \
+        ERR( "can't find GL proc %s\n", #name );                                                   \
+        goto failed;                                                                               \
+    }
+    USE_EXT_FUNC( glGenFramebuffers )
+    USE_EXT_FUNC( glBindFramebuffer )
+    USE_EXT_FUNC( glFramebufferTexture2D )
+#undef USE_EXT_FUNC
+
+#define OVERIDE_FUNC( ns, name )                                                                   \
+    p_##name = egl_funcs.ns.p_##name;                                                              \
+    egl_funcs.ns.p_##name = win32u_##name;
+    OVERIDE_FUNC( ext, glBindFramebuffer );
+#undef OVERIDE_FUNC
 
     if (!p_eglQueryDevicesEXT( 0, NULL, &count ) || !count) goto failed;
     if (!(devices = malloc( count * sizeof(*devices) ))) goto failed;
