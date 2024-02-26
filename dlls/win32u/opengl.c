@@ -163,9 +163,9 @@ failed:
 
 static void opengl_init(void)
 {
-    display_funcs = user_driver->pwine_get_wgl_driver( WINE_WGL_DRIVER_VERSION );
+    if (0) display_funcs = user_driver->pwine_get_wgl_driver( WINE_WGL_DRIVER_VERSION );
     if (display_funcs == (void *)-1) display_funcs = NULL;
-    memory_funcs = dibdrv_get_wgl_driver();
+    if (0) memory_funcs = dibdrv_get_wgl_driver();
     if (memory_funcs == (void *)-1) memory_funcs = NULL;
 
     if (!display_funcs || !memory_funcs) egl_init();
