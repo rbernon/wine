@@ -65,6 +65,7 @@ struct extension_buffer
 static void *egl_handle;
 static EGLDisplay display;
 static struct opengl_funcs egl_funcs;
+static struct extension_buffer egl_extensions;
 
 static EGLConfig *configs;
 static UINT pixel_format_count;
@@ -82,6 +83,7 @@ DECL_FUNCPTR( eglBindAPI );
 DECL_FUNCPTR( eglInitialize );
 DECL_FUNCPTR( eglMakeCurrent );
 DECL_FUNCPTR( eglQueryString );
+DECL_FUNCPTR( eglSwapBuffers );
 DECL_FUNCPTR( eglQueryDevicesEXT );
 DECL_FUNCPTR( eglQueryDeviceStringEXT );
 #endif /* HAVE_EGL_EGL_H */
@@ -90,6 +92,7 @@ DECL_FUNCPTR( eglQueryDeviceStringEXT );
 #define DECL_FUNCPTR( ns, f ) static typeof(egl_funcs.ns.p_##f) p_##f
 DECL_FUNCPTR( gl, glFinish );
 DECL_FUNCPTR( gl, glFlush );
+DECL_FUNCPTR( gl, glGetString );
 DECL_FUNCPTR( ext, glBindFramebuffer );
 #undef DECL_FUNCPTR
 
@@ -224,6 +227,18 @@ static void init_pixel_formats( EGLConfig *configs, UINT config_count )
     pixel_format_count = desc - pixel_formats;
 }
 
+static const char *win32u_wglGetExtensionsStringEXT(void)
+{
+    TRACE( "returning \"%s\"\n", egl_extensions.buffer + 1 );
+    return egl_extensions.buffer + 1;
+}
+
+static const char *win32u_wglGetExtensionsStringARB( HDC hdc )
+{
+    TRACE( "hdc %p\n", hdc );
+    return win32u_wglGetExtensionsStringEXT();
+}
+
 static int win32u_wglDescribePixelFormat( HDC hdc, int index, UINT size, PIXELFORMATDESCRIPTOR *desc )
 {
     FIXME( "hdc %p, index %d, size %#x, desc %p\n", hdc, index, size, desc );
@@ -250,6 +265,8 @@ static PROC win32u_wglGetProcAddress( const char *proc )
 {
     TRACE( "%s\n", debugstr_a( proc ) );
     if (!strcmp( proc, "wglGetProcAddress" )) return (PROC)win32u_wglGetProcAddress;
+    if (!strcmp( proc, "wglGetExtensionsStringEXT" )) return (PROC)win32u_wglGetExtensionsStringEXT;
+    if (!strcmp( proc, "wglGetExtensionsStringARB" )) return (PROC)win32u_wglGetExtensionsStringARB;
     return (PROC)p_eglGetProcAddress( proc );
 }
 
@@ -344,7 +361,7 @@ static BOOL win32u_wglShareLists( struct wgl_context *dst, struct wgl_context *s
 static BOOL win32u_wglSwapBuffers( HDC hdc )
 {
     FIXME( "hdc %p\n", hdc );
-    return FALSE;
+    return p_eglSwapBuffers( display, EGL_NO_SURFACE );
 }
 
 static void read_pixels_to_memory_dc( HDC hdc )
@@ -405,6 +422,12 @@ static void win32u_glFlush(void)
         read_pixels_to_memory_dc( hdc );
 }
 
+static const GLubyte *win32u_glGetString( GLenum name )
+{
+    TRACE( "name %#x\n", name );
+    return p_glGetString( name );
+}
+
 static void win32u_glBindFramebuffer( GLenum target, GLuint framebuffer )
 {
     struct wgl_context *context = NtCurrentTeb()->glContext;
@@ -446,6 +469,7 @@ static void egl_init(void)
     LOAD_FUNCPTR( eglBindAPI )
     LOAD_FUNCPTR( eglMakeCurrent )
     LOAD_FUNCPTR( eglQueryString )
+    LOAD_FUNCPTR( eglSwapBuffers )
 #undef LOAD_FUNCPTR
 
     if (!init_extensions( &extensions, p_eglQueryString( EGL_NO_DISPLAY, EGL_EXTENSIONS )))
@@ -507,6 +531,7 @@ static void egl_init(void)
     egl_funcs.ns.p_##name = win32u_##name;
     OVERIDE_FUNC( gl, glFinish );
     OVERIDE_FUNC( gl, glFlush );
+    OVERIDE_FUNC( gl, glGetString );
     OVERIDE_FUNC( ext, glBindFramebuffer );
 #undef OVERIDE_FUNC
 
