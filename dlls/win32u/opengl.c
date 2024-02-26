@@ -68,6 +68,7 @@ DECL_FUNCPTR( eglGetConfigAttrib );
 DECL_FUNCPTR( eglGetPlatformDisplay );
 DECL_FUNCPTR( eglGetConfigs );
 DECL_FUNCPTR( eglGetProcAddress );
+DECL_FUNCPTR( eglBindAPI );
 DECL_FUNCPTR( eglInitialize );
 DECL_FUNCPTR( eglQueryString );
 DECL_FUNCPTR( eglQueryDevicesEXT );
@@ -230,7 +231,7 @@ static BOOL win32u_wglSetPixelFormat( HDC hdc, int index, const PIXELFORMATDESCR
 
 static PROC win32u_wglGetProcAddress( const char *proc )
 {
-    TRACE( "name %s\n", debugstr_a(proc) );
+    TRACE( "%s\n", debugstr_a( proc ) );
     if (!strcmp( proc, "wglGetProcAddress" )) return (PROC)win32u_wglGetProcAddress;
     return (PROC)p_eglGetProcAddress( proc );
 }
@@ -238,6 +239,7 @@ static PROC win32u_wglGetProcAddress( const char *proc )
 static struct wgl_context *win32u_wglCreateContext( HDC hdc )
 {
     FIXME( "hdc %p\n", hdc );
+    if (!p_eglBindAPI( EGL_OPENGL_API )) return NULL;
     return NULL;
 }
 
@@ -250,12 +252,14 @@ static BOOL win32u_wglDeleteContext( struct wgl_context *context )
 static BOOL win32u_wglCopyContext( struct wgl_context *src, struct wgl_context *dst, UINT mask )
 {
     FIXME( "src %p, dst %p, mask %#x, stub!\n", src, dst, mask );
+    if (!p_eglBindAPI( EGL_OPENGL_API )) return FALSE;
     return FALSE;
 }
 
 static BOOL win32u_wglMakeCurrent( HDC hdc, struct wgl_context *context )
 {
     FIXME( "hdc %p, context %p\n, stub!", hdc, context );
+    if (!p_eglBindAPI( EGL_OPENGL_API )) return FALSE;
     return FALSE;
 }
 
@@ -300,6 +304,7 @@ static void egl_init(void)
     LOAD_FUNCPTR( eglGetConfigs )
     LOAD_FUNCPTR( eglGetProcAddress )
     LOAD_FUNCPTR( eglInitialize )
+    LOAD_FUNCPTR( eglBindAPI )
     LOAD_FUNCPTR( eglQueryString )
 #undef LOAD_FUNCPTR
 
