@@ -82,6 +82,7 @@ DECL_FUNCPTR( eglDestroyContext );
 DECL_FUNCPTR( eglGetConfigAttrib );
 DECL_FUNCPTR( eglGetPlatformDisplay );
 DECL_FUNCPTR( eglGetConfigs );
+DECL_FUNCPTR( eglGetDisplay );
 DECL_FUNCPTR( eglGetProcAddress );
 DECL_FUNCPTR( eglBindAPI );
 DECL_FUNCPTR( eglInitialize );
@@ -492,6 +493,7 @@ static void egl_init(void)
     LOAD_FUNCPTR( eglGetPlatformDisplay )
     LOAD_FUNCPTR( eglGetConfigs )
     LOAD_FUNCPTR( eglGetProcAddress )
+    LOAD_FUNCPTR( eglGetDisplay )
     LOAD_FUNCPTR( eglInitialize )
     LOAD_FUNCPTR( eglBindAPI )
     LOAD_FUNCPTR( eglMakeCurrent )
@@ -603,7 +605,27 @@ static void egl_init(void)
     if (i == count) goto failed;
     free( devices );
 
-    display_egl = memory_egl;
+    if ((display_egl.display = p_eglGetDisplay( EGL_DEFAULT_DISPLAY )))
+    {
+        EGLConfig *configs;
+        GLint major, minor;
+
+        if (!p_eglInitialize( display_egl.display, &major, &minor )) goto failed;
+        if (!init_extensions( &extensions, p_eglQueryString( display_egl.display, EGL_EXTENSIONS )))
+        {
+            ERR( "can't list display extensions\n" );
+            goto failed;
+        }
+
+        ERR( "display extensions %s\n", extensions.buffer + 1 );
+
+        if (!p_eglGetConfigs( display_egl.display, NULL, 0, &count )) goto failed;
+        if (!(configs = malloc( count * sizeof(*configs) ))) goto failed;
+        if (!(p_eglGetConfigs( display_egl.display, configs, count, &count ))) goto failed;
+
+        display_egl.configs = configs;
+        init_pixel_formats( &display_egl, configs, count );
+    }
 
     /* check extensions:
     EGL_KHR_create_context?
