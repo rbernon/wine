@@ -51,6 +51,7 @@ static struct opengl_funcs *memory_funcs;
 struct wgl_context
 {
     EGLContext *host_context;
+    EGLDisplay *display;
 
     GLuint framebuffer;
     GLuint colorbuffer;
@@ -63,13 +64,16 @@ struct extension_buffer
 };
 
 static void *egl_handle;
-static EGLDisplay display;
 static struct opengl_funcs egl_funcs;
 static struct extension_buffer egl_extensions;
 
-static EGLConfig *configs;
-static UINT pixel_format_count;
-static PIXELFORMATDESCRIPTOR *pixel_formats;
+struct egl_context
+{
+    EGLDisplay display;
+    EGLConfig *configs;
+    UINT pixel_format_count;
+    PIXELFORMATDESCRIPTOR *pixel_formats;
+} display_egl, memory_egl;
 
 #define DECL_FUNCPTR(f) static typeof(f) *p_##f
 #ifdef HAVE_EGL_EGL_H
@@ -112,7 +116,7 @@ static BOOL has_extension( struct extension_buffer *extensions, const char *name
     return TRUE;
 }
 
-static void init_pixel_formats( EGLConfig *configs, UINT config_count )
+static void init_pixel_formats( struct egl_context *egl, EGLConfig *configs, UINT config_count )
 {
     static const struct
     {
@@ -144,8 +148,8 @@ static void init_pixel_formats( EGLConfig *configs, UINT config_count )
     EGLint value;
 
     count = config_count + ARRAY_SIZE(generic_pixel_formats);
-    if (!(pixel_formats = calloc( count, sizeof(*pixel_formats) ))) return;
-    desc = pixel_formats;
+    if (!(egl->pixel_formats = calloc( count, sizeof(*egl->pixel_formats) ))) return;
+    desc = egl->pixel_formats;
 
     for (i = 0; i < config_count; i++, desc++)
     {
@@ -156,29 +160,29 @@ static void init_pixel_formats( EGLConfig *configs, UINT config_count )
         desc->iPixelType = PFD_TYPE_RGBA;
         desc->iLayerType = PFD_MAIN_PLANE;
 
-        if (p_eglGetConfigAttrib( display, configs[i], EGL_RENDERABLE_TYPE, &value ))
+        if (p_eglGetConfigAttrib( egl->display, configs[i], EGL_RENDERABLE_TYPE, &value ))
         {
             if (value & EGL_OPENGL_BIT) desc->dwFlags |= PFD_SUPPORT_OPENGL;
         }
-        if (p_eglGetConfigAttrib( display, configs[i], EGL_SURFACE_TYPE, &value ))
+        if (p_eglGetConfigAttrib( egl->display, configs[i], EGL_SURFACE_TYPE, &value ))
         {
             if (value & EGL_PBUFFER_BIT) desc->dwFlags |= PFD_DRAW_TO_BITMAP;
             if (value & EGL_PIXMAP_BIT) desc->dwFlags |= PFD_DRAW_TO_BITMAP;
             if (value & EGL_WINDOW_BIT) desc->dwFlags |= PFD_DRAW_TO_WINDOW;
         }
-        if (p_eglGetConfigAttrib( display, configs[i], EGL_COLOR_BUFFER_TYPE, &value ))
+        if (p_eglGetConfigAttrib( egl->display, configs[i], EGL_COLOR_BUFFER_TYPE, &value ))
         {
             if (value == EGL_RGB_BUFFER) desc->iPixelType = PFD_TYPE_RGBA;
             else desc->iPixelType = PFD_TYPE_COLORINDEX;
         }
 
-        if (p_eglGetConfigAttrib( display, configs[i], EGL_BUFFER_SIZE, &value )) desc->cColorBits = value;
-        if (p_eglGetConfigAttrib( display, configs[i], EGL_RED_SIZE, &value )) desc->cRedBits = value;
-        if (p_eglGetConfigAttrib( display, configs[i], EGL_GREEN_SIZE, &value )) desc->cGreenBits = value;
-        if (p_eglGetConfigAttrib( display, configs[i], EGL_BLUE_SIZE, &value )) desc->cBlueBits = value;
-        if (p_eglGetConfigAttrib( display, configs[i], EGL_ALPHA_SIZE, &value )) desc->cAlphaBits = value;
-        if (p_eglGetConfigAttrib( display, configs[i], EGL_DEPTH_SIZE, &value )) desc->cDepthBits = value;
-        if (p_eglGetConfigAttrib( display, configs[i], EGL_STENCIL_SIZE, &value )) desc->cStencilBits = value;
+        if (p_eglGetConfigAttrib( egl->display, configs[i], EGL_BUFFER_SIZE, &value )) desc->cColorBits = value;
+        if (p_eglGetConfigAttrib( egl->display, configs[i], EGL_RED_SIZE, &value )) desc->cRedBits = value;
+        if (p_eglGetConfigAttrib( egl->display, configs[i], EGL_GREEN_SIZE, &value )) desc->cGreenBits = value;
+        if (p_eglGetConfigAttrib( egl->display, configs[i], EGL_BLUE_SIZE, &value )) desc->cBlueBits = value;
+        if (p_eglGetConfigAttrib( egl->display, configs[i], EGL_ALPHA_SIZE, &value )) desc->cAlphaBits = value;
+        if (p_eglGetConfigAttrib( egl->display, configs[i], EGL_DEPTH_SIZE, &value )) desc->cDepthBits = value;
+        if (p_eglGetConfigAttrib( egl->display, configs[i], EGL_STENCIL_SIZE, &value )) desc->cStencilBits = value;
 
         desc->cAlphaShift = 0;
         desc->cBlueShift = desc->cAlphaShift + desc->cAlphaBits;
@@ -224,7 +228,17 @@ static void init_pixel_formats( EGLConfig *configs, UINT config_count )
                desc->cAlphaBits, desc->cDepthBits, desc->cStencilBits );
     }
 
-    pixel_format_count = desc - pixel_formats;
+    egl->pixel_format_count = desc - egl->pixel_formats;
+}
+
+static struct egl_context *egl_context_from_hdc( HDC hdc )
+{
+    DWORD is_memdc;
+
+    if (!NtGdiGetDCDword( hdc, NtGdiIsMemDC, &is_memdc ) || !is_memdc)
+        return &display_egl;
+
+    return &memory_egl;
 }
 
 static const char *win32u_wglGetExtensionsStringEXT(void)
@@ -241,9 +255,13 @@ static const char *win32u_wglGetExtensionsStringARB( HDC hdc )
 
 static int win32u_wglDescribePixelFormat( HDC hdc, int index, UINT size, PIXELFORMATDESCRIPTOR *desc )
 {
+    struct egl_context *egl = egl_context_from_hdc( hdc );
+
     FIXME( "hdc %p, index %d, size %#x, desc %p\n", hdc, index, size, desc );
-    if (desc && size >= sizeof(*desc) && index <= pixel_format_count) *desc = pixel_formats[index - 1];
-    return pixel_format_count;
+
+    if (desc && size >= sizeof(*desc) && index <= egl->pixel_format_count)
+        *desc = egl->pixel_formats[index - 1];
+    return egl->pixel_format_count;
 }
 
 static int win32u_wglGetPixelFormat( HDC hdc )
@@ -256,8 +274,11 @@ static int win32u_wglGetPixelFormat( HDC hdc )
 
 static BOOL win32u_wglSetPixelFormat( HDC hdc, int index, const PIXELFORMATDESCRIPTOR *desc )
 {
+    struct egl_context *egl = egl_context_from_hdc( hdc );
+
     FIXME( "hdc %p, index %d, desc %p\n", hdc, index, desc );
-    if (index <= 0 || index > pixel_format_count) return FALSE;
+
+    if (index <= 0 || index > egl->pixel_format_count) return FALSE;
     return NtGdiSetPixelFormat( hdc, index );
 }
 
@@ -272,6 +293,7 @@ static PROC win32u_wglGetProcAddress( const char *proc )
 
 static struct wgl_context *win32u_wglCreateContext( HDC hdc )
 {
+    struct egl_context *egl = egl_context_from_hdc( hdc );
     struct wgl_context *context;
 
     FIXME( "hdc %p\n", hdc );
@@ -285,11 +307,12 @@ static struct wgl_context *win32u_wglCreateContext( HDC hdc )
     }
 
     if (!(context = calloc( 1, sizeof(*context) ))) return NULL;
-    if (!(context->host_context = p_eglCreateContext( display, EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT, NULL )))
+    if (!(context->host_context = p_eglCreateContext( egl->display, EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT, NULL )))
     {
         free( context );
         return NULL;
     }
+    context->display = egl->display;
 
     TRACE( "created context %p, host context %p\n", context, context->host_context );
     return context;
@@ -298,7 +321,7 @@ static struct wgl_context *win32u_wglCreateContext( HDC hdc )
 static BOOL win32u_wglDeleteContext( struct wgl_context *context )
 {
     FIXME( "context %p\n", context );
-    p_eglDestroyContext( display, context->host_context );
+    p_eglDestroyContext( context->display, context->host_context );
     free( context );
     return TRUE;
 }
@@ -312,8 +335,8 @@ static BOOL win32u_wglCopyContext( struct wgl_context *src, struct wgl_context *
 
 static BOOL win32u_wglMakeCurrent( HDC hdc, struct wgl_context *context )
 {
+    struct egl_context *egl = egl_context_from_hdc( hdc );
     HBITMAP handle;
-    DWORD is_memdc;
     BITMAP bm;
 
     FIXME( "hdc %p, context %p\n, stub!", hdc, context );
@@ -321,10 +344,10 @@ static BOOL win32u_wglMakeCurrent( HDC hdc, struct wgl_context *context )
     if (!p_eglBindAPI( EGL_OPENGL_API )) return FALSE;
 
     NtCurrentTeb()->glContext = context;
-    if (!context) return p_eglMakeCurrent( display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT );
-    if (!p_eglMakeCurrent( display, EGL_NO_SURFACE, EGL_NO_SURFACE, context->host_context )) return FALSE;
+    if (!context) return p_eglMakeCurrent( egl->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT );
+    if (!p_eglMakeCurrent( egl->display, EGL_NO_SURFACE, EGL_NO_SURFACE, context->host_context )) return FALSE;
 
-    if (NtGdiGetDCDword( hdc, NtGdiIsMemDC, &is_memdc ) && is_memdc && !context->framebuffer)
+    if (egl == &memory_egl && !context->framebuffer)
     {
         if ((handle = NtGdiGetDCObject( hdc, NTGDI_OBJ_SURF )))
             NtGdiExtGetObjectW( handle, sizeof(BITMAP), &bm );
@@ -360,8 +383,12 @@ static BOOL win32u_wglShareLists( struct wgl_context *dst, struct wgl_context *s
 
 static BOOL win32u_wglSwapBuffers( HDC hdc )
 {
+    struct wgl_context *context = NtCurrentTeb()->glContext;
+
     FIXME( "hdc %p\n", hdc );
-    return p_eglSwapBuffers( display, EGL_NO_SURFACE );
+
+    if (!context || context->framebuffer) return TRUE;
+    return p_eglSwapBuffers( context->display, EGL_NO_SURFACE );
 }
 
 static void read_pixels_to_memory_dc( HDC hdc )
@@ -542,7 +569,9 @@ static void egl_init(void)
     ERR( "found %u EGL devices\n", count );
     for (i = 0; i < count; ++i)
     {
+        EGLDisplay display;
         GLint major, minor;
+        EGLConfig *configs;
 
         if (!init_extensions( &extensions, p_eglQueryDeviceStringEXT( devices[i], EGL_EXTENSIONS ))) continue;
         ERR( "device %u extensions %s\n", i, extensions.buffer + 1 );
@@ -559,6 +588,14 @@ static void egl_init(void)
         ERR( "display extensions %s\n", extensions.buffer + 1 );
         CHECK_EXTENSION( "display", "EGL_KHR_no_config_context" );
         CHECK_EXTENSION( "display", "EGL_KHR_surfaceless_context" );
+
+        if (!p_eglGetConfigs( display, NULL, 0, &count )) goto failed;
+        if (!(configs = malloc( count * sizeof(*configs) ))) goto failed;
+        if (!(p_eglGetConfigs( display, configs, count, &count ))) goto failed;
+
+        memory_egl.display = display;
+        memory_egl.configs = configs;
+        init_pixel_formats( &memory_egl, configs, count );
         break;
     }
 #undef CHECK_EXTENSION
@@ -566,10 +603,7 @@ static void egl_init(void)
     if (i == count) goto failed;
     free( devices );
 
-    if (!p_eglGetConfigs( display, NULL, 0, &count )) goto failed;
-    if (!(configs = malloc( count * sizeof(*configs) ))) goto failed;
-    if (!(p_eglGetConfigs( display, configs, count, &count ))) goto failed;
-    init_pixel_formats( configs, count );
+    display_egl = memory_egl;
 
     /* check extensions:
     EGL_KHR_create_context?
@@ -586,11 +620,43 @@ static void egl_init(void)
     egl_funcs.wgl.p_wglSetPixelFormat = win32u_wglSetPixelFormat;
     egl_funcs.wgl.p_wglShareLists = win32u_wglShareLists;
     egl_funcs.wgl.p_wglSwapBuffers = win32u_wglSwapBuffers;
+
+/*
+    p_wglQueryCurrentRendererIntegerWINE
+    p_wglQueryCurrentRendererStringWINE
+    p_wglQueryRendererIntegerWINE
+    p_wglQueryRendererStringWINE
+
+    p_wglChoosePixelFormatARB
+    p_wglGetPixelFormatAttribfvARB
+    p_wglGetPixelFormatAttribivARB
+    p_wglSetPixelFormatWINE
+
+    p_wglCreatePbufferARB
+    p_wglDestroyPbufferARB
+    p_wglGetPbufferDCARB
+    p_wglQueryPbufferARB
+    p_wglReleasePbufferDCARB
+    p_wglSetPbufferAttribARB
+
+    p_wglAllocateMemoryNV
+    p_wglFreeMemoryNV
+
+    p_wglBindTexImageARB
+    p_wglCreateContextAttribsARB
+    p_wglGetCurrentReadDCARB
+    p_wglGetExtensionsStringARB
+    p_wglGetExtensionsStringEXT
+    p_wglGetSwapIntervalEXT
+    p_wglMakeContextCurrentARB
+    p_wglReleaseTexImageARB
+    p_wglSwapIntervalEXT
+*/
     return;
 
 failed:
-    free( pixel_formats );
-    free( configs );
+    free( display_egl.pixel_formats );
+    free( memory_egl.pixel_formats );
     free( devices );
     dlclose( egl_handle );
     egl_handle = NULL;
