@@ -69,7 +69,7 @@ struct wgl_context
 
 struct extension_buffer
 {
-    char buffer[4096];
+    char buffer[4096*2];
     unsigned int length;
 };
 
@@ -117,8 +117,21 @@ DECL_FUNCPTR( ext, glBindFramebuffer );
 static BOOL init_extensions( struct extension_buffer *extensions, const char *str )
 {
     if (!str) return FALSE;
+    ERR("len %zu\n", strlen(str));
     extensions->length = sprintf( extensions->buffer, " %s", str );
     return TRUE;
+}
+
+static void dump_extensions( struct extension_buffer *extensions )
+{
+    ERR("extensions:\n");
+    for (UINT i = 1, next; i < extensions->length; i = next + 1)
+    {
+        const char *tmp = strchr( extensions->buffer + i, ' ' );
+        if (!tmp) next = extensions->length;
+        else next = tmp - extensions->buffer;
+        ERR( "  %s\n", debugstr_an(extensions->buffer + i, next - i + 1));
+    }
 }
 
 static BOOL has_extension( struct extension_buffer *extensions, const char *name )
@@ -353,13 +366,21 @@ static BOOL win32u_wglMakeCurrent( HDC hdc, struct wgl_context *context )
     HBITMAP handle;
     BITMAP bm;
 
-    FIXME( "hdc %p, context %p\n, stub!", hdc, context );
+    FIXME( "hdc %p, context %p, stub!\n", hdc, context );
 
     if (!p_eglBindAPI( EGL_OPENGL_API )) return FALSE;
 
     NtCurrentTeb()->glContext = context;
     if (!context) return p_eglMakeCurrent( egl->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT );
     if (!p_eglMakeCurrent( egl->display, EGL_NO_SURFACE, EGL_NO_SURFACE, context->host_context )) return FALSE;
+
+{
+    struct extension_buffer extensions = {0};
+    ERR("%p\n", p_glGetString( GL_EXTENSIONS ));
+    ERR("%s\n", debugstr_a((const char *)p_glGetString( GL_EXTENSIONS )));
+    init_extensions( &extensions, (const char *)p_glGetString( GL_EXTENSIONS ) );
+    dump_extensions( &extensions );
+}
 
     if (egl == &memory_egl && !context->framebuffer)
     {
