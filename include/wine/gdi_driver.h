@@ -320,6 +320,7 @@ struct gdi_device_manager
 #define WINE_DM_UNSUPPORTED 0x80000000
 
 struct vulkan_driver_funcs;
+struct opengl_driver_funcs;
 
 struct user_driver_funcs
 {
@@ -393,6 +394,7 @@ struct user_driver_funcs
     BOOL    (*pSystemParametersInfo)(UINT,UINT,void*,UINT);
     /* vulkan support */
     UINT    (*pVulkanInit)(UINT,void *,const struct vulkan_driver_funcs **);
+    void *  (*pOpenGLInit)(UINT,struct opengl_driver_funcs *);
     /* opengl support */
     struct opengl_funcs * (*pwine_get_wgl_driver)(UINT);
     /* thread management */
