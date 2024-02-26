@@ -139,6 +139,7 @@ enum
     NtGdiGetPolyFillMode,
     NtGdiGetROP2,
     NtGdiGetTextColor,
+    NtGdiGetPixelFormat,
     NtGdiIsMemDC,
     NtGdiIsDisplay,
 };

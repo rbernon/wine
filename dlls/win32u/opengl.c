@@ -48,31 +48,184 @@ WINE_DEFAULT_DEBUG_CHANNEL(wgl);
 static struct opengl_funcs *display_funcs;
 static struct opengl_funcs *memory_funcs;
 
+struct extension_buffer
+{
+    char buffer[4096];
+    unsigned int length;
+};
+
 static void *egl_handle;
+static EGLDisplay display;
 static struct opengl_funcs egl_funcs;
+
+static EGLConfig *configs;
+static UINT pixel_format_count;
+static PIXELFORMATDESCRIPTOR *pixel_formats;
 
 #define DECL_FUNCPTR(f) static typeof(f) *p_##f
 #ifdef HAVE_EGL_EGL_H
+DECL_FUNCPTR( eglGetConfigAttrib );
+DECL_FUNCPTR( eglGetPlatformDisplay );
+DECL_FUNCPTR( eglGetConfigs );
 DECL_FUNCPTR( eglGetProcAddress );
+DECL_FUNCPTR( eglInitialize );
+DECL_FUNCPTR( eglQueryString );
+DECL_FUNCPTR( eglQueryDevicesEXT );
+DECL_FUNCPTR( eglQueryDeviceStringEXT );
 #endif /* HAVE_EGL_EGL_H */
 #undef DECL_FUNCPTR
 
+static BOOL init_extensions( struct extension_buffer *extensions, const char *str )
+{
+    if (!str) return FALSE;
+    extensions->length = sprintf( extensions->buffer, " %s", str );
+    return TRUE;
+}
+
+static BOOL has_extension( struct extension_buffer *extensions, const char *name )
+{
+    char lookup[256], *tmp;
+    unsigned int len = sprintf( lookup, " %s", name );
+    if (!(tmp = strstr( extensions->buffer, lookup ))) return FALSE;
+    if (tmp[len] && tmp[len] != ' ') return FALSE;
+    return TRUE;
+}
+
+static void init_pixel_formats( EGLConfig *configs, UINT config_count )
+{
+    static const struct
+    {
+        BYTE color_bits;
+        BYTE red_bits, red_shift;
+        BYTE green_bits, green_shift;
+        BYTE blue_bits, blue_shift;
+        BYTE alpha_bits, alpha_shift;
+        BYTE accum_bits;
+        BYTE depth_bits;
+        BYTE stencil_bits;
+    } generic_pixel_formats[] =
+    {
+        { 32,  8, 16, 8, 8,  8, 0,  8, 24,  16, 32, 8 },
+        { 32,  8, 16, 8, 8,  8, 0,  8, 24,  16, 16, 8 },
+        { 32,  8, 0,  8, 8,  8, 16, 8, 24,  16, 32, 8 },
+        { 32,  8, 0,  8, 8,  8, 16, 8, 24,  16, 16, 8 },
+        { 32,  8, 8,  8, 16, 8, 24, 8, 0,   16, 32, 8 },
+        { 32,  8, 8,  8, 16, 8, 24, 8, 0,   16, 16, 8 },
+        { 24,  8, 0,  8, 8,  8, 16, 0, 0,   16, 32, 8 },
+        { 24,  8, 0,  8, 8,  8, 16, 0, 0,   16, 16, 8 },
+        { 24,  8, 16, 8, 8,  8, 0,  0, 0,   16, 32, 8 },
+        { 24,  8, 16, 8, 8,  8, 0,  0, 0,   16, 16, 8 },
+        { 16,  5, 0,  6, 5,  5, 11, 0, 0,   16, 32, 8 },
+        { 16,  5, 0,  6, 5,  5, 11, 0, 0,   16, 16, 8 },
+    };
+    PIXELFORMATDESCRIPTOR *desc;
+    UINT i, count;
+    EGLint value;
+
+    count = config_count + ARRAY_SIZE(generic_pixel_formats);
+    if (!(pixel_formats = calloc( count, sizeof(*pixel_formats) ))) return;
+    desc = pixel_formats;
+
+    for (i = 0; i < config_count; i++, desc++)
+    {
+        desc->nSize = sizeof(*desc);
+        desc->nVersion = 1;
+
+        desc->dwFlags = PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER | PFD_SUPPORT_COMPOSITION;
+        desc->iPixelType = PFD_TYPE_RGBA;
+        desc->iLayerType = PFD_MAIN_PLANE;
+
+        if (p_eglGetConfigAttrib( display, configs[i], EGL_RENDERABLE_TYPE, &value ))
+        {
+            if (value & EGL_OPENGL_BIT) desc->dwFlags |= PFD_SUPPORT_OPENGL;
+        }
+        if (p_eglGetConfigAttrib( display, configs[i], EGL_SURFACE_TYPE, &value ))
+        {
+            if (value & EGL_PBUFFER_BIT) desc->dwFlags |= PFD_DRAW_TO_BITMAP;
+            if (value & EGL_PIXMAP_BIT) desc->dwFlags |= PFD_DRAW_TO_BITMAP;
+            if (value & EGL_WINDOW_BIT) desc->dwFlags |= PFD_DRAW_TO_WINDOW;
+        }
+        if (p_eglGetConfigAttrib( display, configs[i], EGL_COLOR_BUFFER_TYPE, &value ))
+        {
+            if (value == EGL_RGB_BUFFER) desc->iPixelType = PFD_TYPE_RGBA;
+            else desc->iPixelType = PFD_TYPE_COLORINDEX;
+        }
+
+        if (p_eglGetConfigAttrib( display, configs[i], EGL_BUFFER_SIZE, &value )) desc->cColorBits = value;
+        if (p_eglGetConfigAttrib( display, configs[i], EGL_RED_SIZE, &value )) desc->cRedBits = value;
+        if (p_eglGetConfigAttrib( display, configs[i], EGL_GREEN_SIZE, &value )) desc->cGreenBits = value;
+        if (p_eglGetConfigAttrib( display, configs[i], EGL_BLUE_SIZE, &value )) desc->cBlueBits = value;
+        if (p_eglGetConfigAttrib( display, configs[i], EGL_ALPHA_SIZE, &value )) desc->cAlphaBits = value;
+        if (p_eglGetConfigAttrib( display, configs[i], EGL_DEPTH_SIZE, &value )) desc->cDepthBits = value;
+        if (p_eglGetConfigAttrib( display, configs[i], EGL_STENCIL_SIZE, &value )) desc->cStencilBits = value;
+
+        desc->cAlphaShift = 0;
+        desc->cBlueShift = desc->cAlphaShift + desc->cAlphaBits;
+        desc->cGreenShift = desc->cBlueShift + desc->cBlueBits;
+        desc->cRedShift = desc->cGreenShift + desc->cGreenBits;
+
+        /* FIXME: set accum buffer bits? */
+
+        if (!display_funcs) desc->dwFlags |= PFD_DRAW_TO_WINDOW;
+
+        TRACE( "config %u color %u %u/%u/%u/%u depth %u stencil %u\n",
+               i, desc->cColorBits, desc->cRedBits, desc->cGreenBits, desc->cBlueBits,
+               desc->cAlphaBits, desc->cDepthBits, desc->cStencilBits );
+    }
+
+    for (i = 0; i < ARRAY_SIZE(generic_pixel_formats); i++, desc++)
+    {
+        desc->nSize            = sizeof(*desc);
+        desc->nVersion         = 1;
+        desc->dwFlags          = PFD_SUPPORT_GDI | PFD_SUPPORT_OPENGL | PFD_DRAW_TO_BITMAP | PFD_GENERIC_FORMAT | PFD_GENERIC_ACCELERATED;
+        desc->iPixelType       = PFD_TYPE_RGBA;
+        desc->cColorBits       = generic_pixel_formats[i].color_bits;
+        desc->cRedBits         = generic_pixel_formats[i].red_bits;
+        desc->cRedShift        = generic_pixel_formats[i].red_shift;
+        desc->cGreenBits       = generic_pixel_formats[i].green_bits;
+        desc->cGreenShift      = generic_pixel_formats[i].green_shift;
+        desc->cBlueBits        = generic_pixel_formats[i].blue_bits;
+        desc->cBlueShift       = generic_pixel_formats[i].blue_shift;
+        desc->cAlphaBits       = generic_pixel_formats[i].alpha_bits;
+        desc->cAlphaShift      = generic_pixel_formats[i].alpha_shift;
+        desc->cAccumBits       = generic_pixel_formats[i].accum_bits;
+        desc->cAccumRedBits    = generic_pixel_formats[i].accum_bits / 4;
+        desc->cAccumGreenBits  = generic_pixel_formats[i].accum_bits / 4;
+        desc->cAccumBlueBits   = generic_pixel_formats[i].accum_bits / 4;
+        desc->cAccumAlphaBits  = generic_pixel_formats[i].accum_bits / 4;
+        desc->cDepthBits       = generic_pixel_formats[i].depth_bits;
+        desc->cStencilBits     = generic_pixel_formats[i].stencil_bits;
+        desc->cAuxBuffers      = 0;
+        desc->iLayerType       = PFD_MAIN_PLANE;
+
+        TRACE( "generic %u color %u %u/%u/%u/%u depth %u stencil %u\n",
+               i, desc->cColorBits, desc->cRedBits, desc->cGreenBits, desc->cBlueBits,
+               desc->cAlphaBits, desc->cDepthBits, desc->cStencilBits );
+    }
+
+    pixel_format_count = desc - pixel_formats;
+}
+
 static int win32u_wglDescribePixelFormat( HDC hdc, int index, UINT size, PIXELFORMATDESCRIPTOR *desc )
 {
-    FIXME( "hdc %p, index %d, size %u, desc %p\n", hdc, index, size, desc );
-    return 0;
+    FIXME( "hdc %p, index %d, size %#x, desc %p\n", hdc, index, size, desc );
+    if (desc && size >= sizeof(*desc) && index <= pixel_format_count) *desc = pixel_formats[index - 1];
+    return pixel_format_count;
 }
 
 static int win32u_wglGetPixelFormat( HDC hdc )
 {
-    FIXME( "hdc %p, stub!\n", hdc );
-    return 0;
+    DWORD index;
+    FIXME( "hdc %p\n", hdc );
+    if (!NtGdiGetDCDword( hdc, NtGdiGetPixelFormat, &index )) return 0;
+    return index;
 }
 
 static BOOL win32u_wglSetPixelFormat( HDC hdc, int index, const PIXELFORMATDESCRIPTOR *desc )
 {
-    FIXME( "hdc %p, index %d, desc %p, stub!\n", hdc, index, desc );
-    return FALSE;
+    FIXME( "hdc %p, index %d, desc %p\n", hdc, index, desc );
+    if (index <= 0 || index > pixel_format_count) return FALSE;
+    return NtGdiSetPixelFormat( hdc, index );
 }
 
 static PROC win32u_wglGetProcAddress( const char *proc )
@@ -121,6 +274,10 @@ static BOOL win32u_wglSwapBuffers( HDC hdc )
 static void egl_init(void)
 {
 #ifdef SONAME_LIBEGL
+    struct extension_buffer extensions;
+    EGLDeviceEXT *devices = NULL;
+    GLint i, count;
+
     /*setenv( "EGL_PLATFORM", "surfaceless", TRUE );*/
     /*setenv( "EGL_PLATFORM", "device", TRUE );*/
     /*setenv( "EGL_PLATFORM", "gbm", TRUE );*/
@@ -138,8 +295,97 @@ static void egl_init(void)
         ERR( "can't find EGL proc %s\n", #name );                                                  \
         goto failed;                                                                               \
     }
+    LOAD_FUNCPTR( eglGetConfigAttrib )
+    LOAD_FUNCPTR( eglGetPlatformDisplay )
+    LOAD_FUNCPTR( eglGetConfigs )
     LOAD_FUNCPTR( eglGetProcAddress )
+    LOAD_FUNCPTR( eglInitialize )
+    LOAD_FUNCPTR( eglQueryString )
 #undef LOAD_FUNCPTR
+
+    if (!init_extensions( &extensions, p_eglQueryString( EGL_NO_DISPLAY, EGL_EXTENSIONS )))
+    {
+        ERR( "can't list client extensions\n" );
+        goto failed;
+    }
+    ERR( "client extensions %s\n", extensions.buffer + 1 );
+
+#define CHECK_EXTENSION( category, name )                                                          \
+    if (!has_extension( &extensions, name ))                                                       \
+    {                                                                                              \
+        ERR( "missing " category " extension %s\n", name );                                        \
+        goto failed;                                                                               \
+    }
+    CHECK_EXTENSION( "client", "EGL_EXT_client_extensions" );
+
+    /* use eglGetProcAddress for core GL functions */
+    CHECK_EXTENSION( "client", "EGL_KHR_client_get_all_proc_addresses" );
+
+    CHECK_EXTENSION( "client", "EGL_EXT_device_base" );
+    CHECK_EXTENSION( "client", "EGL_EXT_device_query" );
+    CHECK_EXTENSION( "client", "EGL_EXT_device_enumeration" );
+    CHECK_EXTENSION( "client", "EGL_EXT_platform_base" );
+    CHECK_EXTENSION( "client", "EGL_EXT_platform_device" );
+
+#define LOAD_FUNCPTR( name )                                                                       \
+    if (!(p_##name = (void *)p_eglGetProcAddress( #name )))                                        \
+    {                                                                                              \
+        ERR( "can't find symbol %s\n", #name );                                                    \
+        goto failed;                                                                               \
+    }
+    LOAD_FUNCPTR( eglQueryDevicesEXT )
+    LOAD_FUNCPTR( eglQueryDeviceStringEXT )
+#undef LOAD_FUNCPTR
+
+#define USE_GL_FUNC( name )                                                                        \
+    if (!(egl_funcs.gl.p_##name = (void *)p_eglGetProcAddress( #name )))                           \
+    {                                                                                              \
+        ERR( "can't find GL proc %s\n", #name );                                                   \
+        goto failed;                                                                               \
+    }
+    ALL_WGL_FUNCS
+#undef USE_GL_FUNC
+
+    if (!p_eglQueryDevicesEXT( 0, NULL, &count ) || !count) goto failed;
+    if (!(devices = malloc( count * sizeof(*devices) ))) goto failed;
+    if (!p_eglQueryDevicesEXT( count, devices, &count )) goto failed;
+
+    ERR( "found %u EGL devices\n", count );
+    for (i = 0; i < count; ++i)
+    {
+        GLint major, minor;
+
+        if (!init_extensions( &extensions, p_eglQueryDeviceStringEXT( devices[i], EGL_EXTENSIONS ))) continue;
+        ERR( "device %u extensions %s\n", i, extensions.buffer + 1 );
+
+        if (!(display = p_eglGetPlatformDisplay( EGL_PLATFORM_DEVICE_EXT, devices[i], NULL ))) continue;
+        if (!p_eglInitialize( display, &major, &minor )) continue;
+
+        if (!init_extensions( &extensions, p_eglQueryString( display, EGL_EXTENSIONS )))
+        {
+            ERR( "can't list display extensions\n" );
+            goto failed;
+        }
+
+        ERR( "display extensions %s\n", extensions.buffer + 1 );
+        CHECK_EXTENSION( "display", "EGL_KHR_no_config_context" );
+        CHECK_EXTENSION( "display", "EGL_KHR_surfaceless_context" );
+        break;
+    }
+#undef CHECK_EXTENSION
+
+    if (i == count) goto failed;
+    free( devices );
+
+    if (!p_eglGetConfigs( display, NULL, 0, &count )) goto failed;
+    if (!(configs = malloc( count * sizeof(*configs) ))) goto failed;
+    if (!(p_eglGetConfigs( display, configs, count, &count ))) goto failed;
+    init_pixel_formats( configs, count );
+
+    /* check extensions:
+    EGL_KHR_create_context?
+    EGL_KHR_gl_renderbuffer_image
+    */
 
     egl_funcs.wgl.p_wglCopyContext = win32u_wglCopyContext;
     egl_funcs.wgl.p_wglCreateContext = win32u_wglCreateContext;
@@ -154,6 +400,9 @@ static void egl_init(void)
     return;
 
 failed:
+    free( pixel_formats );
+    free( configs );
+    free( devices );
     dlclose( egl_handle );
     egl_handle = NULL;
 #else  /* SONAME_LIBEGL */

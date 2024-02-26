@@ -1021,6 +1021,10 @@ BOOL WINAPI NtGdiGetDCDword( HDC hdc, UINT method, DWORD *result )
         *result = dc->attr->text_color;
         break;
 
+    case NtGdiGetPixelFormat:
+        *result = dc->pixel_format;
+        break;
+
     case NtGdiIsMemDC:
         *result = get_gdi_object_type( hdc ) == NTGDI_OBJ_MEMDC;
         break;
