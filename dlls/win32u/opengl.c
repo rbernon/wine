@@ -48,6 +48,11 @@ WINE_DEFAULT_DEBUG_CHANNEL(wgl);
 static struct opengl_funcs *display_funcs;
 static struct opengl_funcs *memory_funcs;
 
+struct wgl_context
+{
+    EGLContext *host_context;
+};
+
 struct extension_buffer
 {
     char buffer[4096];
@@ -64,12 +69,15 @@ static PIXELFORMATDESCRIPTOR *pixel_formats;
 
 #define DECL_FUNCPTR(f) static typeof(f) *p_##f
 #ifdef HAVE_EGL_EGL_H
+DECL_FUNCPTR( eglCreateContext );
+DECL_FUNCPTR( eglDestroyContext );
 DECL_FUNCPTR( eglGetConfigAttrib );
 DECL_FUNCPTR( eglGetPlatformDisplay );
 DECL_FUNCPTR( eglGetConfigs );
 DECL_FUNCPTR( eglGetProcAddress );
 DECL_FUNCPTR( eglBindAPI );
 DECL_FUNCPTR( eglInitialize );
+DECL_FUNCPTR( eglMakeCurrent );
 DECL_FUNCPTR( eglQueryString );
 DECL_FUNCPTR( eglQueryDevicesEXT );
 DECL_FUNCPTR( eglQueryDeviceStringEXT );
@@ -238,15 +246,35 @@ static PROC win32u_wglGetProcAddress( const char *proc )
 
 static struct wgl_context *win32u_wglCreateContext( HDC hdc )
 {
+    struct wgl_context *context;
+
     FIXME( "hdc %p\n", hdc );
+
     if (!p_eglBindAPI( EGL_OPENGL_API )) return NULL;
-    return NULL;
+
+    if (!win32u_wglGetPixelFormat( hdc ))
+    {
+        RtlSetLastWin32Error( ERROR_INVALID_PIXEL_FORMAT );
+        return NULL;
+    }
+
+    if (!(context = calloc( 1, sizeof(*context) ))) return NULL;
+    if (!(context->host_context = p_eglCreateContext( display, EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT, NULL )))
+    {
+        free( context );
+        return NULL;
+    }
+
+    TRACE( "created context %p, host context %p\n", context, context->host_context );
+    return context;
 }
 
 static BOOL win32u_wglDeleteContext( struct wgl_context *context )
 {
     FIXME( "context %p\n", context );
-    return FALSE;
+    p_eglDestroyContext( display, context->host_context );
+    free( context );
+    return TRUE;
 }
 
 static BOOL win32u_wglCopyContext( struct wgl_context *src, struct wgl_context *dst, UINT mask )
@@ -260,7 +288,12 @@ static BOOL win32u_wglMakeCurrent( HDC hdc, struct wgl_context *context )
 {
     FIXME( "hdc %p, context %p\n, stub!", hdc, context );
     if (!p_eglBindAPI( EGL_OPENGL_API )) return FALSE;
-    return FALSE;
+
+    NtCurrentTeb()->glContext = context;
+    if (!context) return p_eglMakeCurrent( display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT );
+    if (!p_eglMakeCurrent( display, EGL_NO_SURFACE, EGL_NO_SURFACE, context->host_context )) return FALSE;
+
+    return TRUE;
 }
 
 static BOOL win32u_wglShareLists( struct wgl_context *dst, struct wgl_context *src )
@@ -299,12 +332,15 @@ static void egl_init(void)
         ERR( "can't find EGL proc %s\n", #name );                                                  \
         goto failed;                                                                               \
     }
+    LOAD_FUNCPTR( eglCreateContext )
+    LOAD_FUNCPTR( eglDestroyContext )
     LOAD_FUNCPTR( eglGetConfigAttrib )
     LOAD_FUNCPTR( eglGetPlatformDisplay )
     LOAD_FUNCPTR( eglGetConfigs )
     LOAD_FUNCPTR( eglGetProcAddress )
     LOAD_FUNCPTR( eglInitialize )
     LOAD_FUNCPTR( eglBindAPI )
+    LOAD_FUNCPTR( eglMakeCurrent )
     LOAD_FUNCPTR( eglQueryString )
 #undef LOAD_FUNCPTR
 
