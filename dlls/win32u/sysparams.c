@@ -72,6 +72,7 @@ static const WCHAR yesW[] = {'Y','e','s',0};
 static const WCHAR noW[] = {'N','o',0};
 static const WCHAR modesW[] = {'M','o','d','e','s',0};
 static const WCHAR mode_countW[] = {'M','o','d','e','C','o','u','n','t',0};
+static const WCHAR dpi_factorW[] = {'D','p','i','F','a','c','t','o','r',0};
 
 static const char  guid_devclass_displayA[] = "{4D36E968-E325-11CE-BFC1-08002BE10318}";
 static const WCHAR guid_devclass_displayW[] =
@@ -109,6 +110,7 @@ struct source
     unsigned int id;
     struct gpu *gpu;
     UINT state_flags;
+    float dpi_factor[2];
     UINT monitor_count;
     UINT mode_count;
     DEVMODEW *modes;
@@ -536,6 +538,14 @@ static BOOL source_set_current_settings( const struct source *source, const DEVM
     if (!(hkey = reg_open_ascii_key( config_key, source->path ))) ret = FALSE;
     else
     {
+        DEVMODEW physical = {.dmSize = sizeof(DEVMODEW)};
+
+        if (read_source_mode( hkey, WINE_ENUM_PHYSICAL_SETTINGS, &physical ))
+        {
+            float dpi_factor[2] = {(float)mode->dmPelsWidth / physical.dmPelsWidth, (float)mode->dmPelsHeight / physical.dmPelsHeight};
+            set_reg_value( hkey, dpi_factorW, REG_BINARY, &dpi_factor, sizeof(dpi_factor) );
+        }
+
         ret = write_source_mode( hkey, ENUM_CURRENT_SETTINGS, mode );
         NtClose( hkey );
     }
@@ -660,6 +670,12 @@ static BOOL reade_source_from_registry( unsigned int index, struct source *sourc
         qsort( source->modes, source->mode_count, sizeof(*source->modes), mode_compare );
     }
     value = (void *)buffer;
+
+    /* DpiFactor */
+    if (query_reg_value( hkey, dpi_factorW, value, sizeof(buffer) ) && value->Type == REG_BINARY)
+        memcpy( source->dpi_factor, (float *)value->Data, sizeof(source->dpi_factor) );
+    else
+        source->dpi_factor[0] = source->dpi_factor[1] = 1.0;
 
     /* DeviceID */
     size = query_reg_ascii_value( hkey, "GPUID", value, sizeof(buffer) );
@@ -2006,6 +2022,7 @@ static void write_current_mode( struct device_manager_ctx *ctx )
     else
     {
         DEVMODEW physical = *current;
+        float dpi_factor[2];
 
         current = &tmp_mode;
         if (!read_source_mode( ctx->source_key, ENUM_CURRENT_SETTINGS, current ))
@@ -2015,6 +2032,9 @@ static void write_current_mode( struct device_manager_ctx *ctx )
         }
 
         write_source_mode( ctx->source_key, WINE_ENUM_PHYSICAL_SETTINGS, &physical );
+        dpi_factor[0] = (float)current->dmPelsWidth / physical.dmPelsWidth;
+        dpi_factor[1] = (float)current->dmPelsHeight / physical.dmPelsHeight;
+        set_reg_value( ctx->source_key, dpi_factorW, REG_BINARY, &dpi_factor, sizeof(dpi_factor) );
 
         if (!is_same_devmode( &physical, current )) add_mode( current, FALSE, ctx );
         add_virtual_modes( ctx, &physical, &physical, current );
