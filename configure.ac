@@ -63,6 +63,7 @@ AC_ARG_WITH(usb,       AS_HELP_STRING([--without-usb],[do not use the libusb lib
 AC_ARG_WITH(v4l2,      AS_HELP_STRING([--without-v4l2],[do not use v4l2 (video capture)]))
 AC_ARG_WITH(vulkan,    AS_HELP_STRING([--without-vulkan],[do not use Vulkan]))
 AC_ARG_WITH(wayland,   AS_HELP_STRING([--without-wayland],[do not build the Wayland driver]))
+AC_ARG_WITH(xcb,       AS_HELP_STRING([--without-xcb],[do not use XCB]))
 AC_ARG_WITH(xcomposite,AS_HELP_STRING([--without-xcomposite],[do not use the Xcomposite extension]),
             [if test "x$withval" = "xno"; then ac_cv_header_X11_extensions_Xcomposite_h=no; fi])
 AC_ARG_WITH(xcursor,   AS_HELP_STRING([--without-xcursor],[do not use the Xcursor extension]),
@@ -1880,6 +1881,15 @@ WINE_NOTICE_WITH(netapi,[test "x$ac_cv_lib_soname_netapi" = "x"],
                  [libnetapi not found, Samba NetAPI won't be supported.],
                  [enable_netapi])
 
+dnl **** Check for libxcb ****
+if test "x$with_xcb" != "xno"
+then
+    WINE_PACKAGE_FLAGS(XCB,[xcb xcb-event],,,,
+        [AC_CHECK_HEADERS([xcb/xcb.h])
+         AC_CHECK_LIB(xcb,xcb_connect,[:],[XCB_LIBS=""],[$XCB_LIBS])])
+fi
+WINE_NOTICE_WITH(xcb,[test "x$XCB_LIBS" = "x"],
+    [XCB ${notice_platform}development files not found.])
 
 dnl **** Check for any sound system ****
 if test "x$enable_winealsa_drv$enable_winecoreaudio_drv$enable_winepulse_drv$enable_wineoss_drv$enable_wineandroid_drv" = xnonononono -a \
