@@ -21,9 +21,11 @@
 #ifndef __WINE_WINE_GDI_DRIVER_H
 #define __WINE_WINE_GDI_DRIVER_H
 
-#ifndef WINE_UNIX_LIB
-#error The GDI driver can only be used on the Unix side
-#endif
+#include <stddef.h>
+#include <stdarg.h>
+
+#include "windef.h"
+#include "winbase.h"
 
 #include <stdarg.h>
 #include <stddef.h>
