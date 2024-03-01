@@ -53,7 +53,7 @@ int retina_on = FALSE;
 
 static pthread_mutex_t device_data_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static const struct user_driver_funcs macdrv_funcs;
+static const struct gdi_dc_funcs macdrv_gdi_dc_funcs;
 
 /***********************************************************************
  *              compute_desktop_rect
@@ -179,7 +179,7 @@ static BOOL macdrv_CreateDC(PHYSDEV *pdev, LPCWSTR device, LPCWSTR output, const
 
     if (!physDev) return FALSE;
 
-    push_dc_driver(pdev, &physDev->dev, &macdrv_funcs.dc_funcs);
+    push_dc_driver(pdev, &physDev->dev, &macdrv_gdi_dc_funcs);
     return TRUE;
 }
 
@@ -196,7 +196,7 @@ static BOOL macdrv_CreateCompatibleDC(PHYSDEV orig, PHYSDEV *pdev)
 
     if (!physDev) return FALSE;
 
-    push_dc_driver(pdev, &physDev->dev, &macdrv_funcs.dc_funcs);
+    push_dc_driver(pdev, &physDev->dev, &macdrv_gdi_dc_funcs);
     return TRUE;
 }
 
@@ -254,17 +254,24 @@ static INT macdrv_GetDeviceCaps(PHYSDEV dev, INT cap)
     return ret;
 }
 
+static const struct gdi_dc_funcs macdrv_gdi_dc_funcs =
+{
+    .pCreateCompatibleDC = macdrv_CreateCompatibleDC,
+    .pCreateDC = macdrv_CreateDC,
+    .pDeleteDC = macdrv_DeleteDC,
+    .pGetDeviceCaps = macdrv_GetDeviceCaps,
+    .pGetDeviceGammaRamp = macdrv_GetDeviceGammaRamp,
+    .pSetDeviceGammaRamp = macdrv_SetDeviceGammaRamp,
+    .priority = GDI_PRIORITY_GRAPHICS_DRV,
+};
+
+static const struct gdi_dc_funcs *macdrv_wine_get_gdi_driver( UINT version )
+{
+    return &macdrv_gdi_dc_funcs;
+}
 
 static const struct user_driver_funcs macdrv_funcs =
 {
-    .dc_funcs.pCreateCompatibleDC = macdrv_CreateCompatibleDC,
-    .dc_funcs.pCreateDC = macdrv_CreateDC,
-    .dc_funcs.pDeleteDC = macdrv_DeleteDC,
-    .dc_funcs.pGetDeviceCaps = macdrv_GetDeviceCaps,
-    .dc_funcs.pGetDeviceGammaRamp = macdrv_GetDeviceGammaRamp,
-    .dc_funcs.pSetDeviceGammaRamp = macdrv_SetDeviceGammaRamp,
-    .dc_funcs.priority = GDI_PRIORITY_GRAPHICS_DRV,
-
     .pActivateKeyboardLayout = macdrv_ActivateKeyboardLayout,
     .pBeep = macdrv_Beep,
     .pChangeDisplaySettings = macdrv_ChangeDisplaySettings,
@@ -309,6 +316,7 @@ static const struct user_driver_funcs macdrv_funcs =
     .pWindowPosChanging = macdrv_WindowPosChanging,
     .pGetWindowStyleMasks = macdrv_GetWindowStyleMasks,
     .pCreateWindowSurface = macdrv_CreateWindowSurface,
+    .pwine_get_gdi_driver = macdrv_wine_get_gdi_driver,
     .pVulkanInit = macdrv_VulkanInit,
     .pwine_get_wgl_driver = macdrv_wine_get_wgl_driver,
 };
