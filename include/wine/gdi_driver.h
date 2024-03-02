@@ -217,6 +217,7 @@ struct gdi_dc_funcs
 
     /* priority order for the driver on the stack */
     UINT       priority;
+    const char *name;
 };
 
 /* increment this when you change the DC function table */
