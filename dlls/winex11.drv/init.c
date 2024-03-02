@@ -423,6 +423,7 @@ static const struct gdi_dc_funcs x11drv_gdi_dc_funcs =
     .pStrokePath = X11DRV_StrokePath,
     .pUnrealizePalette = X11DRV_UnrealizePalette,
     .priority = GDI_PRIORITY_GRAPHICS_DRV,
+    .name = "x11drv",
 };
 
 static const struct gdi_dc_funcs *X11DRV_wine_get_gdi_driver( UINT version )
