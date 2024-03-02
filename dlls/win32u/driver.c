@@ -615,7 +615,8 @@ const struct gdi_dc_funcs null_driver =
     nulldrv_StrokePath,                 /* pStrokePath */
     nulldrv_UnrealizePalette,           /* pUnrealizePalette */
 
-    GDI_PRIORITY_NULL_DRV               /* priority */
+    GDI_PRIORITY_NULL_DRV,              /* priority */
+    "nulldrv",
 };
 
 
