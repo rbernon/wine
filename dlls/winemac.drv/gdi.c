@@ -263,6 +263,7 @@ static const struct gdi_dc_funcs macdrv_gdi_dc_funcs =
     .pGetDeviceGammaRamp = macdrv_GetDeviceGammaRamp,
     .pSetDeviceGammaRamp = macdrv_SetDeviceGammaRamp,
     .priority = GDI_PRIORITY_GRAPHICS_DRV,
+    .name = "macdrv",
 };
 
 static const struct gdi_dc_funcs *macdrv_wine_get_gdi_driver( UINT version )
