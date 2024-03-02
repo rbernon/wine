@@ -3632,42 +3632,8 @@ DECL_HANDLER(attach_thread_input)
 }
 
 
-/* get thread input data */
-DECL_HANDLER(get_thread_input)
-{
-    struct thread_input *input;
-
-    if (req->tid)
-    {
-        struct thread *thread;
-        if (!(thread = get_thread_from_id( req->tid ))) return;
-        input = thread->queue ? thread->queue->input : NULL;
-        release_object( thread );
-    }
-    else
-    {
-        struct desktop *desktop;
-        if (!(desktop = get_thread_desktop( current, 0 ))) return;
-        input = desktop->foreground_input;  /* get the foreground thread info */
-        release_object( desktop );
-    }
-
-    if (input)
-    {
-        const input_shm_t *input_shm = get_shared_input( input->session_index );
-        reply->focus      = input_shm->focus;
-        reply->capture    = input_shm->capture;
-        reply->active     = input_shm->active;
-        reply->menu_owner = input_shm->menu_owner;
-        reply->move_size  = input_shm->move_size;
-        reply->caret      = input_shm->caret;
-        reply->rect       = input_shm->caret_rect;
-    }
-}
-
-
 /* Get thread input session object info */
-DECL_HANDLER(get_thread_input_info)
+DECL_HANDLER(get_thread_input)
 {
     struct thread_input *input;
 

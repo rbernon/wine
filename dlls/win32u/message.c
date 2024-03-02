@@ -2138,7 +2138,6 @@ BOOL WINAPI NtUserGetGUIThreadInfo( DWORD id, GUITHREADINFO *info )
     struct object_lock lock = {0};
     const input_shm_t *input_shm;
     NTSTATUS status;
-    BOOL ret;
 
     if (info->cbSize != sizeof(*info))
     {
@@ -2164,31 +2163,7 @@ BOOL WINAPI NtUserGetGUIThreadInfo( DWORD id, GUITHREADINFO *info )
         if (input_shm->caret) info->flags |= GUI_CARETBLINKING;
     }
 
-    if (!status) return TRUE;
-
-    SERVER_START_REQ( get_thread_input )
-    {
-        req->tid = id;
-        if ((ret = !wine_server_call_err( req )))
-        {
-            info->flags          = 0;
-            info->hwndActive     = wine_server_ptr_handle( reply->active );
-            info->hwndFocus      = wine_server_ptr_handle( reply->focus );
-            info->hwndCapture    = wine_server_ptr_handle( reply->capture );
-            info->hwndMenuOwner  = wine_server_ptr_handle( reply->menu_owner );
-            info->hwndMoveSize   = wine_server_ptr_handle( reply->move_size );
-            info->hwndCaret      = wine_server_ptr_handle( reply->caret );
-            info->rcCaret.left   = reply->rect.left;
-            info->rcCaret.top    = reply->rect.top;
-            info->rcCaret.right  = reply->rect.right;
-            info->rcCaret.bottom = reply->rect.bottom;
-            if (reply->menu_owner) info->flags |= GUI_INMENUMODE;
-            if (reply->move_size) info->flags |= GUI_INMOVESIZE;
-            if (reply->caret) info->flags |= GUI_CARETBLINKING;
-        }
-    }
-    SERVER_END_REQ;
-    return ret;
+    return FALSE;
 }
 
 /***********************************************************************

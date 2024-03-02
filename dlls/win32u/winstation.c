@@ -250,7 +250,7 @@ static NTSTATUS get_thread_session_object_info( UINT tid, enum object_type type,
         SERVER_END_REQ;
         break;
     case OBJECT_TYPE_INPUT:
-        SERVER_START_REQ( get_thread_input_info )
+        SERVER_START_REQ( get_thread_input )
         {
             req->tid = tid;
             if (!(status = wine_server_call( req )))
@@ -356,13 +356,13 @@ NTSTATUS get_shared_queue( struct object_lock *lock, const queue_shm_t **queue_s
 NTSTATUS get_shared_input( UINT tid, struct object_lock *lock, const input_shm_t **input_shm )
 {
     struct session_thread_data *data = get_session_thread_data();
-    struct object_info *info;
+    struct object_info *info, other_info = {0};
 
     TRACE( "tid %04x, lock %p, input_shm %p\n", tid, lock, input_shm );
 
     if (tid == GetCurrentThreadId()) info = &data->shared_input;
     else if (!tid) info = &data->shared_foreground;
-    else return FALSE;
+    else info = &other_info;
 
     return get_thread_session_object( tid, OBJECT_TYPE_INPUT, info,
                                       lock, (const object_shm_t **)input_shm );
