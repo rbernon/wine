@@ -309,6 +309,7 @@ static const struct gdi_dc_funcs android_gdi_dc_funcs =
     .pCreateDC = ANDROID_CreateDC,
     .pDeleteDC = ANDROID_DeleteDC,
     .priority = GDI_PRIORITY_GRAPHICS_DRV,
+    .name = "android",
 };
 
 static const struct gdi_dc_funcs *ANDROID_wine_get_gdi_driver( UINT version )
