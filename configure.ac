@@ -54,6 +54,7 @@ AC_ARG_WITH(pcap,      AS_HELP_STRING([--without-pcap],[do not use the Packet Ca
 AC_ARG_WITH(pcsclite,  AS_HELP_STRING([--without-pcsclite],[do not use PCSC lite]))
 AC_ARG_WITH(pthread,   AS_HELP_STRING([--without-pthread],[do not use the pthread library]))
 AC_ARG_WITH(pulse,     AS_HELP_STRING([--without-pulse],[do not use PulseAudio sound support]))
+AC_ARG_WITH(cairo,     AS_HELP_STRING([--without-cairo],[do not use Cairo 2D support]))
 AC_ARG_WITH(sane,      AS_HELP_STRING([--without-sane],[do not use SANE (scanner support)]))
 AC_ARG_WITH(sdl,       AS_HELP_STRING([--without-sdl],[do not use SDL]))
 AC_ARG_WITH(udev,      AS_HELP_STRING([--without-udev],[do not use udev (plug and play support)]))
@@ -1655,6 +1656,17 @@ then
 fi
 WINE_NOTICE_WITH(ffmpeg,[test "x$FFMPEG_LIBS" = x],
         [FFmpeg ${notice_platform}development files not found.])
+
+dnl **** Check for Cairo 2D ****
+if test "x$with_cairo" != "xno";
+then
+    WINE_PACKAGE_FLAGS(CAIRO,[cairo cairo-xcb],,,,
+        [AC_CHECK_HEADERS([cairo/cairo.h cairo/cairo-xcb.h],
+            [AC_CHECK_LIB(cairo, cairo_surface_destroy,[:],[CAIRO_LIBS=""],[$CAIRO_LIBS])],
+            [CAIRO_LIBS=""])])
+fi
+WINE_NOTICE_WITH(cairo,[test "x$ac_cv_lib_soname_cairo" = "x"],
+        [cairo ${notice_platform}development files not found or too old.])
 
 dnl **** Check for gstreamer ****
 if test "x$with_gstreamer" != "xno"
