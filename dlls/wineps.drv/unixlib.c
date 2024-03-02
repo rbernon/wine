@@ -1449,7 +1449,8 @@ static const struct gdi_dc_funcs psdrv_funcs =
     .pGetTextMetrics = get_text_metrics,
     .pResetDC = reset_dc,
     .pSelectFont = select_font,
-    .priority = GDI_PRIORITY_GRAPHICS_DRV
+    .priority = GDI_PRIORITY_GRAPHICS_DRV,
+    .name = "psdrv",
 };
 
 static BOOL check_ntf_str(const char *data, UINT64 size, const char *str)
