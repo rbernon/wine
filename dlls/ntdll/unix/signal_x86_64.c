@@ -2076,7 +2076,10 @@ static void trap_handler( int signal, siginfo_t *siginfo, void *sigcontext )
     struct xcontext context;
     ucontext_t *ucontext = init_handler( sigcontext );
 
-    if (handle_syscall_trap( ucontext, siginfo )) return;
+ERR("***\n");
+do { static volatile int i = 0; while (!i) {} } while (0);
+
+    if (handle_syscall_trap( ucontext )) return;
 
     rec.ExceptionAddress = (void *)RIP_sig(ucontext);
     save_context( &context, ucontext );

@@ -818,7 +818,8 @@ static void update_visible_region( struct dce *dce )
     DWORD flags = dce->flags;
     DWORD paint_flags = 0;
     size_t size = 256;
-    RECT win_rect, top_rect;
+    RECT win_rect, phys_rect, top_rect;
+    UINT dpi, monitor_dpi;
     WND *win;
 
     /* don't clip siblings if using parent clip region */
@@ -874,7 +875,7 @@ static void update_visible_region( struct dce *dce )
     }
 
     if (!surface) SetRectEmpty( &top_rect );
-    set_visible_region( dce->hdc, vis_rgn, &win_rect, &top_rect, surface );
+    set_visible_region( dce->hdc, vis_rgn, &win_rect, &phys_rect, &top_rect, surface );
     if (surface) window_surface_release( surface );
 }
 
@@ -885,7 +886,8 @@ static void release_dce( struct dce *dce )
 {
     if (!dce->hwnd) return;  /* already released */
 
-    set_visible_region( dce->hdc, 0, &dummy_surface.rect, &dummy_surface.rect, &dummy_surface );
+    set_visible_region( dce->hdc, 0, &dummy_surface.rect, &dummy_surface.rect,
+                        &dummy_surface.rect, &dummy_surface );
     user_driver->pReleaseDC( dce->hwnd, dce->hdc );
 
     if (dce->clip_rgn) NtGdiDeleteObjectApp( dce->clip_rgn );
