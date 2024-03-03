@@ -42,7 +42,7 @@
 #include "wine/server.h"
 #include "wine/debug.h"
 
-WINE_DEFAULT_DEBUG_CHANNEL(dwm);
+WINE_DEFAULT_DEBUG_CHANNEL(dwmsrv);
 
 struct x11_display
 {
@@ -129,6 +129,7 @@ static struct window *x11_dwm_window_create( struct display *iface, HWND hwnd, U
     if (!(window = calloc( 1, sizeof(*window) ))) return NULL;
     window->base.display = display_acquire( iface );
     window->base.ref = 1;
+    pthread_mutex_init( &window->base.lock, NULL );
     window->id = native;
 
     if ((attrs = xcb_get_window_attributes_reply( display->xcb, xcb_get_window_attributes( display->xcb, window->id ), NULL )))
@@ -142,14 +143,14 @@ if (0)
 {
     window->id = xcb_generate_id( display->xcb );
 
-    ERR("\n");
+    TRACE("\n");
 
     cookie = xcb_create_window( display->xcb, XCB_COPY_FROM_PARENT, window->id, display->root, 0, 0, 100, 100, 0,
                                 XCB_WINDOW_CLASS_INPUT_OUTPUT, XCB_COPY_FROM_PARENT, 0, NULL );
-    if (!ERR_ON(dwm)) xcb_discard_reply( display->xcb, cookie.sequence );
+    if (!ERR_ON(dwmsrv)) xcb_discard_reply( display->xcb, cookie.sequence );
 
     cookie = xcb_map_window( display->xcb, window->id );
-    if (!ERR_ON(dwm)) xcb_discard_reply( display->xcb, cookie.sequence );
+    if (!ERR_ON(dwmsrv)) xcb_discard_reply( display->xcb, cookie.sequence );
 }
 
     return &window->base;
@@ -174,10 +175,10 @@ static void x11_dwm_window_update( struct window *iface, const RECT *window_rect
     mask |= XCB_CONFIG_WINDOW_WIDTH;
     mask |= XCB_CONFIG_WINDOW_HEIGHT;
 
-    ERR("\n");
+    TRACE("\n");
 
     cookie = xcb_configure_window( display->xcb, window->id, mask, values );
-    if (!ERR_ON(dwm)) xcb_discard_reply( display->xcb, cookie.sequence );
+    if (!ERR_ON(dwmsrv)) xcb_discard_reply( display->xcb, cookie.sequence );
 }
 
 static void x11_dwm_window_destroy( struct window *iface )
@@ -189,30 +190,18 @@ static void x11_dwm_window_destroy( struct window *iface )
 if (0)
 {
     cookie = xcb_destroy_window( display->xcb, window->id );
-    if (!ERR_ON(dwm)) xcb_discard_reply( display->xcb, cookie.sequence );
+    if (!ERR_ON(dwmsrv)) xcb_discard_reply( display->xcb, cookie.sequence );
 }
 
+    pthread_mutex_destroy( &window->base.lock );
     cairo_surface_destroy(window->surface);
     free( window );
 }
 
 static cairo_surface_t *x11_dwm_window_surface( struct window *iface, const RECT *rect )
 {
-    struct x11_display *display = CONTAINING_RECORD(iface->display, struct x11_display, base);
     struct x11_window *window = CONTAINING_RECORD(iface, struct x11_window, base);
-    xcb_get_geometry_reply_t *geom;
-    int width, height;
-
-    if (!(geom = xcb_get_geometry_reply( display->xcb, xcb_get_geometry( display->xcb, window->id ), NULL )))
-        return cairo_image_surface_create( CAIRO_FORMAT_ARGB32, 1, 1 );
-    else
-    {
-        width = geom->width;
-        height = geom->height;
-        free( geom );
-    }
-
-    cairo_xcb_surface_set_size( window->surface, width, height );
+    cairo_xcb_surface_set_size( window->surface, rect->right - rect->left, rect->bottom - rect->top );
     return cairo_surface_reference( window->surface );
 }
 
@@ -231,7 +220,7 @@ struct display *x11_display_create( const char *name )
     struct x11_display *display;
     xcb_screen_t *screen;
 
-    ERR( "name %s\n", debugstr_a(name) );
+    TRACE( "name %s\n", debugstr_a(name) );
 
     if (!(display = calloc( 1, sizeof(*display) ))) return NULL;
     display->base.ops = &dwm_display_ops_x11;
@@ -242,7 +231,7 @@ struct display *x11_display_create( const char *name )
     if (!(screen = xcb_aux_get_screen( display->xcb, display->screen_num ))) goto failed;
     display->root = screen->root;
 
-    ERR( "display %p connected to xcb %p (%s)\n", display, display->xcb, debugstr_a(name) );
+    TRACE( "display %p connected to xcb %p (%s)\n", display, display->xcb, debugstr_a(name) );
     return &display->base;
 
 failed:

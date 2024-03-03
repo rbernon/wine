@@ -24,10 +24,14 @@
 
 #include "windef.h"
 #include "winbase.h"
+#include "winuser.h"
+#include "wingdi.h"
 
 typedef enum { DWM_INVALID_DISPLAY = (UINT64)-1 } dwm_display_t;
 typedef enum { DWM_INVALID_WINDOW = (UINT64)-1 } dwm_window_t;
 typedef enum { DWM_INVALID_CONTEXT = (UINT64)-1 } dwm_context_t;
+
+#define DWM_EXT_ESCAPE 0xfeedc0de
 
 enum dwm_req_type
 {
@@ -42,6 +46,7 @@ enum dwm_req_type
     DWM_REQ_GDI_SET_SOURCE,
     DWM_REQ_GDI_PUT_IMAGE,
     DWM_REQ_GDI_STRETCH_BLT,
+    DWM_REQ_GDI_COMMANDS,
 };
 
 struct dwm_req_header
@@ -125,6 +130,16 @@ struct dwm_req_gdi_stretch_blt
     UINT32 data_size;
 };
 
+struct dwm_req_gdi_commands
+{
+    struct dwm_req_header header;
+    dwm_context_t dwm_context;
+    dwm_window_t dwm_window;
+    RECT context_rect;
+    RECT window_rect;
+    UINT32 data_size;
+};
+
 union dwm_request
 {
     struct dwm_req_header header;
@@ -139,6 +154,7 @@ union dwm_request
     struct dwm_req_gdi_set_source gdi_set_source;
     struct dwm_req_gdi_put_image gdi_put_image;
     struct dwm_req_gdi_stretch_blt gdi_stretch_blt;
+    struct dwm_req_gdi_commands gdi_commands;
 };
 
 struct dwm_reply_header

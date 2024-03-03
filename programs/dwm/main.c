@@ -132,6 +132,10 @@ static BOOL dwm_server_loop(void)
         return FALSE;
     }
 
+    LoadLibraryW( L"user32" );
+    if ((status = __wine_init_unix_call())) ERR( "unixlib initialization failed, status %#lx\n", status );
+    dwm_init();
+
     while (!(ret = WaitForMultipleObjects( 2, control, FALSE, INFINITE )))
     {
         struct dwm_connection *connection;
@@ -182,8 +186,7 @@ int __cdecl wmain( int argc, WCHAR *argv[] )
 
     TRACE( "\n" );
 
-    if ((status = __wine_init_unix_call())) ERR( "unixlib initialization failed, status %#lx\n", status );
-    else if ((status = !dwm_server_loop())) ERR( "server loop failed, error %ld\n", GetLastError() );
+    if ((status = !dwm_server_loop())) ERR( "server loop failed, error %ld\n", GetLastError() );
 
     TRACE( "exiting\n" );
     return status;
