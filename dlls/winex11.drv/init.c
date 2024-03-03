@@ -107,8 +107,7 @@ static BOOL X11DRV_CreateDC( PHYSDEV *pdev, LPCWSTR device, LPCWSTR output, cons
     physDev->dc_rect       = NtUserGetVirtualScreenRect( MDT_DEFAULT );
     OffsetRect( &physDev->dc_rect, -physDev->dc_rect.left, -physDev->dc_rect.top );
     push_dc_driver( pdev, &physDev->dev, &x11drv_gdi_dc_funcs );
-    if (use_dwm && !dwm_funcs->gdi_funcs->pCreateDC( pdev, device, output, initData )) return FALSE;
-    if (!use_dwm && xrender_funcs && !xrender_funcs->pCreateDC( pdev, device, output, initData )) return FALSE;
+    if (xrender_funcs && !xrender_funcs->pCreateDC( pdev, device, output, initData )) return FALSE;
     return TRUE;
 }
 
@@ -126,8 +125,7 @@ static BOOL X11DRV_CreateCompatibleDC( PHYSDEV orig, PHYSDEV *pdev )
     SetRect( &physDev->dc_rect, 0, 0, 1, 1 );
     push_dc_driver( pdev, &physDev->dev, &x11drv_gdi_dc_funcs );
     if (orig) return TRUE;  /* we already went through Xrender if we have an orig device */
-    if (use_dwm && !dwm_funcs->gdi_funcs->pCreateCompatibleDC( NULL, pdev )) return FALSE;
-    if (!use_dwm && xrender_funcs && !xrender_funcs->pCreateCompatibleDC( NULL, pdev )) return FALSE;
+    if (xrender_funcs && !xrender_funcs->pCreateCompatibleDC( NULL, pdev )) return FALSE;
     return TRUE;
 }
 
@@ -430,7 +428,7 @@ static const struct gdi_dc_funcs x11drv_gdi_dc_funcs =
 
 static const struct gdi_dc_funcs *X11DRV_wine_get_gdi_driver( UINT version )
 {
-    return use_dwm ? dwm_funcs->gdi_funcs : &x11drv_gdi_dc_funcs;
+    return &x11drv_gdi_dc_funcs;
 }
 
 static const struct user_driver_funcs x11drv_funcs =

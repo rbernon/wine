@@ -681,9 +681,9 @@ static NTSTATUS x11drv_init( void *arg )
 
     init_user_driver();
 
+    if (use_dwm && !(dwm_funcs = __wine_get_dwm_driver( WINE_GDI_DRIVER_VERSION ))) use_dwm = FALSE;
     if (use_dwm)
     {
-        dwm_funcs = __wine_get_dwm_driver( WINE_GDI_DRIVER_VERSION );
         dwm_display = dwm_funcs->connect( "x11", getenv( "DISPLAY" ) );
         ERR("dwm_display %#x\n", (UINT)dwm_display);
     }
