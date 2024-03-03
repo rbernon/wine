@@ -716,7 +716,8 @@ const struct gdi_dc_funcs dib_driver =
     dibdrv_StrokeAndFillPath,           /* pStrokeAndFillPath */
     dibdrv_StrokePath,                  /* pStrokePath */
     NULL,                               /* pUnrealizePalette */
-    GDI_PRIORITY_DIB_DRV                /* priority */
+    GDI_PRIORITY_DIB_DRV,               /* priority */
+    "dibdrv",
 };
 
 
@@ -816,7 +817,7 @@ void dibdrv_set_window_surface( DC *dc, struct window_surface *surface )
         physdev->surface = surface;
 
         dibdrv = physdev->dibdrv;
-        bits = window_surface_get_color( surface, info );
+        bits = surface->funcs->get_info( surface, info );
         init_dib_info_from_bitmapinfo( &dibdrv->dib, info, bits );
         dibdrv->dib.rect = dc->attr->vis_rect;
         OffsetRect( &dibdrv->dib.rect, -dc->device_rect.left, -dc->device_rect.top );
@@ -1302,5 +1303,6 @@ static const struct gdi_dc_funcs window_driver =
     NULL,                               /* pStrokeAndFillPath */
     NULL,                               /* pStrokePath */
     NULL,                               /* pUnrealizePalette */
-    GDI_PRIORITY_DIB_DRV + 10           /* priority */
+    GDI_PRIORITY_DIB_DRV + 10,          /* priority */
+    "window",
 };
