@@ -602,7 +602,7 @@ struct x11drv_win_data
     HWND        hwnd;           /* hwnd that this private data belongs to */
     Window      whole_window;   /* X window for the complete window */
     Window      client_window;  /* X window for the client area */
-    struct window_rects rects;  /* window rects in monitor DPI, relative to parent client area */
+    struct window_rects rects;  /* window rects in monitor DPI, relative to virtual screen */
     XIC         xic;            /* X input context */
     UINT        managed : 1;    /* is window managed? */
     UINT        mapped : 1;     /* is window mapped? (in either normal or iconic state) */
@@ -618,7 +618,6 @@ struct x11drv_win_data
     int         wm_state;       /* current value of the WM_STATE property */
     DWORD       net_wm_state;   /* bit mask of active x11drv_net_wm_state values */
     Window      embedder;       /* window id of embedder */
-    unsigned long configure_serial; /* serial number of last configure request */
     Pixmap         icon_pixmap;
     Pixmap         icon_mask;
     unsigned long *icon_bits;
