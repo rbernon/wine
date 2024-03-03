@@ -803,6 +803,7 @@ HDC WINAPI NtGdiCreateCompatibleDC( HDC hdc )
         return 0;
     }
 
+    if (getenv( "WINENODWM" )) dwm_driver.pCreateDC( &dc->physDev, NULL, NULL, NULL );
     if (!dib_driver.pCreateDC( &dc->physDev, NULL, NULL, NULL ))
     {
         free_dc_ptr( dc );
