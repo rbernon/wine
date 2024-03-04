@@ -1972,31 +1972,12 @@ static HRESULT source_reader_setup_sample_allocator(struct source_reader *reader
 {
     struct media_stream *stream = &reader->streams[index];
     IMFAttributes *attributes = NULL;
-    GUID major = { 0 };
     HRESULT hr;
 
-    IMFMediaType_GetMajorType(stream->current, &major);
-    if (!IsEqualGUID(&major, &MFMediaType_Video))
-        return S_OK;
-
-    if (!(reader->flags & SOURCE_READER_HAS_DEVICE_MANAGER))
-        return S_OK;
-
     if (!stream->allocator)
-    {
-        if (FAILED(hr = MFCreateVideoSampleAllocatorEx(&IID_IMFVideoSampleAllocatorEx, (void **)&stream->allocator)))
-        {
-            WARN("Failed to create sample allocator, hr %#lx.\n", hr);
-            return hr;
-        }
-    }
+        return S_OK;
 
     IMFVideoSampleAllocatorEx_UninitializeSampleAllocator(stream->allocator);
-    if (FAILED(hr = IMFVideoSampleAllocatorEx_SetDirectXManager(stream->allocator, reader->device_manager)))
-    {
-        WARN("Failed to set device manager, hr %#lx.\n", hr);
-        return hr;
-    }
 
     if (FAILED(hr = source_reader_create_sample_allocator_attributes(reader, &attributes)))
         WARN("Failed to create allocator attributes, hr %#lx.\n", hr);
@@ -2827,6 +2808,7 @@ static HRESULT create_source_reader_from_source(IMFMediaSource *source, IMFAttri
         IMFStreamDescriptor *sd;
         IMFMediaType *src_type;
         BOOL selected;
+        GUID major;
 
         list_init(&object->streams[i].transforms);
 
@@ -2853,6 +2835,21 @@ static HRESULT create_source_reader_from_source(IMFMediaSource *source, IMFAttri
         IMFMediaType_Release(src_type);
         if (FAILED(hr))
             break;
+
+        if (SUCCEEDED(IMFMediaType_GetMajorType(src_type, &major)) && IsEqualGUID(&major, &MFMediaType_Video)
+                && (object->flags & SOURCE_READER_HAS_DEVICE_MANAGER))
+        {
+            if (FAILED(hr = MFCreateVideoSampleAllocatorEx(&IID_IMFVideoSampleAllocatorEx, (void **)&object->streams[i].allocator)))
+            {
+                WARN("Failed to create sample allocator, hr %#lx.\n", hr);
+                break;
+            }
+            if (FAILED(hr = IMFVideoSampleAllocatorEx_SetDirectXManager(object->streams[i].allocator, object->device_manager)))
+            {
+                WARN("Failed to set device manager, hr %#lx.\n", hr);
+                break;
+            }
+        }
 
         object->streams[i].reader = object;
         object->streams[i].index = i;
