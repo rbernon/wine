@@ -328,6 +328,248 @@ struct window_surface *get_driver_window_surface( struct window_surface *surface
     return get_scaled_surface( surface )->target_surface;
 }
 
+
+#ifdef HAVE_CAIRO_CAIRO_H
+
+struct cairo_window_surface
+{
+    struct window_surface header;
+    const struct window_surface_cairo_funcs *cairo_funcs;
+    pthread_mutex_t       lock;
+    BITMAPINFOHEADER      info;
+    cairo_surface_t      *host_surface;
+    cairo_surface_t      *shape_surface;
+    cairo_t              *shape_context;
+    cairo_surface_t      *color_surface;
+    cairo_t              *color_context;
+    UINT32                pixels[];
+};
+
+static struct cairo_window_surface *get_cairo_window_surface( struct window_surface *window_surface )
+{
+    return CONTAINING_RECORD( window_surface, struct cairo_window_surface, header );
+}
+
+static void *cairo_window_surface_lock( struct window_surface *window_surface )
+{
+    struct cairo_window_surface *surface = get_cairo_window_surface( window_surface );
+    pthread_mutex_lock( &surface->lock );
+    return surface->pixels;
+}
+
+static void cairo_window_surface_unlock( struct window_surface *window_surface )
+{
+    struct cairo_window_surface *surface = get_cairo_window_surface( window_surface );
+    pthread_mutex_unlock( &surface->lock );
+}
+
+static void cairo_window_surface_get_info( struct window_surface *window_surface, BITMAPINFO *info )
+{
+    struct cairo_window_surface *surface = get_cairo_window_surface( window_surface );
+    info->bmiHeader = surface->info;
+}
+
+static void cairo_window_surface_set_clip( struct window_surface *window_surface, const RECT *rects, UINT count )
+{
+    struct cairo_window_surface *surface = get_cairo_window_surface( window_surface );
+    const RECT *rect;
+
+    TRACE( "updating surface %p with %p\n", surface, window_surface );
+
+    cairo_reset_clip( surface->color_context );
+    for (rect = rects; rect < rects + count; rect++)
+    {
+        UINT width = rect->right - rect->left, height = rect->bottom - rect->top;
+        cairo_rectangle( surface->color_context, rect->left, rect->top, width, height );
+    }
+    if (count) cairo_clip( surface->color_context );
+}
+
+static void cairo_window_surface_set_key( struct window_surface *window_surface, COLORREF new_key )
+{
+    add_bounds_rect( &window_surface->bounds, &window_surface->rect );
+    if (window_surface->funcs->flush( window_surface ))
+        reset_bounds( &window_surface->bounds );
+}
+
+static void cairo_window_surface_set_shape( struct window_surface *window_surface, const RECT *rects, UINT count )
+{
+    struct cairo_window_surface *surface = get_cairo_window_surface( window_surface );
+
+    cairo_reset_clip( surface->shape_context );
+
+    if (!count)
+    {
+        cairo_set_source_rgba( surface->shape_context, 0, 0, 0, 1 );
+        cairo_paint( surface->shape_context );
+    }
+    else
+    {
+        const RECT *rect;
+
+        cairo_set_source_rgba( surface->shape_context, 0, 0, 0, 0 );
+        cairo_paint( surface->shape_context );
+
+        for (rect = rects; rect < rects + count; rect++)
+        {
+            UINT width = rect->right - rect->left, height = rect->bottom - rect->top;
+            cairo_rectangle( surface->shape_context, rect->right, rect->top, -width, height );
+        }
+
+        cairo_set_source_rgba( surface->shape_context, 0, 0, 0, 1 );
+        cairo_fill_preserve( surface->shape_context );
+        cairo_clip( surface->shape_context );
+    }
+
+    add_bounds_rect( &window_surface->bounds, &window_surface->rect );
+    if (window_surface->funcs->flush( window_surface ))
+        reset_bounds( &window_surface->bounds );
+}
+
+static BOOL cairo_window_surface_flush( struct window_surface *window_surface )
+{
+    struct cairo_window_surface *surface = get_cairo_window_surface( window_surface );
+    BOOL shaped = cairo_image_surface_get_format( surface->color_surface ) == CAIRO_FORMAT_ARGB32 ||
+                  surface->header.color_key != CLR_INVALID || surface->header.shape_region;
+    RECT rect = surface->header.rect;
+    cairo_rectangle_list_t *clip;
+
+    if (intersect_rect( &rect, &rect, &surface->header.bounds ))
+    {
+        UINT width = rect.right - rect.left, height = rect.bottom - rect.top;
+        cairo_surface_mark_dirty_rectangle( surface->color_surface, rect.left, rect.top, width, height );
+        cairo_rectangle( surface->color_context, rect.left, rect.top, width, height );
+        cairo_fill( surface->color_context );
+        cairo_surface_flush( surface->host_surface );
+
+        if (shaped)
+        {
+            UINT width = rect.right - rect.left, height = rect.bottom - rect.top;
+            cairo_set_source_surface( surface->shape_context, surface->color_surface, 0, 0 );
+            cairo_set_operator( surface->shape_context, CAIRO_OPERATOR_SOURCE );
+            cairo_rectangle( surface->shape_context, rect.left, rect.top, width, height );
+            cairo_fill( surface->shape_context );
+        }
+
+        if (surface->header.color_key != CLR_INVALID)
+        {
+            UINT32 *pixels = surface->pixels + rect.top * surface->header.rect.right + rect.left;
+            UINT stride = cairo_format_stride_for_width( CAIRO_FORMAT_A8, width ), x, y;
+            UINT32 color_key = surface->header.color_key & 0xffffff;
+            unsigned char *buffer, *alpha;
+            cairo_surface_t *mask;
+
+            if ((buffer = malloc( height * stride )))
+            {
+                for (y = 0, alpha = buffer; y < height; y++)
+                {
+                    for (x = 0; x < width; x++) alpha[x] = ((pixels[x] & 0xffffff) != color_key) * 0xff;
+                    pixels += surface->header.rect.right;
+                    alpha += stride;
+                }
+
+                mask = cairo_image_surface_create_for_data( buffer, CAIRO_FORMAT_A8, width, height, stride );
+                cairo_set_source_surface( surface->shape_context, mask, rect.left, rect.top );
+                cairo_rectangle( surface->shape_context, rect.left, rect.top, width, height );
+                cairo_fill( surface->shape_context );
+                cairo_surface_destroy( mask );
+                free( buffer );
+            }
+        }
+
+if (0) /* debug */
+{
+    if ((clip = cairo_copy_clip_rectangle_list( surface->color_context )))
+    {
+        cairo_set_source_rgba( surface->color_context, 0, 1, 0, 1 );
+        for (int i = 0; i < clip->num_rectangles; i++)
+        {
+            cairo_rectangle_t rect = clip->rectangles[i];
+            cairo_rectangle( surface->color_context, rect.x, rect.y, rect.width, rect.height );
+        }
+        cairo_stroke( surface->color_context );
+        cairo_set_source_surface( surface->color_context, surface->color_surface, 0, 0 );
+        cairo_rectangle_list_destroy( clip );
+    }
+}
+
+        return surface->cairo_funcs->flush( surface->host_surface, shaped ? surface->shape_surface : NULL );
+    }
+
+    return TRUE;
+}
+
+static void cairo_window_surface_destroy( struct window_surface *window_surface )
+{
+    struct cairo_window_surface *surface = get_cairo_window_surface( window_surface );
+    cairo_destroy( surface->color_context );
+    cairo_surface_destroy( surface->color_surface );
+    cairo_destroy( surface->shape_context );
+    surface->cairo_funcs->destroy( surface->host_surface, surface->shape_surface );
+    pthread_mutex_destroy( &surface->lock );
+    free( surface );
+}
+
+static const struct window_surface_funcs cairo_window_surface_funcs =
+{
+    cairo_window_surface_lock,
+    cairo_window_surface_unlock,
+    cairo_window_surface_get_info,
+    cairo_window_surface_set_clip,
+    cairo_window_surface_set_key,
+    cairo_window_surface_set_shape,
+    cairo_window_surface_flush,
+    cairo_window_surface_destroy
+};
+
+W32KAPI struct window_surface *window_surface_create_cairo( const struct window_surface_cairo_funcs *cairo_funcs,
+                                                            const RECT *rect, COLORREF color_key, BOOL use_alpha,
+                                                            cairo_surface_t *host_surface, cairo_surface_t *shape )
+{
+    cairo_format_t format = use_alpha ? CAIRO_FORMAT_ARGB32 : CAIRO_FORMAT_RGB24;
+    struct cairo_window_surface *surface;
+    cairo_t *cairo;
+
+    if (!(surface = malloc( offsetof( struct cairo_window_surface, pixels[rect->right * rect->bottom] ) ))) return NULL;
+    memset( surface, 0, sizeof(*surface) );
+    surface->header.funcs = &cairo_window_surface_funcs;
+    surface->header.rect  = *rect;
+    surface->header.ref   = 1;
+    reset_bounds( &surface->header.bounds );
+    pthread_mutex_init( &surface->lock, NULL );
+
+    surface->cairo_funcs = cairo_funcs;
+    surface->host_surface = host_surface;
+    surface->shape_surface = shape;
+    surface->color_surface = cairo_image_surface_create_for_data( (unsigned char *)surface->pixels, format,
+                                                                  rect->right, rect->bottom, rect->right * 4 );
+    surface->info.biSize        = sizeof(surface->info);
+    surface->info.biWidth       = rect->right;
+    surface->info.biHeight      = -rect->bottom; /* top-down */
+    surface->info.biPlanes      = 1;
+    surface->info.biBitCount    = 32;
+    surface->info.biSizeImage   = rect->right * rect->bottom * 4;
+    surface->info.biCompression = BI_RGB;
+    surface->info.biClrUsed     = 0;
+
+    cairo = cairo_create( surface->color_surface );
+    cairo_set_source_surface( cairo, surface->host_surface, 0, 0 );
+    cairo_paint( cairo );
+    cairo_destroy( cairo );
+
+    surface->shape_context = cairo_create( surface->shape_surface );
+    cairo_set_source_rgba( surface->shape_context, 0, 0, 0, 1 );
+    cairo_paint( surface->shape_context );
+
+    surface->color_context = cairo_create( surface->host_surface );
+    cairo_set_source_surface( surface->color_context, surface->color_surface, 0, 0 );
+
+    window_surface_set_key( &surface->header, color_key );
+    return &surface->header;
+}
+
+#endif
+
 /* window surface common helpers */
 
 static UINT get_color_component( UINT color, UINT mask )
