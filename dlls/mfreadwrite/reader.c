@@ -2776,6 +2776,38 @@ static HRESULT create_source_reader_from_source(IMFMediaSource *source, IMFAttri
     InitializeConditionVariable(&object->state_event);
     InitializeConditionVariable(&object->stop_event);
 
+    if (attributes)
+    {
+        object->attributes = attributes;
+        IMFAttributes_AddRef(object->attributes);
+
+        IMFAttributes_GetUnknown(attributes, &MF_SOURCE_READER_ASYNC_CALLBACK, &IID_IMFSourceReaderCallback,
+                (void **)&object->async_callback);
+        if (object->async_callback)
+            TRACE("Using async callback %p.\n", object->async_callback);
+
+        IMFAttributes_GetUnknown(attributes, &MF_SOURCE_READER_D3D_MANAGER, &IID_IUnknown, (void **)&object->device_manager);
+        if (object->device_manager)
+        {
+            IUnknown *unk = NULL;
+
+            if (SUCCEEDED(IUnknown_QueryInterface(object->device_manager, &IID_IMFDXGIDeviceManager, (void **)&unk)))
+                object->flags |= SOURCE_READER_DXGI_DEVICE_MANAGER;
+            else if (SUCCEEDED(IUnknown_QueryInterface(object->device_manager, &IID_IDirect3DDeviceManager9, (void **)&unk)))
+                object->flags |= SOURCE_READER_D3D9_DEVICE_MANAGER;
+
+            if (!(object->flags & (SOURCE_READER_HAS_DEVICE_MANAGER)))
+            {
+                WARN("Unknown device manager.\n");
+                IUnknown_Release(object->device_manager);
+                object->device_manager = NULL;
+            }
+
+            if (unk)
+                IUnknown_Release(unk);
+        }
+    }
+
     if (FAILED(hr = IMFMediaSource_CreatePresentationDescriptor(object->source, &object->descriptor)))
         goto failed;
 
@@ -2843,38 +2875,6 @@ static HRESULT create_source_reader_from_source(IMFMediaSource *source, IMFAttri
             (IUnknown *)object->source)))
     {
         goto failed;
-    }
-
-    if (attributes)
-    {
-        object->attributes = attributes;
-        IMFAttributes_AddRef(object->attributes);
-
-        IMFAttributes_GetUnknown(attributes, &MF_SOURCE_READER_ASYNC_CALLBACK, &IID_IMFSourceReaderCallback,
-                (void **)&object->async_callback);
-        if (object->async_callback)
-            TRACE("Using async callback %p.\n", object->async_callback);
-
-        IMFAttributes_GetUnknown(attributes, &MF_SOURCE_READER_D3D_MANAGER, &IID_IUnknown, (void **)&object->device_manager);
-        if (object->device_manager)
-        {
-            IUnknown *unk = NULL;
-
-            if (SUCCEEDED(IUnknown_QueryInterface(object->device_manager, &IID_IMFDXGIDeviceManager, (void **)&unk)))
-                object->flags |= SOURCE_READER_DXGI_DEVICE_MANAGER;
-            else if (SUCCEEDED(IUnknown_QueryInterface(object->device_manager, &IID_IDirect3DDeviceManager9, (void **)&unk)))
-                object->flags |= SOURCE_READER_D3D9_DEVICE_MANAGER;
-
-            if (!(object->flags & (SOURCE_READER_HAS_DEVICE_MANAGER)))
-            {
-                WARN("Unknown device manager.\n");
-                IUnknown_Release(object->device_manager);
-                object->device_manager = NULL;
-            }
-
-            if (unk)
-                IUnknown_Release(unk);
-        }
     }
 
     if (FAILED(hr = MFLockSharedWorkQueue(L"", 0, NULL, &object->queue)))
