@@ -174,6 +174,7 @@ struct source_reader
     struct media_stream *streams;
     struct list responses;
     CRITICAL_SECTION cs;
+    CONDITION_VARIABLE allocator_cond;
     CONDITION_VARIABLE sample_event;
     CONDITION_VARIABLE state_event;
     CONDITION_VARIABLE stop_event;
@@ -430,39 +431,6 @@ static void source_reader_response_ready(struct source_reader *reader, struct st
     stream->requests--;
 }
 
-static void source_reader_copy_sample_buffer(IMFSample *src, IMFSample *dst)
-{
-    IMFMediaBuffer *buffer;
-    LONGLONG time;
-    DWORD flags;
-    HRESULT hr;
-
-    IMFSample_CopyAllItems(src, (IMFAttributes *)dst);
-
-    IMFSample_SetSampleDuration(dst, 0);
-    IMFSample_SetSampleTime(dst, 0);
-    IMFSample_SetSampleFlags(dst, 0);
-
-    if (SUCCEEDED(IMFSample_GetSampleDuration(src, &time)))
-        IMFSample_SetSampleDuration(dst, time);
-
-    if (SUCCEEDED(IMFSample_GetSampleTime(src, &time)))
-        IMFSample_SetSampleTime(dst, time);
-
-    if (SUCCEEDED(IMFSample_GetSampleFlags(src, &flags)))
-        IMFSample_SetSampleFlags(dst, flags);
-
-    if (SUCCEEDED(IMFSample_ConvertToContiguousBuffer(src, NULL)))
-    {
-        if (SUCCEEDED(IMFSample_GetBufferByIndex(dst, 0, &buffer)))
-        {
-            if (FAILED(hr = IMFSample_CopyToBuffer(src, buffer)))
-                WARN("Failed to copy a buffer, hr %#lx.\n", hr);
-            IMFMediaBuffer_Release(buffer);
-        }
-    }
-}
-
 static HRESULT source_reader_queue_response(struct source_reader *reader, struct media_stream *stream, HRESULT status,
         DWORD stream_flags, LONGLONG timestamp, IMFSample *sample)
 {
@@ -681,13 +649,20 @@ static ULONG WINAPI source_reader_stream_events_callback_Release(IMFAsyncCallbac
     return source_reader_release(reader);
 }
 
-static HRESULT source_reader_allocate_stream_sample(MFT_OUTPUT_STREAM_INFO *info, IMFSample **out)
+static HRESULT source_reader_allocate_stream_sample(struct source_reader *reader, struct media_stream *stream,
+        MFT_OUTPUT_STREAM_INFO *info, IMFSample **out)
 {
     IMFMediaBuffer *buffer;
     IMFSample *sample;
     HRESULT hr;
 
-    *out = NULL;
+    if (stream->allocator)
+    {
+        while ((hr = IMFVideoSampleAllocatorEx_AllocateSample(stream->allocator, out)) == MF_E_SAMPLEALLOCATOR_EMPTY)
+            SleepConditionVariableCS(&reader->allocator_cond, &reader->cs, INFINITE);
+        return hr;
+    }
+
     if (FAILED(hr = MFCreateSample(&sample)))
         return hr;
     if (SUCCEEDED(hr = MFCreateAlignedMemoryBuffer(info->cbSize, info->cbAlignment, &buffer)))
@@ -886,7 +861,7 @@ static HRESULT source_reader_pull_transform_samples(struct source_reader *reader
         IMFMediaType *media_type;
 
         if (!(stream_info.dwFlags & (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES | MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES))
-                && FAILED(hr = source_reader_allocate_stream_sample(&stream_info, &out_buffer.pSample)))
+                && FAILED(hr = source_reader_allocate_stream_sample(reader, stream, &stream_info, &out_buffer.pSample)))
             break;
 
         if (SUCCEEDED(hr = IMFTransform_ProcessOutput(entry->transform, 0, 1, &out_buffer, &status)))
@@ -1220,8 +1195,6 @@ static struct stream_response * media_stream_detach_response(struct source_reade
 static struct stream_response *media_stream_pop_response(struct source_reader *reader, struct media_stream *stream)
 {
     struct stream_response *response;
-    IMFSample *sample;
-    HRESULT hr;
 
     LIST_FOR_EACH_ENTRY(response, &reader->responses, struct stream_response, entry)
     {
@@ -1229,26 +1202,6 @@ static struct stream_response *media_stream_pop_response(struct source_reader *r
             continue;
 
         if (!stream) stream = &reader->streams[response->stream_index];
-
-        if (response->sample && stream->allocator)
-        {
-            /* Return allocation error to the caller, while keeping original response sample in for later. */
-            if (SUCCEEDED(hr = IMFVideoSampleAllocatorEx_AllocateSample(stream->allocator, &sample)))
-            {
-                source_reader_copy_sample_buffer(response->sample, sample);
-                IMFSample_Release(response->sample);
-                response->sample = sample;
-            }
-            else
-            {
-                if (!(response = calloc(1, sizeof(*response))))
-                    return NULL;
-
-                response->status = hr;
-                response->stream_flags = MF_SOURCE_READERF_ERROR;
-                return response;
-            }
-        }
 
         return media_stream_detach_response(reader, response);
     }
@@ -2742,7 +2695,9 @@ static ULONG WINAPI source_reader_sample_allocator_notify_Release(IMFVideoSample
 
 static HRESULT WINAPI source_reader_sample_allocator_notify_NotifyRelease(IMFVideoSampleAllocatorNotify *iface)
 {
+    struct source_reader *reader = impl_from_IMFVideoSampleAllocatorNotify(iface);
     TRACE("iface %p\n", iface);
+    WakeAllConditionVariable(&reader->allocator_cond);
     return S_OK;
 }
 
@@ -2818,6 +2773,7 @@ static HRESULT create_source_reader_from_source(IMFMediaSource *source, IMFAttri
     object->source = source;
     IMFMediaSource_AddRef(object->source);
     InitializeCriticalSection(&object->cs);
+    InitializeConditionVariable(&object->allocator_cond);
     InitializeConditionVariable(&object->sample_event);
     InitializeConditionVariable(&object->state_event);
     InitializeConditionVariable(&object->stop_event);
