@@ -614,17 +614,20 @@ static PROC wrap_wglGetProcAddress( TEB *teb, LPCSTR name )
                 if (strcmp( name, alternatives[i].name )) continue;
                 WARN( "Extension %s required for %s not supported, trying %s\n", found->extension,
                       name, alternatives[i].alt );
-                return wrap_wglGetProcAddress( teb, alternatives[i].alt );
+                if ((driver_func = wrap_wglGetProcAddress( teb, alternatives[i].alt ))) break;
             }
 
-            WARN( "Extension %s required for %s not supported\n", found->extension, name );
-            return (void *)-1;
+            if (!driver_func)
+            {
+                WARN( "Extension %s required for %s not supported\n", found->extension, name );
+                driver_func = (void *)-1;
+            }
         }
 
         if (driver_func == NULL)
         {
             WARN( "Function %s not supported by driver\n", name );
-            return (void *)-1;
+            driver_func = (void *)-1;
         }
 
         *func_ptr = driver_func;
