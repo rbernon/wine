@@ -47,6 +47,9 @@ extern ULONG_PTR set_icon_param( HICON handle, ULONG_PTR param );
 extern struct window_surface dummy_surface;
 extern void create_offscreen_window_surface( HWND hwnd, const RECT *surface_rect,
                                              struct window_surface **surface );
+extern void create_dpi_scaling_surface( HWND hwnd, const RECT *visible_rect, UINT source_dpi,
+                                        struct window_surface *target_surface, UINT target_dpi,
+                                        struct window_surface **window_surface );
 extern void erase_now( HWND hwnd, UINT rdw_flags );
 extern void flush_window_surfaces( BOOL idle );
 extern void move_window_bits( HWND hwnd, const RECT *visible_rect, const RECT *old_visible_rect,
@@ -69,6 +72,9 @@ extern BOOL draw_rect_edge( HDC hdc, RECT *rc, UINT uType, UINT uFlags, UINT wid
 extern void fill_rect( HDC dc, const RECT *rect, HBRUSH hbrush );
 extern void get_sys_popup_pos( HWND hwnd, RECT *rect );
 extern LRESULT handle_nc_hit_test( HWND hwnd, POINT pt );
+
+/* dwmdrv.c */
+extern void dwm_init(void);
 
 /* hook.c */
 extern LRESULT call_current_hook( HHOOK hhook, INT code, WPARAM wparam, LPARAM lparam );
