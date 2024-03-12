@@ -61,6 +61,7 @@ struct wg_transform
     bool output_caps_changed;
     GstCaps *desired_caps;
     GstCaps *output_caps;
+    GstCaps *input_caps;
 };
 
 static struct wg_transform *get_transform(wg_transform_t trans)
@@ -362,6 +363,7 @@ NTSTATUS wg_transform_destroy(void *args)
     gst_query_unref(transform->drain_query);
     gst_caps_unref(transform->desired_caps);
     gst_caps_unref(transform->output_caps);
+    gst_caps_unref(transform->input_caps);
     gst_atomic_queue_unref(transform->output_queue);
     free(transform);
 
@@ -402,7 +404,7 @@ NTSTATUS wg_transform_create(void *args)
 {
     struct wg_transform_create_params *params = args;
     GstElement *first = NULL, *last = NULL, *element;
-    GstCaps *sink_caps = NULL, *src_caps = NULL, *parsed_caps = NULL;
+    GstCaps *sink_caps = NULL, *parsed_caps = NULL;
     NTSTATUS status = STATUS_UNSUCCESSFUL;
     const gchar *input_mime, *output_mime;
     GstPadTemplate *template = NULL;
@@ -429,16 +431,16 @@ NTSTATUS wg_transform_create(void *args)
     if (IsEqualGUID(&params->output_type.major, &MFMediaType_Video))
         output_info = params->output_type.u.video->videoInfo;
 
-    if (!(src_caps = caps_from_media_type(&params->input_type)))
+    if (!(transform->input_caps = caps_from_media_type(&params->input_type)))
         goto out;
-    if (!(template = gst_pad_template_new("src", GST_PAD_SRC, GST_PAD_ALWAYS, src_caps)))
+    if (!(template = gst_pad_template_new("src", GST_PAD_SRC, GST_PAD_ALWAYS, transform->input_caps)))
         goto out;
     transform->my_src = gst_pad_new_from_template(template, "src");
     g_object_unref(template);
     if (!transform->my_src)
         goto out;
 
-    GST_INFO("transform %p input caps %"GST_PTR_FORMAT, transform, src_caps);
+    GST_INFO("transform %p input caps %"GST_PTR_FORMAT, transform, transform->input_caps);
 
     gst_pad_set_element_private(transform->my_src, transform);
     gst_pad_set_query_function(transform->my_src, transform_src_query_cb);
@@ -460,8 +462,8 @@ NTSTATUS wg_transform_create(void *args)
     gst_pad_set_query_function(transform->my_sink, transform_sink_query_cb);
     gst_pad_set_chain_function(transform->my_sink, transform_sink_chain_cb);
 
-    input_mime = gst_structure_get_name(gst_caps_get_structure(src_caps, 0));
-    if (!(parsed_caps = transform_get_parsed_caps(src_caps, input_mime)))
+    input_mime = gst_structure_get_name(gst_caps_get_structure(transform->input_caps, 0));
+    if (!(parsed_caps = transform_get_parsed_caps(transform->input_caps, input_mime)))
         goto out;
 
     /* Since we append conversion elements, we don't want to filter decoders
@@ -474,13 +476,13 @@ NTSTATUS wg_transform_create(void *args)
 
     if (strcmp(input_mime, "audio/x-raw") && strcmp(input_mime, "video/x-raw"))
     {
-        if ((element = find_element(GST_ELEMENT_FACTORY_TYPE_PARSER, src_caps, parsed_caps))
+        if ((element = find_element(GST_ELEMENT_FACTORY_TYPE_PARSER, transform->input_caps, parsed_caps))
                 && !append_element(transform->container, element, &first, &last))
             goto out;
         else if (!element)
         {
             gst_caps_unref(parsed_caps);
-            parsed_caps = gst_caps_ref(src_caps);
+            parsed_caps = gst_caps_ref(transform->input_caps);
         }
 
         if (!(element = find_element(GST_ELEMENT_FACTORY_TYPE_DECODER, parsed_caps, sink_caps))
@@ -557,7 +559,7 @@ NTSTATUS wg_transform_create(void *args)
     if (!(event = gst_event_new_stream_start("stream"))
             || !push_event(transform->my_src, event))
         goto out;
-    if (!(event = gst_event_new_caps(src_caps))
+    if (!(event = gst_event_new_caps(transform->input_caps))
             || !push_event(transform->my_src, event))
         goto out;
 
@@ -571,7 +573,6 @@ NTSTATUS wg_transform_create(void *args)
         goto out;
 
     gst_caps_unref(parsed_caps);
-    gst_caps_unref(src_caps);
     gst_caps_unref(sink_caps);
 
     GST_INFO("Created winegstreamer transform %p.", transform);
@@ -587,8 +588,8 @@ out:
         gst_caps_unref(transform->output_caps);
     if (transform->my_src)
         gst_object_unref(transform->my_src);
-    if (src_caps)
-        gst_caps_unref(src_caps);
+    if (transform->input_caps)
+        gst_caps_unref(transform->input_caps);
     if (parsed_caps)
         gst_caps_unref(parsed_caps);
     if (sink_caps)
