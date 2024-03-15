@@ -4037,6 +4037,7 @@ DECL_HANDLER(get_rawinput_buffer)
     else if ((buffer = mem_alloc( buffer_size )))
     {
         size_t total_size = 0, next_size = 0;
+        int clear = 1;
 
         reply->next_size = get_reply_max_size();
 
@@ -4051,6 +4052,7 @@ DECL_HANDLER(get_rawinput_buffer)
                 if (total_size + sizeof(RAWINPUTHEADER) + data_size > buffer_size)
                 {
                     next_size = sizeof(RAWINPUTHEADER) + data_size;
+                    clear = 0;
                     break;
                 }
 
@@ -4065,6 +4067,10 @@ DECL_HANDLER(get_rawinput_buffer)
                 list_remove( &msg->entry );
                 free_message( msg );
                 count++;
+            }
+            else if (get_hardware_msg_bit( msg->msg ) == QS_RAWINPUT)
+            {
+                clear = 0;
             }
         }
 
@@ -4082,6 +4088,7 @@ DECL_HANDLER(get_rawinput_buffer)
 
         reply->count = count;
         set_reply_data_ptr( buffer, total_size );
+        if (clear) clear_queue_bits( current->queue, QS_RAWINPUT );
     }
 }
 
