@@ -24,6 +24,8 @@
 
 #include <stdarg.h>
 #include <stddef.h>
+
+#include <assert.h>
 #include <pthread.h>
 
 #include "ntstatus.h"
@@ -43,6 +45,17 @@ WINE_DECLARE_DEBUG_CHANNEL(win);
 
 #define DESKTOP_ALL_ACCESS 0x01ff
 
+struct object_info
+{
+    UINT64 id;
+    UINT index;
+};
+
+struct session_thread_data
+{
+    struct object_info shared_desktop;         /* thread desktop shared session object info */
+};
+
 struct shared_session
 {
     LONG ref;
@@ -52,6 +65,13 @@ struct shared_session
 
 static pthread_mutex_t session_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct shared_session *shared_session;
+
+static struct session_thread_data *get_session_thread_data(void)
+{
+    struct user_thread_info *thread_info = get_user_thread_info();
+    if (!thread_info->session_data) thread_info->session_data = calloc(1, sizeof(*thread_info->session_data));
+    return thread_info->session_data;
+}
 
 #if defined(__i386__) || defined(__x86_64__)
 /* this prevents compilers from incorrectly reordering non-volatile reads (e.g., memcpy) from shared memory */
@@ -181,6 +201,106 @@ done:
     pthread_mutex_unlock( &session_lock );
 
     return session;
+}
+
+enum object_type
+{
+    OBJECT_TYPE_DESKTOP = 1,
+};
+
+static NTSTATUS get_thread_session_object_info( UINT tid, enum object_type type,
+                                                struct object_info *info )
+{
+    NTSTATUS status;
+
+    TRACE( "tid %04x, type %u, info %p\n", tid, type, info );
+
+    switch (type)
+    {
+    case OBJECT_TYPE_DESKTOP:
+        SERVER_START_REQ( get_thread_desktop )
+        {
+            req->tid = tid;
+            if (!(status = wine_server_call( req )))
+            {
+                info->id = reply->object_id;
+                info->index = reply->index;
+            }
+            if (info->index == -1) status = STATUS_INVALID_HANDLE;
+        }
+        SERVER_END_REQ;
+        break;
+    default:
+        ERR( "Invalid session object type %u\n", type );
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    return status;
+}
+
+/* return a locked session object for a thread id and type */
+static NTSTATUS get_thread_session_object( UINT tid, enum object_type type, struct object_info *info,
+                                           struct object_lock *lock, const object_shm_t **object_shm )
+{
+    struct shared_session *session;
+    NTSTATUS status;
+    BOOL valid;
+
+    assert( !lock->id || *object_shm );
+
+    TRACE( "tid %04x, type %u, info %p, lock %p, shared %p\n", tid, type, info, lock, object_shm );
+
+    if (lock->id)
+    {
+        /* lock was previously acquired, finish reading and check data consistency */
+        const object_shm_t *object = *object_shm;
+        valid = lock->id == object->id;
+
+        if (!object_shm_release_seqlock( object, lock->seq ))
+        {
+            /* retry if the seqlock doesn't match, wineserver has written to it */
+            object_shm_acquire_seqlock( object, &lock->seq );
+            return STATUS_PENDING;
+        }
+
+        shared_session_release( lock->session );
+        memset( lock, 0, sizeof(*lock) );
+
+        if (valid) return STATUS_SUCCESS;
+        info->id = 0; /* invalidate info if the lock was abandoned due to id mismatch */
+    }
+
+    valid = TRUE; /* assume the session is valid at first */
+    while ((session = get_shared_session( !valid )))
+    {
+        if (!info->id && (status = get_thread_session_object_info( tid, type, info ))) break;
+        if ((valid = info->index < session->object_capacity))
+        {
+            lock->id = info->id;
+            lock->session = session;
+            *object_shm = &session->shared->objects[info->index].obj;
+            object_shm_acquire_seqlock( *object_shm, &lock->seq );
+            return STATUS_PENDING;
+        }
+        shared_session_release( session );
+        memset( info, 0, sizeof(*info) );
+    }
+
+    WARN( "Failed to find object type %u for thread %04x\n", type, tid );
+    if (session) shared_session_release( session );
+    memset( info, 0, sizeof(*info) );
+    return status;
+}
+
+NTSTATUS get_shared_desktop( struct object_lock *lock, const desktop_shm_t **desktop_shm )
+{
+    struct session_thread_data *data = get_session_thread_data();
+    struct object_info *info = &data->shared_desktop;
+
+    TRACE( "lock %p, desktop_shm %p\n", lock, desktop_shm );
+
+    return get_thread_session_object( GetCurrentThreadId(), OBJECT_TYPE_DESKTOP, info,
+                                      lock, (const object_shm_t **)desktop_shm );
 }
 
 BOOL is_virtual_desktop(void)
@@ -404,9 +524,18 @@ BOOL WINAPI NtUserSetThreadDesktop( HDESK handle )
     {
         struct user_thread_info *thread_info = get_user_thread_info();
         struct user_key_state_info *key_state_info = thread_info->key_state;
+        struct object_info *desktop_info = &get_session_thread_data()->shared_desktop;
+        const desktop_shm_t *desktop_shm;
+        struct object_lock lock = {0};
+
         thread_info->client_info.top_window = 0;
         thread_info->client_info.msg_window = 0;
         if (key_state_info) key_state_info->time = 0;
+        memset( desktop_info, 0, sizeof(*desktop_info) );
+
+        while (get_shared_desktop( &lock, &desktop_shm ) == STATUS_PENDING)
+            /* nothing */;
+
         if (was_virtual_desktop != is_virtual_desktop()) update_display_cache( TRUE );
     }
     return ret;
@@ -773,15 +902,11 @@ void winstation_init(void)
 {
     RTL_USER_PROCESS_PARAMETERS *params = NtCurrentTeb()->Peb->ProcessParameters;
     WCHAR *winstation = NULL, *desktop = NULL, *buffer = NULL;
-    struct shared_session *session;
     HANDLE handle, dir = NULL;
     OBJECT_ATTRIBUTES attr;
     UNICODE_STRING str;
 
     static const WCHAR winsta0[] = {'W','i','n','S','t','a','0',0};
-
-    if ((session = get_shared_session( FALSE )))
-        shared_session_release( session );
 
     if (params->Desktop.Length)
     {
