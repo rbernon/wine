@@ -884,9 +884,15 @@ typedef volatile struct
     object_id_t          id;               /* object unique id, object data is valid if != 0 */
 } object_shm_t;
 
+typedef volatile struct
+{
+    object_shm_t         obj;
+} desktop_shm_t;
+
 typedef volatile union
 {
     object_shm_t         obj;
+    desktop_shm_t        desktop;
 } session_obj_t;
 
 typedef volatile struct
