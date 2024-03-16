@@ -1649,13 +1649,11 @@ static BOOL destroy_shm_image( XImage *image, x11drv_xshm_info_t *shminfo )
     return TRUE;
 }
 
-static BOOL put_shm_image( XImage *image, x11drv_xshm_info_t *shminfo, Window window,
-                           GC gc, const RECT *rect, const RECT *dirty )
+static BOOL put_shm_image( XImage *image, x11drv_xshm_info_t *shminfo, Window window, GC gc, const RECT *dirty )
 {
     if (shminfo->shmid == -1) return FALSE;
 
-    XShmPutImage( gdi_display, window, gc, image, dirty->left,
-                  dirty->top, rect->left + dirty->left, rect->top + dirty->top,
+    XShmPutImage( gdi_display, window, gc, image, dirty->left, dirty->top, dirty->left, dirty->top,
                   dirty->right - dirty->left, dirty->bottom - dirty->top, False );
 
     return TRUE;
@@ -1669,13 +1667,12 @@ static XImage *create_shm_image( const XVisualInfo *vis, int width, int height, 
     return NULL;
 }
 
-static BOOL destroy_shm_image( XImage *image, x11drv_xshm_info_t *shminfo )
+static BOOL destroy_shm_image( XImage *image )
 {
     return FALSE;
 }
 
-static BOOL put_shm_image( XImage *image, x11drv_xshm_info_t *shminfo, Window window,
-                           GC gc, const RECT *rect, const RECT *dirty )
+static BOOL put_shm_image( XImage *image, x11drv_xshm_info_t *shminfo, Window window, GC gc, const RECT *dirty )
 {
     return FALSE;
 }
@@ -1798,17 +1795,6 @@ static BOOL x11drv_surface_flush( struct window_surface *window_surface, const R
     const unsigned char *src = color_bits;
     unsigned char *dst = (unsigned char *)ximage->data;
 
-    if (alpha_bits == -1)
-    {
-        if (alpha_mask || color_info->bmiHeader.biBitCount != 32) alpha_bits = 0;
-        else if (color_info->bmiHeader.biCompression == BI_RGB) alpha_bits = 0xff000000;
-        else
-        {
-            DWORD *colors = (DWORD *)color_info->bmiColors;
-            alpha_bits = ~(colors[0] | colors[1] | colors[2]);
-        }
-    }
-
     if (src != dst)
     {
         int map[256], *mapping = get_window_surface_mapping( ximage->bits_per_pixel, map );
@@ -1817,41 +1803,21 @@ static BOOL x11drv_surface_flush( struct window_surface *window_surface, const R
         src += dirty->top * width_bytes;
         dst += dirty->top * width_bytes;
         copy_image_byteswap( color_info, src, dst, width_bytes, width_bytes, dirty->bottom - dirty->top,
-                             surface->byteswap, mapping, ~0u, alpha_bits );
+                             surface->byteswap, mapping, ~0u, surface->alpha_bits );
     }
-    else if (alpha_bits)
+    else if (surface->alpha_bits)
     {
         int x, y, stride = ximage->bytes_per_line / sizeof(ULONG);
         ULONG *ptr = (ULONG *)dst + dirty->top * stride;
 
         for (y = dirty->top; y < dirty->bottom; y++, ptr += stride)
             for (x = dirty->left; x < dirty->right; x++)
-                ptr[x] |= alpha_bits;
+                ptr[x] |= surface->alpha_bits;
     }
 
-    if (!put_shm_image( ximage, &surface->image->shminfo, surface->window, surface->gc, rect, dirty ))
-        XPutImage( gdi_display, surface->window, surface->gc, ximage, dirty->left,
-                   dirty->top, rect->left + dirty->left, rect->top + dirty->top,
-                   dirty->right - dirty->left, dirty->bottom - dirty->top );
-
-    if (shape_changed)
-    {
-#ifdef HAVE_LIBXSHAPE
-        if (!shape_info)
-            XShapeCombineMask( gdi_display, surface->window, ShapeBounding, 0, 0, None, ShapeSet );
-        else
-        {
-            struct gdi_image_bits bits = {.ptr = (void *)shape_bits};
-            XVisualInfo vis = default_visual;
-            Pixmap shape;
-
-            vis.depth = 1;
-            shape = create_pixmap_from_image( 0, &vis, shape_info, &bits, DIB_RGB_COLORS );
-            XShapeCombineMask( gdi_display, surface->window, ShapeBounding, 0, 0, shape, ShapeSet );
-            XFreePixmap( gdi_display, shape );
-        }
-#endif /* HAVE_LIBXSHAPE */
-    }
+    if (!put_shm_image( ximage, &surface->image->shminfo, surface->window, surface->gc, dirty ))
+        XPutImage( gdi_display, surface->window, surface->gc, ximage, dirty->left, dirty->top,
+                   dirty->left, dirty->top, dirty->right - dirty->left, dirty->bottom - dirty->top );
 
     XFlush( gdi_display );
 
@@ -1868,6 +1834,7 @@ static void x11drv_surface_destroy( struct window_surface *window_surface )
     TRACE( "freeing %p\n", surface );
     if (surface->gc) XFreeGC( gdi_display, surface->gc );
     if (surface->image) x11drv_image_destroy( surface->image );
+    free( surface );
 }
 
 const struct window_surface_funcs x11drv_surface_funcs =
@@ -1932,7 +1899,7 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
         if (desc.hDeviceDc) NtUserReleaseDC( hwnd, desc.hDeviceDc );
     }
 
-    if (!window_surface_create( sizeof(*surface), &x11drv_surface_funcs, hwnd, info, bitmap,
+    if (!window_surface_create( sizeof(*surface), &x11drv_surface_funcs, hwnd, rect, info, bitmap,
                                 color_key, use_alpha ? 0xff000000 : 0, &window_surface ))
     {
         if (bitmap) NtGdiDeleteObjectApp( bitmap );
@@ -1946,34 +1913,9 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
     surface->window = window;
     surface->gc = XCreateGC( gdi_display, window, 0, NULL );
     XSetSubwindowMode( gdi_display, surface->gc, IncludeInferiors );
+    if (vis->depth == 32 && !use_alpha) surface->alpha_bits = ~(vis->red_mask | vis->green_mask | vis->blue_mask);
 
     return &surface->header;
-}
-
-/***********************************************************************
- *           expose_surface
- */
-HRGN expose_surface( struct window_surface *window_surface, const RECT *rect )
-{
-    HRGN region = 0;
-    RECT rc = *rect;
-
-    if (window_surface->funcs != &x11drv_surface_funcs) return 0;  /* we may get the null surface */
-
-    window_surface_lock( window_surface );
-    OffsetRect( &rc, -window_surface->rect.left, -window_surface->rect.top );
-    add_bounds_rect( &window_surface->bounds, &rc );
-    if (window_surface->clip_region)
-    {
-        region = NtGdiCreateRectRgn( rect->left, rect->top, rect->right, rect->bottom );
-        if (NtGdiCombineRgn( region, region, window_surface->clip_region, RGN_DIFF ) <= NULLREGION)
-        {
-            NtGdiDeleteObjectApp( region );
-            region = 0;
-        }
-    }
-    window_surface_unlock( window_surface );
-    return region;
 }
 
 
