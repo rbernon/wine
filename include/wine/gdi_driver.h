@@ -41,6 +41,10 @@
 #include "wine/list.h"
 #include "wine/debug.h"
 
+#ifdef HAVE_CAIRO_CAIRO_H
+#include <cairo/cairo.h>
+#endif
+
 struct gdi_dc_funcs;
 struct opengl_funcs;
 struct vulkan_funcs;
@@ -290,6 +294,24 @@ W32KAPI void window_surface_flush( struct window_surface *surface );
 W32KAPI void window_surface_set_clip( struct window_surface *surface, HRGN clip_region );
 W32KAPI void window_surface_set_shape( struct window_surface *surface, HRGN shape_region );
 W32KAPI void window_surface_set_layered( struct window_surface *surface, COLORREF color_key, UINT alpha_bits, UINT alpha_mask );
+
+W32KAPI void window_surface_lock_read( struct window_surface *surface, const void **bits );
+W32KAPI void window_surface_unlock_read( struct window_surface *surface );
+W32KAPI void window_surface_lock_write( struct window_surface *surface, void **bits );
+W32KAPI void window_surface_unlock_write( struct window_surface *surface, const RECT *dirty, BOOL flush );
+
+#ifdef HAVE_CAIRO_CAIRO_H
+
+struct window_surface_cairo_funcs
+{
+    BOOL  (*flush)( cairo_surface_t *window, cairo_surface_t *shape );
+    void  (*destroy)( cairo_surface_t *window, cairo_surface_t *shape );
+};
+
+W32KAPI struct window_surface *window_surface_create_cairo( const struct window_surface_cairo_funcs *cairo_funcs,
+                                                            const RECT *rect, COLORREF color_key, BOOL use_alpha,
+                                                            cairo_surface_t *host_surface, cairo_surface_t *shape );
+#endif
 
 /* display manager interface, used to initialize display device registry data */
 
