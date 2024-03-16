@@ -621,7 +621,7 @@ static void update_mouse_coords( INPUT *input )
         if (input->mi.dwFlags & MOUSEEVENTF_VIRTUALDESK)
             rc = get_virtual_screen_rect( 0, MDT_DEFAULT );
         else
-            rc = get_primary_monitor_rect( 0 );
+            rc = get_primary_monitor_rect( 0 ); /* FIXME DPI */
 
         input->mi.dx = rc.left + ((input->mi.dx * (rc.right - rc.left)) >> 16);
         input->mi.dy = rc.top  + ((input->mi.dy * (rc.bottom - rc.top)) >> 16);
@@ -794,10 +794,13 @@ static void check_for_events( UINT flags )
         .internal = TRUE,
         .flags = PM_REMOVE,
     };
+    UINT context;
     MSG msg;
 
+    context = set_thread_dpi_awareness_context( NTUSER_DPI_PER_MONITOR_AWARE_V2 );
     if (!user_driver->pProcessEvents( flags ))
         flush_window_surfaces( TRUE );
+    set_thread_dpi_awareness_context( context );
 
     peek_message( &msg, &filter );
 }

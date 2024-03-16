@@ -694,7 +694,8 @@ BOOL WINAPI GetWindowRect( HWND hwnd, RECT *rect )
  */
 int WINAPI GetWindowRgn( HWND hwnd, HRGN hrgn )
 {
-    return NtUserGetWindowRgnEx( hwnd, hrgn, 0 );
+    UINT dpi = NTUSER_DPI_CONTEXT_GET_DPI( (UINT_PTR)GetThreadDpiAwarenessContext() );
+    return NtUserGetWindowRgnEx( hwnd, hrgn, dpi );
 }
 
 
