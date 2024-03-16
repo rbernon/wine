@@ -807,7 +807,6 @@ void dibdrv_set_window_surface( DC *dc, struct window_surface *surface )
         if (windev) push_dc_driver( &dc->physDev, windev, windev->funcs );
         else
         {
-            if (!dwm_driver.pCreateDC( &dc->physDev, NULL, NULL, NULL )) return;
             if (!window_driver.pCreateDC( &dc->physDev, NULL, NULL, NULL )) return;
             windev = find_dc_driver( dc, &window_driver );
         }
@@ -827,7 +826,6 @@ void dibdrv_set_window_surface( DC *dc, struct window_surface *surface )
     }
     else if (windev)
     {
-        dwm_driver.pDeleteDC( pop_dc_driver( dc, &dwm_driver ) );
         dib_driver.pDeleteDC( pop_dc_driver( dc, &dib_driver ));
         windev->funcs->pDeleteDC( windev );
         DC_InitDC( dc );
