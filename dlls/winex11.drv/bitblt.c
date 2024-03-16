@@ -1946,9 +1946,6 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
     surface->window = window;
     surface->gc = XCreateGC( gdi_display, window, 0, NULL );
     XSetSubwindowMode( gdi_display, surface->gc, IncludeInferiors );
-#ifdef HAVE_LIBXSHAPE
-    XShapeCombineMask( gdi_display, surface->window, ShapeBounding, 0, 0, None, ShapeSet );
-#endif
 
     TRACE( "created %p for %lx %s image %p\n", surface, window, wine_dbgstr_rect(rect), surface->image->ximage->data );
 
@@ -1957,32 +1954,6 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
 failed:
     window_surface_release( &surface->header );
     return NULL;
-}
-
-/***********************************************************************
- *           expose_surface
- */
-HRGN expose_surface( struct window_surface *window_surface, const RECT *rect )
-{
-    HRGN region = 0;
-    RECT rc = *rect;
-
-    if (window_surface->funcs != &x11drv_surface_funcs) return 0;  /* we may get the null surface */
-
-    window_surface_lock( window_surface );
-    OffsetRect( &rc, -window_surface->rect.left, -window_surface->rect.top );
-    add_bounds_rect( &window_surface->bounds, &rc );
-    if (window_surface->clip_region)
-    {
-        region = NtGdiCreateRectRgn( rect->left, rect->top, rect->right, rect->bottom );
-        if (NtGdiCombineRgn( region, region, window_surface->clip_region, RGN_DIFF ) <= NULLREGION)
-        {
-            NtGdiDeleteObjectApp( region );
-            region = 0;
-        }
-    }
-    window_surface_unlock( window_surface );
-    return region;
 }
 
 
