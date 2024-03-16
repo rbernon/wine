@@ -2254,7 +2254,8 @@ static const struct gdi_dc_funcs xrender_funcs =
     NULL,                               /* pStrokeAndFillPath */
     NULL,                               /* pStrokePath */
     NULL,                               /* pUnrealizePalette */
-    GDI_PRIORITY_GRAPHICS_DRV + 10      /* priority */
+    GDI_PRIORITY_GRAPHICS_DRV + 10,     /* priority */
+    "xrender",
 };
 
 #else /* SONAME_LIBXRENDER */

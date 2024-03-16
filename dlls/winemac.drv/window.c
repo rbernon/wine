@@ -370,8 +370,8 @@ static void sync_window_min_max_info(HWND hwnd)
         adjustedStyle = style;
 
     primary_monitor_rect.left = primary_monitor_rect.top = 0;
-    primary_monitor_rect.right = NtUserGetSystemMetrics(SM_CXSCREEN);
-    primary_monitor_rect.bottom = NtUserGetSystemMetrics(SM_CYSCREEN);
+    primary_monitor_rect.right = NtUserGetSystemMetrics(SM_CXSCREEN); /* FIXME: DPI */
+    primary_monitor_rect.bottom = NtUserGetSystemMetrics(SM_CYSCREEN); /* FIXME: DPI */
     menu = ((style & WS_POPUP) && NtUserGetWindowLongPtrW(hwnd, GWLP_ID));
     NtUserAdjustWindowRect(&primary_monitor_rect, adjustedStyle, menu, exstyle, dpi);
 
@@ -384,19 +384,19 @@ static void sync_window_min_max_info(HWND hwnd)
     minmax.ptMaxPosition.y = -yinc;
     if (style & (WS_DLGFRAME | WS_BORDER))
     {
-        minmax.ptMinTrackSize.x = NtUserGetSystemMetrics(SM_CXMINTRACK);
-        minmax.ptMinTrackSize.y = NtUserGetSystemMetrics(SM_CYMINTRACK);
+        minmax.ptMinTrackSize.x = NtUserGetSystemMetrics(SM_CXMINTRACK); /* FIXME: DPI */
+        minmax.ptMinTrackSize.y = NtUserGetSystemMetrics(SM_CYMINTRACK); /* FIXME: DPI */
     }
     else
     {
         minmax.ptMinTrackSize.x = 2 * xinc;
         minmax.ptMinTrackSize.y = 2 * yinc;
     }
-    minmax.ptMaxTrackSize.x = NtUserGetSystemMetrics(SM_CXMAXTRACK);
-    minmax.ptMaxTrackSize.y = NtUserGetSystemMetrics(SM_CYMAXTRACK);
+    minmax.ptMaxTrackSize.x = NtUserGetSystemMetrics(SM_CXMAXTRACK); /* FIXME: DPI */
+    minmax.ptMaxTrackSize.y = NtUserGetSystemMetrics(SM_CYMAXTRACK); /* FIXME: DPI */
 
     wpl.length = sizeof(wpl);
-    if (NtUserGetWindowPlacement(hwnd, &wpl) && (wpl.ptMaxPosition.x != -1 || wpl.ptMaxPosition.y != -1))
+    if (NtUserGetWindowPlacement(hwnd, &wpl) && (wpl.ptMaxPosition.x != -1 || wpl.ptMaxPosition.y != -1)) /* FIXME: DPI */
     {
         minmax.ptMaxPosition = wpl.ptMaxPosition;
 
@@ -420,7 +420,7 @@ static void sync_window_min_max_info(HWND hwnd)
         RECT monitor_rect;
 
         mon_info.cbSize = sizeof(mon_info);
-        NtUserGetMonitorInfo(monitor, &mon_info);
+        NtUserGetMonitorInfo(monitor, &mon_info); /* FIXME: DPI */
 
         if ((style & WS_MAXIMIZEBOX) && ((style & WS_CAPTION) == WS_CAPTION || !(style & WS_POPUP)))
             monitor_rect = mon_info.rcWork;
@@ -455,8 +455,8 @@ static void sync_window_min_max_info(HWND hwnd)
         min_rect = visible_rect_from_window(&data->rects, min_rect);
         min_size = CGSizeMake(min_rect.right - min_rect.left, min_rect.bottom - min_rect.top);
 
-        if (minmax.ptMaxTrackSize.x == NtUserGetSystemMetrics(SM_CXMAXTRACK) &&
-            minmax.ptMaxTrackSize.y == NtUserGetSystemMetrics(SM_CYMAXTRACK))
+        if (minmax.ptMaxTrackSize.x == NtUserGetSystemMetrics(SM_CXMAXTRACK) && /* FIXME: DPI */
+            minmax.ptMaxTrackSize.y == NtUserGetSystemMetrics(SM_CYMAXTRACK)) /* FIXME: DPI */
             max_size = CGSizeMake(CGFLOAT_MAX, CGFLOAT_MAX);
         else
         {
@@ -504,6 +504,7 @@ static void create_client_cocoa_view(struct macdrv_win_data *data)
 static void create_cocoa_window(struct macdrv_win_data *data)
 {
     struct macdrv_thread_data *thread_data = macdrv_init_thread_data();
+    UINT dpi = get_win_monitor_dpi(data->hwnd);
     WCHAR text[1024];
     struct macdrv_window_features wf;
     CGRect frame;
@@ -514,7 +515,7 @@ static void create_cocoa_window(struct macdrv_win_data *data)
     DWORD layered_flags;
 
     if ((win_rgn = NtGdiCreateRectRgn(0, 0, 0, 0)) &&
-        NtUserGetWindowRgnEx(data->hwnd, win_rgn, 0) == ERROR)
+        NtUserGetWindowRgnEx(data->hwnd, win_rgn, dpi) == ERROR) /* FIXME: DPI */
     {
         NtGdiDeleteObjectApp(win_rgn);
         win_rgn = 0;
@@ -1065,7 +1066,7 @@ static HMONITOR monitor_from_point(POINT pt, UINT flags)
     RECT rect;
 
     SetRect(&rect, pt.x, pt.y, pt.x + 1, pt.y + 1);
-    return NtUserMonitorFromRect(&rect, flags);
+    return NtUserMonitorFromRect(&rect, flags); /* FIXME: DPI */
 }
 
 
@@ -1116,24 +1117,24 @@ static LRESULT move_window(HWND hwnd, WPARAM wparam)
         /* Note: to be exactly centered we should take the different types
          * of border into account, but it shouldn't make more than a few pixels
          * of difference so let's not bother with that */
-        rect.top += NtUserGetSystemMetrics(SM_CYBORDER);
+        rect.top += NtUserGetSystemMetrics(SM_CYBORDER); /* FIXME: DPI */
         if (style & WS_SYSMENU)
-            rect.left += NtUserGetSystemMetrics(SM_CXSIZE) + 1;
+            rect.left += NtUserGetSystemMetrics(SM_CXSIZE) + 1; /* FIXME: DPI */
         if (style & WS_MINIMIZEBOX)
-            rect.right -= NtUserGetSystemMetrics(SM_CXSIZE) + 1;
+            rect.right -= NtUserGetSystemMetrics(SM_CXSIZE) + 1; /* FIXME: DPI */
         if (style & WS_MAXIMIZEBOX)
-            rect.right -= NtUserGetSystemMetrics(SM_CXSIZE) + 1;
+            rect.right -= NtUserGetSystemMetrics(SM_CXSIZE) + 1; /* FIXME: DPI */
         capturePoint.x = (rect.right + rect.left) / 2;
-        capturePoint.y = rect.top + NtUserGetSystemMetrics(SM_CYSIZE)/2;
+        capturePoint.y = rect.top + NtUserGetSystemMetrics(SM_CYSIZE)/2; /* FIXME: DPI */
 
-        NtUserSetCursorPos(capturePoint.x, capturePoint.y);
+        NtUserSetCursorPos(capturePoint.x, capturePoint.y); /* FIXME: DPI */
         send_message(hwnd, WM_SETCURSOR, (WPARAM)hwnd, MAKELONG(HTCAPTION, WM_MOUSEMOVE));
     }
 
     desktopRect = rect_from_cgrect(macdrv_get_desktop_rect());
     mon = monitor_from_point(capturePoint, MONITOR_DEFAULTTONEAREST);
     info.cbSize = sizeof(info);
-    if (mon && !NtUserGetMonitorInfo(mon, &info))
+    if (mon && !NtUserGetMonitorInfo(mon, &info)) /* FIXME: DPI */
         mon = 0;
 
     /* repaint the window before moving it around */
@@ -1180,7 +1181,7 @@ static LRESULT move_window(HWND hwnd, WPARAM wparam)
 
         if ((newmon = monitor_from_point(pt, MONITOR_DEFAULTTONULL)) && newmon != mon)
         {
-            if (NtUserGetMonitorInfo(newmon, &info))
+            if (NtUserGetMonitorInfo(newmon, &info)) /* FIXME: DPI */
                 mon = newmon;
             else
                 mon = 0;
@@ -1226,7 +1227,7 @@ static LRESULT move_window(HWND hwnd, WPARAM wparam)
         {
             moved = TRUE;
 
-            if (msg.message == WM_KEYDOWN) NtUserSetCursorPos(pt.x, pt.y);
+            if (msg.message == WM_KEYDOWN) NtUserSetCursorPos(pt.x, pt.y); /* FIXME: DPI */
             else
             {
                 OffsetRect(&movedRect, dx, dy);

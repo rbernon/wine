@@ -3226,9 +3226,9 @@ NTSTATUS WINAPI wow64_NtUserGetWindowRgnEx( UINT *args )
 {
     HWND hwnd = get_handle( &args );
     HRGN hrgn = get_handle( &args );
-    UINT unk = get_ulong( &args );
+    UINT dpi = get_ulong( &args );
 
-    return NtUserGetWindowRgnEx( hwnd, hrgn, unk );
+    return NtUserGetWindowRgnEx( hwnd, hrgn, dpi );
 }
 
 NTSTATUS WINAPI wow64_NtUserHideCaret( UINT *args )
