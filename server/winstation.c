@@ -741,10 +741,22 @@ DECL_HANDLER(close_desktop)
 /* get the thread current desktop */
 DECL_HANDLER(get_thread_desktop)
 {
+    struct desktop *desktop;
     struct thread *thread;
 
     if (!(thread = get_thread_from_id( req->tid ))) return;
     reply->handle = thread->desktop;
+    reply->index = -1;
+
+    if (!(desktop = get_thread_desktop( thread, 0 ))) clear_error();
+    else
+    {
+        const desktop_shm_t *desktop_shm = get_shared_desktop( desktop->session_index );
+        reply->index     = desktop->session_index;
+        reply->object_id = desktop_shm->obj.id;
+        release_object( desktop );
+    }
+
     release_object( thread );
 }
 

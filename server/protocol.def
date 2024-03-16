@@ -2815,6 +2815,8 @@ enum coords_relative
     thread_id_t  tid;             /* thread id */
 @REPLY
     obj_handle_t handle;          /* handle to the desktop */
+    int          index;           /* index of desktop object in session shared memory */
+    object_id_t  object_id;       /* id of the session object */
 @END
 
 
