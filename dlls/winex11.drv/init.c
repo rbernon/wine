@@ -43,7 +43,7 @@ static Pixmap stock_bitmap_pixmap;  /* phys bitmap for the default stock bitmap 
 
 static pthread_once_t init_once = PTHREAD_ONCE_INIT;
 
-static const struct user_driver_funcs x11drv_funcs;
+static const struct gdi_dc_funcs x11drv_gdi_dc_funcs;
 static const struct gdi_dc_funcs *xrender_funcs;
 
 
@@ -106,7 +106,7 @@ static BOOL X11DRV_CreateDC( PHYSDEV *pdev, LPCWSTR device, LPCWSTR output, cons
     physDev->color_shifts  = &X11DRV_PALETTE_default_shifts;
     physDev->dc_rect       = NtUserGetVirtualScreenRect( MDT_DEFAULT );
     OffsetRect( &physDev->dc_rect, -physDev->dc_rect.left, -physDev->dc_rect.top );
-    push_dc_driver( pdev, &physDev->dev, &x11drv_funcs.dc_funcs );
+    push_dc_driver( pdev, &physDev->dev, &x11drv_gdi_dc_funcs );
     if (xrender_funcs && !xrender_funcs->pCreateDC( pdev, device, output, initData )) return FALSE;
     return TRUE;
 }
@@ -123,7 +123,7 @@ static BOOL X11DRV_CreateCompatibleDC( PHYSDEV orig, PHYSDEV *pdev )
 
     physDev->depth  = 1;
     SetRect( &physDev->dc_rect, 0, 0, 1, 1 );
-    push_dc_driver( pdev, &physDev->dev, &x11drv_funcs.dc_funcs );
+    push_dc_driver( pdev, &physDev->dev, &x11drv_gdi_dc_funcs );
     if (orig) return TRUE;  /* we already went through Xrender if we have an orig device */
     if (xrender_funcs && !xrender_funcs->pCreateCompatibleDC( NULL, pdev )) return FALSE;
     return TRUE;
@@ -380,50 +380,59 @@ static struct opengl_funcs *X11DRV_wine_get_wgl_driver( UINT version )
 }
 
 
+static const struct gdi_dc_funcs x11drv_gdi_dc_funcs =
+{
+    .pArc = X11DRV_Arc,
+    .pChord = X11DRV_Chord,
+    .pCreateCompatibleDC = X11DRV_CreateCompatibleDC,
+    .pCreateDC = X11DRV_CreateDC,
+    .pDeleteDC = X11DRV_DeleteDC,
+    .pEllipse = X11DRV_Ellipse,
+    .pExtEscape = X11DRV_ExtEscape,
+    .pExtFloodFill = X11DRV_ExtFloodFill,
+    .pFillPath = X11DRV_FillPath,
+    .pGetDeviceCaps = X11DRV_GetDeviceCaps,
+    .pGetDeviceGammaRamp = X11DRV_GetDeviceGammaRamp,
+    .pGetICMProfile = X11DRV_GetICMProfile,
+    .pGetImage = X11DRV_GetImage,
+    .pGetNearestColor = X11DRV_GetNearestColor,
+    .pGetSystemPaletteEntries = X11DRV_GetSystemPaletteEntries,
+    .pGradientFill = X11DRV_GradientFill,
+    .pLineTo = X11DRV_LineTo,
+    .pPaintRgn = X11DRV_PaintRgn,
+    .pPatBlt = X11DRV_PatBlt,
+    .pPie = X11DRV_Pie,
+    .pPolyPolygon = X11DRV_PolyPolygon,
+    .pPolyPolyline = X11DRV_PolyPolyline,
+    .pPutImage = X11DRV_PutImage,
+    .pRealizeDefaultPalette = X11DRV_RealizeDefaultPalette,
+    .pRealizePalette = X11DRV_RealizePalette,
+    .pRectangle = X11DRV_Rectangle,
+    .pRoundRect = X11DRV_RoundRect,
+    .pSelectBrush = X11DRV_SelectBrush,
+    .pSelectFont = X11DRV_SelectFont,
+    .pSelectPen = X11DRV_SelectPen,
+    .pSetBoundsRect = X11DRV_SetBoundsRect,
+    .pSetDCBrushColor = X11DRV_SetDCBrushColor,
+    .pSetDCPenColor = X11DRV_SetDCPenColor,
+    .pSetDeviceClipping = X11DRV_SetDeviceClipping,
+    .pSetDeviceGammaRamp = X11DRV_SetDeviceGammaRamp,
+    .pSetPixel = X11DRV_SetPixel,
+    .pStretchBlt = X11DRV_StretchBlt,
+    .pStrokeAndFillPath = X11DRV_StrokeAndFillPath,
+    .pStrokePath = X11DRV_StrokePath,
+    .pUnrealizePalette = X11DRV_UnrealizePalette,
+    .priority = GDI_PRIORITY_GRAPHICS_DRV,
+    .name = "x11drv",
+};
+
+static const struct gdi_dc_funcs *X11DRV_wine_get_gdi_driver( UINT version )
+{
+    return &x11drv_gdi_dc_funcs;
+}
+
 static const struct user_driver_funcs x11drv_funcs =
 {
-    .dc_funcs.pArc = X11DRV_Arc,
-    .dc_funcs.pChord = X11DRV_Chord,
-    .dc_funcs.pCreateCompatibleDC = X11DRV_CreateCompatibleDC,
-    .dc_funcs.pCreateDC = X11DRV_CreateDC,
-    .dc_funcs.pDeleteDC = X11DRV_DeleteDC,
-    .dc_funcs.pEllipse = X11DRV_Ellipse,
-    .dc_funcs.pExtEscape = X11DRV_ExtEscape,
-    .dc_funcs.pExtFloodFill = X11DRV_ExtFloodFill,
-    .dc_funcs.pFillPath = X11DRV_FillPath,
-    .dc_funcs.pGetDeviceCaps = X11DRV_GetDeviceCaps,
-    .dc_funcs.pGetDeviceGammaRamp = X11DRV_GetDeviceGammaRamp,
-    .dc_funcs.pGetICMProfile = X11DRV_GetICMProfile,
-    .dc_funcs.pGetImage = X11DRV_GetImage,
-    .dc_funcs.pGetNearestColor = X11DRV_GetNearestColor,
-    .dc_funcs.pGetSystemPaletteEntries = X11DRV_GetSystemPaletteEntries,
-    .dc_funcs.pGradientFill = X11DRV_GradientFill,
-    .dc_funcs.pLineTo = X11DRV_LineTo,
-    .dc_funcs.pPaintRgn = X11DRV_PaintRgn,
-    .dc_funcs.pPatBlt = X11DRV_PatBlt,
-    .dc_funcs.pPie = X11DRV_Pie,
-    .dc_funcs.pPolyPolygon = X11DRV_PolyPolygon,
-    .dc_funcs.pPolyPolyline = X11DRV_PolyPolyline,
-    .dc_funcs.pPutImage = X11DRV_PutImage,
-    .dc_funcs.pRealizeDefaultPalette = X11DRV_RealizeDefaultPalette,
-    .dc_funcs.pRealizePalette = X11DRV_RealizePalette,
-    .dc_funcs.pRectangle = X11DRV_Rectangle,
-    .dc_funcs.pRoundRect = X11DRV_RoundRect,
-    .dc_funcs.pSelectBrush = X11DRV_SelectBrush,
-    .dc_funcs.pSelectFont = X11DRV_SelectFont,
-    .dc_funcs.pSelectPen = X11DRV_SelectPen,
-    .dc_funcs.pSetBoundsRect = X11DRV_SetBoundsRect,
-    .dc_funcs.pSetDCBrushColor = X11DRV_SetDCBrushColor,
-    .dc_funcs.pSetDCPenColor = X11DRV_SetDCPenColor,
-    .dc_funcs.pSetDeviceClipping = X11DRV_SetDeviceClipping,
-    .dc_funcs.pSetDeviceGammaRamp = X11DRV_SetDeviceGammaRamp,
-    .dc_funcs.pSetPixel = X11DRV_SetPixel,
-    .dc_funcs.pStretchBlt = X11DRV_StretchBlt,
-    .dc_funcs.pStrokeAndFillPath = X11DRV_StrokeAndFillPath,
-    .dc_funcs.pStrokePath = X11DRV_StrokePath,
-    .dc_funcs.pUnrealizePalette = X11DRV_UnrealizePalette,
-    .dc_funcs.priority = GDI_PRIORITY_GRAPHICS_DRV,
-
     .pActivateKeyboardLayout = X11DRV_ActivateKeyboardLayout,
     .pBeep = X11DRV_Beep,
     .pGetKeyNameText = X11DRV_GetKeyNameText,
@@ -474,6 +483,7 @@ static const struct user_driver_funcs x11drv_funcs =
     .pMoveWindowBits = X11DRV_MoveWindowBits,
     .pWindowPosChanged = X11DRV_WindowPosChanged,
     .pSystemParametersInfo = X11DRV_SystemParametersInfo,
+    .pwine_get_gdi_driver = X11DRV_wine_get_gdi_driver,
     .pVulkanInit = X11DRV_VulkanInit,
     .pwine_get_wgl_driver = X11DRV_wine_get_wgl_driver,
     .pThreadDetach = X11DRV_ThreadDetach,
