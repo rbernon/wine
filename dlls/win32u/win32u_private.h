@@ -69,6 +69,9 @@ extern void fill_rect( HDC dc, const RECT *rect, HBRUSH hbrush );
 extern void get_sys_popup_pos( HWND hwnd, RECT *rect );
 extern LRESULT handle_nc_hit_test( HWND hwnd, POINT pt );
 
+/* dwmdrv.c */
+extern void dwm_init(void);
+
 /* hook.c */
 extern LRESULT call_current_hook( HHOOK hhook, INT code, WPARAM wparam, LPARAM lparam );
 extern LRESULT call_hooks( INT id, INT code, WPARAM wparam, LPARAM lparam,
