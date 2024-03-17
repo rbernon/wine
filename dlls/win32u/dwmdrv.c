@@ -348,3 +348,9 @@ const struct dwm_funcs *__wine_get_dwm_driver( UINT version )
     if (!dwm_server_connect()) return NULL;
     return &dwm_funcs;
 }
+
+void dwm_init(void)
+{
+    if (getenv( "WINENODWM" )) return;
+    if (!dwm_server_connect()) WARN( "Failed to connect to dwm server\n" );
+}
