@@ -739,22 +739,22 @@ BOOL WINAPI NtUserSetCursorPos( INT x, INT y )
  */
 BOOL get_cursor_pos( POINT *pt )
 {
-    BOOL ret;
-    DWORD last_change;
+    const desktop_shm_t *desktop_shm;
+    struct object_lock lock = {0};
+    BOOL ret = FALSE;
+    DWORD last_change = 0;
+    NTSTATUS status;
     UINT dpi;
 
     if (!pt) return FALSE;
 
-    SERVER_START_REQ( set_cursor )
+    while ((status = get_shared_desktop( &lock, &desktop_shm )) == STATUS_PENDING)
     {
-        if ((ret = !wine_server_call( req )))
-        {
-            pt->x = reply->new_x;
-            pt->y = reply->new_y;
-            last_change = reply->last_change;
-        }
+        pt->x = desktop_shm->cursor.x;
+        pt->y = desktop_shm->cursor.y;
+        last_change = desktop_shm->cursor.last_change;
     }
-    SERVER_END_REQ;
+    if (!status) ret = TRUE;
 
     /* query new position from graphics driver if we haven't updated recently */
     if (ret && NtGetTickCount() - last_change > 100) ret = user_driver->pGetCursorPos( pt );
