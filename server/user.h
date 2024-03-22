@@ -70,9 +70,10 @@ struct desktop
     struct timeout_user *close_timeout;    /* timeout before closing the desktop */
     struct thread_input *foreground_input; /* thread input of foreground thread */
     unsigned int         users;            /* processes and threads using this desktop */
-    unsigned char        keystate[256];    /* asynchronous key state */
     user_handle_t        cursor_win;       /* window that contains the cursor */
     unsigned int         clip_flags;       /* last cursor clip flags */
+    unsigned char        keystate[256];    /* asynchronous key state */
+    unsigned int         last_press_alt:1; /* last key press was Alt (used to determine msg on Alt release) */
     int                  session_index;    /* desktop index in session shared memory */
 };
 
