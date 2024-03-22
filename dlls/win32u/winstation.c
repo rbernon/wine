@@ -54,6 +54,7 @@ struct object_info
 struct session_thread_data
 {
     struct object_info shared_desktop;         /* thread desktop shared session object info */
+    struct object_info shared_queue;           /* thread message queue shared session object info */
 };
 
 struct shared_session
@@ -206,6 +207,7 @@ done:
 enum object_type
 {
     OBJECT_TYPE_DESKTOP = 1,
+    OBJECT_TYPE_QUEUE,
 };
 
 static NTSTATUS get_thread_session_object_info( UINT tid, enum object_type type,
@@ -221,6 +223,20 @@ static NTSTATUS get_thread_session_object_info( UINT tid, enum object_type type,
         SERVER_START_REQ( get_thread_desktop )
         {
             req->tid = tid;
+            if (!(status = wine_server_call( req )))
+            {
+                info->id = reply->object_id;
+                info->index = reply->index;
+            }
+            if (info->index == -1) status = STATUS_INVALID_HANDLE;
+        }
+        SERVER_END_REQ;
+        break;
+    case OBJECT_TYPE_QUEUE:
+        if (tid != GetCurrentThreadId()) return STATUS_INVALID_PARAMETER;
+        SERVER_START_REQ( get_msg_queue )
+        {
+            req->index_only = 1;
             if (!(status = wine_server_call( req )))
             {
                 info->id = reply->object_id;
@@ -301,6 +317,17 @@ NTSTATUS get_shared_desktop( struct object_lock *lock, const desktop_shm_t **des
 
     return get_thread_session_object( GetCurrentThreadId(), OBJECT_TYPE_DESKTOP, info,
                                       lock, (const object_shm_t **)desktop_shm );
+}
+
+NTSTATUS get_shared_queue( struct object_lock *lock, const queue_shm_t **queue_shm )
+{
+    struct session_thread_data *data = get_session_thread_data();
+    struct object_info *info = &data->shared_queue;
+
+    TRACE( "lock %p, queue_shm %p\n", lock, queue_shm );
+
+    return get_thread_session_object( GetCurrentThreadId(), OBJECT_TYPE_QUEUE, info,
+                                      lock, (const object_shm_t **)queue_shm );
 }
 
 BOOL is_virtual_desktop(void)

@@ -2711,6 +2711,7 @@ int peek_message( MSG *msg, const struct peek_message_filter *filter )
     INPUT_MESSAGE_SOURCE prev_source = thread_info->client_info.msg_source;
     struct received_message_info info;
     unsigned int hw_id = 0;  /* id of previous hardware message */
+    BOOL skip = FALSE;
     void *buffer;
     size_t buffer_size = 1024;
 
@@ -2724,10 +2725,42 @@ int peek_message( MSG *msg, const struct peek_message_filter *filter )
         NTSTATUS res;
         size_t size = 0;
         const message_data_t *msg_data = buffer;
+        UINT wake_mask = filter->mask & (QS_SENDMESSAGE | QS_SMRESULT);
+        DWORD clear_bits = 0, filter_mask = flags >> 16 ? flags >> 16 : QS_ALLINPUT;
+        struct object_lock lock = {0};
+        const queue_shm_t *queue_shm;
+
+        if (filter_mask & QS_POSTMESSAGE)
+        {
+            clear_bits |= QS_POSTMESSAGE | QS_HOTKEY | QS_TIMER;
+            if (first == 0 && last == ~0U) clear_bits |= QS_ALLPOSTMESSAGE;
+        }
+        if (filter_mask & QS_INPUT) clear_bits |= QS_INPUT;
+        if (filter_mask & QS_PAINT) clear_bits |= QS_PAINT;
+
+        /* FIXME: if filter includes QS_RAWINPUT we have to translate hardware messages */
+        if (filter_mask & QS_RAWINPUT) filter_mask |= QS_KEY | QS_MOUSEMOVE | QS_MOUSEBUTTON;
 
         thread_info->client_info.msg_source = prev_source;
 
-        SERVER_START_REQ( get_message )
+        if (NtGetTickCount() - thread_info->last_getmsg_time >= 3000) res = STATUS_PENDING;
+        else while ((res = get_shared_queue( &lock, &queue_shm )) == STATUS_PENDING)
+        {
+            /* if the masks need an update */
+            if (queue_shm->wake_mask != wake_mask) skip = FALSE;
+            else if (queue_shm->changed_mask != filter->mask) skip = FALSE;
+            /* or if the queue is signaled */
+            else if (queue_shm->wake_bits & wake_mask) skip = FALSE;
+            else if (queue_shm->changed_bits & filter->mask) skip = FALSE;
+            /* or if the filter matches some bits */
+            else if (queue_shm->wake_bits & filter_mask) skip = FALSE;
+            /* or if we should clear some bits */
+            else if (queue_shm->changed_bits & clear_bits) skip = FALSE;
+            else skip = TRUE;
+        }
+
+        if (!res && skip) res = STATUS_PENDING;
+        else SERVER_START_REQ( get_message )
         {
             req->internal  = filter->internal;
             req->flags     = flags;
@@ -2738,6 +2771,7 @@ int peek_message( MSG *msg, const struct peek_message_filter *filter )
             req->wake_mask = filter->mask & (QS_SENDMESSAGE | QS_SMRESULT);
             req->changed_mask = filter->mask;
             wine_server_set_reply( req, buffer, buffer_size );
+            thread_info->last_getmsg_time = NtGetTickCount();
             if (!(res = wine_server_call( req )))
             {
                 size = wine_server_reply_size( reply );
@@ -3207,18 +3241,22 @@ BOOL WINAPI NtUserWaitMessage(void)
  */
 BOOL WINAPI NtUserPeekMessage( MSG *msg_out, HWND hwnd, UINT first, UINT last, UINT flags )
 {
+    struct user_thread_info *thread_info = get_user_thread_info();
     struct peek_message_filter filter = {.hwnd = hwnd, .first = first, .last = last, .flags = flags};
     MSG msg;
     int ret;
 
     user_check_not_lock();
-    check_for_driver_events( 0 );
+    if (thread_info->last_driver_time != NtGetTickCount())
+        check_for_driver_events( 0 );
 
     ret = peek_message( &msg, &filter );
     if (ret < 0) return FALSE;
 
     if (!ret)
     {
+        if (thread_info->last_driver_time == NtGetTickCount()) return FALSE;
+        thread_info->last_driver_time = NtGetTickCount();
         flush_window_surfaces( TRUE );
         ret = wait_message( 0, NULL, 0, QS_ALLINPUT, 0 );
         /* if we received driver events, check again for a pending message */
@@ -3226,6 +3264,7 @@ BOOL WINAPI NtUserPeekMessage( MSG *msg_out, HWND hwnd, UINT first, UINT last, U
     }
 
     check_for_driver_events( msg.message );
+    thread_info->last_driver_time = NtGetTickCount() - 1;
 
     /* copy back our internal safe copy of message data to msg_out.
      * msg_out is a variable from the *program*, so it can't be used
