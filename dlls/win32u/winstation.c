@@ -56,6 +56,7 @@ struct session_thread_data
     struct object_info shared_desktop;         /* thread desktop shared session object info */
     struct object_info shared_queue;           /* thread message queue shared session object info */
     struct object_info shared_input;           /* current thread input shared session object info */
+    struct object_info shared_foreground;      /* foreground thread input shared session object info */
 };
 
 struct shared_session
@@ -287,6 +288,13 @@ static NTSTATUS get_thread_session_object( UINT tid, enum object_type type, stru
         const object_shm_t *object = *object_shm;
         valid = lock->id == object->id;
 
+        /* check that a previously locked foreground thread input is still foreground */
+        if (type == OBJECT_TYPE_INPUT && valid && !tid)
+        {
+            const input_shm_t *input = (const input_shm_t *)object;
+            valid = !!input->foreground;
+        }
+
         if (!object_shm_release_seqlock( object, lock->seq ))
         {
             /* retry if the seqlock doesn't match, wineserver has written to it */
@@ -352,8 +360,9 @@ NTSTATUS get_shared_input( UINT tid, struct object_lock *lock, const input_shm_t
 
     TRACE( "tid %04x, lock %p, input_shm %p\n", tid, lock, input_shm );
 
-    if (tid != GetCurrentThreadId()) return FALSE;
-    info = &data->shared_input;
+    if (tid == GetCurrentThreadId()) info = &data->shared_input;
+    else if (!tid) info = &data->shared_foreground;
+    else return FALSE;
 
     return get_thread_session_object( tid, OBJECT_TYPE_INPUT, info,
                                       lock, (const object_shm_t **)input_shm );

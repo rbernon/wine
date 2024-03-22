@@ -613,8 +613,28 @@ void set_clip_rectangle( struct desktop *desktop, const rectangle_t *rect, unsig
 static void set_foreground_input( struct desktop *desktop, struct thread_input *input )
 {
     if (desktop->foreground_input == input) return;
+
+    if (desktop->foreground_input)
+    {
+        const input_shm_t *input_shm = get_shared_input( desktop->foreground_input->session_index );
+        SHARED_WRITE_BEGIN( input_shm, input_shm_t )
+        {
+            shared->foreground = 0;
+        }
+        SHARED_WRITE_END;
+    }
+
     set_clip_rectangle( desktop, NULL, SET_CURSOR_NOCLIP, 1 );
-    desktop->foreground_input = input;
+
+    if ((desktop->foreground_input = input))
+    {
+        const input_shm_t *input_shm = get_shared_input( desktop->foreground_input->session_index );
+        SHARED_WRITE_BEGIN( input_shm, input_shm_t )
+        {
+            shared->foreground = 1;
+        }
+        SHARED_WRITE_END;
+    }
 }
 
 /* get the hook table for a given thread */
