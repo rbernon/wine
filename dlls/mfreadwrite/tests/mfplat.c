@@ -162,6 +162,57 @@ static void init_attributes_(const char *file, int line, IMFAttributes *attribut
     }
 }
 
+#define dump_media_type(a) dump_attributes_(__LINE__, (IMFAttributes *)a)
+#define dump_attributes(a) dump_attributes_(__LINE__, a)
+extern void dump_attributes_(int line, IMFAttributes *attributes);
+extern void dump_properties(IPropertyStore *store);
+
+extern const char *debugstr_mf_guid(const GUID *guid);
+
+void dump_attributes_(int line, IMFAttributes *attributes)
+{
+    PROPVARIANT value;
+    char buffer[256];
+    UINT32 count;
+    HRESULT hr;
+    GUID guid;
+    int i, j;
+
+    hr = IMFAttributes_GetCount(attributes, &count);
+    ok_(__FILE__, line)(hr == S_OK, "GetCount returned %#lx\n", hr);
+
+    for (i = 0; i < count; ++i)
+    {
+        PropVariantInit(&value);
+        hr = IMFAttributes_GetItemByIndex(attributes, i, &guid, &value);
+        ok_(__FILE__, line)(hr == S_OK, "GetItemByIndex returned %#lx\n", hr);
+        switch (value.vt)
+        {
+        default: sprintf(buffer, "{%s, .vt = %u, .value = %s},", debugstr_mf_guid(&guid), value.vt, buffer); break;
+        case VT_LPWSTR: sprintf(buffer, "ATTR_WSTR(%s, %s),", debugstr_mf_guid(&guid), debugstr_w(value.pwszVal)); break;
+        case VT_CLSID: sprintf(buffer, "ATTR_GUID(%s, %s),", debugstr_mf_guid(&guid), debugstr_mf_guid(value.puuid)); break;
+        case VT_UI4: sprintf(buffer, "ATTR_UINT32(%s, %lu),", debugstr_mf_guid(&guid), value.ulVal); break;
+        case VT_UI8: sprintf(buffer, "ATTR_RATIO(%s, %lu, %lu),", debugstr_mf_guid(&guid), value.uhVal.HighPart, value.uhVal.LowPart); break;
+        case VT_VECTOR | VT_UI1:
+        {
+            char *buf = buffer;
+            buf += sprintf(buf, "ATTR_BLOB(%s, {", debugstr_mf_guid(&guid));
+            for (j = 0; j < 16 && j < value.caub.cElems; ++j)
+                buf += sprintf(buf, "0x%02x,", value.caub.pElems[j]);
+            if (value.caub.cElems > 16)
+                buf += sprintf(buf, "...}");
+            else
+                buf += sprintf(buf - (j ? 1 : 0), "}") - (j ? 1 : 0);
+            buf += sprintf(buf, ", %lu),", value.caub.cElems);
+            break;
+        }
+        }
+
+        ok_(__FILE__, line)(0, "%s\n", buffer);
+        PropVariantClear(&value);
+    }
+}
+
 static ULONG get_refcount(void *iface)
 {
     IUnknown *unknown = iface;
