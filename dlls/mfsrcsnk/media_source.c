@@ -1900,9 +1900,9 @@ static BOOL use_gst_byte_stream_handler(void)
     /* @@ Wine registry key: HKCU\Software\Wine\MediaFoundation */
     if (!RegGetValueW( HKEY_CURRENT_USER, L"Software\\Wine\\MediaFoundation", L"UseGstByteStreamHandler",
                        RRF_RT_REG_DWORD, NULL, &result, &size ))
-        return result;
+        return !getenv("WINE_NEW_MEDIA_SOURCE");
 
-    return FALSE;
+    return !getenv("WINE_NEW_MEDIA_SOURCE");
 }
 
 static HRESULT WINAPI asf_byte_stream_plugin_factory_CreateInstance(IClassFactory *iface,
