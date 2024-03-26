@@ -261,6 +261,7 @@ static ULONG popcount(ULONG val)
 
 NTSTATUS wg_init_gstreamer(void *arg)
 {
+    struct wg_init_gstreamer_params *params = arg;
     static GstGLContext *gl_context;
 
     struct wg_init_gstreamer_params *params = arg;
@@ -290,11 +291,11 @@ NTSTATUS wg_init_gstreamer(void *arg)
     }
 
     if (params->trace_on)
-        setenv("GST_DEBUG", "WINE:9,4", FALSE);
+        setenv("GST_DEBUG", "WINE:9,protonmediaconverter:9,4", FALSE);
     if (params->warn_on)
-        setenv("GST_DEBUG", "3", FALSE);
+        setenv("GST_DEBUG", "WINE:3,protonmediaconverter:3,3", FALSE);
     if (params->err_on)
-        setenv("GST_DEBUG", "1", FALSE);
+        setenv("GST_DEBUG", "WINE:1,protonmediaconverter:1,1", FALSE);
     setenv("GST_DEBUG_NO_COLOR", "1", FALSE);
 
     /* GStreamer installs a temporary SEGV handler when it loads plugins
