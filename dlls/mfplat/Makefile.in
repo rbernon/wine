@@ -6,9 +6,9 @@ DELAYIMPORTS = bcrypt
 EXTRADLLFLAGS = -Wb,--prefer-native
 
 SOURCES = \
-	buffer.c \
 	main.c \
 	mediatype.c \
 	memory_buffer.c \
 	queue.c \
-	sample.c
+	sample.c \
+	surface_buffer.c
