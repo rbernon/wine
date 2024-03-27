@@ -9,5 +9,6 @@ SOURCES = \
 	buffer.c \
 	main.c \
 	mediatype.c \
+	memory_buffer.c \
 	queue.c \
 	sample.c
