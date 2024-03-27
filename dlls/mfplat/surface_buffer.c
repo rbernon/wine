@@ -34,7 +34,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(mfplat);
 
 typedef void (*p_copy_image_func)(BYTE *dest, LONG dest_stride, const BYTE *src, LONG src_stride, DWORD width, DWORD lines);
 
-struct buffer
+struct surface_buffer
 {
     IMFMediaBuffer IMFMediaBuffer_iface;
     IMF2DBuffer2 IMF2DBuffer2_iface;
@@ -74,7 +74,7 @@ struct buffer
     CRITICAL_SECTION cs;
 };
 
-static void copy_image(const struct buffer *buffer, BYTE *dest, LONG dest_stride, const BYTE *src,
+static void copy_image(const struct surface_buffer *buffer, BYTE *dest, LONG dest_stride, const BYTE *src,
         LONG src_stride, DWORD width, DWORD lines)
 {
     MFCopyImage(dest, dest_stride, src, src_stride, width, lines);
@@ -102,29 +102,29 @@ static void copy_image_imc2(BYTE *dest, LONG dest_stride, const BYTE *src, LONG 
     MFCopyImage(dest, dest_stride / 2, src, src_stride / 2, width / 2, lines);
 }
 
-static inline struct buffer *impl_from_IMFMediaBuffer(IMFMediaBuffer *iface)
+static inline struct surface_buffer *impl_from_IMFMediaBuffer(IMFMediaBuffer *iface)
 {
-    return CONTAINING_RECORD(iface, struct buffer, IMFMediaBuffer_iface);
+    return CONTAINING_RECORD(iface, struct surface_buffer, IMFMediaBuffer_iface);
 }
 
-static struct buffer *impl_from_IMF2DBuffer2(IMF2DBuffer2 *iface)
+static struct surface_buffer *impl_from_IMF2DBuffer2(IMF2DBuffer2 *iface)
 {
-    return CONTAINING_RECORD(iface, struct buffer, IMF2DBuffer2_iface);
+    return CONTAINING_RECORD(iface, struct surface_buffer, IMF2DBuffer2_iface);
 }
 
-static struct buffer *impl_from_IMFGetService(IMFGetService *iface)
+static struct surface_buffer *impl_from_IMFGetService(IMFGetService *iface)
 {
-    return CONTAINING_RECORD(iface, struct buffer, IMFGetService_iface);
+    return CONTAINING_RECORD(iface, struct surface_buffer, IMFGetService_iface);
 }
 
-static struct buffer *impl_from_IMFDXGIBuffer(IMFDXGIBuffer *iface)
+static struct surface_buffer *impl_from_IMFDXGIBuffer(IMFDXGIBuffer *iface)
 {
-    return CONTAINING_RECORD(iface, struct buffer, IMFDXGIBuffer_iface);
+    return CONTAINING_RECORD(iface, struct surface_buffer, IMFDXGIBuffer_iface);
 }
 
-static ULONG WINAPI memory_buffer_AddRef(IMFMediaBuffer *iface)
+static ULONG WINAPI surface_media_buffer_AddRef(IMFMediaBuffer *iface)
 {
-    struct buffer *buffer = impl_from_IMFMediaBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFMediaBuffer(iface);
     ULONG refcount = InterlockedIncrement(&buffer->refcount);
 
     TRACE("%p, refcount %lu.\n", buffer, refcount);
@@ -132,9 +132,9 @@ static ULONG WINAPI memory_buffer_AddRef(IMFMediaBuffer *iface)
     return refcount;
 }
 
-static ULONG WINAPI memory_buffer_Release(IMFMediaBuffer *iface)
+static ULONG WINAPI surface_media_buffer_Release(IMFMediaBuffer *iface)
 {
-    struct buffer *buffer = impl_from_IMFMediaBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFMediaBuffer(iface);
     ULONG refcount = InterlockedDecrement(&buffer->refcount);
 
     TRACE("%p, refcount %lu.\n", iface, refcount);
@@ -159,9 +159,9 @@ static ULONG WINAPI memory_buffer_Release(IMFMediaBuffer *iface)
     return refcount;
 }
 
-static HRESULT WINAPI memory_buffer_GetCurrentLength(IMFMediaBuffer *iface, DWORD *current_length)
+static HRESULT WINAPI surface_media_buffer_GetCurrentLength(IMFMediaBuffer *iface, DWORD *current_length)
 {
-    struct buffer *buffer = impl_from_IMFMediaBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFMediaBuffer(iface);
 
     TRACE("%p.\n", iface);
 
@@ -173,9 +173,9 @@ static HRESULT WINAPI memory_buffer_GetCurrentLength(IMFMediaBuffer *iface, DWOR
     return S_OK;
 }
 
-static HRESULT WINAPI memory_buffer_SetCurrentLength(IMFMediaBuffer *iface, DWORD current_length)
+static HRESULT WINAPI surface_media_buffer_SetCurrentLength(IMFMediaBuffer *iface, DWORD current_length)
 {
-    struct buffer *buffer = impl_from_IMFMediaBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFMediaBuffer(iface);
 
     TRACE("%p, %lu.\n", iface, current_length);
 
@@ -187,9 +187,9 @@ static HRESULT WINAPI memory_buffer_SetCurrentLength(IMFMediaBuffer *iface, DWOR
     return S_OK;
 }
 
-static HRESULT WINAPI memory_buffer_GetMaxLength(IMFMediaBuffer *iface, DWORD *max_length)
+static HRESULT WINAPI surface_media_buffer_GetMaxLength(IMFMediaBuffer *iface, DWORD *max_length)
 {
-    struct buffer *buffer = impl_from_IMFMediaBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFMediaBuffer(iface);
 
     TRACE("%p, %p.\n", iface, max_length);
 
@@ -201,9 +201,9 @@ static HRESULT WINAPI memory_buffer_GetMaxLength(IMFMediaBuffer *iface, DWORD *m
     return S_OK;
 }
 
-static HRESULT WINAPI memory_1d_2d_buffer_QueryInterface(IMFMediaBuffer *iface, REFIID riid, void **out)
+static HRESULT WINAPI surface_media_buffer_QueryInterface(IMFMediaBuffer *iface, REFIID riid, void **out)
 {
-    struct buffer *buffer = impl_from_IMFMediaBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFMediaBuffer(iface);
 
     TRACE("%p, %s, %p.\n", iface, debugstr_guid(riid), out);
 
@@ -232,9 +232,9 @@ static HRESULT WINAPI memory_1d_2d_buffer_QueryInterface(IMFMediaBuffer *iface, 
     return S_OK;
 }
 
-static HRESULT WINAPI memory_1d_2d_buffer_Lock(IMFMediaBuffer *iface, BYTE **data, DWORD *max_length, DWORD *current_length)
+static HRESULT WINAPI surface_media_buffer_Lock(IMFMediaBuffer *iface, BYTE **data, DWORD *max_length, DWORD *current_length)
 {
-    struct buffer *buffer = impl_from_IMFMediaBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFMediaBuffer(iface);
     HRESULT hr = S_OK;
 
     TRACE("%p, %p, %p, %p.\n", iface, data, max_length, current_length);
@@ -280,9 +280,9 @@ static HRESULT WINAPI memory_1d_2d_buffer_Lock(IMFMediaBuffer *iface, BYTE **dat
     return hr;
 }
 
-static HRESULT WINAPI memory_1d_2d_buffer_Unlock(IMFMediaBuffer *iface)
+static HRESULT WINAPI surface_media_buffer_Unlock(IMFMediaBuffer *iface)
 {
-    struct buffer *buffer = impl_from_IMFMediaBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFMediaBuffer(iface);
 
     TRACE("%p.\n", iface);
 
@@ -306,21 +306,21 @@ static HRESULT WINAPI memory_1d_2d_buffer_Unlock(IMFMediaBuffer *iface)
     return S_OK;
 }
 
-static const IMFMediaBufferVtbl memory_1d_2d_buffer_vtbl =
+static const IMFMediaBufferVtbl surface_media_buffer_vtbl =
 {
-    memory_1d_2d_buffer_QueryInterface,
-    memory_buffer_AddRef,
-    memory_buffer_Release,
-    memory_1d_2d_buffer_Lock,
-    memory_1d_2d_buffer_Unlock,
-    memory_buffer_GetCurrentLength,
-    memory_buffer_SetCurrentLength,
-    memory_buffer_GetMaxLength,
+    surface_media_buffer_QueryInterface,
+    surface_media_buffer_AddRef,
+    surface_media_buffer_Release,
+    surface_media_buffer_Lock,
+    surface_media_buffer_Unlock,
+    surface_media_buffer_GetCurrentLength,
+    surface_media_buffer_SetCurrentLength,
+    surface_media_buffer_GetMaxLength,
 };
 
-static HRESULT WINAPI d3d9_surface_buffer_Lock(IMFMediaBuffer *iface, BYTE **data, DWORD *max_length, DWORD *current_length)
+static HRESULT WINAPI d3d9_surface_media_buffer_Lock(IMFMediaBuffer *iface, BYTE **data, DWORD *max_length, DWORD *current_length)
 {
-    struct buffer *buffer = impl_from_IMFMediaBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFMediaBuffer(iface);
     HRESULT hr = S_OK;
 
     TRACE("%p, %p, %p, %p.\n", iface, data, max_length, current_length);
@@ -366,9 +366,9 @@ static HRESULT WINAPI d3d9_surface_buffer_Lock(IMFMediaBuffer *iface, BYTE **dat
     return hr;
 }
 
-static HRESULT WINAPI d3d9_surface_buffer_Unlock(IMFMediaBuffer *iface)
+static HRESULT WINAPI d3d9_surface_media_buffer_Unlock(IMFMediaBuffer *iface)
 {
-    struct buffer *buffer = impl_from_IMFMediaBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFMediaBuffer(iface);
     HRESULT hr = S_OK;
 
     TRACE("%p.\n", iface);
@@ -397,9 +397,9 @@ static HRESULT WINAPI d3d9_surface_buffer_Unlock(IMFMediaBuffer *iface)
     return hr;
 }
 
-static HRESULT WINAPI d3d9_surface_buffer_SetCurrentLength(IMFMediaBuffer *iface, DWORD current_length)
+static HRESULT WINAPI d3d9_surface_media_buffer_SetCurrentLength(IMFMediaBuffer *iface, DWORD current_length)
 {
-    struct buffer *buffer = impl_from_IMFMediaBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFMediaBuffer(iface);
 
     TRACE("%p, %lu.\n", iface, current_length);
 
@@ -408,37 +408,37 @@ static HRESULT WINAPI d3d9_surface_buffer_SetCurrentLength(IMFMediaBuffer *iface
     return S_OK;
 }
 
-static const IMFMediaBufferVtbl d3d9_surface_1d_buffer_vtbl =
+static const IMFMediaBufferVtbl d3d9_surface_media_buffer_vtbl =
 {
-    memory_1d_2d_buffer_QueryInterface,
-    memory_buffer_AddRef,
-    memory_buffer_Release,
-    d3d9_surface_buffer_Lock,
-    d3d9_surface_buffer_Unlock,
-    memory_buffer_GetCurrentLength,
-    d3d9_surface_buffer_SetCurrentLength,
-    memory_buffer_GetMaxLength,
+    surface_media_buffer_QueryInterface,
+    surface_media_buffer_AddRef,
+    surface_media_buffer_Release,
+    d3d9_surface_media_buffer_Lock,
+    d3d9_surface_media_buffer_Unlock,
+    surface_media_buffer_GetCurrentLength,
+    d3d9_surface_media_buffer_SetCurrentLength,
+    surface_media_buffer_GetMaxLength,
 };
 
-static HRESULT WINAPI memory_2d_buffer_QueryInterface(IMF2DBuffer2 *iface, REFIID riid, void **obj)
+static HRESULT WINAPI surface_2d_buffer_QueryInterface(IMF2DBuffer2 *iface, REFIID riid, void **obj)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     return IMFMediaBuffer_QueryInterface(&buffer->IMFMediaBuffer_iface, riid, obj);
 }
 
-static ULONG WINAPI memory_2d_buffer_AddRef(IMF2DBuffer2 *iface)
+static ULONG WINAPI surface_2d_buffer_AddRef(IMF2DBuffer2 *iface)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     return IMFMediaBuffer_AddRef(&buffer->IMFMediaBuffer_iface);
 }
 
-static ULONG WINAPI memory_2d_buffer_Release(IMF2DBuffer2 *iface)
+static ULONG WINAPI surface_2d_buffer_Release(IMF2DBuffer2 *iface)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     return IMFMediaBuffer_Release(&buffer->IMFMediaBuffer_iface);
 }
 
-static HRESULT memory_2d_buffer_lock(struct buffer *buffer, BYTE **scanline0, LONG *pitch,
+static HRESULT surface_2d_buffer_lock(struct surface_buffer *buffer, BYTE **scanline0, LONG *pitch,
         BYTE **buffer_start, DWORD *buffer_length)
 {
     HRESULT hr = S_OK;
@@ -459,9 +459,9 @@ static HRESULT memory_2d_buffer_lock(struct buffer *buffer, BYTE **scanline0, LO
     return hr;
 }
 
-static HRESULT WINAPI memory_2d_buffer_Lock2D(IMF2DBuffer2 *iface, BYTE **scanline0, LONG *pitch)
+static HRESULT WINAPI surface_2d_buffer_Lock2D(IMF2DBuffer2 *iface, BYTE **scanline0, LONG *pitch)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     HRESULT hr;
 
     TRACE("%p, %p, %p.\n", iface, scanline0, pitch);
@@ -471,16 +471,16 @@ static HRESULT WINAPI memory_2d_buffer_Lock2D(IMF2DBuffer2 *iface, BYTE **scanli
 
     EnterCriticalSection(&buffer->cs);
 
-    hr = memory_2d_buffer_lock(buffer, scanline0, pitch, NULL, NULL);
+    hr = surface_2d_buffer_lock(buffer, scanline0, pitch, NULL, NULL);
 
     LeaveCriticalSection(&buffer->cs);
 
     return hr;
 }
 
-static HRESULT WINAPI memory_2d_buffer_Unlock2D(IMF2DBuffer2 *iface)
+static HRESULT WINAPI surface_2d_buffer_Unlock2D(IMF2DBuffer2 *iface)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     HRESULT hr = S_OK;
 
     TRACE("%p.\n", iface);
@@ -500,9 +500,9 @@ static HRESULT WINAPI memory_2d_buffer_Unlock2D(IMF2DBuffer2 *iface)
     return hr;
 }
 
-static HRESULT WINAPI memory_2d_buffer_GetScanline0AndPitch(IMF2DBuffer2 *iface, BYTE **scanline0, LONG *pitch)
+static HRESULT WINAPI surface_2d_buffer_GetScanline0AndPitch(IMF2DBuffer2 *iface, BYTE **scanline0, LONG *pitch)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     HRESULT hr = S_OK;
 
     TRACE("%p, %p, %p.\n", iface, scanline0, pitch);
@@ -525,7 +525,7 @@ static HRESULT WINAPI memory_2d_buffer_GetScanline0AndPitch(IMF2DBuffer2 *iface,
     return hr;
 }
 
-static HRESULT WINAPI memory_2d_buffer_IsContiguousFormat(IMF2DBuffer2 *iface, BOOL *is_contiguous)
+static HRESULT WINAPI surface_2d_buffer_IsContiguousFormat(IMF2DBuffer2 *iface, BOOL *is_contiguous)
 {
     TRACE("%p, %p.\n", iface, is_contiguous);
 
@@ -537,9 +537,9 @@ static HRESULT WINAPI memory_2d_buffer_IsContiguousFormat(IMF2DBuffer2 *iface, B
     return S_OK;
 }
 
-static HRESULT WINAPI memory_2d_buffer_GetContiguousLength(IMF2DBuffer2 *iface, DWORD *length)
+static HRESULT WINAPI surface_2d_buffer_GetContiguousLength(IMF2DBuffer2 *iface, DWORD *length)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
 
     TRACE("%p, %p.\n", iface, length);
 
@@ -551,9 +551,9 @@ static HRESULT WINAPI memory_2d_buffer_GetContiguousLength(IMF2DBuffer2 *iface, 
     return S_OK;
 }
 
-static HRESULT WINAPI memory_2d_buffer_ContiguousCopyTo(IMF2DBuffer2 *iface, BYTE *dest_buffer, DWORD dest_length)
+static HRESULT WINAPI surface_2d_buffer_ContiguousCopyTo(IMF2DBuffer2 *iface, BYTE *dest_buffer, DWORD dest_length)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     BYTE *src_scanline0, *src_buffer_start;
     DWORD src_length;
     LONG src_pitch;
@@ -580,9 +580,9 @@ static HRESULT WINAPI memory_2d_buffer_ContiguousCopyTo(IMF2DBuffer2 *iface, BYT
     return S_OK;
 }
 
-static HRESULT WINAPI memory_2d_buffer_ContiguousCopyFrom(IMF2DBuffer2 *iface, const BYTE *src_buffer, DWORD src_length)
+static HRESULT WINAPI surface_2d_buffer_ContiguousCopyFrom(IMF2DBuffer2 *iface, const BYTE *src_buffer, DWORD src_length)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     BYTE *dst_scanline0, *dst_buffer_start;
     DWORD dst_length;
     LONG dst_pitch;
@@ -609,10 +609,10 @@ static HRESULT WINAPI memory_2d_buffer_ContiguousCopyFrom(IMF2DBuffer2 *iface, c
     return hr;
 }
 
-static HRESULT WINAPI memory_2d_buffer_Lock2DSize(IMF2DBuffer2 *iface, MF2DBuffer_LockFlags flags, BYTE **scanline0,
+static HRESULT WINAPI surface_2d_buffer_Lock2DSize(IMF2DBuffer2 *iface, MF2DBuffer_LockFlags flags, BYTE **scanline0,
         LONG *pitch, BYTE **buffer_start, DWORD *buffer_length)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     HRESULT hr;
 
     TRACE("%p, %#x, %p, %p, %p, %p.\n", iface, flags, scanline0, pitch, buffer_start, buffer_length);
@@ -622,37 +622,37 @@ static HRESULT WINAPI memory_2d_buffer_Lock2DSize(IMF2DBuffer2 *iface, MF2DBuffe
 
     EnterCriticalSection(&buffer->cs);
 
-    hr = memory_2d_buffer_lock(buffer, scanline0, pitch, buffer_start, buffer_length);
+    hr = surface_2d_buffer_lock(buffer, scanline0, pitch, buffer_start, buffer_length);
 
     LeaveCriticalSection(&buffer->cs);
 
     return hr;
 }
 
-static HRESULT WINAPI memory_2d_buffer_Copy2DTo(IMF2DBuffer2 *iface, IMF2DBuffer2 *dest_buffer)
+static HRESULT WINAPI surface_2d_buffer_Copy2DTo(IMF2DBuffer2 *iface, IMF2DBuffer2 *dest_buffer)
 {
     FIXME("%p, %p.\n", iface, dest_buffer);
 
     return E_NOTIMPL;
 }
 
-static const IMF2DBuffer2Vtbl memory_2d_buffer_vtbl =
+static const IMF2DBuffer2Vtbl surface_2d_buffer_vtbl =
 {
-    memory_2d_buffer_QueryInterface,
-    memory_2d_buffer_AddRef,
-    memory_2d_buffer_Release,
-    memory_2d_buffer_Lock2D,
-    memory_2d_buffer_Unlock2D,
-    memory_2d_buffer_GetScanline0AndPitch,
-    memory_2d_buffer_IsContiguousFormat,
-    memory_2d_buffer_GetContiguousLength,
-    memory_2d_buffer_ContiguousCopyTo,
-    memory_2d_buffer_ContiguousCopyFrom,
-    memory_2d_buffer_Lock2DSize,
-    memory_2d_buffer_Copy2DTo,
+    surface_2d_buffer_QueryInterface,
+    surface_2d_buffer_AddRef,
+    surface_2d_buffer_Release,
+    surface_2d_buffer_Lock2D,
+    surface_2d_buffer_Unlock2D,
+    surface_2d_buffer_GetScanline0AndPitch,
+    surface_2d_buffer_IsContiguousFormat,
+    surface_2d_buffer_GetContiguousLength,
+    surface_2d_buffer_ContiguousCopyTo,
+    surface_2d_buffer_ContiguousCopyFrom,
+    surface_2d_buffer_Lock2DSize,
+    surface_2d_buffer_Copy2DTo,
 };
 
-static HRESULT d3d9_surface_buffer_lock(struct buffer *buffer, MF2DBuffer_LockFlags flags, BYTE **scanline0,
+static HRESULT d3d9_surface_buffer_lock(struct surface_buffer *buffer, MF2DBuffer_LockFlags flags, BYTE **scanline0,
         LONG *pitch, BYTE **buffer_start, DWORD *buffer_length)
 {
     HRESULT hr = S_OK;
@@ -680,9 +680,9 @@ static HRESULT d3d9_surface_buffer_lock(struct buffer *buffer, MF2DBuffer_LockFl
     return hr;
 }
 
-static HRESULT WINAPI d3d9_surface_buffer_Lock2D(IMF2DBuffer2 *iface, BYTE **scanline0, LONG *pitch)
+static HRESULT WINAPI d3d9_surface_2d_buffer_Lock2D(IMF2DBuffer2 *iface, BYTE **scanline0, LONG *pitch)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     HRESULT hr;
 
     TRACE("%p, %p, %p.\n", iface, scanline0, pitch);
@@ -699,9 +699,9 @@ static HRESULT WINAPI d3d9_surface_buffer_Lock2D(IMF2DBuffer2 *iface, BYTE **sca
     return hr;
 }
 
-static HRESULT WINAPI d3d9_surface_buffer_Unlock2D(IMF2DBuffer2 *iface)
+static HRESULT WINAPI d3d9_surface_2d_buffer_Unlock2D(IMF2DBuffer2 *iface)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     HRESULT hr = S_OK;
 
     TRACE("%p.\n", iface);
@@ -725,9 +725,9 @@ static HRESULT WINAPI d3d9_surface_buffer_Unlock2D(IMF2DBuffer2 *iface)
     return hr;
 }
 
-static HRESULT WINAPI d3d9_surface_buffer_GetScanline0AndPitch(IMF2DBuffer2 *iface, BYTE **scanline0, LONG *pitch)
+static HRESULT WINAPI d3d9_surface_2d_buffer_GetScanline0AndPitch(IMF2DBuffer2 *iface, BYTE **scanline0, LONG *pitch)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     HRESULT hr = S_OK;
 
     TRACE("%p, %p, %p.\n", iface, scanline0, pitch);
@@ -754,10 +754,10 @@ static HRESULT WINAPI d3d9_surface_buffer_GetScanline0AndPitch(IMF2DBuffer2 *ifa
     return hr;
 }
 
-static HRESULT WINAPI d3d9_surface_buffer_Lock2DSize(IMF2DBuffer2 *iface, MF2DBuffer_LockFlags flags, BYTE **scanline0,
+static HRESULT WINAPI d3d9_surface_2d_buffer_Lock2DSize(IMF2DBuffer2 *iface, MF2DBuffer_LockFlags flags, BYTE **scanline0,
         LONG *pitch, BYTE **buffer_start, DWORD *buffer_length)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     HRESULT hr;
 
     TRACE("%p, %#x, %p, %p, %p, %p.\n", iface, flags, scanline0, pitch, buffer_start, buffer_length);
@@ -774,58 +774,58 @@ static HRESULT WINAPI d3d9_surface_buffer_Lock2DSize(IMF2DBuffer2 *iface, MF2DBu
     return hr;
 }
 
-static const IMF2DBuffer2Vtbl d3d9_surface_buffer_vtbl =
+static const IMF2DBuffer2Vtbl d3d9_surface_2d_buffer_vtbl =
 {
-    memory_2d_buffer_QueryInterface,
-    memory_2d_buffer_AddRef,
-    memory_2d_buffer_Release,
-    d3d9_surface_buffer_Lock2D,
-    d3d9_surface_buffer_Unlock2D,
-    d3d9_surface_buffer_GetScanline0AndPitch,
-    memory_2d_buffer_IsContiguousFormat,
-    memory_2d_buffer_GetContiguousLength,
-    memory_2d_buffer_ContiguousCopyTo,
-    memory_2d_buffer_ContiguousCopyFrom,
-    d3d9_surface_buffer_Lock2DSize,
-    memory_2d_buffer_Copy2DTo,
+    surface_2d_buffer_QueryInterface,
+    surface_2d_buffer_AddRef,
+    surface_2d_buffer_Release,
+    d3d9_surface_2d_buffer_Lock2D,
+    d3d9_surface_2d_buffer_Unlock2D,
+    d3d9_surface_2d_buffer_GetScanline0AndPitch,
+    surface_2d_buffer_IsContiguousFormat,
+    surface_2d_buffer_GetContiguousLength,
+    surface_2d_buffer_ContiguousCopyTo,
+    surface_2d_buffer_ContiguousCopyFrom,
+    d3d9_surface_2d_buffer_Lock2DSize,
+    surface_2d_buffer_Copy2DTo,
 };
 
-static HRESULT WINAPI memory_2d_buffer_gs_QueryInterface(IMFGetService *iface, REFIID riid, void **obj)
+static HRESULT WINAPI surface_get_service_QueryInterface(IMFGetService *iface, REFIID riid, void **obj)
 {
-    struct buffer *buffer = impl_from_IMFGetService(iface);
+    struct surface_buffer *buffer = impl_from_IMFGetService(iface);
     return IMFMediaBuffer_QueryInterface(&buffer->IMFMediaBuffer_iface, riid, obj);
 }
 
-static ULONG WINAPI memory_2d_buffer_gs_AddRef(IMFGetService *iface)
+static ULONG WINAPI surface_get_service_AddRef(IMFGetService *iface)
 {
-    struct buffer *buffer = impl_from_IMFGetService(iface);
+    struct surface_buffer *buffer = impl_from_IMFGetService(iface);
     return IMFMediaBuffer_AddRef(&buffer->IMFMediaBuffer_iface);
 }
 
-static ULONG WINAPI memory_2d_buffer_gs_Release(IMFGetService *iface)
+static ULONG WINAPI surface_get_service_Release(IMFGetService *iface)
 {
-    struct buffer *buffer = impl_from_IMFGetService(iface);
+    struct surface_buffer *buffer = impl_from_IMFGetService(iface);
     return IMFMediaBuffer_Release(&buffer->IMFMediaBuffer_iface);
 }
 
-static HRESULT WINAPI memory_2d_buffer_gs_GetService(IMFGetService *iface, REFGUID service, REFIID riid, void **obj)
+static HRESULT WINAPI surface_get_service_GetService(IMFGetService *iface, REFGUID service, REFIID riid, void **obj)
 {
     TRACE("%p, %s, %s, %p.\n", iface, debugstr_guid(service), debugstr_guid(riid), obj);
 
     return E_NOTIMPL;
 }
 
-static const IMFGetServiceVtbl memory_2d_buffer_gs_vtbl =
+static const IMFGetServiceVtbl surface_get_service_vtbl =
 {
-    memory_2d_buffer_gs_QueryInterface,
-    memory_2d_buffer_gs_AddRef,
-    memory_2d_buffer_gs_Release,
-    memory_2d_buffer_gs_GetService,
+    surface_get_service_QueryInterface,
+    surface_get_service_AddRef,
+    surface_get_service_Release,
+    surface_get_service_GetService,
 };
 
-static HRESULT WINAPI d3d9_surface_buffer_gs_GetService(IMFGetService *iface, REFGUID service, REFIID riid, void **obj)
+static HRESULT WINAPI d3d9_surface_get_service_GetService(IMFGetService *iface, REFGUID service, REFIID riid, void **obj)
 {
-    struct buffer *buffer = impl_from_IMFGetService(iface);
+    struct surface_buffer *buffer = impl_from_IMFGetService(iface);
 
     TRACE("%p, %s, %s, %p.\n", iface, debugstr_guid(service), debugstr_guid(riid), obj);
 
@@ -837,17 +837,17 @@ static HRESULT WINAPI d3d9_surface_buffer_gs_GetService(IMFGetService *iface, RE
     return E_NOTIMPL;
 }
 
-static const IMFGetServiceVtbl d3d9_surface_buffer_gs_vtbl =
+static const IMFGetServiceVtbl d3d9_surface_get_service_vtbl =
 {
-    memory_2d_buffer_gs_QueryInterface,
-    memory_2d_buffer_gs_AddRef,
-    memory_2d_buffer_gs_Release,
-    d3d9_surface_buffer_gs_GetService,
+    surface_get_service_QueryInterface,
+    surface_get_service_AddRef,
+    surface_get_service_Release,
+    d3d9_surface_get_service_GetService,
 };
 
-static HRESULT WINAPI dxgi_1d_2d_buffer_QueryInterface(IMFMediaBuffer *iface, REFIID riid, void **out)
+static HRESULT WINAPI dxgi_surface_media_buffer_QueryInterface(IMFMediaBuffer *iface, REFIID riid, void **out)
 {
-    struct buffer *buffer = impl_from_IMFMediaBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFMediaBuffer(iface);
 
     TRACE("%p, %s, %p.\n", iface, debugstr_guid(riid), out);
 
@@ -876,7 +876,7 @@ static HRESULT WINAPI dxgi_1d_2d_buffer_QueryInterface(IMFMediaBuffer *iface, RE
     return S_OK;
 }
 
-static HRESULT dxgi_surface_buffer_create_readback_texture(struct buffer *buffer)
+static HRESULT dxgi_surface_buffer_create_readback_texture(struct surface_buffer *buffer)
 {
     D3D11_TEXTURE2D_DESC texture_desc;
     ID3D11Device *device;
@@ -901,7 +901,7 @@ static HRESULT dxgi_surface_buffer_create_readback_texture(struct buffer *buffer
     return hr;
 }
 
-static HRESULT dxgi_surface_buffer_map(struct buffer *buffer, MF2DBuffer_LockFlags flags)
+static HRESULT dxgi_surface_buffer_map(struct surface_buffer *buffer, MF2DBuffer_LockFlags flags)
 {
     ID3D11DeviceContext *immediate_context;
     ID3D11Device *device;
@@ -932,7 +932,7 @@ static HRESULT dxgi_surface_buffer_map(struct buffer *buffer, MF2DBuffer_LockFla
     return hr;
 }
 
-static void dxgi_surface_buffer_unmap(struct buffer *buffer, MF2DBuffer_LockFlags flags)
+static void dxgi_surface_buffer_unmap(struct surface_buffer *buffer, MF2DBuffer_LockFlags flags)
 {
     ID3D11DeviceContext *immediate_context;
     ID3D11Device *device;
@@ -952,10 +952,10 @@ static void dxgi_surface_buffer_unmap(struct buffer *buffer, MF2DBuffer_LockFlag
     ID3D11Device_Release(device);
 }
 
-static HRESULT WINAPI dxgi_surface_buffer_Lock(IMFMediaBuffer *iface, BYTE **data, DWORD *max_length,
+static HRESULT WINAPI dxgi_surface_media_buffer_Lock(IMFMediaBuffer *iface, BYTE **data, DWORD *max_length,
         DWORD *current_length)
 {
-    struct buffer *buffer = impl_from_IMFMediaBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFMediaBuffer(iface);
     HRESULT hr = S_OK;
 
     TRACE("%p, %p, %p, %p.\n", iface, data, max_length, current_length);
@@ -998,9 +998,9 @@ static HRESULT WINAPI dxgi_surface_buffer_Lock(IMFMediaBuffer *iface, BYTE **dat
     return hr;
 }
 
-static HRESULT WINAPI dxgi_surface_buffer_Unlock(IMFMediaBuffer *iface)
+static HRESULT WINAPI dxgi_surface_media_buffer_Unlock(IMFMediaBuffer *iface)
 {
-    struct buffer *buffer = impl_from_IMFMediaBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFMediaBuffer(iface);
     HRESULT hr = S_OK;
 
     TRACE("%p.\n", iface);
@@ -1024,9 +1024,9 @@ static HRESULT WINAPI dxgi_surface_buffer_Unlock(IMFMediaBuffer *iface)
     return hr;
 }
 
-static HRESULT WINAPI dxgi_surface_buffer_SetCurrentLength(IMFMediaBuffer *iface, DWORD current_length)
+static HRESULT WINAPI dxgi_surface_media_buffer_SetCurrentLength(IMFMediaBuffer *iface, DWORD current_length)
 {
-    struct buffer *buffer = impl_from_IMFMediaBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFMediaBuffer(iface);
 
     TRACE("%p, %lu.\n", iface, current_length);
 
@@ -1035,7 +1035,7 @@ static HRESULT WINAPI dxgi_surface_buffer_SetCurrentLength(IMFMediaBuffer *iface
     return S_OK;
 }
 
-static HRESULT dxgi_surface_buffer_lock(struct buffer *buffer, MF2DBuffer_LockFlags flags,
+static HRESULT dxgi_surface_buffer_lock(struct surface_buffer *buffer, MF2DBuffer_LockFlags flags,
         BYTE **scanline0, LONG *pitch, BYTE **buffer_start, DWORD *buffer_length)
 {
     HRESULT hr = S_OK;
@@ -1065,9 +1065,9 @@ static HRESULT dxgi_surface_buffer_lock(struct buffer *buffer, MF2DBuffer_LockFl
     return hr;
 }
 
-static HRESULT WINAPI dxgi_surface_buffer_Lock2D(IMF2DBuffer2 *iface, BYTE **scanline0, LONG *pitch)
+static HRESULT WINAPI dxgi_surface_2d_buffer_Lock2D(IMF2DBuffer2 *iface, BYTE **scanline0, LONG *pitch)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     HRESULT hr;
 
     TRACE("%p, %p, %p.\n", iface, scanline0, pitch);
@@ -1084,9 +1084,9 @@ static HRESULT WINAPI dxgi_surface_buffer_Lock2D(IMF2DBuffer2 *iface, BYTE **sca
     return hr;
 }
 
-static HRESULT WINAPI dxgi_surface_buffer_Unlock2D(IMF2DBuffer2 *iface)
+static HRESULT WINAPI dxgi_surface_2d_buffer_Unlock2D(IMF2DBuffer2 *iface)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     HRESULT hr = S_OK;
 
     TRACE("%p.\n", iface);
@@ -1109,9 +1109,9 @@ static HRESULT WINAPI dxgi_surface_buffer_Unlock2D(IMF2DBuffer2 *iface)
     return hr;
 }
 
-static HRESULT WINAPI dxgi_surface_buffer_GetScanline0AndPitch(IMF2DBuffer2 *iface, BYTE **scanline0, LONG *pitch)
+static HRESULT WINAPI dxgi_surface_2d_buffer_GetScanline0AndPitch(IMF2DBuffer2 *iface, BYTE **scanline0, LONG *pitch)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     HRESULT hr = S_OK;
 
     TRACE("%p, %p, %p.\n", iface, scanline0, pitch);
@@ -1138,10 +1138,10 @@ static HRESULT WINAPI dxgi_surface_buffer_GetScanline0AndPitch(IMF2DBuffer2 *ifa
     return hr;
 }
 
-static HRESULT WINAPI dxgi_surface_buffer_Lock2DSize(IMF2DBuffer2 *iface, MF2DBuffer_LockFlags flags,
+static HRESULT WINAPI dxgi_surface_2d_buffer_Lock2DSize(IMF2DBuffer2 *iface, MF2DBuffer_LockFlags flags,
         BYTE **scanline0, LONG *pitch, BYTE **buffer_start, DWORD *buffer_length)
 {
-    struct buffer *buffer = impl_from_IMF2DBuffer2(iface);
+    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     HRESULT hr;
 
     TRACE("%p, %#x, %p, %p, %p, %p.\n", iface, flags, scanline0, pitch, buffer_start, buffer_length);
@@ -1160,25 +1160,25 @@ static HRESULT WINAPI dxgi_surface_buffer_Lock2DSize(IMF2DBuffer2 *iface, MF2DBu
 
 static HRESULT WINAPI dxgi_buffer_QueryInterface(IMFDXGIBuffer *iface, REFIID riid, void **obj)
 {
-    struct buffer *buffer = impl_from_IMFDXGIBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFDXGIBuffer(iface);
     return IMFMediaBuffer_QueryInterface(&buffer->IMFMediaBuffer_iface, riid, obj);
 }
 
 static ULONG WINAPI dxgi_buffer_AddRef(IMFDXGIBuffer *iface)
 {
-    struct buffer *buffer = impl_from_IMFDXGIBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFDXGIBuffer(iface);
     return IMFMediaBuffer_AddRef(&buffer->IMFMediaBuffer_iface);
 }
 
 static ULONG WINAPI dxgi_buffer_Release(IMFDXGIBuffer *iface)
 {
-    struct buffer *buffer = impl_from_IMFDXGIBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFDXGIBuffer(iface);
     return IMFMediaBuffer_Release(&buffer->IMFMediaBuffer_iface);
 }
 
 static HRESULT WINAPI dxgi_buffer_GetResource(IMFDXGIBuffer *iface, REFIID riid, void **obj)
 {
-    struct buffer *buffer = impl_from_IMFDXGIBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFDXGIBuffer(iface);
 
     TRACE("%p, %s, %p.\n", iface, debugstr_guid(riid), obj);
 
@@ -1187,7 +1187,7 @@ static HRESULT WINAPI dxgi_buffer_GetResource(IMFDXGIBuffer *iface, REFIID riid,
 
 static HRESULT WINAPI dxgi_buffer_GetSubresourceIndex(IMFDXGIBuffer *iface, UINT *index)
 {
-    struct buffer *buffer = impl_from_IMFDXGIBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFDXGIBuffer(iface);
 
     TRACE("%p, %p.\n", iface, index);
 
@@ -1201,7 +1201,7 @@ static HRESULT WINAPI dxgi_buffer_GetSubresourceIndex(IMFDXGIBuffer *iface, UINT
 
 static HRESULT WINAPI dxgi_buffer_GetUnknown(IMFDXGIBuffer *iface, REFIID guid, REFIID riid, void **object)
 {
-    struct buffer *buffer = impl_from_IMFDXGIBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFDXGIBuffer(iface);
 
     TRACE("%p, %s, %s, %p.\n", iface, debugstr_guid(guid), debugstr_guid(riid), object);
 
@@ -1213,7 +1213,7 @@ static HRESULT WINAPI dxgi_buffer_GetUnknown(IMFDXGIBuffer *iface, REFIID guid, 
 
 static HRESULT WINAPI dxgi_buffer_SetUnknown(IMFDXGIBuffer *iface, REFIID guid, IUnknown *data)
 {
-    struct buffer *buffer = impl_from_IMFDXGIBuffer(iface);
+    struct surface_buffer *buffer = impl_from_IMFDXGIBuffer(iface);
     HRESULT hr = S_OK;
 
     TRACE("%p, %s, %p.\n", iface, debugstr_guid(guid), data);
@@ -1235,32 +1235,32 @@ static HRESULT WINAPI dxgi_buffer_SetUnknown(IMFDXGIBuffer *iface, REFIID guid, 
     return hr;
 }
 
-static const IMFMediaBufferVtbl dxgi_surface_1d_buffer_vtbl =
+static const IMFMediaBufferVtbl dxgi_surface_media_buffer_vtbl =
 {
-    dxgi_1d_2d_buffer_QueryInterface,
-    memory_buffer_AddRef,
-    memory_buffer_Release,
-    dxgi_surface_buffer_Lock,
-    dxgi_surface_buffer_Unlock,
-    memory_buffer_GetCurrentLength,
-    dxgi_surface_buffer_SetCurrentLength,
-    memory_buffer_GetMaxLength,
+    dxgi_surface_media_buffer_QueryInterface,
+    surface_media_buffer_AddRef,
+    surface_media_buffer_Release,
+    dxgi_surface_media_buffer_Lock,
+    dxgi_surface_media_buffer_Unlock,
+    surface_media_buffer_GetCurrentLength,
+    dxgi_surface_media_buffer_SetCurrentLength,
+    surface_media_buffer_GetMaxLength,
 };
 
-static const IMF2DBuffer2Vtbl dxgi_surface_buffer_vtbl =
+static const IMF2DBuffer2Vtbl dxgi_surface_2d_buffer_vtbl =
 {
-    memory_2d_buffer_QueryInterface,
-    memory_2d_buffer_AddRef,
-    memory_2d_buffer_Release,
-    dxgi_surface_buffer_Lock2D,
-    dxgi_surface_buffer_Unlock2D,
-    dxgi_surface_buffer_GetScanline0AndPitch,
-    memory_2d_buffer_IsContiguousFormat,
-    memory_2d_buffer_GetContiguousLength,
-    memory_2d_buffer_ContiguousCopyTo,
-    memory_2d_buffer_ContiguousCopyFrom,
-    dxgi_surface_buffer_Lock2DSize,
-    memory_2d_buffer_Copy2DTo,
+    surface_2d_buffer_QueryInterface,
+    surface_2d_buffer_AddRef,
+    surface_2d_buffer_Release,
+    dxgi_surface_2d_buffer_Lock2D,
+    dxgi_surface_2d_buffer_Unlock2D,
+    dxgi_surface_2d_buffer_GetScanline0AndPitch,
+    surface_2d_buffer_IsContiguousFormat,
+    surface_2d_buffer_GetContiguousLength,
+    surface_2d_buffer_ContiguousCopyTo,
+    surface_2d_buffer_ContiguousCopyFrom,
+    dxgi_surface_2d_buffer_Lock2DSize,
+    surface_2d_buffer_Copy2DTo,
 };
 
 static const IMFDXGIBufferVtbl dxgi_buffer_vtbl =
@@ -1302,7 +1302,7 @@ static HRESULT create_2d_buffer(DWORD width, DWORD height, DWORD fourcc, BOOL bo
 {
     unsigned int stride, max_length;
     unsigned int row_alignment;
-    struct buffer *object;
+    struct surface_buffer *object;
     DWORD plane_size;
     GUID subtype;
     BOOL is_yuv;
@@ -1404,9 +1404,9 @@ static HRESULT create_2d_buffer(DWORD width, DWORD height, DWORD fourcc, BOOL bo
     }
     memset(object->data, 0, max_length);
 
-    object->IMFMediaBuffer_iface.lpVtbl = &memory_1d_2d_buffer_vtbl;
-    object->IMF2DBuffer2_iface.lpVtbl = &memory_2d_buffer_vtbl;
-    object->IMFGetService_iface.lpVtbl = &memory_2d_buffer_gs_vtbl;
+    object->IMFMediaBuffer_iface.lpVtbl = &surface_media_buffer_vtbl;
+    object->IMF2DBuffer2_iface.lpVtbl = &surface_2d_buffer_vtbl;
+    object->IMFGetService_iface.lpVtbl = &surface_get_service_vtbl;
     object->refcount = 1;
     InitializeCriticalSection(&object->cs);
 
@@ -1426,7 +1426,7 @@ static HRESULT create_2d_buffer(DWORD width, DWORD height, DWORD fourcc, BOOL bo
 
 static HRESULT create_d3d9_surface_buffer(IUnknown *surface, BOOL bottom_up, IMFMediaBuffer **buffer)
 {
-    struct buffer *object;
+    struct surface_buffer *object;
     D3DSURFACE_DESC desc;
     unsigned int stride;
     GUID subtype;
@@ -1444,9 +1444,9 @@ static HRESULT create_d3d9_surface_buffer(IUnknown *surface, BOOL bottom_up, IMF
     if (!(object = calloc(1, sizeof(*object))))
         return E_OUTOFMEMORY;
 
-    object->IMFMediaBuffer_iface.lpVtbl = &d3d9_surface_1d_buffer_vtbl;
-    object->IMF2DBuffer2_iface.lpVtbl = &d3d9_surface_buffer_vtbl;
-    object->IMFGetService_iface.lpVtbl = &d3d9_surface_buffer_gs_vtbl;
+    object->IMFMediaBuffer_iface.lpVtbl = &d3d9_surface_media_buffer_vtbl;
+    object->IMF2DBuffer2_iface.lpVtbl = &d3d9_surface_2d_buffer_vtbl;
+    object->IMFGetService_iface.lpVtbl = &d3d9_surface_get_service_vtbl;
     object->refcount = 1;
     InitializeCriticalSection(&object->cs);
     object->d3d9_surface.surface = (IDirect3DSurface9 *)surface;
@@ -1466,7 +1466,7 @@ static HRESULT create_d3d9_surface_buffer(IUnknown *surface, BOOL bottom_up, IMF
 static HRESULT create_dxgi_surface_buffer(IUnknown *surface, unsigned int sub_resource_idx,
         BOOL bottom_up, IMFMediaBuffer **buffer)
 {
-    struct buffer *object;
+    struct surface_buffer *object;
     D3D11_TEXTURE2D_DESC desc;
     ID3D11Texture2D *texture;
     unsigned int stride;
@@ -1499,8 +1499,8 @@ static HRESULT create_dxgi_surface_buffer(IUnknown *surface, unsigned int sub_re
         return E_OUTOFMEMORY;
     }
 
-    object->IMFMediaBuffer_iface.lpVtbl = &dxgi_surface_1d_buffer_vtbl;
-    object->IMF2DBuffer2_iface.lpVtbl = &dxgi_surface_buffer_vtbl;
+    object->IMFMediaBuffer_iface.lpVtbl = &dxgi_surface_media_buffer_vtbl;
+    object->IMF2DBuffer2_iface.lpVtbl = &dxgi_surface_2d_buffer_vtbl;
     object->IMFDXGIBuffer_iface.lpVtbl = &dxgi_buffer_vtbl;
     object->refcount = 1;
     InitializeCriticalSection(&object->cs);
