@@ -32,12 +32,22 @@ WINE_DEFAULT_DEBUG_CHANNEL(mfplat);
 
 #define ALIGN_SIZE(size, alignment) (((size) + (alignment)) & ~((alignment)))
 
+struct surface_buffer;
+
+struct surface_2d_buffer_ops
+{
+    HRESULT (*lock)(struct surface_buffer *buffer, MF2DBuffer_LockFlags flags, BYTE **scanline0,
+            LONG *pitch, BYTE **buffer_start, DWORD *buffer_length);
+    HRESULT (*unlock)(struct surface_buffer *buffer);
+};
+
 struct surface_buffer
 {
     IMFMediaBuffer IMFMediaBuffer_iface;
     IMF2DBuffer2 IMF2DBuffer2_iface;
     IMFDXGIBuffer IMFDXGIBuffer_iface;
     IMFGetService IMFGetService_iface;
+    const struct surface_2d_buffer_ops *ops;
     LONG refcount;
 
     BYTE *data;
@@ -101,7 +111,7 @@ static void copy_image(DWORD fourcc, BYTE *dest, LONG dest_stride, const BYTE *s
     }
 }
 
-static inline struct surface_buffer *impl_from_IMFMediaBuffer(IMFMediaBuffer *iface)
+static struct surface_buffer *impl_from_IMFMediaBuffer(IMFMediaBuffer *iface)
 {
     return CONTAINING_RECORD(iface, struct surface_buffer, IMFMediaBuffer_iface);
 }
@@ -437,62 +447,55 @@ static ULONG WINAPI surface_2d_buffer_Release(IMF2DBuffer2 *iface)
     return IMFMediaBuffer_Release(&buffer->IMFMediaBuffer_iface);
 }
 
-static HRESULT surface_2d_buffer_lock(struct surface_buffer *buffer, BYTE **scanline0, LONG *pitch,
-        BYTE **buffer_start, DWORD *buffer_length)
+static HRESULT surface_2d_buffer_lock(struct surface_buffer *buffer, MF2DBuffer_LockFlags flags, BYTE **scanline0,
+        LONG *pitch, BYTE **buffer_start, DWORD *buffer_length)
 {
-    HRESULT hr = S_OK;
-
-    if (buffer->linear_buffer)
-        hr = MF_E_UNEXPECTED;
-    else
-    {
-        ++buffer->locks;
-        *scanline0 = buffer->scanline0;
-        *pitch = buffer->pitch;
-        if (buffer_start)
-            *buffer_start = buffer->data;
-        if (buffer_length)
-            *buffer_length = buffer->max_length;
-    }
-
-    return hr;
+    *scanline0 = buffer->scanline0;
+    *pitch = buffer->pitch;
+    *buffer_start = buffer->data;
+    *buffer_length = buffer->max_length;
+    return S_OK;
 }
+
+static HRESULT surface_2d_buffer_unlock(struct surface_buffer *buffer)
+{
+    return S_OK;
+}
+
+static const struct surface_2d_buffer_ops surface_2d_buffer_ops =
+{
+    surface_2d_buffer_lock,
+    surface_2d_buffer_unlock,
+};
 
 static HRESULT WINAPI surface_2d_buffer_Lock2D(IMF2DBuffer2 *iface, BYTE **scanline0, LONG *pitch)
 {
-    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
-    HRESULT hr;
+    DWORD buffer_length;
+    BYTE *buffer_start;
 
     TRACE("%p, %p, %p.\n", iface, scanline0, pitch);
 
-    if (!scanline0 || !pitch)
-        return E_POINTER;
-
-    EnterCriticalSection(&buffer->cs);
-
-    hr = surface_2d_buffer_lock(buffer, scanline0, pitch, NULL, NULL);
-
-    LeaveCriticalSection(&buffer->cs);
-
-    return hr;
+    return IMF2DBuffer2_Lock2DSize(iface, MF2DBuffer_LockFlags_ReadWrite, scanline0, pitch,
+            &buffer_start, &buffer_length);
 }
 
 static HRESULT WINAPI surface_2d_buffer_Unlock2D(IMF2DBuffer2 *iface)
 {
     struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
-    HRESULT hr = S_OK;
+    HRESULT hr;
 
     TRACE("%p.\n", iface);
 
     EnterCriticalSection(&buffer->cs);
 
-    if (!buffer->linear_buffer)
-    {
-        if (buffer->locks)
-            --buffer->locks;
-        else
-            hr = HRESULT_FROM_WIN32(ERROR_WAS_UNLOCKED);
-    }
+    if (buffer->linear_buffer)
+        hr = S_OK;
+    else if (!buffer->locks)
+        hr = HRESULT_FROM_WIN32(ERROR_WAS_UNLOCKED);
+    else if (!--buffer->locks && SUCCEEDED(hr = buffer->ops->unlock(buffer)))
+        buffer->lock_flags = 0;
+    else
+        hr = S_OK;
 
     LeaveCriticalSection(&buffer->cs);
 
@@ -612,7 +615,7 @@ static HRESULT WINAPI surface_2d_buffer_Lock2DSize(IMF2DBuffer2 *iface, MF2DBuff
         LONG *pitch, BYTE **buffer_start, DWORD *buffer_length)
 {
     struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
-    HRESULT hr;
+    HRESULT hr = S_OK;
 
     TRACE("%p, %#x, %p, %p, %p, %p.\n", iface, flags, scanline0, pitch, buffer_start, buffer_length);
 
@@ -621,7 +624,12 @@ static HRESULT WINAPI surface_2d_buffer_Lock2DSize(IMF2DBuffer2 *iface, MF2DBuff
 
     EnterCriticalSection(&buffer->cs);
 
-    hr = surface_2d_buffer_lock(buffer, scanline0, pitch, buffer_start, buffer_length);
+    if (buffer->linear_buffer)
+        hr = MF_E_UNEXPECTED;
+    else if (buffer->locks && buffer->lock_flags == MF2DBuffer_LockFlags_Write && flags != MF2DBuffer_LockFlags_Write)
+        hr = HRESULT_FROM_WIN32(ERROR_WAS_LOCKED);
+    else if (SUCCEEDED(hr = buffer->ops->lock(buffer, flags, scanline0, pitch, buffer_start, buffer_length)))
+        buffer->locks++;
 
     LeaveCriticalSection(&buffer->cs);
 
@@ -651,142 +659,38 @@ static const IMF2DBuffer2Vtbl surface_2d_buffer_vtbl =
     surface_2d_buffer_Copy2DTo,
 };
 
-static HRESULT d3d9_surface_buffer_lock(struct surface_buffer *buffer, MF2DBuffer_LockFlags flags, BYTE **scanline0,
+static HRESULT d3d9_surface_2d_buffer_lock(struct surface_buffer *buffer, MF2DBuffer_LockFlags flags, BYTE **scanline0,
         LONG *pitch, BYTE **buffer_start, DWORD *buffer_length)
 {
-    HRESULT hr = S_OK;
-
-    if (buffer->linear_buffer)
-        hr = MF_E_UNEXPECTED;
-    else if (!buffer->locks)
-        hr = IDirect3DSurface9_LockRect(buffer->d3d9_surface.surface, &buffer->d3d9_surface.rect, NULL, 0);
-    else if (buffer->lock_flags == MF2DBuffer_LockFlags_Write && flags != MF2DBuffer_LockFlags_Write)
-        hr = HRESULT_FROM_WIN32(ERROR_WAS_LOCKED);
-
-    if (SUCCEEDED(hr))
-    {
-        if (!buffer->locks)
-            buffer->lock_flags = flags;
-        buffer->locks++;
-        *scanline0 = buffer->d3d9_surface.rect.pBits;
-        *pitch = buffer->d3d9_surface.rect.Pitch;
-        if (buffer_start)
-            *buffer_start = *scanline0;
-        if (buffer_length)
-            *buffer_length = buffer->d3d9_surface.rect.Pitch * buffer->height;
-    }
-
-    return hr;
-}
-
-static HRESULT WINAPI d3d9_surface_2d_buffer_Lock2D(IMF2DBuffer2 *iface, BYTE **scanline0, LONG *pitch)
-{
-    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     HRESULT hr;
-
-    TRACE("%p, %p, %p.\n", iface, scanline0, pitch);
-
-    if (!scanline0 || !pitch)
-        return E_POINTER;
-
-    EnterCriticalSection(&buffer->cs);
-
-    hr = d3d9_surface_buffer_lock(buffer, MF2DBuffer_LockFlags_ReadWrite, scanline0, pitch, NULL, NULL);
-
-    LeaveCriticalSection(&buffer->cs);
-
-    return hr;
-}
-
-static HRESULT WINAPI d3d9_surface_2d_buffer_Unlock2D(IMF2DBuffer2 *iface)
-{
-    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
-    HRESULT hr = S_OK;
-
-    TRACE("%p.\n", iface);
-
-    EnterCriticalSection(&buffer->cs);
-
-    if (buffer->locks)
-    {
-        if (!--buffer->locks)
-        {
-            IDirect3DSurface9_UnlockRect(buffer->d3d9_surface.surface);
-            memset(&buffer->d3d9_surface.rect, 0, sizeof(buffer->d3d9_surface.rect));
-            buffer->lock_flags = 0;
-        }
-    }
-    else
-        hr = HRESULT_FROM_WIN32(ERROR_WAS_UNLOCKED);
-
-    LeaveCriticalSection(&buffer->cs);
-
-    return hr;
-}
-
-static HRESULT WINAPI d3d9_surface_2d_buffer_GetScanline0AndPitch(IMF2DBuffer2 *iface, BYTE **scanline0, LONG *pitch)
-{
-    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
-    HRESULT hr = S_OK;
-
-    TRACE("%p, %p, %p.\n", iface, scanline0, pitch);
-
-    if (!scanline0 || !pitch)
-        return E_POINTER;
-
-    EnterCriticalSection(&buffer->cs);
 
     if (!buffer->locks)
     {
-        *scanline0 = NULL;
-        *pitch = 0;
-        hr = HRESULT_FROM_WIN32(ERROR_WAS_UNLOCKED);
-    }
-    else
-    {
-        *scanline0 = buffer->d3d9_surface.rect.pBits;
-        *pitch = buffer->d3d9_surface.rect.Pitch;
+        if (FAILED(hr = IDirect3DSurface9_LockRect(buffer->d3d9_surface.surface,
+                &buffer->d3d9_surface.rect, NULL, 0)))
+            return hr;
+        buffer->lock_flags = flags;
     }
 
-    LeaveCriticalSection(&buffer->cs);
+    *scanline0 = buffer->scanline0 = buffer->d3d9_surface.rect.pBits;
+    *pitch = buffer->pitch = buffer->d3d9_surface.rect.Pitch;
+    *buffer_start = *scanline0;
+    *buffer_length = buffer->d3d9_surface.rect.Pitch * buffer->height;
 
-    return hr;
+    return S_OK;
 }
 
-static HRESULT WINAPI d3d9_surface_2d_buffer_Lock2DSize(IMF2DBuffer2 *iface, MF2DBuffer_LockFlags flags, BYTE **scanline0,
-        LONG *pitch, BYTE **buffer_start, DWORD *buffer_length)
+static HRESULT d3d9_surface_2d_buffer_unlock(struct surface_buffer *buffer)
 {
-    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
-    HRESULT hr;
-
-    TRACE("%p, %#x, %p, %p, %p, %p.\n", iface, flags, scanline0, pitch, buffer_start, buffer_length);
-
-    if (!scanline0 || !pitch || !buffer_start || !buffer_length)
-        return E_POINTER;
-
-    EnterCriticalSection(&buffer->cs);
-
-    hr = d3d9_surface_buffer_lock(buffer, flags, scanline0, pitch, buffer_start, buffer_length);
-
-    LeaveCriticalSection(&buffer->cs);
-
-    return hr;
+    IDirect3DSurface9_UnlockRect(buffer->d3d9_surface.surface);
+    memset(&buffer->d3d9_surface.rect, 0, sizeof(buffer->d3d9_surface.rect));
+    return S_OK;
 }
 
-static const IMF2DBuffer2Vtbl d3d9_surface_2d_buffer_vtbl =
+static const struct surface_2d_buffer_ops d3d9_surface_2d_buffer_ops =
 {
-    surface_2d_buffer_QueryInterface,
-    surface_2d_buffer_AddRef,
-    surface_2d_buffer_Release,
-    d3d9_surface_2d_buffer_Lock2D,
-    d3d9_surface_2d_buffer_Unlock2D,
-    d3d9_surface_2d_buffer_GetScanline0AndPitch,
-    surface_2d_buffer_IsContiguousFormat,
-    surface_2d_buffer_GetContiguousLength,
-    surface_2d_buffer_ContiguousCopyTo,
-    surface_2d_buffer_ContiguousCopyFrom,
-    d3d9_surface_2d_buffer_Lock2DSize,
-    surface_2d_buffer_Copy2DTo,
+    d3d9_surface_2d_buffer_lock,
+    d3d9_surface_2d_buffer_unlock,
 };
 
 static HRESULT WINAPI surface_get_service_QueryInterface(IMFGetService *iface, REFIID riid, void **obj)
@@ -1034,128 +938,39 @@ static HRESULT WINAPI dxgi_surface_media_buffer_SetCurrentLength(IMFMediaBuffer 
     return S_OK;
 }
 
-static HRESULT dxgi_surface_buffer_lock(struct surface_buffer *buffer, MF2DBuffer_LockFlags flags,
+static HRESULT dxgi_surface_2d_buffer_lock(struct surface_buffer *buffer, MF2DBuffer_LockFlags flags,
         BYTE **scanline0, LONG *pitch, BYTE **buffer_start, DWORD *buffer_length)
 {
-    HRESULT hr = S_OK;
-
-    if (buffer->linear_buffer)
-        hr = MF_E_UNEXPECTED;
-    else if (!buffer->locks)
-        hr = dxgi_surface_buffer_map(buffer, flags);
-    else if (buffer->lock_flags == MF2DBuffer_LockFlags_Write && flags != MF2DBuffer_LockFlags_Write)
-        hr = HRESULT_FROM_WIN32(ERROR_WAS_LOCKED);
-
-    if (SUCCEEDED(hr))
-    {
-        if (!buffer->locks)
-            buffer->lock_flags = flags;
-        else
-            buffer->lock_flags |= flags;
-        buffer->locks++;
-        *scanline0 = buffer->dxgi_surface.map_desc.pData;
-        *pitch = buffer->dxgi_surface.map_desc.RowPitch;
-        if (buffer_start)
-            *buffer_start = *scanline0;
-        if (buffer_length)
-            *buffer_length = buffer->dxgi_surface.map_desc.DepthPitch;
-    }
-
-    return hr;
-}
-
-static HRESULT WINAPI dxgi_surface_2d_buffer_Lock2D(IMF2DBuffer2 *iface, BYTE **scanline0, LONG *pitch)
-{
-    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
     HRESULT hr;
-
-    TRACE("%p, %p, %p.\n", iface, scanline0, pitch);
-
-    if (!scanline0 || !pitch)
-        return E_POINTER;
-
-    EnterCriticalSection(&buffer->cs);
-
-    hr = dxgi_surface_buffer_lock(buffer, MF2DBuffer_LockFlags_ReadWrite, scanline0, pitch, NULL, NULL);
-
-    LeaveCriticalSection(&buffer->cs);
-
-    return hr;
-}
-
-static HRESULT WINAPI dxgi_surface_2d_buffer_Unlock2D(IMF2DBuffer2 *iface)
-{
-    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
-    HRESULT hr = S_OK;
-
-    TRACE("%p.\n", iface);
-
-    EnterCriticalSection(&buffer->cs);
 
     if (buffer->locks)
-    {
-        if (!--buffer->locks)
-        {
-            dxgi_surface_buffer_unmap(buffer, buffer->lock_flags);
-            buffer->lock_flags = 0;
-        }
-    }
-    else
-        hr = HRESULT_FROM_WIN32(ERROR_WAS_UNLOCKED);
-
-    LeaveCriticalSection(&buffer->cs);
-
-    return hr;
-}
-
-static HRESULT WINAPI dxgi_surface_2d_buffer_GetScanline0AndPitch(IMF2DBuffer2 *iface, BYTE **scanline0, LONG *pitch)
-{
-    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
-    HRESULT hr = S_OK;
-
-    TRACE("%p, %p, %p.\n", iface, scanline0, pitch);
-
-    if (!scanline0 || !pitch)
-        return E_POINTER;
-
-    EnterCriticalSection(&buffer->cs);
-
-    if (!buffer->locks)
-    {
-        *scanline0 = NULL;
-        *pitch = 0;
-        hr = HRESULT_FROM_WIN32(ERROR_WAS_UNLOCKED);
-    }
+        buffer->lock_flags |= flags;
     else
     {
-        *scanline0 = buffer->dxgi_surface.map_desc.pData;
-        *pitch = buffer->dxgi_surface.map_desc.RowPitch;
+        if (FAILED(hr = dxgi_surface_buffer_map(buffer, flags)))
+            return hr;
+        buffer->lock_flags = flags;
     }
 
-    LeaveCriticalSection(&buffer->cs);
+    *scanline0 = buffer->scanline0 = buffer->dxgi_surface.map_desc.pData;
+    *pitch = buffer->pitch = buffer->dxgi_surface.map_desc.RowPitch;
+    *buffer_start = *scanline0;
+    *buffer_length = buffer->dxgi_surface.map_desc.DepthPitch;
 
-    return hr;
+    return S_OK;
 }
 
-static HRESULT WINAPI dxgi_surface_2d_buffer_Lock2DSize(IMF2DBuffer2 *iface, MF2DBuffer_LockFlags flags,
-        BYTE **scanline0, LONG *pitch, BYTE **buffer_start, DWORD *buffer_length)
+static HRESULT dxgi_surface_2d_buffer_unlock(struct surface_buffer *buffer)
 {
-    struct surface_buffer *buffer = impl_from_IMF2DBuffer2(iface);
-    HRESULT hr;
-
-    TRACE("%p, %#x, %p, %p, %p, %p.\n", iface, flags, scanline0, pitch, buffer_start, buffer_length);
-
-    if (!scanline0 || !pitch || !buffer_start || !buffer_length)
-        return E_POINTER;
-
-    EnterCriticalSection(&buffer->cs);
-
-    hr = dxgi_surface_buffer_lock(buffer, flags, scanline0, pitch, buffer_start, buffer_length);
-
-    LeaveCriticalSection(&buffer->cs);
-
-    return hr;
+    dxgi_surface_buffer_unmap(buffer, buffer->lock_flags);
+    return S_OK;
 }
+
+static const struct surface_2d_buffer_ops dxgi_surface_2d_buffer_ops =
+{
+    dxgi_surface_2d_buffer_lock,
+    dxgi_surface_2d_buffer_unlock,
+};
 
 static HRESULT WINAPI dxgi_buffer_QueryInterface(IMFDXGIBuffer *iface, REFIID riid, void **obj)
 {
@@ -1244,22 +1059,6 @@ static const IMFMediaBufferVtbl dxgi_surface_media_buffer_vtbl =
     surface_media_buffer_GetCurrentLength,
     dxgi_surface_media_buffer_SetCurrentLength,
     surface_media_buffer_GetMaxLength,
-};
-
-static const IMF2DBuffer2Vtbl dxgi_surface_2d_buffer_vtbl =
-{
-    surface_2d_buffer_QueryInterface,
-    surface_2d_buffer_AddRef,
-    surface_2d_buffer_Release,
-    dxgi_surface_2d_buffer_Lock2D,
-    dxgi_surface_2d_buffer_Unlock2D,
-    dxgi_surface_2d_buffer_GetScanline0AndPitch,
-    surface_2d_buffer_IsContiguousFormat,
-    surface_2d_buffer_GetContiguousLength,
-    surface_2d_buffer_ContiguousCopyTo,
-    surface_2d_buffer_ContiguousCopyFrom,
-    dxgi_surface_2d_buffer_Lock2DSize,
-    surface_2d_buffer_Copy2DTo,
 };
 
 static const IMFDXGIBufferVtbl dxgi_buffer_vtbl =
@@ -1382,6 +1181,7 @@ static HRESULT create_2d_buffer(DWORD width, DWORD height, DWORD fourcc, BOOL bo
     object->IMFMediaBuffer_iface.lpVtbl = &surface_media_buffer_vtbl;
     object->IMF2DBuffer2_iface.lpVtbl = &surface_2d_buffer_vtbl;
     object->IMFGetService_iface.lpVtbl = &surface_get_service_vtbl;
+    object->ops = &surface_2d_buffer_ops;
     object->refcount = 1;
     InitializeCriticalSection(&object->cs);
 
@@ -1420,8 +1220,9 @@ static HRESULT create_d3d9_surface_buffer(IUnknown *surface, BOOL bottom_up, IMF
         return E_OUTOFMEMORY;
 
     object->IMFMediaBuffer_iface.lpVtbl = &d3d9_surface_media_buffer_vtbl;
-    object->IMF2DBuffer2_iface.lpVtbl = &d3d9_surface_2d_buffer_vtbl;
+    object->IMF2DBuffer2_iface.lpVtbl = &surface_2d_buffer_vtbl;
     object->IMFGetService_iface.lpVtbl = &d3d9_surface_get_service_vtbl;
+    object->ops = &d3d9_surface_2d_buffer_ops;
     object->refcount = 1;
     InitializeCriticalSection(&object->cs);
     object->d3d9_surface.surface = (IDirect3DSurface9 *)surface;
@@ -1475,8 +1276,9 @@ static HRESULT create_dxgi_surface_buffer(IUnknown *surface, unsigned int sub_re
     }
 
     object->IMFMediaBuffer_iface.lpVtbl = &dxgi_surface_media_buffer_vtbl;
-    object->IMF2DBuffer2_iface.lpVtbl = &dxgi_surface_2d_buffer_vtbl;
+    object->IMF2DBuffer2_iface.lpVtbl = &surface_2d_buffer_vtbl;
     object->IMFDXGIBuffer_iface.lpVtbl = &dxgi_buffer_vtbl;
+    object->ops = &dxgi_surface_2d_buffer_ops;
     object->refcount = 1;
     InitializeCriticalSection(&object->cs);
     object->dxgi_surface.texture = texture;
