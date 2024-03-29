@@ -149,6 +149,10 @@ if (getenv("NOVAAPI") && !strncmp(name, "vaapi", 5)) continue;
             continue;
         }
 
+        /* ignore protonvideoconverter when manually creating element, use protondemuxer instead */
+        if (!strcmp(name, "protonvideoconverter"))
+            continue;
+
         element = factory_create_element(GST_ELEMENT_FACTORY(tmp->data));
     }
 
