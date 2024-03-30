@@ -2203,13 +2203,18 @@ NTSTATUS wow64_wg_muxer_add_stream(void *args)
     {
         wg_muxer_t muxer;
         UINT32 stream_id;
-        PTR32 format;
+        struct wg_media_type32 media_type;
     } *params32 = args;
     struct wg_muxer_add_stream_params params =
     {
         .muxer = params32->muxer,
         .stream_id = params32->stream_id,
-        .format = ULongToPtr(params32->format),
+        .media_type =
+        {
+            .major = params32->media_type.major,
+            .format_size = params32->media_type.format_size,
+            .u.format = ULongToPtr(params32->media_type.format),
+        },
     };
     return wg_muxer_add_stream(&params);
 }

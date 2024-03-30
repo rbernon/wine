@@ -396,7 +396,7 @@ struct wg_muxer_add_stream_params
 {
     wg_muxer_t muxer;
     UINT32 stream_id;
-    const struct wg_format *format;
+    struct wg_media_type media_type;
 };
 
 struct wg_muxer_push_sample_params
