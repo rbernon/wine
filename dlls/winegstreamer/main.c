@@ -682,25 +682,28 @@ void wg_muxer_destroy(wg_muxer_t muxer)
     WINE_UNIX_CALL(unix_wg_muxer_destroy, &muxer);
 }
 
-HRESULT wg_muxer_add_stream(wg_muxer_t muxer, UINT32 stream_id, const struct wg_format *format)
+HRESULT wg_muxer_add_stream(wg_muxer_t muxer, UINT32 stream_id, IMFMediaType *media_type)
 {
     struct wg_muxer_add_stream_params params =
     {
         .muxer = muxer,
         .stream_id = stream_id,
-        .format = format,
     };
     NTSTATUS status;
+    HRESULT hr;
 
-    TRACE("muxer %#I64x, stream_id %u, format %p.\n", muxer, stream_id, format);
+    TRACE("muxer %#I64x, stream_id %u, media_type %p.\n", muxer, stream_id, media_type);
 
+    if (FAILED(hr = wg_media_type_from_mf(media_type, &params.media_type)))
+        return hr;
     if ((status = WINE_UNIX_CALL(unix_wg_muxer_add_stream, &params)))
     {
         WARN("Failed to add stream, status %#lx.\n", status);
-        return HRESULT_FROM_NT(status);
+        hr = HRESULT_FROM_NT(status);
     }
 
-    return S_OK;
+    CoTaskMemFree(params.media_type.u.format);
+    return hr;
 }
 
 HRESULT wg_muxer_start(wg_muxer_t muxer)
