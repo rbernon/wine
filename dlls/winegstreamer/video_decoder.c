@@ -331,10 +331,24 @@ static HRESULT try_create_wg_transform(struct video_decoder *decoder, IMFMediaTy
     return wg_transform_create_mf(decoder->input_type, output_type, &decoder->wg_transform_attrs, &decoder->wg_transform);
 }
 
-static HRESULT create_output_media_type(struct video_decoder *decoder, const GUID *subtype,
-        IMFMediaType *output_type, IMFMediaType **media_type)
+static HRESULT media_type_from_video_format(const MFVIDEOFORMAT *format, UINT32 format_size, IMFMediaType **media_type)
 {
-    IMFMediaType *default_type = decoder->output_type, *stream_type = output_type ? output_type : decoder->stream_type;
+    HRESULT hr;
+
+    if (FAILED(hr = MFCreateMediaType(media_type)))
+        *media_type = NULL;
+    else if (FAILED(hr = MFInitMediaTypeFromMFVideoFormat(*media_type, format, format_size)))
+    {
+        IMFMediaType_Release(*media_type);
+        *media_type = NULL;
+    }
+
+    return hr;
+}
+
+static HRESULT create_output_media_type(struct video_decoder *decoder, const GUID *subtype, IMFMediaType **media_type)
+{
+    IMFMediaType *stream_type = decoder->stream_type;
     MFVideoArea default_aperture = {{0}}, aperture;
     IMFVideoMediaType *video_type;
     LONG default_stride, stride;
@@ -365,8 +379,7 @@ static HRESULT create_output_media_type(struct video_decoder *decoder, const GUI
     if (FAILED(hr = IMFVideoMediaType_SetUINT64(video_type, &MF_MT_PIXEL_ASPECT_RATIO, ratio)))
         goto done;
 
-    if (!output_type || FAILED(IMFMediaType_GetUINT32(output_type, &MF_MT_SAMPLE_SIZE, &value)))
-        hr = MFCalculateImageSize(subtype, width, height, &value);
+    hr = MFCalculateImageSize(subtype, width, height, &value);
     if (FAILED(hr) || FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_SAMPLE_SIZE, value)))
         goto done;
 
@@ -386,22 +399,22 @@ static HRESULT create_output_media_type(struct video_decoder *decoder, const GUI
     if (FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_VIDEO_NOMINAL_RANGE, value)))
         goto done;
 
-    if (!default_type || FAILED(IMFMediaType_GetUINT32(default_type, &MF_MT_INTERLACE_MODE, &value)))
+    if (!decoder->output_type || FAILED(IMFMediaType_GetUINT32(decoder->output_type, &MF_MT_INTERLACE_MODE, &value)))
         value = MFVideoInterlace_MixedInterlaceOrProgressive;
     if (FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_INTERLACE_MODE, value)))
         goto done;
 
-    if (!default_type || FAILED(IMFMediaType_GetUINT32(default_type, &MF_MT_ALL_SAMPLES_INDEPENDENT, &value)))
+    if (!decoder->output_type || FAILED(IMFMediaType_GetUINT32(decoder->output_type, &MF_MT_ALL_SAMPLES_INDEPENDENT, &value)))
         value = 1;
     if (FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_ALL_SAMPLES_INDEPENDENT, value)))
         goto done;
 
-    if (!default_type || FAILED(IMFMediaType_GetUINT32(default_type, &MF_MT_VIDEO_ROTATION, &value)))
+    if (!decoder->output_type || FAILED(IMFMediaType_GetUINT32(decoder->output_type, &MF_MT_VIDEO_ROTATION, &value)))
         value = 0;
     if (FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_VIDEO_ROTATION, value)))
         goto done;
 
-    if (!default_type || FAILED(IMFMediaType_GetUINT32(default_type, &MF_MT_FIXED_SIZE_SAMPLES, &value)))
+    if (!decoder->output_type || FAILED(IMFMediaType_GetUINT32(decoder->output_type, &MF_MT_FIXED_SIZE_SAMPLES, &value)))
         value = 1;
     if (FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_FIXED_SIZE_SAMPLES, value)))
         goto done;
@@ -596,7 +609,7 @@ static HRESULT WINAPI transform_GetOutputAvailableType(IMFTransform *iface, DWOR
         return MF_E_TRANSFORM_TYPE_NOT_SET;
     if (index >= decoder->output_type_count)
         return MF_E_NO_MORE_TYPES;
-    return create_output_media_type(decoder, decoder->output_types[index], NULL, type);
+    return create_output_media_type(decoder, decoder->output_types[index], type);
 }
 
 static HRESULT update_output_info_size(struct video_decoder *decoder, UINT32 width, UINT32 height)
@@ -791,6 +804,8 @@ static HRESULT WINAPI transform_GetInputCurrentType(IMFTransform *iface, DWORD i
 static HRESULT WINAPI transform_GetOutputCurrentType(IMFTransform *iface, DWORD id, IMFMediaType **type)
 {
     struct video_decoder *decoder = impl_from_IMFTransform(iface);
+    MFVIDEOFORMAT *format;
+    UINT32 format_size;
     GUID subtype;
     HRESULT hr;
 
@@ -800,7 +815,13 @@ static HRESULT WINAPI transform_GetOutputCurrentType(IMFTransform *iface, DWORD 
         return MF_E_TRANSFORM_TYPE_NOT_SET;
     if (FAILED(hr = IMFMediaType_GetGUID(decoder->output_type, &MF_MT_SUBTYPE, &subtype)))
         return hr;
-    return create_output_media_type(decoder, &subtype, decoder->output_type, type);
+
+    if (FAILED(hr = MFCreateMFVideoFormatFromMFMediaType(decoder->output_type, &format, &format_size)))
+        return hr;
+    hr = media_type_from_video_format(format, format_size, type);
+    CoTaskMemFree(format);
+
+    return hr;
 }
 
 static HRESULT WINAPI transform_GetInputStatus(IMFTransform *iface, DWORD id, DWORD *flags)
