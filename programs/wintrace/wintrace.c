@@ -933,7 +933,7 @@ static void set_display_settings(void)
     mode.dmPelsWidth = 800;
     mode.dmPelsHeight = 600;
 
-    ChangeDisplaySettingsExW( L"\\\\.\\DISPLAY1", &mode, 0, CDS_UPDATEREGISTRY | CDS_NORESET, NULL );
+    ChangeDisplaySettingsExW( NULL, &mode, 0, CDS_UPDATEREGISTRY | CDS_NORESET, NULL );
     ChangeDisplaySettingsExW( NULL, NULL, NULL, 0, NULL );
 }
 
