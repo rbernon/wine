@@ -3670,6 +3670,7 @@ static void test_source_reader_transforms_d3d9(void)
     HWND window;
     UINT token;
     HRESULT hr;
+    LONG ref;
 
     d3d9 = Direct3DCreate9(D3D_SDK_VERSION);
     if (!d3d9)
@@ -3856,10 +3857,11 @@ static void test_source_reader_transforms_d3d9(void)
     IMFTransform_Release(video_processor);
 
 
-    IMFTransform_Release(test_decoder);
     IMFSourceReaderEx_Release(reader_ex);
-    IMFSourceReader_Release(reader);
-
+    ref = IMFSourceReader_Release(reader);
+    ok(ref == 0, "got ref %ld\n", ref);
+    ref = IMFTransform_Release(test_decoder);
+    todo_wine ok(ref == 0, "got ref %ld\n", ref);
 
     /* test d3d aware decoder that allocates buffers */
 
@@ -3932,8 +3934,10 @@ static void test_source_reader_transforms_d3d9(void)
 
     fail_request_sample = TRUE;
 
-    IMFTransform_Release(test_decoder);
-    IMFSourceReader_Release(reader);
+    ref = IMFSourceReader_Release(reader);
+    ok(ref == 0, "got ref %ld\n", ref);
+    ref = IMFTransform_Release(test_decoder);
+    todo_wine ok(ref == 0, "got ref %ld\n", ref);
 
     test_decoder_allocate_samples = FALSE;
 
@@ -3942,7 +3946,8 @@ skip_tests:
     hr = MFTUnregisterLocal(&factory);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
-    IDirect3DDeviceManager9_Release(d3d9_manager);
+    ref = IDirect3DDeviceManager9_Release(d3d9_manager);
+    todo_wine ok(ref == 0, "got ref %ld\n", ref);
     DestroyWindow(window);
 
     test_decoder_got_d3d_manager = FALSE;
