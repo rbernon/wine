@@ -43,6 +43,8 @@
 #include "devpkey.h"
 #include "evr9.h"
 
+static BOOL has_mp4_media_source;
+
 #define DEFINE_EXPECT(func) \
     static BOOL expect_ ## func = FALSE, called_ ## func = FALSE
 
@@ -3885,6 +3887,7 @@ static void test_sample_grabber_orientation(GUID subtype)
         win_skip("MP4 media source is not supported, skipping tests.\n");
         goto done;
     }
+    has_mp4_media_source = TRUE;
 
     callback = create_test_callback(TRUE);
     grabber_callback = impl_from_IMFSampleGrabberSinkCallback(create_test_grabber_callback());
@@ -5379,8 +5382,6 @@ static void test_scheme_resolvers(void)
     for (i = 0; i < ARRAY_SIZE(urls); i++)
     {
         hr = IMFSourceResolver_CreateObjectFromURL(resolver, urls[i], MF_RESOLUTION_BYTESTREAM, NULL, &type, &object);
-        todo_wine_if(i >= 2)
-        ok(hr == S_OK, "got hr %#lx\n", hr);
         if (hr != S_OK)
             continue;
 
@@ -6799,6 +6800,262 @@ static void test_media_session_Close(void)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 }
 
+static void load_resource_stream(const WCHAR *name, IMFByteStream **stream)
+{
+    HRSRC resource = FindResourceW(NULL, name, (const WCHAR *)RT_RCDATA);
+    void *resource_data;
+    DWORD resource_len;
+    HRESULT hr;
+
+    ok(resource != 0, "FindResourceW %s failed, error %lu\n", debugstr_w(name), GetLastError());
+    resource_data = LockResource(LoadResource(GetModuleHandleW(NULL), resource));
+    resource_len = SizeofResource(GetModuleHandleW(NULL), resource);
+
+    hr = MFCreateTempFile(MF_ACCESSMODE_READWRITE, MF_OPENMODE_DELETE_IF_EXIST, MF_FILEFLAGS_NONE, stream);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFByteStream_Write(*stream, resource_data, resource_len, &resource_len);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFByteStream_SetCurrentPosition(*stream, 0);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+}
+
+struct stream_desc
+{
+    UINT id;
+    BOOL selected;
+    struct attribute_desc attributes[16];
+};
+
+struct presentation_desc
+{
+    UINT stream_count;
+    struct attribute_desc attributes[16];
+    struct stream_desc streams[16];
+};
+
+static void subtest_media_source_streams(const WCHAR *resource, const struct presentation_desc *expect)
+{
+    IMFPresentationDescriptor *presentation;
+    IMFStreamDescriptor *stream_descriptor;
+    DWORD i, min_time = -1, stream_count;
+    IMFMediaSource *media_source;
+    IMFSourceResolver *resolver;
+    MF_OBJECT_TYPE object_type;
+    IMFByteStream *stream;
+    BOOL selected;
+    HRESULT hr;
+
+    winetest_push_context("%s", debugstr_w(resource));
+
+    hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    hr = MFCreateSourceResolver(&resolver);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+
+
+    load_resource_stream(resource, &stream);
+    hr = IMFSourceResolver_CreateObjectFromByteStream(resolver, stream, resource, MF_RESOLUTION_MEDIASOURCE,
+            NULL, &object_type, (IUnknown **)&media_source);
+    ok(hr == S_OK || broken(hr == MF_E_UNSUPPORTED_BYTESTREAM_TYPE), "got hr %#lx\n", hr);
+    IMFByteStream_Release(stream);
+    if (hr == MF_E_UNSUPPORTED_BYTESTREAM_TYPE)
+    {
+        win_skip("MP4 media source is not supported, skipping tests.\n");
+        goto skip_tests;
+    }
+
+    /* the testbot Windows VMs might be very slow, take the minimum time over a couple of resolutions */
+    for (i = 0; i < 10 && min_time > 0; ++i)
+    {
+        LARGE_INTEGER time = {0}, count, freq;
+        QueryPerformanceFrequency(&freq);
+
+        hr = IMFMediaSource_Shutdown(media_source);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        IMFMediaSource_Release(media_source);
+
+        load_resource_stream(resource, &stream);
+        QueryPerformanceCounter(&count);
+        time.QuadPart -= count.QuadPart;
+        hr = IMFSourceResolver_CreateObjectFromByteStream(resolver, stream, resource, MF_RESOLUTION_MEDIASOURCE,
+                NULL, &object_type, (IUnknown **)&media_source);
+        QueryPerformanceCounter(&count);
+        time.QuadPart += count.QuadPart;
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        ok(object_type == MF_OBJECT_MEDIASOURCE, "got type %#x\n", object_type);
+        IMFByteStream_Release(stream);
+
+        time.QuadPart = time.QuadPart * 1000000 / freq.QuadPart;
+        min_time = min(time.QuadPart, min_time);
+        ok(time.QuadPart <= 1, "source resolution took %fms\n", time.QuadPart / 1000.0);
+    }
+
+    hr = IMFMediaSource_CreatePresentationDescriptor(media_source, &presentation);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+
+    hr = IMFPresentationDescriptor_GetStreamDescriptorCount(presentation, &stream_count);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    ok(stream_count == expect->stream_count, "got stream_count %lu\n", stream_count);
+    check_attributes((IMFAttributes *)presentation, expect->attributes, -1);
+
+    hr = IMFPresentationDescriptor_GetStreamDescriptorByIndex(presentation, 1, &selected, &stream_descriptor);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    hr = IMFStreamDescriptor_GetItem(stream_descriptor, &MF_SD_STREAM_NAME, NULL);
+    ok(hr == S_OK || broken(hr == MF_E_ATTRIBUTENOTFOUND), "got hr %#lx\n", hr);
+    IMFStreamDescriptor_Release(stream_descriptor);
+
+    /* w7 and w1064v1507 miss the MF_SD_STREAM_NAME attribute */
+    if (broken(hr == MF_E_ATTRIBUTENOTFOUND))
+        win_skip("Skipping stream attributes checks\n");
+    else for (i = 0; i < stream_count; ++i)
+    {
+        const struct stream_desc *expect_stream = expect->streams + i;
+        IMFMediaTypeHandler *type_handler;
+        DWORD id, type_count;
+
+        winetest_push_context("%lu", i);
+
+        hr = IMFPresentationDescriptor_GetStreamDescriptorByIndex(presentation, i, &selected, &stream_descriptor);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        ok(selected == expect_stream->selected, "got selected %u\n", selected);
+        hr = IMFStreamDescriptor_GetStreamIdentifier(stream_descriptor, &id);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        ok(id == expect_stream->id, "got id %lu\n", id);
+
+        check_attributes((IMFAttributes *)stream_descriptor, expect_stream->attributes, -1);
+
+        hr = IMFStreamDescriptor_GetMediaTypeHandler(stream_descriptor, &type_handler);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        hr = IMFMediaTypeHandler_GetMediaTypeCount(type_handler, &type_count);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        ok(type_count == 1, "got type_count %lu\n", type_count);
+
+        IMFMediaTypeHandler_Release(type_handler);
+        IMFStreamDescriptor_Release(stream_descriptor);
+
+        winetest_pop_context();
+    }
+
+    IMFPresentationDescriptor_Release(presentation);
+
+    hr = IMFMediaSource_Shutdown(media_source);
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+    IMFMediaSource_Release(media_source);
+
+skip_tests:
+    IMFSourceResolver_Release(resolver);
+
+    hr = MFShutdown();
+    ok(hr == S_OK, "got hr %#lx\n", hr);
+
+    winetest_pop_context();
+}
+
+static void test_media_source_streams(void)
+{
+/* w7 doesn't have MF_PD_MIME_TYPE */
+#define ATTR_WSTR_OR_NONE(k, v, ...) {.key = has_video_processor ? &k : NULL, .name = #k, {.vt = VT_LPWSTR, .pwszVal = (WCHAR *)v}, __VA_ARGS__ }
+    const struct presentation_desc mp4_desc =
+    {
+        .stream_count = 5,
+        .attributes =
+        {
+            ATTR_RATIO(MF_PD_DURATION, 0, 25000000),
+            ATTR_RATIO(MF_PD_TOTAL_FILE_SIZE, 0, 33053),
+            ATTR_WSTR_OR_NONE(MF_PD_MIME_TYPE, L"video/mp4"),
+        },
+        .streams =
+        {
+            {
+                .id = 1,
+                .attributes =
+                {
+                    ATTR_WSTR(MF_SD_LANGUAGE, L"fr", /* flaky, .todo = TRUE */),
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1),
+                },
+            },
+            {
+                .id = 2,
+                .selected = 1,
+                .attributes =
+                {
+                    ATTR_WSTR(MF_SD_LANGUAGE, L"en", /* flaky, .todo_value = TRUE */),
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1),
+                    ATTR_WSTR(MF_SD_STREAM_NAME, L"This is a very long audio stream title string", /* flaky, .todo_value = TRUE */),
+                },
+            },
+            {
+                .id = 3,
+                .attributes =
+                {
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1),
+                    ATTR_WSTR(MF_SD_STREAM_NAME, L"First Video", /* flaky, .todo = TRUE */),
+                },
+            },
+            {
+                .id = 4,
+                .attributes =
+                {
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1),
+                },
+            },
+            {
+                .id = 5,
+                .selected = 1,
+                .attributes =
+                {
+                    ATTR_WSTR(MF_SD_LANGUAGE, L"de", /* flaky, .todo_value = TRUE */),
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1),
+                    ATTR_WSTR(MF_SD_STREAM_NAME, L"Other Video", /* flaky, .todo = TRUE */),
+                },
+            },
+        },
+    };
+    const struct presentation_desc avi_desc =
+    {
+        .stream_count = 3,
+        .attributes =
+        {
+            ATTR_RATIO(MF_PD_DURATION, 0, 20020000),
+            ATTR_RATIO(MF_PD_TOTAL_FILE_SIZE, 0, 47250),
+            ATTR_UINT32(MF_PD_AUDIO_ENCODING_BITRATE, 106176, .todo = TRUE),
+            ATTR_UINT32(MF_PD_VIDEO_ENCODING_BITRATE, 1125200, .todo = TRUE),
+            ATTR_WSTR_OR_NONE(MF_PD_MIME_TYPE, L"video/avi"),
+        },
+        .streams =
+        {
+            {
+                .id = 1,
+                .selected = 1,
+                .attributes =
+                {
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1),
+                    ATTR_WSTR(MF_SD_STREAM_NAME, L"This is a very long audio stream title string", /* flaky, .todo = TRUE */),
+                },
+            },
+            {
+                .id = 2,
+                .selected = 1,
+                .attributes =
+                {
+                    ATTR_WSTR(MF_SD_STREAM_NAME, L"Video", /* flaky, .todo = TRUE */),
+                },
+            },
+            {
+                .id = 3,
+                .attributes =
+                {
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1),
+                },
+            },
+        },
+    };
+#undef ATTR_WSTR_OR_NONE
+
+    subtest_media_source_streams(L"multiple-streams.mp4", &mp4_desc);
+    subtest_media_source_streams(L"multiple-streams.avi", &avi_desc);
+}
+
 START_TEST(mf)
 {
     init_functions();
@@ -6835,4 +7092,5 @@ START_TEST(mf)
     test_MFEnumDeviceSources();
     test_media_session_Close();
     test_media_session_source_shutdown();
+    test_media_source_streams();
 }
