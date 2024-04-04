@@ -4,6 +4,7 @@ SOURCES = \
 	channel.c \
 	dbgstr.c \
 	dbgstr_dmusic.c \
+	dbgstr_guid.c \
 	dbgstr_mf.c \
 	dbgstr_variant.c \
 	header.c \
