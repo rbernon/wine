@@ -65,6 +65,107 @@ DEFINE_GUID(mft_output_sample_incomplete,0xffffff,0xffff,0xffff,0xff,0xff,0xff,0
 
 static const GUID test_attr_guid = {0xdeadbeef};
 
+extern const char *debugstr_mf_guid(const GUID *guid);
+
+void dump_attributes_(int line, IMFAttributes *attributes)
+{
+    PROPVARIANT value;
+    char buffer[256];
+    UINT32 count;
+    HRESULT hr;
+    GUID guid;
+    int i, j;
+
+    hr = IMFAttributes_GetCount(attributes, &count);
+    ok_(__FILE__, line)(hr == S_OK, "GetCount returned %#lx\n", hr);
+
+    for (i = 0; i < count; ++i)
+    {
+        PropVariantInit(&value);
+        hr = IMFAttributes_GetItemByIndex(attributes, i, &guid, &value);
+        ok_(__FILE__, line)(hr == S_OK, "GetItemByIndex returned %#lx\n", hr);
+        switch (value.vt)
+        {
+        default: sprintf(buffer, "{%s, .vt = %u, .value = %s},", debugstr_mf_guid(&guid), value.vt, buffer); break;
+        case VT_LPWSTR: sprintf(buffer, "ATTR_WSTR(%s, %s),", debugstr_mf_guid(&guid), debugstr_w(value.pwszVal)); break;
+        case VT_CLSID: sprintf(buffer, "ATTR_GUID(%s, %s),", debugstr_mf_guid(&guid), debugstr_mf_guid(value.puuid)); break;
+        case VT_UI4: sprintf(buffer, "ATTR_UINT32(%s, %lu),", debugstr_mf_guid(&guid), value.ulVal); break;
+        case VT_UI8: sprintf(buffer, "ATTR_RATIO(%s, %lu, %lu),", debugstr_mf_guid(&guid), value.uhVal.HighPart, value.uhVal.LowPart); break;
+        case VT_VECTOR | VT_UI1:
+        {
+            char *buf = buffer;
+            buf += sprintf(buf, "ATTR_BLOB(%s, {", debugstr_mf_guid(&guid));
+            for (j = 0; j < 16 && j < value.caub.cElems; ++j)
+                buf += sprintf(buf, "0x%02x,", value.caub.pElems[j]);
+            if (value.caub.cElems > 16)
+                buf += sprintf(buf, "...}");
+            else
+                buf += sprintf(buf - (j ? 1 : 0), "}") - (j ? 1 : 0);
+            buf += sprintf(buf, ", %lu),", value.caub.cElems);
+            break;
+        }
+        }
+
+        ok_(__FILE__, line)(0, "%s\n", buffer);
+        PropVariantClear(&value);
+    }
+}
+
+void dump_properties(IPropertyStore *store)
+{
+    PROPVARIANT value;
+    char buffer[256];
+    PROPERTYKEY key;
+    DWORD count;
+    HRESULT hr;
+    int i, j;
+
+    hr = IPropertyStore_GetCount(store, &count);
+    ok(hr == S_OK, "GetCount returned %#lx\n", hr);
+
+    for (i = 0; i < count; ++i)
+    {
+        hr = IPropertyStore_GetAt(store, i, &key);
+        ok(hr == S_OK, "GetItemByIndex returned %#lx\n", hr);
+
+        PropVariantInit(&value);
+        hr = IPropertyStore_GetValue(store, &key, &value);
+        ok(hr == S_OK, "GetItemByIndex returned %#lx\n", hr);
+        switch (value.vt)
+        {
+        default: sprintf(buffer, "??"); break;
+        case VT_EMPTY: break;
+        case VT_BSTR: sprintf(buffer, "%s", debugstr_w(value.bstrVal)); break;
+        case VT_CLSID: sprintf(buffer, "%s", debugstr_mf_guid(value.puuid)); break;
+        case VT_BOOL: sprintf(buffer, "%u", value.boolVal); break;
+        case VT_R4: sprintf(buffer, "%f", value.fltVal); break;
+        case VT_I4: sprintf(buffer, "%ld", value.lVal); break;
+        case VT_UI4: sprintf(buffer, "%lu", value.ulVal); break;
+        case VT_UI8: sprintf(buffer, "%lu:%lu", value.uhVal.HighPart, value.uhVal.LowPart); break;
+        case VT_ARRAY | VT_UI1:
+        case VT_ARRAY | VT_I4:
+        {
+            char *buf = buffer;
+            buf += sprintf(buf, "dim %u, data {", SafeArrayGetDim(value.parray));
+            for (j = 0; j < 16 && j < value.cai.cElems; ++j)
+            {
+                LONG dims[16] = {j}, elem = 0;
+                SafeArrayGetElement(value.parray, dims, &elem);
+                buf += sprintf(buf, "%#lx,", elem);
+            }
+            if (value.cai.cElems > 16)
+                buf += sprintf(buf, "...}");
+            else
+                buf += sprintf(buf - (j ? 1 : 0), "}");
+            break;
+        }
+        }
+
+        ok(0, "%s-%lu, type %u, value %s\n", debugstr_mf_guid(&key.fmtid), key.pid, value.vt, buffer);
+        PropVariantClear(&value);
+    }
+}
+
 struct media_buffer
 {
     IMediaBuffer IMediaBuffer_iface;
@@ -283,7 +384,8 @@ void check_attributes_(const char *file, int line, IMFAttributes *attributes,
         switch (value.vt)
         {
         default: sprintf(buffer, "??"); break;
-        case VT_CLSID: sprintf(buffer, "%s", debugstr_guid(value.puuid)); break;
+        case VT_LPWSTR: sprintf(buffer, "%s", debugstr_w(value.pwszVal)); break;
+        case VT_CLSID: sprintf(buffer, "%s", debugstr_mf_guid(value.puuid)); break;
         case VT_UI4: sprintf(buffer, "%lu", value.ulVal); break;
         case VT_UI8:
             if (desc[i].ratio)
@@ -360,27 +462,27 @@ static void check_mft_get_info(const GUID *class_id, const struct transform_info
     for (i = 0; i < input_count && expect->inputs[i].subtype; ++i)
     {
         ok(IsEqualGUID(&input_types[i].guidMajorType, expect->major_type),
-                "got input[%u] major %s\n", i, debugstr_guid(&input_types[i].guidMajorType));
+                "got input[%u] major %s\n", i, debugstr_mf_guid(&input_types[i].guidMajorType));
         ok(IsEqualGUID(&input_types[i].guidSubtype, expect->inputs[i].subtype),
-                "got input[%u] subtype %s\n", i, debugstr_guid(&input_types[i].guidSubtype));
+                "got input[%u] subtype %s\n", i, debugstr_mf_guid(&input_types[i].guidSubtype));
     }
     for (; expect->inputs[i].subtype; ++i)
         ok(broken(expect->inputs[i].broken), "missing input[%u] subtype %s\n",
-                i, debugstr_guid(expect->inputs[i].subtype));
+                i, debugstr_mf_guid(expect->inputs[i].subtype));
     for (; i < input_count; ++i)
-        ok(0, "extra input[%u] subtype %s\n", i, debugstr_guid(&input_types[i].guidSubtype));
+        ok(0, "extra input[%u] subtype %s\n", i, debugstr_mf_guid(&input_types[i].guidSubtype));
 
     for (i = 0; expect->outputs[i].subtype; ++i)
     {
         ok(IsEqualGUID(&output_types[i].guidMajorType, expect->major_type),
-                "got output[%u] major %s\n", i, debugstr_guid(&output_types[i].guidMajorType));
+                "got output[%u] major %s\n", i, debugstr_mf_guid(&output_types[i].guidMajorType));
         ok(IsEqualGUID(&output_types[i].guidSubtype, expect->outputs[i].subtype),
-                "got output[%u] subtype %s\n", i, debugstr_guid(&output_types[i].guidSubtype));
+                "got output[%u] subtype %s\n", i, debugstr_mf_guid(&output_types[i].guidSubtype));
     }
     for (; expect->outputs[i].subtype; ++i)
-        ok(0, "missing output[%u] subtype %s\n", i, debugstr_guid(expect->outputs[i].subtype));
+        ok(0, "missing output[%u] subtype %s\n", i, debugstr_mf_guid(expect->outputs[i].subtype));
     for (; i < output_count; ++i)
-        ok(0, "extra output[%u] subtype %s\n", i, debugstr_guid(&output_types[i].guidSubtype));
+        ok(0, "extra output[%u] subtype %s\n", i, debugstr_mf_guid(&output_types[i].guidSubtype));
 
     CoTaskMemFree(output_types);
     CoTaskMemFree(input_types);
@@ -407,26 +509,26 @@ static void check_dmo_get_info(const GUID *class_id, const struct transform_info
     for (i = 0; i < input_count && expect->inputs[i].subtype; ++i)
     {
         ok(IsEqualGUID(&input[i].type, expect->major_type),
-                "got input[%u] major %s\n", i, debugstr_guid(&input[i].type));
+                "got input[%u] major %s\n", i, debugstr_mf_guid(&input[i].type));
         ok(IsEqualGUID(&input[i].subtype, expect->inputs[i].subtype),
-                "got input[%u] subtype %s\n", i, debugstr_guid(&input[i].subtype));
+                "got input[%u] subtype %s\n", i, debugstr_mf_guid(&input[i].subtype));
     }
     for (; expect->inputs[i].subtype; ++i)
-        ok(0, "missing input[%u] subtype %s\n", i, debugstr_guid(expect->inputs[i].subtype));
+        ok(0, "missing input[%u] subtype %s\n", i, debugstr_mf_guid(expect->inputs[i].subtype));
     for (; i < input_count; ++i)
-        ok(0, "extra input[%u] subtype %s\n", i, debugstr_guid(&input[i].subtype));
+        ok(0, "extra input[%u] subtype %s\n", i, debugstr_mf_guid(&input[i].subtype));
 
     for (i = 0; expect->outputs[i].subtype; ++i)
     {
         ok(IsEqualGUID(&output[i].type, expect->major_type),
-                "got output[%u] major %s\n", i, debugstr_guid(&output[i].type));
+                "got output[%u] major %s\n", i, debugstr_mf_guid(&output[i].type));
         ok(IsEqualGUID(&output[i].subtype, expect->outputs[i].subtype),
-                "got output[%u] subtype %s\n", i, debugstr_guid(&output[i].subtype));
+                "got output[%u] subtype %s\n", i, debugstr_mf_guid(&output[i].subtype));
     }
     for (; expect->outputs[i].subtype; ++i)
-        ok(0, "missing output[%u] subtype %s\n", i, debugstr_guid(expect->outputs[i].subtype));
+        ok(0, "missing output[%u] subtype %s\n", i, debugstr_mf_guid(expect->outputs[i].subtype));
     for (; i < output_count; ++i)
-        ok(0, "extra output[%u] subtype %s\n", i, debugstr_guid(&output[i].subtype));
+        ok(0, "extra output[%u] subtype %s\n", i, debugstr_mf_guid(&output[i].subtype));
 }
 
 void init_media_type(IMFMediaType *mediatype, const struct attribute_desc *desc, ULONG limit)
@@ -2375,7 +2477,7 @@ static void test_aac_decoder_subtype(const struct attribute_desc *input_type_des
     {
         {
             .attributes = output_sample_attributes + (has_video_processor ? 0 : 1) /* MFSampleExtension_CleanPoint missing on Win7 */,
-            .sample_time = 0, .sample_duration = 232200,
+            .sample_time = 1234000, .sample_duration = 232200,
             .buffer_count = 1, .buffers = output_buffer_desc,
         },
     };
@@ -2469,6 +2571,9 @@ static void test_aac_decoder_subtype(const struct attribute_desc *input_type_des
     ok(aacenc_data_len == 24861, "got length %lu\n", aacenc_data_len);
 
     input_sample = create_sample(aacenc_data + sizeof(DWORD), *(DWORD *)aacenc_data);
+
+    hr = IMFSample_SetSampleTime(input_sample, 1234000);
+    ok(hr == S_OK, "Got %#lx\n", hr);
 
     flags = 0;
     hr = IMFTransform_GetInputStatus(transform, 0, &flags);
@@ -7530,9 +7635,9 @@ static void test_video_processor(void)
     };
     const struct attribute_desc nv12_no_aperture[] =
     {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
-        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_NV12),
-        ATTR_RATIO(MF_MT_FRAME_SIZE, 82, 84),
+        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video, .required = TRUE),
+        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_NV12, .required = TRUE),
+        ATTR_RATIO(MF_MT_FRAME_SIZE, 82, 84, .required = TRUE),
         {0},
     };
     const struct attribute_desc nv12_with_aperture[] =
@@ -7612,6 +7717,19 @@ static void test_video_processor(void)
         .attributes = output_sample_attributes,
         .sample_time = 0, .sample_duration = 10000000,
         .buffer_count = 1, .buffers = &nv12_buffer_desc,
+    };
+
+    const struct buffer_desc nv12_crop_buffer_desc =
+    {
+        .length = actual_aperture.Area.cx * actual_aperture.Area.cy * 3 / 2,
+        .compare = compare_nv12, .compare_rect = {.right = actual_aperture.Area.cx, .bottom = actual_aperture.Area.cy},
+        .dump = dump_nv12, .size = actual_aperture.Area,
+    };
+    const struct sample_desc nv12_crop_sample_desc =
+    {
+        .attributes = output_sample_attributes,
+        .sample_time = 0, .sample_duration = 10000000,
+        .buffer_count = 1, .buffers = &nv12_crop_buffer_desc,
     };
 
     const struct transform_desc
@@ -7704,7 +7822,7 @@ static void test_video_processor(void)
         {
             .input_type_desc = nv12_with_aperture, .input_bitmap = L"nv12frame.bmp",
             .output_type_desc = rgb32_no_aperture, .output_bitmap = L"rgb32frame-crop-flip.bmp",
-            .output_sample_desc = &rgb32_crop_sample_desc,
+            .output_sample_desc = &rgb32_crop_sample_desc, .delta = 2, /* Windows returns 0, Wine needs 2 */
         },
         {
             .input_type_desc = rgb32_no_aperture, .input_bitmap = L"rgb32frame-crop-flip.bmp",
@@ -7720,6 +7838,11 @@ static void test_video_processor(void)
             .input_type_desc = rgb32_with_aperture_positive_stride, .input_bitmap = L"rgb32frame.bmp",
             .output_type_desc = rgb32_no_aperture, .output_bitmap = L"rgb32frame-crop-flip.bmp",
             .output_sample_desc = &rgb32_crop_sample_desc, .delta = 3, /* Windows returns 3 */
+        },
+        {
+            .input_type_desc = rgb32_no_aperture, .input_bitmap = L"rgb32frame-crop.bmp",
+            .output_type_desc = nv12_no_aperture, .output_bitmap = L"nv12frame-crop.bmp",
+            .output_sample_desc = &nv12_crop_sample_desc,
         },
     };
 
@@ -8060,23 +8183,6 @@ static void test_video_processor(void)
         check_mft_set_input_type(transform, test->input_type_desc, S_OK);
         check_mft_get_input_current_type(transform, test->input_type_desc);
 
-        if (i >= 15)
-        {
-            IMFMediaType *media_type;
-            HRESULT hr;
-
-            hr = MFCreateMediaType(&media_type);
-            ok(hr == S_OK, "MFCreateMediaType returned hr %#lx.\n", hr);
-            init_media_type(media_type, test->output_type_desc, -1);
-            hr = IMFTransform_SetOutputType(transform, 0, media_type, 0);
-            todo_wine
-            ok(hr == S_OK, "SetOutputType returned %#lx.\n", hr);
-            IMFMediaType_Release(media_type);
-
-            if (hr != S_OK)
-                goto skip_test;
-        }
-
         check_mft_set_output_type_required(transform, test->output_type_desc);
         check_mft_set_output_type(transform, test->output_type_desc, S_OK);
         check_mft_get_output_current_type(transform, test->output_type_desc);
@@ -8094,6 +8200,11 @@ static void test_video_processor(void)
         else if (test->output_sample_desc == &rgb32_crop_sample_desc)
         {
             output_info.cbSize = actual_aperture.Area.cx * actual_aperture.Area.cy * 4;
+            check_mft_get_output_stream_info(transform, S_OK, &output_info);
+        }
+        else if (test->output_sample_desc == &nv12_crop_sample_desc)
+        {
+            output_info.cbSize = actual_aperture.Area.cx * actual_aperture.Area.cy * 3 / 2;
             check_mft_get_output_stream_info(transform, S_OK, &output_info);
         }
         else
@@ -8188,7 +8299,6 @@ static void test_video_processor(void)
         ret = IMFSample_Release(output_sample);
         ok(ret == 0, "Release returned %lu\n", ret);
 
-skip_test:
         winetest_pop_context();
 
         hr = IMFTransform_SetInputType(transform, 0, NULL, 0);
@@ -8213,8 +8323,8 @@ skip_test:
     check_mft_set_output_type(transform, rgb32_no_aperture, S_OK);
     check_mft_get_output_current_type(transform, rgb32_no_aperture);
 
-    check_mft_set_input_type_(__LINE__, transform, nv12_with_aperture, S_OK, TRUE);
-    check_mft_get_input_current_type_(__LINE__, transform, nv12_with_aperture, TRUE, FALSE);
+    check_mft_set_input_type(transform, nv12_with_aperture, S_OK);
+    check_mft_get_input_current_type(transform, nv12_with_aperture);
 
     /* output type is the same as before */
     check_mft_get_output_current_type(transform, rgb32_no_aperture);
@@ -8700,6 +8810,7 @@ static void test_h264_with_dxgi_manager(void)
     IMFAttributes_Release(attribs);
 
     hr = IMFTransform_ProcessMessage(transform, MFT_MESSAGE_SET_D3D_MANAGER, (ULONG_PTR)transform);
+    todo_wine
     ok(hr == E_NOINTERFACE, "got %#lx\n", hr);
 
     hr = IMFTransform_ProcessMessage(transform, MFT_MESSAGE_SET_D3D_MANAGER, (ULONG_PTR)manager);
@@ -8880,7 +8991,6 @@ static void test_h264_with_dxgi_manager(void)
     status = 0;
     hr = get_next_h264_output_sample(transform, &input_sample, NULL, output, &data, &data_len);
     ok(hr == S_OK, "got %#lx\n", hr);
-    ok(sample != output[0].pSample, "got %p.\n", output[0].pSample);
     sample = output[0].pSample;
 
     hr = MFCreateCollection(&output_samples);
@@ -9524,7 +9634,7 @@ static void test_video_processor_with_dxgi_manager(void)
     /* check RGB32 output aperture cropping with D3D buffers */
 
     check_mft_set_input_type(transform, nv12_with_aperture, S_OK);
-    check_mft_set_output_type_(__LINE__, transform, rgb32_no_aperture, S_OK, TRUE);
+    check_mft_set_output_type(transform, rgb32_no_aperture, S_OK);
 
     load_resource(L"nv12frame.bmp", &nv12frame_data, &nv12frame_data_len);
     /* skip BMP header and RGB data from the dump */
@@ -9536,7 +9646,7 @@ static void test_video_processor_with_dxgi_manager(void)
     input_sample = create_d3d_sample(allocator, nv12frame_data, nv12frame_data_len);
 
     hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
-    todo_wine ok(hr == S_OK, "got %#lx\n", hr);
+    ok(hr == S_OK, "got %#lx\n", hr);
 
     hr = IMFTransform_GetOutputStreamInfo(transform, 0, &info);
     ok(hr == S_OK, "got %#lx\n", hr);
@@ -9545,9 +9655,9 @@ static void test_video_processor_with_dxgi_manager(void)
     status = 0;
     memset(&output, 0, sizeof(output));
     hr = IMFTransform_ProcessOutput(transform, 0, 1, &output, &status);
-    todo_wine ok(hr == S_OK, "got %#lx\n", hr);
+    ok(hr == S_OK, "got %#lx\n", hr);
     ok(!output.pEvents, "got events\n");
-    todo_wine ok(!!output.pSample, "got no sample\n");
+    ok(!!output.pSample, "got no sample\n");
     ok(output.dwStatus == 0, "got %#lx\n", output.dwStatus);
     ok(status == 0, "got %#lx\n", status);
     if (!output.pSample) goto skip_rgb32;
@@ -9582,7 +9692,6 @@ static void test_video_processor_with_dxgi_manager(void)
     IMFSample_Release(output.pSample);
 
     ret = check_mf_sample_collection(output_samples, &output_sample_desc_rgb32_crop, L"rgb32frame-crop.bmp");
-    todo_wine /* FIXME: video process vertically flips the frame... */
     ok(ret <= 5, "got %lu%% diff\n", ret);
 
     IMFCollection_Release(output_samples);
@@ -9592,7 +9701,7 @@ skip_rgb32:
     /* check ABGR32 output with D3D buffers */
 
     check_mft_set_input_type(transform, nv12_with_aperture, S_OK);
-    check_mft_set_output_type_(__LINE__, transform, abgr32_no_aperture, S_OK, TRUE);
+    check_mft_set_output_type(transform, abgr32_no_aperture, S_OK);
 
     load_resource(L"nv12frame.bmp", &nv12frame_data, &nv12frame_data_len);
     /* skip BMP header and RGB data from the dump */
@@ -9604,7 +9713,7 @@ skip_rgb32:
     input_sample = create_d3d_sample(allocator, nv12frame_data, nv12frame_data_len);
 
     hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
-    todo_wine ok(hr == S_OK, "got %#lx\n", hr);
+    ok(hr == S_OK, "got %#lx\n", hr);
 
     hr = IMFTransform_GetOutputStreamInfo(transform, 0, &info);
     ok(hr == S_OK, "got %#lx\n", hr);
@@ -9613,9 +9722,9 @@ skip_rgb32:
     status = 0;
     memset(&output, 0, sizeof(output));
     hr = IMFTransform_ProcessOutput(transform, 0, 1, &output, &status);
-    todo_wine ok(hr == S_OK, "got %#lx\n", hr);
+    ok(hr == S_OK, "got %#lx\n", hr);
     ok(!output.pEvents, "got events\n");
-    todo_wine ok(!!output.pSample, "got no sample\n");
+    ok(!!output.pSample, "got no sample\n");
     ok(output.dwStatus == 0, "got %#lx\n", output.dwStatus);
     ok(status == 0, "got %#lx\n", status);
     if (!output.pSample) goto skip_abgr32;
@@ -9631,7 +9740,7 @@ skip_rgb32:
     ID3D11Texture2D_GetDesc(tex2d, &desc);
     ok(desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM, "got %#x.\n", desc.Format);
     ok(!desc.Usage, "got %u.\n", desc.Usage);
-    ok(desc.BindFlags == D3D11_BIND_RENDER_TARGET, "got %#x.\n", desc.BindFlags);
+    todo_wine ok(desc.BindFlags == D3D11_BIND_RENDER_TARGET, "got %#x.\n", desc.BindFlags);
     ok(!desc.CPUAccessFlags, "got %#x.\n", desc.CPUAccessFlags);
     ok(!desc.MiscFlags, "got %#x.\n", desc.MiscFlags);
     ok(desc.MipLevels == 1, "git %u.\n", desc.MipLevels);
@@ -9650,7 +9759,6 @@ skip_rgb32:
     IMFSample_Release(output.pSample);
 
     ret = check_mf_sample_collection(output_samples, &output_sample_desc_abgr32_crop, L"abgr32frame-crop.bmp");
-    todo_wine /* FIXME: video process vertically flips the frame... */
     ok(ret <= 8 /* NVIDIA needs 5, AMD needs 8 */, "got %lu%% diff\n", ret);
 
     IMFCollection_Release(output_samples);

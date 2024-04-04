@@ -74,7 +74,6 @@ struct wg_muxer
 struct wg_muxer_stream
 {
     struct wg_muxer *muxer;
-    struct wg_format format;
     uint32_t id;
 
     GstPad *my_src;
@@ -346,18 +345,22 @@ NTSTATUS wg_muxer_add_stream(void *args)
     struct wg_muxer_stream *stream;
     char src_pad_name[64];
 
-    GST_DEBUG("muxer %p, stream %u, format %p.", muxer, params->stream_id, params->format);
-
     /* Create stream object. */
     if (!(stream = calloc(1, sizeof(*stream))))
         return STATUS_NO_MEMORY;
     stream->muxer = muxer;
-    stream->format = *params->format;
     stream->id = params->stream_id;
 
+    if (!(stream->my_src_caps = caps_from_media_type(&params->media_type)))
+    {
+        GST_ERROR("Failed to get caps from media type.");
+        free(stream);
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    GST_DEBUG("muxer %p, stream %u, caps %"GST_PTR_FORMAT, muxer, params->stream_id, stream->my_src_caps);
+
     /* Create stream my_src pad. */
-    if (!(stream->my_src_caps = wg_format_to_caps(params->format)))
-        goto out;
     if (!(template = gst_pad_template_new("src", GST_PAD_SRC, GST_PAD_ALWAYS, stream->my_src_caps)))
         goto out;
     sprintf(src_pad_name, "wg_muxer_stream_src_%u", stream->id);
