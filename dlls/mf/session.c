@@ -159,6 +159,7 @@ struct transform_stream
     struct list samples;
     unsigned int requests;
     unsigned int min_buffer_size;
+    IMFSample *allocated_sample;
     BOOL draining;
 };
 
@@ -762,6 +763,12 @@ static void transform_stream_drop_events(struct transform_stream *stream)
 {
     IMFMediaEvent *event;
 
+    if (stream->allocated_sample)
+    {
+        IMFSample_Release(stream->allocated_sample);
+        stream->allocated_sample = NULL;
+    }
+
     while (SUCCEEDED(transform_stream_pop_event(stream, &event)))
         IMFMediaEvent_Release(event);
 }
@@ -840,7 +847,7 @@ static void session_shutdown_current_topology(struct media_session *session)
                         WARN("Failed to shut down activation object for the sink, hr %#lx.\n", hr);
                     IMFActivate_Release(activate);
                 }
-                else if (SUCCEEDED(topology_node_get_object(node, &IID_IMFStreamSink, (void **)&stream_sink)))
+                if (SUCCEEDED(topology_node_get_object(node, &IID_IMFStreamSink, (void **)&stream_sink)))
                 {
                     if (SUCCEEDED(IMFStreamSink_GetMediaSink(stream_sink, &sink)))
                     {
@@ -1879,7 +1886,7 @@ static HRESULT session_append_node(struct media_session *session, IMFTopologyNod
                         &IID_IMFVideoSampleAllocator, (void **)&topo_node->u.sink.allocator)))
                     {
                         if (FAILED(hr = IMFVideoSampleAllocator_InitializeSampleAllocator(topo_node->u.sink.allocator,
-                                2, media_type)))
+                                4, media_type)))
                         {
                             WARN("Failed to initialize sample allocator for the stream, hr %#lx.\n", hr);
                         }
@@ -2084,6 +2091,8 @@ static void session_set_topology(struct media_session *session, DWORD flags, IMF
         if (!(flags & MFSESSION_SETTOPOLOGY_NORESOLUTION))
         {
             hr = session_bind_output_nodes(topology);
+
+            IMFTopology_SetUINT32(topology, &MF_TOPOLOGY_ENUMERATE_SOURCE_TYPES, TRUE);
 
             if (SUCCEEDED(hr))
                 hr = IMFTopoLoader_Load(session->topo_loader, topology, &resolved_topology, NULL /* FIXME? */);
@@ -2791,6 +2800,13 @@ static HRESULT WINAPI session_commands_callback_Invoke(IMFAsyncCallback *iface, 
 
     EnterCriticalSection(&session->cs);
 
+    if ((session->presentation.flags & SESSION_FLAG_END_OF_PRESENTATION) && op->command != SESSION_CMD_STOP)
+    {
+        WARN("session %p command is ending, waiting for it to complete.\n", session);
+        LeaveCriticalSection(&session->cs);
+        return S_OK;
+    }
+
     if (session->presentation.flags & SESSION_FLAG_PENDING_COMMAND)
     {
         WARN("session %p command is in progress, waiting for it to complete.\n", session);
@@ -2817,6 +2833,10 @@ static HRESULT WINAPI session_commands_callback_Invoke(IMFAsyncCallback *iface, 
             session_pause(session);
             break;
         case SESSION_CMD_STOP:
+            if (session->presentation.flags & SESSION_FLAG_END_OF_PRESENTATION)
+                session_set_topo_status(session, S_OK, MF_TOPOSTATUS_ENDED);
+            if (session->presentation.topo_status != MF_TOPOSTATUS_INVALID)
+                session_clear_end_of_presentation(session);
             session_stop(session);
             break;
         case SESSION_CMD_CLOSE:
@@ -3413,11 +3433,21 @@ static void session_set_sink_stream_state(struct media_session *session, IMFStre
 static HRESULT transform_get_external_output_sample(const struct media_session *session, struct topo_node *transform,
         DWORD output, const MFT_OUTPUT_STREAM_INFO *stream_info, IMFSample **sample)
 {
+    struct transform_stream *stream = &transform->u.transform.outputs[output];
+    DWORD buffer_size, sample_size, input;
     IMFMediaBuffer *buffer = NULL;
     struct topo_node *topo_node;
-    unsigned int buffer_size;
-    DWORD input;
     HRESULT hr;
+
+    buffer_size = max(stream_info->cbSize, stream->min_buffer_size);
+    if ((*sample = stream->allocated_sample))
+    {
+        stream->allocated_sample = NULL;
+        if (SUCCEEDED(IMFSample_GetTotalLength(*sample, &sample_size)) && sample_size >= buffer_size)
+            return S_OK;
+        IMFSample_Release(*sample);
+        *sample = NULL;
+    }
 
     if (!(topo_node = session_get_topo_node_output(session, transform, output, &input)))
     {
@@ -3431,8 +3461,6 @@ static HRESULT transform_get_external_output_sample(const struct media_session *
     }
     else
     {
-        buffer_size = max(stream_info->cbSize, transform->u.transform.outputs[output].min_buffer_size);
-
         hr = MFCreateAlignedMemoryBuffer(buffer_size, stream_info->cbAlignment, &buffer);
         if (SUCCEEDED(hr))
             hr = MFCreateSample(sample);
@@ -3649,6 +3677,11 @@ static HRESULT transform_node_pull_samples(const struct media_session *session, 
                 IMFQualityManager_NotifyProcessOutput(session->quality_manager, node->node, i, buffers[i].pSample);
             if (FAILED(hr = transform_stream_push_sample(stream, buffers[i].pSample)))
                 WARN("Failed to queue output sample, hr %#lx\n", hr);
+        }
+        else if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT && !stream->allocated_sample)
+        {
+            stream->allocated_sample = buffers[i].pSample;
+            buffers[i].pSample = NULL;
         }
     }
 
@@ -4134,7 +4167,7 @@ static void session_raise_end_of_presentation(struct media_session *session)
     {
         if (session_nodes_is_mask_set(session, MF_TOPOLOGY_MAX, SOURCE_FLAG_END_OF_PRESENTATION))
         {
-            session->presentation.flags |= SESSION_FLAG_END_OF_PRESENTATION | SESSION_FLAG_PENDING_COMMAND;
+            session->presentation.flags |= SESSION_FLAG_END_OF_PRESENTATION;
             IMFMediaEventQueue_QueueEventParamVar(session->event_queue, MEEndOfPresentation, &GUID_NULL, S_OK, NULL);
         }
     }
@@ -4720,6 +4753,13 @@ static HRESULT WINAPI session_rate_control_SetRate(IMFRateControl *iface, BOOL t
     HRESULT hr;
 
     TRACE("%p, %d, %f.\n", iface, thin, rate);
+
+    if (!rate)
+    {
+        /* The Anacrusis fails to play its video if we succeed here */
+        ERR("Scrubbing not implemented!\n");
+        return E_NOTIMPL;
+    }
 
     if (FAILED(hr = create_session_op(SESSION_CMD_SET_RATE, &op)))
         return hr;

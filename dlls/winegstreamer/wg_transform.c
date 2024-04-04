@@ -573,6 +573,10 @@ NTSTATUS wg_transform_create(void *args)
     struct wg_transform *transform;
     GstEvent *event;
 
+    /* to detect h264_decoder_create() */
+    if (input_format.major_type == WG_MAJOR_TYPE_VIDEO_H264)
+        touch_h264_used_tag();
+
     if (!(transform = calloc(1, sizeof(*transform))))
         return STATUS_NO_MEMORY;
     if (!(transform->container = gst_bin_new("wg_transform")))
@@ -652,6 +656,20 @@ NTSTATUS wg_transform_create(void *args)
     if (!(event = gst_event_new_caps(transform->input_caps))
             || !push_event(transform->my_src, event))
         goto out;
+
+    /* Check that the caps event have been accepted */
+    if (input_format.major_type == WG_MAJOR_TYPE_VIDEO_H264)
+    {
+        GstPad *peer;
+        if (!(peer = gst_pad_get_peer(transform->my_src)))
+            goto out;
+        else if (!gst_pad_has_current_caps(peer))
+        {
+            gst_object_unref(peer);
+            goto out;
+        }
+        gst_object_unref(peer);
+    }
 
     /* We need to use GST_FORMAT_TIME here because it's the only format
      * some elements such avdec_wmav2 correctly support. */

@@ -422,10 +422,15 @@ static HRESULT WINAPI transform_SetOutputType(IMFTransform *iface, DWORD id, IMF
     if (flags & MFT_SET_TYPE_TEST_ONLY)
         return S_OK;
 
-    if (!decoder->output_type && FAILED(hr = MFCreateMediaType(&decoder->output_type)))
-        return hr;
+    wfx.Format.nBlockAlign = wfx.Format.wBitsPerSample * wfx.Format.nChannels / 8;
+    wfx.Format.nAvgBytesPerSec = wfx.Format.nBlockAlign * wfx.Format.nSamplesPerSec;
 
-    if (FAILED(hr = IMFMediaType_CopyAllItems(type, (IMFAttributes *)decoder->output_type)))
+    if (decoder->output_type)
+    {
+        IMFMediaType_Release(decoder->output_type);
+        decoder->output_type = NULL;
+    }
+    if (FAILED(hr = MFCreateAudioMediaType(&wfx.Format, (IMFAudioMediaType **)&decoder->output_type)))
         return hr;
 
     if (FAILED(hr = try_create_wg_transform(decoder)))
@@ -520,8 +525,22 @@ static HRESULT WINAPI transform_ProcessEvent(IMFTransform *iface, DWORD id, IMFM
 
 static HRESULT WINAPI transform_ProcessMessage(IMFTransform *iface, MFT_MESSAGE_TYPE message, ULONG_PTR param)
 {
-    FIXME("iface %p, message %#x, param %p stub!\n", iface, message, (void *)param);
-    return S_OK;
+    struct aac_decoder *decoder = impl_from_IMFTransform(iface);
+
+    TRACE("iface %p, message %#x, param %Ix.\n", iface, message, param);
+
+    switch (message)
+    {
+    case MFT_MESSAGE_COMMAND_DRAIN:
+        return wg_transform_drain(decoder->wg_transform);
+
+    case MFT_MESSAGE_COMMAND_FLUSH:
+        return wg_transform_flush(decoder->wg_transform);
+
+    default:
+        FIXME("Ignoring message %#x.\n", message);
+        return S_OK;
+    }
 }
 
 static HRESULT WINAPI transform_ProcessInput(IMFTransform *iface, DWORD id, IMFSample *sample, DWORD flags)

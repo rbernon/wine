@@ -417,13 +417,14 @@ static HRESULT asf_reader_init_stream(struct strmbase_filter *iface)
     struct asf_reader *filter = impl_from_strmbase_filter(iface);
     WMT_STREAM_SELECTION selections[ARRAY_SIZE(filter->streams)];
     WORD stream_numbers[ARRAY_SIZE(filter->streams)];
-    IWMReaderAdvanced *reader_advanced;
+    IWMReaderAdvanced2 *reader_advanced;
     HRESULT hr = S_OK;
+    BOOL value;
     int i;
 
     TRACE("iface %p\n", iface);
 
-    if (FAILED(hr = IWMReader_QueryInterface(filter->reader, &IID_IWMReaderAdvanced, (void **)&reader_advanced)))
+    if (FAILED(hr = IWMReader_QueryInterface(filter->reader, &IID_IWMReaderAdvanced2, (void **)&reader_advanced)))
         return hr;
 
     for (i = 0; i < filter->stream_count; ++i)
@@ -443,7 +444,7 @@ static HRESULT asf_reader_init_stream(struct strmbase_filter *iface)
             break;
         }
 
-        if (FAILED(hr = IWMReaderAdvanced_SetAllocateForOutput(reader_advanced, i, TRUE)))
+        if (FAILED(hr = IWMReaderAdvanced2_SetAllocateForOutput(reader_advanced, i, TRUE)))
         {
             WARN("Failed to enable allocation for stream %u, hr %#lx\n", i, hr);
             break;
@@ -465,20 +466,36 @@ static HRESULT asf_reader_init_stream(struct strmbase_filter *iface)
             break;
         }
 
-        if (FAILED(hr = IPin_NewSegment(stream->source.pin.peer, 0, 0, 1)))
+        if (FAILED(hr = IPin_NewSegment(stream->source.pin.peer, stream->seek.llCurrent, stream->seek.llStop, stream->seek.dRate)))
         {
             WARN("Failed to start stream %u new segment, hr %#lx\n", i, hr);
+            break;
+        }
+
+        value = IMemInputPin_ReceiveCanBlock(stream->source.pMemInputPin) == S_OK;
+        if (FAILED(hr = IWMReaderAdvanced2_SetOutputSetting(reader_advanced, i, L"DedicatedDeliveryThread",
+                WMT_TYPE_BOOL, (BYTE *)&value, sizeof(value))))
+        {
+            WARN("Failed to set DedicatedDeliveryThread for stream %u, hr %#lx\n", i, hr);
             break;
         }
 
         selections[i] = WMT_ON;
     }
 
-    if (SUCCEEDED(hr) && FAILED(hr = IWMReaderAdvanced_SetStreamsSelected(reader_advanced,
+    if (SUCCEEDED(hr) && FAILED(hr = IWMReaderAdvanced2_SetStreamsSelected(reader_advanced,
             filter->stream_count, stream_numbers, selections)))
         WARN("Failed to set reader %p stream selection, hr %#lx\n", filter->reader, hr);
 
-    IWMReaderAdvanced_Release(reader_advanced);
+    if (SUCCEEDED(hr) && FAILED(hr = IWMReaderAdvanced2_SetUserProvidedClock(reader_advanced, !filter->filter.clock)))
+        WARN("Failed to set user provided clock, hr %#lx\n", hr);
+    else if (!filter->filter.clock)
+    {
+        if (SUCCEEDED(hr) && FAILED(hr = IWMReaderAdvanced2_DeliverTime(reader_advanced, -1)))
+            WARN("Failed to set user time, hr %#lx\n", hr);
+    }
+
+    IWMReaderAdvanced2_Release(reader_advanced);
 
     if (FAILED(hr))
         return hr;
@@ -568,7 +585,11 @@ static HRESULT WINAPI asf_reader_DecideBufferSize(struct strmbase_source *iface,
         buffer_size = format->nAvgBytesPerSec;
     }
 
-    req_props->cBuffers = max(req_props->cBuffers, 1);
+    if (IsEqualGUID(&stream->source.pin.mt.majortype, &MEDIATYPE_Audio))
+        req_props->cBuffers = max(req_props->cBuffers, 50);
+    else
+        req_props->cBuffers = max(req_props->cBuffers, 10);
+
     req_props->cbBuffer = max(req_props->cbBuffer, buffer_size);
     req_props->cbAlign = max(req_props->cbAlign, 1);
     return IMemAllocator_SetProperties(allocator, req_props, &ret_props);

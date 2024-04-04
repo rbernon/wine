@@ -66,6 +66,107 @@ DEFINE_GUID(mft_output_sample_incomplete,0xffffff,0xffff,0xffff,0xff,0xff,0xff,0
 
 static const GUID test_attr_guid = {0xdeadbeef};
 
+extern const char *debugstr_mf_guid(const GUID *guid);
+
+void dump_attributes_(int line, IMFAttributes *attributes)
+{
+    PROPVARIANT value;
+    char buffer[256];
+    UINT32 count;
+    HRESULT hr;
+    GUID guid;
+    int i, j;
+
+    hr = IMFAttributes_GetCount(attributes, &count);
+    ok_(__FILE__, line)(hr == S_OK, "GetCount returned %#lx\n", hr);
+
+    for (i = 0; i < count; ++i)
+    {
+        PropVariantInit(&value);
+        hr = IMFAttributes_GetItemByIndex(attributes, i, &guid, &value);
+        ok_(__FILE__, line)(hr == S_OK, "GetItemByIndex returned %#lx\n", hr);
+        switch (value.vt)
+        {
+        default: sprintf(buffer, "{%s, .vt = %u, .value = %s},", debugstr_mf_guid(&guid), value.vt, buffer); break;
+        case VT_LPWSTR: sprintf(buffer, "ATTR_WSTR(%s, %s),", debugstr_mf_guid(&guid), debugstr_w(value.pwszVal)); break;
+        case VT_CLSID: sprintf(buffer, "ATTR_GUID(%s, %s),", debugstr_mf_guid(&guid), debugstr_mf_guid(value.puuid)); break;
+        case VT_UI4: sprintf(buffer, "ATTR_UINT32(%s, %lu),", debugstr_mf_guid(&guid), value.ulVal); break;
+        case VT_UI8: sprintf(buffer, "ATTR_RATIO(%s, %lu, %lu),", debugstr_mf_guid(&guid), value.uhVal.HighPart, value.uhVal.LowPart); break;
+        case VT_VECTOR | VT_UI1:
+        {
+            char *buf = buffer;
+            buf += sprintf(buf, "ATTR_BLOB(%s, {", debugstr_mf_guid(&guid));
+            for (j = 0; j < 16 && j < value.caub.cElems; ++j)
+                buf += sprintf(buf, "0x%02x,", value.caub.pElems[j]);
+            if (value.caub.cElems > 16)
+                buf += sprintf(buf, "...}");
+            else
+                buf += sprintf(buf - (j ? 1 : 0), "}") - (j ? 1 : 0);
+            buf += sprintf(buf, ", %lu),", value.caub.cElems);
+            break;
+        }
+        }
+
+        ok_(__FILE__, line)(0, "%s\n", buffer);
+        PropVariantClear(&value);
+    }
+}
+
+void dump_properties(IPropertyStore *store)
+{
+    PROPVARIANT value;
+    char buffer[256];
+    PROPERTYKEY key;
+    DWORD count;
+    HRESULT hr;
+    int i, j;
+
+    hr = IPropertyStore_GetCount(store, &count);
+    ok(hr == S_OK, "GetCount returned %#lx\n", hr);
+
+    for (i = 0; i < count; ++i)
+    {
+        hr = IPropertyStore_GetAt(store, i, &key);
+        ok(hr == S_OK, "GetItemByIndex returned %#lx\n", hr);
+
+        PropVariantInit(&value);
+        hr = IPropertyStore_GetValue(store, &key, &value);
+        ok(hr == S_OK, "GetItemByIndex returned %#lx\n", hr);
+        switch (value.vt)
+        {
+        default: sprintf(buffer, "??"); break;
+        case VT_EMPTY: break;
+        case VT_BSTR: sprintf(buffer, "%s", debugstr_w(value.bstrVal)); break;
+        case VT_CLSID: sprintf(buffer, "%s", debugstr_mf_guid(value.puuid)); break;
+        case VT_BOOL: sprintf(buffer, "%u", value.boolVal); break;
+        case VT_R4: sprintf(buffer, "%f", value.fltVal); break;
+        case VT_I4: sprintf(buffer, "%ld", value.lVal); break;
+        case VT_UI4: sprintf(buffer, "%lu", value.ulVal); break;
+        case VT_UI8: sprintf(buffer, "%lu:%lu", value.uhVal.HighPart, value.uhVal.LowPart); break;
+        case VT_ARRAY | VT_UI1:
+        case VT_ARRAY | VT_I4:
+        {
+            char *buf = buffer;
+            buf += sprintf(buf, "dim %u, data {", SafeArrayGetDim(value.parray));
+            for (j = 0; j < 16 && j < value.cai.cElems; ++j)
+            {
+                LONG dims[16] = {j}, elem = 0;
+                SafeArrayGetElement(value.parray, dims, &elem);
+                buf += sprintf(buf, "%#lx,", elem);
+            }
+            if (value.cai.cElems > 16)
+                buf += sprintf(buf, "...}");
+            else
+                buf += sprintf(buf - (j ? 1 : 0), "}");
+            break;
+        }
+        }
+
+        ok(0, "%s-%lu, type %u, value %s\n", debugstr_mf_guid(&key.fmtid), key.pid, value.vt, buffer);
+        PropVariantClear(&value);
+    }
+}
+
 struct media_buffer
 {
     IMediaBuffer IMediaBuffer_iface;
@@ -368,27 +469,27 @@ static void check_mft_get_info(const GUID *class_id, const struct transform_info
     for (i = 0; i < input_count && expect->inputs[i].subtype; ++i)
     {
         ok(IsEqualGUID(&input_types[i].guidMajorType, expect->major_type),
-                "got input[%u] major %s\n", i, debugstr_guid(&input_types[i].guidMajorType));
+                "got input[%u] major %s\n", i, debugstr_mf_guid(&input_types[i].guidMajorType));
         ok(IsEqualGUID(&input_types[i].guidSubtype, expect->inputs[i].subtype),
-                "got input[%u] subtype %s\n", i, debugstr_guid(&input_types[i].guidSubtype));
+                "got input[%u] subtype %s\n", i, debugstr_mf_guid(&input_types[i].guidSubtype));
     }
     for (; expect->inputs[i].subtype; ++i)
         ok(broken(expect->inputs[i].broken), "missing input[%u] subtype %s\n",
-                i, debugstr_guid(expect->inputs[i].subtype));
+                i, debugstr_mf_guid(expect->inputs[i].subtype));
     for (; i < input_count; ++i)
-        ok(0, "extra input[%u] subtype %s\n", i, debugstr_guid(&input_types[i].guidSubtype));
+        ok(0, "extra input[%u] subtype %s\n", i, debugstr_mf_guid(&input_types[i].guidSubtype));
 
     for (i = 0; expect->outputs[i].subtype; ++i)
     {
         ok(IsEqualGUID(&output_types[i].guidMajorType, expect->major_type),
-                "got output[%u] major %s\n", i, debugstr_guid(&output_types[i].guidMajorType));
+                "got output[%u] major %s\n", i, debugstr_mf_guid(&output_types[i].guidMajorType));
         ok(IsEqualGUID(&output_types[i].guidSubtype, expect->outputs[i].subtype),
-                "got output[%u] subtype %s\n", i, debugstr_guid(&output_types[i].guidSubtype));
+                "got output[%u] subtype %s\n", i, debugstr_mf_guid(&output_types[i].guidSubtype));
     }
     for (; expect->outputs[i].subtype; ++i)
-        ok(0, "missing output[%u] subtype %s\n", i, debugstr_guid(expect->outputs[i].subtype));
+        ok(0, "missing output[%u] subtype %s\n", i, debugstr_mf_guid(expect->outputs[i].subtype));
     for (; i < output_count; ++i)
-        ok(0, "extra output[%u] subtype %s\n", i, debugstr_guid(&output_types[i].guidSubtype));
+        ok(0, "extra output[%u] subtype %s\n", i, debugstr_mf_guid(&output_types[i].guidSubtype));
 
     CoTaskMemFree(output_types);
     CoTaskMemFree(input_types);
@@ -415,26 +516,26 @@ static void check_dmo_get_info(const GUID *class_id, const struct transform_info
     for (i = 0; i < input_count && expect->inputs[i].subtype; ++i)
     {
         ok(IsEqualGUID(&input[i].type, expect->major_type),
-                "got input[%u] major %s\n", i, debugstr_guid(&input[i].type));
+                "got input[%u] major %s\n", i, debugstr_mf_guid(&input[i].type));
         ok(IsEqualGUID(&input[i].subtype, expect->inputs[i].subtype),
-                "got input[%u] subtype %s\n", i, debugstr_guid(&input[i].subtype));
+                "got input[%u] subtype %s\n", i, debugstr_mf_guid(&input[i].subtype));
     }
     for (; expect->inputs[i].subtype; ++i)
-        ok(0, "missing input[%u] subtype %s\n", i, debugstr_guid(expect->inputs[i].subtype));
+        ok(0, "missing input[%u] subtype %s\n", i, debugstr_mf_guid(expect->inputs[i].subtype));
     for (; i < input_count; ++i)
-        ok(0, "extra input[%u] subtype %s\n", i, debugstr_guid(&input[i].subtype));
+        ok(0, "extra input[%u] subtype %s\n", i, debugstr_mf_guid(&input[i].subtype));
 
     for (i = 0; expect->outputs[i].subtype; ++i)
     {
         ok(IsEqualGUID(&output[i].type, expect->major_type),
-                "got output[%u] major %s\n", i, debugstr_guid(&output[i].type));
+                "got output[%u] major %s\n", i, debugstr_mf_guid(&output[i].type));
         ok(IsEqualGUID(&output[i].subtype, expect->outputs[i].subtype),
-                "got output[%u] subtype %s\n", i, debugstr_guid(&output[i].subtype));
+                "got output[%u] subtype %s\n", i, debugstr_mf_guid(&output[i].subtype));
     }
     for (; expect->outputs[i].subtype; ++i)
-        ok(0, "missing output[%u] subtype %s\n", i, debugstr_guid(expect->outputs[i].subtype));
+        ok(0, "missing output[%u] subtype %s\n", i, debugstr_mf_guid(expect->outputs[i].subtype));
     for (; i < output_count; ++i)
-        ok(0, "extra output[%u] subtype %s\n", i, debugstr_guid(&output[i].subtype));
+        ok(0, "extra output[%u] subtype %s\n", i, debugstr_mf_guid(&output[i].subtype));
 }
 
 void init_media_type(IMFMediaType *mediatype, const struct attribute_desc *desc, ULONG limit)
@@ -2521,7 +2622,7 @@ static void test_aac_decoder_subtype(const struct attribute_desc *input_type_des
     {
         {
             .attributes = output_sample_attributes + (has_video_processor ? 0 : 1) /* MFSampleExtension_CleanPoint missing on Win7 */,
-            .sample_time = 0, .sample_duration = 232200,
+            .sample_time = 1234000, .sample_duration = 232200,
             .buffer_count = 1, .buffers = output_buffer_desc,
         },
     };
@@ -2615,6 +2716,9 @@ static void test_aac_decoder_subtype(const struct attribute_desc *input_type_des
     ok(aacenc_data_len == 24861, "got length %lu\n", aacenc_data_len);
 
     input_sample = create_sample(aacenc_data + sizeof(DWORD), *(DWORD *)aacenc_data);
+
+    hr = IMFSample_SetSampleTime(input_sample, 1234000);
+    ok(hr == S_OK, "Got %#lx\n", hr);
 
     flags = 0;
     hr = IMFTransform_GetInputStatus(transform, 0, &flags);
@@ -7848,7 +7952,7 @@ static void test_video_processor(BOOL use_2d_buffer)
 
     const MFVideoArea actual_aperture = {.Area={82,84}};
     const DWORD actual_width = 96, actual_height = 96, nv12_aligned_width = 128;
-    const DWORD extra_width = actual_width + 0x30;
+    const DWORD extra_width = actual_width + 0x30, extra_height = actual_height + 0x10;
     const DWORD nv12_aligned_extra_width = 192;
     const struct attribute_desc rgb32_with_aperture[] =
     {
@@ -7890,6 +7994,20 @@ static void test_video_processor(BOOL use_2d_buffer)
         ATTR_RATIO(MF_MT_FRAME_SIZE, extra_width, actual_height, .required = TRUE),
         {0},
     };
+    const struct attribute_desc nv12_extra_height[] =
+    {
+        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video, .required = TRUE),
+        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_NV12, .required = TRUE),
+        ATTR_RATIO(MF_MT_FRAME_SIZE, actual_width, extra_height, .required = TRUE),
+        {0},
+    };
+    const struct attribute_desc nv12_extra_width_height[] =
+    {
+        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video, .required = TRUE),
+        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_NV12, .required = TRUE),
+        ATTR_RATIO(MF_MT_FRAME_SIZE, extra_width, extra_height, .required = TRUE),
+        {0},
+    };
     const struct attribute_desc rgb32_default_stride[] =
     {
         ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video, .required = TRUE),
@@ -7902,6 +8020,22 @@ static void test_video_processor(BOOL use_2d_buffer)
         ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video, .required = TRUE),
         ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32, .required = TRUE),
         ATTR_RATIO(MF_MT_FRAME_SIZE, extra_width, actual_height, .required = TRUE),
+        ATTR_UINT32(MF_MT_DEFAULT_STRIDE, extra_width * 4),
+        {0},
+    };
+    const struct attribute_desc rgb32_extra_height[] =
+    {
+        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video, .required = TRUE),
+        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32, .required = TRUE),
+        ATTR_RATIO(MF_MT_FRAME_SIZE, actual_width, extra_height, .required = TRUE),
+        ATTR_UINT32(MF_MT_DEFAULT_STRIDE, actual_width * 4),
+        {0},
+    };
+    const struct attribute_desc rgb32_extra_width_height[] =
+    {
+        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video, .required = TRUE),
+        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32, .required = TRUE),
+        ATTR_RATIO(MF_MT_FRAME_SIZE, extra_width, extra_height, .required = TRUE),
         ATTR_UINT32(MF_MT_DEFAULT_STRIDE, extra_width * 4),
         {0},
     };
@@ -7946,9 +8080,9 @@ static void test_video_processor(BOOL use_2d_buffer)
     };
     const struct attribute_desc nv12_no_aperture[] =
     {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
-        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_NV12),
-        ATTR_RATIO(MF_MT_FRAME_SIZE, 82, 84),
+        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video, .required = TRUE),
+        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_NV12, .required = TRUE),
+        ATTR_RATIO(MF_MT_FRAME_SIZE, 82, 84, .required = TRUE),
         {0},
     };
     const struct attribute_desc nv12_with_aperture[] =
@@ -8037,6 +8171,32 @@ static void test_video_processor(BOOL use_2d_buffer)
         .total_length = actual_width * actual_height * 4,
         .buffer_count = 1, .buffers = &rgb32_extra_width_buffer_desc,
     };
+    const struct buffer_desc rgb32_extra_height_buffer_desc =
+    {
+        .length = actual_width * extra_height * 4,
+        .compare = compare_rgb32, .compare_rect = {.top = 20, .right = 82, .bottom = 96},
+        .dump = dump_rgb32, .size = {.cx = actual_width, .cy = extra_height},
+    };
+    const struct sample_desc rgb32_extra_height_sample_desc =
+    {
+        .attributes = output_sample_attributes,
+        .sample_time = 0, .sample_duration = 10000000,
+        .total_length = actual_width * extra_height * 4,
+        .buffer_count = 1, .buffers = &rgb32_extra_height_buffer_desc,
+    };
+    const struct buffer_desc rgb32_extra_width_height_buffer_desc =
+    {
+        .length = extra_width * extra_height * 4,
+        .compare = compare_rgb32, .compare_rect = {.top = 20, .right = 82, .bottom = 96},
+        .dump = dump_rgb32, .size = {.cx = extra_width, .cy = extra_height},
+    };
+    const struct sample_desc rgb32_extra_width_height_sample_desc =
+    {
+        .attributes = output_sample_attributes,
+        .sample_time = 0, .sample_duration = 10000000,
+        .total_length = actual_width * extra_height * 4,
+        .buffer_count = 1, .buffers = &rgb32_extra_width_height_buffer_desc,
+    };
 
     const struct buffer_desc rgb555_buffer_desc =
     {
@@ -8100,6 +8260,70 @@ static void test_video_processor(BOOL use_2d_buffer)
         .attributes = output_sample_attributes,
         .sample_time = 0, .sample_duration = 10000000,
         .buffer_count = 1, .buffers = &nv12_extra_width_buffer_2d_desc,
+    };
+    const struct buffer_desc nv12_extra_height_buffer_desc =
+    {
+        .length = actual_width * extra_height * 3 / 2,
+        .compare = compare_nv12, .compare_rect = {.top = 20, .right = 82, .bottom = 96},
+        .dump = dump_nv12, .size = {.cx = actual_width, .cy = extra_height},
+    };
+    const struct sample_desc nv12_extra_height_sample_desc =
+    {
+        .attributes = output_sample_attributes,
+        .sample_time = 0, .sample_duration = 10000000,
+        .total_length = actual_width * extra_height * 3 / 2,
+        .buffer_count = 1, .buffers = &nv12_extra_height_buffer_desc,
+    };
+    const struct buffer_desc nv12_extra_height_buffer_2d_desc =
+    {
+        .length = nv12_aligned_width * extra_height * 3 / 2,
+        .compare = compare_nv12, .compare_rect = {.top = 20, .right = 82, .bottom = 96},
+        .dump = dump_nv12, .size = {.cx = nv12_aligned_width, .cy = extra_height},
+    };
+    const struct sample_desc nv12_extra_height_sample_2d_desc =
+    {
+        .attributes = output_sample_attributes,
+        .sample_time = 0, .sample_duration = 10000000,
+        .total_length = actual_width * extra_height * 3 / 2,
+        .buffer_count = 1, .buffers = &nv12_extra_height_buffer_2d_desc,
+    };
+    const struct buffer_desc nv12_extra_width_height_buffer_desc =
+    {
+        .length = extra_width * extra_height * 3 / 2,
+        .compare = compare_nv12, .compare_rect = {.top = 20, .right = 82, .bottom = 96},
+        .dump = dump_nv12, .size = {.cx = extra_width, .cy = extra_height},
+    };
+    const struct sample_desc nv12_extra_width_height_sample_desc =
+    {
+        .attributes = output_sample_attributes,
+        .sample_time = 0, .sample_duration = 10000000,
+        .total_length = actual_width * extra_height * 3 / 2,
+        .buffer_count = 1, .buffers = &nv12_extra_width_height_buffer_desc,
+    };
+    const struct buffer_desc nv12_extra_width_height_buffer_2d_desc =
+    {
+        .length = nv12_aligned_extra_width * extra_height * 3 / 2,
+        .compare = compare_nv12, .compare_rect = {.top = 20, .right = 82, .bottom = 96},
+        .dump = dump_nv12, .size = {.cx = nv12_aligned_extra_width, .cy = extra_height},
+    };
+    const struct sample_desc nv12_extra_width_height_sample_2d_desc =
+    {
+        .attributes = output_sample_attributes,
+        .sample_time = 0, .sample_duration = 10000000,
+        .buffer_count = 1, .buffers = &nv12_extra_width_height_buffer_2d_desc,
+    };
+
+    const struct buffer_desc nv12_crop_buffer_desc =
+    {
+        .length = actual_aperture.Area.cx * actual_aperture.Area.cy * 3 / 2,
+        .compare = compare_nv12, .compare_rect = {.right = actual_aperture.Area.cx, .bottom = actual_aperture.Area.cy},
+        .dump = dump_nv12, .size = actual_aperture.Area,
+    };
+    const struct sample_desc nv12_crop_sample_desc =
+    {
+        .attributes = output_sample_attributes,
+        .sample_time = 0, .sample_duration = 10000000,
+        .buffer_count = 1, .buffers = &nv12_crop_buffer_desc,
     };
 
     const struct transform_desc
@@ -8274,13 +8498,29 @@ static void test_video_processor(BOOL use_2d_buffer)
         { /* Test 19 */
             .input_type_desc = nv12_default_stride, .input_bitmap = L"nv12frame.bmp",
             .input_buffer_desc = use_2d_buffer ? nv12_default_stride : NULL,
+            .output_type_desc = rgb32_extra_height, .output_bitmap = L"rgb32frame-extra-height.bmp",
+            .output_buffer_desc = use_2d_buffer ? rgb32_extra_height : NULL,
+            .output_sample_desc = &rgb32_extra_height_sample_desc, .output_sample_2d_desc = &rgb32_extra_height_sample_desc,
+            .todo = TRUE,
+        },
+        { /* Test 20 */
+            .input_type_desc = rgb32_positive_stride, .input_bitmap = L"rgb32frame.bmp",
+            .input_buffer_desc = use_2d_buffer ? rgb32_positive_stride : NULL,
+            .output_type_desc = nv12_extra_height, .output_bitmap = L"nv12frame-extra-height.bmp", .output_bitmap_2d = L"nv12frame-extra-height-2d.bmp",
+            .output_buffer_desc = use_2d_buffer ? nv12_extra_height : NULL,
+            .output_sample_desc = &nv12_extra_height_sample_desc, .output_sample_2d_desc = &nv12_extra_height_sample_2d_desc,
+            .todo = TRUE,
+        },
+        { /* Test 21 */
+            .input_type_desc = nv12_default_stride, .input_bitmap = L"nv12frame.bmp",
+            .input_buffer_desc = use_2d_buffer ? nv12_default_stride : NULL,
             .output_type_desc = rgb32_default_stride, .output_bitmap = L"rgb32frame-flip.bmp", .output_bitmap_2d = L"rgb32frame.bmp", .output_bitmap_1d = L"rgb32frame.bmp",
             .output_buffer_desc = use_2d_buffer ? rgb32_default_stride : NULL,
             .output_sample_desc = &rgb32_sample_desc, .output_sample_2d_desc = &rgb32_sample_desc,
             .delta = 3, /* Windows returns 3 with 2D buffer */
             .todo = use_2d_buffer,
         },
-        { /* Test 20 */
+        { /* Test 22 */
             .input_type_desc = nv12_default_stride, .input_bitmap = L"nv12frame.bmp",
             .input_buffer_desc = use_2d_buffer ? nv12_default_stride : NULL,
             .output_type_desc = rgb32_default_stride, .output_bitmap = L"rgb32frame-flip.bmp", .output_bitmap_2d = L"rgb32frame.bmp", .output_bitmap_1d = L"rgb32frame.bmp",
@@ -8290,7 +8530,7 @@ static void test_video_processor(BOOL use_2d_buffer)
             .todo = use_2d_buffer,
         },
 
-        { /* Test 21, 2D only */
+        { /* Test 23, 2D only */
             .input_type_desc = nv12_default_stride, .input_bitmap = L"nv12frame.bmp",
             .input_buffer_desc = nv12_default_stride,
             .output_type_desc = rgb32_default_stride, .output_bitmap = L"rgb32frame-extra-width.bmp",
@@ -8298,7 +8538,7 @@ static void test_video_processor(BOOL use_2d_buffer)
             .output_sample_desc = &rgb32_extra_width_sample_desc, .output_sample_2d_desc = &rgb32_extra_width_sample_desc,
             .todo = TRUE,
         },
-        { /* Test 22, 2D only */
+        { /* Test 24, 2D only */
             .input_type_desc = rgb32_default_stride, .input_bitmap = L"rgb32frame-extra-width.bmp",
             .input_buffer_desc = rgb32_extra_width,
             .output_type_desc = nv12_default_stride, .output_bitmap_1d = L"nv12frame.bmp", .output_bitmap_2d = L"nv12frame-2d.bmp",
@@ -8306,7 +8546,7 @@ static void test_video_processor(BOOL use_2d_buffer)
             .output_sample_desc = &nv12_sample_desc, .output_sample_2d_desc = &nv12_sample_2d_desc,
             .delta = 2, /* Windows returns 2 with 1D buffer */ .todo = TRUE,
         },
-        { /* Test 23, 2D only */
+        { /* Test 25, 2D only */
             .input_type_desc = rgb32_default_stride, .input_bitmap = L"rgb32frame-extra-width.bmp",
             .input_buffer_desc = rgb32_extra_width,
             .output_type_desc = nv12_default_stride, .output_bitmap_1d = L"nv12frame-extra-width.bmp", .output_bitmap_2d = L"nv12frame-extra-width-2d.bmp",
@@ -8314,13 +8554,34 @@ static void test_video_processor(BOOL use_2d_buffer)
             .output_sample_desc = &nv12_extra_width_sample_desc, .output_sample_2d_desc = &nv12_extra_width_sample_2d_desc,
             .todo = TRUE,
         },
-        { /* Test 24, 2D only */
+        { /* Test 26, 2D only */
             .input_type_desc = nv12_default_stride, .input_bitmap = L"nv12frame-extra-width.bmp",
             .input_buffer_desc = nv12_extra_width,
             .output_type_desc = rgb32_default_stride, .output_bitmap_1d = L"rgb32frame.bmp", .output_bitmap_2d = L"rgb32frame.bmp",
             .output_buffer_desc = rgb32_default_stride,
             .output_sample_desc = &rgb32_sample_desc, .output_sample_2d_desc = &rgb32_sample_desc,
             .todo = TRUE,
+        },
+        { /* Test 27, 2D only */
+            .input_type_desc = nv12_default_stride, .input_bitmap = L"nv12frame.bmp",
+            .input_buffer_desc = nv12_default_stride,
+            .output_type_desc = rgb32_extra_height, .output_bitmap = L"rgb32frame-extra-width-height.bmp",
+            .output_buffer_desc = rgb32_extra_width_height,
+            .output_sample_desc = &rgb32_extra_width_height_sample_desc, .output_sample_2d_desc = &rgb32_extra_width_height_sample_desc,
+            .todo = TRUE,
+        },
+        { /* Test 28, 2D only */
+            .input_type_desc = rgb32_default_stride, .input_bitmap = L"rgb32frame.bmp",
+            .input_buffer_desc = rgb32_default_stride,
+            .output_type_desc = nv12_extra_height, .output_bitmap_1d = L"nv12frame-extra-width-height.bmp", .output_bitmap_2d = L"nv12frame-extra-width-height-2d.bmp",
+            .output_buffer_desc = nv12_extra_width_height,
+            .output_sample_desc = &nv12_extra_width_height_sample_desc, .output_sample_2d_desc = &nv12_extra_width_height_sample_2d_desc,
+            .todo = TRUE,
+        },
+        {
+            .input_type_desc = rgb32_no_aperture, .input_bitmap = L"rgb32frame-crop.bmp",
+            .output_type_desc = nv12_no_aperture, .output_bitmap = L"nv12frame-crop.bmp",
+            .output_sample_desc = &nv12_crop_sample_desc,
         },
     };
 
@@ -8501,15 +8762,12 @@ static void test_video_processor(BOOL use_2d_buffer)
     ok(hr == S_OK, "Failed to create a sample, hr %#lx.\n", hr);
 
     hr = check_mft_process_output(transform, output_sample, &output_status);
-    todo_wine
     ok(hr == MF_E_TRANSFORM_NEED_MORE_INPUT, "Unexpected hr %#lx.\n", hr);
 
     hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
-    todo_wine
     ok(hr == S_OK, "Failed to push a sample, hr %#lx.\n", hr);
 
     hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
-    todo_wine
     ok(hr == MF_E_NOTACCEPTING, "Unexpected hr %#lx.\n", hr);
 
     hr = check_mft_process_output(transform, output_sample, &output_status);
@@ -8692,6 +8950,23 @@ static void test_video_processor(BOOL use_2d_buffer)
             output_info.cbSize = actual_aperture.Area.cx * actual_aperture.Area.cy * 4;
             check_mft_get_output_stream_info(transform, S_OK, &output_info);
         }
+        else if (test->output_sample_desc == &nv12_extra_height_sample_desc
+                    || test->output_sample_desc == &nv12_extra_width_height_sample_desc)
+        {
+            output_info.cbSize = actual_width * extra_height * 3 / 2;
+            check_mft_get_output_stream_info(transform, S_OK, &output_info);
+        }
+        else if (test->output_sample_desc == &rgb32_extra_height_sample_desc
+                    || test->output_sample_desc == &rgb32_extra_width_height_sample_desc)
+        {
+            output_info.cbSize = actual_width * extra_height * 4;
+            check_mft_get_output_stream_info(transform, S_OK, &output_info);
+        }
+        else if (test->output_sample_desc == &nv12_crop_sample_desc)
+        {
+            output_info.cbSize = actual_aperture.Area.cx * actual_aperture.Area.cy * 3 / 2;
+            check_mft_get_output_stream_info(transform, S_OK, &output_info);
+        }
         else
         {
             output_info.cbSize = actual_width * actual_height * 4;
@@ -8713,6 +8988,16 @@ static void test_video_processor(BOOL use_2d_buffer)
             input_info.cbSize = 82 * 84 * 4;
             check_mft_get_input_stream_info(transform, S_OK, &input_info);
         }
+        else if (test->input_type_desc == nv12_extra_height)
+        {
+            input_info.cbSize = actual_width * extra_height * 3 / 2;
+            check_mft_get_input_stream_info(transform, S_OK, &input_info);
+        }
+        else if (test->input_type_desc == rgb32_extra_height)
+        {
+            input_info.cbSize = actual_width * extra_height * 4;
+            check_mft_get_input_stream_info(transform, S_OK, &input_info);
+        }
         else
         {
             input_info.cbSize = actual_width * actual_height * 4;
@@ -8720,7 +9005,8 @@ static void test_video_processor(BOOL use_2d_buffer)
         }
 
         load_resource(test->input_bitmap, &input_data, &input_data_len);
-        if (test->input_type_desc == nv12_default_stride || test->input_type_desc == nv12_with_aperture)
+        if (test->input_type_desc == nv12_default_stride || test->input_type_desc == nv12_with_aperture
+                || test->input_type_desc == nv12_extra_height)
         {
             /* skip BMP header and RGB data from the dump */
             length = *(DWORD *)(input_data + 2);
@@ -9205,10 +9491,17 @@ static HRESULT get_next_h264_output_sample(IMFTransform *transform, IMFSample **
             return hr;
 
         ok(status == 0, "got output[0].dwStatus %#lx\n", status);
+        if (!*input_sample) return MF_E_END_OF_STREAM;
+
         hr = IMFTransform_ProcessInput(transform, 0, *input_sample, 0);
         ok(hr == S_OK, "got %#lx\n", hr);
         IMFSample_Release(*input_sample);
-        *input_sample = next_h264_sample(data, data_len);
+
+        if (!(*input_sample = next_h264_sample(data, data_len)))
+        {
+            hr = IMFTransform_ProcessMessage(transform, MFT_MESSAGE_COMMAND_DRAIN, 0);
+            ok(hr == S_OK, "got %#lx\n", hr);
+        }
     }
 }
 
@@ -9306,6 +9599,7 @@ static void test_h264_with_dxgi_manager(void)
     IMFAttributes_Release(attribs);
 
     hr = IMFTransform_ProcessMessage(transform, MFT_MESSAGE_SET_D3D_MANAGER, (ULONG_PTR)transform);
+    todo_wine
     ok(hr == E_NOINTERFACE, "got %#lx\n", hr);
 
     hr = IMFTransform_ProcessMessage(transform, MFT_MESSAGE_SET_D3D_MANAGER, (ULONG_PTR)manager);
@@ -9485,14 +9779,7 @@ static void test_h264_with_dxgi_manager(void)
 
     status = 0;
     hr = get_next_h264_output_sample(transform, &input_sample, NULL, output, &data, &data_len);
-    todo_wine_if(hr == MF_E_UNEXPECTED) /* with some llvmpipe versions */
     ok(hr == S_OK, "got %#lx\n", hr);
-    if (hr == MF_E_UNEXPECTED)
-    {
-        IMFSample_Release(input_sample);
-        goto failed;
-    }
-    ok(sample != output[0].pSample, "got %p.\n", output[0].pSample);
     sample = output[0].pSample;
 
     hr = MFCreateCollection(&output_samples);
@@ -10121,11 +10408,10 @@ static void test_video_processor_with_dxgi_manager(void)
     status = 0;
     memset(&output, 0, sizeof(output));
     hr = IMFTransform_ProcessOutput(transform, 0, 1, &output, &status);
-    /* FIXME: Wine sample release happens entirely asynchronously */
-    flaky_wine_if(hr == MF_E_SAMPLEALLOCATOR_EMPTY)
+    todo_wine
     ok(hr == S_OK, "got %#lx\n", hr);
     ok(!output.pEvents, "got events\n");
-    flaky_wine_if(hr == MF_E_SAMPLEALLOCATOR_EMPTY)
+    todo_wine
     ok(!!output.pSample, "got no sample\n");
     ok(output.dwStatus == 0, "got %#lx\n", output.dwStatus);
     ok(status == 0, "got %#lx\n", status);
@@ -10293,11 +10579,420 @@ failed:
     CoUninitialize();
 }
 
+static void test_performance(void)
+{
+    static const unsigned int aligned_width = 3840, aligned_height = 2160;
+
+    struct decoder_test
+    {
+        BOOL d3d_aware;
+        GUID subtype;
+    } decoder_tests[] =
+    {
+        {.d3d_aware = FALSE, .subtype = MFVideoFormat_I420},
+        {.d3d_aware = FALSE, .subtype = MFVideoFormat_NV12},
+        {.d3d_aware = FALSE, .subtype = MFVideoFormat_YUY2},
+
+        {.d3d_aware = TRUE, .subtype = MFVideoFormat_NV12},
+    };
+
+    struct processor_test
+    {
+        BOOL d3d_aware;
+        GUID input_subtype;
+        GUID output_subtype;
+        BOOL output_flip;
+    } processor_tests[] =
+    {
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_I420, .output_subtype = MFVideoFormat_I420},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_I420, .output_subtype = MFVideoFormat_NV12},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_I420, .output_subtype = MFVideoFormat_RGB32},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_I420, .output_subtype = MFVideoFormat_RGB32, .output_flip = TRUE},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_I420},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_NV12},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_RGB32},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_RGB32, .output_flip = TRUE},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_YUY2, .output_subtype = MFVideoFormat_I420},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_YUY2, .output_subtype = MFVideoFormat_NV12},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_YUY2, .output_subtype = MFVideoFormat_RGB32},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_YUY2, .output_subtype = MFVideoFormat_RGB32, .output_flip = TRUE},
+
+        {.d3d_aware = TRUE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_NV12},
+        {.d3d_aware = TRUE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_RGB32},
+        {.d3d_aware = TRUE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_RGB32, .output_flip = TRUE},
+        {.d3d_aware = TRUE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_ABGR32},
+        {.d3d_aware = TRUE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_ABGR32, .output_flip = TRUE},
+    };
+
+    LARGE_INTEGER time = {0}, count, freq;
+    IMFSample *input_sample, *output_sample;
+    IMFDXGIDeviceManager *manager = NULL;
+    MFT_OUTPUT_DATA_BUFFER output[1];
+    IMFTransform *transform = NULL;
+    ID3D11Multithread *multithread;
+    UINT buffer_count, token;
+    ID3D11Device *d3d11;
+    IMFMediaType *type;
+    ULONG i, data_len;
+    const BYTE *data;
+    LONG stride;
+    HRESULT hr;
+
+    QueryPerformanceFrequency(&freq);
+
+    hr = MFStartup(MF_VERSION, 0);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = CoInitialize(NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+
+
+    for (i = 0; i < ARRAY_SIZE(decoder_tests); i++)
+    {
+        struct decoder_test *test = decoder_tests + i;
+        LARGE_INTEGER total = {0};
+
+        winetest_push_context("%u %s", test->d3d_aware, debugstr_an((char *)&test->subtype.Data1, 4));
+
+        hr = CoCreateInstance(&CLSID_MSH264DecoderMFT, NULL, CLSCTX_INPROC_SERVER,
+                &IID_IMFTransform, (void **)&transform);
+        ok(hr == S_OK, "got %#lx\n", hr);
+
+        if (test->d3d_aware)
+        {
+            hr = D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, D3D11_CREATE_DEVICE_VIDEO_SUPPORT, NULL, 0,
+                    D3D11_SDK_VERSION, &d3d11, NULL, NULL);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            hr = ID3D11Device_QueryInterface(d3d11, &IID_ID3D11Multithread, (void **)&multithread);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            ID3D11Multithread_SetMultithreadProtected(multithread, TRUE);
+            ID3D11Multithread_Release(multithread);
+            hr = pMFCreateDXGIDeviceManager(&token, &manager);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            hr = IMFDXGIDeviceManager_ResetDevice(manager, (IUnknown *)d3d11, token);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            ID3D11Device_Release(d3d11);
+            hr = IMFTransform_ProcessMessage(transform, MFT_MESSAGE_SET_D3D_MANAGER, (ULONG_PTR)manager);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            IMFDXGIDeviceManager_Release(manager);
+        }
+
+        hr = IMFTransform_GetInputAvailableType(transform, 0, 0, &type);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetGUID(type, &MF_MT_SUBTYPE, &MFVideoFormat_H264);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetUINT64(type, &MF_MT_FRAME_SIZE, (UINT64)aligned_height << 32 | aligned_width);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFTransform_SetInputType(transform, 0, type, 0);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        IMFMediaType_Release(type);
+
+        hr = IMFTransform_GetOutputAvailableType(transform, 0, 0, &type);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetGUID(type, &MF_MT_SUBTYPE, &test->subtype);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFTransform_SetOutputType(transform, 0, type, 0);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        IMFMediaType_Release(type);
+
+
+        if (test->d3d_aware) output_sample = NULL;
+        else
+        {
+            IMFMediaBuffer *buffer;
+
+            hr = MFCreateSample(&output_sample);
+            ok(hr == S_OK, "got %#lx\n", hr);
+if (IsEqualGUID(&test->subtype, &MFVideoFormat_I420) || 1)
+            hr = MFCreateMemoryBuffer(aligned_width * aligned_height * 4, &buffer);
+else
+            hr = MFCreate2DMediaBuffer(aligned_width, aligned_height, test->subtype.Data1, FALSE, &buffer);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            hr = IMFSample_AddBuffer(output_sample, buffer);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            IMFMediaBuffer_Release(buffer);
+        }
+
+
+        load_resource(L"h2644k.bin", &data, &data_len);
+
+        QueryPerformanceCounter(&count);
+        time.QuadPart -= count.QuadPart;
+
+        input_sample = next_h264_sample(&data, &data_len);
+        hr = get_next_h264_output_sample(transform, &input_sample, output_sample, output, &data, &data_len);
+        ok(hr == MF_E_TRANSFORM_STREAM_CHANGE, "got %#lx\n", hr);
+        ok(output[0].pSample == output_sample, "got %p.\n", output[0].pSample);
+
+        QueryPerformanceCounter(&count);
+        time.QuadPart += count.QuadPart;
+
+        time.QuadPart = time.QuadPart * 1000000 / freq.QuadPart;
+        if (0) ok(time.QuadPart <= 1, "source resolution took %fms\n", time.QuadPart / 1000.0);
+
+        total.QuadPart += time.QuadPart;
+
+        hr = IMFTransform_GetOutputAvailableType(transform, 0, 0, &type);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetGUID(type, &MF_MT_SUBTYPE, &test->subtype);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFTransform_SetOutputType(transform, 0, type, 0);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        IMFMediaType_Release(type);
+
+        hr = MFCreateSample(&output[0].pSample);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        buffer_count = 0;
+
+        do
+        {
+            QueryPerformanceCounter(&count);
+            time.QuadPart -= count.QuadPart;
+
+            IMFSample_Release(output[0].pSample);
+
+            for (;;)
+            {
+                DWORD status = 0;
+
+                memset(output, 0, sizeof(*output));
+                output[0].pSample = output_sample;
+                if (output_sample) IMFSample_AddRef(output_sample);
+
+                hr = IMFTransform_ProcessOutput(transform, 0, 1, output, &status);
+                if (hr == S_OK || hr != MF_E_TRANSFORM_NEED_MORE_INPUT || !input_sample) break;
+                if (output[0].pSample) IMFSample_Release(output[0].pSample);
+
+                IMFTransform_ProcessInput(transform, 0, input_sample, 0);
+                IMFSample_Release(input_sample);
+                input_sample = NULL;
+
+                if (data_len <= 4) IMFTransform_ProcessMessage(transform, MFT_MESSAGE_COMMAND_DRAIN, 0);
+                else input_sample = next_h264_sample(&data, &data_len);
+            }
+
+            buffer_count++;
+
+            QueryPerformanceCounter(&count);
+            time.QuadPart += count.QuadPart;
+
+            time.QuadPart = time.QuadPart * 1000000 / freq.QuadPart;
+            if (0) ok(time.QuadPart <= 1, "source resolution took %fms\n", time.QuadPart / 1000.0);
+
+            total.QuadPart += time.QuadPart;
+        } while (hr == S_OK);
+
+        ok(buffer_count == 361, "got %u buffers\n", buffer_count);
+        ok(0, "average %fms\n", total.QuadPart / 1000.0 / buffer_count);
+        ok(hr == MF_E_TRANSFORM_NEED_MORE_INPUT, "got %#lx\n", hr);
+        IMFTransform_Release(transform);
+
+        winetest_pop_context();
+    }
+
+
+
+
+    for (i = 0; i < ARRAY_SIZE(processor_tests); i++)
+    {
+        struct processor_test *test = processor_tests + i;
+        LARGE_INTEGER total = {0};
+        IMFTransform *decoder;
+
+        winetest_push_context("%u %s %#lx %u", test->d3d_aware, debugstr_an((char *)&test->input_subtype.Data1, 4), test->output_subtype.Data1, test->output_flip);
+
+        hr = CoCreateInstance(&CLSID_MSH264DecoderMFT, NULL, CLSCTX_INPROC_SERVER,
+                &IID_IMFTransform, (void **)&decoder);
+        ok(hr == S_OK, "got %#lx\n", hr);
+
+        hr = CoCreateInstance(&CLSID_VideoProcessorMFT, NULL, CLSCTX_INPROC_SERVER,
+                &IID_IMFTransform, (void **)&transform);
+        ok(hr == S_OK, "got %#lx\n", hr);
+
+        if (test->d3d_aware)
+        {
+            hr = D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, D3D11_CREATE_DEVICE_VIDEO_SUPPORT, NULL, 0,
+                    D3D11_SDK_VERSION, &d3d11, NULL, NULL);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            hr = ID3D11Device_QueryInterface(d3d11, &IID_ID3D11Multithread, (void **)&multithread);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            ID3D11Multithread_SetMultithreadProtected(multithread, TRUE);
+            ID3D11Multithread_Release(multithread);
+            hr = pMFCreateDXGIDeviceManager(&token, &manager);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            hr = IMFDXGIDeviceManager_ResetDevice(manager, (IUnknown *)d3d11, token);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            ID3D11Device_Release(d3d11);
+            hr = IMFTransform_ProcessMessage(decoder, MFT_MESSAGE_SET_D3D_MANAGER, (ULONG_PTR)manager);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            hr = IMFTransform_ProcessMessage(transform, MFT_MESSAGE_SET_D3D_MANAGER, (ULONG_PTR)manager);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            IMFDXGIDeviceManager_Release(manager);
+        }
+
+        hr = IMFTransform_GetInputAvailableType(decoder, 0, 0, &type);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetGUID(type, &MF_MT_SUBTYPE, &MFVideoFormat_H264);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetUINT64(type, &MF_MT_FRAME_SIZE, (UINT64)aligned_height << 32 | aligned_width);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFTransform_SetInputType(decoder, 0, type, 0);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        IMFMediaType_Release(type);
+
+        hr = IMFTransform_GetOutputAvailableType(decoder, 0, 0, &type);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetGUID(type, &MF_MT_SUBTYPE, &test->input_subtype);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFTransform_SetOutputType(decoder, 0, type, 0);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        IMFMediaType_Release(type);
+
+
+        if (test->d3d_aware) output_sample = NULL;
+        else
+        {
+            IMFMediaBuffer *buffer;
+
+            hr = MFCreateSample(&output_sample);
+            ok(hr == S_OK, "got %#lx\n", hr);
+if (IsEqualGUID(&test->input_subtype, &MFVideoFormat_I420) || 1)
+            hr = MFCreateMemoryBuffer(aligned_width * aligned_height * 4, &buffer);
+else
+            hr = MFCreate2DMediaBuffer(aligned_width, aligned_height, test->input_subtype.Data1, FALSE, &buffer);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            hr = IMFSample_AddBuffer(output_sample, buffer);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            IMFMediaBuffer_Release(buffer);
+        }
+
+
+        load_resource(L"h2644k.bin", &data, &data_len);
+
+        input_sample = next_h264_sample(&data, &data_len);
+        hr = get_next_h264_output_sample(decoder, &input_sample, output_sample, output, &data, &data_len);
+        ok(hr == MF_E_TRANSFORM_STREAM_CHANGE, "got %#lx\n", hr);
+        ok(output[0].pSample == output_sample, "got %p.\n", output[0].pSample);
+
+        hr = IMFTransform_GetOutputAvailableType(decoder, 0, 0, &type);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetGUID(type, &MF_MT_SUBTYPE, &test->input_subtype);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFTransform_SetInputType(transform, 0, type, 0);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFTransform_SetOutputType(decoder, 0, type, 0);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        IMFMediaType_Release(type);
+
+        hr = IMFTransform_GetOutputAvailableType(decoder, 0, 0, &type);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetGUID(type, &MF_MT_SUBTYPE, &test->output_subtype);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = MFGetStrideForBitmapInfoHeader(test->output_subtype.Data1, aligned_width, &stride);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        if (test->output_flip) stride = -stride;
+        hr = IMFMediaType_SetUINT32(type, &MF_MT_DEFAULT_STRIDE, stride);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFTransform_SetOutputType(transform, 0, type, 0);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        IMFMediaType_Release(type);
+
+        hr = MFCreateSample(&output[0].pSample);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        buffer_count = 0;
+
+        IMFSample_Release(output[0].pSample);
+
+        for (;;)
+        {
+            DWORD status = 0;
+
+            memset(output, 0, sizeof(*output));
+            output[0].pSample = output_sample;
+            if (output_sample) IMFSample_AddRef(output_sample);
+
+            hr = IMFTransform_ProcessOutput(decoder, 0, 1, output, &status);
+            if (hr == S_OK || hr != MF_E_TRANSFORM_NEED_MORE_INPUT || !input_sample) break;
+            if (output[0].pSample) IMFSample_Release(output[0].pSample);
+
+            IMFTransform_ProcessInput(decoder, 0, input_sample, 0);
+            IMFSample_Release(input_sample);
+            input_sample = NULL;
+
+            if (data_len <= 4) IMFTransform_ProcessMessage(decoder, MFT_MESSAGE_COMMAND_DRAIN, 0);
+            else input_sample = next_h264_sample(&data, &data_len);
+        }
+
+        IMFSample_Release(input_sample);
+        input_sample = output[0].pSample;
+
+        IMFTransform_Release(decoder);
+
+
+        if (test->d3d_aware) output_sample = NULL;
+        else
+        {
+            IMFMediaBuffer *buffer;
+
+            hr = MFCreateSample(&output_sample);
+            ok(hr == S_OK, "got %#lx\n", hr);
+if (IsEqualGUID(&test->output_subtype, &MFVideoFormat_I420) || 1)
+            hr = MFCreateMemoryBuffer(aligned_width * aligned_height * 4, &buffer);
+else
+            hr = MFCreate2DMediaBuffer(aligned_width, aligned_height, test->output_subtype.Data1, test->output_flip, &buffer);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            hr = IMFSample_AddBuffer(output_sample, buffer);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            IMFMediaBuffer_Release(buffer);
+        }
+
+
+        for (total.QuadPart = 0, buffer_count = 0; buffer_count < 360; buffer_count++)
+        {
+            DWORD status = 0;
+
+            memset(output, 0, sizeof(*output));
+            output[0].pSample = output_sample;
+            if (output_sample) IMFSample_AddRef(output_sample);
+
+            QueryPerformanceCounter(&count);
+            time.QuadPart -= count.QuadPart;
+
+            IMFTransform_ProcessInput(transform, 0, input_sample, 0);
+
+            hr = IMFTransform_ProcessOutput(transform, 0, 1, output, &status);
+            IMFSample_Release(output[0].pSample);
+
+            buffer_count++;
+
+            QueryPerformanceCounter(&count);
+            time.QuadPart += count.QuadPart;
+
+            time.QuadPart = time.QuadPart * 1000000 / freq.QuadPart;
+            if (0) ok(time.QuadPart <= 1, "source resolution took %fms\n", time.QuadPart / 1000.0);
+
+            total.QuadPart += time.QuadPart;
+        }
+
+        ok(buffer_count == 361, "got %u buffers\n", buffer_count);
+        ok(0, "average %fms\n", total.QuadPart / 1000.0 / buffer_count);
+        IMFTransform_Release(transform);
+
+        winetest_pop_context();
+    }
+
+
+    MFShutdown();
+    CoUninitialize();
+}
+
 START_TEST(transform)
 {
     winetest_mute_threshold = 1;
 
     init_functions();
+
+    if (1) test_performance();
 
     test_sample_copier();
     test_sample_copier_output_processing();
@@ -10327,4 +11022,6 @@ START_TEST(transform)
     test_h264_decoder_concat_streams();
 
     test_video_processor_with_dxgi_manager();
+
+    test_performance();
 }
