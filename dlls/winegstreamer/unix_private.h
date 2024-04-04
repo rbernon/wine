@@ -27,6 +27,11 @@
 #include <gst/gst.h>
 #include <gst/audio/audio.h>
 
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+
 /* unixlib.c */
 
 GST_DEBUG_CATEGORY_EXTERN(wine);
@@ -47,13 +52,6 @@ extern bool link_src_to_element(GstPad *src_pad, GstElement *element);
 extern bool link_element_to_sink(GstElement *element, GstPad *sink_pad);
 extern bool push_event(GstPad *pad, GstEvent *event);
 extern void set_max_threads(GstElement *element);
-
-/* wg_format.c */
-
-extern void wg_format_from_caps(struct wg_format *format, const GstCaps *caps);
-extern bool wg_format_compare(const struct wg_format *a, const struct wg_format *b);
-extern GstCaps *wg_format_to_caps(const struct wg_format *format);
-extern uint32_t wg_channel_mask_from_gst(const GstAudioInfo *info);
 
 /* wg_transform.c */
 
@@ -103,5 +101,35 @@ extern void wg_allocator_destroy(GstAllocator *allocator);
 extern void wg_allocator_provide_sample(GstAllocator *allocator, struct wg_sample *sample);
 extern void wg_allocator_release_sample(GstAllocator *allocator, struct wg_sample *sample,
         bool discard_data);
+
+static inline void touch_h264_used_tag(void)
+{
+    const char *e;
+
+    GST_LOG("h264 is used");
+
+    if ((e = getenv("STEAM_COMPAT_SHADER_PATH")))
+    {
+        char buffer[PATH_MAX];
+        int fd;
+
+        snprintf(buffer, sizeof(buffer), "%s/h264-used", e);
+
+        fd = open(buffer, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+        if (fd == -1)
+        {
+            GST_WARNING("Failed to open/create \"%s/h264-used\"", e);
+            return;
+        }
+
+        futimens(fd, NULL);
+
+        close(fd);
+    }
+    else
+    {
+        GST_WARNING("STEAM_COMPAT_SHADER_PATH not set, cannot create h264-used file");
+    }
+}
 
 #endif /* __WINE_WINEGSTREAMER_UNIX_PRIVATE_H */

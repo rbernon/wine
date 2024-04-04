@@ -352,6 +352,23 @@ static gboolean transform_sink_query_caps(struct wg_transform *transform, GstQue
     return true;
 }
 
+static gboolean transform_sink_query_accept_caps(struct wg_transform *transform, GstQuery *query)
+{
+    GstCaps *caps, *output_caps;
+    gboolean ret;
+
+    GST_LOG("transform %p, %"GST_PTR_FORMAT, transform, query);
+
+    gst_query_parse_accept_caps(query, &caps);
+    if (!(output_caps = caps_strip_fields(transform->output_caps, transform->attrs.allow_size_change)))
+        return false;
+
+    ret = gst_caps_is_always_compatible(caps, output_caps);
+    gst_query_set_accept_caps_result(query, ret);
+    gst_caps_unref(output_caps);
+    return true;
+}
+
 static gboolean transform_sink_query_cb(GstPad *pad, GstObject *parent, GstQuery *query)
 {
     struct wg_transform *transform = gst_pad_get_element_private(pad);
@@ -366,6 +383,9 @@ static gboolean transform_sink_query_cb(GstPad *pad, GstObject *parent, GstQuery
         if (transform_sink_query_caps(transform, query))
             return true;
         break;
+    case GST_QUERY_ACCEPT_CAPS:
+        if (transform_sink_query_accept_caps(transform, query))
+            return true;
     default:
         break;
     }
@@ -571,6 +591,10 @@ NTSTATUS wg_transform_create(void *args)
     struct wg_transform *transform;
     GstEvent *event;
 
+    /* to detect h264_decoder_create() */
+    if (input_format.major_type == WG_MAJOR_TYPE_VIDEO_H264)
+        touch_h264_used_tag();
+
     if (!(transform = calloc(1, sizeof(*transform))))
         return STATUS_NO_MEMORY;
     if (!(transform->container = gst_bin_new("wg_transform")))
@@ -650,6 +674,20 @@ NTSTATUS wg_transform_create(void *args)
     if (!(event = gst_event_new_caps(transform->input_caps))
             || !push_event(transform->my_src, event))
         goto out;
+
+    /* Check that the caps event have been accepted */
+    if (input_format.major_type == WG_MAJOR_TYPE_VIDEO_H264)
+    {
+        GstPad *peer;
+        if (!(peer = gst_pad_get_peer(transform->my_src)))
+            goto out;
+        else if (!gst_pad_has_current_caps(peer))
+        {
+            gst_object_unref(peer);
+            goto out;
+        }
+        gst_object_unref(peer);
+    }
 
     /* We need to use GST_FORMAT_TIME here because it's the only format
      * some elements such avdec_wmav2 correctly support. */
