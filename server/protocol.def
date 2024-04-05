@@ -912,6 +912,7 @@ typedef volatile struct
 {
     object_shm_t         obj;
     user_handle_t        active;           /* handle to the active window */
+    user_handle_t        focus;            /* handle to the focus window */
 } input_shm_t;
 
 typedef volatile union
