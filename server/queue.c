@@ -3635,24 +3635,21 @@ DECL_HANDLER(attach_thread_input)
 /* get thread input data */
 DECL_HANDLER(get_thread_input)
 {
-    struct thread *thread = NULL;
-    struct desktop *desktop;
     struct thread_input *input;
 
     if (req->tid)
     {
+        struct thread *thread;
         if (!(thread = get_thread_from_id( req->tid ))) return;
-        if (!(desktop = get_thread_desktop( thread, 0 )))
-        {
-            release_object( thread );
-            return;
-        }
         input = thread->queue ? thread->queue->input : NULL;
+        release_object( thread );
     }
     else
     {
+        struct desktop *desktop;
         if (!(desktop = get_thread_desktop( current, 0 ))) return;
         input = desktop->foreground_input;  /* get the foreground thread info */
+        release_object( desktop );
     }
 
     if (input)
@@ -3666,16 +3663,6 @@ DECL_HANDLER(get_thread_input)
         reply->caret      = input_shm->caret;
         reply->rect       = input_shm->caret_rect;
     }
-
-    /* foreground window is active window of foreground thread */
-    if (!(input = desktop->foreground_input)) reply->foreground = 0;
-    else
-    {
-        const input_shm_t *input_shm = get_shared_input( input->session_index );
-        reply->foreground = input_shm->active;
-    }
-    if (thread) release_object( thread );
-    release_object( desktop );
 }
 
 

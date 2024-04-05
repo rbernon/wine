@@ -558,14 +558,7 @@ HWND WINAPI NtUserGetForegroundWindow(void)
     while ((status = get_shared_input( 0, &lock, &input_shm )) == STATUS_PENDING)
         hwnd = wine_server_ptr_handle( input_shm->active );
 
-    if (status) SERVER_START_REQ( get_thread_input )
-    {
-        req->tid = 0;
-        if (wine_server_call_err( req )) hwnd = 0;
-        else hwnd = wine_server_ptr_handle( reply->foreground );
-    }
-    SERVER_END_REQ;
-    return hwnd;
+    return status ? 0 : hwnd;
 }
 
 /* see GetActiveWindow */
