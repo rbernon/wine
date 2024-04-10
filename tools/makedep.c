@@ -2146,28 +2146,29 @@ static int needs_delay_lib( const struct makefile *make, unsigned int arch )
     return strarray_exists( &delay_import_libs, make->importlib );
 }
 
+
 /*******************************************************************
- *         find_unix_libraries
+ *         add_unix_libraries
  */
-static struct strarray find_unix_libraries( const struct makefile *make, struct strarray *all_libs,
-                                            struct strarray *deps, int static_only )
+static struct strarray add_unix_libraries( const struct makefile *make, struct strarray *deps )
 {
     struct strarray ret = empty_strarray;
+    struct strarray all_libs = empty_strarray;
     unsigned int i, j;
 
-    for (i = 0; i < all_libs->count; i++)
+    if (strcmp( make->unixlib, "ntdll.so" )) strarray_add( &all_libs, "-lntdll" );
+    strarray_addall( &all_libs, get_expanded_make_var_array( make, "UNIX_LIBS" ));
+
+    for (i = 0; i < all_libs.count; i++)
     {
         const char *lib = NULL;
 
-        if (!strncmp( all_libs->str[i], "-l", 2 ))
+        if (!strncmp( all_libs.str[i], "-l", 2 ))
         {
             for (j = 0; j < subdirs.count; j++)
             {
-                struct makefile *submake;
                 if (make == submakes[j]) continue;
-                if (!static_only && (lib = get_native_unix_lib( submakes[j], all_libs->str[i] + 2 ))) break;
-                if (!(submake = get_static_lib( all_libs->str[i] + 2, 0 )) || !submake->staticlib) continue;
-                if ((lib = obj_dir_path( submake, strmake( "lib%s.a", all_libs->str[i] + 2 )))) break;
+                if ((lib = get_native_unix_lib( submakes[j], all_libs.str[i] + 2 ))) break;
             }
         }
         if (lib)
@@ -2175,9 +2176,10 @@ static struct strarray find_unix_libraries( const struct makefile *make, struct 
             strarray_add( deps, lib );
             strarray_add( &ret, lib );
         }
-        else strarray_add( &ret, all_libs->str[i] );
+        else strarray_add( &ret, all_libs.str[i] );
     }
 
+    strarray_addall( &ret, libs );
     return ret;
 }
 
@@ -2243,7 +2245,6 @@ static struct strarray get_default_imports( const struct makefile *make, struct 
 
     strarray_add( &ret, "winecrt0" );
     if (crt_dll) strarray_add( &ret, crt_dll );
-    strarray_add( &ret, "winecrtd" );
 
     if (make->is_win16 && (!make->importlib || strcmp( make->importlib, "kernel" )))
         strarray_add( &ret, "kernel" );
@@ -2342,13 +2343,13 @@ static const char *get_include_install_path( const char *name )
  *         get_source_defines
  */
 static struct strarray get_source_defines( struct makefile *make, struct incl_file *source,
-                                           const char *obj, int is_cross )
+                                           const char *obj )
 {
     unsigned int i;
     struct strarray ret = empty_strarray;
 
     strarray_addall( &ret, make->include_args );
-    if (source->use_msvcrt && is_cross)
+    if (source->use_msvcrt)
     {
         strarray_add( &ret, strmake( "-I%s", root_src_dir_path( "include/msvcrt" )));
         for (i = 0; i < make->include_paths.count; i++)
@@ -2722,7 +2723,7 @@ static void output_source_h( struct makefile *make, struct incl_file *source, co
  */
 static void output_source_rc( struct makefile *make, struct incl_file *source, const char *obj )
 {
-    struct strarray defines = get_source_defines( make, source, obj, 1 );
+    struct strarray defines = get_source_defines( make, source, obj );
     const char *po_dir = NULL, *res_file = strmake( "%s.res", obj );
     unsigned int i, arch;
 
@@ -2808,7 +2809,7 @@ static void output_source_res( struct makefile *make, struct incl_file *source, 
  */
 static void output_source_idl( struct makefile *make, struct incl_file *source, const char *obj )
 {
-    struct strarray defines = get_source_defines( make, source, obj, 1 );
+    struct strarray defines = get_source_defines( make, source, obj );
     struct strarray headers = empty_strarray;
     struct strarray deps = empty_strarray;
     struct strarray multiarch_targets[MAX_ARCHS] = { empty_strarray };
@@ -3152,11 +3153,10 @@ static void output_source_xml( struct makefile *make, struct incl_file *source, 
  *         output_source_one_arch
  */
 static void output_source_one_arch( struct makefile *make, struct incl_file *source, const char *obj,
-                                    struct strarray *targets, unsigned int arch )
+                                    struct strarray defines, struct strarray *targets,
+                                    unsigned int arch )
 {
-    struct strarray defines = get_source_defines( make, source, obj, arch != 0 );
     const char *obj_name;
-    int use_msvcrt;
 
     if (make->disabled[arch] && !(source->file->flags & FLAG_C_IMPLIB)) return;
 
@@ -3175,9 +3175,6 @@ static void output_source_one_arch( struct makefile *make, struct incl_file *sou
         if (!(source->file->flags & FLAG_C_IMPLIB) && (!make->staticlib || make->extlib)) return;
     }
 
-    if (make->staticlib) use_msvcrt = arch != 0;
-    else use_msvcrt = source->use_msvcrt;
-
     obj_name = strmake( "%s%s.o", source->arch ? "" : arch_dirs[arch], obj );
     strarray_add( targets, obj_name );
 
@@ -3193,7 +3190,7 @@ static void output_source_one_arch( struct makefile *make, struct incl_file *sou
     output( "%s: %s\n", obj_dir_path( make, obj_name ), source->filename );
     output( "\t%s%s -c -o $@ %s", cmd_prefix( "CC" ), arch_make_variable( "CC", arch ), source->filename );
     output_filenames( defines );
-    if (!use_msvcrt) output_filenames( make->unix_cflags );
+    if (!source->use_msvcrt) output_filenames( make->unix_cflags );
     output_filenames( make->extlib ? extra_cflags_extlib[arch] : extra_cflags[arch] );
     if (!arch)
     {
@@ -3204,11 +3201,10 @@ static void output_source_one_arch( struct makefile *make, struct incl_file *sou
         else if (make->module || make->testdll)
         {
             output_filenames( dll_flags );
-            if (use_msvcrt) output_filenames( msvcrt_flags );
+            if (source->use_msvcrt) output_filenames( msvcrt_flags );
             if (!unix_lib_supported && make->module && is_crt_module( make->module ))
                 output_filename( "-fno-builtin" );
         }
-        if (make->staticlib) output_filename( "-fPIC" );
     }
     else
     {
@@ -3241,12 +3237,13 @@ static void output_source_one_arch( struct makefile *make, struct incl_file *sou
  */
 static void output_source_default( struct makefile *make, struct incl_file *source, const char *obj )
 {
+    struct strarray defines = get_source_defines( make, source, obj );
     struct strarray targets = empty_strarray;
     unsigned int arch;
 
     for (arch = 0; arch < archs.count; arch++)
         if (!source->arch || source->arch == arch)
-            output_source_one_arch( make, source, obj, &targets, arch );
+            output_source_one_arch( make, source, obj, defines, &targets, arch );
 
     if (source->file->flags & FLAG_GENERATED)
     {
@@ -3453,15 +3450,8 @@ static void output_import_lib( struct makefile *make, unsigned int arch )
 static void output_unix_lib( struct makefile *make )
 {
     struct strarray unix_deps = empty_strarray;
-    struct strarray unix_libs = empty_strarray;
+    struct strarray unix_libs = add_unix_libraries( make, &unix_deps );
     unsigned int arch = 0;  /* unix libs are always native */
-
-    if (strcmp( make->unixlib, "ntdll.so" )) strarray_add( &unix_libs, "-lntdll" );
-    strarray_add( &unix_libs, "-lwinecrtd" );
-    strarray_addall( &unix_libs, get_expanded_make_var_array( make, "UNIX_LIBS" ) );
-
-    unix_libs = find_unix_libraries( make, &unix_libs, &unix_deps, 0 );
-    strarray_addall( &unix_libs, libs );
 
     if (make->disabled[arch]) return;
 
@@ -3605,7 +3595,6 @@ static void output_programs( struct makefile *make )
         if (!strarray_exists( &all_libs, "-nodefaultlibs" ))
         {
             strarray_addall( &all_libs, get_expanded_make_var_array( make, "UNIX_LIBS" ));
-            all_libs = find_unix_libraries( make, &all_libs, &deps, 1 );
             strarray_addall( &all_libs, libs );
         }
 
