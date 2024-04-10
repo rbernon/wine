@@ -1,0 +1,10 @@
+MODULE    = wglchoose.exe
+IMPORTS   = opengl32 user32 gdi32 winmm
+PARENTSRC = ../wglgears
+
+EXTRADLLFLAGS = -mwindows
+
+SOURCES = \
+	glad.c \
+	glad_wgl.c \
+	wglchoose.c
