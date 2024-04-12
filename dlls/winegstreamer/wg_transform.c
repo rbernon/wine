@@ -637,9 +637,6 @@ NTSTATUS wg_transform_create(void *args)
     if (!transform_create_encoder_element(transform, output_mime, &first, &last))
         goto out;
 
-    if (!strcmp(input_mime, "audio/x-raw") || !strcmp(input_mime, "video/x-raw"))
-        transform->attrs.input_queue_length = 16;
-
     if (!link_src_to_element(transform->my_src, first))
         goto out;
     if (!link_element_to_sink(last, transform->my_sink))
