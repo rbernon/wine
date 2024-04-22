@@ -1699,6 +1699,8 @@ VkResult wine_vkCreateSwapchainKHR(VkDevice device_handle, const VkSwapchainCrea
     VkSurfaceCapabilitiesKHR capabilities;
     VkResult res;
 
+    TRACE("device_handle %p, create_info %p, allocator %p, swapchain_handle %p\n", device_handle, create_info, allocator, swapchain_handle);
+
     if (!NtUserIsWindow(surface->hwnd))
     {
         ERR("surface %p, hwnd %p is invalid!\n", surface, surface->hwnd);
@@ -1711,7 +1713,11 @@ VkResult wine_vkCreateSwapchainKHR(VkDevice device_handle, const VkSwapchainCrea
     /* Windows allows client rect to be empty, but host Vulkan often doesn't, adjust extents back to the host capabilities */
     res = instance->funcs.p_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device->host_physical_device,
                                                                       surface->host_surface, &capabilities);
-    if (res != VK_SUCCESS) return res;
+    if (res != VK_SUCCESS)
+    {
+        WARN("Failed to create swapchain, vkGetPhysicalDeviceSurfaceCapabilitiesKHR returned %d\n", res);
+        return res;
+    }
 
     create_info_host.imageExtent.width = max(create_info_host.imageExtent.width, capabilities.minImageExtent.width);
     create_info_host.imageExtent.height = max(create_info_host.imageExtent.height, capabilities.minImageExtent.height);
@@ -2164,10 +2170,18 @@ VkResult wine_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(VkPhysicalDevice device_
     struct wine_instance *instance = physical_device->instance;
     VkResult res;
 
-    if (!NtUserIsWindow(surface->hwnd)) return VK_ERROR_SURFACE_LOST_KHR;
+    TRACE("device_handle %p, surface_handle 0x%s, capabilities %p\n", device_handle, wine_dbgstr_longlong(surface_handle), capabilities);
+
+    if (!NtUserIsWindow(surface->hwnd))
+    {
+        WARN("surface %p, hwnd %p is invalid, returning VK_ERROR_SURFACE_LOST_KHR\n", surface, surface->hwnd);
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+
     res = instance->funcs.p_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device->host_physical_device,
                                                                       surface->host_surface, capabilities);
     if (res == VK_SUCCESS) adjust_surface_capabilities(instance, surface, capabilities);
+    else WARN("vkGetPhysicalDeviceSurfaceCapabilitiesKHR returned %d\n", res);
     return res;
 }
 
@@ -2180,6 +2194,8 @@ VkResult wine_vkGetPhysicalDeviceSurfaceCapabilities2KHR(VkPhysicalDevice device
     struct wine_instance *instance = physical_device->instance;
     VkResult res;
 
+    TRACE("device_handle %p, surface_info %p, capabilities %p\n", device_handle, surface_info, capabilities);
+
     if (!instance->funcs.p_vkGetPhysicalDeviceSurfaceCapabilities2KHR)
     {
         /* Until the loader version exporting this function is common, emulate it using the older non-2 version. */
@@ -2190,10 +2206,16 @@ VkResult wine_vkGetPhysicalDeviceSurfaceCapabilities2KHR(VkPhysicalDevice device
 
     surface_info_host.surface = surface->host_surface;
 
-    if (!NtUserIsWindow(surface->hwnd)) return VK_ERROR_SURFACE_LOST_KHR;
+    if (!NtUserIsWindow(surface->hwnd))
+    {
+        WARN("surface %p, hwnd %p is invalid, returning VK_ERROR_SURFACE_LOST_KHR\n", surface, surface->hwnd);
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+
     res = instance->funcs.p_vkGetPhysicalDeviceSurfaceCapabilities2KHR(physical_device->host_physical_device,
                                                                        &surface_info_host, capabilities);
     if (res == VK_SUCCESS) adjust_surface_capabilities(instance, surface, &capabilities->surfaceCapabilities);
+    else WARN("vkGetPhysicalDeviceSurfaceCapabilitiesKHR returned %d\n", res);
     return res;
 }
 
@@ -2206,6 +2228,7 @@ VkResult wine_vkGetPhysicalDevicePresentRectanglesKHR(VkPhysicalDevice device_ha
 
     if (!NtUserIsWindow(surface->hwnd))
     {
+        WARN("surface %p, hwnd %p is invalid, returning dummy rect\n", surface, surface->hwnd);
         if (rects && !*rect_count) return VK_INCOMPLETE;
         if (rects) memset(rects, 0, sizeof(VkRect2D));
         *rect_count = 1;
