@@ -33,6 +33,8 @@ struct vulkan_funcs
     void (*p_vkDestroySurfaceKHR)(VkInstance, VkSurfaceKHR, const VkAllocationCallbacks *);
     void * (*p_vkGetDeviceProcAddr)(VkDevice, const char *);
     void * (*p_vkGetInstanceProcAddr)(VkInstance, const char *);
+    void (*p_vkGetPhysicalDeviceProperties2)(VkPhysicalDevice, VkPhysicalDeviceProperties2 *);
+    void (*p_vkGetPhysicalDeviceProperties2KHR)(VkPhysicalDevice, VkPhysicalDeviceProperties2 *);
     VkBool32 (*p_vkGetPhysicalDeviceWin32PresentationSupportKHR)(VkPhysicalDevice, uint32_t);
     VkResult (*p_vkQueuePresentKHR)(VkQueue, const VkPresentInfoKHR *, VkSurfaceKHR *surfaces);
 
