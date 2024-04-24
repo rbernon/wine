@@ -665,6 +665,68 @@ void vulkan_detach_surfaces( struct list *surfaces )
     }
 }
 
+static void append_window_surfaces( HWND toplevel, struct list *surfaces )
+{
+    WND *win;
+
+    if (!(win = get_win_ptr( toplevel )) || win == WND_DESKTOP || win == WND_OTHER_PROCESS)
+    {
+        pthread_mutex_lock( &vulkan_mutex );
+        list_move_tail( &offscreen_surfaces, surfaces );
+        pthread_mutex_unlock( &vulkan_mutex );
+    }
+    else
+    {
+        list_move_tail( &win->vulkan_surfaces, surfaces );
+        release_win_ptr( win );
+    }
+}
+
+static void enum_window_surfaces( HWND toplevel, HWND hwnd, struct list *surfaces )
+{
+    struct list tmp_surfaces = LIST_INIT(tmp_surfaces);
+    struct surface *surface, *next;
+    WND *win;
+
+    if (!(win = get_win_ptr( toplevel )) || win == WND_DESKTOP || win == WND_OTHER_PROCESS)
+    {
+        pthread_mutex_lock( &vulkan_mutex );
+        list_move_tail( &tmp_surfaces, &offscreen_surfaces );
+        pthread_mutex_unlock( &vulkan_mutex );
+    }
+    else
+    {
+        list_move_tail( &tmp_surfaces, &win->vulkan_surfaces );
+        release_win_ptr( win );
+    }
+
+    LIST_FOR_EACH_ENTRY_SAFE( surface, next, &tmp_surfaces, struct surface, entry )
+    {
+        if (surface->hwnd != hwnd && !NtUserIsChild( hwnd, surface->hwnd )) continue;
+        list_remove( &surface->entry );
+        list_add_tail( surfaces, &surface->entry );
+    }
+
+    append_window_surfaces( toplevel, &tmp_surfaces );
+}
+
+void vulkan_set_parent( HWND hwnd, HWND new_parent, HWND old_parent )
+{
+    struct list surfaces = LIST_INIT(surfaces);
+    HWND new_toplevel, old_toplevel;
+
+    TRACE( "hwnd %p new_parent %p old_parent %p\n", hwnd, new_parent, old_parent );
+
+    if (new_parent == NtUserGetDesktopWindow()) new_toplevel = hwnd;
+    else new_toplevel = NtUserGetAncestor( new_parent, GA_ROOT );
+    if (old_parent == NtUserGetDesktopWindow()) old_toplevel = hwnd;
+    else old_toplevel = NtUserGetAncestor( old_parent, GA_ROOT );
+    if (old_toplevel == new_toplevel) return;
+
+    enum_window_surfaces( old_toplevel, hwnd, &surfaces );
+    append_window_surfaces( new_toplevel, &surfaces );
+}
+
 #else /* SONAME_LIBVULKAN */
 
 void vulkan_detach_surfaces( struct list *surfaces )
