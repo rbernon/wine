@@ -49,6 +49,10 @@ static struct vulkan_funcs vulkan_funcs;
 
 static const struct vulkan_driver_funcs *driver_funcs;
 
+/* list of surfaces attached to other processes / desktop windows */
+static struct list offscreen_surfaces = LIST_INIT(offscreen_surfaces);
+static pthread_mutex_t vulkan_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 static void (*p_vkDestroySurfaceKHR)(VkInstance, VkSurfaceKHR, const VkAllocationCallbacks *);
 static VkResult (*p_vkQueuePresentKHR)(VkQueue, const VkPresentInfoKHR *);
 
@@ -73,6 +77,7 @@ static inline VkSurfaceKHR surface_to_handle( struct surface *surface )
 static VkResult win32u_vkCreateWin32SurfaceKHR( VkInstance instance, const VkWin32SurfaceCreateInfoKHR *info,
                                                 const VkAllocationCallbacks *allocator, VkSurfaceKHR *handle )
 {
+    HWND toplevel = NtUserGetAncestor( info->hwnd, GA_ROOT );
     struct surface *surface;
     VkResult res;
     WND *win;
@@ -87,8 +92,12 @@ static VkResult win32u_vkCreateWin32SurfaceKHR( VkInstance instance, const VkWin
         return res;
     }
 
-    if (!(win = get_win_ptr( info->hwnd )) || win == WND_DESKTOP || win == WND_OTHER_PROCESS)
-        list_init( &surface->entry );
+    if (!(win = get_win_ptr( toplevel )) || win == WND_DESKTOP || win == WND_OTHER_PROCESS)
+    {
+        pthread_mutex_lock( &vulkan_mutex );
+        list_add_tail( &offscreen_surfaces, &surface->entry );
+        pthread_mutex_unlock( &vulkan_mutex );
+    }
     else
     {
         list_add_tail( &win->vulkan_surfaces, &surface->entry );
@@ -107,7 +116,10 @@ static void win32u_vkDestroySurfaceKHR( VkInstance instance, VkSurfaceKHR handle
     TRACE( "instance %p, handle 0x%s, allocator %p\n", instance, wine_dbgstr_longlong(handle), allocator );
     if (allocator) FIXME( "Support for allocation callbacks not implemented yet\n" );
 
+    pthread_mutex_lock( &vulkan_mutex );
     list_remove( &surface->entry );
+    pthread_mutex_unlock( &vulkan_mutex );
+
     p_vkDestroySurfaceKHR( instance, surface->host_surface, NULL /* allocator */ );
     driver_funcs->p_vulkan_surface_destroy( surface->hwnd, surface->driver_private );
     free( surface );
@@ -315,14 +327,14 @@ static void vulkan_init_once(void)
 
 void vulkan_detach_surfaces( struct list *surfaces )
 {
-    struct surface *surface, *next;
+    struct surface *surface;
 
-    LIST_FOR_EACH_ENTRY_SAFE( surface, next, surfaces, struct surface, entry )
-    {
+    LIST_FOR_EACH_ENTRY( surface, surfaces, struct surface, entry )
         driver_funcs->p_vulkan_surface_detach( surface->hwnd, surface->driver_private );
-        list_remove( &surface->entry );
-        list_init( &surface->entry );
-    }
+
+    pthread_mutex_lock( &vulkan_mutex );
+    list_move_tail( &offscreen_surfaces, surfaces );
+    pthread_mutex_unlock( &vulkan_mutex );
 }
 
 #else /* SONAME_LIBVULKAN */
