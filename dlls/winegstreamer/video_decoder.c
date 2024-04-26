@@ -346,108 +346,60 @@ static HRESULT media_type_from_video_format(const MFVIDEOFORMAT *format, UINT32 
     return hr;
 }
 
+static BOOL is_mf_video_area_empty(const MFVideoArea *area)
+{
+    return !area->OffsetX.value && !area->OffsetY.value && !area->Area.cx && !area->Area.cy;
+}
+
 static HRESULT create_output_media_type(struct video_decoder *decoder, const GUID *subtype, IMFMediaType **media_type)
 {
-    IMFMediaType *stream_type = decoder->stream_type;
-    MFVideoArea default_aperture = {{0}}, aperture;
-    IMFVideoMediaType *video_type;
-    LONG default_stride, stride;
-    UINT32 value, width, height;
-    UINT64 ratio;
+    MFVideoArea default_aperture = {{0}};
+    MFVIDEOFORMAT *format;
+    UINT32 format_size;
+    UINT32 value;
     HRESULT hr;
 
-    if (FAILED(hr = MFCreateVideoMediaTypeFromSubtype(subtype, &video_type)))
+    if (FAILED(hr = MFCreateMFVideoFormatFromMFMediaType(decoder->stream_type, &format, &format_size)))
         return hr;
 
-    if (FAILED(IMFMediaType_GetUINT64(stream_type, &MF_MT_FRAME_SIZE, &ratio)))
-        ratio = (UINT64)1920 << 32 | 1080;
-    if (FAILED(hr = IMFVideoMediaType_SetUINT64(video_type, &MF_MT_FRAME_SIZE, ratio)))
-        goto done;
-    width = ratio >> 32;
-    height = ratio;
+    if (!format->videoInfo.dwWidth || !format->videoInfo.dwHeight)
+    {
+        format->videoInfo.dwWidth = 1920;
+        format->videoInfo.dwHeight = 1080;
+    }
 
-    default_aperture.Area.cx = width;
-    default_aperture.Area.cy = height;
+    if (!format->videoInfo.FramesPerSecond.Numerator || !format->videoInfo.FramesPerSecond.Denominator)
+    {
+        format->videoInfo.FramesPerSecond.Numerator = 30000;
+        format->videoInfo.FramesPerSecond.Denominator = 1001;
+    }
+    if (!format->videoInfo.PixelAspectRatio.Numerator || !format->videoInfo.PixelAspectRatio.Denominator)
+    {
+        format->videoInfo.PixelAspectRatio.Numerator = 1;
+        format->videoInfo.PixelAspectRatio.Denominator = 1;
+    }
+    if (!format->videoInfo.InterlaceMode)
+        format->videoInfo.InterlaceMode = MFVideoInterlace_MixedInterlaceOrProgressive;
 
-    if (FAILED(IMFMediaType_GetUINT64(stream_type, &MF_MT_FRAME_RATE, &ratio)))
-        ratio = (UINT64)30000 << 32 | 1001;
-    if (FAILED(hr = IMFVideoMediaType_SetUINT64(video_type, &MF_MT_FRAME_RATE, ratio)))
-        goto done;
+    default_aperture.Area.cx = format->videoInfo.dwWidth;
+    default_aperture.Area.cy = format->videoInfo.dwHeight;
 
-    if (FAILED(IMFMediaType_GetUINT64(stream_type, &MF_MT_PIXEL_ASPECT_RATIO, &ratio)))
-        ratio = (UINT64)1 << 32 | 1;
-    if (FAILED(hr = IMFVideoMediaType_SetUINT64(video_type, &MF_MT_PIXEL_ASPECT_RATIO, ratio)))
-        goto done;
+    if (is_mf_video_area_empty(&format->videoInfo.MinimumDisplayAperture))
+        format->videoInfo.MinimumDisplayAperture = default_aperture;
+    if (is_mf_video_area_empty(&format->videoInfo.GeometricAperture))
+        format->videoInfo.GeometricAperture = default_aperture;
+    if (is_mf_video_area_empty(&format->videoInfo.PanScanAperture))
+        format->videoInfo.PanScanAperture = default_aperture;
 
-    hr = MFCalculateImageSize(subtype, width, height, &value);
-    if (FAILED(hr) || FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_SAMPLE_SIZE, value)))
-        goto done;
-
-    /* WMV decoder uses positive stride by default, and enforces it for YUV formats,
-     * accepts negative stride for RGB if specified */
-    if (FAILED(hr = MFGetStrideForBitmapInfoHeader(subtype->Data1, width, &default_stride)))
-        goto done;
-    if (!output_type || FAILED(IMFMediaType_GetUINT32(output_type, &MF_MT_DEFAULT_STRIDE, (UINT32 *)&stride)))
-        stride = abs(default_stride);
-    else if (default_stride > 0)
-        stride = abs(stride);
-    if (FAILED(hr) || FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_DEFAULT_STRIDE, stride)))
-        goto done;
-
-    if (!output_type || FAILED(IMFMediaType_GetUINT32(output_type, &MF_MT_VIDEO_NOMINAL_RANGE, (UINT32 *)&value)))
-        value = MFNominalRange_Wide;
-    if (FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_VIDEO_NOMINAL_RANGE, value)))
-        goto done;
-
-    if (!decoder->output_type || FAILED(IMFMediaType_GetUINT32(decoder->output_type, &MF_MT_INTERLACE_MODE, &value)))
-        value = MFVideoInterlace_MixedInterlaceOrProgressive;
-    if (FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_INTERLACE_MODE, value)))
-        goto done;
-
-    if (!decoder->output_type || FAILED(IMFMediaType_GetUINT32(decoder->output_type, &MF_MT_ALL_SAMPLES_INDEPENDENT, &value)))
-        value = 1;
-    if (FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_ALL_SAMPLES_INDEPENDENT, value)))
-        goto done;
+    format->guidFormat = *subtype;
+    hr = media_type_from_video_format(format, format_size, media_type);
+    CoTaskMemFree(format);
 
     if (!decoder->output_type || FAILED(IMFMediaType_GetUINT32(decoder->output_type, &MF_MT_VIDEO_ROTATION, &value)))
         value = 0;
-    if (FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_VIDEO_ROTATION, value)))
-        goto done;
-
-    if (!decoder->output_type || FAILED(IMFMediaType_GetUINT32(decoder->output_type, &MF_MT_FIXED_SIZE_SAMPLES, &value)))
-        value = 1;
-    if (FAILED(hr = IMFVideoMediaType_SetUINT32(video_type, &MF_MT_FIXED_SIZE_SAMPLES, value)))
-        goto done;
-
-    if (FAILED(IMFMediaType_GetBlob(stream_type, &MF_MT_MINIMUM_DISPLAY_APERTURE, (BYTE *)&aperture, sizeof(aperture), &value)))
-        aperture = default_aperture;
-    if (FAILED(hr = IMFVideoMediaType_SetBlob(video_type, &MF_MT_MINIMUM_DISPLAY_APERTURE, (BYTE *)&aperture, sizeof(aperture))))
-        goto done;
-
-    if (FAILED(IMFMediaType_GetBlob(stream_type, &MF_MT_GEOMETRIC_APERTURE, (BYTE *)&aperture, sizeof(aperture), &value)))
-        aperture = default_aperture;
-    if (FAILED(hr = IMFVideoMediaType_SetBlob(video_type, &MF_MT_GEOMETRIC_APERTURE, (BYTE *)&aperture, sizeof(aperture))))
-        goto done;
-
-    if (FAILED(IMFMediaType_GetBlob(stream_type, &MF_MT_PAN_SCAN_APERTURE, (BYTE *)&aperture, sizeof(aperture), &value)))
-        aperture = default_aperture;
-    if (FAILED(hr = IMFVideoMediaType_SetBlob(video_type, &MF_MT_PAN_SCAN_APERTURE, (BYTE *)&aperture, sizeof(aperture))))
-        goto done;
-
-    if (SUCCEEDED(IMFMediaType_GetBlob(stream_type, &MF_MT_GEOMETRIC_APERTURE,
-            (BYTE *)&aperture, sizeof(aperture), &value)))
+    if (SUCCEEDED(hr) && FAILED(hr = IMFMediaType_SetUINT32(*media_type, &MF_MT_VIDEO_ROTATION, value)))
     {
-        if (FAILED(hr = IMFVideoMediaType_SetBlob(video_type, &MF_MT_GEOMETRIC_APERTURE,
-                (BYTE *)&aperture, sizeof(aperture))))
-            goto done;
-    }
-
-done:
-    if (SUCCEEDED(hr))
-        *media_type = (IMFMediaType *)video_type;
-    else
-    {
-        IMFVideoMediaType_Release(video_type);
+        IMFMediaType_Release(*media_type);
         *media_type = NULL;
     }
 
