@@ -3620,8 +3620,6 @@ static HRESULT transform_node_pull_samples(const struct media_session *session, 
     if (FAILED(hr = allocate_output_samples(session, node, buffers)))
         goto done;
 
-    LONGLONG time = MFGetSystemTime();
-
     status = 0;
     hr = IMFTransform_ProcessOutput(node->object.transform, 0, node->u.transform.output_count, buffers, &status);
     if (hr == MF_E_TRANSFORM_STREAM_CHANGE && SUCCEEDED(hr = transform_node_format_changed(node, buffers)))
@@ -3634,9 +3632,6 @@ static HRESULT transform_node_pull_samples(const struct media_session *session, 
 
         hr = IMFTransform_ProcessOutput(node->object.transform, 0, node->u.transform.output_count, buffers, &status);
     }
-
-    time = MFGetSystemTime() - time;
-    TRACE("node %#I64x ProcessOutput took %I64d.%I64d ms\n", node->node_id, time / 10000, time % 10000);
 
     /* Collect returned samples for all streams. */
     for (i = 0; i < node->u.transform.output_count; ++i)
@@ -3710,9 +3705,6 @@ static HRESULT transform_node_push_sample(const struct media_session *session, s
         else
             stream->draining = TRUE;
     }
-
-    time = MFGetSystemTime() - time;
-    TRACE("node %#I64x stream %u ProcessInput took %I64d.%I64d ms\n", topo_node->node_id, input, time / 10000, time % 10000);
 
     return hr;
 }
