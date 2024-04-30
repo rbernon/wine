@@ -391,58 +391,6 @@ static HRESULT stream_descriptor_set_tag(IMFStreamDescriptor *descriptor, wg_par
     return hr;
 }
 
-static HRESULT init_video_media_types(struct wg_format *format, IMFMediaType *types[6], DWORD *types_count)
-{
-    /* Try to prefer YUV formats over RGB ones. Most decoders output in the
-     * YUV color space, and it's generally much less expensive for
-     * videoconvert to do YUV -> YUV transformations. */
-    static const enum wg_video_format video_formats[] =
-    {
-        WG_VIDEO_FORMAT_NV12,
-        WG_VIDEO_FORMAT_YV12,
-        WG_VIDEO_FORMAT_YUY2,
-        WG_VIDEO_FORMAT_I420,
-    };
-    UINT count = *types_count, i;
-    GUID base_subtype;
-    HRESULT hr;
-
-    if (FAILED(hr = IMFMediaType_GetGUID(types[0], &MF_MT_SUBTYPE, &base_subtype)))
-        return hr;
-
-    for (i = 0; i < ARRAY_SIZE(video_formats); ++i)
-    {
-        struct wg_format new_format = *format;
-        IMFMediaType *new_type;
-
-        new_format.u.video.format = video_formats[i];
-
-        if (!(new_type = mf_media_type_from_wg_format(&new_format)))
-        {
-            hr = E_OUTOFMEMORY;
-            goto done;
-        }
-        types[count++] = new_type;
-
-        if (video_formats[i] == WG_VIDEO_FORMAT_I420)
-        {
-            IMFMediaType *iyuv_type;
-
-            if (FAILED(hr = MFCreateMediaType(&iyuv_type)))
-                goto done;
-            if (FAILED(hr = IMFMediaType_CopyAllItems(new_type, (IMFAttributes *)iyuv_type)))
-                goto done;
-            if (FAILED(hr = IMFMediaType_SetGUID(iyuv_type, &MF_MT_SUBTYPE, &MFVideoFormat_IYUV)))
-                goto done;
-            types[count++] = iyuv_type;
-        }
-    }
-
-done:
-    *types_count = count;
-    return hr;
-}
-
 static HRESULT stream_descriptor_create(UINT32 id, struct wg_format *format, IMFStreamDescriptor **out)
 {
     IMFStreamDescriptor *descriptor;
@@ -454,13 +402,6 @@ static HRESULT stream_descriptor_create(UINT32 id, struct wg_format *format, IMF
     if (!(types[0] = mf_media_type_from_wg_format(format)))
         return MF_E_INVALIDMEDIATYPE;
     count = 1;
-
-    if (format->major_type == WG_MAJOR_TYPE_VIDEO)
-    {
-        if (FAILED(hr = init_video_media_types(format, types, &count)))
-            goto done;
-    }
-
     assert(count <= ARRAY_SIZE(types));
 
     if (FAILED(hr = MFCreateStreamDescriptor(id, count, types, &descriptor)))
