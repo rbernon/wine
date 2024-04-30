@@ -255,19 +255,19 @@ static NTSTATUS wg_parser_stream_enable(void *args)
 {
     const struct wg_parser_stream_enable_params *params = args;
     struct wg_parser_stream *stream = get_stream(params->stream);
-    const struct wg_format *format = params->format;
+    const struct wg_media_type *media_type = &params->media_type;
     struct wg_parser *parser = stream->parser;
 
     pthread_mutex_lock(&parser->mutex);
 
-    stream->desired_caps = wg_format_to_caps(format);
+    stream->desired_caps = caps_from_media_type(media_type);
     stream->enabled = true;
 
     pthread_mutex_unlock(&parser->mutex);
 
-    if (format->major_type == WG_MAJOR_TYPE_VIDEO)
+    if (stream->flip)
     {
-        bool flip = (format->u.video.height < 0);
+        bool flip = !!(media_type->u.video->videoInfo.VideoFlags & MFVideoFlag_BottomUpLinearRep);
 
         gst_util_set_object_arg(G_OBJECT(stream->flip), "method", flip ? "vertical-flip" : "none");
     }
@@ -2001,12 +2001,17 @@ static NTSTATUS wow64_wg_parser_stream_enable(void *args)
     struct
     {
         wg_parser_stream_t stream;
-        PTR32 format;
+        struct wg_media_type32 media_type;
     } *params32 = args;
     struct wg_parser_stream_enable_params params =
     {
         .stream = params32->stream,
-        .format = ULongToPtr(params32->format),
+        .media_type =
+        {
+            .major = params32->media_type.major,
+            .format_size = params32->media_type.format_size,
+            .u.format = ULongToPtr(params32->media_type.format),
+        },
     };
 
     return wg_parser_stream_enable(&params);
