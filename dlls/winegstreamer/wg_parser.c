@@ -239,6 +239,16 @@ static NTSTATUS wg_parser_stream_get_current_format(void *args)
     return S_OK;
 }
 
+static NTSTATUS wg_parser_stream_get_current_type(void *args)
+{
+    struct wg_parser_stream_get_current_type_params *params = args;
+    struct wg_parser_stream *stream = get_stream(params->stream);
+
+    if (stream->current_caps)
+        return caps_to_media_type(stream->current_caps, &params->media_type, 0);
+    return STATUS_INVALID_PARAMETER;
+}
+
 static NTSTATUS wg_parser_stream_get_codec_type(void *args)
 {
     struct wg_parser_stream_get_codec_type_params *params = args;
@@ -248,7 +258,7 @@ static NTSTATUS wg_parser_stream_get_codec_type(void *args)
         return caps_to_media_type(stream->codec_caps, &params->media_type, 0);
     if (stream->current_caps)
         return caps_to_media_type(stream->current_caps, &params->media_type, 0);
-    return E_INVALIDARG;
+    return STATUS_INVALID_PARAMETER;
 }
 
 static NTSTATUS wg_parser_stream_enable(void *args)
@@ -1873,6 +1883,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_parser_get_stream),
 
     X(wg_parser_stream_get_current_format),
+    X(wg_parser_stream_get_current_type),
     X(wg_parser_stream_get_codec_type),
     X(wg_parser_stream_enable),
     X(wg_parser_stream_disable),
@@ -1969,6 +1980,31 @@ static NTSTATUS wow64_wg_parser_stream_get_current_format(void *args)
     };
 
     return wg_parser_stream_get_current_format(&params);
+}
+
+static NTSTATUS wow64_wg_parser_stream_get_current_type(void *args)
+{
+    struct
+    {
+        wg_parser_stream_t stream;
+        struct wg_media_type32 media_type;
+    } *params32 = args;
+    struct wg_parser_stream_get_current_type_params params =
+    {
+        .stream = params32->stream,
+        .media_type =
+        {
+            .major = params32->media_type.major,
+            .format_size = params32->media_type.format_size,
+            .u.format = ULongToPtr(params32->media_type.format),
+        },
+    };
+    NTSTATUS status;
+
+    status = wg_parser_stream_get_current_type(&params);
+    params32->media_type.major = params.media_type.major;
+    params32->media_type.format_size = params.media_type.format_size;
+    return status;
 }
 
 static NTSTATUS wow64_wg_parser_stream_get_codec_type(void *args)
@@ -2289,6 +2325,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
     X(wg_parser_get_stream),
 
     X64(wg_parser_stream_get_current_format),
+    X64(wg_parser_stream_get_current_type),
     X64(wg_parser_stream_get_codec_type),
     X64(wg_parser_stream_enable),
     X(wg_parser_stream_disable),

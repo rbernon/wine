@@ -383,12 +383,20 @@ static HRESULT stream_descriptor_create(UINT32 id, wg_parser_stream_t wg_stream,
     IMFStreamDescriptor *descriptor;
     IMFMediaTypeHandler *handler;
     IMFMediaType *media_type;
-    struct wg_format format;
+    GUID major;
     HRESULT hr;
 
-    wg_parser_stream_get_current_format(wg_stream, &format);
-    if (!(media_type = mf_media_type_from_wg_format(&format)))
-        return MF_E_INVALIDMEDIATYPE;
+    if (FAILED(hr = wg_parser_stream_get_current_type_mf(wg_stream, &media_type)))
+        return hr;
+
+    /* MF_MT_VIDEO_ROTATION is always set on video media types according to tests */
+    if (SUCCEEDED(IMFMediaType_GetMajorType(media_type, &major)) && IsEqualGUID(&major, &MFMediaType_Video)
+            && FAILED(hr = IMFMediaType_SetUINT32(media_type, &MF_MT_VIDEO_ROTATION, MFVideoRotationFormat_0)))
+    {
+        IMFMediaType_Release(media_type);
+        return hr;
+    }
+
     if (FAILED(hr = MFCreateStreamDescriptor(id, 1, &media_type, &descriptor)))
     {
         IMFMediaType_Release(media_type);
