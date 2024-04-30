@@ -609,7 +609,7 @@ static void test_media_types(void)
     ok(IsEqualGUID(&pmt->subtype, &MEDIASUBTYPE_I420), "Got subtype %s\n",
             wine_dbgstr_guid(&pmt->subtype));
     ok(!pmt->bFixedSizeSamples, "Got fixed size %d.\n", pmt->bFixedSizeSamples);
-    todo_wine ok(!pmt->bTemporalCompression, "Got temporal compression %d.\n", pmt->bTemporalCompression);
+    ok(!pmt->bTemporalCompression, "Got temporal compression %d.\n", pmt->bTemporalCompression);
     ok(pmt->lSampleSize == 1, "Got sample size %lu.\n", pmt->lSampleSize);
     ok(IsEqualGUID(&pmt->formattype, &FORMAT_VideoInfo), "Got format type %s.\n",
             wine_dbgstr_guid(&pmt->formattype));
