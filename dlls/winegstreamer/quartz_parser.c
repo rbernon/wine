@@ -29,6 +29,7 @@
 #include "dvdmedia.h"
 #include "d3d9types.h"
 #include "mmreg.h"
+#include "mfapi.h"
 #include "ks.h"
 #include "wmcodecdsp.h"
 #include "initguid.h"
@@ -1641,55 +1642,69 @@ static HRESULT decodebin_parser_source_get_media_type(struct parser_source *pin,
 {
     struct wg_format format;
 
-    static const enum wg_video_format video_formats[] =
+    static const GUID *video_subtypes[] =
     {
         /* Try to prefer YUV formats over RGB ones. Most decoders output in the
          * YUV color space, and it's generally much less expensive for
          * videoconvert to do YUV -> YUV transformations. */
-        WG_VIDEO_FORMAT_AYUV,
-        WG_VIDEO_FORMAT_I420,
-        WG_VIDEO_FORMAT_YV12,
-        WG_VIDEO_FORMAT_YUY2,
-        WG_VIDEO_FORMAT_UYVY,
-        WG_VIDEO_FORMAT_YVYU,
-        WG_VIDEO_FORMAT_NV12,
-        WG_VIDEO_FORMAT_BGRA,
-        WG_VIDEO_FORMAT_BGRx,
-        WG_VIDEO_FORMAT_BGR,
-        WG_VIDEO_FORMAT_RGB16,
-        WG_VIDEO_FORMAT_RGB15,
+        &MEDIASUBTYPE_AYUV,
+        &MEDIASUBTYPE_I420,
+        &MEDIASUBTYPE_YV12,
+        &MEDIASUBTYPE_YUY2,
+        &MEDIASUBTYPE_UYVY,
+        &MEDIASUBTYPE_YVYU,
+        &MEDIASUBTYPE_NV12,
+        &MEDIASUBTYPE_ARGB32,
+        &MEDIASUBTYPE_RGB32,
+        &MEDIASUBTYPE_RGB24,
+        &MEDIASUBTYPE_RGB565,
+        &MEDIASUBTYPE_RGB555,
     };
+    IMFMediaType *media_type;
+    HRESULT hr;
+    GUID major;
 
     wg_parser_stream_get_current_format(pin->wg_stream, &format);
+    if (!(media_type = mf_media_type_from_wg_format(&format)))
+        return E_OUTOFMEMORY;
 
-    memset(mt, 0, sizeof(AM_MEDIA_TYPE));
-
-    if (amt_from_wg_format(mt, &format, false))
+    if (FAILED(hr = IMFMediaType_GetGUID(media_type, &MF_MT_MAJOR_TYPE, &major)))
     {
-        if (!index--)
-            return S_OK;
-        FreeMediaType(mt);
+        IMFMediaType_Release(media_type);
+        return hr;
     }
 
-    if (format.major_type == WG_MAJOR_TYPE_VIDEO && index < ARRAY_SIZE(video_formats))
+    if (IsEqualGUID(&major, &MFMediaType_Video))
     {
-        format.u.video.format = video_formats[index];
-        /* Downstream filters probably expect RGB video to be bottom-up. */
-        if (format.u.video.height > 0 && wg_video_format_is_rgb(video_formats[index]))
-            format.u.video.height = -format.u.video.height;
-        if (!amt_from_wg_format(mt, &format, false))
-            return E_OUTOFMEMORY;
-        return S_OK;
+        if (index > ARRAY_SIZE(video_subtypes))
+        {
+            IMFMediaType_Release(media_type);
+            return VFW_S_NO_MORE_ITEMS;
+        }
+        if (index)
+        {
+            IMFMediaType_SetGUID(media_type, &MF_MT_SUBTYPE, video_subtypes[index - 1]);
+            /* Downstream filters probably expect RGB video to be bottom-up. */
+            IMFMediaType_DeleteItem(media_type, &MF_MT_DEFAULT_STRIDE);
+        }
     }
-    else if (format.major_type == WG_MAJOR_TYPE_AUDIO && !index)
+    else if (IsEqualGUID(&major, &MFMediaType_Audio))
     {
-        format.u.audio.format = WG_AUDIO_FORMAT_S16LE;
-        if (!amt_from_wg_format(mt, &format, false))
-            return E_OUTOFMEMORY;
-        return S_OK;
+        if (index > 1)
+        {
+            IMFMediaType_Release(media_type);
+            return VFW_S_NO_MORE_ITEMS;
+        }
+        if (index == 1)
+        {
+            IMFMediaType_SetGUID(media_type, &MF_MT_SUBTYPE, &MFAudioFormat_PCM);
+            IMFMediaType_SetUINT32(media_type, &MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
+        }
     }
 
-    return VFW_S_NO_MORE_ITEMS;
+    hr = MFInitAMMediaTypeFromMFMediaType(media_type, GUID_NULL, mt);
+    IMFMediaType_Release(media_type);
+    return hr;
 }
 
 static HRESULT parser_create(BOOL output_compressed, struct parser **parser)
