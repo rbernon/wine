@@ -418,11 +418,68 @@ static GstCaps *caps_from_video_format(const MFVIDEOFORMAT *format, UINT32 forma
                 format->videoInfo.FramesPerSecond.Numerator,
                 format->videoInfo.FramesPerSecond.Denominator, NULL);
 
+if (0)
+{
+    if (format->videoInfo.SourceChromaSubsampling)
+        gst_caps_set_simple(caps, "chroma-site", G_TYPE_STRING, "FIXME", NULL);
+
+    switch (format->videoInfo.InterlaceMode)
+    {
+    case MFVideoInterlace_Unknown: break;
+    case MFVideoInterlace_Progressive:
+        gst_caps_set_simple(caps, "interlace-mode", G_TYPE_STRING, "progressive", NULL);
+        break;
+    case MFVideoInterlace_FieldInterleavedUpperFirst:
+    case MFVideoInterlace_FieldInterleavedLowerFirst:
+    case MFVideoInterlace_FieldSingleUpper:
+    case MFVideoInterlace_FieldSingleLower:
+    case MFVideoInterlace_MixedInterlaceOrProgressive:
+        gst_caps_set_simple(caps, "interlaced", G_TYPE_BOOLEAN, true,
+                "interlace-mode", G_TYPE_STRING, "FIXME", NULL);
+        break;
+    case MFVideoInterlace_Last: break;
+    case MFVideoInterlace_ForceDWORD: break;
+    }
+
+    if (format->videoInfo.TransferFunction)
+        gst_caps_set_simple(caps, "colorimetry", G_TYPE_STRING, "FIXME", NULL);
+    if (format->videoInfo.ColorPrimaries)
+        gst_caps_set_simple(caps, "colorimetry", G_TYPE_STRING, "FIXME", NULL);
+    if (format->videoInfo.TransferMatrix)
+        gst_caps_set_simple(caps, "colorimetry", G_TYPE_STRING, "FIXME", NULL);
+
+    if (format->videoInfo.SourceLighting)
+        gst_caps_set_simple(caps, "??", G_TYPE_INT, 0, NULL);
+    if (format->videoInfo.NominalRange)
+        gst_caps_set_simple(caps, "??", G_TYPE_INT, 0, NULL);
+}
+
     if (!is_mf_video_area_empty(&format->videoInfo.MinimumDisplayAperture))
     {
         gst_caps_set_simple(caps, "width", G_TYPE_INT, format->videoInfo.MinimumDisplayAperture.Area.cx, NULL);
         gst_caps_set_simple(caps, "height", G_TYPE_INT, format->videoInfo.MinimumDisplayAperture.Area.cy, NULL);
     }
+
+    if (format->videoInfo.VideoFlags & MFVideoFlag_BottomUpLinearRep && 0)
+    {
+        GstVideoInfo *info = NULL;
+
+        for (guint i = 0; i < ARRAY_SIZE(info->offset); ++i)
+        {
+            info->offset[i] += (info->height - 1) * info->stride[i];
+            info->stride[i] = -info->stride[i];
+        }
+    }
+
+if (0)
+{
+    if (format->compressedInfo.AvgBitrate)
+        gst_caps_set_simple(caps, "??", G_TYPE_INT, 0, NULL);
+    if (format->compressedInfo.AvgBitErrorRate)
+        gst_caps_set_simple(caps, "??", G_TYPE_INT, 0, NULL);
+    if (format->compressedInfo.MaxKeyFrameSpacing)
+        gst_caps_set_simple(caps, "??", G_TYPE_INT, 0, NULL);
+}
 
     if (video_format == GST_VIDEO_FORMAT_ENCODED)
         init_caps_from_video_subtype(caps, &format->guidFormat, format, format_size);
