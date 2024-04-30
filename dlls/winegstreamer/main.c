@@ -310,6 +310,19 @@ void wg_parser_stream_get_current_format(wg_parser_stream_t stream, struct wg_fo
     WINE_UNIX_CALL(unix_wg_parser_stream_get_current_format, &params);
 }
 
+HRESULT wg_parser_stream_get_current_type_mf(wg_parser_stream_t stream, IMFMediaType **media_type)
+{
+    struct wg_parser_stream_get_current_type_params params =
+    {
+        .stream = stream,
+    };
+
+    TRACE("stream %#I64x, media_type %p.\n", stream, media_type);
+
+    return wg_get_media_type_mf(unix_wg_parser_stream_get_current_type, &params,
+            &params.media_type, media_type);
+}
+
 static HRESULT wg_parser_stream_get_codec_type_mf(wg_parser_stream_t stream, IMFMediaType **media_type)
 {
     struct wg_parser_stream_get_codec_type_params params =
