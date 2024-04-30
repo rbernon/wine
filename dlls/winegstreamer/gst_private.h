@@ -84,7 +84,6 @@ void wg_parser_push_data(wg_parser_t parser, const void *data, uint32_t size);
 uint32_t wg_parser_get_stream_count(wg_parser_t parser);
 wg_parser_stream_t wg_parser_get_stream(wg_parser_t parser, uint32_t index);
 
-void wg_parser_stream_get_current_format(wg_parser_stream_t stream, struct wg_format *format);
 HRESULT wg_parser_stream_get_current_type_mf(wg_parser_stream_t stream, IMFMediaType **media_type);
 HRESULT wg_parser_stream_get_current_type_quartz(wg_parser_stream_t stream, AM_MEDIA_TYPE *type);
 HRESULT wg_parser_stream_get_codec_type_quartz(wg_parser_stream_t stream, AM_MEDIA_TYPE *type);
