@@ -1640,8 +1640,6 @@ static HRESULT decodebin_parser_source_query_accept(struct parser_source *pin, c
 static HRESULT decodebin_parser_source_get_media_type(struct parser_source *pin,
         unsigned int index, AM_MEDIA_TYPE *mt)
 {
-    struct wg_format format;
-
     static const GUID *video_subtypes[] =
     {
         /* Try to prefer YUV formats over RGB ones. Most decoders output in the
@@ -1664,10 +1662,8 @@ static HRESULT decodebin_parser_source_get_media_type(struct parser_source *pin,
     HRESULT hr;
     GUID major;
 
-    wg_parser_stream_get_current_format(pin->wg_stream, &format);
-    if (!(media_type = mf_media_type_from_wg_format(&format)))
-        return E_OUTOFMEMORY;
-
+    if (FAILED(hr = wg_parser_stream_get_current_type_mf(pin->wg_stream, &media_type)))
+        return hr;
     if (FAILED(hr = IMFMediaType_GetGUID(media_type, &MF_MT_MAJOR_TYPE, &major)))
     {
         IMFMediaType_Release(media_type);
@@ -2278,29 +2274,30 @@ static BOOL wave_parser_filter_init_gst(struct parser *filter)
 
 static HRESULT wave_parser_source_query_accept(struct parser_source *pin, const AM_MEDIA_TYPE *mt)
 {
-    struct wg_format format;
     AM_MEDIA_TYPE pad_mt;
     HRESULT hr;
 
-    wg_parser_stream_get_current_format(pin->wg_stream, &format);
-    if (!amt_from_wg_format(&pad_mt, &format, false))
-        return E_OUTOFMEMORY;
-    hr = compare_media_types(mt, &pad_mt) ? S_OK : S_FALSE;
-    FreeMediaType(&pad_mt);
+    if (SUCCEEDED(hr = wg_parser_stream_get_current_type_quartz(pin->wg_stream, &pad_mt)))
+    {
+        hr = compare_media_types(mt, &pad_mt) ? S_OK : S_FALSE;
+        FreeMediaType(&pad_mt);
+    }
     return hr;
 }
 
 static HRESULT wave_parser_source_get_media_type(struct parser_source *pin,
         unsigned int index, AM_MEDIA_TYPE *mt)
 {
-    struct wg_format format;
+    HRESULT hr;
 
     if (index > 0)
         return VFW_S_NO_MORE_ITEMS;
-    wg_parser_stream_get_current_format(pin->wg_stream, &format);
-    if (!amt_from_wg_format(mt, &format, false))
-        return E_OUTOFMEMORY;
-    return S_OK;
+    if (SUCCEEDED(hr = wg_parser_stream_get_current_type_quartz(pin->wg_stream, mt)))
+    {
+        mt->lSampleSize = 1;
+        mt->bFixedSizeSamples = TRUE;
+    }
+    return hr;
 }
 
 HRESULT wave_parser_create(IUnknown *outer, IUnknown **out)
@@ -2359,29 +2356,31 @@ static BOOL avi_splitter_filter_init_gst(struct parser *filter)
 
 static HRESULT avi_splitter_source_query_accept(struct parser_source *pin, const AM_MEDIA_TYPE *mt)
 {
-    struct wg_format format;
     AM_MEDIA_TYPE pad_mt;
     HRESULT hr;
 
-    wg_parser_stream_get_current_format(pin->wg_stream, &format);
-    if (!amt_from_wg_format(&pad_mt, &format, false))
-        return E_OUTOFMEMORY;
-    hr = compare_media_types(mt, &pad_mt) ? S_OK : S_FALSE;
-    FreeMediaType(&pad_mt);
+    if (SUCCEEDED(hr = wg_parser_stream_get_current_type_quartz(pin->wg_stream, &pad_mt)))
+    {
+        hr = compare_media_types(mt, &pad_mt) ? S_OK : S_FALSE;
+        FreeMediaType(&pad_mt);
+    }
     return hr;
 }
 
 static HRESULT avi_splitter_source_get_media_type(struct parser_source *pin,
         unsigned int index, AM_MEDIA_TYPE *mt)
 {
-    struct wg_format format;
+    HRESULT hr;
 
     if (index > 0)
         return VFW_S_NO_MORE_ITEMS;
-    wg_parser_stream_get_current_format(pin->wg_stream, &format);
-    if (!amt_from_wg_format(mt, &format, false))
-        return E_OUTOFMEMORY;
-    return S_OK;
+    if (SUCCEEDED(hr = wg_parser_stream_get_current_type_quartz(pin->wg_stream, mt)))
+    {
+        mt->bFixedSizeSamples = FALSE;
+        mt->bTemporalCompression = FALSE;
+        mt->lSampleSize = 1;
+    }
+    return hr;
 }
 
 HRESULT avi_splitter_create(IUnknown *outer, IUnknown **out)
@@ -2469,26 +2468,43 @@ static BOOL mpeg_splitter_filter_init_gst(struct parser *filter)
     wg_parser_t parser = filter->wg_parser;
     unsigned int i, stream_count;
     wg_parser_stream_t stream;
-    struct wg_format fmt;
+    AM_MEDIA_TYPE mt;
 
     stream_count = wg_parser_get_stream_count(parser);
     for (i = 0; i < stream_count; ++i)
     {
         stream = wg_parser_get_stream(parser, i);
-        wg_parser_stream_get_current_format(stream, &fmt);
-        if (fmt.major_type == WG_MAJOR_TYPE_VIDEO_MPEG1)
+
+        if (FAILED(wg_parser_stream_get_current_type_quartz(stream, &mt)))
+            return FALSE;
+        FreeMediaType(&mt);
+
+        if (IsEqualGUID(&mt.majortype, &MEDIATYPE_Video))
         {
+            if (!IsEqualGUID(&mt.subtype, &MEDIASUBTYPE_MPEG1Payload))
+            {
+                TRACE("unexpected subtype %s\n", debugstr_guid(&mt.majortype));
+                return FALSE;
+            }
+
             if (!create_pin(filter, wg_parser_get_stream(parser, i), L"Video"))
                 return FALSE;
         }
-        else if (fmt.major_type == WG_MAJOR_TYPE_AUDIO_MPEG1)
+        else if (IsEqualGUID(&mt.majortype, &MEDIATYPE_Audio))
         {
+            if (!IsEqualGUID(&mt.subtype, &MEDIASUBTYPE_MPEG1AudioPayload)
+                    && !IsEqualGUID(&mt.subtype, &MEDIASUBTYPE_MP3))
+            {
+                TRACE("unexpected subtype %s\n", debugstr_guid(&mt.majortype));
+                return FALSE;
+            }
+
             if (!create_pin(filter, wg_parser_get_stream(parser, i), L"Audio"))
                 return FALSE;
         }
         else
         {
-            TRACE("unexpected format %u\n", fmt.major_type);
+            TRACE("unexpected majortype %s\n", debugstr_guid(&mt.majortype));
             return FALSE;
         }
     }
@@ -2496,31 +2512,40 @@ static BOOL mpeg_splitter_filter_init_gst(struct parser *filter)
     return TRUE;
 }
 
-static HRESULT mpeg_splitter_source_query_accept(struct parser_source *pin, const AM_MEDIA_TYPE *mt)
-{
-    struct wg_format format;
-    AM_MEDIA_TYPE pad_mt;
-    HRESULT hr;
-
-    wg_parser_stream_get_current_format(pin->wg_stream, &format);
-    if (!amt_from_wg_format(&pad_mt, &format, false))
-        return E_OUTOFMEMORY;
-    hr = compare_media_types(mt, &pad_mt) ? S_OK : S_FALSE;
-    FreeMediaType(&pad_mt);
-    return hr;
-}
-
 static HRESULT mpeg_splitter_source_get_media_type(struct parser_source *pin,
         unsigned int index, AM_MEDIA_TYPE *mt)
 {
-    struct wg_format format;
+    HRESULT hr;
 
     if (index > 0)
         return VFW_S_NO_MORE_ITEMS;
-    wg_parser_stream_get_current_format(pin->wg_stream, &format);
-    if (!amt_from_wg_format(mt, &format, false))
-        return E_OUTOFMEMORY;
-    return S_OK;
+    if (SUCCEEDED(hr = wg_parser_stream_get_current_type_quartz(pin->wg_stream, mt)))
+    {
+        if (IsEqualGUID(&mt->formattype, &FORMAT_MPEGVideo))
+        {
+            MPEG1VIDEOINFO *format = (MPEG1VIDEOINFO *)mt->pbFormat;
+            format->hdr.bmiHeader.biBitCount = 12;
+            format->hdr.bmiHeader.biSizeImage = format->hdr.bmiHeader.biWidth
+                    * format->hdr.bmiHeader.biHeight * format->hdr.bmiHeader.biBitCount;
+            mt->lSampleSize = 1;
+        }
+        if (IsEqualGUID(&mt->formattype, &FORMAT_WaveFormatEx))
+            mt->bTemporalCompression = FALSE;
+    }
+    return hr;
+}
+
+static HRESULT mpeg_splitter_source_query_accept(struct parser_source *pin, const AM_MEDIA_TYPE *mt)
+{
+    AM_MEDIA_TYPE pad_mt;
+    HRESULT hr;
+
+    if (SUCCEEDED(hr = mpeg_splitter_source_get_media_type(pin, 0, &pad_mt)))
+    {
+        hr = compare_media_types(mt, &pad_mt) ? S_OK : S_FALSE;
+        FreeMediaType(&pad_mt);
+    }
+    return hr;
 }
 
 static HRESULT mpeg_splitter_query_interface(struct strmbase_filter *iface, REFIID iid, void **out)

@@ -323,6 +323,22 @@ HRESULT wg_parser_stream_get_current_type_mf(wg_parser_stream_t stream, IMFMedia
             &params.media_type, media_type);
 }
 
+HRESULT wg_parser_stream_get_current_type_quartz(wg_parser_stream_t stream, AM_MEDIA_TYPE *type)
+{
+    IMFMediaType *media_type;
+    HRESULT hr;
+
+    TRACE("stream %#I64x, type %p.\n", stream, type);
+
+    if (SUCCEEDED(hr = wg_parser_stream_get_current_type_mf(stream, &media_type)))
+    {
+        hr = MFInitAMMediaTypeFromMFMediaType(media_type, GUID_NULL, type);
+        IMFMediaType_Release(media_type);
+    }
+
+    return hr;
+}
+
 static HRESULT wg_parser_stream_get_codec_type_mf(wg_parser_stream_t stream, IMFMediaType **media_type)
 {
     struct wg_parser_stream_get_codec_type_params params =
