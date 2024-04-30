@@ -1493,6 +1493,7 @@ static HRESULT init_stream(struct wm_reader *reader)
     for (i = 0; i < reader->stream_count; ++i)
     {
         struct wm_stream *stream = &reader->streams[i];
+        AM_MEDIA_TYPE amt;
 
         stream->wg_stream = wg_parser_get_stream(reader->wg_parser, i);
         stream->reader = reader;
@@ -1523,7 +1524,10 @@ static HRESULT init_stream(struct wm_reader *reader)
             if (stream->format.u.video.height > 0)
                 stream->format.u.video.height = -stream->format.u.video.height;
         }
-        wg_parser_stream_enable(stream->wg_stream, &stream->format);
+
+        amt_from_wg_format(&amt, &stream->format, TRUE);
+        wg_parser_stream_enable_quartz(stream->wg_stream, &amt);
+        FreeMediaType(&amt);
     }
 
     /* We probably discarded events because streams weren't enabled yet.
@@ -1598,7 +1602,12 @@ static HRESULT reinit_stream(struct wm_reader *reader, bool read_compressed)
         stream->reader = reader;
         wg_parser_stream_get_current_format(stream->wg_stream, &format);
         if (stream->selection == WMT_ON)
-            wg_parser_stream_enable(stream->wg_stream, read_compressed ? &format : &stream->format);
+        {
+            AM_MEDIA_TYPE amt;
+            amt_from_wg_format(&amt, read_compressed ? &format : &stream->format, TRUE);
+            wg_parser_stream_enable_quartz(stream->wg_stream, &amt);
+            FreeMediaType(&amt);
+        }
     }
 
     /* We probably discarded events because streams weren't enabled yet.
@@ -2363,7 +2372,7 @@ static HRESULT WINAPI reader_SetOutputProps(IWMSyncReader2 *iface, DWORD output,
     }
 
     stream->format = format;
-    wg_parser_stream_enable(stream->wg_stream, &format);
+    wg_parser_stream_enable_quartz(stream->wg_stream, &props->mt);
 
     /* Re-decode any buffers that might have been generated with the old format.
      *
@@ -2502,6 +2511,8 @@ static HRESULT WINAPI reader_SetStreamsSelected(IWMSyncReader2 *iface,
         }
         else
         {
+            AM_MEDIA_TYPE amt;
+
             if (selections[i] != WMT_ON)
                 FIXME("Ignoring selection %#x for stream %u; treating as enabled.\n",
                         selections[i], stream_numbers[i]);
@@ -2510,12 +2521,15 @@ static HRESULT WINAPI reader_SetStreamsSelected(IWMSyncReader2 *iface,
             {
                 struct wg_format format;
                 wg_parser_stream_get_current_format(stream->wg_stream, &format);
-                wg_parser_stream_enable(stream->wg_stream, &format);
+                amt_from_wg_format(&amt, &format, TRUE);
             }
             else
             {
-                wg_parser_stream_enable(stream->wg_stream, &stream->format);
+                amt_from_wg_format(&amt, &stream->format, TRUE);
             }
+
+            wg_parser_stream_enable_quartz(stream->wg_stream, &amt);
+            FreeMediaType(&amt);
         }
     }
 

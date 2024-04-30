@@ -1452,6 +1452,7 @@ static HRESULT parser_init_stream(struct strmbase_filter *iface)
     DWORD stop_flags = AM_SEEKING_NoPositioning;
     const SourceSeeking *seeking;
     unsigned int i;
+    HRESULT hr;
 
     if (!filter->sink_connected)
         return S_OK;
@@ -1461,14 +1462,11 @@ static HRESULT parser_init_stream(struct strmbase_filter *iface)
     for (i = 0; i < filter->source_count; ++i)
     {
         struct parser_source *source = filter->sources[i];
-        struct wg_format format;
-        bool ret;
 
         if (source->pin.pin.peer)
         {
-            ret = amt_to_wg_format(&source->pin.pin.mt, &format);
-            assert(ret);
-            wg_parser_stream_enable(source->wg_stream, &format);
+            if (FAILED(hr = wg_parser_stream_enable_quartz(source->wg_stream, &source->pin.pin.mt)))
+                WARN("Failed to enable wg_parser stream, hr %#lx\n", hr);
         }
         else
         {

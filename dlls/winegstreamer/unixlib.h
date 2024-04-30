@@ -272,7 +272,7 @@ struct wg_parser_stream_get_codec_type_params
 struct wg_parser_stream_enable_params
 {
     wg_parser_stream_t stream;
-    const struct wg_format *format;
+    struct wg_media_type media_type;
 };
 
 struct wg_parser_stream_get_buffer_params

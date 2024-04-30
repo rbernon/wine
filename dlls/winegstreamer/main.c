@@ -339,17 +339,44 @@ HRESULT wg_parser_stream_get_codec_type_quartz(wg_parser_stream_t stream, AM_MED
     return hr;
 }
 
-void wg_parser_stream_enable(wg_parser_stream_t stream, const struct wg_format *format)
+HRESULT wg_parser_stream_enable_mf(wg_parser_stream_t stream, IMFMediaType *media_type)
 {
     struct wg_parser_stream_enable_params params =
     {
         .stream = stream,
-        .format = format,
     };
+    NTSTATUS status;
+    HRESULT hr;
 
-    TRACE("stream %#I64x, format %p.\n", stream, format);
+    TRACE("stream %#I64x, media_type %p.\n", stream, media_type);
 
-    WINE_UNIX_CALL(unix_wg_parser_stream_enable, &params);
+    if (FAILED(hr = wg_media_type_from_mf(media_type, &params.media_type)))
+        return hr;
+    if ((status = WINE_UNIX_CALL(unix_wg_parser_stream_enable, &params)))
+    {
+        WARN("Failed to enable stream, status %#lx.\n", status);
+        hr = HRESULT_FROM_NT(status);
+    }
+
+    CoTaskMemFree(params.media_type.u.format);
+    return hr;
+}
+
+HRESULT wg_parser_stream_enable_quartz(wg_parser_stream_t stream, const AM_MEDIA_TYPE *type)
+{
+    IMFMediaType *media_type;
+    HRESULT hr;
+
+    TRACE("stream %#I64x, type %p.\n", stream, type);
+
+    /* through IMFMediaType to normalize representation to MFVIDEOFORMAT / WAVEFORMATEX */
+    if (SUCCEEDED(hr = MFCreateMediaTypeFromRepresentation(AM_MEDIA_TYPE_REPRESENTATION, (void *)type, &media_type)))
+    {
+        hr = wg_parser_stream_enable_mf(stream, media_type);
+        IMFMediaType_Release(media_type);
+    }
+
+    return hr;
 }
 
 void wg_parser_stream_disable(wg_parser_stream_t stream)
