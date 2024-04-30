@@ -443,31 +443,6 @@ done:
     return hr;
 }
 
-static HRESULT init_audio_media_types(struct wg_format *format, IMFMediaType *types[6], DWORD *types_count)
-{
-    /* Expose at least one PCM and one floating point type for the
-       consumer to pick from. */
-    static const enum wg_audio_format audio_types[] =
-    {
-        WG_AUDIO_FORMAT_S16LE,
-        WG_AUDIO_FORMAT_F32LE,
-    };
-    UINT count = *types_count, i;
-
-    for (i = 0; i < ARRAY_SIZE(audio_types); i++)
-    {
-        struct wg_format new_format = *format;
-        if (new_format.u.audio.format == audio_types[i])
-            continue;
-        new_format.u.audio.format = audio_types[i];
-        if ((types[count] = mf_media_type_from_wg_format(&new_format)))
-            count++;
-    }
-
-    *types_count = count;
-    return S_OK;
-}
-
 static HRESULT stream_descriptor_create(UINT32 id, struct wg_format *format, IMFStreamDescriptor **out)
 {
     IMFStreamDescriptor *descriptor;
@@ -483,11 +458,6 @@ static HRESULT stream_descriptor_create(UINT32 id, struct wg_format *format, IMF
     if (format->major_type == WG_MAJOR_TYPE_VIDEO)
     {
         if (FAILED(hr = init_video_media_types(format, types, &count)))
-            goto done;
-    }
-    else if (format->major_type == WG_MAJOR_TYPE_AUDIO)
-    {
-        if (FAILED(hr = init_audio_media_types(format, types, &count)))
             goto done;
     }
 
