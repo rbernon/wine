@@ -21,6 +21,7 @@
 #include "gst_private.h"
 #include "gst_guids.h"
 
+#include "mfapi.h"
 #include "mferror.h"
 #include "mpegtype.h"
 
