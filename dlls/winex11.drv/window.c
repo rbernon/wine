@@ -370,7 +370,7 @@ static void sync_window_style( struct x11drv_win_data *data )
         int mask = get_window_attributes( data, &attr );
 
         XChangeWindowAttributes( data->display, data->whole_window, mask, &attr );
-        x11drv_xinput2_enable( data->display, data->whole_window );
+        if (!data->embedded) x11drv_xinput2_enable( data->display, data->whole_window );
     }
 }
 
@@ -1775,7 +1775,7 @@ static void create_whole_window( struct x11drv_win_data *data )
                                         data->vis.visual, mask, &attr );
     if (!data->whole_window) goto done;
 
-    x11drv_xinput2_enable( data->display, data->whole_window );
+    if (!data->embedded) x11drv_xinput2_enable( data->display, data->whole_window );
     set_initial_wm_hints( data->display, data->whole_window );
     set_wm_hints( data );
 
