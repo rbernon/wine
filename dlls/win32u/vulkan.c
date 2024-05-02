@@ -93,6 +93,9 @@ static VkResult win32u_vkCreateWin32SurfaceKHR( VkInstance instance, const VkWin
         return res;
     }
 
+    /* make sure the window has a pixel format selected to get consistent window surface updates */
+    if (!win32u_get_window_pixel_format( info->hwnd )) win32u_set_window_pixel_format( info->hwnd, 1, TRUE );
+
     if (!(win = get_win_ptr( toplevel )) || win == WND_DESKTOP || win == WND_OTHER_PROCESS)
     {
         pthread_mutex_lock( &vulkan_mutex );
