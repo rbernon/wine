@@ -109,6 +109,20 @@ static void X11DRV_vulkan_surface_destroy( HWND hwnd, void *private )
     destroy_client_window( hwnd, client_window );
 }
 
+static void X11DRV_vulkan_surface_attach( HWND hwnd, void *private )
+{
+    Window client_window = (Window)private;
+    struct x11drv_win_data *data;
+
+    TRACE( "%p %p\n", hwnd, private );
+
+    if ((data = get_win_data( hwnd )))
+    {
+        attach_client_window( data, client_window );
+        release_win_data( data );
+    }
+}
+
 static void X11DRV_vulkan_surface_detach( HWND hwnd, void *private )
 {
     Window client_window = (Window)private;
@@ -145,6 +159,7 @@ static const struct vulkan_driver_funcs x11drv_vulkan_driver_funcs =
 {
     .p_vulkan_surface_create = X11DRV_vulkan_surface_create,
     .p_vulkan_surface_destroy = X11DRV_vulkan_surface_destroy,
+    .p_vulkan_surface_attach = X11DRV_vulkan_surface_attach,
     .p_vulkan_surface_detach = X11DRV_vulkan_surface_detach,
     .p_vulkan_surface_presented = X11DRV_vulkan_surface_presented,
 
