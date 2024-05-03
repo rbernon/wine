@@ -1751,7 +1751,7 @@ static NTSTATUS get_window_region( HWND hwnd, BOOL surface, HRGN *region, RECT *
 static void update_surface_region( HWND hwnd )
 {
     WND *win = get_win_ptr( hwnd );
-    HRGN region, shape = 0;
+    HRGN region = 0, shape = 0;
     RECT visible;
 
     if (!win || win == WND_DESKTOP || win == WND_OTHER_PROCESS) return;
@@ -1774,12 +1774,14 @@ static void update_surface_region( HWND hwnd )
         NtGdiOffsetRgn( region, -visible.left, -visible.top );
         if (shape) NtGdiCombineRgn( region, region, shape, RGN_AND );
         window_surface_set_clip( win->surface, region );
-        NtGdiDeleteObjectApp( region );
     }
 
 done:
-    if (shape) NtGdiDeleteObjectApp( shape );
     release_win_ptr( win );
+
+    vulkan_set_region( hwnd, region );
+    if (shape) NtGdiDeleteObjectApp( shape );
+    if (region) NtGdiDeleteObjectApp( region );
 }
 
 
