@@ -429,7 +429,6 @@ extern BOOL keyboard_grabbed;
 extern unsigned int screen_bpp;
 extern BOOL usexrandr;
 extern BOOL usexvidmode;
-extern BOOL use_dwm;
 extern BOOL use_take_focus;
 extern BOOL use_primary_selection;
 extern BOOL use_system_cursors;
@@ -445,8 +444,6 @@ extern int xrender_error_base;
 extern char *process_name;
 extern Display *clipboard_display;
 extern WNDPROC client_foreign_window_proc;
-extern const struct dwm_funcs *dwm_funcs;
-extern dwm_display_t dwm_display;
 
 /* atoms */
 
@@ -607,7 +604,6 @@ struct x11drv_win_data
     HWND        hwnd;           /* hwnd that this private data belongs to */
     Window      whole_window;   /* X window for the complete window */
     Window      client_window;  /* X window for the client area */
-    dwm_window_t dwm_window;
     RECT        window_rect;    /* USER window rectangle relative to win32 parent window client area */
     RECT        whole_rect;     /* X window rectangle for the whole window relative to win32 parent window client area */
     RECT        client_rect;    /* client area relative to win32 parent window client area */
