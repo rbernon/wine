@@ -62,6 +62,7 @@ struct surface
     VkSurfaceKHR host_surface;
     void *driver_private;
     HDC offscreen_dc;
+    HRGN region;
     HWND hwnd;
 };
 
@@ -110,6 +111,7 @@ static VkResult win32u_vkCreateWin32SurfaceKHR( VkInstance instance, const VkWin
         if (toplevel != info->hwnd) driver_funcs->p_vulkan_surface_detach( info->hwnd, surface->driver_private, &surface->offscreen_dc );
     }
 
+    surface->region = NtGdiCreateRectRgn( 0, 0, 0, 0 );
     surface->hwnd = info->hwnd;
     *handle = surface_to_handle( surface );
     return VK_SUCCESS;
@@ -129,6 +131,7 @@ static void win32u_vkDestroySurfaceKHR( VkInstance instance, VkSurfaceKHR handle
     if (surface->offscreen_dc) NtGdiDeleteObjectApp( surface->offscreen_dc );
     p_vkDestroySurfaceKHR( instance, surface->host_surface, NULL /* allocator */ );
     driver_funcs->p_vulkan_surface_destroy( surface->hwnd, surface->driver_private );
+    NtGdiDeleteObjectApp( surface->region );
     free( surface );
 }
 
@@ -147,6 +150,26 @@ static VkResult win32u_vkQueuePresentKHR( VkQueue queue, const VkPresentInfoKHR 
         struct surface *surface = surface_from_handle( surfaces[i] );
 
         driver_funcs->p_vulkan_surface_presented( surface->hwnd, swapchain_res );
+
+        if (swapchain_res >= VK_SUCCESS && surface->offscreen_dc)
+        {
+            UINT width, height;
+            RECT client_rect;
+            HDC hdc_dst;
+
+            NtUserGetClientRect( surface->hwnd, &client_rect, get_thread_dpi() );
+            width = client_rect.right - client_rect.left;
+            height = client_rect.bottom - client_rect.top;
+
+            WARN("Copying vulkan child window %p rect %s\n", surface->hwnd, wine_dbgstr_rect(&client_rect));
+
+            if ((hdc_dst = NtUserGetDCEx(surface->hwnd, surface->region, DCX_USESTYLE | DCX_CACHE)))
+            {
+                NtGdiStretchBlt(hdc_dst, client_rect.left, client_rect.top, width, height,
+                                surface->offscreen_dc, 0, 0, width, height, SRCCOPY, 0);
+                NtUserReleaseDC(surface->hwnd, hdc_dst);
+            }
+        }
     }
 
     return res;
@@ -450,6 +473,7 @@ void vulkan_set_region( HWND toplevel, HRGN region )
         {
             TRACE( "surface %p is now clipped\n", surface->hwnd );
             driver_funcs->p_vulkan_surface_detach( surface->hwnd, surface->driver_private, &surface->offscreen_dc );
+            NtGdiCombineRgn( surface->region, region, 0, RGN_COPY );
         }
         else if (!is_clipped && surface->offscreen_dc)
         {
