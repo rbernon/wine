@@ -97,11 +97,13 @@ static VkResult win32u_vkCreateWin32SurfaceKHR( VkInstance instance, const VkWin
         pthread_mutex_lock( &vulkan_mutex );
         list_add_tail( &offscreen_surfaces, &surface->entry );
         pthread_mutex_unlock( &vulkan_mutex );
+        driver_funcs->p_vulkan_surface_detach( info->hwnd, surface->driver_private );
     }
     else
     {
         list_add_tail( &win->vulkan_surfaces, &surface->entry );
         release_win_ptr( win );
+        if (toplevel != info->hwnd) driver_funcs->p_vulkan_surface_detach( info->hwnd, surface->driver_private );
     }
 
     surface->hwnd = info->hwnd;
@@ -199,6 +201,10 @@ static void nulldrv_vulkan_surface_destroy( HWND hwnd, void *private )
 {
 }
 
+static void nulldrv_vulkan_surface_attach( HWND hwnd, void *private )
+{
+}
+
 static void nulldrv_vulkan_surface_detach( HWND hwnd, void *private )
 {
 }
@@ -221,6 +227,7 @@ static const struct vulkan_driver_funcs nulldrv_funcs =
 {
     .p_vulkan_surface_create = nulldrv_vulkan_surface_create,
     .p_vulkan_surface_destroy = nulldrv_vulkan_surface_destroy,
+    .p_vulkan_surface_attach = nulldrv_vulkan_surface_attach,
     .p_vulkan_surface_detach = nulldrv_vulkan_surface_detach,
     .p_vulkan_surface_presented = nulldrv_vulkan_surface_presented,
     .p_vkGetPhysicalDeviceWin32PresentationSupportKHR = nulldrv_vkGetPhysicalDeviceWin32PresentationSupportKHR,
@@ -265,6 +272,12 @@ static void lazydrv_vulkan_surface_destroy( HWND hwnd, void *private )
     return driver_funcs->p_vulkan_surface_destroy( hwnd, private );
 }
 
+static void lazydrv_vulkan_surface_attach( HWND hwnd, void *private )
+{
+    vulkan_driver_load();
+    return driver_funcs->p_vulkan_surface_attach( hwnd, private );
+}
+
 static void lazydrv_vulkan_surface_detach( HWND hwnd, void *private )
 {
     vulkan_driver_load();
@@ -293,6 +306,7 @@ static const struct vulkan_driver_funcs lazydrv_funcs =
 {
     .p_vulkan_surface_create = lazydrv_vulkan_surface_create,
     .p_vulkan_surface_destroy = lazydrv_vulkan_surface_destroy,
+    .p_vulkan_surface_attach = lazydrv_vulkan_surface_attach,
     .p_vulkan_surface_detach = lazydrv_vulkan_surface_detach,
     .p_vulkan_surface_presented = lazydrv_vulkan_surface_presented,
 };
@@ -339,6 +353,7 @@ void vulkan_detach_surfaces( struct list *surfaces )
 
 static void append_window_surfaces( HWND toplevel, struct list *surfaces )
 {
+    struct surface *surface;
     WND *win;
 
     if (!(win = get_win_ptr( toplevel )) || win == WND_DESKTOP || win == WND_OTHER_PROCESS)
@@ -351,6 +366,9 @@ static void append_window_surfaces( HWND toplevel, struct list *surfaces )
     {
         list_move_tail( &win->vulkan_surfaces, surfaces );
         release_win_ptr( win );
+
+        LIST_FOR_EACH_ENTRY( surface, surfaces, struct surface, entry )
+            driver_funcs->p_vulkan_surface_attach( surface->hwnd, surface->driver_private );
     }
 }
 
@@ -386,6 +404,7 @@ void vulkan_set_parent( HWND hwnd, HWND new_parent, HWND old_parent )
 {
     struct list surfaces = LIST_INIT(surfaces);
     HWND new_toplevel, old_toplevel;
+    struct surface *surface;
 
     TRACE( "hwnd %p new_parent %p old_parent %p\n", hwnd, new_parent, old_parent );
 
@@ -396,6 +415,10 @@ void vulkan_set_parent( HWND hwnd, HWND new_parent, HWND old_parent )
     if (old_toplevel == new_toplevel) return;
 
     enum_window_surfaces( old_toplevel, hwnd, &surfaces );
+
+    LIST_FOR_EACH_ENTRY( surface, &surfaces, struct surface, entry )
+        driver_funcs->p_vulkan_surface_detach( surface->hwnd, surface->driver_private );
+
     append_window_surfaces( new_toplevel, &surfaces );
 }
 
