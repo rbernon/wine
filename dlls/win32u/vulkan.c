@@ -61,7 +61,7 @@ struct surface
     struct list entry;
     VkSurfaceKHR host_surface;
     void *driver_private;
-    BOOL is_detached;
+    HDC offscreen_dc;
     HWND hwnd;
 };
 
@@ -101,18 +101,13 @@ static VkResult win32u_vkCreateWin32SurfaceKHR( VkInstance instance, const VkWin
         pthread_mutex_lock( &vulkan_mutex );
         list_add_tail( &offscreen_surfaces, &surface->entry );
         pthread_mutex_unlock( &vulkan_mutex );
-        driver_funcs->p_vulkan_surface_detach( info->hwnd, surface->driver_private );
-        surface->is_detached = TRUE;
+        driver_funcs->p_vulkan_surface_detach( info->hwnd, surface->driver_private, &surface->offscreen_dc );
     }
     else
     {
         list_add_tail( &win->vulkan_surfaces, &surface->entry );
         release_win_ptr( win );
-        if (toplevel != info->hwnd)
-        {
-            driver_funcs->p_vulkan_surface_detach( info->hwnd, surface->driver_private );
-            surface->is_detached = TRUE;
-        }
+        if (toplevel != info->hwnd) driver_funcs->p_vulkan_surface_detach( info->hwnd, surface->driver_private, &surface->offscreen_dc );
     }
 
     surface->hwnd = info->hwnd;
@@ -131,6 +126,7 @@ static void win32u_vkDestroySurfaceKHR( VkInstance instance, VkSurfaceKHR handle
     list_remove( &surface->entry );
     pthread_mutex_unlock( &vulkan_mutex );
 
+    if (surface->offscreen_dc) NtGdiDeleteObjectApp( surface->offscreen_dc );
     p_vkDestroySurfaceKHR( instance, surface->host_surface, NULL /* allocator */ );
     driver_funcs->p_vulkan_surface_destroy( surface->hwnd, surface->driver_private );
     free( surface );
@@ -214,7 +210,7 @@ static void nulldrv_vulkan_surface_attach( HWND hwnd, void *private )
 {
 }
 
-static void nulldrv_vulkan_surface_detach( HWND hwnd, void *private )
+static void nulldrv_vulkan_surface_detach( HWND hwnd, void *private, HDC *hdc )
 {
 }
 
@@ -287,10 +283,10 @@ static void lazydrv_vulkan_surface_attach( HWND hwnd, void *private )
     return driver_funcs->p_vulkan_surface_attach( hwnd, private );
 }
 
-static void lazydrv_vulkan_surface_detach( HWND hwnd, void *private )
+static void lazydrv_vulkan_surface_detach( HWND hwnd, void *private, HDC *hdc )
 {
     vulkan_driver_load();
-    return driver_funcs->p_vulkan_surface_detach( hwnd, private );
+    return driver_funcs->p_vulkan_surface_detach( hwnd, private, hdc );
 }
 
 static void lazydrv_vulkan_surface_presented( HWND hwnd, VkResult result )
@@ -354,9 +350,8 @@ void vulkan_detach_surfaces( struct list *surfaces )
 
     LIST_FOR_EACH_ENTRY( surface, surfaces, struct surface, entry )
     {
-        if (surface->is_detached) continue;
-        driver_funcs->p_vulkan_surface_detach( surface->hwnd, surface->driver_private );
-        surface->is_detached = TRUE;
+        if (surface->offscreen_dc) continue;
+        driver_funcs->p_vulkan_surface_detach( surface->hwnd, surface->driver_private, &surface->offscreen_dc );
     }
 
     pthread_mutex_lock( &vulkan_mutex );
@@ -428,9 +423,8 @@ void vulkan_set_parent( HWND hwnd, HWND new_parent, HWND old_parent )
     /* surfaces will be re-attached as needed from surface region updates */
     LIST_FOR_EACH_ENTRY( surface, &surfaces, struct surface, entry )
     {
-        if (surface->is_detached) continue;
-        driver_funcs->p_vulkan_surface_detach( surface->hwnd, surface->driver_private );
-        surface->is_detached = TRUE;
+        if (surface->offscreen_dc) continue;
+        driver_funcs->p_vulkan_surface_detach( surface->hwnd, surface->driver_private, &surface->offscreen_dc );
     }
 
     append_window_surfaces( new_toplevel, &surfaces );
@@ -452,17 +446,17 @@ void vulkan_set_region( HWND toplevel, HRGN region )
         NtUserMapWindowPoints( surface->hwnd, toplevel, (POINT *)&client_rect, 2, get_thread_dpi() );
         is_clipped = NtGdiRectInRegion( region, &client_rect );
 
-        if (is_clipped && !surface->is_detached)
+        if (is_clipped && !surface->offscreen_dc)
         {
             TRACE( "surface %p is now clipped\n", surface->hwnd );
-            driver_funcs->p_vulkan_surface_detach( surface->hwnd, surface->driver_private );
-            surface->is_detached = TRUE;
+            driver_funcs->p_vulkan_surface_detach( surface->hwnd, surface->driver_private, &surface->offscreen_dc );
         }
-        else if (!is_clipped && surface->is_detached)
+        else if (!is_clipped && surface->offscreen_dc)
         {
             TRACE( "surface %p is now unclipped\n", surface->hwnd );
             driver_funcs->p_vulkan_surface_attach( surface->hwnd, surface->driver_private );
-            surface->is_detached = FALSE;
+            NtGdiDeleteObjectApp( surface->offscreen_dc );
+            surface->offscreen_dc = NULL;
         }
     }
 
