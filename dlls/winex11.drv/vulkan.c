@@ -123,12 +123,12 @@ static void X11DRV_vulkan_surface_attach( HWND hwnd, void *private )
     }
 }
 
-static void X11DRV_vulkan_surface_detach( HWND hwnd, void *private )
+static void X11DRV_vulkan_surface_detach( HWND hwnd, void *private, HDC *hdc )
 {
     Window client_window = (Window)private;
     struct x11drv_win_data *data;
 
-    TRACE( "%p %p\n", hwnd, private );
+    TRACE( "%p %p %p\n", hwnd, private, hdc );
 
     if ((data = get_win_data( hwnd )))
     {

@@ -182,7 +182,7 @@ static void macdrv_vulkan_surface_attach(HWND hwnd, void *private)
 {
 }
 
-static void macdrv_vulkan_surface_detach(HWND hwnd, void *private)
+static void macdrv_vulkan_surface_detach(HWND hwnd, void *private, HDC *hdc)
 {
 }
 
