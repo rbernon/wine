@@ -352,6 +352,23 @@ static gboolean transform_sink_query_caps(struct wg_transform *transform, GstQue
     return true;
 }
 
+static gboolean transform_sink_query_accept_caps(struct wg_transform *transform, GstQuery *query)
+{
+    GstCaps *caps, *output_caps;
+    gboolean ret;
+
+    GST_LOG("transform %p, %"GST_PTR_FORMAT, transform, query);
+
+    gst_query_parse_accept_caps(query, &caps);
+    if (!(output_caps = caps_strip_fields(transform->output_caps, transform->attrs.allow_size_change)))
+        return false;
+
+    ret = gst_caps_is_always_compatible(caps, output_caps);
+    gst_query_set_accept_caps_result(query, ret);
+    gst_caps_unref(output_caps);
+    return true;
+}
+
 static gboolean transform_sink_query_cb(GstPad *pad, GstObject *parent, GstQuery *query)
 {
     struct wg_transform *transform = gst_pad_get_element_private(pad);
@@ -366,6 +383,9 @@ static gboolean transform_sink_query_cb(GstPad *pad, GstObject *parent, GstQuery
         if (transform_sink_query_caps(transform, query))
             return true;
         break;
+    case GST_QUERY_ACCEPT_CAPS:
+        if (transform_sink_query_accept_caps(transform, query))
+            return true;
     default:
         break;
     }
