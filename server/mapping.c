@@ -238,12 +238,16 @@ struct session_object
 {
     struct list entry;      /* entry in the session free object list */
     mem_size_t offset;      /* offset of obj in the session shared mapping */
+    mem_size_t shm_size;    /* size of the allocated object shared memory */
     shared_object_t obj;    /* object actually shared with the client */
 };
 
 struct session
 {
     struct list blocks;
+    struct list free_desktops;
+    struct list free_queues;
+    struct list free_inputs;
     struct list free_objects;
     object_id_t last_object_id;
 };
@@ -252,6 +256,9 @@ static struct mapping *session_mapping;
 static struct session session =
 {
     .blocks = LIST_INIT(session.blocks),
+    .free_desktops = LIST_INIT(session.free_desktops),
+    .free_queues = LIST_INIT(session.free_queues),
+    .free_inputs = LIST_INIT(session.free_inputs),
     .free_objects = LIST_INIT(session.free_objects),
 };
 
@@ -1361,31 +1368,47 @@ static struct session_block *find_free_session_block( mem_size_t size )
     return grow_session_mapping( size );
 }
 
-const volatile void *alloc_shared_object(void)
+static struct session_object *find_free_session_object( mem_size_t shm_size )
 {
     struct session_object *object;
-    struct list *ptr;
+    struct list *free_list;
 
-    if ((ptr = list_head( &session.free_objects )))
+    if (shm_size == sizeof(desktop_shm_t)) free_list = &session.free_desktops;
+    else if (shm_size == sizeof(queue_shm_t)) free_list = &session.free_queues;
+    else if (shm_size == sizeof(input_shm_t)) free_list = &session.free_inputs;
+    else free_list = &session.free_objects;
+
+    LIST_FOR_EACH_ENTRY( object, free_list, struct session_object, entry )
     {
-        object = CONTAINING_RECORD( ptr, struct session_object, entry );
-        list_remove( &object->entry );
+        if (object->shm_size < shm_size) continue;
+        return object;
     }
+
+    return NULL;
+}
+
+const volatile void *alloc_shared_object( mem_size_t shm_size )
+{
+    struct session_object *object;
+
+    if ((object = find_free_session_object( shm_size )))
+        list_remove( &object->entry );
     else
     {
-        mem_size_t size = sizeof(*object);
+        mem_size_t size = max( sizeof(*object), offsetof(struct session_object, obj.shm) + shm_size );
         struct session_block *block;
 
         if (!(block = find_free_session_block( size ))) return NULL;
         object = (struct session_object *)(block->data + block->used_size);
         object->offset = (char *)&object->obj - block->data;
+        object->shm_size = shm_size;
         block->used_size += size;
     }
 
     SHARED_WRITE_BEGIN( &object->obj.shm, object_shm_t )
     {
         /* mark the object data as uninitialized */
-        mark_block_uninitialized( (void *)shared, sizeof(*shared) );
+        mark_block_uninitialized( (void *)shared, shm_size );
         CONTAINING_RECORD( shared, shared_object_t, shm )->id = ++session.last_object_id;
     }
     SHARED_WRITE_END;
@@ -1393,18 +1416,29 @@ const volatile void *alloc_shared_object(void)
     return &object->obj.shm;
 }
 
-void free_shared_object( const volatile void *object_shm )
+void free_shared_object( const volatile void *object_shm, mem_size_t shm_size )
 {
     struct session_object *object = CONTAINING_RECORD( object_shm, struct session_object, obj.shm );
 
     SHARED_WRITE_BEGIN( &object->obj.shm, object_shm_t )
     {
-        mark_block_noaccess( (void *)shared, sizeof(*shared) );
+        mark_block_noaccess( (void *)shared, shm_size );
         CONTAINING_RECORD( shared, shared_object_t, shm )->id = 0;
     }
     SHARED_WRITE_END;
 
-    list_add_tail( &session.free_objects, &object->entry );
+    if (shm_size == sizeof(desktop_shm_t)) list_add_tail( &session.free_desktops, &object->entry );
+    else if (shm_size == sizeof(queue_shm_t)) list_add_tail( &session.free_queues, &object->entry );
+    else if (shm_size == sizeof(input_shm_t)) list_add_tail( &session.free_inputs, &object->entry );
+    else
+    {
+        struct session_object *next;
+
+        LIST_FOR_EACH_ENTRY( next, &session.free_objects, struct session_object, entry )
+            if (next->shm_size > shm_size) break;
+
+        list_add_before( &next->entry, &object->entry );
+    }
 }
 
 /* invalidate client caches for a shared object by giving it a new id */

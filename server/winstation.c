@@ -297,7 +297,7 @@ static struct desktop *create_desktop( const struct unicode_str *name, unsigned 
             list_init( &desktop->hotkeys );
             list_init( &desktop->pointers );
 
-            if (!(desktop->shared = alloc_shared_object()))
+            if (!(desktop->shared = alloc_shared_object( sizeof(desktop_shm_t) )))
             {
                 release_object( desktop );
                 return NULL;
@@ -390,7 +390,7 @@ static void desktop_destroy( struct object *obj )
     if (desktop->global_hooks) release_object( desktop->global_hooks );
     if (desktop->key_repeat.timeout) remove_timeout_user( desktop->key_repeat.timeout );
     release_object( desktop->winstation );
-    if (desktop->shared) free_shared_object( desktop->shared );
+    if (desktop->shared) free_shared_object( desktop->shared, sizeof(desktop_shm_t) );
 }
 
 /* retrieve the thread desktop, checking the handle access rights */

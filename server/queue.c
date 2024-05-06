@@ -259,7 +259,7 @@ static struct thread_input *create_thread_input( struct thread *thread )
         memcpy( input->desktop_keystate, (const void *)input->desktop->shared->keystate,
                 sizeof(input->desktop_keystate) );
 
-        if (!(input->shared = alloc_shared_object()))
+        if (!(input->shared = alloc_shared_object( sizeof(input_shm_t) )))
         {
             release_object( input );
             return NULL;
@@ -317,7 +317,7 @@ static struct msg_queue *create_msg_queue( struct thread *thread, struct thread_
         list_init( &queue->expired_timers );
         for (i = 0; i < NB_MSG_KINDS; i++) list_init( &queue->msg_list[i] );
 
-        if (!(queue->shared = alloc_shared_object()))
+        if (!(queue->shared = alloc_shared_object( sizeof(queue_shm_t) )))
         {
             release_object( queue );
             return NULL;
@@ -1333,7 +1333,7 @@ static void msg_queue_destroy( struct object *obj )
     release_object( queue->input );
     if (queue->hooks) release_object( queue->hooks );
     if (queue->fd) release_object( queue->fd );
-    if (queue->shared) free_shared_object( queue->shared );
+    if (queue->shared) free_shared_object( queue->shared, sizeof(queue_shm_t) );
 }
 
 static void msg_queue_poll_event( struct fd *fd, int event )
@@ -1365,7 +1365,7 @@ static void thread_input_destroy( struct object *obj )
         if (desktop->foreground_input == input) desktop->foreground_input = NULL;
         release_object( desktop );
     }
-    if (input->shared) free_shared_object( input->shared );
+    if (input->shared) free_shared_object( input->shared, sizeof(input_shm_t) );
 }
 
 /* fix the thread input data when a window is destroyed */
