@@ -8080,9 +8080,9 @@ static void test_video_processor(BOOL use_2d_buffer)
     };
     const struct attribute_desc nv12_no_aperture[] =
     {
-        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
-        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_NV12),
-        ATTR_RATIO(MF_MT_FRAME_SIZE, 82, 84),
+        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video, .required = TRUE),
+        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_NV12, .required = TRUE),
+        ATTR_RATIO(MF_MT_FRAME_SIZE, 82, 84, .required = TRUE),
         {0},
     };
     const struct attribute_desc nv12_with_aperture[] =
@@ -8311,6 +8311,19 @@ static void test_video_processor(BOOL use_2d_buffer)
         .attributes = output_sample_attributes,
         .sample_time = 0, .sample_duration = 10000000,
         .buffer_count = 1, .buffers = &nv12_extra_width_height_buffer_2d_desc,
+    };
+
+    const struct buffer_desc nv12_crop_buffer_desc =
+    {
+        .length = actual_aperture.Area.cx * actual_aperture.Area.cy * 3 / 2,
+        .compare = compare_nv12, .compare_rect = {.right = actual_aperture.Area.cx, .bottom = actual_aperture.Area.cy},
+        .dump = dump_nv12, .size = actual_aperture.Area,
+    };
+    const struct sample_desc nv12_crop_sample_desc =
+    {
+        .attributes = output_sample_attributes,
+        .sample_time = 0, .sample_duration = 10000000,
+        .buffer_count = 1, .buffers = &nv12_crop_buffer_desc,
     };
 
     const struct transform_desc
@@ -8564,6 +8577,11 @@ static void test_video_processor(BOOL use_2d_buffer)
             .output_buffer_desc = nv12_extra_width_height,
             .output_sample_desc = &nv12_extra_width_height_sample_desc, .output_sample_2d_desc = &nv12_extra_width_height_sample_2d_desc,
             .todo = TRUE,
+        },
+        {
+            .input_type_desc = rgb32_no_aperture, .input_bitmap = L"rgb32frame-crop.bmp",
+            .output_type_desc = nv12_no_aperture, .output_bitmap = L"nv12frame-crop.bmp",
+            .output_sample_desc = &nv12_crop_sample_desc,
         },
     };
 
@@ -8942,6 +8960,11 @@ static void test_video_processor(BOOL use_2d_buffer)
                     || test->output_sample_desc == &rgb32_extra_width_height_sample_desc)
         {
             output_info.cbSize = actual_width * extra_height * 4;
+            check_mft_get_output_stream_info(transform, S_OK, &output_info);
+        }
+        else if (test->output_sample_desc == &nv12_crop_sample_desc)
+        {
+            output_info.cbSize = actual_aperture.Area.cx * actual_aperture.Area.cy * 3 / 2;
             check_mft_get_output_stream_info(transform, S_OK, &output_info);
         }
         else
