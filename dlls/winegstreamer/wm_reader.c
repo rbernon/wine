@@ -73,6 +73,22 @@ static struct wm_stream *get_stream_by_output_number(struct wm_reader *reader, D
     return NULL;
 }
 
+static HRESULT copy_wm_media_type_from_amt(WM_MEDIA_TYPE *wmt, DWORD *size, const AM_MEDIA_TYPE *amt)
+{
+    DWORD capacity = *size;
+    *size = sizeof(*wmt) + amt->cbFormat;
+
+    if (!wmt)
+        return S_OK;
+    if (*size > capacity)
+        return ASF_E_BUFFERTOOSMALL;
+
+    memcpy(wmt, amt, sizeof(*amt));
+    memcpy(wmt + 1, amt->pbFormat, amt->cbFormat);
+    wmt->pbFormat = (BYTE *)(wmt + 1);
+    return S_OK;
+}
+
 struct output_props
 {
     IWMOutputMediaProps IWMOutputMediaProps_iface;
@@ -141,22 +157,11 @@ static HRESULT WINAPI output_props_GetType(IWMOutputMediaProps *iface, GUID *maj
 static HRESULT WINAPI output_props_GetMediaType(IWMOutputMediaProps *iface, WM_MEDIA_TYPE *mt, DWORD *size)
 {
     const struct output_props *props = impl_from_IWMOutputMediaProps(iface);
-    const DWORD req_size = *size;
 
     TRACE("iface %p, mt %p, size %p.\n", iface, mt, size);
 
-    *size = sizeof(*mt) + props->mt.cbFormat;
-    if (!mt)
-        return S_OK;
-    if (req_size < *size)
-        return ASF_E_BUFFERTOOSMALL;
-
     strmbase_dump_media_type(&props->mt);
-
-    memcpy(mt, &props->mt, sizeof(*mt));
-    memcpy(mt + 1, props->mt.pbFormat, props->mt.cbFormat);
-    mt->pbFormat = (BYTE *)(mt + 1);
-    return S_OK;
+    return copy_wm_media_type_from_amt(mt, size, &props->mt);
 }
 
 static HRESULT WINAPI output_props_SetMediaType(IWMOutputMediaProps *iface, WM_MEDIA_TYPE *mt)
@@ -545,8 +550,8 @@ static HRESULT WINAPI stream_props_GetMediaType(IWMMediaProps *iface, WM_MEDIA_T
     struct stream_config *config = impl_from_IWMMediaProps(iface);
     const struct wg_format *format;
     struct wg_format codec_format;
-    const DWORD req_size = *size;
     AM_MEDIA_TYPE stream_mt;
+    HRESULT hr;
 
     TRACE("iface %p, mt %p, size %p.\n", iface, mt, size);
 
@@ -555,20 +560,10 @@ static HRESULT WINAPI stream_props_GetMediaType(IWMMediaProps *iface, WM_MEDIA_T
     if (!amt_from_wg_format(&stream_mt, format, true))
         return E_OUTOFMEMORY;
 
-    *size = sizeof(stream_mt) + stream_mt.cbFormat;
-    if (mt && req_size >= *size)
-    {
-        strmbase_dump_media_type(&stream_mt);
-
-        memcpy(mt, &stream_mt, sizeof(*mt));
-        memcpy(mt + 1, stream_mt.pbFormat, stream_mt.cbFormat);
-        mt->pbFormat = (BYTE *)(mt + 1);
-    }
+    strmbase_dump_media_type(&stream_mt);
+    hr = copy_wm_media_type_from_amt(mt, size, &stream_mt);
     FreeMediaType(&stream_mt);
-
-    if (mt && req_size < *size)
-        return ASF_E_BUFFERTOOSMALL;
-    return S_OK;
+    return hr;
 }
 
 static HRESULT WINAPI stream_props_SetMediaType(IWMMediaProps *iface, WM_MEDIA_TYPE *mt)
