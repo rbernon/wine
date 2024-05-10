@@ -22,7 +22,6 @@ SOURCES = \
 	video_encoder.c \
 	video_processor.c \
 	wg_allocator.c \
-	wg_format.c \
 	wg_media_type.c \
 	wg_muxer.c \
 	wg_parser.c \
