@@ -17,6 +17,7 @@
  */
 
 #include "gst_private.h"
+#include "wmcodecdsp.h"
 #include "initguid.h"
 #include "wmsdk.h"
 
@@ -548,17 +549,32 @@ static HRESULT WINAPI stream_props_GetType(IWMMediaProps *iface, GUID *major_typ
 static HRESULT WINAPI stream_props_GetMediaType(IWMMediaProps *iface, WM_MEDIA_TYPE *mt, DWORD *size)
 {
     struct stream_config *config = impl_from_IWMMediaProps(iface);
-    const struct wg_format *format;
-    struct wg_format codec_format;
     AM_MEDIA_TYPE stream_mt;
     HRESULT hr;
 
     TRACE("iface %p, mt %p, size %p.\n", iface, mt, size);
 
-    wg_parser_stream_get_codec_format(config->stream->wg_stream, &codec_format);
-    format = (codec_format.major_type != WG_MAJOR_TYPE_UNKNOWN) ? &codec_format : &config->stream->format;
-    if (!amt_from_wg_format(&stream_mt, format, true))
-        return E_OUTOFMEMORY;
+    if (FAILED(hr = wg_parser_stream_get_codec_type_quartz(config->stream->wg_stream, &stream_mt)))
+        return hr;
+
+    if (IsEqualGUID(&stream_mt.formattype, &FORMAT_VideoInfo)
+            && IsEqualGUID(&stream_mt.subtype, &MEDIASUBTYPE_WMV1))
+    {
+        VIDEOINFOHEADER *vih = (VIDEOINFOHEADER *)stream_mt.pbFormat;
+        vih->bmiHeader.biBitCount = 24;
+        SetRect(&vih->rcSource, 0, 0, vih->bmiHeader.biWidth, abs(vih->bmiHeader.biHeight));
+        SetRect(&vih->rcTarget, 0, 0, vih->bmiHeader.biWidth, abs(vih->bmiHeader.biHeight));
+        stream_mt.bTemporalCompression = TRUE;
+    }
+
+    if (IsEqualGUID(&stream_mt.formattype, &FORMAT_WaveFormatEx)
+            && IsEqualGUID(&stream_mt.subtype, &MEDIASUBTYPE_MSAUDIO1))
+    {
+        WAVEFORMATEX *wfx = (WAVEFORMATEX *)stream_mt.pbFormat;
+        stream_mt.lSampleSize = wfx->nBlockAlign;
+        stream_mt.bFixedSizeSamples = TRUE;
+        stream_mt.bTemporalCompression = FALSE;
+    }
 
     strmbase_dump_media_type(&stream_mt);
     hr = copy_wm_media_type_from_amt(mt, size, &stream_mt);

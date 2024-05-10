@@ -271,6 +271,32 @@ wg_parser_stream_t wg_parser_get_stream(wg_parser_t parser, uint32_t index)
     return params.stream;
 }
 
+static HRESULT wg_get_media_type_mf(enum unix_funcs unix_func, void *params,
+        struct wg_media_type *wg_media_type, IMFMediaType **media_type)
+{
+    NTSTATUS status;
+    HRESULT hr;
+
+    if ((status = WINE_UNIX_CALL(unix_func, params))
+            && status == STATUS_BUFFER_TOO_SMALL)
+    {
+        if (!(wg_media_type->u.format = CoTaskMemAlloc(wg_media_type->format_size)))
+            return E_OUTOFMEMORY;
+        status = WINE_UNIX_CALL(unix_func, params);
+    }
+
+    if (status)
+    {
+        CoTaskMemFree(wg_media_type->u.format);
+        WARN("Failed to get output media type, status %#lx\n", status);
+        return HRESULT_FROM_NT(status);
+    }
+
+    hr = wg_media_type_to_mf(wg_media_type, media_type);
+    CoTaskMemFree(wg_media_type->u.format);
+    return hr;
+}
+
 void wg_parser_stream_get_current_format(wg_parser_stream_t stream, struct wg_format *format)
 {
     struct wg_parser_stream_get_current_format_params params =
@@ -284,17 +310,33 @@ void wg_parser_stream_get_current_format(wg_parser_stream_t stream, struct wg_fo
     WINE_UNIX_CALL(unix_wg_parser_stream_get_current_format, &params);
 }
 
-void wg_parser_stream_get_codec_format(wg_parser_stream_t stream, struct wg_format *format)
+static HRESULT wg_parser_stream_get_codec_type_mf(wg_parser_stream_t stream, IMFMediaType **media_type)
 {
-    struct wg_parser_stream_get_codec_format_params params =
+    struct wg_parser_stream_get_codec_type_params params =
     {
         .stream = stream,
-        .format = format,
     };
 
-    TRACE("stream %#I64x, format %p.\n", stream, format);
+    TRACE("stream %#I64x, media_type %p.\n", stream, media_type);
 
-    WINE_UNIX_CALL(unix_wg_parser_stream_get_codec_format, &params);
+    return wg_get_media_type_mf(unix_wg_parser_stream_get_codec_type, &params,
+            &params.media_type, media_type);
+}
+
+HRESULT wg_parser_stream_get_codec_type_quartz(wg_parser_stream_t stream, AM_MEDIA_TYPE *type)
+{
+    IMFMediaType *media_type;
+    HRESULT hr;
+
+    TRACE("stream %#I64x, type %p.\n", stream, type);
+
+    if (SUCCEEDED(hr = wg_parser_stream_get_codec_type_mf(stream, &media_type)))
+    {
+        hr = MFInitAMMediaTypeFromMFMediaType(media_type, GUID_NULL, type);
+        IMFMediaType_Release(media_type);
+    }
+
+    return hr;
 }
 
 void wg_parser_stream_enable(wg_parser_stream_t stream, const struct wg_format *format)
@@ -553,29 +595,11 @@ HRESULT wg_transform_get_output_type(wg_transform_t transform, IMFMediaType **me
     {
         .transform = transform,
     };
-    NTSTATUS status;
-    HRESULT hr;
 
     TRACE("transform %#I64x, media_type %p.\n", transform, media_type);
 
-    if ((status = WINE_UNIX_CALL(unix_wg_transform_get_output_type, &params))
-            && status == STATUS_BUFFER_TOO_SMALL)
-    {
-        if (!(params.media_type.u.format = CoTaskMemAlloc(params.media_type.format_size)))
-            return ERROR_OUTOFMEMORY;
-        status = WINE_UNIX_CALL(unix_wg_transform_get_output_type, &params);
-    }
-
-    if (status)
-    {
-        CoTaskMemFree(params.media_type.u.format);
-        WARN("Failed to get output media type, status %#lx\n", status);
-        return HRESULT_FROM_NT(status);
-    }
-
-    hr = wg_media_type_to_mf(&params.media_type, media_type);
-    CoTaskMemFree(params.media_type.u.format);
-    return hr;
+    return wg_get_media_type_mf(unix_wg_transform_get_output_type, &params,
+            &params.media_type, media_type);
 }
 
 HRESULT wg_transform_set_output_type(wg_transform_t transform, IMFMediaType *media_type)
