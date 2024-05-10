@@ -239,19 +239,16 @@ static NTSTATUS wg_parser_stream_get_current_format(void *args)
     return S_OK;
 }
 
-static NTSTATUS wg_parser_stream_get_codec_format(void *args)
+static NTSTATUS wg_parser_stream_get_codec_type(void *args)
 {
-    struct wg_parser_stream_get_codec_format_params *params = args;
+    struct wg_parser_stream_get_codec_type_params *params = args;
     struct wg_parser_stream *stream = get_stream(params->stream);
 
     if (caps_is_compressed(stream->codec_caps))
-        wg_format_from_caps(params->format, stream->codec_caps);
-    else if (stream->current_caps)
-        wg_format_from_caps(params->format, stream->current_caps);
-    else
-        memset(params->format, 0, sizeof(*params->format));
-
-    return S_OK;
+        return caps_to_media_type(stream->codec_caps, &params->media_type, 0);
+    if (stream->current_caps)
+        return caps_to_media_type(stream->current_caps, &params->media_type, 0);
+    return E_INVALIDARG;
 }
 
 static NTSTATUS wg_parser_stream_enable(void *args)
@@ -1876,7 +1873,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_parser_get_stream),
 
     X(wg_parser_stream_get_current_format),
-    X(wg_parser_stream_get_codec_format),
+    X(wg_parser_stream_get_codec_type),
     X(wg_parser_stream_enable),
     X(wg_parser_stream_disable),
 
@@ -1974,20 +1971,29 @@ static NTSTATUS wow64_wg_parser_stream_get_current_format(void *args)
     return wg_parser_stream_get_current_format(&params);
 }
 
-static NTSTATUS wow64_wg_parser_stream_get_codec_format(void *args)
+static NTSTATUS wow64_wg_parser_stream_get_codec_type(void *args)
 {
     struct
     {
         wg_parser_stream_t stream;
-        PTR32 format;
+        struct wg_media_type32 media_type;
     } *params32 = args;
-    struct wg_parser_stream_get_codec_format_params params =
+    struct wg_parser_stream_get_codec_type_params params =
     {
         .stream = params32->stream,
-        .format = ULongToPtr(params32->format),
+        .media_type =
+        {
+            .major = params32->media_type.major,
+            .format_size = params32->media_type.format_size,
+            .u.format = ULongToPtr(params32->media_type.format),
+        },
     };
+    NTSTATUS status;
 
-    return wg_parser_stream_get_codec_format(&params);
+    status = wg_parser_stream_get_codec_type(&params);
+    params32->media_type.major = params.media_type.major;
+    params32->media_type.format_size = params.media_type.format_size;
+    return status;
 }
 
 static NTSTATUS wow64_wg_parser_stream_enable(void *args)
@@ -2278,7 +2284,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
     X(wg_parser_get_stream),
 
     X64(wg_parser_stream_get_current_format),
-    X64(wg_parser_stream_get_codec_format),
+    X64(wg_parser_stream_get_codec_type),
     X64(wg_parser_stream_enable),
     X(wg_parser_stream_disable),
 
