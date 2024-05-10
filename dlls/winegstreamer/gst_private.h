@@ -130,9 +130,6 @@ HRESULT wg_muxer_push_sample(wg_muxer_t muxer, struct wg_sample *sample, UINT32 
 HRESULT wg_muxer_read_data(wg_muxer_t muxer, void *buffer, UINT32 *size, UINT64 *offset);
 HRESULT wg_muxer_finalize(wg_muxer_t muxer);
 
-unsigned int wg_format_get_bytes_for_uncompressed(wg_video_format format, unsigned int width, unsigned int height);
-unsigned int wg_format_get_max_size(const struct wg_format *format);
-
 HRESULT avi_splitter_create(IUnknown *outer, IUnknown **out);
 HRESULT decodebin_parser_create(IUnknown *outer, IUnknown **out);
 HRESULT mpeg_audio_codec_create(IUnknown *outer, IUnknown **out);
@@ -147,16 +144,10 @@ HRESULT color_convert_create(IUnknown *outer, IUnknown **out);
 HRESULT mp3_sink_class_factory_create(IUnknown *outer, IUnknown **out);
 HRESULT mpeg4_sink_class_factory_create(IUnknown *outer, IUnknown **out);
 
-bool amt_from_wg_format(AM_MEDIA_TYPE *mt, const struct wg_format *format, bool wm);
-bool amt_to_wg_format(const AM_MEDIA_TYPE *mt, struct wg_format *format);
-
 BOOL init_gstreamer(void);
 
 extern HRESULT mfplat_get_class_object(REFCLSID rclsid, REFIID riid, void **obj);
 extern HRESULT mfplat_DllRegisterServer(void);
-
-IMFMediaType *mf_media_type_from_wg_format(const struct wg_format *format);
-void mf_media_type_to_wg_format(IMFMediaType *type, struct wg_format *format);
 
 HRESULT wg_sample_create_mf(IMFSample *sample, struct wg_sample **out);
 HRESULT wg_sample_create_quartz(IMediaSample *sample, struct wg_sample **out);
@@ -181,10 +172,6 @@ HRESULT wg_transform_push_data(wg_transform_t transform, struct wg_sample *sampl
 HRESULT wg_transform_read_data(wg_transform_t transform, struct wg_sample *sample);
 
 HRESULT gstreamer_byte_stream_handler_create(REFIID riid, void **obj);
-
-unsigned int wg_format_get_stride(const struct wg_format *format);
-
-bool wg_video_format_is_rgb(enum wg_video_format format);
 
 HRESULT audio_decoder_create(REFIID riid, void **ret);
 HRESULT video_decoder_create(REFIID riid, void **ret);

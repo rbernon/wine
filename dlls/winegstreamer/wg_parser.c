@@ -133,15 +133,8 @@ static struct wg_parser_stream *get_stream(wg_parser_stream_t stream)
 
 static bool caps_is_compressed(GstCaps *caps)
 {
-    struct wg_format format;
-
-    if (!caps)
-        return false;
-    wg_format_from_caps(&format, caps);
-
-    return format.major_type != WG_MAJOR_TYPE_UNKNOWN
-            && format.major_type != WG_MAJOR_TYPE_VIDEO
-            && format.major_type != WG_MAJOR_TYPE_AUDIO;
+    const gchar *media_type = gst_structure_get_name(gst_caps_get_structure(caps, 0));
+    return !g_str_has_prefix(media_type, "video/x-raw") && !g_str_has_prefix(media_type, "audio/x-raw");
 }
 
 static NTSTATUS wg_parser_get_stream_count(void *args)
@@ -241,7 +234,7 @@ static NTSTATUS wg_parser_stream_get_codec_type(void *args)
     struct wg_parser_stream_get_codec_type_params *params = args;
     struct wg_parser_stream *stream = get_stream(params->stream);
 
-    if (caps_is_compressed(stream->codec_caps))
+    if (stream->codec_caps && caps_is_compressed(stream->codec_caps))
         return caps_to_media_type(stream->codec_caps, &params->media_type, 0);
     if (stream->current_caps)
         return caps_to_media_type(stream->current_caps, &params->media_type, 0);
@@ -796,7 +789,6 @@ static gboolean sink_query_cb(GstPad *pad, GstObject *parent, GstQuery *query)
 
         case GST_QUERY_ACCEPT_CAPS:
         {
-            struct wg_format format, current_format;
             gboolean ret = TRUE;
             GstCaps *caps;
 
@@ -810,9 +802,7 @@ static gboolean sink_query_cb(GstPad *pad, GstObject *parent, GstQuery *query)
             }
 
             gst_query_parse_accept_caps(query, &caps);
-            wg_format_from_caps(&format, caps);
-            wg_format_from_caps(&current_format, stream->desired_caps);
-            ret = wg_format_compare(&format, &current_format);
+            ret = gst_caps_is_always_compatible(caps, stream->desired_caps);
 
             pthread_mutex_unlock(&parser->mutex);
 
@@ -1014,7 +1004,8 @@ static void pad_added_cb(GstElement *element, GstPad *pad, gpointer user)
 
     if (!(stream = create_stream(parser)))
         return;
-    stream->codec_caps = gst_pad_query_caps(pad, NULL);
+    if (!(stream->codec_caps = gst_pad_query_caps(pad, NULL)))
+        return;
 
     /* For compressed stream, create an extra decodebin to decode it. */
     if (!parser->output_compressed && caps_is_compressed(stream->codec_caps))

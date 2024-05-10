@@ -48,13 +48,6 @@ extern bool link_element_to_sink(GstElement *element, GstPad *sink_pad);
 extern bool push_event(GstPad *pad, GstEvent *event);
 extern void set_max_threads(GstElement *element);
 
-/* wg_format.c */
-
-extern void wg_format_from_caps(struct wg_format *format, const GstCaps *caps);
-extern bool wg_format_compare(const struct wg_format *a, const struct wg_format *b);
-extern GstCaps *wg_format_to_caps(const struct wg_format *format);
-extern uint32_t wg_channel_mask_from_gst(const GstAudioInfo *info);
-
 /* wg_transform.c */
 
 extern NTSTATUS wg_transform_create(void *args);
