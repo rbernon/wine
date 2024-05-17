@@ -39,6 +39,8 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(system);
 
+#define WINE_ENUM_PHYSICAL_SETTINGS  ((DWORD) -3)
+
 static LONG dpi_context; /* process DPI awareness context */
 
 static HKEY video_key, enum_key, control_key, config_key, volatile_base_key;
@@ -70,6 +72,7 @@ static const WCHAR yesW[] = {'Y','e','s',0};
 static const WCHAR noW[] = {'N','o',0};
 static const WCHAR modesW[] = {'M','o','d','e','s',0};
 static const WCHAR mode_countW[] = {'M','o','d','e','C','o','u','n','t',0};
+static const WCHAR physicalW[] = {'P','h','y','s','i','c','a','l',0};
 
 static const char  guid_devclass_displayA[] = "{4D36E968-E325-11CE-BFC1-08002BE10318}";
 static const WCHAR guid_devclass_displayW[] =
@@ -109,6 +112,7 @@ struct source
     UINT state_flags;
     UINT monitor_count;
     UINT mode_count;
+    DEVMODEW physical;
     DEVMODEW *modes;
 };
 
@@ -426,10 +430,11 @@ static BOOL write_source_mode( HKEY hkey, UINT index, const DEVMODEW *mode )
 {
     WCHAR bufferW[MAX_PATH] = {0};
 
-    assert( index == ENUM_CURRENT_SETTINGS || index == ENUM_REGISTRY_SETTINGS );
+    assert( index == ENUM_CURRENT_SETTINGS || index == ENUM_REGISTRY_SETTINGS || index == WINE_ENUM_PHYSICAL_SETTINGS );
 
     if (index == ENUM_CURRENT_SETTINGS) asciiz_to_unicode( bufferW, "Current" );
     else if (index == ENUM_REGISTRY_SETTINGS) asciiz_to_unicode( bufferW, "Registry" );
+    else if (index == WINE_ENUM_PHYSICAL_SETTINGS) asciiz_to_unicode( bufferW, "Physical" );
     else return FALSE;
 
     return set_reg_value( hkey, bufferW, REG_BINARY, &mode->dmFields, sizeof(*mode) - offsetof(DEVMODEW, dmFields) );
@@ -441,10 +446,11 @@ static BOOL read_source_mode( HKEY hkey, UINT index, DEVMODEW *mode )
     KEY_VALUE_PARTIAL_INFORMATION *value = (void *)value_buf;
     const char *key;
 
-    assert( index == ENUM_CURRENT_SETTINGS || index == ENUM_REGISTRY_SETTINGS );
+    assert( index == ENUM_CURRENT_SETTINGS || index == ENUM_REGISTRY_SETTINGS || index == WINE_ENUM_PHYSICAL_SETTINGS );
 
     if (index == ENUM_CURRENT_SETTINGS) key = "Current";
     else if (index == ENUM_REGISTRY_SETTINGS) key = "Registry";
+    else if (index == WINE_ENUM_PHYSICAL_SETTINGS) key = "Physical";
     else return FALSE;
 
     if (!query_reg_ascii_value( hkey, key, value, sizeof(value_buf) )) return FALSE;
@@ -641,6 +647,9 @@ static BOOL read_source_from_registry( unsigned int index, struct source *source
     /* StateFlags */
     if (query_reg_ascii_value( hkey, "StateFlags", value, sizeof(buffer) ) && value->Type == REG_DWORD)
         source->state_flags = *(const DWORD *)value->Data;
+
+    if (read_source_mode( hkey, WINE_ENUM_PHYSICAL_SETTINGS, &source->physical ))
+        source->physical.dmSize = sizeof(source->physical);
 
     /* ModeCount */
     if (query_reg_ascii_value( hkey, "ModeCount", value, sizeof(buffer) ) && value->Type == REG_DWORD)
@@ -1593,7 +1602,10 @@ static void add_modes( const DEVMODEW *current, UINT modes_count, const DEVMODEW
     if (!(ctx->source.state_flags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP)) current = &detached;
 
     if (modes_count > 1 || current == &detached)
+    {
+        reg_delete_value( ctx->source_key, physicalW );
         virtual_modes = NULL;
+    }
     else
     {
         if (!read_source_mode( ctx->source_key, ENUM_CURRENT_SETTINGS, &virtual ))
@@ -1604,6 +1616,8 @@ static void add_modes( const DEVMODEW *current, UINT modes_count, const DEVMODEW
             modes_count = virtual_count;
             modes = virtual_modes;
             current = &virtual;
+
+            write_source_mode( ctx->source_key, WINE_ENUM_PHYSICAL_SETTINGS, &physical );
         }
     }
 
@@ -3556,6 +3570,7 @@ BOOL WINAPI NtUserEnumDisplaySettings( UNICODE_STRING *device, DWORD index, DEVM
 
     if (index == ENUM_REGISTRY_SETTINGS) ret = source_get_registry_settings( source, devmode );
     else if (index == ENUM_CURRENT_SETTINGS) ret = source_get_current_settings( source, devmode );
+    else if (index == WINE_ENUM_PHYSICAL_SETTINGS) ret = FALSE;
     else ret = source_enum_display_settings( source, index, devmode, flags );
     source_release( source );
 
