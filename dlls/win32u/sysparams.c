@@ -154,6 +154,7 @@ static INT64 last_query_display_time;
 static pthread_mutex_t display_lock = PTHREAD_MUTEX_INITIALIZER;
 
 BOOL enable_thunk_lock = FALSE;
+static BOOL enable_mode_setting;
 
 #define VIRTUAL_HMONITOR ((HMONITOR)(UINT_PTR)(0x10000 + 1))
 static struct monitor virtual_monitor =
@@ -510,8 +511,8 @@ static BOOL source_get_current_settings( const struct source *source, DEVMODEW *
     snprintf( device_name, sizeof(device_name), "\\\\.\\DISPLAY%d", source->id + 1 );
     asciiz_to_unicode( device_nameW, device_name );
 
-    /* use the default implementation in virtual desktop mode */
-    if (is_virtual_desktop()) ret = FALSE;
+    /* use the default implementation in virtual desktop mode or virtualized display modes */
+    if (is_virtual_desktop() || source->physical.dmSize) ret = FALSE;
     else ret = user_driver->pGetCurrentDisplaySettings( device_nameW, is_primary, mode );
 
     if (ret) return TRUE;
@@ -1617,6 +1618,7 @@ static void add_modes( const DEVMODEW *current, UINT modes_count, const DEVMODEW
     detached.dmPelsHeight = 0;
     if (!(ctx->source.state_flags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP)) current = &detached;
 
+    if (!enable_mode_setting && !is_virtual_desktop()) modes_count = 0;
     if (modes_count > 1 || current == &detached)
     {
         reg_delete_value( ctx->source_key, physicalW );
@@ -3495,8 +3497,9 @@ static LONG apply_display_settings( struct source *target, const DEVMODEW *devmo
         asciiz_to_unicode( primary_name, device_name );
     }
 
-    /* use the default implementation in virtual desktop mode */
-    if (is_virtual_desktop()) ret = E_NOTIMPL;
+    /* use the default implementation in virtual desktop mode or virtualized display modes */
+    source = target ? target : primary ? primary : NULL;
+    if (is_virtual_desktop() || (source && source->physical.dmSize)) ret = E_NOTIMPL;
     else ret = user_driver->pChangeDisplaySettings( displays, primary_name, hwnd, flags, lparam );
 
     if (ret == E_NOTIMPL)
@@ -5032,6 +5035,8 @@ void sysparams_init(void)
         grab_pointer = IS_OPTION_TRUE( buffer[0] );
     if (!get_config_key( hkey, appkey, "GrabFullscreen", buffer, sizeof(buffer) ))
         grab_fullscreen = IS_OPTION_TRUE( buffer[0] );
+    if (!get_config_key( hkey, appkey, "EnableModeSetting", buffer, sizeof(buffer) ))
+        enable_mode_setting = IS_OPTION_TRUE( buffer[0] );
 
 #undef IS_OPTION_TRUE
 }
