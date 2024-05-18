@@ -626,7 +626,7 @@ static void diagnostic( const struct location *where, const char *type, const ch
     fprintf( stderr, "%s\n", buffer );
 }
 
-void parser_error( const struct location *where, const char *message )
+void parser_error_( const struct location *where, const char *message, int error_count )
 {
     diagnostic( where, "error", message );
 }
