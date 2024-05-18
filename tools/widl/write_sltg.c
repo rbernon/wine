@@ -1229,8 +1229,8 @@ static int add_func_desc(struct sltg_typelib *typelib, struct sltg_data *data, v
     funcflags = get_func_flags(func, &dispid, &invokekind, &helpcontext, &helpstring);
 
     if (base_offset != -1)
-        chat("add_func_desc: flags %#x, dispid %#x, invokekind %d, helpcontext %#x, helpstring %s\n",
-             funcflags, dispid, invokekind, helpcontext, helpstring);
+        chat("add_func_desc: flags %#x, dispid %#x, invokekind %d, helpcontext %#x, helpstring %s, defaults %u\n",
+             funcflags, dispid, invokekind, helpcontext, helpstring, defaults);
 
     func_desc.magic = 0x6c; /* always write flags to simplify calculations */
     func_desc.flags = (invokekind << 4) | 0x02;
