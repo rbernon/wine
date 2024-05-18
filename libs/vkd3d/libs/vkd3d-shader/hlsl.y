@@ -6008,7 +6008,7 @@ static bool state_block_add_entry(struct hlsl_state_block *state_block, struct h
 }
 
 %locations
-%define parse.error verbose
+%define parse.error detailed
 %define api.prefix {hlsl_yy}
 %define api.pure full
 %expect 1
