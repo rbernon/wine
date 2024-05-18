@@ -234,7 +234,7 @@ then
 fi
 AC_CACHE_CHECK([whether bison is recent enough],wine_cv_recent_bison,
     [cat >conftest.y <<EOF
-%define parse.error verbose
+%define parse.error detailed
 %%
 empty: ;
 EOF
