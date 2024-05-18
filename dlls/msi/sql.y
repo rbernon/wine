@@ -35,7 +35,8 @@ WINE_DEFAULT_DEBUG_CHANNEL(msi);
 static UINT SQL_getstring( void *info, const struct sql_str *strdata, LPWSTR *str );
 static INT SQL_getint( void *info );
 static int sql_lex( void *SQL_lval, SQL_input *info );
-static int sql_error( SQL_input *info, const char *str);
+#define sql_error(a,b) sql_error_(a, b, sql_nerrs)
+static int sql_error_( SQL_input *info, const char *str, int error_count );
 
 static LPWSTR parser_add_table( void *info, LPCWSTR list, LPCWSTR table );
 static void *parser_alloc( void *info, unsigned int sz );
@@ -853,7 +854,7 @@ INT SQL_getint( void *info )
     return r;
 }
 
-static int sql_error( SQL_input *info, const char *str )
+static int sql_error_( SQL_input *info, const char *str, int error_count )
 {
     return 0;
 }
