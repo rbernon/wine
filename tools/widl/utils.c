@@ -41,7 +41,7 @@ void error_at( const struct location *where, const char *s, ... )
     vsnprintf( buffer, sizeof(buffer), s, ap );
     va_end( ap );
 
-    parser_error( where, buffer );
+    parser_error_( where, buffer, 0 );
     exit( 1 );
 }
 
