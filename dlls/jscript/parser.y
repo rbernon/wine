@@ -26,7 +26,8 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(jscript);
 
-static int parser_error(unsigned*,parser_ctx_t*,const char*);
+#define parser_error(a,b,c) parser_error_(a, b, c, parser_nerrs)
+static int parser_error_(unsigned*,parser_ctx_t*,const char*,int);
 static void set_error(parser_ctx_t*,unsigned,HRESULT);
 static BOOL explicit_error(parser_ctx_t*,void*,WCHAR);
 static BOOL allow_auto_semicolon(parser_ctx_t*);
@@ -1544,7 +1545,7 @@ static expression_t *new_call_expression(parser_ctx_t *ctx, expression_t *expres
     return &ret->expr;
 }
 
-static int parser_error(unsigned *loc, parser_ctx_t *ctx, const char *str)
+static int parser_error_(unsigned *loc, parser_ctx_t *ctx, const char *str, int error_count)
 {
     if(ctx->error_loc == -1)
         ctx->error_loc = *loc;
