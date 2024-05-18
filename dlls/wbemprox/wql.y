@@ -205,7 +205,8 @@ static struct expr *expr_propval( struct parser *parser, const struct property *
     return e;
 }
 
-static int wql_error( struct parser *parser, const char *str );
+#define wql_error(a,b) wql_error_(a, b, wql_nerrs)
+static int wql_error_( struct parser *parser, const char *str, int error_count );
 static int wql_lex( void *val, struct parser *parser );
 
 #define PARSER_BUBBLE_UP_VIEW( parser, result, current_view ) \
@@ -838,7 +839,7 @@ static int wql_lex( void *p, struct parser *parser )
     return token;
 }
 
-static int wql_error( struct parser *parser, const char *str )
+static int wql_error_( struct parser *parser, const char *str, int error_count )
 {
     ERR("%s\n", str);
     return 0;
