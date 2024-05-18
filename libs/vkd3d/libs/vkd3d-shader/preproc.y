@@ -252,7 +252,7 @@ static void free_parse_arg_names(struct parse_arg_names *args)
 
 %define api.prefix {preproc_yy}
 %define api.pure full
-%define parse.error verbose
+%define parse.error detailed
 %expect 0
 %locations
 %lex-param {yyscan_t scanner}
