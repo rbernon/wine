@@ -38,7 +38,8 @@ static inline BOOL is_literal(xmlChar const* tok)
             (tok[0] == '\'' || tok[0] == '"'));
 }
 
-static void xslpattern_error(parser_param* param, void const* scanner, char const* msg)
+#define xslpattern_error(a,b,c) xslpattern_error_(a, b, c, xslpattern_nerrs)
+static void xslpattern_error_(parser_param* param, void const* scanner, char const* msg, int error_count)
 {
     param->err++;
     FIXME("%s:\n"
