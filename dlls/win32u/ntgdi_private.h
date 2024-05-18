@@ -58,9 +58,9 @@ typedef struct tagDC
     DC_ATTR     *attr;             /* DC attributes accessible by client */
     struct tagDC *saved_dc;
     struct dce  *dce;              /* associated dce, if any */
-    BOOL         bounds_enabled:1; /* bounds tracking is enabled */
-    BOOL         path_open:1;      /* path is currently open (only for saved DCs) */
-    BOOL         is_display:1;     /* DC is for display device */
+    BOOL         bounds_enabled;   /* bounds tracking is enabled */
+    BOOL         path_open;        /* path is currently open (only for saved DCs) */
+    BOOL         is_display;       /* DC is for display device */
 
     RECT         device_rect;      /* rectangle for the whole device */
     int          pixel_format;     /* pixel format (for memory DCs) */
