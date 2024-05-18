@@ -71,7 +71,8 @@ struct value {
 static LPWSTR COND_GetString( COND_input *info, const struct cond_str *str );
 static LPWSTR COND_GetLiteral( COND_input *info, const struct cond_str *str );
 static int cond_lex( void *COND_lval, COND_input *info);
-static int cond_error( COND_input *info, const char *str);
+#define cond_error(a,b) cond_error_(a, b, cond_nerrs)
+static int cond_error_( COND_input *info, const char *str, int error_count );
 
 static void *cond_alloc( COND_input *cond, unsigned int sz );
 static void *cond_track_mem( COND_input *cond, void *ptr, unsigned int sz );
@@ -794,7 +795,7 @@ static void cond_free( void *ptr )
     }
 }
 
-static int cond_error( COND_input *info, const char *str )
+static int cond_error_( COND_input *info, const char *str, int error_count )
 {
     TRACE("%s\n", str );
     return 0;
