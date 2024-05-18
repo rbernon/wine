@@ -128,7 +128,7 @@ PARSER_LTYPE pop_import(void);
 
 %define api.prefix {parser_}
 %define api.pure full
-%define parse.error verbose
+%define parse.error detailed
 %locations
 
 %union {

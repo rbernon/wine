@@ -6520,7 +6520,7 @@ static void validate_uav_type(struct hlsl_ctx *ctx, enum hlsl_sampler_dim dim,
 }
 
 %locations
-%define parse.error verbose
+%define parse.error detailed
 %define api.prefix {hlsl_yy}
 %define api.pure full
 %expect 1
