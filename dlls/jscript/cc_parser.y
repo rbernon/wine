@@ -47,7 +47,8 @@ WINE_DEFAULT_DEBUG_CHANNEL(jscript);
 
 %{
 
-static int cc_parser_error(parser_ctx_t *ctx, const char *str)
+#define cc_parser_error(a,b) cc_parser_error_(a, b, cc_parser_nerrs)
+static int cc_parser_error_(parser_ctx_t *ctx, const char *str, int error_count)
 {
     if(SUCCEEDED(ctx->hres)) {
         WARN("%s\n", str);
