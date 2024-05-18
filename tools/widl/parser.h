@@ -25,8 +25,9 @@
 
 int parser_parse(void);
 
+#define parser_error(a,b) parser_error_(a, b, parser_nerrs)
 extern void parser_warning( const struct location *where, const char *message );
-extern void parser_error( const struct location *where, const char *message );
+extern void parser_error_( const struct location *where, const char *message, int error_count );
 extern void init_location( struct location *copy, const struct location *begin, const struct location *end );
 
 extern FILE *parser_in;
