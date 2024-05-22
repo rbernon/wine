@@ -2521,7 +2521,7 @@ static void test_aac_decoder_subtype(const struct attribute_desc *input_type_des
     {
         {
             .attributes = output_sample_attributes + (has_video_processor ? 0 : 1) /* MFSampleExtension_CleanPoint missing on Win7 */,
-            .sample_time = 0, .sample_duration = 232200,
+            .sample_time = 1234000, .sample_duration = 232200,
             .buffer_count = 1, .buffers = output_buffer_desc,
         },
     };
@@ -2615,6 +2615,9 @@ static void test_aac_decoder_subtype(const struct attribute_desc *input_type_des
     ok(aacenc_data_len == 24861, "got length %lu\n", aacenc_data_len);
 
     input_sample = create_sample(aacenc_data + sizeof(DWORD), *(DWORD *)aacenc_data);
+
+    hr = IMFSample_SetSampleTime(input_sample, 1234000);
+    ok(hr == S_OK, "Got %#lx\n", hr);
 
     flags = 0;
     hr = IMFTransform_GetInputStatus(transform, 0, &flags);
