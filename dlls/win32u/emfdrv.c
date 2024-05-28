@@ -519,7 +519,6 @@ static const struct gdi_dc_funcs emfdrv_driver =
     EMFDRV_StrokeAndFillPath,        /* pStrokeAndFillPath */
     EMFDRV_StrokePath,               /* pStrokePath */
     NULL,                            /* pUnrealizePalette */
-    NULL,                            /* pSetWindowRegion */
     GDI_PRIORITY_GRAPHICS_DRV,       /* priority */
     "emfdrv",
 };
