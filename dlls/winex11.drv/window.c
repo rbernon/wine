@@ -540,7 +540,7 @@ static void sync_window_region( struct x11drv_win_data *data, HRGN win_region )
     if (hrgn == (HRGN)1)  /* hack: win_region == 1 means retrieve region from server */
     {
         if (!(hrgn = NtGdiCreateRectRgn( 0, 0, 0, 0 ))) return;
-        if (NtUserGetWindowRgnEx( data->hwnd, hrgn, 0 ) == ERROR)
+        if (NtUserGetWindowRgnEx( data->hwnd, hrgn, 0 ) == ERROR) /* FIXME DPI */
         {
             NtGdiDeleteObjectApp( hrgn );
             hrgn = 0;
@@ -2145,7 +2145,7 @@ static void create_whole_window( struct x11drv_win_data *data )
     }
 
     if ((win_rgn = NtGdiCreateRectRgn( 0, 0, 0, 0 )) &&
-        NtUserGetWindowRgnEx( data->hwnd, win_rgn, 0 ) == ERROR)
+        NtUserGetWindowRgnEx( data->hwnd, win_rgn, 0 ) == ERROR) /* FIXME DPI */
     {
         NtGdiDeleteObjectApp( win_rgn );
         win_rgn = 0;
