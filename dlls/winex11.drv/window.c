@@ -273,7 +273,7 @@ static BOOL is_window_managed( HWND hwnd, UINT swp_flags, const RECT *window_rec
         /* full-screen popup windows are managed */
         hmon = NtUserMonitorFromWindow( hwnd, MONITOR_DEFAULTTOPRIMARY );
         mi.cbSize = sizeof( mi );
-        NtUserGetMonitorInfo( hmon, &mi );
+        NtUserGetMonitorInfo( hmon, &mi ); /* FIXME DPI */
         if (window_rect->left <= mi.rcWork.left && window_rect->right >= mi.rcWork.right &&
             window_rect->top <= mi.rcWork.top && window_rect->bottom >= mi.rcWork.bottom)
             return TRUE;
@@ -402,7 +402,7 @@ static void sync_window_region( struct x11drv_win_data *data, HRGN win_region )
     if (hrgn == (HRGN)1)  /* hack: win_region == 1 means retrieve region from server */
     {
         if (!(hrgn = NtGdiCreateRectRgn( 0, 0, 0, 0 ))) return;
-        if (NtUserGetWindowRgnEx( data->hwnd, hrgn, 0 ) == ERROR)
+        if (NtUserGetWindowRgnEx( data->hwnd, hrgn, 0 ) == ERROR) /* FIXME DPI */
         {
             NtGdiDeleteObjectApp( hrgn );
             hrgn = 0;
@@ -1732,7 +1732,7 @@ static void create_whole_window( struct x11drv_win_data *data )
     }
 
     if ((win_rgn = NtGdiCreateRectRgn( 0, 0, 0, 0 )) &&
-        NtUserGetWindowRgnEx( data->hwnd, win_rgn, 0 ) == ERROR)
+        NtUserGetWindowRgnEx( data->hwnd, win_rgn, 0 ) == ERROR) /* FIXME DPI */
     {
         NtGdiDeleteObjectApp( win_rgn );
         win_rgn = 0;
@@ -1982,7 +1982,7 @@ void X11DRV_SetDesktopWindow( HWND hwnd )
 
     if (!width && !height)  /* not initialized yet */
     {
-        RECT rect = NtUserGetVirtualScreenRect();
+        RECT rect = NtUserGetVirtualScreenRect(); /* FIXME DPI */
 
         SERVER_START_REQ( set_window_pos )
         {
@@ -2208,7 +2208,7 @@ HWND create_foreign_window( Display *display, Window xwin )
 
     hwnd = NtUserCreateWindowEx( 0, &class_name, &class_name, NULL, style, pos.x, pos.y,
                                  attr.width, attr.height, parent, 0, NULL, NULL, 0, NULL,
-                                 0, FALSE );
+                                 0, FALSE ); /* FIXME DPI */
     if (!(data = get_win_data( hwnd )))
     {
         NtUserDestroyWindow( hwnd );
@@ -2440,7 +2440,7 @@ void X11DRV_ReleaseDC( HWND hwnd, HDC hdc )
     escape.code = X11DRV_SET_DRAWABLE;
     escape.drawable = root_window;
     escape.mode = IncludeInferiors;
-    escape.dc_rect = NtUserGetVirtualScreenRect();
+    escape.dc_rect = NtUserGetVirtualScreenRect(); /* FIXME DPI */
     OffsetRect( &escape.dc_rect, -2 * escape.dc_rect.left, -2 * escape.dc_rect.top );
     NtGdiExtEscape( hdc, NULL, 0, X11DRV_ESCAPE, sizeof(escape), (LPSTR)&escape, 0, NULL );
 }
