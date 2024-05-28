@@ -539,8 +539,8 @@ NTSTATUS x11drv_tablet_load_info( void *hwnd )
     gSysContext.lcSensZ = 65536;
     gSysContext.lcSysSensX= 65536;
     gSysContext.lcSysSensY= 65536;
-    gSysContext.lcSysExtX = NtUserGetSystemMetrics( SM_CXVIRTUALSCREEN );
-    gSysContext.lcSysExtY = NtUserGetSystemMetrics( SM_CYVIRTUALSCREEN );
+    gSysContext.lcSysExtX = NtUserGetSystemMetrics( SM_CXVIRTUALSCREEN ); /* FIXME DPI */
+    gSysContext.lcSysExtY = NtUserGetSystemMetrics( SM_CYVIRTUALSCREEN ); /* FIXME DPI */
 
     /* initialize cursors */
     disable_system_cursors();
