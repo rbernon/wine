@@ -454,8 +454,8 @@ static void wayland_surface_get_rect_in_monitor(struct wayland_surface *surface,
     MONITORINFO mi;
 
     mi.cbSize = sizeof(mi);
-    if (!(hmonitor = NtUserMonitorFromRect(&surface->window.rect, 0)) ||
-        !NtUserGetMonitorInfo(hmonitor, (MONITORINFO *)&mi))
+    if (!(hmonitor = NtUserMonitorFromRect(&surface->window.rect, 0)) || /* FIXME: DPI */
+        !NtUserGetMonitorInfo(hmonitor, (MONITORINFO *)&mi)) /* FIXME: DPI */
     {
         SetRectEmpty(rect);
         return;
