@@ -724,16 +724,16 @@ static BOOL wayland_surface_client_covers_vscreen(struct wayland_surface *surfac
 
     /* Get individual system metrics to get coords in thread dpi
      * (NtUserGetVirtualScreenRect would return values in system dpi). */
-    vscreen_rect.left = NtUserGetSystemMetrics(SM_XVIRTUALSCREEN);
-    vscreen_rect.top = NtUserGetSystemMetrics(SM_YVIRTUALSCREEN);
+    vscreen_rect.left = NtUserGetSystemMetrics(SM_XVIRTUALSCREEN); /* FIXME: DPI */
+    vscreen_rect.top = NtUserGetSystemMetrics(SM_YVIRTUALSCREEN); /* FIXME: DPI */
     vscreen_rect.right = vscreen_rect.left +
-                         NtUserGetSystemMetrics(SM_CXVIRTUALSCREEN);
+                         NtUserGetSystemMetrics(SM_CXVIRTUALSCREEN); /* FIXME: DPI */
     vscreen_rect.bottom = vscreen_rect.top +
-                          NtUserGetSystemMetrics(SM_CYVIRTUALSCREEN);
+                          NtUserGetSystemMetrics(SM_CYVIRTUALSCREEN); /* FIXME: DPI */
 
     /* FIXME: surface->window.client_rect is in window dpi, whereas
      * vscreen_rect is in thread dpi. */
-    intersect_rect(&rect, &surface->window.client_rect, &vscreen_rect);
+    intersect_rect(&rect, &surface->window.client_rect, &vscreen_rect); /* FIXME: DPI */
 
     return EqualRect(&vscreen_rect, &rect);
 }
