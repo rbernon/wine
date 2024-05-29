@@ -288,7 +288,7 @@ W32KAPI void window_surface_set_layered( struct window_surface *surface, COLORRE
 W32KAPI void window_surface_flush( struct window_surface *surface );
 W32KAPI void window_surface_set_clip( struct window_surface *surface, HRGN clip_region );
 W32KAPI void window_surface_set_shape( struct window_surface *surface, HRGN shape_region );
-W32KAPI void window_surface_expose( struct window_surface *surface, const RECT *rect, HRGN *exposed );
+W32KAPI void window_surface_expose( struct window_surface *surface, const RECT *dirty, const POINT *offset, UINT flags );
 
 /* display manager interface, used to initialize display device registry data */
 

@@ -681,35 +681,40 @@ W32KAPI void window_surface_set_shape( struct window_surface *surface, HRGN shap
     window_surface_flush( surface );
 }
 
-W32KAPI void window_surface_expose( struct window_surface *surface, const RECT *rect, HRGN *exposed )
+W32KAPI void window_surface_expose( struct window_surface *surface, const RECT *dirty, const POINT *offset, UINT flags )
 {
-    TRACE( "surface %p, rect %s, exposed %p\n", surface, wine_dbgstr_rect(rect), exposed );
+    HRGN exposed, clipped = 0;
+
+    TRACE( "hwnd %p, surface %p %s, dirty %s, offset %s, flags %#x\n", surface->hwnd, surface,
+           wine_dbgstr_rect( &surface->rect ), wine_dbgstr_rect( dirty ), wine_dbgstr_point( offset ), flags );
+
+    if (!flags) exposed = clipped = 0;
+    else if (!(exposed = NtGdiCreateRectRgn( dirty->left, dirty->top, dirty->right, dirty->bottom ))) flags = 0;
+    else if (!(clipped = NtGdiCreateRectRgn( 0, 0, surface->rect.right, surface->rect.bottom ))) flags = 0;
 
     window_surface_lock( surface );
-    add_bounds_rect( &surface->bounds, rect );
+    add_bounds_rect( &surface->bounds, dirty );
+    if (flags && surface->clip_region) NtGdiCombineRgn( clipped, clipped, surface->clip_region, RGN_DIFF );
+    window_surface_unlock( surface );
 
-    if (exposed)
+    if (flags && NtGdiCombineRgn( exposed, exposed, clipped, RGN_DIFF ) <= NULLREGION) flags = 0;
+    if (clipped) NtGdiDeleteObjectApp( clipped );
+
+    if (flags)
     {
-        if (!surface->clip_region) *exposed = 0;
-        else *exposed = NtGdiCreateRectRgn( rect->left, rect->top, rect->right, rect->bottom );
+        RECT redraw = *dirty;
 
-        if (*exposed)
+        if (offset)
         {
-            HRGN clipped = NtGdiCreateRectRgn( surface->rect.left, surface->rect.top,
-                                               surface->rect.right, surface->rect.bottom );
-            NtGdiCombineRgn( clipped, clipped, surface->clip_region, RGN_DIFF );
-
-            if (NtGdiCombineRgn( *exposed, *exposed, clipped, RGN_DIFF ) <= NULLREGION)
-            {
-                NtGdiDeleteObjectApp( *exposed );
-                *exposed = 0;
-            }
-
-            NtGdiDeleteObjectApp( clipped );
+            NtGdiOffsetRgn( exposed, offset->x, offset->y );
+            OffsetRect( &redraw, offset->x, offset->y );
         }
+
+        NtUserRedrawWindow( surface->hwnd, &redraw, exposed, flags );
     }
 
-    window_surface_unlock( surface );
+    if (exposed) NtGdiDeleteObjectApp( exposed );
+    window_surface_flush( surface );
 }
 
 /*******************************************************************
