@@ -900,7 +900,8 @@ static BOOL X11DRV_Expose( HWND hwnd, XEvent *xev )
     {
         if (data->surface)
         {
-            surface_region = expose_surface( data->surface, &rect );
+            window_surface_expose( data->surface, &rect, &surface_region );
+
             if (!surface_region) flags = 0;
             else NtGdiOffsetRgn( surface_region, data->rects.visible.left - data->rects.client.left,
                                  data->rects.visible.top - data->rects.client.top );
