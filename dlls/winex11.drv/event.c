@@ -873,10 +873,10 @@ static BOOL X11DRV_FocusOut( HWND hwnd, XEvent *xev )
 static BOOL X11DRV_Expose( HWND hwnd, XEvent *xev )
 {
     XExposeEvent *event = &xev->xexpose;
-    RECT rect, abs_rect;
-    POINT pos;
+    RECT rect;
+    POINT pos, offset;
+    struct window_surface *surface;
     struct x11drv_win_data *data;
-    HRGN surface_region = 0;
     UINT flags = RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN;
 
     TRACE( "win %p (%lx) %d,%d %dx%d\n",
@@ -896,28 +896,19 @@ static BOOL X11DRV_Expose( HWND hwnd, XEvent *xev )
     rect.right  = pos.x + event->width;
     rect.bottom = pos.y + event->height;
 
-    if (event->window != data->client_window)
-    {
-        if (data->surface)
-        {
-            window_surface_expose( data->surface, &rect, &surface_region );
+    offset.x = data->whole_rect.left - data->client_rect.left;
+    offset.y = data->whole_rect.top - data->client_rect.top;
 
-            if (!surface_region) flags = 0;
-            else NtGdiOffsetRgn( surface_region, data->rects.visible.left - data->rects.client.left,
-                                 data->rects.visible.top - data->rects.client.top );
-
-            if (data->vis.visualid != default_visual.visualid)
-                window_surface_flush( data->surface );
-        }
-        OffsetRect( &rect, data->rects.visible.left - data->rects.client.left,
-                    data->rects.visible.top - data->rects.client.top );
-    }
+    if (event->window == data->client_window) surface = NULL;
+    else if ((surface = data->surface)) window_surface_add_ref( surface );
 
     if (event->window != root_window)
     {
+        RECT abs_rect = rect;
+
+        OffsetRect( &abs_rect, offset.x, offset.y );
         if (NtUserGetWindowLongW( data->hwnd, GWL_EXSTYLE ) & WS_EX_LAYOUTRTL)
-            mirror_rect( &data->rects.client, &rect );
-        abs_rect = rect;
+            mirror_rect( &data->client_rect, &abs_rect );
         NtUserMapWindowPoints( hwnd, 0, (POINT *)&abs_rect, 2, 0 /* per-monitor DPI */ );
 
         SERVER_START_REQ( update_window_zorder )
@@ -932,8 +923,12 @@ static BOOL X11DRV_Expose( HWND hwnd, XEvent *xev )
 
     release_win_data( data );
 
-    if (flags) redraw_window( hwnd, &rect, surface_region, flags );
-    if (surface_region) NtGdiDeleteObjectApp( surface_region );
+    if (surface)
+    {
+        if (flags) window_surface_expose( surface, &rect, &offset, flags );
+        window_surface_release( surface );
+    }
+
     return TRUE;
 }
 

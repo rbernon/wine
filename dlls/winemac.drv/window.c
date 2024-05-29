@@ -429,8 +429,7 @@ static void sync_window_opacity(struct macdrv_win_data *data, BYTE alpha,
         needs_flush = TRUE;
     }
 
-    if (needs_flush && data->surface)
-        window_surface_expose( data->surface, &data->whole_rect, NULL );
+    if (needs_flush && data->surface) window_surface_expose( data->surface, &data->whole_rect, NULL, 0 );
 }
 
 
