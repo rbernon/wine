@@ -430,15 +430,7 @@ static void sync_window_opacity(struct macdrv_win_data *data, BYTE alpha,
     }
 
     if (needs_flush && data->surface)
-    {
-        RECT rect;
-
-        rect = data->rects.visible;
-        OffsetRect(&rect, -data->rects.visible.left, -data->rects.visible.top);
-        window_surface_lock(data->surface);
-        add_bounds_rect(&data->surface->bounds, &rect);
-        window_surface_unlock(data->surface);
-    }
+        window_surface_expose( data->surface, &data->whole_rect, NULL );
 }
 
 

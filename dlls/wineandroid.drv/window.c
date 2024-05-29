@@ -1256,10 +1256,8 @@ LRESULT ANDROID_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
             struct window_surface *surface = data->surface;
             if (surface)
             {
-                window_surface_lock( surface );
-                surface->bounds = surface->rect;
-                window_surface_unlock( surface );
-                if (is_argb_surface( surface )) window_surface_flush( surface );
+                window_surface_expose( data->surface, &data->surface->rect, NULL );
+                if (is_argb_surface( data->surface )) window_surface_flush( data->surface );
             }
             release_win_data( data );
         }
