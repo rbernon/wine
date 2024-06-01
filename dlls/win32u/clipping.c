@@ -219,12 +219,8 @@ void set_visible_region( HDC hdc, HRGN hrgn, const RECT *logical_rect, const REC
     if (dc->hVisRgn) NtGdiDeleteObjectApp( dc->hVisRgn );
     dc->dirty = 0;
     dc->attr->vis_rect = *physical_rect;
-    dc->attr->vport_org.x = physical_rect->left;
-    dc->attr->vport_org.y = physical_rect->top;
     dc->attr->vport_ext.cx = physical_rect->right - physical_rect->left;
     dc->attr->vport_ext.cy = physical_rect->bottom - physical_rect->top;
-    dc->attr->wnd_org.x = logical_rect->left;
-    dc->attr->wnd_org.y = logical_rect->top;
     dc->attr->wnd_ext.cx = logical_rect->right - logical_rect->left;
     dc->attr->wnd_ext.cy = logical_rect->bottom - logical_rect->top;
     dc->device_rect = *device_rect;
