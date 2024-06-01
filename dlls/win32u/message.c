@@ -2951,8 +2951,10 @@ static inline void check_for_driver_events( UINT msg )
 {
     if (get_user_thread_info()->message_count > 200)
     {
+        UINT context = set_thread_dpi_awareness_context( NTUSER_DPI_PER_MONITOR_AWARE_V2 );
         flush_window_surfaces( FALSE );
         user_driver->pProcessEvents( QS_ALLINPUT );
+        set_thread_dpi_awareness_context( context );
     }
     else if (msg == WM_TIMER || msg == WM_SYSTIMER)
     {
@@ -2977,6 +2979,7 @@ static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, DW
     DWORD ret, lock = 0;
     void *ret_ptr;
     ULONG ret_len;
+    UINT context;
 
     if (enable_thunk_lock)
     {
@@ -2984,6 +2987,7 @@ static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, DW
             lock = *(DWORD *)ret_ptr;
     }
 
+    context = set_thread_dpi_awareness_context( NTUSER_DPI_PER_MONITOR_AWARE_V2 );
     if (user_driver->pProcessEvents( mask )) ret = count ? count - 1 : 0;
     else if (count)
     {
@@ -2997,6 +3001,7 @@ static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, DW
         }
     }
     else ret = WAIT_TIMEOUT;
+    set_thread_dpi_awareness_context( context );
 
     if (ret == WAIT_TIMEOUT && !count && !timeout) NtYieldExecution();
     if ((mask & QS_INPUT) == QS_INPUT) get_user_thread_info()->message_count = 0;
