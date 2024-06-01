@@ -1858,7 +1858,12 @@ BOOL WINAPI NtUserRedrawWindow( HWND hwnd, const RECT *rect, HRGN hrgn, UINT fla
     }
 
     /* process pending expose events before painting */
-    if (flags & RDW_UPDATENOW) user_driver->pProcessEvents( QS_PAINT );
+    if (flags & RDW_UPDATENOW)
+    {
+        UINT context = set_thread_dpi_awareness_context( NTUSER_DPI_PER_MONITOR_AWARE_V2 );
+        user_driver->pProcessEvents( QS_PAINT );
+        set_thread_dpi_awareness_context( context );
+    }
 
     if (rect && !hrgn)
     {
