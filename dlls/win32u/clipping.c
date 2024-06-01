@@ -203,22 +203,30 @@ INT WINAPI NtGdiExtSelectClipRgn( HDC hdc, HRGN rgn, INT mode )
 /***********************************************************************
  *           set_visible_region
  */
-void set_visible_region( HDC hdc, HRGN hrgn, const RECT *vis_rect, const RECT *device_rect,
-                         struct window_surface *surface )
+void set_visible_region( HDC hdc, HRGN hrgn, const RECT *logical_rect, const RECT *physical_rect,
+                         const RECT *device_rect, struct window_surface *surface )
 {
     DC * dc;
 
     if (!(dc = get_dc_ptr( hdc ))) return;
 
     TRACE( "%p %p %s %s %p\n", hdc, hrgn,
-           wine_dbgstr_rect(vis_rect), wine_dbgstr_rect(device_rect), surface );
+           wine_dbgstr_rect(physical_rect), wine_dbgstr_rect(device_rect), surface );
 
     /* map region to DC coordinates */
-    NtGdiOffsetRgn( hrgn, -vis_rect->left, -vis_rect->top );
+    NtGdiOffsetRgn( hrgn, -physical_rect->left, -physical_rect->top );
 
     if (dc->hVisRgn) NtGdiDeleteObjectApp( dc->hVisRgn );
     dc->dirty = 0;
-    dc->attr->vis_rect = *vis_rect;
+    dc->attr->vis_rect = *physical_rect;
+    dc->attr->vport_org.x = physical_rect->left;
+    dc->attr->vport_org.y = physical_rect->top;
+    dc->attr->vport_ext.cx = physical_rect->right - physical_rect->left;
+    dc->attr->vport_ext.cy = physical_rect->bottom - physical_rect->top;
+    dc->attr->wnd_org.x = logical_rect->left;
+    dc->attr->wnd_org.y = logical_rect->top;
+    dc->attr->wnd_ext.cx = logical_rect->right - logical_rect->left;
+    dc->attr->wnd_ext.cy = logical_rect->bottom - logical_rect->top;
     dc->device_rect = *device_rect;
     dc->hVisRgn = hrgn;
     dibdrv_set_window_surface( dc, surface );
