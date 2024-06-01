@@ -501,6 +501,57 @@ static BOOL set_surface_shape( struct window_surface *surface, const RECT *rect,
     }
     }
 
+{
+    static const char magic[2] = "BM";
+    static const DWORD colors[2] = {0, -1};
+    struct
+    {
+        DWORD length;
+        DWORD reserved;
+        DWORD offset;
+        BITMAPINFOHEADER biHeader;
+    } header =
+    {
+        .length = shape_info->bmiHeader.biSizeImage + sizeof(header) + 2, .offset = sizeof(header) + 2 + sizeof(colors),
+        .biHeader = shape_info->bmiHeader,
+    };
+    char buffer[256];
+    FILE *file;
+
+    sprintf(buffer, "/tmp/shape-%p.bmp", surface);
+    file = fopen(buffer, "w");
+    fwrite(magic, sizeof(magic), 1, file);
+    fwrite(&header, sizeof(header), 1, file);
+    fwrite(&colors, sizeof(colors), 1, file);
+    fwrite(shape_bits, shape_info->bmiHeader.biSizeImage, 1, file);
+    fclose(file);
+}
+
+{
+    static const char magic[2] = "BM";
+    struct
+    {
+        DWORD length;
+        DWORD reserved;
+        DWORD offset;
+        BITMAPINFOHEADER biHeader;
+    } header =
+    {
+        .length = color_info->bmiHeader.biSizeImage + sizeof(header) + 2, .offset = sizeof(header) + 2,
+        .biHeader = color_info->bmiHeader,
+    };
+    char buffer[256];
+    FILE *file;
+
+    sprintf(buffer, "/tmp/color-%p.bmp", surface);
+    file = fopen(buffer, "w");
+    fwrite(magic, sizeof(magic), 1, file);
+    fwrite(&header, sizeof(header), 1, file);
+    fwrite(color_bits, color_info->bmiHeader.biSizeImage, 1, file);
+    fclose(file);
+}
+
+    surface->funcs->set_shape( surface, shape_info, shape_bits );
     ret = memcmp( old_shape, shape_bits, shape_info->bmiHeader.biSizeImage );
     free( old_shape );
     return ret;
