@@ -206,7 +206,7 @@ int main( int argc, char *argv[] )
     }
 
 #if WINVER >= 0x0605
-    SetProcessDpiAwarenessContext( DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE );
+    if (0) SetProcessDpiAwarenessContext( DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE );
 #endif
 
     if (fullscreen) SetRect( &geometry, 0, 0, GetSystemMetrics( SM_CXSCREEN ), GetSystemMetrics( SM_CYSCREEN ) );
@@ -253,7 +253,7 @@ if (0)
     OffsetRect( &geometry, geometry.right - geometry.left, 0 );
 }
 
-if (1)
+if (0)
 {
     gdi_child = gdi_create_window( L"GDI (child)", &geometry, fullscreen, FALSE );
     SetWindowLongW( gdi_child, GWL_STYLE, GetWindowLongW( gdi_child, GWL_STYLE ) | WS_CHILD );
@@ -292,7 +292,7 @@ if (1)
     OffsetRect( &geometry, geometry.right - geometry.left, 0 );
 }
 
-if (1)
+if (0)
 {
     gdi_keyed = gdi_create_window( L"GDI (keyed)", &geometry, fullscreen, FALSE );
     SetWindowLongW( gdi_keyed, GWL_EXSTYLE, GetWindowLongW( gdi_keyed, GWL_EXSTYLE ) | WS_EX_LAYERED );
@@ -302,7 +302,7 @@ if (1)
     OffsetRect( &geometry, geometry.right - geometry.left, 0 );
 }
 
-if (1)
+if (0)
 {
     gdi_alpha = gdi_create_window( L"GDI (alpha)", &geometry, fullscreen, FALSE );
     SetWindowLongW( gdi_alpha, GWL_EXSTYLE, GetWindowLongW( gdi_alpha, GWL_EXSTYLE ) | WS_EX_LAYERED );
@@ -312,7 +312,7 @@ if (1)
     OffsetRect( &geometry, geometry.right - geometry.left, 0 );
 }
 
-if (1)
+if (0)
 {
     HRGN hrgn, tmp;
     gdi_layered = gdi_create_window( L"GDI (layered)", &geometry, fullscreen, TRUE );
