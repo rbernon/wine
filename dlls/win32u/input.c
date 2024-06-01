@@ -1605,7 +1605,7 @@ void update_mouse_tracking_info( HWND hwnd )
     TRACE( "hwnd %p\n", hwnd );
 
     get_cursor_pos( &pos );
-    hwnd = window_from_point( hwnd, pos, &hittest );
+    hwnd = window_from_point( hwnd, pos, &hittest, get_thread_dpi() );
 
     TRACE( "point %s hwnd %p hittest %d\n", wine_dbgstr_point(&pos), hwnd, hittest );
 
@@ -1701,7 +1701,7 @@ BOOL WINAPI NtUserTrackMouseEvent( TRACKMOUSEEVENT *info )
         NtUserSystemParametersInfo( SPI_GETMOUSEHOVERTIME, 0, &hover_time, 0 );
 
     get_cursor_pos( &pos );
-    hwnd = window_from_point( info->hwndTrack, pos, &hittest );
+    hwnd = window_from_point( info->hwndTrack, pos, &hittest, get_thread_dpi() );
     TRACE( "point %s hwnd %p hittest %d\n", wine_dbgstr_point(&pos), hwnd, hittest );
 
     if (info->dwFlags & ~(TME_CANCEL | TME_HOVER | TME_LEAVE | TME_NONCLIENT))

@@ -2314,7 +2314,7 @@ done:
  * Point is in screen coordinates.
  * Returned list must be freed by caller.
  */
-static HWND *list_children_from_point( HWND hwnd, POINT pt )
+static HWND *list_children_from_point( HWND hwnd, POINT pt, UINT dpi )
 {
     int i, size = 128;
     HWND *list;
@@ -2330,7 +2330,7 @@ static HWND *list_children_from_point( HWND hwnd, POINT pt )
             req->parent = wine_server_user_handle( hwnd );
             req->x = pt.x;
             req->y = pt.y;
-            req->dpi = get_thread_dpi();
+            req->dpi = dpi;
             wine_server_set_reply( req, list, (size-1) * sizeof(user_handle_t) );
             if (!wine_server_call( req )) count = reply->count;
         }
@@ -2355,19 +2355,18 @@ static HWND *list_children_from_point( HWND hwnd, POINT pt )
  *
  * Find the window and hittest for a given point.
  */
-HWND window_from_point( HWND hwnd, POINT pt, INT *hittest )
+HWND window_from_point( HWND hwnd, POINT pt, INT *hittest, UINT dpi )
 {
     int i, res;
     HWND ret, *list;
     POINT win_pt;
-    int dpi;
 
     if (!hwnd) hwnd = get_desktop_window();
-    if (!(dpi = get_thread_dpi())) dpi = get_win_monitor_dpi( hwnd );
+    if (!dpi) dpi = get_win_monitor_dpi( hwnd );
 
     *hittest = HTNOWHERE;
 
-    if (!(list = list_children_from_point( hwnd, pt ))) return 0;
+    if (!(list = list_children_from_point( hwnd, pt, dpi ))) return 0;
 
     /* now determine the hittest */
 
@@ -2409,7 +2408,7 @@ HWND WINAPI NtUserWindowFromPoint( LONG x, LONG y )
 {
     POINT pt = { .x = x, .y = y };
     INT hittest;
-    return window_from_point( 0, pt, &hittest );
+    return window_from_point( 0, pt, &hittest, get_thread_dpi() );
 }
 
 /*******************************************************************
