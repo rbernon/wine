@@ -794,10 +794,13 @@ static void check_for_events( UINT flags )
         .internal = TRUE,
         .flags = PM_REMOVE,
     };
+    UINT context;
     MSG msg;
 
+    context = set_thread_dpi_awareness_context( NTUSER_DPI_PER_MONITOR_AWARE_V2 );
     if (!user_driver->pProcessEvents( flags ))
         flush_window_surfaces( TRUE );
+    set_thread_dpi_awareness_context( context );
 
     peek_message( &msg, &filter );
 }
