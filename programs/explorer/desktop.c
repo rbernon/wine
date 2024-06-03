@@ -1148,6 +1148,8 @@ void manage_desktop( WCHAR *arg )
     HANDLE thread;
     DWORD id;
 
+    SetThreadDpiAwarenessContext( DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 );
+
     /* get the rest of the command line (if any) */
     while (*p && !is_whitespace(*p)) p++;
     if (*p)
