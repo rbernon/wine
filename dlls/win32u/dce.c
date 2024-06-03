@@ -23,6 +23,8 @@
 #pragma makedep unix
 #endif
 
+#include <config.h>
+
 #include <assert.h>
 #include <pthread.h>
 #include "ntstatus.h"
@@ -31,6 +33,10 @@
 #include "ntuser_private.h"
 #include "wine/server.h"
 #include "wine/debug.h"
+
+#ifdef HAVE_CAIRO_CAIRO_H
+#include <cairo/cairo.h>
+#endif
 
 WINE_DEFAULT_DEBUG_CHANNEL(win);
 
@@ -169,62 +175,47 @@ static void dpi_scaling_surface_set_shape( struct window_surface *window_surface
 {
 }
 
+static cairo_surface_t *cairo_surface_from_bitmap( const BITMAPINFO *color_info, const void *color_bits )
+{
+    UINT width = color_info->bmiHeader.biWidth, height = abs( color_info->bmiHeader.biHeight );
+    return cairo_image_surface_create_for_data( (void *)color_bits, CAIRO_FORMAT_RGB24, width, height,
+                                                color_info->bmiHeader.biSizeImage / height );
+}
+
 static BOOL dpi_scaling_surface_flush( struct window_surface *window_surface, const RECT *dirty,
                                        const BITMAPINFO *color_info, const void *color_bits )
 {
     struct dpi_scaling_surface *surface = get_dpi_scaling_surface( window_surface );
+    float scale = (float)surface->target_dpi / (float)surface->source_dpi;
+    char target_info_buf[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
+    BITMAPINFO *target_info = (BITMAPINFO *)target_info_buf;
     RECT src = *dirty, dst;
-    HDC hdc_dst, hdc_src;
-    HBITMAP bitmap = 0;
+    void *target_bits;
 
-ERR("\n");
+    ERR("scale %f\n", scale);
 
-    SetRect( &src, 0, 0, color_info->bmiHeader.biWidth, abs( color_info->bmiHeader.biHeight ) );
-    dst = map_dpi_rect( src, surface->source_dpi, surface->target_dpi );
 
-    hdc_dst = NtGdiCreateCompatibleDC( 0 );
-    hdc_src = NtGdiCreateCompatibleDC( 0 );
-
-    NtGdiSelectBitmap( hdc_src, window_surface->color_bitmap );
-    NtGdiSelectBitmap( hdc_dst, surface->target_surface->color_bitmap );
-
-    if (surface->target_dpi % surface->source_dpi && 0)
+    if (window_surface_get_color( surface->target_surface, target_info, &target_bits ))
     {
-        char info_buf[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
-        BITMAPINFO *info = (BITMAPINFO *)info_buf;
+        cairo_surface_t *cairo_src, *cairo_dst;
+        cairo_t *cairo;
 
-        UINT int_dpi = (surface->target_dpi / surface->source_dpi + 1) * surface->source_dpi;
-        RECT int_dst = map_dpi_rect( src, surface->source_dpi, int_dpi );
-
-        OffsetRect( &int_dst, -int_dst.left, -int_dst.top );
-
-        memcpy( info, color_info, get_dib_info_size( color_info, DIB_RGB_COLORS ) );
-        info->bmiHeader.biWidth = int_dst.right;
-        info->bmiHeader.biHeight = -int_dst.bottom;
-        info->bmiHeader.biSizeImage = get_dib_image_size( info );
-
-        bitmap = NtGdiCreateDIBSection( hdc_dst, 0, 0, info, DIB_RGB_COLORS, 0, 0, 0, NULL);
-        NtGdiSelectBitmap( hdc_dst, bitmap );
-        NtGdiStretchBlt( hdc_dst, 0, 0, int_dst.right, int_dst.bottom,
-                         hdc_src, src.left, src.top, src.right - src.left, src.bottom - src.top,
-                         SRCCOPY, 0 );
-
-        NtGdiSelectBitmap( hdc_dst, surface->target_surface->color_bitmap );
-        NtGdiSelectBitmap( hdc_src, bitmap );
-        src = int_dst;
+        InflateRect( &src, 1, 1 );
+        dst = map_dpi_rect( src, surface->source_dpi, surface->target_dpi );
+        cairo_src = cairo_surface_from_bitmap( color_info, color_bits );
+        cairo_dst = cairo_surface_from_bitmap( target_info, target_bits );
+        cairo = cairo_create( cairo_dst );
+        cairo_scale( cairo, scale, scale );
+        cairo_set_source_surface( cairo, cairo_src, dst.left - scale * src.left, dst.top - scale * src.top );
+        cairo_rectangle( cairo, dst.left, dst.top, dst.right - dst.left, dst.bottom - dst.top );
+        cairo_paint( cairo );
+        cairo_destroy( cairo );
+        cairo_surface_destroy( cairo_src );
+        cairo_surface_destroy( cairo_dst );
+        add_bounds_rect( &surface->target_surface->bounds, &dst );
+        window_surface_flush( surface->target_surface );
     }
 
-    NtGdiStretchBlt( hdc_dst, dst.left, dst.top, dst.right - dst.left, dst.bottom - dst.top,
-                     hdc_src, src.left, src.top, src.right - src.left, src.bottom - src.top,
-                     SRCCOPY, 0 );
-
-    NtGdiDeleteObjectApp( hdc_dst );
-    NtGdiDeleteObjectApp( hdc_src );
-    if (bitmap) NtGdiDeleteObjectApp( bitmap );
-
-    add_bounds_rect( &surface->target_surface->bounds, &dst );
-
-    window_surface_flush( surface->target_surface );
     return TRUE;
 }
 
