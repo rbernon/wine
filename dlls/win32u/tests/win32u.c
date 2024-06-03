@@ -239,6 +239,49 @@ static void test_class(void)
 
 }
 
+static void test_NtUserGetWindowRgnEx(void)
+{
+    RECT rect, expect_rect = {10, 10, 50, 50};
+    UINT_PTR ret;
+    HWND hwnd;
+    HRGN hrgn;
+
+    hwnd = CreateWindowExW( 0, L"static", NULL, WS_POPUP, 0, 0, 100, 100, 0, 0, 0, NULL );
+    ok( !!hwnd, "CreateWindowExW failed\n" );
+
+    hrgn = CreateRectRgn( 10, 10, 50, 50 );
+    ok( !!hrgn, "CreateRectRgn failed\n" );
+    ret = SetWindowRgn( hwnd, hrgn, TRUE );
+    ok( !!ret, "SetWindowRgn failed, error %lu\n", GetLastError() );
+    DeleteObject( hrgn );
+
+    hrgn = CreateRectRgn( 100, 100, 150, 150 );
+    ok( !!hrgn, "CreateRectRgn failed\n" );
+
+    SetLastError( 0xdeadbeef );
+    ret = NtUserGetWindowRgnEx( 0, 0, 0 );
+    ok( !ret, "NtUserGetWindowRgnEx succeeded\n" );
+    ok( GetLastError() == ERROR_INVALID_WINDOW_HANDLE, "got %lu\n", GetLastError() );
+    SetLastError( 0xdeadbeef );
+    ret = NtUserGetWindowRgnEx( hwnd, 0, 0 );
+    ok( !ret, "NtUserGetWindowRgnEx succeeded\n" );
+    ok( GetLastError() == ERROR_INVALID_PARAMETER, "got %lu\n", GetLastError() );
+    SetLastError( 0xdeadbeef );
+    ret = NtUserGetWindowRgnEx( hwnd, hrgn, 0xdeadbeef );
+    ok( !ret, "NtUserGetWindowRgnEx succeeded\n" );
+    ok( GetLastError() == ERROR_INVALID_FLAGS, "got %lu\n", GetLastError() );
+    SetLastError( 0xdeadbeef );
+
+    ret = NtUserGetWindowRgnEx( hwnd, hrgn, 0 );
+    ok( ret == SIMPLEREGION, "NtUserGetWindowRgnEx returned %Iu, error %lu\n", ret, GetLastError() );
+    ret = GetRgnBox( hrgn, &rect );
+    ok( ret == SIMPLEREGION, "GetRgnBox returned %Iu\n", ret );
+    ok( EqualRect( &rect, &expect_rect ), "GetRgnBox failed, error %lu\n", GetLastError() );
+    DeleteObject( hrgn );
+
+    DestroyWindow( hwnd );
+}
+
 static void test_NtUserCreateInputContext(void)
 {
     UINT_PTR value, attr3;
@@ -2192,6 +2235,7 @@ START_TEST(win32u)
     test_NtUserEnumDisplayDevices();
     test_window_props();
     test_class();
+    test_NtUserGetWindowRgnEx();
     test_NtUserCreateInputContext();
     test_NtUserBuildHimcList();
     test_NtUserBuildHwndList();
