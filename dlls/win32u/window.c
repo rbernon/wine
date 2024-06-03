@@ -1866,8 +1866,19 @@ static struct window_surface *create_window_surface( HWND hwnd, UINT swp_flags, 
     if (!needs_surface || IsRectEmpty( visible_rect )) needs_surface = FALSE; /* use default surface */
     else needs_surface = !user_driver->pCreateWindowSurface( hwnd, surface_rect, &new_surface );
 
-    /* create or update window surface for top-level windows if the driver doesn't implement CreateWindowSurface */
-    if (needs_surface && new_surface == &dummy_surface && (create_opaque && !create_layered))
+    if ((layered = !!(get_window_long( hwnd, GWL_EXSTYLE ) & WS_EX_LAYERED)))
+        ulw_layered = !NtUserGetLayeredWindowAttributes( hwnd, NULL, NULL, NULL );
+
+    if (dpi != monitor_dpi && ret && new_surface && new_surface != &dummy_surface)
+    {
+        struct window_surface *driver_surface = new_surface;
+        if ((new_surface = win->surface)) window_surface_add_ref( new_surface );
+        create_dpi_scaling_surface( hwnd, &new_rects->visible, dpi, driver_surface, monitor_dpi, &new_surface );
+    }
+
+    /* create or update window surface for top-level windows if the driver doesn't implement WindowPosChanging */
+    if (needs_surface && new_surface && (!(get_window_long( hwnd, GWL_EXSTYLE ) & WS_EX_LAYERED) ||
+                                         NtUserGetLayeredWindowAttributes( hwnd, NULL, NULL, NULL )))
     {
         window_surface_release( new_surface );
         create_offscreen_window_surface( hwnd, surface_rect, &new_surface );

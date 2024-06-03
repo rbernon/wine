@@ -106,7 +106,6 @@ static BOOL offscreen_window_surface_flush( struct window_surface *surface, cons
 
 static void offscreen_window_surface_destroy( struct window_surface *surface )
 {
-    free( surface );
 }
 
 static const struct window_surface_funcs offscreen_window_surface_funcs =
@@ -145,6 +144,152 @@ void create_offscreen_window_surface( HWND hwnd, const RECT *surface_rect, struc
 
     TRACE( "created window surface %p\n", surface );
     *window_surface = surface;
+}
+
+
+struct dpi_scaling_surface
+{
+    struct window_surface header;
+    struct window_surface *target_surface;
+    UINT source_dpi;
+    UINT target_dpi;
+};
+
+static struct dpi_scaling_surface *get_dpi_scaling_surface( struct window_surface *window_surface )
+{
+    return CONTAINING_RECORD( window_surface, struct dpi_scaling_surface, header );
+}
+
+static void dpi_scaling_surface_set_clip( struct window_surface *window_surface, const RECT *rects, UINT count )
+{
+}
+
+static void dpi_scaling_surface_set_shape( struct window_surface *window_surface,
+                                           const BITMAPINFO *shape_info, const void *shape_bits )
+{
+}
+
+static BOOL dpi_scaling_surface_flush( struct window_surface *window_surface, const RECT *dirty,
+                                       const BITMAPINFO *color_info, const void *color_bits )
+{
+    struct dpi_scaling_surface *surface = get_dpi_scaling_surface( window_surface );
+    RECT src = *dirty, dst;
+    HDC hdc_dst, hdc_src;
+    HBITMAP bitmap = 0;
+
+ERR("\n");
+
+    SetRect( &src, 0, 0, color_info->bmiHeader.biWidth, abs( color_info->bmiHeader.biHeight ) );
+    dst = map_dpi_rect( src, surface->source_dpi, surface->target_dpi );
+
+    hdc_dst = NtGdiCreateCompatibleDC( 0 );
+    hdc_src = NtGdiCreateCompatibleDC( 0 );
+
+    NtGdiSelectBitmap( hdc_src, window_surface->color_bitmap );
+    NtGdiSelectBitmap( hdc_dst, surface->target_surface->color_bitmap );
+
+    if (surface->target_dpi % surface->source_dpi && 0)
+    {
+        char info_buf[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
+        BITMAPINFO *info = (BITMAPINFO *)info_buf;
+
+        UINT int_dpi = (surface->target_dpi / surface->source_dpi + 1) * surface->source_dpi;
+        RECT int_dst = map_dpi_rect( src, surface->source_dpi, int_dpi );
+
+        OffsetRect( &int_dst, -int_dst.left, -int_dst.top );
+
+        memcpy( info, color_info, get_dib_info_size( color_info, DIB_RGB_COLORS ) );
+        info->bmiHeader.biWidth = int_dst.right;
+        info->bmiHeader.biHeight = -int_dst.bottom;
+        info->bmiHeader.biSizeImage = get_dib_image_size( info );
+
+        bitmap = NtGdiCreateDIBSection( hdc_dst, 0, 0, info, DIB_RGB_COLORS, 0, 0, 0, NULL);
+        NtGdiSelectBitmap( hdc_dst, bitmap );
+        NtGdiStretchBlt( hdc_dst, 0, 0, int_dst.right, int_dst.bottom,
+                         hdc_src, src.left, src.top, src.right - src.left, src.bottom - src.top,
+                         SRCCOPY, 0 );
+
+        NtGdiSelectBitmap( hdc_dst, surface->target_surface->color_bitmap );
+        NtGdiSelectBitmap( hdc_src, bitmap );
+        src = int_dst;
+    }
+
+    NtGdiStretchBlt( hdc_dst, dst.left, dst.top, dst.right - dst.left, dst.bottom - dst.top,
+                     hdc_src, src.left, src.top, src.right - src.left, src.bottom - src.top,
+                     SRCCOPY, 0 );
+
+    NtGdiDeleteObjectApp( hdc_dst );
+    NtGdiDeleteObjectApp( hdc_src );
+    if (bitmap) NtGdiDeleteObjectApp( bitmap );
+
+    add_bounds_rect( &surface->target_surface->bounds, &dst );
+
+    window_surface_flush( surface->target_surface );
+    return TRUE;
+}
+
+static void dpi_scaling_surface_destroy( struct window_surface *window_surface )
+{
+    struct dpi_scaling_surface *surface = get_dpi_scaling_surface( window_surface );
+    window_surface_release( surface->target_surface );
+}
+
+static const struct window_surface_funcs dpi_scaling_surface_funcs =
+{
+    dpi_scaling_surface_set_clip,
+    dpi_scaling_surface_set_shape,
+    dpi_scaling_surface_flush,
+    dpi_scaling_surface_destroy
+};
+
+void create_dpi_scaling_surface( HWND hwnd, const RECT *visible_rect, UINT source_dpi,
+                                 struct window_surface *target_surface, UINT target_dpi,
+                                 struct window_surface **window_surface )
+{
+    char buffer[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
+    BITMAPINFO *info = (BITMAPINFO *)buffer;
+    struct dpi_scaling_surface *surface;
+    RECT surface_rect = *visible_rect;
+    struct window_surface *previous;
+
+    TRACE( "hwnd %p, visible_rect %s, surface %p.\n", hwnd, wine_dbgstr_rect( visible_rect ), window_surface );
+
+    OffsetRect( &surface_rect, -surface_rect.left, -surface_rect.top );
+    surface_rect.right  = (surface_rect.right + 0x1f) & ~0x1f;
+    surface_rect.bottom = (surface_rect.bottom + 0x1f) & ~0x1f;
+
+    if ((previous = *window_surface))
+    {
+        /* if surface is an offscreen window surface and the rect didn't change, keep the same surface */
+        if (previous->funcs == &dpi_scaling_surface_funcs && EqualRect( &surface_rect, &previous->rect ))
+        {
+            surface = get_dpi_scaling_surface( previous );
+            window_surface_release( surface->target_surface );
+            window_surface_add_ref( (surface->target_surface = target_surface) );
+            return;
+        }
+
+        window_surface_release( previous );
+        *window_surface = NULL;
+    }
+
+    memset( info, 0, sizeof(*info) );
+    info->bmiHeader.biSize        = sizeof(info->bmiHeader);
+    info->bmiHeader.biWidth       = surface_rect.right;
+    info->bmiHeader.biHeight      = -surface_rect.bottom; /* top-down */
+    info->bmiHeader.biPlanes      = 1;
+    info->bmiHeader.biBitCount    = 32;
+    info->bmiHeader.biSizeImage   = get_dib_image_size( info );
+    info->bmiHeader.biCompression = BI_RGB;
+
+    if (!window_surface_create( sizeof(*surface), &dpi_scaling_surface_funcs, hwnd,
+                                info, 0, CLR_INVALID, 0, window_surface ))
+        return;
+
+    surface = get_dpi_scaling_surface( *window_surface );
+    window_surface_add_ref( (surface->target_surface = target_surface) );
+    surface->source_dpi = source_dpi;
+    surface->target_dpi = target_dpi;
 }
 
 /* window surface common helpers */
