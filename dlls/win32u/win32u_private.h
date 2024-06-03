@@ -47,6 +47,9 @@ extern ULONG_PTR set_icon_param( HICON handle, ULONG_PTR param );
 extern struct window_surface dummy_surface;
 extern void create_offscreen_window_surface( HWND hwnd, const RECT *surface_rect,
                                              struct window_surface **surface );
+extern void create_dpi_scaling_surface( HWND hwnd, const RECT *visible_rect, UINT source_dpi,
+                                        struct window_surface *target_surface, UINT target_dpi,
+                                        struct window_surface **window_surface );
 extern void erase_now( HWND hwnd, UINT rdw_flags );
 extern void flush_window_surfaces( BOOL idle );
 extern void move_window_bits( HWND hwnd, const RECT *visible_rect, const RECT *old_visible_rect,

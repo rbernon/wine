@@ -1865,6 +1865,13 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags,
         return FALSE;
     }
 
+    if (dpi != monitor_dpi && ret && new_surface && new_surface != &dummy_surface)
+    {
+        struct window_surface *driver_surface = new_surface;
+        if ((new_surface = win->surface)) window_surface_add_ref( new_surface );
+        create_dpi_scaling_surface( hwnd, &new_rects->visible, dpi, driver_surface, monitor_dpi, &new_surface );
+    }
+
     /* create or update window surface for top-level windows if the driver doesn't implement WindowPosChanging */
     if (needs_surface && new_surface && (!(get_window_long( hwnd, GWL_EXSTYLE ) & WS_EX_LAYERED) ||
                                          NtUserGetLayeredWindowAttributes( hwnd, NULL, NULL, NULL )))
