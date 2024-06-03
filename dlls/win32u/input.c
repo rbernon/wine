@@ -619,9 +619,9 @@ static void update_mouse_coords( INPUT *input )
         RECT rc;
 
         if (input->mi.dwFlags & MOUSEEVENTF_VIRTUALDESK)
-            rc = get_virtual_screen_rect( 0 );
+            rc = get_virtual_screen_rect( 0 ); /* FIXME DPI */
         else
-            rc = get_primary_monitor_rect( 0 );
+            rc = get_primary_monitor_rect( 0 ); /* FIXME DPI */
 
         input->mi.dx = rc.left + ((input->mi.dx * (rc.right - rc.left)) >> 16);
         input->mi.dy = rc.top  + ((input->mi.dy * (rc.bottom - rc.top)) >> 16);
