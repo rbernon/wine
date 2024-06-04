@@ -41,7 +41,7 @@
  * We implement it based on querying the time and Sleep()'ing.  We don't
  * sync to the vblank.
  */
-WINGDIAPI BOOL APIENTRY
+BOOL APIENTRY
 wglSwapIntervalEXT(int interval)
 {
    if (interval < 0) {
@@ -55,7 +55,7 @@ wglSwapIntervalEXT(int interval)
 }
 
 
-WINGDIAPI int APIENTRY
+int APIENTRY
 wglGetSwapIntervalEXT(void)
 {
    return stw_dev ? stw_dev->swap_interval : 0;
