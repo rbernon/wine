@@ -73,15 +73,16 @@ typedef union YYSTYPE
 # define YYSTYPE_IS_TRIVIAL 1
 # define YYSTYPE_IS_DECLARED 1
 
-typedef struct YYLTYPE {
+typedef struct GLCPP_PARSER_LTYPE {
    int first_line;
    int first_column;
    int last_line;
    int last_column;
    unsigned source;
-} YYLTYPE;
-# define YYLTYPE_IS_DECLARED 1
-# define YYLTYPE_IS_TRIVIAL 1
+} GLCPP_PARSER_LTYPE;
+#define YYLTYPE GLCPP_PARSER_LTYPE
+# define GLCPP_PARSER_LTYPE_IS_DECLARED 1
+# define GLCPP_PARSER_LTYPE_IS_TRIVIAL 1
 
 # define YYLLOC_DEFAULT(Current, Rhs, N)			\
 do {								\
