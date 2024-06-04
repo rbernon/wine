@@ -47,7 +47,7 @@ struct vtn_builder;
 struct vtn_decoration;
 
 /* setjmp/longjmp is broken on MinGW: https://sourceforge.net/p/mingw-w64/bugs/406/ */
-#if defined(__MINGW32__) && !defined(_UCRT)
+#if defined(__MINGW32__) && (!defined(_UCRT) || defined(__WINE_PE_BUILD))
   #define vtn_setjmp __builtin_setjmp
   #define vtn_longjmp __builtin_longjmp
 #else
