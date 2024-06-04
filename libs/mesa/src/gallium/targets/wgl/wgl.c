@@ -273,11 +273,11 @@ static const struct stw_winsys stw_winsys = {
 
 
 EXTERN_C BOOL WINAPI
-DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved);
+mesa_dllmain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved);
 
 
 BOOL WINAPI
-DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
+mesa_dllmain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 {
    switch (fdwReason) {
    case DLL_PROCESS_ATTACH:
