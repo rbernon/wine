@@ -388,7 +388,7 @@ score_pixelformats(HDC hdc,
 }
 
 
-WINGDIAPI BOOL APIENTRY
+BOOL APIENTRY
 wglChoosePixelFormatARB(HDC hdc, const int *piAttribIList,
                         const FLOAT *pfAttribFList, UINT nMaxFormats,
                         int *piFormats, UINT *nNumFormats)
@@ -478,7 +478,7 @@ wglChoosePixelFormatARB(HDC hdc, const int *piAttribIList,
 }
 
 
-WINGDIAPI BOOL APIENTRY
+BOOL APIENTRY
 wglGetPixelFormatAttribfvARB(HDC hdc, int iPixelFormat, int iLayerPlane,
                              UINT nAttributes, const int *piAttributes,
                              FLOAT *pfValues)
@@ -498,7 +498,7 @@ wglGetPixelFormatAttribfvARB(HDC hdc, int iPixelFormat, int iLayerPlane,
 }
 
 
-WINGDIAPI BOOL APIENTRY
+BOOL APIENTRY
 wglGetPixelFormatAttribivARB(HDC hdc, int iPixelFormat, int iLayerPlane,
                              UINT nAttributes, const int *piAttributes,
                              int *piValues)

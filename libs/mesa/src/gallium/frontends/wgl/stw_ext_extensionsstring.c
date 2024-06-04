@@ -51,7 +51,7 @@ static const char *stw_extension_string =
    "WGL_EXT_swap_control";
 
 
-WINGDIAPI const char * APIENTRY
+const char * APIENTRY
 wglGetExtensionsStringARB(
    HDC hdc )
 {
@@ -63,7 +63,7 @@ wglGetExtensionsStringARB(
 }
 
 
-WINGDIAPI const char * APIENTRY
+const char * APIENTRY
 wglGetExtensionsStringEXT( void )
 {
    return stw_extension_string;
