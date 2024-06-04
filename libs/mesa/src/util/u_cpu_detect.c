@@ -300,7 +300,7 @@ cpuid(uint32_t ax, uint32_t *p)
      : "0" (ax)
    );
 #elif DETECT_CC_MSVC
-   __cpuid(p, ax);
+   __cpuid((int *)p, ax);
 #else
    p[0] = 0;
    p[1] = 0;
@@ -337,7 +337,7 @@ cpuid_count(uint32_t ax, uint32_t cx, uint32_t *p)
      : "0" (ax), "2" (cx)
    );
 #elif DETECT_CC_MSVC
-   __cpuidex(p, ax, cx);
+   __cpuidex((int *)p, ax, cx);
 #else
    p[0] = 0;
    p[1] = 0;
