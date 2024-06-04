@@ -265,7 +265,7 @@ static void set_physical_device_luid( VkPhysicalDeviceProperties2 *properties2 )
         memcpy( id->deviceLUID, &luid, sizeof(luid) );
         id->deviceNodeMask = !!id->deviceLUIDValid;
 
-        ERR( "id %p UUID %s LUID %s valid %d mask %u\n", id, debugstr_guid( &vulkan_uuid ),
+        TRACE( "id %p UUID %s LUID %s valid %d mask %u\n", id, debugstr_guid( &vulkan_uuid ),
                debugstr_luid( &luid ), id->deviceLUIDValid, id->deviceNodeMask );
     }
 
@@ -276,7 +276,7 @@ static void set_physical_device_luid( VkPhysicalDeviceProperties2 *properties2 )
         memcpy( vk11->deviceLUID, &luid, sizeof(luid) );
         vk11->deviceNodeMask = !!vk11->deviceLUIDValid;
 
-        ERR( "vk11 %p UUID %s LUID %s valid %d mask %u\n", vk11, debugstr_guid( &vulkan_uuid ),
+        TRACE( "vk11 %p UUID %s LUID %s valid %d mask %u\n", vk11, debugstr_guid( &vulkan_uuid ),
                debugstr_luid( &luid ), vk11->deviceLUIDValid, vk11->deviceNodeMask );
     }
 }
@@ -846,186 +846,4 @@ const struct vulkan_funcs *__wine_get_vulkan_driver( UINT version )
 
     if (!vulkan_init()) return NULL;
     return &vulkan_funcs;
-}
-
-static VkInstance d3dkmt_instance; /* Vulkan instance for D3DKMT functions */
-static PFN_vkGetPhysicalDeviceMemoryProperties2KHR p_vkGetPhysicalDeviceMemoryProperties2KHR;
-static PFN_vkGetPhysicalDeviceMemoryProperties p_vkGetPhysicalDeviceMemoryProperties;
-static PFN_vkGetPhysicalDeviceProperties2KHR p_vkGetPhysicalDeviceProperties2KHR;
-static PFN_vkEnumeratePhysicalDevices p_vkEnumeratePhysicalDevices;
-
-static void d3dkmt_init_vulkan(void)
-{
-    static const char *extensions[] =
-    {
-        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
-        VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
-    };
-    VkInstanceCreateInfo create_info =
-    {
-        .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        .enabledExtensionCount = ARRAY_SIZE( extensions ),
-        .ppEnabledExtensionNames = extensions,
-    };
-    PFN_vkDestroyInstance p_vkDestroyInstance;
-    PFN_vkCreateInstance p_vkCreateInstance;
-    VkResult vr;
-
-    if (!vulkan_init())
-    {
-        ERR( "Failed to open the Vulkan driver\n" );
-        return;
-    }
-
-    p_vkCreateInstance = p_vkGetInstanceProcAddr( NULL, "vkCreateInstance" );
-    if ((vr = p_vkCreateInstance( &create_info, NULL, &d3dkmt_instance )))
-    {
-        ERR( "Failed to create a Vulkan instance, vr %d.\n", vr );
-        d3dkmt_instance = NULL;
-        return;
-    }
-
-    p_vkDestroyInstance = p_vkGetInstanceProcAddr( d3dkmt_instance, "vkDestroyInstance" );
-#define LOAD_VK_FUNC( f )                                                                      \
-    if (!(p_##f = (void *)p_vkGetInstanceProcAddr( d3dkmt_instance, #f )))                   \
-    {                                                                                          \
-        ERR( "Failed to load " #f ".\n" );                                                    \
-        p_vkDestroyInstance( d3dkmt_instance, NULL );                                       \
-        d3dkmt_instance = NULL;                                                                   \
-        return;                                                                                \
-    }
-    LOAD_VK_FUNC( vkEnumeratePhysicalDevices )
-    LOAD_VK_FUNC( vkGetPhysicalDeviceProperties2KHR )
-    LOAD_VK_FUNC( vkGetPhysicalDeviceMemoryProperties )
-    LOAD_VK_FUNC( vkGetPhysicalDeviceMemoryProperties2KHR )
-#undef LOAD_VK_FUNC
-}
-
-BOOL d3dkmt_use_vulkan(void)
-{
-    static pthread_once_t once = PTHREAD_ONCE_INIT;
-    pthread_once( &once, d3dkmt_init_vulkan );
-    return !!d3dkmt_instance;
-}
-
-static UINT get_vulkan_physical_devices( VkPhysicalDevice **devices )
-{
-    UINT device_count;
-    VkResult vr;
-
-    if ((vr = p_vkEnumeratePhysicalDevices( d3dkmt_instance, &device_count, NULL )))
-    {
-        WARN( "vkEnumeratePhysicalDevices returned %d\n", vr );
-        return 0;
-    }
-
-    if (!device_count || !(*devices = malloc( device_count * sizeof(**devices) ))) return 0;
-
-    if ((vr = p_vkEnumeratePhysicalDevices( d3dkmt_instance, &device_count, *devices )))
-    {
-        WARN( "vkEnumeratePhysicalDevices returned %d\n", vr );
-        free( *devices );
-        return 0;
-    }
-
-    return device_count;
-}
-
-VkPhysicalDevice get_vulkan_physical_device( const GUID *uuid )
-{
-    VkPhysicalDevice *devices, device;
-    UINT device_count, i;
-
-    if (!(device_count = get_vulkan_physical_devices( &devices ))) return VK_NULL_HANDLE;
-
-    for (i = 0, device = VK_NULL_HANDLE; i < device_count; ++i)
-    {
-        VkPhysicalDeviceIDProperties id = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES};
-        VkPhysicalDeviceProperties2 properties2 = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, .pNext = &id};
-
-        p_vkGetPhysicalDeviceProperties2KHR( devices[i], &properties2 );
-        if (IsEqualGUID( uuid, id.deviceUUID ))
-        {
-            device = devices[i];
-            break;
-        }
-    }
-
-    free( devices );
-    return device;
-}
-
-BOOL get_vulkan_gpus( struct list *gpus )
-{
-    VkPhysicalDevice *devices;
-    UINT i, j, count;
-
-ERR("\n");
-    if (!d3dkmt_use_vulkan()) return FALSE;
-ERR("\n");
-    if (!(count = get_vulkan_physical_devices( &devices ))) return FALSE;
-
-ERR("\n");
-    for (i = 0; i < count; ++i)
-    {
-        VkPhysicalDeviceIDProperties id = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES};
-        VkPhysicalDeviceProperties2 properties2 = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, .pNext = &id};
-        VkPhysicalDeviceMemoryProperties mem_properties;
-        struct vulkan_gpu *gpu;
-
-        if (!(gpu = calloc( 1, sizeof(*gpu) ))) break;
-        p_vkGetPhysicalDeviceProperties2KHR( devices[i], &properties2 );
-        memcpy( &gpu->uuid, id.deviceUUID, sizeof(gpu->uuid) );
-        gpu->name = strdup( properties2.properties.deviceName );
-        gpu->pci_id.vendor = properties2.properties.vendorID;
-        gpu->pci_id.device = properties2.properties.deviceID;
-
-        p_vkGetPhysicalDeviceMemoryProperties( devices[i], &mem_properties );
-        for (j = 0; j < mem_properties.memoryHeapCount; j++)
-        {
-            if (mem_properties.memoryHeaps[j].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
-                gpu->memory += mem_properties.memoryHeaps[j].size;
-        }
-
-ERR("adding %s\n", debugstr_a(gpu->name));
-        list_add_tail( gpus, &gpu->entry );
-    }
-
-    free( devices );
-    return TRUE;
-}
-
-void free_vulkan_gpu( struct vulkan_gpu *gpu )
-{
-    free( gpu->name );
-    free( gpu );
-}
-
-void get_vulkan_physical_device_memory( VkPhysicalDevice device, D3DKMT_QUERYVIDEOMEMORYINFO *desc )
-{
-    VkPhysicalDeviceMemoryBudgetPropertiesEXT budget = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT};
-    VkPhysicalDeviceMemoryProperties2 properties2 = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2};
-    UINT i;
-
-    desc->Budget = 0;
-    desc->CurrentUsage = 0;
-    desc->CurrentReservation = 0;
-    desc->AvailableForReservation = 0;
-
-    properties2.pNext = &budget;
-    p_vkGetPhysicalDeviceMemoryProperties2KHR( device, &properties2 );
-
-    for (i = 0; i < properties2.memoryProperties.memoryHeapCount; ++i)
-    {
-        if ((desc->MemorySegmentGroup == D3DKMT_MEMORY_SEGMENT_GROUP_LOCAL &&
-             properties2.memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) ||
-            (desc->MemorySegmentGroup == D3DKMT_MEMORY_SEGMENT_GROUP_NON_LOCAL &&
-             !(properties2.memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)))
-        {
-            desc->Budget += budget.heapBudget[i];
-            desc->CurrentUsage += budget.heapUsage[i];
-        }
-    }
-
-    desc->AvailableForReservation = desc->Budget / 2;
 }

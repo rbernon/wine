@@ -1281,7 +1281,7 @@ static void add_gpu( const char *name, const struct pci_id *pci_id, const GUID *
 
     static const GUID empty_uuid;
 
-    ERR( "%s %04X %04X %08X %02X %s\n", debugstr_a( name ), pci_id->vendor, pci_id->device,
+    TRACE( "%s %04X %04X %08X %02X %s\n", debugstr_a( name ), pci_id->vendor, pci_id->device,
            pci_id->subsystem, pci_id->revision, debugstr_guid( vulkan_uuid ) );
 
     if (!enum_key && !(enum_key = reg_create_ascii_key( NULL, enum_keyA, 0, NULL )))
@@ -2165,7 +2165,6 @@ static NTSTATUS default_update_display_devices( struct device_manager_ctx *ctx )
     DEVMODEW mode = {.dmSize = sizeof(mode)};
     struct source *source;
 
-ERR("\n");
     add_gpu( "Wine GPU", &pci_id, NULL, ctx );
     add_source( "Default", source_flags, system_dpi, ctx );
 
@@ -2309,7 +2308,7 @@ static void commit_display_devices( struct device_manager_ctx *ctx )
 
     LIST_FOR_EACH_ENTRY_SAFE( gpu, next, &ctx->vulkan_gpus, struct vulkan_gpu, entry )
     {
-        ERR( "adding vulkan-only gpu uuid %s, name %s\n", debugstr_guid(&gpu->uuid), debugstr_a(gpu->name));
+        TRACE( "adding vulkan-only gpu uuid %s, name %s\n", debugstr_guid(&gpu->uuid), debugstr_a(gpu->name));
         add_gpu( gpu->name, &gpu->pci_id, &gpu->uuid, ctx );
     }
 
@@ -7497,7 +7496,6 @@ BOOL get_luid_from_vulkan_uuid( const GUID *uuid, LUID *luid )
 
     LIST_FOR_EACH_ENTRY( gpu, &gpus, struct gpu, entry )
     {
-ERR( "gpu %p uuid %s\n", gpu, debugstr_guid(&gpu->vulkan_uuid) );
         if ((found = !memcmp( &gpu->vulkan_uuid, uuid, sizeof(*uuid) )))
         {
             *luid = gpu->luid;
@@ -7506,6 +7504,5 @@ ERR( "gpu %p uuid %s\n", gpu, debugstr_guid(&gpu->vulkan_uuid) );
     }
 
     unlock_display_devices();
-ERR("found %u\n", found);
     return found;
 }

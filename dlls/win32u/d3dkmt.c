@@ -58,6 +58,67 @@ static struct list d3dkmt_adapters = LIST_INIT( d3dkmt_adapters );
 static struct list d3dkmt_devices = LIST_INIT( d3dkmt_devices );
 static struct list d3dkmt_vidpn_sources = LIST_INIT( d3dkmt_vidpn_sources );   /* VidPN source information list */
 
+static VkInstance d3dkmt_vk_instance; /* Vulkan instance for D3DKMT functions */
+static PFN_vkGetPhysicalDeviceMemoryProperties2KHR pvkGetPhysicalDeviceMemoryProperties2KHR;
+static PFN_vkGetPhysicalDeviceMemoryProperties pvkGetPhysicalDeviceMemoryProperties;
+static PFN_vkGetPhysicalDeviceProperties2KHR pvkGetPhysicalDeviceProperties2KHR;
+static PFN_vkEnumeratePhysicalDevices pvkEnumeratePhysicalDevices;
+static const struct vulkan_funcs *vulkan_funcs;
+
+static void d3dkmt_init_vulkan(void)
+{
+    static const char *extensions[] =
+    {
+        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
+    };
+    VkInstanceCreateInfo create_info =
+    {
+        .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+        .enabledExtensionCount = ARRAY_SIZE( extensions ),
+        .ppEnabledExtensionNames = extensions,
+    };
+    PFN_vkDestroyInstance p_vkDestroyInstance;
+    PFN_vkCreateInstance p_vkCreateInstance;
+    VkResult vr;
+
+    if (!vulkan_init())
+    {
+        WARN( "Failed to open the Vulkan driver\n" );
+        return;
+    }
+
+    p_vkCreateInstance = p_vkGetInstanceProcAddr( NULL, "vkCreateInstance" );
+    if ((vr = p_vkCreateInstance( &create_info, NULL, &d3dkmt_vk_instance )))
+    {
+        WARN( "Failed to create a Vulkan instance, vr %d.\n", vr );
+        vulkan_funcs = NULL;
+        return;
+    }
+
+    p_vkDestroyInstance = p_vkGetInstanceProcAddr( d3dkmt_vk_instance, "vkDestroyInstance" );
+#define LOAD_VK_FUNC( f )                                                                      \
+    if (!(p##f = (void *)p_vkGetInstanceProcAddr( d3dkmt_vk_instance, #f )))                   \
+    {                                                                                          \
+        WARN( "Failed to load " #f ".\n" );                                                    \
+        p_vkDestroyInstance( d3dkmt_vk_instance, NULL );                                       \
+        vulkan_funcs = NULL;                                                                   \
+        return;                                                                                \
+    }
+    LOAD_VK_FUNC( vkEnumeratePhysicalDevices )
+    LOAD_VK_FUNC( vkGetPhysicalDeviceProperties2KHR )
+    LOAD_VK_FUNC( vkGetPhysicalDeviceMemoryProperties )
+    LOAD_VK_FUNC( vkGetPhysicalDeviceMemoryProperties2KHR )
+#undef LOAD_VK_FUNC
+}
+
+static BOOL d3dkmt_use_vulkan(void)
+{
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    pthread_once( &once, d3dkmt_init_vulkan );
+    return !!vulkan_funcs;
+}
+
 /* d3dkmt_lock must be held */
 static struct d3dkmt_adapter *find_adapter_from_handle( D3DKMT_HANDLE handle )
 {
@@ -127,6 +188,53 @@ NTSTATUS WINAPI NtGdiDdDDIOpenAdapterFromDeviceName( D3DKMT_OPENADAPTERFROMDEVIC
     desc->AdapterLuid = desc_luid.AdapterLuid;
     desc->hAdapter = desc_luid.hAdapter;
     return STATUS_SUCCESS;
+}
+
+static UINT get_vulkan_physical_devices( VkPhysicalDevice **devices )
+{
+    UINT device_count;
+    VkResult vr;
+
+    if ((vr = pvkEnumeratePhysicalDevices( d3dkmt_vk_instance, &device_count, NULL )))
+    {
+        WARN( "vkEnumeratePhysicalDevices returned %d\n", vr );
+        return 0;
+    }
+
+    if (!device_count || !(*devices = malloc( device_count * sizeof(**devices) ))) return 0;
+
+    if ((vr = pvkEnumeratePhysicalDevices( d3dkmt_vk_instance, &device_count, *devices )))
+    {
+        WARN( "vkEnumeratePhysicalDevices returned %d\n", vr );
+        free( *devices );
+        return 0;
+    }
+
+    return device_count;
+}
+
+static VkPhysicalDevice get_vulkan_physical_device( const GUID *uuid )
+{
+    VkPhysicalDevice *devices, device;
+    UINT device_count, i;
+
+    if (!(device_count = get_vulkan_physical_devices( &devices ))) return VK_NULL_HANDLE;
+
+    for (i = 0, device = VK_NULL_HANDLE; i < device_count; ++i)
+    {
+        VkPhysicalDeviceIDProperties id = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES};
+        VkPhysicalDeviceProperties2 properties2 = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, .pNext = &id};
+
+        pvkGetPhysicalDeviceProperties2KHR( devices[i], &properties2 );
+        if (IsEqualGUID( uuid, id.deviceUUID ))
+        {
+            device = devices[i];
+            break;
+        }
+    }
+
+    free( devices );
+    return device;
 }
 
 /******************************************************************************
@@ -276,9 +384,12 @@ NTSTATUS WINAPI NtGdiDdDDIQueryStatistics( D3DKMT_QUERYSTATISTICS *stats )
  */
 NTSTATUS WINAPI NtGdiDdDDIQueryVideoMemoryInfo( D3DKMT_QUERYVIDEOMEMORYINFO *desc )
 {
+    VkPhysicalDeviceMemoryBudgetPropertiesEXT budget;
+    VkPhysicalDeviceMemoryProperties2 properties2;
     struct d3dkmt_adapter *adapter;
     OBJECT_BASIC_INFORMATION info;
     NTSTATUS status;
+    unsigned int i;
 
     TRACE( "(%p)\n", desc );
 
@@ -302,7 +413,25 @@ NTSTATUS WINAPI NtGdiDdDDIQueryVideoMemoryInfo( D3DKMT_QUERYVIDEOMEMORYINFO *des
 
     pthread_mutex_lock( &d3dkmt_lock );
     if ((adapter = find_adapter_from_handle( desc->hAdapter )) && adapter->vk_device)
-        get_vulkan_physical_device_memory( adapter->vk_device, desc );
+    {
+        memset( &budget, 0, sizeof(budget) );
+        budget.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
+        properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+        properties2.pNext = &budget;
+        pvkGetPhysicalDeviceMemoryProperties2KHR( adapter->vk_device, &properties2 );
+        for (i = 0; i < properties2.memoryProperties.memoryHeapCount; ++i)
+        {
+            if ((desc->MemorySegmentGroup == D3DKMT_MEMORY_SEGMENT_GROUP_LOCAL &&
+                 properties2.memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) ||
+                (desc->MemorySegmentGroup == D3DKMT_MEMORY_SEGMENT_GROUP_NON_LOCAL &&
+                 !(properties2.memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)))
+            {
+                desc->Budget += budget.heapBudget[i];
+                desc->CurrentUsage += budget.heapUsage[i];
+            }
+        }
+        desc->AvailableForReservation = desc->Budget / 2;
+    }
     pthread_mutex_unlock( &d3dkmt_lock );
 
     return adapter ? STATUS_SUCCESS : STATUS_INVALID_PARAMETER;
