@@ -89,7 +89,7 @@
  * might fail to unwind the stack.
  */
 #if defined(_WIN32) && !defined(NDEBUG)
-#  if defined(_MSC_VER)
+#  if defined(_MSC_VER) && !defined(__clang__)
 #    pragma optimize( "gty", on )
 #  elif defined(__GNUC__)
 #    pragma GCC optimize ("omit-frame-pointer")

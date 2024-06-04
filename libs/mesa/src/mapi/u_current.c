@@ -86,10 +86,12 @@ extern void (*__glapi_noop_table[])(void);
  */
 /*@{*/
 
+#if 0 /* WINE */
 __THREAD_INITIAL_EXEC struct _glapi_table *_glapi_tls_Dispatch
    = (struct _glapi_table *) table_noop_array;
 
 __THREAD_INITIAL_EXEC void *_glapi_tls_Context;
+#endif
 
 /* not used, but defined for compatibility */
 const struct _glapi_table *_glapi_Dispatch;

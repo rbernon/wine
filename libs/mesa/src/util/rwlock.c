@@ -6,6 +6,7 @@
 
 #include <assert.h>
 #include "rwlock.h"
+#include "macros.h"
 
 #if defined(_WIN32) && !defined(HAVE_PTHREAD)
 #include <windows.h>
