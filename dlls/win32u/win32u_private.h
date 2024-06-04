@@ -31,6 +31,7 @@
 #include "wine/unixlib.h"
 #include "wine/debug.h"
 #include "wine/server.h"
+#include "wine/vulkan.h"
 
 
 /* clipboard.c */
@@ -200,10 +201,13 @@ struct vulkan_gpu
     ULONGLONG memory;
 };
 
+extern BOOL d3dkmt_use_vulkan(void);
 extern BOOL get_vulkan_gpus( struct list *gpus );
 extern void free_vulkan_gpu( struct vulkan_gpu *gpu );
 extern BOOL get_vulkan_uuid_from_luid( const LUID *luid, GUID *uuid );
 extern BOOL get_luid_from_vulkan_uuid( const GUID *uuid, LUID *luid );
+extern VkPhysicalDevice get_vulkan_physical_device( const GUID *uuid );
+extern void get_vulkan_physical_device_memory( VkPhysicalDevice devide, D3DKMT_QUERYVIDEOMEMORYINFO *desc );
 
 /* winstation.c */
 
