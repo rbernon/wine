@@ -26,6 +26,7 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  */
+
 #include <assert.h>
 #include <limits.h>
 #include <errno.h>
@@ -34,10 +35,12 @@
 #include <stdbool.h>
 
 #include "c11/threads.h"
+#include "macros.h"
 
 #include "threads_win32.h"
 
 #include <windows.h>
+#include <winternl.h>
 
 /*
 Configuration macro:
@@ -70,7 +73,11 @@ struct thrd_state {
     bool handle_need_close;
 };
 
+#if 0 /* WINE */
 static thread_local struct thrd_state impl_current_thread = { 0 };
+#else /* WINE */
+#define impl_current_thread (*(struct thrd_state *)NtCurrentTeb()->glReserved1)
+#endif /* WINE */
 
 static unsigned __stdcall impl_thrd_routine(void *p)
 {

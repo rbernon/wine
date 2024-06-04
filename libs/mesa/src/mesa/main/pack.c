@@ -37,7 +37,7 @@
  * - http://msdn.microsoft.com/en-us/library/1yk3ydd7.aspx
  * - http://msdn.microsoft.com/en-us/library/chh3fb0k.aspx
  */
-#if defined(_MSC_VER) && defined(_M_X64)
+#if defined(_MSC_VER) && defined(_M_X64) && !defined(__clang__)
 #  pragma optimize( "g", off )
 #endif
 

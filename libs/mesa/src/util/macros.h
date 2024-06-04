@@ -25,7 +25,7 @@
 #define UTIL_MACROS_H
 
 #include <assert.h>
-#if defined(__HAIKU__)  && !defined(__cplusplus)
+#if (defined(__HAIKU__) || defined(__WINE_PE_BUILD)) && !defined(__cplusplus)
 #define static_assert _Static_assert
 #endif
 #include <stddef.h>
@@ -51,6 +51,40 @@
 
 #ifndef __has_attribute
 #  define __has_attribute(x) 0
+#endif
+
+#if !defined(HAVE___BUILTIN_BSWAP32) && __has_builtin(__builtin_bswap32)
+#define HAVE___BUILTIN_BSWAP32
+#endif
+#if !defined(HAVE___BUILTIN_BSWAP64) && __has_builtin(__builtin_bswap64)
+#define HAVE___BUILTIN_BSWAP64
+#endif
+#if !defined(HAVE___BUILTIN_CLZ) && __has_builtin(__builtin_clz)
+#define HAVE___BUILTIN_CLZ
+#endif
+#if !defined(HAVE___BUILTIN_CLZLL) && __has_builtin(__builtin_clzll)
+#define HAVE___BUILTIN_CLZLL
+#endif
+#if !defined(HAVE___BUILTIN_EXPECT) && __has_builtin(__builtin_expect)
+#define HAVE___BUILTIN_EXPECT
+#endif
+#if !defined(HAVE___BUILTIN_FFS) && __has_builtin(__builtin_ffs)
+#define HAVE___BUILTIN_FFS
+#endif
+#if !defined(HAVE___BUILTIN_FFSLL) && __has_builtin(__builtin_ffsll)
+#define HAVE___BUILTIN_FFSLL
+#endif
+#if !defined(HAVE___BUILTIN_POPCOUNT) && __has_builtin(__builtin_popcount)
+#define HAVE___BUILTIN_POPCOUNT
+#endif
+#if !defined(HAVE___BUILTIN_POPCOUNTLL) && __has_builtin(__builtin_popcountll)
+#define HAVE___BUILTIN_POPCOUNTLL
+#endif
+#if !defined(HAVE___BUILTIN_TYPES_COMPATIBLE_P) && __has_builtin(__builtin_types_compatible_p)
+#define HAVE___BUILTIN_TYPES_COMPATIBLE_P
+#endif
+#if !defined(HAVE___BUILTIN_UNREACHABLE) && __has_builtin(__builtin_unreachable)
+#define HAVE___BUILTIN_UNREACHABLE
 #endif
 
 /**

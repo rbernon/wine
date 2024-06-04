@@ -175,7 +175,7 @@ os_get_android_option(const char *name)
 }
 #endif
 
-#if DETECT_OS_WINDOWS
+#if 0 /* WINE */
 
 /* getenv doesn't necessarily reflect changes to the environment
  * that have been made during the process lifetime, if either the

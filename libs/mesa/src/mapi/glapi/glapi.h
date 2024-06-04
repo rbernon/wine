@@ -44,6 +44,14 @@
 #ifndef _GLAPI_H
 #define _GLAPI_H
 
+#include <stdarg.h>
+#include <stddef.h>
+
+#include "windef.h"
+#include "winbase.h"
+#undef DEBUG_BUFFER
+#include "winternl.h"
+
 #include "util/macros.h"
 #include "util/u_thread.h"
 #include "util/detect_os.h"
@@ -77,7 +85,10 @@ typedef void (*_glapi_nop_handler_proc)(const char *name);
 
 struct _glapi_table;
 
-#if DETECT_OS_WINDOWS
+#if 1 /* WINE */
+#define _glapi_tls_Dispatch NtCurrentTeb()->glTable
+#define _glapi_tls_Context (NtCurrentTeb()->glCurrentRC)
+#elif DETECT_OS_WINDOWS
 extern __THREAD_INITIAL_EXEC struct _glapi_table * _glapi_tls_Dispatch;
 extern __THREAD_INITIAL_EXEC void * _glapi_tls_Context;
 #else
@@ -92,7 +103,7 @@ _GLAPI_EXPORT extern const void *_glapi_Context;
 # define GET_DISPATCH() _glapi_get_dispatch()
 # define GET_CURRENT_CONTEXT(C)  struct gl_context *C = (struct gl_context *) _glapi_get_context()
 #else
-# define GET_DISPATCH() _glapi_tls_Dispatch
+# define GET_DISPATCH() ((struct _glapi_table *)_glapi_tls_Dispatch)
 # define GET_CURRENT_CONTEXT(C)  struct gl_context *C = (struct gl_context *) _glapi_tls_Context
 #endif
 

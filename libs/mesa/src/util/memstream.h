@@ -32,7 +32,7 @@
 #include <stdio.h>
 #include <limits.h> /* PATH_MAX */
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__WINE_PE_BUILD)
 #include <stdlib.h>
 #ifndef PATH_MAX
 #define PATH_MAX _MAX_PATH /* Equivalent to MAX_PATH from minwindef.h */
