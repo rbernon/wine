@@ -36,7 +36,7 @@
 #include "util/mesa-sha1.h"
 #include "ast.h"
 #include "glsl_parser_extras.h"
-#include "glsl_parser.h"
+#include "src/compiler/glsl/glsl_parser.h"
 #include "ir_optimization.h"
 #include "builtin_functions.h"
 
