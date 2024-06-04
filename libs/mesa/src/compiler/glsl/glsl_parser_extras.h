@@ -64,7 +64,7 @@ struct glsl_switch_state {
 const char *
 glsl_compute_version_string(void *mem_ctx, bool is_es, unsigned version);
 
-typedef struct YYLTYPE {
+typedef struct _MESA_GLSL_LTYPE {
    int first_line;
    int first_column;
    int last_line;
@@ -72,9 +72,10 @@ typedef struct YYLTYPE {
    unsigned source;
    /* Path for ARB_shading_language_include include source */
    char *path;
-} YYLTYPE;
-# define YYLTYPE_IS_DECLARED 1
-# define YYLTYPE_IS_TRIVIAL 1
+} _MESA_GLSL_LTYPE;
+# define YYLTYPE _MESA_GLSL_LTYPE
+# define _MESA_GLSL_LTYPE_IS_DECLARED 1
+# define _MESA_GLSL_LTYPE_IS_TRIVIAL 1
 
 extern void _mesa_glsl_error(YYLTYPE *locp, _mesa_glsl_parse_state *state,
                              const char *fmt, ...) PRINTFLIKE(3, 4);
@@ -1031,6 +1032,7 @@ extern void _mesa_glsl_lexer_ctor(struct _mesa_glsl_parse_state *state,
 
 extern void _mesa_glsl_lexer_dtor(struct _mesa_glsl_parse_state *state);
 
+#define YYSTYPE _MESA_GLSL_STYPE
 union YYSTYPE;
 extern int _mesa_glsl_lexer_lex(union YYSTYPE *yylval, YYLTYPE *yylloc,
                                 void *scanner);

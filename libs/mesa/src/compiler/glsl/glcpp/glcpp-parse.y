@@ -176,8 +176,10 @@ add_builtin_define(glcpp_parser_t *parser, const char *name, int value);
 
 %}
 
-%pure-parser
-%error-verbose
+%define api.pure
+%define parse.error verbose
+%define api.prefix {glcpp_parser_}
+%define api.location.type {GLCPP_PARSER_LTYPE}
 
 %locations
 %initial-action {
