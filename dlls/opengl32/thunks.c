@@ -1,5 +1,6 @@
 /* Automatically generated from http://www.opengl.org/registry files; DO NOT EDIT! */
 
+#ifndef ENABLE_MESA
 #include <stdarg.h>
 #include <stddef.h>
 
@@ -27023,3 +27024,4 @@ const void *extension_procs[] =
     wglSetPixelFormatWINE,
     wglSwapIntervalEXT,
 };
+#endif /* ENABLE_MESA */
