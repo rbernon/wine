@@ -1,0 +1,80 @@
+/*
+ * Copyright 2024 Rémi Bernon for CodeWeavers
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
+ */
+
+#ifndef __WINE_MESA_CXX_UNORDERED_MAP
+#define __WINE_MESA_CXX_UNORDERED_MAP
+
+#include <vector>
+
+namespace std
+{
+
+template<typename K, typename V>
+struct unordered_map
+{
+    struct pair
+    {
+        K first;
+        V second;
+    };
+    using iterator = typename vector<pair>::iterator;
+
+    vector<pair> _data;
+    pair *_found;
+
+    unordered_map() : _data(), _found(nullptr) {}
+    ~unordered_map() {}
+
+    unordered_map(unordered_map const&) = delete;
+    unordered_map(unordered_map&&) = delete;
+    unordered_map& operator=(unordered_map const&) = delete;
+    unordered_map& operator=(unordered_map&&) = delete;
+
+    iterator end() { return _data.end(); }
+    iterator find(K key)
+    {
+        pair const value = {key};
+        _found = (pair *)bsearch(&value, _data.data(), _data.size(), _data.size() * sizeof(pair),
+            [](const void *a, const void *b) -> int {
+                return (int64_t)((pair*)a)->first - (int64_t)((pair*)b)->first;
+            }
+        );
+        return iterator{_found};
+    }
+
+    V& operator[](K key)
+    {
+        size_t i;
+
+        if (_found && _found->first == key) i = _found - _data.data();
+        else for (i = 0; i < _data.size(); i++) if (_data[i].first >= key) break;
+        _found = nullptr;
+
+        if (_data[i].first != key)
+        {
+            _data.push_back({key});
+            for (size_t j = _data.size() - 1; j > i; j--) swap(_data[j], _data[j - 1]);
+        }
+
+        return _data[i].second;
+    }
+};
+
+} /* namespace std */
+
+#endif /* __WINE_MESA_CXX_UNORDERED_MAP */
