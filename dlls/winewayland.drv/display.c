@@ -191,7 +191,7 @@ static void wayland_add_device_gpu(const struct gdi_device_manager *device_manag
 {
     struct pci_id pci_id = {0};
 
-    TRACE("\n");
+    ERR("\n");
 
     device_manager->add_gpu("Wine GPU", &pci_id, NULL, param);
 }
