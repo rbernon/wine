@@ -29,11 +29,13 @@
 #define _C99_ALLOCA_H_
 
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) || defined(__WINE_PE_BUILD)
 
 #  include <malloc.h>
 
+#ifndef __WINE_PE_BUILD
 #  define alloca _alloca
+#endif
 
 #elif defined(__sun) || defined(__CYGWIN__)
 

@@ -22,6 +22,8 @@
 #pragma makedep unix
 #endif
 
+#ifndef ENABLE_MESA
+
 #include "config.h"
 
 #include <stdarg.h>
@@ -2287,3 +2289,5 @@ NTSTATUS wow64_get_pixel_formats( void *args )
 }
 
 #endif
+
+#endif /* ENABLE_MESA */

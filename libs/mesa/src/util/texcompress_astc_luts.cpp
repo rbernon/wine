@@ -363,11 +363,13 @@ ASTCLutHolder::PartitionTable &ASTCLutHolder::get_partition_table(unsigned width
 	}
 }
 
+#if 0 /* WINE */
 ASTCLutHolder &get_astc_luts()
 {
 	static ASTCLutHolder holder;
 	return holder;
 }
+#endif /* WINE */
 
 ASTCLutHolder::ASTCLutHolder()
 {
@@ -530,3 +532,20 @@ void ASTCLutHolder::init_trits_quints()
 	}
 }
 }
+
+#if 1 /* WINE */
+
+#include "u_call_once.h"
+
+namespace Granite
+{
+Granite::ASTCLutHolder &get_astc_luts()
+{
+	static Granite::ASTCLutHolder *holder;
+	static util_once_flag once = UTIL_ONCE_FLAG_INIT;
+	util_call_once(&once, []{ holder = new Granite::ASTCLutHolder(); });
+	return *holder;
+}
+}
+
+#endif /* WINE */
