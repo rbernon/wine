@@ -18,6 +18,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#ifndef ENABLE_MESA
+
 #include <assert.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -1931,3 +1933,5 @@ BOOL WINAPI DllMain( HINSTANCE hinst, DWORD reason, LPVOID reserved )
     }
     return TRUE;
 }
+
+#endif /* ENABLE_MESA */
