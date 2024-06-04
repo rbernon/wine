@@ -52,6 +52,14 @@ static const struct vulkan_driver_funcs *driver_funcs;
 static void (*p_vkDestroySurfaceKHR)(VkInstance, VkSurfaceKHR, const VkAllocationCallbacks *);
 static VkResult (*p_vkQueuePresentKHR)(VkQueue, const VkPresentInfoKHR *);
 
+static void (*p_vkGetPhysicalDeviceProperties2)(VkPhysicalDevice, VkPhysicalDeviceProperties2 *);
+static void (*p_vkGetPhysicalDeviceProperties2KHR)(VkPhysicalDevice, VkPhysicalDeviceProperties2 *);
+
+static const char *debugstr_luid( const LUID *luid )
+{
+    return wine_dbg_sprintf( "%08x:%08x", (UINT)luid->HighPart, (UINT)luid->LowPart );
+}
+
 struct surface
 {
     struct list entry;
@@ -139,6 +147,74 @@ static VkResult win32u_vkQueuePresentKHR( VkQueue queue, const VkPresentInfoKHR 
     return res;
 }
 
+/* wait until graphics driver is loaded by explorer */
+static void wait_graphics_driver_ready(void)
+{
+    static BOOL ready = FALSE;
+
+    if (!ready)
+    {
+        send_message( get_desktop_window(), WM_NULL, 0, 0 );
+        ready = TRUE;
+    }
+}
+
+static void *find_vulkan_struct( void *chain, VkStructureType type )
+{
+    VkBaseOutStructure *header;
+    for (header = chain; header; header = header->pNext)
+        if (header->sType == type) return header;
+    return NULL;
+}
+
+static void set_physical_device_luid( VkPhysicalDeviceProperties2 *properties2 )
+{
+    VkPhysicalDeviceVulkan11Properties *vk11;
+    VkPhysicalDeviceIDProperties *id;
+    GUID vulkan_uuid;
+    LUID luid;
+
+    wait_graphics_driver_ready();
+
+    TRACE( "device name %s\n", properties2->properties.deviceName );
+
+    if ((id = find_vulkan_struct( properties2, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES )))
+    {
+        memcpy( &vulkan_uuid, id->deviceUUID, sizeof(vulkan_uuid) );
+        id->deviceLUIDValid = get_luid_from_vulkan_uuid( &vulkan_uuid, &luid );
+        memcpy( id->deviceLUID, &luid, sizeof(luid) );
+        id->deviceNodeMask = !!id->deviceLUIDValid;
+
+        TRACE( "id %p UUID %s LUID %s valid %d mask %u\n", id, debugstr_guid( &vulkan_uuid ),
+               debugstr_luid( &luid ), id->deviceLUIDValid, id->deviceNodeMask );
+    }
+
+    if ((vk11 = find_vulkan_struct( properties2, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES )))
+    {
+        memcpy( &vulkan_uuid, id->deviceUUID, sizeof(vulkan_uuid) );
+        vk11->deviceLUIDValid = get_luid_from_vulkan_uuid( &vulkan_uuid, &luid );
+        memcpy( vk11->deviceLUID, &luid, sizeof(luid) );
+        vk11->deviceNodeMask = !!vk11->deviceLUIDValid;
+
+        TRACE( "vk11 %p UUID %s LUID %s valid %d mask %u\n", vk11, debugstr_guid( &vulkan_uuid ),
+               debugstr_luid( &luid ), vk11->deviceLUIDValid, vk11->deviceNodeMask );
+    }
+}
+
+void win32u_vkGetPhysicalDeviceProperties2( VkPhysicalDevice phys_dev, VkPhysicalDeviceProperties2 *properties2 )
+{
+    TRACE( "%p, %p\n", phys_dev, properties2 );
+    p_vkGetPhysicalDeviceProperties2( phys_dev, properties2 );
+    set_physical_device_luid( properties2 );
+}
+
+void win32u_vkGetPhysicalDeviceProperties2KHR( VkPhysicalDevice phys_dev, VkPhysicalDeviceProperties2 *properties2 )
+{
+    TRACE( "%p, %p\n", phys_dev, properties2 );
+    p_vkGetPhysicalDeviceProperties2KHR( phys_dev, properties2 );
+    set_physical_device_luid( properties2 );
+}
+
 static void *win32u_vkGetDeviceProcAddr( VkDevice device, const char *name )
 {
     TRACE( "device %p, name %s\n", device, debugstr_a(name) );
@@ -158,6 +234,16 @@ static void *win32u_vkGetInstanceProcAddr( VkInstance instance, const char *name
     if (!strcmp( name, "vkCreateWin32SurfaceKHR" )) return vulkan_funcs.p_vkCreateWin32SurfaceKHR;
     if (!strcmp( name, "vkDestroySurfaceKHR" )) return vulkan_funcs.p_vkDestroySurfaceKHR;
     if (!strcmp( name, "vkGetInstanceProcAddr" )) return vulkan_funcs.p_vkGetInstanceProcAddr;
+    if (!strcmp( name, "vkGetPhysicalDeviceProperties2" ))
+    {
+        if (!p_vkGetPhysicalDeviceProperties2) return NULL;
+        return vulkan_funcs.p_vkGetPhysicalDeviceProperties2;
+    }
+    if (!strcmp( name, "vkGetPhysicalDeviceProperties2KHR" ))
+    {
+        if (!p_vkGetPhysicalDeviceProperties2KHR) return NULL;
+        return vulkan_funcs.p_vkGetPhysicalDeviceProperties2KHR;
+    }
     if (!strcmp( name, "vkGetPhysicalDeviceWin32PresentationSupportKHR" )) return vulkan_funcs.p_vkGetPhysicalDeviceWin32PresentationSupportKHR;
 
     /* vkGetInstanceProcAddr also loads any children of instance, so device functions as well. */
@@ -178,6 +264,8 @@ static struct vulkan_funcs vulkan_funcs =
     .p_vkCreateWin32SurfaceKHR = win32u_vkCreateWin32SurfaceKHR,
     .p_vkDestroySurfaceKHR = win32u_vkDestroySurfaceKHR,
     .p_vkQueuePresentKHR = win32u_vkQueuePresentKHR,
+    .p_vkGetPhysicalDeviceProperties2 = win32u_vkGetPhysicalDeviceProperties2,
+    .p_vkGetPhysicalDeviceProperties2KHR = win32u_vkGetPhysicalDeviceProperties2KHR,
     .p_vkGetDeviceProcAddr = win32u_vkGetDeviceProcAddr,
     .p_vkGetInstanceProcAddr = win32u_vkGetInstanceProcAddr,
     .p_wine_get_host_surface = win32u_wine_get_host_surface,
@@ -313,6 +401,14 @@ static void vulkan_init_once(void)
     LOAD_FUNCPTR( vkGetDeviceProcAddr );
     LOAD_FUNCPTR( vkGetInstanceProcAddr );
 #undef LOAD_FUNCPTR
+
+#define LOAD_FUNCPTR_OPT( f ) \
+    if (!(p_##f = dlsym( vulkan_handle, #f ))) WARN( "Failed to find " #f "\n" );
+    LOAD_FUNCPTR_OPT( vkGetPhysicalDeviceProperties2 );
+    LOAD_FUNCPTR_OPT( vkGetPhysicalDeviceProperties2KHR );
+    if (!p_vkGetPhysicalDeviceProperties2) p_vkGetPhysicalDeviceProperties2 = p_vkGetPhysicalDeviceProperties2KHR;
+    if (!p_vkGetPhysicalDeviceProperties2KHR) p_vkGetPhysicalDeviceProperties2KHR = p_vkGetPhysicalDeviceProperties2;
+#undef LOAD_FUNCPTR_OPT
 
     driver_funcs = &lazydrv_funcs;
     vulkan_funcs.p_vkGetPhysicalDeviceWin32PresentationSupportKHR = lazydrv_vkGetPhysicalDeviceWin32PresentationSupportKHR;
