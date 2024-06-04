@@ -32,7 +32,7 @@
 #include "program/prog_statevars.h"
 #include "program/symbol_table.h"
 #include "program/program_parser.h"
-#include "program/program_parse.tab.h"
+#include "src/mesa/program/program_parse.tab.h"
 #include "util/strtod.h"
 
 #define require_ARB_vp (yyextra->mode == ARB_vertex)
