@@ -228,6 +228,10 @@ wgl_get_pfd_flags(struct pipe_screen *screen)
    if (use_d3d12)
       return d3d12_wgl_get_pfd_flags(screen);
 #endif
+#ifdef GALLIUM_ZINK
+   if (use_zink)
+      return stw_pfd_gdi_support | stw_pfd_double_buffer;
+#endif
    return stw_pfd_gdi_support;
 }
 
