@@ -3267,12 +3267,12 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
 
    struct zink_screen *screen = rzalloc(NULL, struct zink_screen);
    if (!screen) {
-      if (!config->implicit_driver_load)
+      if (!config || !config->implicit_driver_load)
          mesa_loge("ZINK: failed to allocate screen");
       return NULL;
    }
 
-   screen->implicitly_loaded = config->implicit_driver_load;
+   screen->implicitly_loaded = config && config->implicit_driver_load;
    screen->drm_fd = -1;
 
    glsl_type_singleton_init_or_ref();
