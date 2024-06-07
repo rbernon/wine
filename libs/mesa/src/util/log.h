@@ -28,10 +28,13 @@
 #include <stdio.h>
 
 #include "util/macros.h"
+#include "wine/debug.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+WINE_DEFAULT_DEBUG_CHANNEL(mesa);
 
 #ifndef MESA_LOG_TAG
 #define MESA_LOG_TAG "MESA"
@@ -54,11 +57,11 @@ void
 mesa_log_v(enum mesa_log_level, const char *tag, const char *format,
             va_list va);
 
-#define mesa_loge(fmt, ...) mesa_log(MESA_LOG_ERROR, (MESA_LOG_TAG), (fmt), ##__VA_ARGS__)
-#define mesa_logw(fmt, ...) mesa_log(MESA_LOG_WARN, (MESA_LOG_TAG), (fmt), ##__VA_ARGS__)
-#define mesa_logi(fmt, ...) mesa_log(MESA_LOG_INFO, (MESA_LOG_TAG), (fmt), ##__VA_ARGS__)
+#define mesa_loge(fmt, ...) WINE_ERR(fmt "\n", ##__VA_ARGS__)
+#define mesa_logw(fmt, ...) WINE_WARN(fmt "\n", ##__VA_ARGS__)
+#define mesa_logi(fmt, ...) WINE_TRACE(fmt "\n", ##__VA_ARGS__)
 #if MESA_DEBUG
-#define mesa_logd(fmt, ...) mesa_log(MESA_LOG_DEBUG, (MESA_LOG_TAG), (fmt), ##__VA_ARGS__)
+#define mesa_logd(fmt, ...) WINE_TRACE(fmt "\n", ##__VA_ARGS__)
 #else
 #define mesa_logd(fmt, ...) __mesa_log_use_args((fmt), ##__VA_ARGS__)
 #endif
