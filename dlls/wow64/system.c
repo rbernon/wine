@@ -856,3 +856,8 @@ NTSTATUS WINAPI wow64_NtWow64GetNativeSystemInformation( UINT *args )
         return STATUS_INVALID_INFO_CLASS;
     }
 }
+
+BOOL WINAPI DllMainCRTStartup( HINSTANCE inst, DWORD reason, void *reserved )
+{
+    return DllMain( inst, reason, reserved );
+}
