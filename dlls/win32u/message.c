@@ -2434,16 +2434,15 @@ static BOOL process_mouse_message( MSG *msg, UINT hw_id, ULONG_PTR extra_info, H
     else
     {
         HWND orig = msg->hwnd;
-        UINT dpi = get_thread_dpi();
 
-        msg->hwnd = window_from_point( msg->hwnd, msg->pt, &hittest, dpi );
+        msg->hwnd = window_from_point( msg->hwnd, msg->pt, &hittest, 0 /* per-monitor DPI */ );
         if (!msg->hwnd) /* As a heuristic, try the next window if it's the owner of orig */
         {
             HWND next = get_window_relative( orig, GW_HWNDNEXT );
 
             if (next && get_window_relative( orig, GW_OWNER ) == next &&
                 is_current_thread_window( next ))
-                msg->hwnd = window_from_point( next, msg->pt, &hittest, dpi );
+                msg->hwnd = window_from_point( next, msg->pt, &hittest, 0 /* per-monitor DPI */ );
         }
     }
 
