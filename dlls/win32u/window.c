@@ -1870,12 +1870,15 @@ static struct window_surface *create_window_surface( HWND hwnd, UINT swp_flags, 
     else if ((shaped = !!shape)) NtGdiDeleteObjectApp( shape );
 
     rects->visible = rects->window;
-    if (!user_driver->pWindowPosChanging( hwnd, swp_flags, shaped, rects )) needs_surface = FALSE;
+    *monitor_rects = map_dpi_window_rects( *new_rects, dpi, monitor_dpi );
+
+    if (!user_driver->pWindowPosChanging( hwnd, swp_flags, shaped, monitor_rects )) needs_surface = FALSE;
     else if (swp_flags & SWP_HIDEWINDOW) needs_surface = FALSE;
     else if (swp_flags & SWP_SHOWWINDOW) needs_surface = TRUE;
     else needs_surface = !!(NtUserGetWindowLongW( hwnd, GWL_STYLE ) & WS_VISIBLE);
+    *new_rects = map_dpi_window_rects( *monitor_rects, monitor_dpi, dpi );
 
-    if (!get_surface_rect( &rects->visible, surface_rect )) needs_surface = FALSE;
+    if (!get_surface_rect( &monitor_rects->visible, &surface_rect )) needs_surface = FALSE;
     if (!get_default_window_surface( hwnd, surface_rect, &new_surface )) return NULL;
 
     is_layered = new_surface && new_surface->alpha_mask;
@@ -2051,7 +2054,9 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
             }
         }
 
-        user_driver->pWindowPosChanged( hwnd, insert_after, swp_flags, old_rects, new_rects, new_surface );
+        *monitor_rects = map_dpi_window_rects( *new_rects, dpi, monitor_dpi );
+        old_monitor_rects = map_dpi_window_rects( *old_rects, dpi, monitor_dpi );
+        user_driver->pWindowPosChanged( hwnd, insert_after, swp_flags, &old_monitor_rects, monitor_rects, new_surface );
     }
 
     return ret;
@@ -2206,7 +2211,7 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
                                        const BLENDFUNCTION *blend, DWORD flags, const RECT *dirty )
 {
     DWORD swp_flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW;
-    struct window_rects old_rects, new_rects;
+    struct window_rects old_rects, new_rects, monitor_rects;
     struct window_surface *surface;
     RECT surface_rect;
     SIZE offset;
@@ -2299,7 +2304,7 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
         window_surface_set_layered( surface, key, -1, 0xff000000 );
         window_surface_flush( surface );
 
-        user_driver->pUpdateLayeredWindow( hwnd, &new_rects.window, key, alpha, flags );
+        user_driver->pUpdateLayeredWindow( hwnd, &monitor_rects, key, alpha, flags );
     }
 
 done:

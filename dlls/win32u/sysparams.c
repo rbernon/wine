@@ -2216,6 +2216,18 @@ RECT map_dpi_rect( RECT rect, UINT dpi_from, UINT dpi_to )
 }
 
 /**********************************************************************
+ *              map_dpi_window_rects
+ */
+struct window_rects map_dpi_window_rects( struct window_rects rects, UINT dpi_from, UINT dpi_to )
+{
+    rects.window = map_dpi_rect( rects.window, dpi_from, dpi_to );
+    rects.client = map_dpi_rect( rects.client, dpi_from, dpi_to );
+    rects.visible = map_dpi_rect( rects.visible, dpi_from, dpi_to );
+    rects.valid = map_dpi_rect( rects.valid, dpi_from, dpi_to );
+    return rects;
+}
+
+/**********************************************************************
  *              map_dpi_point
  */
 POINT map_dpi_point( POINT pt, UINT dpi_from, UINT dpi_to )
