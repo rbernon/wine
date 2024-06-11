@@ -439,8 +439,8 @@ HWND WINAPI NtUserSetParent( HWND hwnd, HWND parent )
     win = get_win_ptr( hwnd );
     if (!win || win == WND_OTHER_PROCESS || win == WND_DESKTOP) return 0;
 
-    get_window_rects( hwnd, COORDS_PARENT, &window_rect, NULL, get_dpi_for_window(hwnd) );
-    get_window_rects( hwnd, COORDS_SCREEN, &old_screen_rect, NULL, 0 );
+    get_window_rect_rel( hwnd, COORDS_PARENT, &window_rect, get_dpi_for_window(hwnd) );
+    get_window_rect_rel( hwnd, COORDS_SCREEN, &old_screen_rect, 0 );
 
     SERVER_START_REQ( set_parent )
     {
@@ -458,7 +458,7 @@ HWND WINAPI NtUserSetParent( HWND hwnd, HWND parent )
     release_win_ptr( win );
     if (!ret) return 0;
 
-    get_window_rects( hwnd, COORDS_SCREEN, &new_screen_rect, NULL, 0 );
+    get_window_rect_rel( hwnd, COORDS_SCREEN, &new_screen_rect, 0 );
     context = set_thread_dpi_awareness_context( get_window_dpi_awareness_context( hwnd ));
 
     user_driver->pSetParent( full_handle, parent, old_parent );
@@ -1675,16 +1675,26 @@ other_process:
     return ret;
 }
 
+BOOL get_window_rect_rel( HWND hwnd, enum coords_relative rel, RECT *rect, UINT dpi )
+{
+    return get_window_rects( hwnd, rel, rect, NULL, dpi );
+}
+
 /* see GetWindowRect */
 BOOL get_window_rect( HWND hwnd, RECT *rect, UINT dpi )
 {
-    return get_window_rects( hwnd, COORDS_SCREEN, rect, NULL, dpi );
+    return get_window_rect_rel( hwnd, COORDS_SCREEN, rect, dpi );
+}
+
+BOOL get_client_rect_rel( HWND hwnd, enum coords_relative rel, RECT *rect, UINT dpi )
+{
+    return get_window_rects( hwnd, rel, NULL, rect, dpi );
 }
 
 /* see GetClientRect */
 BOOL get_client_rect( HWND hwnd, RECT *rect, UINT dpi )
 {
-    return get_window_rects( hwnd, COORDS_CLIENT, NULL, rect, dpi );
+    return get_client_rect_rel( hwnd, COORDS_CLIENT, rect, dpi );
 }
 
 /* see GetWindowInfo */
@@ -1957,7 +1967,7 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
             if (get_window_long( win->parent, GWL_EXSTYLE ) & WS_EX_LAYOUTRTL)
             {
                 RECT client;
-                get_window_rects( win->parent, COORDS_CLIENT, NULL, &client, get_thread_dpi() );
+                get_client_rect_rel( win->parent, COORDS_CLIENT, &client, get_thread_dpi() );
                 mirror_rect( &client, &win->window_rect );
                 mirror_rect( &client, &win->client_rect );
                 mirror_rect( &client, &win->visible_rect );
@@ -2395,7 +2405,7 @@ HWND WINAPI NtUserChildWindowFromPointEx( HWND parent, LONG x, LONG y, UINT flag
 
     for (i = 0; list[i]; i++)
     {
-        if (!get_window_rects( list[i], COORDS_PARENT, &rect, NULL, get_thread_dpi() )) continue;
+        if (!get_window_rect_rel( list[i], COORDS_PARENT, &rect, get_thread_dpi() )) continue;
         if (!PtInRect( &rect, pt )) continue;
         if (flags & (CWP_SKIPINVISIBLE|CWP_SKIPDISABLED))
         {
@@ -4141,7 +4151,7 @@ static POINT get_minimized_pos( HWND hwnd, POINT pt )
         if (child == hwnd) continue;
         if ((get_window_long( child, GWL_STYLE ) & (WS_VISIBLE|WS_MINIMIZE)) != (WS_VISIBLE|WS_MINIMIZE))
             continue;
-        if (get_window_rects( child, COORDS_PARENT, &rect, NULL, get_thread_dpi() ))
+        if (get_window_rect_rel( child, COORDS_PARENT, &rect, get_thread_dpi() ))
         {
             NtGdiSetRectRgn( tmp, rect.left, rect.top, rect.right, rect.bottom );
             NtGdiCombineRgn( hrgn, hrgn, tmp, RGN_OR );
@@ -4503,7 +4513,7 @@ static BOOL show_window( HWND hwnd, INT cmd )
         RECT client;
         LPARAM lparam;
 
-        get_window_rects( hwnd, COORDS_PARENT, NULL, &client, get_thread_dpi() );
+        get_client_rect_rel( hwnd, COORDS_PARENT, &client, get_thread_dpi() );
         lparam = MAKELONG( client.right - client.left, client.bottom - client.top );
         win->flags &= ~WIN_NEED_SIZE;
         if (win->dwStyle & WS_MAXIMIZE) wParam = SIZE_MAXIMIZED;
@@ -5418,7 +5428,7 @@ HWND WINAPI NtUserCreateWindowEx( DWORD ex_style, UNICODE_STRING *class_name,
 
     /* send WM_NCCALCSIZE */
 
-    if (get_window_rects( hwnd, COORDS_PARENT, &new_rects.window, NULL, win_dpi ))
+    if (get_window_rect_rel( hwnd, COORDS_PARENT, &new_rects.window, win_dpi ))
     {
         /* yes, even if the CBT hook was called with HWND_TOP */
         HWND insert_after = (get_window_long( hwnd, GWL_STYLE ) & WS_CHILD) ? HWND_BOTTOM : HWND_TOP;
@@ -5450,8 +5460,8 @@ HWND WINAPI NtUserCreateWindowEx( DWORD ex_style, UNICODE_STRING *class_name,
     if (!(win_get_flags( hwnd ) & WIN_NEED_SIZE))
     {
         RECT rect;
-        get_window_rects( hwnd, COORDS_PARENT, NULL, &rect, win_dpi );
-        send_message( hwnd, WM_SIZE, SIZE_RESTORED, MAKELONG( rect.right - rect.left, rect.bottom - rect.top ) );
+        get_client_rect_rel( hwnd, COORDS_PARENT, &rect, win_dpi );
+        send_message( hwnd, WM_SIZE, SIZE_RESTORED, MAKELONG(rect.right - rect.left, rect.bottom - rect.top));
         send_message( hwnd, WM_MOVE, 0, MAKELONG( rect.left, rect.top ) );
     }
 
@@ -5639,7 +5649,7 @@ ULONG_PTR WINAPI NtUserCallHwndParam( HWND hwnd, DWORD_PTR param, DWORD code )
         return enable_window( hwnd, param );
 
     case NtUserCallHwndParam_GetChildRect:
-        return get_window_rects( hwnd, COORDS_PARENT, (RECT *)param, NULL, get_thread_dpi() );
+        return get_window_rect_rel( hwnd, COORDS_PARENT, (RECT *)param, get_thread_dpi() );
 
     case NtUserCallHwndParam_GetClassLongA:
         return get_class_long( hwnd, param, TRUE );

@@ -254,8 +254,10 @@ extern BOOL is_window_visible( HWND hwnd );
 extern BOOL is_zoomed( HWND hwnd );
 extern DWORD get_window_long( HWND hwnd, INT offset );
 extern ULONG_PTR get_window_long_ptr( HWND hwnd, INT offset, BOOL ansi );
-extern BOOL get_window_rect( HWND hwnd, RECT *rect, UINT dpi );
 enum coords_relative;
+extern BOOL get_window_rect_rel( HWND hwnd, enum coords_relative rel, RECT *rect, UINT dpi );
+extern BOOL get_window_rect( HWND hwnd, RECT *rect, UINT dpi );
+extern BOOL get_client_rect_rel( HWND hwnd, enum coords_relative rel, RECT *rect, UINT dpi );
 extern BOOL get_window_rects( HWND hwnd, enum coords_relative relative, RECT *window_rect,
                               RECT *client_rect, UINT dpi );
 extern HWND *list_window_children( HDESK desktop, HWND hwnd, UNICODE_STRING *class,
