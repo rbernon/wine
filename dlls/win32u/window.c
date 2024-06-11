@@ -3202,64 +3202,62 @@ static BOOL calc_winpos( WINDOWPOS *winpos, struct window_rects *old_rects, stru
  * Compute the valid rects from the old and new client rect and WVR_* flags.
  * Helper for WM_NCCALCSIZE handling.
  */
-static inline void get_valid_rects( const RECT *old_client, const RECT *new_client, UINT flags,
-                                    RECT *valid )
+static inline void get_valid_rects( struct window_rects *old_rects, struct window_rects *new_rects, UINT flags )
 {
     int cx, cy;
 
     if (flags & WVR_REDRAW)
     {
-        SetRectEmpty( &valid[0] );
-        SetRectEmpty( &valid[1] );
+        SetRectEmpty( &new_rects->valid );
+        SetRectEmpty( &old_rects->valid );
         return;
     }
 
     if (flags & WVR_VALIDRECTS)
     {
-        if (!intersect_rect( &valid[0], &valid[0], new_client ) ||
-            !intersect_rect( &valid[1], &valid[1], old_client ))
+        if (!intersect_rect( &new_rects->valid, &new_rects->valid, &new_rects->client ) ||
+            !intersect_rect( &old_rects->valid, &old_rects->valid, &old_rects->client ))
         {
-            SetRectEmpty( &valid[0] );
-            SetRectEmpty( &valid[1] );
+            SetRectEmpty( &new_rects->valid );
+            SetRectEmpty( &old_rects->valid );
             return;
         }
         flags = WVR_ALIGNLEFT | WVR_ALIGNTOP;
     }
     else
     {
-        valid[0] = *new_client;
-        valid[1] = *old_client;
+        new_rects->valid = new_rects->client;
+        old_rects->valid = old_rects->client;
     }
 
     /* make sure the rectangles have the same size */
-    cx = min( valid[0].right - valid[0].left, valid[1].right - valid[1].left );
-    cy = min( valid[0].bottom - valid[0].top, valid[1].bottom - valid[1].top );
+    cx = min( new_rects->valid.right - new_rects->valid.left, old_rects->valid.right - old_rects->valid.left );
+    cy = min( new_rects->valid.bottom - new_rects->valid.top, old_rects->valid.bottom - old_rects->valid.top );
 
     if (flags & WVR_ALIGNBOTTOM)
     {
-        valid[0].top = valid[0].bottom - cy;
-        valid[1].top = valid[1].bottom - cy;
+        new_rects->valid.top = new_rects->valid.bottom - cy;
+        old_rects->valid.top = old_rects->valid.bottom - cy;
     }
     else
     {
-        valid[0].bottom = valid[0].top + cy;
-        valid[1].bottom = valid[1].top + cy;
+        new_rects->valid.bottom = new_rects->valid.top + cy;
+        old_rects->valid.bottom = old_rects->valid.top + cy;
     }
     if (flags & WVR_ALIGNRIGHT)
     {
-        valid[0].left = valid[0].right - cx;
-        valid[1].left = valid[1].right - cx;
+        new_rects->valid.left = new_rects->valid.right - cx;
+        old_rects->valid.left = old_rects->valid.right - cx;
     }
     else
     {
-        valid[0].right = valid[0].left + cx;
-        valid[1].right = valid[1].left + cx;
+        new_rects->valid.right = new_rects->valid.left + cx;
+        old_rects->valid.right = old_rects->valid.left + cx;
     }
 }
 
-static UINT calc_ncsize( WINDOWPOS *winpos, const RECT *old_window_rect, const RECT *old_client_rect,
-                         const RECT *new_window_rect, RECT *new_client_rect, RECT *valid_rects,
-                         int parent_x, int parent_y )
+static UINT calc_ncsize( WINDOWPOS *winpos, struct window_rects *old_rects,
+                         struct window_rects *new_rects, int parent_x, int parent_y )
 {
     UINT wvr_flags = 0;
 
@@ -3270,22 +3268,22 @@ static UINT calc_ncsize( WINDOWPOS *winpos, const RECT *old_window_rect, const R
         WINDOWPOS winposCopy;
         UINT class_style;
 
-        params.rgrc[0] = *new_window_rect;
-        params.rgrc[1] = *old_window_rect;
-        params.rgrc[2] = *old_client_rect;
+        params.rgrc[0] = *&new_rects->window;
+        params.rgrc[1] = *&old_rects->window;
+        params.rgrc[2] = *&old_rects->client;
         params.lppos = &winposCopy;
         winposCopy = *winpos;
 
         if (winpos->flags & SWP_NOMOVE)
         {
-            winposCopy.x = old_window_rect->left;
-            winposCopy.y = old_window_rect->top;
+            winposCopy.x = old_rects->window.left;
+            winposCopy.y = old_rects->window.top;
         }
 
         if (winpos->flags & SWP_NOSIZE)
         {
-            winposCopy.cx = old_window_rect->right - old_window_rect->left;
-            winposCopy.cy = old_window_rect->bottom - old_window_rect->top;
+            winposCopy.cx = old_rects->window.right - old_rects->window.left;
+            winposCopy.cy = old_rects->window.bottom - old_rects->window.top;
         }
 
         class_style = get_class_long( winpos->hwnd, GCL_STYLE, FALSE );
@@ -3294,45 +3292,45 @@ static UINT calc_ncsize( WINDOWPOS *winpos, const RECT *old_window_rect, const R
 
         wvr_flags |= send_message( winpos->hwnd, WM_NCCALCSIZE, TRUE, (LPARAM)&params );
 
-        *new_client_rect = params.rgrc[0];
+        *&new_rects->client = params.rgrc[0];
 
         TRACE( "hwnd %p old win %s old client %s new win %s new client %s\n", winpos->hwnd,
-               wine_dbgstr_rect(old_window_rect), wine_dbgstr_rect(old_client_rect),
-               wine_dbgstr_rect(new_window_rect), wine_dbgstr_rect(new_client_rect) );
+               wine_dbgstr_rect(&old_rects->window), wine_dbgstr_rect(&old_rects->client),
+               wine_dbgstr_rect(&new_rects->window), wine_dbgstr_rect(&new_rects->client) );
 
-        if (new_client_rect->left != old_client_rect->left - parent_x ||
-            new_client_rect->top != old_client_rect->top - parent_y)
+        if (new_rects->client.left != old_rects->client.left - parent_x ||
+            new_rects->client.top != old_rects->client.top - parent_y)
             winpos->flags &= ~SWP_NOCLIENTMOVE;
 
-        if ((new_client_rect->right - new_client_rect->left !=
-             old_client_rect->right - old_client_rect->left))
+        if ((new_rects->client.right - new_rects->client.left !=
+             old_rects->client.right - old_rects->client.left))
             winpos->flags &= ~SWP_NOCLIENTSIZE;
         else
             wvr_flags &= ~WVR_HREDRAW;
 
-        if (new_client_rect->bottom - new_client_rect->top !=
-            old_client_rect->bottom - old_client_rect->top)
+        if (new_rects->client.bottom - new_rects->client.top !=
+            old_rects->client.bottom - old_rects->client.top)
             winpos->flags &= ~SWP_NOCLIENTSIZE;
         else
             wvr_flags &= ~WVR_VREDRAW;
 
-        valid_rects[0] = params.rgrc[1];
-        valid_rects[1] = params.rgrc[2];
+        new_rects->valid = params.rgrc[1];
+        old_rects->valid = params.rgrc[2];
     }
     else
     {
         if (!(winpos->flags & SWP_NOMOVE) &&
-            (new_client_rect->left != old_client_rect->left - parent_x ||
-             new_client_rect->top != old_client_rect->top - parent_y))
+            (new_rects->client.left != old_rects->client.left - parent_x ||
+             new_rects->client.top != old_rects->client.top - parent_y))
             winpos->flags &= ~SWP_NOCLIENTMOVE;
     }
 
     if (winpos->flags & (SWP_NOCOPYBITS | SWP_NOREDRAW | SWP_SHOWWINDOW | SWP_HIDEWINDOW))
     {
-        SetRectEmpty( &valid_rects[0] );
-        SetRectEmpty( &valid_rects[1] );
+        SetRectEmpty( &new_rects->valid );
+        SetRectEmpty( &old_rects->valid );
     }
-    else get_valid_rects( old_client_rect, new_client_rect, wvr_flags, valid_rects );
+    else get_valid_rects( old_rects, new_rects, wvr_flags );
 
     return wvr_flags;
 }
@@ -3512,7 +3510,7 @@ done:
 /* NtUserSetWindowPos implementation */
 BOOL set_window_pos( WINDOWPOS *winpos, int parent_x, int parent_y )
 {
-    RECT valid_rects[2], surface_rect;
+    RECT surface_rect;
     struct window_surface *surface;
     struct window_rects old_rects, new_rects;
     UINT orig_flags, context;
@@ -3572,10 +3570,7 @@ BOOL set_window_pos( WINDOWPOS *winpos, int parent_x, int parent_y )
 
     /* Common operations */
 
-    calc_ncsize( winpos, &old_rects.window, &old_rects.client,
-                 &new_rects.window, &new_rects.client, valid_rects, parent_x, parent_y );
-    new_rects.valid = valid_rects[0];
-    old_rects.valid = valid_rects[1];
+    calc_ncsize( winpos, &old_rects, &new_rects, parent_x, parent_y );
 
     surface = create_window_surface( winpos->hwnd, winpos->flags, FALSE, &new_rects, &surface_rect );
     if (!apply_window_pos( winpos->hwnd, winpos->hwndInsertAfter, winpos->flags, surface,
