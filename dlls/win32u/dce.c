@@ -62,12 +62,6 @@ static pthread_mutex_t surfaces_lock = PTHREAD_MUTEX_INITIALIZER;
  * Dummy window surface for windows that shouldn't get painted.
  */
 
-static void dummy_surface_init_image( struct window_surface *surface, HANDLE section, UINT offset,
-                                      const BITMAPINFO *color_info )
-{
-    /* nothing to do */
-}
-
 static void dummy_surface_set_clip( struct window_surface *window_surface, const RECT *rects, UINT count )
 {
     /* nothing to do */
@@ -88,7 +82,6 @@ static void dummy_surface_destroy( struct window_surface *window_surface )
 
 static const struct window_surface_funcs dummy_surface_funcs =
 {
-    dummy_surface_init_image,
     dummy_surface_set_clip,
     dummy_surface_flush,
     dummy_surface_destroy
@@ -105,11 +98,6 @@ struct window_surface dummy_surface =
 /*******************************************************************
  * Off-screen window surface.
  */
-
-static void offscreen_window_surface_init_image( struct window_surface *surface, HANDLE section, UINT offset,
-                                                 const BITMAPINFO *color_info )
-{
-}
 
 static void offscreen_window_surface_set_clip( struct window_surface *surface, const RECT *rects, UINT count )
 {
@@ -128,7 +116,6 @@ static void offscreen_window_surface_destroy( struct window_surface *surface )
 
 static const struct window_surface_funcs offscreen_window_surface_funcs =
 {
-    offscreen_window_surface_init_image,
     offscreen_window_surface_set_clip,
     offscreen_window_surface_flush,
     offscreen_window_surface_destroy
@@ -504,33 +491,10 @@ W32KAPI BOOL window_surface_create( UINT size, const struct window_surface_funcs
                                     struct window_surface **window_surface )
 {
     struct window_surface *surface;
-    LARGE_INTEGER section_size;
-    HBITMAP bitmap;
-    HANDLE handle;
-    UINT status;
 
     *window_surface = NULL;
 
-    section_size.QuadPart = info->bmiHeader.biSizeImage;
-    if ((status = NtCreateSection( &handle, GENERIC_READ | SECTION_MAP_READ | SECTION_MAP_WRITE,
-                                   NULL, &section_size, PAGE_READWRITE, SEC_COMMIT, 0 )))
-    {
-        ERR( "Failed to create section status %#x\n", status );
-        return FALSE;
-    }
-    if (!(bitmap = NtGdiCreateDIBSection( 0, handle, 0, info, DIB_RGB_COLORS, 0, 0, 0, NULL )))
-    {
-        ERR( "Failed to create DIB section status %#x\n", status );
-        NtClose( handle );
-        return FALSE;
-    }
-
-    if (!(surface = calloc( 1, size )))
-    {
-        NtGdiDeleteObjectApp( bitmap );
-        NtClose( handle );
-        return FALSE;
-    }
+    if (!(surface = calloc(1, size))) return FALSE;
     surface->funcs = funcs;
     surface->ref = 1;
     surface->hwnd = hwnd;
@@ -540,10 +504,14 @@ W32KAPI BOOL window_surface_create( UINT size, const struct window_surface_funcs
     surface->alpha_mask = 0;
     reset_bounds( &surface->bounds );
 
-    pthread_mutex_init( &surface->mutex, NULL );
+    if (!bitmap) bitmap = NtGdiCreateDIBSection( 0, NULL, 0, info, DIB_RGB_COLORS, 0, 0, 0, NULL );
+    if (!(surface->color_bitmap = bitmap))
+    {
+        free( surface );
+        return FALSE;
+    }
 
-    surface->funcs->init_image( surface, handle, 0, info );
-    NtClose( handle );
+    pthread_mutex_init( &surface->mutex, NULL );
 
     TRACE( "created %p hwnd %p %s\n", surface, hwnd, wine_dbgstr_rect(&surface->rect) );
     *window_surface = surface;
