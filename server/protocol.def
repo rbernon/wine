@@ -4079,28 +4079,3 @@ struct handle_info
 @REPLY
     int enable;                /* previous state of auto-repeat enable */
 @END
-
-
-@REQ(dwm_create_server)
-    unsigned int access;          /* wanted access rights */
-    unsigned int attributes;      /* object attributes */
-@REPLY
-    obj_handle_t handle;
-@END
-
-
-/* Retrieve next request for a DWM server */
-@REQ(dwm_server_accept)
-    obj_handle_t server;
-@REPLY
-    obj_handle_t req_handle;
-    obj_handle_t reply_handle;
-@END
-
-
-/* Connect to a DWM server */
-@REQ(dwm_connect)
-    obj_handle_t server_handle;
-@REPLY
-    obj_handle_t handle;
-@END
