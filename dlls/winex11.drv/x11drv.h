@@ -38,9 +38,6 @@
 #include <X11/extensions/XInput2.h>
 #endif
 
-#include <cairo/cairo.h>
-#include <cairo/cairo-xlib.h>
-
 #define BOOL X_BOOL
 #define BYTE X_BYTE
 #define INT8 X_INT8
@@ -447,7 +444,6 @@ extern BOOL keyboard_grabbed;
 extern unsigned int screen_bpp;
 extern BOOL usexrandr;
 extern BOOL usexvidmode;
-extern BOOL use_cairodrv;
 extern BOOL use_take_focus;
 extern BOOL use_primary_selection;
 extern BOOL use_system_cursors;
@@ -461,7 +457,6 @@ extern int alloc_system_colors;
 extern int xrender_error_base;
 extern char *process_name;
 extern Display *clipboard_display;
-extern const struct cairodrv_funcs *cairodrv_funcs;
 
 /* atoms */
 
@@ -647,7 +642,6 @@ struct x11drv_win_data
     UINT        is_offscreen : 1; /* has been moved offscreen by the window manager */
     UINT        parent_invalid : 1; /* is the parent host window possibly invalid */
     Window      embedder;       /* window id of embedder */
-    cairo_surface_t *cairo_surface;
     Pixmap         icon_pixmap;
     Pixmap         icon_mask;
     unsigned long *icon_bits;

@@ -4680,7 +4680,6 @@ const struct gdi_dc_funcs font_driver =
     NULL,                           /* pStrokeAndFillPath */
     NULL,                           /* pStrokePath */
     NULL,                           /* pUnrealizePalette */
-    NULL,                           /* pSetWindwRegion */
     GDI_PRIORITY_FONT_DRV,          /* priority */
     "fontdrv",
 };
