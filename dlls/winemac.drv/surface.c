@@ -67,6 +67,11 @@ static CGDataProviderRef data_provider_create(size_t size, void **bits)
     return provider;
 }
 
+static void macdrv_surface_init_image(struct window_surface *surface, HANDLE section, UINT offset,
+                                      const BITMAPINFO *color_info)
+{
+}
+
 /***********************************************************************
  *              macdrv_surface_set_clip
  */
@@ -137,6 +142,7 @@ static void macdrv_surface_destroy(struct window_surface *window_surface)
 
 static const struct window_surface_funcs macdrv_surface_funcs =
 {
+    macdrv_surface_init_image,
     macdrv_surface_set_clip,
     macdrv_surface_flush,
     macdrv_surface_destroy,

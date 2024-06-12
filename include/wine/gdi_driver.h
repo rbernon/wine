@@ -250,6 +250,8 @@ struct window_surface;
 
 struct window_surface_funcs
 {
+    void  (*init_image)( struct window_surface *surface, HANDLE section, UINT offset,
+                         const BITMAPINFO *color_info );
     void  (*set_clip)( struct window_surface *surface, const RECT *rects, UINT count );
     BOOL  (*flush)( struct window_surface *surface, const RECT *rect, const RECT *dirty,
                     const BITMAPINFO *color_info, const void *color_bits, BOOL shape_changed,

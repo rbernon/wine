@@ -208,6 +208,11 @@ static void wayland_buffer_queue_add_damage(struct wayland_buffer_queue *queue, 
     }
 }
 
+static void wayland_window_surface_init_image(struct window_surface *surface, HANDLE section, UINT offset,
+                                              const BITMAPINFO *color_info)
+{
+}
+
 /***********************************************************************
  *           wayland_window_surface_set_clip
  */
@@ -461,6 +466,7 @@ static void wayland_window_surface_destroy(struct window_surface *window_surface
 
 static const struct window_surface_funcs wayland_window_surface_funcs =
 {
+    wayland_window_surface_init_image,
     wayland_window_surface_set_clip,
     wayland_window_surface_flush,
     wayland_window_surface_destroy
