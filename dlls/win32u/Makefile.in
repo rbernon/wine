@@ -28,7 +28,6 @@ SOURCES = \
 	dibdrv/opengl.c \
 	dibdrv/primitives.c \
 	driver.c \
-	dwmdrv.c \
 	emfdrv.c \
 	font.c \
 	freetype.c \
