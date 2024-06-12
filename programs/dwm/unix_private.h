@@ -19,7 +19,6 @@
 #include <stdarg.h>
 #include <stddef.h>
 
-#include <pthread.h>
 #include <cairo/cairo.h>
 
 #include "ntstatus.h"
@@ -50,7 +49,6 @@ struct window
 {
     struct display *display;
     LONG ref;
-    pthread_mutex_t lock;
 };
 
 static inline struct display *display_acquire( struct display *display )

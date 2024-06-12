@@ -1953,9 +1953,6 @@ static void segv_handler( int signal, siginfo_t *siginfo, void *sigcontext )
     struct xcontext context;
     ucontext_t *ucontext = init_handler( sigcontext );
 
-ERR("***\n");
-do { static volatile int i = 0; while (!i) {} } while (0);
-
     rec.ExceptionAddress = (void *)RIP_sig(ucontext);
     save_context( &context, ucontext );
 
@@ -2042,9 +2039,6 @@ static void trap_handler( int signal, siginfo_t *siginfo, void *sigcontext )
     EXCEPTION_RECORD rec = { 0 };
     struct xcontext context;
     ucontext_t *ucontext = init_handler( sigcontext );
-
-ERR("***\n");
-do { static volatile int i = 0; while (!i) {} } while (0);
 
     if (handle_syscall_trap( ucontext )) return;
 

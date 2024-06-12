@@ -45,7 +45,6 @@ struct dwm_disconnect_params
 
 enum unix_funcs
 {
-    unix_dwm_init,
     unix_dwm_client_loop,
     unix_dwm_connect,
     unix_dwm_disconnect,
@@ -58,11 +57,6 @@ enum unix_funcs
 #ifndef WINE_UNIX_LIB
 
 WINE_DEFAULT_DEBUG_CHANNEL(dwm);
-
-static NTSTATUS dwm_init(void)
-{
-    return WINE_UNIX_CALL( unix_dwm_init, NULL );
-}
 
 static NTSTATUS dwm_client_loop( HANDLE request, HANDLE reply )
 {

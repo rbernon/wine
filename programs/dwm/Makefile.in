@@ -2,7 +2,7 @@ MODULE    = dwm.exe
 UNIXLIB   = dwm.so
 IMPORTS   = advapi32
 
-UNIX_LIBS    = $(XCB_LIBS) $(CAIRO_LIBS) -lwin32u
+UNIX_LIBS    = $(XCB_LIBS) $(CAIRO_LIBS)
 UNIX_CFLAGS  = $(XCB_CFLAGS) $(CAIRO_CFLAGS)
 
 EXTRADLLFLAGS = -mconsole -municode
