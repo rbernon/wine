@@ -38,6 +38,9 @@
 #include <X11/extensions/XInput2.h>
 #endif
 
+#include <cairo/cairo.h>
+#include <cairo/cairo-xlib.h>
+
 #define BOOL X_BOOL
 #define BYTE X_BYTE
 #define INT8 X_INT8
@@ -421,6 +424,7 @@ extern BOOL keyboard_grabbed;
 extern unsigned int screen_bpp;
 extern BOOL usexrandr;
 extern BOOL usexvidmode;
+extern BOOL use_cairodrv;
 extern BOOL use_take_focus;
 extern BOOL use_primary_selection;
 extern BOOL use_system_cursors;
@@ -440,6 +444,7 @@ extern UINT64 dnd_position_event_callback;
 extern UINT64 dnd_post_drop_callback;
 extern UINT64 dnd_drop_event_callback;
 extern UINT64 dnd_leave_event_callback;
+extern const struct cairodrv_funcs *cairodrv_funcs;
 
 /* atoms */
 
@@ -618,7 +623,7 @@ struct x11drv_win_data
     int         wm_state;       /* current value of the WM_STATE property */
     DWORD       net_wm_state;   /* bit mask of active x11drv_net_wm_state values */
     Window      embedder;       /* window id of embedder */
-    unsigned long configure_serial; /* serial number of last configure request */
+    cairo_surface_t *cairo_surface;
     Pixmap         icon_pixmap;
     Pixmap         icon_mask;
     unsigned long *icon_bits;
