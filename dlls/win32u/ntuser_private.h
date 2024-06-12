@@ -46,6 +46,8 @@ struct user_object
 
 #define OBJ_OTHER_PROCESS ((void *)1)  /* returned by get_user_handle_ptr on unknown handles */
 
+struct cairodrv_window;
+
 typedef struct tagWND
 {
     struct user_object obj;           /* object header */
@@ -76,6 +78,7 @@ typedef struct tagWND
     struct window_surface *surface;   /* Window surface if any */
     struct list        vulkan_surfaces; /* list of vulkan surfaces created for this window */
     struct tagDIALOGINFO *dlgInfo;    /* Dialog additional info (dialogs only) */
+    struct cairodrv_window *cairodrv_window;
     int                pixel_format;  /* Pixel format set by the graphics driver */
     int                internal_pixel_format; /* Internal pixel format set via WGL_WINE_pixel_format_passthrough */
     int                cbWndExtra;    /* class cbWndExtra at window creation */
