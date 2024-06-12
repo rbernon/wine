@@ -71,7 +71,6 @@ Window root_window;
 BOOL usexvidmode = TRUE;
 BOOL usexrandr = TRUE;
 BOOL usexcomposite = TRUE;
-BOOL use_cairodrv = TRUE;
 BOOL use_take_focus = TRUE;
 BOOL use_primary_selection = FALSE;
 BOOL use_system_cursors = TRUE;
@@ -92,7 +91,6 @@ UINT64 dnd_position_event_callback = 0;
 UINT64 dnd_post_drop_callback = 0;
 UINT64 dnd_drop_event_callback = 0;
 UINT64 dnd_leave_event_callback = 0;
-const struct cairodrv_funcs *cairodrv_funcs = NULL;
 
 static x11drv_error_callback err_callback;   /* current callback for error */
 static Display *err_callback_display;        /* display callback is set for */
@@ -459,9 +457,6 @@ static void setup_options(void)
         }
     }
 
-    if (!get_config_key( hkey, appkey, "UseCairoDRV", buffer, sizeof(buffer) ))
-        use_cairodrv = IS_OPTION_TRUE( buffer[0] );
-
     if (!get_config_key( hkey, appkey, "Managed", buffer, sizeof(buffer) ))
         managed_mode = IS_OPTION_TRUE( buffer[0] );
 
@@ -696,9 +691,6 @@ static NTSTATUS x11drv_init( void *arg )
 
     init_user_driver();
     X11DRV_DisplayDevices_RegisterEventHandlers();
-
-    if (use_cairodrv) cairodrv_funcs = __wine_get_cairo_driver( WINE_GDI_DRIVER_VERSION );
-
     return STATUS_SUCCESS;
 }
 
