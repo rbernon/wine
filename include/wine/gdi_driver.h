@@ -71,6 +71,18 @@ static inline RECT window_rects_window_from_visible( struct window_rects *rects,
     return rect;
 }
 
+static inline RECT window_rects_visible_from_window( struct window_rects *rects, RECT window_rect )
+{
+    RECT rect = window_rect;
+
+    rect.left += rects->visible.left - rects->window.left;
+    rect.top += rects->visible.top - rects->window.top;
+    rect.right += rects->visible.right - rects->window.right;
+    rect.bottom += rects->visible.bottom - rects->window.bottom;
+
+    return rect;
+}
+
 typedef struct gdi_physdev
 {
     const struct gdi_dc_funcs *funcs;
