@@ -716,7 +716,6 @@ const struct gdi_dc_funcs dib_driver =
     dibdrv_StrokeAndFillPath,           /* pStrokeAndFillPath */
     dibdrv_StrokePath,                  /* pStrokePath */
     NULL,                               /* pUnrealizePalette */
-    NULL,                               /* pSetWindowRegion */
     GDI_PRIORITY_DIB_DRV,               /* priority */
     "dibdrv",
 };
@@ -818,17 +817,12 @@ void dibdrv_set_window_surface( DC *dc, struct window_surface *surface )
         if (physdev->surface) window_surface_release( physdev->surface );
         physdev->surface = surface;
 
-        if ((dibdrv = physdev->dibdrv))
-        {
-            surface->funcs->get_info( surface, info );
-            window_surface_lock_read( surface, &bits );
-            window_surface_get_color( surface, info, &bits );
-            init_dib_info_from_bitmapinfo( &dibdrv->dib, &surface->info, NULL );
-            dibdrv->dib.rect = dc->attr->vis_rect;
-            OffsetRect( &dibdrv->dib.rect, -dc->device_rect.left, -dc->device_rect.top );
-            dibdrv->bounds = &surface->bounds;
-            window_surface_unlock_read( surface );
-        }
+        dibdrv = physdev->dibdrv;
+        window_surface_get_color( surface, info, &bits );
+        init_dib_info_from_bitmapinfo( &dibdrv->dib, info, bits );
+        dibdrv->dib.rect = dc->attr->vis_rect;
+        OffsetRect( &dibdrv->dib.rect, -dc->device_rect.left, -dc->device_rect.top );
+        dibdrv->bounds = &surface->bounds;
         DC_InitDC( dc );
     }
     else if (windev)
@@ -909,28 +903,20 @@ static BOOL windrv_Chord( PHYSDEV dev, INT left, INT top, INT right, INT bottom,
 
 static BOOL windrv_CreateDC( PHYSDEV *dev, LPCWSTR device, LPCWSTR output, const DEVMODEW *devmode )
 {
-    const struct gdi_dc_funcs *cairodrv_funcs = __wine_get_cairo_driver( WINE_GDI_DRIVER_VERSION )->gdi_funcs;
     struct windrv_physdev *physdev = calloc( 1, sizeof(*physdev) );
-    PHYSDEV dibdrv, cairodev;
+    PHYSDEV dibdrv;
     DC *dc;
 
     if (!physdev) return FALSE;
-    dc = get_physdev_dc( *dev );
 
-    if ((cairodev = pop_dc_driver( dc, cairodrv_funcs )))
-        push_dc_driver( &dc->physDev, cairodev, cairodev->funcs );
-    else
+    if (!dib_driver.pCreateDC( dev, NULL, NULL, NULL ))
     {
-        if (!dib_driver.pCreateDC( dev, NULL, NULL, NULL ))
-        {
-            free( physdev );
-            return FALSE;
-        }
-
-        dibdrv = find_dc_driver( dc, &dib_driver );
-        physdev->dibdrv = get_dibdrv_pdev( dibdrv );
+        free( physdev );
+        return FALSE;
     }
-
+    dc = get_physdev_dc( *dev );
+    dibdrv = find_dc_driver( dc, &dib_driver );
+    physdev->dibdrv = get_dibdrv_pdev( dibdrv );
     push_dc_driver( dev, &physdev->dev, &window_driver );
     return TRUE;
 }
@@ -994,7 +980,7 @@ static DWORD windrv_GetImage( PHYSDEV dev, BITMAPINFO *info,
     /* don't return alpha if original surface doesn't support it */
     if (info->bmiHeader.biBitCount == 32 &&
         info->bmiHeader.biCompression == BI_RGB &&
-        physdev->dibdrv && physdev->dibdrv->dib.compression == BI_BITFIELDS)
+        physdev->dibdrv->dib.compression == BI_BITFIELDS)
     {
         DWORD *colors = (DWORD *)info->bmiColors;
         colors[0] = 0xff0000;
@@ -1318,7 +1304,6 @@ static const struct gdi_dc_funcs window_driver =
     NULL,                               /* pStrokeAndFillPath */
     NULL,                               /* pStrokePath */
     NULL,                               /* pUnrealizePalette */
-    NULL,                               /* pSetWindowRegion */
     GDI_PRIORITY_DIB_DRV + 10,          /* priority */
     "window",
 };
