@@ -983,23 +983,18 @@ static BOOL load_desktop_driver( HWND hwnd )
     if ((size = query_reg_ascii_value( hkey, "GraphicsDriver", info, sizeof(buf) )))
     {
         static const WCHAR nullW[] = {'n','u','l','l',0};
-        static const WCHAR dwmW[] = {'d','w','m',0};
-
         TRACE( "trying driver %s\n", debugstr_wn( (const WCHAR *)info->Data,
                                                   info->DataLength / sizeof(WCHAR) ));
-
-        if ((info->DataLength == sizeof(dwmW) && !memcmp( info->Data, dwmW, sizeof(dwmW) )))
-            ret = load_dwm_driver();
-        else if ((info->DataLength == sizeof(nullW) && !memcmp( info->Data, nullW, sizeof(nullW) )))
-        {
-            __wine_set_user_driver( &null_user_driver, WINE_GDI_DRIVER_VERSION );
-            ret = TRUE;
-        }
-        else
+        if (info->DataLength != sizeof(nullW) || memcmp( info->Data, nullW, sizeof(nullW) ))
         {
             void *ret_ptr;
             ULONG ret_len;
             ret = !KeUserModeCallback( NtUserLoadDriver, info->Data, info->DataLength, &ret_ptr, &ret_len );
+        }
+        else
+        {
+            __wine_set_user_driver( &null_user_driver, WINE_GDI_DRIVER_VERSION );
+            ret = TRUE;
         }
     }
     else if ((size = query_reg_ascii_value( hkey, "DriverError", info, sizeof(buf) )))
