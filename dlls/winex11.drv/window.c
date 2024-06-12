@@ -2191,7 +2191,6 @@ static void create_whole_window( struct x11drv_win_data *data )
     sync_window_opacity( data->display, data->whole_window, alpha, layered_flags );
 
     XFlush( data->display );  /* make sure the window exists before we start painting to it */
-    if (use_dwm) data->dwm_window = dwm_funcs->window_create( dwm_display, data->hwnd, data->whole_window );
 
 done:
     if (win_rgn) NtGdiDeleteObjectApp( win_rgn );
@@ -2218,7 +2217,6 @@ static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_des
         XDeleteContext( data->display, data->whole_window, winContext );
         if (!already_destroyed)
         {
-            if (use_dwm) dwm_funcs->window_destroy( data->dwm_window );
             XSync( gdi_display, False ); /* make sure XReparentWindow requests have completed before destroying whole_window */
             XDestroyWindow( data->display, data->whole_window );
         }
