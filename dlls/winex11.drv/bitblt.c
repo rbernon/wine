@@ -1935,7 +1935,6 @@ BOOL X11DRV_CreateWindowSurface( HWND hwnd, const RECT *surface_rect, UINT dpi_f
     previous = *surface;
     *surface = NULL;  /* indicate that we want to draw directly to the window */
 
-    if (use_dwm) goto done; /* draw directly to the window */
     if (data->embedded) goto done; /* draw directly to the window */
     if (data->whole_window == root_window) goto done; /* draw directly to the window */
     if (data->client_window) goto done; /* draw directly to the window */
