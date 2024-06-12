@@ -767,11 +767,10 @@ HDC WINAPI NtGdiOpenDCW( UNICODE_STRING *device, const DEVMODEW *devmode, UNICOD
  */
 HDC WINAPI NtGdiCreateCompatibleDC( HDC hdc )
 {
-    const struct gdi_dc_funcs *cairodrv_funcs = __wine_get_cairo_driver( WINE_GDI_DRIVER_VERSION )->gdi_funcs;
     DC *dc, *origDC;
     HDC ret;
     const struct gdi_dc_funcs *funcs;
-    PHYSDEV physDev = NULL, cairodrv;
+    PHYSDEV physDev = NULL;
 
     /* gdi_lock should not be locked */
 
@@ -780,13 +779,6 @@ HDC WINAPI NtGdiCreateCompatibleDC( HDC hdc )
         if (!(origDC = get_dc_ptr( hdc ))) return 0;
         physDev = GET_DC_PHYSDEV( origDC, pCreateCompatibleDC );
         funcs = physDev->funcs;
-
-        if ((cairodrv = pop_dc_driver( origDC, cairodrv_funcs )))
-        {
-            push_dc_driver( &origDC->physDev, cairodrv, cairodrv->funcs );
-            funcs = cairodrv_funcs;
-        }
-
         release_dc_ptr( origDC );
     }
     else funcs = get_display_driver();

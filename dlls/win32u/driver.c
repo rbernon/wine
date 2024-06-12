@@ -523,10 +523,6 @@ static BOOL nulldrv_UnrealizePalette( HPALETTE palette )
     return FALSE;
 }
 
-static void nulldrv_SetWindowRegion( PHYSDEV dev, HWND hwnd, HWND toplevel, const RECT *window_rect, const RECT *toplevel_rect )
-{
-}
-
 const struct gdi_dc_funcs null_driver =
 {
     nulldrv_AbortDoc,                   /* pAbortDoc */
@@ -618,7 +614,6 @@ const struct gdi_dc_funcs null_driver =
     nulldrv_StrokeAndFillPath,          /* pStrokeAndFillPath */
     nulldrv_StrokePath,                 /* pStrokePath */
     nulldrv_UnrealizePalette,           /* pUnrealizePalette */
-    nulldrv_SetWindowRegion,            /* pSetWindowRegion */
 
     GDI_PRIORITY_NULL_DRV,              /* priority */
     "nulldrv",

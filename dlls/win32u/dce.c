@@ -824,19 +824,6 @@ static void dump_rdw_flags(UINT flags)
 #undef RDW_FLAGS
 }
 
-static void set_dc_window_region( HDC hdc, HWND hwnd, HWND toplevel, const RECT *window_rect,
-                                  const RECT *toplevel_rect )
-{
-    PHYSDEV physdev;
-    DC *dc;
-
-    if (!(dc = get_dc_ptr( hdc ))) return;
-    physdev = GET_DC_PHYSDEV( dc, pSetWindowRegion );
-    physdev->funcs->pSetWindowRegion( physdev, hwnd, toplevel, window_rect, toplevel_rect );
-    release_dc_ptr( dc );
-}
-
-
 /***********************************************************************
  *           update_visible_region
  *
@@ -852,7 +839,8 @@ static void update_visible_region( struct dce *dce )
     DWORD flags = dce->flags;
     DWORD paint_flags = 0;
     size_t size = 256;
-    RECT win_rect, top_rect, device_rect;
+    RECT win_rect, phys_rect, top_rect;
+    UINT dpi, monitor_dpi;
     WND *win;
 
     /* don't clip siblings if using parent clip region */
@@ -907,11 +895,9 @@ static void update_visible_region( struct dce *dce )
         }
     }
 
-    device_rect = top_rect;
-    if (!surface) SetRectEmpty( &device_rect );
-    set_visible_region( dce->hdc, vis_rgn, &win_rect, &device_rect, surface );
+    if (!surface) SetRectEmpty( &top_rect );
+    set_visible_region( dce->hdc, vis_rgn, &win_rect, &phys_rect, &top_rect, surface );
     if (surface) window_surface_release( surface );
-    set_dc_window_region( dce->hdc, dce->hwnd, top_win, &win_rect, &top_rect );
 }
 
 /***********************************************************************
@@ -921,8 +907,8 @@ static void release_dce( struct dce *dce )
 {
     if (!dce->hwnd) return;  /* already released */
 
-    set_dc_window_region( dce->hdc, 0, 0, &dummy_surface.rect, &dummy_surface.rect );
-    set_visible_region( dce->hdc, 0, &rect, &rect, &dummy_surface );
+    set_visible_region( dce->hdc, 0, &dummy_surface.rect, &dummy_surface.rect,
+                        &dummy_surface.rect, &dummy_surface );
     user_driver->pReleaseDC( dce->hwnd, dce->hdc );
 
     if (dce->clip_rgn) NtGdiDeleteObjectApp( dce->clip_rgn );
