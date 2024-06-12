@@ -24,6 +24,9 @@
 #include <stdarg.h>
 #include <sys/types.h>
 
+#include <unistd.h>
+#include <fcntl.h>
+
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
 #include "windef.h"
@@ -994,5 +997,200 @@ DECL_HANDLER(enum_winstation)
     {
         set_reply_data_ptr( data, (ptr - data) * sizeof(WCHAR) );
         set_error( STATUS_BUFFER_TOO_SMALL );
+    }
+}
+
+
+struct dwm_connection
+{
+    struct list entry;
+    struct file *server_request;
+    struct file *server_reply;
+};
+
+static void dwm_connection_destroy( struct dwm_connection *connection )
+{
+    release_object( connection->server_request );
+    release_object( connection->server_reply );
+    free( connection );
+}
+
+struct dwm_server
+{
+    struct object          obj;            /* object header */
+    struct list            pending;        /* list of requests */
+    struct list            entry;
+};
+
+static struct list dwm_servers = LIST_INIT(dwm_servers);
+
+static void dwm_server_dump( struct object *obj, int verbose );
+static int dwm_server_signaled( struct object *obj, struct wait_queue_entry *entry );
+static void dwm_server_destroy( struct object *obj );
+
+static const struct object_ops dwm_server_ops =
+{
+    sizeof(struct dwm_server),        /* size */
+    &no_type,                         /* type */
+    dwm_server_dump,                  /* dump */
+    add_queue,                        /* add_queue */
+    remove_queue,                     /* remove_queue */
+    dwm_server_signaled,              /* signaled */
+    no_satisfied,                     /* satisfied */
+    no_signal,                        /* signal */
+    no_get_fd,                        /* get_fd */
+    default_map_access,               /* map_access */
+    default_get_sd,                   /* get_sd */
+    default_set_sd,                   /* set_sd */
+    no_get_full_name,                 /* get_full_name */
+    no_lookup_name,                   /* lookup_name */
+    no_link_name,                     /* link_name */
+    NULL,                             /* unlink_name */
+    no_open_file,                     /* open_file */
+    no_kernel_obj_list,               /* get_kernel_obj_list */
+    no_close_handle,                  /* close_handle */
+    dwm_server_destroy                /* destroy */
+};
+
+static void dwm_server_dump( struct object *obj, int verbose )
+{
+    fprintf( stderr, "DWM server\n" );
+}
+
+static int dwm_server_signaled( struct object *obj, struct wait_queue_entry *entry )
+{
+    struct dwm_server *server = (struct dwm_server *)obj;
+
+    return !list_empty( &server->pending );
+}
+
+static void dwm_server_destroy( struct object *obj )
+{
+    struct dwm_server *server = (struct dwm_server *)obj;
+    struct list *ptr;
+
+    while ((ptr = list_head( &server->pending )))
+    {
+        struct dwm_connection *connection = LIST_ENTRY( ptr, struct dwm_connection, entry );
+        list_remove( &connection->entry );
+        dwm_connection_destroy( connection );
+    }
+
+    list_remove( &server->entry );
+}
+
+static struct dwm_server *create_dwm_server(void)
+{
+    struct dwm_server *server;
+
+    if ((server = alloc_object( &dwm_server_ops )))
+    {
+        list_init( &server->pending );
+        list_add_tail( &dwm_servers, &server->entry );
+    }
+
+    return server;
+}
+
+static struct file *create_dwm_reply( struct file **client_pipe )
+{
+    struct file *server_pipe;
+    int fds[2];
+
+    if (pipe( fds ) < 0) return NULL;
+    fcntl( fds[0], F_SETFD, FD_CLOEXEC );
+    fcntl( fds[1], F_SETFD, FD_CLOEXEC );
+
+    if (!(server_pipe = create_file_for_fd( fds[1], GENERIC_WRITE | SYNCHRONIZE, FILE_SHARE_READ | FILE_SHARE_WRITE )) ||
+        !(*client_pipe = create_file_for_fd( fds[0], GENERIC_READ | SYNCHRONIZE, FILE_SHARE_READ | FILE_SHARE_WRITE )))
+    {
+        if (server_pipe) release_object( server_pipe );
+        server_pipe = NULL;
+    }
+
+    return server_pipe;
+}
+
+static struct dwm_connection *create_dwm_connection( struct file *server_pipe, struct file **client_pipe )
+{
+    struct dwm_connection *connection;
+
+    if (!(connection = mem_alloc( sizeof(*connection) ))) return NULL;
+    if (!(connection->server_reply = create_dwm_reply( client_pipe )))
+    {
+        free( connection );
+        return NULL;
+    }
+
+    grab_object( (connection->server_request = server_pipe) );
+    return connection;
+}
+
+
+DECL_HANDLER(dwm_create_server)
+{
+    struct dwm_server *server;
+
+    if (!list_empty( &dwm_servers ))
+    {
+        set_error( STATUS_ALREADY_REGISTERED );
+        return;
+    }
+
+    if ((server = create_dwm_server()))
+    {
+        reply->handle = alloc_handle( current->process, server, req->access, req->attributes );
+        release_object( server );
+    }
+}
+
+
+/* Retrieve next request for a DWM server */
+DECL_HANDLER(dwm_server_accept)
+{
+    struct object *object;
+
+    if ((object = get_handle_obj( current->process, req->server, 0, &dwm_server_ops )))
+    {
+        struct dwm_server *server = (struct dwm_server *)object;
+        struct list *ptr;
+
+        if (!(ptr = list_head( &server->pending ))) set_error( STATUS_PENDING );
+        else
+        {
+            struct dwm_connection *connection = LIST_ENTRY(ptr, struct dwm_connection, entry);
+            list_remove( &connection->entry );
+
+            reply->req_handle = alloc_handle( current->process, connection->server_request, GENERIC_READ | SYNCHRONIZE, 0 );
+            reply->reply_handle = alloc_handle( current->process, connection->server_reply, GENERIC_WRITE | SYNCHRONIZE, 0 );
+            dwm_connection_destroy( connection );
+        }
+
+        release_object( object );
+    }
+}
+
+
+DECL_HANDLER(dwm_connect)
+{
+    struct file *server_pipe, *client_pipe;
+    struct list *ptr;
+
+    if (!(ptr = list_head( &dwm_servers ))) set_error( STATUS_NOT_FOUND );
+    else if ((server_pipe = get_file_obj( current->process, req->server_handle, FILE_READ_DATA )))
+    {
+        struct dwm_server *server = LIST_ENTRY(ptr, struct dwm_server, entry);
+        struct dwm_connection *connection;
+
+        if ((connection = create_dwm_connection( server_pipe, &client_pipe )))
+        {
+            list_add_tail( &server->pending, &connection->entry );
+            if (list_head( &server->pending ) == &connection->entry) wake_up( &server->obj, 0 );
+
+            reply->handle = alloc_handle( current->process, client_pipe, GENERIC_READ | SYNCHRONIZE, 0 );
+            release_object( client_pipe );
+        }
+
+        release_object( server_pipe );
     }
 }

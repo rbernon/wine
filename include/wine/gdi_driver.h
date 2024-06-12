@@ -40,6 +40,7 @@
 #include "shellapi.h"
 #include "ddk/d3dkmthk.h"
 #include "kbd.h"
+#include "wine/dwmapi.h"
 #include "wine/list.h"
 #include "wine/debug.h"
 
@@ -399,5 +400,15 @@ W32KAPI void __wine_set_user_driver( const struct user_driver_funcs *funcs, UINT
 
 W32KAPI BOOL win32u_set_window_pixel_format( HWND hwnd, int format, BOOL internal );
 W32KAPI int win32u_get_window_pixel_format( HWND hwnd );
+
+struct dwm_funcs
+{
+    const struct gdi_dc_funcs *gdi_funcs;
+    dwm_display_t (*connect)( const char *display_type, const char *display_name );
+    dwm_window_t (*window_create)( dwm_display_t, HWND hwnd, UINT64 );
+    void (*window_destroy)( dwm_window_t );
+};
+
+W32KAPI const struct dwm_funcs *__wine_get_dwm_driver( UINT version );
 
 #endif /* __WINE_WINE_GDI_DRIVER_H */
