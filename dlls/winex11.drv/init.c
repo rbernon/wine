@@ -428,6 +428,57 @@ static const struct gdi_dc_funcs x11drv_gdi_dc_funcs =
 
 static const struct gdi_dc_funcs *X11DRV_wine_get_gdi_driver( UINT version )
 {
+    return use_cairodrv ? cairodrv_funcs->gdi_funcs : &x11drv_gdi_dc_funcs;
+}
+
+static const struct user_driver_funcs x11drv_funcs =
+{
+    .pArc = X11DRV_Arc,
+    .pChord = X11DRV_Chord,
+    .pCreateCompatibleDC = X11DRV_CreateCompatibleDC,
+    .pCreateDC = X11DRV_CreateDC,
+    .pDeleteDC = X11DRV_DeleteDC,
+    .pEllipse = X11DRV_Ellipse,
+    .pExtEscape = X11DRV_ExtEscape,
+    .pExtFloodFill = X11DRV_ExtFloodFill,
+    .pFillPath = X11DRV_FillPath,
+    .pGetDeviceCaps = X11DRV_GetDeviceCaps,
+    .pGetDeviceGammaRamp = X11DRV_GetDeviceGammaRamp,
+    .pGetICMProfile = X11DRV_GetICMProfile,
+    .pGetImage = X11DRV_GetImage,
+    .pGetNearestColor = X11DRV_GetNearestColor,
+    .pGetSystemPaletteEntries = X11DRV_GetSystemPaletteEntries,
+    .pGradientFill = X11DRV_GradientFill,
+    .pLineTo = X11DRV_LineTo,
+    .pPaintRgn = X11DRV_PaintRgn,
+    .pPatBlt = X11DRV_PatBlt,
+    .pPie = X11DRV_Pie,
+    .pPolyPolygon = X11DRV_PolyPolygon,
+    .pPolyPolyline = X11DRV_PolyPolyline,
+    .pPutImage = X11DRV_PutImage,
+    .pRealizeDefaultPalette = X11DRV_RealizeDefaultPalette,
+    .pRealizePalette = X11DRV_RealizePalette,
+    .pRectangle = X11DRV_Rectangle,
+    .pRoundRect = X11DRV_RoundRect,
+    .pSelectBrush = X11DRV_SelectBrush,
+    .pSelectFont = X11DRV_SelectFont,
+    .pSelectPen = X11DRV_SelectPen,
+    .pSetBoundsRect = X11DRV_SetBoundsRect,
+    .pSetDCBrushColor = X11DRV_SetDCBrushColor,
+    .pSetDCPenColor = X11DRV_SetDCPenColor,
+    .pSetDeviceClipping = X11DRV_SetDeviceClipping,
+    .pSetDeviceGammaRamp = X11DRV_SetDeviceGammaRamp,
+    .pSetPixel = X11DRV_SetPixel,
+    .pStretchBlt = X11DRV_StretchBlt,
+    .pStrokeAndFillPath = X11DRV_StrokeAndFillPath,
+    .pStrokePath = X11DRV_StrokePath,
+    .pUnrealizePalette = X11DRV_UnrealizePalette,
+    .priority = GDI_PRIORITY_GRAPHICS_DRV,
+    .name = "x11drv",
+};
+
+static const struct gdi_dc_funcs *X11DRV_wine_get_gdi_driver( UINT version )
+{
     return &x11drv_gdi_dc_funcs;
 }
 

@@ -2191,6 +2191,11 @@ static void create_whole_window( struct x11drv_win_data *data )
     sync_window_opacity( data->display, data->whole_window, alpha, layered_flags );
 
     XFlush( data->display );  /* make sure the window exists before we start painting to it */
+    if (use_cairodrv)
+    {
+        data->cairo_surface = cairo_xlib_surface_create( gdi_display, data->whole_window, data->vis.visual, cx, cy );
+        cairodrv_funcs->window_create( data->hwnd, data->cairo_surface );
+    }
 
 done:
     if (win_rgn) NtGdiDeleteObjectApp( win_rgn );
@@ -2217,6 +2222,11 @@ static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_des
         XDeleteContext( data->display, data->whole_window, winContext );
         if (!already_destroyed)
         {
+            if (use_cairodrv)
+            {
+                cairodrv_funcs->window_destroy( data->hwnd );
+                cairo_surface_destroy( data->cairo_surface );
+            }
             XSync( gdi_display, False ); /* make sure XReparentWindow requests have completed before destroying whole_window */
             XDestroyWindow( data->display, data->whole_window );
         }
