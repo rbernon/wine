@@ -1050,8 +1050,6 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
 
     if (!hwnd) return FALSE;
     if (!(data = get_win_data( hwnd ))) return FALSE;
-    if (use_cairodrv && data->cairo_surface) cairo_xlib_surface_set_size( data->cairo_surface, event->width, event->height );
-
     if (!data->mapped || data->iconic) goto done;
     if (data->whole_window && !data->managed) goto done;
     /* ignore synthetic events on foreign windows */
