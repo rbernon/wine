@@ -2218,7 +2218,7 @@ static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_des
         XDeleteContext( data->display, data->whole_window, winContext );
         if (!already_destroyed)
         {
-            if (use_dwm) dwm_funcs->window_destroy( data->hwnd, data->dwm_window );
+            if (use_dwm) dwm_funcs->window_destroy( data->dwm_window );
             XSync( gdi_display, False ); /* make sure XReparentWindow requests have completed before destroying whole_window */
             XDestroyWindow( data->display, data->whole_window );
         }

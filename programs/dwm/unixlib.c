@@ -30,9 +30,6 @@
 #define WIN32_NO_STATUS
 #include "windef.h"
 #include "winbase.h"
-#include "winuser.h"
-#include "wingdi.h"
-#include "ntgdi.h"
 
 #include "unixlib.h"
 #include "unix_private.h"
@@ -41,7 +38,7 @@
 #include "wine/server.h"
 #include "wine/debug.h"
 
-WINE_DEFAULT_DEBUG_CHANNEL(dwmsrv);
+WINE_DEFAULT_DEBUG_CHANNEL(dwm);
 
 struct context
 {
@@ -49,96 +46,11 @@ struct context
     cairo_surface_t *target;
     cairo_surface_t *source;
     unsigned char *image_data;
-
-    struct cmd_set_source *cmd_source;
-    HBITMAP source_hbitmap;
-    HDC source_hdc;
-
-    struct cmd_set_points *cmd_points;
 };
-
-struct surface_lock
-{
-    struct window *window;
-    cairo_surface_t *surface;
-    cairo_surface_t *image;
-    HBITMAP hbitmap;
-    HDC hdc;
-};
-
-static BOOL window_surface_lock( struct window *window, const RECT *window_rect,
-                                 const RECT *context_rect, struct surface_lock *lock )
-{
-    cairo_surface_t *surface, *image;
-    D3DKMT_CREATEDCFROMMEMORY desc;
-    cairo_rectangle_int_t extents;
-    NTSTATUS status;
-
-    TRACE("window %p, window_rect %s, context_rect %s\n", window, wine_dbgstr_rect(window_rect), wine_dbgstr_rect(context_rect));
-
-    extents.x = max(0, context_rect->left);
-    extents.y = max(0, context_rect->top);
-    extents.width = max(1, context_rect->right - context_rect->left);
-    extents.height = max(1, context_rect->bottom - context_rect->top);
-
-    pthread_mutex_lock( &window->lock );
-    surface = window->display->ops->window_surface( window, window_rect );
-
-if (0)
-{
-    cairo_t *cairo = cairo_create( surface );
-    cairo_rectangle( cairo, extents.x, extents.y, extents.width, extents.height );
-    cairo_set_source_rgba( cairo, 1., 0., 0., 0.05 );
-    cairo_fill( cairo );
-    cairo_destroy( cairo );
-}
-
-    image = cairo_surface_map_to_image( surface, &extents );
-    desc.pMemory = cairo_image_surface_get_data( image );
-    desc.Format = D3DDDIFMT_A8R8G8B8; /* format->ddi_format; */
-    desc.Width = cairo_image_surface_get_width( image );
-    desc.Height = cairo_image_surface_get_height( image );
-    desc.Pitch = cairo_image_surface_get_stride( image );
-    desc.hDeviceDc = NtGdiCreateCompatibleDC( NULL );
-    desc.pColorTable = NULL;
-
-    if ((status = NtGdiDdDDICreateDCFromMemory( &desc )))
-    {
-        ERR( "status %#x\n", (UINT)status );
-        NtGdiDeleteObjectApp( desc.hDeviceDc );
-        cairo_surface_unmap_image( surface, image );
-        pthread_mutex_unlock( &window->lock );
-        return FALSE;
-    }
-
-    NtGdiDeleteObjectApp( desc.hDeviceDc );
-    lock->window = window;
-    lock->surface = cairo_surface_reference( surface );
-    lock->image = image;
-    lock->hbitmap = desc.hBitmap;
-    lock->hdc = desc.hDc;
-    return TRUE;
-}
-
-static void surface_lock_release( struct surface_lock *lock )
-{
-    D3DKMT_DESTROYDCFROMMEMORY desc;
-    desc.hDc = lock->hdc;
-    desc.hBitmap = lock->hbitmap;
-    NtGdiDdDDIDestroyDCFromMemory( &desc );
-
-    cairo_surface_mark_dirty( lock->image );
-    cairo_surface_unmap_image( lock->surface, lock->image );
-    pthread_mutex_unlock( &lock->window->lock );
-
-    cairo_surface_destroy( lock->surface );
-}
 
 static struct context *context_create(void)
 {
-    struct context *context;
-    if (!(context = calloc(1, sizeof(struct context)))) return NULL;
-    return context;
+    return calloc(1, sizeof(struct context));
 }
 
 static void context_release( struct context *context )
@@ -194,12 +106,6 @@ static dwm_context_t handle_from_context(struct context *window)
     return (UINT_PTR)window;
 }
 
-static NTSTATUS dwm_init( void *args )
-{
-    setenv( "WINENODWM", "1", TRUE );
-    return 0;
-}
-
 static NTSTATUS dwm_client_loop( void *args )
 {
     struct dwm_client_loop_params *params = args;
@@ -233,7 +139,6 @@ static NTSTATUS dwm_client_loop( void *args )
         switch (req.header.type)
         {
         case DWM_REQ_CONNECT:
-            TRACE("DWM_REQ_CONNECT\n");
             if (req_size < sizeof(req.connect)) status = STATUS_BUFFER_TOO_SMALL;
             else if (req.connect.version != DWM_PROTOCOL_VERSION)
             {
@@ -252,14 +157,12 @@ static NTSTATUS dwm_client_loop( void *args )
             break;
 
         case DWM_REQ_WINDOW_CREATE:
-            TRACE("DWM_REQ_WINDOW_CREATE\n");
             if (req_size < sizeof(req.window_create)) status = STATUS_BUFFER_TOO_SMALL;
             else if (!(window = display->ops->window_create( display, req.window_create.hwnd, req.window_create.native )))status = STATUS_UNSUCCESSFUL;
             else reply.window_create.dwm_window = handle_from_window( window );
             break;
 
         case DWM_REQ_WINDOW_UPDATE:
-            TRACE("DWM_REQ_WINDOW_UPDATE\n");
             if (req_size < sizeof(req.window_update)) status = STATUS_BUFFER_TOO_SMALL;
             else if ((window = window_from_handle(req.window_update.dwm_window)))
             {
@@ -269,7 +172,6 @@ static NTSTATUS dwm_client_loop( void *args )
             break;
 
         case DWM_REQ_WINDOW_DESTROY:
-            TRACE("DWM_REQ_WINDOW_DESTROY\n");
             if (req_size < sizeof(req.window_destroy)) status = STATUS_BUFFER_TOO_SMALL;
             else if ((window = window_from_handle(req.window_destroy.dwm_window)))
             {
@@ -279,7 +181,6 @@ static NTSTATUS dwm_client_loop( void *args )
             break;
 
         case DWM_REQ_GDI_CONTEXT_CREATE:
-            TRACE("DWM_REQ_GDI_CONTEXT_CREATE\n");
             if (req_size < sizeof(req.gdi_context_create)) status = STATUS_BUFFER_TOO_SMALL;
             else
             {
@@ -289,7 +190,6 @@ static NTSTATUS dwm_client_loop( void *args )
             break;
 
         case DWM_REQ_GDI_CONTEXT_DESTROY:
-            TRACE("DWM_REQ_GDI_CONTEXT_DESTROY\n");
             if (req_size < sizeof(req.gdi_context_destroy)) status = STATUS_BUFFER_TOO_SMALL;
             else if ((context = context_from_handle(req.gdi_context_destroy.dwm_context)))
             {
@@ -299,7 +199,6 @@ static NTSTATUS dwm_client_loop( void *args )
             break;
 
         case DWM_REQ_GDI_SET_SOURCE:
-            TRACE("DWM_REQ_GDI_SET_SOURCE\n");
             if (req_size < sizeof(req.gdi_set_source)) status = STATUS_BUFFER_TOO_SMALL;
             else if (!(context = context_from_handle(req.gdi_context_destroy.dwm_context))) status = STATUS_INVALID_PARAMETER;
             else if ((context->image_data = realloc( context->image_data, req.gdi_set_source.data_size )))
@@ -321,7 +220,6 @@ static NTSTATUS dwm_client_loop( void *args )
             continue; /* no reply */
 
         case DWM_REQ_GDI_PUT_IMAGE:
-            TRACE("DWM_REQ_GDI_PUT_IMAGE\n");
             if (req_size < sizeof(req.gdi_put_image)) status = STATUS_BUFFER_TOO_SMALL;
             else if (!(context = context_from_handle(req.gdi_put_image.dwm_context))) status = STATUS_INVALID_PARAMETER;
             else if (!(window = window_from_handle(req.gdi_put_image.dwm_window))) status = STATUS_INVALID_PARAMETER;
@@ -367,7 +265,6 @@ if (0)
             continue; /* no reply */
 
         case DWM_REQ_GDI_STRETCH_BLT:
-            TRACE("DWM_REQ_GDI_STRETCH_BLT\n");
             if (req_size < sizeof(req.gdi_stretch_blt)) status = STATUS_BUFFER_TOO_SMALL;
             else if ((window = window_from_handle(req.gdi_stretch_blt.dwm_window)))
             {
@@ -381,36 +278,6 @@ if (0)
                 }
 
                 ERR( "read %u data\n", data_size );
-            }
-            continue; /* no reply */
-
-        case DWM_REQ_GDI_COMMANDS:
-            TRACE("DWM_REQ_GDI_COMMANDS\n");
-            if (req_size < sizeof(req.gdi_commands)) status = STATUS_BUFFER_TOO_SMALL;
-            else if (!(context = context_from_handle(req.gdi_commands.dwm_context))) status = STATUS_INVALID_PARAMETER;
-            else if (!(window = window_from_handle(req.gdi_commands.dwm_window))) status = STATUS_INVALID_PARAMETER;
-            else
-            {
-                struct surface_lock lock;
-                int data_size = 0;
-                char *buffer;
-
-                if (!(buffer = malloc(req.gdi_commands.data_size))) status = STATUS_NO_MEMORY;
-                else if ((data_size = read( req_fd, buffer, req.gdi_commands.data_size )) != req.gdi_commands.data_size)
-                {
-                    ERR( "failed to read request, read %d, size %u\n", data_size, req.gdi_commands.data_size );
-                    break;
-                }
-
-                if (window_surface_lock( window, &req.gdi_commands.window_rect,
-                                         &req.gdi_commands.context_rect, &lock ))
-                {
-                    NtGdiExtEscape( lock.hdc, NULL, 0, DWM_EXT_ESCAPE, data_size, buffer, 0, NULL );
-                    surface_lock_release( &lock );
-                }
-
-                TRACE( "read GDI command buffer of size %u\n", data_size );
-                free( buffer );
             }
             continue; /* no reply */
 
@@ -440,7 +307,7 @@ static NTSTATUS dwm_connect( void *args )
 {
     struct dwm_connect_params *params = args;
 
-    TRACE( "%s\n", debugstr_a(params->display_name) );
+    ERR( "%s\n", debugstr_a(params->display_name) );
 
     if (!strncmp( params->display_name, "x11:", 4 ))
     {
@@ -456,7 +323,7 @@ static NTSTATUS dwm_disconnect( void *args )
     struct dwm_disconnect_params *params = args;
     struct display *display = display_from_handle(params->dwm_display);
 
-    TRACE( "display %p\n", display );
+    ERR( "display %p\n", display );
 
     display_release( display );
     return 0;
@@ -464,25 +331,24 @@ static NTSTATUS dwm_disconnect( void *args )
 
 static NTSTATUS dwm_window_pos_changing( void *args )
 {
-    TRACE("\n");
+    ERR("\n");
     return 0;
 }
 
 static NTSTATUS dwm_window_pos_changed( void *args )
 {
-    TRACE("\n");
+    ERR("\n");
     return 0;
 }
 
 static NTSTATUS dwm_window_destroy( void *args )
 {
-    TRACE("\n");
+    ERR("\n");
     return 0;
 }
 
 const unixlib_entry_t __wine_unix_call_funcs[] =
 {
-    dwm_init,
     dwm_client_loop,
     dwm_connect,
     dwm_disconnect,
