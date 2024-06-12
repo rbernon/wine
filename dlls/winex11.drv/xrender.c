@@ -2254,6 +2254,7 @@ static const struct gdi_dc_funcs xrender_funcs =
     NULL,                               /* pStrokeAndFillPath */
     NULL,                               /* pStrokePath */
     NULL,                               /* pUnrealizePalette */
+    NULL,                               /* pSetWindowRegion */
     GDI_PRIORITY_GRAPHICS_DRV + 10,     /* priority */
     "xrender",
 };
