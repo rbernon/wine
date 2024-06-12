@@ -59,6 +59,18 @@ static inline const char *debugstr_window_rects( const struct window_rects *rect
                              wine_dbgstr_rect( &rects->client ), wine_dbgstr_rect( &rects->visible ) );
 }
 
+static inline RECT window_rects_window_from_visible( struct window_rects *rects, RECT visible_rect )
+{
+    RECT rect = visible_rect;
+
+    rect.left += rects->window.left - rects->visible.left;
+    rect.top += rects->window.top - rects->visible.top;
+    rect.right += rects->window.right - rects->visible.right;
+    rect.bottom += rects->window.bottom - rects->visible.bottom;
+
+    return rect;
+}
+
 typedef struct gdi_physdev
 {
     const struct gdi_dc_funcs *funcs;
