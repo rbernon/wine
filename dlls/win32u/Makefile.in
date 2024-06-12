@@ -12,7 +12,6 @@ SOURCES = \
 	bitblt.c \
 	bitmap.c \
 	brush.c \
-	cairodrv.c \
 	class.c \
 	clipboard.c \
 	clipping.c \
