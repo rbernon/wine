@@ -421,7 +421,6 @@ extern BOOL keyboard_grabbed;
 extern unsigned int screen_bpp;
 extern BOOL usexrandr;
 extern BOOL usexvidmode;
-extern BOOL use_dwm;
 extern BOOL use_take_focus;
 extern BOOL use_primary_selection;
 extern BOOL use_system_cursors;
@@ -441,8 +440,6 @@ extern UINT64 dnd_position_event_callback;
 extern UINT64 dnd_post_drop_callback;
 extern UINT64 dnd_drop_event_callback;
 extern UINT64 dnd_leave_event_callback;
-extern const struct dwm_funcs *dwm_funcs;
-extern dwm_display_t dwm_display;
 
 /* atoms */
 
@@ -605,7 +602,6 @@ struct x11drv_win_data
     HWND        hwnd;           /* hwnd that this private data belongs to */
     Window      whole_window;   /* X window for the complete window */
     Window      client_window;  /* X window for the client area */
-    dwm_window_t dwm_window;
     struct window_rects rects;  /* window rects in monitor DPI, relative to virtual screen */
     XIC         xic;            /* X input context */
     UINT        managed : 1;    /* is window managed? */
