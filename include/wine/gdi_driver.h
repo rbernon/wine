@@ -215,6 +215,7 @@ struct gdi_dc_funcs
     BOOL     (*pStrokeAndFillPath)(PHYSDEV);
     BOOL     (*pStrokePath)(PHYSDEV);
     BOOL     (*pUnrealizePalette)(HPALETTE);
+    void     (*pSetWindowRegion)(PHYSDEV,HWND,HWND,const RECT*,const RECT*);
 
     /* priority order for the driver on the stack */
     UINT       priority;
@@ -399,5 +400,17 @@ W32KAPI void __wine_set_user_driver( const struct user_driver_funcs *funcs, UINT
 
 W32KAPI BOOL win32u_set_window_pixel_format( HWND hwnd, int format, BOOL internal );
 W32KAPI int win32u_get_window_pixel_format( HWND hwnd );
+
+typedef void *cairodrv_window_t;
+
+struct cairodrv_funcs
+{
+    const struct gdi_dc_funcs *gdi_funcs;
+    void (*window_create)( HWND hwnd, void *cairo_surface );
+    void (*window_destroy)( HWND hwnd );
+    struct window_surface *(*surface_create)( HWND hwnd, const RECT *rect, COLORREF key, BOOL alpha );
+};
+
+W32KAPI const struct cairodrv_funcs *__wine_get_cairo_driver( UINT version );
 
 #endif /* __WINE_WINE_GDI_DRIVER_H */
