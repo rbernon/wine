@@ -2470,12 +2470,11 @@ static BOOL process_mouse_message( MSG *msg, UINT hw_id, ULONG_PTR extra_info, H
             message += WM_NCMOUSEMOVE - WM_MOUSEMOVE;
             wparam = hittest;
         }
-        else
+        /* coordinates don't get translated while tracking a menu */
+        /* FIXME: should differentiate popups and top-level menus */
+        else if (!(info->flags & GUI_INMENUMODE))
         {
-            /* coordinates don't get translated while tracking a menu */
-            /* FIXME: should differentiate popups and top-level menus */
-            if (!(info->flags & GUI_INMENUMODE))
-                screen_to_client( msg->hwnd, &pt );
+            map_window_points( 0, msg->hwnd, &pt, 1, get_dpi_for_window( msg->hwnd ) );
         }
     }
     msg->lParam = MAKELONG( pt.x, pt.y );
