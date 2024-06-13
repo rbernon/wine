@@ -1634,13 +1634,12 @@ WINE_NOTICE_WITH(pulse, [test -z "$PULSE_LIBS"],
 dnl **** Check for Cairo 2D ****
 if test "x$with_cairo" != "xno";
 then
-    WINE_PACKAGE_FLAGS(CAIRO,[cairo cairo-xcb],,,,
-        [AC_CHECK_HEADERS([cairo/cairo.h cairo/cairo-xcb.h],
-            [AC_CHECK_LIB(cairo, cairo_surface_destroy,[:],[CAIRO_LIBS=""],[$CAIRO_LIBS])],
-            [CAIRO_LIBS=""])])
+    WINE_PACKAGE_FLAGS(CAIRO,[cairo],[-lcairo],,,
+        [AC_CHECK_HEADERS([cairo/cairo.h],
+            [WINE_CHECK_SONAME(cairo,cairo_surface_destroy,,,[$CAIRO_LIBS],[[libcairo*]])])])
 fi
 WINE_NOTICE_WITH(cairo,[test "x$ac_cv_lib_soname_cairo" = "x"],
-        [cairo ${notice_platform}development files not found or too old.])
+       [cairo ${notice_platform}development files not found or too old.])
 
 dnl **** Check for gstreamer ****
 if test "x$with_gstreamer" != "xno"
