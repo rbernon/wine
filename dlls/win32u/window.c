@@ -1870,15 +1870,13 @@ static struct window_surface *create_window_surface( HWND hwnd, UINT swp_flags, 
     if (get_window_region( hwnd, FALSE, &shape, &dummy )) shaped = FALSE;
     else if ((shaped = !!shape)) NtGdiDeleteObjectApp( shape );
 
-    rects->visible = rects->window;
-    *monitor_rects = map_dpi_window_rects( *new_rects, dpi, monitor_dpi );
-
-    if (!user_driver->pWindowPosChanging( hwnd, swp_flags, shaped, monitor_rects )) needs_surface = FALSE;
+    new_rects->visible = new_rects->window;
+    if (!user_driver->pWindowPosChanging( hwnd, swp_flags, new_rects )) needs_surface = FALSE;
     else if (swp_flags & SWP_HIDEWINDOW) needs_surface = FALSE;
     else if (swp_flags & SWP_SHOWWINDOW) needs_surface = TRUE;
     else needs_surface = !!(NtUserGetWindowLongW( hwnd, GWL_STYLE ) & WS_VISIBLE);
-    *new_rects = map_dpi_window_rects( *monitor_rects, monitor_dpi, dpi );
 
+    *monitor_rects = map_dpi_window_rects( *new_rects, dpi, monitor_dpi );
     if (!get_surface_rect( &monitor_rects->visible, &surface_rect )) needs_surface = FALSE;
     if (!get_default_window_surface( hwnd, layered, surface_rect, &new_surface )) return NULL;
 
