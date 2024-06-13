@@ -1980,7 +1980,8 @@ HRGN expose_surface( struct window_surface *window_surface, const RECT *rect )
 /***********************************************************************
  *      CreateWindowSurface   (X11DRV.@)
  */
-BOOL X11DRV_CreateWindowSurface( HWND hwnd, const RECT *surface_rect, struct window_surface **surface )
+BOOL X11DRV_CreateWindowSurface( HWND hwnd, const RECT *surface_rect, UINT dpi_from, UINT dpi_to,
+                                 struct window_surface **surface )
 {
     struct window_surface *previous;
     struct x11drv_win_data *data;
@@ -1996,6 +1997,8 @@ BOOL X11DRV_CreateWindowSurface( HWND hwnd, const RECT *surface_rect, struct win
     if (data->whole_window == root_window) goto done; /* draw directly to the window */
     if (data->client_window) goto done; /* draw directly to the window */
     if (!client_side_graphics && !layered) goto done; /* draw directly to the window */
+
+    if (dpi_from != dpi_to) return FALSE; /* use default implementation */
 
     if (previous && previous->funcs == &x11drv_surface_funcs)
         window_surface_add_ref( (*surface = previous) );

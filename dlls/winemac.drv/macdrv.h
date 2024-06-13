@@ -151,7 +151,8 @@ extern void macdrv_UpdateLayeredWindow(HWND hwnd, const RECT *window_rect, COLOR
                                        BYTE alpha, UINT flags);
 extern LRESULT macdrv_WindowMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
 extern BOOL macdrv_WindowPosChanging(HWND hwnd, UINT swp_flags, BOOL shaped, struct window_rects *rects);
-extern BOOL macdrv_CreateWindowSurface(HWND hwnd, const RECT *surface_rect, struct window_surface **surface);
+extern BOOL macdrv_CreateWindowSurface(HWND hwnd, const RECT *surface_rect, UINT dpi_from, UINT dpi_to,
+                                       struct window_surface **surface);
 extern void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, UINT swp_flags, const struct window_rects *old_rects,
                                     const struct window_rects *new_rects, struct window_surface *surface);
 extern void macdrv_DestroyCursorIcon(HCURSOR cursor);

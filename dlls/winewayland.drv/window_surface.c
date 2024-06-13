@@ -535,11 +535,14 @@ void wayland_window_surface_update_wayland_surface(struct window_surface *window
 /***********************************************************************
  *           WAYLAND_CreateWindowSurface
  */
-BOOL WAYLAND_CreateWindowSurface(HWND hwnd, const RECT *surface_rect, struct window_surface **surface)
+BOOL WAYLAND_CreateWindowSurface(HWND hwnd, const RECT *surface_rect, UINT dpi_from, UINT dpi_to,
+                                 struct window_surface **surface)
 {
     struct window_surface *previous;
 
     TRACE("hwnd %p, surface_rect %s, surface %p\n", hwnd, wine_dbgstr_rect(surface_rect), surface);
+
+    if (dpi_from != dpi_to) return FALSE; /* use default implementation */
 
     previous = *surface;
     *surface = NULL;  /* indicate that we want to draw directly to the window */

@@ -1876,12 +1876,11 @@ static struct window_surface *create_window_surface( HWND hwnd, UINT swp_flags, 
     else if (swp_flags & SWP_SHOWWINDOW) needs_surface = TRUE;
     else needs_surface = !!(NtUserGetWindowLongW( hwnd, GWL_STYLE ) & WS_VISIBLE);
 
-    *monitor_rects = map_dpi_window_rects( *new_rects, dpi, monitor_dpi );
-    if (!get_surface_rect( &monitor_rects->visible, &surface_rect )) needs_surface = FALSE;
-    if (!get_default_window_surface( hwnd, layered, surface_rect, &new_surface )) return NULL;
+    if (!get_surface_rect( &new_rects->visible, &surface_rect )) needs_surface = FALSE;
+    if (!get_default_window_surface( hwnd, &surface_rect, &new_surface )) return FALSE;
 
-    if (!needs_surface || IsRectEmpty( &rects->visible )) needs_surface = FALSE; /* use default surface */
-    else needs_surface = !user_driver->pCreateWindowSurface( hwnd, surface_rect, &new_surface );
+    if (!needs_surface || IsRectEmpty( &visible_rect )) needs_surface = FALSE; /* use default surface */
+    else scaled_surface_create( hwnd, &surface_rect, dpi, monitor_dpi, &new_surface );
 
     /* create or update window surface for top-level windows if the driver doesn't implement CreateWindowSurface */
     if (needs_surface && new_surface == &dummy_surface && !layered)

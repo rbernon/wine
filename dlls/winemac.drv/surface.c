@@ -218,12 +218,15 @@ failed:
 /***********************************************************************
  *              CreateWindowSurface   (MACDRV.@)
  */
-BOOL macdrv_CreateWindowSurface(HWND hwnd, const RECT *surface_rect, struct window_surface **surface)
+BOOL macdrv_CreateWindowSurface(HWND hwnd, const RECT *surface_rect, UINT dpi_from, UINT dpi_to,
+                                struct window_surface **surface)
 {
     struct window_surface *previous;
     struct macdrv_win_data *data;
 
     TRACE("hwnd %p, surface_rect %s, surface %p\n", hwnd, wine_dbgstr_rect(surface_rect), surface);
+
+    if (dpi_from != dpi_to) return FALSE; /* use default implementation */
 
     if (!(data = get_win_data(hwnd))) return TRUE; /* use default surface */
     previous = *surface;
