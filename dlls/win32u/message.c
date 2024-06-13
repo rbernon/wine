@@ -2315,7 +2315,6 @@ static void send_parent_notify( HWND hwnd, WORD event, WORD idChild, POINT pt )
  */
 static BOOL process_pointer_message( MSG *msg, UINT hw_id, const struct hardware_msg_data *msg_data )
 {
-    msg->pt = point_phys_to_win_dpi( msg->hwnd, msg->pt );
     return TRUE;
 }
 
@@ -2394,7 +2393,6 @@ static BOOL process_keyboard_message( MSG *msg, UINT hw_id, HWND hwnd_filter,
         call_hooks( WH_CBT, HCBT_KEYSKIPPED, LOWORD(msg->wParam), msg->lParam, 0 );
         return FALSE;
     }
-    msg->pt = point_phys_to_win_dpi( msg->hwnd, msg->pt );
 
     if (remove && (msg->message == WM_KEYDOWN || msg->message == WM_KEYUP))
         if (ImmProcessKey( msg->hwnd, NtUserGetKeyboardLayout(0), msg->wParam, msg->lParam, 0 ))
@@ -2446,7 +2444,6 @@ static BOOL process_mouse_message( MSG *msg, UINT hw_id, ULONG_PTR extra_info, H
         return FALSE;
     }
 
-    msg->pt = point_phys_to_win_dpi( msg->hwnd, msg->pt );
     set_thread_dpi_awareness_context( get_window_dpi_awareness_context( msg->hwnd ));
 
     /* FIXME: is this really the right place for this hook? */
@@ -2629,6 +2626,7 @@ static BOOL process_hardware_message( MSG *msg, UINT hw_id, const struct hardwar
 
     NtUserGetGUIThreadInfo( GetCurrentThreadId(), &info );
     msg->hwnd = find_hardware_message_window( msg, &info, &hittest );
+    msg->pt = point_phys_to_win_dpi( msg->hwnd, msg->pt );
 
     /* hardware messages are always in physical coords */
     context = set_thread_dpi_awareness_context( NTUSER_DPI_PER_MONITOR_AWARE );
