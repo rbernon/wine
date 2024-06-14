@@ -249,14 +249,21 @@ static RECT get_surface_rect( RECT rect )
     return rect;
 }
 
-void scaled_surface_create( HWND hwnd, const RECT *surface_rect, UINT dpi_from, UINT dpi_to,
-                            struct window_surface **window_surface )
+void scaled_surface_create( HWND hwnd, const RECT *surface_rect, COLORREF color_key, BOOL layered,
+                            UINT dpi_from, UINT dpi_to, struct window_surface **window_surface )
 {
     RECT monitor_rect = get_surface_rect( map_dpi_rect( *surface_rect, dpi_from, dpi_to ) );
     struct window_surface *previous;
 
     /* check if the driver supports scaling window surfaces directly */
-    if (user_driver->pCreateWindowSurface( hwnd, surface_rect, dpi_from, dpi_to, window_surface )) return;
+    if (layered)
+    {
+        if (user_driver->pCreateLayeredWindow( hwnd, surface_rect, dpi_from, dpi_to, window_surface )) return;
+    }
+    else
+    {
+        if (user_driver->pCreateWindowSurface( hwnd, surface_rect, dpi_from, dpi_to, window_surface )) return;
+    }
 
     if ((previous = *window_surface) && previous->funcs == &scaled_surface_funcs)
     {

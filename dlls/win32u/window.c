@@ -1879,8 +1879,8 @@ static struct window_surface *create_window_surface( HWND hwnd, UINT swp_flags, 
     if (!get_surface_rect( &new_rects->visible, &surface_rect )) needs_surface = FALSE;
     if (!get_default_window_surface( hwnd, &surface_rect, &new_surface )) return FALSE;
 
-    if (!needs_surface || IsRectEmpty( &visible_rect )) needs_surface = FALSE; /* use default surface */
-    else scaled_surface_create( hwnd, &surface_rect, dpi, monitor_dpi, &new_surface );
+    if (layered || !needs_surface || IsRectEmpty( &surface_rect )) needs_surface = FALSE; /* use default surface */
+    else scaled_surface_create( hwnd, &surface_rect, CLR_INVALID, FALSE, dpi, monitor_dpi, &new_surface );
 
     /* create or update window surface for top-level windows if the driver doesn't implement CreateWindowSurface */
     if (needs_surface && new_surface == &dummy_surface && !layered)
@@ -2200,6 +2200,7 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
                                        const BLENDFUNCTION *blend, DWORD flags, const RECT *dirty )
 {
     DWORD swp_flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW;
+    UINT dpi = get_dpi_for_window( hwnd ), monitor_dpi = get_win_monitor_dpi( hwnd );
     struct window_rects old_rects, new_rects, monitor_rects;
     struct window_surface *surface;
     RECT surface_rect;
@@ -2259,7 +2260,13 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
     if (surface) window_surface_release( surface );
 
     if (!(flags & ULW_COLORKEY)) key = CLR_INVALID;
-    if (!(user_driver->pCreateLayeredWindow( hwnd, &surface_rect, key, &surface )) || !surface) return FALSE;
+
+    surface_rect = get_surface_rect( new_rects.visible );
+    if (!get_default_window_surface( hwnd, &surface_rect, &surface )) return FALSE;
+    scaled_surface_create( hwnd, &surface_rect, key, TRUE, dpi, monitor_dpi, &surface );
+
+    if (!surface) return FALSE;
+    window_surface_set_key( surface, key );
 
     if (!hdc_src) ret = TRUE;
     else
