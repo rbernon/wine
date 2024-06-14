@@ -89,7 +89,7 @@ static BOOL macdrv_surface_flush(struct window_surface *window_surface, const RE
     colorspace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
     image = CGImageCreate(color_info->bmiHeader.biWidth, abs(color_info->bmiHeader.biHeight), 8, 32,
                           color_info->bmiHeader.biSizeImage / abs(color_info->bmiHeader.biHeight), colorspace,
-                          alpha_info | kCGBitmapByteOrder32Little, surface->provider, NULL, retina_on, kCGRenderingIntentDefault);
+                          alpha_info | kCGBitmapByteOrder32Little, surface->provider, NULL, true, kCGRenderingIntentDefault);
     CGColorSpaceRelease(colorspace);
 
     macdrv_window_set_color_image(surface->window, image, cgrect_from_rect(*rect), cgrect_from_rect(*dirty));
@@ -112,7 +112,7 @@ static BOOL macdrv_surface_flush(struct window_surface *window_surface, const RE
 
             image = CGImageMaskCreate(shape_info->bmiHeader.biWidth, abs(shape_info->bmiHeader.biHeight), 1, 1,
                                       shape_info->bmiHeader.biSizeImage / abs(shape_info->bmiHeader.biHeight),
-                                      provider, NULL, retina_on);
+                                      provider, NULL, true);
             CGDataProviderRelease(provider);
 
             macdrv_window_set_shape_image(surface->window, image);
@@ -226,11 +226,11 @@ BOOL macdrv_CreateWindowSurface(HWND hwnd, const RECT *surface_rect, UINT dpi_fr
 
     TRACE("hwnd %p, surface_rect %s, surface %p\n", hwnd, wine_dbgstr_rect(surface_rect), surface);
 
-    if (dpi_from != dpi_to) return FALSE; /* use default implementation */
-
     if (!(data = get_win_data(hwnd))) return TRUE; /* use default surface */
     previous = *surface;
     *surface = NULL;  /* indicate that we want to draw directly to the window */
+
+    macdrv_window_set_surface_scale(data->cocoa_window, (float)dpi_to / (float)dpi_from);
 
     if (previous && previous->funcs == &macdrv_surface_funcs)
         window_surface_add_ref((*surface = previous));
