@@ -161,7 +161,7 @@ static void get_mac_rect_offset(struct macdrv_win_data *data, unsigned int style
                                 const RECT *window_rect, const RECT *client_rect)
 {
     unsigned int ex_style, style_mask = 0, ex_style_mask = 0;
-    UINT dpi = get_win_monitor_dpi(data->hwnd);
+    UINT dpi = NtUserGetDpiForWindow(data->hwnd);
 
     rect->top = rect->bottom = rect->left = rect->right = 0;
 

@@ -368,6 +368,7 @@ static CVReturn WineDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTi
     CGRect surfaceRect;
     CGImageRef colorImage;
     CGImageRef shapeImage;
+    float surfaceScale;
 
     NSMutableArray* glContexts;
     NSMutableArray* pendingGlContexts;
@@ -492,6 +493,7 @@ static CVReturn WineDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTi
             [self setWantsLayer:YES];
             [self setLayerRetinaProperties:retina_on];
             [self setAutoresizesSubviews:NO];
+            surfaceScale = 1.0;
         }
         return self;
     }
@@ -530,10 +532,10 @@ static CVReturn WineDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTi
             return;
 
         imageRect = layer.bounds;
-        imageRect.origin.x *= layer.contentsScale;
-        imageRect.origin.y *= layer.contentsScale;
-        imageRect.size.width *= layer.contentsScale;
-        imageRect.size.height *= layer.contentsScale;
+        imageRect.origin.x *= layer.contentsScale / surfaceScale;
+        imageRect.origin.y *= layer.contentsScale / surfaceScale;
+        imageRect.size.width *= layer.contentsScale / surfaceScale;
+        imageRect.size.height *= layer.contentsScale / surfaceScale;
 
         maskedImage = shapeImage ? CGImageCreateWithMask(colorImage, shapeImage)
                                  : CGImageRetain(colorImage);
@@ -573,6 +575,11 @@ static CVReturn WineDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTi
     {
         CGImageRelease(shapeImage);
         shapeImage = CGImageRetain(image);
+    }
+
+    - (void) setSurfaceScale:(float)scale
+    {
+        surfaceScale = scale;
     }
 
     - (BOOL) hasShapeImage
@@ -707,8 +714,8 @@ static CVReturn WineDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTi
     - (void) setLayerRetinaProperties:(int)mode
     {
         [self layer].contentsScale = mode ? 2.0 : 1.0;
-        [self layer].minificationFilter = mode ? kCAFilterLinear : kCAFilterNearest;
-        [self layer].magnificationFilter = mode ? kCAFilterLinear : kCAFilterNearest;
+        [self layer].minificationFilter = kCAFilterLinear;
+        [self layer].magnificationFilter = kCAFilterLinear;
 
         /* On macOS 10.13 and earlier, the desired minificationFilter seems to be
          * ignored and "nearest" filtering is used, which looks terrible.
@@ -3541,6 +3548,23 @@ void macdrv_window_set_shape_image(macdrv_window w, CGImageRef image)
         [window checkTransparency];
 
         CGImageRelease(image);
+    });
+}
+}
+
+
+/***********************************************************************
+ *              macdrv_window_set_surface_scale
+ */
+void macdrv_window_set_surface_scale(macdrv_window w, float scale)
+{
+@autoreleasepool
+{
+    WineWindow* window = (WineWindow*)w;
+
+    OnMainThreadAsync(^{
+        WineContentView *view = [window contentView];
+        [view setSurfaceScale:scale];
     });
 }
 }

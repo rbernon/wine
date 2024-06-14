@@ -89,7 +89,7 @@ static BOOL macdrv_surface_flush(struct window_surface *window_surface, const RE
     colorspace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
     image = CGImageCreate(color_info->bmiHeader.biWidth, abs(color_info->bmiHeader.biHeight), 8, 32,
                           color_info->bmiHeader.biSizeImage / abs(color_info->bmiHeader.biHeight), colorspace,
-                          alpha_info | kCGBitmapByteOrder32Little, surface->provider, NULL, retina_on, kCGRenderingIntentDefault);
+                          alpha_info | kCGBitmapByteOrder32Little, surface->provider, NULL, true, kCGRenderingIntentDefault);
     CGColorSpaceRelease(colorspace);
 
     macdrv_window_set_color_image(surface->window, image, cgrect_from_rect(*rect), cgrect_from_rect(*dirty));
@@ -112,7 +112,7 @@ static BOOL macdrv_surface_flush(struct window_surface *window_surface, const RE
 
             image = CGImageMaskCreate(shape_info->bmiHeader.biWidth, abs(shape_info->bmiHeader.biHeight), 1, 1,
                                       shape_info->bmiHeader.biSizeImage / abs(shape_info->bmiHeader.biHeight),
-                                      provider, NULL, retina_on);
+                                      provider, NULL, true);
             CGDataProviderRelease(provider);
 
             macdrv_window_set_shape_image(surface->window, image);
@@ -222,23 +222,11 @@ BOOL macdrv_CreateWindowSurface(HWND hwnd, BOOL layered, UINT dpi_from, UINT dpi
 
     TRACE("hwnd %p, layered %u, surface_rect %s, surface %p\n", hwnd, layered, wine_dbgstr_rect(surface_rect), surface);
 
-    if (dpi_from != dpi_to) return FALSE; /* use default implementation */
     if ((previous = *surface) && previous->funcs == &macdrv_surface_funcs) return TRUE;
 
     if ((data = get_win_data(hwnd)))
     {
-        if (layered)
-        {
-            data->layered = TRUE;
-            data->ulw_layered = TRUE;
-
-            if (data->unminimized_surface)
-            {
-                window_surface_release(data->unminimized_surface);
-                data->unminimized_surface = NULL;
-            }
-        }
-
+        macdrv_window_set_surface_scale(data->cocoa_window, (float)dpi_to / (float)dpi_from);
         *surface = create_surface(hwnd, data->cocoa_window, surface_rect, previous);
         release_win_data(data);
     }
