@@ -24,6 +24,7 @@ AC_ARG_ENABLE(maintainer-mode, AS_HELP_STRING([--enable-maintainer-mode],[enable
 AC_ARG_ENABLE(sast,  AS_HELP_STRING([--enable-sast],[enable static application security testing using Clang]))
 AC_ARG_ENABLE(silent-rules, AS_HELP_STRING([--enable-silent-rules],[use silent build rules (override: "make V=1")]))
 AC_ARG_ENABLE(werror, AS_HELP_STRING([--enable-werror],[treat compilation warnings as errors]))
+AC_ARG_ENABLE(mesa, AS_HELP_STRING([--disable-mesa],[enable OpenGL over Vulkan with Zink and Mesa built as PE]))
 
 AC_ARG_WITH(alsa,      AS_HELP_STRING([--without-alsa],[do not use the Alsa sound support]))
 AC_ARG_WITH(capi,      AS_HELP_STRING([--without-capi],[do not use CAPI (ISDN support)]))
@@ -146,8 +147,10 @@ case $host in
     if test x"$wine_cv_thumb2" = xyes
     then
         CFLAGS="$CFLAGS -mthumb"
+        CXXFLAGS="$CXXFLAGS -mthumb"
     else
         CFLAGS="$CFLAGS -marm"
+        CXXFLAGS="$CXXFLAGS -marm"
     fi
     AC_CACHE_CHECK([whether $CC supports floating point instructions],wine_cv_float_abi,
                    [WINE_TRY_ASM_LINK(["vmrs r2,fpscr"],,,[wine_cv_float_abi=yes],[wine_cv_float_abi=no])])
@@ -175,7 +178,7 @@ case "$host_cpu" in
   x86_64)          HOST_ARCH=x86_64 ;;
 esac
 m4_set_add_all([_AC_SUBST_VARS],[HOST_ARCH]m4_foreach([cpu],[aarch64,arm,arm64ec,i386,x86_64],
-                                [m4_foreach([var],[CC,CFLAGS,EXTRACFLAGS,LDFLAGS,DEBUG,TARGET,STRIP,DELAYLOADFLAG,DISABLED_SUBDIRS],[,cpu[_]var])]))
+                                [m4_foreach([var],[CC,CFLAGS,EXTRACFLAGS,CXX,CXXFLAGS,EXTRACXXFLAGS,LDFLAGS,DEBUG,TARGET,STRIP,DELAYLOADFLAG,DISABLED_SUBDIRS],[,cpu[_]var])]))
 
 AC_CACHE_CHECK([for the directory containing the Wine tools], wine_cv_toolsdir,
   [wine_cv_toolsdir="$with_wine_tools"
@@ -593,6 +596,7 @@ AC_SUBST(DLLFLAGS,"")
 AC_SUBST(LDDLLFLAGS,"")
 AC_SUBST(LDEXECFLAGS,"")
 AC_SUBST(EXTRACFLAGS,"")
+AC_SUBST(EXTRACXXFLAGS,"")
 AC_SUBST(UNIXDLLFLAGS,"-fPIC")
 AC_SUBST(UNIXLDFLAGS,["-shared -Wl,-Bsymbolic -Wl,-soname,\$(UNIXLIB)"])
 AC_SUBST(TOP_INSTALL_LIB,"")
@@ -609,6 +613,7 @@ case $host_os in
     LIBEXT="dll"
     DLLEXT=""
     EXTRACFLAGS="-D__WINE_PE_BUILD"
+    EXTRACXXFLAGS="-D__WINE_PE_BUILD"
     dnl Disable modules that can't be used on Windows
     enable_loader=${enable_loader:-no}
     enable_server=${enable_server:-no}
@@ -797,6 +802,7 @@ AS_VAR_SET_IF([enable_archs],
 saved_CC=$CC
 saved_CFLAGS=$CFLAGS
 saved_CPPFLAGS=$CPPFLAGS
+saved_CXXFLAGS=$CXXFLAGS
 saved_LDFLAGS=$LDFLAGS
 
 AS_UNSET(extra_arch)
@@ -811,7 +817,10 @@ done
 for wine_arch in $cross_archs $extra_arch
 do
     case "x$with_mingw" in
-      xclang|x*/clang) AS_VAR_SET(${wine_arch}_CC,$with_mingw) ;;
+      xclang|x*/clang)
+        AS_VAR_SET(${wine_arch}_CC,$with_mingw)
+        AS_VAR_SET(${wine_arch}_CXX,$with_mingw)
+        ;;
     esac
     AS_VAR_IF([${wine_arch}_CC],[],
         [case $wine_arch in
@@ -833,14 +842,38 @@ do
             AC_CHECK_PROGS(x86_64_CC,[$ac_prefix_list clang],[false])
             ;;
         esac])
+    AS_VAR_IF([${wine_arch}_CXX],[],
+        [case $wine_arch in
+          aarch64)
+            AC_CHECK_PROGS(aarch64_CXX,[aarch64-w64-mingw32-clang++ aarch64-w64-mingw32-g++ clang++],[false])
+            ;;
+          arm64ec)
+            AC_CHECK_PROGS(arm64ec_CXX,[arm64ec-w64-mingw32-clang++ arm64ec-w64-mingw32-g++ clang++],[false])
+            ;;
+          arm)
+            AC_CHECK_PROGS(arm_CXX,[armv7-w64-mingw32-clang++ armv7-w64-mingw32-g++ clang++],[false])
+            ;;
+         i386)
+            ac_prefix_list="m4_foreach([cc],[g++,clang++],m4_foreach([cpu],[i686,i586,i486,i386],[cpu-w64-mingw32-cc ]))"
+            AC_CHECK_PROGS(i386_CXX,[$ac_prefix_list clang++],[false])
+            ;;
+         x86_64)
+            ac_prefix_list="m4_foreach([cc],[g++,clang++],m4_foreach([cpu],[x86_64,amd64],[cpu-w64-mingw32-cc ]))"
+            AC_CHECK_PROGS(x86_64_CXX,[$ac_prefix_list clang++],[false])
+            ;;
+        esac])
 
     CPPFLAGS=""
     AS_VAR_SET_IF([${wine_arch}_CFLAGS],[],[AS_VAR_SET([${wine_arch}_CFLAGS],[${CROSSCFLAGS:-"-g -O2"}])])
+    AS_VAR_SET_IF([${wine_arch}_CXXFLAGS],[],[AS_VAR_SET([${wine_arch}_CXXFLAGS],[${CROSSCFLAGS:-"-g -O2"}])])
     AS_VAR_SET_IF([${wine_arch}_LDFLAGS],[],[AS_VAR_SET([${wine_arch}_LDFLAGS],[$CROSSLDFLAGS])])
     AS_VAR_COPY([CC],[${wine_arch}_CC])
+    AS_VAR_COPY([CXX],[${wine_arch}_CXX])
     AS_VAR_COPY([CFLAGS],[${wine_arch}_CFLAGS])
+    AS_VAR_COPY([CXXFLAGS],[${wine_arch}_CXXFLAGS])
     AS_VAR_COPY([LDFLAGS],[${wine_arch}_LDFLAGS])
     AS_VAR_SET([${wine_arch}_EXTRACFLAGS],["-D__WINE_PE_BUILD -Wall"])
+    AS_VAR_SET([${wine_arch}_EXTRACXXFLAGS],["-D__WINE_PE_BUILD -Wall"])
 
     target=""
     set x $CC
@@ -868,6 +901,7 @@ do
         esac
     fi
     llvm_extra_cflags="-target $llvm_target -fuse-ld=lld"
+    llvm_extra_cxxflags="-target $llvm_target -fuse-ld=lld"
     llvm_extra_ldflags=""
     llvm_cflags=""
     case $llvm_target in
@@ -878,13 +912,19 @@ do
                         llvm_extra_ldflags="--no-default-config"],
                        [WINE_TRY_PE_CFLAGS([$llvm_extra_cflags $llvm_cflags],[:],
                                            [llvm_extra_cflags=""])])
+    WINE_TRY_PE_CXXFLAGS([$llvm_extra_cxxflags $llvm_cflags --no-default-config],
+                         [llvm_extra_cxxflags="$llvm_extra_cxxflags --no-default-config"],
+                         [WINE_TRY_PE_CXXFLAGS([$llvm_extra_cxxflags $llvm_cflags],[:],
+                                               [llvm_extra_cxxflags=""])])
     if test -n "$llvm_extra_cflags"
     then
         target=$llvm_target
         AS_VAR_SET([${wine_arch}_DELAYLOADFLAG],["-Wl,-delayload,"])
         AS_VAR_APPEND([${wine_arch}_EXTRACFLAGS],[" $llvm_extra_cflags"])
+        AS_VAR_APPEND([${wine_arch}_EXTRACXXFLAGS],[" $llvm_extra_cxxflags"])
         AS_VAR_APPEND([${wine_arch}_LDFLAGS],[" $llvm_extra_ldflags"])
         CFLAGS="$CFLAGS $llvm_extra_cflags $llvm_cflags"
+        CXXFLAGS="$CXXFLAGS $llvm_extra_cxxflags $llvm_cflags"
     else
         AS_VAR_PUSHDEF([wine_cv_crosscc], [wine_cv_${wine_arch}_crosscc])
         AC_CACHE_CHECK([whether $CC works], wine_cv_crosscc,
@@ -948,14 +988,19 @@ This is an error since --enable-archs=$wine_arch was requested.])])
     WINE_TRY_PE_CFLAGS([-fno-strict-aliasing])
     dnl clang needs to be told to fail on unknown options
     WINE_TRY_PE_CFLAGS([-Werror=unknown-warning-option],[CFLAGS="$CFLAGS -Werror=unknown-warning-option"])
+    WINE_TRY_PE_CXXFLAGS([-Werror=unknown-warning-option],[CXXFLAGS="$CXXFLAGS -Werror=unknown-warning-option"])
     WINE_TRY_PE_CFLAGS([-Werror=ignored-optimization-argument],[CFLAGS="$CFLAGS -Werror=ignored-optimization-argument"])
+    WINE_TRY_PE_CXXFLAGS([-Werror=ignored-optimization-argument],[CXXFLAGS="$CXXFLAGS -Werror=ignored-optimization-argument"])
     WINE_TRY_PE_CFLAGS([-Wdeclaration-after-statement])
     WINE_TRY_PE_CFLAGS([-Wempty-body])
     WINE_TRY_PE_CFLAGS([-Wignored-qualifiers])
     WINE_TRY_PE_CFLAGS([-Winit-self])
     WINE_TRY_PE_CFLAGS([-Wpacked-not-aligned],[AS_VAR_APPEND(${wine_arch}_EXTRACFLAGS,[" -Wno-packed-not-aligned"])])
+    WINE_TRY_PE_CXXFLAGS([-Wpacked-not-aligned],[AS_VAR_APPEND(${wine_arch}_EXTRACXXFLAGS,[" -Wno-packed-not-aligned"])])
     WINE_TRY_PE_CFLAGS([-Wpragma-pack],[AS_VAR_APPEND(${wine_arch}_EXTRACFLAGS,[" -Wno-pragma-pack"])])
+    WINE_TRY_PE_CXXFLAGS([-Wpragma-pack],[AS_VAR_APPEND(${wine_arch}_EXTRACXXFLAGS,[" -Wno-pragma-pack"])])
     WINE_TRY_PE_CFLAGS([-Wmicrosoft-enum-forward-reference],[AS_VAR_APPEND(${wine_arch}_EXTRACFLAGS,[" -Wno-microsoft-enum-forward-reference"])])
+    WINE_TRY_PE_CXXFLAGS([-Wmicrosoft-enum-forward-reference],[AS_VAR_APPEND(${wine_arch}_EXTRACXXFLAGS,[" -Wno-microsoft-enum-forward-reference"])])
     WINE_TRY_PE_CFLAGS([-Wshift-overflow=2])
     WINE_TRY_PE_CFLAGS([-Wstrict-prototypes])
     WINE_TRY_PE_CFLAGS([-Wtype-limits])
@@ -978,13 +1023,19 @@ This is an error since --enable-archs=$wine_arch was requested.])])
 
     case $wine_arch in
       i386) WINE_TRY_PE_CFLAGS([-fno-omit-frame-pointer])
+            WINE_TRY_PE_CXXFLAGS([-fno-omit-frame-pointer])
             WINE_TRY_PE_CFLAGS([-mpreferred-stack-boundary=2])
+            WINE_TRY_PE_CXXFLAGS([-mpreferred-stack-boundary=2])
             WINE_TRY_PE_CFLAGS([-Wl,--disable-stdcall-fixup],
-                               [AS_VAR_APPEND([${wine_arch}_LDFLAGS],[" -Wl,--disable-stdcall-fixup"])]) ;;
+                               [AS_VAR_APPEND([${wine_arch}_LDFLAGS],[" -Wl,--disable-stdcall-fixup"])])
+            ;;
       x86_64) WINE_TRY_PE_CFLAGS([-Wformat-overflow])
               WINE_TRY_PE_CFLAGS([-Wnonnull])
               WINE_TRY_PE_CFLAGS([-mcx16])
-              WINE_TRY_PE_CFLAGS([-mcmodel=small]) ;;
+              WINE_TRY_PE_CXXFLAGS([-mcx16])
+              WINE_TRY_PE_CFLAGS([-mcmodel=small])
+              WINE_TRY_PE_CXXFLAGS([-mcmodel=small])
+            ;;
     esac
 
     dnl Determine debug info format
@@ -1012,8 +1063,12 @@ This is an error since --enable-archs=$wine_arch was requested.])])
         *dwarf)  dnl clang emits a warning without -Wl,-debug:dwarf, so ensure linker option is present
                  WINE_TRY_PE_CFLAGS([-Wl,-debug:dwarf],[AS_VAR_APPEND([${wine_arch}_LDFLAGS],[" -Wl,-debug:dwarf"])
                                                         CFLAGS="$CFLAGS -Wl,-debug:dwarf"])
-                 WINE_TRY_PE_CFLAGS([-gdwarf-4]) ;;
-        pdb)     WINE_TRY_PE_CFLAGS([-gcodeview]) ;;
+                 WINE_TRY_PE_CXXFLAGS([-Wl,-debug:dwarf],[AS_VAR_APPEND([${wine_arch}_LDFLAGS],[" -Wl,-debug:dwarf"])
+                                                          CXXFLAGS="$CXXFLAGS -Wl,-debug:dwarf"])
+                 WINE_TRY_PE_CFLAGS([-gdwarf-4])
+                 WINE_TRY_PE_CXXFLAGS([-gdwarf-4]) ;;
+        pdb)     WINE_TRY_PE_CFLAGS([-gcodeview])
+                 WINE_TRY_PE_CXXFLAGS([-gcodeview]) ;;
       esac
     fi
     AS_VAR_SET([${wine_arch}_DEBUG],[$wine_crossdebug])
@@ -1028,6 +1083,7 @@ done
 CC=$saved_CC
 CFLAGS=$saved_CFLAGS
 CPPFLAGS=$saved_CPPFLAGS
+CXXFLAGS=$saved_CXXFLAGS
 LDFLAGS=$saved_LDFLAGS
 
 case $HOST_ARCH in
@@ -1186,6 +1242,11 @@ WINE_EXTLIB_FLAGS(VKD3D, vkd3d, vkd3d, "-I\$(top_srcdir)/libs/vkd3d/include")
 WINE_EXTLIB_FLAGS(XML2, xml2, xml2, "-I\$(top_srcdir)/libs/xml2/include -DLIBXML_STATIC")
 WINE_EXTLIB_FLAGS(XSLT, xslt, xslt, "-I\$(top_srcdir)/libs/xslt/libxslt -I\$(top_srcdir)/libs/xslt -DLIBXSLT_STATIC")
 WINE_EXTLIB_FLAGS(ZLIB, zlib, z, "-I\$(top_srcdir)/libs/zlib -DFAR= -DZ_SOLO")
+
+if test "x$enable_mesa" != "xno"
+then
+  WINE_EXTLIB_FLAGS(MESA, mesa, mesa, "-DENABLE_MESA")
+fi
 
 dnl **** Check for pthread ****
 
@@ -1893,25 +1954,36 @@ dnl **** Check for gcc specific options ****
 if test "x${GCC}" = "xyes"
 then
   EXTRACFLAGS="$EXTRACFLAGS -Wall -pipe"
+  EXTRACXXFLAGS="$EXTRACXXFLAGS -Wall -pipe"
 
   dnl Check for some compiler flags
   dnl clang needs to be told to fail on unknown options
   saved_CFLAGS=$CFLAGS
+  saved_CXXFLAGS=$CXXFLAGS
   WINE_TRY_CFLAGS([-Werror=unknown-warning-option],[CFLAGS="$CFLAGS -Werror=unknown-warning-option"])
+  WINE_TRY_CXXFLAGS([-Werror=unknown-warning-option],[CXXFLAGS="$CXXFLAGS -Werror=unknown-warning-option"])
   WINE_TRY_CFLAGS([-Werror=unused-command-line-argument],[CFLAGS="$CFLAGS -Werror=unused-command-line-argument"])
+  WINE_TRY_CXXFLAGS([-Werror=unused-command-line-argument],[CXXFLAGS="$CXXFLAGS -Werror=unused-command-line-argument"])
   WINE_TRY_CFLAGS([-Werror=ignored-optimization-argument],[CFLAGS="$CFLAGS -Werror=ignored-optimization-argument"])
+  WINE_TRY_CXXFLAGS([-Werror=ignored-optimization-argument],[CXXFLAGS="$CXXFLAGS -Werror=ignored-optimization-argument"])
   WINE_TRY_CFLAGS([-fcf-protection=none])
+  WINE_TRY_CXXFLAGS([-fcf-protection=none])
   WINE_TRY_CFLAGS([-fvisibility=hidden])
+  WINE_TRY_CXXFLAGS([-fvisibility=hidden])
   WINE_TRY_CFLAGS([-fno-stack-protector])
+  WINE_TRY_CXXFLAGS([-fno-stack-protector])
   WINE_TRY_CFLAGS([-fno-strict-aliasing])
+  WINE_TRY_CXXFLAGS([-fno-strict-aliasing])
   WINE_TRY_CFLAGS([-Wdeclaration-after-statement])
   WINE_TRY_CFLAGS([-Wempty-body])
   WINE_TRY_CFLAGS([-Wignored-qualifiers])
   WINE_TRY_CFLAGS([-Winit-self])
   WINE_TRY_CFLAGS([-Wlogical-op])
   WINE_TRY_CFLAGS([-Wpacked-not-aligned],[EXTRACFLAGS="$EXTRACFLAGS -Wno-packed-not-aligned"])
+  WINE_TRY_CXXFLAGS([-Wpacked-not-aligned],[EXTRACXXFLAGS="$EXTRACXXFLAGS -Wno-packed-not-aligned"])
   WINE_TRY_CFLAGS([-Wpointer-arith])
   WINE_TRY_CFLAGS([-Wpragma-pack],[EXTRACFLAGS="$EXTRACFLAGS -Wno-pragma-pack"])
+  WINE_TRY_CXXFLAGS([-Wpragma-pack],[EXTRACXXFLAGS="$EXTRACXXFLAGS -Wno-pragma-pack"])
   WINE_TRY_CFLAGS([-Wshift-overflow=2])
   WINE_TRY_CFLAGS([-Wstrict-prototypes])
   WINE_TRY_CFLAGS([-Wtype-limits])
@@ -1959,6 +2031,7 @@ then
   if test "x$ac_debug_format_seen" = xdefault
   then
     WINE_TRY_CFLAGS([-gdwarf-4])
+    WINE_TRY_CXXFLAGS([-gdwarf-4])
   fi
 
   dnl Disable gcc builtins except for Mingw
@@ -1974,7 +2047,9 @@ then
 
   case $HOST_ARCH in
     dnl gcc-4.6+ omits frame pointers by default, breaking some copy protections
-    i386) WINE_TRY_CFLAGS([-fno-omit-frame-pointer],[MSVCRTFLAGS="$MSVCRTFLAGS -fno-omit-frame-pointer"]) ;;
+    i386)
+      WINE_TRY_CFLAGS([-fno-omit-frame-pointer],[MSVCRTFLAGS="$MSVCRTFLAGS -fno-omit-frame-pointer"])
+      ;;
     x86_64)
       case $host_os in
         dnl Mingw uses Windows 64-bit types, not Unix ones
@@ -1996,6 +2071,7 @@ int a(int b, ...) { __builtin_ms_va_list list; __builtin_ms_va_start(list,b); }]
   esac
 
   CFLAGS=$saved_CFLAGS
+  CXXFLAGS=$saved_CXXFLAGS
 
   dnl Enable -Werror
   if test "x$enable_werror" = "xyes"
@@ -2017,6 +2093,7 @@ AC_CACHE_CHECK([for the need to disable Fortify], ac_cv_c_fortify_enabled,
 if test "$ac_cv_c_fortify_enabled" = yes
 then
     CFLAGS="$CFLAGS -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0"
+    CXXFLAGS="$CXXFLAGS -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0"
 fi
 
 dnl **** Check for CFI directives support ****
@@ -3411,9 +3488,11 @@ WINE_CONFIG_MAKEFILE(libs/jpeg)
 WINE_CONFIG_MAKEFILE(libs/jxr)
 WINE_CONFIG_MAKEFILE(libs/lcms2)
 WINE_CONFIG_MAKEFILE(libs/ldap)
+WINE_CONFIG_MAKEFILE(libs/mesa)
 WINE_CONFIG_MAKEFILE(libs/mfuuid)
 WINE_CONFIG_MAKEFILE(libs/mpg123)
 WINE_CONFIG_MAKEFILE(libs/musl)
+WINE_CONFIG_MAKEFILE(libs/oldnames)
 WINE_CONFIG_MAKEFILE(libs/png)
 WINE_CONFIG_MAKEFILE(libs/strmbase)
 WINE_CONFIG_MAKEFILE(libs/strmiids)

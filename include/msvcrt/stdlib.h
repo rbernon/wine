@@ -121,6 +121,8 @@ extern unsigned int _fmode;
 
 #endif  /* __i386__ */
 
+_ACRTIMP int             __cdecl ___mb_cur_max_l_func(_locale_t);
+
 _ACRTIMP int             __cdecl ___mb_cur_max_func(void);
 _ACRTIMP int             __cdecl ___mb_cur_max_l_func(_locale_t);
 #define __mb_cur_max             ___mb_cur_max_func()
@@ -318,6 +320,14 @@ static inline ldiv_t __wine_msvcrt_ldiv(__msvcrt_long num, __msvcrt_long denom)
 }
 #define div(num,denom) __wine_msvcrt_div(num,denom)
 #define ldiv(num,denom) __wine_msvcrt_ldiv(num,denom)
+#endif
+
+#ifdef __cplusplus
+extern "C++"
+{
+inline long abs(long const _X) throw() { return labs(_X); }
+inline long long abs(long long const _X) throw() { return llabs(_X); }
+}
 #endif
 
 #include <poppack.h>

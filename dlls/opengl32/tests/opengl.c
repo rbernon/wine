@@ -1782,6 +1782,21 @@ static void test_destroy_read(HDC oldhdc)
     ret = SetPixelFormat(read_dc, pixel_format, &pf_desc);
     ok(ret, "Failed to set pixel format, last error %#lx.\n", GetLastError());
 
+    ctx = wglCreateContext(read_dc);
+    ok(!!ctx, "Failed to create GL context, last error %#lx.\n", GetLastError());
+    ret = pwglMakeContextCurrentARB(read_dc, read_dc, ctx);
+    ok(ret, "Failed to make context current, last error %#lx.\n", GetLastError());
+    glClear(GL_COLOR_BUFFER_BIT);
+    glFinish();
+    glerr = glGetError();
+    ok(glerr == GL_NO_ERROR, "Failed glCopyPixel, error %#x.\n", glerr);
+    ret = SwapBuffers(draw_dc);
+    ok(ret, "Failed SwapBuffers, error %#lx.\n", GetLastError());
+    ret = wglMakeCurrent(NULL, NULL);
+    ok(ret, "Failed to clear current context, last error %#lx.\n", GetLastError());
+    ret = wglDeleteContext(ctx);
+    ok(ret, "Failed to delete GL context, last error %#lx.\n", GetLastError());
+
     ctx = wglCreateContext(draw_dc);
     ok(!!ctx, "Failed to create GL context, last error %#lx.\n", GetLastError());
 

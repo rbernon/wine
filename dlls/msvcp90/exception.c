@@ -1354,6 +1354,14 @@ bool __cdecl __ExceptionPtrToBool(exception_ptr *ep)
 }
 
 /*********************************************************************
+ * ?__ExceptionPtrSwap@@YAXPAX0@Z
+ * ?__ExceptionPtrSwap@@YAXPEAX0@Z
+ */
+void __cdecl __ExceptionPtrSwap(exception_ptr *a, exception_ptr *b)
+{
+}
+
+/*********************************************************************
  * ?__ExceptionPtrCopyException@@YAXPAXPBX1@Z
  * ?__ExceptionPtrCopyException@@YAXPEAXPEBX1@Z
  */

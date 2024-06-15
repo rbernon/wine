@@ -501,3 +501,8 @@ ULONG WINAPIV EtwTraceMessage( TRACEHANDLE handle, ULONG flags, LPGUID guid, /*U
     va_end( valist );
     return ret;
 }
+
+BOOL WINAPI DllMainCRTStartup( HINSTANCE inst, DWORD reason, void *reserved )
+{
+    return DllMain( inst, reason, reserved );
+}
