@@ -1090,7 +1090,7 @@ static void test_cursor(void)
     info.cbSize = sizeof(info);
     ok(GetCursorInfo(&info), "GetCursorInfo failed\n");
     ok(info.flags & (CURSOR_SHOWING | CURSOR_SUPPRESSED), "Got cursor flags %#lx.\n", info.flags);
-    ok(info.hCursor == cur || broken(1), "The cursor handle is %p\n", info.hCursor); /* unchanged */
+    ok(info.hCursor == cur, "The cursor handle is %p\n", info.hCursor); /* unchanged */
 
     /* Still hidden */
     ret = IDirect3DDevice8_ShowCursor(device, TRUE);
@@ -1104,7 +1104,7 @@ static void test_cursor(void)
     info.cbSize = sizeof(info);
     ok(GetCursorInfo(&info), "GetCursorInfo failed\n");
     ok(info.flags & (CURSOR_SHOWING | CURSOR_SUPPRESSED), "Got cursor flags %#lx.\n", info.flags);
-    ok(info.hCursor != cur || broken(1), "The cursor handle is %p\n", info.hCursor);
+    ok(info.hCursor != cur, "The cursor handle is %p\n", info.hCursor);
 
     /* Cursor dimensions must all be powers of two */
     for (test_idx = 0; test_idx < ARRAY_SIZE(cursor_sizes); ++test_idx)
@@ -10928,6 +10928,8 @@ static void test_window_position(void)
         ok(ret, "Adapter %u: GetMonitorInfoW failed, error %#lx.\n", adapter_idx, GetLastError());
 
         window = create_window();
+        flush_events();
+
         device_desc.adapter_ordinal = adapter_idx;
         device_desc.device_window = window;
         device_desc.width = monitor_info.rcMonitor.right - monitor_info.rcMonitor.left;
