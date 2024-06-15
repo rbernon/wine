@@ -78,7 +78,8 @@ static void macdrv_surface_set_clip(struct window_surface *window_surface, const
  *              macdrv_surface_flush
  */
 static BOOL macdrv_surface_flush(struct window_surface *window_surface, const RECT *rect, const RECT *dirty,
-                                 const BITMAPINFO *color_info, const void *color_bits)
+                                 const BITMAPINFO *color_info, const void *color_bits, BOOL shape_changed,
+                                 const BITMAPINFO *shape_info, const void *shape_bits)
 {
     struct macdrv_window_surface *surface = get_mac_surface(window_surface);
     CGImageAlphaInfo alpha_info = (window_surface->alpha_mask ? kCGImageAlphaPremultipliedFirst : kCGImageAlphaNoneSkipFirst);
@@ -88,11 +89,36 @@ static BOOL macdrv_surface_flush(struct window_surface *window_surface, const RE
     colorspace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
     image = CGImageCreate(color_info->bmiHeader.biWidth, abs(color_info->bmiHeader.biHeight), 8, 32,
                           color_info->bmiHeader.biSizeImage / abs(color_info->bmiHeader.biHeight), colorspace,
-                          alpha_info | kCGBitmapByteOrder32Little, surface->provider, NULL, retina_on, kCGRenderingIntentDefault);
+                          alpha_info | kCGBitmapByteOrder32Little, surface->provider, NULL, true, kCGRenderingIntentDefault);
     CGColorSpaceRelease(colorspace);
 
     macdrv_window_set_color_image(surface->window, image, cgrect_from_rect(*rect), cgrect_from_rect(*dirty));
     CGImageRelease(image);
+
+    if (shape_changed)
+    {
+        if (!shape_info)
+            macdrv_window_set_shape_image(surface->window, NULL);
+        else
+        {
+            const BYTE *src = shape_bits;
+            CGDataProviderRef provider;
+            CGImageRef image;
+            BYTE *dst;
+            UINT i;
+
+            if (!(provider = data_provider_create(shape_info->bmiHeader.biSizeImage, (void **)&dst))) return TRUE;
+            for (i = 0; i < shape_info->bmiHeader.biSizeImage; i++) dst[i] = ~src[i]; /* CGImage mask bits are inverted */
+
+            image = CGImageMaskCreate(shape_info->bmiHeader.biWidth, abs(shape_info->bmiHeader.biHeight), 1, 1,
+                                      shape_info->bmiHeader.biSizeImage / abs(shape_info->bmiHeader.biHeight),
+                                      provider, NULL, true);
+            CGDataProviderRelease(provider);
+
+            macdrv_window_set_shape_image(surface->window, image);
+            CGImageRelease(image);
+        }
+    }
 
     return TRUE;
 }
@@ -106,10 +132,9 @@ static void macdrv_surface_destroy(struct window_surface *window_surface)
 
     TRACE("freeing %p\n", surface);
     CGDataProviderRelease(surface->provider);
-    free(surface);
 }
 
-static const struct window_surface_funcs macdrv_surface_funcs =
+const struct window_surface_funcs macdrv_surface_funcs =
 {
     macdrv_surface_set_clip,
     macdrv_surface_flush,
@@ -126,7 +151,7 @@ static struct macdrv_window_surface *get_mac_surface(struct window_surface *surf
  *              create_surface
  */
 static struct window_surface *create_surface(HWND hwnd, macdrv_window window, const RECT *rect,
-                                             struct window_surface *old_surface, BOOL use_alpha)
+                                             struct window_surface *old_surface)
 {
     struct macdrv_window_surface *surface = NULL;
     int width = rect->right - rect->left, height = rect->bottom - rect->top;
@@ -134,6 +159,7 @@ static struct window_surface *create_surface(HWND hwnd, macdrv_window window, co
     D3DKMT_CREATEDCFROMMEMORY desc = {.Format = D3DDDIFMT_A8R8G8B8};
     char buffer[FIELD_OFFSET(BITMAPINFO, bmiColors[256])];
     BITMAPINFO *info = (BITMAPINFO *)buffer;
+    struct window_surface *window_surface;
     CGDataProviderRef provider;
     HBITMAP bitmap = 0;
     UINT status;
@@ -165,25 +191,24 @@ static struct window_surface *create_surface(HWND hwnd, macdrv_window window, co
     }
     if (desc.hDeviceDc) NtUserReleaseDC(hwnd, desc.hDeviceDc);
 
-    if (!(surface = calloc(1, sizeof(*surface)))) goto failed;
-    if (!window_surface_init(&surface->header, &macdrv_surface_funcs, hwnd, rect, info, bitmap)) goto failed;
+    if (!window_surface_create(sizeof(*surface), &macdrv_surface_funcs, hwnd, rect, info, bitmap,
+                               color_key, use_alpha ? 0xff000000 : 0, &window_surface))
+        goto failed;
 
+    surface = get_mac_surface(window_surface);
     surface->window = window;
     if (old_surface) surface->header.bounds = old_surface->bounds;
     surface->provider = provider;
 
-    window_background = macdrv_window_background_color();
-    memset_pattern4(bits, &window_background, info->bmiHeader.biSizeImage);
+    if (window_surface_get_color(&surface->header, info, &bits))
+    {
+        window_background = macdrv_window_background_color();
+        memset_pattern4(bits, &window_background, info->bmiHeader.biSizeImage);
+    }
 
-    TRACE("created %p for %p %s\n", surface, window, wine_dbgstr_rect(rect));
-
-    if (use_alpha) window_surface_set_layered( &surface->header, CLR_INVALID, -1, 0xff000000 );
-    else window_surface_set_layered( &surface->header, CLR_INVALID, -1, 0 );
-
-    return &surface->header;
+    return window_surface;
 
 failed:
-    if (surface) window_surface_release(&surface->header);
     if (bitmap) NtGdiDeleteObjectApp(bitmap);
     CGDataProviderRelease(provider);
     return NULL;
@@ -193,32 +218,27 @@ failed:
 /***********************************************************************
  *              CreateWindowSurface   (MACDRV.@)
  */
-BOOL macdrv_CreateWindowSurface(HWND hwnd, const RECT *surface_rect, struct window_surface **surface)
+BOOL macdrv_CreateWindowSurface(HWND hwnd, const RECT *surface_rect, UINT dpi_from, UINT dpi_to,
+                                struct window_surface **surface)
 {
+    struct window_surface *previous;
     struct macdrv_win_data *data;
 
     TRACE("hwnd %p, surface_rect %s, surface %p\n", hwnd, wine_dbgstr_rect(surface_rect), surface);
 
     if (!(data = get_win_data(hwnd))) return TRUE; /* use default surface */
+    previous = *surface;
+    *surface = NULL;  /* indicate that we want to draw directly to the window */
 
-    if (*surface) window_surface_release(*surface);
-    *surface = NULL;
+    macdrv_window_set_surface_scale(data->cocoa_window, (float)dpi_to / (float)dpi_from);
 
-    if (data->surface)
-    {
-        if (EqualRect(&data->surface->rect, surface_rect))
-        {
-            /* existing surface is good enough */
-            window_surface_add_ref(data->surface);
-            *surface = data->surface;
-            goto done;
-        }
-    }
+    if (previous && previous->funcs == &macdrv_surface_funcs)
+        window_surface_add_ref((*surface = previous));
+    else
+        *surface = create_surface(data->hwnd, data->cocoa_window, surface_rect, data->surface);
 
-    *surface = create_surface(data->hwnd, data->cocoa_window, surface_rect, data->surface, FALSE);
-
-done:
     release_win_data(data);
+    if (previous) window_surface_release( previous );
     return TRUE;
 }
 
@@ -226,25 +246,21 @@ done:
 /***********************************************************************
  *              CreateLayeredWindow   (MACDRV.@)
  */
-BOOL macdrv_CreateLayeredWindow(HWND hwnd, const RECT *window_rect, COLORREF color_key,
+BOOL macdrv_CreateLayeredWindow(HWND hwnd, const RECT *surface_rect, COLORREF color_key,
                                 struct window_surface **window_surface)
 {
     struct window_surface *surface;
     struct macdrv_win_data *data;
-    RECT rect;
 
     if (!(data = get_win_data(hwnd))) return FALSE;
 
     data->layered = TRUE;
     data->ulw_layered = TRUE;
 
-    rect = *window_rect;
-    OffsetRect(&rect, -window_rect->left, -window_rect->top);
-
     surface = data->surface;
-    if (!surface || !EqualRect(&surface->rect, &rect))
+    if (!surface || !EqualRect(&surface->rect, surface_rect))
     {
-        data->surface = create_surface(data->hwnd, data->cocoa_window, &rect, NULL, TRUE);
+        data->surface = create_surface(data->hwnd, data->cocoa_window, surface_rect, NULL);
         if (surface) window_surface_release(surface);
         surface = data->surface;
         if (data->unminimized_surface)
@@ -253,7 +269,6 @@ BOOL macdrv_CreateLayeredWindow(HWND hwnd, const RECT *window_rect, COLORREF col
             data->unminimized_surface = NULL;
         }
     }
-    else window_surface_set_layered(surface, color_key, -1, 0xff000000);
 
     if ((*window_surface = surface)) window_surface_add_ref(surface);
 

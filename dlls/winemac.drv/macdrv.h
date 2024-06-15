@@ -150,12 +150,11 @@ extern BOOL macdrv_CreateLayeredWindow(HWND hwnd, const RECT *window_rect, COLOR
 extern void macdrv_UpdateLayeredWindow(HWND hwnd, const RECT *window_rect, COLORREF color_key,
                                        BYTE alpha, UINT flags);
 extern LRESULT macdrv_WindowMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
-extern BOOL macdrv_WindowPosChanging(HWND hwnd, UINT swp_flags, const RECT *window_rect, const RECT *client_rect, RECT *visible_rect);
-extern BOOL macdrv_CreateWindowSurface(HWND hwnd, const RECT *surface_rect, struct window_surface **surface);
-extern void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, UINT swp_flags,
-                                    const RECT *window_rect, const RECT *client_rect,
-                                    const RECT *visible_rect, const RECT *valid_rects,
-                                    struct window_surface *surface);
+extern BOOL macdrv_WindowPosChanging(HWND hwnd, UINT swp_flags, BOOL shaped, struct window_rects *rects);
+extern BOOL macdrv_CreateWindowSurface(HWND hwnd, const RECT *surface_rect, UINT dpi_from, UINT dpi_to,
+                                       struct window_surface **surface);
+extern void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, UINT swp_flags, const struct window_rects *old_rects,
+                                    const struct window_rects *new_rects, struct window_surface *surface);
 extern void macdrv_DestroyCursorIcon(HCURSOR cursor);
 extern BOOL macdrv_GetCursorPos(LPPOINT pos);
 extern void macdrv_SetCapture(HWND hwnd, UINT flags);
@@ -184,11 +183,8 @@ struct macdrv_win_data
     macdrv_window       cocoa_window;
     macdrv_view         cocoa_view;
     macdrv_view         client_cocoa_view;
-    RECT                window_rect;            /* USER window rectangle relative to parent */
-    RECT                whole_rect;             /* Mac window rectangle for the whole window relative to parent */
-    RECT                client_rect;            /* client area relative to parent */
+    struct window_rects rects;                  /* window rects in monitor DPI, relative to parent client area */
     int                 pixel_format;           /* pixel format for GL */
-    COLORREF            color_key;              /* color key for layered window; CLR_INVALID is not color keyed */
     HANDLE              drag_event;             /* event to signal that Cocoa-driven window dragging has ended */
     unsigned int        on_screen : 1;          /* is window ordered in? (minimized or not) */
     unsigned int        shaped : 1;             /* is window using a custom region shape? */
@@ -207,7 +203,6 @@ extern void init_win_context(void);
 extern macdrv_window macdrv_get_cocoa_window(HWND hwnd, BOOL require_on_screen);
 extern RGNDATA *get_region_data(HRGN hrgn, HDC hdc_lptodp);
 extern void activate_on_following_focus(void);
-extern void set_surface_use_alpha(struct window_surface *window_surface, BOOL use_alpha);
 
 extern void macdrv_handle_event(const macdrv_event *event);
 
