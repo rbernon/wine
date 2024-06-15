@@ -1006,11 +1006,6 @@ void CDECL __CxxUnregisterExceptionObject(cxx_frame_info *frame_info, BOOL in_us
     data->ctx_record = frame_info->context;
 }
 
-struct __std_exception_data {
-    char *what;
-    char dofree;
-};
-
 #if _MSVCR_VER>=140
 
 /*********************************************************************
