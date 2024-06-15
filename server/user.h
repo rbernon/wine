@@ -52,6 +52,8 @@ struct winstation
     struct clipboard  *clipboard;          /* clipboard information */
     struct atom_table *atom_table;         /* global atom table */
     struct namespace  *desktop_names;      /* namespace for desktops of this winstation */
+    unsigned int         dpi_mapping_count;/* number of screen DPI mappings */
+    struct dpi_mapping  *dpi_mappings;     /* virtual screen to host monitor mappings */
 };
 
 struct key_repeat

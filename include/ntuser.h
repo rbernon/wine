@@ -1319,6 +1319,9 @@ enum
     NtUserCallHwndParam_SendHardwareInput,
     NtUserCallHwndParam_ExposeWindowSurface,
     NtUserCallHwndParam_GetWinMonitorDpi,
+    NtUserCallHwndParam_SetRawWindowPos,
+    NtUserCallHwndParam_MapRectRawToVirt,
+    NtUserCallHwndParam_MapRectVirtToRaw,
     /* temporary exports */
     NtUserSetWindowStyle,
 };
@@ -1547,6 +1550,39 @@ static inline BOOL NtUserExposeWindowSurface( HWND hwnd, UINT flags, const RECT 
 static inline UINT NtUserGetWinMonitorDpi( HWND hwnd, MONITOR_DPI_TYPE type )
 {
     return NtUserCallHwndParam( hwnd, type, NtUserCallHwndParam_GetWinMonitorDpi );
+}
+
+struct set_raw_window_pos_params
+{
+    RECT rect;
+    UINT flags;
+    BOOL internal;
+};
+
+static inline BOOL NtUserSetRawWindowPos( HWND hwnd, RECT rect, UINT flags, BOOL internal )
+{
+    struct set_raw_window_pos_params params = {.rect = rect, .flags = flags, .internal = internal};
+    return NtUserCallHwndParam( hwnd, (UINT_PTR)&params, NtUserCallHwndParam_SetRawWindowPos );
+}
+
+struct map_raw_rect_params
+{
+    RECT rect;
+    UINT dpi;
+};
+
+static inline RECT NtUserMapRectRawToVirt( HWND hwnd, RECT rect, UINT dpi_to )
+{
+    struct map_raw_rect_params params = {.rect = rect, .dpi = dpi_to};
+    NtUserCallHwndParam( hwnd, (UINT_PTR)&params, NtUserCallHwndParam_MapRectRawToVirt );
+    return params.rect;
+}
+
+static inline RECT NtUserMapRectVirtToRaw( HWND hwnd, RECT rect, UINT dpi_from )
+{
+    struct map_raw_rect_params params = {.rect = rect, .dpi = dpi_from};
+    NtUserCallHwndParam( hwnd, (UINT_PTR)&params, NtUserCallHwndParam_MapRectVirtToRaw );
+    return params.rect;
 }
 
 #endif /* _NTUSER_ */

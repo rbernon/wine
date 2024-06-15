@@ -221,8 +221,8 @@ static void X11DRV_vulkan_surface_presented( HWND hwnd, void *private, VkResult 
     window = X11DRV_get_whole_window( toplevel );
     region = get_dc_monitor_region( hwnd, hdc );
 
-    NtUserGetClientRect( hwnd, &rect_dst, NtUserGetWinMonitorDpi( hwnd, MDT_DEFAULT ) );
-    NtUserMapWindowPoints( hwnd, toplevel, (POINT *)&rect_dst, 2, NtUserGetWinMonitorDpi( hwnd, MDT_DEFAULT ) );
+    NtUserGetClientRect( hwnd, &rect_dst, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
+    NtUserMapWindowPoints( hwnd, toplevel, (POINT *)&rect_dst, 2, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
 
     if ((data = get_win_data( toplevel )))
     {
@@ -240,6 +240,13 @@ static void X11DRV_vulkan_surface_presented( HWND hwnd, void *private, VkResult 
 
     if (region) NtGdiDeleteObjectApp( region );
     if (hdc) NtGdiDeleteObjectApp( hdc );
+}
+
+static void X11DRV_vulkan_surface_updated( HWND hwnd, void *private )
+{
+    struct vulkan_surface *surface = private;
+    vulkan_surface_update_size( hwnd, surface );
+    vulkan_surface_update_offscreen( hwnd, surface );
 }
 
 static VkBool32 X11DRV_vkGetPhysicalDeviceWin32PresentationSupportKHR(VkPhysicalDevice phys_dev,
@@ -262,6 +269,7 @@ static const struct vulkan_driver_funcs x11drv_vulkan_driver_funcs =
     .p_vulkan_surface_destroy = X11DRV_vulkan_surface_destroy,
     .p_vulkan_surface_detach = X11DRV_vulkan_surface_detach,
     .p_vulkan_surface_presented = X11DRV_vulkan_surface_presented,
+    .p_vulkan_surface_updated = X11DRV_vulkan_surface_updated,
 
     .p_vkGetPhysicalDeviceWin32PresentationSupportKHR = X11DRV_vkGetPhysicalDeviceWin32PresentationSupportKHR,
     .p_get_host_surface_extension = X11DRV_get_host_surface_extension,

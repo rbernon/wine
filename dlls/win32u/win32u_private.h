@@ -71,6 +71,9 @@ extern void fill_rect( HDC dc, const RECT *rect, HBRUSH hbrush );
 extern void get_sys_popup_pos( HWND hwnd, RECT *rect );
 extern LRESULT handle_nc_hit_test( HWND hwnd, POINT pt );
 
+/* dwmdrv.c */
+extern void dwm_init(void);
+
 /* hook.c */
 extern LRESULT call_current_hook( HHOOK hhook, INT code, WPARAM wparam, LPARAM lparam );
 extern LRESULT call_hooks( INT id, INT code, WPARAM wparam, LPARAM lparam,
@@ -107,7 +110,7 @@ extern BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus, DW
 extern BOOL set_ime_composition_window_pos( HWND hwnd, const POINT *point );
 extern void toggle_caret( HWND hwnd );
 extern void update_mouse_tracking_info( HWND hwnd );
-extern BOOL get_clip_cursor( RECT *rect, UINT dpi );
+extern BOOL get_clip_cursor( RECT *rect, UINT dpi, MONITOR_DPI_TYPE type );
 extern BOOL process_wine_clipcursor( HWND hwnd, UINT flags, BOOL reset );
 extern BOOL clip_fullscreen_window( HWND hwnd, BOOL reset );
 extern USHORT map_scan_to_kbd_vkey( USHORT scan, HKL layout );
@@ -187,6 +190,10 @@ extern RECT map_dpi_rect( RECT rect, UINT dpi_from, UINT dpi_to );
 extern HRGN map_dpi_region( HRGN region, UINT dpi_from, UINT dpi_to );
 extern struct window_rects map_dpi_window_rects( struct window_rects rects, UINT dpi_from, UINT dpi_to );
 extern BOOL message_beep( UINT i );
+extern RECT map_rect_raw_to_virt( HWND hwnd, RECT rect, UINT dpi_to );
+extern RECT map_rect_virt_to_raw( HWND hwnd, RECT rect, UINT dpi_from );
+extern struct window_rects map_window_rects_virt_to_raw( HWND hwnd, struct window_rects rects, UINT dpi_from );
+extern HMONITOR get_monitor_for_window( const RECT *window_rect );
 extern POINT point_phys_to_win_dpi( HWND hwnd, POINT pt );
 extern POINT point_thread_to_win_dpi( HWND hwnd, POINT pt );
 extern RECT rect_thread_to_win_dpi( HWND hwnd, RECT rect );
