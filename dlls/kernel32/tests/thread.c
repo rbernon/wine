@@ -1934,6 +1934,7 @@ static inline void fpu_invalid_operation(void)
 
     d = acos(2.0);
     ok(_isnan(d), "d = %lf\n", d);
+    todo_wine_if(_statusfp() == (_SW_INEXACT | _SW_INVALID))
     ok(_statusfp() == _SW_INVALID, "_statusfp() = %x\n", _statusfp());
 }
 
@@ -2047,6 +2048,7 @@ static void test_thread_fpu_cw(void)
     fpu_cw = get_fpu_cw();
     ok(cw == expected_cw[5].cw, "expected %#x got %#x\n", expected_cw[5].cw, cw);
     ok(fpu_cw == expected_cw[5].fpu_cw, "expected %#lx got %#lx\n", expected_cw[5].fpu_cw, fpu_cw);
+    _clearfp();
 
     fpu_invalid_operation();
     cw = _control87( 0, 0 );

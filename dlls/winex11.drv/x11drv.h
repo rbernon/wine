@@ -243,7 +243,8 @@ extern void X11DRV_UpdateLayeredWindow( HWND hwnd, UINT flags );
 extern LRESULT X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp );
 extern BOOL X11DRV_WindowPosChanging( HWND hwnd, UINT swp_flags, BOOL shaped, const struct window_rects *rects );
 extern BOOL X11DRV_GetWindowStyleMasks( HWND hwnd, UINT style, UINT ex_style, UINT *style_mask, UINT *ex_style_mask );
-extern BOOL X11DRV_CreateWindowSurface( HWND hwnd, BOOL layered, const RECT *surface_rect, struct window_surface **surface );
+extern BOOL X11DRV_CreateWindowSurface( HWND hwnd, BOOL layered, float scale, const RECT *surface_rect,
+                                        struct window_surface **surface );
 extern void X11DRV_MoveWindowBits( HWND hwnd, const struct window_rects *old_rects,
                                    const struct window_rects *new_rects, const RECT *valid_rects );
 extern void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UINT swp_flags, BOOL fullscreen,
@@ -511,6 +512,8 @@ enum x11drv_atoms
     XATOM__GTK_WORKAREAS_D0,
     XATOM__XEMBED,
     XATOM__XEMBED_INFO,
+    XATOM__WINE_HWND_STYLE,
+    XATOM__WINE_HWND_EXSTYLE,
     XATOM_XdndAware,
     XATOM_XdndEnter,
     XATOM_XdndPosition,
@@ -622,8 +625,6 @@ struct x11drv_win_data
     struct host_window *parent; /* the host window parent, frame or embedder, NULL if root_window */
     XIC         xic;            /* X input context */
     UINT        managed : 1;    /* is window managed? */
-    UINT        mapped : 1;     /* is window mapped? (in either normal or iconic state) */
-    UINT        iconic : 1;     /* is window in iconic state? */
     UINT        embedded : 1;   /* is window an XEMBED client? */
     UINT        shaped : 1;     /* is window using a custom region shape? */
     UINT        layered : 1;    /* is window layered and with valid attributes? */
@@ -633,14 +634,13 @@ struct x11drv_win_data
     UINT        net_wm_fullscreen_monitors_set : 1; /* is _NET_WM_FULLSCREEN_MONITORS set */
     UINT        is_fullscreen : 1; /* is the window visible rect fullscreen */
     UINT        parent_invalid : 1; /* is the parent host window possibly invalid */
-    int         wm_state;       /* current value of the WM_STATE property */
-    DWORD       net_wm_state;   /* bit mask of active x11drv_net_wm_state values */
     Window      embedder;       /* window id of embedder */
     Pixmap         icon_pixmap;
     Pixmap         icon_mask;
     unsigned long *icon_bits;
     unsigned int   icon_size;
 
+    struct window_state desired_state; /* window state tracking the desired / win32 state */
     struct window_state pending_state; /* window state tracking the pending / requested state */
     struct window_state current_state; /* window state tracking the current X11 state */
     unsigned long wm_state_serial;     /* serial of last pending WM_STATE request */
@@ -659,10 +659,12 @@ extern void set_gl_drawable_parent( HWND hwnd, HWND parent );
 extern void destroy_gl_drawable( HWND hwnd );
 extern void destroy_vk_surface( HWND hwnd );
 
+extern BOOL window_has_pending_wm_state( HWND hwnd );
 extern void window_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value );
 extern void window_net_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value );
 extern void window_configure_notify( struct x11drv_win_data *data, unsigned long serial, const RECT *rect );
-extern void wait_for_withdrawn_state( HWND hwnd, BOOL set );
+extern BOOL get_window_state_updates( HWND hwnd, UINT *state_cmd, UINT *config_cmd, RECT *rect );
+
 extern Window init_clip_window(void);
 extern void update_user_time( Time time );
 extern UINT get_window_net_wm_state( Display *display, Window window );
@@ -788,7 +790,7 @@ struct x11drv_gpu
     GUID vulkan_uuid;
 };
 
-struct x11drv_adapter
+struct x11drv_source
 {
     ULONG_PTR id;
     DWORD state_flags;
@@ -803,28 +805,28 @@ struct x11drv_display_device_handler
     /* Higher priority can override handlers with lower priority */
     INT priority;
 
-    /* get_gpus will be called to get a list of GPUs. First GPU has to be where the primary adapter is.
+    /* get_gpus will be called to get a list of GPUs. First GPU has to be where the primary source is.
      *
      * Return FALSE on failure with parameters unchanged */
     BOOL (*get_gpus)(struct x11drv_gpu **gpus, int *count, BOOL get_properties);
 
-    /* get_adapters will be called to get a list of adapters in EnumDisplayDevices context under a GPU.
-     * The first adapter has to be primary if GPU is primary.
+    /* get_sources will be called to get a list of sources in EnumDisplayDevices context under a GPU.
+     * The first source has to be primary if GPU is primary.
      *
      * Return FALSE on failure with parameters unchanged */
-    BOOL (*get_adapters)(ULONG_PTR gpu_id, struct x11drv_adapter **adapters, int *count);
+    BOOL (*get_sources)(ULONG_PTR gpu_id, struct x11drv_source **sources, int *count);
 
-    /* get_monitors will be called to get a list of monitors in EnumDisplayDevices context under an adapter.
-     * The first monitor has to be primary if adapter is primary.
+    /* get_monitors will be called to get a list of monitors in EnumDisplayDevices context under an source.
+     * The first monitor has to be primary if source is primary.
      *
      * Return FALSE on failure with parameters unchanged */
-    BOOL (*get_monitors)(ULONG_PTR adapter_id, struct gdi_monitor **monitors, int *count);
+    BOOL (*get_monitors)(ULONG_PTR source_id, struct gdi_monitor **monitors, int *count);
 
     /* free_gpus will be called to free a GPU list from get_gpus */
     void (*free_gpus)(struct x11drv_gpu *gpus, int count);
 
-    /* free_adapters will be called to free an adapter list from get_adapters */
-    void (*free_adapters)(struct x11drv_adapter *adapters);
+    /* free_sources will be called to free an source list from get_sources */
+    void (*free_sources)(struct x11drv_source *sources);
 
     /* free_monitors will be called to free a monitor list from get_monitors */
     void (*free_monitors)(struct gdi_monitor *monitors, int count);
