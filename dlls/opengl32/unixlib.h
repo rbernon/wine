@@ -3,6 +3,7 @@
 #ifndef __WINE_OPENGL32_UNIXLIB_H
 #define __WINE_OPENGL32_UNIXLIB_H
 
+#ifndef ENABLE_MESA
 #include <stdarg.h>
 #include <stddef.h>
 
@@ -28400,4 +28401,5 @@ struct gl_debug_message_callback_params
 
 #define UNIX_CALL( func, params ) WINE_UNIX_CALL( unix_ ## func, params )
 
+#endif /* ENABLE_MESA */
 #endif /* __WINE_OPENGL32_UNIXLIB_H */
