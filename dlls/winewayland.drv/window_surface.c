@@ -154,7 +154,7 @@ static struct wayland_shm_buffer *wayland_buffer_queue_get_free_buffer(struct wa
         if (nbuffers < 3)
         {
             shm_buffer = wayland_shm_buffer_create(queue->width, queue->height,
-                                                   WL_SHM_FORMAT_XRGB8888);
+                                                   WL_SHM_FORMAT_ARGB8888);
             if (shm_buffer)
             {
                 /* Buffer events go to their own queue so that we can dispatch
@@ -262,7 +262,7 @@ static void copy_pixel_region(const char *src_pixels, RECT *src_rect,
     {
         const char *src;
         char *dst;
-        int y, width_bytes, height;
+        int x, y, width_bytes, height;
         RECT rc;
 
         TRACE("rect %s\n", wine_dbgstr_rect(rgn_rect));
@@ -279,12 +279,14 @@ static void copy_pixel_region(const char *src_pixels, RECT *src_rect,
         if (width_bytes == src_stride && width_bytes == dst_stride)
         {
             memcpy(dst, src, height * width_bytes);
+            for (x = 3; x < height * width_bytes; x += bpp) dst[x] = 0xff;
             continue;
         }
 
         for (y = 0; y < height; y++)
         {
             memcpy(dst, src, width_bytes);
+            for (x = 3; x < width_bytes; x += bpp) dst[x] = 0xff;
             src += src_stride;
             dst += dst_stride;
         }
@@ -313,6 +315,34 @@ static void wayland_shm_buffer_copy(struct wayland_shm_buffer *src,
     RECT dst_rect = {0, 0, dst->width, dst->height};
     TRACE("src=%p dst=%p\n", src, dst);
     copy_pixel_region(src->map_data, &src_rect, dst->map_data, &dst_rect, region);
+}
+
+/**********************************************************************
+ *          wayland_shm_buffer_copy_data
+ */
+static void wayland_shm_buffer_copy_shape(struct wayland_shm_buffer *buffer, const RECT *dirty,
+                                          const BITMAPINFO *shape_info, const void *shape_bits)
+{
+    RECT dst_rect = {0, 0, buffer->width, buffer->height};
+    UINT32 *color, shape_stride, color_stride, x, y;
+    const BYTE *shape;
+    RECT rect;
+
+    shape_stride = shape_info->bmiHeader.biSizeImage / abs(shape_info->bmiHeader.biHeight);
+    color_stride = dst_rect.right - dst_rect.left;
+
+    if (!intersect_rect(&rect, &dst_rect, dirty)) return;
+
+    color = (UINT32 *)buffer->map_data + rect.top * color_stride;
+    shape = (const BYTE *)shape_bits + rect.top * shape_stride;
+
+    for (y = rect.top; y < rect.bottom; y++, color += color_stride, shape += shape_stride)
+    {
+        for (x = rect.left; x < rect.right; x++)
+        {
+            if (!(shape[x / 8] & (1 << (7 - (x & 7))))) color[x] = 0;
+        }
+    }
 }
 
 /***********************************************************************
@@ -385,6 +415,7 @@ static BOOL wayland_window_surface_flush(struct window_surface *window_surface, 
     }
 
     wayland_shm_buffer_copy_data(shm_buffer, color_bits, &surface_rect, copy_from_window_region);
+    if (shape_bits) wayland_shm_buffer_copy_shape(shm_buffer, rect, shape_info, shape_bits);
 
     pthread_mutex_lock(&wws->wayland_surface->mutex);
     if (wayland_surface_reconfigure(wws->wayland_surface))
@@ -510,31 +541,23 @@ void wayland_window_surface_update_wayland_surface(struct window_surface *window
 /***********************************************************************
  *           WAYLAND_CreateWindowSurface
  */
-BOOL WAYLAND_CreateWindowSurface(HWND hwnd, const RECT *surface_rect, struct window_surface **surface)
+BOOL WAYLAND_CreateWindowSurface(HWND hwnd, BOOL layered, UINT dpi_from, UINT dpi_to,
+                                 const RECT *surface_rect, struct window_surface **surface)
 {
+    struct window_surface *previous;
     struct wayland_win_data *data;
 
-    TRACE("hwnd %p, surface_rect %s, surface %p\n", hwnd, wine_dbgstr_rect(surface_rect), surface);
+    TRACE("hwnd %p, layered %u, surface_rect %s, surface %p\n", hwnd, layered, wine_dbgstr_rect(surface_rect), surface);
 
-    if (!(data = wayland_win_data_get(hwnd))) return TRUE; /* use default surface */
+    if (dpi_from != dpi_to) return FALSE; /* use default implementation */
+    if ((previous = *surface) && previous->funcs == &wayland_window_surface_funcs) return TRUE;
 
-    /* Release the dummy surface wine provides for toplevels. */
-    if (*surface) window_surface_release(*surface);
-    *surface = NULL;
-
-    /* Check if we can reuse our current window surface. */
-    if (data->window_surface &&
-        EqualRect(&data->window_surface->rect, surface_rect))
+    if ((data = wayland_win_data_get(hwnd)))
     {
-        window_surface_add_ref(data->window_surface);
-        *surface = data->window_surface;
-        TRACE("reusing surface %p\n", *surface);
-        goto done;
+        *surface = wayland_window_surface_create(hwnd, surface_rect);
+        wayland_win_data_release(data);
     }
 
-    *surface = wayland_window_surface_create(data->hwnd, surface_rect);
-
-done:
-    wayland_win_data_release(data);
+    if (previous) window_surface_release(previous);
     return TRUE;
 }

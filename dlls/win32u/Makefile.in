@@ -3,8 +3,8 @@ MODULE    = win32u.dll
 UNIXLIB   = win32u.so
 IMPORTLIB = win32u
 IMPORTS   = ntdll winecrt0
-UNIX_CFLAGS  = $(FREETYPE_CFLAGS) $(FONTCONFIG_CFLAGS)
-UNIX_LIBS    = $(CARBON_LIBS) $(APPKIT_LIBS) $(PTHREAD_LIBS) -lm
+UNIX_CFLAGS  = $(CAIRO_CFLAGS) $(FREETYPE_CFLAGS) $(FONTCONFIG_CFLAGS)
+UNIX_LIBS    = $(CAIRO_LIBS) $(CARBON_LIBS) $(APPKIT_LIBS) $(PTHREAD_LIBS) -lm
 
 EXTRADLLFLAGS = -nodefaultlibs
 
@@ -28,6 +28,7 @@ SOURCES = \
 	dibdrv/opengl.c \
 	dibdrv/primitives.c \
 	driver.c \
+	dwmdrv.c \
 	emfdrv.c \
 	font.c \
 	freetype.c \

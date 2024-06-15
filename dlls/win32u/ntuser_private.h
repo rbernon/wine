@@ -44,6 +44,8 @@ struct user_object
 
 #define OBJ_OTHER_PROCESS ((void *)1)  /* returned by get_user_handle_ptr on unknown handles */
 
+struct dwm_win_data;
+
 typedef struct tagWND
 {
     struct user_object obj;           /* object header */
@@ -54,9 +56,7 @@ typedef struct tagWND
     WNDPROC            winproc;       /* Window procedure */
     UINT               tid;           /* Owner thread id */
     HINSTANCE          hInstance;     /* Window hInstance (from CreateWindow) */
-    RECT               client_rect;   /* Client area rel. to parent client area */
-    RECT               window_rect;   /* Whole window rel. to parent client area */
-    RECT               visible_rect;  /* Visible part of the whole rect, rel. to parent client area */
+    struct window_rects rects;        /* window rects in window DPI, relative to the parent client area */
     RECT               normal_rect;   /* Normal window rect saved when maximized/minimized */
     POINT              min_pos;       /* Position for minimized window */
     POINT              max_pos;       /* Position for maximized window */
@@ -213,6 +213,9 @@ struct dce *set_class_dce( struct tagCLASS *class, struct dce *dce );
 BOOL needs_ime_window( HWND hwnd );
 extern void register_builtin_classes(void);
 extern void register_desktop_class(void);
+
+/* dwmdrv.c */
+extern BOOL load_dwm_driver(void);
 
 /* imm.c */
 extern LRESULT ime_driver_call( HWND hwnd, enum wine_ime_call call, WPARAM wparam, LPARAM lparam,

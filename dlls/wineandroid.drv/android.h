@@ -69,9 +69,8 @@ extern struct ANativeWindow *create_ioctl_window( HWND hwnd, BOOL opengl, float 
 extern struct ANativeWindow *grab_ioctl_window( struct ANativeWindow *window );
 extern void release_ioctl_window( struct ANativeWindow *window );
 extern void destroy_ioctl_window( HWND hwnd, BOOL opengl );
-extern int ioctl_window_pos_changed( HWND hwnd, const RECT *window_rect, const RECT *client_rect,
-                                     const RECT *visible_rect, UINT style, UINT flags,
-                                     HWND after, HWND owner );
+extern int ioctl_window_pos_changed( HWND hwnd, const struct window_rects *rects,
+                                     UINT style, UINT flags, HWND after, HWND owner );
 extern int ioctl_set_window_parent( HWND hwnd, HWND parent, float scale );
 extern int ioctl_set_capture( HWND hwnd );
 extern int ioctl_set_cursor( int id, int width, int height,
@@ -96,16 +95,12 @@ extern void ANDROID_SetParent( HWND hwnd, HWND parent, HWND old_parent );
 extern void ANDROID_SetCapture( HWND hwnd, UINT flags );
 extern void ANDROID_SetWindowStyle( HWND hwnd, INT offset, STYLESTRUCT *style );
 extern UINT ANDROID_ShowWindow( HWND hwnd, INT cmd, RECT *rect, UINT swp );
-extern BOOL ANDROID_CreateLayeredWindow( HWND hwnd, const RECT *surface_rect, COLORREF color_key,
-                                         struct window_surface **surface );
 extern LRESULT ANDROID_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp );
-extern BOOL ANDROID_WindowPosChanging( HWND hwnd, UINT swp_flags, BOOL shaped, const RECT *window_rect,
-                                       const RECT *client_rect, RECT *visible_rect );
-extern BOOL ANDROID_CreateWindowSurface( HWND hwnd, const RECT *surface_rect, struct window_surface **surface );
-extern void ANDROID_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
-                                      const RECT *window_rect, const RECT *client_rect,
-                                      const RECT *visible_rect, const RECT *valid_rects,
-                                      struct window_surface *surface );
+extern BOOL ANDROID_WindowPosChanging( HWND hwnd, UINT swp_flags, BOOL shaped, struct window_rects *rects );
+extern BOOL ANDROID_CreateWindowSurface( HWND hwnd, BOOL layered, UINT dpi_from, UINT dpi_to,
+                                         const RECT *surface_rect, struct window_surface **surface );
+extern void ANDROID_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags, const struct window_rects *old_rects,
+                                      const struct window_rects *new_rects, struct window_surface *surface );
 
 /* unixlib interface */
 

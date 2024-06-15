@@ -52,9 +52,7 @@ struct android_win_data
 {
     HWND           hwnd;           /* hwnd that this private data belongs to */
     HWND           parent;         /* parent hwnd for child windows */
-    RECT           window_rect;    /* USER window rectangle relative to parent */
-    RECT           whole_rect;     /* X window rectangle for the whole window relative to parent */
-    RECT           client_rect;    /* client area relative to parent */
+    struct window_rects rects;     /* window rects in monitor DPI, relative to parent client area */
     ANativeWindow *window;         /* native window wrapper that forwards calls to the desktop process */
     struct window_surface *surface;
 };
@@ -1019,8 +1017,7 @@ void ANDROID_DestroyWindow( HWND hwnd )
  *
  * Create a data window structure for an existing window.
  */
-static struct android_win_data *create_win_data( HWND hwnd, const RECT *window_rect,
-                                                 const RECT *client_rect )
+static struct android_win_data *create_win_data( HWND hwnd, const struct window_rects *rects )
 {
     struct android_win_data *data;
     HWND parent;
@@ -1030,8 +1027,7 @@ static struct android_win_data *create_win_data( HWND hwnd, const RECT *window_r
     if (!(data = alloc_win_data( hwnd ))) return NULL;
 
     data->parent = (parent == NtUserGetDesktopWindow()) ? 0 : parent;
-    data->whole_rect = data->window_rect = *window_rect;
-    data->client_rect = *client_rect;
+    data->rects = *rects;
     return data;
 }
 
@@ -1039,21 +1035,19 @@ static struct android_win_data *create_win_data( HWND hwnd, const RECT *window_r
 /***********************************************************************
  *           ANDROID_WindowPosChanging
  */
-BOOL ANDROID_WindowPosChanging( HWND hwnd, UINT swp_flags, BOOL shaped, const RECT *window_rect,
-                                const RECT *client_rect, RECT *visible_rect )
+BOOL ANDROID_WindowPosChanging( HWND hwnd, UINT swp_flags, BOOL shaped, struct window_rects *rects )
 {
     struct android_win_data *data = get_win_data( hwnd );
     BOOL ret = FALSE;
 
-    TRACE( "hwnd %p, swp_flags %04x, shaped %u, window_rect %s, client_rect %s, visible_rect %s\n",
-           hwnd, swp_flags, shaped, wine_dbgstr_rect(window_rect), wine_dbgstr_rect(client_rect),
-           wine_dbgstr_rect(visible_rect) );
+    TRACE( "hwnd %p, swp_flags %#x, shaped %u, rects %s\n", hwnd, swp_flags, shaped, debugstr_window_rects( rects ) );
 
-    if (!data && !(data = create_win_data( hwnd, window_rect, client_rect ))) return FALSE; /* use default surface */
+    if (!data && !(data = create_win_data( hwnd, rects ))) return FALSE; /* use default surface */
 
     if (data->parent) goto done; /* use default surface */
     if (is_argb_surface( data->surface )) goto done; /* use default surface */
 
+    TRACE( "-> rects %s\n", debugstr_window_rects( rects ) );
     ret = TRUE;
 
 done:
@@ -1065,31 +1059,24 @@ done:
 /***********************************************************************
  *           ANDROID_CreateWindowSurface
  */
-BOOL ANDROID_CreateWindowSurface( HWND hwnd, const RECT *surface_rect, struct window_surface **surface )
+BOOL ANDROID_CreateWindowSurface( HWND hwnd, BOOL layered, UINT dpi_from, UINT dpi_to,
+                                  const RECT *surface_rect, struct window_surface **surface )
 {
+    struct window_surface *previous;
     struct android_win_data *data;
 
-    TRACE( "hwnd %p, surface_rect %s, surface %p\n", hwnd, wine_dbgstr_rect( surface_rect ), surface );
+    TRACE( "hwnd %p, layered %u, surface_rect %s, surface %p\n", hwnd, layered, wine_dbgstr_rect( surface_rect ), surface );
 
-    if (!(data = get_win_data( hwnd ))) return TRUE; /* use default surface */
+    if (dpi_from != dpi_to) return FALSE; /* use default implementation */
+    if ((previous = *surface) && previous->funcs == &android_surface_funcs) return TRUE;
 
-    if (data->surface)
+    if ((data = get_win_data( hwnd )))
     {
-        if (EqualRect( &data->surface->rect, surface_rect ))
-        {
-            /* existing surface is good enough */
-            window_surface_add_ref( data->surface );
-            if (*surface) window_surface_release( *surface );
-            *surface = data->surface;
-            goto done;
-        }
+        *surface = create_surface( hwnd, surface_rect );
+        release_win_data( data );
     }
 
-    if (*surface) window_surface_release( *surface );
-    *surface = create_surface( data->hwnd, surface_rect );
-
-done:
-    release_win_data( data );
+    if (previous) window_surface_release( previous );
     return TRUE;
 }
 
@@ -1097,20 +1084,15 @@ done:
 /***********************************************************************
  *           ANDROID_WindowPosChanged
  */
-void ANDROID_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
-                               const RECT *window_rect, const RECT *client_rect,
-                               const RECT *visible_rect, const RECT *valid_rects,
-                               struct window_surface *surface )
+void ANDROID_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags, const struct window_rects *old_rects,
+                               const struct window_rects *new_rects, struct window_surface *surface )
 {
     struct android_win_data *data;
     UINT new_style = NtUserGetWindowLongW( hwnd, GWL_STYLE );
     HWND owner = 0;
 
     if (!(data = get_win_data( hwnd ))) return;
-
-    data->window_rect = *window_rect;
-    data->whole_rect  = *visible_rect;
-    data->client_rect = *client_rect;
+    data->rects = *new_rects;
 
     if (!is_argb_surface( data->surface ))
     {
@@ -1124,11 +1106,10 @@ void ANDROID_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
     if (!(swp_flags & SWP_NOZORDER)) insert_after = NtUserGetWindowRelative( hwnd, GW_HWNDPREV );
 
     TRACE( "win %p window %s client %s style %08x owner %p after %p flags %08x\n", hwnd,
-           wine_dbgstr_rect(window_rect), wine_dbgstr_rect(client_rect),
+           wine_dbgstr_rect(&new_rects->window), wine_dbgstr_rect(&new_rects->client),
            new_style, owner, insert_after, swp_flags );
 
-    ioctl_window_pos_changed( hwnd, window_rect, client_rect, visible_rect,
-                              new_style, swp_flags, insert_after, owner );
+    ioctl_window_pos_changed( hwnd, new_rects, new_style, swp_flags, insert_after, owner );
 }
 
 
@@ -1256,38 +1237,6 @@ void ANDROID_SetWindowStyle( HWND hwnd, INT offset, STYLESTRUCT *style )
 }
 
 
-/*****************************************************************************
- *           ANDROID_CreateLayeredWindow
- */
-BOOL ANDROID_CreateLayeredWindow( HWND hwnd, const RECT *surface_rect, COLORREF color_key,
-                                  struct window_surface **window_surface )
-{
-    struct window_surface *surface;
-    struct android_win_data *data;
-
-    if (!(data = get_win_data( hwnd ))) return FALSE;
-
-    surface = data->surface;
-    if (!is_argb_surface( surface ))
-    {
-        if (surface) window_surface_release( surface );
-        surface = NULL;
-    }
-
-    if (!surface || !EqualRect( &surface->rect, surface_rect ))
-    {
-        data->surface = create_surface( data->hwnd, surface_rect );
-        if (surface) window_surface_release( surface );
-        surface = data->surface;
-    }
-
-    if ((*window_surface = surface)) window_surface_add_ref( surface );
-    release_win_data( data );
-
-    return TRUE;
-}
-
-
 /**********************************************************************
  *           ANDROID_WindowMessage
  */
@@ -1307,10 +1256,8 @@ LRESULT ANDROID_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
             struct window_surface *surface = data->surface;
             if (surface)
             {
-                window_surface_lock( surface );
-                surface->bounds = surface->rect;
-                window_surface_unlock( surface );
-                if (is_argb_surface( surface )) window_surface_flush( surface );
+                window_surface_expose( data->surface, &data->surface->rect, NULL, 0 );
+                if (is_argb_surface( data->surface )) window_surface_flush( data->surface );
             }
             release_win_data( data );
         }

@@ -376,7 +376,7 @@ done:
 
 POINT virtual_screen_to_root(INT x, INT y)
 {
-    RECT virtual = NtUserGetVirtualScreenRect();
+    RECT virtual = NtUserGetVirtualScreenRect(); /* FIXME DPI */
     POINT pt;
 
     pt.x = x - virtual.left;
@@ -386,7 +386,7 @@ POINT virtual_screen_to_root(INT x, INT y)
 
 POINT root_to_virtual_screen(INT x, INT y)
 {
-    RECT virtual = NtUserGetVirtualScreenRect();
+    RECT virtual = NtUserGetVirtualScreenRect(); /* FIXME DPI */
     POINT pt;
 
     pt.x = x + virtual.left;

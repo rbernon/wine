@@ -38,11 +38,51 @@
 #include "shellapi.h"
 #include "ddk/d3dkmthk.h"
 #include "kbd.h"
+#include "wine/dwmapi.h"
 #include "wine/list.h"
+#include "wine/debug.h"
 
 struct gdi_dc_funcs;
 struct opengl_funcs;
 struct vulkan_funcs;
+
+struct window_rects
+{
+    RECT window;    /* window area, including non-client frame */
+    RECT client;    /* client area, excluding non-client frame */
+    RECT visible;   /* area currently visible on the host screen, backed with a surface */
+    RECT valid;     /* area with valid pixels that should be moved to the new position */
+};
+
+static inline const char *debugstr_window_rects( const struct window_rects *rects )
+{
+    return wine_dbg_sprintf( "{ window %s, client %s, visible %s }", wine_dbgstr_rect( &rects->window ),
+                             wine_dbgstr_rect( &rects->client ), wine_dbgstr_rect( &rects->visible ) );
+}
+
+static inline RECT window_rects_window_from_visible( struct window_rects *rects, RECT visible_rect )
+{
+    RECT rect = visible_rect;
+
+    rect.left += rects->window.left - rects->visible.left;
+    rect.top += rects->window.top - rects->visible.top;
+    rect.right += rects->window.right - rects->visible.right;
+    rect.bottom += rects->window.bottom - rects->visible.bottom;
+
+    return rect;
+}
+
+static inline RECT window_rects_visible_from_window( struct window_rects *rects, RECT window_rect )
+{
+    RECT rect = window_rect;
+
+    rect.left += rects->visible.left - rects->window.left;
+    rect.top += rects->visible.top - rects->window.top;
+    rect.right += rects->visible.right - rects->window.right;
+    rect.bottom += rects->visible.bottom - rects->window.bottom;
+
+    return rect;
+}
 
 typedef struct gdi_physdev
 {
@@ -249,7 +289,7 @@ W32KAPI void window_surface_set_layered( struct window_surface *surface, COLORRE
 W32KAPI void window_surface_flush( struct window_surface *surface );
 W32KAPI void window_surface_set_clip( struct window_surface *surface, HRGN clip_region );
 W32KAPI void window_surface_set_shape( struct window_surface *surface, HRGN shape_region );
-W32KAPI void window_surface_set_layered( struct window_surface *surface, COLORREF color_key, UINT alpha_bits, UINT alpha_mask );
+W32KAPI void window_surface_expose( struct window_surface *surface, const RECT *dirty, const POINT *offset, UINT flags );
 
 /* display manager interface, used to initialize display device registry data */
 
@@ -342,13 +382,12 @@ struct user_driver_funcs
     void    (*pSetWindowText)(HWND,LPCWSTR);
     UINT    (*pShowWindow)(HWND,INT,RECT*,UINT);
     LRESULT (*pSysCommand)(HWND,WPARAM,LPARAM);
-    BOOL    (*pCreateLayeredWindow)(HWND,const RECT *,COLORREF,struct window_surface **);
     void    (*pUpdateLayeredWindow)(HWND,const RECT *,COLORREF,BYTE,UINT);
     LRESULT (*pWindowMessage)(HWND,UINT,WPARAM,LPARAM);
-    BOOL    (*pWindowPosChanging)(HWND,UINT,BOOL,const RECT *,const RECT *,RECT *);
-    BOOL    (*pCreateWindowSurface)(HWND,const RECT *,struct window_surface**);
-    void    (*pWindowPosChanged)(HWND,HWND,UINT,const RECT *,const RECT *,const RECT *,
-                                 const RECT *,struct window_surface*);
+    BOOL    (*pWindowPosChanging)(HWND,UINT,BOOL,struct window_rects *rects);
+    BOOL    (*pCreateWindowSurface)(HWND,BOOL,UINT,UINT,const RECT *,struct window_surface**);
+    void    (*pWindowPosChanged)(HWND,HWND,UINT,const struct window_rects*,
+                                 const struct window_rects*,struct window_surface*);
     /* system parameters */
     BOOL    (*pSystemParametersInfo)(UINT,UINT,void*,UINT);
     /* vulkan support */
@@ -363,5 +402,13 @@ W32KAPI void __wine_set_user_driver( const struct user_driver_funcs *funcs, UINT
 
 W32KAPI BOOL win32u_set_window_pixel_format( HWND hwnd, int format, BOOL internal );
 W32KAPI int win32u_get_window_pixel_format( HWND hwnd );
+
+struct dwm_funcs
+{
+    dwm_display_t (*connect)( const char *display_type, const char *display_name );
+    struct window_surface * (*surface_create)( HWND hwnd, const RECT *rect );
+};
+
+W32KAPI const struct dwm_funcs *__wine_get_dwm_driver( UINT version );
 
 #endif /* __WINE_WINE_GDI_DRIVER_H */
