@@ -1803,7 +1803,7 @@ static BOOL get_surface_rect( const RECT *visible_rect, RECT *surface_rect )
     return TRUE;
 }
 
-static BOOL get_default_window_surface( HWND hwnd, const RECT *surface_rect, struct window_surface **surface )
+static BOOL get_default_window_surface( HWND hwnd, BOOL layered, const RECT *surface_rect, struct window_surface **surface )
 {
     struct window_surface *previous;
     WND *win;
@@ -1812,7 +1812,7 @@ static BOOL get_default_window_surface( HWND hwnd, const RECT *surface_rect, str
 
     if (!(win = get_win_ptr( hwnd )) || win == WND_DESKTOP || win == WND_OTHER_PROCESS) return FALSE;
 
-    if ((previous = win->surface) && EqualRect( &previous->rect, surface_rect ))
+    if ((previous = win->surface) && EqualRect( &previous->rect, surface_rect ) && !layered == !previous->alpha_mask)
     {
         window_surface_add_ref( (*surface = previous) );
         TRACE( "trying to reuse previous surface %p\n", previous );
@@ -1850,7 +1850,7 @@ static struct window_surface *create_window_surface( HWND hwnd, UINT swp_flags, 
     else needs_surface = !!(NtUserGetWindowLongW( hwnd, GWL_STYLE ) & WS_VISIBLE);
 
     if (!get_surface_rect( visible_rect, surface_rect )) needs_surface = FALSE;
-    if (!get_default_window_surface( hwnd, surface_rect, &new_surface )) return NULL;
+    if (!get_default_window_surface( hwnd, layered, surface_rect, &new_surface )) return NULL;
 
     if (!needs_surface || IsRectEmpty( visible_rect )) needs_surface = FALSE; /* use default surface */
     else needs_surface = !user_driver->pCreateWindowSurface( hwnd, surface_rect, &new_surface );
