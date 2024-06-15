@@ -249,6 +249,7 @@ DLGPROC get_dialog_proc( DLGPROC ret, BOOL ansi )
 static void init_user(void)
 {
     gdi_init();
+    dwm_init();
     sysparams_init();
     winstation_init();
     register_desktop_class();

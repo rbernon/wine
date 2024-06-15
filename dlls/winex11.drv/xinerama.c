@@ -212,9 +212,9 @@ static void xinerama_free_gpus( struct x11drv_gpu *gpus, int count )
     free( gpus );
 }
 
-static BOOL xinerama_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new_adapters, int *count )
+static BOOL xinerama_get_sources( ULONG_PTR gpu_id, struct x11drv_source **new_sources, int *count )
 {
-    struct x11drv_adapter *adapters = NULL;
+    struct x11drv_source *sources = NULL;
     INT index = 0;
     INT i, j;
     INT primary_index;
@@ -223,10 +223,10 @@ static BOOL xinerama_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new
     if (gpu_id)
         return FALSE;
 
-    /* Being lazy, actual adapter count may be less */
+    /* Being lazy, actual source count may be less */
     pthread_mutex_lock( &xinerama_mutex );
-    adapters = calloc( nb_monitors, sizeof(*adapters) );
-    if (!adapters)
+    sources = calloc( nb_monitors, sizeof(*sources) );
+    if (!sources)
     {
         pthread_mutex_unlock( &xinerama_mutex );
         return FALSE;
@@ -248,29 +248,20 @@ static BOOL xinerama_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new
             }
         }
 
-        /* Mirrored monitors share the same adapter */
+        /* Mirrored monitors share the same source */
         if (mirrored)
             continue;
 
         /* Use monitor index as id */
-        adapters[index].id = (ULONG_PTR)i;
+        sources[index].id = (ULONG_PTR)i;
 
         if (i == primary_index)
-            adapters[index].state_flags |= DISPLAY_DEVICE_PRIMARY_DEVICE;
+            sources[index].state_flags |= DISPLAY_DEVICE_PRIMARY_DEVICE;
 
         if (!IsRectEmpty( &monitors[i].rcMonitor ))
-            adapters[index].state_flags |= DISPLAY_DEVICE_ATTACHED_TO_DESKTOP;
+            sources[index].state_flags |= DISPLAY_DEVICE_ATTACHED_TO_DESKTOP;
 
         index++;
-    }
-
-    /* Primary adapter has to be first */
-    if (primary_index)
-    {
-        struct x11drv_adapter tmp;
-        tmp = adapters[primary_index];
-        adapters[primary_index] = adapters[0];
-        adapters[0] = tmp;
     }
 
     *new_adapters = adapters;
@@ -279,15 +270,15 @@ static BOOL xinerama_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new
     return TRUE;
 }
 
-static void xinerama_free_adapters( struct x11drv_adapter *adapters )
+static void xinerama_free_sources( struct x11drv_source *sources )
 {
-    free( adapters );
+    free( sources );
 }
 
-static BOOL xinerama_get_monitors( ULONG_PTR adapter_id, struct gdi_monitor **new_monitors, int *count )
+static BOOL xinerama_get_monitors( ULONG_PTR source_id, struct gdi_monitor **new_monitors, int *count )
 {
     struct gdi_monitor *monitor;
-    INT first = (INT)adapter_id;
+    INT first = (INT)source_id;
     INT monitor_count = 0;
     INT index = 0;
     INT i;
@@ -373,10 +364,10 @@ void xinerama_init( unsigned int width, unsigned int height )
     handler.name = "Xinerama";
     handler.priority = 100;
     handler.get_gpus = xinerama_get_gpus;
-    handler.get_adapters = xinerama_get_adapters;
+    handler.get_sources = xinerama_get_sources;
     handler.get_monitors = xinerama_get_monitors;
     handler.free_gpus = xinerama_free_gpus;
-    handler.free_adapters = xinerama_free_adapters;
+    handler.free_sources = xinerama_free_sources;
     handler.free_monitors = xinerama_free_monitors;
     handler.register_event_handlers = NULL;
     X11DRV_DisplayDevices_SetHandler( &handler );

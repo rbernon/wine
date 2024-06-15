@@ -266,34 +266,14 @@ struct macdrv_gpu
     uint32_t revision_id;
 };
 
-/* Represent an adapter in EnumDisplayDevices context */
-struct macdrv_adapter
-{
-    /* ID to uniquely identify an adapter. Currently it's a CGDirectDisplayID */
-    uint32_t id;
-    /* as StateFlags in DISPLAY_DEVICE struct */
-    uint32_t state_flags;
-};
-
-/* Represent a monitor in EnumDisplayDevices context */
-struct macdrv_monitor
-{
-    /* as RcMonitor in MONITORINFO struct after conversion by rect_from_cgrect */
-    CGRect rc_monitor;
-    /* as RcWork in MONITORINFO struct after conversion by rect_from_cgrect */
-    CGRect rc_work;
-};
-
 extern int macdrv_get_displays(struct macdrv_display** displays, int* count);
 extern void macdrv_free_displays(struct macdrv_display* displays);
 extern int macdrv_set_display_mode(const struct macdrv_display* display,
                                    CGDisplayModeRef display_mode);
-extern int macdrv_get_gpus(struct macdrv_gpu** gpus, int* count);
-extern void macdrv_free_gpus(struct macdrv_gpu* gpus);
-extern int macdrv_get_adapters(uint64_t gpu_id, struct macdrv_adapter** adapters, int* count);
-extern void macdrv_free_adapters(struct macdrv_adapter* adapters);
-extern int macdrv_get_monitors(uint32_t adapter_id, struct macdrv_monitor** monitors, int* count);
-extern void macdrv_free_monitors(struct macdrv_monitor* monitors);
+
+extern int macdrv_get_gpus_from_metal(struct macdrv_gpu** new_gpus, int* count, uint64_t *dedicated_gpu_id, uint64_t *integrated_gpu_id);
+extern int macdrv_get_gpus_from_iokit(struct macdrv_gpu** new_gpus, int* count, uint64_t *dedicated_gpu_id, uint64_t *integrated_gpu_id);
+extern int macdrv_get_gpu_info_from_display_id(struct macdrv_gpu* gpu, CGDirectDisplayID display_id);
 
 
 /* event */

@@ -1188,6 +1188,8 @@ enum
     NtUserCallTwoParam_SetIMECompositionRect,
     NtUserCallTwoParam_AdjustWindowRect,
     NtUserCallTwoParam_GetVirtualScreenRect,
+    NtUserCallTwoParam_MapRectRawToVirt,
+    NtUserCallTwoParam_MapRectVirtToRaw,
     /* temporary exports */
     NtUserAllocWinProc,
 };
@@ -1257,6 +1259,18 @@ static inline RECT NtUserGetVirtualScreenRect( MONITOR_DPI_TYPE type )
     RECT virtual;
     NtUserCallTwoParam( (UINT_PTR)&virtual, type, NtUserCallTwoParam_GetVirtualScreenRect );
     return virtual;
+}
+
+static inline RECT NtUserMapRectRawToVirt( RECT rect, UINT dpi_to )
+{
+    NtUserCallTwoParam( (UINT_PTR)&rect, dpi_to, NtUserCallTwoParam_MapRectRawToVirt );
+    return rect;
+}
+
+static inline RECT NtUserMapRectVirtToRaw( RECT rect, UINT dpi_from )
+{
+    NtUserCallTwoParam( (UINT_PTR)&rect, dpi_from, NtUserCallTwoParam_MapRectVirtToRaw );
+    return rect;
 }
 
 /* NtUserCallHwnd codes, not compatible with Windows */

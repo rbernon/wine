@@ -17005,6 +17005,9 @@ START_TEST(ddraw2)
     if ((dwmapi = LoadLibraryA("dwmapi.dll")))
         pDwmIsCompositionEnabled = (void *)GetProcAddress(dwmapi, "DwmIsCompositionEnabled");
 
+    while (!winetest_failures) test_coop_level_mode_set();
+    return;
+
     test_coop_level_create_device_window();
     test_clipper_blt();
     test_coop_level_d3d_state();

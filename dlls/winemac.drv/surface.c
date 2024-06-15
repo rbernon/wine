@@ -211,13 +211,15 @@ static struct window_surface *create_surface(HWND hwnd, macdrv_window window, co
 /***********************************************************************
  *              CreateWindowSurface   (MACDRV.@)
  */
-BOOL macdrv_CreateWindowSurface(HWND hwnd, BOOL layered, const RECT *surface_rect, struct window_surface **surface)
+BOOL macdrv_CreateWindowSurface(HWND hwnd, BOOL layered, float scale, const RECT *surface_rect,
+                                struct window_surface **surface)
 {
     struct window_surface *previous;
     struct macdrv_win_data *data;
 
     TRACE("hwnd %p, layered %u, surface_rect %s, surface %p\n", hwnd, layered, wine_dbgstr_rect(surface_rect), surface);
 
+    if (scale != 1.0) return FALSE; /* let win32u scale for us */
     if ((previous = *surface) && previous->funcs == &macdrv_surface_funcs) return TRUE;
     if (!(data = get_win_data(hwnd))) return TRUE; /* use default surface */
     if (previous) window_surface_release(previous);

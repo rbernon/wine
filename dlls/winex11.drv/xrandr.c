@@ -231,9 +231,9 @@ static int XRandRErrorHandler(Display *dpy, XErrorEvent *event, void *arg)
 /* XRandR 1.0 display settings handler */
 static BOOL xrandr10_get_id( const WCHAR *device_name, BOOL is_primary, x11drv_settings_id *id )
 {
-    /* RandR 1.0 only supports changing the primary adapter settings.
-     * For non-primary adapters, an id is still provided but getting
-     * and changing non-primary adapters' settings will be ignored. */
+    /* RandR 1.0 only supports changing the primary source settings.
+     * For non-primary sources, an id is still provided but getting
+     * and changing non-primary sources' settings will be ignored. */
     id->id = is_primary ? 1 : 0;
     return TRUE;
 }
@@ -340,7 +340,7 @@ static BOOL xrandr10_get_current_mode( x11drv_settings_id id, DEVMODEW *mode )
 
     if (id.id != 1)
     {
-        FIXME("Non-primary adapters are unsupported.\n");
+        FIXME("Non-primary sources are unsupported.\n");
         mode->dmBitsPerPel = 0;
         mode->dmPelsWidth = 0;
         mode->dmPelsHeight = 0;
@@ -374,13 +374,13 @@ static LONG xrandr10_set_current_mode( x11drv_settings_id id, const DEVMODEW *mo
 
     if (id.id != 1)
     {
-        FIXME("Non-primary adapters are unsupported.\n");
+        FIXME("Non-primary sources are unsupported.\n");
         return DISP_CHANGE_SUCCESSFUL;
     }
 
     if (is_detached_mode(mode))
     {
-        FIXME("Detaching adapters is unsupported.\n");
+        FIXME("Detaching sources is unsupported.\n");
         return DISP_CHANGE_SUCCESSFUL;
     }
 
@@ -846,7 +846,7 @@ static BOOL xrandr14_get_gpus( struct x11drv_gpu **new_gpus, int *count, BOOL ge
         goto done;
 
     /* Some XRandR implementations don't support providers.
-     * In this case, report a fake one to try searching adapters in screen resources */
+     * In this case, report a fake one to try searching sources in screen resources */
     if (!provider_resources->nproviders)
     {
         WARN("XRandR implementation doesn't report any providers, faking one.\n");
@@ -921,21 +921,58 @@ static void xrandr14_free_gpus( struct x11drv_gpu *gpus, int count )
     free( gpus );
 }
 
-static BOOL xrandr14_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new_adapters, int *count )
+static BOOL is_output_mirrored( XRRScreenResources *resources, RROutput output, XRRCrtcInfo *crtc )
 {
-    struct x11drv_adapter *adapters = NULL;
+    XRROutputInfo *output_info;
+    XRRCrtcInfo *crtc_info;
+    UINT j;
+
+    for (j = 0; j < resources->noutput; ++j)
+    {
+        if (!(output_info = pXRRGetOutputInfo( gdi_display, resources, resources->outputs[j] ))) continue;
+        if (output_info->connection != RR_Connected || !output_info->crtc)
+        {
+            pXRRFreeOutputInfo( output_info );
+            continue;
+        }
+
+        crtc_info = pXRRGetCrtcInfo( gdi_display, resources, output_info->crtc );
+        pXRRFreeOutputInfo( output_info );
+        if (!crtc_info)
+            continue;
+
+        /* Some outputs may have the same coordinates, aka mirrored. Choose the output with
+         * the lowest value as primary and the rest will then be replicas in a mirroring set */
+        if (crtc_info->x == crtc->x &&
+            crtc_info->y == crtc->y &&
+            crtc_info->width == crtc->width &&
+            crtc_info->height == crtc->height &&
+            output > resources->outputs[j])
+        {
+            pXRRFreeCrtcInfo( crtc_info );
+            return TRUE;
+        }
+
+        pXRRFreeCrtcInfo( crtc_info );
+    }
+
+    return FALSE;
+}
+
+static BOOL xrandr14_get_sources( ULONG_PTR gpu_id, struct x11drv_source **new_sources, int *count )
+{
+    struct x11drv_source *sources = NULL;
     XRRScreenResources *screen_resources = NULL;
     XRRProviderInfo *provider_info = NULL;
-    XRRCrtcInfo *enum_crtc_info, *crtc_info = NULL;
-    XRROutputInfo *enum_output_info, *output_info = NULL;
+    XRRCrtcInfo *crtc_info = NULL;
+    XRROutputInfo *output_info = NULL;
     RROutput *outputs;
     INT crtc_count, output_count;
-    INT primary_adapter = 0;
     INT adapter_count = 0;
     BOOL mirrored, detached;
     RECT primary_rect;
     BOOL ret = FALSE;
-    INT i, j;
+    INT i;
 
     screen_resources = xrandr_get_screen_resources();
     if (!screen_resources)
@@ -951,7 +988,7 @@ static BOOL xrandr14_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new
         output_count = provider_info->noutputs;
         outputs = provider_info->outputs;
     }
-    /* Fake provider id, search adapters in screen resources */
+    /* Fake provider id, search sources in screen resources */
     else
     {
         crtc_count = screen_resources->ncrtc;
@@ -959,9 +996,9 @@ static BOOL xrandr14_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new
         outputs = screen_resources->outputs;
     }
 
-    /* Actual adapter count could be less */
-    adapters = calloc( crtc_count, sizeof(*adapters) );
-    if (!adapters)
+    /* Actual source count could be less */
+    sources = calloc( crtc_count, sizeof(*sources) );
+    if (!sources)
         goto done;
 
     primary_rect = get_primary_rect( screen_resources );
@@ -991,58 +1028,21 @@ static BOOL xrandr14_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new
         if (!output_info->crtc || !crtc_info->mode)
             detached = TRUE;
 
-        /* Ignore mirroring output replicas because mirrored monitors are under the same adapter */
-        mirrored = FALSE;
-        if (!detached)
+        /* Ignore mirroring output replicas because mirrored monitors are under the same source */
+        if (detached) mirrored = FALSE;
+        else mirrored = is_output_mirrored( screen_resources, outputs[i], crtc_info );
+
+        if (!mirrored)
         {
-            for (j = 0; j < screen_resources->noutput; ++j)
-            {
-                enum_output_info = pXRRGetOutputInfo( gdi_display, screen_resources, screen_resources->outputs[j] );
-                if (!enum_output_info)
-                    continue;
-
-                if (enum_output_info->connection != RR_Connected || !enum_output_info->crtc)
-                {
-                    pXRRFreeOutputInfo( enum_output_info );
-                    continue;
-                }
-
-                enum_crtc_info = pXRRGetCrtcInfo( gdi_display, screen_resources, enum_output_info->crtc );
-                pXRRFreeOutputInfo( enum_output_info );
-                if (!enum_crtc_info)
-                    continue;
-
-                /* Some outputs may have the same coordinates, aka mirrored. Choose the output with
-                 * the lowest value as primary and the rest will then be replicas in a mirroring set */
-                if (crtc_info->x == enum_crtc_info->x &&
-                    crtc_info->y == enum_crtc_info->y &&
-                    crtc_info->width == enum_crtc_info->width &&
-                    crtc_info->height == enum_crtc_info->height &&
-                    outputs[i] > screen_resources->outputs[j])
-                {
-                    mirrored = TRUE;
-                    pXRRFreeCrtcInfo( enum_crtc_info );
-                    break;
-                }
-
-                pXRRFreeCrtcInfo( enum_crtc_info );
-            }
-        }
-
-        if (!mirrored || detached)
-        {
-            /* Use RROutput as adapter id. The reason of not using RRCrtc is that we need to detect inactive but
+            /* Use RROutput as source id. The reason of not using RRCrtc is that we need to detect inactive but
              * attached monitors */
-            adapters[adapter_count].id = outputs[i];
+            sources[source_count].id = outputs[i];
             if (!detached)
-                adapters[adapter_count].state_flags |= DISPLAY_DEVICE_ATTACHED_TO_DESKTOP;
+                sources[source_count].state_flags |= DISPLAY_DEVICE_ATTACHED_TO_DESKTOP;
             if (is_crtc_primary( primary_rect, crtc_info ))
-            {
                 adapters[adapter_count].state_flags |= DISPLAY_DEVICE_PRIMARY_DEVICE;
-                primary_adapter = adapter_count;
-            }
 
-            ++adapter_count;
+            ++source_count;
         }
 
         pXRRFreeOutputInfo( output_info );
@@ -1052,14 +1052,6 @@ static BOOL xrandr14_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new
             pXRRFreeCrtcInfo( crtc_info );
             crtc_info = NULL;
         }
-    }
-
-    /* Make primary adapter the first */
-    if (primary_adapter)
-    {
-        struct x11drv_adapter tmp = adapters[0];
-        adapters[0] = adapters[primary_adapter];
-        adapters[primary_adapter] = tmp;
     }
 
     *new_adapters = adapters;
@@ -1076,18 +1068,18 @@ done:
         pXRRFreeCrtcInfo( crtc_info );
     if (!ret)
     {
-        free( adapters );
-        ERR("Failed to get adapters\n");
+        free( sources );
+        ERR("Failed to get sources\n");
     }
     return ret;
 }
 
-static void xrandr14_free_adapters( struct x11drv_adapter *adapters )
+static void xrandr14_free_sources( struct x11drv_source *sources )
 {
-    free( adapters );
+    free( sources );
 }
 
-static BOOL xrandr14_get_monitors( ULONG_PTR adapter_id, struct gdi_monitor **new_monitors, int *count )
+static BOOL xrandr14_get_monitors( ULONG_PTR source_id, struct gdi_monitor **new_monitors, int *count )
 {
     struct gdi_monitor *realloc_monitors, *monitors = NULL;
     XRRScreenResources *screen_resources = NULL;
@@ -1108,7 +1100,7 @@ static BOOL xrandr14_get_monitors( ULONG_PTR adapter_id, struct gdi_monitor **ne
     if (!monitors)
         goto done;
 
-    output_info = pXRRGetOutputInfo( gdi_display, screen_resources, adapter_id );
+    output_info = pXRRGetOutputInfo( gdi_display, screen_resources, source_id );
     if (!output_info)
         goto done;
 
@@ -1122,7 +1114,7 @@ static BOOL xrandr14_get_monitors( ULONG_PTR adapter_id, struct gdi_monitor **ne
     /* Inactive but attached monitor, no need to check for mirrored/replica monitors */
     if (!output_info->crtc || !crtc_info->mode)
     {
-        monitors[monitor_count].edid_len = get_edid( adapter_id, &monitors[monitor_count].edid );
+        monitors[monitor_count].edid_len = get_edid( source_id, &monitors[monitor_count].edid );
         monitor_count = 1;
     }
     /* Active monitors, need to find other monitors with the same coordinates as mirrored */
@@ -1272,9 +1264,9 @@ static void xrandr14_register_event_handlers(void)
 static BOOL xrandr14_get_id( const WCHAR *device_name, BOOL is_primary, x11drv_settings_id *id )
 {
     struct current_mode *tmp_modes, *new_current_modes = NULL;
-    INT gpu_count, adapter_count, new_current_mode_count = 0;
-    INT gpu_idx, adapter_idx, display_idx;
-    struct x11drv_adapter *adapters;
+    INT gpu_count, source_count, new_current_mode_count = 0;
+    INT gpu_idx, source_idx, display_idx;
+    struct x11drv_source *sources;
     struct x11drv_gpu *gpus;
     WCHAR *end;
 
@@ -1295,24 +1287,24 @@ static BOOL xrandr14_get_id( const WCHAR *device_name, BOOL is_primary, x11drv_s
 
         for (gpu_idx = 0; gpu_idx < gpu_count; ++gpu_idx)
         {
-            if (!xrandr14_get_adapters( gpus[gpu_idx].id, &adapters, &adapter_count ))
+            if (!xrandr14_get_sources( gpus[gpu_idx].id, &sources, &source_count ))
                 break;
 
-            tmp_modes = realloc( new_current_modes, (new_current_mode_count + adapter_count) * sizeof(*tmp_modes) );
+            tmp_modes = realloc( new_current_modes, (new_current_mode_count + source_count) * sizeof(*tmp_modes) );
             if (!tmp_modes)
             {
-                xrandr14_free_adapters( adapters );
+                xrandr14_free_sources( sources );
                 break;
             }
             new_current_modes = tmp_modes;
 
-            for (adapter_idx = 0; adapter_idx < adapter_count; ++adapter_idx)
+            for (source_idx = 0; source_idx < source_count; ++source_idx)
             {
-                new_current_modes[new_current_mode_count + adapter_idx].id = adapters[adapter_idx].id;
-                new_current_modes[new_current_mode_count + adapter_idx].loaded = FALSE;
+                new_current_modes[new_current_mode_count + source_idx].id = sources[source_idx].id;
+                new_current_modes[new_current_mode_count + source_idx].loaded = FALSE;
             }
-            new_current_mode_count += adapter_count;
-            xrandr14_free_adapters( adapters );
+            new_current_mode_count += source_count;
+            xrandr14_free_sources( sources );
         }
         xrandr14_free_gpus( gpus, gpu_count );
 
@@ -1767,10 +1759,10 @@ void X11DRV_XRandR_Init(void)
         display_handler.name = "XRandR 1.4";
         display_handler.priority = 200;
         display_handler.get_gpus = xrandr14_get_gpus;
-        display_handler.get_adapters = xrandr14_get_adapters;
+        display_handler.get_sources = xrandr14_get_sources;
         display_handler.get_monitors = xrandr14_get_monitors;
         display_handler.free_gpus = xrandr14_free_gpus;
-        display_handler.free_adapters = xrandr14_free_adapters;
+        display_handler.free_sources = xrandr14_free_sources;
         display_handler.free_monitors = xrandr14_free_monitors;
         display_handler.register_event_handlers = xrandr14_register_event_handlers;
         X11DRV_DisplayDevices_SetHandler( &display_handler );
