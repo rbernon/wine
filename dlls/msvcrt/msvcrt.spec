@@ -80,6 +80,7 @@
 @ extern ??_7bad_cast@@6B@ bad_cast_vtable
 @ extern ??_7bad_typeid@@6B@ bad_typeid_vtable
 @ extern ??_7exception@@6B@ exception_vtable
+@ extern ??_7type_info@@6B@ type_info_vtable
 @ thiscall -arch=i386 ??_E__non_rtti_object@@UAEPAXI@Z(ptr long) __non_rtti_object_vector_dtor
 @ thiscall -arch=i386 ??_Ebad_cast@@UAEPAXI@Z(ptr long) bad_cast_vector_dtor
 @ thiscall -arch=i386 ??_Ebad_typeid@@UAEPAXI@Z(ptr long) bad_typeid_vector_dtor
