@@ -907,7 +907,7 @@ static void test_source_reader(const char *filename, bool video)
 
         hr = IMFMediaType_GetGUID(mediatype, &MF_MT_SUBTYPE, &subtype);
         ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-        todo_wine ok(IsEqualGUID(&subtype, &MFVideoFormat_H264), "Got subtype %s.\n", debugstr_guid(&subtype));
+        ok(IsEqualGUID(&subtype, &MFVideoFormat_H264), "Got subtype %s.\n", debugstr_guid(&subtype));
 
         hr = IMFMediaType_GetUINT64(mediatype, &MF_MT_FRAME_SIZE, &framesize);
         ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
@@ -915,7 +915,7 @@ static void test_source_reader(const char *filename, bool video)
                 (unsigned int)(framesize >> 32), (unsigned int)framesize);
 
         hr = IMFMediaType_GetUINT32(mediatype, &MF_MT_DEFAULT_STRIDE, &stride);
-        todo_wine ok(hr == MF_E_ATTRIBUTENOTFOUND, "Unexpected hr %#lx.\n", hr);
+        ok(hr == MF_E_ATTRIBUTENOTFOUND, "Unexpected hr %#lx.\n", hr);
 
         IMFMediaType_Release(mediatype);
 
