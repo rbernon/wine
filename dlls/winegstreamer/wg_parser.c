@@ -919,6 +919,23 @@ static bool stream_create_post_processing_elements(GstPad *pad, struct wg_parser
         if (!link_src_to_element(pad, first) || !link_element_to_sink(last, stream->my_sink))
             return false;
     }
+    else if (!strcmp(name, "video/x-h264"))
+    {
+        GstCaps *parsed_caps;
+
+        /* Windows needs stream-format=byte-stream.
+         * decodebin will autoplug a h264parse if we stop on parsed=true,
+         * but it's not enough, because that h264parse will already have its
+         * caps set (to stream-format=avc), and we can't link it to our pad. */
+        parsed_caps = gst_caps_copy(caps);
+        gst_caps_set_simple(parsed_caps, "parsed", G_TYPE_BOOLEAN, true, NULL);
+        if (!(element = find_element(GST_ELEMENT_FACTORY_TYPE_PARSER, caps, parsed_caps))
+                || !append_element(parser->container, element, &first, &last))
+            return false;
+
+        if (!link_src_to_element(pad, first) || !link_element_to_sink(last, stream->my_sink))
+            return false;
+    }
     else
     {
         return link_src_to_sink(pad, stream->my_sink);
