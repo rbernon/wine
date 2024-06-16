@@ -1995,30 +1995,26 @@ BOOL X11DRV_CreateWindowSurface( HWND hwnd, const RECT *surface_rect, struct win
     TRACE( "hwnd %p, surface_rect %s, surface %p\n", hwnd, wine_dbgstr_rect( surface_rect ), surface );
 
     if (!(data = get_win_data( hwnd ))) return TRUE; /* use default surface */
-
-    if (!(data->layered = layered))
-        set_window_visual( data, &default_visual, FALSE );
-    else
-    {
-        if (!argb_visual.visualid) goto done;
-        if (!data->embedded) set_window_visual( data, &argb_visual, TRUE );
-    }
-
     previous = *surface;
     *surface = NULL;  /* indicate that we want to draw directly to the window */
 
-    if (!layered)
-    {
-        if (data->embedded) goto done; /* draw directly to the window */
-        if (data->whole_window == root_window) goto done; /* draw directly to the window */
-        if (data->client_window) goto done; /* draw directly to the window */
-        if (!client_side_graphics) goto done; /* draw directly to the window */
-    }
+    if (data->embedded) goto done; /* draw directly to the window */
+    if (data->whole_window == root_window) goto done; /* draw directly to the window */
+    if (data->client_window) goto done; /* draw directly to the window */
+    if (!client_side_graphics && !layered) goto done; /* draw directly to the window */
 
     if (previous && previous->funcs == &x11drv_surface_funcs)
         window_surface_add_ref( (*surface = previous) );
     else
-        *surface = create_surface( data->hwnd, data->whole_window, &data->vis, surface_rect, layered );
+    {
+        COLORREF key;
+        DWORD flags;
+
+        if (!layered || !NtUserGetLayeredWindowAttributes( hwnd, &key, NULL, &flags )) flags = 0;
+        if (!(flags & LWA_COLORKEY)) key = CLR_INVALID;
+
+        *surface = create_surface( data->hwnd, data->whole_window, &data->vis, surface_rect, FALSE );
+    }
 
 done:
     release_win_data( data );

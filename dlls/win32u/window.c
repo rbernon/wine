@@ -1829,8 +1829,7 @@ static BOOL get_surface_rect( const RECT *visible_rect, RECT *surface_rect )
     return TRUE;
 }
 
-static BOOL get_default_window_surface( HWND hwnd, const RECT *surface_rect, BOOL layered,
-                                        struct window_surface **surface )
+static BOOL get_default_window_surface( HWND hwnd, const RECT *surface_rect, struct window_surface **surface )
 {
     struct window_surface *previous;
     WND *win;
@@ -1839,8 +1838,7 @@ static BOOL get_default_window_surface( HWND hwnd, const RECT *surface_rect, BOO
 
     if (!(win = get_win_ptr( hwnd )) || win == WND_DESKTOP || win == WND_OTHER_PROCESS) return FALSE;
 
-    if ((previous = win->surface) && EqualRect( &previous->rect, surface_rect ) &&
-        (layered == window_surface_is_layered( previous )))
+    if ((previous = win->surface) && EqualRect( &previous->rect, surface_rect ))
     {
         window_surface_add_ref( (*surface = previous) );
         TRACE( "trying to reuse previous surface %p\n", previous );

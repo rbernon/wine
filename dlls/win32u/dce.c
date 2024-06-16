@@ -460,20 +460,18 @@ W32KAPI void window_surface_set_layered( struct window_surface *surface, COLORRE
     window_surface_lock( surface );
     if ((color_bits = window_surface_get_color( surface, color_info )))
     {
-        BOOL is_argb = color_info->bmiHeader.biBitCount == 32;
-
         color_key = get_color_key( color_info, color_key );
         if (color_key != surface->color_key)
         {
             surface->color_key = color_key;
             surface->bounds = surface->rect;
         }
-        if (is_argb && alpha_bits != surface->alpha_bits)
+        if (alpha_bits != surface->alpha_bits)
         {
             surface->alpha_bits = alpha_bits;
             surface->bounds = surface->rect;
         }
-        if (is_argb && alpha_mask != surface->alpha_mask)
+        if (alpha_mask != surface->alpha_mask)
         {
             surface->alpha_mask = alpha_mask;
             surface->bounds = surface->rect;
@@ -537,21 +535,6 @@ W32KAPI void window_surface_set_shape( struct window_surface *surface, HRGN shap
     window_surface_unlock( surface );
 
     window_surface_flush( surface );
-}
-
-BOOL window_surface_is_argb( struct window_surface *surface )
-{
-    char color_buf[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
-    BITMAPINFO *color_info = (BITMAPINFO *)color_buf;
-    void *color_bits;
-
-    return window_surface_get_color( surface, color_info, &color_bits ) &&
-           color_info->bmiHeader.biBitCount == 32;
-}
-
-BOOL window_surface_is_layered( struct window_surface *surface )
-{
-    return surface->alpha_mask != 0;
 }
 
 /*******************************************************************
