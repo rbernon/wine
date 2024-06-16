@@ -133,10 +133,16 @@ static struct wg_parser_stream *get_stream(wg_parser_stream_t stream)
 
 static bool caps_is_compressed(GstCaps *caps)
 {
+    const GstStructure *structure = gst_caps_get_structure(caps, 0);
     struct wg_format format;
 
-    if (!caps)
-        return false;
+    /* H.264 not in byte-stream format cannot be used by Windows.
+     * wg_format_from_caps() rejects this accordingly, but we still want to
+     * stop here, and force h264parse to convert to byte-stream for us.
+     * Therefore explicitly accept it here. */
+    if (!strcmp(gst_structure_get_name(structure), "video/x-h264"))
+        return true;
+
     wg_format_from_caps(&format, caps);
 
     return format.major_type != WG_MAJOR_TYPE_UNKNOWN
@@ -526,7 +532,7 @@ static bool parser_no_more_pads(struct wg_parser *parser)
 
 static gboolean autoplug_continue_cb(GstElement * decodebin, GstPad *pad, GstCaps * caps, gpointer user)
 {
-    return !caps_is_compressed(caps);
+    return caps && !caps_is_compressed(caps);
 }
 
 static GstAutoplugSelectResult autoplug_select_cb(GstElement *bin, GstPad *pad,
