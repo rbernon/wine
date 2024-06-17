@@ -1927,6 +1927,7 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
     BOOL ret, is_layered, needs_update = FALSE;
     RECT extra_rects[3];
     struct window_surface *old_surface;
+    UINT monitor_dpi;
 
     is_layered = new_surface && new_surface->alpha_mask;
 
@@ -1944,11 +1945,14 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
         copy_bits = FALSE;
     }
 
+    monitor_dpi = get_monitor_dpi( monitor_from_rect( &new_rects->window, MONITOR_DEFAULTTONEAREST, get_thread_dpi() ) );
+
     SERVER_START_REQ( set_window_pos )
     {
         req->handle        = wine_server_user_handle( hwnd );
         req->previous      = wine_server_user_handle( insert_after );
         req->swp_flags     = swp_flags;
+        req->monitor_dpi   = monitor_dpi;
         req->window        = wine_server_rectangle( new_rects->window );
         req->client        = wine_server_rectangle( new_rects->client );
         if (!EqualRect( &new_rects->window, &new_rects->visible ) || new_surface || !IsRectEmpty( &old_rects->valid ))
