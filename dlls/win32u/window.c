@@ -1862,6 +1862,7 @@ static struct window_surface *create_window_surface( HWND hwnd, UINT swp_flags, 
 {
     BOOL shaped, needs_surface, layered = !!(get_window_long( hwnd, GWL_EXSTYLE ) & WS_EX_LAYERED);
     struct window_surface *new_surface;
+    UINT monitor_dpi;
     RECT dummy;
     HRGN shape;
 
@@ -1930,11 +1931,14 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
         copy_bits = FALSE;
     }
 
+    monitor_dpi = get_monitor_dpi( monitor_from_rect( window_rect, MONITOR_DEFAULTTONEAREST, get_thread_dpi() ) );
+
     SERVER_START_REQ( set_window_pos )
     {
         req->handle        = wine_server_user_handle( hwnd );
         req->previous      = wine_server_user_handle( insert_after );
         req->swp_flags     = swp_flags;
+        req->monitor_dpi   = monitor_dpi;
         req->window        = wine_server_rectangle( new_rects->window );
         req->client        = wine_server_rectangle( new_rects->client );
         if (!EqualRect( &new_rects->window, &new_rects->visible ) || new_surface || !IsRectEmpty( &old_rects->valid ))
