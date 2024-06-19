@@ -50,7 +50,7 @@ build-clang:
   tags:
     - build
   script:
-    - ./tools/gitlab/build-clang
+    - git rebase $CI_MERGE_REQUEST_DIFF_BASE_SHA --exec ./tools/gitlab/build-clang
 
 build-mac:
   extends: .wine-build
