@@ -48,7 +48,7 @@ build-clang:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
   script:
     - mkdir -p build32 build64
-    - ./tools/gitlab/build-clang
+    - git rebase $CI_MERGE_REQUEST_DIFF_BASE_SHA --exec ./tools/gitlab/build-clang
 
 build-mac:
   extends: .wine-build
