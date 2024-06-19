@@ -277,30 +277,6 @@ void wayland_window_surface_update_wayland_surface(struct window_surface *surfac
 void wayland_window_flush(HWND hwnd);
 
 /**********************************************************************
- *          Wayland Window
- */
-
-/* private window data */
-struct wayland_win_data
-{
-    struct rb_entry entry;
-    /* hwnd that this private data belongs to */
-    HWND hwnd;
-    /* wayland surface (if any) for this window */
-    struct wayland_surface *wayland_surface;
-    /* wine window_surface backing this window */
-    struct window_surface *window_surface;
-    /* USER window rectangle relative to win32 parent window client area */
-    RECT window_rect;
-    /* USER client rectangle relative to win32 parent window client area */
-    RECT client_rect;
-    BOOL managed;
-};
-
-struct wayland_win_data *wayland_win_data_get(HWND hwnd);
-void wayland_win_data_release(struct wayland_win_data *data);
-
-/**********************************************************************
  *          Wayland Keyboard
  */
 

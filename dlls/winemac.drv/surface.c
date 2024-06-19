@@ -135,7 +135,7 @@ static void macdrv_surface_destroy(struct window_surface *window_surface)
     free(surface);
 }
 
-static const struct window_surface_funcs macdrv_surface_funcs =
+const struct window_surface_funcs macdrv_surface_funcs =
 {
     macdrv_surface_set_clip,
     macdrv_surface_flush,
@@ -218,30 +218,22 @@ failed:
  */
 BOOL macdrv_CreateWindowSurface(HWND hwnd, const RECT *surface_rect, struct window_surface **surface)
 {
+    struct window_surface *previous;
     struct macdrv_win_data *data;
 
     TRACE("hwnd %p, surface_rect %s, surface %p\n", hwnd, wine_dbgstr_rect(surface_rect), surface);
 
     if (!(data = get_win_data(hwnd))) return TRUE; /* use default surface */
+    previous = *surface;
+    *surface = NULL;  /* indicate that we want to draw directly to the window */
 
-    if (*surface) window_surface_release(*surface);
-    *surface = NULL;
+    if (previous && previous->funcs == &macdrv_surface_funcs)
+        window_surface_add_ref((*surface = previous));
+    else
+        *surface = create_surface(data->hwnd, data->cocoa_window, surface_rect, data->surface);
 
-    if (data->surface)
-    {
-        if (EqualRect(&data->surface->rect, surface_rect))
-        {
-            /* existing surface is good enough */
-            window_surface_add_ref(data->surface);
-            *surface = data->surface;
-            goto done;
-        }
-    }
-
-    *surface = create_surface(data->hwnd, data->cocoa_window, surface_rect, data->surface);
-
-done:
     release_win_data(data);
+    if (previous) window_surface_release( previous );
     return TRUE;
 }
 

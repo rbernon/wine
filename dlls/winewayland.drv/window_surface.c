@@ -459,7 +459,7 @@ static void wayland_window_surface_destroy(struct window_surface *window_surface
     free(wws);
 }
 
-static const struct window_surface_funcs wayland_window_surface_funcs =
+const struct window_surface_funcs wayland_window_surface_funcs =
 {
     wayland_window_surface_set_clip,
     wayland_window_surface_flush,
@@ -543,29 +543,18 @@ void wayland_window_surface_update_wayland_surface(struct window_surface *window
  */
 BOOL WAYLAND_CreateWindowSurface(HWND hwnd, const RECT *surface_rect, struct window_surface **surface)
 {
-    struct wayland_win_data *data;
+    struct window_surface *previous;
 
     TRACE("hwnd %p, surface_rect %s, surface %p\n", hwnd, wine_dbgstr_rect(surface_rect), surface);
 
-    if (!(data = wayland_win_data_get(hwnd))) return TRUE; /* use default surface */
+    previous = *surface;
+    *surface = NULL;  /* indicate that we want to draw directly to the window */
 
-    /* Release the dummy surface wine provides for toplevels. */
-    if (*surface) window_surface_release(*surface);
-    *surface = NULL;
+    if (previous && previous->funcs == &wayland_window_surface_funcs)
+        window_surface_add_ref((*surface = previous));
+    else
+        *surface = wayland_window_surface_create(hwnd, surface_rect);
 
-    /* Check if we can reuse our current window surface. */
-    if (data->window_surface &&
-        EqualRect(&data->window_surface->rect, surface_rect))
-    {
-        window_surface_add_ref(data->window_surface);
-        *surface = data->window_surface;
-        TRACE("reusing surface %p\n", *surface);
-        goto done;
-    }
-
-    *surface = wayland_window_surface_create(data->hwnd, surface_rect);
-
-done:
-    wayland_win_data_release(data);
+    if (previous) window_surface_release( previous );
     return TRUE;
 }

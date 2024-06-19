@@ -125,8 +125,7 @@ void create_offscreen_window_surface( HWND hwnd, const RECT *surface_rect, struc
     TRACE( "hwnd %p, surface_rect %s, window_surface %p.\n", hwnd, wine_dbgstr_rect( surface_rect ), window_surface );
 
     /* check that old surface is an offscreen_window_surface, or release it */
-    if ((previous = *window_surface) && previous->funcs == &offscreen_window_surface_funcs &&
-        EqualRect( surface_rect, &previous->rect )) return;
+    if ((previous = *window_surface) && previous->funcs == &offscreen_window_surface_funcs) return;
     if (previous) window_surface_release( previous );
     *window_surface = NULL;
 
@@ -141,7 +140,7 @@ void create_offscreen_window_surface( HWND hwnd, const RECT *surface_rect, struc
 
     /* create a new window surface */
     if (!(surface = calloc(1, sizeof(*surface)))) return;
-    window_surface_init( surface, &offscreen_window_surface_funcs, hwnd, surface_rect, info, 0 );
+    window_surface_init( surface, &offscreen_window_surface_funcs, hwnd, &surface_rect, info, 0  );
 
     TRACE( "created window surface %p\n", surface );
     *window_surface = surface;

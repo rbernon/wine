@@ -1843,15 +1843,16 @@ static BOOL get_default_window_surface( HWND hwnd, BOOL layered, const RECT *sur
         window_surface_add_ref( (*surface = previous) );
         TRACE( "trying to reuse previous surface %p\n", previous );
     }
-    else if (!win->parent || win->parent == get_desktop_window())
+    else if (win->parent && win->parent != get_desktop_window())
     {
-        *surface = &dummy_surface;  /* provide a default surface for top-level windows */
-        window_surface_add_ref( *surface );
+        *surface = NULL; /* use parent surface for child windows */
+        TRACE( "using parent surface\n" );
     }
     else
     {
-        *surface = NULL; /* use parent surface for child windows */
-        TRACE( "using parent window surface\n" );
+        /* provide a default surface for top-level windows */
+        *surface = &dummy_surface;
+        window_surface_add_ref( *surface );
     }
 
     release_win_ptr( win );

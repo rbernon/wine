@@ -56,6 +56,23 @@ static BOOL set_window_pos(HWND hwnd, HWND after, INT x, INT y, INT cx, INT cy, 
 }
 
 
+/* private window data */
+struct wayland_win_data
+{
+    struct rb_entry entry;
+    /* hwnd that this private data belongs to */
+    HWND hwnd;
+    /* wayland surface (if any) for this window */
+    struct wayland_surface *wayland_surface;
+    /* wine window_surface backing this window */
+    struct window_surface *window_surface;
+    /* USER window rectangle relative to win32 parent window client area */
+    RECT window_rect;
+    /* USER client rectangle relative to win32 parent window client area */
+    RECT client_rect;
+    BOOL managed;
+};
+
 static int wayland_win_data_cmp_rb(const void *key,
                                    const struct rb_entry *entry)
 {
@@ -136,7 +153,7 @@ static void wayland_win_data_destroy(struct wayland_win_data *data)
  *
  * Lock and return the data structure associated with a window.
  */
-struct wayland_win_data *wayland_win_data_get(HWND hwnd)
+static struct wayland_win_data *wayland_win_data_get(HWND hwnd)
 {
     struct rb_entry *rb_entry;
 
@@ -155,7 +172,7 @@ struct wayland_win_data *wayland_win_data_get(HWND hwnd)
  *
  * Release the data returned by wayland_win_data_get.
  */
-void wayland_win_data_release(struct wayland_win_data *data)
+static void wayland_win_data_release(struct wayland_win_data *data)
 {
     assert(data);
     pthread_mutex_unlock(&win_data_mutex);

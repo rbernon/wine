@@ -1871,7 +1871,7 @@ static void x11drv_surface_destroy( struct window_surface *window_surface )
     free( surface );
 }
 
-static const struct window_surface_funcs x11drv_surface_funcs =
+const struct window_surface_funcs x11drv_surface_funcs =
 {
     x11drv_surface_set_clip,
     x11drv_surface_flush,
@@ -1988,14 +1988,14 @@ HRGN expose_surface( struct window_surface *window_surface, const RECT *rect )
  */
 BOOL X11DRV_CreateWindowSurface( HWND hwnd, const RECT *surface_rect, struct window_surface **surface )
 {
+    struct window_surface *previous;
     struct x11drv_win_data *data;
     BOOL layered = NtUserGetWindowLongW( hwnd, GWL_EXSTYLE ) & WS_EX_LAYERED;
 
     TRACE( "hwnd %p, surface_rect %s, surface %p\n", hwnd, wine_dbgstr_rect( surface_rect ), surface );
 
     if (!(data = get_win_data( hwnd ))) return TRUE; /* use default surface */
-
-    if (*surface) window_surface_release( *surface );
+    previous = *surface;
     *surface = NULL;  /* indicate that we want to draw directly to the window */
 
     if (data->embedded) goto done; /* draw directly to the window */
@@ -2003,21 +2003,14 @@ BOOL X11DRV_CreateWindowSurface( HWND hwnd, const RECT *surface_rect, struct win
     if (data->client_window) goto done; /* draw directly to the window */
     if (!client_side_graphics && !layered) goto done; /* draw directly to the window */
 
-    if (data->surface)
-    {
-        if (EqualRect( &data->surface->rect, surface_rect ))
-        {
-            /* existing surface is good enough */
-            window_surface_add_ref( data->surface );
-            *surface = data->surface;
-            goto done;
-        }
-    }
-
-    *surface = create_surface( data->hwnd, data->whole_window, &data->vis, surface_rect, FALSE );
+    if (previous && previous->funcs == &x11drv_surface_funcs)
+        window_surface_add_ref( (*surface = previous) );
+    else
+        *surface = create_surface( data->hwnd, data->whole_window, &data->vis, surface_rect, FALSE );
 
 done:
     release_win_data( data );
+    if (previous) window_surface_release( previous );
     return TRUE;
 }
 
