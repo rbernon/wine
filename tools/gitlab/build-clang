@@ -14,3 +14,5 @@ cd build64
 ../configure -q -C --enable-werror --enable-archs=i386,x86_64,aarch64 --with-mingw=clang
 make -s
 cd ..
+
+git reset --hard
