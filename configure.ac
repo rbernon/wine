@@ -445,7 +445,8 @@ AC_CHECK_HEADERS(\
 	syscall.h \
 	utime.h \
 	valgrind/memcheck.h \
-	valgrind/valgrind.h
+	valgrind/valgrind.h \
+	xkbcommon/xkbcommon-compose.h
 )
 AC_HEADER_MAJOR()
 
