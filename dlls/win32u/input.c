@@ -535,8 +535,9 @@ static WCHAR kbd_tables_vkey_to_wchar( const KBDTABLES *tables, UINT vkey, const
              * The entry corresponds to the mapping when Caps Lock is on, and a second entry follows it
              * with the mapping when Caps Lock is off.
              */
-            if ((entry->Attributes & SGCAPS) && !caps) entry = NEXT_ENTRY(table, entry);
-            if ((entry->Attributes & CAPLOK) && table->nModifications > caps_mod) return entry->wch[caps_mod];
+            if (!caps) while (entry->Attributes & SGCAPS) entry = NEXT_ENTRY(table, entry);
+            if ((entry->Attributes & CAPLOK) && table->nModifications > caps_mod) mod = caps_mod;
+            if (entry->wch[mod] == WCH_DEAD) entry = NEXT_ENTRY(table, entry);
             return entry->wch[mod];
         }
     }
