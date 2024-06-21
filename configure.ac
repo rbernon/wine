@@ -442,7 +442,8 @@ AC_CHECK_HEADERS(\
 	syscall.h \
 	utime.h \
 	valgrind/memcheck.h \
-	valgrind/valgrind.h
+	valgrind/valgrind.h \
+	xkbcommon/xkbcommon-compose.h
 )
 WINE_HEADER_MAJOR()
 AC_HEADER_STAT()
