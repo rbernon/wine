@@ -26,8 +26,8 @@
 #ifndef ST_INTEROP_H
 #define ST_INTEROP_H
 
-#include "GL/mesa_glinterop.h"
 #include "st_context.h"
+#include "GL/mesa_glinterop.h"
 
 int
 st_interop_query_device_info(struct st_context *st,

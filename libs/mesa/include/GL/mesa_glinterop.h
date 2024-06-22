@@ -75,6 +75,7 @@ typedef struct HDC__ *HDC;
 struct HGLRC__;
 typedef struct HGLRC__ *HGLRC;
 typedef void *HANDLE;
+#define WINAPI
 #endif
 
 typedef struct __GLsync *GLsync;
@@ -342,7 +343,7 @@ MesaGLInteropEGLQueryDeviceInfo(EGLDisplay dpy, EGLContext context,
 * Same as MesaGLInteropGLXQueryDeviceInfo except that it accepts HDC
 * and HGLRC.
 */
-int
+int WINAPI
 wglMesaGLInteropQueryDeviceInfo(HDC dpy, HGLRC context,
                                 struct mesa_glinterop_device_info *out);
 
@@ -377,7 +378,7 @@ MesaGLInteropEGLExportObject(EGLDisplay dpy, EGLContext context,
 * Same as MesaGLInteropGLXExportObject except that it accepts
 * HDC and HGLRC.
 */
-int
+int WINAPI
 wglMesaGLInteropExportObject(HDC dpy, HGLRC context,
                              struct mesa_glinterop_export_in *in,
                              struct mesa_glinterop_export_out *out);
@@ -412,7 +413,7 @@ MesaGLInteropEGLFlushObjects(EGLDisplay dpy, EGLContext context,
 * Same as MesaGLInteropGLXFlushObjects except that it accepts
 * HDC and HGLRC.
 */
-int
+int WINAPI
 wglMesaGLInteropFlushObjects(HDC dpy, HGLRC context,
                              unsigned count, struct mesa_glinterop_export_in *resources,
                              struct mesa_glinterop_flush_out *out);
@@ -422,7 +423,7 @@ typedef int (*PFNMESAGLINTEROPGLXQUERYDEVICEINFOPROC)(struct _XDisplay *dpy, str
                                                       struct mesa_glinterop_device_info *out);
 typedef int (*PFNMESAGLINTEROPEGLQUERYDEVICEINFOPROC)(EGLDisplay dpy, EGLContext context,
                                                       struct mesa_glinterop_device_info *out);
-typedef int (*PFNWGLMESAGLINTEROPQUERYDEVICEINFOPROC)(HDC dpy, HGLRC context,
+typedef int (WINAPI *PFNWGLMESAGLINTEROPQUERYDEVICEINFOPROC)(HDC dpy, HGLRC context,
                                                       struct mesa_glinterop_device_info *out);
 typedef int (*PFNMESAGLINTEROPGLXEXPORTOBJECTPROC)(struct _XDisplay *dpy, struct __GLXcontextRec *context,
                                                    struct mesa_glinterop_export_in *in,
@@ -430,7 +431,7 @@ typedef int (*PFNMESAGLINTEROPGLXEXPORTOBJECTPROC)(struct _XDisplay *dpy, struct
 typedef int (*PFNMESAGLINTEROPEGLEXPORTOBJECTPROC)(EGLDisplay dpy, EGLContext context,
                                                    struct mesa_glinterop_export_in *in,
                                                    struct mesa_glinterop_export_out *out);
-typedef int (*PFNWGLMESAGLINTEROPEXPORTOBJECTPROC)(HDC dpy, HGLRC context,
+typedef int (WINAPI *PFNWGLMESAGLINTEROPEXPORTOBJECTPROC)(HDC dpy, HGLRC context,
                                                    struct mesa_glinterop_export_in *in,
                                                    struct mesa_glinterop_export_out *out);
 typedef int (*PFNMESAGLINTEROPGLXFLUSHOBJECTSPROC)(struct _XDisplay *dpy, struct __GLXcontextRec *context,
@@ -439,7 +440,7 @@ typedef int (*PFNMESAGLINTEROPGLXFLUSHOBJECTSPROC)(struct _XDisplay *dpy, struct
 typedef int (*PFNMESAGLINTEROPEGLFLUSHOBJECTSPROC)(EGLDisplay dpy, EGLContext context,
                                                    unsigned count, struct mesa_glinterop_export_in *resources,
                                                    struct mesa_glinterop_flush_out *out);
-typedef int (*PFNWGLMESAGLINTEROPFLUSHOBJECTSPROC)(HDC dpy, HGLRC context,
+typedef int (WINAPI *PFNWGLMESAGLINTEROPFLUSHOBJECTSPROC)(HDC dpy, HGLRC context,
                                                    unsigned count, struct mesa_glinterop_export_in *resources,
                                                    struct mesa_glinterop_flush_out *out);
 

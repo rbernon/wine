@@ -21,13 +21,15 @@
 * IN THE SOFTWARE.
 */
 
+#include <windef.h>
+
 #include "state_tracker/st_interop.h"
 #include "stw_ext_interop.h"
 
 #include "stw_context.h"
 #include "stw_device.h"
 
-int
+int WINAPI
 wglMesaGLInteropQueryDeviceInfo(HDC dpy, HGLRC context,
                                 struct mesa_glinterop_device_info *out)
 {
@@ -55,7 +57,7 @@ stw_interop_query_device_info(struct stw_context *ctx,
    return st_interop_query_device_info(ctx->st, out);
 }
 
-int
+int WINAPI
 wglMesaGLInteropExportObject(HDC dpy, HGLRC context,
                              struct mesa_glinterop_export_in *in,
                              struct mesa_glinterop_export_out *out)
@@ -85,7 +87,7 @@ stw_interop_export_object(struct stw_context *ctx,
    return st_interop_export_object(ctx->st, in, out);
 }
 
-int
+int WINAPI
 wglMesaGLInteropFlushObjects(HDC dpy, HGLRC context,
                              unsigned count, struct mesa_glinterop_export_in *resources,
                              struct mesa_glinterop_flush_out *out)
