@@ -30,6 +30,7 @@
 #include "winerror.h"
 #include "winternl.h"
 #include "winnt.h"
+#include "ntgdi.h"
 
 
 static HMODULE opengl32;
@@ -92,6 +93,7 @@ BOOL WINAPI SetPixelFormat( HDC hdc, INT fmt, const PIXELFORMATDESCRIPTOR *pfd )
         if (!(wglSetPixelFormat = (void *)GetProcAddress( opengl32, "wglSetPixelFormat" )))
             return FALSE;
     }
+    if (!NtGdiSetPixelFormat( hdc, fmt )) return FALSE;
     return wglSetPixelFormat( hdc, fmt, pfd );
 }
 
