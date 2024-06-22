@@ -203,7 +203,11 @@ _ACRTIMP DECLSPEC_NORETURN void __cdecl _Exit(int);
 _ACRTIMP DECLSPEC_NORETURN void __cdecl _exit(int);
 _ACRTIMP DECLSPEC_NORETURN void __cdecl abort(void);
 _ACRTIMP int           __cdecl abs(int);
+#ifndef _UCRT
 _ACRTIMP int           __cdecl atexit(void (__cdecl *)(void));
+#else
+extern int             __cdecl atexit(void (__cdecl *)(void));
+#endif
 _ACRTIMP double        __cdecl atof(const char*);
 _ACRTIMP int           __cdecl atoi(const char*);
 _ACRTIMP int           __cdecl _atoi_l(const char*,_locale_t);
