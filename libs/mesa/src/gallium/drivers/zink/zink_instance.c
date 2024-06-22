@@ -406,126 +406,126 @@ zink_verify_instance_extensions(struct zink_screen *screen)
 
 
    
-void
+void VKAPI_PTR
 zink_stub_CreateDebugUtilsMessengerEXT()
 {
    mesa_loge("ZINK: vkCreateDebugUtilsMessengerEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_DestroyDebugUtilsMessengerEXT()
 {
    mesa_loge("ZINK: vkDestroyDebugUtilsMessengerEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_SubmitDebugUtilsMessageEXT()
 {
    mesa_loge("ZINK: vkSubmitDebugUtilsMessageEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetPhysicalDeviceFeatures2KHR()
 {
    mesa_loge("ZINK: vkGetPhysicalDeviceFeatures2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetPhysicalDeviceProperties2KHR()
 {
    mesa_loge("ZINK: vkGetPhysicalDeviceProperties2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetPhysicalDeviceFormatProperties2KHR()
 {
    mesa_loge("ZINK: vkGetPhysicalDeviceFormatProperties2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetPhysicalDeviceImageFormatProperties2KHR()
 {
    mesa_loge("ZINK: vkGetPhysicalDeviceImageFormatProperties2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetPhysicalDeviceQueueFamilyProperties2KHR()
 {
    mesa_loge("ZINK: vkGetPhysicalDeviceQueueFamilyProperties2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetPhysicalDeviceMemoryProperties2KHR()
 {
    mesa_loge("ZINK: vkGetPhysicalDeviceMemoryProperties2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetPhysicalDeviceSparseImageFormatProperties2KHR()
 {
    mesa_loge("ZINK: vkGetPhysicalDeviceSparseImageFormatProperties2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetPhysicalDeviceExternalBufferPropertiesKHR()
 {
    mesa_loge("ZINK: vkGetPhysicalDeviceExternalBufferPropertiesKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetPhysicalDeviceExternalSemaphorePropertiesKHR()
 {
    mesa_loge("ZINK: vkGetPhysicalDeviceExternalSemaphorePropertiesKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_DestroySurfaceKHR()
 {
    mesa_loge("ZINK: vkDestroySurfaceKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetPhysicalDeviceSurfaceSupportKHR()
 {
    mesa_loge("ZINK: vkGetPhysicalDeviceSurfaceSupportKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetPhysicalDeviceSurfaceCapabilitiesKHR()
 {
    mesa_loge("ZINK: vkGetPhysicalDeviceSurfaceCapabilitiesKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetPhysicalDeviceSurfaceFormatsKHR()
 {
    mesa_loge("ZINK: vkGetPhysicalDeviceSurfaceFormatsKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetPhysicalDeviceSurfacePresentModesKHR()
 {
    mesa_loge("ZINK: vkGetPhysicalDeviceSurfacePresentModesKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CreateHeadlessSurfaceEXT()
 {
    mesa_loge("ZINK: vkCreateHeadlessSurfaceEXT is not loaded properly!");
@@ -533,7 +533,7 @@ zink_stub_CreateHeadlessSurfaceEXT()
 }
    
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
-void
+void VKAPI_PTR
 zink_stub_CreateWaylandSurfaceKHR()
 {
    mesa_loge("ZINK: vkCreateWaylandSurfaceKHR is not loaded properly!");
@@ -542,7 +542,7 @@ zink_stub_CreateWaylandSurfaceKHR()
 #endif
    
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
-void
+void VKAPI_PTR
 zink_stub_GetPhysicalDeviceWaylandPresentationSupportKHR()
 {
    mesa_loge("ZINK: vkGetPhysicalDeviceWaylandPresentationSupportKHR is not loaded properly!");
@@ -551,7 +551,7 @@ zink_stub_GetPhysicalDeviceWaylandPresentationSupportKHR()
 #endif
    
 #ifdef VK_USE_PLATFORM_XCB_KHR
-void
+void VKAPI_PTR
 zink_stub_CreateXcbSurfaceKHR()
 {
    mesa_loge("ZINK: vkCreateXcbSurfaceKHR is not loaded properly!");
@@ -560,7 +560,7 @@ zink_stub_CreateXcbSurfaceKHR()
 #endif
    
 #ifdef VK_USE_PLATFORM_XCB_KHR
-void
+void VKAPI_PTR
 zink_stub_GetPhysicalDeviceXcbPresentationSupportKHR()
 {
    mesa_loge("ZINK: vkGetPhysicalDeviceXcbPresentationSupportKHR is not loaded properly!");
@@ -569,7 +569,7 @@ zink_stub_GetPhysicalDeviceXcbPresentationSupportKHR()
 #endif
    
 #ifdef VK_USE_PLATFORM_WIN32_KHR
-void
+void VKAPI_PTR
 zink_stub_CreateWin32SurfaceKHR()
 {
    mesa_loge("ZINK: vkCreateWin32SurfaceKHR is not loaded properly!");
@@ -578,7 +578,7 @@ zink_stub_CreateWin32SurfaceKHR()
 #endif
    
 #ifdef VK_USE_PLATFORM_WIN32_KHR
-void
+void VKAPI_PTR
 zink_stub_GetPhysicalDeviceWin32PresentationSupportKHR()
 {
    mesa_loge("ZINK: vkGetPhysicalDeviceWin32PresentationSupportKHR is not loaded properly!");
