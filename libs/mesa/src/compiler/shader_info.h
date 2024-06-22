@@ -503,7 +503,7 @@ typedef struct shader_info {
          bool untyped_color_outputs:1;
 
          /** gl_FragDepth layout for ARB_conservative_depth. */
-         enum gl_frag_depth_layout depth_layout:3;
+         unsigned depth_layout:3;
 
          /**
           * Interpolation qualifiers for drivers that lowers color inputs
@@ -525,8 +525,8 @@ typedef struct shader_info {
           * Defined by AMD_shader_early_and_late_fragment_tests.
           */
          bool early_and_late_fragment_tests:1;
-         enum gl_frag_stencil_layout stencil_front_layout:3;
-         enum gl_frag_stencil_layout stencil_back_layout:3;
+         unsigned stencil_front_layout:3;
+         unsigned stencil_back_layout:3;
       } fs;
 
       struct {
@@ -538,7 +538,7 @@ typedef struct shader_info {
           * Arrangement of invocations used to calculate derivatives in a compute
           * shader.  From NV_compute_shader_derivatives.
           */
-         enum gl_derivative_group derivative_group:2;
+         unsigned derivative_group:2;
 
          /*
           * If the shader might run with shared mem on top of `shared_size`.
