@@ -80,11 +80,10 @@ DrvCopyContext(DHGLRC dhrcSource, DHGLRC dhrcDest, UINT fuMask)
    dst = stw_lookup_context_locked( dhrcDest );
 
    if (src && dst) {
-      /* FIXME */
-      assert(0);
-      (void) src;
-      (void) dst;
-      (void) fuMask;
+      if (stw_current_context() == src) {
+         glFlush();
+      }
+      _mesa_copy_context(src->st->ctx, dst->st->ctx, fuMask);
    }
 
    stw_unlock_contexts(stw_dev);
