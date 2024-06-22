@@ -4117,1127 +4117,1127 @@ zink_verify_device_extensions(struct zink_screen *screen)
 
 
    
-void
+void VKAPI_PTR
 zink_stub_TrimCommandPoolKHR()
 {
    mesa_loge("ZINK: vkTrimCommandPoolKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetDescriptorSetLayoutSupportKHR()
 {
    mesa_loge("ZINK: vkGetDescriptorSetLayoutSupportKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetDeviceBufferMemoryRequirementsKHR()
 {
    mesa_loge("ZINK: vkGetDeviceBufferMemoryRequirementsKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetDeviceImageMemoryRequirementsKHR()
 {
    mesa_loge("ZINK: vkGetDeviceImageMemoryRequirementsKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetDeviceImageSparseMemoryRequirementsKHR()
 {
    mesa_loge("ZINK: vkGetDeviceImageSparseMemoryRequirementsKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdBindIndexBuffer2KHR()
 {
    mesa_loge("ZINK: vkCmdBindIndexBuffer2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetRenderingAreaGranularityKHR()
 {
    mesa_loge("ZINK: vkGetRenderingAreaGranularityKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetDeviceImageSubresourceLayoutKHR()
 {
    mesa_loge("ZINK: vkGetDeviceImageSubresourceLayoutKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetImageSubresourceLayout2KHR()
 {
    mesa_loge("ZINK: vkGetImageSubresourceLayout2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdBindDescriptorSets2KHR()
 {
    mesa_loge("ZINK: vkCmdBindDescriptorSets2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdPushConstants2KHR()
 {
    mesa_loge("ZINK: vkCmdPushConstants2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdPushDescriptorSet2KHR()
 {
    mesa_loge("ZINK: vkCmdPushDescriptorSet2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdPushDescriptorSetWithTemplate2KHR()
 {
    mesa_loge("ZINK: vkCmdPushDescriptorSetWithTemplate2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetDescriptorBufferOffsets2EXT()
 {
    mesa_loge("ZINK: vkCmdSetDescriptorBufferOffsets2EXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdBindDescriptorBufferEmbeddedSamplers2EXT()
 {
    mesa_loge("ZINK: vkCmdBindDescriptorBufferEmbeddedSamplers2EXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetMemoryFdKHR()
 {
    mesa_loge("ZINK: vkGetMemoryFdKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetMemoryFdPropertiesKHR()
 {
    mesa_loge("ZINK: vkGetMemoryFdPropertiesKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetPipelineExecutablePropertiesKHR()
 {
    mesa_loge("ZINK: vkGetPipelineExecutablePropertiesKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetPipelineExecutableStatisticsKHR()
 {
    mesa_loge("ZINK: vkGetPipelineExecutableStatisticsKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetPipelineExecutableInternalRepresentationsKHR()
 {
    mesa_loge("ZINK: vkGetPipelineExecutableInternalRepresentationsKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_ImportSemaphoreFdKHR()
 {
    mesa_loge("ZINK: vkImportSemaphoreFdKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetSemaphoreFdKHR()
 {
    mesa_loge("ZINK: vkGetSemaphoreFdKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CreateRenderPass2KHR()
 {
    mesa_loge("ZINK: vkCreateRenderPass2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdBeginRenderPass2KHR()
 {
    mesa_loge("ZINK: vkCmdBeginRenderPass2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdNextSubpass2KHR()
 {
    mesa_loge("ZINK: vkCmdNextSubpass2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdEndRenderPass2KHR()
 {
    mesa_loge("ZINK: vkCmdEndRenderPass2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetEvent2KHR()
 {
    mesa_loge("ZINK: vkCmdSetEvent2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdResetEvent2KHR()
 {
    mesa_loge("ZINK: vkCmdResetEvent2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdWaitEvents2KHR()
 {
    mesa_loge("ZINK: vkCmdWaitEvents2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdPipelineBarrier2KHR()
 {
    mesa_loge("ZINK: vkCmdPipelineBarrier2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdWriteTimestamp2KHR()
 {
    mesa_loge("ZINK: vkCmdWriteTimestamp2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_QueueSubmit2KHR()
 {
    mesa_loge("ZINK: vkQueueSubmit2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdWriteBufferMarker2AMD()
 {
    mesa_loge("ZINK: vkCmdWriteBufferMarker2AMD is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetQueueCheckpointData2NV()
 {
    mesa_loge("ZINK: vkGetQueueCheckpointData2NV is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetMemoryWin32HandleKHR()
 {
    mesa_loge("ZINK: vkGetMemoryWin32HandleKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetMemoryWin32HandlePropertiesKHR()
 {
    mesa_loge("ZINK: vkGetMemoryWin32HandlePropertiesKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_ImportSemaphoreWin32HandleKHR()
 {
    mesa_loge("ZINK: vkImportSemaphoreWin32HandleKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetSemaphoreWin32HandleKHR()
 {
    mesa_loge("ZINK: vkGetSemaphoreWin32HandleKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetBufferDeviceAddressKHR()
 {
    mesa_loge("ZINK: vkGetBufferDeviceAddressKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetBufferOpaqueCaptureAddressKHR()
 {
    mesa_loge("ZINK: vkGetBufferOpaqueCaptureAddressKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetDeviceMemoryOpaqueCaptureAddressKHR()
 {
    mesa_loge("ZINK: vkGetDeviceMemoryOpaqueCaptureAddressKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetMemoryHostPointerPropertiesEXT()
 {
    mesa_loge("ZINK: vkGetMemoryHostPointerPropertiesEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetImageMemoryRequirements2KHR()
 {
    mesa_loge("ZINK: vkGetImageMemoryRequirements2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetBufferMemoryRequirements2KHR()
 {
    mesa_loge("ZINK: vkGetBufferMemoryRequirements2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetImageSparseMemoryRequirements2KHR()
 {
    mesa_loge("ZINK: vkGetImageSparseMemoryRequirements2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_SetDeviceMemoryPriorityEXT()
 {
    mesa_loge("ZINK: vkSetDeviceMemoryPriorityEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdDrawIndirectCountKHR()
 {
    mesa_loge("ZINK: vkCmdDrawIndirectCountKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdDrawIndexedIndirectCountKHR()
 {
    mesa_loge("ZINK: vkCmdDrawIndexedIndirectCountKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CreateShadersEXT()
 {
    mesa_loge("ZINK: vkCreateShadersEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_DestroyShaderEXT()
 {
    mesa_loge("ZINK: vkDestroyShaderEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetShaderBinaryDataEXT()
 {
    mesa_loge("ZINK: vkGetShaderBinaryDataEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdBindShadersEXT()
 {
    mesa_loge("ZINK: vkCmdBindShadersEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetCullModeEXT()
 {
    mesa_loge("ZINK: vkCmdSetCullModeEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetFrontFaceEXT()
 {
    mesa_loge("ZINK: vkCmdSetFrontFaceEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetPrimitiveTopologyEXT()
 {
    mesa_loge("ZINK: vkCmdSetPrimitiveTopologyEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetViewportWithCountEXT()
 {
    mesa_loge("ZINK: vkCmdSetViewportWithCountEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetScissorWithCountEXT()
 {
    mesa_loge("ZINK: vkCmdSetScissorWithCountEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdBindVertexBuffers2EXT()
 {
    mesa_loge("ZINK: vkCmdBindVertexBuffers2EXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetDepthTestEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetDepthTestEnableEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetDepthWriteEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetDepthWriteEnableEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetDepthCompareOpEXT()
 {
    mesa_loge("ZINK: vkCmdSetDepthCompareOpEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetDepthBoundsTestEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetDepthBoundsTestEnableEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetStencilTestEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetStencilTestEnableEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetStencilOpEXT()
 {
    mesa_loge("ZINK: vkCmdSetStencilOpEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetVertexInputEXT()
 {
    mesa_loge("ZINK: vkCmdSetVertexInputEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetPatchControlPointsEXT()
 {
    mesa_loge("ZINK: vkCmdSetPatchControlPointsEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetRasterizerDiscardEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetRasterizerDiscardEnableEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetDepthBiasEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetDepthBiasEnableEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetLogicOpEXT()
 {
    mesa_loge("ZINK: vkCmdSetLogicOpEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetPrimitiveRestartEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetPrimitiveRestartEnableEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetTessellationDomainOriginEXT()
 {
    mesa_loge("ZINK: vkCmdSetTessellationDomainOriginEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetDepthClampEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetDepthClampEnableEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetPolygonModeEXT()
 {
    mesa_loge("ZINK: vkCmdSetPolygonModeEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetRasterizationSamplesEXT()
 {
    mesa_loge("ZINK: vkCmdSetRasterizationSamplesEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetSampleMaskEXT()
 {
    mesa_loge("ZINK: vkCmdSetSampleMaskEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetAlphaToCoverageEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetAlphaToCoverageEnableEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetAlphaToOneEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetAlphaToOneEnableEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetLogicOpEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetLogicOpEnableEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetColorBlendEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetColorBlendEnableEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetColorBlendEquationEXT()
 {
    mesa_loge("ZINK: vkCmdSetColorBlendEquationEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetColorWriteMaskEXT()
 {
    mesa_loge("ZINK: vkCmdSetColorWriteMaskEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetRasterizationStreamEXT()
 {
    mesa_loge("ZINK: vkCmdSetRasterizationStreamEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetConservativeRasterizationModeEXT()
 {
    mesa_loge("ZINK: vkCmdSetConservativeRasterizationModeEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetExtraPrimitiveOverestimationSizeEXT()
 {
    mesa_loge("ZINK: vkCmdSetExtraPrimitiveOverestimationSizeEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetDepthClipEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetDepthClipEnableEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetSampleLocationsEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetSampleLocationsEnableEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetColorBlendAdvancedEXT()
 {
    mesa_loge("ZINK: vkCmdSetColorBlendAdvancedEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetProvokingVertexModeEXT()
 {
    mesa_loge("ZINK: vkCmdSetProvokingVertexModeEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetLineRasterizationModeEXT()
 {
    mesa_loge("ZINK: vkCmdSetLineRasterizationModeEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetLineStippleEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetLineStippleEnableEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetDepthClipNegativeOneToOneEXT()
 {
    mesa_loge("ZINK: vkCmdSetDepthClipNegativeOneToOneEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetViewportWScalingEnableNV()
 {
    mesa_loge("ZINK: vkCmdSetViewportWScalingEnableNV is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetViewportSwizzleNV()
 {
    mesa_loge("ZINK: vkCmdSetViewportSwizzleNV is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetCoverageToColorEnableNV()
 {
    mesa_loge("ZINK: vkCmdSetCoverageToColorEnableNV is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetCoverageToColorLocationNV()
 {
    mesa_loge("ZINK: vkCmdSetCoverageToColorLocationNV is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetCoverageModulationModeNV()
 {
    mesa_loge("ZINK: vkCmdSetCoverageModulationModeNV is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetCoverageModulationTableEnableNV()
 {
    mesa_loge("ZINK: vkCmdSetCoverageModulationTableEnableNV is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetCoverageModulationTableNV()
 {
    mesa_loge("ZINK: vkCmdSetCoverageModulationTableNV is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetShadingRateImageEnableNV()
 {
    mesa_loge("ZINK: vkCmdSetShadingRateImageEnableNV is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetRepresentativeFragmentTestEnableNV()
 {
    mesa_loge("ZINK: vkCmdSetRepresentativeFragmentTestEnableNV is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetCoverageReductionModeNV()
 {
    mesa_loge("ZINK: vkCmdSetCoverageReductionModeNV is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetAttachmentFeedbackLoopEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetAttachmentFeedbackLoopEnableEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetGeneratedCommandsMemoryRequirementsNV()
 {
    mesa_loge("ZINK: vkGetGeneratedCommandsMemoryRequirementsNV is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdPreprocessGeneratedCommandsNV()
 {
    mesa_loge("ZINK: vkCmdPreprocessGeneratedCommandsNV is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdExecuteGeneratedCommandsNV()
 {
    mesa_loge("ZINK: vkCmdExecuteGeneratedCommandsNV is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdBindPipelineShaderGroupNV()
 {
    mesa_loge("ZINK: vkCmdBindPipelineShaderGroupNV is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CreateIndirectCommandsLayoutNV()
 {
    mesa_loge("ZINK: vkCreateIndirectCommandsLayoutNV is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_DestroyIndirectCommandsLayoutNV()
 {
    mesa_loge("ZINK: vkDestroyIndirectCommandsLayoutNV is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetSampleLocationsEXT()
 {
    mesa_loge("ZINK: vkCmdSetSampleLocationsEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetDescriptorSetLayoutSizeEXT()
 {
    mesa_loge("ZINK: vkGetDescriptorSetLayoutSizeEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetDescriptorSetLayoutBindingOffsetEXT()
 {
    mesa_loge("ZINK: vkGetDescriptorSetLayoutBindingOffsetEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetDescriptorEXT()
 {
    mesa_loge("ZINK: vkGetDescriptorEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdBindDescriptorBuffersEXT()
 {
    mesa_loge("ZINK: vkCmdBindDescriptorBuffersEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetDescriptorBufferOffsetsEXT()
 {
    mesa_loge("ZINK: vkCmdSetDescriptorBufferOffsetsEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdBindDescriptorBufferEmbeddedSamplersEXT()
 {
    mesa_loge("ZINK: vkCmdBindDescriptorBufferEmbeddedSamplersEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetBufferOpaqueCaptureDescriptorDataEXT()
 {
    mesa_loge("ZINK: vkGetBufferOpaqueCaptureDescriptorDataEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetImageOpaqueCaptureDescriptorDataEXT()
 {
    mesa_loge("ZINK: vkGetImageOpaqueCaptureDescriptorDataEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetImageViewOpaqueCaptureDescriptorDataEXT()
 {
    mesa_loge("ZINK: vkGetImageViewOpaqueCaptureDescriptorDataEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetSamplerOpaqueCaptureDescriptorDataEXT()
 {
    mesa_loge("ZINK: vkGetSamplerOpaqueCaptureDescriptorDataEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetAccelerationStructureOpaqueCaptureDescriptorDataEXT()
 {
    mesa_loge("ZINK: vkGetAccelerationStructureOpaqueCaptureDescriptorDataEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdBeginConditionalRenderingEXT()
 {
    mesa_loge("ZINK: vkCmdBeginConditionalRenderingEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdEndConditionalRenderingEXT()
 {
    mesa_loge("ZINK: vkCmdEndConditionalRenderingEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdBindTransformFeedbackBuffersEXT()
 {
    mesa_loge("ZINK: vkCmdBindTransformFeedbackBuffersEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdBeginTransformFeedbackEXT()
 {
    mesa_loge("ZINK: vkCmdBeginTransformFeedbackEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdEndTransformFeedbackEXT()
 {
    mesa_loge("ZINK: vkCmdEndTransformFeedbackEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdBeginQueryIndexedEXT()
 {
    mesa_loge("ZINK: vkCmdBeginQueryIndexedEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdEndQueryIndexedEXT()
 {
    mesa_loge("ZINK: vkCmdEndQueryIndexedEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdDrawIndirectByteCountEXT()
 {
    mesa_loge("ZINK: vkCmdDrawIndirectByteCountEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CreateSamplerYcbcrConversionKHR()
 {
    mesa_loge("ZINK: vkCreateSamplerYcbcrConversionKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_DestroySamplerYcbcrConversionKHR()
 {
    mesa_loge("ZINK: vkDestroySamplerYcbcrConversionKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetImageDrmFormatModifierPropertiesEXT()
 {
    mesa_loge("ZINK: vkGetImageDrmFormatModifierPropertiesEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetCalibratedTimestampsEXT()
 {
    mesa_loge("ZINK: vkGetCalibratedTimestampsEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdBeginRenderingKHR()
 {
    mesa_loge("ZINK: vkCmdBeginRenderingKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdEndRenderingKHR()
 {
    mesa_loge("ZINK: vkCmdEndRenderingKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetRenderingAttachmentLocationsKHR()
 {
    mesa_loge("ZINK: vkCmdSetRenderingAttachmentLocationsKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetRenderingInputAttachmentIndicesKHR()
 {
    mesa_loge("ZINK: vkCmdSetRenderingInputAttachmentIndicesKHR is not loaded properly!");
    abort();
 }
                                                                                                                                                    
-void
+void VKAPI_PTR
 zink_stub_GetSemaphoreCounterValueKHR()
 {
    mesa_loge("ZINK: vkGetSemaphoreCounterValueKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_WaitSemaphoresKHR()
 {
    mesa_loge("ZINK: vkWaitSemaphoresKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_SignalSemaphoreKHR()
 {
    mesa_loge("ZINK: vkSignalSemaphoreKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdSetColorWriteEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetColorWriteEnableEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CopyMemoryToImageEXT()
 {
    mesa_loge("ZINK: vkCopyMemoryToImageEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CopyImageToMemoryEXT()
 {
    mesa_loge("ZINK: vkCopyImageToMemoryEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CopyImageToImageEXT()
 {
    mesa_loge("ZINK: vkCopyImageToImageEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_TransitionImageLayoutEXT()
 {
    mesa_loge("ZINK: vkTransitionImageLayoutEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetImageSubresourceLayout2EXT()
 {
    mesa_loge("ZINK: vkGetImageSubresourceLayout2EXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CreateSwapchainKHR()
 {
    mesa_loge("ZINK: vkCreateSwapchainKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_DestroySwapchainKHR()
 {
    mesa_loge("ZINK: vkDestroySwapchainKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetSwapchainImagesKHR()
 {
    mesa_loge("ZINK: vkGetSwapchainImagesKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_AcquireNextImageKHR()
 {
    mesa_loge("ZINK: vkAcquireNextImageKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_QueuePresentKHR()
 {
    mesa_loge("ZINK: vkQueuePresentKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetDeviceGroupPresentCapabilitiesKHR()
 {
    mesa_loge("ZINK: vkGetDeviceGroupPresentCapabilitiesKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_GetDeviceGroupSurfacePresentModesKHR()
 {
    mesa_loge("ZINK: vkGetDeviceGroupSurfacePresentModesKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_AcquireNextImage2KHR()
 {
    mesa_loge("ZINK: vkAcquireNextImage2KHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdDrawMultiEXT()
 {
    mesa_loge("ZINK: vkCmdDrawMultiEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdDrawMultiIndexedEXT()
 {
    mesa_loge("ZINK: vkCmdDrawMultiIndexedEXT is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdPushDescriptorSetKHR()
 {
    mesa_loge("ZINK: vkCmdPushDescriptorSetKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_CmdPushDescriptorSetWithTemplateKHR()
 {
    mesa_loge("ZINK: vkCmdPushDescriptorSetWithTemplateKHR is not loaded properly!");
    abort();
 }
       
-void
+void VKAPI_PTR
 zink_stub_CreateDescriptorUpdateTemplateKHR()
 {
    mesa_loge("ZINK: vkCreateDescriptorUpdateTemplateKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_DestroyDescriptorUpdateTemplateKHR()
 {
    mesa_loge("ZINK: vkDestroyDescriptorUpdateTemplateKHR is not loaded properly!");
    abort();
 }
    
-void
+void VKAPI_PTR
 zink_stub_UpdateDescriptorSetWithTemplateKHR()
 {
    mesa_loge("ZINK: vkUpdateDescriptorSetWithTemplateKHR is not loaded properly!");
    abort();
 }
       
-void
+void VKAPI_PTR
 zink_stub_CmdSetLineStippleEXT()
 {
    mesa_loge("ZINK: vkCmdSetLineStippleEXT is not loaded properly!");
