@@ -56,6 +56,7 @@ struct session_thread_data
     const shared_object_t *shared_desktop;         /* thread desktop shared session cached object */
     const shared_object_t *shared_queue;           /* thread message queue shared session cached object */
     struct shared_input_cache shared_input;        /* current thread input shared session cached object */
+    struct shared_input_cache shared_foreground;   /* foreground thread input shared session cached object */
 };
 
 struct session_block
@@ -286,7 +287,11 @@ static NTSTATUS try_get_shared_input( UINT tid, struct object_lock *lock, const 
     }
 
     /* check object validity by comparing ids, within the object seqlock */
-    valid = cache->id == object->id;
+    if ((valid = cache->id == object->id) && !tid)
+    {
+        /* check that a previously locked foreground thread input is still foreground */
+        valid = !!object->shm.input.foreground;
+    }
 
     if (!lock->id || !shared_object_release_seqlock( object, lock->seq ))
     {
@@ -309,6 +314,7 @@ NTSTATUS get_shared_input( UINT tid, struct object_lock *lock, const input_shm_t
     TRACE( "tid %u, lock %p, input_shm %p\n", tid, lock, input_shm );
 
     if (tid == GetCurrentThreadId()) cache = &data->shared_input;
+    else if (!tid) cache = &data->shared_foreground;
     else return STATUS_INVALID_HANDLE;
 
     do { status = try_get_shared_input( tid, lock, input_shm, cache ); }
