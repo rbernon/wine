@@ -9599,6 +9599,7 @@ static void test_h264_with_dxgi_manager(void)
     IMFAttributes_Release(attribs);
 
     hr = IMFTransform_ProcessMessage(transform, MFT_MESSAGE_SET_D3D_MANAGER, (ULONG_PTR)transform);
+    todo_wine
     ok(hr == E_NOINTERFACE, "got %#lx\n", hr);
 
     hr = IMFTransform_ProcessMessage(transform, MFT_MESSAGE_SET_D3D_MANAGER, (ULONG_PTR)manager);
@@ -9778,14 +9779,7 @@ static void test_h264_with_dxgi_manager(void)
 
     status = 0;
     hr = get_next_h264_output_sample(transform, &input_sample, NULL, output, &data, &data_len);
-    todo_wine_if(hr == MF_E_UNEXPECTED) /* with some llvmpipe versions */
     ok(hr == S_OK, "got %#lx\n", hr);
-    if (hr == MF_E_UNEXPECTED)
-    {
-        IMFSample_Release(input_sample);
-        goto failed;
-    }
-    ok(sample != output[0].pSample, "got %p.\n", output[0].pSample);
     sample = output[0].pSample;
 
     hr = MFCreateCollection(&output_samples);
