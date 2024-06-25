@@ -2693,10 +2693,9 @@ int peek_message( MSG *msg, const struct peek_message_filter *filter )
     INPUT_MESSAGE_SOURCE prev_source = thread_info->client_info.msg_source;
     struct received_message_info info;
     unsigned int hw_id = 0;  /* id of previous hardware message */
-    void *buffer;
-    size_t buffer_size = 1024;
-
-    if (!(buffer = malloc( buffer_size ))) return -1;
+    unsigned char buffer_init[1024];
+    size_t buffer_size = sizeof(buffer_init);
+    void *buffer = buffer_init;
 
     if (!first && !last) last = ~0;
     if (hwnd == HWND_BROADCAST) hwnd = HWND_TOPMOST;
@@ -2739,7 +2738,7 @@ int peek_message( MSG *msg, const struct peek_message_filter *filter )
 
         if (res)
         {
-            free( buffer );
+            if (buffer != buffer_init) free( buffer );
             if (res == STATUS_PENDING)
             {
                 return 0;
@@ -2766,6 +2765,12 @@ int peek_message( MSG *msg, const struct peek_message_filter *filter )
             break;
         case MSG_NOTIFY:
             info.flags = ISMEX_NOTIFY;
+            /* unpack_message may have to reallocate */
+            if (buffer == buffer_init)
+            {
+                buffer = malloc( buffer_size );
+                memcpy( buffer, buffer_init, buffer_size );
+            }
             if (!unpack_message( info.msg.hwnd, info.msg.message, &info.msg.wParam,
                                  &info.msg.lParam, &buffer, size, &buffer_size ))
                 continue;
@@ -2844,6 +2849,12 @@ int peek_message( MSG *msg, const struct peek_message_filter *filter )
             continue;
         case MSG_OTHER_PROCESS:
             info.flags = ISMEX_SEND;
+            /* unpack_message may have to reallocate */
+            if (buffer == buffer_init)
+            {
+                buffer = malloc( buffer_size );
+                memcpy( buffer, buffer_init, buffer_size );
+            }
             if (!unpack_message( info.msg.hwnd, info.msg.message, &info.msg.wParam,
                                  &info.msg.lParam, &buffer, size, &buffer_size ))
             {
@@ -2866,7 +2877,7 @@ int peek_message( MSG *msg, const struct peek_message_filter *filter )
                 thread_info->client_info.message_pos   = MAKELONG( info.msg.pt.x, info.msg.pt.y );
                 thread_info->client_info.message_time  = info.msg.time;
                 thread_info->client_info.message_extra = msg_data->hardware.info;
-                free( buffer );
+                if (buffer != buffer_init) free( buffer );
                 call_hooks( WH_GETMESSAGE, HC_ACTION, flags & PM_REMOVE, (LPARAM)msg, sizeof(*msg) );
                 return 1;
             }
@@ -2881,7 +2892,7 @@ int peek_message( MSG *msg, const struct peek_message_filter *filter )
                     /* if this is a nested call return right away */
                     if (first == info.msg.message && last == info.msg.message)
                     {
-                        free( buffer );
+                        if (buffer != buffer_init) free( buffer );
                         return 0;
                     }
                 }
@@ -2930,7 +2941,7 @@ int peek_message( MSG *msg, const struct peek_message_filter *filter )
             thread_info->client_info.message_time  = info.msg.time;
             thread_info->client_info.message_extra = 0;
             thread_info->client_info.msg_source = msg_source_unavailable;
-            free( buffer );
+            if (buffer != buffer_init) free( buffer );
             call_hooks( WH_GETMESSAGE, HC_ACTION, flags & PM_REMOVE, (LPARAM)msg, sizeof(*msg) );
             return 1;
         }
