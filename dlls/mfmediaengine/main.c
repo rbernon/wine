@@ -1196,7 +1196,7 @@ static HRESULT media_engine_create_video_renderer(struct media_engine *engine, I
     IMFMediaType_SetGUID(media_type, &MF_MT_MAJOR_TYPE, &MFMediaType_Video);
     IMFMediaType_SetGUID(media_type, &MF_MT_SUBTYPE, &subtype);
 
-    hr = create_video_frame_sink(media_type, &engine->sink_events, &engine->presentation.frame_sink);
+    hr = create_video_frame_sink(media_type, (IUnknown *)engine->device_manager, &engine->sink_events, &engine->presentation.frame_sink);
     IMFMediaType_Release(media_type);
     if (FAILED(hr))
         return hr;
@@ -2458,6 +2458,70 @@ static void media_engine_update_d3d11_frame_surface(ID3D11DeviceContext *context
     IMFSample_Release(sample);
 }
 
+static HRESULT media_engine_copy_d3d11_texture(struct media_engine *engine, ID3D11Texture2D *texture,
+        const MFVideoNormalizedRect *src_rect, const RECT *dst_rect, const MFARGB *color)
+{
+    ID3D11Device *device, *dst_device;
+    ID3D11DeviceContext *context;
+    IMFDXGIBuffer *dxgi_buffer;
+    ID3D11Resource *resource;
+    IMFMediaBuffer *buffer;
+    BOOL device_mismatch;
+    IMFSample *sample;
+    UINT subresource;
+    HRESULT hr;
+
+    if (!video_frame_sink_get_sample(engine->presentation.frame_sink, &sample))
+        return MF_E_UNEXPECTED;
+
+    if (FAILED(hr = IMFSample_GetBufferByIndex(sample, 0, &buffer)))
+    {
+        IMFSample_Release(sample);
+        return hr;
+    }
+
+    hr = IMFMediaBuffer_QueryInterface(buffer, &IID_IMFDXGIBuffer, (void **)&dxgi_buffer);
+    IMFMediaBuffer_Release(buffer);
+    IMFSample_Release(sample);
+    if (FAILED(hr))
+        return hr;
+
+    if (FAILED(hr = IMFDXGIBuffer_GetSubresourceIndex(dxgi_buffer, &subresource)))
+        subresource = 0;
+
+    hr = IMFDXGIBuffer_GetResource(dxgi_buffer, &IID_ID3D11Resource, (void **)&resource);
+    IMFDXGIBuffer_Release(dxgi_buffer);
+    if (FAILED(hr))
+        return hr;
+
+    if (FAILED(hr = media_engine_lock_d3d_device(engine, &device)))
+    {
+        ID3D11Resource_Release(resource);
+        return hr;
+    }
+
+    ID3D11Texture2D_GetDevice(texture, &dst_device);
+    device_mismatch = device != dst_device;
+    ID3D11Device_Release(dst_device);
+
+    if (device_mismatch)
+    {
+        WARN("Destination target from different device.\n");
+        hr = E_UNEXPECTED;
+        goto done;
+    }
+
+    ID3D11Device_GetImmediateContext(device, &context);
+    ID3D11DeviceContext_CopySubresourceRegion(context, (ID3D11Resource *)texture, 0,
+            dst_rect->left, dst_rect->top, 0, resource, subresource, NULL);
+    ID3D11DeviceContext_Release(context);
+
+done:
+    media_engine_unlock_d3d_device(engine, device);
+    ID3D11Resource_Release(resource);
+    return hr;
+}
+
 static HRESULT media_engine_transfer_to_d3d11_texture(struct media_engine *engine, ID3D11Texture2D *texture,
         const MFVideoNormalizedRect *src_rect, const RECT *dst_rect, const MFARGB *color)
 {
@@ -2623,7 +2687,8 @@ static HRESULT WINAPI media_engine_TransferVideoFrame(IMFMediaEngineEx *iface, I
 
     if (SUCCEEDED(IUnknown_QueryInterface(surface, &IID_ID3D11Texture2D, (void **)&texture)))
     {
-        hr = media_engine_transfer_to_d3d11_texture(engine, texture, src_rect, dst_rect, color);
+        if (!engine->device_manager || FAILED(hr = media_engine_copy_d3d11_texture(engine, texture, src_rect, dst_rect, color)))
+            hr = media_engine_transfer_to_d3d11_texture(engine, texture, src_rect, dst_rect, color);
         ID3D11Texture2D_Release(texture);
     }
     else
