@@ -435,6 +435,210 @@ void wg_parser_stream_seek(wg_parser_stream_t stream, double rate,
     WINE_UNIX_CALL(unix_wg_parser_stream_seek, &params);
 }
 
+HRESULT wg_source_create(const WCHAR *url, uint64_t file_size,
+        const void *data, uint32_t size, WCHAR mime_type[256],
+        wg_source_t *out)
+{
+    struct wg_source_create_params params =
+    {
+        .file_size = file_size,
+        .data = data, .size = size,
+    };
+    UINT len = url ? WideCharToMultiByte(CP_ACP, 0, url, -1, NULL, 0, NULL, NULL) : 0;
+    char *tmp = url ? malloc(len) : NULL;
+    NTSTATUS status;
+
+    TRACE("url %s, file_size %#I64x, data %p, size %#x, mime_type %p\n", debugstr_w(url),
+            file_size, data, size, mime_type);
+
+    if ((params.url = tmp))
+        WideCharToMultiByte(CP_ACP, 0, url, -1, tmp, len, NULL, NULL);
+
+    if ((status = WINE_UNIX_CALL(unix_wg_source_create, &params)))
+        WARN("wg_source_create returned status %#lx\n", status);
+    else
+    {
+        TRACE("Returning source %#I64x.\n", params.source);
+        MultiByteToWideChar(CP_ACP, 0, params.mime_type, -1, mime_type, 256);
+        *out = params.source;
+    }
+
+    free(tmp);
+    return HRESULT_FROM_NT(status);
+}
+
+void wg_source_destroy(wg_source_t source)
+{
+    TRACE("source %#I64x.\n", source);
+
+    WINE_UNIX_CALL(unix_wg_source_destroy, &source);
+}
+
+HRESULT wg_source_get_stream_count(wg_source_t source, uint32_t *stream_count)
+{
+    struct wg_source_get_stream_count_params params =
+    {
+        .source = source,
+    };
+    NTSTATUS status;
+
+    TRACE("source %#I64x, stream_count %p\n", source, stream_count);
+
+    if ((status = WINE_UNIX_CALL(unix_wg_source_get_stream_count, &params))
+            && status != STATUS_PENDING)
+    {
+        WARN("wg_source_get_stream_count returned status %#lx\n", status);
+        return HRESULT_FROM_NT(status);
+    }
+
+    *stream_count = params.stream_count;
+    TRACE("source %#I64x, stream_count %u\n", source, *stream_count);
+    return S_OK;
+}
+
+HRESULT wg_source_get_duration(wg_source_t source, uint64_t *duration)
+{
+    struct wg_source_get_duration_params params =
+    {
+        .source = source,
+    };
+    NTSTATUS status;
+
+    TRACE("source %#I64x, duration %p\n", source, duration);
+
+    if ((status = WINE_UNIX_CALL(unix_wg_source_get_duration, &params))
+            && status != STATUS_PENDING)
+    {
+        WARN("wg_source_get_duration returned status %#lx\n", status);
+        return HRESULT_FROM_NT(status);
+    }
+
+    *duration = params.duration;
+    TRACE("source %#I64x, duration %s\n", source, debugstr_time(*duration));
+    return S_OK;
+}
+
+HRESULT wg_source_get_position(wg_source_t source, uint64_t *read_offset)
+{
+    struct wg_source_get_position_params params =
+    {
+        .source = source,
+    };
+    NTSTATUS status;
+
+    TRACE("source %#I64x, read_offset %p\n", source, read_offset);
+
+    if ((status = WINE_UNIX_CALL(unix_wg_source_get_position, &params))
+            && status != STATUS_PENDING)
+    {
+        WARN("wg_source_get_position returned status %#lx\n", status);
+        return HRESULT_FROM_NT(status);
+    }
+
+    *read_offset = params.read_offset;
+    TRACE("source %#I64x, read_offset %#I64x\n", source, *read_offset);
+    return S_OK;
+}
+
+HRESULT wg_source_set_position(wg_source_t source, uint64_t time)
+{
+    struct wg_source_set_position_params params = {.source = source, .time = time};
+
+    TRACE("source %#I64x, time %s\n", source, debugstr_time(time));
+
+    return HRESULT_FROM_NT(WINE_UNIX_CALL(unix_wg_source_set_position, &params));
+}
+
+HRESULT wg_source_push_data(wg_source_t source, UINT64 offset, const void *data, uint32_t size)
+{
+    struct wg_source_push_data_params params =
+    {
+        .source = source,
+        .offset = offset,
+        .data = data,
+        .size = size,
+    };
+
+    TRACE("source %#I64x, offset %#I64x, data %p, size %#x\n", source, offset, data, size);
+
+    return HRESULT_FROM_NT(WINE_UNIX_CALL(unix_wg_source_push_data, &params));
+}
+
+HRESULT wg_source_get_stream_type(wg_source_t source, UINT32 index, IMFMediaType **media_type)
+{
+    struct wg_source_get_stream_type_params params =
+    {
+        .source = source,
+        .index = index,
+    };
+    NTSTATUS status;
+    HRESULT hr;
+
+    TRACE("source %#I64x, index %u, media_type %p\n", source, index, media_type);
+
+    if ((status = WINE_UNIX_CALL(unix_wg_source_get_stream_type, &params))
+            && status == STATUS_BUFFER_TOO_SMALL)
+    {
+        if (!(params.media_type.u.format = CoTaskMemAlloc(params.media_type.format_size)))
+            return ERROR_OUTOFMEMORY;
+        status = WINE_UNIX_CALL(unix_wg_source_get_stream_type, &params);
+    }
+
+    if (status)
+    {
+        CoTaskMemFree(params.media_type.u.format);
+        WARN("Failed to get output media type, status %#lx\n", status);
+        return HRESULT_FROM_NT(status);
+    }
+
+    hr = wg_media_type_to_mf(&params.media_type, media_type);
+    CoTaskMemFree(params.media_type.u.format);
+    return hr;
+}
+
+char *wg_source_get_stream_tag(wg_source_t source, UINT32 index, wg_parser_tag tag)
+{
+    struct wg_source_get_stream_tag_params params =
+    {
+        .source = source,
+        .index = index,
+        .tag = tag,
+    };
+    char *buffer;
+
+    TRACE("source %#I64x, index %u, tag %#I64x\n", source, index, tag);
+
+    if (WINE_UNIX_CALL(unix_wg_source_get_stream_tag, &params) != STATUS_BUFFER_TOO_SMALL)
+        return NULL;
+    if (!(buffer = malloc(params.size)))
+    {
+        ERR("No memory.\n");
+        return NULL;
+    }
+    params.buffer = buffer;
+    if (WINE_UNIX_CALL(unix_wg_source_get_stream_tag, &params))
+    {
+        ERR("wg_source_get_stream_tag failed unexpectedly.\n");
+        free(buffer);
+        return NULL;
+    }
+    return buffer;
+}
+
+void wg_source_set_stream_flags(wg_source_t source, UINT32 index, BOOL select)
+{
+    struct wg_source_set_stream_flags_params params =
+    {
+        .source = source,
+        .index = index,
+        .select = select,
+    };
+
+    TRACE("source %#I64x, index %u, select %u\n", source, index, select);
+
+    WINE_UNIX_CALL(unix_wg_source_set_stream_flags, &params);
+}
+
 HRESULT wg_transform_create_mf(IMFMediaType *input_type, IMFMediaType *output_type,
         const struct wg_transform_attrs *attrs, wg_transform_t *transform)
 {
