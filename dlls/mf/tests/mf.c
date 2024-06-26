@@ -6772,6 +6772,12 @@ skip_tests:
     winetest_pop_context();
 }
 
+static DWORD WINAPI background_thread(LPVOID lpParameter)
+{
+    for (;;) {}
+    return 0;
+}
+
 static void test_media_source_streams(void)
 {
 /* w7 doesn't have MF_PD_MIME_TYPE */
@@ -6872,6 +6878,35 @@ static void test_media_source_streams(void)
         },
     };
 #undef ATTR_WSTR_OR_NONE
+
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    CloseHandle(CreateThread(NULL, 0, background_thread, NULL, 0, NULL));
+    Sleep(1000);
 
     subtest_media_source_streams(L"multiple-streams.mp4", &mp4_desc);
     subtest_media_source_streams(L"multiple-streams.avi", &avi_desc);

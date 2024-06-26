@@ -104,6 +104,21 @@ char *wg_parser_stream_get_tag(wg_parser_stream_t stream, enum wg_parser_tag tag
 void wg_parser_stream_seek(wg_parser_stream_t stream, double rate,
         uint64_t start_pos, uint64_t stop_pos, DWORD start_flags, DWORD stop_flags);
 
+HRESULT wg_source_create(const WCHAR *url, uint64_t file_size,
+        const void *data, uint32_t size, WCHAR mime_type[256],
+        wg_source_t *out);
+void wg_source_destroy(wg_source_t source);
+HRESULT wg_source_get_stream_count(wg_source_t source, uint32_t *stream_count);
+HRESULT wg_source_get_duration(wg_source_t source, uint64_t *duration);
+HRESULT wg_source_set_position(wg_source_t source, uint64_t time);
+HRESULT wg_source_get_position(wg_source_t source, uint64_t *read_offset);
+HRESULT wg_source_push_data(wg_source_t source, UINT64 offset, const void *data, uint32_t size);
+HRESULT wg_source_read_data(wg_source_t source, UINT32 index, IMFSample **out);
+HRESULT wg_source_get_stream_type(wg_source_t source, UINT32 index, IMFMediaType **media_type);
+HRESULT wg_source_get_stream_name(wg_source_t source, UINT32 index, WCHAR *buffer, UINT32 size);
+HRESULT wg_source_get_stream_lang(wg_source_t source, UINT32 index, WCHAR *buffer, UINT32 size);
+void wg_source_set_stream_flags(wg_source_t source, UINT32 index, BOOL select);
+
 HRESULT wg_transform_create_mf(IMFMediaType *input_type, IMFMediaType *output_type,
         const struct wg_transform_attrs *attrs, wg_transform_t *transform);
 HRESULT wg_transform_create_quartz(const AM_MEDIA_TYPE *input_format, const AM_MEDIA_TYPE *output_format,

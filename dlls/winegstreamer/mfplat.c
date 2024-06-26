@@ -25,6 +25,7 @@
 #include "d3d9types.h"
 #include "mfapi.h"
 #include "mmreg.h"
+#include "mferror.h"
 
 #include "wine/debug.h"
 #include "wine/list.h"
