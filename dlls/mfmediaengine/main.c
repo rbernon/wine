@@ -1003,10 +1003,6 @@ static HRESULT WINAPI media_engine_session_events_Invoke(IMFAsyncCallback *iface
 
             IMFMediaEngineNotify_EventNotify(engine->callback, MF_MEDIA_ENGINE_EVENT_ENDED, 0, 0);
             break;
-
-        case MEEndOfPresentation:
-            video_frame_sink_notify_end_of_presentation(engine->presentation.frame_sink);
-            break;
     }
 
 failed:
