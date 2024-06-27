@@ -2199,7 +2199,7 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
     if (surface) window_surface_release( surface );
 
     if (!(flags & ULW_COLORKEY)) key = CLR_INVALID;
-    if (!(user_driver->pCreateLayeredWindow( hwnd, &window_rect, key, &surface )) || !surface) return FALSE;
+    if (!(user_driver->pCreateLayeredWindow( hwnd, &surface_rect, key, &surface )) || !surface) return FALSE;
 
     if (!hdc_src) ret = TRUE;
     else
@@ -2210,6 +2210,7 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
         HDC hdc = NULL;
 
         OffsetRect( &rect, -rect.left, -rect.top );
+        intersect_rect( &rect, &rect, &surface_rect );
 
         if (!(hdc = NtGdiCreateCompatibleDC( 0 ))) goto done;
         window_surface_lock( surface );
