@@ -55,8 +55,8 @@ struct window_rects
 
 static inline const char *debugstr_window_rects( const struct window_rects *rects )
 {
-    return wine_dbg_sprintf( "{ window %s, client %s }", wine_dbgstr_rect( &rects->window ),
-                             wine_dbgstr_rect( &rects->client ) );
+    return wine_dbg_sprintf( "{ window %s, client %s, visible %s }", wine_dbgstr_rect( &rects->window ),
+                             wine_dbgstr_rect( &rects->client ), wine_dbgstr_rect( &rects->visible ) );
 }
 
 typedef struct gdi_physdev
@@ -359,7 +359,7 @@ struct user_driver_funcs
     LRESULT (*pSysCommand)(HWND,WPARAM,LPARAM);
     void    (*pUpdateLayeredWindow)(HWND,const RECT *,COLORREF,BYTE,UINT);
     LRESULT (*pWindowMessage)(HWND,UINT,WPARAM,LPARAM);
-    BOOL    (*pWindowPosChanging)(HWND,UINT,BOOL,const RECT *,const RECT *,RECT *);
+    BOOL    (*pWindowPosChanging)(HWND,UINT,BOOL,struct window_rects *rects);
     BOOL    (*pCreateWindowSurface)(HWND,BOOL,const RECT *,struct window_surface**);
     void    (*pWindowPosChanged)(HWND,HWND,UINT,const struct window_rects*,
                                  const struct window_rects*,struct window_surface*);
