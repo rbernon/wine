@@ -1088,10 +1088,8 @@ BOOL ANDROID_CreateWindowSurface( HWND hwnd, BOOL layered, const RECT *surface_r
 /***********************************************************************
  *           ANDROID_WindowPosChanged
  */
-void ANDROID_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
-                               const RECT *window_rect, const RECT *client_rect,
-                               const RECT *visible_rect, const RECT *valid_rects,
-                               struct window_surface *surface )
+void ANDROID_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags, const struct window_rects *old_rects,
+                               const struct window_rects *new_rects, struct window_surface *surface )
 {
     struct android_win_data *data;
     UINT new_style = NtUserGetWindowLongW( hwnd, GWL_STYLE );
@@ -1099,9 +1097,9 @@ void ANDROID_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
 
     if (!(data = get_win_data( hwnd ))) return;
 
-    data->window_rect = *window_rect;
-    data->whole_rect  = *visible_rect;
-    data->client_rect = *client_rect;
+    data->window_rect = new_rects->window;
+    data->whole_rect  = new_rects->visible;
+    data->client_rect = new_rects->client;
 
     if (!is_argb_surface( data->surface ))
     {
@@ -1115,10 +1113,10 @@ void ANDROID_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
     if (!(swp_flags & SWP_NOZORDER)) insert_after = NtUserGetWindowRelative( hwnd, GW_HWNDPREV );
 
     TRACE( "win %p window %s client %s style %08x owner %p after %p flags %08x\n", hwnd,
-           wine_dbgstr_rect(window_rect), wine_dbgstr_rect(client_rect),
+           wine_dbgstr_rect(&new_rects->window), wine_dbgstr_rect(&new_rects->client),
            new_style, owner, insert_after, swp_flags );
 
-    ioctl_window_pos_changed( hwnd, window_rect, client_rect, visible_rect,
+    ioctl_window_pos_changed( hwnd, &new_rects->window, &new_rects->client, &new_rects->visible,
                               new_style, swp_flags, insert_after, owner );
 }
 

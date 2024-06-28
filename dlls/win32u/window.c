@@ -1982,26 +1982,26 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
 
     if (ret)
     {
-        RECT rects[2] = {new_rects->valid, old_rects->valid}, *valid_rects = copy_bits ? rects : NULL;
+        RECT valid_rects[2] = {new_rects->valid, old_rects->valid};
 
         TRACE( "win %p surface %p -> %p\n", hwnd, old_surface, new_surface );
         register_window_surface( old_surface, new_surface );
 
         if (old_surface)
         {
-            if (valid_rects)
+            if (copy_bits)
             {
                 if (old_surface != new_surface)
                     move_window_bits_surface( hwnd, &new_rects->window, old_surface, &old_rects->visible, valid_rects );
                 else
                     move_window_bits( hwnd, &new_rects->visible, &old_rects->visible, &new_rects->window, valid_rects );
-                valid_rects = NULL; /* prevent the driver from trying to also move the bits */
+                copy_bits = FALSE; /* prevent the driver from trying to also move the bits */
             }
             window_surface_release( old_surface );
         }
         else if (surface_win && surface_win != hwnd)
         {
-            if (valid_rects)
+            if (copy_bits)
             {
                 int x_offset = old_rects->visible.left - new_rects->visible.left;
                 int y_offset = old_rects->visible.top - new_rects->visible.top;
@@ -2016,16 +2016,15 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
                     old_rects->client.bottom  - new_rects->client.bottom == y_offset &&
                     EqualRect( &new_rects->valid, &new_rects->client ))
                 {
-                    rects[0] = new_rects->visible;
-                    rects[1] = old_rects->visible;
+                    valid_rects[0] = new_rects->visible;
+                    valid_rects[1] = old_rects->visible;
                 }
                 move_window_bits( hwnd, &new_rects->visible, &new_rects->visible, &new_rects->window, valid_rects );
-                valid_rects = NULL; /* prevent the driver from trying to also move the bits */
+                copy_bits = FALSE; /* prevent the driver from trying to also move the bits */
             }
         }
 
-        user_driver->pWindowPosChanged( hwnd, insert_after, swp_flags, &new_rects->window,
-                                        &new_rects->client, &new_rects->visible, valid_rects, new_surface );
+        user_driver->pWindowPosChanged( hwnd, insert_after, swp_flags, old_rects, new_rects, new_surface );
     }
 
     return ret;

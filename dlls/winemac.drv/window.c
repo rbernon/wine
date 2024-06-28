@@ -1898,10 +1898,8 @@ done:
 /***********************************************************************
  *              WindowPosChanged   (MACDRV.@)
  */
-void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, UINT swp_flags,
-                             const RECT *window_rect, const RECT *client_rect,
-                             const RECT *visible_rect, const RECT *valid_rects,
-                             struct window_surface *surface)
+void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, UINT swp_flags, const struct window_rects *old_rects,
+                             const struct window_rects *new_rects, struct window_surface *surface)
 {
     struct macdrv_thread_data *thread_data;
     struct macdrv_win_data *data;
@@ -1915,9 +1913,9 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, UINT swp_flags,
     old_window_rect = data->window_rect;
     old_whole_rect  = data->whole_rect;
     old_client_rect = data->client_rect;
-    data->window_rect = *window_rect;
-    data->whole_rect  = *visible_rect;
-    data->client_rect = *client_rect;
+    data->window_rect = new_rects->window;
+    data->whole_rect  = new_rects->visible;
+    data->client_rect = new_rects->client;
     if (data->cocoa_window && !data->ulw_layered)
     {
         if (surface) window_surface_add_ref(surface);
@@ -1942,11 +1940,11 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, UINT swp_flags,
     }
 
     TRACE("win %p/%p window %s whole %s client %s style %08x flags %08x surface %p\n",
-           hwnd, data->cocoa_window, wine_dbgstr_rect(window_rect),
-           wine_dbgstr_rect(visible_rect), wine_dbgstr_rect(client_rect),
+           hwnd, data->cocoa_window, wine_dbgstr_rect(&new_rects->window),
+           wine_dbgstr_rect(&new_rects->visible), wine_dbgstr_rect(&new_rects->client),
            new_style, swp_flags, surface);
 
-    if (!IsRectEmpty(&valid_rects[0]))
+    if (!IsRectEmpty(&old_rects->valid))
     {
         macdrv_window window = data->cocoa_window;
         int x_offset = old_whole_rect.left - data->whole_rect.left;
@@ -1960,22 +1958,22 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, UINT swp_flags,
             old_client_rect.right  - data->client_rect.right  == x_offset &&
             old_client_rect.top    - data->client_rect.top    == y_offset &&
             old_client_rect.bottom - data->client_rect.bottom == y_offset &&
-            EqualRect(&valid_rects[0], &data->client_rect))
+            EqualRect(&new_rects->valid, &data->client_rect))
         {
             /* A Cocoa window's bits are moved automatically */
             if (!window && (x_offset != 0 || y_offset != 0))
             {
                 release_win_data(data);
-                move_window_bits(hwnd, window, &old_whole_rect, visible_rect,
-                                 &old_client_rect, client_rect, window_rect);
+                move_window_bits(hwnd, window, &old_whole_rect, &new_rects->visible,
+                                 &old_client_rect, &new_rects->client, &new_rects->window);
                 if (!(data = get_win_data(hwnd))) return;
             }
         }
         else
         {
             release_win_data(data);
-            move_window_bits(hwnd, window, &valid_rects[1], &valid_rects[0],
-                             &old_client_rect, client_rect, window_rect);
+            move_window_bits(hwnd, window, &old_rects->valid, &new_rects->valid,
+                             &old_client_rect, &new_rects->client, &new_rects->window);
             if (!(data = get_win_data(hwnd))) return;
         }
     }

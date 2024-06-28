@@ -887,10 +887,8 @@ static BOOL nulldrv_CreateWindowSurface( HWND hwnd, BOOL layered, const RECT *su
     return FALSE;
 }
 
-static void nulldrv_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
-                                      const RECT *window_rect, const RECT *client_rect,
-                                      const RECT *visible_rect, const RECT *valid_rects,
-                                      struct window_surface *surface )
+static void nulldrv_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags, const struct window_rects *old_rects,
+                                      const struct window_rects *new_rects, struct window_surface *surface )
 {
 }
 
