@@ -274,11 +274,13 @@ static struct desktop *create_desktop( const struct unicode_str *name, unsigned 
         {
             /* initialize it if it didn't already exist */
 
+            desktop->flags = flags;
+
             /* inherit DF_WINE_*_DESKTOP flags if none of them are specified */
             if (!(flags & (DF_WINE_ROOT_DESKTOP | DF_WINE_VIRTUAL_DESKTOP))
                 && (current_desktop = get_thread_desktop( current, 0 )))
             {
-                flags |= current_desktop->shared->flags & (DF_WINE_VIRTUAL_DESKTOP | DF_WINE_ROOT_DESKTOP);
+                desktop->flags |= current_desktop->flags & (DF_WINE_VIRTUAL_DESKTOP | DF_WINE_ROOT_DESKTOP);
                 release_object( current_desktop );
             }
 
@@ -305,7 +307,6 @@ static struct desktop *create_desktop( const struct unicode_str *name, unsigned 
 
             SHARED_WRITE_BEGIN( desktop->shared, desktop_shm_t )
             {
-                shared->flags = flags;
                 shared->cursor.x = 0;
                 shared->cursor.y = 0;
                 shared->cursor.last_change = 0;
@@ -319,12 +320,7 @@ static struct desktop *create_desktop( const struct unicode_str *name, unsigned 
         }
         else
         {
-            SHARED_WRITE_BEGIN( desktop->shared, desktop_shm_t )
-            {
-                shared->flags |= flags & (DF_WINE_VIRTUAL_DESKTOP | DF_WINE_ROOT_DESKTOP);
-            }
-            SHARED_WRITE_END;
-
+            desktop->flags |= flags & (DF_WINE_VIRTUAL_DESKTOP | DF_WINE_ROOT_DESKTOP);
             clear_error();
         }
     }
@@ -336,7 +332,7 @@ static void desktop_dump( struct object *obj, int verbose )
     struct desktop *desktop = (struct desktop *)obj;
 
     fprintf( stderr, "Desktop flags=%x winstation=%p top_win=%p hooks=%p\n",
-             desktop->shared->flags, desktop->winstation, desktop->top_window, desktop->global_hooks );
+             desktop->flags, desktop->winstation, desktop->top_window, desktop->global_hooks );
 }
 
 static int desktop_link_name( struct object *obj, struct object_name *name, struct object *parent )
@@ -835,15 +831,8 @@ DECL_HANDLER(set_user_object_info)
     {
         struct desktop *desktop = (struct desktop *)obj;
         reply->is_desktop = 1;
-        reply->old_obj_flags = desktop->shared->flags;
-        if (req->flags & SET_USER_OBJECT_SET_FLAGS)
-        {
-            SHARED_WRITE_BEGIN( desktop->shared, desktop_shm_t )
-            {
-                shared->flags = req->obj_flags;
-            }
-            SHARED_WRITE_END;
-        }
+        reply->old_obj_flags = desktop->flags;
+        if (req->flags & SET_USER_OBJECT_SET_FLAGS) desktop->flags = req->obj_flags;
     }
     else if (obj->ops == &winstation_ops)
     {

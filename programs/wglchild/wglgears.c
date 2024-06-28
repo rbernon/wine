@@ -206,7 +206,7 @@ if (0)
     parent = vulkan_parent;
 }
 
-if (0)
+if (1)
 {
     opengl_parent = opengl_create_window( L"OpenGL (parent)", &geometry, fullscreen, samples, use_srgb );
     ShowWindow( opengl_parent, SW_SHOW );
@@ -223,7 +223,7 @@ if (1)
     InflateRect( &geometry, -200, -100 );
     OffsetRect( &geometry, -geometry.left, -geometry.top );
 
-if (0)
+if (1)
 {
     opengl_child = opengl_create_window( L"OpenGL (child)", &geometry, fullscreen, samples, use_srgb );
     SetWindowLongW( opengl_child, GWL_STYLE, GetWindowLongW( opengl_child, GWL_STYLE ) | WS_CHILD );
@@ -232,7 +232,7 @@ if (0)
     OffsetRect( &geometry, geometry.right, 0 );
 }
 
-if (0)
+if (1)
 {
     gdi_child = gdi_create_window( L"GDI (child)", &geometry, fullscreen, FALSE );
     SetWindowLongW( gdi_child, GWL_STYLE, GetWindowLongW( gdi_child, GWL_STYLE ) | WS_CHILD );
@@ -249,7 +249,7 @@ if (0)
     ShowWindow( vulkan_child, SW_SHOW );
 }
 
-if (0)
+if (1)
 {
     HRGN hrgn, tmp;
     gdi_region = gdi_create_window( L"GDI (region)", &geometry, fullscreen, FALSE );
@@ -263,7 +263,7 @@ if (0)
     DeleteObject( hrgn );
 }
 
-if (0)
+if (1)
 {
     gdi_keyed = gdi_create_window( L"GDI (keyed)", &geometry, fullscreen, FALSE );
     ShowWindow( gdi_keyed, SW_SHOW );
@@ -271,7 +271,7 @@ if (0)
     SetLayeredWindowAttributes( gdi_keyed, 0, 0, LWA_COLORKEY );
 }
 
-if (0)
+if (1)
 {
     gdi_alpha = gdi_create_window( L"GDI (alpha)", &geometry, fullscreen, FALSE );
     ShowWindow( gdi_alpha, SW_SHOW );
@@ -279,7 +279,7 @@ if (0)
     SetLayeredWindowAttributes( gdi_alpha, 0, 255 * 70 / 100, LWA_ALPHA );
 }
 
-if (0)
+if (1)
 {
     HRGN hrgn, tmp;
     gdi_layered = gdi_create_window( L"GDI (layered)", &geometry, fullscreen, TRUE );
