@@ -30,34 +30,6 @@
 #include "winbase.h"
 #include "winternl.h"
 
-#if defined(_MSC_VER)
-#define _CRTALLOC(x) __declspec(allocate(x))
-#elif defined(__GNUC__)
-#define _CRTALLOC(x) __attribute__((section(x)))
-#else
-#define _CRTALLOC(x) static /* unsupported */
-#endif
-
-_CRTALLOC(".CRT$XIA") void (*__xi_a)(void) = 0;
-_CRTALLOC(".CRT$XIZ") void (*__xi_z)(void) = 0;
-_CRTALLOC(".CRT$XCA") void (*__xc_a)(void) = 0;
-_CRTALLOC(".CRT$XCZ") void (*__xc_z)(void) = 0;
-
-#if defined(__GNUC__)
-extern void (*__CTOR_LIST__[])(void) __attribute__((weak));
-extern void (*__DTOR_LIST__[])(void) __attribute__((weak));
-#endif
-
-static void _CRT_INIT(void)
-{
-    void (**ctor)(void);
-    if ((ctor = &__xi_a)) while (++ctor != &__xi_z && *ctor) (*ctor)();
-    if ((ctor = &__xc_a)) while (++ctor != &__xc_z && *ctor) (*ctor)();
-#if defined(__GNUC__)
-    if ((ctor = __CTOR_LIST__) && *ctor == (void *)-1) while (++ctor != __DTOR_LIST__ && *ctor) (*ctor)();
-#endif
-}
-
 int __cdecl wmain(int argc, WCHAR **argv, WCHAR **env);
 
 static const IMAGE_NT_HEADERS *get_nt_header( void )
@@ -83,7 +55,6 @@ int __cdecl wmainCRTStartup(void)
 #endif
     _set_app_type(get_nt_header()->OptionalHeader.Subsystem == IMAGE_SUBSYSTEM_WINDOWS_GUI ? _crt_gui_app : _crt_console_app);
 
-    _CRT_INIT();
     ret = wmain(argc, argv, env);
 
     exit(ret);
