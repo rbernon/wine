@@ -8,7 +8,6 @@ SOURCES = \
 	clipboard.c \
 	completion.c \
 	console.c \
-	debug.c \
 	debugger.c \
 	device.c \
 	directory.c \
@@ -48,6 +47,6 @@ SOURCES = \
 	wineserver.man.in \
 	winstation.c
 
-UNIX_LIBS = $(LDEXECFLAGS) $(RT_LIBS) $(INOTIFY_LIBS) $(PROCSTAT_LIBS) -lwinecrtd
+UNIX_LIBS = $(LDEXECFLAGS) $(RT_LIBS) $(INOTIFY_LIBS) $(PROCSTAT_LIBS)
 
 unicode_EXTRADEFS = -DBINDIR="\"${bindir}\"" -DDATADIR="\"${datadir}\""
