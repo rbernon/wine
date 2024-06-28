@@ -686,10 +686,6 @@ static void nulldrv_NotifyIMEStatus( HWND hwnd, UINT status )
 {
 }
 
-static void nulldrv_SetCaretPos( const RECT *caret )
-{
-}
-
 static LRESULT nulldrv_DesktopWindowProc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
 {
     return default_window_proc( hwnd, msg, wparam, lparam, FALSE );
@@ -1104,11 +1100,6 @@ static void loaderdrv_NotifyIMEStatus( HWND hwnd, UINT status )
     return load_driver()->pNotifyIMEStatus( hwnd, status );
 }
 
-static void loaderdrv_SetCaretPos( const RECT *caret )
-{
-    load_driver()->pSetCaretPos( caret );
-}
-
 static LONG loaderdrv_ChangeDisplaySettings( LPDEVMODEW displays, LPCWSTR primary_name, HWND hwnd,
                                              DWORD flags, LPVOID lparam )
 {
@@ -1260,7 +1251,6 @@ static const struct user_driver_funcs lazy_load_driver =
     loaderdrv_ReleaseKbdTables,
     loaderdrv_ImeProcessKey,
     loaderdrv_NotifyIMEStatus,
-    loaderdrv_SetCaretPos,
     /* cursor/icon functions */
     nulldrv_DestroyCursorIcon,
     loaderdrv_SetCursor,
@@ -1354,7 +1344,6 @@ void __wine_set_user_driver( const struct user_driver_funcs *funcs, UINT version
     SET_USER_FUNC(ReleaseKbdTables);
     SET_USER_FUNC(ImeProcessKey);
     SET_USER_FUNC(NotifyIMEStatus);
-    SET_USER_FUNC(SetCaretPos);
     SET_USER_FUNC(DestroyCursorIcon);
     SET_USER_FUNC(SetCursor);
     SET_USER_FUNC(GetCursorPos);

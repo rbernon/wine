@@ -89,7 +89,6 @@ static const struct object_ops winstation_ops =
     no_open_file,                 /* open_file */
     no_kernel_obj_list,           /* get_kernel_obj_list */
     winstation_close_handle,      /* close_handle */
-    NULL,                         /* get_host_ops */
     winstation_destroy            /* destroy */
 };
 
@@ -130,7 +129,6 @@ static const struct object_ops desktop_ops =
     no_open_file,                 /* open_file */
     no_kernel_obj_list,           /* get_kernel_obj_list */
     desktop_close_handle,         /* close_handle */
-    NULL,                         /* get_host_ops */
     desktop_destroy               /* destroy */
 };
 
@@ -833,7 +831,6 @@ DECL_HANDLER(set_user_object_info)
     {
         struct desktop *desktop = (struct desktop *)obj;
         reply->is_desktop = 1;
-        reply->has_input = desktop == desktop->winstation->input_desktop;
         reply->old_obj_flags = desktop->flags;
         if (req->flags & SET_USER_OBJECT_SET_FLAGS) desktop->flags = req->obj_flags;
     }
@@ -841,7 +838,6 @@ DECL_HANDLER(set_user_object_info)
     {
         struct winstation *winstation = (struct winstation *)obj;
         reply->is_desktop = 0;
-        reply->has_input = 0;
         reply->old_obj_flags = winstation->flags;
         if (req->flags & SET_USER_OBJECT_SET_FLAGS) winstation->flags = req->obj_flags;
     }

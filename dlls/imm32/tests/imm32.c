@@ -4535,11 +4535,6 @@ static BOOL CALLBACK enum_thread_ime_windows( HWND hwnd, LPARAM lparam )
         ok( !params->ime_ui_hwnd, "Found extra IME UI window %p\n", hwnd );
         params->ime_ui_hwnd = hwnd;
     }
-    if (!wcscmp( buffer, L"MSCTFIME UI" ))
-    {
-        ok( !params->ime_ui_hwnd, "Found extra IME UI window %p\n", hwnd );
-        params->ime_ui_hwnd = hwnd;
-    }
 
     return TRUE;
 }
@@ -5719,11 +5714,11 @@ static void test_ImmRequestMessage(void)
         {0},
     };
     HKL hkl;
-    COMPOSITIONFORM comp_form = {0}, expect_comp_form = {0};
-    IMECHARPOSITION char_pos = {0}, expect_char_pos = {0};
-    RECONVERTSTRING reconv = {0}, expect_reconv = {0};
-    CANDIDATEFORM cand_form = {0}, expect_cand_form = {0};
-    LOGFONTW log_font = {0}, expect_log_font = {0};
+    COMPOSITIONFORM comp_form = {0};
+    IMECHARPOSITION char_pos = {0};
+    RECONVERTSTRING reconv = {0};
+    CANDIDATEFORM cand_form = {0};
+    LOGFONTW log_font = {0};
     INPUTCONTEXT *ctx;
     HIMC himc;
     HWND hwnd;
@@ -5748,55 +5743,30 @@ static void test_ImmRequestMessage(void)
 
     ok_ret( 0, ImmRequestMessageW( default_himc, 0xdeadbeef, 0 ) );
     todo_wine ok_seq( empty_sequence );
-
-    memset( &comp_form, 0xcd, sizeof(comp_form) );
     ok_ret( 0, ImmRequestMessageW( default_himc, IMR_COMPOSITIONWINDOW, (LPARAM)&comp_form ) );
     composition_window_seq[0].message.lparam = (LPARAM)&comp_form;
     ok_seq( composition_window_seq );
-    check_composition_form( &comp_form, &expect_comp_form );
-
-    memset( &cand_form, 0xcd, sizeof(cand_form) );
     ok_ret( 0, ImmRequestMessageW( default_himc, IMR_CANDIDATEWINDOW, (LPARAM)&cand_form ) );
     candidate_window_seq[0].message.lparam = (LPARAM)&cand_form;
     ok_seq( candidate_window_seq );
-    check_candidate_form( &cand_form, &expect_cand_form );
-
-    memset( &log_font, 0xcd, sizeof(log_font) );
     ok_ret( 0, ImmRequestMessageW( default_himc, IMR_COMPOSITIONFONT, (LPARAM)&log_font ) );
     composition_font_seq[0].message.lparam = (LPARAM)&log_font;
     ok_seq( composition_font_seq );
-    check_logfont_w( &log_font, &expect_log_font );
-
     ok_ret( 0, ImmRequestMessageW( default_himc, IMR_RECONVERTSTRING, (LPARAM)&reconv ) );
     todo_wine ok_seq( empty_sequence );
-    check_reconvert_string( &reconv, &expect_reconv );
-
     reconv.dwSize = sizeof(RECONVERTSTRING);
-    ok_ret( 0, ImmRequestMessageW( default_himc, IMR_RECONVERTSTRING, 0 ) );
-    ok_seq( reconvert_string_seq );
     ok_ret( 0, ImmRequestMessageW( default_himc, IMR_RECONVERTSTRING, (LPARAM)&reconv ) );
     reconvert_string_seq[0].message.lparam = (LPARAM)&reconv;
     ok_seq( reconvert_string_seq );
-    check_reconvert_string( &reconv, &expect_reconv );
-
-    reconv.dwSize = sizeof(RECONVERTSTRING);
     ok_ret( 0, ImmRequestMessageW( default_himc, IMR_CONFIRMRECONVERTSTRING, (LPARAM)&reconv ) );
     confirm_reconvert_string_seq[0].message.lparam = (LPARAM)&reconv;
     ok_seq( confirm_reconvert_string_seq );
-    check_reconvert_string( &reconv, &expect_reconv );
-
-    memset( &char_pos, 0xcd, sizeof(char_pos) );
     ok_ret( 0, ImmRequestMessageW( default_himc, IMR_QUERYCHARPOSITION, (LPARAM)&char_pos ) );
     query_char_position_seq[0].message.lparam = (LPARAM)&char_pos;
     ok_seq( query_char_position_seq );
-    check_ime_char_position( &char_pos, &expect_char_pos );
-
-    ok_ret( 0, ImmRequestMessageW( default_himc, IMR_DOCUMENTFEED, 0 ) );
-    ok_seq( document_feed_seq );
     ok_ret( 0, ImmRequestMessageW( default_himc, IMR_DOCUMENTFEED, (LPARAM)&reconv ) );
     document_feed_seq[0].message.lparam = (LPARAM)&reconv;
     ok_seq( document_feed_seq );
-    check_reconvert_string( &reconv, &expect_reconv );
 
     ok_ret( 0, ImmRequestMessageW( himc, IMR_CANDIDATEWINDOW, (LPARAM)&cand_form ) );
     ok_seq( empty_sequence );
@@ -7636,10 +7606,6 @@ static void test_ga_na_da(void)
     process_messages();
     todo_wine ok_seq( partial_ga_seq );
 
-    ImmNotifyIME( himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0 );
-    process_messages();
-    todo_wine ok_seq( empty_sequence );
-
     todo_wine ok_ret( 2, ImmProcessKey( hwnd, default_hkl, 'S', MAKELONG(1, 0x1f), 0 ) );
     ok_ret( 0, ImmTranslateMessage( hwnd, WM_KEYDOWN, 'S', MAKELONG(1, 0x1f) ) );
     process_messages();
@@ -7649,10 +7615,6 @@ static void test_ga_na_da(void)
     ok_ret( 0, ImmTranslateMessage( hwnd, WM_KEYDOWN, 'K', MAKELONG(1, 0x25) ) );
     process_messages();
     todo_wine ok_seq( partial_na_seq );
-
-    ImmNotifyIME( himc, NI_COMPOSITIONSTR, CPS_COMPLETE, 0 );
-    process_messages();
-    todo_wine ok_seq( empty_sequence );
 
     todo_wine ok_ret( 2, ImmProcessKey( hwnd, default_hkl, 'E', MAKELONG(1, 0x12), 0 ) );
     ok_ret( 0, ImmTranslateMessage( hwnd, WM_KEYDOWN, 'E', MAKELONG(1, 0x12) ) );
@@ -7758,73 +7720,6 @@ static void test_ga_na_da(void)
 
     memset( ime_calls, 0, sizeof(ime_calls) );
     ime_call_count = 0;
-}
-
-static LRESULT (CALLBACK *old_ime_window_proc)( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam );
-static LRESULT (CALLBACK *old_ime_ui_window_proc)( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam );
-
-static LRESULT CALLBACK hook_ime_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
-{
-    winetest_debug = 2;
-    ime_trace( "hwnd %p, msg %s, wparam %#Ix, lparam %#Ix\n", hwnd, debugstr_wm_ime(msg), wparam, lparam );
-    winetest_debug = 1;
-    return CallWindowProcW( old_ime_window_proc, hwnd, msg, wparam, lparam );
-}
-
-static LRESULT CALLBACK hook_ime_ui_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
-{
-    winetest_debug = 2;
-    ime_trace( "hwnd %p, msg %s, wparam %#Ix, lparam %#Ix\n", hwnd, debugstr_wm_ime(msg), wparam, lparam );
-    winetest_debug = 1;
-
-    if (msg == WM_IME_NOTIFY)
-    {
-    winetest_debug = 2;
-    switch (wparam)
-    {
-    case IMN_OPENCANDIDATE:
-    case 0x13:
-    case 0x18:
-    case 0x10d:
-    case 0x10e:
-        break;
-    case 0x0f:
-    case 0x10:
-        ime_trace( "  himc %p\n", ImmGetContext( hwnd ) );
-        break;
-    case 0x11:
-    case 0x14:
-        ime_trace( "  himc %p\n", ImmGetContext( hwnd ) );
-        do
-        {
-            const unsigned char *ptr = (void *)lparam, *end = ptr + 16;
-            for (int i = 0, j; ptr + i < end;)
-            {
-                char buffer[256], *buf = buffer;
-                buf += sprintf(buf, "%08x ", i);
-                for (j = 0; j < 8 && ptr + i + j < end; ++j)
-                    buf += sprintf(buf, " %02x", ptr[i + j]);
-                for (; j < 8 && ptr + i + j >= end; ++j)
-                    buf += sprintf(buf, "   ");
-                buf += sprintf(buf, " ");
-                for (j = 8; j < 16 && ptr + i + j < end; ++j)
-                    buf += sprintf(buf, " %02x", ptr[i + j]);
-                for (; j < 16 && ptr + i + j >= end; ++j)
-                    buf += sprintf(buf, "   ");
-                buf += sprintf(buf, "  |");
-                for (j = 0; j < 16 && ptr + i < end; ++j, ++i)
-                    buf += sprintf(buf, "%c", ptr[i] >= ' ' && ptr[i] <= '~' ? ptr[i] : '.');
-                buf += sprintf(buf, "|");
-                ime_trace("    %s\n", buffer);
-            }
-        }
-        while(0);
-        break;
-    }
-    winetest_debug = 1;
-    }
-
-    return CallWindowProcW( old_ime_ui_window_proc, hwnd, msg, wparam, lparam );
 }
 
 static void test_nihongo_no(void)
@@ -7983,13 +7878,6 @@ static void test_nihongo_no(void)
     ignore_IME_NOTIFY = TRUE;
 
 
-    ok_ret( 1, EnumThreadWindows( GetCurrentThreadId(), enum_thread_ime_windows, (LPARAM)&ime_windows ) );
-    ok_ne( NULL, ime_windows.ime_hwnd, HWND, "%p" );
-    ok_ne( NULL, ime_windows.ime_ui_hwnd, HWND, "%p" );
-
-    if (0) old_ime_window_proc = (WNDPROC)SetWindowLongPtrW( ime_windows.ime_hwnd, GWLP_WNDPROC, (ULONG_PTR)hook_ime_window_proc );
-    old_ime_ui_window_proc = (WNDPROC)SetWindowLongPtrW( ime_windows.ime_ui_hwnd, GWLP_WNDPROC, (ULONG_PTR)hook_ime_ui_window_proc );
-
     keybd_event( 'N', 0x31, 0, 0 );
     flush_events();
     keybd_event( 'N', 0x31, KEYEVENTF_KEYUP, 0 );
@@ -7997,10 +7885,6 @@ static void test_nihongo_no(void)
     keybd_event( 'I', 0x17, 0, 0 );
     flush_events();
     keybd_event( 'I', 0x17, KEYEVENTF_KEYUP, 0 );
-
-    flush_events_(1000, 1000);
-    ImmNotifyIME( himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0 );
-    flush_events();
 
     keybd_event( 'H', 0x23, 0, 0 );
     flush_events();
@@ -8013,10 +7897,6 @@ static void test_nihongo_no(void)
     keybd_event( 'N', 0x31, 0, 0 );
     flush_events();
     keybd_event( 'N', 0x31, KEYEVENTF_KEYUP, 0 );
-
-    flush_events_(1000, 1000);
-    ImmNotifyIME( himc, NI_COMPOSITIONSTR, CPS_COMPLETE, 0 );
-    flush_events();
 
     keybd_event( 'G', 0x22, 0, 0 );
     flush_events();
@@ -8044,9 +7924,6 @@ static void test_nihongo_no(void)
 
     flush_events();
     todo_wine ok_seq( complete_seq );
-
-    if (0) SetWindowLongPtrW( ime_windows.ime_hwnd, GWLP_WNDPROC, (ULONG_PTR)old_ime_window_proc );
-    SetWindowLongPtrW( ime_windows.ime_ui_hwnd, GWLP_WNDPROC, (ULONG_PTR)old_ime_ui_window_proc );
 
     ignore_WM_IME_REQUEST = FALSE;
     ignore_WM_IME_NOTIFY = FALSE;
