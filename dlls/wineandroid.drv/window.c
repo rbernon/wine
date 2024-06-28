@@ -1039,21 +1039,19 @@ static struct android_win_data *create_win_data( HWND hwnd, const RECT *window_r
 /***********************************************************************
  *           ANDROID_WindowPosChanging
  */
-BOOL ANDROID_WindowPosChanging( HWND hwnd, UINT swp_flags, BOOL shaped, const RECT *window_rect,
-                                const RECT *client_rect, RECT *visible_rect )
+BOOL ANDROID_WindowPosChanging( HWND hwnd, UINT swp_flags, BOOL shaped, struct window_rects *rects )
 {
     struct android_win_data *data = get_win_data( hwnd );
     BOOL ret = FALSE;
 
-    TRACE( "hwnd %p, swp_flags %04x, shaped %u, window_rect %s, client_rect %s, visible_rect %s\n",
-           hwnd, swp_flags, shaped, wine_dbgstr_rect(window_rect), wine_dbgstr_rect(client_rect),
-           wine_dbgstr_rect(visible_rect) );
+    TRACE( "hwnd %p, swp_flags %#x, shaped %u, rects %s\n", hwnd, swp_flags, shaped, debugstr_window_rects( rects ) );
 
-    if (!data && !(data = create_win_data( hwnd, window_rect, client_rect ))) return FALSE; /* use default surface */
+    if (!data && !(data = create_win_data( hwnd, &rects->window, &rects->client ))) return FALSE; /* use default surface */
 
     if (data->parent) goto done; /* use default surface */
     if (is_argb_surface( data->surface )) goto done; /* use default surface */
 
+    TRACE( "-> rects %s\n", debugstr_window_rects( rects ) );
     ret = TRUE;
 
 done:
