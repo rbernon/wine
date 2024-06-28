@@ -94,10 +94,6 @@ nv12frame-grabber.bmp RCDATA nv12frame-grabber.bmp
 nv12frame-flip.bmp RCDATA nv12frame-flip.bmp
 
 /* Generated from running the tests on Windows */
-/* @makedep: nv12frame-crop.bmp */
-nv12frame-crop.bmp RCDATA nv12frame-crop.bmp
-
-/* Generated from running the tests on Windows */
 /* @makedep: i420frame.bmp */
 i420frame.bmp RCDATA i420frame.bmp
 

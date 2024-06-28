@@ -21,7 +21,6 @@
 #include "gst_private.h"
 #include "gst_guids.h"
 
-#include "mfapi.h"
 #include "mferror.h"
 #include "mpegtype.h"
 
@@ -808,59 +807,38 @@ static HRESULT mpeg_video_codec_source_query_accept(struct transform *filter, co
 
 static HRESULT mpeg_video_codec_source_get_media_type(struct transform *filter, unsigned int index, AM_MEDIA_TYPE *mt)
 {
-    static struct
-    {
-        const GUID *subtype;
-        UINT32 bitcount;
-        UINT32 compression;
-    } video_formats[] =
-    {
-        {&MEDIASUBTYPE_YV12, 12, MAKEFOURCC('Y','V','1','2')},
-        {&MEDIASUBTYPE_YUY2, 16, MAKEFOURCC('Y','U','Y','2')},
-        {&MEDIASUBTYPE_UYVY, 16, MAKEFOURCC('U','Y','V','Y')},
-        {&MEDIASUBTYPE_RGB24, 24, BI_RGB},
-        {&MEDIASUBTYPE_RGB32, 32, BI_RGB},
-        {&MEDIASUBTYPE_RGB565, 16, BI_BITFIELDS},
-        {&MEDIASUBTYPE_RGB555, 16, BI_RGB},
+    static const enum wg_video_format formats[] = {
+        WG_VIDEO_FORMAT_YV12,
+        WG_VIDEO_FORMAT_YUY2,
+        WG_VIDEO_FORMAT_UYVY,
+        WG_VIDEO_FORMAT_BGR,
+        WG_VIDEO_FORMAT_BGRx,
+        WG_VIDEO_FORMAT_RGB16,
+        WG_VIDEO_FORMAT_RGB15,
     };
 
     const MPEG1VIDEOINFO *input_format = (MPEG1VIDEOINFO*)filter->sink.pin.mt.pbFormat;
+    struct wg_format wg_format = {};
     VIDEOINFO *video_format;
 
     if (!filter->sink.pin.peer)
         return VFW_S_NO_MORE_ITEMS;
 
-    if (index >= ARRAY_SIZE(video_formats))
+    if (index >= ARRAY_SIZE(formats))
         return VFW_S_NO_MORE_ITEMS;
 
-    memset(mt, 0, sizeof(*mt));
-    if (!(mt->pbFormat = calloc(1, sizeof(VIDEOINFO))))
+    input_format = (MPEG1VIDEOINFO*)filter->sink.pin.mt.pbFormat;
+    wg_format.major_type = WG_MAJOR_TYPE_VIDEO;
+    wg_format.u.video.format = formats[index];
+    wg_format.u.video.width = input_format->hdr.bmiHeader.biWidth;
+    wg_format.u.video.height = input_format->hdr.bmiHeader.biHeight;
+    wg_format.u.video.fps_n = 10000000;
+    wg_format.u.video.fps_d = input_format->hdr.AvgTimePerFrame;
+    if (!amt_from_wg_format(mt, &wg_format, false))
         return E_OUTOFMEMORY;
-    mt->cbFormat = sizeof(VIDEOINFOHEADER);
-    mt->majortype = MEDIATYPE_Video;
-    mt->subtype = *video_formats[index].subtype;
-    mt->formattype = FORMAT_VideoInfo;
-    mt->lSampleSize = 1;
 
-    video_format = (VIDEOINFO *)mt->pbFormat;
-    video_format->AvgTimePerFrame = input_format->hdr.AvgTimePerFrame;
-
-    video_format->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    video_format->bmiHeader.biWidth = input_format->hdr.bmiHeader.biWidth;
-    video_format->bmiHeader.biHeight = abs(input_format->hdr.bmiHeader.biHeight);
-    video_format->bmiHeader.biPlanes = 1;
-    video_format->bmiHeader.biBitCount = video_formats[index].bitcount;
-    video_format->bmiHeader.biCompression = video_formats[index].compression;
-    MFCalculateImageSize(video_formats[index].subtype, video_format->bmiHeader.biWidth, video_format->bmiHeader.biHeight,
-            (UINT32 *)&video_format->bmiHeader.biSizeImage);
-
-    if (IsEqualGUID(&video_formats[index].subtype, &MEDIASUBTYPE_RGB565))
-    {
-        mt->cbFormat = offsetof(VIDEOINFO, dwBitMasks[3]);
-        video_format->dwBitMasks[iRED]   = 0xf800;
-        video_format->dwBitMasks[iGREEN] = 0x07e0;
-        video_format->dwBitMasks[iBLUE]  = 0x001f;
-    }
+    video_format = (VIDEOINFO*)mt->pbFormat;
+    video_format->bmiHeader.biHeight = abs(video_format->bmiHeader.biHeight);
     SetRect(&video_format->rcSource, 0, 0, video_format->bmiHeader.biWidth, video_format->bmiHeader.biHeight);
 
     video_format->bmiHeader.biXPelsPerMeter = 2000;
@@ -896,26 +874,31 @@ static const struct transform_ops mpeg_video_codec_transform_ops =
 
 HRESULT mpeg_video_codec_create(IUnknown *outer, IUnknown **out)
 {
-    const MFVIDEOFORMAT output_format =
+    static const struct wg_format output_format =
     {
-        .dwSize = sizeof(MFVIDEOFORMAT),
-        .videoInfo = {.dwWidth = 1920, .dwHeight = 1080},
-        .guidFormat = MEDIASUBTYPE_NV12,
+        .major_type = WG_MAJOR_TYPE_VIDEO,
+        .u.video = {
+            .format = WG_VIDEO_FORMAT_I420,
+            /* size doesn't matter, this one is only used to check if the GStreamer plugin exists */
+        },
     };
-    const MFVIDEOFORMAT input_format =
+    static const struct wg_format input_format =
     {
-        .dwSize = sizeof(MFVIDEOFORMAT),
-        .videoInfo = {.dwWidth = 1920, .dwHeight = 1080},
-        .guidFormat = MEDIASUBTYPE_MPEG1Payload,
+        .major_type = WG_MAJOR_TYPE_VIDEO_MPEG1,
+        .u.video = {},
     };
+    struct wg_transform_attrs attrs = {0};
+    wg_transform_t transform;
     struct transform *object;
     HRESULT hr;
 
-    if (FAILED(hr = check_video_transform_support(&input_format, &output_format)))
+    transform = wg_transform_create(&input_format, &output_format, &attrs);
+    if (!transform)
     {
         ERR_(winediag)("GStreamer doesn't support MPEG-1 video decoding, please install appropriate plugins.\n");
-        return hr;
+        return E_FAIL;
     }
+    wg_transform_destroy(transform);
 
     hr = transform_create(outer, &CLSID_CMpegVideoCodec, &mpeg_video_codec_transform_ops, &object);
     if (FAILED(hr))
