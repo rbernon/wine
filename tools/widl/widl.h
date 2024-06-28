@@ -51,7 +51,9 @@ extern int winrt_mode;
 extern int interpreted_mode;
 extern int use_abi_namespace;
 
-extern char *typename_base;
+extern char *input_name;
+extern char *idl_name;
+extern char *acf_name;
 extern char *header_name;
 extern char *header_token;
 extern char *local_stubs_name;
@@ -74,16 +76,16 @@ extern time_t now;
 
 extern int open_typelib( const char *name );
 
-struct idl_ctx;
-extern void write_header( const struct idl_ctx *ctx );
-extern void write_proxies( const struct idl_ctx *ctx );
-extern void write_client( const struct idl_ctx *ctx );
-extern void write_server( const struct idl_ctx *ctx );
-extern void write_regscript( const struct idl_ctx *ctx );
-extern void write_typelib_regscript( const struct idl_ctx *ctx );
+extern void write_header(const statement_list_t *stmts);
+extern void write_id_data(const statement_list_t *stmts);
+extern void write_proxies(const statement_list_t *stmts);
+extern void write_client(const statement_list_t *stmts);
+extern void write_server(const statement_list_t *stmts);
+extern void write_regscript(const statement_list_t *stmts);
+extern void write_typelib_regscript(const statement_list_t *stmts);
 extern void output_typelib_regscript( const typelib_t *typelib );
-extern void write_local_stubs( const struct idl_ctx *ctx );
-extern void write_dlldata( const struct idl_ctx *ctx );
+extern void write_local_stubs(const statement_list_t *stmts);
+extern void write_dlldata(const statement_list_t *stmts);
 
 extern void start_cplusplus_guard(FILE *fp);
 extern void end_cplusplus_guard(FILE *fp);
@@ -122,27 +124,6 @@ extern attr_list_t *check_runtimeclass_attrs( const char *name, attr_list_t *att
 extern attr_list_t *check_struct_attrs( attr_list_t *attrs );
 extern attr_list_t *check_typedef_attrs( attr_list_t *attrs );
 extern attr_list_t *check_union_attrs( attr_list_t *attrs );
-extern attr_list_t *check_arg_attrs( attr_list_t *attrs, const char *name );
-
-/* expr.c */
-
-struct expr_loc
-{
-    const var_t *v;
-    const char *attr;
-};
-
-extern expr_t *expr_void(void);
-extern expr_t *expr_decl( decl_spec_t *decl );
-extern expr_t *expr_int( int val, const char *text );
-extern expr_t *expr_double( double val );
-extern expr_t *expr_str( enum expr_type type, char *val );
-extern expr_t *expr_op( enum expr_type type, expr_t *arg0, expr_t *arg1, expr_t *arg2 );
-
-extern const type_t *expr_resolve_type( const struct expr_loc *expr_loc, const type_t *cont_type, const expr_t *expr );
-extern int compare_expr( const expr_t *a, const expr_t *b );
-
-extern void write_expr( FILE *h, const expr_t *e, int brackets, int toplevel, const char *toplevel_prefix,
-                        const type_t *cont_type, const char *local_var_prefix );
+extern void check_arg_attrs( const var_t *arg );
 
 #endif
