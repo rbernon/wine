@@ -237,40 +237,21 @@ RGNDATA *get_region_data(HRGN region)
     return data;
 }
 
-static void mask_pixels(char *dst_pixels, const char *src_shape, UINT size)
-{
-    static const int bpp = WINEWAYLAND_BYTES_PER_PIXEL;
-
-    while (size)
-    {
-        UINT8 bits = src_shape[size / 8];
-        if (!(bits & (1 << 7))) dst_pixels[size * bpp - 0 * 8 - 1] = 0;
-        if (!(bits & (1 << 6))) dst_pixels[size * bpp - 1 * 8 - 1] = 0;
-        if (!(bits & (1 << 5))) dst_pixels[size * bpp - 2 * 8 - 1] = 0;
-        if (!(bits & (1 << 4))) dst_pixels[size * bpp - 3 * 8 - 1] = 0;
-        if (!(bits & (1 << 3))) dst_pixels[size * bpp - 4 * 8 - 1] = 0;
-        if (!(bits & (1 << 2))) dst_pixels[size * bpp - 5 * 8 - 1] = 0;
-        if (!(bits & (1 << 1))) dst_pixels[size * bpp - 6 * 8 - 1] = 0;
-        if (!(bits & (1 << 0))) dst_pixels[size * bpp - 7 * 8 - 1] = 0;
-        size -= 8;
-    }
-}
-
 /**********************************************************************
  *          copy_pixel_region
  */
-static void copy_pixel_region(const char *src_pixels, const char *src_shape, RECT *src_rect,
-                              char *dst_pixels, RECT *dst_rect, HRGN region)
+static void copy_pixel_region(const char *src_pixels, RECT *src_rect,
+                              char *dst_pixels, RECT *dst_rect,
+                              HRGN region)
 {
     static const int bpp = WINEWAYLAND_BYTES_PER_PIXEL;
     RGNDATA *rgndata = get_region_data(region);
     RECT *rgn_rect;
     RECT *rgn_rect_end;
-    int src_stride, dst_stride, shape_stride;
+    int src_stride, dst_stride;
 
     if (!rgndata) return;
 
-    shape_stride = (src_rect->right - src_rect->left);
     src_stride = (src_rect->right - src_rect->left) * bpp;
     dst_stride = (dst_rect->right - dst_rect->left) * bpp;
 
@@ -279,7 +260,7 @@ static void copy_pixel_region(const char *src_pixels, const char *src_shape, REC
 
     for (;rgn_rect < rgn_rect_end; rgn_rect++)
     {
-        const char *src, *shape;
+        const char *src;
         char *dst;
         int y, width_bytes, height;
         RECT rc;
@@ -289,7 +270,6 @@ static void copy_pixel_region(const char *src_pixels, const char *src_shape, REC
         if (!intersect_rect(&rc, rgn_rect, src_rect)) continue;
         if (!intersect_rect(&rc, &rc, dst_rect)) continue;
 
-        if (src_shape) shape = src_shape + (rc.top - src_rect->top) * shape_stride + ((rc.left & ~7) - src_rect->left);
         src = src_pixels + (rc.top - src_rect->top) * src_stride + (rc.left - src_rect->left) * bpp;
         dst = dst_pixels + (rc.top - dst_rect->top) * dst_stride + (rc.left - dst_rect->left) * bpp;
         width_bytes = (rc.right - rc.left) * bpp;
@@ -299,15 +279,12 @@ static void copy_pixel_region(const char *src_pixels, const char *src_shape, REC
         if (width_bytes == src_stride && width_bytes == dst_stride)
         {
             memcpy(dst, src, height * width_bytes);
-            if (src_shape) mask_pixels(dst - (rc.left & 7) * bpp, shape, height * width_bytes);
             continue;
         }
 
         for (y = 0; y < height; y++)
         {
             memcpy(dst, src, width_bytes);
-            if (src_shape) mask_pixels(dst - (rc.left & 7) * bpp, shape, width_bytes);
-            shape += shape_stride;
             src += src_stride;
             dst += dst_stride;
         }
@@ -320,12 +297,12 @@ static void copy_pixel_region(const char *src_pixels, const char *src_shape, REC
  *          wayland_shm_buffer_copy_data
  */
 static void wayland_shm_buffer_copy_data(struct wayland_shm_buffer *buffer,
-                                         const char *bits, const char *shape, RECT *rect,
+                                         const char *bits, RECT *rect,
                                          HRGN region)
 {
     RECT buffer_rect = {0, 0, buffer->width, buffer->height};
     TRACE("buffer=%p bits=%p rect=%s\n", buffer, bits, wine_dbgstr_rect(rect));
-    copy_pixel_region(bits, shape, rect, buffer->map_data, &buffer_rect, region);
+    copy_pixel_region(bits, rect, buffer->map_data, &buffer_rect, region);
 }
 
 static void wayland_shm_buffer_copy(struct wayland_shm_buffer *src,
@@ -335,7 +312,7 @@ static void wayland_shm_buffer_copy(struct wayland_shm_buffer *src,
     RECT src_rect = {0, 0, src->width, src->height};
     RECT dst_rect = {0, 0, dst->width, dst->height};
     TRACE("src=%p dst=%p\n", src, dst);
-    copy_pixel_region(src->map_data, NULL, &src_rect, dst->map_data, &dst_rect, region);
+    copy_pixel_region(src->map_data, &src_rect, dst->map_data, &dst_rect, region);
 }
 
 /***********************************************************************
@@ -407,7 +384,7 @@ static BOOL wayland_window_surface_flush(struct window_surface *window_surface, 
         copy_from_window_region = shm_buffer->damage_region;
     }
 
-    wayland_shm_buffer_copy_data(shm_buffer, color_bits, shape_bits, &surface_rect, copy_from_window_region);
+    wayland_shm_buffer_copy_data(shm_buffer, color_bits, &surface_rect, copy_from_window_region);
 
     pthread_mutex_lock(&wws->wayland_surface->mutex);
     if (wayland_surface_reconfigure(wws->wayland_surface))
