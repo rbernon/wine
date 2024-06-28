@@ -316,6 +316,34 @@ static void wayland_shm_buffer_copy(struct wayland_shm_buffer *src,
     copy_pixel_region(src->map_data, &src_rect, dst->map_data, &dst_rect, region);
 }
 
+/**********************************************************************
+ *          wayland_shm_buffer_copy_data
+ */
+static void wayland_shm_buffer_copy_shape(struct wayland_shm_buffer *buffer, const RECT *dirty,
+                                          const BITMAPINFO *shape_info, const void *shape_bits)
+{
+    RECT dst_rect = {0, 0, buffer->width, buffer->height};
+    UINT32 *color, shape_stride, color_stride, x, y;
+    const BYTE *shape;
+    RECT rect;
+
+    shape_stride = shape_info->bmiHeader.biSizeImage / abs(shape_info->bmiHeader.biHeight);
+    color_stride = dst_rect.right - dst_rect.left;
+
+    if (!intersect_rect(&rect, &dst_rect, dirty)) return;
+
+    color = (UINT32 *)buffer->map_data + rect.top * color_stride;
+    shape = (const BYTE *)shape_bits + rect.top * shape_stride;
+
+    for (y = rect.top; y < rect.bottom; y++, color += color_stride, shape += shape_stride)
+    {
+        for (x = rect.left; x < rect.right; x++)
+        {
+            if (!(shape[x / 8] & (1 << (7 - (x & 7))))) color[x] = 0;
+        }
+    }
+}
+
 /***********************************************************************
  *           wayland_window_surface_flush
  */
@@ -380,6 +408,7 @@ static BOOL wayland_window_surface_flush(struct window_surface *window_surface, 
     }
 
     wayland_shm_buffer_copy_data(shm_buffer, color_bits, &surface_rect, copy_from_window_region);
+    if (shape_bits) wayland_shm_buffer_copy_shape(shm_buffer, rect, shape_info, shape_bits);
     NtGdiSetRectRgn(shm_buffer->damage_region, 0, 0, 0, 0);
 
     flushed = set_window_surface_contents(window_surface->hwnd, shm_buffer, dirty);
