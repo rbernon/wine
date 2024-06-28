@@ -2619,10 +2619,8 @@ done:
 /***********************************************************************
  *		WindowPosChanged   (X11DRV.@)
  */
-void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
-                              const RECT *rectWindow, const RECT *rectClient,
-                              const RECT *visible_rect, const RECT *valid_rects,
-                              struct window_surface *surface )
+void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags, const struct window_rects *old_rects,
+                              const struct window_rects *new_rects, struct window_surface *surface )
 {
     struct x11drv_thread_data *thread_data;
     struct x11drv_win_data *data;
@@ -2637,9 +2635,9 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
     old_window_rect = data->window_rect;
     old_whole_rect  = data->whole_rect;
     old_client_rect = data->client_rect;
-    data->window_rect = *rectWindow;
-    data->whole_rect  = *visible_rect;
-    data->client_rect = *rectClient;
+    data->window_rect = new_rects->window;
+    data->whole_rect  = new_rects->visible;
+    data->client_rect = new_rects->client;
     if (data->vis.visualid == default_visual.visualid)
     {
         if (surface) window_surface_add_ref( surface );
@@ -2648,9 +2646,9 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
     }
 
     TRACE( "win %p window %s client %s style %08x flags %08x\n",
-           hwnd, wine_dbgstr_rect(rectWindow), wine_dbgstr_rect(rectClient), new_style, swp_flags );
+           hwnd, wine_dbgstr_rect(&new_rects->window), wine_dbgstr_rect(&new_rects->client), new_style, swp_flags );
 
-    if (!IsRectEmpty( &valid_rects[0] ))
+    if (!IsRectEmpty( &old_rects->valid ))
     {
         Window window = data->whole_window;
         int x_offset = old_whole_rect.left - data->whole_rect.left;
@@ -2664,22 +2662,22 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
             old_client_rect.right  - data->client_rect.right  == x_offset &&
             old_client_rect.top    - data->client_rect.top    == y_offset &&
             old_client_rect.bottom - data->client_rect.bottom == y_offset &&
-            EqualRect( &valid_rects[0], &data->client_rect ))
+            EqualRect( &new_rects->valid, &data->client_rect ))
         {
             /* if we have an X window the bits will be moved by the X server */
             if (!window && (x_offset != 0 || y_offset != 0))
             {
                 release_win_data( data );
-                move_window_bits( hwnd, window, &old_whole_rect, visible_rect,
-                                  &old_client_rect, rectClient, rectWindow );
+                move_window_bits( hwnd, window, &old_whole_rect, &new_rects->visible,
+                                  &old_client_rect, &new_rects->client, &new_rects->window );
                 if (!(data = get_win_data( hwnd ))) return;
             }
         }
         else
         {
             release_win_data( data );
-            move_window_bits( hwnd, window, &valid_rects[1], &valid_rects[0],
-                              &old_client_rect, rectClient, rectWindow );
+            move_window_bits( hwnd, window, &old_rects->valid, &new_rects->valid,
+                              &old_client_rect, &new_rects->client, &new_rects->window );
             if (!(data = get_win_data( hwnd ))) return;
         }
     }
@@ -2716,7 +2714,7 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
     {
         if (((swp_flags & SWP_HIDEWINDOW) && !(new_style & WS_VISIBLE)) ||
             (!event_type && !(new_style & WS_MINIMIZE) &&
-             !is_window_rect_mapped( rectWindow ) && is_window_rect_mapped( &old_window_rect )))
+             !is_window_rect_mapped( &new_rects->window ) && is_window_rect_mapped( &old_window_rect )))
         {
             release_win_data( data );
             unmap_window( hwnd );
@@ -2732,7 +2730,7 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
         sync_window_position( data, swp_flags, &old_window_rect, &old_whole_rect, &old_client_rect );
 
     if ((new_style & WS_VISIBLE) &&
-        ((new_style & WS_MINIMIZE) || is_window_rect_mapped( rectWindow )))
+        ((new_style & WS_MINIMIZE) || is_window_rect_mapped( &new_rects->window )))
     {
         if (!data->mapped)
         {
@@ -2741,7 +2739,7 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
 
             /* layered windows are mapped only once their attributes are set */
             if (NtUserGetWindowLongW( hwnd, GWL_EXSTYLE ) & WS_EX_LAYERED)
-                needs_map = data->layered || IsRectEmpty( rectWindow );
+                needs_map = data->layered || IsRectEmpty( &new_rects->window );
             release_win_data( data );
             if (needs_icon) fetch_icon_data( hwnd, 0, 0 );
             if (needs_map) map_window( hwnd, new_style );
@@ -2754,7 +2752,7 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
             TRACE( "changing win %p iconic state to %u\n", data->hwnd, data->iconic );
             if (data->iconic)
                 XIconifyWindow( data->display, data->whole_window, data->vis.screen );
-            else if (is_window_rect_mapped( rectWindow ))
+            else if (is_window_rect_mapped( &new_rects->window ))
                 XMapWindow( data->display, data->whole_window );
             update_net_wm_states( data );
         }
