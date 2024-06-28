@@ -18,8 +18,6 @@
 
 #include "dmloader_private.h"
 
-#include "shlwapi.h"
-
 WINE_DEFAULT_DEBUG_CHANNEL(dmloader);
 
 static const WCHAR *system_default_gm_paths[] =
@@ -144,7 +142,7 @@ static HRESULT WINAPI loader_QueryInterface(IDirectMusicLoader8 *iface, REFIID r
 	if (IsEqualIID (riid, &IID_IUnknown) || 
 	    IsEqualIID (riid, &IID_IDirectMusicLoader) ||
 	    IsEqualIID (riid, &IID_IDirectMusicLoader8)) {
-		IDirectMusicLoader8_AddRef (iface);
+		IDirectMusicLoader_AddRef (iface);
 		*ppobj = This;
 		return S_OK;
 	}
@@ -348,13 +346,25 @@ static HRESULT WINAPI loader_GetObject(IDirectMusicLoader8 *iface, DMUS_OBJECTDE
         }
 
         TRACE(": loading from file (%s)\n", debugstr_w(file_name));
-        if (FAILED(hr = SHCreateStreamOnFileW(file_name, STGM_READ, &pStream))) return hr;
+        if (FAILED(hr = file_stream_create(file_name, &pStream))) return hr;
     }
-    else if (pDesc->dwValidData & DMUS_OBJ_MEMORY)
-    {
-        pStream = SHCreateMemStream(pDesc->pbMemData, pDesc->llMemLength);
-        if (!pStream) return E_OUTOFMEMORY;
-    }
+	else if (pDesc->dwValidData & DMUS_OBJ_MEMORY) {
+		/* load object from resource */
+		TRACE(": loading from resource\n");
+		/* create stream and associate it with given resource */			
+		result = DMUSIC_CreateDirectMusicLoaderResourceStream ((LPVOID*)&pStream);
+		if (FAILED(result)) {
+			ERR(": could not create resource stream\n");
+			return result;
+		}
+                result = IDirectMusicLoaderResourceStream_Attach(pStream, pDesc->pbMemData, pDesc->llMemLength, 0);
+                if (FAILED(result))
+                {
+			ERR(": could not attach stream to resource\n");
+			IStream_Release (pStream);
+			return result;
+		}
+	}
     else if (pDesc->dwValidData & DMUS_OBJ_STREAM)
     {
         pStream = pDesc->pStream;
@@ -487,23 +497,33 @@ static HRESULT WINAPI loader_SetObject(IDirectMusicLoader8 *iface, DMUS_OBJECTDE
             if (FAILED(hr)) return hr;
         }
 
-        if (FAILED(hr = SHCreateStreamOnFileW(file_name, STGM_READ, &pStream))) return hr;
+        if (FAILED(hr = file_stream_create(file_name, &pStream))) return hr;
     }
     else if (pDesc->dwValidData & DMUS_OBJ_STREAM)
     {
         pStream = pDesc->pStream;
         IStream_AddRef(pStream);
     }
-    else if (pDesc->dwValidData & DMUS_OBJ_MEMORY)
-    {
-        pStream = SHCreateMemStream(pDesc->pbMemData, pDesc->llMemLength);
-        if (!pStream) return E_OUTOFMEMORY;
-    }
-    else
-    {
-        ERR(": no way to get additional info\n");
-        return DMUS_E_LOADER_FAILEDOPEN;
-    }
+	else if (pDesc->dwValidData & DMUS_OBJ_MEMORY) {
+		/* create stream */
+		hr = DMUSIC_CreateDirectMusicLoaderResourceStream ((LPVOID*)&pStream);
+		if (FAILED(hr)) {
+			ERR(": could not create resource stream\n");
+			return DMUS_E_LOADER_FAILEDOPEN;
+		}
+		/* attach stream */
+                hr = IDirectMusicLoaderResourceStream_Attach(pStream, pDesc->pbMemData, pDesc->llMemLength, 0);
+                if (FAILED(hr))
+                {
+			ERR(": could not attach stream to resource\n");
+			IStream_Release (pStream);
+			return DMUS_E_LOADER_FAILEDOPEN;
+		}
+	}
+	else {
+		ERR(": no way to get additional info\n");
+		return DMUS_E_LOADER_FAILEDOPEN;
+	}
 
     if (FAILED(hr = loader_stream_create((IDirectMusicLoader *)iface, pStream, &loader_stream)))
         return hr;
@@ -844,7 +864,7 @@ static HRESULT WINAPI loader_LoadObjectFromFile(IDirectMusicLoader8 *iface, REFG
 	
 	TRACE(": full file path = %s\n", debugstr_w (ObjDesc.wszFileName));
 	
-	return IDirectMusicLoader8_GetObject(iface, &ObjDesc, iidInterfaceID, ppObject);
+	return IDirectMusicLoader_GetObject(iface, &ObjDesc, iidInterfaceID, ppObject);
 }
 
 static const IDirectMusicLoader8Vtbl loader_vtbl =

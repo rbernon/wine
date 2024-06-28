@@ -19,7 +19,6 @@
  */
 
 #include "dmime_private.h"
-#include "winternl.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(dmime);
 
@@ -505,11 +504,11 @@ static HRESULT WINAPI segment_SetPChannelsUsed(IDirectMusicSegment8 *iface, DWOR
 }
 
 static HRESULT WINAPI segment_SetTrackConfig(IDirectMusicSegment8 *iface, REFGUID rguidTrackClassID,
-        DWORD group, DWORD index, DWORD dwFlagsOn, DWORD dwFlagsOff)
+        DWORD dwGroupBits, DWORD dwIndex, DWORD dwFlagsOn, DWORD dwFlagsOff)
 {
     struct segment *This = impl_from_IDirectMusicSegment8(iface);
-    FIXME("(%p, %s, %#lx, %ld, %ld, %ld): stub\n", This, debugstr_dmguid(rguidTrackClassID), group,
-            index, dwFlagsOn, dwFlagsOff);
+    FIXME("(%p, %s, %#lx, %ld, %ld, %ld): stub\n", This, debugstr_dmguid(rguidTrackClassID),
+            dwGroupBits, dwIndex, dwFlagsOn, dwFlagsOff);
     return S_OK;
 }
 
@@ -782,48 +781,6 @@ static HRESULT parse_dmsg_chunk(struct segment *This, IStream *stream, const str
     }
 
     return SUCCEEDED(hr) ? S_OK : hr;
-}
-
-static HRESULT parse_mthd_chunk(struct segment *This, IStream *stream, struct chunk_entry *chunk)
-{
-    struct
-    {
-        WORD format;
-        WORD track_count;
-        WORD ppqn;
-    } header;
-    HRESULT hr;
-
-    if (FAILED(hr = stream_chunk_get_data(stream, chunk, &header, sizeof(header))))
-    {
-        WARN("Failed to read MThd header, hr %#lx\n", hr);
-        return hr;
-    }
-
-    while ((hr = stream_next_chunk(stream, chunk)) == S_OK)
-    {
-        chunk->size = RtlUlongByteSwap(chunk->size); /* MIDI files are in big endian */
-
-        switch (MAKE_IDTYPE(chunk->id, chunk->type))
-        {
-        case mmioFOURCC('M','T','r','k'):
-        {
-            IDirectMusicTrack8 *track;
-
-            if (FAILED(hr = midi_track_create_from_chunk(stream, chunk, &track))) break;
-            hr = segment_append_track(This, (IDirectMusicTrack *)track, 1, 0);
-            break;
-        }
-
-        default:
-            FIXME("Ignoring chunk %s %s\n", debugstr_fourcc(chunk->id), debugstr_fourcc(chunk->type));
-            break;
-        }
-
-        if (FAILED(hr)) break;
-    }
-
-    return hr;
 }
 
 static inline struct segment *impl_from_IPersistStream(IPersistStream *iface)

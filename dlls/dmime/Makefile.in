@@ -12,7 +12,6 @@ SOURCES = \
 	lyricstrack.c \
 	markertrack.c \
 	midi.c \
-	miditrack.c \
 	paramcontroltrack.c \
 	performance.c \
 	segment.c \

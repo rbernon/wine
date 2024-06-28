@@ -2,5 +2,4 @@ TESTDLL   = dmusic.dll
 IMPORTS   = oleaut32 ole32 uuid user32 dsound
 
 SOURCES = \
-	ffviii.c \
 	dmusic.c

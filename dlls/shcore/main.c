@@ -539,7 +539,6 @@ struct shstream
         {
             HANDLE handle;
             DWORD mode;
-            DWORD attributes;
             WCHAR *path;
         } file;
     } u;
@@ -800,16 +799,6 @@ static HRESULT WINAPI memstream_Stat(IStream *iface, STATSTG *statstg, DWORD fla
     return S_OK;
 }
 
-static HRESULT WINAPI memstream_Clone(IStream *iface, IStream **dest)
-{
-    struct shstream *stream = impl_from_IStream(iface);
-
-    TRACE("(%p, %p)\n", stream, dest);
-
-    *dest = SHCreateMemStream(stream->u.mem.buffer, stream->u.mem.length);
-    return *dest ? S_OK : E_OUTOFMEMORY;
-}
-
 static HRESULT WINAPI shstream_Clone(IStream *iface, IStream **dest)
 {
     struct shstream *stream = impl_from_IStream(iface);
@@ -837,7 +826,7 @@ static const IStreamVtbl memstreamvtbl =
     shstream_LockRegion,
     shstream_UnlockRegion,
     memstream_Stat,
-    memstream_Clone,
+    shstream_Clone,
 };
 
 static struct shstream *shstream_create(const IStreamVtbl *vtbl, const BYTE *data, UINT data_len)
@@ -1082,16 +1071,6 @@ static HRESULT WINAPI filestream_Stat(IStream *iface, STATSTG *statstg, DWORD fl
     return S_OK;
 }
 
-static HRESULT WINAPI filestream_Clone(IStream *iface, IStream **ret)
-{
-    struct shstream *stream = impl_from_IStream(iface);
-
-    TRACE("%p, %p.\n", iface, ret);
-
-    return SHCreateStreamOnFileEx(stream->u.file.path, stream->u.file.mode,
-            stream->u.file.attributes, FALSE, NULL, ret);
-}
-
 static const IStreamVtbl filestreamvtbl =
 {
     shstream_QueryInterface,
@@ -1107,7 +1086,7 @@ static const IStreamVtbl filestreamvtbl =
     shstream_LockRegion,
     shstream_UnlockRegion,
     filestream_Stat,
-    filestream_Clone,
+    shstream_Clone,
 };
 
 /*************************************************************************
@@ -1183,7 +1162,6 @@ HRESULT WINAPI SHCreateStreamOnFileEx(const WCHAR *path, DWORD mode, DWORD attri
     stream->refcount = 1;
     stream->u.file.handle = hFile;
     stream->u.file.mode = mode;
-    stream->u.file.attributes = attributes;
 
     len = lstrlenW(path);
     stream->u.file.path = malloc((len + 1) * sizeof(WCHAR));
