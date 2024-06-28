@@ -50,6 +50,7 @@ struct window_rects
     RECT window;    /* window area, including non-client frame */
     RECT client;    /* client area, excluding non-client frame */
     RECT visible;   /* area currently visible on the host screen, backed with a surface */
+    RECT valid;     /* area with valid pixels that should be moved to the new position */
 };
 
 static inline const char *debugstr_window_rects( const struct window_rects *rects )
