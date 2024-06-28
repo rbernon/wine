@@ -153,7 +153,7 @@ static struct wayland_shm_buffer *wayland_buffer_queue_get_free_buffer(struct wa
         if (nbuffers < 3)
         {
             shm_buffer = wayland_shm_buffer_create(queue->width, queue->height,
-                                                   WL_SHM_FORMAT_XRGB8888);
+                                                   WL_SHM_FORMAT_ARGB8888);
             if (shm_buffer)
             {
                 /* Buffer events go to their own queue so that we can dispatch
@@ -261,7 +261,7 @@ static void copy_pixel_region(const char *src_pixels, RECT *src_rect,
     {
         const char *src;
         char *dst;
-        int y, width_bytes, height;
+        int x, y, width_bytes, height;
         RECT rc;
 
         TRACE("rect %s\n", wine_dbgstr_rect(rgn_rect));
@@ -278,12 +278,14 @@ static void copy_pixel_region(const char *src_pixels, RECT *src_rect,
         if (width_bytes == src_stride && width_bytes == dst_stride)
         {
             memcpy(dst, src, height * width_bytes);
+            for (x = 3; x < height * width_bytes; x += bpp) dst[x] = 0xff;
             continue;
         }
 
         for (y = 0; y < height; y++)
         {
             memcpy(dst, src, width_bytes);
+            for (x = 3; x < width_bytes; x += bpp) dst[x] = 0xff;
             src += src_stride;
             dst += dst_stride;
         }
