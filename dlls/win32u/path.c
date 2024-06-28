@@ -2118,6 +2118,5 @@ const struct gdi_dc_funcs path_driver =
     NULL,                               /* pStrokeAndFillPath */
     NULL,                               /* pStrokePath */
     NULL,                               /* pUnrealizePalette */
-    GDI_PRIORITY_PATH_DRV,              /* priority */
-    "pathdrv",
+    GDI_PRIORITY_PATH_DRV               /* priority */
 };
