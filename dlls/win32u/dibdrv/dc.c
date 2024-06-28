@@ -801,7 +801,7 @@ void dibdrv_set_window_surface( DC *dc, struct window_surface *surface )
 
     windev = pop_dc_driver( dc, &window_driver );
 
-    if (surface && !surface->alpha_mask)
+    if (surface)
     {
         if (windev) push_dc_driver( &dc->physDev, windev, windev->funcs );
         else

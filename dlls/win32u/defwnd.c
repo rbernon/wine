@@ -262,18 +262,14 @@ BOOL adjust_window_rect( RECT *rect, DWORD style, BOOL menu, DWORD ex_style, UIN
         adjust = 1; /* for the outer frame always present */
     else if ((ex_style & WS_EX_DLGMODALFRAME) || (style & (WS_THICKFRAME|WS_DLGFRAME)))
         adjust = 2; /* outer */
+
+    if (style & WS_THICKFRAME)
+        adjust += ncm.iBorderWidth + ncm.iPaddedBorderWidth; /* The resize border */
+
     if ((style & (WS_BORDER|WS_DLGFRAME)) || (ex_style & WS_EX_DLGMODALFRAME))
         adjust++; /* The other border */
 
-    *rect = map_dpi_rect( *rect, dpi, 96 );
     InflateRect( rect, adjust, adjust );
-    *rect = map_dpi_rect( *rect, 96, dpi );
-
-    if (style & WS_THICKFRAME)
-    {
-        adjust = ncm.iBorderWidth + ncm.iPaddedBorderWidth; /* The resize border */
-        InflateRect( rect, adjust, adjust );
-    }
 
     if ((style & WS_CAPTION) == WS_CAPTION)
     {
@@ -496,7 +492,7 @@ static void handle_window_pos_changed( HWND hwnd, const WINDOWPOS *winpos )
 {
     RECT rect;
 
-    get_client_rect_rel( hwnd, COORDS_PARENT, &rect, get_thread_dpi() );
+    get_window_rects( hwnd, COORDS_PARENT, NULL, &rect, get_thread_dpi() );
     if (!(winpos->flags & SWP_NOCLIENTMOVE))
         send_message( hwnd, WM_MOVE, 0, MAKELONG( rect.left, rect.top ));
 
@@ -715,7 +711,7 @@ static void sys_command_size_move( HWND hwnd, WPARAM wparam )
 
     minmax = get_min_max_info( hwnd );
     dpi = get_thread_dpi();
-    get_window_rect_rel( hwnd, COORDS_PARENT, &sizing_rect, dpi );
+    get_window_rects( hwnd, COORDS_PARENT, &sizing_rect, NULL, dpi );
     orig_rect = sizing_rect;
     if (style & WS_CHILD)
     {
@@ -1033,7 +1029,7 @@ static LRESULT handle_sys_command( HWND hwnd, WPARAM wparam, LPARAM lparam )
 static void get_inside_rect( HWND hwnd, enum coords_relative relative, RECT *rect,
                              DWORD style, DWORD ex_style )
 {
-    get_window_rect_rel( hwnd, relative, rect, get_thread_dpi() );
+    get_window_rects( hwnd, relative, rect, NULL, get_thread_dpi() );
 
     /* Remove frame from rectangle */
     if (has_thick_frame( style, ex_style ))
@@ -1722,7 +1718,7 @@ static void nc_paint( HWND hwnd, HRGN clip )
 
     TRACE( "%p %d\n", hwnd, active );
 
-    get_client_rect_rel( hwnd, COORDS_SCREEN, &rectClient, get_thread_dpi() );
+    get_window_rects( hwnd, COORDS_SCREEN, NULL, &rectClient, get_thread_dpi() );
     hrgn = NtGdiCreateRectRgn( rectClient.left, rectClient.top,
                                rectClient.right, rectClient.bottom );
 
@@ -1742,7 +1738,7 @@ static void nc_paint( HWND hwnd, HRGN clip )
         return;
     }
 
-    get_window_rect_rel( hwnd, COORDS_WINDOW, &rect, get_thread_dpi() );
+    get_window_rects( hwnd, COORDS_WINDOW, &rect, NULL, get_thread_dpi() );
     NtGdiGetAppClipBox( hdc, &clip_rect );
 
     NtGdiSelectPen( hdc, get_sys_color_pen( COLOR_WINDOWFRAME ));
@@ -1909,51 +1905,51 @@ static void handle_nc_calc_size( HWND hwnd, WPARAM wparam, RECT *win_rect )
 
 LRESULT handle_nc_hit_test( HWND hwnd, POINT pt )
 {
-    struct window_rects rects;
+    RECT rect, client_rect;
     DWORD style, ex_style;
 
     TRACE( "hwnd %p pt %d,%d\n", hwnd, (int)pt.x, (int)pt.y );
 
-    get_window_rects( hwnd, COORDS_SCREEN, &rects, get_thread_dpi() );
-    if (!PtInRect( &rects.window, pt )) return HTNOWHERE;
+    get_window_rects( hwnd, COORDS_SCREEN, &rect, &client_rect, get_thread_dpi() );
+    if (!PtInRect( &rect, pt )) return HTNOWHERE;
 
     style = get_window_long( hwnd, GWL_STYLE );
     ex_style = get_window_long( hwnd, GWL_EXSTYLE );
 
-    if (PtInRect( &rects.client, pt )) return HTCLIENT;
+    if (PtInRect( &client_rect, pt )) return HTCLIENT;
 
     /* Check borders */
     if (has_thick_frame( style, ex_style ))
     {
-        InflateRect( &rects.window, -get_system_metrics( SM_CXFRAME ), -get_system_metrics( SM_CYFRAME ));
-        if (!PtInRect( &rects.window, pt ))
+        InflateRect( &rect, -get_system_metrics( SM_CXFRAME ), -get_system_metrics( SM_CYFRAME ));
+        if (!PtInRect( &rect, pt ))
         {
             /* Check top sizing border */
-            if (pt.y < rects.window.top)
+            if (pt.y < rect.top)
             {
-                if (pt.x < rects.window.left + get_system_metrics( SM_CXSIZE )) return HTTOPLEFT;
-                if (pt.x >= rects.window.right - get_system_metrics( SM_CXSIZE )) return HTTOPRIGHT;
+                if (pt.x < rect.left + get_system_metrics( SM_CXSIZE )) return HTTOPLEFT;
+                if (pt.x >= rect.right - get_system_metrics( SM_CXSIZE )) return HTTOPRIGHT;
                 return HTTOP;
             }
             /* Check bottom sizing border */
-            if (pt.y >= rects.window.bottom)
+            if (pt.y >= rect.bottom)
             {
-                if (pt.x < rects.window.left + get_system_metrics( SM_CXSIZE )) return HTBOTTOMLEFT;
-                if (pt.x >= rects.window.right - get_system_metrics( SM_CXSIZE )) return HTBOTTOMRIGHT;
+                if (pt.x < rect.left + get_system_metrics( SM_CXSIZE )) return HTBOTTOMLEFT;
+                if (pt.x >= rect.right - get_system_metrics( SM_CXSIZE )) return HTBOTTOMRIGHT;
                 return HTBOTTOM;
             }
             /* Check left sizing border */
-            if (pt.x < rects.window.left)
+            if (pt.x < rect.left)
             {
-                if (pt.y < rects.window.top + get_system_metrics( SM_CYSIZE )) return HTTOPLEFT;
-                if (pt.y >= rects.window.bottom - get_system_metrics( SM_CYSIZE )) return HTBOTTOMLEFT;
+                if (pt.y < rect.top + get_system_metrics( SM_CYSIZE )) return HTTOPLEFT;
+                if (pt.y >= rect.bottom - get_system_metrics( SM_CYSIZE )) return HTBOTTOMLEFT;
                 return HTLEFT;
             }
             /* Check right sizing border */
-            if (pt.x >= rects.window.right)
+            if (pt.x >= rect.right)
             {
-                if (pt.y < rects.window.top + get_system_metrics( SM_CYSIZE )) return HTTOPRIGHT;
-                if (pt.y >= rects.window.bottom-get_system_metrics( SM_CYSIZE )) return HTBOTTOMRIGHT;
+                if (pt.y < rect.top + get_system_metrics( SM_CYSIZE )) return HTTOPRIGHT;
+                if (pt.y >= rect.bottom-get_system_metrics( SM_CYSIZE )) return HTBOTTOMRIGHT;
                 return HTRIGHT;
             }
         }
@@ -1961,22 +1957,22 @@ LRESULT handle_nc_hit_test( HWND hwnd, POINT pt )
     else  /* No thick frame */
     {
         if (has_dialog_frame( style, ex_style ))
-            InflateRect( &rects.window, -get_system_metrics( SM_CXDLGFRAME ),
+            InflateRect( &rect, -get_system_metrics( SM_CXDLGFRAME ),
                          -get_system_metrics( SM_CYDLGFRAME ));
         else if (has_thin_frame( style ))
-            InflateRect(&rects.window, -get_system_metrics( SM_CXBORDER ),
+            InflateRect(&rect, -get_system_metrics( SM_CXBORDER ),
                         -get_system_metrics( SM_CYBORDER ));
-        if (!PtInRect( &rects.window, pt )) return HTBORDER;
+        if (!PtInRect( &rect, pt )) return HTBORDER;
     }
 
     /* Check caption */
     if ((style & WS_CAPTION) == WS_CAPTION)
     {
         if (ex_style & WS_EX_TOOLWINDOW)
-            rects.window.top += get_system_metrics( SM_CYSMCAPTION ) - 1;
+            rect.top += get_system_metrics( SM_CYSMCAPTION ) - 1;
         else
-            rects.window.top += get_system_metrics( SM_CYCAPTION ) - 1;
-        if (!PtInRect( &rects.window, pt ))
+            rect.top += get_system_metrics( SM_CYCAPTION ) - 1;
+        if (!PtInRect( &rect, pt ))
         {
             BOOL min_or_max_box = (style & WS_SYSMENU) && (style & (WS_MINIMIZEBOX | WS_MAXIMIZEBOX));
             if (ex_style & WS_EX_LAYOUTRTL)
@@ -1985,26 +1981,26 @@ LRESULT handle_nc_hit_test( HWND hwnd, POINT pt )
                 if ((style & WS_SYSMENU) && !(ex_style & WS_EX_TOOLWINDOW) &&
                     get_nc_icon_for_window( hwnd ))
                 {
-                    rects.window.right -= get_system_metrics( SM_CYCAPTION ) - 1;
-                    if (pt.x > rects.window.right) return HTSYSMENU;
+                    rect.right -= get_system_metrics( SM_CYCAPTION ) - 1;
+                    if (pt.x > rect.right) return HTSYSMENU;
                 }
 
                 /* Check close button */
                 if (style & WS_SYSMENU)
                 {
-                    rects.window.left += get_system_metrics( SM_CYCAPTION );
-                    if (pt.x < rects.window.left) return HTCLOSE;
+                    rect.left += get_system_metrics( SM_CYCAPTION );
+                    if (pt.x < rect.left) return HTCLOSE;
                 }
 
                 if (min_or_max_box && !(ex_style & WS_EX_TOOLWINDOW))
                 {
                     /* Check maximize box */
-                    rects.window.left += get_system_metrics( SM_CXSIZE );
-                    if (pt.x < rects.window.left) return HTMAXBUTTON;
+                    rect.left += get_system_metrics( SM_CXSIZE );
+                    if (pt.x < rect.left) return HTMAXBUTTON;
 
                     /* Check minimize box */
-                    rects.window.left += get_system_metrics( SM_CXSIZE );
-                    if (pt.x < rects.window.left) return HTMINBUTTON;
+                    rect.left += get_system_metrics( SM_CXSIZE );
+                    if (pt.x < rect.left) return HTMINBUTTON;
                 }
             }
             else
@@ -2013,26 +2009,26 @@ LRESULT handle_nc_hit_test( HWND hwnd, POINT pt )
                 if ((style & WS_SYSMENU) && !(ex_style & WS_EX_TOOLWINDOW) &&
                     get_nc_icon_for_window( hwnd ))
                 {
-                    rects.window.left += get_system_metrics( SM_CYCAPTION ) - 1;
-                    if (pt.x < rects.window.left) return HTSYSMENU;
+                    rect.left += get_system_metrics( SM_CYCAPTION ) - 1;
+                    if (pt.x < rect.left) return HTSYSMENU;
                 }
 
                 /* Check close button */
                 if (style & WS_SYSMENU)
                 {
-                    rects.window.right -= get_system_metrics( SM_CYCAPTION );
-                    if (pt.x > rects.window.right) return HTCLOSE;
+                    rect.right -= get_system_metrics( SM_CYCAPTION );
+                    if (pt.x > rect.right) return HTCLOSE;
                 }
 
                 if (min_or_max_box && !(ex_style & WS_EX_TOOLWINDOW))
                 {
                     /* Check maximize box */
-                    rects.window.right -= get_system_metrics( SM_CXSIZE );
-                    if (pt.x > rects.window.right) return HTMAXBUTTON;
+                    rect.right -= get_system_metrics( SM_CXSIZE );
+                    if (pt.x > rect.right) return HTMAXBUTTON;
 
                     /* Check minimize box */
-                    rects.window.right -= get_system_metrics( SM_CXSIZE );
-                    if (pt.x > rects.window.right) return HTMINBUTTON;
+                    rect.right -= get_system_metrics( SM_CXSIZE );
+                    if (pt.x > rect.right) return HTMINBUTTON;
                 }
             }
             return HTCAPTION;
@@ -2040,8 +2036,8 @@ LRESULT handle_nc_hit_test( HWND hwnd, POINT pt )
     }
 
     /* Check menu bar */
-    if (has_menu( hwnd, style ) && (pt.y < rects.client.top) &&
-        (pt.x >= rects.client.left) && (pt.x < rects.client.right))
+    if (has_menu( hwnd, style ) && (pt.y < client_rect.top) &&
+        (pt.x >= client_rect.left) && (pt.x < client_rect.right))
         return HTMENU;
 
     /* Check vertical scroll bar */
@@ -2049,23 +2045,23 @@ LRESULT handle_nc_hit_test( HWND hwnd, POINT pt )
     if (style & WS_VSCROLL)
     {
         if (ex_style & WS_EX_LEFTSCROLLBAR)
-            rects.client.left -= get_system_metrics( SM_CXVSCROLL );
+            client_rect.left -= get_system_metrics( SM_CXVSCROLL );
         else
-            rects.client.right += get_system_metrics( SM_CXVSCROLL );
-        if (PtInRect( &rects.client, pt )) return HTVSCROLL;
+            client_rect.right += get_system_metrics( SM_CXVSCROLL );
+        if (PtInRect( &client_rect, pt )) return HTVSCROLL;
     }
 
     /* Check horizontal scroll bar */
     if (style & WS_HSCROLL)
     {
-        rects.client.bottom += get_system_metrics( SM_CYHSCROLL );
-        if (PtInRect( &rects.client, pt ))
+        client_rect.bottom += get_system_metrics( SM_CYHSCROLL );
+        if (PtInRect( &client_rect, pt ))
         {
             /* Check size box */
             if ((style & WS_VSCROLL) &&
                 ((ex_style & WS_EX_LEFTSCROLLBAR)
-                 ? (pt.x <= rects.client.left + get_system_metrics( SM_CXVSCROLL ))
-                 : (pt.x >= rects.client.right - get_system_metrics( SM_CXVSCROLL ))))
+                 ? (pt.x <= client_rect.left + get_system_metrics( SM_CXVSCROLL ))
+                 : (pt.x >= client_rect.right - get_system_metrics( SM_CXVSCROLL ))))
                 return HTSIZE;
             return HTHSCROLL;
         }
@@ -2359,7 +2355,7 @@ static LRESULT handle_nc_mouse_move( HWND hwnd, WPARAM wparam, LPARAM lparam )
     if (wparam != HTHSCROLL && wparam != HTVSCROLL)
         return 0;
 
-    get_window_rect_rel( hwnd, COORDS_CLIENT, &rect, get_thread_dpi() );
+    get_window_rects( hwnd, COORDS_CLIENT, &rect, NULL, get_thread_dpi() );
 
     pt.x = (short)LOWORD( lparam );
     pt.y = (short)HIWORD( lparam );

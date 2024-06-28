@@ -2305,6 +2305,7 @@ static void send_parent_notify( HWND hwnd, WORD event, WORD idChild, POINT pt )
  */
 static BOOL process_pointer_message( MSG *msg, UINT hw_id, const struct hardware_msg_data *msg_data )
 {
+    msg->pt = point_phys_to_win_dpi( msg->hwnd, msg->pt );
     return TRUE;
 }
 
@@ -2383,6 +2384,7 @@ static BOOL process_keyboard_message( MSG *msg, UINT hw_id, HWND hwnd_filter,
         call_hooks( WH_CBT, HCBT_KEYSKIPPED, LOWORD(msg->wParam), msg->lParam, 0 );
         return FALSE;
     }
+    msg->pt = point_phys_to_win_dpi( msg->hwnd, msg->pt );
 
     if (remove && (msg->message == WM_KEYDOWN || msg->message == WM_KEYUP))
         if (ImmProcessKey( msg->hwnd, NtUserGetKeyboardLayout(0), msg->wParam, msg->lParam, 0 ))
@@ -2391,48 +2393,57 @@ static BOOL process_keyboard_message( MSG *msg, UINT hw_id, HWND hwnd_filter,
     return TRUE;
 }
 
-static HWND find_hardware_message_window( MSG *msg, GUITHREADINFO *info, INT *hittest )
-{
-    HWND target;
-
-    if (!is_mouse_message( msg->message )) return msg->hwnd;
-
-    /* find the window to dispatch this mouse message to */
-
-    if ((target = info->hwndCapture)) *hittest = HTCLIENT;
-    else if (!(target = window_from_point( msg->hwnd, msg->pt, hittest, 0 /* per-monitor DPI */ )))
-    {
-        /* As a heuristic, try the next window if it's the owner of orig */
-        HWND next = get_window_relative( msg->hwnd, GW_HWNDNEXT );
-        if (next && get_window_relative( msg->hwnd, GW_OWNER ) == next && is_current_thread_window( next ))
-            target = window_from_point( next, msg->pt, hittest, 0 /* per-monitor DPI */ );
-    }
-
-    return target;
-}
-
 /***********************************************************************
  *          process_mouse_message
  *
  * returns TRUE if the contents of 'msg' should be passed to the application
  */
 static BOOL process_mouse_message( MSG *msg, UINT hw_id, ULONG_PTR extra_info, HWND hwnd_filter,
-                                   UINT first, UINT last, BOOL remove, GUITHREADINFO *info, INT hittest )
+                                   UINT first, UINT last, BOOL remove )
 {
     static MSG clk_msg;
 
     POINT pt;
     UINT message;
+    INT hittest;
     EVENTMSG event;
+    GUITHREADINFO info;
     MOUSEHOOKSTRUCTEX hook;
     BOOL eat_msg;
     WPARAM wparam;
+
+    /* find the window to dispatch this mouse message to */
+
+    info.cbSize = sizeof(info);
+    NtUserGetGUIThreadInfo( GetCurrentThreadId(), &info );
+    if (info.hwndCapture)
+    {
+        hittest = HTCLIENT;
+        msg->hwnd = info.hwndCapture;
+    }
+    else
+    {
+        HWND orig = msg->hwnd;
+
+        msg->hwnd = window_from_point( msg->hwnd, msg->pt, &hittest );
+        if (!msg->hwnd) /* As a heuristic, try the next window if it's the owner of orig */
+        {
+            HWND next = get_window_relative( orig, GW_HWNDNEXT );
+
+            if (next && get_window_relative( orig, GW_OWNER ) == next &&
+                is_current_thread_window( next ))
+                msg->hwnd = window_from_point( next, msg->pt, &hittest );
+        }
+    }
 
     if (!msg->hwnd || !is_current_thread_window( msg->hwnd ))
     {
         accept_hardware_message( hw_id );
         return FALSE;
     }
+
+    msg->pt = point_phys_to_win_dpi( msg->hwnd, msg->pt );
+    set_thread_dpi_awareness_context( get_window_dpi_awareness_context( msg->hwnd ));
 
     /* FIXME: is this really the right place for this hook? */
     event.message = msg->message;
@@ -2455,11 +2466,12 @@ static BOOL process_mouse_message( MSG *msg, UINT hw_id, ULONG_PTR extra_info, H
             message += WM_NCMOUSEMOVE - WM_MOUSEMOVE;
             wparam = hittest;
         }
-        /* coordinates don't get translated while tracking a menu */
-        /* FIXME: should differentiate popups and top-level menus */
-        else if (!(info->flags & GUI_INMENUMODE))
+        else
         {
-            map_window_points( 0, msg->hwnd, &pt, 1, get_dpi_for_window( msg->hwnd ) );
+            /* coordinates don't get translated while tracking a menu */
+            /* FIXME: should differentiate popups and top-level menus */
+            if (!(info.flags & GUI_INMENUMODE))
+                screen_to_client( msg->hwnd, &pt );
         }
     }
     msg->lParam = MAKELONG( pt.x, pt.y );
@@ -2477,7 +2489,7 @@ static BOOL process_mouse_message( MSG *msg, UINT hw_id, ULONG_PTR extra_info, H
 	 * note that ...MOUSEMOVEs can slip in between
 	 * ...BUTTONDOWN and ...BUTTONDBLCLK messages */
 
-        if ((info->flags & (GUI_INMENUMODE|GUI_INMOVESIZE)) ||
+        if ((info.flags & (GUI_INMENUMODE|GUI_INMOVESIZE)) ||
             hittest != HTCLIENT ||
             (get_class_long( msg->hwnd, GCL_STYLE, FALSE ) & CS_DBLCLKS))
         {
@@ -2534,7 +2546,7 @@ static BOOL process_mouse_message( MSG *msg, UINT hw_id, ULONG_PTR extra_info, H
 
     if (remove) accept_hardware_message( hw_id );
 
-    if (!remove || info->hwndCapture)
+    if (!remove || info.hwndCapture)
     {
         msg->message = message;
         return TRUE;
@@ -2555,7 +2567,7 @@ static BOOL process_mouse_message( MSG *msg, UINT hw_id, ULONG_PTR extra_info, H
 
         /* Activate the window if needed */
 
-        if (msg->hwnd != info->hwndActive)
+        if (msg->hwnd != info.hwndActive)
         {
             HWND hwndTop = NtUserGetAncestor( msg->hwnd, GA_ROOT );
 
@@ -2604,23 +2616,21 @@ static BOOL process_hardware_message( MSG *msg, UINT hw_id, const struct hardwar
                                       HWND hwnd_filter, UINT first, UINT last, BOOL remove )
 {
     struct ntuser_thread_info *thread_info = NtUserGetThreadInfo();
-    GUITHREADINFO info = {.cbSize = sizeof(info)};
+    UINT context;
     BOOL ret = FALSE;
-    INT hittest;
 
     thread_info->msg_source.deviceType = msg_data->source.device;
     thread_info->msg_source.originId   = msg_data->source.origin;
 
-    NtUserGetGUIThreadInfo( GetCurrentThreadId(), &info );
-    msg->hwnd = find_hardware_message_window( msg, &info, &hittest );
-    msg->pt = point_phys_to_win_dpi( msg->hwnd, msg->pt );
+    /* hardware messages are always in physical coords */
+    context = set_thread_dpi_awareness_context( NTUSER_DPI_PER_MONITOR_AWARE );
 
     if (msg->message == WM_INPUT || msg->message == WM_INPUT_DEVICE_CHANGE)
         ret = process_rawinput_message( msg, hw_id, msg_data );
     else if (is_keyboard_message( msg->message ))
         ret = process_keyboard_message( msg, hw_id, hwnd_filter, first, last, remove );
     else if (is_mouse_message( msg->message ))
-        ret = process_mouse_message( msg, hw_id, msg_data->info, hwnd_filter, first, last, remove, &info, hittest );
+        ret = process_mouse_message( msg, hw_id, msg_data->info, hwnd_filter, first, last, remove );
     else if (msg->message >= WM_POINTERUPDATE && msg->message <= WM_POINTERLEAVE)
         ret = process_pointer_message( msg, hw_id, msg_data );
     else if (msg->message == WM_WINE_CLIPCURSOR)
@@ -2629,7 +2639,7 @@ static BOOL process_hardware_message( MSG *msg, UINT hw_id, const struct hardwar
         process_wine_setcursor( msg->hwnd, (HWND)msg->wParam, (HCURSOR)msg->lParam );
     else
         ERR( "unknown message type %x\n", msg->message );
-
+    set_thread_dpi_awareness_context( context );
     return ret;
 }
 
@@ -2951,10 +2961,8 @@ static inline void check_for_driver_events( UINT msg )
 {
     if (get_user_thread_info()->message_count > 200)
     {
-        UINT context = set_thread_dpi_awareness_context( NTUSER_DPI_PER_MONITOR_AWARE_V2 );
         flush_window_surfaces( FALSE );
         user_driver->pProcessEvents( QS_ALLINPUT );
-        set_thread_dpi_awareness_context( context );
     }
     else if (msg == WM_TIMER || msg == WM_SYSTIMER)
     {
@@ -2979,7 +2987,6 @@ static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, DW
     DWORD ret, lock = 0;
     void *ret_ptr;
     ULONG ret_len;
-    UINT context;
 
     if (enable_thunk_lock)
     {
@@ -2987,7 +2994,6 @@ static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, DW
             lock = *(DWORD *)ret_ptr;
     }
 
-    context = set_thread_dpi_awareness_context( NTUSER_DPI_PER_MONITOR_AWARE_V2 );
     if (user_driver->pProcessEvents( mask )) ret = count ? count - 1 : 0;
     else if (count)
     {
@@ -3001,7 +3007,6 @@ static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, DW
         }
     }
     else ret = WAIT_TIMEOUT;
-    set_thread_dpi_awareness_context( context );
 
     if (ret == WAIT_TIMEOUT && !count && !timeout) NtYieldExecution();
     if ((mask & QS_INPUT) == QS_INPUT) get_user_thread_info()->message_count = 0;

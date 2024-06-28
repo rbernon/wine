@@ -240,16 +240,17 @@ extern UINT X11DRV_ShowWindow( HWND hwnd, INT cmd, RECT *rect, UINT swp );
 extern LRESULT X11DRV_SysCommand( HWND hwnd, WPARAM wparam, LPARAM lparam );
 extern LRESULT X11DRV_ClipboardWindowProc( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp );
 extern void X11DRV_UpdateClipboard(void);
-extern BOOL X11DRV_CreateLayeredWindow( HWND hwnd, const RECT *surface_rect, COLORREF color_key,
+extern BOOL X11DRV_CreateLayeredWindow( HWND hwnd, const RECT *window_rect, COLORREF color_key,
                                         struct window_surface **surface );
 extern void X11DRV_UpdateLayeredWindow( HWND hwnd, const RECT *window_rect, COLORREF color_key,
                                         BYTE alpha, UINT flags );
 extern LRESULT X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp );
-extern BOOL X11DRV_WindowPosChanging( HWND hwnd, UINT swp_flags, BOOL shaped, struct window_rects *rects );
-extern BOOL X11DRV_CreateWindowSurface( HWND hwnd, const RECT *surface_rect, UINT dpi_from, UINT dpi_to,
-                                        struct window_surface **surface );
-extern void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags, const struct window_rects *old_rects,
-                                     const struct window_rects *new_rects, struct window_surface *surface );
+extern BOOL X11DRV_WindowPosChanging( HWND hwnd, UINT swp_flags, const RECT *window_rect, const RECT *client_rect, RECT *visible_rect );
+extern BOOL X11DRV_CreateWindowSurface( HWND hwnd, const RECT *surface_rect, struct window_surface **surface );
+extern void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
+                                     const RECT *rectWindow, const RECT *rectClient,
+                                     const RECT *visible_rect, const RECT *valid_rects,
+                                     struct window_surface *surface );
 extern BOOL X11DRV_SystemParametersInfo( UINT action, UINT int_param, void *ptr_param,
                                          UINT flags );
 extern void X11DRV_ThreadDetach(void);
@@ -265,6 +266,7 @@ extern Pixmap create_pixmap_from_image( HDC hdc, const XVisualInfo *vis, const B
                                         const struct gdi_image_bits *bits, UINT coloruse );
 extern DWORD get_pixmap_image( Pixmap pixmap, int width, int height, const XVisualInfo *vis,
                                BITMAPINFO *info, struct gdi_image_bits *bits );
+extern HRGN expose_surface( struct window_surface *window_surface, const RECT *rect );
 
 extern RGNDATA *X11DRV_GetRegionData( HRGN hrgn, HDC hdc_lptodp );
 extern BOOL add_extra_clipping_region( X11DRV_PDEVICE *dev, HRGN rgn );
@@ -426,7 +428,6 @@ extern BOOL keyboard_grabbed;
 extern unsigned int screen_bpp;
 extern BOOL usexrandr;
 extern BOOL usexvidmode;
-extern BOOL use_dwm;
 extern BOOL use_take_focus;
 extern BOOL use_primary_selection;
 extern BOOL use_system_cursors;
@@ -442,8 +443,6 @@ extern int xrender_error_base;
 extern char *process_name;
 extern Display *clipboard_display;
 extern WNDPROC client_foreign_window_proc;
-extern const struct dwm_funcs *dwm_funcs;
-extern dwm_display_t dwm_display;
 
 /* atoms */
 
@@ -604,7 +603,9 @@ struct x11drv_win_data
     HWND        hwnd;           /* hwnd that this private data belongs to */
     Window      whole_window;   /* X window for the complete window */
     Window      client_window;  /* X window for the client area */
-    struct window_rects rects;  /* window rects in monitor DPI, relative to parent client area */
+    RECT        window_rect;    /* USER window rectangle relative to win32 parent window client area */
+    RECT        whole_rect;     /* X window rectangle for the whole window relative to win32 parent window client area */
+    RECT        client_rect;    /* client area relative to win32 parent window client area */
     XIC         xic;            /* X input context */
     UINT        managed : 1;    /* is window managed? */
     UINT        mapped : 1;     /* is window mapped? (in either normal or iconic state) */
@@ -683,6 +684,7 @@ typedef int (*x11drv_error_callback)( Display *display, XErrorEvent *event, void
 
 extern void X11DRV_expect_error( Display *display, x11drv_error_callback callback, void *arg );
 extern int X11DRV_check_error(void);
+extern void X11DRV_X_to_window_rect( struct x11drv_win_data *data, RECT *rect, int x, int y, int cx, int cy );
 extern POINT virtual_screen_to_root( INT x, INT y );
 extern POINT root_to_virtual_screen( INT x, INT y );
 extern RECT get_host_primary_monitor_rect(void);
@@ -830,7 +832,7 @@ extern void xim_set_focus( HWND hwnd, BOOL focus );
 
 static inline BOOL is_window_rect_mapped( const RECT *rect )
 {
-    RECT virtual_rect = NtUserGetVirtualScreenRect(); /* FIXME DPI */
+    RECT virtual_rect = NtUserGetVirtualScreenRect();
     return (rect->left < virtual_rect.right &&
             rect->top < virtual_rect.bottom &&
             max( rect->right, rect->left + 1 ) > virtual_rect.left &&
