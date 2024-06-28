@@ -2017,6 +2017,7 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
         {
             if (copy_bits)
             {
+                RECT valid_rects[2] = {new_rects->valid, old_rects->valid};
                 if (old_surface != new_surface)
                     move_window_bits_surface( hwnd, &new_rects->window, old_surface, &old_rects->visible, valid_rects );
                 else
@@ -2219,7 +2220,8 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
         return FALSE;
     }
 
-    get_window_rects( hwnd, COORDS_PARENT, &new_rects, get_thread_dpi() );
+    get_window_rects( hwnd, COORDS_PARENT, &old_rects, get_thread_dpi() );
+    new_rects = old_rects;
 
     if (pts_dst)
     {
@@ -2256,7 +2258,7 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
         swp_flags &= ~SWP_NOSIZE;
     }
 
-    TRACE( "window %p new_rects %s\n", hwnd, debugstr_window_rects( &new_rects ) );
+    TRACE( "window %p old_rects %s new_rects %s\n", hwnd, debugstr_window_rects(&old_rects), debugstr_window_rects(&new_rects) );
 
     surface = create_window_surface( hwnd, swp_flags, TRUE, &new_rects, &surface_rect );
     apply_window_pos( hwnd, 0, swp_flags, surface, &old_rects, &new_rects, FALSE );
@@ -5449,9 +5451,9 @@ HWND WINAPI NtUserCreateWindowEx( DWORD ex_style, UNICODE_STRING *class_name,
     {
         /* yes, even if the CBT hook was called with HWND_TOP */
         HWND insert_after = (get_window_long( hwnd, GWL_STYLE ) & WS_CHILD) ? HWND_BOTTOM : HWND_TOP;
-        new_rects.client = new_rects.window;
 
         /* the rectangle is in screen coords for WM_NCCALCSIZE when wparam is FALSE */
+        new_rects.client = new_rects.window;
         map_window_points( parent, 0, (POINT *)&new_rects.client, 2, win_dpi );
         send_message( hwnd, WM_NCCALCSIZE, FALSE, (LPARAM)&new_rects.client );
         map_window_points( 0, parent, (POINT *)&new_rects.client, 2, win_dpi );
