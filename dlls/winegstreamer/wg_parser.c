@@ -831,14 +831,8 @@ static struct wg_parser_stream *create_stream(struct wg_parser *parser)
 
 static void free_stream(struct wg_parser_stream *stream)
 {
-    GstPad *peer;
     unsigned int i;
 
-    if ((peer = gst_pad_get_peer(stream->my_sink)))
-    {
-        gst_pad_unlink(peer, stream->my_sink);
-        gst_object_unref(peer);
-    }
     gst_object_unref(stream->my_sink);
 
     if (stream->buffer)
@@ -1411,24 +1405,6 @@ static GstBusSyncReply bus_handler_cb(GstBus *bus, GstMessage *msg, gpointer use
         pthread_cond_signal(&parser->init_cond);
         break;
 
-    case GST_MESSAGE_STREAM_STATUS:
-    {
-        GstStreamStatusType type;
-        GstElement *element;
-        const GValue *val;
-        GstTask *task;
-
-        gst_message_parse_stream_status(msg, &type, &element);
-        val = gst_message_get_stream_status_object(msg);
-        GST_DEBUG("parser %p, message %s, type %u, value %p (%s).", parser, GST_MESSAGE_TYPE_NAME(msg), type, val, G_VALUE_TYPE_NAME(val));
-
-        if (G_VALUE_TYPE(val) == GST_TYPE_TASK && (task = g_value_get_object(val))
-                && type == GST_STREAM_STATUS_TYPE_CREATE)
-            gst_task_set_pool(task, wg_task_pool);
-
-        break;
-    }
-
     default:
         break;
     }
@@ -1729,12 +1705,6 @@ static NTSTATUS wg_parser_connect(void *args)
 
     pthread_mutex_unlock(&parser->mutex);
 
-{
-char buffer[256];
-sprintf(buffer, "wg_parser-%p", parser);
-GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN(parser->container), GST_DEBUG_GRAPH_SHOW_VERBOSE, buffer);
-}
-
     parser->next_offset = 0;
     return S_OK;
 
@@ -1912,18 +1882,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_parser_stream_get_tag),
     X(wg_parser_stream_seek),
 
-    X(wg_source_create),
-    X(wg_source_destroy),
-    X(wg_source_get_stream_count),
-    X(wg_source_get_duration),
-    X(wg_source_get_position),
-    X(wg_source_set_position),
-    X(wg_source_push_data),
-    X(wg_source_read_data),
-    X(wg_source_get_stream_format),
-    X(wg_source_get_stream_tag),
-    X(wg_source_set_stream_flags),
-
     X(wg_transform_create),
     X(wg_transform_destroy),
     X(wg_transform_get_output_format),
@@ -1935,7 +1893,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_transform_drain),
     X(wg_transform_flush),
     X(wg_transform_notify_qos),
-    X(wg_transform_eos),
 
     X(wg_muxer_create),
     X(wg_muxer_destroy),
@@ -2089,88 +2046,6 @@ static NTSTATUS wow64_wg_parser_stream_get_tag(void *args)
     };
 
     return wg_parser_stream_get_tag(&params);
-}
-
-NTSTATUS wow64_wg_source_create(void *args)
-{
-    struct
-    {
-        PTR32 url;
-        PTR32 data;
-        UINT32 size;
-        char mime_type[256];
-        wg_source_t source;
-    } *params32 = args;
-    struct wg_source_create_params params =
-    {
-        .url = ULongToPtr(params32->url),
-        .data = ULongToPtr(params32->data),
-        .size = params32->size,
-    };
-    NTSTATUS ret;
-
-    ret = wg_source_create(&params);
-    strcpy(params32->mime_type, params.mime_type);
-    params32->source = params.source;
-    return ret;
-}
-
-NTSTATUS wow64_wg_source_push_data(void *args)
-{
-    struct
-    {
-        wg_source_t source;
-        PTR32 data;
-        UINT32 size;
-    } *params32 = args;
-    struct wg_source_push_data_params params =
-    {
-        .source = params32->source,
-        .data = ULongToPtr(params32->data),
-        .size = params32->size,
-    };
-
-    return wg_source_push_data(&params);
-}
-
-NTSTATUS wow64_wg_source_read_data(void *args)
-{
-    struct
-    {
-        wg_source_t source;
-        UINT32 index;
-        PTR32 sample;
-    } *params32 = args;
-    struct wg_source_read_data_params params =
-    {
-        .source = params32->source,
-        .index = params32->index,
-        .sample = ULongToPtr(params32->sample),
-    };
-
-    return wg_source_read_data(&params);
-}
-
-NTSTATUS wow64_wg_source_get_stream_tag(void *args)
-{
-    struct
-    {
-        wg_source_t source;
-        UINT32 index;
-        wg_parser_tag tag;
-        UINT32 size;
-        PTR32 buffer;
-    } *params32 = args;
-    struct wg_source_get_stream_tag_params params =
-    {
-        .source = params32->source,
-        .index = params32->index,
-        .tag = params32->tag,
-        .size = params32->size,
-        .buffer = ULongToPtr(params32->buffer),
-    };
-
-    return wg_source_get_stream_tag(&params);
 }
 
 NTSTATUS wow64_wg_transform_create(void *args)
@@ -2371,16 +2246,6 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
     X(wg_parser_stream_get_duration),
     X64(wg_parser_stream_get_tag),
     X(wg_parser_stream_seek),
-
-    X64(wg_source_create),
-    X(wg_source_destroy),
-    X(wg_source_get_stream_count),
-    X(wg_source_get_duration),
-    X(wg_source_get_position),
-    X64(wg_source_push_data),
-    X64(wg_source_read_data),
-    X(wg_source_get_stream_format),
-    X64(wg_source_get_stream_tag),
 
     X64(wg_transform_create),
     X(wg_transform_destroy),
