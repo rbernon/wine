@@ -1882,18 +1882,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(wg_parser_stream_get_tag),
     X(wg_parser_stream_seek),
 
-    X(wg_source_create),
-    X(wg_source_destroy),
-    X(wg_source_get_stream_count),
-    X(wg_source_get_duration),
-    X(wg_source_get_position),
-    X(wg_source_set_position),
-    X(wg_source_push_data),
-    X(wg_source_read_data),
-    X(wg_source_get_stream_type),
-    X(wg_source_get_stream_tag),
-    X(wg_source_set_stream_flags),
-
     X(wg_transform_create),
     X(wg_transform_destroy),
     X(wg_transform_get_output_type),
@@ -2065,115 +2053,6 @@ static NTSTATUS wow64_wg_parser_stream_get_tag(void *args)
     };
 
     return wg_parser_stream_get_tag(&params);
-}
-
-NTSTATUS wow64_wg_source_create(void *args)
-{
-    struct
-    {
-        PTR32 url;
-        PTR32 data;
-        UINT32 size;
-        char mime_type[256];
-        wg_source_t source;
-    } *params32 = args;
-    struct wg_source_create_params params =
-    {
-        .url = ULongToPtr(params32->url),
-        .data = ULongToPtr(params32->data),
-        .size = params32->size,
-    };
-    NTSTATUS ret;
-
-    ret = wg_source_create(&params);
-    strcpy(params32->mime_type, params.mime_type);
-    params32->source = params.source;
-    return ret;
-}
-
-NTSTATUS wow64_wg_source_push_data(void *args)
-{
-    struct
-    {
-        wg_source_t source;
-        PTR32 data;
-        UINT32 size;
-    } *params32 = args;
-    struct wg_source_push_data_params params =
-    {
-        .source = params32->source,
-        .data = ULongToPtr(params32->data),
-        .size = params32->size,
-    };
-
-    return wg_source_push_data(&params);
-}
-
-NTSTATUS wow64_wg_source_read_data(void *args)
-{
-    struct
-    {
-        wg_source_t source;
-        UINT32 index;
-        PTR32 sample;
-    } *params32 = args;
-    struct wg_source_read_data_params params =
-    {
-        .source = params32->source,
-        .index = params32->index,
-        .sample = ULongToPtr(params32->sample),
-    };
-
-    return wg_source_read_data(&params);
-}
-
-NTSTATUS wow64_wg_source_get_stream_type(void *args)
-{
-    struct
-    {
-        wg_source_t source;
-        UINT32 index;
-        struct wg_media_type32 media_type;
-    } *params32 = args;
-    struct wg_source_get_stream_type_params params =
-    {
-        .source = params32->source,
-        .index = params32->index,
-        .media_type =
-        {
-            .major = params32->media_type.major,
-            .format_size = params32->media_type.format_size,
-            .u.format = ULongToPtr(params32->media_type.format),
-        },
-    };
-    NTSTATUS status;
-
-    status = wg_source_get_stream_type(&params);
-    params32->media_type.major = params.media_type.major;
-    params32->media_type.format_size = params.media_type.format_size;
-    return status;
-}
-
-NTSTATUS wow64_wg_source_get_stream_tag(void *args)
-{
-    struct
-    {
-        wg_source_t source;
-        UINT32 index;
-        wg_parser_tag tag;
-        UINT32 size;
-        PTR32 buffer;
-    } *params32 = args;
-    struct wg_source_get_stream_tag_params params =
-    {
-        .source = params32->source,
-        .index = params32->index,
-        .tag = params32->tag,
-        .size = params32->size,
-        .buffer = ULongToPtr(params32->buffer),
-    };
-
-    return wg_source_get_stream_tag(&params);
 }
 
 NTSTATUS wow64_wg_transform_create(void *args)
@@ -2399,16 +2278,6 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
     X(wg_parser_stream_get_duration),
     X64(wg_parser_stream_get_tag),
     X(wg_parser_stream_seek),
-
-    X64(wg_source_create),
-    X(wg_source_destroy),
-    X(wg_source_get_stream_count),
-    X(wg_source_get_duration),
-    X(wg_source_get_position),
-    X64(wg_source_push_data),
-    X64(wg_source_read_data),
-    X64(wg_source_get_stream_type),
-    X64(wg_source_get_stream_tag),
 
     X64(wg_transform_create),
     X(wg_transform_destroy),

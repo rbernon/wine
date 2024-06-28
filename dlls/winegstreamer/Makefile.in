@@ -27,7 +27,6 @@ SOURCES = \
 	wg_muxer.c \
 	wg_parser.c \
 	wg_sample.c \
-	wg_source.c \
 	wg_transform.c \
 	winegstreamer_classes.idl \
 	wm_reader.c \
