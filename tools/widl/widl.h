@@ -126,4 +126,10 @@ extern attr_list_t *check_typedef_attrs( attr_list_t *attrs );
 extern attr_list_t *check_union_attrs( attr_list_t *attrs );
 extern void check_arg_attrs( const var_t *arg );
 
+/* typetree.h */
+
+extern type_t *type_error_status_t;
+
+extern void init_types(void);
+
 #endif
