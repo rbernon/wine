@@ -157,18 +157,10 @@ static int token_str( int token, const char *str, YYSTYPE *yylval )
 static int token_num( const char *yytext, YYSTYPE *yylval, int is_hex )
 {
     yylval->integer.value = xstrtoul( yytext, NULL, 0 );
-    yylval->integer.is_bool = 0;
     yylval->integer.is_hex = is_hex;
     yylval->integer.is_long = !!strchr(yytext, 'l');
     yylval->integer.is_unsigned = !!strchr(yytext, 'u');
     return is_hex ? aHEXNUM : aNUM;
-}
-
-static int token_bool( int value, YYSTYPE *yylval )
-{
-    struct integer integer = {.value = value, .is_bool = 1};
-    yylval->integer = integer;
-    return aNUM;
 }
 
 static int token_ident( const char *str, YYSTYPE *yylval )
@@ -384,9 +376,9 @@ SAFEARRAY{ws}*/\(	return tSAFEARRAY;
     ^{ws}*\#{ws}*                               { yy_push_state(PP_LINE); }
     \[                                          { yy_push_state(ATTR); return '['; }
 
-    FALSE                                       { return token_bool( 0, yylval ); }
+    FALSE                                       { return tFALSE; }
     NULL                                        { return tNULL; }
-    TRUE                                        { return token_bool( 1, yylval ); }
+    TRUE                                        { return tTRUE; }
     _?_?cdecl                                   { return token_str( tCDECL, "__cdecl", yylval ); }
     _?_?pascal                                  { return token_str( tPASCAL, "__pascal", yylval ); }
     _?_?stdcall                                 { return token_str( tSTDCALL, "__stdcall", yylval ); }

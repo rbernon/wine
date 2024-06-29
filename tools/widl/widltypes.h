@@ -207,6 +207,7 @@ enum expr_type
     EXPR_AND,
     EXPR_OR,
     EXPR_COND,
+    EXPR_TRUEFALSE,
     EXPR_ADDRESSOF,
     EXPR_MEMBER,
     EXPR_ARRAY,
@@ -349,7 +350,6 @@ struct _attr_t {
 struct integer
 {
     int value;
-    int is_bool;
     int is_unsigned;
     int is_long;
     int is_hex;
