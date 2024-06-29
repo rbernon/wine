@@ -190,7 +190,7 @@ enum attr_type
 enum expr_type
 {
     EXPR_VOID,
-    EXPR_NUM,
+    EXPR_INT,
     EXPR_DOUBLE,
     EXPR_IDENTIFIER,
     EXPR_NEG,
@@ -207,7 +207,6 @@ enum expr_type
     EXPR_AND,
     EXPR_OR,
     EXPR_COND,
-    EXPR_TRUEFALSE,
     EXPR_ADDRESSOF,
     EXPR_MEMBER,
     EXPR_ARRAY,
@@ -370,6 +369,7 @@ struct _expr_t {
   int cval;
   /* parser-internal */
   struct list entry;
+  const char *text;
 };
 
 struct _attr_custdata_t {
