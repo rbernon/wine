@@ -400,6 +400,7 @@ void write_type_left(FILE *h, const decl_spec_t *ds, enum name_type name_type, b
         case TYPE_BASIC_CHAR: fprintf(h, "char"); break;
         case TYPE_BASIC_FLOAT: fprintf(h, "float"); break;
         case TYPE_BASIC_DOUBLE: fprintf(h, "double"); break;
+        case TYPE_BASIC_ERROR_STATUS_T: fprintf(h, "error_status_t"); break;
         case TYPE_BASIC_HANDLE: fprintf(h, "handle_t"); break;
         case TYPE_BASIC_INT32:
           if (type_basic_get_sign(t) > 0)
