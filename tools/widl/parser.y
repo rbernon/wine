@@ -209,6 +209,7 @@ PARSER_LTYPE pop_import(void);
 %token tEVENTADD tEVENTREMOVE
 %token tEXCLUSIVETO
 %token tEXPLICITHANDLE tEXTERN
+%token tFALSE
 %token tFAULTSTATUS
 %token tFLAGS
 %token tFLOAT tFORCEALLOCATE
@@ -274,6 +275,7 @@ PARSER_LTYPE pop_import(void);
 %token tSTRING tSTRUCT
 %token tSWITCH tSWITCHIS tSWITCHTYPE
 %token tTHREADING tTRANSMITAS
+%token tTRUE
 %token tTYPEDEF
 %token tUIDEFAULT tUNION
 %token tUNIQUE
@@ -850,8 +852,12 @@ m_expr
 expr:     aNUM                                  { $$ = make_exprl(EXPR_NUM, &$1); }
         | aHEXNUM                               { $$ = make_exprl(EXPR_NUM, &$1); }
         | aDOUBLE                               { $$ = expr_double( $aDOUBLE ); }
+        | tFALSE                                { struct integer integer = {.value = 0};
+                                                  $$ = make_exprl(EXPR_TRUEFALSE, &integer); }
         | tNULL                                 { struct integer integer = {.value = 0};
                                                   $$ = make_exprl(EXPR_NUM, &integer); }
+        | tTRUE                                 { struct integer integer = {.value = 1};
+                                                  $$ = make_exprl(EXPR_TRUEFALSE, &integer); }
         | aSTRING                               { $$ = expr_str( EXPR_STRLIT, $aSTRING ); }
         | aWSTRING                              { $$ = expr_str( EXPR_WSTRLIT, $aWSTRING ); }
         | aSQSTRING                             { $$ = expr_str( EXPR_CHARCONST, $aSQSTRING ); }
