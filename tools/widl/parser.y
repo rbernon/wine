@@ -993,7 +993,7 @@ base_type: tBYTE				{ $$ = find_type_or_error( NULL, "byte" ); }
 	| tUNSIGNED				{ $$ = type_new_int(TYPE_BASIC_INT, 1); }
 	| tFLOAT				{ $$ = find_type_or_error( NULL, "float" ); }
 	| tDOUBLE				{ $$ = find_type_or_error( NULL, "double" ); }
-	| tBOOLEAN				{ $$ = type_boolean; }
+	| tBOOLEAN				{ $$ = find_type_or_error( NULL, "boolean" ); }
 	| tERRORSTATUST				{ $$ = type_error_status_t; }
 	| tHANDLET				{ $$ = find_type_or_error( NULL, "handle_t" ); }
 	;
