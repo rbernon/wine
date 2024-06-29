@@ -559,13 +559,13 @@ arg:	  attributes decl_spec m_any_declarator	{ if ($2->stgclass != STG_NONE && $
 						}
 	;
 
-array:	  '[' expr ']'				{ $$ = $2;
-						  if (!$$->is_const || $$->cval <= 0)
-						      error_loc("array dimension is not a positive integer constant\n");
-						}
-	| '[' '*' ']'				{ $$ = make_expr(EXPR_VOID); }
-	| '[' ']'				{ $$ = make_expr(EXPR_VOID); }
-	;
+array:    '[' expr ']'                          { if (!$expr->is_const) error_loc( "array dimension is not constant\n" );
+                                                  if ($expr->cval <= 0) error_loc( "array dimension is not positive\n" );
+                                                  $$ = $expr;
+                                                }
+        | '[' '*' ']'                           { $$ = expr_void(); }
+        | '[' ']'                               { $$ = expr_void(); }
+        ;
 
 m_attributes
 	: %empty				{ $$ = NULL; }
@@ -841,9 +841,9 @@ m_exprs:  m_expr                                { $$ = append_expr( NULL, $1 ); 
 	;
 
 m_expr
-	: %empty				{ $$ = make_expr(EXPR_VOID); }
-	| expr
-	;
+        : %empty                                { $$ = expr_void(); }
+        | expr
+        ;
 
 expr:     aNUM                                  { $$ = make_exprl(EXPR_NUM, &$1); }
         | aHEXNUM                               { $$ = make_exprl(EXPR_NUM, &$1); }
