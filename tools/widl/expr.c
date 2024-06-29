@@ -116,7 +116,7 @@ expr_t *expr_void(void)
     return e;
 }
 
-expr_t *make_exprl(enum expr_type type, const struct integer *integer)
+expr_t *expr_int( enum expr_type type, const struct integer *integer )
 {
     expr_t *e = xmalloc( sizeof(*e) );
     memset( e, 0, sizeof(*e) );
