@@ -504,23 +504,24 @@ static struct expression_type resolve_expression(const struct expr_loc *expr_loc
         break;
     case EXPR_NUM:
         result.is_temporary = FALSE;
-        result.type = type_new_int(e->u.integer.is_long ? TYPE_BASIC_LONG : TYPE_BASIC_INT, e->u.integer.is_unsigned);
+        if (e->u.integer.is_unsigned) result.type = e->u.integer.is_long ? &type_ulong : &type_uint;
+        else result.type = e->u.integer.is_long ? &type_long : &type_int;
         break;
     case EXPR_STRLIT:
         result.is_temporary = TRUE;
-        result.type = type_new_pointer(type_new_int(TYPE_BASIC_CHAR, 0));
+        result.type = type_new_pointer(&type_char);
         break;
     case EXPR_WSTRLIT:
         result.is_temporary = TRUE;
-        result.type = type_new_pointer(type_wchar_t);
+        result.type = type_new_pointer(&type_wchar);
         break;
     case EXPR_CHARCONST:
         result.is_temporary = TRUE;
-        result.type = type_new_int(TYPE_BASIC_CHAR, 0);
+        result.type = &type_char;
         break;
     case EXPR_DOUBLE:
         result.is_temporary = TRUE;
-        result.type = type_new_basic(TYPE_BASIC_DOUBLE);
+        result.type = &type_double;
         break;
     case EXPR_IDENTIFIER:
     {
@@ -538,7 +539,7 @@ static struct expression_type resolve_expression(const struct expr_loc *expr_loc
         check_scalar_type(expr_loc, cont_type, result.type);
         result.is_variable = FALSE;
         result.is_temporary = FALSE;
-        result.type = type_new_int(TYPE_BASIC_INT, 0);
+        result.type = &type_int;
         break;
     case EXPR_NOT:
         result = resolve_expression(expr_loc, cont_type, e->ref);
@@ -577,7 +578,7 @@ static struct expression_type resolve_expression(const struct expr_loc *expr_loc
         break;
     case EXPR_SIZEOF:
         result.is_temporary = FALSE;
-        result.type = type_new_int(TYPE_BASIC_INT, 0);
+        result.type = &type_int;
         break;
     case EXPR_SHL:
     case EXPR_SHR:
@@ -614,7 +615,7 @@ static struct expression_type resolve_expression(const struct expr_loc *expr_loc
         check_scalar_type(expr_loc, cont_type, result_left.type);
         check_scalar_type(expr_loc, cont_type, result_right.type);
         result.is_temporary = FALSE;
-        result.type = type_new_int(TYPE_BASIC_INT, 0);
+        result.type = &type_int;
         break;
     }
     case EXPR_MEMBER:

@@ -40,9 +40,6 @@ type_t *type_new_alias(const decl_spec_t *t, const char *name);
 type_t *type_module_declare(char *name);
 type_t *type_new_array(const char *name, const decl_spec_t *element, int declptr,
                        unsigned int dim, expr_t *size_is, expr_t *length_is);
-type_t *type_new_basic(enum type_basic_type basic_type);
-type_t *type_new_int(enum type_basic_type basic_type, int sign);
-type_t *type_new_void(void);
 type_t *type_coclass_declare(char *name);
 type_t *type_new_enum(const char *name, struct namespace *namespace,
         int defined, var_list_t *enums, const struct location *where);
