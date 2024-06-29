@@ -387,7 +387,6 @@ SAFEARRAY{ws}*/\(	return tSAFEARRAY;
     __int3264                                   { return tINT3264; }
     __int64                                     { return tINT64; }
     apicontract                                 { return token_winrt( tAPICONTRACT, yytext, yylval ); }
-    boolean                                     { return tBOOLEAN; }
     byte                                        { return tBYTE; }
     case                                        { return tCASE; }
     char                                        { return tCHAR; }
@@ -400,10 +399,8 @@ SAFEARRAY{ws}*/\(	return tSAFEARRAY;
     dispinterface                               { return tDISPINTERFACE; }
     double                                      { return tDOUBLE; }
     enum                                        { return tENUM; }
-    error_status_t                              { return tERRORSTATUST; }
     extern                                      { return tEXTERN; }
     float                                       { return tFLOAT; }
-    handle_t                                    { return tHANDLET; }
     hyper                                       { return tHYPER; }
     import                                      { return tIMPORT; }
     importlib                                   { return tIMPORTLIB; }
