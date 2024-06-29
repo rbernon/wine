@@ -847,7 +847,7 @@ m_expr
 
 expr:     aNUM                                  { $$ = make_exprl(EXPR_NUM, &$1); }
         | aHEXNUM                               { $$ = make_exprl(EXPR_NUM, &$1); }
-	| aDOUBLE				{ $$ = make_exprd(EXPR_DOUBLE, $1); }
+        | aDOUBLE                               { $$ = expr_double( $aDOUBLE ); }
         | tFALSE                                { struct integer integer = {.value = 0};
                                                   $$ = make_exprl(EXPR_TRUEFALSE, &integer); }
         | tNULL                                 { struct integer integer = {.value = 0};
