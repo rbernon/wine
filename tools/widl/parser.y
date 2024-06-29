@@ -286,7 +286,7 @@ PARSER_LTYPE pop_import(void);
 %token tVARARG
 %token tVERSION tVIPROGID
 %token tVOID
-%token tWCHAR tWIREMARSHAL
+%token tWIREMARSHAL
 %token tAPARTMENT tNEUTRAL tSINGLE tFREE tBOTH
 
 %type <attr> access_attr
@@ -985,7 +985,6 @@ ident:	  typename				{ $$ = make_var($1); }
 	;
 
 base_type: tBYTE				{ $$ = find_type_or_error( NULL, "byte" ); }
-	| tWCHAR				{ $$ = find_type_or_error( NULL, "wchar_t" ); }
 	| int_std
 	| tSIGNED int_std			{ $$ = type_new_int(type_basic_get_type($2), -1); }
 	| tUNSIGNED int_std			{ $$ = type_new_int(type_basic_get_type($2), 1); }
@@ -1594,7 +1593,6 @@ static int is_allowed_range_type(const type_t *type)
         case TYPE_BASIC_LONG:
         case TYPE_BASIC_BYTE:
         case TYPE_BASIC_CHAR:
-        case TYPE_BASIC_WCHAR:
         case TYPE_BASIC_HYPER:
             return TRUE;
         case TYPE_BASIC_FLOAT:
@@ -2287,7 +2285,6 @@ static int is_allowed_conf_type(const type_t *type)
         case TYPE_BASIC_CHAR:
         case TYPE_BASIC_HYPER:
         case TYPE_BASIC_BYTE:
-        case TYPE_BASIC_WCHAR:
             return TRUE;
         default:
             return FALSE;

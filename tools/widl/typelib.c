@@ -99,7 +99,7 @@ static unsigned short builtin_vt(const type_t *t)
       switch (type_basic_get_type(elem_type))
       {
       case TYPE_BASIC_CHAR: return VT_LPSTR;
-      case TYPE_BASIC_WCHAR: return VT_LPWSTR;
+      case TYPE_BASIC_INT16: return VT_LPWSTR;
       default: break;
       }
     }
@@ -138,8 +138,6 @@ unsigned short get_type_vt(type_t *t)
         return VT_UI1;
       else
         return VT_I1;
-    case TYPE_BASIC_WCHAR:
-      return VT_I2; /* mktyplib seems to parse wchar_t as short */
     case TYPE_BASIC_INT16:
       if (type_basic_get_sign(t) > 0)
         return VT_UI2;

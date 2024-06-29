@@ -398,7 +398,6 @@ void write_type_left(FILE *h, const decl_spec_t *ds, enum name_type name_type, b
         case TYPE_BASIC_INT3264: fprintf(h, "__int3264"); break;
         case TYPE_BASIC_BYTE: fprintf(h, "byte"); break;
         case TYPE_BASIC_CHAR: fprintf(h, "char"); break;
-        case TYPE_BASIC_WCHAR: fprintf(h, "wchar_t"); break;
         case TYPE_BASIC_FLOAT: fprintf(h, "float"); break;
         case TYPE_BASIC_DOUBLE: fprintf(h, "double"); break;
         case TYPE_BASIC_HANDLE: fprintf(h, "handle_t"); break;

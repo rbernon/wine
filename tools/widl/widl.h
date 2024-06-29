@@ -129,6 +129,7 @@ extern void check_arg_attrs( const var_t *arg );
 /* typetree.h */
 
 extern type_t *type_error_status_t;
+extern type_t *type_wchar_t;
 
 extern void init_types(void);
 
