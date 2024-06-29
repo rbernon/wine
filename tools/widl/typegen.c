@@ -195,6 +195,7 @@ static const char *string_of_type(unsigned char type)
 unsigned char get_basic_fc(const type_t *type)
 {
     int sign = type_basic_get_sign(type);
+    if (type == type_error_status_t) return FC_ERROR_STATUS_T;
     switch (type_basic_get_type(type))
     {
     case TYPE_BASIC_INT8: return (sign <= 0 ? FC_SMALL : FC_USMALL);
@@ -210,7 +211,6 @@ unsigned char get_basic_fc(const type_t *type)
     case TYPE_BASIC_HYPER: return FC_HYPER;
     case TYPE_BASIC_FLOAT: return FC_FLOAT;
     case TYPE_BASIC_DOUBLE: return FC_DOUBLE;
-    case TYPE_BASIC_ERROR_STATUS_T: return FC_ERROR_STATUS_T;
     case TYPE_BASIC_HANDLE: return FC_BIND_PRIMITIVE;
     }
     return 0;
@@ -218,6 +218,7 @@ unsigned char get_basic_fc(const type_t *type)
 
 static unsigned char get_basic_fc_signed(const type_t *type)
 {
+    if (type == type_error_status_t) return FC_ERROR_STATUS_T;
     switch (type_basic_get_type(type))
     {
     case TYPE_BASIC_INT8: return FC_SMALL;
@@ -233,7 +234,6 @@ static unsigned char get_basic_fc_signed(const type_t *type)
     case TYPE_BASIC_HYPER: return FC_HYPER;
     case TYPE_BASIC_FLOAT: return FC_FLOAT;
     case TYPE_BASIC_DOUBLE: return FC_DOUBLE;
-    case TYPE_BASIC_ERROR_STATUS_T: return FC_ERROR_STATUS_T;
     case TYPE_BASIC_HANDLE: return FC_BIND_PRIMITIVE;
     }
     return 0;
