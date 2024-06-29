@@ -598,8 +598,7 @@ contract_ver:
 
 contract_req
         : decl_spec ',' contract_ver            {
-                                                  struct integer integer = {.value = $contract_ver};
-                                                  expr_t *contract;
+                                                  expr_t *contract = expr_int( $3, strmake( "%u", $3 ) );
                                                   if ($decl_spec->type->type_type != TYPE_APICONTRACT)
                                                       error_loc( "type %s is not an apicontract\n", $decl_spec->type->name );
                                                   contract = expr_int( EXPR_NUM, &integer );
@@ -802,18 +801,16 @@ enums
 	;
 
 enum_list: enum                                 {
-                                                  struct integer integer = {.value = 0 /* default for first enum entry */};
-                                                  if (!$enum->eval) $enum->eval = expr_int( EXPR_NUM, &integer );
-                                                  $$ = append_var( NULL, $1 );
+                                                  if (!$enum->eval) $enum->eval = expr_int( 0, "0" );
+                                                  $$ = append_var( NULL, $enum );
                                                 }
         | enum_list[list] ',' enum                    {
                                                   if (!$enum->eval)
                                                   {
-                                                      var_t *last = LIST_ENTRY( list_tail( $list ), var_t, entry );
-                                                      struct integer integer = {.value = last->eval->cval + 1};
-                                                      if (last->eval->type == EXPR_NUM) integer.is_hex = last->eval->u.integer.is_hex;
-                                                      if (last->eval->cval + 1 < 0) integer.is_hex = TRUE;
-                                                      $enum->eval = expr_int( EXPR_NUM, &integer );
+                                                      expr_t *last = LIST_ENTRY( list_tail( $list ), var_t, entry )->eval;
+                                                      const char *fmt = last->cval + 1 < 0 ? "0x%x" : "%u";
+                                                      if (last->text && last->text[1] == 'x') fmt = "0x%x";
+                                                      $enum->eval = expr_int( last->cval + 1, strmake( fmt, last->cval + 1 ) );
                                                   }
                                                   $$ = append_var( $list, $enum );
                                                 }
@@ -845,15 +842,12 @@ m_expr
         | expr
         ;
 
-expr:     aNUM                                  { $$ = expr_int( EXPR_NUM, &$aNUM ); }
-        | aHEXNUM                               { $$ = expr_int( EXPR_NUM, &$aHEXNUM ); }
+expr:     aNUM                                  { $$ = expr_int( $aNUM, strmake( "%u", $aNUM ) ); }
+        | aHEXNUM                               { $$ = expr_int( $aHEXNUM, strmake( "0x%x", $aHEXNUM ) ); }
         | aDOUBLE                               { $$ = expr_double( $aDOUBLE ); }
-        | tFALSE                                { struct integer integer = {.value = 0};
-                                                  $$ = expr_int( EXPR_TRUEFALSE, &integer ); }
-        | tNULL                                 { struct integer integer = {.value = 0};
-                                                  $$ = expr_int( EXPR_NUM, &integer ); }
-        | tTRUE                                 { struct integer integer = {.value = 1};
-                                                  $$ = expr_int( EXPR_TRUEFALSE, &integer ); }
+        | tFALSE                                { $$ = expr_int( 0, "FALSE" ); }
+        | tNULL                                 { $$ = expr_int( 0, "NULL" ); }
+        | tTRUE                                 { $$ = expr_int( 1, "TRUE" ); }
         | aSTRING                               { $$ = expr_str( EXPR_STRLIT, $aSTRING ); }
         | aWSTRING                              { $$ = expr_str( EXPR_WSTRLIT, $aWSTRING ); }
         | aSQSTRING                             { $$ = expr_str( EXPR_CHARCONST, $aSQSTRING ); }
