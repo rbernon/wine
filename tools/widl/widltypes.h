@@ -305,6 +305,7 @@ enum type_basic_type
     TYPE_BASIC_BYTE,
     TYPE_BASIC_FLOAT,
     TYPE_BASIC_DOUBLE,
+    TYPE_BASIC_ERROR_STATUS_T,
     TYPE_BASIC_HANDLE,
 };
 
