@@ -994,7 +994,7 @@ base_type: tBYTE				{ $$ = find_type_or_error( NULL, "byte" ); }
 	| tFLOAT				{ $$ = find_type_or_error( NULL, "float" ); }
 	| tDOUBLE				{ $$ = find_type_or_error( NULL, "double" ); }
 	| tBOOLEAN				{ $$ = find_type_or_error( NULL, "boolean" ); }
-	| tERRORSTATUST				{ $$ = find_type_or_error( NULL, "error_status_t" ); }
+	| tERRORSTATUST				{ $$ = type_error_status_t; }
 	| tHANDLET				{ $$ = find_type_or_error( NULL, "handle_t" ); }
 	;
 
@@ -1449,29 +1449,6 @@ allocate_option
 
 %%
 
-static void decl_builtin_basic(const char *name, enum type_basic_type type)
-{
-  type_t *t = type_new_basic(type);
-  reg_type(t, name, NULL, 0);
-}
-
-static void decl_builtin_alias(const char *name, type_t *t)
-{
-    const decl_spec_t ds = {.type = t};
-    reg_type(type_new_alias(&ds, name), name, NULL, 0);
-}
-
-void init_types(void)
-{
-  decl_builtin_basic("byte", TYPE_BASIC_BYTE);
-  decl_builtin_basic("wchar_t", TYPE_BASIC_WCHAR);
-  decl_builtin_basic("float", TYPE_BASIC_FLOAT);
-  decl_builtin_basic("double", TYPE_BASIC_DOUBLE);
-  decl_builtin_basic("error_status_t", TYPE_BASIC_ERROR_STATUS_T);
-  decl_builtin_basic("handle_t", TYPE_BASIC_HANDLE);
-  decl_builtin_alias("boolean", type_new_basic(TYPE_BASIC_CHAR));
-}
-
 static str_list_t *append_str(str_list_t *list, char *str)
 {
     struct str_list_entry_t *entry;
@@ -1623,7 +1600,6 @@ static int is_allowed_range_type(const type_t *type)
             return TRUE;
         case TYPE_BASIC_FLOAT:
         case TYPE_BASIC_DOUBLE:
-        case TYPE_BASIC_ERROR_STATUS_T:
         case TYPE_BASIC_HANDLE:
             return FALSE;
         }

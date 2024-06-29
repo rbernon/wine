@@ -55,7 +55,6 @@ static int is_integer_type(const type_t *type)
         case TYPE_BASIC_HYPER:
         case TYPE_BASIC_BYTE:
         case TYPE_BASIC_WCHAR:
-        case TYPE_BASIC_ERROR_STATUS_T:
             return TRUE;
         case TYPE_BASIC_FLOAT:
         case TYPE_BASIC_DOUBLE:
@@ -90,7 +89,6 @@ static int is_signed_integer_type(const type_t *type)
         case TYPE_BASIC_HYPER:
         case TYPE_BASIC_BYTE:
         case TYPE_BASIC_WCHAR:
-        case TYPE_BASIC_ERROR_STATUS_T:
         case TYPE_BASIC_FLOAT:
         case TYPE_BASIC_DOUBLE:
         case TYPE_BASIC_HANDLE:
