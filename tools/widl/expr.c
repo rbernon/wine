@@ -108,11 +108,11 @@ static int is_float_type(const type_t *type)
          type_basic_get_type(type) == TYPE_BASIC_DOUBLE));
 }
 
-expr_t *make_expr(enum expr_type type)
+expr_t *expr_void(void)
 {
     expr_t *e = xmalloc( sizeof(*e) );
     memset( e, 0, sizeof(*e) );
-    e->type = type;
+    e->type = EXPR_VOID;
     return e;
 }
 
