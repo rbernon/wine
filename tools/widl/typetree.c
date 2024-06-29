@@ -238,6 +238,8 @@ static size_t append_type_signature(char **buf, size_t *len, size_t pos, type_t 
         case TYPE_BASIC_INT3264:
         case TYPE_BASIC_CHAR:
         case TYPE_BASIC_HYPER:
+        case TYPE_BASIC_WCHAR:
+        case TYPE_BASIC_ERROR_STATUS_T:
         case TYPE_BASIC_HANDLE:
             error_at( &type->where, "unimplemented type signature for basic type %d.\n",
                       type_basic_get_type( type ) );
@@ -667,6 +669,8 @@ static int is_valid_bitfield_type(const type_t *type)
         case TYPE_BASIC_CHAR:
         case TYPE_BASIC_HYPER:
         case TYPE_BASIC_BYTE:
+        case TYPE_BASIC_WCHAR:
+        case TYPE_BASIC_ERROR_STATUS_T:
             return TRUE;
         case TYPE_BASIC_FLOAT:
         case TYPE_BASIC_DOUBLE:
@@ -1326,30 +1330,4 @@ int type_is_equal(const type_t *type1, const type_t *type2)
     /* FIXME: do deep inspection of types to determine if they are equal */
 
     return FALSE;
-}
-
-type_t *type_error_status_t;
-type_t *type_wchar_t;
-
-static void decl_builtin_basic( const char *name, enum type_basic_type type )
-{
-    type_t *t = type_new_basic( type );
-    reg_type( t, name, NULL, 0 );
-}
-
-static type_t *decl_builtin_alias( const char *name, type_t *t )
-{
-    const decl_spec_t ds = {.type = t};
-    return reg_type( type_new_alias( &ds, name ), name, NULL, 0 );
-}
-
-void init_types(void)
-{
-    decl_builtin_basic( "byte", TYPE_BASIC_BYTE );
-    decl_builtin_basic( "float", TYPE_BASIC_FLOAT );
-    decl_builtin_basic( "double", TYPE_BASIC_DOUBLE );
-    decl_builtin_basic( "handle_t", TYPE_BASIC_HANDLE );
-
-    type_error_status_t = decl_builtin_alias("error_status_t", type_new_int(TYPE_BASIC_LONG, 1));
-    decl_builtin_alias("boolean", type_new_basic(TYPE_BASIC_CHAR));
 }
