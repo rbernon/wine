@@ -134,7 +134,7 @@ struct expr_loc
     const char *attr;
 };
 
-extern expr_t *make_expr( enum expr_type type );
+extern expr_t *expr_void(void);
 extern expr_t *make_exprl( enum expr_type type, const struct integer *integer );
 extern expr_t *make_exprd( enum expr_type type, double val );
 extern expr_t *make_exprs( enum expr_type type, char *val );
