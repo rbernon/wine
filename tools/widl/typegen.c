@@ -196,6 +196,7 @@ unsigned char get_basic_fc(const type_t *type)
 {
     int sign = type_basic_get_sign(type);
     if (type == type_error_status_t) return FC_ERROR_STATUS_T;
+    if (type == type_wchar_t) return FC_WCHAR;
     switch (type_basic_get_type(type))
     {
     case TYPE_BASIC_INT8: return (sign <= 0 ? FC_SMALL : FC_USMALL);
@@ -207,7 +208,6 @@ unsigned char get_basic_fc(const type_t *type)
     case TYPE_BASIC_INT3264: return (sign <= 0 ? FC_INT3264 : FC_UINT3264);
     case TYPE_BASIC_BYTE: return FC_BYTE;
     case TYPE_BASIC_CHAR: return FC_CHAR;
-    case TYPE_BASIC_WCHAR: return FC_WCHAR;
     case TYPE_BASIC_HYPER: return FC_HYPER;
     case TYPE_BASIC_FLOAT: return FC_FLOAT;
     case TYPE_BASIC_DOUBLE: return FC_DOUBLE;
@@ -219,6 +219,7 @@ unsigned char get_basic_fc(const type_t *type)
 static unsigned char get_basic_fc_signed(const type_t *type)
 {
     if (type == type_error_status_t) return FC_ERROR_STATUS_T;
+    if (type == type_wchar_t) return FC_WCHAR;
     switch (type_basic_get_type(type))
     {
     case TYPE_BASIC_INT8: return FC_SMALL;
@@ -230,7 +231,6 @@ static unsigned char get_basic_fc_signed(const type_t *type)
     case TYPE_BASIC_LONG: return FC_LONG;
     case TYPE_BASIC_BYTE: return FC_BYTE;
     case TYPE_BASIC_CHAR: return FC_CHAR;
-    case TYPE_BASIC_WCHAR: return FC_WCHAR;
     case TYPE_BASIC_HYPER: return FC_HYPER;
     case TYPE_BASIC_FLOAT: return FC_FLOAT;
     case TYPE_BASIC_DOUBLE: return FC_DOUBLE;
