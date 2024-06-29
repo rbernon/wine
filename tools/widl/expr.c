@@ -133,11 +133,11 @@ expr_t *make_exprl(enum expr_type type, const struct integer *integer)
     return e;
 }
 
-expr_t *make_exprd(enum expr_type type, double val)
+expr_t *expr_double( double val )
 {
     expr_t *e = xmalloc( sizeof(*e) );
     memset( e, 0, sizeof(*e) );
-    e->type = type;
+    e->type = EXPR_DOUBLE;
     e->u.dval = val;
     e->is_const = TRUE;
     e->cval = val;
