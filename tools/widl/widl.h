@@ -149,4 +149,34 @@ extern int compare_expr( const expr_t *a, const expr_t *b );
 extern void write_expr( FILE *h, const expr_t *e, int brackets, int toplevel, const char *toplevel_prefix,
                         const type_t *cont_type, const char *local_var_prefix );
 
+/* typetree.c */
+
+extern type_t type_void;
+extern type_t type_float;
+extern type_t type_double;
+
+extern type_t type_int;
+extern type_t type_char;
+extern type_t type_short;
+extern type_t type_long;
+extern type_t type_int32;
+extern type_t type_int3264;
+extern type_t type_int64;
+extern type_t type_uint;
+extern type_t type_uchar;
+extern type_t type_ushort;
+extern type_t type_ulong;
+extern type_t type_uint32;
+extern type_t type_uint3264;
+extern type_t type_uint64;
+extern type_t type_sint;
+extern type_t type_schar;
+extern type_t type_sshort;
+extern type_t type_slong;
+extern type_t type_sint32;
+extern type_t type_sint3264;
+extern type_t type_sint64;
+
+extern void init_types(void);
+
 #endif

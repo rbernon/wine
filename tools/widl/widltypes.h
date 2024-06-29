@@ -653,7 +653,6 @@ extern context_handle_list_t context_handle_list;
 extern generic_handle_list_t generic_handle_list;
 void check_for_additional_prototype_types(type_t *type);
 
-void init_types(void);
 type_t *alloc_type(void);
 void set_all_tfswrite(int val);
 void clear_all_offsets(void);
