@@ -430,7 +430,6 @@ SAFEARRAY{ws}*/\(	return tSAFEARRAY;
     union                                       { return tUNION; }
     unsigned                                    { return tUNSIGNED; }
     void                                        { return tVOID; }
-    wchar_t                                     { return tWCHAR; }
 
     [a-zA-Z_][0-9a-zA-Z_]*                      { return token_ident( yytext, yylval ); }
 
