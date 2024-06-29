@@ -185,7 +185,7 @@ PARSER_LTYPE pop_import(void);
 %token tALLNODES tALLOCATE tANNOTATION
 %token tAPICONTRACT
 %token tAPPOBJECT tASYNC tASYNCUUID
-%token tAUTOHANDLE tBINDABLE tBROADCAST tBYTE tBYTECOUNT
+%token tAUTOHANDLE tBINDABLE tBOOLEAN tBROADCAST tBYTE tBYTECOUNT
 %token tCALLAS tCALLBACK tCASE tCHAR tCOCLASS tCODE tCOMMSTATUS
 %token tCOMPOSABLE
 %token tCONST tCONTEXTHANDLE tCONTEXTHANDLENOSERIALIZE
@@ -206,7 +206,7 @@ PARSER_LTYPE pop_import(void);
 %token tDISPINTERFACE
 %token tDLLNAME tDONTFREE tDOUBLE tDUAL
 %token tENABLEALLOCATE tENCODE tENDPOINT
-%token tENTRY tENUM
+%token tENTRY tENUM tERRORSTATUST
 %token tEVENTADD tEVENTREMOVE
 %token tEXCLUSIVETO
 %token tEXPLICITHANDLE tEXTERN
@@ -215,6 +215,7 @@ PARSER_LTYPE pop_import(void);
 %token tFLAGS
 %token tFLOAT tFORCEALLOCATE
 %token tHANDLE
+%token tHANDLET
 %token tHELPCONTEXT tHELPFILE
 %token tHELPSTRING tHELPSTRINGCONTEXT tHELPSTRINGDLL
 %token tHIDDEN
@@ -285,7 +286,7 @@ PARSER_LTYPE pop_import(void);
 %token tVARARG
 %token tVERSION tVIPROGID
 %token tVOID
-%token tWIREMARSHAL
+%token tWCHAR tWIREMARSHAL
 %token tAPARTMENT tNEUTRAL tSINGLE tFREE tBOTH
 
 %type <attr> access_attr
@@ -985,12 +986,16 @@ ident:	  typename				{ $$ = make_var($1); }
 	;
 
 base_type: tBYTE				{ $$ = find_type_or_error( NULL, "byte" ); }
+	| tWCHAR				{ $$ = find_type_or_error( NULL, "wchar_t" ); }
 	| int_std
 	| tSIGNED int_std			{ $$ = type_new_int(type_basic_get_type($2), -1); }
 	| tUNSIGNED int_std			{ $$ = type_new_int(type_basic_get_type($2), 1); }
 	| tUNSIGNED				{ $$ = type_new_int(TYPE_BASIC_INT, 1); }
 	| tFLOAT				{ $$ = find_type_or_error( NULL, "float" ); }
 	| tDOUBLE				{ $$ = find_type_or_error( NULL, "double" ); }
+	| tBOOLEAN				{ $$ = type_boolean; }
+	| tERRORSTATUST				{ $$ = type_error_status_t; }
+	| tHANDLET				{ $$ = find_type_or_error( NULL, "handle_t" ); }
 	;
 
 m_int
