@@ -54,7 +54,6 @@ static int is_integer_type(const type_t *type)
         case TYPE_BASIC_CHAR:
         case TYPE_BASIC_HYPER:
         case TYPE_BASIC_BYTE:
-        case TYPE_BASIC_WCHAR:
             return TRUE;
         case TYPE_BASIC_FLOAT:
         case TYPE_BASIC_DOUBLE:
@@ -88,7 +87,6 @@ static int is_signed_integer_type(const type_t *type)
             return TRUE;
         case TYPE_BASIC_HYPER:
         case TYPE_BASIC_BYTE:
-        case TYPE_BASIC_WCHAR:
         case TYPE_BASIC_FLOAT:
         case TYPE_BASIC_DOUBLE:
         case TYPE_BASIC_HANDLE:
@@ -518,7 +516,7 @@ static struct expression_type resolve_expression(const struct expr_loc *expr_loc
         break;
     case EXPR_WSTRLIT:
         result.is_temporary = TRUE;
-        result.type = type_new_pointer(type_new_int(TYPE_BASIC_WCHAR, 0));
+        result.type = type_new_pointer(type_wchar_t);
         break;
     case EXPR_CHARCONST:
         result.is_temporary = TRUE;
