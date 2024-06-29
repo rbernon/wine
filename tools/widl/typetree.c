@@ -1328,6 +1328,7 @@ int type_is_equal(const type_t *type1, const type_t *type2)
     return FALSE;
 }
 
+type_t *type_boolean;
 type_t *type_error_status_t;
 type_t *type_wchar_t;
 
@@ -1350,7 +1351,6 @@ void init_types(void)
     decl_builtin_basic( "double", TYPE_BASIC_DOUBLE );
     decl_builtin_basic( "handle_t", TYPE_BASIC_HANDLE );
 
-    type_error_status_t = decl_builtin_alias( "error_status_t", type_new_int( TYPE_BASIC_LONG, 1 ) );
-    type_wchar_t = decl_builtin_alias( "wchar_t", type_new_int( TYPE_BASIC_INT16, 0 ) );
-    decl_builtin_alias( "boolean", type_new_basic( TYPE_BASIC_CHAR ) );
+    type_boolean = decl_builtin_alias("boolean", type_new_basic(TYPE_BASIC_CHAR));
+    type_error_status_t = decl_builtin_alias("error_status_t", type_new_int(TYPE_BASIC_LONG, 1));
 }
