@@ -507,6 +507,29 @@ type_t *type_new_basic(enum type_basic_type basic_type)
     return t;
 }
 
+type_t *type_new_int(enum type_basic_type basic_type, int sign)
+{
+    static type_t *int_types[TYPE_BASIC_INT_MAX+1][3];
+
+    assert(basic_type <= TYPE_BASIC_INT_MAX);
+
+    /* map sign { -1, 0, 1 } -> { 0, 1, 2 } */
+    if (!int_types[basic_type][sign + 1])
+    {
+        int_types[basic_type][sign + 1] = type_new_basic(basic_type);
+        int_types[basic_type][sign + 1]->details.basic.sign = sign;
+    }
+    return int_types[basic_type][sign + 1];
+}
+
+type_t *type_new_void(void)
+{
+    static type_t *void_type = NULL;
+    if (!void_type)
+        void_type = make_type(TYPE_VOID);
+    return void_type;
+}
+
 static void define_type(type_t *type, const struct location *where)
 {
     if (type->defined)
@@ -1307,56 +1330,4 @@ int type_is_equal(const type_t *type1, const type_t *type2)
     /* FIXME: do deep inspection of types to determine if they are equal */
 
     return FALSE;
-}
-
-static void decl_builtin_alias(const char *name, type_t *t)
-{
-    const decl_spec_t ds = {.type = t};
-    reg_type(type_new_alias(&ds, name), name, NULL, 0);
-}
-
-type_t type_void       = {.type_type = TYPE_VOID};
-type_t type_float      = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_FLOAT}};
-type_t type_double     = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_DOUBLE}};
-
-type_t type_sint       = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_INT, .sign = 0}};
-type_t type_schar      = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_CHAR, .sign = 0}};
-type_t type_sshort     = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_INT16, .sign = 0}};
-type_t type_slong      = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_LONG, .sign = 0}};
-type_t type_sint32     = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_INT32, .sign = 0}};
-type_t type_sint3264   = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_INT3264, .sign = 0}};
-type_t type_sint64     = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_INT64, .sign = 0}};
-
-type_t type_int        = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_INT, .sign = 1}};
-type_t type_char       = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_CHAR, .sign = 1}};
-type_t type_short      = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_INT16, .sign = 1}};
-type_t type_long       = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_LONG, .sign = 1}};
-type_t type_int32      = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_INT32, .sign = 1}};
-type_t type_int3264    = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_INT3264, .sign = 1}};
-type_t type_int64      = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_INT64, .sign = 1}};
-
-type_t type_uint       = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_INT, .sign = 2}};
-type_t type_uchar      = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_CHAR, .sign = 2}};
-type_t type_ushort     = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_INT16, .sign = 2}};
-type_t type_ulong      = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_LONG, .sign = 2}};
-type_t type_uint32     = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_INT32, .sign = 2}};
-type_t type_uint3264   = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_INT3264, .sign = 2}};
-type_t type_uint64     = {.type_type = TYPE_BASIC, .details.basic = {.type = TYPE_BASIC_INT64, .sign = 2}};
-
-void init_types(void)
-{
-    reg_type( type_new_basic( TYPE_BASIC_BYTE ), "byte", NULL, 0 );
-    reg_type( type_new_basic( TYPE_BASIC_WCHAR ), "wchar_t", NULL, 0 );
-    reg_type( type_new_basic( TYPE_BASIC_ERROR_STATUS_T ), "error_status_t", NULL, 0 );
-    reg_type( type_new_basic( TYPE_BASIC_HANDLE ), "handle_t", NULL, 0 );
-
-#if 0
-    decl_builtin_alias( "wchar_t", &type_ushort );
-    decl_builtin_alias( "byte", &type_char );
-    decl_builtin_alias( "error_status_t", &type_ulong );
-#endif
-    decl_builtin_alias( "small", &type_char );
-    decl_builtin_alias( "boolean", &type_uchar );
-    decl_builtin_alias( "hyper", &type_int64 );
-    decl_builtin_alias( "MIDL_uhyper", &type_uint64 );
 }
