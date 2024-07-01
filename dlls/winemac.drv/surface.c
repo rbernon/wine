@@ -126,8 +126,7 @@ static struct macdrv_window_surface *get_mac_surface(struct window_surface *surf
 /***********************************************************************
  *              create_surface
  */
-static struct window_surface *create_surface(HWND hwnd, macdrv_window window, const RECT *rect,
-                                             struct window_surface *old_surface)
+static struct window_surface *create_surface(HWND hwnd, macdrv_window window, const RECT *rect)
 {
     struct macdrv_window_surface *surface = NULL;
     int width = rect->right - rect->left, height = rect->bottom - rect->top;
@@ -170,7 +169,6 @@ static struct window_surface *create_surface(HWND hwnd, macdrv_window window, co
     if (!window_surface_init(&surface->header, &macdrv_surface_funcs, hwnd, rect, info, bitmap)) goto failed;
 
     surface->window = window;
-    if (old_surface) surface->header.bounds = old_surface->bounds;
     surface->provider = provider;
 
     window_background = macdrv_window_background_color();
@@ -191,56 +189,33 @@ failed:
 /***********************************************************************
  *              CreateWindowSurface   (MACDRV.@)
  */
-BOOL macdrv_CreateWindowSurface(HWND hwnd, const RECT *surface_rect, struct window_surface **surface)
+BOOL macdrv_CreateWindowSurface(HWND hwnd, BOOL layered, const RECT *surface_rect, struct window_surface **surface)
 {
     struct window_surface *previous;
     struct macdrv_win_data *data;
 
-    TRACE("hwnd %p, surface_rect %s, surface %p\n", hwnd, wine_dbgstr_rect(surface_rect), surface);
+    TRACE("hwnd %p, layered %u, surface_rect %s, surface %p\n", hwnd, layered, wine_dbgstr_rect(surface_rect), surface);
 
     if ((previous = *surface) && previous->funcs == &macdrv_surface_funcs) return TRUE;
 
     if ((data = get_win_data(hwnd)))
     {
+        if (layered)
+        {
+            data->layered = TRUE;
+            data->ulw_layered = TRUE;
+
+            if (data->unminimized_surface)
+            {
+                window_surface_release(data->unminimized_surface);
+                data->unminimized_surface = NULL;
+            }
+        }
+
         *surface = create_surface(hwnd, data->cocoa_window, surface_rect, previous);
         release_win_data(data);
     }
 
     if (previous) window_surface_release(previous);
-    return TRUE;
-}
-
-
-/***********************************************************************
- *              CreateLayeredWindow   (MACDRV.@)
- */
-BOOL macdrv_CreateLayeredWindow(HWND hwnd, const RECT *surface_rect, COLORREF color_key,
-                                struct window_surface **window_surface)
-{
-    struct window_surface *surface;
-    struct macdrv_win_data *data;
-
-    if (!(data = get_win_data(hwnd))) return FALSE;
-
-    data->layered = TRUE;
-    data->ulw_layered = TRUE;
-
-    surface = data->surface;
-    if (!surface || !EqualRect(&surface->rect, surface_rect))
-    {
-        data->surface = create_surface(data->hwnd, data->cocoa_window, surface_rect, NULL);
-        if (surface) window_surface_release(surface);
-        surface = data->surface;
-        if (data->unminimized_surface)
-        {
-            window_surface_release(data->unminimized_surface);
-            data->unminimized_surface = NULL;
-        }
-    }
-
-    if ((*window_surface = surface)) window_surface_add_ref(surface);
-
-    release_win_data(data);
-
     return TRUE;
 }
