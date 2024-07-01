@@ -1067,29 +1067,20 @@ done:
  */
 BOOL ANDROID_CreateWindowSurface( HWND hwnd, const RECT *surface_rect, struct window_surface **surface )
 {
+    struct window_surface *previous;
     struct android_win_data *data;
 
     TRACE( "hwnd %p, surface_rect %s, surface %p\n", hwnd, wine_dbgstr_rect( surface_rect ), surface );
 
-    if (!(data = get_win_data( hwnd ))) return TRUE; /* use default surface */
+    if ((previous = *surface) && previous->funcs == &android_surface_funcs) return TRUE;
 
-    if (data->surface)
+    if ((data = get_win_data( hwnd )))
     {
-        if (EqualRect( &data->surface->rect, surface_rect ))
-        {
-            /* existing surface is good enough */
-            window_surface_add_ref( data->surface );
-            if (*surface) window_surface_release( *surface );
-            *surface = data->surface;
-            goto done;
-        }
+        *surface = create_surface( hwnd, surface_rect );
+        release_win_data( data );
     }
 
-    if (*surface) window_surface_release( *surface );
-    *surface = create_surface( data->hwnd, surface_rect );
-
-done:
-    release_win_data( data );
+    if (previous) window_surface_release( previous );
     return TRUE;
 }
 
