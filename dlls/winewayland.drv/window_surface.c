@@ -512,29 +512,19 @@ void wayland_window_surface_update_wayland_surface(struct window_surface *window
  */
 BOOL WAYLAND_CreateWindowSurface(HWND hwnd, const RECT *surface_rect, struct window_surface **surface)
 {
+    struct window_surface *previous;
     struct wayland_win_data *data;
 
     TRACE("hwnd %p, surface_rect %s, surface %p\n", hwnd, wine_dbgstr_rect(surface_rect), surface);
 
-    if (!(data = wayland_win_data_get(hwnd))) return TRUE; /* use default surface */
+    if ((previous = *surface) && previous->funcs == &wayland_window_surface_funcs) return TRUE;
 
-    /* Release the dummy surface wine provides for toplevels. */
-    if (*surface) window_surface_release(*surface);
-    *surface = NULL;
-
-    /* Check if we can reuse our current window surface. */
-    if (data->window_surface &&
-        EqualRect(&data->window_surface->rect, surface_rect))
+    if ((data = wayland_win_data_get(hwnd)))
     {
-        window_surface_add_ref(data->window_surface);
-        *surface = data->window_surface;
-        TRACE("reusing surface %p\n", *surface);
-        goto done;
+        *surface = wayland_window_surface_create(hwnd, surface_rect);
+        wayland_win_data_release(data);
     }
 
-    *surface = wayland_window_surface_create(data->hwnd, surface_rect);
-
-done:
-    wayland_win_data_release(data);
+    if (previous) window_surface_release(previous);
     return TRUE;
 }
