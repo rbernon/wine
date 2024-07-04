@@ -18,6 +18,7 @@
 
 #include <stdarg.h>
 #include <stddef.h>
+#include <assert.h>
 
 #include <windef.h>
 #include <winbase.h>
@@ -209,10 +210,10 @@ static DWORD check_idl( struct list *inputs, struct list *outputs, enum midl_fla
 
 static void strip_comments( char *text )
 {
-    char *pos, *end, *next = strstr( text, "/*" );
+    char *end, *next = strstr( text, "/*" );
     int len = next - text;
 
-    while ((pos = next) && (end = strstr( pos, "*/" )))
+    while (next && *next && (end = strstr( next, "*/" )))
     {
         if (!(next = strstr( end, "/*" ))) next = end + strlen( end );
         memmove( text + len, end + 2, next - end - 2 );
@@ -222,35 +223,35 @@ static void strip_comments( char *text )
     text[len] = 0;
 }
 
-static int isident( char c )
+static void unescape_lines( char *text )
 {
-    return isalnum(c) || c == '_';
-}
-
-static void squash_spaces( char *text )
-{
-    static const char *lookup = " \t\r\n";
-    char prev = 0, *pos, *end, *eod = NULL, *next = strpbrk( text, lookup );
+    char *end, *next = strstr( text, "\\\r\n" );
     int len = next - text;
 
-    while ((pos = next) && (end = pos + strspn( pos, lookup )) > pos)
+    while (next && *next && (end = next + 3))
     {
-        if (!(next = strpbrk( end, lookup ))) next = end + strlen( end );
-        if (*end == '#' && len)
-        {
-            /* fold escaped newlines */
-            while ((eod = strchr( end, '\n' )) && (eod[-1] == '\\' || (eod[-1] == '\r' && eod[-2] == '\\')))
-            {
-                if (eod[-1] == '\r') eod[-2] = ' ';
-                eod[-1] = eod[0] = ' ';
-            }
-            *--end = '\n';
-        }
-        else if (pos <= eod && next >= eod) *--end = '\n';
-        else if (isident(prev) && isident(*end)) end--;
+        if (!(next = strstr( end, "\\\r\n" ))) next = end + strlen( end );
         memmove( text + len, end, next - end );
         len += next - end;
-        prev = next[-1];
+    }
+
+    text[len] = 0;
+}
+
+static void squash_blank_lines( char *text )
+{
+    static const char *lookup = "\r\n";
+    char *pos, *end, *next = strpbrk( text, lookup );
+    int len = next - text;
+
+    while (next > text && (next[-1] == ' ' || next[-1] == '\t')) next--;
+    while ((pos = next) && *pos && (end = next + strspn( next, lookup )) > next)
+    {
+        if (!(pos = next = strpbrk( end, lookup ))) pos = end + strlen( end );
+        while (pos > text && (pos[-1] == ' ' || pos[-1] == '\t')) pos--;
+        memmove( text + len, end, pos - end );
+        len += pos - end;
+        text[len++] = '\n';
     }
 
     text[len] = 0;
@@ -259,7 +260,9 @@ static void squash_spaces( char *text )
 static void post_process_source( char *text )
 {
     strip_comments( text );
-    squash_spaces( text );
+    unescape_lines( text );
+    squash_blank_lines( text );
+    squash_blank_lines( text );
 }
 
 static void test_cmdline(void)
