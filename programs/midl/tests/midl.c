@@ -600,6 +600,121 @@ static void test_attributes(void)
     ok( !res, "got %#lx\n", res );
 }
 
+static void test_declarations(void)
+{
+    struct input oaidl =
+    {
+        .name = L"oaidl.idl",
+        .text = "interface ITypeLib;\n",
+    };
+    struct input unknwn =
+    {
+        .name = L"unknwn.idl",
+        .text = "[uuid(00000000-0000-0000-0000-000000000000),object]"
+                "interface IUnknown{}",
+    };
+    struct input inspectable =
+    {
+        .name = L"inspectable.idl",
+        .text = "import\"unknwn.idl\";"
+                "[uuid(00000000-0000-0000-0000-000000000001),object]"
+                "interface IInspectable:IUnknown{}",
+    };
+    struct input src = {.name = L"main.idl"};
+    struct list in = LIST_INIT( in ), out = LIST_INIT( out );
+    DWORD res;
+
+    list_add_tail( &in, &src.entry );
+    list_add_tail( &in, &oaidl.entry );
+    list_add_tail( &in, &unknwn.entry );
+    list_add_tail( &in, &inspectable.entry );
+
+    src.text = "typedef interface A *B;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "typedef interface A {} *B;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "typedef dispinterface A *B;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "typedef dispinterface A {} *B;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "typedef coclass A *B;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "typedef coclass A {} *B;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "typedef runtimeclass A *B;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "typedef runtimeclass A {} *B;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+
+    src.text = "static A *a;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "static interface A *a;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "static interface A {} *a;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "static dispinterface A *a;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "static dispinterface A {} *a;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "static coclass A *a;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "static coclass A {} *a;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "static runtimeclass A *a;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "static runtimeclass A {} *a;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+
+    src.text = "struct A {int a;}; struct A {int a;};\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "struct A {int a;}; union A {int a;};\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "struct A {int a;}; enum A {V};\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "typedef A B; typedef A B;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "typedef A B; [local] interface B {};\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+
+    src.text = "import \"unknwn.idl\";\n"
+               "typedef A B;\n"
+               "static B *a;\n"
+               "typedef enum A *C;\n"
+               "typedef enum B {V} *D;\n"
+               "typedef union A *E;\n"
+               "typedef union C {int a;} *F;\n"
+               "typedef struct A *G;\n"
+               "typedef struct D {int a;} *H;\n"
+               "typedef I *J;\n"
+               "[object,uuid(00000000-0000-0000-0000-000000000001)]\n"
+               "interface I : IUnknown {};"
+               "\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( !res, "got %#lx\n", res );
+}
+
 START_TEST( midl )
 {
     if (!midl_test_init())
@@ -608,9 +723,8 @@ START_TEST( midl )
         return;
     }
 
-    test_attributes();
-
     test_cmdline();
     test_idl_parsing();
     test_attributes();
+    test_declarations();
 }
