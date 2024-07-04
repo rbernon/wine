@@ -915,7 +915,7 @@ static void test_source_reader(const char *filename, bool video)
                 (unsigned int)(framesize >> 32), (unsigned int)framesize);
 
         hr = IMFMediaType_GetUINT32(mediatype, &MF_MT_DEFAULT_STRIDE, &stride);
-        todo_wine ok(hr == MF_E_ATTRIBUTENOTFOUND, "Unexpected hr %#lx.\n", hr);
+        ok(hr == MF_E_ATTRIBUTENOTFOUND, "Unexpected hr %#lx.\n", hr);
 
         IMFMediaType_Release(mediatype);
 

@@ -151,6 +151,9 @@ static HRESULT media_type_from_video_format(const MFVIDEOFORMAT *format, IMFMedi
         IMFMediaType_DeleteItem(*media_type, &MF_MT_USER_DATA);
     }
 
+    if (FAILED(IMFMediaType_GetItem(*media_type, &MF_MT_VIDEO_ROTATION, NULL)))
+        IMFMediaType_SetUINT32(*media_type, &MF_MT_VIDEO_ROTATION, MFVideoRotationFormat_0);
+
     return hr;
 }
 
