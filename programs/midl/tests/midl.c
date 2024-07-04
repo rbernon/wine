@@ -482,7 +482,7 @@ static void test_idl_parsing(void)
     res = check_idl( &in, &out, MIDL_WERROR | MIDL_VERBOSE | MIDL_VERSION );
     ok( !res, "MIDL failed, error %#lx\n", res );
 
-    post_process_source( (char *)header.data );
+    if (0) post_process_source( (char *)header.data );
     printf( "%s:\n", debugstr_w(header.name) );
     printf( "%s", header.data );
 
@@ -620,6 +620,7 @@ static void test_declarations(void)
                 "[uuid(00000000-0000-0000-0000-000000000001),object]"
                 "interface IInspectable:IUnknown{}",
     };
+    struct output header = {.name = L"main.h", .flag = L"-h" /* strcmp( winetest_platform, "wine" ) ? L"-h" : L"-H" */};
     struct input src = {.name = L"main.idl"};
     struct list in = LIST_INIT( in ), out = LIST_INIT( out );
     DWORD res;
@@ -718,6 +719,100 @@ static void test_declarations(void)
                "\n";
     res = check_idl( &in, &out, MIDL_WERROR );
     ok( !res, "got %#lx\n", res );
+
+    list_add_tail( &out, &header.entry );
+
+    src.text = "typedef small sm;\n"
+               "typedef signed small ssm;\n"
+               "typedef unsigned small usm;\n"
+               "typedef small int smi;\n"
+               "typedef signed small int ssmi;\n"
+               "typedef unsigned small int usmi;\n"
+               "\n"
+               "typedef short sh;\n"
+               "typedef signed short ssh;\n"
+               "typedef unsigned short ush;\n"
+               "typedef short int shi;\n"
+               "typedef signed short int sshi;\n"
+               "typedef unsigned short int ushi;\n"
+               "\n"
+               "typedef long l;\n"
+               "typedef signed long sl;\n"
+               "typedef long signed ls;\n"
+               "typedef unsigned long ul;\n"
+               "typedef long int li;\n"
+               "typedef int long il;\n"
+               "typedef signed long int sli;\n"
+               "typedef long signed int lsi;\n"
+               "typedef int signed long isl;\n"
+               "typedef int long signed ils;\n"
+               "typedef unsigned long int uli;\n"
+               "\n"
+               "typedef long long ll;\n"
+               "typedef signed long long sll;\n"
+               "typedef unsigned long long ull;\n"
+               "typedef long long int lli;\n"
+               "typedef signed long long int slli;\n"
+               "typedef unsigned long long int ulli;\n"
+               "typedef int unsigned long long iull;\n"
+               "\n"
+               "typedef signed s;\n"
+               "typedef unsigned u;\n"
+               "typedef int i;\n"
+               "typedef signed int si;\n"
+               "typedef unsigned int ui;\n"
+               "\n"
+               "typedef char c;\n"
+               "typedef signed char sc;\n"
+               "typedef unsigned char uc;\n"
+               "\n"
+               "typedef hyper hy;\n"
+               "typedef signed hyper shy;\n"
+               "typedef unsigned hyper uhy;\n"
+               "typedef hyper int hyi;\n"
+               "typedef signed hyper int shyi;\n"
+               "typedef unsigned hyper int uhyi;\n"
+               "\n"
+               "typedef void v;\n"
+               "typedef float f;\n"
+               "typedef double d;\n"
+               "typedef long double ld;\n"
+               "typedef byte by;\n"
+               "typedef boolean bo;\n"
+               "typedef __int32 i32;\n"
+               "typedef __int3264 i3264;\n"
+               "typedef __int64 i64;\n"
+               "\n"
+               "typedef handle_t ht;\n"
+               "typedef error_status_t est;\n"
+               "typedef wchar_t wt;\n"
+               "\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( !res, "got %#lx\n", res );
+
+    if (0) post_process_source( (char *)header.data );
+    printf( "%s:\n", debugstr_w(header.name) );
+    printf( "%s", header.data );
+
+    src.text = "typedef int handle_t;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "typedef int error_status_t;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "typedef int wchar_t;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+
+    src.text = "typedef UINT32 t;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "typedef HANDLE t;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
+    src.text = "typedef GUID t;\n";
+    res = check_idl( &in, &out, MIDL_WERROR );
+    ok( res, "got %#lx\n", res );
 }
 
 START_TEST( midl )
