@@ -38,6 +38,8 @@ struct object_context
     WCHAR *url;
 
     wg_source_t wg_source;
+    WCHAR mime_type[256];
+
     UINT64 read_offset;
     UINT32 buffer_size;
     BYTE *buffer;
@@ -215,6 +217,7 @@ struct media_source
     CRITICAL_SECTION cs;
 
     wg_source_t wg_source;
+    WCHAR mime_type[256];
     UINT64 file_size;
     wg_parser_t wg_parser;
     UINT64 duration;
@@ -1477,6 +1480,8 @@ static HRESULT WINAPI media_source_CreatePresentationDescriptor(IMFMediaSource *
         hr = MF_E_SHUTDOWN;
     else if (SUCCEEDED(hr = MFCreatePresentationDescriptor(source->stream_count, source->descriptors, descriptor)))
     {
+        if (FAILED(hr = IMFPresentationDescriptor_SetString(*descriptor, &MF_PD_MIME_TYPE, source->mime_type)))
+            WARN("Failed to set presentation descriptor MF_PD_MIME_TYPE, hr %#lx\n", hr);
         if (FAILED(hr = IMFPresentationDescriptor_SetUINT64(*descriptor, &MF_PD_TOTAL_FILE_SIZE, source->file_size)))
             WARN("Failed to set presentation descriptor MF_PD_TOTAL_FILE_SIZE, hr %#lx\n", hr);
         if (FAILED(hr = IMFPresentationDescriptor_SetUINT64(*descriptor, &MF_PD_DURATION, source->duration)))
@@ -1673,6 +1678,7 @@ static HRESULT media_source_create(struct object_context *context, IMFMediaSourc
     object->ref = 1;
     object->byte_stream = context->stream;
     IMFByteStream_AddRef(context->stream);
+    wcscpy(object->mime_type, context->mime_type);
     object->file_size = context->file_size;
     object->rate = 1.0f;
     InitializeCriticalSectionEx(&object->cs, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
@@ -2053,7 +2059,7 @@ static HRESULT WINAPI stream_handler_callback_Invoke(IMFAsyncCallback *iface, IM
     if (FAILED(hr = IMFByteStream_EndRead(context->stream, result, &size)))
         WARN("Failed to complete stream read, hr %#lx\n", hr);
     else if (!context->wg_source && FAILED(hr = wg_source_create(context->url, context->file_size,
-            context->buffer, size, &context->wg_source)))
+            context->buffer, size, context->mime_type, &context->wg_source)))
         WARN("Failed to create wg_source, hr %#lx\n", hr);
     else if (FAILED(hr = wg_source_push_data(context->wg_source, context->read_offset, context->buffer, size)))
         WARN("Failed to push wg_source data, hr %#lx\n", hr);
