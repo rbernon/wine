@@ -30,6 +30,7 @@ static WCHAR midl_path[MAX_PATH];
 
 static BOOL midl_test_init(void)
 {
+    const char *env = getenv( "WINEDLLOVERRIDES" );
     WCHAR path[MAX_PATH], version[MAX_PATH], *tmp;
     DWORD i, res, type, size;
     HKEY key;
@@ -48,7 +49,14 @@ static BOOL midl_test_init(void)
     if (GetFileAttributesW( midl_path ) != INVALID_FILE_ATTRIBUTES) goto found;
     wcscpy( midl_path, L"c:\\Program Files (x86)\\Microsoft SDKs\\Windows\v7.1a\\bin\\midl.exe" );
     if (GetFileAttributesW( midl_path ) != INVALID_FILE_ATTRIBUTES) goto found;
+
+    wcscpy( midl_path, L"z:\\home\\rbernon\\Code\\windows-kits\\10\\bin\\10.0.20348.0\\x64\\midl.exe" );
+    if (strstr( env, "midl.exe=n" ) && GetFileAttributesW( midl_path ) != INVALID_FILE_ATTRIBUTES) goto found;
+
     wcscpy( midl_path, L"c:\\Windows\\system32\\midl.exe" );
+    if (GetFileAttributesW( midl_path ) != INVALID_FILE_ATTRIBUTES) goto found;
+
+    wcscpy( midl_path, L"z:\\home\\rbernon\\Code\\windows-kits\\10\\bin\\10.0.20348.0\\x64\\midl.exe" );
     if (GetFileAttributesW( midl_path ) != INVALID_FILE_ATTRIBUTES) goto found;
 
     RegCloseKey( key );
