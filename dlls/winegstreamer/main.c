@@ -471,6 +471,21 @@ void wg_source_destroy(wg_source_t source)
     WINE_UNIX_CALL(unix_wg_source_destroy, &source);
 }
 
+HRESULT wg_source_push_data(wg_source_t source, UINT64 offset, const void *data, uint32_t size)
+{
+    struct wg_source_push_data_params params =
+    {
+        .source = source,
+        .offset = offset,
+        .data = data,
+        .size = size,
+    };
+
+    TRACE("source %#I64x, offset %#I64x, data %p, size %#x\n", source, offset, data, size);
+
+    return HRESULT_FROM_NT(WINE_UNIX_CALL(unix_wg_source_push_data, &params));
+}
+
 HRESULT wg_transform_create_mf(IMFMediaType *input_type, IMFMediaType *output_type,
         const struct wg_transform_attrs *attrs, wg_transform_t *transform)
 {

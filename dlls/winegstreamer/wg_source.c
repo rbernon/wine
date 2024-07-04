@@ -43,6 +43,7 @@ struct wg_source
 {
     GstPad *src_pad;
     GstElement *container;
+    GstSegment segment;
 };
 
 static struct wg_source *get_source(wg_source_t source)
@@ -71,6 +72,21 @@ static GstCaps *detect_caps_from_data(const char *url, const void *data, guint s
         GST_FIXME("Got probability %u for caps %" GST_PTR_FORMAT, probability, caps);
 
     return caps;
+}
+
+static GstEvent *create_stream_start_event(const char *stream_id)
+{
+    GstEvent *event;
+
+    if ((event = gst_event_new_stream_start(stream_id)))
+    {
+        GstStream *stream = gst_stream_new(stream_id, NULL, GST_STREAM_TYPE_UNKNOWN, 0);
+        gst_event_set_stream(event, stream);
+        gst_event_set_group_id(event, 1);
+        gst_object_unref(stream);
+    }
+
+    return event;
 }
 
 static GstPad *create_pad_with_caps(GstPadDirection direction, GstCaps *caps)
@@ -105,6 +121,7 @@ NTSTATUS wg_source_create(void *args)
         gst_caps_unref(src_caps);
         return STATUS_UNSUCCESSFUL;
     }
+    gst_segment_init(&source->segment, GST_FORMAT_BYTES);
 
     if (!(source->container = gst_bin_new("wg_source")))
         goto error;
@@ -123,6 +140,11 @@ NTSTATUS wg_source_create(void *args)
 
     gst_element_set_state(source->container, GST_STATE_PAUSED);
     if (!gst_element_get_state(source->container, NULL, NULL, -1))
+        goto error;
+
+    if (!push_event(source->src_pad, create_stream_start_event("wg_source")))
+        goto error;
+    if (!push_event(source->src_pad, gst_event_new_segment(&source->segment)))
         goto error;
 
     gst_caps_unref(src_caps);
@@ -158,5 +180,31 @@ NTSTATUS wg_source_destroy(void *args)
     gst_object_unref(source->src_pad);
     free(source);
 
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS wg_source_push_data(void *args)
+{
+    struct wg_source_push_data_params *params = args;
+    struct wg_source *source = get_source(params->source);
+
+    GST_TRACE("source %p, offset %#" G_GINT64_MODIFIER "x, size %#" G_GINT64_MODIFIER "x, data %p",
+            source, params->offset, params->size, params->data);
+
+    if (!params->size)
+    {
+        push_event(source->src_pad, gst_event_new_eos());
+        return STATUS_SUCCESS;
+    }
+
+    if (params->offset > source->segment.start)
+        source->segment.start = params->offset;
+    else if (params->offset < source->segment.start)
+    {
+        source->segment.start = params->offset;
+        push_event(source->src_pad, gst_event_new_segment(&source->segment));
+    }
+
+    source->segment.start += params->size;
     return STATUS_SUCCESS;
 }

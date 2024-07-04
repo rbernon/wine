@@ -106,6 +106,7 @@ void wg_parser_stream_seek(wg_parser_stream_t stream, double rate,
 
 HRESULT wg_source_create(const WCHAR *url, const void *data, uint32_t size, wg_source_t *out);
 void wg_source_destroy(wg_source_t source);
+HRESULT wg_source_push_data(wg_source_t source, UINT64 offset, const void *data, uint32_t size);
 
 HRESULT wg_transform_create_mf(IMFMediaType *input_type, IMFMediaType *output_type,
         const struct wg_transform_attrs *attrs, wg_transform_t *transform);

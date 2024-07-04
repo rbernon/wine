@@ -38,6 +38,7 @@ struct object_context
     WCHAR *url;
 
     wg_source_t wg_source;
+    UINT64 read_offset;
     UINT32 buffer_size;
     BYTE *buffer;
 };
@@ -2050,6 +2051,8 @@ static HRESULT WINAPI stream_handler_callback_Invoke(IMFAsyncCallback *iface, IM
         WARN("Failed to complete stream read, hr %#lx\n", hr);
     else if (FAILED(hr = wg_source_create(context->url, context->buffer, size, &context->wg_source)))
         WARN("Failed to create wg_source, hr %#lx\n", hr);
+    else if (FAILED(hr = wg_source_push_data(context->wg_source, context->read_offset, context->buffer, size)))
+        WARN("Failed to push wg_source data, hr %#lx\n", hr);
     else if (FAILED(hr = media_source_create(context, (IMFMediaSource **)&object)))
         WARN("Failed to create media source, hr %#lx\n", hr);
     else
