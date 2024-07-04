@@ -77,6 +77,7 @@ extern NTSTATUS wg_source_get_duration(void *args);
 extern NTSTATUS wg_source_get_position(void *args);
 extern NTSTATUS wg_source_set_position(void *args);
 extern NTSTATUS wg_source_push_data(void *args);
+extern NTSTATUS wg_source_read_data(void *args);
 extern NTSTATUS wg_source_get_stream_type(void *args);
 extern NTSTATUS wg_source_get_stream_name(void *args);
 extern NTSTATUS wg_source_get_stream_lang(void *args);

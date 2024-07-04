@@ -372,6 +372,13 @@ struct wg_source_push_data_params
     const void *data;
 };
 
+struct wg_source_read_data_params
+{
+    wg_source_t source;
+    UINT32 index;
+    struct wg_sample *sample;
+};
+
 struct wg_source_get_stream_type_params
 {
     wg_source_t source;
@@ -522,6 +529,7 @@ enum unix_funcs
     unix_wg_source_get_position,
     unix_wg_source_set_position,
     unix_wg_source_push_data,
+    unix_wg_source_read_data,
     unix_wg_source_get_stream_type,
     unix_wg_source_get_stream_name,
     unix_wg_source_get_stream_lang,

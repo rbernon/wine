@@ -222,6 +222,9 @@ struct media_source
     wg_parser_t wg_parser;
     UINT64 duration;
 
+    UINT32 buffer_size;
+    BYTE *buffer;
+
     IMFStreamDescriptor **descriptors;
     struct media_stream **streams;
     ULONG stream_count;
@@ -815,8 +818,52 @@ static HRESULT wait_on_sample(struct media_stream *stream, IUnknown *token)
 {
     struct media_source *source = impl_from_IMFMediaSource(stream->media_source);
     struct wg_parser_buffer buffer;
+    UINT64 read_offset, position;
+    DWORD id, read_size;
+    IMFSample *sample;
+    HRESULT hr;
 
     TRACE("%p, %p\n", stream, token);
+
+    if (FAILED(hr = IMFStreamDescriptor_GetStreamIdentifier(stream->descriptor, &id)))
+        return hr;
+    id = source->stream_map[id - 1];
+
+    while ((hr = wg_source_read_data(source->wg_source, id, &sample)) == E_PENDING)
+    {
+        if (FAILED(hr = wg_source_get_position(source->wg_source, &read_offset)))
+            break;
+        read_offset = min(read_offset, source->file_size);
+
+        hr = IMFByteStream_GetCurrentPosition(source->byte_stream, &position);
+        if (SUCCEEDED(hr) && read_offset != position)
+            hr = IMFByteStream_SetCurrentPosition(source->byte_stream, read_offset);
+        if (FAILED(hr))
+        {
+            WARN("Failed to set byte stream position, hr %#lx\n", hr);
+            break;
+        }
+
+        if (!(read_size = min(source->buffer_size, source->file_size - read_offset)))
+        {
+            if (FAILED(hr = wg_source_push_data(source->wg_source, read_offset, NULL, 0)))
+                break;
+            continue;
+        }
+
+        if (FAILED(hr = IMFByteStream_Read(source->byte_stream, source->buffer, read_size, &read_size)))
+        {
+            WARN("Failed to read %#lx bytes from stream, hr %#lx\n", read_size, hr);
+            break;
+        }
+        if (FAILED(hr = wg_source_push_data(source->wg_source, read_offset, source->buffer, read_size)))
+            break;
+    }
+
+    if (FAILED(hr))
+        WARN("Failed to read stream %lu data, hr %#lx\n", id, hr);
+    else
+        IMFSample_Release(sample);
 
     while (wg_parser_stream_get_buffer(source->wg_parser, stream->wg_stream, &buffer))
     {
@@ -1390,6 +1437,7 @@ static ULONG WINAPI media_source_Release(IMFMediaSource *iface)
         IMFMediaEventQueue_Release(source->event_queue);
         IMFByteStream_Release(source->byte_stream);
         wg_source_destroy(source->wg_source);
+        free(source->buffer);
         wg_parser_destroy(source->wg_parser);
         source->cs.DebugInfo->Spare[0] = 0;
         DeleteCriticalSection(&source->cs);
@@ -1831,6 +1879,9 @@ static HRESULT media_source_create(struct object_context *context, UINT32 stream
     InitializeCriticalSectionEx(&object->cs, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
     object->cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": cs");
 
+    object->buffer_size = context->buffer_size;
+    object->buffer = context->buffer;
+    context->buffer = NULL;
     object->wg_source = context->wg_source;
     context->wg_source = 0;
 
@@ -1932,6 +1983,7 @@ fail:
     if (object->event_queue)
         IMFMediaEventQueue_Release(object->event_queue);
     IMFByteStream_Release(object->byte_stream);
+    free(object->buffer);
     free(object);
     return hr;
 }
