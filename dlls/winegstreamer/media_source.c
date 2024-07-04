@@ -1654,7 +1654,7 @@ static void media_source_init_descriptors(struct media_source *source)
 
 static HRESULT media_source_create(struct object_context *context, IMFMediaSource **out)
 {
-    unsigned int stream_count = UINT_MAX;
+    UINT32 stream_count;
     struct media_source *object;
     wg_parser_t parser;
     unsigned int i;
@@ -1750,7 +1750,7 @@ fail:
     free(object->descriptors);
     free(object->streams);
 
-    if (stream_count != UINT_MAX)
+    if (object->state == SOURCE_OPENING)
         wg_parser_disconnect(object->wg_parser);
     if (object->read_thread)
     {
@@ -2041,6 +2041,7 @@ static HRESULT WINAPI stream_handler_callback_Invoke(IMFAsyncCallback *iface, IM
     IUnknown *object, *state = IMFAsyncResult_GetStateNoAddRef(result);
     struct object_context *context;
     struct result_entry *entry;
+    UINT32 stream_count = 0;
     DWORD size = 0;
     HRESULT hr;
 
@@ -2054,6 +2055,9 @@ static HRESULT WINAPI stream_handler_callback_Invoke(IMFAsyncCallback *iface, IM
         WARN("Failed to create wg_source, hr %#lx\n", hr);
     else if (FAILED(hr = wg_source_push_data(context->wg_source, context->read_offset, context->buffer, size)))
         WARN("Failed to push wg_source data, hr %#lx\n", hr);
+    else if (FAILED(hr = wg_source_get_stream_count(context->wg_source, &stream_count))
+            && hr != E_PENDING)
+        WARN("Failed to get wg_source status, hr %#lx\n", hr);
     else if (FAILED(hr = media_source_create(context, (IMFMediaSource **)&object)))
         WARN("Failed to create media source, hr %#lx\n", hr);
     else

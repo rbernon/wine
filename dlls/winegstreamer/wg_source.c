@@ -145,6 +145,24 @@ static GstBuffer *create_buffer_from_bytes(guint64 offset, guint64 size, const v
     return buffer;
 }
 
+static GstStream *source_get_stream(struct wg_source *source, guint index)
+{
+    if (index >= source->stream_count)
+        return NULL;
+    return gst_object_ref(source->streams[index].stream);
+}
+
+static GstCaps *source_get_stream_caps(struct wg_source *source, guint index)
+{
+    GstStream *stream;
+    GstCaps *caps;
+    if (!(stream = source_get_stream(source, index)))
+        return NULL;
+    caps = gst_stream_get_caps(stream);
+    gst_object_unref(stream);
+    return caps;
+}
+
 static void source_handle_seek(struct wg_source *source, GstEvent *event)
 {
     guint32 seqnum = gst_event_get_seqnum(event);
@@ -511,6 +529,26 @@ NTSTATUS wg_source_destroy(void *args)
     free(source);
 
     return STATUS_SUCCESS;
+}
+
+NTSTATUS wg_source_get_stream_count(void *args)
+{
+    struct wg_source_get_stream_count_params *params = args;
+    struct wg_source *source = get_source(params->source);
+    UINT i, stream_count;
+    GstCaps *caps;
+
+    GST_TRACE("source %p", source);
+
+    for (i = 0, stream_count = source->stream_count; i < stream_count; i++)
+    {
+        if (!(caps = source_get_stream_caps(source, i)))
+            return STATUS_PENDING;
+        gst_caps_unref(caps);
+    }
+
+    params->stream_count = stream_count;
+    return stream_count ? STATUS_SUCCESS : STATUS_PENDING;
 }
 
 NTSTATUS wg_source_push_data(void *args)
