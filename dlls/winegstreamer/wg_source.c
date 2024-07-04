@@ -118,6 +118,23 @@ static GstPad *create_pad_with_caps(GstPadDirection direction, GstCaps *caps)
     return pad;
 }
 
+static GstBuffer *create_buffer_from_bytes(guint64 offset, guint64 size, const void *data)
+{
+    GstBuffer *buffer;
+
+    if (!(buffer = gst_buffer_new_and_alloc(size)))
+        GST_ERROR("Failed to allocate buffer for %#" G_GINT64_MODIFIER "x bytes", size);
+    else
+    {
+        gst_buffer_fill(buffer, 0, data, size);
+        gst_buffer_set_size(buffer, size);
+        GST_BUFFER_OFFSET(buffer) = offset;
+        GST_BUFFER_OFFSET_END(buffer) = offset + size;
+    }
+
+    return buffer;
+}
+
 static gboolean src_query_duration(struct wg_source *source, GstQuery *query)
 {
     GstFormat format;
@@ -315,6 +332,8 @@ NTSTATUS wg_source_push_data(void *args)
 {
     struct wg_source_push_data_params *params = args;
     struct wg_source *source = get_source(params->source);
+    GstFlowReturn ret = GST_FLOW_OK;
+    GstBuffer *buffer;
 
     GST_TRACE("source %p, offset %#" G_GINT64_MODIFIER "x, size %#" G_GINT64_MODIFIER "x, data %p",
             source, params->offset, params->size, params->data);
@@ -325,8 +344,17 @@ NTSTATUS wg_source_push_data(void *args)
         return STATUS_SUCCESS;
     }
 
+    if (!(buffer = create_buffer_from_bytes(params->offset, params->size, params->data)))
+    {
+        GST_WARNING("Failed to allocate buffer for data");
+        return STATUS_UNSUCCESSFUL;
+    }
+
     if (params->offset > source->segment.start)
+    {
         source->segment.start = params->offset;
+        gst_buffer_set_flags(buffer, GST_BUFFER_FLAG_DISCONT);
+    }
     else if (params->offset < source->segment.start)
     {
         source->segment.start = params->offset;
@@ -334,5 +362,12 @@ NTSTATUS wg_source_push_data(void *args)
     }
 
     source->segment.start += params->size;
+    if ((ret = gst_pad_push(source->src_pad, buffer)) && ret != GST_FLOW_EOS)
+    {
+        GST_ERROR("Failed to push data buffer, ret %d", ret);
+        source->segment.start -= params->size;
+        return STATUS_UNSUCCESSFUL;
+    }
+
     return STATUS_SUCCESS;
 }
