@@ -101,11 +101,31 @@ static const IUnknownVtbl object_context_vtbl =
     object_context_Release,
 };
 
+static WCHAR *byte_stream_get_url(IMFByteStream *stream, const WCHAR *url)
+{
+    IMFAttributes *attributes;
+    WCHAR buffer[MAX_PATH];
+    UINT32 size;
+    HRESULT hr;
+
+    if (SUCCEEDED(hr = IMFByteStream_QueryInterface(stream, &IID_IMFAttributes, (void **)&attributes)))
+    {
+        if (FAILED(hr = IMFAttributes_GetString(attributes, &MF_BYTESTREAM_ORIGIN_NAME,
+                buffer, ARRAY_SIZE(buffer), &size)))
+            WARN("Failed to get MF_BYTESTREAM_ORIGIN_NAME got size %#x, hr %#lx\n", size, hr);
+        else
+            url = buffer;
+        IMFAttributes_Release(attributes);
+    }
+
+    return url ? wcsdup(url) : NULL;
+}
+
 static HRESULT object_context_create(DWORD flags, IMFByteStream *stream, const WCHAR *url,
         QWORD file_size, IMFAsyncResult *result, struct object_context **out)
 {
     UINT buffer_size = file_size >= 128 * 1024 ? 32 * 1024 : min(file_size, 4 * 1024);
-    WCHAR *tmp_url = url ? wcsdup(url) : NULL;
+    WCHAR *tmp_url = byte_stream_get_url(stream, url);
     struct object_context *context;
 
     if (!(context = calloc(1, sizeof(*context)))
