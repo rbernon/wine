@@ -6869,23 +6869,27 @@ static void subtest_media_source_streams(const WCHAR *resource, const struct pre
     /* the testbot Windows VMs might be very slow, take the minimum time over a couple of resolutions */
     for (i = 0; i < 10 && min_time > 0; ++i)
     {
-        DWORD time = 0;
+        LARGE_INTEGER time = {0}, count, freq;
+        QueryPerformanceFrequency(&freq);
 
         hr = IMFMediaSource_Shutdown(media_source);
         ok(hr == S_OK, "got hr %#lx\n", hr);
         IMFMediaSource_Release(media_source);
 
         load_resource_stream(resource, &stream);
-        time -= GetTickCount();
+        QueryPerformanceCounter(&count);
+        time.QuadPart -= count.QuadPart;
         hr = IMFSourceResolver_CreateObjectFromByteStream(resolver, stream, resource, MF_RESOLUTION_MEDIASOURCE,
                 NULL, &object_type, (IUnknown **)&media_source);
-        time += GetTickCount();
+        QueryPerformanceCounter(&count);
+        time.QuadPart += count.QuadPart;
         ok(hr == S_OK, "got hr %#lx\n", hr);
         ok(object_type == MF_OBJECT_MEDIASOURCE, "got type %#x\n", object_type);
         IMFByteStream_Release(stream);
 
-        min_time = min(time, min_time);
-        ok(time <= 2, "source resolution took %lums\n", min_time);
+        time.QuadPart = time.QuadPart * 1000000 / freq.QuadPart;
+        min_time = min(time.QuadPart, min_time);
+        ok(time.QuadPart <= 1, "source resolution took %fms\n", time.QuadPart / 1000.0);
     }
 
     hr = IMFMediaSource_CreatePresentationDescriptor(media_source, &presentation);
@@ -6893,14 +6897,12 @@ static void subtest_media_source_streams(const WCHAR *resource, const struct pre
 
     hr = IMFPresentationDescriptor_GetStreamDescriptorCount(presentation, &stream_count);
     ok(hr == S_OK, "got hr %#lx\n", hr);
-    todo_wine_if(expect->stream_count == 5 && sizeof(void *) == 4) /* only 3 streams for the mp4 the 32-bit testbot VMs */
     ok(stream_count == expect->stream_count, "got stream_count %lu\n", stream_count);
     check_attributes((IMFAttributes *)presentation, expect->attributes, -1);
 
     hr = IMFPresentationDescriptor_GetStreamDescriptorByIndex(presentation, 1, &selected, &stream_descriptor);
     ok(hr == S_OK, "got hr %#lx\n", hr);
     hr = IMFStreamDescriptor_GetItem(stream_descriptor, &MF_SD_STREAM_NAME, NULL);
-    flaky_wine
     ok(hr == S_OK || broken(hr == MF_E_ATTRIBUTENOTFOUND), "got hr %#lx\n", hr);
     IMFStreamDescriptor_Release(stream_descriptor);
 
@@ -6917,19 +6919,18 @@ static void subtest_media_source_streams(const WCHAR *resource, const struct pre
 
         hr = IMFPresentationDescriptor_GetStreamDescriptorByIndex(presentation, i, &selected, &stream_descriptor);
         ok(hr == S_OK, "got hr %#lx\n", hr);
-        todo_wine_if(!expect_stream->selected)
         ok(selected == expect_stream->selected, "got selected %u\n", selected);
         hr = IMFStreamDescriptor_GetStreamIdentifier(stream_descriptor, &id);
         ok(hr == S_OK, "got hr %#lx\n", hr);
-        todo_wine ok(id == expect_stream->id, "got id %lu\n", id);
+        ok(id == expect_stream->id, "got id %lu\n", id);
 
-        flaky_wine check_attributes((IMFAttributes *)stream_descriptor, expect_stream->attributes, -1);
+        check_attributes((IMFAttributes *)stream_descriptor, expect_stream->attributes, -1);
 
         hr = IMFStreamDescriptor_GetMediaTypeHandler(stream_descriptor, &type_handler);
         ok(hr == S_OK, "got hr %#lx\n", hr);
         hr = IMFMediaTypeHandler_GetMediaTypeCount(type_handler, &type_count);
         ok(hr == S_OK, "got hr %#lx\n", hr);
-        todo_wine ok(type_count == 1, "got type_count %lu\n", type_count);
+        ok(type_count == 1, "got type_count %lu\n", type_count);
 
         IMFMediaTypeHandler_Release(type_handler);
         IMFStreamDescriptor_Release(stream_descriptor);
@@ -6962,8 +6963,8 @@ static void test_media_source_streams(void)
         .attributes =
         {
             ATTR_RATIO(MF_PD_DURATION, 0, 25000000),
-            ATTR_RATIO(MF_PD_TOTAL_FILE_SIZE, 0, 33041, .todo = TRUE),
-            ATTR_WSTR_OR_NONE(MF_PD_MIME_TYPE, L"video/mp4", .todo = TRUE),
+            ATTR_RATIO(MF_PD_TOTAL_FILE_SIZE, 0, 33053),
+            ATTR_WSTR_OR_NONE(MF_PD_MIME_TYPE, L"video/mp4"),
         },
         .streams =
         {
@@ -6972,7 +6973,7 @@ static void test_media_source_streams(void)
                 .attributes =
                 {
                     ATTR_WSTR(MF_SD_LANGUAGE, L"fr", /* flaky, .todo = TRUE */),
-                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1),
                 },
             },
             {
@@ -6981,7 +6982,7 @@ static void test_media_source_streams(void)
                 .attributes =
                 {
                     ATTR_WSTR(MF_SD_LANGUAGE, L"en", /* flaky, .todo_value = TRUE */),
-                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1),
                     ATTR_WSTR(MF_SD_STREAM_NAME, L"This is a very long audio stream title string", /* flaky, .todo_value = TRUE */),
                 },
             },
@@ -6989,7 +6990,7 @@ static void test_media_source_streams(void)
                 .id = 3,
                 .attributes =
                 {
-                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1),
                     ATTR_WSTR(MF_SD_STREAM_NAME, L"First Video", /* flaky, .todo = TRUE */),
                 },
             },
@@ -6997,7 +6998,7 @@ static void test_media_source_streams(void)
                 .id = 4,
                 .attributes =
                 {
-                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1),
                 },
             },
             {
@@ -7006,7 +7007,7 @@ static void test_media_source_streams(void)
                 .attributes =
                 {
                     ATTR_WSTR(MF_SD_LANGUAGE, L"de", /* flaky, .todo_value = TRUE */),
-                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1),
                     ATTR_WSTR(MF_SD_STREAM_NAME, L"Other Video", /* flaky, .todo = TRUE */),
                 },
             },
@@ -7018,10 +7019,10 @@ static void test_media_source_streams(void)
         .attributes =
         {
             ATTR_RATIO(MF_PD_DURATION, 0, 20020000),
-            ATTR_RATIO(MF_PD_TOTAL_FILE_SIZE, 0, 47250, .todo = TRUE),
+            ATTR_RATIO(MF_PD_TOTAL_FILE_SIZE, 0, 47250),
             ATTR_UINT32(MF_PD_AUDIO_ENCODING_BITRATE, 106176, .todo = TRUE),
             ATTR_UINT32(MF_PD_VIDEO_ENCODING_BITRATE, 1125200, .todo = TRUE),
-            ATTR_WSTR_OR_NONE(MF_PD_MIME_TYPE, L"video/avi", .todo = TRUE),
+            ATTR_WSTR_OR_NONE(MF_PD_MIME_TYPE, L"video/avi"),
         },
         .streams =
         {
@@ -7030,7 +7031,7 @@ static void test_media_source_streams(void)
                 .selected = 1,
                 .attributes =
                 {
-                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1),
                     ATTR_WSTR(MF_SD_STREAM_NAME, L"This is a very long audio stream title string", /* flaky, .todo = TRUE */),
                 },
             },
@@ -7046,7 +7047,7 @@ static void test_media_source_streams(void)
                 .id = 3,
                 .attributes =
                 {
-                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1, .todo = TRUE),
+                    ATTR_UINT32(MF_SD_MUTUALLY_EXCLUSIVE, 1),
                 },
             },
         },
