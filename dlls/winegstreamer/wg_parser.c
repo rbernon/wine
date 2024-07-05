@@ -133,10 +133,16 @@ static struct wg_parser_stream *get_stream(wg_parser_stream_t stream)
 
 static bool caps_is_compressed(GstCaps *caps)
 {
+    const GstStructure *structure = gst_caps_get_structure(caps, 0);
     struct wg_format format;
 
-    if (!caps)
-        return false;
+    /* H.264 not in byte-stream format cannot be used by Windows.
+     * wg_format_from_caps() rejects this accordingly, but we still want to
+     * stop here, and force h264parse to convert to byte-stream for us.
+     * Therefore explicitly accept it here. */
+    if (!strcmp(gst_structure_get_name(structure), "video/x-h264"))
+        return true;
+
     wg_format_from_caps(&format, caps);
 
     return format.major_type != WG_MAJOR_TYPE_UNKNOWN
@@ -319,6 +325,12 @@ static NTSTATUS wg_parser_stream_get_buffer(void *args)
     unsigned int i;
 
     pthread_mutex_lock(&parser->mutex);
+
+    if (stream->enabled && !stream->eos && !stream->buffer)
+    {
+        pthread_mutex_unlock(&parser->mutex);
+        return E_PENDING;
+    }
 
     if (stream)
         buffer = wait_parser_stream_buffer(parser, stream);
@@ -526,7 +538,7 @@ static bool parser_no_more_pads(struct wg_parser *parser)
 
 static gboolean autoplug_continue_cb(GstElement * decodebin, GstPad *pad, GstCaps * caps, gpointer user)
 {
-    return !caps_is_compressed(caps);
+    return caps && !caps_is_compressed(caps);
 }
 
 static GstAutoplugSelectResult autoplug_select_cb(GstElement *bin, GstPad *pad,
@@ -913,6 +925,23 @@ static bool stream_create_post_processing_elements(GstPad *pad, struct wg_parser
          * 64-bit formats either. Add an audioconvert to allow changing bit
          * depth and channel count. */
         if (!(element = create_element("audioconvert", "base"))
+                || !append_element(parser->container, element, &first, &last))
+            return false;
+
+        if (!link_src_to_element(pad, first) || !link_element_to_sink(last, stream->my_sink))
+            return false;
+    }
+    else if (!strcmp(name, "video/x-h264"))
+    {
+        GstCaps *parsed_caps;
+
+        /* Windows needs stream-format=byte-stream.
+         * decodebin will autoplug a h264parse if we stop on parsed=true,
+         * but it's not enough, because that h264parse will already have its
+         * caps set (to stream-format=avc), and we can't link it to our pad. */
+        parsed_caps = gst_caps_copy(caps);
+        gst_caps_set_simple(parsed_caps, "parsed", G_TYPE_BOOLEAN, true, NULL);
+        if (!(element = find_element(GST_ELEMENT_FACTORY_TYPE_PARSER, caps, parsed_caps))
                 || !append_element(parser->container, element, &first, &last))
             return false;
 
