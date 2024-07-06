@@ -62,7 +62,6 @@ AC_ARG_WITH(usb,       AS_HELP_STRING([--without-usb],[do not use the libusb lib
 AC_ARG_WITH(v4l2,      AS_HELP_STRING([--without-v4l2],[do not use v4l2 (video capture)]))
 AC_ARG_WITH(vulkan,    AS_HELP_STRING([--without-vulkan],[do not use Vulkan]))
 AC_ARG_WITH(wayland,   AS_HELP_STRING([--without-wayland],[do not build the Wayland driver]))
-AC_ARG_WITH(xcb,       AS_HELP_STRING([--without-xcb],[do not use XCB]))
 AC_ARG_WITH(xcomposite,AS_HELP_STRING([--without-xcomposite],[do not use the Xcomposite extension]),
             [if test "x$withval" = "xno"; then ac_cv_header_X11_extensions_Xcomposite_h=no; fi])
 AC_ARG_WITH(xcursor,   AS_HELP_STRING([--without-xcursor],[do not use the Xcursor extension]),
@@ -1211,18 +1210,6 @@ then
                       X11/extensions/xf86vmode.h \
                       X11/extensions/xf86vmproto.h],,,
                       [$xlib_includes])
-
-        dnl **** Check for XCB ****
-        if test "x$with_xcb" != "xno"
-        then
-            WINE_PACKAGE_FLAGS(XCB,[x11-xcb xcb-shm],,,,[
-                AC_CHECK_HEADERS([X11/Xlib-xcb.h xcb/shm.h],[:],[XCB_CFLAGS=""; XCB_LIBS=""])
-                AC_CHECK_LIB(X11-xcb,XGetXCBConnection,[:],[XCB_CFLAGS=""; XCB_LIBS=""],[$XCB_LIBS])
-                AC_CHECK_LIB(xcb-shm,xcb_shm_attach_fd,[:],[XCB_CFLAGS=""; XCB_LIBS=""],[$XCB_LIBS])
-                ])
-        fi
-        WINE_NOTICE_WITH(xcb,[test "x$XCB_LIBS" = "x"],
-            [XCB ${notice_platform}development files not found.])
 
         dnl *** Check for X cursor
         AC_CHECK_HEADER([X11/Xcursor/Xcursor.h],

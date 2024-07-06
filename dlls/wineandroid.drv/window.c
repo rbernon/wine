@@ -582,11 +582,6 @@ static void apply_line_region( DWORD *dst, int width, int x, int y, const RECT *
     if (width > 0) memset( dst, 0, width * sizeof(*dst) );
 }
 
-static void android_surface_init_image( struct window_surface *surface, HANDLE section, UINT offset,
-                                        const BITMAPINFO *color_info )
-{
-}
-
 /***********************************************************************
  *           android_surface_set_clip
  */
@@ -688,7 +683,6 @@ static void android_surface_destroy( struct window_surface *window_surface )
 
 static const struct window_surface_funcs android_surface_funcs =
 {
-    android_surface_init_image,
     android_surface_set_clip,
     android_surface_flush,
     android_surface_destroy
