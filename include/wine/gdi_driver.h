@@ -278,9 +278,8 @@ struct window_surface
     /* driver-specific fields here */
 };
 
-W32KAPI BOOL window_surface_create( UINT size, const struct window_surface_funcs *funcs, HWND hwnd,
-                                    const RECT *rect, BITMAPINFO *info, HBITMAP bitmap, COLORREF color_key, UINT alpha_mask,
-                                    struct window_surface **window_surface );
+W32KAPI BOOL window_surface_init( struct window_surface *surface, const struct window_surface_funcs *funcs,
+                                  HWND hwnd, const RECT *rect, BITMAPINFO *info, HBITMAP bitmap );
 W32KAPI void window_surface_add_ref( struct window_surface *surface );
 W32KAPI void window_surface_release( struct window_surface *surface );
 W32KAPI void window_surface_lock( struct window_surface *surface );

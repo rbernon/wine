@@ -132,6 +132,7 @@ static void macdrv_surface_destroy(struct window_surface *window_surface)
 
     TRACE("freeing %p\n", surface);
     CGDataProviderRelease(surface->provider);
+    free(surface);
 }
 
 static const struct window_surface_funcs macdrv_surface_funcs =
@@ -158,7 +159,6 @@ static struct window_surface *create_surface(HWND hwnd, macdrv_window window, co
     D3DKMT_CREATEDCFROMMEMORY desc = {.Format = D3DDDIFMT_A8R8G8B8};
     char buffer[FIELD_OFFSET(BITMAPINFO, bmiColors[256])];
     BITMAPINFO *info = (BITMAPINFO *)buffer;
-    struct window_surface *window_surface;
     CGDataProviderRef provider;
     HBITMAP bitmap = 0;
     UINT status;
@@ -190,23 +190,21 @@ static struct window_surface *create_surface(HWND hwnd, macdrv_window window, co
     }
     if (desc.hDeviceDc) NtUserReleaseDC(hwnd, desc.hDeviceDc);
 
-    if (!window_surface_create(sizeof(*surface), &macdrv_surface_funcs, hwnd, rect, info, bitmap,
-                               color_key, use_alpha ? 0xff000000 : 0, &window_surface))
-        goto failed;
+    if (!(surface = calloc(1, sizeof(*surface)))) return NULL;
+    if (!window_surface_init(&surface->header, &macdrv_surface_funcs, hwnd, rect, info, bitmap)) goto failed;
 
-    surface = get_mac_surface(window_surface);
     surface->window = window;
     surface->provider = provider;
 
-    if (window_surface_get_color(&surface->header, info, &bits))
-    {
-        window_background = macdrv_window_background_color();
-        memset_pattern4(bits, &window_background, info->bmiHeader.biSizeImage);
-    }
+    window_background = macdrv_window_background_color();
+    memset_pattern4(bits, &window_background, info->bmiHeader.biSizeImage);
 
-    return window_surface;
+    TRACE("created %p for %p %s\n", surface, window, wine_dbgstr_rect(rect));
+
+    return &surface->header;
 
 failed:
+    if (surface) window_surface_release(&surface->header);
     if (bitmap) NtGdiDeleteObjectApp(bitmap);
     CGDataProviderRelease(provider);
     return NULL;

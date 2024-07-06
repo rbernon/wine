@@ -678,6 +678,7 @@ static void android_surface_destroy( struct window_surface *window_surface )
 
     free( surface->clip_rects );
     release_ioctl_window( surface->window );
+    free( surface );
 }
 
 static const struct window_surface_funcs android_surface_funcs =
@@ -701,7 +702,6 @@ static struct window_surface *create_surface( HWND hwnd, const RECT *rect )
     int width = rect->right - rect->left, height = rect->bottom - rect->top;
     char buffer[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
     BITMAPINFO *info = (BITMAPINFO *)buffer;
-    struct window_surface *window_surface;
 
     memset( info, 0, sizeof(*info) );
     info->bmiHeader.biSize        = sizeof(info->bmiHeader);
@@ -712,13 +712,18 @@ static struct window_surface *create_surface( HWND hwnd, const RECT *rect )
     info->bmiHeader.biSizeImage   = get_dib_image_size(info);
     info->bmiHeader.biCompression = BI_RGB;
 
-    if (!window_surface_create( sizeof(*surface), &android_surface_funcs, hwnd, rect, info, 0,
-                                color_key, src_alpha ? 0xff000000 : 0, &window_surface ))
-        return NULL;
+    if (!(surface = calloc( 1, sizeof(*surface) ))) return NULL;
+    if (!window_surface_init( &surface->header, &android_surface_funcs, hwnd, rect, info, 0 )) goto failed;
 
-    surface = get_android_surface(window_surface);
     surface->window = get_ioctl_window( hwnd );
-    return window_surface;
+
+    TRACE( "created %p hwnd %p %s\n", surface, hwnd, wine_dbgstr_rect(rect) );
+
+    return &surface->header;
+
+failed:
+    window_surface_release( &surface->header );
+    return NULL;
 }
 
 /***********************************************************************
