@@ -1306,20 +1306,19 @@ void make_window_embedded( struct x11drv_win_data *data )
 /***********************************************************************
  *     get_decoration_rect
  */
-static void get_decoration_rect( struct x11drv_win_data *data, RECT *rect,
-                                 const RECT *window_rect, const RECT *client_rect )
+static RECT get_decoration_rect( struct x11drv_win_data *data, const struct window_rects *rects )
 {
     DWORD style, ex_style, style_mask = 0, ex_style_mask = 0;
     unsigned long decor;
+    RECT rect = {0};
     UINT dpi;
 
-    SetRectEmpty( rect );
-    if (!data->managed) return;
+    if (!data->managed) return rect;
 
-    dpi = get_win_monitor_dpi( data->hwnd );
+    dpi = NtUserGetDpiForWindow( data->hwnd );
     style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE );
     ex_style = NtUserGetWindowLongW( data->hwnd, GWL_EXSTYLE );
-    decor = get_mwm_decorations( data, style, ex_style, window_rect, client_rect );
+    decor = get_mwm_decorations( data, style, ex_style, &rects->window, &rects->client );
 
     if (decor & MWM_DECOR_TITLE) style_mask |= WS_CAPTION;
     if (decor & MWM_DECOR_BORDER)
@@ -1328,29 +1327,29 @@ static void get_decoration_rect( struct x11drv_win_data *data, RECT *rect,
         ex_style_mask |= WS_EX_DLGMODALFRAME;
     }
 
-    NtUserAdjustWindowRect( rect, style & style_mask, FALSE, ex_style & ex_style_mask, dpi );
+    NtUserAdjustWindowRect( &rect, style & style_mask, FALSE, ex_style & ex_style_mask, dpi );
+    return rect;
 }
 
 
 /***********************************************************************
- *		X11DRV_window_to_X_rect
- *
- * Convert a rect from client to X window coordinates
+ *		x11drv_get_visible_rect
  */
-static void X11DRV_window_to_X_rect( struct x11drv_win_data *data, RECT *rect,
-                                     const RECT *window_rect, const RECT *client_rect )
+static RECT x11drv_get_visible_rect( struct x11drv_win_data *data, const struct window_rects *rects )
 {
-    RECT rc;
+    RECT rect, visible_rect = rects->visible;
 
-    if (IsRectEmpty( rect )) return;
+    if (IsRectEmpty( &rects->visible )) return visible_rect;
 
-    get_decoration_rect( data, &rc, window_rect, client_rect );
-    rect->left   -= rc.left;
-    rect->right  -= rc.right;
-    rect->top    -= rc.top;
-    rect->bottom -= rc.bottom;
-    if (rect->top >= rect->bottom) rect->bottom = rect->top + 1;
-    if (rect->left >= rect->right) rect->right = rect->left + 1;
+    rect = get_decoration_rect( data, rects );
+    visible_rect.left   -= rect.left;
+    visible_rect.right  -= rect.right;
+    visible_rect.top    -= rect.top;
+    visible_rect.bottom -= rect.bottom;
+    if (visible_rect.top >= visible_rect.bottom) visible_rect.bottom = visible_rect.top + 1;
+    if (visible_rect.left >= visible_rect.right) visible_rect.right = visible_rect.left + 1;
+
+    return visible_rect;
 }
 
 
@@ -2567,7 +2566,7 @@ BOOL X11DRV_WindowPosChanging( HWND hwnd, UINT swp_flags, BOOL shaped, struct wi
     if (!data && !(data = X11DRV_create_win_data( hwnd, rects ))) return FALSE; /* use default surface */
     data->shaped = shaped;
 
-    X11DRV_window_to_X_rect( data, &rects->visible, &rects->window, &rects->client );
+    rects->visible = x11drv_get_visible_rect( data, rects );
     TRACE( "-> rects %s\n", debugstr_window_rects( rects ) );
 
     /* check if we need to switch the window to managed */

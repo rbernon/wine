@@ -1989,13 +1989,15 @@ HRGN expose_surface( struct window_surface *window_surface, const RECT *rect )
 /***********************************************************************
  *      CreateWindowSurface   (X11DRV.@)
  */
-BOOL X11DRV_CreateWindowSurface( HWND hwnd, BOOL layered, const RECT *surface_rect, struct window_surface **surface )
+BOOL X11DRV_CreateWindowSurface( HWND hwnd, BOOL layered, UINT dpi_from, UINT dpi_to,
+                                 const RECT *surface_rect, struct window_surface **surface )
 {
     struct window_surface *previous;
     struct x11drv_win_data *data;
 
     TRACE( "hwnd %p, layered %u, surface_rect %s, surface %p\n", hwnd, layered, wine_dbgstr_rect( surface_rect ), surface );
 
+    if (dpi_from != dpi_to) return FALSE; /* use default implementation */
     if ((previous = *surface) && previous->funcs == &x11drv_surface_funcs) return TRUE;
 
     if ((data = get_win_data( hwnd )))

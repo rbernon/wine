@@ -1863,22 +1863,22 @@ static struct window_surface *create_window_surface( HWND hwnd, UINT swp_flags, 
 {
     BOOL shaped, needs_surface, create_opaque, is_layered;
     struct window_surface *new_surface;
+    UINT dpi, monitor_dpi;
     RECT dummy;
     HRGN shape;
+
+    monitor_dpi = get_monitor_dpi( monitor_from_rect( &rects->window, MONITOR_DEFAULTTONEAREST, get_thread_dpi() ) );
 
     if (get_window_region( hwnd, FALSE, &shape, &dummy )) shaped = FALSE;
     else if ((shaped = !!shape)) NtGdiDeleteObjectApp( shape );
 
     rects->visible = rects->window;
-    *monitor_rects = map_dpi_window_rects( *new_rects, dpi, monitor_dpi );
-
-    if (!user_driver->pWindowPosChanging( hwnd, swp_flags, shaped, monitor_rects )) needs_surface = FALSE;
+    if (!user_driver->pWindowPosChanging( hwnd, swp_flags, shaped, rects )) needs_surface = FALSE;
     else if (swp_flags & SWP_HIDEWINDOW) needs_surface = FALSE;
     else if (swp_flags & SWP_SHOWWINDOW) needs_surface = TRUE;
     else needs_surface = !!(NtUserGetWindowLongW( hwnd, GWL_STYLE ) & WS_VISIBLE);
-    *new_rects = map_dpi_window_rects( *monitor_rects, monitor_dpi, dpi );
 
-    if (!get_surface_rect( &monitor_rects->visible, &surface_rect )) needs_surface = FALSE;
+    if (!get_surface_rect( &rects->visible, surface_rect )) needs_surface = FALSE;
     if (!get_default_window_surface( hwnd, surface_rect, &new_surface )) return NULL;
 
     is_layered = new_surface && new_surface->alpha_mask;
@@ -1893,7 +1893,7 @@ static struct window_surface *create_window_surface( HWND hwnd, UINT swp_flags, 
 
     if (create_layered || is_layered) needs_surface = TRUE;
     if (!needs_surface || IsRectEmpty( &rects->visible )) needs_surface = FALSE; /* use default surface */
-    else needs_surface = !user_driver->pCreateWindowSurface( hwnd, create_layered, surface_rect, &new_surface );
+    else needs_surface = !scaled_surface_create( hwnd, create_layered, surface_rect, dpi, monitor_dpi, &new_surface );
 
     /* create or update window surface for top-level windows if the driver doesn't implement CreateWindowSurface */
     if (needs_surface && new_surface == &dummy_surface && (create_opaque && !create_layered))

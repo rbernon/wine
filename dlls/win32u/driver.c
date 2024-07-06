@@ -882,7 +882,8 @@ static BOOL nulldrv_WindowPosChanging( HWND hwnd, UINT swp_flags, BOOL shaped, s
     return TRUE;
 }
 
-static BOOL nulldrv_CreateWindowSurface( HWND hwnd, BOOL layered, const RECT *surface_rect, struct window_surface **surface )
+static BOOL nulldrv_CreateWindowSurface( HWND hwnd, BOOL layered, UINT dpi_from, UINT dpi_to,
+                                         const RECT *surface_rect, struct window_surface **surface )
 {
     return FALSE;
 }

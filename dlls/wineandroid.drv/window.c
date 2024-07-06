@@ -1059,13 +1059,15 @@ done:
 /***********************************************************************
  *           ANDROID_CreateWindowSurface
  */
-BOOL ANDROID_CreateWindowSurface( HWND hwnd, BOOL layered, const RECT *surface_rect, struct window_surface **surface )
+BOOL ANDROID_CreateWindowSurface( HWND hwnd, BOOL layered, UINT dpi_from, UINT dpi_to,
+                                  const RECT *surface_rect, struct window_surface **surface )
 {
     struct window_surface *previous;
     struct android_win_data *data;
 
     TRACE( "hwnd %p, layered %u, surface_rect %s, surface %p\n", hwnd, layered, wine_dbgstr_rect( surface_rect ), surface );
 
+    if (dpi_from != dpi_to) return FALSE; /* use default implementation */
     if ((previous = *surface) && previous->funcs == &android_surface_funcs) return TRUE;
 
     if ((data = get_win_data( hwnd )))

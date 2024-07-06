@@ -146,6 +146,161 @@ void create_offscreen_window_surface( HWND hwnd, const RECT *surface_rect, struc
     if (previous) window_surface_release( previous );
 }
 
+struct scaled_surface
+{
+    struct window_surface header;
+    struct window_surface *target_surface;
+    UINT dpi_from;
+    UINT dpi_to;
+};
+
+static struct scaled_surface *get_scaled_surface( struct window_surface *window_surface )
+{
+    return CONTAINING_RECORD( window_surface, struct scaled_surface, header );
+}
+
+static void scaled_surface_set_clip( struct window_surface *window_surface, const RECT *rects, UINT count )
+{
+}
+
+static void scaled_surface_set_shape( struct window_surface *window_surface,
+                                           const BITMAPINFO *shape_info, const void *shape_bits )
+{
+}
+
+static BOOL scaled_surface_flush( struct window_surface *window_surface, const RECT *dirty,
+                                  const BITMAPINFO *color_info, const void *color_bits )
+{
+    struct scaled_surface *surface = get_scaled_surface( window_surface );
+    RECT src = *dirty, dst;
+    HDC hdc_dst, hdc_src;
+    HBITMAP bitmap = 0;
+
+    src.left &= ~7;
+    src.top &= ~7;
+    src.right = (src.right + 7) & ~7;
+    src.bottom = (src.bottom + 7) & ~7;
+
+    dst = map_dpi_rect( src, surface->dpi_from, surface->dpi_to );
+
+    hdc_dst = NtGdiCreateCompatibleDC( 0 );
+    hdc_src = NtGdiCreateCompatibleDC( 0 );
+
+    NtGdiSelectBitmap( hdc_src, window_surface->color_bitmap );
+    NtGdiSelectBitmap( hdc_dst, surface->target_surface->color_bitmap );
+
+    if (surface->dpi_to % surface->dpi_from)
+    {
+        char info_buf[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
+        BITMAPINFO *info = (BITMAPINFO *)info_buf;
+
+        UINT int_dpi = (surface->dpi_to / surface->dpi_from + 1) * surface->dpi_from;
+        RECT int_dst = map_dpi_rect( src, surface->dpi_from, int_dpi );
+
+        OffsetRect( &int_dst, -int_dst.left, -int_dst.top );
+
+        memcpy( info, color_info, get_dib_info_size( color_info, DIB_RGB_COLORS ) );
+        info->bmiHeader.biWidth = int_dst.right;
+        info->bmiHeader.biHeight = -int_dst.bottom;
+        info->bmiHeader.biSizeImage = get_dib_image_size( info );
+
+        bitmap = NtGdiCreateDIBSection( hdc_dst, 0, 0, info, DIB_RGB_COLORS, 0, 0, 0, NULL);
+        NtGdiSelectBitmap( hdc_dst, bitmap );
+        NtGdiStretchBlt( hdc_dst, 0, 0, int_dst.right, int_dst.bottom,
+                         hdc_src, src.left, src.top, src.right - src.left, src.bottom - src.top,
+                         SRCCOPY, 0 );
+
+        NtGdiSelectBitmap( hdc_dst, surface->target_surface->color_bitmap );
+        NtGdiSelectBitmap( hdc_src, bitmap );
+        src = int_dst;
+    }
+
+    NtGdiStretchBlt( hdc_dst, dst.left, dst.top, dst.right - dst.left, dst.bottom - dst.top,
+                     hdc_src, src.left, src.top, src.right - src.left, src.bottom - src.top,
+                     SRCCOPY, 0 );
+
+    NtGdiDeleteObjectApp( hdc_dst );
+    NtGdiDeleteObjectApp( hdc_src );
+    if (bitmap) NtGdiDeleteObjectApp( bitmap );
+
+    add_bounds_rect( &surface->target_surface->bounds, &dst );
+
+    window_surface_flush( surface->target_surface );
+    return TRUE;
+}
+
+static void scaled_surface_destroy( struct window_surface *window_surface )
+{
+    struct scaled_surface *surface = get_scaled_surface( window_surface );
+    window_surface_release( surface->target_surface );
+}
+
+static const struct window_surface_funcs scaled_surface_funcs =
+{
+    scaled_surface_set_clip,
+    scaled_surface_set_shape,
+    scaled_surface_flush,
+    scaled_surface_destroy
+};
+
+static RECT get_surface_rect( RECT rect )
+{
+    OffsetRect( &rect, -rect.left, -rect.top );
+
+    rect.left &= ~127;
+    rect.top  &= ~127;
+    rect.right  = max( rect.left + 128, (rect.right + 127) & ~127 );
+    rect.bottom = max( rect.top + 128, (rect.bottom + 127) & ~127 );
+
+    return rect;
+}
+
+BOOL scaled_surface_create( HWND hwnd, BOOL create_layered, const RECT *surface_rect, UINT dpi_from, UINT dpi_to,
+                            struct window_surface **window_surface )
+{
+    RECT monitor_rect = get_surface_rect( map_dpi_rect( *surface_rect, dpi_from, dpi_to ) );
+    struct window_surface *previous;
+
+    /* check if the driver supports scaling window surfaces directly */
+    if (user_driver->pCreateWindowSurface( hwnd, create_layered, dpi_from, dpi_to, surface_rect, window_surface )) return TRUE;
+
+    if ((previous = *window_surface) && previous->funcs == &scaled_surface_funcs)
+    {
+        struct scaled_surface *surface = get_scaled_surface( previous );
+        if (EqualRect( &surface->target_surface->rect, &monitor_rect )) return TRUE;
+        window_surface_add_ref( (*window_surface = surface->target_surface) );
+        window_surface_release( previous );
+    }
+
+    if (!user_driver->pCreateWindowSurface( hwnd, create_layered, dpi_to, dpi_to, &monitor_rect, window_surface )) return FALSE;
+    if (dpi_from != dpi_to && (previous = *window_surface))
+    {
+        char buffer[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
+        BITMAPINFO *info = (BITMAPINFO *)buffer;
+        struct scaled_surface *surface;
+
+        memset( info, 0, sizeof(*info) );
+        info->bmiHeader.biSize        = sizeof(info->bmiHeader);
+        info->bmiHeader.biWidth       = surface_rect->right;
+        info->bmiHeader.biHeight      = -surface_rect->bottom; /* top-down */
+        info->bmiHeader.biPlanes      = 1;
+        info->bmiHeader.biBitCount    = 32;
+        info->bmiHeader.biSizeImage   = get_dib_image_size( info );
+        info->bmiHeader.biCompression = BI_RGB;
+
+        if (!window_surface_create( sizeof(*surface), &scaled_surface_funcs, hwnd, surface_rect,
+                                    info, 0, CLR_INVALID, 0, window_surface ))
+            return FALSE;
+
+        surface = get_scaled_surface( *window_surface );
+        window_surface_add_ref( (surface->target_surface = previous) );
+        surface->dpi_from = dpi_from;
+        surface->dpi_to = dpi_to;
+    }
+
+    return TRUE;
+}
+
 /* window surface common helpers */
 
 static UINT get_color_component( UINT color, UINT mask )
