@@ -18,10 +18,12 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#define COBJMACROS
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
 #include "user_private.h"
 #include "controls.h"
+#include "objidl.h"
 #include "imm.h"
 #include "immdev.h"
 #include "wine/debug.h"
@@ -215,6 +217,13 @@ static NTSTATUS WINAPI User32UnpackDDEMessage( void *args, ULONG size )
     return NtCallbackReturn( &result, sizeof(result), STATUS_SUCCESS );
 }
 
+static NTSTATUS WINAPI User32DispatchCallback( void *args, ULONG size )
+{
+    const struct dispatch_callback_params *params = args;
+    user_callback_func callback = (void *)(UINT_PTR)params->func;
+    return callback( params, size );
+}
+
 static KERNEL_CALLBACK_PROC kernel_callback_table[NtUserCallCount] =
 {
     User32CallEnumDisplayMonitor,
@@ -236,6 +245,7 @@ static KERNEL_CALLBACK_PROC kernel_callback_table[NtUserCallCount] =
     User32PostDDEMessage,
     User32RenderSsynthesizedFormat,
     User32UnpackDDEMessage,
+    User32DispatchCallback,
 };
 
 

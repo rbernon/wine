@@ -236,15 +236,14 @@ static BOOL query_drag_drop(macdrv_query *query)
         return FALSE;
     }
 
+    params.cbparams.func = (ULONG_PTR)client_funcs.dnd_query_drop;
     params.hwnd = HandleToUlong(hwnd);
     params.effect = drag_operations_to_dropeffects(query->drag_drop.op);
     params.x = query->drag_drop.x + data->whole_rect.left;
     params.y = query->drag_drop.y + data->whole_rect.top;
     params.handle = (UINT_PTR)query->drag_drop.pasteboard;
     release_win_data(data);
-    if (KeUserModeCallback(client_func_dnd_query_drop, &params, sizeof(params), &ret_ptr, &ret_len))
-        return FALSE;
-    return *(BOOL *)ret_ptr;
+    return macdrv_client_func(&params.cbparams, sizeof(params));
 }
 
 /**************************************************************************
@@ -253,13 +252,9 @@ static BOOL query_drag_drop(macdrv_query *query)
 static BOOL query_drag_exited(macdrv_query *query)
 {
     struct dnd_query_exited_params params;
-    void *ret_ptr;
-    ULONG ret_len;
-
+    params.cbparams.func = (ULONG_PTR)client_funcs.dnd_query_exited;
     params.hwnd = HandleToUlong(macdrv_get_window_hwnd(query->window));
-    if (KeUserModeCallback(client_func_dnd_query_exited, &params, sizeof(params), &ret_ptr, &ret_len))
-        return FALSE;
-    return *(BOOL *)ret_ptr;
+    return macdrv_client_func(&params.cbparams, sizeof(params));
 }
 
 
@@ -281,6 +276,7 @@ static BOOL query_drag_operation(macdrv_query *query)
         return FALSE;
     }
 
+    params.cbparams.func = (ULONG_PTR)client_funcs.dnd_query_drag;
     params.hwnd = HandleToUlong(hwnd);
     params.effect = drag_operations_to_dropeffects(query->drag_operation.offered_ops);
     params.x = query->drag_operation.x + data->whole_rect.left;
@@ -288,9 +284,7 @@ static BOOL query_drag_operation(macdrv_query *query)
     params.handle = (UINT_PTR)query->drag_operation.pasteboard;
     release_win_data(data);
 
-    if (KeUserModeCallback(client_func_dnd_query_drag, &params, sizeof(params), &ret_ptr, &ret_len))
-        return FALSE;
-    effect = *(DWORD *)ret_ptr;
+    effect = macdrv_client_func(&params.cbparams, sizeof(params));
     if (!effect) return FALSE;
 
     query->drag_operation.accepted_op = dropeffect_to_drag_operation(effect,
@@ -313,16 +307,15 @@ BOOL query_ime_char_rect(macdrv_query* query)
     TRACE_(imm)("win %p/%p himc %p range %ld-%ld\n", hwnd, query->window, himc, range->location,
                 range->length);
 
-    if (NtUserGetGUIThreadInfo(0, &info))
-    {
-        /* NtUserGetGUIThreadInfo always return client-relative rcCaret in window DPI */
-        NtUserMapWindowPoints(info.hwndCaret, 0, (POINT *)&info.rcCaret, 2, NtUserGetDpiForWindow(info.hwndCaret));
-        NtUserLogicalToPerMonitorDPIPhysicalPoint(info.hwndCaret, (POINT *)&info.rcCaret.left);
-        NtUserLogicalToPerMonitorDPIPhysicalPoint(info.hwndCaret, (POINT *)&info.rcCaret.right);
-        if (range->length && info.rcCaret.left == info.rcCaret.right) info.rcCaret.right++;
-        query->ime_char_rect.rect = cgrect_from_rect(info.rcCaret);
-        ret = TRUE;
-    }
+    params.cbparams.func = (ULONG_PTR)client_funcs.ime_query_char_rect;
+    params.hwnd = HandleToUlong(hwnd);
+    params.data = (UINT_PTR)himc;
+    params.result = (UINT_PTR)&result;
+    params.location = range->location;
+    params.length = range->length;
+    ret = macdrv_client_func(&params.cbparams, sizeof(params));
+    *range = CFRangeMake(result.location, result.length);
+    *rect = cgrect_from_rect(result.rect);
 
     TRACE_(imm)(" -> %s range %ld-%ld rect %s\n", ret ? "TRUE" : "FALSE", range->location,
                 range->length, wine_dbgstr_cgrect(query->ime_char_rect.rect));

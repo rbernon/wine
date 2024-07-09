@@ -147,7 +147,7 @@ static struct list monitors = LIST_INIT(monitors);
 static INT64 last_query_display_time;
 static pthread_mutex_t display_lock = PTHREAD_MUTEX_INITIALIZER;
 
-BOOL enable_thunk_lock = FALSE;
+UINT64 thunk_lock_func = 0;
 
 #define VIRTUAL_HMONITOR ((HMONITOR)(UINT_PTR)(0x10000 + 1))
 static struct monitor virtual_monitor =
@@ -6425,7 +6425,7 @@ ULONG_PTR WINAPI NtUserCallOneParam( ULONG_PTR arg, ULONG code )
         return set_dce_flags( UlongToHandle(arg), DCHF_ENABLEDC );
 
     case NtUserCallOneParam_EnableThunkLock:
-        enable_thunk_lock = arg;
+        thunk_lock_func = arg;
         return 0;
 
     case NtUserCallOneParam_EnumClipboardFormats:
@@ -6524,7 +6524,7 @@ ULONG_PTR WINAPI NtUserCallTwoParam( ULONG_PTR arg1, ULONG_PTR arg2, ULONG code 
         return set_caret_pos( arg1, arg2 );
 
     case NtUserCallTwoParam_SetIconParam:
-        return set_icon_param( UlongToHandle(arg1), arg2 );
+        return set_icon_param( UlongToHandle(arg1), UlongToHandle(arg2) );
 
     case NtUserCallTwoParam_UnhookWindowsHook:
         return unhook_windows_hook( arg1, (HOOKPROC)arg2 );

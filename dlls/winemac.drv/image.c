@@ -257,14 +257,10 @@ CFArrayRef create_app_icon_images(void)
 
     TRACE("()\n");
 
-    if (KeUserModeCallback(client_func_app_icon, NULL, 0, (void**)&entries, &ret_len) ||
-        (ret_len % sizeof(*entries)))
-    {
-        WARN("incorrect callback result\n");
-        return NULL;
-    }
-    count = ret_len / sizeof(*entries);
-    if (!count || !entries) return NULL;
+    params.cbparams.func = (ULONG_PTR)client_funcs.app_icon;
+    macdrv_client_func(&params.cbparams, sizeof(params));
+
+    if (!icons.count) return NULL;
 
     images = CFArrayCreateMutable(NULL, count, &kCFTypeArrayCallBacks);
     if (!images)

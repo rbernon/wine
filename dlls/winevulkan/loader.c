@@ -230,9 +230,97 @@ VkResult WINAPI vk_icdNegotiateLoaderICDInterfaceVersion(uint32_t *supported_ver
     return VK_SUCCESS;
 }
 
+static NTSTATUS WINAPI call_vulkan_debug_report_callback(void *args, ULONG size)
+{
+    struct wine_vk_debug_report_params *params = args;
+    PFN_vkDebugReportCallbackEXT callback = (void *)(UINT_PTR)params->client_callback;
+    void *context = (void *)(UINT_PTR)params->client_context;
+    char *ptr = (char *)(params + 1), *layer, *message;
+    VkBool32 ret;
+
+    layer = params->layer_len ? ptr : NULL;
+    ptr += params->layer_len;
+    message = params->message_len ? ptr : NULL;
+
+    ret = callback(params->flags, params->object_type, params->object_handle, params->location,
+                    params->code, layer, message, context);
+    return NtCallbackReturn(&ret, sizeof(ret), STATUS_SUCCESS);
+}
+
+static NTSTATUS WINAPI call_vulkan_debug_utils_callback(void *args, ULONG size)
+{
+    struct wine_vk_debug_utils_params *params = args;
+    PFN_vkDebugUtilsMessengerCallbackEXT callback = (void *)(UINT_PTR)params->client_callback;
+    void *context = (void *)(UINT_PTR)params->client_context;
+    VkDebugUtilsMessengerCallbackDataEXT data =
+    {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CALLBACK_DATA_EXT,
+        .flags = params->flags,
+        .messageIdNumber = params->message_id_number,
+        .queueLabelCount = params->queue_label_count,
+        .cmdBufLabelCount = params->cmd_buf_label_count,
+        .objectCount = params->object_count,
+    };
+    VkDebugUtilsObjectNameInfoEXT *objects;
+    VkDebugUtilsLabelEXT *labels;
+    const char *ptr, *names;
+    VkBool32 ret = VK_FALSE;
+    UINT i;
+
+    ptr = (char *)(params + 1);
+    names = (char *)(params + size - params->names_len);
+
+    if (params->message_id_name_len) data.pMessageIdName = names;
+    names += params->message_id_name_len;
+    if (params->message_len) data.pMessage = names;
+    names += params->message_len;
+
+    if ((labels = calloc(data.queueLabelCount + data.cmdBufLabelCount + 1, sizeof(*data.pQueueLabels))) &&
+        (objects = calloc(data.objectCount + 1, sizeof(*data.pQueueLabels))))
+    {
+        for (i = 0; i < data.queueLabelCount + data.cmdBufLabelCount; i++)
+        {
+            struct debug_utils_queue_label *label = (struct debug_utils_queue_label *)ptr;
+            labels[i].sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
+            memcpy(labels[i].color, label->color, sizeof(label->color));
+            if (label->label_name_len) labels[i].pLabelName = names;
+            names += label->label_name_len;
+            ptr += sizeof(*label);
+        }
+
+        for (i = 0; i < data.objectCount; i++)
+        {
+            struct debug_utils_object_name_info *object = (struct debug_utils_object_name_info *)ptr;
+            objects[i].sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+            objects[i].objectType = object->object_type;
+            objects[i].objectHandle = object->object_handle;
+            if (object->object_name_len) objects[i].pObjectName = names;
+            names += object->object_name_len;
+            ptr += sizeof(*object);
+        }
+
+        data.pQueueLabels = labels;
+        data.pCmdBufLabels = labels + data.queueLabelCount;
+        data.pObjects = objects;
+
+        ret = callback(params->severity, params->message_types, &data, context);
+
+        free(objects);
+    }
+    free(labels);
+
+    return NtCallbackReturn( &ret, sizeof(ret), STATUS_SUCCESS );
+}
+
 static BOOL WINAPI wine_vk_init(INIT_ONCE *once, void *param, void **context)
 {
-    return !__wine_init_unix_call() && !UNIX_CALL(init, NULL);
+    struct vk_callback_funcs callback_funcs =
+    {
+        .call_vulkan_debug_report_callback = (ULONG_PTR)call_vulkan_debug_report_callback,
+        .call_vulkan_debug_utils_callback = (ULONG_PTR)call_vulkan_debug_utils_callback,
+    };
+
+    return !__wine_init_unix_call() && !UNIX_CALL(init, &callback_funcs);
 }
 
 static BOOL  wine_vk_init_once(void)
@@ -602,25 +690,8 @@ void WINAPI vkFreeCommandBuffers(VkDevice device, VkCommandPool cmd_pool, uint32
     }
 }
 
-static NTSTATUS WINAPI call_vulkan_debug_report_callback( void *args, ULONG size )
-{
-    struct wine_vk_debug_report_params *params = args;
-    VkBool32 ret = params->user_callback(params->flags, params->object_type, params->object_handle, params->location,
-                                         params->code, params->layer_prefix, params->message, params->user_data);
-    return NtCallbackReturn( &ret, sizeof(ret), STATUS_SUCCESS );
-}
-
-static NTSTATUS WINAPI call_vulkan_debug_utils_callback( void *args, ULONG size )
-{
-    struct wine_vk_debug_utils_params *params = args;
-    VkBool32 ret = params->user_callback(params->severity, params->message_types, &params->data, params->user_data);
-    return NtCallbackReturn( &ret, sizeof(ret), STATUS_SUCCESS );
-}
-
 BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, void *reserved)
 {
-    KERNEL_CALLBACK_PROC *kernel_callback_table;
-
     TRACE("%p, %lu, %p\n", hinst, reason, reserved);
 
     switch (reason)
@@ -628,10 +699,6 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, void *reserved)
         case DLL_PROCESS_ATTACH:
             hinstance = hinst;
             DisableThreadLibraryCalls(hinst);
-
-            kernel_callback_table = NtCurrentTeb()->Peb->KernelCallbackTable;
-            kernel_callback_table[NtUserCallVulkanDebugReportCallback] = call_vulkan_debug_report_callback;
-            kernel_callback_table[NtUserCallVulkanDebugUtilsCallback]  = call_vulkan_debug_utils_callback;
             break;
     }
     return TRUE;

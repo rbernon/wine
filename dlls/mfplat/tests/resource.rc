@@ -23,6 +23,9 @@
 /* @makedep: test.mp4 */
 test.mp4 RCDATA test.mp4
 
+/* @makedep: test.wav */
+test.wav RCDATA test.wav
+
 /* gst-launch-1.0 videotestsrc num-buffers=5 ! video/x-raw,format=I420 ! videoconvert ! x264enc ! mp4mux ! filesink location=test-h264.mp4 */
 /* @makedep: test-h264.mp4 */
 test-h264.mp4 RCDATA test-h264.mp4

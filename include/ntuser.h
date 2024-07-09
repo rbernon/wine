@@ -25,6 +25,7 @@
 #include <immdev.h>
 #include <shellapi.h>
 #include <winternl.h>
+#include <wine/unixlib.h>
 
 #ifndef W32KAPI
 # if defined(_WIN32U_) || defined(WINE_UNIX_LIB)
@@ -34,7 +35,10 @@
 # endif
 #endif
 
-/* KernelCallbackTable codes, not compatible with Windows */
+/* KernelCallbackTable codes, not compatible with Windows.
+   All of these functions must live inside user32.dll. Overwatch 2's
+   KiUserCallbackDispatcher hook verifies this and prevents the callback from
+   running if that check fails. */
 enum
 {
     /* user32 callbacks */
@@ -57,18 +61,15 @@ enum
     NtUserPostDDEMessage,
     NtUserRenderSynthesizedFormat,
     NtUserUnpackDDEMessage,
-    /* win16 hooks */
-    NtUserCallFreeIcon,
-    NtUserThunkLock,
-    /* Vulkan support */
-    NtUserCallVulkanDebugReportCallback,
-    NtUserCallVulkanDebugUtilsCallback,
-    /* OpenGL support */
-    NtUserCallOpenGLDebugMessageCallback,
-    /* Driver-specific callbacks */
-    NtUserDriverCallbackFirst,
-    NtUserDriverCallbackLast = NtUserDriverCallbackFirst + 9,
+    NtUserDispatchCallback,
     NtUserCallCount
+};
+
+/* NtUserDispatchCallback params */
+typedef NTSTATUS (WINAPI *user_callback_func)( const void *args, ULONG len );
+struct dispatch_callback_params
+{
+    UINT64 func;
 };
 
 /* TEB thread info, not compatible with Windows */
@@ -912,6 +913,9 @@ enum
     NtUserCallOneParam_SetKeyboardAutoRepeat,
     NtUserCallOneParam_SetThreadDpiAwarenessContext,
     NtUserCallOneParam_D3DKMTOpenAdapterFromGdiDisplayName,
+    NtUserCallOneParam_CallIORead,
+    NtUserCallOneParam_CallIOWrite,
+    NtUserCallOneParam_CallIOSeek,
     /* temporary exports */
     NtUserGetDeskPattern,
 };
@@ -936,9 +940,17 @@ static inline WORD NtUserEnableDC( HDC hdc )
     return NtUserCallOneParam( HandleToUlong(hdc), NtUserCallOneParam_EnableDC );
 }
 
-static inline void NtUserEnableThunkLock( BOOL enable )
+struct thunk_lock_params
 {
-    NtUserCallOneParam( enable, NtUserCallOneParam_EnableThunkLock );
+    struct dispatch_callback_params dispatch;
+    UINT8 release;
+    DWORD lock;
+};
+
+static inline void NtUserEnableThunkLock( user_callback_func func )
+{
+    struct thunk_lock_params params = {.dispatch = {.func = (UINT_PTR)func}};
+    NtUserCallOneParam( (UINT_PTR)&params, NtUserCallOneParam_EnableThunkLock );
 }
 
 static inline UINT NtUserEnumClipboardFormats( UINT format )
@@ -1087,9 +1099,16 @@ static inline BOOL NtUserSetCaretPos( int x, int y )
     return NtUserCallTwoParam( x, y, NtUserCallTwoParam_SetCaretPos );
 }
 
-static inline UINT_PTR NtUserSetIconParam( HICON icon, ULONG_PTR param )
+struct free_icon_params
 {
-    return NtUserCallTwoParam( HandleToUlong(icon), param, NtUserCallTwoParam_SetIconParam );
+    struct dispatch_callback_params dispatch;
+    UINT64 param;
+};
+
+static inline UINT_PTR NtUserSetIconParam( HICON icon, ULONG_PTR param, user_callback_func func )
+{
+    struct free_icon_params params = {.dispatch = {.func = (UINT_PTR)func}, .param = param};
+    return NtUserCallTwoParam( HandleToUlong(icon), (UINT_PTR)&params, NtUserCallTwoParam_SetIconParam );
 }
 
 static inline BOOL NtUserUnhookWindowsHook( INT id, HOOKPROC proc )

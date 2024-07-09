@@ -1,7 +1,7 @@
 MODULE    = mf.dll
 IMPORTLIB = mf
 IMPORTS   = advapi32 mfplat ole32 uuid mfuuid strmiids
-DELAYIMPORTS = evr urlmon user32
+DELAYIMPORTS = evr urlmon user32 winelibav
 
 EXTRADLLFLAGS = -Wb,--prefer-native
 
@@ -12,6 +12,7 @@ SOURCES = \
 	main.c \
 	mf.idl \
 	mf.rc \
+	media_source.c \
 	quality.c \
 	sac.c \
 	samplegrabber.c \
