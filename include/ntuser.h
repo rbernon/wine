@@ -281,6 +281,39 @@ struct unpack_dde_message_result
     LPARAM lparam;
 };
 
+struct io_context
+{
+    UINT64 total_size;
+    UINT32 position;
+    UINT32 buffer_size;
+    BYTE buffer[];
+};
+
+C_ASSERT( sizeof(struct io_context) == offsetof( struct io_context, buffer[0] ) );
+
+typedef UINT64 io_context_t;
+
+/* NtUserCallIOReadCallback params */
+struct call_io_read_params
+{
+    io_context_t context;
+    INT32 size;
+};
+
+/* NtUserCallIOWriteCallback params */
+struct call_io_write_params
+{
+    io_context_t context;
+    INT32 size;
+};
+
+/* NtUserCallIOSeekCallback params */
+struct call_io_seek_params
+{
+    io_context_t context;
+    INT64 offset;
+};
+
 /* DPI awareness contexts */
 #define MAKE_NTUSER_DPI_CONTEXT( awareness, version, dpi, flags )  ((awareness) | ((version) << 4) | ((dpi) << 8) | (flags))
 #define NTUSER_DPI_CONTEXT_GET_AWARENESS( ctx )                    ((ctx) & 0x0f)
