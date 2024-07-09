@@ -8945,6 +8945,11 @@ static void test_video_processor(BOOL use_2d_buffer)
             }
 
             IMFCollection_Release(output_samples);
+if (ret > test->delta) 
+{
+ok(0, "%s\n", debugstr_w(test->output_bitmap));
+exit(-1);
+}
 
             output_sample = create_sample_(NULL, output_info.cbSize, test->output_buffer_desc);
             hr = check_mft_process_output(transform, output_sample, &output_status);

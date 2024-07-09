@@ -23,26 +23,49 @@
 /* @makedep: test.mp4 */
 test.mp4 RCDATA test.mp4
 
-/* gst-launch-1.0 videotestsrc num-buffers=5 ! video/x-raw,format=I420 ! videoconvert ! x264enc ! mp4mux ! filesink location=test-h264.mp4 */
+/* @makedep: test.wav */
+test.wav RCDATA test.wav
+
+/* gst-launch-1.0 videotestsrc num-buffers=5 ! video/x-raw,format=I420 ! videoconvert ! x264enc ! mp4mux ! filesink location=dlls/mfplat/tests/test-h264.mp4 */
 /* @makedep: test-h264.mp4 */
 test-h264.mp4 RCDATA test-h264.mp4
 
-/* gst-launch-1.0 audiotestsrc num-buffers=5 ! audioconvert ! avenc_aac ! mp4mux ! filesink location=test-aac.mp4 */
+/* gst-launch-1.0 audiotestsrc num-buffers=5 ! audioconvert ! avenc_aac ! mp4mux ! filesink location=dlls/mfplat/tests/test-aac.mp4 */
 /* @makedep: test-aac.mp4 */
 test-aac.mp4 RCDATA test-aac.mp4
 
-/* gst-launch-1.0 videotestsrc num-buffers=5 ! videoconvert ! avenc_wmv1 ! asfmux ! filesink location=test-wmv1.wmv */
+/* gst-launch-1.0 videotestsrc num-buffers=5 ! videoconvert ! avenc_wmv1 ! asfmux ! filesink location=dlls/mfplat/tests/test-wmv1.wmv */
 /* @makedep: test-wmv1.wmv */
 test-wmv1.wmv RCDATA test-wmv1.wmv
 
-/* gst-launch-1.0 audiotestsrc num-buffers=5 ! audioconvert ! avenc_wmav2 ! asfmux ! filesink location=test-wma2.wmv */
+/* gst-launch-1.0 videotestsrc num-buffers=5 ! video/x-raw,format=I420,width=32,height=24 ! avenc_wmv2 ! avimux ! filesink location=dlls/mfplat/tests/test-wmv2.avi */
+/* @makedep: test-wmv2.avi */
+test-wmv2.avi RCDATA test-wmv2.avi
+
+/* gst-launch-1.0 audiotestsrc num-buffers=5 ! audioconvert ! avenc_wmav1 ! asfmux preroll=0 ! filesink location=dlls/mfplat/tests/test-wma1.wma */
+/* @makedep: test-wma1.wma */
+test-wma1.wma RCDATA test-wma1.wma
+
+/* gst-launch-1.0 audiotestsrc num-buffers=5 ! audioconvert ! avenc_wmav2 ! asfmux ! filesink location=dlls/mfplat/tests/test-wma2.wmv */
 /* @makedep: test-wma2.wmv */
 test-wma2.wmv RCDATA test-wma2.wmv
 
-/* gst-launch-1.0 audiotestsrc num-buffers=5 ! audioconvert ! lamemp3enc ! mp4mux ! filesink location=test-mp3.mp4 */
+/* gst-launch-1.0 audiotestsrc num-buffers=5 ! audioconvert ! avenc_mp2 ! avimux ! filesink location=dlls/mfplat/tests/test-mp2.avi */
+/* @makedep: test-mp2.avi */
+test-mp2.avi RCDATA test-mp2.avi
+
+/* gst-launch-1.0 audiotestsrc num-buffers=5 ! audioconvert ! lamemp3enc ! mp4mux ! filesink location=dlls/mfplat/tests/test-mp3.mp4 */
 /* @makedep: test-mp3.mp4 */
 test-mp3.mp4 RCDATA test-mp3.mp4
 
-/* gst-launch-1.0 videotestsrc num-buffers=5 ! video/x-raw,format=I420,width=32,height=24 ! avimux ! filesink location=test-i420.avi */
+/* gst-launch-1.0 videotestsrc num-buffers=5 ! video/x-raw,format=I420,width=32,height=24 ! avimux ! filesink location=dlls/mfplat/tests/test-i420.avi */
 /* @makedep: test-i420.avi */
 test-i420.avi RCDATA test-i420.avi
+
+/* gst-launch-1.0 videotestsrc num-buffers=5 ! video/x-raw,format=I420,width=32,height=24 ! avenc_mpeg2video ! avimux ! filesink location=dlls/mfplat/tests/test-mp1v.avi */
+/* @makedep: test-mp1v.avi */
+test-mp1v.avi RCDATA test-mp1v.avi
+
+/* gst-launch-1.0 videotestsrc num-buffers=5 ! video/x-raw,format=I420,width=32,height=24 ! avenc_mpeg2video ! avimux ! filesink location=dlls/mfplat/tests/test-mp2v.avi */
+/* @makedep: test-mp2v.avi */
+test-mp2v.avi RCDATA test-mp2v.avi
