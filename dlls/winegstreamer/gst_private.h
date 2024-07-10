@@ -89,7 +89,7 @@ void wg_parser_stream_get_codec_format(wg_parser_stream_t stream, struct wg_form
 void wg_parser_stream_enable(wg_parser_stream_t stream, const struct wg_format *format);
 void wg_parser_stream_disable(wg_parser_stream_t stream);
 
-bool wg_parser_stream_get_buffer(wg_parser_t parser, wg_parser_stream_t stream,
+HRESULT wg_parser_stream_get_buffer(wg_parser_t parser, wg_parser_stream_t stream,
         struct wg_parser_buffer *buffer);
 bool wg_parser_stream_copy_buffer(wg_parser_stream_t stream,
         void *data, uint32_t offset, uint32_t size);

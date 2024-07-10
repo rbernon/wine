@@ -326,6 +326,12 @@ static NTSTATUS wg_parser_stream_get_buffer(void *args)
 
     pthread_mutex_lock(&parser->mutex);
 
+    if (stream->enabled && !stream->eos && !stream->buffer)
+    {
+        pthread_mutex_unlock(&parser->mutex);
+        return E_PENDING;
+    }
+
     if (stream)
         buffer = wait_parser_stream_buffer(parser, stream);
     else
