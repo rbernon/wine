@@ -50,7 +50,7 @@ BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
     return TRUE;
 }
 
-HRESULT CDECL wineav_demuxer_create( const WCHAR *url, IStream *stream, INT64 *duration,
+HRESULT CDECL wineav_demuxer_create( const WCHAR *url, IStream *stream, UINT64 *file_size, UINT64 *duration,
                                      UINT *stream_count, WCHAR *mime_type, demuxer_t *handle )
 {
     static LARGE_INTEGER zero;
@@ -86,9 +86,10 @@ HRESULT CDECL wineav_demuxer_create( const WCHAR *url, IStream *stream, INT64 *d
 
     if (status) return HRESULT_FROM_NT(status);
 
-    TRACE( "opened %#I64x, duration %I64d, stream_count %u, mime_type %s\n", params.demuxer,
-           params.duration, params.stream_count, debugstr_a(params.mime_type) );
+    TRACE( "opened %#I64x, file_size %#I64x, duration %I64d, stream_count %u, mime_type %s\n", params.demuxer,
+           stat.cbSize.QuadPart, params.duration, params.stream_count, debugstr_a(params.mime_type) );
 
+    *file_size = stat.cbSize.QuadPart;
     *duration = params.duration;
     *stream_count = params.stream_count;
     MultiByteToWideChar( CP_ACP, 0, params.mime_type, -1, mime_type, 256 );
