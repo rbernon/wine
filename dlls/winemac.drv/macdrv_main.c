@@ -42,8 +42,6 @@ WINE_DEFAULT_DEBUG_CHANNEL(macdrv);
 
 C_ASSERT(NUM_EVENT_TYPES <= sizeof(macdrv_event_mask) * 8);
 
-struct macdrv_client_funcs client_funcs;
-
 int topmost_float_inactive = TOPMOST_FLOAT_INACTIVE_NONFULLSCREEN;
 int capture_displays_for_fullscreen = 0;
 BOOL skip_single_buffer_flushes = FALSE;
@@ -441,8 +439,6 @@ static NTSTATUS macdrv_init(void *arg)
     if (status != noErr || !(attributes & sessionHasGraphicAccess))
         return STATUS_UNSUCCESSFUL;
 
-    client_funcs = *params->client_funcs;
-
     init_win_context();
     setup_options();
     load_strings(params->strings);
@@ -602,11 +598,11 @@ BOOL macdrv_SystemParametersInfo( UINT action, UINT int_param, void *ptr_param, 
 }
 
 
-NTSTATUS macdrv_client_func(const struct user32_callback_params *cbparams, ULONG size)
+NTSTATUS macdrv_client_func(enum macdrv_client_funcs id, const void *params, ULONG size)
 {
     void *ret_ptr;
     ULONG ret_len;
-    return KeUserModeCallback(NtUserDispatchCallback, cbparams, size, &ret_ptr, &ret_len);
+    return KeUserModeCallback(id, params, size, &ret_ptr, &ret_len);
 }
 
 

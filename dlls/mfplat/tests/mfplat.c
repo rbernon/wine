@@ -1106,20 +1106,6 @@ static void test_compressed_media_types(IMFSourceResolver *resolver)
                 ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1, .todo = TRUE),
             },
         },
-        {
-            L"test.wav",
-            L"video/avi",
-            {
-                ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
-                ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_PCM),
-                ATTR_RATIO(MF_MT_FRAME_SIZE, 32, 24),
-                ATTR_RATIO(MF_MT_FRAME_RATE, 30, 1),
-                ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1, .todo = TRUE),
-                ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
-                ATTR_UINT32(MF_MT_DEFAULT_STRIDE, 32),
-                ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1, .todo = TRUE),
-            },
-        },
     };
 
     for (unsigned int i = 0; i < ARRAY_SIZE(tests); ++i)

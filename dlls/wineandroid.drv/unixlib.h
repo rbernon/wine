@@ -35,7 +35,6 @@ enum android_funcs
 struct init_params
 {
     PNTAPCFUNC register_window_callback;
-    UINT64 start_device_callback;
 };
 
 
@@ -53,4 +52,10 @@ struct register_window_params
     UINT_PTR arg1;
     UINT_PTR arg2;
     UINT_PTR arg3;
+};
+
+
+enum
+{
+    client_start_device = NtUserDriverCallbackFirst,
 };

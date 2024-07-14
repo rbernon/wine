@@ -115,7 +115,6 @@ static inline const char *debugstr_propvar(const PROPVARIANT *v)
 
 extern HRESULT file_scheme_handler_construct(REFIID riid, void **obj);
 extern HRESULT urlmon_scheme_handler_construct(REFIID riid, void **obj);
-extern HRESULT byte_stream_handler_construct(REFIID riid, void **obj);
 
 extern BOOL mf_is_sample_copier_transform(IMFTransform *transform);
 extern BOOL mf_is_sar_sink(IMFMediaSink *sink);

@@ -153,6 +153,9 @@ BOOL init_gstreamer(void);
 extern HRESULT mfplat_get_class_object(REFCLSID rclsid, REFIID riid, void **obj);
 extern HRESULT mfplat_DllRegisterServer(void);
 
+IMFMediaType *mf_media_type_from_wg_format(const struct wg_format *format);
+void mf_media_type_to_wg_format(IMFMediaType *type, struct wg_format *format);
+
 HRESULT wg_sample_create_mf(IMFSample *sample, struct wg_sample **out);
 HRESULT wg_sample_create_quartz(IMediaSample *sample, struct wg_sample **out);
 HRESULT wg_sample_create_dmo(IMediaBuffer *media_buffer, struct wg_sample **out);
@@ -174,6 +177,8 @@ HRESULT wg_transform_read_dmo(wg_transform_t transform, DMO_OUTPUT_DATA_BUFFER *
  */
 HRESULT wg_transform_push_data(wg_transform_t transform, struct wg_sample *sample);
 HRESULT wg_transform_read_data(wg_transform_t transform, struct wg_sample *sample);
+
+HRESULT gstreamer_byte_stream_handler_create(REFIID riid, void **obj);
 
 unsigned int wg_format_get_stride(const struct wg_format *format);
 

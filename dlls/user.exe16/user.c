@@ -26,8 +26,6 @@
 
 #define OEMRESOURCE
 
-#include "ntstatus.h"
-#define WIN32_NO_STATUS
 #include "wine/winuser16.h"
 #include "windef.h"
 #include "winbase.h"
@@ -289,13 +287,6 @@ static void release_icon_ptr( HICON16 handle, CURSORICONINFO *ptr )
     GlobalUnlock16( handle );
 }
 
-static NTSTATUS WINAPI free_icon_param( const void *args, ULONG size )
-{
-    const struct free_icon_params *params = args;
-    GlobalFree16( LOWORD(params->param) );
-    return STATUS_SUCCESS;
-}
-
 static HICON store_icon_32( HICON16 icon16, HICON icon )
 {
     HICON ret = 0;
@@ -309,7 +300,7 @@ static HICON store_icon_32( HICON16 icon16, HICON icon )
         {
             memcpy( &ret, (char *)(ptr + 1) + and_size + xor_size, sizeof(ret) );
             memcpy( (char *)(ptr + 1) + and_size + xor_size, &icon, sizeof(icon) );
-            NtUserSetIconParam( icon, icon16, free_icon_param );
+            NtUserSetIconParam( icon, icon16 );
         }
         release_icon_ptr( icon16, ptr );
     }
@@ -351,7 +342,7 @@ HICON get_icon_32( HICON16 icon16 )
                 DeleteObject( iinfo.hbmMask );
                 DeleteObject( iinfo.hbmColor );
                 memcpy( (char *)(ptr + 1) + xor_size + and_size, &ret, sizeof(ret) );
-                NtUserSetIconParam( ret, icon16, free_icon_param );
+                NtUserSetIconParam( ret, icon16 );
             }
         }
         release_icon_ptr( icon16, ptr );

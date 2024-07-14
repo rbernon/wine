@@ -550,9 +550,6 @@ static const IClassFactoryVtbl class_factory_vtbl =
 
 static struct class_factory file_scheme_handler_factory = { { &class_factory_vtbl }, file_scheme_handler_construct };
 static struct class_factory urlmon_scheme_handler_factory = { { &class_factory_vtbl }, urlmon_scheme_handler_construct };
-static struct class_factory byte_stream_handler_factory = { { &class_factory_vtbl }, byte_stream_handler_construct };
-
-static const GUID CLSID_MPEG4ByteStreamHandlerPlugin = {0x271c3902, 0x6095, 0x4c45, {0xa2, 0x2f, 0x20, 0x09, 0x18, 0x16, 0xee, 0x9e}};
 
 static const struct class_object
 {
@@ -563,7 +560,6 @@ class_objects[] =
 {
     { &CLSID_FileSchemePlugin, &file_scheme_handler_factory.IClassFactory_iface },
     { &CLSID_UrlmonSchemePlugin, &urlmon_scheme_handler_factory.IClassFactory_iface },
-    { &CLSID_MPEG4ByteStreamHandlerPlugin, &byte_stream_handler_factory.IClassFactory_iface },
 };
 
 /*******************************************************************************

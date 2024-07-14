@@ -3049,20 +3049,15 @@ static inline LARGE_INTEGER *get_nt_timeout( LARGE_INTEGER *time, DWORD timeout 
 /* wait for message or signaled handle */
 static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, DWORD mask, DWORD flags )
 {
-    struct thunk_lock_params params = {.dispatch = {.func = thunk_lock_func}, .release = TRUE};
     LARGE_INTEGER time;
-    DWORD ret;
+    DWORD ret, lock = 0;
     void *ret_ptr;
     ULONG ret_len;
 
-    if (params.dispatch.func)
+    if (enable_thunk_lock)
     {
-        if (!KeUserModeCallback( NtUserDispatchCallback, &params.dispatch, sizeof(params), &ret_ptr, &ret_len ) &&
-            ret_len == sizeof(params.lock))
-        {
-            params.lock = *(DWORD *)ret_ptr;
-            params.release = FALSE;
-        }
+        if (!KeUserModeCallback( NtUserThunkLock, NULL, 0, &ret_ptr, &ret_len ) && ret_len == sizeof(lock))
+            lock = *(DWORD *)ret_ptr;
     }
 
     if (user_driver->pProcessEvents( mask )) ret = count - 1;
@@ -3081,8 +3076,8 @@ static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, DW
     if (ret == WAIT_TIMEOUT && !count && !timeout) NtYieldExecution();
     if (ret == count - 1) get_user_thread_info()->last_driver_time = NtGetTickCount();
 
-    if (params.dispatch.func && !params.release)
-        KeUserModeCallback( NtUserDispatchCallback, &params.dispatch, sizeof(params), &ret_ptr, &ret_len );
+    if (enable_thunk_lock)
+        KeUserModeCallback( NtUserThunkLock, &lock, sizeof(lock), &ret_ptr, &ret_len );
 
     return ret;
 }

@@ -1,7 +1,0 @@
-@ cdecl wineav_demuxer_create(ptr ptr ptr ptr ptr ptr ptr)
-@ cdecl wineav_demuxer_destroy(int64)
-@ cdecl wineav_demuxer_read(int64)
-@ cdecl wineav_demuxer_seek(int64)
-@ cdecl wineav_demuxer_stream_lang(int64)
-@ cdecl wineav_demuxer_stream_name(int64)
-@ cdecl wineav_demuxer_stream_type(int64)

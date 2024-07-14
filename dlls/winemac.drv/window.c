@@ -2549,8 +2549,7 @@ void macdrv_app_quit_requested(const macdrv_event *event)
     if (event->app_quit_requested.reason == QUIT_REASON_LOGOUT)
         params.flags = ENDSESSION_LOGOFF;
 
-    params.cbparams.func = (ULONG_PTR)client_funcs.app_quit_request;
-    macdrv_client_func(&params.cbparams, sizeof(params));
+    macdrv_client_func(client_func_app_quit_request, &params, sizeof(params));
 }
 
 

@@ -317,10 +317,7 @@ static HRESULT topology_branch_connect_indirect(IMFTopology *topology, MF_CONNEC
     }
 
     if (FAILED(hr = MFTEnumEx(category, MFT_ENUM_FLAG_ALL, &input_info, decoder ? NULL : &output_info, &activates, &count)))
-    {
-        ERR("not found %s -> %s\n", wine_dbgstr_guid(&input_info.guidSubtype), wine_dbgstr_guid(&output_info.guidSubtype));
         return hr;
-    }
 
     for (i = 0, hr = MF_E_TRANSFORM_NOT_POSSIBLE_FOR_CURRENT_MEDIATYPE_COMBINATION; i < count; ++i)
     {
@@ -360,8 +357,6 @@ static HRESULT topology_branch_connect_indirect(IMFTopology *topology, MF_CONNEC
             hr = IMFTopology_AddNode(topology, node);
         if (SUCCEEDED(hr))
             break;
-
-        ERR("failed %s -> %s, hr %#lx\n", wine_dbgstr_guid(&input_info.guidSubtype), wine_dbgstr_guid(&output_info.guidSubtype), hr);
     }
 
     IMFTopologyNode_Release(node);
@@ -370,10 +365,7 @@ static HRESULT topology_branch_connect_indirect(IMFTopology *topology, MF_CONNEC
     CoTaskMemFree(activates);
 
     if (!count)
-    {
-        ERR("failed %s -> %s, hr %#lx\n", wine_dbgstr_guid(&input_info.guidSubtype), wine_dbgstr_guid(&output_info.guidSubtype), hr);
         return MF_E_TOPO_CODEC_NOT_FOUND;
-    }
     return hr;
 }
 

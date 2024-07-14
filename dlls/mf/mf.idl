@@ -30,9 +30,3 @@ coclass FileSchemePlugin { }
     uuid(9ec4b4f9-3029-45ad-947b-344de2a249e2)
 ]
 coclass UrlmonSchemePlugin {}
-
-[
-    threading(both),
-    uuid(271c3902-6095-4c45-a22f-20091816ee9e)
-]
-coclass MPEG4ByteStreamHandlerPlugin {}

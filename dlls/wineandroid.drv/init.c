@@ -50,7 +50,6 @@ static RECT monitor_rc_work;
 static int device_init_done;
 
 PNTAPCFUNC register_window_callback;
-UINT64 start_device_callback;
 
 typedef struct
 {
@@ -576,7 +575,6 @@ static HRESULT android_init( void *arg )
     pthread_mutexattr_destroy( &attr );
 
     register_window_callback = params->register_window_callback;
-    start_device_callback = params->start_device_callback;
 
     if ((java_vm = *p_java_vm))  /* running under Java */
     {

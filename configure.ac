@@ -31,7 +31,6 @@ AC_ARG_WITH(cups,      AS_HELP_STRING([--without-cups],[do not use CUPS]))
 AC_ARG_WITH(dbus,      AS_HELP_STRING([--without-dbus],[do not use DBus (dynamic device support)]))
 AC_ARG_WITH(fontconfig,AS_HELP_STRING([--without-fontconfig],[do not use fontconfig]))
 AC_ARG_WITH(freetype,  AS_HELP_STRING([--without-freetype],[do not use the FreeType library]))
-AC_ARG_WITH(ffmpeg,    AS_HELP_STRING([--without-ffmpeg],[do not use the FFmpeg library]))
 AC_ARG_WITH(gettext,   AS_HELP_STRING([--without-gettext],[do not use gettext]))
 AC_ARG_WITH(gettextpo, AS_HELP_STRING([--with-gettextpo],[use the GetTextPO library to rebuild po files]),
             [if test "x$withval" = "xno"; then ac_cv_header_gettext_po_h=no; fi])
@@ -1630,29 +1629,6 @@ fi
 WINE_NOTICE_WITH(pulse, [test -z "$PULSE_LIBS"],
         [libpulse ${notice_platform}development files not found or too old, Pulse won't be supported.],
         [enable_winepulse_drv])
-
-dnl **** Check for FFmpeg ****
-if test "x$with_ffmpeg" != "xno";
-then
-    WINE_PACKAGE_FLAGS(AVUTIL,[libavutil],,,,
-        [AC_CHECK_HEADERS(libavutil/avutil.h,
-            [WINE_CHECK_SONAME(avutil,av_log_set_callback,,[AVUTIL_CFLAGS=""],[$AVUTIL_LIBS])])])
-    WINE_PACKAGE_FLAGS(AVFORMAT,[libavformat],,,,
-        [AC_CHECK_HEADERS(libavformat/avformat.h,
-            [WINE_CHECK_SONAME(avformat,avformat_open_input,,[AVFORMAT_CFLAGS=""],[$AVFORMAT_LIBS])])])
-    WINE_PACKAGE_FLAGS(AVCODEC,[libavcodec],,,,
-        [AC_CHECK_HEADERS(libavcodec/avcodec.h,
-            [WINE_CHECK_SONAME(avcodec,avcodec_alloc_context3,,[AVCODEC_CFLAGS=""],[$AVCODEC_LIBS])])])
-    WINE_PACKAGE_FLAGS(SWRESAMPLE,[libswresample],,,,
-        [AC_CHECK_HEADERS(libswresample/swresample.h,
-            [WINE_CHECK_SONAME(swresample,swr_alloc_set_opts2,,[SWRESAMPLE_CFLAGS=""],[$SWRESAMPLE_LIBS])])])
-    WINE_PACKAGE_FLAGS(SWSCALE,[libswscale],,,,
-        [AC_CHECK_HEADERS(libswscale/swscale.h,
-            [WINE_CHECK_SONAME(swscale,sws_getContext,,[SWSCALE_CFLAGS=""],[$SWSCALE_LIBS])])])
-fi
-WINE_NOTICE_WITH(ffmpeg,[test "x$ac_cv_lib_soname_avformat" = "x"],
-                 [FFmpeg ${notice_platform}development files not found.],
-                 [enable_winelibav])
 
 dnl **** Check for gstreamer ****
 if test "x$with_gstreamer" != "xno"
@@ -3310,7 +3286,6 @@ WINE_CONFIG_MAKEFILE(dlls/winecrt0)
 WINE_CONFIG_MAKEFILE(dlls/wined3d)
 WINE_CONFIG_MAKEFILE(dlls/winegstreamer)
 WINE_CONFIG_MAKEFILE(dlls/winehid.sys)
-WINE_CONFIG_MAKEFILE(dlls/winelibav)
 WINE_CONFIG_MAKEFILE(dlls/winemac.drv)
 WINE_CONFIG_MAKEFILE(dlls/winemapi)
 WINE_CONFIG_MAKEFILE(dlls/wineoss.drv)

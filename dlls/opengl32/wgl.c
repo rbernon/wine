@@ -1875,15 +1875,11 @@ GLboolean WINAPI glUnmapNamedBufferEXT( GLuint buffer )
     return gl_unmap_named_buffer( unix_glUnmapNamedBufferEXT, buffer );
 }
 
-typedef void (WINAPI *gl_debug_message)(GLenum, GLenum, GLuint, GLenum, GLsizei, const GLchar *, const void *);
-
-static NTSTATUS WINAPI call_gl_debug_message_callback( void *args, ULONG size )
+static NTSTATUS WINAPI call_opengl_debug_message_callback( void *args, ULONG size )
 {
-    struct gl_debug_message_callback_params *params = args;
-    gl_debug_message callback = (void *)(UINT_PTR)params->debug_callback;
-    const void *context = (void *)(UINT_PTR)params->debug_context;
-    callback( params->source, params->type, params->id, params->severity,
-              params->length, params->message, context );
+    struct wine_gl_debug_message_params *params = args;
+    params->user_callback( params->source, params->type, params->id, params->severity,
+                           params->length, params->message, params->user_data );
     return STATUS_SUCCESS;
 }
 
@@ -1892,22 +1888,20 @@ static NTSTATUS WINAPI call_gl_debug_message_callback( void *args, ULONG size )
  */
 BOOL WINAPI DllMain( HINSTANCE hinst, DWORD reason, LPVOID reserved )
 {
-    struct process_attach_params params =
-    {
-        .call_gl_debug_message_callback = (UINT_PTR)call_gl_debug_message_callback,
-    };
+    KERNEL_CALLBACK_PROC *kernel_callback_table;
     NTSTATUS status;
 
     switch(reason)
     {
     case DLL_PROCESS_ATTACH:
-        if ((status = __wine_init_unix_call()) ||
-            (status = UNIX_CALL( process_attach, &params )))
+        if ((status = __wine_init_unix_call()))
         {
             ERR( "Failed to load unixlib, status %#lx\n", status );
             return FALSE;
         }
 
+        kernel_callback_table = NtCurrentTeb()->Peb->KernelCallbackTable;
+        kernel_callback_table[NtUserCallOpenGLDebugMessageCallback] = call_opengl_debug_message_callback;
         /* fallthrough */
     case DLL_THREAD_ATTACH:
         if ((status = UNIX_CALL( thread_attach, NtCurrentTeb() )))

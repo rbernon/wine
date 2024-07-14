@@ -1439,13 +1439,10 @@ static HWND find_drop_window( HWND hQueryWnd, LPPOINT lpPt )
     return hQueryWnd;
 }
 
-static void post_drop( HWND hwnd, struct dnd_post_drop_params *params, ULONG size )
+static void post_drop( HWND hwnd, DROPFILES *drop, ULONG size )
 {
-    void *ret_ptr;
-    ULONG ret_len;
-    params->dispatch.func = dnd_post_drop_callback;
-    params->drop.fWide = HandleToUlong( hwnd ); /* abuse fWide to pass window handle */
-    KeUserModeCallback( NtUserDispatchCallback, params, size, &ret_ptr, &ret_len );
+    drop->fWide = HandleToUlong( hwnd ); /* abuse fWide to pass window handle */
+    x11drv_client_func( client_func_dnd_post_drop, drop, size );
 }
 
 /**********************************************************************
@@ -1492,14 +1489,14 @@ static void EVENT_DropFromOffiX( HWND hWnd, XClientMessageEvent *event )
 
     if (!aux_long && p_data)  /* don't bother if > 64K */
     {
-        struct dnd_post_drop_params *params;
-        size_t params_size;
+        DROPFILES *drop;
+        size_t drop_size;
 
-        params = file_list_to_drop_files( p_data, get_property_size( format, data_length ), &params_size );
-        if (params)
+        drop = file_list_to_drop_files( p_data, get_property_size( format, data_length ), &drop_size );
+        if (drop)
         {
-            post_drop( hWnd, params, params_size );
-            free( params );
+            post_drop( hWnd, drop, drop_size );
+            free( drop );
         }
     }
 
@@ -1521,7 +1518,7 @@ static void EVENT_DropURLs( HWND hWnd, XClientMessageEvent *event )
   unsigned long	aux_long;
   unsigned char	*p_data = NULL; /* property data */
   int		x, y;
-  struct dnd_post_drop_params *params;
+  DROPFILES *drop;
   int format;
   union {
     Atom	atom_aux;
@@ -1542,27 +1539,27 @@ static void EVENT_DropURLs( HWND hWnd, XClientMessageEvent *event )
 
   if (!aux_long && p_data) /* don't bother if > 64K */
   {
-      size_t params_size;
-      params = uri_list_to_drop_files( p_data, get_property_size( format, data_length ), &params_size );
+      size_t drop_size;
+      drop = uri_list_to_drop_files( p_data, get_property_size( format, data_length ), &drop_size );
 
-      if (params)
+      if (drop)
       {
           XQueryPointer( event->display, root_window, &u.w_aux, &u.w_aux,
                          &x, &y, &u.i, &u.i, &u.u);
-          params->drop.pt = root_to_virtual_screen( x, y );
+          drop->pt = root_to_virtual_screen( x, y );
 
           if ((win_data = get_win_data( hWnd )))
           {
-              params->drop.fNC =
-                  (params->drop.pt.x < (win_data->client_rect.left - win_data->whole_rect.left)  ||
-                   params->drop.pt.y < (win_data->client_rect.top - win_data->whole_rect.top)    ||
-                   params->drop.pt.x > (win_data->client_rect.right - win_data->whole_rect.left) ||
-                   params->drop.pt.y > (win_data->client_rect.bottom - win_data->whole_rect.top) );
+              drop->fNC =
+                  (drop->pt.x < (win_data->client_rect.left - win_data->whole_rect.left)  ||
+                   drop->pt.y < (win_data->client_rect.top - win_data->whole_rect.top)    ||
+                   drop->pt.x > (win_data->client_rect.right - win_data->whole_rect.left) ||
+                   drop->pt.y > (win_data->client_rect.bottom - win_data->whole_rect.top) );
               release_win_data( win_data );
           }
 
-          post_drop( hWnd, params, params_size );
-          free( params );
+          post_drop( hWnd, drop, drop_size );
+          free( drop );
       }
   }
   if (p_data) XFree( p_data );
@@ -1653,7 +1650,7 @@ static void handle_dnd_protocol( HWND hwnd, XClientMessageEvent *event )
  */
 static void handle_xdnd_enter_event( HWND hWnd, XClientMessageEvent *event )
 {
-    struct dnd_enter_event_params *params;
+    struct format_entry *data;
     unsigned long count = 0;
     Atom *xdndtypes;
     size_t size;
@@ -1706,15 +1703,12 @@ static void handle_xdnd_enter_event( HWND hWnd, XClientMessageEvent *event )
         }
     }
 
-    params = import_xdnd_selection( event->display, event->window, x11drv_atom(XdndSelection),
+    data = import_xdnd_selection( event->display, event->window, x11drv_atom(XdndSelection),
                                   xdndtypes, count, &size );
-    if (params)
+    if (data)
     {
-        void *ret_ptr;
-        ULONG ret_len;
-        params->dispatch.func = dnd_enter_event_callback;
-        KeUserModeCallback( NtUserDispatchCallback, &params, size, &ret_ptr, &ret_len );
-        free( params );
+        x11drv_client_func( client_func_dnd_enter_event, data, size );
+        free( data );
     }
 
     if (event->data.l[1] & 1)
@@ -1766,12 +1760,11 @@ static void handle_xdnd_position_event( HWND hwnd, XClientMessageEvent *event )
     ULONG ret_len;
     UINT effect;
 
-    params.dispatch.func = dnd_position_event_callback;
     params.hwnd = HandleToUlong( hwnd );
     params.point = root_to_virtual_screen( event->data.l[2] >> 16, event->data.l[2] & 0xFFFF );
     params.effect = effect = xdnd_action_to_drop_effect( event->data.l[4] );
 
-    if (KeUserModeCallback( NtUserDispatchCallback, &params, sizeof(params),
+    if (KeUserModeCallback( client_func_dnd_position_event, &params, sizeof(params),
                             &ret_ptr, &ret_len ) || ret_len != sizeof(effect))
         return;
     effect = *(UINT *)ret_ptr;
@@ -1799,13 +1792,13 @@ static void handle_xdnd_position_event( HWND hwnd, XClientMessageEvent *event )
 
 static void handle_xdnd_drop_event( HWND hwnd, XClientMessageEvent *event )
 {
-    struct dnd_drop_event_params params = {.dispatch = {.func = dnd_leave_event_callback}, .hwnd = HandleToULong(hwnd)};
     XClientMessageEvent e;
     void *ret_ptr;
     ULONG ret_len;
+    ULONG arg = HandleToUlong( hwnd );
     UINT effect;
 
-    if (KeUserModeCallback( NtUserDispatchCallback, &params, sizeof(params),
+    if (KeUserModeCallback( client_func_dnd_drop_event, &arg, sizeof(arg),
                             &ret_ptr, &ret_len ) || ret_len != sizeof(effect))
         return;
     effect = *(UINT *)ret_ptr;
@@ -1826,10 +1819,7 @@ static void handle_xdnd_drop_event( HWND hwnd, XClientMessageEvent *event )
 
 static void handle_xdnd_leave_event( HWND hwnd, XClientMessageEvent *event )
 {
-    struct dispatch_callback_params params = {.func = dnd_leave_event_callback};
-    void *ret_ptr;
-    ULONG ret_len;
-    KeUserModeCallback( NtUserDispatchCallback, &params, sizeof(params), &ret_ptr, &ret_len );
+    x11drv_client_func( client_func_dnd_leave_event, NULL, 0 );
 }
 
 

@@ -25,15 +25,23 @@
 HMODULE x11drv_module = 0;
 
 
+static const KERNEL_CALLBACK_PROC kernel_callbacks[] =
+{
+    x11drv_dnd_enter_event,
+    x11drv_dnd_position_event,
+    x11drv_dnd_post_drop,
+    x11drv_dnd_drop_event,
+    x11drv_dnd_leave_event,
+};
+
+C_ASSERT( NtUserDriverCallbackFirst + ARRAYSIZE(kernel_callbacks) == client_func_last );
+
+
 BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
 {
+    KERNEL_CALLBACK_PROC *callback_table;
     struct init_params params =
     {
-        (UINT_PTR)x11drv_dnd_enter_event,
-        (UINT_PTR)x11drv_dnd_position_event,
-        (UINT_PTR)x11drv_dnd_post_drop,
-        (UINT_PTR)x11drv_dnd_drop_event,
-        (UINT_PTR)x11drv_dnd_leave_event,
         foreign_window_proc,
     };
 
@@ -44,6 +52,8 @@ BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
     if (__wine_init_unix_call()) return FALSE;
     if (X11DRV_CALL( init, &params )) return FALSE;
 
+    callback_table = NtCurrentTeb()->Peb->KernelCallbackTable;
+    memcpy( callback_table + NtUserDriverCallbackFirst, kernel_callbacks, sizeof(kernel_callbacks) );
     return TRUE;
 }
 

@@ -1,5 +1,7 @@
-/*
- * Copyright 2024 Rémi Bernon for CodeWeavers
+/* GStreamer Media Source
+ *
+ * Copyright 2020 Derek Lesho
+ * Copyright 2020 Zebediah Figura for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,105 +18,24 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include <stddef.h>
-#include <stdarg.h>
+#include "gst_private.h"
 
-#define COBJMACROS
-#include "windef.h"
-#include "winbase.h"
-
-#include "mf_private.h"
+#include "mfapi.h"
+#include "mferror.h"
 
 #include "wine/list.h"
-#include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(mfplat);
-
-typedef UINT64 demuxer_t;
-
-extern HRESULT CDECL wineav_demuxer_create(const WCHAR *url, IStream *stream, UINT64 *file_size, INT64 *duration,
-        UINT *stream_count, WCHAR *mime_type, demuxer_t *context);
-extern void CDECL wineav_demuxer_destroy(demuxer_t context);
-extern HRESULT CDECL wineav_demuxer_read(demuxer_t context, UINT *stream, IMFSample **sample);
-extern HRESULT CDECL wineav_demuxer_seek(demuxer_t context, INT64 timestamp);
-extern HRESULT CDECL wineav_demuxer_stream_lang(demuxer_t context, UINT stream, WCHAR *buffer, UINT len);
-extern HRESULT CDECL wineav_demuxer_stream_name(demuxer_t context, UINT stream, WCHAR *buffer, UINT len);
-extern HRESULT CDECL wineav_demuxer_stream_type(demuxer_t context, UINT stream, IMFMediaType **media_type);
-
-#define DEFINE_MF_ASYNC_CALLBACK_(pfx, impl_type, impl_from, iface_mem, expr)                       \
-    static inline impl_type *impl_from(IMFAsyncCallback *iface)                                     \
-    {                                                                                               \
-        return CONTAINING_RECORD(iface, impl_type, iface_mem);                                      \
-    }                                                                                               \
-    static HRESULT WINAPI pfx##_QueryInterface(IMFAsyncCallback *iface, REFIID iid, void **out)     \
-    {                                                                                               \
-        if (IsEqualIID(iid, &IID_IUnknown) || IsEqualIID(iid, &IID_IMFAsyncCallback))               \
-        {                                                                                           \
-            IMFAsyncCallback_AddRef((*out = iface));                                                \
-            return S_OK;                                                                            \
-        }                                                                                           \
-        *out = NULL;                                                                                \
-        return E_NOINTERFACE;                                                                       \
-    }                                                                                               \
-    static ULONG WINAPI pfx##_AddRef(IMFAsyncCallback *iface)                                       \
-    {                                                                                               \
-        impl_type *impl = impl_from(iface);                                                         \
-        return IUnknown_AddRef((IUnknown *)(expr));                                                 \
-    }                                                                                               \
-    static ULONG WINAPI pfx##_Release(IMFAsyncCallback *iface)                                      \
-    {                                                                                               \
-        impl_type *impl = impl_from(iface);                                                         \
-        return IUnknown_Release((IUnknown *)(expr));                                                \
-    }                                                                                               \
-    static HRESULT WINAPI pfx##_GetParameters(IMFAsyncCallback *iface, DWORD *flags, DWORD *queue)  \
-    {                                                                                               \
-        return E_NOTIMPL;                                                                           \
-    }                                                                                               \
-    static HRESULT WINAPI pfx##_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result);            \
-    static const IMFAsyncCallbackVtbl pfx##_vtbl =                                                  \
-    {                                                                                               \
-        pfx##_QueryInterface,                                                                       \
-        pfx##_AddRef,                                                                               \
-        pfx##_Release,                                                                              \
-        pfx##_GetParameters,                                                                        \
-        pfx##_Invoke,                                                                               \
-    };                                                                                              \
-
-#define DEFINE_MF_ASYNC_CALLBACK(name, impl_type, base_iface) \
-    DEFINE_MF_ASYNC_CALLBACK_(name, impl_type, impl_from_##name, name##_iface, &impl->base_iface)
-
-struct object_entry
-{
-    struct list entry;
-    IUnknown *object;
-};
-
-static void object_entry_destroy(struct object_entry *entry)
-{
-    if (entry->object) IUnknown_AddRef( entry->object );
-    free(entry);
-}
-
-static HRESULT object_entry_create(IUnknown *object, struct object_entry **out)
-{
-    struct object_entry *entry;
-
-    if (!(entry = calloc(1, sizeof(*entry)))) return E_OUTOFMEMORY;
-    if ((entry->object = object)) IUnknown_AddRef( entry->object );
-
-    *out = entry;
-    return S_OK;
-}
 
 struct object_context
 {
     IUnknown IUnknown_iface;
     LONG refcount;
 
-    WCHAR *url;
-    IMFByteStream *stream;
     IMFAsyncResult *result;
-    IUnknown *object;
+    IMFByteStream *stream;
+    UINT64 file_size;
+    WCHAR *url;
 };
 
 static struct object_context *impl_from_IUnknown(IUnknown *iface)
@@ -157,8 +78,6 @@ static ULONG WINAPI object_context_Release(IUnknown *iface)
 
     if (!refcount)
     {
-        if (context->object)
-            IUnknown_Release(context->object);
         IMFAsyncResult_Release(context->result);
         IMFByteStream_Release(context->stream);
         free(context->url);
@@ -175,45 +94,26 @@ static const IUnknownVtbl object_context_vtbl =
     object_context_Release,
 };
 
-static WCHAR *get_byte_stream_url(IMFByteStream *stream, const WCHAR *url)
+static HRESULT object_context_create(DWORD flags, IMFByteStream *stream, const WCHAR *url,
+        QWORD file_size, IMFAsyncResult *result, IUnknown **out)
 {
-    IMFAttributes *attributes;
-    WCHAR buffer[MAX_PATH];
-    UINT32 size;
-    HRESULT hr;
-
-    if (SUCCEEDED(hr = IMFByteStream_QueryInterface(stream, &IID_IMFAttributes, (void **)&attributes)))
-    {
-        if (FAILED(hr = IMFAttributes_GetString(attributes, &MF_BYTESTREAM_ORIGIN_NAME,
-                buffer, ARRAY_SIZE(buffer), &size)))
-            WARN("Failed to get MF_BYTESTREAM_ORIGIN_NAME got size %#x, hr %#lx\n", size, hr);
-        else
-            url = buffer;
-        IMFAttributes_Release(attributes);
-    }
-
-    return url ? wcsdup(url) : NULL;
-}
-
-static HRESULT object_context_create(const WCHAR *url, IMFByteStream *stream,
-        IMFAsyncResult *result, IUnknown **out)
-{
-    WCHAR *tmp_url = get_byte_stream_url(stream, url);
+    WCHAR *tmp_url = url ? wcsdup(url) : NULL;
     struct object_context *context;
 
     if (!(context = calloc(1, sizeof(*context))))
     {
         free(tmp_url);
-        free(context);
         return E_OUTOFMEMORY;
     }
 
     context->IUnknown_iface.lpVtbl = &object_context_vtbl;
     context->refcount = 1;
-
+    context->stream = stream;
+    IMFByteStream_AddRef(context->stream);
+    context->file_size = file_size;
     context->url = tmp_url;
-    IMFByteStream_AddRef((context->stream = stream));
-    IMFAsyncResult_AddRef((context->result = result));
+    context->result = result;
+    IMFAsyncResult_AddRef(context->result);
 
     *out = &context->IUnknown_iface;
     return S_OK;
@@ -227,20 +127,45 @@ struct media_stream
     IMFMediaSource *media_source;
     IMFMediaEventQueue *event_queue;
     IMFStreamDescriptor *descriptor;
-    struct list samples;
-    struct list tokens;
 
+    wg_parser_stream_t wg_stream;
+
+    IUnknown **token_queue;
+    LONG token_queue_count;
+    LONG token_queue_cap;
+
+    DWORD stream_id;
     BOOL active;
     BOOL eos;
 };
 
-struct async_start_params
+enum source_async_op
+{
+    SOURCE_ASYNC_START,
+    SOURCE_ASYNC_PAUSE,
+    SOURCE_ASYNC_STOP,
+    SOURCE_ASYNC_REQUEST_SAMPLE,
+};
+
+struct source_async_command
 {
     IUnknown IUnknown_iface;
     LONG refcount;
-    IMFPresentationDescriptor *descriptor;
-    GUID format;
-    PROPVARIANT position;
+    enum source_async_op op;
+    union
+    {
+        struct
+        {
+            IMFPresentationDescriptor *descriptor;
+            GUID format;
+            PROPVARIANT position;
+        } start;
+        struct
+        {
+            struct media_stream *stream;
+            IUnknown *token;
+        } request_sample;
+    } u;
 };
 
 struct media_source
@@ -249,10 +174,7 @@ struct media_source
     IMFGetService IMFGetService_iface;
     IMFRateSupport IMFRateSupport_iface;
     IMFRateControl IMFRateControl_iface;
-    IMFAsyncCallback async_start_iface;
-    IMFAsyncCallback async_pause_iface;
-    IMFAsyncCallback async_stop_iface;
-    IMFAsyncCallback async_read_iface;
+    IMFAsyncCallback async_commands_callback;
     LONG ref;
     DWORD async_commands_queue;
     IMFMediaEventQueue *event_queue;
@@ -260,18 +182,13 @@ struct media_source
 
     CRITICAL_SECTION cs;
 
-    demuxer_t demuxer;
-    WCHAR mime_type[256];
     UINT64 file_size;
-    INT64 duration;
-
-    UINT32 buffer_size;
-    BYTE *buffer;
+    wg_parser_t wg_parser;
+    UINT64 duration;
 
     IMFStreamDescriptor **descriptors;
     struct media_stream **streams;
     ULONG stream_count;
-    UINT *stream_map;
 
     enum
     {
@@ -282,6 +199,9 @@ struct media_source
         SOURCE_SHUTDOWN,
     } state;
     float rate;
+
+    HANDLE read_thread;
+    bool read_thread_shutdown;
 };
 
 static inline struct media_stream *impl_from_IMFMediaStream(IMFMediaStream *iface)
@@ -309,12 +229,17 @@ static inline struct media_source *impl_from_IMFRateControl(IMFRateControl *ifac
     return CONTAINING_RECORD(iface, struct media_source, IMFRateControl_iface);
 }
 
-static inline struct async_start_params *impl_from_async_start_params_IUnknown(IUnknown *iface)
+static inline struct media_source *impl_from_async_commands_callback_IMFAsyncCallback(IMFAsyncCallback *iface)
 {
-    return CONTAINING_RECORD(iface, struct async_start_params, IUnknown_iface);
+    return CONTAINING_RECORD(iface, struct media_source, async_commands_callback);
 }
 
-static HRESULT WINAPI async_start_params_QueryInterface(IUnknown *iface, REFIID riid, void **obj)
+static inline struct source_async_command *impl_from_async_command_IUnknown(IUnknown *iface)
+{
+    return CONTAINING_RECORD(iface, struct source_async_command, IUnknown_iface);
+}
+
+static HRESULT WINAPI source_async_command_QueryInterface(IUnknown *iface, REFIID riid, void **obj)
 {
     if (IsEqualIID(riid, &IID_IUnknown))
     {
@@ -328,227 +253,333 @@ static HRESULT WINAPI async_start_params_QueryInterface(IUnknown *iface, REFIID 
     return E_NOINTERFACE;
 }
 
-static ULONG WINAPI async_start_params_AddRef(IUnknown *iface)
+static ULONG WINAPI source_async_command_AddRef(IUnknown *iface)
 {
-    struct async_start_params *params = impl_from_async_start_params_IUnknown(iface);
-    return InterlockedIncrement(&params->refcount);
+    struct source_async_command *command = impl_from_async_command_IUnknown(iface);
+    return InterlockedIncrement(&command->refcount);
 }
 
-static ULONG WINAPI async_start_params_Release(IUnknown *iface)
+static ULONG WINAPI source_async_command_Release(IUnknown *iface)
 {
-    struct async_start_params *params = impl_from_async_start_params_IUnknown(iface);
-    ULONG refcount = InterlockedDecrement(&params->refcount);
+    struct source_async_command *command = impl_from_async_command_IUnknown(iface);
+    ULONG refcount = InterlockedDecrement(&command->refcount);
 
     if (!refcount)
     {
-        IMFPresentationDescriptor_Release(params->descriptor);
-        PropVariantClear(&params->position);
-        free(params);
+        if (command->op == SOURCE_ASYNC_START)
+        {
+            IMFPresentationDescriptor_Release(command->u.start.descriptor);
+            PropVariantClear(&command->u.start.position);
+        }
+        else if (command->op == SOURCE_ASYNC_REQUEST_SAMPLE)
+        {
+            if (command->u.request_sample.token)
+                IUnknown_Release(command->u.request_sample.token);
+        }
+        free(command);
     }
 
     return refcount;
 }
 
-static const IUnknownVtbl async_start_params_vtbl =
+static const IUnknownVtbl source_async_command_vtbl =
 {
-    async_start_params_QueryInterface,
-    async_start_params_AddRef,
-    async_start_params_Release,
+    source_async_command_QueryInterface,
+    source_async_command_AddRef,
+    source_async_command_Release,
 };
 
-static HRESULT async_start_params_create(IMFPresentationDescriptor *descriptor, const GUID *time_format,
-        const PROPVARIANT *position, IUnknown **out)
+static HRESULT source_create_async_op(enum source_async_op op, IUnknown **out)
 {
-    struct async_start_params *params;
+    struct source_async_command *command;
 
-    if (!(params = calloc(1, sizeof(*params))))
+    if (!(command = calloc(1, sizeof(*command))))
         return E_OUTOFMEMORY;
 
-    params->IUnknown_iface.lpVtbl = &async_start_params_vtbl;
-    params->refcount = 1;
+    command->IUnknown_iface.lpVtbl = &source_async_command_vtbl;
+    command->refcount = 1;
+    command->op = op;
 
-    params->descriptor = descriptor;
-    IMFPresentationDescriptor_AddRef(descriptor);
-    params->format = *time_format;
-    PropVariantCopy(&params->position, position);
-
-    *out = &params->IUnknown_iface;
+    *out = &command->IUnknown_iface;
     return S_OK;
 }
 
-DEFINE_MF_ASYNC_CALLBACK(async_start, struct media_source, IMFMediaSource_iface)
+static HRESULT WINAPI callback_QueryInterface(IMFAsyncCallback *iface, REFIID riid, void **obj)
+{
+    TRACE("%p, %s, %p.\n", iface, debugstr_guid(riid), obj);
 
-static HRESULT stream_descriptor_get_major_type(IMFStreamDescriptor *descriptor, GUID *major)
+    if (IsEqualIID(riid, &IID_IMFAsyncCallback) ||
+            IsEqualIID(riid, &IID_IUnknown))
+    {
+        *obj = iface;
+        IMFAsyncCallback_AddRef(iface);
+        return S_OK;
+    }
+
+    WARN("Unsupported %s.\n", debugstr_guid(riid));
+    *obj = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT WINAPI callback_GetParameters(IMFAsyncCallback *iface,
+        DWORD *flags, DWORD *queue)
+{
+    return E_NOTIMPL;
+}
+
+static ULONG WINAPI source_async_commands_callback_AddRef(IMFAsyncCallback *iface)
+{
+    struct media_source *source = impl_from_async_commands_callback_IMFAsyncCallback(iface);
+    return IMFMediaSource_AddRef(&source->IMFMediaSource_iface);
+}
+
+static ULONG WINAPI source_async_commands_callback_Release(IMFAsyncCallback *iface)
+{
+    struct media_source *source = impl_from_async_commands_callback_IMFAsyncCallback(iface);
+    return IMFMediaSource_Release(&source->IMFMediaSource_iface);
+}
+
+static HRESULT stream_descriptor_get_media_type(IMFStreamDescriptor *descriptor, IMFMediaType **media_type)
 {
     IMFMediaTypeHandler *handler;
     HRESULT hr;
 
     if (FAILED(hr = IMFStreamDescriptor_GetMediaTypeHandler(descriptor, &handler)))
         return hr;
-    hr = IMFMediaTypeHandler_GetMajorType(handler, major);
+    hr = IMFMediaTypeHandler_GetCurrentMediaType(handler, media_type);
     IMFMediaTypeHandler_Release(handler);
 
     return hr;
 }
 
-static HRESULT stream_descriptor_create(UINT32 id, IMFMediaType *media_type, IMFStreamDescriptor **out)
+static HRESULT wg_format_from_stream_descriptor(IMFStreamDescriptor *descriptor, struct wg_format *format)
+{
+    IMFMediaType *media_type;
+    HRESULT hr;
+
+    if (FAILED(hr = stream_descriptor_get_media_type(descriptor, &media_type)))
+        return hr;
+    mf_media_type_to_wg_format(media_type, format);
+    IMFMediaType_Release(media_type);
+
+    return hr;
+}
+
+static HRESULT stream_descriptor_set_tag(IMFStreamDescriptor *descriptor, wg_parser_stream_t stream,
+    const GUID *attr, enum wg_parser_tag tag)
+{
+    WCHAR *strW;
+    HRESULT hr;
+    DWORD len;
+    char *str;
+
+    if (!(str = wg_parser_stream_get_tag(stream, tag))
+            || !(len = MultiByteToWideChar(CP_UTF8, 0, str, -1, NULL, 0)))
+        hr = S_OK;
+    else if (!(strW = malloc(len * sizeof(*strW))))
+        hr = E_OUTOFMEMORY;
+    else
+    {
+        if (MultiByteToWideChar(CP_UTF8, 0, str, -1, strW, len))
+            hr = IMFStreamDescriptor_SetString(descriptor, attr, strW);
+        else
+            hr = E_FAIL;
+        free(strW);
+    }
+
+    free(str);
+    return hr;
+}
+
+static HRESULT init_video_media_types(struct wg_format *format, IMFMediaType *types[6], DWORD *types_count)
+{
+    /* Try to prefer YUV formats over RGB ones. Most decoders output in the
+     * YUV color space, and it's generally much less expensive for
+     * videoconvert to do YUV -> YUV transformations. */
+    static const enum wg_video_format video_formats[] =
+    {
+        WG_VIDEO_FORMAT_NV12,
+        WG_VIDEO_FORMAT_YV12,
+        WG_VIDEO_FORMAT_YUY2,
+        WG_VIDEO_FORMAT_I420,
+    };
+    UINT count = *types_count, i;
+    GUID base_subtype;
+    HRESULT hr;
+
+    if (FAILED(hr = IMFMediaType_GetGUID(types[0], &MF_MT_SUBTYPE, &base_subtype)))
+        return hr;
+
+    for (i = 0; i < ARRAY_SIZE(video_formats); ++i)
+    {
+        struct wg_format new_format = *format;
+        IMFMediaType *new_type;
+
+        new_format.u.video.format = video_formats[i];
+
+        if (!(new_type = mf_media_type_from_wg_format(&new_format)))
+        {
+            hr = E_OUTOFMEMORY;
+            goto done;
+        }
+        types[count++] = new_type;
+
+        if (video_formats[i] == WG_VIDEO_FORMAT_I420)
+        {
+            IMFMediaType *iyuv_type;
+
+            if (FAILED(hr = MFCreateMediaType(&iyuv_type)))
+                goto done;
+            if (FAILED(hr = IMFMediaType_CopyAllItems(new_type, (IMFAttributes *)iyuv_type)))
+                goto done;
+            if (FAILED(hr = IMFMediaType_SetGUID(iyuv_type, &MF_MT_SUBTYPE, &MFVideoFormat_IYUV)))
+                goto done;
+            types[count++] = iyuv_type;
+        }
+    }
+
+done:
+    *types_count = count;
+    return hr;
+}
+
+static HRESULT init_audio_media_types(struct wg_format *format, IMFMediaType *types[6], DWORD *types_count)
+{
+    /* Expose at least one PCM and one floating point type for the
+       consumer to pick from. */
+    static const enum wg_audio_format audio_types[] =
+    {
+        WG_AUDIO_FORMAT_S16LE,
+        WG_AUDIO_FORMAT_F32LE,
+    };
+    UINT count = *types_count, i;
+
+    for (i = 0; i < ARRAY_SIZE(audio_types); i++)
+    {
+        struct wg_format new_format = *format;
+        if (new_format.u.audio.format == audio_types[i])
+            continue;
+        new_format.u.audio.format = audio_types[i];
+        if ((types[count] = mf_media_type_from_wg_format(&new_format)))
+            count++;
+    }
+
+    *types_count = count;
+    return S_OK;
+}
+
+static HRESULT stream_descriptor_create(UINT32 id, struct wg_format *format, IMFStreamDescriptor **out)
 {
     IMFStreamDescriptor *descriptor;
     IMFMediaTypeHandler *handler;
+    IMFMediaType *types[6];
+    DWORD count = 0;
     HRESULT hr;
 
-    *out = NULL;
-    if (FAILED(hr = MFCreateStreamDescriptor(id, 1, &media_type, &descriptor)))
-        return hr;
+    if (!(types[0] = mf_media_type_from_wg_format(format)))
+        return MF_E_INVALIDMEDIATYPE;
+    count = 1;
+
+    if (format->major_type == WG_MAJOR_TYPE_VIDEO)
+    {
+        if (FAILED(hr = init_video_media_types(format, types, &count)))
+            goto done;
+    }
+    else if (format->major_type == WG_MAJOR_TYPE_AUDIO)
+    {
+        if (FAILED(hr = init_audio_media_types(format, types, &count)))
+            goto done;
+    }
+
+    assert(count <= ARRAY_SIZE(types));
+
+    if (FAILED(hr = MFCreateStreamDescriptor(id, count, types, &descriptor)))
+        goto done;
 
     if (FAILED(hr = IMFStreamDescriptor_GetMediaTypeHandler(descriptor, &handler)))
         IMFStreamDescriptor_Release(descriptor);
     else
     {
-        if (SUCCEEDED(hr = IMFMediaTypeHandler_SetCurrentMediaType(handler, media_type)))
-            *out = descriptor;
+        hr = IMFMediaTypeHandler_SetCurrentMediaType(handler, types[0]);
         IMFMediaTypeHandler_Release(handler);
     }
 
+done:
+    while (count--)
+        IMFMediaType_Release(types[count]);
+    *out = SUCCEEDED(hr) ? descriptor : NULL;
     return hr;
 }
 
-static HRESULT media_stream_queue_sample(struct media_stream *stream, IMFSample *sample)
+static BOOL enqueue_token(struct media_stream *stream, IUnknown *token)
 {
-    struct object_entry *entry;
-    HRESULT hr;
-
-    if (SUCCEEDED(hr = object_entry_create((IUnknown *)sample, &entry)))
-        list_add_tail(&stream->samples, &entry->entry);
-    return S_FALSE;
-}
-
-static HRESULT media_stream_queue_token(struct media_stream *stream, IUnknown *token)
-{
-    struct object_entry *entry;
-    HRESULT hr;
-
-    if (SUCCEEDED(hr = object_entry_create(token, &entry)))
-        list_add_tail(&stream->tokens, &entry->entry);
-    return S_FALSE;
-}
-
-static HRESULT media_stream_pop_sample(struct media_stream *stream, IMFSample **sample)
-{
-    struct object_entry *entry;
-    struct list *ptr;
-
-    if (!(ptr = list_head(&stream->samples))) return E_PENDING;
-    entry = LIST_ENTRY(ptr, struct object_entry, entry);
-
-    if ((*sample = (IMFSample *)entry->object)) IMFSample_AddRef(*sample);
-    list_remove(&entry->entry);
-    object_entry_destroy(entry);
-
-    return S_OK;
-}
-
-static HRESULT media_stream_pop_token(struct media_stream *stream, IUnknown **token)
-{
-    struct object_entry *entry;
-    struct list *ptr;
-
-    if (!(ptr = list_head(&stream->tokens))) return E_PENDING;
-    entry = LIST_ENTRY(ptr, struct object_entry, entry);
-
-    if ((*token = entry->object)) IUnknown_AddRef(*token);
-    list_remove(&entry->entry);
-    object_entry_destroy(entry);
-
-    return S_OK;
-}
-
-static HRESULT media_stream_send_sample(struct media_stream *stream, IMFSample *sample, IUnknown *token)
-{
-    HRESULT hr;
-
-    if (!token || SUCCEEDED(hr = IMFSample_SetUnknown(sample, &MFSampleExtension_Token, token)))
-        hr = IMFMediaEventQueue_QueueEventParamUnk(stream->event_queue, MEMediaSample,
-                &GUID_NULL, S_OK, (IUnknown *)sample);
-
-    return hr;
-}
-
-static HRESULT media_stream_try_send_sample(struct media_stream *stream, IMFSample *sample)
-{
-    IUnknown *token;
-    HRESULT hr;
-
-    if (FAILED(hr = media_stream_pop_token(stream, &token)))
-        hr = media_stream_queue_sample(stream, sample);
-    else
+    if (stream->token_queue_count == stream->token_queue_cap)
     {
-        hr = media_stream_send_sample(stream, sample, token);
-        if (token) IUnknown_Release(token);
+        IUnknown **buf;
+        stream->token_queue_cap = stream->token_queue_cap * 2 + 1;
+        buf = realloc(stream->token_queue, stream->token_queue_cap * sizeof(*buf));
+        if (buf)
+            stream->token_queue = buf;
+        else
+        {
+            stream->token_queue_cap = stream->token_queue_count;
+            return FALSE;
+        }
     }
-
-    return hr;
+    stream->token_queue[stream->token_queue_count++] = token;
+    return TRUE;
 }
 
+static void flush_token_queue(struct media_stream *stream, BOOL send)
+{
+    struct media_source *source = impl_from_IMFMediaSource(stream->media_source);
+    LONG i;
+
+    for (i = 0; i < stream->token_queue_count; i++)
+    {
+        if (send)
+        {
+            IUnknown *op;
+            HRESULT hr;
+
+            if (SUCCEEDED(hr = source_create_async_op(SOURCE_ASYNC_REQUEST_SAMPLE, &op)))
+            {
+                struct source_async_command *command = impl_from_async_command_IUnknown(op);
+                command->u.request_sample.stream = stream;
+                command->u.request_sample.token = stream->token_queue[i];
+
+                hr = MFPutWorkItem(source->async_commands_queue, &source->async_commands_callback, op);
+                IUnknown_Release(op);
+            }
+            if (FAILED(hr))
+                WARN("Could not enqueue sample request, hr %#lx\n", hr);
+        }
+        else if (stream->token_queue[i])
+            IUnknown_Release(stream->token_queue[i]);
+    }
+    free(stream->token_queue);
+    stream->token_queue = NULL;
+    stream->token_queue_count = 0;
+    stream->token_queue_cap = 0;
+}
 
 static HRESULT media_stream_start(struct media_stream *stream, BOOL active, BOOL seeking, const PROPVARIANT *position)
 {
     struct media_source *source = impl_from_IMFMediaSource(stream->media_source);
-    struct object_entry *entry, *next;
+    struct wg_format format;
     HRESULT hr;
 
     TRACE("source %p, stream %p\n", source, stream);
 
-    if (position->vt == VT_EMPTY)
-    {
-        IMFSample *sample;
-        IUnknown *token;
-
-        while (media_stream_pop_token(stream, &token) != E_PENDING) if (token) IUnknown_Release(token);
-        while (media_stream_pop_sample(stream, &sample) != E_PENDING) IMFSample_Release(sample);
-    }
+    if (FAILED(hr = wg_format_from_stream_descriptor(stream->descriptor, &format)))
+        WARN("Failed to get wg_format from stream descriptor, hr %#lx\n", hr);
+    wg_parser_stream_enable(stream->wg_stream, &format);
 
     if (FAILED(hr = IMFMediaEventQueue_QueueEventParamUnk(source->event_queue, active ? MEUpdatedStream : MENewStream,
             &GUID_NULL, S_OK, (IUnknown *)&stream->IMFMediaStream_iface)))
         WARN("Failed to send source stream event, hr %#lx\n", hr);
-    if (FAILED(hr = IMFMediaEventQueue_QueueEventParamVar(stream->event_queue, seeking ? MEStreamSeeked : MEStreamStarted,
-            &GUID_NULL, S_OK, position)))
-        WARN("Failed to send source stream event, hr %#lx\n", hr);
-
-    if (position->vt != VT_EMPTY)
-    {
-        struct list samples = LIST_INIT(samples);
-
-        list_move_head(&samples, &stream->samples);
-
-        LIST_FOR_EACH_ENTRY_SAFE(entry, next, &samples, struct object_entry, entry)
-        {
-            media_stream_try_send_sample(stream, (IMFSample *)entry->object);
-            list_remove(&entry->entry);
-            object_entry_destroy(entry);
-        }
-
-        if (!list_empty(&stream->tokens))
-            hr = MFPutWorkItem(source->async_commands_queue, &source->async_read_iface, NULL);
-    }
-
-    return hr;
-}
-
-static HRESULT media_stream_stop(struct media_stream *stream)
-{
-    HRESULT hr = S_OK;
-    IMFSample *sample;
-    IUnknown *token;
-
-    while (media_stream_pop_token(stream, &token) != E_PENDING) if (token) IUnknown_Release(token);
-    while (media_stream_pop_sample(stream, &sample) != E_PENDING) IMFSample_Release(sample);
-
-    if (stream->active && FAILED(hr = IMFMediaEventQueue_QueueEventParamVar(stream->event_queue, MEStreamStopped,
-                &GUID_NULL, S_OK, NULL)))
-        WARN("Failed to queue MEStreamStopped event, hr %#lx\n", hr);
-
-    return hr;
+    return IMFMediaEventQueue_QueueEventParamVar(stream->event_queue, seeking ? MEStreamSeeked : MEStreamStarted,
+            &GUID_NULL, S_OK, position);
 }
 
 static HRESULT media_source_start(struct media_source *source, IMFPresentationDescriptor *descriptor,
@@ -591,10 +622,10 @@ static HRESULT media_source_start(struct media_source *source, IMFPresentationDe
         {
             if (FAILED(hr = IMFStreamDescriptor_GetStreamIdentifier(stream_descriptor, &id)))
                 WARN("Failed to get stream descriptor id, hr %#lx\n", hr);
-            else if (id > source->stream_count)
+            else if (id >= source->stream_count)
                 WARN("Invalid stream descriptor id %lu, hr %#lx\n", id, hr);
             else if (selected)
-                IMFStreamDescriptor_AddRef((descriptors[id - 1] = stream_descriptor));
+                IMFStreamDescriptor_AddRef((descriptors[id] = stream_descriptor));
 
             IMFStreamDescriptor_Release(stream_descriptor);
         }
@@ -608,7 +639,9 @@ static HRESULT media_source_start(struct media_source *source, IMFPresentationDe
         if (position->vt != VT_EMPTY)
             stream->eos = FALSE;
 
-        if ((stream->active = !!descriptors[i]))
+        if (!(stream->active = !!descriptors[i]))
+            wg_parser_stream_disable(stream->wg_stream);
+        else
         {
             if (FAILED(hr = media_stream_start(stream, was_active, seek_message, position)))
                 WARN("Failed to start media stream, hr %#lx\n", hr);
@@ -619,31 +652,16 @@ static HRESULT media_source_start(struct media_source *source, IMFPresentationDe
     free(descriptors);
 
     source->state = SOURCE_RUNNING;
-    if (position->vt == VT_I8 && (FAILED(hr = wineav_demuxer_seek(source->demuxer, position->hVal.QuadPart))))
-        WARN("Failed to seek to %I64d\n", position->hVal.QuadPart);
+
+    if (position->vt == VT_I8)
+        wg_parser_stream_seek(source->streams[0]->wg_stream, 1.0, position->hVal.QuadPart, 0,
+                AM_SEEKING_AbsolutePositioning, AM_SEEKING_NoPositioning);
+
+    for (i = 0; i < source->stream_count; i++)
+        flush_token_queue(source->streams[i], position->vt == VT_EMPTY);
 
     return IMFMediaEventQueue_QueueEventParamVar(source->event_queue,
             seek_message ? MESourceSeeked : MESourceStarted, &GUID_NULL, S_OK, position);
-}
-
-static HRESULT WINAPI async_start_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
-{
-    struct media_source *source = impl_from_async_start(iface);
-    struct async_start_params *params;
-    IUnknown *state;
-    HRESULT hr;
-
-    if (!(state = IMFAsyncResult_GetStateNoAddRef(result))) return E_INVALIDARG;
-    params = impl_from_async_start_params_IUnknown(state);
-
-    EnterCriticalSection(&source->cs);
-
-    if (FAILED(hr = media_source_start(source, params->descriptor, &params->format, &params->position)))
-        WARN("Failed to start source %p, hr %#lx\n", source, hr);
-
-    LeaveCriticalSection(&source->cs);
-
-    return hr;
 }
 
 static HRESULT media_source_pause(struct media_source *source)
@@ -668,26 +686,10 @@ static HRESULT media_source_pause(struct media_source *source)
     return IMFMediaEventQueue_QueueEventParamVar(source->event_queue, MESourcePaused, &GUID_NULL, S_OK, NULL);
 }
 
-DEFINE_MF_ASYNC_CALLBACK(async_pause, struct media_source, IMFMediaSource_iface)
-
-static HRESULT WINAPI async_pause_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
-{
-    struct media_source *source = impl_from_async_pause(iface);
-    HRESULT hr;
-
-    EnterCriticalSection(&source->cs);
-
-    if (FAILED(hr = media_source_pause(source)))
-        WARN("Failed to pause source %p, hr %#lx\n", source, hr);
-
-    LeaveCriticalSection(&source->cs);
-
-    return hr;
-}
-
 static HRESULT media_source_stop(struct media_source *source)
 {
     unsigned int i;
+    HRESULT hr;
 
     TRACE("source %p\n", source);
 
@@ -697,101 +699,225 @@ static HRESULT media_source_stop(struct media_source *source)
     for (i = 0; i < source->stream_count; i++)
     {
         struct media_stream *stream = source->streams[i];
-        media_stream_stop(stream);
+        if (stream->active && FAILED(hr = IMFMediaEventQueue_QueueEventParamVar(stream->event_queue, MEStreamStopped,
+                    &GUID_NULL, S_OK, NULL)))
+            WARN("Failed to queue MEStreamStopped event, hr %#lx\n", hr);
     }
 
     source->state = SOURCE_STOPPED;
+
+    for (i = 0; i < source->stream_count; i++)
+        flush_token_queue(source->streams[i], FALSE);
+
     return IMFMediaEventQueue_QueueEventParamVar(source->event_queue, MESourceStopped, &GUID_NULL, S_OK, NULL);
 }
 
-DEFINE_MF_ASYNC_CALLBACK(async_stop, struct media_source, IMFMediaSource_iface)
-
-static HRESULT WINAPI async_stop_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
+static HRESULT media_stream_send_sample(struct media_stream *stream, const struct wg_parser_buffer *wg_buffer, IUnknown *token)
 {
-    struct media_source *source = impl_from_async_stop(iface);
+    IMFSample *sample = NULL;
+    IMFMediaBuffer *buffer;
     HRESULT hr;
+    BYTE *data;
 
-    EnterCriticalSection(&source->cs);
+    if (FAILED(hr = MFCreateMemoryBuffer(wg_buffer->size, &buffer)))
+        return hr;
+    if (FAILED(hr = IMFMediaBuffer_SetCurrentLength(buffer, wg_buffer->size)))
+        goto out;
+    if (FAILED(hr = IMFMediaBuffer_Lock(buffer, &data, NULL, NULL)))
+        goto out;
 
-    if (FAILED(hr = media_source_stop(source)))
-        WARN("Failed to stop source %p, hr %#lx\n", source, hr);
+    if (!wg_parser_stream_copy_buffer(stream->wg_stream, data, 0, wg_buffer->size))
+    {
+        hr = S_FALSE;
+        wg_parser_stream_release_buffer(stream->wg_stream);
+        IMFMediaBuffer_Unlock(buffer);
+        goto out;
+    }
+    wg_parser_stream_release_buffer(stream->wg_stream);
 
-    LeaveCriticalSection(&source->cs);
+    if (FAILED(hr = IMFMediaBuffer_Unlock(buffer)))
+        goto out;
 
+    if (FAILED(hr = MFCreateSample(&sample)))
+        goto out;
+    if (FAILED(hr = IMFSample_AddBuffer(sample, buffer)))
+        goto out;
+    if (FAILED(hr = IMFSample_SetSampleTime(sample, wg_buffer->pts)))
+        goto out;
+    if (FAILED(hr = IMFSample_SetSampleDuration(sample, wg_buffer->duration)))
+        goto out;
+    if (token && FAILED(hr = IMFSample_SetUnknown(sample, &MFSampleExtension_Token, token)))
+        goto out;
+
+    hr = IMFMediaEventQueue_QueueEventParamUnk(stream->event_queue, MEMediaSample,
+            &GUID_NULL, S_OK, (IUnknown *)sample);
+
+out:
+    if (sample)
+        IMFSample_Release(sample);
+    IMFMediaBuffer_Release(buffer);
     return hr;
 }
 
-static HRESULT media_source_read(struct media_source *source)
+static HRESULT media_stream_send_eos(struct media_source *source, struct media_stream *stream)
 {
-    IMFSample *sample;
-    UINT i, index;
+    PROPVARIANT empty = {.vt = VT_EMPTY};
     HRESULT hr;
+    UINT i;
 
-    if (source->state != SOURCE_RUNNING)
-        return S_OK;
+    TRACE("source %p, stream %p\n", source, stream);
 
-    if (FAILED(hr = wineav_demuxer_read(source->demuxer, &index, &sample)) && hr != MF_E_END_OF_STREAM)
-    {
-        WARN("Failed to read stream %u data, hr %#lx\n", index, hr);
-        return hr;
-    }
-
-    if (hr == MF_E_END_OF_STREAM)
-    {
-        PROPVARIANT empty = {.vt = VT_EMPTY};
-
-        for (i = 0; i < source->stream_count; i++)
-        {
-            struct media_stream *stream = source->streams[i];
-
-            if (stream->active && FAILED(hr = IMFMediaEventQueue_QueueEventParamVar(stream->event_queue,
-                    MEEndOfStream, &GUID_NULL, S_OK, &empty)))
-                WARN("Failed to queue MEEndOfStream event, hr %#lx\n", hr);
-            stream->eos = TRUE;
-        }
-
-        if (FAILED(hr = IMFMediaEventQueue_QueueEventParamVar(source->event_queue,
-                MEEndOfPresentation, &GUID_NULL, S_OK, &empty)))
-            WARN("Failed to queue MEEndOfPresentation event, hr %#lx\n", hr);
-
-        return S_OK;
-    }
+    stream->eos = TRUE;
+    if (FAILED(hr = IMFMediaEventQueue_QueueEventParamVar(stream->event_queue, MEEndOfStream, &GUID_NULL, S_OK, &empty)))
+        WARN("Failed to queue MEEndOfStream event, hr %#lx\n", hr);
 
     for (i = 0; i < source->stream_count; i++)
     {
-        if (source->stream_map[i] == index)
-        {
-            struct media_stream *stream = source->streams[i];
-            if (stream->active)
-                hr = media_stream_try_send_sample(stream, sample);
-            IMFSample_Release(sample);
-            return hr;
-        }
+        struct media_stream *stream = source->streams[i];
+        if (stream->active && !stream->eos)
+            return S_OK;
     }
 
-    WARN("Failed to find stream with index %u\n", index);
-    IMFSample_Release(sample);
-    return hr;
+    if (FAILED(hr = IMFMediaEventQueue_QueueEventParamVar(source->event_queue, MEEndOfPresentation, &GUID_NULL, S_OK, &empty)))
+        WARN("Failed to queue MEEndOfPresentation event, hr %#lx\n", hr);
+    return S_OK;
 }
 
-DEFINE_MF_ASYNC_CALLBACK(async_read, struct media_source, IMFMediaSource_iface)
-
-static HRESULT WINAPI async_read_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
+static HRESULT wait_on_sample(struct media_stream *stream, IUnknown *token)
 {
-    struct media_source *source = impl_from_async_read(iface);
+    struct media_source *source = impl_from_IMFMediaSource(stream->media_source);
+    struct wg_parser_buffer buffer;
+
+    TRACE("%p, %p\n", stream, token);
+
+    while (wg_parser_stream_get_buffer(source->wg_parser, stream->wg_stream, &buffer))
+    {
+        HRESULT hr = media_stream_send_sample(stream, &buffer, token);
+        if (hr != S_FALSE)
+            return hr;
+    }
+
+    return media_stream_send_eos(source, stream);
+}
+
+static HRESULT WINAPI source_async_commands_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
+{
+    struct media_source *source = impl_from_async_commands_callback_IMFAsyncCallback(iface);
+    struct source_async_command *command;
+    IUnknown *state;
     HRESULT hr;
+
+    if (FAILED(hr = IMFAsyncResult_GetState(result, &state)))
+        return hr;
 
     EnterCriticalSection(&source->cs);
 
-    if (FAILED(hr = media_source_read(source)))
-        WARN("Failed to request sample, hr %#lx\n", hr);
+    command = impl_from_async_command_IUnknown(state);
+    switch (command->op)
+    {
+        case SOURCE_ASYNC_START:
+        {
+            IMFPresentationDescriptor *descriptor = command->u.start.descriptor;
+            GUID format = command->u.start.format;
+            PROPVARIANT position = command->u.start.position;
 
-    if (hr == S_FALSE)
-        hr = MFPutWorkItem(source->async_commands_queue, &source->async_read_iface, NULL);
+            if (FAILED(hr = media_source_start(source, descriptor, &format, &position)))
+                WARN("Failed to start source %p, hr %#lx\n", source, hr);
+            break;
+        }
+        case SOURCE_ASYNC_PAUSE:
+            if (FAILED(hr = media_source_pause(source)))
+                WARN("Failed to pause source %p, hr %#lx\n", source, hr);
+            break;
+        case SOURCE_ASYNC_STOP:
+            if (FAILED(hr = media_source_stop(source)))
+                WARN("Failed to stop source %p, hr %#lx\n", source, hr);
+            break;
+        case SOURCE_ASYNC_REQUEST_SAMPLE:
+            if (source->state == SOURCE_PAUSED)
+                enqueue_token(command->u.request_sample.stream, command->u.request_sample.token);
+            else if (source->state == SOURCE_RUNNING)
+            {
+                if (FAILED(hr = wait_on_sample(command->u.request_sample.stream, command->u.request_sample.token)))
+                    WARN("Failed to request sample, hr %#lx\n", hr);
+            }
+            break;
+    }
 
     LeaveCriticalSection(&source->cs);
 
+    IUnknown_Release(state);
+
     return S_OK;
+}
+
+static const IMFAsyncCallbackVtbl source_async_commands_callback_vtbl =
+{
+    callback_QueryInterface,
+    source_async_commands_callback_AddRef,
+    source_async_commands_callback_Release,
+    callback_GetParameters,
+    source_async_commands_Invoke,
+};
+
+static DWORD CALLBACK read_thread(void *arg)
+{
+    struct media_source *source = arg;
+    IMFByteStream *byte_stream = source->byte_stream;
+    size_t buffer_size = 4096;
+    QWORD file_size;
+    void *data;
+
+    if (!(data = malloc(buffer_size)))
+        return 0;
+
+    IMFByteStream_GetLength(byte_stream, &file_size);
+
+    TRACE("Starting read thread for media source %p.\n", source);
+
+    while (!source->read_thread_shutdown)
+    {
+        uint64_t offset;
+        ULONG ret_size;
+        uint32_t size;
+        HRESULT hr;
+
+        if (!wg_parser_get_next_read_offset(source->wg_parser, &offset, &size))
+            continue;
+
+        if (offset >= file_size)
+            size = 0;
+        else if (offset + size >= file_size)
+            size = file_size - offset;
+
+        /* Some IMFByteStreams (including the standard file-based stream) return
+         * an error when reading past the file size. */
+        if (!size)
+        {
+            wg_parser_push_data(source->wg_parser, data, 0);
+            continue;
+        }
+
+        if (!array_reserve(&data, &buffer_size, size, 1))
+        {
+            free(data);
+            return 0;
+        }
+
+        ret_size = 0;
+
+        if (SUCCEEDED(hr = IMFByteStream_SetCurrentPosition(byte_stream, offset)))
+            hr = IMFByteStream_Read(byte_stream, data, size, &ret_size);
+        if (FAILED(hr))
+            ERR("Failed to read %u bytes at offset %I64u, hr %#lx.\n", size, offset, hr);
+        else if (ret_size != size)
+            ERR("Unexpected short read: requested %u bytes, got %lu.\n", size, ret_size);
+        wg_parser_push_data(source->wg_parser, SUCCEEDED(hr) ? data : NULL, ret_size);
+    }
+
+    free(data);
+    TRACE("Media source is shutting down; exiting.\n");
+    return 0;
 }
 
 static HRESULT WINAPI media_stream_QueryInterface(IMFMediaStream *iface, REFIID riid, void **out)
@@ -836,11 +962,10 @@ static ULONG WINAPI media_stream_Release(IMFMediaStream *iface)
 
     if (!ref)
     {
-        stream->active = FALSE;
-        media_stream_stop(stream);
         IMFMediaSource_Release(stream->media_source);
         IMFStreamDescriptor_Release(stream->descriptor);
         IMFMediaEventQueue_Release(stream->event_queue);
+        flush_token_queue(stream, FALSE);
         free(stream);
     }
 
@@ -934,7 +1059,7 @@ static HRESULT WINAPI media_stream_RequestSample(IMFMediaStream *iface, IUnknown
 {
     struct media_stream *stream = impl_from_IMFMediaStream(iface);
     struct media_source *source = impl_from_IMFMediaSource(stream->media_source);
-    IMFSample *sample;
+    IUnknown *op;
     HRESULT hr;
 
     TRACE("%p, %p.\n", iface, token);
@@ -947,10 +1072,17 @@ static HRESULT WINAPI media_stream_RequestSample(IMFMediaStream *iface, IUnknown
         hr = MF_E_MEDIA_SOURCE_WRONGSTATE;
     else if (stream->eos)
         hr = MF_E_END_OF_STREAM;
-    else if (source->state == SOURCE_RUNNING && SUCCEEDED(hr = media_stream_pop_sample(stream, &sample)))
-        hr = media_stream_send_sample(stream, sample, token);
-    else if (SUCCEEDED(hr = media_stream_queue_token(stream, token)))
-        hr = MFPutWorkItem(source->async_commands_queue, &source->async_read_iface, NULL);
+    else if (SUCCEEDED(hr = source_create_async_op(SOURCE_ASYNC_REQUEST_SAMPLE, &op)))
+    {
+        struct source_async_command *command = impl_from_async_command_IUnknown(op);
+        command->u.request_sample.stream = stream;
+        if (token)
+            IUnknown_AddRef(token);
+        command->u.request_sample.token = token;
+
+        hr = MFPutWorkItem(source->async_commands_queue, &source->async_commands_callback, op);
+        IUnknown_Release(op);
+    }
 
     LeaveCriticalSection(&source->cs);
 
@@ -968,15 +1100,16 @@ static const IMFMediaStreamVtbl media_stream_vtbl =
     media_stream_QueueEvent,
     media_stream_GetMediaSource,
     media_stream_GetStreamDescriptor,
-    media_stream_RequestSample,
+    media_stream_RequestSample
 };
 
-static HRESULT media_stream_create(IMFMediaSource *source, IMFStreamDescriptor *descriptor, struct media_stream **out)
+static HRESULT media_stream_create(IMFMediaSource *source, IMFStreamDescriptor *descriptor,
+        wg_parser_stream_t wg_stream, struct media_stream **out)
 {
     struct media_stream *object;
     HRESULT hr;
 
-    TRACE("source %p, descriptor %p.\n", source, descriptor);
+    TRACE("source %p, descriptor %p, wg_stream %#I64x.\n", source, descriptor, wg_stream);
 
     if (!(object = calloc(1, sizeof(*object))))
         return E_OUTOFMEMORY;
@@ -995,8 +1128,9 @@ static HRESULT media_stream_create(IMFMediaSource *source, IMFStreamDescriptor *
     IMFStreamDescriptor_AddRef(descriptor);
     object->descriptor = descriptor;
 
-    list_init(&object->tokens);
-    list_init(&object->samples);
+    object->active = TRUE;
+    object->eos = FALSE;
+    object->wg_stream = wg_stream;
 
     TRACE("Created stream object %p.\n", object);
 
@@ -1230,8 +1364,7 @@ static ULONG WINAPI media_source_Release(IMFMediaSource *iface)
         IMFMediaSource_Shutdown(iface);
         IMFMediaEventQueue_Release(source->event_queue);
         IMFByteStream_Release(source->byte_stream);
-        wineav_demuxer_destroy(source->demuxer);
-        free(source->buffer);
+        wg_parser_destroy(source->wg_parser);
         source->cs.DebugInfo->Spare[0] = 0;
         DeleteCriticalSection(&source->cs);
         free(source);
@@ -1310,17 +1443,11 @@ static HRESULT WINAPI media_source_CreatePresentationDescriptor(IMFMediaSource *
         hr = MF_E_SHUTDOWN;
     else if (SUCCEEDED(hr = MFCreatePresentationDescriptor(source->stream_count, source->descriptors, descriptor)))
     {
-        if (FAILED(hr = IMFPresentationDescriptor_SetString(*descriptor, &MF_PD_MIME_TYPE, source->mime_type)))
-            WARN("Failed to set presentation descriptor MF_PD_MIME_TYPE, hr %#lx\n", hr);
-        if (FAILED(hr = IMFPresentationDescriptor_SetUINT64(*descriptor, &MF_PD_TOTAL_FILE_SIZE, source->file_size)))
-            WARN("Failed to set presentation descriptor MF_PD_TOTAL_FILE_SIZE, hr %#lx\n", hr);
         if (FAILED(hr = IMFPresentationDescriptor_SetUINT64(*descriptor, &MF_PD_DURATION, source->duration)))
             WARN("Failed to set presentation descriptor MF_PD_DURATION, hr %#lx\n", hr);
 
         for (i = 0; i < source->stream_count; ++i)
         {
-            if (!source->streams[i]->active)
-                continue;
             if (FAILED(hr = IMFPresentationDescriptor_SelectStream(*descriptor, i)))
                 WARN("Failed to select stream %u, hr %#lx\n", i, hr);
         }
@@ -1348,9 +1475,15 @@ static HRESULT WINAPI media_source_Start(IMFMediaSource *iface, IMFPresentationD
         hr = MF_E_SHUTDOWN;
     else if (!(IsEqualIID(time_format, &GUID_NULL)))
         hr = MF_E_UNSUPPORTED_TIME_FORMAT;
-    else if (SUCCEEDED(hr = async_start_params_create(descriptor, time_format, position, &op)))
+    else if (SUCCEEDED(hr = source_create_async_op(SOURCE_ASYNC_START, &op)))
     {
-        hr = MFPutWorkItem(source->async_commands_queue, &source->async_start_iface, op);
+        struct source_async_command *command = impl_from_async_command_IUnknown(op);
+        command->u.start.descriptor = descriptor;
+        IMFPresentationDescriptor_AddRef(descriptor);
+        command->u.start.format = *time_format;
+        PropVariantCopy(&command->u.start.position, position);
+
+        hr = MFPutWorkItem(source->async_commands_queue, &source->async_commands_callback, op);
         IUnknown_Release(op);
     }
 
@@ -1362,6 +1495,7 @@ static HRESULT WINAPI media_source_Start(IMFMediaSource *iface, IMFPresentationD
 static HRESULT WINAPI media_source_Stop(IMFMediaSource *iface)
 {
     struct media_source *source = impl_from_IMFMediaSource(iface);
+    IUnknown *op;
     HRESULT hr;
 
     TRACE("%p.\n", iface);
@@ -1370,8 +1504,11 @@ static HRESULT WINAPI media_source_Stop(IMFMediaSource *iface)
 
     if (source->state == SOURCE_SHUTDOWN)
         hr = MF_E_SHUTDOWN;
-    else
-        hr = MFPutWorkItem(source->async_commands_queue, &source->async_stop_iface, NULL);
+    else if (SUCCEEDED(hr = source_create_async_op(SOURCE_ASYNC_STOP, &op)))
+    {
+        hr = MFPutWorkItem(source->async_commands_queue, &source->async_commands_callback, op);
+        IUnknown_Release(op);
+    }
 
     LeaveCriticalSection(&source->cs);
 
@@ -1381,6 +1518,7 @@ static HRESULT WINAPI media_source_Stop(IMFMediaSource *iface)
 static HRESULT WINAPI media_source_Pause(IMFMediaSource *iface)
 {
     struct media_source *source = impl_from_IMFMediaSource(iface);
+    IUnknown *op;
     HRESULT hr;
 
     TRACE("%p.\n", iface);
@@ -1391,12 +1529,15 @@ static HRESULT WINAPI media_source_Pause(IMFMediaSource *iface)
         hr = MF_E_SHUTDOWN;
     else if (source->state != SOURCE_RUNNING)
         hr = MF_E_INVALID_STATE_TRANSITION;
-    else
-        hr = MFPutWorkItem(source->async_commands_queue, &source->async_pause_iface, NULL);
+    else if (SUCCEEDED(hr = source_create_async_op(SOURCE_ASYNC_PAUSE, &op)))
+    {
+        hr = MFPutWorkItem(source->async_commands_queue, &source->async_commands_callback, op);
+        IUnknown_Release(op);
+    }
 
     LeaveCriticalSection(&source->cs);
 
-    return hr;
+    return S_OK;
 }
 
 static HRESULT WINAPI media_source_Shutdown(IMFMediaSource *iface)
@@ -1415,6 +1556,12 @@ static HRESULT WINAPI media_source_Shutdown(IMFMediaSource *iface)
 
     source->state = SOURCE_SHUTDOWN;
 
+    wg_parser_disconnect(source->wg_parser);
+
+    source->read_thread_shutdown = true;
+    WaitForSingleObject(source->read_thread, INFINITE);
+    CloseHandle(source->read_thread);
+
     IMFMediaEventQueue_Shutdown(source->event_queue);
     IMFByteStream_Close(source->byte_stream);
 
@@ -1425,7 +1572,6 @@ static HRESULT WINAPI media_source_Shutdown(IMFMediaSource *iface)
         IMFMediaEventQueue_Shutdown(stream->event_queue);
         IMFMediaStream_Release(&stream->IMFMediaStream_iface);
     }
-    free(source->stream_map);
     free(source->descriptors);
     free(source->streams);
 
@@ -1453,131 +1599,30 @@ static const IMFMediaSourceVtbl IMFMediaSource_vtbl =
     media_source_Shutdown,
 };
 
-static void media_source_init_stream_map(struct media_source *source, UINT stream_count)
-{
-    IMFMediaType *media_type;
-    int i, n = 0;
-    GUID major;
-
-    if (wcscmp(source->mime_type, L"video/mp4"))
-    {
-        for (i = stream_count - 1; i >= 0; i--)
-        {
-            TRACE("mapping source %p stream %u to demuxer stream %u\n", source, i, i);
-            source->stream_map[i] = i;
-        }
-        return;
-    }
-
-    for (i = stream_count - 1; i >= 0; i--)
-    {
-        if (SUCCEEDED(wineav_demuxer_stream_type(source->demuxer, i, &media_type)))
-        {
-            if (SUCCEEDED(IMFMediaType_GetMajorType(media_type, &major))
-                    && IsEqualGUID(&major, &MFMediaType_Audio))
-            {
-                TRACE("mapping source %p stream %u to demuxer stream %u\n", source, n, i);
-                source->stream_map[n++] = i;
-            }
-            IMFMediaType_Release(media_type);
-        }
-    }
-    for (i = stream_count - 1; i >= 0; i--)
-    {
-        if (SUCCEEDED(wineav_demuxer_stream_type(source->demuxer, i, &media_type)))
-        {
-            if (SUCCEEDED(IMFMediaType_GetMajorType(media_type, &major))
-                    && IsEqualGUID(&major, &MFMediaType_Video))
-            {
-                TRACE("mapping source %p stream %u to demuxer stream %u\n", source, n, i);
-                source->stream_map[n++] = i;
-            }
-            IMFMediaType_Release(media_type);
-        }
-    }
-    for (i = stream_count - 1; i >= 0; i--)
-    {
-        if (SUCCEEDED(wineav_demuxer_stream_type(source->demuxer, i, &media_type)))
-        {
-            if (SUCCEEDED(IMFMediaType_GetMajorType(media_type, &major))
-                    && !IsEqualGUID(&major, &MFMediaType_Audio)
-                    && !IsEqualGUID(&major, &MFMediaType_Video))
-            {
-                TRACE("mapping source %p stream %u to demuxer stream %u\n", source, n, i);
-                source->stream_map[n++] = i;
-            }
-            IMFMediaType_Release(media_type);
-        }
-    }
-}
-
 static void media_source_init_descriptors(struct media_source *source)
 {
-    UINT i, last_audio = -1, last_video = -1, first_audio = -1, first_video = -1;
-    HRESULT hr;
+    HRESULT hr = S_OK;
+    UINT i;
 
     for (i = 0; i < source->stream_count; i++)
     {
-        IMFStreamDescriptor *descriptor = source->descriptors[i];
-        GUID major = GUID_NULL;
-        UINT exclude = -1;
-        WCHAR buffer[512];
+        struct media_stream *stream = source->streams[i];
+        IMFStreamDescriptor *descriptor = stream->descriptor;
 
-        if (FAILED(hr = stream_descriptor_get_major_type(descriptor, &major)))
-            WARN("Failed to get major type from stream descriptor, hr %#lx\n", hr);
-
-        if (IsEqualGUID(&major, &MFMediaType_Audio))
-        {
-            if (first_audio == -1)
-                first_audio = i;
-            exclude = last_audio;
-            last_audio = i;
-        }
-        else if (IsEqualGUID(&major, &MFMediaType_Video))
-        {
-            if (first_video == -1)
-                first_video = i;
-            exclude = last_video;
-            last_video = i;
-        }
-
-        if (exclude != -1)
-        {
-            if (FAILED(IMFStreamDescriptor_SetUINT32(source->descriptors[exclude], &MF_SD_MUTUALLY_EXCLUSIVE, 1)))
-                WARN("Failed to set stream %u MF_SD_MUTUALLY_EXCLUSIVE\n", exclude);
-            else if (FAILED(IMFStreamDescriptor_SetUINT32(descriptor, &MF_SD_MUTUALLY_EXCLUSIVE, 1)))
-                WARN("Failed to set stream %u MF_SD_MUTUALLY_EXCLUSIVE\n", i);
-        }
-
-        if (FAILED(hr = wineav_demuxer_stream_lang(source->demuxer, source->stream_map[i], buffer, ARRAY_SIZE(buffer)))
-                || FAILED(IMFStreamDescriptor_SetString(descriptor, &MF_SD_LANGUAGE, buffer)))
+        if (FAILED(hr = stream_descriptor_set_tag(descriptor, stream->wg_stream,
+                &MF_SD_LANGUAGE, WG_PARSER_TAG_LANGUAGE)))
             WARN("Failed to set stream descriptor language, hr %#lx\n", hr);
-        if (FAILED(hr = wineav_demuxer_stream_name(source->demuxer, source->stream_map[i], buffer, ARRAY_SIZE(buffer)))
-                || FAILED(IMFStreamDescriptor_SetString(descriptor, &MF_SD_STREAM_NAME, buffer)))
+        if (FAILED(hr = stream_descriptor_set_tag(descriptor, stream->wg_stream,
+                &MF_SD_STREAM_NAME, WG_PARSER_TAG_NAME)))
             WARN("Failed to set stream descriptor name, hr %#lx\n", hr);
-    }
-
-    if (!wcscmp(source->mime_type, L"video/mp4"))
-    {
-        if (last_audio != -1)
-            source->streams[last_audio]->active = TRUE;
-        if (last_video != -1)
-            source->streams[last_video]->active = TRUE;
-    }
-    else
-    {
-        if (first_audio != -1)
-            source->streams[first_audio]->active = TRUE;
-        if (first_video != -1)
-            source->streams[first_video]->active = TRUE;
     }
 }
 
 static HRESULT media_source_create(struct object_context *context, IMFMediaSource **out)
 {
+    unsigned int stream_count = UINT_MAX;
     struct media_source *object;
-    UINT stream_count;
-    IStream *stream;
+    wg_parser_t parser;
     unsigned int i;
     HRESULT hr;
 
@@ -1588,63 +1633,61 @@ static HRESULT media_source_create(struct object_context *context, IMFMediaSourc
     object->IMFGetService_iface.lpVtbl = &media_source_get_service_vtbl;
     object->IMFRateSupport_iface.lpVtbl = &media_source_rate_support_vtbl;
     object->IMFRateControl_iface.lpVtbl = &media_source_rate_control_vtbl;
-    object->async_start_iface.lpVtbl = &async_start_vtbl;
-    object->async_pause_iface.lpVtbl = &async_pause_vtbl;
-    object->async_stop_iface.lpVtbl = &async_stop_vtbl;
-    object->async_read_iface.lpVtbl = &async_read_vtbl;
+    object->async_commands_callback.lpVtbl = &source_async_commands_callback_vtbl;
     object->ref = 1;
     object->byte_stream = context->stream;
     IMFByteStream_AddRef(context->stream);
+    object->file_size = context->file_size;
     object->rate = 1.0f;
     InitializeCriticalSectionEx(&object->cs, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
     object->cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": cs");
 
     if (FAILED(hr = MFCreateEventQueue(&object->event_queue)))
         goto fail;
+
     if (FAILED(hr = MFAllocateWorkQueue(&object->async_commands_queue)))
         goto fail;
 
-    if (FAILED(hr = MFCreateStreamOnMFByteStream(context->stream, &stream)))
-        goto fail;
-    if (FAILED(hr = wineav_demuxer_create(context->url, stream, &object->file_size, &object->duration,
-            &stream_count, object->mime_type, &object->demuxer)))
+    if (!(parser = wg_parser_create(FALSE)))
     {
-        IStream_Release(stream);
+        hr = E_OUTOFMEMORY;
         goto fail;
     }
-    IStream_Release(stream);
+    object->wg_parser = parser;
+
+    object->read_thread = CreateThread(NULL, 0, read_thread, object, 0, NULL);
+
     object->state = SOURCE_OPENING;
 
+    if (FAILED(hr = wg_parser_connect(parser, object->file_size, context->url)))
+        goto fail;
+
+    stream_count = wg_parser_get_stream_count(parser);
+
     if (!(object->descriptors = calloc(stream_count, sizeof(*object->descriptors)))
-            || !(object->stream_map = calloc(stream_count, sizeof(*object->stream_map)))
             || !(object->streams = calloc(stream_count, sizeof(*object->streams))))
     {
         hr = E_OUTOFMEMORY;
         goto fail;
     }
 
-    media_source_init_stream_map(object, stream_count);
-
     for (i = 0; i < stream_count; ++i)
     {
+        wg_parser_stream_t wg_stream = wg_parser_get_stream(object->wg_parser, i);
         IMFStreamDescriptor *descriptor;
         struct media_stream *stream;
-        IMFMediaType *media_type;
+        struct wg_format format;
 
-        if (FAILED(hr = wineav_demuxer_stream_type(object->demuxer, object->stream_map[i], &media_type)))
+        wg_parser_stream_get_current_format(wg_stream, &format);
+        if (FAILED(hr = stream_descriptor_create(i, &format, &descriptor)))
             goto fail;
-        if (FAILED(hr = stream_descriptor_create(i + 1, media_type, &descriptor)))
-        {
-            IMFMediaType_Release(media_type);
-            goto fail;
-        }
-        IMFMediaType_Release(media_type);
-        if (FAILED(hr = media_stream_create(&object->IMFMediaSource_iface, descriptor, &stream)))
+        if (FAILED(hr = media_stream_create(&object->IMFMediaSource_iface, descriptor, wg_stream, &stream)))
         {
             IMFStreamDescriptor_Release(descriptor);
             goto fail;
         }
 
+        object->duration = max(object->duration, wg_parser_stream_get_duration(wg_stream));
         IMFStreamDescriptor_AddRef(descriptor);
         object->descriptors[i] = descriptor;
         object->streams[i] = stream;
@@ -1667,56 +1710,100 @@ fail:
         IMFStreamDescriptor_Release(object->descriptors[object->stream_count]);
         IMFMediaStream_Release(&stream->IMFMediaStream_iface);
     }
-    free(object->stream_map);
     free(object->descriptors);
     free(object->streams);
 
-    if (object->demuxer)
-        wineav_demuxer_destroy(object->demuxer);
+    if (stream_count != UINT_MAX)
+        wg_parser_disconnect(object->wg_parser);
+    if (object->read_thread)
+    {
+        object->read_thread_shutdown = true;
+        WaitForSingleObject(object->read_thread, INFINITE);
+        CloseHandle(object->read_thread);
+    }
+    if (object->wg_parser)
+        wg_parser_destroy(object->wg_parser);
     if (object->async_commands_queue)
         MFUnlockWorkQueue(object->async_commands_queue);
     if (object->event_queue)
         IMFMediaEventQueue_Release(object->event_queue);
     IMFByteStream_Release(object->byte_stream);
-    free(object->buffer);
     free(object);
     return hr;
 }
 
-struct byte_stream_handler
+struct result_entry
+{
+    struct list entry;
+    IMFAsyncResult *result;
+    MF_OBJECT_TYPE type;
+    IUnknown *object;
+};
+
+static HRESULT result_entry_create(IMFAsyncResult *result, MF_OBJECT_TYPE type,
+        IUnknown *object, struct result_entry **out)
+{
+    struct result_entry *entry;
+
+    if (!(entry = malloc(sizeof(*entry))))
+        return E_OUTOFMEMORY;
+
+    entry->result = result;
+    IMFAsyncResult_AddRef(entry->result);
+    entry->object = object;
+    IUnknown_AddRef(entry->object);
+    entry->type = type;
+
+    *out = entry;
+    return S_OK;
+}
+
+static void result_entry_destroy(struct result_entry *entry)
+{
+    IMFAsyncResult_Release(entry->result);
+    IUnknown_Release(entry->object);
+    free(entry);
+}
+
+struct stream_handler
 {
     IMFByteStreamHandler IMFByteStreamHandler_iface;
-    IMFAsyncCallback async_create_object_iface;
+    IMFAsyncCallback IMFAsyncCallback_iface;
     LONG refcount;
     struct list results;
     CRITICAL_SECTION cs;
 };
 
-static HRESULT byte_stream_handler_pop_result(struct byte_stream_handler *handler, IMFAsyncResult *result, IUnknown **object)
+static struct result_entry *handler_find_result_entry(struct stream_handler *handler, IMFAsyncResult *result)
 {
-    struct object_context *context;
-    struct object_entry *entry;
+    struct result_entry *entry;
 
-    LIST_FOR_EACH_ENTRY(entry, &handler->results, struct object_entry, entry)
+    EnterCriticalSection(&handler->cs);
+    LIST_FOR_EACH_ENTRY(entry, &handler->results, struct result_entry, entry)
     {
-        context = impl_from_IUnknown(entry->object);
-        if (context->result == result) break;
+        if (result == entry->result)
+        {
+            list_remove(&entry->entry);
+            LeaveCriticalSection(&handler->cs);
+            return entry;
+        }
     }
-    if (&entry->entry == &handler->results) return MF_E_UNEXPECTED;
+    LeaveCriticalSection(&handler->cs);
 
-    if ((*object = entry->object)) IUnknown_AddRef(*object);
-    list_remove(&entry->entry);
-    object_entry_destroy(entry);
-
-    return S_OK;
+    return NULL;
 }
 
-static struct byte_stream_handler *impl_from_IMFByteStreamHandler(IMFByteStreamHandler *iface)
+static struct stream_handler *impl_from_IMFByteStreamHandler(IMFByteStreamHandler *iface)
 {
-    return CONTAINING_RECORD(iface, struct byte_stream_handler, IMFByteStreamHandler_iface);
+    return CONTAINING_RECORD(iface, struct stream_handler, IMFByteStreamHandler_iface);
 }
 
-static HRESULT WINAPI byte_stream_handler_QueryInterface(IMFByteStreamHandler *iface, REFIID riid, void **obj)
+static struct stream_handler *impl_from_IMFAsyncCallback(IMFAsyncCallback *iface)
+{
+    return CONTAINING_RECORD(iface, struct stream_handler, IMFAsyncCallback_iface);
+}
+
+static HRESULT WINAPI stream_handler_QueryInterface(IMFByteStreamHandler *iface, REFIID riid, void **obj)
 {
     TRACE("%p, %s, %p.\n", iface, debugstr_guid(riid), obj);
 
@@ -1733,9 +1820,9 @@ static HRESULT WINAPI byte_stream_handler_QueryInterface(IMFByteStreamHandler *i
     return E_NOINTERFACE;
 }
 
-static ULONG WINAPI byte_stream_handler_AddRef(IMFByteStreamHandler *iface)
+static ULONG WINAPI stream_handler_AddRef(IMFByteStreamHandler *iface)
 {
-    struct byte_stream_handler *handler = impl_from_IMFByteStreamHandler(iface);
+    struct stream_handler *handler = impl_from_IMFByteStreamHandler(iface);
     ULONG refcount = InterlockedIncrement(&handler->refcount);
 
     TRACE("%p, refcount %lu.\n", handler, refcount);
@@ -1743,21 +1830,18 @@ static ULONG WINAPI byte_stream_handler_AddRef(IMFByteStreamHandler *iface)
     return refcount;
 }
 
-static ULONG WINAPI byte_stream_handler_Release(IMFByteStreamHandler *iface)
+static ULONG WINAPI stream_handler_Release(IMFByteStreamHandler *iface)
 {
-    struct byte_stream_handler *handler = impl_from_IMFByteStreamHandler(iface);
+    struct stream_handler *handler = impl_from_IMFByteStreamHandler(iface);
     ULONG refcount = InterlockedDecrement(&handler->refcount);
-    struct object_entry *enrtry, *next;
+    struct result_entry *result, *next;
 
     TRACE("%p, refcount %lu.\n", iface, refcount);
 
     if (!refcount)
     {
-        LIST_FOR_EACH_ENTRY_SAFE(enrtry, next, &handler->results, struct object_entry, entry)
-        {
-            list_remove(&enrtry->entry);
-            object_entry_destroy(enrtry);
-        }
+        LIST_FOR_EACH_ENTRY_SAFE(result, next, &handler->results, struct result_entry, entry)
+            result_entry_destroy(result);
         DeleteCriticalSection(&handler->cs);
         free(handler);
     }
@@ -1765,12 +1849,13 @@ static ULONG WINAPI byte_stream_handler_Release(IMFByteStreamHandler *iface)
     return refcount;
 }
 
-static HRESULT WINAPI byte_stream_handler_BeginCreateObject(IMFByteStreamHandler *iface, IMFByteStream *stream, const WCHAR *url, DWORD flags,
+static HRESULT WINAPI stream_handler_BeginCreateObject(IMFByteStreamHandler *iface, IMFByteStream *stream, const WCHAR *url, DWORD flags,
         IPropertyStore *props, IUnknown **cancel_cookie, IMFAsyncCallback *callback, IUnknown *state)
 {
-    struct byte_stream_handler *handler = impl_from_IMFByteStreamHandler(iface);
+    struct stream_handler *handler = impl_from_IMFByteStreamHandler(iface);
     IMFAsyncResult *result;
     IUnknown *context;
+    QWORD file_size;
     HRESULT hr;
     DWORD caps;
 
@@ -1791,12 +1876,21 @@ static HRESULT WINAPI byte_stream_handler_BeginCreateObject(IMFByteStreamHandler
         FIXME("Non-seekable bytestreams not supported.\n");
         return MF_E_BYTESTREAM_NOT_SEEKABLE;
     }
+    if (FAILED(hr = IMFByteStream_GetLength(stream, &file_size)))
+    {
+        FIXME("Failed to get byte stream length, hr %#lx.\n", hr);
+        return hr;
+    }
+
     if (FAILED(hr = MFCreateAsyncResult(NULL, callback, state, &result)))
         return hr;
-    if (FAILED(hr = object_context_create(url, stream, result, &context)))
-        goto done;
+    if (FAILED(hr = object_context_create(flags, stream, url, file_size, result, &context)))
+    {
+        IMFAsyncResult_Release(result);
+        return hr;
+    }
 
-    hr = MFPutWorkItem(MFASYNC_CALLBACK_QUEUE_IO, &handler->async_create_object_iface, context);
+    hr = MFPutWorkItem(MFASYNC_CALLBACK_QUEUE_IO, &handler->IMFAsyncCallback_iface, context);
     IUnknown_Release(context);
 
     if (SUCCEEDED(hr) && cancel_cookie)
@@ -1805,91 +1899,124 @@ static HRESULT WINAPI byte_stream_handler_BeginCreateObject(IMFByteStreamHandler
         IUnknown_AddRef(*cancel_cookie);
     }
 
-done:
     IMFAsyncResult_Release(result);
 
     return hr;
 }
 
-static HRESULT WINAPI byte_stream_handler_EndCreateObject(IMFByteStreamHandler *iface, IMFAsyncResult *result,
+static HRESULT WINAPI stream_handler_EndCreateObject(IMFByteStreamHandler *iface, IMFAsyncResult *result,
         MF_OBJECT_TYPE *type, IUnknown **object)
 {
-    struct byte_stream_handler *handler = impl_from_IMFByteStreamHandler(iface);
-    IUnknown *unk;
+    struct stream_handler *handler = impl_from_IMFByteStreamHandler(iface);
+    struct result_entry *entry;
     HRESULT hr;
 
     TRACE("%p, %p, %p, %p.\n", iface, result, type, object);
 
-    *type = MF_OBJECT_INVALID;
-    *object = NULL;
-
-    if (SUCCEEDED(hr = byte_stream_handler_pop_result(handler, result, &unk)))
+    if (!(entry = handler_find_result_entry(handler, result)))
     {
-        struct object_context *context = impl_from_IUnknown(unk);
-        hr = IMFAsyncResult_GetStatus(context->result);
-        *type = MF_OBJECT_MEDIASOURCE;
-        *object = context->object;
-        IUnknown_AddRef(*object);
-        IUnknown_Release(unk);
+        *type = MF_OBJECT_INVALID;
+        *object = NULL;
+        return MF_E_UNEXPECTED;
     }
 
+    hr = IMFAsyncResult_GetStatus(entry->result);
+    *type = entry->type;
+    *object = entry->object;
+    IUnknown_AddRef(*object);
+    result_entry_destroy(entry);
     return hr;
 }
 
-static HRESULT WINAPI byte_stream_handler_CancelObjectCreation(IMFByteStreamHandler *iface, IUnknown *cookie)
+static HRESULT WINAPI stream_handler_CancelObjectCreation(IMFByteStreamHandler *iface, IUnknown *cookie)
 {
-    struct byte_stream_handler *handler = impl_from_IMFByteStreamHandler(iface);
+    struct stream_handler *handler = impl_from_IMFByteStreamHandler(iface);
     IMFAsyncResult *result = (IMFAsyncResult *)cookie;
-    IUnknown *object;
-    HRESULT hr;
+    struct result_entry *entry;
 
     TRACE("%p, %p.\n", iface, cookie);
 
-    if (SUCCEEDED(hr = byte_stream_handler_pop_result(handler, result, &object)))
-        IUnknown_Release(object);
+    if (!(entry = handler_find_result_entry(handler, result)))
+        return MF_E_UNEXPECTED;
 
-    return hr;
+    result_entry_destroy(entry);
+    return S_OK;
 }
 
-static HRESULT WINAPI byte_stream_handler_GetMaxNumberOfBytesRequiredForResolution(IMFByteStreamHandler *iface, QWORD *bytes)
+static HRESULT WINAPI stream_handler_GetMaxNumberOfBytesRequiredForResolution(IMFByteStreamHandler *iface, QWORD *bytes)
 {
     FIXME("stub (%p %p)\n", iface, bytes);
     return E_NOTIMPL;
 }
 
-static const IMFByteStreamHandlerVtbl byte_stream_handler_vtbl =
+static const IMFByteStreamHandlerVtbl stream_handler_vtbl =
 {
-    byte_stream_handler_QueryInterface,
-    byte_stream_handler_AddRef,
-    byte_stream_handler_Release,
-    byte_stream_handler_BeginCreateObject,
-    byte_stream_handler_EndCreateObject,
-    byte_stream_handler_CancelObjectCreation,
-    byte_stream_handler_GetMaxNumberOfBytesRequiredForResolution,
+    stream_handler_QueryInterface,
+    stream_handler_AddRef,
+    stream_handler_Release,
+    stream_handler_BeginCreateObject,
+    stream_handler_EndCreateObject,
+    stream_handler_CancelObjectCreation,
+    stream_handler_GetMaxNumberOfBytesRequiredForResolution,
 };
 
-DEFINE_MF_ASYNC_CALLBACK(async_create_object, struct byte_stream_handler, IMFByteStreamHandler_iface)
-
-static HRESULT WINAPI async_create_object_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
+static HRESULT WINAPI stream_handler_callback_QueryInterface(IMFAsyncCallback *iface, REFIID riid, void **obj)
 {
-    struct byte_stream_handler *handler = impl_from_async_create_object(iface);
-    IUnknown *state = IMFAsyncResult_GetStateNoAddRef(result);
+    if (IsEqualIID(riid, &IID_IMFAsyncCallback) ||
+            IsEqualIID(riid, &IID_IUnknown))
+    {
+        *obj = iface;
+        IMFAsyncCallback_AddRef(iface);
+        return S_OK;
+    }
+
+    WARN("Unsupported %s.\n", debugstr_guid(riid));
+    *obj = NULL;
+    return E_NOINTERFACE;
+}
+
+static ULONG WINAPI stream_handler_callback_AddRef(IMFAsyncCallback *iface)
+{
+    struct stream_handler *handler = impl_from_IMFAsyncCallback(iface);
+    return IMFByteStreamHandler_AddRef(&handler->IMFByteStreamHandler_iface);
+}
+
+static ULONG WINAPI stream_handler_callback_Release(IMFAsyncCallback *iface)
+{
+    struct stream_handler *handler = impl_from_IMFAsyncCallback(iface);
+    return IMFByteStreamHandler_Release(&handler->IMFByteStreamHandler_iface);
+}
+
+static HRESULT WINAPI stream_handler_callback_GetParameters(IMFAsyncCallback *iface, DWORD *flags, DWORD *queue)
+{
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI stream_handler_callback_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
+{
+    struct stream_handler *handler = impl_from_IMFAsyncCallback(iface);
+    IUnknown *object, *state = IMFAsyncResult_GetStateNoAddRef(result);
     struct object_context *context;
-    struct object_entry *entry;
+    struct result_entry *entry;
     HRESULT hr;
 
     if (!state || !(context = impl_from_IUnknown(state)))
         return E_INVALIDARG;
 
-    if (FAILED(hr = media_source_create(context, (IMFMediaSource **)&context->object)))
+    if (FAILED(hr = media_source_create(context, (IMFMediaSource **)&object)))
         WARN("Failed to create media source, hr %#lx\n", hr);
-    else if (FAILED(hr = object_entry_create(state, &entry)))
-        WARN("Failed to create handler result, hr %#lx\n", hr);
     else
     {
-        EnterCriticalSection(&handler->cs);
-        list_add_tail(&handler->results, &entry->entry);
-        LeaveCriticalSection(&handler->cs);
+        if (FAILED(hr = result_entry_create(context->result, MF_OBJECT_MEDIASOURCE, object, &entry)))
+            WARN("Failed to create handler result, hr %#lx\n", hr);
+        else
+        {
+            EnterCriticalSection(&handler->cs);
+            list_add_tail(&handler->results, &entry->entry);
+            LeaveCriticalSection(&handler->cs);
+        }
+
+        IUnknown_Release(object);
     }
 
     IMFAsyncResult_SetStatus(context->result, hr);
@@ -1898,9 +2025,18 @@ static HRESULT WINAPI async_create_object_Invoke(IMFAsyncCallback *iface, IMFAsy
     return S_OK;
 }
 
-HRESULT byte_stream_handler_construct(REFIID riid, void **obj)
+static const IMFAsyncCallbackVtbl stream_handler_callback_vtbl =
 {
-    struct byte_stream_handler *handler;
+    stream_handler_callback_QueryInterface,
+    stream_handler_callback_AddRef,
+    stream_handler_callback_Release,
+    stream_handler_callback_GetParameters,
+    stream_handler_callback_Invoke,
+};
+
+HRESULT gstreamer_byte_stream_handler_create(REFIID riid, void **obj)
+{
+    struct stream_handler *handler;
     HRESULT hr;
 
     TRACE("%s, %p.\n", debugstr_guid(riid), obj);
@@ -1911,8 +2047,8 @@ HRESULT byte_stream_handler_construct(REFIID riid, void **obj)
     list_init(&handler->results);
     InitializeCriticalSection(&handler->cs);
 
-    handler->IMFByteStreamHandler_iface.lpVtbl = &byte_stream_handler_vtbl;
-    handler->async_create_object_iface.lpVtbl = &async_create_object_vtbl;
+    handler->IMFByteStreamHandler_iface.lpVtbl = &stream_handler_vtbl;
+    handler->IMFAsyncCallback_iface.lpVtbl = &stream_handler_callback_vtbl;
     handler->refcount = 1;
 
     hr = IMFByteStreamHandler_QueryInterface(&handler->IMFByteStreamHandler_iface, riid, obj);

@@ -1048,10 +1048,10 @@ static void *import_text_html( Atom type, const void *data, size_t size, size_t 
 /**************************************************************************
  *      file_list_to_drop_files
  */
-struct dnd_post_drop_params *file_list_to_drop_files( const void *data, size_t size, size_t *ret_size )
+void *file_list_to_drop_files( const void *data, size_t size, size_t *ret_size )
 {
-    struct dnd_post_drop_params *params = NULL;
     size_t buf_size = 4096, path_size;
+    DROPFILES *drop = NULL;
     const char *ptr;
     WCHAR *path;
 
@@ -1063,44 +1063,44 @@ struct dnd_post_drop_params *file_list_to_drop_files( const void *data, size_t s
 
         if (!path) continue;
 
-        if (!params)
+        if (!drop)
         {
-            if (!(params = malloc( buf_size ))) return NULL;
-            params->drop.pFiles = sizeof(params->drop);
-            params->drop.pt.x = params->drop.pt.y = 0;
-            params->drop.fNC = FALSE;
-            params->drop.fWide = TRUE;
-            *ret_size = sizeof(*params);
+            if (!(drop = malloc( buf_size ))) return NULL;
+            drop->pFiles = sizeof(*drop);
+            drop->pt.x = drop->pt.y = 0;
+            drop->fNC = FALSE;
+            drop->fWide = TRUE;
+            *ret_size = sizeof(*drop);
         }
 
         path_size = (lstrlenW( path ) + 1) * sizeof(WCHAR);
         if (*ret_size + path_size > buf_size - sizeof(WCHAR))
         {
             void *new_buf;
-            if (!(new_buf = realloc( params, buf_size * 2 + path_size )))
+            if (!(new_buf = realloc( drop, buf_size * 2 + path_size )))
             {
                 free( path );
                 continue;
             }
             buf_size = buf_size * 2 + path_size;
-            params = new_buf;
+            drop = new_buf;
         }
 
-        memcpy( (char *)params + *ret_size, path, path_size );
+        memcpy( (char *)drop + *ret_size, path, path_size );
         *ret_size += path_size;
     }
 
-    if (!params) return NULL;
-    *(WCHAR *)((char *)params + *ret_size) = 0;
+    if (!drop) return NULL;
+    *(WCHAR *)((char *)drop + *ret_size) = 0;
     *ret_size += sizeof(WCHAR);
-    return params;
+    return drop;
 }
 
 
 /**************************************************************************
  *      uri_list_to_drop_files
  */
-struct dnd_post_drop_params *uri_list_to_drop_files( const void *data, size_t size, size_t *ret_size )
+void *uri_list_to_drop_files( const void *data, size_t size, size_t *ret_size )
 {
     const char *uriList = data;
     char *uri;
@@ -1110,7 +1110,7 @@ struct dnd_post_drop_params *uri_list_to_drop_files( const void *data, size_t si
     int capacity = 4096;
     int start = 0;
     int end = 0;
-    struct dnd_post_drop_params *params = NULL;
+    DROPFILES *dropFiles = NULL;
 
     if (!(out = malloc( capacity * sizeof(WCHAR) ))) return 0;
 
@@ -1157,20 +1157,20 @@ struct dnd_post_drop_params *uri_list_to_drop_files( const void *data, size_t si
     }
     if (out && end >= size)
     {
-        *ret_size = sizeof(*params) + (total + 1) * sizeof(WCHAR);
-        if ((params = malloc( *ret_size )))
+        *ret_size = sizeof(DROPFILES) + (total + 1) * sizeof(WCHAR);
+        if ((dropFiles = malloc( *ret_size )))
         {
-            params->drop.pFiles = sizeof(DROPFILES);
-            params->drop.pt.x = 0;
-            params->drop.pt.y = 0;
-            params->drop.fNC = 0;
-            params->drop.fWide = TRUE;
+            dropFiles->pFiles = sizeof(DROPFILES);
+            dropFiles->pt.x = 0;
+            dropFiles->pt.y = 0;
+            dropFiles->fNC = 0;
+            dropFiles->fWide = TRUE;
             out[total] = '\0';
-            memcpy( (char *)&params->drop + params->drop.pFiles, out, (total + 1) * sizeof(WCHAR) );
+            memcpy( (char*)dropFiles + dropFiles->pFiles, out, (total + 1) * sizeof(WCHAR) );
         }
     }
     free( out );
-    return params;
+    return dropFiles;
 }
 
 
@@ -1278,14 +1278,14 @@ static void *import_selection( Display *display, Window win, Atom selection,
  *
  *  Import the X selection into the clipboard format registered for the given X target.
  */
-struct dnd_enter_event_params *import_xdnd_selection( Display *display, Window win, Atom selection,
-                                                      Atom *targets, UINT count, size_t *ret_size )
+struct format_entry *import_xdnd_selection( Display *display, Window win, Atom selection,
+                                            Atom *targets, UINT count, size_t *ret_size )
 {
     size_t size, buf_size = 0, entry_size;
     UINT i;
     void *data;
     struct clipboard_format *format;
-    struct dnd_enter_event_params *ret = NULL, *tmp, *entry;
+    struct format_entry *ret = NULL, *tmp, *entry;
     BOOL have_hdrop = FALSE;
 
     register_x11_formats( targets, count );
@@ -1307,17 +1307,17 @@ struct dnd_enter_event_params *import_xdnd_selection( Display *display, Window w
 
         if (!(data = import_selection( display, win, selection, format, &size ))) continue;
 
-        entry_size = (FIELD_OFFSET( struct dnd_enter_event_params, format.data[size] ) + 7) & ~7;
+        entry_size = (FIELD_OFFSET( struct format_entry, data[size] ) + 7) & ~7;
         if (buf_size < *ret_size + entry_size)
         {
             if (!(tmp = realloc( ret, *ret_size + entry_size + 1024 ))) continue;
             ret = tmp;
             buf_size = *ret_size + entry_size + 1024; /* extra space for following entries */
         }
-        entry = (struct dnd_enter_event_params *)((char *)ret + *ret_size);
-        entry->format.format = format->id;
-        entry->format.size = size;
-        if (size) memcpy( entry->format.data, data, size );
+        entry = (struct format_entry *)((char *)ret + *ret_size);
+        entry->format = format->id;
+        entry->size = size;
+        if (size) memcpy( entry->data, data, size );
         *ret_size += entry_size;
         free( data );
     }

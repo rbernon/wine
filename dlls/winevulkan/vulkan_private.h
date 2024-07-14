@@ -103,8 +103,9 @@ struct wine_debug_report_callback
     struct wine_instance *instance; /* parent */
     VkDebugReportCallbackEXT host_debug_callback;
 
-    UINT64 client_callback; /* client pointer */
-    UINT64 client_context; /* client pointer */
+    /* application callback + data */
+    PFN_vkDebugReportCallbackEXT user_callback;
+    void *user_data;
 
     struct wrapper_entry wrapper_entry;
 };
@@ -199,8 +200,9 @@ struct wine_debug_utils_messenger
     struct wine_instance *instance; /* parent */
     VkDebugUtilsMessengerEXT host_debug_messenger;
 
-    UINT64 client_callback; /* client pointer */
-    UINT64 client_context; /* client pointer */
+    /* application callback + data */
+    PFN_vkDebugUtilsMessengerCallbackEXT user_callback;
+    void *user_data;
 
     struct wrapper_entry wrapper_entry;
 };
