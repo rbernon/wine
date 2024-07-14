@@ -41,12 +41,13 @@ struct ReportRingBuffer;
 
 typedef struct _BASE_DEVICE_EXTENSION
 {
-    HID_DEVICE_EXTENSION base;
-
     union
     {
         struct
         {
+            /* this must be the first member */
+            HID_DEVICE_EXTENSION hid_ext;
+
             DEVICE_OBJECT *child_pdo;
         } fdo;
 

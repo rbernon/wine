@@ -87,7 +87,6 @@ struct ntuser_thread_info
     UINT           default_imc;       /* default input context */
     UINT64         client_imm;        /* client IMM thread info */
     UINT64         wmchar_data;       /* client data for WM_CHAR mappings */
-    POINTER_INFO   mouse_frame;       /* mouse pointer frame when EnableMouseInPointer emulation is enabled */
 };
 
 static inline struct ntuser_thread_info *NtUserGetThreadInfo(void)
@@ -520,6 +519,7 @@ enum wine_internal_message
 #define IME_INTERNAL_HKL_DEACTIVATE  0x20
 
 /* internal WM_IME_NOTIFY wparams, not compatible with Windows */
+#define IMN_WINE_SET_OPEN_STATUS  0x000f
 #define IMN_WINE_SET_COMP_STRING  0x0010
 
 /* builtin IME driver calls */
@@ -688,7 +688,6 @@ W32KAPI ULONG   WINAPI NtUserGetSystemDpiForProcess( HANDLE process );
 W32KAPI HMENU   WINAPI NtUserGetSystemMenu( HWND hwnd, BOOL revert );
 W32KAPI HDESK   WINAPI NtUserGetThreadDesktop( DWORD thread );
 W32KAPI BOOL    WINAPI NtUserGetTitleBarInfo( HWND hwnd, TITLEBARINFO *info );
-W32KAPI BOOL    WINAPI NtUserGetTouchInputInfo( HTOUCHINPUT handle, UINT count, TOUCHINPUT *ptr, int size );
 W32KAPI INT     WINAPI NtUserGetUpdateRgn( HWND hwnd, HRGN hrgn, BOOL erase );
 W32KAPI BOOL    WINAPI NtUserGetUpdatedClipboardFormats( UINT *formats, UINT size, UINT *out_size );
 W32KAPI BOOL    WINAPI NtUserGetUpdateRect( HWND hwnd, RECT *rect, BOOL erase );
@@ -706,7 +705,6 @@ W32KAPI BOOL    WINAPI NtUserIsClipboardFormatAvailable( UINT format );
 W32KAPI BOOL    WINAPI NtUserIsMouseInPointerEnabled(void);
 W32KAPI BOOL    WINAPI NtUserInvalidateRect( HWND hwnd, const RECT *rect, BOOL erase );
 W32KAPI BOOL    WINAPI NtUserInvalidateRgn( HWND hwnd, HRGN hrgn, BOOL erase );
-W32KAPI BOOL    WINAPI NtUserIsTouchWindow( HWND hwnd, ULONG *flags );
 W32KAPI BOOL    WINAPI NtUserKillTimer( HWND hwnd, UINT_PTR id );
 W32KAPI BOOL    WINAPI NtUserLockWindowUpdate( HWND hwnd );
 W32KAPI BOOL    WINAPI NtUserLogicalToPerMonitorDPIPhysicalPoint( HWND hwnd, POINT *pt );
@@ -914,7 +912,6 @@ enum
     NtUserCallOneParam_SetKeyboardAutoRepeat,
     NtUserCallOneParam_SetThreadDpiAwarenessContext,
     NtUserCallOneParam_D3DKMTOpenAdapterFromGdiDisplayName,
-    NtUserCallOneParam_UnregisterTouchWindow,
     /* temporary exports */
     NtUserGetDeskPattern,
 };
@@ -1048,7 +1045,6 @@ enum
     NtUserCallTwoParam_GetMonitorInfo,
     NtUserCallTwoParam_GetSystemMetricsForDpi,
     NtUserCallTwoParam_MonitorFromRect,
-    NtUserCallTwoParam_RegisterTouchWindow,
     NtUserCallTwoParam_SetCaretPos,
     NtUserCallTwoParam_SetIconParam,
     NtUserCallTwoParam_UnhookWindowsHook,
@@ -1483,10 +1479,6 @@ struct hid_packet
 };
 
 C_ASSERT(sizeof(struct hid_packet) == offsetof(struct hid_packet, data[0]));
-
-#define SEND_HWMSG_INJECTED 1
-#define SEND_HWMSG_NO_RAW   2
-#define SEND_HWMSG_NO_MSG   4
 
 struct send_hardware_input_params
 {
