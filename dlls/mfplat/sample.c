@@ -214,7 +214,7 @@ static HRESULT WINAPI sample_GetItem(IMFSample *iface, REFGUID key, PROPVARIANT 
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %p.\n", iface, debugstr_mf_attr(key), value);
+    TRACE("%p, %s, %p.\n", iface, debugstr_attr(key), value);
 
     return attributes_GetItem(&sample->attributes, key, value);
 }
@@ -223,7 +223,7 @@ static HRESULT WINAPI sample_GetItemType(IMFSample *iface, REFGUID key, MF_ATTRI
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %p.\n", iface, debugstr_mf_attr(key), type);
+    TRACE("%p, %s, %p.\n", iface, debugstr_attr(key), type);
 
     return attributes_GetItemType(&sample->attributes, key, type);
 }
@@ -232,7 +232,7 @@ static HRESULT WINAPI sample_CompareItem(IMFSample *iface, REFGUID key, REFPROPV
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %s, %p.\n", iface, debugstr_mf_attr(key), debugstr_propvar(value), result);
+    TRACE("%p, %s, %s, %p.\n", iface, debugstr_attr(key), debugstr_propvar(value), result);
 
     return attributes_CompareItem(&sample->attributes, key, value, result);
 }
@@ -251,7 +251,7 @@ static HRESULT WINAPI sample_GetUINT32(IMFSample *iface, REFGUID key, UINT32 *va
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %p.\n", iface, debugstr_mf_attr(key), value);
+    TRACE("%p, %s, %p.\n", iface, debugstr_attr(key), value);
 
     return attributes_GetUINT32(&sample->attributes, key, value);
 }
@@ -260,7 +260,7 @@ static HRESULT WINAPI sample_GetUINT64(IMFSample *iface, REFGUID key, UINT64 *va
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %p.\n", iface, debugstr_mf_attr(key), value);
+    TRACE("%p, %s, %p.\n", iface, debugstr_attr(key), value);
 
     return attributes_GetUINT64(&sample->attributes, key, value);
 }
@@ -269,7 +269,7 @@ static HRESULT WINAPI sample_GetDouble(IMFSample *iface, REFGUID key, double *va
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %p.\n", iface, debugstr_mf_attr(key), value);
+    TRACE("%p, %s, %p.\n", iface, debugstr_attr(key), value);
 
     return attributes_GetDouble(&sample->attributes, key, value);
 }
@@ -278,7 +278,7 @@ static HRESULT WINAPI sample_GetGUID(IMFSample *iface, REFGUID key, GUID *value)
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %p.\n", iface, debugstr_mf_attr(key), value);
+    TRACE("%p, %s, %p.\n", iface, debugstr_attr(key), value);
 
     return attributes_GetGUID(&sample->attributes, key, value);
 }
@@ -287,7 +287,7 @@ static HRESULT WINAPI sample_GetStringLength(IMFSample *iface, REFGUID key, UINT
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %p.\n", iface, debugstr_mf_attr(key), length);
+    TRACE("%p, %s, %p.\n", iface, debugstr_attr(key), length);
 
     return attributes_GetStringLength(&sample->attributes, key, length);
 }
@@ -296,7 +296,7 @@ static HRESULT WINAPI sample_GetString(IMFSample *iface, REFGUID key, WCHAR *val
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %p, %u, %p.\n", iface, debugstr_mf_attr(key), value, size, length);
+    TRACE("%p, %s, %p, %u, %p.\n", iface, debugstr_attr(key), value, size, length);
 
     return attributes_GetString(&sample->attributes, key, value, size, length);
 }
@@ -305,7 +305,7 @@ static HRESULT WINAPI sample_GetAllocatedString(IMFSample *iface, REFGUID key, W
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %p, %p.\n", iface, debugstr_mf_attr(key), value, length);
+    TRACE("%p, %s, %p, %p.\n", iface, debugstr_attr(key), value, length);
 
     return attributes_GetAllocatedString(&sample->attributes, key, value, length);
 }
@@ -314,7 +314,7 @@ static HRESULT WINAPI sample_GetBlobSize(IMFSample *iface, REFGUID key, UINT32 *
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %p.\n", iface, debugstr_mf_attr(key), size);
+    TRACE("%p, %s, %p.\n", iface, debugstr_attr(key), size);
 
     return attributes_GetBlobSize(&sample->attributes, key, size);
 }
@@ -323,7 +323,7 @@ static HRESULT WINAPI sample_GetBlob(IMFSample *iface, REFGUID key, UINT8 *buf, 
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %p, %u, %p.\n", iface, debugstr_mf_attr(key), buf, bufsize, blobsize);
+    TRACE("%p, %s, %p, %u, %p.\n", iface, debugstr_attr(key), buf, bufsize, blobsize);
 
     return attributes_GetBlob(&sample->attributes, key, buf, bufsize, blobsize);
 }
@@ -332,7 +332,7 @@ static HRESULT WINAPI sample_GetAllocatedBlob(IMFSample *iface, REFGUID key, UIN
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %p, %p.\n", iface, debugstr_mf_attr(key), buf, size);
+    TRACE("%p, %s, %p, %p.\n", iface, debugstr_attr(key), buf, size);
 
     return attributes_GetAllocatedBlob(&sample->attributes, key, buf, size);
 }
@@ -341,7 +341,7 @@ static HRESULT WINAPI sample_GetUnknown(IMFSample *iface, REFGUID key, REFIID ri
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %s, %p.\n", iface, debugstr_mf_attr(key), debugstr_guid(riid), out);
+    TRACE("%p, %s, %s, %p.\n", iface, debugstr_attr(key), debugstr_guid(riid), out);
 
     return attributes_GetUnknown(&sample->attributes, key, riid, out);
 }
@@ -350,7 +350,7 @@ static HRESULT WINAPI sample_SetItem(IMFSample *iface, REFGUID key, REFPROPVARIA
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %s.\n", iface, debugstr_mf_attr(key), debugstr_propvar(value));
+    TRACE("%p, %s, %s.\n", iface, debugstr_attr(key), debugstr_propvar(value));
 
     return attributes_SetItem(&sample->attributes, key, value);
 }
@@ -359,7 +359,7 @@ static HRESULT WINAPI sample_DeleteItem(IMFSample *iface, REFGUID key)
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s.\n", iface, debugstr_mf_attr(key));
+    TRACE("%p, %s.\n", iface, debugstr_attr(key));
 
     return attributes_DeleteItem(&sample->attributes, key);
 }
@@ -377,7 +377,7 @@ static HRESULT WINAPI sample_SetUINT32(IMFSample *iface, REFGUID key, UINT32 val
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %u.\n", iface, debugstr_mf_attr(key), value);
+    TRACE("%p, %s, %u.\n", iface, debugstr_attr(key), value);
 
     return attributes_SetUINT32(&sample->attributes, key, value);
 }
@@ -386,7 +386,7 @@ static HRESULT WINAPI sample_SetUINT64(IMFSample *iface, REFGUID key, UINT64 val
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %s.\n", iface, debugstr_mf_attr(key), wine_dbgstr_longlong(value));
+    TRACE("%p, %s, %s.\n", iface, debugstr_attr(key), wine_dbgstr_longlong(value));
 
     return attributes_SetUINT64(&sample->attributes, key, value);
 }
@@ -395,7 +395,7 @@ static HRESULT WINAPI sample_SetDouble(IMFSample *iface, REFGUID key, double val
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %f.\n", iface, debugstr_mf_attr(key), value);
+    TRACE("%p, %s, %f.\n", iface, debugstr_attr(key), value);
 
     return attributes_SetDouble(&sample->attributes, key, value);
 }
@@ -404,7 +404,7 @@ static HRESULT WINAPI sample_SetGUID(IMFSample *iface, REFGUID key, REFGUID valu
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %s.\n", iface, debugstr_mf_attr(key), debugstr_mf_guid(value));
+    TRACE("%p, %s, %s.\n", iface, debugstr_attr(key), debugstr_mf_guid(value));
 
     return attributes_SetGUID(&sample->attributes, key, value);
 }
@@ -413,7 +413,7 @@ static HRESULT WINAPI sample_SetString(IMFSample *iface, REFGUID key, const WCHA
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %s.\n", iface, debugstr_mf_attr(key), debugstr_w(value));
+    TRACE("%p, %s, %s.\n", iface, debugstr_attr(key), debugstr_w(value));
 
     return attributes_SetString(&sample->attributes, key, value);
 }
@@ -422,7 +422,7 @@ static HRESULT WINAPI sample_SetBlob(IMFSample *iface, REFGUID key, const UINT8 
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %p, %u.\n", iface, debugstr_mf_attr(key), buf, size);
+    TRACE("%p, %s, %p, %u.\n", iface, debugstr_attr(key), buf, size);
 
     return attributes_SetBlob(&sample->attributes, key, buf, size);
 }
@@ -431,7 +431,7 @@ static HRESULT WINAPI sample_SetUnknown(IMFSample *iface, REFGUID key, IUnknown 
 {
     struct sample *sample = impl_from_IMFSample(iface);
 
-    TRACE("%p, %s, %p.\n", iface, debugstr_mf_attr(key), unknown);
+    TRACE("%p, %s, %p.\n", iface, debugstr_attr(key), unknown);
 
     return attributes_SetUnknown(&sample->attributes, key, unknown);
 }
