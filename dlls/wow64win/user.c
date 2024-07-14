@@ -1445,6 +1445,11 @@ static NTSTATUS WINAPI wow64_NtUserUnpackDDEMessage( void *arg, ULONG size )
     return status;
 }
 
+static NTSTATUS WINAPI wow64_NtUserDispatchCallback( void *arg, ULONG size )
+{
+    return dispatch_callback( NtUserDispatchCallback, arg, size );
+}
+
 static NTSTATUS WINAPI wow64_NtUserCallFreeIcon( void *arg, ULONG size )
 {
     return dispatch_callback( NtUserCallFreeIcon, arg, size );
@@ -1545,6 +1550,7 @@ user_callback user_callbacks[] =
     wow64_NtUserPostDDEMessage,
     wow64_NtUserRenderSynthesizedFormat,
     wow64_NtUserUnpackDDEMessage,
+    wow64_NtUserDispatchCallback,
     /* win16 hooks */
     wow64_NtUserCallFreeIcon,
     wow64_NtUserThunkLock,

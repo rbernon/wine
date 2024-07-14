@@ -57,6 +57,7 @@ enum
     NtUserPostDDEMessage,
     NtUserRenderSynthesizedFormat,
     NtUserUnpackDDEMessage,
+    NtUserDispatchCallback,
     /* win16 hooks */
     NtUserCallFreeIcon,
     NtUserThunkLock,
@@ -69,6 +70,13 @@ enum
     NtUserDriverCallbackFirst,
     NtUserDriverCallbackLast = NtUserDriverCallbackFirst + 9,
     NtUserCallCount
+};
+
+/* NtUserDispatchCallback params */
+typedef NTSTATUS (WINAPI *user_callback_func)( const void *args, ULONG len );
+struct dispatch_callback_params
+{
+    UINT64 func;
 };
 
 /* TEB thread info, not compatible with Windows */

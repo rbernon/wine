@@ -215,6 +215,13 @@ static NTSTATUS WINAPI User32UnpackDDEMessage( void *args, ULONG size )
     return NtCallbackReturn( &result, sizeof(result), STATUS_SUCCESS );
 }
 
+static NTSTATUS WINAPI User32DispatchCallback( void *args, ULONG size )
+{
+    const struct dispatch_callback_params *params = args;
+    user_callback_func callback = (void *)(UINT_PTR)params->func;
+    return callback( params, size );
+}
+
 static KERNEL_CALLBACK_PROC kernel_callback_table[NtUserCallCount] =
 {
     User32CallEnumDisplayMonitor,
@@ -236,6 +243,7 @@ static KERNEL_CALLBACK_PROC kernel_callback_table[NtUserCallCount] =
     User32PostDDEMessage,
     User32RenderSsynthesizedFormat,
     User32UnpackDDEMessage,
+    User32DispatchCallback,
 };
 
 
