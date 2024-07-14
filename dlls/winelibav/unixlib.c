@@ -479,30 +479,17 @@ failed:
 
 static int call_io_read( void *opaque, uint8_t *buf, int size )
 {
-    struct call_io_read_params params = {.context = (UINT_PTR)opaque};
     struct io_context *io_ctx = opaque;
-    ULONG ret_len, ret, total = 0;
-    void *ret_ptr;
+    int ret;
 
     TRACE( "opaque %p, buf %p, size %#x\n", opaque, buf, size );
 
-    do
-    {
-        params.size = min( size, io_ctx->buffer_size );
-        KeUserModeCallback( NtUserCallIOReadCallback, &params, sizeof(params), &ret_ptr, &ret_len );
-        if (ret_len != sizeof(ULONG)) return AVERROR( EINVAL );
+    ret = NtUserCallIORead( &io_ctx->io, buf, size );
+    if (ret < 0) return AVERROR( EINVAL );
+    if (!ret) return AVERROR_EOF;
 
-        if (!(ret = *(ULONG *)ret_ptr)) return total ? total : AVERROR_EOF;
-        memcpy( buf, io_ctx->buffer, ret );
-        io_ctx->position += ret;
-        total += ret;
-
-        if (ret < io_ctx->buffer_size) break;
-        size -= io_ctx->buffer_size;
-        buf += io_ctx->buffer_size;
-    } while (size);
-
-    return total;
+    io_ctx->position += ret;
+    return ret;
 }
 
 #if FF_API_AVIO_WRITE_NONCONST
@@ -511,49 +498,32 @@ static int call_io_write( void *opaque, uint8_t *buf, int size )
 static int call_io_write( void *opaque, const uint8_t *buf, int size )
 #endif
 {
-    struct call_io_read_params params = {.context = (UINT_PTR)opaque};
     struct io_context *io_ctx = opaque;
-    ULONG ret_len, ret, total = 0;
-    void *ret_ptr;
+    int ret;
 
     TRACE( "opaque %p, buf %p, size %#x\n", opaque, buf, size );
 
-    do
-    {
-        params.size = min( size, io_ctx->buffer_size );
-        memcpy( io_ctx->buffer, buf, params.size );
-        KeUserModeCallback( NtUserCallIOWriteCallback, &params, sizeof(params), &ret_ptr, &ret_len );
-        if (ret_len != sizeof(ULONG)) return AVERROR( EINVAL );
+    ret = NtUserCallIOWrite( &io_ctx->io, buf, size );
+    if (ret < 0) return AVERROR( EINVAL );
+    if (!ret) return AVERROR_EOF;
 
-        if (!(ret = *(ULONG *)ret_ptr)) return total ? total : AVERROR_EOF;
-        io_ctx->position += ret;
-        total += ret;
-
-        if (ret < io_ctx->buffer_size) break;
-        size -= io_ctx->buffer_size;
-        buf += io_ctx->buffer_size;
-    } while (size);
-
-    return total;
+    io_ctx->position += ret;
+    return ret;
 }
 
 static int64_t call_io_seek( void *opaque, int64_t offset, int whence )
 {
-    struct call_io_seek_params params = {.context = (UINT_PTR)opaque, .offset = offset};
     struct io_context *io_ctx = opaque;
-    void *ret_ptr;
-    ULONG ret_len;
 
     TRACE( "opaque %p, offset 0x%s, whence %#x\n", opaque, wine_dbgstr_longlong( offset ), whence );
 
-    if (whence == AVSEEK_SIZE) return io_ctx->total_size;
-    if (whence == SEEK_END) params.offset += io_ctx->total_size;
-    if (whence == SEEK_CUR) params.offset += io_ctx->position;
+    if (whence == AVSEEK_SIZE) return io_ctx->length;
+    if (whence == SEEK_END) offset += io_ctx->length;
+    if (whence == SEEK_CUR) offset += io_ctx->position;
 
-    KeUserModeCallback( NtUserCallIOSeekCallback, &params, sizeof(params), &ret_ptr, &ret_len );
-    if (ret_len != sizeof(UINT64)) return AVERROR( EINVAL );
+    offset = NtUserCallIOSeek( &io_ctx->io, offset );
+    if (offset < 0) return AVERROR( EINVAL );
 
-    offset = *(UINT64 *)ret_ptr;
     io_ctx->position = offset;
     return offset;
 }

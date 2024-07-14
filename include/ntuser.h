@@ -25,6 +25,7 @@
 #include <immdev.h>
 #include <shellapi.h>
 #include <winternl.h>
+#include <wine/unixlib.h>
 
 #ifndef W32KAPI
 # if defined(_WIN32U_) || defined(WINE_UNIX_LIB)
@@ -281,36 +282,33 @@ struct unpack_dde_message_result
     LPARAM lparam;
 };
 
-struct io_context
+struct ntuser_io
 {
-    UINT64 total_size;
-    UINT32 position;
-    UINT32 buffer_size;
+    UINT64 stream;
+    UINT64 buffer_size;
     BYTE buffer[];
 };
 
-C_ASSERT( sizeof(struct io_context) == offsetof( struct io_context, buffer[0] ) );
-
-typedef UINT64 io_context_t;
+C_ASSERT( sizeof(struct ntuser_io) == offsetof( struct ntuser_io, buffer[0] ) );
 
 /* NtUserCallIOReadCallback params */
 struct call_io_read_params
 {
-    io_context_t context;
+    UINT64 io;
     INT32 size;
 };
 
 /* NtUserCallIOWriteCallback params */
 struct call_io_write_params
 {
-    io_context_t context;
+    UINT64 io;
     INT32 size;
 };
 
 /* NtUserCallIOSeekCallback params */
 struct call_io_seek_params
 {
-    io_context_t context;
+    UINT64 io;
     INT64 offset;
 };
 
@@ -945,6 +943,9 @@ enum
     NtUserCallOneParam_SetKeyboardAutoRepeat,
     NtUserCallOneParam_SetThreadDpiAwarenessContext,
     NtUserCallOneParam_D3DKMTOpenAdapterFromGdiDisplayName,
+    NtUserCallOneParam_CallIORead,
+    NtUserCallOneParam_CallIOWrite,
+    NtUserCallOneParam_CallIOSeek,
     /* temporary exports */
     NtUserGetDeskPattern,
 };
@@ -1540,5 +1541,62 @@ static inline BOOL NtUserSendHardwareInput( HWND hwnd, UINT flags, const INPUT *
     struct send_hardware_input_params params = {.flags = flags, .input = input, .lparam = lparam};
     return NtUserCallHwndParam( hwnd, (UINT_PTR)&params, NtUserCallHwndParam_SendHardwareInput );
 }
+
+#ifdef WINE_UNIX_LIB
+
+static inline INT NtUserCallIORead( struct ntuser_io *io, BYTE *buffer, INT size )
+{
+    struct call_io_read_params params = {.io = (UINT_PTR)io};
+    ULONG ret_len, ret, total = 0;
+    void *ret_ptr;
+
+    do
+    {
+        params.size = min( size, io->buffer_size );
+        KeUserModeCallback( NtUserCallIOReadCallback, &params, sizeof(params), &ret_ptr, &ret_len );
+        if (ret_len != sizeof(ULONG)) return -1;
+        if (!(ret = *(ULONG *)ret_ptr)) break;
+        memcpy( buffer, io->buffer, ret );
+        buffer += ret;
+        total += ret;
+        size -= ret;
+    } while (size && ret == io->buffer_size);
+
+    return total;
+}
+
+static inline INT NtUserCallIOWrite( struct ntuser_io *io, const BYTE *buffer, INT size )
+{
+    struct call_io_read_params params = {.io = (UINT_PTR)io};
+    ULONG ret_len, ret, total = 0;
+    void *ret_ptr;
+
+    do
+    {
+        params.size = min( size, io->buffer_size );
+        memcpy( io->buffer, buffer, params.size );
+        KeUserModeCallback( NtUserCallIOWriteCallback, &params, sizeof(params), &ret_ptr, &ret_len );
+        if (ret_len != sizeof(ULONG)) return -1;
+        if (!(ret = *(ULONG *)ret_ptr)) break;
+        buffer += ret;
+        total += ret;
+        size -= ret;
+    } while (size && ret == io->buffer_size);
+
+    return total;
+}
+
+static inline INT64 NtUserCallIOSeek( struct ntuser_io *io, UINT64 offset )
+{
+    struct call_io_seek_params params = {.io = (UINT_PTR)io, .offset = offset};
+    void *ret_ptr;
+    ULONG ret_len;
+
+    KeUserModeCallback( NtUserCallIOSeekCallback, &params, sizeof(params), &ret_ptr, &ret_len );
+    if (ret_len != sizeof(UINT64)) return -1;
+    return *(UINT64 *)ret_ptr;
+}
+
+#endif /* WINE_UNIX_LIB */
 
 #endif /* _NTUSER_ */

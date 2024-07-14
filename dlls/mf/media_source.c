@@ -32,7 +32,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(mfplat);
 
 typedef UINT64 demuxer_t;
 
-extern HRESULT CDECL wineav_demuxer_create(const WCHAR *url, IMFByteStream *stream, INT64 *duration,
+extern HRESULT CDECL wineav_demuxer_create(const WCHAR *url, IStream *stream, INT64 *duration,
         UINT *stream_count, WCHAR *mime_type, demuxer_t *context);
 extern void CDECL wineav_demuxer_destroy(demuxer_t context);
 extern HRESULT CDECL wineav_demuxer_read(demuxer_t context, UINT *stream, IMFSample **sample);
@@ -1587,6 +1587,7 @@ static HRESULT media_source_create(struct object_context *context, IMFMediaSourc
 {
     struct media_source *object;
     UINT stream_count;
+    IStream *stream;
     unsigned int i;
     HRESULT hr;
 
@@ -1611,9 +1612,16 @@ static HRESULT media_source_create(struct object_context *context, IMFMediaSourc
         goto fail;
     if (FAILED(hr = IMFByteStream_GetLength(object->byte_stream, &object->file_size)))
         object->file_size = -1;
-    if (FAILED(hr = wineav_demuxer_create(context->url, context->stream, &object->duration,
-            &stream_count, object->mime_type, &object->demuxer)))
+
+    if (FAILED(hr = MFCreateStreamOnMFByteStream(context->stream, &stream)))
         goto fail;
+    if (FAILED(hr = wineav_demuxer_create(context->url, stream, &object->duration,
+            &stream_count, object->mime_type, &object->demuxer)))
+    {
+        IStream_Release(stream);
+        goto fail;
+    }
+    IStream_Release(stream);
     object->state = SOURCE_OPENING;
 
     if (!(object->descriptors = calloc(stream_count, sizeof(*object->descriptors)))

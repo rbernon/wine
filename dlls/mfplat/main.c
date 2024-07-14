@@ -3823,6 +3823,182 @@ HRESULT WINAPI MFCreateMFByteStreamOnStream(IStream *stream, IMFByteStream **byt
     return S_OK;
 }
 
+struct stream
+{
+    IStream IStream_iface;
+    LONG refcount;
+
+    IMFByteStream *byte_stream;
+};
+
+static struct stream *impl_from_IStream(IStream *iface)
+{
+    return CONTAINING_RECORD(iface, struct stream, IStream_iface);
+}
+
+static HRESULT WINAPI stream_QueryInterface(IStream *iface, REFIID riid, void **out)
+{
+    struct stream *stream = impl_from_IStream(iface);
+
+    TRACE("%p, %s, %p.\n", iface, debugstr_guid(riid), out);
+
+    if (IsEqualIID(riid, &IID_IUnknown)
+            || IsEqualIID(riid, &IID_ISequentialStream)
+            || IsEqualIID(riid, &IID_IStream))
+        *out = &stream->IStream_iface;
+    else
+    {
+        WARN("Unsupported %s.\n", debugstr_guid(riid));
+        *out = NULL;
+        return E_NOINTERFACE;
+    }
+
+    IUnknown_AddRef((IUnknown *)*out);
+    return S_OK;
+}
+
+static ULONG WINAPI stream_AddRef(IStream *iface)
+{
+    struct stream *stream = impl_from_IStream(iface);
+    ULONG refcount = InterlockedIncrement(&stream->refcount);
+
+    TRACE("%p, refcount %lu.\n", iface, refcount);
+
+    return refcount;
+}
+
+static ULONG WINAPI stream_Release(IStream *iface)
+{
+    struct stream *stream = impl_from_IStream(iface);
+    ULONG refcount = InterlockedDecrement(&stream->refcount);
+
+    TRACE("%p, refcount %ld.\n", iface, refcount);
+
+    if (!refcount)
+    {
+        IMFByteStream_Release(stream->byte_stream);
+        free(stream);
+    }
+
+    return refcount;
+}
+
+static HRESULT WINAPI stream_Read(IStream *iface, void *buffer, ULONG size, ULONG *read_len)
+{
+    struct stream *stream = impl_from_IStream(iface);
+    TRACE("%p, %p, %lu, %p.\n", iface, buffer, size, read_len);
+    return IMFByteStream_Read(stream->byte_stream, buffer, size, read_len);
+}
+
+static HRESULT WINAPI stream_Write(IStream *iface, const void *buffer, ULONG size, ULONG *written)
+{
+    struct stream *stream = impl_from_IStream(iface);
+    TRACE("%p, %p, %lu, %p.\n", iface, buffer, size, written);
+    return IMFByteStream_Write(stream->byte_stream, buffer, size, written);
+}
+
+static HRESULT WINAPI stream_Seek(IStream *iface, LARGE_INTEGER move, DWORD origin, ULARGE_INTEGER *position)
+{
+    struct stream *stream = impl_from_IStream(iface);
+    MFBYTESTREAM_SEEK_ORIGIN mf_origin;
+    ULONGLONG dummy;
+
+    TRACE("%p, %I64d, %lu, %p.\n", iface, move.QuadPart, origin, position);
+
+    if (origin == STREAM_SEEK_SET) mf_origin = msoBegin;
+    if (origin == STREAM_SEEK_CUR) mf_origin = msoCurrent;
+
+    return IMFByteStream_Seek(stream->byte_stream, mf_origin, move.QuadPart, 0, position ? &position->QuadPart : &dummy);
+}
+
+static HRESULT WINAPI stream_SetSize(IStream *iface, ULARGE_INTEGER new_size)
+{
+    FIXME("iface %p stub!\n", iface);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI stream_CopyTo(IStream *iface, IStream *other, ULARGE_INTEGER count, ULARGE_INTEGER *read_len, ULARGE_INTEGER *written)
+{
+    FIXME("iface %p stub!\n", iface);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI stream_Commit(IStream *iface, DWORD flags)
+{
+    FIXME("iface %p stub!\n", iface);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI stream_Revert(IStream *iface)
+{
+    FIXME("iface %p stub!\n", iface);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI stream_LockRegion(IStream *iface, ULARGE_INTEGER offset, ULARGE_INTEGER count, DWORD type)
+{
+    FIXME("iface %p stub!\n", iface);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI stream_UnlockRegion(IStream *iface, ULARGE_INTEGER offset, ULARGE_INTEGER count, DWORD type)
+{
+    FIXME("iface %p stub!\n", iface);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI stream_Stat(IStream *iface, STATSTG *stat, DWORD flags)
+{
+    struct stream *stream = impl_from_IStream(iface);
+
+    TRACE("%p, %p, %#lx semi-stub.\n", iface, stat, flags);
+
+    memset(stat, 0, sizeof(*stat));
+
+    return IMFByteStream_GetLength(stream->byte_stream, &stat->cbSize.QuadPart);
+}
+
+static HRESULT WINAPI stream_Clone(IStream *iface, IStream **out)
+{
+    FIXME("iface %p stub!\n", iface);
+    return E_NOTIMPL;
+}
+
+static const struct IStreamVtbl stream_vtbl =
+{
+    stream_QueryInterface,
+    stream_AddRef,
+    stream_Release,
+    stream_Read,
+    stream_Write,
+    stream_Seek,
+    stream_SetSize,
+    stream_CopyTo,
+    stream_Commit,
+    stream_Revert,
+    stream_LockRegion,
+    stream_UnlockRegion,
+    stream_Stat,
+    stream_Clone,
+};
+
+/***********************************************************************
+ *      MFCreateStreamOnMFByteStream (mfplat.@)
+ */
+HRESULT WINAPI MFCreateStreamOnMFByteStream(IMFByteStream *byte_stream, IStream **out)
+{
+    struct stream *stream;
+
+    if (!(stream = calloc(1, sizeof(*stream)))) return E_OUTOFMEMORY;
+    stream->IStream_iface.lpVtbl = &stream_vtbl;
+    stream->refcount = 1;
+
+    IMFByteStream_AddRef( (stream->byte_stream = byte_stream) );
+
+    *out = &stream->IStream_iface;
+    return S_OK;
+}
+
 static HRESULT WINAPI bytestream_file_getservice_QueryInterface(IMFGetService *iface, REFIID riid, void **obj)
 {
     struct bytestream *stream = impl_bytestream_from_IMFGetService(iface);

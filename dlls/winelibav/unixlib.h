@@ -24,9 +24,17 @@
 
 #include "windef.h"
 #include "winbase.h"
+#include "ntuser.h"
 #include "mfapi.h"
 
 #include "wine/unixlib.h"
+
+struct io_context
+{
+    UINT64 length;
+    UINT64 position;
+    struct ntuser_io io;
+};
 
 /* same as MPEG1VIDEOINFO / MPEG2VIDEOINFO but with MFVIDEOFORMAT */
 struct mpeg_video_format

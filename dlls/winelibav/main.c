@@ -36,69 +36,13 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(libav);
 
-struct context
-{
-    IMFByteStream *stream;
-    struct io_context io;
-};
-
-static NTSTATUS WINAPI call_io_read_callback( void *args, ULONG size )
-{
-    struct call_io_read_params *params = args;
-    struct context *ctx = CONTAINING_RECORD( (UINT_PTR)params->context, struct context, io );
-    ULONG ret = params->size;
-    HRESULT hr;
-
-    TRACE( "stream %p, size %#x, buffer %p\n", ctx->stream, params->size, ctx->io.buffer );
-
-    if (FAILED(hr = IMFByteStream_Read( ctx->stream, ctx->io.buffer, params->size, &ret ))) ret = -1;
-    return NtCallbackReturn( &ret, sizeof(ret), STATUS_SUCCESS );
-}
-
-static NTSTATUS WINAPI call_io_write_callback( void *args, ULONG size )
-{
-    struct call_io_write_params *params = args;
-    struct context *ctx = CONTAINING_RECORD( (UINT_PTR)params->context, struct context, io );
-    HRESULT hr;
-    ULONG ret;
-
-    TRACE( "stream %p, size %#x, buffer %p\n", ctx->stream, params->size, ctx->io.buffer );
-
-    if (FAILED(hr = IMFByteStream_Write( ctx->stream, ctx->io.buffer, params->size, &ret ))) ret = -1;
-    return NtCallbackReturn( &ret, sizeof(ret), STATUS_SUCCESS );
-}
-
-static NTSTATUS WINAPI call_io_seek_callback( void *args, ULONG size )
-{
-    struct call_io_seek_params *params = args;
-    struct context *ctx = CONTAINING_RECORD( (UINT_PTR)params->context, struct context, io );
-    QWORD pos, ret = params->offset;
-    HRESULT hr;
-
-    TRACE( "stream %p, offset %I64d\n", ctx->stream, params->offset );
-
-    if (FAILED(hr = IMFByteStream_GetCurrentPosition( ctx->stream, &pos ))) goto done;
-    if (ret != pos && FAILED( hr = IMFByteStream_SetCurrentPosition( ctx->stream, ret ))) ret = -1;
-
-done:
-    return NtCallbackReturn( &ret, sizeof(ret), STATUS_SUCCESS );
-}
-
 BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
 {
     TRACE( "instance %p, reason %lu, reserved %p\n", instance, reason, reserved );
 
     if (reason == DLL_PROCESS_ATTACH)
     {
-        KERNEL_CALLBACK_PROC *kernel_callback_table;
-
         DisableThreadLibraryCalls( instance );
-
-        kernel_callback_table = NtCurrentTeb()->Peb->KernelCallbackTable;
-        kernel_callback_table[NtUserCallIOReadCallback] = call_io_read_callback;
-        kernel_callback_table[NtUserCallIOWriteCallback] = call_io_write_callback;
-        kernel_callback_table[NtUserCallIOSeekCallback] = call_io_seek_callback;
-
         __wine_init_unix_call();
         UNIX_CALL( process_attach, NULL );
     }
@@ -106,27 +50,30 @@ BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
     return TRUE;
 }
 
-HRESULT CDECL wineav_demuxer_create( const WCHAR *url, IMFByteStream *stream, INT64 *duration,
+HRESULT CDECL wineav_demuxer_create( const WCHAR *url, IStream *stream, INT64 *duration,
                                      UINT *stream_count, WCHAR *mime_type, demuxer_t *handle )
 {
+    static LARGE_INTEGER zero;
     struct demuxer_create_params params = {0};
-    struct context *context;
-    QWORD position, length;
+    struct io_context *context;
+    ULARGE_INTEGER pos;
     char *tmp = NULL;
     UINT len, status;
+    STATSTG stat;
     HRESULT hr;
 
     TRACE( "url %s, stream %p\n", debugstr_w(url), stream );
 
-    if (FAILED(hr = IMFByteStream_GetLength( stream, &length ))) return hr;
-    if (FAILED(hr = IMFByteStream_GetCurrentPosition( stream, &position ))) return hr;
+    if (FAILED(hr = IStream_Stat( stream, &stat, STATFLAG_NONAME ))) return hr;
+    if (FAILED(hr = IStream_Seek( stream, zero, STREAM_SEEK_CUR, &pos ))) return hr;
 
     if (!(context = malloc( 0x10000 ))) return 0;
-    IMFByteStream_AddRef( (context->stream = stream) );
-    context->io.total_size = length;
-    context->io.position = position;
+    context->length = stat.cbSize.QuadPart;
+    context->position = pos.QuadPart;
+    context->io.stream = (UINT_PTR)stream;
+    IStream_AddRef( stream );
     context->io.buffer_size = 0x10000 - sizeof(*context);
-    params.io_ctx = &context->io;
+    params.io_ctx = context;
 
     if (url && (len = WideCharToMultiByte( CP_ACP, 0, url, -1, NULL, 0, NULL, NULL )) && (tmp = malloc( len )))
     {
@@ -158,8 +105,8 @@ void CDECL wineav_demuxer_destroy( demuxer_t demuxer )
 
     if (!UNIX_CALL( demuxer_destroy, &params ))
     {
-        struct context *ctx = CONTAINING_RECORD( params.io_ctx, struct context, io );
-        IMFByteStream_Release( ctx->stream );
+        struct io_context *ctx = params.io_ctx;
+        IStream_Release( (IStream *)(UINT_PTR)ctx->io.stream );
         free( ctx );
     }
 }

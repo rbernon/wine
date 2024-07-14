@@ -18,10 +18,12 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#define COBJMACROS
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
 #include "user_private.h"
 #include "controls.h"
+#include "objidl.h"
 #include "imm.h"
 #include "immdev.h"
 #include "wine/debug.h"
