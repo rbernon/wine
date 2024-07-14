@@ -1282,7 +1282,6 @@ static void test_TransferVideoFrame(void)
     HRESULT hr;
     DWORD res;
     BSTR url;
-    LONGLONG pts;
 
     stream = load_resource(L"i420-64x64.avi", L"video/avi");
 
@@ -1344,7 +1343,6 @@ static void test_TransferVideoFrame(void)
     ok(!res, "Unexpected res %#lx.\n", res);
 
     SetRect(&dst_rect, 0, 0, desc.Width, desc.Height);
-    IMFMediaEngineEx_OnVideoStreamTick(notify->media_engine, &pts);
     hr = IMFMediaEngineEx_TransferVideoFrame(notify->media_engine, (IUnknown *)texture, NULL, &dst_rect, NULL);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
@@ -2333,12 +2331,8 @@ static void test_GetSeekable(void)
     ok(time_range == NULL || broken(time_range == (IMFMediaTimeRange *)0xdeadbeef) /* <= Win10 1507 */,
        "Got unexpected pointer.\n");
 
-    /* IMFMediaEngineEx_Shutdown can release in parallel. A small sleep allows this test to pass more
-     * often than not. But given its a matter of timing, this test is marked flaky
-     */
-    Sleep(10);
     refcount = IMFMediaEngineEx_Release(media_engine);
-    flaky_wine
+    todo_wine
     ok(!refcount, "Got unexpected refcount %lu.\n", refcount);
 
     /* Unseekable bytestreams */
