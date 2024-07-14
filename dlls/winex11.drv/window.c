@@ -1468,21 +1468,8 @@ static void sync_client_position( struct x11drv_win_data *data,
 
     if (!data->client_window) return;
 
-    if (data->whole_window)
-    {
-        changes.x = data->client_rect.left - data->whole_rect.left;
-        changes.y = data->client_rect.top - data->whole_rect.top;
-    }
-    else
-    {
-        HWND toplevel = NtUserGetAncestor( data->hwnd, GA_ROOT );
-        POINT pos = {data->client_rect.left, data->client_rect.top};
-
-        NtUserMapWindowPoints( toplevel, toplevel, &pos, 1, 0 );
-        changes.x = pos.x;
-        changes.y = pos.y;
-    }
-
+    changes.x      = data->client_rect.left - data->whole_rect.left;
+    changes.y      = data->client_rect.top - data->whole_rect.top;
     changes.width  = min( max( 1, data->client_rect.right - data->client_rect.left ), 65535 );
     changes.height = min( max( 1, data->client_rect.bottom - data->client_rect.top ), 65535 );
 
@@ -1634,8 +1621,11 @@ void detach_client_window( struct x11drv_win_data *data, Window client_window )
 
     TRACE( "%p/%lx detaching client window %lx\n", data->hwnd, data->whole_window, client_window );
 
-    client_window_events_disable( data, client_window );
-    XReparentWindow( gdi_display, client_window, get_dummy_parent(), 0, 0 );
+    if (data->whole_window)
+    {
+        client_window_events_disable( data, client_window );
+        XReparentWindow( gdi_display, client_window, get_dummy_parent(), 0, 0 );
+    }
 
     data->client_window = 0;
 }
@@ -1644,35 +1634,20 @@ void detach_client_window( struct x11drv_win_data *data, Window client_window )
 /**********************************************************************
  *             attach_client_window
  */
-void attach_client_window( struct x11drv_win_data *data, Window client_window )
+static void attach_client_window( struct x11drv_win_data *data, Window client_window )
 {
-    Window whole_window;
-    POINT pos = {0};
-
     if (data->client_window == client_window || !client_window) return;
 
     TRACE( "%p/%lx attaching client window %lx\n", data->hwnd, data->whole_window, client_window );
 
     detach_client_window( data, data->client_window );
 
-    if ((whole_window = data->whole_window))
+    if (data->whole_window)
     {
-        pos.x = data->client_rect.left - data->whole_rect.left;
-        pos.y = data->client_rect.top - data->whole_rect.top;
+        client_window_events_enable( data, client_window );
+        XReparentWindow( gdi_display, client_window, data->whole_window, data->client_rect.left - data->whole_rect.left,
+                         data->client_rect.top - data->whole_rect.top );
     }
-    else
-    {
-        HWND toplevel = NtUserGetAncestor( data->hwnd, GA_ROOT );
-        whole_window = X11DRV_get_whole_window( toplevel );
-
-        pos.x = data->client_rect.left;
-        pos.y = data->client_rect.top;
-        NtUserMapWindowPoints( toplevel, toplevel, &pos, 1, 0 );
-    }
-    if (!whole_window) whole_window = get_dummy_parent();
-
-    client_window_events_enable( data, client_window );
-    XReparentWindow( gdi_display, client_window, whole_window, pos.x, pos.y );
 
     data->client_window = client_window;
 }
@@ -1836,9 +1811,6 @@ static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_des
 {
     TRACE( "win %p xwin %lx/%lx\n", data->hwnd, data->whole_window, data->client_window );
 
-    if (!already_destroyed) detach_client_window( data, data->client_window );
-    else if (data->client_window) client_window_events_disable( data, data->client_window );
-
     if (!data->whole_window)
     {
         if (data->embedded)
@@ -1855,6 +1827,8 @@ static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_des
     }
     else
     {
+        if (!already_destroyed) detach_client_window( data, data->client_window );
+        else if (data->client_window) client_window_events_disable( data, data->client_window );
         XDeleteContext( data->display, data->whole_window, winContext );
         if (!already_destroyed)
         {
@@ -1863,7 +1837,7 @@ static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_des
         }
     }
     if (data->whole_colormap) XFreeColormap( data->display, data->whole_colormap );
-    data->whole_window = 0;
+    data->whole_window = data->client_window = 0;
     data->whole_colormap = 0;
     data->wm_state = WithdrawnState;
     data->net_wm_state = 0;

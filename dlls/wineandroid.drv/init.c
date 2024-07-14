@@ -315,6 +315,15 @@ BOOL ANDROID_GetCurrentDisplaySettings( LPCWSTR name, BOOL is_primary, LPDEVMODE
 }
 
 
+/**********************************************************************
+ *           ANDROID_wine_get_wgl_driver
+ */
+static struct opengl_funcs *ANDROID_wine_get_wgl_driver( UINT version )
+{
+    return get_wgl_driver( version );
+}
+
+
 static const struct user_driver_funcs android_drv_funcs =
 {
     .dc_funcs.pCreateCompatibleDC = ANDROID_CreateCompatibleDC,

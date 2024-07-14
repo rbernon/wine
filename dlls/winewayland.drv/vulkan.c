@@ -132,11 +132,7 @@ static void wayland_vulkan_surface_destroy(HWND hwnd, void *private)
     wine_vk_surface_destroy(client);
 }
 
-static void wayland_vulkan_surface_attach(HWND hwnd, void *private)
-{
-}
-
-static void wayland_vulkan_surface_detach(HWND hwnd, void *private, HDC *hdc)
+static void wayland_vulkan_surface_detach(HWND hwnd, void *private)
 {
 }
 
@@ -179,7 +175,6 @@ static const struct vulkan_driver_funcs wayland_vulkan_driver_funcs =
 {
     .p_vulkan_surface_create = wayland_vulkan_surface_create,
     .p_vulkan_surface_destroy = wayland_vulkan_surface_destroy,
-    .p_vulkan_surface_attach = wayland_vulkan_surface_attach,
     .p_vulkan_surface_detach = wayland_vulkan_surface_detach,
     .p_vulkan_surface_presented = wayland_vulkan_surface_presented,
 

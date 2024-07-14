@@ -1,5 +1,5 @@
 MODULE    = wintrace.exe
-IMPORTS   = dinput8 hid user32 advapi32 setupapi xinput combase dxgi d3d9 gdi32
+IMPORTS   = dinput8 hid user32 setupapi xinput combase dxgi d3d9 gdi32
 
 EXTRADLLFLAGS = -mconsole -municode
 
