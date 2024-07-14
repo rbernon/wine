@@ -58,8 +58,6 @@ enum
     NtUserRenderSynthesizedFormat,
     NtUserUnpackDDEMessage,
     NtUserDispatchCallback,
-    /* OpenGL support */
-    NtUserCallOpenGLDebugMessageCallback,
     /* Driver-specific callbacks */
     NtUserDriverCallbackFirst,
     NtUserDriverCallbackLast = NtUserDriverCallbackFirst + 9,

@@ -50,6 +50,8 @@ static BOOL is_wow64(void)
     return !!NtCurrentTeb()->WowTebOffset;
 }
 
+static UINT64 call_gl_debug_message_callback;
+
 static pthread_mutex_t wgl_lock = PTHREAD_MUTEX_INITIALIZER;
 
 /* handle management */
@@ -66,8 +68,8 @@ enum wgl_handle_type
 struct opengl_context
 {
     DWORD tid;                   /* thread that the context is current in */
-    void (CALLBACK *debug_callback)( GLenum, GLenum, GLuint, GLenum, GLsizei, const GLchar *, const void * ); /* debug callback */
-    const void *debug_user;      /* debug user parameter */
+    UINT64 debug_callback;       /* client pointer */
+    UINT64 debug_context;        /* client pointer */
     GLubyte *extensions;         /* extension string */
     GLuint *disabled_exts;       /* indices of disabled extensions */
     struct wgl_context *drv_ctx; /* driver context */
@@ -896,21 +898,15 @@ static BOOL wrap_wglSetPbufferAttribARB( HPBUFFERARB handle, const int *attribs 
 }
 
 static void gl_debug_message_callback( GLenum source, GLenum type, GLuint id, GLenum severity,
-                                       GLsizei length, const GLchar *message, const void *userParam )
+                                       GLsizei length, const GLchar *message, const void *context )
 {
-    struct wine_gl_debug_message_params params =
-    {
-        .source = source,
-        .type = type,
-        .id = id,
-        .severity = severity,
-        .length = length,
-        .message = message,
-    };
+    struct gl_debug_message_callback_params *params;
     void *ret_ptr;
     ULONG ret_len;
-    struct wgl_handle *ptr = (struct wgl_handle *)userParam;
+    struct wgl_handle *ptr = (struct wgl_handle *)context;
+    UINT len = strlen( message ) + 1, size;
 
+    if (!ptr->u.context->debug_callback) return;
     if (!NtCurrentTeb())
     {
         fprintf( stderr, "msg:gl_debug_message_callback called from native thread, severity %#x, message \"%.*s\".\n",
@@ -918,46 +914,55 @@ static void gl_debug_message_callback( GLenum source, GLenum type, GLuint id, GL
         return;
     }
 
-    if (!(params.user_callback = ptr->u.context->debug_callback)) return;
-    params.user_data = ptr->u.context->debug_user;
+    size = offsetof(struct gl_debug_message_callback_params, message[len] );
+    if (!(params = malloc( size ))) return;
+    params->dispatch.func = call_gl_debug_message_callback;
+    params->debug_callback = ptr->u.context->debug_callback;
+    params->debug_context = ptr->u.context->debug_context;
+    params->source = source;
+    params->type = type;
+    params->id = id;
+    params->severity = severity;
+    params->length = length;
+    memcpy( params->message, message, len );
 
-    KeUserModeCallback( NtUserCallOpenGLDebugMessageCallback, &params, sizeof(params),
-                        &ret_ptr, &ret_len );
+    KeUserModeCallback( NtUserDispatchCallback, &params->dispatch, size, &ret_ptr, &ret_len );
+    free( params );
 }
 
-static void wrap_glDebugMessageCallback( TEB *teb, GLDEBUGPROC callback, const void *userParam )
+static void wrap_glDebugMessageCallback( TEB *teb, GLDEBUGPROC callback, const void *context )
 {
     struct wgl_handle *ptr = get_current_context_ptr( teb );
     const struct opengl_funcs *funcs = teb->glTable;
 
     if (!funcs->ext.p_glDebugMessageCallback) return;
 
-    ptr->u.context->debug_callback = callback;
-    ptr->u.context->debug_user     = userParam;
+    ptr->u.context->debug_callback = (UINT_PTR)callback;
+    ptr->u.context->debug_context  = (UINT_PTR)context;
     funcs->ext.p_glDebugMessageCallback( gl_debug_message_callback, ptr );
 }
 
-static void wrap_glDebugMessageCallbackAMD( TEB *teb, GLDEBUGPROCAMD callback, void *userParam )
+static void wrap_glDebugMessageCallbackAMD( TEB *teb, GLDEBUGPROCAMD callback, void *context )
 {
     struct wgl_handle *ptr = get_current_context_ptr( teb );
     const struct opengl_funcs *funcs = teb->glTable;
 
     if (!funcs->ext.p_glDebugMessageCallbackAMD) return;
 
-    ptr->u.context->debug_callback = callback;
-    ptr->u.context->debug_user     = userParam;
+    ptr->u.context->debug_callback = (UINT_PTR)callback;
+    ptr->u.context->debug_context  = (UINT_PTR)context;
     funcs->ext.p_glDebugMessageCallbackAMD( gl_debug_message_callback, ptr );
 }
 
-static void wrap_glDebugMessageCallbackARB( TEB *teb, GLDEBUGPROCARB callback, const void *userParam )
+static void wrap_glDebugMessageCallbackARB( TEB *teb, GLDEBUGPROCARB callback, const void *context )
 {
     struct wgl_handle *ptr = get_current_context_ptr( teb );
     const struct opengl_funcs *funcs = teb->glTable;
 
     if (!funcs->ext.p_glDebugMessageCallbackARB) return;
 
-    ptr->u.context->debug_callback = callback;
-    ptr->u.context->debug_user     = userParam;
+    ptr->u.context->debug_callback = (UINT_PTR)callback;
+    ptr->u.context->debug_context  = (UINT_PTR)context;
     funcs->ext.p_glDebugMessageCallbackARB( gl_debug_message_callback, ptr );
 }
 
@@ -1142,6 +1147,13 @@ NTSTATUS ext_wglSetPbufferAttribARB( void *args )
     pthread_mutex_lock( &wgl_lock );
     params->ret = wrap_wglSetPbufferAttribARB( params->hPbuffer, params->piAttribList );
     pthread_mutex_unlock( &wgl_lock );
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS process_attach( void *args )
+{
+    struct process_attach_params *params = args;
+    call_gl_debug_message_callback = params->call_gl_debug_message_callback;
     return STATUS_SUCCESS;
 }
 
