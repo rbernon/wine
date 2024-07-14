@@ -60,9 +60,12 @@ WINE_DEFAULT_DEBUG_CHANNEL( libav );
 
 #ifdef SONAME_LIBAVUTIL
 #include <libavutil/avutil.h>
+#include <libavutil/frame.h>
 #include <libavutil/dict.h>
 MAKE_FUNCPTR( av_log_set_callback );
 MAKE_FUNCPTR( av_dict_get );
+MAKE_FUNCPTR( av_frame_alloc );
+MAKE_FUNCPTR( av_frame_free );
 #endif /* SONAME_LIBAVUTIL */
 
 #include <libavformat/avformat.h>
@@ -81,9 +84,29 @@ MAKE_FUNCPTR( av_read_frame );
 MAKE_FUNCPTR( av_seek_frame );
 MAKE_FUNCPTR( av_interleaved_write_frame );
 MAKE_FUNCPTR( av_write_trailer );
-MAKE_FUNCPTR( av_packet_alloc );
-MAKE_FUNCPTR( av_packet_unref );
+
+#include <libavcodec/avcodec.h>
+MAKE_FUNCPTR( avcodec_find_encoder );
 MAKE_FUNCPTR( avcodec_find_decoder );
+MAKE_FUNCPTR( avcodec_alloc_context3 );
+MAKE_FUNCPTR( avcodec_free_context );
+MAKE_FUNCPTR( avcodec_open2 );
+MAKE_FUNCPTR( avcodec_close );
+MAKE_FUNCPTR( avcodec_send_packet );
+MAKE_FUNCPTR( avcodec_receive_frame );
+MAKE_FUNCPTR( avcodec_send_frame );
+MAKE_FUNCPTR( avcodec_receive_packet );
+MAKE_FUNCPTR( av_packet_alloc );
+MAKE_FUNCPTR( av_packet_free );
+
+#include <libswscale/swscale.h>
+MAKE_FUNCPTR( sws_getContext );
+MAKE_FUNCPTR( sws_freeContext );
+MAKE_FUNCPTR( sws_scale_frame );
+
+#include <libswresample/swresample.h>
+MAKE_FUNCPTR( swr_alloc_set_opts2 );
+MAKE_FUNCPTR( swr_convert );
 
 static void *avformat_handle;
 static void *avutil_handle;
@@ -242,7 +265,7 @@ static NTSTATUS process_attach( void *arg )
     LOAD_FUNCPTR( av_interleaved_write_frame );
     LOAD_FUNCPTR( av_write_trailer );
     LOAD_FUNCPTR( av_packet_alloc );
-    LOAD_FUNCPTR( av_packet_unref );
+    LOAD_FUNCPTR( av_packet_free );
 #undef LOAD_FUNCPTR
 
     read_callback = params->read_callback;
@@ -371,7 +394,7 @@ static NTSTATUS demuxer_read( void *arg )
         if ((ret = p_av_read_frame( ctx, packet )) < 0)
         {
             TRACE( "av_read_frame index %u returned %#x\n", packet->stream_index, -ret );
-            p_av_packet_unref( packet );
+            p_av_packet_free( &packet );
             if (ret == AVERROR_EOF) return STATUS_END_OF_FILE;
             return STATUS_UNSUCCESSFUL;
         }
@@ -389,7 +412,7 @@ static NTSTATUS demuxer_read( void *arg )
     params->dts = demuxer_stream_time( stream, packet->dts );
     params->duration = demuxer_stream_time( stream, packet->duration );
 
-    p_av_packet_unref( packet );
+    p_av_packet_free( &packet );
     return STATUS_SUCCESS;
 }
 
@@ -932,7 +955,70 @@ static NTSTATUS muxer_write( void *arg )
     AVPacket *packet = p_av_packet_alloc();
 
     p_av_interleaved_write_frame( ctx, packet );
-    p_av_packet_unref( packet );
+    p_av_packet_free( &packet );
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS encoder_create( void *arg )
+{
+    const AVCodec *codec = p_avcodec_find_encoder(0);
+    AVCodecContext *ctx = p_avcodec_alloc_context3(codec);
+    AVPacket *packet = p_av_packet_alloc();
+    AVFrame *frame = p_av_frame_alloc();
+
+    p_avcodec_open2(ctx, codec, NULL);
+    p_avcodec_send_frame(ctx, frame);
+    p_avcodec_receive_packet(ctx, packet);
+    p_av_packet_free(&packet);
+    p_av_frame_free(&frame);
+    p_avcodec_close(ctx);
+    p_avcodec_free_context(&ctx);
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS decoder_create( void *arg )
+{
+    const AVCodec *codec = p_avcodec_find_decoder(0);
+    AVCodecContext *ctx = p_avcodec_alloc_context3(codec);
+    AVPacket *packet = p_av_packet_alloc();
+    AVFrame *frame = p_av_frame_alloc();
+
+    p_avcodec_open2(ctx, codec, NULL);
+    p_avcodec_send_packet(ctx, packet);
+    p_avcodec_receive_frame(ctx, frame);
+    p_av_packet_free(&packet);
+    p_av_frame_free(&frame);
+    p_avcodec_close(ctx);
+    p_avcodec_free_context(&ctx);
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS processor_create( void *arg )
+{
+    struct SwsContext *ctx = p_sws_getContext(0,0,0,0,0,0,0,NULL,NULL,NULL);
+    AVFrame *src, *dst;
+    src = p_av_frame_alloc();
+    dst = p_av_frame_alloc();
+    p_sws_scale_frame(ctx, dst, src);
+    p_av_frame_free(&src);
+    p_av_frame_free(&dst);
+    p_sws_freeContext(ctx);
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS resampler_create( void *arg )
+{
+    struct SwrContext *ctx;
+
+    p_swr_alloc_set_opts2(&ctx, NULL, NULL, 0, NULL, 0, 0, 0, NULL);
+
+    int out_samples = av_rescale_rnd(swr_get_delay(swr, 48000) + in_samples, 44100, 48000, AV_ROUND_UP);
+    p_av_samples_alloc(&output, NULL, 2, out_samples, AV_SAMPLE_FMT_S16, 0);
+    out_samples = p_swr_convert(ctx, &output, out_samples, input, in_samples);
 
     return STATUS_SUCCESS;
 }
