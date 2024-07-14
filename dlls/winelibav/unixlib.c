@@ -47,6 +47,13 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL( libav );
 
+#define DEFINE_NOT_IMPLEMENTED( func, lib )                                                        \
+    static NTSTATUS func( void *params )                                                           \
+    {                                                                                              \
+        ERR( lib " support not compiled in.\n" );                                                  \
+        return STATUS_NOT_IMPLEMENTED;                                                             \
+    }
+
 #ifdef SONAME_LIBAVFORMAT
 
 #define MAKE_FUNCPTR( f ) static typeof(f) *p_##f
@@ -67,10 +74,16 @@ MAKE_FUNCPTR( avformat_free_context );
 MAKE_FUNCPTR( avformat_open_input );
 MAKE_FUNCPTR( avformat_find_stream_info );
 MAKE_FUNCPTR( avformat_close_input );
+MAKE_FUNCPTR( avformat_init_output );
+MAKE_FUNCPTR( avformat_write_header );
+MAKE_FUNCPTR( avformat_new_stream );
 MAKE_FUNCPTR( av_read_frame );
 MAKE_FUNCPTR( av_seek_frame );
+MAKE_FUNCPTR( av_interleaved_write_frame );
+MAKE_FUNCPTR( av_write_trailer );
 MAKE_FUNCPTR( av_packet_alloc );
 MAKE_FUNCPTR( av_packet_unref );
+MAKE_FUNCPTR( avcodec_find_decoder );
 
 static void *avformat_handle;
 static void *avutil_handle;
@@ -80,12 +93,12 @@ static UINT64 read_callback;
 static UINT64 write_callback;
 static UINT64 seek_callback;
 
-static int wineav_read( void *opaque, uint8_t *buf, int size )
+static int wineav_read( void *opaque, uint8_t *buffer, int size )
 {
     struct io_context *io_ctx = opaque;
-    int ret;
+    int ret, status, total = 0;
 
-    TRACE( "opaque %p, buf %p, size %#x\n", opaque, buf, size );
+    TRACE( "opaque %p, buffer %p, size %#x\n", opaque, buffer, size );
 
     do
     {
@@ -94,8 +107,8 @@ static int wineav_read( void *opaque, uint8_t *buf, int size )
         ULONG ret_len;
 
         params.size = min( size, io_ctx->buffer_size );
-        KeUserModeCallback( NtUserDispatchCallback, &params, sizeof(params), &ret_ptr, &ret_len );
-        if (ret_len != sizeof(ULONG)) return AVERROR( EINVAL );
+        status = KeUserModeCallback( NtUserDispatchCallback, &params, sizeof(params), &ret_ptr, &ret_len );
+        if (status || ret_len != sizeof(ULONG)) return AVERROR( EINVAL );
         if (!(ret = *(ULONG *)ret_ptr)) break;
         memcpy( buffer, io_ctx->buffer, ret );
         buffer += ret;
@@ -109,15 +122,15 @@ static int wineav_read( void *opaque, uint8_t *buf, int size )
 }
 
 #if FF_API_AVIO_WRITE_NONCONST
-static int wineav_write( void *opaque, uint8_t *buf, int size )
+static int wineav_write( void *opaque, uint8_t *buffer, int size )
 #else
-static int wineav_write( void *opaque, const uint8_t *buf, int size )
+static int wineav_write( void *opaque, const uint8_t *buffer, int size )
 #endif
 {
     struct io_context *io_ctx = opaque;
-    int total, ret;
+    int ret, status, total = 0;
 
-    TRACE( "opaque %p, buf %p, size %#x\n", opaque, buf, size );
+    TRACE( "opaque %p, buffer %p, size %#x\n", opaque, buffer, size );
 
     do
     {
@@ -146,6 +159,7 @@ static int64_t wineav_seek( void *opaque, int64_t offset, int whence )
     struct seek_params params = {.dispatch = {.func = seek_callback}, .io_ctx = (UINT_PTR)io_ctx};
     void *ret_ptr;
     ULONG ret_len;
+    int status;
 
     TRACE( "opaque %p, offset 0x%s, whence %#x\n", opaque, wine_dbgstr_longlong( offset ), whence );
 
@@ -220,8 +234,13 @@ static NTSTATUS process_attach( void *arg )
     LOAD_FUNCPTR( avformat_open_input );
     LOAD_FUNCPTR( avformat_find_stream_info );
     LOAD_FUNCPTR( avformat_close_input );
+    LOAD_FUNCPTR( avformat_init_output );
+    LOAD_FUNCPTR( avformat_write_header );
+    LOAD_FUNCPTR( avformat_new_stream );
     LOAD_FUNCPTR( av_read_frame );
     LOAD_FUNCPTR( av_seek_frame );
+    LOAD_FUNCPTR( av_interleaved_write_frame );
+    LOAD_FUNCPTR( av_write_trailer );
     LOAD_FUNCPTR( av_packet_alloc );
     LOAD_FUNCPTR( av_packet_unref );
 #undef LOAD_FUNCPTR
@@ -247,7 +266,7 @@ failed:
     return STATUS_NOT_FOUND;
 }
 
-static AVFormatContext *get_context( demuxer_t handle )
+static AVFormatContext *get_demuxer_context( demuxer_t handle )
 {
     return (AVFormatContext *)(UINT_PTR)handle;
 }
@@ -323,7 +342,7 @@ static NTSTATUS demuxer_create( void *arg )
 static NTSTATUS demuxer_destroy( void *arg )
 {
     struct demuxer_destroy_params *params = arg;
-    AVFormatContext *ctx = get_context( params->demuxer );
+    AVFormatContext *ctx = get_demuxer_context( params->demuxer );
     AVIOContext *io = ctx->pb;
 
     TRACE( "context %p\n", ctx );
@@ -338,7 +357,7 @@ static NTSTATUS demuxer_destroy( void *arg )
 static NTSTATUS demuxer_read( void *arg )
 {
     struct demuxer_read_params *params = arg;
-    AVFormatContext *ctx = get_context( params->demuxer );
+    AVFormatContext *ctx = get_demuxer_context( params->demuxer );
     AVPacket *packet = get_packet( params->packet );
     UINT capacity = params->size;
     AVStream *stream;
@@ -377,7 +396,7 @@ static NTSTATUS demuxer_read( void *arg )
 static NTSTATUS demuxer_seek( void *arg )
 {
     struct demuxer_seek_params *params = arg;
-    AVFormatContext *ctx = get_context( params->demuxer );
+    AVFormatContext *ctx = get_demuxer_context( params->demuxer );
     int64_t timestamp = params->timestamp * AV_TIME_BASE / 10000000;
     int ret;
 
@@ -395,7 +414,7 @@ static NTSTATUS demuxer_seek( void *arg )
 static NTSTATUS demuxer_stream_lang( void *arg )
 {
     struct demuxer_stream_lang_params *params = arg;
-    AVFormatContext *ctx = get_context( params->demuxer );
+    AVFormatContext *ctx = get_demuxer_context( params->demuxer );
     AVStream *stream = ctx->streams[params->stream];
     AVDictionaryEntry *tag;
 
@@ -411,7 +430,7 @@ static NTSTATUS demuxer_stream_lang( void *arg )
 static NTSTATUS demuxer_stream_name( void *arg )
 {
     struct demuxer_stream_name_params *params = arg;
-    AVFormatContext *ctx = get_context( params->demuxer );
+    AVFormatContext *ctx = get_demuxer_context( params->demuxer );
     AVStream *stream = ctx->streams[params->stream];
     AVDictionaryEntry *tag;
 
@@ -749,7 +768,7 @@ static NTSTATUS stream_type_mpeg_video_format( const AVStream *stream, struct mp
 static NTSTATUS demuxer_stream_type( void *arg )
 {
     struct demuxer_stream_type_params *params = arg;
-    AVFormatContext *ctx = get_context( params->demuxer );
+    AVFormatContext *ctx = get_demuxer_context( params->demuxer );
     AVStream *stream = ctx->streams[params->stream];
     const AVCodecParameters *codec = stream->codecpar;
     struct media_type *media_type = &params->media_type;
@@ -852,24 +871,87 @@ static NTSTATUS demuxer_stream_type( void *arg )
     return STATUS_NOT_IMPLEMENTED;
 }
 
-#else
+static AVFormatContext *get_muxer_context( muxer_t handle )
+{
+    return (AVFormatContext *)(UINT_PTR)handle;
+}
 
-#define DEFINE_ENTRY( f )                                                                          \
-    static NTSTATUS f( void *params )                                                              \
-    {                                                                                              \
-        ERR( "libavformat support not compiled in.\n" );                                           \
-        return STATUS_UNSUCCESSFUL;                                                                \
+static NTSTATUS muxer_create( void *arg )
+{
+    struct muxer_create_params *params = arg;
+    AVFormatContext *ctx;
+
+    if (!(ctx = p_avformat_alloc_context())) return STATUS_NO_MEMORY;
+    if (!(ctx->pb = p_avio_alloc_context( NULL, 0, 0, params->io_ctx, wineav_read, wineav_write, wineav_seek )))
+    {
+        p_avformat_free_context( ctx );
+        return STATUS_NO_MEMORY;
     }
 
-DEFINE_ENTRY( process_attach )
-DEFINE_ENTRY( demuxer_create )
-DEFINE_ENTRY( demuxer_destroy )
-DEFINE_ENTRY( demuxer_read )
-DEFINE_ENTRY( demuxer_seek )
-DEFINE_ENTRY( demuxer_stream_lang )
-DEFINE_ENTRY( demuxer_stream_name )
-DEFINE_ENTRY( demuxer_stream_type )
-#undef DEFINE_ENTRY
+    p_avformat_init_output( ctx, NULL );
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS muxer_destroy( void *arg )
+{
+    struct muxer_destroy_params *params = arg;
+    AVFormatContext *ctx = get_muxer_context( params->muxer );
+    AVIOContext *io = ctx->pb;
+
+    TRACE( "context %p\n", ctx );
+
+    params->io_ctx = io->opaque;
+    p_av_write_trailer( ctx );
+    p_avformat_free_context( ctx );
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS muxer_add_stream( void *arg )
+{
+    struct muxer_add_stream_params *params = arg;
+    AVFormatContext *ctx = get_muxer_context( params->muxer );
+
+    p_avformat_new_stream( ctx, NULL );
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS muxer_start( void *arg )
+{
+    struct muxer_start_params *params = arg;
+    AVFormatContext *ctx = get_muxer_context( params->muxer );
+
+    p_avformat_write_header( ctx, NULL );
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS muxer_write( void *arg )
+{
+    struct muxer_write_params *params = arg;
+    AVFormatContext *ctx = get_muxer_context( params->muxer );
+    AVPacket *packet = p_av_packet_alloc();
+
+    p_av_interleaved_write_frame( ctx, packet );
+    p_av_packet_unref( packet );
+
+    return STATUS_SUCCESS;
+}
+
+#else
+
+DEFINE_NOT_IMPLEMENTED( process_attach, "libavformat" )
+DEFINE_NOT_IMPLEMENTED( demuxer_create, "libavformat" )
+DEFINE_NOT_IMPLEMENTED( demuxer_destroy, "libavformat" )
+DEFINE_NOT_IMPLEMENTED( demuxer_read, "libavformat" )
+DEFINE_NOT_IMPLEMENTED( demuxer_seek, "libavformat" )
+DEFINE_NOT_IMPLEMENTED( demuxer_stream_lang, "libavformat" )
+DEFINE_NOT_IMPLEMENTED( demuxer_stream_name, "libavformat" )
+DEFINE_NOT_IMPLEMENTED( demuxer_stream_type, "libavformat" )
+DEFINE_NOT_IMPLEMENTED( muxer_create, "libavformat" )
+DEFINE_NOT_IMPLEMENTED( muxer_destroy, "libavformat" )
+DEFINE_NOT_IMPLEMENTED( muxer_add_stream, "libavformat" )
+DEFINE_NOT_IMPLEMENTED( muxer_start, "libavformat" )
+DEFINE_NOT_IMPLEMENTED( muxer_write, "libavformat" )
 
 #endif
 
@@ -884,6 +966,11 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(demuxer_stream_lang),
     X(demuxer_stream_name),
     X(demuxer_stream_type),
+    X(muxer_create),
+    X(muxer_destroy),
+    X(muxer_add_stream),
+    X(muxer_start),
+    X(muxer_write),
 };
 
 C_ASSERT(ARRAY_SIZE(__wine_unix_call_funcs) == unix_funcs_count);
@@ -1010,6 +1097,11 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
     X(demuxer_stream_lang),
     X(demuxer_stream_name),
     X64(demuxer_stream_type),
+    X(muxer_create),
+    X(muxer_destroy),
+    X(muxer_add_stream),
+    X(muxer_start),
+    X(muxer_write),
 };
 
 C_ASSERT(ARRAY_SIZE(__wine_unix_call_wow64_funcs) == unix_funcs_count);

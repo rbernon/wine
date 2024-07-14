@@ -85,6 +85,7 @@ C_ASSERT( sizeof(struct mpeg_video_format) == offsetof( struct mpeg_video_format
 
 typedef UINT64 demuxer_t;
 typedef UINT64 packet_t;
+typedef UINT64 muxer_t;
 
 struct demuxer_create_params
 {
@@ -154,6 +155,39 @@ struct demuxer_stream_type_params
     struct media_type media_type;
 };
 
+struct muxer_create_params
+{
+    struct io_context *io_ctx;
+    muxer_t muxer;
+};
+
+struct muxer_destroy_params
+{
+    muxer_t muxer;
+    struct io_context *io_ctx;
+};
+
+struct muxer_add_stream_params
+{
+    muxer_t muxer;
+};
+
+struct muxer_start_params
+{
+    muxer_t muxer;
+};
+
+struct muxer_write_params
+{
+    muxer_t muxer;
+    UINT32 stream;
+    DWORD size;
+    INT64 dts;
+    INT64 pts;
+    INT64 duration;
+    BYTE *data;
+};
+
 enum unix_funcs
 {
     unix_process_attach,
@@ -168,7 +202,8 @@ enum unix_funcs
 
     unix_muxer_create,
     unix_muxer_destroy,
-    unix_muxer_stream_create,
+    unix_muxer_add_stream,
+    unix_muxer_start,
     unix_muxer_write,
 
     unix_funcs_count,
