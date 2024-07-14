@@ -239,49 +239,6 @@ static void test_class(void)
 
 }
 
-static void test_NtUserGetWindowRgnEx(void)
-{
-    RECT rect, expect_rect = {10, 10, 50, 50};
-    UINT_PTR ret;
-    HWND hwnd;
-    HRGN hrgn;
-
-    hwnd = CreateWindowExW( 0, L"static", NULL, WS_POPUP, 0, 0, 100, 100, 0, 0, 0, NULL );
-    ok( !!hwnd, "CreateWindowExW failed\n" );
-
-    hrgn = CreateRectRgn( 10, 10, 50, 50 );
-    ok( !!hrgn, "CreateRectRgn failed\n" );
-    ret = SetWindowRgn( hwnd, hrgn, TRUE );
-    ok( !!ret, "SetWindowRgn failed, error %lu\n", GetLastError() );
-    DeleteObject( hrgn );
-
-    hrgn = CreateRectRgn( 100, 100, 150, 150 );
-    ok( !!hrgn, "CreateRectRgn failed\n" );
-
-    SetLastError( 0xdeadbeef );
-    ret = NtUserGetWindowRgnEx( 0, 0, 0 );
-    ok( !ret, "NtUserGetWindowRgnEx succeeded\n" );
-    ok( GetLastError() == ERROR_INVALID_WINDOW_HANDLE, "got %lu\n", GetLastError() );
-    SetLastError( 0xdeadbeef );
-    ret = NtUserGetWindowRgnEx( hwnd, 0, 0 );
-    ok( !ret, "NtUserGetWindowRgnEx succeeded\n" );
-    ok( GetLastError() == ERROR_INVALID_PARAMETER, "got %lu\n", GetLastError() );
-    SetLastError( 0xdeadbeef );
-    ret = NtUserGetWindowRgnEx( hwnd, hrgn, 0xdeadbeef );
-    ok( !ret, "NtUserGetWindowRgnEx succeeded\n" );
-    ok( GetLastError() == ERROR_INVALID_FLAGS, "got %lu\n", GetLastError() );
-    SetLastError( 0xdeadbeef );
-
-    ret = NtUserGetWindowRgnEx( hwnd, hrgn, 0 );
-    ok( ret == SIMPLEREGION, "NtUserGetWindowRgnEx returned %Iu, error %lu\n", ret, GetLastError() );
-    ret = GetRgnBox( hrgn, &rect );
-    ok( ret == SIMPLEREGION, "GetRgnBox returned %Iu\n", ret );
-    ok( EqualRect( &rect, &expect_rect ), "GetRgnBox failed, error %lu\n", GetLastError() );
-    DeleteObject( hrgn );
-
-    DestroyWindow( hwnd );
-}
-
 static void test_NtUserCreateInputContext(void)
 {
     UINT_PTR value, attr3;
@@ -2092,7 +2049,7 @@ static DWORD get_real_dpi(void)
     DWORD dpi;
 
     ctx = SetThreadDpiAwarenessContext( DPI_AWARENESS_CONTEXT_SYSTEM_AWARE );
-    ok( ctx == (DPI_AWARENESS_CONTEXT)0x80006010, "got %p\n", ctx );
+    todo_wine ok( ctx == (DPI_AWARENESS_CONTEXT)0x80006010, "got %p\n", ctx );
     dpi = GetDpiForSystem();
     ok( dpi, "GetDpiForSystem failed\n" );
     /* restore process-wide DPI awareness context */
@@ -2120,7 +2077,7 @@ static void test_NtUserSetProcessDpiAwarenessContext( ULONG context )
     winetest_push_context( "%#lx", context );
 
     ret = NtUserGetProcessDpiAwarenessContext( GetCurrentProcess() );
-    ok( ret == 0x6010, "got %#x\n", ret );
+    todo_wine ok( ret == 0x6010, "got %#x\n", ret );
 
     SetLastError( 0xdeadbeef );
     ret = NtUserSetProcessDpiAwarenessContext( 0, 0 );
@@ -2185,11 +2142,12 @@ static void test_NtUserSetProcessDpiAwarenessContext( ULONG context )
     ok( ret == 0, "got %#x\n", ret );
     ok( GetLastError() == ERROR_INVALID_PARAMETER, "got %#lx\n", GetLastError() );
     ret = NtUserGetProcessDpiAwarenessContext( GetCurrentProcess() );
-    ok( ret == 0x6010, "got %#x\n", ret );
+    todo_wine ok( ret == 0x6010, "got %#x\n", ret );
 
     ret = NtUserSetProcessDpiAwarenessContext( context, 0 );
-    ok( ret == 1, "got %#x\n", ret );
+    todo_wine ok( ret == 1, "got %#x\n", ret );
     ret = NtUserGetProcessDpiAwarenessContext( GetCurrentProcess() );
+    todo_wine_if( context != 0x12 )
     ok( ret == context, "got %#x\n", ret );
 
     for (i = 0; i < ARRAY_SIZE(contexts); i++)
@@ -2197,6 +2155,7 @@ static void test_NtUserSetProcessDpiAwarenessContext( ULONG context )
         ret = NtUserSetProcessDpiAwarenessContext( contexts[i], 0 );
         ok( !ret, "got %#x\n", ret );
         ret = NtUserGetProcessDpiAwarenessContext( GetCurrentProcess() );
+        todo_wine_if( context != 0x12 )
         ok( ret == context, "got %#x\n", ret );
     }
 
@@ -2235,7 +2194,6 @@ START_TEST(win32u)
     test_NtUserEnumDisplayDevices();
     test_window_props();
     test_class();
-    test_NtUserGetWindowRgnEx();
     test_NtUserCreateInputContext();
     test_NtUserBuildHimcList();
     test_NtUserBuildHwndList();

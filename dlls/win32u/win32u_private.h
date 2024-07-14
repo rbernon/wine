@@ -45,8 +45,8 @@ extern ULONG_PTR set_icon_param( HICON handle, ULONG_PTR param );
 
 /* dce.c */
 extern struct window_surface dummy_surface;
-extern BOOL scaled_surface_create( HWND hwnd, BOOL create_layered, const RECT *surface_rect, UINT dpi_from, UINT dpi_to,
-                                   struct window_surface **window_surface );
+extern void create_offscreen_window_surface( HWND hwnd, const RECT *surface_rect,
+                                             struct window_surface **surface );
 extern void erase_now( HWND hwnd, UINT rdw_flags );
 extern void flush_window_surfaces( BOOL idle );
 extern void move_window_bits( HWND hwnd, const RECT *visible_rect, const RECT *old_visible_rect,
@@ -69,9 +69,6 @@ extern BOOL draw_rect_edge( HDC hdc, RECT *rc, UINT uType, UINT uFlags, UINT wid
 extern void fill_rect( HDC dc, const RECT *rect, HBRUSH hbrush );
 extern void get_sys_popup_pos( HWND hwnd, RECT *rect );
 extern LRESULT handle_nc_hit_test( HWND hwnd, POINT pt );
-
-/* dwmdrv.c */
-extern void dwm_init(void);
 
 /* hook.c */
 extern LRESULT call_current_hook( HHOOK hhook, INT code, WPARAM wparam, LPARAM lparam );
@@ -182,8 +179,6 @@ extern RECT get_virtual_screen_rect( UINT dpi );
 extern BOOL is_exiting_thread( DWORD tid );
 extern POINT map_dpi_point( POINT pt, UINT dpi_from, UINT dpi_to );
 extern RECT map_dpi_rect( RECT rect, UINT dpi_from, UINT dpi_to );
-extern struct window_rects map_dpi_window_rects( struct window_rects rects, UINT dpi_from, UINT dpi_to );
-extern HRGN map_dpi_region( HRGN region, UINT dpi_from, UINT dpi_to );
 extern BOOL message_beep( UINT i );
 extern POINT point_phys_to_win_dpi( HWND hwnd, POINT pt );
 extern POINT point_thread_to_win_dpi( HWND hwnd, POINT pt );
@@ -259,12 +254,10 @@ extern BOOL is_window_visible( HWND hwnd );
 extern BOOL is_zoomed( HWND hwnd );
 extern DWORD get_window_long( HWND hwnd, INT offset );
 extern ULONG_PTR get_window_long_ptr( HWND hwnd, INT offset, BOOL ansi );
-enum coords_relative;
-extern BOOL get_window_rect_rel( HWND hwnd, enum coords_relative rel, RECT *rect, UINT dpi );
 extern BOOL get_window_rect( HWND hwnd, RECT *rect, UINT dpi );
-extern BOOL get_client_rect_rel( HWND hwnd, enum coords_relative rel, RECT *rect, UINT dpi );
-extern BOOL get_window_rects( HWND hwnd, enum coords_relative relative,
-                              struct window_rects *rects, UINT dpi );
+enum coords_relative;
+extern BOOL get_window_rects( HWND hwnd, enum coords_relative relative, RECT *window_rect,
+                              RECT *client_rect, UINT dpi );
 extern HWND *list_window_children( HDESK desktop, HWND hwnd, UNICODE_STRING *class,
                                    DWORD tid );
 extern int map_window_points( HWND hwnd_from, HWND hwnd_to, POINT *points, UINT count,
@@ -277,7 +270,7 @@ extern BOOL set_window_pos( WINDOWPOS *winpos, int parent_x, int parent_y );
 extern ULONG set_window_style( HWND hwnd, ULONG set_bits, ULONG clear_bits );
 extern BOOL show_owned_popups( HWND owner, BOOL show );
 extern void update_window_state( HWND hwnd );
-extern HWND window_from_point( HWND hwnd, POINT pt, INT *hittest, UINT dpi );
+extern HWND window_from_point( HWND hwnd, POINT pt, INT *hittest );
 extern HWND get_shell_window(void);
 extern HWND get_progman_window(void);
 extern HWND set_progman_window( HWND hwnd );

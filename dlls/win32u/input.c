@@ -619,9 +619,9 @@ static void update_mouse_coords( INPUT *input )
         RECT rc;
 
         if (input->mi.dwFlags & MOUSEEVENTF_VIRTUALDESK)
-            rc = get_virtual_screen_rect( 0 ); /* FIXME DPI */
+            rc = get_virtual_screen_rect( 0 );
         else
-            rc = get_primary_monitor_rect( 0 ); /* FIXME DPI */
+            rc = get_primary_monitor_rect( 0 );
 
         input->mi.dx = rc.left + ((input->mi.dx * (rc.right - rc.left)) >> 16);
         input->mi.dy = rc.top  + ((input->mi.dy * (rc.bottom - rc.top)) >> 16);
@@ -800,13 +800,10 @@ static void check_for_events( UINT flags )
         .internal = TRUE,
         .flags = PM_REMOVE,
     };
-    UINT context;
     MSG msg;
 
-    context = set_thread_dpi_awareness_context( NTUSER_DPI_PER_MONITOR_AWARE_V2 );
     if (!user_driver->pProcessEvents( flags ))
         flush_window_surfaces( TRUE );
-    set_thread_dpi_awareness_context( context );
 
     peek_message( &msg, &filter );
 }
@@ -1608,7 +1605,7 @@ void update_mouse_tracking_info( HWND hwnd )
     TRACE( "hwnd %p\n", hwnd );
 
     get_cursor_pos( &pos );
-    hwnd = window_from_point( hwnd, pos, &hittest, get_thread_dpi() );
+    hwnd = window_from_point( hwnd, pos, &hittest );
 
     TRACE( "point %s hwnd %p hittest %d\n", wine_dbgstr_point(&pos), hwnd, hittest );
 
@@ -1704,7 +1701,7 @@ BOOL WINAPI NtUserTrackMouseEvent( TRACKMOUSEEVENT *info )
         NtUserSystemParametersInfo( SPI_GETMOUSEHOVERTIME, 0, &hover_time, 0 );
 
     get_cursor_pos( &pos );
-    hwnd = window_from_point( info->hwndTrack, pos, &hittest, get_thread_dpi() );
+    hwnd = window_from_point( info->hwndTrack, pos, &hittest );
     TRACE( "point %s hwnd %p hittest %d\n", wine_dbgstr_point(&pos), hwnd, hittest );
 
     if (info->dwFlags & ~(TME_CANCEL | TME_HOVER | TME_LEAVE | TME_NONCLIENT))

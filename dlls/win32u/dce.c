@@ -23,8 +23,6 @@
 #pragma makedep unix
 #endif
 
-#include <config.h>
-
 #include <assert.h>
 #include <pthread.h>
 #include "ntstatus.h"
@@ -33,10 +31,6 @@
 #include "ntuser_private.h"
 #include "wine/server.h"
 #include "wine/debug.h"
-
-/* #ifdef HAVE_CAIRO_CAIRO_H */
-#include <cairo/cairo.h>
-/* #endif */
 
 WINE_DEFAULT_DEBUG_CHANNEL(win);
 
@@ -131,7 +125,10 @@ void create_offscreen_window_surface( HWND hwnd, const RECT *surface_rect, struc
     TRACE( "hwnd %p, surface_rect %s, window_surface %p.\n", hwnd, wine_dbgstr_rect( surface_rect ), window_surface );
 
     /* check that old surface is an offscreen_window_surface, or release it */
-    if ((previous = *window_surface) && previous->funcs == &offscreen_window_surface_funcs) return;
+    if ((previous = *window_surface) && previous->funcs == &offscreen_window_surface_funcs &&
+        EqualRect( surface_rect, &previous->rect )) return;
+    if (previous) window_surface_release( previous );
+    *window_surface = NULL;
 
     memset( info, 0, sizeof(*info) );
     info->bmiHeader.biSize        = sizeof(info->bmiHeader);
@@ -148,148 +145,6 @@ void create_offscreen_window_surface( HWND hwnd, const RECT *surface_rect, struc
 
     TRACE( "created window surface %p\n", surface );
     *window_surface = surface;
-
-    if (previous) window_surface_release( previous );
-}
-
-struct scaled_surface
-{
-    struct window_surface header;
-    struct window_surface *target_surface;
-    UINT dpi_from;
-    UINT dpi_to;
-};
-
-static struct scaled_surface *get_scaled_surface( struct window_surface *window_surface )
-{
-    return CONTAINING_RECORD( window_surface, struct scaled_surface, header );
-}
-
-static void scaled_surface_set_clip( struct window_surface *window_surface, const RECT *rects, UINT count )
-{
-}
-
-static cairo_surface_t *cairo_surface_from_bitmap( const BITMAPINFO *color_info, const void *color_bits )
-{
-    UINT width = color_info->bmiHeader.biWidth, height = abs( color_info->bmiHeader.biHeight );
-    return cairo_image_surface_create_for_data( (void *)color_bits, CAIRO_FORMAT_RGB24, width, height,
-                                                color_info->bmiHeader.biSizeImage / height );
-}
-
-static void scaled_surface_set_shape( struct window_surface *window_surface,
-                                      const BITMAPINFO *shape_info, const void *shape_bits )
-{
-}
-
-static BOOL scaled_surface_flush( struct window_surface *window_surface, const RECT *dirty,
-                                  const BITMAPINFO *color_info, const void *color_bits )
-{
-    struct scaled_surface *surface = get_scaled_surface( window_surface );
-    float scale = (float)surface->dpi_to / (float)surface->dpi_from;
-    char info_buf[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
-    BITMAPINFO *info = (BITMAPINFO *)info_buf;
-    RECT src = *dirty, dst;
-    void *bits;
-
-    src.left &= ~7;
-    src.top &= ~7;
-    src.right = (src.right + 7) & ~7;
-    src.bottom = (src.bottom + 7) & ~7;
-
-    dst = map_dpi_rect( src, surface->dpi_from, surface->dpi_to );
-
-    if (window_surface_get_color( surface->target_surface, info, &bits ))
-    {
-        cairo_surface_t *cairo_src, *cairo_dst;
-        cairo_t *cairo;
-
-        cairo_src = cairo_surface_from_bitmap( color_info, color_bits );
-        cairo_dst = cairo_surface_from_bitmap( info, bits );
-        cairo = cairo_create( cairo_dst );
-        cairo_scale( cairo, scale, scale );
-        cairo_set_source_surface( cairo, cairo_src, dst.left - scale * src.left, dst.top - scale * src.top );
-        cairo_rectangle( cairo, dst.left, dst.top, dst.right - dst.left, dst.bottom - dst.top );
-        cairo_paint( cairo );
-        cairo_destroy( cairo );
-        cairo_surface_destroy( cairo_src );
-        cairo_surface_destroy( cairo_dst );
-        add_bounds_rect( &surface->target_surface->bounds, &dst );
-        window_surface_flush( surface->target_surface );
-    }
-
-    return TRUE;
-}
-
-static void scaled_surface_destroy( struct window_surface *window_surface )
-{
-    struct scaled_surface *surface = get_scaled_surface( window_surface );
-    window_surface_release( surface->target_surface );
-}
-
-static const struct window_surface_funcs scaled_surface_funcs =
-{
-    scaled_surface_set_clip,
-    scaled_surface_set_shape,
-    scaled_surface_flush,
-    scaled_surface_destroy
-};
-
-static RECT get_surface_rect( RECT rect )
-{
-    OffsetRect( &rect, -rect.left, -rect.top );
-
-    rect.left &= ~127;
-    rect.top  &= ~127;
-    rect.right  = max( rect.left + 128, (rect.right + 127) & ~127 );
-    rect.bottom = max( rect.top + 128, (rect.bottom + 127) & ~127 );
-
-    return rect;
-}
-
-BOOL scaled_surface_create( HWND hwnd, BOOL create_layered, const RECT *surface_rect, UINT dpi_from, UINT dpi_to,
-                            struct window_surface **window_surface )
-{
-    RECT monitor_rect = get_surface_rect( map_dpi_rect( *surface_rect, dpi_from, dpi_to ) );
-    struct window_surface *previous;
-
-    /* check if the driver supports scaling window surfaces directly */
-    if (user_driver->pCreateWindowSurface( hwnd, create_layered, dpi_from, dpi_to, surface_rect, window_surface )) return TRUE;
-
-    if ((previous = *window_surface) && previous->funcs == &scaled_surface_funcs)
-    {
-        struct scaled_surface *surface = get_scaled_surface( previous );
-        if (EqualRect( &surface->target_surface->rect, &monitor_rect )) return TRUE;
-        window_surface_add_ref( (*window_surface = surface->target_surface) );
-        window_surface_release( previous );
-    }
-
-    if (!user_driver->pCreateWindowSurface( hwnd, create_layered, dpi_to, dpi_to, &monitor_rect, window_surface )) return FALSE;
-    if (dpi_from != dpi_to && (previous = *window_surface))
-    {
-        char buffer[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
-        BITMAPINFO *info = (BITMAPINFO *)buffer;
-        struct scaled_surface *surface;
-
-        memset( info, 0, sizeof(*info) );
-        info->bmiHeader.biSize        = sizeof(info->bmiHeader);
-        info->bmiHeader.biWidth       = surface_rect->right;
-        info->bmiHeader.biHeight      = -surface_rect->bottom; /* top-down */
-        info->bmiHeader.biPlanes      = 1;
-        info->bmiHeader.biBitCount    = 32;
-        info->bmiHeader.biSizeImage   = get_dib_image_size( info );
-        info->bmiHeader.biCompression = BI_RGB;
-
-        if (!window_surface_create( sizeof(*surface), &scaled_surface_funcs, hwnd, surface_rect,
-                                    info, 0, CLR_INVALID, 0, window_surface ))
-            return FALSE;
-
-        surface = get_scaled_surface( *window_surface );
-        window_surface_add_ref( (surface->target_surface = previous) );
-        surface->dpi_from = dpi_from;
-        surface->dpi_to = dpi_to;
-    }
-
-    return TRUE;
 }
 
 /* window surface common helpers */
@@ -466,57 +321,6 @@ static BOOL set_surface_shape( struct window_surface *surface, const RECT *rect,
     }
     }
 
-{
-    static const char magic[2] = "BM";
-    static const DWORD colors[2] = {0, -1};
-    struct
-    {
-        DWORD length;
-        DWORD reserved;
-        DWORD offset;
-        BITMAPINFOHEADER biHeader;
-    } header =
-    {
-        .length = shape_info->bmiHeader.biSizeImage + sizeof(header) + 2, .offset = sizeof(header) + 2 + sizeof(colors),
-        .biHeader = shape_info->bmiHeader,
-    };
-    char buffer[256];
-    FILE *file;
-
-    sprintf(buffer, "/tmp/shape-%p.bmp", surface);
-    file = fopen(buffer, "w");
-    fwrite(magic, sizeof(magic), 1, file);
-    fwrite(&header, sizeof(header), 1, file);
-    fwrite(&colors, sizeof(colors), 1, file);
-    fwrite(shape_bits, shape_info->bmiHeader.biSizeImage, 1, file);
-    fclose(file);
-}
-
-{
-    static const char magic[2] = "BM";
-    struct
-    {
-        DWORD length;
-        DWORD reserved;
-        DWORD offset;
-        BITMAPINFOHEADER biHeader;
-    } header =
-    {
-        .length = color_info->bmiHeader.biSizeImage + sizeof(header) + 2, .offset = sizeof(header) + 2,
-        .biHeader = color_info->bmiHeader,
-    };
-    char buffer[256];
-    FILE *file;
-
-    sprintf(buffer, "/tmp/color-%p.bmp", surface);
-    file = fopen(buffer, "w");
-    fwrite(magic, sizeof(magic), 1, file);
-    fwrite(&header, sizeof(header), 1, file);
-    fwrite(color_bits, color_info->bmiHeader.biSizeImage, 1, file);
-    fclose(file);
-}
-
-    surface->funcs->set_shape( surface, shape_info, shape_bits );
     ret = memcmp( old_shape, shape_bits, shape_info->bmiHeader.biSizeImage );
     free( old_shape );
     return ret;
@@ -732,42 +536,6 @@ W32KAPI void window_surface_set_shape( struct window_surface *surface, HRGN shap
     window_surface_flush( surface );
 }
 
-W32KAPI void window_surface_expose( struct window_surface *surface, const RECT *dirty, const POINT *offset, UINT flags )
-{
-    HRGN exposed, clipped = 0;
-
-    TRACE( "hwnd %p, surface %p %s, dirty %s, offset %s, flags %#x\n", surface->hwnd, surface,
-           wine_dbgstr_rect( &surface->rect ), wine_dbgstr_rect( dirty ), wine_dbgstr_point( offset ), flags );
-
-    if (!flags) exposed = clipped = 0;
-    else if (!(exposed = NtGdiCreateRectRgn( dirty->left, dirty->top, dirty->right, dirty->bottom ))) flags = 0;
-    else if (!(clipped = NtGdiCreateRectRgn( 0, 0, surface->rect.right, surface->rect.bottom ))) flags = 0;
-
-    window_surface_lock( surface );
-    add_bounds_rect( &surface->bounds, dirty );
-    if (flags && surface->clip_region) NtGdiCombineRgn( clipped, clipped, surface->clip_region, RGN_DIFF );
-    window_surface_unlock( surface );
-
-    if (flags && NtGdiCombineRgn( exposed, exposed, clipped, RGN_DIFF ) <= NULLREGION) flags = 0;
-    if (clipped) NtGdiDeleteObjectApp( clipped );
-
-    if (flags)
-    {
-        RECT redraw = *dirty;
-
-        if (offset)
-        {
-            NtGdiOffsetRgn( exposed, offset->x, offset->y );
-            OffsetRect( &redraw, offset->x, offset->y );
-        }
-
-        NtUserRedrawWindow( surface->hwnd, &redraw, exposed, flags );
-    }
-
-    if (exposed) NtGdiDeleteObjectApp( exposed );
-    window_surface_flush( surface );
-}
-
 /*******************************************************************
  *           register_window_surface
  *
@@ -855,13 +623,12 @@ static void update_visible_region( struct dce *dce )
 {
     struct window_surface *surface = NULL;
     NTSTATUS status;
-    HRGN vis_rgn = 0, hrgn;
+    HRGN vis_rgn = 0;
     HWND top_win = 0;
     DWORD flags = dce->flags;
     DWORD paint_flags = 0;
     size_t size = 256;
-    RECT win_rect, phys_rect, top_rect;
-    UINT dpi, monitor_dpi;
+    RECT win_rect, top_rect;
     WND *win;
 
     /* don't clip siblings if using parent clip region */
@@ -899,18 +666,10 @@ static void update_visible_region( struct dce *dce )
 
     if (status || !vis_rgn) return;
 
-    dpi = get_dpi_for_window( top_win );
-    monitor_dpi = get_win_monitor_dpi( top_win );
-    top_rect = map_dpi_rect( top_rect, dpi, monitor_dpi );
-    phys_rect = map_dpi_rect( win_rect, dpi, monitor_dpi );
-
-    user_driver->pGetDC( dce->hdc, dce->hwnd, top_win, &phys_rect, &top_rect, flags );
+    user_driver->pGetDC( dce->hdc, dce->hwnd, top_win, &win_rect, &top_rect, flags );
 
     if (dce->clip_rgn) NtGdiCombineRgn( vis_rgn, vis_rgn, dce->clip_rgn,
                                         (flags & DCX_INTERSECTRGN) ? RGN_AND : RGN_DIFF );
-    hrgn = map_dpi_region( vis_rgn, dpi, monitor_dpi );
-    if (vis_rgn) NtGdiDeleteObjectApp( vis_rgn );
-    vis_rgn = hrgn;
 
     /* don't use a surface to paint the client area of OpenGL windows */
     if (!(paint_flags & SET_WINPOS_PIXEL_FORMAT) || (flags & DCX_WINDOW))
@@ -925,7 +684,7 @@ static void update_visible_region( struct dce *dce )
     }
 
     if (!surface) SetRectEmpty( &top_rect );
-    set_visible_region( dce->hdc, vis_rgn, &win_rect, &phys_rect, &top_rect, surface );
+    set_visible_region( dce->hdc, vis_rgn, &win_rect, &top_rect, surface );
     if (surface) window_surface_release( surface );
 }
 
@@ -936,8 +695,7 @@ static void release_dce( struct dce *dce )
 {
     if (!dce->hwnd) return;  /* already released */
 
-    set_visible_region( dce->hdc, 0, &dummy_surface.rect, &dummy_surface.rect,
-                        &dummy_surface.rect, &dummy_surface );
+    set_visible_region( dce->hdc, 0, &dummy_surface.rect, &dummy_surface.rect, &dummy_surface );
     user_driver->pReleaseDC( dce->hwnd, dce->hdc );
 
     if (dce->clip_rgn) NtGdiDeleteObjectApp( dce->clip_rgn );
@@ -1571,26 +1329,25 @@ static HRGN send_ncpaint( HWND hwnd, HWND *child, UINT *flags )
 
     if (whole_rgn)
     {
-        struct window_rects rects;
         UINT context;
-        RECT update;
+        RECT client, window, update;
         INT type;
 
         context = set_thread_dpi_awareness_context( get_window_dpi_awareness_context( hwnd ));
 
         /* check if update rgn overlaps with nonclient area */
         type = NtGdiGetRgnBox( whole_rgn, &update );
-        get_window_rects( hwnd, COORDS_SCREEN, &rects, get_thread_dpi() );
+        get_window_rects( hwnd, COORDS_SCREEN, &window, &client, get_thread_dpi() );
 
         if ((*flags & UPDATE_NONCLIENT) ||
-            update.left < rects.client.left || update.top < rects.client.top ||
-            update.right > rects.client.right || update.bottom > rects.client.bottom)
+            update.left < client.left || update.top < client.top ||
+            update.right > client.right || update.bottom > client.bottom)
         {
-            client_rgn = NtGdiCreateRectRgn( rects.client.left, rects.client.top, rects.client.right, rects.client.bottom );
+            client_rgn = NtGdiCreateRectRgn( client.left, client.top, client.right, client.bottom );
             NtGdiCombineRgn( client_rgn, client_rgn, whole_rgn, RGN_AND );
 
             /* check if update rgn contains complete nonclient area */
-            if (type == SIMPLEREGION && EqualRect( &rects.window, &update ))
+            if (type == SIMPLEREGION && EqualRect( &window, &update ))
             {
                 NtGdiDeleteObjectApp( whole_rgn );
                 whole_rgn = (HRGN)1;
@@ -1846,12 +1603,7 @@ BOOL WINAPI NtUserRedrawWindow( HWND hwnd, const RECT *rect, HRGN hrgn, UINT fla
     }
 
     /* process pending expose events before painting */
-    if (flags & RDW_UPDATENOW)
-    {
-        UINT context = set_thread_dpi_awareness_context( NTUSER_DPI_PER_MONITOR_AWARE_V2 );
-        user_driver->pProcessEvents( QS_PAINT );
-        set_thread_dpi_awareness_context( context );
-    }
+    if (flags & RDW_UPDATENOW) user_driver->pProcessEvents( QS_PAINT );
 
     if (rect && !hrgn)
     {
@@ -2212,7 +1964,7 @@ INT WINAPI NtUserScrollWindowEx( HWND hwnd, INT dx, INT dy, const RECT *rect,
 
             for (i = 0; list[i]; i++)
             {
-                get_window_rect_rel( list[i], COORDS_PARENT, &r, get_thread_dpi() );
+                get_window_rects( list[i], COORDS_PARENT, &r, NULL, get_thread_dpi() );
                 if (!rect || intersect_rect( &dummy, &r, rect ))
                     NtUserSetWindowPos( list[i], 0, r.left + dx, r.top  + dy, 0, 0,
                                         SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE |

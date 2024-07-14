@@ -597,6 +597,7 @@ BOOL process_rawinput_message( MSG *msg, UINT hw_id, const struct hardware_msg_d
         msg->lParam = (LPARAM)hw_id;
     }
 
+    msg->pt = point_phys_to_win_dpi( msg->hwnd, msg->pt );
     return TRUE;
 }
 

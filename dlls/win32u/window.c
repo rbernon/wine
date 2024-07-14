@@ -439,8 +439,8 @@ HWND WINAPI NtUserSetParent( HWND hwnd, HWND parent )
     win = get_win_ptr( hwnd );
     if (!win || win == WND_OTHER_PROCESS || win == WND_DESKTOP) return 0;
 
-    get_window_rect_rel( hwnd, COORDS_PARENT, &window_rect, get_dpi_for_window(hwnd) );
-    get_window_rect_rel( hwnd, COORDS_SCREEN, &old_screen_rect, 0 );
+    get_window_rects( hwnd, COORDS_PARENT, &window_rect, NULL, get_dpi_for_window(hwnd) );
+    get_window_rects( hwnd, COORDS_SCREEN, &old_screen_rect, NULL, 0 );
 
     SERVER_START_REQ( set_parent )
     {
@@ -458,7 +458,7 @@ HWND WINAPI NtUserSetParent( HWND hwnd, HWND parent )
     release_win_ptr( win );
     if (!ret) return 0;
 
-    get_window_rect_rel( hwnd, COORDS_SCREEN, &new_screen_rect, 0 );
+    get_window_rects( hwnd, COORDS_SCREEN, &new_screen_rect, NULL, 0 );
     context = set_thread_dpi_awareness_context( get_window_dpi_awareness_context( hwnd ));
 
     user_driver->pSetParent( full_handle, parent, old_parent );
@@ -1555,7 +1555,8 @@ static void mirror_rect( const RECT *window_rect, RECT *rect )
  *
  * Get the window and client rectangles.
  */
-BOOL get_window_rects( HWND hwnd, enum coords_relative relative, struct window_rects *rects, UINT dpi )
+BOOL get_window_rects( HWND hwnd, enum coords_relative relative, RECT *window_rect,
+                       RECT *client_rect, UINT dpi )
 {
     WND *win = get_win_ptr( hwnd );
     BOOL ret = TRUE;
@@ -1579,37 +1580,29 @@ BOOL get_window_rects( HWND hwnd, enum coords_relative relative, struct window_r
         {
             rect = get_primary_monitor_rect( dpi );
         }
-        rects->window = rect;
-        rects->client = rect;
-        rects->visible = rect;
+        if (window_rect) *window_rect = rect;
+        if (client_rect) *client_rect = rect;
         return TRUE;
     }
     if (win != WND_OTHER_PROCESS)
     {
         UINT window_dpi = get_dpi_for_window( hwnd );
-        *rects = win->rects;
+        RECT window = win->window_rect;
+        RECT client = win->client_rect;
 
         switch (relative)
         {
         case COORDS_CLIENT:
-            OffsetRect( &rects->window, -win->rects.client.left, -win->rects.client.top );
-            OffsetRect( &rects->client, -win->rects.client.left, -win->rects.client.top );
-            OffsetRect( &rects->visible, -win->rects.client.left, -win->rects.client.top );
+            OffsetRect( &window, -win->client_rect.left, -win->client_rect.top );
+            OffsetRect( &client, -win->client_rect.left, -win->client_rect.top );
             if (win->dwExStyle & WS_EX_LAYOUTRTL)
-            {
-                mirror_rect( &win->rects.client, &rects->window );
-                mirror_rect( &win->rects.client, &rects->visible );
-            }
+                mirror_rect( &win->client_rect, &window );
             break;
         case COORDS_WINDOW:
-            OffsetRect( &rects->window, -win->rects.window.left, -win->rects.window.top );
-            OffsetRect( &rects->client, -win->rects.window.left, -win->rects.window.top );
-            OffsetRect( &rects->visible, -win->rects.window.left, -win->rects.window.top );
+            OffsetRect( &window, -win->window_rect.left, -win->window_rect.top );
+            OffsetRect( &client, -win->window_rect.left, -win->window_rect.top );
             if (win->dwExStyle & WS_EX_LAYOUTRTL)
-            {
-                mirror_rect( &win->rects.window, &rects->client );
-                mirror_rect( &win->rects.window, &rects->visible );
-            }
+                mirror_rect( &win->window_rect, &client );
             break;
         case COORDS_PARENT:
             if (win->parent)
@@ -1629,9 +1622,8 @@ BOOL get_window_rects( HWND hwnd, enum coords_relative relative, struct window_r
                 }
                 if (parent->dwExStyle & WS_EX_LAYOUTRTL)
                 {
-                    mirror_rect( &parent->rects.client, &rects->window );
-                    mirror_rect( &parent->rects.client, &rects->client );
-                    mirror_rect( &parent->rects.client, &rects->visible );
+                    mirror_rect( &parent->client_rect, &window );
+                    mirror_rect( &parent->client_rect, &client );
                 }
                 release_win_ptr( parent );
             }
@@ -1655,16 +1647,14 @@ BOOL get_window_rects( HWND hwnd, enum coords_relative relative, struct window_r
                 win = parent;
                 if (win->parent)
                 {
-                    OffsetRect( &rects->window, win->rects.client.left, win->rects.client.top );
-                    OffsetRect( &rects->client, win->rects.client.left, win->rects.client.top );
-                    OffsetRect( &rects->visible, win->rects.client.left, win->rects.client.top );
+                    OffsetRect( &window, win->client_rect.left, win->client_rect.top );
+                    OffsetRect( &client, win->client_rect.left, win->client_rect.top );
                 }
             }
             break;
         }
-        rects->window = map_dpi_rect( rects->window, window_dpi, dpi );
-        rects->client = map_dpi_rect( rects->client, window_dpi, dpi );
-        rects->visible = map_dpi_rect( rects->visible, window_dpi, dpi );
+        if (window_rect) *window_rect = map_dpi_rect( window, window_dpi, dpi );
+        if (client_rect) *client_rect = map_dpi_rect( client, window_dpi, dpi );
         release_win_ptr( win );
         return TRUE;
     }
@@ -1677,50 +1667,34 @@ other_process:
         req->dpi = dpi;
         if ((ret = !wine_server_call_err( req )))
         {
-            rects->window = wine_server_get_rect( reply->window );
-            rects->client = wine_server_get_rect( reply->client );
-            rects->visible = rects->window;
+            if (window_rect) *window_rect = wine_server_get_rect( reply->window );
+            if (client_rect) *client_rect = wine_server_get_rect( reply->client );
         }
     }
     SERVER_END_REQ;
     return ret;
 }
 
-BOOL get_window_rect_rel( HWND hwnd, enum coords_relative rel, RECT *rect, UINT dpi )
-{
-    struct window_rects rects = {0};
-    BOOL ret = get_window_rects( hwnd, rel, &rects, dpi );
-    *rect = rects.window;
-    return ret;
-}
-
 /* see GetWindowRect */
 BOOL get_window_rect( HWND hwnd, RECT *rect, UINT dpi )
 {
-    return get_window_rect_rel( hwnd, COORDS_SCREEN, rect, dpi );
-}
-
-BOOL get_client_rect_rel( HWND hwnd, enum coords_relative rel, RECT *rect, UINT dpi )
-{
-    struct window_rects rects = {0};
-    BOOL ret = get_window_rects( hwnd, rel, &rects, dpi );
-    *rect = rects.client;
-    return ret;
+    return get_window_rects( hwnd, COORDS_SCREEN, rect, NULL, dpi );
 }
 
 /* see GetClientRect */
 BOOL get_client_rect( HWND hwnd, RECT *rect, UINT dpi )
 {
-    return get_client_rect_rel( hwnd, COORDS_CLIENT, rect, dpi );
+    return get_window_rects( hwnd, COORDS_CLIENT, NULL, rect, dpi );
 }
 
 /* see GetWindowInfo */
 static BOOL get_window_info( HWND hwnd, WINDOWINFO *info )
 {
-    struct window_rects rects;
-    if (!info || !get_window_rects( hwnd, COORDS_SCREEN, &rects, get_thread_dpi() )) return FALSE;
-    info->rcWindow        = rects.window;
-    info->rcClient        = rects.client;
+
+    if (!info || !get_window_rects( hwnd, COORDS_SCREEN, &info->rcWindow,
+                                    &info->rcClient, get_thread_dpi() ))
+        return FALSE;
+
     info->dwStyle         = get_window_long( hwnd, GWL_STYLE );
     info->dwExStyle       = get_window_long( hwnd, GWL_EXSTYLE );
     info->dwWindowStatus  = get_active_window() == hwnd ? WS_ACTIVECAPTION : 0;
@@ -1731,19 +1705,16 @@ static BOOL get_window_info( HWND hwnd, WINDOWINFO *info )
     return TRUE;
 }
 
-static NTSTATUS get_window_region( HWND hwnd, BOOL surface, HRGN *region, RECT *visible, UINT dpi )
+static NTSTATUS get_window_region( HWND hwnd, BOOL surface, HRGN *region, RECT *visible )
 {
-    UINT i, window_dpi = get_dpi_for_window( hwnd );
     NTSTATUS status;
     RGNDATA *data;
     size_t size = 256;
-    RECT *rects;
 
     *region = 0;
     do
     {
         if (!(data = malloc( FIELD_OFFSET( RGNDATA, Buffer[size] )))) return STATUS_NO_MEMORY;
-        rects = (RECT *)data->Buffer;
 
         SERVER_START_REQ( get_window_region )
         {
@@ -1759,9 +1730,8 @@ static NTSTATUS get_window_region( HWND hwnd, BOOL surface, HRGN *region, RECT *
                     data->rdh.iType    = RDH_RECTANGLES;
                     data->rdh.nCount   = reply_size / sizeof(RECT);
                     data->rdh.nRgnSize = reply_size;
-                    for (i = 0; i < data->rdh.nCount; i++) rects[i] = map_dpi_rect( rects[i], window_dpi, dpi );
                     *region = NtGdiExtCreateRegion( NULL, data->rdh.dwSize + data->rdh.nRgnSize, data );
-                    *visible = map_dpi_rect( wine_server_get_rect( reply->visible_rect ), window_dpi, dpi );
+                    *visible = wine_server_get_rect( reply->visible_rect );
                 }
             }
             else size = reply->total_size;
@@ -1777,7 +1747,7 @@ static NTSTATUS get_window_region( HWND hwnd, BOOL surface, HRGN *region, RECT *
 /***********************************************************************
  *           update_surface_region
  */
-static void update_surface_region( HWND hwnd, UINT dpi )
+static void update_surface_region( HWND hwnd )
 {
     WND *win = get_win_ptr( hwnd );
     HRGN region, shape = 0;
@@ -1786,7 +1756,7 @@ static void update_surface_region( HWND hwnd, UINT dpi )
     if (!win || win == WND_DESKTOP || win == WND_OTHER_PROCESS) return;
     if (!win->surface) goto done;
 
-    if (get_window_region( hwnd, FALSE, &shape, &visible, dpi )) goto done;
+    if (get_window_region( hwnd, FALSE, &shape, &visible )) goto done;
     if (shape)
     {
         region = NtGdiCreateRectRgn( 0, 0, visible.right - visible.left, visible.bottom - visible.top );
@@ -1796,7 +1766,7 @@ static void update_surface_region( HWND hwnd, UINT dpi )
     }
     window_surface_set_shape( win->surface, shape );
 
-    if (get_window_region( hwnd, TRUE, &region, &visible, dpi )) goto done;
+    if (get_window_region( hwnd, TRUE, &region, &visible )) goto done;
     if (!region) window_surface_set_clip( win->surface, shape );
     else
     {
@@ -1863,26 +1833,24 @@ static BOOL get_default_window_surface( HWND hwnd, const RECT *surface_rect, str
 }
 
 static struct window_surface *create_window_surface( HWND hwnd, UINT swp_flags, BOOL create_layered,
-                                                     struct window_rects *rects, RECT *surface_rect )
+                                                     const RECT *window_rect, const RECT *client_rect,
+                                                     RECT *visible_rect, RECT *surface_rect )
 {
     BOOL shaped, needs_surface, create_opaque, is_layered;
     struct window_surface *new_surface;
-    UINT dpi, monitor_dpi;
     RECT dummy;
     HRGN shape;
-
-    monitor_dpi = get_monitor_dpi( monitor_from_rect( &rects->window, MONITOR_DEFAULTTONEAREST, get_thread_dpi() ) );
 
     if (get_window_region( hwnd, FALSE, &shape, &dummy )) shaped = FALSE;
     else if ((shaped = !!shape)) NtGdiDeleteObjectApp( shape );
 
-    rects->visible = rects->window;
-    if (!user_driver->pWindowPosChanging( hwnd, swp_flags, shaped, rects )) needs_surface = FALSE;
+    *visible_rect = *window_rect;
+    if (!user_driver->pWindowPosChanging( hwnd, swp_flags, shaped, window_rect, client_rect, visible_rect )) needs_surface = FALSE;
     else if (swp_flags & SWP_HIDEWINDOW) needs_surface = FALSE;
     else if (swp_flags & SWP_SHOWWINDOW) needs_surface = TRUE;
     else needs_surface = !!(NtUserGetWindowLongW( hwnd, GWL_STYLE ) & WS_VISIBLE);
 
-    if (!get_surface_rect( &rects->visible, surface_rect )) needs_surface = FALSE;
+    if (!get_surface_rect( visible_rect, surface_rect )) needs_surface = FALSE;
     if (!get_default_window_surface( hwnd, surface_rect, &new_surface )) return NULL;
 
     is_layered = new_surface && new_surface->alpha_mask;
@@ -1895,9 +1863,8 @@ static struct window_surface *create_window_surface( HWND hwnd, UINT swp_flags, 
         window_surface_add_ref( new_surface );
     }
 
-    if (create_layered || is_layered) needs_surface = TRUE;
-    if (!needs_surface || IsRectEmpty( &rects->visible )) needs_surface = FALSE; /* use default surface */
-    else needs_surface = !scaled_surface_create( hwnd, create_layered, surface_rect, dpi, monitor_dpi, &new_surface );
+    if (!needs_surface || IsRectEmpty( visible_rect )) needs_surface = FALSE; /* use default surface */
+    else needs_surface = !user_driver->pCreateWindowSurface( hwnd, surface_rect, &new_surface );
 
     /* create or update window surface for top-level windows if the driver doesn't implement CreateWindowSurface */
     if (needs_surface && new_surface == &dummy_surface && (create_opaque && !create_layered))
@@ -1927,55 +1894,50 @@ static struct window_surface *create_window_surface( HWND hwnd, UINT swp_flags, 
  * Backend implementation of SetWindowPos.
  */
 static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, struct window_surface *new_surface,
-                              struct window_rects *old_rects, struct window_rects *new_rects, BOOL copy_bits )
+                              const RECT *window_rect, const RECT *client_rect, const RECT *visible_rect, const RECT *valid_rects )
 {
     WND *win;
     HWND surface_win = 0;
-    BOOL ret, is_layered, needs_update = FALSE;
-    RECT extra_rects[3];
+    BOOL ret, needs_update = FALSE;
+    RECT old_visible_rect, old_window_rect, old_client_rect, extra_rects[3];
     struct window_surface *old_surface;
-    UINT monitor_dpi;
 
-    is_layered = new_surface && new_surface->alpha_mask;
-
-    get_window_rects( hwnd, COORDS_SCREEN, old_rects, get_thread_dpi() );
-    if (IsRectEmpty( &new_rects->valid )) copy_bits = FALSE;
+    get_window_rects( hwnd, COORDS_SCREEN, &old_window_rect, NULL, get_thread_dpi() );
+    if (IsRectEmpty( &valid_rects[0] )) valid_rects = NULL;
 
     if (!(win = get_win_ptr( hwnd )) || win == WND_DESKTOP || win == WND_OTHER_PROCESS) return FALSE;
 
+    old_visible_rect = win->visible_rect;
+    old_client_rect = win->client_rect;
     old_surface = win->surface;
     if (old_surface != new_surface) swp_flags |= SWP_FRAMECHANGED;  /* force refreshing non-client area */
     if (new_surface == &dummy_surface) swp_flags |= SWP_NOREDRAW;
     else if (old_surface == &dummy_surface)
     {
         swp_flags |= SWP_NOCOPYBITS;
-        copy_bits = FALSE;
+        valid_rects = NULL;
     }
-
-    monitor_dpi = get_monitor_dpi( monitor_from_rect( &new_rects->window, MONITOR_DEFAULTTONEAREST, get_thread_dpi() ) );
 
     SERVER_START_REQ( set_window_pos )
     {
         req->handle        = wine_server_user_handle( hwnd );
         req->previous      = wine_server_user_handle( insert_after );
         req->swp_flags     = swp_flags;
-        req->monitor_dpi   = monitor_dpi;
-        req->window        = wine_server_rectangle( new_rects->window );
-        req->client        = wine_server_rectangle( new_rects->client );
-        if (!EqualRect( &new_rects->window, &new_rects->visible ) || new_surface || !IsRectEmpty( &old_rects->valid ))
+        req->window        = wine_server_rectangle( *window_rect );
+        req->client        = wine_server_rectangle( *client_rect );
+        if (!EqualRect( window_rect, visible_rect ) || new_surface || valid_rects)
         {
-            extra_rects[0] = extra_rects[1] = new_rects->visible;
+            extra_rects[0] = extra_rects[1] = *visible_rect;
             if (new_surface)
             {
                 extra_rects[1] = new_surface->rect;
-                OffsetRect( &extra_rects[1], new_rects->visible.left, new_rects->visible.top );
+                OffsetRect( &extra_rects[1], visible_rect->left, visible_rect->top );
             }
-            if (!IsRectEmpty( &old_rects->valid )) extra_rects[2] = new_rects->valid;
+            if (valid_rects) extra_rects[2] = valid_rects[0];
             else SetRectEmpty( &extra_rects[2] );
             wine_server_add_data( req, extra_rects, sizeof(extra_rects) );
         }
         if (new_surface) req->paint_flags |= SET_WINPOS_PAINT_SURFACE;
-        if (is_layered) req->paint_flags |= SET_WINPOS_LAYERED_WINDOW;
         if (win->pixel_format || win->internal_pixel_format)
             req->paint_flags |= SET_WINPOS_PIXEL_FORMAT;
 
@@ -1983,21 +1945,23 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
         {
             win->dwStyle      = reply->new_style;
             win->dwExStyle    = reply->new_ex_style;
-            win->rects        = *new_rects;
+            win->window_rect  = *window_rect;
+            win->client_rect  = *client_rect;
+            win->visible_rect = *visible_rect;
             if ((win->surface = new_surface)) window_surface_add_ref( win->surface );
             surface_win       = wine_server_ptr_handle( reply->surface_win );
             needs_update      = reply->needs_update;
             if (get_window_long( win->parent, GWL_EXSTYLE ) & WS_EX_LAYOUTRTL)
             {
                 RECT client;
-                get_client_rect_rel( win->parent, COORDS_CLIENT, &client, get_thread_dpi() );
-                mirror_rect( &client, &win->rects.window );
-                mirror_rect( &client, &win->rects.client );
-                mirror_rect( &client, &win->rects.visible );
+                get_window_rects( win->parent, COORDS_CLIENT, NULL, &client, get_thread_dpi() );
+                mirror_rect( &client, &win->window_rect );
+                mirror_rect( &client, &win->client_rect );
+                mirror_rect( &client, &win->visible_rect );
             }
             /* if an RTL window is resized the children have moved */
             if (win->dwExStyle & WS_EX_LAYOUTRTL &&
-                new_rects->client.right - new_rects->client.left != old_rects->client.right - old_rects->client.left)
+                client_rect->right - client_rect->left != old_client_rect.right - old_client_rect.left)
                 win->flags |= WIN_CHILDREN_MOVED;
         }
     }
@@ -2005,62 +1969,59 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
 
     if (ret)
     {
-        if (needs_update) update_surface_region( surface_win, get_thread_dpi() );
+        if (needs_update) update_surface_region( surface_win );
         if (((swp_flags & SWP_AGG_NOPOSCHANGE) != SWP_AGG_NOPOSCHANGE) ||
             (swp_flags & (SWP_HIDEWINDOW | SWP_SHOWWINDOW | SWP_STATECHANGED | SWP_FRAMECHANGED)))
-            invalidate_dce( win, &old_rects->window );
+            invalidate_dce( win, &old_window_rect );
     }
 
     release_win_ptr( win );
 
     if (ret)
     {
-        RECT valid_rects[2] = {new_rects->valid, old_rects->valid};
-
         TRACE( "win %p surface %p -> %p\n", hwnd, old_surface, new_surface );
         register_window_surface( old_surface, new_surface );
-
         if (old_surface)
         {
-            if (copy_bits)
+            if (valid_rects)
             {
-                RECT valid_rects[2] = {new_rects->valid, old_rects->valid};
                 if (old_surface != new_surface)
-                    move_window_bits_surface( hwnd, &new_rects->window, old_surface, &old_rects->visible, valid_rects );
+                    move_window_bits_surface( hwnd, window_rect, old_surface, &old_visible_rect, valid_rects );
                 else
-                    move_window_bits( hwnd, &new_rects->visible, &old_rects->visible, &new_rects->window, valid_rects );
-                copy_bits = FALSE; /* prevent the driver from trying to also move the bits */
+                    move_window_bits( hwnd, visible_rect, &old_visible_rect, window_rect, valid_rects );
+                valid_rects = NULL;  /* prevent the driver from trying to also move the bits */
             }
             window_surface_release( old_surface );
         }
         else if (surface_win && surface_win != hwnd)
         {
-            if (copy_bits)
+            if (valid_rects)
             {
-                int x_offset = old_rects->visible.left - new_rects->visible.left;
-                int y_offset = old_rects->visible.top - new_rects->visible.top;
+                RECT rects[2];
+                int x_offset = old_visible_rect.left - visible_rect->left;
+                int y_offset = old_visible_rect.top - visible_rect->top;
 
                 /* if all that happened is that the whole window moved, copy everything */
                 if (!(swp_flags & SWP_FRAMECHANGED) &&
-                    old_rects->visible.right  - new_rects->visible.right  == x_offset &&
-                    old_rects->visible.bottom - new_rects->visible.bottom == y_offset &&
-                    old_rects->client.left    - new_rects->client.left   == x_offset &&
-                    old_rects->client.right   - new_rects->client.right  == x_offset &&
-                    old_rects->client.top     - new_rects->client.top    == y_offset &&
-                    old_rects->client.bottom  - new_rects->client.bottom == y_offset &&
-                    EqualRect( &new_rects->valid, &new_rects->client ))
+                    old_visible_rect.right  - visible_rect->right  == x_offset &&
+                    old_visible_rect.bottom - visible_rect->bottom == y_offset &&
+                    old_client_rect.left    - client_rect->left   == x_offset &&
+                    old_client_rect.right   - client_rect->right  == x_offset &&
+                    old_client_rect.top     - client_rect->top    == y_offset &&
+                    old_client_rect.bottom  - client_rect->bottom == y_offset &&
+                    EqualRect( &valid_rects[0], client_rect ))
                 {
-                    valid_rects[0] = new_rects->visible;
-                    valid_rects[1] = old_rects->visible;
+                    rects[0] = *visible_rect;
+                    rects[1] = old_visible_rect;
+                    valid_rects = rects;
                 }
-                move_window_bits( hwnd, &new_rects->visible, &new_rects->visible, &new_rects->window, valid_rects );
-                copy_bits = FALSE; /* prevent the driver from trying to also move the bits */
+                move_window_bits( hwnd, visible_rect, visible_rect, window_rect, valid_rects );
+                valid_rects = NULL;  /* prevent the driver from trying to also move the bits */
             }
         }
 
-        *monitor_rects = map_dpi_window_rects( *new_rects, dpi, monitor_dpi );
-        old_monitor_rects = map_dpi_window_rects( *old_rects, dpi, monitor_dpi );
-        user_driver->pWindowPosChanged( hwnd, insert_after, swp_flags, &old_monitor_rects, monitor_rects, new_surface );
+        user_driver->pWindowPosChanged( hwnd, insert_after, swp_flags, window_rect,
+                                        client_rect, visible_rect, valid_rects, new_surface );
     }
 
     return ret;
@@ -2069,14 +2030,14 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
 /*******************************************************************
  *           NtUserGetWindowRgnEx (win32u.@)
  */
-int WINAPI NtUserGetWindowRgnEx( HWND hwnd, HRGN hrgn, UINT dpi )
+int WINAPI NtUserGetWindowRgnEx( HWND hwnd, HRGN hrgn, UINT unk )
 {
     NTSTATUS status;
     int ret = ERROR;
     HRGN win_rgn;
     RECT visible;
 
-    if ((status = get_window_region( hwnd, FALSE, &win_rgn, &visible, get_thread_dpi() )))
+    if ((status = get_window_region( hwnd, FALSE, &win_rgn, &visible )))
     {
         set_ntstatus( status );
         return ERROR;
@@ -2138,14 +2099,8 @@ int WINAPI NtUserSetWindowRgn( HWND hwnd, HRGN hrgn, BOOL redraw )
     {
         UINT swp_flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED |
             SWP_NOCLIENTSIZE | SWP_NOCLIENTMOVE;
-        HRGN driver_hrgn;
-
         if (!redraw) swp_flags |= SWP_NOREDRAW;
-
-        driver_hrgn = map_dpi_region( hrgn, get_thread_dpi(), get_win_monitor_dpi( hwnd ) );
-        user_driver->pSetWindowRgn( hwnd, driver_hrgn, redraw );
-        if (driver_hrgn) NtGdiDeleteObjectApp( driver_hrgn );
-
+        user_driver->pSetWindowRgn( hwnd, hrgn, redraw );
         NtUserSetWindowPos( hwnd, 0, 0, 0, 0, 0, swp_flags );
         if (hrgn) NtGdiDeleteObjectApp( hrgn );
     }
@@ -2221,9 +2176,8 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
                                        const BLENDFUNCTION *blend, DWORD flags, const RECT *dirty )
 {
     DWORD swp_flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW;
-    struct window_rects old_rects, new_rects, monitor_rects;
     struct window_surface *surface;
-    RECT surface_rect;
+    RECT window_rect, client_rect, visible_rect, surface_rect;
     SIZE offset;
     BOOL ret = FALSE;
 
@@ -2235,23 +2189,20 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
         return FALSE;
     }
 
-    get_window_rects( hwnd, COORDS_PARENT, &old_rects, get_thread_dpi() );
-    new_rects = old_rects;
+    get_window_rects( hwnd, COORDS_PARENT, &window_rect, &client_rect, get_thread_dpi() );
 
     if (pts_dst)
     {
-        offset.cx = pts_dst->x - new_rects.window.left;
-        offset.cy = pts_dst->y - new_rects.window.top;
-        OffsetRect( &new_rects.client, offset.cx, offset.cy );
-        OffsetRect( &new_rects.window, offset.cx, offset.cy );
-        OffsetRect( &new_rects.visible, offset.cx, offset.cy );
-        OffsetRect( &new_rects.valid, offset.cx, offset.cy );
+        offset.cx = pts_dst->x - window_rect.left;
+        offset.cy = pts_dst->y - window_rect.top;
+        OffsetRect( &client_rect, offset.cx, offset.cy );
+        OffsetRect( &window_rect, offset.cx, offset.cy );
         swp_flags &= ~SWP_NOMOVE;
     }
     if (size)
     {
-        offset.cx = size->cx - (new_rects.window.right - new_rects.window.left);
-        offset.cy = size->cy - (new_rects.window.bottom - new_rects.window.top);
+        offset.cx = size->cx - (window_rect.right - window_rect.left);
+        offset.cy = size->cy - (window_rect.bottom - window_rect.top);
         if (size->cx <= 0 || size->cy <= 0)
         {
             RtlSetLastWin32Error( ERROR_INVALID_PARAMETER );
@@ -2262,28 +2213,29 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
             RtlSetLastWin32Error( ERROR_INCORRECT_SIZE );
             return FALSE;
         }
-        new_rects.client.right  += offset.cx;
-        new_rects.client.bottom += offset.cy;
-        new_rects.window.right  += offset.cx;
-        new_rects.window.bottom += offset.cy;
-        new_rects.visible.right  += offset.cx;
-        new_rects.visible.bottom += offset.cy;
-        new_rects.valid.right  += offset.cx;
-        new_rects.valid.bottom += offset.cy;
+        client_rect.right  += offset.cx;
+        client_rect.bottom += offset.cy;
+        window_rect.right  += offset.cx;
+        window_rect.bottom += offset.cy;
         swp_flags &= ~SWP_NOSIZE;
     }
 
-    TRACE( "window %p old_rects %s new_rects %s\n", hwnd, debugstr_window_rects(&old_rects), debugstr_window_rects(&new_rects) );
+    TRACE( "window %p win %s client %s\n", hwnd,
+           wine_dbgstr_rect(&window_rect), wine_dbgstr_rect(&client_rect) );
 
-    surface = create_window_surface( hwnd, swp_flags, TRUE, &new_rects, &surface_rect );
-    apply_window_pos( hwnd, 0, swp_flags, surface, &old_rects, &new_rects, FALSE );
-    if (!surface) return FALSE;
+    surface = create_window_surface( hwnd, swp_flags, TRUE, &window_rect, &client_rect, &visible_rect, &surface_rect );
+    apply_window_pos( hwnd, 0, swp_flags, surface, &window_rect, &client_rect, &visible_rect, NULL );
+    if (surface) window_surface_release( surface );
+
+    if (!(flags & ULW_COLORKEY)) key = CLR_INVALID;
+    if (IsRectEmpty( &surface_rect )) window_surface_add_ref( (surface = &dummy_surface) );
+    else if (!(user_driver->pCreateLayeredWindow( hwnd, &surface_rect, key, &surface )) || !surface) return FALSE;
 
     if (!hdc_src || surface == &dummy_surface) ret = TRUE;
     else
     {
         BLENDFUNCTION src_blend = { AC_SRC_OVER, 0, 255, 0 };
-        RECT rect = new_rects.window, src_rect;
+        RECT rect = window_rect, src_rect;
         UINT alpha = 0xff;
         HDC hdc = NULL;
 
@@ -2310,11 +2262,10 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
         NtGdiDeleteObjectApp( hdc );
         window_surface_unlock( surface );
 
-        if (!(flags & ULW_COLORKEY)) key = CLR_INVALID;
         window_surface_set_layered( surface, key, -1, 0xff000000 );
         window_surface_flush( surface );
 
-        user_driver->pUpdateLayeredWindow( hwnd, &monitor_rects, key, alpha, flags );
+        user_driver->pUpdateLayeredWindow( hwnd, &window_rect, key, alpha, flags );
     }
 
 done:
@@ -2329,7 +2280,7 @@ done:
  * Point is in screen coordinates.
  * Returned list must be freed by caller.
  */
-static HWND *list_children_from_point( HWND hwnd, POINT pt, UINT dpi )
+static HWND *list_children_from_point( HWND hwnd, POINT pt )
 {
     int i, size = 128;
     HWND *list;
@@ -2345,7 +2296,7 @@ static HWND *list_children_from_point( HWND hwnd, POINT pt, UINT dpi )
             req->parent = wine_server_user_handle( hwnd );
             req->x = pt.x;
             req->y = pt.y;
-            req->dpi = dpi;
+            req->dpi = get_thread_dpi();
             wine_server_set_reply( req, list, (size-1) * sizeof(user_handle_t) );
             if (!wine_server_call( req )) count = reply->count;
         }
@@ -2370,18 +2321,19 @@ static HWND *list_children_from_point( HWND hwnd, POINT pt, UINT dpi )
  *
  * Find the window and hittest for a given point.
  */
-HWND window_from_point( HWND hwnd, POINT pt, INT *hittest, UINT dpi )
+HWND window_from_point( HWND hwnd, POINT pt, INT *hittest )
 {
     int i, res;
     HWND ret, *list;
     POINT win_pt;
+    int dpi;
 
     if (!hwnd) hwnd = get_desktop_window();
-    if (!dpi) dpi = get_win_monitor_dpi( hwnd );
+    if (!(dpi = get_thread_dpi())) dpi = get_win_monitor_dpi( hwnd );
 
     *hittest = HTNOWHERE;
 
-    if (!(list = list_children_from_point( hwnd, pt, dpi ))) return 0;
+    if (!(list = list_children_from_point( hwnd, pt ))) return 0;
 
     /* now determine the hittest */
 
@@ -2423,7 +2375,7 @@ HWND WINAPI NtUserWindowFromPoint( LONG x, LONG y )
 {
     POINT pt = { .x = x, .y = y };
     INT hittest;
-    return window_from_point( 0, pt, &hittest, get_thread_dpi() );
+    return window_from_point( 0, pt, &hittest );
 }
 
 /*******************************************************************
@@ -2443,7 +2395,7 @@ HWND WINAPI NtUserChildWindowFromPointEx( HWND parent, LONG x, LONG y, UINT flag
 
     for (i = 0; list[i]; i++)
     {
-        if (!get_window_rect_rel( list[i], COORDS_PARENT, &rect, get_thread_dpi() )) continue;
+        if (!get_window_rects( list[i], COORDS_PARENT, &rect, NULL, get_thread_dpi() )) continue;
         if (!PtInRect( &rect, pt )) continue;
         if (flags & (CWP_SKIPINVISIBLE|CWP_SKIPDISABLED))
         {
@@ -2528,8 +2480,8 @@ static void update_maximized_pos( WND *wnd, RECT *work_rect )
 
     if (wnd->dwStyle & WS_MAXIMIZE)
     {
-        if (wnd->rects.window.left  <= work_rect->left  && wnd->rects.window.top    <= work_rect->top &&
-            wnd->rects.window.right >= work_rect->right && wnd->rects.window.bottom >= work_rect->bottom)
+        if (wnd->window_rect.left  <= work_rect->left  && wnd->window_rect.top    <= work_rect->top &&
+            wnd->window_rect.right >= work_rect->right && wnd->window_rect.bottom >= work_rect->bottom)
             wnd->max_pos.x = wnd->max_pos.y = -1;
     }
     else
@@ -2593,17 +2545,17 @@ BOOL WINAPI NtUserGetWindowPlacement( HWND hwnd, WINDOWPLACEMENT *placement )
     /* update the placement according to the current style */
     if (win->dwStyle & WS_MINIMIZE)
     {
-        win->min_pos.x = win->rects.window.left;
-        win->min_pos.y = win->rects.window.top;
+        win->min_pos.x = win->window_rect.left;
+        win->min_pos.y = win->window_rect.top;
     }
     else if (win->dwStyle & WS_MAXIMIZE)
     {
-        win->max_pos.x = win->rects.window.left;
-        win->max_pos.y = win->rects.window.top;
+        win->max_pos.x = win->window_rect.left;
+        win->max_pos.y = win->window_rect.top;
     }
     else
     {
-        win->normal_rect = win->rects.window;
+        win->normal_rect = win->window_rect;
     }
     update_maximized_pos( win, &work_rect );
 
@@ -2918,12 +2870,12 @@ static BOOL get_windows_offset( HWND hwnd_from, HWND hwnd_to, UINT dpi, BOOL *mi
             if (win->dwExStyle & WS_EX_LAYOUTRTL)
             {
                 mirror_from = TRUE;
-                offset.x += win->rects.client.right - win->rects.client.left;
+                offset.x += win->client_rect.right - win->client_rect.left;
             }
             while (win->parent)
             {
-                offset.x += win->rects.client.left;
-                offset.y += win->rects.client.top;
+                offset.x += win->client_rect.left;
+                offset.y += win->client_rect.top;
                 hwnd = win->parent;
                 release_win_ptr( win );
                 if (!(win = get_win_ptr( hwnd ))) break;
@@ -2956,12 +2908,12 @@ static BOOL get_windows_offset( HWND hwnd_from, HWND hwnd_to, UINT dpi, BOOL *mi
             if (win->dwExStyle & WS_EX_LAYOUTRTL)
             {
                 mirror_to = TRUE;
-                pt.x += win->rects.client.right - win->rects.client.left;
+                pt.x += win->client_rect.right - win->client_rect.left;
             }
             while (win->parent)
             {
-                pt.x += win->rects.client.left;
-                pt.y += win->rects.client.top;
+                pt.x += win->client_rect.left;
+                pt.y += win->client_rect.top;
                 hwnd = win->parent;
                 release_win_ptr( win );
                 if (!(win = get_win_ptr( hwnd ))) break;
@@ -3151,7 +3103,8 @@ static void map_dpi_winpos( WINDOWPOS *winpos )
 /***********************************************************************
  *           calc_winpos
  */
-static BOOL calc_winpos( WINDOWPOS *winpos, struct window_rects *old_rects, struct window_rects *new_rects )
+static BOOL calc_winpos( WINDOWPOS *winpos, RECT *old_window_rect, RECT *old_client_rect,
+                                  RECT *new_window_rect, RECT *new_client_rect )
 {
     WND *win;
 
@@ -3164,21 +3117,21 @@ static BOOL calc_winpos( WINDOWPOS *winpos, struct window_rects *old_rects, stru
         win == WND_OTHER_PROCESS || win == WND_DESKTOP) return FALSE;
 
     /* Calculate new position and size */
-    get_window_rects( winpos->hwnd, COORDS_PARENT, old_rects, get_thread_dpi() );
-    old_rects->visible = win->rects.visible;
-    *new_rects = *old_rects;
+    get_window_rects( winpos->hwnd, COORDS_PARENT, old_window_rect, old_client_rect, get_thread_dpi() );
+    *new_window_rect = *old_window_rect;
+    *new_client_rect = *old_client_rect;
 
     if (!(winpos->flags & SWP_NOSIZE))
     {
         if (win->dwStyle & WS_MINIMIZE)
         {
-            new_rects->window.right  = new_rects->window.left + get_system_metrics( SM_CXMINIMIZED );
-            new_rects->window.bottom = new_rects->window.top + get_system_metrics( SM_CYMINIMIZED );
+            new_window_rect->right  = new_window_rect->left + get_system_metrics( SM_CXMINIMIZED );
+            new_window_rect->bottom = new_window_rect->top + get_system_metrics( SM_CYMINIMIZED );
         }
         else
         {
-            new_rects->window.right  = new_rects->window.left + winpos->cx;
-            new_rects->window.bottom = new_rects->window.top + winpos->cy;
+            new_window_rect->right  = new_window_rect->left + winpos->cx;
+            new_window_rect->bottom = new_window_rect->top + winpos->cy;
         }
     }
 
@@ -3186,27 +3139,27 @@ static BOOL calc_winpos( WINDOWPOS *winpos, struct window_rects *old_rects, stru
     {
         /* If the window is toplevel minimized off-screen, force keep it there */
         if ((win->dwStyle & WS_MINIMIZE) &&
-             win->rects.window.left <= -32000 && win->rects.window.top <= -32000 &&
+             win->window_rect.left <= -32000 && win->window_rect.top <= -32000 &&
             (!win->parent || win->parent == get_desktop_window()))
         {
             winpos->x = -32000;
             winpos->y = -32000;
         }
-        new_rects->window.left    = winpos->x;
-        new_rects->window.top     = winpos->y;
-        new_rects->window.right  += winpos->x - old_rects->window.left;
-        new_rects->window.bottom += winpos->y - old_rects->window.top;
+        new_window_rect->left    = winpos->x;
+        new_window_rect->top     = winpos->y;
+        new_window_rect->right  += winpos->x - old_window_rect->left;
+        new_window_rect->bottom += winpos->y - old_window_rect->top;
 
-        OffsetRect( &new_rects->client, winpos->x - old_rects->window.left,
-                    winpos->y - old_rects->window.top );
-        OffsetRect( &new_rects->visible, winpos->x - old_rects->window.left,
-                    winpos->y - old_rects->window.top );
+        OffsetRect( new_client_rect, winpos->x - old_window_rect->left,
+                     winpos->y - old_window_rect->top );
     }
     winpos->flags |= SWP_NOCLIENTMOVE | SWP_NOCLIENTSIZE;
 
-    TRACE( "hwnd %p, after %p, swp %d,%d %dx%d flags %08x style %08x old_rects %s new_rects %s\n",
-           winpos->hwnd, winpos->hwndInsertAfter, winpos->x, winpos->y, winpos->cx, winpos->cy, winpos->flags, win->dwStyle,
-           debugstr_window_rects( old_rects ), debugstr_window_rects( new_rects ) );
+    TRACE( "hwnd %p, after %p, swp %d,%d %dx%d flags %08x current %s style %08x new %s\n",
+           winpos->hwnd, winpos->hwndInsertAfter, winpos->x, winpos->y,
+           winpos->cx, winpos->cy, winpos->flags,
+           wine_dbgstr_rect( old_window_rect ), win->dwStyle,
+           wine_dbgstr_rect( new_window_rect ));
 
     release_win_ptr( win );
     return TRUE;
@@ -3218,62 +3171,64 @@ static BOOL calc_winpos( WINDOWPOS *winpos, struct window_rects *old_rects, stru
  * Compute the valid rects from the old and new client rect and WVR_* flags.
  * Helper for WM_NCCALCSIZE handling.
  */
-static inline void get_valid_rects( struct window_rects *old_rects, struct window_rects *new_rects, UINT flags )
+static inline void get_valid_rects( const RECT *old_client, const RECT *new_client, UINT flags,
+                                    RECT *valid )
 {
     int cx, cy;
 
     if (flags & WVR_REDRAW)
     {
-        SetRectEmpty( &new_rects->valid );
-        SetRectEmpty( &old_rects->valid );
+        SetRectEmpty( &valid[0] );
+        SetRectEmpty( &valid[1] );
         return;
     }
 
     if (flags & WVR_VALIDRECTS)
     {
-        if (!intersect_rect( &new_rects->valid, &new_rects->valid, &new_rects->client ) ||
-            !intersect_rect( &old_rects->valid, &old_rects->valid, &old_rects->client ))
+        if (!intersect_rect( &valid[0], &valid[0], new_client ) ||
+            !intersect_rect( &valid[1], &valid[1], old_client ))
         {
-            SetRectEmpty( &new_rects->valid );
-            SetRectEmpty( &old_rects->valid );
+            SetRectEmpty( &valid[0] );
+            SetRectEmpty( &valid[1] );
             return;
         }
         flags = WVR_ALIGNLEFT | WVR_ALIGNTOP;
     }
     else
     {
-        new_rects->valid = new_rects->client;
-        old_rects->valid = old_rects->client;
+        valid[0] = *new_client;
+        valid[1] = *old_client;
     }
 
     /* make sure the rectangles have the same size */
-    cx = min( new_rects->valid.right - new_rects->valid.left, old_rects->valid.right - old_rects->valid.left );
-    cy = min( new_rects->valid.bottom - new_rects->valid.top, old_rects->valid.bottom - old_rects->valid.top );
+    cx = min( valid[0].right - valid[0].left, valid[1].right - valid[1].left );
+    cy = min( valid[0].bottom - valid[0].top, valid[1].bottom - valid[1].top );
 
     if (flags & WVR_ALIGNBOTTOM)
     {
-        new_rects->valid.top = new_rects->valid.bottom - cy;
-        old_rects->valid.top = old_rects->valid.bottom - cy;
+        valid[0].top = valid[0].bottom - cy;
+        valid[1].top = valid[1].bottom - cy;
     }
     else
     {
-        new_rects->valid.bottom = new_rects->valid.top + cy;
-        old_rects->valid.bottom = old_rects->valid.top + cy;
+        valid[0].bottom = valid[0].top + cy;
+        valid[1].bottom = valid[1].top + cy;
     }
     if (flags & WVR_ALIGNRIGHT)
     {
-        new_rects->valid.left = new_rects->valid.right - cx;
-        old_rects->valid.left = old_rects->valid.right - cx;
+        valid[0].left = valid[0].right - cx;
+        valid[1].left = valid[1].right - cx;
     }
     else
     {
-        new_rects->valid.right = new_rects->valid.left + cx;
-        old_rects->valid.right = old_rects->valid.left + cx;
+        valid[0].right = valid[0].left + cx;
+        valid[1].right = valid[1].left + cx;
     }
 }
 
-static UINT calc_ncsize( WINDOWPOS *winpos, struct window_rects *old_rects,
-                         struct window_rects *new_rects, int parent_x, int parent_y )
+static UINT calc_ncsize( WINDOWPOS *winpos, const RECT *old_window_rect, const RECT *old_client_rect,
+                         const RECT *new_window_rect, RECT *new_client_rect, RECT *valid_rects,
+                         int parent_x, int parent_y )
 {
     UINT wvr_flags = 0;
 
@@ -3284,22 +3239,22 @@ static UINT calc_ncsize( WINDOWPOS *winpos, struct window_rects *old_rects,
         WINDOWPOS winposCopy;
         UINT class_style;
 
-        params.rgrc[0] = *&new_rects->window;
-        params.rgrc[1] = *&old_rects->window;
-        params.rgrc[2] = *&old_rects->client;
+        params.rgrc[0] = *new_window_rect;
+        params.rgrc[1] = *old_window_rect;
+        params.rgrc[2] = *old_client_rect;
         params.lppos = &winposCopy;
         winposCopy = *winpos;
 
         if (winpos->flags & SWP_NOMOVE)
         {
-            winposCopy.x = old_rects->window.left;
-            winposCopy.y = old_rects->window.top;
+            winposCopy.x = old_window_rect->left;
+            winposCopy.y = old_window_rect->top;
         }
 
         if (winpos->flags & SWP_NOSIZE)
         {
-            winposCopy.cx = old_rects->window.right - old_rects->window.left;
-            winposCopy.cy = old_rects->window.bottom - old_rects->window.top;
+            winposCopy.cx = old_window_rect->right - old_window_rect->left;
+            winposCopy.cy = old_window_rect->bottom - old_window_rect->top;
         }
 
         class_style = get_class_long( winpos->hwnd, GCL_STYLE, FALSE );
@@ -3308,45 +3263,45 @@ static UINT calc_ncsize( WINDOWPOS *winpos, struct window_rects *old_rects,
 
         wvr_flags |= send_message( winpos->hwnd, WM_NCCALCSIZE, TRUE, (LPARAM)&params );
 
-        *&new_rects->client = params.rgrc[0];
+        *new_client_rect = params.rgrc[0];
 
         TRACE( "hwnd %p old win %s old client %s new win %s new client %s\n", winpos->hwnd,
-               wine_dbgstr_rect(&old_rects->window), wine_dbgstr_rect(&old_rects->client),
-               wine_dbgstr_rect(&new_rects->window), wine_dbgstr_rect(&new_rects->client) );
+               wine_dbgstr_rect(old_window_rect), wine_dbgstr_rect(old_client_rect),
+               wine_dbgstr_rect(new_window_rect), wine_dbgstr_rect(new_client_rect) );
 
-        if (new_rects->client.left != old_rects->client.left - parent_x ||
-            new_rects->client.top != old_rects->client.top - parent_y)
+        if (new_client_rect->left != old_client_rect->left - parent_x ||
+            new_client_rect->top != old_client_rect->top - parent_y)
             winpos->flags &= ~SWP_NOCLIENTMOVE;
 
-        if ((new_rects->client.right - new_rects->client.left !=
-             old_rects->client.right - old_rects->client.left))
+        if ((new_client_rect->right - new_client_rect->left !=
+             old_client_rect->right - old_client_rect->left))
             winpos->flags &= ~SWP_NOCLIENTSIZE;
         else
             wvr_flags &= ~WVR_HREDRAW;
 
-        if (new_rects->client.bottom - new_rects->client.top !=
-            old_rects->client.bottom - old_rects->client.top)
+        if (new_client_rect->bottom - new_client_rect->top !=
+            old_client_rect->bottom - old_client_rect->top)
             winpos->flags &= ~SWP_NOCLIENTSIZE;
         else
             wvr_flags &= ~WVR_VREDRAW;
 
-        new_rects->valid = params.rgrc[1];
-        old_rects->valid = params.rgrc[2];
+        valid_rects[0] = params.rgrc[1];
+        valid_rects[1] = params.rgrc[2];
     }
     else
     {
         if (!(winpos->flags & SWP_NOMOVE) &&
-            (new_rects->client.left != old_rects->client.left - parent_x ||
-             new_rects->client.top != old_rects->client.top - parent_y))
+            (new_client_rect->left != old_client_rect->left - parent_x ||
+             new_client_rect->top != old_client_rect->top - parent_y))
             winpos->flags &= ~SWP_NOCLIENTMOVE;
     }
 
     if (winpos->flags & (SWP_NOCOPYBITS | SWP_NOREDRAW | SWP_SHOWWINDOW | SWP_HIDEWINDOW))
     {
-        SetRectEmpty( &new_rects->valid );
-        SetRectEmpty( &old_rects->valid );
+        SetRectEmpty( &valid_rects[0] );
+        SetRectEmpty( &valid_rects[1] );
     }
-    else get_valid_rects( old_rects, new_rects, wvr_flags );
+    else get_valid_rects( old_client_rect, new_client_rect, wvr_flags, valid_rects );
 
     return wvr_flags;
 }
@@ -3526,9 +3481,8 @@ done:
 /* NtUserSetWindowPos implementation */
 BOOL set_window_pos( WINDOWPOS *winpos, int parent_x, int parent_y )
 {
-    RECT surface_rect;
+    RECT old_window_rect, old_client_rect, new_window_rect, new_client_rect, valid_rects[2], visible_rect, surface_rect;
     struct window_surface *surface;
-    struct window_rects old_rects, new_rects;
     UINT orig_flags, context;
     BOOL ret = FALSE;
 
@@ -3573,10 +3527,11 @@ BOOL set_window_pos( WINDOWPOS *winpos, int parent_x, int parent_y )
 
     context = set_thread_dpi_awareness_context( get_window_dpi_awareness_context( winpos->hwnd ));
 
-    if (!calc_winpos( winpos, &old_rects, &new_rects )) goto done;
+    if (!calc_winpos( winpos, &old_window_rect, &old_client_rect,
+                      &new_window_rect, &new_client_rect )) goto done;
 
     /* Fix redundant flags */
-    if (!fixup_swp_flags( winpos, &old_rects.window, parent_x, parent_y )) goto done;
+    if (!fixup_swp_flags( winpos, &old_window_rect, parent_x, parent_y )) goto done;
 
     if((winpos->flags & (SWP_NOZORDER | SWP_HIDEWINDOW | SWP_SHOWWINDOW)) != SWP_NOZORDER)
     {
@@ -3586,11 +3541,13 @@ BOOL set_window_pos( WINDOWPOS *winpos, int parent_x, int parent_y )
 
     /* Common operations */
 
-    calc_ncsize( winpos, &old_rects, &new_rects, parent_x, parent_y );
+    calc_ncsize( winpos, &old_window_rect, &old_client_rect,
+                 &new_window_rect, &new_client_rect, valid_rects, parent_x, parent_y );
 
-    surface = create_window_surface( winpos->hwnd, winpos->flags, FALSE, &new_rects, &surface_rect );
+    surface = create_window_surface( winpos->hwnd, winpos->flags, FALSE, &new_window_rect, &new_client_rect,
+                                     &visible_rect, &surface_rect );
     if (!apply_window_pos( winpos->hwnd, winpos->hwndInsertAfter, winpos->flags, surface,
-                           &old_rects, &new_rects, TRUE ))
+                           &new_window_rect, &new_client_rect, &visible_rect, valid_rects ))
     {
         if (surface) window_surface_release( surface );
         goto done;
@@ -3649,10 +3606,10 @@ BOOL set_window_pos( WINDOWPOS *winpos, int parent_x, int parent_y )
         /* WM_WINDOWPOSCHANGED is sent even if SWP_NOSENDCHANGING is set
            and always contains final window position.
          */
-        winpos->x  = new_rects.window.left;
-        winpos->y  = new_rects.window.top;
-        winpos->cx = new_rects.window.right - new_rects.window.left;
-        winpos->cy = new_rects.window.bottom - new_rects.window.top;
+        winpos->x  = new_window_rect.left;
+        winpos->y  = new_window_rect.top;
+        winpos->cx = new_window_rect.right - new_window_rect.left;
+        winpos->cy = new_window_rect.bottom - new_window_rect.top;
         send_message( winpos->hwnd, WM_WINDOWPOSCHANGED, 0, (LPARAM)winpos );
     }
 
@@ -4184,7 +4141,7 @@ static POINT get_minimized_pos( HWND hwnd, POINT pt )
         if (child == hwnd) continue;
         if ((get_window_long( child, GWL_STYLE ) & (WS_VISIBLE|WS_MINIMIZE)) != (WS_VISIBLE|WS_MINIMIZE))
             continue;
-        if (get_window_rect_rel( child, COORDS_PARENT, &rect, get_thread_dpi() ))
+        if (get_window_rects( child, COORDS_PARENT, &rect, NULL, get_thread_dpi() ))
         {
             NtGdiSetRectRgn( tmp, rect.left, rect.top, rect.right, rect.bottom );
             NtGdiCombineRgn( hrgn, hrgn, tmp, RGN_OR );
@@ -4373,9 +4330,8 @@ void update_window_state( HWND hwnd )
     static const UINT swp_flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOCLIENTSIZE | SWP_NOCLIENTMOVE |
                                   SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW;
     UINT context;
-    RECT surface_rect;
+    RECT window_rect, client_rect, valid_rects[2], visible_rect, surface_rect;
     struct window_surface *surface;
-    struct window_rects old_rects, new_rects;
 
     if (!is_current_thread_window( hwnd ))
     {
@@ -4384,11 +4340,11 @@ void update_window_state( HWND hwnd )
     }
 
     context = set_thread_dpi_awareness_context( get_window_dpi_awareness_context( hwnd ));
-    get_window_rects( hwnd, COORDS_PARENT, &new_rects, get_thread_dpi() );
-    new_rects.valid = old_rects.valid = new_rects.client;
+    get_window_rects( hwnd, COORDS_PARENT, &window_rect, &client_rect, get_thread_dpi() );
+    valid_rects[0] = valid_rects[1] = client_rect;
 
-    surface = create_window_surface( hwnd, swp_flags, FALSE, &new_rects, &surface_rect );
-    apply_window_pos( hwnd, 0, swp_flags, surface, &old_rects, &new_rects, TRUE );
+    surface = create_window_surface( hwnd, swp_flags, FALSE, &window_rect, &client_rect, &visible_rect, &surface_rect );
+    apply_window_pos( hwnd, 0, swp_flags, surface, &window_rect, &client_rect, &visible_rect, valid_rects );
     if (surface) window_surface_release( surface );
 
     set_thread_dpi_awareness_context( context );
@@ -4546,7 +4502,7 @@ static BOOL show_window( HWND hwnd, INT cmd )
         RECT client;
         LPARAM lparam;
 
-        get_client_rect_rel( hwnd, COORDS_PARENT, &client, get_thread_dpi() );
+        get_window_rects( hwnd, COORDS_PARENT, NULL, &client, get_thread_dpi() );
         lparam = MAKELONG( client.right - client.left, client.bottom - client.top );
         win->flags &= ~WIN_NEED_SIZE;
         if (win->dwStyle & WS_MAXIMIZE) wParam = SIZE_MAXIMIZED;
@@ -5253,12 +5209,11 @@ HWND WINAPI NtUserCreateWindowEx( DWORD ex_style, UNICODE_STRING *class_name,
 {
     UINT win_dpi, thread_dpi = get_thread_dpi(), context;
     struct window_surface *surface;
-    struct window_rects old_rects, new_rects;
     CBT_CREATEWNDW cbtc;
     HWND hwnd, owner = 0;
     CREATESTRUCTW cs;
     INT sw = SW_SHOW;
-    RECT surface_rect;
+    RECT rect, visible_rect, surface_rect;
     WND *win;
 
     static const WCHAR messageW[] = {'M','e','s','s','a','g','e'};
@@ -5427,14 +5382,13 @@ HWND WINAPI NtUserCreateWindowEx( DWORD ex_style, UNICODE_STRING *class_name,
 
     if (cx < 0) cx = 0;
     if (cy < 0) cy = 0;
-    SetRect( &new_rects.window, cs.x, cs.y, cs.x + cx, cs.y + cy );
+    SetRect( &rect, cs.x, cs.y, cs.x + cx, cs.y + cy );
     /* check for wraparound */
-    if (cs.x > 0x7fffffff - cx) new_rects.window.right = 0x7fffffff;
-    if (cs.y > 0x7fffffff - cy) new_rects.window.bottom = 0x7fffffff;
-    new_rects.client = new_rects.window;
+    if (cs.x > 0x7fffffff - cx) rect.right = 0x7fffffff;
+    if (cs.y > 0x7fffffff - cy) rect.bottom = 0x7fffffff;
 
-    surface = create_window_surface( hwnd, SWP_NOZORDER | SWP_NOACTIVATE, FALSE, &new_rects, &surface_rect );
-    if (!apply_window_pos( hwnd, 0, SWP_NOZORDER | SWP_NOACTIVATE, surface, &old_rects, &new_rects, FALSE ))
+    surface = create_window_surface( hwnd, SWP_NOZORDER | SWP_NOACTIVATE, FALSE, &rect, &rect, &visible_rect, &surface_rect );
+    if (!apply_window_pos( hwnd, 0, SWP_NOZORDER | SWP_NOACTIVATE, surface, &rect, &rect, &visible_rect, NULL ))
     {
         if (surface) window_surface_release( surface );
         goto failed;
@@ -5443,7 +5397,7 @@ HWND WINAPI NtUserCreateWindowEx( DWORD ex_style, UNICODE_STRING *class_name,
 
     /* send WM_NCCREATE */
 
-    TRACE( "hwnd %p cs %d,%d %dx%d %s\n", hwnd, cs.x, cs.y, cs.cx, cs.cy, debugstr_window_rects(&new_rects) );
+    TRACE( "hwnd %p cs %d,%d %dx%d %s\n", hwnd, cs.x, cs.y, cs.cx, cs.cy, wine_dbgstr_rect(&rect) );
     if (!send_message_timeout( hwnd, WM_NCCREATE, 0, (LPARAM)&cs, SMTO_NORMAL, 0, ansi ))
     {
         WARN( "%p: aborted by WM_NCCREATE\n", hwnd );
@@ -5461,19 +5415,19 @@ HWND WINAPI NtUserCreateWindowEx( DWORD ex_style, UNICODE_STRING *class_name,
 
     /* send WM_NCCALCSIZE */
 
-    if (get_window_rect_rel( hwnd, COORDS_PARENT, &new_rects.window, win_dpi ))
+    if (get_window_rects( hwnd, COORDS_PARENT, &rect, NULL, win_dpi ))
     {
         /* yes, even if the CBT hook was called with HWND_TOP */
         HWND insert_after = (get_window_long( hwnd, GWL_STYLE ) & WS_CHILD) ? HWND_BOTTOM : HWND_TOP;
+        RECT client_rect = rect;
 
         /* the rectangle is in screen coords for WM_NCCALCSIZE when wparam is FALSE */
-        new_rects.client = new_rects.window;
-        map_window_points( parent, 0, (POINT *)&new_rects.client, 2, win_dpi );
-        send_message( hwnd, WM_NCCALCSIZE, FALSE, (LPARAM)&new_rects.client );
-        map_window_points( 0, parent, (POINT *)&new_rects.client, 2, win_dpi );
+        map_window_points( parent, 0, (POINT *)&client_rect, 2, win_dpi );
+        send_message( hwnd, WM_NCCALCSIZE, FALSE, (LPARAM)&client_rect );
+        map_window_points( 0, parent, (POINT *)&client_rect, 2, win_dpi );
 
-        surface = create_window_surface( hwnd, SWP_NOACTIVATE, FALSE, &new_rects, &surface_rect );
-        apply_window_pos( hwnd, insert_after, SWP_NOACTIVATE, surface, &old_rects, &new_rects, FALSE );
+        surface = create_window_surface( hwnd, SWP_NOACTIVATE, FALSE, &rect, &client_rect, &visible_rect, &surface_rect );
+        apply_window_pos( hwnd, insert_after, SWP_NOACTIVATE, surface, &rect, &client_rect, &visible_rect, NULL );
         if (surface) window_surface_release( surface );
     }
     else goto failed;
@@ -5492,9 +5446,9 @@ HWND WINAPI NtUserCreateWindowEx( DWORD ex_style, UNICODE_STRING *class_name,
 
     if (!(win_get_flags( hwnd ) & WIN_NEED_SIZE))
     {
-        RECT rect;
-        get_client_rect_rel( hwnd, COORDS_PARENT, &rect, win_dpi );
-        send_message( hwnd, WM_SIZE, SIZE_RESTORED, MAKELONG(rect.right - rect.left, rect.bottom - rect.top));
+        get_window_rects( hwnd, COORDS_PARENT, NULL, &rect, win_dpi );
+        send_message( hwnd, WM_SIZE, SIZE_RESTORED,
+                      MAKELONG(rect.right-rect.left, rect.bottom-rect.top));
         send_message( hwnd, WM_MOVE, 0, MAKELONG( rect.left, rect.top ) );
     }
 
@@ -5682,7 +5636,7 @@ ULONG_PTR WINAPI NtUserCallHwndParam( HWND hwnd, DWORD_PTR param, DWORD code )
         return enable_window( hwnd, param );
 
     case NtUserCallHwndParam_GetChildRect:
-        return get_window_rect_rel( hwnd, COORDS_PARENT, (RECT *)param, get_thread_dpi() );
+        return get_window_rects( hwnd, COORDS_PARENT, (RECT *)param, NULL, get_thread_dpi() );
 
     case NtUserCallHwndParam_GetClassLongA:
         return get_class_long( hwnd, param, TRUE );

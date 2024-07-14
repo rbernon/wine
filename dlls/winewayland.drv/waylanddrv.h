@@ -63,7 +63,6 @@ enum wayland_window_message
     WM_WAYLAND_INIT_DISPLAY_DEVICES = WM_WINE_FIRST_DRIVER_MSG,
     WM_WAYLAND_CONFIGURE,
     WM_WAYLAND_SET_FOREGROUND,
-    WM_WAYLAND_REFRESH,
 };
 
 enum wayland_surface_config_state
@@ -136,6 +135,7 @@ struct wayland
 
 struct wayland_output_mode
 {
+    struct rb_entry entry;
     int32_t width;
     int32_t height;
     int32_t refresh;
@@ -143,7 +143,9 @@ struct wayland_output_mode
 
 struct wayland_output_state
 {
-    struct wayland_output_mode mode;
+    int modes_count;
+    struct rb_tree modes;
+    struct wayland_output_mode *current_mode;
     char *name;
     int logical_x, logical_y;
     int logical_w, logical_h;
@@ -354,11 +356,13 @@ void WAYLAND_SetWindowText(HWND hwnd, LPCWSTR text);
 LRESULT WAYLAND_SysCommand(HWND hwnd, WPARAM wparam, LPARAM lparam);
 UINT WAYLAND_UpdateDisplayDevices(const struct gdi_device_manager *device_manager, void *param);
 LRESULT WAYLAND_WindowMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
-void WAYLAND_WindowPosChanged(HWND hwnd, HWND insert_after, UINT swp_flags, const struct window_rects *old_rects,
-                              const struct window_rects *new_rects, struct window_surface *surface);
-BOOL WAYLAND_WindowPosChanging(HWND hwnd, UINT swp_flags, BOOL shaped, struct window_rects *rects);
-BOOL WAYLAND_CreateWindowSurface(HWND hwnd, BOOL layered, UINT dpi_from, UINT dpi_to,
-                                 const RECT *surface_rect, struct window_surface **surface);
+void WAYLAND_WindowPosChanged(HWND hwnd, HWND insert_after, UINT swp_flags,
+                              const RECT *window_rect, const RECT *client_rect,
+                              const RECT *visible_rect, const RECT *valid_rects,
+                              struct window_surface *surface);
+BOOL WAYLAND_WindowPosChanging(HWND hwnd, UINT swp_flags, BOOL shaped, const RECT *window_rect,
+                               const RECT *client_rect, RECT *visible_rect);
+BOOL WAYLAND_CreateWindowSurface(HWND hwnd, const RECT *surface_rect, struct window_surface **surface);
 UINT WAYLAND_VulkanInit(UINT version, void *vulkan_handle, const struct vulkan_driver_funcs **driver_funcs);
 struct opengl_funcs *WAYLAND_wine_get_wgl_driver(UINT version);
 

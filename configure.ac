@@ -53,7 +53,6 @@ AC_ARG_WITH(pcap,      AS_HELP_STRING([--without-pcap],[do not use the Packet Ca
 AC_ARG_WITH(pcsclite,  AS_HELP_STRING([--without-pcsclite],[do not use PCSC lite]))
 AC_ARG_WITH(pthread,   AS_HELP_STRING([--without-pthread],[do not use the pthread library]))
 AC_ARG_WITH(pulse,     AS_HELP_STRING([--without-pulse],[do not use PulseAudio sound support]))
-AC_ARG_WITH(cairo,     AS_HELP_STRING([--without-cairo],[do not use Cairo 2D support]))
 AC_ARG_WITH(sane,      AS_HELP_STRING([--without-sane],[do not use SANE (scanner support)]))
 AC_ARG_WITH(sdl,       AS_HELP_STRING([--without-sdl],[do not use SDL]))
 AC_ARG_WITH(udev,      AS_HELP_STRING([--without-udev],[do not use udev (plug and play support)]))
@@ -1630,16 +1629,6 @@ fi
 WINE_NOTICE_WITH(pulse, [test -z "$PULSE_LIBS"],
         [libpulse ${notice_platform}development files not found or too old, Pulse won't be supported.],
         [enable_winepulse_drv])
-
-dnl **** Check for Cairo 2D ****
-if test "x$with_cairo" != "xno";
-then
-    WINE_PACKAGE_FLAGS(CAIRO,[cairo],[-lcairo],,,
-        [AC_CHECK_HEADERS([cairo/cairo.h],
-            [WINE_CHECK_SONAME(cairo,cairo_surface_destroy,,,[$CAIRO_LIBS],[[libcairo*]])])])
-fi
-WINE_NOTICE_WITH(cairo,[test "x$ac_cv_lib_soname_cairo" = "x"],
-       [cairo ${notice_platform}development files not found or too old.])
 
 dnl **** Check for gstreamer ****
 if test "x$with_gstreamer" != "xno"
@@ -3475,7 +3464,6 @@ WINE_CONFIG_MAKEFILE(programs/dllhost)
 WINE_CONFIG_MAKEFILE(programs/dplaysvr)
 WINE_CONFIG_MAKEFILE(programs/dpnsvr)
 WINE_CONFIG_MAKEFILE(programs/dpvsetup)
-WINE_CONFIG_MAKEFILE(programs/dwm)
 WINE_CONFIG_MAKEFILE(programs/dxdiag)
 WINE_CONFIG_MAKEFILE(programs/eject)
 WINE_CONFIG_MAKEFILE(programs/expand)
