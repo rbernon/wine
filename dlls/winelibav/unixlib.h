@@ -29,11 +29,43 @@
 
 #include "wine/unixlib.h"
 
+struct process_attach_params
+{
+    UINT64 read_callback;
+    UINT64 write_callback;
+    UINT64 seek_callback;
+};
+
 struct io_context
 {
+    UINT64 stream;
     UINT64 length;
     UINT64 position;
-    struct ntuser_io io;
+    UINT64 buffer_size;
+    BYTE buffer[];
+};
+
+C_ASSERT( sizeof(struct io_context) == offsetof( struct io_context, buffer[0] ) );
+
+struct read_params
+{
+    struct dispatch_callback_params dispatch;
+    UINT64 io_ctx;
+    INT32 size;
+};
+
+struct write_params
+{
+    struct dispatch_callback_params dispatch;
+    UINT64 io_ctx;
+    INT32 size;
+};
+
+struct seek_params
+{
+    struct dispatch_callback_params dispatch;
+    UINT64 io_ctx;
+    INT64 offset;
 };
 
 /* same as MPEG1VIDEOINFO / MPEG2VIDEOINFO but with MFVIDEOFORMAT */
@@ -125,6 +157,7 @@ struct demuxer_stream_type_params
 enum unix_funcs
 {
     unix_process_attach,
+
     unix_demuxer_create,
     unix_demuxer_destroy,
     unix_demuxer_read,
@@ -132,6 +165,12 @@ enum unix_funcs
     unix_demuxer_stream_lang,
     unix_demuxer_stream_name,
     unix_demuxer_stream_type,
+
+    unix_muxer_create,
+    unix_muxer_destroy,
+    unix_muxer_stream_create,
+    unix_muxer_write,
+
     unix_funcs_count,
 };
 

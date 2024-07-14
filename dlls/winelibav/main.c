@@ -36,15 +36,68 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(libav);
 
+static struct io_context *get_io_context( UINT64 handle )
+{
+    return (struct io_context *)(UINT_PTR)handle;
+}
+
+static IStream *get_stream( UINT64 handle )
+{
+    return (IStream *)(UINT_PTR)handle;
+}
+
+static NTSTATUS WINAPI read_callback( void *args, ULONG size )
+{
+    struct read_params *params = args;
+    struct io_context *io_ctx = get_io_context( params->io_ctx );
+    IStream *stream = get_stream( io_ctx->stream );
+    HRESULT hr;
+    ULONG ret;
+
+    if (FAILED(hr = IStream_Read( stream, io_ctx->buffer, params->size, &ret ))) ret = -1;
+    return NtCallbackReturn( &ret, sizeof(ret), STATUS_SUCCESS );
+}
+
+static NTSTATUS WINAPI write_callback( void *args, ULONG size )
+{
+    struct write_params *params = args;
+    struct io_context *io_ctx = get_io_context( params->io_ctx );
+    IStream *stream = get_stream( io_ctx->stream );
+    HRESULT hr;
+    ULONG ret;
+
+    if (FAILED(hr = IStream_Write( stream, io_ctx->buffer, params->size, &ret ))) ret = -1;
+    return NtCallbackReturn( &ret, sizeof(ret), STATUS_SUCCESS );
+}
+
+static NTSTATUS WINAPI seek_callback( void *args, ULONG size )
+{
+    struct seek_params *params = args;
+    struct io_context *io_ctx = get_io_context( params->io_ctx );
+    IStream *stream = get_stream( io_ctx->stream );
+    LARGE_INTEGER off = {.QuadPart = params->offset};
+    ULARGE_INTEGER pos;
+    HRESULT hr;
+
+    if (FAILED(hr = IStream_Seek( stream, off, 0, &pos ))) pos.QuadPart = -1;
+    return NtCallbackReturn( &pos.QuadPart, sizeof(pos.QuadPart), STATUS_SUCCESS );
+}
+
 BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
 {
     TRACE( "instance %p, reason %lu, reserved %p\n", instance, reason, reserved );
 
     if (reason == DLL_PROCESS_ATTACH)
     {
+        struct process_attach_params params =
+        {
+            .read_callback = (UINT_PTR)read_callback,
+            .write_callback = (UINT_PTR)write_callback,
+            .seek_callback = (UINT_PTR)seek_callback,
+        };
         DisableThreadLibraryCalls( instance );
         __wine_init_unix_call();
-        UNIX_CALL( process_attach, NULL );
+        UNIX_CALL( process_attach, &params );
     }
 
     return TRUE;
@@ -70,9 +123,9 @@ HRESULT CDECL wineav_demuxer_create( const WCHAR *url, IStream *stream, UINT64 *
     if (!(context = malloc( 0x10000 ))) return 0;
     context->length = stat.cbSize.QuadPart;
     context->position = pos.QuadPart;
-    context->io.stream = (UINT_PTR)stream;
+    context->stream = (UINT_PTR)stream;
     IStream_AddRef( stream );
-    context->io.buffer_size = 0x10000 - sizeof(*context);
+    context->buffer_size = 0x10000 - sizeof(*context);
     params.io_ctx = context;
 
     if (url && (len = WideCharToMultiByte( CP_ACP, 0, url, -1, NULL, 0, NULL, NULL )) && (tmp = malloc( len )))
@@ -107,7 +160,8 @@ void CDECL wineav_demuxer_destroy( demuxer_t demuxer )
     if (!UNIX_CALL( demuxer_destroy, &params ))
     {
         struct io_context *ctx = params.io_ctx;
-        IStream_Release( (IStream *)(UINT_PTR)ctx->io.stream );
+        IStream *stream = get_stream( ctx->stream );
+        IStream_Release( stream );
         free( ctx );
     }
 }

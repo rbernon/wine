@@ -282,36 +282,6 @@ struct unpack_dde_message_result
     LPARAM lparam;
 };
 
-struct ntuser_io
-{
-    UINT64 stream;
-    UINT64 buffer_size;
-    BYTE buffer[];
-};
-
-C_ASSERT( sizeof(struct ntuser_io) == offsetof( struct ntuser_io, buffer[0] ) );
-
-/* NtUserCallIOReadCallback params */
-struct call_io_read_params
-{
-    UINT64 io;
-    INT32 size;
-};
-
-/* NtUserCallIOWriteCallback params */
-struct call_io_write_params
-{
-    UINT64 io;
-    INT32 size;
-};
-
-/* NtUserCallIOSeekCallback params */
-struct call_io_seek_params
-{
-    UINT64 io;
-    INT64 offset;
-};
-
 /* DPI awareness contexts */
 #define MAKE_NTUSER_DPI_CONTEXT( awareness, version, dpi, flags )  ((awareness) | ((version) << 4) | ((dpi) << 8) | (flags))
 #define NTUSER_DPI_CONTEXT_GET_AWARENESS( ctx )                    ((ctx) & 0x0f)
@@ -1541,62 +1511,5 @@ static inline BOOL NtUserSendHardwareInput( HWND hwnd, UINT flags, const INPUT *
     struct send_hardware_input_params params = {.flags = flags, .input = input, .lparam = lparam};
     return NtUserCallHwndParam( hwnd, (UINT_PTR)&params, NtUserCallHwndParam_SendHardwareInput );
 }
-
-#ifdef WINE_UNIX_LIB
-
-static inline INT NtUserCallIORead( struct ntuser_io *io, BYTE *buffer, INT size )
-{
-    struct call_io_read_params params = {.io = (UINT_PTR)io};
-    ULONG ret_len, ret, total = 0;
-    void *ret_ptr;
-
-    do
-    {
-        params.size = min( size, io->buffer_size );
-        KeUserModeCallback( NtUserCallIOReadCallback, &params, sizeof(params), &ret_ptr, &ret_len );
-        if (ret_len != sizeof(ULONG)) return -1;
-        if (!(ret = *(ULONG *)ret_ptr)) break;
-        memcpy( buffer, io->buffer, ret );
-        buffer += ret;
-        total += ret;
-        size -= ret;
-    } while (size && ret == io->buffer_size);
-
-    return total;
-}
-
-static inline INT NtUserCallIOWrite( struct ntuser_io *io, const BYTE *buffer, INT size )
-{
-    struct call_io_read_params params = {.io = (UINT_PTR)io};
-    ULONG ret_len, ret, total = 0;
-    void *ret_ptr;
-
-    do
-    {
-        params.size = min( size, io->buffer_size );
-        memcpy( io->buffer, buffer, params.size );
-        KeUserModeCallback( NtUserCallIOWriteCallback, &params, sizeof(params), &ret_ptr, &ret_len );
-        if (ret_len != sizeof(ULONG)) return -1;
-        if (!(ret = *(ULONG *)ret_ptr)) break;
-        buffer += ret;
-        total += ret;
-        size -= ret;
-    } while (size && ret == io->buffer_size);
-
-    return total;
-}
-
-static inline INT64 NtUserCallIOSeek( struct ntuser_io *io, UINT64 offset )
-{
-    struct call_io_seek_params params = {.io = (UINT_PTR)io, .offset = offset};
-    void *ret_ptr;
-    ULONG ret_len;
-
-    KeUserModeCallback( NtUserCallIOSeekCallback, &params, sizeof(params), &ret_ptr, &ret_len );
-    if (ret_len != sizeof(UINT64)) return -1;
-    return *(UINT64 *)ret_ptr;
-}
-
-#endif /* WINE_UNIX_LIB */
 
 #endif /* _NTUSER_ */

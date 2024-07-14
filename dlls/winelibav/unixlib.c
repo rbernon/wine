@@ -76,6 +76,357 @@ static void *avformat_handle;
 static void *avutil_handle;
 static const GUID GUID_NULL;
 
+static UINT64 read_callback;
+static UINT64 write_callback;
+static UINT64 seek_callback;
+
+static int wineav_read( void *opaque, uint8_t *buf, int size )
+{
+    struct io_context *io_ctx = opaque;
+    int ret;
+
+    TRACE( "opaque %p, buf %p, size %#x\n", opaque, buf, size );
+
+    do
+    {
+        struct read_params params = {.dispatch = {.func = read_callback}, .io_ctx = (UINT_PTR)io_ctx};
+        void *ret_ptr;
+        ULONG ret_len;
+
+        params.size = min( size, io_ctx->buffer_size );
+        KeUserModeCallback( NtUserDispatchCallback, &params, sizeof(params), &ret_ptr, &ret_len );
+        if (ret_len != sizeof(ULONG)) return AVERROR( EINVAL );
+        if (!(ret = *(ULONG *)ret_ptr)) break;
+        memcpy( buffer, io_ctx->buffer, ret );
+        buffer += ret;
+        total += ret;
+        size -= ret;
+    } while (size && ret == io_ctx->buffer_size);
+
+    if (!total) return AVERROR_EOF;
+    io_ctx->position += total;
+    return total;
+}
+
+#if FF_API_AVIO_WRITE_NONCONST
+static int wineav_write( void *opaque, uint8_t *buf, int size )
+#else
+static int wineav_write( void *opaque, const uint8_t *buf, int size )
+#endif
+{
+    struct io_context *io_ctx = opaque;
+    int total, ret;
+
+    TRACE( "opaque %p, buf %p, size %#x\n", opaque, buf, size );
+
+    do
+    {
+        struct write_params params = {.dispatch = {.func = write_callback}, .io_ctx = (UINT_PTR)io_ctx};
+        void *ret_ptr;
+        ULONG ret_len;
+
+        params.size = min( size, io_ctx->buffer_size );
+        memcpy( io_ctx->buffer, buffer, params.size );
+        status = KeUserModeCallback( NtUserDispatchCallback, &params, sizeof(params), &ret_ptr, &ret_len );
+        if (status || ret_len != sizeof(ULONG)) return AVERROR( EINVAL );
+        if (!(ret = *(ULONG *)ret_ptr)) break;
+        buffer += ret;
+        total += ret;
+        size -= ret;
+    } while (size && ret == io_ctx->buffer_size);
+
+    if (!total) return AVERROR_EOF;
+    io_ctx->position += total;
+    return total;
+}
+
+static int64_t wineav_seek( void *opaque, int64_t offset, int whence )
+{
+    struct io_context *io_ctx = opaque;
+    struct seek_params params = {.dispatch = {.func = seek_callback}, .io_ctx = (UINT_PTR)io_ctx};
+    void *ret_ptr;
+    ULONG ret_len;
+
+    TRACE( "opaque %p, offset 0x%s, whence %#x\n", opaque, wine_dbgstr_longlong( offset ), whence );
+
+    if (whence == AVSEEK_SIZE) return io_ctx->length;
+    if (whence == SEEK_END) offset += io_ctx->length;
+    if (whence == SEEK_CUR) offset += io_ctx->position;
+
+    params.offset = offset;
+    status = KeUserModeCallback( NtUserDispatchCallback, &params, sizeof(params), &ret_ptr, &ret_len );
+    if (status || ret_len != sizeof(UINT64)) return AVERROR( EINVAL );
+    offset = *(UINT64 *)ret_ptr;
+
+    io_ctx->position = offset;
+    return offset;
+}
+
+static void log_callback( void *ctx, int level, const char *fmt, va_list va_args )
+{
+    enum __wine_debug_class dbcl;
+    if (level <= AV_LOG_ERROR) dbcl = __WINE_DBCL_ERR;
+    if (level <= AV_LOG_WARNING) dbcl = __WINE_DBCL_WARN;
+    if (level <= AV_LOG_TRACE) dbcl = __WINE_DBCL_TRACE;
+    wine_dbg_vlog( dbcl, __wine_dbch___default, __FILE__, __LINE__, __func__,
+                   __WINE_DBG_RETADDR, fmt, va_args );
+}
+
+static NTSTATUS process_attach( void *arg )
+{
+    struct process_attach_params *params = arg;
+
+#ifdef SONAME_LIBAVUTIL
+    if (!(avutil_handle = dlopen( SONAME_LIBAVUTIL, RTLD_NOW )))
+    {
+        ERR( "Failed to load %s\n", SONAME_LIBAVUTIL );
+        goto failed;
+    }
+
+#define LOAD_FUNCPTR( f )                                                                          \
+    if (!(p_##f = dlsym( avutil_handle, #f )))                                                     \
+    {                                                                                              \
+        ERR( "Failed to find " #f "\n" );                                                          \
+        goto failed;                                                                               \
+    }
+
+    LOAD_FUNCPTR( av_log_set_callback );
+    LOAD_FUNCPTR( av_dict_get );
+#undef LOAD_FUNCPTR
+
+    p_av_log_set_callback( log_callback );
+    TRACE( "Loaded %s\n", SONAME_LIBAVUTIL );
+
+#endif /* SONAME_LIBAVUTIL */
+
+    if (!(avformat_handle = dlopen( SONAME_LIBAVFORMAT, RTLD_NOW )))
+    {
+        ERR( "Failed to load %s\n", SONAME_LIBAVFORMAT );
+        goto failed;
+    }
+
+#define LOAD_FUNCPTR( f )                                                                          \
+    if (!(p_##f = dlsym( avformat_handle, #f )))                                                   \
+    {                                                                                              \
+        ERR( "Failed to find " #f "\n" );                                                          \
+        goto failed;                                                                               \
+    }
+
+    LOAD_FUNCPTR( avformat_version );
+    LOAD_FUNCPTR( avio_alloc_context );
+    LOAD_FUNCPTR( avio_context_free );
+    LOAD_FUNCPTR( avformat_alloc_context );
+    LOAD_FUNCPTR( avformat_free_context );
+    LOAD_FUNCPTR( avformat_open_input );
+    LOAD_FUNCPTR( avformat_find_stream_info );
+    LOAD_FUNCPTR( avformat_close_input );
+    LOAD_FUNCPTR( av_read_frame );
+    LOAD_FUNCPTR( av_seek_frame );
+    LOAD_FUNCPTR( av_packet_alloc );
+    LOAD_FUNCPTR( av_packet_unref );
+#undef LOAD_FUNCPTR
+
+    read_callback = params->read_callback;
+    write_callback = params->write_callback;
+    seek_callback = params->seek_callback;
+
+    TRACE( "Loaded %s\n", SONAME_LIBAVFORMAT );
+    return STATUS_SUCCESS;
+
+failed:
+    if (avformat_handle)
+    {
+        dlclose( avformat_handle );
+        avformat_handle = NULL;
+    }
+    if (avutil_handle)
+    {
+        dlclose( avutil_handle );
+        avutil_handle = NULL;
+    }
+    return STATUS_NOT_FOUND;
+}
+
+static AVFormatContext *get_context( demuxer_t handle )
+{
+    return (AVFormatContext *)(UINT_PTR)handle;
+}
+
+static AVPacket *get_packet( packet_t handle )
+{
+    return (AVPacket *)(UINT_PTR)handle;
+}
+
+static INT64 demuxer_stream_time( const AVStream *stream, INT64 time )
+{
+    if (time == AV_NOPTS_VALUE) return INT64_MIN;
+    if (!stream->time_base.num || !stream->time_base.den) return time;
+    return time * stream->time_base.num * 10000000 / stream->time_base.den;
+}
+
+static INT64 get_context_duration( const AVFormatContext *ctx )
+{
+    INT64 i, max_duration = 0;
+
+    if (ctx->duration != AV_NOPTS_VALUE) return ctx->duration * 10000000 / AV_TIME_BASE;
+
+    for (i = 0; i < ctx->nb_streams; i++)
+    {
+        AVStream *stream = ctx->streams[i];
+        INT64 duration = demuxer_stream_time( stream, stream->duration );
+        if (duration == INT64_MIN || duration < max_duration) continue;
+        max_duration = duration;
+    }
+
+    return max_duration;
+}
+
+static NTSTATUS demuxer_create( void *arg )
+{
+    struct demuxer_create_params *params = arg;
+    AVFormatContext *ctx;
+    int ret;
+
+    TRACE( "io_ctx %p\n", params->io_ctx );
+
+    if (!(ctx = p_avformat_alloc_context())) return STATUS_NO_MEMORY;
+    if (!(ctx->pb = p_avio_alloc_context( NULL, 0, 0, params->io_ctx, wineav_read, wineav_write, wineav_seek )))
+    {
+        p_avformat_free_context( ctx );
+        return STATUS_NO_MEMORY;
+    }
+
+    if ((ret = p_avformat_open_input( &ctx, NULL, NULL, NULL )) < 0)
+    {
+        ERR( "Failed to open input, ret %d.\n", ret );
+        p_avformat_free_context( ctx );
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    if (!ctx->nb_streams && (ret = p_avformat_find_stream_info( ctx, NULL )) < 0)
+    {
+        ERR( "Failed to find stream info, ret %d.\n", ret );
+        p_avformat_free_context( ctx );
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    params->demuxer = (UINT_PTR)ctx;
+    params->duration = get_context_duration( ctx );
+    params->stream_count = ctx->nb_streams;
+    if (strstr( ctx->iformat->name, "mp4" )) strcpy( params->mime_type, "video/mp4" );
+    else if (strstr( ctx->iformat->name, "avi" )) strcpy( params->mime_type, "video/avi" );
+    else strcpy( params->mime_type, "video/x-raw" );
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS demuxer_destroy( void *arg )
+{
+    struct demuxer_destroy_params *params = arg;
+    AVFormatContext *ctx = get_context( params->demuxer );
+    AVIOContext *io = ctx->pb;
+
+    TRACE( "context %p\n", ctx );
+
+    params->io_ctx = io->opaque;
+    p_avformat_close_input( &ctx );
+    p_avio_context_free( &io );
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS demuxer_read( void *arg )
+{
+    struct demuxer_read_params *params = arg;
+    AVFormatContext *ctx = get_context( params->demuxer );
+    AVPacket *packet = get_packet( params->packet );
+    UINT capacity = params->size;
+    AVStream *stream;
+    int ret;
+
+    TRACE( "context %p, packet %p, capacity %#x\n", ctx, packet, capacity );
+
+    if (!packet)
+    {
+        if (!(packet = p_av_packet_alloc())) return STATUS_NO_MEMORY;
+        if ((ret = p_av_read_frame( ctx, packet )) < 0)
+        {
+            TRACE( "av_read_frame index %u returned %#x\n", packet->stream_index, -ret );
+            p_av_packet_unref( packet );
+            if (ret == AVERROR_EOF) return STATUS_END_OF_FILE;
+            return STATUS_UNSUCCESSFUL;
+        }
+
+        params->packet = (UINT_PTR)packet;
+        params->size = packet->size;
+    }
+
+    if ((capacity < packet->size)) return STATUS_BUFFER_TOO_SMALL;
+    stream = ctx->streams[packet->stream_index];
+
+    memcpy( params->data, packet->data, packet->size );
+    params->stream = packet->stream_index;
+    params->pts = demuxer_stream_time( stream, packet->pts );
+    params->dts = demuxer_stream_time( stream, packet->dts );
+    params->duration = demuxer_stream_time( stream, packet->duration );
+
+    p_av_packet_unref( packet );
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS demuxer_seek( void *arg )
+{
+    struct demuxer_seek_params *params = arg;
+    AVFormatContext *ctx = get_context( params->demuxer );
+    int64_t timestamp = params->timestamp * AV_TIME_BASE / 10000000;
+    int ret;
+
+    TRACE( "context %p, timestamp 0x%s\n", ctx, wine_dbgstr_longlong( params->timestamp ) );
+
+    if ((ret = p_av_seek_frame( ctx, -1, timestamp, AVSEEK_FLAG_ANY )) < 0)
+    {
+        ERR( "Failed to seek context %p, ret %d\n", ctx, ret );
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS demuxer_stream_lang( void *arg )
+{
+    struct demuxer_stream_lang_params *params = arg;
+    AVFormatContext *ctx = get_context( params->demuxer );
+    AVStream *stream = ctx->streams[params->stream];
+    AVDictionaryEntry *tag;
+
+    TRACE( "context %p, stream %u\n", ctx, params->stream );
+
+    if (!(tag = p_av_dict_get( stream->metadata, "language", NULL, AV_DICT_IGNORE_SUFFIX )))
+        return STATUS_NOT_FOUND;
+
+    lstrcpynA( params->buffer, tag->value, ARRAY_SIZE( params->buffer ) );
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS demuxer_stream_name( void *arg )
+{
+    struct demuxer_stream_name_params *params = arg;
+    AVFormatContext *ctx = get_context( params->demuxer );
+    AVStream *stream = ctx->streams[params->stream];
+    AVDictionaryEntry *tag;
+
+    TRACE( "context %p, stream %u\n", ctx, params->stream );
+
+    if (!(tag = p_av_dict_get( stream->metadata, "title", NULL, AV_DICT_IGNORE_SUFFIX )))
+        return STATUS_NOT_FOUND;
+
+    lstrcpynA( params->buffer, tag->value, ARRAY_SIZE( params->buffer ) );
+    return STATUS_SUCCESS;
+}
+
+DEFINE_MEDIATYPE_GUID( MFVideoFormat_CVID, MAKEFOURCC( 'c', 'v', 'i', 'd' ) );
+DEFINE_MEDIATYPE_GUID( MFVideoFormat_ABGR32, D3DFMT_A8B8G8R8 );
+
 static inline const char *debugstr_ratio( const MFRatio *ratio )
 {
     return wine_dbg_sprintf( "%d:%d", (int)ratio->Numerator, (int)ratio->Denominator );
@@ -86,9 +437,6 @@ static inline const char *debugstr_area( const MFVideoArea *area )
     return wine_dbg_sprintf( "(%d,%d)-(%d,%d)", (int)area->OffsetX.value, (int)area->OffsetY.value,
                              (int)area->Area.cx, (int)area->Area.cy );
 }
-
-DEFINE_MEDIATYPE_GUID( MFVideoFormat_CVID, MAKEFOURCC( 'c', 'v', 'i', 'd' ) );
-DEFINE_MEDIATYPE_GUID( MFVideoFormat_ABGR32, D3DFMT_A8B8G8R8 );
 
 static inline void hexdump( const char *msg, const void *data, UINT size )
 {
@@ -395,313 +743,6 @@ static NTSTATUS stream_type_mpeg_video_format( const AVStream *stream, struct mp
            format->start_time_code, format->profile, format->level, format->flags );
     if (format->sequence_header_count && TRACE_ON(libav)) hexdump( "  Extra", format->sequence_header, format->sequence_header_count );
 
-    return STATUS_SUCCESS;
-}
-
-static void log_callback( void *ctx, int level, const char *fmt, va_list va_args )
-{
-    enum __wine_debug_class dbcl;
-    if (level <= AV_LOG_ERROR) dbcl = __WINE_DBCL_ERR;
-    if (level <= AV_LOG_WARNING) dbcl = __WINE_DBCL_WARN;
-    if (level <= AV_LOG_TRACE) dbcl = __WINE_DBCL_TRACE;
-    wine_dbg_vlog( dbcl, __wine_dbch___default, __FILE__, __LINE__, __func__,
-                   __WINE_DBG_RETADDR, fmt, va_args );
-}
-
-static NTSTATUS process_attach( void *params )
-{
-#ifdef SONAME_LIBAVUTIL
-    if (!(avutil_handle = dlopen( SONAME_LIBAVUTIL, RTLD_NOW )))
-    {
-        ERR( "Failed to load %s\n", SONAME_LIBAVUTIL );
-        goto failed;
-    }
-
-#define LOAD_FUNCPTR( f )                                                                          \
-    if (!(p_##f = dlsym( avutil_handle, #f )))                                                     \
-    {                                                                                              \
-        ERR( "Failed to find " #f "\n" );                                                          \
-        goto failed;                                                                               \
-    }
-
-    LOAD_FUNCPTR( av_log_set_callback );
-    LOAD_FUNCPTR( av_dict_get );
-#undef LOAD_FUNCPTR
-
-    p_av_log_set_callback( log_callback );
-    TRACE( "Loaded %s\n", SONAME_LIBAVUTIL );
-
-#endif /* SONAME_LIBAVUTIL */
-
-    if (!(avformat_handle = dlopen( SONAME_LIBAVFORMAT, RTLD_NOW )))
-    {
-        ERR( "Failed to load %s\n", SONAME_LIBAVFORMAT );
-        goto failed;
-    }
-
-#define LOAD_FUNCPTR( f )                                                                          \
-    if (!(p_##f = dlsym( avformat_handle, #f )))                                                   \
-    {                                                                                              \
-        ERR( "Failed to find " #f "\n" );                                                          \
-        goto failed;                                                                               \
-    }
-
-    LOAD_FUNCPTR( avformat_version );
-    LOAD_FUNCPTR( avio_alloc_context );
-    LOAD_FUNCPTR( avio_context_free );
-    LOAD_FUNCPTR( avformat_alloc_context );
-    LOAD_FUNCPTR( avformat_free_context );
-    LOAD_FUNCPTR( avformat_open_input );
-    LOAD_FUNCPTR( avformat_find_stream_info );
-    LOAD_FUNCPTR( avformat_close_input );
-    LOAD_FUNCPTR( av_read_frame );
-    LOAD_FUNCPTR( av_seek_frame );
-    LOAD_FUNCPTR( av_packet_alloc );
-    LOAD_FUNCPTR( av_packet_unref );
-#undef LOAD_FUNCPTR
-
-    TRACE( "Loaded %s\n", SONAME_LIBAVFORMAT );
-    return STATUS_SUCCESS;
-
-failed:
-    if (avformat_handle)
-    {
-        dlclose( avformat_handle );
-        avformat_handle = NULL;
-    }
-    if (avutil_handle)
-    {
-        dlclose( avutil_handle );
-        avutil_handle = NULL;
-    }
-    return STATUS_NOT_FOUND;
-}
-
-static int call_io_read( void *opaque, uint8_t *buf, int size )
-{
-    struct io_context *io_ctx = opaque;
-    int ret;
-
-    TRACE( "opaque %p, buf %p, size %#x\n", opaque, buf, size );
-
-    ret = NtUserCallIORead( &io_ctx->io, buf, size );
-    if (ret < 0) return AVERROR( EINVAL );
-    if (!ret) return AVERROR_EOF;
-
-    io_ctx->position += ret;
-    return ret;
-}
-
-#if FF_API_AVIO_WRITE_NONCONST
-static int call_io_write( void *opaque, uint8_t *buf, int size )
-#else
-static int call_io_write( void *opaque, const uint8_t *buf, int size )
-#endif
-{
-    struct io_context *io_ctx = opaque;
-    int ret;
-
-    TRACE( "opaque %p, buf %p, size %#x\n", opaque, buf, size );
-
-    ret = NtUserCallIOWrite( &io_ctx->io, buf, size );
-    if (ret < 0) return AVERROR( EINVAL );
-    if (!ret) return AVERROR_EOF;
-
-    io_ctx->position += ret;
-    return ret;
-}
-
-static int64_t call_io_seek( void *opaque, int64_t offset, int whence )
-{
-    struct io_context *io_ctx = opaque;
-
-    TRACE( "opaque %p, offset 0x%s, whence %#x\n", opaque, wine_dbgstr_longlong( offset ), whence );
-
-    if (whence == AVSEEK_SIZE) return io_ctx->length;
-    if (whence == SEEK_END) offset += io_ctx->length;
-    if (whence == SEEK_CUR) offset += io_ctx->position;
-
-    offset = NtUserCallIOSeek( &io_ctx->io, offset );
-    if (offset < 0) return AVERROR( EINVAL );
-
-    io_ctx->position = offset;
-    return offset;
-}
-
-static AVFormatContext *get_context( demuxer_t handle )
-{
-    return (AVFormatContext *)(UINT_PTR)handle;
-}
-
-static AVPacket *get_packet( packet_t handle )
-{
-    return (AVPacket *)(UINT_PTR)handle;
-}
-
-static INT64 demuxer_stream_time( const AVStream *stream, INT64 time )
-{
-    if (time == AV_NOPTS_VALUE) return INT64_MIN;
-    if (!stream->time_base.num || !stream->time_base.den) return time;
-    return time * stream->time_base.num * 10000000 / stream->time_base.den;
-}
-
-static INT64 get_context_duration( const AVFormatContext *ctx )
-{
-    INT64 i, max_duration = 0;
-
-    if (ctx->duration != AV_NOPTS_VALUE) return ctx->duration * 10000000 / AV_TIME_BASE;
-
-    for (i = 0; i < ctx->nb_streams; i++)
-    {
-        AVStream *stream = ctx->streams[i];
-        INT64 duration = demuxer_stream_time( stream, stream->duration );
-        if (duration == INT64_MIN || duration < max_duration) continue;
-        max_duration = duration;
-    }
-
-    return max_duration;
-}
-
-static NTSTATUS demuxer_create( void *arg )
-{
-    struct demuxer_create_params *params = arg;
-    AVFormatContext *ctx;
-    int ret;
-
-    TRACE( "io_ctx %p\n", params->io_ctx );
-
-    if (!(ctx = p_avformat_alloc_context())) return STATUS_NO_MEMORY;
-    if (!(ctx->pb = p_avio_alloc_context( NULL, 0, 0, params->io_ctx, call_io_read, call_io_write, call_io_seek )))
-    {
-        p_avformat_free_context( ctx );
-        return STATUS_NO_MEMORY;
-    }
-
-    if ((ret = p_avformat_open_input( &ctx, NULL, NULL, NULL )) < 0)
-    {
-        ERR( "Failed to open input, ret %d.\n", ret );
-        p_avformat_free_context( ctx );
-        return STATUS_UNSUCCESSFUL;
-    }
-
-    if (!ctx->nb_streams && (ret = p_avformat_find_stream_info( ctx, NULL )) < 0)
-    {
-        ERR( "Failed to find stream info, ret %d.\n", ret );
-        p_avformat_free_context( ctx );
-        return STATUS_UNSUCCESSFUL;
-    }
-
-    params->demuxer = (UINT_PTR)ctx;
-    params->duration = get_context_duration( ctx );
-    params->stream_count = ctx->nb_streams;
-    if (strstr( ctx->iformat->name, "mp4" )) strcpy( params->mime_type, "video/mp4" );
-    else if (strstr( ctx->iformat->name, "avi" )) strcpy( params->mime_type, "video/avi" );
-    else strcpy( params->mime_type, "video/x-raw" );
-
-    return STATUS_SUCCESS;
-}
-
-static NTSTATUS demuxer_destroy( void *arg )
-{
-    struct demuxer_destroy_params *params = arg;
-    AVFormatContext *ctx = get_context( params->demuxer );
-    AVIOContext *io = ctx->pb;
-
-    TRACE( "context %p\n", ctx );
-
-    params->io_ctx = io->opaque;
-    p_avformat_close_input( &ctx );
-    p_avio_context_free( &io );
-
-    return STATUS_SUCCESS;
-}
-
-static NTSTATUS demuxer_read( void *arg )
-{
-    struct demuxer_read_params *params = arg;
-    AVFormatContext *ctx = get_context( params->demuxer );
-    AVPacket *packet = get_packet( params->packet );
-    UINT capacity = params->size;
-    AVStream *stream;
-    int ret;
-
-    TRACE( "context %p, packet %p, capacity %#x\n", ctx, packet, capacity );
-
-    if (!packet)
-    {
-        if (!(packet = p_av_packet_alloc())) return STATUS_NO_MEMORY;
-        if ((ret = p_av_read_frame( ctx, packet )) < 0)
-        {
-            TRACE( "av_read_frame index %u returned %#x\n", packet->stream_index, -ret );
-            p_av_packet_unref( packet );
-            if (ret == AVERROR_EOF) return STATUS_END_OF_FILE;
-            return STATUS_UNSUCCESSFUL;
-        }
-
-        params->packet = (UINT_PTR)packet;
-        params->size = packet->size;
-    }
-
-    if ((capacity < packet->size)) return STATUS_BUFFER_TOO_SMALL;
-    stream = ctx->streams[packet->stream_index];
-
-    memcpy( params->data, packet->data, packet->size );
-    params->stream = packet->stream_index;
-    params->pts = demuxer_stream_time( stream, packet->pts );
-    params->dts = demuxer_stream_time( stream, packet->dts );
-    params->duration = demuxer_stream_time( stream, packet->duration );
-
-    p_av_packet_unref( packet );
-    return STATUS_SUCCESS;
-}
-
-static NTSTATUS demuxer_seek( void *arg )
-{
-    struct demuxer_seek_params *params = arg;
-    AVFormatContext *ctx = get_context( params->demuxer );
-    int64_t timestamp = params->timestamp * AV_TIME_BASE / 10000000;
-    int ret;
-
-    TRACE( "context %p, timestamp 0x%s\n", ctx, wine_dbgstr_longlong( params->timestamp ) );
-
-    if ((ret = p_av_seek_frame( ctx, -1, timestamp, AVSEEK_FLAG_ANY )) < 0)
-    {
-        ERR( "Failed to seek context %p, ret %d\n", ctx, ret );
-        return STATUS_UNSUCCESSFUL;
-    }
-
-    return STATUS_SUCCESS;
-}
-
-static NTSTATUS demuxer_stream_lang( void *arg )
-{
-    struct demuxer_stream_lang_params *params = arg;
-    AVFormatContext *ctx = get_context( params->demuxer );
-    AVStream *stream = ctx->streams[params->stream];
-    AVDictionaryEntry *tag;
-
-    TRACE( "context %p, stream %u\n", ctx, params->stream );
-
-    if (!(tag = p_av_dict_get( stream->metadata, "language", NULL, AV_DICT_IGNORE_SUFFIX )))
-        return STATUS_NOT_FOUND;
-
-    lstrcpynA( params->buffer, tag->value, ARRAY_SIZE( params->buffer ) );
-    return STATUS_SUCCESS;
-}
-
-static NTSTATUS demuxer_stream_name( void *arg )
-{
-    struct demuxer_stream_name_params *params = arg;
-    AVFormatContext *ctx = get_context( params->demuxer );
-    AVStream *stream = ctx->streams[params->stream];
-    AVDictionaryEntry *tag;
-
-    TRACE( "context %p, stream %u\n", ctx, params->stream );
-
-    if (!(tag = p_av_dict_get( stream->metadata, "title", NULL, AV_DICT_IGNORE_SUFFIX )))
-        return STATUS_NOT_FOUND;
-
-    lstrcpynA( params->buffer, tag->value, ARRAY_SIZE( params->buffer ) );
     return STATUS_SUCCESS;
 }
 
