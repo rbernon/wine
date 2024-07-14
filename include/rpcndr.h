@@ -112,10 +112,7 @@ typedef void (__RPC_USER *NDR_RUNDOWN)(void *context);
 typedef void (__RPC_USER *NDR_NOTIFY_ROUTINE)(void);
 typedef void (__RPC_USER *NDR_NOTIFY2_ROUTINE)(boolean flag);
 
-#ifndef DECLSPEC_UUID
 #define DECLSPEC_UUID(x)
-#endif
-
 #define MIDL_INTERFACE(x)   struct
 
 struct _MIDL_STUB_MESSAGE;
