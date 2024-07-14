@@ -43,13 +43,13 @@ typedef struct _WINE_PROVIDERSTORE
     PFN_CERT_STORE_PROV_CONTROL     provControl;
 } WINE_PROVIDERSTORE;
 
-static void store_provider_add_ref( WINECRYPT_CERTSTORE *store )
+static void ProvStore_addref(WINECRYPT_CERTSTORE *store)
 {
     LONG ref = InterlockedIncrement(&store->ref);
     TRACE("ref = %ld\n", ref);
 }
 
-static DWORD store_provider_release( WINECRYPT_CERTSTORE *cert_store, DWORD flags )
+static DWORD ProvStore_release(WINECRYPT_CERTSTORE *cert_store, DWORD flags)
 {
     WINE_PROVIDERSTORE *store = (WINE_PROVIDERSTORE*)cert_store;
     LONG ref;
@@ -71,15 +71,15 @@ static DWORD store_provider_release( WINECRYPT_CERTSTORE *cert_store, DWORD flag
     return ERROR_SUCCESS;
 }
 
-static void store_provider_release_context( WINECRYPT_CERTSTORE *store, context_t *context )
+static void ProvStore_releaseContext(WINECRYPT_CERTSTORE *store, context_t *context)
 {
     /* As long as we don't have contexts properly stored (and hack around hCertStore
        in add* and enum* functions), this function should never be called. */
     assert(0);
 }
 
-static BOOL store_provider_add_cert( WINECRYPT_CERTSTORE *store, context_t *cert, context_t *toReplace,
-                                     context_t **ppStoreContext, BOOL use_link )
+static BOOL ProvStore_addCert(WINECRYPT_CERTSTORE *store, context_t *cert,
+ context_t *toReplace, context_t **ppStoreContext, BOOL use_link)
 {
     WINE_PROVIDERSTORE *ps = (WINE_PROVIDERSTORE*)store;
     BOOL ret;
@@ -101,27 +101,28 @@ static BOOL store_provider_add_cert( WINECRYPT_CERTSTORE *store, context_t *cert
     /* dirty trick: replace the returned context's hCertStore with
      * store.
      */
-    if (ret && ppStoreContext) (*ppStoreContext)->cert.hCertStore = store;
+    if (ret && ppStoreContext)
+        (*(cert_t**)ppStoreContext)->ctx.hCertStore = store;
     return ret;
 }
 
-static context_t *store_provider_enum_cert( WINECRYPT_CERTSTORE *store, context_t *prev )
+static context_t *ProvStore_enumCert(WINECRYPT_CERTSTORE *store, context_t *prev)
 {
     WINE_PROVIDERSTORE *ps = (WINE_PROVIDERSTORE*)store;
-    context_t *ret;
+    cert_t *ret;
 
-    ret = ps->memStore->vtbl->certs.enumContext( ps->memStore, prev );
+    ret = (cert_t*)ps->memStore->vtbl->certs.enumContext(ps->memStore, prev);
     if (!ret)
         return NULL;
 
     /* same dirty trick: replace the returned context's hCertStore with
      * store.
      */
-    ret->cert.hCertStore = store;
-    return ret;
+    ret->ctx.hCertStore = store;
+    return &ret->base;
 }
 
-static BOOL store_provider_delete_cert( WINECRYPT_CERTSTORE *store, context_t *context )
+static BOOL ProvStore_deleteCert(WINECRYPT_CERTSTORE *store, context_t *context)
 {
     WINE_PROVIDERSTORE *ps = (WINE_PROVIDERSTORE*)store;
     BOOL ret = TRUE;
@@ -135,8 +136,8 @@ static BOOL store_provider_delete_cert( WINECRYPT_CERTSTORE *store, context_t *c
     return ret;
 }
 
-static BOOL store_provider_add_crl( WINECRYPT_CERTSTORE *store, context_t *crl, context_t *toReplace,
-                                    context_t **ppStoreContext, BOOL use_link )
+static BOOL ProvStore_addCRL(WINECRYPT_CERTSTORE *store, context_t *crl,
+ context_t *toReplace, context_t **ppStoreContext, BOOL use_link)
 {
     WINE_PROVIDERSTORE *ps = (WINE_PROVIDERSTORE*)store;
     BOOL ret;
@@ -167,27 +168,28 @@ static BOOL store_provider_add_crl( WINECRYPT_CERTSTORE *store, context_t *crl, 
     /* dirty trick: replace the returned context's hCertStore with
      * store.
      */
-    if (ret && ppStoreContext) (*ppStoreContext)->crl.hCertStore = store;
+    if (ret && ppStoreContext)
+        (*(crl_t**)ppStoreContext)->ctx.hCertStore = store;
     return ret;
 }
 
-static context_t *store_provider_enum_crl( WINECRYPT_CERTSTORE *store, context_t *prev )
+static context_t *ProvStore_enumCRL(WINECRYPT_CERTSTORE *store, context_t *prev)
 {
     WINE_PROVIDERSTORE *ps = (WINE_PROVIDERSTORE*)store;
-    context_t *ret;
+    crl_t *ret;
 
-    ret = ps->memStore->vtbl->crls.enumContext( ps->memStore, prev );
+    ret = (crl_t*)ps->memStore->vtbl->crls.enumContext(ps->memStore, prev);
     if (!ret)
         return NULL;
 
     /* same dirty trick: replace the returned context's hCertStore with
      * store.
      */
-    ret->crl.hCertStore = store;
-    return ret;
+    ret->ctx.hCertStore = store;
+    return &ret->base;
 }
 
-static BOOL store_provider_delete_crl( WINECRYPT_CERTSTORE *store, context_t *crl )
+static BOOL ProvStore_deleteCRL(WINECRYPT_CERTSTORE *store, context_t *crl)
 {
     WINE_PROVIDERSTORE *ps = (WINE_PROVIDERSTORE*)store;
     BOOL ret = TRUE;
@@ -201,8 +203,8 @@ static BOOL store_provider_delete_crl( WINECRYPT_CERTSTORE *store, context_t *cr
     return ret;
 }
 
-static BOOL store_provider_add_ctl( WINECRYPT_CERTSTORE *store, context_t *ctl, context_t *toReplace,
-                                    context_t **ppStoreContext, BOOL use_link )
+static BOOL ProvStore_addCTL(WINECRYPT_CERTSTORE *store, context_t *ctl,
+ context_t *toReplace, context_t **ppStoreContext, BOOL use_link)
 {
     WINE_PROVIDERSTORE *ps = (WINE_PROVIDERSTORE*)store;
     BOOL ret;
@@ -233,27 +235,28 @@ static BOOL store_provider_add_ctl( WINECRYPT_CERTSTORE *store, context_t *ctl, 
     /* dirty trick: replace the returned context's hCertStore with
      * store.
      */
-    if (ret && ppStoreContext) (*ppStoreContext)->ctl.hCertStore = store;
+    if (ret && ppStoreContext)
+        (*(ctl_t**)ppStoreContext)->ctx.hCertStore = store;
     return ret;
 }
 
-static context_t *store_provider_enum_ctl( WINECRYPT_CERTSTORE *store, context_t *prev )
+static context_t *ProvStore_enumCTL(WINECRYPT_CERTSTORE *store, context_t *prev)
 {
     WINE_PROVIDERSTORE *ps = (WINE_PROVIDERSTORE*)store;
-    context_t *ret;
+    ctl_t *ret;
 
-    ret = ps->memStore->vtbl->ctls.enumContext( ps->memStore, prev );
+    ret = (ctl_t*)ps->memStore->vtbl->ctls.enumContext(ps->memStore, prev);
     if (!ret)
         return NULL;
 
     /* same dirty trick: replace the returned context's hCertStore with
      * store.
      */
-    ret->ctl.hCertStore = store;
-    return ret;
+    ret->ctx.hCertStore = store;
+    return &ret->base;
 }
 
-static BOOL store_provider_delete_ctl( WINECRYPT_CERTSTORE *store, context_t *ctl )
+static BOOL ProvStore_deleteCTL(WINECRYPT_CERTSTORE *store, context_t *ctl)
 {
     WINE_PROVIDERSTORE *ps = (WINE_PROVIDERSTORE*)store;
     BOOL ret = TRUE;
@@ -267,7 +270,7 @@ static BOOL store_provider_delete_ctl( WINECRYPT_CERTSTORE *store, context_t *ct
     return ret;
 }
 
-static BOOL store_provider_control( WINECRYPT_CERTSTORE *cert_store, DWORD dwFlags, DWORD dwCtrlType, void const *pvCtrlPara )
+static BOOL ProvStore_control(WINECRYPT_CERTSTORE *cert_store, DWORD dwFlags, DWORD dwCtrlType, void const *pvCtrlPara)
 {
     WINE_PROVIDERSTORE *store = (WINE_PROVIDERSTORE*)cert_store;
     BOOL ret = TRUE;
@@ -281,15 +284,24 @@ static BOOL store_provider_control( WINECRYPT_CERTSTORE *cert_store, DWORD dwFla
     return ret;
 }
 
-static const store_vtbl_t ProvStoreVtbl =
-{
-    store_provider_add_ref,
-    store_provider_release,
-    store_provider_release_context,
-    store_provider_control,
-    {store_provider_add_cert, store_provider_enum_cert, store_provider_delete_cert},
-    {store_provider_add_crl, store_provider_enum_crl, store_provider_delete_crl},
-    {store_provider_add_ctl, store_provider_enum_ctl, store_provider_delete_ctl},
+static const store_vtbl_t ProvStoreVtbl = {
+    ProvStore_addref,
+    ProvStore_release,
+    ProvStore_releaseContext,
+    ProvStore_control,
+    {
+        ProvStore_addCert,
+        ProvStore_enumCert,
+        ProvStore_deleteCert
+    }, {
+        ProvStore_addCRL,
+        ProvStore_enumCRL,
+        ProvStore_deleteCRL
+    }, {
+        ProvStore_addCTL,
+        ProvStore_enumCTL,
+        ProvStore_deleteCTL
+    }
 };
 
 WINECRYPT_CERTSTORE *CRYPT_ProvCreateStore(DWORD dwFlags,
