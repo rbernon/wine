@@ -2617,53 +2617,6 @@ done:
 
 
 /***********************************************************************
- *      CreateWindowSurface   (X11DRV.@)
- */
-BOOL X11DRV_CreateWindowSurface( HWND hwnd, UINT swp_flags, const RECT *visible_rect, struct window_surface **surface )
-{
-    struct x11drv_win_data *data;
-    RECT surface_rect;
-    DWORD flags;
-    COLORREF key;
-    BOOL layered = NtUserGetWindowLongW( hwnd, GWL_EXSTYLE ) & WS_EX_LAYERED;
-
-    TRACE( "hwnd %p, swp_flags %08x, visible %s, surface %p\n", hwnd, swp_flags, wine_dbgstr_rect( visible_rect ), surface );
-
-    if (!(data = get_win_data( hwnd ))) return TRUE; /* use default surface */
-
-    if (*surface) window_surface_release( *surface );
-    *surface = NULL;  /* indicate that we want to draw directly to the window */
-
-    if (data->embedded) goto done; /* draw directly to the window */
-    if (data->whole_window == root_window) goto done; /* draw directly to the window */
-    if (data->client_window) goto done; /* draw directly to the window */
-    if (!client_side_graphics && !layered) goto done; /* draw directly to the window */
-
-    if (!get_surface_rect( visible_rect, &surface_rect )) goto done;
-    if (data->surface)
-    {
-        if (EqualRect( &data->surface->rect, &surface_rect ))
-        {
-            /* existing surface is good enough */
-            window_surface_add_ref( data->surface );
-            *surface = data->surface;
-            goto done;
-        }
-    }
-    else if (!(swp_flags & SWP_SHOWWINDOW) && !(NtUserGetWindowLongW( hwnd, GWL_STYLE ) & WS_VISIBLE)) goto done;
-
-    if (!layered || !NtUserGetLayeredWindowAttributes( hwnd, &key, NULL, &flags ) || !(flags & LWA_COLORKEY))
-        key = CLR_INVALID;
-
-    *surface = x11drv_cairo_window_surface_create( data->whole_window, &data->vis, &surface_rect, key, FALSE );
-
-done:
-    release_win_data( data );
-    return TRUE;
-}
-
-
-/***********************************************************************
  *		WindowPosChanged   (X11DRV.@)
  */
 void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
@@ -2968,42 +2921,6 @@ void X11DRV_SetLayeredWindowAttributes( HWND hwnd, COLORREF key, BYTE alpha, DWO
                 FIXME( "LWA_COLORKEY not supported on foreign process window %p\n", hwnd );
         }
     }
-}
-
-
-/*****************************************************************************
- *              CreateLayeredWindow  (X11DRV.@)
- */
-BOOL X11DRV_CreateLayeredWindow( HWND hwnd, const RECT *window_rect, COLORREF color_key,
-                                 struct window_surface **window_surface )
-{
-    struct window_surface *surface;
-    struct x11drv_win_data *data;
-    RECT rect;
-
-    if (!(data = get_win_data( hwnd ))) return FALSE;
-
-    data->layered = TRUE;
-    if (!data->embedded && argb_visual.visualid) set_window_visual( data, &argb_visual, TRUE );
-
-    rect = *window_rect;
-    OffsetRect( &rect, -window_rect->left, -window_rect->top );
-    get_surface_rect( &rect, &surface_rect );
-
-    surface = data->surface;
-    if (!surface || !EqualRect( &surface->rect, &rect ))
-    {
-        data->surface = x11drv_cairo_window_surface_create( data->whole_window, &data->vis, &rect, color_key, data->use_alpha );
-        if (*surface) window_surface_release( *surface );
-        sync_window_region( data, (HRGN)1 );
-        *surface = data->surface;
-    }
-    else window_surface_set_key( surface, color_key );
-
-    if ((*window_surface = surface)) window_surface_add_ref( surface );
-    release_win_data( data );
-
-    return TRUE;
 }
 
 

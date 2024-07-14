@@ -267,10 +267,7 @@ extern Pixmap create_pixmap_from_image( HDC hdc, const XVisualInfo *vis, const B
                                         const struct gdi_image_bits *bits, UINT coloruse );
 extern DWORD get_pixmap_image( Pixmap pixmap, int width, int height, const XVisualInfo *vis,
                                BITMAPINFO *info, struct gdi_image_bits *bits );
-extern struct window_surface *create_surface( HWND hwnd, Window window, const XVisualInfo *vis, const RECT *rect,
-                                              COLORREF color_key, BOOL use_alpha );
-extern struct window_surface *x11drv_cairo_window_surface_create( Window window, const XVisualInfo *vis, const RECT *rect,
-                                                                  COLORREF color_key, BOOL use_alpha );
+extern HRGN expose_surface( struct window_surface *window_surface, const RECT *rect );
 
 extern RGNDATA *X11DRV_GetRegionData( HRGN hrgn, HDC hdc_lptodp );
 extern BOOL add_extra_clipping_region( X11DRV_PDEVICE *dev, HRGN rgn );

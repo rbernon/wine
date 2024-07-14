@@ -46,9 +46,6 @@
 # endif
 #endif
 
-#include <cairo/cairo.h>
-#include <cairo/cairo-xlib.h>
-
 #include "x11drv.h"
 #include "winternl.h"
 #include "wine/debug.h"
@@ -955,10 +952,10 @@ static inline int get_dib_stride( int width, int bpp )
     return ((width * bpp + 31) >> 3) & ~3;
 }
 
-static inline int get_dib_image_size( const BITMAPINFOHEADER *info )
+static inline int get_dib_image_size( const BITMAPINFO *info )
 {
-    return get_dib_stride( info->biWidth, info->biBitCount )
-        * abs( info->biHeight );
+    return get_dib_stride( info->bmiHeader.biWidth, info->bmiHeader.biBitCount )
+        * abs( info->bmiHeader.biHeight );
 }
 
 /* store the palette or color mask data in the bitmap info structure */
@@ -1962,44 +1959,96 @@ failed:
     return NULL;
 }
 
-static BOOL x11drv_cairo_surface_flush( cairo_surface_t *window, cairo_surface_t *shape )
+/***********************************************************************
+ *           expose_surface
+ */
+HRGN expose_surface( struct window_surface *window_surface, const RECT *rect )
 {
-#ifdef HAVE_LIBXSHAPE
-    if (!shape) XShapeCombineMask( gdi_display, cairo_xlib_surface_get_drawable( window ), ShapeBounding, 0, 0, None, ShapeSet );
-    else XShapeCombineMask( gdi_display, cairo_xlib_surface_get_drawable( window ), ShapeBounding, 0, 0,
-                            cairo_xlib_surface_get_drawable( shape ), ShapeSet );
-#endif
+    HRGN region = 0;
+    RECT rc = *rect;
+
+    if (window_surface->funcs != &x11drv_surface_funcs) return 0;  /* we may get the null surface */
+
+    window_surface_lock( window_surface );
+    OffsetRect( &rc, -window_surface->rect.left, -window_surface->rect.top );
+    add_bounds_rect( &window_surface->bounds, &rc );
+    if (window_surface->clip_region)
+    {
+        region = NtGdiCreateRectRgn( rect->left, rect->top, rect->right, rect->bottom );
+        if (NtGdiCombineRgn( region, region, window_surface->clip_region, RGN_DIFF ) <= NULLREGION)
+        {
+            NtGdiDeleteObjectApp( region );
+            region = 0;
+        }
+    }
+    window_surface_unlock( window_surface );
+    return region;
+}
+
+
+/***********************************************************************
+ *      CreateWindowSurface   (X11DRV.@)
+ */
+BOOL X11DRV_CreateWindowSurface( HWND hwnd, const RECT *surface_rect, struct window_surface **surface )
+{
+    struct x11drv_win_data *data;
+    BOOL layered = NtUserGetWindowLongW( hwnd, GWL_EXSTYLE ) & WS_EX_LAYERED;
+
+    TRACE( "hwnd %p, surface_rect %s, surface %p\n", hwnd, wine_dbgstr_rect( surface_rect ), surface );
+
+    if (!(data = get_win_data( hwnd ))) return TRUE; /* use default surface */
+
+    if (*surface) window_surface_release( *surface );
+    *surface = NULL;  /* indicate that we want to draw directly to the window */
+
+    if (data->embedded) goto done; /* draw directly to the window */
+    if (data->whole_window == root_window) goto done; /* draw directly to the window */
+    if (data->client_window) goto done; /* draw directly to the window */
+    if (!client_side_graphics && !layered) goto done; /* draw directly to the window */
+
+    if (data->surface)
+    {
+        if (EqualRect( &data->surface->rect, surface_rect ))
+        {
+            /* existing surface is good enough */
+            window_surface_add_ref( data->surface );
+            *surface = data->surface;
+            goto done;
+        }
+    }
+
+    *surface = create_surface( data->hwnd, data->whole_window, &data->vis, surface_rect, FALSE );
+
+done:
+    release_win_data( data );
     return TRUE;
 }
 
-static void x11drv_cairo_surface_destroy( cairo_surface_t *window, cairo_surface_t *shape )
+
+/*****************************************************************************
+ *              CreateLayeredWindow  (X11DRV.@)
+ */
+BOOL X11DRV_CreateLayeredWindow( HWND hwnd, const RECT *surface_rect, COLORREF color_key,
+                                 struct window_surface **window_surface )
 {
-    XFreePixmap( gdi_display, cairo_xlib_surface_get_drawable( shape ) );
-    cairo_surface_destroy( window );
-    cairo_surface_destroy( shape );
-}
+    struct window_surface *surface;
+    struct x11drv_win_data *data;
 
-static const struct window_surface_cairo_funcs x11drv_cairo_funcs =
-{
-    x11drv_cairo_surface_flush,
-    x11drv_cairo_surface_destroy
-};
+    if (!(data = get_win_data( hwnd ))) return FALSE;
 
-struct window_surface *x11drv_cairo_window_surface_create( Window window, const XVisualInfo *vis, const RECT *surface_rect,
-                                                           COLORREF color_key, BOOL use_alpha )
-{
-    cairo_surface_t *shape_surface, *window_surface;
-    RECT rect = *surface_rect;
-    Pixmap shape;
+    data->layered = TRUE;
+    if (!data->embedded && argb_visual.visualid) set_window_visual( data, &argb_visual, TRUE );
 
-    OffsetRect( &rect, -rect.left, -rect.top );
-    rect.right  = (rect.right + 0x1f) & ~0x1f;
-    rect.bottom = (rect.bottom + 0x1f) & ~0x1f;
+    surface = data->surface;
+    if (!surface || !EqualRect( &surface->rect, surface_rect ))
+    {
+        data->surface = create_surface( data->hwnd, data->whole_window, &data->vis, surface_rect, data->use_alpha );
+        if (surface) window_surface_release( surface );
+        surface = data->surface;
+    }
 
-    shape = XCreatePixmap( gdi_display, window, rect.right, rect.bottom, 1 );
-    shape_surface = cairo_xlib_surface_create_for_bitmap( gdi_display, shape, DefaultScreenOfDisplay( gdi_display ),
-                                                          rect.right, rect.bottom );
-    window_surface = cairo_xlib_surface_create( gdi_display, window, vis->visual, rect.right, rect.bottom );
+    if ((*window_surface = surface)) window_surface_add_ref( surface );
+    release_win_data( data );
 
-    return window_surface_create_cairo( &x11drv_cairo_funcs, &rect, color_key, use_alpha, window_surface, shape_surface );
+    return TRUE;
 }
