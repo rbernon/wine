@@ -21,11 +21,9 @@
 #ifndef __WINE_WINE_GDI_DRIVER_H
 #define __WINE_WINE_GDI_DRIVER_H
 
-#include <stddef.h>
-#include <stdarg.h>
-
-#include "windef.h"
-#include "winbase.h"
+#ifndef WINE_UNIX_LIB
+#error The GDI driver can only be used on the Unix side
+#endif
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -178,7 +176,6 @@ struct gdi_dc_funcs
 
     /* priority order for the driver on the stack */
     UINT       priority;
-    const char *name;
 };
 
 /* increment this when you change the DC function table */
@@ -286,6 +283,8 @@ struct vulkan_driver_funcs;
 
 struct user_driver_funcs
 {
+    struct gdi_dc_funcs dc_funcs;
+
     /* keyboard functions */
     BOOL    (*pActivateKeyboardLayout)(HKL, UINT);
     void    (*pBeep)(void);
@@ -352,8 +351,6 @@ struct user_driver_funcs
                                  const RECT *,struct window_surface*);
     /* system parameters */
     BOOL    (*pSystemParametersInfo)(UINT,UINT,void*,UINT);
-    /* gdi support */
-    const struct gdi_dc_funcs * (*pwine_get_gdi_driver)(UINT);
     /* vulkan support */
     UINT    (*pVulkanInit)(UINT,void *,const struct vulkan_driver_funcs **);
     /* opengl support */
