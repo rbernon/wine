@@ -1635,20 +1635,20 @@ dnl **** Check for FFmpeg ****
 if test "x$with_ffmpeg" != "xno";
 then
     WINE_PACKAGE_FLAGS(AVUTIL,[libavutil],,,,
-        [AC_CHECK_HEADER([libavutil/avutil.h],
+        [AC_CHECK_HEADERS(libavutil/avutil.h,
             [WINE_CHECK_SONAME(avutil,av_log_set_callback,,[AVUTIL_CFLAGS=""],[$AVUTIL_LIBS])])])
     WINE_PACKAGE_FLAGS(AVFORMAT,[libavformat],,,,
-        [AC_CHECK_HEADER([libavformat/avformat.h],
+        [AC_CHECK_HEADERS(libavformat/avformat.h,
             [WINE_CHECK_SONAME(avformat,avformat_open_input,,[AVFORMAT_CFLAGS=""],[$AVFORMAT_LIBS])])])
     WINE_PACKAGE_FLAGS(AVCODEC,[libavcodec],,,,
-        [AC_CHECK_HEADER([libavcodec/avcodec.h],
-            [WINE_CHECK_SONAME(avcodec,avcodec_find_decoder,,[AVCODEC_CFLAGS=""],[$AVCODEC_LIBS])])])
+        [AC_CHECK_HEADERS(libavcodec/avcodec.h,
+            [WINE_CHECK_SONAME(avcodec,avcodec_alloc_context3,,[AVCODEC_CFLAGS=""],[$AVCODEC_LIBS])])])
     WINE_PACKAGE_FLAGS(SWRESAMPLE,[libswresample],,,,
-        [AC_CHECK_HEADER([libswresample/swresample.h],
-            [WINE_CHECK_SONAME(swresample,swresample_find_decoder,,[SWRESAMPLE_CFLAGS=""],[$SWRESAMPLE_LIBS])])])
+        [AC_CHECK_HEADERS(libswresample/swresample.h,
+            [WINE_CHECK_SONAME(swresample,swr_alloc_set_opts2,,[SWRESAMPLE_CFLAGS=""],[$SWRESAMPLE_LIBS])])])
     WINE_PACKAGE_FLAGS(SWSCALE,[libswscale],,,,
-        [AC_CHECK_HEADER([libswscale/swscale.h],
-            [WINE_CHECK_SONAME(swscale,swscale_find_decoder,,[SWSCALE_CFLAGS=""],[$SWSCALE_LIBS])])])
+        [AC_CHECK_HEADERS(libswscale/swscale.h,
+            [WINE_CHECK_SONAME(swscale,sws_getContext,,[SWSCALE_CFLAGS=""],[$SWSCALE_LIBS])])])
 fi
 WINE_NOTICE_WITH(ffmpeg,[test "x$ac_cv_lib_soname_avformat" = "x"],
                  [FFmpeg ${notice_platform}development files not found.],

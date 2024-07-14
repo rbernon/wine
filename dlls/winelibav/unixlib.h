@@ -85,7 +85,18 @@ C_ASSERT( sizeof(struct mpeg_video_format) == offsetof( struct mpeg_video_format
 
 typedef UINT64 demuxer_t;
 typedef UINT64 packet_t;
+typedef UINT64 frame_t;
 typedef UINT64 muxer_t;
+
+struct sample
+{
+    /* timestamp and duration are in 100-nanosecond units. */
+    UINT64 dts;
+    UINT64 pts;
+    UINT64 duration;
+    UINT64 size;
+    UINT64 data; /* pointer to user memory */
+};
 
 struct demuxer_create_params
 {
@@ -109,11 +120,7 @@ struct demuxer_read_params
     demuxer_t demuxer;
     packet_t packet;
     UINT32 stream;
-    DWORD size;
-    INT64 dts;
-    INT64 pts;
-    INT64 duration;
-    BYTE *data;
+    struct sample sample;
 };
 
 struct demuxer_seek_params
@@ -145,7 +152,8 @@ struct media_type
         void *format;
         WAVEFORMATEX *audio;
         MFVIDEOFORMAT *video;
-    } u;
+        UINT64 __pad;
+    };
 };
 
 struct demuxer_stream_type_params
@@ -188,9 +196,56 @@ struct muxer_write_params
     BYTE *data;
 };
 
+typedef UINT64 audio_converter_t;
+
+struct audio_converter_create_params
+{
+    audio_converter_t converter;
+    struct media_type input;
+    struct media_type output;
+};
+
+struct audio_converter_destroy_params
+{
+    audio_converter_t converter;
+};
+
+struct audio_converter_process_params
+{
+    audio_converter_t converter;
+    struct sample input;
+    struct sample output;
+};
+
+typedef UINT64 video_converter_t;
+
+struct video_converter_create_params
+{
+    video_converter_t converter;
+    struct media_type input;
+    struct media_type output;
+};
+
+struct video_converter_destroy_params
+{
+    video_converter_t converter;
+};
+
+struct video_converter_process_params
+{
+    video_converter_t converter;
+    struct sample input;
+    struct sample output;
+};
+
 enum unix_funcs
 {
     unix_process_attach,
+
+    unix_packet_wrap,
+    unix_packet_unwrap,
+    unix_frame_wrap,
+    unix_frame_unwrap,
 
     unix_demuxer_create,
     unix_demuxer_destroy,
@@ -205,6 +260,20 @@ enum unix_funcs
     unix_muxer_add_stream,
     unix_muxer_start,
     unix_muxer_write,
+
+    unix_encoder_create,
+    unix_decoder_create,
+    unix_decoder_get_output_type,
+    unix_decoder_set_output_type,
+    unix_resampler_create,
+
+    unix_audio_converter_create,
+    unix_audio_converter_destroy,
+    unix_audio_converter_process,
+
+    unix_video_converter_create,
+    unix_video_converter_destroy,
+    unix_video_converter_process,
 
     unix_funcs_count,
 };

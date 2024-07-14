@@ -190,17 +190,24 @@ HRESULT CDECL wineav_demuxer_read( demuxer_t demuxer, UINT *stream, IMFSample **
     IMFMediaBuffer *buffer = NULL;
     HRESULT hr = S_OK;
     NTSTATUS status;
+    DWORD size;
+    BYTE *data;
 
     TRACE( "demuxer %#I64x, stream %p, sample %p\n", demuxer, stream, sample );
 
     if (FAILED(hr = MFCreateMemoryBuffer( 0x1000, &buffer ))) return hr;
-    if (FAILED(hr = IMFMediaBuffer_Lock( buffer, &params.data, &params.size, NULL ))) goto done;
+    if (FAILED(hr = IMFMediaBuffer_Lock( buffer, &data, &size, NULL ))) goto done;
+    params.sample.data = (UINT_PTR)data;
+    params.sample.size = size;
 
     if ((status = UNIX_CALL( demuxer_read, &params )) && status == STATUS_BUFFER_TOO_SMALL)
     {
         IMFMediaBuffer_Release( buffer );
-        if (FAILED(hr = MFCreateMemoryBuffer( params.size, &buffer ))) return hr;
-        if (FAILED(hr = IMFMediaBuffer_Lock( buffer, &params.data, &params.size, NULL ))) goto done;
+        if (FAILED(hr = MFCreateMemoryBuffer( params.sample.size, &buffer ))) return hr;
+        if (FAILED(hr = IMFMediaBuffer_Lock( buffer, &data, &size, NULL ))) goto done;
+        params.sample.data = (UINT_PTR)data;
+        params.sample.size = size;
+
         status = UNIX_CALL( demuxer_read, &params );
     }
 
@@ -213,8 +220,8 @@ HRESULT CDECL wineav_demuxer_read( demuxer_t demuxer, UINT *stream, IMFSample **
     }
     else
     {
-        if (FAILED(hr = IMFMediaBuffer_SetCurrentLength( buffer, params.size ))) goto done;
-        if (FAILED(hr = create_sample( buffer, params.pts, params.duration, sample ))) goto done;
+        if (FAILED(hr = IMFMediaBuffer_SetCurrentLength( buffer, params.sample.size ))) goto done;
+        if (FAILED(hr = create_sample( buffer, params.sample.pts, params.sample.duration, sample ))) goto done;
         *stream = params.stream;
     }
 
@@ -308,9 +315,9 @@ static HRESULT media_type_from_video_format( const MFVIDEOFORMAT *format, IMFMed
 static HRESULT media_type_to_mf( const struct media_type *media_type, IMFMediaType **out )
 {
     if (IsEqualGUID( &media_type->major, &MFMediaType_Video ))
-        return media_type_from_video_format( media_type->u.video, out );
+        return media_type_from_video_format( media_type->video, out );
     if (IsEqualGUID( &media_type->major, &MFMediaType_Audio ))
-        return MFCreateAudioMediaType( media_type->u.audio, (IMFAudioMediaType **)out );
+        return MFCreateAudioMediaType( media_type->audio, (IMFAudioMediaType **)out );
 
     FIXME( "Unsupported major type %s\n", debugstr_guid( &media_type->major ) );
     return E_NOTIMPL;
@@ -326,19 +333,151 @@ HRESULT CDECL wineav_demuxer_stream_type( demuxer_t demuxer, UINT stream, IMFMed
 
     if ((status = UNIX_CALL( demuxer_stream_type, &params )) && status == STATUS_BUFFER_TOO_SMALL)
     {
-        if (!(params.media_type.u.format = CoTaskMemAlloc( params.media_type.format_size )))
+        if (!(params.media_type.format = CoTaskMemAlloc( params.media_type.format_size )))
             return ERROR_OUTOFMEMORY;
         status = UNIX_CALL( demuxer_stream_type, &params );
     }
 
     if (status)
     {
-        CoTaskMemFree( params.media_type.u.format );
+        CoTaskMemFree( params.media_type.format );
         WARN( "Failed to get output media type, status %#lx\n", status );
         return HRESULT_FROM_NT(status);
     }
 
     hr = media_type_to_mf( &params.media_type, media_type );
-    CoTaskMemFree( params.media_type.u.format );
+    CoTaskMemFree( params.media_type.format );
     return hr;
+}
+
+static HRESULT video_format_from_media_type(IMFMediaType *media_type, MFVIDEOFORMAT **format, UINT32 *format_size)
+{
+    GUID subtype;
+    HRESULT hr;
+
+    if (FAILED(hr = IMFMediaType_GetGUID(media_type, &MF_MT_SUBTYPE, &subtype)))
+        return hr;
+    if (FAILED(hr = MFCreateMFVideoFormatFromMFMediaType(media_type, format, format_size)))
+        return hr;
+
+    /* fixup MPEG video formats here, so we can consistently use MFVIDEOFORMAT internally */
+    if (IsEqualGUID(&subtype, &MEDIASUBTYPE_MPEG1Payload)
+            || IsEqualGUID(&subtype, &MEDIASUBTYPE_MPEG1Packet)
+            || IsEqualGUID(&subtype, &MEDIASUBTYPE_MPEG2_VIDEO))
+    {
+        struct mpeg_video_format *mpeg;
+        UINT32 mpeg_size, len;
+
+        if (FAILED(IMFMediaType_GetBlobSize(media_type, &MF_MT_MPEG_SEQUENCE_HEADER, &len)))
+            len = 0;
+        mpeg_size = offsetof(struct mpeg_video_format, sequence_header[len]);
+
+        if ((mpeg = CoTaskMemAlloc(mpeg_size)))
+        {
+            memset(mpeg, 0, mpeg_size);
+            mpeg->hdr = **format;
+
+            IMFMediaType_GetBlob(media_type, &MF_MT_MPEG_SEQUENCE_HEADER, mpeg->sequence_header, len, NULL);
+            IMFMediaType_GetUINT32(media_type, &MF_MT_MPEG_START_TIME_CODE, (UINT32 *)&mpeg->start_time_code);
+            IMFMediaType_GetUINT32(media_type, &MF_MT_MPEG2_PROFILE, &mpeg->profile);
+            IMFMediaType_GetUINT32(media_type, &MF_MT_MPEG2_LEVEL, &mpeg->level);
+            IMFMediaType_GetUINT32(media_type, &MF_MT_MPEG2_FLAGS, &mpeg->flags);
+
+            CoTaskMemFree(*format);
+            *format = &mpeg->hdr;
+            *format_size = mpeg_size;
+        }
+    }
+
+    return hr;
+}
+
+static HRESULT media_type_from_mf(IMFMediaType *media_type, struct media_type *out)
+{
+    HRESULT hr;
+
+    if (FAILED(hr = IMFMediaType_GetMajorType(media_type, &out->major)))
+        return hr;
+
+    if (IsEqualGUID(&out->major, &MFMediaType_Video))
+        return video_format_from_media_type(media_type, &out->video,
+                &out->format_size);
+    if (IsEqualGUID(&out->major, &MFMediaType_Audio))
+        return MFCreateWaveFormatExFromMFMediaType(media_type, &out->audio,
+                &out->format_size, 0);
+
+    FIXME("Unsupported major type %s\n", debugstr_guid(&out->major));
+    return E_NOTIMPL;
+}
+
+HRESULT CDECL wineav_audio_converter_create( IMFMediaType *input_type, IMFMediaType *output_type, audio_converter_t *out )
+{
+    struct audio_converter_create_params params = {0};
+    NTSTATUS status;
+    HRESULT hr;
+
+    if (FAILED(hr = media_type_from_mf(input_type, &params.input))) return hr;
+    if (SUCCEEDED(hr = media_type_from_mf(output_type, &params.output))) goto done;
+
+    if ((status = UNIX_CALL( audio_converter_create, &params ))) hr = HRESULT_FROM_NT(status);
+    else *out = params.converter;
+
+    CoTaskMemFree(params.output.format);
+done:
+    CoTaskMemFree(params.input.format);
+    return hr;
+}
+
+HRESULT CDECL wineav_audio_converter_destroy( audio_converter_t converter )
+{
+    struct audio_converter_destroy_params params = {.converter = converter};
+    NTSTATUS status;
+
+    if ((status = UNIX_CALL( audio_converter_destroy, &params ))) return HRESULT_FROM_NT(status);
+    return S_OK;
+}
+
+HRESULT CDECL wineav_audio_converter_process( audio_converter_t converter, IMFSample *input, IMFSample *output )
+{
+    struct audio_converter_process_params params = {.converter = converter};
+    NTSTATUS status;
+
+    if ((status = UNIX_CALL( audio_converter_process, &params ))) return HRESULT_FROM_NT(status);
+    return S_OK;
+}
+
+HRESULT CDECL wineav_video_converter_create( IMFMediaType *input_type, IMFMediaType *output_type, video_converter_t *out )
+{
+    struct video_converter_create_params params = {0};
+    NTSTATUS status;
+    HRESULT hr;
+
+    if (FAILED(hr = media_type_from_mf(input_type, &params.input))) return hr;
+    if (SUCCEEDED(hr = media_type_from_mf(output_type, &params.output))) goto done;
+
+    if ((status = UNIX_CALL( video_converter_create, &params ))) hr = HRESULT_FROM_NT(status);
+    else *out = params.converter;
+
+    CoTaskMemFree(params.output.format);
+done:
+    CoTaskMemFree(params.input.format);
+    return hr;
+}
+
+HRESULT CDECL wineav_video_converter_destroy( video_converter_t converter )
+{
+    struct video_converter_destroy_params params = {.converter = converter};
+    NTSTATUS status;
+
+    if ((status = UNIX_CALL( video_converter_destroy, &params ))) return HRESULT_FROM_NT(status);
+    return S_OK;
+}
+
+HRESULT CDECL wineav_video_converter_process( video_converter_t converter, IMFSample *input, IMFSample *output )
+{
+    struct video_converter_process_params params = {.converter = converter};
+    NTSTATUS status;
+
+    if ((status = UNIX_CALL( video_converter_process, &params ))) return HRESULT_FROM_NT(status);
+    return S_OK;
 }

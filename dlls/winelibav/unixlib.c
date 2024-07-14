@@ -47,18 +47,15 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL( libav );
 
-#define DEFINE_NOT_IMPLEMENTED( func, lib )                                                        \
-    static NTSTATUS func( void *params )                                                           \
-    {                                                                                              \
-        ERR( lib " support not compiled in.\n" );                                                  \
-        return STATUS_NOT_IMPLEMENTED;                                                             \
-    }
-
-#ifdef SONAME_LIBAVFORMAT
-
 #define MAKE_FUNCPTR( f ) static typeof(f) *p_##f
 
-#ifdef SONAME_LIBAVUTIL
+#define HAVE_LIBAVUTIL_AVUTIL_H 1
+#define HAVE_LIBAVFORMAT_AVFORMAT_H 1
+#define HAVE_LIBAVCODEC_AVCODEC_H 1
+#define HAVE_LIBSWSCALE_SWSCALE_H 1
+#define HAVE_LIBSWRESAMPLE_SWRESAMPLE_H 1
+
+#ifdef HAVE_LIBAVUTIL_AVUTIL_H
 #include <libavutil/avutil.h>
 #include <libavutil/frame.h>
 #include <libavutil/dict.h>
@@ -66,8 +63,9 @@ MAKE_FUNCPTR( av_log_set_callback );
 MAKE_FUNCPTR( av_dict_get );
 MAKE_FUNCPTR( av_frame_alloc );
 MAKE_FUNCPTR( av_frame_free );
-#endif /* SONAME_LIBAVUTIL */
+#endif /* HAVE_LIBAVUTIL_AVUTIL_H */
 
+#ifdef HAVE_LIBAVFORMAT_AVFORMAT_H
 #include <libavformat/avformat.h>
 MAKE_FUNCPTR( avformat_version );
 MAKE_FUNCPTR( avio_alloc_context );
@@ -84,7 +82,9 @@ MAKE_FUNCPTR( av_read_frame );
 MAKE_FUNCPTR( av_seek_frame );
 MAKE_FUNCPTR( av_interleaved_write_frame );
 MAKE_FUNCPTR( av_write_trailer );
+#endif /* HAVE_LIBAVFORMAT_AVFORMAT_H */
 
+#ifdef HAVE_LIBAVCODEC_AVCODEC_H
 #include <libavcodec/avcodec.h>
 MAKE_FUNCPTR( avcodec_find_encoder );
 MAKE_FUNCPTR( avcodec_find_decoder );
@@ -98,15 +98,28 @@ MAKE_FUNCPTR( avcodec_send_frame );
 MAKE_FUNCPTR( avcodec_receive_packet );
 MAKE_FUNCPTR( av_packet_alloc );
 MAKE_FUNCPTR( av_packet_free );
+#endif /* HAVE_LIBAVCODEC_AVCODEC_H */
 
+#ifdef HAVE_LIBSWSCALE_SWSCALE_H
 #include <libswscale/swscale.h>
 MAKE_FUNCPTR( sws_getContext );
 MAKE_FUNCPTR( sws_freeContext );
 MAKE_FUNCPTR( sws_scale_frame );
+#endif /* HAVE_LIBSWSCALE_SWSCALE_H */
 
+#ifdef HAVE_LIBSWRESAMPLE_SWRESAMPLE_H
 #include <libswresample/swresample.h>
 MAKE_FUNCPTR( swr_alloc_set_opts2 );
-MAKE_FUNCPTR( swr_convert );
+/* MAKE_FUNCPTR( swr_convert ); */
+MAKE_FUNCPTR( swr_free );
+#endif /* HAVE_LIBSWRESAMPLE_SWRESAMPLE_H */
+
+#define DEFINE_NOT_IMPLEMENTED( func, lib )                                                        \
+    static NTSTATUS func( void *params )                                                           \
+    {                                                                                              \
+        ERR( lib " support not compiled in.\n" );                                                  \
+        return STATUS_NOT_IMPLEMENTED;                                                             \
+    }
 
 static void *avformat_handle;
 static void *avutil_handle;
@@ -233,9 +246,9 @@ static NTSTATUS process_attach( void *arg )
 
     p_av_log_set_callback( log_callback );
     TRACE( "Loaded %s\n", SONAME_LIBAVUTIL );
-
 #endif /* SONAME_LIBAVUTIL */
 
+#ifdef SONAME_LIBAVFORMAT
     if (!(avformat_handle = dlopen( SONAME_LIBAVFORMAT, RTLD_NOW )))
     {
         ERR( "Failed to load %s\n", SONAME_LIBAVFORMAT );
@@ -273,6 +286,8 @@ static NTSTATUS process_attach( void *arg )
     seek_callback = params->seek_callback;
 
     TRACE( "Loaded %s\n", SONAME_LIBAVFORMAT );
+#endif /* SONAME_LIBAVFORMAT */
+
     return STATUS_SUCCESS;
 
 failed:
@@ -382,7 +397,7 @@ static NTSTATUS demuxer_read( void *arg )
     struct demuxer_read_params *params = arg;
     AVFormatContext *ctx = get_demuxer_context( params->demuxer );
     AVPacket *packet = get_packet( params->packet );
-    UINT capacity = params->size;
+    UINT capacity = params->sample.size;
     AVStream *stream;
     int ret;
 
@@ -399,20 +414,19 @@ static NTSTATUS demuxer_read( void *arg )
             return STATUS_UNSUCCESSFUL;
         }
 
+        stream = ctx->streams[packet->stream_index];
         params->packet = (UINT_PTR)packet;
-        params->size = packet->size;
+        params->stream = packet->stream_index;
+        params->sample.pts = demuxer_stream_time( stream, packet->pts );
+        params->sample.dts = demuxer_stream_time( stream, packet->dts );
+        params->sample.duration = demuxer_stream_time( stream, packet->duration );
+        params->sample.size = packet->size;
     }
 
     if ((capacity < packet->size)) return STATUS_BUFFER_TOO_SMALL;
-    stream = ctx->streams[packet->stream_index];
-
-    memcpy( params->data, packet->data, packet->size );
-    params->stream = packet->stream_index;
-    params->pts = demuxer_stream_time( stream, packet->pts );
-    params->dts = demuxer_stream_time( stream, packet->dts );
-    params->duration = demuxer_stream_time( stream, packet->duration );
-
+    memcpy( (void *)(UINT_PTR)params->sample.data, packet->data, packet->size );
     p_av_packet_free( &packet );
+
     return STATUS_SUCCESS;
 }
 
@@ -807,39 +821,39 @@ static NTSTATUS demuxer_stream_type( void *arg )
 
         if (codec->codec_id == AV_CODEC_ID_MP2)
             return stream_type_wave_format_ex( stream, WAVE_FORMAT_MPEG, sizeof(MPEG1WAVEFORMAT),
-                                               media_type->u.audio, &media_type->format_size );
+                                               media_type->audio, &media_type->format_size );
         if (codec->codec_id == AV_CODEC_ID_MP3)
             return stream_type_wave_format_ex( stream, WAVE_FORMAT_MPEGLAYER3, sizeof(MPEGLAYER3WAVEFORMAT),
-                                               media_type->u.audio, &media_type->format_size );
+                                               media_type->audio, &media_type->format_size );
         if (codec->codec_id == AV_CODEC_ID_WMAV1)
             return stream_type_wave_format_ex( stream, WAVE_FORMAT_MSAUDIO1, sizeof(MSAUDIO1WAVEFORMAT),
-                                               media_type->u.audio, &media_type->format_size );
+                                               media_type->audio, &media_type->format_size );
         if (codec->codec_id == AV_CODEC_ID_WMAV2)
             return stream_type_wave_format_ex( stream, WAVE_FORMAT_WMAUDIO2, sizeof(WMAUDIO2WAVEFORMAT),
-                                               media_type->u.audio, &media_type->format_size );
+                                               media_type->audio, &media_type->format_size );
         if (codec->codec_id == AV_CODEC_ID_WMAPRO)
             return stream_type_wave_format_ex( stream, WAVE_FORMAT_WMAUDIO3, sizeof(WMAUDIO3WAVEFORMAT),
-                                               media_type->u.audio, &media_type->format_size );
+                                               media_type->audio, &media_type->format_size );
         if (codec->codec_id == AV_CODEC_ID_WMALOSSLESS)
             return stream_type_wave_format_ex( stream, WAVE_FORMAT_WMAUDIO_LOSSLESS, sizeof(WMAUDIO3WAVEFORMAT),
-                                               media_type->u.audio, &media_type->format_size );
+                                               media_type->audio, &media_type->format_size );
         if (codec->codec_id == AV_CODEC_ID_WMAVOICE)
             return stream_type_wave_format_ex( stream, WAVE_FORMAT_WMAVOICE9, sizeof(WMAUDIO3WAVEFORMAT),
-                                               media_type->u.audio, &media_type->format_size );
+                                               media_type->audio, &media_type->format_size );
         if (codec->codec_id >= AV_CODEC_ID_PCM_S16LE && codec->codec_id <= AV_CODEC_ID_PCM_SGA)
-            return stream_type_wave_format( stream, media_type->u.audio, &media_type->format_size );
+            return stream_type_wave_format( stream, media_type->audio, &media_type->format_size );
 
         if (codec->codec_id == AV_CODEC_ID_AAC)
-            return stream_type_heaac_wave_format( stream, media_type->u.format, &media_type->format_size );
+            return stream_type_heaac_wave_format( stream, media_type->format, &media_type->format_size );
 
         if (codec->codec_tag)
             return stream_type_wave_format_ex( stream, codec->codec_tag, sizeof(WAVEFORMATEX),
-                                               media_type->u.audio, &media_type->format_size );
+                                               media_type->audio, &media_type->format_size );
 
         FIXME( "Unknown audio codec id %#x, tag %#x (%s)\n", codec->codec_id, codec->codec_tag,
                debugstr_an( (char *)&codec->codec_tag, 4 ) );
         return stream_type_wave_format_ex( stream, codec->codec_tag, sizeof(WAVEFORMATEX),
-                                           media_type->u.audio, &media_type->format_size );
+                                           media_type->audio, &media_type->format_size );
     }
 
     if (codec->codec_type == AVMEDIA_TYPE_VIDEO)
@@ -852,41 +866,41 @@ static NTSTATUS demuxer_stream_type( void *arg )
                codec->codec_tag, debugstr_an( (char *)&codec->codec_tag, 4 ) );
 
         if (codec->codec_id == AV_CODEC_ID_CINEPAK)
-            return stream_type_video_format( stream, &MFVideoFormat_CVID, media_type->u.video,
+            return stream_type_video_format( stream, &MFVideoFormat_CVID, media_type->video,
                                              &media_type->format_size, 0 );
         if (codec->codec_id == AV_CODEC_ID_H264)
-            return stream_type_video_format( stream, &MFVideoFormat_H264, media_type->u.video,
+            return stream_type_video_format( stream, &MFVideoFormat_H264, media_type->video,
                                              &media_type->format_size, 0 );
 
         if (codec->codec_id == AV_CODEC_ID_WMV1)
-            return stream_type_video_format( stream, &MFVideoFormat_WMV1, media_type->u.video,
+            return stream_type_video_format( stream, &MFVideoFormat_WMV1, media_type->video,
                                              &media_type->format_size, 0 );
         if (codec->codec_id == AV_CODEC_ID_WMV2)
-            return stream_type_video_format( stream, &MFVideoFormat_WMV2, media_type->u.video,
+            return stream_type_video_format( stream, &MFVideoFormat_WMV2, media_type->video,
                                              &media_type->format_size, 0 );
         if (codec->codec_id == AV_CODEC_ID_WMV3)
-            return stream_type_video_format( stream, &MFVideoFormat_WMV3, media_type->u.video,
+            return stream_type_video_format( stream, &MFVideoFormat_WMV3, media_type->video,
                                              &media_type->format_size, 0 );
         if (codec->codec_id == AV_CODEC_ID_VC1)
-            return stream_type_video_format( stream, &MFVideoFormat_WVC1, media_type->u.video,
+            return stream_type_video_format( stream, &MFVideoFormat_WVC1, media_type->video,
                                              &media_type->format_size, 0 );
 
         if (codec->codec_id == AV_CODEC_ID_MPEG1VIDEO)
-            return stream_type_mpeg_video_format( stream, media_type->u.format, &media_type->format_size, 0 );
+            return stream_type_mpeg_video_format( stream, media_type->format, &media_type->format_size, 0 );
         if (codec->codec_id == AV_CODEC_ID_MPEG2VIDEO)
-            return stream_type_mpeg_video_format( stream, media_type->u.format, &media_type->format_size, 0 );
+            return stream_type_mpeg_video_format( stream, media_type->format, &media_type->format_size, 0 );
         if (codec->codec_id == AV_CODEC_ID_MPEG4)
-            return stream_type_video_format( stream, &MFVideoFormat_MP4V, media_type->u.video,
+            return stream_type_video_format( stream, &MFVideoFormat_MP4V, media_type->video,
                                              &media_type->format_size, 0 );
 
         if (codec->codec_id == AV_CODEC_ID_RAWVIDEO)
-            return stream_type_video_format( stream, NULL, media_type->u.video, &media_type->format_size, 0 );
+            return stream_type_video_format( stream, NULL, media_type->video, &media_type->format_size, 0 );
 
         FIXME( "Unknown video codec id %#x, tag %#x (%s)\n", codec->codec_id, codec->codec_tag,
                debugstr_an( (char *)&codec->codec_tag, 4 ) );
 
         subtype.Data1 = codec->codec_tag;
-        return stream_type_video_format( stream, &subtype, media_type->u.video, &media_type->format_size, 0 );
+        return stream_type_video_format( stream, &subtype, media_type->video, &media_type->format_size, 0 );
     }
 
     FIXME( "Unknown codec type %u id %#x fourcc %s\n", codec->codec_type, codec->codec_id,
@@ -996,50 +1010,96 @@ static NTSTATUS decoder_create( void *arg )
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS processor_create( void *arg )
+static NTSTATUS decoder_get_output_type( void *arg )
 {
-    struct SwsContext *ctx = p_sws_getContext(0,0,0,0,0,0,0,NULL,NULL,NULL);
-    AVFrame *src, *dst;
-    src = p_av_frame_alloc();
-    dst = p_av_frame_alloc();
-    p_sws_scale_frame(ctx, dst, src);
-    p_av_frame_free(&src);
-    p_av_frame_free(&dst);
-    p_sws_freeContext(ctx);
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS decoder_set_output_type( void *arg )
+{
+    return STATUS_SUCCESS;
+}
+
+static struct SwrContext *get_audio_converter_context( audio_converter_t handle )
+{
+    return (struct SwrContext *)(UINT_PTR)handle;
+}
+
+static NTSTATUS audio_converter_create( void *arg )
+{
+    struct audio_converter_create_params *params = arg;
+    struct SwrContext *ctx;
+
+    p_swr_alloc_set_opts2(&ctx, NULL, 0, 0, NULL, 0, 0, 0, NULL);
+    params->converter = (UINT_PTR)ctx;
 
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS resampler_create( void *arg )
+static NTSTATUS audio_converter_destroy( void *arg )
 {
-    struct SwrContext *ctx;
+    struct audio_converter_destroy_params *params = arg;
+    struct SwrContext *ctx = get_audio_converter_context( params->converter );
 
-    p_swr_alloc_set_opts2(&ctx, NULL, NULL, 0, NULL, 0, 0, 0, NULL);
+    p_swr_free( &ctx );
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS audio_converter_process( void *arg )
+{
+#if 0
+    struct audio_converter_destroy_params *params = arg;
+    struct SwrContext *ctx = get_audio_converter_context( params->converter );
+    AVFrame *src, *dst;
 
     int out_samples = av_rescale_rnd(swr_get_delay(swr, 48000) + in_samples, 44100, 48000, AV_ROUND_UP);
     p_av_samples_alloc(&output, NULL, 2, out_samples, AV_SAMPLE_FMT_S16, 0);
     out_samples = p_swr_convert(ctx, &output, out_samples, input, in_samples);
+#endif
+    return STATUS_SUCCESS;
+}
+
+static struct SwsContext *get_video_converter_context( video_converter_t handle )
+{
+    return (struct SwsContext *)(UINT_PTR)handle;
+}
+
+static NTSTATUS video_converter_create( void *arg )
+{
+    struct video_converter_create_params *params = arg;
+    struct SwsContext *ctx;
+
+    ctx = p_sws_getContext( 0, 0, 0, 0, 0, 0, 0, NULL, NULL, NULL );
+    params->converter = (UINT_PTR)ctx;
 
     return STATUS_SUCCESS;
 }
 
-#else
+static NTSTATUS video_converter_destroy( void *arg )
+{
+    struct video_converter_destroy_params *params = arg;
+    struct SwsContext *ctx = get_video_converter_context( params->converter );
 
-DEFINE_NOT_IMPLEMENTED( process_attach, "libavformat" )
-DEFINE_NOT_IMPLEMENTED( demuxer_create, "libavformat" )
-DEFINE_NOT_IMPLEMENTED( demuxer_destroy, "libavformat" )
-DEFINE_NOT_IMPLEMENTED( demuxer_read, "libavformat" )
-DEFINE_NOT_IMPLEMENTED( demuxer_seek, "libavformat" )
-DEFINE_NOT_IMPLEMENTED( demuxer_stream_lang, "libavformat" )
-DEFINE_NOT_IMPLEMENTED( demuxer_stream_name, "libavformat" )
-DEFINE_NOT_IMPLEMENTED( demuxer_stream_type, "libavformat" )
-DEFINE_NOT_IMPLEMENTED( muxer_create, "libavformat" )
-DEFINE_NOT_IMPLEMENTED( muxer_destroy, "libavformat" )
-DEFINE_NOT_IMPLEMENTED( muxer_add_stream, "libavformat" )
-DEFINE_NOT_IMPLEMENTED( muxer_start, "libavformat" )
-DEFINE_NOT_IMPLEMENTED( muxer_write, "libavformat" )
+    p_sws_freeContext( ctx );
 
-#endif
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS video_converter_process( void *arg )
+{
+    struct video_converter_destroy_params *params = arg;
+    struct SwsContext *ctx = get_video_converter_context( params->converter );
+    AVFrame *src, *dst;
+
+    src = p_av_frame_alloc();
+    dst = p_av_frame_alloc();
+    p_sws_scale_frame( ctx, dst, src );
+    p_av_frame_free( &src );
+    p_av_frame_free( &dst );
+
+    return STATUS_SUCCESS;
+}
 
 const unixlib_entry_t __wine_unix_call_funcs[] =
 {
@@ -1057,6 +1117,16 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     X(muxer_add_stream),
     X(muxer_start),
     X(muxer_write),
+    X(encoder_create),
+    X(decoder_create),
+    X(decoder_get_output_type),
+    X(decoder_set_output_type),
+    X(audio_converter_create),
+    X(audio_converter_destroy),
+    X(audio_converter_process),
+    X(video_converter_create),
+    X(video_converter_destroy),
+    X(video_converter_process),
 };
 
 C_ASSERT(ARRAY_SIZE(__wine_unix_call_funcs) == unix_funcs_count);
@@ -1114,80 +1184,32 @@ static NTSTATUS wow64_demuxer_destroy( void *arg )
     return status;
 }
 
-static NTSTATUS wow64_demuxer_read( void *arg )
-{
-    struct
-    {
-        UINT64 demuxer;
-        UINT64 packet;
-        UINT32 stream;
-        UINT32 size;
-        INT64 dts;
-        INT64 pts;
-        INT64 duration;
-        PTR32 data;
-    } *params32 = arg;
-    struct demuxer_read_params params;
-    NTSTATUS status;
-
-    params.demuxer = params32->demuxer;
-    params.packet = params32->packet;
-    params.size = params32->size;
-    params.data = UintToPtr( params32->data );
-
-    status = demuxer_read( &params );
-    params32->packet = params.packet;
-    params32->size = params.size;
-    params32->stream = params.stream;
-    params32->dts = params.dts;
-    params32->pts = params.pts;
-    params32->duration = params.duration;
-
-    return status;
-}
-
-static NTSTATUS wow64_demuxer_stream_type( void *arg )
-{
-    struct
-    {
-        UINT64 demuxer;
-        UINT32 stream;
-        struct media_type32 media_type;
-    } *params32 = arg;
-    struct demuxer_stream_type_params params =
-    {
-        .demuxer = params32->demuxer,
-        .media_type =
-        {
-            .major = params32->media_type.major,
-            .format_size = params32->media_type.format_size,
-            .u.format = UintToPtr( params32->media_type.format ),
-        },
-    };
-    NTSTATUS status;
-
-    status = demuxer_stream_type( &params );
-    params32->media_type.major = params.media_type.major;
-    params32->media_type.format_size = params.media_type.format_size;
-    return status;
-}
-
 const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
 {
 #define X64( name ) [unix_##name] = wow64_##name
     X(process_attach),
     X64(demuxer_create),
     X64(demuxer_destroy),
-    X64(demuxer_read),
+    X(demuxer_read),
     X(demuxer_seek),
     X(demuxer_stream_lang),
     X(demuxer_stream_name),
-    X64(demuxer_stream_type),
+    X(demuxer_stream_type),
     X(muxer_create),
     X(muxer_destroy),
     X(muxer_add_stream),
     X(muxer_start),
     X(muxer_write),
+    X(encoder_create),
+    X(decoder_create),
+    X(decoder_get_output_type),
+    X(decoder_set_output_type),
+    X(audio_converter_create),
+    X(audio_converter_destroy),
+    X(audio_converter_process),
+    X(video_converter_create),
+    X(video_converter_destroy),
+    X(video_converter_process),
 };
 
 C_ASSERT(ARRAY_SIZE(__wine_unix_call_wow64_funcs) == unix_funcs_count);
