@@ -787,21 +787,17 @@ static HRESULT wait_on_sample(struct media_stream *stream, IUnknown *token)
 {
     struct media_source *source = impl_from_IMFMediaSource(stream->media_source);
     struct wg_parser_buffer buffer;
-    HRESULT hr;
 
     TRACE("%p, %p\n", stream, token);
 
-    while ((hr = wg_parser_stream_get_buffer(source->wg_parser, stream->wg_stream, &buffer)) == S_OK)
+    while (wg_parser_stream_get_buffer(source->wg_parser, stream->wg_stream, &buffer))
     {
         HRESULT hr = media_stream_send_sample(stream, &buffer, token);
         if (hr != S_FALSE)
             return hr;
     }
 
-    if (hr == S_FALSE)
-        return media_stream_send_eos(source, stream);
-
-    return hr;
+    return media_stream_send_eos(source, stream);
 }
 
 static HRESULT WINAPI source_async_commands_Invoke(IMFAsyncCallback *iface, IMFAsyncResult *result)
@@ -843,11 +839,7 @@ static HRESULT WINAPI source_async_commands_Invoke(IMFAsyncCallback *iface, IMFA
             else if (source->state == SOURCE_RUNNING)
             {
                 if (FAILED(hr = wait_on_sample(command->u.request_sample.stream, command->u.request_sample.token)))
-                {
                     WARN("Failed to request sample, hr %#lx\n", hr);
-                    if (hr == E_PENDING)
-                        hr = MFPutWorkItem(source->async_commands_queue, &source->async_commands_callback, &command->IUnknown_iface);
-                }
             }
             break;
     }
@@ -1656,7 +1648,7 @@ static HRESULT media_source_create(struct object_context *context, IMFMediaSourc
     if (FAILED(hr = MFAllocateWorkQueue(&object->async_commands_queue)))
         goto fail;
 
-    if (!(parser = wg_parser_create(true)))
+    if (!(parser = wg_parser_create(FALSE)))
     {
         hr = E_OUTOFMEMORY;
         goto fail;

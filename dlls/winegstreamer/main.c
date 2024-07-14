@@ -317,7 +317,7 @@ void wg_parser_stream_disable(wg_parser_stream_t stream)
     WINE_UNIX_CALL(unix_wg_parser_stream_disable, &stream);
 }
 
-HRESULT wg_parser_stream_get_buffer(wg_parser_t parser, wg_parser_stream_t stream,
+bool wg_parser_stream_get_buffer(wg_parser_t parser, wg_parser_stream_t stream,
         struct wg_parser_buffer *buffer)
 {
     struct wg_parser_stream_get_buffer_params params =
@@ -329,7 +329,7 @@ HRESULT wg_parser_stream_get_buffer(wg_parser_t parser, wg_parser_stream_t strea
 
     TRACE("parser %#I64x, stream %#I64x, buffer %p.\n", parser, stream, buffer);
 
-    return WINE_UNIX_CALL(unix_wg_parser_stream_get_buffer, &params);
+    return !WINE_UNIX_CALL(unix_wg_parser_stream_get_buffer, &params);
 }
 
 bool wg_parser_stream_copy_buffer(wg_parser_stream_t stream,
