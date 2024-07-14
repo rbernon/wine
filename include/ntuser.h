@@ -58,9 +58,6 @@ enum
     NtUserRenderSynthesizedFormat,
     NtUserUnpackDDEMessage,
     NtUserDispatchCallback,
-    /* win16 hooks */
-    NtUserCallFreeIcon,
-    NtUserThunkLock,
     /* Vulkan support */
     NtUserCallVulkanDebugReportCallback,
     NtUserCallVulkanDebugUtilsCallback,
@@ -944,9 +941,17 @@ static inline WORD NtUserEnableDC( HDC hdc )
     return NtUserCallOneParam( HandleToUlong(hdc), NtUserCallOneParam_EnableDC );
 }
 
-static inline void NtUserEnableThunkLock( BOOL enable )
+struct thunk_lock_params
 {
-    NtUserCallOneParam( enable, NtUserCallOneParam_EnableThunkLock );
+    struct dispatch_callback_params dispatch;
+    UINT8 release;
+    DWORD lock;
+};
+
+static inline void NtUserEnableThunkLock( user_callback_func func )
+{
+    struct thunk_lock_params params = {.dispatch = {.func = (UINT_PTR)func}};
+    NtUserCallOneParam( (UINT_PTR)&params, NtUserCallOneParam_EnableThunkLock );
 }
 
 static inline UINT NtUserEnumClipboardFormats( UINT format )
@@ -1095,9 +1100,16 @@ static inline BOOL NtUserSetCaretPos( int x, int y )
     return NtUserCallTwoParam( x, y, NtUserCallTwoParam_SetCaretPos );
 }
 
-static inline UINT_PTR NtUserSetIconParam( HICON icon, ULONG_PTR param )
+struct free_icon_params
 {
-    return NtUserCallTwoParam( HandleToUlong(icon), param, NtUserCallTwoParam_SetIconParam );
+    struct dispatch_callback_params dispatch;
+    UINT64 param;
+};
+
+static inline UINT_PTR NtUserSetIconParam( HICON icon, ULONG_PTR param, user_callback_func func )
+{
+    struct free_icon_params params = {.dispatch = {.func = (UINT_PTR)func}, .param = param};
+    return NtUserCallTwoParam( HandleToUlong(icon), (UINT_PTR)&params, NtUserCallTwoParam_SetIconParam );
 }
 
 static inline BOOL NtUserUnhookWindowsHook( INT id, HOOKPROC proc )
