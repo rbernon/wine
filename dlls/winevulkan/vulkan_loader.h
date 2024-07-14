@@ -28,6 +28,7 @@
 #include "windef.h"
 #include "winbase.h"
 #include "winternl.h"
+#include "ntuser.h"
 #include "wine/debug.h"
 #include "wine/vulkan.h"
 #include "wine/unixlib.h"
@@ -105,30 +106,59 @@ void *wine_vk_get_device_proc_addr(const char *name);
 void *wine_vk_get_phys_dev_proc_addr(const char *name);
 void *wine_vk_get_instance_proc_addr(const char *name);
 
+struct vk_callback_funcs
+{
+    UINT64 call_vulkan_debug_report_callback;
+    UINT64 call_vulkan_debug_utils_callback;
+};
+
 /* debug callbacks params */
+
+struct debug_utils_queue_label
+{
+    UINT32 label_name_len;
+    float color[4];
+};
+
+struct debug_utils_object_name_info
+{
+    UINT64 object_type;
+    UINT64 object_handle;
+    UINT32 object_name_len;
+};
 
 struct wine_vk_debug_utils_params
 {
-    PFN_vkDebugUtilsMessengerCallbackEXT user_callback;
-    void *user_data;
+    struct dispatch_callback_params dispatch;
+    UINT64 client_callback; /* client pointer */
+    UINT64 client_context; /* client pointer */
 
-    VkDebugUtilsMessageSeverityFlagBitsEXT severity;
-    VkDebugUtilsMessageTypeFlagsEXT message_types;
-    VkDebugUtilsMessengerCallbackDataEXT data;
+    UINT64 severity;
+    UINT64 message_types;
+    UINT32 flags;
+    UINT32 message_id_number;
+
+    UINT32 names_len;
+    UINT32 message_id_name_len;
+    UINT32 message_len;
+    UINT32 queue_label_count;
+    UINT32 cmd_buf_label_count;
+    UINT32 object_count;
 };
 
 struct wine_vk_debug_report_params
 {
-    PFN_vkDebugReportCallbackEXT user_callback;
-    void *user_data;
+    struct dispatch_callback_params dispatch;
+    UINT64 client_callback; /* client pointer */
+    UINT64 client_context; /* client pointer */
 
-    VkDebugReportFlagsEXT flags;
-    VkDebugReportObjectTypeEXT object_type;
-    uint64_t object_handle;
-    size_t location;
-    int32_t code;
-    const char *layer_prefix;
-    const char *message;
+    UINT64 flags;
+    UINT64 object_type;
+    UINT64 object_handle;
+    UINT64 location;
+    UINT32 code;
+    UINT32 layer_len;
+    UINT32 message_len;
 };
 
 struct is_available_instance_function_params
