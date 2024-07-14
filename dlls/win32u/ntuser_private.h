@@ -44,8 +44,6 @@ struct user_object
 
 #define OBJ_OTHER_PROCESS ((void *)1)  /* returned by get_user_handle_ptr on unknown handles */
 
-struct dwm_win_data;
-
 typedef struct tagWND
 {
     struct user_object obj;           /* object header */
@@ -215,9 +213,6 @@ struct dce *set_class_dce( struct tagCLASS *class, struct dce *dce );
 BOOL needs_ime_window( HWND hwnd );
 extern void register_builtin_classes(void);
 extern void register_desktop_class(void);
-
-/* dwmdrv.c */
-extern BOOL load_dwm_driver(void);
 
 /* imm.c */
 extern LRESULT ime_driver_call( HWND hwnd, enum wine_ime_call call, WPARAM wparam, LPARAM lparam,
