@@ -49,9 +49,6 @@ GST_DEBUG_CATEGORY(wine);
 
 static UINT thread_count;
 
-GstTaskPool *wg_task_pool;
-GstBus *wg_bus;
-
 GstStreamType stream_type_from_caps(GstCaps *caps)
 {
     const gchar *media_type;
@@ -153,9 +150,6 @@ if (getenv("NOVAAPI") && !strncmp(name, "vaapi", 5)) continue;
             GST_WARNING("Ignoring vaapidecodebin decoder.");
             continue;
         }
-
-if (getenv("NOVAAPI") && !strncmp(name, "vaapi", 5)) continue;
-if (getenv("NOAVDEC") && !strncmp(name, "avdec_h264", 10)) continue;
 
         element = factory_create_element(GST_ELEMENT_FACTORY(tmp->data));
     }
@@ -264,58 +258,6 @@ static ULONG popcount(ULONG val)
 #endif
 }
 
-static GstBusSyncReply bus_handler_cb(GstBus *bus, GstMessage *msg, gpointer user)
-{
-    struct wg_parser *parser = user;
-    gchar *dbg_info = NULL;
-    GError *err = NULL;
-
-    GST_DEBUG("parser %p, message type %s.", parser, GST_MESSAGE_TYPE_NAME(msg));
-
-    switch (msg->type)
-    {
-    case GST_MESSAGE_ERROR:
-        gst_message_parse_error(msg, &err, &dbg_info);
-        fprintf(stderr, "winegstreamer error: %s: %s\n", GST_OBJECT_NAME(msg->src), err->message);
-        fprintf(stderr, "winegstreamer error: %s: %s\n", GST_OBJECT_NAME(msg->src), dbg_info);
-        g_error_free(err);
-        g_free(dbg_info);
-        break;
-
-    case GST_MESSAGE_WARNING:
-        gst_message_parse_warning(msg, &err, &dbg_info);
-        fprintf(stderr, "winegstreamer warning: %s: %s\n", GST_OBJECT_NAME(msg->src), err->message);
-        fprintf(stderr, "winegstreamer warning: %s: %s\n", GST_OBJECT_NAME(msg->src), dbg_info);
-        g_error_free(err);
-        g_free(dbg_info);
-        break;
-
-    case GST_MESSAGE_STREAM_STATUS:
-    {
-        GstStreamStatusType type;
-        GstElement *element;
-        const GValue *val;
-        GstTask *task;
-
-        gst_message_parse_stream_status(msg, &type, &element);
-        val = gst_message_get_stream_status_object(msg);
-        GST_DEBUG("parser %p, message %s, type %u, value %p (%s).", parser,
-                GST_MESSAGE_TYPE_NAME(msg), type, val, G_VALUE_TYPE_NAME(val));
-
-        if (G_VALUE_TYPE(val) == GST_TYPE_TASK && (task = g_value_get_object(val))
-                && type == GST_STREAM_STATUS_TYPE_CREATE)
-            gst_task_set_pool(task, wg_task_pool);
-
-        break;
-    }
-
-    default:
-        break;
-    }
-    gst_message_unref(msg);
-    return GST_BUS_DROP;
-}
-
 NTSTATUS wg_init_gstreamer(void *arg)
 {
     struct wg_init_gstreamer_params *params = arg;
@@ -359,13 +301,6 @@ NTSTATUS wg_init_gstreamer(void *arg)
 
     GST_INFO("GStreamer library version %s; wine built with %d.%d.%d.",
             gst_version_string(), GST_VERSION_MAJOR, GST_VERSION_MINOR, GST_VERSION_MICRO);
-
-    wg_task_pool = wg_task_pool_new();
-    gst_task_pool_prepare(wg_task_pool, &err);
-
-    wg_bus = gst_bus_new();
-    gst_bus_set_sync_handler(wg_bus, bus_handler_cb, NULL, NULL);
-
     return STATUS_SUCCESS;
 }
 

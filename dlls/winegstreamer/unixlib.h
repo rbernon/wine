@@ -205,7 +205,6 @@ C_ASSERT(sizeof(struct wg_parser_buffer) == 32);
 
 typedef UINT64 wg_parser_t;
 typedef UINT64 wg_parser_stream_t;
-typedef UINT64 wg_source_t;
 typedef UINT64 wg_transform_t;
 typedef UINT64 wg_muxer_t;
 
@@ -330,77 +329,6 @@ struct wg_parser_stream_seek_params
     DWORD start_flags, stop_flags;
 };
 
-struct wg_source_create_params
-{
-    const char *url;
-    UINT64 file_size;
-    const void *data;
-    UINT32 size;
-    char mime_type[256];
-    wg_source_t source;
-};
-
-struct wg_source_get_stream_count_params
-{
-    wg_source_t source;
-    UINT32 stream_count;
-};
-
-struct wg_source_get_duration_params
-{
-    wg_source_t source;
-    UINT64 duration;
-};
-
-struct wg_source_get_position_params
-{
-    wg_source_t source;
-    UINT64 read_offset;
-};
-
-struct wg_source_set_position_params
-{
-    wg_source_t source;
-    UINT64 time;
-};
-
-struct wg_source_push_data_params
-{
-    wg_source_t source;
-    const void *data;
-    UINT32 size;
-};
-
-struct wg_source_read_data_params
-{
-    wg_source_t source;
-    UINT32 index;
-    struct wg_sample *sample;
-};
-
-struct wg_source_get_stream_format_params
-{
-    wg_source_t source;
-    UINT32 index;
-    struct wg_format format;
-};
-
-struct wg_source_get_stream_tag_params
-{
-    wg_source_t source;
-    UINT32 index;
-    wg_parser_tag tag;
-    UINT32 size;
-    char *buffer;
-};
-
-struct wg_source_set_stream_flags_params
-{
-    wg_source_t source;
-    UINT32 index;
-    UINT32 select;
-};
-
 struct wg_transform_attrs
 {
     UINT32 output_plane_align;
@@ -516,18 +444,6 @@ enum unix_funcs
     unix_wg_parser_stream_get_tag,
     unix_wg_parser_stream_seek,
 
-    unix_wg_source_create,
-    unix_wg_source_destroy,
-    unix_wg_source_get_stream_count,
-    unix_wg_source_get_duration,
-    unix_wg_source_get_position,
-    unix_wg_source_set_position,
-    unix_wg_source_push_data,
-    unix_wg_source_read_data,
-    unix_wg_source_get_stream_format,
-    unix_wg_source_get_stream_tag,
-    unix_wg_source_set_stream_flags,
-
     unix_wg_transform_create,
     unix_wg_transform_destroy,
     unix_wg_transform_get_output_type,
@@ -539,7 +455,6 @@ enum unix_funcs
     unix_wg_transform_drain,
     unix_wg_transform_flush,
     unix_wg_transform_notify_qos,
-    unix_wg_transform_eos,
 
     unix_wg_muxer_create,
     unix_wg_muxer_destroy,
