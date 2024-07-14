@@ -935,8 +935,6 @@ typedef volatile struct
     rectangle_t          caret_rect;       /* caret rectangle */
     user_handle_t        cursor;           /* handle to the cursor */
     int                  cursor_count;     /* cursor show count */
-    unsigned char        keystate[256];    /* key state */
-    int                  keystate_lock;    /* keystate is locked */
 } input_shm_t;
 
 typedef volatile union
@@ -2948,9 +2946,10 @@ enum coords_relative
 /* Retrieve queue keyboard state for current thread or global async state */
 @REQ(get_key_state)
     int            async;         /* whether to query the async state */
-    int            key;           /* key code */
+    int            key;           /* optional key code or -1 */
 @REPLY
     unsigned char  state;         /* state of specified key */
+    VARARG(keystate,bytes);       /* state array for all the keys */
 @END
 
 /* Set queue keyboard state for current thread */

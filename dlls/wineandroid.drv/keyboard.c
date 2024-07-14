@@ -654,6 +654,21 @@ static const char* vkey_to_name( UINT vkey )
     return NULL;
 }
 
+static BOOL get_async_key_state( BYTE state[256] )
+{
+    BOOL ret;
+
+    SERVER_START_REQ( get_key_state )
+    {
+        req->async = 1;
+        req->key = -1;
+        wine_server_set_reply( req, state, 256 );
+        ret = !wine_server_call( req );
+    }
+    SERVER_END_REQ;
+    return ret;
+}
+
 static void send_keyboard_input( HWND hwnd, WORD vkey, WORD scan, DWORD flags )
 {
     INPUT input;
@@ -675,7 +690,7 @@ void update_keyboard_lock_state( WORD vkey, UINT state )
 {
     BYTE keystate[256];
 
-    if (!NtUserGetAsyncKeyboardState( keystate )) return;
+    if (!get_async_key_state( keystate )) return;
 
     if (!(keystate[VK_CAPITAL] & 0x01) != !(state & AMETA_CAPS_LOCK_ON) && vkey != VK_CAPITAL)
     {
