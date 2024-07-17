@@ -9367,10 +9367,17 @@ static HRESULT get_next_h264_output_sample(IMFTransform *transform, IMFSample **
             return hr;
 
         ok(status == 0, "got output[0].dwStatus %#lx\n", status);
+        if (!*input_sample) return MF_E_END_OF_STREAM;
+
         hr = IMFTransform_ProcessInput(transform, 0, *input_sample, 0);
         ok(hr == S_OK, "got %#lx\n", hr);
         IMFSample_Release(*input_sample);
-        *input_sample = next_h264_sample(data, data_len);
+
+        if (!(*input_sample = next_h264_sample(data, data_len)))
+        {
+            hr = IMFTransform_ProcessMessage(transform, MFT_MESSAGE_COMMAND_DRAIN, 0);
+            ok(hr == S_OK, "got %#lx\n", hr);
+        }
     }
 }
 
@@ -10455,11 +10462,420 @@ failed:
     CoUninitialize();
 }
 
+static void test_performance(void)
+{
+    static const unsigned int aligned_width = 3840, aligned_height = 2160;
+
+    struct decoder_test
+    {
+        BOOL d3d_aware;
+        GUID subtype;
+    } decoder_tests[] =
+    {
+        {.d3d_aware = FALSE, .subtype = MFVideoFormat_I420},
+        {.d3d_aware = FALSE, .subtype = MFVideoFormat_NV12},
+        {.d3d_aware = FALSE, .subtype = MFVideoFormat_YUY2},
+
+        {.d3d_aware = TRUE, .subtype = MFVideoFormat_NV12},
+    };
+
+    struct processor_test
+    {
+        BOOL d3d_aware;
+        GUID input_subtype;
+        GUID output_subtype;
+        BOOL output_flip;
+    } processor_tests[] =
+    {
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_I420, .output_subtype = MFVideoFormat_I420},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_I420, .output_subtype = MFVideoFormat_NV12},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_I420, .output_subtype = MFVideoFormat_RGB32},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_I420, .output_subtype = MFVideoFormat_RGB32, .output_flip = TRUE},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_I420},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_NV12},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_RGB32},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_RGB32, .output_flip = TRUE},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_YUY2, .output_subtype = MFVideoFormat_I420},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_YUY2, .output_subtype = MFVideoFormat_NV12},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_YUY2, .output_subtype = MFVideoFormat_RGB32},
+        {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_YUY2, .output_subtype = MFVideoFormat_RGB32, .output_flip = TRUE},
+
+        {.d3d_aware = TRUE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_NV12},
+        {.d3d_aware = TRUE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_RGB32},
+        {.d3d_aware = TRUE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_RGB32, .output_flip = TRUE},
+        {.d3d_aware = TRUE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_ABGR32},
+        {.d3d_aware = TRUE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_ABGR32, .output_flip = TRUE},
+    };
+
+    LARGE_INTEGER time = {0}, count, freq;
+    IMFSample *input_sample, *output_sample;
+    IMFDXGIDeviceManager *manager = NULL;
+    MFT_OUTPUT_DATA_BUFFER output[1];
+    IMFTransform *transform = NULL;
+    ID3D11Multithread *multithread;
+    UINT buffer_count, token;
+    ID3D11Device *d3d11;
+    IMFMediaType *type;
+    ULONG i, data_len;
+    const BYTE *data;
+    LONG stride;
+    HRESULT hr;
+
+    QueryPerformanceFrequency(&freq);
+
+    hr = MFStartup(MF_VERSION, 0);
+    ok(hr == S_OK, "got %#lx\n", hr);
+    hr = CoInitialize(NULL);
+    ok(hr == S_OK, "got %#lx\n", hr);
+
+
+
+    for (i = 0; i < ARRAY_SIZE(decoder_tests); i++)
+    {
+        struct decoder_test *test = decoder_tests + i;
+        LARGE_INTEGER total = {0};
+
+        winetest_push_context("%u %s", test->d3d_aware, debugstr_an((char *)&test->subtype.Data1, 4));
+
+        hr = CoCreateInstance(&CLSID_MSH264DecoderMFT, NULL, CLSCTX_INPROC_SERVER,
+                &IID_IMFTransform, (void **)&transform);
+        ok(hr == S_OK, "got %#lx\n", hr);
+
+        if (test->d3d_aware)
+        {
+            hr = D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, D3D11_CREATE_DEVICE_VIDEO_SUPPORT, NULL, 0,
+                    D3D11_SDK_VERSION, &d3d11, NULL, NULL);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            hr = ID3D11Device_QueryInterface(d3d11, &IID_ID3D11Multithread, (void **)&multithread);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            ID3D11Multithread_SetMultithreadProtected(multithread, TRUE);
+            ID3D11Multithread_Release(multithread);
+            hr = pMFCreateDXGIDeviceManager(&token, &manager);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            hr = IMFDXGIDeviceManager_ResetDevice(manager, (IUnknown *)d3d11, token);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            ID3D11Device_Release(d3d11);
+            hr = IMFTransform_ProcessMessage(transform, MFT_MESSAGE_SET_D3D_MANAGER, (ULONG_PTR)manager);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            IMFDXGIDeviceManager_Release(manager);
+        }
+
+        hr = IMFTransform_GetInputAvailableType(transform, 0, 0, &type);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetGUID(type, &MF_MT_SUBTYPE, &MFVideoFormat_H264);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetUINT64(type, &MF_MT_FRAME_SIZE, (UINT64)aligned_height << 32 | aligned_width);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFTransform_SetInputType(transform, 0, type, 0);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        IMFMediaType_Release(type);
+
+        hr = IMFTransform_GetOutputAvailableType(transform, 0, 0, &type);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetGUID(type, &MF_MT_SUBTYPE, &test->subtype);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFTransform_SetOutputType(transform, 0, type, 0);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        IMFMediaType_Release(type);
+
+
+        if (test->d3d_aware) output_sample = NULL;
+        else
+        {
+            IMFMediaBuffer *buffer;
+
+            hr = MFCreateSample(&output_sample);
+            ok(hr == S_OK, "got %#lx\n", hr);
+if (IsEqualGUID(&test->subtype, &MFVideoFormat_I420) || 1)
+            hr = MFCreateMemoryBuffer(aligned_width * aligned_height * 4, &buffer);
+else
+            hr = MFCreate2DMediaBuffer(aligned_width, aligned_height, test->subtype.Data1, FALSE, &buffer);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            hr = IMFSample_AddBuffer(output_sample, buffer);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            IMFMediaBuffer_Release(buffer);
+        }
+
+
+        load_resource(L"h2644k.bin", &data, &data_len);
+
+        QueryPerformanceCounter(&count);
+        time.QuadPart -= count.QuadPart;
+
+        input_sample = next_h264_sample(&data, &data_len);
+        hr = get_next_h264_output_sample(transform, &input_sample, output_sample, output, &data, &data_len);
+        ok(hr == MF_E_TRANSFORM_STREAM_CHANGE, "got %#lx\n", hr);
+        ok(output[0].pSample == output_sample, "got %p.\n", output[0].pSample);
+
+        QueryPerformanceCounter(&count);
+        time.QuadPart += count.QuadPart;
+
+        time.QuadPart = time.QuadPart * 1000000 / freq.QuadPart;
+        if (0) ok(time.QuadPart <= 1, "source resolution took %fms\n", time.QuadPart / 1000.0);
+
+        total.QuadPart += time.QuadPart;
+
+        hr = IMFTransform_GetOutputAvailableType(transform, 0, 0, &type);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetGUID(type, &MF_MT_SUBTYPE, &test->subtype);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFTransform_SetOutputType(transform, 0, type, 0);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        IMFMediaType_Release(type);
+
+        hr = MFCreateSample(&output[0].pSample);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        buffer_count = 0;
+
+        do
+        {
+            QueryPerformanceCounter(&count);
+            time.QuadPart -= count.QuadPart;
+
+            IMFSample_Release(output[0].pSample);
+
+            for (;;)
+            {
+                DWORD status = 0;
+
+                memset(output, 0, sizeof(*output));
+                output[0].pSample = output_sample;
+                if (output_sample) IMFSample_AddRef(output_sample);
+
+                hr = IMFTransform_ProcessOutput(transform, 0, 1, output, &status);
+                if (hr == S_OK || hr != MF_E_TRANSFORM_NEED_MORE_INPUT || !input_sample) break;
+                if (output[0].pSample) IMFSample_Release(output[0].pSample);
+
+                IMFTransform_ProcessInput(transform, 0, input_sample, 0);
+                IMFSample_Release(input_sample);
+                input_sample = NULL;
+
+                if (data_len <= 4) IMFTransform_ProcessMessage(transform, MFT_MESSAGE_COMMAND_DRAIN, 0);
+                else input_sample = next_h264_sample(&data, &data_len);
+            }
+
+            buffer_count++;
+
+            QueryPerformanceCounter(&count);
+            time.QuadPart += count.QuadPart;
+
+            time.QuadPart = time.QuadPart * 1000000 / freq.QuadPart;
+            if (0) ok(time.QuadPart <= 1, "source resolution took %fms\n", time.QuadPart / 1000.0);
+
+            total.QuadPart += time.QuadPart;
+        } while (hr == S_OK);
+
+        ok(buffer_count == 361, "got %u buffers\n", buffer_count);
+        ok(0, "average %fms\n", total.QuadPart / 1000.0 / buffer_count);
+        ok(hr == MF_E_TRANSFORM_NEED_MORE_INPUT, "got %#lx\n", hr);
+        IMFTransform_Release(transform);
+
+        winetest_pop_context();
+    }
+
+
+
+
+    for (i = 0; i < ARRAY_SIZE(processor_tests); i++)
+    {
+        struct processor_test *test = processor_tests + i;
+        LARGE_INTEGER total = {0};
+        IMFTransform *decoder;
+
+        winetest_push_context("%u %s %#lx %u", test->d3d_aware, debugstr_an((char *)&test->input_subtype.Data1, 4), test->output_subtype.Data1, test->output_flip);
+
+        hr = CoCreateInstance(&CLSID_MSH264DecoderMFT, NULL, CLSCTX_INPROC_SERVER,
+                &IID_IMFTransform, (void **)&decoder);
+        ok(hr == S_OK, "got %#lx\n", hr);
+
+        hr = CoCreateInstance(&CLSID_VideoProcessorMFT, NULL, CLSCTX_INPROC_SERVER,
+                &IID_IMFTransform, (void **)&transform);
+        ok(hr == S_OK, "got %#lx\n", hr);
+
+        if (test->d3d_aware)
+        {
+            hr = D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, D3D11_CREATE_DEVICE_VIDEO_SUPPORT, NULL, 0,
+                    D3D11_SDK_VERSION, &d3d11, NULL, NULL);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            hr = ID3D11Device_QueryInterface(d3d11, &IID_ID3D11Multithread, (void **)&multithread);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            ID3D11Multithread_SetMultithreadProtected(multithread, TRUE);
+            ID3D11Multithread_Release(multithread);
+            hr = pMFCreateDXGIDeviceManager(&token, &manager);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            hr = IMFDXGIDeviceManager_ResetDevice(manager, (IUnknown *)d3d11, token);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            ID3D11Device_Release(d3d11);
+            hr = IMFTransform_ProcessMessage(decoder, MFT_MESSAGE_SET_D3D_MANAGER, (ULONG_PTR)manager);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            hr = IMFTransform_ProcessMessage(transform, MFT_MESSAGE_SET_D3D_MANAGER, (ULONG_PTR)manager);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            IMFDXGIDeviceManager_Release(manager);
+        }
+
+        hr = IMFTransform_GetInputAvailableType(decoder, 0, 0, &type);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetGUID(type, &MF_MT_SUBTYPE, &MFVideoFormat_H264);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetUINT64(type, &MF_MT_FRAME_SIZE, (UINT64)aligned_height << 32 | aligned_width);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFTransform_SetInputType(decoder, 0, type, 0);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        IMFMediaType_Release(type);
+
+        hr = IMFTransform_GetOutputAvailableType(decoder, 0, 0, &type);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetGUID(type, &MF_MT_SUBTYPE, &test->input_subtype);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFTransform_SetOutputType(decoder, 0, type, 0);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        IMFMediaType_Release(type);
+
+
+        if (test->d3d_aware) output_sample = NULL;
+        else
+        {
+            IMFMediaBuffer *buffer;
+
+            hr = MFCreateSample(&output_sample);
+            ok(hr == S_OK, "got %#lx\n", hr);
+if (IsEqualGUID(&test->input_subtype, &MFVideoFormat_I420) || 1)
+            hr = MFCreateMemoryBuffer(aligned_width * aligned_height * 4, &buffer);
+else
+            hr = MFCreate2DMediaBuffer(aligned_width, aligned_height, test->input_subtype.Data1, FALSE, &buffer);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            hr = IMFSample_AddBuffer(output_sample, buffer);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            IMFMediaBuffer_Release(buffer);
+        }
+
+
+        load_resource(L"h2644k.bin", &data, &data_len);
+
+        input_sample = next_h264_sample(&data, &data_len);
+        hr = get_next_h264_output_sample(decoder, &input_sample, output_sample, output, &data, &data_len);
+        ok(hr == MF_E_TRANSFORM_STREAM_CHANGE, "got %#lx\n", hr);
+        ok(output[0].pSample == output_sample, "got %p.\n", output[0].pSample);
+
+        hr = IMFTransform_GetOutputAvailableType(decoder, 0, 0, &type);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetGUID(type, &MF_MT_SUBTYPE, &test->input_subtype);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFTransform_SetInputType(transform, 0, type, 0);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFTransform_SetOutputType(decoder, 0, type, 0);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        IMFMediaType_Release(type);
+
+        hr = IMFTransform_GetOutputAvailableType(decoder, 0, 0, &type);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFMediaType_SetGUID(type, &MF_MT_SUBTYPE, &test->output_subtype);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = MFGetStrideForBitmapInfoHeader(test->output_subtype.Data1, aligned_width, &stride);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        if (test->output_flip) stride = -stride;
+        hr = IMFMediaType_SetUINT32(type, &MF_MT_DEFAULT_STRIDE, stride);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        hr = IMFTransform_SetOutputType(transform, 0, type, 0);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        IMFMediaType_Release(type);
+
+        hr = MFCreateSample(&output[0].pSample);
+        ok(hr == S_OK, "got %#lx\n", hr);
+        buffer_count = 0;
+
+        IMFSample_Release(output[0].pSample);
+
+        for (;;)
+        {
+            DWORD status = 0;
+
+            memset(output, 0, sizeof(*output));
+            output[0].pSample = output_sample;
+            if (output_sample) IMFSample_AddRef(output_sample);
+
+            hr = IMFTransform_ProcessOutput(decoder, 0, 1, output, &status);
+            if (hr == S_OK || hr != MF_E_TRANSFORM_NEED_MORE_INPUT || !input_sample) break;
+            if (output[0].pSample) IMFSample_Release(output[0].pSample);
+
+            IMFTransform_ProcessInput(decoder, 0, input_sample, 0);
+            IMFSample_Release(input_sample);
+            input_sample = NULL;
+
+            if (data_len <= 4) IMFTransform_ProcessMessage(decoder, MFT_MESSAGE_COMMAND_DRAIN, 0);
+            else input_sample = next_h264_sample(&data, &data_len);
+        }
+
+        IMFSample_Release(input_sample);
+        input_sample = output[0].pSample;
+
+        IMFTransform_Release(decoder);
+
+
+        if (test->d3d_aware) output_sample = NULL;
+        else
+        {
+            IMFMediaBuffer *buffer;
+
+            hr = MFCreateSample(&output_sample);
+            ok(hr == S_OK, "got %#lx\n", hr);
+if (IsEqualGUID(&test->output_subtype, &MFVideoFormat_I420) || 1)
+            hr = MFCreateMemoryBuffer(aligned_width * aligned_height * 4, &buffer);
+else
+            hr = MFCreate2DMediaBuffer(aligned_width, aligned_height, test->output_subtype.Data1, test->output_flip, &buffer);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            hr = IMFSample_AddBuffer(output_sample, buffer);
+            ok(hr == S_OK, "got %#lx\n", hr);
+            IMFMediaBuffer_Release(buffer);
+        }
+
+
+        for (total.QuadPart = 0, buffer_count = 0; buffer_count < 360; buffer_count++)
+        {
+            DWORD status = 0;
+
+            memset(output, 0, sizeof(*output));
+            output[0].pSample = output_sample;
+            if (output_sample) IMFSample_AddRef(output_sample);
+
+            QueryPerformanceCounter(&count);
+            time.QuadPart -= count.QuadPart;
+
+            IMFTransform_ProcessInput(transform, 0, input_sample, 0);
+
+            hr = IMFTransform_ProcessOutput(transform, 0, 1, output, &status);
+            IMFSample_Release(output[0].pSample);
+
+            buffer_count++;
+
+            QueryPerformanceCounter(&count);
+            time.QuadPart += count.QuadPart;
+
+            time.QuadPart = time.QuadPart * 1000000 / freq.QuadPart;
+            if (0) ok(time.QuadPart <= 1, "source resolution took %fms\n", time.QuadPart / 1000.0);
+
+            total.QuadPart += time.QuadPart;
+        }
+
+        ok(buffer_count == 361, "got %u buffers\n", buffer_count);
+        ok(0, "average %fms\n", total.QuadPart / 1000.0 / buffer_count);
+        IMFTransform_Release(transform);
+
+        winetest_pop_context();
+    }
+
+
+    MFShutdown();
+    CoUninitialize();
+}
+
 START_TEST(transform)
 {
     winetest_mute_threshold = 1;
 
     init_functions();
+
+    if (1) test_performance();
 
     test_sample_copier();
     test_sample_copier_output_processing();
@@ -10489,4 +10905,6 @@ START_TEST(transform)
     test_h264_decoder_concat_streams();
 
     test_video_processor_with_dxgi_manager();
+
+    test_performance();
 }
