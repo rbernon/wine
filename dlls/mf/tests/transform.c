@@ -8640,12 +8640,15 @@ static void test_video_processor(BOOL use_2d_buffer)
     ok(hr == S_OK, "Failed to create a sample, hr %#lx.\n", hr);
 
     hr = check_mft_process_output(transform, output_sample, &output_status);
+    todo_wine
     ok(hr == MF_E_TRANSFORM_NEED_MORE_INPUT, "Unexpected hr %#lx.\n", hr);
 
     hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
+    todo_wine
     ok(hr == S_OK, "Failed to push a sample, hr %#lx.\n", hr);
 
     hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
+    todo_wine
     ok(hr == MF_E_NOTACCEPTING, "Unexpected hr %#lx.\n", hr);
 
     hr = check_mft_process_output(transform, output_sample, &output_status);
@@ -10287,10 +10290,11 @@ static void test_video_processor_with_dxgi_manager(void)
     status = 0;
     memset(&output, 0, sizeof(output));
     hr = IMFTransform_ProcessOutput(transform, 0, 1, &output, &status);
-    todo_wine
+    /* FIXME: Wine sample release happens entirely asynchronously */
+    flaky_wine_if(hr == MF_E_SAMPLEALLOCATOR_EMPTY)
     ok(hr == S_OK, "got %#lx\n", hr);
     ok(!output.pEvents, "got events\n");
-    todo_wine
+    flaky_wine_if(hr == MF_E_SAMPLEALLOCATOR_EMPTY)
     ok(!!output.pSample, "got no sample\n");
     ok(output.dwStatus == 0, "got %#lx\n", output.dwStatus);
     ok(status == 0, "got %#lx\n", status);
