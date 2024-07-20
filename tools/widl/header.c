@@ -1648,6 +1648,14 @@ static void write_widl_using_macros(FILE *header, type_t *iface)
     fprintf(header, "#define QUERY_INTERFACES_%s QUERY_INTERFACES_%s\n", name, iface->c_name);
 
     fprintf(header, "#define INTERFACE_VTBL_%s INTERFACE_VTBL_%s\n", name, iface->c_name);
+    fprintf(header, "#define INTERFACE_IMPL_%s INTERFACE_IMPL_%s\n", name, iface->c_name);
+    fprintf(header, "#define INTERFACE_IMPL_OUTER_%s INTERFACE_IMPL_OUTER_%s\n", name, iface->c_name);
+    fprintf(header, "#define INTERFACE_IMPL_STATIC_%s INTERFACE_IMPL_STATIC_%s\n", name, iface->c_name);
+
+    fprintf(header, "#define INTERFACE_FWD_OPT_%s INTERFACE_FWD_OPT_%s\n", name, iface->c_name);
+    fprintf(header, "#define INTERFACE_FWD_%s INTERFACE_FWD_%s\n", name, iface->c_name);
+    fprintf(header, "#define INTERFACES_FWD_OPT_%s INTERFACES_FWD_OPT_%s\n", name, iface->c_name);
+    fprintf(header, "#define INTERFACES_FWD_%s INTERFACES_FWD_%s\n", name, iface->c_name);
 
     if (uuid) fprintf(header, "#define IID_%s IID_%s\n", name, iface->c_name);
     if (iface->type_type == TYPE_INTERFACE) fprintf(header, "#define %sVtbl %sVtbl\n", name, iface->c_name);
@@ -1684,6 +1692,8 @@ static void write_widl_impl_macros(FILE *header, type_t *iface)
 
     if (uuid)
     {
+        int inspectable = base && !strcmp(base->c_name, "IInspectable");
+
         fprintf(header, "#define QUERY_INTERFACE_OPT_%s( object, iid, out, mem ) \\\n", iface->c_name);
         fprintf(header, "    if ((object)->mem.lpVtbl) QUERY_INTERFACE_%s( object, iid, out, mem )\n", iface->c_name);
         fprintf(header, "#define QUERY_INTERFACE_%s( object, iid, out, mem ) \\\n", iface->c_name);
@@ -1710,6 +1720,36 @@ static void write_widl_impl_macros(FILE *header, type_t *iface)
         write_widl_impl_macros_methods(header, iface, iface, "pfx ## ");
         fprintf(header, "    };\n");
         fprintf(header, "\n" );
+
+        fprintf(header, "#define INTERFACE_IMPL_%s( type, ... ) \\\n", iface->c_name);
+        fprintf(header, "    INTERFACE_IMPL_FROM_( type, %s, type ## _from_%s, %s_iface ) \\\n", name, name, name );
+        fprintf(header, "    IUNKNOWN_IMPL( type, %s, __VA_ARGS__ ) \\\n", name );
+        if (inspectable) fprintf(header, "    IINSPECTABLE_IMPL( type, %s ) \\\n", name );
+        fprintf(header, "    INTERFACES_FWD( type, %s, &object->%s_iface, __VA_ARGS__ )\n", name, name);
+
+        fprintf(header, "#define INTERFACE_IMPL_OUTER_%s( type, ... ) \\\n", iface->c_name);
+        fprintf(header, "    INTERFACE_IMPL_FROM_( type, %s, type ## _from_%s, %s_iface ) \\\n", name, name, name);
+        fprintf(header, "    IUNKNOWN_IMPL( type, %s, __VA_ARGS__ ) \\\n", name);
+        if (inspectable) fprintf(header, "    IINSPECTABLE_IMPL( type, %s ) \\\n", name );
+        fprintf(header, "    INTERFACES_FWD( type, %s, object->outer, __VA_ARGS__ )\n", inspectable ? "IInspectable" : "IUnknown");
+
+        fprintf(header, "#define INTERFACE_IMPL_STATIC_%s( type, ... ) \\\n", iface->c_name);
+        fprintf(header, "    INTERFACE_IMPL_FROM_( type, %s, type ## _from_%s, %s_iface ) \\\n", name, name, name );
+        fprintf(header, "    IUNKNOWN_IMPL_STATIC( type, %s, __VA_ARGS__ ) \\\n", name );
+        if (inspectable) fprintf(header, "    IINSPECTABLE_IMPL( type, %s ) \\\n", name );
+        fprintf(header, "    INTERFACES_FWD( type, %s, &object->%s_iface, __VA_ARGS__ )\n", name, name);
+
+        fprintf(header, "#define INTERFACE_FWD_%s( type, base, expr ) \\\n", iface->c_name);
+        fprintf(header, "    INTERFACE_IMPL_FROM_( type, %s, type ## _from_%s, %s_iface ) \\\n", name, name, name );
+        fprintf(header, "    IUNKNOWN_FWD( type, %s, base, expr ) \\\n", name );
+        if (inspectable) fprintf(header, "    IINSPECTABLE_FWD( type, %s, base, expr ) \\\n", name );
+        fprintf(header, "\n");
+
+        fprintf(header, "#define INTERFACES_FWD_OPT_%s INTERFACES_FWD_%s\n", iface->c_name, iface->c_name);
+        fprintf(header, "#define INTERFACES_FWD_%s( type, base, expr, X, ... ) \\\n", iface->c_name);
+        fprintf(header, "    INTERFACE_FWD_%s( type, base, expr ) \\\n", name);
+        fprintf(header, "    INTERFACES_FWD_ ## X( type, base, expr, __VA_ARGS__ )\n");
+        fprintf(header, "\n");
     }
 }
 
