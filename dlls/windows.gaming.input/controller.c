@@ -69,14 +69,11 @@ struct controller
     IWineGameControllerProvider *wine_provider;
 };
 
-static inline struct controller *impl_from_IGameControllerImpl( IGameControllerImpl *iface )
-{
-    return CONTAINING_RECORD( iface, struct controller, IGameControllerImpl_iface );
-}
+INTERFACE_IMPL_FROM( controller, IGameControllerImpl );
 
 static HRESULT WINAPI controller_QueryInterface( IGameControllerImpl *iface, REFIID iid, void **out )
 {
-    struct controller *impl = impl_from_IGameControllerImpl( iface );
+    struct controller *impl = controller_from_IGameControllerImpl( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -113,7 +110,7 @@ static HRESULT WINAPI controller_QueryInterface( IGameControllerImpl *iface, REF
 
 static ULONG WINAPI controller_AddRef( IGameControllerImpl *iface )
 {
-    struct controller *impl = impl_from_IGameControllerImpl( iface );
+    struct controller *impl = controller_from_IGameControllerImpl( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -121,7 +118,7 @@ static ULONG WINAPI controller_AddRef( IGameControllerImpl *iface )
 
 static ULONG WINAPI controller_Release( IGameControllerImpl *iface )
 {
-    struct controller *impl = impl_from_IGameControllerImpl( iface );
+    struct controller *impl = controller_from_IGameControllerImpl( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
 
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
@@ -159,7 +156,7 @@ static HRESULT WINAPI controller_GetTrustLevel( IGameControllerImpl *iface, Trus
 static HRESULT WINAPI controller_Initialize( IGameControllerImpl *iface, IGameController *outer,
                                              IGameControllerProvider *provider )
 {
-    struct controller *impl = impl_from_IGameControllerImpl( iface );
+    struct controller *impl = controller_from_IGameControllerImpl( iface );
     HRESULT hr;
 
     TRACE( "iface %p, outer %p, provider %p.\n", iface, outer, provider );
@@ -181,7 +178,7 @@ static HRESULT WINAPI controller_Initialize( IGameControllerImpl *iface, IGameCo
 
 INTERFACE_VTBL_IGameControllerImpl( controller );
 
-DEFINE_IINSPECTABLE_OUTER( controller_IGameControllerInputSink, IGameControllerInputSink, struct controller, IGameController_outer )
+DEFINE_IINSPECTABLE_OUTER( controller_IGameControllerInputSink, IGameControllerInputSink, controller, IGameController_outer )
 
 static HRESULT WINAPI controller_IGameControllerInputSink_OnInputResumed( IGameControllerInputSink *iface, UINT64 timestamp )
 {
@@ -197,7 +194,7 @@ static HRESULT WINAPI controller_IGameControllerInputSink_OnInputSuspended( IGam
 
 INTERFACE_VTBL_IGameControllerInputSink( controller_IGameControllerInputSink );
 
-DEFINE_IINSPECTABLE_OUTER( controller_IRawGameController, IRawGameController, struct controller, IGameController_outer )
+DEFINE_IINSPECTABLE_OUTER( controller_IRawGameController, IRawGameController, controller, IGameController_outer )
 
 static HRESULT WINAPI controller_IRawGameController_get_AxisCount( IRawGameController *iface, INT32 *value )
 {
@@ -298,7 +295,7 @@ static HRESULT WINAPI controller_IRawGameController_GetSwitchKind( IRawGameContr
 
 INTERFACE_VTBL_IRawGameController( controller_IRawGameController );
 
-DEFINE_IINSPECTABLE_OUTER( controller_IRawGameController2, IRawGameController2, struct controller, IGameController_outer )
+DEFINE_IINSPECTABLE_OUTER( controller_IRawGameController2, IRawGameController2, controller, IGameController_outer )
 
 static HRESULT WINAPI
 controller_IRawGameController2_get_SimpleHapticsControllers( IRawGameController2 *iface,
@@ -348,14 +345,11 @@ struct controller_statics
     LONG ref;
 };
 
-static inline struct controller_statics *impl_from_IActivationFactory( IActivationFactory *iface )
-{
-    return CONTAINING_RECORD( iface, struct controller_statics, IActivationFactory_iface );
-}
+INTERFACE_IMPL_FROM( controller_statics, IActivationFactory );
 
 static HRESULT WINAPI controller_statics_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
 {
-    struct controller_statics *impl = impl_from_IActivationFactory( iface );
+    struct controller_statics *impl = controller_statics_from_IActivationFactory( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
@@ -392,7 +386,7 @@ static HRESULT WINAPI controller_statics_QueryInterface( IActivationFactory *ifa
 
 static ULONG WINAPI controller_statics_AddRef( IActivationFactory *iface )
 {
-    struct controller_statics *impl = impl_from_IActivationFactory( iface );
+    struct controller_statics *impl = controller_statics_from_IActivationFactory( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -400,7 +394,7 @@ static ULONG WINAPI controller_statics_AddRef( IActivationFactory *iface )
 
 static ULONG WINAPI controller_statics_Release( IActivationFactory *iface )
 {
-    struct controller_statics *impl = impl_from_IActivationFactory( iface );
+    struct controller_statics *impl = controller_statics_from_IActivationFactory( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
     return ref;
@@ -433,7 +427,7 @@ static HRESULT WINAPI controller_statics_ActivateInstance( IActivationFactory *i
 INTERFACE_VTBL_IActivationFactory( controller_statics );
 
 DEFINE_IINSPECTABLE( controller_statics_IRawGameControllerStatics, IRawGameControllerStatics,
-                     struct controller_statics, IActivationFactory_iface )
+                     controller_statics, IActivationFactory_iface )
 
 static HRESULT WINAPI
 controller_statics_IRawGameControllerStatics_add_RawGameControllerAdded( IRawGameControllerStatics *iface,
@@ -509,7 +503,7 @@ controller_statics_IRawGameControllerStatics_FromGameController( IRawGameControl
 INTERFACE_VTBL_IRawGameControllerStatics( controller_statics_IRawGameControllerStatics );
 
 DEFINE_IINSPECTABLE( controller_statics_ICustomGameControllerFactory, ICustomGameControllerFactory,
-                     struct controller_statics, IActivationFactory_iface )
+                     controller_statics, IActivationFactory_iface )
 
 static HRESULT WINAPI
 controller_statics_ICustomGameControllerFactory_CreateGameController( ICustomGameControllerFactory *iface,
