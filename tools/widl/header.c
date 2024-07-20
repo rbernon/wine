@@ -46,6 +46,7 @@ static void write_apicontract_guard_start(FILE *header, const expr_t *expr);
 static void write_apicontract_guard_end(FILE *header, const expr_t *expr);
 
 static void write_widl_using_macros(FILE *header, type_t *iface);
+static void write_widl_impl_macros(FILE *header, type_t *iface);
 
 static void indent(FILE *h, int delta)
 {
@@ -1641,6 +1642,8 @@ static void write_widl_using_macros(FILE *header, type_t *iface)
     macro = format_namespace(iface->namespace, "WIDL_using_", "_", NULL, NULL);
     fprintf(header, "#ifdef %s\n", macro);
 
+    fprintf(header, "#define INTERFACE_VTBL_%s INTERFACE_VTBL_%s\n", name, iface->c_name);
+
     if (uuid) fprintf(header, "#define IID_%s IID_%s\n", name, iface->c_name);
     if (iface->type_type == TYPE_INTERFACE) fprintf(header, "#define %sVtbl %sVtbl\n", name, iface->c_name);
     fprintf(header, "#define %s %s\n", name, iface->c_name);
@@ -1649,6 +1652,38 @@ static void write_widl_using_macros(FILE *header, type_t *iface)
 
     fprintf(header, "#endif /* %s */\n", macro);
     free(macro);
+}
+
+static void write_widl_impl_macros_methods(FILE *header, const type_t *iface, const type_t *top_iface, const char *prefix)
+{
+    const statement_t *stmt;
+
+    if (type_iface_get_inherit(iface)) write_widl_impl_macros_methods(header, type_iface_get_inherit(iface), top_iface, prefix);
+
+    STATEMENTS_FOR_EACH_FUNC(stmt, type_iface_get_stmts(iface))
+    {
+        const var_t *func = stmt->u.var;
+
+        if (is_override_method(iface, top_iface, func)) continue;
+        if (is_callas(func->attrs)) continue;
+
+        fprintf(header, "        %s_%s, \\\n", prefix, get_name(func));
+    }
+}
+
+static void write_widl_impl_macros(FILE *header, type_t *iface)
+{
+    const struct uuid *uuid = get_attrp(iface->attrs, ATTR_UUID);
+
+    if (uuid)
+    {
+        fprintf(header, "#define INTERFACE_VTBL_%s( pfx ) \\\n", iface->c_name);
+        fprintf(header, "    static const %sVtbl %s_vtbl = \\\n", iface->c_name, "pfx ## ");
+        fprintf(header, "    { \\\n");
+        write_widl_impl_macros_methods(header, iface, iface, "pfx ## ");
+        fprintf(header, "    };\n");
+        fprintf(header, "\n" );
+    }
 }
 
 static void write_com_interface_end(FILE *header, type_t *iface)
@@ -1727,7 +1762,10 @@ static void write_com_interface_end(FILE *header, type_t *iface)
   write_method_macro(header, type, type, iface->c_name);
   fprintf(header, "#else\n");
   write_inline_wrappers(header, type, type, iface->c_name);
-  fprintf(header, "#endif\n");
+  fprintf(header, "#endif\n\n");
+  fprintf(header, "#ifdef __WINESRC__\n\n");
+  write_widl_impl_macros(header, iface);
+  fprintf(header, "#endif /* __WINESRC__ */\n\n");
   if (winrt_mode) write_widl_using_macros(header, iface);
   fprintf(header, "#endif\n");
   fprintf(header, "\n");
