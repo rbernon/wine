@@ -1642,6 +1642,11 @@ static void write_widl_using_macros(FILE *header, type_t *iface)
     macro = format_namespace(iface->namespace, "WIDL_using_", "_", NULL, NULL);
     fprintf(header, "#ifdef %s\n", macro);
 
+    fprintf(header, "#define QUERY_INTERFACE_OPT_%s QUERY_INTERFACE_OPT_%s\n", name, iface->c_name);
+    fprintf(header, "#define QUERY_INTERFACE_%s QUERY_INTERFACE_%s\n", name, iface->c_name);
+    fprintf(header, "#define QUERY_INTERFACES_OPT_%s QUERY_INTERFACES_OPT_%s\n", name, iface->c_name);
+    fprintf(header, "#define QUERY_INTERFACES_%s QUERY_INTERFACES_%s\n", name, iface->c_name);
+
     fprintf(header, "#define INTERFACE_VTBL_%s INTERFACE_VTBL_%s\n", name, iface->c_name);
 
     if (uuid) fprintf(header, "#define IID_%s IID_%s\n", name, iface->c_name);
@@ -1674,9 +1679,31 @@ static void write_widl_impl_macros_methods(FILE *header, const type_t *iface, co
 static void write_widl_impl_macros(FILE *header, type_t *iface)
 {
     const struct uuid *uuid = get_attrp(iface->attrs, ATTR_UUID);
+    const char *name = iface->short_name ? iface->short_name : iface->name;
+    type_t *base = type_iface_get_inherit(iface);
 
     if (uuid)
     {
+        fprintf(header, "#define QUERY_INTERFACE_OPT_%s( object, iid, out, mem ) \\\n", iface->c_name);
+        fprintf(header, "    if ((object)->mem.lpVtbl) QUERY_INTERFACE_%s( object, iid, out, mem )\n", iface->c_name);
+        fprintf(header, "#define QUERY_INTERFACE_%s( object, iid, out, mem ) \\\n", iface->c_name);
+        fprintf(header, "    if (0 " );
+        for (base = iface; base; (base = type_iface_get_inherit(base)))
+            fprintf(header, "%s|| IsEqualGUID( (iid), &IID_%s )", base == iface ? "" : " \\\n          ", base->c_name );
+        fprintf(header, ") \\\n" );
+        fprintf(header, "    { \\\n" );
+        fprintf(header, "        *(out) = &(object)->mem; \\\n" );
+        fprintf(header, "        %s_AddRef( &(object)->mem ); \\\n", iface->c_name );
+        fprintf(header, "        return S_OK; \\\n" );
+        fprintf(header, "    }\n" );
+        fprintf(header, "#define QUERY_INTERFACES_OPT_%s( object, iid, out, X, ... ) \\\n", iface->c_name);
+        fprintf(header, "    QUERY_INTERFACE_OPT_%s( object, iid, out, %s_iface ) \\\n", iface->c_name, name);
+        fprintf(header, "    QUERY_INTERFACES_ ## X( object, iid, out, __VA_ARGS__ )\n");
+        fprintf(header, "#define QUERY_INTERFACES_%s( object, iid, out, X, ... ) \\\n", iface->c_name);
+        fprintf(header, "    QUERY_INTERFACE_%s( object, iid, out, %s_iface ) \\\n", iface->c_name, name);
+        fprintf(header, "    QUERY_INTERFACES_ ## X( object, iid, out, __VA_ARGS__ )\n");
+        fprintf(header, "\n");
+
         fprintf(header, "#define INTERFACE_VTBL_%s( pfx ) \\\n", iface->c_name);
         fprintf(header, "    static const %sVtbl %s_vtbl = \\\n", iface->c_name, "pfx ## ");
         fprintf(header, "    { \\\n");
