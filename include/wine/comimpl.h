@@ -38,6 +38,41 @@
         return CONTAINING_RECORD( iface, struct type, iface_mem ); \
     }
 
+#define IUNKNOWN_IMPL_ADDREF( type, name ) IUNKNOWN_IMPL_ADDREF_( type, name, type ## _from_ ## name )
+#define IUNKNOWN_IMPL_ADDREF_( type, name, impl_from ) \
+    static ULONG WINAPI type ## _AddRef( name *iface ) \
+    { \
+        struct type *object = impl_from( iface ); \
+        ULONG ref = InterlockedIncrement( &object->refcount ); \
+        TRACE( "object %p increasing refcount to %lu.\n", object, ref ); \
+        return ref; \
+    }
+#define IUNKNOWN_IMPL_STATIC_ADDREF( type, name ) \
+    static ULONG WINAPI type ## _AddRef( name *iface ) \
+    { \
+        return 2; \
+    }
+
+#define IUNKNOWN_IMPL_RELEASE( type, name ) IUNKNOWN_IMPL_RELEASE_( type, name, type ## _from_ ## name )
+#define IUNKNOWN_IMPL_RELEASE_( type, name, impl_from ) \
+    static ULONG WINAPI type ## _Release( name *iface ) \
+    { \
+        struct type *object = impl_from( iface ); \
+        ULONG ref = InterlockedDecrement( &object->refcount ); \
+        TRACE( "object %p decreasing refcount to %lu.\n", object, ref); \
+        if (!ref) \
+        { \
+            InterlockedIncrement( &object->refcount ); /* guard against re-entry when aggregated */ \
+            type ## _destroy( object ); \
+        } \
+        return ref; \
+    }
+#define IUNKNOWN_IMPL_STATIC_RELEASE( type, name ) \
+    static ULONG WINAPI type ## _Release( name *iface ) \
+    { \
+        return 1; \
+    }
+
 #define IUNKNOWN_FWD( type, name, base, expr ) IUNKNOWN_FWD_( type, name, base, expr, type ## _from_ ## name, type ## _ ## name )
 #define IUNKNOWN_FWD_( type, name, base, expr, impl_from, prefix ) \
     static HRESULT WINAPI prefix ## _QueryInterface( name *iface, REFIID iid, void **out ) \

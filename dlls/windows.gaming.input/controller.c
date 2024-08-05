@@ -63,7 +63,7 @@ struct controller
     IRawGameController IRawGameController_iface;
     IRawGameController2 IRawGameController2_iface;
     IGameController *IGameController_outer;
-    LONG ref;
+    LONG refcount;
 
     IGameControllerProvider *provider;
     IWineGameControllerProvider *wine_provider;
@@ -108,31 +108,15 @@ static HRESULT WINAPI controller_QueryInterface( IGameControllerImpl *iface, REF
     return E_NOINTERFACE;
 }
 
-static ULONG WINAPI controller_AddRef( IGameControllerImpl *iface )
+static void controller_destroy( struct controller *impl )
 {
-    struct controller *impl = controller_from_IGameControllerImpl( iface );
-    ULONG ref = InterlockedIncrement( &impl->ref );
-    TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
-    return ref;
+    if (impl->wine_provider) IWineGameControllerProvider_Release( impl->wine_provider );
+    IGameControllerProvider_Release( impl->provider );
+    free( impl );
 }
 
-static ULONG WINAPI controller_Release( IGameControllerImpl *iface )
-{
-    struct controller *impl = controller_from_IGameControllerImpl( iface );
-    ULONG ref = InterlockedDecrement( &impl->ref );
-
-    TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
-
-    if (!ref)
-    {
-        if (impl->wine_provider)
-            IWineGameControllerProvider_Release( impl->wine_provider );
-        IGameControllerProvider_Release( impl->provider );
-        free( impl );
-    }
-
-    return ref;
-}
+IUNKNOWN_IMPL_ADDREF( controller, IGameControllerImpl );
+IUNKNOWN_IMPL_RELEASE( controller, IGameControllerImpl );
 
 static HRESULT WINAPI controller_GetIids( IGameControllerImpl *iface, ULONG *iid_count, IID **iids )
 {
@@ -342,7 +326,6 @@ struct controller_statics
     IRawGameControllerStatics IRawGameControllerStatics_iface;
     ICustomGameControllerFactory ICustomGameControllerFactory_iface;
     IAgileObject IAgileObject_iface;
-    LONG ref;
 };
 
 INTERFACE_IMPL_FROM( controller_statics, IActivationFactory );
@@ -384,21 +367,8 @@ static HRESULT WINAPI controller_statics_QueryInterface( IActivationFactory *ifa
     return E_NOINTERFACE;
 }
 
-static ULONG WINAPI controller_statics_AddRef( IActivationFactory *iface )
-{
-    struct controller_statics *impl = controller_statics_from_IActivationFactory( iface );
-    ULONG ref = InterlockedIncrement( &impl->ref );
-    TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
-    return ref;
-}
-
-static ULONG WINAPI controller_statics_Release( IActivationFactory *iface )
-{
-    struct controller_statics *impl = controller_statics_from_IActivationFactory( iface );
-    ULONG ref = InterlockedDecrement( &impl->ref );
-    TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
-    return ref;
-}
+IUNKNOWN_IMPL_STATIC_ADDREF( controller_statics, IActivationFactory );
+IUNKNOWN_IMPL_STATIC_RELEASE( controller_statics, IActivationFactory );
 
 static HRESULT WINAPI controller_statics_GetIids( IActivationFactory *iface, ULONG *iid_count, IID **iids )
 {
@@ -518,7 +488,7 @@ controller_statics_ICustomGameControllerFactory_CreateGameController( ICustomGam
     impl->IGameControllerInputSink_iface.lpVtbl = &controller_IGameControllerInputSink_vtbl;
     impl->IRawGameController_iface.lpVtbl = &controller_IRawGameController_vtbl;
     impl->IRawGameController2_iface.lpVtbl = &controller_IRawGameController2_vtbl;
-    impl->ref = 1;
+    impl->refcount = 1;
 
     TRACE( "created RawGameController %p\n", impl );
 
@@ -587,7 +557,6 @@ static struct controller_statics controller_statics =
     {&controller_statics_IRawGameControllerStatics_vtbl},
     {&controller_statics_ICustomGameControllerFactory_vtbl},
     {&controller_statics_IAgileObject_vtbl},
-    1,
 };
 
 ICustomGameControllerFactory *controller_factory = &controller_statics.ICustomGameControllerFactory_iface;
