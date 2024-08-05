@@ -88,6 +88,16 @@
         return 1; \
     }
 
+#define IUNKNOWN_IMPL( type, name, ... ) \
+    IUNKNOWN_IMPL_QUERY_INTERFACE_( type, name, type ## _from_ ## name, __VA_ARGS__ ) \
+    IUNKNOWN_IMPL_ADDREF_( type, name, type ## _from_ ## name ) \
+    IUNKNOWN_IMPL_RELEASE_( type, name, type ## _from_ ## name )
+
+#define IUNKNOWN_IMPL_STATIC( type, name, ... ) \
+    IUNKNOWN_IMPL_QUERY_INTERFACE_( type, name, type ## _from_ ## name, __VA_ARGS__ ) \
+    IUNKNOWN_IMPL_STATIC_ADDREF( type, name ) \
+    IUNKNOWN_IMPL_STATIC_RELEASE( type, name )
+
 #define IUNKNOWN_FWD( type, name, base, expr ) IUNKNOWN_FWD_( type, name, base, expr, type ## _from_ ## name, type ## _ ## name )
 #define IUNKNOWN_FWD_( type, name, base, expr, impl_from, prefix ) \
     static HRESULT WINAPI prefix ## _QueryInterface( name *iface, REFIID iid, void **out ) \
