@@ -116,6 +116,32 @@
         return base ## _Release( (expr) ); \
     }
 
+#define IINSPECTABLE_IMPL( type, name ) IINSPECTABLE_IMPL_( type, name, type ## _from_ ## name )
+#define IINSPECTABLE_IMPL_( type, name, impl_from ) \
+    static HRESULT WINAPI type ## _GetIids( name *iface, ULONG *count, IID **iids ) \
+    { \
+        struct type *object = impl_from( iface ); \
+        FIXME( "object %p, count %p, iids %p, stub!\n", object, count, iids ); \
+        return E_NOTIMPL; \
+    } \
+    static HRESULT WINAPI type ## _GetRuntimeClassName( name *iface, HSTRING *class_name ) \
+    { \
+        struct type *object = impl_from( iface ); \
+        if (!object->class_name) \
+        { \
+            FIXME( "object %p, class_name %p, stub!\n", object, class_name ); \
+            return E_NOTIMPL; \
+        } \
+        TRACE( "object %p, class_name %p.\n", object, class_name ); \
+        return WindowsCreateString( object->class_name, wcslen( object->class_name ), class_name ); \
+    } \
+    static HRESULT WINAPI type ## _GetTrustLevel( name *iface, TrustLevel *trust_level ) \
+    { \
+        struct type *object = impl_from( iface ); \
+        FIXME( "object %p, trust_level %p, stub!\n", object, trust_level ); \
+        return E_NOTIMPL; \
+    }
+
 #define IINSPECTABLE_FWD( type, name, base, expr ) IINSPECTABLE_FWD_( type, name, base, expr, type ## _from_ ## name, type ## _ ## name )
 #define IINSPECTABLE_FWD_( type, name, base, expr, impl_from, prefix ) \
     static HRESULT WINAPI prefix ## _GetIids( name *iface, ULONG *count, IID **iids ) \
