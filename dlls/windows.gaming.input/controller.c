@@ -70,43 +70,8 @@ struct controller
 };
 
 INTERFACE_IMPL_FROM( controller, IGameControllerImpl );
-
-static HRESULT WINAPI controller_QueryInterface( IGameControllerImpl *iface, REFIID iid, void **out )
-{
-    struct controller *impl = controller_from_IGameControllerImpl( iface );
-
-    TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
-
-    if (IsEqualGUID( iid, &IID_IUnknown ) ||
-        IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IGameControllerImpl ))
-    {
-        IInspectable_AddRef( (*out = &impl->IGameControllerImpl_iface) );
-        return S_OK;
-    }
-
-    if (IsEqualGUID( iid, &IID_IGameControllerInputSink ))
-    {
-        IInspectable_AddRef( (*out = &impl->IGameControllerInputSink_iface) );
-        return S_OK;
-    }
-
-    if (IsEqualGUID( iid, &IID_IRawGameController ))
-    {
-        IInspectable_AddRef( (*out = &impl->IRawGameController_iface) );
-        return S_OK;
-    }
-
-    if (IsEqualGUID( iid, &IID_IRawGameController2 ))
-    {
-        IInspectable_AddRef( (*out = &impl->IRawGameController2_iface) );
-        return S_OK;
-    }
-
-    FIXME( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid( iid ) );
-    *out = NULL;
-    return E_NOINTERFACE;
-}
+IUNKNOWN_IMPL_QUERY_INTERFACE( controller, IGameControllerImpl, IGameControllerInputSink,
+                               IRawGameController, IRawGameController2, END );
 
 static void controller_destroy( struct controller *impl )
 {
@@ -329,44 +294,8 @@ struct controller_statics
 };
 
 INTERFACE_IMPL_FROM( controller_statics, IActivationFactory );
-
-static HRESULT WINAPI controller_statics_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
-{
-    struct controller_statics *impl = controller_statics_from_IActivationFactory( iface );
-
-    TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
-
-    if (IsEqualGUID( iid, &IID_IUnknown ) ||
-        IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IActivationFactory ))
-    {
-        IInspectable_AddRef( (*out = &impl->IActivationFactory_iface) );
-        return S_OK;
-    }
-
-    if (IsEqualGUID( iid, &IID_IRawGameControllerStatics ))
-    {
-        IInspectable_AddRef( (*out = &impl->IRawGameControllerStatics_iface) );
-        return S_OK;
-    }
-
-    if (IsEqualGUID( iid, &IID_ICustomGameControllerFactory ))
-    {
-        IInspectable_AddRef( (*out = &impl->ICustomGameControllerFactory_iface) );
-        return S_OK;
-    }
-
-    if (IsEqualGUID( iid, &IID_IAgileObject ))
-    {
-        IInspectable_AddRef( (*out = &impl->IAgileObject_iface) );
-        return S_OK;
-    }
-
-    FIXME( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid( iid ) );
-    *out = NULL;
-    return E_NOINTERFACE;
-}
-
+IUNKNOWN_IMPL_QUERY_INTERFACE( controller_statics, IActivationFactory, IRawGameControllerStatics,
+                               ICustomGameControllerFactory, IAgileObject, END );
 IUNKNOWN_IMPL_STATIC_ADDREF( controller_statics, IActivationFactory );
 IUNKNOWN_IMPL_STATIC_RELEASE( controller_statics, IActivationFactory );
 
