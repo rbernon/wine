@@ -31,11 +31,26 @@
 #include <windef.h>
 #include <winbase.h>
 
+#define QUERY_INTERFACES_END( object, iid, out, ... )
+#define QUERY_INTERFACES( object, iid, out, X, ... ) QUERY_INTERFACES_ ## X( object, iid, out, __VA_ARGS__ )
+
 #define INTERFACE_IMPL_FROM( type, name ) INTERFACE_IMPL_FROM_( type, name, type ## _from_ ## name, name ## _iface )
 #define INTERFACE_IMPL_FROM_( type, name, impl_from, iface_mem ) \
     static struct type *impl_from( name *iface ) \
     { \
         return CONTAINING_RECORD( iface, struct type, iface_mem ); \
+    }
+
+#define IUNKNOWN_IMPL_QUERY_INTERFACE( type, name, ... ) IUNKNOWN_IMPL_QUERY_INTERFACE_( type, name, type ## _from_ ## name, __VA_ARGS__ )
+#define IUNKNOWN_IMPL_QUERY_INTERFACE_( type, name, impl_from, ... ) \
+    static HRESULT WINAPI type ## _QueryInterface( name *iface, REFIID iid, void **out ) \
+    { \
+        struct type *object = impl_from( iface ); \
+        TRACE( "object %p, iid %s, out %p.\n", object, debugstr_guid(iid), out ); \
+        QUERY_INTERFACES( object, iid, out, name, __VA_ARGS__ ); \
+        *out = NULL; \
+        WARN( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid(iid) ); \
+        return E_NOINTERFACE; \
     }
 
 #define IUNKNOWN_IMPL_ADDREF( type, name ) IUNKNOWN_IMPL_ADDREF_( type, name, type ## _from_ ## name )
