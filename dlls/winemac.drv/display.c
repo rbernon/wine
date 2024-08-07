@@ -1065,6 +1065,206 @@ void macdrv_displays_changed(const macdrv_event *event)
         NtUserCallNoParam(NtUserCallNoParam_DisplayModeChanged);
 }
 
+static uint64_t dedicated_gpu_id;
+static uint64_t integrated_gpu_id;
+
+/***********************************************************************
+ *              macdrv_get_gpus
+ *
+ * Get a list of GPUs currently in the system. The first GPU is primary.
+ *
+ * Returns non-zero value on failure with parameters unchanged and zero on success.
+ */
+static int macdrv_get_gpus(struct macdrv_gpu** new_gpus, int* count)
+{
+    integrated_gpu_id = 0;
+    dedicated_gpu_id = 0;
+
+    if (!macdrv_get_gpus_from_metal(new_gpus, count, &integrated_gpu_id, &dedicated_gpu_id))
+        return 0;
+    return macdrv_get_gpus_from_iokit(new_gpus, count, &integrated_gpu_id, &dedicated_gpu_id);
+}
+
+/* Represent an adapter in EnumDisplayDevices context */
+struct macdrv_adapter
+{
+    /* ID to uniquely identify an adapter. Currently it's a CGDirectDisplayID */
+    uint32_t id;
+    /* as StateFlags in DISPLAY_DEVICE struct */
+    uint32_t state_flags;
+};
+
+/***********************************************************************
+ *              macdrv_get_adapters
+ *
+ * Get a list of adapters under gpu_id. The first adapter is primary if GPU is primary.
+ *
+ * Returns non-zero value on failure with parameters unchanged and zero on success.
+ */
+static int macdrv_get_adapters(uint64_t gpu_id, struct macdrv_adapter** new_adapters, int* count)
+{
+    CGDirectDisplayID display_ids[16];
+    uint32_t display_id_count;
+    struct macdrv_adapter* adapters;
+    struct macdrv_gpu gpu;
+    int primary_index = 0;
+    int adapter_count = 0;
+    int ret = -1;
+    uint32_t i;
+
+    if (CGGetOnlineDisplayList(sizeof(display_ids) / sizeof(display_ids[0]), display_ids, &display_id_count)
+        != kCGErrorSuccess)
+        return -1;
+
+    if (!display_id_count)
+    {
+        *new_adapters = NULL;
+        *count = 0;
+        return 0;
+    }
+
+    /* Actual adapter count may be less */
+    adapters = calloc(display_id_count, sizeof(*adapters));
+    if (!adapters)
+        return -1;
+
+    for (i = 0; i < display_id_count; i++)
+    {
+        /* Mirrored displays are under the same adapter with primary display, so they doesn't increase adapter count */
+        if (CGDisplayMirrorsDisplay(display_ids[i]) != kCGNullDirectDisplay)
+            continue;
+
+        if (macdrv_get_gpu_info_from_display_id(&gpu, display_ids[i]))
+            goto done;
+
+        if (gpu.id == gpu_id || (gpu_id == dedicated_gpu_id && gpu.id == integrated_gpu_id))
+        {
+            adapters[adapter_count].id = display_ids[i];
+            adapters[adapter_count].state_flags = DISPLAY_DEVICE_ATTACHED_TO_DESKTOP;
+
+            if (CGDisplayIsMain(display_ids[i]))
+            {
+                adapters[adapter_count].state_flags |= DISPLAY_DEVICE_PRIMARY_DEVICE;
+                primary_index = adapter_count;
+            }
+
+            adapter_count++;
+        }
+    }
+
+    /* Make sure the first adapter is primary if the GPU is primary */
+    if (primary_index)
+    {
+        struct macdrv_adapter tmp;
+        tmp = adapters[0];
+        adapters[0] = adapters[primary_index];
+        adapters[primary_index] = tmp;
+    }
+
+    *new_adapters = adapters;
+    *count = adapter_count;
+    ret = 0;
+done:
+    if (ret)
+        free(adapters);
+    return ret;
+}
+
+/* Represent a monitor in EnumDisplayDevices context */
+struct macdrv_monitor
+{
+    /* as RcMonitor in MONITORINFO struct after conversion by rect_from_cgrect */
+    CGRect rc_monitor;
+    /* as RcWork in MONITORINFO struct after conversion by rect_from_cgrect */
+    CGRect rc_work;
+};
+
+/***********************************************************************
+ *              macdrv_get_monitors
+ *
+ * Get a list of monitors under adapter_id. The first monitor is primary if adapter is primary.
+ *
+ * Returns non-zero value on failure with parameters unchanged and zero on success.
+ */
+static int macdrv_get_monitors(uint32_t adapter_id, struct macdrv_monitor** new_monitors, int* count)
+{
+    struct macdrv_monitor* monitors = NULL;
+    struct macdrv_monitor* realloc_monitors;
+    struct macdrv_display* displays = NULL;
+    CGDirectDisplayID display_ids[16];
+    uint32_t display_id_count;
+    int primary_index = 0;
+    int monitor_count = 0;
+    int display_count;
+    int capacity;
+    int ret = -1;
+    int i, j;
+
+    /* 2 should be enough for most cases */
+    capacity = 2;
+    monitors = calloc(capacity, sizeof(*monitors));
+    if (!monitors)
+        return -1;
+
+    if (CGGetOnlineDisplayList(sizeof(display_ids) / sizeof(display_ids[0]), display_ids, &display_id_count)
+        != kCGErrorSuccess)
+        goto done;
+
+    if (macdrv_get_displays(&displays, &display_count))
+        goto done;
+
+    for (i = 0; i < display_id_count; i++)
+    {
+        if (display_ids[i] != adapter_id && CGDisplayMirrorsDisplay(display_ids[i]) != adapter_id)
+            continue;
+
+        /* Find and fill in monitor info */
+        for (j = 0; j < display_count; j++)
+        {
+            if (displays[j].displayID == display_ids[i]
+                || CGDisplayMirrorsDisplay(display_ids[i]) == displays[j].displayID)
+            {
+                /* Allocate more space if needed */
+                if (monitor_count >= capacity)
+                {
+                    capacity *= 2;
+                    realloc_monitors = realloc(monitors, sizeof(*monitors) * capacity);
+                    if (!realloc_monitors)
+                        goto done;
+                    monitors = realloc_monitors;
+                }
+
+                if (j == 0)
+                    primary_index = monitor_count;
+
+                monitors[monitor_count].rc_monitor = displays[j].frame;
+                monitors[monitor_count].rc_work = displays[j].work_frame;
+                monitor_count++;
+                break;
+            }
+        }
+    }
+
+    /* Make sure the first monitor on primary adapter is primary */
+    if (primary_index)
+    {
+        struct macdrv_monitor tmp;
+        tmp = monitors[0];
+        monitors[0] = monitors[primary_index];
+        monitors[primary_index] = tmp;
+    }
+
+    *new_monitors = monitors;
+    *count = monitor_count;
+    ret = 0;
+done:
+    if (displays)
+        macdrv_free_displays(displays);
+    if (ret)
+        free(monitors);
+    return ret;
+}
+
 UINT macdrv_UpdateDisplayDevices(const struct gdi_device_manager *device_manager, void *param)
 {
     struct macdrv_adapter *adapters, *adapter;
@@ -1142,13 +1342,13 @@ UINT macdrv_UpdateDisplayDevices(const struct gdi_device_manager *device_manager
             if (!(modes = display_get_modes(adapter->id, &mode_count))) break;
             device_manager->add_modes( &current_mode, mode_count, modes, param );
             free(modes);
-            macdrv_free_monitors(monitors);
+            free(monitors);
         }
 
-        macdrv_free_adapters(adapters);
+        free(adapters);
     }
 
-    macdrv_free_gpus(gpus);
+    free(gpus);
     macdrv_free_displays(displays);
     return STATUS_SUCCESS;
 }
