@@ -930,7 +930,6 @@ static BOOL xrandr14_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new
     XRROutputInfo *enum_output_info, *output_info = NULL;
     RROutput *outputs;
     INT crtc_count, output_count;
-    INT primary_adapter = 0;
     INT adapter_count = 0;
     BOOL mirrored, detached;
     RECT primary_rect;
@@ -1037,10 +1036,7 @@ static BOOL xrandr14_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new
             if (!detached)
                 adapters[adapter_count].state_flags |= DISPLAY_DEVICE_ATTACHED_TO_DESKTOP;
             if (is_crtc_primary( primary_rect, crtc_info ))
-            {
                 adapters[adapter_count].state_flags |= DISPLAY_DEVICE_PRIMARY_DEVICE;
-                primary_adapter = adapter_count;
-            }
 
             ++adapter_count;
         }
@@ -1052,14 +1048,6 @@ static BOOL xrandr14_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new
             pXRRFreeCrtcInfo( crtc_info );
             crtc_info = NULL;
         }
-    }
-
-    /* Make primary adapter the first */
-    if (primary_adapter)
-    {
-        struct x11drv_adapter tmp = adapters[0];
-        adapters[0] = adapters[primary_adapter];
-        adapters[primary_adapter] = tmp;
     }
 
     *new_adapters = adapters;
