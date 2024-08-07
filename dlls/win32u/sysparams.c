@@ -2292,13 +2292,13 @@ static UINT update_display_devices( struct device_manager_ctx *ctx )
 {
     UINT status;
 
-    if (!(status = user_driver->pUpdateDisplayDevices( &device_manager, ctx )))
+    if ((status = user_driver->pUpdateDisplayDevices( &device_manager, ctx )))
     {
-        if (ctx->source_count && is_virtual_desktop()) return add_virtual_source( ctx );
-        return status;
+        if (status != STATUS_NOT_IMPLEMENTED) return status;
+        if ((status = default_update_display_devices( ctx ))) return status;
     }
 
-    if (status == STATUS_NOT_IMPLEMENTED) return default_update_display_devices( ctx );
+    if (ctx->source_count && is_virtual_desktop()) status = add_virtual_source( ctx );
     return status;
 }
 
