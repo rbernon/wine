@@ -110,7 +110,8 @@ struct source
     LONG refcount;
     struct list entry;
     char path[MAX_PATH];
-    unsigned int id;
+    unsigned int id;      /* ID of the source / GDI DISPLAY index */
+    unsigned int index;   /* index of the source on its GPU */
     struct gpu *gpu;
     HKEY key;
     UINT dpi;
@@ -658,6 +659,7 @@ static BOOL read_source_from_registry( unsigned int index, struct source *source
     if (value->DataLength / sizeof(WCHAR) <= size) return FALSE;
     for (i = 0; i < value->DataLength / sizeof(WCHAR) - size; i++) source->path[i] = value_str[size + i];
     if (!(hkey = reg_open_ascii_key( config_key, source->path ))) return FALSE;
+    sscanf( strrchr( source->path, '\\' ), "\\%04x", &source->index );
 
     /* StateFlags */
     if (query_reg_ascii_value( hkey, "StateFlags", value, sizeof(buffer) ) && value->Type == REG_DWORD)
@@ -1383,12 +1385,12 @@ static void add_gpu( const char *name, const struct pci_id *pci_id, const GUID *
 static BOOL write_source_to_registry( struct source *source )
 {
     struct gpu *gpu = source->gpu;
-    unsigned int len, source_index = gpu->source_count;
     char name[64], buffer[MAX_PATH];
     WCHAR bufferW[MAX_PATH];
+    unsigned int len;
     HKEY hkey;
 
-    snprintf( buffer, sizeof(buffer), "%s\\Video\\%s\\%04x", control_keyA, gpu->guid, source_index );
+    snprintf( buffer, sizeof(buffer), "%s\\Video\\%s\\%04x", control_keyA, gpu->guid, source->index );
     len = asciiz_to_unicode( bufferW, buffer ) - sizeof(WCHAR);
 
     hkey = reg_create_ascii_key( NULL, buffer, REG_OPTION_VOLATILE | REG_OPTION_CREATE_LINK, NULL );
@@ -1411,7 +1413,7 @@ static BOOL write_source_to_registry( struct source *source )
                    sizeof(source->state_flags) );
     set_reg_value( source->key, dpiW, REG_DWORD, &source->dpi, sizeof(source->dpi) );
 
-    snprintf( buffer, sizeof(buffer), "System\\CurrentControlSet\\Control\\Video\\%s\\%04x", gpu->guid, source_index );
+    snprintf( buffer, sizeof(buffer), "System\\CurrentControlSet\\Control\\Video\\%s\\%04x", gpu->guid, source->index );
     hkey = reg_create_ascii_key( config_key, buffer, REG_OPTION_VOLATILE | REG_OPTION_CREATE_LINK, NULL );
     if (!hkey) hkey = reg_create_ascii_key( config_key, buffer, REG_OPTION_VOLATILE | REG_OPTION_OPEN_LINK, NULL );
 
@@ -3221,7 +3223,7 @@ LONG WINAPI NtUserQueryDisplayConfig( UINT32 flags, UINT32 *paths_count, DISPLAY
         if (!is_monitor_active( monitor )) continue;
         if (!monitor->source) continue;
 
-        source_index = monitor->source->id;
+        source_index = monitor->source->index;
         gpu_luid = &monitor->source->gpu->luid;
         output_id = monitor->output_id;
 
@@ -3475,7 +3477,7 @@ NTSTATUS WINAPI NtUserEnumDisplayDevices( UNICODE_STRING *device, DWORD index,
         if (info->cb >= offsetof(DISPLAY_DEVICEW, DeviceKey) + sizeof(info->DeviceKey))
         {
             if (monitor) snprintf( buffer, sizeof(buffer), "%s\\Class\\%s\\%04X", control_keyA, guid_devclass_monitorA, monitor->output_id );
-            else snprintf( buffer, sizeof(buffer), "%s\\Video\\%s\\%04x", control_keyA, source->gpu->guid, source->id );
+            else snprintf( buffer, sizeof(buffer), "%s\\Video\\%s\\%04x", control_keyA, source->gpu->guid, source->index );
             asciiz_to_unicode( info->DeviceKey, buffer );
         }
     }
