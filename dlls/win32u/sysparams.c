@@ -1564,9 +1564,9 @@ static void add_monitor( const struct gdi_monitor *gdi_monitor, void *param )
     else
         strcpy( monitor_id_string, "Default_Monitor" );
 
-    snprintf( buffer, sizeof(buffer), "MonitorID%u", monitor->id );
-    snprintf( monitor->path, sizeof(monitor->path), "DISPLAY\\%s\\%04X&%04X", monitor_id_string, source->id, monitor->id );
-    set_reg_ascii_value( source->key, buffer, monitor->path );
+    snprintf( buffer, sizeof(buffer), "MonitorID%u", monitor.id );
+    snprintf( monitor.path, sizeof(monitor.path), "DISPLAY\\%s\\%04X&%04X&%04X", monitor_id_string, ctx->source.gpu->index, ctx->source.index, monitor.id );
+    set_reg_ascii_value( ctx->source_key, buffer, monitor.path );
 
     if (!write_monitor_to_registry( monitor, gdi_monitor->edid, gdi_monitor->edid_len ))
     {
