@@ -39,6 +39,7 @@ struct controller
 {
     IGameController IGameController_iface;
     IGameControllerBatteryInfo IGameControllerBatteryInfo_iface;
+    IAgileObject IAgileObject_iface;
     IInspectable *IInspectable_inner;
     LONG ref;
 
@@ -60,7 +61,6 @@ static HRESULT WINAPI controller_QueryInterface( IGameController *iface, REFIID 
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, &IID_IGameController ))
     {
         IInspectable_AddRef( (*out = &impl->IGameController_iface) );
@@ -70,6 +70,12 @@ static HRESULT WINAPI controller_QueryInterface( IGameController *iface, REFIID 
     if (IsEqualGUID( iid, &IID_IGameControllerBatteryInfo ))
     {
         IInspectable_AddRef( (*out = &impl->IGameControllerBatteryInfo_iface) );
+        return S_OK;
+    }
+
+    if (IsEqualGUID( iid, &IID_IAgileObject ))
+    {
+        IInspectable_AddRef( (*out = &impl->IAgileObject_iface) );
         return S_OK;
     }
 
@@ -222,11 +228,14 @@ static const struct IGameControllerBatteryInfoVtbl battery_vtbl =
     battery_TryGetBatteryReport,
 };
 
+DEFINE_IAGILEOBJECT( controller, IGameController, &object->IGameController_iface );
+
 struct manager_statics
 {
     IActivationFactory IActivationFactory_iface;
     IGameControllerFactoryManagerStatics IGameControllerFactoryManagerStatics_iface;
     IGameControllerFactoryManagerStatics2 IGameControllerFactoryManagerStatics2_iface;
+    IAgileObject IAgileObject_iface;
     LONG ref;
 };
 
@@ -243,7 +252,6 @@ static HRESULT WINAPI factory_QueryInterface( IActivationFactory *iface, REFIID 
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, &IID_IActivationFactory ))
     {
         IInspectable_AddRef( (*out = &impl->IActivationFactory_iface) );
@@ -259,6 +267,12 @@ static HRESULT WINAPI factory_QueryInterface( IActivationFactory *iface, REFIID 
     if (IsEqualGUID( iid, &IID_IGameControllerFactoryManagerStatics2 ))
     {
         IInspectable_AddRef( (*out = &impl->IGameControllerFactoryManagerStatics2_iface) );
+        return S_OK;
+    }
+
+    if (IsEqualGUID( iid, &IID_IAgileObject ))
+    {
+        IInspectable_AddRef( (*out = &impl->IAgileObject_iface) );
         return S_OK;
     }
 
@@ -416,11 +430,14 @@ static const struct IGameControllerFactoryManagerStatics2Vtbl statics2_vtbl =
     statics2_TryGetFactoryControllerFromGameController,
 };
 
+DEFINE_IAGILEOBJECT( manager_statics, IActivationFactory, &object->IActivationFactory_iface );
+
 static struct manager_statics manager_statics =
 {
     {&factory_vtbl},
     {&statics_vtbl},
     {&statics2_vtbl},
+    {&manager_statics_IAgileObject_vtbl},
     1,
 };
 
@@ -436,6 +453,7 @@ static HRESULT controller_create( ICustomGameControllerFactory *factory, IGameCo
     if (!(impl = malloc(sizeof(*impl)))) return E_OUTOFMEMORY;
     impl->IGameController_iface.lpVtbl = &controller_vtbl;
     impl->IGameControllerBatteryInfo_iface.lpVtbl = &battery_vtbl;
+    impl->IAgileObject_iface.lpVtbl = &controller_IAgileObject_vtbl;
     impl->ref = 1;
 
     if (FAILED(hr = ICustomGameControllerFactory_CreateGameController( factory, provider, &impl->IInspectable_inner )))

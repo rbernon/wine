@@ -46,6 +46,7 @@ struct provider
 {
     IWineGameControllerProvider IWineGameControllerProvider_iface;
     IGameControllerProvider IGameControllerProvider_iface;
+    IAgileObject IAgileObject_iface;
     LONG ref;
 
     IDirectInputDevice8W *dinput_device;
@@ -78,7 +79,6 @@ static HRESULT WINAPI wine_provider_QueryInterface( IWineGameControllerProvider 
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, &IID_IWineGameControllerProvider ))
     {
         IInspectable_AddRef( (*out = &impl->IWineGameControllerProvider_iface) );
@@ -88,6 +88,12 @@ static HRESULT WINAPI wine_provider_QueryInterface( IWineGameControllerProvider 
     if (IsEqualGUID( iid, &IID_IGameControllerProvider ))
     {
         IInspectable_AddRef( (*out = &impl->IGameControllerProvider_iface) );
+        return S_OK;
+    }
+
+    if (IsEqualGUID( iid, &IID_IAgileObject ))
+    {
+        IInspectable_AddRef( (*out = &impl->IAgileObject_iface) );
         return S_OK;
     }
 
@@ -427,6 +433,8 @@ static const struct IGameControllerProviderVtbl game_provider_vtbl =
     game_provider_get_IsConnected,
 };
 
+DEFINE_IAGILEOBJECT( provider, IWineGameControllerProvider, &object->IWineGameControllerProvider_iface );
+
 static void check_haptics_caps( struct provider *provider, HANDLE device, PHIDP_PREPARSED_DATA preparsed,
                                 HIDP_LINK_COLLECTION_NODE *collections, HIDP_VALUE_CAPS *caps )
 {
@@ -573,6 +581,7 @@ void provider_create( const WCHAR *device_path )
     if (!(impl = calloc( 1, sizeof(*impl) ))) goto done;
     impl->IWineGameControllerProvider_iface.lpVtbl = &wine_provider_vtbl;
     impl->IGameControllerProvider_iface.lpVtbl = &game_provider_vtbl;
+    impl->IAgileObject_iface.lpVtbl = &provider_IAgileObject_vtbl;
     IDirectInputDevice_AddRef( dinput_device );
     impl->dinput_device = dinput_device;
     impl->ref = 1;

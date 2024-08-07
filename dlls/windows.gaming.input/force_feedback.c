@@ -34,6 +34,7 @@ struct effect
 {
     IWineForceFeedbackEffectImpl IWineForceFeedbackEffectImpl_iface;
     IForceFeedbackEffect IForceFeedbackEffect_iface;
+    IAgileObject IAgileObject_iface;
     IInspectable *IInspectable_outer;
     LONG ref;
 
@@ -65,7 +66,6 @@ static HRESULT WINAPI effect_impl_QueryInterface( IWineForceFeedbackEffectImpl *
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, &IID_IWineForceFeedbackEffectImpl ))
     {
         IWineForceFeedbackEffectImpl_AddRef( (*out = &impl->IWineForceFeedbackEffectImpl_iface) );
@@ -75,6 +75,12 @@ static HRESULT WINAPI effect_impl_QueryInterface( IWineForceFeedbackEffectImpl *
     if (IsEqualGUID( iid, &IID_IForceFeedbackEffect ))
     {
         IInspectable_AddRef( (*out = &impl->IForceFeedbackEffect_iface) );
+        return S_OK;
+    }
+
+    if (IsEqualGUID( iid, &IID_IAgileObject ))
+    {
+        IInspectable_AddRef( (*out = &impl->IAgileObject_iface) );
         return S_OK;
     }
 
@@ -344,6 +350,8 @@ static const struct IForceFeedbackEffectVtbl effect_vtbl =
     effect_Stop,
 };
 
+DEFINE_IAGILEOBJECT( effect, IInspectable, object->IInspectable_outer );
+
 HRESULT force_feedback_effect_create( enum WineForceFeedbackEffectType type, IInspectable *outer, IWineForceFeedbackEffectImpl **out )
 {
     struct effect *impl;
@@ -353,6 +361,7 @@ HRESULT force_feedback_effect_create( enum WineForceFeedbackEffectType type, IIn
     if (!(impl = calloc( 1, sizeof(*impl) ))) return E_OUTOFMEMORY;
     impl->IWineForceFeedbackEffectImpl_iface.lpVtbl = &effect_impl_vtbl;
     impl->IForceFeedbackEffect_iface.lpVtbl = &effect_vtbl;
+    impl->IAgileObject_iface.lpVtbl = &effect_IAgileObject_vtbl;
     impl->IInspectable_outer = outer;
     impl->ref = 1;
 
@@ -431,6 +440,7 @@ HRESULT force_feedback_effect_create( enum WineForceFeedbackEffectType type, IIn
 struct motor
 {
     IForceFeedbackMotor IForceFeedbackMotor_iface;
+    IAgileObject IAgileObject_iface;
     LONG ref;
 
     IDirectInputDevice8W *device;
@@ -449,10 +459,15 @@ static HRESULT WINAPI motor_QueryInterface( IForceFeedbackMotor *iface, REFIID i
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, &IID_IForceFeedbackMotor ))
     {
         IInspectable_AddRef( (*out = &impl->IForceFeedbackMotor_iface) );
+        return S_OK;
+    }
+
+    if (IsEqualGUID( iid, &IID_IAgileObject ))
+    {
+        IInspectable_AddRef( (*out = &impl->IAgileObject_iface) );
         return S_OK;
     }
 
@@ -810,6 +825,8 @@ static const struct IForceFeedbackMotorVtbl motor_vtbl =
     motor_TryUnloadEffectAsync,
 };
 
+DEFINE_IAGILEOBJECT( motor, IForceFeedbackMotor, &object->IForceFeedbackMotor_iface );
+
 HRESULT force_feedback_motor_create( IDirectInputDevice8W *device, IForceFeedbackMotor **out )
 {
     struct motor *impl;
@@ -823,6 +840,7 @@ HRESULT force_feedback_motor_create( IDirectInputDevice8W *device, IForceFeedbac
 
     if (!(impl = calloc( 1, sizeof(*impl) ))) return E_OUTOFMEMORY;
     impl->IForceFeedbackMotor_iface.lpVtbl = &motor_vtbl;
+    impl->IAgileObject_iface.lpVtbl = &motor_IAgileObject_vtbl;
     impl->ref = 1;
 
     IDirectInputDevice_AddRef( device );

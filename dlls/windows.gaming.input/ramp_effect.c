@@ -42,7 +42,6 @@ static HRESULT WINAPI effect_QueryInterface( IRampForceEffect *iface, REFIID iid
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, &IID_IRampForceEffect ))
     {
         IInspectable_AddRef( (*out = &impl->IRampForceEffect_iface) );
@@ -171,6 +170,7 @@ static const struct IRampForceEffectVtbl effect_vtbl =
 struct ramp_factory
 {
     IActivationFactory IActivationFactory_iface;
+    IAgileObject IAgileObject_iface;
     LONG ref;
 };
 
@@ -187,10 +187,15 @@ static HRESULT WINAPI activation_QueryInterface( IActivationFactory *iface, REFI
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, &IID_IActivationFactory ))
     {
         IInspectable_AddRef( (*out = &impl->IActivationFactory_iface) );
+        return S_OK;
+    }
+
+    if (IsEqualGUID( iid, &IID_IAgileObject ))
+    {
+        IInspectable_AddRef( (*out = &impl->IAgileObject_iface) );
         return S_OK;
     }
 
@@ -269,9 +274,12 @@ static const struct IActivationFactoryVtbl activation_vtbl =
     activation_ActivateInstance,
 };
 
+DEFINE_IAGILEOBJECT( ramp_factory, IActivationFactory, &object->IActivationFactory_iface );
+
 static struct ramp_factory ramp_statics =
 {
     {&activation_vtbl},
+    {&ramp_factory_IAgileObject_vtbl},
     1,
 };
 

@@ -44,7 +44,6 @@ static HRESULT WINAPI effect_QueryInterface( IConditionForceEffect *iface, REFII
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, &IID_IConditionForceEffect ))
     {
         IInspectable_AddRef( (*out = &impl->IConditionForceEffect_iface) );
@@ -150,6 +149,7 @@ struct condition_factory
 {
     IActivationFactory IActivationFactory_iface;
     IConditionForceEffectFactory IConditionForceEffectFactory_iface;
+    IAgileObject IAgileObject_iface;
     LONG ref;
 };
 
@@ -166,7 +166,6 @@ static HRESULT WINAPI activation_QueryInterface( IActivationFactory *iface, REFI
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, &IID_IActivationFactory ))
     {
         IInspectable_AddRef( (*out = &impl->IActivationFactory_iface) );
@@ -176,6 +175,12 @@ static HRESULT WINAPI activation_QueryInterface( IActivationFactory *iface, REFI
     if (IsEqualGUID( iid, &IID_IConditionForceEffectFactory ))
     {
         IInspectable_AddRef( (*out = &impl->IConditionForceEffectFactory_iface) );
+        return S_OK;
+    }
+
+    if (IsEqualGUID( iid, &IID_IAgileObject ))
+    {
+        IInspectable_AddRef( (*out = &impl->IAgileObject_iface) );
         return S_OK;
     }
 
@@ -278,10 +283,13 @@ static const struct IConditionForceEffectFactoryVtbl factory_vtbl =
     factory_CreateInstance,
 };
 
+DEFINE_IAGILEOBJECT( condition_factory, IActivationFactory, &object->IActivationFactory_iface );
+
 static struct condition_factory condition_statics =
 {
     {&activation_vtbl},
     {&factory_vtbl},
+    {&condition_factory_IAgileObject_vtbl},
     1,
 };
 
