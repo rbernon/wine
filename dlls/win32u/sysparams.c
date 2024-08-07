@@ -3358,17 +3358,12 @@ static struct source *find_source( UNICODE_STRING *name )
 
 static void monitor_get_interface_name( struct monitor *monitor, WCHAR *interface_name )
 {
-    char buffer[MAX_PATH] = {0}, *tmp;
-    const char *id;
+    char buffer[MAX_PATH * 2] = {0}, *tmp;
 
     *interface_name = 0;
     if (!monitor->source) return;
 
-    if (!(monitor->edid_info.flags & MONITOR_INFO_HAS_MONITOR_ID)) id = "Default_Monitor";
-    else id = monitor->edid_info.monitor_id_string;
-
-    snprintf( buffer, sizeof(buffer), "\\\\?\\DISPLAY\\%s\\%04X&%04X#%s", id, monitor->source->id,
-              monitor->id, guid_devinterface_monitorA );
+    snprintf( buffer, sizeof(buffer), "\\\\?\\%s#%s", monitor->path, guid_devinterface_monitorA );
     for (tmp = buffer + 4; *tmp; tmp++) if (*tmp == '\\') *tmp = '#';
 
     asciiz_to_unicode( interface_name, buffer );
