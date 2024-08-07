@@ -44,7 +44,6 @@ static HRESULT WINAPI effect_QueryInterface( IPeriodicForceEffect *iface, REFIID
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, &IID_IPeriodicForceEffect ))
     {
         IInspectable_AddRef( (*out = &impl->IPeriodicForceEffect_iface) );
@@ -188,6 +187,7 @@ struct periodic_factory
 {
     IActivationFactory IActivationFactory_iface;
     IPeriodicForceEffectFactory IPeriodicForceEffectFactory_iface;
+    IAgileObject IAgileObject_iface;
     LONG ref;
 };
 
@@ -204,7 +204,6 @@ static HRESULT WINAPI activation_QueryInterface( IActivationFactory *iface, REFI
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, &IID_IActivationFactory ))
     {
         IInspectable_AddRef( (*out = &impl->IActivationFactory_iface) );
@@ -214,6 +213,12 @@ static HRESULT WINAPI activation_QueryInterface( IActivationFactory *iface, REFI
     if (IsEqualGUID( iid, &IID_IPeriodicForceEffectFactory ))
     {
         IInspectable_AddRef( (*out = &impl->IPeriodicForceEffectFactory_iface) );
+        return S_OK;
+    }
+
+    if (IsEqualGUID( iid, &IID_IAgileObject ))
+    {
+        IInspectable_AddRef( (*out = &impl->IAgileObject_iface) );
         return S_OK;
     }
 
@@ -316,10 +321,13 @@ static const struct IPeriodicForceEffectFactoryVtbl factory_vtbl =
     factory_CreateInstance,
 };
 
+DEFINE_IAGILEOBJECT( periodic_factory, IActivationFactory, &object->IActivationFactory_iface );
+
 static struct periodic_factory periodic_statics =
 {
     {&activation_vtbl},
     {&factory_vtbl},
+    {&periodic_factory_IAgileObject_vtbl},
     1,
 };
 
