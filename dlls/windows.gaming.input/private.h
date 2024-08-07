@@ -83,20 +83,6 @@ extern HRESULT async_operation_boolean_create( IUnknown *invoker, IUnknown *para
 extern HRESULT async_operation_effect_result_create( IUnknown *invoker, IUnknown *param, async_operation_callback callback,
                                                      IAsyncOperation_ForceFeedbackLoadEffectResult **out );
 
-#define DEFINE_IINSPECTABLE_( pfx, iface_type, impl_type, impl_from, iface_mem, expr )             \
-    INTERFACE_IMPL_FROM_( impl_type, iface_type, impl_from, iface_mem )                            \
-    IUNKNOWN_FWD_( impl_type, iface_type, IInspectable, expr, impl_from, pfx )                     \
-    IINSPECTABLE_FWD_( impl_type, iface_type, IInspectable, expr, impl_from, pfx )
-#define DEFINE_IINSPECTABLE( pfx, iface_type, impl_type, base_iface ) \
-    DEFINE_IINSPECTABLE_( pfx, iface_type, impl_type, impl_from_##iface_type, iface_type##_iface, (IInspectable *)&object->base_iface )
-#define DEFINE_IINSPECTABLE_OUTER( pfx, iface_type, impl_type, outer_iface ) \
-    DEFINE_IINSPECTABLE_( pfx, iface_type, impl_type, impl_from_##iface_type, iface_type##_iface, (IInspectable *)object->outer_iface )
-
-#define DEFINE_IAGILEOBJECT( type, base, expr )                                                        \
-    INTERFACE_IMPL_FROM_( type, IAgileObject, type ## _from_IAgileObject, IAgileObject_iface )         \
-    IUNKNOWN_FWD_( type, IAgileObject, base, expr, type ## _from_IAgileObject, type ## _IAgileObject ) \
-    INTERFACE_VTBL_IAgileObject( type ## _IAgileObject );
-
 static inline const char *debugstr_vector3( const Vector3 *vector )
 {
     if (!vector) return "(null)";
