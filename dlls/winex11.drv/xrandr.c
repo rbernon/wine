@@ -921,20 +921,58 @@ static void xrandr14_free_gpus( struct x11drv_gpu *gpus, int count )
     free( gpus );
 }
 
+static BOOL is_output_mirrored( XRRScreenResources *resources, RROutput output, XRRCrtcInfo *crtc )
+{
+    XRROutputInfo *output_info;
+    XRRCrtcInfo *crtc_info;
+    UINT j;
+
+    for (j = 0; j < resources->noutput; ++j)
+    {
+        if (!(output_info = pXRRGetOutputInfo( gdi_display, resources, resources->outputs[j] ))) continue;
+        if (output_info->connection != RR_Connected || !output_info->crtc)
+        {
+            pXRRFreeOutputInfo( output_info );
+            continue;
+        }
+
+        crtc_info = pXRRGetCrtcInfo( gdi_display, resources, output_info->crtc );
+        pXRRFreeOutputInfo( output_info );
+        if (!crtc_info)
+            continue;
+
+        /* Some outputs may have the same coordinates, aka mirrored. Choose the output with
+         * the lowest value as primary and the rest will then be replicas in a mirroring set */
+        if (crtc_info->x == crtc->x &&
+            crtc_info->y == crtc->y &&
+            crtc_info->width == crtc->width &&
+            crtc_info->height == crtc->height &&
+            output > resources->outputs[j])
+        {
+            pXRRFreeCrtcInfo( crtc_info );
+            return TRUE;
+        }
+
+        pXRRFreeCrtcInfo( crtc_info );
+    }
+
+    return FALSE;
+}
+
 static BOOL xrandr14_get_sources( ULONG_PTR gpu_id, struct x11drv_source **new_sources, int *count )
 {
     struct x11drv_source *sources = NULL;
     XRRScreenResources *screen_resources = NULL;
     XRRProviderInfo *provider_info = NULL;
-    XRRCrtcInfo *enum_crtc_info, *crtc_info = NULL;
-    XRROutputInfo *enum_output_info, *output_info = NULL;
+    XRRCrtcInfo *crtc_info = NULL;
+    XRROutputInfo *output_info = NULL;
     RROutput *outputs;
     INT crtc_count, output_count;
     INT adapter_count = 0;
     BOOL mirrored, detached;
     RECT primary_rect;
     BOOL ret = FALSE;
-    INT i, j;
+    INT i;
 
     screen_resources = xrandr_get_screen_resources();
     if (!screen_resources)
@@ -991,44 +1029,10 @@ static BOOL xrandr14_get_sources( ULONG_PTR gpu_id, struct x11drv_source **new_s
             detached = TRUE;
 
         /* Ignore mirroring output replicas because mirrored monitors are under the same source */
-        mirrored = FALSE;
-        if (!detached)
-        {
-            for (j = 0; j < screen_resources->noutput; ++j)
-            {
-                enum_output_info = pXRRGetOutputInfo( gdi_display, screen_resources, screen_resources->outputs[j] );
-                if (!enum_output_info)
-                    continue;
+        if (detached) mirrored = FALSE;
+        else mirrored = is_output_mirrored( screen_resources, outputs[i], crtc_info );
 
-                if (enum_output_info->connection != RR_Connected || !enum_output_info->crtc)
-                {
-                    pXRRFreeOutputInfo( enum_output_info );
-                    continue;
-                }
-
-                enum_crtc_info = pXRRGetCrtcInfo( gdi_display, screen_resources, enum_output_info->crtc );
-                pXRRFreeOutputInfo( enum_output_info );
-                if (!enum_crtc_info)
-                    continue;
-
-                /* Some outputs may have the same coordinates, aka mirrored. Choose the output with
-                 * the lowest value as primary and the rest will then be replicas in a mirroring set */
-                if (crtc_info->x == enum_crtc_info->x &&
-                    crtc_info->y == enum_crtc_info->y &&
-                    crtc_info->width == enum_crtc_info->width &&
-                    crtc_info->height == enum_crtc_info->height &&
-                    outputs[i] > screen_resources->outputs[j])
-                {
-                    mirrored = TRUE;
-                    pXRRFreeCrtcInfo( enum_crtc_info );
-                    break;
-                }
-
-                pXRRFreeCrtcInfo( enum_crtc_info );
-            }
-        }
-
-        if (!mirrored || detached)
+        if (!mirrored)
         {
             /* Use RROutput as source id. The reason of not using RRCrtc is that we need to detect inactive but
              * attached monitors */
