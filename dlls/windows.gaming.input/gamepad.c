@@ -81,7 +81,7 @@ static void gamepad_destroy( struct gamepad *impl )
     free( impl );
 }
 
-INTERFACE_IMPL_OUTER_IGameControllerImpl( gamepad, IGameControllerInputSink, IGamepad, IGamepad2, END );
+INTERFACE_IMPL_OUTER_IGameControllerImpl( gamepad, IGameControllerInputSink, IGamepad, IGamepad2, END, FIXME );
 
 static HRESULT WINAPI gamepad_Initialize( IGameControllerImpl *iface, IGameController *outer,
                                              IGameControllerProvider *provider )
@@ -253,7 +253,7 @@ struct gamepad_statics
 };
 
 INTERFACE_IMPL_STATIC_IActivationFactory( gamepad_statics, IGamepadStatics, IGamepadStatics2,
-                                          ICustomGameControllerFactory, IAgileObject, END );
+                                          ICustomGameControllerFactory, IAgileObject, END, FIXME );
 
 static HRESULT WINAPI gamepad_statics_ActivateInstance( IActivationFactory *iface, IInspectable **instance )
 {

@@ -31,11 +31,14 @@
 #include <windef.h>
 #include <winbase.h>
 
-#define QUERY_INTERFACES_END( object, iid, out, ... )
 #define QUERY_INTERFACES( object, iid, out, X, ... ) QUERY_INTERFACES_ ## X( object, iid, out, __VA_ARGS__ )
+#define QUERY_INTERFACES_END( object, iid, out, X, ... ) \
+        *out = NULL; \
+        X( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid(iid) ); \
+        return E_NOINTERFACE;
 
-#define INTERFACES_FWD_END( type, base, expr, ... )
 #define INTERFACES_FWD( type, base, expr, X, ... ) INTERFACES_FWD_ ## X( type, base, expr, __VA_ARGS__ )
+#define INTERFACES_FWD_END( type, base, expr, ... )
 
 #define INTERFACE_IMPL_FROM( type, name ) INTERFACE_IMPL_FROM_( type, name, type ## _from_ ## name, name ## _iface )
 #define INTERFACE_IMPL_FROM_( type, name, impl_from, iface_mem ) \
@@ -51,9 +54,6 @@
         struct type *object = impl_from( iface ); \
         TRACE( "object %p, iid %s, out %p.\n", object, debugstr_guid(iid), out ); \
         QUERY_INTERFACES( object, iid, out, name, __VA_ARGS__ ); \
-        *out = NULL; \
-        WARN( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid(iid) ); \
-        return E_NOINTERFACE; \
     }
 
 #define IUNKNOWN_IMPL_ADDREF( type, name ) IUNKNOWN_IMPL_ADDREF_( type, name, type ## _from_ ## name )

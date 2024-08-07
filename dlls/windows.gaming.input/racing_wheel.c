@@ -76,7 +76,7 @@ static void racing_wheel_destroy( struct racing_wheel *impl )
     free( impl );
 }
 
-INTERFACE_IMPL_OUTER_IGameControllerImpl( racing_wheel, IGameControllerInputSink, IRacingWheel, END );
+INTERFACE_IMPL_OUTER_IGameControllerImpl( racing_wheel, IGameControllerInputSink, IRacingWheel, END, FIXME );
 
 static HRESULT WINAPI racing_wheel_Initialize( IGameControllerImpl *iface, IGameController *outer,
                                              IGameControllerProvider *provider )
@@ -182,7 +182,7 @@ struct racing_wheel_statics
 };
 
 INTERFACE_IMPL_STATIC_IActivationFactory( racing_wheel_statics, IRacingWheelStatics, IRacingWheelStatics2,
-                                          ICustomGameControllerFactory, IAgileObject, END );
+                                          ICustomGameControllerFactory, IAgileObject, END, FIXME );
 
 static HRESULT WINAPI racing_wheel_statics_ActivateInstance( IActivationFactory *iface, IInspectable **instance )
 {

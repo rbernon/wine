@@ -174,7 +174,7 @@ struct manager_statics
 };
 
 INTERFACE_IMPL_STATIC_IActivationFactory( manager_statics, IGameControllerFactoryManagerStatics,
-                                          IGameControllerFactoryManagerStatics2, IAgileObject, END )
+                                          IGameControllerFactoryManagerStatics2, IAgileObject, END, FIXME )
 
 static HRESULT WINAPI manager_statics_ActivateInstance( IActivationFactory *iface, IInspectable **instance )
 {
