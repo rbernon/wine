@@ -62,7 +62,7 @@ static void effect_destroy( struct effect *impl )
     free( impl );
 }
 
-INTERFACE_IMPL_OUTER_IWineForceFeedbackEffectImpl( effect, IForceFeedbackEffect, IAgileObject, END );
+INTERFACE_IMPL_OUTER_IWineForceFeedbackEffectImpl( effect, IForceFeedbackEffect, IAgileObject, END, FIXME );
 
 static int effect_reorient_direction( const WineForceFeedbackEffectParameters *params, Vector3 *direction )
 {
@@ -377,7 +377,7 @@ static void motor_destroy( struct motor *impl )
     free( impl );
 }
 
-INTERFACE_IMPL_IForceFeedbackMotor( motor, IAgileObject, END );
+INTERFACE_IMPL_IForceFeedbackMotor( motor, IAgileObject, END, FIXME );
 
 static HRESULT WINAPI motor_get_AreEffectsPaused( IForceFeedbackMotor *iface, BOOLEAN *value )
 {

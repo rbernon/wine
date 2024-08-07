@@ -78,7 +78,7 @@ static void controller_destroy( struct controller *impl )
 }
 
 INTERFACE_IMPL_OUTER_IGameControllerImpl( controller, IGameControllerInputSink,
-                                          IRawGameController, IRawGameController2, END );
+                                          IRawGameController, IRawGameController2, END, FIXME );
 
 static HRESULT WINAPI controller_Initialize( IGameControllerImpl *iface, IGameController *outer,
                                              IGameControllerProvider *provider )
@@ -267,7 +267,7 @@ struct controller_statics
 };
 
 INTERFACE_IMPL_STATIC_IActivationFactory( controller_statics, IRawGameControllerStatics,
-                                          ICustomGameControllerFactory, IAgileObject, END );
+                                          ICustomGameControllerFactory, IAgileObject, END, FIXME );
 
 static HRESULT WINAPI controller_statics_ActivateInstance( IActivationFactory *iface, IInspectable **instance )
 {

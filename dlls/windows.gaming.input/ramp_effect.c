@@ -117,7 +117,7 @@ struct ramp_factory
     const WCHAR *class_name;
 };
 
-INTERFACE_IMPL_STATIC_IActivationFactory( ramp_factory, IAgileObject, END );
+INTERFACE_IMPL_STATIC_IActivationFactory( ramp_factory, IAgileObject, END, FIXME );
 
 static HRESULT WINAPI ramp_factory_ActivateInstance( IActivationFactory *iface, IInspectable **instance )
 {

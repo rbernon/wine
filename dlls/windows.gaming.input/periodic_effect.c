@@ -133,7 +133,7 @@ struct periodic_factory
     const WCHAR *class_name;
 };
 
-INTERFACE_IMPL_STATIC_IActivationFactory( periodic_factory, IPeriodicForceEffectFactory, IAgileObject, END )
+INTERFACE_IMPL_STATIC_IActivationFactory( periodic_factory, IPeriodicForceEffectFactory, IAgileObject, END, FIXME )
 
 static HRESULT WINAPI periodic_factory_ActivateInstance( IActivationFactory *iface, IInspectable **instance )
 {

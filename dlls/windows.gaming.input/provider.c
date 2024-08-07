@@ -76,7 +76,7 @@ static void provider_destroy( struct provider *impl )
     free( impl );
 }
 
-INTERFACE_IMPL_IWineGameControllerProvider( provider, IGameControllerProvider, IAgileObject, END );
+INTERFACE_IMPL_IWineGameControllerProvider( provider, IGameControllerProvider, IAgileObject, END, FIXME );
 
 static BOOL CALLBACK count_ffb_axes( const DIDEVICEOBJECTINSTANCEW *obj, void *args )
 {

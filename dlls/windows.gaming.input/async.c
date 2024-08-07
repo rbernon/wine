@@ -60,7 +60,7 @@ static void async_info_destroy( struct async_info *impl )
     free( impl );
 }
 
-INTERFACE_IMPL_OUTER_IWineAsyncInfoImpl( async_info, IAgileObject, IAsyncInfo, END );
+INTERFACE_IMPL_OUTER_IWineAsyncInfoImpl( async_info, IAgileObject, IAsyncInfo, END, FIXME );
 
 static HRESULT WINAPI async_info_put_Completed( IWineAsyncInfoImpl *iface, IWineAsyncOperationCompletedHandler *handler )
 {

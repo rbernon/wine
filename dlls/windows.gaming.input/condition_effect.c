@@ -96,7 +96,7 @@ struct condition_factory
     const WCHAR *class_name;
 };
 
-INTERFACE_IMPL_STATIC_IActivationFactory( condition_factory, IConditionForceEffectFactory, IAgileObject, END );
+INTERFACE_IMPL_STATIC_IActivationFactory( condition_factory, IConditionForceEffectFactory, IAgileObject, END, FIXME );
 
 static HRESULT WINAPI condition_factory_ActivateInstance( IActivationFactory *iface, IInspectable **instance )
 {
