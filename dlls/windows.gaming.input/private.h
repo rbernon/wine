@@ -138,12 +138,7 @@ extern HRESULT async_operation_effect_result_create( IUnknown *invoker, IUnknown
         struct type *object = CONTAINING_RECORD( iface, struct type, IAgileObject_iface );         \
         return base##_Release( (expr) );                                                           \
     }                                                                                              \
-    static const IAgileObjectVtbl type##_IAgileObject_vtbl =                                       \
-    {                                                                                              \
-        type##_IAgileObject_QueryInterface,                                                        \
-        type##_IAgileObject_AddRef,                                                                \
-        type##_IAgileObject_Release,                                                               \
-    };
+    INTERFACE_VTBL_IAgileObject( type ## _IAgileObject );
 
 static inline const char *debugstr_vector3( const Vector3 *vector )
 {
