@@ -264,15 +264,6 @@ static BOOL xinerama_get_adapters( ULONG_PTR gpu_id, struct x11drv_adapter **new
         index++;
     }
 
-    /* Primary adapter has to be first */
-    if (primary_index)
-    {
-        struct x11drv_adapter tmp;
-        tmp = adapters[primary_index];
-        adapters[primary_index] = adapters[0];
-        adapters[0] = tmp;
-    }
-
     *new_adapters = adapters;
     *count = index;
     pthread_mutex_unlock( &xinerama_mutex );
