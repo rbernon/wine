@@ -42,7 +42,6 @@ static HRESULT WINAPI effect_QueryInterface( IConstantForceEffect *iface, REFIID
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, &IID_IConstantForceEffect ))
     {
         IInspectable_AddRef( (*out = &impl->IConstantForceEffect_iface) );
@@ -168,6 +167,7 @@ static const struct IConstantForceEffectVtbl effect_vtbl =
 struct constant_factory
 {
     IActivationFactory IActivationFactory_iface;
+    IAgileObject IAgileObject_iface;
     LONG ref;
 };
 
@@ -184,10 +184,15 @@ static HRESULT WINAPI activation_QueryInterface( IActivationFactory *iface, REFI
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, &IID_IActivationFactory ))
     {
         IInspectable_AddRef( (*out = &impl->IActivationFactory_iface) );
+        return S_OK;
+    }
+
+    if (IsEqualGUID( iid, &IID_IAgileObject ))
+    {
+        IInspectable_AddRef( (*out = &impl->IAgileObject_iface) );
         return S_OK;
     }
 
@@ -266,9 +271,12 @@ static const struct IActivationFactoryVtbl activation_vtbl =
     activation_ActivateInstance,
 };
 
+DEFINE_IAGILEOBJECT( constant_factory, IActivationFactory, &object->IActivationFactory_iface );
+
 static struct constant_factory constant_statics =
 {
     {&activation_vtbl},
+    {&constant_factory_IAgileObject_vtbl},
     1,
 };
 
