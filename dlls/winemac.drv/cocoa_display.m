@@ -574,7 +574,6 @@ int macdrv_get_adapters(uint64_t gpu_id, struct macdrv_adapter** new_adapters, i
     uint32_t display_id_count;
     struct macdrv_adapter* adapters;
     struct macdrv_gpu gpu;
-    int primary_index = 0;
     int adapter_count = 0;
     int ret = -1;
     uint32_t i;
@@ -608,24 +607,10 @@ int macdrv_get_adapters(uint64_t gpu_id, struct macdrv_adapter** new_adapters, i
         {
             adapters[adapter_count].id = display_ids[i];
             adapters[adapter_count].state_flags = DISPLAY_DEVICE_ATTACHED_TO_DESKTOP;
-
             if (CGDisplayIsMain(display_ids[i]))
-            {
                 adapters[adapter_count].state_flags |= DISPLAY_DEVICE_PRIMARY_DEVICE;
-                primary_index = adapter_count;
-            }
-
             adapter_count++;
         }
-    }
-
-    /* Make sure the first adapter is primary if the GPU is primary */
-    if (primary_index)
-    {
-        struct macdrv_adapter tmp;
-        tmp = adapters[0];
-        adapters[0] = adapters[primary_index];
-        adapters[primary_index] = tmp;
     }
 
     *new_adapters = adapters;
