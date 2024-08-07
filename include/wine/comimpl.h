@@ -34,6 +34,9 @@
 #define QUERY_INTERFACES_END( object, iid, out, ... )
 #define QUERY_INTERFACES( object, iid, out, X, ... ) QUERY_INTERFACES_ ## X( object, iid, out, __VA_ARGS__ )
 
+#define INTERFACES_FWD_END( type, base, expr, ... )
+#define INTERFACES_FWD( type, base, expr, X, ... ) INTERFACES_FWD_ ## X( type, base, expr, __VA_ARGS__ )
+
 #define INTERFACE_IMPL_FROM( type, name ) INTERFACE_IMPL_FROM_( type, name, type ## _from_ ## name, name ## _iface )
 #define INTERFACE_IMPL_FROM_( type, name, impl_from, iface_mem ) \
     static struct type *impl_from( name *iface ) \
