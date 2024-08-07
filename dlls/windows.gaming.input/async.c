@@ -32,6 +32,7 @@ struct async_info
 {
     IWineAsyncInfoImpl IWineAsyncInfoImpl_iface;
     IAsyncInfo IAsyncInfo_iface;
+    IAgileObject IAgileObject_iface;
     IInspectable *IInspectable_outer;
     LONG ref;
 
@@ -60,7 +61,6 @@ static HRESULT WINAPI async_impl_QueryInterface( IWineAsyncInfoImpl *iface, REFI
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, &IID_IWineAsyncInfoImpl ))
     {
         IInspectable_AddRef( (*out = &impl->IWineAsyncInfoImpl_iface) );
@@ -70,6 +70,12 @@ static HRESULT WINAPI async_impl_QueryInterface( IWineAsyncInfoImpl *iface, REFI
     if (IsEqualGUID( iid, &IID_IAsyncInfo ))
     {
         IInspectable_AddRef( (*out = &impl->IAsyncInfo_iface) );
+        return S_OK;
+    }
+
+    if (IsEqualGUID( iid, &IID_IAgileObject ))
+    {
+        IInspectable_AddRef( (*out = &impl->IAgileObject_iface) );
         return S_OK;
     }
 
@@ -299,6 +305,8 @@ static const struct IAsyncInfoVtbl async_info_vtbl =
     async_info_Close,
 };
 
+DEFINE_IAGILEOBJECT( async_info, IInspectable, object->IInspectable_outer );
+
 static void CALLBACK async_info_callback( TP_CALLBACK_INSTANCE *instance, void *iface, TP_WORK *work )
 {
     struct async_info *impl = impl_from_IWineAsyncInfoImpl( iface );
@@ -340,6 +348,7 @@ static HRESULT async_info_create( IUnknown *invoker, IUnknown *param, async_oper
     if (!(impl = calloc( 1, sizeof(struct async_info) ))) return E_OUTOFMEMORY;
     impl->IWineAsyncInfoImpl_iface.lpVtbl = &async_impl_vtbl;
     impl->IAsyncInfo_iface.lpVtbl = &async_info_vtbl;
+    impl->IAgileObject_iface.lpVtbl = &async_info_IAgileObject_vtbl;
     impl->IInspectable_outer = outer;
     impl->ref = 1;
 
@@ -383,7 +392,6 @@ static HRESULT WINAPI async_bool_QueryInterface( IAsyncOperation_boolean *iface,
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, &IID_IAsyncOperation_boolean ))
     {
         IInspectable_AddRef( (*out = &impl->IAsyncOperation_boolean_iface) );
@@ -528,7 +536,6 @@ static HRESULT WINAPI async_result_QueryInterface( IAsyncOperation_ForceFeedback
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, &IID_IAsyncOperation_ForceFeedbackLoadEffectResult ))
     {
         IInspectable_AddRef( (*out = &impl->IAsyncOperation_ForceFeedbackLoadEffectResult_iface) );
