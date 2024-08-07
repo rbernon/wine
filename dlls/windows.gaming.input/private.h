@@ -122,6 +122,29 @@ extern HRESULT async_operation_effect_result_create( IUnknown *invoker, IUnknown
 #define DEFINE_IINSPECTABLE_OUTER( pfx, iface_type, impl_type, outer_iface )                       \
     DEFINE_IINSPECTABLE_( pfx, iface_type, impl_type, impl_from_##iface_type, iface_type##_iface, impl->outer_iface )
 
+#define DEFINE_IAGILEOBJECT( type, base, expr )             \
+    static HRESULT WINAPI type##_IAgileObject_QueryInterface( IAgileObject *iface, REFIID iid, void **out ) \
+    {                                                                                              \
+        struct type *object = CONTAINING_RECORD( iface, struct type, IAgileObject_iface );         \
+        return base##_QueryInterface( (expr), iid, out );                                          \
+    }                                                                                              \
+    static ULONG WINAPI type##_IAgileObject_AddRef( IAgileObject *iface )                          \
+    {                                                                                              \
+        struct type *object = CONTAINING_RECORD( iface, struct type, IAgileObject_iface );         \
+        return base##_AddRef( (expr) );                                                            \
+    }                                                                                              \
+    static ULONG WINAPI type##_IAgileObject_Release( IAgileObject *iface )                         \
+    {                                                                                              \
+        struct type *object = CONTAINING_RECORD( iface, struct type, IAgileObject_iface );         \
+        return base##_Release( (expr) );                                                           \
+    }                                                                                              \
+    static const IAgileObjectVtbl type##_IAgileObject_vtbl =                                       \
+    {                                                                                              \
+        type##_IAgileObject_QueryInterface,                                                        \
+        type##_IAgileObject_AddRef,                                                                \
+        type##_IAgileObject_Release,                                                               \
+    };
+
 static inline const char *debugstr_vector3( const Vector3 *vector )
 {
     if (!vector) return "(null)";

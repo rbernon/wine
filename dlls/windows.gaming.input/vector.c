@@ -26,6 +26,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(combase);
 struct iterator
 {
     IIterator_IInspectable IIterator_IInspectable_iface;
+    IAgileObject IAgileObject_iface;
     const GUID *iid;
     LONG ref;
 
@@ -47,10 +48,15 @@ static HRESULT WINAPI iterator_QueryInterface( IIterator_IInspectable *iface, RE
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, impl->iid ))
     {
         IInspectable_AddRef( (*out = &impl->IIterator_IInspectable_iface) );
+        return S_OK;
+    }
+
+    if (IsEqualGUID( iid, &IID_IAgileObject ))
+    {
+        IInspectable_AddRef( (*out = &impl->IAgileObject_iface) );
         return S_OK;
     }
 
@@ -152,10 +158,13 @@ static const IIterator_IInspectableVtbl iterator_vtbl =
     iterator_GetMany,
 };
 
+DEFINE_IAGILEOBJECT( iterator, IIterator_IInspectable, &object->IIterator_IInspectable_iface );
+
 struct vector_view
 {
     IVectorView_IInspectable IVectorView_IInspectable_iface;
     IIterable_IInspectable IIterable_IInspectable_iface;
+    IAgileObject IAgileObject_iface;
     struct vector_iids iids;
     LONG ref;
 
@@ -176,7 +185,6 @@ static HRESULT WINAPI vector_view_QueryInterface( IVectorView_IInspectable *ifac
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, impl->iids.view ))
     {
         IInspectable_AddRef( (*out = &impl->IVectorView_IInspectable_iface) );
@@ -186,6 +194,12 @@ static HRESULT WINAPI vector_view_QueryInterface( IVectorView_IInspectable *ifac
     if (IsEqualGUID( iid, impl->iids.iterable ))
     {
         IInspectable_AddRef( (*out = &impl->IIterable_IInspectable_iface) );
+        return S_OK;
+    }
+
+    if (IsEqualGUID( iid, &IID_IAgileObject ))
+    {
+        IInspectable_AddRef( (*out = &impl->IAgileObject_iface) );
         return S_OK;
     }
 
@@ -323,6 +337,7 @@ static HRESULT WINAPI iterable_view_First( IIterable_IInspectable *iface, IItera
 
     if (!(iter = calloc( 1, sizeof(struct iterator) ))) return E_OUTOFMEMORY;
     iter->IIterator_IInspectable_iface.lpVtbl = &iterator_vtbl;
+    iter->IAgileObject_iface.lpVtbl = &iterator_IAgileObject_vtbl;
     iter->iid = impl->iids.iterator;
     iter->ref = 1;
 
@@ -346,10 +361,13 @@ static const struct IIterable_IInspectableVtbl iterable_view_vtbl =
     iterable_view_First,
 };
 
+DEFINE_IAGILEOBJECT( vector_view, IVectorView_IInspectable, &object->IVectorView_IInspectable_iface );
+
 struct vector
 {
     IVector_IInspectable IVector_IInspectable_iface;
     IIterable_IInspectable IIterable_IInspectable_iface;
+    IAgileObject IAgileObject_iface;
     struct vector_iids iids;
     LONG ref;
 
@@ -371,7 +389,6 @@ static HRESULT WINAPI vector_QueryInterface( IVector_IInspectable *iface, REFIID
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
         IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
         IsEqualGUID( iid, impl->iids.vector ))
     {
         IInspectable_AddRef( (*out = &impl->IVector_IInspectable_iface) );
@@ -381,6 +398,12 @@ static HRESULT WINAPI vector_QueryInterface( IVector_IInspectable *iface, REFIID
     if (IsEqualGUID( iid, impl->iids.iterable ))
     {
         IInspectable_AddRef( (*out = &impl->IIterable_IInspectable_iface) );
+        return S_OK;
+    }
+
+    if (IsEqualGUID( iid, &IID_IAgileObject ))
+    {
+        IInspectable_AddRef( (*out = &impl->IAgileObject_iface) );
         return S_OK;
     }
 
@@ -463,6 +486,7 @@ static HRESULT WINAPI vector_GetView( IVector_IInspectable *iface, IVectorView_I
     if (!(view = calloc( 1, offsetof( struct vector_view, elements[impl->size] ) ))) return E_OUTOFMEMORY;
     view->IVectorView_IInspectable_iface.lpVtbl = &vector_view_vtbl;
     view->IIterable_IInspectable_iface.lpVtbl = &iterable_view_vtbl;
+    view->IAgileObject_iface.lpVtbl = &vector_view_IAgileObject_vtbl;
     view->iids = impl->iids;
     view->ref = 1;
 
@@ -657,6 +681,8 @@ static const struct IIterable_IInspectableVtbl iterable_vtbl =
     iterable_First,
 };
 
+DEFINE_IAGILEOBJECT( vector, IVector_IInspectable, &object->IVector_IInspectable_iface );
+
 HRESULT vector_create( const struct vector_iids *iids, void **out )
 {
     struct vector *impl;
@@ -666,6 +692,7 @@ HRESULT vector_create( const struct vector_iids *iids, void **out )
     if (!(impl = calloc( 1, sizeof(*impl) ))) return E_OUTOFMEMORY;
     impl->IVector_IInspectable_iface.lpVtbl = &vector_vtbl;
     impl->IIterable_IInspectable_iface.lpVtbl = &iterable_vtbl;
+    impl->IAgileObject_iface.lpVtbl = &vector_IAgileObject_vtbl;
     impl->iids = *iids;
     impl->ref = 1;
 
