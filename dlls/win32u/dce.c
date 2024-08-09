@@ -177,6 +177,38 @@ static BOOL scaled_surface_flush( struct window_surface *window_surface, const R
 
     dst = map_dpi_rect( src, surface->dpi_from, surface->dpi_to );
 
+if (1)
+{
+    static const char magic[2] = "BM";
+    static UINT count;
+    struct
+    {
+        DWORD length;
+        DWORD reserved;
+        DWORD offset;
+        BITMAPINFOHEADER biHeader;
+    } header =
+    {
+        .length = color_info->bmiHeader.biSizeImage + sizeof(header) + 2, .offset = sizeof(header) + 2,
+        .biHeader =
+        {
+            .biSize = sizeof(BITMAPINFOHEADER), .biWidth = color_info->bmiHeader.biWidth, .biHeight = -color_info->bmiHeader.biHeight, .biPlanes = 1,
+            .biBitCount = color_info->bmiHeader.biBitCount, .biCompression = BI_RGB, .biSizeImage = color_info->bmiHeader.biSizeImage,
+        },
+    };
+    char path[256];
+    FILE *file;
+
+ERR("window_surface %p rect %s dirty %s shape %u\n", window_surface, wine_dbgstr_rect(rect), wine_dbgstr_rect(dirty), shape_changed);
+
+    sprintf(path, "/tmp/surface-scaled-%p-%u.bmp", window_surface, count++);
+    file = fopen(path, "w");
+    fwrite(magic, 1, sizeof(magic), file);
+    fwrite(&header, 1, sizeof(header), file);
+    fwrite(color_bits, 1, color_info->bmiHeader.biSizeImage, file);
+    fclose(file);
+}
+
     hdc_dst = NtGdiCreateCompatibleDC( 0 );
     hdc_src = NtGdiCreateCompatibleDC( 0 );
 
