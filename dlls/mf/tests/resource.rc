@@ -146,12 +146,36 @@ rgb32frame-grabber.bmp RCDATA rgb32frame-grabber.bmp
 rgb32frame-extra-width.bmp RCDATA rgb32frame-extra-width.bmp
 
 /* Generated from running the tests on Windows */
+/* @makedep: rgb32frame-extra-height.bmp */
+rgb32frame-extra-height.bmp RCDATA rgb32frame-extra-height.bmp
+
+/* Generated from running the tests on Windows */
+/* @makedep: rgb32frame-extra-width-height.bmp */
+rgb32frame-extra-width-height.bmp RCDATA rgb32frame-extra-width-height.bmp
+
+/* Generated from running the tests on Windows */
 /* @makedep: nv12frame-extra-width.bmp */
 nv12frame-extra-width.bmp RCDATA nv12frame-extra-width.bmp
 
 /* Generated from running the tests on Windows */
 /* @makedep: nv12frame-extra-width-2d.bmp */
 nv12frame-extra-width-2d.bmp RCDATA nv12frame-extra-width-2d.bmp
+
+/* Generated from running the tests on Windows */
+/* @makedep: nv12frame-extra-height.bmp */
+nv12frame-extra-height.bmp RCDATA nv12frame-extra-height.bmp
+
+/* Generated from running the tests on Windows */
+/* @makedep: nv12frame-extra-height-2d.bmp */
+nv12frame-extra-height-2d.bmp RCDATA nv12frame-extra-height-2d.bmp
+
+/* Generated from running the tests on Windows */
+/* @makedep: nv12frame-extra-width-height.bmp */
+nv12frame-extra-width-height.bmp RCDATA nv12frame-extra-width-height.bmp
+
+/* Generated from running the tests on Windows */
+/* @makedep: nv12frame-extra-width-height-2d.bmp */
+nv12frame-extra-width-height-2d.bmp RCDATA nv12frame-extra-width-height-2d.bmp
 
 /* Generated from running the tests on Windows */
 /* @makedep: rgb555frame.bmp */
