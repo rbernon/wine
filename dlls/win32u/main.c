@@ -1779,7 +1779,7 @@ BOOL SYSCALL_API NtUserGetWindowPlacement( HWND hwnd, WINDOWPLACEMENT *placement
     SYSCALL_FUNC( NtUserGetWindowPlacement );
 }
 
-int SYSCALL_API NtUserGetWindowRgnEx( HWND hwnd, HRGN hrgn, UINT unk )
+int SYSCALL_API NtUserGetWindowRgnEx( HWND hwnd, HRGN hrgn, UINT dpi )
 {
     SYSCALL_FUNC( NtUserGetWindowRgnEx );
 }
