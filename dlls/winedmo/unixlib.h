@@ -16,30 +16,23 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#ifndef __WINE_WINEDMO_UNIXLIB_H
+#define __WINE_WINEDMO_UNIXLIB_H
+
 #include <stddef.h>
 #include <stdarg.h>
 
 #include "windef.h"
 #include "winbase.h"
 
-#include "wine/debug.h"
-#include "unixlib.h"
+#include "wine/unixlib.h"
 
-WINE_DEFAULT_DEBUG_CHANNEL(dmo);
-
-BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
+enum unix_funcs
 {
-    TRACE( "instance %p, reason %lu, reserved %p\n", instance, reason, reserved );
+    unix_process_attach,
+    unix_funcs_count,
+};
 
-    if (reason == DLL_PROCESS_ATTACH)
-    {
-        NTSTATUS status;
-        DisableThreadLibraryCalls( instance );
+#define UNIX_CALL( func, params ) WINE_UNIX_CALL( unix_##func, params )
 
-        status = __wine_init_unix_call();
-        if (!status) status = UNIX_CALL( process_attach, NULL );
-        if (status) WARN( "Failed to init unixlib, status %#lx\n", status );
-    }
-
-    return TRUE;
-}
+#endif /* __WINE_WINEDMO_UNIXLIB_H */

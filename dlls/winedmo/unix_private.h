@@ -16,30 +16,14 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#include "config.h"
+
 #include <stddef.h>
 #include <stdarg.h>
 
+#include "ntstatus.h"
+#define WIN32_NO_STATUS
 #include "windef.h"
 #include "winbase.h"
 
-#include "wine/debug.h"
 #include "unixlib.h"
-
-WINE_DEFAULT_DEBUG_CHANNEL(dmo);
-
-BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
-{
-    TRACE( "instance %p, reason %lu, reserved %p\n", instance, reason, reserved );
-
-    if (reason == DLL_PROCESS_ATTACH)
-    {
-        NTSTATUS status;
-        DisableThreadLibraryCalls( instance );
-
-        status = __wine_init_unix_call();
-        if (!status) status = UNIX_CALL( process_attach, NULL );
-        if (status) WARN( "Failed to init unixlib, status %#lx\n", status );
-    }
-
-    return TRUE;
-}
