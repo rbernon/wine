@@ -504,6 +504,7 @@ static void create_client_cocoa_view(struct macdrv_win_data *data)
 static void create_cocoa_window(struct macdrv_win_data *data)
 {
     struct macdrv_thread_data *thread_data = macdrv_init_thread_data();
+    UINT dpi = get_win_monitor_dpi(data->hwnd);
     WCHAR text[1024];
     struct macdrv_window_features wf;
     CGRect frame;
@@ -514,7 +515,7 @@ static void create_cocoa_window(struct macdrv_win_data *data)
     DWORD layered_flags;
 
     if ((win_rgn = NtGdiCreateRectRgn(0, 0, 0, 0)) &&
-        NtUserGetWindowRgnEx(data->hwnd, win_rgn, 0) == ERROR) /* FIXME: DPI */
+        NtUserGetWindowRgnEx(data->hwnd, win_rgn, dpi) == ERROR) /* FIXME: DPI */
     {
         NtGdiDeleteObjectApp(win_rgn);
         win_rgn = 0;
