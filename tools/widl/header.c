@@ -300,8 +300,10 @@ void write_type_left(FILE *h, const decl_spec_t *ds, enum name_type name_type, b
   else {
     switch (type_get_type_detect_alias(t)) {
       case TYPE_ENUM:
-        if (!define) fprintf(h, "enum %s", decl_name ? decl_name : "");
-        else if (!t->written) {
+        if (!define) {
+          if (name_type == NAME_DEFAULT && name) fprintf(h, "enum %s", name);
+          else fprintf(h, "enum %s", decl_name ? decl_name : "");
+        } else if (!t->written) {
           assert(t->defined);
           if (decl_name) fprintf(h, "enum %s {\n", decl_name);
           else fprintf(h, "enum {\n");
@@ -316,8 +318,10 @@ void write_type_left(FILE *h, const decl_spec_t *ds, enum name_type name_type, b
         break;
       case TYPE_STRUCT:
       case TYPE_ENCAPSULATED_UNION:
-        if (!define) fprintf(h, "struct %s", decl_name ? decl_name : "");
-        else if (!t->written) {
+        if (!define) {
+          if (name_type == NAME_DEFAULT && name) fprintf(h, "struct %s", name);
+          else fprintf(h, "struct %s", decl_name ? decl_name : "");
+        } else if (!t->written) {
           assert(t->defined);
           if (decl_name) fprintf(h, "struct %s {\n", decl_name);
           else fprintf(h, "struct {\n");
@@ -334,8 +338,10 @@ void write_type_left(FILE *h, const decl_spec_t *ds, enum name_type name_type, b
         else fprintf(h, "struct %s", name ? name : "");
         break;
       case TYPE_UNION:
-        if (!define) fprintf(h, "union %s", decl_name ? decl_name : "");
-        else if (!t->written) {
+        if (!define) {
+          if (name_type == NAME_DEFAULT && name) fprintf(h, "union %s", name);
+          else fprintf(h, "union %s", decl_name ? decl_name : "");
+        } else if (!t->written) {
           assert(t->defined);
           if (decl_name) fprintf(h, "union %s {\n", decl_name);
           else fprintf(h, "union {\n");
