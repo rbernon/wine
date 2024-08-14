@@ -442,7 +442,7 @@ static BOOL is_hidraw_enabled(WORD vid, WORD pid, const USAGE_AND_PAGE *usages, 
     if (usages->UsagePage != HID_USAGE_PAGE_GENERIC) return TRUE;
     if (usages->Usage != HID_USAGE_GENERIC_GAMEPAD && usages->Usage != HID_USAGE_GENERIC_JOYSTICK) return TRUE;
 
-    if (!check_bus_option(L"Enable SDL", 1) && check_bus_option(L"DisableInput", 0))
+    if (!check_bus_option(L"Enable SDL", 0) && check_bus_option(L"DisableInput", 0))
         prefer_hidraw = TRUE;
 
     if (is_dualshock4_gamepad(vid, pid)) prefer_hidraw = TRUE;
@@ -1070,7 +1070,7 @@ static NTSTATUS fdo_pnp_dispatch(DEVICE_OBJECT *device, IRP *irp)
         mouse_device_create();
         keyboard_device_create();
 
-        if ((enable_sdl = check_bus_option(L"Enable SDL", 1)))
+        if ((enable_sdl = check_bus_option(L"Enable SDL", 0)))
             enable_sdl = !sdl_driver_init();
         udev_driver_init(enable_sdl);
         iohid_driver_init();
