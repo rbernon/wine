@@ -1147,7 +1147,7 @@ static void get_device_subsystem_info(struct udev_device *dev, const char *subsy
         {
             if ((next = strchr(next, '\n'))) next += 1;
             else next = ptr + strlen(ptr);
-            TRACE("%s uevent %s\n", subsystem, debugstr_an(ptr, next - ptr - 1));
+            ERR("%s uevent %s\n", subsystem, debugstr_an(ptr, next - ptr - 1));
 
             if (!strncmp(ptr, "HID_UNIQ=", 9))
             {
