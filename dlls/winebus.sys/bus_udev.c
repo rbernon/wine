@@ -1133,7 +1133,7 @@ static const struct hid_device_vtbl lnxev_device_vtbl =
 #endif /* HAS_PROPER_INPUT_HEADER */
 
 static void get_device_subsystem_info(struct udev_device *dev, const char *subsystem, const char *devtype,
-                                      struct device_desc *desc, int *bus)
+                                      struct device_desc *desc, int *bus, char *container)
 {
     struct udev_device *parent = NULL;
     const char *ptr, *next, *tmp;
@@ -1165,7 +1165,7 @@ static void get_device_subsystem_info(struct udev_device *dev, const char *subsy
             {
                 if (!(tmp = strchr(ptr, '/')) || tmp >= next) tmp = next;
                 else if (desc->input == -1) sscanf(tmp, "/input%d\n", &desc->input);
-                ntdll_umbstowcs(ptr + 9, tmp - ptr - 9, desc->container, ARRAY_SIZE(desc->container));
+                lstrcpynA(container, ptr + 9, min(tmp - ptr - 10, MAX_PATH));
             }
             if (!strncmp(ptr, "HID_ID=", 7))
             {
@@ -1191,7 +1191,7 @@ static void get_device_subsystem_info(struct udev_device *dev, const char *subsy
                 {
                     if (!(tmp = strchr(ptr, '/')) || tmp >= next) tmp = next - 1;
                     else if (desc->input == -1) sscanf(tmp, "/input%d\n", &desc->input);
-                    ntdll_umbstowcs(ptr + 6, tmp - ptr - 6, desc->container, ARRAY_SIZE(desc->container));
+                    lstrcpynA(container, ptr + 6, min(tmp - ptr - 7, MAX_PATH));
                 }
                 if (!strncmp(ptr, "PRODUCT=", 8))
                     sscanf(ptr, "PRODUCT=%x/%x/%x/%x\n", bus, &desc->vid, &desc->pid, &desc->version);
@@ -1224,6 +1224,7 @@ static void udev_add_device(struct udev_device *dev, int fd)
     {
         .input = -1,
     };
+    char container[MAX_PATH];
     struct base_device *impl;
     const char *subsystem;
     const char *devnode;
@@ -1243,10 +1244,11 @@ static void udev_add_device(struct udev_device *dev, int fd)
 
     TRACE("udev %s syspath %s\n", debugstr_a(devnode), udev_device_get_syspath(dev));
 
-    get_device_subsystem_info(dev, "hid", NULL, &desc, &bus);
-    get_device_subsystem_info(dev, "input", NULL, &desc, &bus);
-    get_device_subsystem_info(dev, "usb", "usb_device", &desc, &bus);
+    get_device_subsystem_info(dev, "hid", NULL, &desc, &bus, container);
+    get_device_subsystem_info(dev, "input", NULL, &desc, &bus, container);
+    get_device_subsystem_info(dev, "usb", "usb_device", &desc, &bus, NULL);
     if (bus == BUS_BLUETOOTH) desc.is_bluetooth = TRUE;
+    parse_container_id(bus, container, &desc);
 
     subsystem = udev_device_get_subsystem(dev);
     if (!strcmp(subsystem, "hidraw"))
