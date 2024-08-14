@@ -1163,8 +1163,9 @@ static void get_device_subsystem_info(struct udev_device *dev, const char *subsy
             }
             if (!strncmp(ptr, "HID_PHYS=", 9))
             {
-                if (!(tmp = strstr(ptr, "/input")) || tmp >= next) continue;
-                if (desc->input == -1) sscanf(tmp, "/input%d\n", &desc->input);
+                if (!(tmp = strchr(ptr, '/')) || tmp >= next) tmp = next;
+                else if (desc->input == -1) sscanf(tmp, "/input%d\n", &desc->input);
+                ntdll_umbstowcs(ptr + 9, tmp - ptr - 9, desc->container, ARRAY_SIZE(desc->container));
             }
             if (!strncmp(ptr, "HID_ID=", 7))
             {
@@ -1188,8 +1189,9 @@ static void get_device_subsystem_info(struct udev_device *dev, const char *subsy
                 }
                 if (!strncmp(ptr, "PHYS=\"", 6))
                 {
-                    if (!(tmp = strstr(ptr, "/input")) || tmp >= next) continue;
-                    if (desc->input == -1) sscanf(tmp, "/input%d\n", &desc->input);
+                    if (!(tmp = strchr(ptr, '/')) || tmp >= next) tmp = next - 1;
+                    else if (desc->input == -1) sscanf(tmp, "/input%d\n", &desc->input);
+                    ntdll_umbstowcs(ptr + 6, tmp - ptr - 6, desc->container, ARRAY_SIZE(desc->container));
                 }
                 if (!strncmp(ptr, "PRODUCT=", 8))
                     sscanf(ptr, "PRODUCT=%x/%x/%x/%x\n", bus, &desc->vid, &desc->pid, &desc->version);

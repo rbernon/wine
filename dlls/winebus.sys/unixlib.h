@@ -45,6 +45,7 @@ struct device_desc
     WCHAR manufacturer[MAX_PATH];
     WCHAR product[MAX_PATH];
     WCHAR serialnumber[MAX_PATH];
+    GUID container;
 };
 
 struct sdl_bus_options
