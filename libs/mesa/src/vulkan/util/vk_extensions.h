@@ -126,7 +126,7 @@ struct vk_instance_extension_table {
 };
 
 
-#define VK_DEVICE_EXTENSION_COUNT 330
+#define VK_DEVICE_EXTENSION_COUNT 337
 
 extern const VkExtensionProperties vk_device_extensions[];
 
@@ -179,6 +179,7 @@ struct vk_device_extension_table {
          bool KHR_maintenance4;
          bool KHR_maintenance5;
          bool KHR_maintenance6;
+         bool KHR_maintenance7;
          bool KHR_map_memory2;
          bool KHR_multiview;
          bool KHR_performance_query;
@@ -207,6 +208,7 @@ struct vk_device_extension_table {
          bool KHR_shader_maximal_reconvergence;
          bool KHR_shader_non_semantic_info;
          bool KHR_shader_quad_control;
+         bool KHR_shader_relaxed_extended_instruction;
          bool KHR_shader_subgroup_extended_types;
          bool KHR_shader_subgroup_rotate;
          bool KHR_shader_subgroup_uniform_control_flow;
@@ -288,6 +290,7 @@ struct vk_device_extension_table {
          bool EXT_index_type_uint8;
          bool EXT_inline_uniform_block;
          bool EXT_legacy_dithering;
+         bool EXT_legacy_vertex_attributes;
          bool EXT_line_rasterization;
          bool EXT_load_store_op_none;
          bool EXT_map_memory_placed;
@@ -329,6 +332,7 @@ struct vk_device_extension_table {
          bool EXT_shader_image_atomic_int64;
          bool EXT_shader_module_identifier;
          bool EXT_shader_object;
+         bool EXT_shader_replicated_composites;
          bool EXT_shader_stencil_export;
          bool EXT_shader_subgroup_ballot;
          bool EXT_shader_subgroup_vote;
@@ -393,6 +397,7 @@ struct vk_device_extension_table {
          bool IMG_relaxed_line_rasterization;
          bool INTEL_performance_query;
          bool INTEL_shader_integer_functions2;
+         bool MESA_image_alignment_control;
          bool MSFT_layered_driver;
          bool NVX_binary_import;
          bool NVX_image_view_handle;
@@ -433,9 +438,11 @@ struct vk_device_extension_table {
          bool NV_optical_flow;
          bool NV_per_stage_descriptor_set;
          bool NV_present_barrier;
+         bool NV_raw_access_chains;
          bool NV_ray_tracing;
          bool NV_ray_tracing_invocation_reorder;
          bool NV_ray_tracing_motion_blur;
+         bool NV_ray_tracing_validation;
          bool NV_representative_fragment_test;
          bool NV_sample_mask_override_coverage;
          bool NV_scissor_exclusive;
@@ -513,6 +520,7 @@ struct vk_device_extension_table {
          bool KHR_maintenance4;
          bool KHR_maintenance5;
          bool KHR_maintenance6;
+         bool KHR_maintenance7;
          bool KHR_map_memory2;
          bool KHR_multiview;
          bool KHR_performance_query;
@@ -541,6 +549,7 @@ struct vk_device_extension_table {
          bool KHR_shader_maximal_reconvergence;
          bool KHR_shader_non_semantic_info;
          bool KHR_shader_quad_control;
+         bool KHR_shader_relaxed_extended_instruction;
          bool KHR_shader_subgroup_extended_types;
          bool KHR_shader_subgroup_rotate;
          bool KHR_shader_subgroup_uniform_control_flow;
@@ -622,6 +631,7 @@ struct vk_device_extension_table {
          bool EXT_index_type_uint8;
          bool EXT_inline_uniform_block;
          bool EXT_legacy_dithering;
+         bool EXT_legacy_vertex_attributes;
          bool EXT_line_rasterization;
          bool EXT_load_store_op_none;
          bool EXT_map_memory_placed;
@@ -663,6 +673,7 @@ struct vk_device_extension_table {
          bool EXT_shader_image_atomic_int64;
          bool EXT_shader_module_identifier;
          bool EXT_shader_object;
+         bool EXT_shader_replicated_composites;
          bool EXT_shader_stencil_export;
          bool EXT_shader_subgroup_ballot;
          bool EXT_shader_subgroup_vote;
@@ -727,6 +738,7 @@ struct vk_device_extension_table {
          bool IMG_relaxed_line_rasterization;
          bool INTEL_performance_query;
          bool INTEL_shader_integer_functions2;
+         bool MESA_image_alignment_control;
          bool MSFT_layered_driver;
          bool NVX_binary_import;
          bool NVX_image_view_handle;
@@ -767,9 +779,11 @@ struct vk_device_extension_table {
          bool NV_optical_flow;
          bool NV_per_stage_descriptor_set;
          bool NV_present_barrier;
+         bool NV_raw_access_chains;
          bool NV_ray_tracing;
          bool NV_ray_tracing_invocation_reorder;
          bool NV_ray_tracing_motion_blur;
+         bool NV_ray_tracing_validation;
          bool NV_representative_fragment_test;
          bool NV_sample_mask_override_coverage;
          bool NV_scissor_exclusive;
