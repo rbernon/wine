@@ -568,7 +568,7 @@ static HRESULT WINAPI resampler_IMediaObject_GetOutputType(IMediaObject *iface, 
     return type ? get_available_media_type(type_index, type, TRUE) : S_OK;
 }
 
-static HRESULT check_dmo_media_type(const DMO_MEDIA_TYPE *type, UINT *block_alignment)
+static HRESULT check_dmo_media_type(const DMO_MEDIA_TYPE *type)
 {
     WAVEFORMATEX *wfx;
     ULONG i;
@@ -588,7 +588,6 @@ static HRESULT check_dmo_media_type(const DMO_MEDIA_TYPE *type, UINT *block_alig
     if (!wfx->wBitsPerSample || !wfx->nAvgBytesPerSec || !wfx->nChannels || !wfx->nSamplesPerSec || !wfx->nBlockAlign)
         return DMO_E_INVALIDTYPE;
 
-    *block_alignment = wfx->nBlockAlign;
     return S_OK;
 }
 
@@ -596,7 +595,6 @@ static HRESULT WINAPI resampler_IMediaObject_SetInputType(IMediaObject *iface, D
         const DMO_MEDIA_TYPE *type, DWORD flags)
 {
     struct resampler *resampler = resampler_from_IMediaObject(iface);
-    UINT32 block_alignment;
     HRESULT hr;
 
     TRACE("resampler %p, index %#lx, type %p, flags %#lx.\n", resampler, index, type, flags);
@@ -613,7 +611,7 @@ static HRESULT WINAPI resampler_IMediaObject_SetInputType(IMediaObject *iface, D
         return S_OK;
     }
 
-    if (FAILED(hr = check_dmo_media_type(type, &block_alignment)))
+    if (FAILED(hr = check_dmo_media_type(type)))
         return hr;
     if (flags & DMO_SET_TYPEF_TEST_ONLY)
         return S_OK;
@@ -626,7 +624,12 @@ static HRESULT WINAPI resampler_IMediaObject_SetInputType(IMediaObject *iface, D
     if (FAILED(hr = MoCopyMediaType(&resampler->input_type, type)))
         WARN("Failed to create input type from media type, hr %#lx\n", hr);
     else
-        resampler->input_info.cbSize = block_alignment;
+    {
+        WAVEFORMATEX *format = (WAVEFORMATEX *)resampler->input_type.pbFormat;
+        format->nBlockAlign = format->wBitsPerSample * format->nChannels / 8;
+        format->nAvgBytesPerSec = format->nSamplesPerSec * format->nBlockAlign;
+        resampler->input_info.cbSize = format->nBlockAlign;
+    }
 
     return hr;
 }
@@ -635,7 +638,6 @@ static HRESULT WINAPI resampler_IMediaObject_SetOutputType(IMediaObject *iface, 
         const DMO_MEDIA_TYPE *type, DWORD flags)
 {
     struct resampler *resampler = resampler_from_IMediaObject(iface);
-    UINT32 block_alignment;
     HRESULT hr;
 
     TRACE("resampler %p, index %#lx, type %p, flags %#lx.\n", resampler, index, type, flags);
@@ -652,7 +654,7 @@ static HRESULT WINAPI resampler_IMediaObject_SetOutputType(IMediaObject *iface, 
 
     if (IsEqualGUID(&resampler->input_type.majortype, &GUID_NULL))
         return DMO_E_TYPE_NOT_SET;
-    if (FAILED(hr = check_dmo_media_type(type, &block_alignment)))
+    if (FAILED(hr = check_dmo_media_type(type)))
         return hr;
     if (flags & DMO_SET_TYPEF_TEST_ONLY)
         return S_OK;
@@ -664,7 +666,10 @@ static HRESULT WINAPI resampler_IMediaObject_SetOutputType(IMediaObject *iface, 
         WARN("Failed to create output type from media type, hr %#lx\n", hr);
     else
     {
-        resampler->output_info.cbSize = block_alignment;
+        WAVEFORMATEX *format = (WAVEFORMATEX *)resampler->output_type.pbFormat;
+        format->nBlockAlign = format->wBitsPerSample * format->nChannels / 8;
+        format->nAvgBytesPerSec = format->nSamplesPerSec * format->nBlockAlign;
+        resampler->output_info.cbSize = format->nBlockAlign;
         hr = resampler_create_transform(resampler);
     }
 
