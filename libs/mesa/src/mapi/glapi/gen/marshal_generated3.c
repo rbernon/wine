@@ -5648,14 +5648,18 @@ _mesa_glthread_init_dispatch3(struct gl_context *ctx, struct _glapi_table *table
       SET_SampleMaski(table, _mesa_marshal_SampleMaski);
    }
    if (_mesa_is_desktop_gl(ctx) || _mesa_is_gles1(ctx) || _mesa_is_gles2(ctx)) {
+      SET_BindVertexArray(table, _mesa_marshal_BindVertexArray);
       SET_ClientWaitSync(table, _mesa_marshal_ClientWaitSync);
       SET_DeleteSync(table, _mesa_marshal_DeleteSync);
+      SET_DeleteVertexArrays(table, _mesa_marshal_DeleteVertexArrays);
       SET_FenceSync(table, _mesa_marshal_FenceSync);
       SET_FlushMappedBufferRange(table, _mesa_marshal_FlushMappedBufferRange);
+      SET_GenVertexArrays(table, _mesa_marshal_GenVertexArrays);
       SET_GenerateMipmap(table, _mesa_marshal_GenerateMipmap);
       SET_GetInteger64v(table, _mesa_marshal_GetInteger64v);
       SET_GetSynciv(table, _mesa_marshal_GetSynciv);
       SET_IsSync(table, _mesa_marshal_IsSync);
+      SET_IsVertexArray(table, _mesa_marshal_IsVertexArray);
       SET_MapBufferRange(table, _mesa_marshal_MapBufferRange);
       SET_WaitSync(table, _mesa_marshal_WaitSync);
    }
@@ -5663,14 +5667,11 @@ _mesa_glthread_init_dispatch3(struct gl_context *ctx, struct _glapi_table *table
       SET_ActiveShaderProgram(table, _mesa_marshal_ActiveShaderProgram);
       SET_BindProgramPipeline(table, _mesa_marshal_BindProgramPipeline);
       SET_BindSampler(table, _mesa_marshal_BindSampler);
-      SET_BindVertexArray(table, _mesa_marshal_BindVertexArray);
       SET_CreateShaderProgramv(table, _mesa_marshal_CreateShaderProgramv);
       SET_DeleteProgramPipelines(table, _mesa_marshal_DeleteProgramPipelines);
       SET_DeleteSamplers(table, _mesa_marshal_DeleteSamplers);
-      SET_DeleteVertexArrays(table, _mesa_marshal_DeleteVertexArrays);
       SET_GenProgramPipelines(table, _mesa_marshal_GenProgramPipelines);
       SET_GenSamplers(table, _mesa_marshal_GenSamplers);
-      SET_GenVertexArrays(table, _mesa_marshal_GenVertexArrays);
       SET_GetProgramPipelineInfoLog(table, _mesa_marshal_GetProgramPipelineInfoLog);
       SET_GetProgramPipelineiv(table, _mesa_marshal_GetProgramPipelineiv);
       SET_GetQueryObjecti64v(table, _mesa_marshal_GetQueryObjecti64v);
@@ -5679,7 +5680,6 @@ _mesa_glthread_init_dispatch3(struct gl_context *ctx, struct _glapi_table *table
       SET_GetSamplerParameteriv(table, _mesa_marshal_GetSamplerParameteriv);
       SET_IsProgramPipeline(table, _mesa_marshal_IsProgramPipeline);
       SET_IsSampler(table, _mesa_marshal_IsSampler);
-      SET_IsVertexArray(table, _mesa_marshal_IsVertexArray);
       SET_ProgramUniform1f(table, _mesa_marshal_ProgramUniform1f);
       SET_ProgramUniform1fv(table, _mesa_marshal_ProgramUniform1fv);
       SET_ProgramUniform1i(table, _mesa_marshal_ProgramUniform1i);
