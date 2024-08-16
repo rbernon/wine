@@ -1312,7 +1312,7 @@ struct _glapi_table
    void (GLAPIENTRYP ProgramNamedParameter4fvNV)(GLuint id, GLsizei len, const GLubyte *name, const GLfloat *v); /* 1268 */
    void (GLAPIENTRYP PrimitiveRestartNV)(void); /* 1269 */
    void (GLAPIENTRYP GetTexGenxvOES)(GLenum coord, GLenum pname, GLfixed *params); /* 1270 */
-   void (GLAPIENTRYP TexGenxOES)(GLenum coord, GLenum pname, GLint param); /* 1271 */
+   void (GLAPIENTRYP TexGenxOES)(GLenum coord, GLenum pname, GLfixed param); /* 1271 */
    void (GLAPIENTRYP TexGenxvOES)(GLenum coord, GLenum pname, const GLfixed *params); /* 1272 */
    void (GLAPIENTRYP DepthBoundsEXT)(GLclampd zmin, GLclampd zmax); /* 1273 */
    void (GLAPIENTRYP BindFramebufferEXT)(GLenum target, GLuint framebuffer); /* 1274 */
@@ -1714,6 +1714,8 @@ struct _glapi_table
    void (GLAPIENTRYP InternalInvalidateFramebufferAncillaryMESA)(void); /* 1670 */
    void (GLAPIENTRYP DrawElementsPacked)(GLenum mode, GLenum type, GLushort count, GLushort indices); /* 1671 */
    void (GLAPIENTRYP DrawElementsUserBufPacked)(const GLvoid *cmd); /* 1672 */
+   void (GLAPIENTRYP TexStorageAttribs2DEXT)(GLenum target, GLsizei levels, GLenum internalFormat, GLsizei width, GLsizei height, const GLint *attrib_list); /* 1673 */
+   void (GLAPIENTRYP TexStorageAttribs3DEXT)(GLenum target, GLsizei levels, GLenum internalFormat, GLsizei width, GLsizei height, GLsizei depth, const GLint *attrib_list); /* 1674 */
 };
 
 #ifdef __cplusplus

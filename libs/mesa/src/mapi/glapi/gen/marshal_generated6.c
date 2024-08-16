@@ -6318,6 +6318,7 @@ _mesa_glthread_init_dispatch6(struct gl_context *ctx, struct _glapi_table *table
       SET_EGLImageTargetRenderbufferStorageOES(table, _mesa_marshal_EGLImageTargetRenderbufferStorageOES);
       SET_EGLImageTargetTexture2DOES(table, _mesa_marshal_EGLImageTargetTexture2DOES);
       SET_GetObjectLabelEXT(table, _mesa_marshal_GetObjectLabelEXT);
+      SET_InternalBufferSubDataCopyMESA(table, _mesa_marshal_InternalBufferSubDataCopyMESA);
       SET_InternalSetError(table, _mesa_marshal_InternalSetError);
       SET_LabelObjectEXT(table, _mesa_marshal_LabelObjectEXT);
       SET_PolygonOffsetClampEXT(table, _mesa_marshal_PolygonOffsetClampEXT);
@@ -6335,7 +6336,6 @@ _mesa_glthread_init_dispatch6(struct gl_context *ctx, struct _glapi_table *table
       SET_GetPerfQueryDataINTEL(table, _mesa_marshal_GetPerfQueryDataINTEL);
       SET_GetPerfQueryIdByNameINTEL(table, _mesa_marshal_GetPerfQueryIdByNameINTEL);
       SET_GetPerfQueryInfoINTEL(table, _mesa_marshal_GetPerfQueryInfoINTEL);
-      SET_InternalBufferSubDataCopyMESA(table, _mesa_marshal_InternalBufferSubDataCopyMESA);
    }
    if (_mesa_is_desktop_gl_compat(ctx)) {
       SET_BindMultiTextureEXT(table, _mesa_marshal_BindMultiTextureEXT);
