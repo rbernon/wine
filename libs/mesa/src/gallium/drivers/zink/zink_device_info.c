@@ -12,6 +12,7 @@ zink_get_physical_device_info(struct zink_screen *screen)
    bool support_KHR_maintenance4 = false;
    bool support_KHR_maintenance5 = false;
    bool support_KHR_maintenance6 = false;
+   bool support_KHR_maintenance7 = false;
    bool support_KHR_external_memory = false;
    bool support_KHR_external_memory_fd = false;
    bool support_KHR_vulkan_memory_model = false;
@@ -36,6 +37,7 @@ zink_get_physical_device_info(struct zink_screen *screen)
    bool support_EXT_depth_clamp_zero_one = false;
    bool support_EXT_shader_subgroup_ballot = false;
    bool support_EXT_shader_subgroup_vote = false;
+   bool support_EXT_legacy_vertex_attributes = false;
    bool support_EXT_shader_atomic_float = false;
    bool support_KHR_shader_atomic_int64 = false;
    bool support_KHR_8bit_storage = false;
@@ -50,7 +52,6 @@ zink_get_physical_device_info(struct zink_screen *screen)
    bool support_EXT_shader_object = false;
    bool support_EXT_attachment_feedback_loop_layout = false;
    bool support_EXT_attachment_feedback_loop_dynamic_state = false;
-   bool support_NV_device_generated_commands = false;
    bool support_EXT_fragment_shader_interlock = false;
    bool support_EXT_sample_locations = false;
    bool support_KHR_shader_draw_parameters = false;
@@ -118,7 +119,7 @@ zink_get_physical_device_info(struct zink_screen *screen)
    // enumerate device supported extensions
    VkResult result = screen->vk.EnumerateDeviceExtensionProperties(screen->pdev, NULL, &num_extensions, NULL);
    if (result != VK_SUCCESS) {
-      if (!screen->implicitly_loaded)
+      if (!screen->driver_name_is_inferred)
          mesa_loge("ZINK: vkEnumerateDeviceExtensionProperties failed (%s)", vk_Result_to_str(result));
    } else {
       if (num_extensions > 0) {
@@ -126,7 +127,7 @@ zink_get_physical_device_info(struct zink_screen *screen)
          if (!extensions) goto fail;
          result = screen->vk.EnumerateDeviceExtensionProperties(screen->pdev, NULL, &num_extensions, extensions);
          if (result != VK_SUCCESS) {
-            if (!screen->implicitly_loaded)
+            if (!screen->driver_name_is_inferred)
                mesa_loge("ZINK: vkEnumerateDeviceExtensionProperties failed (%s)", vk_Result_to_str(result));
          }
 
@@ -148,6 +149,9 @@ zink_get_physical_device_info(struct zink_screen *screen)
             }
             if (!strcmp(extensions[i].extensionName, "VK_KHR_maintenance6")) {
                support_KHR_maintenance6 = true;
+            }
+            if (!strcmp(extensions[i].extensionName, "VK_KHR_maintenance7")) {
+               support_KHR_maintenance7 = true;
             }
             if (!strcmp(extensions[i].extensionName, "VK_KHR_external_memory")) {
                info->have_KHR_external_memory = true;
@@ -221,6 +225,9 @@ zink_get_physical_device_info(struct zink_screen *screen)
             if (!strcmp(extensions[i].extensionName, "VK_EXT_shader_subgroup_vote")) {
                info->have_EXT_shader_subgroup_vote = true;
             }
+            if (!strcmp(extensions[i].extensionName, "VK_EXT_legacy_vertex_attributes")) {
+               support_EXT_legacy_vertex_attributes = true;
+            }
             if (!strcmp(extensions[i].extensionName, "VK_EXT_shader_atomic_float")) {
                support_EXT_shader_atomic_float = true;
             }
@@ -262,9 +269,6 @@ zink_get_physical_device_info(struct zink_screen *screen)
             }
             if (!strcmp(extensions[i].extensionName, "VK_EXT_attachment_feedback_loop_dynamic_state")) {
                support_EXT_attachment_feedback_loop_dynamic_state = true;
-            }
-            if (!strcmp(extensions[i].extensionName, "VK_NV_device_generated_commands")) {
-               support_NV_device_generated_commands = true;
             }
             if (!strcmp(extensions[i].extensionName, "VK_EXT_fragment_shader_interlock")) {
                support_EXT_fragment_shader_interlock = true;
@@ -485,6 +489,11 @@ zink_get_physical_device_info(struct zink_screen *screen)
          info->maint6_feats.pNext = info->feats.pNext;
          info->feats.pNext = &info->maint6_feats;
       }
+   if (support_KHR_maintenance7) {
+         info->maint7_feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_7_FEATURES_KHR;
+         info->maint7_feats.pNext = info->feats.pNext;
+         info->feats.pNext = &info->maint7_feats;
+      }
    if (support_KHR_workgroup_memory_explicit_layout) {
          info->explicit_layout_feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_WORKGROUP_MEMORY_EXPLICIT_LAYOUT_FEATURES_KHR;
          info->explicit_layout_feats.pNext = info->feats.pNext;
@@ -519,6 +528,11 @@ zink_get_physical_device_info(struct zink_screen *screen)
          info->clamp_01_feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLAMP_ZERO_ONE_FEATURES_EXT;
          info->clamp_01_feats.pNext = info->feats.pNext;
          info->feats.pNext = &info->clamp_01_feats;
+      }
+   if (support_EXT_legacy_vertex_attributes) {
+         info->legacyverts_feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LEGACY_VERTEX_ATTRIBUTES_FEATURES_EXT;
+         info->legacyverts_feats.pNext = info->feats.pNext;
+         info->feats.pNext = &info->legacyverts_feats;
       }
    if (support_EXT_shader_atomic_float) {
          info->atomic_float_feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
@@ -574,11 +588,6 @@ zink_get_physical_device_info(struct zink_screen *screen)
          info->feedback_dyn_feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ATTACHMENT_FEEDBACK_LOOP_DYNAMIC_STATE_FEATURES_EXT;
          info->feedback_dyn_feats.pNext = info->feats.pNext;
          info->feats.pNext = &info->feedback_dyn_feats;
-      }
-   if (support_NV_device_generated_commands) {
-         info->nv_dgc_feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_NV;
-         info->nv_dgc_feats.pNext = info->feats.pNext;
-         info->feats.pNext = &info->nv_dgc_feats;
       }
    if (support_EXT_fragment_shader_interlock) {
          info->interlock_feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT;
@@ -789,6 +798,7 @@ zink_get_physical_device_info(struct zink_screen *screen)
    }
 
    // check for device properties
+   bool copy_layered_props = false;
    if (screen->vk.GetPhysicalDeviceProperties2) {
       VkPhysicalDeviceProperties2 props = {0};
       props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
@@ -820,6 +830,11 @@ zink_get_physical_device_info(struct zink_screen *screen)
          info->maint6_props.pNext = props.pNext;
          props.pNext = &info->maint6_props;
       }
+   if (support_KHR_maintenance7) {
+         info->maint7_props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_7_PROPERTIES_KHR;
+         info->maint7_props.pNext = props.pNext;
+         props.pNext = &info->maint7_props;
+      }
    if (support_EXT_external_memory_host) {
          info->ext_host_mem_props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_MEMORY_HOST_PROPERTIES_EXT;
          info->ext_host_mem_props.pNext = props.pNext;
@@ -830,6 +845,11 @@ zink_get_physical_device_info(struct zink_screen *screen)
          info->pv_props.pNext = props.pNext;
          props.pNext = &info->pv_props;
       }
+   if (support_EXT_legacy_vertex_attributes) {
+         info->legacyverts_props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LEGACY_VERTEX_ATTRIBUTES_PROPERTIES_EXT;
+         info->legacyverts_props.pNext = props.pNext;
+         props.pNext = &info->legacyverts_props;
+      }
    if (support_KHR_driver_properties && !info->have_vulkan12) {
          info->driver_props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES_KHR;
          info->driver_props.pNext = props.pNext;
@@ -839,11 +859,6 @@ zink_get_physical_device_info(struct zink_screen *screen)
          info->shobj_props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_PROPERTIES_EXT;
          info->shobj_props.pNext = props.pNext;
          props.pNext = &info->shobj_props;
-      }
-   if (support_NV_device_generated_commands) {
-         info->nv_dgc_props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_PROPERTIES_NV;
-         info->nv_dgc_props.pNext = props.pNext;
-         props.pNext = &info->nv_dgc_props;
       }
    if (support_EXT_sample_locations) {
          info->sample_locations_props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLE_LOCATIONS_PROPERTIES_EXT;
@@ -933,8 +948,34 @@ zink_get_physical_device_info(struct zink_screen *screen)
          props.pNext = &info->subgroup;
       }
 
+      /* set up structs to capture underlying driver info */
+      VkPhysicalDeviceLayeredApiVulkanPropertiesKHR vk_layered_props = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LAYERED_API_VULKAN_PROPERTIES_KHR,
+      };
+      vk_layered_props.properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+      info->vk_layered_driver_props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES;
+      if (support_KHR_driver_properties || info->have_vulkan12)
+        vk_layered_props.properties.pNext = &info->vk_layered_driver_props;
+      info->layered_props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LAYERED_API_PROPERTIES_KHR;
+      info->layered_props.pNext = &vk_layered_props;
+      VkPhysicalDeviceLayeredApiPropertiesListKHR layered_props_list = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LAYERED_API_PROPERTIES_LIST_KHR,
+        props.pNext,
+        1,
+        &info->layered_props
+      };
+      if (support_KHR_maintenance7)
+         props.pNext = &layered_props_list;
+
       // note: setting up local VkPhysicalDeviceProperties2.
       screen->vk.GetPhysicalDeviceProperties2(screen->pdev, &props);
+
+      if (support_KHR_maintenance7 && layered_props_list.layeredApiCount) {
+        info->vk_layered_props = vk_layered_props.properties.properties;
+      } else {
+        info->vk_layered_props = info->props;
+        copy_layered_props = true;
+      }
    }
 
    /* We re-apply the fields from VkPhysicalDeviceVulkanXYFeatures struct
@@ -1119,6 +1160,9 @@ zink_get_physical_device_info(struct zink_screen *screen)
              sizeof(info->desc_indexing_props.maxDescriptorSetUpdateAfterBindInputAttachments));
    }
 
+   if (copy_layered_props)
+     info->vk_layered_driver_props = info->driver_props;
+
    // enable the extensions if they match the conditions given by ext.enable_conds 
    if (screen->vk.GetPhysicalDeviceProperties2) {
    info->have_KHR_maintenance1 |= support_KHR_maintenance1
@@ -1132,6 +1176,8 @@ zink_get_physical_device_info(struct zink_screen *screen)
    info->have_KHR_maintenance5 |= support_KHR_maintenance5
          ;
    info->have_KHR_maintenance6 |= support_KHR_maintenance6
+         ;
+   info->have_KHR_maintenance7 |= support_KHR_maintenance7
          ;
    info->have_KHR_external_memory |= support_KHR_external_memory
          ;
@@ -1181,6 +1227,8 @@ zink_get_physical_device_info(struct zink_screen *screen)
          ;
    info->have_EXT_shader_subgroup_vote |= support_EXT_shader_subgroup_vote
          ;
+   info->have_EXT_legacy_vertex_attributes |= support_EXT_legacy_vertex_attributes
+         ;
    info->have_EXT_shader_atomic_float |= support_EXT_shader_atomic_float
          ;
    info->have_KHR_shader_atomic_int64 |= support_KHR_shader_atomic_int64
@@ -1208,8 +1256,6 @@ zink_get_physical_device_info(struct zink_screen *screen)
    info->have_EXT_attachment_feedback_loop_layout |= support_EXT_attachment_feedback_loop_layout
          ;
    info->have_EXT_attachment_feedback_loop_dynamic_state |= support_EXT_attachment_feedback_loop_dynamic_state
-         ;
-   info->have_NV_device_generated_commands |= support_NV_device_generated_commands
          ;
    info->have_EXT_fragment_shader_interlock |= support_EXT_fragment_shader_interlock
          && (info->interlock_feats.fragmentShaderSampleInterlock)
@@ -1356,6 +1402,9 @@ zink_get_physical_device_info(struct zink_screen *screen)
    if (info->have_KHR_maintenance6) {
        info->extensions[num_extensions++] = "VK_KHR_maintenance6";
    }
+   if (info->have_KHR_maintenance7) {
+       info->extensions[num_extensions++] = "VK_KHR_maintenance7";
+   }
    if (info->have_KHR_external_memory) {
        info->extensions[num_extensions++] = "VK_KHR_external_memory";
    }
@@ -1431,6 +1480,9 @@ zink_get_physical_device_info(struct zink_screen *screen)
    if (info->have_EXT_shader_subgroup_vote) {
        info->extensions[num_extensions++] = "VK_EXT_shader_subgroup_vote";
    }
+   if (info->have_EXT_legacy_vertex_attributes) {
+       info->extensions[num_extensions++] = "VK_EXT_legacy_vertex_attributes";
+   }
    if (info->have_EXT_shader_atomic_float) {
        info->extensions[num_extensions++] = "VK_EXT_shader_atomic_float";
    }
@@ -1472,9 +1524,6 @@ zink_get_physical_device_info(struct zink_screen *screen)
    }
    if (info->have_EXT_attachment_feedback_loop_dynamic_state) {
        info->extensions[num_extensions++] = "VK_EXT_attachment_feedback_loop_dynamic_state";
-   }
-   if (info->have_NV_device_generated_commands) {
-       info->extensions[num_extensions++] = "VK_NV_device_generated_commands";
    }
    if (info->have_EXT_fragment_shader_interlock) {
        info->extensions[num_extensions++] = "VK_EXT_fragment_shader_interlock";
@@ -1689,6 +1738,11 @@ zink_get_physical_device_info(struct zink_screen *screen)
          info->maint6_feats.pNext = info->feats.pNext;
          info->feats.pNext = &info->maint6_feats;
       }
+   if (info->have_KHR_maintenance7) {
+         info->maint7_feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_7_FEATURES_KHR;
+         info->maint7_feats.pNext = info->feats.pNext;
+         info->feats.pNext = &info->maint7_feats;
+      }
    if (info->have_KHR_workgroup_memory_explicit_layout) {
          info->explicit_layout_feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_WORKGROUP_MEMORY_EXPLICIT_LAYOUT_FEATURES_KHR;
          info->explicit_layout_feats.pNext = info->feats.pNext;
@@ -1723,6 +1777,11 @@ zink_get_physical_device_info(struct zink_screen *screen)
          info->clamp_01_feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLAMP_ZERO_ONE_FEATURES_EXT;
          info->clamp_01_feats.pNext = info->feats.pNext;
          info->feats.pNext = &info->clamp_01_feats;
+      }
+   if (info->have_EXT_legacy_vertex_attributes) {
+         info->legacyverts_feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LEGACY_VERTEX_ATTRIBUTES_FEATURES_EXT;
+         info->legacyverts_feats.pNext = info->feats.pNext;
+         info->feats.pNext = &info->legacyverts_feats;
       }
    if (info->have_EXT_shader_atomic_float) {
          info->atomic_float_feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
@@ -1778,11 +1837,6 @@ zink_get_physical_device_info(struct zink_screen *screen)
          info->feedback_dyn_feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ATTACHMENT_FEEDBACK_LOOP_DYNAMIC_STATE_FEATURES_EXT;
          info->feedback_dyn_feats.pNext = info->feats.pNext;
          info->feats.pNext = &info->feedback_dyn_feats;
-      }
-   if (info->have_NV_device_generated_commands) {
-         info->nv_dgc_feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_NV;
-         info->nv_dgc_feats.pNext = info->feats.pNext;
-         info->feats.pNext = &info->nv_dgc_feats;
       }
    if (info->have_EXT_fragment_shader_interlock) {
          info->interlock_feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT;
@@ -2143,6 +2197,8 @@ zink_verify_device_extensions(struct zink_screen *screen)
       }
 #endif
    }
+   if (screen->info.have_KHR_maintenance7) {
+   }
    if (screen->info.have_KHR_external_memory) {
    }
    if (screen->info.have_KHR_external_memory_fd) {
@@ -2460,6 +2516,8 @@ zink_verify_device_extensions(struct zink_screen *screen)
    if (screen->info.have_EXT_shader_subgroup_ballot) {
    }
    if (screen->info.have_EXT_shader_subgroup_vote) {
+   }
+   if (screen->info.have_EXT_legacy_vertex_attributes) {
    }
    if (screen->info.have_EXT_shader_atomic_float) {
    }
@@ -2998,62 +3056,6 @@ zink_verify_device_extensions(struct zink_screen *screen)
          screen->vk.CmdSetAttachmentFeedbackLoopEnableEXT = (PFN_vkCmdSetAttachmentFeedbackLoopEnableEXT)zink_stub_CmdSetAttachmentFeedbackLoopEnableEXT;
 #else
          screen->vk.CmdSetAttachmentFeedbackLoopEnableEXT = (PFN_vkCmdSetAttachmentFeedbackLoopEnableEXT)zink_stub_function_not_loaded;
-#endif
-      }
-#endif
-   }
-   if (screen->info.have_NV_device_generated_commands) {
-#ifdef _WIN32
-      if (!screen->vk.GetGeneratedCommandsMemoryRequirementsNV) {
-#ifndef NDEBUG
-         screen->vk.GetGeneratedCommandsMemoryRequirementsNV = (PFN_vkGetGeneratedCommandsMemoryRequirementsNV)zink_stub_GetGeneratedCommandsMemoryRequirementsNV;
-#else
-         screen->vk.GetGeneratedCommandsMemoryRequirementsNV = (PFN_vkGetGeneratedCommandsMemoryRequirementsNV)zink_stub_function_not_loaded;
-#endif
-      }
-#endif
-#ifdef _WIN32
-      if (!screen->vk.CmdPreprocessGeneratedCommandsNV) {
-#ifndef NDEBUG
-         screen->vk.CmdPreprocessGeneratedCommandsNV = (PFN_vkCmdPreprocessGeneratedCommandsNV)zink_stub_CmdPreprocessGeneratedCommandsNV;
-#else
-         screen->vk.CmdPreprocessGeneratedCommandsNV = (PFN_vkCmdPreprocessGeneratedCommandsNV)zink_stub_function_not_loaded;
-#endif
-      }
-#endif
-#ifdef _WIN32
-      if (!screen->vk.CmdExecuteGeneratedCommandsNV) {
-#ifndef NDEBUG
-         screen->vk.CmdExecuteGeneratedCommandsNV = (PFN_vkCmdExecuteGeneratedCommandsNV)zink_stub_CmdExecuteGeneratedCommandsNV;
-#else
-         screen->vk.CmdExecuteGeneratedCommandsNV = (PFN_vkCmdExecuteGeneratedCommandsNV)zink_stub_function_not_loaded;
-#endif
-      }
-#endif
-#ifdef _WIN32
-      if (!screen->vk.CmdBindPipelineShaderGroupNV) {
-#ifndef NDEBUG
-         screen->vk.CmdBindPipelineShaderGroupNV = (PFN_vkCmdBindPipelineShaderGroupNV)zink_stub_CmdBindPipelineShaderGroupNV;
-#else
-         screen->vk.CmdBindPipelineShaderGroupNV = (PFN_vkCmdBindPipelineShaderGroupNV)zink_stub_function_not_loaded;
-#endif
-      }
-#endif
-#ifdef _WIN32
-      if (!screen->vk.CreateIndirectCommandsLayoutNV) {
-#ifndef NDEBUG
-         screen->vk.CreateIndirectCommandsLayoutNV = (PFN_vkCreateIndirectCommandsLayoutNV)zink_stub_CreateIndirectCommandsLayoutNV;
-#else
-         screen->vk.CreateIndirectCommandsLayoutNV = (PFN_vkCreateIndirectCommandsLayoutNV)zink_stub_function_not_loaded;
-#endif
-      }
-#endif
-#ifdef _WIN32
-      if (!screen->vk.DestroyIndirectCommandsLayoutNV) {
-#ifndef NDEBUG
-         screen->vk.DestroyIndirectCommandsLayoutNV = (PFN_vkDestroyIndirectCommandsLayoutNV)zink_stub_DestroyIndirectCommandsLayoutNV;
-#else
-         screen->vk.DestroyIndirectCommandsLayoutNV = (PFN_vkDestroyIndirectCommandsLayoutNV)zink_stub_function_not_loaded;
 #endif
       }
 #endif
@@ -4828,48 +4830,6 @@ void VKAPI_PTR
 zink_stub_CmdSetAttachmentFeedbackLoopEnableEXT()
 {
    mesa_loge("ZINK: vkCmdSetAttachmentFeedbackLoopEnableEXT is not loaded properly!");
-   abort();
-}
-   
-void VKAPI_PTR
-zink_stub_GetGeneratedCommandsMemoryRequirementsNV()
-{
-   mesa_loge("ZINK: vkGetGeneratedCommandsMemoryRequirementsNV is not loaded properly!");
-   abort();
-}
-   
-void VKAPI_PTR
-zink_stub_CmdPreprocessGeneratedCommandsNV()
-{
-   mesa_loge("ZINK: vkCmdPreprocessGeneratedCommandsNV is not loaded properly!");
-   abort();
-}
-   
-void VKAPI_PTR
-zink_stub_CmdExecuteGeneratedCommandsNV()
-{
-   mesa_loge("ZINK: vkCmdExecuteGeneratedCommandsNV is not loaded properly!");
-   abort();
-}
-   
-void VKAPI_PTR
-zink_stub_CmdBindPipelineShaderGroupNV()
-{
-   mesa_loge("ZINK: vkCmdBindPipelineShaderGroupNV is not loaded properly!");
-   abort();
-}
-   
-void VKAPI_PTR
-zink_stub_CreateIndirectCommandsLayoutNV()
-{
-   mesa_loge("ZINK: vkCreateIndirectCommandsLayoutNV is not loaded properly!");
-   abort();
-}
-   
-void VKAPI_PTR
-zink_stub_DestroyIndirectCommandsLayoutNV()
-{
-   mesa_loge("ZINK: vkDestroyIndirectCommandsLayoutNV is not loaded properly!");
    abort();
 }
    

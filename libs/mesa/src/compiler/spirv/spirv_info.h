@@ -143,6 +143,7 @@ struct spirv_capabilities {
    bool TextureSampleWeightedQCOM;
    bool TextureBoxFilterQCOM;
    bool TextureBlockMatchQCOM;
+   bool TextureBlockMatch2QCOM;
    bool Float16ImageAMD;
    bool ImageGatherBiasLodAMD;
    bool FragmentMaskAMD;
@@ -254,7 +255,9 @@ struct spirv_capabilities {
    bool ShaderInvocationReorderNV;
    bool BindlessTextureNV;
    bool RayQueryPositionFetchKHR;
+   bool AtomicFloat16VectorNV;
    bool RayTracingDisplacementMicromapNV;
+   bool RawAccessChainsNV;
    bool SubgroupShuffleINTEL;
    bool SubgroupBufferBlockIOINTEL;
    bool SubgroupImageBlockIOINTEL;
@@ -315,6 +318,7 @@ struct spirv_capabilities {
    };
    bool RayCullMaskKHR;
    bool CooperativeMatrixKHR;
+   bool ReplicatedCompositesEXT;
    bool BitInstructions;
    bool GroupNonUniformRotateKHR;
    bool FloatControls2;
@@ -336,6 +340,7 @@ struct spirv_capabilities {
    bool GroupUniformArithmeticKHR;
    bool MaskedGatherScatterINTEL;
    bool CacheControlsINTEL;
+   bool RegisterLimitsINTEL;
 };
 
 bool spirv_capabilities_get(const struct spirv_capabilities *caps,
@@ -350,11 +355,12 @@ const char *spirv_decoration_to_string(SpvDecoration v);
 const char *spirv_dim_to_string(SpvDim v);
 const char *spirv_executionmode_to_string(SpvExecutionMode v);
 const char *spirv_executionmodel_to_string(SpvExecutionModel v);
+const char *spirv_fproundingmode_to_string(SpvFPRoundingMode v);
+const char *spirv_functionparameterattribute_to_string(SpvFunctionParameterAttribute v);
 const char *spirv_imageformat_to_string(SpvImageFormat v);
+const char *spirv_imageoperands_to_string(SpvImageOperandsMask v);
 const char *spirv_memorymodel_to_string(SpvMemoryModel v);
 const char *spirv_storageclass_to_string(SpvStorageClass v);
-const char *spirv_imageoperands_to_string(SpvImageOperandsMask v);
-const char *spirv_fproundingmode_to_string(SpvFPRoundingMode v);
 const char *spirv_op_to_string(SpvOp v);
 
 #endif /* SPIRV_INFO_H */
