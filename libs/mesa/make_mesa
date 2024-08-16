@@ -13,7 +13,7 @@ python src/compiler/nir/nir_intrinsics_h.py --outdir src/compiler/nir
 python src/compiler/nir/nir_intrinsics_indices_h.py --outdir src/compiler/nir
 python src/compiler/nir/nir_opcodes_c.py >src/compiler/nir/nir_opcodes.c
 python src/compiler/nir/nir_opcodes_h.py >src/compiler/nir/nir_opcodes.h
-python src/compiler/nir/nir_opt_algebraic.py >src/compiler/nir/nir_opt_algebraic.c
+python src/compiler/nir/nir_opt_algebraic.py --out src/compiler/nir/nir_opt_algebraic.c
 python src/compiler/spirv/spirv_info_gen.py --json src/compiler/spirv/spirv.core.grammar.json --out-h src/compiler/spirv/spirv_info.h --out-c src/compiler/spirv/spirv_info.c
 python src/compiler/spirv/vtn_gather_types_c.py src/compiler/spirv/spirv.core.grammar.json src/compiler/spirv/vtn_gather_types.c
 python src/compiler/spirv/vtn_generator_ids_h.py src/compiler/spirv/spir-v.xml src/compiler/spirv/vtn_generator_ids.h
@@ -48,8 +48,9 @@ python src/mesa/main/format_fallback.py src/mesa/main/formats.csv src/mesa/forma
 python src/mesa/main/format_info.py src/mesa/main/formats.csv >src/mesa/format_info.h
 python src/mesa/main/get_hash_generator.py -f src/mapi/glapi/gen/gl_and_es_API.xml >src/mesa/get_hash.h
 python src/util/driconf_static.py src/util/00-mesa-defaults.conf src/util/driconf_static.h
-python src/util/format/u_format_table.py src/util/format/u_format.csv --header >src/util/format/u_format_pack.h
-python src/util/format/u_format_table.py src/util/format/u_format.csv >src/util/format/u_format_table.c
+python src/util/format/u_format_table.py src/util/format/u_format.yaml --header >src/util/format/u_format_pack.h
+python src/util/format/u_format_table.py src/util/format/u_format.yaml >src/util/format/u_format_table.c
+python src/util/format/u_format_table.py src/util/format/u_format.yaml --enums >src/util/format/u_format_gen.h
 python src/util/format_srgb.py >src/util/format_srgb.c
 python src/util/xxd.py src/compiler/glsl/astc_decoder.glsl src/compiler/glsl/astc_glsl.h -n astc_source
 python src/util/xxd.py src/compiler/glsl/bc1.glsl src/compiler/glsl/bc1_glsl.h -n bc1_source
