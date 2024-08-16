@@ -11686,9 +11686,9 @@ KEYWORD1_ALT void KEYWORD2 NAME(_dispatch_stub_1270)(GLenum coord, GLenum pname,
    DISPATCH(GetTexGenxvOES, (coord, pname, params), (F, "glGetTexGenxvOES(0x%x, 0x%x, %p);\n", coord, pname, (const void *) params));
 }
 
-KEYWORD1_ALT void KEYWORD2 NAME(_dispatch_stub_1271)(GLenum coord, GLenum pname, GLint param);
+KEYWORD1_ALT void KEYWORD2 NAME(_dispatch_stub_1271)(GLenum coord, GLenum pname, GLfixed param);
 
-KEYWORD1_ALT void KEYWORD2 NAME(_dispatch_stub_1271)(GLenum coord, GLenum pname, GLint param)
+KEYWORD1_ALT void KEYWORD2 NAME(_dispatch_stub_1271)(GLenum coord, GLenum pname, GLfixed param)
 {
     (void) coord; (void) pname; (void) param;
    DISPATCH(TexGenxOES, (coord, pname, param), (F, "glTexGenxOES(0x%x, 0x%x, %d);\n", coord, pname, param));
@@ -15212,6 +15212,18 @@ KEYWORD1_ALT void KEYWORD2 NAME(_dispatch_stub_1672)(const GLvoid *cmd)
    DISPATCH(DrawElementsUserBufPacked, (cmd), (F, "glDrawElementsUserBufPacked(%p);\n", (const void *) cmd));
 }
 
+KEYWORD1 void KEYWORD2 NAME(TexStorageAttribs2DEXT)(GLenum target, GLsizei levels, GLenum internalFormat, GLsizei width, GLsizei height, const GLint *attrib_list)
+{
+    (void) target; (void) levels; (void) internalFormat; (void) width; (void) height; (void) attrib_list;
+   DISPATCH(TexStorageAttribs2DEXT, (target, levels, internalFormat, width, height, attrib_list), (F, "glTexStorageAttribs2DEXT(0x%x, %d, 0x%x, %d, %d, %p);\n", target, levels, internalFormat, width, height, (const void *) attrib_list));
+}
+
+KEYWORD1 void KEYWORD2 NAME(TexStorageAttribs3DEXT)(GLenum target, GLsizei levels, GLenum internalFormat, GLsizei width, GLsizei height, GLsizei depth, const GLint *attrib_list)
+{
+    (void) target; (void) levels; (void) internalFormat; (void) width; (void) height; (void) depth; (void) attrib_list;
+   DISPATCH(TexStorageAttribs3DEXT, (target, levels, internalFormat, width, height, depth, attrib_list), (F, "glTexStorageAttribs3DEXT(0x%x, %d, 0x%x, %d, %d, %d, %p);\n", target, levels, internalFormat, width, height, depth, (const void *) attrib_list));
+}
+
 
 #endif /* _GLAPI_SKIP_NORMAL_ENTRY_POINTS */
 
@@ -16936,6 +16948,8 @@ _glapi_proc DISPATCH_TABLE_NAME[] = {
    TABLE_ENTRY(_dispatch_stub_1670),
    TABLE_ENTRY(_dispatch_stub_1671),
    TABLE_ENTRY(_dispatch_stub_1672),
+   TABLE_ENTRY(TexStorageAttribs2DEXT),
+   TABLE_ENTRY(TexStorageAttribs3DEXT),
    /* A whole bunch of no-op functions.  These might be called
     * when someone tries to call a dynamically-registered
     * extension function without a current rendering context.

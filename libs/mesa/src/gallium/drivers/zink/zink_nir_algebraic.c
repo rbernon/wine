@@ -27,6 +27,9 @@ static const nir_search_value_union zink_nir_lower_b2b_values[] = {
       false,
       false,
       false,
+      false,
+      false,
+      false,
       nir_op_b2b32,
       -1, 0,
       { 0 },
@@ -36,6 +39,9 @@ static const nir_search_value_union zink_nir_lower_b2b_values[] = {
    /* replace0_0 -> 0 in the cache */
    { .expression = {
       { nir_search_value_expression, 32 },
+      false,
+      false,
+      false,
       false,
       false,
       false,
@@ -52,6 +58,9 @@ static const nir_search_value_union zink_nir_lower_b2b_values[] = {
       false,
       false,
       false,
+      false,
+      false,
+      false,
       nir_op_b2b1,
       -1, 0,
       { 0 },
@@ -61,10 +70,13 @@ static const nir_search_value_union zink_nir_lower_b2b_values[] = {
    /* replace1_0 -> 0 in the cache */
    { .constant = {
       { nir_search_value_constant, -1 },
-      nir_type_int, { 0x0 /* 0 */ },
+      nir_type_int, { 0x0ull /* 0 */ },
    } },
    { .expression = {
       { nir_search_value_expression, 1 },
+      false,
+      false,
+      false,
       false,
       false,
       false,

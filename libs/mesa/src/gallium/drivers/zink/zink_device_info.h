@@ -25,6 +25,7 @@ struct zink_device_info {
    bool have_KHR_maintenance4;
    bool have_KHR_maintenance5;
    bool have_KHR_maintenance6;
+   bool have_KHR_maintenance7;
    bool have_KHR_external_memory;
    bool have_KHR_external_memory_fd;
    bool have_KHR_vulkan_memory_model;
@@ -49,6 +50,7 @@ struct zink_device_info {
    bool have_EXT_depth_clamp_zero_one;
    bool have_EXT_shader_subgroup_ballot;
    bool have_EXT_shader_subgroup_vote;
+   bool have_EXT_legacy_vertex_attributes;
    bool have_EXT_shader_atomic_float;
    bool have_KHR_shader_atomic_int64;
    bool have_KHR_8bit_storage;
@@ -63,7 +65,6 @@ struct zink_device_info {
    bool have_EXT_shader_object;
    bool have_EXT_attachment_feedback_loop_layout;
    bool have_EXT_attachment_feedback_loop_dynamic_state;
-   bool have_NV_device_generated_commands;
    bool have_EXT_fragment_shader_interlock;
    bool have_EXT_sample_locations;
    bool have_KHR_shader_draw_parameters;
@@ -134,6 +135,9 @@ struct zink_device_info {
    VkPhysicalDeviceVulkan13Features feats13;
 
    VkPhysicalDeviceProperties props;
+   VkPhysicalDeviceProperties vk_layered_props;
+   VkPhysicalDeviceLayeredApiPropertiesKHR layered_props;
+   VkPhysicalDeviceDriverPropertiesKHR vk_layered_driver_props;
    VkPhysicalDeviceVulkan11Properties props11;
    VkPhysicalDeviceVulkan12Properties props12;
    VkPhysicalDeviceVulkan13Properties props13;
@@ -149,6 +153,8 @@ struct zink_device_info {
    VkPhysicalDeviceMaintenance5PropertiesKHR maint5_props;
    VkPhysicalDeviceMaintenance6FeaturesKHR maint6_feats;
    VkPhysicalDeviceMaintenance6PropertiesKHR maint6_props;
+   VkPhysicalDeviceMaintenance7FeaturesKHR maint7_feats;
+   VkPhysicalDeviceMaintenance7PropertiesKHR maint7_props;
    
    
    
@@ -174,6 +180,8 @@ struct zink_device_info {
    VkPhysicalDeviceDepthClampZeroOneFeaturesEXT clamp_01_feats;
    
    
+   VkPhysicalDeviceLegacyVertexAttributesFeaturesEXT legacyverts_feats;
+   VkPhysicalDeviceLegacyVertexAttributesPropertiesEXT legacyverts_props;
    VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomic_float_feats;
    VkPhysicalDeviceShaderAtomicInt64FeaturesKHR atomic_int_feats;
    VkPhysicalDevice8BitStorageFeaturesKHR storage_8bit_feats;
@@ -189,8 +197,6 @@ struct zink_device_info {
    VkPhysicalDeviceShaderObjectPropertiesEXT shobj_props;
    VkPhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT feedback_loop_feats;
    VkPhysicalDeviceAttachmentFeedbackLoopDynamicStateFeaturesEXT feedback_dyn_feats;
-   VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV nv_dgc_feats;
-   VkPhysicalDeviceDeviceGeneratedCommandsPropertiesNV nv_dgc_props;
    VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT interlock_feats;
    VkPhysicalDeviceSampleLocationsPropertiesEXT sample_locations_props;
    
@@ -262,7 +268,7 @@ struct zink_device_info {
    
    
 
-    const char *extensions[102];
+    const char *extensions[103];
     uint32_t num_extensions;
 };
 
@@ -377,12 +383,6 @@ void VKAPI_PTR zink_stub_CmdSetShadingRateImageEnableNV(void);
 void VKAPI_PTR zink_stub_CmdSetRepresentativeFragmentTestEnableNV(void);
 void VKAPI_PTR zink_stub_CmdSetCoverageReductionModeNV(void);
 void VKAPI_PTR zink_stub_CmdSetAttachmentFeedbackLoopEnableEXT(void);
-void VKAPI_PTR zink_stub_GetGeneratedCommandsMemoryRequirementsNV(void);
-void VKAPI_PTR zink_stub_CmdPreprocessGeneratedCommandsNV(void);
-void VKAPI_PTR zink_stub_CmdExecuteGeneratedCommandsNV(void);
-void VKAPI_PTR zink_stub_CmdBindPipelineShaderGroupNV(void);
-void VKAPI_PTR zink_stub_CreateIndirectCommandsLayoutNV(void);
-void VKAPI_PTR zink_stub_DestroyIndirectCommandsLayoutNV(void);
 void VKAPI_PTR zink_stub_CmdSetSampleLocationsEXT(void);
 void VKAPI_PTR zink_stub_GetDescriptorSetLayoutSizeEXT(void);
 void VKAPI_PTR zink_stub_GetDescriptorSetLayoutBindingOffsetEXT(void);

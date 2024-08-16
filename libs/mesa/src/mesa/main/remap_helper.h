@@ -3853,6 +3853,10 @@ static const char _mesa_function_pool[] =
    "glFramebufferParameteriMESA\0"
    /* _mesa_function_pool[39304]: GetFramebufferParameterivMESA (will be remapped) */
    "glGetFramebufferParameterivMESA\0"
+   /* _mesa_function_pool[39336]: TexStorageAttribs2DEXT (will be remapped) */
+   "glTexStorageAttribs2DEXT\0"
+   /* _mesa_function_pool[39361]: TexStorageAttribs3DEXT (will be remapped) */
+   "glTexStorageAttribs3DEXT\0"
    ;
 
 /* these functions need to be remapped */
@@ -5122,6 +5126,8 @@ static const struct gl_function_pool_remap MESA_remap_table_functions[] = {
    { 34795, InternalInvalidateFramebufferAncillaryMESA_remap_index },
    { 34774, DrawElementsPacked_remap_index },
    { 34602, DrawElementsUserBufPacked_remap_index },
+   { 39336, TexStorageAttribs2DEXT_remap_index },
+   { 39361, TexStorageAttribs3DEXT_remap_index },
    {    -1, -1 }
 };
 

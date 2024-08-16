@@ -4326,18 +4326,18 @@ struct marshal_cmd_TexGenxOES
    struct marshal_cmd_base cmd_base;
    GLenum16 coord;
    GLenum16 pname;
-   GLint param;
+   GLfixed param;
 };
 uint32_t _mesa_unmarshal_TexGenxOES(struct gl_context *ctx, const struct marshal_cmd_TexGenxOES *restrict cmd)
 {
    GLenum16 coord = cmd->coord;
    GLenum16 pname = cmd->pname;
-   GLint param = cmd->param;
+   GLfixed param = cmd->param;
    CALL_TexGenxOES(ctx->Dispatch.Current, (coord, pname, param));
    return align(sizeof(struct marshal_cmd_TexGenxOES), 8) / 8;
 }
 static void GLAPIENTRY
-_mesa_marshal_TexGenxOES(GLenum coord, GLenum pname, GLint param)
+_mesa_marshal_TexGenxOES(GLenum coord, GLenum pname, GLfixed param)
 {
    GET_CURRENT_CONTEXT(ctx);
    int cmd_size = sizeof(struct marshal_cmd_TexGenxOES);
@@ -4959,6 +4959,26 @@ _mesa_marshal_GetFramebufferParameterivMESA(GLenum target, GLenum pname, GLint *
 }
 
 
+/* TexStorageAttribs2DEXT: marshalled synchronously */
+static void GLAPIENTRY
+_mesa_marshal_TexStorageAttribs2DEXT(GLenum target, GLsizei levels, GLenum internalFormat, GLsizei width, GLsizei height, const GLint *attrib_list)
+{
+   GET_CURRENT_CONTEXT(ctx);
+   _mesa_glthread_finish_before(ctx, "TexStorageAttribs2DEXT");
+   CALL_TexStorageAttribs2DEXT(ctx->Dispatch.Current, (target, levels, internalFormat, width, height, attrib_list));
+}
+
+
+/* TexStorageAttribs3DEXT: marshalled synchronously */
+static void GLAPIENTRY
+_mesa_marshal_TexStorageAttribs3DEXT(GLenum target, GLsizei levels, GLenum internalFormat, GLsizei width, GLsizei height, GLsizei depth, const GLint *attrib_list)
+{
+   GET_CURRENT_CONTEXT(ctx);
+   _mesa_glthread_finish_before(ctx, "TexStorageAttribs3DEXT");
+   CALL_TexStorageAttribs3DEXT(ctx->Dispatch.Current, (target, levels, internalFormat, width, height, depth, attrib_list));
+}
+
+
 void
 _mesa_glthread_init_dispatch7(struct gl_context *ctx, struct _glapi_table *table)
 {
@@ -5007,6 +5027,8 @@ _mesa_glthread_init_dispatch7(struct gl_context *ctx, struct _glapi_table *table
       SET_IsTransformFeedback(table, _mesa_marshal_IsTransformFeedback);
       SET_PauseTransformFeedback(table, _mesa_marshal_PauseTransformFeedback);
       SET_ResumeTransformFeedback(table, _mesa_marshal_ResumeTransformFeedback);
+      SET_TexStorageAttribs2DEXT(table, _mesa_marshal_TexStorageAttribs2DEXT);
+      SET_TexStorageAttribs3DEXT(table, _mesa_marshal_TexStorageAttribs3DEXT);
       SET_TransformFeedbackVaryings(table, _mesa_marshal_TransformFeedbackVaryings);
       SET_Uniform1ui(table, _mesa_marshal_Uniform1ui);
       SET_Uniform1uiv(table, _mesa_marshal_Uniform1uiv);

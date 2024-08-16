@@ -111,6 +111,7 @@
     const char * vk_PerformanceOverrideTypeINTEL_to_str(VkPerformanceOverrideTypeINTEL input);
     const char * vk_PerformanceParameterTypeINTEL_to_str(VkPerformanceParameterTypeINTEL input);
     const char * vk_PerformanceValueTypeINTEL_to_str(VkPerformanceValueTypeINTEL input);
+    const char * vk_PhysicalDeviceLayeredApiKHR_to_str(VkPhysicalDeviceLayeredApiKHR input);
     const char * vk_PhysicalDeviceType_to_str(VkPhysicalDeviceType input);
     const char * vk_PipelineBindPoint_to_str(VkPipelineBindPoint input);
     const char * vk_PipelineCacheHeaderVersion_to_str(VkPipelineCacheHeaderVersion input);

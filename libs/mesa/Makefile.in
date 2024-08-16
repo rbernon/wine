@@ -110,7 +110,6 @@ SOURCES = \
 	src/compiler/glsl/ir_equals.cpp \
 	src/compiler/glsl/ir_expression_flattening.cpp \
 	src/compiler/glsl/ir_function.cpp \
-	src/compiler/glsl/ir_function_can_inline.cpp \
 	src/compiler/glsl/ir_function_detect_recursion.cpp \
 	src/compiler/glsl/ir_hierarchical_visitor.cpp \
 	src/compiler/glsl/ir_hv_accept.cpp \
@@ -159,6 +158,7 @@ SOURCES = \
 	src/compiler/nir/nir_divergence_analysis.c \
 	src/compiler/nir/nir_dominance.c \
 	src/compiler/nir/nir_from_ssa.c \
+	src/compiler/nir/nir_format_convert.c \
 	src/compiler/nir/nir_functions.c \
 	src/compiler/nir/nir_gather_info.c \
 	src/compiler/nir/nir_gather_types.c \
@@ -194,7 +194,6 @@ SOURCES = \
 	src/compiler/nir/nir_lower_continue_constructs.c \
 	src/compiler/nir/nir_lower_convert_alu_types.c \
 	src/compiler/nir/nir_lower_discard_if.c \
-	src/compiler/nir/nir_lower_discard_or_demote.c \
 	src/compiler/nir/nir_lower_double_ops.c \
 	src/compiler/nir/nir_lower_drawpixels.c \
 	src/compiler/nir/nir_lower_fb_read.c \
@@ -323,6 +322,7 @@ SOURCES = \
 	src/compiler/nir/nir_opt_uniform_subgroup.c \
 	src/compiler/nir/nir_opt_varyings.c \
 	src/compiler/nir/nir_opt_vectorize.c \
+	src/compiler/nir/nir_opt_vectorize_io.c \
 	src/compiler/nir/nir_passthrough_gs.c \
 	src/compiler/nir/nir_passthrough_tcs.c \
 	src/compiler/nir/nir_phi_builder.c \

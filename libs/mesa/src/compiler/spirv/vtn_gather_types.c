@@ -335,6 +335,7 @@ result_type_args_for_opcode(SpvOp opcode)
    case SpvOpSubgroupAllEqualKHR: return (struct type_args){ 1, 0 };
    case SpvOpGroupNonUniformRotateKHR: return (struct type_args){ 1, 0 };
    case SpvOpSubgroupReadInvocationKHR: return (struct type_args){ 1, 0 };
+   case SpvOpExtInstWithForwardRefsKHR: return (struct type_args){ 1, 0 };
    case SpvOpConvertUToAccelerationStructureKHR: return (struct type_args){ 1, 0 };
    case SpvOpSDot: return (struct type_args){ 1, 0 };
    case SpvOpUDot: return (struct type_args){ 1, 0 };
@@ -346,6 +347,9 @@ result_type_args_for_opcode(SpvOp opcode)
    case SpvOpCooperativeMatrixLoadKHR: return (struct type_args){ 1, 0 };
    case SpvOpCooperativeMatrixMulAddKHR: return (struct type_args){ 1, 0 };
    case SpvOpCooperativeMatrixLengthKHR: return (struct type_args){ 1, 0 };
+   case SpvOpConstantCompositeReplicateEXT: return (struct type_args){ 1, 0 };
+   case SpvOpSpecConstantCompositeReplicateEXT: return (struct type_args){ 1, 0 };
+   case SpvOpCompositeConstructReplicateEXT: return (struct type_args){ 1, 0 };
    case SpvOpTypeRayQueryKHR: return (struct type_args){ 0, -1 };
    case SpvOpRayQueryProceedKHR: return (struct type_args){ 1, 0 };
    case SpvOpRayQueryGetIntersectionTypeKHR: return (struct type_args){ 1, 0 };
@@ -353,6 +357,10 @@ result_type_args_for_opcode(SpvOp opcode)
    case SpvOpImageBoxFilterQCOM: return (struct type_args){ 1, 0 };
    case SpvOpImageBlockMatchSSDQCOM: return (struct type_args){ 1, 0 };
    case SpvOpImageBlockMatchSADQCOM: return (struct type_args){ 1, 0 };
+   case SpvOpImageBlockMatchWindowSSDQCOM: return (struct type_args){ 1, 0 };
+   case SpvOpImageBlockMatchWindowSADQCOM: return (struct type_args){ 1, 0 };
+   case SpvOpImageBlockMatchGatherSSDQCOM: return (struct type_args){ 1, 0 };
+   case SpvOpImageBlockMatchGatherSADQCOM: return (struct type_args){ 1, 0 };
    case SpvOpGroupIAddNonUniformAMD: return (struct type_args){ 1, 0 };
    case SpvOpGroupFAddNonUniformAMD: return (struct type_args){ 1, 0 };
    case SpvOpGroupFMinNonUniformAMD: return (struct type_args){ 1, 0 };
@@ -391,9 +399,9 @@ result_type_args_for_opcode(SpvOp opcode)
    case SpvOpGroupNonUniformPartitionNV: return (struct type_args){ 1, 0 };
    case SpvOpFetchMicroTriangleVertexPositionNV: return (struct type_args){ 1, 0 };
    case SpvOpFetchMicroTriangleVertexBarycentricNV: return (struct type_args){ 1, 0 };
-   case SpvOpReportIntersectionNV: return (struct type_args){ 1, 0 };
+   case SpvOpReportIntersectionKHR: return (struct type_args){ 1, 0 };
    case SpvOpRayQueryGetIntersectionTriangleVertexPositionsKHR: return (struct type_args){ 1, 0 };
-   case SpvOpTypeAccelerationStructureNV: return (struct type_args){ 0, -1 };
+   case SpvOpTypeAccelerationStructureKHR: return (struct type_args){ 0, -1 };
    case SpvOpTypeCooperativeMatrixNV: return (struct type_args){ 0, -1 };
    case SpvOpCooperativeMatrixLoadNV: return (struct type_args){ 1, 0 };
    case SpvOpCooperativeMatrixMulAddNV: return (struct type_args){ 1, 0 };
@@ -405,6 +413,7 @@ result_type_args_for_opcode(SpvOp opcode)
    case SpvOpConvertSamplerToUNV: return (struct type_args){ 1, 0 };
    case SpvOpConvertUToSampledImageNV: return (struct type_args){ 1, 0 };
    case SpvOpConvertSampledImageToUNV: return (struct type_args){ 1, 0 };
+   case SpvOpRawAccessChainNV: return (struct type_args){ 1, 0 };
    case SpvOpSubgroupShuffleINTEL: return (struct type_args){ 1, 0 };
    case SpvOpSubgroupShuffleDownINTEL: return (struct type_args){ 1, 0 };
    case SpvOpSubgroupShuffleUpINTEL: return (struct type_args){ 1, 0 };

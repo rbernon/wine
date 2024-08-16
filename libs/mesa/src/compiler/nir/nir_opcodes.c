@@ -3290,6 +3290,66 @@ const nir_op_info nir_op_infos[nir_num_opcodes] = {
       NIR_OP_IS_2SRC_COMMUTATIVE
 },
 {
+   .name = "fequ",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool1,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      NIR_OP_IS_2SRC_COMMUTATIVE
+},
+{
+   .name = "fequ16",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool16,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      NIR_OP_IS_2SRC_COMMUTATIVE
+},
+{
+   .name = "fequ32",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool32,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      NIR_OP_IS_2SRC_COMMUTATIVE
+},
+{
+   .name = "fequ8",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool8,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      NIR_OP_IS_2SRC_COMMUTATIVE
+},
+{
    .name = "fexp2",
    .num_inputs = 1,
    .output_size = 0,
@@ -3411,6 +3471,66 @@ const nir_op_info nir_op_infos[nir_num_opcodes] = {
 },
 {
    .name = "fge8",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool8,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      0
+},
+{
+   .name = "fgeu",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool1,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      0
+},
+{
+   .name = "fgeu16",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool16,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      0
+},
+{
+   .name = "fgeu32",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool32,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      0
+},
+{
+   .name = "fgeu8",
    .num_inputs = 2,
    .output_size = 0,
    .output_type = nir_type_bool8,
@@ -3575,6 +3695,66 @@ const nir_op_info nir_op_infos[nir_num_opcodes] = {
       0
 },
 {
+   .name = "fltu",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool1,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      0
+},
+{
+   .name = "fltu16",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool16,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      0
+},
+{
+   .name = "fltu32",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool32,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      0
+},
+{
+   .name = "fltu8",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool8,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      0
+},
+{
    .name = "fmax",
    .num_inputs = 2,
    .output_size = 0,
@@ -3665,6 +3845,66 @@ const nir_op_info nir_op_infos[nir_num_opcodes] = {
       0
 },
 {
+   .name = "fneo",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool1,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      NIR_OP_IS_2SRC_COMMUTATIVE
+},
+{
+   .name = "fneo16",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool16,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      NIR_OP_IS_2SRC_COMMUTATIVE
+},
+{
+   .name = "fneo32",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool32,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      NIR_OP_IS_2SRC_COMMUTATIVE
+},
+{
+   .name = "fneo8",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool8,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      NIR_OP_IS_2SRC_COMMUTATIVE
+},
+{
    .name = "fneu",
    .num_inputs = 2,
    .output_size = 0,
@@ -3711,6 +3951,66 @@ const nir_op_info nir_op_infos[nir_num_opcodes] = {
 },
 {
    .name = "fneu8",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool8,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      NIR_OP_IS_2SRC_COMMUTATIVE
+},
+{
+   .name = "ford",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool1,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      NIR_OP_IS_2SRC_COMMUTATIVE
+},
+{
+   .name = "ford16",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool16,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      NIR_OP_IS_2SRC_COMMUTATIVE
+},
+{
+   .name = "ford32",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool32,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      NIR_OP_IS_2SRC_COMMUTATIVE
+},
+{
+   .name = "ford8",
    .num_inputs = 2,
    .output_size = 0,
    .output_type = nir_type_bool8,
@@ -4038,6 +4338,66 @@ const nir_op_info nir_op_infos[nir_num_opcodes] = {
    .is_conversion = false,
    .algebraic_properties =
       0
+},
+{
+   .name = "funord",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool1,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      NIR_OP_IS_2SRC_COMMUTATIVE
+},
+{
+   .name = "funord16",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool16,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      NIR_OP_IS_2SRC_COMMUTATIVE
+},
+{
+   .name = "funord32",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool32,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      NIR_OP_IS_2SRC_COMMUTATIVE
+},
+{
+   .name = "funord8",
+   .num_inputs = 2,
+   .output_size = 0,
+   .output_type = nir_type_bool8,
+   .input_sizes = {
+      0, 0
+   },
+   .input_types = {
+      nir_type_float, nir_type_float
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      NIR_OP_IS_2SRC_COMMUTATIVE
 },
 {
    .name = "i2f16",
@@ -5510,6 +5870,21 @@ const nir_op_info nir_op_infos[nir_num_opcodes] = {
       0
 },
 {
+   .name = "prmt_nv",
+   .num_inputs = 3,
+   .output_size = 0,
+   .output_type = nir_type_uint32,
+   .input_sizes = {
+      0, 0, 0
+   },
+   .input_types = {
+      nir_type_uint32, nir_type_uint32, nir_type_uint32
+   },
+   .is_conversion = false,
+   .algebraic_properties =
+      0
+},
+{
    .name = "sdot_2x16_iadd",
    .num_inputs = 3,
    .output_size = 0,
@@ -6353,12 +6728,12 @@ const nir_op_info nir_op_infos[nir_num_opcodes] = {
    .name = "umul_unorm_4x8_vc4",
    .num_inputs = 2,
    .output_size = 0,
-   .output_type = nir_type_int32,
+   .output_type = nir_type_uint32,
    .input_sizes = {
       0, 0
    },
    .input_types = {
-      nir_type_int32, nir_type_int32
+      nir_type_uint32, nir_type_uint32
    },
    .is_conversion = false,
    .algebraic_properties =
@@ -6515,21 +6890,6 @@ const nir_op_info nir_op_infos[nir_num_opcodes] = {
       0
 },
 {
-   .name = "unpack_half_2x16_flush_to_zero",
-   .num_inputs = 1,
-   .output_size = 2,
-   .output_type = nir_type_float32,
-   .input_sizes = {
-      1
-   },
-   .input_types = {
-      nir_type_uint32
-   },
-   .is_conversion = false,
-   .algebraic_properties =
-      0
-},
-{
    .name = "unpack_half_2x16_split_x",
    .num_inputs = 1,
    .output_size = 0,
@@ -6545,37 +6905,7 @@ const nir_op_info nir_op_infos[nir_num_opcodes] = {
       0
 },
 {
-   .name = "unpack_half_2x16_split_x_flush_to_zero",
-   .num_inputs = 1,
-   .output_size = 0,
-   .output_type = nir_type_float32,
-   .input_sizes = {
-      0
-   },
-   .input_types = {
-      nir_type_uint32
-   },
-   .is_conversion = false,
-   .algebraic_properties =
-      0
-},
-{
    .name = "unpack_half_2x16_split_y",
-   .num_inputs = 1,
-   .output_size = 0,
-   .output_type = nir_type_float32,
-   .input_sizes = {
-      0
-   },
-   .input_types = {
-      nir_type_uint32
-   },
-   .is_conversion = false,
-   .algebraic_properties =
-      0
-},
-{
-   .name = "unpack_half_2x16_split_y_flush_to_zero",
    .num_inputs = 1,
    .output_size = 0,
    .output_type = nir_type_float32,

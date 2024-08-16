@@ -1842,7 +1842,7 @@ void GLAPIENTRY _mesa_PointParameterx(GLenum pname, GLfixed param);
 void GLAPIENTRY _mesa_PointParameterxv(GLenum pname, const GLfixed *params);
 void GLAPIENTRY _mesa_TexParameterxv(GLenum target, GLenum pname, const GLfixed *params);
 void GLAPIENTRY _mesa_GetTexGenxvOES(GLenum coord, GLenum pname, GLfixed *params);
-void GLAPIENTRY _mesa_TexGenxOES(GLenum coord, GLenum pname, GLint param);
+void GLAPIENTRY _mesa_TexGenxOES(GLenum coord, GLenum pname, GLfixed param);
 void GLAPIENTRY _mesa_TexGenxvOES(GLenum coord, GLenum pname, const GLfixed *params);
 void GLAPIENTRY _mesa_ClipPlanef(GLenum plane, const GLfloat *equation);
 void GLAPIENTRY _mesa_GetClipPlanef(GLenum plane, GLfloat *equation);
@@ -1865,6 +1865,10 @@ void GLAPIENTRY _mesa_DepthRangeArrayfvOES(GLuint first, GLsizei count, const GL
 void GLAPIENTRY _mesa_DepthRangeIndexedfOES(GLuint index, GLfloat n, GLfloat f);
 void GLAPIENTRY _mesa_FramebufferParameteriMESA(GLenum target, GLenum pname, GLint param);
 void GLAPIENTRY _mesa_GetFramebufferParameterivMESA(GLenum target, GLenum pname, GLint *params);
+void GLAPIENTRY _mesa_TexStorageAttribs2DEXT(GLenum target, GLsizei levels, GLenum internalFormat, GLsizei width, GLsizei height, const GLint *attrib_list);
+void GLAPIENTRY _mesa_TexStorageAttribs2DEXT_no_error(GLenum target, GLsizei levels, GLenum internalFormat, GLsizei width, GLsizei height, const GLint *attrib_list);
+void GLAPIENTRY _mesa_TexStorageAttribs3DEXT(GLenum target, GLsizei levels, GLenum internalFormat, GLsizei width, GLsizei height, GLsizei depth, const GLint *attrib_list);
+void GLAPIENTRY _mesa_TexStorageAttribs3DEXT_no_error(GLenum target, GLsizei levels, GLenum internalFormat, GLsizei width, GLsizei height, GLsizei depth, const GLint *attrib_list);
 
 #ifdef __cplusplus
 }
