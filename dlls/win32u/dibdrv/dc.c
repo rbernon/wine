@@ -65,7 +65,7 @@ static void calc_shift_and_len(DWORD mask, int *shift, int *len)
     *len = l;
 }
 
-static void init_bit_fields(dib_info *dib, const DWORD *bit_fields)
+static void init_bit_fields( struct dib *dib, const DWORD *bit_fields )
 {
     dib->red_mask    = bit_fields[0];
     dib->green_mask  = bit_fields[1];
@@ -75,8 +75,8 @@ static void init_bit_fields(dib_info *dib, const DWORD *bit_fields)
     calc_shift_and_len(dib->blue_mask,  &dib->blue_shift,  &dib->blue_len);
 }
 
-static void init_dib_info(dib_info *dib, const BITMAPINFOHEADER *bi, int stride,
-                          const DWORD *bit_fields, const RGBQUAD *color_table, void *bits)
+static void init_dib( struct dib *dib, const BITMAPINFOHEADER *bi, int stride,
+                      const DWORD *bit_fields, const RGBQUAD *color_table, void *bits )
 {
     dib->bit_count    = bi->biBitCount;
     dib->width        = bi->biWidth;
@@ -160,30 +160,29 @@ static void init_dib_info(dib_info *dib, const BITMAPINFOHEADER *bi, int stride,
     }
 }
 
-void init_dib_info_from_bitmapinfo(dib_info *dib, const BITMAPINFO *info, void *bits)
+void init_dib_from_bitmapinfo( struct dib *dib, const BITMAPINFO *info, void *bits )
 {
     int width_bytes = get_dib_stride( info->bmiHeader.biWidth, info->bmiHeader.biBitCount );
     if (info->bmiHeader.biSizeImage)
         width_bytes = info->bmiHeader.biSizeImage / abs( info->bmiHeader.biHeight );
-    init_dib_info( dib, &info->bmiHeader, width_bytes,
-                   (const DWORD *)info->bmiColors, info->bmiColors, bits );
+    init_dib( dib, &info->bmiHeader, width_bytes, (const DWORD *)info->bmiColors, info->bmiColors, bits );
 }
 
-BOOL init_dib_info_from_bitmapobj(dib_info *dib, BITMAPOBJ *bmp)
+BOOL init_dib_from_bitmapobj( struct dib *dib, BITMAPOBJ *bmp )
 {
     if (!is_bitmapobj_dib( bmp ))
     {
         BITMAPINFO info;
 
         get_ddb_bitmapinfo( bmp, &info );
-        init_dib_info_from_bitmapinfo( dib, &info, bmp->dib.dsBm.bmBits );
+        init_dib_from_bitmapinfo( dib, &info, bmp->dib.dsBm.bmBits );
     }
-    else init_dib_info( dib, &bmp->dib.dsBmih, bmp->dib.dsBm.bmWidthBytes,
-                        bmp->dib.dsBitfields, bmp->color_table, bmp->dib.dsBm.bmBits );
+    else init_dib( dib, &bmp->dib.dsBmih, bmp->dib.dsBm.bmWidthBytes,
+                   bmp->dib.dsBitfields, bmp->color_table, bmp->dib.dsBm.bmBits );
     return TRUE;
 }
 
-static void clear_dib_info(dib_info *dib)
+static void clear_dib( struct dib *dib )
 {
     dib->bits.ptr    = NULL;
     dib->bits.free   = NULL;
@@ -191,17 +190,17 @@ static void clear_dib_info(dib_info *dib)
 }
 
 /**********************************************************************
- *      free_dib_info
+ *      free_dib
  *
  * Free the resources associated with a dib and optionally the bits
  */
-void free_dib_info(dib_info *dib)
+void free_dib( struct dib *dib )
 {
     if (dib->bits.free) dib->bits.free( &dib->bits );
-    clear_dib_info( dib );
+    clear_dib( dib );
 }
 
-void copy_dib_color_info(dib_info *dst, const dib_info *src)
+void copy_dib_color_info( struct dib *dst, const struct dib *src )
 {
     dst->bit_count        = src->bit_count;
     dst->red_mask         = src->red_mask;
@@ -221,11 +220,11 @@ void copy_dib_color_info(dib_info *dst, const dib_info *src)
 DWORD convert_bitmapinfo( const BITMAPINFO *src_info, void *src_bits, struct bitblt_coords *src,
                           const BITMAPINFO *dst_info, void *dst_bits )
 {
-    dib_info src_dib, dst_dib;
+    struct dib src_dib, dst_dib;
     DWORD ret;
 
-    init_dib_info_from_bitmapinfo( &src_dib, src_info, src_bits );
-    init_dib_info_from_bitmapinfo( &dst_dib, dst_info, dst_bits );
+    init_dib_from_bitmapinfo( &src_dib, src_info, src_bits );
+    init_dib_from_bitmapinfo( &dst_dib, dst_info, dst_bits );
 
     __TRY
     {
@@ -248,7 +247,7 @@ DWORD convert_bitmapinfo( const BITMAPINFO *src_info, void *src_bits, struct bit
     return ERROR_SUCCESS;
 }
 
-int get_dib_rect( const dib_info *dib, RECT *rc )
+int get_dib_rect( const struct dib *dib, RECT *rc )
 {
     rc->left   = max( 0, -dib->rect.left );
     rc->top    = max( 0, -dib->rect.top );
@@ -257,14 +256,14 @@ int get_dib_rect( const dib_info *dib, RECT *rc )
     return !IsRectEmpty( rc );
 }
 
-int clip_rect_to_dib( const dib_info *dib, RECT *rc )
+int clip_rect_to_dib( const struct dib *dib, RECT *rc )
 {
     RECT rect;
 
     return get_dib_rect( dib, &rect ) && intersect_rect( rc, &rect, rc );
 }
 
-int get_clipped_rects( const dib_info *dib, const RECT *rc, HRGN clip, struct clipped_rects *clip_rects )
+int get_clipped_rects( const struct dib *dib, const RECT *rc, HRGN clip, struct clipped_rects *clip_rects )
 {
     const WINEREGION *region;
     RECT rect, *out = clip_rects->buffer;
@@ -330,9 +329,9 @@ static BOOL dibdrv_CreateDC( PHYSDEV *dev, LPCWSTR device, LPCWSTR output, const
     dibdrv_physdev *pdev = calloc( 1, sizeof(*pdev) );
 
     if (!pdev) return FALSE;
-    clear_dib_info(&pdev->dib);
-    clear_dib_info(&pdev->brush.dib);
-    clear_dib_info(&pdev->pen_brush.dib);
+    clear_dib( &pdev->dib );
+    clear_dib( &pdev->brush.dib );
+    clear_dib( &pdev->pen_brush.dib );
     push_dc_driver( dev, &pdev->dev, &dib_driver );
     return TRUE;
 }
@@ -358,13 +357,13 @@ static HBITMAP dibdrv_SelectBitmap( PHYSDEV dev, HBITMAP bitmap )
 {
     dibdrv_physdev *pdev = get_dibdrv_pdev(dev);
     BITMAPOBJ *bmp = GDI_GetObjPtr( bitmap, NTGDI_OBJ_BITMAP );
-    dib_info dib;
+    struct dib dib;
 
     TRACE("(%p, %p)\n", dev, bitmap);
 
     if (!bmp) return 0;
 
-    if (!init_dib_info_from_bitmapobj(&dib, bmp))
+    if (!init_dib_from_bitmapobj( &dib, bmp ))
     {
         GDI_ReleaseObj( bitmap );
         return 0;
@@ -520,7 +519,7 @@ static BOOL dibdrv_wglMakeCurrent( HDC hdc, struct wgl_context *context )
 {
     HBITMAP bitmap;
     BITMAPOBJ *bmp;
-    dib_info dib;
+    struct dib dib;
     BOOL ret = FALSE;
 
     if (!osmesa_funcs) return FALSE;
@@ -530,7 +529,7 @@ static BOOL dibdrv_wglMakeCurrent( HDC hdc, struct wgl_context *context )
     bmp = GDI_GetObjPtr( bitmap, NTGDI_OBJ_BITMAP );
     if (!bmp) return FALSE;
 
-    if (init_dib_info_from_bitmapobj( &dib, bmp ))
+    if (init_dib_from_bitmapobj( &dib, bmp ))
     {
         char *bits;
         int width = dib.rect.right - dib.rect.left;
@@ -751,7 +750,10 @@ static inline void lock_surface( struct windrv_physdev *dev )
 
     if (!dev->lock_count++)
     {
-        window_surface_lock( surface );
+        RECT rect = dev->dibdrv->dib.rect;
+        window_surface_lock_write( surface, &dev->dibdrv->dib );
+        dev->dibdrv->dib.rect = rect;
+
         if (IsRectEmpty( dev->dibdrv->bounds ) || !surface->draw_start_ticks)
             surface->draw_start_ticks = NtGetTickCount();
     }
@@ -764,7 +766,7 @@ static inline void unlock_surface( struct windrv_physdev *dev )
     if (!--dev->lock_count)
     {
         DWORD ticks = NtGetTickCount() - surface->draw_start_ticks;
-        window_surface_unlock( surface );
+        window_surface_unlock_write( surface, &dev->dibdrv->dib );
         if (ticks > FLUSH_PERIOD) window_surface_flush( dev->surface );
     }
 }
@@ -825,9 +827,14 @@ void dibdrv_set_window_surface( DC *dc, struct window_surface *surface )
         }
         else
         {
+            /* acquire the surface once to initialize the dib info */
+            window_surface_lock_write( surface, &dibdrv->dib );
+            window_surface_unlock_write( surface, &dibdrv->dib );
+
             init_dib_info_from_bitmapobj( &dibdrv->dib, bmp );
             GDI_ReleaseObj( surface->color_bitmap );
         }
+
         dibdrv->dib.rect = dc->attr->vis_rect;
         OffsetRect( &dibdrv->dib.rect, -dc->device_rect.left, -dc->device_rect.top );
         dibdrv->bounds = &surface->bounds;

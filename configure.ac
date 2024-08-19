@@ -54,6 +54,7 @@ AC_ARG_WITH(pcap,      AS_HELP_STRING([--without-pcap],[do not use the Packet Ca
 AC_ARG_WITH(pcsclite,  AS_HELP_STRING([--without-pcsclite],[do not use PCSC lite]))
 AC_ARG_WITH(pthread,   AS_HELP_STRING([--without-pthread],[do not use the pthread library]))
 AC_ARG_WITH(pulse,     AS_HELP_STRING([--without-pulse],[do not use PulseAudio sound support]))
+AC_ARG_WITH(cairo,     AS_HELP_STRING([--without-cairo],[do not use Cairo 2D support]))
 AC_ARG_WITH(sane,      AS_HELP_STRING([--without-sane],[do not use SANE (scanner support)]))
 AC_ARG_WITH(sdl,       AS_HELP_STRING([--without-sdl],[do not use SDL]))
 AC_ARG_WITH(udev,      AS_HELP_STRING([--without-udev],[do not use udev (plug and play support)]))
@@ -62,6 +63,7 @@ AC_ARG_WITH(usb,       AS_HELP_STRING([--without-usb],[do not use the libusb lib
 AC_ARG_WITH(v4l2,      AS_HELP_STRING([--without-v4l2],[do not use v4l2 (video capture)]))
 AC_ARG_WITH(vulkan,    AS_HELP_STRING([--without-vulkan],[do not use Vulkan]))
 AC_ARG_WITH(wayland,   AS_HELP_STRING([--without-wayland],[do not build the Wayland driver]))
+AC_ARG_WITH(xcb,       AS_HELP_STRING([--without-xcb],[do not use XCB]))
 AC_ARG_WITH(xcomposite,AS_HELP_STRING([--without-xcomposite],[do not use the Xcomposite extension]),
             [if test "x$withval" = "xno"; then ac_cv_header_X11_extensions_Xcomposite_h=no; fi])
 AC_ARG_WITH(xcursor,   AS_HELP_STRING([--without-xcursor],[do not use the Xcursor extension]),
@@ -1656,6 +1658,17 @@ fi
 WINE_NOTICE_WITH(ffmpeg,[test "x$FFMPEG_LIBS" = x],
         [FFmpeg ${notice_platform}development files not found.])
 
+dnl **** Check for Cairo 2D ****
+if test "x$with_cairo" != "xno";
+then
+    WINE_PACKAGE_FLAGS(CAIRO,[cairo cairo-xcb],,,,
+        [AC_CHECK_HEADERS([cairo/cairo.h cairo/cairo-xcb.h],
+            [AC_CHECK_LIB(cairo, cairo_surface_destroy,[:],[CAIRO_LIBS=""],[$CAIRO_LIBS])],
+            [CAIRO_LIBS=""])])
+fi
+WINE_NOTICE_WITH(cairo,[test "x$ac_cv_lib_soname_cairo" = "x"],
+        [cairo ${notice_platform}development files not found or too old.])
+
 dnl **** Check for gstreamer ****
 if test "x$with_gstreamer" != "xno"
 then
@@ -1868,6 +1881,15 @@ WINE_NOTICE_WITH(netapi,[test "x$ac_cv_lib_soname_netapi" = "x"],
                  [libnetapi not found, Samba NetAPI won't be supported.],
                  [enable_netapi])
 
+dnl **** Check for libxcb ****
+if test "x$with_xcb" != "xno"
+then
+    WINE_PACKAGE_FLAGS(XCB,[xcb xcb-event],,,,
+        [AC_CHECK_HEADERS([xcb/xcb.h])
+         AC_CHECK_LIB(xcb,xcb_connect,[:],[XCB_LIBS=""],[$XCB_LIBS])])
+fi
+WINE_NOTICE_WITH(xcb,[test "x$XCB_LIBS" = "x"],
+    [XCB ${notice_platform}development files not found.])
 
 dnl **** Check for any sound system ****
 if test "x$enable_winealsa_drv$enable_winecoreaudio_drv$enable_winepulse_drv$enable_wineoss_drv$enable_wineandroid_drv" = xnonononono -a \

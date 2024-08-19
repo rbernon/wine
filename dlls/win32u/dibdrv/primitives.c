@@ -73,37 +73,37 @@ static const BYTE bayer_16x16[16][16] =
     { 255, 127, 223,  95, 247, 119, 215,  87, 253, 125, 221,  93, 245, 117, 213,  85 },
 };
 
-static inline DWORD *get_pixel_ptr_32(const dib_info *dib, int x, int y)
+static inline DWORD *get_pixel_ptr_32( const struct dib *dib, int x, int y )
 {
     return (DWORD *)((BYTE*)dib->bits.ptr + (dib->rect.top + y) * dib->stride + (dib->rect.left + x) * 4);
 }
 
-static inline DWORD *get_pixel_ptr_24_dword(const dib_info *dib, int x, int y)
+static inline DWORD *get_pixel_ptr_24_dword( const struct dib *dib, int x, int y )
 {
     return (DWORD *)((BYTE*)dib->bits.ptr + (dib->rect.top + y) * dib->stride) + (dib->rect.left + x) * 3 / 4;
 }
 
-static inline BYTE *get_pixel_ptr_24(const dib_info *dib, int x, int y)
+static inline BYTE *get_pixel_ptr_24( const struct dib *dib, int x, int y )
 {
     return (BYTE*)dib->bits.ptr + (dib->rect.top + y) * dib->stride + (dib->rect.left + x) * 3;
 }
 
-static inline WORD *get_pixel_ptr_16(const dib_info *dib, int x, int y)
+static inline WORD *get_pixel_ptr_16( const struct dib *dib, int x, int y )
 {
     return (WORD *)((BYTE*)dib->bits.ptr + (dib->rect.top + y) * dib->stride + (dib->rect.left + x) * 2);
 }
 
-static inline BYTE *get_pixel_ptr_8(const dib_info *dib, int x, int y)
+static inline BYTE *get_pixel_ptr_8( const struct dib *dib, int x, int y )
 {
     return (BYTE*)dib->bits.ptr + (dib->rect.top + y) * dib->stride + dib->rect.left + x;
 }
 
-static inline BYTE *get_pixel_ptr_4(const dib_info *dib, int x, int y)
+static inline BYTE *get_pixel_ptr_4( const struct dib *dib, int x, int y )
 {
     return (BYTE*)dib->bits.ptr + (dib->rect.top + y) * dib->stride + (dib->rect.left + x) / 2;
 }
 
-static inline BYTE *get_pixel_ptr_1(const dib_info *dib, int x, int y)
+static inline BYTE *get_pixel_ptr_1( const struct dib *dib, int x, int y )
 {
     return (BYTE*)dib->bits.ptr + (dib->rect.top + y) * dib->stride + (dib->rect.left + x) / 8;
 }
@@ -268,7 +268,7 @@ static inline void memset_16( WORD *start, WORD val, DWORD size )
 #endif
 }
 
-static void solid_rects_32(const dib_info *dib, int num, const RECT *rc, DWORD and, DWORD xor)
+static void solid_rects_32( const struct dib *dib, int num, const RECT *rc, DWORD and, DWORD xor )
 {
     DWORD *ptr, *start;
     int x, y, i;
@@ -288,7 +288,7 @@ static void solid_rects_32(const dib_info *dib, int num, const RECT *rc, DWORD a
     }
 }
 
-static void solid_rects_24(const dib_info *dib, int num, const RECT *rc, DWORD and, DWORD xor)
+static void solid_rects_24( const struct dib *dib, int num, const RECT *rc, DWORD and, DWORD xor )
 {
     DWORD *ptr, *start;
     BYTE *byte_ptr, *byte_start;
@@ -419,7 +419,7 @@ static void solid_rects_24(const dib_info *dib, int num, const RECT *rc, DWORD a
     }
 }
 
-static void solid_rects_16(const dib_info *dib, int num, const RECT *rc, DWORD and, DWORD xor)
+static void solid_rects_16( const struct dib *dib, int num, const RECT *rc, DWORD and, DWORD xor )
 {
     WORD *ptr, *start;
     int x, y, i;
@@ -439,7 +439,7 @@ static void solid_rects_16(const dib_info *dib, int num, const RECT *rc, DWORD a
     }
 }
 
-static void solid_rects_8(const dib_info *dib, int num, const RECT *rc, DWORD and, DWORD xor)
+static void solid_rects_8( const struct dib *dib, int num, const RECT *rc, DWORD and, DWORD xor )
 {
     BYTE *ptr, *start;
     int x, y, i;
@@ -459,7 +459,7 @@ static void solid_rects_8(const dib_info *dib, int num, const RECT *rc, DWORD an
     }
 }
 
-static void solid_rects_4(const dib_info *dib, int num, const RECT *rc, DWORD and, DWORD xor)
+static void solid_rects_4( const struct dib *dib, int num, const RECT *rc, DWORD and, DWORD xor )
 {
     BYTE *ptr, *start;
     int x, y, i;
@@ -508,7 +508,7 @@ static void solid_rects_4(const dib_info *dib, int num, const RECT *rc, DWORD an
     }
 }
 
-static void solid_rects_1(const dib_info *dib, int num, const RECT *rc, DWORD and, DWORD xor)
+static void solid_rects_1( const struct dib *dib, int num, const RECT *rc, DWORD and, DWORD xor )
 {
     BYTE *ptr, *start;
     int x, y, i;
@@ -570,13 +570,13 @@ static void solid_rects_1(const dib_info *dib, int num, const RECT *rc, DWORD an
     }
 }
 
-static void solid_rects_null(const dib_info *dib, int num, const RECT *rc, DWORD and, DWORD xor)
+static void solid_rects_null( const struct dib *dib, int num, const RECT *rc, DWORD and, DWORD xor )
 {
     return;
 }
 
-static void solid_line_32(const dib_info *dib, const POINT *start, const struct line_params *params,
-                          DWORD and, DWORD xor)
+static void solid_line_32( const struct dib *dib, const POINT *start,
+                           const struct line_params *params, DWORD and, DWORD xor )
 {
     DWORD *ptr = get_pixel_ptr_32( dib, start->x, start->y );
     int len = params->length, err = params->err_start;
@@ -606,8 +606,8 @@ static void solid_line_32(const dib_info *dib, const POINT *start, const struct 
     }
 }
 
-static void solid_line_24(const dib_info *dib, const POINT *start, const struct line_params *params,
-                         DWORD and, DWORD xor)
+static void solid_line_24( const struct dib *dib, const POINT *start,
+                           const struct line_params *params, DWORD and, DWORD xor )
 {
     BYTE *ptr = get_pixel_ptr_24( dib, start->x, start->y );
     int len = params->length, err = params->err_start;
@@ -639,8 +639,8 @@ static void solid_line_24(const dib_info *dib, const POINT *start, const struct 
     }
 }
 
-static void solid_line_16(const dib_info *dib, const POINT *start, const struct line_params *params,
-                          DWORD and, DWORD xor)
+static void solid_line_16( const struct dib *dib, const POINT *start,
+                           const struct line_params *params, DWORD and, DWORD xor )
 {
     WORD *ptr = get_pixel_ptr_16( dib, start->x, start->y );
     int len = params->length, err = params->err_start;
@@ -670,8 +670,8 @@ static void solid_line_16(const dib_info *dib, const POINT *start, const struct 
     }
 }
 
-static void solid_line_8(const dib_info *dib, const POINT *start, const struct line_params *params,
-                         DWORD and, DWORD xor)
+static void solid_line_8( const struct dib *dib, const POINT *start,
+                          const struct line_params *params, DWORD and, DWORD xor )
 {
     BYTE *ptr = get_pixel_ptr_8( dib, start->x, start->y );
     int len = params->length, err = params->err_start;
@@ -701,8 +701,8 @@ static void solid_line_8(const dib_info *dib, const POINT *start, const struct l
     }
 }
 
-static void solid_line_4(const dib_info *dib, const POINT *start, const struct line_params *params,
-                         DWORD and, DWORD xor)
+static void solid_line_4( const struct dib *dib, const POINT *start,
+                          const struct line_params *params, DWORD and, DWORD xor )
 {
     BYTE *ptr = get_pixel_ptr_4( dib, start->x, start->y );
     int len = params->length, err = params->err_start;
@@ -745,8 +745,8 @@ static void solid_line_4(const dib_info *dib, const POINT *start, const struct l
     }
 }
 
-static void solid_line_1(const dib_info *dib, const POINT *start, const struct line_params *params,
-                         DWORD and, DWORD xor)
+static void solid_line_1( const struct dib *dib, const POINT *start,
+                          const struct line_params *params, DWORD and, DWORD xor )
 {
     BYTE *ptr = get_pixel_ptr_1( dib, start->x, start->y );
     int len = params->length, err = params->err_start;
@@ -789,8 +789,8 @@ static void solid_line_1(const dib_info *dib, const POINT *start, const struct l
     }
 }
 
-static void solid_line_null(const dib_info *dib, const POINT *start, const struct line_params *params,
-                            DWORD and, DWORD xor)
+static void solid_line_null( const struct dib *dib, const POINT *start,
+                             const struct line_params *params, DWORD and, DWORD xor )
 {
     return;
 }
@@ -809,7 +809,7 @@ static inline INT calc_offset(INT edge, INT size, INT origin)
     return offset;
 }
 
-static inline POINT calc_brush_offset(const RECT *rc, const dib_info *brush, const POINT *origin)
+static inline POINT calc_brush_offset( const RECT *rc, const struct dib *brush, const POINT *origin )
 {
     POINT offset;
 
@@ -819,8 +819,8 @@ static inline POINT calc_brush_offset(const RECT *rc, const dib_info *brush, con
     return offset;
 }
 
-static void pattern_rects_32(const dib_info *dib, int num, const RECT *rc, const POINT *origin,
-                             const dib_info *brush, const rop_mask_bits *bits)
+static void pattern_rects_32( const struct dib *dib, int num, const RECT *rc, const POINT *origin,
+                              const struct dib *brush, const rop_mask_bits *bits )
 {
     DWORD *ptr, *start, *start_and, *and_ptr, *start_xor, *xor_ptr;
     int x, y, i, len, brush_x;
@@ -888,8 +888,8 @@ static void pattern_rects_32(const dib_info *dib, int num, const RECT *rc, const
     }
 }
 
-static void pattern_rects_24(const dib_info *dib, int num, const RECT *rc, const POINT *origin,
-                             const dib_info *brush, const rop_mask_bits *bits)
+static void pattern_rects_24( const struct dib *dib, int num, const RECT *rc, const POINT *origin,
+                              const struct dib *brush, const rop_mask_bits *bits )
 {
     BYTE *ptr, *start, *start_and, *and_ptr, *start_xor, *xor_ptr;
     int x, y, i, len, brush_x;
@@ -959,8 +959,8 @@ static void pattern_rects_24(const dib_info *dib, int num, const RECT *rc, const
     }
 }
 
-static void pattern_rects_16(const dib_info *dib, int num, const RECT *rc, const POINT *origin,
-                             const dib_info *brush, const rop_mask_bits *bits)
+static void pattern_rects_16( const struct dib *dib, int num, const RECT *rc, const POINT *origin,
+                              const struct dib *brush, const rop_mask_bits *bits )
 {
     WORD *ptr, *start, *start_and, *and_ptr, *start_xor, *xor_ptr;
     int x, y, i, len, brush_x;
@@ -1028,8 +1028,8 @@ static void pattern_rects_16(const dib_info *dib, int num, const RECT *rc, const
     }
 }
 
-static void pattern_rects_8(const dib_info *dib, int num, const RECT *rc, const POINT *origin,
-                            const dib_info *brush, const rop_mask_bits *bits)
+static void pattern_rects_8( const struct dib *dib, int num, const RECT *rc, const POINT *origin,
+                             const struct dib *brush, const rop_mask_bits *bits )
 {
     BYTE *ptr, *start, *start_and, *and_ptr, *start_xor, *xor_ptr;
     int x, y, i, len, brush_x;
@@ -1097,8 +1097,8 @@ static void pattern_rects_8(const dib_info *dib, int num, const RECT *rc, const 
     }
 }
 
-static void pattern_rects_4(const dib_info *dib, int num, const RECT *rc, const POINT *origin,
-                            const dib_info *brush, const rop_mask_bits *bits)
+static void pattern_rects_4( const struct dib *dib, int num, const RECT *rc, const POINT *origin,
+                             const struct dib *brush, const rop_mask_bits *bits )
 {
     BYTE *ptr, *start, *start_and, *and_ptr, *start_xor, *xor_ptr;
     int x, y, i, left, right;
@@ -1229,8 +1229,8 @@ static void pattern_rects_4(const dib_info *dib, int num, const RECT *rc, const 
     }
 }
 
-static void pattern_rects_1(const dib_info *dib, int num, const RECT *rc, const POINT *origin,
-                            const dib_info *brush, const rop_mask_bits *bits)
+static void pattern_rects_1( const struct dib *dib, int num, const RECT *rc, const POINT *origin,
+                             const struct dib *brush, const rop_mask_bits *bits )
 {
     BYTE *ptr, *start, *start_and, *and_ptr, *start_xor, *xor_ptr;
     int x, y, i, left, right;
@@ -1332,8 +1332,8 @@ static void pattern_rects_1(const dib_info *dib, int num, const RECT *rc, const 
     }
 }
 
-static void pattern_rects_null(const dib_info *dib, int num, const RECT *rc, const POINT *origin,
-                               const dib_info *brush, const rop_mask_bits *bits)
+static void pattern_rects_null( const struct dib *dib, int num, const RECT *rc, const POINT *origin,
+                                const struct dib *brush, const rop_mask_bits *bits )
 {
     return;
 }
@@ -1379,8 +1379,8 @@ static inline void copy_rect_bits_rev_32( DWORD *dst_start, const DWORD *src_sta
 #undef LOOP
 }
 
-static void copy_rect_32(const dib_info *dst, const RECT *rc,
-                         const dib_info *src, const POINT *origin, int rop2, int overlap)
+static void copy_rect_32( const struct dib *dst, const RECT *rc, const struct dib *src,
+                          const POINT *origin, int rop2, int overlap )
 {
     DWORD *dst_start, *src_start;
     int y, dst_stride, src_stride;
@@ -1417,8 +1417,8 @@ static void copy_rect_32(const dib_info *dst, const RECT *rc,
         copy_rect_bits_32( dst_start, src_start, &size, dst_stride, src_stride, rop2 );
 }
 
-static void copy_rect_24(const dib_info *dst, const RECT *rc,
-                         const dib_info *src, const POINT *origin, int rop2, int overlap)
+static void copy_rect_24( const struct dib *dst, const RECT *rc, const struct dib *src,
+                          const POINT *origin, int rop2, int overlap )
 {
     BYTE *dst_start, *src_start;
     int y, dst_stride, src_stride;
@@ -1456,8 +1456,8 @@ static void copy_rect_24(const dib_info *dst, const RECT *rc,
     }
 }
 
-static void copy_rect_16(const dib_info *dst, const RECT *rc,
-                         const dib_info *src, const POINT *origin, int rop2, int overlap)
+static void copy_rect_16( const struct dib *dst, const RECT *rc, const struct dib *src,
+                          const POINT *origin, int rop2, int overlap )
 {
     WORD *dst_start, *src_start;
     int y, dst_stride, src_stride;
@@ -1495,8 +1495,8 @@ static void copy_rect_16(const dib_info *dst, const RECT *rc,
     }
 }
 
-static void copy_rect_8(const dib_info *dst, const RECT *rc,
-                        const dib_info *src, const POINT *origin, int rop2, int overlap)
+static void copy_rect_8( const struct dib *dst, const RECT *rc, const struct dib *src,
+                         const POINT *origin, int rop2, int overlap )
 {
     BYTE *dst_start, *src_start;
     int y, dst_stride, src_stride;
@@ -1534,8 +1534,8 @@ static void copy_rect_8(const dib_info *dst, const RECT *rc,
     }
 }
 
-static void copy_rect_4(const dib_info *dst, const RECT *rc,
-                        const dib_info *src, const POINT *origin, int rop2, int overlap)
+static void copy_rect_4( const struct dib *dst, const RECT *rc, const struct dib *src,
+                         const POINT *origin, int rop2, int overlap )
 {
     BYTE *dst_start, *src_start;
     int y, dst_stride, src_stride;
@@ -1939,8 +1939,8 @@ static inline void copy_rect_bits_rev_shr_1( BYTE *dst_start, int dst_x, const B
 #undef LOOP
 }
 
-static void copy_rect_1(const dib_info *dst, const RECT *rc,
-                        const dib_info *src, const POINT *origin, int rop2, int overlap)
+static void copy_rect_1( const struct dib *dst, const RECT *rc, const struct dib *src,
+                         const POINT *origin, int rop2, int overlap )
 {
     BYTE *dst_start, *src_start;
     int y, dst_stride, src_stride;
@@ -2001,37 +2001,37 @@ static void copy_rect_1(const dib_info *dst, const RECT *rc,
     }
 }
 
-static void copy_rect_null(const dib_info *dst, const RECT *rc,
-                           const dib_info *src, const POINT *origin, int rop2, int overlap)
+static void copy_rect_null( const struct dib *dst, const RECT *rc, const struct dib *src,
+                            const POINT *origin, int rop2, int overlap )
 {
     return;
 }
 
-static DWORD get_pixel_32(const dib_info *dib, int x, int y)
+static DWORD get_pixel_32( const struct dib *dib, int x, int y )
 {
     DWORD *ptr = get_pixel_ptr_32( dib, x, y );
     return *ptr;
 }
 
-static DWORD get_pixel_24(const dib_info *dib, int x, int y)
+static DWORD get_pixel_24( const struct dib *dib, int x, int y )
 {
     BYTE *ptr = get_pixel_ptr_24( dib, x, y );
     return ptr[0] | ((DWORD)ptr[1] << 8) | ((DWORD)ptr[2] << 16);
 }
 
-static DWORD get_pixel_16(const dib_info *dib, int x, int y)
+static DWORD get_pixel_16( const struct dib *dib, int x, int y )
 {
     WORD *ptr = get_pixel_ptr_16( dib, x, y );
     return *ptr;
 }
 
-static DWORD get_pixel_8(const dib_info *dib, int x, int y)
+static DWORD get_pixel_8( const struct dib *dib, int x, int y )
 {
     BYTE *ptr = get_pixel_ptr_8( dib, x, y );
     return *ptr;
 }
 
-static DWORD get_pixel_4(const dib_info *dib, int x, int y)
+static DWORD get_pixel_4( const struct dib *dib, int x, int y )
 {
     BYTE *ptr = get_pixel_ptr_4( dib, x, y );
 
@@ -2041,18 +2041,18 @@ static DWORD get_pixel_4(const dib_info *dib, int x, int y)
         return (*ptr >> 4) & 0x0f;
 }
 
-static DWORD get_pixel_1(const dib_info *dib, int x, int y)
+static DWORD get_pixel_1( const struct dib *dib, int x, int y )
 {
     BYTE *ptr = get_pixel_ptr_1( dib, x, y );
     return (*ptr & pixel_masks_1[(dib->rect.left + x) & 7]) ? 1 : 0;
 }
 
-static DWORD get_pixel_null(const dib_info *dib, int x, int y)
+static DWORD get_pixel_null( const struct dib *dib, int x, int y )
 {
     return 0;
 }
 
-static DWORD colorref_to_pixel_888(const dib_info *dib, COLORREF color)
+static DWORD colorref_to_pixel_888( const struct dib *dib, COLORREF color )
 {
     return ( ((color >> 16) & 0xff) | (color & 0xff00) | ((color << 16) & 0xff0000) );
 }
@@ -2089,29 +2089,29 @@ static inline DWORD put_field(DWORD field, int shift, int len)
     return field;
 }
 
-static DWORD rgb_to_pixel_masks(const dib_info *dib, DWORD r, DWORD g, DWORD b)
+static DWORD rgb_to_pixel_masks( const struct dib *dib, DWORD r, DWORD g, DWORD b )
 {
     return put_field(r, dib->red_shift,   dib->red_len) |
            put_field(g, dib->green_shift, dib->green_len) |
            put_field(b, dib->blue_shift,  dib->blue_len);
 }
 
-static DWORD rgbquad_to_pixel_masks(const dib_info *dib, RGBQUAD rgb)
+static DWORD rgbquad_to_pixel_masks( const struct dib *dib, RGBQUAD rgb )
 {
     return rgb_to_pixel_masks(dib, rgb.rgbRed, rgb.rgbGreen, rgb.rgbBlue);
 }
 
-static DWORD colorref_to_pixel_masks(const dib_info *dib, COLORREF colour)
+static DWORD colorref_to_pixel_masks( const struct dib *dib, COLORREF colour )
 {
     return rgb_to_pixel_masks(dib, GetRValue(colour), GetGValue(colour), GetBValue(colour));
 }
 
-static DWORD colorref_to_pixel_555(const dib_info *dib, COLORREF color)
+static DWORD colorref_to_pixel_555( const struct dib *dib, COLORREF color )
 {
     return ( ((color >> 19) & 0x1f) | ((color >> 6) & 0x03e0) | ((color << 7) & 0x7c00) );
 }
 
-static DWORD rgb_to_pixel_colortable(const dib_info *dib, BYTE r, BYTE g, BYTE b)
+static DWORD rgb_to_pixel_colortable( const struct dib *dib, BYTE r, BYTE g, BYTE b )
 {
     const RGBQUAD *color_table = get_dib_color_table( dib );
     int size = dib->color_table ? dib->color_table_size : 1 << dib->bit_count;
@@ -2140,8 +2140,8 @@ static DWORD rgb_to_pixel_colortable(const dib_info *dib, BYTE r, BYTE g, BYTE b
     return best_index;
 }
 
-static DWORD rgb_to_pixel_mono(const dib_info *dib, BOOL dither, int x, int y,
-                               DWORD src_pixel, DWORD bg_pixel, BYTE r, BYTE g, BYTE b)
+static DWORD rgb_to_pixel_mono( const struct dib *dib, BOOL dither, int x, int y, DWORD src_pixel,
+                                DWORD bg_pixel, BYTE r, BYTE g, BYTE b )
 {
     DWORD ret;
 
@@ -2159,41 +2159,41 @@ static DWORD rgb_to_pixel_mono(const dib_info *dib, BOOL dither, int x, int y,
     return ret ? 0xff : 0;
 }
 
-static DWORD rgbquad_to_pixel_colortable(const dib_info *dib, RGBQUAD rgb)
+static DWORD rgbquad_to_pixel_colortable( const struct dib *dib, RGBQUAD rgb )
 {
     return rgb_to_pixel_colortable( dib, rgb.rgbRed, rgb.rgbGreen, rgb.rgbBlue );
 }
 
-static DWORD colorref_to_pixel_colortable(const dib_info *dib, COLORREF color)
+static DWORD colorref_to_pixel_colortable( const struct dib *dib, COLORREF color )
 {
     return rgb_to_pixel_colortable( dib, GetRValue(color), GetGValue(color), GetBValue(color) );
 }
 
-static DWORD colorref_to_pixel_null(const dib_info *dib, COLORREF color)
+static DWORD colorref_to_pixel_null( const struct dib *dib, COLORREF color )
 {
     return 0;
 }
 
-static COLORREF pixel_to_colorref_888(const dib_info *dib, DWORD pixel)
+static COLORREF pixel_to_colorref_888( const struct dib *dib, DWORD pixel )
 {
     return ( ((pixel >> 16) & 0xff) | (pixel & 0xff00) | ((pixel << 16) & 0xff0000) );
 }
 
-static COLORREF pixel_to_colorref_masks(const dib_info *dib, DWORD pixel)
+static COLORREF pixel_to_colorref_masks( const struct dib *dib, DWORD pixel )
 {
     return RGB( get_field( pixel, dib->red_shift,   dib->red_len ),
                 get_field( pixel, dib->green_shift, dib->green_len ),
                 get_field( pixel, dib->blue_shift,  dib->blue_len ) );
 }
 
-static COLORREF pixel_to_colorref_555(const dib_info *dib, DWORD pixel)
+static COLORREF pixel_to_colorref_555( const struct dib *dib, DWORD pixel )
 {
     return RGB( ((pixel >> 7) & 0xf8) | ((pixel >> 12) & 0x07),
                 ((pixel >> 2) & 0xf8) | ((pixel >>  7) & 0x07),
                 ((pixel << 3) & 0xf8) | ((pixel >>  2) & 0x07) );
 }
 
-static COLORREF pixel_to_colorref_colortable(const dib_info *dib, DWORD pixel)
+static COLORREF pixel_to_colorref_colortable( const struct dib *dib, DWORD pixel )
 {
     const RGBQUAD *color_table = get_dib_color_table( dib );
 
@@ -2205,12 +2205,12 @@ static COLORREF pixel_to_colorref_colortable(const dib_info *dib, DWORD pixel)
     return 0;
 }
 
-static COLORREF pixel_to_colorref_null(const dib_info *dib, DWORD pixel)
+static COLORREF pixel_to_colorref_null( const struct dib *dib, DWORD pixel )
 {
     return 0;
 }
 
-static inline BOOL bit_fields_match(const dib_info *d1, const dib_info *d2)
+static inline BOOL bit_fields_match( const struct dib *d1, const struct dib *d2 )
 {
     assert( d1->bit_count > 8 && d1->bit_count == d2->bit_count );
 
@@ -2219,7 +2219,7 @@ static inline BOOL bit_fields_match(const dib_info *d1, const dib_info *d2)
            d1->blue_mask  == d2->blue_mask;
 }
 
-static void convert_to_8888(dib_info *dst, const dib_info *src, const RECT *src_rect, BOOL dither)
+static void convert_to_8888( struct dib *dst, const struct dib *src, const RECT *src_rect, BOOL dither )
 {
     DWORD *dst_start = get_pixel_ptr_32(dst, 0, 0), *dst_pixel, src_val;
     int x, y, pad_size = (dst->width - (src_rect->right - src_rect->left)) * 4;
@@ -2470,7 +2470,7 @@ static void convert_to_8888(dib_info *dst, const dib_info *src, const RECT *src_
     }
 }
 
-static void convert_to_32(dib_info *dst, const dib_info *src, const RECT *src_rect, BOOL dither)
+static void convert_to_32( struct dib *dst, const struct dib *src, const RECT *src_rect, BOOL dither )
 {
     DWORD *dst_start = get_pixel_ptr_32(dst, 0, 0), *dst_pixel, src_val;
     int x, y, pad_size = (dst->width - (src_rect->right - src_rect->left)) * 4;
@@ -2734,7 +2734,7 @@ static void convert_to_32(dib_info *dst, const dib_info *src, const RECT *src_re
     }
 }
 
-static void convert_to_24(dib_info *dst, const dib_info *src, const RECT *src_rect, BOOL dither)
+static void convert_to_24( struct dib *dst, const struct dib *src, const RECT *src_rect, BOOL dither )
 {
     BYTE *dst_start = get_pixel_ptr_24(dst, 0, 0), *dst_pixel;
     DWORD src_val;
@@ -2978,7 +2978,7 @@ static void convert_to_24(dib_info *dst, const dib_info *src, const RECT *src_re
     }
 }
 
-static void convert_to_555(dib_info *dst, const dib_info *src, const RECT *src_rect, BOOL dither)
+static void convert_to_555( struct dib *dst, const struct dib *src, const RECT *src_rect, BOOL dither )
 {
     WORD *dst_start = get_pixel_ptr_16(dst, 0, 0), *dst_pixel;
     INT x, y, pad_size = ((dst->width + 1) & ~1) * 2 - (src_rect->right - src_rect->left) * 2;
@@ -3233,7 +3233,7 @@ static void convert_to_555(dib_info *dst, const dib_info *src, const RECT *src_r
     }
 }
 
-static void convert_to_16(dib_info *dst, const dib_info *src, const RECT *src_rect, BOOL dither)
+static void convert_to_16( struct dib *dst, const struct dib *src, const RECT *src_rect, BOOL dither )
 {
     WORD *dst_start = get_pixel_ptr_16(dst, 0, 0), *dst_pixel;
     INT x, y, pad_size = ((dst->width + 1) & ~1) * 2 - (src_rect->right - src_rect->left) * 2;
@@ -3501,7 +3501,7 @@ static void convert_to_16(dib_info *dst, const dib_info *src, const RECT *src_re
     }
 }
 
-static inline BOOL color_tables_match(const dib_info *d1, const dib_info *d2)
+static inline BOOL color_tables_match( const struct dib *d1, const struct dib *d2 )
 {
     if (!d1->color_table || !d2->color_table) return (!d1->color_table && !d2->color_table);
     return !memcmp(d1->color_table, d2->color_table, (1 << d1->bit_count) * sizeof(d1->color_table[0]));
@@ -3513,12 +3513,12 @@ static inline BOOL color_tables_match(const dib_info *d1, const dib_info *d2)
  */
 struct rgb_lookup_colortable_ctx
 {
-    const dib_info *dib;
+    const struct dib *dib;
     BYTE map[32 * 32 * 32];
     BYTE valid[32 * 32 * 32 / 8];
 };
 
-static void rgb_lookup_colortable_init(const dib_info *dib, struct rgb_lookup_colortable_ctx *ctx)
+static void rgb_lookup_colortable_init( const struct dib *dib, struct rgb_lookup_colortable_ctx *ctx )
 {
     ctx->dib = dib;
     memset(ctx->valid, 0, sizeof(ctx->valid));
@@ -3536,7 +3536,7 @@ static inline BYTE rgb_lookup_colortable(struct rgb_lookup_colortable_ctx *ctx, 
     return ctx->map[pos];
 }
 
-static void convert_to_8(dib_info *dst, const dib_info *src, const RECT *src_rect, BOOL dither)
+static void convert_to_8( struct dib *dst, const struct dib *src, const RECT *src_rect, BOOL dither )
 {
     BYTE *dst_start = get_pixel_ptr_8(dst, 0, 0), *dst_pixel;
     INT x, y, pad_size = ((dst->width + 3) & ~3) - (src_rect->right - src_rect->left);
@@ -3814,7 +3814,7 @@ static void convert_to_8(dib_info *dst, const dib_info *src, const RECT *src_rec
     }
 }
 
-static void convert_to_4(dib_info *dst, const dib_info *src, const RECT *src_rect, BOOL dither)
+static void convert_to_4( struct dib *dst, const struct dib *src, const RECT *src_rect, BOOL dither )
 {
     BYTE *dst_start = get_pixel_ptr_4(dst, 0, 0), *dst_pixel, dst_val;
     INT x, y, pad_size = ((dst->width + 7) & ~7) / 2 - (src_rect->right - src_rect->left + 1) / 2;
@@ -4213,7 +4213,7 @@ static void convert_to_4(dib_info *dst, const dib_info *src, const RECT *src_rec
     }
 }
 
-static void convert_to_1(dib_info *dst, const dib_info *src, const RECT *src_rect, BOOL dither)
+static void convert_to_1( struct dib *dst, const struct dib *src, const RECT *src_rect, BOOL dither )
 {
     BYTE *dst_start = get_pixel_ptr_1(dst, 0, 0), *dst_pixel, dst_val;
     INT x, y, pad_size = ((dst->width + 31) & ~31) / 8 - (src_rect->right - src_rect->left + 7) / 8;
@@ -4615,7 +4615,7 @@ static void convert_to_1(dib_info *dst, const dib_info *src, const RECT *src_rec
     }
 }
 
-static void convert_to_null(dib_info *dst, const dib_info *src, const RECT *src_rect, BOOL dither)
+static void convert_to_null( struct dib *dst, const struct dib *src, const RECT *src_rect, BOOL dither )
 {
 }
 
@@ -4682,8 +4682,8 @@ static inline DWORD blend_rgb( BYTE dst_r, BYTE dst_g, BYTE dst_b, DWORD src, BL
             blend_color( dst_r, src >> 16, blend.SourceConstantAlpha ) << 16);
 }
 
-static void blend_rects_8888(const dib_info *dst, int num, const RECT *rc,
-                             const dib_info *src, const POINT *offset, BLENDFUNCTION blend)
+static void blend_rects_8888( const struct dib *dst, int num, const RECT *rc, const struct dib *src,
+                              const POINT *offset, BLENDFUNCTION blend )
 {
     int i, x, y;
 
@@ -4714,8 +4714,8 @@ static void blend_rects_8888(const dib_info *dst, int num, const RECT *rc,
     }
 }
 
-static void blend_rects_32(const dib_info *dst, int num, const RECT *rc,
-                           const dib_info *src, const POINT *offset, BLENDFUNCTION blend)
+static void blend_rects_32( const struct dib *dst, int num, const RECT *rc, const struct dib *src,
+                            const POINT *offset, BLENDFUNCTION blend )
 {
     int i, x, y;
 
@@ -4757,8 +4757,8 @@ static void blend_rects_32(const dib_info *dst, int num, const RECT *rc,
     }
 }
 
-static void blend_rects_24(const dib_info *dst, int num, const RECT *rc,
-                           const dib_info *src, const POINT *offset, BLENDFUNCTION blend)
+static void blend_rects_24( const struct dib *dst, int num, const RECT *rc, const struct dib *src,
+                            const POINT *offset, BLENDFUNCTION blend )
 {
     int i, x, y;
 
@@ -4781,8 +4781,8 @@ static void blend_rects_24(const dib_info *dst, int num, const RECT *rc,
     }
 }
 
-static void blend_rects_555(const dib_info *dst, int num, const RECT *rc,
-                            const dib_info *src, const POINT *offset, BLENDFUNCTION blend)
+static void blend_rects_555( const struct dib *dst, int num, const RECT *rc, const struct dib *src,
+                             const POINT *offset, BLENDFUNCTION blend )
 {
     int i, x, y;
 
@@ -4805,8 +4805,8 @@ static void blend_rects_555(const dib_info *dst, int num, const RECT *rc,
     }
 }
 
-static void blend_rects_16(const dib_info *dst, int num, const RECT *rc,
-                           const dib_info *src, const POINT *offset, BLENDFUNCTION blend)
+static void blend_rects_16( const struct dib *dst, int num, const RECT *rc, const struct dib *src,
+                            const POINT *offset, BLENDFUNCTION blend )
 {
     int i, x, y;
 
@@ -4829,8 +4829,8 @@ static void blend_rects_16(const dib_info *dst, int num, const RECT *rc,
     }
 }
 
-static void blend_rects_8(const dib_info *dst, int num, const RECT *rc,
-                          const dib_info *src, const POINT *offset, BLENDFUNCTION blend)
+static void blend_rects_8( const struct dib *dst, int num, const RECT *rc, const struct dib *src,
+                           const POINT *offset, BLENDFUNCTION blend )
 {
     const RGBQUAD *color_table = get_dib_color_table( dst );
     struct rgb_lookup_colortable_ctx lookup_ctx;
@@ -4854,8 +4854,8 @@ static void blend_rects_8(const dib_info *dst, int num, const RECT *rc,
     }
 }
 
-static void blend_rects_4(const dib_info *dst, int num, const RECT *rc,
-                          const dib_info *src, const POINT *offset, BLENDFUNCTION blend)
+static void blend_rects_4( const struct dib *dst, int num, const RECT *rc, const struct dib *src,
+                           const POINT *offset, BLENDFUNCTION blend )
 {
     const RGBQUAD *color_table = get_dib_color_table( dst );
     struct rgb_lookup_colortable_ctx lookup_ctx;
@@ -4884,8 +4884,8 @@ static void blend_rects_4(const dib_info *dst, int num, const RECT *rc,
     }
 }
 
-static void blend_rects_1(const dib_info *dst, int num, const RECT *rc,
-                          const dib_info *src, const POINT *offset, BLENDFUNCTION blend)
+static void blend_rects_1( const struct dib *dst, int num, const RECT *rc, const struct dib *src,
+                           const POINT *offset, BLENDFUNCTION blend )
 {
     const RGBQUAD *color_table = get_dib_color_table( dst );
     int i, j, x, y;
@@ -4909,8 +4909,8 @@ static void blend_rects_1(const dib_info *dst, int num, const RECT *rc,
     }
 }
 
-static void blend_rects_null(const dib_info *dst, int num, const RECT *rc,
-                             const dib_info *src, const POINT *offset, BLENDFUNCTION blend)
+static void blend_rects_null( const struct dib *dst, int num, const RECT *rc, const struct dib *src,
+                              const POINT *offset, BLENDFUNCTION blend )
 {
 }
 
@@ -4945,8 +4945,8 @@ static inline WORD gradient_rgb_555( const TRIVERTEX *v, unsigned int pos, unsig
     return (r << 10) | (g << 5) | b;
 }
 
-static inline BYTE gradient_rgb_8( const dib_info *dib, const TRIVERTEX *v,
-                                   unsigned int pos, unsigned int len, unsigned int x, unsigned int y )
+static inline BYTE gradient_rgb_8( const struct dib *dib, const TRIVERTEX *v, unsigned int pos,
+                                   unsigned int len, unsigned int x, unsigned int y )
 {
     BYTE r = ((v[0].Red   * (len - pos) + v[1].Red   * pos) / len / 128 + bayer_16x16[y % 16][x % 16]) / 256;
     BYTE g = ((v[0].Green * (len - pos) + v[1].Green * pos) / len / 128 + bayer_16x16[y % 16][x % 16]) / 256;
@@ -5021,7 +5021,7 @@ static inline DWORD gradient_triangle_555( const TRIVERTEX *v, int x, int y, int
     return (r << 10) | (g << 5) | b;
 }
 
-static inline DWORD gradient_triangle_8( const dib_info *dib, const TRIVERTEX *v, int x, int y, int det )
+static inline DWORD gradient_triangle_8( const struct dib *dib, const TRIVERTEX *v, int x, int y, int det )
 {
     INT64 l1, l2;
     BYTE r, g, b;
@@ -5033,7 +5033,7 @@ static inline DWORD gradient_triangle_8( const dib_info *dib, const TRIVERTEX *v
     return rgb_to_pixel_colortable( dib, r * 127, g * 127, b * 127 );
 }
 
-static BOOL gradient_rect_8888( const dib_info *dib, const RECT *rc, const TRIVERTEX *v, int mode )
+static BOOL gradient_rect_8888( const struct dib *dib, const RECT *rc, const TRIVERTEX *v, int mode )
 {
     DWORD *ptr = get_pixel_ptr_32( dib, rc->left, rc->top );
     int x, y, left, right, det;
@@ -5068,7 +5068,7 @@ static BOOL gradient_rect_8888( const dib_info *dib, const RECT *rc, const TRIVE
     return TRUE;
 }
 
-static BOOL gradient_rect_32( const dib_info *dib, const RECT *rc, const TRIVERTEX *v, int mode )
+static BOOL gradient_rect_32( const struct dib *dib, const RECT *rc, const TRIVERTEX *v, int mode )
 {
     DWORD *ptr = get_pixel_ptr_32( dib, rc->left, rc->top );
     int x, y, left, right, det;
@@ -5140,7 +5140,7 @@ static BOOL gradient_rect_32( const dib_info *dib, const RECT *rc, const TRIVERT
     return TRUE;
 }
 
-static BOOL gradient_rect_24( const dib_info *dib, const RECT *rc, const TRIVERTEX *v, int mode )
+static BOOL gradient_rect_24( const struct dib *dib, const RECT *rc, const TRIVERTEX *v, int mode )
 {
     BYTE *ptr = get_pixel_ptr_24( dib, rc->left, rc->top );
     int x, y, left, right, det;
@@ -5191,7 +5191,7 @@ static BOOL gradient_rect_24( const dib_info *dib, const RECT *rc, const TRIVERT
     return TRUE;
 }
 
-static BOOL gradient_rect_555( const dib_info *dib, const RECT *rc, const TRIVERTEX *v, int mode )
+static BOOL gradient_rect_555( const struct dib *dib, const RECT *rc, const TRIVERTEX *v, int mode )
 {
     WORD *ptr = get_pixel_ptr_16( dib, rc->left, rc->top );
     int x, y, left, right, det;
@@ -5227,7 +5227,7 @@ static BOOL gradient_rect_555( const dib_info *dib, const RECT *rc, const TRIVER
     return TRUE;
 }
 
-static BOOL gradient_rect_16( const dib_info *dib, const RECT *rc, const TRIVERTEX *v, int mode )
+static BOOL gradient_rect_16( const struct dib *dib, const RECT *rc, const TRIVERTEX *v, int mode )
 {
     WORD *ptr = get_pixel_ptr_16( dib, rc->left, rc->top );
     int x, y, left, right, det;
@@ -5283,7 +5283,7 @@ static BOOL gradient_rect_16( const dib_info *dib, const RECT *rc, const TRIVERT
     return TRUE;
 }
 
-static BOOL gradient_rect_8( const dib_info *dib, const RECT *rc, const TRIVERTEX *v, int mode )
+static BOOL gradient_rect_8( const struct dib *dib, const RECT *rc, const TRIVERTEX *v, int mode )
 {
     BYTE *ptr = get_pixel_ptr_8( dib, rc->left, rc->top );
     int x, y, left, right, det;
@@ -5320,7 +5320,7 @@ static BOOL gradient_rect_8( const dib_info *dib, const RECT *rc, const TRIVERTE
     return TRUE;
 }
 
-static BOOL gradient_rect_4( const dib_info *dib, const RECT *rc, const TRIVERTEX *v, int mode )
+static BOOL gradient_rect_4( const struct dib *dib, const RECT *rc, const TRIVERTEX *v, int mode )
 {
     BYTE *ptr = get_pixel_ptr_4( dib, rc->left, rc->top );
     int x, y, left, right, det, pos;
@@ -5388,7 +5388,7 @@ static BOOL gradient_rect_4( const dib_info *dib, const RECT *rc, const TRIVERTE
     return TRUE;
 }
 
-static BOOL gradient_rect_1( const dib_info *dib, const RECT *rc, const TRIVERTEX *v, int mode )
+static BOOL gradient_rect_1( const struct dib *dib, const RECT *rc, const TRIVERTEX *v, int mode )
 {
     BYTE *ptr = get_pixel_ptr_1( dib, rc->left, rc->top );
     int x, y, left, right, det, pos;
@@ -5438,13 +5438,12 @@ static BOOL gradient_rect_1( const dib_info *dib, const RECT *rc, const TRIVERTE
     return TRUE;
 }
 
-static BOOL gradient_rect_null( const dib_info *dib, const RECT *rc, const TRIVERTEX *v, int mode )
+static BOOL gradient_rect_null( const struct dib *dib, const RECT *rc, const TRIVERTEX *v, int mode )
 {
     return TRUE;
 }
 
-static void mask_rect_32( const dib_info *dst, const RECT *rc,
-                          const dib_info *src, const POINT *origin, int rop2 )
+static void mask_rect_32( const struct dib *dst, const RECT *rc, const struct dib *src, const POINT *origin, int rop2 )
 {
     DWORD *dst_start = get_pixel_ptr_32(dst, rc->left, rc->top), dst_colors[256];
     DWORD src_val, bit_val, i, full, pos;
@@ -5554,8 +5553,7 @@ static void mask_rect_32( const dib_info *dst, const RECT *rc,
 #undef LOOP
 }
 
-static void mask_rect_24( const dib_info *dst, const RECT *rc,
-                          const dib_info *src, const POINT *origin, int rop2 )
+static void mask_rect_24( const struct dib *dst, const RECT *rc, const struct dib *src, const POINT *origin, int rop2 )
 {
     BYTE *dst_start = get_pixel_ptr_24(dst, rc->left, rc->top);
     DWORD src_val, bit_val, i, full, pos;
@@ -5785,8 +5783,7 @@ static void mask_rect_24( const dib_info *dst, const RECT *rc,
     }
 }
 
-static void mask_rect_16( const dib_info *dst, const RECT *rc,
-                          const dib_info *src, const POINT *origin, int rop2 )
+static void mask_rect_16( const struct dib *dst, const RECT *rc, const struct dib *src, const POINT *origin, int rop2 )
 {
     WORD *dst_start = get_pixel_ptr_16(dst, rc->left, rc->top), dst_colors[2];
     DWORD src_val, bit_val, i, full, pos;
@@ -5927,8 +5924,7 @@ static void mask_rect_16( const dib_info *dst, const RECT *rc,
     }
 }
 
-static void mask_rect_8( const dib_info *dst, const RECT *rc,
-                         const dib_info *src, const POINT *origin, int rop2 )
+static void mask_rect_8( const struct dib *dst, const RECT *rc, const struct dib *src, const POINT *origin, int rop2 )
 {
     BYTE *dst_start = get_pixel_ptr_8(dst, rc->left, rc->top), dst_colors[2];
     DWORD src_val, bit_val, i, full, pos;
@@ -6063,8 +6059,7 @@ static void mask_rect_8( const dib_info *dst, const RECT *rc,
     }
 }
 
-static void mask_rect_4( const dib_info *dst, const RECT *rc,
-                         const dib_info *src, const POINT *origin, int rop2 )
+static void mask_rect_4( const struct dib *dst, const RECT *rc, const struct dib *src, const POINT *origin, int rop2 )
 {
     BYTE *dst_start = get_pixel_ptr_4(dst, rc->left, rc->top), dst_colors[2], *dst_ptr;
     DWORD bit_val, i, pos;
@@ -6101,8 +6096,7 @@ static void mask_rect_4( const dib_info *dst, const RECT *rc,
     }
 }
 
-static void mask_rect_null( const dib_info *dst, const RECT *rc,
-                            const dib_info *src, const POINT *origin, int rop2 )
+static void mask_rect_null( const struct dib *dst, const RECT *rc, const struct dib *src, const POINT *origin, int rop2 )
 {
 }
 
@@ -6133,7 +6127,7 @@ static inline DWORD aa_rgb( BYTE r_dst, BYTE g_dst, BYTE b_dst, DWORD text, cons
             aa_color( r_dst, text >> 16, range->r_min, range->r_max ) << 16);
 }
 
-static void draw_glyph_8888( const dib_info *dib, const RECT *rect, const dib_info *glyph,
+static void draw_glyph_8888( const struct dib *dib, const RECT *rect, const struct dib *glyph,
                              const POINT *origin, DWORD text_pixel, const struct intensity_range *ranges )
 {
     DWORD *dst_ptr = get_pixel_ptr_32( dib, rect->left, rect->top );
@@ -6153,7 +6147,7 @@ static void draw_glyph_8888( const dib_info *dib, const RECT *rect, const dib_in
     }
 }
 
-static void draw_glyph_32( const dib_info *dib, const RECT *rect, const dib_info *glyph,
+static void draw_glyph_32( const struct dib *dib, const RECT *rect, const struct dib *glyph,
                            const POINT *origin, DWORD text_pixel, const struct intensity_range *ranges )
 {
     DWORD *dst_ptr = get_pixel_ptr_32( dib, rect->left, rect->top );
@@ -6182,7 +6176,7 @@ static void draw_glyph_32( const dib_info *dib, const RECT *rect, const dib_info
     }
 }
 
-static void draw_glyph_24( const dib_info *dib, const RECT *rect, const dib_info *glyph,
+static void draw_glyph_24( const struct dib *dib, const RECT *rect, const struct dib *glyph,
                            const POINT *origin, DWORD text_pixel, const struct intensity_range *ranges )
 {
     BYTE *dst_ptr = get_pixel_ptr_24( dib, rect->left, rect->top );
@@ -6209,7 +6203,7 @@ static void draw_glyph_24( const dib_info *dib, const RECT *rect, const dib_info
     }
 }
 
-static void draw_glyph_555( const dib_info *dib, const RECT *rect, const dib_info *glyph,
+static void draw_glyph_555( const struct dib *dib, const RECT *rect, const struct dib *glyph,
                             const POINT *origin, DWORD text_pixel, const struct intensity_range *ranges )
 {
     WORD *dst_ptr = get_pixel_ptr_16( dib, rect->left, rect->top );
@@ -6238,7 +6232,7 @@ static void draw_glyph_555( const dib_info *dib, const RECT *rect, const dib_inf
     }
 }
 
-static void draw_glyph_16( const dib_info *dib, const RECT *rect, const dib_info *glyph,
+static void draw_glyph_16( const struct dib *dib, const RECT *rect, const struct dib *glyph,
                            const POINT *origin, DWORD text_pixel, const struct intensity_range *ranges )
 {
     WORD *dst_ptr = get_pixel_ptr_16( dib, rect->left, rect->top );
@@ -6267,7 +6261,7 @@ static void draw_glyph_16( const dib_info *dib, const RECT *rect, const dib_info
     }
 }
 
-static void draw_glyph_8( const dib_info *dib, const RECT *rect, const dib_info *glyph,
+static void draw_glyph_8( const struct dib *dib, const RECT *rect, const struct dib *glyph,
                           const POINT *origin, DWORD text_pixel, const struct intensity_range *ranges )
 {
     BYTE *dst_ptr = get_pixel_ptr_8( dib, rect->left, rect->top );
@@ -6287,7 +6281,7 @@ static void draw_glyph_8( const dib_info *dib, const RECT *rect, const dib_info 
     }
 }
 
-static void draw_glyph_4( const dib_info *dib, const RECT *rect, const dib_info *glyph,
+static void draw_glyph_4( const struct dib *dib, const RECT *rect, const struct dib *glyph,
                           const POINT *origin, DWORD text_pixel, const struct intensity_range *ranges )
 {
     BYTE *dst_ptr = get_pixel_ptr_4( dib, rect->left, rect->top );
@@ -6312,7 +6306,7 @@ static void draw_glyph_4( const dib_info *dib, const RECT *rect, const dib_info 
     }
 }
 
-static void draw_glyph_1( const dib_info *dib, const RECT *rect, const dib_info *glyph,
+static void draw_glyph_1( const struct dib *dib, const RECT *rect, const struct dib *glyph,
                           const POINT *origin, DWORD text_pixel, const struct intensity_range *ranges )
 {
     BYTE *dst_ptr = get_pixel_ptr_1( dib, rect->left, rect->top );
@@ -6334,7 +6328,7 @@ static void draw_glyph_1( const dib_info *dib, const RECT *rect, const dib_info 
     }
 }
 
-static void draw_glyph_null( const dib_info *dib, const RECT *rect, const dib_info *glyph,
+static void draw_glyph_null( const struct dib *dib, const RECT *rect, const struct dib *glyph,
                              const POINT *origin, DWORD text_pixel, const struct intensity_range *ranges )
 {
     return;
@@ -6365,9 +6359,8 @@ static inline DWORD blend_subpixel( BYTE r, BYTE g, BYTE b, DWORD text, DWORD al
            blend_color( b, text,       (BYTE) alpha );
 }
 
-static void draw_subpixel_glyph_8888( const dib_info *dib, const RECT *rect, const dib_info *glyph,
-                                      const POINT *origin, DWORD text_pixel,
-                                      const struct font_gamma_ramp *gamma_ramp )
+static void draw_subpixel_glyph_8888( const struct dib *dib, const RECT *rect, const struct dib *glyph,
+                                      const POINT *origin, DWORD text_pixel, const struct font_gamma_ramp *gamma_ramp )
 {
     DWORD *dst_ptr = get_pixel_ptr_32( dib, rect->left, rect->top );
     const DWORD *glyph_ptr = get_pixel_ptr_32( glyph, origin->x, origin->y );
@@ -6386,9 +6379,8 @@ static void draw_subpixel_glyph_8888( const dib_info *dib, const RECT *rect, con
     }
 }
 
-static void draw_subpixel_glyph_32( const dib_info *dib, const RECT *rect, const dib_info *glyph,
-                                    const POINT *origin, DWORD text_pixel,
-                                    const struct font_gamma_ramp *gamma_ramp )
+static void draw_subpixel_glyph_32( const struct dib *dib, const RECT *rect, const struct dib *glyph,
+                                    const POINT *origin, DWORD text_pixel, const struct font_gamma_ramp *gamma_ramp )
 {
     DWORD *dst_ptr = get_pixel_ptr_32( dib, rect->left, rect->top );
     const DWORD *glyph_ptr = get_pixel_ptr_32( glyph, origin->x, origin->y );
@@ -6415,9 +6407,8 @@ static void draw_subpixel_glyph_32( const dib_info *dib, const RECT *rect, const
     }
 }
 
-static void draw_subpixel_glyph_24( const dib_info *dib, const RECT *rect, const dib_info *glyph,
-                                    const POINT *origin, DWORD text_pixel,
-                                    const struct font_gamma_ramp *gamma_ramp )
+static void draw_subpixel_glyph_24( const struct dib *dib, const RECT *rect, const struct dib *glyph,
+                                    const POINT *origin, DWORD text_pixel, const struct font_gamma_ramp *gamma_ramp )
 {
     BYTE *dst_ptr = get_pixel_ptr_24( dib, rect->left, rect->top );
     const DWORD *glyph_ptr = get_pixel_ptr_32( glyph, origin->x, origin->y );
@@ -6440,9 +6431,8 @@ static void draw_subpixel_glyph_24( const dib_info *dib, const RECT *rect, const
     }
 }
 
-static void draw_subpixel_glyph_555( const dib_info *dib, const RECT *rect, const dib_info *glyph,
-                                     const POINT *origin, DWORD text_pixel,
-                                     const struct font_gamma_ramp *gamma_ramp )
+static void draw_subpixel_glyph_555( const struct dib *dib, const RECT *rect, const struct dib *glyph,
+                                     const POINT *origin, DWORD text_pixel, const struct font_gamma_ramp *gamma_ramp )
 {
     WORD *dst_ptr = get_pixel_ptr_16( dib, rect->left, rect->top );
     const DWORD *glyph_ptr = get_pixel_ptr_32( glyph, origin->x, origin->y );
@@ -6469,9 +6459,8 @@ static void draw_subpixel_glyph_555( const dib_info *dib, const RECT *rect, cons
     }
 }
 
-static void draw_subpixel_glyph_16( const dib_info *dib, const RECT *rect, const dib_info *glyph,
-                                    const POINT *origin, DWORD text_pixel,
-                                    const struct font_gamma_ramp *gamma_ramp )
+static void draw_subpixel_glyph_16( const struct dib *dib, const RECT *rect, const struct dib *glyph,
+                                    const POINT *origin, DWORD text_pixel, const struct font_gamma_ramp *gamma_ramp )
 {
     WORD *dst_ptr = get_pixel_ptr_16( dib, rect->left, rect->top );
     const DWORD *glyph_ptr = get_pixel_ptr_32( glyph, origin->x, origin->y );
@@ -6498,15 +6487,14 @@ static void draw_subpixel_glyph_16( const dib_info *dib, const RECT *rect, const
     }
 }
 
-static void draw_subpixel_glyph_null( const dib_info *dib, const RECT *rect, const dib_info *glyph,
-                                      const POINT *origin, DWORD text_pixel,
-                                      const struct font_gamma_ramp *gamma_ramp )
+static void draw_subpixel_glyph_null( const struct dib *dib, const RECT *rect, const struct dib *glyph,
+                                      const POINT *origin, DWORD text_pixel, const struct font_gamma_ramp *gamma_ramp )
 {
     return;
 }
 
-static void create_rop_masks_32(const dib_info *dib, const BYTE *hatch_ptr,
-                                const rop_mask *fg, const rop_mask *bg, rop_mask_bits *bits)
+static void create_rop_masks_32( const struct dib *dib, const BYTE *hatch_ptr, const rop_mask *fg,
+                                 const rop_mask *bg, rop_mask_bits *bits )
 {
     DWORD *and_bits = bits->and, *xor_bits = bits->xor;
     int x, y;
@@ -6535,8 +6523,8 @@ static void create_rop_masks_32(const dib_info *dib, const BYTE *hatch_ptr,
     }
 }
 
-static void create_rop_masks_24(const dib_info *dib, const BYTE *hatch_ptr,
-                                const rop_mask *fg, const rop_mask *bg, rop_mask_bits *bits)
+static void create_rop_masks_24( const struct dib *dib, const BYTE *hatch_ptr, const rop_mask *fg,
+                                 const rop_mask *bg, rop_mask_bits *bits )
 {
     DWORD mask_start = 0, mask_offset;
     BYTE *and_bits = bits->and, *xor_bits = bits->xor;
@@ -6574,8 +6562,8 @@ static void create_rop_masks_24(const dib_info *dib, const BYTE *hatch_ptr,
     }
 }
 
-static void create_rop_masks_16(const dib_info *dib, const BYTE *hatch_ptr,
-                                const rop_mask *fg, const rop_mask *bg, rop_mask_bits *bits)
+static void create_rop_masks_16( const struct dib *dib, const BYTE *hatch_ptr, const rop_mask *fg,
+                                 const rop_mask *bg, rop_mask_bits *bits )
 {
     WORD *and_bits = bits->and, *xor_bits = bits->xor;
     int x, y;
@@ -6604,8 +6592,8 @@ static void create_rop_masks_16(const dib_info *dib, const BYTE *hatch_ptr,
     }
 }
 
-static void create_rop_masks_8(const dib_info *dib, const BYTE *hatch_ptr,
-                               const rop_mask *fg, const rop_mask *bg, rop_mask_bits *bits)
+static void create_rop_masks_8( const struct dib *dib, const BYTE *hatch_ptr, const rop_mask *fg,
+                                const rop_mask *bg, rop_mask_bits *bits )
 {
     BYTE *and_bits = bits->and, *xor_bits = bits->xor;
     int x, y;
@@ -6634,8 +6622,8 @@ static void create_rop_masks_8(const dib_info *dib, const BYTE *hatch_ptr,
     }
 }
 
-static void create_rop_masks_4(const dib_info *dib, const BYTE *hatch_ptr,
-                               const rop_mask *fg, const rop_mask *bg, rop_mask_bits *bits)
+static void create_rop_masks_4( const struct dib *dib, const BYTE *hatch_ptr, const rop_mask *fg,
+                                const rop_mask *bg, rop_mask_bits *bits )
 {
     DWORD mask_offset;
     BYTE *and_bits = bits->and, *xor_bits = bits->xor;
@@ -6672,8 +6660,8 @@ static void create_rop_masks_4(const dib_info *dib, const BYTE *hatch_ptr,
     }
 }
 
-static void create_rop_masks_1(const dib_info *dib, const BYTE *hatch_ptr,
-                               const rop_mask *fg, const rop_mask *bg, rop_mask_bits *bits)
+static void create_rop_masks_1( const struct dib *dib, const BYTE *hatch_ptr, const rop_mask *fg,
+                                const rop_mask *bg, rop_mask_bits *bits )
 {
     BYTE *and_bits = bits->and, *xor_bits = bits->xor;
     rop_mask rop_mask;
@@ -6706,12 +6694,12 @@ static void create_rop_masks_1(const dib_info *dib, const BYTE *hatch_ptr,
     }
 }
 
-static void create_rop_masks_null(const dib_info *dib, const BYTE *hatch_ptr,
-                                  const rop_mask *fg, const rop_mask *bg, rop_mask_bits *bits)
+static void create_rop_masks_null( const struct dib *dib, const BYTE *hatch_ptr, const rop_mask *fg,
+                                   const rop_mask *bg, rop_mask_bits *bits )
 {
 }
 
-static void create_dither_masks_8(const dib_info *dib, int rop2, COLORREF color, rop_mask_bits *bits)
+static void create_dither_masks_8( const struct dib *dib, int rop2, COLORREF color, rop_mask_bits *bits )
 {
     /* mapping between RGB triples and the default color table */
     static const BYTE mapping[27] =
@@ -6771,7 +6759,7 @@ static void create_dither_masks_8(const dib_info *dib, int rop2, COLORREF color,
     }
 }
 
-static void create_dither_masks_4(const dib_info *dib, int rop2, COLORREF color, rop_mask_bits *bits)
+static void create_dither_masks_4( const struct dib *dib, int rop2, COLORREF color, rop_mask_bits *bits )
 {
     /* mapping between RGB triples and the default color table */
     static const BYTE mapping[27] =
@@ -6839,7 +6827,7 @@ static void create_dither_masks_4(const dib_info *dib, int rop2, COLORREF color,
     }
 }
 
-static void create_dither_masks_1(const dib_info *dib, int rop2, COLORREF color, rop_mask_bits *bits)
+static void create_dither_masks_1( const struct dib *dib, int rop2, COLORREF color, rop_mask_bits *bits )
 {
     BYTE *and_bits = bits->and, *xor_bits = bits->xor;
     struct rop_codes codes;
@@ -6875,7 +6863,7 @@ static void create_dither_masks_1(const dib_info *dib, int rop2, COLORREF color,
     }
 }
 
-static void create_dither_masks_null(const dib_info *dib, int rop2, COLORREF color, rop_mask_bits *bits)
+static void create_dither_masks_null( const struct dib *dib, int rop2, COLORREF color, rop_mask_bits *bits )
 {
 }
 
@@ -6897,10 +6885,8 @@ static inline void rop_codes_from_stretch_mode( int mode, struct rop_codes *code
     return;
 }
 
-static void stretch_row_32(const dib_info *dst_dib, const POINT *dst_start,
-                           const dib_info *src_dib, const POINT *src_start,
-                           const struct stretch_params *params, int mode,
-                           BOOL keep_dst)
+static void stretch_row_32( const struct dib *dst_dib, const POINT *dst_start, const struct dib *src_dib,
+                            const POINT *src_start, const struct stretch_params *params, int mode, BOOL keep_dst )
 {
     DWORD *dst_ptr = get_pixel_ptr_32( dst_dib, dst_start->x, dst_start->y );
     DWORD *src_ptr = get_pixel_ptr_32( src_dib, src_start->x, src_start->y );
@@ -6940,10 +6926,8 @@ static void stretch_row_32(const dib_info *dst_dib, const POINT *dst_start,
     }
 }
 
-static void stretch_row_24(const dib_info *dst_dib, const POINT *dst_start,
-                           const dib_info *src_dib, const POINT *src_start,
-                           const struct stretch_params *params, int mode,
-                           BOOL keep_dst)
+static void stretch_row_24( const struct dib *dst_dib, const POINT *dst_start, const struct dib *src_dib,
+                            const POINT *src_start, const struct stretch_params *params, int mode, BOOL keep_dst )
 {
     BYTE *dst_ptr = get_pixel_ptr_24( dst_dib, dst_start->x, dst_start->y );
     BYTE *src_ptr = get_pixel_ptr_24( src_dib, src_start->x, src_start->y );
@@ -6987,10 +6971,8 @@ static void stretch_row_24(const dib_info *dst_dib, const POINT *dst_start,
     }
 }
 
-static void stretch_row_16(const dib_info *dst_dib, const POINT *dst_start,
-                           const dib_info *src_dib, const POINT *src_start,
-                           const struct stretch_params *params, int mode,
-                           BOOL keep_dst)
+static void stretch_row_16( const struct dib *dst_dib, const POINT *dst_start, const struct dib *src_dib,
+                            const POINT *src_start, const struct stretch_params *params, int mode, BOOL keep_dst )
 {
     WORD *dst_ptr = get_pixel_ptr_16( dst_dib, dst_start->x, dst_start->y );
     WORD *src_ptr = get_pixel_ptr_16( src_dib, src_start->x, src_start->y );
@@ -7030,10 +7012,8 @@ static void stretch_row_16(const dib_info *dst_dib, const POINT *dst_start,
     }
 }
 
-static void stretch_row_8(const dib_info *dst_dib, const POINT *dst_start,
-                          const dib_info *src_dib, const POINT *src_start,
-                          const struct stretch_params *params, int mode,
-                          BOOL keep_dst)
+static void stretch_row_8( const struct dib *dst_dib, const POINT *dst_start, const struct dib *src_dib,
+                           const POINT *src_start, const struct stretch_params *params, int mode, BOOL keep_dst )
 {
     BYTE *dst_ptr = get_pixel_ptr_8( dst_dib, dst_start->x, dst_start->y );
     BYTE *src_ptr = get_pixel_ptr_8( src_dib, src_start->x, src_start->y );
@@ -7073,10 +7053,8 @@ static void stretch_row_8(const dib_info *dst_dib, const POINT *dst_start,
     }
 }
 
-static void stretch_row_4(const dib_info *dst_dib, const POINT *dst_start,
-                          const dib_info *src_dib, const POINT *src_start,
-                          const struct stretch_params *params, int mode,
-                          BOOL keep_dst)
+static void stretch_row_4( const struct dib *dst_dib, const POINT *dst_start, const struct dib *src_dib,
+                           const POINT *src_start, const struct stretch_params *params, int mode, BOOL keep_dst )
 {
     BYTE *dst_ptr = get_pixel_ptr_4( dst_dib, dst_start->x, dst_start->y );
     BYTE *src_ptr = get_pixel_ptr_4( src_dib, src_start->x, src_start->y );
@@ -7109,10 +7087,8 @@ static void stretch_row_4(const dib_info *dst_dib, const POINT *dst_start,
     }
 }
 
-static void stretch_row_1(const dib_info *dst_dib, const POINT *dst_start,
-                          const dib_info *src_dib, const POINT *src_start,
-                          const struct stretch_params *params, int mode,
-                          BOOL keep_dst)
+static void stretch_row_1( const struct dib *dst_dib, const POINT *dst_start, const struct dib *src_dib,
+                           const POINT *src_start, const struct stretch_params *params, int mode, BOOL keep_dst )
 {
     BYTE *dst_ptr = get_pixel_ptr_1( dst_dib, dst_start->x, dst_start->y );
     BYTE *src_ptr = get_pixel_ptr_1( src_dib, src_start->x, src_start->y );
@@ -7143,19 +7119,15 @@ static void stretch_row_1(const dib_info *dst_dib, const POINT *dst_start,
     }
 }
 
-static void stretch_row_null(const dib_info *dst_dib, const POINT *dst_start,
-                             const dib_info *src_dib, const POINT *src_start,
-                             const struct stretch_params *params, int mode,
-                             BOOL keep_dst)
+static void stretch_row_null( const struct dib *dst_dib, const POINT *dst_start, const struct dib *src_dib,
+                              const POINT *src_start, const struct stretch_params *params, int mode, BOOL keep_dst )
 {
     FIXME("bit count %d\n", dst_dib->bit_count);
     return;
 }
 
-static void shrink_row_32(const dib_info *dst_dib, const POINT *dst_start,
-                          const dib_info *src_dib, const POINT *src_start,
-                          const struct stretch_params *params, int mode,
-                          BOOL keep_dst)
+static void shrink_row_32( const struct dib *dst_dib, const POINT *dst_start, const struct dib *src_dib,
+                           const POINT *src_start, const struct stretch_params *params, int mode, BOOL keep_dst )
 {
     DWORD *dst_ptr = get_pixel_ptr_32( dst_dib, dst_start->x, dst_start->y );
     DWORD *src_ptr = get_pixel_ptr_32( src_dib, src_start->x, src_start->y );
@@ -7200,10 +7172,8 @@ static void shrink_row_32(const dib_info *dst_dib, const POINT *dst_start,
     }
 }
 
-static void shrink_row_24(const dib_info *dst_dib, const POINT *dst_start,
-                          const dib_info *src_dib, const POINT *src_start,
-                          const struct stretch_params *params, int mode,
-                          BOOL keep_dst)
+static void shrink_row_24( const struct dib *dst_dib, const POINT *dst_start, const struct dib *src_dib,
+                           const POINT *src_start, const struct stretch_params *params, int mode, BOOL keep_dst )
 {
     BYTE *dst_ptr = get_pixel_ptr_24( dst_dib, dst_start->x, dst_start->y );
     BYTE *src_ptr = get_pixel_ptr_24( src_dib, src_start->x, src_start->y );
@@ -7252,10 +7222,8 @@ static void shrink_row_24(const dib_info *dst_dib, const POINT *dst_start,
     }
 }
 
-static void shrink_row_16(const dib_info *dst_dib, const POINT *dst_start,
-                          const dib_info *src_dib, const POINT *src_start,
-                          const struct stretch_params *params, int mode,
-                          BOOL keep_dst)
+static void shrink_row_16( const struct dib *dst_dib, const POINT *dst_start, const struct dib *src_dib,
+                           const POINT *src_start, const struct stretch_params *params, int mode, BOOL keep_dst )
 {
     WORD *dst_ptr = get_pixel_ptr_16( dst_dib, dst_start->x, dst_start->y );
     WORD *src_ptr = get_pixel_ptr_16( src_dib, src_start->x, src_start->y );
@@ -7300,10 +7268,8 @@ static void shrink_row_16(const dib_info *dst_dib, const POINT *dst_start,
     }
 }
 
-static void shrink_row_8(const dib_info *dst_dib, const POINT *dst_start,
-                         const dib_info *src_dib, const POINT *src_start,
-                         const struct stretch_params *params, int mode,
-                         BOOL keep_dst)
+static void shrink_row_8( const struct dib *dst_dib, const POINT *dst_start, const struct dib *src_dib,
+                          const POINT *src_start, const struct stretch_params *params, int mode, BOOL keep_dst )
 {
     BYTE *dst_ptr = get_pixel_ptr_8( dst_dib, dst_start->x, dst_start->y );
     BYTE *src_ptr = get_pixel_ptr_8( src_dib, src_start->x, src_start->y );
@@ -7348,10 +7314,8 @@ static void shrink_row_8(const dib_info *dst_dib, const POINT *dst_start,
     }
 }
 
-static void shrink_row_4(const dib_info *dst_dib, const POINT *dst_start,
-                         const dib_info *src_dib, const POINT *src_start,
-                         const struct stretch_params *params, int mode,
-                         BOOL keep_dst)
+static void shrink_row_4( const struct dib *dst_dib, const POINT *dst_start, const struct dib *src_dib,
+                          const POINT *src_start, const struct stretch_params *params, int mode, BOOL keep_dst )
 {
     BYTE *dst_ptr = get_pixel_ptr_4( dst_dib, dst_start->x, dst_start->y );
     BYTE *src_ptr = get_pixel_ptr_4( src_dib, src_start->x, src_start->y );
@@ -7388,10 +7352,8 @@ static void shrink_row_4(const dib_info *dst_dib, const POINT *dst_start,
     }
 }
 
-static void shrink_row_1(const dib_info *dst_dib, const POINT *dst_start,
-                         const dib_info *src_dib, const POINT *src_start,
-                         const struct stretch_params *params, int mode,
-                         BOOL keep_dst)
+static void shrink_row_1( const struct dib *dst_dib, const POINT *dst_start, const struct dib *src_dib,
+                          const POINT *src_start, const struct stretch_params *params, int mode, BOOL keep_dst )
 {
     BYTE *dst_ptr = get_pixel_ptr_1( dst_dib, dst_start->x, dst_start->y );
     BYTE *src_ptr = get_pixel_ptr_1( src_dib, src_start->x, src_start->y );
@@ -7425,10 +7387,8 @@ static void shrink_row_1(const dib_info *dst_dib, const POINT *dst_start,
     }
 }
 
-static void shrink_row_null(const dib_info *dst_dib, const POINT *dst_start,
-                            const dib_info *src_dib, const POINT *src_start,
-                            const struct stretch_params *params, int mode,
-                            BOOL keep_dst)
+static void shrink_row_null( const struct dib *dst_dib, const POINT *dst_start, const struct dib *src_dib,
+                             const POINT *src_start, const struct stretch_params *params, int mode, BOOL keep_dst )
 {
     FIXME("bit count %d\n", dst_dib->bit_count);
     return;
@@ -7481,8 +7441,8 @@ static void calc_halftone_params( const struct bitblt_coords *dst, const struct 
     *src_inc_y = mirrored_y ? -(float)src_height / dst_height : (float)src_height / dst_height;
 }
 
-static void halftone_888( const dib_info *dst_dib, const struct bitblt_coords *dst,
-                          const dib_info *src_dib, const struct bitblt_coords *src )
+static void halftone_888( const struct dib *dst_dib, const struct bitblt_coords *dst,
+                          const struct dib *src_dib, const struct bitblt_coords *src )
 {
     int src_start_x, src_start_y, src_ptr_dy, dst_x, dst_y, x0, x1, y0, y1;
     DWORD *dst_ptr, *src_ptr, *c00_ptr, *c01_ptr, *c10_ptr, *c11_ptr;
@@ -7544,8 +7504,8 @@ static void halftone_888( const dib_info *dst_dib, const struct bitblt_coords *d
     }
 }
 
-static void halftone_32( const dib_info *dst_dib, const struct bitblt_coords *dst,
-                         const dib_info *src_dib, const struct bitblt_coords *src )
+static void halftone_32( const struct dib *dst_dib, const struct bitblt_coords *dst,
+                         const struct dib *src_dib, const struct bitblt_coords *src )
 {
     int src_start_x, src_start_y, src_ptr_dy, dst_x, dst_y, x0, x1, y0, y1;
     DWORD *dst_ptr, *src_ptr, *c00_ptr, *c01_ptr, *c10_ptr, *c11_ptr;
@@ -7607,8 +7567,8 @@ static void halftone_32( const dib_info *dst_dib, const struct bitblt_coords *ds
     }
 }
 
-static void halftone_24( const dib_info *dst_dib, const struct bitblt_coords *dst,
-                         const dib_info *src_dib, const struct bitblt_coords *src )
+static void halftone_24( const struct dib *dst_dib, const struct bitblt_coords *dst,
+                         const struct dib *src_dib, const struct bitblt_coords *src )
 {
     int src_start_x, src_start_y, src_ptr_dy, dst_x, dst_y, x0, x1, y0, y1;
     BYTE *dst_ptr, *src_ptr, *c00_ptr, *c01_ptr, *c10_ptr, *c11_ptr;
@@ -7672,8 +7632,8 @@ static void halftone_24( const dib_info *dst_dib, const struct bitblt_coords *ds
     }
 }
 
-static void halftone_555( const dib_info *dst_dib, const struct bitblt_coords *dst,
-                          const dib_info *src_dib, const struct bitblt_coords *src )
+static void halftone_555( const struct dib *dst_dib, const struct bitblt_coords *dst,
+                          const struct dib *src_dib, const struct bitblt_coords *src )
 {
     int src_start_x, src_start_y, src_ptr_dy, dst_x, dst_y, x0, x1, y0, y1;
     WORD *dst_ptr, *src_ptr, *c00_ptr, *c01_ptr, *c10_ptr, *c11_ptr;
@@ -7735,8 +7695,8 @@ static void halftone_555( const dib_info *dst_dib, const struct bitblt_coords *d
     }
 }
 
-static void halftone_16( const dib_info *dst_dib, const struct bitblt_coords *dst,
-                         const dib_info *src_dib, const struct bitblt_coords *src )
+static void halftone_16( const struct dib *dst_dib, const struct bitblt_coords *dst,
+                         const struct dib *src_dib, const struct bitblt_coords *src )
 {
     int src_start_x, src_start_y, src_ptr_dy, dst_x, dst_y, x0, x1, y0, y1;
     WORD *dst_ptr, *src_ptr, *c00_ptr, *c01_ptr, *c10_ptr, *c11_ptr;
@@ -7798,8 +7758,8 @@ static void halftone_16( const dib_info *dst_dib, const struct bitblt_coords *ds
     }
 }
 
-static void halftone_8( const dib_info *dst_dib, const struct bitblt_coords *dst,
-                        const dib_info *src_dib, const struct bitblt_coords *src )
+static void halftone_8( const struct dib *dst_dib, const struct bitblt_coords *dst,
+                        const struct dib *src_dib, const struct bitblt_coords *src )
 {
     int src_start_x, src_start_y, src_ptr_dy, dst_x, dst_y, x0, x1, y0, y1;
     BYTE *dst_ptr, *src_ptr, *c00_ptr, *c01_ptr, *c10_ptr, *c11_ptr;
@@ -7862,8 +7822,8 @@ static void halftone_8( const dib_info *dst_dib, const struct bitblt_coords *dst
     }
 }
 
-static void halftone_4( const dib_info *dst_dib, const struct bitblt_coords *dst,
-                        const dib_info *src_dib, const struct bitblt_coords *src )
+static void halftone_4( const struct dib *dst_dib, const struct bitblt_coords *dst,
+                        const struct dib *src_dib, const struct bitblt_coords *src )
 {
     BYTE *dst_col_ptr, *dst_ptr, *src_ptr, *c00_ptr, *c01_ptr, *c10_ptr, *c11_ptr;
     int src_start_x, src_start_y, src_ptr_dy, dst_x, dst_y, x0, x1, y0, y1;
@@ -7953,8 +7913,8 @@ static void halftone_4( const dib_info *dst_dib, const struct bitblt_coords *dst
     }
 }
 
-static void halftone_1( const dib_info *dst_dib, const struct bitblt_coords *dst,
-                        const dib_info *src_dib, const struct bitblt_coords *src )
+static void halftone_1( const struct dib *dst_dib, const struct bitblt_coords *dst,
+                        const struct dib *src_dib, const struct bitblt_coords *src )
 {
     int src_start_x, src_start_y, src_ptr_dy, dst_x, dst_y, x0, x1, y0, y1, bit_pos;
     BYTE *dst_col_ptr, *dst_ptr, *src_ptr, *c00_ptr, *c01_ptr, *c10_ptr, *c11_ptr;
@@ -8032,8 +7992,8 @@ static void halftone_1( const dib_info *dst_dib, const struct bitblt_coords *dst
     }
 }
 
-static void halftone_null( const dib_info *dst_dib, const struct bitblt_coords *dst,
-                           const dib_info *src_dib, const struct bitblt_coords *src )
+static void halftone_null( const struct dib *dst_dib, const struct bitblt_coords *dst,
+                           const struct dib *src_dib, const struct bitblt_coords *src )
 {}
 
 const primitive_funcs funcs_8888 =
