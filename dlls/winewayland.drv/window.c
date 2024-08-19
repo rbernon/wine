@@ -362,7 +362,7 @@ static inline HWND get_active_window(void)
  *
  * Check if a given window should be managed
  */
-static BOOL is_window_managed(HWND hwnd, UINT swp_flags, const RECT *window_rect)
+static BOOL is_window_managed(HWND hwnd, UINT swp_flags, const RECT *window_rect, UINT dpi)
 {
     DWORD style, ex_style;
 
@@ -378,18 +378,10 @@ static BOOL is_window_managed(HWND hwnd, UINT swp_flags, const RECT *window_rect
     if (style & WS_THICKFRAME) return TRUE;
     if (style & WS_POPUP)
     {
-        HMONITOR hmon;
-        MONITORINFO mi;
-
         /* popup with sysmenu == caption are managed */
         if (style & WS_SYSMENU) return TRUE;
         /* full-screen popup windows are managed */
-        hmon = NtUserMonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
-        mi.cbSize = sizeof(mi);
-        NtUserGetMonitorInfo(hmon, &mi);
-        if (window_rect->left <= mi.rcWork.left && window_rect->right >= mi.rcWork.right &&
-            window_rect->top <= mi.rcWork.top && window_rect->bottom >= mi.rcWork.bottom)
-            return TRUE;
+        if (NtUserIsWindowRectFullScreen(window_rect, dpi)) return TRUE;
     }
     /* application windows are managed */
     ex_style = NtUserGetWindowLongW(hwnd, GWL_EXSTYLE);
