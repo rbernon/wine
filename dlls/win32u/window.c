@@ -29,6 +29,7 @@
 #define WIN32_NO_STATUS
 #include "ntgdi_private.h"
 #include "ntuser_private.h"
+#include "dibdrv/dibdrv.h"
 #include "wine/server.h"
 #include "wine/debug.h"
 
@@ -2486,14 +2487,16 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
     {
         BLENDFUNCTION src_blend = { AC_SRC_OVER, 0, 255, 0 };
         RECT rect = new_rects.window, src_rect;
+        struct dib dib;
+        HBITMAP bitmap;
         HDC hdc = NULL;
 
         OffsetRect( &rect, -rect.left, -rect.top );
         intersect_rect( &rect, &rect, &surface_rect );
 
         if (!(hdc = NtGdiCreateCompatibleDC( 0 ))) goto done;
-        window_surface_lock( surface );
-        NtGdiSelectBitmap( hdc, surface->color_bitmap );
+        bitmap = window_surface_lock_write( surface, &dib );
+        NtGdiSelectBitmap( hdc, bitmap );
 
         if (dirty) intersect_rect( &rect, &rect, dirty );
         NtGdiPatBlt( hdc, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, BLACKNESS );
@@ -2509,7 +2512,7 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
         if (ret) add_bounds_rect( &surface->bounds, &rect );
 
         NtGdiDeleteObjectApp( hdc );
-        window_surface_unlock( surface );
+        window_surface_unlock_write( surface, &dib );
 
         if (!(flags & ULW_COLORKEY)) key = CLR_INVALID;
         window_surface_set_layered( surface, key, -1, 0xff000000 );

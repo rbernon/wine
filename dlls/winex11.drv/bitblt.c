@@ -958,6 +958,27 @@ static inline int get_dib_image_size( const BITMAPINFO *info )
         * abs( info->bmiHeader.biHeight );
 }
 
+static const char *debugstr_bitmapinfo( const BITMAPINFO *info )
+{
+    DWORD *colors = (DWORD *)((char *)info + info->bmiHeader.biSize);
+    return wine_dbg_sprintf( "sz %d w %4d h %4d p %d bpp %2d c %u szi %#8x xp %d yp %d clr %d imp %d clr %#8x:%#8x:%#8x",
+        (int)info->bmiHeader.biSize,
+        (int)info->bmiHeader.biWidth,
+        (int)info->bmiHeader.biHeight,
+        (int)info->bmiHeader.biPlanes,
+        (int)info->bmiHeader.biBitCount,
+        (int)info->bmiHeader.biCompression,
+        (int)info->bmiHeader.biSizeImage,
+        (int)info->bmiHeader.biXPelsPerMeter,
+        (int)info->bmiHeader.biYPelsPerMeter,
+        (int)info->bmiHeader.biClrUsed,
+        (int)info->bmiHeader.biClrImportant,
+        (int)colors[0],
+        (int)colors[1],
+        (int)colors[2] );
+
+}
+
 /* store the palette or color mask data in the bitmap info structure */
 static void set_color_info( const XVisualInfo *vis, BITMAPINFO *info, BOOL has_alpha )
 {
@@ -988,69 +1009,19 @@ static void set_color_info( const XVisualInfo *vis, BITMAPINFO *info, BOOL has_a
         break;
     }
     case 16:
-        colors[0] = vis->red_mask;
-        colors[1] = vis->green_mask;
-        colors[2] = vis->blue_mask;
+        colors[(ImageByteOrder(gdi_display) == LSBFirst) ? 0 : 2] = vis->red_mask;
+        colors[(ImageByteOrder(gdi_display) == LSBFirst) ? 1 : 1] = vis->green_mask;
+        colors[(ImageByteOrder(gdi_display) == LSBFirst) ? 2 : 0] = vis->blue_mask;
         info->bmiHeader.biCompression = BI_BITFIELDS;
         break;
     case 32:
-        colors[0] = vis->red_mask;
-        colors[1] = vis->green_mask;
-        colors[2] = vis->blue_mask;
+        colors[(ImageByteOrder(gdi_display) == LSBFirst) ? 0 : 2] = vis->red_mask;
+        colors[(ImageByteOrder(gdi_display) == LSBFirst) ? 1 : 1] = vis->green_mask;
+        colors[(ImageByteOrder(gdi_display) == LSBFirst) ? 2 : 0] = vis->blue_mask;
         if (colors[0] != 0xff0000 || colors[1] != 0x00ff00 || colors[2] != 0x0000ff || !has_alpha)
             info->bmiHeader.biCompression = BI_BITFIELDS;
         break;
     }
-}
-
-/* check if the specified color info is suitable for PutImage */
-static BOOL matching_color_info( const XVisualInfo *vis, const BITMAPINFO *info )
-{
-    DWORD *colors = (DWORD *)((char *)info + info->bmiHeader.biSize);
-
-    switch (info->bmiHeader.biBitCount)
-    {
-    case 1:
-        if (info->bmiHeader.biCompression != BI_RGB) return FALSE;
-        return !info->bmiHeader.biClrUsed;  /* color map not allowed */
-    case 4:
-    case 8:
-    {
-        RGBQUAD *rgb = (RGBQUAD *)colors;
-        PALETTEENTRY palette[256];
-        UINT i, count;
-
-        if (info->bmiHeader.biCompression != BI_RGB) return FALSE;
-        count = X11DRV_GetSystemPaletteEntries( NULL, 0, 1 << info->bmiHeader.biBitCount, palette );
-        if (count != info->bmiHeader.biClrUsed) return FALSE;
-        for (i = 0; i < count; i++)
-        {
-            if (rgb[i].rgbRed   != palette[i].peRed ||
-                rgb[i].rgbGreen != palette[i].peGreen ||
-                rgb[i].rgbBlue  != palette[i].peBlue) return FALSE;
-        }
-        return TRUE;
-    }
-    case 16:
-        if (info->bmiHeader.biCompression == BI_BITFIELDS)
-            return (vis->red_mask == colors[0] &&
-                    vis->green_mask == colors[1] &&
-                    vis->blue_mask == colors[2]);
-        if (info->bmiHeader.biCompression == BI_RGB)
-            return (vis->red_mask == 0x7c00 && vis->green_mask == 0x03e0 && vis->blue_mask == 0x001f);
-        break;
-    case 32:
-        if (info->bmiHeader.biCompression == BI_BITFIELDS)
-            return (vis->red_mask == colors[0] &&
-                    vis->green_mask == colors[1] &&
-                    vis->blue_mask == colors[2]);
-        /* fall through */
-    case 24:
-        if (info->bmiHeader.biCompression == BI_RGB)
-            return (vis->red_mask == 0xff0000 && vis->green_mask == 0x00ff00 && vis->blue_mask == 0x0000ff);
-        break;
-    }
-    return FALSE;
 }
 
 static inline BOOL is_r8g8b8( const XVisualInfo *vis )
@@ -1059,33 +1030,14 @@ static inline BOOL is_r8g8b8( const XVisualInfo *vis )
     return format->bits_per_pixel == 24 && vis->red_mask == 0xff0000 && vis->blue_mask == 0x0000ff;
 }
 
-static inline BOOL image_needs_byteswap( XImage *image, BOOL is_r8g8b8, int bit_count )
-{
-#ifdef WORDS_BIGENDIAN
-    static const int client_byte_order = MSBFirst;
-#else
-    static const int client_byte_order = LSBFirst;
-#endif
-
-    switch (bit_count)
-    {
-    case 1:  return image->bitmap_bit_order != MSBFirst;
-    case 4:  return image->byte_order != MSBFirst;
-    case 16:
-    case 32: return image->byte_order != client_byte_order;
-    case 24: return (image->byte_order == MSBFirst) ^ !is_r8g8b8;
-    default: return FALSE;
-    }
-}
-
 /* copy image bits with byte swapping and/or pixel mapping */
 static void copy_image_byteswap( const BITMAPINFO *info, const unsigned char *src, unsigned char *dst,
-                                 int src_stride, int dst_stride, int height, BOOL byteswap,
+                                 int src_stride, int dst_stride, int height,
                                  const int *mapping, unsigned int zeropad_mask, unsigned int alpha_bits )
 {
     int x, y, padding_pos = abs(dst_stride) / sizeof(unsigned int) - 1;
 
-    if (!byteswap && !mapping)  /* simply copy */
+    if (!mapping)  /* simply copy */
     {
         if (src != dst)
         {
@@ -1116,14 +1068,8 @@ static void copy_image_byteswap( const BITMAPINFO *info, const unsigned char *sr
         for (y = 0; y < height; y++, src += src_stride, dst += dst_stride)
         {
             if (mapping)
-            {
-                if (byteswap)
-                    for (x = 0; x < src_stride; x++)
-                        dst[x] = (mapping[src[x] & 0x0f] << 4) | mapping[src[x] >> 4];
-                else
-                    for (x = 0; x < src_stride; x++)
-                        dst[x] = mapping[src[x] & 0x0f] | (mapping[src[x] >> 4] << 4);
-            }
+                for (x = 0; x < src_stride; x++)
+                    dst[x] = mapping[src[x] & 0x0f] | (mapping[src[x] >> 4] << 4);
             else
                 for (x = 0; x < src_stride; x++)
                     dst[x] = (src[x] << 4) | (src[x] >> 4);
@@ -1171,7 +1117,6 @@ DWORD copy_image_bits( BITMAPINFO *info, BOOL is_r8g8b8, XImage *image,
                        const struct gdi_image_bits *src_bits, struct gdi_image_bits *dst_bits,
                        struct bitblt_coords *coords, const int *mapping, unsigned int zeropad_mask )
 {
-    BOOL need_byteswap = image_needs_byteswap( image, is_r8g8b8, info->bmiHeader.biBitCount );
     int height = coords->visrect.bottom - coords->visrect.top;
     int width_bytes = image->bytes_per_line;
     unsigned char *src, *dst;
@@ -1182,11 +1127,9 @@ DWORD copy_image_bits( BITMAPINFO *info, BOOL is_r8g8b8, XImage *image,
     else
         src += coords->visrect.top * width_bytes;
 
-    if ((need_byteswap && !src_bits->is_copy) ||  /* need to swap bytes */
-        (zeropad_mask != ~0u && !src_bits->is_copy) ||  /* need to clear padding bytes */
+    if ((zeropad_mask != ~0u && !src_bits->is_copy) ||  /* need to clear padding bytes */
         (mapping && !src_bits->is_copy) ||  /* need to remap pixels */
-        (width_bytes & 3) ||  /* need to fixup line alignment */
-        (info->bmiHeader.biHeight > 0))  /* need to flip vertically */
+        (width_bytes & 3) /* need to fixup line alignment */)
     {
         width_bytes = (width_bytes + 3) & ~3;
         info->bmiHeader.biSizeImage = height * width_bytes;
@@ -1201,7 +1144,7 @@ DWORD copy_image_bits( BITMAPINFO *info, BOOL is_r8g8b8, XImage *image,
         dst_bits->ptr = src;
         dst_bits->is_copy = src_bits->is_copy;
         dst_bits->free = NULL;
-        if (!need_byteswap && zeropad_mask == ~0u && !mapping) return ERROR_SUCCESS;  /* nothing to do */
+        if (zeropad_mask == ~0u && !mapping) return ERROR_SUCCESS;  /* nothing to do */
     }
 
     dst = dst_bits->ptr;
@@ -1213,7 +1156,7 @@ DWORD copy_image_bits( BITMAPINFO *info, BOOL is_r8g8b8, XImage *image,
     }
 
     copy_image_byteswap( info, src, dst, image->bytes_per_line, width_bytes, height,
-                         need_byteswap, mapping, zeropad_mask, 0 );
+                         mapping, zeropad_mask, 0 );
     return ERROR_SUCCESS;
 }
 
@@ -1224,6 +1167,8 @@ DWORD X11DRV_PutImage( PHYSDEV dev, HRGN clip, BITMAPINFO *info,
                        const struct gdi_image_bits *bits, struct bitblt_coords *src,
                        struct bitblt_coords *dst, DWORD rop )
 {
+    char dst_buffer[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
+    BITMAPINFO *dst_info = (BITMAPINFO *)dst_buffer;
     X11DRV_PDEVICE *physdev = get_x11drv_dev( dev );
     DWORD ret;
     XImage *image;
@@ -1242,10 +1187,15 @@ DWORD X11DRV_PutImage( PHYSDEV dev, HRGN clip, BITMAPINFO *info,
     }
     format = pixmap_formats[vis.depth];
 
-    if (info->bmiHeader.biPlanes != 1) goto update_format;
-    if (info->bmiHeader.biBitCount != format->bits_per_pixel) goto update_format;
-    /* FIXME: could try to handle 1-bpp using XCopyPlane */
-    if (!matching_color_info( &vis, info )) goto update_format;
+    dst_info->bmiHeader = info->bmiHeader;
+    dst_info->bmiHeader.biPlanes = 1;
+    dst_info->bmiHeader.biBitCount = format->bits_per_pixel;
+    dst_info->bmiHeader.biHeight = -abs( info->bmiHeader.biHeight );
+    set_color_info( &vis, dst_info, FALSE );
+
+    ERR( "src_info %s bits %p\n", debugstr_bitmapinfo( info ), bits );
+    ERR( "dst_info %s\n", debugstr_bitmapinfo( dst_info ) );
+    if (memcmp( dst_info, info, get_dib_info_size( dst_info, DIB_RGB_COLORS ) )) goto update_format;
     if (!bits) return ERROR_SUCCESS;  /* just querying the format */
     if ((src->width != dst->width) || (src->height != dst->height)) return ERROR_TRANSFORM_NOT_SUPPORTED;
 
@@ -1302,10 +1252,8 @@ DWORD X11DRV_PutImage( PHYSDEV dev, HRGN clip, BITMAPINFO *info,
     return ret;
 
 update_format:
-    info->bmiHeader.biPlanes   = 1;
-    info->bmiHeader.biBitCount = format->bits_per_pixel;
-    if (info->bmiHeader.biHeight > 0) info->bmiHeader.biHeight = -info->bmiHeader.biHeight;
-    set_color_info( &vis, info, FALSE );
+    ERR("Need update format\n");
+    memcpy( info, dst_info, get_dib_info_size( dst_info, DIB_RGB_COLORS ) );
     return ERROR_BAD_FORMAT;
 }
 
@@ -1414,6 +1362,8 @@ DWORD X11DRV_GetImage( PHYSDEV dev, BITMAPINFO *info,
 static DWORD put_pixmap_image( Pixmap pixmap, const XVisualInfo *vis,
                                BITMAPINFO *info, const struct gdi_image_bits *bits )
 {
+    char dst_buffer[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
+    BITMAPINFO *dst_info = (BITMAPINFO *)dst_buffer;
     DWORD ret;
     XImage *image;
     GC gc;
@@ -1423,10 +1373,16 @@ static DWORD put_pixmap_image( Pixmap pixmap, const XVisualInfo *vis,
     const int *mapping = NULL;
 
     if (!format) return ERROR_INVALID_PARAMETER;
-    if (info->bmiHeader.biPlanes != 1) goto update_format;
-    if (info->bmiHeader.biBitCount != format->bits_per_pixel) goto update_format;
-    /* FIXME: could try to handle 1-bpp using XCopyPlane */
-    if (!matching_color_info( vis, info )) goto update_format;
+
+    dst_info->bmiHeader = info->bmiHeader;
+    dst_info->bmiHeader.biPlanes = 1;
+    dst_info->bmiHeader.biBitCount = format->bits_per_pixel;
+    dst_info->bmiHeader.biHeight = -abs( info->bmiHeader.biHeight );
+    set_color_info( vis, dst_info, FALSE );
+
+    ERR( "src_info %s bits %p\n", debugstr_bitmapinfo( info ), bits );
+    ERR( "dst_info %s\n", debugstr_bitmapinfo( dst_info ) );
+    if (memcmp( dst_info, info, get_dib_info_size( dst_info, DIB_RGB_COLORS ) )) goto update_format;
     if (!bits) return ERROR_SUCCESS;  /* just querying the format */
 
     coords.x = 0;
@@ -1456,10 +1412,8 @@ static DWORD put_pixmap_image( Pixmap pixmap, const XVisualInfo *vis,
     return ret;
 
 update_format:
-    info->bmiHeader.biPlanes   = 1;
-    info->bmiHeader.biBitCount = format->bits_per_pixel;
-    if (info->bmiHeader.biHeight > 0) info->bmiHeader.biHeight = -info->bmiHeader.biHeight;
-    set_color_info( vis, info, FALSE );
+    ERR("Need update format\n");
+    memcpy( info, dst_info, get_dib_info_size( info, DIB_RGB_COLORS ) );
     return ERROR_BAD_FORMAT;
 }
 
@@ -1588,7 +1542,6 @@ struct x11drv_window_surface
     Window                window;
     GC                    gc;
     struct x11drv_image  *image;
-    BOOL                  byteswap;
 };
 
 static struct x11drv_window_surface *get_x11_surface( struct window_surface *surface )
@@ -1798,6 +1751,38 @@ static BOOL x11drv_surface_flush( struct window_surface *window_surface, const R
     const unsigned char *src = color_bits;
     unsigned char *dst = (unsigned char *)ximage->data;
 
+if (window_surface->hwnd == (HWND)0x4004E)
+{
+    static const char magic[2] = "BM";
+    static UINT count;
+    struct
+    {
+        DWORD length;
+        DWORD reserved;
+        DWORD offset;
+        BITMAPINFOHEADER biHeader;
+    } header =
+    {
+        .length = color_info->bmiHeader.biSizeImage + sizeof(header) + 2, .offset = sizeof(header) + 2,
+        .biHeader =
+        {
+            .biSize = sizeof(BITMAPINFOHEADER), .biWidth = color_info->bmiHeader.biWidth, .biHeight = -color_info->bmiHeader.biHeight, .biPlanes = 1,
+            .biBitCount = color_info->bmiHeader.biBitCount, .biCompression = BI_RGB, .biSizeImage = color_info->bmiHeader.biSizeImage,
+        },
+    };
+    char path[256];
+    FILE *file;
+
+ERR("window_surface %p rect %s dirty %s shape %u\n", window_surface, wine_dbgstr_rect(rect), wine_dbgstr_rect(dirty), shape_changed);
+
+    sprintf(path, "/tmp/surface-%p-%u.bmp", window_surface, count++);
+    file = fopen(path, "w");
+    fwrite(magic, 1, sizeof(magic), file);
+    fwrite(&header, 1, sizeof(header), file);
+    fwrite(color_bits, 1, color_info->bmiHeader.biSizeImage, file);
+    fclose(file);
+}
+
     if (alpha_bits == -1)
     {
         if (alpha_mask || color_info->bmiHeader.biBitCount != 32) alpha_bits = 0;
@@ -1811,13 +1796,12 @@ static BOOL x11drv_surface_flush( struct window_surface *window_surface, const R
 
     if (src != dst)
     {
-        int map[256], *mapping = get_window_surface_mapping( ximage->bits_per_pixel, map );
         int width_bytes = ximage->bytes_per_line;
 
         src += dirty->top * width_bytes;
         dst += dirty->top * width_bytes;
         copy_image_byteswap( color_info, src, dst, width_bytes, width_bytes, dirty->bottom - dirty->top,
-                             surface->byteswap, mapping, ~0u, alpha_bits );
+                             mapping, ~0u, alpha_bits );
     }
     else if (alpha_bits)
     {
@@ -1828,6 +1812,11 @@ static BOOL x11drv_surface_flush( struct window_surface *window_surface, const R
             for (x = dirty->left; x < dirty->right; x++)
                 ptr[x] |= alpha_bits;
     }
+
+    if (!put_shm_image( ximage, &surface->image->shminfo, surface->window, surface->gc, rect, dirty ))
+        XPutImage( gdi_display, surface->window, surface->gc, ximage, dirty->left,
+                   dirty->top, rect->left + dirty->left, rect->top + dirty->top,
+                   dirty->right - dirty->left, dirty->bottom - dirty->top );
 
     if (shape_changed)
     {
@@ -1872,9 +1861,9 @@ static void x11drv_surface_destroy( struct window_surface *window_surface )
 
 static const struct window_surface_funcs x11drv_surface_funcs =
 {
-    x11drv_surface_set_clip,
-    x11drv_surface_flush,
-    x11drv_surface_destroy
+    .set_clip = x11drv_surface_set_clip,
+    .flush = x11drv_surface_flush,
+    .destroy = x11drv_surface_destroy
 };
 
 /***********************************************************************
@@ -1892,7 +1881,6 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
     struct x11drv_image *image;
     D3DDDIFORMAT d3d_format;
     HBITMAP bitmap = 0;
-    BOOL byteswap;
     UINT status;
 
     memset( info, 0, sizeof(*info) );
@@ -1907,8 +1895,7 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
     if (!(image = x11drv_image_create( info, vis ))) return NULL;
 
     /* wrap the XImage data in a HBITMAP if we can write to the surface pixels directly */
-    if ((byteswap = image_needs_byteswap( image->ximage, is_r8g8b8( vis ), info->bmiHeader.biBitCount )) ||
-        info->bmiHeader.biBitCount <= 8 || !(d3d_format = get_dib_d3dddifmt( info )))
+    if (info->bmiHeader.biBitCount <= 8 || !(d3d_format = get_dib_d3dddifmt( info )))
         WARN( "Cannot use direct rendering, falling back to copies\n" );
     else
     {
@@ -1941,7 +1928,6 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
     {
         surface = get_x11_surface( window_surface );
         surface->image = image;
-        surface->byteswap = byteswap;
         surface->window = window;
         surface->gc = XCreateGC( gdi_display, window, 0, NULL );
         XSetSubwindowMode( gdi_display, surface->gc, IncludeInferiors );
@@ -2040,11 +2026,13 @@ static struct window_surface *create_scaled_surface( HWND hwnd, Window window, c
 
 static BOOL enable_direct_drawing( struct x11drv_win_data *data, BOOL layered )
 {
+    const XPixmapFormatValues *format = pixmap_formats[data->vis.depth];
     if (layered) return FALSE;
     if (data->embedded) return TRUE; /* draw directly to the window */
     if (data->whole_window == root_window) return TRUE; /* draw directly to the window */
     if (data->client_window) return TRUE; /* draw directly to the window */
     if (!client_side_graphics) return TRUE; /* draw directly to the window */
+    if (format->bits_per_pixel <= 8) return TRUE; /* draw directly to the window */
     return FALSE;
 }
 
