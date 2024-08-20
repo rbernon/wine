@@ -2440,9 +2440,7 @@ static HRESULT WINAPI callback_advanced_AllocateForStream(IWMReaderCallbackAdvan
         trace("%lu: %04lx: IWMReaderCallbackAdvanced::AllocateForStream(output %u, size %lu)\n",
                 GetTickCount(), GetCurrentThreadId(), stream_number, size);
 
-    todo_wine
     ok(callback->callback_tid != GetCurrentThreadId(), "got wrong thread\n");
-    todo_wine_if(callback->output_tid[stream_number - 1])
     ok(callback->output_tid[stream_number - 1] != GetCurrentThreadId(), "got wrong thread\n");
     if (stream)
     {
@@ -2485,9 +2483,7 @@ static HRESULT WINAPI callback_advanced_AllocateForOutput(IWMReaderCallbackAdvan
         trace("%lu: %04lx: IWMReaderCallbackAdvanced::AllocateForOutput(output %lu, size %lu)\n",
                 GetTickCount(), GetCurrentThreadId(), output, size);
 
-    todo_wine
     ok(callback->callback_tid != GetCurrentThreadId(), "got wrong thread\n");
-    todo_wine_if(callback->output_tid[output])
     ok(callback->output_tid[output] != GetCurrentThreadId(), "got wrong thread\n");
     if (stream)
     {
