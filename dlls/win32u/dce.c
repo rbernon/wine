@@ -23,6 +23,8 @@
 #pragma makedep unix
 #endif
 
+#include "config.h"
+
 #include <assert.h>
 #include <pthread.h>
 #include "ntstatus.h"
@@ -32,6 +34,10 @@
 #include "dibdrv/dibdrv.h"
 #include "wine/server.h"
 #include "wine/debug.h"
+
+#ifdef HAVE_PIXMAN_1_PIXMAN_H
+#include <pixman-1/pixman.h>
+#endif
 
 WINE_DEFAULT_DEBUG_CHANNEL(win);
 
@@ -162,13 +168,28 @@ static void scaled_surface_set_clip( struct window_surface *window_surface, cons
     if (hrgn) NtGdiDeleteObjectApp( hrgn );
 }
 
+#ifdef HAVE_PIXMAN_1_PIXMAN_H
+static pixman_image_t *create_pixman_image_from_bitmap( const BITMAPINFO *color_info, const void *color_bits )
+{
+    UINT width = color_info->bmiHeader.biWidth, height = abs( color_info->bmiHeader.biHeight );
+    return pixman_image_create_bits_no_clear( PIXMAN_r8g8b8a8, width, height, (void *)color_bits,
+                                              color_info->bmiHeader.biSizeImage / height );
+}
+#endif
+
 static BOOL scaled_surface_flush( struct window_surface *window_surface, const RECT *rect, const RECT *dirty,
                                   const BITMAPINFO *color_info, const void *color_bits, BOOL shape_changed,
                                   const BITMAPINFO *shape_info, const void *shape_bits )
 {
     struct scaled_surface *surface = get_scaled_surface( window_surface );
     RECT src = *dirty, dst;
+#ifdef HAVE_PIXMAN_1_PIXMAN_H
+    char info_buf[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
+    BITMAPINFO *target_info = (BITMAPINFO *)info_buf;
+    void *target_bits;
+#else
     HDC hdc_dst, hdc_src;
+#endif
 
     src.left &= ~7;
     src.top &= ~7;
@@ -177,6 +198,29 @@ static BOOL scaled_surface_flush( struct window_surface *window_surface, const R
 
     dst = map_dpi_rect( src, surface->dpi_from, surface->dpi_to );
 
+#ifdef HAVE_PIXMAN_1_PIXMAN_H
+    if ((target_bits = window_surface_get_color( surface->target_surface, target_info )))
+    {
+        float scale = (float)surface->dpi_from / (float)surface->dpi_to;
+        pixman_image_t *image_src, *image_dst;
+        pixman_f_transform_t xform_float;
+        pixman_transform_t xform;
+
+        image_src = create_pixman_image_from_bitmap( color_info, color_bits );
+        image_dst = create_pixman_image_from_bitmap( target_info, target_bits );
+
+        pixman_image_set_filter( image_src, PIXMAN_FILTER_GOOD, NULL, 0 );
+        pixman_f_transform_init_scale( &xform_float, scale, scale );
+        pixman_transform_from_pixman_f_transform( &xform, &xform_float );
+        pixman_image_set_transform( image_src, &xform );
+
+        pixman_image_composite( PIXMAN_OP_SRC, image_src, NULL, image_dst, dst.left, dst.top, 0, 0, dst.left, dst.top,
+                                dst.right - dst.left, dst.bottom - dst.top );
+
+        pixman_image_unref( image_src );
+        pixman_image_unref( image_dst );
+    }
+#else
     hdc_dst = NtGdiCreateCompatibleDC( 0 );
     hdc_src = NtGdiCreateCompatibleDC( 0 );
 
@@ -192,6 +236,7 @@ static BOOL scaled_surface_flush( struct window_surface *window_surface, const R
 
     NtGdiDeleteObjectApp( hdc_dst );
     NtGdiDeleteObjectApp( hdc_src );
+#endif
 
     window_surface_lock( surface->target_surface );
     add_bounds_rect( &surface->target_surface->bounds, &dst );
