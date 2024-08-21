@@ -54,7 +54,6 @@ AC_ARG_WITH(pcap,      AS_HELP_STRING([--without-pcap],[do not use the Packet Ca
 AC_ARG_WITH(pcsclite,  AS_HELP_STRING([--without-pcsclite],[do not use PCSC lite]))
 AC_ARG_WITH(pthread,   AS_HELP_STRING([--without-pthread],[do not use the pthread library]))
 AC_ARG_WITH(pulse,     AS_HELP_STRING([--without-pulse],[do not use PulseAudio sound support]))
-AC_ARG_WITH(pixman,    AS_HELP_STRING([--without-pixman],[do not use the pixman library]))
 AC_ARG_WITH(sane,      AS_HELP_STRING([--without-sane],[do not use SANE (scanner support)]))
 AC_ARG_WITH(sdl,       AS_HELP_STRING([--without-sdl],[do not use SDL]))
 AC_ARG_WITH(udev,      AS_HELP_STRING([--without-udev],[do not use udev (plug and play support)]))
@@ -1656,16 +1655,6 @@ then
 fi
 WINE_NOTICE_WITH(ffmpeg,[test "x$FFMPEG_LIBS" = x],
         [FFmpeg ${notice_platform}development files not found.])
-
-dnl **** Check for pixman ****
-if test "x$with_pixman" != "xno";
-then
-    WINE_PACKAGE_FLAGS(PIXMAN,[pixman-1],,,,
-        [AC_CHECK_HEADERS([pixman-1/pixman.h])
-         AC_CHECK_LIB(pixman-1,pixman_image_unref,[:],[PIXMAN_LIBS=""],[$PIXMAN_LIBS])])
-fi
-WINE_NOTICE_WITH(pixman,[test "x$ac_cv_header_pixman_1_pixman_h" != "yes"],
-       [pixman ${notice_platform}development files not found or too old.])
 
 dnl **** Check for gstreamer ****
 if test "x$with_gstreamer" != "xno"
