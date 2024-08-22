@@ -832,7 +832,7 @@ static HRESULT WINAPI color_converter_IMediaObject_GetInputMaxLatency(IMediaObje
 
 static HRESULT WINAPI color_converter_IMediaObject_SetInputMaxLatency(IMediaObject *iface, DWORD index, REFERENCE_TIME latency)
 {
-    FIXME("converter %p, index %lu, latency %s stub!\n", color_converter_from_IMediaObject(iface), index, wine_dbgstr_longlong(latency));
+    FIXME("converter %p, index %lu, latency %I64d stub!\n", color_converter_from_IMediaObject(iface), index, latency);
     return E_NOTIMPL;
 }
 
