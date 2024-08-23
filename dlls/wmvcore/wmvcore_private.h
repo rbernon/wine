@@ -30,4 +30,4 @@
 #include "wine/strmbase.h"
 #include "wine/debug.h"
 
-HRESULT WINAPI winegstreamer_create_wm_sync_reader(IUnknown *outer, void **out);
+extern HRESULT sync_reader_create(IUnknown *outer, void **out);
