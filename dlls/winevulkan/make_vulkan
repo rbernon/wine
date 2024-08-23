@@ -762,6 +762,16 @@ class VkFunction(object):
             return True
         return self.name in PERF_CRITICAL_FUNCTIONS
 
+    def use_fast_thunk(self):
+        if not self.is_perf_critical():
+            return False
+        if self.extra_param:
+            return False
+        if any(not p.is_pointer() and not p.is_static_array()
+               and p.type in ('float', 'double') for p in self.params):
+            return False
+        return True
+
     def pfn(self, prefix="p", call_conv=None):
         """ Create function pointer. """
 
@@ -832,7 +842,7 @@ class VkFunction(object):
             body += "    return params.result;\n"
         return body
 
-    def body(self, conv, params_prefix=""):
+    def body(self, conv, params_prefix="", fast_thunk=False):
         body = ""
         needs_alloc = False
         deferred_op = None
@@ -860,6 +870,16 @@ class VkFunction(object):
             body += "    struct conversion_context local_ctx;\n"
             body += "    struct conversion_context *ctx = &local_ctx;\n"
         body += "\n"
+
+        if fast_thunk:
+            for n, p in enumerate(self.params):
+                if conv:
+                    body += "    VK_FAST_THUNK_GET_ARG({1}, UINT_PTR, params.{0});\n".format(p.name, n)
+                elif p.is_pointer() or p.is_static_array() or p.is_wrapped():
+                    body += "    VK_FAST_THUNK_GET_ARG({1}, void *, params.{0});\n".format(p.name, n)
+                else:
+                    body += "    VK_FAST_THUNK_GET_ARG({1}, UINT_PTR, params.{0});\n".format(p.name, n)
+            assert not self.extra_param and self.type == "void"
 
         if not self.is_perf_critical():
             body += "    {0}\n".format(self.trace(params_prefix=params_prefix, conv=conv))
@@ -966,6 +986,25 @@ class VkFunction(object):
 
     def thunk(self, prefix=None, conv=False):
         thunk = ""
+        if self.use_fast_thunk():
+            thunk += "#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= {0}\n".format(len(self.params))
+            thunk += "static void {0}{1}(void)\n".format(prefix, self.name)
+            thunk += "{\n"
+            if conv:
+                thunk += "    struct\n"
+                thunk += "    {\n"
+                for p in self.params:
+                    thunk += "        {0};\n".format(p.definition(conv=True, is_member=True))
+                if self.extra_param:
+                    thunk += "        PTR32 {0};\n".format(self.extra_param)
+                if self.type != "void":
+                    thunk += "        {0} result;\n".format(self.type)
+                thunk += "    } params;\n"
+            else:
+                thunk += "    struct {0}_params params;\n".format(self.name)
+            thunk += self.body(conv, params_prefix="params.", fast_thunk=True)
+            thunk += "}\n"
+            thunk += "#else\n"
         if not conv:
             thunk += "#ifdef _WIN64\n"
         if self.is_perf_critical():
@@ -989,14 +1028,25 @@ class VkFunction(object):
         thunk += "}\n"
         if not conv:
             thunk += "#endif /* _WIN64 */\n"
+        if self.use_fast_thunk():
+            thunk += "#endif /* VK_FAST_THUNK */\n"
         thunk += "\n"
         return thunk
 
-    def loader_thunk(self, prefix=None):
-        thunk = self.prototype(call_conv="WINAPI", prefix=prefix)
+    def loader_thunk(self, code, prefix=None):
+        thunk = ""
+        if self.use_fast_thunk():
+            thunk += "#if defined(VK_FAST_THUNK) && VK_FAST_THUNK_MAX_ARGS >= {0}\n".format(len(self.params))
+            thunk += "C_ASSERT( unix_{0} == {1} );\n".format(self.name, code)
+            thunk += "VK_FAST_THUNK( {0}, \"{1}\", {2} )\n".format(self.name, code, len(self.params))
+            thunk += "#else\n"
+        thunk += self.prototype(call_conv="WINAPI", prefix=prefix)
         thunk += "\n{\n"
         thunk += self.loader_body()
-        thunk += "}\n\n"
+        thunk += "}\n"
+        if self.use_fast_thunk():
+            thunk += "#endif /* VK_FAST_THUNK */\n"
+        thunk += "\n"
         return thunk
 
     def trace(self, message=None, trace_func=None, params_prefix="", conv=False):
@@ -2911,13 +2961,17 @@ class VkGenerator(object):
 
         f.write("WINE_DEFAULT_DEBUG_CHANNEL(vulkan);\n\n")
 
+        code = 2
         for vk_func in self.registry.funcs.values():
             if not vk_func.needs_exposing():
                 continue
-            if vk_func.name in MANUAL_LOADER_THUNKS | MANUAL_LOADER_FUNCTIONS:
+            if vk_func.name in MANUAL_LOADER_FUNCTIONS:
+                continue
+            code += 1
+            if vk_func.name in MANUAL_LOADER_THUNKS:
                 continue
 
-            f.write(vk_func.loader_thunk())
+            f.write(vk_func.loader_thunk(code))
 
         f.write("static const struct vulkan_func vk_device_dispatch_table[] =\n{\n")
         for vk_func in self.registry.device_funcs:
