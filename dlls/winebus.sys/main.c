@@ -198,6 +198,23 @@ static WCHAR *get_instance_id(DEVICE_OBJECT *device)
     return dst;
 }
 
+static WCHAR *get_container_id(DEVICE_OBJECT *device)
+{
+    struct device_extension *ext = (struct device_extension *)device->DeviceExtension;
+    GUID *guid = &ext->desc.container;
+    DWORD len = 39;
+    WCHAR *dst;
+
+    if ((dst = ExAllocatePool(PagedPool, len * sizeof(WCHAR))))
+    {
+        swprintf(dst, len, L"{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}", guid->Data1,
+                guid->Data2, guid->Data3, guid->Data4[0], guid->Data4[1], guid->Data4[2], guid->Data4[3],
+                guid->Data4[4], guid->Data4[5], guid->Data4[6], guid->Data4[7]);
+    }
+
+    return dst;
+}
+
 static WCHAR *get_device_id(DEVICE_OBJECT *device)
 {
     static const WCHAR input_format[] = L"&MI_%02u";
@@ -222,17 +239,23 @@ static WCHAR *get_device_id(DEVICE_OBJECT *device)
 static WCHAR *get_hardware_ids(DEVICE_OBJECT *device)
 {
     static const WCHAR input_format[] = L"&MI_%02u";
+    static const WCHAR version_format[] = L"&REV_%04X";
     static const WCHAR winebus_format[] = L"WINEBUS\\VID_%04X&PID_%04X";
     struct device_extension *ext = (struct device_extension *)device->DeviceExtension;
-    DWORD pos = 0, len = 0, input_len = 0, winebus_len = 25;
+    DWORD pos = 0, len = 0, input_len = 0, version_len = 9, winebus_len = 25;
     WCHAR *dst;
 
     if (ext->desc.input != -1) input_len = 14;
 
+    len += winebus_len + version_len + input_len + 1;
     len += winebus_len + input_len + 1;
 
     if ((dst = ExAllocatePool(PagedPool, (len + 1) * sizeof(WCHAR))))
     {
+        pos += swprintf(dst + pos, len - pos, winebus_format, ext->desc.vid, ext->desc.pid);
+        pos += swprintf(dst + pos, len - pos, version_format, ext->desc.version);
+        if (input_len) pos += swprintf(dst + pos, len - pos, input_format, ext->desc.input);
+        pos += 1;
         pos += swprintf(dst + pos, len - pos, winebus_format, ext->desc.vid, ext->desc.pid);
         if (input_len) pos += swprintf(dst + pos, len - pos, input_format, ext->desc.input);
         pos += 1;
@@ -436,7 +459,7 @@ static BOOL is_hidraw_enabled(WORD vid, WORD pid, const USAGE_AND_PAGE *usages, 
     if (usages->UsagePage != HID_USAGE_PAGE_GENERIC) return TRUE;
     if (usages->Usage != HID_USAGE_GENERIC_GAMEPAD && usages->Usage != HID_USAGE_GENERIC_JOYSTICK) return TRUE;
 
-    if (!check_bus_option(L"Enable SDL", 1) && check_bus_option(L"DisableInput", 0))
+    if (!check_bus_option(L"Enable SDL", 0) && check_bus_option(L"DisableInput", 0))
         prefer_hidraw = TRUE;
 
     if (is_dualshock4_gamepad(vid, pid)) prefer_hidraw = TRUE;
@@ -679,6 +702,10 @@ static NTSTATUS handle_IRP_MN_QUERY_ID(DEVICE_OBJECT *device, IRP *irp)
         case BusQueryInstanceID:
             TRACE("BusQueryInstanceID\n");
             irp->IoStatus.Information = (ULONG_PTR)get_instance_id(device);
+            break;
+        case BusQueryContainerID:
+            TRACE("BusQueryInstanceID\n");
+            irp->IoStatus.Information = (ULONG_PTR)get_container_id(device);
             break;
         default:
             WARN("Unhandled type %08x\n", type);
@@ -1064,7 +1091,7 @@ static NTSTATUS fdo_pnp_dispatch(DEVICE_OBJECT *device, IRP *irp)
         mouse_device_create();
         keyboard_device_create();
 
-        if ((enable_sdl = check_bus_option(L"Enable SDL", 1)))
+        if ((enable_sdl = check_bus_option(L"Enable SDL", 0)))
             enable_sdl = !sdl_driver_init();
         udev_driver_init(enable_sdl);
         iohid_driver_init();
