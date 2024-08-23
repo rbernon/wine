@@ -49,6 +49,7 @@ extern const var_t *get_func_handle_var( const type_t *iface, const var_t *func,
                                          unsigned char *explicit_fc, unsigned char *implicit_fc );
 extern int has_out_arg_or_return(const var_t *func);
 extern int is_const_decl(const var_t *var);
+extern int is_override_method(const type_t *iface, const type_t *child, const var_t *func);
 
 extern void write_serialize_functions(FILE *file, const type_t *type, const type_t *iface);
 
