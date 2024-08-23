@@ -46,6 +46,7 @@ static void write_apicontract_guard_start(FILE *header, const expr_t *expr);
 static void write_apicontract_guard_end(FILE *header, const expr_t *expr);
 
 static void write_widl_using_macros(FILE *header, type_t *iface);
+static void write_widl_impl_macros(FILE *header, type_t *iface);
 
 static void indent(FILE *h, int delta)
 {
@@ -1641,6 +1642,21 @@ static void write_widl_using_macros(FILE *header, type_t *iface)
     macro = format_namespace(iface->namespace, "WIDL_using_", "_", NULL, NULL);
     fprintf(header, "#ifdef %s\n", macro);
 
+    fprintf(header, "#define QUERY_INTERFACE_OPT_%s QUERY_INTERFACE_OPT_%s\n", name, iface->c_name);
+    fprintf(header, "#define QUERY_INTERFACE_%s QUERY_INTERFACE_%s\n", name, iface->c_name);
+    fprintf(header, "#define QUERY_INTERFACES_OPT_%s QUERY_INTERFACES_OPT_%s\n", name, iface->c_name);
+    fprintf(header, "#define QUERY_INTERFACES_%s QUERY_INTERFACES_%s\n", name, iface->c_name);
+
+    fprintf(header, "#define INTERFACE_VTBL_%s INTERFACE_VTBL_%s\n", name, iface->c_name);
+    fprintf(header, "#define INTERFACE_IMPL_%s INTERFACE_IMPL_%s\n", name, iface->c_name);
+    fprintf(header, "#define INTERFACE_IMPL_OUTER_%s INTERFACE_IMPL_OUTER_%s\n", name, iface->c_name);
+    fprintf(header, "#define INTERFACE_IMPL_STATIC_%s INTERFACE_IMPL_STATIC_%s\n", name, iface->c_name);
+
+    fprintf(header, "#define INTERFACE_FWD_OPT_%s INTERFACE_FWD_OPT_%s\n", name, iface->c_name);
+    fprintf(header, "#define INTERFACE_FWD_%s INTERFACE_FWD_%s\n", name, iface->c_name);
+    fprintf(header, "#define INTERFACES_FWD_OPT_%s INTERFACES_FWD_OPT_%s\n", name, iface->c_name);
+    fprintf(header, "#define INTERFACES_FWD_%s INTERFACES_FWD_%s\n", name, iface->c_name);
+
     if (uuid) fprintf(header, "#define IID_%s IID_%s\n", name, iface->c_name);
     if (iface->type_type == TYPE_INTERFACE) fprintf(header, "#define %sVtbl %sVtbl\n", name, iface->c_name);
     fprintf(header, "#define %s %s\n", name, iface->c_name);
@@ -1649,6 +1665,92 @@ static void write_widl_using_macros(FILE *header, type_t *iface)
 
     fprintf(header, "#endif /* %s */\n", macro);
     free(macro);
+}
+
+static void write_widl_impl_macros_methods(FILE *header, const type_t *iface, const type_t *top_iface, const char *prefix)
+{
+    const statement_t *stmt;
+
+    if (type_iface_get_inherit(iface)) write_widl_impl_macros_methods(header, type_iface_get_inherit(iface), top_iface, prefix);
+
+    STATEMENTS_FOR_EACH_FUNC(stmt, type_iface_get_stmts(iface))
+    {
+        const var_t *func = stmt->u.var;
+
+        if (is_override_method(iface, top_iface, func)) continue;
+        if (is_callas(func->attrs)) continue;
+
+        fprintf(header, "        %s_%s, \\\n", prefix, get_name(func));
+    }
+}
+
+static void write_widl_impl_macros(FILE *header, type_t *iface)
+{
+    const struct uuid *uuid = get_attrp(iface->attrs, ATTR_UUID);
+    const char *name = iface->short_name ? iface->short_name : iface->name;
+    type_t *base = type_iface_get_inherit(iface);
+
+    if (uuid)
+    {
+        int inspectable = base && !strcmp(base->c_name, "IInspectable");
+
+        fprintf(header, "#define QUERY_INTERFACE_OPT_%s( object, iid, out, mem ) \\\n", iface->c_name);
+        fprintf(header, "    if ((object)->mem.lpVtbl) QUERY_INTERFACE_%s( object, iid, out, mem )\n", iface->c_name);
+        fprintf(header, "#define QUERY_INTERFACE_%s( object, iid, out, mem ) \\\n", iface->c_name);
+        fprintf(header, "    if (0 " );
+        for (base = iface; base; (base = type_iface_get_inherit(base)))
+            fprintf(header, "%s|| IsEqualGUID( (iid), &IID_%s )", base == iface ? "" : " \\\n          ", base->c_name );
+        fprintf(header, ") \\\n" );
+        fprintf(header, "    { \\\n" );
+        fprintf(header, "        *(out) = &(object)->mem; \\\n" );
+        fprintf(header, "        %s_AddRef( &(object)->mem ); \\\n", iface->c_name );
+        fprintf(header, "        return S_OK; \\\n" );
+        fprintf(header, "    }\n" );
+        fprintf(header, "#define QUERY_INTERFACES_OPT_%s( object, iid, out, X, ... ) \\\n", iface->c_name);
+        fprintf(header, "    QUERY_INTERFACE_OPT_%s( object, iid, out, %s_iface ) \\\n", iface->c_name, name);
+        fprintf(header, "    QUERY_INTERFACES_ ## X( object, iid, out, __VA_ARGS__ )\n");
+        fprintf(header, "#define QUERY_INTERFACES_%s( object, iid, out, X, ... ) \\\n", iface->c_name);
+        fprintf(header, "    QUERY_INTERFACE_%s( object, iid, out, %s_iface ) \\\n", iface->c_name, name);
+        fprintf(header, "    QUERY_INTERFACES_ ## X( object, iid, out, __VA_ARGS__ )\n");
+        fprintf(header, "\n");
+
+        fprintf(header, "#define INTERFACE_VTBL_%s( pfx ) \\\n", iface->c_name);
+        fprintf(header, "    static const %sVtbl %s_vtbl = \\\n", iface->c_name, "pfx ## ");
+        fprintf(header, "    { \\\n");
+        write_widl_impl_macros_methods(header, iface, iface, "pfx ## ");
+        fprintf(header, "    };\n");
+        fprintf(header, "\n" );
+
+        fprintf(header, "#define INTERFACE_IMPL_%s( type, ... ) \\\n", iface->c_name);
+        fprintf(header, "    INTERFACE_IMPL_FROM_( type, %s, type ## _from_%s, %s_iface ) \\\n", name, name, name );
+        fprintf(header, "    IUNKNOWN_IMPL( type, %s, __VA_ARGS__ ) \\\n", name );
+        if (inspectable) fprintf(header, "    IINSPECTABLE_IMPL( type, %s ) \\\n", name );
+        fprintf(header, "    INTERFACES_FWD( type, %s, &object->%s_iface, __VA_ARGS__ )\n", name, name);
+
+        fprintf(header, "#define INTERFACE_IMPL_OUTER_%s( type, ... ) \\\n", iface->c_name);
+        fprintf(header, "    INTERFACE_IMPL_FROM_( type, %s, type ## _from_%s, %s_iface ) \\\n", name, name, name);
+        fprintf(header, "    IUNKNOWN_IMPL( type, %s, __VA_ARGS__ ) \\\n", name);
+        if (inspectable) fprintf(header, "    IINSPECTABLE_IMPL( type, %s ) \\\n", name );
+        fprintf(header, "    INTERFACES_FWD( type, %s, object->outer, __VA_ARGS__ )\n", inspectable ? "IInspectable" : "IUnknown");
+
+        fprintf(header, "#define INTERFACE_IMPL_STATIC_%s( type, ... ) \\\n", iface->c_name);
+        fprintf(header, "    INTERFACE_IMPL_FROM_( type, %s, type ## _from_%s, %s_iface ) \\\n", name, name, name );
+        fprintf(header, "    IUNKNOWN_IMPL_STATIC( type, %s, __VA_ARGS__ ) \\\n", name );
+        if (inspectable) fprintf(header, "    IINSPECTABLE_IMPL( type, %s ) \\\n", name );
+        fprintf(header, "    INTERFACES_FWD( type, %s, &object->%s_iface, __VA_ARGS__ )\n", name, name);
+
+        fprintf(header, "#define INTERFACE_FWD_%s( type, base, expr ) \\\n", iface->c_name);
+        fprintf(header, "    INTERFACE_IMPL_FROM_( type, %s, type ## _from_%s, %s_iface ) \\\n", name, name, name );
+        fprintf(header, "    IUNKNOWN_FWD( type, %s, base, expr ) \\\n", name );
+        if (inspectable) fprintf(header, "    IINSPECTABLE_FWD( type, %s, base, expr ) \\\n", name );
+        fprintf(header, "\n");
+
+        fprintf(header, "#define INTERFACES_FWD_OPT_%s INTERFACES_FWD_%s\n", iface->c_name, iface->c_name);
+        fprintf(header, "#define INTERFACES_FWD_%s( type, base, expr, X, ... ) \\\n", iface->c_name);
+        fprintf(header, "    INTERFACE_FWD_%s( type, base, expr ) \\\n", name);
+        fprintf(header, "    INTERFACES_FWD_ ## X( type, base, expr, __VA_ARGS__ )\n");
+        fprintf(header, "\n");
+    }
 }
 
 static void write_com_interface_end(FILE *header, type_t *iface)
@@ -1727,7 +1829,10 @@ static void write_com_interface_end(FILE *header, type_t *iface)
   write_method_macro(header, type, type, iface->c_name);
   fprintf(header, "#else\n");
   write_inline_wrappers(header, type, type, iface->c_name);
-  fprintf(header, "#endif\n");
+  fprintf(header, "#endif\n\n");
+  fprintf(header, "#ifdef __WINESRC__\n\n");
+  write_widl_impl_macros(header, iface);
+  fprintf(header, "#endif /* __WINESRC__ */\n\n");
   if (winrt_mode) write_widl_using_macros(header, iface);
   fprintf(header, "#endif\n");
   fprintf(header, "\n");
