@@ -29,6 +29,7 @@
 #include "winbase.h"
 #include "winternl.h"
 #include "ntuser.h"
+#include "wine/asm.h"
 #include "wine/debug.h"
 #include "wine/vulkan.h"
 #include "wine/vulkan_driver.h"
@@ -171,5 +172,40 @@ struct is_available_device_function_params
 };
 
 #define UNIX_CALL(code, params) WINE_UNIX_CALL(unix_ ## code, params)
+
+#ifdef __x86_64__
+
+#define VK_FAST_THUNK_MAX_ARGS 7
+
+#define __VK_FAST_THUNK_ARGS_0
+#define __VK_FAST_THUNK_ARGS_1 "movq %rcx,%r8\n\t"         __VK_FAST_THUNK_ARGS_0
+#define __VK_FAST_THUNK_ARGS_2 "movq %rdx,%xmm0\n\t"       __VK_FAST_THUNK_ARGS_1
+#define __VK_FAST_THUNK_ARGS_3 "movq %r8,%xmm1\n\t"        __VK_FAST_THUNK_ARGS_2
+#define __VK_FAST_THUNK_ARGS_4 "movq %r9,%xmm2\n\t"        __VK_FAST_THUNK_ARGS_3
+#define __VK_FAST_THUNK_ARGS_5 "movq 0x28(%rsp),%xmm3\n\t" __VK_FAST_THUNK_ARGS_4
+#define __VK_FAST_THUNK_ARGS_6 "movq 0x30(%rsp),%xmm4\n\t" __VK_FAST_THUNK_ARGS_5
+#define __VK_FAST_THUNK_ARGS_7 "movq 0x38(%rsp),%xmm5\n\t" __VK_FAST_THUNK_ARGS_6
+
+#define VK_FAST_THUNK(name, code, args) \
+    __ASM_GLOBAL_FUNC(name, __VK_FAST_THUNK_ARGS_ ## args \
+                      "movq __wine_unixlib_handle(%rip),%rcx\n\t" \
+                      "movq $" code ",%rdx\n\t" \
+                      "jmp *__wine_unix_call_dispatcher(%rip)")
+
+#define __VK_FAST_GET_ARG_0 "movq %%rdi,%0"
+#define __VK_FAST_GET_ARG_1 "movq %%xmm0,%0"
+#define __VK_FAST_GET_ARG_2 "movq %%xmm1,%0"
+#define __VK_FAST_GET_ARG_3 "movq %%xmm2,%0"
+#define __VK_FAST_GET_ARG_4 "movq %%xmm3,%0"
+#define __VK_FAST_GET_ARG_5 "movq %%xmm4,%0"
+#define __VK_FAST_GET_ARG_6 "movq %%xmm5,%0"
+
+#define VK_FAST_THUNK_GET_ARG(n, type, param) do { \
+        void *__reg; \
+        __asm__ __volatile__(__VK_FAST_GET_ARG_ ## n : "=r"(__reg)); \
+        (param) = (type)__reg; \
+    } while(0)
+
+#endif /* __x86_64__ */
 
 #endif /* __WINE_VULKAN_LOADER_H */
