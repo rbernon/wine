@@ -26,91 +26,44 @@ struct periodic_effect
 {
     IPeriodicForceEffect IPeriodicForceEffect_iface;
     IWineForceFeedbackEffectImpl *IWineForceFeedbackEffectImpl_inner;
-    LONG ref;
+    const WCHAR *class_name;
+    LONG refcount;
 
     PeriodicForceEffectKind kind;
 };
 
-static inline struct periodic_effect *impl_from_IPeriodicForceEffect( IPeriodicForceEffect *iface )
+static void periodic_effect_destroy( struct periodic_effect *impl )
 {
-    return CONTAINING_RECORD( iface, struct periodic_effect, IPeriodicForceEffect_iface );
+    IWineForceFeedbackEffectImpl_Release( impl->IWineForceFeedbackEffectImpl_inner );
+    free( impl );
 }
 
-static HRESULT WINAPI effect_QueryInterface( IPeriodicForceEffect *iface, REFIID iid, void **out )
+WIDL_impl_from_IPeriodicForceEffect( periodic_effect );
+
+static HRESULT WINAPI periodic_effect_QueryInterface( IPeriodicForceEffect *iface, REFIID iid, void **out )
 {
-    struct periodic_effect *impl = impl_from_IPeriodicForceEffect( iface );
-
+    struct periodic_effect *impl = periodic_effect_from_IPeriodicForceEffect( iface );
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
-
-    if (IsEqualGUID( iid, &IID_IUnknown ) ||
-        IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
-        IsEqualGUID( iid, &IID_IPeriodicForceEffect ))
-    {
-        IInspectable_AddRef( (*out = &impl->IPeriodicForceEffect_iface) );
-        return S_OK;
-    }
-
+    WIDL_impl_QueryInterface_IPeriodicForceEffect( impl, iid, out, IPeriodicForceEffect_iface );
     return IWineForceFeedbackEffectImpl_QueryInterface( impl->IWineForceFeedbackEffectImpl_inner, iid, out );
 }
 
-static ULONG WINAPI effect_AddRef( IPeriodicForceEffect *iface )
+WIDL_impl_IUnknown_AddRef( periodic_effect, IPeriodicForceEffect );
+WIDL_impl_IUnknown_Release( periodic_effect, IPeriodicForceEffect );
+WIDL_impl_IInspectable_methods( periodic_effect, IPeriodicForceEffect );
+
+static HRESULT WINAPI periodic_effect_get_Kind( IPeriodicForceEffect *iface, PeriodicForceEffectKind *kind )
 {
-    struct periodic_effect *impl = impl_from_IPeriodicForceEffect( iface );
-    ULONG ref = InterlockedIncrement( &impl->ref );
-    TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
-    return ref;
-}
-
-static ULONG WINAPI effect_Release( IPeriodicForceEffect *iface )
-{
-    struct periodic_effect *impl = impl_from_IPeriodicForceEffect( iface );
-    ULONG ref = InterlockedDecrement( &impl->ref );
-
-    TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
-
-    if (!ref)
-    {
-        /* guard against re-entry if inner releases an outer iface */
-        InterlockedIncrement( &impl->ref );
-        IWineForceFeedbackEffectImpl_Release( impl->IWineForceFeedbackEffectImpl_inner );
-        free( impl );
-    }
-
-    return ref;
-}
-
-static HRESULT WINAPI effect_GetIids( IPeriodicForceEffect *iface, ULONG *iid_count, IID **iids )
-{
-    FIXME( "iface %p, iid_count %p, iids %p stub!\n", iface, iid_count, iids );
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI effect_GetRuntimeClassName( IPeriodicForceEffect *iface, HSTRING *class_name )
-{
-    return WindowsCreateString( RuntimeClass_Windows_Gaming_Input_ForceFeedback_PeriodicForceEffect,
-                                ARRAY_SIZE(RuntimeClass_Windows_Gaming_Input_ForceFeedback_PeriodicForceEffect),
-                                class_name );
-}
-
-static HRESULT WINAPI effect_GetTrustLevel( IPeriodicForceEffect *iface, TrustLevel *trust_level )
-{
-    FIXME( "iface %p, trust_level %p stub!\n", iface, trust_level );
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI effect_get_Kind( IPeriodicForceEffect *iface, PeriodicForceEffectKind *kind )
-{
-    struct periodic_effect *impl = impl_from_IPeriodicForceEffect( iface );
+    struct periodic_effect *impl = periodic_effect_from_IPeriodicForceEffect( iface );
     TRACE( "iface %p, kind %p.\n", iface, kind );
     *kind = impl->kind;
     return S_OK;
 }
 
-static HRESULT WINAPI effect_SetParameters( IPeriodicForceEffect *iface, Vector3 direction, FLOAT frequency, FLOAT phase,
+static HRESULT WINAPI periodic_effect_SetParameters( IPeriodicForceEffect *iface, Vector3 direction, FLOAT frequency, FLOAT phase,
                                             FLOAT bias, TimeSpan duration )
 {
-    struct periodic_effect *impl = impl_from_IPeriodicForceEffect( iface );
+    struct periodic_effect *impl = periodic_effect_from_IPeriodicForceEffect( iface );
     WineForceFeedbackEffectParameters params =
     {
         .periodic =
@@ -132,12 +85,12 @@ static HRESULT WINAPI effect_SetParameters( IPeriodicForceEffect *iface, Vector3
     return IWineForceFeedbackEffectImpl_put_Parameters( impl->IWineForceFeedbackEffectImpl_inner, params, NULL );
 }
 
-static HRESULT WINAPI effect_SetParametersWithEnvelope( IPeriodicForceEffect *iface, Vector3 direction, FLOAT frequency, FLOAT phase, FLOAT bias,
+static HRESULT WINAPI periodic_effect_SetParametersWithEnvelope( IPeriodicForceEffect *iface, Vector3 direction, FLOAT frequency, FLOAT phase, FLOAT bias,
                                                         FLOAT attack_gain, FLOAT sustain_gain, FLOAT release_gain, TimeSpan start_delay,
                                                         TimeSpan attack_duration, TimeSpan sustain_duration,
                                                         TimeSpan release_duration, UINT32 repeat_count )
 {
-    struct periodic_effect *impl = impl_from_IPeriodicForceEffect( iface );
+    struct periodic_effect *impl = periodic_effect_from_IPeriodicForceEffect( iface );
     WineForceFeedbackEffectParameters params =
     {
         .periodic =
@@ -169,115 +122,31 @@ static HRESULT WINAPI effect_SetParametersWithEnvelope( IPeriodicForceEffect *if
     return IWineForceFeedbackEffectImpl_put_Parameters( impl->IWineForceFeedbackEffectImpl_inner, params, &envelope );
 }
 
-static const struct IPeriodicForceEffectVtbl effect_vtbl =
-{
-    effect_QueryInterface,
-    effect_AddRef,
-    effect_Release,
-    /* IInspectable methods */
-    effect_GetIids,
-    effect_GetRuntimeClassName,
-    effect_GetTrustLevel,
-    /* IPeriodicForceEffect methods */
-    effect_get_Kind,
-    effect_SetParameters,
-    effect_SetParametersWithEnvelope,
-};
+WIDL_impl_IPeriodicForceEffectVtbl( periodic_effect );
 
 struct periodic_factory
 {
     IActivationFactory IActivationFactory_iface;
     IPeriodicForceEffectFactory IPeriodicForceEffectFactory_iface;
-    LONG ref;
+    IAgileObject IAgileObject_iface;
+    const WCHAR *class_name;
 };
 
-static inline struct periodic_factory *impl_from_IActivationFactory( IActivationFactory *iface )
-{
-    return CONTAINING_RECORD( iface, struct periodic_factory, IActivationFactory_iface );
-}
+WIDL_impl_static_IActivationFactory( periodic_factory,
+    IPeriodicForceEffectFactory,
+    IAgileObject,
+    END, FIXME
+);
 
-static HRESULT WINAPI activation_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
-{
-    struct periodic_factory *impl = impl_from_IActivationFactory( iface );
-
-    TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
-
-    if (IsEqualGUID( iid, &IID_IUnknown ) ||
-        IsEqualGUID( iid, &IID_IInspectable ) ||
-        IsEqualGUID( iid, &IID_IAgileObject ) ||
-        IsEqualGUID( iid, &IID_IActivationFactory ))
-    {
-        IInspectable_AddRef( (*out = &impl->IActivationFactory_iface) );
-        return S_OK;
-    }
-
-    if (IsEqualGUID( iid, &IID_IPeriodicForceEffectFactory ))
-    {
-        IInspectable_AddRef( (*out = &impl->IPeriodicForceEffectFactory_iface) );
-        return S_OK;
-    }
-
-    FIXME( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid( iid ) );
-    *out = NULL;
-    return E_NOINTERFACE;
-}
-
-static ULONG WINAPI activation_AddRef( IActivationFactory *iface )
-{
-    struct periodic_factory *impl = impl_from_IActivationFactory( iface );
-    ULONG ref = InterlockedIncrement( &impl->ref );
-    TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
-    return ref;
-}
-
-static ULONG WINAPI activation_Release( IActivationFactory *iface )
-{
-    struct periodic_factory *impl = impl_from_IActivationFactory( iface );
-    ULONG ref = InterlockedDecrement( &impl->ref );
-    TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
-    return ref;
-}
-
-static HRESULT WINAPI activation_GetIids( IActivationFactory *iface, ULONG *iid_count, IID **iids )
-{
-    FIXME( "iface %p, iid_count %p, iids %p stub!\n", iface, iid_count, iids );
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI activation_GetRuntimeClassName( IActivationFactory *iface, HSTRING *class_name )
-{
-    FIXME( "iface %p, class_name %p stub!\n", iface, class_name );
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI activation_GetTrustLevel( IActivationFactory *iface, TrustLevel *trust_level )
-{
-    FIXME( "iface %p, trust_level %p stub!\n", iface, trust_level );
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI activation_ActivateInstance( IActivationFactory *iface, IInspectable **instance )
+static HRESULT WINAPI periodic_factory_ActivateInstance( IActivationFactory *iface, IInspectable **instance )
 {
     FIXME( "iface %p, instance %p stub!\n", iface, instance );
     return E_NOTIMPL;
 }
 
-static const struct IActivationFactoryVtbl activation_vtbl =
-{
-    activation_QueryInterface,
-    activation_AddRef,
-    activation_Release,
-    /* IInspectable methods */
-    activation_GetIids,
-    activation_GetRuntimeClassName,
-    activation_GetTrustLevel,
-    /* IActivationFactory methods */
-    activation_ActivateInstance,
-};
+WIDL_impl_IActivationFactoryVtbl( periodic_factory );
 
-DEFINE_IINSPECTABLE( factory, IPeriodicForceEffectFactory, struct periodic_factory, IActivationFactory_iface )
-
-static HRESULT WINAPI factory_CreateInstance( IPeriodicForceEffectFactory *iface, enum PeriodicForceEffectKind kind, IForceFeedbackEffect **out )
+static HRESULT WINAPI periodic_factory_IPeriodicForceEffectFactory_CreateInstance( IPeriodicForceEffectFactory *iface, enum PeriodicForceEffectKind kind, IForceFeedbackEffect **out )
 {
     enum WineForceFeedbackEffectType type = WineForceFeedbackEffectType_Periodic + kind;
     struct periodic_effect *impl;
@@ -286,8 +155,9 @@ static HRESULT WINAPI factory_CreateInstance( IPeriodicForceEffectFactory *iface
     TRACE( "iface %p, kind %u, out %p.\n", iface, kind, out );
 
     if (!(impl = calloc( 1, sizeof(struct periodic_effect) ))) return E_OUTOFMEMORY;
-    impl->IPeriodicForceEffect_iface.lpVtbl = &effect_vtbl;
-    impl->ref = 1;
+    impl->IPeriodicForceEffect_iface.lpVtbl = &periodic_effect_vtbl;
+    impl->class_name = RuntimeClass_Windows_Gaming_Input_ForceFeedback_PeriodicForceEffect;
+    impl->refcount = 1;
     impl->kind = kind;
 
     if (FAILED(hr = force_feedback_effect_create( type, (IInspectable *)&impl->IPeriodicForceEffect_iface, &impl->IWineForceFeedbackEffectImpl_inner )) ||
@@ -303,24 +173,15 @@ static HRESULT WINAPI factory_CreateInstance( IPeriodicForceEffectFactory *iface
     return S_OK;
 }
 
-static const struct IPeriodicForceEffectFactoryVtbl factory_vtbl =
-{
-    factory_QueryInterface,
-    factory_AddRef,
-    factory_Release,
-    /* IInspectable methods */
-    factory_GetIids,
-    factory_GetRuntimeClassName,
-    factory_GetTrustLevel,
-    /* IPeriodicForceEffectFactory methods */
-    factory_CreateInstance,
-};
+WIDL_impl_IPeriodicForceEffectFactoryVtbl( periodic_factory_IPeriodicForceEffectFactory );
+WIDL_impl_IAgileObjectVtbl( periodic_factory_IAgileObject );
 
 static struct periodic_factory periodic_statics =
 {
-    {&activation_vtbl},
-    {&factory_vtbl},
-    1,
+    {&periodic_factory_vtbl},
+    {&periodic_factory_IPeriodicForceEffectFactory_vtbl},
+    {&periodic_factory_IAgileObject_vtbl},
+    RuntimeClass_Windows_Gaming_Input_ForceFeedback_PeriodicForceEffect,
 };
 
 IInspectable *periodic_effect_factory = (IInspectable *)&periodic_statics.IActivationFactory_iface;
