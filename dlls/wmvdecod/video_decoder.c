@@ -105,6 +105,15 @@ static const GUID *get_dmo_subtype(const GUID *subtype)
         return subtype;
 }
 
+static const GUID *const video_decoder_output_types[] =
+{
+    &MFVideoFormat_NV12,
+    &MFVideoFormat_YV12,
+    &MFVideoFormat_IYUV,
+    &MFVideoFormat_I420,
+    &MFVideoFormat_YUY2,
+};
+
 struct video_decoder
 {
     IUnknown IUnknown_inner;
@@ -1701,11 +1710,52 @@ failed:
     return hr;
 }
 
+static const GUID *const h264_decoder_input_types[] =
+{
+    &MFVideoFormat_H264,
+    &MFVideoFormat_H264_ES,
+};
+
 static HRESULT WINAPI h264_decoder_factory_CreateInstance(IClassFactory *iface, IUnknown *outer,
         REFIID riid, void **out)
 {
-    static const GUID CLSID_wg_h264_decoder = {0x1f1e273d,0x12c0,0x4b3a,{0x8e,0x9b,0x19,0x33,0xc2,0x49,0x8a,0xea}};
-    return CoCreateInstance(&CLSID_wg_h264_decoder, outer, CLSCTX_INPROC_SERVER, riid, out);
+    struct video_decoder *decoder;
+    NTSTATUS status;
+    HRESULT hr;
+
+    TRACE("%p, %s, %p.\n", outer, debugstr_guid(riid), out);
+
+    if ((status = winedmo_transform_check(MFMediaType_Video, MFVideoFormat_H264, MFVideoFormat_NV12)))
+    {
+        static const GUID CLSID_wg_h264_decoder = {0x1f1e273d,0x12c0,0x4b3a,{0x8e,0x9b,0x19,0x33,0xc2,0x49,0x8a,0xea}};
+        WARN("Unsupported winedmo transform, status %#lx.\n", status);
+        return CoCreateInstance(&CLSID_wg_h264_decoder, outer, CLSCTX_INPROC_SERVER, riid, out);
+    }
+
+    *out = NULL;
+    if (outer)
+        return CLASS_E_NOAGGREGATION;
+    if (FAILED(hr = video_decoder_create_with_types(h264_decoder_input_types, ARRAY_SIZE(h264_decoder_input_types),
+            video_decoder_output_types, ARRAY_SIZE(video_decoder_output_types), NULL, &decoder)))
+        return hr;
+
+    if (FAILED(hr = IMFAttributes_SetUINT32(decoder->attributes, &AVDecVideoAcceleration_H264, TRUE)))
+    {
+        IMFTransform_Release(&decoder->IMFTransform_iface);
+        return hr;
+    }
+
+    decoder->input_info.dwFlags = MFT_INPUT_STREAM_WHOLE_SAMPLES | MFT_INPUT_STREAM_SINGLE_SAMPLE_PER_BUFFER
+            | MFT_INPUT_STREAM_FIXED_SAMPLE_SIZE;
+    decoder->input_info.cbSize = 0x1000;
+    decoder->output_info.dwFlags = MFT_OUTPUT_STREAM_WHOLE_SAMPLES | MFT_OUTPUT_STREAM_SINGLE_SAMPLE_PER_BUFFER
+            | MFT_OUTPUT_STREAM_FIXED_SAMPLE_SIZE;
+    decoder->output_info.cbSize = 1920 * 1088 * 2;
+    TRACE("Created %p\n", decoder);
+
+    hr = IMFTransform_QueryInterface(&decoder->IMFTransform_iface, riid, out);
+    IMFTransform_Release(&decoder->IMFTransform_iface);
+    return hr;
 }
 
 static const IClassFactoryVtbl h264_decoder_factory_vtbl =
