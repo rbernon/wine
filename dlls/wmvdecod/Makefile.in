@@ -1,5 +1,5 @@
 MODULE    = wmvdecod.dll
-IMPORTS   = combase mfplat msdmo mfuuid dmoguids strmiids wmcodecdspuuid uuid
+IMPORTS   = combase mf mfplat msdmo mfuuid dmoguids strmiids wmcodecdspuuid uuid winedmo
 
 SOURCES = \
 	video_decoder.c \
