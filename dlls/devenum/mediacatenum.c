@@ -62,7 +62,11 @@ typedef struct
     IEnumMoniker IEnumMoniker_iface;
     CLSID class;
     LONG ref;
-    IEnumDMO *dmo_enum, *dmo_enum2;
+    IEnumDMO *dmos;
+    IEnumDMO *audio_decoders;
+    IEnumDMO *video_decoders;
+    IEnumDMO *audio_effects;
+    IEnumDMO *video_effects;
     HKEY sw_key;
     DWORD sw_index;
     HKEY cm_key;
@@ -876,10 +880,16 @@ static ULONG WINAPI enum_moniker_Release(IEnumMoniker *iface)
 
     if (!refcount)
     {
-        if (This->dmo_enum)
-            IEnumDMO_Release(This->dmo_enum);
-        if (This->dmo_enum2)
-            IEnumDMO_Release(This->dmo_enum2);
+        if (This->dmos)
+            IEnumDMO_Release(This->dmos);
+        if (This->audio_decoders)
+            IEnumDMO_Release(This->audio_decoders);
+        if (This->video_decoders)
+            IEnumDMO_Release(This->video_decoders);
+        if (This->audio_effects)
+            IEnumDMO_Release(This->audio_effects);
+        if (This->video_effects)
+            IEnumDMO_Release(This->video_effects);
         RegCloseKey(This->sw_key);
         RegCloseKey(This->cm_key);
         free(This);
@@ -894,14 +904,18 @@ static struct moniker *get_dmo_moniker(EnumMonikerImpl *enum_moniker)
 
     if (IsEqualGUID(&enum_moniker->class, &CLSID_LegacyAmFilterCategory))
     {
-        if (enum_moniker->dmo_enum && IEnumDMO_Next(enum_moniker->dmo_enum, 1, &clsid, NULL, NULL) == S_OK)
+        if (enum_moniker->audio_decoders && IEnumDMO_Next(enum_moniker->audio_decoders, 1, &clsid, NULL, NULL) == S_OK)
             return dmo_moniker_create(DMOCATEGORY_AUDIO_DECODER, clsid);
-        if (enum_moniker->dmo_enum2 && IEnumDMO_Next(enum_moniker->dmo_enum2, 1, &clsid, NULL, NULL) == S_OK)
+        if (enum_moniker->video_decoders && IEnumDMO_Next(enum_moniker->video_decoders, 1, &clsid, NULL, NULL) == S_OK)
             return dmo_moniker_create(DMOCATEGORY_VIDEO_DECODER, clsid);
+        if (enum_moniker->audio_effects && IEnumDMO_Next(enum_moniker->audio_effects, 1, &clsid, NULL, NULL) == S_OK)
+            return dmo_moniker_create(DMOCATEGORY_AUDIO_EFFECT, clsid);
+        if (enum_moniker->video_effects && IEnumDMO_Next(enum_moniker->video_effects, 1, &clsid, NULL, NULL) == S_OK)
+            return dmo_moniker_create(DMOCATEGORY_VIDEO_EFFECT, clsid);
     }
     else
     {
-        if (enum_moniker->dmo_enum && IEnumDMO_Next(enum_moniker->dmo_enum, 1, &clsid, NULL, NULL) == S_OK)
+        if (enum_moniker->dmos && IEnumDMO_Next(enum_moniker->dmos, 1, &clsid, NULL, NULL) == S_OK)
             return dmo_moniker_create(enum_moniker->class, clsid);
     }
 
@@ -977,9 +991,15 @@ static HRESULT WINAPI enum_moniker_Skip(IEnumMoniker *iface, ULONG celt)
         /* FIXME: try PNP devices first */
 
         /* try DMOs */
-        if (This->dmo_enum && IEnumDMO_Skip(This->dmo_enum, 1) == S_OK)
+        if (This->dmos && IEnumDMO_Skip(This->dmos, 1) == S_OK)
             ;
-        else if (This->dmo_enum2 && IEnumDMO_Skip(This->dmo_enum2, 1) == S_OK)
+        else if (This->audio_decoders && IEnumDMO_Skip(This->audio_decoders, 1) == S_OK)
+            ;
+        else if (This->video_decoders && IEnumDMO_Skip(This->video_decoders, 1) == S_OK)
+            ;
+        else if (This->audio_effects && IEnumDMO_Skip(This->audio_effects, 1) == S_OK)
+            ;
+        else if (This->video_effects && IEnumDMO_Skip(This->video_effects, 1) == S_OK)
             ;
         /* try DirectShow filters */
         else if (RegEnumKeyW(This->sw_key, This->sw_index, NULL, 0) != ERROR_NO_MORE_ITEMS)
@@ -1004,10 +1024,16 @@ static HRESULT WINAPI enum_moniker_Reset(IEnumMoniker *iface)
 
     TRACE("(%p)->()\n", iface);
 
-    if (This->dmo_enum)
-        IEnumDMO_Reset(This->dmo_enum);
-    if (This->dmo_enum2)
-        IEnumDMO_Reset(This->dmo_enum2);
+    if (This->dmos)
+        IEnumDMO_Reset(This->dmos);
+    if (This->audio_decoders)
+        IEnumDMO_Reset(This->audio_decoders);
+    if (This->video_decoders)
+        IEnumDMO_Reset(This->video_decoders);
+    if (This->audio_effects)
+        IEnumDMO_Reset(This->audio_effects);
+    if (This->video_effects)
+        IEnumDMO_Reset(This->video_effects);
     This->sw_index = 0;
     This->cm_index = 0;
 
@@ -1060,15 +1086,19 @@ HRESULT enum_moniker_create(REFCLSID class, IEnumMoniker **out)
 
     if (IsEqualGUID(class, &CLSID_LegacyAmFilterCategory))
     {
-        if (FAILED(DMOEnum(&DMOCATEGORY_AUDIO_DECODER, 0, 0, NULL, 0, NULL, &object->dmo_enum)))
-            object->dmo_enum = NULL;
-        if (FAILED(DMOEnum(&DMOCATEGORY_VIDEO_DECODER, 0, 0, NULL, 0, NULL, &object->dmo_enum2)))
-            object->dmo_enum2 = NULL;
+        if (FAILED(DMOEnum(&DMOCATEGORY_AUDIO_DECODER, 0, 0, NULL, 0, NULL, &object->audio_decoders)))
+            object->audio_decoders = NULL;
+        if (FAILED(DMOEnum(&DMOCATEGORY_VIDEO_DECODER, 0, 0, NULL, 0, NULL, &object->video_decoders)))
+            object->video_decoders = NULL;
+        if (FAILED(DMOEnum(&DMOCATEGORY_AUDIO_EFFECT, 0, 0, NULL, 0, NULL, &object->audio_effects)))
+            object->audio_effects = NULL;
+        if (FAILED(DMOEnum(&DMOCATEGORY_VIDEO_EFFECT, 0, 0, NULL, 0, NULL, &object->video_effects)))
+            object->video_effects = NULL;
     }
     else
     {
-        if (FAILED(DMOEnum(class, 0, 0, NULL, 0, NULL, &object->dmo_enum)))
-            object->dmo_enum = NULL;
+        if (FAILED(DMOEnum(class, 0, 0, NULL, 0, NULL, &object->dmos)))
+            object->dmos = NULL;
     }
 
     *out = &object->IEnumMoniker_iface;
