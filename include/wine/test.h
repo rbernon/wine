@@ -610,6 +610,8 @@ static HANDLE winetest_mutex;
 static int winetest_argc;
 static char** winetest_argv;
 
+static int winetest_print_stdout = 0;
+
 static const struct test *current_test; /* test currently being run */
 
 LONG winetest_successes = 0;       /* number of successful tests */
@@ -667,7 +669,7 @@ void winetest_print_unlock(void)
 
 int winetest_vprintf( const char *msg, va_list args )
 {
-    return vprintf( msg, args );
+    return winetest_print_stdout || !winetest_platform_is_wine ? vprintf( msg, args ) : wine_dbg_vprintf( msg, args );
 }
 
 int winetest_get_time(void)
@@ -886,6 +888,7 @@ int main( int argc, char **argv )
     if (GetEnvironmentVariableA( "WINETEST_INTERACTIVE", p, sizeof(p) )) winetest_interactive = atoi(p);
     if (GetEnvironmentVariableA( "WINETEST_REPORT_FLAKY", p, sizeof(p) )) winetest_report_flaky = atoi(p);
     if (GetEnvironmentVariableA( "WINETEST_REPORT_SUCCESS", p, sizeof(p) )) winetest_report_success = atoi(p);
+    if (GetEnvironmentVariableA( "WINETEST_PRINT_STDOUT", p, sizeof(p) )) winetest_print_stdout = atoi(p);
     if (GetEnvironmentVariableA( "WINETEST_TIME", p, sizeof(p) )) winetest_time = atoi(p);
     winetest_last_time = winetest_start_time = winetest_get_time();
 
