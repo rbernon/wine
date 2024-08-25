@@ -16,22 +16,9 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdbool.h>
-
-#define COBJMACROS
-#include "windef.h"
-#include "winbase.h"
-
-#define EXTERN_GUID DEFINE_GUID
-#include "initguid.h"
-#include "strmif.h"
 #include "wmvcore_private.h"
-
 #include "wmsdk.h"
 
-#include "wine/debug.h"
 #include "wine/list.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(wmvcore);
