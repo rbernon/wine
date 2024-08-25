@@ -17,9 +17,7 @@
  */
 
 #include "wmvcore_private.h"
-#include "wmsdkidl.h"
-
-#include "wine/debug.h"
+#include "wmsdk.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(wmvcore);
 
