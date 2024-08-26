@@ -79,9 +79,10 @@ static NTSTATUS codec_params_add_extra_data( AVCodecParameters *params, const vo
 enum AVCodecID codec_id_from_audio_subtype( const GUID *subtype )
 {
     const struct AVCodecTag *table[] = {avformat_get_riff_audio_tags(), avformat_get_mov_audio_tags(), 0};
-    enum AVCodecID codec_id = av_codec_get_id( table, subtype->Data1 );
-    if (codec_id != AV_CODEC_ID_NONE) return codec_id;
+    enum AVCodecID codec_id;
     if (IsEqualGUID( subtype, &MFAudioFormat_AAC )) return AV_CODEC_ID_AAC;
+    if (IsEqualGUID( subtype, &MEDIASUBTYPE_MPEG1Audio )) return AV_CODEC_ID_MP1;
+    if ((codec_id = av_codec_get_id( table, subtype->Data1 )) != AV_CODEC_ID_NONE) return codec_id;
     FIXME( "Unsupported subtype %s (%s)\n", debugstr_guid( subtype ), debugstr_fourcc( subtype->Data1 ) );
     return codec_id;
 }
@@ -320,8 +321,10 @@ static inline BOOL is_mf_video_area_empty( const MFVideoArea *area )
 enum AVCodecID codec_id_from_video_subtype( const GUID *subtype )
 {
     const struct AVCodecTag *table[] = {avformat_get_riff_video_tags(), avformat_get_mov_video_tags(), 0};
-    enum AVCodecID codec_id = av_codec_get_id( table, subtype->Data1 );
-    if (codec_id != AV_CODEC_ID_NONE) return codec_id;
+    enum AVCodecID codec_id;
+    if (IsEqualGUID( subtype, &MEDIASUBTYPE_MPEG1Video )) return AV_CODEC_ID_MPEG1VIDEO;
+    if (IsEqualGUID( subtype, &MEDIASUBTYPE_MPEG1Payload )) return AV_CODEC_ID_MPEG1VIDEO;
+    if ((codec_id = av_codec_get_id( table, subtype->Data1 )) != AV_CODEC_ID_NONE) return codec_id;
     FIXME( "Unsupported subtype %s (%s)\n", debugstr_guid( subtype ), debugstr_fourcc( subtype->Data1 ) );
     return codec_id;
 }
