@@ -1872,9 +1872,9 @@ static void x11drv_surface_destroy( struct window_surface *window_surface )
 
 static const struct window_surface_funcs x11drv_surface_funcs =
 {
-    x11drv_surface_set_clip,
-    x11drv_surface_flush,
-    x11drv_surface_destroy
+    .set_clip = x11drv_surface_set_clip,
+    .flush = x11drv_surface_flush,
+    .destroy = x11drv_surface_destroy
 };
 
 /***********************************************************************
