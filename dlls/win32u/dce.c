@@ -77,9 +77,9 @@ static void dummy_surface_destroy( struct window_surface *window_surface )
 
 static const struct window_surface_funcs dummy_surface_funcs =
 {
-    dummy_surface_set_clip,
-    dummy_surface_flush,
-    dummy_surface_destroy
+    .set_clip = dummy_surface_set_clip,
+    .flush = dummy_surface_flush,
+    .destroy = dummy_surface_destroy
 };
 
 struct window_surface dummy_surface =
@@ -111,9 +111,9 @@ static void offscreen_window_surface_destroy( struct window_surface *surface )
 
 static const struct window_surface_funcs offscreen_window_surface_funcs =
 {
-    offscreen_window_surface_set_clip,
-    offscreen_window_surface_flush,
-    offscreen_window_surface_destroy
+    .set_clip = offscreen_window_surface_set_clip,
+    .flush = offscreen_window_surface_flush,
+    .destroy = offscreen_window_surface_destroy
 };
 
 static void create_offscreen_window_surface( HWND hwnd, const RECT *surface_rect, struct window_surface **window_surface )
@@ -219,9 +219,9 @@ static void scaled_surface_destroy( struct window_surface *window_surface )
 
 static const struct window_surface_funcs scaled_surface_funcs =
 {
-    scaled_surface_set_clip,
-    scaled_surface_flush,
-    scaled_surface_destroy
+    .set_clip = scaled_surface_set_clip,
+    .flush = scaled_surface_flush,
+    .destroy = scaled_surface_destroy
 };
 
 static void scaled_surface_set_target( struct scaled_surface *surface, struct window_surface *target, UINT dpi_to )
