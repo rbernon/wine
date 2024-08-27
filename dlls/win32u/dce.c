@@ -553,7 +553,7 @@ W32KAPI struct window_surface *window_surface_create( UINT size, const struct wi
     return surface;
 }
 
-W32KAPI void window_surface_add_ref( struct window_surface *surface )
+void window_surface_add_ref( struct window_surface *surface )
 {
     InterlockedIncrement( &surface->ref );
 }
@@ -572,13 +572,13 @@ W32KAPI void window_surface_release( struct window_surface *surface )
     }
 }
 
-W32KAPI void window_surface_lock( struct window_surface *surface )
+void window_surface_lock( struct window_surface *surface )
 {
     if (surface == &dummy_surface) return;
     pthread_mutex_lock( &surface->mutex );
 }
 
-W32KAPI void window_surface_unlock( struct window_surface *surface )
+void window_surface_unlock( struct window_surface *surface )
 {
     if (surface == &dummy_surface) return;
     pthread_mutex_unlock( &surface->mutex );
@@ -607,7 +607,7 @@ void *window_surface_get_color( struct window_surface *surface, BITMAPINFO *info
     return gdi_bits.ptr;
 }
 
-W32KAPI void window_surface_flush( struct window_surface *surface )
+void window_surface_flush( struct window_surface *surface )
 {
     char color_buf[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
     char shape_buf[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
@@ -642,7 +642,7 @@ W32KAPI void window_surface_flush( struct window_surface *surface )
     window_surface_unlock( surface );
 }
 
-W32KAPI void window_surface_set_layered( struct window_surface *surface, COLORREF color_key, UINT alpha_bits, UINT alpha_mask )
+void window_surface_set_layered( struct window_surface *surface, COLORREF color_key, UINT alpha_bits, UINT alpha_mask )
 {
     char color_buf[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
     BITMAPINFO *color_info = (BITMAPINFO *)color_buf;
@@ -671,7 +671,7 @@ W32KAPI void window_surface_set_layered( struct window_surface *surface, COLORRE
     window_surface_unlock( surface );
 }
 
-W32KAPI void window_surface_set_clip( struct window_surface *surface, HRGN clip_region )
+void window_surface_set_clip( struct window_surface *surface, HRGN clip_region )
 {
     window_surface_lock( surface );
 
