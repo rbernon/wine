@@ -402,9 +402,9 @@ static void wayland_window_surface_destroy(struct window_surface *window_surface
 
 static const struct window_surface_funcs wayland_window_surface_funcs =
 {
-    wayland_window_surface_set_clip,
-    wayland_window_surface_flush,
-    wayland_window_surface_destroy
+    .set_clip = wayland_window_surface_set_clip,
+    .flush = wayland_window_surface_flush,
+    .destroy = wayland_window_surface_destroy,
 };
 
 /***********************************************************************
