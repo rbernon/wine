@@ -36,5 +36,7 @@
 
 /* unix_demuxer.c */
 extern NTSTATUS demuxer_check( void * );
+extern NTSTATUS demuxer_create( void * );
+extern NTSTATUS demuxer_destroy( void * );
 
 #endif /* ENABLE_FFMPEG */

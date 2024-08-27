@@ -26,11 +26,22 @@
 #include "winbase.h"
 
 #include "wine/unixlib.h"
+#include "wine/winedmo.h"
 
 
 struct demuxer_check_params
 {
     char mime_type[256];
+};
+
+struct demuxer_create_params
+{
+    struct winedmo_demuxer demuxer;
+};
+
+struct demuxer_destroy_params
+{
+    struct winedmo_demuxer demuxer;
 };
 
 
@@ -39,6 +50,8 @@ enum unix_funcs
     unix_process_attach,
 
     unix_demuxer_check,
+    unix_demuxer_create,
+    unix_demuxer_destroy,
 
     unix_funcs_count,
 };
