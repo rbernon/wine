@@ -1059,7 +1059,7 @@ static inline BOOL is_r8g8b8( const XVisualInfo *vis )
     return format->bits_per_pixel == 24 && vis->red_mask == 0xff0000 && vis->blue_mask == 0x0000ff;
 }
 
-static inline BOOL image_needs_byteswap( XImage *image, BOOL is_r8g8b8, int bit_count )
+static inline BOOL display_needs_byteswap( Display *display, BOOL is_r8g8b8, int bit_count )
 {
 #ifdef WORDS_BIGENDIAN
     static const int client_byte_order = MSBFirst;
@@ -1069,11 +1069,11 @@ static inline BOOL image_needs_byteswap( XImage *image, BOOL is_r8g8b8, int bit_
 
     switch (bit_count)
     {
-    case 1:  return image->bitmap_bit_order != MSBFirst;
-    case 4:  return image->byte_order != MSBFirst;
+    case 1:  return BitmapBitOrder( display ) != MSBFirst;
+    case 4:  return ImageByteOrder( display ) != MSBFirst;
     case 16:
-    case 32: return image->byte_order != client_byte_order;
-    case 24: return (image->byte_order == MSBFirst) ^ !is_r8g8b8;
+    case 32: return ImageByteOrder( display ) != client_byte_order;
+    case 24: return (ImageByteOrder( display ) == MSBFirst) ^ !is_r8g8b8;
     default: return FALSE;
     }
 }
@@ -1171,7 +1171,7 @@ DWORD copy_image_bits( BITMAPINFO *info, BOOL is_r8g8b8, XImage *image,
                        const struct gdi_image_bits *src_bits, struct gdi_image_bits *dst_bits,
                        struct bitblt_coords *coords, const int *mapping, unsigned int zeropad_mask )
 {
-    BOOL need_byteswap = image_needs_byteswap( image, is_r8g8b8, info->bmiHeader.biBitCount );
+    BOOL need_byteswap = display_needs_byteswap( gdi_display, is_r8g8b8, info->bmiHeader.biBitCount );
     int height = coords->visrect.bottom - coords->visrect.top;
     int width_bytes = image->bytes_per_line;
     unsigned char *src, *dst;
@@ -1907,7 +1907,7 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
     if (!(image = x11drv_image_create( info, vis ))) return NULL;
 
     /* wrap the XImage data in a HBITMAP if we can write to the surface pixels directly */
-    if ((byteswap = image_needs_byteswap( image->ximage, is_r8g8b8( vis ), info->bmiHeader.biBitCount )) ||
+    if ((byteswap = display_needs_byteswap( gdi_display, is_r8g8b8( vis ), info->bmiHeader.biBitCount )) ||
         info->bmiHeader.biBitCount <= 8 || !(d3d_format = get_dib_d3dddifmt( info )))
         WARN( "Cannot use direct rendering, falling back to copies\n" );
     else
