@@ -544,14 +544,6 @@ static void window_surface_damage_images( struct window_surface *surface, RECT d
     NtGdiDeleteObjectApp( damage );
 }
 
-static BOOL window_surface_image_init( struct window_surface_image *image, HANDLE section,
-                                       UINT offset, const BITMAPINFO *info )
-{
-    image->bitmap = NtGdiCreateDIBSection( 0, section, offset, info, DIB_RGB_COLORS, 0, 0, 0, NULL );
-    image->damage = NtGdiCreateRectRgn( 0, 0, 0, 0 );
-    return image->bitmap && image->damage;
-}
-
 W32KAPI struct window_surface *window_surface_create( UINT size, const struct window_surface_funcs *funcs, HWND hwnd,
                                                       const RECT *rect, BITMAPINFO *info, HBITMAP bitmap )
 {
@@ -571,11 +563,13 @@ W32KAPI struct window_surface *window_surface_create( UINT size, const struct wi
 
     if (!(surface->color_bitmap = bitmap))
     {
+        HANDLE events[ARRAY_SIZE(surface->images)];
         LARGE_INTEGER section_size;
-        NTSTATUS status;
+        NTSTATUS status = 0;
+        UINT count;
         int i, fd;
 
-        section_size.QuadPart = info->bmiHeader.biSizeImage * 3;
+        section_size.QuadPart = info->bmiHeader.biSizeImage * ARRAY_SIZE(surface->images);
         if ((status = NtCreateSection( &section, GENERIC_READ | SECTION_MAP_READ | SECTION_MAP_WRITE,
                                        NULL, &section_size, PAGE_READWRITE, SEC_COMMIT, 0 )))
         {
@@ -583,15 +577,32 @@ W32KAPI struct window_surface *window_surface_create( UINT size, const struct wi
             return NULL;
         }
 
-        if ((status = wine_server_handle_to_fd( section, FILE_READ_DATA, &fd, NULL ))) goto failed;
-        surface->funcs->create_images( surface, fd, section_size.QuadPart, info, ARRAY_SIZE(surface->images) );
-        close( fd );
-
         for (i = 0; i < ARRAY_SIZE(surface->images); i++)
         {
-            if (!window_surface_image_init( surface->images + i, section, i * info->bmiHeader.biSizeImage, info )) break;
+            if ((status = NtCreateEvent( events + i, EVENT_ALL_ACCESS, NULL, NotificationEvent, TRUE )))
+            {
+                while (i--) NtClose( events[i] );
+                goto failed;
+            }
+        }
+
+        count = ARRAY_SIZE(surface->images);
+        if ((status = wine_server_handle_to_fd( section, FILE_READ_DATA, &fd, NULL ))) goto failed;
+        surface->funcs->create_images( surface, fd, section_size.QuadPart, info, &count, events );
+        close( fd );
+
+        for (i = 0; i < count; i++)
+        {
+            struct window_surface_image *image = surface->images + i;
+            image->bitmap = NtGdiCreateDIBSection( 0, section, i * info->bmiHeader.biSizeImage,
+                                                   info, DIB_RGB_COLORS, 0, 0, 0, NULL );
+            image->damage = NtGdiCreateRectRgn( 0, 0, 0, 0 );
+            if (!image->bitmap || !image->damage) break;
+
+            surface->events[i] = events[i];
             surface->images_count++;
         }
+        for (; i < ARRAY_SIZE(surface->images); i++) NtClose( events[i] );
 
         NtClose( section );
     }
@@ -625,6 +636,7 @@ W32KAPI void window_surface_release( struct window_surface *surface )
             {
                 NtGdiDeleteObjectApp( surface->images[i].bitmap );
                 NtGdiDeleteObjectApp( surface->images[i].damage );
+                NtClose( surface->events[i] );
             }
         }
         else
@@ -643,10 +655,15 @@ static HBITMAP window_surface_acquire_image( struct window_surface *surface )
     HDC hdc_dst, hdc_src;
     WINEREGION *data;
     RECT *rect;
+    UINT index;
 
-    if (!surface->funcs->acquire_image) return NULL;
+    if (!surface->images_count) return NULL;
 
-    surface->acquired_image = surface->funcs->acquire_image( surface );
+    index = NtWaitForMultipleObjects( surface->images_count, surface->events, FALSE, FALSE, NULL );
+    if (index >= surface->images_count) return NULL;
+    NtResetEvent( surface->events[index], NULL );
+
+    surface->acquired_image = index;
     acquired = surface->images + surface->acquired_image;
     latest = surface->images + surface->presented_image;
 
