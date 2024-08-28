@@ -958,6 +958,27 @@ static inline int get_dib_image_size( const BITMAPINFO *info )
         * abs( info->bmiHeader.biHeight );
 }
 
+static const char *debugstr_bitmapinfo( const BITMAPINFO *info )
+{
+    DWORD *colors = (DWORD *)((char *)info + info->bmiHeader.biSize);
+    return wine_dbg_sprintf( "sz %d w %4d h %4d p %d bpp %2d c %u szi %#8x xp %d yp %d clr %d imp %d clr %#8x:%#8x:%#8x",
+        (int)info->bmiHeader.biSize,
+        (int)info->bmiHeader.biWidth,
+        (int)info->bmiHeader.biHeight,
+        (int)info->bmiHeader.biPlanes,
+        (int)info->bmiHeader.biBitCount,
+        (int)info->bmiHeader.biCompression,
+        (int)info->bmiHeader.biSizeImage,
+        (int)info->bmiHeader.biXPelsPerMeter,
+        (int)info->bmiHeader.biYPelsPerMeter,
+        (int)info->bmiHeader.biClrUsed,
+        (int)info->bmiHeader.biClrImportant,
+        (int)colors[0],
+        (int)colors[1],
+        (int)colors[2] );
+
+}
+
 /* store the palette or color mask data in the bitmap info structure */
 static void set_color_info( const XVisualInfo *vis, BITMAPINFO *info, BOOL has_alpha )
 {
@@ -1001,56 +1022,6 @@ static void set_color_info( const XVisualInfo *vis, BITMAPINFO *info, BOOL has_a
             info->bmiHeader.biCompression = BI_BITFIELDS;
         break;
     }
-}
-
-/* check if the specified color info is suitable for PutImage */
-static BOOL matching_color_info( const XVisualInfo *vis, const BITMAPINFO *info )
-{
-    DWORD *colors = (DWORD *)((char *)info + info->bmiHeader.biSize);
-
-    switch (info->bmiHeader.biBitCount)
-    {
-    case 1:
-        if (info->bmiHeader.biCompression != BI_RGB) return FALSE;
-        return !info->bmiHeader.biClrUsed;  /* color map not allowed */
-    case 4:
-    case 8:
-    {
-        RGBQUAD *rgb = (RGBQUAD *)colors;
-        PALETTEENTRY palette[256];
-        UINT i, count;
-
-        if (info->bmiHeader.biCompression != BI_RGB) return FALSE;
-        count = X11DRV_GetSystemPaletteEntries( NULL, 0, 1 << info->bmiHeader.biBitCount, palette );
-        if (count != info->bmiHeader.biClrUsed) return FALSE;
-        for (i = 0; i < count; i++)
-        {
-            if (rgb[i].rgbRed   != palette[i].peRed ||
-                rgb[i].rgbGreen != palette[i].peGreen ||
-                rgb[i].rgbBlue  != palette[i].peBlue) return FALSE;
-        }
-        return TRUE;
-    }
-    case 16:
-        if (info->bmiHeader.biCompression == BI_BITFIELDS)
-            return (vis->red_mask == colors[0] &&
-                    vis->green_mask == colors[1] &&
-                    vis->blue_mask == colors[2]);
-        if (info->bmiHeader.biCompression == BI_RGB)
-            return (vis->red_mask == 0x7c00 && vis->green_mask == 0x03e0 && vis->blue_mask == 0x001f);
-        break;
-    case 32:
-        if (info->bmiHeader.biCompression == BI_BITFIELDS)
-            return (vis->red_mask == colors[0] &&
-                    vis->green_mask == colors[1] &&
-                    vis->blue_mask == colors[2]);
-        /* fall through */
-    case 24:
-        if (info->bmiHeader.biCompression == BI_RGB)
-            return (vis->red_mask == 0xff0000 && vis->green_mask == 0x00ff00 && vis->blue_mask == 0x0000ff);
-        break;
-    }
-    return FALSE;
 }
 
 static inline BOOL is_r8g8b8( const XVisualInfo *vis )
@@ -1224,6 +1195,8 @@ DWORD X11DRV_PutImage( PHYSDEV dev, HRGN clip, BITMAPINFO *info,
                        const struct gdi_image_bits *bits, struct bitblt_coords *src,
                        struct bitblt_coords *dst, DWORD rop )
 {
+    char dst_buffer[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
+    BITMAPINFO *dst_info = (BITMAPINFO *)dst_buffer;
     X11DRV_PDEVICE *physdev = get_x11drv_dev( dev );
     DWORD ret;
     XImage *image;
@@ -1242,10 +1215,15 @@ DWORD X11DRV_PutImage( PHYSDEV dev, HRGN clip, BITMAPINFO *info,
     }
     format = pixmap_formats[vis.depth];
 
-    if (info->bmiHeader.biPlanes != 1) goto update_format;
-    if (info->bmiHeader.biBitCount != format->bits_per_pixel) goto update_format;
-    /* FIXME: could try to handle 1-bpp using XCopyPlane */
-    if (!matching_color_info( &vis, info )) goto update_format;
+    dst_info->bmiHeader = info->bmiHeader;
+    dst_info->bmiHeader.biPlanes = 1;
+    dst_info->bmiHeader.biBitCount = format->bits_per_pixel;
+    dst_info->bmiHeader.biHeight = -abs( info->bmiHeader.biHeight );
+    set_color_info( &vis, dst_info, FALSE );
+
+    ERR( "src_info %s bits %p\n", debugstr_bitmapinfo( info ), bits );
+    ERR( "dst_info %s\n", debugstr_bitmapinfo( dst_info ) );
+    if (memcmp( dst_info, info, get_dib_info_size( dst_info, DIB_RGB_COLORS ) )) goto update_format;
     if (!bits) return ERROR_SUCCESS;  /* just querying the format */
     if ((src->width != dst->width) || (src->height != dst->height)) return ERROR_TRANSFORM_NOT_SUPPORTED;
 
@@ -1302,10 +1280,8 @@ DWORD X11DRV_PutImage( PHYSDEV dev, HRGN clip, BITMAPINFO *info,
     return ret;
 
 update_format:
-    info->bmiHeader.biPlanes   = 1;
-    info->bmiHeader.biBitCount = format->bits_per_pixel;
-    if (info->bmiHeader.biHeight > 0) info->bmiHeader.biHeight = -info->bmiHeader.biHeight;
-    set_color_info( &vis, info, FALSE );
+    ERR("Need update format\n");
+    memcpy( info, dst_info, get_dib_info_size( dst_info, DIB_RGB_COLORS ) );
     return ERROR_BAD_FORMAT;
 }
 
@@ -1414,6 +1390,8 @@ DWORD X11DRV_GetImage( PHYSDEV dev, BITMAPINFO *info,
 static DWORD put_pixmap_image( Pixmap pixmap, const XVisualInfo *vis,
                                BITMAPINFO *info, const struct gdi_image_bits *bits )
 {
+    char dst_buffer[FIELD_OFFSET( BITMAPINFO, bmiColors[256] )];
+    BITMAPINFO *dst_info = (BITMAPINFO *)dst_buffer;
     DWORD ret;
     XImage *image;
     GC gc;
@@ -1423,10 +1401,16 @@ static DWORD put_pixmap_image( Pixmap pixmap, const XVisualInfo *vis,
     const int *mapping = NULL;
 
     if (!format) return ERROR_INVALID_PARAMETER;
-    if (info->bmiHeader.biPlanes != 1) goto update_format;
-    if (info->bmiHeader.biBitCount != format->bits_per_pixel) goto update_format;
-    /* FIXME: could try to handle 1-bpp using XCopyPlane */
-    if (!matching_color_info( vis, info )) goto update_format;
+
+    dst_info->bmiHeader = info->bmiHeader;
+    dst_info->bmiHeader.biPlanes = 1;
+    dst_info->bmiHeader.biBitCount = format->bits_per_pixel;
+    dst_info->bmiHeader.biHeight = -abs( info->bmiHeader.biHeight );
+    set_color_info( vis, dst_info, FALSE );
+
+    ERR( "src_info %s bits %p\n", debugstr_bitmapinfo( info ), bits );
+    ERR( "dst_info %s\n", debugstr_bitmapinfo( dst_info ) );
+    if (memcmp( dst_info, info, get_dib_info_size( dst_info, DIB_RGB_COLORS ) )) goto update_format;
     if (!bits) return ERROR_SUCCESS;  /* just querying the format */
 
     coords.x = 0;
@@ -1456,10 +1440,8 @@ static DWORD put_pixmap_image( Pixmap pixmap, const XVisualInfo *vis,
     return ret;
 
 update_format:
-    info->bmiHeader.biPlanes   = 1;
-    info->bmiHeader.biBitCount = format->bits_per_pixel;
-    if (info->bmiHeader.biHeight > 0) info->bmiHeader.biHeight = -info->bmiHeader.biHeight;
-    set_color_info( vis, info, FALSE );
+    ERR("Need update format\n");
+    memcpy( info, dst_info, get_dib_info_size( info, DIB_RGB_COLORS ) );
     return ERROR_BAD_FORMAT;
 }
 
