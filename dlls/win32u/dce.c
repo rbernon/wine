@@ -25,7 +25,6 @@
 
 #include <assert.h>
 #include <pthread.h>
-#include <unistd.h>
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
 #include "ntgdi_private.h"
@@ -527,36 +526,10 @@ static BOOL update_surface_shape( struct window_surface *surface, const RECT *re
         return clear_surface_shape( surface );
 }
 
-static void window_surface_damage_images( struct window_surface *surface, RECT dirty )
-{
-    HRGN damage;
-    UINT i;
-
-    if (!(damage = NtGdiCreateRectRgn( dirty.left, dirty.top, dirty.right, dirty.bottom ))) return;
-
-    for (i = 0; i < surface->images_count; i++)
-    {
-        struct window_surface_image *image = surface->images + i;
-        if (i == surface->acquired_image) NtGdiSetRectRgn( image->damage, 0, 0, 0, 0 );
-        else NtGdiCombineRgn( image->damage, image->damage, damage, RGN_OR );
-    }
-
-    NtGdiDeleteObjectApp( damage );
-}
-
-static BOOL window_surface_image_init( struct window_surface_image *image, HANDLE section,
-                                       UINT offset, const BITMAPINFO *info )
-{
-    image->bitmap = NtGdiCreateDIBSection( 0, section, offset, info, DIB_RGB_COLORS, 0, 0, 0, NULL );
-    image->damage = NtGdiCreateRectRgn( 0, 0, 0, 0 );
-    return image->bitmap && image->damage;
-}
-
 W32KAPI struct window_surface *window_surface_create( UINT size, const struct window_surface_funcs *funcs, HWND hwnd,
                                                       const RECT *rect, BITMAPINFO *info, HBITMAP bitmap )
 {
     struct window_surface *surface;
-    HANDLE section;
 
     if (!(surface = calloc( 1, size ))) return NULL;
     surface->funcs = funcs;
@@ -566,45 +539,19 @@ W32KAPI struct window_surface *window_surface_create( UINT size, const struct wi
     surface->color_key = CLR_INVALID;
     surface->alpha_bits = -1;
     surface->alpha_mask = 0;
-    surface->acquired_image = -1;
     reset_bounds( &surface->bounds );
 
+    if (!bitmap) bitmap = NtGdiCreateDIBSection( 0, NULL, 0, info, DIB_RGB_COLORS, 0, 0, 0, NULL );
     if (!(surface->color_bitmap = bitmap))
     {
-        LARGE_INTEGER section_size;
-        NTSTATUS status;
-        int i, fd;
-
-        section_size.QuadPart = info->bmiHeader.biSizeImage * 3;
-        if ((status = NtCreateSection( &section, GENERIC_READ | SECTION_MAP_READ | SECTION_MAP_WRITE,
-                                       NULL, &section_size, PAGE_READWRITE, SEC_COMMIT, 0 )))
-        {
-            free( surface );
-            return NULL;
-        }
-
-        if ((status = wine_server_handle_to_fd( section, FILE_READ_DATA, &fd, NULL ))) goto failed;
-        surface->funcs->create_images( surface, fd, section_size.QuadPart, info, ARRAY_SIZE(surface->images) );
-        close( fd );
-
-        for (i = 0; i < ARRAY_SIZE(surface->images); i++)
-        {
-            if (!window_surface_image_init( surface->images + i, section, i * info->bmiHeader.biSizeImage, info )) break;
-            surface->images_count++;
-        }
-
-        NtClose( section );
+        free( surface );
+        return NULL;
     }
 
     pthread_mutex_init( &surface->mutex, NULL );
 
     TRACE( "created surface %p for hwnd %p rect %s\n", surface, hwnd, wine_dbgstr_rect( &surface->rect ) );
     return surface;
-
-failed:
-    NtClose( section );
-    free( surface );
-    return NULL;
 }
 
 void window_surface_add_ref( struct window_surface *surface )
@@ -614,63 +561,16 @@ void window_surface_add_ref( struct window_surface *surface )
 
 W32KAPI void window_surface_release( struct window_surface *surface )
 {
-    ULONG ret = InterlockedDecrement( &surface->ref ), i;
+    ULONG ret = InterlockedDecrement( &surface->ref );
     if (!ret)
     {
         if (surface != &dummy_surface) pthread_mutex_destroy( &surface->mutex );
         if (surface->clip_region) NtGdiDeleteObjectApp( surface->clip_region );
-        if (surface->images_count)
-        {
-            for (i = 0; i < surface->images_count; i++)
-            {
-                NtGdiDeleteObjectApp( surface->images[i].bitmap );
-                NtGdiDeleteObjectApp( surface->images[i].damage );
-            }
-        }
-        else
-        {
-            if (surface->color_bitmap) NtGdiDeleteObjectApp( surface->color_bitmap );
-        }
+        if (surface->color_bitmap) NtGdiDeleteObjectApp( surface->color_bitmap );
         if (surface->shape_bitmap) NtGdiDeleteObjectApp( surface->shape_bitmap );
         surface->funcs->destroy( surface );
         if (surface != &dummy_surface) free( surface );
     }
-}
-
-static HBITMAP window_surface_acquire_image( struct window_surface *surface )
-{
-    struct window_surface_image *acquired, *latest;
-    HDC hdc_dst, hdc_src;
-    WINEREGION *data;
-    RECT *rect;
-
-    if (!surface->funcs->acquire_image) return NULL;
-
-    surface->acquired_image = surface->funcs->acquire_image( surface );
-    acquired = surface->images + surface->acquired_image;
-    latest = surface->images + surface->presented_image;
-
-    if (acquired != latest)
-    {
-        hdc_dst = NtGdiCreateCompatibleDC( 0 );
-        hdc_src = NtGdiCreateCompatibleDC( 0 );
-
-        NtGdiSelectBitmap( hdc_src, latest->bitmap );
-        NtGdiSelectBitmap( hdc_dst, acquired->bitmap );
-
-        if ((data = GDI_GetObjPtr( acquired->damage, NTGDI_OBJ_REGION )))
-        {
-            for (rect = data->rects; rect < data->rects + data->numRects; rect++)
-                NtGdiBitBlt( hdc_dst, rect->left, rect->top, rect->right - rect->left, rect->bottom - rect->top,
-                             hdc_src, rect->left, rect->top, SRCCOPY, 0, 0 );
-            GDI_ReleaseObj( data );
-        }
-
-        NtGdiDeleteObjectApp( hdc_dst );
-        NtGdiDeleteObjectApp( hdc_src );
-    }
-
-    return acquired->bitmap;
 }
 
 HBITMAP window_surface_lock_write( struct window_surface *surface, struct dib *dib )
@@ -678,11 +578,6 @@ HBITMAP window_surface_lock_write( struct window_surface *surface, struct dib *d
     BITMAPOBJ *bmp;
 
     window_surface_lock( surface );
-
-    if (surface->images_count && surface->acquired_image == -1)
-    {
-        surface->color_bitmap = window_surface_acquire_image( surface );
-    }
 
     if ((bmp = GDI_GetObjPtr( surface->color_bitmap, NTGDI_OBJ_BITMAP )))
     {
@@ -763,14 +658,6 @@ void window_surface_flush( struct window_surface *surface )
         if (surface->funcs->flush( surface, &surface->rect, &dirty, color_info, color_bits,
                                    shape_changed, shape_info, shape_bits ))
             reset_bounds( &surface->bounds );
-
-        if (surface->funcs->present_image && surface->acquired_image != -1)
-        {
-            surface->funcs->present_image( surface, surface->acquired_image, &dirty );
-            surface->presented_image = surface->acquired_image;
-            window_surface_damage_images( surface, dirty );
-            surface->acquired_image = -1;
-        }
     }
 
     window_surface_unlock( surface );

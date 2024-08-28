@@ -256,17 +256,6 @@ struct window_surface_funcs
                     const BITMAPINFO *color_info, const void *color_bits, BOOL shape_changed,
                     const BITMAPINFO *shape_info, const void *shape_bits );
     void  (*destroy)( struct window_surface *surface );
-
-    void  (*create_images)( struct window_surface *surface, int fd, UINT size,
-                            const BITMAPINFO *info, UINT count );
-    UINT  (*acquire_image)( struct window_surface *surface );
-    void  (*present_image)( struct window_surface *surface, UINT index, const RECT *dirty );
-};
-
-struct window_surface_image
-{
-    HBITMAP bitmap;
-    HRGN damage;
 };
 
 struct window_surface
@@ -285,13 +274,6 @@ struct window_surface
     UINT                               alpha_bits;   /* layered window global alpha bits, invalid if -1 */
     UINT                               alpha_mask;   /* layered window per-pixel alpha mask, invalid if 0 */
     HRGN                               shape_region; /* shape of the window surface, unshaped if 0 */
-
-    struct window_surface_image        images[3];       /* bitmaps for the section-backed surfaces */
-    HANDLE                             events[3];
-    UINT                               images_count;    /* number of successfully allocated bitmaps */
-    UINT                               acquired_image;  /* index of the currently acquired image, 0 if not acquired */
-    UINT                               presented_image; /* index of the last presented image */
-
     HBITMAP                            shape_bitmap; /* bitmap for the surface shape (1bpp) */
     HBITMAP                            color_bitmap; /* bitmap for the surface colors */
     /* driver-specific fields here */

@@ -26,25 +26,18 @@
 
 #include <limits.h>
 #include <stdlib.h>
-#include <unistd.h>
 
 #include "waylanddrv.h"
 #include "wine/debug.h"
-#include "wine/server.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(waylanddrv);
-
-struct wayland_buffer
-{
-    struct wl_buffer *wl_buffer;
-    BOOL busy;
-};
 
 struct wayland_buffer_queue
 {
     struct wl_event_queue *wl_event_queue;
-    UINT buffer_count;
-    struct wayland_buffer buffers[];
+    struct wl_list buffer_list;
+    int width;
+    int height;
 };
 
 struct wayland_window_surface
@@ -61,8 +54,10 @@ static struct wayland_window_surface *wayland_window_surface_cast(
 
 static void buffer_release(void *data, struct wl_buffer *buffer)
 {
-    BOOL *busy = data;
-    if (busy) *busy = FALSE;
+    struct wayland_shm_buffer *shm_buffer = data;
+    TRACE("shm_buffer=%p\n", shm_buffer);
+    shm_buffer->busy = FALSE;
+    wayland_shm_buffer_unref(shm_buffer);
 }
 
 static const struct wl_buffer_listener buffer_listener = { buffer_release };
@@ -74,15 +69,17 @@ static const struct wl_buffer_listener buffer_listener = { buffer_release };
  */
 static void wayland_buffer_queue_destroy(struct wayland_buffer_queue *queue)
 {
-    UINT i;
+    struct wayland_shm_buffer *shm_buffer, *next;
 
-    for (i = 0; i < queue->buffer_count; i++)
+    wl_list_for_each_safe(shm_buffer, next, &queue->buffer_list, link)
     {
-        struct wl_proxy *wl_buffer = (struct wl_proxy *)queue->buffers[i].wl_buffer;
+        wl_list_remove(&shm_buffer->link);
+        wl_list_init(&shm_buffer->link);
         /* Since this buffer may still be busy, attach it to the per-process
          * wl_event_queue to handle any future buffer release events. */
-        wl_proxy_set_user_data(wl_buffer, NULL);
-        wl_proxy_set_queue(wl_buffer, process_wayland.wl_event_queue);
+        wl_proxy_set_queue((struct wl_proxy *)shm_buffer->wl_buffer,
+                           process_wayland.wl_event_queue);
+        wayland_shm_buffer_unref(shm_buffer);
     }
 
     if (queue->wl_event_queue)
@@ -99,102 +96,116 @@ static void wayland_buffer_queue_destroy(struct wayland_buffer_queue *queue)
     free(queue);
 }
 
-
-/**********************************************************************
- *          wayland_shm_buffer_create
- *
- * Creates a SHM buffer with the specified width, height and format.
- */
-struct wayland_shm_buffer *shm_buffer_create(struct wl_shm_pool *pool, int offset,
-                                             const BITMAPINFO *info)
-{
-    int width = info->bmiHeader.biWidth, height = abs(info->bmiHeader.biHeight);
-    struct wayland_shm_buffer *shm_buffer;
-    int stride;
-
-    if (!(shm_buffer = calloc(1, sizeof(*shm_buffer))))
-    {
-        ERR("Failed to allocate space for SHM buffer\n");
-        goto err;
-    }
-
-    shm_buffer->ref = 1;
-    shm_buffer->width = width;
-    shm_buffer->height = height;
-
-    shm_buffer->damage_region = NtGdiCreateRectRgn(0, 0, width, height);
-    if (!shm_buffer->damage_region)
-    {
-        ERR("Failed to create buffer damage region\n");
-        goto err;
-    }
-
-    stride = info->bmiHeader.biSizeImage / height;
-    shm_buffer->wl_buffer = wl_shm_pool_create_buffer(pool, offset, width, height,
-                                                      stride, WL_SHM_FORMAT_XRGB8888);
-    if (!shm_buffer->wl_buffer)
-    {
-        ERR("Failed to create SHM buffer %dx%d\n", width, height);
-        goto err;
-    }
-
-    return shm_buffer;
-
-err:
-    if (shm_buffer) wayland_shm_buffer_unref(shm_buffer);
-    return NULL;
-}
-
-
 /**********************************************************************
  *          wayland_buffer_queue_create
  *
  * Creates a buffer queue containing buffers with the specified width and height.
  */
-static struct wayland_buffer_queue *wayland_buffer_queue_create( int fd, UINT size, const BITMAPINFO *info, UINT count )
+static struct wayland_buffer_queue *wayland_buffer_queue_create(int width, int height)
 {
-    int i, width = info->bmiHeader.biWidth, height = abs(info->bmiHeader.biHeight);
     struct wayland_buffer_queue *queue;
-    struct wl_shm_pool *pool;
 
-    if (!(queue = calloc(1, offsetof(struct wayland_buffer_queue, buffers[count])))) return NULL;
-    if (!(queue->wl_event_queue = wl_display_create_queue(process_wayland.wl_display)))
-    {
-        ERR("Failed to create display buffer queue\n");
-        free( queue );
-        return NULL;
-    }
+    queue = calloc(1, sizeof(*queue));
+    if (!queue) goto err;
 
-    if (!(pool = wl_shm_create_pool(process_wayland.wl_shm, fd, size)))
-    {
-        ERR("Failed to create SHM pool fd=%d size=%d\n", fd, size);
-        goto err;
-    }
+    queue->wl_event_queue = wl_display_create_queue(process_wayland.wl_display);
+    if (!queue->wl_event_queue) goto err;
+    queue->width = width;
+    queue->height = height;
 
-    for (i = 0; i < count; i++)
-    {
-        struct wayland_buffer *buffer = queue->buffers + i;
-        buffer->wl_buffer = wl_shm_pool_create_buffer(pool, i * info->bmiHeader.biSizeImage, width, height,
-                                                      info->bmiHeader.biSizeImage / height, WL_SHM_FORMAT_XRGB8888);
-        if (!buffer->wl_buffer)
-        {
-            ERR("Failed to create SHM buffer %dx%d\n", width, height);
-            break;
-        }
+    wl_list_init(&queue->buffer_list);
 
-        wl_proxy_set_queue((struct wl_proxy *)buffer->wl_buffer, queue->wl_event_queue);
-        wl_buffer_add_listener(buffer->wl_buffer, &buffer_listener, &buffer->busy);
-        queue->buffer_count++;
-    }
-
-    wl_shm_pool_destroy(pool);
     return queue;
 
 err:
-    wayland_buffer_queue_destroy(queue);
+    if (queue) wayland_buffer_queue_destroy(queue);
     return NULL;
 }
 
+/**********************************************************************
+ *          wayland_buffer_queue_get_free_buffer
+ *
+ * Gets a free buffer from the buffer queue. If no free buffers
+ * are available this function blocks until it can provide one.
+ */
+static struct wayland_shm_buffer *wayland_buffer_queue_get_free_buffer(struct wayland_buffer_queue *queue)
+{
+    struct wayland_shm_buffer *shm_buffer;
+
+    TRACE("queue=%p\n", queue);
+
+    while (TRUE)
+    {
+        int nbuffers = 0;
+
+        /* Dispatch any pending buffer release events. */
+        wl_display_dispatch_queue_pending(process_wayland.wl_display,
+                                          queue->wl_event_queue);
+
+        /* Search through our buffers to find an available one. */
+        wl_list_for_each(shm_buffer, &queue->buffer_list, link)
+        {
+            if (!shm_buffer->busy) goto out;
+            nbuffers++;
+        }
+
+        /* Dynamically create up to 3 buffers. */
+        if (nbuffers < 3)
+        {
+            shm_buffer = wayland_shm_buffer_create(queue->width, queue->height,
+                                                   WL_SHM_FORMAT_XRGB8888);
+            if (shm_buffer)
+            {
+                /* Buffer events go to their own queue so that we can dispatch
+                 * them independently. */
+                wl_proxy_set_queue((struct wl_proxy *) shm_buffer->wl_buffer,
+                                   queue->wl_event_queue);
+                wl_buffer_add_listener(shm_buffer->wl_buffer, &buffer_listener,
+                                       shm_buffer);
+                wl_list_insert(&queue->buffer_list, &shm_buffer->link);
+                goto out;
+            }
+            else if (nbuffers < 2)
+            {
+                /* If we failed to allocate a new buffer, but we have at least two
+                 * buffers busy, there is a good chance the compositor will
+                 * eventually release one of them, so dispatch events and wait
+                 * below. Otherwise, give up and return a NULL buffer. */
+                ERR(" => failed to acquire buffer\n");
+                return NULL;
+            }
+        }
+
+        /* We don't have any buffers available, so block waiting for a buffer
+         * release event. */
+        if (wl_display_dispatch_queue(process_wayland.wl_display,
+                                      queue->wl_event_queue) == -1)
+        {
+            return NULL;
+        }
+    }
+
+out:
+    TRACE(" => %p %dx%d map=[%p, %p)\n",
+          shm_buffer, shm_buffer->width, shm_buffer->height, shm_buffer->map_data,
+          (unsigned char*)shm_buffer->map_data + shm_buffer->map_size);
+
+    return shm_buffer;
+}
+
+/**********************************************************************
+ *          wayland_buffer_queue_add_damage
+ */
+static void wayland_buffer_queue_add_damage(struct wayland_buffer_queue *queue, HRGN damage)
+{
+    struct wayland_shm_buffer *shm_buffer;
+
+    wl_list_for_each(shm_buffer, &queue->buffer_list, link)
+    {
+        NtGdiCombineRgn(shm_buffer->damage_region, shm_buffer->damage_region,
+                        damage, RGN_OR);
+    }
+}
 
 /***********************************************************************
  *           wayland_window_surface_set_clip
@@ -225,6 +236,84 @@ RGNDATA *get_region_data(HRGN region)
     return data;
 }
 
+/**********************************************************************
+ *          copy_pixel_region
+ */
+static void copy_pixel_region(const char *src_pixels, RECT *src_rect,
+                              char *dst_pixels, RECT *dst_rect,
+                              HRGN region)
+{
+    static const int bpp = WINEWAYLAND_BYTES_PER_PIXEL;
+    RGNDATA *rgndata = get_region_data(region);
+    RECT *rgn_rect;
+    RECT *rgn_rect_end;
+    int src_stride, dst_stride;
+
+    if (!rgndata) return;
+
+    src_stride = (src_rect->right - src_rect->left) * bpp;
+    dst_stride = (dst_rect->right - dst_rect->left) * bpp;
+
+    rgn_rect = (RECT *)rgndata->Buffer;
+    rgn_rect_end = rgn_rect + rgndata->rdh.nCount;
+
+    for (;rgn_rect < rgn_rect_end; rgn_rect++)
+    {
+        const char *src;
+        char *dst;
+        int y, width_bytes, height;
+        RECT rc;
+
+        TRACE("rect %s\n", wine_dbgstr_rect(rgn_rect));
+
+        if (!intersect_rect(&rc, rgn_rect, src_rect)) continue;
+        if (!intersect_rect(&rc, &rc, dst_rect)) continue;
+
+        src = src_pixels + (rc.top - src_rect->top) * src_stride + (rc.left - src_rect->left) * bpp;
+        dst = dst_pixels + (rc.top - dst_rect->top) * dst_stride + (rc.left - dst_rect->left) * bpp;
+        width_bytes = (rc.right - rc.left) * bpp;
+        height = rc.bottom - rc.top;
+
+        /* Fast path for full width rectangles. */
+        if (width_bytes == src_stride && width_bytes == dst_stride)
+        {
+            memcpy(dst, src, height * width_bytes);
+            continue;
+        }
+
+        for (y = 0; y < height; y++)
+        {
+            memcpy(dst, src, width_bytes);
+            src += src_stride;
+            dst += dst_stride;
+        }
+    }
+
+    free(rgndata);
+}
+
+/**********************************************************************
+ *          wayland_shm_buffer_copy_data
+ */
+static void wayland_shm_buffer_copy_data(struct wayland_shm_buffer *buffer,
+                                         const char *bits, RECT *rect,
+                                         HRGN region)
+{
+    RECT buffer_rect = {0, 0, buffer->width, buffer->height};
+    TRACE("buffer=%p bits=%p rect=%s\n", buffer, bits, wine_dbgstr_rect(rect));
+    copy_pixel_region(bits, rect, buffer->map_data, &buffer_rect, region);
+}
+
+static void wayland_shm_buffer_copy(struct wayland_shm_buffer *src,
+                                    struct wayland_shm_buffer *dst,
+                                    HRGN region)
+{
+    RECT src_rect = {0, 0, src->width, src->height};
+    RECT dst_rect = {0, 0, dst->width, dst->height};
+    TRACE("src=%p dst=%p\n", src, dst);
+    copy_pixel_region(src->map_data, &src_rect, dst->map_data, &dst_rect, region);
+}
+
 /***********************************************************************
  *           wayland_window_surface_flush
  */
@@ -232,7 +321,71 @@ static BOOL wayland_window_surface_flush(struct window_surface *window_surface, 
                                          const BITMAPINFO *color_info, const void *color_bits, BOOL shape_changed,
                                          const BITMAPINFO *shape_info, const void *shape_bits)
 {
-    return TRUE;
+    RECT surface_rect = {.right = color_info->bmiHeader.biWidth, .bottom = abs(color_info->bmiHeader.biHeight)};
+    struct wayland_window_surface *wws = wayland_window_surface_cast(window_surface);
+    struct wayland_shm_buffer *shm_buffer = NULL, *latest_buffer;
+    BOOL flushed = FALSE;
+    HRGN surface_damage_region = NULL;
+    HRGN copy_from_window_region;
+
+    surface_damage_region = NtGdiCreateRectRgn(rect->left + dirty->left, rect->top + dirty->top,
+                                               rect->left + dirty->right, rect->top + dirty->bottom);
+    if (!surface_damage_region)
+    {
+        ERR("failed to create surface damage region\n");
+        goto done;
+    }
+
+    wayland_buffer_queue_add_damage(wws->wayland_buffer_queue, surface_damage_region);
+
+    shm_buffer = wayland_buffer_queue_get_free_buffer(wws->wayland_buffer_queue);
+    if (!shm_buffer)
+    {
+        ERR("failed to acquire Wayland SHM buffer, returning\n");
+        goto done;
+    }
+
+    if ((latest_buffer = get_window_surface_contents(window_surface->hwnd)))
+    {
+        TRACE("latest_window_buffer=%p\n", latest_buffer);
+        /* If we have a latest buffer, use it as the source of all pixel
+         * data that are not contained in the bounds of the flush... */
+        if (latest_buffer != shm_buffer)
+        {
+            HRGN copy_from_latest_region = NtGdiCreateRectRgn(0, 0, 0, 0);
+            if (!copy_from_latest_region)
+            {
+                ERR("failed to create copy_from_latest region\n");
+                goto done;
+            }
+            NtGdiCombineRgn(copy_from_latest_region, shm_buffer->damage_region,
+                            surface_damage_region, RGN_DIFF);
+            wayland_shm_buffer_copy(latest_buffer,
+                                    shm_buffer, copy_from_latest_region);
+            NtGdiDeleteObjectApp(copy_from_latest_region);
+        }
+        /* ... and use the window_surface as the source of pixel data contained
+         * in the flush bounds. */
+        copy_from_window_region = surface_damage_region;
+        wayland_shm_buffer_unref(latest_buffer);
+    }
+    else
+    {
+        TRACE("latest_window_buffer=NULL\n");
+        /* If we don't have a latest buffer, use the window_surface as
+         * the source of all pixel data. */
+        copy_from_window_region = shm_buffer->damage_region;
+    }
+
+    wayland_shm_buffer_copy_data(shm_buffer, color_bits, &surface_rect, copy_from_window_region);
+    NtGdiSetRectRgn(shm_buffer->damage_region, 0, 0, 0, 0);
+
+    flushed = set_window_surface_contents(window_surface->hwnd, shm_buffer, dirty);
+    wl_display_flush(process_wayland.wl_display);
+
+done:
+    if (surface_damage_region) NtGdiDeleteObjectApp(surface_damage_region);
+    return flushed;
 }
 
 /***********************************************************************
@@ -247,73 +400,11 @@ static void wayland_window_surface_destroy(struct window_surface *window_surface
     wayland_buffer_queue_destroy(wws->wayland_buffer_queue);
 }
 
-static void wayland_window_surface_create_images( struct window_surface *window_surface, int fd, UINT size,
-                                                  const BITMAPINFO *info, UINT count )
-{
-    struct wayland_window_surface *wws = wayland_window_surface_cast(window_surface);
-
-    TRACE("surface=%p, fd=%d, size=%u, info=%p, count=%u\n", wws, fd, size, info, count);
-
-    wws->wayland_buffer_queue = wayland_buffer_queue_create( fd, size, info, count );
-}
-
-static UINT wayland_window_surface_acquire_image( struct window_surface *window_surface )
-{
-    struct wayland_window_surface *wws = wayland_window_surface_cast(window_surface);
-    struct wayland_buffer_queue *queue = wws->wayland_buffer_queue;
-    UINT i;
-
-    TRACE("surface=%p\n", wws);
-
-    for (;;)
-    {
-        /* Dispatch any pending buffer release events. */
-        wl_display_dispatch_queue_pending(process_wayland.wl_display, queue->wl_event_queue);
-
-        /* Search through our buffers to find an available one. */
-        for (i = 0; i < queue->buffer_count; i++) if (!queue->buffers[i].busy) return i;
-
-        /* We don't have any buffers available, so block waiting for a buffer release event. */
-        if (wl_display_dispatch_queue(process_wayland.wl_display, queue->wl_event_queue) == -1)
-        {
-            ERR("Failed to dispatch buffer queue events\n");
-            return -1;
-        }
-    }
-}
-
-static void wayland_window_surface_present_image( struct window_surface *window_surface, UINT index, const RECT *dirty )
-{
-    struct wayland_window_surface *wws = wayland_window_surface_cast(window_surface);
-    struct wayland_buffer_queue *queue = wws->wayland_buffer_queue;
-    struct wayland_buffer *buffer = queue->buffers + index;
-    struct wayland_surface *wayland_surface;
-    struct wayland_win_data *data;
-
-    TRACE("surface=%p, index=%u, dirty=%s\n", wws, index, wine_dbgstr_rect(dirty));
-
-    if (!(data = wayland_win_data_get(window_surface->hwnd))) return;
-
-    if ((wayland_surface = data->wayland_surface) && wayland_surface_reconfigure(wayland_surface, data->client_surface))
-    {
-        buffer->busy = TRUE;
-        wayland_surface_present(wayland_surface, buffer->wl_buffer, &window_surface->rect, dirty);
-        wl_surface_commit(wayland_surface->wl_surface);
-    }
-
-    wayland_win_data_release(data);
-
-    wl_display_flush(process_wayland.wl_display);
-}
-
 static const struct window_surface_funcs wayland_window_surface_funcs =
 {
     .set_clip = wayland_window_surface_set_clip,
     .flush = wayland_window_surface_flush,
     .destroy = wayland_window_surface_destroy,
-    .create_images = wayland_window_surface_create_images,
-    .acquire_image = wayland_window_surface_acquire_image,
-    .present_image = wayland_window_surface_present_image,
 };
 
 /***********************************************************************
@@ -326,6 +417,7 @@ static struct window_surface *wayland_window_surface_create(HWND hwnd, const REC
     struct wayland_window_surface *wws;
     int width = rect->right - rect->left;
     int height = rect->bottom - rect->top;
+    struct window_surface *window_surface;
 
     TRACE("hwnd %p rect %s\n", hwnd, wine_dbgstr_rect(rect));
 
@@ -338,7 +430,13 @@ static struct window_surface *wayland_window_surface_create(HWND hwnd, const REC
     info->bmiHeader.biSizeImage   = width * height * 4;
     info->bmiHeader.biCompression = BI_RGB;
 
-    return window_surface_create(sizeof(*wws), &wayland_window_surface_funcs, hwnd, rect, info, 0);
+    if ((window_surface = window_surface_create(sizeof(*wws), &wayland_window_surface_funcs, hwnd, rect, info, 0)))
+    {
+        struct wayland_window_surface *wws = wayland_window_surface_cast(window_surface);
+        wws->wayland_buffer_queue = wayland_buffer_queue_create(width, height);
+    }
+
+    return window_surface;
 }
 
 /***********************************************************************
