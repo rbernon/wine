@@ -282,7 +282,8 @@ static UINT wayland_window_surface_acquire_image( struct window_surface *window_
     }
 }
 
-static void wayland_window_surface_present_image( struct window_surface *window_surface, UINT index, const RECT *dirty )
+static void wayland_window_surface_present_image( struct window_surface *window_surface, UINT index, const RECT *dirty,
+                                                  const BITMAPINFO *color_info )
 {
     struct wayland_window_surface *wws = wayland_window_surface_cast(window_surface);
     struct wayland_buffer_queue *queue = wws->wayland_buffer_queue;

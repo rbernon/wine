@@ -30,6 +30,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <unistd.h>
+
 #include <X11/Xlib.h>
 #include <X11/Xresource.h>
 #include <X11/Xutil.h>
@@ -46,12 +48,45 @@
 # endif
 #endif
 
+#ifdef HAVE_X11_XLIB_XCB_H
+#include <X11/Xlib-xcb.h>
+#endif
+#ifdef HAVE_XCB_SHM_H
+#include <xcb/shm.h>
+#endif
+
 #include "x11drv.h"
 #include "winternl.h"
+#include "wine/server.h"
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(bitblt);
 
+static inline BOOL call_xcb( xcb_connection_t *xcb, xcb_void_cookie_t cookie, const char *func, BOOL check )
+{
+    xcb_generic_error_t *error;
+
+    if (check)
+    {
+        xcb_discard_reply( xcb, cookie.sequence );
+        return TRUE;
+    }
+
+    if ((error = xcb_request_check( xcb, cookie )))
+    {
+        ERR( "%s returned error %d sequence %u resource %#x major %u minor %u\n", func, error->error_code,
+             error->sequence, error->resource_id, error->minor_code, error->major_code );
+        free( error );
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+#define XCB_CALL( func, xcb, ... ) \
+    call_xcb( xcb, ERR_ON(bitblt) ? (func ## _checked)( (xcb), __VA_ARGS__ ) \
+                                  : (func)( (xcb), __VA_ARGS__ ), \
+              #func, ERR_ON(bitblt) )
 
 #define DST 0   /* Destination drawable */
 #define SRC 1   /* Source drawable */
@@ -1524,181 +1559,18 @@ DWORD get_pixmap_image( Pixmap pixmap, int width, int height, const XVisualInfo 
     return ret;
 }
 
-#ifdef HAVE_X11_EXTENSIONS_XSHM_H
-typedef XShmSegmentInfo x11drv_xshm_info_t;
-#else
-typedef struct { int shmid; } x11drv_xshm_info_t;
-#endif
-
-struct x11drv_image
-{
-    XImage               *ximage;    /* XImage used for X11 drawing */
-    x11drv_xshm_info_t    shminfo;   /* XSHM extension info */
-};
-
 struct x11drv_window_surface
 {
     struct window_surface header;
     Window                window;
-    GC                    gc;
-    struct x11drv_image  *image;
+    xcb_gcontext_t        xcb_gc;
+    xcb_shm_seg_t         xcb_seg;
+    UINT                  offsets[3];
 };
 
 static struct x11drv_window_surface *get_x11_surface( struct window_surface *surface )
 {
     return (struct x11drv_window_surface *)surface;
-}
-
-#ifdef HAVE_LIBXXSHM
-static int xshm_error_handler( Display *display, XErrorEvent *event, void *arg )
-{
-    return 1;  /* FIXME: should check event contents */
-}
-
-static XImage *create_shm_image( const XVisualInfo *vis, int width, int height, x11drv_xshm_info_t *shminfo )
-{
-    XImage *image;
-
-    shminfo->shmid = -1;
-    image = XShmCreateImage( gdi_display, vis->visual, vis->depth, ZPixmap, NULL, shminfo, width, height );
-    if (!image) return NULL;
-    if (image->bytes_per_line & 3) goto failed;  /* we need 32-bit alignment */
-
-    shminfo->shmid = shmget( IPC_PRIVATE, image->bytes_per_line * height, IPC_CREAT | 0700 );
-    if (shminfo->shmid == -1) goto failed;
-
-    shminfo->shmaddr = shmat( shminfo->shmid, 0, 0 );
-    if (shminfo->shmaddr != (char *)-1)
-    {
-        BOOL ok;
-
-        shminfo->readOnly = True;
-        X11DRV_expect_error( gdi_display, xshm_error_handler, NULL );
-        ok = (XShmAttach( gdi_display, shminfo ) != 0);
-        XSync( gdi_display, False );
-        if (!X11DRV_check_error() && ok)
-        {
-            image->data = shminfo->shmaddr;
-            shmctl( shminfo->shmid, IPC_RMID, 0 );
-            return image;
-        }
-        shmdt( shminfo->shmaddr );
-    }
-    shmctl( shminfo->shmid, IPC_RMID, 0 );
-    shminfo->shmid = -1;
-
-failed:
-    XDestroyImage( image );
-    return NULL;
-}
-
-static BOOL destroy_shm_image( XImage *image, x11drv_xshm_info_t *shminfo )
-{
-    if (shminfo->shmid == -1) return FALSE;
-
-    XShmDetach( gdi_display, shminfo );
-    shmdt( shminfo->shmaddr );
-
-    return TRUE;
-}
-
-static BOOL put_shm_image( XImage *image, x11drv_xshm_info_t *shminfo, Window window,
-                           GC gc, const RECT *rect, const RECT *dirty )
-{
-    if (shminfo->shmid == -1) return FALSE;
-
-    XShmPutImage( gdi_display, window, gc, image, dirty->left,
-                  dirty->top, rect->left + dirty->left, rect->top + dirty->top,
-                  dirty->right - dirty->left, dirty->bottom - dirty->top, False );
-
-    return TRUE;
-}
-
-#else /* HAVE_LIBXXSHM */
-
-static XImage *create_shm_image( const XVisualInfo *vis, int width, int height, x11drv_xshm_info_t *shminfo )
-{
-    shminfo->shmid = -1;
-    return NULL;
-}
-
-static BOOL destroy_shm_image( XImage *image, x11drv_xshm_info_t *shminfo )
-{
-    return FALSE;
-}
-
-static BOOL put_shm_image( XImage *image, x11drv_xshm_info_t *shminfo, Window window,
-                           GC gc, const RECT *rect, const RECT *dirty )
-{
-    return FALSE;
-}
-
-#endif /* HAVE_LIBXXSHM */
-
-static UINT get_dib_d3dddifmt( const BITMAPINFO *info )
-{
-    if (info->bmiHeader.biCompression == BI_RGB)
-    {
-        if (info->bmiHeader.biBitCount == 8) return D3DDDIFMT_P8;
-        if (info->bmiHeader.biBitCount == 24) return D3DDDIFMT_R8G8B8;
-        if (info->bmiHeader.biBitCount == 32) return D3DDDIFMT_A8R8G8B8;
-        return D3DDDIFMT_UNKNOWN;
-    }
-
-    if (info->bmiHeader.biCompression == BI_BITFIELDS)
-    {
-        DWORD *colors = (DWORD *)info->bmiColors;
-
-        if (info->bmiHeader.biBitCount == 16)
-        {
-            if (colors[0] == 0x0000f800 && colors[1] == 0x000007e0 && colors[2] == 0x0000001f) return D3DDDIFMT_R5G6B5;
-            if (colors[0] == 0x00007c00 && colors[1] == 0x000003e0 && colors[2] == 0x0000001f) return D3DDDIFMT_A1R5G5B5;
-            if (colors[0] == 0x00000f00 && colors[1] == 0x000000f0 && colors[2] == 0x0000000f) return D3DDDIFMT_A4R4G4B4;
-        }
-        else if (info->bmiHeader.biBitCount == 24)
-        {
-            if (colors[0] == 0x00ff0000 && colors[1] == 0x0000ff00 && colors[2] == 0x000000ff) return D3DDDIFMT_R8G8B8;
-        }
-        else if (info->bmiHeader.biBitCount == 32)
-        {
-            if (colors[0] == 0x00ff0000 && colors[1] == 0x0000ff00 && colors[2] == 0x000000ff) return D3DDDIFMT_X8R8G8B8;
-        }
-
-        return D3DDDIFMT_UNKNOWN;
-    }
-
-    return D3DDDIFMT_UNKNOWN;
-}
-
-static void x11drv_image_destroy( struct x11drv_image *image )
-{
-    if (!destroy_shm_image( image->ximage, &image->shminfo ))
-        free( image->ximage->data );
-
-    image->ximage->data = NULL;
-    XDestroyImage( image->ximage );
-    free( image );
-}
-
-static struct x11drv_image *x11drv_image_create( const BITMAPINFO *info, const XVisualInfo *vis )
-{
-    UINT width = info->bmiHeader.biWidth, height = abs( info->bmiHeader.biHeight );
-    struct x11drv_image *image;
-
-    if (!(image = calloc( 1, sizeof(*image) ))) return NULL;
-
-    if (!(image->ximage = create_shm_image( vis, width, height, &image->shminfo )))
-    {
-        if (!(image->ximage = XCreateImage( gdi_display, vis->visual, vis->depth, ZPixmap,
-                                            0, NULL, width, height, 32, 0 ))) goto failed;
-        if (!(image->ximage->data = malloc( info->bmiHeader.biSizeImage ))) goto failed;
-    }
-
-    return image;
-
-failed:
-    x11drv_image_destroy( image );
-    return NULL;
 }
 
 static XRectangle *xrectangles_from_rects( const RECT *rects, UINT count )
@@ -1725,17 +1597,21 @@ static XRectangle *xrectangles_from_rects( const RECT *rects, UINT count )
 static void x11drv_surface_set_clip( struct window_surface *window_surface, const RECT *rects, UINT count )
 {
     struct x11drv_window_surface *surface = get_x11_surface( window_surface );
-    XRectangle *xrects;
+#if HAVE_X11_XLIB_XCB_H
+{
+    xcb_connection_t *xcb = XGetXCBConnection( gdi_display );
+    XRectangle *xrects = NULL;
 
-    TRACE( "surface %p, rects %p, count %u\n", surface, rects, count );
+    ERR( "surface %p, rects %p, count %u\n", surface, rects, count );
 
-    if (!count)
-        XSetClipMask( gdi_display, surface->gc, None );
-    else if ((xrects = xrectangles_from_rects( rects, count )))
-    {
-        XSetClipRectangles( gdi_display, surface->gc, 0, 0, xrects, count, YXBanded );
-        free( xrects );
-    }
+    if (count) xrects = xrectangles_from_rects( rects, count );
+    if (!xrects) count = 0;
+
+    XCB_CALL( xcb_set_clip_rectangles, xcb, XCB_CLIP_ORDERING_YX_BANDED,
+              surface->xcb_gc, 0, 0, count, (xcb_rectangle_t *)xrects );
+    free( xrects );
+}
+#endif
 }
 
 /***********************************************************************
@@ -1747,9 +1623,8 @@ static BOOL x11drv_surface_flush( struct window_surface *window_surface, const R
 {
     UINT alpha_mask = window_surface->alpha_mask, alpha_bits = window_surface->alpha_bits;
     struct x11drv_window_surface *surface = get_x11_surface( window_surface );
-    XImage *ximage = surface->image->ximage;
-    const unsigned char *src = color_bits;
-    unsigned char *dst = (unsigned char *)ximage->data;
+
+ERR("\n");
 
     if (alpha_bits == -1)
     {
@@ -1762,24 +1637,17 @@ static BOOL x11drv_surface_flush( struct window_surface *window_surface, const R
         }
     }
 
-    if (src != dst)
+#ifdef HAVE_XCB_SHM_H
+    if (!surface->xcb_seg)
     {
-        int width_bytes = ximage->bytes_per_line;
-
-        src += dirty->top * width_bytes;
-        dst += dirty->top * width_bytes;
-        copy_image_byteswap( color_info, src, dst, width_bytes, width_bytes, dirty->bottom - dirty->top,
-                             mapping, ~0u, alpha_bits );
+        xcb_connection_t *xcb = XGetXCBConnection( gdi_display );
+ERR("\n");
+        XCB_CALL( xcb_put_image, xcb, XCB_IMAGE_FORMAT_Z_PIXMAP, surface->window, surface->xcb_gc, dirty->right - dirty->left, dirty->bottom - dirty->top,
+                  rect->left + dirty->left, rect->top + dirty->top, 0, color_info->bmiHeader.biBitCount, color_info->bmiHeader.biSizeImage,
+                  color_bits );
+        xcb_flush( xcb );
     }
-    else if (alpha_bits)
-    {
-        int x, y, stride = ximage->bytes_per_line / sizeof(ULONG);
-        ULONG *ptr = (ULONG *)dst + dirty->top * stride;
-
-        for (y = dirty->top; y < dirty->bottom; y++, ptr += stride)
-            for (x = dirty->left; x < dirty->right; x++)
-                ptr[x] |= alpha_bits;
-    }
+#endif
 
     if (shape_changed)
     {
@@ -1818,15 +1686,67 @@ static void x11drv_surface_destroy( struct window_surface *window_surface )
     struct x11drv_window_surface *surface = get_x11_surface( window_surface );
 
     TRACE( "freeing %p\n", surface );
-    if (surface->gc) XFreeGC( gdi_display, surface->gc );
-    if (surface->image) x11drv_image_destroy( surface->image );
+
+#ifdef HAVE_X11_XLIB_XCB_H
+{
+    xcb_connection_t *xcb = XGetXCBConnection( gdi_display );
+    XCB_CALL( xcb_free_gc, xcb, surface->xcb_gc );
+    XCB_CALL( xcb_shm_detach, xcb, surface->xcb_seg );
+}
+#endif
+
+    free( surface );
+}
+
+static void x11drv_surface_create_images( struct window_surface *window_surface, int fd, UINT size,
+                                          const BITMAPINFO *info, UINT count )
+{
+    struct x11drv_window_surface *surface = get_x11_surface( window_surface );
+#if HAVE_XCB_SHM_H
+{
+    xcb_connection_t *xcb = XGetXCBConnection( gdi_display );
+    xcb_shm_query_version_reply_t *version;
+    xcb_generic_error_t *error;
+
+    version = xcb_shm_query_version_reply( xcb, xcb_shm_query_version( xcb ), &error ); /* closes the fd */
+ERR( "version %p error %p\n", version, error );
+if (version) ERR( "%u.%u shared %u fmt %u\n", version->major_version, version->minor_version, version->shared_pixmaps, version->pixmap_format );
+    surface->xcb_seg = xcb_generate_id( xcb );
+    if (!call_xcb( xcb, xcb_shm_attach_fd_checked( xcb, surface->xcb_seg, dup( fd ), FALSE ), "xcb_shm_attach_fd", TRUE )) surface->xcb_seg = 0;
+    for (UINT i = 0; i < count; i++) surface->offsets[i] = i * info->bmiHeader.biSizeImage;
+}
+#endif
+}
+
+static UINT x11drv_surface_acquire_image( struct window_surface *window_surface )
+{
+    return 0;
+}
+
+static void x11drv_surface_present_image( struct window_surface *window_surface, UINT index, const RECT *dirty, const BITMAPINFO *color_info )
+{
+    struct x11drv_window_surface *surface = get_x11_surface( window_surface );
+#ifdef HAVE_XCB_SHM_H
+    if (surface->xcb_seg)
+    {
+        xcb_connection_t *xcb = XGetXCBConnection( gdi_display );
+        XCB_CALL( xcb_shm_put_image, xcb, surface->window, surface->xcb_gc, color_info->bmiHeader.biWidth, abs( color_info->bmiHeader.biHeight ),
+                   dirty->left, dirty->top, dirty->right - dirty->left, dirty->bottom - dirty->top,
+                   dirty->left, dirty->top, color_info->bmiHeader.biBitCount,
+                   XCB_IMAGE_FORMAT_Z_PIXMAP, FALSE, surface->xcb_seg, surface->offsets[index] );
+        xcb_flush( xcb );
+    }
+#endif
 }
 
 static const struct window_surface_funcs x11drv_surface_funcs =
 {
     .set_clip = x11drv_surface_set_clip,
     .flush = x11drv_surface_flush,
-    .destroy = x11drv_surface_destroy
+    .destroy = x11drv_surface_destroy,
+    .create_images = x11drv_surface_create_images,
+    .acquire_image = x11drv_surface_acquire_image,
+    .present_image = x11drv_surface_present_image,
 };
 
 /***********************************************************************
@@ -1841,10 +1761,6 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
     struct x11drv_window_surface *surface;
     int width = rect->right - rect->left, height = rect->bottom - rect->top;
     struct window_surface *window_surface;
-    struct x11drv_image *image;
-    D3DDDIFORMAT d3d_format;
-    HBITMAP bitmap = 0;
-    UINT status;
 
     memset( info, 0, sizeof(*info) );
     info->bmiHeader.biSize        = sizeof(info->bmiHeader);
@@ -1855,45 +1771,19 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
     info->bmiHeader.biSizeImage   = get_dib_image_size( info );
     set_color_info( vis, info, use_alpha );
 
-    if (!(image = x11drv_image_create( info, vis ))) return NULL;
-
-    /* wrap the XImage data in a HBITMAP if we can write to the surface pixels directly */
-    if (info->bmiHeader.biBitCount <= 8 || !(d3d_format = get_dib_d3dddifmt( info )))
-        WARN( "Cannot use direct rendering, falling back to copies\n" );
-    else
-    {
-        D3DKMT_CREATEDCFROMMEMORY desc =
-        {
-            .Width = info->bmiHeader.biWidth,
-            .Height = abs( info->bmiHeader.biHeight ),
-            .Pitch = info->bmiHeader.biSizeImage / abs( info->bmiHeader.biHeight ),
-            .Format = d3d_format,
-            .pMemory = image->ximage->data,
-            .hDeviceDc = NtUserGetDCEx( hwnd, 0, DCX_CACHE | DCX_WINDOW ),
-        };
-
-        if ((status = NtGdiDdDDICreateDCFromMemory( &desc )))
-            ERR( "Failed to create HBITMAP falling back to copies, status %#x\n", status );
-        else
-        {
-            bitmap = desc.hBitmap;
-            NtGdiDeleteObjectApp( desc.hDc );
-        }
-        if (desc.hDeviceDc) NtUserReleaseDC( hwnd, desc.hDeviceDc );
-    }
-
-    if (!(window_surface = window_surface_create( sizeof(*surface), &x11drv_surface_funcs, hwnd, rect, info, bitmap )))
-    {
-        if (bitmap) NtGdiDeleteObjectApp( bitmap );
-        x11drv_image_destroy( image );
-    }
-    else
+    if ((window_surface = window_surface_create( sizeof(*surface), &x11drv_surface_funcs, hwnd, rect, info, 0 )))
     {
         surface = get_x11_surface( window_surface );
-        surface->image = image;
         surface->window = window;
-        surface->gc = XCreateGC( gdi_display, window, 0, NULL );
-        XSetSubwindowMode( gdi_display, surface->gc, IncludeInferiors );
+
+#ifdef HAVE_X11_XLIB_XCB_H
+{
+        struct xcb_create_gc_value_list_t values = {.subwindow_mode = XCB_SUBWINDOW_MODE_INCLUDE_INFERIORS};
+        xcb_connection_t *xcb = XGetXCBConnection( gdi_display );
+        surface->xcb_gc = xcb_generate_id( xcb );
+        XCB_CALL( xcb_create_gc_aux, xcb, surface->xcb_gc, window, XCB_GC_SUBWINDOW_MODE, &values );
+}
+#endif
     }
 
     return window_surface;
