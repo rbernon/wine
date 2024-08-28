@@ -662,7 +662,7 @@ static struct cached_glyph *get_cached_glyph( struct cached_font *font, UINT ind
  *
  * See the comment above get_pen_bkgnd_masks
  */
-static inline void get_text_bkgnd_masks( DC *dc, const dib_info *dib, rop_mask *mask )
+static inline void get_text_bkgnd_masks( DC *dc, const struct dib *dib, rop_mask *mask )
 {
     COLORREF bg = dc->attr->background_color;
 
@@ -678,8 +678,8 @@ static inline void get_text_bkgnd_masks( DC *dc, const dib_info *dib, rop_mask *
     }
 }
 
-static void draw_glyph( dib_info *dib, int x, int y, const GLYPHMETRICS *metrics,
-                        const dib_info *glyph_dib, DWORD text_color,
+static void draw_glyph( struct dib *dib, int x, int y, const GLYPHMETRICS *metrics,
+                        const struct dib *glyph_dib, DWORD text_color,
                         const struct font_intensities *intensity,
                         const struct clipped_rects *clipped_rects, RECT *bounds )
 {
@@ -807,13 +807,13 @@ done:
     return add_cached_glyph( font, index, flags, glyph );
 }
 
-static void render_string( DC *dc, dib_info *dib, struct cached_font *font, INT x, INT y,
+static void render_string( DC *dc, struct dib *dib, struct cached_font *font, INT x, INT y,
                            UINT flags, const WCHAR *str, UINT count, const INT *dx,
                            const struct clipped_rects *clipped_rects, RECT *bounds )
 {
     UINT i;
     struct cached_glyph *glyph;
-    dib_info glyph_dib;
+    struct dib glyph_dib;
     DWORD text_color;
     struct font_intensities intensity;
 
@@ -866,13 +866,13 @@ BOOL render_aa_text_bitmapinfo( DC *dc, BITMAPINFO *info, struct gdi_image_bits 
                                 struct bitblt_coords *src, INT x, INT y, UINT flags,
                                 UINT aa_flags, LPCWSTR str, UINT count, const INT *dx )
 {
-    dib_info dib;
+    struct dib dib;
     struct clipped_rects visrect;
     struct cached_font *font;
 
     assert( info->bmiHeader.biBitCount > 8 ); /* mono and indexed formats don't support anti-aliasing */
 
-    init_dib_info_from_bitmapinfo( &dib, info, bits->ptr );
+    init_dib_from_bitmapinfo( &dib, info, bits->ptr );
 
     visrect.count = 1;
     visrect.rects = &src->visrect;
@@ -997,7 +997,7 @@ BOOL dibdrv_Ellipse( PHYSDEV dev, INT left, INT top, INT right, INT bottom )
     return dibdrv_RoundRect( dev, left, top, right, bottom, right - left, bottom - top );
 }
 
-static inline BOOL is_interior( dib_info *dib, HRGN clip, int x, int y, DWORD pixel, UINT type)
+static inline BOOL is_interior( struct dib *dib, HRGN clip, int x, int y, DWORD pixel, UINT type )
 {
     /* the clip rgn stops the flooding */
     if (clip && !NtGdiPtInRegion( clip, x, y )) return FALSE;
@@ -1008,9 +1008,10 @@ static inline BOOL is_interior( dib_info *dib, HRGN clip, int x, int y, DWORD pi
         return dib->funcs->get_pixel( dib, x, y ) == pixel;
 }
 
-static void fill_row( dib_info *dib, HRGN clip, RECT *row, DWORD pixel, UINT type, HRGN rgn );
+static void fill_row( struct dib *dib, HRGN clip, RECT *row, DWORD pixel, UINT type, HRGN rgn );
 
-static inline void do_next_row( dib_info *dib, HRGN clip, const RECT *row, int offset, DWORD pixel, UINT type, HRGN rgn )
+static inline void do_next_row( struct dib *dib, HRGN clip, const RECT *row, int offset,
+                                DWORD pixel, UINT type, HRGN rgn )
 {
     RECT next;
 
@@ -1031,7 +1032,7 @@ static inline void do_next_row( dib_info *dib, HRGN clip, const RECT *row, int o
         fill_row( dib, clip, &next, pixel, type, rgn );
 }
 
-static void fill_row( dib_info *dib, HRGN clip, RECT *row, DWORD pixel, UINT type, HRGN rgn )
+static void fill_row( struct dib *dib, HRGN clip, RECT *row, DWORD pixel, UINT type, HRGN rgn )
 {
     while (row->left > 0 && is_interior( dib, clip, row->left - 1, row->top, pixel, type)) row->left--;
     while (row->right < dib->rect.right - dib->rect.left &&
