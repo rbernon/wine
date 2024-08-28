@@ -54,7 +54,10 @@ extern void move_window_bits_surface( HWND hwnd, const RECT *window_rect, struct
                                       const RECT *old_visible_rect, const RECT *valid_rects );
 extern void register_window_surface( struct window_surface *old,
                                      struct window_surface *new );
-extern void *window_surface_get_color( struct window_surface *surface, BITMAPINFO *info );
+
+struct dib;
+extern HBITMAP window_surface_lock_write( struct window_surface *surface, struct dib *dib );
+extern void window_surface_unlock_write( struct window_surface *surface, struct dib *dib );
 
 extern void window_surface_add_ref( struct window_surface *surface );
 extern void window_surface_release( struct window_surface *surface );

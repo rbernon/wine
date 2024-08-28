@@ -750,7 +750,10 @@ static inline void lock_surface( struct windrv_physdev *dev )
 
     if (!dev->lock_count++)
     {
-        window_surface_lock( surface );
+        RECT rect = dev->dibdrv->dib.rect;
+        window_surface_lock_write( surface, &dev->dibdrv->dib );
+        dev->dibdrv->dib.rect = rect;
+
         if (IsRectEmpty( dev->dibdrv->bounds ) || !surface->draw_start_ticks)
             surface->draw_start_ticks = NtGetTickCount();
     }
@@ -763,7 +766,7 @@ static inline void unlock_surface( struct windrv_physdev *dev )
     if (!--dev->lock_count)
     {
         DWORD ticks = NtGetTickCount() - surface->draw_start_ticks;
-        window_surface_unlock( surface );
+        window_surface_unlock_write( surface, &dev->dibdrv->dib );
         if (ticks > FLUSH_PERIOD) window_surface_flush( dev->surface );
     }
 }
@@ -824,9 +827,14 @@ void dibdrv_set_window_surface( DC *dc, struct window_surface *surface )
         }
         else
         {
+            /* acquire the surface once to initialize the dib info */
+            window_surface_lock_write( surface, &dibdrv->dib );
+            window_surface_unlock_write( surface, &dibdrv->dib );
+
             init_dib_info_from_bitmapobj( &dibdrv->dib, bmp );
             GDI_ReleaseObj( surface->color_bitmap );
         }
+
         dibdrv->dib.rect = dc->attr->vis_rect;
         OffsetRect( &dibdrv->dib.rect, -dc->device_rect.left, -dc->device_rect.top );
         dibdrv->bounds = &surface->bounds;
