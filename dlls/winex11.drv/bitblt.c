@@ -1009,15 +1009,15 @@ static void set_color_info( const XVisualInfo *vis, BITMAPINFO *info, BOOL has_a
         break;
     }
     case 16:
-        colors[0] = vis->red_mask;
-        colors[1] = vis->green_mask;
-        colors[2] = vis->blue_mask;
+        colors[(ImageByteOrder(gdi_display) == LSBFirst) ? 0 : 2] = vis->red_mask;
+        colors[(ImageByteOrder(gdi_display) == LSBFirst) ? 1 : 1] = vis->green_mask;
+        colors[(ImageByteOrder(gdi_display) == LSBFirst) ? 2 : 0] = vis->blue_mask;
         info->bmiHeader.biCompression = BI_BITFIELDS;
         break;
     case 32:
-        colors[0] = vis->red_mask;
-        colors[1] = vis->green_mask;
-        colors[2] = vis->blue_mask;
+        colors[(ImageByteOrder(gdi_display) == LSBFirst) ? 0 : 2] = vis->red_mask;
+        colors[(ImageByteOrder(gdi_display) == LSBFirst) ? 1 : 1] = vis->green_mask;
+        colors[(ImageByteOrder(gdi_display) == LSBFirst) ? 2 : 0] = vis->blue_mask;
         if (colors[0] != 0xff0000 || colors[1] != 0x00ff00 || colors[2] != 0x0000ff || !has_alpha)
             info->bmiHeader.biCompression = BI_BITFIELDS;
         break;
@@ -1030,33 +1030,14 @@ static inline BOOL is_r8g8b8( const XVisualInfo *vis )
     return format->bits_per_pixel == 24 && vis->red_mask == 0xff0000 && vis->blue_mask == 0x0000ff;
 }
 
-static inline BOOL display_needs_byteswap( Display *display, BOOL is_r8g8b8, int bit_count )
-{
-#ifdef WORDS_BIGENDIAN
-    static const int client_byte_order = MSBFirst;
-#else
-    static const int client_byte_order = LSBFirst;
-#endif
-
-    switch (bit_count)
-    {
-    case 1:  return BitmapBitOrder( display ) != MSBFirst;
-    case 4:  return ImageByteOrder( display ) != MSBFirst;
-    case 16:
-    case 32: return ImageByteOrder( display ) != client_byte_order;
-    case 24: return (ImageByteOrder( display ) == MSBFirst) ^ !is_r8g8b8;
-    default: return FALSE;
-    }
-}
-
 /* copy image bits with byte swapping and/or pixel mapping */
 static void copy_image_byteswap( const BITMAPINFO *info, const unsigned char *src, unsigned char *dst,
-                                 int src_stride, int dst_stride, int height, BOOL byteswap,
+                                 int src_stride, int dst_stride, int height,
                                  const int *mapping, unsigned int zeropad_mask, unsigned int alpha_bits )
 {
     int x, y, padding_pos = abs(dst_stride) / sizeof(unsigned int) - 1;
 
-    if (!byteswap && !mapping)  /* simply copy */
+    if (!mapping)  /* simply copy */
     {
         if (src != dst)
         {
@@ -1087,14 +1068,8 @@ static void copy_image_byteswap( const BITMAPINFO *info, const unsigned char *sr
         for (y = 0; y < height; y++, src += src_stride, dst += dst_stride)
         {
             if (mapping)
-            {
-                if (byteswap)
-                    for (x = 0; x < src_stride; x++)
-                        dst[x] = (mapping[src[x] & 0x0f] << 4) | mapping[src[x] >> 4];
-                else
-                    for (x = 0; x < src_stride; x++)
-                        dst[x] = mapping[src[x] & 0x0f] | (mapping[src[x] >> 4] << 4);
-            }
+                for (x = 0; x < src_stride; x++)
+                    dst[x] = mapping[src[x] & 0x0f] | (mapping[src[x] >> 4] << 4);
             else
                 for (x = 0; x < src_stride; x++)
                     dst[x] = (src[x] << 4) | (src[x] >> 4);
@@ -1142,7 +1117,6 @@ DWORD copy_image_bits( BITMAPINFO *info, BOOL is_r8g8b8, XImage *image,
                        const struct gdi_image_bits *src_bits, struct gdi_image_bits *dst_bits,
                        struct bitblt_coords *coords, const int *mapping, unsigned int zeropad_mask )
 {
-    BOOL need_byteswap = display_needs_byteswap( gdi_display, is_r8g8b8, info->bmiHeader.biBitCount );
     int height = coords->visrect.bottom - coords->visrect.top;
     int width_bytes = image->bytes_per_line;
     unsigned char *src, *dst;
@@ -1153,11 +1127,9 @@ DWORD copy_image_bits( BITMAPINFO *info, BOOL is_r8g8b8, XImage *image,
     else
         src += coords->visrect.top * width_bytes;
 
-    if ((need_byteswap && !src_bits->is_copy) ||  /* need to swap bytes */
-        (zeropad_mask != ~0u && !src_bits->is_copy) ||  /* need to clear padding bytes */
+    if ((zeropad_mask != ~0u && !src_bits->is_copy) ||  /* need to clear padding bytes */
         (mapping && !src_bits->is_copy) ||  /* need to remap pixels */
-        (width_bytes & 3) ||  /* need to fixup line alignment */
-        (info->bmiHeader.biHeight > 0))  /* need to flip vertically */
+        (width_bytes & 3) /* need to fixup line alignment */)
     {
         width_bytes = (width_bytes + 3) & ~3;
         info->bmiHeader.biSizeImage = height * width_bytes;
@@ -1172,7 +1144,7 @@ DWORD copy_image_bits( BITMAPINFO *info, BOOL is_r8g8b8, XImage *image,
         dst_bits->ptr = src;
         dst_bits->is_copy = src_bits->is_copy;
         dst_bits->free = NULL;
-        if (!need_byteswap && zeropad_mask == ~0u && !mapping) return ERROR_SUCCESS;  /* nothing to do */
+        if (zeropad_mask == ~0u && !mapping) return ERROR_SUCCESS;  /* nothing to do */
     }
 
     dst = dst_bits->ptr;
@@ -1184,7 +1156,7 @@ DWORD copy_image_bits( BITMAPINFO *info, BOOL is_r8g8b8, XImage *image,
     }
 
     copy_image_byteswap( info, src, dst, image->bytes_per_line, width_bytes, height,
-                         need_byteswap, mapping, zeropad_mask, 0 );
+                         mapping, zeropad_mask, 0 );
     return ERROR_SUCCESS;
 }
 
@@ -1570,7 +1542,6 @@ struct x11drv_window_surface
     Window                window;
     GC                    gc;
     struct x11drv_image  *image;
-    BOOL                  byteswap;
 };
 
 static struct x11drv_window_surface *get_x11_surface( struct window_surface *surface )
@@ -1798,7 +1769,7 @@ static BOOL x11drv_surface_flush( struct window_surface *window_surface, const R
         src += dirty->top * width_bytes;
         dst += dirty->top * width_bytes;
         copy_image_byteswap( color_info, src, dst, width_bytes, width_bytes, dirty->bottom - dirty->top,
-                             surface->byteswap, NULL, ~0u, alpha_bits );
+                             mapping, ~0u, alpha_bits );
     }
     else if (alpha_bits)
     {
@@ -1873,7 +1844,6 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
     struct x11drv_image *image;
     D3DDDIFORMAT d3d_format;
     HBITMAP bitmap = 0;
-    BOOL byteswap;
     UINT status;
 
     memset( info, 0, sizeof(*info) );
@@ -1888,8 +1858,7 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
     if (!(image = x11drv_image_create( info, vis ))) return NULL;
 
     /* wrap the XImage data in a HBITMAP if we can write to the surface pixels directly */
-    if ((byteswap = display_needs_byteswap( gdi_display, is_r8g8b8( vis ), info->bmiHeader.biBitCount )) ||
-        !(d3d_format = get_dib_d3dddifmt( info )))
+    if (info->bmiHeader.biBitCount <= 8 || !(d3d_format = get_dib_d3dddifmt( info )))
         WARN( "Cannot use direct rendering, falling back to copies\n" );
     else
     {
@@ -1922,7 +1891,6 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
     {
         surface = get_x11_surface( window_surface );
         surface->image = image;
-        surface->byteswap = byteswap;
         surface->window = window;
         surface->gc = XCreateGC( gdi_display, window, 0, NULL );
         XSetSubwindowMode( gdi_display, surface->gc, IncludeInferiors );
