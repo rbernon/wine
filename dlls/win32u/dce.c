@@ -766,7 +766,7 @@ void window_surface_flush( struct window_surface *surface )
 
         if (surface->funcs->present_image && surface->acquired_image != -1)
         {
-            surface->funcs->present_image( surface, surface->acquired_image, &dirty );
+            surface->funcs->present_image( surface, surface->acquired_image, &dirty, color_info );
             surface->presented_image = surface->acquired_image;
             window_surface_damage_images( surface, dirty );
             surface->acquired_image = -1;
