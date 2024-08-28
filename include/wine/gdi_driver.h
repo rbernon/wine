@@ -260,7 +260,8 @@ struct window_surface_funcs
     void  (*create_images)( struct window_surface *surface, int fd, UINT size,
                             const BITMAPINFO *info, UINT count );
     UINT  (*acquire_image)( struct window_surface *surface );
-    void  (*present_image)( struct window_surface *surface, UINT index, const RECT *dirty );
+    void  (*present_image)( struct window_surface *surface, UINT index, const RECT *dirty,
+                            const BITMAPINFO *color_info );
 };
 
 struct window_surface_image
