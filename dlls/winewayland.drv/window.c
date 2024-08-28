@@ -756,7 +756,7 @@ struct wayland_client_surface *get_client_surface(HWND hwnd)
     return client;
 }
 
-BOOL set_window_surface_contents(HWND hwnd, struct wayland_shm_buffer *shm_buffer, HRGN damage_region)
+BOOL set_window_surface_contents(HWND hwnd, struct wayland_shm_buffer *shm_buffer, const RECT *dirty)
 {
     struct wayland_surface *wayland_surface;
     struct wayland_win_data *data;
@@ -768,7 +768,10 @@ BOOL set_window_surface_contents(HWND hwnd, struct wayland_shm_buffer *shm_buffe
     {
         if (wayland_surface_reconfigure(wayland_surface))
         {
-            wayland_surface_attach_shm(wayland_surface, shm_buffer, damage_region);
+            RECT rect = {0, 0, shm_buffer->width, shm_buffer->height};
+            shm_buffer->busy = TRUE;
+            wayland_shm_buffer_ref(shm_buffer);
+            wayland_surface_present(wayland_surface, shm_buffer->wl_buffer, &rect, dirty);
             wl_surface_commit(wayland_surface->wl_surface);
             committed = TRUE;
         }
