@@ -1811,13 +1811,12 @@ static BOOL x11drv_surface_flush( struct window_surface *window_surface, const R
 
     if (src != dst)
     {
-        int map[256], *mapping = get_window_surface_mapping( ximage->bits_per_pixel, map );
         int width_bytes = ximage->bytes_per_line;
 
         src += dirty->top * width_bytes;
         dst += dirty->top * width_bytes;
         copy_image_byteswap( color_info, src, dst, width_bytes, width_bytes, dirty->bottom - dirty->top,
-                             surface->byteswap, mapping, ~0u, alpha_bits );
+                             surface->byteswap, NULL, ~0u, alpha_bits );
     }
     else if (alpha_bits)
     {
@@ -1902,13 +1901,13 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
     info->bmiHeader.biPlanes      = 1;
     info->bmiHeader.biBitCount    = format->bits_per_pixel;
     info->bmiHeader.biSizeImage   = get_dib_image_size( info );
-    if (format->bits_per_pixel > 8) set_color_info( vis, info, use_alpha );
+    set_color_info( vis, info, use_alpha );
 
     if (!(image = x11drv_image_create( info, vis ))) return NULL;
 
     /* wrap the XImage data in a HBITMAP if we can write to the surface pixels directly */
     if ((byteswap = display_needs_byteswap( gdi_display, is_r8g8b8( vis ), info->bmiHeader.biBitCount )) ||
-        info->bmiHeader.biBitCount <= 8 || !(d3d_format = get_dib_d3dddifmt( info )))
+        !(d3d_format = get_dib_d3dddifmt( info )))
         WARN( "Cannot use direct rendering, falling back to copies\n" );
     else
     {
@@ -2040,11 +2039,13 @@ static struct window_surface *create_scaled_surface( HWND hwnd, Window window, c
 
 static BOOL enable_direct_drawing( struct x11drv_win_data *data, BOOL layered )
 {
+    const XPixmapFormatValues *format = pixmap_formats[data->vis.depth];
     if (layered) return FALSE;
     if (data->embedded) return TRUE; /* draw directly to the window */
     if (data->whole_window == root_window) return TRUE; /* draw directly to the window */
     if (data->client_window) return TRUE; /* draw directly to the window */
     if (!client_side_graphics) return TRUE; /* draw directly to the window */
+    if (format->bits_per_pixel <= 8) return TRUE; /* draw directly to the window */
     return FALSE;
 }
 
