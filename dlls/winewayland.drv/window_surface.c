@@ -34,10 +34,17 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(waylanddrv);
 
+struct wayland_buffer
+{
+    struct wl_buffer *wl_buffer;
+    BOOL busy;
+};
+
 struct wayland_buffer_queue
 {
+    struct wl_event_queue *wl_event_queue;
     UINT buffer_count;
-    struct wl_buffer *buffers[];
+    struct wayland_buffer buffers[];
 };
 
 struct wayland_window_surface
@@ -54,7 +61,8 @@ static struct wayland_window_surface *wayland_window_surface_cast(
 
 static void buffer_release(void *data, struct wl_buffer *buffer)
 {
-    if (data) NtSetEvent(data, NULL);
+    BOOL *busy = data;
+    if (busy) *busy = FALSE;
 }
 
 static const struct wl_buffer_listener buffer_listener = { buffer_release };
@@ -70,10 +78,22 @@ static void wayland_buffer_queue_destroy(struct wayland_buffer_queue *queue)
 
     for (i = 0; i < queue->buffer_count; i++)
     {
-        struct wl_proxy *wl_buffer = (struct wl_proxy *)queue->buffers[i];
+        struct wl_proxy *wl_buffer = (struct wl_proxy *)queue->buffers[i].wl_buffer;
         /* Since this buffer may still be busy, attach it to the per-process
          * wl_event_queue to handle any future buffer release events. */
         wl_proxy_set_user_data(wl_buffer, NULL);
+        wl_proxy_set_queue(wl_buffer, process_wayland.wl_event_queue);
+    }
+
+    if (queue->wl_event_queue)
+    {
+        /* Dispatch the event queue before destruction to process any
+         * pending buffer release events. This is required after changing
+         * the buffer proxy event queue in the previous step, to avoid
+         * missing any events. */
+        wl_display_dispatch_queue_pending(process_wayland.wl_display,
+                                          queue->wl_event_queue);
+        wl_event_queue_destroy(queue->wl_event_queue);
     }
 
     free(queue);
@@ -131,35 +151,41 @@ err:
  *
  * Creates a buffer queue containing buffers with the specified width and height.
  */
-static struct wayland_buffer_queue *wayland_buffer_queue_create( int fd, UINT size, const BITMAPINFO *info,
-                                                                 UINT *count, HANDLE *events )
+static struct wayland_buffer_queue *wayland_buffer_queue_create( int fd, UINT size, const BITMAPINFO *info, UINT count )
 {
-    int i, capacity = *count, width = info->bmiHeader.biWidth, height = abs(info->bmiHeader.biHeight);
+    int i, width = info->bmiHeader.biWidth, height = abs(info->bmiHeader.biHeight);
     struct wayland_buffer_queue *queue;
     struct wl_shm_pool *pool;
 
-    if (!(queue = calloc(1, offsetof(struct wayland_buffer_queue, buffers[capacity])))) return NULL;
+    if (!(queue = calloc(1, offsetof(struct wayland_buffer_queue, buffers[count])))) return NULL;
+    if (!(queue->wl_event_queue = wl_display_create_queue(process_wayland.wl_display)))
+    {
+        ERR("Failed to create display buffer queue\n");
+        free( queue );
+        return NULL;
+    }
+
     if (!(pool = wl_shm_create_pool(process_wayland.wl_shm, fd, size)))
     {
         ERR("Failed to create SHM pool fd=%d size=%d\n", fd, size);
         goto err;
     }
 
-    for (i = 0; i < capacity; i++)
+    for (i = 0; i < count; i++)
     {
-        queue->buffers[i] = wl_shm_pool_create_buffer(pool, i * info->bmiHeader.biSizeImage, width, height,
+        struct wayland_buffer *buffer = queue->buffers + i;
+        buffer->wl_buffer = wl_shm_pool_create_buffer(pool, i * info->bmiHeader.biSizeImage, width, height,
                                                       info->bmiHeader.biSizeImage / height, WL_SHM_FORMAT_XRGB8888);
-        if (!queue->buffers[i])
+        if (!buffer->wl_buffer)
         {
             ERR("Failed to create SHM buffer %dx%d\n", width, height);
             break;
         }
 
-        wl_proxy_set_queue((struct wl_proxy *)queue->buffers[i], process_wayland.wl_event_queue);
-        wl_buffer_add_listener(queue->buffers[i], &buffer_listener, events[i]);
+        wl_proxy_set_queue((struct wl_proxy *)buffer->wl_buffer, queue->wl_event_queue);
+        wl_buffer_add_listener(buffer->wl_buffer, &buffer_listener, &buffer->busy);
         queue->buffer_count++;
     }
-    *count = queue->buffer_count;
 
     wl_shm_pool_destroy(pool);
     return queue;
@@ -222,19 +248,45 @@ static void wayland_window_surface_destroy(struct window_surface *window_surface
 }
 
 static void wayland_window_surface_create_images( struct window_surface *window_surface, int fd, UINT size,
-                                                  const BITMAPINFO *info, UINT *count, HANDLE *events )
+                                                  const BITMAPINFO *info, UINT count )
 {
     struct wayland_window_surface *wws = wayland_window_surface_cast(window_surface);
 
-    TRACE("surface=%p, fd=%d, size=%u, info=%p, count=%p, events=%p\n", wws, fd, size, info, count, events);
+    TRACE("surface=%p, fd=%d, size=%u, info=%p, count=%u\n", wws, fd, size, info, count);
 
-    wws->wayland_buffer_queue = wayland_buffer_queue_create( fd, size, info, count, events );
+    wws->wayland_buffer_queue = wayland_buffer_queue_create( fd, size, info, count );
+}
+
+static UINT wayland_window_surface_acquire_image( struct window_surface *window_surface )
+{
+    struct wayland_window_surface *wws = wayland_window_surface_cast(window_surface);
+    struct wayland_buffer_queue *queue = wws->wayland_buffer_queue;
+    UINT i;
+
+    TRACE("surface=%p\n", wws);
+
+    for (;;)
+    {
+        /* Dispatch any pending buffer release events. */
+        wl_display_dispatch_queue_pending(process_wayland.wl_display, queue->wl_event_queue);
+
+        /* Search through our buffers to find an available one. */
+        for (i = 0; i < queue->buffer_count; i++) if (!queue->buffers[i].busy) return i;
+
+        /* We don't have any buffers available, so block waiting for a buffer release event. */
+        if (wl_display_dispatch_queue(process_wayland.wl_display, queue->wl_event_queue) == -1)
+        {
+            ERR("Failed to dispatch buffer queue events\n");
+            return -1;
+        }
+    }
 }
 
 static void wayland_window_surface_present_image( struct window_surface *window_surface, UINT index, const RECT *dirty )
 {
     struct wayland_window_surface *wws = wayland_window_surface_cast(window_surface);
     struct wayland_buffer_queue *queue = wws->wayland_buffer_queue;
+    struct wayland_buffer *buffer = queue->buffers + index;
     struct wayland_surface *wayland_surface;
     struct wayland_win_data *data;
 
@@ -244,6 +296,7 @@ static void wayland_window_surface_present_image( struct window_surface *window_
 
     if ((wayland_surface = data->wayland_surface) && wayland_surface_reconfigure(wayland_surface, data->client_surface))
     {
+        buffer->busy = TRUE;
         wayland_surface_present(wayland_surface, buffer->wl_buffer, &window_surface->rect, dirty);
         wl_surface_commit(wayland_surface->wl_surface);
     }
@@ -259,6 +312,7 @@ static const struct window_surface_funcs wayland_window_surface_funcs =
     .flush = wayland_window_surface_flush,
     .destroy = wayland_window_surface_destroy,
     .create_images = wayland_window_surface_create_images,
+    .acquire_image = wayland_window_surface_acquire_image,
     .present_image = wayland_window_surface_present_image,
 };
 
