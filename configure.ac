@@ -1225,18 +1225,6 @@ then
                       X11/extensions/xf86vmproto.h],,,
                       [$xlib_includes])
 
-        dnl **** Check for XCB ****
-        if test "x$with_xcb" != "xno"
-        then
-            WINE_PACKAGE_FLAGS(XCB,[x11-xcb xcb-shm],,,,[
-                AC_CHECK_HEADERS([X11/Xlib-xcb.h xcb/shm.h],[:],[XCB_CFLAGS=""; XCB_LIBS=""])
-                AC_CHECK_LIB(X11-xcb,XGetXCBConnection,[:],[XCB_CFLAGS=""; XCB_LIBS=""],[$XCB_LIBS])
-                AC_CHECK_LIB(xcb-shm,xcb_shm_attach_fd,[:],[XCB_CFLAGS=""; XCB_LIBS=""],[$XCB_LIBS])
-                ])
-        fi
-        WINE_NOTICE_WITH(xcb,[test "x$XCB_LIBS" = "x"],
-            [XCB ${notice_platform}development files not found.])
-
         dnl *** Check for X cursor
         AC_CHECK_HEADER([X11/Xcursor/Xcursor.h],
                         [WINE_CHECK_SONAME(Xcursor,XcursorImageLoadCursor,,,[$X_LIBS])],,
