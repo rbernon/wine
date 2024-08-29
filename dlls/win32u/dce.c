@@ -527,32 +527,6 @@ static BOOL update_surface_shape( struct window_surface *surface, const RECT *re
         return clear_surface_shape( surface );
 }
 
-static void update_surface_alpha( struct window_surface *surface, const RECT *dirty,
-                                  const BITMAPINFO *color_info, void *color_bits )
-{
-    UINT alpha_bits = surface->alpha_bits, stride, *ptr, x, y;
-
-    if (alpha_bits == -1)
-    {
-        if (surface->alpha_mask || color_info->bmiHeader.biBitCount != 32) return 0;
-        else if (color_info->bmiHeader.biCompression == BI_RGB) alpha_bits = 0xff000000;
-        else
-        {
-            DWORD *colors = (DWORD *)color_info->bmiColors;
-            alpha_bits = ~(colors[0] | colors[1] | colors[2]);
-        }
-    }
-
-    if (!alpha_bits) return;
-
-    stride = color_info->bmiHeader.biSizeImage / abs(color_info->bmiHeader.biHeight) / sizeof(*ptr);
-    ptr = (UINT *)color_bits + dirty->top * stride;
-
-    for (y = dirty->top; y < dirty->bottom; y++, ptr += stride)
-        for (x = dirty->left; x < dirty->right; x++)
-            ptr[x] |= alpha_bits;
-}
-
 static void window_surface_damage_images( struct window_surface *surface, RECT dirty )
 {
     HRGN damage;
@@ -782,7 +756,6 @@ void window_surface_flush( struct window_surface *surface )
     {
         BOOL shape_changed = update_surface_shape( surface, &surface->rect, &dirty, color_info, color_bits );
         void *shape_bits = window_surface_get_shape( surface, shape_info );
-        update_surface_alpha( surface, &dirty, color_info, color_bits );
 
         TRACE( "Flushing hwnd %p, surface %p %s, bounds %s, dirty %s\n", surface->hwnd, surface,
                wine_dbgstr_rect( &surface->rect ), wine_dbgstr_rect( &surface->bounds ), wine_dbgstr_rect( &dirty ) );
