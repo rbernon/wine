@@ -1682,29 +1682,36 @@ static BOOL put_shm_image( XImage *image, x11drv_xshm_info_t *shminfo, Window wi
 
 #endif /* HAVE_LIBXXSHM */
 
-static UINT get_dib_d3dddifmt( const XVisualInfo *vis, BOOL has_alpha )
+static UINT get_dib_d3dddifmt( const BITMAPINFO *info )
 {
-    const XPixmapFormatValues *format = pixmap_formats[vis->depth];
-    DWORD colors[3];
-
-    colors[0] = vis->red_mask;
-    colors[1] = vis->green_mask;
-    colors[2] = vis->blue_mask;
-
-    if (format->bits_per_pixel == 16)
+    if (info->bmiHeader.biCompression == BI_RGB)
     {
-        if (colors[0] == 0x0000f800 && colors[1] == 0x000007e0 && colors[2] == 0x0000001f) return D3DDDIFMT_R5G6B5;
-        if (colors[0] == 0x00007c00 && colors[1] == 0x000003e0 && colors[2] == 0x0000001f) return D3DDDIFMT_A1R5G5B5;
-        if (colors[0] == 0x00000f00 && colors[1] == 0x000000f0 && colors[2] == 0x0000000f) return D3DDDIFMT_A4R4G4B4;
+        if (info->bmiHeader.biBitCount == 8) return D3DDDIFMT_P8;
+        if (info->bmiHeader.biBitCount == 24) return D3DDDIFMT_R8G8B8;
+        if (info->bmiHeader.biBitCount == 32) return D3DDDIFMT_A8R8G8B8;
+        return D3DDDIFMT_UNKNOWN;
     }
-    else if (format->bits_per_pixel == 24)
+
+    if (info->bmiHeader.biCompression == BI_BITFIELDS)
     {
-        if (colors[0] == 0x00ff0000 && colors[1] == 0x0000ff00 && colors[2] == 0x000000ff) return D3DDDIFMT_R8G8B8;
-    }
-    else if (format->bits_per_pixel == 32)
-    {
-        if (colors[0] == 0x00ff0000 && colors[1] == 0x0000ff00 && colors[2] == 0x000000ff)
-            return has_alpha ? D3DDDIFMT_A8R8G8B8 : D3DDDIFMT_X8R8G8B8;
+        DWORD *colors = (DWORD *)info->bmiColors;
+
+        if (info->bmiHeader.biBitCount == 16)
+        {
+            if (colors[0] == 0x0000f800 && colors[1] == 0x000007e0 && colors[2] == 0x0000001f) return D3DDDIFMT_R5G6B5;
+            if (colors[0] == 0x00007c00 && colors[1] == 0x000003e0 && colors[2] == 0x0000001f) return D3DDDIFMT_A1R5G5B5;
+            if (colors[0] == 0x00000f00 && colors[1] == 0x000000f0 && colors[2] == 0x0000000f) return D3DDDIFMT_A4R4G4B4;
+        }
+        else if (info->bmiHeader.biBitCount == 24)
+        {
+            if (colors[0] == 0x00ff0000 && colors[1] == 0x0000ff00 && colors[2] == 0x000000ff) return D3DDDIFMT_R8G8B8;
+        }
+        else if (info->bmiHeader.biBitCount == 32)
+        {
+            if (colors[0] == 0x00ff0000 && colors[1] == 0x0000ff00 && colors[2] == 0x000000ff) return D3DDDIFMT_X8R8G8B8;
+        }
+
+        return D3DDDIFMT_UNKNOWN;
     }
 
     return D3DDDIFMT_UNKNOWN;
@@ -1899,7 +1906,8 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
     if (!(image = x11drv_image_create( info, vis ))) return NULL;
 
     /* wrap the XImage data in a HBITMAP if we can write to the surface pixels directly */
-    if ((byteswap = display_needs_byteswap( gdi_display, is_r8g8b8( vis ), info->bmiHeader.biBitCount )))
+    if ((byteswap = display_needs_byteswap( gdi_display, is_r8g8b8( vis ), info->bmiHeader.biBitCount )) ||
+        !(d3d_format = get_dib_d3dddifmt( info )))
         WARN( "Cannot use direct rendering, falling back to copies\n" );
     else
     {
@@ -1908,7 +1916,7 @@ static struct window_surface *create_surface( HWND hwnd, Window window, const XV
             .Width = info->bmiHeader.biWidth,
             .Height = abs( info->bmiHeader.biHeight ),
             .Pitch = info->bmiHeader.biSizeImage / abs( info->bmiHeader.biHeight ),
-            .Format = d3d_format = get_dib_d3dddifmt( vis, use_alpha ),
+            .Format = d3d_format,
             .pMemory = image->ximage->data,
             .hDeviceDc = NtUserGetDCEx( hwnd, 0, DCX_CACHE | DCX_WINDOW ),
         };
@@ -2038,7 +2046,6 @@ static BOOL enable_direct_drawing( struct x11drv_win_data *data, BOOL layered )
     if (data->client_window) return TRUE; /* draw directly to the window */
     if (!client_side_graphics) return TRUE; /* draw directly to the window */
     if (format->bits_per_pixel <= 8) return TRUE; /* draw directly to the window */
-    if (!get_dib_d3dddifmt( &data->vis, layered ? data->use_alpha : FALSE )) return TRUE; /* draw directly to the window */
     return FALSE;
 }
 
