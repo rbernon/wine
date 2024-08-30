@@ -832,6 +832,7 @@ VkResult wine_vkAllocateCommandBuffers(VkDevice handle, const VkCommandBufferAll
     for (i = 0; i < allocate_info->commandBufferCount; i++)
     {
         VkCommandBufferAllocateInfo allocate_info_host;
+        VkCommandBuffer host_command_buffer;
 
         /* TODO: future extensions (none yet) may require pNext conversion. */
         allocate_info_host.pNext = allocate_info->pNext;
@@ -849,22 +850,24 @@ VkResult wine_vkAllocateCommandBuffers(VkDevice handle, const VkCommandBufferAll
             break;
         }
 
-        buffer->handle = buffers[i];
-        buffer->device = device;
         res = device->funcs.p_vkAllocateCommandBuffers(device->host_device, &allocate_info_host,
-                                                       &buffer->host_command_buffer);
-        buffer->handle->base.unix_handle = (uintptr_t)buffer;
-        add_handle_mapping_ptr(device->phys_dev->instance, buffer->handle, buffer->host_command_buffer, &buffer->wrapper_entry);
+                                                       &host_command_buffer);
         if (res != VK_SUCCESS)
         {
             ERR("Failed to allocate command buffer, res=%d.\n", res);
-            buffer->host_command_buffer = VK_NULL_HANDLE;
+            free(buffer);
             break;
         }
+
+        buffer->host_command_buffer = host_command_buffer;
+        buffer->handle = buffers[i];
+        buffer->device = device;
+        buffer->handle->base.unix_handle = (uintptr_t)buffer;
+        add_handle_mapping_ptr(device->phys_dev->instance, buffer->handle, buffer->host_command_buffer, &buffer->wrapper_entry);
     }
 
     if (res != VK_SUCCESS)
-        wine_vk_free_command_buffers(device, pool, i + 1, buffers);
+        wine_vk_free_command_buffers(device, pool, i, buffers);
 
     return res;
 }
