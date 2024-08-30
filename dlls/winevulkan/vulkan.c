@@ -878,7 +878,7 @@ VkResult wine_vkCreateDevice(VkPhysicalDevice phys_dev_handle, const VkDeviceCre
 {
     struct wine_phys_dev *phys_dev = wine_phys_dev_from_handle(phys_dev_handle);
     struct wine_instance *instance = phys_dev->instance;
-    VkDevice device_handle = client_ptr;
+    VkDevice device_handle = client_ptr, host_device;
     VkDeviceCreateInfo create_info_host;
     struct VkQueue_T *queue_handles;
     struct conversion_context ctx;
@@ -907,13 +907,11 @@ VkResult wine_vkCreateDevice(VkPhysicalDevice phys_dev_handle, const VkDeviceCre
     if (!(object = calloc(1, offsetof(struct wine_device, queues[queue_count]))))
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    object->phys_dev = phys_dev;
-
     init_conversion_context(&ctx);
     res = wine_vk_device_convert_create_info(phys_dev, &ctx, create_info, &create_info_host);
     if (res == VK_SUCCESS)
         res = instance->funcs.p_vkCreateDevice(phys_dev->host_physical_device, &create_info_host,
-                                               NULL /* allocator */, &object->host_device);
+                                               NULL /* allocator */, &host_device);
     free_conversion_context(&ctx);
     if (res != VK_SUCCESS)
     {
@@ -921,6 +919,9 @@ VkResult wine_vkCreateDevice(VkPhysicalDevice phys_dev_handle, const VkDeviceCre
         free(object);
         return res;
     }
+
+    object->phys_dev = phys_dev;
+    object->host_device = host_device;
 
     /* Just load all function pointers we are aware off. The loader takes care of filtering.
      * We use vkGetDeviceProcAddr as opposed to vkGetInstanceProcAddr for efficiency reasons
@@ -955,7 +956,7 @@ VkResult wine_vkCreateInstance(const VkInstanceCreateInfo *create_info,
                                const VkAllocationCallbacks *allocator, VkInstance *instance,
                                void *client_ptr)
 {
-    VkInstance client_instance = client_ptr;
+    VkInstance client_instance = client_ptr, host_instance;
     VkInstanceCreateInfo create_info_host;
     const VkApplicationInfo *app_info;
     struct conversion_context ctx;
@@ -975,7 +976,7 @@ VkResult wine_vkCreateInstance(const VkInstanceCreateInfo *create_info,
     init_conversion_context(&ctx);
     res = wine_vk_instance_convert_create_info(&ctx, create_info, &create_info_host, object);
     if (res == VK_SUCCESS)
-        res = p_vkCreateInstance(&create_info_host, NULL /* allocator */, &object->host_instance);
+        res = p_vkCreateInstance(&create_info_host, NULL /* allocator */, &host_instance);
     free_conversion_context(&ctx);
     if (res != VK_SUCCESS)
     {
@@ -986,6 +987,7 @@ VkResult wine_vkCreateInstance(const VkInstanceCreateInfo *create_info,
     }
 
     object->handle = client_instance;
+    object->host_instance = host_instance;
 
     /* Load all instance functions we are aware of. Note the loader takes care
      * of any filtering for extensions which were not requested, but which the
@@ -1277,6 +1279,7 @@ VkResult wine_vkCreateCommandPool(VkDevice device_handle, const VkCommandPoolCre
 {
     struct wine_device *device = wine_device_from_handle(device_handle);
     struct vk_command_pool *handle = client_ptr;
+    VkCommandPool host_command_pool;
     struct wine_cmd_pool *object;
     VkResult res;
 
@@ -1286,13 +1289,14 @@ VkResult wine_vkCreateCommandPool(VkDevice device_handle, const VkCommandPoolCre
     if (!(object = calloc(1, sizeof(*object))))
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    res = device->funcs.p_vkCreateCommandPool(device->host_device, info, NULL, &object->host_command_pool);
+    res = device->funcs.p_vkCreateCommandPool(device->host_device, info, NULL, &host_command_pool);
     if (res != VK_SUCCESS)
     {
         free(object);
         return res;
     }
 
+    object->host_command_pool = host_command_pool;
     object->handle = (uintptr_t)handle;
     handle->unix_handle = (uintptr_t)object;
 
@@ -1779,6 +1783,7 @@ VkResult wine_vkCreateSwapchainKHR(VkDevice device_handle, const VkSwapchainCrea
     struct wine_instance *instance = physical_device->instance;
     VkSwapchainCreateInfoKHR create_info_host = *create_info;
     VkSurfaceCapabilitiesKHR capabilities;
+    VkSwapchainKHR host_swapchain;
     VkResult res;
 
     if (!NtUserIsWindow(surface->hwnd))
@@ -1799,13 +1804,14 @@ VkResult wine_vkCreateSwapchainKHR(VkDevice device_handle, const VkSwapchainCrea
     create_info_host.imageExtent.height = max(create_info_host.imageExtent.height, capabilities.minImageExtent.height);
 
     if (!(object = calloc(1, sizeof(*object)))) return VK_ERROR_OUT_OF_HOST_MEMORY;
-    res = device->funcs.p_vkCreateSwapchainKHR(device->host_device, &create_info_host, NULL, &object->host_swapchain);
+    res = device->funcs.p_vkCreateSwapchainKHR(device->host_device, &create_info_host, NULL, &host_swapchain);
     if (res != VK_SUCCESS)
     {
         free(object);
         return res;
     }
 
+    object->host_swapchain = host_swapchain;
     object->surface = surface;
     object->extents = create_info->imageExtent;
 
@@ -1918,6 +1924,7 @@ VkResult wine_vkAllocateMemory(VkDevice handle, const VkMemoryAllocateInfo *allo
     struct wine_device_memory *memory;
     VkMemoryAllocateInfo info = *alloc_info;
     VkImportMemoryHostPointerInfoEXT host_pointer_info;
+    VkDeviceMemory host_device_memory;
     uint32_t mem_flags;
     void *mapping = NULL;
     VkResult result;
@@ -1993,13 +2000,14 @@ VkResult wine_vkAllocateMemory(VkDevice handle, const VkMemoryAllocateInfo *allo
     if (!(memory = malloc(sizeof(*memory))))
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    result = device->funcs.p_vkAllocateMemory(device->host_device, &info, NULL, &memory->host_memory);
+    result = device->funcs.p_vkAllocateMemory(device->host_device, &info, NULL, &host_device_memory);
     if (result != VK_SUCCESS)
     {
         free(memory);
         return result;
     }
 
+    memory->host_memory = host_device_memory;
     memory->size = info.allocationSize;
     memory->vm_map = mapping;
 
@@ -2465,6 +2473,7 @@ VkResult wine_vkCreateDeferredOperationKHR(VkDevice                     handle,
                                            VkDeferredOperationKHR*      operation)
 {
     struct wine_device *device = wine_device_from_handle(handle);
+    VkDeferredOperationKHR host_deferred_operation;
     struct wine_deferred_operation *object;
     VkResult res;
 
@@ -2474,14 +2483,14 @@ VkResult wine_vkCreateDeferredOperationKHR(VkDevice                     handle,
     if (!(object = calloc(1, sizeof(*object))))
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    res = device->funcs.p_vkCreateDeferredOperationKHR(device->host_device, NULL, &object->host_deferred_operation);
-
+    res = device->funcs.p_vkCreateDeferredOperationKHR(device->host_device, NULL, &host_deferred_operation);
     if (res != VK_SUCCESS)
     {
         free(object);
         return res;
     }
 
+    object->host_deferred_operation = host_deferred_operation;
     init_conversion_context(&object->ctx);
 
     *operation = wine_deferred_operation_to_handle(object);
