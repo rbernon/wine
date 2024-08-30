@@ -2355,6 +2355,7 @@ VkResult wine_vkCreateDebugUtilsMessengerEXT(VkInstance handle,
 {
     struct wine_instance *instance = wine_instance_from_handle(handle);
     VkDebugUtilsMessengerCreateInfoEXT wine_create_info;
+    VkDebugUtilsMessengerEXT host_debug_messenger;
     struct wine_debug_utils_messenger *object;
     VkResult res;
 
@@ -2364,22 +2365,22 @@ VkResult wine_vkCreateDebugUtilsMessengerEXT(VkInstance handle,
     if (!(object = calloc(1, sizeof(*object))))
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    object->instance = instance;
-    object->user_callback = (UINT_PTR)create_info->pfnUserCallback;
-    object->user_data = (UINT_PTR)create_info->pUserData;
-
     wine_create_info = *create_info;
-
     wine_create_info.pfnUserCallback = (void *) &debug_utils_callback_conversion;
     wine_create_info.pUserData = object;
 
     res = instance->funcs.p_vkCreateDebugUtilsMessengerEXT(instance->host_instance, &wine_create_info,
-                                                           NULL, &object->host_debug_messenger);
+                                                           NULL, &host_debug_messenger);
     if (res != VK_SUCCESS)
     {
         free(object);
         return res;
     }
+
+    object->host_debug_messenger = host_debug_messenger;
+    object->instance = instance;
+    object->user_callback = (UINT_PTR)create_info->pfnUserCallback;
+    object->user_data = (UINT_PTR)create_info->pUserData;
 
     *messenger = wine_debug_utils_messenger_to_handle(object);
     add_handle_mapping(instance, *messenger, object->host_debug_messenger, &object->wrapper_entry);
@@ -2410,6 +2411,7 @@ VkResult wine_vkCreateDebugReportCallbackEXT(VkInstance handle,
 {
     struct wine_instance *instance = wine_instance_from_handle(handle);
     VkDebugReportCallbackCreateInfoEXT wine_create_info;
+    VkDebugReportCallbackEXT host_debug_callback;
     struct wine_debug_report_callback *object;
     VkResult res;
 
@@ -2419,22 +2421,22 @@ VkResult wine_vkCreateDebugReportCallbackEXT(VkInstance handle,
     if (!(object = calloc(1, sizeof(*object))))
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    object->instance = instance;
-    object->user_callback = (UINT_PTR)create_info->pfnCallback;
-    object->user_data = (UINT_PTR)create_info->pUserData;
-
     wine_create_info = *create_info;
-
     wine_create_info.pfnCallback = (void *) debug_report_callback_conversion;
     wine_create_info.pUserData = object;
 
     res = instance->funcs.p_vkCreateDebugReportCallbackEXT(instance->host_instance, &wine_create_info,
-                                                           NULL, &object->host_debug_callback);
+                                                           NULL, &host_debug_callback);
     if (res != VK_SUCCESS)
     {
         free(object);
         return res;
     }
+
+    object->host_debug_callback = host_debug_callback;
+    object->instance = instance;
+    object->user_callback = (UINT_PTR)create_info->pfnCallback;
+    object->user_data = (UINT_PTR)create_info->pUserData;
 
     *callback = wine_debug_report_callback_to_handle(object);
     add_handle_mapping(instance, *callback, object->host_debug_callback, &object->wrapper_entry);
