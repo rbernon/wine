@@ -32,15 +32,20 @@
 #include "win32u_private.h"
 #include "ntuser_private.h"
 
-#define VK_NO_PROTOTYPES
 #define WINE_VK_HOST
 #include "wine/vulkan.h"
 #include "wine/vulkan_driver.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(vulkan);
 
-void *(*p_vkGetDeviceProcAddr)(VkDevice, const char *) = NULL;
-void *(*p_vkGetInstanceProcAddr)(VkInstance, const char *) = NULL;
+typeof(vkGetDeviceProcAddr) *p_vkGetDeviceProcAddr = NULL;
+typeof(vkGetInstanceProcAddr) *p_vkGetInstanceProcAddr = NULL;
+
+#define DECL_FUNCPTR(f) static typeof(f) * p_##f
+DECL_FUNCPTR( vkDestroySurfaceKHR );
+DECL_FUNCPTR( vkQueuePresentKHR );
+DECL_FUNCPTR( vkCreateHeadlessSurfaceEXT );
+#undef DECL_FUNCPTR
 
 static void *vulkan_handle;
 static struct vulkan_funcs vulkan_funcs;
@@ -48,9 +53,6 @@ static struct vulkan_funcs vulkan_funcs;
 #ifdef SONAME_LIBVULKAN
 
 static const struct vulkan_driver_funcs *driver_funcs;
-
-static void (*p_vkDestroySurfaceKHR)(VkInstance, VkSurfaceKHR, const VkAllocationCallbacks *);
-static VkResult (*p_vkQueuePresentKHR)(VkQueue, const VkPresentInfoKHR *);
 
 struct surface
 {
@@ -81,8 +83,20 @@ static VkResult win32u_vkCreateWin32SurfaceKHR( VkInstance instance, const VkWin
     if (allocator) FIXME( "Support for allocation callbacks not implemented yet\n" );
 
     if (!(surface = calloc( 1, sizeof(*surface) ))) return VK_ERROR_OUT_OF_HOST_MEMORY;
-    if ((res = driver_funcs->p_vulkan_surface_create( info->hwnd, instance, &surface->host_surface, &surface->driver_private )))
+
+    res = driver_funcs->p_vulkan_surface_create( info->hwnd, instance, &surface->host_surface, &surface->driver_private );
+    if (res == VK_ERROR_INCOMPATIBLE_DRIVER && p_vkCreateHeadlessSurfaceEXT)
     {
+        const VkHeadlessSurfaceCreateInfoEXT info =
+        {
+            .sType = VK_STRUCTURE_TYPE_HEADLESS_SURFACE_CREATE_INFO_EXT,
+        };
+        WARN( "Failed to create surface with result %d, trying headless surface\n", res );
+        res = p_vkCreateHeadlessSurfaceEXT( instance, &info, NULL /* allocator */, &surface->host_surface );
+    }
+    if (res)
+    {
+        ERR( "Failed to create host surface\n" );
         free( surface );
         return res;
     }
@@ -219,7 +233,7 @@ static VkBool32 nulldrv_vkGetPhysicalDeviceWin32PresentationSupportKHR( VkPhysic
 
 static const char *nulldrv_get_host_surface_extension(void)
 {
-    return "VK_WINE_nulldrv_surface";
+    return "VK_EXT_headless_surface";
 }
 
 static const struct vulkan_driver_funcs nulldrv_funcs =
@@ -331,6 +345,7 @@ static void vulkan_init_once(void)
     LOAD_FUNCPTR( vkQueuePresentKHR );
     LOAD_FUNCPTR( vkGetDeviceProcAddr );
     LOAD_FUNCPTR( vkGetInstanceProcAddr );
+    LOAD_FUNCPTR( vkCreateHeadlessSurfaceEXT );
 #undef LOAD_FUNCPTR
 
     driver_funcs = &lazydrv_funcs;
