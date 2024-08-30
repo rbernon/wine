@@ -134,11 +134,42 @@ static void macdrv_surface_destroy(struct window_surface *window_surface)
     CGDataProviderRelease(surface->provider);
 }
 
+static void unmap_image_data( void *info, const void *data, size_t size )
+{
+    munmap( info, size );
+}
+
+static void macdrv_surface_create_images( struct window_surface *window_surface, int fd, UINT size,
+                                          const BITMAPINFO *info, UINT count )
+{
+    struct macdrv_window_surface *surface = get_mac_surface(window_surface);
+    void *data = mmap( NULL, size, PROT_READ, MAP_PRIVATE, fd, 0 );
+    DWORD window_background;
+
+    window_background = macdrv_window_background_color();
+    memset_pattern4( data, &window_background, info->bmiHeader.biSizeImage );
+
+    surface->provider = CGDataProviderCreateWithData( data, data, info->bmiHeader.biSizeImage, unmap_image_data );
+}
+
+static UINT macdrv_surface_acquire_image( struct window_surface *window_surface )
+{
+    return 0; /* always return the first image */
+}
+
+static void macdrv_surface_present_image( struct window_surface *window_surface, UINT index, const RECT *dirty )
+{
+    /* nothing to do, this is handled in flush instead */
+}
+
 static const struct window_surface_funcs macdrv_surface_funcs =
 {
     .set_clip = macdrv_surface_set_clip,
     .flush = macdrv_surface_flush,
     .destroy = macdrv_surface_destroy,
+    .create_images = macdrv_surface_create_images,
+    .acquire_image = macdrv_surface_acquire_image,
+    .present_image = macdrv_surface_present_image,
 };
 
 static struct macdrv_window_surface *get_mac_surface(struct window_surface *surface)
@@ -154,15 +185,9 @@ static struct window_surface *create_surface(HWND hwnd, macdrv_window window, co
 {
     struct macdrv_window_surface *surface;
     int width = rect->right - rect->left, height = rect->bottom - rect->top;
-    DWORD window_background;
-    D3DKMT_CREATEDCFROMMEMORY desc = {.Format = D3DDDIFMT_A8R8G8B8};
     char buffer[FIELD_OFFSET(BITMAPINFO, bmiColors[256])];
     BITMAPINFO *info = (BITMAPINFO *)buffer;
     struct window_surface *window_surface;
-    CGDataProviderRef provider;
-    HBITMAP bitmap = 0;
-    UINT status;
-    void *bits;
 
     memset(info, 0, sizeof(*info));
     info->bmiHeader.biSize        = sizeof(info->bmiHeader);
@@ -173,35 +198,10 @@ static struct window_surface *create_surface(HWND hwnd, macdrv_window window, co
     info->bmiHeader.biSizeImage   = get_dib_image_size(info);
     info->bmiHeader.biCompression = BI_RGB;
 
-    if (!(provider = data_provider_create(info->bmiHeader.biSizeImage, &bits))) return NULL;
-    window_background = macdrv_window_background_color();
-    memset_pattern4(bits, &window_background, info->bmiHeader.biSizeImage);
-
-    /* wrap the data in a HBITMAP so we can write to the surface pixels directly */
-    desc.Width = info->bmiHeader.biWidth;
-    desc.Height = abs(info->bmiHeader.biHeight);
-    desc.Pitch = info->bmiHeader.biSizeImage / abs(info->bmiHeader.biHeight);
-    desc.pMemory = bits;
-    desc.hDeviceDc = NtUserGetDCEx(hwnd, 0, DCX_CACHE | DCX_WINDOW);
-    if ((status = NtGdiDdDDICreateDCFromMemory(&desc)))
-        ERR("Failed to create HBITMAP, status %#x\n", status);
-    else
-    {
-        bitmap = desc.hBitmap;
-        NtGdiDeleteObjectApp(desc.hDc);
-    }
-    if (desc.hDeviceDc) NtUserReleaseDC(hwnd, desc.hDeviceDc);
-
-    if (!(window_surface = window_surface_create(sizeof(*surface), &macdrv_surface_funcs, hwnd, rect, info, bitmap)))
-    {
-        if (bitmap) NtGdiDeleteObjectApp(bitmap);
-        CGDataProviderRelease(provider);
-    }
-    else
+    if ((window_surface = window_surface_create(sizeof(*surface), &macdrv_surface_funcs, hwnd, rect, info, 0)))
     {
         surface = get_mac_surface(window_surface);
         surface->window = window;
-        surface->provider = provider;
     }
 
     return window_surface;
