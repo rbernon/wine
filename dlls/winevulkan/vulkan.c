@@ -388,7 +388,7 @@ static VkResult wine_vk_physical_device_init(struct wine_phys_dev *object, VkPhy
     unsigned int i, j;
 
     object->obj.parent = &instance->obj;
-    object->handle = client_handle;
+    object->obj.client.physical_device = client_handle;
     object->obj.host.physical_device = host_handle;
 
     client_handle->base.unix_handle = (uintptr_t)object;
@@ -531,7 +531,7 @@ static void wine_vk_free_command_buffers(struct wine_device *device, VkDevice ha
         device->funcs.p_vkFreeCommandBuffers(device->obj.host.device, pool->obj.host.command_pool, 1,
                                              &buffer->obj.host.command_buffer);
         remove_device_handle_mapping(handle, &buffer->wrapper_entry);
-        buffer->handle->base.unix_handle = 0;
+        buffer->obj.client.command_buffer->base.unix_handle = 0;
         free(buffer);
     }
 }
@@ -570,11 +570,11 @@ static void wine_vk_device_init_queues(struct wine_device *device, const VkDevic
 
         queue->obj.host.queue = host_queue;
         queue->obj.parent = &device->obj;
-        queue->handle = handles[i];
+        queue->obj.client.queue = handles[i];
         queue->family_index = info->queueFamilyIndex;
         queue->queue_index = i;
         queue->flags = info->flags;
-        queue->handle->base.unix_handle = (uintptr_t)queue;
+        queue->obj.client.queue->base.unix_handle = (uintptr_t)queue;
         TRACE("Got device %p queue %p, host_queue %p.\n", device, queue, queue->obj.host.queue);
     }
 
@@ -779,6 +779,7 @@ static VkResult wine_vk_instance_convert_create_info(struct conversion_context *
 /* Helper function which stores wrapped physical devices in the instance object. */
 static VkResult wine_vk_instance_init_physical_devices(struct wine_instance *instance)
 {
+    VkInstance client_instance = instance->obj.client.instance;
     VkPhysicalDevice *host_handles;
     uint32_t phys_dev_count;
     unsigned int i;
@@ -793,12 +794,12 @@ static VkResult wine_vk_instance_init_physical_devices(struct wine_instance *ins
     if (!phys_dev_count)
         return res;
 
-    if (phys_dev_count > instance->handle->phys_dev_count)
+    if (phys_dev_count > client_instance->phys_dev_count)
     {
-        instance->handle->phys_dev_count = phys_dev_count;
+        client_instance->phys_dev_count = phys_dev_count;
         return VK_ERROR_OUT_OF_POOL_MEMORY;
     }
-    instance->handle->phys_dev_count = phys_dev_count;
+    client_instance->phys_dev_count = phys_dev_count;
 
     if (!(host_handles = calloc(phys_dev_count, sizeof(*host_handles))))
         return VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -814,7 +815,7 @@ static VkResult wine_vk_instance_init_physical_devices(struct wine_instance *ins
     for (i = 0; i < phys_dev_count; i++)
     {
         struct wine_phys_dev *phys_dev = instance->phys_devs + i;
-        res = wine_vk_physical_device_init(phys_dev, host_handles[i], &instance->handle->phys_devs[i], instance);
+        res = wine_vk_physical_device_init(phys_dev, host_handles[i], &client_instance->phys_devs[i], instance);
         if (res != VK_SUCCESS)
             goto err;
     }
@@ -886,10 +887,10 @@ VkResult wine_vkAllocateCommandBuffers(VkDevice handle, const VkCommandBufferAll
         }
 
         buffer->obj.host.command_buffer = host_command_buffer;
-        buffer->handle = buffers[i];
+        buffer->obj.client.command_buffer = buffers[i];
         buffer->obj.parent = &device->obj;
-        buffer->handle->base.unix_handle = (uintptr_t)buffer;
-        add_device_handle_mapping_ptr(handle, buffer->handle, buffer->obj.host.command_buffer, &buffer->wrapper_entry);
+        buffer->obj.client.command_buffer->base.unix_handle = (uintptr_t)buffer;
+        add_device_handle_mapping_ptr(handle, buffer->obj.client.command_buffer, buffer->obj.host.command_buffer, &buffer->wrapper_entry);
     }
 
     if (res != VK_SUCCESS)
@@ -970,7 +971,7 @@ VkResult wine_vkCreateDevice(VkPhysicalDevice phys_dev_handle, const VkDeviceCre
     for (i = 0; i < object->queue_count; i++)
     {
         struct wine_queue *queue = object->queues + i;
-        add_device_handle_mapping_ptr(device_handle, queue->handle, queue->obj.host.queue, &queue->wrapper_entry);
+        add_device_handle_mapping_ptr(device_handle, queue->obj.client.queue, queue->obj.host.queue, &queue->wrapper_entry);
     }
 
     *ret_device = device_handle;
@@ -1012,7 +1013,7 @@ VkResult wine_vkCreateInstance(const VkInstanceCreateInfo *create_info,
         return res;
     }
 
-    object->handle = client_instance;
+    object->obj.client.instance = client_instance;
     object->obj.host.instance = host_instance;
 
     /* Load all instance functions we are aware of. Note the loader takes care
@@ -1061,7 +1062,7 @@ VkResult wine_vkCreateInstance(const VkInstanceCreateInfo *create_info,
     for (i = 0; i < object->phys_dev_count; i++)
     {
         struct wine_phys_dev *phys_dev = &object->phys_devs[i];
-        add_handle_mapping_ptr(object, phys_dev->handle, phys_dev->obj.host.physical_device, &phys_dev->wrapper_entry);
+        add_handle_mapping_ptr(object, phys_dev->obj.client.physical_device, phys_dev->obj.host.physical_device, &phys_dev->wrapper_entry);
     }
 
     *instance = client_instance;
@@ -1240,7 +1241,7 @@ VkResult wine_vkEnumeratePhysicalDevices(VkInstance handle, uint32_t *count, VkP
     *count = min(*count, instance->phys_dev_count);
     for (i = 0; i < *count; i++)
     {
-        devices[i] = instance->phys_devs[i].handle;
+        devices[i] = instance->phys_devs[i].obj.client.physical_device;
     }
 
     TRACE("Returning %u devices.\n", *count);
@@ -1269,7 +1270,7 @@ static VkQueue wine_vk_device_find_queue(VkDevice handle, const VkDeviceQueueInf
                 && queue->queue_index == info->queueIndex
                 && queue->flags == info->flags)
         {
-            return queue->handle;
+            return queue->obj.client.queue;
         }
     }
 
@@ -1304,7 +1305,7 @@ VkResult wine_vkCreateCommandPool(VkDevice device_handle, const VkCommandPoolCre
                                   void *client_ptr)
 {
     struct wine_device *device = wine_device_from_handle(device_handle);
-    struct vk_command_pool *handle = client_ptr;
+    struct vk_command_pool *client_command_pool = client_ptr;
     VkCommandPool host_command_pool;
     struct wine_cmd_pool *object;
     VkResult res;
@@ -1323,10 +1324,10 @@ VkResult wine_vkCreateCommandPool(VkDevice device_handle, const VkCommandPoolCre
     }
 
     object->obj.host.command_pool = host_command_pool;
-    object->handle = (uintptr_t)handle;
-    handle->unix_handle = (uintptr_t)object;
+    object->obj.client.command_pool = (uintptr_t)client_command_pool;
+    client_command_pool->base.unix_handle = (uintptr_t)object;
 
-    *command_pool = object->handle;
+    *command_pool = object->obj.client.command_pool;
     add_device_handle_mapping(device_handle, *command_pool, object->obj.host.command_pool, &object->wrapper_entry);
     return VK_SUCCESS;
 }
@@ -1365,7 +1366,7 @@ static VkResult wine_vk_enumerate_physical_device_groups(struct wine_instance *i
             struct wine_phys_dev *phys_dev = wine_vk_instance_wrap_physical_device(instance, host_handle);
             if (!phys_dev)
                 return VK_ERROR_INITIALIZATION_FAILED;
-            current->physicalDevices[j] = phys_dev->handle;
+            current->physicalDevices[j] = phys_dev->obj.client.physical_device;
         }
     }
 
