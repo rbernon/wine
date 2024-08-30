@@ -521,12 +521,7 @@ static void wine_vk_device_init_queues(struct wine_device *device, const VkDevic
     for (i = 0; i < info->queueCount; i++)
     {
         struct wine_queue *queue = device->queues + device->queue_count + i;
-
-        queue->device = device;
-        queue->handle = (*handles)++;
-        queue->family_index = info->queueFamilyIndex;
-        queue->queue_index = i;
-        queue->flags = info->flags;
+        VkQueue host_queue;
 
         /* The Vulkan spec says:
          *
@@ -540,13 +535,19 @@ static void wine_vk_device_init_queues(struct wine_device *device, const VkDevic
             queue_info.flags = info->flags;
             queue_info.queueFamilyIndex = info->queueFamilyIndex;
             queue_info.queueIndex = i;
-            device->funcs.p_vkGetDeviceQueue2(device->host_device, &queue_info, &queue->host_queue);
+            device->funcs.p_vkGetDeviceQueue2(device->host_device, &queue_info, &host_queue);
         }
         else
         {
-            device->funcs.p_vkGetDeviceQueue(device->host_device, info->queueFamilyIndex, i, &queue->host_queue);
+            device->funcs.p_vkGetDeviceQueue(device->host_device, info->queueFamilyIndex, i, &host_queue);
         }
 
+        queue->host_queue = host_queue;
+        queue->device = device;
+        queue->handle = handles[i];
+        queue->family_index = info->queueFamilyIndex;
+        queue->queue_index = i;
+        queue->flags = info->flags;
         queue->handle->base.unix_handle = (uintptr_t)queue;
         TRACE("Got device %p queue %p, host_queue %p.\n", device, queue, queue->host_queue);
     }
