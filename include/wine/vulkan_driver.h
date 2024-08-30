@@ -109,9 +109,27 @@ static inline void init_vulkan_object_ptr( struct vulkan_object *obj, struct vul
 
 struct vulkan_instance
 {
+    struct vulkan_object obj;
+    struct vulkan_instance_funcs funcs;
     pthread_rwlock_t objects_lock;
     struct rb_tree objects;
 };
+
+static inline struct vulkan_instance *vulkan_instance_from_handle( VkInstance handle )
+{
+    struct vulkan_client_object *client = (struct vulkan_client_object *)handle;
+    return (struct vulkan_instance *)(UINT_PTR)client->unix_handle;
+}
+
+static inline const struct vulkan_instance_funcs *get_vulkan_instance_funcs( VkInstance handle )
+{
+    return &vulkan_instance_from_handle(handle)->funcs;
+}
+static inline const struct vulkan_instance_funcs *get_vulkan_parent_instance_funcs( struct vulkan_object *obj )
+{
+    struct vulkan_instance *instance = CONTAINING_RECORD( obj->parent, struct vulkan_instance, obj );
+    return &instance->funcs;
+}
 
 static inline void add_vulkan_object( struct vulkan_instance *instance, struct vulkan_object *obj )
 {

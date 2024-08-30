@@ -102,9 +102,7 @@ struct wine_debug_report_callback;
 
 struct wine_instance
 {
-    struct vulkan_object obj;
     struct vulkan_instance instance;
-    struct vulkan_instance_funcs funcs;
 
     VkBool32 enable_win32_surface;
     VkBool32 enable_wrapper_list;
@@ -122,11 +120,6 @@ struct wine_instance
 };
 
 C_ASSERT(sizeof(struct wine_instance) == offsetof(struct wine_instance, phys_devs[0]));
-
-static inline struct wine_instance *wine_instance_from_handle(VkInstance handle)
-{
-    return (struct wine_instance *)(uintptr_t)handle->base.unix_handle;
-}
 
 struct wine_cmd_pool
 {
@@ -297,16 +290,6 @@ static inline void *find_next_struct(const void *s, VkStructureType t)
     }
 
     return NULL;
-}
-
-static inline const struct vulkan_instance_funcs *get_vulkan_instance_funcs(VkInstance instance)
-{
-    return &wine_instance_from_handle(instance)->funcs;
-}
-static inline const struct vulkan_instance_funcs *get_vulkan_parent_instance_funcs(struct vulkan_object *obj)
-{
-    struct wine_instance *instance = CONTAINING_RECORD(obj->parent, struct wine_instance, obj);
-    return &instance->funcs;
 }
 
 static inline const struct vulkan_device_funcs *get_vulkan_device_funcs(VkDevice device)
