@@ -46,6 +46,7 @@ struct vulkan_client_object
 
 #define WINE_VK_HOST
 #include "wine/vulkan.h"
+#include "wine/vulkan_thunks.h"
 #include "wine/rbtree.h"
 #include "wine/debug.h"
 

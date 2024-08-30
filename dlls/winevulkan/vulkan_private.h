@@ -26,7 +26,6 @@
 #include <pthread.h>
 
 #include "vulkan_loader.h"
-#include "vulkan_thunks.h"
 #include "wine/rbtree.h"
 #include "wine/vulkan_driver.h"
 

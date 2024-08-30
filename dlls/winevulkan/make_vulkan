@@ -74,7 +74,7 @@ WINE_VULKAN_LOADER_SPEC = "../vulkan-1/vulkan-1.spec"
 WINE_VULKAN_JSON = "winevulkan.json"
 WINE_VULKAN_SPEC = "winevulkan.spec"
 WINE_VULKAN_THUNKS_C = "vulkan_thunks.c"
-WINE_VULKAN_THUNKS_H = "vulkan_thunks.h"
+WINE_VULKAN_THUNKS_H = "../../include/wine/vulkan_thunks.h"
 WINE_VULKAN_LOADER_THUNKS_C = "loader_thunks.c"
 WINE_VULKAN_LOADER_THUNKS_H = "loader_thunks.h"
 
