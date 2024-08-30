@@ -101,7 +101,6 @@ static void wayland_win_data_destroy(struct wayland_win_data *data)
     pthread_mutex_unlock(&win_data_mutex);
 
     if (data->wayland_surface) wayland_surface_destroy(data->wayland_surface);
-    if (data->window_contents) wayland_shm_buffer_unref(data->window_contents);
     free(data);
 }
 
@@ -754,55 +753,6 @@ struct wayland_client_surface *get_client_surface(HWND hwnd)
 
     wayland_win_data_release(data);
     return client;
-}
-
-BOOL set_window_surface_contents(HWND hwnd, struct wayland_shm_buffer *shm_buffer, const RECT *dirty)
-{
-    struct wayland_surface *wayland_surface;
-    struct wayland_win_data *data;
-    BOOL committed = FALSE;
-
-    if (!(data = wayland_win_data_get(hwnd))) return FALSE;
-
-    if ((wayland_surface = data->wayland_surface))
-    {
-        if (wayland_surface_reconfigure(wayland_surface))
-        {
-            RECT rect = {0, 0, shm_buffer->width, shm_buffer->height};
-            shm_buffer->busy = TRUE;
-            wayland_shm_buffer_ref(shm_buffer);
-            wayland_surface_present(wayland_surface, shm_buffer->wl_buffer, &rect, dirty);
-            wl_surface_commit(wayland_surface->wl_surface);
-            committed = TRUE;
-        }
-        else
-        {
-            TRACE("Wayland surface not configured yet, not flushing\n");
-        }
-    }
-
-    /* Update the latest window buffer for the wayland surface. Note that we
-     * only care whether the buffer contains the latest window contents,
-     * it's irrelevant if it was actually committed or not. */
-    if (data->window_contents)
-        wayland_shm_buffer_unref(data->window_contents);
-    wayland_shm_buffer_ref((data->window_contents = shm_buffer));
-
-    wayland_win_data_release(data);
-
-    return committed;
-}
-
-struct wayland_shm_buffer *get_window_surface_contents(HWND hwnd)
-{
-    struct wayland_shm_buffer *shm_buffer;
-    struct wayland_win_data *data;
-
-    if (!(data = wayland_win_data_get(hwnd))) return NULL;
-    if ((shm_buffer = data->window_contents)) wayland_shm_buffer_ref(shm_buffer);
-    wayland_win_data_release(data);
-
-    return shm_buffer;
 }
 
 void ensure_window_surface_contents(HWND hwnd)
