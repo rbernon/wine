@@ -43,7 +43,6 @@ struct wrapper_entry
 struct wine_cmd_buffer
 {
     struct vulkan_object obj;
-    VkCommandBuffer handle; /* client command buffer */
 
     struct wrapper_entry wrapper_entry;
 };
@@ -56,8 +55,6 @@ static inline struct wine_cmd_buffer *wine_cmd_buffer_from_handle(VkCommandBuffe
 struct wine_queue
 {
     struct vulkan_object obj;
-    VkQueue handle; /* client queue */
-
     uint32_t family_index;
     uint32_t queue_index;
     VkDeviceQueueCreateFlags flags;
@@ -74,7 +71,6 @@ struct wine_device
 {
     struct vulkan_object obj;
     struct vulkan_device_funcs funcs;
-    VkDevice handle; /* client device */
 
     struct wrapper_entry wrapper_entry;
 
@@ -103,8 +99,6 @@ struct wine_debug_report_callback
 struct wine_phys_dev
 {
     struct vulkan_object obj;
-    VkPhysicalDevice handle; /* client physical device */
-
     VkPhysicalDeviceMemoryProperties memory_properties;
     VkExtensionProperties *extensions;
     uint32_t extension_count;
@@ -126,8 +120,6 @@ struct wine_instance
 {
     struct vulkan_object obj;
     struct vulkan_instance_funcs funcs;
-
-    VkInstance handle; /* client instance */
 
     VkBool32 enable_win32_surface;
     VkBool32 enable_wrapper_list;
@@ -158,7 +150,6 @@ static inline struct wine_instance *wine_instance_from_handle(VkInstance handle)
 struct wine_cmd_pool
 {
     struct vulkan_object obj;
-    VkCommandPool handle;
 
     struct wrapper_entry wrapper_entry;
 };
@@ -166,7 +157,7 @@ struct wine_cmd_pool
 static inline struct wine_cmd_pool *wine_cmd_pool_from_handle(VkCommandPool handle)
 {
     struct vk_command_pool *client_ptr = command_pool_from_handle(handle);
-    return (struct wine_cmd_pool *)(uintptr_t)client_ptr->unix_handle;
+    return (struct wine_cmd_pool *)(uintptr_t)client_ptr->base.unix_handle;
 }
 
 struct wine_device_memory
