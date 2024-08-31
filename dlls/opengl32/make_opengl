@@ -340,14 +340,14 @@ sub get_func_ret($$)
     return $ret;
 }
 
-sub generate_unix_thunk($$$)
+sub generate_unix_thunk($$)
 {
-    my ($name, $func, $prefix) = @_;
+    my ($name, $func) = @_;
     my $call_args = get_func_args( $func, 0, 1, "params->" );
     my $func_ret = get_func_ret( $func, 0 );
     my $ret = "";
 
-    $ret .= "NTSTATUS $prefix\_$name( void *args )\n";
+    $ret .= "NTSTATUS thunk_$name( void *args )\n";
     $ret .= "{\n";
     $ret .= "    struct $name\_params *params = args;\n";
     # special case for functions that take an HDC as first parameter
@@ -355,7 +355,7 @@ sub generate_unix_thunk($$$)
     {
         my $pname = get_arg_name( ${$func->[1]}[0] );
         $ret .= "    const struct opengl_funcs *funcs = get_dc_funcs( params->$pname );\n";
-        $ret .= "    if (!funcs || !funcs->$prefix.p_$name) return STATUS_NOT_IMPLEMENTED;\n";
+        $ret .= "    if (!funcs || !funcs->p_$name) return STATUS_NOT_IMPLEMENTED;\n";
     }
     else
     {
@@ -364,7 +364,7 @@ sub generate_unix_thunk($$$)
     $ret .= "    ";
     $ret .= "params->ret = " unless is_void_func( $func );
     $ret .= "($func_ret)" if defined $remap_types{$func_ret};
-    $ret .= "funcs->$prefix.p_$name($call_args);\n";
+    $ret .= "funcs->p_$name($call_args);\n";
     $ret .= "    return STATUS_SUCCESS;\n";
     $ret .= "}\n\n";
 
@@ -416,15 +416,15 @@ sub get_wow64_arg_type($)
     return $ptype;
 }
 
-sub generate_wow64_thunk($$$)
+sub generate_wow64_thunk($$)
 {
-    my ($name, $func, $prefix) = @_;
+    my ($name, $func) = @_;
     my $call_args = get_func_args( $func, 0, 1, "params->" );
     my $func_ret = get_func_ret( $func, 0 );
     my $need_manual_thunk = 0;
     my $ret = "";
 
-    $ret .= "static NTSTATUS wow64_$prefix\_$name( void *args )\n";
+    $ret .= "static NTSTATUS wow64_thunk_$name( void *args )\n";
     $ret .= "{\n";
     $ret .= "    struct\n    {\n";
     $ret .= "        PTR32 teb;\n";
@@ -483,7 +483,7 @@ sub generate_wow64_thunk($$$)
         $ret .= "    params.$pname = copy_wow64_ptr32s( (UINT_PTR)params32->$pname, params32->$pointer_array_count{$_} );\n";
     }
 
-    $ret .= "    status = $prefix\_$name( &params );\n";
+    $ret .= "    status = thunk_$name( &params );\n";
     if (!is_void_func( $func ))
     {
         $ret .= "    params32->ret = ";
@@ -645,7 +645,7 @@ my $commit="03e1bfb87c4664d34dc7822fb591841eec747094";
 #  - reference to an array of XML nodes giving the list of arguments (an empty array
 #    for a 'void' function).
 #
-my %norm_functions;
+my %gl_functions;
 my %ext_functions;
 my %wgl_functions;
 my %gl_enums;
@@ -784,7 +784,7 @@ sub parse_file($)
         next unless defined $norm_categories{$feature->{name}};
         foreach my $cmd ($feature->findnodes("./require/command"))
         {
-            $norm_functions{$cmd->{name}} = $functions{$cmd->{name}};
+            $gl_functions{$cmd->{name}} = $functions{$cmd->{name}};
         }
         foreach my $enum ($feature->findnodes("./require/enum"))
         {
@@ -800,7 +800,7 @@ sub parse_file($)
         foreach my $cmd ($feature->findnodes("./require/command"))
         {
             my $name = $cmd->{name};
-            next if $norm_functions{$name} || $ext_functions{$name};
+            next if $gl_functions{$name} || $ext_functions{$name};
             $ext_functions{$name} = [ $functions{$name}[0], $functions{$name}[1], [ $feature->{name} ] ];
         }
         foreach my $enum ($feature->findnodes("./require/enum"))
@@ -833,7 +833,7 @@ sub parse_file($)
             foreach my $cmd ($req->findnodes("./command"))
             {
                 my $name = $cmd->{name};
-                next if $norm_functions{$name};
+                next if $gl_functions{$name};
                 if (!$ext_functions{$name})
                 {
                     $ext_functions{$name} = [ $functions{$name}[0], $functions{$name}[1], [ $ext->{name} ] ];
@@ -915,40 +915,46 @@ print HEADER "    int float_components;\n";
 print HEADER "};\n\n";
 
 print HEADER "struct opengl_funcs\n{\n";
-print HEADER "    struct\n    {\n";
 foreach (sort keys %wgl_functions)
 {
     next if defined $manual_win_functions{$_};
     my $decl_args = get_func_args( $wgl_functions{$_}, 1, 1, "" );
     my $func_ret = get_func_ret( $wgl_functions{$_}, 1 );
-    printf HEADER "        %-10s (WINE_GLAPI *p_$_)($decl_args);\n", $func_ret;
+    printf HEADER "    %-10s (WINE_GLAPI *p_$_)($decl_args);\n", $func_ret;
 }
-printf HEADER "        %-10s (WINE_GLAPI *p_get_pixel_formats)( struct wgl_pixel_format *formats, UINT max_formats, UINT *num_formats, UINT *num_onscreen_formats );\n", "void";
-print HEADER "    } wgl;\n\n";
-
-print HEADER "    struct\n    {\n";
-foreach (sort keys %norm_functions)
+foreach (sort keys %gl_functions)
 {
     next if defined $manual_win_functions{$_};
-    my $decl_args = get_func_args( $norm_functions{$_}, 1, 1, "" );
-    my $func_ret = get_func_ret( $norm_functions{$_}, 1 );
-    printf HEADER "        %-10s (WINE_GLAPI *p_$_)($decl_args);\n", $func_ret;
+    my $decl_args = get_func_args( $gl_functions{$_}, 1, 1, "" );
+    my $func_ret = get_func_ret( $gl_functions{$_}, 1 );
+    printf HEADER "    %-10s (WINE_GLAPI *p_$_)($decl_args);\n", $func_ret;
 }
-print HEADER "    } gl;\n\n";
-
-print HEADER "    struct\n    {\n";
 foreach (sort keys %ext_functions)
 {
     next if defined $manual_win_functions{$_};
     my $decl_args = get_func_args( $ext_functions{$_}, 1, 1, "" );
     my $func_ret = get_func_ret( $ext_functions{$_}, 1 );
-    printf HEADER "        %-10s (WINE_GLAPI *p_$_)($decl_args);\n", $func_ret;
+    printf HEADER "    %-10s (WINE_GLAPI *p_$_)($decl_args);\n", $func_ret;
 }
-print HEADER "    } ext;\n";
+printf HEADER "    %-10s (WINE_GLAPI *p_get_pixel_formats)( struct wgl_pixel_format *formats, UINT max_formats, UINT *num_formats, UINT *num_onscreen_formats );\n", "void";
 print HEADER "};\n\n";
 
 print HEADER "#define ALL_WGL_FUNCS";
-foreach (sort keys %norm_functions)
+foreach (sort keys %wgl_functions)
+{
+    next if defined $manual_win_functions{$_};
+    printf HEADER " \\\n    USE_GL_FUNC(\%s)", $_;
+}
+print HEADER "\n\n";
+print HEADER "#define ALL_GL_FUNCS";
+foreach (sort keys %gl_functions)
+{
+    next if defined $manual_win_functions{$_};
+    printf HEADER " \\\n    USE_GL_FUNC(\%s)", $_;
+}
+print HEADER "\n\n";
+print HEADER "#define ALL_GLEXT_FUNCS";
+foreach (sort keys %ext_functions)
 {
     next if defined $manual_win_functions{$_};
     printf HEADER " \\\n    USE_GL_FUNC(\%s)", $_;
@@ -985,10 +991,10 @@ foreach (sort keys %gl_enums)
 }
 print HEADER "\n";
 
-foreach (sort keys %norm_functions)
+foreach (sort keys %gl_functions)
 {
-    my $decl_args = get_func_args( $norm_functions{$_}, 1, 0, "" );
-    my $func_ret = get_func_ret( $norm_functions{$_}, 0 );
+    my $decl_args = get_func_args( $gl_functions{$_}, 1, 0, "" );
+    my $func_ret = get_func_ret( $gl_functions{$_}, 0 );
     printf HEADER "%-10s GLAPIENTRY $_($decl_args);\n", $func_ret;
 }
 
@@ -1000,9 +1006,9 @@ close HEADER;
 #
 open(SPEC, ">$spec_file") or die "cannot create $spec_file";
 
-foreach (sort keys %norm_functions)
+foreach (sort keys %gl_functions)
 {
-    printf SPEC "%s\n", generate_spec_entry( $_, $norm_functions{$_} );
+    printf SPEC "%s\n", generate_spec_entry( $_, $gl_functions{$_} );
 }
 foreach (sort keys %wgl_functions)
 {
@@ -1042,10 +1048,10 @@ foreach (sort keys %wgl_functions)
     next if defined $manual_win_functions{$_};
     print OUT generate_func_params($_, $wgl_functions{$_});
 }
-foreach (sort keys %norm_functions)
+foreach (sort keys %gl_functions)
 {
     next if defined $manual_win_functions{$_};
-    print OUT generate_func_params($_, $norm_functions{$_});
+    print OUT generate_func_params($_, $gl_functions{$_});
 }
 foreach (sort keys %ext_functions)
 {
@@ -1074,7 +1080,7 @@ foreach (sort keys %wgl_functions)
     next if defined $manual_win_functions{$_};
     printf OUT "    unix_%s,\n", $_;
 }
-foreach (sort keys %norm_functions)
+foreach (sort keys %gl_functions)
 {
     next if defined $manual_win_functions{$_};
     printf OUT "    unix_%s,\n", $_;
@@ -1131,11 +1137,11 @@ foreach (sort keys %wgl_functions)
     next if defined $manual_win_thunks{$_};
     print OUT "\n" . generate_win_thunk($_, $wgl_functions{$_});
 }
-foreach (sort keys %norm_functions)
+foreach (sort keys %gl_functions)
 {
     next if defined $manual_win_functions{$_};
     next if defined $manual_win_thunks{$_};
-    print OUT "\n" . generate_win_thunk($_, $norm_functions{$_});
+    print OUT "\n" . generate_win_thunk($_, $gl_functions{$_});
 }
 foreach (sort keys %ext_functions)
 {
@@ -1198,19 +1204,19 @@ foreach (sort keys %wgl_functions)
 {
     next if defined $manual_win_functions{$_};
     next unless needs_wrapper( $_, $wgl_functions{$_} );
-    print OUT "extern NTSTATUS wgl_$_( void *args );\n";
+    print OUT "extern NTSTATUS thunk_$_( void *args );\n";
 }
-foreach (sort keys %norm_functions)
+foreach (sort keys %gl_functions)
 {
     next if defined $manual_win_functions{$_};
-    next unless needs_wrapper( $_, $norm_functions{$_} );
-    print OUT "extern NTSTATUS gl_$_( void *args );\n";
+    next unless needs_wrapper( $_, $gl_functions{$_} );
+    print OUT "extern NTSTATUS thunk_$_( void *args );\n";
 }
 foreach (sort keys %ext_functions)
 {
     next if defined $manual_win_functions{$_};
     next unless needs_wrapper( $_, $ext_functions{$_} );
-    print OUT "extern NTSTATUS ext_$_( void *args );\n";
+    print OUT "extern NTSTATUS thunk_$_( void *args );\n";
 }
 print OUT "\n";
 
@@ -1219,21 +1225,21 @@ foreach (sort keys %wgl_functions)
     next if defined $manual_win_functions{$_};
     next if needs_wrapper( $_, $wgl_functions{$_} );
     print OUT "static " unless defined $manual_wow64_thunks{$_};
-    print OUT generate_unix_thunk($_, $wgl_functions{$_}, "wgl");
+    print OUT generate_unix_thunk($_, $wgl_functions{$_});
 }
-foreach (sort keys %norm_functions)
+foreach (sort keys %gl_functions)
 {
     next if defined $manual_win_functions{$_};
-    next if needs_wrapper( $_, $norm_functions{$_} );
+    next if needs_wrapper( $_, $gl_functions{$_} );
     print OUT "static " unless defined $manual_wow64_thunks{$_};
-    print OUT generate_unix_thunk($_, $norm_functions{$_}, "gl");
+    print OUT generate_unix_thunk($_, $gl_functions{$_});
 }
 foreach (sort keys %ext_functions)
 {
     next if defined $manual_win_functions{$_};
     next if needs_wrapper( $_, $ext_functions{$_} );
     print OUT "static " unless defined $manual_wow64_thunks{$_};
-    print OUT generate_unix_thunk($_, $ext_functions{$_}, "ext");
+    print OUT generate_unix_thunk($_, $ext_functions{$_});
 }
 
 print OUT "const unixlib_entry_t __wine_unix_call_funcs[] =\n";
@@ -1245,17 +1251,17 @@ print OUT "    get_pixel_formats,\n";
 foreach (sort keys %wgl_functions)
 {
     next if defined $manual_win_functions{$_};
-    printf OUT "    wgl_%s,\n", $_;
+    printf OUT "    thunk_%s,\n", $_;
 }
-foreach (sort keys %norm_functions)
+foreach (sort keys %gl_functions)
 {
     next if defined $manual_win_functions{$_};
-    printf OUT "    gl_%s,\n", $_;
+    printf OUT "    thunk_%s,\n", $_;
 }
 foreach (sort keys %ext_functions)
 {
     next if defined $manual_win_functions{$_};
-    printf OUT "    ext_%s,\n", $_;
+    printf OUT "    thunk_%s,\n", $_;
 }
 print OUT "};\n\n";
 print OUT "C_ASSERT(ARRAYSIZE(__wine_unix_call_funcs) == funcs_count);\n\n";
@@ -1270,38 +1276,38 @@ foreach (sort keys %wgl_functions)
 {
     next if defined $manual_win_functions{$_};
     next if defined $manual_wow64_thunks{$_};
-    print OUT generate_wow64_thunk($_, $wgl_functions{$_}, "wgl");
+    print OUT generate_wow64_thunk($_, $wgl_functions{$_});
 }
-foreach (sort keys %norm_functions)
+foreach (sort keys %gl_functions)
 {
     next if defined $manual_win_functions{$_};
     next if defined $manual_wow64_thunks{$_};
-    print OUT generate_wow64_thunk($_, $norm_functions{$_}, "gl");
+    print OUT generate_wow64_thunk($_, $gl_functions{$_});
 }
 foreach (sort keys %ext_functions)
 {
     next if defined $manual_win_functions{$_};
     next if defined $manual_wow64_thunks{$_};
-    print OUT generate_wow64_thunk($_, $ext_functions{$_}, "ext");
+    print OUT generate_wow64_thunk($_, $ext_functions{$_});
 }
 
 foreach (sort keys %wgl_functions)
 {
     next if defined $manual_win_functions{$_};
     next unless defined $manual_wow64_thunks{$_};
-    print OUT "extern NTSTATUS wow64_wgl_$_( void *args );\n";
+    print OUT "extern NTSTATUS wow64_thunk_$_( void *args );\n";
 }
-foreach (sort keys %norm_functions)
+foreach (sort keys %gl_functions)
 {
     next if defined $manual_win_functions{$_};
     next unless defined $manual_wow64_thunks{$_};
-    print OUT "extern NTSTATUS wow64_gl_$_( void *args );\n";
+    print OUT "extern NTSTATUS wow64_thunk_$_( void *args );\n";
 }
 foreach (sort keys %ext_functions)
 {
     next if defined $manual_win_functions{$_};
     next unless defined $manual_wow64_thunks{$_};
-    print OUT "extern NTSTATUS wow64_ext_$_( void *args );\n";
+    print OUT "extern NTSTATUS wow64_thunk_$_( void *args );\n";
 }
 
 print OUT "\nconst unixlib_entry_t __wine_unix_call_wow64_funcs[] =\n";
@@ -1313,17 +1319,17 @@ print OUT "    wow64_get_pixel_formats,\n";
 foreach (sort keys %wgl_functions)
 {
     next if defined $manual_win_functions{$_};
-    printf OUT "    wow64_wgl_%s,\n", $_;
+    printf OUT "    wow64_thunk_%s,\n", $_;
 }
-foreach (sort keys %norm_functions)
+foreach (sort keys %gl_functions)
 {
     next if defined $manual_win_functions{$_};
-    printf OUT "    wow64_gl_%s,\n", $_;
+    printf OUT "    wow64_thunk_%s,\n", $_;
 }
 foreach (sort keys %ext_functions)
 {
     next if defined $manual_win_functions{$_};
-    printf OUT "    wow64_ext_%s,\n", $_;
+    printf OUT "    wow64_thunk_%s,\n", $_;
 }
 print OUT "};\n\n";
 print OUT "C_ASSERT(ARRAYSIZE(__wine_unix_call_wow64_funcs) == funcs_count);\n\n";
@@ -1335,48 +1341,55 @@ foreach (sort keys %wgl_functions)
     next if defined $manual_win_functions{$_};
     print OUT generate_null_func($_, $wgl_functions{$_});
 }
-foreach (sort keys %norm_functions)
+foreach (sort keys %gl_functions)
 {
     next if defined $manual_win_functions{$_};
-    print OUT generate_null_func($_, $norm_functions{$_});
+    print OUT generate_null_func($_, $gl_functions{$_});
 }
 foreach (sort keys %ext_functions)
 {
     next if defined $manual_win_functions{$_};
     print OUT generate_null_func($_, $ext_functions{$_});
 }
-print OUT "\n";
+print OUT "static void null_get_pixel_formats( struct wgl_pixel_format *formats, UINT max_formats,\n";
+print OUT "                                    UINT *num_formats, UINT *num_onscreen_formats )\n";
+print OUT "{ *num_formats = *num_onscreen_formats = 0; }\n\n";
 
 print OUT "struct opengl_funcs null_opengl_funcs =\n";
 print OUT "{\n";
-print OUT "    {\n";
 foreach (sort keys %wgl_functions)
 {
     next if defined $manual_win_functions{$_};
-    print OUT "        null_$_,\n";
+    print OUT "    null_$_,\n";
 }
-print OUT "    },\n";
-print OUT "    {\n";
-foreach (sort keys %norm_functions)
+foreach (sort keys %gl_functions)
 {
     next if defined $manual_win_functions{$_};
-    print OUT "        null_$_,\n";
+    print OUT "    null_$_,\n";
 }
-print OUT "    },\n";
-print OUT "    {\n";
 foreach (sort keys %ext_functions)
 {
     next if defined $manual_win_functions{$_};
-    print OUT "        null_$_,\n";
+    print OUT "    null_$_,\n";
 }
-print OUT "    },\n";
+print OUT "    null_get_pixel_formats,\n";
 print OUT "};\n";
 
 # Then the table giving the string <-> function correspondence */
-my $count = keys %ext_functions;
-print OUT "\nconst int extension_registry_size = $count;\n";
-print OUT "const struct registry_entry extension_registry[$count] =\n";
+my $count = keys %wgl_functions;
+$count += keys %gl_functions;
+$count += keys %ext_functions;
+print OUT "\nconst int registry_size = $count;\n";
+print OUT "const struct registry_entry registry[$count] =\n";
 print OUT "{\n";
+foreach (sort keys %wgl_functions)
+{
+    printf OUT "    { \"%s\", \"core\" },\n", $_;
+}
+foreach (sort keys %gl_functions)
+{
+    printf OUT "    { \"%s\", \"core\" },\n", $_;
+}
 foreach (sort keys %ext_functions)
 {
     my $func = $ext_functions{$_};

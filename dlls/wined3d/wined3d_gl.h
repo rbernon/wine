@@ -358,7 +358,7 @@ struct wined3d_gl_info
     void (WINE_GLAPI *p_glEnableWINE)(GLenum cap);
 };
 
-#define GL_EXTCALL(f) (gl_info->gl_ops.ext.p_##f)
+#define GL_EXTCALL(f) (gl_info->gl_ops.p_##f)
 
 void install_gl_compat_wrapper(struct wined3d_gl_info *gl_info, enum wined3d_gl_extension ext);
 void print_glsl_info_log(const struct wined3d_gl_info *gl_info, GLuint id, BOOL program);

@@ -39,8 +39,8 @@ struct registry_entry
     const char *extension; /* name of the GL/WGL extension */
 };
 
-extern const struct registry_entry extension_registry[];
-extern const int extension_registry_size;
+extern const struct registry_entry registry[];
+extern const int registry_size;
 
 extern struct opengl_funcs null_opengl_funcs;
 
