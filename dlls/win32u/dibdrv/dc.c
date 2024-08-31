@@ -594,7 +594,21 @@ static void dibdrv_get_pixel_formats( struct wgl_pixel_format *formats,
     *num_formats = *num_onscreen_formats = num_pixel_formats;
 }
 
-static struct opengl_funcs opengl_funcs;
+static struct opengl_funcs opengl_funcs =
+{
+    {
+        dibdrv_wglCopyContext,         /* p_wglCopyContext */
+        dibdrv_wglCreateContext,       /* p_wglCreateContext */
+        dibdrv_wglDeleteContext,       /* p_wglDeleteContext */
+        dibdrv_wglGetPixelFormat,      /* p_wglGetPixelFormat */
+        dibdrv_wglGetProcAddress,      /* p_wglGetProcAddress */
+        dibdrv_wglMakeCurrent,         /* p_wglMakeCurrent */
+        dibdrv_wglSetPixelFormat,      /* p_wglSetPixelFormat */
+        dibdrv_wglShareLists,          /* p_wglShareLists */
+        dibdrv_wglSwapBuffers,         /* p_wglSwapBuffers */
+        dibdrv_get_pixel_formats,      /* p_get_pixel_formats */
+    }
+};
 
 /**********************************************************************
  *	     dibdrv_get_wgl_driver
@@ -608,18 +622,6 @@ struct opengl_funcs *dibdrv_get_wgl_driver(void)
         return (void *)-1;
     }
     osmesa_funcs->get_gl_funcs( &opengl_funcs );
-
-    opengl_funcs.p_wglCopyContext = dibdrv_wglCopyContext;
-    opengl_funcs.p_wglCreateContext = dibdrv_wglCreateContext;
-    opengl_funcs.p_wglDeleteContext = dibdrv_wglDeleteContext;
-    opengl_funcs.p_wglGetPixelFormat = dibdrv_wglGetPixelFormat;
-    opengl_funcs.p_wglGetProcAddress = dibdrv_wglGetProcAddress;
-    opengl_funcs.p_wglMakeCurrent = dibdrv_wglMakeCurrent;
-    opengl_funcs.p_wglSetPixelFormat = dibdrv_wglSetPixelFormat;
-    opengl_funcs.p_wglShareLists = dibdrv_wglShareLists;
-    opengl_funcs.p_wglSwapBuffers = dibdrv_wglSwapBuffers;
-    opengl_funcs.p_get_pixel_formats = dibdrv_get_pixel_formats;
-
     return &opengl_funcs;
 }
 

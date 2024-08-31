@@ -60,6 +60,10 @@ struct wgl_context
 
 static struct opengl_funcs opengl_funcs;
 
+#define USE_GL_FUNC(name) #name,
+static const char *opengl_func_names[] = { ALL_WGL_FUNCS };
+#undef USE_GL_FUNC
+
 static OSMesaContext (*pOSMesaCreateContextExt)( GLenum format, GLint depthBits, GLint stencilBits,
                                                  GLint accumBits, OSMesaContext sharelist );
 static void (*pOSMesaDestroyContext)( OSMesaContext ctx );
@@ -72,6 +76,7 @@ static BOOL init_opengl(void)
 {
     static BOOL init_done = FALSE;
     static void *osmesa_handle;
+    unsigned int i;
 
     if (init_done) return (osmesa_handle != NULL);
     init_done = TRUE;
@@ -96,14 +101,14 @@ static BOOL init_opengl(void)
     LOAD_FUNCPTR(OSMesaPixelStore);
 #undef LOAD_FUNCPTR
 
-#define USE_GL_FUNC(f) \
-        if (!(opengl_funcs.p_##f = (void *)pOSMesaGetProcAddress( #f ))) \
-        { \
-            ERR( "%s not found in %s, disabling.\n", #f, SONAME_LIBOSMESA ); \
-            goto failed; \
+    for (i = 0; i < ARRAY_SIZE( opengl_func_names ); i++)
+    {
+        if (!(((void **)&opengl_funcs.gl)[i] = pOSMesaGetProcAddress( opengl_func_names[i] )))
+        {
+            ERR( "%s not found in %s, disabling.\n", opengl_func_names[i], SONAME_LIBOSMESA );
+            goto failed;
         }
-    ALL_GL_FUNCS
-#undef USE_GL_FUNC
+    }
 
     return TRUE;
 
@@ -118,7 +123,7 @@ failed:
  */
 static void osmesa_get_gl_funcs( struct opengl_funcs *funcs )
 {
-    *funcs = opengl_funcs;
+    funcs->gl = opengl_funcs.gl;
 }
 
 /***********************************************************************

@@ -101,7 +101,13 @@ struct wgl_pbuffer
 static CFMutableDictionaryRef dc_pbuffers;
 static pthread_mutex_t dc_pbuffers_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+
 static struct opengl_funcs opengl_funcs;
+
+#define USE_GL_FUNC(name) #name,
+static const char *opengl_func_names[] = { ALL_WGL_FUNCS };
+#undef USE_GL_FUNC
+
 
 static void (*pglCopyColorTable)(GLenum target, GLenum internalformat, GLint x, GLint y,
                                  GLsizei width);
@@ -1271,7 +1277,7 @@ static BOOL init_gl_info(void)
         return FALSE;
     }
 
-    str = (const char*)opengl_funcs.p_glGetString(GL_EXTENSIONS);
+    str = (const char*)opengl_funcs.gl.p_glGetString(GL_EXTENSIONS);
     length = strlen(str) + sizeof(legacy_extensions);
     if (allow_vsync)
         length += strlen(legacy_ext_swap_control);
@@ -1281,12 +1287,12 @@ static BOOL init_gl_info(void)
     if (allow_vsync)
         strcat(gl_info.glExtensions, legacy_ext_swap_control);
 
-    opengl_funcs.p_glGetIntegerv(GL_MAX_VIEWPORT_DIMS, gl_info.max_viewport_dims);
+    opengl_funcs.gl.p_glGetIntegerv(GL_MAX_VIEWPORT_DIMS, gl_info.max_viewport_dims);
 
-    str = (const char*)opengl_funcs.p_glGetString(GL_VERSION);
+    str = (const char*)opengl_funcs.gl.p_glGetString(GL_VERSION);
     sscanf(str, "%u.%u", &gl_info.max_major, &gl_info.max_minor);
     TRACE("GL version   : %s\n", str);
-    TRACE("GL renderer  : %s\n", opengl_funcs.p_glGetString(GL_RENDERER));
+    TRACE("GL renderer  : %s\n", opengl_funcs.gl.p_glGetString(GL_RENDERER));
 
     CGLSetCurrentContext(old_context);
     CGLReleaseContext(context);
@@ -1317,7 +1323,7 @@ static BOOL init_gl_info(void)
         return TRUE;
     }
 
-    str = (const char*)opengl_funcs.p_glGetString(GL_VERSION);
+    str = (const char*)opengl_funcs.gl.p_glGetString(GL_VERSION);
     TRACE("Core context GL version: %s\n", str);
     sscanf(str, "%u.%u", &gl_info.max_major, &gl_info.max_minor);
     CGLSetCurrentContext(old_context);
@@ -1897,7 +1903,7 @@ static const char* get_gl_string(CGLPixelFormatObj pixel_format, GLenum name)
         err = CGLSetCurrentContext(context);
         if (err == kCGLNoError)
         {
-            ret = (const char*)opengl_funcs.p_glGetString(name);
+            ret = (const char*)opengl_funcs.gl.p_glGetString(name);
             CGLSetCurrentContext(old_context);
         }
         else
@@ -2325,7 +2331,7 @@ static BOOL macdrv_wglBindTexImageARB(struct wgl_pbuffer *pbuffer, int iBuffer)
     }
 
     if (!context->draw_view && context->draw_pbuffer == pbuffer)
-        opengl_funcs.p_glFlush();
+        opengl_funcs.gl.p_glFlush();
 
     switch (iBuffer)
     {
@@ -3577,7 +3583,7 @@ static BOOL macdrv_wglQueryCurrentRendererIntegerWINE(GLenum attribute, GLuint *
 
     if (attribute == WGL_RENDERER_VERSION_WINE)
     {
-        if (!parse_renderer_version((const char*)opengl_funcs.p_glGetString(GL_VERSION), value))
+        if (!parse_renderer_version((const char*)opengl_funcs.gl.p_glGetString(GL_VERSION), value))
             get_fallback_renderer_version(value);
         TRACE("WGL_RENDERER_VERSION_WINE -> %u.%u.%u\n", value[0], value[1], value[2]);
         return TRUE;
@@ -3651,14 +3657,14 @@ static const char *macdrv_wglQueryCurrentRendererStringWINE(GLenum attribute)
     {
         case WGL_RENDERER_DEVICE_ID_WINE:
         {
-            ret = (const char*)opengl_funcs.p_glGetString(GL_RENDERER);
+            ret = (const char*)opengl_funcs.gl.p_glGetString(GL_RENDERER);
             TRACE("WGL_RENDERER_DEVICE_ID_WINE -> %s\n", debugstr_a(ret));
             break;
         }
 
         case WGL_RENDERER_VENDOR_ID_WINE:
         {
-            ret = (const char*)opengl_funcs.p_glGetString(GL_VENDOR);
+            ret = (const char*)opengl_funcs.gl.p_glGetString(GL_VENDOR);
             TRACE("WGL_RENDERER_VENDOR_ID_WINE -> %s\n", debugstr_a(ret));
             break;
         }
@@ -4087,16 +4093,16 @@ static void load_extensions(void)
      * ARB Extensions
      */
     register_extension("WGL_ARB_extensions_string");
-    opengl_funcs.p_wglGetExtensionsStringARB = macdrv_wglGetExtensionsStringARB;
+    opengl_funcs.ext.p_wglGetExtensionsStringARB = macdrv_wglGetExtensionsStringARB;
 
     register_extension("WGL_ARB_make_current_read");
-    opengl_funcs.p_wglGetCurrentReadDCARB   = (void *)1;  /* never called */
-    opengl_funcs.p_wglMakeContextCurrentARB = macdrv_wglMakeContextCurrentARB;
+    opengl_funcs.ext.p_wglGetCurrentReadDCARB   = (void *)1;  /* never called */
+    opengl_funcs.ext.p_wglMakeContextCurrentARB = macdrv_wglMakeContextCurrentARB;
 
     register_extension("WGL_ARB_pixel_format");
-    opengl_funcs.p_wglChoosePixelFormatARB      = macdrv_wglChoosePixelFormatARB;
-    opengl_funcs.p_wglGetPixelFormatAttribfvARB = (void *)1; /* never called */
-    opengl_funcs.p_wglGetPixelFormatAttribivARB = macdrv_wglGetPixelFormatAttribivARB;
+    opengl_funcs.ext.p_wglChoosePixelFormatARB      = macdrv_wglChoosePixelFormatARB;
+    opengl_funcs.ext.p_wglGetPixelFormatAttribfvARB = (void *)1; /* never called */
+    opengl_funcs.ext.p_wglGetPixelFormatAttribivARB = macdrv_wglGetPixelFormatAttribivARB;
 
     if (gluCheckExtension((GLubyte*)"GL_ARB_color_buffer_float", (GLubyte*)gl_info.glExtensions))
     {
@@ -4113,16 +4119,16 @@ static void load_extensions(void)
     if (gluCheckExtension((GLubyte*)"GL_APPLE_pixel_buffer", (GLubyte*)gl_info.glExtensions))
     {
         register_extension("WGL_ARB_pbuffer");
-        opengl_funcs.p_wglCreatePbufferARB    = macdrv_wglCreatePbufferARB;
-        opengl_funcs.p_wglDestroyPbufferARB   = macdrv_wglDestroyPbufferARB;
-        opengl_funcs.p_wglGetPbufferDCARB     = macdrv_wglGetPbufferDCARB;
-        opengl_funcs.p_wglQueryPbufferARB     = macdrv_wglQueryPbufferARB;
-        opengl_funcs.p_wglReleasePbufferDCARB = macdrv_wglReleasePbufferDCARB;
+        opengl_funcs.ext.p_wglCreatePbufferARB    = macdrv_wglCreatePbufferARB;
+        opengl_funcs.ext.p_wglDestroyPbufferARB   = macdrv_wglDestroyPbufferARB;
+        opengl_funcs.ext.p_wglGetPbufferDCARB     = macdrv_wglGetPbufferDCARB;
+        opengl_funcs.ext.p_wglQueryPbufferARB     = macdrv_wglQueryPbufferARB;
+        opengl_funcs.ext.p_wglReleasePbufferDCARB = macdrv_wglReleasePbufferDCARB;
 
         register_extension("WGL_ARB_render_texture");
-        opengl_funcs.p_wglBindTexImageARB       = macdrv_wglBindTexImageARB;
-        opengl_funcs.p_wglReleaseTexImageARB    = macdrv_wglReleaseTexImageARB;
-        opengl_funcs.p_wglSetPbufferAttribARB   = macdrv_wglSetPbufferAttribARB;
+        opengl_funcs.ext.p_wglBindTexImageARB       = macdrv_wglBindTexImageARB;
+        opengl_funcs.ext.p_wglReleaseTexImageARB    = macdrv_wglReleaseTexImageARB;
+        opengl_funcs.ext.p_wglSetPbufferAttribARB   = macdrv_wglSetPbufferAttribARB;
 
         if (gluCheckExtension((GLubyte*)"GL_ARB_texture_rectangle", (GLubyte*)gl_info.glExtensions) ||
             gluCheckExtension((GLubyte*)"GL_EXT_texture_rectangle", (GLubyte*)gl_info.glExtensions))
@@ -4131,19 +4137,19 @@ static void load_extensions(void)
 
     register_extension("WGL_ARB_create_context");
     register_extension("WGL_ARB_create_context_profile");
-    opengl_funcs.p_wglCreateContextAttribsARB = macdrv_wglCreateContextAttribsARB;
+    opengl_funcs.ext.p_wglCreateContextAttribsARB = macdrv_wglCreateContextAttribsARB;
 
     /*
      * EXT Extensions
      */
     register_extension("WGL_EXT_extensions_string");
-    opengl_funcs.p_wglGetExtensionsStringEXT = macdrv_wglGetExtensionsStringEXT;
+    opengl_funcs.ext.p_wglGetExtensionsStringEXT = macdrv_wglGetExtensionsStringEXT;
 
     if (allow_vsync)
     {
         register_extension("WGL_EXT_swap_control");
-        opengl_funcs.p_wglSwapIntervalEXT = macdrv_wglSwapIntervalEXT;
-        opengl_funcs.p_wglGetSwapIntervalEXT = macdrv_wglGetSwapIntervalEXT;
+        opengl_funcs.ext.p_wglSwapIntervalEXT = macdrv_wglSwapIntervalEXT;
+        opengl_funcs.ext.p_wglGetSwapIntervalEXT = macdrv_wglGetSwapIntervalEXT;
     }
 
     /* Presumably identical to [W]GL_ARB_framebuffer_sRGB, above, but clients may
@@ -4162,18 +4168,20 @@ static void load_extensions(void)
      * The default wglSetPixelFormat doesn't allow this, so add our own which allows it.
      */
     register_extension("WGL_WINE_pixel_format_passthrough");
-    opengl_funcs.p_wglSetPixelFormatWINE = macdrv_wglSetPixelFormatWINE;
+    opengl_funcs.ext.p_wglSetPixelFormatWINE = macdrv_wglSetPixelFormatWINE;
 
     register_extension("WGL_WINE_query_renderer");
-    opengl_funcs.p_wglQueryCurrentRendererIntegerWINE = macdrv_wglQueryCurrentRendererIntegerWINE;
-    opengl_funcs.p_wglQueryCurrentRendererStringWINE = macdrv_wglQueryCurrentRendererStringWINE;
-    opengl_funcs.p_wglQueryRendererIntegerWINE = macdrv_wglQueryRendererIntegerWINE;
-    opengl_funcs.p_wglQueryRendererStringWINE = macdrv_wglQueryRendererStringWINE;
+    opengl_funcs.ext.p_wglQueryCurrentRendererIntegerWINE = macdrv_wglQueryCurrentRendererIntegerWINE;
+    opengl_funcs.ext.p_wglQueryCurrentRendererStringWINE = macdrv_wglQueryCurrentRendererStringWINE;
+    opengl_funcs.ext.p_wglQueryRendererIntegerWINE = macdrv_wglQueryRendererIntegerWINE;
+    opengl_funcs.ext.p_wglQueryRendererStringWINE = macdrv_wglQueryRendererStringWINE;
 }
 
 
 static void init_opengl(void)
 {
+    unsigned int i;
+
     TRACE("()\n");
 
     dc_pbuffers = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
@@ -4191,21 +4199,21 @@ static void init_opengl(void)
         return;
     }
 
-#define USE_GL_FUNC(f) \
-        if (!(opengl_funcs.p_##f = (void *)dlsym(opengl_handle, #f))) \
-        { \
-            ERR( "%s not found in OpenGL, disabling.\n", #f ); \
-            goto failed; \
+    for (i = 0; i < ARRAY_SIZE(opengl_func_names); i++)
+    {
+        if (!(((void **)&opengl_funcs.gl)[i] = dlsym(opengl_handle, opengl_func_names[i])))
+        {
+            ERR("%s not found in OpenGL, disabling.\n", opengl_func_names[i]);
+            goto failed;
         }
-    ALL_GL_FUNCS
-#undef USE_GL_FUNC
+    }
 
     if (!init_gl_info())
         goto failed;
 
     /* redirect some standard OpenGL functions */
 #define REDIRECT(func) \
-    do { p##func = opengl_funcs.p_##func; opengl_funcs.p_##func = macdrv_##func; } while(0)
+    do { p##func = opengl_funcs.gl.p_##func; opengl_funcs.gl.p_##func = macdrv_##func; } while(0)
     REDIRECT(glCopyPixels);
     REDIRECT(glGetString);
     REDIRECT(glReadPixels);
@@ -4218,7 +4226,7 @@ static void init_opengl(void)
 
     /* redirect some OpenGL extension functions */
 #define REDIRECT(func) \
-    do { if ((p##func = dlsym(opengl_handle, #func))) { opengl_funcs.p_##func = macdrv_##func; } } while(0)
+    do { if ((p##func = dlsym(opengl_handle, #func))) { opengl_funcs.ext.p_##func = macdrv_##func; } } while(0)
     REDIRECT(glCopyColorTable);
 #undef REDIRECT
 
@@ -4567,16 +4575,18 @@ static void macdrv_get_pixel_formats(struct wgl_pixel_format *formats,
 
 static struct opengl_funcs opengl_funcs =
 {
-    .p_wglCopyContext = macdrv_wglCopyContext,
-    .p_wglCreateContext = macdrv_wglCreateContext,
-    .p_wglDeleteContext = macdrv_wglDeleteContext,
-    .p_wglGetPixelFormat = macdrv_wglGetPixelFormat,
-    .p_wglGetProcAddress = macdrv_wglGetProcAddress,
-    .p_wglMakeCurrent = macdrv_wglMakeCurrent,
-    .p_wglSetPixelFormat = macdrv_wglSetPixelFormat,
-    .p_wglShareLists = macdrv_wglShareLists,
-    .p_wglSwapBuffers = macdrv_wglSwapBuffers,
-    .p_get_pixel_formats = macdrv_get_pixel_formats,
+    {
+        macdrv_wglCopyContext,          /* p_wglCopyContext */
+        macdrv_wglCreateContext,        /* p_wglCreateContext */
+        macdrv_wglDeleteContext,        /* p_wglDeleteContext */
+        macdrv_wglGetPixelFormat,       /* p_wglGetPixelFormat */
+        macdrv_wglGetProcAddress,       /* p_wglGetProcAddress */
+        macdrv_wglMakeCurrent,          /* p_wglMakeCurrent */
+        macdrv_wglSetPixelFormat,       /* p_wglSetPixelFormat */
+        macdrv_wglShareLists,           /* p_wglShareLists */
+        macdrv_wglSwapBuffers,          /* p_wglSwapBuffers */
+        macdrv_get_pixel_formats,       /* p_get_pixel_formats */
+    }
 };
 
 /**********************************************************************
