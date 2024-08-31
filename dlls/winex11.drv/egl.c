@@ -31,10 +31,19 @@
 #include <sys/un.h>
 #endif
 
+#ifdef HAVE_X11_XLIB_XCB_H
+#include <X11/Xlib-xcb.h>
+#endif
+#ifdef HAVE_XCB_SHM_H
+#include <xcb/shm.h>
+#endif
+#include <unistd.h>
+
 #include "x11drv.h"
 #include "xcomposite.h"
 #include "winternl.h"
 #include "wine/debug.h"
+#include "wine/server.h"
 
 #include <unistd.h>
 
@@ -191,6 +200,32 @@ err:
     egl_handle = NULL;
 }
 
+static inline BOOL call_xcb( xcb_connection_t *xcb, xcb_void_cookie_t cookie, const char *func, BOOL check )
+{
+    xcb_generic_error_t *error;
+
+    if (check)
+    {
+        xcb_discard_reply( xcb, cookie.sequence );
+        return TRUE;
+    }
+
+    if ((error = xcb_request_check( xcb, cookie )))
+    {
+        ERR( "%s returned error %d sequence %u resource %#x major %u minor %u\n", func, error->error_code,
+             error->sequence, error->resource_id, error->minor_code, error->major_code );
+        free( error );
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+#define XCB_CALL( func, xcb, ... ) \
+    call_xcb( xcb, ERR_ON(wgl) ? (func ## _checked)( (xcb), __VA_ARGS__ ) \
+                                  : (func)( (xcb), __VA_ARGS__ ), \
+              #func, ERR_ON(wgl) )
+
 BOOL egl_import_pixmap(Pixmap pixmap)
 {
     static pthread_once_t init_once = PTHREAD_ONCE_INIT;
@@ -222,6 +257,48 @@ ERR("fourcc %s\n", debugstr_fourcc(desc.fourcc));
 p_eglExportDMABUFImageMESA( egl_display, image, &desc.fd, (int *)&desc.stride, (int *)&desc.offset );
 ERR("fourcc %s modifiers %#jx fds %d strides %u offsets %u\n", debugstr_fourcc(desc.fourcc), desc.modifiers, desc.fd, desc.stride, desc.offset);
     p_eglDestroyImage( egl_display, image );
+
+
+{
+    xcb_connection_t *xcb = XGetXCBConnection( gdi_display );
+    xcb_shm_query_version_reply_t *version;
+    xcb_generic_error_t *error;
+    xcb_shm_seg_t xcb_seg;
+
+    LARGE_INTEGER section_size;
+    NTSTATUS status;
+    HANDLE section;
+    int fd;
+
+    section_size.QuadPart = 128 * 128 * 4;
+    if ((status = NtCreateSection( &section, GENERIC_READ | SECTION_MAP_READ | SECTION_MAP_WRITE,
+                                   NULL, &section_size, PAGE_READWRITE, SEC_COMMIT, 0 )))
+        ERR("failed to create section, status %#x\n", (UINT)status);
+
+    if ((status = wine_server_handle_to_fd( section, FILE_READ_DATA, &fd, NULL )))
+        ERR("failed to get section fd, status %#x\n", (UINT)status);
+
+    version = xcb_shm_query_version_reply( xcb, xcb_shm_query_version( xcb ), &error ); /* closes the fd */
+ERR( "version %p error %p\n", version, error );
+if (version) ERR( "%u.%u shared %u fmt %u\n", version->major_version, version->minor_version, version->shared_pixmaps, version->pixmap_format );
+
+    xcb_seg = xcb_generate_id( xcb );
+    if (!call_xcb( xcb, xcb_shm_attach_fd_checked( xcb, xcb_seg, dup( fd ), FALSE ), "xcb_shm_attach_fd", TRUE )) ERR("attach_fd failed\n");
+
+    pixmap = xcb_generate_id( xcb );
+    XCB_CALL( xcb_shm_create_pixmap, xcb, pixmap, root_window, 16, 16, 32, xcb_seg, 0 );
+
+    image = p_eglCreateImage( egl_display, EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR, (void *)(UINT_PTR)pixmap, NULL );
+ERR("image %p\n", image);
+p_eglExportDMABUFImageQueryMESA( egl_display, image, (int *)&desc.fourcc, &planes, &desc.modifiers );
+ERR("fourcc %s\n", debugstr_fourcc(desc.fourcc));
+p_eglExportDMABUFImageMESA( egl_display, image, &desc.fd, (int *)&desc.stride, (int *)&desc.offset );
+ERR("fourcc %s modifiers %#jx fds %d strides %u offsets %u\n", debugstr_fourcc(desc.fourcc), desc.modifiers, desc.fd, desc.stride, desc.offset);
+    p_eglDestroyImage( egl_display, image );
+
+    close( fd );
+    NtClose( section );
+}
 
     return TRUE;
 }
