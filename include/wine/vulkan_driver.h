@@ -151,6 +151,44 @@ static inline void remove_vulkan_object( struct vulkan_instance *instance, struc
     }
 }
 
+struct vulkan_device
+{
+    struct vulkan_object obj;
+    struct vulkan_device_funcs funcs;
+};
+
+static inline struct vulkan_device *vulkan_device_from_handle( VkDevice handle )
+{
+    struct vulkan_client_object *client = (struct vulkan_client_object *)handle;
+    return (struct vulkan_device *)(UINT_PTR)client->unix_handle;
+}
+
+static inline const struct vulkan_device_funcs *get_vulkan_device_funcs( VkDevice handle )
+{
+    return &vulkan_device_from_handle(handle)->funcs;
+}
+static inline const struct vulkan_device_funcs *get_vulkan_parent_device_funcs( struct vulkan_object *obj )
+{
+    struct vulkan_device *device = CONTAINING_RECORD( obj->parent, struct vulkan_device, obj );
+    return &device->funcs;
+}
+
+static inline void add_vulkan_device_object( VkDevice handle, struct vulkan_object *obj )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( handle );
+    struct vulkan_object *physical_device = device->obj.parent;
+    struct vulkan_instance *instance = CONTAINING_RECORD( physical_device->parent, struct vulkan_instance, obj );
+    add_vulkan_object( instance, obj );
+}
+
+static inline void remove_vulkan_device_object( VkDevice handle, struct vulkan_object *obj )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( handle );
+    struct vulkan_object *physical_device = device->obj.parent;
+    struct vulkan_instance *instance = CONTAINING_RECORD( physical_device->parent, struct vulkan_instance, obj );
+    remove_vulkan_object( instance, obj );
+}
+
 struct vulkan_funcs
 {
     /* Vulkan global functions. These are the only calls at this point a graphics driver

@@ -59,9 +59,7 @@ static inline struct wine_queue *wine_queue_from_handle(VkQueue handle)
 
 struct wine_device
 {
-    struct vulkan_object obj;
-    struct vulkan_device_funcs funcs;
-
+    struct vulkan_device device;
     uint32_t queue_count;
     struct wine_queue queues[];
 };
@@ -70,7 +68,7 @@ C_ASSERT(sizeof(struct wine_device) == offsetof(struct wine_device, queues[0]));
 
 static inline struct wine_device *wine_device_from_handle(VkDevice handle)
 {
-    return (struct wine_device *)(uintptr_t)handle->base.unix_handle;
+    return CONTAINING_RECORD(vulkan_device_from_handle(handle), struct wine_device, device.obj);
 }
 
 struct wine_debug_utils_messenger;
@@ -290,16 +288,6 @@ static inline void *find_next_struct(const void *s, VkStructureType t)
     }
 
     return NULL;
-}
-
-static inline const struct vulkan_device_funcs *get_vulkan_device_funcs(VkDevice device)
-{
-    return &wine_device_from_handle(device)->funcs;
-}
-static inline const struct vulkan_device_funcs *get_vulkan_parent_device_funcs(struct vulkan_object *obj)
-{
-    struct wine_device *device = CONTAINING_RECORD(obj->parent, struct wine_device, obj);
-    return &device->funcs;
 }
 
 #endif /* __WINE_VULKAN_PRIVATE_H */

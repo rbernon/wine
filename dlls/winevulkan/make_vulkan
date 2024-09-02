@@ -1193,7 +1193,7 @@ class VkHandle(object):
         if self.name == "VkDeferredOperationKHR":
             return "wine_deferred_operation_from_handle({0})->obj.host.deferred_operation".format(name)
         if self.name == "VkDevice":
-            return "wine_device_from_handle({0})->obj.host.device".format(name)
+            return "vulkan_device_from_handle({0})->obj.host.device".format(name)
         if self.name == "VkInstance":
             return "vulkan_instance_from_handle({0})->obj.host.instance".format(name)
         if self.name == "VkDeviceMemory":
