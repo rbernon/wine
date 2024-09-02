@@ -70,18 +70,18 @@ static inline VkSurfaceKHR surface_to_handle( struct surface *surface )
     return (VkSurfaceKHR)(uintptr_t)surface;
 }
 
-static VkResult win32u_vkCreateWin32SurfaceKHR( VkInstance instance, const VkWin32SurfaceCreateInfoKHR *info,
+static VkResult win32u_vkCreateWin32SurfaceKHR( VkInstance instance_handle, const VkWin32SurfaceCreateInfoKHR *info,
                                                 const VkAllocationCallbacks *allocator, VkSurfaceKHR *handle )
 {
     struct surface *surface;
     VkResult res;
     WND *win;
 
-    TRACE( "instance %p, info %p, allocator %p, handle %p\n", instance, info, allocator, handle );
+    TRACE( "instance_handle %p, info %p, allocator %p, handle %p\n", instance_handle, info, allocator, handle );
     if (allocator) FIXME( "Support for allocation callbacks not implemented yet\n" );
 
     if (!(surface = calloc( 1, sizeof(*surface) ))) return VK_ERROR_OUT_OF_HOST_MEMORY;
-    if ((res = driver_funcs->p_vulkan_surface_create( info->hwnd, instance, &surface->host_surface, &surface->driver_private )))
+    if ((res = driver_funcs->p_vulkan_surface_create( info->hwnd, instance_handle, &surface->host_surface, &surface->driver_private )))
     {
         free( surface );
         return res;
@@ -100,12 +100,12 @@ static VkResult win32u_vkCreateWin32SurfaceKHR( VkInstance instance, const VkWin
     return VK_SUCCESS;
 }
 
-static void win32u_vkDestroySurfaceKHR( VkInstance instance, VkSurfaceKHR handle, const VkAllocationCallbacks *allocator )
+static void win32u_vkDestroySurfaceKHR( VkInstance instance_handle, VkSurfaceKHR surface_handle, const VkAllocationCallbacks *allocator )
 {
-    struct surface *surface = surface_from_handle( handle );
+    struct surface *surface = surface_from_handle( surface_handle );
     WND *win;
 
-    TRACE( "instance %p, handle 0x%s, allocator %p\n", instance, wine_dbgstr_longlong(handle), allocator );
+    TRACE( "instance_handle %p, surface_handle %#jx, allocator %p\n", instance_handle, surface_handle, allocator );
     if (allocator) FIXME( "Support for allocation callbacks not implemented yet\n" );
 
     if ((win = get_win_ptr( surface->hwnd )) && win != WND_DESKTOP && win != WND_OTHER_PROCESS)
@@ -114,24 +114,24 @@ static void win32u_vkDestroySurfaceKHR( VkInstance instance, VkSurfaceKHR handle
         release_win_ptr( win );
     }
 
-    p_vkDestroySurfaceKHR( instance, surface->host_surface, NULL /* allocator */ );
+    p_vkDestroySurfaceKHR( instance_handle, surface->host_surface, NULL /* allocator */ );
     driver_funcs->p_vulkan_surface_destroy( surface->hwnd, surface->driver_private );
     free( surface );
 }
 
-static VkResult win32u_vkQueuePresentKHR( VkQueue queue, const VkPresentInfoKHR *present_info, VkSurfaceKHR *surfaces )
+static VkResult win32u_vkQueuePresentKHR( VkQueue queue_handle, const VkPresentInfoKHR *present_info, VkSurfaceKHR *surface_handles )
 {
     VkResult res;
     UINT i;
 
-    TRACE( "queue %p, present_info %p\n", queue, present_info );
+    TRACE( "queue_handle %p, present_info %p\n", queue_handle, present_info );
 
-    res = p_vkQueuePresentKHR( queue, present_info );
+    res = p_vkQueuePresentKHR( queue_handle, present_info );
 
     for (i = 0; i < present_info->swapchainCount; i++)
     {
         VkResult swapchain_res = present_info->pResults ? present_info->pResults[i] : res;
-        struct surface *surface = surface_from_handle( surfaces[i] );
+        struct surface *surface = surface_from_handle( surface_handles[i] );
 
         driver_funcs->p_vulkan_surface_presented( surface->hwnd, surface->driver_private, swapchain_res );
     }
