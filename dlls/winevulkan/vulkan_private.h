@@ -30,6 +30,11 @@
 #include "wine/rbtree.h"
 #include "wine/vulkan_driver.h"
 
+static inline const char *debugstr_vulkan_object( const struct vulkan_object *obj )
+{
+    return wine_dbg_sprintf( "%p %#jx/%#jx, parent %p", obj, obj->host.handle, obj->client.handle, obj->parent );
+}
+
 struct wine_cmd_buffer
 {
     struct vulkan_object obj;
