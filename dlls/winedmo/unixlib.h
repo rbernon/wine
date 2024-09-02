@@ -27,9 +27,19 @@
 
 #include "wine/unixlib.h"
 
+
+struct demuxer_check_params
+{
+    char mime_type[256];
+};
+
+
 enum unix_funcs
 {
     unix_process_attach,
+
+    unix_demuxer_check,
+
     unix_funcs_count,
 };
 

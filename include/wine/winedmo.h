@@ -16,25 +16,16 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include "config.h"
+#ifndef __WINE_WINEDMO_H
+#define __WINE_WINEDMO_H
 
 #include <stddef.h>
 #include <stdarg.h>
 
-#include "ntstatus.h"
-#define WIN32_NO_STATUS
 #include "windef.h"
 #include "winbase.h"
+#include "winternl.h"
 
-#include "unixlib.h"
+NTSTATUS CDECL winedmo_demuxer_check( const char *mime_type );
 
-#ifdef ENABLE_FFMPEG
-
-#include <libavutil/avutil.h>
-#include <libavutil/imgutils.h>
-#include <libavformat/avformat.h>
-
-/* unix_demuxer.c */
-extern NTSTATUS demuxer_check( void * );
-
-#endif /* ENABLE_FFMPEG */
+#endif /* __WINE_WINEDMO_H */
