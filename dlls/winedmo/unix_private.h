@@ -27,3 +27,9 @@
 #include "winbase.h"
 
 #include "unixlib.h"
+
+#ifdef ENABLE_FFMPEG
+
+#include <libavutil/avutil.h>
+
+#endif /* ENABLE_FFMPEG */

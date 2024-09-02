@@ -26,13 +26,44 @@
 
 #include "wine/debug.h"
 
+WINE_DEFAULT_DEBUG_CHANNEL(dmo);
+
+#ifdef ENABLE_FFMPEG
+
+static void vlog( void *ctx, int level, const char *fmt, va_list va_args )
+{
+    enum __wine_debug_class dbcl = __WINE_DBCL_TRACE;
+    if (level <= AV_LOG_ERROR) dbcl = __WINE_DBCL_ERR;
+    if (level <= AV_LOG_WARNING) dbcl = __WINE_DBCL_WARN;
+    wine_dbg_vlog( dbcl, __wine_dbch___default, __func__, fmt, va_args );
+}
+
+static const char *debugstr_version( UINT version )
+{
+    return wine_dbg_sprintf("%u.%u.%u", AV_VERSION_MAJOR(version), AV_VERSION_MINOR(version), AV_VERSION_MICRO(version));
+}
+
+static NTSTATUS process_attach( void *arg )
+{
+    TRACE( "FFmpeg support:\n" );
+    TRACE( "  avutil version %s\n", debugstr_version( avutil_version() ) );
+
+    av_log_set_callback( vlog );
+    return STATUS_SUCCESS;
+}
+
+#else /* ENABLE_FFMPEG */
+
 #define MAKE_UNSUPPORTED_ENTRY( name )                                                             \
     static NTSTATUS name( void *arg )                                                              \
     {                                                                                              \
+        WARN( "FFmpeg support not compiled in\n" );                                                \
         return STATUS_NOT_SUPPORTED;                                                               \
     }
 MAKE_UNSUPPORTED_ENTRY( process_attach )
 #undef MAKE_UNSUPPORTED_ENTRY
+
+#endif /* ENABLE_FFMPEG */
 
 const unixlib_entry_t __wine_unix_call_funcs[] =
 {
