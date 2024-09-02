@@ -168,6 +168,11 @@ static inline struct vulkan_device *vulkan_device_from_handle( VkDevice handle )
     struct vulkan_client_object *client = (struct vulkan_client_object *)handle;
     return (struct vulkan_device *)(UINT_PTR)client->unix_handle;
 }
+static inline struct vulkan_object *vulkan_queue_from_handle( VkQueue handle )
+{
+    struct vulkan_client_object *client = (struct vulkan_client_object *)handle;
+    return (struct vulkan_object *)(UINT_PTR)client->unix_handle;
+}
 
 static inline const struct vulkan_device_funcs *get_vulkan_device_funcs( VkDevice handle )
 {
@@ -211,16 +216,23 @@ struct vulkan_funcs
      * needs to provide. Other function calls will be provided indirectly by dispatch
      * tables part of dispatchable Vulkan objects such as VkInstance or vkDevice.
      */
+    PFN_vkAcquireNextImage2KHR p_vkAcquireNextImage2KHR;
+    PFN_vkAcquireNextImageKHR p_vkAcquireNextImageKHR;
+    PFN_vkCreateSwapchainKHR p_vkCreateSwapchainKHR;
     PFN_vkCreateWin32SurfaceKHR p_vkCreateWin32SurfaceKHR;
     PFN_vkDestroySurfaceKHR p_vkDestroySurfaceKHR;
+    PFN_vkDestroySwapchainKHR p_vkDestroySwapchainKHR;
     PFN_vkGetDeviceProcAddr p_vkGetDeviceProcAddr;
     PFN_vkGetInstanceProcAddr p_vkGetInstanceProcAddr;
+    PFN_vkGetPhysicalDevicePresentRectanglesKHR p_vkGetPhysicalDevicePresentRectanglesKHR;
+    PFN_vkGetPhysicalDeviceSurfaceCapabilities2KHR p_vkGetPhysicalDeviceSurfaceCapabilities2KHR;
+    PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR p_vkGetPhysicalDeviceSurfaceCapabilitiesKHR;
+    PFN_vkGetPhysicalDeviceSurfaceFormats2KHR p_vkGetPhysicalDeviceSurfaceFormats2KHR;
     PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR p_vkGetPhysicalDeviceWin32PresentationSupportKHR;
-    VkResult (*p_vkQueuePresentKHR)(VkQueue, const VkPresentInfoKHR *, VkSurfaceKHR *surfaces);
+    PFN_vkQueuePresentKHR p_vkQueuePresentKHR;
 
     /* winevulkan specific functions */
     const char *(*p_get_host_surface_extension)(void);
-    VkSurfaceKHR (*p_wine_get_host_surface)(VkSurfaceKHR);
 };
 
 /* interface between win32u and the user drivers */

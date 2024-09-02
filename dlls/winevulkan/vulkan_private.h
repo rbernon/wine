@@ -163,32 +163,6 @@ static inline struct wine_debug_report_callback *wine_debug_report_callback_from
     return (struct wine_debug_report_callback *)(uintptr_t)handle;
 }
 
-struct wine_surface
-{
-    struct vulkan_object obj;
-    VkSurfaceKHR driver_surface;
-    HWND hwnd;
-
-    struct rb_entry window_entry;
-};
-
-static inline struct wine_surface *wine_surface_from_handle(VkSurfaceKHR handle)
-{
-    return (struct wine_surface *)(uintptr_t)handle;
-}
-
-struct wine_swapchain
-{
-    struct vulkan_object obj;
-    struct wine_surface *surface;
-    VkExtent2D extents;
-};
-
-static inline struct wine_swapchain *wine_swapchain_from_handle(VkSwapchainKHR handle)
-{
-    return (struct wine_swapchain *)(uintptr_t)handle;
-}
-
 BOOL wine_vk_device_extension_supported(const char *name);
 BOOL wine_vk_instance_extension_supported(const char *name);
 BOOL wine_vk_is_host_surface_extension(const char *name);

@@ -38,6 +38,7 @@
 #include "wine/vulkan_driver.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(vulkan);
+WINE_DECLARE_DEBUG_CHANNEL(fps);
 
 PFN_vkGetDeviceProcAddr p_vkGetDeviceProcAddr = NULL;
 PFN_vkGetInstanceProcAddr p_vkGetInstanceProcAddr = NULL;
@@ -49,31 +50,85 @@ static struct vulkan_funcs vulkan_funcs;
 
 static const struct vulkan_driver_funcs *driver_funcs;
 
-static void (*p_vkDestroySurfaceKHR)(VkInstance, VkSurfaceKHR, const VkAllocationCallbacks *);
-static VkResult (*p_vkQueuePresentKHR)(VkQueue, const VkPresentInfoKHR *);
-
 struct surface
 {
-    struct list entry;
-    VkSurfaceKHR host_surface;
+    struct vulkan_object obj;
+    VkSurfaceKHR driver_surface;
     void *driver_private;
+    struct list entry;
     HWND hwnd;
+
+    struct rb_entry window_entry;
 };
 
 static inline struct surface *surface_from_handle( VkSurfaceKHR handle )
 {
-    return (struct surface *)(uintptr_t)handle;
+    return CONTAINING_RECORD( vulkan_surface_from_handle( handle ), struct surface, obj );
 }
 
-static inline VkSurfaceKHR surface_to_handle( struct surface *surface )
+struct swapchain
 {
-    return (VkSurfaceKHR)(uintptr_t)surface;
+    struct vulkan_object obj;
+    struct surface *surface;
+    VkExtent2D extents;
+};
+
+static inline struct swapchain *swapchain_from_handle( VkSwapchainKHR handle )
+{
+    return CONTAINING_RECORD( vulkan_swapchain_from_handle( handle ), struct swapchain, obj );
+}
+
+static inline const char *debugstr_vulkan_object( const struct vulkan_object *obj )
+{
+    return wine_dbg_sprintf( "%p %#jx/%#jx, parent %p", obj, obj->host.handle, obj->client.handle, obj->parent );
+}
+
+static int window_surface_compare( const void *key, const struct rb_entry *entry )
+{
+    const struct surface *surface = RB_ENTRY_VALUE( entry, struct surface, window_entry );
+    HWND key_hwnd = (HWND)key;
+
+    if (key_hwnd < surface->hwnd) return -1;
+    if (key_hwnd > surface->hwnd) return 1;
+    return 0;
+}
+
+static pthread_mutex_t window_surfaces_lock = PTHREAD_MUTEX_INITIALIZER;
+static struct rb_tree window_surfaces = {.compare = window_surface_compare};
+
+static void window_surfaces_insert( struct surface *surface )
+{
+    struct surface *previous;
+    struct rb_entry *ptr;
+
+    pthread_mutex_lock( &window_surfaces_lock );
+
+    if (!(ptr = rb_get( &window_surfaces, surface->hwnd )))
+        rb_put( &window_surfaces, surface->hwnd, &surface->window_entry );
+    else
+    {
+        previous = RB_ENTRY_VALUE( ptr, struct surface, window_entry );
+        rb_replace( &window_surfaces, &previous->window_entry, &surface->window_entry );
+        previous->hwnd = 0; /* make sure previous surface becomes invalid */
+    }
+
+    pthread_mutex_unlock( &window_surfaces_lock );
+}
+
+static void window_surfaces_remove( struct surface *surface )
+{
+    pthread_mutex_lock( &window_surfaces_lock );
+    if (surface->hwnd) rb_remove( &window_surfaces, &surface->window_entry );
+    pthread_mutex_unlock( &window_surfaces_lock );
 }
 
 static VkResult win32u_vkCreateWin32SurfaceKHR( VkInstance instance_handle, const VkWin32SurfaceCreateInfoKHR *info,
                                                 const VkAllocationCallbacks *allocator, VkSurfaceKHR *handle )
 {
+    struct vulkan_instance *instance = vulkan_instance_from_handle( instance_handle );
     struct surface *surface;
+    VkSurfaceKHR host_surface;
+    HWND dummy = NULL;
     VkResult res;
     WND *win;
 
@@ -81,8 +136,23 @@ static VkResult win32u_vkCreateWin32SurfaceKHR( VkInstance instance_handle, cons
     if (allocator) FIXME( "Support for allocation callbacks not implemented yet\n" );
 
     if (!(surface = calloc( 1, sizeof(*surface) ))) return VK_ERROR_OUT_OF_HOST_MEMORY;
-    if ((res = driver_funcs->p_vulkan_surface_create( info->hwnd, instance_handle, &surface->host_surface, &surface->driver_private )))
+
+    /* Windows allows surfaces to be created with no HWND, they return VK_ERROR_SURFACE_LOST_KHR later */
+    if (!(surface->hwnd = info->hwnd))
     {
+        static const WCHAR staticW[] = {'s', 't', 'a', 't', 'i', 'c', 0};
+        UNICODE_STRING static_us = RTL_CONSTANT_STRING( staticW );
+        dummy = NtUserCreateWindowEx( 0, &static_us, &static_us, &static_us, WS_POPUP, 0, 0, 0, 0,
+                                      NULL, NULL, NULL, NULL, 0, NULL, 0, FALSE );
+        WARN( "Created dummy window %p for null surface window\n", dummy );
+        surface->hwnd = dummy;
+    }
+
+    res = driver_funcs->p_vulkan_surface_create( surface->hwnd, instance->obj.host.instance,
+                                                 &host_surface, &surface->driver_private );
+    if (res != VK_SUCCESS)
+    {
+        if (dummy) NtUserDestroyWindow( dummy );
         free( surface );
         return res;
     }
@@ -95,15 +165,25 @@ static VkResult win32u_vkCreateWin32SurfaceKHR( VkInstance instance_handle, cons
         release_win_ptr( win );
     }
 
-    surface->hwnd = info->hwnd;
-    *handle = surface_to_handle( surface );
+    init_vulkan_object( &surface->obj, &instance->obj, host_surface, NULL );
+    add_vulkan_object( instance, &surface->obj );
+    TRACE( "created surface %s\n", debugstr_vulkan_object( &surface->obj ) );
+
+    if (dummy) NtUserDestroyWindow( dummy );
+    window_surfaces_insert( surface );
+
+    *handle = surface->obj.client.surface;
     return VK_SUCCESS;
 }
 
 static void win32u_vkDestroySurfaceKHR( VkInstance instance_handle, VkSurfaceKHR surface_handle, const VkAllocationCallbacks *allocator )
 {
+    struct vulkan_instance *instance = vulkan_instance_from_handle( instance_handle );
+    const struct vulkan_instance_funcs *funcs = &instance->funcs;
     struct surface *surface = surface_from_handle( surface_handle );
     WND *win;
+
+    if (!surface) return;
 
     TRACE( "instance_handle %p, surface_handle %#jx, allocator %p\n", instance_handle, surface_handle, allocator );
     if (allocator) FIXME( "Support for allocation callbacks not implemented yet\n" );
@@ -114,29 +194,344 @@ static void win32u_vkDestroySurfaceKHR( VkInstance instance_handle, VkSurfaceKHR
         release_win_ptr( win );
     }
 
-    p_vkDestroySurfaceKHR( instance_handle, surface->host_surface, NULL /* allocator */ );
+    funcs->p_vkDestroySurfaceKHR( instance->obj.host.instance, surface->obj.host.surface, NULL /* allocator */ );
     driver_funcs->p_vulkan_surface_destroy( surface->hwnd, surface->driver_private );
+
+    remove_vulkan_object( instance, &surface->obj );
+    window_surfaces_remove( surface );
+
     free( surface );
 }
 
-static VkResult win32u_vkQueuePresentKHR( VkQueue queue_handle, const VkPresentInfoKHR *present_info, VkSurfaceKHR *surface_handles )
+static BOOL extents_equals( const VkExtent2D *extents, const RECT *rect )
 {
+    return extents->width == rect->right - rect->left && extents->height == rect->bottom - rect->top;
+}
+
+static VkResult win32u_vkQueuePresentKHR( VkQueue queue_handle, const VkPresentInfoKHR *present_info )
+{
+    VkSwapchainKHR swapchains_buffer[16], *swapchains = swapchains_buffer;
+    struct vulkan_object *queue = vulkan_queue_from_handle( queue_handle );
+    const struct vulkan_device_funcs *funcs = get_vulkan_parent_device_funcs( queue );
+    VkPresentInfoKHR present_info_host = *present_info;
     VkResult res;
     UINT i;
 
     TRACE( "queue_handle %p, present_info %p\n", queue_handle, present_info );
 
-    res = p_vkQueuePresentKHR( queue_handle, present_info );
+    if (present_info->swapchainCount > ARRAY_SIZE( swapchains_buffer ) &&
+        !(swapchains = malloc( present_info->swapchainCount * sizeof(*swapchains) )))
+    {
+        free( swapchains );
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
 
     for (i = 0; i < present_info->swapchainCount; i++)
     {
-        VkResult swapchain_res = present_info->pResults ? present_info->pResults[i] : res;
-        struct surface *surface = surface_from_handle( surface_handles[i] );
+        struct swapchain *swapchain = swapchain_from_handle( present_info->pSwapchains[i] );
+        swapchains[i] = swapchain->obj.host.swapchain;
+    }
+    present_info_host.pSwapchains = swapchains;
 
-        driver_funcs->p_vulkan_surface_presented( surface->hwnd, surface->driver_private, swapchain_res );
+    res = funcs->p_vkQueuePresentKHR( queue->host.queue, &present_info_host );
+
+    for (i = 0; i < present_info->swapchainCount; i++)
+    {
+        struct swapchain *swapchain = swapchain_from_handle( present_info->pSwapchains[i] );
+        VkResult swapchain_res = present_info->pResults ? present_info->pResults[i] : res;
+        struct surface *surface = swapchain->surface;
+        RECT client_rect;
+
+        driver_funcs->p_vulkan_surface_presented( surface->hwnd, swapchain_res );
+
+        if (swapchain_res < VK_SUCCESS) continue;
+        if (!NtUserGetClientRect( surface->hwnd, &client_rect, get_win_monitor_dpi( surface->hwnd ) ))
+        {
+            WARN( "Swapchain window %p is invalid, returning VK_ERROR_OUT_OF_DATE_KHR\n", surface->hwnd );
+            if (present_info->pResults) present_info->pResults[i] = VK_ERROR_OUT_OF_DATE_KHR;
+            if (res >= VK_SUCCESS) res = VK_ERROR_OUT_OF_DATE_KHR;
+        }
+        else if (swapchain_res != VK_SUCCESS)
+            WARN( "Present returned status %d for swapchain %p\n", swapchain_res, swapchain );
+        else if (!extents_equals( &swapchain->extents, &client_rect ))
+        {
+            WARN( "Swapchain size %dx%d does not match client rect %s, returning VK_SUBOPTIMAL_KHR\n",
+                  swapchain->extents.width, swapchain->extents.height, wine_dbgstr_rect( &client_rect ) );
+            if (present_info->pResults) present_info->pResults[i] = VK_SUBOPTIMAL_KHR;
+            if (res == VK_SUCCESS) res = VK_SUBOPTIMAL_KHR;
+        }
+    }
+
+    if (swapchains != swapchains_buffer) free( swapchains );
+
+    if (TRACE_ON(fps))
+    {
+        static unsigned long frames, frames_total;
+        static long prev_time, start_time;
+        DWORD time;
+
+        time = NtGetTickCount();
+        frames++;
+        frames_total++;
+
+        if (time - prev_time > 1500)
+        {
+            TRACE_(fps)("%p @ approx %.2ffps, total %.2ffps\n", queue,
+                        1000.0 * frames / (time - prev_time),
+                        1000.0 * frames_total / (time - start_time));
+            prev_time = time;
+            frames = 0;
+
+            if (!start_time) start_time = time;
+        }
     }
 
     return res;
+}
+
+static VkResult win32u_vkAcquireNextImage2KHR( VkDevice device_handle, const VkAcquireNextImageInfoKHR *acquire_info, uint32_t *image_index )
+{
+    struct swapchain *swapchain = swapchain_from_handle( acquire_info->swapchain );
+    struct vulkan_device *device = vulkan_device_from_handle( device_handle );
+    VkAcquireNextImageInfoKHR acquire_info_host = *acquire_info;
+    struct surface *surface = swapchain->surface;
+    RECT client_rect;
+    VkResult res;
+
+    acquire_info_host.swapchain = swapchain->obj.host.swapchain;
+    res = device->funcs.p_vkAcquireNextImage2KHR( device->obj.host.device, &acquire_info_host, image_index );
+
+    if (res == VK_SUCCESS && NtUserGetClientRect( surface->hwnd, &client_rect, get_win_monitor_dpi( surface->hwnd ) ) &&
+        !extents_equals( &swapchain->extents, &client_rect ))
+    {
+        WARN( "Swapchain size %dx%d does not match client rect %s, returning VK_SUBOPTIMAL_KHR\n",
+              swapchain->extents.width, swapchain->extents.height, wine_dbgstr_rect( &client_rect ) );
+        return VK_SUBOPTIMAL_KHR;
+    }
+
+    return res;
+}
+
+static VkResult win32u_vkAcquireNextImageKHR( VkDevice device_handle, VkSwapchainKHR swapchain_handle, uint64_t timeout,
+                                              VkSemaphore semaphore, VkFence fence, uint32_t *image_index )
+{
+    struct swapchain *swapchain = swapchain_from_handle( swapchain_handle );
+    struct vulkan_device *device = vulkan_device_from_handle( device_handle );
+    struct surface *surface = swapchain->surface;
+    RECT client_rect;
+    VkResult res;
+
+    res = device->funcs.p_vkAcquireNextImageKHR( device->obj.host.device, swapchain->obj.host.swapchain,
+                                                 timeout, semaphore, fence, image_index );
+
+    if (res == VK_SUCCESS && NtUserGetClientRect( surface->hwnd, &client_rect, get_win_monitor_dpi( surface->hwnd ) ) &&
+        !extents_equals( &swapchain->extents, &client_rect ))
+    {
+        WARN( "Swapchain size %dx%d does not match client rect %s, returning VK_SUBOPTIMAL_KHR\n",
+              swapchain->extents.width, swapchain->extents.height, wine_dbgstr_rect( &client_rect ) );
+        return VK_SUBOPTIMAL_KHR;
+    }
+
+    return res;
+}
+
+static VkResult win32u_vkCreateSwapchainKHR( VkDevice device_handle, const VkSwapchainCreateInfoKHR *create_info,
+                                             const VkAllocationCallbacks *allocator, VkSwapchainKHR *swapchain_handle )
+{
+    struct swapchain *object, *old_swapchain = swapchain_from_handle( create_info->oldSwapchain );
+    struct surface *surface = surface_from_handle( create_info->surface );
+    struct vulkan_device *device = vulkan_device_from_handle( device_handle );
+    struct vulkan_object *physical_device = device->obj.parent;
+    struct vulkan_instance *instance = CONTAINING_RECORD( physical_device->parent, struct vulkan_instance, obj );
+    const struct vulkan_instance_funcs *funcs = get_vulkan_parent_instance_funcs( physical_device );
+    VkSwapchainCreateInfoKHR create_info_host = *create_info;
+    VkSurfaceCapabilitiesKHR capabilities;
+    VkSwapchainKHR host_swapchain;
+    VkResult res;
+
+    if (!NtUserIsWindow( surface->hwnd ))
+    {
+        ERR( "surface %p, hwnd %p is invalid!\n", surface, surface->hwnd );
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+
+    if (surface) create_info_host.surface = surface->obj.host.surface;
+    if (old_swapchain) create_info_host.oldSwapchain = old_swapchain->obj.host.swapchain;
+
+    /* Windows allows client rect to be empty, but host Vulkan often doesn't, adjust extents back to the host capabilities */
+    res = funcs->p_vkGetPhysicalDeviceSurfaceCapabilitiesKHR( physical_device->host.physical_device,
+                                                              surface->obj.host.surface, &capabilities );
+    if (res != VK_SUCCESS) return res;
+
+    create_info_host.imageExtent.width = max( create_info_host.imageExtent.width, capabilities.minImageExtent.width );
+    create_info_host.imageExtent.height = max( create_info_host.imageExtent.height, capabilities.minImageExtent.height );
+
+    if (!(object = calloc( 1, sizeof(*object) ))) return VK_ERROR_OUT_OF_HOST_MEMORY;
+    res = device->funcs.p_vkCreateSwapchainKHR( device->obj.host.device, &create_info_host, NULL, &host_swapchain );
+    if (res != VK_SUCCESS)
+    {
+        free( object );
+        return res;
+    }
+
+    init_vulkan_object( &object->obj, &device->obj, host_swapchain, NULL );
+    object->surface = surface;
+    object->extents = create_info->imageExtent;
+
+    add_vulkan_object( instance, &object->obj );
+    TRACE( "created swapchain %s\n", debugstr_vulkan_object( &object->obj ) );
+
+    *swapchain_handle = object->obj.client.swapchain;
+    return VK_SUCCESS;
+}
+
+static void win32u_vkDestroySwapchainKHR( VkDevice device_handle, VkSwapchainKHR swapchain_handle,
+                                          const VkAllocationCallbacks *allocator )
+{
+    struct vulkan_device *device = vulkan_device_from_handle( device_handle );
+    struct swapchain *swapchain = swapchain_from_handle( swapchain_handle );
+
+    if (allocator) FIXME( "Support for allocation callbacks not implemented yet\n" );
+    if (!swapchain) return;
+
+    device->funcs.p_vkDestroySwapchainKHR( device->obj.host.device, swapchain->obj.host.swapchain, NULL );
+    remove_vulkan_device_object( device_handle, &swapchain->obj );
+
+    free( swapchain );
+}
+
+static void adjust_surface_capabilities( struct surface *surface, VkSurfaceCapabilitiesKHR *capabilities )
+{
+    RECT client_rect;
+
+    /* Many Windows games, for example Strange Brigade, No Man's Sky, Path of Exile
+     * and World War Z, do not expect that maxImageCount can be set to 0.
+     * A value of 0 means that there is no limit on the number of images.
+     * Nvidia reports 8 on Windows, AMD 16.
+     * https://vulkan.gpuinfo.org/displayreport.php?id=9122#surface
+     * https://vulkan.gpuinfo.org/displayreport.php?id=9121#surface
+     */
+    if (!capabilities->maxImageCount) capabilities->maxImageCount = max( capabilities->minImageCount, 16 );
+
+    /* Update the image extents to match what the Win32 WSI would provide. */
+    /* FIXME: handle DPI scaling, somehow */
+    NtUserGetClientRect( surface->hwnd, &client_rect, get_win_monitor_dpi( surface->hwnd ) );
+    capabilities->minImageExtent.width = client_rect.right - client_rect.left;
+    capabilities->minImageExtent.height = client_rect.bottom - client_rect.top;
+    capabilities->maxImageExtent.width = client_rect.right - client_rect.left;
+    capabilities->maxImageExtent.height = client_rect.bottom - client_rect.top;
+    capabilities->currentExtent.width = client_rect.right - client_rect.left;
+    capabilities->currentExtent.height = client_rect.bottom - client_rect.top;
+}
+
+static VkResult win32u_vkGetPhysicalDeviceSurfaceCapabilitiesKHR( VkPhysicalDevice device_handle, VkSurfaceKHR surface_handle,
+                                                                  VkSurfaceCapabilitiesKHR *capabilities )
+{
+    struct vulkan_object *physical_device = vulkan_physical_device_from_handle( device_handle );
+    const struct vulkan_instance_funcs *funcs = get_vulkan_parent_instance_funcs( physical_device );
+    struct surface *surface = surface_from_handle( surface_handle );
+    VkResult res;
+
+    if (!NtUserIsWindow( surface->hwnd )) return VK_ERROR_SURFACE_LOST_KHR;
+    res = funcs->p_vkGetPhysicalDeviceSurfaceCapabilitiesKHR( physical_device->host.physical_device,
+                                                              surface->obj.host.surface, capabilities );
+    if (res == VK_SUCCESS) adjust_surface_capabilities( surface, capabilities );
+    return res;
+}
+
+static VkResult win32u_vkGetPhysicalDeviceSurfaceCapabilities2KHR( VkPhysicalDevice device_handle,
+                                                                   const VkPhysicalDeviceSurfaceInfo2KHR *surface_info,
+                                                                   VkSurfaceCapabilities2KHR *capabilities )
+{
+    struct vulkan_object *physical_device = vulkan_physical_device_from_handle( device_handle );
+    const struct vulkan_instance_funcs *funcs = get_vulkan_parent_instance_funcs( physical_device );
+    struct surface *surface = surface_from_handle( surface_info->surface );
+    VkPhysicalDeviceSurfaceInfo2KHR surface_info_host = *surface_info;
+    VkResult res;
+
+    if (!funcs->p_vkGetPhysicalDeviceSurfaceCapabilities2KHR)
+    {
+        /* Until the loader version exporting this function is common, emulate it using the older non-2 version. */
+        if (surface_info->pNext || capabilities->pNext) FIXME( "Emulating vkGetPhysicalDeviceSurfaceCapabilities2KHR, ignoring pNext.\n" );
+        return win32u_vkGetPhysicalDeviceSurfaceCapabilitiesKHR( device_handle, surface_info->surface,
+                                                                 &capabilities->surfaceCapabilities );
+    }
+
+    surface_info_host.surface = surface->obj.host.surface;
+
+    if (!NtUserIsWindow( surface->hwnd )) return VK_ERROR_SURFACE_LOST_KHR;
+    res = funcs->p_vkGetPhysicalDeviceSurfaceCapabilities2KHR( physical_device->host.physical_device,
+                                                               &surface_info_host, capabilities );
+    if (res == VK_SUCCESS) adjust_surface_capabilities( surface, &capabilities->surfaceCapabilities );
+    return res;
+}
+
+static VkResult win32u_vkGetPhysicalDevicePresentRectanglesKHR( VkPhysicalDevice device_handle, VkSurfaceKHR surface_handle,
+                                                                uint32_t *rect_count, VkRect2D *rects )
+{
+    struct vulkan_object *physical_device = vulkan_physical_device_from_handle( device_handle );
+    const struct vulkan_instance_funcs *funcs = get_vulkan_parent_instance_funcs( physical_device );
+    struct surface *surface = surface_from_handle( surface_handle );
+
+    if (!NtUserIsWindow( surface->hwnd ))
+    {
+        if (rects && !*rect_count) return VK_INCOMPLETE;
+        if (rects) memset( rects, 0, sizeof(VkRect2D) );
+        *rect_count = 1;
+        return VK_SUCCESS;
+    }
+
+    return funcs->p_vkGetPhysicalDevicePresentRectanglesKHR( physical_device->host.physical_device,
+                                                             surface->obj.host.surface, rect_count, rects );
+}
+
+static VkResult win32u_vkGetPhysicalDeviceSurfaceFormatsKHR( VkPhysicalDevice device_handle, VkSurfaceKHR surface_handle,
+                                                             uint32_t *format_count, VkSurfaceFormatKHR *formats )
+{
+    struct vulkan_object *physical_device = vulkan_physical_device_from_handle( device_handle );
+    const struct vulkan_instance_funcs *funcs = get_vulkan_parent_instance_funcs( physical_device );
+    struct surface *surface = surface_from_handle( surface_handle );
+
+    return funcs->p_vkGetPhysicalDeviceSurfaceFormatsKHR( physical_device->host.physical_device,
+                                                          surface->obj.host.surface, format_count, formats );
+}
+
+static VkResult win32u_vkGetPhysicalDeviceSurfaceFormats2KHR( VkPhysicalDevice device_handle,
+                                                              const VkPhysicalDeviceSurfaceInfo2KHR *surface_info,
+                                                              uint32_t *format_count, VkSurfaceFormat2KHR *formats )
+{
+    struct vulkan_object *physical_device = vulkan_physical_device_from_handle( device_handle );
+    const struct vulkan_instance_funcs *funcs = get_vulkan_parent_instance_funcs( physical_device );
+    struct surface *surface = surface_from_handle( surface_info->surface );
+    VkPhysicalDeviceSurfaceInfo2KHR surface_info_host = *surface_info;
+    VkResult res;
+
+    if (!funcs->p_vkGetPhysicalDeviceSurfaceFormats2KHR)
+    {
+        VkSurfaceFormatKHR *surface_formats;
+        UINT i;
+
+        /* Until the loader version exporting this function is common, emulate it using the older non-2 version. */
+        if (surface_info->pNext) FIXME( "Emulating vkGetPhysicalDeviceSurfaceFormats2KHR, ignoring pNext.\n" );
+
+        if (!formats) return win32u_vkGetPhysicalDeviceSurfaceFormatsKHR( device_handle, surface_info->surface, format_count, NULL );
+
+        surface_formats = calloc( *format_count, sizeof(*surface_formats) );
+        if (!surface_formats) return VK_ERROR_OUT_OF_HOST_MEMORY;
+
+        res = win32u_vkGetPhysicalDeviceSurfaceFormatsKHR( device_handle, surface_info->surface, format_count, surface_formats );
+        if (res == VK_SUCCESS || res == VK_INCOMPLETE)
+        {
+            for (i = 0; i < *format_count; i++) formats[i].surfaceFormat = surface_formats[i];
+        }
+
+        free( surface_formats );
+        return res;
+    }
+
+    surface_info_host.surface = surface->obj.host.surface;
+    return funcs->p_vkGetPhysicalDeviceSurfaceFormats2KHR( physical_device->host.physical_device,
+                                                           &surface_info_host, format_count, formats );
 }
 
 static VkBool32 win32u_vkGetPhysicalDeviceWin32PresentationSupportKHR( VkPhysicalDevice device_handle, uint32_t queue )
@@ -150,7 +545,6 @@ static PFN_vkVoidFunction win32u_vkGetDeviceProcAddr( VkDevice device, const cha
     TRACE( "device %p, name %s\n", device, debugstr_a(name) );
 
     if (!strcmp( name, "vkGetDeviceProcAddr" )) return (PFN_vkVoidFunction)vulkan_funcs.p_vkGetDeviceProcAddr;
-    if (!strcmp( name, "vkQueuePresentKHR" )) return (PFN_vkVoidFunction)vulkan_funcs.p_vkQueuePresentKHR;
 
     return p_vkGetDeviceProcAddr( device, name );
 }
@@ -161,32 +555,29 @@ static PFN_vkVoidFunction win32u_vkGetInstanceProcAddr( VkInstance instance, con
 
     if (!instance) return p_vkGetInstanceProcAddr( instance, name );
 
-    if (!strcmp( name, "vkCreateWin32SurfaceKHR" )) return (PFN_vkVoidFunction)vulkan_funcs.p_vkCreateWin32SurfaceKHR;
-    if (!strcmp( name, "vkDestroySurfaceKHR" )) return (PFN_vkVoidFunction)vulkan_funcs.p_vkDestroySurfaceKHR;
     if (!strcmp( name, "vkGetInstanceProcAddr" )) return (PFN_vkVoidFunction)vulkan_funcs.p_vkGetInstanceProcAddr;
-
     /* vkGetInstanceProcAddr also loads any children of instance, so device functions as well. */
     if (!strcmp( name, "vkGetDeviceProcAddr" )) return (PFN_vkVoidFunction)vulkan_funcs.p_vkGetDeviceProcAddr;
-    if (!strcmp( name, "vkQueuePresentKHR" )) return (PFN_vkVoidFunction)vulkan_funcs.p_vkQueuePresentKHR;
 
     return p_vkGetInstanceProcAddr( instance, name );
 }
 
-static VkSurfaceKHR win32u_wine_get_host_surface( VkSurfaceKHR handle )
-{
-    struct surface *surface = surface_from_handle( handle );
-    return surface->host_surface;
-}
-
 static struct vulkan_funcs vulkan_funcs =
 {
+    .p_vkAcquireNextImage2KHR = win32u_vkAcquireNextImage2KHR,
+    .p_vkAcquireNextImageKHR = win32u_vkAcquireNextImageKHR,
+    .p_vkCreateSwapchainKHR = win32u_vkCreateSwapchainKHR,
     .p_vkCreateWin32SurfaceKHR = win32u_vkCreateWin32SurfaceKHR,
     .p_vkDestroySurfaceKHR = win32u_vkDestroySurfaceKHR,
-    .p_vkQueuePresentKHR = win32u_vkQueuePresentKHR,
+    .p_vkDestroySwapchainKHR = win32u_vkDestroySwapchainKHR,
     .p_vkGetDeviceProcAddr = win32u_vkGetDeviceProcAddr,
     .p_vkGetInstanceProcAddr = win32u_vkGetInstanceProcAddr,
+    .p_vkGetPhysicalDevicePresentRectanglesKHR = win32u_vkGetPhysicalDevicePresentRectanglesKHR,
+    .p_vkGetPhysicalDeviceSurfaceCapabilities2KHR = win32u_vkGetPhysicalDeviceSurfaceCapabilities2KHR,
+    .p_vkGetPhysicalDeviceSurfaceCapabilitiesKHR = win32u_vkGetPhysicalDeviceSurfaceCapabilitiesKHR,
+    .p_vkGetPhysicalDeviceSurfaceFormats2KHR = win32u_vkGetPhysicalDeviceSurfaceFormats2KHR,
     .p_vkGetPhysicalDeviceWin32PresentationSupportKHR = win32u_vkGetPhysicalDeviceWin32PresentationSupportKHR,
-    .p_wine_get_host_surface = win32u_wine_get_host_surface,
+    .p_vkQueuePresentKHR = win32u_vkQueuePresentKHR,
 };
 
 static VkResult nulldrv_vulkan_surface_create( HWND hwnd, VkInstance instance, VkSurfaceKHR *surface, void **private )
@@ -312,8 +703,6 @@ static void vulkan_init_once(void)
         return;                                                                                    \
     }
 
-    LOAD_FUNCPTR( vkDestroySurfaceKHR );
-    LOAD_FUNCPTR( vkQueuePresentKHR );
     LOAD_FUNCPTR( vkGetDeviceProcAddr );
     LOAD_FUNCPTR( vkGetInstanceProcAddr );
 #undef LOAD_FUNCPTR
