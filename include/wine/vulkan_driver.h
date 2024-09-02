@@ -151,6 +151,12 @@ static inline void remove_vulkan_object( struct vulkan_instance *instance, struc
     }
 }
 
+static inline struct vulkan_object *vulkan_physical_device_from_handle( VkPhysicalDevice handle )
+{
+    struct vulkan_client_object *client = (struct vulkan_client_object *)handle;
+    return (struct vulkan_object *)(UINT_PTR)client->unix_handle;
+}
+
 struct vulkan_device
 {
     struct vulkan_object obj;
@@ -187,6 +193,16 @@ static inline void remove_vulkan_device_object( VkDevice handle, struct vulkan_o
     struct vulkan_object *physical_device = device->obj.parent;
     struct vulkan_instance *instance = CONTAINING_RECORD( physical_device->parent, struct vulkan_instance, obj );
     remove_vulkan_object( instance, obj );
+}
+
+static inline struct vulkan_object *vulkan_surface_from_handle( VkSurfaceKHR handle )
+{
+    return (struct vulkan_object *)(uintptr_t)handle;
+}
+
+static inline struct vulkan_object *vulkan_swapchain_from_handle( VkSwapchainKHR handle )
+{
+    return (struct vulkan_object *)(uintptr_t)handle;
 }
 
 struct vulkan_funcs

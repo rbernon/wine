@@ -201,8 +201,11 @@ USER_DRIVER_FUNCS = {
     "vkDestroySurfaceKHR",
     "vkGetDeviceProcAddr",
     "vkGetInstanceProcAddr",
-    "vkGetPhysicalDeviceWin32PresentationSupportKHR",
     "vkQueuePresentKHR",
+}
+
+WIN32U_UNIX_THUNKS = {
+    "vkGetPhysicalDeviceWin32PresentationSupportKHR",
 }
 
 # functions for which the unix thunk is manually implemented
@@ -1203,19 +1206,15 @@ class VkHandle(object):
         if self.name == "VkQueue":
             return "wine_queue_from_handle({0})->obj.host.queue".format(name)
         if self.name == "VkSurfaceKHR":
-            return "wine_surface_from_handle({0})->obj.host.surface".format(name)
+            return "vulkan_surface_from_handle({0})->host.surface".format(name)
         if self.name == "VkSwapchainKHR":
-            return "wine_swapchain_from_handle({0})->obj.host.swapchain".format(name)
+            return "vulkan_swapchain_from_handle({0})->host.swapchain".format(name)
         if self.is_dispatchable():
             LOGGER.error("Unhandled host handle for: {0}".format(self.name))
         return None
 
     def driver_handle(self, name):
         """ Provide access to the handle that should be passed to the wine driver """
-
-        if self.name == "VkSurfaceKHR":
-            return "wine_surface_from_handle({0})->driver_surface".format(name)
-
         return self.host_handle(name)
 
     def unwrap_handle(self, name, unwrap):

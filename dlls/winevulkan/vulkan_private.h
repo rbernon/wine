@@ -93,7 +93,7 @@ struct wine_phys_dev
 
 static inline struct wine_phys_dev *wine_phys_dev_from_handle(VkPhysicalDevice handle)
 {
-    return (struct wine_phys_dev *)(uintptr_t)handle->base.unix_handle;
+    return CONTAINING_RECORD(vulkan_physical_device_from_handle(handle), struct wine_phys_dev, obj);
 }
 
 struct wine_debug_report_callback;
