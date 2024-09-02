@@ -27,12 +27,22 @@
 #include "winbase.h"
 
 #include "unixlib.h"
+#include "wine/debug.h"
 
 #ifdef ENABLE_FFMPEG
 
 #include <libavutil/avutil.h>
 #include <libavutil/imgutils.h>
 #include <libavformat/avformat.h>
+
+static inline const char *debugstr_averr( int err )
+{
+    return wine_dbg_sprintf("%d (%s)", err, av_err2str(err) );
+}
+
+/* unixlib.c */
+extern int64_t unix_seek_callback( void *opaque, int64_t offset, int whence );
+extern int unix_read_callback( void *opaque, uint8_t *buffer, int size );
 
 /* unix_demuxer.c */
 extern NTSTATUS demuxer_check( void * );
