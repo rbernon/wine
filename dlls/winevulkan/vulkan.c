@@ -387,11 +387,7 @@ static VkResult wine_vk_physical_device_init(struct wine_phys_dev *object, VkPhy
     VkResult res;
     unsigned int i, j;
 
-    object->obj.parent = &instance->obj;
-    object->obj.client.physical_device = client_handle;
-    object->obj.host.physical_device = host_handle;
-
-    client_handle->base.unix_handle = (uintptr_t)object;
+    init_vulkan_object_ptr(&object->obj, &instance->obj, host_handle, &client_handle->base);
 
     instance->funcs.p_vkGetPhysicalDeviceMemoryProperties(host_handle, &object->memory_properties);
 
@@ -568,13 +564,10 @@ static void wine_vk_device_init_queues(struct wine_device *device, const VkDevic
             device->funcs.p_vkGetDeviceQueue(device->obj.host.device, info->queueFamilyIndex, i, &host_queue);
         }
 
-        queue->obj.host.queue = host_queue;
-        queue->obj.parent = &device->obj;
-        queue->obj.client.queue = handles[i];
+        init_vulkan_object_ptr(&queue->obj, &device->obj, host_queue, &handles[i]->base);
         queue->family_index = info->queueFamilyIndex;
         queue->queue_index = i;
         queue->flags = info->flags;
-        queue->obj.client.queue->base.unix_handle = (uintptr_t)queue;
         TRACE("Got device %p queue %p, host_queue %p.\n", device, queue, queue->obj.host.queue);
     }
 
@@ -886,10 +879,7 @@ VkResult wine_vkAllocateCommandBuffers(VkDevice handle, const VkCommandBufferAll
             break;
         }
 
-        buffer->obj.host.command_buffer = host_command_buffer;
-        buffer->obj.client.command_buffer = buffers[i];
-        buffer->obj.parent = &device->obj;
-        buffer->obj.client.command_buffer->base.unix_handle = (uintptr_t)buffer;
+        init_vulkan_object_ptr(&buffer->obj, &device->obj, host_command_buffer, &buffers[i]->base);
         add_device_handle_mapping_ptr(handle, buffer->obj.client.command_buffer, buffer->obj.host.command_buffer, &buffer->wrapper_entry);
     }
 
@@ -947,8 +937,7 @@ VkResult wine_vkCreateDevice(VkPhysicalDevice phys_dev_handle, const VkDeviceCre
         return res;
     }
 
-    object->obj.parent = &phys_dev->obj;
-    object->obj.host.device = host_device;
+    init_vulkan_object_ptr(&object->obj, &phys_dev->obj, host_device, &device_handle->base);
 
     /* Just load all function pointers we are aware off. The loader takes care of filtering.
      * We use vkGetDeviceProcAddr as opposed to vkGetInstanceProcAddr for efficiency reasons
@@ -965,7 +954,6 @@ VkResult wine_vkCreateDevice(VkPhysicalDevice phys_dev_handle, const VkDeviceCre
         wine_vk_device_init_queues(object, create_info_host.pQueueCreateInfos + i, &queue_handles);
 
     device_handle->quirks = instance->quirks;
-    device_handle->base.unix_handle = (uintptr_t)object;
 
     TRACE("Created device %p, host_device %p.\n", object, object->obj.host.device);
     for (i = 0; i < object->queue_count; i++)
@@ -974,7 +962,7 @@ VkResult wine_vkCreateDevice(VkPhysicalDevice phys_dev_handle, const VkDeviceCre
         add_device_handle_mapping_ptr(device_handle, queue->obj.client.queue, queue->obj.host.queue, &queue->wrapper_entry);
     }
 
-    *ret_device = device_handle;
+    *ret_device = object->obj.client.device;
     add_device_handle_mapping_ptr(device_handle, *ret_device, object->obj.host.device, &object->wrapper_entry);
     return VK_SUCCESS;
 }
@@ -1013,8 +1001,7 @@ VkResult wine_vkCreateInstance(const VkInstanceCreateInfo *create_info,
         return res;
     }
 
-    object->obj.client.instance = client_instance;
-    object->obj.host.instance = host_instance;
+    init_vulkan_object_ptr(&object->obj, NULL, host_instance, &client_instance->base);
 
     /* Load all instance functions we are aware of. Note the loader takes care
      * of any filtering for extensions which were not requested, but which the
@@ -1052,8 +1039,6 @@ VkResult wine_vkCreateInstance(const VkInstanceCreateInfo *create_info,
             object->quirks |= WINEVULKAN_QUIRK_GET_DEVICE_PROC_ADDR;
     }
 
-    client_instance->base.unix_handle = (uintptr_t)object;
-
     TRACE("Created instance %p, host_instance %p.\n", object, object->obj.host.instance);
 
     rb_init(&object->wrappers, wrapper_entry_compare);
@@ -1065,7 +1050,7 @@ VkResult wine_vkCreateInstance(const VkInstanceCreateInfo *create_info,
         add_handle_mapping_ptr(object, phys_dev->obj.client.physical_device, phys_dev->obj.host.physical_device, &phys_dev->wrapper_entry);
     }
 
-    *instance = client_instance;
+    *instance = object->obj.client.instance;
     add_handle_mapping_ptr(object, *instance, object->obj.host.instance, &object->wrapper_entry);
     return VK_SUCCESS;
 }
@@ -1323,9 +1308,7 @@ VkResult wine_vkCreateCommandPool(VkDevice device_handle, const VkCommandPoolCre
         return res;
     }
 
-    object->obj.host.command_pool = host_command_pool;
-    object->obj.client.command_pool = (uintptr_t)client_command_pool;
-    client_command_pool->base.unix_handle = (uintptr_t)object;
+    init_vulkan_object(&object->obj, &device->obj, host_command_pool, &client_command_pool->base);
 
     *command_pool = object->obj.client.command_pool;
     add_device_handle_mapping(device_handle, *command_pool, object->obj.host.command_pool, &object->wrapper_entry);
@@ -1699,6 +1682,7 @@ VkResult wine_vkCreateWin32SurfaceKHR(VkInstance handle, const VkWin32SurfaceCre
     struct wine_instance *instance = wine_instance_from_handle(handle);
     VkWin32SurfaceCreateInfoKHR create_info_host = *create_info;
     struct wine_surface *object;
+    VkSurfaceKHR host_surface;
     HWND dummy = NULL;
     VkResult res;
 
@@ -1726,11 +1710,13 @@ VkResult wine_vkCreateWin32SurfaceKHR(VkInstance handle, const VkWin32SurfaceCre
         return res;
     }
 
-    object->obj.host.surface = vk_funcs->p_wine_get_host_surface(object->driver_surface);
+    host_surface = vk_funcs->p_wine_get_host_surface(object->driver_surface);
+    init_vulkan_object(&object->obj, &instance->obj, host_surface, NULL);
+
     if (dummy) NtUserDestroyWindow(dummy);
     window_surfaces_insert(object);
 
-    *surface = wine_surface_to_handle(object);
+    *surface = object->obj.client.surface;
     add_handle_mapping(instance, *surface, object->obj.host.surface, &object->wrapper_entry);
     return VK_SUCCESS;
 }
@@ -1842,11 +1828,11 @@ VkResult wine_vkCreateSwapchainKHR(VkDevice device_handle, const VkSwapchainCrea
         return res;
     }
 
-    object->obj.host.swapchain = host_swapchain;
+    init_vulkan_object(&object->obj, &device->obj, host_swapchain, NULL);
     object->surface = surface;
     object->extents = create_info->imageExtent;
 
-    *swapchain_handle = wine_swapchain_to_handle(object);
+    *swapchain_handle = object->obj.client.swapchain;
     add_handle_mapping(instance, *swapchain_handle, object->obj.host.swapchain, &object->wrapper_entry);
     return VK_SUCCESS;
 }
@@ -2039,11 +2025,11 @@ VkResult wine_vkAllocateMemory(VkDevice handle, const VkMemoryAllocateInfo *allo
         return result;
     }
 
-    memory->obj.host.device_memory = host_device_memory;
+    init_vulkan_object(&memory->obj, &device->obj, host_device_memory, NULL);
     memory->size = info.allocationSize;
     memory->vm_map = mapping;
 
-    *ret = (VkDeviceMemory)(uintptr_t)memory;
+    *ret = memory->obj.client.device_memory;
     add_device_handle_mapping(handle, *ret, memory->obj.host.device_memory, &memory->wrapper_entry);
     return VK_SUCCESS;
 }
@@ -2421,12 +2407,11 @@ VkResult wine_vkCreateDebugUtilsMessengerEXT(VkInstance handle,
         return res;
     }
 
-    object->obj.host.debug_utils_messenger = host_debug_utils_messenger;
-    object->obj.parent = &instance->obj;
+    init_vulkan_object(&object->obj, &instance->obj, host_debug_utils_messenger, NULL);
     object->user_callback = (UINT_PTR)create_info->pfnUserCallback;
     object->user_data = (UINT_PTR)create_info->pUserData;
 
-    *messenger = wine_debug_utils_messenger_to_handle(object);
+    *messenger = object->obj.client.debug_utils_messenger;
     add_handle_mapping(instance, *messenger, object->obj.host.debug_utils_messenger, &object->wrapper_entry);
     return VK_SUCCESS;
 }
@@ -2477,12 +2462,11 @@ VkResult wine_vkCreateDebugReportCallbackEXT(VkInstance handle,
         return res;
     }
 
-    object->obj.host.debug_report_callback = host_debug_report_callback;
-    object->obj.parent = &instance->obj;
+    init_vulkan_object(&object->obj, &instance->obj, host_debug_report_callback, NULL);
     object->user_callback = (UINT_PTR)create_info->pfnCallback;
     object->user_data = (UINT_PTR)create_info->pUserData;
 
-    *callback = wine_debug_report_callback_to_handle(object);
+    *callback = object->obj.client.debug_report_callback;
     add_handle_mapping(instance, *callback, object->obj.host.debug_report_callback, &object->wrapper_entry);
     return VK_SUCCESS;
 }
@@ -2526,10 +2510,10 @@ VkResult wine_vkCreateDeferredOperationKHR(VkDevice                     handle,
         return res;
     }
 
-    object->obj.host.deferred_operation = host_deferred_operation;
+    init_vulkan_object(&object->obj, &device->obj, host_deferred_operation, NULL);
     init_conversion_context(&object->ctx);
 
-    *operation = wine_deferred_operation_to_handle(object);
+    *operation = object->obj.client.deferred_operation;
     add_device_handle_mapping(handle, *operation, object->obj.host.deferred_operation, &object->wrapper_entry);
     return VK_SUCCESS;
 }
