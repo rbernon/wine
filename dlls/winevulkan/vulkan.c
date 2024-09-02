@@ -108,65 +108,27 @@ static const struct vulkan_funcs *vk_funcs;
 
 static int wrapper_entry_compare(const void *key, const struct rb_entry *entry)
 {
-    struct wrapper_entry *wrapper = RB_ENTRY_VALUE(entry, struct wrapper_entry, entry);
+    struct vulkan_object *obj = RB_ENTRY_VALUE(entry, struct vulkan_object, entry);
     const uint64_t *host_handle = key;
-    if (*host_handle < wrapper->host_handle) return -1;
-    if (*host_handle > wrapper->host_handle) return 1;
+    if (*host_handle < obj->host.handle) return -1;
+    if (*host_handle > obj->host.handle) return 1;
     return 0;
 }
 
-static void add_handle_mapping(struct wine_instance *instance, uint64_t client_handle,
-                               uint64_t host_handle, struct wrapper_entry *entry)
-{
-    if (instance->enable_wrapper_list)
-    {
-        entry->host_handle = host_handle;
-        entry->client_handle = client_handle;
-
-        pthread_rwlock_wrlock(&instance->wrapper_lock);
-        rb_put(&instance->wrappers, &host_handle, &entry->entry);
-        pthread_rwlock_unlock(&instance->wrapper_lock);
-    }
-}
-
-static void add_handle_mapping_ptr(struct wine_instance *instance, void *client_handle,
-                                   void *host_handle, struct wrapper_entry *entry)
-{
-    add_handle_mapping(instance, (uintptr_t)client_handle, (uintptr_t)host_handle, entry);
-}
-
-static void remove_handle_mapping(struct wine_instance *instance, struct wrapper_entry *entry)
-{
-    if (instance->enable_wrapper_list)
-    {
-        pthread_rwlock_wrlock(&instance->wrapper_lock);
-        rb_remove(&instance->wrappers, &entry->entry);
-        pthread_rwlock_unlock(&instance->wrapper_lock);
-    }
-}
-
-static void add_device_handle_mapping(VkDevice handle, uint64_t client_handle, uint64_t host_handle, struct wrapper_entry *entry)
+static void add_vulkan_device_object(VkDevice handle, struct vulkan_object *obj)
 {
     struct wine_device *device = wine_device_from_handle(handle);
     struct wine_phys_dev *phys_dev = CONTAINING_RECORD(device->obj.parent, struct wine_phys_dev, obj);
     struct wine_instance *instance = CONTAINING_RECORD(phys_dev->obj.parent, struct wine_instance, obj);
-    add_handle_mapping(instance, client_handle, host_handle, entry);
+    add_vulkan_object(&instance->instance, obj);
 }
 
-static void add_device_handle_mapping_ptr(VkDevice handle, void *client_handle, void *host_handle, struct wrapper_entry *entry)
+static void remove_vulkan_device_object(VkDevice handle, struct vulkan_object *obj)
 {
     struct wine_device *device = wine_device_from_handle(handle);
     struct wine_phys_dev *phys_dev = CONTAINING_RECORD(device->obj.parent, struct wine_phys_dev, obj);
     struct wine_instance *instance = CONTAINING_RECORD(phys_dev->obj.parent, struct wine_instance, obj);
-    add_handle_mapping_ptr(instance, client_handle, host_handle, entry);
-}
-
-static void remove_device_handle_mapping(VkDevice handle, struct wrapper_entry *entry)
-{
-    struct wine_device *device = wine_device_from_handle(handle);
-    struct wine_phys_dev *phys_dev = CONTAINING_RECORD(device->obj.parent, struct wine_phys_dev, obj);
-    struct wine_instance *instance = CONTAINING_RECORD(phys_dev->obj.parent, struct wine_instance, obj);
-    remove_handle_mapping(instance, entry);
+    remove_vulkan_object(&instance->instance, obj);
 }
 
 static uint64_t client_handle_from_host(struct wine_instance *instance, uint64_t host_handle)
@@ -174,13 +136,13 @@ static uint64_t client_handle_from_host(struct wine_instance *instance, uint64_t
     struct rb_entry *entry;
     uint64_t result = 0;
 
-    pthread_rwlock_rdlock(&instance->wrapper_lock);
-    if ((entry = rb_get(&instance->wrappers, &host_handle)))
+    pthread_rwlock_rdlock(&instance->instance.objects_lock);
+    if ((entry = rb_get(&instance->instance.objects, &host_handle)))
     {
-        struct wrapper_entry *wrapper = RB_ENTRY_VALUE(entry, struct wrapper_entry, entry);
-        result = wrapper->client_handle;
+        struct vulkan_object *obj = RB_ENTRY_VALUE(entry, struct vulkan_object, entry);
+        result = obj->client.handle;
     }
-    pthread_rwlock_unlock(&instance->wrapper_lock);
+    pthread_rwlock_unlock(&instance->instance.objects_lock);
     return result;
 }
 
@@ -526,7 +488,7 @@ static void wine_vk_free_command_buffers(struct wine_device *device, VkDevice ha
 
         device->funcs.p_vkFreeCommandBuffers(device->obj.host.device, pool->obj.host.command_pool, 1,
                                              &buffer->obj.host.command_buffer);
-        remove_device_handle_mapping(handle, &buffer->wrapper_entry);
+        remove_vulkan_device_object(handle, &buffer->obj);
         buffer->obj.client.command_buffer->base.unix_handle = 0;
         free(buffer);
     }
@@ -880,7 +842,7 @@ VkResult wine_vkAllocateCommandBuffers(VkDevice handle, const VkCommandBufferAll
         }
 
         init_vulkan_object_ptr(&buffer->obj, &device->obj, host_command_buffer, &buffers[i]->base);
-        add_device_handle_mapping_ptr(handle, buffer->obj.client.command_buffer, buffer->obj.host.command_buffer, &buffer->wrapper_entry);
+        add_vulkan_device_object(handle, &buffer->obj);
     }
 
     if (res != VK_SUCCESS)
@@ -959,11 +921,11 @@ VkResult wine_vkCreateDevice(VkPhysicalDevice phys_dev_handle, const VkDeviceCre
     for (i = 0; i < object->queue_count; i++)
     {
         struct wine_queue *queue = object->queues + i;
-        add_device_handle_mapping_ptr(device_handle, queue->obj.client.queue, queue->obj.host.queue, &queue->wrapper_entry);
+        add_vulkan_device_object(device_handle, &queue->obj);
     }
+    add_vulkan_device_object(device_handle, &object->obj);
 
     *ret_device = object->obj.client.device;
-    add_device_handle_mapping_ptr(device_handle, *ret_device, object->obj.host.device, &object->wrapper_entry);
     return VK_SUCCESS;
 }
 
@@ -1041,17 +1003,20 @@ VkResult wine_vkCreateInstance(const VkInstanceCreateInfo *create_info,
 
     TRACE("Created instance %p, host_instance %p.\n", object, object->obj.host.instance);
 
-    rb_init(&object->wrappers, wrapper_entry_compare);
-    pthread_rwlock_init(&object->wrapper_lock, NULL);
+    if (object->enable_wrapper_list)
+    {
+        rb_init(&object->instance.objects, wrapper_entry_compare);
+        pthread_rwlock_init(&object->instance.objects_lock, NULL);
+    }
 
     for (i = 0; i < object->phys_dev_count; i++)
     {
         struct wine_phys_dev *phys_dev = &object->phys_devs[i];
-        add_handle_mapping_ptr(object, phys_dev->obj.client.physical_device, phys_dev->obj.host.physical_device, &phys_dev->wrapper_entry);
+        add_vulkan_object(&object->instance, &phys_dev->obj);
     }
+    add_vulkan_object(&object->instance, &object->obj);
 
     *instance = object->obj.client.instance;
-    add_handle_mapping_ptr(object, *instance, object->obj.host.instance, &object->wrapper_entry);
     return VK_SUCCESS;
 }
 
@@ -1067,8 +1032,8 @@ void wine_vkDestroyDevice(VkDevice handle, const VkAllocationCallbacks *allocato
 
     device->funcs.p_vkDestroyDevice(device->obj.host.device, NULL /* pAllocator */);
     for (i = 0; i < device->queue_count; i++)
-        remove_device_handle_mapping(handle, &device->queues[i].wrapper_entry);
-    remove_device_handle_mapping(handle, &device->wrapper_entry);
+        remove_vulkan_device_object(handle, &device->queues[i].obj);
+    remove_vulkan_device_object(handle, &device->obj);
 
     free(device);
 }
@@ -1086,12 +1051,12 @@ void wine_vkDestroyInstance(VkInstance handle, const VkAllocationCallbacks *allo
     instance->funcs.p_vkDestroyInstance(instance->obj.host.instance, NULL /* allocator */);
     for (i = 0; i < instance->phys_dev_count; i++)
     {
-        remove_handle_mapping(instance, &instance->phys_devs[i].wrapper_entry);
+        remove_vulkan_object(&instance->instance, &instance->phys_devs[i].obj);
         wine_phys_dev_cleanup(&instance->phys_devs[i]);
     }
-    remove_handle_mapping(instance, &instance->wrapper_entry);
+    remove_vulkan_object(&instance->instance, &instance->obj);
 
-    pthread_rwlock_destroy(&instance->wrapper_lock);
+    if (instance->enable_wrapper_list) pthread_rwlock_destroy(&instance->instance.objects_lock);
     free(instance->utils_messengers);
     free(instance);
 }
@@ -1309,9 +1274,9 @@ VkResult wine_vkCreateCommandPool(VkDevice device_handle, const VkCommandPoolCre
     }
 
     init_vulkan_object(&object->obj, &device->obj, host_command_pool, &client_command_pool->base);
+    add_vulkan_device_object(device_handle, &object->obj);
 
     *command_pool = object->obj.client.command_pool;
-    add_device_handle_mapping(device_handle, *command_pool, object->obj.host.command_pool, &object->wrapper_entry);
     return VK_SUCCESS;
 }
 
@@ -1325,7 +1290,7 @@ void wine_vkDestroyCommandPool(VkDevice device_handle, VkCommandPool handle,
         FIXME("Support for allocation callbacks not implemented yet\n");
 
     device->funcs.p_vkDestroyCommandPool(device->obj.host.device, pool->obj.host.command_pool, NULL);
-    remove_device_handle_mapping(device_handle, &pool->wrapper_entry);
+    remove_vulkan_device_object(device_handle, &pool->obj);
     free(pool);
 }
 
@@ -1712,12 +1677,12 @@ VkResult wine_vkCreateWin32SurfaceKHR(VkInstance handle, const VkWin32SurfaceCre
 
     host_surface = vk_funcs->p_wine_get_host_surface(object->driver_surface);
     init_vulkan_object(&object->obj, &instance->obj, host_surface, NULL);
+    add_vulkan_object(&instance->instance, &object->obj);
 
     if (dummy) NtUserDestroyWindow(dummy);
     window_surfaces_insert(object);
 
     *surface = object->obj.client.surface;
-    add_handle_mapping(instance, *surface, object->obj.host.surface, &object->wrapper_entry);
     return VK_SUCCESS;
 }
 
@@ -1731,7 +1696,7 @@ void wine_vkDestroySurfaceKHR(VkInstance handle, VkSurfaceKHR surface,
         return;
 
     instance->funcs.p_vkDestroySurfaceKHR(instance->obj.host.instance, object->driver_surface, NULL);
-    remove_handle_mapping(instance, &object->wrapper_entry);
+    remove_vulkan_object(&instance->instance, &object->obj);
     window_surfaces_remove(object);
 
     free(object);
@@ -1831,9 +1796,9 @@ VkResult wine_vkCreateSwapchainKHR(VkDevice device_handle, const VkSwapchainCrea
     init_vulkan_object(&object->obj, &device->obj, host_swapchain, NULL);
     object->surface = surface;
     object->extents = create_info->imageExtent;
+    add_vulkan_object(&instance->instance, &object->obj);
 
     *swapchain_handle = object->obj.client.swapchain;
-    add_handle_mapping(instance, *swapchain_handle, object->obj.host.swapchain, &object->wrapper_entry);
     return VK_SUCCESS;
 }
 
@@ -1847,7 +1812,7 @@ void wine_vkDestroySwapchainKHR(VkDevice device_handle, VkSwapchainKHR swapchain
     if (!swapchain) return;
 
     device->funcs.p_vkDestroySwapchainKHR(device->obj.host.device, swapchain->obj.host.swapchain, NULL);
-    remove_device_handle_mapping(device_handle, &swapchain->wrapper_entry);
+    remove_vulkan_device_object(device_handle, &swapchain->obj);
 
     free(swapchain);
 }
@@ -2028,9 +1993,9 @@ VkResult wine_vkAllocateMemory(VkDevice handle, const VkMemoryAllocateInfo *allo
     init_vulkan_object(&memory->obj, &device->obj, host_device_memory, NULL);
     memory->size = info.allocationSize;
     memory->vm_map = mapping;
+    add_vulkan_device_object(handle, &memory->obj);
 
     *ret = memory->obj.client.device_memory;
-    add_device_handle_mapping(handle, *ret, memory->obj.host.device_memory, &memory->wrapper_entry);
     return VK_SUCCESS;
 }
 
@@ -2056,7 +2021,7 @@ void wine_vkFreeMemory(VkDevice handle, VkDeviceMemory memory_handle, const VkAl
     }
 
     device->funcs.p_vkFreeMemory(device->obj.host.device, memory->obj.host.device_memory, NULL);
-    remove_device_handle_mapping(handle, &memory->wrapper_entry);
+    remove_vulkan_device_object(handle, &memory->obj);
 
     if (memory->vm_map)
     {
@@ -2410,9 +2375,9 @@ VkResult wine_vkCreateDebugUtilsMessengerEXT(VkInstance handle,
     init_vulkan_object(&object->obj, &instance->obj, host_debug_utils_messenger, NULL);
     object->user_callback = (UINT_PTR)create_info->pfnUserCallback;
     object->user_data = (UINT_PTR)create_info->pUserData;
+    add_vulkan_object(&instance->instance, &object->obj);
 
     *messenger = object->obj.client.debug_utils_messenger;
-    add_handle_mapping(instance, *messenger, object->obj.host.debug_utils_messenger, &object->wrapper_entry);
     return VK_SUCCESS;
 }
 
@@ -2428,7 +2393,7 @@ void wine_vkDestroyDebugUtilsMessengerEXT(VkInstance handle, VkDebugUtilsMesseng
         return;
 
     instance->funcs.p_vkDestroyDebugUtilsMessengerEXT(instance->obj.host.instance, object->obj.host.debug_utils_messenger, NULL);
-    remove_handle_mapping(instance, &object->wrapper_entry);
+    remove_vulkan_object(&instance->instance, &object->obj);
 
     free(object);
 }
@@ -2465,9 +2430,9 @@ VkResult wine_vkCreateDebugReportCallbackEXT(VkInstance handle,
     init_vulkan_object(&object->obj, &instance->obj, host_debug_report_callback, NULL);
     object->user_callback = (UINT_PTR)create_info->pfnCallback;
     object->user_data = (UINT_PTR)create_info->pUserData;
+    add_vulkan_object(&instance->instance, &object->obj);
 
     *callback = object->obj.client.debug_report_callback;
-    add_handle_mapping(instance, *callback, object->obj.host.debug_report_callback, &object->wrapper_entry);
     return VK_SUCCESS;
 }
 
@@ -2483,7 +2448,7 @@ void wine_vkDestroyDebugReportCallbackEXT(VkInstance handle, VkDebugReportCallba
         return;
 
     instance->funcs.p_vkDestroyDebugReportCallbackEXT(instance->obj.host.instance, object->obj.host.debug_report_callback, NULL);
-    remove_handle_mapping(instance, &object->wrapper_entry);
+    remove_vulkan_object(&instance->instance, &object->obj);
 
     free(object);
 }
@@ -2512,9 +2477,9 @@ VkResult wine_vkCreateDeferredOperationKHR(VkDevice                     handle,
 
     init_vulkan_object(&object->obj, &device->obj, host_deferred_operation, NULL);
     init_conversion_context(&object->ctx);
+    add_vulkan_device_object(handle, &object->obj);
 
     *operation = object->obj.client.deferred_operation;
-    add_device_handle_mapping(handle, *operation, object->obj.host.deferred_operation, &object->wrapper_entry);
     return VK_SUCCESS;
 }
 
@@ -2531,7 +2496,7 @@ void wine_vkDestroyDeferredOperationKHR(VkDevice                     handle,
         return;
 
     device->funcs.p_vkDestroyDeferredOperationKHR(device->obj.host.device, object->obj.host.deferred_operation, NULL);
-    remove_device_handle_mapping(handle, &object->wrapper_entry);
+    remove_vulkan_device_object(handle, &object->obj);
 
     free_conversion_context(&object->ctx);
     free(object);

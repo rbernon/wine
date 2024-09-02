@@ -42,8 +42,12 @@ struct vulkan_client_object
 
 #ifdef WINE_UNIX_LIB
 
+#include <pthread.h>
+
 #define WINE_VK_HOST
 #include "wine/vulkan.h"
+#include "wine/rbtree.h"
+#include "wine/debug.h"
 
 /* Wine internal vulkan driver version, needs to be bumped upon vulkan_funcs changes. */
 #define WINE_VULKAN_DRIVER_VERSION 34
@@ -84,6 +88,7 @@ struct vulkan_object
         VkSwapchainKHR swapchain;
     } client;
     struct vulkan_object *parent;
+    struct rb_entry entry;
 };
 
 static inline void init_vulkan_object( struct vulkan_object *obj, struct vulkan_object *parent,
@@ -99,6 +104,32 @@ static inline void init_vulkan_object_ptr( struct vulkan_object *obj, struct vul
                                            void *host_handle, struct vulkan_client_object *client )
 {
     init_vulkan_object( obj, parent, (UINT_PTR)host_handle, client );
+}
+
+struct vulkan_instance
+{
+    pthread_rwlock_t objects_lock;
+    struct rb_tree objects;
+};
+
+static inline void add_vulkan_object( struct vulkan_instance *instance, struct vulkan_object *obj )
+{
+    if (instance->objects.compare)
+    {
+        pthread_rwlock_wrlock( &instance->objects_lock );
+        rb_put( &instance->objects, &obj->host.handle, &obj->entry );
+        pthread_rwlock_unlock( &instance->objects_lock );
+    }
+}
+
+static inline void remove_vulkan_object( struct vulkan_instance *instance, struct vulkan_object *obj )
+{
+    if (instance->objects.compare)
+    {
+        pthread_rwlock_wrlock( &instance->objects_lock );
+        rb_remove( &instance->objects, &obj->entry );
+        pthread_rwlock_unlock( &instance->objects_lock );
+    }
 }
 
 struct vulkan_funcs

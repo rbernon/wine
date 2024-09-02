@@ -30,21 +30,9 @@
 #include "wine/rbtree.h"
 #include "wine/vulkan_driver.h"
 
-/* Some extensions have callbacks for those we need to be able to
- * get the wine wrapper for a host handle
- */
-struct wrapper_entry
-{
-    struct rb_entry entry;
-    uint64_t host_handle;
-    uint64_t client_handle;
-};
-
 struct wine_cmd_buffer
 {
     struct vulkan_object obj;
-
-    struct wrapper_entry wrapper_entry;
 };
 
 static inline struct wine_cmd_buffer *wine_cmd_buffer_from_handle(VkCommandBuffer handle)
@@ -58,8 +46,6 @@ struct wine_queue
     uint32_t family_index;
     uint32_t queue_index;
     VkDeviceQueueCreateFlags flags;
-
-    struct wrapper_entry wrapper_entry;
 };
 
 static inline struct wine_queue *wine_queue_from_handle(VkQueue handle)
@@ -71,8 +57,6 @@ struct wine_device
 {
     struct vulkan_object obj;
     struct vulkan_device_funcs funcs;
-
-    struct wrapper_entry wrapper_entry;
 
     uint32_t queue_count;
     struct wine_queue queues[];
@@ -92,8 +76,6 @@ struct wine_debug_report_callback
     struct vulkan_object obj;
     UINT64 user_callback; /* client pointer */
     UINT64 user_data; /* client pointer */
-
-    struct wrapper_entry wrapper_entry;
 };
 
 struct wine_phys_dev
@@ -105,8 +87,6 @@ struct wine_phys_dev
 
     uint32_t external_memory_align;
     uint32_t map_placed_align;
-
-    struct wrapper_entry wrapper_entry;
 };
 
 static inline struct wine_phys_dev *wine_phys_dev_from_handle(VkPhysicalDevice handle)
@@ -119,12 +99,11 @@ struct wine_debug_report_callback;
 struct wine_instance
 {
     struct vulkan_object obj;
+    struct vulkan_instance instance;
     struct vulkan_instance_funcs funcs;
 
     VkBool32 enable_win32_surface;
     VkBool32 enable_wrapper_list;
-    struct rb_tree wrappers;
-    pthread_rwlock_t wrapper_lock;
 
     struct wine_debug_utils_messenger *utils_messengers;
     uint32_t utils_messenger_count;
@@ -132,8 +111,6 @@ struct wine_instance
     struct wine_debug_report_callback default_callback;
 
     unsigned int quirks;
-
-    struct wrapper_entry wrapper_entry;
 
     /* We cache devices as we need to wrap them as they are dispatchable objects. */
     uint32_t phys_dev_count;
@@ -150,8 +127,6 @@ static inline struct wine_instance *wine_instance_from_handle(VkInstance handle)
 struct wine_cmd_pool
 {
     struct vulkan_object obj;
-
-    struct wrapper_entry wrapper_entry;
 };
 
 static inline struct wine_cmd_pool *wine_cmd_pool_from_handle(VkCommandPool handle)
@@ -165,8 +140,6 @@ struct wine_device_memory
     struct vulkan_object obj;
     VkDeviceSize size;
     void *vm_map;
-
-    struct wrapper_entry wrapper_entry;
 };
 
 static inline struct wine_device_memory *wine_device_memory_from_handle(VkDeviceMemory handle)
@@ -179,8 +152,6 @@ struct wine_debug_utils_messenger
     struct vulkan_object obj;
     UINT64 user_callback; /* client pointer */
     UINT64 user_data; /* client pointer */
-
-    struct wrapper_entry wrapper_entry;
 };
 
 static inline struct wine_debug_utils_messenger *wine_debug_utils_messenger_from_handle(
@@ -202,7 +173,6 @@ struct wine_surface
     HWND hwnd;
 
     struct rb_entry window_entry;
-    struct wrapper_entry wrapper_entry;
 };
 
 static inline struct wine_surface *wine_surface_from_handle(VkSurfaceKHR handle)
@@ -215,8 +185,6 @@ struct wine_swapchain
     struct vulkan_object obj;
     struct wine_surface *surface;
     VkExtent2D extents;
-
-    struct wrapper_entry wrapper_entry;
 };
 
 static inline struct wine_swapchain *wine_swapchain_from_handle(VkSwapchainKHR handle)
@@ -279,7 +247,6 @@ struct wine_deferred_operation
 {
     struct vulkan_object obj;
     struct conversion_context ctx; /* to keep params alive. */
-    struct wrapper_entry wrapper_entry;
 };
 
 static inline struct wine_deferred_operation *wine_deferred_operation_from_handle(
