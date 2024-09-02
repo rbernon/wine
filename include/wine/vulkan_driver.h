@@ -86,6 +86,21 @@ struct vulkan_object
     struct vulkan_object *parent;
 };
 
+static inline void init_vulkan_object( struct vulkan_object *obj, struct vulkan_object *parent,
+                                       UINT64 host_handle, struct vulkan_client_object *client )
+{
+    obj->host.handle = (UINT_PTR)host_handle;
+    obj->client.handle = client ? (UINT_PTR)client : (UINT_PTR)obj;
+    obj->parent = parent;
+    if (client) client->unix_handle = (UINT_PTR)obj;
+}
+
+static inline void init_vulkan_object_ptr( struct vulkan_object *obj, struct vulkan_object *parent,
+                                           void *host_handle, struct vulkan_client_object *client )
+{
+    init_vulkan_object( obj, parent, (UINT_PTR)host_handle, client );
+}
+
 struct vulkan_funcs
 {
     /* Vulkan global functions. These are the only calls at this point a graphics driver
