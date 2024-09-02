@@ -139,6 +139,12 @@ static VkResult win32u_vkQueuePresentKHR( VkQueue queue, const VkPresentInfoKHR 
     return res;
 }
 
+static VkBool32 win32u_vkGetPhysicalDeviceWin32PresentationSupportKHR( VkPhysicalDevice device_handle, uint32_t queue )
+{
+    struct vulkan_object *physical_device = vulkan_physical_device_from_handle( device_handle );
+    return driver_funcs->p_vkGetPhysicalDeviceWin32PresentationSupportKHR( physical_device->host.physical_device, queue );
+}
+
 static PFN_vkVoidFunction win32u_vkGetDeviceProcAddr( VkDevice device, const char *name )
 {
     TRACE( "device %p, name %s\n", device, debugstr_a(name) );
@@ -158,7 +164,6 @@ static PFN_vkVoidFunction win32u_vkGetInstanceProcAddr( VkInstance instance, con
     if (!strcmp( name, "vkCreateWin32SurfaceKHR" )) return (PFN_vkVoidFunction)vulkan_funcs.p_vkCreateWin32SurfaceKHR;
     if (!strcmp( name, "vkDestroySurfaceKHR" )) return (PFN_vkVoidFunction)vulkan_funcs.p_vkDestroySurfaceKHR;
     if (!strcmp( name, "vkGetInstanceProcAddr" )) return (PFN_vkVoidFunction)vulkan_funcs.p_vkGetInstanceProcAddr;
-    if (!strcmp( name, "vkGetPhysicalDeviceWin32PresentationSupportKHR" )) return (PFN_vkVoidFunction)vulkan_funcs.p_vkGetPhysicalDeviceWin32PresentationSupportKHR;
 
     /* vkGetInstanceProcAddr also loads any children of instance, so device functions as well. */
     if (!strcmp( name, "vkGetDeviceProcAddr" )) return (PFN_vkVoidFunction)vulkan_funcs.p_vkGetDeviceProcAddr;
@@ -180,6 +185,7 @@ static struct vulkan_funcs vulkan_funcs =
     .p_vkQueuePresentKHR = win32u_vkQueuePresentKHR,
     .p_vkGetDeviceProcAddr = win32u_vkGetDeviceProcAddr,
     .p_vkGetInstanceProcAddr = win32u_vkGetInstanceProcAddr,
+    .p_vkGetPhysicalDeviceWin32PresentationSupportKHR = win32u_vkGetPhysicalDeviceWin32PresentationSupportKHR,
     .p_wine_get_host_surface = win32u_wine_get_host_surface,
 };
 
@@ -235,10 +241,7 @@ static void vulkan_driver_init(void)
     if (status == STATUS_NOT_IMPLEMENTED)
         driver_funcs = &nulldrv_funcs;
     else
-    {
-        vulkan_funcs.p_vkGetPhysicalDeviceWin32PresentationSupportKHR = driver_funcs->p_vkGetPhysicalDeviceWin32PresentationSupportKHR;
         vulkan_funcs.p_get_host_surface_extension = driver_funcs->p_get_host_surface_extension;
-    }
 }
 
 static void vulkan_driver_load(void)
@@ -289,6 +292,7 @@ static const struct vulkan_driver_funcs lazydrv_funcs =
     .p_vulkan_surface_destroy = lazydrv_vulkan_surface_destroy,
     .p_vulkan_surface_detach = lazydrv_vulkan_surface_detach,
     .p_vulkan_surface_presented = lazydrv_vulkan_surface_presented,
+    .p_vkGetPhysicalDeviceWin32PresentationSupportKHR = lazydrv_vkGetPhysicalDeviceWin32PresentationSupportKHR,
 };
 
 static void vulkan_init_once(void)
@@ -315,7 +319,6 @@ static void vulkan_init_once(void)
 #undef LOAD_FUNCPTR
 
     driver_funcs = &lazydrv_funcs;
-    vulkan_funcs.p_vkGetPhysicalDeviceWin32PresentationSupportKHR = lazydrv_vkGetPhysicalDeviceWin32PresentationSupportKHR;
     vulkan_funcs.p_get_host_surface_extension = lazydrv_get_host_surface_extension;
 }
 

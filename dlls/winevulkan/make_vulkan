@@ -650,7 +650,7 @@ class VkFunction(object):
         # and is used by the code generation.
         self.required = True if func_info else False
 
-        if self.name in MANUAL_UNIX_THUNKS:
+        if self.name in MANUAL_UNIX_THUNKS | WIN32U_UNIX_THUNKS:
             self.unwrap = Unwrap.NONE
         elif self.name in USER_DRIVER_FUNCS:
             self.unwrap = Unwrap.DRIVER
@@ -891,7 +891,7 @@ class VkFunction(object):
                 body += "        ctx = &wine_deferred_operation_from_handle(params->{})->ctx;\n".format(deferred_op)
 
         # Call any win_to_host conversion calls.
-        unwrap = self.name not in MANUAL_UNIX_THUNKS
+        unwrap = self.name not in MANUAL_UNIX_THUNKS | WIN32U_UNIX_THUNKS
         for p in self.params:
             if p.needs_conversion(conv, self.unwrap, Direction.INPUT):
                 body += p.copy(Direction.INPUT, conv, self.unwrap, prefix=params_prefix)
@@ -901,7 +901,7 @@ class VkFunction(object):
 
         # Build list of parameters containing converted and non-converted parameters.
         # The param itself knows if conversion is needed and applies it when we set conv=True.
-        unwrap = Unwrap.NONE if self.name in MANUAL_UNIX_THUNKS else self.unwrap
+        unwrap = Unwrap.NONE if self.name in MANUAL_UNIX_THUNKS | WIN32U_UNIX_THUNKS else self.unwrap
         params = ", ".join([p.variable(conv, unwrap, params_prefix) for p in self.params])
         if self.extra_param:
             if conv:
@@ -909,7 +909,9 @@ class VkFunction(object):
             else:
                 params += ", {0}{1}".format(params_prefix, self.extra_param)
 
-        if self.name not in MANUAL_UNIX_THUNKS:
+        if self.name in WIN32U_UNIX_THUNKS:
+            func_prefix = "vk_funcs->p_"
+        elif self.name not in MANUAL_UNIX_THUNKS:
             func_prefix = "{0}->p_".format(self.params[0].dispatch_table(params_prefix, conv))
         else:
             func_prefix = "wine_"
