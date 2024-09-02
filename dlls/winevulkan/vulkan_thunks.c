@@ -49613,7 +49613,7 @@ static NTSTATUS thunk64_vkGetPhysicalDeviceWin32PresentationSupportKHR(void *arg
 
     TRACE("%p, %u\n", params->physicalDevice, params->queueFamilyIndex);
 
-    params->result = get_vulkan_parent_instance_funcs(&wine_phys_dev_from_handle(params->physicalDevice)->obj)->p_vkGetPhysicalDeviceWin32PresentationSupportKHR(wine_phys_dev_from_handle(params->physicalDevice)->obj.host.physical_device, params->queueFamilyIndex);
+    params->result = vk_funcs->p_vkGetPhysicalDeviceWin32PresentationSupportKHR(params->physicalDevice, params->queueFamilyIndex);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -49629,7 +49629,7 @@ static NTSTATUS thunk32_vkGetPhysicalDeviceWin32PresentationSupportKHR(void *arg
 
     TRACE("%#x, %u\n", params->physicalDevice, params->queueFamilyIndex);
 
-    params->result = get_vulkan_parent_instance_funcs(&wine_phys_dev_from_handle((VkPhysicalDevice)UlongToPtr(params->physicalDevice))->obj)->p_vkGetPhysicalDeviceWin32PresentationSupportKHR(wine_phys_dev_from_handle((VkPhysicalDevice)UlongToPtr(params->physicalDevice))->obj.host.physical_device, params->queueFamilyIndex);
+    params->result = vk_funcs->p_vkGetPhysicalDeviceWin32PresentationSupportKHR((VkPhysicalDevice)UlongToPtr(params->physicalDevice), params->queueFamilyIndex);
     return STATUS_SUCCESS;
 }
 

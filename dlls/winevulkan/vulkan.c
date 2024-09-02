@@ -108,7 +108,7 @@ static uint32_t wine_vk_count_struct_(void *s, VkStructureType t)
     return result;
 }
 
-static const struct vulkan_funcs *vk_funcs;
+const struct vulkan_funcs *vk_funcs = NULL;
 
 static int wrapper_entry_compare(const void *key, const struct rb_entry *entry)
 {
