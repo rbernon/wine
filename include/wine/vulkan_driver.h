@@ -32,6 +32,26 @@
 /* Wine internal vulkan driver version, needs to be bumped upon vulkan_funcs changes. */
 #define WINE_VULKAN_DRIVER_VERSION 34
 
+struct vulkan_object
+{
+    union
+    {
+        UINT64 handle;
+        VkCommandBuffer command_buffer;
+        VkCommandPool command_pool;
+        VkDebugReportCallbackEXT debug_report_callback;
+        VkDebugUtilsMessengerEXT debug_utils_messenger;
+        VkDeferredOperationKHR deferred_operation;
+        VkDevice device;
+        VkDeviceMemory device_memory;
+        VkInstance instance;
+        VkPhysicalDevice physical_device;
+        VkQueue queue;
+        VkSurfaceKHR surface;
+        VkSwapchainKHR swapchain;
+    } host;
+};
+
 struct vulkan_funcs
 {
     /* Vulkan global functions. These are the only calls at this point a graphics driver
