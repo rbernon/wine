@@ -1822,6 +1822,8 @@ static BOOL enable_fullscreen_hack( HWND hwnd, BOOL known_child )
     return !!ReadNoFence( &gamma_serial ); /* gamma emulation needs fshack */
 }
 
+BOOL egl_import_pixmap(Pixmap pixmap);
+
 /***********************************************************************
  *              create_gl_drawable
  */
@@ -1869,7 +1871,7 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct glx_pixel
         if (enable_fshack) WARN( "Window %p has the fullscreen hack enabled\n", hwnd );
     }
 #ifdef SONAME_LIBXCOMPOSITE
-    else if(usexcomposite)
+    else if (usexcomposite && 0)
     {
         gl->type = DC_GL_CHILD_WIN;
         gl->colormap = XCreateColormap( gdi_display, get_dummy_parent(), visual->visual,
@@ -1916,6 +1918,8 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct glx_pixel
             gl->hdc_src = NtGdiOpenDCW( &device_str, NULL, NULL, 0, TRUE, NULL, NULL, NULL );
             set_dc_drawable( gl->hdc_src, gl->pixmap, &gl->rect, IncludeInferiors );
         }
+
+        egl_import_pixmap(gl->pixmap);
     }
 
     if (!gl->drawable)

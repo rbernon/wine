@@ -497,6 +497,64 @@ static void test_private_data(VkPhysicalDevice vk_physical_device)
     vkDestroyDevice(vk_device, NULL);
 }
 
+static void test_d3dkmt_resource_2(VkPhysicalDevice vk_physical_device)
+{
+    VkExternalMemoryImageCreateInfo external_create_info = {.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};
+    VkMemoryAllocateInfo allocate_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    VkImageCreateInfo create_info = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    PFN_vkGetImageMemoryRequirements pfn_vkGetImageMemoryRequirements;
+    PFN_vkAllocateMemory pfn_vkAllocateMemory;
+    VkMemoryRequirements requirements = {0};
+    PFN_vkCreateImage pfn_vkCreateImage;
+    VkDeviceMemory memory;
+    VkDevice vk_device;
+    VkImage image;
+    VkResult vr;
+
+    if ((vr = create_device(vk_physical_device, 0, NULL, NULL, &vk_device)) < 0)
+    {
+        skip("Failed to create device with VK_EXT_private_data, VkResult %d.\n", vr);
+        return;
+    }
+
+    pfn_vkCreateImage =
+            (void*) vkGetDeviceProcAddr(vk_device, "vkCreateImage");
+    pfn_vkGetImageMemoryRequirements =
+            (void*) vkGetDeviceProcAddr(vk_device, "vkGetImageMemoryRequirements");
+    pfn_vkAllocateMemory =
+            (void*) vkGetDeviceProcAddr(vk_device, "vkAllocateMemory");
+
+    external_create_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHR;
+
+    create_info.flags = 0;
+    create_info.imageType = 0;
+    create_info.format = 0;
+    create_info.extent.width = 128;
+    create_info.extent.height = 128;
+    create_info.mipLevels = 0;
+    create_info.arrayLayers = 0;
+    create_info.samples = 0;
+    create_info.tiling = 0;
+    create_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
+                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+    create_info.sharingMode = 0;
+    create_info.queueFamilyIndexCount = 0;
+    create_info.pQueueFamilyIndices = 0;
+    create_info.initialLayout = 0;
+    create_info.pNext = &external_create_info;
+
+    vr = pfn_vkCreateImage(vk_device, &create_info, NULL, &image);
+    ok(!vr, "got %d\n", vr);
+    pfn_vkGetImageMemoryRequirements(vk_device, image, &requirements);
+
+    allocate_info.allocationSize = requirements.size;
+    vr = pfn_vkAllocateMemory(vk_device, &allocate_info, NULL, &memory);
+    ok(!vr, "got %d\n", vr);
+
+    vkDestroyDevice(vk_device, NULL);
+}
+
 static const char *test_win32_surface_extensions[] =
 {
     "VK_KHR_surface",
@@ -2394,6 +2452,7 @@ return;
     test_unsupported_instance_extensions();
     for_each_device(test_unsupported_device_extensions);
     for_each_device(test_private_data);
+    for_each_device(test_d3dkmt_resource_2);
     for_each_device_instance(ARRAY_SIZE(test_win32_surface_extensions), test_win32_surface_extensions, test_win32_surface, NULL);
     for_each_device_instance(ARRAY_SIZE(test_external_memory_extensions), test_external_memory_extensions, test_external_memory_buffer, NULL);
     for_each_device_instance(ARRAY_SIZE(test_external_memory_extensions), test_external_memory_extensions, test_external_memory_image, NULL);
