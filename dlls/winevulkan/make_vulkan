@@ -907,7 +907,7 @@ class VkFunction(object):
                 params += ", {0}{1}".format(params_prefix, self.extra_param)
 
         if self.name not in MANUAL_UNIX_THUNKS:
-            func_prefix = "{0}.p_".format(self.params[0].dispatch_table(params_prefix, conv))
+            func_prefix = "{0}->p_".format(self.params[0].dispatch_table(params_prefix, conv))
         else:
             func_prefix = "wine_"
 
@@ -1142,19 +1142,19 @@ class VkHandle(object):
 
         if self.parent is None:
             # Should only happen for VkInstance
-            return "wine_instance_from_handle({0})->funcs".format(param)
+            return "get_vulkan_instance_funcs({0})".format(param)
         elif self.name == "VkCommandBuffer":
-            return "wine_cmd_buffer_from_handle({0})->device->funcs".format(param)
+            return "get_vulkan_parent_device_funcs(&wine_cmd_buffer_from_handle({0})->obj)".format(param)
         elif self.name == "VkDevice":
-            return "wine_device_from_handle({0})->funcs".format(param)
+            return "get_vulkan_device_funcs({0})".format(param)
         elif self.name == "VkPhysicalDevice":
-            return "wine_phys_dev_from_handle({0})->instance->funcs".format(param)
+            return "get_vulkan_parent_instance_funcs(&wine_phys_dev_from_handle({0})->obj)".format(param)
         elif self.name == "VkQueue":
-            return "wine_queue_from_handle({0})->device->funcs".format(param)
+            return "get_vulkan_parent_device_funcs(&wine_queue_from_handle({0})->obj)".format(param)
         elif self.parent in ["VkInstance", "VkPhysicalDevice"]:
-            return "{0}->instance->funcs".format(param)
+            return "get_vulkan_parent_instance_funcs(&{0}->obj)".format(param)
         elif self.parent in ["VkDevice", "VkCommandPool"]:
-            return "{0}->device->funcs".format(param)
+            return "get_vulkan_parent_device_funcs(&{0}->obj)".format(param)
         else:
             LOGGER.error("Unhandled dispatchable parent: {0}".format(self.parent))
 

@@ -43,8 +43,6 @@ struct wrapper_entry
 struct wine_cmd_buffer
 {
     struct vulkan_object obj;
-    struct wine_device *device; /* parent */
-
     VkCommandBuffer handle; /* client command buffer */
 
     struct wrapper_entry wrapper_entry;
@@ -58,8 +56,6 @@ static inline struct wine_cmd_buffer *wine_cmd_buffer_from_handle(VkCommandBuffe
 struct wine_queue
 {
     struct vulkan_object obj;
-    struct wine_device *device; /* parent */
-
     VkQueue handle; /* client queue */
 
     uint32_t family_index;
@@ -78,8 +74,6 @@ struct wine_device
 {
     struct vulkan_object obj;
     struct vulkan_device_funcs funcs;
-    struct wine_phys_dev *phys_dev; /* parent */
-
     VkDevice handle; /* client device */
 
     struct wrapper_entry wrapper_entry;
@@ -100,8 +94,6 @@ struct wine_debug_utils_messenger;
 struct wine_debug_report_callback
 {
     struct vulkan_object obj;
-    struct wine_instance *instance; /* parent */
-
     UINT64 user_callback; /* client pointer */
     UINT64 user_data; /* client pointer */
 
@@ -111,8 +103,6 @@ struct wine_debug_report_callback
 struct wine_phys_dev
 {
     struct vulkan_object obj;
-    struct wine_instance *instance; /* parent */
-
     VkPhysicalDevice handle; /* client physical device */
 
     VkPhysicalDeviceMemoryProperties memory_properties;
@@ -196,8 +186,6 @@ static inline struct wine_device_memory *wine_device_memory_from_handle(VkDevice
 struct wine_debug_utils_messenger
 {
     struct vulkan_object obj;
-    struct wine_instance *instance; /* parent */
-
     UINT64 user_callback; /* client pointer */
     UINT64 user_data; /* client pointer */
 
@@ -251,7 +239,7 @@ static inline VkSurfaceKHR wine_surface_to_handle(struct wine_surface *surface)
 struct wine_swapchain
 {
     struct vulkan_object obj;
-    struct wine_surface *surface;  /* parent */
+    struct wine_surface *surface;
     VkExtent2D extents;
 
     struct wrapper_entry wrapper_entry;
@@ -375,6 +363,26 @@ static inline void *find_next_struct(const void *s, VkStructureType t)
     }
 
     return NULL;
+}
+
+static inline const struct vulkan_instance_funcs *get_vulkan_instance_funcs(VkInstance instance)
+{
+    return &wine_instance_from_handle(instance)->funcs;
+}
+static inline const struct vulkan_instance_funcs *get_vulkan_parent_instance_funcs(struct vulkan_object *obj)
+{
+    struct wine_instance *instance = CONTAINING_RECORD(obj->parent, struct wine_instance, obj);
+    return &instance->funcs;
+}
+
+static inline const struct vulkan_device_funcs *get_vulkan_device_funcs(VkDevice device)
+{
+    return &wine_device_from_handle(device)->funcs;
+}
+static inline const struct vulkan_device_funcs *get_vulkan_parent_device_funcs(struct vulkan_object *obj)
+{
+    struct wine_device *device = CONTAINING_RECORD(obj->parent, struct wine_device, obj);
+    return &device->funcs;
 }
 
 #endif /* __WINE_VULKAN_PRIVATE_H */
