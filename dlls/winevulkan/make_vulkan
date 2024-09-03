@@ -124,7 +124,6 @@ UNSUPPORTED_EXTENSIONS = [
 # winevulkan may nonetheless use, or extensions we want to generate headers for
 # but not expose to applications (useful for test commits)
 UNEXPOSED_EXTENSIONS = {
-    "VK_KHR_external_memory_win32",
     # Extensions for other platforms
     "VK_EXT_external_memory_dma_buf",
     "VK_EXT_image_drm_format_modifier",
