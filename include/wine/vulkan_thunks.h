@@ -495,6 +495,7 @@ struct vulkan_device_funcs
     VkResult (*p_vkGetEncodedVideoSessionParametersKHR)(VkDevice, const VkVideoEncodeSessionParametersGetInfoKHR *, VkVideoEncodeSessionParametersFeedbackInfoKHR *, size_t *, void *);
     VkResult (*p_vkGetEventStatus)(VkDevice, VkEvent);
     VkResult (*p_vkGetFenceStatus)(VkDevice, VkFence);
+    VkResult (*p_vkGetFenceWin32HandleKHR)(VkDevice, const VkFenceGetWin32HandleInfoKHR *, HANDLE *);
     VkResult (*p_vkGetFramebufferTilePropertiesQCOM)(VkDevice, VkFramebuffer, uint32_t *, VkTilePropertiesQCOM *);
     void (*p_vkGetGeneratedCommandsMemoryRequirementsEXT)(VkDevice, const VkGeneratedCommandsMemoryRequirementsInfoEXT *, VkMemoryRequirements2 *);
     void (*p_vkGetGeneratedCommandsMemoryRequirementsNV)(VkDevice, const VkGeneratedCommandsMemoryRequirementsInfoNV *, VkMemoryRequirements2 *);
@@ -546,6 +547,7 @@ struct vulkan_device_funcs
     VkResult (*p_vkGetSwapchainImagesKHR)(VkDevice, VkSwapchainKHR, uint32_t *, VkImage *);
     VkResult (*p_vkGetValidationCacheDataEXT)(VkDevice, VkValidationCacheEXT, size_t *, void *);
     VkResult (*p_vkGetVideoSessionMemoryRequirementsKHR)(VkDevice, VkVideoSessionKHR, uint32_t *, VkVideoSessionMemoryRequirementsKHR *);
+    VkResult (*p_vkImportFenceWin32HandleKHR)(VkDevice, const VkImportFenceWin32HandleInfoKHR *);
     VkResult (*p_vkInvalidateMappedMemoryRanges)(VkDevice, uint32_t, const VkMappedMemoryRange *);
     VkResult (*p_vkLatencySleepNV)(VkDevice, VkSwapchainKHR, const VkLatencySleepInfoNV *);
     VkResult (*p_vkMapMemory)(VkDevice, VkDeviceMemory, VkDeviceSize, VkDeviceSize, VkMemoryMapFlags, void **);
@@ -1095,6 +1097,7 @@ struct vulkan_instance_funcs
     USE_VK_FUNC(vkGetEncodedVideoSessionParametersKHR) \
     USE_VK_FUNC(vkGetEventStatus) \
     USE_VK_FUNC(vkGetFenceStatus) \
+    USE_VK_FUNC(vkGetFenceWin32HandleKHR) \
     USE_VK_FUNC(vkGetFramebufferTilePropertiesQCOM) \
     USE_VK_FUNC(vkGetGeneratedCommandsMemoryRequirementsEXT) \
     USE_VK_FUNC(vkGetGeneratedCommandsMemoryRequirementsNV) \
@@ -1146,6 +1149,7 @@ struct vulkan_instance_funcs
     USE_VK_FUNC(vkGetSwapchainImagesKHR) \
     USE_VK_FUNC(vkGetValidationCacheDataEXT) \
     USE_VK_FUNC(vkGetVideoSessionMemoryRequirementsKHR) \
+    USE_VK_FUNC(vkImportFenceWin32HandleKHR) \
     USE_VK_FUNC(vkInvalidateMappedMemoryRanges) \
     USE_VK_FUNC(vkLatencySleepNV) \
     USE_VK_FUNC(vkMapMemory) \

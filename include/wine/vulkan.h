@@ -222,6 +222,8 @@
 #define VK_KHR_EXTERNAL_FENCE_CAPABILITIES_EXTENSION_NAME "VK_KHR_external_fence_capabilities"
 #define VK_KHR_EXTERNAL_FENCE_SPEC_VERSION 1
 #define VK_KHR_EXTERNAL_FENCE_EXTENSION_NAME "VK_KHR_external_fence"
+#define VK_KHR_EXTERNAL_FENCE_WIN32_SPEC_VERSION 1
+#define VK_KHR_EXTERNAL_FENCE_WIN32_EXTENSION_NAME "VK_KHR_external_fence_win32"
 #define VK_KHR_EXTERNAL_FENCE_FD_SPEC_VERSION 1
 #define VK_KHR_EXTERNAL_FENCE_FD_EXTENSION_NAME "VK_KHR_external_fence_fd"
 #define VK_KHR_PERFORMANCE_QUERY_SPEC_VERSION 1
@@ -4935,6 +4937,9 @@ typedef enum VkStructureType
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_FENCE_INFO = 1000112000,
     VK_STRUCTURE_TYPE_EXTERNAL_FENCE_PROPERTIES = 1000112001,
     VK_STRUCTURE_TYPE_EXPORT_FENCE_CREATE_INFO = 1000113000,
+    VK_STRUCTURE_TYPE_IMPORT_FENCE_WIN32_HANDLE_INFO_KHR = 1000114000,
+    VK_STRUCTURE_TYPE_EXPORT_FENCE_WIN32_HANDLE_INFO_KHR = 1000114001,
+    VK_STRUCTURE_TYPE_FENCE_GET_WIN32_HANDLE_INFO_KHR = 1000114002,
     VK_STRUCTURE_TYPE_IMPORT_FENCE_FD_INFO_KHR = 1000115000,
     VK_STRUCTURE_TYPE_FENCE_GET_FD_INFO_KHR = 1000115001,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PERFORMANCE_QUERY_FEATURES_KHR = 1000116000,
@@ -8079,6 +8084,15 @@ typedef struct VkExportFenceCreateInfo
 } VkExportFenceCreateInfo;
 typedef VkExportFenceCreateInfo VkExportFenceCreateInfoKHR;
 
+typedef struct VkExportFenceWin32HandleInfoKHR
+{
+    VkStructureType sType;
+    const void *pNext;
+    const SECURITY_ATTRIBUTES *pAttributes;
+    DWORD dwAccess;
+    LPCWSTR name;
+} VkExportFenceWin32HandleInfoKHR;
+
 typedef struct VkExportMemoryAllocateInfo
 {
     VkStructureType sType;
@@ -8188,6 +8202,14 @@ typedef struct VkFenceGetFdInfoKHR
     VkFence WINE_VK_ALIGN(8) fence;
     VkExternalFenceHandleTypeFlagBits handleType;
 } VkFenceGetFdInfoKHR;
+
+typedef struct VkFenceGetWin32HandleInfoKHR
+{
+    VkStructureType sType;
+    const void *pNext;
+    VkFence WINE_VK_ALIGN(8) fence;
+    VkExternalFenceHandleTypeFlagBits handleType;
+} VkFenceGetWin32HandleInfoKHR;
 
 typedef struct VkFilterCubicImageViewImageFormatPropertiesEXT
 {
@@ -8628,6 +8650,17 @@ typedef struct VkImportFenceFdInfoKHR
     VkExternalFenceHandleTypeFlagBits handleType;
     int fd;
 } VkImportFenceFdInfoKHR;
+
+typedef struct VkImportFenceWin32HandleInfoKHR
+{
+    VkStructureType sType;
+    const void *pNext;
+    VkFence WINE_VK_ALIGN(8) fence;
+    VkFenceImportFlags flags;
+    VkExternalFenceHandleTypeFlagBits handleType;
+    HANDLE handle;
+    LPCWSTR name;
+} VkImportFenceWin32HandleInfoKHR;
 
 typedef struct VkImportMemoryFdInfoKHR
 {
@@ -16835,6 +16868,7 @@ typedef VkResult (VKAPI_PTR *PFN_vkGetEncodedVideoSessionParametersKHR)(VkDevice
 typedef VkResult (VKAPI_PTR *PFN_vkGetEventStatus)(VkDevice, VkEvent);
 typedef VkResult (VKAPI_PTR *PFN_vkGetFenceFdKHR)(VkDevice, const VkFenceGetFdInfoKHR *, int *);
 typedef VkResult (VKAPI_PTR *PFN_vkGetFenceStatus)(VkDevice, VkFence);
+typedef VkResult (VKAPI_PTR *PFN_vkGetFenceWin32HandleKHR)(VkDevice, const VkFenceGetWin32HandleInfoKHR *, HANDLE *);
 typedef VkResult (VKAPI_PTR *PFN_vkGetFramebufferTilePropertiesQCOM)(VkDevice, VkFramebuffer, uint32_t *, VkTilePropertiesQCOM *);
 typedef void (VKAPI_PTR *PFN_vkGetGeneratedCommandsMemoryRequirementsEXT)(VkDevice, const VkGeneratedCommandsMemoryRequirementsInfoEXT *, VkMemoryRequirements2 *);
 typedef void (VKAPI_PTR *PFN_vkGetGeneratedCommandsMemoryRequirementsNV)(VkDevice, const VkGeneratedCommandsMemoryRequirementsInfoNV *, VkMemoryRequirements2 *);
@@ -16941,6 +16975,7 @@ typedef VkResult (VKAPI_PTR *PFN_vkGetSwapchainImagesKHR)(VkDevice, VkSwapchainK
 typedef VkResult (VKAPI_PTR *PFN_vkGetValidationCacheDataEXT)(VkDevice, VkValidationCacheEXT, size_t *, void *);
 typedef VkResult (VKAPI_PTR *PFN_vkGetVideoSessionMemoryRequirementsKHR)(VkDevice, VkVideoSessionKHR, uint32_t *, VkVideoSessionMemoryRequirementsKHR *);
 typedef VkResult (VKAPI_PTR *PFN_vkImportFenceFdKHR)(VkDevice, const VkImportFenceFdInfoKHR *);
+typedef VkResult (VKAPI_PTR *PFN_vkImportFenceWin32HandleKHR)(VkDevice, const VkImportFenceWin32HandleInfoKHR *);
 typedef VkResult (VKAPI_PTR *PFN_vkImportSemaphoreFdKHR)(VkDevice, const VkImportSemaphoreFdInfoKHR *);
 typedef VkResult (VKAPI_PTR *PFN_vkInvalidateMappedMemoryRanges)(VkDevice, uint32_t, const VkMappedMemoryRange *);
 typedef VkResult (VKAPI_PTR *PFN_vkLatencySleepNV)(VkDevice, VkSwapchainKHR, const VkLatencySleepInfoNV *);
@@ -17448,6 +17483,7 @@ VkResult VKAPI_CALL vkGetEncodedVideoSessionParametersKHR(VkDevice device, const
 VkResult VKAPI_CALL vkGetEventStatus(VkDevice device, VkEvent event);
 VkResult VKAPI_CALL vkGetFenceFdKHR(VkDevice device, const VkFenceGetFdInfoKHR *pGetFdInfo, int *pFd);
 VkResult VKAPI_CALL vkGetFenceStatus(VkDevice device, VkFence fence);
+VkResult VKAPI_CALL vkGetFenceWin32HandleKHR(VkDevice device, const VkFenceGetWin32HandleInfoKHR *pGetWin32HandleInfo, HANDLE *pHandle);
 VkResult VKAPI_CALL vkGetFramebufferTilePropertiesQCOM(VkDevice device, VkFramebuffer framebuffer, uint32_t *pPropertiesCount, VkTilePropertiesQCOM *pProperties);
 void VKAPI_CALL vkGetGeneratedCommandsMemoryRequirementsEXT(VkDevice device, const VkGeneratedCommandsMemoryRequirementsInfoEXT *pInfo, VkMemoryRequirements2 *pMemoryRequirements);
 void VKAPI_CALL vkGetGeneratedCommandsMemoryRequirementsNV(VkDevice device, const VkGeneratedCommandsMemoryRequirementsInfoNV *pInfo, VkMemoryRequirements2 *pMemoryRequirements);
@@ -17554,6 +17590,7 @@ VkResult VKAPI_CALL vkGetSwapchainImagesKHR(VkDevice device, VkSwapchainKHR swap
 VkResult VKAPI_CALL vkGetValidationCacheDataEXT(VkDevice device, VkValidationCacheEXT validationCache, size_t *pDataSize, void *pData);
 VkResult VKAPI_CALL vkGetVideoSessionMemoryRequirementsKHR(VkDevice device, VkVideoSessionKHR videoSession, uint32_t *pMemoryRequirementsCount, VkVideoSessionMemoryRequirementsKHR *pMemoryRequirements);
 VkResult VKAPI_CALL vkImportFenceFdKHR(VkDevice device, const VkImportFenceFdInfoKHR *pImportFenceFdInfo);
+VkResult VKAPI_CALL vkImportFenceWin32HandleKHR(VkDevice device, const VkImportFenceWin32HandleInfoKHR *pImportFenceWin32HandleInfo);
 VkResult VKAPI_CALL vkImportSemaphoreFdKHR(VkDevice device, const VkImportSemaphoreFdInfoKHR *pImportSemaphoreFdInfo);
 VkResult VKAPI_CALL vkInvalidateMappedMemoryRanges(VkDevice device, uint32_t memoryRangeCount, const VkMappedMemoryRange *pMemoryRanges);
 VkResult VKAPI_CALL vkLatencySleepNV(VkDevice device, VkSwapchainKHR swapchain, const VkLatencySleepInfoNV *pSleepInfo);

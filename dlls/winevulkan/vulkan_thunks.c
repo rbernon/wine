@@ -3962,6 +3962,15 @@ typedef struct VkExportFenceCreateInfo32
 } VkExportFenceCreateInfo32;
 typedef VkExportFenceCreateInfo32 VkExportFenceCreateInfoKHR32;
 
+typedef struct VkExportFenceWin32HandleInfoKHR32
+{
+    VkStructureType sType;
+    PTR32 pNext;
+    PTR32 pAttributes;
+    DWORD dwAccess;
+    LPCWSTR name;
+} VkExportFenceWin32HandleInfoKHR32;
+
 typedef struct VkFenceCreateInfo32
 {
     VkStructureType sType;
@@ -6089,6 +6098,14 @@ typedef struct VkVideoEncodeSessionParametersFeedbackInfoKHR32
     VkBool32 hasOverrides;
 } VkVideoEncodeSessionParametersFeedbackInfoKHR32;
 
+typedef struct VkFenceGetWin32HandleInfoKHR32
+{
+    VkStructureType sType;
+    PTR32 pNext;
+    VkFence DECLSPEC_ALIGN(8) fence;
+    VkExternalFenceHandleTypeFlagBits handleType;
+} VkFenceGetWin32HandleInfoKHR32;
+
 typedef struct VkGeneratedCommandsMemoryRequirementsInfoEXT32
 {
     VkStructureType sType;
@@ -8132,6 +8149,17 @@ typedef struct VkVideoSessionMemoryRequirementsKHR32
     uint32_t memoryBindIndex;
     VkMemoryRequirements32 DECLSPEC_ALIGN(8) memoryRequirements;
 } VkVideoSessionMemoryRequirementsKHR32;
+
+typedef struct VkImportFenceWin32HandleInfoKHR32
+{
+    VkStructureType sType;
+    PTR32 pNext;
+    VkFence DECLSPEC_ALIGN(8) fence;
+    VkFenceImportFlags flags;
+    VkExternalFenceHandleTypeFlagBits handleType;
+    HANDLE handle;
+    LPCWSTR name;
+} VkImportFenceWin32HandleInfoKHR32;
 
 typedef struct VkLatencySleepInfoNV32
 {
@@ -18931,6 +18959,19 @@ static inline void convert_VkFenceCreateInfo_win32_to_host(struct conversion_con
             out_header = (void *)out_ext;
             break;
         }
+        case VK_STRUCTURE_TYPE_EXPORT_FENCE_WIN32_HANDLE_INFO_KHR:
+        {
+            VkExportFenceWin32HandleInfoKHR *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
+            const VkExportFenceWin32HandleInfoKHR32 *in_ext = (const VkExportFenceWin32HandleInfoKHR32 *)in_header;
+            out_ext->sType = VK_STRUCTURE_TYPE_EXPORT_FENCE_WIN32_HANDLE_INFO_KHR;
+            out_ext->pNext = NULL;
+            out_ext->pAttributes = UlongToPtr(in_ext->pAttributes);
+            out_ext->dwAccess = in_ext->dwAccess;
+            out_ext->name = in_ext->name;
+            out_header->pNext = (void *)out_ext;
+            out_header = (void *)out_ext;
+            break;
+        }
         default:
             FIXME("Unhandled sType %u.\n", in_header->sType);
             break;
@@ -24986,6 +25027,18 @@ static inline void convert_VkVideoEncodeSessionParametersFeedbackInfoKHR_host_to
             break;
         }
     }
+}
+
+static inline void convert_VkFenceGetWin32HandleInfoKHR_win32_to_host(const VkFenceGetWin32HandleInfoKHR32 *in, VkFenceGetWin32HandleInfoKHR *out)
+{
+    if (!in) return;
+
+    out->sType = in->sType;
+    out->pNext = NULL;
+    out->fence = in->fence;
+    out->handleType = in->handleType;
+    if (in->pNext)
+        FIXME("Unexpected pNext\n");
 }
 
 static inline VkTilePropertiesQCOM *convert_VkTilePropertiesQCOM_array_win32_to_host(struct conversion_context *ctx, const VkTilePropertiesQCOM32 *in, uint32_t count)
@@ -34125,6 +34178,21 @@ static inline void convert_VkVideoSessionMemoryRequirementsKHR_array_host_to_win
     {
         convert_VkVideoSessionMemoryRequirementsKHR_host_to_win32(&in[i], &out[i]);
     }
+}
+
+static inline void convert_VkImportFenceWin32HandleInfoKHR_win32_to_host(const VkImportFenceWin32HandleInfoKHR32 *in, VkImportFenceWin32HandleInfoKHR *out)
+{
+    if (!in) return;
+
+    out->sType = in->sType;
+    out->pNext = NULL;
+    out->fence = in->fence;
+    out->flags = in->flags;
+    out->handleType = in->handleType;
+    out->handle = in->handle;
+    out->name = in->name;
+    if (in->pNext)
+        FIXME("Unexpected pNext\n");
 }
 
 static inline void convert_VkLatencySleepInfoNV_win32_to_host(const VkLatencySleepInfoNV32 *in, VkLatencySleepInfoNV *out)
@@ -47740,6 +47808,36 @@ static NTSTATUS thunk32_vkGetFenceStatus(void *args)
 }
 
 #ifdef _WIN64
+static NTSTATUS thunk64_vkGetFenceWin32HandleKHR(void *args)
+{
+    struct vkGetFenceWin32HandleKHR_params *params = args;
+
+    TRACE("%p, %p, %p\n", params->device, params->pGetWin32HandleInfo, params->pHandle);
+
+    params->result = get_vulkan_device_funcs(params->device)->p_vkGetFenceWin32HandleKHR(vulkan_device_from_handle(params->device)->obj.host.device, params->pGetWin32HandleInfo, params->pHandle);
+    return STATUS_SUCCESS;
+}
+#endif /* _WIN64 */
+
+static NTSTATUS thunk32_vkGetFenceWin32HandleKHR(void *args)
+{
+    struct
+    {
+        PTR32 device;
+        PTR32 pGetWin32HandleInfo;
+        PTR32 pHandle;
+        VkResult result;
+    } *params = args;
+    VkFenceGetWin32HandleInfoKHR pGetWin32HandleInfo_host;
+
+    TRACE("%#x, %#x, %#x\n", params->device, params->pGetWin32HandleInfo, params->pHandle);
+
+    convert_VkFenceGetWin32HandleInfoKHR_win32_to_host((const VkFenceGetWin32HandleInfoKHR32 *)UlongToPtr(params->pGetWin32HandleInfo), &pGetWin32HandleInfo_host);
+    params->result = get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkGetFenceWin32HandleKHR(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, &pGetWin32HandleInfo_host, (HANDLE *)UlongToPtr(params->pHandle));
+    return STATUS_SUCCESS;
+}
+
+#ifdef _WIN64
 static NTSTATUS thunk64_vkGetFramebufferTilePropertiesQCOM(void *args)
 {
     struct vkGetFramebufferTilePropertiesQCOM_params *params = args;
@@ -51043,6 +51141,35 @@ static NTSTATUS thunk32_vkGetVideoSessionMemoryRequirementsKHR(void *args)
 }
 
 #ifdef _WIN64
+static NTSTATUS thunk64_vkImportFenceWin32HandleKHR(void *args)
+{
+    struct vkImportFenceWin32HandleKHR_params *params = args;
+
+    TRACE("%p, %p\n", params->device, params->pImportFenceWin32HandleInfo);
+
+    params->result = get_vulkan_device_funcs(params->device)->p_vkImportFenceWin32HandleKHR(vulkan_device_from_handle(params->device)->obj.host.device, params->pImportFenceWin32HandleInfo);
+    return STATUS_SUCCESS;
+}
+#endif /* _WIN64 */
+
+static NTSTATUS thunk32_vkImportFenceWin32HandleKHR(void *args)
+{
+    struct
+    {
+        PTR32 device;
+        PTR32 pImportFenceWin32HandleInfo;
+        VkResult result;
+    } *params = args;
+    VkImportFenceWin32HandleInfoKHR pImportFenceWin32HandleInfo_host;
+
+    TRACE("%#x, %#x\n", params->device, params->pImportFenceWin32HandleInfo);
+
+    convert_VkImportFenceWin32HandleInfoKHR_win32_to_host((const VkImportFenceWin32HandleInfoKHR32 *)UlongToPtr(params->pImportFenceWin32HandleInfo), &pImportFenceWin32HandleInfo_host);
+    params->result = get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkImportFenceWin32HandleKHR(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, &pImportFenceWin32HandleInfo_host);
+    return STATUS_SUCCESS;
+}
+
+#ifdef _WIN64
 static NTSTATUS thunk64_vkInvalidateMappedMemoryRanges(void *args)
 {
     struct vkInvalidateMappedMemoryRanges_params *params = args;
@@ -52905,6 +53032,7 @@ static const char * const vk_device_extensions[] =
     "VK_KHR_dynamic_rendering",
     "VK_KHR_dynamic_rendering_local_read",
     "VK_KHR_external_fence",
+    "VK_KHR_external_fence_win32",
     "VK_KHR_external_memory",
     "VK_KHR_external_memory_win32",
     "VK_KHR_external_semaphore",
@@ -53588,6 +53716,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     thunk64_vkGetEncodedVideoSessionParametersKHR,
     thunk64_vkGetEventStatus,
     thunk64_vkGetFenceStatus,
+    thunk64_vkGetFenceWin32HandleKHR,
     thunk64_vkGetFramebufferTilePropertiesQCOM,
     thunk64_vkGetGeneratedCommandsMemoryRequirementsEXT,
     thunk64_vkGetGeneratedCommandsMemoryRequirementsNV,
@@ -53688,6 +53817,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     thunk64_vkGetSwapchainImagesKHR,
     thunk64_vkGetValidationCacheDataEXT,
     thunk64_vkGetVideoSessionMemoryRequirementsKHR,
+    thunk64_vkImportFenceWin32HandleKHR,
     thunk64_vkInvalidateMappedMemoryRanges,
     thunk64_vkLatencySleepNV,
     thunk64_vkMapMemory,
@@ -54203,6 +54333,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     thunk32_vkGetEncodedVideoSessionParametersKHR,
     thunk32_vkGetEventStatus,
     thunk32_vkGetFenceStatus,
+    thunk32_vkGetFenceWin32HandleKHR,
     thunk32_vkGetFramebufferTilePropertiesQCOM,
     thunk32_vkGetGeneratedCommandsMemoryRequirementsEXT,
     thunk32_vkGetGeneratedCommandsMemoryRequirementsNV,
@@ -54303,6 +54434,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     thunk32_vkGetSwapchainImagesKHR,
     thunk32_vkGetValidationCacheDataEXT,
     thunk32_vkGetVideoSessionMemoryRequirementsKHR,
+    thunk32_vkImportFenceWin32HandleKHR,
     thunk32_vkInvalidateMappedMemoryRanges,
     thunk32_vkLatencySleepNV,
     thunk32_vkMapMemory,
