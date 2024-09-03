@@ -1183,29 +1183,29 @@ class VkHandle(object):
         """ Provide access to the host handle of a wrapped object. """
 
         if self.name == "VkCommandBuffer":
-            return "wine_cmd_buffer_from_handle({0})->host_command_buffer".format(name)
+            return "wine_cmd_buffer_from_handle({0})->obj.host.command_buffer".format(name)
         if self.name == "VkCommandPool":
-            return "wine_cmd_pool_from_handle({0})->host_command_pool".format(name)
+            return "wine_cmd_pool_from_handle({0})->obj.host.command_pool".format(name)
         if self.name == "VkDebugUtilsMessengerEXT":
-            return "wine_debug_utils_messenger_from_handle({0})->host_debug_messenger".format(name)
+            return "wine_debug_utils_messenger_from_handle({0})->obj.host.debug_utils_messenger".format(name)
         if self.name == "VkDebugReportCallbackEXT":
-            return "wine_debug_report_callback_from_handle({0})->host_debug_callback".format(name)
+            return "wine_debug_report_callback_from_handle({0})->obj.host.debug_report_callback".format(name)
         if self.name == "VkDeferredOperationKHR":
-            return "wine_deferred_operation_from_handle({0})->host_deferred_operation".format(name)
+            return "wine_deferred_operation_from_handle({0})->obj.host.deferred_operation".format(name)
         if self.name == "VkDevice":
-            return "wine_device_from_handle({0})->host_device".format(name)
+            return "wine_device_from_handle({0})->obj.host.device".format(name)
         if self.name == "VkInstance":
-            return "wine_instance_from_handle({0})->host_instance".format(name)
+            return "wine_instance_from_handle({0})->obj.host.instance".format(name)
         if self.name == "VkDeviceMemory":
-            return "wine_device_memory_from_handle({0})->host_memory".format(name)
+            return "wine_device_memory_from_handle({0})->obj.host.device_memory".format(name)
         if self.name == "VkPhysicalDevice":
-            return "wine_phys_dev_from_handle({0})->host_physical_device".format(name)
+            return "wine_phys_dev_from_handle({0})->obj.host.physical_device".format(name)
         if self.name == "VkQueue":
-            return "wine_queue_from_handle({0})->host_queue".format(name)
+            return "wine_queue_from_handle({0})->obj.host.queue".format(name)
         if self.name == "VkSurfaceKHR":
-            return "wine_surface_from_handle({0})->host_surface".format(name)
+            return "wine_surface_from_handle({0})->obj.host.surface".format(name)
         if self.name == "VkSwapchainKHR":
-            return "wine_swapchain_from_handle({0})->host_swapchain".format(name)
+            return "wine_swapchain_from_handle({0})->obj.host.swapchain".format(name)
         if self.is_dispatchable():
             LOGGER.error("Unhandled host handle for: {0}".format(self.name))
         return None
