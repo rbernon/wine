@@ -4386,6 +4386,13 @@ typedef struct VkGraphicsPipelineCreateInfo32
     int32_t basePipelineIndex;
 } VkGraphicsPipelineCreateInfo32;
 
+typedef struct VkHeadlessSurfaceCreateInfoEXT32
+{
+    VkStructureType sType;
+    PTR32 pNext;
+    VkHeadlessSurfaceCreateFlagsEXT flags;
+} VkHeadlessSurfaceCreateInfoEXT32;
+
 typedef struct VkDedicatedAllocationImageCreateInfoNV32
 {
     VkStructureType sType;
@@ -20210,6 +20217,17 @@ static inline void convert_VkGraphicsPipelineCreateInfo_array_host_to_win32(cons
     {
         convert_VkGraphicsPipelineCreateInfo_host_to_win32(&in[i], &out[i]);
     }
+}
+
+static inline void convert_VkHeadlessSurfaceCreateInfoEXT_win32_to_host(const VkHeadlessSurfaceCreateInfoEXT32 *in, VkHeadlessSurfaceCreateInfoEXT *out)
+{
+    if (!in) return;
+
+    out->sType = in->sType;
+    out->pNext = NULL;
+    out->flags = in->flags;
+    if (in->pNext)
+        FIXME("Unexpected pNext\n");
 }
 
 #ifdef _WIN64
@@ -42842,6 +42860,37 @@ static NTSTATUS thunk32_vkCreateGraphicsPipelines(void *args)
 }
 
 #ifdef _WIN64
+static NTSTATUS thunk64_vkCreateHeadlessSurfaceEXT(void *args)
+{
+    struct vkCreateHeadlessSurfaceEXT_params *params = args;
+
+    TRACE("%p, %p, %p, %p\n", params->instance, params->pCreateInfo, params->pAllocator, params->pSurface);
+
+    params->result = get_vulkan_instance_funcs(params->instance)->p_vkCreateHeadlessSurfaceEXT(vulkan_instance_from_handle(params->instance)->obj.host.instance, params->pCreateInfo, NULL, vulkan_surface_from_handle(params->pSurface)->host.surface);
+    return STATUS_SUCCESS;
+}
+#endif /* _WIN64 */
+
+static NTSTATUS thunk32_vkCreateHeadlessSurfaceEXT(void *args)
+{
+    struct
+    {
+        PTR32 instance;
+        PTR32 pCreateInfo;
+        PTR32 pAllocator;
+        PTR32 pSurface;
+        VkResult result;
+    } *params = args;
+    VkHeadlessSurfaceCreateInfoEXT pCreateInfo_host;
+
+    TRACE("%#x, %#x, %#x, %#x\n", params->instance, params->pCreateInfo, params->pAllocator, params->pSurface);
+
+    convert_VkHeadlessSurfaceCreateInfoEXT_win32_to_host((const VkHeadlessSurfaceCreateInfoEXT32 *)UlongToPtr(params->pCreateInfo), &pCreateInfo_host);
+    params->result = get_vulkan_instance_funcs((VkInstance)UlongToPtr(params->instance))->p_vkCreateHeadlessSurfaceEXT(vulkan_instance_from_handle((VkInstance)UlongToPtr(params->instance))->obj.host.instance, &pCreateInfo_host, NULL, vulkan_surface_from_handle((VkSurfaceKHR *)UlongToPtr(params->pSurface))->host.surface);
+    return STATUS_SUCCESS;
+}
+
+#ifdef _WIN64
 static NTSTATUS thunk64_vkCreateImage(void *args)
 {
     struct vkCreateImage_params *params = args;
@@ -52619,6 +52668,7 @@ static const char * const vk_instance_extensions[] =
 {
     "VK_EXT_debug_report",
     "VK_EXT_debug_utils",
+    "VK_EXT_headless_surface",
     "VK_EXT_layer_settings",
     "VK_EXT_surface_maintenance1",
     "VK_EXT_swapchain_colorspace",
@@ -53009,6 +53059,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     thunk64_vkCreateFence,
     thunk64_vkCreateFramebuffer,
     thunk64_vkCreateGraphicsPipelines,
+    thunk64_vkCreateHeadlessSurfaceEXT,
     thunk64_vkCreateImage,
     thunk64_vkCreateImageView,
     thunk64_vkCreateIndirectCommandsLayoutEXT,
@@ -53621,6 +53672,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     thunk32_vkCreateFence,
     thunk32_vkCreateFramebuffer,
     thunk32_vkCreateGraphicsPipelines,
+    thunk32_vkCreateHeadlessSurfaceEXT,
     thunk32_vkCreateImage,
     thunk32_vkCreateImageView,
     thunk32_vkCreateIndirectCommandsLayoutEXT,
