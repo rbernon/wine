@@ -45,14 +45,20 @@ static NTSTATUS (WINAPI *pD3DKMTCheckOcclusion)(const D3DKMT_CHECKOCCLUSION *);
 static NTSTATUS (WINAPI *pD3DKMTCheckVidPnExclusiveOwnership)(const D3DKMT_CHECKVIDPNEXCLUSIVEOWNERSHIP *);
 static NTSTATUS (WINAPI *pD3DKMTCloseAdapter)(const D3DKMT_CLOSEADAPTER *);
 static NTSTATUS (WINAPI *pD3DKMTCreateDevice)(D3DKMT_CREATEDEVICE *);
+static NTSTATUS (WINAPI *pD3DKMTCreateKeyedMutex)(D3DKMT_CREATEKEYEDMUTEX *);
+static NTSTATUS (WINAPI *pD3DKMTCreateKeyedMutex2)(D3DKMT_CREATEKEYEDMUTEX2 *);
 static NTSTATUS (WINAPI *pD3DKMTCreateSynchronizationObject)(D3DKMT_CREATESYNCHRONIZATIONOBJECT *);
 static NTSTATUS (WINAPI *pD3DKMTCreateSynchronizationObject2)(D3DKMT_CREATESYNCHRONIZATIONOBJECT2 *);
 static NTSTATUS (WINAPI *pD3DKMTDestroyDevice)(const D3DKMT_DESTROYDEVICE *);
+static NTSTATUS (WINAPI *pD3DKMTDestroyKeyedMutex)(const D3DKMT_DESTROYKEYEDMUTEX *);
 static NTSTATUS (WINAPI *pD3DKMTDestroySynchronizationObject)(const D3DKMT_DESTROYSYNCHRONIZATIONOBJECT *);
 static NTSTATUS (WINAPI *pD3DKMTEnumAdapters2)(D3DKMT_ENUMADAPTERS2 *);
 static NTSTATUS (WINAPI *pD3DKMTOpenAdapterFromDeviceName)(D3DKMT_OPENADAPTERFROMDEVICENAME *);
 static NTSTATUS (WINAPI *pD3DKMTOpenAdapterFromGdiDisplayName)(D3DKMT_OPENADAPTERFROMGDIDISPLAYNAME *);
 static NTSTATUS (WINAPI *pD3DKMTOpenAdapterFromHdc)(D3DKMT_OPENADAPTERFROMHDC *);
+static NTSTATUS (WINAPI *pD3DKMTOpenKeyedMutex)(D3DKMT_OPENKEYEDMUTEX *);
+static NTSTATUS (WINAPI *pD3DKMTOpenKeyedMutex2)(D3DKMT_OPENKEYEDMUTEX2 *);
+static NTSTATUS (WINAPI *pD3DKMTOpenKeyedMutexFromNtHandle)(D3DKMT_OPENKEYEDMUTEXFROMNTHANDLE *);
 static NTSTATUS (WINAPI *pD3DKMTOpenSynchronizationObject)(D3DKMT_OPENSYNCHRONIZATIONOBJECT *);
 static NTSTATUS (WINAPI *pD3DKMTOpenSyncObjectFromNtHandle)(D3DKMT_OPENSYNCOBJECTFROMNTHANDLE *);
 static NTSTATUS (WINAPI *pD3DKMTOpenSyncObjectFromNtHandle2)(D3DKMT_OPENSYNCOBJECTFROMNTHANDLE2 *);
@@ -1061,6 +1067,207 @@ static void test_D3DKMTQueryVideoMemoryInfo(void)
     ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
 }
 
+static void test_D3DKMTCreateKeyedMutex(void)
+{
+    static D3DKMT_HANDLE next_local = -1;
+    D3DKMT_DESTROYKEYEDMUTEX destroy = {0};
+    D3DKMT_CREATEKEYEDMUTEX2 create2 = {0};
+    D3DKMT_CREATEKEYEDMUTEX create = {0};
+    D3DKMT_OPENKEYEDMUTEX2 open2 = {0};
+    D3DKMT_OPENKEYEDMUTEX open = {0};
+    char runtime_data[] = {1,2,3,4,5,6}, buffer[64];
+    NTSTATUS status;
+
+#define CHECK_D3DKMT_HANDLE(a, b) \
+    do { \
+        D3DKMT_HANDLE handle = (a); \
+        todo_wine ok(handle & 0xc0000000, "got %#x\n", handle); \
+        if (b) todo_wine ok((handle & 0x3f) == 2, "got %#x\n", handle); \
+        else \
+        { \
+            todo_wine ok(!(handle & 0x3f), "got %#x\n", handle); \
+            if (next_local != -1) todo_wine ok(handle == next_local, "got %#x, expected %#x\n", handle, next_local); \
+            next_local = handle + 0x40; \
+        } \
+    } while (0)
+
+    if (!pD3DKMTCreateKeyedMutex)
+    {
+        win_skip("D3DKMTCreateKeyedMutex() is unavailable.\n");
+        return;
+    }
+
+    status = pD3DKMTCreateKeyedMutex(NULL);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    create.hKeyedMutex = create.hSharedHandle = 0x1eadbeed;
+    status = pD3DKMTCreateKeyedMutex(&create);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(create.hKeyedMutex, FALSE);
+    CHECK_D3DKMT_HANDLE(create.hSharedHandle, TRUE);
+
+    status = pD3DKMTOpenKeyedMutex(&open);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open.hKeyedMutex = create.hKeyedMutex;
+    status = pD3DKMTOpenKeyedMutex(&open);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open.hKeyedMutex = 0x1eadbeed;
+    open.hSharedHandle = create.hSharedHandle;
+    status = pD3DKMTOpenKeyedMutex(&open);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(open.hKeyedMutex, FALSE);
+
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+
+    if (0)
+    {
+        /* older W10 lets you destroy the global D3DKMT_HANDLE, it causes random failures in the tests below */
+        destroy.hKeyedMutex = create.hSharedHandle;
+        status = pD3DKMTDestroyKeyedMutex(&destroy);
+        todo_wine ok(status == STATUS_INVALID_PARAMETER || broken(!status), "got %#lx\n", status);
+    }
+
+    destroy.hKeyedMutex = open.hKeyedMutex;
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    /* destroying multiple times fails */
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+
+    destroy.hKeyedMutex = create.hKeyedMutex;
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    /* the global D3DKMT_HANDLE is destroyed with last reference */
+    status = pD3DKMTOpenKeyedMutex(&open);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+
+
+    if (!pD3DKMTCreateKeyedMutex2)
+    {
+        win_skip("D3DKMTCreateKeyedMutex2() is unavailable.\n");
+        return;
+    }
+
+    status = pD3DKMTCreateKeyedMutex2(NULL);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    create2.hKeyedMutex = create2.hSharedHandle = 0x1eadbeed;
+    status = pD3DKMTCreateKeyedMutex2(&create2);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(create2.hKeyedMutex, FALSE);
+    CHECK_D3DKMT_HANDLE(create2.hSharedHandle, TRUE);
+    destroy.hKeyedMutex = create2.hKeyedMutex;
+
+    create2.hKeyedMutex = create2.hSharedHandle = 0x1eadbeed;
+    status = pD3DKMTCreateKeyedMutex2(&create2);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(create2.hKeyedMutex, FALSE);
+    CHECK_D3DKMT_HANDLE(create2.hSharedHandle, TRUE);
+
+    status = pD3DKMTOpenKeyedMutex2(&open2);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open2.hKeyedMutex = create2.hKeyedMutex;
+    status = pD3DKMTOpenKeyedMutex2(&open2);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open2.hKeyedMutex = 0x1eadbeed;
+    open2.hSharedHandle = create2.hSharedHandle;
+    status = pD3DKMTOpenKeyedMutex2(&open2);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(open2.hKeyedMutex, FALSE);
+
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    destroy.hKeyedMutex = create2.hKeyedMutex;
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    destroy.hKeyedMutex = open2.hKeyedMutex;
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+
+    /* PrivateRuntimeDataSize must be 0 if no buffer is provided */
+
+    status = pD3DKMTCreateKeyedMutex2(&create2);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(create2.hKeyedMutex, FALSE);
+    CHECK_D3DKMT_HANDLE(create2.hSharedHandle, TRUE);
+
+    open2.hKeyedMutex = 0x1eadbeed;
+    open2.hSharedHandle = create2.hSharedHandle;
+    open2.PrivateRuntimeDataSize = sizeof(buffer);
+    status = pD3DKMTOpenKeyedMutex2(&open2);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open2.pPrivateRuntimeData = buffer;
+    status = pD3DKMTOpenKeyedMutex2(&open2);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(open2.hKeyedMutex, FALSE);
+    ok(open2.PrivateRuntimeDataSize == sizeof(buffer),
+       "got PrivateRuntimeDataSize %#x\n", open2.PrivateRuntimeDataSize);
+
+    destroy.hKeyedMutex = open2.hKeyedMutex;
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    destroy.hKeyedMutex = create2.hKeyedMutex;
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+
+    create2.PrivateRuntimeDataSize = sizeof(runtime_data);
+    create2.pPrivateRuntimeData = runtime_data;
+    status = pD3DKMTCreateKeyedMutex2(&create2);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(create2.hKeyedMutex, FALSE);
+    CHECK_D3DKMT_HANDLE(create2.hSharedHandle, TRUE);
+
+    open2.hKeyedMutex = 0x1eadbeed;
+    open2.hSharedHandle = create2.hSharedHandle;
+    open2.PrivateRuntimeDataSize = 0;
+    open2.pPrivateRuntimeData = NULL;
+    status = pD3DKMTOpenKeyedMutex2(&open2);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(open2.hKeyedMutex, FALSE);
+    ok(open2.PrivateRuntimeDataSize == 0,
+       "got PrivateRuntimeDataSize %#x\n", open2.PrivateRuntimeDataSize);
+
+    open2.PrivateRuntimeDataSize = sizeof(buffer);
+    status = pD3DKMTOpenKeyedMutex2(&open2);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open2.PrivateRuntimeDataSize = sizeof(runtime_data) - 1;
+    open2.pPrivateRuntimeData = buffer;
+    status = pD3DKMTOpenKeyedMutex2(&open2);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open2.PrivateRuntimeDataSize = sizeof(runtime_data);
+    memset(buffer, 0xcd, sizeof(buffer));
+    status = pD3DKMTOpenKeyedMutex2(&open2);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(open2.hKeyedMutex, FALSE);
+    ok(open2.PrivateRuntimeDataSize == sizeof(runtime_data),
+       "got PrivateRuntimeDataSize %#x\n", open2.PrivateRuntimeDataSize);
+    ok(buffer[0] == (char)0xcd, "got data %#x\n", buffer[0]);
+
+    destroy.hKeyedMutex = open2.hKeyedMutex;
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    destroy.hKeyedMutex = create2.hKeyedMutex;
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+
+    /* doesn't return a global D3DKMT_HANDLE with NtSecuritySharing = 1 */
+    create2.Flags.NtSecuritySharing = 1;
+    create2.hKeyedMutex = create2.hSharedHandle = 0x1eadbeed;
+    status = pD3DKMTCreateKeyedMutex2(&create2);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(create2.hKeyedMutex, FALSE);
+    todo_wine ok(!create2.hSharedHandle, "got hSharedHandle %#x\n", create2.hSharedHandle);
+
+    destroy.hKeyedMutex = create2.hKeyedMutex;
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+#undef CHECK_D3DKMT_HANDLE
+}
+
 static void test_D3DKMTCreateSynchronizationObject(void)
 {
     static D3DKMT_HANDLE next_local = -1;
@@ -1502,14 +1709,20 @@ START_TEST(driver)
     LOAD_FUNCPTR(D3DKMTCheckVidPnExclusiveOwnership);
     LOAD_FUNCPTR(D3DKMTCloseAdapter);
     LOAD_FUNCPTR(D3DKMTCreateDevice);
+    LOAD_FUNCPTR(D3DKMTCreateKeyedMutex);
+    LOAD_FUNCPTR(D3DKMTCreateKeyedMutex2);
     LOAD_FUNCPTR(D3DKMTCreateSynchronizationObject);
     LOAD_FUNCPTR(D3DKMTCreateSynchronizationObject2);
     LOAD_FUNCPTR(D3DKMTDestroyDevice);
+    LOAD_FUNCPTR(D3DKMTDestroyKeyedMutex);
     LOAD_FUNCPTR(D3DKMTDestroySynchronizationObject);
     LOAD_FUNCPTR(D3DKMTEnumAdapters2);
     LOAD_FUNCPTR(D3DKMTOpenAdapterFromDeviceName);
     LOAD_FUNCPTR(D3DKMTOpenAdapterFromGdiDisplayName);
     LOAD_FUNCPTR(D3DKMTOpenAdapterFromHdc);
+    LOAD_FUNCPTR(D3DKMTOpenKeyedMutex);
+    LOAD_FUNCPTR(D3DKMTOpenKeyedMutex2);
+    LOAD_FUNCPTR(D3DKMTOpenKeyedMutexFromNtHandle);
     LOAD_FUNCPTR(D3DKMTOpenSynchronizationObject);
     LOAD_FUNCPTR(D3DKMTOpenSyncObjectFromNtHandle);
     LOAD_FUNCPTR(D3DKMTOpenSyncObjectFromNtHandle2);
@@ -1534,6 +1747,7 @@ START_TEST(driver)
     test_D3DKMTOpenAdapterFromDeviceName();
     test_D3DKMTQueryAdapterInfo();
     test_D3DKMTQueryVideoMemoryInfo();
+    test_D3DKMTCreateKeyedMutex();
     test_D3DKMTCreateSynchronizationObject();
     test_gpu_device_properties();
 
