@@ -68,6 +68,7 @@ struct vulkan_object
         VkInstance instance;
         VkPhysicalDevice physical_device;
         VkQueue queue;
+        VkSemaphore semaphore;
         VkSurfaceKHR surface;
         VkSwapchainKHR swapchain;
     } host;
@@ -85,6 +86,7 @@ struct vulkan_object
         VkInstance instance;
         VkPhysicalDevice physical_device;
         VkQueue queue;
+        VkSemaphore semaphore;
         VkSurfaceKHR surface;
         VkSwapchainKHR swapchain;
     } client;
@@ -200,11 +202,14 @@ static inline void remove_vulkan_device_object( VkDevice handle, struct vulkan_o
     remove_vulkan_object( instance, obj );
 }
 
+static inline struct vulkan_object *vulkan_semaphore_from_handle( VkSemaphore handle )
+{
+    return (struct vulkan_object *)(uintptr_t)handle;
+}
 static inline struct vulkan_object *vulkan_surface_from_handle( VkSurfaceKHR handle )
 {
     return (struct vulkan_object *)(uintptr_t)handle;
 }
-
 static inline struct vulkan_object *vulkan_swapchain_from_handle( VkSwapchainKHR handle )
 {
     return (struct vulkan_object *)(uintptr_t)handle;
@@ -224,12 +229,19 @@ struct vulkan_funcs
     PFN_vkDestroySwapchainKHR p_vkDestroySwapchainKHR;
     PFN_vkGetDeviceProcAddr p_vkGetDeviceProcAddr;
     PFN_vkGetInstanceProcAddr p_vkGetInstanceProcAddr;
+    PFN_vkGetPhysicalDeviceExternalSemaphoreProperties p_vkGetPhysicalDeviceExternalSemaphoreProperties;
+    PFN_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR p_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR;
     PFN_vkGetPhysicalDevicePresentRectanglesKHR p_vkGetPhysicalDevicePresentRectanglesKHR;
     PFN_vkGetPhysicalDeviceSurfaceCapabilities2KHR p_vkGetPhysicalDeviceSurfaceCapabilities2KHR;
     PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR p_vkGetPhysicalDeviceSurfaceCapabilitiesKHR;
     PFN_vkGetPhysicalDeviceSurfaceFormats2KHR p_vkGetPhysicalDeviceSurfaceFormats2KHR;
     PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR p_vkGetPhysicalDeviceWin32PresentationSupportKHR;
     PFN_vkQueuePresentKHR p_vkQueuePresentKHR;
+
+    PFN_vkCreateSemaphore p_vkCreateSemaphore;
+    PFN_vkDestroySemaphore p_vkDestroySemaphore;
+    PFN_vkGetSemaphoreWin32HandleKHR p_vkGetSemaphoreWin32HandleKHR;
+    PFN_vkImportSemaphoreWin32HandleKHR p_vkImportSemaphoreWin32HandleKHR;
 
     /* winevulkan specific functions */
     const char *(*p_get_host_surface_extension)(void);

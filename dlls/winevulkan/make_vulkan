@@ -195,15 +195,21 @@ USER_DRIVER_FUNCS = {
 WIN32U_UNIX_THUNKS = {
     "vkAcquireNextImage2KHR",
     "vkAcquireNextImageKHR",
+    "vkCreateSemaphore",
     "vkCreateSwapchainKHR",
     "vkCreateWin32SurfaceKHR",
+    "vkDestroySemaphore",
     "vkDestroySurfaceKHR",
     "vkDestroySwapchainKHR",
+    "vkGetPhysicalDeviceExternalSemaphoreProperties",
+    "vkGetPhysicalDeviceExternalSemaphorePropertiesKHR",
     "vkGetPhysicalDevicePresentRectanglesKHR",
     "vkGetPhysicalDeviceSurfaceCapabilities2KHR",
     "vkGetPhysicalDeviceSurfaceCapabilitiesKHR",
     "vkGetPhysicalDeviceSurfaceFormats2KHR",
     "vkGetPhysicalDeviceWin32PresentationSupportKHR",
+    "vkGetSemaphoreWin32HandleKHR",
+    "vkImportSemaphoreWin32HandleKHR",
     "vkQueuePresentKHR",
 }
 
@@ -247,8 +253,6 @@ MANUAL_UNIX_THUNKS = {
     "vkGetPhysicalDeviceExternalBufferPropertiesKHR",
     "vkGetPhysicalDeviceExternalFenceProperties",
     "vkGetPhysicalDeviceExternalFencePropertiesKHR",
-    "vkGetPhysicalDeviceExternalSemaphoreProperties",
-    "vkGetPhysicalDeviceExternalSemaphorePropertiesKHR",
     "vkGetPhysicalDeviceImageFormatProperties2",
     "vkGetPhysicalDeviceImageFormatProperties2KHR",
     "vkMapMemory",
@@ -1199,6 +1203,8 @@ class VkHandle(object):
             return "vulkan_surface_from_handle({0})->host.surface".format(name)
         if self.name == "VkSwapchainKHR":
             return "vulkan_swapchain_from_handle({0})->host.swapchain".format(name)
+        if self.name == "VkSemaphore":
+            return "vulkan_semaphore_from_handle({0})->host.semaphore".format(name)
         if self.is_dispatchable():
             LOGGER.error("Unhandled host handle for: {0}".format(self.name))
         return None
