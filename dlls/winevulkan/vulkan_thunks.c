@@ -8371,6 +8371,19 @@ typedef struct VkPresentInfoKHR32
     PTR32 pResults;
 } VkPresentInfoKHR32;
 
+typedef struct VkWin32KeyedMutexAcquireReleaseInfoKHR32
+{
+    VkStructureType sType;
+    PTR32 pNext;
+    uint32_t acquireCount;
+    PTR32 pAcquireSyncs;
+    PTR32 pAcquireKeys;
+    PTR32 pAcquireTimeouts;
+    uint32_t releaseCount;
+    PTR32 pReleaseSyncs;
+    PTR32 pReleaseKeys;
+} VkWin32KeyedMutexAcquireReleaseInfoKHR32;
+
 typedef struct VkD3D12FenceSubmitInfoKHR32
 {
     VkStructureType sType;
@@ -34874,12 +34887,49 @@ static inline void convert_VkPresentInfoKHR_win32_to_unwrapped_host(struct conve
 }
 
 #ifdef _WIN64
+static inline const VkDeviceMemory *convert_VkDeviceMemory_array_win64_to_host(struct conversion_context *ctx, const VkDeviceMemory *in, uint32_t count)
+{
+    VkDeviceMemory *out;
+    unsigned int i;
+
+    if (!in || !count) return NULL;
+
+    out = conversion_context_alloc(ctx, count * sizeof(*out));
+    for (i = 0; i < count; i++)
+    {
+        out[i] = wine_device_memory_from_handle(in[i])->obj.host.device_memory;
+    }
+
+    return out;
+}
+#endif /* _WIN64 */
+
+static inline const VkDeviceMemory *convert_VkDeviceMemory_array_win32_to_host(struct conversion_context *ctx, const VkDeviceMemory *in, uint32_t count)
+{
+    VkDeviceMemory *out;
+    unsigned int i;
+
+    if (!in || !count) return NULL;
+
+    out = conversion_context_alloc(ctx, count * sizeof(*out));
+    for (i = 0; i < count; i++)
+    {
+        out[i] = wine_device_memory_from_handle(in[i])->obj.host.device_memory;
+    }
+
+    return out;
+}
+
+#ifdef _WIN64
 static inline void convert_VkSubmitInfo_win64_to_host(struct conversion_context *ctx, const VkSubmitInfo *in, VkSubmitInfo *out)
 {
+    const VkBaseInStructure *in_header;
+    VkBaseOutStructure *out_header = (void *)out;
+
     if (!in) return;
 
     out->sType = in->sType;
-    out->pNext = in->pNext;
+    out->pNext = NULL;
     out->waitSemaphoreCount = in->waitSemaphoreCount;
     out->pWaitSemaphores = in->pWaitSemaphores;
     out->pWaitDstStageMask = in->pWaitDstStageMask;
@@ -34887,6 +34937,129 @@ static inline void convert_VkSubmitInfo_win64_to_host(struct conversion_context 
     out->pCommandBuffers = convert_VkCommandBuffer_array_win64_to_host(ctx, in->pCommandBuffers, in->commandBufferCount);
     out->signalSemaphoreCount = in->signalSemaphoreCount;
     out->pSignalSemaphores = in->pSignalSemaphores;
+
+    for (in_header = (void *)in->pNext; in_header; in_header = (void *)in_header->pNext)
+    {
+        switch (in_header->sType)
+        {
+        case VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR:
+        {
+            VkWin32KeyedMutexAcquireReleaseInfoKHR *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
+            const VkWin32KeyedMutexAcquireReleaseInfoKHR *in_ext = (const VkWin32KeyedMutexAcquireReleaseInfoKHR *)in_header;
+            out_ext->sType = VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR;
+            out_ext->pNext = NULL;
+            out_ext->acquireCount = in_ext->acquireCount;
+            out_ext->pAcquireSyncs = convert_VkDeviceMemory_array_win64_to_host(ctx, in_ext->pAcquireSyncs, in_ext->acquireCount);
+            out_ext->pAcquireKeys = in_ext->pAcquireKeys;
+            out_ext->pAcquireTimeouts = in_ext->pAcquireTimeouts;
+            out_ext->releaseCount = in_ext->releaseCount;
+            out_ext->pReleaseSyncs = convert_VkDeviceMemory_array_win64_to_host(ctx, in_ext->pReleaseSyncs, in_ext->releaseCount);
+            out_ext->pReleaseKeys = in_ext->pReleaseKeys;
+            out_header->pNext = (void *)out_ext;
+            out_header = (void *)out_ext;
+            break;
+        }
+        case VK_STRUCTURE_TYPE_D3D12_FENCE_SUBMIT_INFO_KHR:
+        {
+            VkD3D12FenceSubmitInfoKHR *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
+            const VkD3D12FenceSubmitInfoKHR *in_ext = (const VkD3D12FenceSubmitInfoKHR *)in_header;
+            out_ext->sType = VK_STRUCTURE_TYPE_D3D12_FENCE_SUBMIT_INFO_KHR;
+            out_ext->pNext = NULL;
+            out_ext->waitSemaphoreValuesCount = in_ext->waitSemaphoreValuesCount;
+            out_ext->pWaitSemaphoreValues = in_ext->pWaitSemaphoreValues;
+            out_ext->signalSemaphoreValuesCount = in_ext->signalSemaphoreValuesCount;
+            out_ext->pSignalSemaphoreValues = in_ext->pSignalSemaphoreValues;
+            out_header->pNext = (void *)out_ext;
+            out_header = (void *)out_ext;
+            break;
+        }
+        case VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO:
+        {
+            VkDeviceGroupSubmitInfo *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
+            const VkDeviceGroupSubmitInfo *in_ext = (const VkDeviceGroupSubmitInfo *)in_header;
+            out_ext->sType = VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO;
+            out_ext->pNext = NULL;
+            out_ext->waitSemaphoreCount = in_ext->waitSemaphoreCount;
+            out_ext->pWaitSemaphoreDeviceIndices = in_ext->pWaitSemaphoreDeviceIndices;
+            out_ext->commandBufferCount = in_ext->commandBufferCount;
+            out_ext->pCommandBufferDeviceMasks = in_ext->pCommandBufferDeviceMasks;
+            out_ext->signalSemaphoreCount = in_ext->signalSemaphoreCount;
+            out_ext->pSignalSemaphoreDeviceIndices = in_ext->pSignalSemaphoreDeviceIndices;
+            out_header->pNext = (void *)out_ext;
+            out_header = (void *)out_ext;
+            break;
+        }
+        case VK_STRUCTURE_TYPE_PROTECTED_SUBMIT_INFO:
+        {
+            VkProtectedSubmitInfo *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
+            const VkProtectedSubmitInfo *in_ext = (const VkProtectedSubmitInfo *)in_header;
+            out_ext->sType = VK_STRUCTURE_TYPE_PROTECTED_SUBMIT_INFO;
+            out_ext->pNext = NULL;
+            out_ext->protectedSubmit = in_ext->protectedSubmit;
+            out_header->pNext = (void *)out_ext;
+            out_header = (void *)out_ext;
+            break;
+        }
+        case VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO:
+        {
+            VkTimelineSemaphoreSubmitInfo *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
+            const VkTimelineSemaphoreSubmitInfo *in_ext = (const VkTimelineSemaphoreSubmitInfo *)in_header;
+            out_ext->sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+            out_ext->pNext = NULL;
+            out_ext->waitSemaphoreValueCount = in_ext->waitSemaphoreValueCount;
+            out_ext->pWaitSemaphoreValues = in_ext->pWaitSemaphoreValues;
+            out_ext->signalSemaphoreValueCount = in_ext->signalSemaphoreValueCount;
+            out_ext->pSignalSemaphoreValues = in_ext->pSignalSemaphoreValues;
+            out_header->pNext = (void *)out_ext;
+            out_header = (void *)out_ext;
+            break;
+        }
+        case VK_STRUCTURE_TYPE_PERFORMANCE_QUERY_SUBMIT_INFO_KHR:
+        {
+            VkPerformanceQuerySubmitInfoKHR *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
+            const VkPerformanceQuerySubmitInfoKHR *in_ext = (const VkPerformanceQuerySubmitInfoKHR *)in_header;
+            out_ext->sType = VK_STRUCTURE_TYPE_PERFORMANCE_QUERY_SUBMIT_INFO_KHR;
+            out_ext->pNext = NULL;
+            out_ext->counterPassIndex = in_ext->counterPassIndex;
+            out_header->pNext = (void *)out_ext;
+            out_header = (void *)out_ext;
+            break;
+        }
+        case VK_STRUCTURE_TYPE_FRAME_BOUNDARY_EXT:
+        {
+            VkFrameBoundaryEXT *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
+            const VkFrameBoundaryEXT *in_ext = (const VkFrameBoundaryEXT *)in_header;
+            out_ext->sType = VK_STRUCTURE_TYPE_FRAME_BOUNDARY_EXT;
+            out_ext->pNext = NULL;
+            out_ext->flags = in_ext->flags;
+            out_ext->frameID = in_ext->frameID;
+            out_ext->imageCount = in_ext->imageCount;
+            out_ext->pImages = in_ext->pImages;
+            out_ext->bufferCount = in_ext->bufferCount;
+            out_ext->pBuffers = in_ext->pBuffers;
+            out_ext->tagName = in_ext->tagName;
+            out_ext->tagSize = in_ext->tagSize;
+            out_ext->pTag = in_ext->pTag;
+            out_header->pNext = (void *)out_ext;
+            out_header = (void *)out_ext;
+            break;
+        }
+        case VK_STRUCTURE_TYPE_LATENCY_SUBMISSION_PRESENT_ID_NV:
+        {
+            VkLatencySubmissionPresentIdNV *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
+            const VkLatencySubmissionPresentIdNV *in_ext = (const VkLatencySubmissionPresentIdNV *)in_header;
+            out_ext->sType = VK_STRUCTURE_TYPE_LATENCY_SUBMISSION_PRESENT_ID_NV;
+            out_ext->pNext = NULL;
+            out_ext->presentID = in_ext->presentID;
+            out_header->pNext = (void *)out_ext;
+            out_header = (void *)out_ext;
+            break;
+        }
+        default:
+            FIXME("Unhandled sType %u.\n", in_header->sType);
+            break;
+        }
+    }
 }
 #endif /* _WIN64 */
 
@@ -34911,6 +35084,23 @@ static inline void convert_VkSubmitInfo_win32_to_host(struct conversion_context 
     {
         switch (in_header->sType)
         {
+        case VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR:
+        {
+            VkWin32KeyedMutexAcquireReleaseInfoKHR *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
+            const VkWin32KeyedMutexAcquireReleaseInfoKHR32 *in_ext = (const VkWin32KeyedMutexAcquireReleaseInfoKHR32 *)in_header;
+            out_ext->sType = VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR;
+            out_ext->pNext = NULL;
+            out_ext->acquireCount = in_ext->acquireCount;
+            out_ext->pAcquireSyncs = convert_VkDeviceMemory_array_win32_to_host(ctx, (const VkDeviceMemory *)UlongToPtr(in_ext->pAcquireSyncs), in_ext->acquireCount);
+            out_ext->pAcquireKeys = UlongToPtr(in_ext->pAcquireKeys);
+            out_ext->pAcquireTimeouts = UlongToPtr(in_ext->pAcquireTimeouts);
+            out_ext->releaseCount = in_ext->releaseCount;
+            out_ext->pReleaseSyncs = convert_VkDeviceMemory_array_win32_to_host(ctx, (const VkDeviceMemory *)UlongToPtr(in_ext->pReleaseSyncs), in_ext->releaseCount);
+            out_ext->pReleaseKeys = UlongToPtr(in_ext->pReleaseKeys);
+            out_header->pNext = (void *)out_ext;
+            out_header = (void *)out_ext;
+            break;
+        }
         case VK_STRUCTURE_TYPE_D3D12_FENCE_SUBMIT_INFO_KHR:
         {
             VkD3D12FenceSubmitInfoKHR *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
@@ -35162,10 +35352,13 @@ static inline const VkCommandBufferSubmitInfo *convert_VkCommandBufferSubmitInfo
 #ifdef _WIN64
 static inline void convert_VkSubmitInfo2_win64_to_host(struct conversion_context *ctx, const VkSubmitInfo2 *in, VkSubmitInfo2 *out)
 {
+    const VkBaseInStructure *in_header;
+    VkBaseOutStructure *out_header = (void *)out;
+
     if (!in) return;
 
     out->sType = in->sType;
-    out->pNext = in->pNext;
+    out->pNext = NULL;
     out->flags = in->flags;
     out->waitSemaphoreInfoCount = in->waitSemaphoreInfoCount;
     out->pWaitSemaphoreInfos = in->pWaitSemaphoreInfos;
@@ -35173,6 +35366,74 @@ static inline void convert_VkSubmitInfo2_win64_to_host(struct conversion_context
     out->pCommandBufferInfos = convert_VkCommandBufferSubmitInfo_array_win64_to_host(ctx, in->pCommandBufferInfos, in->commandBufferInfoCount);
     out->signalSemaphoreInfoCount = in->signalSemaphoreInfoCount;
     out->pSignalSemaphoreInfos = in->pSignalSemaphoreInfos;
+
+    for (in_header = (void *)in->pNext; in_header; in_header = (void *)in_header->pNext)
+    {
+        switch (in_header->sType)
+        {
+        case VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR:
+        {
+            VkWin32KeyedMutexAcquireReleaseInfoKHR *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
+            const VkWin32KeyedMutexAcquireReleaseInfoKHR *in_ext = (const VkWin32KeyedMutexAcquireReleaseInfoKHR *)in_header;
+            out_ext->sType = VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR;
+            out_ext->pNext = NULL;
+            out_ext->acquireCount = in_ext->acquireCount;
+            out_ext->pAcquireSyncs = convert_VkDeviceMemory_array_win64_to_host(ctx, in_ext->pAcquireSyncs, in_ext->acquireCount);
+            out_ext->pAcquireKeys = in_ext->pAcquireKeys;
+            out_ext->pAcquireTimeouts = in_ext->pAcquireTimeouts;
+            out_ext->releaseCount = in_ext->releaseCount;
+            out_ext->pReleaseSyncs = convert_VkDeviceMemory_array_win64_to_host(ctx, in_ext->pReleaseSyncs, in_ext->releaseCount);
+            out_ext->pReleaseKeys = in_ext->pReleaseKeys;
+            out_header->pNext = (void *)out_ext;
+            out_header = (void *)out_ext;
+            break;
+        }
+        case VK_STRUCTURE_TYPE_PERFORMANCE_QUERY_SUBMIT_INFO_KHR:
+        {
+            VkPerformanceQuerySubmitInfoKHR *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
+            const VkPerformanceQuerySubmitInfoKHR *in_ext = (const VkPerformanceQuerySubmitInfoKHR *)in_header;
+            out_ext->sType = VK_STRUCTURE_TYPE_PERFORMANCE_QUERY_SUBMIT_INFO_KHR;
+            out_ext->pNext = NULL;
+            out_ext->counterPassIndex = in_ext->counterPassIndex;
+            out_header->pNext = (void *)out_ext;
+            out_header = (void *)out_ext;
+            break;
+        }
+        case VK_STRUCTURE_TYPE_FRAME_BOUNDARY_EXT:
+        {
+            VkFrameBoundaryEXT *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
+            const VkFrameBoundaryEXT *in_ext = (const VkFrameBoundaryEXT *)in_header;
+            out_ext->sType = VK_STRUCTURE_TYPE_FRAME_BOUNDARY_EXT;
+            out_ext->pNext = NULL;
+            out_ext->flags = in_ext->flags;
+            out_ext->frameID = in_ext->frameID;
+            out_ext->imageCount = in_ext->imageCount;
+            out_ext->pImages = in_ext->pImages;
+            out_ext->bufferCount = in_ext->bufferCount;
+            out_ext->pBuffers = in_ext->pBuffers;
+            out_ext->tagName = in_ext->tagName;
+            out_ext->tagSize = in_ext->tagSize;
+            out_ext->pTag = in_ext->pTag;
+            out_header->pNext = (void *)out_ext;
+            out_header = (void *)out_ext;
+            break;
+        }
+        case VK_STRUCTURE_TYPE_LATENCY_SUBMISSION_PRESENT_ID_NV:
+        {
+            VkLatencySubmissionPresentIdNV *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
+            const VkLatencySubmissionPresentIdNV *in_ext = (const VkLatencySubmissionPresentIdNV *)in_header;
+            out_ext->sType = VK_STRUCTURE_TYPE_LATENCY_SUBMISSION_PRESENT_ID_NV;
+            out_ext->pNext = NULL;
+            out_ext->presentID = in_ext->presentID;
+            out_header->pNext = (void *)out_ext;
+            out_header = (void *)out_ext;
+            break;
+        }
+        default:
+            FIXME("Unhandled sType %u.\n", in_header->sType);
+            break;
+        }
+    }
 }
 #endif /* _WIN64 */
 
@@ -35197,6 +35458,23 @@ static inline void convert_VkSubmitInfo2_win32_to_host(struct conversion_context
     {
         switch (in_header->sType)
         {
+        case VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR:
+        {
+            VkWin32KeyedMutexAcquireReleaseInfoKHR *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
+            const VkWin32KeyedMutexAcquireReleaseInfoKHR32 *in_ext = (const VkWin32KeyedMutexAcquireReleaseInfoKHR32 *)in_header;
+            out_ext->sType = VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR;
+            out_ext->pNext = NULL;
+            out_ext->acquireCount = in_ext->acquireCount;
+            out_ext->pAcquireSyncs = convert_VkDeviceMemory_array_win32_to_host(ctx, (const VkDeviceMemory *)UlongToPtr(in_ext->pAcquireSyncs), in_ext->acquireCount);
+            out_ext->pAcquireKeys = UlongToPtr(in_ext->pAcquireKeys);
+            out_ext->pAcquireTimeouts = UlongToPtr(in_ext->pAcquireTimeouts);
+            out_ext->releaseCount = in_ext->releaseCount;
+            out_ext->pReleaseSyncs = convert_VkDeviceMemory_array_win32_to_host(ctx, (const VkDeviceMemory *)UlongToPtr(in_ext->pReleaseSyncs), in_ext->releaseCount);
+            out_ext->pReleaseKeys = UlongToPtr(in_ext->pReleaseKeys);
+            out_header->pNext = (void *)out_ext;
+            out_header = (void *)out_ext;
+            break;
+        }
         case VK_STRUCTURE_TYPE_PERFORMANCE_QUERY_SUBMIT_INFO_KHR:
         {
             VkPerformanceQuerySubmitInfoKHR *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
@@ -53257,6 +53535,7 @@ static const char * const vk_device_extensions[] =
     "VK_KHR_video_maintenance1",
     "VK_KHR_video_queue",
     "VK_KHR_vulkan_memory_model",
+    "VK_KHR_win32_keyed_mutex",
     "VK_KHR_workgroup_memory_explicit_layout",
     "VK_KHR_zero_initialize_workgroup_memory",
     "VK_MESA_image_alignment_control",
