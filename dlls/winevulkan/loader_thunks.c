@@ -2986,6 +2986,19 @@ VkResult WINAPI vkCreateGraphicsPipelines(VkDevice device, VkPipelineCache pipel
     return params.result;
 }
 
+VkResult WINAPI vkCreateHeadlessSurfaceEXT(VkInstance instance, const VkHeadlessSurfaceCreateInfoEXT *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkSurfaceKHR *pSurface)
+{
+    struct vkCreateHeadlessSurfaceEXT_params params;
+    NTSTATUS status;
+    params.instance = instance;
+    params.pCreateInfo = pCreateInfo;
+    params.pAllocator = pAllocator;
+    params.pSurface = pSurface;
+    status = UNIX_CALL(vkCreateHeadlessSurfaceEXT, &params);
+    assert(!status && "vkCreateHeadlessSurfaceEXT");
+    return params.result;
+}
+
 VkResult WINAPI vkCreateImage(VkDevice device, const VkImageCreateInfo *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkImage *pImage)
 {
     struct vkCreateImage_params params;
@@ -7013,6 +7026,7 @@ static const struct vulkan_func vk_instance_dispatch_table[] =
 {
     {"vkCreateDebugReportCallbackEXT", vkCreateDebugReportCallbackEXT},
     {"vkCreateDebugUtilsMessengerEXT", vkCreateDebugUtilsMessengerEXT},
+    {"vkCreateHeadlessSurfaceEXT", vkCreateHeadlessSurfaceEXT},
     {"vkCreateWin32SurfaceKHR", vkCreateWin32SurfaceKHR},
     {"vkDebugReportMessageEXT", vkDebugReportMessageEXT},
     {"vkDestroyDebugReportCallbackEXT", vkDestroyDebugReportCallbackEXT},

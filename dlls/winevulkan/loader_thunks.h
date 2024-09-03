@@ -323,6 +323,7 @@ enum unix_call
     unix_vkCreateFence,
     unix_vkCreateFramebuffer,
     unix_vkCreateGraphicsPipelines,
+    unix_vkCreateHeadlessSurfaceEXT,
     unix_vkCreateImage,
     unix_vkCreateImageView,
     unix_vkCreateIndirectCommandsLayoutEXT,
@@ -2926,6 +2927,15 @@ struct vkCreateGraphicsPipelines_params
     const VkGraphicsPipelineCreateInfo *pCreateInfos;
     const VkAllocationCallbacks *pAllocator;
     VkPipeline *pPipelines;
+    VkResult result;
+};
+
+struct vkCreateHeadlessSurfaceEXT_params
+{
+    VkInstance instance;
+    const VkHeadlessSurfaceCreateInfoEXT *pCreateInfo;
+    const VkAllocationCallbacks *pAllocator;
+    VkSurfaceKHR *pSurface;
     VkResult result;
 };
 
