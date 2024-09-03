@@ -148,24 +148,24 @@ static void remove_handle_mapping(struct wine_instance *instance, struct wrapper
 static void add_device_handle_mapping(VkDevice handle, uint64_t client_handle, uint64_t host_handle, struct wrapper_entry *entry)
 {
     struct wine_device *device = wine_device_from_handle(handle);
-    struct wine_phys_dev *phys_dev = device->phys_dev;
-    struct wine_instance *instance = phys_dev->instance;
+    struct wine_phys_dev *phys_dev = CONTAINING_RECORD(device->obj.parent, struct wine_phys_dev, obj);
+    struct wine_instance *instance = CONTAINING_RECORD(phys_dev->obj.parent, struct wine_instance, obj);
     add_handle_mapping(instance, client_handle, host_handle, entry);
 }
 
 static void add_device_handle_mapping_ptr(VkDevice handle, void *client_handle, void *host_handle, struct wrapper_entry *entry)
 {
     struct wine_device *device = wine_device_from_handle(handle);
-    struct wine_phys_dev *phys_dev = device->phys_dev;
-    struct wine_instance *instance = phys_dev->instance;
+    struct wine_phys_dev *phys_dev = CONTAINING_RECORD(device->obj.parent, struct wine_phys_dev, obj);
+    struct wine_instance *instance = CONTAINING_RECORD(phys_dev->obj.parent, struct wine_instance, obj);
     add_handle_mapping_ptr(instance, client_handle, host_handle, entry);
 }
 
 static void remove_device_handle_mapping(VkDevice handle, struct wrapper_entry *entry)
 {
     struct wine_device *device = wine_device_from_handle(handle);
-    struct wine_phys_dev *phys_dev = device->phys_dev;
-    struct wine_instance *instance = phys_dev->instance;
+    struct wine_phys_dev *phys_dev = CONTAINING_RECORD(device->obj.parent, struct wine_phys_dev, obj);
+    struct wine_instance *instance = CONTAINING_RECORD(phys_dev->obj.parent, struct wine_instance, obj);
     remove_handle_mapping(instance, entry);
 }
 
@@ -221,6 +221,7 @@ static VkBool32 debug_utils_callback_conversion(VkDebugUtilsMessageSeverityFlagB
     struct wine_debug_utils_messenger *object;
     struct debug_utils_object dummy_object, *objects;
     struct debug_utils_label dummy_label, *labels;
+    struct wine_instance *instance;
     UINT size, strings_len;
     char *ptr, *strings;
     ULONG ret_len;
@@ -230,8 +231,8 @@ static VkBool32 debug_utils_callback_conversion(VkDebugUtilsMessageSeverityFlagB
     TRACE("%i, %u, %p, %p\n", severity, message_types, callback_data, user_data);
 
     object = user_data;
-
-    if (!object->instance->obj.host.instance)
+    instance = CONTAINING_RECORD(object->obj.parent, struct wine_instance, obj);
+    if (!instance->obj.host.instance)
     {
         /* instance wasn't yet created, this is a message from the host loader */
         return VK_FALSE;
@@ -292,7 +293,7 @@ static VkBool32 debug_utils_callback_conversion(VkDebugUtilsMessageSeverityFlagB
 
         if (wine_vk_is_type_wrapped(objects[i].object_type))
         {
-            objects[i].object_handle = client_handle_from_host(object->instance, objects[i].object_handle);
+            objects[i].object_handle = client_handle_from_host(instance, objects[i].object_handle);
             if (!objects[i].object_handle)
             {
                 WARN("handle conversion failed 0x%s\n", wine_dbgstr_longlong(callback_data->pObjects[i].objectHandle));
@@ -326,6 +327,7 @@ static VkBool32 debug_report_callback_conversion(VkDebugReportFlagsEXT flags, Vk
 {
     struct wine_vk_debug_report_params *params;
     struct wine_debug_report_callback *object;
+    struct wine_instance *instance;
     UINT strings_len;
     ULONG ret_len;
     void *ret_ptr;
@@ -335,8 +337,8 @@ static VkBool32 debug_report_callback_conversion(VkDebugReportFlagsEXT flags, Vk
         wine_dbgstr_longlong(location), code, layer_prefix, message, user_data);
 
     object = user_data;
-
-    if (!object->instance->obj.host.instance)
+    instance = CONTAINING_RECORD(object->obj.parent, struct wine_instance, obj);
+    if (!instance->obj.host.instance)
     {
         /* instance wasn't yet created, this is a message from the host loader */
         return VK_FALSE;
@@ -356,7 +358,7 @@ static VkBool32 debug_report_callback_conversion(VkDebugReportFlagsEXT flags, Vk
     params->object_type = object_type;
     params->location = location;
     params->code = code;
-    params->object_handle = client_handle_from_host(object->instance, object_handle);
+    params->object_handle = client_handle_from_host(instance, object_handle);
     if (!params->object_handle) params->object_type = VK_DEBUG_REPORT_OBJECT_TYPE_UNKNOWN_EXT;
 
     strings_len = 0;
@@ -385,7 +387,7 @@ static VkResult wine_vk_physical_device_init(struct wine_phys_dev *object, VkPhy
     VkResult res;
     unsigned int i, j;
 
-    object->instance = instance;
+    object->obj.parent = &instance->obj;
     object->handle = client_handle;
     object->obj.host.physical_device = host_handle;
 
@@ -567,7 +569,7 @@ static void wine_vk_device_init_queues(struct wine_device *device, const VkDevic
         }
 
         queue->obj.host.queue = host_queue;
-        queue->device = device;
+        queue->obj.parent = &device->obj;
         queue->handle = handles[i];
         queue->family_index = info->queueFamilyIndex;
         queue->queue_index = i;
@@ -701,7 +703,7 @@ static VkResult wine_vk_instance_convert_create_info(struct conversion_context *
         header = find_next_struct(header->pNext, VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT);
         debug_utils_messenger = (VkDebugUtilsMessengerCreateInfoEXT *) header;
 
-        object->utils_messengers[i].instance = object;
+        object->utils_messengers[i].obj.parent = &object->obj;
         object->utils_messengers[i].obj.host.debug_utils_messenger = VK_NULL_HANDLE;
         object->utils_messengers[i].user_callback = (UINT_PTR)debug_utils_messenger->pfnUserCallback;
         object->utils_messengers[i].user_data = (UINT_PTR)debug_utils_messenger->pUserData;
@@ -713,7 +715,7 @@ static VkResult wine_vk_instance_convert_create_info(struct conversion_context *
 
     if ((debug_report_callback = find_next_struct(dst->pNext, VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT)))
     {
-        object->default_callback.instance = object;
+        object->default_callback.obj.parent = &object->obj;
         object->default_callback.obj.host.debug_report_callback = VK_NULL_HANDLE;
         object->default_callback.user_callback = (UINT_PTR)debug_report_callback->pfnCallback;
         object->default_callback.user_data = (UINT_PTR)debug_report_callback->pUserData;
@@ -885,7 +887,7 @@ VkResult wine_vkAllocateCommandBuffers(VkDevice handle, const VkCommandBufferAll
 
         buffer->obj.host.command_buffer = host_command_buffer;
         buffer->handle = buffers[i];
-        buffer->device = device;
+        buffer->obj.parent = &device->obj;
         buffer->handle->base.unix_handle = (uintptr_t)buffer;
         add_device_handle_mapping_ptr(handle, buffer->handle, buffer->obj.host.command_buffer, &buffer->wrapper_entry);
     }
@@ -901,7 +903,7 @@ VkResult wine_vkCreateDevice(VkPhysicalDevice phys_dev_handle, const VkDeviceCre
                              void *client_ptr)
 {
     struct wine_phys_dev *phys_dev = wine_phys_dev_from_handle(phys_dev_handle);
-    struct wine_instance *instance = phys_dev->instance;
+    struct wine_instance *instance = CONTAINING_RECORD(phys_dev->obj.parent, struct wine_instance, obj);
     VkDevice device_handle = client_ptr, host_device;
     VkDeviceCreateInfo create_info_host;
     struct VkQueue_T *queue_handles;
@@ -944,7 +946,7 @@ VkResult wine_vkCreateDevice(VkPhysicalDevice phys_dev_handle, const VkDeviceCre
         return res;
     }
 
-    object->phys_dev = phys_dev;
+    object->obj.parent = &phys_dev->obj;
     object->obj.host.device = host_device;
 
     /* Just load all function pointers we are aware off. The loader takes care of filtering.
@@ -1031,7 +1033,7 @@ VkResult wine_vkCreateInstance(const VkInstanceCreateInfo *create_info,
     if (res != VK_SUCCESS)
     {
         ERR("Failed to load physical devices, res=%d\n", res);
-        object->funcs.p_vkDestroyInstance(object->obj.host.instance, NULL /* allocator */);
+        object->funcs.p_vkDestroyInstance(host_instance, NULL /* allocator */);
         free(object->utils_messengers);
         free(object);
         return res;
@@ -1425,11 +1427,12 @@ VkResult wine_vkGetPhysicalDeviceImageFormatProperties2(VkPhysicalDevice phys_de
                                                         VkImageFormatProperties2 *properties)
 {
     struct wine_phys_dev *phys_dev = wine_phys_dev_from_handle(phys_dev_handle);
+    struct wine_instance *instance = CONTAINING_RECORD(phys_dev->obj.parent, struct wine_instance, obj);
     VkExternalImageFormatProperties *external_image_properties;
     VkResult res;
 
-    res = phys_dev->instance->funcs.p_vkGetPhysicalDeviceImageFormatProperties2(phys_dev->obj.host.physical_device,
-                                                                                format_info, properties);
+    res = instance->funcs.p_vkGetPhysicalDeviceImageFormatProperties2(phys_dev->obj.host.physical_device,
+                                                                      format_info, properties);
 
     if ((external_image_properties = find_next_struct(properties,
                                                       VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES)))
@@ -1448,11 +1451,12 @@ VkResult wine_vkGetPhysicalDeviceImageFormatProperties2KHR(VkPhysicalDevice phys
                                                            VkImageFormatProperties2 *properties)
 {
     struct wine_phys_dev *phys_dev = wine_phys_dev_from_handle(phys_dev_handle);
+    struct wine_instance *instance = CONTAINING_RECORD(phys_dev->obj.parent, struct wine_instance, obj);
     VkExternalImageFormatProperties *external_image_properties;
     VkResult res;
 
-    res = phys_dev->instance->funcs.p_vkGetPhysicalDeviceImageFormatProperties2KHR(phys_dev->obj.host.physical_device,
-                                                                                   format_info, properties);
+    res = instance->funcs.p_vkGetPhysicalDeviceImageFormatProperties2KHR(phys_dev->obj.host.physical_device,
+                                                                         format_info, properties);
 
     if ((external_image_properties = find_next_struct(properties,
                                                       VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES)))
@@ -1647,11 +1651,12 @@ VkResult wine_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT(VkPhysicalDevice ha
                                                              VkTimeDomainEXT *time_domains)
 {
     struct wine_phys_dev *phys_dev = wine_phys_dev_from_handle(handle);
+    struct wine_instance *instance = CONTAINING_RECORD(phys_dev->obj.parent, struct wine_instance, obj);
 
     TRACE("%p, %p, %p\n", phys_dev, time_domain_count, time_domains);
 
     return wine_vk_get_time_domains(phys_dev, time_domain_count, time_domains,
-                                    phys_dev->instance->funcs.p_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT);
+                                    instance->funcs.p_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT);
 }
 
 VkResult wine_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR(VkPhysicalDevice handle,
@@ -1659,11 +1664,12 @@ VkResult wine_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR(VkPhysicalDevice ha
                                                              VkTimeDomainKHR *time_domains)
 {
     struct wine_phys_dev *phys_dev = wine_phys_dev_from_handle(handle);
+    struct wine_instance *instance = CONTAINING_RECORD(phys_dev->obj.parent, struct wine_instance, obj);
 
     TRACE("%p, %p, %p\n", phys_dev, time_domain_count, time_domains);
 
     return wine_vk_get_time_domains(phys_dev, time_domain_count, time_domains,
-                                    phys_dev->instance->funcs.p_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR);
+                                    instance->funcs.p_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR);
 }
 
 
@@ -1803,8 +1809,8 @@ VkResult wine_vkCreateSwapchainKHR(VkDevice device_handle, const VkSwapchainCrea
     struct wine_swapchain *object, *old_swapchain = wine_swapchain_from_handle(create_info->oldSwapchain);
     struct wine_surface *surface = wine_surface_from_handle(create_info->surface);
     struct wine_device *device = wine_device_from_handle(device_handle);
-    struct wine_phys_dev *physical_device = device->phys_dev;
-    struct wine_instance *instance = physical_device->instance;
+    struct wine_phys_dev *physical_device = CONTAINING_RECORD(device->obj.parent, struct wine_phys_dev, obj);
+    struct wine_instance *instance = CONTAINING_RECORD(physical_device->obj.parent, struct wine_instance, obj);
     VkSwapchainCreateInfoKHR create_info_host = *create_info;
     VkSurfaceCapabilitiesKHR capabilities;
     VkSwapchainKHR host_swapchain;
@@ -1948,6 +1954,7 @@ VkResult wine_vkAllocateMemory(VkDevice handle, const VkMemoryAllocateInfo *allo
                                const VkAllocationCallbacks *allocator, VkDeviceMemory *ret)
 {
     struct wine_device *device = wine_device_from_handle(handle);
+    struct wine_phys_dev *phys_dev = CONTAINING_RECORD(device->obj.parent, struct wine_phys_dev, obj);
     struct wine_device_memory *memory;
     VkMemoryAllocateInfo info = *alloc_info;
     VkImportMemoryHostPointerInfoEXT host_pointer_info;
@@ -1958,15 +1965,15 @@ VkResult wine_vkAllocateMemory(VkDevice handle, const VkMemoryAllocateInfo *allo
 
     /* For host visible memory, we try to use VK_EXT_external_memory_host on wow64
      * to ensure that mapped pointer is 32-bit. */
-    mem_flags = device->phys_dev->memory_properties.memoryTypes[alloc_info->memoryTypeIndex].propertyFlags;
-    if (device->phys_dev->external_memory_align && (mem_flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) &&
+    mem_flags = phys_dev->memory_properties.memoryTypes[alloc_info->memoryTypeIndex].propertyFlags;
+    if (phys_dev->external_memory_align && (mem_flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) &&
         !find_next_struct(alloc_info->pNext, VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT))
     {
         VkMemoryHostPointerPropertiesEXT props =
         {
             .sType = VK_STRUCTURE_TYPE_MEMORY_HOST_POINTER_PROPERTIES_EXT,
         };
-        uint32_t i, align = device->phys_dev->external_memory_align - 1;
+        uint32_t i, align = phys_dev->external_memory_align - 1;
         SIZE_T alloc_size = info.allocationSize;
         static int once;
 
@@ -1993,18 +2000,18 @@ VkResult wine_vkAllocateMemory(VkDevice handle, const VkMemoryAllocateInfo *allo
             /* If requested memory type is not allowed to use external memory,
              * try to find a supported compatible type. */
             uint32_t mask = mem_flags & ~VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-            for (i = 0; i < device->phys_dev->memory_properties.memoryTypeCount; i++)
+            for (i = 0; i < phys_dev->memory_properties.memoryTypeCount; i++)
             {
                 if (!(props.memoryTypeBits & (1u << i)))
                     continue;
-                if ((device->phys_dev->memory_properties.memoryTypes[i].propertyFlags & mask) != mask)
+                if ((phys_dev->memory_properties.memoryTypes[i].propertyFlags & mask) != mask)
                     continue;
 
                 TRACE("Memory type not compatible with host memory, using %u instead\n", i);
                 info.memoryTypeIndex = i;
                 break;
             }
-            if (i == device->phys_dev->memory_properties.memoryTypeCount)
+            if (i == phys_dev->memory_properties.memoryTypeCount)
             {
                 FIXME("Not found compatible memory type\n");
                 alloc_size = 0;
@@ -2046,13 +2053,14 @@ VkResult wine_vkAllocateMemory(VkDevice handle, const VkMemoryAllocateInfo *allo
 void wine_vkFreeMemory(VkDevice handle, VkDeviceMemory memory_handle, const VkAllocationCallbacks *allocator)
 {
     struct wine_device *device = wine_device_from_handle(handle);
+    struct wine_phys_dev *phys_dev = CONTAINING_RECORD(device->obj.parent, struct wine_phys_dev, obj);
     struct wine_device_memory *memory;
 
     if (!memory_handle)
         return;
     memory = wine_device_memory_from_handle(memory_handle);
 
-    if (memory->vm_map && !device->phys_dev->external_memory_align)
+    if (memory->vm_map && !phys_dev->external_memory_align)
     {
         const VkMemoryUnmapInfoKHR info =
         {
@@ -2093,6 +2101,7 @@ VkResult wine_vkMapMemory(VkDevice device, VkDeviceMemory memory, VkDeviceSize o
 VkResult wine_vkMapMemory2KHR(VkDevice handle, const VkMemoryMapInfoKHR *map_info, void **data)
 {
     struct wine_device *device = wine_device_from_handle(handle);
+    struct wine_phys_dev *phys_dev = CONTAINING_RECORD(device->obj.parent, struct wine_phys_dev, obj);
     struct wine_device_memory *memory = wine_device_memory_from_handle(map_info->memory);
     VkMemoryMapInfoKHR info = *map_info;
     VkMemoryMapPlacedInfoEXT placed_info =
@@ -2109,7 +2118,7 @@ VkResult wine_vkMapMemory2KHR(VkDevice handle, const VkMemoryMapInfoKHR *map_inf
         return VK_SUCCESS;
     }
 
-    if (device->phys_dev->map_placed_align)
+    if (phys_dev->map_placed_align)
     {
         SIZE_T alloc_size = memory->size;
 
@@ -2179,12 +2188,12 @@ void wine_vkUnmapMemory(VkDevice device, VkDeviceMemory memory)
 VkResult wine_vkUnmapMemory2KHR(VkDevice handle, const VkMemoryUnmapInfoKHR *unmap_info)
 {
     struct wine_device *device = wine_device_from_handle(handle);
+    struct wine_phys_dev *phys_dev = CONTAINING_RECORD(device->obj.parent, struct wine_phys_dev, obj);
     struct wine_device_memory *memory = wine_device_memory_from_handle(unmap_info->memory);
     VkMemoryUnmapInfoKHR info;
     VkResult result;
 
-    if (memory->vm_map && device->phys_dev->external_memory_align)
-        return VK_SUCCESS;
+    if (memory->vm_map && phys_dev->external_memory_align) return VK_SUCCESS;
 
     if (!device->funcs.p_vkUnmapMemory2KHR)
     {
@@ -2213,10 +2222,11 @@ VkResult wine_vkCreateBuffer(VkDevice handle, const VkBufferCreateInfo *create_i
                              const VkAllocationCallbacks *allocator, VkBuffer *buffer)
 {
     struct wine_device *device = wine_device_from_handle(handle);
+    struct wine_phys_dev *phys_dev = CONTAINING_RECORD(device->obj.parent, struct wine_phys_dev, obj);
     VkExternalMemoryBufferCreateInfo external_memory_info;
     VkBufferCreateInfo info = *create_info;
 
-    if (device->phys_dev->external_memory_align &&
+    if (phys_dev->external_memory_align &&
         !find_next_struct(info.pNext, VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO))
     {
         external_memory_info.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
@@ -2232,10 +2242,11 @@ VkResult wine_vkCreateImage(VkDevice handle, const VkImageCreateInfo *create_inf
                             const VkAllocationCallbacks *allocator, VkImage *image)
 {
     struct wine_device *device = wine_device_from_handle(handle);
+    struct wine_phys_dev *phys_dev = CONTAINING_RECORD(device->obj.parent, struct wine_phys_dev, obj);
     VkExternalMemoryImageCreateInfo external_memory_info;
     VkImageCreateInfo info = *create_info;
 
-    if (device->phys_dev->external_memory_align &&
+    if (phys_dev->external_memory_align &&
         !find_next_struct(info.pNext, VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO))
     {
         external_memory_info.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
@@ -2278,7 +2289,7 @@ VkResult wine_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(VkPhysicalDevice device_
 {
     struct wine_phys_dev *physical_device = wine_phys_dev_from_handle(device_handle);
     struct wine_surface *surface = wine_surface_from_handle(surface_handle);
-    struct wine_instance *instance = physical_device->instance;
+    struct wine_instance *instance = CONTAINING_RECORD(physical_device->obj.parent, struct wine_instance, obj);
     VkResult res;
 
     if (!NtUserIsWindow(surface->hwnd)) return VK_ERROR_SURFACE_LOST_KHR;
@@ -2294,7 +2305,7 @@ VkResult wine_vkGetPhysicalDeviceSurfaceCapabilities2KHR(VkPhysicalDevice device
     struct wine_phys_dev *physical_device = wine_phys_dev_from_handle(device_handle);
     struct wine_surface *surface = wine_surface_from_handle(surface_info->surface);
     VkPhysicalDeviceSurfaceInfo2KHR surface_info_host = *surface_info;
-    struct wine_instance *instance = physical_device->instance;
+    struct wine_instance *instance = CONTAINING_RECORD(physical_device->obj.parent, struct wine_instance, obj);
     VkResult res;
 
     if (!instance->funcs.p_vkGetPhysicalDeviceSurfaceCapabilities2KHR)
@@ -2319,7 +2330,7 @@ VkResult wine_vkGetPhysicalDevicePresentRectanglesKHR(VkPhysicalDevice device_ha
 {
     struct wine_phys_dev *physical_device = wine_phys_dev_from_handle(device_handle);
     struct wine_surface *surface = wine_surface_from_handle(surface_handle);
-    struct wine_instance *instance = physical_device->instance;
+    struct wine_instance *instance = CONTAINING_RECORD(physical_device->obj.parent, struct wine_instance, obj);
 
     if (!NtUserIsWindow(surface->hwnd))
     {
@@ -2338,7 +2349,7 @@ VkResult wine_vkGetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice device_handl
 {
     struct wine_phys_dev *physical_device = wine_phys_dev_from_handle(device_handle);
     struct wine_surface *surface = wine_surface_from_handle(surface_handle);
-    struct wine_instance *instance = physical_device->instance;
+    struct wine_instance *instance = CONTAINING_RECORD(physical_device->obj.parent, struct wine_instance, obj);
 
     return instance->funcs.p_vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device->obj.host.physical_device, surface->obj.host.surface,
                                                                   format_count, formats);
@@ -2350,10 +2361,10 @@ VkResult wine_vkGetPhysicalDeviceSurfaceFormats2KHR(VkPhysicalDevice device_hand
     struct wine_phys_dev *physical_device = wine_phys_dev_from_handle(device_handle);
     struct wine_surface *surface = wine_surface_from_handle(surface_info->surface);
     VkPhysicalDeviceSurfaceInfo2KHR surface_info_host = *surface_info;
-    struct wine_instance *instance = physical_device->instance;
+    struct wine_instance *instance = CONTAINING_RECORD(physical_device->obj.parent, struct wine_instance, obj);
     VkResult res;
 
-    if (!physical_device->instance->funcs.p_vkGetPhysicalDeviceSurfaceFormats2KHR)
+    if (!instance->funcs.p_vkGetPhysicalDeviceSurfaceFormats2KHR)
     {
         VkSurfaceFormatKHR *surface_formats;
         UINT i;
@@ -2413,7 +2424,7 @@ VkResult wine_vkCreateDebugUtilsMessengerEXT(VkInstance handle,
     }
 
     object->obj.host.debug_utils_messenger = host_debug_utils_messenger;
-    object->instance = instance;
+    object->obj.parent = &instance->obj;
     object->user_callback = (UINT_PTR)create_info->pfnUserCallback;
     object->user_data = (UINT_PTR)create_info->pUserData;
 
@@ -2469,7 +2480,7 @@ VkResult wine_vkCreateDebugReportCallbackEXT(VkInstance handle,
     }
 
     object->obj.host.debug_report_callback = host_debug_report_callback;
-    object->instance = instance;
+    object->obj.parent = &instance->obj;
     object->user_callback = (UINT_PTR)create_info->pfnCallback;
     object->user_data = (UINT_PTR)create_info->pUserData;
 

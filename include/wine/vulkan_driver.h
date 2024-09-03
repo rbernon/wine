@@ -50,6 +50,7 @@ struct vulkan_object
         VkSurfaceKHR surface;
         VkSwapchainKHR swapchain;
     } host;
+    struct vulkan_object *parent;
 };
 
 struct vulkan_funcs
