@@ -41,18 +41,41 @@ static const WCHAR display1W[] = L"\\\\.\\DISPLAY1";
 
 DEFINE_DEVPROPKEY(DEVPROPKEY_GPU_LUID, 0x60b193cb, 0x5276, 0x4d0f, 0x96, 0xfc, 0xf1, 0x73, 0xab, 0xad, 0x3e, 0xc6, 2);
 
+static HRESULT  (WINAPI *pDwmEnableComposition)(UINT);
 static NTSTATUS (WINAPI *pD3DKMTCheckOcclusion)(const D3DKMT_CHECKOCCLUSION *);
 static NTSTATUS (WINAPI *pD3DKMTCheckVidPnExclusiveOwnership)(const D3DKMT_CHECKVIDPNEXCLUSIVEOWNERSHIP *);
 static NTSTATUS (WINAPI *pD3DKMTCloseAdapter)(const D3DKMT_CLOSEADAPTER *);
+static NTSTATUS (WINAPI *pD3DKMTCreateAllocation)( D3DKMT_CREATEALLOCATION *params );
+static NTSTATUS (WINAPI *pD3DKMTCreateAllocation2)( D3DKMT_CREATEALLOCATION *params );
 static NTSTATUS (WINAPI *pD3DKMTCreateDevice)(D3DKMT_CREATEDEVICE *);
+static NTSTATUS (WINAPI *pD3DKMTCreateKeyedMutex)( D3DKMT_CREATEKEYEDMUTEX *params );
+static NTSTATUS (WINAPI *pD3DKMTCreateKeyedMutex2)( D3DKMT_CREATEKEYEDMUTEX2 *params );
+static NTSTATUS (WINAPI *pD3DKMTCreateSynchronizationObject)( D3DKMT_CREATESYNCHRONIZATIONOBJECT *params );
+static NTSTATUS (WINAPI *pD3DKMTCreateSynchronizationObject2)( D3DKMT_CREATESYNCHRONIZATIONOBJECT2 *params );
+static NTSTATUS (WINAPI *pD3DKMTDestroyAllocation)( const D3DKMT_DESTROYALLOCATION *params );
+static NTSTATUS (WINAPI *pD3DKMTDestroyAllocation2)( const D3DKMT_DESTROYALLOCATION2 *params );
 static NTSTATUS (WINAPI *pD3DKMTDestroyDevice)(const D3DKMT_DESTROYDEVICE *);
+static NTSTATUS (WINAPI *pD3DKMTDestroyKeyedMutex)( const D3DKMT_DESTROYKEYEDMUTEX *params );
+static NTSTATUS (WINAPI *pD3DKMTDestroySynchronizationObject)( const D3DKMT_DESTROYSYNCHRONIZATIONOBJECT *params );
 static NTSTATUS (WINAPI *pD3DKMTEnumAdapters2)(D3DKMT_ENUMADAPTERS2 *);
 static NTSTATUS (WINAPI *pD3DKMTOpenAdapterFromDeviceName)(D3DKMT_OPENADAPTERFROMDEVICENAME *);
 static NTSTATUS (WINAPI *pD3DKMTOpenAdapterFromGdiDisplayName)(D3DKMT_OPENADAPTERFROMGDIDISPLAYNAME *);
 static NTSTATUS (WINAPI *pD3DKMTOpenAdapterFromHdc)(D3DKMT_OPENADAPTERFROMHDC *);
-static NTSTATUS (WINAPI *pD3DKMTSetVidPnSourceOwner)(const D3DKMT_SETVIDPNSOURCEOWNER *);
+static NTSTATUS (WINAPI *pD3DKMTOpenKeyedMutex)( D3DKMT_OPENKEYEDMUTEX *params );
+static NTSTATUS (WINAPI *pD3DKMTOpenKeyedMutex2)( D3DKMT_OPENKEYEDMUTEX2 *params );
+static NTSTATUS (WINAPI *pD3DKMTOpenKeyedMutexFromNtHandle)( D3DKMT_OPENKEYEDMUTEXFROMNTHANDLE *params );
+static NTSTATUS (WINAPI *pD3DKMTOpenResource)( D3DKMT_OPENRESOURCE *params );
+static NTSTATUS (WINAPI *pD3DKMTOpenResource2)( D3DKMT_OPENRESOURCE *params );
+static NTSTATUS (WINAPI *pD3DKMTOpenResourceFromNtHandle)( D3DKMT_OPENRESOURCEFROMNTHANDLE *params );
+static NTSTATUS (WINAPI *pD3DKMTOpenSynchronizationObject)( D3DKMT_OPENSYNCHRONIZATIONOBJECT *params );
+static NTSTATUS (WINAPI *pD3DKMTOpenSyncObjectFromNtHandle)( D3DKMT_OPENSYNCOBJECTFROMNTHANDLE *params );
+static NTSTATUS (WINAPI *pD3DKMTOpenSyncObjectFromNtHandle2)( D3DKMT_OPENSYNCOBJECTFROMNTHANDLE2 *params );
+static NTSTATUS (WINAPI *pD3DKMTOpenSyncObjectNtHandleFromName)( D3DKMT_OPENSYNCOBJECTNTHANDLEFROMNAME *params );
+static NTSTATUS (WINAPI *pD3DKMTQueryResourceInfo)( D3DKMT_QUERYRESOURCEINFO *params );
+static NTSTATUS (WINAPI *pD3DKMTQueryResourceInfoFromNtHandle)( D3DKMT_QUERYRESOURCEINFOFROMNTHANDLE *params );
 static NTSTATUS (WINAPI *pD3DKMTQueryVideoMemoryInfo)(D3DKMT_QUERYVIDEOMEMORYINFO *);
-static HRESULT  (WINAPI *pDwmEnableComposition)(UINT);
+static NTSTATUS (WINAPI *pD3DKMTSetVidPnSourceOwner)(const D3DKMT_SETVIDPNSOURCEOWNER *);
+static NTSTATUS (WINAPI *pD3DKMTShareObjects)( UINT count, const D3DKMT_HANDLE *handles, OBJECT_ATTRIBUTES *attr, UINT access, HANDLE *handle );
 
 static BOOL get_primary_adapter_name(WCHAR *name)
 {
@@ -1053,6 +1076,723 @@ static void test_D3DKMTQueryVideoMemoryInfo(void)
     ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
 }
 
+static void test_D3DKMTCreateAllocation(void)
+{
+    D3DKMT_OPENADAPTERFROMGDIDISPLAYNAME open_adapter = {0};
+    D3DKMT_CREATESTANDARDALLOCATION standard[2] = {0};
+    D3DDDI_OPENALLOCATIONINFO2 open_alloc2 = {0};
+    D3DDDI_OPENALLOCATIONINFO open_alloc = {0};
+    D3DKMT_DESTROYDEVICE destroy_device = {0};
+    D3DKMT_DESTROYALLOCATION2 destroy2 = {0};
+    D3DKMT_CREATEDEVICE create_device = {0};
+    D3DKMT_CLOSEADAPTER close_adapter = {0};
+    D3DDDI_ALLOCATIONINFO2 allocs2[2] = {0};
+    D3DKMT_DESTROYALLOCATION destroy = {0};
+    D3DDDI_ALLOCATIONINFO allocs[2] = {0};
+    D3DKMT_CREATEALLOCATION create = {0};
+    D3DKMT_QUERYRESOURCEINFO query = {0};
+    D3DKMT_OPENRESOURCE open = {0};
+    char buffer[1024] = {0};
+    NTSTATUS status;
+
+/* static NTSTATUS (WINAPI *pD3DKMTOpenResourceFromNtHandle)( D3DKMT_OPENRESOURCEFROMNTHANDLE *params ); */
+/* static NTSTATUS (WINAPI *pD3DKMTQueryResourceInfoFromNtHandle)( D3DKMT_QUERYRESOURCEINFOFROMNTHANDLE *params ); */
+
+    if (!pD3DKMTCreateAllocation)
+    {
+        win_skip("D3DKMTCreateAllocation() is unavailable.\n");
+        return;
+    }
+
+    if (0) /* crashes */ status = pD3DKMTCreateAllocation(NULL);
+
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+
+    lstrcpyW(open_adapter.DeviceName, display1W);
+    status = pD3DKMTOpenAdapterFromGdiDisplayName(&open_adapter);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
+    create_device.hAdapter = open_adapter.hAdapter;
+    status = pD3DKMTCreateDevice(&create_device);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
+
+
+    /* test standard allocations only because anything else is driver-specific */
+    create.hDevice = create_device.hDevice;
+
+    create.Flags.ExistingSysMem = 1;
+    create.Flags.StandardAllocation = 1;
+
+    standard[0].Type = D3DKMT_STANDARDALLOCATIONTYPE_EXISTINGHEAP;
+    standard[0].ExistingHeapData.Size = 0x10000;
+    standard[1].Type = D3DKMT_STANDARDALLOCATIONTYPE_EXISTINGHEAP;
+    standard[1].ExistingHeapData.Size = 0x10000;
+    create.pStandardAllocation = standard;
+
+    create.NumAllocations = 1;
+    create.pAllocationInfo = allocs;
+
+    /* pSystemMem must be set */
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+
+    allocs[0].pSystemMem = allocs2[0].pSystemMem = VirtualAlloc( NULL, 0x10000, MEM_COMMIT, PAGE_READWRITE );
+    allocs[1].pSystemMem = allocs2[1].pSystemMem = VirtualAlloc( NULL, 0x10000, MEM_COMMIT, PAGE_READWRITE );
+
+    /* creating multiple allocations doesn't work */
+    create.NumAllocations = 2;
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+
+    create.NumAllocations = 1;
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(allocs[0].hAllocation != 0, "got hAllocation %#x\n", allocs[0].hAllocation);
+    ok(create.hGlobalShare == 0, "got hGlobalShare %#x\n", create.hGlobalShare);
+    ok(create.hResource == 0, "got hResource %#x\n", create.hResource);
+
+    /* destroying allocation individually */
+    destroy.hDevice = create_device.hDevice;
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    destroy.AllocationCount = 1;
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    destroy.phAllocationList = &allocs[0].hAllocation;
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    /* allocation has already been destroyed */
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+
+
+    /* D3DKMTCreateAllocation2 also works with the same parameters, with extra alloc info */
+    create.pAllocationInfo2 = allocs2;
+    destroy.phAllocationList = &allocs2[0].hAllocation;
+
+    status = pD3DKMTCreateAllocation2(&create);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(allocs2[0].GpuVirtualAddress == 0, "got GpuVirtualAddress %#I64x\n", allocs2[0].GpuVirtualAddress);
+    ok(allocs2[0].hAllocation != 0, "got hAllocation %#x\n", allocs2[0].hAllocation);
+    ok(create.hGlobalShare == 0, "got hGlobalShare %#x\n", create.hGlobalShare);
+    ok(create.hResource == 0, "got hResource %#x\n", create.hResource);
+
+    ok(create.PrivateRuntimeDataSize == 0, "got PrivateRuntimeDataSize %u\n", create.PrivateRuntimeDataSize);
+    ok(create.PrivateDriverDataSize == 0, "got PrivateDriverDataSize %u\n", create.PrivateDriverDataSize);
+    ok(allocs2[0].PrivateDriverDataSize == 0, "got PrivateDriverDataSize %u\n", allocs2[0].PrivateDriverDataSize);
+
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    destroy.phAllocationList = &allocs[0].hAllocation;
+    create.pAllocationInfo = allocs;
+
+
+    /* D3DKMTDestroyAllocation2 works as well */
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(allocs[0].hAllocation != 0, "got hAllocation %#x\n", allocs[0].hAllocation);
+    ok(create.hGlobalShare == 0, "got hGlobalShare %#x\n", create.hGlobalShare);
+    ok(create.hResource == 0, "got hResource %#x\n", create.hResource);
+
+    destroy2.hDevice = create_device.hDevice;
+    destroy2.AllocationCount = 1;
+    destroy2.phAllocationList = &allocs[0].hAllocation;
+    status = pD3DKMTDestroyAllocation2(&destroy2);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+
+    /* PrivateDriverDataSize can be set */
+    allocs[0].pPrivateDriverData = buffer;
+    allocs[0].PrivateDriverDataSize = 123;
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    /* PrivateRuntimeDataSize can be set */
+    create.pPrivateRuntimeData = buffer;
+    create.PrivateRuntimeDataSize = 456;
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    /* PrivateDriverDataSize must be 0 for standard allocations */
+    create.PrivateDriverDataSize = 64;
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    create.PrivateDriverDataSize = 0;
+
+    /* device handle is required */
+    create.hDevice = 0;
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    create.hDevice = create_device.hDevice;
+
+    /* NumAllocations is required */
+    create.NumAllocations = 0;
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    create.NumAllocations = 1;
+
+    /* standard.Type must be set */
+    standard[0].Type = 0;
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    standard[0].Type = D3DKMT_STANDARDALLOCATIONTYPE_EXISTINGHEAP;
+
+    /* ExistingHeapData.Size must be page aligned */
+    standard[0].ExistingHeapData.Size = 0x1100;
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    standard[0].ExistingHeapData.Size = 0x10000;
+
+    /* specific flags are required for standard allocations */
+    create.Flags.ExistingSysMem = 0;
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    create.Flags.ExistingSysMem = 1;
+    create.Flags.StandardAllocation = 0;
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    create.Flags.StandardAllocation = 1;
+
+
+    /* test creating resource with allocations */
+    create.Flags.CreateResource = 1;
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(allocs[0].hAllocation != 0, "got hAllocation %#x\n", allocs[0].hAllocation);
+    ok(create.hGlobalShare == 0, "got hGlobalShare %#x\n", create.hGlobalShare);
+    ok(create.hResource != 0, "got hResource %#x\n", create.hResource);
+
+    /* destroying the allocation doesn't destroys the resource */
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    destroy.hResource = create.hResource;
+    destroy.AllocationCount = 0;
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    create.hResource = 0;
+
+    /* but destroying the resource destroys its allocations */
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    destroy.hResource = create.hResource;
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    destroy.hResource = 0;
+    destroy.AllocationCount = 1;
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    create.hResource = 0;
+
+    /* destroy resource at once from here */
+    destroy.AllocationCount = 0;
+
+
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(allocs[0].hAllocation != 0, "got hAllocation %#x\n", allocs[0].hAllocation);
+    ok(create.hGlobalShare == 0, "got hGlobalShare %#x\n", create.hGlobalShare);
+    ok(create.hResource != 0, "got hResource %#x\n", create.hResource);
+
+    /* D3DKMTQueryResourceInfo requires a global handle */
+    query.hDevice = create_device.hDevice;
+    query.hGlobalShare = create.hResource;
+    status = pD3DKMTQueryResourceInfo(&query);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+
+    /* D3DKMTOpenResource requires a global handle */
+    open.hDevice = create_device.hDevice;
+    open.hGlobalShare = create.hResource;
+    status = pD3DKMTOpenResource(&open);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+
+    destroy.hResource = create.hResource;
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    create.hResource = 0;
+
+    /* test creating global shared resource */
+    create.Flags.CreateShared = 1;
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(allocs[0].hAllocation != 0, "got hAllocation %#x\n", allocs[0].hAllocation);
+    ok(create.hGlobalShare != 0, "got hGlobalShare %#x\n", create.hGlobalShare);
+    ok(create.hResource != 0, "got hResource %#x\n", create.hResource);
+
+    /* D3DKMTQueryResourceInfo works with global handle */
+    query.hDevice = create_device.hDevice;
+    query.hGlobalShare = create.hGlobalShare;
+    query.pPrivateRuntimeData = buffer;
+    query.PrivateRuntimeDataSize = sizeof(buffer);
+    status = pD3DKMTQueryResourceInfo(&query);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(query.PrivateRuntimeDataSize == 456, "got PrivateRuntimeDataSize %u\n", query.PrivateRuntimeDataSize);
+    ok(query.TotalPrivateDriverDataSize == 96, "got TotalPrivateDriverDataSize %u\n", query.TotalPrivateDriverDataSize);
+    ok(query.ResourcePrivateDriverDataSize == 0, "got ResourcePrivateDriverDataSize %u\n", query.ResourcePrivateDriverDataSize);
+    ok(query.NumAllocations == 1, "got NumAllocations %u\n", query.NumAllocations);
+
+    /* D3DKMTOpenResource fails to open the handle */
+    open.hDevice = create_device.hDevice;
+    open.hGlobalShare = create.hGlobalShare;
+    open.pPrivateRuntimeData = buffer;
+    open.PrivateRuntimeDataSize = query.PrivateRuntimeDataSize;
+    open.pTotalPrivateDriverDataBuffer = buffer;
+    open.TotalPrivateDriverDataBufferSize = sizeof(buffer);
+    open.pResourcePrivateDriverData = buffer;
+    open.ResourcePrivateDriverDataSize = query.ResourcePrivateDriverDataSize;
+    open.NumAllocations = 1;
+    open.pOpenAllocationInfo = &open_alloc;
+    open_alloc.pPrivateDriverData = buffer;
+    open_alloc.PrivateDriverDataSize = sizeof(buffer);
+    status = pD3DKMTOpenResource(&open);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(open_alloc.hAllocation != 0, "got hAllocation %#x\n", open_alloc.hAllocation);
+    ok(open_alloc.PrivateDriverDataSize == 96, "got PrivateDriverDataSize %u\n", open_alloc.PrivateDriverDataSize);
+    ok(open.hGlobalShare == create.hGlobalShare, "got hGlobalShare %#x\n", open.hGlobalShare);
+    ok(open.hResource != create.hResource, "got hResource %#x\n", open.hResource);
+    ok(open.PrivateRuntimeDataSize == 456, "got PrivateRuntimeDataSize %u\n", open.PrivateRuntimeDataSize);
+    ok(open.TotalPrivateDriverDataBufferSize == 96, "got TotalPrivateDriverDataBufferSize %u\n", open.TotalPrivateDriverDataBufferSize);
+    ok(open.ResourcePrivateDriverDataSize == 0, "got ResourcePrivateDriverDataSize %u\n", open.ResourcePrivateDriverDataSize);
+    ok(open.NumAllocations == 1, "got NumAllocations %u\n", open.NumAllocations);
+
+    destroy.hResource = open.hResource;
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    /* previously set hResource is ignored */
+    status = pD3DKMTOpenResource(&open);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    destroy.hResource = open.hResource;
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    /* NumAllocations must be set */
+    open.NumAllocations = 0;
+    status = pD3DKMTOpenResource(&open);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open.NumAllocations = 1;
+
+    /* buffer sizes must match exactly */
+    open.PrivateRuntimeDataSize += 1;
+    status = pD3DKMTOpenResource(&open);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open.PrivateRuntimeDataSize -= 1;
+    open.ResourcePrivateDriverDataSize += 1;
+    status = pD3DKMTOpenResource(&open);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open.ResourcePrivateDriverDataSize -= 1;
+
+    /* D3DKMTOpenResource2 works as well */
+    open.pOpenAllocationInfo2 = &open_alloc2;
+
+    open_alloc2.pPrivateDriverData = buffer;
+    open_alloc2.PrivateDriverDataSize = sizeof(buffer);
+    status = pD3DKMTOpenResource2(&open);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(open_alloc2.hAllocation != 0, "got hAllocation %#x\n", open_alloc2.hAllocation);
+    ok(open_alloc2.PrivateDriverDataSize == 96, "got PrivateDriverDataSize %u\n", open_alloc2.PrivateDriverDataSize);
+    ok(open.hGlobalShare == create.hGlobalShare, "got hGlobalShare %#x\n", open.hGlobalShare);
+    ok(open.hResource != create.hResource, "got hResource %#x\n", open.hResource);
+    ok(open.PrivateRuntimeDataSize == 456, "got PrivateRuntimeDataSize %u\n", open.PrivateRuntimeDataSize);
+    ok(open.TotalPrivateDriverDataBufferSize == 96, "got TotalPrivateDriverDataBufferSize %u\n", open.TotalPrivateDriverDataBufferSize);
+    ok(open.ResourcePrivateDriverDataSize == 0, "got ResourcePrivateDriverDataSize %u\n", open.ResourcePrivateDriverDataSize);
+    ok(open.NumAllocations == 1, "got NumAllocations %u\n", open.NumAllocations);
+
+    destroy.hResource = open.hResource;
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    open.pOpenAllocationInfo = &open_alloc;
+
+    destroy.hResource = create.hResource;
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    create.hResource = 0;
+
+    /* test creating nt shared resource */
+    create.Flags.NtSecuritySharing = 1;
+    create.Flags.CreateShared = 0;
+
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(allocs[0].hAllocation != 0, "got hAllocation %#x\n", allocs[0].hAllocation);
+    ok(create.hGlobalShare == 0, "got hGlobalShare %#x\n", create.hGlobalShare);
+    ok(create.hResource != 0, "got hResource %#x\n", create.hResource);
+
+    destroy.hResource = create.hResource;
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    create.hResource = 0;
+
+
+    destroy_device.hDevice = create_device.hDevice;
+    pD3DKMTDestroyDevice(&destroy_device);
+    close_adapter.hAdapter = open_adapter.hAdapter;
+    status = pD3DKMTCloseAdapter(&close_adapter);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
+}
+
+static void test_D3DKMTCreateKeyedMutex(void)
+{
+    D3DKMT_DESTROYKEYEDMUTEX destroy = {0};
+    D3DKMT_CREATEKEYEDMUTEX2 create2 = {0};
+    D3DKMT_CREATEKEYEDMUTEX create = {0};
+    D3DKMT_OPENKEYEDMUTEX2 open2 = {0};
+    D3DKMT_OPENKEYEDMUTEX open = {0};
+    D3DKMT_HANDLE local;
+    NTSTATUS status;
+
+/* static NTSTATUS (WINAPI *pD3DKMTCreateKeyedMutex)( D3DKMT_CREATEKEYEDMUTEX *params ); */
+/* static NTSTATUS (WINAPI *pD3DKMTCreateKeyedMutex2)( D3DKMT_CREATEKEYEDMUTEX2 *params ); */
+/* static NTSTATUS (WINAPI *pD3DKMTDestroyKeyedMutex)( const D3DKMT_DESTROYKEYEDMUTEX *params ); */
+/* static NTSTATUS (WINAPI *pD3DKMTOpenKeyedMutex)( D3DKMT_OPENKEYEDMUTEX *params ); */
+/* static NTSTATUS (WINAPI *pD3DKMTOpenKeyedMutex2)( D3DKMT_OPENKEYEDMUTEX2 *params ); */
+/* static NTSTATUS (WINAPI *pD3DKMTOpenKeyedMutexFromNtHandle)( D3DKMT_OPENKEYEDMUTEXFROMNTHANDLE *params ); */
+
+    if (!pD3DKMTCreateKeyedMutex)
+    {
+        win_skip("D3DKMTCreateKeyedMutex() is unavailable.\n");
+        return;
+    }
+
+    status = pD3DKMTCreateKeyedMutex(NULL);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    status = pD3DKMTCreateKeyedMutex(&create);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(create.hKeyedMutex & 0xc0000000, "got hKeyedMutex %#x\n", create.hKeyedMutex);
+    ok((create.hKeyedMutex & 0x3f) == 0, "got hKeyedMutex %#x\n", create.hKeyedMutex);
+    ok(create.hSharedHandle & 0xc0000000, "got hSharedHandle %#x\n", create.hSharedHandle);
+    ok((create.hSharedHandle & 0x3f) == 2, "got hSharedHandle %#x\n", create.hSharedHandle);
+    ok(0, "got %#x/%#x\n", create.hKeyedMutex, create.hSharedHandle);
+    local = create.hKeyedMutex;
+
+    status = pD3DKMTOpenKeyedMutex(&open);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open.hKeyedMutex = create.hKeyedMutex;
+    status = pD3DKMTOpenKeyedMutex(&open);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open.hKeyedMutex = 0;
+    open.hSharedHandle = create.hSharedHandle;
+    status = pD3DKMTOpenKeyedMutex(&open);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(open.hKeyedMutex == local + 0x40, "got hKeyedMutex %#x\n", open.hKeyedMutex);
+    ok(0, "got %#x/%#x\n", open.hKeyedMutex, open.hSharedHandle);
+    local = open.hKeyedMutex;
+
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    destroy.hKeyedMutex = create.hKeyedMutex;
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    destroy.hKeyedMutex = open.hKeyedMutex;
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    status = pD3DKMTOpenKeyedMutex(&open);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+
+    if (!pD3DKMTCreateKeyedMutex2)
+    {
+        win_skip("D3DKMTCreateKeyedMutex2() is unavailable.\n");
+        return;
+    }
+
+    status = pD3DKMTCreateKeyedMutex2(NULL);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    status = pD3DKMTCreateKeyedMutex2(&create2);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(create2.hKeyedMutex == local + 0x40, "got hKeyedMutex %#x\n", create2.hKeyedMutex);
+    ok(create2.hKeyedMutex & 0xc0000000, "got hKeyedMutex %#x\n", create2.hKeyedMutex);
+    ok((create2.hKeyedMutex & 0x3f) == 0, "got hKeyedMutex %#x\n", create2.hKeyedMutex);
+    ok(create2.hSharedHandle & 0xc0000000, "got hSharedHandle %#x\n", create2.hSharedHandle);
+    ok((create2.hSharedHandle & 0x3f) == 2, "got hSharedHandle %#x\n", create2.hSharedHandle);
+    ok(0, "got %#x/%#x\n", create2.hKeyedMutex, create2.hSharedHandle);
+    local = create2.hKeyedMutex;
+
+    destroy.hKeyedMutex = create2.hKeyedMutex;
+
+    status = pD3DKMTCreateKeyedMutex2(&create2);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(create2.hKeyedMutex == local + 0x40, "got hKeyedMutex %#x\n", create2.hKeyedMutex);
+    ok(create2.hKeyedMutex & 0xc0000000, "got hKeyedMutex %#x\n", create2.hKeyedMutex);
+    ok((create2.hKeyedMutex & 0x3f) == 0, "got hKeyedMutex %#x\n", create2.hKeyedMutex);
+    ok(create2.hSharedHandle & 0xc0000000, "got hSharedHandle %#x\n", create2.hSharedHandle);
+    ok((create2.hSharedHandle & 0x3f) == 2, "got hSharedHandle %#x\n", create2.hSharedHandle);
+    ok(0, "got %#x/%#x\n", create2.hKeyedMutex, create2.hSharedHandle);
+    local = create2.hKeyedMutex;
+
+    status = pD3DKMTOpenKeyedMutex2(&open2);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open2.hKeyedMutex = create2.hKeyedMutex;
+    status = pD3DKMTOpenKeyedMutex2(&open2);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open2.hKeyedMutex = 0;
+    open2.hSharedHandle = create2.hSharedHandle;
+    status = pD3DKMTOpenKeyedMutex2(&open2);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(open2.hKeyedMutex == local + 0x40, "got hKeyedMutex %#x\n", open2.hKeyedMutex);
+    ok(0, "got %#x/%#x\n", open2.hKeyedMutex, open2.hSharedHandle);
+    local = open2.hKeyedMutex;
+
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    destroy.hKeyedMutex = create2.hKeyedMutex;
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    create2.Flags.NtSecuritySharing = TRUE;
+    status = pD3DKMTCreateKeyedMutex2(&create2);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(create2.hKeyedMutex == local + 0x40, "got hKeyedMutex %#x\n", create2.hKeyedMutex);
+    ok(create2.hKeyedMutex & 0xc0000000, "got hKeyedMutex %#x\n", create2.hKeyedMutex);
+    ok((create2.hKeyedMutex & 0x3f) == 0, "got hKeyedMutex %#x\n", create2.hKeyedMutex);
+    ok(!create2.hSharedHandle, "got hSharedHandle %#x\n", create2.hSharedHandle);
+    ok(0, "got %#x/%#x\n", create2.hKeyedMutex, create2.hSharedHandle);
+    local = create2.hKeyedMutex;
+
+    destroy.hKeyedMutex = create2.hKeyedMutex;
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    destroy.hKeyedMutex = open2.hKeyedMutex;
+    status = pD3DKMTDestroyKeyedMutex(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+}
+
+static void test_D3DKMTCreateSynchronizationObject(void)
+{
+    D3DKMT_DESTROYSYNCHRONIZATIONOBJECT destroy = {0};
+    D3DKMT_CREATESYNCHRONIZATIONOBJECT2 create2 = {0};
+    D3DKMT_CREATESYNCHRONIZATIONOBJECT create = {0};
+    D3DKMT_OPENSYNCHRONIZATIONOBJECT open = {0};
+    D3DKMT_HANDLE local;
+    NTSTATUS status;
+
+    if (!pD3DKMTCreateSynchronizationObject)
+    {
+        win_skip("D3DKMTCreateSynchronizationObject() is unavailable.\n");
+        return;
+    }
+
+    status = pD3DKMTCreateSynchronizationObject(NULL);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    status = pD3DKMTCreateSynchronizationObject(&create);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(create.hSyncObject & 0xc0000000, "got hSyncObject %#x\n", create.hSyncObject);
+    ok((create.hSyncObject & 0x3f) == 0, "got hSyncObject %#x\n", create.hSyncObject);
+    ok(0, "got %#x\n", create.hSyncObject);
+    local = create.hSyncObject;
+
+    status = pD3DKMTOpenSynchronizationObject(&open);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open.hSyncObject = create.hSyncObject;
+    status = pD3DKMTOpenSynchronizationObject(&open);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open.hSyncObject = 0;
+    open.hSharedHandle = create2.Info.SharedHandle;
+    status = pD3DKMTOpenSynchronizationObject(&open);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(open.hSyncObject == local + 0x40, "got hSyncObject %#x\n", open.hSyncObject);
+    ok(0, "got %#x/%#x\n", open.hSyncObject, open.hSharedHandle);
+    local = open.hSyncObject;
+
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    destroy.hSyncObject = create.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    destroy.hSyncObject = open.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    status = pD3DKMTOpenSynchronizationObject(&open);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+
+    if (!pD3DKMTCreateSynchronizationObject2)
+    {
+        win_skip("D3DKMTCreateSynchronizationObject2() is unavailable.\n");
+        return;
+    }
+
+    status = pD3DKMTCreateSynchronizationObject2(NULL);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    status = pD3DKMTCreateSynchronizationObject2(&create2);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(create2.hSyncObject == local + 0x40, "got hSyncObject %#x\n", create2.hSyncObject);
+    ok(create2.hSyncObject & 0xc0000000, "got hSyncObject %#x\n", create2.hSyncObject);
+    ok((create2.hSyncObject & 0x3f) == 0, "got hSyncObject %#x\n", create2.hSyncObject);
+    ok(create2.Info.SharedHandle & 0xc0000000, "got hSharedHandle %#x\n", create2.Info.SharedHandle);
+    ok((create2.Info.SharedHandle & 0x3f) == 2, "got hSharedHandle %#x\n", create2.Info.SharedHandle);
+    ok(0, "got %#x/%#x\n", create2.hSyncObject, create2.Info.SharedHandle);
+    local = create2.hSyncObject;
+
+    destroy.hSyncObject = create2.hSyncObject;
+
+    status = pD3DKMTCreateSynchronizationObject2(&create2);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(create2.hSyncObject == local + 0x40, "got hSyncObject %#x\n", create2.hSyncObject);
+    ok(create2.hSyncObject & 0xc0000000, "got hSyncObject %#x\n", create2.hSyncObject);
+    ok((create2.hSyncObject & 0x3f) == 0, "got hSyncObject %#x\n", create2.hSyncObject);
+    ok(create2.Info.SharedHandle & 0xc0000000, "got hSharedHandle %#x\n", create2.Info.SharedHandle);
+    ok((create2.Info.SharedHandle & 0x3f) == 2, "got hSharedHandle %#x\n", create2.Info.SharedHandle);
+    ok(0, "got %#x/%#x\n", create2.hSyncObject, create2.Info.SharedHandle);
+    local = create2.hSyncObject;
+
+    status = pD3DKMTOpenSynchronizationObject(&open);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open.hSyncObject = create2.hSyncObject;
+    status = pD3DKMTOpenSynchronizationObject(&open);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open.hSyncObject = 0;
+    open.hSharedHandle = create2.Info.SharedHandle;
+    status = pD3DKMTOpenSynchronizationObject(&open);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(open.hSyncObject == local + 0x40, "got hSyncObject %#x\n", open.hSyncObject);
+    ok(0, "got %#x/%#x\n", open.hSyncObject, open.hSharedHandle);
+    local = open.hSyncObject;
+
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    destroy.hSyncObject = create2.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    create2.Info.Flags.NtSecuritySharing = TRUE;
+    status = pD3DKMTCreateSynchronizationObject2(&create2);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(create2.hSyncObject == local + 0x40, "got hSyncObject %#x\n", create2.hSyncObject);
+    ok(create2.hSyncObject & 0xc0000000, "got hSyncObject %#x\n", create2.hSyncObject);
+    ok((create2.hSyncObject & 0x3f) == 0, "got hSyncObject %#x\n", create2.hSyncObject);
+    ok(!create2.Info.SharedHandle, "got hSharedHandle %#x\n", create2.Info.SharedHandle);
+    ok(0, "got %#x/%#x\n", create2.hSyncObject, create2.Info.SharedHandle);
+    local = create2.hSyncObject;
+
+    destroy.hSyncObject = create2.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    destroy.hSyncObject = open.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+}
+
+static void test_D3DKMTShareObjects(void)
+{
+    OBJECT_ATTRIBUTES attr = {.Length = sizeof(attr)};
+    D3DKMT_OPENADAPTERFROMGDIDISPLAYNAME open_adapter = {0};
+    D3DKMT_CREATESYNCHRONIZATIONOBJECT2 create_sync2 = {0};
+    D3DKMT_DESTROYSYNCHRONIZATIONOBJECT destroy_sync = {0};
+    D3DKMT_CREATESYNCHRONIZATIONOBJECT create_sync = {0};
+    D3DKMT_DESTROYKEYEDMUTEX destroy_mutex = {0};
+    D3DKMT_CREATEKEYEDMUTEX2 create_mutex2 = {0};
+    D3DKMT_CREATEKEYEDMUTEX create_mutex = {0};
+    D3DKMT_DESTROYDEVICE destroy_device = {0};
+    D3DKMT_CREATEDEVICE create_device = {0};
+    D3DKMT_CLOSEADAPTER close_adapter = {0};
+    NTSTATUS status;
+    HANDLE handle;
+
+/* static NTSTATUS (WINAPI *pD3DKMTCreateSynchronizationObject)( D3DKMT_CREATESYNCHRONIZATIONOBJECT *params ); */
+/* static NTSTATUS (WINAPI *pD3DKMTCreateSynchronizationObject2)( D3DKMT_CREATESYNCHRONIZATIONOBJECT2 *params ); */
+/* static NTSTATUS (WINAPI *pD3DKMTDestroySynchronizationObject)( const D3DKMT_DESTROYSYNCHRONIZATIONOBJECT *params ); */
+/* static NTSTATUS (WINAPI *pD3DKMTOpenSynchronizationObject)( D3DKMT_OPENSYNCHRONIZATIONOBJECT *params ); */
+/* static NTSTATUS (WINAPI *pD3DKMTOpenSyncObjectFromNtHandle)( D3DKMT_OPENSYNCOBJECTFROMNTHANDLE *params ); */
+/* static NTSTATUS (WINAPI *pD3DKMTOpenSyncObjectFromNtHandle2)( D3DKMT_OPENSYNCOBJECTFROMNTHANDLE2 *params ); */
+/* static NTSTATUS (WINAPI *pD3DKMTOpenSyncObjectNtHandleFromName)( D3DKMT_OPENSYNCOBJECTNTHANDLEFROMNAME *params ); */
+
+    if (!pD3DKMTShareObjects)
+    {
+        win_skip("D3DKMTShareObjects() is unavailable.\n");
+        return;
+    }
+
+    /* D3DKMTShareObjects doesn't work with keyed mutex objects alone */
+    status = pD3DKMTCreateKeyedMutex(&create_mutex);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    status = pD3DKMTShareObjects(1, &create_mutex.hKeyedMutex, &attr, STANDARD_RIGHTS_WRITE, &handle);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    status = pD3DKMTShareObjects(1, &create_mutex.hSharedHandle, &attr, STANDARD_RIGHTS_WRITE, &handle);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    destroy_mutex.hKeyedMutex = create_mutex.hKeyedMutex;
+    status = pD3DKMTDestroyKeyedMutex(&destroy_mutex);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    create_mutex2.Flags.NtSecuritySharing = TRUE;
+    status = pD3DKMTCreateKeyedMutex2(&create_mutex2);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    status = pD3DKMTShareObjects(1, &create_mutex2.hKeyedMutex, &attr, STANDARD_RIGHTS_WRITE, &handle);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    destroy_mutex.hKeyedMutex = create_mutex2.hKeyedMutex;
+    status = pD3DKMTDestroyKeyedMutex(&destroy_mutex);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+
+    lstrcpyW(open_adapter.DeviceName, display1W);
+    status = pD3DKMTOpenAdapterFromGdiDisplayName(&open_adapter);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
+    create_device.hAdapter = open_adapter.hAdapter;
+    status = pD3DKMTCreateDevice(&create_device);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
+
+    /* D3DKMTShareObjects doesn't work with D3DKMTCreateSynchronizationObject created objects */
+    create_sync.hDevice = create_device.hDevice;
+    create_sync.Info.Type = D3DDDI_SYNCHRONIZATION_MUTEX;
+    status = pD3DKMTCreateSynchronizationObject(&create_sync);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    status = pD3DKMTShareObjects(1, &create_sync.hSyncObject, &attr, STANDARD_RIGHTS_WRITE, &handle);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    destroy_sync.hSyncObject = create_sync.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy_sync);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    /* D3DKMTShareObjects doesn't work with Shared = either 1/0 */
+    create_sync2.hDevice = create_device.hDevice;
+    create_sync2.Info.Type = D3DDDI_SYNCHRONIZATION_MUTEX;
+    status = pD3DKMTCreateSynchronizationObject2(&create_sync2);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    status = pD3DKMTShareObjects(1, &create_sync2.hSyncObject, &attr, STANDARD_RIGHTS_WRITE, &handle);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    destroy_sync.hSyncObject = create_sync2.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy_sync);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    create_sync2.hDevice = create_device.hDevice;
+    create_sync2.Info.Type = D3DDDI_SYNCHRONIZATION_MUTEX;
+    create_sync2.Info.Flags.Shared = 1;
+    status = pD3DKMTCreateSynchronizationObject2(&create_sync2);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    status = pD3DKMTShareObjects(1, &create_sync2.hSyncObject, &attr, STANDARD_RIGHTS_WRITE, &handle);
+    ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    destroy_sync.hSyncObject = create_sync2.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy_sync);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    /* D3DKMTShareObjects requires NtSecuritySharing (which requires Shared = 1) */
+    create_sync2.Info.Flags.NtSecuritySharing = 1;
+    status = pD3DKMTCreateSynchronizationObject2(&create_sync2);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    status = pD3DKMTShareObjects(1, &create_sync2.hSyncObject, &attr, STANDARD_RIGHTS_WRITE, &handle);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CloseHandle(handle);
+    destroy_sync.hSyncObject = create_sync2.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy_sync);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    destroy_device.hDevice = create_device.hDevice;
+    pD3DKMTDestroyDevice(&destroy_device);
+    close_adapter.hAdapter = open_adapter.hAdapter;
+    status = pD3DKMTCloseAdapter(&close_adapter);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
+}
+
 static void test_gpu_device_properties_guid(const GUID *devinterface_guid)
 {
     BYTE iface_detail_buffer[sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W) + 256 * sizeof(WCHAR)];
@@ -1125,20 +1865,51 @@ START_TEST(driver)
     HMODULE gdi32 = GetModuleHandleA("gdi32.dll");
     HMODULE dwmapi = LoadLibraryA("dwmapi.dll");
 
-    pD3DKMTCheckOcclusion = (void *)GetProcAddress(gdi32, "D3DKMTCheckOcclusion");
-    pD3DKMTCheckVidPnExclusiveOwnership = (void *)GetProcAddress(gdi32, "D3DKMTCheckVidPnExclusiveOwnership");
-    pD3DKMTCloseAdapter = (void *)GetProcAddress(gdi32, "D3DKMTCloseAdapter");
-    pD3DKMTCreateDevice = (void *)GetProcAddress(gdi32, "D3DKMTCreateDevice");
-    pD3DKMTDestroyDevice = (void *)GetProcAddress(gdi32, "D3DKMTDestroyDevice");
-    pD3DKMTEnumAdapters2 = (void *)GetProcAddress(gdi32, "D3DKMTEnumAdapters2");
-    pD3DKMTOpenAdapterFromDeviceName = (void *)GetProcAddress(gdi32, "D3DKMTOpenAdapterFromDeviceName");
-    pD3DKMTOpenAdapterFromGdiDisplayName = (void *)GetProcAddress(gdi32, "D3DKMTOpenAdapterFromGdiDisplayName");
-    pD3DKMTOpenAdapterFromHdc = (void *)GetProcAddress(gdi32, "D3DKMTOpenAdapterFromHdc");
-    pD3DKMTSetVidPnSourceOwner = (void *)GetProcAddress(gdi32, "D3DKMTSetVidPnSourceOwner");
-    pD3DKMTQueryVideoMemoryInfo = (void *)GetProcAddress(gdi32, "D3DKMTQueryVideoMemoryInfo");
+#define LOAD_FUNCPTR(f) p##f = (void *)GetProcAddress(gdi32, #f)
+    LOAD_FUNCPTR(D3DKMTCheckOcclusion);
+    LOAD_FUNCPTR(D3DKMTCheckVidPnExclusiveOwnership);
+    LOAD_FUNCPTR(D3DKMTCloseAdapter);
+    LOAD_FUNCPTR(D3DKMTCreateAllocation);
+    LOAD_FUNCPTR(D3DKMTCreateAllocation2);
+    LOAD_FUNCPTR(D3DKMTCreateDevice);
+    LOAD_FUNCPTR(D3DKMTCreateKeyedMutex);
+    LOAD_FUNCPTR(D3DKMTCreateKeyedMutex2);
+    LOAD_FUNCPTR(D3DKMTCreateSynchronizationObject);
+    LOAD_FUNCPTR(D3DKMTCreateSynchronizationObject2);
+    LOAD_FUNCPTR(D3DKMTDestroyAllocation);
+    LOAD_FUNCPTR(D3DKMTDestroyAllocation2);
+    LOAD_FUNCPTR(D3DKMTDestroyDevice);
+    LOAD_FUNCPTR(D3DKMTDestroyKeyedMutex);
+    LOAD_FUNCPTR(D3DKMTDestroySynchronizationObject);
+    LOAD_FUNCPTR(D3DKMTEnumAdapters2);
+    LOAD_FUNCPTR(D3DKMTOpenAdapterFromDeviceName);
+    LOAD_FUNCPTR(D3DKMTOpenAdapterFromGdiDisplayName);
+    LOAD_FUNCPTR(D3DKMTOpenAdapterFromHdc);
+    LOAD_FUNCPTR(D3DKMTOpenKeyedMutex);
+    LOAD_FUNCPTR(D3DKMTOpenKeyedMutex2);
+    LOAD_FUNCPTR(D3DKMTOpenKeyedMutexFromNtHandle);
+    LOAD_FUNCPTR(D3DKMTOpenResource);
+    LOAD_FUNCPTR(D3DKMTOpenResource2);
+    LOAD_FUNCPTR(D3DKMTOpenResourceFromNtHandle);
+    LOAD_FUNCPTR(D3DKMTOpenSynchronizationObject);
+    LOAD_FUNCPTR(D3DKMTOpenSyncObjectFromNtHandle);
+    LOAD_FUNCPTR(D3DKMTOpenSyncObjectFromNtHandle2);
+    LOAD_FUNCPTR(D3DKMTOpenSyncObjectNtHandleFromName);
+    LOAD_FUNCPTR(D3DKMTQueryResourceInfo);
+    LOAD_FUNCPTR(D3DKMTQueryResourceInfoFromNtHandle);
+    LOAD_FUNCPTR(D3DKMTQueryVideoMemoryInfo);
+    LOAD_FUNCPTR(D3DKMTSetVidPnSourceOwner);
+    LOAD_FUNCPTR(D3DKMTShareObjects);
+#undef LOAD_FUNCPTR
 
     if (dwmapi)
         pDwmEnableComposition = (void *)GetProcAddress(dwmapi, "DwmEnableComposition");
+
+    test_D3DKMTCreateAllocation();
+    test_D3DKMTCreateKeyedMutex();
+    test_D3DKMTCreateSynchronizationObject();
+    test_D3DKMTShareObjects();
+    return;
 
     test_D3DKMTOpenAdapterFromGdiDisplayName();
     test_D3DKMTOpenAdapterFromHdc();
@@ -1151,6 +1922,10 @@ START_TEST(driver)
     test_D3DKMTCheckOcclusion();
     test_D3DKMTOpenAdapterFromDeviceName();
     test_D3DKMTQueryVideoMemoryInfo();
+    test_D3DKMTCreateAllocation();
+    test_D3DKMTCreateKeyedMutex();
+    test_D3DKMTCreateSynchronizationObject();
+    test_D3DKMTShareObjects();
     test_gpu_device_properties();
 
     FreeLibrary(dwmapi);
