@@ -540,6 +540,7 @@ struct vulkan_device_funcs
     VkResult (*p_vkGetSamplerOpaqueCaptureDescriptorDataEXT)(VkDevice, const VkSamplerCaptureDescriptorDataInfoEXT *, void *);
     VkResult (*p_vkGetSemaphoreCounterValue)(VkDevice, VkSemaphore, uint64_t *);
     VkResult (*p_vkGetSemaphoreCounterValueKHR)(VkDevice, VkSemaphore, uint64_t *);
+    VkResult (*p_vkGetSemaphoreWin32HandleKHR)(VkDevice, const VkSemaphoreGetWin32HandleInfoKHR *, HANDLE *);
     VkResult (*p_vkGetShaderBinaryDataEXT)(VkDevice, VkShaderEXT, size_t *, void *);
     VkResult (*p_vkGetShaderInfoAMD)(VkDevice, VkPipeline, VkShaderStageFlagBits, VkShaderInfoTypeAMD, size_t *, void *);
     void (*p_vkGetShaderModuleCreateInfoIdentifierEXT)(VkDevice, const VkShaderModuleCreateInfo *, VkShaderModuleIdentifierEXT *);
@@ -548,6 +549,7 @@ struct vulkan_device_funcs
     VkResult (*p_vkGetValidationCacheDataEXT)(VkDevice, VkValidationCacheEXT, size_t *, void *);
     VkResult (*p_vkGetVideoSessionMemoryRequirementsKHR)(VkDevice, VkVideoSessionKHR, uint32_t *, VkVideoSessionMemoryRequirementsKHR *);
     VkResult (*p_vkImportFenceWin32HandleKHR)(VkDevice, const VkImportFenceWin32HandleInfoKHR *);
+    VkResult (*p_vkImportSemaphoreWin32HandleKHR)(VkDevice, const VkImportSemaphoreWin32HandleInfoKHR *);
     VkResult (*p_vkInvalidateMappedMemoryRanges)(VkDevice, uint32_t, const VkMappedMemoryRange *);
     VkResult (*p_vkLatencySleepNV)(VkDevice, VkSwapchainKHR, const VkLatencySleepInfoNV *);
     VkResult (*p_vkMapMemory)(VkDevice, VkDeviceMemory, VkDeviceSize, VkDeviceSize, VkMemoryMapFlags, void **);
@@ -1142,6 +1144,7 @@ struct vulkan_instance_funcs
     USE_VK_FUNC(vkGetSamplerOpaqueCaptureDescriptorDataEXT) \
     USE_VK_FUNC(vkGetSemaphoreCounterValue) \
     USE_VK_FUNC(vkGetSemaphoreCounterValueKHR) \
+    USE_VK_FUNC(vkGetSemaphoreWin32HandleKHR) \
     USE_VK_FUNC(vkGetShaderBinaryDataEXT) \
     USE_VK_FUNC(vkGetShaderInfoAMD) \
     USE_VK_FUNC(vkGetShaderModuleCreateInfoIdentifierEXT) \
@@ -1150,6 +1153,7 @@ struct vulkan_instance_funcs
     USE_VK_FUNC(vkGetValidationCacheDataEXT) \
     USE_VK_FUNC(vkGetVideoSessionMemoryRequirementsKHR) \
     USE_VK_FUNC(vkImportFenceWin32HandleKHR) \
+    USE_VK_FUNC(vkImportSemaphoreWin32HandleKHR) \
     USE_VK_FUNC(vkInvalidateMappedMemoryRanges) \
     USE_VK_FUNC(vkLatencySleepNV) \
     USE_VK_FUNC(vkMapMemory) \
