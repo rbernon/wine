@@ -8725,6 +8725,8 @@ static uint64_t wine_vk_unwrap_handle(uint32_t type, uint64_t handle)
         return (uint64_t) (uintptr_t) wine_phys_dev_from_handle(((VkPhysicalDevice) (uintptr_t) handle))->obj.host.physical_device;
     case VK_OBJECT_TYPE_QUEUE:
         return (uint64_t) (uintptr_t) wine_queue_from_handle(((VkQueue) (uintptr_t) handle))->obj.host.queue;
+    case VK_OBJECT_TYPE_SEMAPHORE:
+        return (uint64_t) vulkan_semaphore_from_handle(handle)->host.semaphore;
     case VK_OBJECT_TYPE_SURFACE_KHR:
         return (uint64_t) vulkan_surface_from_handle(handle)->host.surface;
     case VK_OBJECT_TYPE_SWAPCHAIN_KHR:
@@ -34335,7 +34337,7 @@ static inline void convert_VkSamplerCaptureDescriptorDataInfoEXT_win32_to_host(c
         FIXME("Unexpected pNext\n");
 }
 
-static inline void convert_VkSemaphoreGetWin32HandleInfoKHR_win32_to_host(const VkSemaphoreGetWin32HandleInfoKHR32 *in, VkSemaphoreGetWin32HandleInfoKHR *out)
+static inline void convert_VkSemaphoreGetWin32HandleInfoKHR_win32_to_unwrapped_host(const VkSemaphoreGetWin32HandleInfoKHR32 *in, VkSemaphoreGetWin32HandleInfoKHR *out)
 {
     if (!in) return;
 
@@ -34426,7 +34428,7 @@ static inline void convert_VkImportFenceWin32HandleInfoKHR_win32_to_host(const V
         FIXME("Unexpected pNext\n");
 }
 
-static inline void convert_VkImportSemaphoreWin32HandleInfoKHR_win32_to_host(const VkImportSemaphoreWin32HandleInfoKHR32 *in, VkImportSemaphoreWin32HandleInfoKHR *out)
+static inline void convert_VkImportSemaphoreWin32HandleInfoKHR_win32_to_unwrapped_host(const VkImportSemaphoreWin32HandleInfoKHR32 *in, VkImportSemaphoreWin32HandleInfoKHR *out)
 {
     if (!in) return;
 
@@ -34452,13 +34454,25 @@ static inline void convert_VkInitializePerformanceApiInfoINTEL_win32_to_host(con
         FIXME("Unexpected pNext\n");
 }
 
+#ifdef _WIN64
+static inline void convert_VkLatencySleepInfoNV_win64_to_host(const VkLatencySleepInfoNV *in, VkLatencySleepInfoNV *out)
+{
+    if (!in) return;
+
+    out->sType = in->sType;
+    out->pNext = in->pNext;
+    out->signalSemaphore = vulkan_semaphore_from_handle(in->signalSemaphore)->host.semaphore;
+    out->value = in->value;
+}
+#endif /* _WIN64 */
+
 static inline void convert_VkLatencySleepInfoNV_win32_to_host(const VkLatencySleepInfoNV32 *in, VkLatencySleepInfoNV *out)
 {
     if (!in) return;
 
     out->sType = in->sType;
     out->pNext = NULL;
-    out->signalSemaphore = in->signalSemaphore;
+    out->signalSemaphore = vulkan_semaphore_from_handle(in->signalSemaphore)->host.semaphore;
     out->value = in->value;
     if (in->pNext)
         FIXME("Unexpected pNext\n");
@@ -34498,6 +34512,40 @@ static inline void convert_VkMemoryMapInfoKHR_win32_to_unwrapped_host(struct con
             break;
         }
     }
+}
+
+#ifdef _WIN64
+static inline const VkSemaphore *convert_VkSemaphore_array_win64_to_host(struct conversion_context *ctx, const VkSemaphore *in, uint32_t count)
+{
+    VkSemaphore *out;
+    unsigned int i;
+
+    if (!in || !count) return NULL;
+
+    out = conversion_context_alloc(ctx, count * sizeof(*out));
+    for (i = 0; i < count; i++)
+    {
+        out[i] = vulkan_semaphore_from_handle(in[i])->host.semaphore;
+    }
+
+    return out;
+}
+#endif /* _WIN64 */
+
+static inline const VkSemaphore *convert_VkSemaphore_array_win32_to_host(struct conversion_context *ctx, const VkSemaphore *in, uint32_t count)
+{
+    VkSemaphore *out;
+    unsigned int i;
+
+    if (!in || !count) return NULL;
+
+    out = conversion_context_alloc(ctx, count * sizeof(*out));
+    for (i = 0; i < count; i++)
+    {
+        out[i] = vulkan_semaphore_from_handle(in[i])->host.semaphore;
+    }
+
+    return out;
 }
 
 #ifdef _WIN64
@@ -34788,7 +34836,7 @@ static inline void convert_VkBindSparseInfo_win64_to_host(struct conversion_cont
     out->sType = in->sType;
     out->pNext = in->pNext;
     out->waitSemaphoreCount = in->waitSemaphoreCount;
-    out->pWaitSemaphores = in->pWaitSemaphores;
+    out->pWaitSemaphores = convert_VkSemaphore_array_win64_to_host(ctx, in->pWaitSemaphores, in->waitSemaphoreCount);
     out->bufferBindCount = in->bufferBindCount;
     out->pBufferBinds = convert_VkSparseBufferMemoryBindInfo_array_win64_to_host(ctx, in->pBufferBinds, in->bufferBindCount);
     out->imageOpaqueBindCount = in->imageOpaqueBindCount;
@@ -34796,7 +34844,7 @@ static inline void convert_VkBindSparseInfo_win64_to_host(struct conversion_cont
     out->imageBindCount = in->imageBindCount;
     out->pImageBinds = convert_VkSparseImageMemoryBindInfo_array_win64_to_host(ctx, in->pImageBinds, in->imageBindCount);
     out->signalSemaphoreCount = in->signalSemaphoreCount;
-    out->pSignalSemaphores = in->pSignalSemaphores;
+    out->pSignalSemaphores = convert_VkSemaphore_array_win64_to_host(ctx, in->pSignalSemaphores, in->signalSemaphoreCount);
 }
 #endif /* _WIN64 */
 
@@ -34810,7 +34858,7 @@ static inline void convert_VkBindSparseInfo_win32_to_host(struct conversion_cont
     out->sType = in->sType;
     out->pNext = NULL;
     out->waitSemaphoreCount = in->waitSemaphoreCount;
-    out->pWaitSemaphores = UlongToPtr(in->pWaitSemaphores);
+    out->pWaitSemaphores = convert_VkSemaphore_array_win32_to_host(ctx, (const VkSemaphore *)UlongToPtr(in->pWaitSemaphores), in->waitSemaphoreCount);
     out->bufferBindCount = in->bufferBindCount;
     out->pBufferBinds = convert_VkSparseBufferMemoryBindInfo_array_win32_to_host(ctx, (const VkSparseBufferMemoryBindInfo32 *)UlongToPtr(in->pBufferBinds), in->bufferBindCount);
     out->imageOpaqueBindCount = in->imageOpaqueBindCount;
@@ -34818,7 +34866,7 @@ static inline void convert_VkBindSparseInfo_win32_to_host(struct conversion_cont
     out->imageBindCount = in->imageBindCount;
     out->pImageBinds = convert_VkSparseImageMemoryBindInfo_array_win32_to_host(ctx, (const VkSparseImageMemoryBindInfo32 *)UlongToPtr(in->pImageBinds), in->imageBindCount);
     out->signalSemaphoreCount = in->signalSemaphoreCount;
-    out->pSignalSemaphores = UlongToPtr(in->pSignalSemaphores);
+    out->pSignalSemaphores = convert_VkSemaphore_array_win32_to_host(ctx, (const VkSemaphore *)UlongToPtr(in->pSignalSemaphores), in->signalSemaphoreCount);
 
     for (in_header = UlongToPtr(in->pNext); in_header; in_header = UlongToPtr(in_header->pNext))
     {
@@ -35097,12 +35145,12 @@ static inline void convert_VkSubmitInfo_win64_to_host(struct conversion_context 
     out->sType = in->sType;
     out->pNext = NULL;
     out->waitSemaphoreCount = in->waitSemaphoreCount;
-    out->pWaitSemaphores = in->pWaitSemaphores;
+    out->pWaitSemaphores = convert_VkSemaphore_array_win64_to_host(ctx, in->pWaitSemaphores, in->waitSemaphoreCount);
     out->pWaitDstStageMask = in->pWaitDstStageMask;
     out->commandBufferCount = in->commandBufferCount;
     out->pCommandBuffers = convert_VkCommandBuffer_array_win64_to_host(ctx, in->pCommandBuffers, in->commandBufferCount);
     out->signalSemaphoreCount = in->signalSemaphoreCount;
-    out->pSignalSemaphores = in->pSignalSemaphores;
+    out->pSignalSemaphores = convert_VkSemaphore_array_win64_to_host(ctx, in->pSignalSemaphores, in->signalSemaphoreCount);
 
     for (in_header = (void *)in->pNext; in_header; in_header = (void *)in_header->pNext)
     {
@@ -35239,12 +35287,12 @@ static inline void convert_VkSubmitInfo_win32_to_host(struct conversion_context 
     out->sType = in->sType;
     out->pNext = NULL;
     out->waitSemaphoreCount = in->waitSemaphoreCount;
-    out->pWaitSemaphores = UlongToPtr(in->pWaitSemaphores);
+    out->pWaitSemaphores = convert_VkSemaphore_array_win32_to_host(ctx, (const VkSemaphore *)UlongToPtr(in->pWaitSemaphores), in->waitSemaphoreCount);
     out->pWaitDstStageMask = UlongToPtr(in->pWaitDstStageMask);
     out->commandBufferCount = in->commandBufferCount;
     out->pCommandBuffers = convert_VkCommandBuffer_array_win32_to_host(ctx, (const PTR32 *)UlongToPtr(in->pCommandBuffers), in->commandBufferCount);
     out->signalSemaphoreCount = in->signalSemaphoreCount;
-    out->pSignalSemaphores = UlongToPtr(in->pSignalSemaphores);
+    out->pSignalSemaphores = convert_VkSemaphore_array_win32_to_host(ctx, (const VkSemaphore *)UlongToPtr(in->pSignalSemaphores), in->signalSemaphoreCount);
 
     for (in_header = UlongToPtr(in->pNext); in_header; in_header = UlongToPtr(in_header->pNext))
     {
@@ -35404,19 +35452,51 @@ static inline const VkSubmitInfo *convert_VkSubmitInfo_array_win32_to_host(struc
     return out;
 }
 
+#ifdef _WIN64
+static inline void convert_VkSemaphoreSubmitInfo_win64_to_host(const VkSemaphoreSubmitInfo *in, VkSemaphoreSubmitInfo *out)
+{
+    if (!in) return;
+
+    out->sType = in->sType;
+    out->pNext = in->pNext;
+    out->semaphore = vulkan_semaphore_from_handle(in->semaphore)->host.semaphore;
+    out->value = in->value;
+    out->stageMask = in->stageMask;
+    out->deviceIndex = in->deviceIndex;
+}
+#endif /* _WIN64 */
+
 static inline void convert_VkSemaphoreSubmitInfo_win32_to_host(const VkSemaphoreSubmitInfo32 *in, VkSemaphoreSubmitInfo *out)
 {
     if (!in) return;
 
     out->sType = in->sType;
     out->pNext = NULL;
-    out->semaphore = in->semaphore;
+    out->semaphore = vulkan_semaphore_from_handle(in->semaphore)->host.semaphore;
     out->value = in->value;
     out->stageMask = in->stageMask;
     out->deviceIndex = in->deviceIndex;
     if (in->pNext)
         FIXME("Unexpected pNext\n");
 }
+
+#ifdef _WIN64
+static inline const VkSemaphoreSubmitInfo *convert_VkSemaphoreSubmitInfo_array_win64_to_host(struct conversion_context *ctx, const VkSemaphoreSubmitInfo *in, uint32_t count)
+{
+    VkSemaphoreSubmitInfo *out;
+    unsigned int i;
+
+    if (!in || !count) return NULL;
+
+    out = conversion_context_alloc(ctx, count * sizeof(*out));
+    for (i = 0; i < count; i++)
+    {
+        convert_VkSemaphoreSubmitInfo_win64_to_host(&in[i], &out[i]);
+    }
+
+    return out;
+}
+#endif /* _WIN64 */
 
 static inline const VkSemaphoreSubmitInfo *convert_VkSemaphoreSubmitInfo_array_win32_to_host(struct conversion_context *ctx, const VkSemaphoreSubmitInfo32 *in, uint32_t count)
 {
@@ -35435,14 +35515,39 @@ static inline const VkSemaphoreSubmitInfo *convert_VkSemaphoreSubmitInfo_array_w
 }
 
 #ifdef _WIN64
-static inline void convert_VkCommandBufferSubmitInfo_win64_to_host(const VkCommandBufferSubmitInfo *in, VkCommandBufferSubmitInfo *out)
+static inline void convert_VkCommandBufferSubmitInfo_win64_to_host(struct conversion_context *ctx, const VkCommandBufferSubmitInfo *in, VkCommandBufferSubmitInfo *out)
 {
+    const VkBaseInStructure *in_header;
+    VkBaseOutStructure *out_header = (void *)out;
+
     if (!in) return;
 
     out->sType = in->sType;
-    out->pNext = in->pNext;
+    out->pNext = NULL;
     out->commandBuffer = wine_cmd_buffer_from_handle(in->commandBuffer)->obj.host.command_buffer;
     out->deviceMask = in->deviceMask;
+
+    for (in_header = (void *)in->pNext; in_header; in_header = (void *)in_header->pNext)
+    {
+        switch (in_header->sType)
+        {
+        case VK_STRUCTURE_TYPE_RENDER_PASS_STRIPE_SUBMIT_INFO_ARM:
+        {
+            VkRenderPassStripeSubmitInfoARM *out_ext = conversion_context_alloc(ctx, sizeof(*out_ext));
+            const VkRenderPassStripeSubmitInfoARM *in_ext = (const VkRenderPassStripeSubmitInfoARM *)in_header;
+            out_ext->sType = VK_STRUCTURE_TYPE_RENDER_PASS_STRIPE_SUBMIT_INFO_ARM;
+            out_ext->pNext = NULL;
+            out_ext->stripeSemaphoreInfoCount = in_ext->stripeSemaphoreInfoCount;
+            out_ext->pStripeSemaphoreInfos = convert_VkSemaphoreSubmitInfo_array_win64_to_host(ctx, in_ext->pStripeSemaphoreInfos, in_ext->stripeSemaphoreInfoCount);
+            out_header->pNext = (void *)out_ext;
+            out_header = (void *)out_ext;
+            break;
+        }
+        default:
+            FIXME("Unhandled sType %u.\n", in_header->sType);
+            break;
+        }
+    }
 }
 #endif /* _WIN64 */
 
@@ -35492,7 +35597,7 @@ static inline const VkCommandBufferSubmitInfo *convert_VkCommandBufferSubmitInfo
     out = conversion_context_alloc(ctx, count * sizeof(*out));
     for (i = 0; i < count; i++)
     {
-        convert_VkCommandBufferSubmitInfo_win64_to_host(&in[i], &out[i]);
+        convert_VkCommandBufferSubmitInfo_win64_to_host(ctx, &in[i], &out[i]);
     }
 
     return out;
@@ -35527,11 +35632,11 @@ static inline void convert_VkSubmitInfo2_win64_to_host(struct conversion_context
     out->pNext = NULL;
     out->flags = in->flags;
     out->waitSemaphoreInfoCount = in->waitSemaphoreInfoCount;
-    out->pWaitSemaphoreInfos = in->pWaitSemaphoreInfos;
+    out->pWaitSemaphoreInfos = convert_VkSemaphoreSubmitInfo_array_win64_to_host(ctx, in->pWaitSemaphoreInfos, in->waitSemaphoreInfoCount);
     out->commandBufferInfoCount = in->commandBufferInfoCount;
     out->pCommandBufferInfos = convert_VkCommandBufferSubmitInfo_array_win64_to_host(ctx, in->pCommandBufferInfos, in->commandBufferInfoCount);
     out->signalSemaphoreInfoCount = in->signalSemaphoreInfoCount;
-    out->pSignalSemaphoreInfos = in->pSignalSemaphoreInfos;
+    out->pSignalSemaphoreInfos = convert_VkSemaphoreSubmitInfo_array_win64_to_host(ctx, in->pSignalSemaphoreInfos, in->signalSemaphoreInfoCount);
 
     for (in_header = (void *)in->pNext; in_header; in_header = (void *)in_header->pNext)
     {
@@ -35909,13 +36014,25 @@ static inline void convert_VkLatencySleepModeInfoNV_win32_to_host(const VkLatenc
         FIXME("Unexpected pNext\n");
 }
 
+#ifdef _WIN64
+static inline void convert_VkSemaphoreSignalInfo_win64_to_host(const VkSemaphoreSignalInfo *in, VkSemaphoreSignalInfo *out)
+{
+    if (!in) return;
+
+    out->sType = in->sType;
+    out->pNext = in->pNext;
+    out->semaphore = vulkan_semaphore_from_handle(in->semaphore)->host.semaphore;
+    out->value = in->value;
+}
+#endif /* _WIN64 */
+
 static inline void convert_VkSemaphoreSignalInfo_win32_to_host(const VkSemaphoreSignalInfo32 *in, VkSemaphoreSignalInfo *out)
 {
     if (!in) return;
 
     out->sType = in->sType;
     out->pNext = NULL;
-    out->semaphore = in->semaphore;
+    out->semaphore = vulkan_semaphore_from_handle(in->semaphore)->host.semaphore;
     out->value = in->value;
     if (in->pNext)
         FIXME("Unexpected pNext\n");
@@ -36249,7 +36366,21 @@ static inline void convert_VkVideoSessionParametersUpdateInfoKHR_win32_to_host(s
     }
 }
 
-static inline void convert_VkSemaphoreWaitInfo_win32_to_host(const VkSemaphoreWaitInfo32 *in, VkSemaphoreWaitInfo *out)
+#ifdef _WIN64
+static inline void convert_VkSemaphoreWaitInfo_win64_to_host(struct conversion_context *ctx, const VkSemaphoreWaitInfo *in, VkSemaphoreWaitInfo *out)
+{
+    if (!in) return;
+
+    out->sType = in->sType;
+    out->pNext = in->pNext;
+    out->flags = in->flags;
+    out->semaphoreCount = in->semaphoreCount;
+    out->pSemaphores = convert_VkSemaphore_array_win64_to_host(ctx, in->pSemaphores, in->semaphoreCount);
+    out->pValues = in->pValues;
+}
+#endif /* _WIN64 */
+
+static inline void convert_VkSemaphoreWaitInfo_win32_to_host(struct conversion_context *ctx, const VkSemaphoreWaitInfo32 *in, VkSemaphoreWaitInfo *out)
 {
     if (!in) return;
 
@@ -36257,7 +36388,7 @@ static inline void convert_VkSemaphoreWaitInfo_win32_to_host(const VkSemaphoreWa
     out->pNext = NULL;
     out->flags = in->flags;
     out->semaphoreCount = in->semaphoreCount;
-    out->pSemaphores = UlongToPtr(in->pSemaphores);
+    out->pSemaphores = convert_VkSemaphore_array_win32_to_host(ctx, (const VkSemaphore *)UlongToPtr(in->pSemaphores), in->semaphoreCount);
     out->pValues = UlongToPtr(in->pValues);
     if (in->pNext)
         FIXME("Unexpected pNext\n");
@@ -44730,7 +44861,7 @@ static NTSTATUS thunk64_vkCreateSemaphore(void *args)
 
     TRACE("%p, %p, %p, %p\n", params->device, params->pCreateInfo, params->pAllocator, params->pSemaphore);
 
-    params->result = get_vulkan_device_funcs(params->device)->p_vkCreateSemaphore(vulkan_device_from_handle(params->device)->obj.host.device, params->pCreateInfo, NULL, params->pSemaphore);
+    params->result = vk_funcs->p_vkCreateSemaphore(params->device, params->pCreateInfo, params->pAllocator, params->pSemaphore);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -44753,7 +44884,7 @@ static NTSTATUS thunk32_vkCreateSemaphore(void *args)
 
     init_conversion_context(ctx);
     convert_VkSemaphoreCreateInfo_win32_to_host(ctx, (const VkSemaphoreCreateInfo32 *)UlongToPtr(params->pCreateInfo), &pCreateInfo_host);
-    params->result = get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkCreateSemaphore(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, &pCreateInfo_host, NULL, (VkSemaphore *)UlongToPtr(params->pSemaphore));
+    params->result = vk_funcs->p_vkCreateSemaphore((VkDevice)UlongToPtr(params->device), &pCreateInfo_host, (const VkAllocationCallbacks *)UlongToPtr(params->pAllocator), (VkSemaphore *)UlongToPtr(params->pSemaphore));
     free_conversion_context(ctx);
     return STATUS_SUCCESS;
 }
@@ -46187,7 +46318,7 @@ static NTSTATUS thunk64_vkDestroySemaphore(void *args)
 
     TRACE("%p, 0x%s, %p\n", params->device, wine_dbgstr_longlong(params->semaphore), params->pAllocator);
 
-    get_vulkan_device_funcs(params->device)->p_vkDestroySemaphore(vulkan_device_from_handle(params->device)->obj.host.device, params->semaphore, NULL);
+    vk_funcs->p_vkDestroySemaphore(params->device, params->semaphore, params->pAllocator);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -46203,7 +46334,7 @@ static NTSTATUS thunk32_vkDestroySemaphore(void *args)
 
     TRACE("%#x, 0x%s, %#x\n", params->device, wine_dbgstr_longlong(params->semaphore), params->pAllocator);
 
-    get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkDestroySemaphore(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, params->semaphore, NULL);
+    vk_funcs->p_vkDestroySemaphore((VkDevice)UlongToPtr(params->device), params->semaphore, (const VkAllocationCallbacks *)UlongToPtr(params->pAllocator));
     return STATUS_SUCCESS;
 }
 
@@ -49500,7 +49631,7 @@ static NTSTATUS thunk64_vkGetPhysicalDeviceExternalSemaphoreProperties(void *arg
 
     TRACE("%p, %p, %p\n", params->physicalDevice, params->pExternalSemaphoreInfo, params->pExternalSemaphoreProperties);
 
-    wine_vkGetPhysicalDeviceExternalSemaphoreProperties(params->physicalDevice, params->pExternalSemaphoreInfo, params->pExternalSemaphoreProperties);
+    vk_funcs->p_vkGetPhysicalDeviceExternalSemaphoreProperties(params->physicalDevice, params->pExternalSemaphoreInfo, params->pExternalSemaphoreProperties);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -49523,7 +49654,7 @@ static NTSTATUS thunk32_vkGetPhysicalDeviceExternalSemaphoreProperties(void *arg
     init_conversion_context(ctx);
     convert_VkPhysicalDeviceExternalSemaphoreInfo_win32_to_host(ctx, (const VkPhysicalDeviceExternalSemaphoreInfo32 *)UlongToPtr(params->pExternalSemaphoreInfo), &pExternalSemaphoreInfo_host);
     convert_VkExternalSemaphoreProperties_win32_to_host((VkExternalSemaphoreProperties32 *)UlongToPtr(params->pExternalSemaphoreProperties), &pExternalSemaphoreProperties_host);
-    wine_vkGetPhysicalDeviceExternalSemaphoreProperties((VkPhysicalDevice)UlongToPtr(params->physicalDevice), &pExternalSemaphoreInfo_host, &pExternalSemaphoreProperties_host);
+    vk_funcs->p_vkGetPhysicalDeviceExternalSemaphoreProperties((VkPhysicalDevice)UlongToPtr(params->physicalDevice), &pExternalSemaphoreInfo_host, &pExternalSemaphoreProperties_host);
     convert_VkExternalSemaphoreProperties_host_to_win32(&pExternalSemaphoreProperties_host, (VkExternalSemaphoreProperties32 *)UlongToPtr(params->pExternalSemaphoreProperties));
     free_conversion_context(ctx);
     return STATUS_SUCCESS;
@@ -49536,7 +49667,7 @@ static NTSTATUS thunk64_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR(void *
 
     TRACE("%p, %p, %p\n", params->physicalDevice, params->pExternalSemaphoreInfo, params->pExternalSemaphoreProperties);
 
-    wine_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR(params->physicalDevice, params->pExternalSemaphoreInfo, params->pExternalSemaphoreProperties);
+    vk_funcs->p_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR(params->physicalDevice, params->pExternalSemaphoreInfo, params->pExternalSemaphoreProperties);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -49559,7 +49690,7 @@ static NTSTATUS thunk32_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR(void *
     init_conversion_context(ctx);
     convert_VkPhysicalDeviceExternalSemaphoreInfo_win32_to_host(ctx, (const VkPhysicalDeviceExternalSemaphoreInfo32 *)UlongToPtr(params->pExternalSemaphoreInfo), &pExternalSemaphoreInfo_host);
     convert_VkExternalSemaphoreProperties_win32_to_host((VkExternalSemaphoreProperties32 *)UlongToPtr(params->pExternalSemaphoreProperties), &pExternalSemaphoreProperties_host);
-    wine_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR((VkPhysicalDevice)UlongToPtr(params->physicalDevice), &pExternalSemaphoreInfo_host, &pExternalSemaphoreProperties_host);
+    vk_funcs->p_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR((VkPhysicalDevice)UlongToPtr(params->physicalDevice), &pExternalSemaphoreInfo_host, &pExternalSemaphoreProperties_host);
     convert_VkExternalSemaphoreProperties_host_to_win32(&pExternalSemaphoreProperties_host, (VkExternalSemaphoreProperties32 *)UlongToPtr(params->pExternalSemaphoreProperties));
     free_conversion_context(ctx);
     return STATUS_SUCCESS;
@@ -51545,7 +51676,7 @@ static NTSTATUS thunk64_vkGetSemaphoreCounterValue(void *args)
 
     TRACE("%p, 0x%s, %p\n", params->device, wine_dbgstr_longlong(params->semaphore), params->pValue);
 
-    params->result = get_vulkan_device_funcs(params->device)->p_vkGetSemaphoreCounterValue(vulkan_device_from_handle(params->device)->obj.host.device, params->semaphore, params->pValue);
+    params->result = get_vulkan_device_funcs(params->device)->p_vkGetSemaphoreCounterValue(vulkan_device_from_handle(params->device)->obj.host.device, vulkan_semaphore_from_handle(params->semaphore)->host.semaphore, params->pValue);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -51562,7 +51693,7 @@ static NTSTATUS thunk32_vkGetSemaphoreCounterValue(void *args)
 
     TRACE("%#x, 0x%s, %#x\n", params->device, wine_dbgstr_longlong(params->semaphore), params->pValue);
 
-    params->result = get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkGetSemaphoreCounterValue(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, params->semaphore, (uint64_t *)UlongToPtr(params->pValue));
+    params->result = get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkGetSemaphoreCounterValue(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, vulkan_semaphore_from_handle(params->semaphore)->host.semaphore, (uint64_t *)UlongToPtr(params->pValue));
     return STATUS_SUCCESS;
 }
 
@@ -51573,7 +51704,7 @@ static NTSTATUS thunk64_vkGetSemaphoreCounterValueKHR(void *args)
 
     TRACE("%p, 0x%s, %p\n", params->device, wine_dbgstr_longlong(params->semaphore), params->pValue);
 
-    params->result = get_vulkan_device_funcs(params->device)->p_vkGetSemaphoreCounterValueKHR(vulkan_device_from_handle(params->device)->obj.host.device, params->semaphore, params->pValue);
+    params->result = get_vulkan_device_funcs(params->device)->p_vkGetSemaphoreCounterValueKHR(vulkan_device_from_handle(params->device)->obj.host.device, vulkan_semaphore_from_handle(params->semaphore)->host.semaphore, params->pValue);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -51590,7 +51721,7 @@ static NTSTATUS thunk32_vkGetSemaphoreCounterValueKHR(void *args)
 
     TRACE("%#x, 0x%s, %#x\n", params->device, wine_dbgstr_longlong(params->semaphore), params->pValue);
 
-    params->result = get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkGetSemaphoreCounterValueKHR(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, params->semaphore, (uint64_t *)UlongToPtr(params->pValue));
+    params->result = get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkGetSemaphoreCounterValueKHR(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, vulkan_semaphore_from_handle(params->semaphore)->host.semaphore, (uint64_t *)UlongToPtr(params->pValue));
     return STATUS_SUCCESS;
 }
 
@@ -51601,7 +51732,7 @@ static NTSTATUS thunk64_vkGetSemaphoreWin32HandleKHR(void *args)
 
     TRACE("%p, %p, %p\n", params->device, params->pGetWin32HandleInfo, params->pHandle);
 
-    params->result = get_vulkan_device_funcs(params->device)->p_vkGetSemaphoreWin32HandleKHR(vulkan_device_from_handle(params->device)->obj.host.device, params->pGetWin32HandleInfo, params->pHandle);
+    params->result = vk_funcs->p_vkGetSemaphoreWin32HandleKHR(params->device, params->pGetWin32HandleInfo, params->pHandle);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -51619,8 +51750,8 @@ static NTSTATUS thunk32_vkGetSemaphoreWin32HandleKHR(void *args)
 
     TRACE("%#x, %#x, %#x\n", params->device, params->pGetWin32HandleInfo, params->pHandle);
 
-    convert_VkSemaphoreGetWin32HandleInfoKHR_win32_to_host((const VkSemaphoreGetWin32HandleInfoKHR32 *)UlongToPtr(params->pGetWin32HandleInfo), &pGetWin32HandleInfo_host);
-    params->result = get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkGetSemaphoreWin32HandleKHR(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, &pGetWin32HandleInfo_host, (HANDLE *)UlongToPtr(params->pHandle));
+    convert_VkSemaphoreGetWin32HandleInfoKHR_win32_to_unwrapped_host((const VkSemaphoreGetWin32HandleInfoKHR32 *)UlongToPtr(params->pGetWin32HandleInfo), &pGetWin32HandleInfo_host);
+    params->result = vk_funcs->p_vkGetSemaphoreWin32HandleKHR((VkDevice)UlongToPtr(params->device), &pGetWin32HandleInfo_host, (HANDLE *)UlongToPtr(params->pHandle));
     return STATUS_SUCCESS;
 }
 
@@ -51889,7 +52020,7 @@ static NTSTATUS thunk64_vkImportSemaphoreWin32HandleKHR(void *args)
 
     TRACE("%p, %p\n", params->device, params->pImportSemaphoreWin32HandleInfo);
 
-    params->result = get_vulkan_device_funcs(params->device)->p_vkImportSemaphoreWin32HandleKHR(vulkan_device_from_handle(params->device)->obj.host.device, params->pImportSemaphoreWin32HandleInfo);
+    params->result = vk_funcs->p_vkImportSemaphoreWin32HandleKHR(params->device, params->pImportSemaphoreWin32HandleInfo);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -51906,8 +52037,8 @@ static NTSTATUS thunk32_vkImportSemaphoreWin32HandleKHR(void *args)
 
     TRACE("%#x, %#x\n", params->device, params->pImportSemaphoreWin32HandleInfo);
 
-    convert_VkImportSemaphoreWin32HandleInfoKHR_win32_to_host((const VkImportSemaphoreWin32HandleInfoKHR32 *)UlongToPtr(params->pImportSemaphoreWin32HandleInfo), &pImportSemaphoreWin32HandleInfo_host);
-    params->result = get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkImportSemaphoreWin32HandleKHR(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, &pImportSemaphoreWin32HandleInfo_host);
+    convert_VkImportSemaphoreWin32HandleInfoKHR_win32_to_unwrapped_host((const VkImportSemaphoreWin32HandleInfoKHR32 *)UlongToPtr(params->pImportSemaphoreWin32HandleInfo), &pImportSemaphoreWin32HandleInfo_host);
+    params->result = vk_funcs->p_vkImportSemaphoreWin32HandleKHR((VkDevice)UlongToPtr(params->device), &pImportSemaphoreWin32HandleInfo_host);
     return STATUS_SUCCESS;
 }
 
@@ -51984,10 +52115,12 @@ static NTSTATUS thunk32_vkInvalidateMappedMemoryRanges(void *args)
 static NTSTATUS thunk64_vkLatencySleepNV(void *args)
 {
     struct vkLatencySleepNV_params *params = args;
+    VkLatencySleepInfoNV pSleepInfo_host;
 
     TRACE("%p, 0x%s, %p\n", params->device, wine_dbgstr_longlong(params->swapchain), params->pSleepInfo);
 
-    params->result = get_vulkan_device_funcs(params->device)->p_vkLatencySleepNV(vulkan_device_from_handle(params->device)->obj.host.device, vulkan_swapchain_from_handle(params->swapchain)->host.swapchain, params->pSleepInfo);
+    convert_VkLatencySleepInfoNV_win64_to_host(params->pSleepInfo, &pSleepInfo_host);
+    params->result = get_vulkan_device_funcs(params->device)->p_vkLatencySleepNV(vulkan_device_from_handle(params->device)->obj.host.device, vulkan_swapchain_from_handle(params->swapchain)->host.swapchain, &pSleepInfo_host);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -53086,10 +53219,12 @@ static NTSTATUS thunk32_vkSetPrivateDataEXT(void *args)
 static NTSTATUS thunk64_vkSignalSemaphore(void *args)
 {
     struct vkSignalSemaphore_params *params = args;
+    VkSemaphoreSignalInfo pSignalInfo_host;
 
     TRACE("%p, %p\n", params->device, params->pSignalInfo);
 
-    params->result = get_vulkan_device_funcs(params->device)->p_vkSignalSemaphore(vulkan_device_from_handle(params->device)->obj.host.device, params->pSignalInfo);
+    convert_VkSemaphoreSignalInfo_win64_to_host(params->pSignalInfo, &pSignalInfo_host);
+    params->result = get_vulkan_device_funcs(params->device)->p_vkSignalSemaphore(vulkan_device_from_handle(params->device)->obj.host.device, &pSignalInfo_host);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -53115,10 +53250,12 @@ static NTSTATUS thunk32_vkSignalSemaphore(void *args)
 static NTSTATUS thunk64_vkSignalSemaphoreKHR(void *args)
 {
     struct vkSignalSemaphoreKHR_params *params = args;
+    VkSemaphoreSignalInfo pSignalInfo_host;
 
     TRACE("%p, %p\n", params->device, params->pSignalInfo);
 
-    params->result = get_vulkan_device_funcs(params->device)->p_vkSignalSemaphoreKHR(vulkan_device_from_handle(params->device)->obj.host.device, params->pSignalInfo);
+    convert_VkSemaphoreSignalInfo_win64_to_host(params->pSignalInfo, &pSignalInfo_host);
+    params->result = get_vulkan_device_funcs(params->device)->p_vkSignalSemaphoreKHR(vulkan_device_from_handle(params->device)->obj.host.device, &pSignalInfo_host);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -53594,10 +53731,16 @@ static NTSTATUS thunk32_vkWaitForPresentKHR(void *args)
 static NTSTATUS thunk64_vkWaitSemaphores(void *args)
 {
     struct vkWaitSemaphores_params *params = args;
+    VkSemaphoreWaitInfo pWaitInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
 
     TRACE("%p, %p, 0x%s\n", params->device, params->pWaitInfo, wine_dbgstr_longlong(params->timeout));
 
-    params->result = get_vulkan_device_funcs(params->device)->p_vkWaitSemaphores(vulkan_device_from_handle(params->device)->obj.host.device, params->pWaitInfo, params->timeout);
+    init_conversion_context(ctx);
+    convert_VkSemaphoreWaitInfo_win64_to_host(ctx, params->pWaitInfo, &pWaitInfo_host);
+    params->result = get_vulkan_device_funcs(params->device)->p_vkWaitSemaphores(vulkan_device_from_handle(params->device)->obj.host.device, &pWaitInfo_host, params->timeout);
+    free_conversion_context(ctx);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -53612,11 +53755,15 @@ static NTSTATUS thunk32_vkWaitSemaphores(void *args)
         VkResult result;
     } *params = args;
     VkSemaphoreWaitInfo pWaitInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
 
     TRACE("%#x, %#x, 0x%s\n", params->device, params->pWaitInfo, wine_dbgstr_longlong(params->timeout));
 
-    convert_VkSemaphoreWaitInfo_win32_to_host((const VkSemaphoreWaitInfo32 *)UlongToPtr(params->pWaitInfo), &pWaitInfo_host);
+    init_conversion_context(ctx);
+    convert_VkSemaphoreWaitInfo_win32_to_host(ctx, (const VkSemaphoreWaitInfo32 *)UlongToPtr(params->pWaitInfo), &pWaitInfo_host);
     params->result = get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkWaitSemaphores(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, &pWaitInfo_host, params->timeout);
+    free_conversion_context(ctx);
     return STATUS_SUCCESS;
 }
 
@@ -53624,10 +53771,16 @@ static NTSTATUS thunk32_vkWaitSemaphores(void *args)
 static NTSTATUS thunk64_vkWaitSemaphoresKHR(void *args)
 {
     struct vkWaitSemaphoresKHR_params *params = args;
+    VkSemaphoreWaitInfo pWaitInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
 
     TRACE("%p, %p, 0x%s\n", params->device, params->pWaitInfo, wine_dbgstr_longlong(params->timeout));
 
-    params->result = get_vulkan_device_funcs(params->device)->p_vkWaitSemaphoresKHR(vulkan_device_from_handle(params->device)->obj.host.device, params->pWaitInfo, params->timeout);
+    init_conversion_context(ctx);
+    convert_VkSemaphoreWaitInfo_win64_to_host(ctx, params->pWaitInfo, &pWaitInfo_host);
+    params->result = get_vulkan_device_funcs(params->device)->p_vkWaitSemaphoresKHR(vulkan_device_from_handle(params->device)->obj.host.device, &pWaitInfo_host, params->timeout);
+    free_conversion_context(ctx);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -53642,11 +53795,15 @@ static NTSTATUS thunk32_vkWaitSemaphoresKHR(void *args)
         VkResult result;
     } *params = args;
     VkSemaphoreWaitInfo pWaitInfo_host;
+    struct conversion_context local_ctx;
+    struct conversion_context *ctx = &local_ctx;
 
     TRACE("%#x, %#x, 0x%s\n", params->device, params->pWaitInfo, wine_dbgstr_longlong(params->timeout));
 
-    convert_VkSemaphoreWaitInfo_win32_to_host((const VkSemaphoreWaitInfo32 *)UlongToPtr(params->pWaitInfo), &pWaitInfo_host);
+    init_conversion_context(ctx);
+    convert_VkSemaphoreWaitInfo_win32_to_host(ctx, (const VkSemaphoreWaitInfo32 *)UlongToPtr(params->pWaitInfo), &pWaitInfo_host);
     params->result = get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkWaitSemaphoresKHR(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, &pWaitInfo_host, params->timeout);
+    free_conversion_context(ctx);
     return STATUS_SUCCESS;
 }
 
@@ -54112,6 +54269,7 @@ BOOL wine_vk_is_type_wrapped(VkObjectType type)
         type == VK_OBJECT_TYPE_INSTANCE ||
         type == VK_OBJECT_TYPE_PHYSICAL_DEVICE ||
         type == VK_OBJECT_TYPE_QUEUE ||
+        type == VK_OBJECT_TYPE_SEMAPHORE ||
         type == VK_OBJECT_TYPE_SURFACE_KHR ||
         type == VK_OBJECT_TYPE_SWAPCHAIN_KHR;
 }
