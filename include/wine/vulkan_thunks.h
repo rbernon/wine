@@ -513,6 +513,8 @@ struct vulkan_device_funcs
     VkResult (*p_vkGetImageViewOpaqueCaptureDescriptorDataEXT)(VkDevice, const VkImageViewCaptureDescriptorDataInfoEXT *, void *);
     void (*p_vkGetLatencyTimingsNV)(VkDevice, VkSwapchainKHR, VkGetLatencyMarkerInfoNV *);
     VkResult (*p_vkGetMemoryHostPointerPropertiesEXT)(VkDevice, VkExternalMemoryHandleTypeFlagBits, const void *, VkMemoryHostPointerPropertiesEXT *);
+    VkResult (*p_vkGetMemoryWin32HandleKHR)(VkDevice, const VkMemoryGetWin32HandleInfoKHR *, HANDLE *);
+    VkResult (*p_vkGetMemoryWin32HandlePropertiesKHR)(VkDevice, VkExternalMemoryHandleTypeFlagBits, HANDLE, VkMemoryWin32HandlePropertiesKHR *);
     void (*p_vkGetMicromapBuildSizesEXT)(VkDevice, VkAccelerationStructureBuildTypeKHR, const VkMicromapBuildInfoEXT *, VkMicromapBuildSizesInfoEXT *);
     VkResult (*p_vkGetPipelineBinaryDataKHR)(VkDevice, const VkPipelineBinaryDataInfoKHR *, VkPipelineBinaryKeyKHR *, size_t *, void *);
     VkResult (*p_vkGetPipelineCacheData)(VkDevice, VkPipelineCache, size_t *, void *);
@@ -1111,6 +1113,8 @@ struct vulkan_instance_funcs
     USE_VK_FUNC(vkGetImageViewOpaqueCaptureDescriptorDataEXT) \
     USE_VK_FUNC(vkGetLatencyTimingsNV) \
     USE_VK_FUNC(vkGetMemoryHostPointerPropertiesEXT) \
+    USE_VK_FUNC(vkGetMemoryWin32HandleKHR) \
+    USE_VK_FUNC(vkGetMemoryWin32HandlePropertiesKHR) \
     USE_VK_FUNC(vkGetMicromapBuildSizesEXT) \
     USE_VK_FUNC(vkGetPipelineBinaryDataKHR) \
     USE_VK_FUNC(vkGetPipelineCacheData) \

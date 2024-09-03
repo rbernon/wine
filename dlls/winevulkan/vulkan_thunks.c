@@ -6199,6 +6199,21 @@ typedef struct VkMemoryHostPointerPropertiesEXT32
     uint32_t memoryTypeBits;
 } VkMemoryHostPointerPropertiesEXT32;
 
+typedef struct VkMemoryGetWin32HandleInfoKHR32
+{
+    VkStructureType sType;
+    PTR32 pNext;
+    VkDeviceMemory DECLSPEC_ALIGN(8) memory;
+    VkExternalMemoryHandleTypeFlagBits handleType;
+} VkMemoryGetWin32HandleInfoKHR32;
+
+typedef struct VkMemoryWin32HandlePropertiesKHR32
+{
+    VkStructureType sType;
+    PTR32 pNext;
+    uint32_t memoryTypeBits;
+} VkMemoryWin32HandlePropertiesKHR32;
+
 typedef struct VkMicromapBuildSizesInfoEXT32
 {
     VkStructureType sType;
@@ -25267,6 +25282,47 @@ static inline void convert_VkMemoryHostPointerPropertiesEXT_win32_to_host(const 
 }
 
 static inline void convert_VkMemoryHostPointerPropertiesEXT_host_to_win32(const VkMemoryHostPointerPropertiesEXT *in, VkMemoryHostPointerPropertiesEXT32 *out)
+{
+    if (!in) return;
+
+    out->memoryTypeBits = in->memoryTypeBits;
+}
+
+#ifdef _WIN64
+static inline void convert_VkMemoryGetWin32HandleInfoKHR_win64_to_host(const VkMemoryGetWin32HandleInfoKHR *in, VkMemoryGetWin32HandleInfoKHR *out)
+{
+    if (!in) return;
+
+    out->sType = in->sType;
+    out->pNext = in->pNext;
+    out->memory = wine_device_memory_from_handle(in->memory)->obj.host.device_memory;
+    out->handleType = in->handleType;
+}
+#endif /* _WIN64 */
+
+static inline void convert_VkMemoryGetWin32HandleInfoKHR_win32_to_host(const VkMemoryGetWin32HandleInfoKHR32 *in, VkMemoryGetWin32HandleInfoKHR *out)
+{
+    if (!in) return;
+
+    out->sType = in->sType;
+    out->pNext = NULL;
+    out->memory = wine_device_memory_from_handle(in->memory)->obj.host.device_memory;
+    out->handleType = in->handleType;
+    if (in->pNext)
+        FIXME("Unexpected pNext\n");
+}
+
+static inline void convert_VkMemoryWin32HandlePropertiesKHR_win32_to_host(const VkMemoryWin32HandlePropertiesKHR32 *in, VkMemoryWin32HandlePropertiesKHR *out)
+{
+    if (!in) return;
+
+    out->sType = in->sType;
+    out->pNext = NULL;
+    if (in->pNext)
+        FIXME("Unexpected pNext\n");
+}
+
+static inline void convert_VkMemoryWin32HandlePropertiesKHR_host_to_win32(const VkMemoryWin32HandlePropertiesKHR *in, VkMemoryWin32HandlePropertiesKHR32 *out)
 {
     if (!in) return;
 
@@ -48294,6 +48350,70 @@ static NTSTATUS thunk32_vkGetMemoryHostPointerPropertiesEXT(void *args)
 }
 
 #ifdef _WIN64
+static NTSTATUS thunk64_vkGetMemoryWin32HandleKHR(void *args)
+{
+    struct vkGetMemoryWin32HandleKHR_params *params = args;
+    VkMemoryGetWin32HandleInfoKHR pGetWin32HandleInfo_host;
+
+    TRACE("%p, %p, %p\n", params->device, params->pGetWin32HandleInfo, params->pHandle);
+
+    convert_VkMemoryGetWin32HandleInfoKHR_win64_to_host(params->pGetWin32HandleInfo, &pGetWin32HandleInfo_host);
+    params->result = get_vulkan_device_funcs(params->device)->p_vkGetMemoryWin32HandleKHR(vulkan_device_from_handle(params->device)->obj.host.device, &pGetWin32HandleInfo_host, params->pHandle);
+    return STATUS_SUCCESS;
+}
+#endif /* _WIN64 */
+
+static NTSTATUS thunk32_vkGetMemoryWin32HandleKHR(void *args)
+{
+    struct
+    {
+        PTR32 device;
+        PTR32 pGetWin32HandleInfo;
+        PTR32 pHandle;
+        VkResult result;
+    } *params = args;
+    VkMemoryGetWin32HandleInfoKHR pGetWin32HandleInfo_host;
+
+    TRACE("%#x, %#x, %#x\n", params->device, params->pGetWin32HandleInfo, params->pHandle);
+
+    convert_VkMemoryGetWin32HandleInfoKHR_win32_to_host((const VkMemoryGetWin32HandleInfoKHR32 *)UlongToPtr(params->pGetWin32HandleInfo), &pGetWin32HandleInfo_host);
+    params->result = get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkGetMemoryWin32HandleKHR(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, &pGetWin32HandleInfo_host, (HANDLE *)UlongToPtr(params->pHandle));
+    return STATUS_SUCCESS;
+}
+
+#ifdef _WIN64
+static NTSTATUS thunk64_vkGetMemoryWin32HandlePropertiesKHR(void *args)
+{
+    struct vkGetMemoryWin32HandlePropertiesKHR_params *params = args;
+
+    TRACE("%p, %#x, %p, %p\n", params->device, params->handleType, params->handle, params->pMemoryWin32HandleProperties);
+
+    params->result = get_vulkan_device_funcs(params->device)->p_vkGetMemoryWin32HandlePropertiesKHR(vulkan_device_from_handle(params->device)->obj.host.device, params->handleType, params->handle, params->pMemoryWin32HandleProperties);
+    return STATUS_SUCCESS;
+}
+#endif /* _WIN64 */
+
+static NTSTATUS thunk32_vkGetMemoryWin32HandlePropertiesKHR(void *args)
+{
+    struct
+    {
+        PTR32 device;
+        VkExternalMemoryHandleTypeFlagBits handleType;
+        HANDLE handle;
+        PTR32 pMemoryWin32HandleProperties;
+        VkResult result;
+    } *params = args;
+    VkMemoryWin32HandlePropertiesKHR pMemoryWin32HandleProperties_host;
+
+    TRACE("%#x, %#x, %p, %#x\n", params->device, params->handleType, params->handle, params->pMemoryWin32HandleProperties);
+
+    convert_VkMemoryWin32HandlePropertiesKHR_win32_to_host((VkMemoryWin32HandlePropertiesKHR32 *)UlongToPtr(params->pMemoryWin32HandleProperties), &pMemoryWin32HandleProperties_host);
+    params->result = get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkGetMemoryWin32HandlePropertiesKHR(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, params->handleType, params->handle, &pMemoryWin32HandleProperties_host);
+    convert_VkMemoryWin32HandlePropertiesKHR_host_to_win32(&pMemoryWin32HandleProperties_host, (VkMemoryWin32HandlePropertiesKHR32 *)UlongToPtr(params->pMemoryWin32HandleProperties));
+    return STATUS_SUCCESS;
+}
+
+#ifdef _WIN64
 static NTSTATUS thunk64_vkGetMicromapBuildSizesEXT(void *args)
 {
     struct vkGetMicromapBuildSizesEXT_params *params = args;
@@ -52786,6 +52906,7 @@ static const char * const vk_device_extensions[] =
     "VK_KHR_dynamic_rendering_local_read",
     "VK_KHR_external_fence",
     "VK_KHR_external_memory",
+    "VK_KHR_external_memory_win32",
     "VK_KHR_external_semaphore",
     "VK_KHR_format_feature_flags2",
     "VK_KHR_fragment_shader_barycentric",
@@ -53485,6 +53606,8 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     thunk64_vkGetImageViewOpaqueCaptureDescriptorDataEXT,
     thunk64_vkGetLatencyTimingsNV,
     thunk64_vkGetMemoryHostPointerPropertiesEXT,
+    thunk64_vkGetMemoryWin32HandleKHR,
+    thunk64_vkGetMemoryWin32HandlePropertiesKHR,
     thunk64_vkGetMicromapBuildSizesEXT,
     thunk64_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT,
     thunk64_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR,
@@ -54098,6 +54221,8 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     thunk32_vkGetImageViewOpaqueCaptureDescriptorDataEXT,
     thunk32_vkGetLatencyTimingsNV,
     thunk32_vkGetMemoryHostPointerPropertiesEXT,
+    thunk32_vkGetMemoryWin32HandleKHR,
+    thunk32_vkGetMemoryWin32HandlePropertiesKHR,
     thunk32_vkGetMicromapBuildSizesEXT,
     thunk32_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT,
     thunk32_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR,
