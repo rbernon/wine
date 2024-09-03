@@ -43921,7 +43921,7 @@ static NTSTATUS thunk64_vkCreateFence(void *args)
 
     TRACE("%p, %p, %p, %p\n", params->device, params->pCreateInfo, params->pAllocator, params->pFence);
 
-    params->result = get_vulkan_device_funcs(params->device)->p_vkCreateFence(vulkan_device_from_handle(params->device)->obj.host.device, params->pCreateInfo, NULL, params->pFence);
+    params->result = vk_funcs->p_vkCreateFence(params->device, params->pCreateInfo, params->pAllocator, params->pFence);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -43944,7 +43944,7 @@ static NTSTATUS thunk32_vkCreateFence(void *args)
 
     init_conversion_context(ctx);
     convert_VkFenceCreateInfo_win32_to_host(ctx, (const VkFenceCreateInfo32 *)UlongToPtr(params->pCreateInfo), &pCreateInfo_host);
-    params->result = get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkCreateFence(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, &pCreateInfo_host, NULL, (VkFence *)UlongToPtr(params->pFence));
+    params->result = vk_funcs->p_vkCreateFence((VkDevice)UlongToPtr(params->device), &pCreateInfo_host, (const VkAllocationCallbacks *)UlongToPtr(params->pAllocator), (VkFence *)UlongToPtr(params->pFence));
     free_conversion_context(ctx);
     return STATUS_SUCCESS;
 }
@@ -45746,7 +45746,7 @@ static NTSTATUS thunk64_vkDestroyFence(void *args)
 
     TRACE("%p, 0x%s, %p\n", params->device, wine_dbgstr_longlong(params->fence), params->pAllocator);
 
-    get_vulkan_device_funcs(params->device)->p_vkDestroyFence(vulkan_device_from_handle(params->device)->obj.host.device, params->fence, NULL);
+    vk_funcs->p_vkDestroyFence(params->device, params->fence, params->pAllocator);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -45762,7 +45762,7 @@ static NTSTATUS thunk32_vkDestroyFence(void *args)
 
     TRACE("%#x, 0x%s, %#x\n", params->device, wine_dbgstr_longlong(params->fence), params->pAllocator);
 
-    get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkDestroyFence(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, params->fence, NULL);
+    vk_funcs->p_vkDestroyFence((VkDevice)UlongToPtr(params->device), params->fence, (const VkAllocationCallbacks *)UlongToPtr(params->pAllocator));
     return STATUS_SUCCESS;
 }
 
@@ -48598,7 +48598,7 @@ static NTSTATUS thunk64_vkGetFenceWin32HandleKHR(void *args)
 
     TRACE("%p, %p, %p\n", params->device, params->pGetWin32HandleInfo, params->pHandle);
 
-    params->result = get_vulkan_device_funcs(params->device)->p_vkGetFenceWin32HandleKHR(vulkan_device_from_handle(params->device)->obj.host.device, params->pGetWin32HandleInfo, params->pHandle);
+    params->result = vk_funcs->p_vkGetFenceWin32HandleKHR(params->device, params->pGetWin32HandleInfo, params->pHandle);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -48617,7 +48617,7 @@ static NTSTATUS thunk32_vkGetFenceWin32HandleKHR(void *args)
     TRACE("%#x, %#x, %#x\n", params->device, params->pGetWin32HandleInfo, params->pHandle);
 
     convert_VkFenceGetWin32HandleInfoKHR_win32_to_host((const VkFenceGetWin32HandleInfoKHR32 *)UlongToPtr(params->pGetWin32HandleInfo), &pGetWin32HandleInfo_host);
-    params->result = get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkGetFenceWin32HandleKHR(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, &pGetWin32HandleInfo_host, (HANDLE *)UlongToPtr(params->pHandle));
+    params->result = vk_funcs->p_vkGetFenceWin32HandleKHR((VkDevice)UlongToPtr(params->device), &pGetWin32HandleInfo_host, (HANDLE *)UlongToPtr(params->pHandle));
     return STATUS_SUCCESS;
 }
 
@@ -49567,7 +49567,7 @@ static NTSTATUS thunk64_vkGetPhysicalDeviceExternalFenceProperties(void *args)
 
     TRACE("%p, %p, %p\n", params->physicalDevice, params->pExternalFenceInfo, params->pExternalFenceProperties);
 
-    wine_vkGetPhysicalDeviceExternalFenceProperties(params->physicalDevice, params->pExternalFenceInfo, params->pExternalFenceProperties);
+    vk_funcs->p_vkGetPhysicalDeviceExternalFenceProperties(params->physicalDevice, params->pExternalFenceInfo, params->pExternalFenceProperties);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -49587,7 +49587,7 @@ static NTSTATUS thunk32_vkGetPhysicalDeviceExternalFenceProperties(void *args)
 
     convert_VkPhysicalDeviceExternalFenceInfo_win32_to_host((const VkPhysicalDeviceExternalFenceInfo32 *)UlongToPtr(params->pExternalFenceInfo), &pExternalFenceInfo_host);
     convert_VkExternalFenceProperties_win32_to_host((VkExternalFenceProperties32 *)UlongToPtr(params->pExternalFenceProperties), &pExternalFenceProperties_host);
-    wine_vkGetPhysicalDeviceExternalFenceProperties((VkPhysicalDevice)UlongToPtr(params->physicalDevice), &pExternalFenceInfo_host, &pExternalFenceProperties_host);
+    vk_funcs->p_vkGetPhysicalDeviceExternalFenceProperties((VkPhysicalDevice)UlongToPtr(params->physicalDevice), &pExternalFenceInfo_host, &pExternalFenceProperties_host);
     convert_VkExternalFenceProperties_host_to_win32(&pExternalFenceProperties_host, (VkExternalFenceProperties32 *)UlongToPtr(params->pExternalFenceProperties));
     return STATUS_SUCCESS;
 }
@@ -49599,7 +49599,7 @@ static NTSTATUS thunk64_vkGetPhysicalDeviceExternalFencePropertiesKHR(void *args
 
     TRACE("%p, %p, %p\n", params->physicalDevice, params->pExternalFenceInfo, params->pExternalFenceProperties);
 
-    wine_vkGetPhysicalDeviceExternalFencePropertiesKHR(params->physicalDevice, params->pExternalFenceInfo, params->pExternalFenceProperties);
+    vk_funcs->p_vkGetPhysicalDeviceExternalFencePropertiesKHR(params->physicalDevice, params->pExternalFenceInfo, params->pExternalFenceProperties);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -49619,7 +49619,7 @@ static NTSTATUS thunk32_vkGetPhysicalDeviceExternalFencePropertiesKHR(void *args
 
     convert_VkPhysicalDeviceExternalFenceInfo_win32_to_host((const VkPhysicalDeviceExternalFenceInfo32 *)UlongToPtr(params->pExternalFenceInfo), &pExternalFenceInfo_host);
     convert_VkExternalFenceProperties_win32_to_host((VkExternalFenceProperties32 *)UlongToPtr(params->pExternalFenceProperties), &pExternalFenceProperties_host);
-    wine_vkGetPhysicalDeviceExternalFencePropertiesKHR((VkPhysicalDevice)UlongToPtr(params->physicalDevice), &pExternalFenceInfo_host, &pExternalFenceProperties_host);
+    vk_funcs->p_vkGetPhysicalDeviceExternalFencePropertiesKHR((VkPhysicalDevice)UlongToPtr(params->physicalDevice), &pExternalFenceInfo_host, &pExternalFenceProperties_host);
     convert_VkExternalFenceProperties_host_to_win32(&pExternalFenceProperties_host, (VkExternalFenceProperties32 *)UlongToPtr(params->pExternalFenceProperties));
     return STATUS_SUCCESS;
 }
@@ -51991,7 +51991,7 @@ static NTSTATUS thunk64_vkImportFenceWin32HandleKHR(void *args)
 
     TRACE("%p, %p\n", params->device, params->pImportFenceWin32HandleInfo);
 
-    params->result = get_vulkan_device_funcs(params->device)->p_vkImportFenceWin32HandleKHR(vulkan_device_from_handle(params->device)->obj.host.device, params->pImportFenceWin32HandleInfo);
+    params->result = vk_funcs->p_vkImportFenceWin32HandleKHR(params->device, params->pImportFenceWin32HandleInfo);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -52009,7 +52009,7 @@ static NTSTATUS thunk32_vkImportFenceWin32HandleKHR(void *args)
     TRACE("%#x, %#x\n", params->device, params->pImportFenceWin32HandleInfo);
 
     convert_VkImportFenceWin32HandleInfoKHR_win32_to_host((const VkImportFenceWin32HandleInfoKHR32 *)UlongToPtr(params->pImportFenceWin32HandleInfo), &pImportFenceWin32HandleInfo_host);
-    params->result = get_vulkan_device_funcs((VkDevice)UlongToPtr(params->device))->p_vkImportFenceWin32HandleKHR(vulkan_device_from_handle((VkDevice)UlongToPtr(params->device))->obj.host.device, &pImportFenceWin32HandleInfo_host);
+    params->result = vk_funcs->p_vkImportFenceWin32HandleKHR((VkDevice)UlongToPtr(params->device), &pImportFenceWin32HandleInfo_host);
     return STATUS_SUCCESS;
 }
 
