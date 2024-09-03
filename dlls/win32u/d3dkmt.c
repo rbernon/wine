@@ -1076,6 +1076,74 @@ NTSTATUS WINAPI NtGdiDdDDIDestroyAllocation( const D3DKMT_DESTROYALLOCATION *par
     return NtGdiDdDDIDestroyAllocation2( &params2 );
 }
 
+typedef struct _D3DKMT_CHECKSHAREDRESOURCEACCESS
+{
+    D3DKMT_HANDLE hResource;
+    UINT ClientPid;
+} D3DKMT_CHECKSHAREDRESOURCEACCESS;
+
+/******************************************************************************
+ *           NtGdiDdDDICheckSharedResourceAccess    (win32u.@)
+ */
+NTSTATUS WINAPI NtGdiDdDDICheckSharedResourceAccess( const D3DKMT_CHECKSHAREDRESOURCEACCESS *params )
+{
+    FIXME( "params %p stub!\n", params );
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+typedef struct _D3DKMT_CONFIGURESHAREDRESOURCE
+{
+    D3DKMT_HANDLE hDevice;
+    D3DKMT_HANDLE hResource;
+    BOOLEAN IsDwm;
+    HANDLE hProcess;
+    BOOLEAN AllowAccess;
+} D3DKMT_CONFIGURESHAREDRESOURCE;
+
+/******************************************************************************
+ *           NtGdiDdDDIConfigureSharedResource    (win32u.@)
+ */
+NTSTATUS WINAPI NtGdiDdDDIConfigureSharedResource( const D3DKMT_CONFIGURESHAREDRESOURCE *params )
+{
+    FIXME( "params %p stub!\n", params );
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+typedef struct _D3DDDI_GETRESOURCEPRESENTPRIVATEDRIVERDATA
+{
+    D3DKMT_HANDLE hResource;
+    UINT PrivateDriverDataSize;
+    void *pPrivateDriverData;
+} D3DDDI_GETRESOURCEPRESENTPRIVATEDRIVERDATA;
+
+/******************************************************************************
+ *           NtGdiDdDDIGetResourcePresentPrivateDriverData    (win32u.@)
+ */
+NTSTATUS WINAPI NtGdiDdDDIGetResourcePresentPrivateDriverData( D3DDDI_GETRESOURCEPRESENTPRIVATEDRIVERDATA *params )
+{
+    FIXME( "params %p stub!\n", params );
+    params->PrivateDriverDataSize = 0;
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+typedef struct _D3DKMT_GETSHAREDRESOURCEADAPTERLUID
+{
+    D3DKMT_HANDLE hGlobalShare;
+    HANDLE hNtHandle;
+    LUID AdapterLuid;
+} D3DKMT_GETSHAREDRESOURCEADAPTERLUID;
+
+/******************************************************************************
+ *           NtGdiDdDDIGetSharedResourceAdapterLuid    (win32u.@)
+ */
+NTSTATUS WINAPI NtGdiDdDDIGetSharedResourceAdapterLuid( D3DKMT_GETSHAREDRESOURCEADAPTERLUID *params )
+{
+    FIXME( "params %p stub!\n", params );
+    params->AdapterLuid.HighPart = 0;
+    params->AdapterLuid.LowPart = 0;
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 /******************************************************************************
  *           NtGdiDdDDIOpenResource    (win32u.@)
  */
