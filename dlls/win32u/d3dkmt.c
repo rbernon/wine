@@ -1713,3 +1713,119 @@ NTSTATUS d3dkmt_get_object_fd( D3DKMT_HANDLE local, struct d3dkmt_desc *desc, in
     if (status) ERR("got status %#x\n", status);
     return status;
 }
+
+typedef struct _D3DKMT_SUBMITSIGNALSYNCOBJECTSTOHWQUEUE
+{
+    D3DDDICB_SIGNALFLAGS Flags;
+    ULONG BroadcastHwQueueCount;
+    const D3DKMT_HANDLE *BroadcastHwQueueArray;
+    UINT ObjectCount;
+    const D3DKMT_HANDLE *ObjectHandleArray;
+    const UINT64 *FenceValueArray;
+} D3DKMT_SUBMITSIGNALSYNCOBJECTSTOHWQUEUE;
+
+/******************************************************************************
+ *           NtGdiDdDDISubmitSignalSyncObjectsToHwQueue    (win32u.@)
+ */
+NTSTATUS WINAPI NtGdiDdDDISubmitSignalSyncObjectsToHwQueue( const D3DKMT_SUBMITSIGNALSYNCOBJECTSTOHWQUEUE *params )
+{
+    FIXME( "params %p stub!\n", params );
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+typedef struct _D3DKMT_SUBMITWAITFORSYNCOBJECTSTOHWQUEUE
+{
+    D3DKMT_HANDLE hHwQueue;
+    UINT ObjectCount;
+    const D3DKMT_HANDLE *ObjectHandleArray;
+    const UINT64 *FenceValueArray;
+} D3DKMT_SUBMITWAITFORSYNCOBJECTSTOHWQUEUE;
+
+/******************************************************************************
+ *           NtGdiDdDDISubmitWaitForSyncObjectsToHwQueue    (win32u.@)
+ */
+NTSTATUS WINAPI NtGdiDdDDISubmitWaitForSyncObjectsToHwQueue( const D3DKMT_SUBMITWAITFORSYNCOBJECTSTOHWQUEUE *params )
+{
+    FIXME( "params %p stub!\n", params );
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+#define D3DDDI_MAX_OBJECT_WAITED_ON 32
+
+typedef struct _D3DKMT_WAITFORSYNCHRONIZATIONOBJECT
+{
+    D3DKMT_HANDLE hContext;
+    UINT ObjectCount;
+    D3DKMT_HANDLE ObjectHandleArray[D3DDDI_MAX_OBJECT_WAITED_ON];
+} D3DKMT_WAITFORSYNCHRONIZATIONOBJECT;
+
+NTSTATUS WINAPI NtGdiDdDDIWaitForSynchronizationObject( const D3DKMT_WAITFORSYNCHRONIZATIONOBJECT *params )
+{
+    FIXME( "params %p stub!\n", params );
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+typedef struct _D3DKMT_WAITFORSYNCHRONIZATIONOBJECT2
+{
+    D3DKMT_HANDLE hContext;
+    UINT ObjectCount;
+    D3DKMT_HANDLE ObjectHandleArray[D3DDDI_MAX_OBJECT_WAITED_ON];
+    union
+    {
+        struct
+        {
+            UINT64 FenceValue;
+        } Fence;
+        UINT64 Reserved[8];
+    };
+} D3DKMT_WAITFORSYNCHRONIZATIONOBJECT2;
+
+NTSTATUS WINAPI NtGdiDdDDIWaitForSynchronizationObject2( const D3DKMT_WAITFORSYNCHRONIZATIONOBJECT2 *params )
+{
+    FIXME( "params %p stub!\n", params );
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+#define D3DDDI_MAX_OBJECT_SIGNALED 32
+
+typedef struct _D3DKMT_SIGNALSYNCHRONIZATIONOBJECT
+{
+    D3DKMT_HANDLE hContext;
+    UINT ObjectCount;
+    D3DKMT_HANDLE ObjectHandleArray[D3DDDI_MAX_OBJECT_SIGNALED];
+    D3DDDICB_SIGNALFLAGS Flags;
+} D3DKMT_SIGNALSYNCHRONIZATIONOBJECT;
+
+NTSTATUS WINAPI NtGdiDdDDISignalSynchronizationObject( const D3DKMT_SIGNALSYNCHRONIZATIONOBJECT *params )
+{
+    FIXME( "params %p stub!\n", params );
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+#define D3DDDI_MAX_BROADCAST_CONTEXT 64
+
+typedef struct _D3DKMT_SIGNALSYNCHRONIZATIONOBJECT2
+{
+    D3DKMT_HANDLE hContext;
+    UINT ObjectCount;
+    D3DKMT_HANDLE ObjectHandleArray[D3DDDI_MAX_OBJECT_SIGNALED];
+    D3DDDICB_SIGNALFLAGS Flags;
+    ULONG BroadcastContextCount;
+    D3DKMT_HANDLE BroadcastContext[D3DDDI_MAX_BROADCAST_CONTEXT];
+    union
+    {
+        struct
+        {
+            UINT64 FenceValue;
+        } Fence;
+        HANDLE CpuEventHandle;
+        UINT64 Reserved[8];
+    };
+} D3DKMT_SIGNALSYNCHRONIZATIONOBJECT2;
+
+NTSTATUS WINAPI NtGdiDdDDISignalSynchronizationObject2( const D3DKMT_SIGNALSYNCHRONIZATIONOBJECT2 *params )
+{
+    FIXME( "params %p stub!\n", params );
+    return STATUS_NOT_IMPLEMENTED;
+}
+
