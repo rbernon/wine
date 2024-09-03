@@ -1090,6 +1090,31 @@ static GLXContext create_glxcontext(Display *display, struct wgl_context *contex
     return ctx;
 }
 
+static void set_dc_drawable( HDC hdc, Drawable drawable, const RECT *rect, int mode )
+{
+    struct x11drv_escape_set_drawable escape =
+    {
+        .code = X11DRV_SET_DRAWABLE,
+        .drawable = drawable,
+        .dc_rect = *rect,
+        .mode = mode,
+    };
+    NtGdiExtEscape( hdc, NULL, 0, X11DRV_ESCAPE, sizeof(escape), (LPSTR)&escape, 0, NULL );
+}
+
+static BOOL needs_offscreen_rendering( HWND hwnd, BOOL known_child )
+{
+    if (NtUserGetDpiForWindow( hwnd ) != get_win_monitor_dpi( hwnd )) return TRUE;
+
+    if (!known_child && !NtUserGetWindowRelative( hwnd, GW_CHILD ) &&
+        NtUserGetAncestor( hwnd, GA_PARENT ) == NtUserGetDesktopWindow())
+        return FALSE;  /* childless top-level window */
+
+    return TRUE;
+}
+
+BOOL egl_import_pixmap(Pixmap pixmap);
+
 /***********************************************************************
  *              create_gl_drawable
  */
@@ -1132,7 +1157,7 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct glx_pixel
         TRACE( "%p created client %lx drawable %lx\n", hwnd, gl->window, gl->drawable );
     }
 #ifdef SONAME_LIBXCOMPOSITE
-    else if(usexcomposite)
+    else if (usexcomposite && 0)
     {
         gl->type = DC_GL_CHILD_WIN;
         gl->colormap = XCreateColormap( gdi_display, get_dummy_parent(), visual->visual,
@@ -1179,6 +1204,8 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct glx_pixel
             gl->hdc_src = NtGdiOpenDCW( &device_str, NULL, NULL, 0, TRUE, NULL, NULL, NULL );
             set_dc_drawable( gl->hdc_src, gl->pixmap, &gl->rect, IncludeInferiors );
         }
+
+        egl_import_pixmap(gl->pixmap);
     }
 
     if (!gl->drawable)
