@@ -45,14 +45,21 @@ static NTSTATUS (WINAPI *pD3DKMTCheckOcclusion)(const D3DKMT_CHECKOCCLUSION *);
 static NTSTATUS (WINAPI *pD3DKMTCheckVidPnExclusiveOwnership)(const D3DKMT_CHECKVIDPNEXCLUSIVEOWNERSHIP *);
 static NTSTATUS (WINAPI *pD3DKMTCloseAdapter)(const D3DKMT_CLOSEADAPTER *);
 static NTSTATUS (WINAPI *pD3DKMTCreateDevice)(D3DKMT_CREATEDEVICE *);
+static NTSTATUS (WINAPI *pD3DKMTCreateSynchronizationObject)(D3DKMT_CREATESYNCHRONIZATIONOBJECT *);
+static NTSTATUS (WINAPI *pD3DKMTCreateSynchronizationObject2)(D3DKMT_CREATESYNCHRONIZATIONOBJECT2 *);
 static NTSTATUS (WINAPI *pD3DKMTDestroyDevice)(const D3DKMT_DESTROYDEVICE *);
+static NTSTATUS (WINAPI *pD3DKMTDestroySynchronizationObject)(const D3DKMT_DESTROYSYNCHRONIZATIONOBJECT *);
 static NTSTATUS (WINAPI *pD3DKMTEnumAdapters2)(D3DKMT_ENUMADAPTERS2 *);
 static NTSTATUS (WINAPI *pD3DKMTOpenAdapterFromDeviceName)(D3DKMT_OPENADAPTERFROMDEVICENAME *);
 static NTSTATUS (WINAPI *pD3DKMTOpenAdapterFromGdiDisplayName)(D3DKMT_OPENADAPTERFROMGDIDISPLAYNAME *);
 static NTSTATUS (WINAPI *pD3DKMTOpenAdapterFromHdc)(D3DKMT_OPENADAPTERFROMHDC *);
-static NTSTATUS (WINAPI *pD3DKMTSetVidPnSourceOwner)(const D3DKMT_SETVIDPNSOURCEOWNER *);
+static NTSTATUS (WINAPI *pD3DKMTOpenSynchronizationObject)(D3DKMT_OPENSYNCHRONIZATIONOBJECT *);
+static NTSTATUS (WINAPI *pD3DKMTOpenSyncObjectFromNtHandle)(D3DKMT_OPENSYNCOBJECTFROMNTHANDLE *);
+static NTSTATUS (WINAPI *pD3DKMTOpenSyncObjectFromNtHandle2)(D3DKMT_OPENSYNCOBJECTFROMNTHANDLE2 *);
+static NTSTATUS (WINAPI *pD3DKMTOpenSyncObjectNtHandleFromName)(D3DKMT_OPENSYNCOBJECTNTHANDLEFROMNAME *);
 static NTSTATUS (WINAPI *pD3DKMTQueryAdapterInfo)(D3DKMT_QUERYADAPTERINFO *);
 static NTSTATUS (WINAPI *pD3DKMTQueryVideoMemoryInfo)(D3DKMT_QUERYVIDEOMEMORYINFO *);
+static NTSTATUS (WINAPI *pD3DKMTSetVidPnSourceOwner)(const D3DKMT_SETVIDPNSOURCEOWNER *);
 static HRESULT  (WINAPI *pDwmEnableComposition)(UINT);
 
 static BOOL get_primary_adapter_name(WCHAR *name)
@@ -1054,6 +1061,275 @@ static void test_D3DKMTQueryVideoMemoryInfo(void)
     ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
 }
 
+static void test_D3DKMTCreateSynchronizationObject(void)
+{
+    static D3DKMT_HANDLE next_local = -1;
+    D3DKMT_OPENADAPTERFROMGDIDISPLAYNAME open_adapter = {0};
+    D3DKMT_DESTROYSYNCHRONIZATIONOBJECT destroy = {0};
+    D3DKMT_CREATESYNCHRONIZATIONOBJECT2 create2 = {0};
+    D3DKMT_CREATESYNCHRONIZATIONOBJECT create = {0};
+    D3DKMT_OPENSYNCHRONIZATIONOBJECT open = {0};
+    D3DKMT_DESTROYDEVICE destroy_device = {0};
+    D3DKMT_CREATEDEVICE create_device = {0};
+    D3DKMT_CLOSEADAPTER close_adapter = {0};
+    NTSTATUS status;
+
+#define CHECK_D3DKMT_HANDLE(a, b) \
+    do { \
+        D3DKMT_HANDLE handle = (a); \
+        todo_wine ok(handle & 0xc0000000, "got %#x\n", handle); \
+        if (b) todo_wine ok((handle & 0x3f) == 2, "got %#x\n", handle); \
+        else \
+        { \
+            todo_wine ok(!(handle & 0x3f), "got %#x\n", handle); \
+            if (next_local != -1) todo_wine ok(handle == next_local, "got %#x, expected %#x\n", handle, next_local); \
+            next_local = handle + 0x40; \
+        } \
+    } while (0)
+
+    if (!pD3DKMTCreateSynchronizationObject)
+    {
+        win_skip("D3DKMTCreateSynchronizationObject() is unavailable.\n");
+        return;
+    }
+
+    wcscpy(open_adapter.DeviceName, L"\\\\.\\DISPLAY1");
+    status = pD3DKMTOpenAdapterFromGdiDisplayName(&open_adapter);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
+    create_device.hAdapter = open_adapter.hAdapter;
+    status = pD3DKMTCreateDevice(&create_device);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
+
+    /* pD3DKMTCreateSynchronizationObject creates a local D3DKMT_HANDLE */
+    status = pD3DKMTCreateSynchronizationObject(NULL);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    status = pD3DKMTCreateSynchronizationObject(&create);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    create.hDevice = create_device.hDevice;
+    status = pD3DKMTCreateSynchronizationObject(&create);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    create.hDevice = 0;
+    create.Info.Type = D3DDDI_SYNCHRONIZATION_MUTEX;
+    status = pD3DKMTCreateSynchronizationObject(&create);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    create.hDevice = create_device.hDevice;
+    create.Info.Type = D3DDDI_SYNCHRONIZATION_MUTEX;
+    create.hSyncObject = 0x1eadbeed;
+    status = pD3DKMTCreateSynchronizationObject(&create);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(create.hSyncObject, FALSE);
+    destroy.hSyncObject = create.hSyncObject;
+
+    /* local handles are monotonically increasing */
+    create.hSyncObject = 0x1eadbeed;
+    status = pD3DKMTCreateSynchronizationObject(&create);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(create.hSyncObject, FALSE);
+
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    /* destroying multiple times fails */
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+
+    destroy.hSyncObject = create.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    create.Info.Type = D3DDDI_SEMAPHORE;
+    create.hSyncObject = 0x1eadbeed;
+    status = pD3DKMTCreateSynchronizationObject(&create);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(create.hSyncObject, FALSE);
+    destroy.hSyncObject = create.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    create.Info.Type = D3DDDI_FENCE;
+    status = pD3DKMTCreateSynchronizationObject(&create);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+
+
+    if (!pD3DKMTCreateSynchronizationObject2)
+    {
+        win_skip("D3DKMTCreateSynchronizationObject2() is unavailable.\n");
+        goto done;
+    }
+
+
+    /* pD3DKMTCreateSynchronizationObject2 can create local D3DKMT_HANDLE */
+    status = pD3DKMTCreateSynchronizationObject2(NULL);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    status = pD3DKMTCreateSynchronizationObject2(&create2);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    create2.hDevice = create_device.hDevice;
+    status = pD3DKMTCreateSynchronizationObject2(&create2);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    create2.hDevice = 0;
+    create2.Info.Type = D3DDDI_SYNCHRONIZATION_MUTEX;
+    status = pD3DKMTCreateSynchronizationObject2(&create2);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    create2.hDevice = create_device.hDevice;
+    create2.Info.Type = D3DDDI_SYNCHRONIZATION_MUTEX;
+    create2.hSyncObject = create2.Info.SharedHandle = 0x1eadbeed;
+    status = pD3DKMTCreateSynchronizationObject2(&create2);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(create2.hSyncObject, FALSE);
+    ok(create2.Info.SharedHandle == 0x1eadbeed, "got Info.SharedHandle %#x\n", create2.Info.SharedHandle);
+
+    destroy.hSyncObject = create2.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+
+    create2.Info.Type = D3DDDI_SEMAPHORE;
+    create2.hSyncObject = create2.Info.SharedHandle = 0x1eadbeed;
+    status = pD3DKMTCreateSynchronizationObject2(&create2);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(create2.hSyncObject, FALSE);
+    destroy.hSyncObject = create2.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    create2.Info.Type = D3DDDI_FENCE;
+    create2.hSyncObject = create2.Info.SharedHandle = 0x1eadbeed;
+    status = pD3DKMTCreateSynchronizationObject2(&create2);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(create2.hSyncObject, FALSE);
+    destroy.hSyncObject = create2.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    create2.Info.Type = D3DDDI_CPU_NOTIFICATION;
+    status = pD3DKMTCreateSynchronizationObject2(&create2);
+    todo_wine ok(status == STATUS_INVALID_HANDLE, "got %#lx\n", status);
+    create2.Info.CPUNotification.Event = CreateEventW(NULL, FALSE, FALSE, NULL);
+    create2.hSyncObject = create2.Info.SharedHandle = 0x1eadbeed;
+    status = pD3DKMTCreateSynchronizationObject2(&create2);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(create2.hSyncObject, FALSE);
+    destroy.hSyncObject = create2.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CloseHandle(create2.Info.CPUNotification.Event);
+    create2.Info.CPUNotification.Event = NULL;
+
+    create2.Info.Type = D3DDDI_MONITORED_FENCE;
+    create2.hSyncObject = create2.Info.SharedHandle = 0x1eadbeed;
+    status = pD3DKMTCreateSynchronizationObject2(&create2);
+    todo_wine ok(status == STATUS_SUCCESS || broken(status == STATUS_INVALID_PARAMETER), "got %#lx\n", status);
+    if (status == STATUS_SUCCESS)
+    {
+        CHECK_D3DKMT_HANDLE(create2.hSyncObject, FALSE);
+        destroy.hSyncObject = create2.hSyncObject;
+        status = pD3DKMTDestroySynchronizationObject(&destroy);
+        todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    }
+
+
+    create2.Info.Type = D3DDDI_SYNCHRONIZATION_MUTEX;
+    create2.Info.Flags.Shared = 1;
+    create2.hSyncObject = create2.Info.SharedHandle = 0x1eadbeed;
+    status = pD3DKMTCreateSynchronizationObject2(&create2);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(create2.hSyncObject, FALSE);
+    CHECK_D3DKMT_HANDLE(create2.Info.SharedHandle, TRUE);
+    destroy.hSyncObject = create2.hSyncObject;
+
+    create2.hSyncObject = create2.Info.SharedHandle = 0x1eadbeed;
+    status = pD3DKMTCreateSynchronizationObject2(&create2);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(create2.hSyncObject, FALSE);
+    CHECK_D3DKMT_HANDLE(create2.Info.SharedHandle, TRUE);
+
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    /* cannot destroy the global D3DKMT_HANDLE */
+    destroy.hSyncObject = create2.Info.SharedHandle;
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+
+
+    /* D3DKMTOpenSynchronizationObject creates a new local D3DKMT_HANDLE */
+    open.hSharedHandle = 0x1eadbeed;
+    status = pD3DKMTOpenSynchronizationObject(&open);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open.hSharedHandle = 0;
+    status = pD3DKMTOpenSynchronizationObject(&open);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open.hSyncObject = create2.hSyncObject;
+    status = pD3DKMTOpenSynchronizationObject(&open);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+    open.hSyncObject = 0x1eadbeed;
+    open.hSharedHandle = create2.Info.SharedHandle;
+    status = pD3DKMTOpenSynchronizationObject(&open);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(open.hSyncObject, FALSE);
+
+    destroy.hSyncObject = open.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    /* destroying multiple times fails */
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+
+    /* the D3DKMT object can still be opened */
+    open.hSyncObject = 0x1eadbeed;
+    status = pD3DKMTOpenSynchronizationObject(&open);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(open.hSyncObject, FALSE);
+
+    destroy.hSyncObject = open.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    destroy.hSyncObject = create2.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    /* the global D3DKMT_HANDLE is destroyed with last reference */
+    status = pD3DKMTOpenSynchronizationObject(&open);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
+
+
+    /* NtSecuritySharing requires Shared, doesn't creates a global handle */
+    create2.Info.Flags.Shared = 0;
+    create2.Info.Flags.NtSecuritySharing = 1;
+    status = pD3DKMTCreateSynchronizationObject2(&create2);
+    todo_wine ok(status == STATUS_INVALID_PARAMETER || broken(!status) /* W8 */, "got %#lx\n", status);
+    if (broken(!status))
+    {
+        CHECK_D3DKMT_HANDLE(create2.hSyncObject, FALSE);
+        destroy.hSyncObject = create2.hSyncObject;
+        status = pD3DKMTDestroySynchronizationObject(&destroy);
+        todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    }
+
+    create2.Info.Flags.Shared = 1;
+    create2.Info.Flags.NtSecuritySharing = 1;
+    create2.hSyncObject = create2.Info.SharedHandle = 0x1eadbeed;
+    status = pD3DKMTCreateSynchronizationObject2(&create2);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    CHECK_D3DKMT_HANDLE(create2.hSyncObject, FALSE);
+    ok(create2.Info.SharedHandle == 0x1eadbeed || !create2.Info.SharedHandle,
+       "got Info.SharedHandle %#x\n", create2.Info.SharedHandle);
+
+    destroy.hSyncObject = create2.hSyncObject;
+    status = pD3DKMTDestroySynchronizationObject(&destroy);
+    todo_wine ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+
+done:
+    destroy_device.hDevice = create_device.hDevice;
+    status = pD3DKMTDestroyDevice(&destroy_device);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
+    close_adapter.hAdapter = open_adapter.hAdapter;
+    status = pD3DKMTCloseAdapter(&close_adapter);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
+
+#undef CHECK_D3DKMT_HANDLE
+}
+
 static void test_gpu_device_properties_guid(const GUID *devinterface_guid)
 {
     BYTE iface_detail_buffer[sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W) + 256 * sizeof(WCHAR)];
@@ -1221,18 +1497,27 @@ START_TEST(driver)
     HMODULE gdi32 = GetModuleHandleA("gdi32.dll");
     HMODULE dwmapi = LoadLibraryA("dwmapi.dll");
 
-    pD3DKMTCheckOcclusion = (void *)GetProcAddress(gdi32, "D3DKMTCheckOcclusion");
-    pD3DKMTCheckVidPnExclusiveOwnership = (void *)GetProcAddress(gdi32, "D3DKMTCheckVidPnExclusiveOwnership");
-    pD3DKMTCloseAdapter = (void *)GetProcAddress(gdi32, "D3DKMTCloseAdapter");
-    pD3DKMTCreateDevice = (void *)GetProcAddress(gdi32, "D3DKMTCreateDevice");
-    pD3DKMTDestroyDevice = (void *)GetProcAddress(gdi32, "D3DKMTDestroyDevice");
-    pD3DKMTEnumAdapters2 = (void *)GetProcAddress(gdi32, "D3DKMTEnumAdapters2");
-    pD3DKMTOpenAdapterFromDeviceName = (void *)GetProcAddress(gdi32, "D3DKMTOpenAdapterFromDeviceName");
-    pD3DKMTOpenAdapterFromGdiDisplayName = (void *)GetProcAddress(gdi32, "D3DKMTOpenAdapterFromGdiDisplayName");
-    pD3DKMTOpenAdapterFromHdc = (void *)GetProcAddress(gdi32, "D3DKMTOpenAdapterFromHdc");
-    pD3DKMTSetVidPnSourceOwner = (void *)GetProcAddress(gdi32, "D3DKMTSetVidPnSourceOwner");
-    pD3DKMTQueryAdapterInfo = (void *)GetProcAddress(gdi32, "D3DKMTQueryAdapterInfo");
-    pD3DKMTQueryVideoMemoryInfo = (void *)GetProcAddress(gdi32, "D3DKMTQueryVideoMemoryInfo");
+#define LOAD_FUNCPTR(f) p##f = (void *)GetProcAddress(gdi32, #f)
+    LOAD_FUNCPTR(D3DKMTCheckOcclusion);
+    LOAD_FUNCPTR(D3DKMTCheckVidPnExclusiveOwnership);
+    LOAD_FUNCPTR(D3DKMTCloseAdapter);
+    LOAD_FUNCPTR(D3DKMTCreateDevice);
+    LOAD_FUNCPTR(D3DKMTCreateSynchronizationObject);
+    LOAD_FUNCPTR(D3DKMTCreateSynchronizationObject2);
+    LOAD_FUNCPTR(D3DKMTDestroyDevice);
+    LOAD_FUNCPTR(D3DKMTDestroySynchronizationObject);
+    LOAD_FUNCPTR(D3DKMTEnumAdapters2);
+    LOAD_FUNCPTR(D3DKMTOpenAdapterFromDeviceName);
+    LOAD_FUNCPTR(D3DKMTOpenAdapterFromGdiDisplayName);
+    LOAD_FUNCPTR(D3DKMTOpenAdapterFromHdc);
+    LOAD_FUNCPTR(D3DKMTOpenSynchronizationObject);
+    LOAD_FUNCPTR(D3DKMTOpenSyncObjectFromNtHandle);
+    LOAD_FUNCPTR(D3DKMTOpenSyncObjectFromNtHandle2);
+    LOAD_FUNCPTR(D3DKMTOpenSyncObjectNtHandleFromName);
+    LOAD_FUNCPTR(D3DKMTQueryAdapterInfo);
+    LOAD_FUNCPTR(D3DKMTQueryVideoMemoryInfo);
+    LOAD_FUNCPTR(D3DKMTSetVidPnSourceOwner);
+#undef LOAD_FUNCPTR
 
     if (dwmapi)
         pDwmEnableComposition = (void *)GetProcAddress(dwmapi, "DwmEnableComposition");
@@ -1249,6 +1534,7 @@ START_TEST(driver)
     test_D3DKMTOpenAdapterFromDeviceName();
     test_D3DKMTQueryAdapterInfo();
     test_D3DKMTQueryVideoMemoryInfo();
+    test_D3DKMTCreateSynchronizationObject();
     test_gpu_device_properties();
 
     FreeLibrary(dwmapi);
