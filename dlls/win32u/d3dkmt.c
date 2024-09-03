@@ -1209,6 +1209,100 @@ NTSTATUS WINAPI NtGdiDdDDIQueryResourceInfoFromNtHandle( D3DKMT_QUERYRESOURCEINF
     return STATUS_NOT_IMPLEMENTED;
 }
 
+typedef struct _D3DDDICB_LOCKFLAGS
+{
+    union
+    {
+        struct
+        {
+            UINT ReadOnly : 1;
+            UINT WriteOnly : 1;
+            UINT DonotWait : 1;
+            UINT IgnoreSync : 1;
+            UINT LockEntire : 1;
+            UINT DonotEvict : 1;
+            UINT AcquireAperture : 1;
+            UINT Discard : 1;
+            UINT NoExistingReference : 1;
+            UINT UseAlternateVA : 1;
+            UINT IgnoreReadSync : 1;
+            UINT Reserved : 21;
+        };
+        UINT Value;
+    };
+} D3DDDICB_LOCKFLAGS;
+
+typedef struct _D3DKMT_LOCK
+{
+    D3DKMT_HANDLE hDevice;
+    D3DKMT_HANDLE hAllocation;
+    UINT PrivateDriverData;
+    UINT NumPages;
+    const UINT *pPages;
+    VOID *pData;
+    D3DDDICB_LOCKFLAGS Flags;
+    D3DGPU_VIRTUAL_ADDRESS GpuVirtualAddress;
+} D3DKMT_LOCK;
+
+typedef struct _D3DKMT_UNLOCK
+{
+    D3DKMT_HANDLE hDevice;
+    UINT NumAllocations;
+    const D3DKMT_HANDLE *phAllocations;
+} D3DKMT_UNLOCK;
+
+NTSTATUS WINAPI NtGdiDdDDILock( D3DKMT_LOCK *params )
+{
+    FIXME( "params %p stub!\n", params );
+    params->pData = NULL;
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS WINAPI NtGdiDdDDIUnlock( const D3DKMT_UNLOCK *params )
+{
+    FIXME( "params %p stub!\n", params );
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+typedef struct _D3DDDICB_LOCK2FLAGS
+{
+    union
+    {
+        struct
+        {
+            UINT Reserved : 32;
+        };
+        UINT Value;
+    };
+} D3DDDICB_LOCK2FLAGS;
+
+typedef struct _D3DKMT_LOCK2
+{
+    D3DKMT_HANDLE hDevice;
+    D3DKMT_HANDLE hAllocation;
+    D3DDDICB_LOCK2FLAGS Flags;
+    void *pData;
+} D3DKMT_LOCK2;
+
+typedef struct _D3DKMT_UNLOCK2
+{
+    D3DKMT_HANDLE hDevice;
+    D3DKMT_HANDLE hAllocation;
+} D3DKMT_UNLOCK2;
+
+NTSTATUS WINAPI NtGdiDdDDILock2( D3DKMT_LOCK2 *params )
+{
+    FIXME( "params %p stub!\n", params );
+    params->pData = NULL;
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS WINAPI NtGdiDdDDIUnlock2( const D3DKMT_UNLOCK2 *params )
+{
+    FIXME( "params %p stub!\n", params );
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 
 /******************************************************************************
  *           NtGdiDdDDICreateKeyedMutex2    (win32u.@)
