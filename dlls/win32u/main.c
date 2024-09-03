@@ -206,6 +206,16 @@ HBRUSH SYSCALL_API NtGdiCreateSolidBrush( COLORREF color, HBRUSH brush )
     SYSCALL_FUNC( NtGdiCreateSolidBrush );
 }
 
+NTSTATUS SYSCALL_API NtGdiDdDDIAcquireKeyedMutex( D3DKMT_ACQUIREKEYEDMUTEX *desc )
+{
+    SYSCALL_FUNC( NtGdiDdDDIAcquireKeyedMutex );
+}
+
+NTSTATUS SYSCALL_API NtGdiDdDDIAcquireKeyedMutex2( D3DKMT_ACQUIREKEYEDMUTEX2 *desc )
+{
+    SYSCALL_FUNC( NtGdiDdDDIAcquireKeyedMutex2 );
+}
+
 NTSTATUS SYSCALL_API NtGdiDdDDICheckVidPnExclusiveOwnership( const D3DKMT_CHECKVIDPNEXCLUSIVEOWNERSHIP *desc )
 {
     SYSCALL_FUNC( NtGdiDdDDICheckVidPnExclusiveOwnership );
@@ -389,6 +399,16 @@ NTSTATUS SYSCALL_API NtGdiDdDDIQueryStatistics( D3DKMT_QUERYSTATISTICS *stats )
 NTSTATUS SYSCALL_API NtGdiDdDDIQueryVideoMemoryInfo( D3DKMT_QUERYVIDEOMEMORYINFO *desc )
 {
     SYSCALL_FUNC( NtGdiDdDDIQueryVideoMemoryInfo );
+}
+
+NTSTATUS SYSCALL_API NtGdiDdDDIReleaseKeyedMutex( D3DKMT_RELEASEKEYEDMUTEX *desc )
+{
+    SYSCALL_FUNC( NtGdiDdDDIReleaseKeyedMutex );
+}
+
+NTSTATUS SYSCALL_API NtGdiDdDDIReleaseKeyedMutex2( D3DKMT_RELEASEKEYEDMUTEX2 *desc )
+{
+    SYSCALL_FUNC( NtGdiDdDDIReleaseKeyedMutex2 );
 }
 
 NTSTATUS SYSCALL_API NtGdiDdDDISetQueuedLimit( D3DKMT_SETQUEUEDLIMIT *desc )

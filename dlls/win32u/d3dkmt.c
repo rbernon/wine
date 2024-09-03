@@ -1325,6 +1325,44 @@ NTSTATUS WINAPI NtGdiDdDDIOpenKeyedMutexFromNtHandle( D3DKMT_OPENKEYEDMUTEXFROMN
     return status;
 }
 
+/******************************************************************************
+ *           NtGdiDdDDIAcquireKeyedMutex    (win32u.@)
+ */
+NTSTATUS WINAPI NtGdiDdDDIAcquireKeyedMutex( D3DKMT_ACQUIREKEYEDMUTEX *params )
+{
+    FIXME( "params %p stub!\n", params );
+    params->FenceValue = 0;
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+/******************************************************************************
+ *           NtGdiDdDDIAcquireKeyedMutex2    (win32u.@)
+ */
+NTSTATUS WINAPI NtGdiDdDDIAcquireKeyedMutex2( D3DKMT_ACQUIREKEYEDMUTEX2 *params )
+{
+    FIXME( "params %p stub!\n", params );
+    params->FenceValue = 0;
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+/******************************************************************************
+ *           NtGdiDdDDIReleaseKeyedMutex    (win32u.@)
+ */
+NTSTATUS WINAPI NtGdiDdDDIReleaseKeyedMutex( D3DKMT_RELEASEKEYEDMUTEX *params )
+{
+    FIXME( "params %p stub!\n", params );
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+/******************************************************************************
+ *           NtGdiDdDDIReleaseKeyedMutex2    (win32u.@)
+ */
+NTSTATUS WINAPI NtGdiDdDDIReleaseKeyedMutex2( D3DKMT_RELEASEKEYEDMUTEX2 *params )
+{
+    FIXME( "params %p stub!\n", params );
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 
 /******************************************************************************
  *           NtGdiDdDDICreateSynchronizationObject2    (win32u.@)
