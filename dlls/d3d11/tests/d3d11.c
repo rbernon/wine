@@ -35161,7 +35161,7 @@ while(0);
 
 do
 {
-    const unsigned char *ptr = (void *)open_resource.pPrivateRuntimeData, *end = ptr + open_resource.PrivateRuntimeDataSize;
+    const unsigned char *ptr = (void *)open_resource_nt.pPrivateRuntimeData, *end = ptr + open_resource_nt.PrivateRuntimeDataSize;
     ok(0, "runtime %p-%p (%x)\n", (void *)ptr, (void *)end, (int)(end - ptr));
     for (int i = 0, j; ptr + i < end;)
     {
@@ -35309,6 +35309,202 @@ while(0);
     ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
 }
 
+static void test_d3dkmt_resource(HANDLE handle)
+{
+    NTSTATUS (WINAPI *pD3DKMTCloseAdapter)( D3DKMT_CLOSEADAPTER *params );
+    NTSTATUS (WINAPI *pD3DKMTCreateDevice)( D3DKMT_CREATEDEVICE *params );
+    NTSTATUS (WINAPI *pD3DKMTDestroyAllocation)( const D3DKMT_DESTROYALLOCATION *params );
+    NTSTATUS (WINAPI *pD3DKMTDestroyDevice)( D3DKMT_DESTROYDEVICE *params );
+    NTSTATUS (WINAPI *pD3DKMTOpenAdapterFromGdiDisplayName)( D3DKMT_OPENADAPTERFROMGDIDISPLAYNAME *params );
+    NTSTATUS (WINAPI *pD3DKMTOpenResource2)( D3DKMT_OPENRESOURCE *params );
+    NTSTATUS (WINAPI *pD3DKMTOpenResourceFromNtHandle)( D3DKMT_OPENRESOURCEFROMNTHANDLE *params );
+    NTSTATUS (WINAPI *pD3DKMTQueryResourceInfo)( D3DKMT_QUERYRESOURCEINFO *params );
+    NTSTATUS (WINAPI *pD3DKMTQueryResourceInfoFromNtHandle)( D3DKMT_QUERYRESOURCEINFOFROMNTHANDLE *params );
+
+    D3DKMT_QUERYRESOURCEINFOFROMNTHANDLE query_resource_nt = {0};
+    D3DKMT_OPENADAPTERFROMGDIDISPLAYNAME open_adapter = {0};
+    OBJECT_ATTRIBUTES attr = {.Length = sizeof(attr)};
+    D3DKMT_QUERYRESOURCEINFO query_resource = {0};
+    D3DKMT_DESTROYDEVICE destroy_device = {0};
+    D3DKMT_CREATEDEVICE create_device = {0};
+    D3DKMT_CLOSEADAPTER close_adapter = {0};
+    D3DKMT_DESTROYALLOCATION destroy = {0};
+    char runtime_data[0x100] = {0};
+    NTSTATUS status;
+    HMODULE gdi32;
+
+    D3DKMT_OPENRESOURCEFROMNTHANDLE open_resource_nt = {0};
+    D3DDDI_OPENALLOCATIONINFO2 open_alloc = {0};
+    D3DKMT_OPENRESOURCE open_resource = {0};
+    char resource_data[0x100] = {0};
+    char driver_data[0x1000] = {0};
+    char alloc_data[0x100] = {0};
+
+    gdi32 = GetModuleHandleA("gdi32.dll");
+#define LOAD_FUNCPTR(f) \
+        if (!(p##f = (void *)GetProcAddress(gdi32, #f))) \
+        { \
+            win_skip("Missing " #f " entry point, skipping tests\n"); \
+            return; \
+        }
+    LOAD_FUNCPTR(D3DKMTCloseAdapter);
+    LOAD_FUNCPTR(D3DKMTCreateDevice);
+    LOAD_FUNCPTR(D3DKMTDestroyAllocation);
+    LOAD_FUNCPTR(D3DKMTDestroyDevice);
+    LOAD_FUNCPTR(D3DKMTOpenAdapterFromGdiDisplayName);
+    LOAD_FUNCPTR(D3DKMTOpenResource2);
+    LOAD_FUNCPTR(D3DKMTOpenResourceFromNtHandle);
+    LOAD_FUNCPTR(D3DKMTQueryResourceInfo);
+    LOAD_FUNCPTR(D3DKMTQueryResourceInfoFromNtHandle);
+#undef LOAD_FUNCPTR
+
+    lstrcpyW(open_adapter.DeviceName, L"\\\\.\\DISPLAY1");
+    status = pD3DKMTOpenAdapterFromGdiDisplayName(&open_adapter);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
+    create_device.hAdapter = open_adapter.hAdapter;
+    status = pD3DKMTCreateDevice(&create_device);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
+
+    if (is_kmt_handle(handle))
+    {
+        /* handle is a global D3DKMT_HANDLE */
+        ok(((UINT_PTR)handle & 0x3f) == 2, "got handle %p\n", handle);
+
+        query_resource.hDevice = create_device.hDevice;
+        query_resource.hGlobalShare = HandleToUlong(handle);
+        query_resource.pPrivateRuntimeData = runtime_data;
+        query_resource.PrivateRuntimeDataSize = sizeof(runtime_data);
+        status = pD3DKMTQueryResourceInfo(&query_resource);
+        ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+        ok(query_resource.pPrivateRuntimeData == runtime_data, "got pPrivateRuntimeData %p\n", query_resource.pPrivateRuntimeData);
+        ok(query_resource.PrivateRuntimeDataSize == 0x68, "got PrivateRuntimeDataSize %#x\n", query_resource.PrivateRuntimeDataSize);
+        ok(query_resource.TotalPrivateDriverDataSize == 0x60, "got TotalPrivateDriverDataSize %#x\n", query_resource.TotalPrivateDriverDataSize);
+        ok(query_resource.ResourcePrivateDriverDataSize == 0, "got ResourcePrivateDriverDataSize %#x\n", query_resource.ResourcePrivateDriverDataSize);
+        ok(query_resource.NumAllocations == 1, "got NumAllocations %#x\n", query_resource.NumAllocations);
+
+        open_alloc.pPrivateDriverData = alloc_data;
+        open_alloc.PrivateDriverDataSize = sizeof(alloc_data);
+
+        open_resource.hGlobalShare = HandleToUlong(handle);
+        open_resource.hDevice = create_device.hDevice;
+        open_resource.NumAllocations = 1;
+        open_resource.pOpenAllocationInfo2 = &open_alloc;
+        open_resource.pPrivateRuntimeData = runtime_data;
+        open_resource.PrivateRuntimeDataSize = query_resource.PrivateRuntimeDataSize;
+        open_resource.pResourcePrivateDriverData = resource_data;
+        open_resource.ResourcePrivateDriverDataSize = query_resource.ResourcePrivateDriverDataSize;
+        open_resource.pTotalPrivateDriverDataBuffer = driver_data;
+        open_resource.TotalPrivateDriverDataBufferSize = sizeof(driver_data);
+        status = pD3DKMTOpenResource2(&open_resource);
+        ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+        ok(open_resource.TotalPrivateDriverDataBufferSize == 0x60, "got TotalPrivateDriverDataBufferSize %#x\n", open_resource.TotalPrivateDriverDataBufferSize);
+        ok(open_resource.hResource & 0xc0000000, "got hResource %#x\n", open_resource.hResource);
+        ok((open_resource.hResource & 0x3f) == 0, "got hResource %#x\n", open_resource.hResource);
+
+do
+{
+    const unsigned char *ptr = (void *)open_resource.pPrivateRuntimeData, *end = ptr + open_resource.PrivateRuntimeDataSize;
+    ok(0, "runtime %p-%p (%x)\n", (void *)ptr, (void *)end, (int)(end - ptr));
+    for (int i = 0, j; ptr + i < end;)
+    {
+        char buffer[256], *buf = buffer;
+        buf += sprintf(buf, "%08x ", i);
+        for (j = 0; j < 8 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 8 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, " ");
+        for (j = 8; j < 16 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 16 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, "  |");
+        for (j = 0; j < 16 && ptr + i < end; ++j, ++i)
+            buf += sprintf(buf, "%c", ptr[i] >= ' ' && ptr[i] <= '~' ? ptr[i] : '.');
+        buf += sprintf(buf, "|");
+        ok(0, "%s\n", buffer);
+    }
+}
+while(0);
+
+        destroy.hResource = open_resource.hResource;
+        destroy.hDevice = create_device.hDevice;
+        status = pD3DKMTDestroyAllocation(&destroy);
+        ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    }
+    else
+    {
+        query_resource_nt.hDevice = create_device.hDevice;
+        query_resource_nt.hNtHandle = handle;
+        query_resource_nt.pPrivateRuntimeData = runtime_data;
+        query_resource_nt.PrivateRuntimeDataSize = sizeof(runtime_data);
+        status = pD3DKMTQueryResourceInfoFromNtHandle(&query_resource_nt);
+        ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+        ok(query_resource_nt.pPrivateRuntimeData == runtime_data, "got pPrivateRuntimeData %p\n", query_resource_nt.pPrivateRuntimeData);
+        ok(query_resource_nt.PrivateRuntimeDataSize == 0x68, "got PrivateRuntimeDataSize %#x\n", query_resource_nt.PrivateRuntimeDataSize);
+        ok(query_resource_nt.TotalPrivateDriverDataSize == 0x60, "got TotalPrivateDriverDataSize %#x\n", query_resource_nt.TotalPrivateDriverDataSize);
+        ok(query_resource_nt.ResourcePrivateDriverDataSize == 0, "got ResourcePrivateDriverDataSize %#x\n", query_resource_nt.ResourcePrivateDriverDataSize);
+        ok(query_resource_nt.NumAllocations == 1, "got NumAllocations %#x\n", query_resource_nt.NumAllocations);
+
+        open_alloc.pPrivateDriverData = alloc_data;
+        open_alloc.PrivateDriverDataSize = sizeof(alloc_data);
+
+        open_resource_nt.hNtHandle = handle;
+        open_resource_nt.hDevice = create_device.hDevice;
+        open_resource_nt.NumAllocations = 1;
+        open_resource_nt.pOpenAllocationInfo2 = &open_alloc;
+        open_resource_nt.pPrivateRuntimeData = runtime_data;
+        open_resource_nt.PrivateRuntimeDataSize = query_resource_nt.PrivateRuntimeDataSize;
+        open_resource_nt.pResourcePrivateDriverData = resource_data;
+        open_resource_nt.ResourcePrivateDriverDataSize = query_resource_nt.ResourcePrivateDriverDataSize;
+        open_resource_nt.pTotalPrivateDriverDataBuffer = driver_data;
+        open_resource_nt.TotalPrivateDriverDataBufferSize = sizeof(driver_data);
+        status = pD3DKMTOpenResourceFromNtHandle(&open_resource_nt);
+        ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+        ok(open_resource_nt.TotalPrivateDriverDataBufferSize == 0x60, "got TotalPrivateDriverDataBufferSize %#x\n", open_resource_nt.TotalPrivateDriverDataBufferSize);
+        ok(open_resource_nt.hResource & 0xc0000000, "got hResource %#x\n", open_resource_nt.hResource);
+        ok((open_resource_nt.hResource & 0x3f) == 0, "got hResource %#x\n", open_resource_nt.hResource);
+
+do
+{
+    const unsigned char *ptr = (void *)open_resource_nt.pPrivateRuntimeData, *end = ptr + open_resource_nt.PrivateRuntimeDataSize;
+    ok(0, "runtime %p-%p (%x)\n", (void *)ptr, (void *)end, (int)(end - ptr));
+    for (int i = 0, j; ptr + i < end;)
+    {
+        char buffer[256], *buf = buffer;
+        buf += sprintf(buf, "%08x ", i);
+        for (j = 0; j < 8 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 8 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, " ");
+        for (j = 8; j < 16 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 16 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, "  |");
+        for (j = 0; j < 16 && ptr + i < end; ++j, ++i)
+            buf += sprintf(buf, "%c", ptr[i] >= ' ' && ptr[i] <= '~' ? ptr[i] : '.');
+        buf += sprintf(buf, "|");
+        ok(0, "%s\n", buffer);
+    }
+}
+while(0);
+
+        destroy.hResource = open_resource.hResource;
+        destroy.hDevice = create_device.hDevice;
+        status = pD3DKMTDestroyAllocation(&destroy);
+        ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    }
+
+    destroy_device.hDevice = create_device.hDevice;
+    status = pD3DKMTDestroyDevice(&destroy_device);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
+    close_adapter.hAdapter = open_adapter.hAdapter;
+    status = pD3DKMTCloseAdapter(&close_adapter);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
+}
+
 static void test_shared_resource(D3D_FEATURE_LEVEL feature_level)
 {
     static const UINT tests[] =
@@ -35323,6 +35519,67 @@ static void test_shared_resource(D3D_FEATURE_LEVEL feature_level)
         D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX | D3D11_RESOURCE_MISC_SHARED | D3D11_RESOURCE_MISC_SHARED_NTHANDLE,
     };
     static const unsigned int sharing_type_flags = D3D11_RESOURCE_MISC_SHARED | D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
+    static const struct
+    {
+        UINT type;
+        union
+        {
+            D3D11_BUFFER_DESC desc_buf;
+            D3D11_TEXTURE1D_DESC desc_1d;
+            D3D11_TEXTURE2D_DESC desc_2d;
+            D3D11_TEXTURE3D_DESC desc_3d;
+        };
+    } runtime_data_tests[] =
+    {
+        {.type = 3,
+         .desc_2d = {.Width = 0x123, .Height = 0x456, .MipLevels = 1, .ArraySize = 1, .Format = DXGI_FORMAT_R8G8B8A8_UNORM, .SampleDesc.Count = 1,
+                .Usage = D3D11_USAGE_DEFAULT, .BindFlags = D3D11_BIND_SHADER_RESOURCE, .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
+                .MiscFlags = D3D11_RESOURCE_MISC_SHARED|D3D11_RESOURCE_MISC_SHARED_NTHANDLE},
+        },
+        {.type = 3,
+         .desc_2d = {.Width = 0x456, .Height = 0x123, .MipLevels = 1, .ArraySize = 4, .Format = DXGI_FORMAT_R8G8B8A8_SINT, .SampleDesc.Count = 1,
+                .Usage = D3D11_USAGE_DEFAULT, .BindFlags = D3D11_BIND_UNORDERED_ACCESS, .CPUAccessFlags = D3D11_CPU_ACCESS_READ,
+                .MiscFlags = D3D11_RESOURCE_MISC_SHARED|D3D11_RESOURCE_MISC_SHARED_NTHANDLE},
+        },
+        {.type = 3,
+         .desc_2d = {.Width = 0x123, .Height = 0x456, .MipLevels = 7, .ArraySize = 1, .Format = DXGI_FORMAT_R32_UINT, .SampleDesc.Count = 1,
+                .Usage = D3D11_USAGE_DEFAULT, .BindFlags = D3D11_BIND_RENDER_TARGET, .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
+                .MiscFlags = D3D11_RESOURCE_MISC_SHARED|D3D11_RESOURCE_MISC_SHARED_NTHANDLE},
+        },
+
+        {.type = 1,
+         .desc_buf = {.ByteWidth = 0x8, .Usage = D3D11_USAGE_DEFAULT, .BindFlags = D3D11_BIND_SHADER_RESOURCE,
+                .CPUAccessFlags = D3D11_CPU_ACCESS_READ,
+                .MiscFlags = D3D11_RESOURCE_MISC_SHARED},
+        },
+        {.type = 1,
+         .desc_buf = {.ByteWidth = 0x8, .Usage = D3D11_USAGE_DEFAULT, .BindFlags = D3D11_BIND_SHADER_RESOURCE,
+                .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
+                .MiscFlags = D3D11_RESOURCE_MISC_SHARED},
+        },
+
+        {.type = 2,
+         .desc_1d = {.Width = 0x123, .MipLevels = 1, .ArraySize = 2, .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
+                .Usage = D3D11_USAGE_DEFAULT, .BindFlags = D3D11_BIND_SHADER_RESOURCE, .CPUAccessFlags = D3D11_CPU_ACCESS_READ,
+                .MiscFlags = D3D11_RESOURCE_MISC_SHARED},
+        },
+        {.type = 2,
+         .desc_1d = {.Width = 0x456, .MipLevels = 4, .ArraySize = 1, .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
+                .Usage = D3D11_USAGE_DEFAULT, .BindFlags = D3D11_BIND_SHADER_RESOURCE, .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
+                .MiscFlags = D3D11_RESOURCE_MISC_SHARED},
+        },
+
+        {.type = 4,
+         .desc_3d = {.Width = 0x123, .Height = 0x456, .Depth = 7, .MipLevels = 1, .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
+                .Usage = D3D11_USAGE_DEFAULT, .BindFlags = D3D11_BIND_SHADER_RESOURCE, .CPUAccessFlags = D3D11_CPU_ACCESS_READ,
+                .MiscFlags = D3D11_RESOURCE_MISC_SHARED},
+        },
+        {.type = 4,
+         .desc_3d = {.Width = 0x456, .Height = 0x123, .Depth = 4, .MipLevels = 5, .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
+                .Usage = D3D11_USAGE_DEFAULT, .BindFlags = D3D11_BIND_SHADER_RESOURCE, .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
+                .MiscFlags = D3D11_RESOURCE_MISC_SHARED},
+        },
+    };
     struct device_desc device_desc = { 0 };
     IDXGIKeyedMutex *keyed_mutex;
     ID3D11Texture2D *tex, *tex2;
@@ -35491,6 +35748,98 @@ test_done:
             ID3D11Texture2D_Release(tex);
         if (res1)
             IDXGIResource1_Release(res1);
+        winetest_pop_context();
+    }
+
+    if (feature_level < D3D_FEATURE_LEVEL_10_0)
+        return;
+
+    for (test = 0; test < ARRAY_SIZE(runtime_data_tests); ++test)
+    {
+        winetest_push_context("%u", test);
+
+        if (runtime_data_tests[test].type == 1)
+        {
+            ID3D11Buffer *buffer;
+
+            hr = ID3D11Device_CreateBuffer(device, &runtime_data_tests[test].desc_buf, NULL, &buffer);
+            ok(hr == S_OK, "got %#lx.\n", hr);
+            if (hr != S_OK)
+                goto skip_tests;
+            hr = ID3D11Buffer_QueryInterface(buffer, &IID_IDXGIResource, (void **)&res);
+            ok(hr == S_OK, "got %#lx.\n", hr);
+
+            h = (HANDLE)0xdeadbeef;
+            hr = IDXGIResource_GetSharedHandle(res, &h);
+            ok(hr == S_OK, "got %#lx.\n", hr);
+
+            test_d3dkmt_resource(h);
+
+            IDXGIResource_Release(res);
+            ID3D11Buffer_Release(buffer);
+        }
+        else if (runtime_data_tests[test].type == 2)
+        {
+            ID3D11Texture1D *tex1d;
+
+            hr = ID3D11Device_CreateTexture1D(device, &runtime_data_tests[test].desc_1d, NULL, &tex1d);
+            ok(hr == S_OK, "got %#lx.\n", hr);
+            if (hr != S_OK)
+                goto skip_tests;
+            hr = ID3D11Texture1D_QueryInterface(tex1d, &IID_IDXGIResource, (void **)&res);
+            ok(hr == S_OK, "got %#lx.\n", hr);
+
+            h = (HANDLE)0xdeadbeef;
+            hr = IDXGIResource_GetSharedHandle(res, &h);
+            ok(hr == S_OK, "got %#lx.\n", hr);
+
+            test_d3dkmt_resource(h);
+
+            IDXGIResource_Release(res);
+            ID3D11Texture1D_Release(tex1d);
+        }
+        else if (runtime_data_tests[test].type == 3)
+        {
+            hr = ID3D11Device_CreateTexture2D(device, &runtime_data_tests[test].desc_2d, NULL, &tex);
+            ok(hr == S_OK, "got %#lx.\n", hr);
+            if (hr != S_OK)
+                goto skip_tests;
+            hr = ID3D11Texture2D_QueryInterface(tex, &IID_IDXGIResource1, (void **)&res1);
+            ok(hr == S_OK, "got %#lx.\n", hr);
+
+            h = (HANDLE)0xdeadbeef;
+            hr = IDXGIResource1_CreateSharedHandle(res1, NULL, GENERIC_ALL | DXGI_SHARED_RESOURCE_READ
+                    | DXGI_SHARED_RESOURCE_WRITE, NULL, &h);
+            ok(hr == S_OK, "got %#lx.\n", hr);
+
+            test_d3dkmt_resource(h);
+            CloseHandle(h);
+
+            IDXGIResource1_Release(res1);
+            ID3D11Texture2D_Release(tex);
+        }
+        else if (runtime_data_tests[test].type == 4)
+        {
+            ID3D11Texture3D *tex3d;
+
+            hr = ID3D11Device_CreateTexture3D(device, &runtime_data_tests[test].desc_3d, NULL, &tex3d);
+            ok(hr == S_OK, "got %#lx.\n", hr);
+            if (hr != S_OK)
+                goto skip_tests;
+            hr = ID3D11Texture3D_QueryInterface(tex3d, &IID_IDXGIResource, (void **)&res);
+            ok(hr == S_OK, "got %#lx.\n", hr);
+
+            h = (HANDLE)0xdeadbeef;
+            hr = IDXGIResource_GetSharedHandle(res, &h);
+            ok(hr == S_OK, "got %#lx.\n", hr);
+
+            test_d3dkmt_resource(h);
+
+            IDXGIResource_Release(res);
+            ID3D11Texture3D_Release(tex3d);
+        }
+
+skip_tests:
         winetest_pop_context();
     }
 
