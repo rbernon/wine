@@ -2499,6 +2499,7 @@ enum message_type
     atom_t         atom;        /* class atom */
     int            is_unicode;  /* ANSI or unicode */
     unsigned int   dpi_context; /* window DPI context */
+    unsigned int   monitor_dpi; /* DPI of the window's monitor */
 @END
 
 

@@ -2216,6 +2216,7 @@ DECL_HANDLER(get_window_info)
     reply->last_active = win->handle;
     reply->is_unicode  = win->is_unicode;
     reply->dpi_context = win->dpi_context;
+    reply->monitor_dpi = win->monitor_dpi;
 
     if (get_user_object( win->last_active, USER_WINDOW )) reply->last_active = win->last_active;
     if (win->thread)

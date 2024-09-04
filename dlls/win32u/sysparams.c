@@ -2243,15 +2243,6 @@ static UINT get_monitor_dpi( HMONITOR handle )
     return dpi;
 }
 
-/**********************************************************************
- *              get_win_monitor_dpi
- */
-UINT get_win_monitor_dpi( HWND hwnd )
-{
-    /* FIXME: use the monitor DPI instead */
-    return system_dpi;
-}
-
 /* keep in sync with user32 */
 static BOOL is_valid_dpi_awareness_context( UINT context, UINT dpi )
 {
