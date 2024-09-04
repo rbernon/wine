@@ -35098,6 +35098,32 @@ static void test_d3dkmt_sharing(HANDLE handle)
         ok(open_resource.hResource & 0xc0000000, "got hResource %#x\n", open_resource.hResource);
         ok((open_resource.hResource & 0x3f) == 0, "got hResource %#x\n", open_resource.hResource);
 
+do
+{
+    const unsigned char *ptr = (void *)open_resource.pPrivateRuntimeData, *end = ptr + open_resource.PrivateRuntimeDataSize;
+    ok(0, "runtime %p-%p (%x)\n", (void *)ptr, (void *)end, (int)(end - ptr));
+    for (int i = 0, j; ptr + i < end;)
+    {
+        char buffer[256], *buf = buffer;
+        buf += sprintf(buf, "%08x ", i);
+        for (j = 0; j < 8 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 8 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, " ");
+        for (j = 8; j < 16 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 16 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, "  |");
+        for (j = 0; j < 16 && ptr + i < end; ++j, ++i)
+            buf += sprintf(buf, "%c", ptr[i] >= ' ' && ptr[i] <= '~' ? ptr[i] : '.');
+        buf += sprintf(buf, "|");
+        ok(0, "%s\n", buffer);
+    }
+}
+while(0);
+
         resource = open_resource.hResource;
     }
     else
@@ -35132,6 +35158,32 @@ static void test_d3dkmt_sharing(HANDLE handle)
         ok(open_resource_nt.TotalPrivateDriverDataBufferSize == 0x60, "got TotalPrivateDriverDataBufferSize %#x\n", open_resource_nt.TotalPrivateDriverDataBufferSize);
         ok(open_resource_nt.hResource & 0xc0000000, "got hResource %#x\n", open_resource_nt.hResource);
         ok((open_resource_nt.hResource & 0x3f) == 0, "got hResource %#x\n", open_resource_nt.hResource);
+
+do
+{
+    const unsigned char *ptr = (void *)open_resource.pPrivateRuntimeData, *end = ptr + open_resource.PrivateRuntimeDataSize;
+    ok(0, "runtime %p-%p (%x)\n", (void *)ptr, (void *)end, (int)(end - ptr));
+    for (int i = 0, j; ptr + i < end;)
+    {
+        char buffer[256], *buf = buffer;
+        buf += sprintf(buf, "%08x ", i);
+        for (j = 0; j < 8 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 8 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, " ");
+        for (j = 8; j < 16 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 16 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, "  |");
+        for (j = 0; j < 16 && ptr + i < end; ++j, ++i)
+            buf += sprintf(buf, "%c", ptr[i] >= ' ' && ptr[i] <= '~' ? ptr[i] : '.');
+        buf += sprintf(buf, "|");
+        ok(0, "%s\n", buffer);
+    }
+}
+while(0);
 
         resource = open_resource_nt.hResource;
     }
@@ -36885,6 +36937,11 @@ START_TEST(d3d11)
     }
 
     print_adapter_info();
+
+use_mt = FALSE;
+    queue_for_each_feature_level(test_shared_resource);
+    run_queued_tests();
+return;
 
     queue_test(test_create_device);
     queue_for_each_feature_level(test_device_interfaces);
