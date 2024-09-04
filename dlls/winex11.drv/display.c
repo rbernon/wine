@@ -255,6 +255,8 @@ LONG X11DRV_ChangeDisplaySettings( LPDEVMODEW displays, LPCWSTR primary_name, HW
     x11drv_settings_id *ids;
     DEVMODEW *mode;
 
+    return E_NOTIMPL; /* use default implementation */
+
     /* Convert virtual screen coordinates to root coordinates, and find display ids.
      * We cannot safely get the ids while changing modes, as the backend state may be invalidated.
      */
@@ -455,7 +457,9 @@ UINT X11DRV_UpdateDisplayDevices( const struct gdi_device_manager *device_manage
             settings_handler.get_current_mode( settings_id, &current_mode );
             if (settings_handler.get_modes( settings_id, EDS_ROTATEDMODE, &modes, &mode_count, FALSE ))
             {
-                device_manager->add_modes( &current_mode, mode_count, modes, param );
+                DEVMODEW unique_mode = current_mode;
+                unique_mode.dmFields &= ~DM_POSITION;
+                device_manager->add_modes( &current_mode, 1, &unique_mode, param );
                 settings_handler.free_modes( modes );
             }
         }
