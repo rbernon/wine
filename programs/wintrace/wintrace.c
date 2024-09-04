@@ -927,13 +927,23 @@ static void list_devmode( const WCHAR *device )
 static void set_display_settings(void)
 {
     DEVMODEW mode = {.dmSize = sizeof(DEVMODEW)};
+    DISPLAY_DEVICEW adapter = {sizeof(adapter)};
+    BOOL vertical;
+    UINT i;
 
-    mode.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
-    mode.dmBitsPerPel = 32;
-    mode.dmPelsWidth = 800;
-    mode.dmPelsHeight = 600;
+    for (i = 0; EnumDisplayDevicesW( NULL, i, &adapter, 0 ); ++i)
+    {
+        EnumDisplaySettingsExW( adapter.DeviceName, ENUM_CURRENT_SETTINGS, &mode, 0 );
 
-    ChangeDisplaySettingsExW( L"\\\\.\\DISPLAY1", &mode, 0, CDS_UPDATEREGISTRY | CDS_NORESET, NULL );
+        vertical = mode.dmDisplayOrientation & 1;
+        mode.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
+        mode.dmBitsPerPel = 32;
+        mode.dmPelsWidth = vertical ? 600 : 800;
+        mode.dmPelsHeight = vertical ? 800 : 600;
+
+        ChangeDisplaySettingsExW( adapter.DeviceName, &mode, 0, CDS_UPDATEREGISTRY | CDS_NORESET, NULL );
+    }
+
     ChangeDisplaySettingsExW( NULL, NULL, NULL, 0, NULL );
 }
 
