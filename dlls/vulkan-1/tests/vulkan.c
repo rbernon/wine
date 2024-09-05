@@ -1253,6 +1253,8 @@ static ID3D11Device *create_d3d11_device(const struct d3d11_device_desc *desc)
 
 static void test_d3dkmt_resource(HANDLE handle)
 {
+    NTSTATUS (WINAPI *pD3DKMTShareObjects)( UINT count, const D3DKMT_HANDLE *handles, OBJECT_ATTRIBUTES *attr, UINT access, HANDLE *handle );
+    NTSTATUS (WINAPI *pD3DKMTCreateAllocation2)( D3DKMT_CREATEALLOCATION *params );
     NTSTATUS (WINAPI *pD3DKMTCloseAdapter)( D3DKMT_CLOSEADAPTER *params );
     NTSTATUS (WINAPI *pD3DKMTCreateDevice)( D3DKMT_CREATEDEVICE *params );
     NTSTATUS (WINAPI *pD3DKMTDestroyAllocation)( const D3DKMT_DESTROYALLOCATION *params );
@@ -1271,6 +1273,8 @@ static void test_d3dkmt_resource(HANDLE handle)
     D3DKMT_CREATEDEVICE create_device = {0};
     D3DKMT_CLOSEADAPTER close_adapter = {0};
     D3DKMT_DESTROYALLOCATION destroy = {0};
+    D3DDDI_ALLOCATIONINFO2 alloc_info = {0};
+    D3DKMT_CREATEALLOCATION create = {0};
     char runtime_data[0x100] = {0};
     NTSTATUS status;
     HMODULE gdi32;
@@ -1296,6 +1300,8 @@ static void test_d3dkmt_resource(HANDLE handle)
             win_skip("Missing " #f " entry point, skipping tests\n"); \
             return; \
         }
+    LOAD_FUNCPTR(D3DKMTShareObjects);
+    LOAD_FUNCPTR(D3DKMTCreateAllocation2);
     LOAD_FUNCPTR(D3DKMTCloseAdapter);
     LOAD_FUNCPTR(D3DKMTCreateDevice);
     LOAD_FUNCPTR(D3DKMTDestroyAllocation);
@@ -1365,6 +1371,7 @@ static void test_d3dkmt_resource(HANDLE handle)
         ok(open_resource.TotalPrivateDriverDataBufferSize == 0x60, "got TotalPrivateDriverDataBufferSize %#x\n", open_resource.TotalPrivateDriverDataBufferSize);
         ok(open_resource.hResource & 0xc0000000, "got hResource %#x\n", open_resource.hResource);
         ok((open_resource.hResource & 0x3f) == 0, "got hResource %#x\n", open_resource.hResource);
+        ok(0, "got GPU address %#I64x\n", open_alloc.GpuVirtualAddress);
 
 do
 {
@@ -1392,17 +1399,118 @@ do
 }
 while(0);
 
-        destroy.hResource = open_resource.hResource;
-        destroy.hDevice = create_device.hDevice;
-        status = pD3DKMTDestroyAllocation(&destroy);
-        ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+destroy.hResource = open_resource.hResource;
+destroy.hDevice = create_device.hDevice;
+status = pD3DKMTDestroyAllocation(&destroy);
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
 
 
-if (open_resource.PrivateRuntimeDataSize)
+create.hDevice = create_device.hDevice;
+
+create.pPrivateRuntimeData = runtime_data;
+create.PrivateRuntimeDataSize = 0x68;
+create.pPrivateDriverData = open_resource.pResourcePrivateDriverData;
+create.PrivateDriverDataSize = open_resource.ResourcePrivateDriverDataSize;
+create.NumAllocations = open_resource.NumAllocations;
+create.pAllocationInfo2 = &alloc_info;
+
+alloc_info.PrivateDriverDataSize = open_alloc.PrivateDriverDataSize;
+alloc_info.pPrivateDriverData = (void *)open_alloc.pPrivateDriverData;
+
 {
+const char rsrc[] = {
+0x68,0x00,0x00,0x00,0x04,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,0x00,0x00,0x23,0x01,0x00,0x00,
+0x56,0x04,0x00,0x00,0x07,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x2a,0x00,0x00,0x00,
+0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x20,0x00,0x00,0x00,
+0x00,0x00,0x01,0x00,0x02,0x00,0x00,0x00
+};
+memcpy(runtime_data, rsrc, sizeof(rsrc));
+}
+
+create.hResource = 0;
+create.Flags.CreateResource = 1;
+create.Flags.CreateShared = 1;
+
+status = pD3DKMTCreateAllocation2( &create );
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+ok(create.hGlobalShare != 0, "got hGlobalShare %#x\n", create.hGlobalShare);
+ok(create.hResource != 0, "got hResource %#x\n", create.hResource);
+ok(create.hPrivateRuntimeResourceHandle == 0, "got hPrivateRuntimeResourceHandle %p\n", create.hPrivateRuntimeResourceHandle);
+ok(0, "got GPU address %#I64x\n", alloc_info.GpuVirtualAddress);
+handle = (HANDLE)(UINT_PTR)create.hGlobalShare;
+
+
+if (handle)
+{
+        IDXGIResource1 *res1;
+
         hr = ID3D11Device_OpenSharedResource(device, handle, &IID_ID3D11Texture2D, (void **)&tex2);
         ok(hr == E_INVALIDARG, "got %#lx.\n", hr);
+
+        hr = ID3D11Texture2D_QueryInterface(tex2, &IID_IDXGIResource1, (void **)&res1);
+        ok(hr == S_OK, "got %#lx.\n", hr);
+        hr = IDXGIResource1_CreateSharedHandle(res1, NULL, GENERIC_ALL | DXGI_SHARED_RESOURCE_READ
+                | DXGI_SHARED_RESOURCE_WRITE, NULL, &handle);
+        ok(hr == S_OK, "got %#lx.\n", hr);
 }
+
+destroy.hResource = create.hResource;
+destroy.hDevice = create_device.hDevice;
+status = pD3DKMTDestroyAllocation(&destroy);
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+
+
+{
+const char rsrc[] = {
+0x68,0x00,0x00,0x00,0x04,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,0x00,0x00,0x23,0x01,0x00,0x00,
+0x56,0x04,0x00,0x00,0x07,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x2a,0x00,0x00,0x00,
+0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x20,0x00,0x00,0x00,
+0x00,0x00,0x01,0x00,0x02,0x08,0x00,0x00
+};
+memcpy(runtime_data, rsrc, sizeof(rsrc));
+}
+
+create.hResource = 0;
+create.Flags.CreateResource = 1;
+create.Flags.CreateShared = 1;
+create.Flags.NtSecuritySharing = 1;
+
+status = pD3DKMTCreateAllocation2( &create );
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+ok(create.hGlobalShare == 0, "got hGlobalShare %#x\n", create.hGlobalShare);
+ok(create.hResource != 0, "got hResource %#x\n", create.hResource);
+ok(create.hPrivateRuntimeResourceHandle == 0, "got hPrivateRuntimeResourceHandle %p\n", create.hPrivateRuntimeResourceHandle);
+ok(0, "got GPU address %#I64x\n", alloc_info.GpuVirtualAddress);
+
+handle = 0;
+status = pD3DKMTShareObjects(1, &create.hResource, &attr, STANDARD_RIGHTS_READ, &handle);
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+ok(handle != 0, "got %p\n", handle);
+ok(handle != INVALID_HANDLE_VALUE, "got %p\n", handle);
+
+
+if (handle)
+{
+        hr = ID3D11Device1_OpenSharedResource1(device1, handle, &IID_ID3D11Texture2D, (void **)&tex2);
+        ok(hr == E_INVALIDARG, "got %#lx.\n", hr);
+        CloseHandle(handle);
+}
+
+
+destroy.hResource = create.hResource;
+destroy.hDevice = create_device.hDevice;
+status = pD3DKMTDestroyAllocation(&destroy);
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+
+
     }
     else
     {
@@ -1463,16 +1571,89 @@ do
 }
 while(0);
 
+
+if (0)
+{
         destroy.hResource = open_resource.hResource;
         destroy.hDevice = create_device.hDevice;
         status = pD3DKMTDestroyAllocation(&destroy);
         ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+}
 
 
-if (open_resource_nt.PrivateRuntimeDataSize)
+create.hDevice = create_device.hDevice;
+
+create.pPrivateRuntimeData = runtime_data;
+create.PrivateRuntimeDataSize = 0x68;
+create.pPrivateDriverData = open_resource.pResourcePrivateDriverData;
+create.PrivateDriverDataSize = open_resource.ResourcePrivateDriverDataSize;
+create.NumAllocations = open_resource.NumAllocations;
+create.pAllocationInfo2 = &alloc_info;
+
+alloc_info.PrivateDriverDataSize = open_alloc.PrivateDriverDataSize;
+alloc_info.pPrivateDriverData = (void *)open_alloc.pPrivateDriverData;
+
+{
+const char rsrc[] = {
+0x68,0x00,0x00,0x00,0x04,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,0x00,0x00,0x23,0x01,0x00,0x00,
+0x56,0x04,0x00,0x00,0x07,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x2a,0x00,0x00,0x00,
+0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x20,0x00,0x00,0x00,
+0x00,0x00,0x01,0x00,0x02,0x08,0x00,0x00
+};
+memcpy(runtime_data, rsrc, sizeof(rsrc));
+}
+
+create.Flags.CreateResource = 1;
+create.Flags.CreateShared = 1;
+create.Flags.NtSecuritySharing = 1;
+
+status = pD3DKMTCreateAllocation2( &create );
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+ok(create.hGlobalShare == 0, "got hGlobalShare %#x\n", create.hGlobalShare);
+ok(create.hResource != 0, "got hResource %#x\n", create.hResource);
+ok(create.hPrivateRuntimeResourceHandle == 0, "got hPrivateRuntimeResourceHandle %p\n", create.hPrivateRuntimeResourceHandle);
+
+handle = 0;
+status = pD3DKMTShareObjects(1, &create.hResource, &attr, STANDARD_RIGHTS_READ, &handle);
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+ok(handle != 0, "got %p\n", handle);
+ok(handle != INVALID_HANDLE_VALUE, "got %p\n", handle);
+
+do
+{
+    const unsigned char *ptr = (void *)create.pPrivateRuntimeData, *end = ptr + create.PrivateRuntimeDataSize;
+    ok(0, "runtime %p-%p (%x)\n", (void *)ptr, (void *)end, (int)(end - ptr));
+    for (int i = 0, j; ptr + i < end;)
+    {
+        char buffer[256], *buf = buffer;
+        buf += sprintf(buf, "%08x ", i);
+        for (j = 0; j < 8 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 8 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, " ");
+        for (j = 8; j < 16 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 16 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, "  |");
+        for (j = 0; j < 16 && ptr + i < end; ++j, ++i)
+            buf += sprintf(buf, "%c", ptr[i] >= ' ' && ptr[i] <= '~' ? ptr[i] : '.');
+        buf += sprintf(buf, "|");
+        ok(0, "%s\n", buffer);
+    }
+}
+while(0);
+
+if (handle)
 {
         hr = ID3D11Device1_OpenSharedResource1(device1, handle, &IID_ID3D11Texture2D, (void **)&tex2);
         ok(hr == E_INVALIDARG, "got %#lx.\n", hr);
+        CloseHandle(handle);
 }
     }
 
