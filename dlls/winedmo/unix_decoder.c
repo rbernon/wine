@@ -88,6 +88,8 @@ static int context_create_from_parameters( const AVCodecParameters *par, AVRatio
     (*context)->framerate = fps;
     (*context)->flags = AV_CODEC_FLAG_OUTPUT_CORRUPT;
     (*context)->pkt_timebase = USER_TIME_BASE_Q;
+    (*context)->thread_type = FF_THREAD_FRAME;
+    (*context)->thread_count = 4;
 
     if ((ret = avcodec_open2( *context, codec, NULL )) < 0)
     {
