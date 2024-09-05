@@ -274,8 +274,10 @@ void create_window_surface( HWND hwnd, BOOL create_layered, const RECT *surface_
 {
     struct window_surface *previous, *driver_surface;
     UINT dpi = get_dpi_for_window( hwnd );
+    float scale = monitor_dpi / (float)dpi;
     RECT monitor_rect;
 
+    if (user_driver->pCreateWindowSurface( hwnd, create_layered, scale, surface_rect, window_surface )) return;
 
     monitor_rect = get_surface_rect( map_dpi_rect( *surface_rect, dpi, monitor_dpi ) );
     if ((driver_surface = get_driver_window_surface( *window_surface, monitor_dpi )))
@@ -285,7 +287,7 @@ void create_window_surface( HWND hwnd, BOOL create_layered, const RECT *surface_
         else window_surface_add_ref( (driver_surface = &dummy_surface) );
     }
 
-    if (!user_driver->pCreateWindowSurface( hwnd, create_layered, &monitor_rect, &driver_surface ))
+    if (!user_driver->pCreateWindowSurface( hwnd, create_layered, 1.0, &monitor_rect, &driver_surface ))
     {
         if (driver_surface) window_surface_release( driver_surface );
         if (*window_surface)
