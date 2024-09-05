@@ -1401,8 +1401,7 @@ while(0);
 if (open_resource.PrivateRuntimeDataSize)
 {
         hr = ID3D11Device_OpenSharedResource(device, handle, &IID_ID3D11Texture2D, (void **)&tex2);
-        ok(hr == S_OK, "got %#lx.\n", hr);
-        ID3D11Texture2D_Release(tex2);
+        ok(hr == E_INVALIDARG, "got %#lx.\n", hr);
 }
     }
     else
@@ -1473,8 +1472,7 @@ while(0);
 if (open_resource_nt.PrivateRuntimeDataSize)
 {
         hr = ID3D11Device1_OpenSharedResource1(device1, handle, &IID_ID3D11Texture2D, (void **)&tex2);
-        ok(hr == S_OK, "got %#lx.\n", hr);
-        ID3D11Texture2D_Release(tex2);
+        ok(hr == E_INVALIDARG, "got %#lx.\n", hr);
 }
     }
 
