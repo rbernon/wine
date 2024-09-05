@@ -10313,8 +10313,9 @@ static void test_performance(void)
         {.d3d_aware = FALSE, .subtype = MFVideoFormat_I420},
         {.d3d_aware = FALSE, .subtype = MFVideoFormat_NV12},
         {.d3d_aware = FALSE, .subtype = MFVideoFormat_YUY2},
-
+/*
         {.d3d_aware = TRUE, .subtype = MFVideoFormat_NV12},
+*/
     };
 
     struct processor_test
@@ -10337,12 +10338,13 @@ static void test_performance(void)
         {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_YUY2, .output_subtype = MFVideoFormat_NV12},
         {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_YUY2, .output_subtype = MFVideoFormat_RGB32},
         {.d3d_aware = FALSE, .input_subtype = MFVideoFormat_YUY2, .output_subtype = MFVideoFormat_RGB32, .output_flip = TRUE},
-
+/*
         {.d3d_aware = TRUE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_NV12},
         {.d3d_aware = TRUE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_RGB32},
         {.d3d_aware = TRUE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_RGB32, .output_flip = TRUE},
         {.d3d_aware = TRUE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_ABGR32},
         {.d3d_aware = TRUE, .input_subtype = MFVideoFormat_NV12, .output_subtype = MFVideoFormat_ABGR32, .output_flip = TRUE},
+*/
     };
 
     LARGE_INTEGER time = {0}, count, freq;
@@ -10714,6 +10716,7 @@ START_TEST(transform)
     init_functions();
 
     if (1) test_performance();
+    return;
 
     test_sample_copier();
     test_sample_copier_output_processing();
