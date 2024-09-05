@@ -1078,6 +1078,7 @@ static void test_D3DKMTQueryVideoMemoryInfo(void)
 
 static void test_D3DKMTCreateAllocation(void)
 {
+    OBJECT_ATTRIBUTES attr = {.Length = sizeof(attr)};
     D3DKMT_OPENADAPTERFROMGDIDISPLAYNAME open_adapter = {0};
     D3DKMT_CREATESTANDARDALLOCATION standard[2] = {0};
     D3DDDI_OPENALLOCATIONINFO2 open_alloc2 = {0};
@@ -1094,6 +1095,7 @@ static void test_D3DKMTCreateAllocation(void)
     D3DKMT_OPENRESOURCE open = {0};
     char buffer[1024] = {0};
     NTSTATUS status;
+    HANDLE handle;
 
 /* static NTSTATUS (WINAPI *pD3DKMTOpenResourceFromNtHandle)( D3DKMT_OPENRESOURCEFROMNTHANDLE *params ); */
 /* static NTSTATUS (WINAPI *pD3DKMTQueryResourceInfoFromNtHandle)( D3DKMT_QUERYRESOURCEINFOFROMNTHANDLE *params ); */
@@ -1150,6 +1152,7 @@ static void test_D3DKMTCreateAllocation(void)
     ok(allocs[0].hAllocation != 0, "got hAllocation %#x\n", allocs[0].hAllocation);
     ok(create.hGlobalShare == 0, "got hGlobalShare %#x\n", create.hGlobalShare);
     ok(create.hResource == 0, "got hResource %#x\n", create.hResource);
+    ok(create.hPrivateRuntimeResourceHandle == 0, "got hPrivateRuntimeResourceHandle %p\n", create.hPrivateRuntimeResourceHandle);
 
     /* destroying allocation individually */
     destroy.hDevice = create_device.hDevice;
@@ -1176,6 +1179,7 @@ static void test_D3DKMTCreateAllocation(void)
     ok(allocs2[0].hAllocation != 0, "got hAllocation %#x\n", allocs2[0].hAllocation);
     ok(create.hGlobalShare == 0, "got hGlobalShare %#x\n", create.hGlobalShare);
     ok(create.hResource == 0, "got hResource %#x\n", create.hResource);
+    ok(create.hPrivateRuntimeResourceHandle == 0, "got hPrivateRuntimeResourceHandle %p\n", create.hPrivateRuntimeResourceHandle);
 
     ok(create.PrivateRuntimeDataSize == 0, "got PrivateRuntimeDataSize %u\n", create.PrivateRuntimeDataSize);
     ok(create.PrivateDriverDataSize == 0, "got PrivateDriverDataSize %u\n", create.PrivateDriverDataSize);
@@ -1266,6 +1270,7 @@ static void test_D3DKMTCreateAllocation(void)
     ok(allocs[0].hAllocation != 0, "got hAllocation %#x\n", allocs[0].hAllocation);
     ok(create.hGlobalShare == 0, "got hGlobalShare %#x\n", create.hGlobalShare);
     ok(create.hResource != 0, "got hResource %#x\n", create.hResource);
+    ok(create.hPrivateRuntimeResourceHandle == 0, "got hPrivateRuntimeResourceHandle %p\n", create.hPrivateRuntimeResourceHandle);
 
     /* destroying the allocation doesn't destroys the resource */
     status = pD3DKMTDestroyAllocation(&destroy);
@@ -1277,6 +1282,35 @@ static void test_D3DKMTCreateAllocation(void)
     status = pD3DKMTDestroyAllocation(&destroy);
     ok(status == STATUS_INVALID_PARAMETER, "got %#lx\n", status);
     create.hResource = 0;
+
+
+    /* test creating resource with allocations */
+    create.Flags.CreateResource = 1;
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(allocs[0].hAllocation != 0, "got hAllocation %#x\n", allocs[0].hAllocation);
+    ok(create.hGlobalShare == 0, "got hGlobalShare %#x\n", create.hGlobalShare);
+    ok(create.hResource != 0, "got hResource %#x\n", create.hResource);
+
+    /* destroying the allocation doesn't destroys the resource */
+    destroy.hResource = 0;
+    destroy.AllocationCount = 1;
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+    create.Flags.CreateResource = 0;
+    status = pD3DKMTCreateAllocation(&create);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+    ok(allocs[0].hAllocation != 0, "got hAllocation %#x\n", allocs[0].hAllocation);
+    ok(create.hGlobalShare == 0, "got hGlobalShare %#x\n", create.hGlobalShare);
+    ok(create.hResource != 0, "got hResource %#x\n", create.hResource);
+
+    /* destroying the allocation doesn't destroys the resource */
+    destroy.hResource = create.hResource;
+    destroy.AllocationCount = 0;
+    status = pD3DKMTDestroyAllocation(&destroy);
+    ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
 
     /* but destroying the resource destroys its allocations */
     status = pD3DKMTCreateAllocation(&create);
@@ -1299,6 +1333,7 @@ static void test_D3DKMTCreateAllocation(void)
     ok(allocs[0].hAllocation != 0, "got hAllocation %#x\n", allocs[0].hAllocation);
     ok(create.hGlobalShare == 0, "got hGlobalShare %#x\n", create.hGlobalShare);
     ok(create.hResource != 0, "got hResource %#x\n", create.hResource);
+    ok(create.hPrivateRuntimeResourceHandle == 0, "got hPrivateRuntimeResourceHandle %p\n", create.hPrivateRuntimeResourceHandle);
 
     /* D3DKMTQueryResourceInfo requires a global handle */
     query.hDevice = create_device.hDevice;
@@ -1324,6 +1359,7 @@ static void test_D3DKMTCreateAllocation(void)
     ok(allocs[0].hAllocation != 0, "got hAllocation %#x\n", allocs[0].hAllocation);
     ok(create.hGlobalShare != 0, "got hGlobalShare %#x\n", create.hGlobalShare);
     ok(create.hResource != 0, "got hResource %#x\n", create.hResource);
+    ok(create.hPrivateRuntimeResourceHandle == 0, "got hPrivateRuntimeResourceHandle %p\n", create.hPrivateRuntimeResourceHandle);
 
     /* D3DKMTQueryResourceInfo works with global handle */
     query.hDevice = create_device.hDevice;
@@ -1337,7 +1373,7 @@ static void test_D3DKMTCreateAllocation(void)
     ok(query.ResourcePrivateDriverDataSize == 0, "got ResourcePrivateDriverDataSize %u\n", query.ResourcePrivateDriverDataSize);
     ok(query.NumAllocations == 1, "got NumAllocations %u\n", query.NumAllocations);
 
-    /* D3DKMTOpenResource fails to open the handle */
+    /* D3DKMTOpenResource works with a global handle */
     open.hDevice = create_device.hDevice;
     open.hGlobalShare = create.hGlobalShare;
     open.pPrivateRuntimeData = buffer;
@@ -1410,6 +1446,15 @@ static void test_D3DKMTCreateAllocation(void)
 
     open.pOpenAllocationInfo = &open_alloc;
 
+
+status = pD3DKMTShareObjects(1, &create.hResource, &attr, STANDARD_RIGHTS_READ, &handle);
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+CloseHandle(handle);
+status = pD3DKMTShareObjects(1, &create.hGlobalShare, &attr, STANDARD_RIGHTS_READ, &handle);
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+CloseHandle(handle);
+
+
     destroy.hResource = create.hResource;
     status = pD3DKMTDestroyAllocation(&destroy);
     ok(status == STATUS_SUCCESS, "got %#lx\n", status);
@@ -1417,13 +1462,18 @@ static void test_D3DKMTCreateAllocation(void)
 
     /* test creating nt shared resource */
     create.Flags.NtSecuritySharing = 1;
-    create.Flags.CreateShared = 0;
+    create.Flags.CreateShared = 1;
 
     status = pD3DKMTCreateAllocation(&create);
     ok(status == STATUS_SUCCESS, "got %#lx\n", status);
     ok(allocs[0].hAllocation != 0, "got hAllocation %#x\n", allocs[0].hAllocation);
     ok(create.hGlobalShare == 0, "got hGlobalShare %#x\n", create.hGlobalShare);
     ok(create.hResource != 0, "got hResource %#x\n", create.hResource);
+    ok(create.hPrivateRuntimeResourceHandle == 0, "got hPrivateRuntimeResourceHandle %p\n", create.hPrivateRuntimeResourceHandle);
+
+status = pD3DKMTShareObjects(1, &create.hResource, &attr, STANDARD_RIGHTS_READ, &handle);
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+CloseHandle(handle);
 
     destroy.hResource = create.hResource;
     status = pD3DKMTDestroyAllocation(&destroy);
