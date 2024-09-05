@@ -881,7 +881,8 @@ extern BOOL nulldrv_GetWindowStyleMasks( HWND hwnd, UINT style, UINT ex_style, U
     return FALSE;
 }
 
-static BOOL nulldrv_CreateWindowSurface( HWND hwnd, BOOL layered, const RECT *surface_rect, struct window_surface **surface )
+static BOOL nulldrv_CreateWindowSurface( HWND hwnd, BOOL layered, float scale, const RECT *surface_rect,
+                                         struct window_surface **surface )
 {
     return FALSE;
 }
