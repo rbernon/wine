@@ -1625,7 +1625,7 @@ HRESULT WINAPI MFCreateMemoryBuffer(DWORD max_length, IMFMediaBuffer **buffer)
 {
     TRACE("%lu, %p.\n", max_length, buffer);
 
-    return create_1d_buffer(max_length, MF_1_BYTE_ALIGNMENT, buffer);
+    return create_1d_buffer(max_length, MF_32_BYTE_ALIGNMENT, buffer);
 }
 
 /***********************************************************************
