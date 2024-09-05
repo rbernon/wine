@@ -1964,13 +1964,15 @@ static BOOL enable_direct_drawing( struct x11drv_win_data *data, BOOL layered )
 /***********************************************************************
  *      CreateWindowSurface   (X11DRV.@)
  */
-BOOL X11DRV_CreateWindowSurface( HWND hwnd, BOOL layered, const RECT *surface_rect, struct window_surface **surface )
+BOOL X11DRV_CreateWindowSurface( HWND hwnd, BOOL layered, float scale, const RECT *surface_rect,
+                                 struct window_surface **surface )
 {
     struct window_surface *previous;
     struct x11drv_win_data *data;
 
     TRACE( "hwnd %p, layered %u, surface_rect %s, surface %p\n", hwnd, layered, wine_dbgstr_rect( surface_rect ), surface );
 
+    if (scale != 1.0) return FALSE; /* let win32u scale for us */
     if (!(data = get_win_data( hwnd ))) return TRUE; /* use default surface */
     if ((previous = *surface) && previous->funcs == &x11drv_surface_funcs)
     {
