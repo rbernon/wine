@@ -868,9 +868,8 @@ HRESULT mpeg_layer3_decoder_create(IUnknown *outer, IUnknown **out)
 
     if ((status = winedmo_transform_check(MEDIATYPE_Audio, MEDIASUBTYPE_MP3, MEDIASUBTYPE_PCM)))
     {
-        static const GUID CLSID_wg_mp3_decoder = {0x84cd8e3e,0xb221,0x434a,{0x88,0x82,0x9d,0x6c,0x8d,0xf4,0x90,0xe1}};
         WARN("Unsupported winedmo transform, status %#lx.\n", status);
-        return CoCreateInstance(&CLSID_wg_mp3_decoder, outer, CLSCTX_INPROC_SERVER, &IID_IUnknown, (void **)out);
+        return E_NOTIMPL;
     }
 
     hr = transform_create(outer, &CLSID_MPEGLayer3Decoder, &mpeg_layer3_decoder_transform_ops, &object);
@@ -1015,9 +1014,8 @@ HRESULT mpeg_audio_codec_create(IUnknown *outer, IUnknown **out)
 
     if ((status = winedmo_transform_check(MEDIATYPE_Audio, MEDIASUBTYPE_MPEG1Audio, MEDIASUBTYPE_PCM)))
     {
-        static const GUID CLSID_wg_mpeg_audio_decoder = {0xc9f285f8,0x4380,0x4121,{0x97,0x1f,0x49,0xa9,0x53,0x16,0xc2,0x7b}};
         WARN("Unsupported winedmo transform, status %#lx.\n", status);
-        return CoCreateInstance(&CLSID_wg_mpeg_audio_decoder, outer, CLSCTX_INPROC_SERVER, &IID_IUnknown, (void **)out);
+        return E_NOTIMPL;
     }
 
     hr = transform_create(outer, &CLSID_CMpegAudioCodec, &mpeg_audio_codec_transform_ops, &object);
@@ -1149,9 +1147,8 @@ HRESULT mpeg_video_codec_create(IUnknown *outer, IUnknown **out)
 
     if ((status = winedmo_transform_check(MEDIATYPE_Video, MEDIASUBTYPE_MPEG1Video, MEDIASUBTYPE_NV12)))
     {
-        static const GUID CLSID_wg_mpeg_video_decoder = {0x5ed2e5f6,0xbf3e,0x4180,{0x83,0xa4,0x48,0x47,0xcc,0x5b,0x4e,0xa3}};
         WARN("Unsupported winedmo transform, status %#lx.\n", status);
-        return CoCreateInstance(&CLSID_wg_mpeg_video_decoder, outer, CLSCTX_INPROC_SERVER, &IID_IUnknown, (void **)out);
+        return E_NOTIMPL;
     }
 
     hr = transform_create(outer, &CLSID_CMpegVideoCodec, &mpeg_video_codec_transform_ops, &object);
