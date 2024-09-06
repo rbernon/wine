@@ -2818,8 +2818,6 @@ static const IWMSyncReader2Vtbl reader_vtbl =
     reader_GetAllocateForStream
 };
 
-extern HRESULT WINAPI winegstreamer_create_wm_sync_reader(IUnknown *outer, void **out);
-
 HRESULT sync_reader_create(IUnknown *outer, void **out)
 {
     struct wm_reader *object;
@@ -2828,7 +2826,7 @@ HRESULT sync_reader_create(IUnknown *outer, void **out)
     if ((status = winedmo_demuxer_check("video/x-ms-asf")))
     {
         WARN("Unsupported demuxer, status %#lx.\n", status);
-        return winegstreamer_create_wm_sync_reader(outer, out);
+        return E_NOTIMPL;
     }
 
     TRACE("out %p.\n", out);
