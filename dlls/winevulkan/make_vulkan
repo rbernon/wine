@@ -74,7 +74,7 @@ WINE_VULKAN_LOADER_SPEC = "../vulkan-1/vulkan-1.spec"
 WINE_VULKAN_JSON = "winevulkan.json"
 WINE_VULKAN_SPEC = "winevulkan.spec"
 WINE_VULKAN_THUNKS_C = "vulkan_thunks.c"
-WINE_VULKAN_THUNKS_H = "vulkan_thunks.h"
+WINE_VULKAN_THUNKS_H = "../../include/wine/vulkan_thunks.h"
 WINE_VULKAN_LOADER_THUNKS_C = "loader_thunks.c"
 WINE_VULKAN_LOADER_THUNKS_H = "loader_thunks.h"
 
@@ -88,7 +88,6 @@ EXT_BLOCK_SIZE = 1000
 
 UNSUPPORTED_EXTENSIONS = [
     # Instance extensions
-    "VK_EXT_headless_surface", # Needs WSI work.
     "VK_KHR_display", # Needs WSI work.
     "VK_KHR_surface_protected_capabilities",
     "VK_LUNARG_direct_driver_loading", # Implemented in the Vulkan loader
@@ -97,23 +96,13 @@ UNSUPPORTED_EXTENSIONS = [
     "VK_AMD_display_native_hdr",
     "VK_EXT_full_screen_exclusive",
     "VK_GOOGLE_display_timing",
-    "VK_KHR_external_fence_win32",
-    "VK_KHR_external_semaphore_win32",
-    # Relates to external_semaphore and needs type conversions in bitflags.
     "VK_KHR_maintenance7", # Causes infinity recursion in struct convert code
     "VK_KHR_shared_presentable_image", # Needs WSI work.
-    "VK_KHR_win32_keyed_mutex",
     "VK_NV_external_memory_rdma", # Needs shared resources work.
 
     # Extensions for other platforms
-    "VK_EXT_external_memory_dma_buf",
-    "VK_EXT_image_drm_format_modifier",
-    "VK_EXT_metal_objects",
     "VK_EXT_physical_device_drm",
     "VK_GOOGLE_surfaceless_query",
-    "VK_KHR_external_fence_fd",
-    "VK_KHR_external_memory_fd",
-    "VK_KHR_external_semaphore_fd",
     "VK_SEC_amigo_profiling", # Angle specific.
 
     # Extensions which require callback handling
@@ -122,17 +111,19 @@ UNSUPPORTED_EXTENSIONS = [
     # Deprecated extensions
     "VK_NV_external_memory_capabilities",
     "VK_NV_external_memory_win32",
-
-    # Causes a warning
-    "VK_INTEL_performance_query",
 ]
 
 # Either internal extensions which aren't present on the win32 platform which
 # winevulkan may nonetheless use, or extensions we want to generate headers for
 # but not expose to applications (useful for test commits)
 UNEXPOSED_EXTENSIONS = {
-    "VK_EXT_map_memory_placed",
-    "VK_KHR_external_memory_win32",
+    # Extensions for other platforms
+    "VK_EXT_external_memory_dma_buf",
+    "VK_EXT_image_drm_format_modifier",
+    "VK_EXT_metal_objects",
+    "VK_KHR_external_fence_fd",
+    "VK_KHR_external_memory_fd",
+    "VK_KHR_external_semaphore_fd",
 }
 
 # The Vulkan loader provides entry-points for core functionality and important
@@ -197,18 +188,49 @@ FUNCTION_OVERRIDES = {
 
 # functions for which a user driver entry must be generated
 USER_DRIVER_FUNCS = {
-    "vkCreateWin32SurfaceKHR",
-    "vkDestroySurfaceKHR",
     "vkGetDeviceProcAddr",
     "vkGetInstanceProcAddr",
+}
+
+WIN32U_UNIX_THUNKS = {
+    "vkAcquireNextImage2KHR",
+    "vkAcquireNextImageKHR",
+    "vkAllocateMemory",
+    "vkCreateBuffer",
+    "vkCreateFence",
+    "vkCreateImage",
+    "vkCreateSemaphore",
+    "vkCreateSwapchainKHR",
+    "vkCreateWin32SurfaceKHR",
+    "vkDestroyBuffer",
+    "vkDestroyFence",
+    "vkDestroyImage",
+    "vkDestroySemaphore",
+    "vkDestroySurfaceKHR",
+    "vkDestroySwapchainKHR",
+    "vkFreeMemory",
+    "vkGetFenceWin32HandleKHR",
+    "vkGetMemoryWin32HandleKHR",
+    "vkGetMemoryWin32HandlePropertiesKHR",
+    "vkGetPhysicalDeviceExternalBufferProperties",
+    "vkGetPhysicalDeviceExternalBufferPropertiesKHR",
+    "vkGetPhysicalDeviceExternalFenceProperties",
+    "vkGetPhysicalDeviceExternalFencePropertiesKHR",
+    "vkGetPhysicalDeviceExternalSemaphoreProperties",
+    "vkGetPhysicalDeviceExternalSemaphorePropertiesKHR",
+    "vkGetPhysicalDevicePresentRectanglesKHR",
+    "vkGetPhysicalDeviceSurfaceCapabilities2KHR",
+    "vkGetPhysicalDeviceSurfaceCapabilitiesKHR",
+    "vkGetPhysicalDeviceSurfaceFormats2KHR",
     "vkGetPhysicalDeviceWin32PresentationSupportKHR",
+    "vkGetSemaphoreWin32HandleKHR",
+    "vkImportFenceWin32HandleKHR",
+    "vkImportSemaphoreWin32HandleKHR",
     "vkQueuePresentKHR",
 }
 
 # functions for which the unix thunk is manually implemented
 MANUAL_UNIX_THUNKS = {
-    "vkAcquireNextImage2KHR",
-    "vkAcquireNextImageKHR",
     "vkAllocateCommandBuffers",
     "vkAllocateMemory",
     "vkCreateBuffer",
@@ -219,16 +241,12 @@ MANUAL_UNIX_THUNKS = {
     "vkCreateDevice",
     "vkCreateImage",
     "vkCreateInstance",
-    "vkCreateSwapchainKHR",
-    "vkCreateWin32SurfaceKHR",
     "vkDestroyCommandPool",
     "vkDestroyDebugReportCallbackEXT",
     "vkDestroyDebugUtilsMessengerEXT",
     "vkDestroyDeferredOperationKHR",
     "vkDestroyDevice",
     "vkDestroyInstance",
-    "vkDestroySurfaceKHR",
-    "vkDestroySwapchainKHR",
     "vkEnumerateDeviceExtensionProperties",
     "vkEnumerateDeviceLayerProperties",
     "vkEnumerateInstanceExtensionProperties",
@@ -251,17 +269,10 @@ MANUAL_UNIX_THUNKS = {
     "vkGetPhysicalDeviceExternalBufferPropertiesKHR",
     "vkGetPhysicalDeviceExternalFenceProperties",
     "vkGetPhysicalDeviceExternalFencePropertiesKHR",
-    "vkGetPhysicalDeviceExternalSemaphoreProperties",
-    "vkGetPhysicalDeviceExternalSemaphorePropertiesKHR",
     "vkGetPhysicalDeviceImageFormatProperties2",
     "vkGetPhysicalDeviceImageFormatProperties2KHR",
-    "vkGetPhysicalDevicePresentRectanglesKHR",
-    "vkGetPhysicalDeviceSurfaceCapabilities2KHR",
-    "vkGetPhysicalDeviceSurfaceCapabilitiesKHR",
-    "vkGetPhysicalDeviceSurfaceFormats2KHR",
     "vkMapMemory",
     "vkMapMemory2KHR",
-    "vkQueuePresentKHR",
     "vkUnmapMemory",
     "vkUnmapMemory2KHR",
 }
@@ -647,7 +658,7 @@ class VkFunction(object):
         # and is used by the code generation.
         self.required = True if func_info else False
 
-        if self.name in MANUAL_UNIX_THUNKS:
+        if self.name in MANUAL_UNIX_THUNKS | WIN32U_UNIX_THUNKS:
             self.unwrap = Unwrap.NONE
         elif self.name in USER_DRIVER_FUNCS:
             self.unwrap = Unwrap.DRIVER
@@ -888,7 +899,7 @@ class VkFunction(object):
                 body += "        ctx = &wine_deferred_operation_from_handle(params->{})->ctx;\n".format(deferred_op)
 
         # Call any win_to_host conversion calls.
-        unwrap = self.name not in MANUAL_UNIX_THUNKS
+        unwrap = self.name not in MANUAL_UNIX_THUNKS | WIN32U_UNIX_THUNKS
         for p in self.params:
             if p.needs_conversion(conv, self.unwrap, Direction.INPUT):
                 body += p.copy(Direction.INPUT, conv, self.unwrap, prefix=params_prefix)
@@ -898,7 +909,7 @@ class VkFunction(object):
 
         # Build list of parameters containing converted and non-converted parameters.
         # The param itself knows if conversion is needed and applies it when we set conv=True.
-        unwrap = Unwrap.NONE if self.name in MANUAL_UNIX_THUNKS else self.unwrap
+        unwrap = Unwrap.NONE if self.name in MANUAL_UNIX_THUNKS | WIN32U_UNIX_THUNKS else self.unwrap
         params = ", ".join([p.variable(conv, unwrap, params_prefix) for p in self.params])
         if self.extra_param:
             if conv:
@@ -906,8 +917,10 @@ class VkFunction(object):
             else:
                 params += ", {0}{1}".format(params_prefix, self.extra_param)
 
-        if self.name not in MANUAL_UNIX_THUNKS:
-            func_prefix = "{0}.p_".format(self.params[0].dispatch_table(params_prefix, conv))
+        if self.name in WIN32U_UNIX_THUNKS:
+            func_prefix = "vk_funcs->p_"
+        elif self.name not in MANUAL_UNIX_THUNKS:
+            func_prefix = "{0}->p_".format(self.params[0].dispatch_table(params_prefix, conv))
         else:
             func_prefix = "wine_"
 
@@ -1142,19 +1155,19 @@ class VkHandle(object):
 
         if self.parent is None:
             # Should only happen for VkInstance
-            return "wine_instance_from_handle({0})->funcs".format(param)
+            return "get_vulkan_instance_funcs({0})".format(param)
         elif self.name == "VkCommandBuffer":
-            return "wine_cmd_buffer_from_handle({0})->device->funcs".format(param)
+            return "get_vulkan_parent_device_funcs(&wine_cmd_buffer_from_handle({0})->obj)".format(param)
         elif self.name == "VkDevice":
-            return "wine_device_from_handle({0})->funcs".format(param)
+            return "get_vulkan_device_funcs({0})".format(param)
         elif self.name == "VkPhysicalDevice":
-            return "wine_phys_dev_from_handle({0})->instance->funcs".format(param)
+            return "get_vulkan_parent_instance_funcs(&wine_phys_dev_from_handle({0})->obj)".format(param)
         elif self.name == "VkQueue":
-            return "wine_queue_from_handle({0})->device->funcs".format(param)
+            return "get_vulkan_parent_device_funcs(&wine_queue_from_handle({0})->obj)".format(param)
         elif self.parent in ["VkInstance", "VkPhysicalDevice"]:
-            return "{0}->instance->funcs".format(param)
+            return "get_vulkan_parent_instance_funcs(&{0}->obj)".format(param)
         elif self.parent in ["VkDevice", "VkCommandPool"]:
-            return "{0}->device->funcs".format(param)
+            return "get_vulkan_parent_device_funcs(&{0}->obj)".format(param)
         else:
             LOGGER.error("Unhandled dispatchable parent: {0}".format(self.parent))
 
@@ -1183,39 +1196,37 @@ class VkHandle(object):
         """ Provide access to the host handle of a wrapped object. """
 
         if self.name == "VkCommandBuffer":
-            return "wine_cmd_buffer_from_handle({0})->host_command_buffer".format(name)
+            return "wine_cmd_buffer_from_handle({0})->obj.host.command_buffer".format(name)
         if self.name == "VkCommandPool":
-            return "wine_cmd_pool_from_handle({0})->host_command_pool".format(name)
+            return "wine_cmd_pool_from_handle({0})->obj.host.command_pool".format(name)
         if self.name == "VkDebugUtilsMessengerEXT":
-            return "wine_debug_utils_messenger_from_handle({0})->host_debug_messenger".format(name)
+            return "wine_debug_utils_messenger_from_handle({0})->obj.host.debug_utils_messenger".format(name)
         if self.name == "VkDebugReportCallbackEXT":
-            return "wine_debug_report_callback_from_handle({0})->host_debug_callback".format(name)
+            return "wine_debug_report_callback_from_handle({0})->obj.host.debug_report_callback".format(name)
         if self.name == "VkDeferredOperationKHR":
-            return "wine_deferred_operation_from_handle({0})->host_deferred_operation".format(name)
+            return "wine_deferred_operation_from_handle({0})->obj.host.deferred_operation".format(name)
         if self.name == "VkDevice":
-            return "wine_device_from_handle({0})->host_device".format(name)
+            return "vulkan_device_from_handle({0})->obj.host.device".format(name)
         if self.name == "VkInstance":
-            return "wine_instance_from_handle({0})->host_instance".format(name)
+            return "vulkan_instance_from_handle({0})->obj.host.instance".format(name)
         if self.name == "VkDeviceMemory":
-            return "wine_device_memory_from_handle({0})->host_memory".format(name)
+            return "wine_device_memory_from_handle({0})->obj.host.device_memory".format(name)
         if self.name == "VkPhysicalDevice":
-            return "wine_phys_dev_from_handle({0})->host_physical_device".format(name)
+            return "wine_phys_dev_from_handle({0})->obj.host.physical_device".format(name)
         if self.name == "VkQueue":
-            return "wine_queue_from_handle({0})->host_queue".format(name)
+            return "wine_queue_from_handle({0})->obj.host.queue".format(name)
         if self.name == "VkSurfaceKHR":
-            return "wine_surface_from_handle({0})->host_surface".format(name)
+            return "vulkan_surface_from_handle({0})->host.surface".format(name)
         if self.name == "VkSwapchainKHR":
-            return "wine_swapchain_from_handle({0})->host_swapchain".format(name)
+            return "vulkan_swapchain_from_handle({0})->host.swapchain".format(name)
+        if self.name == "VkSemaphore":
+            return "vulkan_semaphore_from_handle({0})->host.semaphore".format(name)
         if self.is_dispatchable():
             LOGGER.error("Unhandled host handle for: {0}".format(self.name))
         return None
 
     def driver_handle(self, name):
         """ Provide access to the handle that should be passed to the wine driver """
-
-        if self.name == "VkSurfaceKHR":
-            return "wine_surface_from_handle({0})->driver_surface".format(name)
-
         return self.host_handle(name)
 
     def unwrap_handle(self, name, unwrap):

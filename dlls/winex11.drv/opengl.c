@@ -38,10 +38,19 @@
 #include <sys/un.h>
 #endif
 
+#ifdef HAVE_X11_XLIB_XCB_H
+#include <X11/Xlib-xcb.h>
+#endif
+#ifdef HAVE_XCB_SHM_H
+#include <xcb/shm.h>
+#endif
+#include <unistd.h>
+
 #include "x11drv.h"
 #include "xcomposite.h"
 #include "winternl.h"
 #include "wine/debug.h"
+#include "wine/server.h"
 
 #ifdef SONAME_LIBGL
 
@@ -1090,6 +1099,57 @@ static GLXContext create_glxcontext(Display *display, struct wgl_context *contex
     return ctx;
 }
 
+static void set_dc_drawable( HDC hdc, Drawable drawable, const RECT *rect, int mode )
+{
+    struct x11drv_escape_set_drawable escape =
+    {
+        .code = X11DRV_SET_DRAWABLE,
+        .drawable = drawable,
+        .dc_rect = *rect,
+        .mode = mode,
+    };
+    NtGdiExtEscape( hdc, NULL, 0, X11DRV_ESCAPE, sizeof(escape), (LPSTR)&escape, 0, NULL );
+}
+
+static BOOL needs_offscreen_rendering( HWND hwnd, BOOL known_child )
+{
+    if (NtUserGetDpiForWindow( hwnd ) != get_win_monitor_dpi( hwnd )) return TRUE;
+
+    if (!known_child && !NtUserGetWindowRelative( hwnd, GW_CHILD ) &&
+        NtUserGetAncestor( hwnd, GA_PARENT ) == NtUserGetDesktopWindow())
+        return FALSE;  /* childless top-level window */
+
+    return TRUE;
+}
+
+BOOL egl_import_pixmap(Pixmap pixmap);
+
+static inline BOOL call_xcb( xcb_connection_t *xcb, xcb_void_cookie_t cookie, const char *func, BOOL check )
+{
+    xcb_generic_error_t *error;
+
+    if (check)
+    {
+        xcb_discard_reply( xcb, cookie.sequence );
+        return TRUE;
+    }
+
+    if ((error = xcb_request_check( xcb, cookie )))
+    {
+        ERR( "%s returned error %d sequence %u resource %#x major %u minor %u\n", func, error->error_code,
+             error->sequence, error->resource_id, error->minor_code, error->major_code );
+        free( error );
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+#define XCB_CALL( func, xcb, ... ) \
+    call_xcb( xcb, ERR_ON(wgl) ? (func ## _checked)( (xcb), __VA_ARGS__ ) \
+                                  : (func)( (xcb), __VA_ARGS__ ), \
+              #func, ERR_ON(wgl) )
+
 /***********************************************************************
  *              create_gl_drawable
  */
@@ -1132,7 +1192,7 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct glx_pixel
         TRACE( "%p created client %lx drawable %lx\n", hwnd, gl->window, gl->drawable );
     }
 #ifdef SONAME_LIBXCOMPOSITE
-    else if(usexcomposite)
+    else if (usexcomposite && 0)
     {
         gl->type = DC_GL_CHILD_WIN;
         gl->colormap = XCreateColormap( gdi_display, get_dummy_parent(), visual->visual,
@@ -1168,6 +1228,46 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct glx_pixel
             ERR_(winediag)("XComposite is not available, using GLXPixmap hack.\n");
         WARN("XComposite is not available, using GLXPixmap hack.\n");
 
+{
+    xcb_connection_t *xcb = XGetXCBConnection( gdi_display );
+    xcb_shm_query_version_reply_t *version;
+    xcb_generic_error_t *error;
+    xcb_shm_seg_t xcb_seg;
+    xcb_pixmap_t pixmap;
+    GLXDrawable drawable;
+
+    LARGE_INTEGER section_size;
+    NTSTATUS status;
+    HANDLE section;
+    int fd;
+
+    section_size.QuadPart = 128 * 128 * 4;
+    if ((status = NtCreateSection( &section, GENERIC_READ | SECTION_MAP_READ | SECTION_MAP_WRITE,
+                                   NULL, &section_size, PAGE_READWRITE, SEC_COMMIT, 0 )))
+        ERR("failed to create section, status %#x\n", (UINT)status);
+
+    if ((status = wine_server_handle_to_fd( section, FILE_READ_DATA, &fd, NULL )))
+        ERR("failed to get section fd, status %#x\n", (UINT)status);
+
+    version = xcb_shm_query_version_reply( xcb, xcb_shm_query_version( xcb ), &error ); /* closes the fd */
+ERR( "version %p error %p\n", version, error );
+if (version) ERR( "%u.%u shared %u fmt %u\n", version->major_version, version->minor_version, version->shared_pixmaps, version->pixmap_format );
+
+    xcb_seg = xcb_generate_id( xcb );
+    if (!call_xcb( xcb, xcb_shm_attach_fd_checked( xcb, xcb_seg, dup( fd ), FALSE ), "xcb_shm_attach_fd", TRUE )) ERR("attach_fd failed\n");
+ERR("xcb_seg %#x\n", xcb_seg);
+
+    pixmap = xcb_generate_id( xcb );
+    XCB_CALL( xcb_shm_create_pixmap, xcb, pixmap, root_window, 16, 16, 32, xcb_seg, 0 );
+ERR("pixmap %#x\n", pixmap);
+
+    drawable = pglXCreatePixmap( gdi_display, gl->format->fbconfig, pixmap, NULL );
+ERR("drawable %#lx\n", drawable);
+
+    close( fd );
+    NtClose( section );
+}
+
         gl->type = DC_GL_PIXMAP_WIN;
         gl->pixmap = XCreatePixmap( gdi_display, root_window, width, height, visual->depth );
         if (gl->pixmap)
@@ -1179,6 +1279,8 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct glx_pixel
             gl->hdc_src = NtGdiOpenDCW( &device_str, NULL, NULL, 0, TRUE, NULL, NULL, NULL );
             set_dc_drawable( gl->hdc_src, gl->pixmap, &gl->rect, IncludeInferiors );
         }
+
+        egl_import_pixmap(gl->pixmap);
     }
 
     if (!gl->drawable)
