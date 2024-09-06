@@ -2,8 +2,8 @@ MODULE    = winex11.drv
 UNIXLIB   = winex11.so
 IMPORTS   = uuid user32 gdi32 win32u
 DELAYIMPORTS = comctl32 ole32 shell32 imm32
-UNIX_CFLAGS  = $(X_CFLAGS)
-UNIX_LIBS    = -lwin32u $(X_LIBS) $(PTHREAD_LIBS) -lm
+UNIX_CFLAGS  = $(XCB_CFLAGS) $(X_CFLAGS)
+UNIX_LIBS    = -lwin32u $(XCB_LIBS) $(X_LIBS) $(PTHREAD_LIBS) -lm
 
 SOURCES = \
 	bitblt.c \
@@ -17,6 +17,7 @@ SOURCES = \
 	init.c \
 	keyboard.c \
 	mouse.c \
+	egl.c \
 	opengl.c \
 	palette.c \
 	pen.c \

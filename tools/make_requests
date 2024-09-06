@@ -35,6 +35,7 @@ my %formats =
     "user_handle_t" => [  4,   4,  "%08x" ],
     "process_id_t"  => [  4,   4,  "%04x" ],
     "thread_id_t"   => [  4,   4,  "%04x" ],
+    "d3dkmt_handle_t"=>[  4,   4,  "%08x" ],
     "client_ptr_t"  => [  8,   8,  "&dump_uint64" ],
     "mod_handle_t"  => [  8,   8,  "&dump_uint64" ],
     "lparam_t"      => [  8,   8,  "&dump_uint64" ],
@@ -54,6 +55,7 @@ my %formats =
     "ioctl_code_t"  => [  4,   4,  "&dump_ioctl_code" ],
     "hw_input_t"    => [  40,  8,  "&dump_hw_input" ],
     "obj_locator_t" => [  16,  8,  "&dump_obj_locator" ],
+    "d3dkmt_desc_t" => [  40,  8,  "&dump_d3dkmt_desc" ],
     # varargs-only structures
     "apc_call_t"               => [  64,  8 ],
     "context_t"                => [  1728,  8 ],
