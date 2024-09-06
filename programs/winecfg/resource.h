@@ -105,6 +105,7 @@
 #define IDS_DRIVE_NO_C                  1075
 #define IDC_BUTTON_SHOW_HIDE_ADVANCED   1076
 #define IDC_STATIC_TYPE                 1077
+#define IDC_ENABLE_SHELL                1078
 #define IDC_SHOW_DOT_FILES              1080
 
 #define IDS_DRIVE_UNKNOWN               8200

@@ -960,6 +960,87 @@ NTSTATUS WINAPI wow64_NtGdiDdDDIOpenKeyedMutexFromNtHandle( UINT *args )
     return status;
 }
 
+NTSTATUS WINAPI wow64_NtGdiDdDDIAcquireKeyedMutex( UINT *args )
+{
+    struct
+    {
+        D3DKMT_HANDLE hKeyedMutex;
+        UINT64 Key;
+        ULONG pTimeout;
+        UINT64 FenceValue;
+    } *desc32 = get_ptr( &args );
+    D3DKMT_ACQUIREKEYEDMUTEX desc;
+    NTSTATUS status;
+
+    desc.hKeyedMutex = desc32->hKeyedMutex;
+    desc.Key = desc32->Key;
+    desc.pTimeout = UlongToHandle( desc32->pTimeout );
+    status = NtGdiDdDDIAcquireKeyedMutex( &desc );
+    desc32->FenceValue = desc.FenceValue;
+    return status;
+}
+
+NTSTATUS WINAPI wow64_NtGdiDdDDIAcquireKeyedMutex2( UINT *args )
+{
+    struct
+    {
+        D3DKMT_HANDLE hKeyedMutex;
+        UINT64 Key;
+        ULONG pTimeout;
+        UINT64 FenceValue;
+        ULONG pPrivateRuntimeData;
+        UINT PrivateRuntimeDataSize;
+    } *desc32 = get_ptr( &args );
+    D3DKMT_ACQUIREKEYEDMUTEX2 desc;
+    NTSTATUS status;
+
+    desc.hKeyedMutex = desc32->hKeyedMutex;
+    desc.Key = desc32->Key;
+    desc.pTimeout = UlongToHandle( desc32->pTimeout );
+    desc.pPrivateRuntimeData = ULongToHandle( desc32->pPrivateRuntimeData );
+    desc.PrivateRuntimeDataSize = desc32->PrivateRuntimeDataSize;
+    status = NtGdiDdDDIAcquireKeyedMutex2( &desc );
+    desc32->FenceValue = desc.FenceValue;
+    desc32->PrivateRuntimeDataSize = desc.PrivateRuntimeDataSize;
+    return status;
+}
+
+NTSTATUS WINAPI wow64_NtGdiDdDDIReleaseKeyedMutex( UINT *args )
+{
+    struct
+    {
+        D3DKMT_HANDLE hKeyedMutex;
+        UINT64 Key;
+        UINT64 FenceValue;
+    } *desc32 = get_ptr( &args );
+    D3DKMT_RELEASEKEYEDMUTEX desc;
+
+    desc.hKeyedMutex = desc32->hKeyedMutex;
+    desc.Key = desc32->Key;
+    desc.FenceValue = desc32->FenceValue;
+    return NtGdiDdDDIReleaseKeyedMutex( &desc );
+}
+
+NTSTATUS WINAPI wow64_NtGdiDdDDIReleaseKeyedMutex2( UINT *args )
+{
+    struct
+    {
+        D3DKMT_HANDLE hKeyedMutex;
+        UINT64 Key;
+        UINT64 FenceValue;
+        ULONG pPrivateRuntimeData;
+        UINT PrivateRuntimeDataSize;
+    } *desc32 = get_ptr( &args );
+    D3DKMT_RELEASEKEYEDMUTEX2 desc;
+
+    desc.hKeyedMutex = desc32->hKeyedMutex;
+    desc.Key = desc32->Key;
+    desc.FenceValue = desc32->FenceValue;
+    desc.pPrivateRuntimeData = ULongToHandle( desc32->pPrivateRuntimeData );
+    desc.PrivateRuntimeDataSize = desc32->PrivateRuntimeDataSize;
+    return NtGdiDdDDIReleaseKeyedMutex2( &desc );
+}
+
 NTSTATUS WINAPI wow64_NtGdiDdDDIOpenResource( UINT *args )
 {
     struct
