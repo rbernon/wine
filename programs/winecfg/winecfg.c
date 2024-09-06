@@ -236,6 +236,36 @@ static void free_setting(struct setting *setting)
     free(setting);
 }
 
+DWORD get_reg_key_dword(HKEY root, const WCHAR *path, const WCHAR *name, DWORD def)
+{
+    struct list *cursor;
+    struct setting *s;
+    DWORD val, size = sizeof(val);
+
+    WINE_TRACE("path=%s, name=%s, def=%lu\n", wine_dbgstr_w(path),
+               wine_dbgstr_w(name), def);
+
+    LIST_FOR_EACH( cursor, &settings )
+    {
+        s = LIST_ENTRY(cursor, struct setting, entry);
+
+        if (root != s->root) continue;
+        if (lstrcmpiW(path, s->path) != 0) continue;
+        if (!s->name) continue;
+        if (lstrcmpiW(name, s->name) != 0) continue;
+
+        WINE_TRACE("found %s:%s in settings list, returning %s\n",
+                   wine_dbgstr_w(path), wine_dbgstr_w(name),
+                   wine_dbgstr_w(s->value));
+        return *(DWORD *)s->value;
+    }
+
+    if (RegGetValueW( root, path, name, RRF_RT_REG_DWORD, NULL, &val, &size ))
+        val = def;
+    WINE_TRACE("returning %lu\n", val);
+    return val;
+}
+
 /**
  * Returns the contents of the value at path. If not in the settings
  * list, it will be fetched from the registry - failing that, the

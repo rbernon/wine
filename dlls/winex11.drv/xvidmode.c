@@ -568,6 +568,7 @@ BOOL X11DRV_GetDeviceGammaRamp(PHYSDEV dev, LPVOID ramp)
  */
 BOOL X11DRV_SetDeviceGammaRamp(PHYSDEV dev, LPVOID ramp)
 {
+    return TRUE;
 #ifdef SONAME_LIBXXF86VM
   return X11DRV_XF86VM_SetGammaRamp(ramp);
 #else

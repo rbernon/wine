@@ -16,7 +16,20 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include "windows.h"
+#include <stdarg.h>
+#include <stddef.h>
+
+#include <ntstatus.h>
+#define WIN32_NO_STATUS
+#define COBJMACROS
+#include <windef.h>
+#include <winbase.h>
+#include <winternl.h>
+#include <winuser.h>
+#include <wingdi.h>
+#include <ddk/d3dkmthk.h>
+#include "d3d11_4.h"
+
 #include "wine/vulkan.h"
 #include "wine/test.h"
 
@@ -481,6 +494,64 @@ static void test_private_data(VkPhysicalDevice vk_physical_device)
             wine_dbgstr_longlong(data));
 
     pfn_vkDestroyPrivateDataSlotEXT(vk_device, data_slot, NULL);
+    vkDestroyDevice(vk_device, NULL);
+}
+
+static void test_d3dkmt_resource_2(VkPhysicalDevice vk_physical_device)
+{
+    VkExternalMemoryImageCreateInfo external_create_info = {.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};
+    VkMemoryAllocateInfo allocate_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    VkImageCreateInfo create_info = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    PFN_vkGetImageMemoryRequirements pfn_vkGetImageMemoryRequirements;
+    PFN_vkAllocateMemory pfn_vkAllocateMemory;
+    VkMemoryRequirements requirements = {0};
+    PFN_vkCreateImage pfn_vkCreateImage;
+    VkDeviceMemory memory;
+    VkDevice vk_device;
+    VkImage image;
+    VkResult vr;
+
+    if ((vr = create_device(vk_physical_device, 0, NULL, NULL, &vk_device)) < 0)
+    {
+        skip("Failed to create device with VK_EXT_private_data, VkResult %d.\n", vr);
+        return;
+    }
+
+    pfn_vkCreateImage =
+            (void*) vkGetDeviceProcAddr(vk_device, "vkCreateImage");
+    pfn_vkGetImageMemoryRequirements =
+            (void*) vkGetDeviceProcAddr(vk_device, "vkGetImageMemoryRequirements");
+    pfn_vkAllocateMemory =
+            (void*) vkGetDeviceProcAddr(vk_device, "vkAllocateMemory");
+
+    external_create_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHR;
+
+    create_info.flags = 0;
+    create_info.imageType = 0;
+    create_info.format = 0;
+    create_info.extent.width = 128;
+    create_info.extent.height = 128;
+    create_info.mipLevels = 0;
+    create_info.arrayLayers = 0;
+    create_info.samples = 0;
+    create_info.tiling = 0;
+    create_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
+                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+    create_info.sharingMode = 0;
+    create_info.queueFamilyIndexCount = 0;
+    create_info.pQueueFamilyIndices = 0;
+    create_info.initialLayout = 0;
+    create_info.pNext = &external_create_info;
+
+    vr = pfn_vkCreateImage(vk_device, &create_info, NULL, &image);
+    ok(!vr, "got %d\n", vr);
+    pfn_vkGetImageMemoryRequirements(vk_device, image, &requirements);
+
+    allocate_info.allocationSize = requirements.size;
+    vr = pfn_vkAllocateMemory(vk_device, &allocate_info, NULL, &memory);
+    ok(!vr, "got %d\n", vr);
+
     vkDestroyDevice(vk_device, NULL);
 }
 
@@ -1102,7 +1173,8 @@ static uint32_t find_memory_type(VkPhysicalDevice vk_physical_device, VkMemoryPr
     return -1;
 }
 
-static void test_cross_process_resource(VkPhysicalDeviceIDPropertiesKHR *device_id_properties, BOOL kmt, HANDLE handle)
+static void test_cross_process_resource(VkPhysicalDeviceIDPropertiesKHR *device_id_properties,
+        const char *type, BOOL kmt, HANDLE handle)
 {
     char driver_uuid[VK_UUID_SIZE * 2 + 1], device_uuid[VK_UUID_SIZE * 2 + 1];
     STARTUPINFOA si = { sizeof(si) };
@@ -1120,8 +1192,8 @@ static void test_cross_process_resource(VkPhysicalDeviceIDPropertiesKHR *device_
     device_uuid[i * 2] = 0;
 
     winetest_get_mainargs(&argv);
-    sprintf(buf, "\"%s\" vulkan resource %s %s %s %p", argv[0], driver_uuid, device_uuid,
-                                                        kmt ? "kmt" : "nt", handle);
+    sprintf(buf, "\"%s\" vulkan %s %s %s %s %p", argv[0], type, driver_uuid,
+            device_uuid, kmt ? "kmt" : "nt", handle);
     res = CreateProcessA(NULL, buf, NULL, NULL, TRUE, 0L, NULL, NULL, &si, &info);
     ok(res, "CreateProcess failed: %lu\n", GetLastError());
     CloseHandle(info.hThread);
@@ -1151,12 +1223,508 @@ static void import_memory(VkDevice vk_device, VkMemoryAllocateInfo alloc_info, V
     if (handle_type != VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHR)
     {
         import_handle_info.handle = NULL;
-        import_handle_info.name = L"wine_test_buffer_export_name";
+        import_handle_info.name = L"wine_test_handle_export_name";
 
         vr = vkAllocateMemory(vk_device, &alloc_info, NULL, &memory);
         ok(vr == VK_SUCCESS, "vkAllocateMemory failed, VkResult %d.\n", vr);
         vkFreeMemory(vk_device, memory, NULL);
     }
+}
+
+static BOOL is_kmt_handle(HANDLE h)
+{
+    return (ULONG_PTR)h & 0xc0000000;
+}
+
+struct d3d11_device_desc
+{
+    const D3D_FEATURE_LEVEL *feature_level;
+    UINT flags;
+};
+
+static IDXGIAdapter *create_adapter(void)
+{
+    IDXGIFactory *factory;
+    IDXGIAdapter *adapter;
+    HRESULT hr;
+
+    if (FAILED(hr = CreateDXGIFactory1(&IID_IDXGIFactory, (void **)&factory)))
+    {
+        trace("Failed to create IDXGIFactory, hr %#lx.\n", hr);
+        return NULL;
+    }
+
+    adapter = NULL;
+    hr = IDXGIFactory_EnumAdapters(factory, 0, &adapter);
+    IDXGIFactory_Release(factory);
+    if (FAILED(hr))
+        trace("Failed to get adapter, hr %#lx.\n", hr);
+    return adapter;
+}
+
+static ID3D11Device *create_d3d11_device(const struct d3d11_device_desc *desc)
+{
+    static const D3D_FEATURE_LEVEL default_feature_level[] =
+    {
+        D3D_FEATURE_LEVEL_11_0,
+        D3D_FEATURE_LEVEL_10_1,
+        D3D_FEATURE_LEVEL_10_0,
+    };
+    const D3D_FEATURE_LEVEL *feature_level;
+    UINT flags = desc ? desc->flags : 0;
+    unsigned int feature_level_count;
+    IDXGIAdapter *adapter;
+    ID3D11Device *device;
+    HRESULT hr;
+
+    if (desc && desc->feature_level)
+    {
+        feature_level = desc->feature_level;
+        feature_level_count = 1;
+    }
+    else
+    {
+        feature_level = default_feature_level;
+        feature_level_count = ARRAY_SIZE(default_feature_level);
+    }
+
+    if ((adapter = create_adapter()))
+    {
+        hr = D3D11CreateDevice(adapter, D3D_DRIVER_TYPE_UNKNOWN, NULL, flags,
+                feature_level, feature_level_count, D3D11_SDK_VERSION, &device, NULL, NULL);
+        IDXGIAdapter_Release(adapter);
+        return SUCCEEDED(hr) ? device : NULL;
+    }
+
+    if (SUCCEEDED(D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, flags,
+            feature_level, feature_level_count, D3D11_SDK_VERSION, &device, NULL, NULL)))
+        return device;
+    if (SUCCEEDED(D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_WARP, NULL, flags,
+            feature_level, feature_level_count, D3D11_SDK_VERSION, &device, NULL, NULL)))
+        return device;
+    if (SUCCEEDED(D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_REFERENCE, NULL, flags,
+            feature_level, feature_level_count, D3D11_SDK_VERSION, &device, NULL, NULL)))
+        return device;
+
+    return NULL;
+}
+
+static void test_d3dkmt_resource(HANDLE handle)
+{
+    NTSTATUS (WINAPI *pD3DKMTShareObjects)( UINT count, const D3DKMT_HANDLE *handles, OBJECT_ATTRIBUTES *attr, UINT access, HANDLE *handle );
+    NTSTATUS (WINAPI *pD3DKMTCreateAllocation2)( D3DKMT_CREATEALLOCATION *params );
+    NTSTATUS (WINAPI *pD3DKMTCloseAdapter)( D3DKMT_CLOSEADAPTER *params );
+    NTSTATUS (WINAPI *pD3DKMTCreateDevice)( D3DKMT_CREATEDEVICE *params );
+    NTSTATUS (WINAPI *pD3DKMTDestroyAllocation)( const D3DKMT_DESTROYALLOCATION *params );
+    NTSTATUS (WINAPI *pD3DKMTDestroyDevice)( D3DKMT_DESTROYDEVICE *params );
+    NTSTATUS (WINAPI *pD3DKMTOpenAdapterFromGdiDisplayName)( D3DKMT_OPENADAPTERFROMGDIDISPLAYNAME *params );
+    NTSTATUS (WINAPI *pD3DKMTOpenResource2)( D3DKMT_OPENRESOURCE *params );
+    NTSTATUS (WINAPI *pD3DKMTOpenResourceFromNtHandle)( D3DKMT_OPENRESOURCEFROMNTHANDLE *params );
+    NTSTATUS (WINAPI *pD3DKMTQueryResourceInfo)( D3DKMT_QUERYRESOURCEINFO *params );
+    NTSTATUS (WINAPI *pD3DKMTQueryResourceInfoFromNtHandle)( D3DKMT_QUERYRESOURCEINFOFROMNTHANDLE *params );
+
+    D3DKMT_QUERYRESOURCEINFOFROMNTHANDLE query_resource_nt = {0};
+    D3DKMT_OPENADAPTERFROMGDIDISPLAYNAME open_adapter = {0};
+    OBJECT_ATTRIBUTES attr = {.Length = sizeof(attr)};
+    D3DKMT_QUERYRESOURCEINFO query_resource = {0};
+    D3DKMT_DESTROYDEVICE destroy_device = {0};
+    D3DKMT_CREATEDEVICE create_device = {0};
+    D3DKMT_CLOSEADAPTER close_adapter = {0};
+    D3DKMT_DESTROYALLOCATION destroy = {0};
+    D3DDDI_ALLOCATIONINFO2 alloc_info = {0};
+    D3DKMT_CREATEALLOCATION create = {0};
+    char runtime_data[0x100] = {0};
+    NTSTATUS status;
+    HMODULE gdi32;
+
+    D3DKMT_OPENRESOURCEFROMNTHANDLE open_resource_nt = {0};
+    D3DDDI_OPENALLOCATIONINFO2 open_alloc = {0};
+    D3DKMT_OPENRESOURCE open_resource = {0};
+    char resource_data[0x100] = {0};
+    char driver_data[0x1000] = {0};
+    char alloc_data[0x100] = {0};
+
+    D3D_FEATURE_LEVEL feature_level = D3D_FEATURE_LEVEL_11_0;
+    struct d3d11_device_desc device_desc = {0};
+    ID3D11Texture2D *tex2;
+    ID3D11Device1 *device1;
+    ID3D11Device *device;
+    HRESULT hr;
+
+    gdi32 = GetModuleHandleA("gdi32.dll");
+#define LOAD_FUNCPTR(f) \
+        if (!(p##f = (void *)GetProcAddress(gdi32, #f))) \
+        { \
+            win_skip("Missing " #f " entry point, skipping tests\n"); \
+            return; \
+        }
+    LOAD_FUNCPTR(D3DKMTShareObjects);
+    LOAD_FUNCPTR(D3DKMTCreateAllocation2);
+    LOAD_FUNCPTR(D3DKMTCloseAdapter);
+    LOAD_FUNCPTR(D3DKMTCreateDevice);
+    LOAD_FUNCPTR(D3DKMTDestroyAllocation);
+    LOAD_FUNCPTR(D3DKMTDestroyDevice);
+    LOAD_FUNCPTR(D3DKMTOpenAdapterFromGdiDisplayName);
+    LOAD_FUNCPTR(D3DKMTOpenResource2);
+    LOAD_FUNCPTR(D3DKMTOpenResourceFromNtHandle);
+    LOAD_FUNCPTR(D3DKMTQueryResourceInfo);
+    LOAD_FUNCPTR(D3DKMTQueryResourceInfoFromNtHandle);
+#undef LOAD_FUNCPTR
+
+    lstrcpyW(open_adapter.DeviceName, L"\\\\.\\DISPLAY1");
+    status = pD3DKMTOpenAdapterFromGdiDisplayName(&open_adapter);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
+    create_device.hAdapter = open_adapter.hAdapter;
+    status = pD3DKMTCreateDevice(&create_device);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
+
+    device_desc.feature_level = &feature_level;
+    if (!(device = create_d3d11_device(&device_desc)))
+    {
+        skip("Failed to create device, feature level %#x.\n", feature_level);
+        return;
+    }
+    device1 = NULL;
+    hr = ID3D11Device_QueryInterface(device, &IID_ID3D11Device1, (void **)&device1);
+    ok(hr == S_OK || broken(hr == E_NOINTERFACE), "got %#lx.\n", hr);
+    if (hr != S_OK)
+    {
+        win_skip("ID3D11Device1 is not supported, skipping tests.\n");
+        ID3D11Device_Release(device);
+        return;
+    }
+
+    if (is_kmt_handle(handle))
+    {
+        /* handle is a global D3DKMT_HANDLE */
+        ok(((UINT_PTR)handle & 0x3f) == 2, "got handle %p\n", handle);
+
+        query_resource.hDevice = create_device.hDevice;
+        query_resource.hGlobalShare = HandleToUlong(handle);
+        query_resource.pPrivateRuntimeData = runtime_data;
+        query_resource.PrivateRuntimeDataSize = sizeof(runtime_data);
+        status = pD3DKMTQueryResourceInfo(&query_resource);
+        ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+        ok(query_resource.pPrivateRuntimeData == runtime_data, "got pPrivateRuntimeData %p\n", query_resource.pPrivateRuntimeData);
+        ok(query_resource.PrivateRuntimeDataSize == 0x68, "got PrivateRuntimeDataSize %#x\n", query_resource.PrivateRuntimeDataSize);
+        ok(query_resource.TotalPrivateDriverDataSize == 0x60, "got TotalPrivateDriverDataSize %#x\n", query_resource.TotalPrivateDriverDataSize);
+        ok(query_resource.ResourcePrivateDriverDataSize == 0, "got ResourcePrivateDriverDataSize %#x\n", query_resource.ResourcePrivateDriverDataSize);
+        ok(query_resource.NumAllocations == 1, "got NumAllocations %#x\n", query_resource.NumAllocations);
+
+        open_alloc.pPrivateDriverData = alloc_data;
+        open_alloc.PrivateDriverDataSize = sizeof(alloc_data);
+
+        open_resource.hGlobalShare = HandleToUlong(handle);
+        open_resource.hDevice = create_device.hDevice;
+        open_resource.NumAllocations = 1;
+        open_resource.pOpenAllocationInfo2 = &open_alloc;
+        open_resource.pPrivateRuntimeData = runtime_data;
+        open_resource.PrivateRuntimeDataSize = query_resource.PrivateRuntimeDataSize;
+        open_resource.pResourcePrivateDriverData = resource_data;
+        open_resource.ResourcePrivateDriverDataSize = query_resource.ResourcePrivateDriverDataSize;
+        open_resource.pTotalPrivateDriverDataBuffer = driver_data;
+        open_resource.TotalPrivateDriverDataBufferSize = sizeof(driver_data);
+        status = pD3DKMTOpenResource2(&open_resource);
+        ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+        ok(open_resource.TotalPrivateDriverDataBufferSize == 0x60, "got TotalPrivateDriverDataBufferSize %#x\n", open_resource.TotalPrivateDriverDataBufferSize);
+        ok(open_resource.hResource & 0xc0000000, "got hResource %#x\n", open_resource.hResource);
+        ok((open_resource.hResource & 0x3f) == 0, "got hResource %#x\n", open_resource.hResource);
+        ok(0, "got GPU address %#I64x\n", open_alloc.GpuVirtualAddress);
+
+do
+{
+    const unsigned char *ptr = (void *)open_resource.pPrivateRuntimeData, *end = ptr + open_resource.PrivateRuntimeDataSize;
+    ok(0, "runtime %p-%p (%x)\n", (void *)ptr, (void *)end, (int)(end - ptr));
+    for (int i = 0, j; ptr + i < end;)
+    {
+        char buffer[256], *buf = buffer;
+        buf += sprintf(buf, "%08x ", i);
+        for (j = 0; j < 8 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 8 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, " ");
+        for (j = 8; j < 16 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 16 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, "  |");
+        for (j = 0; j < 16 && ptr + i < end; ++j, ++i)
+            buf += sprintf(buf, "%c", ptr[i] >= ' ' && ptr[i] <= '~' ? ptr[i] : '.');
+        buf += sprintf(buf, "|");
+        ok(0, "%s\n", buffer);
+    }
+}
+while(0);
+
+destroy.hResource = open_resource.hResource;
+destroy.hDevice = create_device.hDevice;
+status = pD3DKMTDestroyAllocation(&destroy);
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+
+create.hDevice = create_device.hDevice;
+
+create.pPrivateRuntimeData = runtime_data;
+create.PrivateRuntimeDataSize = 0x68;
+create.pPrivateDriverData = open_resource.pResourcePrivateDriverData;
+create.PrivateDriverDataSize = open_resource.ResourcePrivateDriverDataSize;
+create.NumAllocations = open_resource.NumAllocations;
+create.pAllocationInfo2 = &alloc_info;
+
+alloc_info.PrivateDriverDataSize = open_alloc.PrivateDriverDataSize;
+alloc_info.pPrivateDriverData = (void *)open_alloc.pPrivateDriverData;
+
+{
+const char rsrc[] = {
+0x68,0x00,0x00,0x00,0x04,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,0x00,0x00,0x23,0x01,0x00,0x00,
+0x56,0x04,0x00,0x00,0x07,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x2a,0x00,0x00,0x00,
+0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x20,0x00,0x00,0x00,
+0x00,0x00,0x01,0x00,0x02,0x00,0x00,0x00
+};
+memcpy(runtime_data, rsrc, sizeof(rsrc));
+}
+
+create.hResource = 0;
+create.Flags.CreateResource = 1;
+create.Flags.CreateShared = 1;
+
+status = pD3DKMTCreateAllocation2( &create );
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+ok(create.hGlobalShare != 0, "got hGlobalShare %#x\n", create.hGlobalShare);
+ok(create.hResource != 0, "got hResource %#x\n", create.hResource);
+ok(create.hPrivateRuntimeResourceHandle == 0, "got hPrivateRuntimeResourceHandle %p\n", create.hPrivateRuntimeResourceHandle);
+ok(0, "got GPU address %#I64x\n", alloc_info.GpuVirtualAddress);
+handle = (HANDLE)(UINT_PTR)create.hGlobalShare;
+
+
+if (handle)
+{
+        IDXGIResource1 *res1;
+
+        hr = ID3D11Device_OpenSharedResource(device, handle, &IID_ID3D11Texture2D, (void **)&tex2);
+        ok(hr == E_INVALIDARG, "got %#lx.\n", hr);
+
+        hr = ID3D11Texture2D_QueryInterface(tex2, &IID_IDXGIResource1, (void **)&res1);
+        ok(hr == S_OK, "got %#lx.\n", hr);
+        hr = IDXGIResource1_CreateSharedHandle(res1, NULL, GENERIC_ALL | DXGI_SHARED_RESOURCE_READ
+                | DXGI_SHARED_RESOURCE_WRITE, NULL, &handle);
+        ok(hr == S_OK, "got %#lx.\n", hr);
+}
+
+destroy.hResource = create.hResource;
+destroy.hDevice = create_device.hDevice;
+status = pD3DKMTDestroyAllocation(&destroy);
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+
+
+{
+const char rsrc[] = {
+0x68,0x00,0x00,0x00,0x04,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,0x00,0x00,0x23,0x01,0x00,0x00,
+0x56,0x04,0x00,0x00,0x07,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x2a,0x00,0x00,0x00,
+0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x20,0x00,0x00,0x00,
+0x00,0x00,0x01,0x00,0x02,0x08,0x00,0x00
+};
+memcpy(runtime_data, rsrc, sizeof(rsrc));
+}
+
+create.hResource = 0;
+create.Flags.CreateResource = 1;
+create.Flags.CreateShared = 1;
+create.Flags.NtSecuritySharing = 1;
+
+status = pD3DKMTCreateAllocation2( &create );
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+ok(create.hGlobalShare == 0, "got hGlobalShare %#x\n", create.hGlobalShare);
+ok(create.hResource != 0, "got hResource %#x\n", create.hResource);
+ok(create.hPrivateRuntimeResourceHandle == 0, "got hPrivateRuntimeResourceHandle %p\n", create.hPrivateRuntimeResourceHandle);
+ok(0, "got GPU address %#I64x\n", alloc_info.GpuVirtualAddress);
+
+handle = 0;
+status = pD3DKMTShareObjects(1, &create.hResource, &attr, STANDARD_RIGHTS_READ, &handle);
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+ok(handle != 0, "got %p\n", handle);
+ok(handle != INVALID_HANDLE_VALUE, "got %p\n", handle);
+
+
+if (handle)
+{
+        hr = ID3D11Device1_OpenSharedResource1(device1, handle, &IID_ID3D11Texture2D, (void **)&tex2);
+        ok(hr == E_INVALIDARG, "got %#lx.\n", hr);
+        CloseHandle(handle);
+}
+
+
+destroy.hResource = create.hResource;
+destroy.hDevice = create_device.hDevice;
+status = pD3DKMTDestroyAllocation(&destroy);
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+
+
+    }
+    else
+    {
+        query_resource_nt.hDevice = create_device.hDevice;
+        query_resource_nt.hNtHandle = handle;
+        query_resource_nt.pPrivateRuntimeData = runtime_data;
+        query_resource_nt.PrivateRuntimeDataSize = sizeof(runtime_data);
+        status = pD3DKMTQueryResourceInfoFromNtHandle(&query_resource_nt);
+        ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+        ok(query_resource_nt.pPrivateRuntimeData == runtime_data, "got pPrivateRuntimeData %p\n", query_resource_nt.pPrivateRuntimeData);
+        ok(query_resource_nt.PrivateRuntimeDataSize == 0x68, "got PrivateRuntimeDataSize %#x\n", query_resource_nt.PrivateRuntimeDataSize);
+        ok(query_resource_nt.TotalPrivateDriverDataSize == 0x60, "got TotalPrivateDriverDataSize %#x\n", query_resource_nt.TotalPrivateDriverDataSize);
+        ok(query_resource_nt.ResourcePrivateDriverDataSize == 0, "got ResourcePrivateDriverDataSize %#x\n", query_resource_nt.ResourcePrivateDriverDataSize);
+        ok(query_resource_nt.NumAllocations == 1, "got NumAllocations %#x\n", query_resource_nt.NumAllocations);
+
+        open_alloc.pPrivateDriverData = alloc_data;
+        open_alloc.PrivateDriverDataSize = sizeof(alloc_data);
+
+        open_resource_nt.hNtHandle = handle;
+        open_resource_nt.hDevice = create_device.hDevice;
+        open_resource_nt.NumAllocations = 1;
+        open_resource_nt.pOpenAllocationInfo2 = &open_alloc;
+        open_resource_nt.pPrivateRuntimeData = runtime_data;
+        open_resource_nt.PrivateRuntimeDataSize = query_resource_nt.PrivateRuntimeDataSize;
+        open_resource_nt.pResourcePrivateDriverData = resource_data;
+        open_resource_nt.ResourcePrivateDriverDataSize = query_resource_nt.ResourcePrivateDriverDataSize;
+        open_resource_nt.pTotalPrivateDriverDataBuffer = driver_data;
+        open_resource_nt.TotalPrivateDriverDataBufferSize = sizeof(driver_data);
+        status = pD3DKMTOpenResourceFromNtHandle(&open_resource_nt);
+        ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+        ok(open_resource_nt.TotalPrivateDriverDataBufferSize == 0x60, "got TotalPrivateDriverDataBufferSize %#x\n", open_resource_nt.TotalPrivateDriverDataBufferSize);
+        ok(open_resource_nt.hResource & 0xc0000000, "got hResource %#x\n", open_resource_nt.hResource);
+        ok((open_resource_nt.hResource & 0x3f) == 0, "got hResource %#x\n", open_resource_nt.hResource);
+
+do
+{
+    const unsigned char *ptr = (void *)open_resource_nt.pPrivateRuntimeData, *end = ptr + open_resource_nt.PrivateRuntimeDataSize;
+    ok(0, "runtime %p-%p (%x)\n", (void *)ptr, (void *)end, (int)(end - ptr));
+    for (int i = 0, j; ptr + i < end;)
+    {
+        char buffer[256], *buf = buffer;
+        buf += sprintf(buf, "%08x ", i);
+        for (j = 0; j < 8 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 8 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, " ");
+        for (j = 8; j < 16 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 16 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, "  |");
+        for (j = 0; j < 16 && ptr + i < end; ++j, ++i)
+            buf += sprintf(buf, "%c", ptr[i] >= ' ' && ptr[i] <= '~' ? ptr[i] : '.');
+        buf += sprintf(buf, "|");
+        ok(0, "%s\n", buffer);
+    }
+}
+while(0);
+
+
+if (0)
+{
+        destroy.hResource = open_resource.hResource;
+        destroy.hDevice = create_device.hDevice;
+        status = pD3DKMTDestroyAllocation(&destroy);
+        ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+}
+
+
+create.hDevice = create_device.hDevice;
+
+create.pPrivateRuntimeData = runtime_data;
+create.PrivateRuntimeDataSize = 0x68;
+create.pPrivateDriverData = open_resource.pResourcePrivateDriverData;
+create.PrivateDriverDataSize = open_resource.ResourcePrivateDriverDataSize;
+create.NumAllocations = open_resource.NumAllocations;
+create.pAllocationInfo2 = &alloc_info;
+
+alloc_info.PrivateDriverDataSize = open_alloc.PrivateDriverDataSize;
+alloc_info.pPrivateDriverData = (void *)open_alloc.pPrivateDriverData;
+
+{
+const char rsrc[] = {
+0x68,0x00,0x00,0x00,0x04,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x00,0x00,0x00,0x23,0x01,0x00,0x00,
+0x56,0x04,0x00,0x00,0x07,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x2a,0x00,0x00,0x00,
+0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x20,0x00,0x00,0x00,
+0x00,0x00,0x01,0x00,0x02,0x08,0x00,0x00
+};
+memcpy(runtime_data, rsrc, sizeof(rsrc));
+}
+
+create.Flags.CreateResource = 1;
+create.Flags.CreateShared = 1;
+create.Flags.NtSecuritySharing = 1;
+
+status = pD3DKMTCreateAllocation2( &create );
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+
+ok(create.hGlobalShare == 0, "got hGlobalShare %#x\n", create.hGlobalShare);
+ok(create.hResource != 0, "got hResource %#x\n", create.hResource);
+ok(create.hPrivateRuntimeResourceHandle == 0, "got hPrivateRuntimeResourceHandle %p\n", create.hPrivateRuntimeResourceHandle);
+
+handle = 0;
+status = pD3DKMTShareObjects(1, &create.hResource, &attr, STANDARD_RIGHTS_READ, &handle);
+ok(status == STATUS_SUCCESS, "got %#lx\n", status);
+ok(handle != 0, "got %p\n", handle);
+ok(handle != INVALID_HANDLE_VALUE, "got %p\n", handle);
+
+do
+{
+    const unsigned char *ptr = (void *)create.pPrivateRuntimeData, *end = ptr + create.PrivateRuntimeDataSize;
+    ok(0, "runtime %p-%p (%x)\n", (void *)ptr, (void *)end, (int)(end - ptr));
+    for (int i = 0, j; ptr + i < end;)
+    {
+        char buffer[256], *buf = buffer;
+        buf += sprintf(buf, "%08x ", i);
+        for (j = 0; j < 8 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 8 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, " ");
+        for (j = 8; j < 16 && ptr + i + j < end; ++j)
+            buf += sprintf(buf, " %02x", ptr[i + j]);
+        for (; j < 16 && ptr + i + j >= end; ++j)
+            buf += sprintf(buf, "   ");
+        buf += sprintf(buf, "  |");
+        for (j = 0; j < 16 && ptr + i < end; ++j, ++i)
+            buf += sprintf(buf, "%c", ptr[i] >= ' ' && ptr[i] <= '~' ? ptr[i] : '.');
+        buf += sprintf(buf, "|");
+        ok(0, "%s\n", buffer);
+    }
+}
+while(0);
+
+if (handle)
+{
+        hr = ID3D11Device1_OpenSharedResource1(device1, handle, &IID_ID3D11Texture2D, (void **)&tex2);
+        ok(hr == E_INVALIDARG, "got %#lx.\n", hr);
+        CloseHandle(handle);
+}
+    }
+
+    ID3D11Device1_Release(device1);
+    ID3D11Device_Release(device);
+
+
+    destroy_device.hDevice = create_device.hDevice;
+    status = pD3DKMTDestroyDevice(&destroy_device);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
+    close_adapter.hAdapter = open_adapter.hAdapter;
+    status = pD3DKMTCloseAdapter(&close_adapter);
+    ok(status == STATUS_SUCCESS, "Got unexpected return code %#lx.\n", status);
 }
 
 static const char *test_external_memory_extensions[] =
@@ -1165,7 +1733,7 @@ static const char *test_external_memory_extensions[] =
     "VK_KHR_get_physical_device_properties2",
 };
 
-static void test_external_memory(VkInstance vk_instance, VkPhysicalDevice vk_physical_device)
+static void test_external_memory_buffer(VkInstance vk_instance, VkPhysicalDevice vk_physical_device)
 {
     PFN_vkGetPhysicalDeviceExternalBufferPropertiesKHR pfn_vkGetPhysicalDeviceExternalBufferPropertiesKHR;
     PFN_vkGetPhysicalDeviceProperties2 pfn_vkGetPhysicalDeviceProperties2;
@@ -1219,7 +1787,7 @@ static void test_external_memory(VkInstance vk_instance, VkPhysicalDevice vk_phy
     }
 
     argc = winetest_get_mainargs(&argv);
-    if (argc > 3 && !strcmp(argv[2], "resource"))
+    if (argc > 3 && !strcmp(argv[2], "buffer"))
     {
         for (i = 0; i < VK_UUID_SIZE; i++)
         {
@@ -1312,7 +1880,7 @@ static void test_external_memory(VkInstance vk_instance, VkPhysicalDevice vk_phy
     dedicated_alloc_info.image = VK_NULL_HANDLE;
     dedicated_alloc_info.buffer = vk_buffer;
 
-    if (argc > 3 && !strcmp(argv[2], "resource"))
+    if (argc > 3 && !strcmp(argv[2], "buffer"))
     {
         handle_type = strcmp(argv[5], "kmt") ?
             VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR :
@@ -1346,7 +1914,7 @@ static void test_external_memory(VkInstance vk_instance, VkPhysicalDevice vk_phy
 
         export_handle_info.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_KHR;
         export_handle_info.pNext = &export_memory_info;
-        export_handle_info.name = L"wine_test_buffer_export_name";
+        export_handle_info.name = L"wine_test_handle_export_name";
         export_handle_info.dwAccess = GENERIC_ALL;
         export_handle_info.pAttributes = &sa;
 
@@ -1369,9 +1937,11 @@ static void test_external_memory(VkInstance vk_instance, VkPhysicalDevice vk_phy
         import_memory(vk_device, alloc_info, VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR, handle);
 
         if (pfn_vkGetPhysicalDeviceProperties2)
-            test_cross_process_resource(&device_id_properties, FALSE, handle);
+            test_cross_process_resource(&device_id_properties, "buffer", FALSE, handle);
         else
             skip("Skipping cross process shared resource test due to lack of VK_KHR_get_physical_device_properties2.\n");
+
+        test_d3dkmt_resource(handle);
 
         vkFreeMemory(vk_device, vk_memory, NULL);
         CloseHandle(handle);
@@ -1404,14 +1974,404 @@ static void test_external_memory(VkInstance vk_instance, VkPhysicalDevice vk_phy
         import_memory(vk_device, alloc_info, VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHR, handle);
 
         if (pfn_vkGetPhysicalDeviceProperties2)
-            test_cross_process_resource(&device_id_properties, TRUE, handle);
+            test_cross_process_resource(&device_id_properties, "buffer", TRUE, handle);
         else
             skip("Skipping cross process shared resource test due to lack of VK_KHR_get_physical_device_properties2.\n");
+
+        test_d3dkmt_resource(handle);
 
         vkFreeMemory(vk_device, vk_memory, NULL);
     }
 
     vkDestroyBuffer(vk_device, vk_buffer, NULL);
+    vkDestroyDevice(vk_device, NULL);
+}
+
+static void test_external_memory_image(VkInstance vk_instance, VkPhysicalDevice vk_physical_device)
+{
+    VkPhysicalDeviceExternalImageFormatInfo external_image_format_info = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO};
+    VkExternalMemoryImageCreateInfo external_memory_image_create_info = {.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};
+    VkExternalImageFormatProperties external_image_format_properties = {.sType = VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES};
+    VkExportMemoryWin32HandleInfoKHR export_handle_info = {.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_KHR};
+    VkPhysicalDeviceImageFormatInfo2 image_format_info = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2};
+    VkMemoryDedicatedAllocateInfoKHR dedicated_alloc_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO};
+    VkPhysicalDeviceIDPropertiesKHR device_id_properties = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES};
+    VkPhysicalDeviceProperties2KHR device_properties = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR};
+    VkExportMemoryAllocateInfoKHR export_memory_info = {.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO_KHR};
+    VkMemoryGetWin32HandleInfoKHR get_handle_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR};
+    VkImageFormatProperties2 image_format_properties = {.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2};
+    PFN_vkGetPhysicalDeviceImageFormatProperties2 pfn_vkGetPhysicalDeviceImageFormatProperties2;
+    VkImageCreateInfo image_create_info = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    VkMemoryAllocateInfo alloc_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    PFN_vkGetPhysicalDeviceProperties2 pfn_vkGetPhysicalDeviceProperties2;
+    PFN_vkGetMemoryWin32HandleKHR pfn_vkGetMemoryWin32HandleKHR;
+    VkExternalMemoryHandleTypeFlagBits handle_type;
+    VkMemoryRequirements memory_requirements;
+    VkDeviceMemory vk_memory;
+    SECURITY_ATTRIBUTES sa;
+    unsigned int val, i;
+    VkDevice vk_device;
+    VkImage vk_image;
+    HANDLE handle;
+    VkResult vr;
+    char **argv;
+    int argc;
+
+    static const char *extensions[] =
+    {
+        "VK_KHR_get_memory_requirements2",
+        "VK_KHR_dedicated_allocation",
+        "VK_KHR_external_memory",
+        "VK_KHR_external_memory_win32",
+    };
+
+    pfn_vkGetPhysicalDeviceImageFormatProperties2 =
+        (void*) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceImageFormatProperties2");
+
+    pfn_vkGetPhysicalDeviceProperties2 =
+        (void*) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceProperties2KHR");
+
+    if (pfn_vkGetPhysicalDeviceProperties2)
+    {
+        device_id_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES_KHR;
+        device_id_properties.pNext = NULL;
+
+        device_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
+        device_properties.pNext = &device_id_properties;
+
+        pfn_vkGetPhysicalDeviceProperties2(vk_physical_device, &device_properties);
+    }
+
+    argc = winetest_get_mainargs(&argv);
+    if (argc > 3 && !strcmp(argv[2], "image"))
+    {
+        for (i = 0; i < VK_UUID_SIZE; i++)
+        {
+            sscanf(&argv[3][i * 2], "%02X", &val);
+            if (val != device_id_properties.driverUUID[i])
+                break;
+
+            sscanf(&argv[4][i * 2], "%02X", &val);
+            if (val != device_id_properties.deviceUUID[i])
+                break;
+        }
+
+        if (i != VK_UUID_SIZE)
+            return;
+    }
+
+    if ((vr = create_device(vk_physical_device, ARRAY_SIZE(extensions), extensions, NULL, &vk_device)))
+    {
+        skip("Failed to create device with external memory extensions, VkResult %d.\n", vr);
+        return;
+    }
+
+    pfn_vkGetMemoryWin32HandleKHR = (void *) vkGetDeviceProcAddr(vk_device, "vkGetMemoryWin32HandleKHR");
+
+    image_create_info.pNext = &external_memory_image_create_info;
+    image_create_info.imageType = VK_IMAGE_TYPE_2D;
+    image_create_info.format = VK_FORMAT_R8G8B8A8_UNORM;
+    image_create_info.extent.width = 123;
+    image_create_info.extent.height = 456;
+    image_create_info.extent.depth = 1;
+    image_create_info.mipLevels = 1;
+    image_create_info.arrayLayers = 1;
+    image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    image_create_info.queueFamilyIndexCount = 0;
+    image_create_info.pQueueFamilyIndices = NULL;
+    image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    if ((vr = vkCreateImage(vk_device, &image_create_info, NULL, &vk_image)))
+    {
+        skip("Failed to create generic buffer, VkResult %d.\n", vr);
+        vkDestroyDevice(vk_device, NULL);
+        return;
+    }
+
+    image_format_info.pNext = &external_image_format_info;
+    image_format_info.format = VK_FORMAT_R8G8B8A8_UNORM;
+    image_format_info.type = VK_IMAGE_TYPE_2D;
+    image_format_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    image_format_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+
+    image_format_properties.pNext = &external_image_format_properties;
+
+
+    external_image_format_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR;
+    memset(&external_image_format_properties.externalMemoryProperties, 0, sizeof(external_image_format_properties.externalMemoryProperties));
+
+    vr = pfn_vkGetPhysicalDeviceImageFormatProperties2(vk_physical_device, &image_format_info, &image_format_properties);
+    ok(vr == VK_SUCCESS, "got %d\n", vr);
+
+    if (!(~external_image_format_properties.externalMemoryProperties.externalMemoryFeatures &
+            (VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT_KHR|VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT_KHR)))
+    {
+        ok(external_image_format_properties.externalMemoryProperties.compatibleHandleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR,
+            "Unexpected compatibleHandleTypes %#x.\n", external_image_format_properties.externalMemoryProperties.compatibleHandleTypes);
+        external_memory_image_create_info.handleTypes |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR;
+    }
+
+    external_image_format_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHR;
+    memset(&external_image_format_properties.externalMemoryProperties, 0, sizeof(external_image_format_properties.externalMemoryProperties));
+
+    vr = pfn_vkGetPhysicalDeviceImageFormatProperties2(vk_physical_device, &image_format_info, &image_format_properties);
+    ok(vr == VK_SUCCESS, "got %d\n", vr);
+
+    if (!(~external_image_format_properties.externalMemoryProperties.externalMemoryFeatures &
+            (VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT_KHR|VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT_KHR)))
+    {
+        ok(external_image_format_properties.externalMemoryProperties.compatibleHandleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHR,
+            "Unexpected compatibleHandleTypes %#x.\n", external_image_format_properties.externalMemoryProperties.compatibleHandleTypes);
+        external_memory_image_create_info.handleTypes |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHR;
+    }
+
+    external_image_format_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT; /* import */
+    memset(&external_image_format_properties.externalMemoryProperties, 0, sizeof(external_image_format_properties.externalMemoryProperties));
+
+    vr = pfn_vkGetPhysicalDeviceImageFormatProperties2(vk_physical_device, &image_format_info, &image_format_properties);
+    ok(vr == VK_SUCCESS, "got %d\n", vr);
+
+    if (!(~external_image_format_properties.externalMemoryProperties.externalMemoryFeatures &
+            (VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT_KHR|VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT_KHR)))
+    {
+        ok(external_image_format_properties.externalMemoryProperties.compatibleHandleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT,
+            "Unexpected compatibleHandleTypes %#x.\n", external_image_format_properties.externalMemoryProperties.compatibleHandleTypes);
+        external_memory_image_create_info.handleTypes |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT;
+    }
+
+    external_image_format_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT; /* import dedicated */
+    memset(&external_image_format_properties.externalMemoryProperties, 0, sizeof(external_image_format_properties.externalMemoryProperties));
+
+    vr = pfn_vkGetPhysicalDeviceImageFormatProperties2(vk_physical_device, &image_format_info, &image_format_properties);
+    ok(vr == VK_SUCCESS, "got %d\n", vr);
+
+    if (!(~external_image_format_properties.externalMemoryProperties.externalMemoryFeatures &
+            (VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT_KHR|VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT_KHR)))
+    {
+        ok(external_image_format_properties.externalMemoryProperties.compatibleHandleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT,
+            "Unexpected compatibleHandleTypes %#x.\n", external_image_format_properties.externalMemoryProperties.compatibleHandleTypes);
+        external_memory_image_create_info.handleTypes |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT;
+    }
+
+
+    vkGetImageMemoryRequirements(vk_device, vk_image, &memory_requirements);
+
+    alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    alloc_info.allocationSize = memory_requirements.size;
+    alloc_info.memoryTypeIndex = find_memory_type(vk_physical_device, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memory_requirements.memoryTypeBits);
+
+    /* Most implementations only support exporting dedicated allocations */
+
+    dedicated_alloc_info.image = vk_image;
+
+    if (argc > 3 && !strcmp(argv[2], "image"))
+    {
+        handle_type = strcmp(argv[5], "kmt") ?
+            VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR :
+            VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHR;
+
+        sscanf(argv[6], "%p", &handle);
+
+        ok(handle_type & external_memory_image_create_info.handleTypes,
+            "External memory capabilities for handleType %#x do not match on child process.\n", handle_type);
+
+        alloc_info.pNext = &dedicated_alloc_info;
+        import_memory(vk_device, alloc_info, handle_type, handle);
+
+        vkDestroyImage(vk_device, vk_image, NULL);
+        vkDestroyDevice(vk_device, NULL);
+
+        return;
+    }
+
+    if (!(external_memory_image_create_info.handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR))
+        skip("With desired parameters, buffers are not exportable to and importable from an NT handle.\n");
+    else
+    {
+        export_memory_info.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO_KHR;
+        export_memory_info.pNext = &dedicated_alloc_info;
+        export_memory_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR;
+
+        sa.nLength = sizeof(sa);
+        sa.lpSecurityDescriptor = NULL;
+        sa.bInheritHandle = TRUE;
+
+        export_handle_info.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_KHR;
+        export_handle_info.pNext = &export_memory_info;
+        export_handle_info.name = L"wine_test_handle_export_name";
+        export_handle_info.dwAccess = GENERIC_ALL;
+        export_handle_info.pAttributes = &sa;
+
+        alloc_info.pNext = &export_handle_info;
+
+        ok(alloc_info.memoryTypeIndex != -1, "Device local memory type index was not found.\n");
+
+        vr = vkAllocateMemory(vk_device, &alloc_info, NULL, &vk_memory);
+        ok(vr == VK_SUCCESS, "vkAllocateMemory failed, VkResult %d.\n", vr);
+        vr = vkBindImageMemory(vk_device, vk_image, vk_memory, 0);
+        ok(vr == VK_SUCCESS, "vkBindImageMemory failed, VkResult %d.\n", vr);
+
+        get_handle_info.sType = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR;
+        get_handle_info.pNext = NULL;
+        get_handle_info.memory = vk_memory;
+        get_handle_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR;
+
+        vr = pfn_vkGetMemoryWin32HandleKHR(vk_device, &get_handle_info, &handle);
+        ok(vr == VK_SUCCESS, "vkGetMemoryWin32HandleKHR failed, VkResult %d.\n", vr);
+
+        alloc_info.pNext = &dedicated_alloc_info;
+        import_memory(vk_device, alloc_info, VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR, handle);
+
+        if (pfn_vkGetPhysicalDeviceProperties2)
+            test_cross_process_resource(&device_id_properties, "image", FALSE, handle);
+        else
+            skip("Skipping cross process shared resource test due to lack of VK_KHR_get_physical_device_properties2.\n");
+
+        test_d3dkmt_resource(handle);
+
+        vkFreeMemory(vk_device, vk_memory, NULL);
+        CloseHandle(handle);
+    }
+
+    if (!(external_memory_image_create_info.handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHR))
+        skip("With desired parameters, buffers are not exportable to and importable from a KMT handle.\n");
+    else
+    {
+        export_memory_info.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO_KHR;
+        export_memory_info.pNext = &dedicated_alloc_info;
+        export_memory_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHR;
+
+        alloc_info.pNext = &export_memory_info;
+
+        ok(alloc_info.memoryTypeIndex != -1, "Device local memory type index was not found.\n");
+
+        vr = vkAllocateMemory(vk_device, &alloc_info, NULL, &vk_memory);
+        ok(vr == VK_SUCCESS, "vkAllocateMemory failed, VkResult %d.\n", vr);
+        vr = vkBindImageMemory(vk_device, vk_image, vk_memory, 0);
+        ok(vr == VK_SUCCESS, "vkBindImageMemory failed, VkResult %d.\n", vr);
+
+        get_handle_info.sType = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR;
+        get_handle_info.pNext = NULL;
+        get_handle_info.memory = vk_memory;
+        get_handle_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHR;
+
+        vr = pfn_vkGetMemoryWin32HandleKHR(vk_device, &get_handle_info, &handle);
+        ok(vr == VK_SUCCESS, "vkGetMemoryWin32HandleKHR failed, VkResult %d.\n", vr);
+
+        alloc_info.pNext = &dedicated_alloc_info;
+        import_memory(vk_device, alloc_info, VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHR, handle);
+
+        if (pfn_vkGetPhysicalDeviceProperties2)
+            test_cross_process_resource(&device_id_properties, "image", TRUE, handle);
+        else
+            skip("Skipping cross process shared resource test due to lack of VK_KHR_get_physical_device_properties2.\n");
+
+        test_d3dkmt_resource(handle);
+
+        vkFreeMemory(vk_device, vk_memory, NULL);
+    }
+
+    if (!(external_memory_image_create_info.handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT))
+        skip("With desired parameters, buffers are not exportable to and importable from an NT handle.\n");
+    else
+    {
+        export_memory_info.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO_KHR;
+        export_memory_info.pNext = &dedicated_alloc_info;
+        export_memory_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT;
+
+        sa.nLength = sizeof(sa);
+        sa.lpSecurityDescriptor = NULL;
+        sa.bInheritHandle = TRUE;
+
+        export_handle_info.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_KHR;
+        export_handle_info.pNext = &export_memory_info;
+        export_handle_info.name = L"wine_test_handle_export_name";
+        export_handle_info.dwAccess = GENERIC_ALL;
+        export_handle_info.pAttributes = &sa;
+
+        alloc_info.pNext = &export_handle_info;
+
+        ok(alloc_info.memoryTypeIndex != -1, "Device local memory type index was not found.\n");
+
+        vr = vkAllocateMemory(vk_device, &alloc_info, NULL, &vk_memory);
+        ok(vr == VK_SUCCESS, "vkAllocateMemory failed, VkResult %d.\n", vr);
+        vr = vkBindImageMemory(vk_device, vk_image, vk_memory, 0);
+        ok(vr == VK_SUCCESS, "vkBindImageMemory failed, VkResult %d.\n", vr);
+
+        get_handle_info.sType = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR;
+        get_handle_info.pNext = NULL;
+        get_handle_info.memory = vk_memory;
+        get_handle_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT;
+
+        vr = pfn_vkGetMemoryWin32HandleKHR(vk_device, &get_handle_info, &handle);
+        ok(vr == VK_SUCCESS, "vkGetMemoryWin32HandleKHR failed, VkResult %d.\n", vr);
+
+        alloc_info.pNext = &dedicated_alloc_info;
+        import_memory(vk_device, alloc_info, VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT, handle);
+
+        if (pfn_vkGetPhysicalDeviceProperties2)
+            test_cross_process_resource(&device_id_properties, "image", FALSE, handle);
+        else
+            skip("Skipping cross process shared resource test due to lack of VK_KHR_get_physical_device_properties2.\n");
+
+        test_d3dkmt_resource(handle);
+
+        vkFreeMemory(vk_device, vk_memory, NULL);
+        CloseHandle(handle);
+    }
+
+    if (!(external_memory_image_create_info.handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT))
+        skip("With desired parameters, buffers are not exportable to and importable from an NT handle.\n");
+    else
+    {
+        export_memory_info.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO_KHR;
+        export_memory_info.pNext = &dedicated_alloc_info;
+        export_memory_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT;
+
+        sa.nLength = sizeof(sa);
+        sa.lpSecurityDescriptor = NULL;
+        sa.bInheritHandle = TRUE;
+
+        export_handle_info.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_KHR;
+        export_handle_info.pNext = &export_memory_info;
+        export_handle_info.name = L"wine_test_handle_export_name";
+        export_handle_info.dwAccess = GENERIC_ALL;
+        export_handle_info.pAttributes = &sa;
+
+        alloc_info.pNext = &export_handle_info;
+
+        ok(alloc_info.memoryTypeIndex != -1, "Device local memory type index was not found.\n");
+
+        vr = vkAllocateMemory(vk_device, &alloc_info, NULL, &vk_memory);
+        ok(vr == VK_SUCCESS, "vkAllocateMemory failed, VkResult %d.\n", vr);
+        vr = vkBindImageMemory(vk_device, vk_image, vk_memory, 0);
+        ok(vr == VK_SUCCESS, "vkBindImageMemory failed, VkResult %d.\n", vr);
+
+        get_handle_info.sType = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR;
+        get_handle_info.pNext = NULL;
+        get_handle_info.memory = vk_memory;
+        get_handle_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT;
+
+        vr = pfn_vkGetMemoryWin32HandleKHR(vk_device, &get_handle_info, &handle);
+        ok(vr == VK_SUCCESS, "vkGetMemoryWin32HandleKHR failed, VkResult %d.\n", vr);
+
+        alloc_info.pNext = &dedicated_alloc_info;
+        import_memory(vk_device, alloc_info, VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT, handle);
+
+        if (pfn_vkGetPhysicalDeviceProperties2)
+            test_cross_process_resource(&device_id_properties, "image", FALSE, handle);
+        else
+            skip("Skipping cross process shared resource test due to lack of VK_KHR_get_physical_device_properties2.\n");
+
+        test_d3dkmt_resource(handle);
+
+        vkFreeMemory(vk_device, vk_memory, NULL);
+        CloseHandle(handle);
+    }
+
+    vkDestroyImage(vk_device, vk_image, NULL);
     vkDestroyDevice(vk_device, NULL);
 }
 
@@ -1466,12 +2426,22 @@ START_TEST(vulkan)
 
     argc = winetest_get_mainargs(&argv);
 
-    if (argc > 3 && !strcmp(argv[2], "resource"))
+    if (argc > 3 && !strcmp(argv[2], "buffer"))
     {
         ok(argc >= 7, "Missing launch arguments\n");
-        for_each_device_instance(ARRAY_SIZE(test_external_memory_extensions), test_external_memory_extensions, test_external_memory, NULL);
+        for_each_device_instance(ARRAY_SIZE(test_external_memory_extensions), test_external_memory_extensions, test_external_memory_buffer, NULL);
         return;
     }
+
+    if (argc > 3 && !strcmp(argv[2], "image"))
+    {
+        ok(argc >= 7, "Missing launch arguments\n");
+        for_each_device_instance(ARRAY_SIZE(test_external_memory_extensions), test_external_memory_extensions, test_external_memory_image, NULL);
+        return;
+    }
+
+    for_each_device_instance(ARRAY_SIZE(test_external_memory_extensions), test_external_memory_extensions, test_external_memory_image, NULL);
+return;
 
     test_instance_version();
     for_each_device(enumerate_physical_device);
@@ -1482,6 +2452,8 @@ START_TEST(vulkan)
     test_unsupported_instance_extensions();
     for_each_device(test_unsupported_device_extensions);
     for_each_device(test_private_data);
+    for_each_device(test_d3dkmt_resource_2);
     for_each_device_instance(ARRAY_SIZE(test_win32_surface_extensions), test_win32_surface_extensions, test_win32_surface, NULL);
-    for_each_device_instance(ARRAY_SIZE(test_external_memory_extensions), test_external_memory_extensions, test_external_memory, NULL);
+    for_each_device_instance(ARRAY_SIZE(test_external_memory_extensions), test_external_memory_extensions, test_external_memory_buffer, NULL);
+    for_each_device_instance(ARRAY_SIZE(test_external_memory_extensions), test_external_memory_extensions, test_external_memory_image, NULL);
 }

@@ -333,7 +333,7 @@ static BOOL WINAPI wine_vk_init(INIT_ONCE *once, void *param, void **context)
         .call_vulkan_debug_utils_callback = (ULONG_PTR)call_vulkan_debug_utils_callback,
     };
 
-    return !__wine_init_unix_call() && !UNIX_CALL(init, &callback_funcs);
+    return !UNIX_CALL(init, &callback_funcs);
 }
 
 static BOOL  wine_vk_init_once(void)
@@ -711,6 +711,7 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, void *reserved)
         case DLL_PROCESS_ATTACH:
             hinstance = hinst;
             DisableThreadLibraryCalls(hinst);
+            if (!__wine_init_unix_call()) return FALSE;
             break;
     }
     return TRUE;
