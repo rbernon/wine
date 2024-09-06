@@ -236,8 +236,14 @@ static void X11DRV_vulkan_surface_presented( HWND hwnd, void *private, VkResult 
     window = X11DRV_get_whole_window( toplevel );
     region = get_dc_monitor_region( hwnd, hdc );
 
-    NtUserGetClientRect( hwnd, &rect_dst, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
-    NtUserMapWindowPoints( hwnd, toplevel, (POINT *)&rect_dst, 2, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
+    if ((data = get_win_data( hwnd )))
+    {
+        rect_dst = data->rects.client;
+        OffsetRect( &rect_dst, -rect_dst.left, -rect_dst.top );
+        release_win_data( data );
+    }
+
+    if (hwnd != toplevel) NtUserMapWindowPoints( hwnd, toplevel, (POINT *)&rect_dst, 2, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
 
     if ((data = get_win_data( toplevel )))
     {
