@@ -392,7 +392,7 @@ HWND WINAPI NtUserSetParent( HWND hwnd, HWND parent )
     RECT window_rect = {0}, old_screen_rect = {0}, new_screen_rect = {0};
     UINT context;
     WINDOWPOS winpos;
-    HWND full_handle;
+    HWND full_handle, new_toplevel, old_toplevel;
     HWND old_parent = 0;
     BOOL was_visible;
     WND *win;
@@ -462,6 +462,14 @@ HWND WINAPI NtUserSetParent( HWND hwnd, HWND parent )
     context = set_thread_dpi_awareness_context( get_window_dpi_awareness_context( hwnd ));
 
     user_driver->pSetParent( full_handle, parent, old_parent );
+
+    new_toplevel = NtUserGetAncestor( parent, GA_ROOT );
+    old_toplevel = NtUserGetAncestor( old_parent, GA_ROOT );
+    if (new_toplevel != old_toplevel)
+    {
+        update_window_state( new_toplevel );
+        update_window_state( old_toplevel );
+    }
 
     winpos.hwnd = hwnd;
     winpos.hwndInsertAfter = HWND_TOP;
@@ -1852,6 +1860,7 @@ static void update_surface_region( HWND hwnd )
     if (!win->surface) goto done;
 
     if (get_window_region( hwnd, FALSE, &shape, &visible )) goto done;
+ERR("hwnd %p visible %s\n", hwnd, wine_dbgstr_rect(&visible));
     if (shape)
     {
         region = NtGdiCreateRectRgn( 0, 0, visible.right - visible.left, visible.bottom - visible.top );
@@ -2075,6 +2084,8 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
         valid_rects = NULL;
     }
 
+TRACE( "hwnd %p rects %s\n", hwnd, debugstr_window_rects( new_rects ) );
+
     if (is_child) monitor_rects = map_dpi_window_rects( *new_rects, get_thread_dpi(), raw_dpi );
     else monitor_rects = map_window_rects_virt_to_raw( *new_rects, get_thread_dpi() );
 
@@ -2226,6 +2237,25 @@ static HRGN expose_window_surface_rect( struct window_surface *surface, UINT fla
     return region;
 }
 
+static const char *debugstr_region( HRGN hrgn )
+{
+    char buffer[1024], *buf = buffer;
+    DWORD i, size;
+    RGNDATA *data = NULL;
+    RECT *rect;
+
+    if (!hrgn) return wine_dbg_sprintf( "(null)" );
+    if (!(size = NtGdiGetRegionData( hrgn, 0, NULL ))) return wine_dbg_sprintf( "(error)" );
+    if (!(data = malloc( size ))) return wine_dbg_sprintf( "(error)" );
+    NtGdiGetRegionData( hrgn, size, data );
+    buf += sprintf( buf, "%d:", (int)data->rdh.nCount );
+    for (i = 0, rect = (RECT *)data->Buffer; i < data->rdh.nCount; i++, rect++)
+        buf += sprintf( buf,  " %s", wine_dbgstr_rect( rect ));
+    free( data );
+
+    return wine_dbg_sprintf( "%s", buffer );
+}
+
 static BOOL expose_window_surface( HWND hwnd, UINT flags, const RECT *rect, UINT dpi )
 {
     struct window_surface *surface;
@@ -2264,7 +2294,11 @@ static BOOL expose_window_surface( HWND hwnd, UINT flags, const RECT *rect, UINT
         window_surface_release( surface );
     }
 
-    if (flags) NtUserRedrawWindow( hwnd, rect ? &window_rect : NULL, region, flags );
+    if (flags)
+    {
+        ERR( "hwnd %p rect %s region %s flags %#x\n", hwnd, wine_dbgstr_rect(rect ? &window_rect : NULL), debugstr_region(region), flags);
+        NtUserRedrawWindow( hwnd, rect ? &window_rect : NULL, region, flags );
+    }
     if (region) NtGdiDeleteObjectApp( region );
     return TRUE;
 }
@@ -4585,6 +4619,7 @@ void update_window_state( HWND hwnd )
     struct window_surface *surface;
     struct window_rects new_rects;
 
+    if (!hwnd || hwnd == get_desktop_window()) return;
     if (!is_current_thread_window( hwnd ))
     {
         NtUserPostMessage( hwnd, WM_WINE_UPDATEWINDOWSTATE, 0, 0 );
@@ -4600,6 +4635,7 @@ void update_window_state( HWND hwnd )
     if (surface) window_surface_release( surface );
 
     set_thread_dpi_awareness_context( context );
+    vulkan_update_surfaces( hwnd );
 }
 
 /***********************************************************************
@@ -5092,9 +5128,11 @@ LRESULT destroy_window( HWND hwnd )
     struct window_surface *surface;
     HMENU menu = 0, sys_menu;
     WND *win;
-    HWND *children;
+    HWND toplevel, *children;
 
     TRACE( "%p\n", hwnd );
+
+    toplevel = NtUserGetAncestor( hwnd, GA_ROOT );
 
     unregister_imm_window( hwnd );
 
@@ -5123,6 +5161,8 @@ LRESULT destroy_window( HWND hwnd )
     SERVER_END_REQ;
 
     send_message( hwnd, WM_NCDESTROY, 0, 0 );
+
+    if (toplevel != hwnd) update_window_state( toplevel );
 
     /* FIXME: do we need to fake QS_MOUSEMOVE wakebit? */
 
@@ -5477,7 +5517,7 @@ HWND WINAPI NtUserCreateWindowEx( DWORD ex_style, UNICODE_STRING *class_name,
     struct window_surface *surface;
     struct window_rects new_rects;
     CBT_CREATEWNDW cbtc;
-    HWND hwnd, owner = 0;
+    HWND hwnd, toplevel, owner = 0;
     CREATESTRUCTW cs;
     INT sw = SW_SHOW;
     RECT surface_rect;
@@ -5771,6 +5811,10 @@ HWND WINAPI NtUserCreateWindowEx( DWORD ex_style, UNICODE_STRING *class_name,
 
     TRACE( "created window %p\n", hwnd );
     set_thread_dpi_awareness_context( context );
+
+    toplevel = NtUserGetAncestor( hwnd, GA_ROOT );
+    if (toplevel != hwnd) update_window_state( toplevel );
+
     return hwnd;
 
 failed:

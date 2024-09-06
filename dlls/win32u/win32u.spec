@@ -199,8 +199,8 @@
 @ stub NtGdiDDCCISetVCPFeature
 @ stub NtGdiDdCreateFullscreenSprite
 @ stub NtGdiDdDDIAbandonSwapChain
-@ stub NtGdiDdDDIAcquireKeyedMutex
-@ stub NtGdiDdDDIAcquireKeyedMutex2
+@ stdcall -syscall NtGdiDdDDIAcquireKeyedMutex(ptr)
+@ stdcall -syscall NtGdiDdDDIAcquireKeyedMutex2(ptr)
 @ stub NtGdiDdDDIAcquireSwapChain
 @ stub NtGdiDdDDIAddSurfaceToSwapChain
 @ stub NtGdiDdDDIAdjustFullscreenGamma
@@ -341,8 +341,8 @@
 @ stdcall -syscall NtGdiDdDDIQueryVideoMemoryInfo(ptr)
 @ stub NtGdiDdDDIReclaimAllocations
 @ stub NtGdiDdDDIReclaimAllocations2
-@ stub NtGdiDdDDIReleaseKeyedMutex
-@ stub NtGdiDdDDIReleaseKeyedMutex2
+@ stdcall -syscall NtGdiDdDDIReleaseKeyedMutex(ptr)
+@ stdcall -syscall NtGdiDdDDIReleaseKeyedMutex2(ptr)
 @ stub NtGdiDdDDIReleaseProcessVidPnSourceOwners
 @ stub NtGdiDdDDIReleaseSwapChain
 @ stub NtGdiDdDDIRemoveSurfaceFromSwapChain

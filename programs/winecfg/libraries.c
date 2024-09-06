@@ -439,7 +439,7 @@ static void on_add_combo_change(HWND dialog)
 
     if (buffer[0] || len>0)
     {
-        enable(IDC_DLLS_ADDDLL)
+        enable(IDC_DLLS_ADDDLL);
         SendMessageW(GetParent(dialog), DM_SETDEFID, IDC_DLLS_ADDDLL, 0);
     }
     else

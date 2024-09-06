@@ -227,6 +227,7 @@ extern PFN_vkGetDeviceProcAddr p_vkGetDeviceProcAddr;
 extern PFN_vkGetInstanceProcAddr p_vkGetInstanceProcAddr;
 
 extern BOOL vulkan_init(void);
+extern void vulkan_update_surfaces( HWND hwnd );
 extern void vulkan_detach_surfaces( struct list *surfaces );
 
 /* window.c */
