@@ -13,6 +13,23 @@
 # Copyright 2021-2024 The Khronos Group Inc.
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 #
+# and from OpenXR xr.xml file covered
+# by the following copyright and permission notice:
+#
+# Copyright (c) 2017-2024, The Khronos Group Inc.
+#
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+#
+# ------------------------------------------------------------------------
+#
+# This file, xr.xml, is the OpenXR API Registry. It is a critically important
+# and normative part of the OpenXR Specification, including a canonical
+# machine-readable definition of the API, parameter and member validation
+# language incorporated into the Specification and reference pages, and other
+# material which is registered by Khronos, such as tags used by extension and
+# layer authors. The only authoritative version of xr.xml is the one
+# maintained in the default branch of the Khronos OpenXR GitHub project.
+#
 
 @ stdcall vkAcquireNextImage2KHR(ptr ptr ptr) winevulkan.vkAcquireNextImage2KHR
 @ stdcall vkAcquireNextImageKHR(ptr int64 int64 int64 int64 ptr) winevulkan.vkAcquireNextImageKHR
