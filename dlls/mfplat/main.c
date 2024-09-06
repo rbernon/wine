@@ -5588,12 +5588,6 @@ static HRESULT resolver_get_bytestream_url_hint(IMFByteStream *stream, WCHAR con
     return S_OK;
 }
 
-static HRESULT resolver_create_gstreamer_handler(IMFByteStreamHandler **handler)
-{
-    static const GUID CLSID_GStreamerByteStreamHandler = {0x317df618, 0x5e5a, 0x468a, {0x9f, 0x15, 0xd8, 0x27, 0xa9, 0xa0, 0x81, 0x62}};
-    return CoCreateInstance(&CLSID_GStreamerByteStreamHandler, NULL, CLSCTX_INPROC_SERVER, &IID_IMFByteStreamHandler, (void **)handler);
-}
-
 static HRESULT resolver_get_bytestream_handler(IMFByteStream *stream, const WCHAR *url, DWORD flags,
         IMFByteStreamHandler **handler)
 {
@@ -5628,12 +5622,7 @@ static HRESULT resolver_get_bytestream_handler(IMFByteStream *stream, const WCHA
      */
 
     if (url_ext || mimeW)
-    {
         hr = resolver_create_bytestream_handler(stream, flags, mimeW, url_ext, handler);
-
-        if (FAILED(hr))
-            hr = resolver_create_gstreamer_handler(handler);
-    }
 
     CoTaskMemFree(mimeW);
     CoTaskMemFree(urlW);
@@ -5647,12 +5636,7 @@ static HRESULT resolver_get_bytestream_handler(IMFByteStream *stream, const WCHA
     if (FAILED(hr = resolver_get_bytestream_url_hint(stream, &url_ext)))
         return hr;
 
-    hr = resolver_create_bytestream_handler(stream, flags, NULL, url_ext, handler);
-
-    if (FAILED(hr))
-        hr = resolver_create_gstreamer_handler(handler);
-
-    return hr;
+    return resolver_create_bytestream_handler(stream, flags, NULL, url_ext, handler);
 }
 
 static HRESULT resolver_create_scheme_handler(const WCHAR *scheme, DWORD flags, IMFSchemeHandler **handler)
