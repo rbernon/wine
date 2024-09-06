@@ -162,6 +162,7 @@ static pthread_mutex_t display_lock = PTHREAD_MUTEX_INITIALIZER;
 static BOOL emulate_modeset;
 BOOL decorated_mode = TRUE;
 UINT64 thunk_lock_callback = 0;
+static BOOL enable_mode_setting;
 
 #define VIRTUAL_HMONITOR ((HMONITOR)(UINT_PTR)(0x10000 + 1))
 static struct monitor virtual_monitor =
@@ -1750,6 +1751,7 @@ static void add_modes( const DEVMODEW *current, UINT host_modes_count, const DEV
     detached.dmPelsHeight = 0;
     if (!(source->state_flags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP)) current = &detached;
 
+    if (!enable_mode_setting && !is_virtual_desktop()) modes_count = 0;
     if (modes_count > 1 || current == &detached)
     {
         reg_delete_value( source->key, physicalW );
@@ -5533,6 +5535,8 @@ void sysparams_init(void)
         decorated_mode = IS_OPTION_TRUE( buffer[0] );
     if (!get_config_key( hkey, appkey, "EmulateModeset", buffer, sizeof(buffer) ))
         emulate_modeset = IS_OPTION_TRUE( buffer[0] );
+    if (!get_config_key( hkey, appkey, "EnableModeSetting", buffer, sizeof(buffer) ))
+        enable_mode_setting = IS_OPTION_TRUE( buffer[0] );
 
 #undef IS_OPTION_TRUE
 
