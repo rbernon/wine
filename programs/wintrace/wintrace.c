@@ -938,7 +938,7 @@ static void set_display_settings(void)
     BOOL vertical;
     UINT i;
 
-    for (i = 0; EnumDisplayDevicesW( NULL, i, &adapter, 0 ); ++i)
+    for (i = 0; !i && EnumDisplayDevicesW( NULL, i, &adapter, 0 ); ++i)
     {
         EnumDisplaySettingsExW( adapter.DeviceName, ENUM_CURRENT_SETTINGS, &mode, 0 );
 
