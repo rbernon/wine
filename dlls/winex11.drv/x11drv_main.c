@@ -119,6 +119,7 @@ static const char * const atom_names[NB_XATOMS - FIRST_XATOM] =
     "RAW_CAP_HEIGHT",
     "WM_PROTOCOLS",
     "WM_DELETE_WINDOW",
+    "WM_NAME",
     "WM_STATE",
     "WM_TAKE_FOCUS",
     "DndProtocol",
@@ -129,6 +130,7 @@ static const char * const atom_names[NB_XATOMS - FIRST_XATOM] =
     "_NET_STARTUP_INFO_BEGIN",
     "_NET_STARTUP_INFO",
     "_NET_SUPPORTED",
+    "_NET_SUPPORTING_WM_CHECK",
     "_NET_SYSTEM_TRAY_OPCODE",
     "_NET_SYSTEM_TRAY_S0",
     "_NET_SYSTEM_TRAY_VISUAL",
@@ -687,6 +689,7 @@ void X11DRV_ThreadDetach(void)
         if (data->xim) XCloseIM( data->xim );
         if (data->font_set) XFreeFontSet( data->display, data->font_set );
         if (data->net_supported) XFree( data->net_supported );
+        if (data->window_manager) XFree( data->window_manager );
         XSync( gdi_display, False ); /* make sure XReparentWindow requests have completed before closing the thread display */
         XCloseDisplay( data->display );
         free( data );
@@ -755,6 +758,7 @@ struct x11drv_thread_data *x11drv_init_thread_data(void)
     if (use_xim) xim_thread_attach( data );
     x11drv_xinput2_init( data );
     net_supported_init( data );
+    net_supporting_wm_check_init( data );
 
     return data;
 }
