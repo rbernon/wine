@@ -87,6 +87,16 @@ _ACRTIMP wchar_t* __cdecl wcstok(wchar_t*,const wchar_t*);
 #endif /* _UCRT */
 
 #ifdef __cplusplus
+extern "C++"
+{
+template <size_t S> inline errno_t wcscat_s(wchar_t (&dst)[S], const wchar_t *arg)
+{
+    return wcscat_s(dst, S, arg);
+}
+}
+#endif
+
+#ifdef __cplusplus
 }
 #endif
 

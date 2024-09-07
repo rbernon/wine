@@ -39,6 +39,8 @@ static inline void __cpuid(int info[4], int ax)
 {
     return __cpuidex(info, ax, 0);
 }
+#endif /* _MSC_VER */
+
 #endif
 
 #endif

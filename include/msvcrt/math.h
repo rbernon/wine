@@ -178,6 +178,7 @@ static inline float asinf(float x) { return asin(x); }
 static inline float acosf(float x) { return acos(x); }
 static inline float atanf(float x) { return atan(x); }
 static inline float atan2f(float x, float y) { return atan2(x, y); }
+
 static inline float expf(float x) { return exp(x); }
 static inline float logf(float x) { return log(x); }
 static inline float log10f(float x) { return log10(x); }
@@ -284,6 +285,11 @@ static const union {
 #define FP_ILOGB0 (-0x7fffffff - _C2)
 #define FP_ILOGBNAN 0x7fffffff
 
+_ACRTIMP short __cdecl _dtest(double*);
+_ACRTIMP short __cdecl _ldtest(long double*);
+_ACRTIMP short __cdecl _fdtest(float*);
+
+#ifndef __cplusplus
 #if _MSVCR_VER >= 120
 
 _ACRTIMP short __cdecl _dclass(double);
@@ -348,6 +354,44 @@ static inline int __signbit(double x)
 #define isfinite(x) (!isinf(x) && !isnan(x))
 
 #endif
+#else
+extern "C++"
+{
+    inline int fpclassify(float _X) throw()
+    {
+        return _fdtest(&_X);
+    }
+
+    inline int fpclassify(double _X) throw()
+    {
+        return _dtest(&_X);
+    }
+
+    inline int fpclassify(long double _X) throw()
+    {
+        return _ldtest(&_X);
+    }
+
+    template <class _Ty>
+    inline bool isfinite(_Ty _X) throw()
+    {
+        return fpclassify(_X) <= 0;
+    }
+
+    template <class _Ty>
+    inline bool isinf(_Ty _X) throw()
+    {
+        return fpclassify(_X) == FP_INFINITE;
+    }
+
+    template <class _Ty>
+    inline bool isnan(_Ty _X) throw()
+    {
+        return fpclassify(_X) == FP_NAN;
+    }
+
+}
+#endif
 
 #ifdef _UCRT
 
@@ -411,5 +455,6 @@ static inline double y1( double x ) { return _y1( x ); }
 static inline double yn( int n, double x ) { return _yn( n, x ); }
 
 static inline float hypotf( float x, float y ) { return _hypotf( x, y ); }
+static inline long double atan2l(long double x, long double y) { return atan2((double)y, (double)x); }
 
 #endif /* __WINE_MATH_H */

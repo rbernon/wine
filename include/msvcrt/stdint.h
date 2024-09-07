@@ -27,6 +27,8 @@
 
 #include <corecrt.h>
 #include <stddef.h>
+#undef __need_wint_t
+#undef __need_wchar_t
 
 /* 7.18.1.1  Exact-width integer types */
 typedef signed char int8_t;
