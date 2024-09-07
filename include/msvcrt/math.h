@@ -284,6 +284,10 @@ static const union {
 #define FP_ILOGB0 (-0x7fffffff - _C2)
 #define FP_ILOGBNAN 0x7fffffff
 
+_ACRTIMP short __cdecl _dtest(double*);
+_ACRTIMP short __cdecl _ldtest(long double*);
+_ACRTIMP short __cdecl _fdtest(float*);
+
 #if _MSVCR_VER >= 120
 
 _ACRTIMP short __cdecl _dclass(double);
