@@ -603,6 +603,7 @@ SOURCES = \
 	ntsecpkg.h \
 	ntstatus.h \
 	ntuser.h \
+	ntverp.h \
 	oaidl.idl \
 	objbase.h \
 	objectarray.idl \
@@ -757,6 +758,7 @@ SOURCES = \
 	structuredquerycondition.idl \
 	svrapi.h \
 	synchapi.h \
+	sysinfoapi.h \
 	systemmediatransportcontrolsinterop.idl \
 	t2embapi.h \
 	tapi.h \
