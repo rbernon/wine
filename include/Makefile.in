@@ -532,6 +532,7 @@ SOURCES = \
 	msvcrt/mbctype.h \
 	msvcrt/mbstring.h \
 	msvcrt/memory.h \
+	msvcrt/new.h \
 	msvcrt/process.h \
 	msvcrt/search.h \
 	msvcrt/setjmp.h \
