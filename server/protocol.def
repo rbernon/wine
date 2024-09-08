@@ -1007,11 +1007,17 @@ typedef volatile struct
     int                  keystate_lock;    /* keystate is locked */
 } input_shm_t;
 
+typedef volatile struct
+{
+    int                  placeholder;
+} window_shm_t;
+
 typedef volatile union
 {
     desktop_shm_t        desktop;
     queue_shm_t          queue;
     input_shm_t          input;
+    window_shm_t         window;
 } object_shm_t;
 
 typedef volatile struct
@@ -2531,6 +2537,7 @@ enum message_type
     unsigned int   ex_style;    /* window extended style */
     VARARG(class,unicode_str);  /* class name */
 @REPLY
+    obj_locator_t  locator;     /* locator for the shared session object */
     user_handle_t  handle;      /* created window */
     user_handle_t  parent;      /* full handle of parent */
     user_handle_t  owner;       /* full handle of owner */
@@ -2552,6 +2559,8 @@ enum message_type
 @REPLY
     user_handle_t  top_window;  /* handle to the desktop window */
     user_handle_t  msg_window;  /* handle to the top-level HWND_MESSAGE parent */
+    obj_locator_t  top_locator; /* locator for the desktop window shared session object */
+    obj_locator_t  msg_locator; /* locator for the message window shared session object */
 @END
 
 

@@ -5308,6 +5308,7 @@ static WND *create_window_handle( HWND parent, HWND owner, UNICODE_STRING *name,
     UINT dpi_context = get_thread_dpi_awareness_context();
     HWND handle = 0, full_parent = 0, full_owner = 0;
     struct tagCLASS *class = NULL;
+    obj_locator_t locator;
     int extra_bytes = 0;
     WND *win;
 
@@ -5323,6 +5324,7 @@ static WND *create_window_handle( HWND parent, HWND owner, UNICODE_STRING *name,
             wine_server_add_data( req, name->Buffer, name->Length );
         if (!wine_server_call_err( req ))
         {
+            locator     = reply->locator;
             handle      = wine_server_ptr_handle( reply->handle );
             full_parent = wine_server_ptr_handle( reply->parent );
             full_owner  = wine_server_ptr_handle( reply->owner );
@@ -5372,6 +5374,7 @@ static WND *create_window_handle( HWND parent, HWND owner, UNICODE_STRING *name,
 
     user_lock();
 
+    win->shared     = find_shared_session_object( locator );
     win->obj.handle = handle;
     win->obj.type   = NTUSER_OBJ_WINDOW;
     win->parent     = full_parent;
