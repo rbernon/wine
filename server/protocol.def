@@ -2503,7 +2503,6 @@ enum message_type
     user_handle_t  last_active; /* last active popup */
     process_id_t   pid;         /* process owning the window */
     thread_id_t    tid;         /* thread owning the window */
-    atom_t         atom;        /* class atom */
     int            is_unicode;  /* ANSI or unicode */
     unsigned int   dpi_context; /* window DPI context */
     unsigned int   monitor_dpi; /* DPI of the window's monitor */
