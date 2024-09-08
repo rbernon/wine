@@ -223,6 +223,7 @@ extern const shared_object_t *find_shared_session_object( obj_locator_t locator 
 extern NTSTATUS get_shared_desktop( struct object_lock *lock, const desktop_shm_t **desktop_shm );
 extern NTSTATUS get_shared_queue( struct object_lock *lock, const queue_shm_t **queue_shm );
 extern NTSTATUS get_shared_input( UINT tid, struct object_lock *lock, const input_shm_t **input_shm );
+extern NTSTATUS get_shared_window( HWND hwnd, struct object_lock *lock, const window_shm_t **window_shm );
 
 extern BOOL is_virtual_desktop(void);
 
