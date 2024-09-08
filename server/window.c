@@ -560,6 +560,14 @@ static void detach_window_thread( struct window *win )
     struct thread *thread = win->thread;
 
     if (!thread) return;
+
+    SHARED_WRITE_BEGIN( win->shared, window_shm_t )
+    {
+        shared->tid = 0;
+        shared->pid = 0;
+    }
+    SHARED_WRITE_END;
+
     if (thread->queue)
     {
         if (win->update_region) inc_queue_paint_count( thread, -1 );
@@ -678,6 +686,8 @@ static struct window *create_window( struct window *parent, struct window *owner
     SHARED_WRITE_BEGIN( win->shared, window_shm_t )
     {
         shared->handle = handle;
+        shared->pid = get_process_id( current->process );
+        shared->tid = get_thread_id( current );
     }
     SHARED_WRITE_END;
 
@@ -2353,8 +2363,8 @@ DECL_HANDLER(get_window_info)
     if (get_user_object( win->last_active, USER_WINDOW )) reply->last_active = win->last_active;
     if (win->thread)
     {
-        reply->tid  = get_thread_id( win->thread );
-        reply->pid  = get_process_id( win->thread->process );
+        reply->tid  = win->shared->tid;
+        reply->pid  = win->shared->pid;
     }
 }
 
