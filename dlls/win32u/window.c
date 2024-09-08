@@ -182,36 +182,21 @@ HWND get_hwnd_message_parent(void)
  */
 HWND get_full_window_handle( HWND hwnd )
 {
-    WND *win;
+    struct object_lock lock = OBJECT_LOCK_INIT;
+    const window_shm_t *window_shm;
+    HWND handle = hwnd;
+    UINT status;
 
     if (!hwnd || (ULONG_PTR)hwnd >> 16) return hwnd;
     if (LOWORD(hwnd) <= 1 || LOWORD(hwnd) == 0xffff) return hwnd;
     /* do sign extension for -2 and -3 */
     if (LOWORD(hwnd) >= (WORD)-3) return (HWND)(LONG_PTR)(INT16)LOWORD(hwnd);
 
-    if (!(win = get_win_ptr( hwnd ))) return hwnd;
+    while ((status = get_shared_window( hwnd, &lock, &window_shm )) == STATUS_PENDING)
+        handle = wine_server_ptr_handle( window_shm->handle );
+    if (status) return hwnd;
 
-    if (win == WND_DESKTOP)
-    {
-        if (LOWORD(hwnd) == LOWORD(get_desktop_window())) return get_desktop_window();
-        else return get_hwnd_message_parent();
-    }
-
-    if (win != WND_OTHER_PROCESS)
-    {
-        hwnd = win->obj.handle;
-        release_win_ptr( win );
-    }
-    else  /* may belong to another process */
-    {
-        SERVER_START_REQ( get_window_info )
-        {
-            req->handle = wine_server_user_handle( hwnd );
-            if (!wine_server_call_err( req )) hwnd = wine_server_ptr_handle( reply->full_handle );
-        }
-        SERVER_END_REQ;
-    }
-    return hwnd;
+    return handle;
 }
 
 /*******************************************************************
