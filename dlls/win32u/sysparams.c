@@ -2232,6 +2232,12 @@ static UINT monitor_get_dpi( struct monitor *monitor, MONITOR_DPI_TYPE type, UIN
     UINT dpi;
 
     if (!source || !(dpi = source->dpi)) dpi = system_dpi;
+    if (source && type != MDT_EFFECTIVE_DPI)
+    {
+        scale_x = source->physical.dmPelsWidth / (float)source->current.dmPelsWidth;
+        scale_y = source->physical.dmPelsHeight / (float)source->current.dmPelsHeight;
+    }
+
     *dpi_x = round( dpi * scale_x );
     *dpi_y = round( dpi * scale_y );
     return min( *dpi_x, *dpi_y );
@@ -2244,6 +2250,7 @@ static RECT monitor_get_rect( struct monitor *monitor, UINT dpi, MONITOR_DPI_TYP
     RECT rect = {0, 0, 1024, 768};
     struct source *source;
     UINT dpi_from, x, y;
+    DEVMODEW *mode;
 
     /* services do not have any adapters, only a virtual monitor */
     if (!(source = monitor->source)) return rect;
@@ -2252,9 +2259,9 @@ static RECT monitor_get_rect( struct monitor *monitor, UINT dpi, MONITOR_DPI_TYP
     if (!(source->state_flags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP)) return rect;
     source_get_current_settings( source, &current_mode );
 
-    SetRect( &rect, current_mode.dmPosition.x, current_mode.dmPosition.y,
-             current_mode.dmPosition.x + current_mode.dmPelsWidth,
-             current_mode.dmPosition.y + current_mode.dmPelsHeight );
+    mode = type != MDT_EFFECTIVE_DPI ? &source->physical : &current_mode;
+    SetRect( &rect, mode->dmPosition.x, mode->dmPosition.y, mode->dmPosition.x + mode->dmPelsWidth,
+             mode->dmPosition.y + mode->dmPelsHeight );
 
     dpi_from = monitor_get_dpi( monitor, type, &x, &y );
     return map_dpi_rect( rect, dpi_from, dpi );
@@ -2372,9 +2379,41 @@ static RECT monitors_get_union_rect( UINT dpi, MONITOR_DPI_TYPE type )
 static RECT map_monitor_rect( struct monitor *monitor, RECT rect, UINT dpi_from, MONITOR_DPI_TYPE type_from,
                               UINT dpi_to, MONITOR_DPI_TYPE type_to )
 {
-    UINT x, y;
-    if (!dpi_from) dpi_from = monitor_get_dpi( monitor, type_from, &x, &y );
-    if (!dpi_to) dpi_to = monitor_get_dpi( monitor, type_to, &x, &y );
+    UINT x, y, monitor_dpi_from, monitor_dpi_to;
+    RECT tmp, virtual_from, virtual_to;
+
+if (0)
+{
+    virtual_from = monitors_get_union_rect( dpi_from, type_from );
+    virtual_to = monitors_get_union_rect( dpi_to, type_to );
+    intersect_rect( &tmp, &rect, &virtual_from );
+    if (EqualRect( &tmp, &virtual_from )) return virtual_to;
+}
+
+    monitor_dpi_from = monitor_get_dpi( monitor, type_from, &x, &y );
+    monitor_dpi_to = monitor_get_dpi( monitor, type_to, &x, &y );
+    if (!dpi_from) dpi_from = monitor_dpi_from;
+    if (!dpi_to) dpi_to = monitor_dpi_to;
+
+    if (monitor->source && type_from != type_to)
+    {
+        DEVMODEW current_mode = {.dmSize = sizeof(DEVMODEW)}, *mode_from, *mode_to;
+        source_get_current_settings( monitor->source, &current_mode );
+
+        mode_from = type_from == MDT_EFFECTIVE_DPI ? &current_mode : &monitor->source->physical;
+        mode_to = type_to == MDT_EFFECTIVE_DPI ? &current_mode : &monitor->source->physical;
+
+        rect = map_dpi_rect( rect, dpi_from, monitor_dpi_from );
+
+        OffsetRect( &rect, -mode_from->dmPosition.x - mode_from->dmPelsWidth / 2,
+                    -mode_from->dmPosition.y - mode_from->dmPelsHeight / 2 );
+        rect = map_dpi_rect( rect, monitor_dpi_from, monitor_dpi_to );
+        OffsetRect( &rect, mode_to->dmPosition.x + mode_to->dmPelsWidth / 2,
+                    mode_to->dmPosition.y + mode_to->dmPelsHeight / 2 );
+
+        return map_dpi_rect( rect, monitor_dpi_to, dpi_to );
+    }
+
     return map_dpi_rect( rect, dpi_from, dpi_to );
 }
 
