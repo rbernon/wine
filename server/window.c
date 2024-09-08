@@ -76,7 +76,6 @@ struct window
     unsigned int     ex_style;        /* window extended style */
     lparam_t         id;              /* window id */
     mod_handle_t     instance;        /* creator instance */
-    unsigned int     is_unicode : 1;  /* ANSI or unicode */
     unsigned int     is_linked : 1;   /* is it linked into the parent z-order list? */
     unsigned int     is_layered : 1;  /* has layered info been set? */
     unsigned int     is_orphan : 1;   /* is window orphaned */
@@ -665,7 +664,6 @@ static struct window *create_window( struct window *parent, struct window *owner
     win->ex_style       = 0;
     win->id             = 0;
     win->instance       = 0;
-    win->is_unicode     = 1;
     win->is_linked      = 0;
     win->is_layered     = 0;
     win->is_orphan      = 0;
@@ -694,6 +692,7 @@ static struct window *create_window( struct window *parent, struct window *owner
         shared->pid = get_process_id( current->process );
         shared->tid = get_thread_id( current );
         shared->dpi_context = NTUSER_DPI_PER_MONITOR_AWARE;
+        shared->is_unicode = 1;
     }
     SHARED_WRITE_END;
 
@@ -2370,7 +2369,6 @@ DECL_HANDLER(get_window_info)
 
     reply->locator     = get_shared_object_locator( win->shared );
     reply->last_active = win->shared->handle;
-    reply->is_unicode  = win->is_unicode;
 
     if (get_user_object( win->last_active, USER_WINDOW )) reply->last_active = win->last_active;
 }
@@ -2408,23 +2406,28 @@ DECL_HANDLER(set_window_info)
     reply->old_id        = win->id;
     reply->old_instance  = win->instance;
     reply->old_user_data = win->user_data;
-    if (req->flags & SET_WIN_STYLE) win->style = req->style;
-    if (req->flags & SET_WIN_EXSTYLE)
-    {
-        /* WS_EX_TOPMOST can only be changed for unlinked windows */
-        if (!win->is_linked) win->ex_style = req->ex_style;
-        else win->ex_style = (req->ex_style & ~WS_EX_TOPMOST) | (win->ex_style & WS_EX_TOPMOST);
-        if (!(win->ex_style & WS_EX_LAYERED)) win->is_layered = 0;
-    }
-    if (req->flags & SET_WIN_ID) win->id = req->extra_value;
-    if (req->flags & SET_WIN_INSTANCE) win->instance = req->instance;
-    if (req->flags & SET_WIN_UNICODE) win->is_unicode = req->is_unicode;
-    if (req->flags & SET_WIN_USERDATA) win->user_data = req->user_data;
-    if (req->flags & SET_WIN_EXTRA) memcpy( win->extra_bytes + req->extra_offset,
-                                            &req->extra_value, req->extra_size );
 
-    /* changing window style triggers a non-client paint */
-    if (req->flags & SET_WIN_STYLE) win->paint_flags |= PAINT_NONCLIENT;
+    SHARED_WRITE_BEGIN( win->shared, window_shm_t )
+    {
+        if (req->flags & SET_WIN_STYLE) win->style = req->style;
+        if (req->flags & SET_WIN_EXSTYLE)
+        {
+            /* WS_EX_TOPMOST can only be changed for unlinked windows */
+            if (!win->is_linked) win->ex_style = req->ex_style;
+            else win->ex_style = (req->ex_style & ~WS_EX_TOPMOST) | (win->ex_style & WS_EX_TOPMOST);
+            if (!(win->ex_style & WS_EX_LAYERED)) win->is_layered = 0;
+        }
+        if (req->flags & SET_WIN_ID) win->id = req->extra_value;
+        if (req->flags & SET_WIN_INSTANCE) win->instance = req->instance;
+        if (req->flags & SET_WIN_UNICODE) shared->is_unicode = req->is_unicode;
+        if (req->flags & SET_WIN_USERDATA) win->user_data = req->user_data;
+        if (req->flags & SET_WIN_EXTRA) memcpy( win->extra_bytes + req->extra_offset,
+                                                &req->extra_value, req->extra_size );
+
+        /* changing window style triggers a non-client paint */
+        if (req->flags & SET_WIN_STYLE) win->paint_flags |= PAINT_NONCLIENT;
+    }
+    SHARED_WRITE_END;
 }
 
 

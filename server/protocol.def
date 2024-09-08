@@ -1013,6 +1013,7 @@ typedef volatile struct
     process_id_t         pid;              /* process owning the window */
     thread_id_t          tid;              /* thread owning the window */
     unsigned int         dpi_context;      /* DPI awareness context */
+    unsigned int         is_unicode : 1;   /* ANSI or unicode */
 } window_shm_t;
 
 typedef volatile union
@@ -2582,7 +2583,6 @@ enum message_type
 @REPLY
     obj_locator_t  locator;     /* locator for the shared session object */
     user_handle_t  last_active; /* last active popup */
-    int            is_unicode;  /* ANSI or unicode */
 @END
 
 
