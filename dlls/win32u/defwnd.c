@@ -667,11 +667,11 @@ static void sys_command_size_move( HWND hwnd, WPARAM wparam )
     RECT sizing_rect, mouse_rect, orig_rect;
     UINT hittest = wparam & 0x0f;
     UINT syscommand = wparam & 0xfff0;
-    UINT style = get_window_long( hwnd, GWL_STYLE );
+    UINT style = get_window_long( hwnd, GWL_STYLE ), ex_style = get_window_long( hwnd, GWL_EXSTYLE );
     POINT capture_point, pt, offset = {0};
+    LONG caption_height = 0;
     MINMAXINFO minmax;
     HWND parent;
-    UINT dpi;
     HDC hdc;
     MSG msg;
 
@@ -708,16 +708,19 @@ static void sys_command_size_move( HWND hwnd, WPARAM wparam )
         }
     }
 
+    SetRect( &sizing_rect, 0, 0, 0, 0 );
+    if (adjust_window_rect( &sizing_rect, style, FALSE, ex_style, get_thread_dpi() )) caption_height = -sizing_rect.top;
+    if (on_bottom_border( hittest )) caption_height = 0;
+
     minmax = get_min_max_info( hwnd );
-    dpi = get_thread_dpi();
-    get_window_rect_rel( hwnd, COORDS_PARENT, &sizing_rect, dpi );
+    get_window_rect_rel( hwnd, COORDS_PARENT, &sizing_rect, get_thread_dpi() );
     orig_rect = sizing_rect;
     if (style & WS_CHILD)
     {
         parent = get_parent( hwnd );
         get_client_rect( parent, &mouse_rect, get_thread_dpi() );
-        map_window_points( parent, 0, (POINT *)&mouse_rect, 2, dpi );
-        map_window_points( parent, 0, (POINT *)&sizing_rect, 2, dpi );
+        map_window_points( parent, 0, (POINT *)&mouse_rect, 2, get_thread_dpi() );
+        map_window_points( parent, 0, (POINT *)&sizing_rect, 2, get_thread_dpi() );
     }
     else
     {
@@ -749,6 +752,10 @@ static void sys_command_size_move( HWND hwnd, WPARAM wparam )
         offset.y = capture_point.y - sizing_rect.bottom;
         mouse_rect.top = max( mouse_rect.top, sizing_rect.top + minmax.ptMinTrackSize.y );
         mouse_rect.bottom = min( mouse_rect.bottom, sizing_rect.top + minmax.ptMaxTrackSize.y );
+    }
+    else
+    {
+        offset.y = capture_point.y - sizing_rect.top;
     }
 
     capture_point.x -= offset.x;
@@ -815,7 +822,7 @@ static void sys_command_size_move( HWND hwnd, WPARAM wparam )
         pt.x = max( pt.x, mouse_rect.left );
         pt.x = min( pt.x, mouse_rect.right - 1 );
         pt.y = max( pt.y, mouse_rect.top );
-        pt.y = min( pt.y, mouse_rect.bottom - 1 );
+        pt.y = min( pt.y, mouse_rect.bottom - 1 - caption_height );
 
         if (!parent)
         {
@@ -827,7 +834,7 @@ static void sys_command_size_move( HWND hwnd, WPARAM wparam )
             pt.x = max( pt.x, info.rcWork.left );
             pt.x = min( pt.x, info.rcWork.right - 1 );
             pt.y = max( pt.y, info.rcWork.top );
-            pt.y = min( pt.y, info.rcWork.bottom - 1 );
+            pt.y = min( pt.y, info.rcWork.bottom - 1 - caption_height );
         }
 
         dx = pt.x - capture_point.x;
