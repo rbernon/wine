@@ -1012,6 +1012,7 @@ typedef volatile struct
     user_handle_t        handle;           /* full handle for this window */
     process_id_t         pid;              /* process owning the window */
     thread_id_t          tid;              /* thread owning the window */
+    unsigned int         dpi_context;      /* DPI awareness context */
 } window_shm_t;
 
 typedef volatile union
