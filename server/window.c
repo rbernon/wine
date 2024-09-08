@@ -83,7 +83,6 @@ struct window
     unsigned int     color_key;       /* color key for a layered window */
     unsigned int     alpha;           /* alpha value for a layered window */
     unsigned int     layered_flags;   /* flags for a layered window */
-    unsigned int     dpi_context;     /* DPI awareness context */
     unsigned int     monitor_dpi;     /* DPI of the window monitor */
     lparam_t         user_data;       /* user-specific data */
     WCHAR           *text;            /* window caption text */
@@ -336,8 +335,8 @@ static unsigned int get_monitor_dpi( struct window *win )
 
 static unsigned int get_window_dpi( struct window *win )
 {
-    if (NTUSER_DPI_CONTEXT_IS_MONITOR_AWARE( win->dpi_context )) return get_monitor_dpi( win );
-    return NTUSER_DPI_CONTEXT_GET_DPI( win->dpi_context );
+    if (NTUSER_DPI_CONTEXT_IS_MONITOR_AWARE( win->shared->dpi_context )) return get_monitor_dpi( win );
+    return NTUSER_DPI_CONTEXT_GET_DPI( win->shared->dpi_context );
 }
 
 /* link a window at the right place in the siblings list */
@@ -420,7 +419,14 @@ static int set_parent_window( struct window *win, struct window *parent )
         win->parent = (struct window *)grab_object( parent );
         link_window( win, WINPTR_TOP );
 
-        if (!is_desktop_window( parent )) win->dpi_context = parent->dpi_context;
+        if (!is_desktop_window( parent ))
+        {
+            SHARED_WRITE_BEGIN( win->shared, window_shm_t )
+            {
+                shared->dpi_context = parent->shared->dpi_context;
+            }
+            SHARED_WRITE_END;
+        }
 
         /* if parent belongs to a different thread and the window isn't */
         /* top-level, attach the two threads */
@@ -663,7 +669,6 @@ static struct window *create_window( struct window *parent, struct window *owner
     win->is_linked      = 0;
     win->is_layered     = 0;
     win->is_orphan      = 0;
-    win->dpi_context    = NTUSER_DPI_PER_MONITOR_AWARE;
     win->monitor_dpi    = USER_DEFAULT_SCREEN_DPI;
     win->user_data      = 0;
     win->text           = NULL;
@@ -688,6 +693,7 @@ static struct window *create_window( struct window *parent, struct window *owner
         shared->handle = handle;
         shared->pid = get_process_id( current->process );
         shared->tid = get_thread_id( current );
+        shared->dpi_context = NTUSER_DPI_PER_MONITOR_AWARE;
     }
     SHARED_WRITE_END;
 
@@ -2188,6 +2194,7 @@ DECL_HANDLER(create_window)
 {
     struct window *win, *parent = NULL, *owner = NULL;
     struct unicode_str cls_name = get_req_unicode_str();
+    unsigned int dpi_context;
     atom_t atom;
 
     reply->handle = 0;
@@ -2221,9 +2228,17 @@ DECL_HANDLER(create_window)
     if (!(win = create_window( parent, owner, atom, req->instance ))) return;
 
     if (parent && !is_desktop_window( parent ))
-        win->dpi_context = parent->dpi_context;
+        dpi_context = parent->shared->dpi_context;
     else if (!parent || !NTUSER_DPI_CONTEXT_IS_MONITOR_AWARE( req->dpi_context ))
-        win->dpi_context = req->dpi_context;
+        dpi_context = req->dpi_context;
+    else
+        dpi_context = win->shared->dpi_context;
+
+    SHARED_WRITE_BEGIN( win->shared, window_shm_t )
+    {
+        shared->dpi_context = dpi_context;
+    }
+    SHARED_WRITE_END;
 
     win->style = req->style;
     win->ex_style = req->ex_style;
@@ -2233,7 +2248,7 @@ DECL_HANDLER(create_window)
     reply->parent      = win->parent ? win->parent->shared->handle : 0;
     reply->owner       = win->owner;
     reply->extra       = win->nb_extra_bytes;
-    reply->dpi_context = win->dpi_context;
+    reply->dpi_context = win->shared->dpi_context;
     reply->class_ptr   = get_class_client_ptr( win->class );
 }
 
@@ -2254,7 +2269,7 @@ DECL_HANDLER(set_parent)
     reply->old_parent  = win->parent->shared->handle;
     reply->full_parent = parent ? parent->shared->handle : 0;
     set_parent_window( win, parent );
-    reply->dpi_context = win->dpi_context;
+    reply->dpi_context = win->shared->dpi_context;
 }
 
 
@@ -2358,7 +2373,7 @@ DECL_HANDLER(get_window_info)
     reply->locator     = get_shared_object_locator( win->shared );
     reply->last_active = win->shared->handle;
     reply->is_unicode  = win->is_unicode;
-    reply->dpi_context = win->dpi_context;
+    reply->dpi_context = win->shared->dpi_context;
 
     if (get_user_object( win->last_active, USER_WINDOW )) reply->last_active = win->last_active;
 }
