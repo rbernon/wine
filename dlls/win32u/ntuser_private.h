@@ -49,6 +49,7 @@ struct user_object
 typedef struct tagWND
 {
     struct user_object obj;           /* object header */
+    const shared_object_t *shared;    /* shared session object */
     HWND               parent;        /* Window parent */
     HWND               owner;         /* Window owner */
     struct tagCLASS   *class;         /* Window class */

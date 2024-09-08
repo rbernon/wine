@@ -29,6 +29,7 @@
 #include "winbase.h"
 #include "ntuser.h"
 
+#include "file.h"
 #include "object.h"
 #include "request.h"
 #include "thread.h"
@@ -94,6 +95,7 @@ struct window
     struct property *properties;      /* window properties array */
     int              nb_extra_bytes;  /* number of extra bytes */
     char            *extra_bytes;     /* extra bytes storage */
+    const window_shm_t *shared;       /* window in session shared memory */
 };
 
 static void window_dump( struct object *obj, int verbose );
@@ -180,6 +182,8 @@ static void window_destroy( struct object *obj )
         memset( win->extra_bytes, 0x55, win->nb_extra_bytes );
         free( win->extra_bytes );
     }
+
+    if (win->shared) free_shared_object( win->shared );
 }
 
 /* retrieve a pointer to a window from its handle */
@@ -662,9 +666,17 @@ static struct window *create_window( struct window *parent, struct window *owner
     win->properties     = NULL;
     win->nb_extra_bytes = 0;
     win->extra_bytes    = NULL;
+    win->shared         = NULL;
     win->window_rect = win->visible_rect = win->surface_rect = win->client_rect = empty_rect;
     list_init( &win->children );
     list_init( &win->unlinked );
+
+    if (!(win->shared = alloc_shared_object())) goto failed;
+    SHARED_WRITE_BEGIN( win->shared, window_shm_t )
+    {
+        shared->placeholder = 0;
+    }
+    SHARED_WRITE_END;
 
     if (extra_bytes)
     {
@@ -2204,6 +2216,7 @@ DECL_HANDLER(create_window)
     win->style = req->style;
     win->ex_style = req->ex_style;
 
+    reply->locator     = get_shared_object_locator( win->shared );
     reply->handle      = win->handle;
     reply->parent      = win->parent ? win->parent->handle : 0;
     reply->owner       = win->owner;
@@ -2255,6 +2268,7 @@ DECL_HANDLER(destroy_window)
 DECL_HANDLER(get_desktop_window)
 {
     struct desktop *desktop = get_thread_desktop( current, 0 );
+    struct window *win;
 
     if (!desktop) return;
 
@@ -2279,8 +2293,16 @@ DECL_HANDLER(get_desktop_window)
         }
     }
 
-    reply->top_window = desktop->top_window ? desktop->top_window->handle : 0;
-    reply->msg_window = desktop->msg_window ? desktop->msg_window->handle : 0;
+    if ((win = desktop->top_window))
+    {
+        reply->top_window = win->handle;
+        reply->top_locator = get_shared_object_locator( win->shared );
+    }
+    if ((win = desktop->msg_window))
+    {
+        reply->msg_window = win->handle;
+        reply->msg_locator = get_shared_object_locator( win->shared );
+    }
     release_object( desktop );
 }
 
