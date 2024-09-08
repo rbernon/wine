@@ -727,27 +727,15 @@ BOOL is_window_drawable( HWND hwnd, BOOL icon )
 /* see IsWindowUnicode */
 BOOL is_window_unicode( HWND hwnd )
 {
-    WND *win;
+    struct object_lock lock = OBJECT_LOCK_INIT;
+    const window_shm_t *window_shm;
     BOOL ret = FALSE;
+    UINT status;
 
-    if (!(win = get_win_ptr(hwnd))) return FALSE;
+    while ((status = get_shared_window( hwnd, &lock, &window_shm )) == STATUS_PENDING)
+        ret = window_shm->is_unicode;
+    if (status) return FALSE;
 
-    if (win == WND_DESKTOP) return TRUE;
-
-    if (win != WND_OTHER_PROCESS)
-    {
-        ret = (win->flags & WIN_ISUNICODE) != 0;
-        release_win_ptr( win );
-    }
-    else
-    {
-        SERVER_START_REQ( get_window_info )
-        {
-            req->handle = wine_server_user_handle( hwnd );
-            if (!wine_server_call_err( req )) ret = reply->is_unicode;
-        }
-        SERVER_END_REQ;
-    }
     return ret;
 }
 
