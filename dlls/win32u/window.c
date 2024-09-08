@@ -931,6 +931,26 @@ static LONG_PTR get_window_long_size( HWND hwnd, INT offset, UINT size, BOOL ans
     LONG_PTR retval = 0;
     WND *win;
 
+    if (offset == GWL_STYLE || offset == GWL_EXSTYLE)
+    {
+        struct object_lock lock = OBJECT_LOCK_INIT;
+        const window_shm_t *window_shm;
+        UINT status;
+
+        while ((status = get_shared_window( hwnd, &lock, &window_shm )) == STATUS_PENDING)
+        {
+            if (offset == GWL_STYLE) retval = window_shm->style;
+            if (offset == GWL_EXSTYLE) retval = window_shm->ex_style;
+        }
+        if (status)
+        {
+            RtlSetLastWin32Error( ERROR_INVALID_WINDOW_HANDLE );
+            return 0;
+        }
+
+        return retval;
+    }
+
     if (offset == GWLP_HWNDPARENT)
     {
         HWND parent = NtUserGetAncestor( hwnd, GA_PARENT );
@@ -949,12 +969,6 @@ static LONG_PTR get_window_long_size( HWND hwnd, INT offset, UINT size, BOOL ans
     {
         switch (offset)
         {
-        case GWL_STYLE:
-            retval = WS_POPUP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN; /* message parent is not visible */
-            if (get_full_window_handle( hwnd ) == get_desktop_window())
-                retval |= WS_VISIBLE;
-            return retval;
-        case GWL_EXSTYLE:
         case GWLP_USERDATA:
         case GWLP_ID:
         case GWLP_HINSTANCE:
@@ -984,8 +998,6 @@ static LONG_PTR get_window_long_size( HWND hwnd, INT offset, UINT size, BOOL ans
             {
                 switch(offset)
                 {
-                case GWL_STYLE:      retval = reply->old_style; break;
-                case GWL_EXSTYLE:    retval = reply->old_ex_style; break;
                 case GWLP_ID:        retval = reply->old_id; break;
                 case GWLP_HINSTANCE: retval = (ULONG_PTR)wine_server_get_ptr( reply->old_instance ); break;
                 case GWLP_USERDATA:  retval = reply->old_user_data; break;
@@ -1019,8 +1031,6 @@ static LONG_PTR get_window_long_size( HWND hwnd, INT offset, UINT size, BOOL ans
     switch(offset)
     {
     case GWLP_USERDATA:  retval = win->userdata; break;
-    case GWL_STYLE:      retval = win->dwStyle; break;
-    case GWL_EXSTYLE:    retval = win->dwExStyle; break;
     case GWLP_ID:        retval = win->wIDmenu; break;
     case GWLP_HINSTANCE: retval = (ULONG_PTR)win->hInstance; break;
     case GWLP_WNDPROC:
