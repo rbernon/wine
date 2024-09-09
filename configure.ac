@@ -1638,14 +1638,22 @@ WINE_NOTICE_WITH(pulse, [test -z "$PULSE_LIBS"],
 dnl **** Check for FFmpeg ****
 if test "x$with_ffmpeg" != "xno";
 then
-    WINE_PACKAGE_FLAGS(FFMPEG,[libavutil libavformat libavcodec],,,,
-        [AC_CHECK_HEADERS([libavutil/avutil.h libavformat/avformat.h libavcodec/avcodec.h libavcodec/bsf.h])
-         if test "$ac_cv_header_libavutil_avutil_h" = "yes" -a "$ac_cv_header_libavformat_avformat_h" = "yes" -a "$ac_cv_header_libavcodec_avcodec_h" = "yes"
+    WINE_PACKAGE_FLAGS(FFMPEG,[libavutil libavformat libavcodec libswresample libswscale],,,,
+        [AC_CHECK_HEADERS([libavutil/avutil.h libavformat/avformat.h libavcodec/avcodec.h libavcodec/bsf.h libswresample/swresample.h libswscale/swscale.h])
+         if test "$ac_cv_header_libavutil_avutil_h" = "yes" \
+            -a "$ac_cv_header_libavformat_avformat_h" = "yes" \
+            -a "$ac_cv_header_libavcodec_avcodec_h" = "yes" \
+            -a "$ac_cv_header_libswresample_swresample_h" = "yes" \
+            -a "$ac_cv_header_libswscale_swscale_h" = "yes"
          then
             AC_CHECK_LIB(avutil,av_log_set_callback,
               [AC_CHECK_LIB(avformat,av_find_input_format,
                 [AC_CHECK_LIB(avcodec,avcodec_get_name,
-                  [AC_DEFINE(HAVE_FFMPEG, 1, [Define to 1 if you have the FFmpeg libraries.])],
+                  [AC_CHECK_LIB(swresample,swr_alloc,
+                    [AC_CHECK_LIB(swscale,sws_alloc_context,
+                      [AC_DEFINE(HAVE_FFMPEG, 1, [Define to 1 if you have the FFmpeg libraries.])],
+                      [FFMPEG_LIBS=""],[$FFMPEG_LIBS])],
+                    [FFMPEG_LIBS=""],[$FFMPEG_LIBS])],
                   [FFMPEG_LIBS=""],[$FFMPEG_LIBS])],
                 [FFMPEG_LIBS=""],[$FFMPEG_LIBS])],
               [FFMPEG_LIBS=""],[$FFMPEG_LIBS])

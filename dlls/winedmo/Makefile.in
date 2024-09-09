@@ -7,6 +7,11 @@ UNIX_LIBS    = $(FFMPEG_LIBS) $(PTHREAD_LIBS)
 
 SOURCES = \
 	main.c \
+	unix_audio.c \
+	unix_decoder.c \
+	unix_encoder.c \
 	unix_demuxer.c \
 	unix_media_type.c \
+	unix_muxer.c \
+	unix_video.c \
 	unixlib.c
