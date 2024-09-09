@@ -1391,7 +1391,7 @@ void X11DRV_SetFocus( HWND hwnd )
 
 static HWND find_drop_window( HWND hQueryWnd, LPPOINT lpPt )
 {
-    UINT dpi = get_win_monitor_dpi( hQueryWnd );
+    UINT dpi = NtUserGetWinMonitorDpi( hQueryWnd );
     RECT tempRect;
 
     if (!NtUserIsWindowEnabled(hQueryWnd)) return 0;
