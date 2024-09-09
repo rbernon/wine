@@ -91,6 +91,19 @@ static NTSTATUS WINAPI read_callback( void *args, ULONG size )
     return NtCallbackReturn( &ret, sizeof(ret), status );
 }
 
+static NTSTATUS WINAPI write_callback( void *args, ULONG size )
+{
+    struct write_params *params = args;
+    struct stream_context *context = get_stream_context( params->context );
+    struct winedmo_stream *stream = get_stream( context->stream );
+    NTSTATUS status = STATUS_NOT_IMPLEMENTED;
+    ULONG ret = params->size;
+
+    if (!stream->p_write || (status = stream->p_write( stream, context->buffer, &ret )))
+        WARN( "Failed to write to stream, status %#lx\n", status );
+    return NtCallbackReturn( &ret, sizeof(ret), status );
+}
+
 
 BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
 {
@@ -102,6 +115,7 @@ BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
         {
             .seek_callback = (UINT_PTR)seek_callback,
             .read_callback = (UINT_PTR)read_callback,
+            .write_callback = (UINT_PTR)write_callback,
         };
         NTSTATUS status;
 
@@ -376,4 +390,237 @@ NTSTATUS CDECL winedmo_demuxer_stream_type( struct winedmo_demuxer demuxer, UINT
     struct demuxer_stream_type_params params = {.demuxer = demuxer, .stream = stream};
     TRACE( "demuxer %#I64x, stream %u, major %p, format %p\n", demuxer.handle, stream, major, format );
     return get_media_type( unix_demuxer_stream_type, &params, &params.media_type, major, format );
+}
+
+
+NTSTATUS CDECL winedmo_muxer_check( const char *mime_type )
+{
+    struct muxer_check_params params = {0};
+    lstrcpynA( params.mime_type, mime_type, sizeof(params.mime_type) );
+    return UNIX_CALL( muxer_check, &params );
+}
+
+NTSTATUS CDECL winedmo_muxer_create( const WCHAR *url, const WCHAR *mime_type, struct winedmo_stream *stream, struct winedmo_muxer *muxer )
+{
+    struct muxer_create_params params = {0};
+    QWORD stream_size = 0;
+    char *tmp = NULL;
+    UINT len, status;
+
+    TRACE( "stream %p\n", stream );
+
+    if (!(params.context = stream_context_create( stream, stream_size ))) return STATUS_NO_MEMORY;
+
+    if (url && (len = WideCharToMultiByte( CP_ACP, 0, url, -1, NULL, 0, NULL, NULL )) && (tmp = malloc( len )))
+    {
+        WideCharToMultiByte( CP_ACP, 0, url, -1, tmp, len, NULL, NULL );
+        params.url = tmp;
+    }
+    WideCharToMultiByte( CP_ACP, 0, mime_type, -1, params.mime_type, ARRAY_SIZE( params.mime_type ), NULL, NULL );
+
+    if ((status = UNIX_CALL( muxer_create, &params ))) return status;
+    *muxer = params.muxer;
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS CDECL winedmo_muxer_destroy( struct winedmo_muxer *muxer )
+{
+    struct muxer_destroy_params params = {.muxer = *muxer};
+    NTSTATUS status;
+
+    TRACE( "muxer %#I64x\n", muxer->handle );
+
+    if (!muxer->handle) return STATUS_SUCCESS;
+    if ((status = UNIX_CALL( muxer_destroy, &params ))) return status;
+    stream_context_destroy( params.context );
+    muxer->handle = 0;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS CDECL winedmo_muxer_add_stream( struct winedmo_muxer muxer, UINT32 stream_id, GUID major,
+                                         union winedmo_format *format )
+{
+    struct muxer_add_stream_params params =
+    {
+        .muxer = muxer, .stream_id = stream_id,
+        .media_type = {.major = major, .format = format},
+    };
+    NTSTATUS status;
+
+    if (IsEqualGUID( &major, &MFMediaType_Video ))
+        params.media_type.format_size = format->video.dwSize;
+    else if (IsEqualGUID( &major, &MFMediaType_Audio ))
+        params.media_type.format_size = sizeof(format->audio) + format->audio.cbSize;
+    else
+    {
+        FIXME( "Major type %s not supported\n", debugstr_guid( &major ) );
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if ((status = UNIX_CALL( muxer_add_stream, &params )))
+    {
+        WARN( "Failed to add stream, status %#lx\n", status );
+        return status;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS CDECL winedmo_muxer_start( struct winedmo_muxer muxer )
+{
+    struct muxer_start_params params = {.muxer = muxer};
+    NTSTATUS status;
+
+    if ((status = UNIX_CALL( muxer_start, &params ))) return status;
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS CDECL winedmo_muxer_write( struct winedmo_muxer muxer, UINT stream, DMO_OUTPUT_DATA_BUFFER *buffer )
+{
+    struct muxer_write_params params = {.muxer = muxer, .stream = stream};
+    NTSTATUS status;
+
+    buffer_lock( buffer, TRUE, &params.sample );
+    status = UNIX_CALL( muxer_write, &params );
+    buffer_unlock( buffer, TRUE, &params.sample, status );
+
+    if (status) return status;
+    return STATUS_SUCCESS;
+}
+
+
+NTSTATUS CDECL winedmo_transform_check( GUID major, GUID input, GUID output )
+{
+    struct transform_check_params params =
+    {
+        .major = major,
+        .input = input,
+        .output = output,
+    };
+
+    return UNIX_CALL( transform_check, &params );
+}
+
+NTSTATUS CDECL winedmo_transform_create( GUID major, union winedmo_format *input, union winedmo_format *output, struct winedmo_transform *transform )
+{
+    struct transform_create_params params =
+    {
+        .input_type = {.major = major, .format = input},
+        .output_type = {.major = major, .format = output},
+    };
+    NTSTATUS status;
+
+    TRACE( "\n" );
+
+    if (IsEqualGUID( &major, &MFMediaType_Video ))
+    {
+        params.input_type.format_size = input->video.dwSize;
+        params.output_type.format_size = output->video.dwSize;
+    }
+    else if (IsEqualGUID( &major, &MFMediaType_Audio ))
+    {
+        params.input_type.format_size = sizeof(input->audio) + input->audio.cbSize;
+        params.output_type.format_size = sizeof(output->audio) + output->audio.cbSize;
+    }
+    else
+    {
+        FIXME( "Major type %s not supported\n", debugstr_guid( &major ) );
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if ((status = UNIX_CALL( transform_create, &params )))
+    {
+        WARN( "Failed to create transform, status %#lx\n", status );
+        return status;
+    }
+
+    *transform = params.transform;
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS CDECL winedmo_transform_destroy( struct winedmo_transform *transform )
+{
+    struct transform_destroy_params params = {.transform = *transform};
+    NTSTATUS status;
+
+    TRACE( "transform %#I64x\n", transform->handle );
+
+    if (!transform->handle) return STATUS_SUCCESS;
+    if ((status = UNIX_CALL( transform_destroy, &params ))) return status;
+    transform->handle = 0;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS CDECL winedmo_transform_get_output_type( struct winedmo_transform transform, GUID *major, union winedmo_format **format )
+{
+    struct transform_get_output_type_params params = {.transform = transform};
+    TRACE( "transform %#I64x, format %p\n", transform.handle, format );
+    return get_media_type( unix_transform_get_output_type, &params, &params.media_type, major, format );
+}
+
+NTSTATUS CDECL winedmo_transform_set_output_type( struct winedmo_transform transform, GUID major, union winedmo_format *format )
+{
+    struct transform_set_output_type_params params =
+    {
+        .transform = transform,
+        .media_type = {.major = major, .format = format},
+    };
+    NTSTATUS status;
+
+    if (IsEqualGUID( &major, &MFMediaType_Video ))
+        params.media_type.format_size = format->video.dwSize;
+    else if (IsEqualGUID( &major, &MFMediaType_Audio ))
+        params.media_type.format_size = sizeof(format->audio) + format->audio.cbSize;
+    else
+    {
+        FIXME( "Major type %s not supported\n", debugstr_guid( &major ) );
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    TRACE( "transform %#I64x\n", transform.handle );
+
+    if ((status = UNIX_CALL( transform_set_output_type, &params )))
+    {
+        WARN( "Failed\n" );
+        return status;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS CDECL winedmo_transform_process_input( struct winedmo_transform transform, DMO_OUTPUT_DATA_BUFFER *buffer )
+{
+    struct transform_process_input_params params = {.transform = transform};
+    NTSTATUS status;
+
+    TRACE( "transform %#I64x\n", transform.handle );
+
+    buffer_lock( buffer, TRUE, &params.sample );
+    status = UNIX_CALL( transform_process_input, &params );
+    buffer_unlock( buffer, TRUE, &params.sample, status );
+
+    return status;
+}
+
+NTSTATUS CDECL winedmo_transform_process_output( struct winedmo_transform transform, DMO_OUTPUT_DATA_BUFFER *buffer )
+{
+    struct transform_process_output_params params = {.transform = transform};
+    NTSTATUS status;
+
+    TRACE( "transform %#I64x\n", transform.handle );
+
+    buffer_lock( buffer, FALSE, &params.sample );
+    status = UNIX_CALL( transform_process_output, &params );
+    buffer_unlock( buffer, FALSE, &params.sample, status );
+
+    return status;
+}
+
+NTSTATUS CDECL winedmo_transform_drain( struct winedmo_transform transform, BOOL discard )
+{
+    struct transform_drain_params params = {.transform = transform, .discard = discard};
+    TRACE( "transform %#I64x\n", transform.handle );
+    return UNIX_CALL( transform_drain, &params );
 }
