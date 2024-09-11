@@ -1893,26 +1893,19 @@ static void present_gl_drawable( HWND hwnd, HDC hdc, struct gl_drawable *gl, BOO
     default: drawable = 0; break;
     }
     if (!drawable) return;
-    window = get_dc_drawable( hdc, &rect );
     region = get_dc_monitor_region( hwnd, hdc );
 
     if (flush) XFlush( gdi_display );
 
-    if ((data = get_win_data( hwnd )))
-    {
-        rect_dst = data->rects.client;
-        OffsetRect( &rect_dst, -rect_dst.left, -rect_dst.top );
-        release_win_data( data );
-    }
+    if (!(data = get_win_data( hwnd ))) return;
+    rect_dst = data->rects.client;
+    release_win_data( data );
 
-    if (hwnd != toplevel) NtUserMapWindowPoints( hwnd, toplevel, (POINT *)&rect_dst, 2, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
-
-    if ((data = get_win_data( toplevel )))
-    {
-        OffsetRect( &rect_dst, data->rects.client.left - data->rects.visible.left,
-                    data->rects.client.top - data->rects.visible.top );
-        release_win_data( data );
-    }
+    if (!(data = get_win_data( toplevel ))) return;
+    window = data->whole_window;
+    OffsetRect( &rect_dst, data->rects.client.left - data->rects.visible.left,
+                data->rects.client.top - data->rects.visible.top );
+    release_win_data( data );
 
     if (get_dc_drawable( gl->hdc_dst, &rect ) != window || !EqualRect( &rect, &rect_dst ))
         set_dc_drawable( gl->hdc_dst, window, &rect_dst, ClipByChildren );
