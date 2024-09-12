@@ -322,6 +322,14 @@ static inline ldiv_t __wine_msvcrt_ldiv(__msvcrt_long num, __msvcrt_long denom)
 #define ldiv(num,denom) __wine_msvcrt_ldiv(num,denom)
 #endif
 
+#ifdef __cplusplus
+extern "C++"
+{
+inline long abs(long const _X) throw() { return labs(_X); }
+inline long long abs(long long const _X) throw() { return llabs(_X); }
+}
+#endif
+
 #include <poppack.h>
 
 #endif /* __WINE_STDLIB_H */
