@@ -259,7 +259,8 @@ void __cdecl _invalid_parameter(const wchar_t *expr, const wchar_t *func, const 
                                 unsigned int line, uintptr_t arg);
 
 #ifdef _UCRT
-_ACRTIMP double __cdecl _strtold_l(const char*,char**,_locale_t);
+_ACRTIMP double __cdecl _strtod_l(const char*,char**,_locale_t);
+_ACRTIMP long double __cdecl _strtold_l(const char*,char**,_locale_t);
 static inline long double strtold(const char *string, char **endptr) { return _strtold_l(string, endptr, NULL); }
 #endif /* _UCRT */
 
