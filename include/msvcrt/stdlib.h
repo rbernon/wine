@@ -121,6 +121,8 @@ extern unsigned int _fmode;
 
 #endif  /* __i386__ */
 
+_ACRTIMP int             __cdecl ___mb_cur_max_l_func(_locale_t);
+
 _ACRTIMP int             __cdecl ___mb_cur_max_func(void);
 _ACRTIMP int             __cdecl ___mb_cur_max_l_func(_locale_t);
 #define __mb_cur_max             ___mb_cur_max_func()
