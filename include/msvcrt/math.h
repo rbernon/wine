@@ -288,7 +288,19 @@ _ACRTIMP short __cdecl _dtest(double*);
 _ACRTIMP short __cdecl _ldtest(long double*);
 _ACRTIMP short __cdecl _fdtest(float*);
 
-#if _MSVCR_VER >= 120
+#ifdef __cplusplus
+
+extern "C++"
+{
+inline int fpclassify(float x) throw() { return _fdtest(&x); }
+inline int fpclassify(double x) throw() { return _dtest(&x); }
+inline int fpclassify(long double x) throw() { return _ldtest(&x); }
+template <class T> inline bool isfinite(T x) throw() { return fpclassify(x) <= 0; }
+template <class T> inline bool isinf(T x) throw() { return fpclassify(x) == FP_INFINITE; }
+template <class T> inline bool isnan(T x) throw() { return fpclassify(x) == FP_NAN; }
+}
+
+#elif _MSVCR_VER >= 120
 
 _ACRTIMP short __cdecl _dclass(double);
 _ACRTIMP short __cdecl _fdclass(float);
