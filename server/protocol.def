@@ -1014,6 +1014,8 @@ typedef volatile struct
     thread_id_t          tid;              /* thread owning the window */
     unsigned int         style;            /* window style */
     unsigned int         ex_style;         /* window extended style */
+    user_handle_t        parent;           /* handle of the window parent */
+    user_handle_t        owner;            /* handle of the window owner */
     unsigned int         dpi_context;      /* DPI awareness context */
     unsigned int         is_unicode : 1;   /* ANSI or unicode */
 } window_shm_t;
