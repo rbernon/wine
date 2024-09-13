@@ -2248,7 +2248,6 @@ DECL_HANDLER(create_window)
     reply->parent      = win->parent ? win->parent->shared->handle : 0;
     reply->owner       = win->owner;
     reply->extra       = win->nb_extra_bytes;
-    reply->dpi_context = win->shared->dpi_context;
     reply->class_ptr   = get_class_client_ptr( win->class );
 }
 
@@ -2269,7 +2268,6 @@ DECL_HANDLER(set_parent)
     reply->old_parent  = win->parent->shared->handle;
     reply->full_parent = parent ? parent->shared->handle : 0;
     set_parent_window( win, parent );
-    reply->dpi_context = win->shared->dpi_context;
 }
 
 
@@ -2373,7 +2371,6 @@ DECL_HANDLER(get_window_info)
     reply->locator     = get_shared_object_locator( win->shared );
     reply->last_active = win->shared->handle;
     reply->is_unicode  = win->is_unicode;
-    reply->dpi_context = win->shared->dpi_context;
 
     if (get_user_object( win->last_active, USER_WINDOW )) reply->last_active = win->last_active;
 }
