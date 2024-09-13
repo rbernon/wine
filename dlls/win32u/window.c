@@ -313,39 +313,26 @@ DWORD get_window_thread( HWND hwnd, DWORD *process )
 /* see GetParent */
 HWND get_parent( HWND hwnd )
 {
-    HWND retval = 0;
-    WND *win;
+    struct object_lock lock = OBJECT_LOCK_INIT;
+    const window_shm_t *window_shm;
+    HWND parent = 0, owner = 0;
+    UINT status, style = 0;
 
-    if (!(win = get_win_ptr( hwnd )))
+    while ((status = get_shared_window( hwnd, &lock, &window_shm )) == STATUS_PENDING)
+    {
+        style = window_shm->style;
+        owner = wine_server_ptr_handle( window_shm->owner );
+        parent = wine_server_ptr_handle( window_shm->parent );
+    }
+    if (status)
     {
         RtlSetLastWin32Error( ERROR_INVALID_WINDOW_HANDLE );
         return 0;
     }
-    if (win == WND_DESKTOP) return 0;
-    if (win == WND_OTHER_PROCESS)
-    {
-        LONG style = get_window_long( hwnd, GWL_STYLE );
-        if (style & (WS_POPUP | WS_CHILD))
-        {
-            SERVER_START_REQ( get_window_tree )
-            {
-                req->handle = wine_server_user_handle( hwnd );
-                if (!wine_server_call_err( req ))
-                {
-                    if (style & WS_POPUP) retval = wine_server_ptr_handle( reply->owner );
-                    else if (style & WS_CHILD) retval = wine_server_ptr_handle( reply->parent );
-                }
-            }
-            SERVER_END_REQ;
-        }
-    }
-    else
-    {
-        if (win->dwStyle & WS_POPUP) retval = win->owner;
-        else if (win->dwStyle & WS_CHILD) retval = win->parent;
-        release_win_ptr( win );
-    }
-    return retval;
+
+    if (style & WS_POPUP) return owner;
+    else if (style & WS_CHILD) return parent;
+    return 0;
 }
 
 /*****************************************************************
