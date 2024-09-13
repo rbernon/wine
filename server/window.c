@@ -57,7 +57,6 @@ struct window
 {
     struct object    obj;             /* object header */
     struct window   *parent;          /* parent window */
-    user_handle_t    owner;           /* owner of this window */
     struct list      children;        /* list of children in Z-order */
     struct list      unlinked;        /* list of children not linked in the Z-order list */
     struct list      entry;           /* entry in parent's children list */
@@ -371,7 +370,7 @@ static int link_window( struct window *win, struct window *previous )
             {
                 struct window *next = LIST_ENTRY( entry, struct window, entry );
                 if (!(next->shared->ex_style & WS_EX_TOPMOST)) break;
-                if (next->shared->handle == win->owner)  /* keep it above owner */
+                if (next->shared->handle == win->shared->owner)  /* keep it above owner */
                 {
                     ex_style |= WS_EX_TOPMOST;
                     break;
@@ -658,7 +657,6 @@ static struct window *create_window( struct window *parent, struct window *owner
 
     if (!(win = alloc_object( &window_ops ))) goto failed;
     win->parent         = parent ? (struct window *)grab_object( parent ) : NULL;
-    win->owner          = owner ? owner->shared->handle : 0;
     win->thread         = current;
     win->desktop        = desktop;
     win->class          = class;
@@ -696,6 +694,8 @@ static struct window *create_window( struct window *parent, struct window *owner
         shared->tid = get_thread_id( current );
         shared->style = 0;
         shared->ex_style = 0;
+        shared->parent = parent ? parent->shared->handle : 0;
+        shared->owner = owner ? owner->shared->handle : 0;
         shared->dpi_context = NTUSER_DPI_PER_MONITOR_AWARE;
         shared->is_unicode = 1;
     }
@@ -808,7 +808,7 @@ int make_window_active( user_handle_t window )
     while (owner)
     {
         owner->last_active = win->shared->handle;
-        owner = get_user_object( owner->owner, USER_WINDOW );
+        owner = get_user_object( owner->shared->owner, USER_WINDOW );
     }
     return 1;
 }
@@ -2185,7 +2185,7 @@ void free_window_handle( struct window *win )
     }
     else if (is_desktop_window( win->parent ))
     {
-        post_message( win->parent->shared->handle, WM_PARENTNOTIFY, WM_DESTROY, win->shared->handle );
+        post_message( win->shared->parent, WM_PARENTNOTIFY, WM_DESTROY, win->shared->handle );
     }
 
     detach_window_thread( win );
@@ -2259,8 +2259,8 @@ DECL_HANDLER(create_window)
 
     reply->locator     = get_shared_object_locator( win->shared );
     reply->handle      = win->shared->handle;
-    reply->parent      = win->parent ? win->parent->shared->handle : 0;
-    reply->owner       = win->owner;
+    reply->parent      = win->shared->parent;
+    reply->owner       = win->shared->owner;
     reply->extra       = win->nb_extra_bytes;
     reply->class_ptr   = get_class_client_ptr( win->class );
 }
@@ -2270,6 +2270,7 @@ DECL_HANDLER(create_window)
 DECL_HANDLER(set_parent)
 {
     struct window *win, *parent = NULL;
+    user_handle_t old_parent;
 
     if (!(win = get_window( req->handle ))) return;
     if (req->parent && !(parent = get_window( req->parent ))) return;
@@ -2279,8 +2280,16 @@ DECL_HANDLER(set_parent)
         set_error( STATUS_INVALID_PARAMETER );
         return;
     }
-    reply->old_parent  = win->parent->shared->handle;
-    reply->full_parent = parent ? parent->shared->handle : 0;
+
+    SHARED_WRITE_BEGIN( win->shared, window_shm_t )
+    {
+        old_parent = shared->parent;
+        shared->parent = parent ? parent->shared->handle : 0;
+    }
+    SHARED_WRITE_END;
+
+    reply->old_parent  = old_parent;
+    reply->full_parent = win->shared->parent;
     set_parent_window( win, parent );
 }
 
@@ -2361,6 +2370,7 @@ DECL_HANDLER(set_window_owner)
 {
     struct window *win = get_window( req->handle );
     struct window *owner = NULL, *ptr;
+    user_handle_t prev_owner;
 
     if (!win) return;
     if (req->owner && !(owner = get_window( req->owner ))) return;
@@ -2371,7 +2381,7 @@ DECL_HANDLER(set_window_owner)
     }
 
     /* make sure owner is not a successor of window */
-    for (ptr = owner; ptr; ptr = ptr->owner ? get_window( ptr->owner ) : NULL)
+    for (ptr = owner; ptr; ptr = ptr->shared->owner ? get_window( ptr->shared->owner ) : NULL)
     {
         if (ptr == win)
         {
@@ -2380,8 +2390,15 @@ DECL_HANDLER(set_window_owner)
         }
     }
 
-    reply->prev_owner = win->owner;
-    reply->full_owner = win->owner = owner ? owner->shared->handle : 0;
+    SHARED_WRITE_BEGIN( win->shared, window_shm_t )
+    {
+        prev_owner = shared->owner;
+        shared->owner = owner ? owner->shared->handle : 0;
+    }
+    SHARED_WRITE_END;
+
+    reply->prev_owner = prev_owner;
+    reply->full_owner = win->shared->owner;
 }
 
 
@@ -2613,8 +2630,8 @@ DECL_HANDLER(get_window_tree)
     if (win->parent)
     {
         struct window *parent = win->parent;
-        reply->parent = parent->shared->handle;
-        reply->owner  = win->owner;
+        reply->parent = win->shared->parent;
+        reply->owner  = win->shared->owner;
         if (win->is_linked)
         {
             if ((ptr = get_next_window( win ))) reply->next_sibling = ptr->shared->handle;
