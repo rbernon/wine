@@ -63,8 +63,6 @@ typedef struct tagWND
     POINT              max_pos;       /* Position for maximized window */
     WCHAR             *text;          /* Window text */
     struct win_scroll_bar_info *pScroll; /* Scroll-bar info */
-    UINT               dwStyle;       /* Window style (from CreateWindow) */
-    UINT               dwExStyle;     /* Extended style (from CreateWindowEx) */
     UINT_PTR           wIDmenu;       /* ID or hmenu (from CreateWindow) */
     UINT               helpContext;   /* Help context ID */
     UINT               flags;         /* Misc. flags (see below) */
