@@ -2321,11 +2321,6 @@ DECL_HANDLER(get_window_info)
     reply->raw_dpi     = win->raw_dpi;
 
     if (get_user_object( win->last_active, USER_WINDOW )) reply->last_active = win->last_active;
-    if (win->thread)
-    {
-        reply->tid  = win->shared->tid;
-        reply->pid  = win->shared->pid;
-    }
 }
 
 
