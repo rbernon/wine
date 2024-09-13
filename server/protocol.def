@@ -1009,7 +1009,7 @@ typedef volatile struct
 
 typedef volatile struct
 {
-    int                  placeholder;
+    user_handle_t        handle;           /* full handle for this window */
 } window_shm_t;
 
 typedef volatile union
