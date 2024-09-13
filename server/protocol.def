@@ -1016,6 +1016,10 @@ typedef volatile struct
     unsigned int         ex_style;         /* window extended style */
     user_handle_t        parent;           /* handle of the window parent */
     user_handle_t        owner;            /* handle of the window owner */
+    rectangle_t          window_rect;      /* window rectangle (relative to parent client area) */
+    rectangle_t          visible_rect;     /* visible part of window rect (relative to parent client area) */
+    rectangle_t          surface_rect;     /* window surface rectangle (relative to parent client area) */
+    rectangle_t          client_rect;      /* client rectangle (relative to parent client area) */
     unsigned int         dpi_context;      /* DPI awareness context */
     unsigned int         is_unicode : 1;   /* ANSI or unicode */
 } window_shm_t;
