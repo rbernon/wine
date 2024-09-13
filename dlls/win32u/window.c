@@ -162,6 +162,38 @@ void *free_user_handle( HANDLE handle, unsigned int type )
     return ptr;
 }
 
+struct window_state
+{
+    HWND parent;
+    HWND owner;
+    UINT style;
+    UINT ex_style;
+    UINT dpi_context;
+};
+
+static BOOL get_window_state( HWND hwnd, struct window_state *state )
+{
+    struct object_lock lock = OBJECT_LOCK_INIT;
+    const window_shm_t *window_shm;
+    UINT status;
+
+    while ((status = get_shared_window( hwnd, &lock, &window_shm )) == STATUS_PENDING)
+    {
+        state->parent = wine_server_ptr_handle( window_shm->parent );
+        state->owner = wine_server_ptr_handle( window_shm->owner );
+        state->style = window_shm->style;
+        state->ex_style = window_shm->ex_style;
+        state->dpi_context = window_shm->dpi_context;
+    }
+    if (status)
+    {
+        RtlSetLastWin32Error( ERROR_INVALID_WINDOW_HANDLE );
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
 /*******************************************************************
  *           get_hwnd_message_parent
  *
@@ -278,14 +310,8 @@ HWND is_current_process_window( HWND hwnd )
 /* see IsWindow */
 BOOL is_window( HWND hwnd )
 {
-    struct object_lock lock = OBJECT_LOCK_INIT;
-    const window_shm_t *window_shm;
-    UINT status;
-
-    while ((status = get_shared_window( hwnd, &lock, &window_shm )) == STATUS_PENDING)
-        /* nothing to do */;
-
-    return !status;
+    struct window_state state;
+    return get_window_state( hwnd, &state );
 }
 
 /* see GetWindowThreadProcessId */
@@ -313,25 +339,16 @@ DWORD get_window_thread( HWND hwnd, DWORD *process )
 /* see GetParent */
 HWND get_parent( HWND hwnd )
 {
-    struct object_lock lock = OBJECT_LOCK_INIT;
-    const window_shm_t *window_shm;
-    HWND parent = 0, owner = 0;
-    UINT status, style = 0;
+    struct window_state state = {0};
 
-    while ((status = get_shared_window( hwnd, &lock, &window_shm )) == STATUS_PENDING)
-    {
-        style = window_shm->style;
-        owner = wine_server_ptr_handle( window_shm->owner );
-        parent = wine_server_ptr_handle( window_shm->parent );
-    }
-    if (status)
+    if (!get_window_state( hwnd, &state ))
     {
         RtlSetLastWin32Error( ERROR_INVALID_WINDOW_HANDLE );
         return 0;
     }
 
-    if (style & WS_POPUP) return owner;
-    else if (style & WS_CHILD) return parent;
+    if (state.style & WS_POPUP) return state.owner;
+    if (state.style & WS_CHILD) return state.parent;
     return 0;
 }
 
@@ -798,19 +815,9 @@ BOOL is_window_enabled( HWND hwnd )
 /* see GetWindowDpiAwarenessContext */
 UINT get_window_dpi_awareness_context( HWND hwnd )
 {
-    struct object_lock lock = OBJECT_LOCK_INIT;
-    const window_shm_t *window_shm;
-    UINT status, ctx = 0;
-
-    while ((status = get_shared_window( hwnd, &lock, &window_shm )) == STATUS_PENDING)
-        ctx = window_shm->dpi_context;
-    if (status)
-    {
-        RtlSetLastWin32Error( ERROR_INVALID_WINDOW_HANDLE );
-        return 0;
-    }
-
-    return ctx;
+    struct window_state state = {0};
+    if (!get_window_state( hwnd, &state )) RtlSetLastWin32Error( ERROR_INVALID_WINDOW_HANDLE );
+    return state.dpi_context;
 }
 
 /* see GetDpiForWindow */
@@ -915,35 +922,22 @@ BOOL is_zoomed( HWND hwnd )
 
 static LONG_PTR get_window_long_size( HWND hwnd, INT offset, UINT size, BOOL ansi )
 {
+    struct window_state state = {0};
     LONG_PTR retval = 0;
     WND *win;
 
-    if (offset == GWL_STYLE || offset == GWL_EXSTYLE)
+    if (!get_window_state( hwnd, &state ))
     {
-        struct object_lock lock = OBJECT_LOCK_INIT;
-        const window_shm_t *window_shm;
-        UINT status;
-
-        while ((status = get_shared_window( hwnd, &lock, &window_shm )) == STATUS_PENDING)
-        {
-            if (offset == GWL_STYLE) retval = window_shm->style;
-            if (offset == GWL_EXSTYLE) retval = window_shm->ex_style;
-        }
-        if (status)
-        {
-            RtlSetLastWin32Error( ERROR_INVALID_WINDOW_HANDLE );
-            return 0;
-        }
-
-        return retval;
+        RtlSetLastWin32Error( ERROR_INVALID_WINDOW_HANDLE );
+        return 0;
     }
 
+    if (offset == GWL_STYLE) return state.style;
+    if (offset == GWL_EXSTYLE) return state.ex_style;
     if (offset == GWLP_HWNDPARENT)
     {
-        HWND parent = NtUserGetAncestor( hwnd, GA_PARENT );
-        if (parent == get_desktop_window())
-            parent = get_window_relative( hwnd, GW_OWNER );
-        return (ULONG_PTR)parent;
+        if (state.parent == get_desktop_window()) return (ULONG_PTR)state.owner;
+        return (ULONG_PTR)state.parent;
     }
 
     if (!(win = get_win_ptr( hwnd )))
@@ -1069,19 +1063,21 @@ static WORD get_window_word( HWND hwnd, INT offset )
  */
 ULONG set_window_style( HWND hwnd, ULONG set_bits, ULONG clear_bits )
 {
+    struct window_state state = {0};
     BOOL ok, made_visible = FALSE;
     STYLESTRUCT style;
-    WND *win = get_win_ptr( hwnd );
+    WND *win;
 
-    if (!win || win == WND_DESKTOP) return 0;
+    if (!get_window_state( hwnd, &state )) return 0;
+    if (!(win = get_win_ptr( hwnd )) || win == WND_DESKTOP) return 0;
     if (win == WND_OTHER_PROCESS)
     {
         if (is_window(hwnd))
             return send_message( hwnd, WM_WINE_SETSTYLE, set_bits, clear_bits );
         return 0;
     }
-    style.styleOld = win->dwStyle;
-    style.styleNew = (win->dwStyle | set_bits) & ~clear_bits;
+    style.styleOld = state.style;
+    style.styleNew = (state.style | set_bits) & ~clear_bits;
     if (style.styleNew == style.styleOld)
     {
         release_win_ptr( win );
@@ -1093,11 +1089,7 @@ ULONG set_window_style( HWND hwnd, ULONG set_bits, ULONG clear_bits )
         req->flags  = SET_WIN_STYLE;
         req->style  = style.styleNew;
         req->extra_offset = -1;
-        if ((ok = !wine_server_call( req )))
-        {
-            style.styleOld = reply->old_style;
-            win->dwStyle = style.styleNew;
-        }
+        if ((ok = !wine_server_call( req ))) style.styleOld = reply->old_style;
     }
     SERVER_END_REQ;
 
@@ -1157,6 +1149,7 @@ static HWND set_window_owner( HWND hwnd, HWND owner )
 LONG_PTR set_window_long( HWND hwnd, INT offset, UINT size, LONG_PTR newval, BOOL ansi )
 {
     BOOL ok, made_visible = FALSE, layered = FALSE;
+    struct window_state state = {0};
     LONG_PTR retval = 0;
     STYLESTRUCT style;
     WND *win;
@@ -1167,6 +1160,12 @@ LONG_PTR set_window_long( HWND hwnd, INT offset, UINT size, LONG_PTR newval, BOO
     {
         RtlSetLastWin32Error( ERROR_INVALID_PARAMETER );
         return FALSE;
+    }
+
+    if (!get_window_state( hwnd, &state ))
+    {
+        RtlSetLastWin32Error( ERROR_INVALID_WINDOW_HANDLE );
+        return 0;
     }
 
     if (!(win = get_win_ptr( hwnd )))
@@ -1199,7 +1198,7 @@ LONG_PTR set_window_long( HWND hwnd, INT offset, UINT size, LONG_PTR newval, BOO
     switch( offset )
     {
     case GWL_STYLE:
-        style.styleOld = win->dwStyle;
+        style.styleOld = state.style;
         style.styleNew = newval;
         release_win_ptr( win );
         send_message( hwnd, WM_STYLECHANGING, GWL_STYLE, (LPARAM)&style );
@@ -1208,17 +1207,17 @@ LONG_PTR set_window_long( HWND hwnd, INT offset, UINT size, LONG_PTR newval, BOO
         /* WS_CLIPSIBLINGS can't be reset on top-level windows */
         if (win->parent == get_desktop_window()) newval |= WS_CLIPSIBLINGS;
         /* WS_MINIMIZE can't be reset */
-        if (win->dwStyle & WS_MINIMIZE) newval |= WS_MINIMIZE;
+        if (state.style & WS_MINIMIZE) newval |= WS_MINIMIZE;
         break;
     case GWL_EXSTYLE:
-        style.styleOld = win->dwExStyle;
+        style.styleOld = state.ex_style;
         style.styleNew = newval;
         release_win_ptr( win );
         send_message( hwnd, WM_STYLECHANGING, GWL_EXSTYLE, (LPARAM)&style );
         if (!(win = get_win_ptr( hwnd )) || win == WND_OTHER_PROCESS) return 0;
         /* WS_EX_TOPMOST can only be changed through SetWindowPos */
-        newval = (style.styleNew & ~WS_EX_TOPMOST) | (win->dwExStyle & WS_EX_TOPMOST);
-        newval = fix_exstyle(win->dwStyle, newval);
+        newval = (style.styleNew & ~WS_EX_TOPMOST) | (state.ex_style & WS_EX_TOPMOST);
+        newval = fix_exstyle(state.style, newval);
         break;
     case GWLP_HWNDPARENT:
         if (win->parent == get_desktop_window())
@@ -1278,7 +1277,7 @@ LONG_PTR set_window_long( HWND hwnd, INT offset, UINT size, LONG_PTR newval, BOO
         case GWL_STYLE:
             req->flags = SET_WIN_STYLE | SET_WIN_EXSTYLE;
             req->style = newval;
-            req->ex_style = fix_exstyle(newval, win->dwExStyle);
+            req->ex_style = fix_exstyle(newval, state.ex_style);
             break;
         case GWL_EXSTYLE:
             req->flags = SET_WIN_EXSTYLE;
@@ -1312,12 +1311,9 @@ LONG_PTR set_window_long( HWND hwnd, INT offset, UINT size, LONG_PTR newval, BOO
             switch(offset)
             {
             case GWL_STYLE:
-                win->dwStyle = newval;
-                win->dwExStyle = fix_exstyle(win->dwStyle, win->dwExStyle);
                 retval = reply->old_style;
                 break;
             case GWL_EXSTYLE:
-                win->dwExStyle = newval;
                 retval = reply->old_ex_style;
                 break;
             case GWLP_ID:
@@ -1346,7 +1342,7 @@ LONG_PTR set_window_long( HWND hwnd, INT offset, UINT size, LONG_PTR newval, BOO
     if (offset == GWL_EXSTYLE && ((style.styleOld ^ style.styleNew) & WS_EX_LAYERED)) layered = TRUE;
     if ((offset == GWL_STYLE && ((style.styleOld ^ style.styleNew) & WS_VISIBLE)) || layered)
     {
-        made_visible = (win->dwStyle & WS_VISIBLE) != 0;
+        made_visible = (state.style & WS_VISIBLE) != 0;
         invalidate_dce( win, NULL );
     }
     release_win_ptr( win );
@@ -1560,10 +1556,17 @@ static void mirror_rect( const RECT *window_rect, RECT *rect )
  */
 BOOL get_window_rects( HWND hwnd, enum coords_relative relative, struct window_rects *rects, UINT dpi )
 {
-    WND *win = get_win_ptr( hwnd );
+    struct window_state state = {0};
+    WND *win;
     BOOL ret = TRUE;
 
-    if (!win)
+    if (!get_window_state( hwnd, &state ))
+    {
+        RtlSetLastWin32Error( ERROR_INVALID_WINDOW_HANDLE );
+        return FALSE;
+    }
+
+    if (!(win = get_win_ptr( hwnd )))
     {
         RtlSetLastWin32Error( ERROR_INVALID_WINDOW_HANDLE );
         return FALSE;
@@ -1598,7 +1601,7 @@ BOOL get_window_rects( HWND hwnd, enum coords_relative relative, struct window_r
             OffsetRect( &rects->window, -win->rects.client.left, -win->rects.client.top );
             OffsetRect( &rects->client, -win->rects.client.left, -win->rects.client.top );
             OffsetRect( &rects->visible, -win->rects.client.left, -win->rects.client.top );
-            if (win->dwExStyle & WS_EX_LAYOUTRTL)
+            if (state.ex_style & WS_EX_LAYOUTRTL)
             {
                 mirror_rect( &win->rects.client, &rects->window );
                 mirror_rect( &win->rects.client, &rects->visible );
@@ -1608,7 +1611,7 @@ BOOL get_window_rects( HWND hwnd, enum coords_relative relative, struct window_r
             OffsetRect( &rects->window, -win->rects.window.left, -win->rects.window.top );
             OffsetRect( &rects->client, -win->rects.window.left, -win->rects.window.top );
             OffsetRect( &rects->visible, -win->rects.window.left, -win->rects.window.top );
-            if (win->dwExStyle & WS_EX_LAYOUTRTL)
+            if (state.ex_style & WS_EX_LAYOUTRTL)
             {
                 mirror_rect( &win->rects.window, &rects->client );
                 mirror_rect( &win->rects.window, &rects->visible );
@@ -1630,7 +1633,7 @@ BOOL get_window_rects( HWND hwnd, enum coords_relative relative, struct window_r
                     release_win_ptr( win );
                     goto other_process;
                 }
-                if (parent->dwExStyle & WS_EX_LAYOUTRTL)
+                if (state.ex_style & WS_EX_LAYOUTRTL)
                 {
                     mirror_rect( &parent->rects.client, &rects->window );
                     mirror_rect( &parent->rects.client, &rects->client );
@@ -1781,11 +1784,13 @@ static NTSTATUS get_window_region( HWND hwnd, BOOL surface, HRGN *region, RECT *
  */
 static void update_surface_region( HWND hwnd )
 {
-    WND *win = get_win_ptr( hwnd );
+    struct window_state state = {0};
+    WND *win;
     HRGN region, shape = 0;
     RECT visible;
 
-    if (!win || win == WND_DESKTOP || win == WND_OTHER_PROCESS) return;
+    if (!get_window_state( hwnd, &state )) return;
+    if (!(win = get_win_ptr( hwnd )) || win == WND_DESKTOP || win == WND_OTHER_PROCESS) return;
     if (!win->surface) goto done;
 
     if (get_window_region( hwnd, FALSE, &shape, &visible )) goto done;
@@ -1793,7 +1798,7 @@ static void update_surface_region( HWND hwnd )
     {
         region = NtGdiCreateRectRgn( 0, 0, visible.right - visible.left, visible.bottom - visible.top );
         NtGdiCombineRgn( shape, shape, region, RGN_AND );
-        if (win->dwExStyle & WS_EX_LAYOUTRTL) NtUserMirrorRgn( hwnd, shape );
+        if (state.ex_style & WS_EX_LAYOUTRTL) NtUserMirrorRgn( hwnd, shape );
         NtGdiDeleteObjectApp( region );
     }
     window_surface_set_shape( win->surface, shape );
@@ -2042,8 +2047,6 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
 
         if ((ret = !wine_server_call( req )))
         {
-            win->dwStyle      = reply->new_style;
-            win->dwExStyle    = reply->new_ex_style;
             win->rects        = *new_rects;
             if ((win->surface = new_surface)) window_surface_add_ref( win->surface );
             surface_win       = wine_server_ptr_handle( reply->surface_win );
@@ -2056,7 +2059,7 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
                 mirror_rect( &client, &win->rects.visible );
             }
             /* if an RTL window is resized the children have moved */
-            if (win->dwExStyle & WS_EX_LAYOUTRTL &&
+            if (reply->new_ex_style & WS_EX_LAYOUTRTL &&
                 new_rects->client.right - new_rects->client.left != old_rects.client.right - old_rects.client.left)
                 win->flags |= WIN_CHILDREN_MOVED;
         }
@@ -2656,12 +2659,12 @@ static RECT get_maximized_work_rect( HWND hwnd )
  *
  * Some applications (e.g. Imperiums: Greek Wars) depend on this.
  */
-static void update_maximized_pos( WND *wnd, RECT *work_rect )
+static void update_maximized_pos( WND *wnd, const struct window_state *state, RECT *work_rect )
 {
     if (wnd->parent && wnd->parent != get_desktop_window())
         return;
 
-    if (wnd->dwStyle & WS_MAXIMIZE)
+    if (state->style & WS_MAXIMIZE)
     {
         if (wnd->rects.window.left  <= work_rect->left  && wnd->rects.window.top    <= work_rect->top &&
             wnd->rects.window.right >= work_rect->right && wnd->rects.window.bottom >= work_rect->bottom)
@@ -2682,10 +2685,12 @@ static BOOL empty_point( POINT pt )
 BOOL WINAPI NtUserGetWindowPlacement( HWND hwnd, WINDOWPLACEMENT *placement )
 {
     RECT work_rect = get_maximized_work_rect( hwnd );
-    WND *win = get_win_ptr( hwnd );
+    struct window_state state = {0};
+    WND *win;
     UINT win_dpi;
 
-    if (!win) return FALSE;
+    if (!get_window_state( hwnd, &state )) return FALSE;
+    if (!(win = get_win_ptr( hwnd ))) return FALSE;
 
     if (win == WND_DESKTOP)
     {
@@ -2726,12 +2731,12 @@ BOOL WINAPI NtUserGetWindowPlacement( HWND hwnd, WINDOWPLACEMENT *placement )
     }
 
     /* update the placement according to the current style */
-    if (win->dwStyle & WS_MINIMIZE)
+    if (state.style & WS_MINIMIZE)
     {
         win->min_pos.x = win->rects.window.left;
         win->min_pos.y = win->rects.window.top;
     }
-    else if (win->dwStyle & WS_MAXIMIZE)
+    else if (state.style & WS_MAXIMIZE)
     {
         win->max_pos.x = win->rects.window.left;
         win->max_pos.y = win->rects.window.top;
@@ -2740,13 +2745,13 @@ BOOL WINAPI NtUserGetWindowPlacement( HWND hwnd, WINDOWPLACEMENT *placement )
     {
         win->normal_rect = win->rects.window;
     }
-    update_maximized_pos( win, &work_rect );
+    update_maximized_pos( win, &state, &work_rect );
 
     placement->length  = sizeof(*placement);
-    if (win->dwStyle & WS_MINIMIZE)
+    if (state.style & WS_MINIMIZE)
         placement->showCmd = SW_SHOWMINIMIZED;
     else
-        placement->showCmd = ( win->dwStyle & WS_MAXIMIZE ) ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL ;
+        placement->showCmd = ( state.style & WS_MAXIMIZE ) ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL ;
     if (win->flags & WIN_RESTORE_MAX)
         placement->flags = WPF_RESTORETOMAXIMIZED;
     else
@@ -2822,7 +2827,8 @@ static void make_point_onscreen( POINT *pt )
 static BOOL set_window_placement( HWND hwnd, const WINDOWPLACEMENT *wndpl, UINT flags )
 {
     RECT work_rect = get_maximized_work_rect( hwnd );
-    WND *win = get_win_ptr( hwnd );
+    struct window_state state = {0};
+    WND *win;
     WINDOWPLACEMENT wp = *wndpl;
     DWORD style;
 
@@ -2838,17 +2844,18 @@ static BOOL set_window_placement( HWND hwnd, const WINDOWPLACEMENT *wndpl, UINT 
            (int)wp.ptMaxPosition.x, (int)wp.ptMaxPosition.y,
            wine_dbgstr_rect(&wp.rcNormalPosition) );
 
-    if (!win || win == WND_OTHER_PROCESS || win == WND_DESKTOP) return FALSE;
+    if (!get_window_state( hwnd, &state )) return FALSE;
+    if (!(win = get_win_ptr( hwnd )) || win == WND_OTHER_PROCESS || win == WND_DESKTOP) return FALSE;
 
     if (flags & PLACE_MIN) win->min_pos = point_thread_to_win_dpi( hwnd, wp.ptMinPosition );
     if (flags & PLACE_MAX)
     {
         win->max_pos = point_thread_to_win_dpi( hwnd, wp.ptMaxPosition );
-        update_maximized_pos( win, &work_rect );
+        update_maximized_pos( win, &state, &work_rect );
     }
     if (flags & PLACE_RECT) win->normal_rect = rect_thread_to_win_dpi( hwnd, wp.rcNormalPosition );
 
-    style = win->dwStyle;
+    style = state.style;
 
     release_win_ptr( win );
 
@@ -3053,6 +3060,8 @@ static BOOL get_windows_offset( HWND hwnd_from, HWND hwnd_to, UINT dpi, BOOL *mi
     /* Translate source window origin to screen coords */
     if (hwnd_from)
     {
+        struct window_state state = {0};
+        if (!get_window_state( hwnd_from, &state )) return FALSE;
         if (!(win = get_win_ptr( hwnd_from )))
         {
             RtlSetLastWin32Error( ERROR_INVALID_WINDOW_HANDLE );
@@ -3062,7 +3071,7 @@ static BOOL get_windows_offset( HWND hwnd_from, HWND hwnd_to, UINT dpi, BOOL *mi
         if (win != WND_DESKTOP)
         {
             UINT raw_dpi, dpi_from = dpi ? dpi : get_win_monitor_dpi( hwnd_from, &raw_dpi );
-            if (win->dwExStyle & WS_EX_LAYOUTRTL)
+            if (state.ex_style & WS_EX_LAYOUTRTL)
             {
                 mirror_from = TRUE;
                 offset.x += win->rects.client.right - win->rects.client.left;
@@ -3090,6 +3099,8 @@ static BOOL get_windows_offset( HWND hwnd_from, HWND hwnd_to, UINT dpi, BOOL *mi
     /* Translate origin to destination window coords */
     if (hwnd_to)
     {
+        struct window_state state = {0};
+        if (!get_window_state( hwnd_to, &state )) return FALSE;
         if (!(win = get_win_ptr( hwnd_to )))
         {
             RtlSetLastWin32Error( ERROR_INVALID_WINDOW_HANDLE );
@@ -3100,7 +3111,7 @@ static BOOL get_windows_offset( HWND hwnd_from, HWND hwnd_to, UINT dpi, BOOL *mi
         {
             UINT raw_dpi, dpi_to = dpi ? dpi : get_win_monitor_dpi( hwnd_to, &raw_dpi );
             POINT pt = { 0, 0 };
-            if (win->dwExStyle & WS_EX_LAYOUTRTL)
+            if (state.ex_style & WS_EX_LAYOUTRTL)
             {
                 mirror_to = TRUE;
                 pt.x += win->rects.client.right - win->rects.client.left;
@@ -3300,6 +3311,7 @@ static void map_dpi_winpos( WINDOWPOS *winpos )
  */
 static BOOL calc_winpos( WINDOWPOS *winpos, struct window_rects *old_rects, struct window_rects *new_rects )
 {
+    struct window_state state = {0};
     WND *win;
 
     /* Send WM_WINDOWPOSCHANGING message */
@@ -3307,6 +3319,7 @@ static BOOL calc_winpos( WINDOWPOS *winpos, struct window_rects *old_rects, stru
            && !((winpos->flags & SWP_AGG_NOCLIENTCHANGE) && (winpos->flags & SWP_SHOWWINDOW)))
         send_message( winpos->hwnd, WM_WINDOWPOSCHANGING, 0, (LPARAM)winpos );
 
+    if (!get_window_state( winpos->hwnd, &state )) return FALSE;
     if (!(win = get_win_ptr( winpos->hwnd )) ||
         win == WND_OTHER_PROCESS || win == WND_DESKTOP) return FALSE;
 
@@ -3317,7 +3330,7 @@ static BOOL calc_winpos( WINDOWPOS *winpos, struct window_rects *old_rects, stru
 
     if (!(winpos->flags & SWP_NOSIZE))
     {
-        if (win->dwStyle & WS_MINIMIZE)
+        if (state.style & WS_MINIMIZE)
         {
             new_rects->window.right  = new_rects->window.left + get_system_metrics( SM_CXMINIMIZED );
             new_rects->window.bottom = new_rects->window.top + get_system_metrics( SM_CYMINIMIZED );
@@ -3332,7 +3345,7 @@ static BOOL calc_winpos( WINDOWPOS *winpos, struct window_rects *old_rects, stru
     if (!(winpos->flags & SWP_NOMOVE))
     {
         /* If the window is toplevel minimized off-screen, force keep it there */
-        if ((win->dwStyle & WS_MINIMIZE) &&
+        if ((state.style & WS_MINIMIZE) &&
              win->rects.window.left <= -32000 && win->rects.window.top <= -32000 &&
             (!win->parent || win->parent == get_desktop_window()))
         {
@@ -3352,7 +3365,7 @@ static BOOL calc_winpos( WINDOWPOS *winpos, struct window_rects *old_rects, stru
     winpos->flags |= SWP_NOCLIENTMOVE | SWP_NOCLIENTSIZE;
 
     TRACE( "hwnd %p, after %p, swp %d,%d %dx%d flags %08x style %08x old_rects %s new_rects %s\n",
-           winpos->hwnd, winpos->hwndInsertAfter, winpos->x, winpos->y, winpos->cx, winpos->cy, winpos->flags, win->dwStyle,
+           winpos->hwnd, winpos->hwndInsertAfter, winpos->x, winpos->y, winpos->cx, winpos->cy, winpos->flags, state.style,
            debugstr_window_rects( old_rects ), debugstr_window_rects( new_rects ) );
 
     release_win_ptr( win );
@@ -3503,11 +3516,13 @@ static UINT calc_ncsize( WINDOWPOS *winpos, const struct window_rects *old_rects
 /* fix redundant flags and values in the WINDOWPOS structure */
 static BOOL fixup_swp_flags( WINDOWPOS *winpos, const RECT *old_window_rect, int parent_x, int parent_y )
 {
+    struct window_state state = {0};
     HWND parent;
-    WND *win = get_win_ptr( winpos->hwnd );
+    WND *win;
     BOOL ret = TRUE;
 
-    if (!win || win == WND_OTHER_PROCESS)
+    if (!get_window_state( winpos->hwnd, &state )) return FALSE;
+    if (!(win = get_win_ptr( winpos->hwnd )) || win == WND_OTHER_PROCESS)
     {
         RtlSetLastWin32Error( ERROR_INVALID_WINDOW_HANDLE );
         return FALSE;
@@ -3528,7 +3543,7 @@ static BOOL fixup_swp_flags( WINDOWPOS *winpos, const RECT *old_window_rect, int
     parent = NtUserGetAncestor( winpos->hwnd, GA_PARENT );
     if (!is_window_visible( parent )) winpos->flags |= SWP_NOREDRAW;
 
-    if (win->dwStyle & WS_VISIBLE) winpos->flags &= ~SWP_SHOWWINDOW;
+    if (state.style & WS_VISIBLE) winpos->flags &= ~SWP_SHOWWINDOW;
     else
     {
         winpos->flags &= ~SWP_HIDEWINDOW;
@@ -3542,7 +3557,7 @@ static BOOL fixup_swp_flags( WINDOWPOS *winpos, const RECT *old_window_rect, int
     if ((old_window_rect->left - parent_x == winpos->x) && (old_window_rect->top - parent_y == winpos->y))
         winpos->flags |= SWP_NOMOVE;    /* Already the right position */
 
-    if ((win->dwStyle & (WS_POPUP | WS_CHILD)) != WS_CHILD)
+    if ((state.style & (WS_POPUP | WS_CHILD)) != WS_CHILD)
     {
         if (!(winpos->flags & (SWP_NOACTIVATE|SWP_HIDEWINDOW)) && /* Bring to the top when activating */
             (winpos->flags & SWP_NOZORDER ||
@@ -3563,19 +3578,19 @@ static BOOL fixup_swp_flags( WINDOWPOS *winpos, const RECT *old_window_rect, int
     }
     else if (winpos->hwndInsertAfter == HWND_BOTTOM)
     {
-        if (!(win->dwExStyle & WS_EX_TOPMOST) &&
+        if (!(state.ex_style & WS_EX_TOPMOST) &&
             get_window_relative( winpos->hwnd, GW_HWNDLAST ) == winpos->hwnd)
             winpos->flags |= SWP_NOZORDER;
     }
     else if (winpos->hwndInsertAfter == HWND_TOPMOST)
     {
-        if ((win->dwExStyle & WS_EX_TOPMOST) &&
+        if ((state.ex_style & WS_EX_TOPMOST) &&
             get_window_relative( winpos->hwnd, GW_HWNDFIRST ) == winpos->hwnd)
             winpos->flags |= SWP_NOZORDER;
     }
     else if (winpos->hwndInsertAfter == HWND_NOTOPMOST)
     {
-        if (!(win->dwExStyle & WS_EX_TOPMOST))
+        if (!(state.ex_style & WS_EX_TOPMOST))
             winpos->flags |= SWP_NOZORDER;
     }
     else
@@ -4549,6 +4564,7 @@ void update_window_state( HWND hwnd )
  */
 static BOOL show_window( HWND hwnd, INT cmd )
 {
+    struct window_state state = {0};
     WND *win;
     HWND parent;
     LONG style = get_window_long( hwnd, GWL_STYLE ), new_style;
@@ -4685,6 +4701,7 @@ static BOOL show_window( HWND hwnd, INT cmd )
         goto done;
     }
 
+    if (!get_window_state( hwnd, &state )) goto done;
     if (!(win = get_win_ptr( hwnd )) || win == WND_OTHER_PROCESS) goto done;
 
     if (win->flags & WIN_NEED_SIZE)
@@ -4697,8 +4714,8 @@ static BOOL show_window( HWND hwnd, INT cmd )
         get_client_rect_rel( hwnd, COORDS_PARENT, &client, get_thread_dpi() );
         lparam = MAKELONG( client.right - client.left, client.bottom - client.top );
         win->flags &= ~WIN_NEED_SIZE;
-        if (win->dwStyle & WS_MAXIMIZE) wParam = SIZE_MAXIMIZED;
-        else if (win->dwStyle & WS_MINIMIZE)
+        if (state.style & WS_MAXIMIZE) wParam = SIZE_MAXIMIZED;
+        else if (state.style & WS_MINIMIZE)
         {
             wParam = SIZE_MINIMIZED;
             lparam = 0;
@@ -5029,6 +5046,7 @@ static void free_window_handle( HWND hwnd )
 LRESULT destroy_window( HWND hwnd )
 {
     struct list vulkan_surfaces = LIST_INIT(vulkan_surfaces);
+    struct window_state state = {0};
     struct window_surface *surface;
     HMENU menu = 0, sys_menu;
     WND *win;
@@ -5068,8 +5086,9 @@ LRESULT destroy_window( HWND hwnd )
 
     /* free resources associated with the window */
 
+    if (!get_window_state( hwnd, &state )) return 0;
     if (!(win = get_win_ptr( hwnd )) || win == WND_OTHER_PROCESS) return 0;
-    if ((win->dwStyle & (WS_CHILD | WS_POPUP)) != WS_CHILD)
+    if ((state.style & (WS_CHILD | WS_POPUP)) != WS_CHILD)
         menu = (HMENU)win->wIDmenu;
     sys_menu = win->hSysMenu;
     free_dce( win->dce, hwnd );
@@ -5181,6 +5200,14 @@ BOOL WINAPI NtUserDestroyWindow( HWND hwnd )
     return user_destroy_window( hwnd, TRUE );
 }
 
+static void free_window_menu( HWND hwnd, WND *win )
+{
+    struct window_state state = {0};
+    if (!get_window_state( hwnd, &state )) return;
+    if ((state.style & (WS_CHILD | WS_POPUP)) == WS_CHILD) return;
+    if (win->wIDmenu) NtUserDestroyMenu( UlongToHandle(win->wIDmenu) );
+}
+
 /*****************************************************************************
  *           destroy_thread_windows
  *
@@ -5196,6 +5223,7 @@ void destroy_thread_windows(void)
     {
         if (win->tid != GetCurrentThreadId()) continue;
         free_dce( win->dce, win->obj.handle );
+        free_window_menu( handle, win );
         set_user_handle_ptr( handle, NULL );
         win->userdata = (UINT_PTR)free_list;
         free_list = win;
@@ -5219,8 +5247,6 @@ void destroy_thread_windows(void)
         user_driver->pDestroyWindow( win->obj.handle );
         vulkan_detach_surfaces( &win->vulkan_surfaces );
 
-        if ((win->dwStyle & (WS_CHILD | WS_POPUP)) != WS_CHILD && win->wIDmenu)
-            NtUserDestroyMenu( UlongToHandle(win->wIDmenu) );
         if (win->hSysMenu) NtUserDestroyMenu( win->hSysMenu );
         if (win->surface)
         {
@@ -5493,8 +5519,6 @@ HWND WINAPI NtUserCreateWindowEx( DWORD ex_style, UNICODE_STRING *class_name,
     win->tid         = GetCurrentThreadId();
     win->hInstance   = cs.hInstance;
     win->text        = NULL;
-    win->dwStyle     = style;
-    win->dwExStyle   = ex_style;
     win->wIDmenu     = 0;
     win->helpContext = 0;
     win->pScroll     = NULL;
@@ -5508,7 +5532,7 @@ HWND WINAPI NtUserCreateWindowEx( DWORD ex_style, UNICODE_STRING *class_name,
     win->max_pos.x = win->max_pos.y = -1;
     SetRect( &win->normal_rect, cs.x, cs.y, cs.x + cs.cx, cs.y + cs.cy );
 
-    if (win->dwStyle & WS_SYSMENU) NtUserSetSystemMenu( hwnd, 0 );
+    if (style & WS_SYSMENU) NtUserSetSystemMenu( hwnd, 0 );
 
     win->imc = get_default_input_context();
 
@@ -5530,26 +5554,24 @@ HWND WINAPI NtUserCreateWindowEx( DWORD ex_style, UNICODE_STRING *class_name,
      * It affects only the style loaded into the WND structure.
      */
 
-    if ((win->dwStyle & (WS_CHILD | WS_POPUP)) != WS_CHILD)
+    if ((style & (WS_CHILD | WS_POPUP)) != WS_CHILD)
     {
-        win->dwStyle |= WS_CLIPSIBLINGS;
-        if (!(win->dwStyle & WS_POPUP)) win->dwStyle |= WS_CAPTION;
+        style |= WS_CLIPSIBLINGS;
+        if (!(style & WS_POPUP)) style |= WS_CAPTION;
     }
 
-    win->dwExStyle = cs.dwExStyle;
+    ex_style = cs.dwExStyle;
     /* WS_EX_WINDOWEDGE depends on some other styles */
-    if ((win->dwStyle & (WS_DLGFRAME | WS_THICKFRAME)) &&
-            !(win->dwStyle & (WS_CHILD | WS_POPUP)))
-        win->dwExStyle |= WS_EX_WINDOWEDGE;
-
-    if (!(win->dwStyle & (WS_CHILD | WS_POPUP))) win->flags |= WIN_NEED_SIZE;
+    if ((style & (WS_DLGFRAME | WS_THICKFRAME)) && !(style & (WS_CHILD | WS_POPUP)))
+        ex_style |= WS_EX_WINDOWEDGE;
+    if (!(style & (WS_CHILD | WS_POPUP))) win->flags |= WIN_NEED_SIZE;
 
     SERVER_START_REQ( set_window_info )
     {
         req->handle     = wine_server_user_handle( hwnd );
         req->flags      = SET_WIN_STYLE | SET_WIN_EXSTYLE | SET_WIN_INSTANCE | SET_WIN_UNICODE;
-        req->style      = win->dwStyle;
-        req->ex_style   = win->dwExStyle;
+        req->style      = style;
+        req->ex_style   = ex_style;
         req->instance   = wine_server_client_ptr( win->hInstance );
         req->is_unicode = (win->flags & WIN_ISUNICODE) != 0;
         req->extra_offset = -1;
@@ -5559,7 +5581,7 @@ HWND WINAPI NtUserCreateWindowEx( DWORD ex_style, UNICODE_STRING *class_name,
 
     /* Set the window menu */
 
-    if ((win->dwStyle & (WS_CHILD | WS_POPUP)) != WS_CHILD)
+    if ((style & (WS_CHILD | WS_POPUP)) != WS_CHILD)
     {
         if (cs.hMenu && !set_window_menu( hwnd, cs.hMenu ))
         {
