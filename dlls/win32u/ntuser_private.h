@@ -72,7 +72,6 @@ typedef struct tagWND
     HICON              hIconSmall2;   /* window's secondary small icon, derived from hIcon */
     HIMC               imc;           /* window's input context */
     HMONITOR           monitor;
-    UINT               dpi_context;   /* window DPI awareness context */
     UINT               monitor_dpi;   /* DPI of the window's monitor */
     UINT               raw_dpi;       /* raw DPI of the window's monitor */
     struct window_surface *surface;   /* Window surface if any */
