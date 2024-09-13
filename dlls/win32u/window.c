@@ -414,7 +414,6 @@ HWND WINAPI NtUserSetParent( HWND hwnd, HWND parent )
         {
             old_parent = wine_server_ptr_handle( reply->old_parent );
             win->parent = parent = wine_server_ptr_handle( reply->full_parent );
-            win->dpi_context = reply->dpi_context;
         }
 
     }
@@ -824,30 +823,19 @@ BOOL is_window_enabled( HWND hwnd )
 /* see GetWindowDpiAwarenessContext */
 UINT get_window_dpi_awareness_context( HWND hwnd )
 {
-    UINT ret = 0;
-    WND *win;
+    struct object_lock lock = OBJECT_LOCK_INIT;
+    const window_shm_t *window_shm;
+    UINT status, ctx = 0;
 
-    if (!(win = get_win_ptr( hwnd )))
+    while ((status = get_shared_window( hwnd, &lock, &window_shm )) == STATUS_PENDING)
+        ctx = window_shm->dpi_context;
+    if (status)
     {
         RtlSetLastWin32Error( ERROR_INVALID_WINDOW_HANDLE );
         return 0;
     }
-    if (win == WND_DESKTOP) return NTUSER_DPI_PER_MONITOR_AWARE;
-    if (win != WND_OTHER_PROCESS)
-    {
-        ret = win->dpi_context;
-        release_win_ptr( win );
-    }
-    else
-    {
-        SERVER_START_REQ( get_window_info )
-        {
-            req->handle = wine_server_user_handle( hwnd );
-            if (!wine_server_call_err( req )) ret = reply->dpi_context;
-        }
-        SERVER_END_REQ;
-    }
-    return ret;
+
+    return ctx;
 }
 
 /* see GetDpiForWindow */
@@ -5293,7 +5281,6 @@ static WND *create_window_handle( HWND parent, HWND owner, UNICODE_STRING *name,
             full_parent = wine_server_ptr_handle( reply->parent );
             full_owner  = wine_server_ptr_handle( reply->owner );
             extra_bytes = reply->extra;
-            dpi_context = reply->dpi_context;
             class       = wine_server_get_ptr( reply->class_ptr );
         }
     }
@@ -5346,7 +5333,6 @@ static WND *create_window_handle( HWND parent, HWND owner, UNICODE_STRING *name,
     win->class      = class;
     win->winproc    = get_class_winproc( class );
     win->cbWndExtra = extra_bytes;
-    win->dpi_context = dpi_context;
     list_init( &win->vulkan_surfaces );
     set_user_handle_ptr( handle, &win->obj );
     if (is_winproc_unicode( win->winproc, !ansi )) win->flags |= WIN_ISUNICODE;
@@ -5599,9 +5585,9 @@ HWND WINAPI NtUserCreateWindowEx( DWORD ex_style, UNICODE_STRING *class_name,
     }
     else NtUserSetWindowLongPtr( hwnd, GWLP_ID, (ULONG_PTR)cs.hMenu, FALSE );
 
-    win_dpi = NTUSER_DPI_CONTEXT_GET_DPI( win->dpi_context );
     release_win_ptr( win );
 
+    win_dpi = get_dpi_for_window( hwnd );
     if (parent) map_dpi_create_struct( &cs, win_dpi );
 
     context = set_thread_dpi_awareness_context( get_window_dpi_awareness_context( hwnd ));
