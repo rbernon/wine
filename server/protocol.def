@@ -2582,8 +2582,6 @@ enum message_type
 @REPLY
     obj_locator_t  locator;     /* locator for the shared session object */
     user_handle_t  last_active; /* last active popup */
-    process_id_t   pid;         /* process owning the window */
-    thread_id_t    tid;         /* thread owning the window */
     int            is_unicode;  /* ANSI or unicode */
     unsigned int   dpi_context; /* window DPI context */
 @END
