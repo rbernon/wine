@@ -455,6 +455,7 @@
 @ thiscall -arch=i386 ??Bios@@QBEPAXXZ(ptr) ios_op_void
 @ cdecl -arch=win64 ??Bios@@QEBAPEAXXZ(ptr) ios_op_void
 @ extern ??_7exception@@6B@ exception_vtable
+@ extern ??_7type_info@@6B@ type_info_vtable
 @ extern ??_7filebuf@@6B@ filebuf_vtable
 @ extern ??_7fstream@@6B@ fstream_vtable
 @ extern ??_7ifstream@@6B@ ifstream_vtable
