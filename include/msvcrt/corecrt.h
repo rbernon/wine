@@ -205,6 +205,15 @@ typedef unsigned int size_t;
 #define _SIZE_T_DEFINED
 #endif
 
+#ifndef _SSIZE_T_DEFINED
+#ifdef _WIN64
+typedef __int64 ssize_t;
+#else
+typedef int ssize_t;
+#endif
+#define _SSIZE_T_DEFINED
+#endif
+
 #ifndef _TIME32_T_DEFINED
 typedef __msvcrt_long __time32_t;
 #define _TIME32_T_DEFINED
