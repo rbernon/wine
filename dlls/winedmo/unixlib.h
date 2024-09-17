@@ -80,6 +80,7 @@ struct sample
     INT64 pts;
     UINT64 duration;
     UINT64 size;
+    UINT64 stride;
     UINT64 data; /* pointer to user memory */
 };
 
