@@ -278,26 +278,14 @@ HWND is_current_process_window( HWND hwnd )
 /* see IsWindow */
 BOOL is_window( HWND hwnd )
 {
-    WND *win;
-    BOOL ret;
+    struct object_lock lock = OBJECT_LOCK_INIT;
+    const window_shm_t *window_shm;
+    UINT status;
 
-    if (!(win = get_win_ptr( hwnd ))) return FALSE;
-    if (win == WND_DESKTOP) return TRUE;
+    while ((status = get_shared_window( hwnd, &lock, &window_shm )) == STATUS_PENDING)
+        /* nothing to do */;
 
-    if (win != WND_OTHER_PROCESS)
-    {
-        release_win_ptr( win );
-        return TRUE;
-    }
-
-    /* check other processes */
-    SERVER_START_REQ( get_window_info )
-    {
-        req->handle = wine_server_user_handle( hwnd );
-        ret = !wine_server_call_err( req );
-    }
-    SERVER_END_REQ;
-    return ret;
+    return !status;
 }
 
 /* see GetWindowThreadProcessId */
