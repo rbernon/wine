@@ -118,7 +118,9 @@ BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
 
 static void buffer_lock( DMO_OUTPUT_DATA_BUFFER *buffer, BOOL read, struct sample *sample )
 {
-    BYTE *data;
+    BYTE *data, *scanline0;
+    IMF2DBuffer2 *buffer2;
+    LONG pitch = 0;
     HRESULT hr;
     DWORD size;
 
@@ -144,18 +146,36 @@ static void buffer_lock( DMO_OUTPUT_DATA_BUFFER *buffer, BOOL read, struct sampl
         if (buffer->dwStatus & DMO_OUTPUT_DATA_BUFFERF_SYNCPOINT) sample->flags |= SAMPLE_FLAG_SYNC_POINT;
     }
 
-    if (FAILED(hr = IMediaBuffer_GetBufferAndLength( buffer->pBuffer, &data, &size )))
-        ERR( "Failed to get media buffer data %p, hr %#lx\n", buffer, hr );
-    if (!read && FAILED(hr = IMediaBuffer_GetMaxLength( buffer->pBuffer, &size )))
-        ERR( "Failed to get media buffer max length %p, hr %#lx\n", buffer, hr );
+    if (SUCCEEDED(hr = IMediaBuffer_QueryInterface( buffer->pBuffer, &IID_IMF2DBuffer2, (void **)&buffer2 )))
+    {
+        hr = IMF2DBuffer2_Lock2DSize( buffer2, read ? MF2DBuffer_LockFlags_Read : MF2DBuffer_LockFlags_Write,
+                                      &scanline0, &pitch, &data, &size );
+        if (FAILED(hr)) ERR( "Failed to lock 2D buffer %p, hr %#lx\n", buffer, hr );
+        IMF2DBuffer2_Release( buffer2 );
+    }
+    if (FAILED(hr))
+    {
+        if (FAILED(hr = IMediaBuffer_GetBufferAndLength( buffer->pBuffer, &data, &size )))
+            ERR( "Failed to get media buffer data %p, hr %#lx\n", buffer, hr );
+        if (!read && FAILED(hr = IMediaBuffer_GetMaxLength( buffer->pBuffer, &size )))
+            ERR( "Failed to get media buffer max length %p, hr %#lx\n", buffer, hr );
+    }
 
+    sample->stride = abs( pitch );
     sample->data = (UINT_PTR)data;
     sample->size = size;
 }
 
 static void buffer_unlock( DMO_OUTPUT_DATA_BUFFER *buffer, BOOL read, struct sample *sample, NTSTATUS status )
 {
+    IMF2DBuffer2 *buffer2;
     HRESULT hr;
+
+    if (sample->stride && SUCCEEDED(hr = IMediaBuffer_QueryInterface( buffer->pBuffer, &IID_IMF2DBuffer2, (void **)&buffer2 )))
+    {
+        if (FAILED(hr = IMF2DBuffer2_Unlock2D( buffer2 ))) ERR( "Failed to unlock 2D buffer %p, hr %#lx\n", buffer, hr );
+        IMF2DBuffer2_Release( buffer2 );
+    }
 
     if (!read)
     {
