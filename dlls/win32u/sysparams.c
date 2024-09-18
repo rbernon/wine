@@ -4934,6 +4934,7 @@ static DWORD get_config_key( HKEY defkey, HKEY appkey, const char *name,
 void sysparams_init(void)
 {
     WCHAR buffer[MAX_PATH+16], *p, *appname;
+    BOOL force_dpi_awareness = FALSE;
     DWORD i, dispos, dpi_scaling;
     WCHAR layout[KL_NAMELENGTH];
     pthread_mutexattr_t attr;
@@ -5032,8 +5033,12 @@ void sysparams_init(void)
         grab_fullscreen = IS_OPTION_TRUE( buffer[0] );
     if (!get_config_key( hkey, appkey, "Decorated", buffer, sizeof(buffer) ))
         decorated_mode = IS_OPTION_TRUE( buffer[0] );
+    if (!get_config_key( hkey, appkey, "ForceDpiAwareness", buffer, sizeof(buffer) ))
+        force_dpi_awareness = IS_OPTION_TRUE( buffer[0] );
 
 #undef IS_OPTION_TRUE
+
+    if (force_dpi_awareness) NtUserSetProcessDpiAwarenessContext( NTUSER_DPI_PER_MONITOR_AWARE, 0 );
 }
 
 static BOOL update_desktop_wallpaper(void)
