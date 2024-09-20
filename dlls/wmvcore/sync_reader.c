@@ -2357,7 +2357,7 @@ static HRESULT WINAPI reader_Open(IWMSyncReader2 *iface, const WCHAR *filename)
     reader->winedmo_stream.p_seek = reader_seek_file_cb;
     reader->winedmo_stream.p_read = reader_read_file_cb;
 
-    if ((status = winedmo_demuxer_create(filename, &reader->winedmo_stream, &reader->file_size, &reader->duration,
+    if ((status = winedmo_demuxer_create(filename, &reader->winedmo_stream, reader->file_size, &reader->duration,
             &reader->stream_count, mime_type, &reader->winedmo_demuxer)))
         hr = HRESULT_FROM_WIN32(status);
 
@@ -2435,7 +2435,7 @@ static HRESULT WINAPI reader_OpenStream(IWMSyncReader2 *iface, IStream *stream)
     reader->winedmo_stream.p_seek = reader_seek_stream_cb;
     reader->winedmo_stream.p_read = reader_read_stream_cb;
 
-    if ((status = winedmo_demuxer_create(NULL, &reader->winedmo_stream, &reader->file_size, &reader->duration,
+    if ((status = winedmo_demuxer_create(NULL, &reader->winedmo_stream, reader->file_size, &reader->duration,
             &reader->stream_count, mime_type, &reader->winedmo_demuxer)))
         hr = HRESULT_FROM_WIN32(status);
 
