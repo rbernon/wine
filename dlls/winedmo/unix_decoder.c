@@ -30,6 +30,11 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(dmo);
 
+static inline const char *debugstr_averr( int err )
+{
+    return wine_dbg_sprintf( "%d (%s)", err, av_err2str(err) );
+}
+
 static int ffmpeg_decoder_destroy( struct decoder *decoder )
 {
     free( decoder );
@@ -93,7 +98,7 @@ static int context_create_from_parameters( const AVCodecParameters *par, AVRatio
 
     if ((ret = avcodec_open2( *context, codec, NULL )) < 0)
     {
-        ERR( "Failed to open decoder context, ret %d\n", ret );
+        ERR( "Failed to open decoder context, error %s\n", debugstr_averr(ret) );
         avcodec_free_context( context );
     }
 

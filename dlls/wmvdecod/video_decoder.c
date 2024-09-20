@@ -1815,8 +1815,6 @@ static HRESULT WINAPI wmv_decoder_factory_CreateInstance(IClassFactory *iface, I
     }
 
     *out = NULL;
-    if (outer)
-        return CLASS_E_NOAGGREGATION;
     if (FAILED(hr = video_decoder_create_with_types(wmv_decoder_input_types, ARRAY_SIZE(wmv_decoder_input_types),
             wmv_decoder_output_types, ARRAY_SIZE(wmv_decoder_output_types), outer, &decoder)))
         return hr;
@@ -1826,8 +1824,13 @@ static HRESULT WINAPI wmv_decoder_factory_CreateInstance(IClassFactory *iface, I
     decoder->IPropertyStore_iface.lpVtbl = &property_store_vtbl;
     TRACE("Created %p\n", decoder);
 
-    hr = IMFTransform_QueryInterface(&decoder->IMFTransform_iface, riid, out);
-    IMFTransform_Release(&decoder->IMFTransform_iface);
+    if (outer) *out = &decoder->IUnknown_inner;
+    else
+    {
+        hr = IMFTransform_QueryInterface(&decoder->IMFTransform_iface, riid, out);
+        IMFTransform_Release(&decoder->IMFTransform_iface);
+    }
+
     return hr;
 }
 
