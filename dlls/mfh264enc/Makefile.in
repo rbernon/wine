@@ -1,5 +1,5 @@
 MODULE    = mfh264enc.dll
-IMPORTS   = combase mfplat mfuuid dmoguids strmiids wmcodecdspuuid uuid
+IMPORTS   = combase mfplat msdmo mfuuid dmoguids strmiids wmcodecdspuuid uuid winedmo
 
 SOURCES = \
 	mfh264enc.c \

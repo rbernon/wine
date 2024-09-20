@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Shaun Ren for CodeWeavers
+ * Copyright 2024 Rémi Bernon for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,19 +16,25 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#ifndef __IR50_PRIVATE_H
-#define __IR50_PRIVATE_H
+#include "config.h"
 
-#include <windef.h>
+#include <stddef.h>
+#include <stdarg.h>
 
-#define COBJMACROS
-#include "mfapi.h"
-#include "mferror.h"
-#include "mfobjects.h"
-#include "mfidl.h"
-#include "mftransform.h"
+struct decoder;
+struct decoder_ops
+{
+    int (*destroy)(struct decoder *iface);
+    int (*process_input)(struct decoder *iface, AVPacket *packet);
+    int (*process_output)(struct decoder *iface, AVFrame *frame);
+    int (*flush)(struct decoder *iface);
+};
 
-#define IDS_NAME        100
-#define IDS_DESCRIPTION 101
-
-#endif /* __IR50_PRIVATE_H */
+struct decoder
+{
+    const struct decoder_ops *ops;
+    AVCodecContext *context;
+    AVPacket *input_packet;
+    unsigned draining : 1;
+    unsigned flushing : 1;
+};
