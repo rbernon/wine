@@ -79,6 +79,7 @@ static INT64 get_context_duration( const AVFormatContext *ctx )
         if (max_duration == AV_NOPTS_VALUE) max_duration = duration;
     }
 
+    if (max_duration == AV_NOPTS_VALUE) return get_user_time( ctx->duration, AV_TIME_BASE_Q );
     return max_duration;
 }
 
@@ -264,7 +265,7 @@ static NTSTATUS demuxer_filter_packet( struct demuxer *demuxer, AVPacket **packe
     } while (!ret || ret == AVERROR(EAGAIN));
 
     ERR( "Failed to read packet from demuxer %p, error %s.\n", demuxer, debugstr_averr( ret ) );
-    return STATUS_UNSUCCESSFUL;
+    return STATUS_END_OF_FILE;
 }
 
 NTSTATUS demuxer_read( void *arg )
