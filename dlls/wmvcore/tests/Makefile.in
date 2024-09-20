@@ -3,4 +3,5 @@ IMPORTS   = ole32 wmvcore
 
 SOURCES = \
 	rsrc.rc \
+	games.c \
 	wmvcore.c
