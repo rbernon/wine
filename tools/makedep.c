@@ -2274,8 +2274,8 @@ static struct strarray get_default_imports( const struct makefile *make, struct 
             crt_dll = imports.str[i];
 
     strarray_add( &ret, "winecrt0" );
-    if (crt_dll) strarray_add( &ret, crt_dll );
     strarray_add( &ret, "winecrtd" );
+    if (crt_dll) strarray_add( &ret, crt_dll );
 
     if (make->is_win16 && (!make->importlib || strcmp( make->importlib, "kernel" )))
         strarray_add( &ret, "kernel" );
@@ -3210,7 +3210,6 @@ static void output_source_one_arch( struct makefile *make, struct incl_file *sou
     }
     else if (archs.count > 1 && is_using_msvcrt( make ))
     {
-        if (!so_dll_supported) return;
         if (!(source->file->flags & FLAG_C_IMPLIB) && (!make->staticlib || make->extlib)) return;
     }
 
@@ -3954,7 +3953,7 @@ static void output_sources( struct makefile *make )
     if (make->staticlib)
     {
         for (arch = 0; arch < archs.count; arch++)
-            if (is_multiarch( arch ) || (so_dll_supported && !make->extlib))
+            if (is_multiarch( arch ) || !make->extlib)
                 output_static_lib( make, arch );
     }
     else if (make->module)
