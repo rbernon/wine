@@ -280,12 +280,6 @@ srgb_to_linear(GLfloat c)
    return powf((c + 0.055f) / 1.055f, 2.4f);
 }
 
-static void __stdcall wined3d_debug_callback(GLenum source, GLenum type, GLuint id,
-        GLenum severity, GLsizei length, const char *message, const void *ctx)
-{
-   fprintf(stderr, "%p: %s.\n", ctx, message);
-}
-
 static void
 init(void)
 {
@@ -377,11 +371,6 @@ WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 static void
 make_window(const char *name, int x, int y, int width, int height)
 {
-   const int attribs [] = { WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
-                            WGL_CONTEXT_MINOR_VERSION_ARB, 4,
-                            WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_DEBUG_BIT_ARB | WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB,
-                            WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
-                            0 };
    int pixelFormat;
    WNDCLASSA wc;
    DWORD dwExStyle, dwStyle;
@@ -460,11 +449,6 @@ make_window(const char *name, int x, int y, int width, int height)
 
    gladLoadWGL(hDC);
 
-   wglMakeCurrent(hDC, NULL);
-   wglDeleteContext(hRC);
-   hRC = wglCreateContextAttribsARB(hDC, 0, attribs);
-   wglMakeCurrent(hDC, hRC);
-
    if (use_srgb || samples > 0) {
       static const float float_attribs[] = { 0 };
       int int_attribs[64] = {
@@ -524,8 +508,7 @@ make_window(const char *name, int x, int y, int width, int height)
 
       hDC = GetDC(hWnd);
       SetPixelFormat(hDC, pixelFormat, &pfd);
-
-      hRC = wglCreateContextAttribsARB(hDC, 0, attribs);
+      hRC = wglCreateContext(hDC);
       wglMakeCurrent(hDC, hRC);
    }
 
@@ -736,10 +719,6 @@ main(int argc, char *argv[])
    }
 
    init();
-
-   glDebugMessageCallback(wined3d_debug_callback, NULL);
-   glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-   glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
 
    event_loop();
 
