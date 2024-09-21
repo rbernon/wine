@@ -66,6 +66,107 @@ DEFINE_GUID(mft_output_sample_incomplete,0xffffff,0xffff,0xffff,0xff,0xff,0xff,0
 
 static const GUID test_attr_guid = {0xdeadbeef};
 
+extern const char *debugstr_mf_guid(const GUID *guid);
+
+void dump_attributes_(int line, IMFAttributes *attributes)
+{
+    PROPVARIANT value;
+    char buffer[256];
+    UINT32 count;
+    HRESULT hr;
+    GUID guid;
+    int i, j;
+
+    hr = IMFAttributes_GetCount(attributes, &count);
+    ok_(__FILE__, line)(hr == S_OK, "GetCount returned %#lx\n", hr);
+
+    for (i = 0; i < count; ++i)
+    {
+        PropVariantInit(&value);
+        hr = IMFAttributes_GetItemByIndex(attributes, i, &guid, &value);
+        ok_(__FILE__, line)(hr == S_OK, "GetItemByIndex returned %#lx\n", hr);
+        switch (value.vt)
+        {
+        default: sprintf(buffer, "{%s, .vt = %u, .value = %s},", debugstr_mf_guid(&guid), value.vt, buffer); break;
+        case VT_LPWSTR: sprintf(buffer, "ATTR_WSTR(%s, %s),", debugstr_mf_guid(&guid), debugstr_w(value.pwszVal)); break;
+        case VT_CLSID: sprintf(buffer, "ATTR_GUID(%s, %s),", debugstr_mf_guid(&guid), debugstr_mf_guid(value.puuid)); break;
+        case VT_UI4: sprintf(buffer, "ATTR_UINT32(%s, %lu),", debugstr_mf_guid(&guid), value.ulVal); break;
+        case VT_UI8: sprintf(buffer, "ATTR_RATIO(%s, %lu, %lu),", debugstr_mf_guid(&guid), value.uhVal.HighPart, value.uhVal.LowPart); break;
+        case VT_VECTOR | VT_UI1:
+        {
+            char *buf = buffer;
+            buf += sprintf(buf, "ATTR_BLOB(%s, {", debugstr_mf_guid(&guid));
+            for (j = 0; j < 16 && j < value.caub.cElems; ++j)
+                buf += sprintf(buf, "0x%02x,", value.caub.pElems[j]);
+            if (value.caub.cElems > 16)
+                buf += sprintf(buf, "...}");
+            else
+                buf += sprintf(buf - (j ? 1 : 0), "}") - (j ? 1 : 0);
+            buf += sprintf(buf, ", %lu),", value.caub.cElems);
+            break;
+        }
+        }
+
+        ok_(__FILE__, line)(0, "%s\n", buffer);
+        PropVariantClear(&value);
+    }
+}
+
+void dump_properties(IPropertyStore *store)
+{
+    PROPVARIANT value;
+    char buffer[256];
+    PROPERTYKEY key;
+    DWORD count;
+    HRESULT hr;
+    int i, j;
+
+    hr = IPropertyStore_GetCount(store, &count);
+    ok(hr == S_OK, "GetCount returned %#lx\n", hr);
+
+    for (i = 0; i < count; ++i)
+    {
+        hr = IPropertyStore_GetAt(store, i, &key);
+        ok(hr == S_OK, "GetItemByIndex returned %#lx\n", hr);
+
+        PropVariantInit(&value);
+        hr = IPropertyStore_GetValue(store, &key, &value);
+        ok(hr == S_OK, "GetItemByIndex returned %#lx\n", hr);
+        switch (value.vt)
+        {
+        default: sprintf(buffer, "??"); break;
+        case VT_EMPTY: break;
+        case VT_BSTR: sprintf(buffer, "%s", debugstr_w(value.bstrVal)); break;
+        case VT_CLSID: sprintf(buffer, "%s", debugstr_mf_guid(value.puuid)); break;
+        case VT_BOOL: sprintf(buffer, "%u", value.boolVal); break;
+        case VT_R4: sprintf(buffer, "%f", value.fltVal); break;
+        case VT_I4: sprintf(buffer, "%ld", value.lVal); break;
+        case VT_UI4: sprintf(buffer, "%lu", value.ulVal); break;
+        case VT_UI8: sprintf(buffer, "%lu:%lu", value.uhVal.HighPart, value.uhVal.LowPart); break;
+        case VT_ARRAY | VT_UI1:
+        case VT_ARRAY | VT_I4:
+        {
+            char *buf = buffer;
+            buf += sprintf(buf, "dim %u, data {", SafeArrayGetDim(value.parray));
+            for (j = 0; j < 16 && j < value.cai.cElems; ++j)
+            {
+                LONG dims[16] = {j}, elem = 0;
+                SafeArrayGetElement(value.parray, dims, &elem);
+                buf += sprintf(buf, "%#lx,", elem);
+            }
+            if (value.cai.cElems > 16)
+                buf += sprintf(buf, "...}");
+            else
+                buf += sprintf(buf - (j ? 1 : 0), "}");
+            break;
+        }
+        }
+
+        ok(0, "%s-%lu, type %u, value %s\n", debugstr_mf_guid(&key.fmtid), key.pid, value.vt, buffer);
+        PropVariantClear(&value);
+    }
+}
+
 struct media_buffer
 {
     IMediaBuffer IMediaBuffer_iface;
@@ -8640,12 +8741,15 @@ static void test_video_processor(BOOL use_2d_buffer)
     ok(hr == S_OK, "Failed to create a sample, hr %#lx.\n", hr);
 
     hr = check_mft_process_output(transform, output_sample, &output_status);
+    todo_wine
     ok(hr == MF_E_TRANSFORM_NEED_MORE_INPUT, "Unexpected hr %#lx.\n", hr);
 
     hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
+    todo_wine
     ok(hr == S_OK, "Failed to push a sample, hr %#lx.\n", hr);
 
     hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
+    todo_wine
     ok(hr == MF_E_NOTACCEPTING, "Unexpected hr %#lx.\n", hr);
 
     hr = check_mft_process_output(transform, output_sample, &output_status);
@@ -8942,6 +9046,11 @@ static void test_video_processor(BOOL use_2d_buffer)
             }
 
             IMFCollection_Release(output_samples);
+if (ret > test->delta) 
+{
+ok(0, "%s\n", debugstr_w(test->output_bitmap));
+exit(-1);
+}
 
             output_sample = create_sample_(NULL, output_info.cbSize, test->output_buffer_desc);
             hr = check_mft_process_output(transform, output_sample, &output_status);
@@ -10287,10 +10396,11 @@ static void test_video_processor_with_dxgi_manager(void)
     status = 0;
     memset(&output, 0, sizeof(output));
     hr = IMFTransform_ProcessOutput(transform, 0, 1, &output, &status);
-    todo_wine
+    /* FIXME: Wine sample release happens entirely asynchronously */
+    flaky_wine_if(hr == MF_E_SAMPLEALLOCATOR_EMPTY)
     ok(hr == S_OK, "got %#lx\n", hr);
     ok(!output.pEvents, "got events\n");
-    todo_wine
+    flaky_wine_if(hr == MF_E_SAMPLEALLOCATOR_EMPTY)
     ok(!!output.pSample, "got no sample\n");
     ok(output.dwStatus == 0, "got %#lx\n", output.dwStatus);
     ok(status == 0, "got %#lx\n", status);
