@@ -25,6 +25,7 @@ enum unix_call
     unix_is_available_device_function,
     unix_vkAcquireNextImage2KHR,
     unix_vkAcquireNextImageKHR,
+    unix_vkAcquirePerformanceConfigurationINTEL,
     unix_vkAcquireProfilingLockKHR,
     unix_vkAllocateCommandBuffers,
     unix_vkAllocateDescriptorSets,
@@ -236,6 +237,9 @@ enum unix_call
     unix_vkCmdSetLogicOpEXT,
     unix_vkCmdSetLogicOpEnableEXT,
     unix_vkCmdSetPatchControlPointsEXT,
+    unix_vkCmdSetPerformanceMarkerINTEL,
+    unix_vkCmdSetPerformanceOverrideINTEL,
+    unix_vkCmdSetPerformanceStreamMarkerINTEL,
     unix_vkCmdSetPolygonModeEXT,
     unix_vkCmdSetPrimitiveRestartEnable,
     unix_vkCmdSetPrimitiveRestartEnableEXT,
@@ -491,6 +495,7 @@ enum unix_call
     unix_vkGetMemoryWin32HandleKHR,
     unix_vkGetMemoryWin32HandlePropertiesKHR,
     unix_vkGetMicromapBuildSizesEXT,
+    unix_vkGetPerformanceParameterINTEL,
     unix_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT,
     unix_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR,
     unix_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR,
@@ -573,6 +578,7 @@ enum unix_call
     unix_vkGetVideoSessionMemoryRequirementsKHR,
     unix_vkImportFenceWin32HandleKHR,
     unix_vkImportSemaphoreWin32HandleKHR,
+    unix_vkInitializePerformanceApiINTEL,
     unix_vkInvalidateMappedMemoryRanges,
     unix_vkLatencySleepNV,
     unix_vkMapMemory,
@@ -585,11 +591,13 @@ enum unix_call
     unix_vkQueueInsertDebugUtilsLabelEXT,
     unix_vkQueueNotifyOutOfBandNV,
     unix_vkQueuePresentKHR,
+    unix_vkQueueSetPerformanceConfigurationINTEL,
     unix_vkQueueSubmit,
     unix_vkQueueSubmit2,
     unix_vkQueueSubmit2KHR,
     unix_vkQueueWaitIdle,
     unix_vkReleaseCapturedPipelineDataKHR,
+    unix_vkReleasePerformanceConfigurationINTEL,
     unix_vkReleaseProfilingLockKHR,
     unix_vkReleaseSwapchainImagesEXT,
     unix_vkResetCommandBuffer,
@@ -614,6 +622,7 @@ enum unix_call
     unix_vkTransitionImageLayoutEXT,
     unix_vkTrimCommandPool,
     unix_vkTrimCommandPoolKHR,
+    unix_vkUninitializePerformanceApiINTEL,
     unix_vkUnmapMemory,
     unix_vkUnmapMemory2KHR,
     unix_vkUpdateDescriptorSetWithTemplate,
@@ -647,6 +656,14 @@ struct vkAcquireNextImageKHR_params
     VkSemaphore DECLSPEC_ALIGN(8) semaphore;
     VkFence DECLSPEC_ALIGN(8) fence;
     uint32_t *pImageIndex;
+    VkResult result;
+};
+
+struct vkAcquirePerformanceConfigurationINTEL_params
+{
+    VkDevice device;
+    const VkPerformanceConfigurationAcquireInfoINTEL *pAcquireInfo;
+    VkPerformanceConfigurationINTEL *pConfiguration;
     VkResult result;
 };
 
@@ -2232,6 +2249,27 @@ struct vkCmdSetPatchControlPointsEXT_params
 {
     VkCommandBuffer commandBuffer;
     uint32_t patchControlPoints;
+};
+
+struct vkCmdSetPerformanceMarkerINTEL_params
+{
+    VkCommandBuffer commandBuffer;
+    const VkPerformanceMarkerInfoINTEL *pMarkerInfo;
+    VkResult result;
+};
+
+struct vkCmdSetPerformanceOverrideINTEL_params
+{
+    VkCommandBuffer commandBuffer;
+    const VkPerformanceOverrideInfoINTEL *pOverrideInfo;
+    VkResult result;
+};
+
+struct vkCmdSetPerformanceStreamMarkerINTEL_params
+{
+    VkCommandBuffer commandBuffer;
+    const VkPerformanceStreamMarkerInfoINTEL *pMarkerInfo;
+    VkResult result;
 };
 
 struct vkCmdSetPolygonModeEXT_params
@@ -4242,6 +4280,14 @@ struct vkGetMicromapBuildSizesEXT_params
     VkMicromapBuildSizesInfoEXT *pSizeInfo;
 };
 
+struct vkGetPerformanceParameterINTEL_params
+{
+    VkDevice device;
+    VkPerformanceParameterTypeINTEL parameter;
+    VkPerformanceValueINTEL *pValue;
+    VkResult result;
+};
+
 struct vkGetPhysicalDeviceCalibrateableTimeDomainsEXT_params
 {
     VkPhysicalDevice physicalDevice;
@@ -4900,6 +4946,13 @@ struct vkImportSemaphoreWin32HandleKHR_params
     VkResult result;
 };
 
+struct vkInitializePerformanceApiINTEL_params
+{
+    VkDevice device;
+    const VkInitializePerformanceApiInfoINTEL *pInitializeInfo;
+    VkResult result;
+};
+
 struct vkInvalidateMappedMemoryRanges_params
 {
     VkDevice device;
@@ -4992,6 +5045,13 @@ struct vkQueuePresentKHR_params
     VkResult result;
 };
 
+struct vkQueueSetPerformanceConfigurationINTEL_params
+{
+    VkQueue queue;
+    VkPerformanceConfigurationINTEL DECLSPEC_ALIGN(8) configuration;
+    VkResult result;
+};
+
 struct vkQueueSubmit_params
 {
     VkQueue queue;
@@ -5030,6 +5090,13 @@ struct vkReleaseCapturedPipelineDataKHR_params
     VkDevice device;
     const VkReleaseCapturedPipelineDataInfoKHR *pInfo;
     const VkAllocationCallbacks *pAllocator;
+    VkResult result;
+};
+
+struct vkReleasePerformanceConfigurationINTEL_params
+{
+    VkDevice device;
+    VkPerformanceConfigurationINTEL DECLSPEC_ALIGN(8) configuration;
     VkResult result;
 };
 
@@ -5212,6 +5279,11 @@ struct vkTrimCommandPoolKHR_params
     VkDevice device;
     VkCommandPool DECLSPEC_ALIGN(8) commandPool;
     VkCommandPoolTrimFlags flags;
+};
+
+struct vkUninitializePerformanceApiINTEL_params
+{
+    VkDevice device;
 };
 
 struct vkUnmapMemory_params
