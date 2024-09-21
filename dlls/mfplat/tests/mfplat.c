@@ -70,7 +70,6 @@ extern const CLSID CLSID_FileSchemePlugin;
 
 DEFINE_MEDIATYPE_GUID(MEDIASUBTYPE_Base,0);
 DEFINE_GUID(MEDIASUBTYPE_ABGR32,D3DFMT_A8B8G8R8,0x524f,0x11ce,0x9f,0x53,0x00,0x20,0xaf,0x0b,0xa7,0x70);
-DEFINE_GUID(MF_MT_BITCOUNT,0xc496f370,0x2f8b,0x4f51,0xae,0x46,0x9c,0xfc,0x1b,0xc8,0x2a,0x47);
 
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_RGB1, D3DFMT_A1);
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_RGB4, MAKEFOURCC('4','P','x','x'));
@@ -80,8 +79,6 @@ DEFINE_MEDIATYPE_GUID(MFVideoFormat_ARGB4444, D3DFMT_A4R4G4B4);
 /* SDK MFVideoFormat_A2R10G10B10 uses D3DFMT_A2B10G10R10, let's name it the other way */
 DEFINE_MEDIATYPE_GUID(MFVideoFormat_A2B10G10R10, D3DFMT_A2R10G10B10);
 DEFINE_MEDIATYPE_GUID(MFAudioFormat_RAW_AAC,WAVE_FORMAT_RAW_AAC1);
-DEFINE_MEDIATYPE_GUID(MFVideoFormat_MPEG,MAKEFOURCC('M','P','E','G'));
-DEFINE_MEDIATYPE_GUID(MFVideoFormat_MPG2_1,MAKEFOURCC('M','P','G','2'));
 
 DEFINE_MEDIATYPE_GUID(MEDIASUBTYPE_h264,MAKEFOURCC('h','2','6','4'));
 DEFINE_MEDIATYPE_GUID(MEDIASUBTYPE_MP3,WAVE_FORMAT_MPEGLAYER3);
@@ -107,57 +104,6 @@ DEFINE_MEDIATYPE_GUID(MEDIASUBTYPE_X264,MAKEFOURCC('X','2','6','4'));
 DEFINE_MEDIATYPE_GUID(MEDIASUBTYPE_x264,MAKEFOURCC('x','2','6','4'));
 
 static BOOL is_win8_plus;
-
-extern const char *debugstr_mf_guid(const GUID *guid);
-
-#define dump_media_type(a) dump_attributes_(__LINE__, (IMFAttributes *)a)
-#define dump_attributes(a) dump_attributes_(__LINE__, a)
-extern void dump_attributes_(int line, IMFAttributes *attributes);
-extern void dump_properties(IPropertyStore *store);
-
-void dump_attributes_(int line, IMFAttributes *attributes)
-{
-    PROPVARIANT value;
-    char buffer[4096];
-    UINT32 count;
-    HRESULT hr;
-    GUID guid;
-    int i, j;
-
-    hr = IMFAttributes_GetCount(attributes, &count);
-    ok_(__FILE__, line)(hr == S_OK, "GetCount returned %#lx\n", hr);
-
-    for (i = 0; i < count; ++i)
-    {
-        PropVariantInit(&value);
-        hr = IMFAttributes_GetItemByIndex(attributes, i, &guid, &value);
-        ok_(__FILE__, line)(hr == S_OK, "GetItemByIndex returned %#lx\n", hr);
-        switch (value.vt)
-        {
-        default: sprintf(buffer, "{%s, .vt = %u, .value = %s},", debugstr_mf_guid(&guid), value.vt, buffer); break;
-        case VT_LPWSTR: sprintf(buffer, "ATTR_WSTR(%s, %s),", debugstr_mf_guid(&guid), debugstr_w(value.pwszVal)); break;
-        case VT_CLSID: sprintf(buffer, "ATTR_GUID(%s, %s),", debugstr_mf_guid(&guid), debugstr_mf_guid(value.puuid)); break;
-        case VT_UI4: sprintf(buffer, "ATTR_UINT32(%s, %lu),", debugstr_mf_guid(&guid), value.ulVal); break;
-        case VT_UI8: sprintf(buffer, "ATTR_RATIO(%s, %lu, %lu),", debugstr_mf_guid(&guid), value.uhVal.HighPart, value.uhVal.LowPart); break;
-        case VT_VECTOR | VT_UI1:
-        {
-            char *buf = buffer;
-            buf += sprintf(buf, "ATTR_BLOB(%s, ((BYTE[%lu]){", debugstr_mf_guid(&guid), value.caub.cElems);
-            for (j = 0; j < 256 && j < value.caub.cElems; ++j)
-                buf += sprintf(buf, "0x%02x,", value.caub.pElems[j]);
-            if (value.caub.cElems > 256)
-                buf += sprintf(buf, "...})");
-            else
-                buf += sprintf(buf - (j ? 1 : 0), "})") - (j ? 1 : 0);
-            buf += sprintf(buf, "),");
-            break;
-        }
-        }
-
-        ok_(__FILE__, line)(0, "%s\n", buffer);
-        PropVariantClear(&value);
-    }
-}
 
 #define EXPECT_REF(obj,ref) _expect_ref((IUnknown*)obj, ref, __LINE__)
 static void _expect_ref(IUnknown *obj, ULONG ref, int line)
@@ -221,14 +167,9 @@ struct attribute_desc
     BOOL todo_value;
 };
 
-static inline void *make_blob(void *buffer)
-{
-    return buffer;
-}
-
 #define ATTR_GUID(k, g, ...)      {.key = &k, .name = #k, {.vt = VT_CLSID, .puuid = (GUID *)&g}, __VA_ARGS__ }
 #define ATTR_UINT32(k, v, ...)    {.key = &k, .name = #k, {.vt = VT_UI4, .ulVal = v}, __VA_ARGS__ }
-#define ATTR_BLOB(k, p, ...)   {.key = &k, .name = #k, {.vt = VT_VECTOR | VT_UI1, .caub = {.pElems = make_blob(p), .cElems = ARRAY_SIZE(p)}}, __VA_ARGS__ }
+#define ATTR_BLOB(k, p, n, ...)   {.key = &k, .name = #k, {.vt = VT_VECTOR | VT_UI1, .caub = {.pElems = (void *)p, .cElems = n}}, __VA_ARGS__ }
 #define ATTR_RATIO(k, n, d, ...)  {.key = &k, .name = #k, {.vt = VT_UI8, .uhVal = {.HighPart = n, .LowPart = d}}, .ratio = TRUE, __VA_ARGS__ }
 #define ATTR_UINT64(k, v, ...)    {.key = &k, .name = #k, {.vt = VT_UI8, .uhVal = {.QuadPart = v}}, __VA_ARGS__ }
 
@@ -1106,7 +1047,13 @@ static HRESULT WINAPI bytestream_wrapper_Close(IMFByteStream *iface)
 
 static void test_compressed_media_types(IMFSourceResolver *resolver)
 {
-    const struct
+    static const BYTE aac_data[] =
+    {
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x12, 0x08, 0x56, 0xe5, 0x00,
+    };
+    static const BYTE wma2_data[] = {0, 0, 0, 0, 1, 0, 0, 0, 0, 0};
+
+    static const struct
     {
         const WCHAR *filename;
         const WCHAR *mime;
@@ -1126,39 +1073,26 @@ static void test_compressed_media_types(IMFSourceResolver *resolver)
                 ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1, .todo = TRUE),
                 ATTR_UINT32(MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High, .todo = TRUE),
                 ATTR_UINT32(MF_MT_MPEG2_LEVEL, eAVEncH264VLevel2, .todo = TRUE),
-                ATTR_UINT32(MF_MT_AVG_BITRATE, 968064),
-                ATTR_UINT32(MF_MT_INTERLACE_MODE, 7),
-                ATTR_UINT32(MF_MT_MPEG4_CURRENT_SAMPLE_ENTRY, 0),
-                ATTR_UINT32(MF_MT_SAMPLE_SIZE, 1),
-                ATTR_UINT32(MF_MT_VIDEO_ROTATION, 0),
-                ATTR_UINT32(MF_NALU_LENGTH_SET, 1),
-                ATTR_UINT32(MF_PROGRESSIVE_CODING_CONTENT, 1),
-                ATTR_BLOB(MF_MT_MPEG4_SAMPLE_DESCRIPTION, ((BYTE[210]){0x00,0x00,0x00,0xd2,0x73,0x74,0x73,0x64,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0xc2,0x61,0x76,0x63,0x31,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x40,0x00,0xf0,0x00,0x48,0x00,0x00,0x00,0x48,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x18,0xff,0xff,0x00,0x00,0x00,0x35,0x61,0x76,0x63,0x43,0x01,0x64,0x00,0x14,0xff,0xe1,0x00,0x1d,0x67,0x64,0x00,0x14,0xac,0xd9,0x41,0x41,0xfb,0x01,0x6a,0x0c,0x0c,0x0d,0x4a,0x00,0x00,0x03,0x00,0x02,0x00,0x00,0x03,0x00,0x79,0x1e,0x28,0x53,0x2c,0x01,0x00,0x05,0x68,0xeb,0xec,0xb2,0x2c,0x00,0x00,0x00,0x14,0x62,0x74,0x72,0x74,0x00,0x00,0x00,0x00,0x00,0x20,0x00,0x00,0x00,0x0e,0xc5,0x80,0x00,0x00,0x00,0x13,0x63,0x6f,0x6c,0x72,0x6e,0x63,0x6c,0x78,0x00,0x06,0x00,0x06,0x00,0x06,0x00,0x00,0x00,0x00,0x10,0x70,0x61,0x73,0x70,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01})),
-                ATTR_BLOB(MF_MT_MPEG_SEQUENCE_HEADER, ((BYTE[40]){0x00,0x00,0x01,0x67,0x64,0x00,0x14,0xac,0xd9,0x41,0x41,0xfb,0x01,0x6a,0x0c,0x0c,0x0d,0x4a,0x00,0x00,0x03,0x00,0x02,0x00,0x00,0x03,0x00,0x79,0x1e,0x28,0x53,0x2c,0x00,0x00,0x01,0x68,0xeb,0xec,0xb2,0x2c})),
             },
         },
         {
             L"test-aac.mp4",
             L"video/mp4",
             {
-                ATTR_GUID(MF_MT_AM_FORMAT_TYPE, FORMAT_WaveFormatEx),
                 ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
-                ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_AAC),
-                ATTR_UINT32(MF_MT_AAC_AUDIO_PROFILE_LEVEL_INDICATION, 0),
-                ATTR_UINT32(MF_MT_AAC_PAYLOAD_TYPE, 0),
-                ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
-                ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 9180),
-                ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16),
-                ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 1),
+                ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_AAC, .todo_value = TRUE),
+                ATTR_GUID(MF_MT_AM_FORMAT_TYPE, FORMAT_WaveFormatEx, .todo = TRUE),
                 ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 1),
-                ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1),
+                ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16, .todo_value = TRUE),
                 ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
-                ATTR_UINT32(MF_MT_AVG_BITRATE, 73440),
-                ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1),
-                ATTR_UINT32(MF_MT_MPEG4_CURRENT_SAMPLE_ENTRY, 0),
-                ATTR_UINT32(MF_MT_SAMPLE_SIZE, 1),
-                ATTR_BLOB(MF_MT_MPEG4_SAMPLE_DESCRIPTION, ((BYTE[94]){0x00,0x00,0x00,0x5e,0x73,0x74,0x73,0x64,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x4e,0x6d,0x70,0x34,0x61,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x10,0x00,0x00,0x00,0x00,0xac,0x44,0x00,0x00,0x00,0x00,0x00,0x2a,0x65,0x73,0x64,0x73,0x00,0x00,0x00,0x00,0x03,0x1c,0x00,0x01,0x00,0x04,0x14,0x40,0x15,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x1e,0xe3,0x05,0x05,0x12,0x08,0x56,0xe5,0x00,0x06,0x01,0x02})),
-                ATTR_BLOB(MF_MT_USER_DATA, ((BYTE[17]){0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x12,0x08,0x56,0xe5,0x00})),
+                ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 9180, .todo_value = TRUE),
+                ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1, .todo = TRUE),
+                ATTR_UINT32(MF_MT_AVG_BITRATE, 73440, .todo = TRUE),
+                ATTR_UINT32(MF_MT_AAC_AUDIO_PROFILE_LEVEL_INDICATION, 0, .todo = TRUE),
+                ATTR_UINT32(MF_MT_AAC_PAYLOAD_TYPE, 0, .todo = TRUE),
+                ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1, .todo = TRUE),
+                ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
+                ATTR_BLOB(MF_MT_USER_DATA, aac_data, sizeof(aac_data), .todo = TRUE),
             },
         },
         {
@@ -1166,42 +1100,9 @@ static void test_compressed_media_types(IMFSourceResolver *resolver)
             L"video/x-ms-wmv",
             {
                 ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
-                ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_WMV1),
+                ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_WMV1, .todo_value = TRUE),
                 ATTR_RATIO(MF_MT_FRAME_SIZE, 320, 240),
-                ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1),
-                ATTR_UINT32(MF_MT_INTERLACE_MODE, 2),
-                ATTR_UINT32(MF_MT_SAMPLE_SIZE, 1843200),
-                ATTR_UINT32(MF_MT_VIDEO_ROTATION, 0),
-            },
-        },
-        {
-            L"test-wmv2.avi",
-            L"video/x-ms-wmv",
-            {
-                ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
-                ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_WMV2),
-                ATTR_RATIO(MF_MT_FRAME_RATE, 30, 1),
-                ATTR_RATIO(MF_MT_FRAME_SIZE, 32, 24),
-                ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1),
-                ATTR_UINT32(MF_MT_BITCOUNT, 24),
-                ATTR_UINT32(MF_MT_INTERLACE_MODE, 7),
-                ATTR_UINT32(MF_MT_SAMPLE_SIZE, 768),
-                ATTR_UINT32(MF_MT_TIMESTAMP_CAN_BE_DTS, 1),
-                ATTR_BLOB(MF_MT_USER_DATA, ((BYTE[4]){0xf0,0xc3,0xb4,0x80})),
-            },
-        },
-        {
-            L"test-wma1.wma",
-            L"video/x-ms-wmv",
-            {
-                ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
-                ATTR_GUID(MF_MT_SUBTYPE, MEDIASUBTYPE_MSAUDIO1),
-                ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 16000),
-                ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 743),
-                ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 1),
-                ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1),
-                ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
-                ATTR_BLOB(MF_MT_USER_DATA, ((BYTE[4]){0x00,0x00,0x01,0x00})),
+                ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1, .todo = TRUE),
             },
         },
         {
@@ -1209,48 +1110,27 @@ static void test_compressed_media_types(IMFSourceResolver *resolver)
             L"video/x-ms-wmv",
             {
                 ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
-                ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_WMAudioV8),
-                ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 16000),
-                ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 743),
+                ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_WMAudioV8, .todo_value = TRUE),
                 ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 1),
-                ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1),
                 ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
-                ATTR_BLOB(MF_MT_USER_DATA, ((BYTE[10]){0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00})),
-            },
-        },
-        {
-            L"test-mp2.avi",
-            L"video/mp4",
-            {
-                ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
-                ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_MPEG),
-                ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 48000),
-                ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16),
-                ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 1),
-                ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 1),
-                ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1),
-                ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
+                ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 16000, .todo_value = TRUE),
+                ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1, .todo = TRUE),
+                ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 743, .todo_value = TRUE),
+                ATTR_BLOB(MF_MT_USER_DATA, wma2_data, sizeof(wma2_data), .todo = TRUE),
             },
         },
         {
             L"test-mp3.mp4",
             L"video/mp4",
             {
-                ATTR_GUID(MF_MT_AM_FORMAT_TYPE, FORMAT_WaveFormatEx),
                 ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
-                ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_MP3),
-                ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
-                ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 10814),
-                ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 1),
+                ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_MP3, .todo_value = TRUE),
+                ATTR_GUID(MF_MT_AM_FORMAT_TYPE, FORMAT_WaveFormatEx, .todo = TRUE),
                 ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 1),
-                ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1),
                 ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100),
-                ATTR_UINT32(MF_MT_AVG_BITRATE, 86512),
-                ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1),
-                ATTR_UINT32(MF_MT_MPEG4_CURRENT_SAMPLE_ENTRY, 0),
-                ATTR_UINT32(MF_MT_SAMPLE_SIZE, 1),
-                ATTR_BLOB(MF_MT_MPEG4_SAMPLE_DESCRIPTION, ((BYTE[87]){0x00,0x00,0x00,0x57,0x73,0x74,0x73,0x64,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x47,0x6d,0x70,0x34,0x61,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x10,0x00,0x00,0x00,0x00,0xac,0x44,0x00,0x00,0x00,0x00,0x00,0x23,0x65,0x73,0x64,0x73,0x00,0x00,0x00,0x00,0x03,0x15,0x00,0x01,0x00,0x04,0x0d,0x6b,0x15,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x51,0xf4,0x06,0x01,0x02})),
-                ATTR_BLOB(MF_MT_USER_DATA, ((BYTE[12]){0x01,0x00,0x00,0x00,0x00,0x00,0xdb,0x02,0x00,0x00,0x00,0x00})),
+                ATTR_UINT32(MF_MT_AUDIO_PREFER_WAVEFORMATEX, 1, .todo = TRUE),
+                ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1, .todo = TRUE),
+                ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
             },
         },
         {
@@ -1259,46 +1139,12 @@ static void test_compressed_media_types(IMFSourceResolver *resolver)
             {
                 ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
                 ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_I420),
-                ATTR_RATIO(MF_MT_FRAME_RATE, 30, 1),
                 ATTR_RATIO(MF_MT_FRAME_SIZE, 32, 24),
-                ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1),
+                ATTR_RATIO(MF_MT_FRAME_RATE, 30, 1),
+                ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1, .todo = TRUE),
                 ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
-                ATTR_UINT32(MF_MT_BITCOUNT, 12),
                 ATTR_UINT32(MF_MT_DEFAULT_STRIDE, 32),
-                ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1),
-                ATTR_UINT32(MF_MT_INTERLACE_MODE, 7),
-                ATTR_UINT32(MF_MT_SAMPLE_SIZE, 768),
-                ATTR_UINT32(MF_MT_TIMESTAMP_CAN_BE_DTS, 1),
-            },
-        },
-        {
-            L"test-mp1v.avi",
-            L"video/avi",
-            {
-                ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
-                ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_MPEG),
-                ATTR_RATIO(MF_MT_FRAME_RATE, 30, 1),
-                ATTR_RATIO(MF_MT_FRAME_SIZE, 32, 24),
-                ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1),
-                ATTR_UINT32(MF_MT_BITCOUNT, 24),
-                ATTR_UINT32(MF_MT_INTERLACE_MODE, 7),
-                ATTR_UINT32(MF_MT_SAMPLE_SIZE, 768),
-                ATTR_UINT32(MF_MT_TIMESTAMP_CAN_BE_DTS, 1),
-            },
-        },
-        {
-            L"test-mp2v.avi",
-            L"video/avi",
-            {
-                ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
-                ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_MPG2_1),
-                ATTR_RATIO(MF_MT_FRAME_RATE, 30, 1),
-                ATTR_RATIO(MF_MT_FRAME_SIZE, 32, 24),
-                ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1),
-                ATTR_UINT32(MF_MT_BITCOUNT, 24),
-                ATTR_UINT32(MF_MT_INTERLACE_MODE, 7),
-                ATTR_UINT32(MF_MT_SAMPLE_SIZE, 768),
-                ATTR_UINT32(MF_MT_TIMESTAMP_CAN_BE_DTS, 1),
+                ATTR_UINT32(MF_MT_FIXED_SIZE_SAMPLES, 1, .todo = TRUE),
             },
         },
     };
@@ -1352,8 +1198,6 @@ static void test_compressed_media_types(IMFSourceResolver *resolver)
 
         hr = IMFMediaTypeHandler_GetCurrentMediaType(handler, &media_type);
         ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-        if (0) dump_media_type(media_type);
 
         check_media_type(media_type, tests[i].type, -1);
 

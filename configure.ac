@@ -444,11 +444,6 @@ AC_CHECK_HEADERS(\
 	sys/xattr.h \
 	syscall.h \
 	utime.h \
-  libavutil/avutil.h \
-  libavformat/avformat.h \
-  libavcodec/avcodec.h \
-  libswresample/swresample.h \
-  libswscale/swscale.h \
 	valgrind/memcheck.h \
 	valgrind/valgrind.h
 )
