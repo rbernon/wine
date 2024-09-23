@@ -141,7 +141,7 @@ GstElement *find_element(GstElementFactoryListType type, GstCaps *element_sink_c
     {
         name = gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(tmp->data));
 
-if (getenv("NOVAAPI") && !strncmp(name, "vaapi", 5)) continue;
+if (!strncmp(name, "va", 2)) continue;
         if (!strcmp(name, "vaapidecodebin"))
         {
             /* vaapidecodebin adds asynchronicity which breaks wg_transform synchronous drain / flush
