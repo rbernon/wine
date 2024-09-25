@@ -296,6 +296,8 @@ static struct desktop *create_desktop( const struct unicode_str *name, unsigned 
             desktop->clip_flags = 0;
             desktop->cursor_win = 0;
             desktop->alt_pressed = 0;
+            desktop->dpi_mapping_count = 0;
+            desktop->dpi_mappings = NULL;
             memset( &desktop->key_repeat, 0, sizeof(desktop->key_repeat) );
             list_add_tail( &winstation->desktops, &desktop->entry );
             list_init( &desktop->hotkeys );
@@ -395,6 +397,7 @@ static void desktop_destroy( struct object *obj )
     if (desktop->key_repeat.timeout) remove_timeout_user( desktop->key_repeat.timeout );
     release_object( desktop->winstation );
     if (desktop->shared) free_shared_object( desktop->shared );
+    free( desktop->dpi_mappings );
 }
 
 /* retrieve the thread desktop, checking the handle access rights */
@@ -752,6 +755,25 @@ DECL_HANDLER(close_desktop)
         if (close_handle( current->process, req->handle )) set_error( STATUS_DEVICE_BUSY );
         release_object( desktop );
     }
+}
+
+
+/* set the desktop DPI mappings */
+DECL_HANDLER(set_dpi_mappings)
+{
+    struct desktop *desktop = get_thread_desktop( current, 0 );
+    unsigned int size = get_req_data_size();
+
+    if (!desktop) return;
+
+    free( desktop->dpi_mappings );
+    desktop->dpi_mappings = NULL;
+    desktop->dpi_mapping_count = 0;
+
+    if ((desktop->dpi_mappings = memdup( get_req_data(), size )))
+        desktop->dpi_mapping_count = size / sizeof(*desktop->dpi_mappings);
+
+    release_object( desktop );
 }
 
 

@@ -87,6 +87,8 @@ struct desktop
     struct key_repeat    key_repeat;       /* key auto-repeat */
     unsigned int         clip_flags;       /* last cursor clip flags */
     user_handle_t        cursor_win;       /* window that contains the cursor */
+    unsigned int         dpi_mapping_count;/* number of screen DPI mappings */
+    struct dpi_mapping  *dpi_mappings;     /* virtual screen to host monitor mappings */
     const desktop_shm_t *shared;           /* desktop session shared memory */
 };
 

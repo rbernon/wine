@@ -896,6 +896,12 @@ struct directory_entry
     /* VARARG(type,unicode_str,type_len); */
 };
 
+struct dpi_mapping
+{
+    rectangle_t virt;  /* virtual position of the screen rect */
+    unsigned int dpi;  /* DPI of the virtual screen rect */
+};
+
 /****************************************************************/
 /* shared session mapping structures */
 
@@ -2860,6 +2866,12 @@ enum coords_relative
 /* Close a desktop */
 @REQ(close_desktop)
     obj_handle_t handle;          /* handle to the desktop */
+@END
+
+
+/* Update the desktop DPI mappings */
+@REQ(set_dpi_mappings)
+    VARARG(mappings,dpi_mappings);  /* array of DPI mappings */
 @END
 
 

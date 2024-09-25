@@ -1512,6 +1512,23 @@ static void dump_varargs_directory_entries( const char *prefix, data_size_t size
     fputc( '}', stderr );
 }
 
+static void dump_varargs_dpi_mappings( const char *prefix, data_size_t size )
+{
+    const struct dpi_mapping *mapping = cur_data;
+    data_size_t len = size / sizeof(*mapping);
+
+    fprintf( stderr,"%s{", prefix );
+    while (len > 0)
+    {
+        dump_rectangle( "{virt:", &mapping->virt );
+        fprintf( stderr, ",dpi:%u", mapping->dpi );
+        fputc( '}', stderr );
+        if (--len) fputc( ',', stderr );
+    }
+    fputc( '}', stderr );
+    remove_data( size );
+}
+
 typedef void (*dump_func)( const void *req );
 
 /* Everything below this line is generated automatically by tools/make_requests */
