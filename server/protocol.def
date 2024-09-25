@@ -898,7 +898,8 @@ struct directory_entry
 
 struct dpi_mapping
 {
-    rectangle_t virt;  /* virtual position of the screen rect */
+    rectangle_t raw;   /* host / physical position of the screen rect */
+    rectangle_t virt;  /* client / virtual position of the screen rect */
     unsigned int dpi;  /* DPI of the virtual screen rect */
 };
 

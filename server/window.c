@@ -241,6 +241,73 @@ static inline void update_pixel_format_flags( struct window *win )
         win->paint_flags |= PAINT_PIXEL_FORMAT_CHILD;
 }
 
+/* returns the largest intersecting or nearest screen dpi mapping */
+static struct dpi_mapping *get_dpi_mapping_from_rect( struct desktop *desktop, const rectangle_t *rect, int is_raw )
+{
+    struct dpi_mapping *mapping, *nearest = NULL, *found = NULL, *end;
+    unsigned int max_area = 0, min_distance = -1;
+
+    for (mapping = desktop->dpi_mappings, end = mapping + desktop->dpi_mapping_count; mapping < end; mapping++)
+    {
+        rectangle_t intersect, target = is_raw ? mapping->raw : mapping->virt;
+
+        if (intersect_rect( &intersect, &target, rect ))
+        {
+            /* check for larger intersecting area */
+            unsigned int area = (intersect.right - intersect.left) * (intersect.bottom - intersect.top);
+
+            if (area > max_area)
+            {
+                max_area = area;
+                found = mapping;
+            }
+        }
+
+        if (!found)  /* if not intersecting, check for min distance */
+        {
+            unsigned int distance, x, y;
+
+            if (rect->right <= target.left) x = target.left - rect->right;
+            else if (target.right <= rect->left) x = rect->left - target.right;
+            else x = 0;
+
+            if (rect->bottom <= target.top) y = target.top - rect->bottom;
+            else if (target.bottom <= rect->top) y = rect->top - target.bottom;
+            else y = 0;
+
+            distance = x * x + y * y;
+            if (distance < min_distance)
+            {
+                min_distance = distance;
+                nearest = mapping;
+            }
+        }
+    }
+
+    return found ? found : nearest;
+}
+
+static void map_point_raw_to_virt( struct desktop *desktop, int *x, int *y )
+{
+    int width_from, height_from, width_to, height_to;
+    rectangle_t rect = {*x, *y, *x + 1, *y + 1};
+    struct dpi_mapping *mapping;
+
+    mapping = get_dpi_mapping_from_rect( desktop, &rect, 1 );
+    width_to = mapping->virt.right - mapping->virt.left;
+    height_to = mapping->virt.bottom - mapping->virt.top;
+    width_from = mapping->raw.right - mapping->raw.left;
+    height_from = mapping->raw.bottom - mapping->raw.top;
+
+    *x -= mapping->raw.left + width_from / 2;
+    *x = (*x * width_to + width_from / 2) / width_from;
+    *x += mapping->virt.left + width_to / 2;
+
+    *y -= mapping->raw.top + height_from / 2;
+    *y = (*y * height_to + height_from / 2) / height_from;
+    *y += mapping->virt.top + height_to / 2;
+}
+
 /* get the per-monitor DPI for a window */
 static unsigned int get_monitor_dpi( struct window *win )
 {
@@ -895,12 +962,14 @@ static int get_window_children_from_point( struct window *parent, int x, int y,
     return 1;
 }
 
-/* get handle of root of top-most window containing point */
+/* get handle of root of top-most window containing point (in absolute raw coords) */
 user_handle_t shallow_window_from_point( struct desktop *desktop, int x, int y )
 {
     struct window *ptr;
 
     if (!desktop->top_window) return 0;
+
+    map_point_raw_to_virt( desktop, &x, &y );
 
     LIST_FOR_EACH_ENTRY( ptr, &desktop->top_window->children, struct window, entry )
     {
@@ -912,12 +981,14 @@ user_handle_t shallow_window_from_point( struct desktop *desktop, int x, int y )
     return desktop->top_window->handle;
 }
 
-/* return thread of top-most window containing point (in absolute coords) */
+/* return thread of top-most window containing point (in absolute raw coords) */
 struct thread *window_thread_from_point( user_handle_t scope, int x, int y )
 {
     struct window *win = get_user_object( scope, USER_WINDOW );
 
     if (!win) return NULL;
+
+    map_point_raw_to_virt( win->desktop, &x, &y );
 
     screen_to_client( win, &x, &y, 0 );
     win = child_window_from_point( win, x, y );

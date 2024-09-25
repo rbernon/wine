@@ -1575,25 +1575,35 @@ static void set_rect_from_devmode( RECT *rect, const DEVMODEW *mode )
              mode->dmPosition.y + mode->dmPelsHeight );
 }
 
-static void add_dpi_mapping( struct device_manager_ctx *ctx, UINT dpi, const DEVMODEW *current )
+static void add_dpi_mapping( struct device_manager_ctx *ctx, UINT dpi, const DEVMODEW *physical,
+                             const DEVMODEW *current )
 {
     struct dpi_mapping *mapping, *tmp;
-    RECT virt, old_virt;
+    RECT raw, virt, old_raw, old_virt;
     UINT i;
 
+    set_rect_from_devmode( &raw, physical );
     set_rect_from_devmode( &virt, current );
 
     for (i = 0; i < ctx->mapping_count; i++)
     {
         mapping = ctx->mappings + i;
 
-        if (mapping->virt.left != current->dmPosition.x) continue;
-        if (mapping->virt.top != current->dmPosition.y) continue;
+        if (mapping->raw.left != physical->dmPosition.x) continue;
+        if (mapping->raw.top != physical->dmPosition.y) continue;
 
+        old_raw = wine_server_get_rect( mapping->raw );
         old_virt = wine_server_get_rect( mapping->virt );
         if (!EqualRect( &virt, &old_virt ) || mapping->dpi != dpi)
             WARN( "Mapping mismatch at %s/%u -> %s/%u\n", wine_dbgstr_rect(&old_virt),
                   mapping->dpi, wine_dbgstr_rect(&virt), dpi );
+
+        if (mapping->dpi == dpi && EqualRect( &raw, &old_raw ) && EqualRect( &virt, &old_virt ))
+            TRACE( "Ignoring duplicate mapping at %s\n", wine_dbgstr_rect(&raw) );
+        else
+            WARN( "Mapping mismatch, new dpi %u, raw %s, virt %s\n", dpi,
+                  wine_dbgstr_rect(&raw), wine_dbgstr_rect(&virt) );
+
         return;
     }
 
@@ -1603,8 +1613,11 @@ static void add_dpi_mapping( struct device_manager_ctx *ctx, UINT dpi, const DEV
 
     mapping = ctx->mappings + ctx->mapping_count - 1;
     mapping->dpi = dpi;
+    mapping->raw = wine_server_rectangle( raw );
     mapping->virt = wine_server_rectangle( virt );
-    TRACE( "Adding mapping %s/%u\n", wine_dbgstr_rect(&virt), dpi );
+
+    ERR( "Adding mapping dpi %u, raw %s, virt %s\n", dpi,
+          wine_dbgstr_rect(&raw), wine_dbgstr_rect(&virt) );
 }
 
 static void add_modes( const DEVMODEW *current, UINT modes_count, const DEVMODEW *modes, void *param )
@@ -1657,7 +1670,7 @@ static void add_modes( const DEVMODEW *current, UINT modes_count, const DEVMODEW
     set_reg_value( ctx->source_key, mode_countW, REG_DWORD, &modes_count, sizeof(modes_count) );
     ctx->source.mode_count = modes_count;
 
-    if (current != &detached) add_dpi_mapping( ctx, ctx->source.dpi, current );
+    if (current != &detached) add_dpi_mapping( ctx, ctx->source.dpi, &physical, current );
     free( virtual_modes );
 }
 
