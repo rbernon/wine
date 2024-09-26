@@ -11092,6 +11092,10 @@ START_TEST(device)
     }
     IDirect3D8_Release(d3d8);
 
+    test_window_position();
+    test_wndproc();
+    test_wndproc_windowed();
+
     test_fpu_setup();
     test_display_formats();
     test_display_modes();
