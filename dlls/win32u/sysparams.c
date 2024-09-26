@@ -924,6 +924,8 @@ struct device_manager_ctx
     HKEY source_key;
     struct list vulkan_gpus;
     BOOL has_primary;
+    UINT mapping_count;
+    struct dpi_mapping *mappings;
     /* for the virtual desktop settings */
     BOOL is_primary;
     DEVMODEW primary;
@@ -1567,6 +1569,44 @@ static DEVMODEW *get_virtual_modes( const DEVMODEW *current, const DEVMODEW *ini
     return modes;
 }
 
+static void set_rect_from_devmode( RECT *rect, const DEVMODEW *mode )
+{
+    SetRect( rect, mode->dmPosition.x, mode->dmPosition.y, mode->dmPosition.x + mode->dmPelsWidth,
+             mode->dmPosition.y + mode->dmPelsHeight );
+}
+
+static void add_dpi_mapping( struct device_manager_ctx *ctx, UINT dpi, const DEVMODEW *current )
+{
+    struct dpi_mapping *mapping, *tmp;
+    RECT virt, old_virt;
+    UINT i;
+
+    set_rect_from_devmode( &virt, current );
+
+    for (i = 0; i < ctx->mapping_count; i++)
+    {
+        mapping = ctx->mappings + i;
+
+        if (mapping->virt.left != current->dmPosition.x) continue;
+        if (mapping->virt.top != current->dmPosition.y) continue;
+
+        old_virt = wine_server_get_rect( mapping->virt );
+        if (!EqualRect( &virt, &old_virt ) || mapping->dpi != dpi)
+            WARN( "Mapping mismatch at %s/%u -> %s/%u\n", wine_dbgstr_rect(&old_virt),
+                  mapping->dpi, wine_dbgstr_rect(&virt), dpi );
+        return;
+    }
+
+    if (!(tmp = realloc( ctx->mappings, (ctx->mapping_count + 1) * sizeof(*ctx->mappings) ))) return;
+    ctx->mappings = tmp;
+    ctx->mapping_count++;
+
+    mapping = ctx->mappings + ctx->mapping_count - 1;
+    mapping->dpi = dpi;
+    mapping->virt = wine_server_rectangle( virt );
+    TRACE( "Adding mapping %s/%u\n", wine_dbgstr_rect(&virt), dpi );
+}
+
 static void add_modes( const DEVMODEW *current, UINT modes_count, const DEVMODEW *modes, void *param )
 {
     struct device_manager_ctx *ctx = param;
@@ -1617,6 +1657,7 @@ static void add_modes( const DEVMODEW *current, UINT modes_count, const DEVMODEW
     set_reg_value( ctx->source_key, mode_countW, REG_DWORD, &modes_count, sizeof(modes_count) );
     ctx->source.mode_count = modes_count;
 
+    if (current != &detached) add_dpi_mapping( ctx, ctx->source.dpi, current );
     free( virtual_modes );
 }
 
@@ -1650,6 +1691,8 @@ static void release_display_manager_ctx( struct device_manager_ctx *ctx )
         list_remove( &gpu->entry );
         free_vulkan_gpu( gpu );
     }
+
+    free( ctx->mappings );
 }
 
 static void clear_display_devices(void)
@@ -2076,8 +2119,19 @@ BOOL update_display_cache( BOOL force )
     else
     {
         if (!get_vulkan_gpus( &ctx.vulkan_gpus )) WARN( "Failed to find any vulkan GPU\n" );
-        if (!(status = update_display_devices( &ctx ))) add_vulkan_only_gpus( &ctx );
-        else WARN( "Failed to update display devices, status %#x\n", status );
+        if ((status = update_display_devices( &ctx ))) WARN( "Failed to update display devices, status %#x\n", status );
+        else
+        {
+            add_vulkan_only_gpus( &ctx );
+
+            SERVER_START_REQ( set_dpi_mappings )
+            {
+                wine_server_add_data( req, ctx.mappings, ctx.mapping_count * sizeof(*ctx.mappings) );
+                wine_server_call( req );
+            }
+            SERVER_END_REQ;
+        }
+
         release_display_manager_ctx( &ctx );
     }
 
@@ -3321,12 +3375,6 @@ static DEVMODEW *get_display_settings( struct source *target, const DEVMODEW *de
 static INT offset_length( POINT offset )
 {
     return offset.x * offset.x + offset.y * offset.y;
-}
-
-static void set_rect_from_devmode( RECT *rect, const DEVMODEW *mode )
-{
-    SetRect( rect, mode->dmPosition.x, mode->dmPosition.y, mode->dmPosition.x + mode->dmPelsWidth,
-             mode->dmPosition.y + mode->dmPelsHeight );
 }
 
 /* Check if a rect overlaps with placed display rects */
