@@ -1225,7 +1225,7 @@ static void window_set_net_wm_state( struct x11drv_win_data *data, UINT new_stat
     data->desired_state.net_wm_state = new_state;
     if (!data->whole_window) return; /* no window, nothing to update */
     if (data->wm_state_serial) return; /* another WM_STATE update is pending, wait for it to complete */
-    /* we ignore and override previous _NET_WM_STATE update requests */
+    if (data->net_wm_state_serial) return; /* another _NET_WM_STATE update is pending, wait for it to complete */
     if (old_state == new_state) return; /* states are the same, nothing to update */
 
     data->broken_net_wm_maximized = 0;
@@ -1266,6 +1266,7 @@ static void window_set_net_wm_state( struct x11drv_win_data *data, UINT new_stat
         for (i = 0; i < NB_NET_WM_STATES; i++)
         {
             if (!((old_state ^ new_state) & (1 << i))) continue;
+            new_state = (old_state & ~(1 << i)) | (new_state & (1 << i));
 
             xev.xclient.data.l[0] = (new_state & (1 << i)) ? _NET_WM_STATE_ADD : _NET_WM_STATE_REMOVE;
             xev.xclient.data.l[1] = X11DRV_Atoms[net_wm_state_atoms[i] - FIRST_XATOM];
@@ -1278,6 +1279,7 @@ static void window_set_net_wm_state( struct x11drv_win_data *data, UINT new_stat
                    data->pending_state.net_wm_state, data->net_wm_state_serial );
             XSendEvent( data->display, root_window, False,
                         SubstructureRedirectMask | SubstructureNotifyMask, &xev );
+            break; /* request only one state change at a time to avoid ConfigureNotify race conditions */
         }
 
         if (!(data->current_state.net_wm_state & (1 << NET_WM_STATE_MAXIMIZED)) &&
@@ -1462,6 +1464,7 @@ static void window_set_wm_state( struct x11drv_win_data *data, UINT new_state )
     data->desired_state.wm_state = new_state;
     if (!data->whole_window) return; /* no window, nothing to update */
     if (data->wm_state_serial) return; /* another WM_STATE update is pending, wait for it to complete */
+    if (data->net_wm_state_serial) return; /* another _NET_WM_STATE update is pending, wait for it to complete */
     if (old_state == new_state) return; /* states are the same, nothing to update */
 
     switch (MAKELONG(old_state, new_state))
