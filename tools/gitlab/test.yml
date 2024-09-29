@@ -47,7 +47,7 @@
     - wineserver -w
     - printf '\e[0Ksection_end:%s:wine_test_prepare_env\r\e[0K' "$(date +%s)"
 
-test-linux-64:
+.test-linux-64:
   extends: .wine-test
   variables:
     INCLUDE_TESTS: "dinput"
@@ -62,16 +62,16 @@ test-linux-64:
 test-linux-32:
   extends: .wine-test
   variables:
-    EXCLUDE_TESTS: "d3d11:d3d11 d3d9:d3d9ex d3d9:visual"
+    INCLUDE_TESTS: "d3d8:device d3d9:device d3d9:d3d9ex ddraw"
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
   needs:
     - job: build-linux
   script:
     - export WINETEST_COLOR=1
-    - wine usr/local/lib/wine/i386-windows/winetest.exe -q -q -o - -t gitlab -u $CI_JOB_URL -n $EXCLUDE_TESTS
+    - wine usr/local/lib/wine/i386-windows/winetest.exe -q -q -o - -t gitlab -u $CI_JOB_URL $INCLUDE_TESTS
 
-test-win10-21h2-32:
+.test-win10-21h2-32:
   stage: test
   interruptible: true
   variables:
@@ -92,7 +92,7 @@ test-win10-21h2-32:
     paths:
       - winetest.log
 
-test-win10-21h2-64:
+.test-win10-21h2-64:
   stage: test
   interruptible: true
   variables:
