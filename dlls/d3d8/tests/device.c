@@ -10928,6 +10928,8 @@ static void test_window_position(void)
         ok(ret, "Adapter %u: GetMonitorInfoW failed, error %#lx.\n", adapter_idx, GetLastError());
 
         window = create_window();
+        flush_events();
+
         device_desc.adapter_ordinal = adapter_idx;
         device_desc.device_window = window;
         device_desc.width = monitor_info.rcMonitor.right - monitor_info.rcMonitor.left;
