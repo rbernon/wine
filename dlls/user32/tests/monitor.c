@@ -93,6 +93,10 @@ static void flush_events(void)
     DWORD time;
     MSG msg;
 
+    while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE))
+        DispatchMessageA(&msg);
+    return;
+
     time = GetTickCount() + diff;
     while (diff > 0)
     {
