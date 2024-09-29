@@ -3300,6 +3300,7 @@ LRESULT X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
     case WM_WINE_DESKTOP_RESIZED:
         if ((data = get_win_data( hwnd )))
         {
+ERR("hwnd %p serial %lu\n", hwnd, NextRequest(data->display));
             /* update the full screen state */
             update_net_wm_states( data );
             window_set_config( data, &data->rects.visible, FALSE );
