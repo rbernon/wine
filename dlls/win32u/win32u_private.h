@@ -189,6 +189,7 @@ extern struct window_rects map_dpi_window_rects( struct window_rects rects, UINT
 extern BOOL message_beep( UINT i );
 extern RECT map_rect_raw_to_virt( RECT rect, UINT dpi_to );
 extern RECT map_rect_virt_to_raw( RECT rect, UINT dpi_from );
+extern struct window_rects map_window_rects_virt_to_raw( struct window_rects rects, UINT dpi_from );
 extern POINT point_phys_to_win_dpi( HWND hwnd, POINT pt );
 extern POINT point_thread_to_win_dpi( HWND hwnd, POINT pt );
 extern RECT rect_thread_to_win_dpi( HWND hwnd, RECT rect );

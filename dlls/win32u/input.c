@@ -2350,6 +2350,7 @@ BOOL WINAPI NtUserGetCaretPos( POINT *pt )
 
 BOOL set_ime_composition_window_pos( HWND hwnd, const POINT *point )
 {
+    UINT dpi, raw_dpi;
     HWND root_hwnd;
     POINT pt;
 
@@ -2360,6 +2361,8 @@ BOOL set_ime_composition_window_pos( HWND hwnd, const POINT *point )
     pt = *point;
     NtUserMapWindowPoints( hwnd, root_hwnd, &pt, 1, 0 /* per-monitor DPI */ );
 
+    dpi = get_win_monitor_dpi( root_hwnd, &raw_dpi );
+    pt = map_dpi_point( pt, dpi, raw_dpi );
     return user_driver->pSetIMECompositionWindowPos( root_hwnd, &pt );
 }
 

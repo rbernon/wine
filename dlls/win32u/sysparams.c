@@ -2339,6 +2339,23 @@ RECT map_rect_virt_to_raw( RECT rect, UINT dpi_from )
     return rect;
 }
 
+/* map (absolute) window rects from MDT_DEFAULT to MDT_RAW_DPI coordinates */
+struct window_rects map_window_rects_virt_to_raw( struct window_rects rects, UINT dpi_from )
+{
+    struct monitor *monitor;
+
+    if (!lock_display_devices()) return rects;
+    if ((monitor = get_monitor_from_rect( rects.window, MONITOR_DEFAULTTONEAREST, dpi_from, MDT_DEFAULT )))
+    {
+        rects.visible = map_monitor_rect( monitor, rects.visible, dpi_from, MDT_DEFAULT, 0, MDT_RAW_DPI );
+        rects.window = map_monitor_rect( monitor, rects.window, dpi_from, MDT_DEFAULT, 0, MDT_RAW_DPI );
+        rects.client = map_monitor_rect( monitor, rects.client, dpi_from, MDT_DEFAULT, 0, MDT_RAW_DPI );
+    }
+    unlock_display_devices();
+
+    return rects;
+}
+
 static UINT get_monitor_dpi( HMONITOR handle, UINT type, UINT *x, UINT *y )
 {
     struct monitor *monitor;
