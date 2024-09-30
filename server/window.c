@@ -85,6 +85,7 @@ struct window
     unsigned int     layered_flags;   /* flags for a layered window */
     unsigned int     dpi_context;     /* DPI awareness context */
     unsigned int     monitor_dpi;     /* DPI of the window monitor */
+    unsigned int     raw_dpi;         /* raw DPI of the window monitor */
     lparam_t         user_data;       /* user-specific data */
     WCHAR           *text;            /* window caption text */
     data_size_t      text_len;        /* length of window caption */
@@ -570,6 +571,7 @@ static struct window *create_window( struct window *parent, struct window *owner
     win->is_orphan      = 0;
     win->dpi_context    = NTUSER_DPI_PER_MONITOR_AWARE;
     win->monitor_dpi    = USER_DEFAULT_SCREEN_DPI;
+    win->raw_dpi        = USER_DEFAULT_SCREEN_DPI;
     win->user_data      = 0;
     win->text           = NULL;
     win->text_len       = 0;
@@ -2210,6 +2212,8 @@ DECL_HANDLER(get_window_info)
     reply->last_active = win->handle;
     reply->is_unicode  = win->is_unicode;
     reply->dpi_context = win->dpi_context;
+    reply->monitor_dpi = win->monitor_dpi;
+    reply->raw_dpi     = win->raw_dpi;
 
     if (get_user_object( win->last_active, USER_WINDOW )) reply->last_active = win->last_active;
     if (win->thread)
@@ -2470,6 +2474,7 @@ DECL_HANDLER(set_window_pos)
     if (win->paint_flags & PAINT_HAS_PIXEL_FORMAT) update_pixel_format_flags( win );
 
     win->monitor_dpi = req->monitor_dpi;
+    win->raw_dpi = req->raw_dpi;
     set_window_pos( win, previous, flags, &window_rect, &client_rect,
                     &visible_rect, &surface_rect, &valid_rect );
 

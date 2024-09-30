@@ -925,6 +925,50 @@ UINT get_dpi_for_window( HWND hwnd )
     return NTUSER_DPI_CONTEXT_GET_DPI( context );
 }
 
+/**********************************************************************
+ *              get_win_monitor_dpi
+ */
+UINT get_win_monitor_dpi( HWND hwnd, UINT *raw_dpi )
+{
+    UINT dpi;
+    WND *win;
+
+    *raw_dpi = dpi = 0;
+    if (!(win = get_win_ptr( hwnd )))
+    {
+        RtlSetLastWin32Error( ERROR_INVALID_WINDOW_HANDLE );
+        return 0;
+    }
+    if (win == WND_DESKTOP)
+    {
+        RECT rect = {0};
+        return monitor_dpi_from_rect( rect, get_thread_dpi(), raw_dpi );
+    }
+    if (win != WND_OTHER_PROCESS)
+    {
+        *raw_dpi = win->raw_dpi;
+        dpi = win->monitor_dpi;
+        release_win_ptr( win );
+    }
+    else
+    {
+        SERVER_START_REQ( get_window_info )
+        {
+            req->handle = wine_server_user_handle( hwnd );
+            if (!wine_server_call_err( req ))
+            {
+                *raw_dpi = reply->raw_dpi;
+                dpi = reply->monitor_dpi;
+            }
+        }
+        SERVER_END_REQ;
+    }
+
+    if (!dpi) dpi = get_system_dpi();
+    if (!raw_dpi) *raw_dpi = dpi;
+    return dpi;
+}
+
 static LONG_PTR get_win_data( const void *ptr, UINT size )
 {
     if (size == sizeof(WORD))
@@ -2037,6 +2081,7 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
         req->previous      = wine_server_user_handle( insert_after );
         req->swp_flags     = swp_flags;
         req->monitor_dpi   = monitor_dpi;
+        req->raw_dpi       = raw_dpi;
         req->window        = wine_server_rectangle( new_rects->window );
         req->client        = wine_server_rectangle( new_rects->client );
         if (!EqualRect( &new_rects->window, &new_rects->visible ) || new_surface || valid_rects)
@@ -2082,6 +2127,8 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
 
     if (ret)
     {
+        win->monitor_dpi = monitor_dpi;
+        win->raw_dpi = raw_dpi;
         if (needs_update) update_surface_region( surface_win );
         if (((swp_flags & SWP_AGG_NOPOSCHANGE) != SWP_AGG_NOPOSCHANGE) ||
             (swp_flags & (SWP_HIDEWINDOW | SWP_SHOWWINDOW | SWP_STATECHANGED | SWP_FRAMECHANGED)))
