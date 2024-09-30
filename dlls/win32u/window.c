@@ -2048,7 +2048,7 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
     HWND owner_hint, surface_win = 0, parent = NtUserGetAncestor( hwnd, GA_PARENT );
     BOOL ret, is_fullscreen, is_layered, is_child, needs_update = FALSE;
     struct window_rects old_rects;
-    RECT extra_rects[3];
+    RECT extra_rects[3], virtual_rect = get_virtual_screen_rect( 0, MDT_RAW_DPI );
     struct window_surface *old_surface;
     UINT raw_dpi, monitor_dpi;
 
@@ -2085,8 +2085,8 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
         req->swp_flags     = swp_flags;
         req->monitor_dpi   = monitor_dpi;
         req->raw_dpi       = raw_dpi;
-        req->window        = wine_server_rectangle( new_rects->window );
-        req->client        = wine_server_rectangle( new_rects->client );
+        req->window        = wine_server_rectangle( hwnd == get_desktop_window() ? virtual_rect : new_rects->window );
+        req->client        = wine_server_rectangle( hwnd == get_desktop_window() ? virtual_rect : new_rects->client );
         if (!EqualRect( &new_rects->window, &new_rects->visible ) || new_surface || valid_rects)
         {
             extra_rects[0] = extra_rects[1] = new_rects->visible;
