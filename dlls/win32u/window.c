@@ -5777,8 +5777,7 @@ static BOOL set_raw_window_pos( HWND hwnd, RECT rect, UINT flags, BOOL internal 
 
     TRACE( "hwnd %p, rect %s, flags %#x, internal %u\n", hwnd, wine_dbgstr_rect(&rect), flags, internal );
 
-    dpi = get_win_monitor_dpi( hwnd, &raw_dpi );
-    rect = map_dpi_rect( rect, dpi, get_thread_dpi() );
+    rect = map_rect_raw_to_virt( rect, get_thread_dpi() );
 
     if (internal)
     {

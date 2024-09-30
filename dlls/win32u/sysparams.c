@@ -2302,6 +2302,41 @@ static RECT monitors_get_union_rect( UINT dpi, MONITOR_DPI_TYPE type )
     return rect;
 }
 
+static RECT map_monitor_rect( struct monitor *monitor, RECT rect, UINT dpi_from, MONITOR_DPI_TYPE type_from,
+                              UINT dpi_to, MONITOR_DPI_TYPE type_to )
+{
+    UINT x, y;
+    if (!dpi_from) dpi_from = monitor_get_dpi( monitor, type_from, &x, &y );
+    if (!dpi_to) dpi_to = monitor_get_dpi( monitor, type_to, &x, &y );
+    return map_dpi_rect( rect, dpi_from, dpi_to );
+}
+
+/* map a monitor rect from MDT_RAW_DPI to MDT_DEFAULT coordinates */
+RECT map_rect_raw_to_virt( RECT rect, UINT dpi_to )
+{
+    struct monitor *monitor;
+
+    if (!lock_display_devices()) return rect;
+    if ((monitor = get_monitor_from_rect( rect, MONITOR_DEFAULTTONEAREST, 0, MDT_RAW_DPI )))
+        rect = map_monitor_rect( monitor, rect, 0, MDT_RAW_DPI, dpi_to, MDT_DEFAULT );
+    unlock_display_devices();
+
+    return rect;
+}
+
+/* map a monitor rect from MDT_DEFAULT to MDT_RAW_DPI coordinates */
+RECT map_rect_virt_to_raw( RECT rect, UINT dpi_from )
+{
+    struct monitor *monitor;
+
+    if (!lock_display_devices()) return rect;
+    if ((monitor = get_monitor_from_rect( rect, MONITOR_DEFAULTTONEAREST, dpi_from, MDT_DEFAULT )))
+        rect = map_monitor_rect( monitor, rect, dpi_from, MDT_DEFAULT, 0, MDT_RAW_DPI );
+    unlock_display_devices();
+
+    return rect;
+}
+
 static UINT get_monitor_dpi( HMONITOR handle, UINT type, UINT *x, UINT *y )
 {
     struct monitor *monitor;
@@ -6648,7 +6683,7 @@ ULONG_PTR WINAPI NtUserCallOneParam( ULONG_PTR arg, ULONG code )
         return enum_clipboard_formats( arg );
 
     case NtUserCallOneParam_GetClipCursor:
-        return get_clip_cursor( (RECT *)arg, get_thread_dpi() );
+        return get_clip_cursor( (RECT *)arg, get_thread_dpi(), MDT_DEFAULT );
 
     case NtUserCallOneParam_GetCursorPos:
         return get_cursor_pos( (POINT *)arg );
@@ -6755,6 +6790,14 @@ ULONG_PTR WINAPI NtUserCallTwoParam( ULONG_PTR arg1, ULONG_PTR arg2, ULONG code 
 
     case NtUserCallTwoParam_GetVirtualScreenRect:
         *(RECT *)arg1 = get_virtual_screen_rect( 0, arg2 );
+        return 1;
+
+    case NtUserCallTwoParam_MapRectRawToVirt:
+        *(RECT *)arg1 = map_rect_raw_to_virt( *(RECT *)arg1, arg2 );
+        return 1;
+
+    case NtUserCallTwoParam_MapRectVirtToRaw:
+        *(RECT *)arg1 = map_rect_virt_to_raw( *(RECT *)arg1, arg2 );
         return 1;
 
     /* temporary exports */

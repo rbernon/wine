@@ -709,11 +709,8 @@ BOOL WINAPI NtUserSetCursorPos( INT x, INT y )
     RECT rect = {x, y, x, y};
     BOOL ret;
     INT prev_x, prev_y, new_x, new_y;
-    UINT dpi, raw_dpi;
 
-    dpi = monitor_dpi_from_rect( rect, get_thread_dpi(), &raw_dpi );
-    rect = map_dpi_rect( rect, get_thread_dpi(), dpi );
-
+    rect = map_rect_virt_to_raw( rect, get_thread_dpi() );
     SERVER_START_REQ( set_cursor )
     {
         req->flags = SET_CURSOR_POS;
@@ -743,7 +740,6 @@ BOOL get_cursor_pos( POINT *pt )
     DWORD last_change = 0;
     NTSTATUS status;
     RECT rect;
-    UINT dpi, raw_dpi;
 
     if (!pt) return FALSE;
 
@@ -760,8 +756,7 @@ BOOL get_cursor_pos( POINT *pt )
     if (!ret) return FALSE;
 
     SetRect( &rect, pt->x, pt->y, pt->x, pt->y );
-    dpi = monitor_dpi_from_rect( rect, get_thread_dpi(), &raw_dpi );
-    rect = map_dpi_rect( rect, dpi, get_thread_dpi() );
+    rect = map_rect_raw_to_virt( rect, get_thread_dpi() );
     *pt = *(POINT *)&rect.left;
     return ret;
 }
@@ -2575,7 +2570,8 @@ BOOL clip_fullscreen_window( HWND hwnd, BOOL reset )
 
     ctx = set_thread_dpi_awareness_context( NTUSER_DPI_PER_MONITOR_AWARE );
     monitor_info = monitor_info_from_window( hwnd, MONITOR_DEFAULTTONEAREST );
-    virtual_rect = get_virtual_screen_rect( 0, MDT_DEFAULT );
+    virtual_rect = get_virtual_screen_rect( get_thread_dpi(), MDT_DEFAULT );
+    rect = map_rect_virt_to_raw( monitor_info.rcMonitor, get_thread_dpi() );
     set_thread_dpi_awareness_context( ctx );
 
     if (!grab_fullscreen)
@@ -2589,7 +2585,7 @@ BOOL clip_fullscreen_window( HWND hwnd, BOOL reset )
     SERVER_START_REQ( set_cursor )
     {
         req->flags = SET_CURSOR_CLIP | SET_CURSOR_FSCLIP;
-        req->clip  = wine_server_rectangle( monitor_info.rcMonitor );
+        req->clip  = wine_server_rectangle( rect );
         ret = !wine_server_call( req );
     }
     SERVER_END_REQ;
@@ -2609,7 +2605,7 @@ BOOL WINAPI NtUserGetPointerInfoList( UINT32 id, POINTER_INPUT_TYPE type, UINT_P
     return FALSE;
 }
 
-BOOL get_clip_cursor( RECT *rect, UINT dpi )
+BOOL get_clip_cursor( RECT *rect, UINT dpi, MONITOR_DPI_TYPE type )
 {
     struct object_lock lock = OBJECT_LOCK_INIT;
     const desktop_shm_t *desktop_shm;
@@ -2620,13 +2616,7 @@ BOOL get_clip_cursor( RECT *rect, UINT dpi )
     while ((status = get_shared_desktop( &lock, &desktop_shm )) == STATUS_PENDING)
         *rect = wine_server_get_rect( desktop_shm->cursor.clip );
 
-    if (!status)
-    {
-        UINT ctx = set_thread_dpi_awareness_context( NTUSER_DPI_PER_MONITOR_AWARE );
-        UINT raw_dpi, dpi_from = monitor_dpi_from_rect( *rect, get_thread_dpi(), &raw_dpi );
-        *rect = map_dpi_rect( *rect, dpi_from, dpi );
-        set_thread_dpi_awareness_context( ctx );
-    }
+    if (!status && type == MDT_EFFECTIVE_DPI) *rect = map_rect_raw_to_virt( *rect, dpi );
     return !status;
 }
 
@@ -2650,7 +2640,7 @@ BOOL process_wine_clipcursor( HWND hwnd, UINT flags, BOOL reset )
     if (!grab_pointer) return TRUE;
 
     /* we are clipping if the clip rectangle is smaller than the screen */
-    get_clip_cursor( &rect, 0 );
+    get_clip_cursor( &rect, 0, MDT_RAW_DPI );
     intersect_rect( &rect, &rect, &virtual_rect );
     if (EqualRect( &rect, &virtual_rect )) empty = TRUE;
     if (empty && !(flags & SET_CURSOR_FSCLIP))
@@ -2671,17 +2661,15 @@ BOOL process_wine_clipcursor( HWND hwnd, UINT flags, BOOL reset )
  */
 BOOL WINAPI NtUserClipCursor( const RECT *rect )
 {
-    UINT dpi_from = get_thread_dpi(), dpi_to, raw_dpi;
-    BOOL ret;
     RECT new_rect;
+    BOOL ret;
 
     TRACE( "Clipping to %s\n", wine_dbgstr_rect(rect) );
 
     if (rect)
     {
         if (rect->left > rect->right || rect->top > rect->bottom) return FALSE;
-        dpi_to = monitor_dpi_from_rect( *rect, dpi_from, &raw_dpi );
-        new_rect = map_dpi_rect( *rect, dpi_from, dpi_to );
+        new_rect = map_rect_virt_to_raw( *rect, get_thread_dpi() );
         rect = &new_rect;
     }
 
