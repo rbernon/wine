@@ -154,6 +154,7 @@ static struct list monitors = LIST_INIT(monitors);
 static INT64 last_query_display_time;
 static pthread_mutex_t display_lock = PTHREAD_MUTEX_INITIALIZER;
 
+static BOOL emulate_modeset;
 BOOL decorated_mode = TRUE;
 UINT64 thunk_lock_callback = 0;
 
@@ -1569,12 +1570,18 @@ static DEVMODEW *get_virtual_modes( const DEVMODEW *current, const DEVMODEW *ini
 static void add_modes( const DEVMODEW *current, UINT modes_count, const DEVMODEW *modes, void *param )
 {
     struct device_manager_ctx *ctx = param;
-    DEVMODEW dummy, detached = *current, virtual, *virtual_modes = NULL;
-    const DEVMODEW physical = modes_count == 1 ? *modes : *current;
+    DEVMODEW dummy, physical, detached = *current, virtual, *virtual_modes = NULL;
     UINT virtual_count;
 
     TRACE( "current %s, modes_count %u, modes %p, param %p\n", debugstr_devmodew( current ), modes_count, modes, param );
 
+    if (emulate_modeset)
+    {
+        modes = current;
+        modes_count = 1;
+    }
+
+    physical = modes_count == 1 ? *modes : *current;
     if (ctx->is_primary) ctx->primary = *current;
 
     detached.dmPelsWidth = 0;
@@ -3536,7 +3543,7 @@ static LONG apply_display_settings( struct source *target, const DEVMODEW *devmo
     }
 
     /* use the default implementation in virtual desktop mode */
-    if (is_virtual_desktop()) ret = DISP_CHANGE_SUCCESSFUL;
+    if (is_virtual_desktop() || emulate_modeset) ret = DISP_CHANGE_SUCCESSFUL;
     else ret = user_driver->pChangeDisplaySettings( displays, primary_name, hwnd, flags, lparam );
 
     if (ret == DISP_CHANGE_SUCCESSFUL)
@@ -5108,6 +5115,8 @@ void sysparams_init(void)
         grab_fullscreen = IS_OPTION_TRUE( buffer[0] );
     if (!get_config_key( hkey, appkey, "Decorated", buffer, sizeof(buffer) ))
         decorated_mode = IS_OPTION_TRUE( buffer[0] );
+    if (!get_config_key( hkey, appkey, "EmulateModeset", buffer, sizeof(buffer) ))
+        emulate_modeset = IS_OPTION_TRUE( buffer[0] );
 
 #undef IS_OPTION_TRUE
 
