@@ -196,7 +196,7 @@ static HFONT X11DRV_SelectFont( PHYSDEV dev, HFONT hfont, UINT *aa_flags )
 
 BOOL needs_offscreen_rendering( HWND hwnd, BOOL known_child )
 {
-    if (NtUserGetDpiForWindow( hwnd ) != NtUserGetWinMonitorDpi( hwnd, MDT_DEFAULT )) return TRUE; /* needs DPI scaling */
+    if (NtUserGetDpiForWindow( hwnd ) != NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI )) return TRUE; /* needs DPI scaling */
     if (NtUserGetAncestor( hwnd, GA_PARENT ) != NtUserGetDesktopWindow()) return TRUE; /* child window, needs compositing */
     if (NtUserGetWindowRelative( hwnd, GW_CHILD )) return TRUE; /* window has children, needs compositing */
     if (known_child) return TRUE; /* window is/have children, needs compositing */
@@ -225,10 +225,11 @@ Drawable get_dc_drawable( HDC hdc, RECT *rect )
 
 HRGN get_dc_monitor_region( HWND hwnd, HDC hdc )
 {
-    RGNDATA *data;
     UINT i, size;
+    RGNDATA *data;
     HRGN region;
     POINT pt;
+    RECT tmp;
 
     if (!(region = NtGdiCreateRectRgn( 0, 0, 0, 0 ))) return 0;
     if (NtGdiGetRandomRgn( hdc, region, SYSRGN ) <= 0) goto failed;
@@ -239,11 +240,17 @@ HRGN get_dc_monitor_region( HWND hwnd, HDC hdc )
 
     NtGdiGetDCPoint( hdc, NtGdiGetDCOrg, &pt );
     NtUserLogicalToPerMonitorDPIPhysicalPoint( hwnd, &pt );
+
+    SetRect( &tmp, pt.x, pt.y, pt.x, pt.y );
+    tmp = NtUserMapRectVirtToRaw( tmp, 0 /* per-monitor DPI */ );
+    pt = *(POINT *)&tmp;
+
     for (i = 0; i < data->rdh.nCount; i++)
     {
         RECT *rect = (RECT *)data->Buffer + i;
         NtUserLogicalToPerMonitorDPIPhysicalPoint( hwnd, (POINT *)&rect->left );
         NtUserLogicalToPerMonitorDPIPhysicalPoint( hwnd, (POINT *)&rect->right );
+        *rect = NtUserMapRectVirtToRaw( *rect, 0 /* per-monitor DPI */ );
         OffsetRect( rect, -pt.x, -pt.y );
     }
 

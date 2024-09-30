@@ -2626,7 +2626,7 @@ BOOL get_clip_cursor( RECT *rect, UINT dpi, MONITOR_DPI_TYPE type )
 BOOL process_wine_clipcursor( HWND hwnd, UINT flags, BOOL reset )
 {
     struct user_thread_info *thread_info = get_user_thread_info();
-    RECT rect, virtual_rect = get_virtual_screen_rect( 0, MDT_DEFAULT );
+    RECT rect, virtual_rect = get_virtual_screen_rect( 0, MDT_RAW_DPI );
     BOOL was_clipping, empty = !!(flags & SET_CURSOR_NOCLIP);
 
     TRACE( "hwnd %p, flags %#x, reset %u\n", hwnd, flags, reset );

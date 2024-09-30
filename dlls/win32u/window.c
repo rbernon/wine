@@ -1899,7 +1899,7 @@ static RECT get_visible_rect( HWND hwnd, BOOL shaped, UINT style, UINT ex_style,
 
 static BOOL get_surface_rect( const RECT *visible_rect, RECT *surface_rect )
 {
-    RECT virtual_rect = get_virtual_screen_rect( 0, MDT_DEFAULT );
+    RECT virtual_rect = get_virtual_screen_rect( 0, MDT_RAW_DPI );
 
     *surface_rect = *visible_rect;
 
@@ -1954,7 +1954,7 @@ static struct window_surface *get_window_surface( HWND hwnd, UINT swp_flags, BOO
     HWND parent = NtUserGetAncestor( hwnd, GA_PARENT );
     struct window_surface *new_surface;
     struct window_rects monitor_rects;
-    UINT raw_dpi, monitor_dpi, style, ex_style;
+    UINT raw_dpi, style, ex_style;
     RECT dummy;
     HRGN shape;
 
@@ -1962,14 +1962,14 @@ static struct window_surface *get_window_surface( HWND hwnd, UINT swp_flags, BOO
     ex_style = NtUserGetWindowLongW( hwnd, GWL_EXSTYLE );
     is_child = parent && parent != NtUserGetDesktopWindow();
 
-    if (is_child) monitor_dpi = get_win_monitor_dpi( parent, &raw_dpi );
-    else monitor_dpi = monitor_dpi_from_rect( rects->window, get_thread_dpi(), &raw_dpi );
+    if (is_child) get_win_monitor_dpi( parent, &raw_dpi );
+    else monitor_dpi_from_rect( rects->window, get_thread_dpi(), &raw_dpi );
 
     if (get_window_region( hwnd, FALSE, &shape, &dummy )) shaped = FALSE;
     else if ((shaped = !!shape)) NtGdiDeleteObjectApp( shape );
 
     rects->visible = rects->window;
-    if (is_child) monitor_rects = map_dpi_window_rects( *rects, get_thread_dpi(), monitor_dpi );
+    if (is_child) monitor_rects = map_dpi_window_rects( *rects, get_thread_dpi(), raw_dpi );
     else monitor_rects = map_window_rects_virt_to_raw( *rects, get_thread_dpi() );
 
     if (!user_driver->pWindowPosChanging( hwnd, swp_flags, shaped, &monitor_rects )) needs_surface = FALSE;
@@ -1997,7 +1997,7 @@ static struct window_surface *get_window_surface( HWND hwnd, UINT swp_flags, BOO
     else if (create_layered || is_layered) needs_surface = TRUE;
 
     if (needs_surface)
-        create_window_surface( hwnd, create_layered, surface_rect, monitor_dpi, &new_surface );
+        create_window_surface( hwnd, create_layered, surface_rect, raw_dpi, &new_surface );
     else if (new_surface && new_surface != &dummy_surface)
     {
         window_surface_release( new_surface );
@@ -2075,7 +2075,7 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
         valid_rects = NULL;
     }
 
-    if (is_child) monitor_rects = map_dpi_window_rects( *new_rects, get_thread_dpi(), monitor_dpi );
+    if (is_child) monitor_rects = map_dpi_window_rects( *new_rects, get_thread_dpi(), raw_dpi );
     else monitor_rects = map_window_rects_virt_to_raw( *new_rects, get_thread_dpi() );
 
     SERVER_START_REQ( set_window_pos )
@@ -2189,7 +2189,7 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
         if (owner_hint) owner_hint = NtUserGetAncestor(owner_hint, GA_ROOT);
 
         user_driver->pWindowPosChanged( hwnd, insert_after, owner_hint, swp_flags, is_fullscreen,
-                                        &monitor_rects, get_driver_window_surface( new_surface, monitor_dpi ) );
+                                        &monitor_rects, get_driver_window_surface( new_surface, raw_dpi ) );
 
         update_children_window_state( hwnd );
     }
@@ -2337,13 +2337,13 @@ int WINAPI NtUserSetWindowRgn( HWND hwnd, HRGN hrgn, BOOL redraw )
     {
         UINT swp_flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED |
             SWP_NOCLIENTSIZE | SWP_NOCLIENTMOVE;
-        UINT raw_dpi, dpi;
+        UINT raw_dpi;
         HRGN monitor_hrgn;
 
         if (!redraw) swp_flags |= SWP_NOREDRAW;
 
-        dpi = get_win_monitor_dpi( hwnd, &raw_dpi );
-        monitor_hrgn = map_dpi_region( hrgn, get_thread_dpi(), dpi );
+        get_win_monitor_dpi( hwnd, &raw_dpi );
+        monitor_hrgn = map_dpi_region( hrgn, get_thread_dpi(), raw_dpi );
         user_driver->pSetWindowRgn( hwnd, monitor_hrgn, redraw );
         if (monitor_hrgn) NtGdiDeleteObjectApp( monitor_hrgn );
 
