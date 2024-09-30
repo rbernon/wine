@@ -511,6 +511,8 @@ static void map_event_coords( HWND hwnd, Window window, Window event_root, int x
         else if (event_root == root_window) pt = root_to_virtual_screen( x_root, y_root );
         else
         {
+            RECT rect;
+
             if (window == data->whole_window)
             {
                 pt.x += data->rects.visible.left - data->rects.client.left;
@@ -520,6 +522,10 @@ static void map_event_coords( HWND hwnd, Window window, Window event_root, int x
             if (NtUserGetWindowLongW( hwnd, GWL_EXSTYLE ) & WS_EX_LAYOUTRTL)
                 pt.x = data->rects.client.right - data->rects.client.left - 1 - pt.x;
             NtUserMapWindowPoints( hwnd, 0, &pt, 1, 0 /* per-monitor DPI */ );
+
+            SetRect( &rect, pt.x, pt.y, pt.x, pt.y );
+            rect = NtUserMapRectVirtToRaw( rect, 0 /* per-monitor DPI */ );
+            pt = *(POINT *)&rect;
         }
         release_win_data( data );
     }

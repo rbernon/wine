@@ -1478,7 +1478,9 @@ static void EVENT_DropFromOffiX( HWND hWnd, XClientMessageEvent *event )
     }
     else
     {
-        if (!find_drop_window( hWnd, &pt )) return;
+        RECT rect = {pt.x, pt.y, pt.x, pt.y};
+        rect = NtUserMapRectRawToVirt( rect, 0 /* per-monitor DPI */ );
+        if (!find_drop_window( hWnd, (POINT *)&rect.left )) return;
     }
 
     XGetWindowProperty( event->display, DefaultRootWindow(event->display),
