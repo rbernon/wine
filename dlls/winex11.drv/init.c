@@ -239,18 +239,14 @@ HRGN get_dc_monitor_region( HWND hwnd, HDC hdc )
     NtGdiDeleteObjectApp( region );
 
     NtGdiGetDCPoint( hdc, NtGdiGetDCOrg, &pt );
-    NtUserLogicalToPerMonitorDPIPhysicalPoint( hwnd, &pt );
-
     SetRect( &tmp, pt.x, pt.y, pt.x, pt.y );
-    tmp = NtUserMapRectVirtToRaw( hwnd, tmp, 0 /* per-monitor DPI */ );
+    tmp = NtUserMapRectVirtToRaw( hwnd, tmp, NtUserGetDpiForWindow( hwnd ) );
     pt = *(POINT *)&tmp;
 
     for (i = 0; i < data->rdh.nCount; i++)
     {
         RECT *rect = (RECT *)data->Buffer + i;
-        NtUserLogicalToPerMonitorDPIPhysicalPoint( hwnd, (POINT *)&rect->left );
-        NtUserLogicalToPerMonitorDPIPhysicalPoint( hwnd, (POINT *)&rect->right );
-        *rect = NtUserMapRectVirtToRaw( hwnd, *rect, 0 /* per-monitor DPI */ );
+        *rect = NtUserMapRectVirtToRaw( hwnd, *rect, NtUserGetDpiForWindow( hwnd ) );
         OffsetRect( rect, -pt.x, -pt.y );
     }
 
