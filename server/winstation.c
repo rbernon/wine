@@ -147,6 +147,8 @@ static struct winstation *create_winstation( struct object *root, const struct u
             winstation->input_desktop = NULL;
             winstation->clipboard = NULL;
             winstation->atom_table = NULL;
+            winstation->dpi_mapping_count = 0;
+            winstation->dpi_mappings = NULL;
             list_add_tail( &winstation_list, &winstation->entry );
             list_init( &winstation->desktops );
             if (!(winstation->desktop_names = create_namespace( 7 )))
@@ -203,6 +205,7 @@ static void winstation_destroy( struct object *obj )
     if (winstation->clipboard) release_object( winstation->clipboard );
     if (winstation->atom_table) release_object( winstation->atom_table );
     free( winstation->desktop_names );
+    free( winstation->dpi_mappings );
 }
 
 /* retrieve the process window station, checking the handle access rights */
@@ -296,8 +299,6 @@ static struct desktop *create_desktop( const struct unicode_str *name, unsigned 
             desktop->clip_flags = 0;
             desktop->cursor_win = 0;
             desktop->alt_pressed = 0;
-            desktop->dpi_mapping_count = 0;
-            desktop->dpi_mappings = NULL;
             memset( &desktop->key_repeat, 0, sizeof(desktop->key_repeat) );
             list_add_tail( &winstation->desktops, &desktop->entry );
             list_init( &desktop->hotkeys );
@@ -397,7 +398,6 @@ static void desktop_destroy( struct object *obj )
     if (desktop->key_repeat.timeout) remove_timeout_user( desktop->key_repeat.timeout );
     release_object( desktop->winstation );
     if (desktop->shared) free_shared_object( desktop->shared );
-    free( desktop->dpi_mappings );
 }
 
 /* retrieve the thread desktop, checking the handle access rights */
@@ -762,16 +762,18 @@ DECL_HANDLER(close_desktop)
 DECL_HANDLER(set_dpi_mappings)
 {
     struct desktop *desktop = get_thread_desktop( current, 0 );
+    struct winstation *winstation = get_visible_winstation();
     unsigned int size = get_req_data_size();
 
-    if (!desktop) return;
+    fprintf(stderr, "winstation %p\n", winstation);
+    if (!winstation) return;
 
-    free( desktop->dpi_mappings );
-    desktop->dpi_mappings = NULL;
-    desktop->dpi_mapping_count = 0;
+    free( winstation->dpi_mappings );
+    winstation->dpi_mappings = NULL;
+    winstation->dpi_mapping_count = 0;
 
-    if ((desktop->dpi_mappings = memdup( get_req_data(), size )))
-        desktop->dpi_mapping_count = size / sizeof(*desktop->dpi_mappings);
+    if ((winstation->dpi_mappings = memdup( get_req_data(), size )))
+        winstation->dpi_mapping_count = size / sizeof(*winstation->dpi_mappings);
 
     release_object( desktop );
 }

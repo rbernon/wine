@@ -242,12 +242,12 @@ static inline void update_pixel_format_flags( struct window *win )
 }
 
 /* returns the largest intersecting or nearest screen dpi mapping */
-static struct dpi_mapping *get_dpi_mapping_from_rect( struct desktop *desktop, const rectangle_t *rect, int is_raw )
+static struct dpi_mapping *get_dpi_mapping_from_rect( struct winstation *winstation, const rectangle_t *rect, int is_raw )
 {
     struct dpi_mapping *mapping, *nearest = NULL, *found = NULL, *end;
     unsigned int max_area = 0, min_distance = -1;
 
-    for (mapping = desktop->dpi_mappings, end = mapping + desktop->dpi_mapping_count; mapping < end; mapping++)
+    for (mapping = winstation->dpi_mappings, end = mapping + winstation->dpi_mapping_count; mapping < end; mapping++)
     {
         rectangle_t intersect, target = is_raw ? mapping->raw : mapping->virt;
 
