@@ -765,7 +765,6 @@ DECL_HANDLER(set_dpi_mappings)
     struct winstation *winstation = get_visible_winstation();
     unsigned int size = get_req_data_size();
 
-    fprintf(stderr, "winstation %p\n", winstation);
     if (!winstation) return;
 
     free( winstation->dpi_mappings );

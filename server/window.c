@@ -293,7 +293,7 @@ static void map_point_raw_to_virt( struct desktop *desktop, int *x, int *y )
     rectangle_t rect = {*x, *y, *x + 1, *y + 1};
     struct dpi_mapping *mapping;
 
-    mapping = get_dpi_mapping_from_rect( desktop, &rect, 1 );
+    if (!(mapping = get_dpi_mapping_from_rect( desktop->winstation, &rect, 1 ))) return;
     width_to = mapping->virt.right - mapping->virt.left;
     height_to = mapping->virt.bottom - mapping->virt.top;
     width_from = mapping->raw.right - mapping->raw.left;
