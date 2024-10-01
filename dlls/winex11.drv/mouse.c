@@ -524,7 +524,7 @@ static void map_event_coords( HWND hwnd, Window window, Window event_root, int x
             NtUserMapWindowPoints( hwnd, 0, &pt, 1, 0 /* per-monitor DPI */ );
 
             SetRect( &rect, pt.x, pt.y, pt.x, pt.y );
-            rect = NtUserMapRectVirtToRaw( rect, 0 /* per-monitor DPI */ );
+            rect = NtUserMapRectVirtToRaw( hwnd, rect, 0 /* per-monitor DPI */ );
             pt = *(POINT *)&rect;
         }
         release_win_data( data );

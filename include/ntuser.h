@@ -1075,8 +1075,6 @@ enum
     NtUserCallTwoParam_UnhookWindowsHook,
     NtUserCallTwoParam_AdjustWindowRect,
     NtUserCallTwoParam_GetVirtualScreenRect,
-    NtUserCallTwoParam_MapRectRawToVirt,
-    NtUserCallTwoParam_MapRectVirtToRaw,
     /* temporary exports */
     NtUserAllocWinProc,
 };
@@ -1156,18 +1154,6 @@ static inline RECT NtUserGetVirtualScreenRect( MONITOR_DPI_TYPE type )
     RECT virtual;
     NtUserCallTwoParam( (UINT_PTR)&virtual, type, NtUserCallTwoParam_GetVirtualScreenRect );
     return virtual;
-}
-
-static inline RECT NtUserMapRectRawToVirt( RECT rect, UINT dpi_to )
-{
-    NtUserCallTwoParam( (UINT_PTR)&rect, dpi_to, NtUserCallTwoParam_MapRectRawToVirt );
-    return rect;
-}
-
-static inline RECT NtUserMapRectVirtToRaw( RECT rect, UINT dpi_from )
-{
-    NtUserCallTwoParam( (UINT_PTR)&rect, dpi_from, NtUserCallTwoParam_MapRectVirtToRaw );
-    return rect;
 }
 
 /* NtUserCallHwnd codes, not compatible with Windows */
@@ -1334,6 +1320,8 @@ enum
     NtUserCallHwndParam_ExposeWindowSurface,
     NtUserCallHwndParam_GetWinMonitorDpi,
     NtUserCallHwndParam_SetRawWindowPos,
+    NtUserCallHwndParam_MapRectRawToVirt,
+    NtUserCallHwndParam_MapRectVirtToRaw,
     /* temporary exports */
     NtUserSetWindowStyle,
 };
@@ -1575,6 +1563,26 @@ static inline BOOL NtUserSetRawWindowPos( HWND hwnd, RECT rect, UINT flags, BOOL
 {
     struct set_raw_window_pos_params params = {.rect = rect, .flags = flags, .internal = internal};
     return NtUserCallHwndParam( hwnd, (UINT_PTR)&params, NtUserCallHwndParam_SetRawWindowPos );
+}
+
+struct map_raw_rect_params
+{
+    RECT rect;
+    UINT dpi;
+};
+
+static inline RECT NtUserMapRectRawToVirt( HWND hwnd, RECT rect, UINT dpi_to )
+{
+    struct map_raw_rect_params params = {.rect = rect, .dpi = dpi_to};
+    NtUserCallHwndParam( hwnd, (UINT_PTR)&params, NtUserCallHwndParam_MapRectRawToVirt );
+    return params.rect;
+}
+
+static inline RECT NtUserMapRectVirtToRaw( HWND hwnd, RECT rect, UINT dpi_from )
+{
+    struct map_raw_rect_params params = {.rect = rect, .dpi = dpi_from};
+    NtUserCallHwndParam( hwnd, (UINT_PTR)&params, NtUserCallHwndParam_MapRectVirtToRaw );
+    return params.rect;
 }
 
 #endif /* _NTUSER_ */

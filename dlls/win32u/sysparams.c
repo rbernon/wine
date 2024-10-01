@@ -2418,28 +2418,32 @@ if (0)
 }
 
 /* map a monitor rect from MDT_RAW_DPI to MDT_DEFAULT coordinates */
-RECT map_rect_raw_to_virt( RECT rect, UINT dpi_to )
+RECT map_rect_raw_to_virt( HWND hwnd, RECT rect, UINT dpi_to )
 {
+    HMONITOR handle = hwnd ? monitor_from_window( hwnd, MONITOR_DEFAULTTONEAREST, get_thread_dpi() ) : 0;
     RECT pos = {rect.left, rect.top, rect.left, rect.top};
     struct monitor *monitor;
 
     if (!lock_display_devices()) return rect;
-    if ((monitor = get_monitor_from_rect( pos, MONITOR_DEFAULTTONEAREST, 0, MDT_RAW_DPI )))
-        rect = map_monitor_rect( monitor, rect, 0, MDT_RAW_DPI, dpi_to, MDT_DEFAULT );
+    if (handle) monitor = get_monitor_from_handle( handle );
+    else monitor = get_monitor_from_rect( pos, MONITOR_DEFAULTTONEAREST, 0, MDT_RAW_DPI );
+    if (monitor) rect = map_monitor_rect( monitor, rect, 0, MDT_RAW_DPI, dpi_to, MDT_DEFAULT );
     unlock_display_devices();
 
     return rect;
 }
 
 /* map a monitor rect from MDT_DEFAULT to MDT_RAW_DPI coordinates */
-RECT map_rect_virt_to_raw( RECT rect, UINT dpi_from )
+RECT map_rect_virt_to_raw( HWND hwnd, RECT rect, UINT dpi_from )
 {
+    HMONITOR handle = hwnd ? monitor_from_window( hwnd, MONITOR_DEFAULTTONEAREST, get_thread_dpi() ) : 0;
     RECT pos = {rect.left, rect.top, rect.left, rect.top};
     struct monitor *monitor;
 
     if (!lock_display_devices()) return rect;
-    if ((monitor = get_monitor_from_rect( pos, MONITOR_DEFAULTTONEAREST, dpi_from, MDT_DEFAULT )))
-        rect = map_monitor_rect( monitor, rect, dpi_from, MDT_DEFAULT, 0, MDT_RAW_DPI );
+    if (handle) monitor = get_monitor_from_handle( handle );
+    else monitor = get_monitor_from_rect( pos, MONITOR_DEFAULTTONEAREST, 0, MDT_DEFAULT );
+    if (monitor) rect = map_monitor_rect( monitor, rect, dpi_from, MDT_DEFAULT, 0, MDT_RAW_DPI );
     unlock_display_devices();
 
     return rect;
@@ -6929,14 +6933,6 @@ ULONG_PTR WINAPI NtUserCallTwoParam( ULONG_PTR arg1, ULONG_PTR arg2, ULONG code 
 
     case NtUserCallTwoParam_GetVirtualScreenRect:
         *(RECT *)arg1 = get_virtual_screen_rect( 0, arg2 );
-        return 1;
-
-    case NtUserCallTwoParam_MapRectRawToVirt:
-        *(RECT *)arg1 = map_rect_raw_to_virt( *(RECT *)arg1, arg2 );
-        return 1;
-
-    case NtUserCallTwoParam_MapRectVirtToRaw:
-        *(RECT *)arg1 = map_rect_virt_to_raw( *(RECT *)arg1, arg2 );
         return 1;
 
     /* temporary exports */

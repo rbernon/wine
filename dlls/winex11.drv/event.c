@@ -1079,7 +1079,7 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
     SetRect( &rect, pos.x, pos.y, pos.x + event->width, pos.y + event->height );
     rect = window_rect_from_visible( &data->rects, rect );
 
-    TRACE( "win %p/%lx new X rect %d,%d,%dx%d (event %d,%d,%dx%d)\n",
+    ERR( "win %p/%lx new X rect %d,%d,%dx%d (event %d,%d,%dx%d)\n",
            hwnd, data->whole_window, (int)rect.left, (int)rect.top,
            (int)(rect.right-rect.left), (int)(rect.bottom-rect.top),
            event->x, event->y, event->width, event->height );
@@ -1479,7 +1479,7 @@ static void EVENT_DropFromOffiX( HWND hWnd, XClientMessageEvent *event )
     else
     {
         RECT rect = {pt.x, pt.y, pt.x, pt.y};
-        rect = NtUserMapRectRawToVirt( rect, 0 /* per-monitor DPI */ );
+        rect = NtUserMapRectRawToVirt( 0, rect, 0 /* per-monitor DPI */ );
         if (!find_drop_window( hWnd, (POINT *)&rect.left )) return;
     }
 

@@ -242,7 +242,7 @@ HRGN get_dc_monitor_region( HWND hwnd, HDC hdc )
     NtUserLogicalToPerMonitorDPIPhysicalPoint( hwnd, &pt );
 
     SetRect( &tmp, pt.x, pt.y, pt.x, pt.y );
-    tmp = NtUserMapRectVirtToRaw( tmp, 0 /* per-monitor DPI */ );
+    tmp = NtUserMapRectVirtToRaw( hwnd, tmp, 0 /* per-monitor DPI */ );
     pt = *(POINT *)&tmp;
 
     for (i = 0; i < data->rdh.nCount; i++)
@@ -250,7 +250,7 @@ HRGN get_dc_monitor_region( HWND hwnd, HDC hdc )
         RECT *rect = (RECT *)data->Buffer + i;
         NtUserLogicalToPerMonitorDPIPhysicalPoint( hwnd, (POINT *)&rect->left );
         NtUserLogicalToPerMonitorDPIPhysicalPoint( hwnd, (POINT *)&rect->right );
-        *rect = NtUserMapRectVirtToRaw( *rect, 0 /* per-monitor DPI */ );
+        *rect = NtUserMapRectVirtToRaw( hwnd, *rect, 0 /* per-monitor DPI */ );
         OffsetRect( rect, -pt.x, -pt.y );
     }
 

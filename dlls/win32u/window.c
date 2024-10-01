@@ -1971,6 +1971,7 @@ static struct window_surface *get_window_surface( HWND hwnd, UINT swp_flags, BOO
     rects->visible = rects->window;
     if (is_child) monitor_rects = map_dpi_window_rects( *rects, get_thread_dpi(), raw_dpi );
     else monitor_rects = map_window_rects_virt_to_raw( *rects, get_thread_dpi() );
+if (!is_child && style & WS_VISIBLE) ERR("%p %s -> %s\n", hwnd, debugstr_window_rects(rects), debugstr_window_rects(&monitor_rects));
 
     if (!user_driver->pWindowPosChanging( hwnd, swp_flags, shaped, &monitor_rects )) needs_surface = FALSE;
     else if (is_child) needs_surface = FALSE;
@@ -5998,6 +5999,19 @@ ULONG_PTR WINAPI NtUserCallHwndParam( HWND hwnd, DWORD_PTR param, DWORD code )
     {
         struct set_raw_window_pos_params *params = (void *)param;
         return set_raw_window_pos( hwnd, params->rect, params->flags, params->internal );
+    }
+
+    case NtUserCallHwndParam_MapRectRawToVirt:
+    {
+        struct map_raw_rect_params *params = (void *)param;
+        params->rect = map_rect_raw_to_virt( hwnd, params->rect, params->dpi );
+        return 0;
+    }
+    case NtUserCallHwndParam_MapRectVirtToRaw:
+    {
+        struct map_raw_rect_params *params = (void *)param;
+        params->rect = map_rect_virt_to_raw( hwnd, params->rect, params->dpi );
+        return 0;
     }
 
     /* temporary exports */
