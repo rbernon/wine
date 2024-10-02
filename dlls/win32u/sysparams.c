@@ -2423,6 +2423,8 @@ RECT map_rect_raw_to_virt( HWND hwnd, RECT rect, UINT dpi_to )
     RECT pos = {rect.left, rect.top, rect.left, rect.top};
     struct monitor *monitor;
 
+ERR("hwnd %p handle %p\n", hwnd, handle);
+
     if (!lock_display_devices()) return rect;
     monitor = get_monitor_from_rect( pos, MONITOR_DEFAULTTONEAREST, 0, MDT_RAW_DPI );
     if (monitor) rect = map_monitor_rect( monitor, rect, 0, MDT_RAW_DPI, dpi_to, MDT_DEFAULT );
@@ -2446,14 +2448,17 @@ RECT map_rect_virt_to_raw( HWND hwnd, RECT rect, UINT dpi_from )
 }
 
 /* map (absolute) window rects from MDT_DEFAULT to MDT_RAW_DPI coordinates */
-struct window_rects map_window_rects_virt_to_raw( struct window_rects rects, UINT dpi_from )
+struct window_rects map_window_rects_virt_to_raw( HWND hwnd, struct window_rects rects, UINT dpi_from )
 {
+    HMONITOR handle = hwnd ? monitor_from_window( hwnd, MONITOR_DEFAULTTONEAREST, get_thread_dpi() ) : 0;
     struct monitor *monitor;
     RECT rect, monitor_rect;
     BOOL is_fullscreen;
 
     if (!lock_display_devices()) return rects;
-    if ((monitor = get_monitor_from_rect( rects.window, MONITOR_DEFAULTTONEAREST, dpi_from, MDT_DEFAULT )))
+    if (handle) monitor = get_monitor_from_handle( handle );
+    else monitor = get_monitor_from_rect( rects.window, MONITOR_DEFAULTTONEAREST, dpi_from, MDT_DEFAULT );
+    if (monitor)
     {
         /* if the visible rect is fullscreen, make it cover the full raw monitor, regardless of aspect ratio */
         monitor_rect = monitor_get_rect( monitor, dpi_from, MDT_DEFAULT );
@@ -2468,6 +2473,26 @@ struct window_rects map_window_rects_virt_to_raw( struct window_rects rects, UIN
     unlock_display_devices();
 
     return rects;
+}
+
+/* find a monitor for the provided raw DPI window rect */
+HMONITOR get_monitor_for_window( const RECT *window_rect )
+{
+    struct monitor *monitor;
+    HMONITOR handle = 0;
+    RECT monitor_rect;
+
+    if (!lock_display_devices()) return 0;
+    if ((monitor = get_monitor_from_rect( *window_rect, MONITOR_DEFAULTTONEAREST, 0, MDT_RAW_DPI )))
+    {
+        /* if the visible rect is fullscreen, make it cover the full raw monitor, regardless of aspect ratio */
+        monitor_rect = monitor_get_rect( monitor, 0, MDT_RAW_DPI, FALSE );
+        intersect_rect( &monitor_rect, &monitor_rect, window_rect );
+        if (EqualRect( &monitor_rect, window_rect )) handle = monitor->handle;
+    }
+    unlock_display_devices();
+
+    return handle;
 }
 
 static UINT get_monitor_dpi( HMONITOR handle, UINT type, UINT *x, UINT *y )
@@ -4040,10 +4065,19 @@ UINT monitor_dpi_from_rect( RECT rect, UINT dpi, UINT *raw_dpi )
 /* see MonitorFromWindow */
 HMONITOR monitor_from_window( HWND hwnd, UINT flags, UINT dpi )
 {
+    HMONITOR handle = 0;
     RECT rect;
     WINDOWPLACEMENT wp;
+    WND *win;
 
     TRACE( "(%p, 0x%08x)\n", hwnd, flags );
+
+    if ((win = get_win_ptr( hwnd )) && win != WND_DESKTOP && win != WND_OTHER_PROCESS)
+    {
+        handle = win->monitor;
+        release_win_ptr( win );
+    }
+    if (handle) return handle;
 
     wp.length = sizeof(wp);
     if (is_iconic( hwnd ) && NtUserGetWindowPlacement( hwnd, &wp ))
