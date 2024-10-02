@@ -2314,10 +2314,11 @@ static RECT map_monitor_rect( struct monitor *monitor, RECT rect, UINT dpi_from,
 /* map a monitor rect from MDT_RAW_DPI to MDT_DEFAULT coordinates */
 RECT map_rect_raw_to_virt( RECT rect, UINT dpi_to )
 {
+    RECT pos = {rect.left, rect.top, rect.left, rect.top};
     struct monitor *monitor;
 
     if (!lock_display_devices()) return rect;
-    if ((monitor = get_monitor_from_rect( rect, MONITOR_DEFAULTTONEAREST, 0, MDT_RAW_DPI )))
+    if ((monitor = get_monitor_from_rect( pos, MONITOR_DEFAULTTONEAREST, 0, MDT_RAW_DPI )))
         rect = map_monitor_rect( monitor, rect, 0, MDT_RAW_DPI, dpi_to, MDT_DEFAULT );
     unlock_display_devices();
 
@@ -2327,10 +2328,11 @@ RECT map_rect_raw_to_virt( RECT rect, UINT dpi_to )
 /* map a monitor rect from MDT_DEFAULT to MDT_RAW_DPI coordinates */
 RECT map_rect_virt_to_raw( RECT rect, UINT dpi_from )
 {
+    RECT pos = {rect.left, rect.top, rect.left, rect.top};
     struct monitor *monitor;
 
     if (!lock_display_devices()) return rect;
-    if ((monitor = get_monitor_from_rect( rect, MONITOR_DEFAULTTONEAREST, dpi_from, MDT_DEFAULT )))
+    if ((monitor = get_monitor_from_rect( pos, MONITOR_DEFAULTTONEAREST, dpi_from, MDT_DEFAULT )))
         rect = map_monitor_rect( monitor, rect, dpi_from, MDT_DEFAULT, 0, MDT_RAW_DPI );
     unlock_display_devices();
 
