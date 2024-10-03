@@ -331,9 +331,25 @@ void vulkan_detach_surfaces( struct list *surfaces )
     }
 }
 
+void vulkan_update_surfaces( struct list *surfaces )
+{
+    struct surface *surface, *next;
+
+    LIST_FOR_EACH_ENTRY_SAFE( surface, next, surfaces, struct surface, entry )
+    {
+        driver_funcs->p_vulkan_surface_updated( surface->hwnd, surface->driver_private );
+        list_remove( &surface->entry );
+        list_init( &surface->entry );
+    }
+}
+
 #else /* SONAME_LIBVULKAN */
 
 void vulkan_detach_surfaces( struct list *surfaces )
+{
+}
+
+void vulkan_update_surfaces( struct list *surfaces )
 {
 }
 

@@ -245,6 +245,7 @@ extern void *(*p_vkGetInstanceProcAddr)(VkInstance, const char *);
 
 extern BOOL vulkan_init(void);
 extern void vulkan_detach_surfaces( struct list *surfaces );
+extern void vulkan_update_surfaces( struct list *surfaces );
 
 /* window.c */
 HANDLE alloc_user_handle( struct user_object *ptr, unsigned int type );
