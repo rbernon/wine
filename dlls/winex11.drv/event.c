@@ -1029,6 +1029,8 @@ static POINT map_configure_event_coords( struct x11drv_win_data *data, XConfigur
     Window child, parent = data->embedder ? data->embedder : root_window;
     POINT pos;
 
+ERR("window %p/%lx send_event %u parent %lx (%u) window %lx x %d y %d ", data->hwnd, data->whole_window, event->send_event, parent, parent == root_window, event->window, event->x, event->y);
+
     if (event->send_event)
     {
         /* synthetic events are always in root coords */
@@ -1041,6 +1043,8 @@ static POINT map_configure_event_coords( struct x11drv_win_data *data, XConfigur
         XTranslateCoordinates( event->display, event->window, parent, 0, 0,
                                (int *)&pos.x, (int *)&pos.y, &child );
     }
+
+ERR("-> x %d y %d\n", (int)pos.x, (int)pos.y);
 
     if (parent == root_window) pos = root_to_virtual_screen( pos.x, pos.y );
     return pos;
@@ -1061,16 +1065,16 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
 
     if (!hwnd) return FALSE;
     if (!(data = get_win_data( hwnd ))) return FALSE;
-    if (!data->mapped || data->iconic) goto done;
-    if (data->whole_window && !data->managed) goto done;
+    if (!data->mapped || data->iconic) { ERR("***\n"); goto done; }
+    if (data->whole_window && !data->managed) { ERR("***\n"); goto done; }
     /* ignore synthetic events on foreign windows */
-    if (event->send_event && !data->whole_window) goto done;
+    if (event->send_event && !data->whole_window) { ERR("***\n"); goto done; }
     if (data->configure_serial && (long)(data->configure_serial - event->serial) > 0)
     {
         TRACE( "win %p/%lx event %d,%d,%dx%d ignoring old serial %lu/%lu\n",
                hwnd, data->whole_window, event->x, event->y, event->width, event->height,
                event->serial, data->configure_serial );
-        goto done;
+        { ERR("***\n"); goto done; }
     }
 
     /* Get geometry */

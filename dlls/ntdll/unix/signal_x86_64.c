@@ -1994,6 +1994,9 @@ static void segv_handler( int signal, siginfo_t *siginfo, void *sigcontext )
     rec.ExceptionAddress = (void *)RIP_sig(ucontext);
     save_context( &context, ucontext );
 
+ERR("***\n");
+do { static volatile int i = 0; while (!i) {} } while (0);
+
     switch(TRAP_sig(ucontext))
     {
     case TRAP_x86_OFLOW:   /* Overflow exception */
