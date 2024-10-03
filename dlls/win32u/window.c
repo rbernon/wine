@@ -5776,8 +5776,6 @@ static BOOL set_dialog_info( HWND hwnd, void *info )
 
 static BOOL set_raw_window_pos( HWND hwnd, RECT rect, UINT flags, BOOL internal )
 {
-    UINT dpi, raw_dpi;
-
     TRACE( "hwnd %p, rect %s, flags %#x, internal %u\n", hwnd, wine_dbgstr_rect(&rect), flags, internal );
 
     rect = map_rect_raw_to_virt( rect, get_thread_dpi() );
