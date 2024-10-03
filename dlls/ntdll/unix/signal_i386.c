@@ -1906,9 +1906,6 @@ static void segv_handler( int signal, siginfo_t *siginfo, void *sigcontext )
     ucontext_t *ucontext = sigcontext;
     void *stack = setup_exception_record( sigcontext, &rec, &xcontext );
 
-WINE_ERR("***\n");
-do { static volatile int i = 0; while (!i) {} } while (0);
-
     switch (TRAP_sig(ucontext))
     {
     case TRAP_x86_OFLOW:   /* Overflow exception */
