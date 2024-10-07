@@ -936,7 +936,6 @@ SOURCES = \
 	wine/unixlib.h \
 	wine/vulkan.h \
 	wine/vulkan_driver.h \
-	wine/vulkan_thunks.h \
 	wine/wgl.h \
 	wine/wgl_driver.h \
 	wine/winbase16.h \
