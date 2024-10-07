@@ -139,9 +139,7 @@ enum
     NtGdiGetPolyFillMode,
     NtGdiGetROP2,
     NtGdiGetTextColor,
-    NtGdiGetPixelFormat,
     NtGdiIsMemDC,
-    NtGdiIsDisplay,
 };
 
 /* NtGdiGetDCPoint parameter, not compatible with Windows */

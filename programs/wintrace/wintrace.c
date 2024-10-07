@@ -933,7 +933,7 @@ static void set_display_settings(void)
     mode.dmPelsWidth = 800;
     mode.dmPelsHeight = 600;
 
-    ChangeDisplaySettingsExW( NULL, &mode, 0, CDS_UPDATEREGISTRY | CDS_NORESET, NULL );
+    ChangeDisplaySettingsExW( L"\\\\.\\DISPLAY1", &mode, 0, CDS_UPDATEREGISTRY | CDS_NORESET, NULL );
     ChangeDisplaySettingsExW( NULL, NULL, NULL, 0, NULL );
 }
 
@@ -1177,44 +1177,10 @@ static void list_display(void)
            GetSystemMetrics( SM_CXVIRTUALSCREEN ), GetSystemMetrics( SM_CYVIRTUALSCREEN ) );
     trace( "monitors %u\n", GetSystemMetrics( SM_CMONITORS ) );
 
-{
-    HDC dc = GetDC( NULL );
-    UINT dpi_x = GetDeviceCaps( dc, LOGPIXELSX );
-    UINT dpi_y = GetDeviceCaps( dc, LOGPIXELSY );
-    UINT res_x = GetDeviceCaps( dc, HORZRES );
-    UINT res_y = GetDeviceCaps( dc, VERTRES );
-    trace( "res (%d,%d) dpi (%d,%d)\n", res_x, res_y, dpi_x, dpi_y );
-    DeleteDC( dc );
-}
-
-    /* HKCU\Control Panel\Desktop\Win8DpiScaling */
-    /* HKCU\Control Panel\Desktop\DpiScalingVer */
-    /* HKCU\Control Panel\Desktop\DesktopDPIOverride */
-    /* HKCU\Control Panel\Desktop\LogPixels */
-    /* HKCU\Control Panel\Desktop\WindowMetrics\AppliedDPI */
-    /* HKCU\Control Panel\Desktop\PerMonitorSettings\NOEDID_XXX\DpiValue */
-
-/*
-    get_scale_req.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_DPI_SCALE;
-    get_scale_req.header.size = sizeof(get_scale_req);
-    get_scale_req.header.adapterId = open_adapter_gdi_desc.AdapterLuid;
-    get_scale_req.header.id = open_adapter_gdi_desc.VidPnSourceId;
-    DisplayConfigGetDeviceInfo
-    DisplayConfigSetDeviceInfo
-
-    GetDpiForMonitorInternal( ... MDT_EFFECTIVE_DPI   = 0, )
-    GetDpiForMonitorInternal( ... MDT_ANGULAR_DPI     = 1, )
-    GetDpiForMonitorInternal( ... MDT_RAW_DPI         = 2, )
-    GetDpiForMonitorInternal( ... MDT_DEFAULT         = MDT_EFFECTIVE_DPI, )
-*/
-
     trace( "system dpi %u\n", GetDpiForSystem() );
+    SetThreadDpiAwarenessContext( DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 );
 
-{
-    DPI_AWARENESS_CONTEXT old = SetThreadDpiAwarenessContext( DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 );
     EnumDisplayMonitors( 0, NULL, enum_monitor, 0 );
-    SetThreadDpiAwarenessContext( old );
-}
 
     trace( "dxgi\n" );
     list_display_dxgi();
