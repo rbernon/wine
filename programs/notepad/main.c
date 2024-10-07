@@ -207,6 +207,7 @@ static VOID NOTEPAD_SaveSettingToRegistry(void)
  */
 static VOID NOTEPAD_LoadSettingFromRegistry(void)
 {
+    static const WCHAR systemW[] = { 'S','y','s','t','e','m','\0' };
     HKEY hkey;
     INT base_length, dx, dy;
 
@@ -237,7 +238,7 @@ static VOID NOTEPAD_LoadSettingFromRegistry(void)
     Globals.lfFont.lfClipPrecision  = CLIP_DEFAULT_PRECIS;
     Globals.lfFont.lfQuality        = DEFAULT_QUALITY;
     Globals.lfFont.lfPitchAndFamily = FIXED_PITCH | FF_DONTCARE;
-    lstrcpyW(Globals.lfFont.lfFaceName, L"Courrier New");
+    lstrcpyW(Globals.lfFont.lfFaceName, systemW);
 
     LoadStringW(Globals.hInstance, STRING_PAGESETUP_HEADERVALUE,
                 Globals.szHeader, ARRAY_SIZE(Globals.szHeader));
@@ -298,8 +299,6 @@ static VOID NOTEPAD_LoadSettingFromRegistry(void)
             if(type == REG_SZ)
                 lstrcpyW(Globals.szFooter, data_helper);
         RegCloseKey(hkey);
-
-        lstrcpyW(Globals.lfFont.lfFaceName, L"Courrier New");
     }
 }
 

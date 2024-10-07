@@ -337,24 +337,7 @@ BOOL query_ime_char_rect(macdrv_query* query)
 void macdrv_NotifyIMEStatus( HWND hwnd, UINT status )
 {
     TRACE_(imm)( "hwnd %p, status %#x\n", hwnd, status );
-
-    if (!status)
-    {
-        macdrv_clear_ime_text();
-        free(ime_update.result_str);
-        ime_update.result_str = NULL;
-        free(ime_update.comp_str);
-        ime_update.comp_str = NULL;
-    }
-}
-
-
-/***********************************************************************
- *      SetCaretPos (X11DRV.@)
- */
-void macdrv_SetCaretPos( const RECT *caret )
-{
-    TRACE_(imm)( "caret %s\n", wine_dbgstr_rect(caret) );
+    if (!status) macdrv_clear_ime_text();
 }
 
 
