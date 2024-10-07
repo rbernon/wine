@@ -182,72 +182,110 @@ static BOOL CRYPT_QueryContextObject(DWORD dwObjectType, const void *pvObject,
     return ret;
 }
 
-static BOOL CRYPT_QuerySerializedContextObject( DWORD object_type, const void *object, DWORD expected_flags,
-                                                DWORD *encoding, DWORD *content, HCERTSTORE *store, const void **context )
+static BOOL CRYPT_QuerySerializedContextObject(DWORD dwObjectType,
+ const void *pvObject, DWORD dwExpectedContentTypeFlags,
+ DWORD *pdwMsgAndCertEncodingType, DWORD *pdwContentType,
+ HCERTSTORE *phCertStore, const void **ppvContext)
 {
-    context_t *ctx = NULL;
-    CERT_BLOB blob = {0};
-    DWORD context_type;
-    const void *ptr;
+    CERT_BLOB fileBlob;
+    const CERT_BLOB *blob;
+    const WINE_CONTEXT_INTERFACE *contextInterface = NULL;
+    const void *context;
+    DWORD contextType;
     BOOL ret;
 
-    switch (object_type)
+    switch (dwObjectType)
     {
     case CERT_QUERY_OBJECT_FILE:
-        /* Cert, CRL, and CTL contexts can't be "embedded" in a file, so just read the file directly */
-        if (!(ret = CRYPT_ReadBlobFromFile( object, &blob ))) return FALSE;
-        ptr = CRYPT_ReadSerializedElement( blob.pbData, blob.cbData, CERT_STORE_ALL_CONTEXT_FLAG, &context_type );
-        CryptMemFree( blob.pbData );
+        /* Cert, CRL, and CTL contexts can't be "embedded" in a file, so
+         * just read the file directly
+         */
+        ret = CRYPT_ReadBlobFromFile(pvObject, &fileBlob);
+        blob = &fileBlob;
         break;
-
     case CERT_QUERY_OBJECT_BLOB:
-        blob = *(CERT_BLOB *)object;
-        ptr = CRYPT_ReadSerializedElement( blob.pbData, blob.cbData, CERT_STORE_ALL_CONTEXT_FLAG, &context_type );
+        blob = pvObject;
+        ret = TRUE;
         break;
-
     default:
-        SetLastError( E_INVALIDARG ); /* FIXME: is this the correct error? */
+        SetLastError(E_INVALIDARG); /* FIXME: is this the correct error? */
+        ret = FALSE;
+    }
+    if (!ret)
         return FALSE;
-    }
 
-    if (!ptr) return FALSE;
-
-    switch (context_type)
+    ret = FALSE;
+    context = CRYPT_ReadSerializedElement(blob->pbData, blob->cbData,
+     CERT_STORE_ALL_CONTEXT_FLAG, &contextType);
+    if (context)
     {
-    case CERT_STORE_CERTIFICATE_CONTEXT:
-        ctx = context_from_cert( ptr );
-        if (!(expected_flags & CERT_QUERY_CONTENT_FLAG_SERIALIZED_CERT)) break;
-        if (content) *content = CERT_QUERY_CONTENT_SERIALIZED_CERT;
-        if (encoding) *encoding = X509_ASN_ENCODING;
-        if (store) *store = CertDuplicateStore( ((CERT_CONTEXT *)ptr)->hCertStore );
-        if (context) Context_Release( ctx );
-        else *context = ptr;
-        return TRUE;
+        DWORD contentType, certStoreOffset;
 
-    case CERT_STORE_CRL_CONTEXT:
-        ctx = context_from_crl( ptr );
-        if (!(expected_flags & CERT_QUERY_CONTENT_FLAG_SERIALIZED_CRL)) break;
-        if (content) *content = CERT_QUERY_CONTENT_SERIALIZED_CRL;
-        if (encoding) *encoding = X509_ASN_ENCODING;
-        if (store) *store = CertDuplicateStore( ((CRL_CONTEXT *)ptr)->hCertStore );
-        if (!context) Context_Release( ctx );
-        else *context = ptr;
-        return TRUE;
-
-    case CERT_STORE_CTL_CONTEXT:
-        ctx = context_from_ctl( ptr );
-        if (!(expected_flags & CERT_QUERY_CONTENT_FLAG_SERIALIZED_CTL)) break;
-        if (content) *content = CERT_QUERY_CONTENT_SERIALIZED_CTL;
-        if (encoding) *encoding = X509_ASN_ENCODING;
-        if (store) *store = CertDuplicateStore( ((CTL_CONTEXT *)ptr)->hCertStore );
-        if (!context) Context_Release( ctx );
-        else *context = ptr;
-        return TRUE;
+        ret = TRUE;
+        switch (contextType)
+        {
+        case CERT_STORE_CERTIFICATE_CONTEXT:
+            contextInterface = pCertInterface;
+            contentType = CERT_QUERY_CONTENT_SERIALIZED_CERT;
+            certStoreOffset = offsetof(CERT_CONTEXT, hCertStore);
+            if (!(dwExpectedContentTypeFlags &
+             CERT_QUERY_CONTENT_FLAG_SERIALIZED_CERT))
+            {
+                SetLastError(ERROR_INVALID_DATA);
+                ret = FALSE;
+                goto end;
+            }
+            break;
+        case CERT_STORE_CRL_CONTEXT:
+            contextInterface = pCRLInterface;
+            contentType = CERT_QUERY_CONTENT_SERIALIZED_CRL;
+            certStoreOffset = offsetof(CRL_CONTEXT, hCertStore);
+            if (!(dwExpectedContentTypeFlags &
+             CERT_QUERY_CONTENT_FLAG_SERIALIZED_CRL))
+            {
+                SetLastError(ERROR_INVALID_DATA);
+                ret = FALSE;
+                goto end;
+            }
+            break;
+        case CERT_STORE_CTL_CONTEXT:
+            contextInterface = pCTLInterface;
+            contentType = CERT_QUERY_CONTENT_SERIALIZED_CTL;
+            certStoreOffset = offsetof(CTL_CONTEXT, hCertStore);
+            if (!(dwExpectedContentTypeFlags &
+             CERT_QUERY_CONTENT_FLAG_SERIALIZED_CTL))
+            {
+                SetLastError(ERROR_INVALID_DATA);
+                ret = FALSE;
+                goto end;
+            }
+            break;
+        default:
+            SetLastError(ERROR_INVALID_DATA);
+            ret = FALSE;
+            goto end;
+        }
+        if (pdwMsgAndCertEncodingType)
+            *pdwMsgAndCertEncodingType = X509_ASN_ENCODING;
+        if (pdwContentType)
+            *pdwContentType = contentType;
+        if (phCertStore)
+            *phCertStore = CertDuplicateStore(
+             *(HCERTSTORE *)((const BYTE *)context + certStoreOffset));
+        if (ppvContext)
+        {
+            *ppvContext = context;
+            Context_AddRef(context_from_ptr(context));
+        }
     }
 
-    if (ctx) Context_Release( ctx );
-    SetLastError( ERROR_INVALID_DATA );
-    return FALSE;
+end:
+    if (contextInterface && context)
+        Context_Release(context_from_ptr(context));
+    if (blob == &fileBlob)
+        CryptMemFree(blob->pbData);
+    TRACE("returning %d\n", ret);
+    return ret;
 }
 
 static BOOL CRYPT_QuerySerializedStoreFromFile(LPCWSTR fileName,
