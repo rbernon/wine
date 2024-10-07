@@ -217,19 +217,19 @@ static void X11DRV_vulkan_surface_presented( HWND hwnd, void *private, VkResult 
     vulkan_surface_update_offscreen( hwnd, surface );
 
     if (!surface->offscreen) return;
-
-    if (!(data = get_win_data( hwnd ))) return;
-    rect_dst = data->rects.client;
-    release_win_data( data );
-
-    if (!(data = get_win_data( toplevel ))) return;
-    window = data->whole_window;
-    OffsetRect( &rect_dst, data->rects.client.left - data->rects.visible.left,
-                data->rects.client.top - data->rects.visible.top );
-    release_win_data( data );
-
     if (!(hdc = NtUserGetDCEx( hwnd, 0, DCX_CACHE | DCX_CLIPCHILDREN ))) return;
+    window = X11DRV_get_whole_window( toplevel );
     region = get_dc_monitor_region( hwnd, hdc );
+
+    NtUserGetClientRect( hwnd, &rect_dst, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
+    NtUserMapWindowPoints( hwnd, toplevel, (POINT *)&rect_dst, 2, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
+
+    if ((data = get_win_data( toplevel )))
+    {
+        OffsetRect( &rect_dst, data->rects.client.left - data->rects.visible.left,
+                    data->rects.client.top - data->rects.visible.top );
+        release_win_data( data );
+    }
 
     if (get_dc_drawable( surface->hdc_dst, &rect ) != window || !EqualRect( &rect, &rect_dst ))
         set_dc_drawable( surface->hdc_dst, window, &rect_dst, ClipByChildren );

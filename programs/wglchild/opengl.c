@@ -367,7 +367,7 @@ static LRESULT CALLBACK opengl_window_proc( HWND hwnd, UINT msg, WPARAM wparam, 
 #endif
     }
 
-    return default_window_proc( hwnd, msg, wparam, lparam );
+    return DefWindowProcW( hwnd, msg, wparam, lparam );
 }
 
 static const PIXELFORMATDESCRIPTOR pfd =
