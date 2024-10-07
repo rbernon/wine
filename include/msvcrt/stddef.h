@@ -28,7 +28,6 @@
 #define offsetof(s,m)       (size_t)&(((s*)NULL)->m)
 #endif
 
-typedef double max_align_t;
 
 #ifdef __cplusplus
 extern "C" {

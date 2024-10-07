@@ -1723,7 +1723,6 @@ typedef enum _PROC_THREAD_ATTRIBUTE_NUM
 #define PROC_THREAD_ATTRIBUTE_ENABLE_OPTIONAL_XSTATE_FEATURES (ProcThreadAttributeEnableOptionalXStateFeatures | PROC_THREAD_ATTRIBUTE_THREAD | PROC_THREAD_ATTRIBUTE_INPUT)
 
 #define SYMBOLIC_LINK_FLAG_DIRECTORY (0x1)
-#define SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE (0x2)
 #define VALID_SYMBOLIC_LINK_FLAGS SYMBOLIC_LINK_FLAG_DIRECTORY
 
 typedef struct _STARTUPINFOEXA
@@ -1993,6 +1992,7 @@ WINBASEAPI void        WINAPI DeleteCriticalSection(CRITICAL_SECTION *lpCrit);
 WINBASEAPI void        WINAPI DeleteFiber(LPVOID);
 WINBASEAPI BOOL        WINAPI DeleteFileA(LPCSTR);
 WINBASEAPI BOOL        WINAPI DeleteFileW(LPCWSTR);
+#define                       DeleteFile WINELIB_NAME_AW(DeleteFile)
 WINBASEAPI void        WINAPI DeleteProcThreadAttributeList(struct _PROC_THREAD_ATTRIBUTE_LIST*);
 WINBASEAPI BOOL        WINAPI DeleteTimerQueue(HANDLE);
 WINBASEAPI BOOL        WINAPI DeleteTimerQueueEx(HANDLE,HANDLE);
@@ -2978,7 +2978,6 @@ WINBASEAPI UINT        WINAPI _lwrite(HFILE,LPCSTR,UINT);
 #define     ZeroMemory RtlZeroMemory
 #define     CopyMemory RtlCopyMemory
 #define     SecureZeroMemory RtlSecureZeroMemory
-#define     CaptureStackBackTrace RtlCaptureStackBackTrace
 
 /* Wine internal functions */
 

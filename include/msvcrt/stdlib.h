@@ -121,17 +121,12 @@ extern unsigned int _fmode;
 
 #endif  /* __i386__ */
 
-_ACRTIMP int             __cdecl ___mb_cur_max_l_func(_locale_t);
-
 _ACRTIMP int             __cdecl ___mb_cur_max_func(void);
 #define __mb_cur_max             ___mb_cur_max_func()
-#define MB_CUR_MAX               ___mb_cur_max_func()
 _ACRTIMP __msvcrt_ulong* __cdecl __doserrno(void);
 #define _doserrno              (*__doserrno())
 _ACRTIMP int*            __cdecl _errno(void);
 #define errno                  (*_errno())
-_ACRTIMP int*            __cdecl __sys_nerr(void);
-#define _sys_nerr              (*__sys_nerr())
 
 /* FIXME: We need functions to access these:
  * int _sys_nerr;
@@ -259,8 +254,7 @@ void __cdecl _invalid_parameter(const wchar_t *expr, const wchar_t *func, const 
                                 unsigned int line, uintptr_t arg);
 
 #ifdef _UCRT
-_ACRTIMP double __cdecl _strtod_l(const char*,char**,_locale_t);
-_ACRTIMP long double __cdecl _strtold_l(const char*,char**,_locale_t);
+_ACRTIMP double __cdecl _strtold_l(const char*,char**,_locale_t);
 static inline long double strtold(const char *string, char **endptr) { return _strtold_l(string, endptr, NULL); }
 #endif /* _UCRT */
 
@@ -315,14 +309,6 @@ static inline ldiv_t __wine_msvcrt_ldiv(__msvcrt_long num, __msvcrt_long denom)
 }
 #define div(num,denom) __wine_msvcrt_div(num,denom)
 #define ldiv(num,denom) __wine_msvcrt_ldiv(num,denom)
-#endif
-
-#ifdef __cplusplus
-extern "C++"
-{
-inline long abs(long const _X) throw() { return labs(_X); }
-inline long long abs(long long const _X) throw() { return llabs(_X); }
-}
 #endif
 
 #include <poppack.h>
