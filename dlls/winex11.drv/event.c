@@ -1065,13 +1065,11 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
     if (data->whole_window && !data->managed) goto done;
     /* ignore synthetic events on foreign windows */
     if (event->send_event && !data->whole_window) goto done;
-    /* ignore any configure event preceding our last request, or while a _NET_WM_STATE change is pending */
-    if ((data->configure_serial && (long)(data->configure_serial - event->serial) > 0) ||
-        (data->net_wm_state_ticks && (NtGetTickCount() - data->net_wm_state_ticks) < 500))
+    if (data->configure_serial && (long)(data->configure_serial - event->serial) > 0)
     {
-        TRACE( "win %p/%lx event %d,%d,%dx%d ignoring old serial %lu/%lu, net_wm_state_ticks %u\n",
+        TRACE( "win %p/%lx event %d,%d,%dx%d ignoring old serial %lu/%lu\n",
                hwnd, data->whole_window, event->x, event->y, event->width, event->height,
-               event->serial, data->configure_serial, data->net_wm_state_ticks );
+               event->serial, data->configure_serial );
         goto done;
     }
 
@@ -1293,16 +1291,6 @@ done:
     release_win_data( data );
 }
 
-static void handle_net_wm_state_notify( HWND hwnd, XPropertyEvent *event, BOOL update_window )
-{
-    struct x11drv_win_data *data;
-
-    if (!(data = get_win_data( hwnd ))) return;
-    TRACE( "window %p/%lx received _NET_WM_STATE update, net_wm_state_ticks %u\n", data->hwnd,
-           data->whole_window, data->net_wm_state_ticks );
-    data->net_wm_state_ticks = 0;
-    release_win_data( data );
-}
 
 /***********************************************************************
  *           X11DRV_PropertyNotify
@@ -1313,7 +1301,6 @@ static BOOL X11DRV_PropertyNotify( HWND hwnd, XEvent *xev )
 
     if (!hwnd) return FALSE;
     if (event->atom == x11drv_atom(WM_STATE)) handle_wm_state_notify( hwnd, event, TRUE );
-    if (event->atom == x11drv_atom(_NET_WM_STATE)) handle_net_wm_state_notify( hwnd, event, TRUE );
     return TRUE;
 }
 

@@ -1167,7 +1167,6 @@ void update_net_wm_states( struct x11drv_win_data *data )
         }
     }
     data->net_wm_state = new_state;
-    data->net_wm_state_ticks = NtGetTickCount();
     update_net_wm_fullscreen_monitors( data );
 }
 
@@ -2585,7 +2584,7 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
 {
     struct x11drv_thread_data *thread_data;
     struct x11drv_win_data *data;
-    UINT new_style = NtUserGetWindowLongW( hwnd, GWL_STYLE ), net_wm_state_ticks;
+    UINT new_style = NtUserGetWindowLongW( hwnd, GWL_STYLE );
     struct window_rects old_rects;
     BOOL was_fullscreen;
     int event_type;
@@ -2598,7 +2597,6 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
     was_fullscreen = data->is_fullscreen;
     data->rects = *new_rects;
     data->is_fullscreen = fullscreen;
-    net_wm_state_ticks = data->net_wm_state_ticks;
 
     TRACE( "win %p/%lx new_rects %s style %08x flags %08x\n", hwnd, data->whole_window,
            debugstr_window_rects(new_rects), new_style, swp_flags );
@@ -2688,12 +2686,12 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
                 XIconifyWindow( data->display, data->whole_window, data->vis.screen );
             else if (is_window_rect_mapped( &new_rects->window ))
                 XMapWindow( data->display, data->whole_window );
-            if (data->net_wm_state_ticks == net_wm_state_ticks) update_net_wm_states( data );
+            update_net_wm_states( data );
         }
         else
         {
             if (swp_flags & (SWP_FRAMECHANGED|SWP_STATECHANGED)) set_wm_hints( data );
-            if (!event_type && data->net_wm_state_ticks == net_wm_state_ticks) update_net_wm_states( data );
+            if (!event_type) update_net_wm_states( data );
         }
     }
 
@@ -2932,7 +2930,6 @@ LRESULT X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
     case WM_WINE_DESKTOP_RESIZED:
         if ((data = get_win_data( hwnd )))
         {
-ERR("hwnd %p serial %lu\n", hwnd, NextRequest(data->display));
             /* update the full screen state */
             update_net_wm_states( data );
 
@@ -2947,8 +2944,7 @@ ERR("hwnd %p serial %lu\n", hwnd, NextRequest(data->display));
                 if (old_pos.x != pos.x) mask |= CWX;
                 if (old_pos.y != pos.y) mask |= CWY;
 
-                data->configure_serial = NextRequest( data->display );
-                XReconfigureWMWindow( data->display, data->whole_window, data->vis.screen, mask, &changes );
+                if (mask) XReconfigureWMWindow( data->display, data->whole_window, data->vis.screen, mask, &changes );
             }
 
             release_win_data( data );
