@@ -338,14 +338,13 @@ static int get_window_attributes( struct x11drv_win_data *data, XSetWindowAttrib
     attr->bit_gravity       = NorthWestGravity;
     attr->backing_store     = NotUseful;
     attr->border_pixel      = 0;
-    attr->background_pixel  = 0;
     attr->event_mask        = (ExposureMask | PointerMotionMask |
                                ButtonPressMask | ButtonReleaseMask | EnterWindowMask |
                                KeyPressMask | KeyReleaseMask | FocusChangeMask |
                                KeymapStateMask | StructureNotifyMask);
     if (data->managed) attr->event_mask |= PropertyChangeMask;
 
-    return (CWOverrideRedirect | CWSaveUnder | CWColormap | CWBorderPixel | CWBackPixel |
+    return (CWOverrideRedirect | CWSaveUnder | CWColormap | CWBorderPixel |
             CWEventMask | CWBitGravity | CWBackingStore);
 }
 
@@ -858,10 +857,6 @@ static void set_style_hints( struct x11drv_win_data *data, DWORD style, DWORD ex
     else
         XDeleteProperty( data->display, data->whole_window, x11drv_atom(_NET_WM_ICON) );
 
-    XChangeProperty( data->display, data->whole_window, x11drv_atom(_WINE_HWND_STYLE), XA_CARDINAL, 32,
-                     PropModeReplace, (unsigned char *)&style, sizeof(style) / 4 );
-    XChangeProperty( data->display, data->whole_window, x11drv_atom(_WINE_HWND_EXSTYLE), XA_CARDINAL, 32,
-                     PropModeReplace, (unsigned char *)&ex_style, sizeof(ex_style) / 4 );
 }
 
 
@@ -926,7 +921,7 @@ static void make_owner_managed( HWND hwnd )
     if (is_managed( owner )) return;
     if (!is_managed( hwnd )) return;
 
-    NtUserSetWindowPos( owner, 0, 0, 0, 0, 0, flags );
+    set_window_pos( owner, 0, 0, 0, 0, 0, flags );
 }
 
 
@@ -1387,18 +1382,13 @@ static void sync_client_position( struct x11drv_win_data *data, const struct win
 
     changes.x      = data->rects.client.left - data->rects.visible.left;
     changes.y      = data->rects.client.top - data->rects.visible.top;
-    changes.width  = min( max( 1, data->rects.client.right - data->rects.client.left ), 65535 );
-    changes.height = min( max( 1, data->rects.client.bottom - data->rects.client.top ), 65535 );
-
     if (changes.x != old_rects->client.left - old_rects->visible.left) mask |= CWX;
     if (changes.y != old_rects->client.top  - old_rects->visible.top)  mask |= CWY;
-    if (changes.width  != old_rects->client.right - old_rects->client.left) mask |= CWWidth;
-    if (changes.height != old_rects->client.bottom - old_rects->client.top) mask |= CWHeight;
 
     if (mask)
     {
-        TRACE( "setting client win %lx pos %d,%d,%dx%d changes=%x\n",
-               data->client_window, changes.x, changes.y, changes.width, changes.height, mask );
+        TRACE( "setting client win %lx pos %d,%d changes=%x\n",
+               data->client_window, changes.x, changes.y, mask );
         XConfigureWindow( gdi_display, data->client_window, mask, &changes );
     }
 }
@@ -1611,7 +1601,7 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual, Colormap colo
         HWND parent = NtUserGetAncestor( hwnd, GA_PARENT );
         if (parent == NtUserGetDesktopWindow() || NtUserGetAncestor( parent, GA_PARENT )) return 0;
         if (!(data = alloc_win_data( thread_init_display(), hwnd ))) return 0;
-        NtUserGetClientRect( hwnd, &data->rects.client, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
+        NtUserGetClientRect( hwnd, &data->rects.client, NtUserGetWinMonitorDpi( hwnd, MDT_DEFAULT ) );
         data->rects.window = data->rects.visible = data->rects.client;
     }
 
@@ -2579,7 +2569,7 @@ BOOL X11DRV_GetWindowStyleMasks( HWND hwnd, UINT style, UINT ex_style, UINT *sty
 /***********************************************************************
  *		WindowPosChanged   (X11DRV.@)
  */
-void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UINT swp_flags, BOOL fullscreen,
+void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags, BOOL fullscreen,
                               const struct window_rects *new_rects, struct window_surface *surface )
 {
     struct x11drv_thread_data *thread_data;

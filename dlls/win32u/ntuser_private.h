@@ -25,8 +25,6 @@
 #include "ntuser.h"
 #include "shellapi.h"
 #include "wine/list.h"
-
-#define WINE_VK_HOST
 #include "wine/vulkan.h"
 
 
@@ -72,10 +70,7 @@ typedef struct tagWND
     HICON              hIconSmall;    /* window's small icon */
     HICON              hIconSmall2;   /* window's secondary small icon, derived from hIcon */
     HIMC               imc;           /* window's input context */
-    HMONITOR           monitor;
     UINT               dpi_context;   /* window DPI awareness context */
-    UINT               monitor_dpi;   /* DPI of the window's monitor */
-    UINT               raw_dpi;       /* raw DPI of the window's monitor */
     struct window_surface *surface;   /* Window surface if any */
     struct list        vulkan_surfaces; /* list of vulkan surfaces created for this window */
     struct tagDIALOGINFO *dlgInfo;    /* Dialog additional info (dialogs only) */
@@ -245,14 +240,11 @@ extern int peek_message( MSG *msg, const struct peek_message_filter *filter );
 extern LRESULT system_tray_call( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, void *data );
 
 /* vulkan.c */
-#define DECL_FUNCPTR(f) extern typeof(f) * p_##f
-DECL_FUNCPTR( vkGetDeviceProcAddr );
-DECL_FUNCPTR( vkGetInstanceProcAddr );
-#undef DECL_FUNCPTR
+extern void *(*p_vkGetDeviceProcAddr)(VkDevice, const char *);
+extern void *(*p_vkGetInstanceProcAddr)(VkInstance, const char *);
 
 extern BOOL vulkan_init(void);
 extern void vulkan_detach_surfaces( struct list *surfaces );
-extern void vulkan_update_surfaces( struct list *surfaces );
 
 /* window.c */
 HANDLE alloc_user_handle( struct user_object *ptr, unsigned int type );

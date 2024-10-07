@@ -186,10 +186,6 @@ static void macdrv_vulkan_surface_presented(HWND hwnd, void *private, VkResult r
 {
 }
 
-static void macdrv_vulkan_surface_updated(HWND hwnd, void *private)
-{
-}
-
 static VkBool32 macdrv_vkGetPhysicalDeviceWin32PresentationSupportKHR(VkPhysicalDevice phys_dev,
         uint32_t index)
 {
@@ -209,7 +205,6 @@ static const struct vulkan_driver_funcs macdrv_vulkan_driver_funcs =
     .p_vulkan_surface_destroy = macdrv_vulkan_surface_destroy,
     .p_vulkan_surface_detach = macdrv_vulkan_surface_detach,
     .p_vulkan_surface_presented = macdrv_vulkan_surface_presented,
-    .p_vulkan_surface_updated = macdrv_vulkan_surface_updated,
 
     .p_vkGetPhysicalDeviceWin32PresentationSupportKHR = macdrv_vkGetPhysicalDeviceWin32PresentationSupportKHR,
     .p_get_host_surface_extension = macdrv_get_host_surface_extension,

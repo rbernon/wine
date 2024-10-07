@@ -147,8 +147,6 @@ static struct winstation *create_winstation( struct object *root, const struct u
             winstation->input_desktop = NULL;
             winstation->clipboard = NULL;
             winstation->atom_table = NULL;
-            winstation->dpi_mapping_count = 0;
-            winstation->dpi_mappings = NULL;
             list_add_tail( &winstation_list, &winstation->entry );
             list_init( &winstation->desktops );
             if (!(winstation->desktop_names = create_namespace( 7 )))
@@ -205,7 +203,6 @@ static void winstation_destroy( struct object *obj )
     if (winstation->clipboard) release_object( winstation->clipboard );
     if (winstation->atom_table) release_object( winstation->atom_table );
     free( winstation->desktop_names );
-    free( winstation->dpi_mappings );
 }
 
 /* retrieve the process window station, checking the handle access rights */
@@ -755,26 +752,6 @@ DECL_HANDLER(close_desktop)
         if (close_handle( current->process, req->handle )) set_error( STATUS_DEVICE_BUSY );
         release_object( desktop );
     }
-}
-
-
-/* set the desktop DPI mappings */
-DECL_HANDLER(set_dpi_mappings)
-{
-    struct desktop *desktop = get_thread_desktop( current, 0 );
-    struct winstation *winstation = get_visible_winstation();
-    unsigned int size = get_req_data_size();
-
-    if (!winstation) return;
-
-    free( winstation->dpi_mappings );
-    winstation->dpi_mappings = NULL;
-    winstation->dpi_mapping_count = 0;
-
-    if ((winstation->dpi_mappings = memdup( get_req_data(), size )))
-        winstation->dpi_mapping_count = size / sizeof(*winstation->dpi_mappings);
-
-    release_object( desktop );
 }
 
 

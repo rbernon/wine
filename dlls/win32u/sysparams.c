@@ -108,8 +108,7 @@ struct source
     LONG refcount;
     struct list entry;
     char path[MAX_PATH];
-    unsigned int id;      /* ID of the source / GDI DISPLAY index */
-    unsigned int index;   /* index of the source on its GPU */
+    unsigned int id;
     struct gpu *gpu;
     UINT dpi;
     UINT depth; /* emulated depth */
@@ -155,7 +154,6 @@ static struct list monitors = LIST_INIT(monitors);
 static INT64 last_query_display_time;
 static pthread_mutex_t display_lock = PTHREAD_MUTEX_INITIALIZER;
 
-static BOOL emulate_modeset;
 BOOL decorated_mode = TRUE;
 UINT64 thunk_lock_callback = 0;
 
@@ -622,7 +620,6 @@ static BOOL read_source_from_registry( unsigned int index, struct source *source
     if (value->DataLength / sizeof(WCHAR) <= size) return FALSE;
     for (i = 0; i < value->DataLength / sizeof(WCHAR) - size; i++) source->path[i] = value_str[size + i];
     if (!(hkey = reg_open_ascii_key( config_key, source->path ))) return FALSE;
-    sscanf( strrchr( source->path, '\\' ), "\\%04x", &source->index );
 
     /* StateFlags */
     if (query_reg_ascii_value( hkey, "StateFlags", value, sizeof(buffer) ) && value->Type == REG_DWORD)
@@ -926,8 +923,6 @@ struct device_manager_ctx
     HKEY source_key;
     struct list vulkan_gpus;
     BOOL has_primary;
-    UINT mapping_count;
-    struct dpi_mapping *mappings;
     /* for the virtual desktop settings */
     BOOL is_primary;
     DEVMODEW primary;
@@ -1309,12 +1304,12 @@ static void add_gpu( const char *name, const struct pci_id *pci_id, const GUID *
 static BOOL write_source_to_registry( const struct source *source, HKEY *source_key )
 {
     struct gpu *gpu = source->gpu;
+    unsigned int len, source_index = gpu->source_count;
     char name[64], buffer[MAX_PATH];
     WCHAR bufferW[MAX_PATH];
-    unsigned int len;
     HKEY hkey;
 
-    snprintf( buffer, sizeof(buffer), "%s\\Video\\%s\\%04x", control_keyA, gpu->guid, source->index );
+    snprintf( buffer, sizeof(buffer), "%s\\Video\\%s\\%04x", control_keyA, gpu->guid, source_index );
     len = asciiz_to_unicode( bufferW, buffer ) - sizeof(WCHAR);
 
     hkey = reg_create_ascii_key( NULL, buffer, REG_OPTION_VOLATILE | REG_OPTION_CREATE_LINK, NULL );
@@ -1338,7 +1333,7 @@ static BOOL write_source_to_registry( const struct source *source, HKEY *source_
                    sizeof(source->state_flags) );
     set_reg_value( *source_key, dpiW, REG_DWORD, &source->dpi, sizeof(source->dpi) );
 
-    snprintf( buffer, sizeof(buffer), "System\\CurrentControlSet\\Control\\Video\\%s\\%04x", gpu->guid, source->index );
+    snprintf( buffer, sizeof(buffer), "System\\CurrentControlSet\\Control\\Video\\%s\\%04x", gpu->guid, source_index );
     hkey = reg_create_ascii_key( config_key, buffer, REG_OPTION_VOLATILE | REG_OPTION_CREATE_LINK, NULL );
     if (!hkey) hkey = reg_create_ascii_key( config_key, buffer, REG_OPTION_VOLATILE | REG_OPTION_OPEN_LINK, NULL );
 
@@ -1475,7 +1470,7 @@ static void add_monitor( const struct gdi_monitor *gdi_monitor, void *param )
         strcpy( monitor_id_string, "Default_Monitor" );
 
     snprintf( buffer, sizeof(buffer), "MonitorID%u", monitor.id );
-    snprintf( monitor.path, sizeof(monitor.path), "DISPLAY\\%s\\%04X&%04X&%04X", monitor_id_string, ctx->source.gpu->index, ctx->source.index, monitor.id );
+    snprintf( monitor.path, sizeof(monitor.path), "DISPLAY\\%s\\%04X&%04X", monitor_id_string, ctx->source.id, monitor.id );
     set_reg_ascii_value( ctx->source_key, buffer, monitor.path );
 
     if (!write_monitor_to_registry( &monitor, gdi_monitor->edid, gdi_monitor->edid_len ))
@@ -1571,72 +1566,15 @@ static DEVMODEW *get_virtual_modes( const DEVMODEW *current, const DEVMODEW *ini
     return modes;
 }
 
-static void set_rect_from_devmode( RECT *rect, const DEVMODEW *mode )
-{
-    SetRect( rect, mode->dmPosition.x, mode->dmPosition.y, mode->dmPosition.x + mode->dmPelsWidth,
-             mode->dmPosition.y + mode->dmPelsHeight );
-}
-
-static void add_dpi_mapping( struct device_manager_ctx *ctx, UINT dpi, const DEVMODEW *physical,
-                             const DEVMODEW *current )
-{
-    struct dpi_mapping *mapping, *tmp;
-    RECT raw, virt, old_raw, old_virt;
-    UINT i;
-
-    set_rect_from_devmode( &raw, physical );
-    set_rect_from_devmode( &virt, current );
-
-    for (i = 0; i < ctx->mapping_count; i++)
-    {
-        mapping = ctx->mappings + i;
-
-        if (mapping->raw.left != physical->dmPosition.x) continue;
-        if (mapping->raw.top != physical->dmPosition.y) continue;
-
-        old_raw = wine_server_get_rect( mapping->raw );
-        old_virt = wine_server_get_rect( mapping->virt );
-        if (!EqualRect( &virt, &old_virt ) || mapping->dpi != dpi)
-            WARN( "Mapping mismatch at %s/%u -> %s/%u\n", wine_dbgstr_rect(&old_virt),
-                  mapping->dpi, wine_dbgstr_rect(&virt), dpi );
-
-        if (mapping->dpi == dpi && EqualRect( &raw, &old_raw ) && EqualRect( &virt, &old_virt ))
-            TRACE( "Ignoring duplicate mapping at %s\n", wine_dbgstr_rect(&raw) );
-        else
-            WARN( "Mapping mismatch, new dpi %u, raw %s, virt %s\n", dpi,
-                  wine_dbgstr_rect(&raw), wine_dbgstr_rect(&virt) );
-
-        return;
-    }
-
-    if (!(tmp = realloc( ctx->mappings, (ctx->mapping_count + 1) * sizeof(*ctx->mappings) ))) return;
-    ctx->mappings = tmp;
-    ctx->mapping_count++;
-
-    mapping = ctx->mappings + ctx->mapping_count - 1;
-    mapping->dpi = dpi;
-    mapping->raw = wine_server_rectangle( raw );
-    mapping->virt = wine_server_rectangle( virt );
-
-    ERR( "Adding mapping dpi %u, raw %s, virt %s\n", dpi,
-          wine_dbgstr_rect(&raw), wine_dbgstr_rect(&virt) );
-}
-
 static void add_modes( const DEVMODEW *current, UINT modes_count, const DEVMODEW *modes, void *param )
 {
     struct device_manager_ctx *ctx = param;
-    DEVMODEW dummy, physical, detached = *current, virtual, *virtual_modes = NULL;
+    DEVMODEW dummy, detached = *current, virtual, *virtual_modes = NULL;
+    const DEVMODEW physical = modes_count == 1 ? *modes : *current;
     UINT virtual_count;
 
     TRACE( "current %s, modes_count %u, modes %p, param %p\n", debugstr_devmodew( current ), modes_count, modes, param );
 
-    if (emulate_modeset)
-    {
-        modes = current;
-        modes_count = 1;
-    }
-
-    physical = modes_count == 1 ? *modes : *current;
     if (ctx->is_primary) ctx->primary = *current;
 
     detached.dmPelsWidth = 0;
@@ -1672,7 +1610,6 @@ static void add_modes( const DEVMODEW *current, UINT modes_count, const DEVMODEW
     set_reg_value( ctx->source_key, mode_countW, REG_DWORD, &modes_count, sizeof(modes_count) );
     ctx->source.mode_count = modes_count;
 
-    if (current != &detached) add_dpi_mapping( ctx, ctx->source.dpi, &physical, current );
     free( virtual_modes );
 }
 
@@ -1706,8 +1643,6 @@ static void release_display_manager_ctx( struct device_manager_ctx *ctx )
         list_remove( &gpu->entry );
         free_vulkan_gpu( gpu );
     }
-
-    free( ctx->mappings );
 }
 
 static void clear_display_devices(void)
@@ -2089,13 +2024,13 @@ static UINT update_display_devices( struct device_manager_ctx *ctx )
 {
     UINT status;
 
-    if ((status = user_driver->pUpdateDisplayDevices( &device_manager, ctx )))
+    if (!(status = user_driver->pUpdateDisplayDevices( &device_manager, ctx )))
     {
-        if (status != STATUS_NOT_IMPLEMENTED) return status;
-        if ((status = default_update_display_devices( ctx ))) return status;
+        if (ctx->source_count && is_virtual_desktop()) return add_virtual_source( ctx );
+        return status;
     }
 
-    if (ctx->source_count && is_virtual_desktop()) status = add_virtual_source( ctx );
+    if (status == STATUS_NOT_IMPLEMENTED) return default_update_display_devices( ctx );
     return status;
 }
 
@@ -2134,19 +2069,8 @@ BOOL update_display_cache( BOOL force )
     else
     {
         if (!get_vulkan_gpus( &ctx.vulkan_gpus )) WARN( "Failed to find any vulkan GPU\n" );
-        if ((status = update_display_devices( &ctx ))) WARN( "Failed to update display devices, status %#x\n", status );
-        else
-        {
-            add_vulkan_only_gpus( &ctx );
-
-            SERVER_START_REQ( set_dpi_mappings )
-            {
-                wine_server_add_data( req, ctx.mappings, ctx.mapping_count * sizeof(*ctx.mappings) );
-                wine_server_call( req );
-            }
-            SERVER_END_REQ;
-        }
-
+        if (!(status = update_display_devices( &ctx ))) add_vulkan_only_gpus( &ctx );
+        else WARN( "Failed to update display devices, status %#x\n", status );
         release_display_manager_ctx( &ctx );
     }
 
@@ -2234,12 +2158,6 @@ static UINT monitor_get_dpi( struct monitor *monitor, MONITOR_DPI_TYPE type, UIN
     UINT dpi;
 
     if (!source || !(dpi = source->dpi)) dpi = system_dpi;
-    if (source && type != MDT_EFFECTIVE_DPI)
-    {
-        scale_x = source->physical.dmPelsWidth / (float)source->current.dmPelsWidth;
-        scale_y = source->physical.dmPelsHeight / (float)source->current.dmPelsHeight;
-    }
-
     *dpi_x = round( dpi * scale_x );
     *dpi_y = round( dpi * scale_y );
     return min( *dpi_x, *dpi_y );
@@ -2252,7 +2170,6 @@ static RECT monitor_get_rect( struct monitor *monitor, UINT dpi, MONITOR_DPI_TYP
     RECT rect = {0, 0, 1024, 768};
     struct source *source;
     UINT dpi_from, x, y;
-    DEVMODEW *mode;
 
     /* services do not have any adapters, only a virtual monitor */
     if (!(source = monitor->source)) return rect;
@@ -2261,9 +2178,9 @@ static RECT monitor_get_rect( struct monitor *monitor, UINT dpi, MONITOR_DPI_TYP
     if (!(source->state_flags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP)) return rect;
     source_get_current_settings( source, &current_mode );
 
-    mode = type != MDT_EFFECTIVE_DPI ? &source->physical : &current_mode;
-    SetRect( &rect, mode->dmPosition.x, mode->dmPosition.y, mode->dmPosition.x + mode->dmPelsWidth,
-             mode->dmPosition.y + mode->dmPelsHeight );
+    SetRect( &rect, current_mode.dmPosition.x, current_mode.dmPosition.y,
+             current_mode.dmPosition.x + current_mode.dmPelsWidth,
+             current_mode.dmPosition.y + current_mode.dmPelsHeight );
 
     dpi_from = monitor_get_dpi( monitor, type, &x, &y );
     return map_dpi_rect( rect, dpi_from, dpi );
@@ -2378,125 +2295,6 @@ static RECT monitors_get_union_rect( UINT dpi, MONITOR_DPI_TYPE type )
     return rect;
 }
 
-static RECT map_monitor_rect( struct monitor *monitor, RECT rect, UINT dpi_from, MONITOR_DPI_TYPE type_from,
-                              UINT dpi_to, MONITOR_DPI_TYPE type_to )
-{
-    UINT x, y, monitor_dpi_from, monitor_dpi_to;
-    RECT tmp, virtual_from, virtual_to;
-
-if (0)
-{
-    virtual_from = monitors_get_union_rect( dpi_from, type_from );
-    virtual_to = monitors_get_union_rect( dpi_to, type_to );
-    intersect_rect( &tmp, &rect, &virtual_from );
-    if (EqualRect( &tmp, &virtual_from )) return virtual_to;
-}
-
-    monitor_dpi_from = monitor_get_dpi( monitor, type_from, &x, &y );
-    monitor_dpi_to = monitor_get_dpi( monitor, type_to, &x, &y );
-    if (!dpi_from) dpi_from = monitor_dpi_from;
-    if (!dpi_to) dpi_to = monitor_dpi_to;
-
-    if (monitor->source && type_from != type_to)
-    {
-        DEVMODEW current_mode = {.dmSize = sizeof(DEVMODEW)}, *mode_from, *mode_to;
-        source_get_current_settings( monitor->source, &current_mode );
-
-        mode_from = type_from == MDT_EFFECTIVE_DPI ? &current_mode : &monitor->source->physical;
-        mode_to = type_to == MDT_EFFECTIVE_DPI ? &current_mode : &monitor->source->physical;
-
-        rect = map_dpi_rect( rect, dpi_from, monitor_dpi_from );
-
-        OffsetRect( &rect, -mode_from->dmPosition.x - mode_from->dmPelsWidth / 2,
-                    -mode_from->dmPosition.y - mode_from->dmPelsHeight / 2 );
-        rect = map_dpi_rect( rect, monitor_dpi_from, monitor_dpi_to );
-        OffsetRect( &rect, mode_to->dmPosition.x + mode_to->dmPelsWidth / 2,
-                    mode_to->dmPosition.y + mode_to->dmPelsHeight / 2 );
-
-        return map_dpi_rect( rect, monitor_dpi_to, dpi_to );
-    }
-
-    return map_dpi_rect( rect, dpi_from, dpi_to );
-}
-
-/* map a monitor rect from MDT_RAW_DPI to MDT_DEFAULT coordinates */
-RECT map_rect_raw_to_virt( HWND hwnd, RECT rect, UINT dpi_to )
-{
-    RECT pos = {rect.left, rect.top, rect.left, rect.top};
-    struct monitor *monitor;
-
-ERR("hwnd %p handle %p\n", hwnd, handle);
-
-    if (!lock_display_devices()) return rect;
-    monitor = get_monitor_from_rect( pos, MONITOR_DEFAULTTONEAREST, 0, MDT_RAW_DPI );
-    if (monitor) rect = map_monitor_rect( monitor, rect, 0, MDT_RAW_DPI, dpi_to, MDT_DEFAULT );
-    unlock_display_devices();
-
-    return rect;
-}
-
-/* map a monitor rect from MDT_DEFAULT to MDT_RAW_DPI coordinates */
-RECT map_rect_virt_to_raw( HWND hwnd, RECT rect, UINT dpi_from )
-{
-    RECT pos = {rect.left, rect.top, rect.left, rect.top};
-    struct monitor *monitor;
-
-    if (!lock_display_devices()) return rect;
-    monitor = get_monitor_from_rect( pos, MONITOR_DEFAULTTONEAREST, 0, MDT_DEFAULT );
-    if (monitor) rect = map_monitor_rect( monitor, rect, dpi_from, MDT_DEFAULT, 0, MDT_RAW_DPI );
-    unlock_display_devices();
-
-    return rect;
-}
-
-/* map (absolute) window rects from MDT_DEFAULT to MDT_RAW_DPI coordinates */
-struct window_rects map_window_rects_virt_to_raw( HWND hwnd, struct window_rects rects, UINT dpi_from )
-{
-    HMONITOR handle = hwnd ? monitor_from_window( hwnd, MONITOR_DEFAULTTONEAREST, get_thread_dpi() ) : 0;
-    struct monitor *monitor;
-    RECT rect, monitor_rect;
-    BOOL is_fullscreen;
-
-    if (!lock_display_devices()) return rects;
-    if (handle) monitor = get_monitor_from_handle( handle );
-    else monitor = get_monitor_from_rect( rects.window, MONITOR_DEFAULTTONEAREST, dpi_from, MDT_DEFAULT );
-    if (monitor)
-    {
-        /* if the visible rect is fullscreen, make it cover the full raw monitor, regardless of aspect ratio */
-        monitor_rect = monitor_get_rect( monitor, dpi_from, MDT_DEFAULT );
-
-        is_fullscreen = intersect_rect( &rect, &monitor_rect, &rects.visible ) && EqualRect( &rect, &monitor_rect );
-        if (is_fullscreen) rects.visible = monitor_get_rect( monitor, 0, MDT_RAW_DPI );
-        else rects.visible = map_monitor_rect( monitor, rects.visible, dpi_from, MDT_DEFAULT, 0, MDT_RAW_DPI );
-
-        rects.window = map_monitor_rect( monitor, rects.window, dpi_from, MDT_DEFAULT, 0, MDT_RAW_DPI );
-        rects.client = map_monitor_rect( monitor, rects.client, dpi_from, MDT_DEFAULT, 0, MDT_RAW_DPI );
-    }
-    unlock_display_devices();
-
-    return rects;
-}
-
-/* find a monitor for the provided raw DPI window rect */
-HMONITOR get_monitor_for_window( const RECT *window_rect )
-{
-    struct monitor *monitor;
-    HMONITOR handle = 0;
-    RECT monitor_rect;
-
-    if (!lock_display_devices()) return 0;
-    if ((monitor = get_monitor_from_rect( *window_rect, MONITOR_DEFAULTTONEAREST, 0, MDT_RAW_DPI )))
-    {
-        /* if the visible rect is fullscreen, make it cover the full raw monitor, regardless of aspect ratio */
-        monitor_rect = monitor_get_rect( monitor, 0, MDT_RAW_DPI, FALSE );
-        intersect_rect( &monitor_rect, &monitor_rect, window_rect );
-        if (EqualRect( &monitor_rect, window_rect )) handle = monitor->handle;
-    }
-    unlock_display_devices();
-
-    return handle;
-}
-
 static UINT get_monitor_dpi( HMONITOR handle, UINT type, UINT *x, UINT *y )
 {
     struct monitor *monitor;
@@ -2507,6 +2305,16 @@ static UINT get_monitor_dpi( HMONITOR handle, UINT type, UINT *x, UINT *y )
     unlock_display_devices();
 
     return dpi;
+}
+
+/**********************************************************************
+ *              get_win_monitor_dpi
+ */
+UINT get_win_monitor_dpi( HWND hwnd, UINT *raw_dpi )
+{
+    /* FIXME: use the monitor DPI instead */
+    *raw_dpi = system_dpi;
+    return system_dpi;
 }
 
 /* keep in sync with user32 */
@@ -3014,7 +2822,7 @@ LONG WINAPI NtUserQueryDisplayConfig( UINT32 flags, UINT32 *paths_count, DISPLAY
         if (!is_monitor_active( monitor )) continue;
         if (!monitor->source) continue;
 
-        source_index = monitor->source->index;
+        source_index = monitor->source->id;
         gpu_luid = &monitor->source->gpu->luid;
         output_id = monitor->output_id;
 
@@ -3138,12 +2946,17 @@ static struct source *find_source( UNICODE_STRING *name )
 
 static void monitor_get_interface_name( struct monitor *monitor, WCHAR *interface_name )
 {
-    char buffer[MAX_PATH * 2] = {0}, *tmp;
+    char buffer[MAX_PATH] = {0}, *tmp;
+    const char *id;
 
     *interface_name = 0;
     if (!monitor->source) return;
 
-    snprintf( buffer, sizeof(buffer), "\\\\?\\%s#%s", monitor->path, guid_devinterface_monitorA );
+    if (!(monitor->edid_info.flags & MONITOR_INFO_HAS_MONITOR_ID)) id = "Default_Monitor";
+    else id = monitor->edid_info.monitor_id_string;
+
+    snprintf( buffer, sizeof(buffer), "\\\\?\\DISPLAY\\%s\\%04X&%04X#%s", id, monitor->source->id,
+              monitor->id, guid_devinterface_monitorA );
     for (tmp = buffer + 4; *tmp; tmp++) if (*tmp == '\\') *tmp = '#';
 
     asciiz_to_unicode( interface_name, buffer );
@@ -3252,7 +3065,7 @@ NTSTATUS WINAPI NtUserEnumDisplayDevices( UNICODE_STRING *device, DWORD index,
         if (info->cb >= offsetof(DISPLAY_DEVICEW, DeviceKey) + sizeof(info->DeviceKey))
         {
             if (monitor) snprintf( buffer, sizeof(buffer), "%s\\Class\\%s\\%04X", control_keyA, guid_devclass_monitorA, monitor->output_id );
-            else snprintf( buffer, sizeof(buffer), "%s\\Video\\%s\\%04x", control_keyA, source->gpu->guid, source->index );
+            else snprintf( buffer, sizeof(buffer), "%s\\Video\\%s\\%04x", control_keyA, source->gpu->guid, source->id );
             asciiz_to_unicode( info->DeviceKey, buffer );
         }
     }
@@ -3459,6 +3272,12 @@ static INT offset_length( POINT offset )
     return offset.x * offset.x + offset.y * offset.y;
 }
 
+static void set_rect_from_devmode( RECT *rect, const DEVMODEW *mode )
+{
+    SetRect( rect, mode->dmPosition.x, mode->dmPosition.y, mode->dmPosition.x + mode->dmPelsWidth,
+             mode->dmPosition.y + mode->dmPelsHeight );
+}
+
 /* Check if a rect overlaps with placed display rects */
 static BOOL overlap_placed_displays( const RECT *rect, const DEVMODEW *displays )
 {
@@ -3591,25 +3410,13 @@ static POINT get_placement_offset( const DEVMODEW *displays, const DEVMODEW *pla
     return min_offset;
 }
 
-static void place_all_displays( DEVMODEW *displays, const WCHAR *primary_name )
+static void place_all_displays( DEVMODEW *displays )
 {
-    POINT min_offset, offset = {0};
+    POINT min_offset, offset;
     DEVMODEW *mode, *placing;
 
     for (mode = displays; mode->dmSize; mode = NEXT_DEVMODEW(mode))
-    {
-        if (wcsicmp( mode->dmDeviceName, primary_name )) continue;
-        offset.x = -mode->dmPosition.x;
-        offset.y = -mode->dmPosition.y;
-        break;
-    }
-
-    for (mode = displays; mode->dmSize; mode = NEXT_DEVMODEW(mode))
-    {
-        mode->dmPosition.x += offset.x;
-        mode->dmPosition.y += offset.y;
         mode->dmFields &= ~DM_POSITION;
-    }
 
     /* Place all displays with no extra space between them and no overlapping */
     while (1)
@@ -3718,6 +3525,8 @@ static LONG apply_display_settings( struct source *target, const DEVMODEW *devmo
         return DISP_CHANGE_SUCCESSFUL;
     }
 
+    place_all_displays( displays );
+
     if (!(primary = find_primary_source())) primary_name[0] = 0;
     else
     {
@@ -3726,10 +3535,8 @@ static LONG apply_display_settings( struct source *target, const DEVMODEW *devmo
         asciiz_to_unicode( primary_name, device_name );
     }
 
-    place_all_displays( displays, primary_name );
-
     /* use the default implementation in virtual desktop mode */
-    if (is_virtual_desktop() || emulate_modeset) ret = DISP_CHANGE_SUCCESSFUL;
+    if (is_virtual_desktop()) ret = DISP_CHANGE_SUCCESSFUL;
     else ret = user_driver->pChangeDisplaySettings( displays, primary_name, hwnd, flags, lparam );
 
     if (ret == DISP_CHANGE_SUCCESSFUL)
@@ -4062,19 +3869,10 @@ UINT monitor_dpi_from_rect( RECT rect, UINT dpi, UINT *raw_dpi )
 /* see MonitorFromWindow */
 HMONITOR monitor_from_window( HWND hwnd, UINT flags, UINT dpi )
 {
-    HMONITOR handle = 0;
     RECT rect;
     WINDOWPLACEMENT wp;
-    WND *win;
 
     TRACE( "(%p, 0x%08x)\n", hwnd, flags );
-
-    if ((win = get_win_ptr( hwnd )) && win != WND_DESKTOP && win != WND_OTHER_PROCESS)
-    {
-        handle = win->monitor;
-        release_win_ptr( win );
-    }
-    if (handle) return handle;
 
     wp.length = sizeof(wp);
     if (is_iconic( hwnd ) && NtUserGetWindowPlacement( hwnd, &wp ))
@@ -5310,8 +5108,6 @@ void sysparams_init(void)
         grab_fullscreen = IS_OPTION_TRUE( buffer[0] );
     if (!get_config_key( hkey, appkey, "Decorated", buffer, sizeof(buffer) ))
         decorated_mode = IS_OPTION_TRUE( buffer[0] );
-    if (!get_config_key( hkey, appkey, "EmulateModeset", buffer, sizeof(buffer) ))
-        emulate_modeset = IS_OPTION_TRUE( buffer[0] );
 
 #undef IS_OPTION_TRUE
 
@@ -6853,7 +6649,7 @@ ULONG_PTR WINAPI NtUserCallOneParam( ULONG_PTR arg, ULONG code )
         return enum_clipboard_formats( arg );
 
     case NtUserCallOneParam_GetClipCursor:
-        return get_clip_cursor( (RECT *)arg, get_thread_dpi(), MDT_DEFAULT );
+        return get_clip_cursor( (RECT *)arg, get_thread_dpi() );
 
     case NtUserCallOneParam_GetCursorPos:
         return get_cursor_pos( (POINT *)arg );

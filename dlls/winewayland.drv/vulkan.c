@@ -124,10 +124,6 @@ static void wayland_vulkan_surface_presented(HWND hwnd, void *private, VkResult 
     ensure_window_surface_contents(toplevel);
 }
 
-static void wayland_vulkan_surface_updated(HWND hwnd, void *private)
-{
-}
-
 static VkBool32 wayland_vkGetPhysicalDeviceWin32PresentationSupportKHR(VkPhysicalDevice phys_dev,
                                                                        uint32_t index)
 {
@@ -148,7 +144,6 @@ static const struct vulkan_driver_funcs wayland_vulkan_driver_funcs =
     .p_vulkan_surface_destroy = wayland_vulkan_surface_destroy,
     .p_vulkan_surface_detach = wayland_vulkan_surface_detach,
     .p_vulkan_surface_presented = wayland_vulkan_surface_presented,
-    .p_vulkan_surface_updated = wayland_vulkan_surface_updated,
 
     .p_vkGetPhysicalDeviceWin32PresentationSupportKHR = wayland_vkGetPhysicalDeviceWin32PresentationSupportKHR,
     .p_get_host_surface_extension = wayland_get_host_surface_extension,

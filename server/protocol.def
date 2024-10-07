@@ -896,13 +896,6 @@ struct directory_entry
     /* VARARG(type,unicode_str,type_len); */
 };
 
-struct dpi_mapping
-{
-    rectangle_t raw;   /* host / physical position of the screen rect */
-    rectangle_t virt;  /* client / virtual position of the screen rect */
-    unsigned int dpi;  /* DPI of the virtual screen rect */
-};
-
 /****************************************************************/
 /* shared session mapping structures */
 
@@ -2506,8 +2499,6 @@ enum message_type
     atom_t         atom;        /* class atom */
     int            is_unicode;  /* ANSI or unicode */
     unsigned int   dpi_context; /* window DPI context */
-    unsigned int   monitor_dpi; /* DPI of the window's monitor */
-    unsigned int   raw_dpi;     /* raw DPI of the window's monitor */
 @END
 
 
@@ -2604,7 +2595,6 @@ enum message_type
     unsigned short swp_flags;     /* SWP_* flags */
     unsigned short paint_flags;   /* paint flags (see below) */
     unsigned int   monitor_dpi;   /* DPI of the window's monitor */
-    unsigned int   raw_dpi;       /* raw DPI of the window's monitor */
     user_handle_t  handle;        /* handle to the window */
     user_handle_t  previous;      /* previous window in Z order */
     rectangle_t    window;        /* window rectangle (in parent coords) */
@@ -2867,12 +2857,6 @@ enum coords_relative
 /* Close a desktop */
 @REQ(close_desktop)
     obj_handle_t handle;          /* handle to the desktop */
-@END
-
-
-/* Update the desktop DPI mappings */
-@REQ(set_dpi_mappings)
-    VARARG(mappings,dpi_mappings);  /* array of DPI mappings */
 @END
 
 
