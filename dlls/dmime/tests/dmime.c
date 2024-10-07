@@ -318,8 +318,6 @@ static HRESULT WINAPI test_tool_ProcessPMsg(IDirectMusicTool *iface, IDirectMusi
 
     hr = IDirectMusicPerformance8_ClonePMsg((IDirectMusicPerformance8 *)performance, msg, &clone);
     ok(hr == S_OK, "got %#lx\n", hr);
-    ok(0, "iface %p, performance %p, msg %p (%#lx)\n", iface, performance, clone, msg->dwType);
-
     clone = test_tool_push_msg(tool, clone);
     ok(!clone, "got %p\n", clone);
     SetEvent(tool->message_event);
@@ -2759,7 +2757,6 @@ static void test_performance_InitAudio(void)
     hr = IDirectMusicPerformance8_Init(performance, &dmusic, dsound, 0);
     ok(hr == S_OK, "Init failed: %#lx\n", hr);
     destroy_performance(performance, dmusic, dsound);
-    IDirectMusicPort_Release(port);
 
     /* InitAudio with perf channel count not a multiple of 16 rounds up */
     create_performance(&performance, NULL, NULL, TRUE);
@@ -2769,7 +2766,6 @@ static void test_performance_InitAudio(void)
     hr = IDirectMusicPerformance8_PChannelInfo(performance, 31, &port, &group, &channel);
     ok(hr == S_OK && group == 2 && channel == 15,
             "PChannelInfo failed, got %#lx, %lu, %lu\n", hr, group, channel);
-    IDirectMusicPort_Release(port);
     hr = IDirectMusicPerformance8_PChannelInfo(performance, 32, &port, NULL, NULL);
     ok(hr == E_INVALIDARG, "PChannelInfo failed, got %#lx\n", hr);
     destroy_performance(performance, NULL, NULL);
@@ -3593,278 +3589,6 @@ static void test_performance_pmsg(void)
     hr = IDirectMusicPerformance_CloseDown(performance);
     ok(hr == S_OK, "got %#lx\n", hr);
 
-
-    IDirectMusicGraph_Release(performance_graph);
-
-    IDirectMusicPerformance_Release(performance);
-    IDirectMusicTool_Release(tool);
-}
-
-static void test_performance_segment_pmsg(void)
-{
-    static const LARGE_INTEGER zero = {0};
-    static const DWORD message_types[] =
-    {
-        DMUS_PMSGT_MIDI,
-        DMUS_PMSGT_NOTE,
-        DMUS_PMSGT_SYSEX,
-        DMUS_PMSGT_NOTIFICATION,
-        DMUS_PMSGT_TEMPO,
-        DMUS_PMSGT_CURVE,
-        DMUS_PMSGT_TIMESIG,
-        DMUS_PMSGT_PATCH,
-        DMUS_PMSGT_TRANSPOSE,
-        DMUS_PMSGT_CHANNEL_PRIORITY,
-        DMUS_PMSGT_STOP,
-        DMUS_PMSGT_DIRTY,
-        DMUS_PMSGT_WAVE,
-        DMUS_PMSGT_LYRIC,
-        DMUS_PMSGT_SCRIPTLYRIC,
-        DMUS_PMSGT_USER,
-    };
-    IDirectMusicGraph *graph, *performance_graph;
-    IDirectMusicPerformance *performance;
-    IDirectMusicSegment *segment;
-    IPersistStream *persist;
-    IDirectMusicTool *tool;
-    MUSIC_TIME length;
-    IStream *stream;
-    HANDLE handle;
-    HRESULT hr;
-
-    hr = test_tool_create(message_types, ARRAY_SIZE(message_types), &tool);
-    ok(hr == S_OK, "got %#lx\n", hr);
-
-    hr = CoCreateInstance(&CLSID_DirectMusicPerformance, NULL, CLSCTX_INPROC_SERVER,
-            &IID_IDirectMusicPerformance, (void **)&performance);
-    ok(hr == S_OK, "got %#lx\n", hr);
-    hr = IDirectMusicPerformance_QueryInterface(performance, &IID_IDirectMusicGraph, (void **)&performance_graph);
-    ok(hr == S_OK, "got %#lx\n", hr);
-
-
-    hr = IDirectMusicPerformance_AddNotificationType(performance, &GUID_NOTIFICATION_CHORD);
-    ok(hr == S_OK, "got %#lx\n", hr);
-    hr = IDirectMusicPerformance_AddNotificationType(performance, &GUID_NOTIFICATION_COMMAND);
-    ok(hr == S_OK, "got %#lx\n", hr);
-    hr = IDirectMusicPerformance_AddNotificationType(performance, &GUID_NOTIFICATION_MEASUREANDBEAT);
-    ok(hr == S_OK, "got %#lx\n", hr);
-    hr = IDirectMusicPerformance_AddNotificationType(performance, &GUID_NOTIFICATION_PERFORMANCE);
-    ok(hr == S_OK, "got %#lx\n", hr);
-    hr = IDirectMusicPerformance_AddNotificationType(performance, &GUID_NOTIFICATION_RECOMPOSE);
-    ok(hr == S_OK, "got %#lx\n", hr);
-    hr = IDirectMusicPerformance_AddNotificationType(performance, &GUID_NOTIFICATION_SEGMENT);
-    ok(hr == S_OK, "got %#lx\n", hr);
-    handle = CreateEventW(NULL, FALSE, FALSE, NULL);
-    ok(!!handle, "CreateEventW failed, error %lu\n", GetLastError());
-    hr = IDirectMusicPerformance_SetNotificationHandle(performance, handle, 0);
-    ok(hr == S_OK, "got %#lx\n", hr);
-
-if (0)
-{
-    hr = IDirectMusicPerformance_Init(performance, NULL, 0, 0);
-    ok(hr == S_OK, "got %#lx\n", hr);
-}
-else
-{
-    hr = IDirectMusicPerformance8_InitAudio((IDirectMusicPerformance8 *)performance, NULL, NULL, NULL,
-            DMUS_APATH_SHARED_STEREOPLUSREVERB, 64, DMUS_AUDIOF_ALL, NULL);
-    ok(hr == S_OK, "got %#lx\n", hr);
-}
-
-    hr = CoCreateInstance(&CLSID_DirectMusicGraph, NULL, CLSCTX_INPROC_SERVER,
-            &IID_IDirectMusicGraph, (void **)&graph);
-    ok(hr == S_OK, "got %#lx\n", hr);
-    hr = IDirectMusicPerformance_SetGraph(performance, graph);
-    ok(hr == S_OK, "got %#lx\n", hr);
-    hr = IDirectMusicGraph_InsertTool(graph, (IDirectMusicTool *)tool, NULL, 0, -1);
-    ok(hr == S_OK, "got %#lx\n", hr);
-    IDirectMusicGraph_Release(graph);
-
-
-    while (!WaitForSingleObject(handle, 100))
-    {
-        DMUS_NOTIFICATION_PMSG *msg;
-        hr = IDirectMusicPerformance_GetNotificationPMsg(performance, &msg);
-        ok(hr == S_OK, "got %#lx\n", hr);
-        ok(0, "performance %p, msg %p (%#lx, %s, %#lx)\n", performance, msg, msg->dwType, debugstr_guid(&msg->guidNotificationType), msg->dwNotificationOption);
-        hr = IDirectMusicPerformance_FreePMsg(performance, (DMUS_PMSG *)msg);
-        ok(hr == S_OK, "got %#lx\n", hr);
-    }
-
-
-    hr = CoCreateInstance(&CLSID_DirectMusicSegment, NULL, CLSCTX_INPROC_SERVER,
-            &IID_IDirectMusicSegment, (void **)&segment);
-    ok(hr == S_OK, "got %#lx\n", hr);
-
-ok(0, "IDirectMusicSegment8_Download start\n");
-    hr = IDirectMusicSegment8_Download((IDirectMusicSegment8 *)segment, (IUnknown *)performance);
-    ok(hr == S_OK, "got %#lx\n", hr);
-
-    while (!WaitForSingleObject(handle, 100))
-    {
-        DMUS_NOTIFICATION_PMSG *msg;
-        hr = IDirectMusicPerformance_GetNotificationPMsg(performance, &msg);
-        ok(hr == S_OK, "got %#lx\n", hr);
-        ok(0, "performance %p, msg %p (%#lx, %s, %#lx)\n", performance, msg, msg->dwType, debugstr_guid(&msg->guidNotificationType), msg->dwNotificationOption);
-        hr = IDirectMusicPerformance_FreePMsg(performance, (DMUS_PMSG *)msg);
-        ok(hr == S_OK, "got %#lx\n", hr);
-    }
-
-ok(0, "IDirectMusicSegment8_Download done\n");
-    hr = IDirectMusicSegment8_Unload((IDirectMusicSegment8 *)segment, (IUnknown *)performance);
-    ok(hr == S_OK, "got %#lx\n", hr);
-
-    while (!WaitForSingleObject(handle, 100))
-    {
-        DMUS_NOTIFICATION_PMSG *msg;
-        hr = IDirectMusicPerformance_GetNotificationPMsg(performance, &msg);
-        ok(hr == S_OK, "got %#lx\n", hr);
-        ok(0, "performance %p, msg %p (%#lx, %s, %#lx)\n", performance, msg, msg->dwType, debugstr_guid(&msg->guidNotificationType), msg->dwNotificationOption);
-        hr = IDirectMusicPerformance_FreePMsg(performance, (DMUS_PMSG *)msg);
-        ok(hr == S_OK, "got %#lx\n", hr);
-    }
-
-ok(0, "IDirectMusicSegment8_Unload done\n");
-
-    hr = IDirectMusicPerformance_PlaySegment(performance, segment, 0, 0, NULL);
-    ok(hr == S_OK, "got %#lx\n", hr);
-
-    while (!WaitForSingleObject(handle, 100))
-    {
-        DMUS_NOTIFICATION_PMSG *msg;
-        hr = IDirectMusicPerformance_GetNotificationPMsg(performance, &msg);
-        ok(hr == S_OK, "got %#lx\n", hr);
-        ok(0, "performance %p, msg %p (%#lx, %s, %#lx)\n", performance, msg, msg->dwType, debugstr_guid(&msg->guidNotificationType), msg->dwNotificationOption);
-        hr = IDirectMusicPerformance_FreePMsg(performance, (DMUS_PMSG *)msg);
-        ok(hr == S_OK, "got %#lx\n", hr);
-    }
-
-ok(0, "IDirectMusicSegment8_PlaySegment done\n");
-
-    IDirectMusicSegment_Release(segment);
-
-
-    hr = CoCreateInstance(&CLSID_DirectMusicSegment, NULL, CLSCTX_INPROC_SERVER,
-            &IID_IDirectMusicSegment, (void **)&segment);
-    ok(hr == S_OK, "got %#lx\n", hr);
-
-    hr = IDirectMusicSegment_SetLength(segment, 1000);
-    ok(hr == S_OK, "got %#lx\n", hr);
-ok(0, "IDirectMusicSegment8_PlaySegment start\n");
-    hr = IDirectMusicPerformance_PlaySegment(performance, segment, 0, 0, NULL);
-    ok(hr == S_OK, "got %#lx\n", hr);
-ok(0, "IDirectMusicSegment8_PlaySegment done\n");
-    while ((hr = IDirectMusicPerformance_IsPlaying(performance, segment, NULL)) == S_OK)
-        Sleep(10);
-    ok(hr == S_FALSE, "got %#lx\n", hr);
-
-    IDirectMusicSegment_Release(segment);
-
-
-    hr = CoCreateInstance(&CLSID_DirectMusicSegment, NULL, CLSCTX_INPROC_SERVER,
-            &IID_IDirectMusicSegment, (void **)&segment);
-    ok(hr == S_OK, "got %#lx\n", hr);
-
-if (1)
-{
-    hr = IDirectMusicCollection_QueryInterface(segment, &IID_IPersistStream, (void **)&persist);
-    ok(hr == S_OK, "got %#lx\n", hr);
-    hr = CreateStreamOnHGlobal(0, TRUE, &stream);
-    ok(hr == S_OK, "got %#lx\n", hr);
-
-    CHUNK_RIFF(stream, "WAVE")
-    {
-        WAVEFORMATEX fmt =
-        {
-            .wFormatTag = WAVE_FORMAT_PCM,
-            .nChannels = 2,
-            .wBitsPerSample = 16,
-            .nSamplesPerSec = 44100,
-            .nAvgBytesPerSec = 44100,
-            .nBlockAlign = 1,
-        };
-        BYTE data[64*1024] = {0};
-
-        CHUNK_DATA(stream, "fmt ", fmt);
-        CHUNK_DATA(stream, "data", data);
-        CHUNK_LIST(stream, "INFO")
-        {
-            CHUNK_DATA(stream, "INAM", "name");
-        }
-        CHUNK_END;
-    }
-    CHUNK_END;
-
-    hr = IStream_Seek(stream, zero, 0, NULL);
-    ok(hr == S_OK, "got %#lx\n", hr);
-    hr = IPersistStream_Load(persist, stream);
-    ok(hr == S_OK, "got %#lx\n", hr);
-    IPersistStream_Release(persist);
-    IStream_Release(stream);
-}
-else
-{
-    IDirectMusicLoader8 *loader;
-
-    hr = CoCreateInstance(&CLSID_DirectMusicLoader, NULL, CLSCTX_INPROC_SERVER,
-            &IID_IDirectMusicLoader8, (void **)&loader);
-    ok(hr == S_OK, "got %#lx\n", hr);
-    hr = IDirectMusicLoader8_LoadObjectFromFile(loader, &CLSID_DirectMusicSegment,
-            &IID_IDirectMusicSegment, (WCHAR *)L"Y:\\Games\\Freefall 3050AD\\audio\\level00.wav", (void **)&segment);
-    ok(hr == S_OK, "got %#lx\n", hr);
-    IDirectMusicLoader8_Release(loader);
-}
-
-    length = 0xdeadbeef;
-    hr = IDirectMusicSegment_GetLength(segment, &length);
-    ok(hr == S_OK, "got %#lx\n", hr);
-    ok(length == 0, "got %lu\n", length);
-
-ok(0, "IDirectMusicSegment8_Download start\n");
-    hr = IDirectMusicSegment8_Download((IDirectMusicSegment8 *)segment, (IUnknown *)performance);
-    ok(hr == S_OK, "got %#lx\n", hr);
-
-    while (!WaitForSingleObject(handle, 100))
-    {
-        DMUS_NOTIFICATION_PMSG *msg;
-        hr = IDirectMusicPerformance_GetNotificationPMsg(performance, &msg);
-        ok(hr == S_OK, "got %#lx\n", hr);
-        ok(0, "performance %p, msg %p (%#lx, %s, %#lx)\n", performance, msg, msg->dwType, debugstr_guid(&msg->guidNotificationType), msg->dwNotificationOption);
-        hr = IDirectMusicPerformance_FreePMsg(performance, (DMUS_PMSG *)msg);
-        ok(hr == S_OK, "got %#lx\n", hr);
-    }
-
-ok(0, "IDirectMusicSegment8_PlaySegment start\n");
-    hr = IDirectMusicPerformance_PlaySegment(performance, segment, 0, 0, NULL);
-    ok(hr == S_OK, "got %#lx\n", hr);
-ok(0, "IDirectMusicSegment8_PlaySegment done\n");
-    while ((hr = IDirectMusicPerformance_IsPlaying(performance, segment, NULL)) == S_OK)
-        Sleep(10);
-    ok(hr == S_FALSE, "got %#lx\n", hr);
-
-Sleep(100000);
-
-    IDirectMusicSegment_Release(segment);
-
-ok(0, "IDirectMusicSegment8_Download done\n");
-    hr = IDirectMusicSegment8_Unload((IDirectMusicSegment8 *)segment, (IUnknown *)performance);
-    ok(hr == S_OK, "got %#lx\n", hr);
-
-    while (!WaitForSingleObject(handle, 100))
-    {
-        DMUS_NOTIFICATION_PMSG *msg;
-        hr = IDirectMusicPerformance_GetNotificationPMsg(performance, &msg);
-        ok(hr == S_OK, "got %#lx\n", hr);
-        ok(0, "performance %p, msg %p (%#lx, %s, %#lx)\n", performance, msg, msg->dwType, debugstr_guid(&msg->guidNotificationType), msg->dwNotificationOption);
-        hr = IDirectMusicPerformance_FreePMsg(performance, (DMUS_PMSG *)msg);
-        ok(hr == S_OK, "got %#lx\n", hr);
-    }
-
-ok(0, "IDirectMusicSegment8_Unload done\n");
-
-
-    hr = IDirectMusicPerformance_CloseDown(performance);
-    ok(hr == S_OK, "got %#lx\n", hr);
 
     IDirectMusicGraph_Release(performance_graph);
 
@@ -5473,7 +5197,6 @@ START_TEST(dmime)
         CoUninitialize();
         return;
     }
-goto skip_tests;
     test_COM_audiopath();
     test_COM_audiopathconfig();
     test_COM_graph();
@@ -5492,13 +5215,10 @@ goto skip_tests;
     test_performance_InitAudio();
     test_performance_createport();
     test_performance_pchannel();
-skip_tests:
     test_performance_tool();
     test_performance_graph();
     test_performance_time();
-skip_tests:
     test_performance_pmsg();
-    if (0) test_performance_segment_pmsg();
     test_notification_pmsg();
     test_wave_pmsg(0);
     test_wave_pmsg(10);
