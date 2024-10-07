@@ -126,6 +126,4 @@ extern BOOL topology_node_is_d3d_aware(IMFTopologyNode *node);
 extern HRESULT topology_node_set_device_manager(IMFTopologyNode *node, IUnknown *device_manager);
 extern HRESULT stream_sink_get_device_manager(IMFStreamSink *stream_sink, IUnknown **device_manager);
 
-extern HRESULT async_transform_create(IMFTransform *transform, IMFTransform **out);
-
 extern HRESULT enum_audio_capture_sources(IMFAttributes *attributes, IMFActivate ***sources, UINT32 *ret_count);
