@@ -38,6 +38,7 @@ AC_ARG_WITH(gettextpo, AS_HELP_STRING([--with-gettextpo],[use the GetTextPO libr
 AC_ARG_WITH(gphoto,    AS_HELP_STRING([--without-gphoto],[do not use gphoto (Digital Camera support)]))
 AC_ARG_WITH(gnutls,    AS_HELP_STRING([--without-gnutls],[do not use GnuTLS (schannel support)]))
 AC_ARG_WITH(gssapi,    AS_HELP_STRING([--without-gssapi],[do not use GSSAPI (Kerberos SSP support)]))
+AC_ARG_WITH(gstreamer, AS_HELP_STRING([--without-gstreamer],[do not use GStreamer (codecs support)]))
 AC_ARG_WITH(inotify,   AS_HELP_STRING([--without-inotify],[do not use inotify (filesystem change notifications)]))
 AC_ARG_WITH(krb5,      AS_HELP_STRING([--without-krb5],[do not use krb5 (Kerberos)]))
 AC_ARG_WITH(mingw,     AS_HELP_STRING([--without-mingw],[do not use the MinGW cross-compiler]))
@@ -627,9 +628,6 @@ case $host_os in
     AC_SUBST(APPKIT_LIBS,"-framework AppKit")
     AC_SUBST(SECURITY_LIBS,"-framework Security -framework CoreFoundation")
     AC_SUBST(SYSTEMCONFIGURATION_LIBS,"-framework SystemConfiguration")
-    AC_SUBST(VIDEOTOOLBOX_LIBS,"-framework VideoToolbox -framework Security -framework CoreVideo -framework CoreMedia -framework Foundation")
-    AC_SUBST(VIDEOTOOLBOX_CFLAGS,"-DENABLE_VIDEO_TOOLBOX")
-    AC_SUBST(AUDIOTOOLBOX_LIBS,"-framework AudioToolbox")
 
     WINELOADER_LDFLAGS="-Wl,-segalign,0x1000,-pagezero_size,0x1000,-sectcreate,__TEXT,__info_plist,loader/wine_info.plist"
 
@@ -1623,22 +1621,14 @@ WINE_NOTICE_WITH(pulse, [test -z "$PULSE_LIBS"],
 dnl **** Check for FFmpeg ****
 if test "x$with_ffmpeg" != "xno";
 then
-    WINE_PACKAGE_FLAGS(FFMPEG,[libavutil libavformat libavcodec libswresample libswscale],,,,
-        [AC_CHECK_HEADERS([libavutil/avutil.h libavformat/avformat.h libavcodec/avcodec.h libswresample/swresample.h libswscale/swscale.h])
-         if test "$ac_cv_header_libavutil_avutil_h" = "yes" \
-            -a "$ac_cv_header_libavformat_avformat_h" = "yes" \
-            -a "$ac_cv_header_libavcodec_avcodec_h" = "yes" \
-            -a "$ac_cv_header_libswresample_swresample_h" = "yes" \
-            -a "$ac_cv_header_libswscale_swscale_h" = "yes"
+    WINE_PACKAGE_FLAGS(FFMPEG,[libavutil libavformat libavcodec],,,,
+        [AC_CHECK_HEADERS([libavutil/avutil.h libavformat/avformat.h libavcodec/avcodec.h])
+         if test "$ac_cv_header_libavutil_avutil_h" = "yes" -a "$ac_cv_header_libavformat_avformat_h" = "yes" -a "$ac_cv_header_libavcodec_avcodec_h" = "yes"
          then
             AC_CHECK_LIB(avutil,av_log_set_callback,
               [AC_CHECK_LIB(avformat,av_find_input_format,
                 [AC_CHECK_LIB(avcodec,avcodec_get_name,
-                  [AC_CHECK_LIB(swresample,swr_alloc,
-                    [AC_CHECK_LIB(swscale,sws_alloc_context,
-                      [AC_DEFINE(HAVE_FFMPEG, 1, [Define to 1 if you have the FFmpeg libraries.])],
-                      [FFMPEG_LIBS=""],[$FFMPEG_LIBS])],
-                    [FFMPEG_LIBS=""],[$FFMPEG_LIBS])],
+                  [AC_DEFINE(HAVE_FFMPEG, 1, [Define to 1 if you have the FFmpeg libraries.])],
                   [FFMPEG_LIBS=""],[$FFMPEG_LIBS])],
                 [FFMPEG_LIBS=""],[$FFMPEG_LIBS])],
               [FFMPEG_LIBS=""],[$FFMPEG_LIBS])
@@ -1648,6 +1638,25 @@ then
 fi
 WINE_NOTICE_WITH(ffmpeg,[test "x$FFMPEG_LIBS" = x],
         [FFmpeg ${notice_platform}development files not found.])
+
+dnl **** Check for gstreamer ****
+if test "x$with_gstreamer" != "xno"
+then
+    WINE_PACKAGE_FLAGS(GSTREAMER,[gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0],,,,
+        [AC_CHECK_HEADER([gst/gst.h],
+            [AC_MSG_CHECKING([whether gint64 defined by gst/gst.h is indeed 64-bit])
+              AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <gst/gst.h>]],
+                                                 [[static int a[sizeof(gint64) > 4 ? 1 : -1]; if (a[0]) return 0;]])],
+                [AC_MSG_RESULT([yes])
+                 AC_CHECK_LIB(gstreamer-1.0,gst_pad_new,[:],,[$GSTREAMER_LIBS])],
+                [AC_MSG_RESULT([no])
+                 ac_glib2_broken=yes
+                 enable_winegstreamer=${enable_winegstreamer:-no}
+                 WINE_NOTICE([glib-2.0 pkgconfig configuration is for the wrong architecture, winegstreamer won't be built.])])])])
+fi
+WINE_NOTICE_WITH(gstreamer,[test "x$ac_glib2_broken" != xyes -a "x$ac_cv_lib_gstreamer_1_0_gst_pad_new" != xyes],
+                 [gstreamer-1.0 base plugins ${notice_platform}development files not found, GStreamer won't be supported.],
+                 [enable_winegstreamer])
 
 dnl **** Check for ALSA 1.x ****
 AC_SUBST(ALSA_LIBS,"")
@@ -3235,6 +3244,7 @@ WINE_CONFIG_MAKEFILE(dlls/winecoreaudio.drv)
 WINE_CONFIG_MAKEFILE(dlls/winecrt0)
 WINE_CONFIG_MAKEFILE(dlls/wined3d)
 WINE_CONFIG_MAKEFILE(dlls/winedmo)
+WINE_CONFIG_MAKEFILE(dlls/winegstreamer)
 WINE_CONFIG_MAKEFILE(dlls/winehid.sys)
 WINE_CONFIG_MAKEFILE(dlls/winemac.drv)
 WINE_CONFIG_MAKEFILE(dlls/winemapi)

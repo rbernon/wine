@@ -1,11 +1,6 @@
 MODULE    = l3codecx.ax
-IMPORTS   = strmbase oleaut32 combase msdmo dmoguids strmiids wmcodecdspuuid uuid mfuuid winedmo
-DELAYIMPORTS = ddraw mfplat
-PARENTSRC = ../quartz
-
-EXTRADLLFLAGS = -Wb,--prefer-native
+IMPORTS   = combase msdmo dmoguids strmiids wmcodecdspuuid uuid
 
 SOURCES = \
-	decoder.c \
 	l3codecx.c \
 	l3codecx.idl
