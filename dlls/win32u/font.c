@@ -4792,8 +4792,7 @@ const struct gdi_dc_funcs font_driver =
     NULL,                           /* pStrokeAndFillPath */
     NULL,                           /* pStrokePath */
     NULL,                           /* pUnrealizePalette */
-    GDI_PRIORITY_FONT_DRV,          /* priority */
-    "fontdrv",
+    GDI_PRIORITY_FONT_DRV           /* priority */
 };
 
 static BOOL get_key_value( HKEY key, const char *name, DWORD *value )
