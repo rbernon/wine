@@ -1100,7 +1100,7 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
     struct x11drv_win_data *data;
     RECT rect;
     POINT pos = {event->x, event->y};
-    UINT flags, old_style, new_style;
+    UINT flags = 0, old_style, new_style, config_cmd = 0;
     int cx, cy, x, y;
 
     if (!hwnd) return FALSE;
@@ -1172,35 +1172,33 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
 
     if ((old_style & WS_CAPTION) == WS_CAPTION || !data->is_fullscreen)
     {
-        if ((new_style & WS_MAXIMIZE))
+        if (!(old_style & WS_MAXIMIZE) && (new_style & WS_MAXIMIZE))
         {
-            if (!(old_style & WS_MAXIMIZE))
-            {
-                TRACE( "win %p/%lx is maximized\n", data->hwnd, data->whole_window );
-                release_win_data( data );
-                send_message( data->hwnd, WM_SYSCOMMAND, SC_MAXIMIZE, 0 );
-                return TRUE;
-            }
+            TRACE( "window %p/%lx maximizing\n", data->hwnd, data->whole_window );
+            config_cmd = SC_MAXIMIZE;
         }
-        else if (old_style & WS_MAXIMIZE)
+        else if ((old_style & WS_MAXIMIZE) && !(new_style & WS_MAXIMIZE))
         {
-            TRACE( "window %p/%lx is no longer maximized\n", data->hwnd, data->whole_window );
-            release_win_data( data );
-            send_message( data->hwnd, WM_SYSCOMMAND, SC_RESTORE, 0 );
-            return TRUE;
+            TRACE( "window %p/%lx restoring\n", data->hwnd, data->whole_window );
+            config_cmd = SC_RESTORE;
         }
     }
-
-    if ((flags & (SWP_NOSIZE | SWP_NOMOVE)) != (SWP_NOSIZE | SWP_NOMOVE))
+    if (!config_cmd && (flags & (SWP_NOSIZE | SWP_NOMOVE)) != (SWP_NOSIZE | SWP_NOMOVE))
     {
-        release_win_data( data );
-        NtUserSetRawWindowPos( hwnd, rect, flags, FALSE );
-        return TRUE;
+        TRACE( "window %p/%lx config changed %s -> %s, flags %#x\n", data->hwnd, data->whole_window,
+               wine_dbgstr_rect(&data->rects.window), wine_dbgstr_rect(&rect), flags );
+        config_cmd = MAKELONG(SC_MOVE, flags);
     }
-
 done:
     release_win_data( data );
-    return FALSE;
+
+    if (config_cmd)
+    {
+        if (LOWORD(config_cmd) == SC_MOVE) NtUserSetRawWindowPos( hwnd, rect, HIWORD(config_cmd), FALSE );
+        else send_message( hwnd, WM_SYSCOMMAND, LOWORD(config_cmd), 0 );
+    }
+
+    return !!config_cmd;
 }
 
 
