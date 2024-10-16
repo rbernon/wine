@@ -1582,6 +1582,18 @@ void window_configure_notify( struct x11drv_win_data *data, unsigned long serial
     *expect_serial = 0;
 }
 
+BOOL window_has_pending_wm_state( HWND hwnd )
+{
+    struct x11drv_win_data *data;
+    BOOL pending;
+
+    if (!(data = get_win_data( hwnd ))) return FALSE;
+    pending = !!data->wm_state_serial;
+    release_win_data( data );
+
+    return pending;
+}
+
 /***********************************************************************
  *     make_window_embedded
  */
