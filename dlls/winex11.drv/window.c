@@ -186,7 +186,7 @@ struct host_window *get_host_window( Window window, BOOL create )
     SetRect( &win->rect, attr.x, attr.y, attr.x + attr.width, attr.y + attr.height );
     if (win->parent) host_window_configure_child( win->parent, win->window, win->rect, FALSE );
 
-    TRACE( "created host window %p/%lx, parent %lx rect %s\n", win, win->window,
+    ERR( "created host window %p/%lx, parent %lx rect %s\n", win, win->window,
            xparent, wine_dbgstr_rect(&win->rect) );
     XSaveContext( data->display, window, host_window_context, (char *)win );
     return win;
@@ -227,12 +227,14 @@ RECT host_window_configure_child( struct host_window *win, Window window, RECT r
 {
     unsigned int index;
 
+
     if (root_coords)
     {
         POINT offset = host_window_map_point( win, 0, 0 );
         OffsetRect( &rect, -offset.x, -offset.y );
     }
 
+    ERR( "host window %p/%lx, window %lx, rect %s\n", win, win->window, window, wine_dbgstr_rect(&rect) );
     index = find_host_window_child( win, window );
     if (index < win->children_count) win->children[index].rect = rect;
     return rect;
@@ -240,7 +242,7 @@ RECT host_window_configure_child( struct host_window *win, Window window, RECT r
 
 void host_window_set_parent( struct host_window *win, Window parent )
 {
-    TRACE( "host window %p/%lx, parent %lx\n", win, win->window, parent );
+    ERR( "host window %p/%lx, parent %lx\n", win, win->window, parent );
     host_window_reparent( &win->parent, parent, win->window );
 }
 
@@ -1233,7 +1235,7 @@ static void window_set_net_wm_state( struct x11drv_win_data *data, UINT new_stat
 
         data->pending_state.net_wm_state = new_state;
         data->net_wm_state_serial = NextRequest( data->display );
-        TRACE( "window %p/%lx, requesting _NET_WM_STATE %#x serial %lu\n", data->hwnd, data->whole_window,
+        ERR( "window %p/%lx, requesting _NET_WM_STATE %#x serial %lu\n", data->hwnd, data->whole_window,
                data->pending_state.net_wm_state, data->net_wm_state_serial );
         XChangeProperty( data->display, data->whole_window, x11drv_atom(_NET_WM_STATE), XA_ATOM,
                          32, PropModeReplace, (unsigned char *)atoms, count );
@@ -1264,7 +1266,7 @@ static void window_set_net_wm_state( struct x11drv_win_data *data, UINT new_stat
 
             data->pending_state.net_wm_state = new_state;
             data->net_wm_state_serial = NextRequest( data->display );
-            TRACE( "window %p/%lx, requesting _NET_WM_STATE %#x serial %lu\n", data->hwnd, data->whole_window,
+            ERR( "window %p/%lx, requesting _NET_WM_STATE %#x serial %lu\n", data->hwnd, data->whole_window,
                    data->pending_state.net_wm_state, data->net_wm_state_serial );
             XSendEvent( data->display, root_window, False,
                         SubstructureRedirectMask | SubstructureNotifyMask, &xev );
@@ -1314,7 +1316,7 @@ static void window_set_config( struct x11drv_win_data *data, const RECT *new_rec
 
     data->pending_state.rect = *new_rect;
     data->configure_serial = NextRequest( data->display );
-    TRACE( "window %p/%lx, requesting config %s above %u, serial %lu\n", data->hwnd, data->whole_window,
+    ERR( "window %p/%lx, requesting config %s above %u, serial %lu\n", data->hwnd, data->whole_window,
            wine_dbgstr_rect(new_rect), above, data->configure_serial );
     XReconfigureWMWindow( data->display, data->whole_window, data->vis.screen, mask, &changes );
 }
@@ -1426,7 +1428,7 @@ static void window_set_wm_state( struct x11drv_win_data *data, UINT new_state )
 
     data->pending_state.wm_state = new_state;
     data->wm_state_serial = NextRequest( data->display );
-    TRACE( "window %p/%lx, requesting WM_STATE %#x -> %#x serial %lu\n", data->hwnd, data->whole_window,
+    ERR( "window %p/%lx, requesting WM_STATE %#x -> %#x serial %lu\n", data->hwnd, data->whole_window,
            old_state, new_state, data->wm_state_serial );
 
     switch (MAKELONG(old_state, new_state))
@@ -1498,30 +1500,30 @@ static UINT window_update_client_state( struct x11drv_win_data *data )
         {
             if ((old_style & WS_MAXIMIZEBOX) && !(old_style & WS_DISABLED))
             {
-                TRACE( "window %p/%lx restoring and maximized\n", data->hwnd, data->whole_window );
+                ERR( "window %p/%lx restoring and maximized\n", data->hwnd, data->whole_window );
                 return SC_MAXIMIZE;
             }
-            TRACE( "window %p/%lx style %#x not restoring\n", data->hwnd, data->whole_window, old_style );
+            ERR( "window %p/%lx style %#x not restoring\n", data->hwnd, data->whole_window, old_style );
         }
         else
         {
             if (old_style & (WS_MINIMIZE | WS_MAXIMIZE))
             {
-                TRACE( "window %p/%lx restoring\n", data->hwnd, data->whole_window );
+                ERR( "window %p/%lx restoring\n", data->hwnd, data->whole_window );
                 if ((old_style & (WS_MINIMIZE | WS_VISIBLE)) == (WS_MINIMIZE | WS_VISIBLE)) return MAKELONG(SC_RESTORE, 1);
                 else return SC_RESTORE;
             }
-            TRACE( "window %p/%lx style %#x not restoring\n", data->hwnd, data->whole_window, old_style );
+            ERR( "window %p/%lx style %#x not restoring\n", data->hwnd, data->whole_window, old_style );
         }
     }
     else if (!(old_style & WS_MINIMIZE) && (new_style & WS_MINIMIZE))
     {
         if ((old_style & WS_MINIMIZEBOX) && !(old_style & WS_DISABLED))
         {
-            TRACE( "window %p/%lx minimizing\n", data->hwnd, data->whole_window );
+            ERR( "window %p/%lx minimizing\n", data->hwnd, data->whole_window );
             return SC_MINIMIZE;
         }
-        TRACE( "window %p/%lx style %#x not minimizing\n", data->hwnd, data->whole_window, old_style );
+        ERR( "window %p/%lx style %#x not minimizing\n", data->hwnd, data->whole_window, old_style );
     }
 
     return 0;
@@ -1542,12 +1544,12 @@ static UINT window_update_client_config( struct x11drv_win_data *data )
     {
         if (!(old_style & WS_MAXIMIZE) && (new_style & WS_MAXIMIZE))
         {
-            TRACE( "window %p/%lx maximizing\n", data->hwnd, data->whole_window );
+            ERR( "window %p/%lx maximizing\n", data->hwnd, data->whole_window );
             return SC_MAXIMIZE;
         }
         if ((old_style & WS_MAXIMIZE) && !(new_style & WS_MAXIMIZE))
         {
-            TRACE( "window %p/%lx restoring\n", data->hwnd, data->whole_window );
+            ERR( "window %p/%lx restoring\n", data->hwnd, data->whole_window );
             return SC_RESTORE;
         }
     }
@@ -1562,7 +1564,7 @@ static UINT window_update_client_config( struct x11drv_win_data *data )
 
     if ((flags & (SWP_NOSIZE | SWP_NOMOVE)) == (SWP_NOSIZE | SWP_NOMOVE)) return 0;
 
-    TRACE( "window %p/%lx config changed %s -> %s, flags %#x\n", data->hwnd, data->whole_window,
+    ERR( "window %p/%lx config changed %s -> %s, flags %#x\n", data->hwnd, data->whole_window,
            wine_dbgstr_rect(&old_rect), wine_dbgstr_rect(&new_rect), flags );
     return MAKELONG(SC_MOVE, flags);
 }
@@ -1606,17 +1608,17 @@ void window_wm_state_notify( struct x11drv_win_data *data, unsigned long serial,
 
     if (reason)
     {
-        WARN( "Ignoring window %p/%lx %s%s%s\n", data->hwnd, data->whole_window, reason, received, expected );
+        ERR( "Ignoring window %p/%lx %s%s%s\n", data->hwnd, data->whole_window, reason, received, expected );
         return;
     }
 
     if (!*expect_serial) reason = "unexpected ";
     else if (*pending != value) reason = "mismatch ";
 
-    if (!reason) TRACE( "window %p/%lx, %s%s\n", data->hwnd, data->whole_window, received, expected );
+    if (!reason) ERR( "window %p/%lx, %s%s\n", data->hwnd, data->whole_window, received, expected );
     else
     {
-        WARN( "window %p/%lx, %s%s%s\n", data->hwnd, data->whole_window, reason, received, expected );
+        ERR( "window %p/%lx, %s%s%s\n", data->hwnd, data->whole_window, reason, received, expected );
         *desired = *pending = value; /* avoid requesting the same state again */
     }
 
@@ -1642,17 +1644,17 @@ void window_net_wm_state_notify( struct x11drv_win_data *data, unsigned long ser
 
     if (reason)
     {
-        WARN( "Ignoring window %p/%lx %s%s%s\n", data->hwnd, data->whole_window, reason, received, expected );
+        ERR( "Ignoring window %p/%lx %s%s%s\n", data->hwnd, data->whole_window, reason, received, expected );
         return;
     }
 
     if (!*expect_serial) reason = "unexpected ";
     else if (*pending != value) reason = "mismatch ";
 
-    if (!reason) TRACE( "window %p/%lx, %s%s\n", data->hwnd, data->whole_window, received, expected );
+    if (!reason) ERR( "window %p/%lx, %s%s\n", data->hwnd, data->whole_window, received, expected );
     else
     {
-        WARN( "window %p/%lx, %s%s%s\n", data->hwnd, data->whole_window, reason, received, expected );
+        ERR( "window %p/%lx, %s%s%s\n", data->hwnd, data->whole_window, reason, received, expected );
         *desired = *pending = value; /* avoid requesting the same state again */
     }
 
@@ -1678,17 +1680,17 @@ void window_configure_notify( struct x11drv_win_data *data, unsigned long serial
 
     if (reason)
     {
-        WARN( "Ignoring window %p/%lx %s%s%s\n", data->hwnd, data->whole_window, reason, received, expected );
+        ERR( "Ignoring window %p/%lx %s%s%s\n", data->hwnd, data->whole_window, reason, received, expected );
         return;
     }
 
     if (!*expect_serial) reason = "unexpected ";
     else if (!EqualRect( pending, value )) reason = "mismatch ";
 
-    if (!reason) TRACE( "window %p/%lx, %s%s\n", data->hwnd, data->whole_window, received, expected );
+    if (!reason) ERR( "window %p/%lx, %s%s\n", data->hwnd, data->whole_window, received, expected );
     else
     {
-        WARN( "window %p/%lx, %s%s%s\n", data->hwnd, data->whole_window, reason, received, expected );
+        ERR( "window %p/%lx, %s%s%s\n", data->hwnd, data->whole_window, reason, received, expected );
         *desired = *pending = *value; /* avoid requesting the same state again */
     }
 
@@ -2908,7 +2910,7 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
     data->rects = *new_rects;
     data->is_fullscreen = fullscreen;
 
-    TRACE( "win %p/%lx new_rects %s style %08x flags %08x\n", hwnd, data->whole_window,
+    ERR( "win %p/%lx new_rects %s style %08x flags %08x\n", hwnd, data->whole_window,
            debugstr_window_rects(new_rects), new_style, swp_flags );
 
     XFlush( gdi_display );  /* make sure painting is done before we move the window */

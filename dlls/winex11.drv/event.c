@@ -182,13 +182,13 @@ static BOOL host_window_filter_event( XEvent *event )
     switch (event->type)
     {
     case DestroyNotify:
-        TRACE( "host window %p/%lx DestroyNotify\n", win, win->window );
+        ERR( "host window %p/%lx DestroyNotify\n", win, win->window );
         win->destroyed = TRUE;
         break;
     case ReparentNotify:
     {
         XReparentEvent *reparent = (XReparentEvent *)event;
-        TRACE( "host window %p/%lx ReparentNotify, parent %lx\n", win, win->window, reparent->parent );
+        ERR( "host window %p/%lx ReparentNotify, parent %lx\n", win, win->window, reparent->parent );
         host_window_set_parent( win, reparent->parent );
         break;
     }
@@ -197,7 +197,7 @@ static BOOL host_window_filter_event( XEvent *event )
         XGravityEvent *gravity = (XGravityEvent *)event;
         OffsetRect( &win->rect, gravity->x - win->rect.left, gravity->y - win->rect.top );
         if (win->parent) win->rect = host_window_configure_child( win->parent, win->window, win->rect, FALSE );
-        TRACE( "host window %p/%lx GravityNotify, rect %s\n", win, win->window, wine_dbgstr_rect(&win->rect) );
+        ERR( "host window %p/%lx GravityNotify, rect %s\n", win, win->window, wine_dbgstr_rect(&win->rect) );
         break;
     }
     case ConfigureNotify:
@@ -205,7 +205,7 @@ static BOOL host_window_filter_event( XEvent *event )
         XConfigureEvent *configure = (XConfigureEvent *)event;
         SetRect( &win->rect, configure->x, configure->y, configure->x + configure->width, configure->y + configure->height );
         if (win->parent) win->rect = host_window_configure_child( win->parent, win->window, win->rect, configure->send_event );
-        TRACE( "host window %p/%lx ConfigureNotify, rect %s\n", win, win->window, wine_dbgstr_rect(&win->rect) );
+        ERR( "host window %p/%lx ConfigureNotify, rect %s\n", win, win->window, wine_dbgstr_rect(&win->rect) );
         break;
     }
     }
@@ -760,12 +760,12 @@ static void handle_wm_protocols( HWND hwnd, XClientMessageEvent *event )
 
         if (window_has_pending_wm_state( hwnd ))
         {
-            WARN( "Ignoring window %p/%lx, WM_TAKE_FOCUS serial %lu event_time %ld during WM_STATE change\n",
+            ERR( "Ignoring window %p/%lx, WM_TAKE_FOCUS serial %lu event_time %ld during WM_STATE change\n",
                   hwnd, event->window, event->serial, event_time );
             return;
         }
 
-        TRACE( "window %p/%lx, WM_TAKE_FOCUS serial %lu event_time %ld\n", hwnd, event->window, event->serial, event_time );
+        ERR( "window %p/%lx, WM_TAKE_FOCUS serial %lu event_time %ld\n", hwnd, event->window, event->serial, event_time );
 
         TRACE( "window %p/%lx is %sabled %svisible style %#x, focus is %p active %p foreground %p last %p\n", hwnd, event->window,
                 NtUserIsWindowEnabled( hwnd ) ? "en" : "dis", NtUserIsWindowVisible( hwnd ) ? "" : "in", (int)NtUserGetWindowLongW( hwnd, GWL_STYLE ),
@@ -856,12 +856,12 @@ static BOOL X11DRV_FocusIn( HWND hwnd, XEvent *xev )
 
     if (window_has_pending_wm_state( hwnd ))
     {
-        WARN( "Ignoring window %p/%lx, FocusIn serial %lu detail=%s mode=%s during WM_STATE change\n",
+        ERR( "Ignoring window %p/%lx, FocusIn serial %lu detail=%s mode=%s during WM_STATE change\n",
               hwnd, event->window, event->serial, focus_details[event->detail], focus_modes[event->mode] );
         return FALSE;
     }
 
-    TRACE( "window %p/%lx, serial %lu detail=%s mode=%s\n", hwnd, event->window,
+    ERR( "window %p/%lx, serial %lu detail=%s mode=%s\n", hwnd, event->window,
            event->serial, focus_details[event->detail], focus_modes[event->mode] );
 
     /* when focusing in the virtual desktop window, re-apply the cursor clipping rect */
@@ -949,12 +949,12 @@ static BOOL X11DRV_FocusOut( HWND hwnd, XEvent *xev )
 
     if (window_has_pending_wm_state( hwnd ))
     {
-        WARN( "Ignoring window %p/%lx, FocusOut serial %lu detail=%s mode=%s during WM_STATE change\n",
+        ERR( "Ignoring window %p/%lx, FocusOut serial %lu detail=%s mode=%s during WM_STATE change\n",
               hwnd, event->window, event->serial, focus_details[event->detail], focus_modes[event->mode] );
         return FALSE;
     }
 
-    TRACE( "window %p/%lx, serial %lu detail=%s mode=%s\n", hwnd, event->window,
+    ERR( "window %p/%lx, serial %lu detail=%s mode=%s\n", hwnd, event->window,
            event->serial, focus_details[event->detail], focus_modes[event->mode] );
 
     /* in virtual desktop mode or when keyboard is grabbed, release any cursor grab but keep the clipping rect */
