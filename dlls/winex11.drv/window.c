@@ -2099,9 +2099,16 @@ static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_des
         }
     }
     if (data->whole_colormap) XFreeColormap( data->display, data->whole_colormap );
+
+    memset( &data->desired_state, 0, sizeof(data->desired_state) );
+    data->pending_state = data->desired_state;
+    data->current_state = data->desired_state;
+    data->wm_state_serial = 0;
+    data->net_wm_state_serial = 0;
+    data->configure_serial = 0;
+
     data->whole_window = data->client_window = 0;
     data->whole_colormap = 0;
-    data->wm_state = WithdrawnState;
 
     memset( &data->pending_state, 0, sizeof(data->pending_state) );
     memset( &data->current_state, 0, sizeof(data->current_state) );
