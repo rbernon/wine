@@ -1130,13 +1130,7 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
 
     if (!(old_style & WS_VISIBLE) || (old_style & WS_MINIMIZE)) config_cmd = 0;
     else if (!data->whole_window || !data->managed) config_cmd = 0;
-    else if (data->configure_serial && (long)(data->configure_serial - event->serial) > 0)
-    {
-        TRACE( "win %p/%lx event %d,%d,%dx%d ignoring old serial %lu/%lu\n",
-               hwnd, data->whole_window, event->x, event->y, event->width, event->height,
-               event->serial, data->configure_serial );
-        config_cmd = 0;
-    }
+    else if (data->configure_serial) config_cmd = 0;
     else
     {
         config_cmd = window_update_client_config( data );
