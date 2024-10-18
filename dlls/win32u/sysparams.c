@@ -7158,6 +7158,14 @@ ULONG_PTR WINAPI NtUserCallTwoParam( ULONG_PTR arg1, ULONG_PTR arg2, ULONG code 
         *(RECT *)arg1 = get_virtual_screen_rect( 0, arg2 );
         return 1;
 
+    case NtUserCallTwoParam_MapRectRawToVirt:
+        *(RECT *)arg1 = map_rect_raw_to_virt( *(RECT *)arg1, arg2 );
+        return 1;
+
+    case NtUserCallTwoParam_MapRectVirtToRaw:
+        *(RECT *)arg1 = map_rect_virt_to_raw( *(RECT *)arg1, arg2 );
+        return 1;
+
     /* temporary exports */
     case NtUserAllocWinProc:
         return (UINT_PTR)alloc_winproc( (WNDPROC)arg1, arg2 );
