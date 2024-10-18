@@ -97,6 +97,10 @@
 # include <valgrind/valgrind.h>
 #endif
 
+#ifndef RUNNING_ON_VALGRIND
+#define RUNNING_ON_VALGRIND 0
+#endif
+
 WINE_DEFAULT_DEBUG_CHANNEL(module);
 
 void *pDbgUiRemoteBreakin = NULL;
@@ -2118,7 +2122,7 @@ static int pre_exec(void)
 static int pre_exec(void)
 {
 #ifdef HAVE_WINE_PRELOADER
-    return 1;  /* we have a preloader */
+    return !RUNNING_ON_VALGRIND;  /* we have a preloader */
 #else
     return 0;  /* no exec needed */
 #endif
