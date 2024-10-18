@@ -1927,7 +1927,7 @@ static void test_cursor(void)
     info.cbSize = sizeof(info);
     ok(GetCursorInfo(&info), "GetCursorInfo failed\n");
     ok(info.flags & (CURSOR_SHOWING | CURSOR_SUPPRESSED), "Got cursor flags %#lx.\n", info.flags);
-    ok(info.hCursor == cur || broken(1), "The cursor handle is %p\n", info.hCursor); /* unchanged */
+    ok(info.hCursor == cur, "The cursor handle is %p\n", info.hCursor); /* unchanged */
 
     /* Still hidden */
     ret = IDirect3DDevice9_ShowCursor(device, TRUE);
@@ -1941,7 +1941,7 @@ static void test_cursor(void)
     info.cbSize = sizeof(info);
     ok(GetCursorInfo(&info), "GetCursorInfo failed\n");
     ok(info.flags & (CURSOR_SHOWING | CURSOR_SUPPRESSED), "Got cursor flags %#lx.\n", info.flags);
-    ok(info.hCursor != cur || broken(1), "The cursor handle is %p\n", info.hCursor);
+    ok(info.hCursor != cur, "The cursor handle is %p\n", info.hCursor);
 
     /* Cursor dimensions must all be powers of two */
     for (test_idx = 0; test_idx < ARRAY_SIZE(cursor_sizes); ++test_idx)
@@ -4463,9 +4463,7 @@ static void test_wndproc(void)
         flush_events();
         ok(!expect_messages->message, "Expected message %#x for window %#x, but didn't receive it, i=%u.\n",
                 expect_messages->message, expect_messages->window, i);
-        /* About 1 in 8 test runs receives WM_WINDOWPOSCHANGED on Vista. */
-        ok(!windowposchanged_received || broken(1),
-                "Received WM_WINDOWPOSCHANGED but did not expect it, i=%u.\n", i);
+        ok(!windowposchanged_received, "Received WM_WINDOWPOSCHANGED but did not expect it, i=%u.\n", i);
         expect_messages = NULL;
 
         /* On Windows 10 style change messages are delivered both on reset and
