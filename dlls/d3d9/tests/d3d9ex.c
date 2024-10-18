@@ -3096,7 +3096,6 @@ static void test_wndproc(void)
         expect_messages = focus_loss_messages_filtered;
         windowposchanged_received = 0;
         SetForegroundWindow(GetDesktopWindow());
-        flaky_wine
         ok(!expect_messages->message, "Expected message %#x for window %#x, but didn't receive it, i=%u.\n",
                 expect_messages->message, expect_messages->window, i);
         ok(!windowposchanged_received, "Received WM_WINDOWPOSCHANGED but did not expect it, i=%u.\n", i);
@@ -3115,10 +3114,8 @@ static void test_wndproc(void)
         syscommand_received = 0;
         expect_messages = sc_restore_messages;
         SendMessageA(focus_window, WM_SYSCOMMAND, SC_RESTORE, 0);
-        flaky_wine
         ok(!expect_messages->message, "Expected message %#x for window %#x, but didn't receive it, i=%u.\n",
                 expect_messages->message, expect_messages->window, i);
-        flaky
         ok(syscommand_received == 1, "Got unexpected number of WM_SYSCOMMAND messages: %ld.\n", syscommand_received);
         expect_messages = NULL;
         flush_events();
