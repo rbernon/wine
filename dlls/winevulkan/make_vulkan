@@ -197,21 +197,27 @@ FUNCTION_OVERRIDES = {
 
 # functions for which a user driver entry must be generated
 USER_DRIVER_FUNCS = {
-    "vkCreateWin32SurfaceKHR",
-    "vkDestroySurfaceKHR",
     "vkGetDeviceProcAddr",
     "vkGetInstanceProcAddr",
-    "vkQueuePresentKHR",
 }
 
 WIN32U_UNIX_THUNKS = {
+    "vkAcquireNextImage2KHR",
+    "vkAcquireNextImageKHR",
+    "vkCreateSwapchainKHR",
+    "vkCreateWin32SurfaceKHR",
+    "vkDestroySurfaceKHR",
+    "vkDestroySwapchainKHR",
+    "vkGetPhysicalDevicePresentRectanglesKHR",
+    "vkGetPhysicalDeviceSurfaceCapabilities2KHR",
+    "vkGetPhysicalDeviceSurfaceCapabilitiesKHR",
+    "vkGetPhysicalDeviceSurfaceFormats2KHR",
     "vkGetPhysicalDeviceWin32PresentationSupportKHR",
+    "vkQueuePresentKHR",
 }
 
 # functions for which the unix thunk is manually implemented
 MANUAL_UNIX_THUNKS = {
-    "vkAcquireNextImage2KHR",
-    "vkAcquireNextImageKHR",
     "vkAllocateCommandBuffers",
     "vkAllocateMemory",
     "vkCreateBuffer",
@@ -222,16 +228,12 @@ MANUAL_UNIX_THUNKS = {
     "vkCreateDevice",
     "vkCreateImage",
     "vkCreateInstance",
-    "vkCreateSwapchainKHR",
-    "vkCreateWin32SurfaceKHR",
     "vkDestroyCommandPool",
     "vkDestroyDebugReportCallbackEXT",
     "vkDestroyDebugUtilsMessengerEXT",
     "vkDestroyDeferredOperationKHR",
     "vkDestroyDevice",
     "vkDestroyInstance",
-    "vkDestroySurfaceKHR",
-    "vkDestroySwapchainKHR",
     "vkEnumerateDeviceExtensionProperties",
     "vkEnumerateDeviceLayerProperties",
     "vkEnumerateInstanceExtensionProperties",
@@ -258,13 +260,8 @@ MANUAL_UNIX_THUNKS = {
     "vkGetPhysicalDeviceExternalSemaphorePropertiesKHR",
     "vkGetPhysicalDeviceImageFormatProperties2",
     "vkGetPhysicalDeviceImageFormatProperties2KHR",
-    "vkGetPhysicalDevicePresentRectanglesKHR",
-    "vkGetPhysicalDeviceSurfaceCapabilities2KHR",
-    "vkGetPhysicalDeviceSurfaceCapabilitiesKHR",
-    "vkGetPhysicalDeviceSurfaceFormats2KHR",
     "vkMapMemory",
     "vkMapMemory2KHR",
-    "vkQueuePresentKHR",
     "vkUnmapMemory",
     "vkUnmapMemory2KHR",
 }
