@@ -2766,12 +2766,20 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
 {
     struct x11drv_thread_data *thread_data;
     struct x11drv_win_data *data;
-    UINT new_style = NtUserGetWindowLongW( hwnd, GWL_STYLE );
+    UINT new_style = NtUserGetWindowLongW( hwnd, GWL_STYLE ), old_style;
     struct window_rects old_rects;
     BOOL was_fullscreen;
     int event_type;
 
     if (!(data = get_win_data( hwnd ))) return;
+
+    /* Compute the necessary changes to transition from the last requested
+     * window state (old_style), to the desired window state (new_style).
+     */
+    old_style = new_style & ~(WS_VISIBLE | WS_MINIMIZE | WS_MAXIMIZE);
+    if (data->pending_state.wm_state == IconicState) old_style |= WS_MINIMIZE;
+    if (data->pending_state.wm_state != WithdrawnState) old_style |= WS_VISIBLE;
+    if (data->pending_state.net_wm_state & (1 << NET_WM_STATE_MAXIMIZED)) old_style |= WS_MAXIMIZE;
 
     thread_data = x11drv_thread_data();
 
@@ -2809,7 +2817,7 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
             event_type = 0;  /* ignore other events */
     }
 
-    if (data->mapped && event_type != ReparentNotify)
+    if ((old_style & WS_VISIBLE) && event_type != ReparentNotify)
     {
         if (((swp_flags & SWP_HIDEWINDOW) && !(new_style & WS_VISIBLE)) ||
             (!event_type && !(new_style & WS_MINIMIZE) &&
@@ -2846,7 +2854,7 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
     if ((new_style & WS_VISIBLE) &&
         ((new_style & WS_MINIMIZE) || is_window_rect_mapped( &new_rects->window )))
     {
-        if (!data->mapped)
+        if (!(old_style & WS_VISIBLE))
         {
             BOOL needs_icon = !data->icon_pixmap;
             BOOL needs_map = TRUE;
@@ -2859,7 +2867,7 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
             if (needs_map) map_window( hwnd, new_style );
             return;
         }
-        else if ((swp_flags & SWP_STATECHANGED) && (!data->iconic != !(new_style & WS_MINIMIZE)))
+        else if ((swp_flags & SWP_STATECHANGED) && (old_style & WS_MINIMIZE) != (new_style & WS_MINIMIZE))
         {
             set_wm_hints( data );
             data->iconic = (new_style & WS_MINIMIZE) != 0;
