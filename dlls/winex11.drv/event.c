@@ -1145,7 +1145,6 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
 
     if ((old_style & WS_CAPTION) == WS_CAPTION || !data->is_fullscreen)
     {
-        data->net_wm_state = get_window_net_wm_state( event->display, data->whole_window );
         if ((new_style & WS_MAXIMIZE))
         {
             if (!(old_style & WS_MAXIMIZE))
@@ -1279,8 +1278,6 @@ static void handle_wm_state_notify( HWND hwnd, XPropertyEvent *event, BOOL updat
 
     if ((old_style & WS_MINIMIZE) && !(new_style & WS_MINIMIZE))  /* restore window */
     {
-        data->iconic = FALSE;
-        data->net_wm_state = get_window_net_wm_state( event->display, data->whole_window );
         if ((old_style & WS_CAPTION) == WS_CAPTION && (new_style & WS_MAXIMIZE))
         {
             if ((old_style & WS_MAXIMIZEBOX) && !(old_style & WS_DISABLED))
@@ -1308,7 +1305,6 @@ static void handle_wm_state_notify( HWND hwnd, XPropertyEvent *event, BOOL updat
     }
     else if (!(old_style & WS_MINIMIZE) && (new_style & WS_MINIMIZE))
     {
-        data->iconic = TRUE;
         if ((old_style & WS_MINIMIZEBOX) && !(old_style & WS_DISABLED))
         {
             TRACE( "minimizing win %p/%lx\n", data->hwnd, data->whole_window );
@@ -1387,9 +1383,9 @@ void wait_for_withdrawn_state( HWND hwnd, BOOL set )
         if (!(data = get_win_data( hwnd ))) break;
         if (!data->managed || data->embedded || data->display != display) break;
         if (!(window = data->whole_window)) break;
-        if (!data->mapped == !set)
+        if ((data->pending_state.wm_state == WithdrawnState) == !set)
         {
-            TRACE( "window %p/%lx now %smapped\n", hwnd, window, data->mapped ? "" : "un" );
+            TRACE( "window %p/%lx now %smapped\n", hwnd, window, (data->pending_state.wm_state != WithdrawnState) ? "" : "un" );
             break;
         }
         if ((data->wm_state == WithdrawnState) != !set)
