@@ -1073,9 +1073,8 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
     struct x11drv_win_data *data;
     RECT rect;
     POINT pos = {event->x, event->y};
-    UINT flags;
+    UINT flags, old_style, new_style;
     int cx, cy, x, y;
-    DWORD style;
 
     if (!hwnd) return FALSE;
     if (!(data = get_win_data( hwnd ))) return FALSE;
@@ -1093,6 +1092,15 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
     pos = root_to_virtual_screen( pos.x, pos.y );
     SetRect( &rect, pos.x, pos.y, pos.x + event->width, pos.y + event->height );
     window_configure_notify( data, event->serial, &rect );
+
+    /* Compute the necessary changes to transition from the current Win32
+     * window state (old_style), to the current X11 window state (new_style).
+     */
+    old_style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE );
+    new_style = old_style & ~(WS_VISIBLE | WS_MINIMIZE | WS_MAXIMIZE);
+    if (data->current_state.wm_state == IconicState) new_style |= WS_MINIMIZE;
+    if (data->current_state.wm_state != WithdrawnState) new_style |= WS_VISIBLE;
+    if (data->current_state.net_wm_state & (1 << NET_WM_STATE_MAXIMIZED)) new_style |= WS_MAXIMIZE;
 
     if (!data->mapped || data->iconic) goto done;
     if (!data->whole_window || !data->managed) goto done;
@@ -1135,13 +1143,12 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
                hwnd, (int)(data->rects.window.right - data->rects.window.left),
                (int)(data->rects.window.bottom - data->rects.window.top), cx, cy );
 
-    style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE );
-    if ((style & WS_CAPTION) == WS_CAPTION || !data->is_fullscreen)
+    if ((old_style & WS_CAPTION) == WS_CAPTION || !data->is_fullscreen)
     {
         data->net_wm_state = get_window_net_wm_state( event->display, data->whole_window );
-        if ((data->net_wm_state & (1 << NET_WM_STATE_MAXIMIZED)))
+        if ((new_style & WS_MAXIMIZE))
         {
-            if (!(style & WS_MAXIMIZE))
+            if (!(old_style & WS_MAXIMIZE))
             {
                 TRACE( "win %p/%lx is maximized\n", data->hwnd, data->whole_window );
                 release_win_data( data );
@@ -1149,7 +1156,7 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
                 return TRUE;
             }
         }
-        else if (style & WS_MAXIMIZE)
+        else if (old_style & WS_MAXIMIZE)
         {
             TRACE( "window %p/%lx is no longer maximized\n", data->hwnd, data->whole_window );
             release_win_data( data );
