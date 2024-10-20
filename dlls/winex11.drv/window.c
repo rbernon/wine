@@ -1480,19 +1480,6 @@ static void map_window( HWND hwnd, DWORD new_style )
     release_win_data( data );
 }
 
-
-/***********************************************************************
- *     unmap_window
- */
-static void unmap_window( HWND hwnd )
-{
-    struct x11drv_win_data *data;
-
-    if (!(data = get_win_data( hwnd ))) return;
-    window_set_wm_state( data, WithdrawnState );
-    release_win_data( data );
-}
-
 UINT window_update_client_state( struct x11drv_win_data *data )
 {
     UINT old_style, new_style;
@@ -2797,9 +2784,7 @@ BOOL X11DRV_WindowPosChanging( HWND hwnd, UINT swp_flags, BOOL shaped, const str
     if (!data->managed && data->whole_window && is_window_managed( hwnd, swp_flags, &rects->window ))
     {
         TRACE( "making win %p/%lx managed\n", hwnd, data->whole_window );
-        release_win_data( data );
-        unmap_window( hwnd );
-        if (!(data = get_win_data( hwnd ))) return FALSE; /* use default surface */
+        window_set_wm_state( data, WithdrawnState );
         data->managed = TRUE;
     }
 
@@ -2926,10 +2911,8 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
             (!event_type && !(new_style & WS_MINIMIZE) &&
              !is_window_rect_mapped( &new_rects->window ) && is_window_rect_mapped( &old_rects.window )))
         {
-            release_win_data( data );
-            unmap_window( hwnd );
+            window_set_wm_state( data, WithdrawnState );
             if (was_fullscreen) NtUserClipCursor( NULL );
-            if (!(data = get_win_data( hwnd ))) return;
         }
     }
 
