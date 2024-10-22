@@ -6950,6 +6950,12 @@ static void test_button_messages(void)
         char desc[64];
         HDC hdc;
 
+        winetest_push_context("%u", i);
+
+        flush_events();
+        SetActiveWindow(parent);
+        ok(GetActiveWindow() == parent, "Wrong active window %p\n", GetActiveWindow());
+
         if (winetest_debug > 1) trace("button style %08lx\n", button[i].style);
 
         hwnd = CreateWindowExA(0, "my_button_class", "test", button[i].style | WS_CHILD | BS_NOTIFY,
@@ -6973,6 +6979,7 @@ static void test_button_messages(void)
         flush_events();
         SetFocus(0);
         flush_sequence();
+        ok(GetActiveWindow() == parent, "Wrong active window %p\n", GetActiveWindow());
 
         log_all_parent_messages++;
 
@@ -7003,6 +7010,7 @@ static void test_button_messages(void)
         ok(state == 0, "expected state 0, got %04lx\n", state);
 
         flush_sequence();
+        ok(GetActiveWindow() == parent, "Wrong active window %p\n", GetActiveWindow());
 
         SendMessageA(hwnd, BM_SETSTATE, TRUE, 0);
         SendMessageA(hwnd, WM_APP, 0, 0); /* place a separator mark here */
@@ -7017,6 +7025,7 @@ static void test_button_messages(void)
         ok(style == button[i].style, "expected style %04lx got %04lx\n", button[i].style, style);
 
         flush_sequence();
+        ok(GetActiveWindow() == parent, "Wrong active window %p\n", GetActiveWindow());
 
         SendMessageA(hwnd, BM_SETSTATE, FALSE, 0);
         SendMessageA(hwnd, WM_APP, 0, 0); /* place a separator mark here */
@@ -7034,6 +7043,7 @@ static void test_button_messages(void)
         ok(state == BST_UNCHECKED, "expected BST_UNCHECKED, got %04lx\n", state);
 
         flush_sequence();
+        ok(GetActiveWindow() == parent, "Wrong active window %p\n", GetActiveWindow());
 
         SendMessageA(hwnd, BM_SETCHECK, BST_UNCHECKED, 0);
         SendMessageA(hwnd, WM_APP, 0, 0); /* place a separator mark here */
@@ -7061,6 +7071,7 @@ static void test_button_messages(void)
         ShowWindow(hwnd, SW_HIDE);
         flush_events();
         flush_sequence();
+        ok(GetActiveWindow() == parent, "Wrong active window %p\n", GetActiveWindow());
 
         SendMessageA(hwnd, WM_SETTEXT, 0, (LPARAM)"Text 2");
         sprintf(desc, "button[%i]: WM_SETTEXT on an invisible button", i);
@@ -7077,6 +7088,7 @@ static void test_button_messages(void)
 
         ShowWindow(parent, SW_SHOW);
         flush_events();
+        ok(GetActiveWindow() == parent, "Wrong active window %p\n", GetActiveWindow());
 
         state = SendMessageA(hwnd, BM_GETCHECK, 0, 0);
         if (button[i].style == BS_PUSHBUTTON ||
@@ -7099,6 +7111,7 @@ static void test_button_messages(void)
         log_all_parent_messages--;
 
         DestroyWindow(hwnd);
+        ok(GetActiveWindow() == parent, "Wrong active window %p\n", GetActiveWindow());
 
         hwnd = CreateWindowExA(0, "my_button_class", "test", button[i].style | WS_POPUP | WS_VISIBLE,
                                0, 0, 50, 14, 0, 0, 0, NULL);
@@ -7106,10 +7119,12 @@ static void test_button_messages(void)
 
         SetForegroundWindow(hwnd);
         flush_events();
+        ok(GetActiveWindow() == hwnd, "Wrong active window %p\n", GetActiveWindow());
 
         SetActiveWindow(hwnd);
         SetFocus(0);
         flush_sequence();
+        ok(GetActiveWindow() == hwnd, "Wrong active window %p\n", GetActiveWindow());
 
         if (button[i].lbuttondown)
         {
@@ -7147,6 +7162,9 @@ static void test_button_messages(void)
         DeleteDC(hdc);
 
         DestroyWindow(hwnd);
+        ok(GetActiveWindow() == parent, "Wrong active window %p\n", GetActiveWindow());
+
+        winetest_pop_context();
     }
 
     DeleteObject(hfont2);
@@ -20587,7 +20605,7 @@ START_TEST(msg)
     test_showwindow();
     invisible_parent_tests();
     test_mdi_messages();
-    test_button_messages();
+    while (!winetest_failures) test_button_messages();
     test_button_bm_get_set_image();
     test_button_style();
     test_autoradio_BM_CLICK();
