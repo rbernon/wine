@@ -1482,7 +1482,7 @@ static void map_window( HWND hwnd, DWORD new_style )
     release_win_data( data );
 }
 
-UINT window_update_client_state( struct x11drv_win_data *data )
+static UINT window_update_client_state( struct x11drv_win_data *data )
 {
     UINT old_style, new_style;
 
