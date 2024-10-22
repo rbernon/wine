@@ -22,21 +22,16 @@
  *
  */
 
-#define COBJMACROS
 #include <stdio.h>
 #include <windows.h>
 #include <commctrl.h>
 #include <commdlg.h>
 #include <shellapi.h>
 #include <shlwapi.h>
-#include <shlobj.h>
 
 #include "main.h"
 #include "dialog.h"
 #include "notepad_res.h"
-#include "wine/debug.h"
-
-WINE_DEFAULT_DEBUG_CHANNEL(xdnd);
 
 NOTEPAD_GLOBALS Globals;
 static ATOM aFINDMSGSTRING;
@@ -323,148 +318,6 @@ static int NOTEPAD_MenuCommand(WPARAM wParam)
    return 0;
 }
 
-static HRESULT WINAPI drop_target_QueryInterface(IDropTarget* iface, REFIID riid, void** ppvObject)
-{
-    if (IsEqualIID(riid, &IID_IUnknown) || IsEqualIID(riid, &IID_IDropTarget))
-    {
-        IDropTarget_AddRef(iface);
-        *ppvObject = iface;
-        return S_OK;
-    }
-    *ppvObject = NULL;
-    return E_NOINTERFACE;
-}
-
-static ULONG WINAPI drop_target_AddRef(IDropTarget* iface)
-{
-    return 2;
-}
-
-static ULONG WINAPI drop_target_Release(IDropTarget* iface)
-{
-    return 1;
-}
-
-/* get a debug string for a format id */
-static const char *debugstr_format( UINT id )
-{
-    WCHAR buffer[256];
-    DWORD le = GetLastError();
-    BOOL r = GetClipboardFormatNameW( id, buffer, 256 );
-    SetLastError(le);
-
-    if (r)
-        return wine_dbg_sprintf( "%04x %s", id, debugstr_w(buffer) );
-
-    switch (id)
-    {
-#define BUILTIN(id) case id: return #id;
-    BUILTIN(CF_TEXT)
-    BUILTIN(CF_BITMAP)
-    BUILTIN(CF_METAFILEPICT)
-    BUILTIN(CF_SYLK)
-    BUILTIN(CF_DIF)
-    BUILTIN(CF_TIFF)
-    BUILTIN(CF_OEMTEXT)
-    BUILTIN(CF_DIB)
-    BUILTIN(CF_PALETTE)
-    BUILTIN(CF_PENDATA)
-    BUILTIN(CF_RIFF)
-    BUILTIN(CF_WAVE)
-    BUILTIN(CF_UNICODETEXT)
-    BUILTIN(CF_ENHMETAFILE)
-    BUILTIN(CF_HDROP)
-    BUILTIN(CF_LOCALE)
-    BUILTIN(CF_DIBV5)
-    BUILTIN(CF_OWNERDISPLAY)
-    BUILTIN(CF_DSPTEXT)
-    BUILTIN(CF_DSPBITMAP)
-    BUILTIN(CF_DSPMETAFILEPICT)
-    BUILTIN(CF_DSPENHMETAFILE)
-#undef BUILTIN
-    default: return wine_dbg_sprintf( "%04x", id );
-    }
-}
-
-static HRESULT WINAPI drop_target_DragEnter(IDropTarget *iface, IDataObject *object,
-                                            DWORD state, POINTL pt, DWORD *effect)
-{
-    POINT point = {pt.x, pt.y};
-    IEnumFORMATETC *iter;
-    FORMATETC format;
-    HRESULT hr;
-    DWORD num;
-
-    TRACE("iface %p, object %p, state %#x, point %s, effect %p\n", iface, object, state, wine_dbgstr_point(&point), effect);
-
-    if (FAILED(hr = IDataObject_EnumFormatEtc( object, DATADIR_GET, &iter ))) return hr;
-    while (IEnumFORMATETC_Next( iter, 1, &format, &num ) == S_OK)
-        TRACE( "  format %s\n", debugstr_format(format.cfFormat) );
-    IEnumFORMATETC_Release( iter );
-
-    *effect = DROPEFFECT_COPY;
-    return S_OK;
-}
-
-static HRESULT WINAPI drop_target_DragOver(IDropTarget *iface, DWORD state,
-                                           POINTL pt, DWORD *effect)
-{
-    POINT point = {pt.x, pt.y};
-    TRACE("iface %p, state %#x, point %s, effect %p\n", iface, state, wine_dbgstr_point(&point), effect);
-    *effect = DROPEFFECT_COPY;
-    return S_OK;
-}
-
-static HRESULT WINAPI drop_target_DragLeave(IDropTarget *iface)
-{
-    TRACE("iface %p\n", iface);
-    return S_OK;
-}
-
-static HRESULT WINAPI drop_target_Drop(IDropTarget *iface, IDataObject *object,
-                                       DWORD state, POINTL pt, DWORD *effect)
-{
-    FORMATETC format = {.cfFormat = CF_HDROP};
-    POINT point = {pt.x, pt.y};
-    STGMEDIUM medium;
-    DROPFILES *drop;
-    void *files;
-    HRESULT hr;
-
-    TRACE("iface %p, object %p, state %#x, point %s, effect %p\n", iface, object, state, wine_dbgstr_point(&point), effect);
-
-    if (FAILED(hr = IDataObject_GetData( object, &format, &medium ))) return hr;
-    drop = GlobalLock( medium.hGlobal );
-    files = (char *)drop + drop->pFiles;
-    TRACE( "drop files %lu, pt %s, fNC %u, wide %u %s\n", drop->pFiles, wine_dbgstr_point(&drop->pt),
-            drop->fNC, drop->fWide, drop->fWide ? debugstr_w(files) : debugstr_a(files) );
-    GlobalUnlock( medium.hGlobal );
-    GlobalFree( medium.hGlobal );
-
-    *effect = DROPEFFECT_NONE;
-    return S_OK;
-}
-
-static const IDropTargetVtbl drop_target_vtbl =
-{
-    drop_target_QueryInterface,
-    drop_target_AddRef,
-    drop_target_Release,
-    drop_target_DragEnter,
-    drop_target_DragOver,
-    drop_target_DragLeave,
-    drop_target_Drop
-};
-
-struct drop_target
-{
-    IDropTarget IDropTarget_iface;
-    HWND hwnd;
-};
-
-static struct drop_target drop_target_main = {{&drop_target_vtbl}};
-static struct drop_target drop_target_status = {{&drop_target_vtbl}};
-
 /***********************************************************************
  * Data Initialization
  */
@@ -483,14 +336,6 @@ static VOID NOTEPAD_InitData(VOID)
     *p = '\0';
     Globals.hDevMode = NULL;
     Globals.hDevNames = NULL;
-
-    CoInitialize( NULL );
-
-    drop_target_main.hwnd = Globals.hMainWnd;
-    RegisterDragDrop(Globals.hMainWnd, &drop_target_main.IDropTarget_iface);
-    drop_target_status.hwnd = Globals.hStatusBar;
-    RegisterDragDrop(Globals.hStatusBar, &drop_target_status.IDropTarget_iface);
-    TRACE("main %p status %p\n", Globals.hMainWnd, Globals.hStatusBar);
 
     CheckMenuItem(GetMenu(Globals.hMainWnd), CMD_WRAP,
             MF_BYCOMMAND | (Globals.bWrapLongLines ? MF_CHECKED : MF_UNCHECKED));
