@@ -747,9 +747,6 @@ static void handle_wm_protocols( HWND hwnd, XClientMessageEvent *event )
     {
         HWND last_focus = x11drv_thread_data()->last_focus, foreground = NtUserGetForegroundWindow();
 
-        /* Work around a FVWM bug where XSetInputFocus call otherwise fails to take focus with the given event time. */
-        event_time += 1;
-
         if (window_has_pending_wm_state( hwnd, -1 ))
         {
             ERR( "Ignoring window %p/%lx WM_TAKE_FOCUS serial %lu, event_time %ld, foreground %p during WM_STATE change\n",
