@@ -2193,7 +2193,6 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
         if (!owner_hint) owner_hint = NtUserWindowFromPoint(new_rects->window.left - 1, new_rects->window.top - 1);
         if (owner_hint) owner_hint = NtUserGetAncestor(owner_hint, GA_ROOT);
 
-        if (is_layered) get_window_rects( hwnd, COORDS_SCREEN, &monitor_rects, monitor_dpi );
         user_driver->pWindowPosChanged( hwnd, insert_after, owner_hint, swp_flags, is_fullscreen, &monitor_rects,
                                         get_driver_window_surface( new_surface, raw_dpi ) );
 
