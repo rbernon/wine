@@ -1100,7 +1100,7 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
     struct x11drv_win_data *data;
     RECT rect;
     POINT pos = {event->x, event->y};
-    UINT config_cmd;
+    UINT state_cmd, config_cmd;
 
     if (!hwnd) return FALSE;
     if (!(data = get_win_data( hwnd ))) return FALSE;
@@ -1119,15 +1119,15 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
     SetRect( &rect, pos.x, pos.y, pos.x + event->width, pos.y + event->height );
     window_configure_notify( data, event->serial, &rect );
 
-    if (!(old_style & WS_VISIBLE) || (old_style & WS_MINIMIZE)) config_cmd = 0;
-    else if (!data->whole_window || !data->managed) config_cmd = 0;
-    else if (data->configure_serial) config_cmd = 0;
-    else
-    {
-        config_cmd = window_update_client_config( data );
-        rect = window_rect_from_visible( &data->rects, data->current_state.rect );
-    }
     release_win_data( data );
+
+    if (!get_window_state_updates( hwnd, &state_cmd, &config_cmd, &rect )) return FALSE;
+
+    if (state_cmd)
+    {
+        if (LOWORD(state_cmd) == SC_RESTORE && HIWORD(state_cmd)) NtUserSetActiveWindow( hwnd );
+        send_message( hwnd, WM_SYSCOMMAND, LOWORD(state_cmd), 0 );
+    }
 
     if (config_cmd)
     {
@@ -1135,7 +1135,7 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
         else send_message( hwnd, WM_SYSCOMMAND, LOWORD(config_cmd), 0 );
     }
 
-    return !!config_cmd;
+    return TRUE;
 }
 
 
