@@ -992,8 +992,8 @@ struct device_manager_ctx
     UINT source_count;
     UINT monitor_count;
     HANDLE mutex;
+    struct source *primary_source;
     struct list vulkan_gpus;
-    BOOL has_primary;
     /* for the virtual desktop settings */
     BOOL is_primary;
     DEVMODEW primary;
@@ -1441,13 +1441,9 @@ static void add_source( const char *name, UINT state_flags, UINT dpi, void *para
     if (!(source = calloc( 1, sizeof(*source) ))) return;
     source->refcount = 1;
     source->gpu = gpu_acquire( gpu );
-    source->id = ctx->source_count + (ctx->has_primary ? 0 : 1);
     source->state_flags = state_flags;
-    if (state_flags & DISPLAY_DEVICE_PRIMARY_DEVICE)
-    {
-        source->id = 0;
-        ctx->has_primary = TRUE;
-    }
+    if (state_flags & DISPLAY_DEVICE_PRIMARY_DEVICE) ctx->primary_source = source_acquire( source );
+    else source->id = ctx->source_count + (ctx->primary_source ? 0 : 1);
     source->dpi = dpi;
 
     /* Wine specific config key where source settings will be held, symlinked with the logically indexed config key */
@@ -1804,6 +1800,11 @@ static void release_display_manager_ctx( struct device_manager_ctx *ctx )
         ctx->mutex = 0;
     }
 
+    if (ctx->primary_source)
+    {
+        source_release( ctx->primary_source );
+        ctx->primary_source = NULL;
+    }
     if (!list_empty( &sources )) last_query_display_time = 0;
     if (ctx->gpu_count) cleanup_devices();
 
@@ -2222,7 +2223,7 @@ static BOOL get_default_desktop_size( DWORD *width, DWORD *height )
 static BOOL add_virtual_source( struct device_manager_ctx *ctx )
 {
     DEVMODEW current = {.dmSize = sizeof(current)}, initial = ctx->primary, maximum = ctx->primary, *modes;
-    struct source *physical, *source;
+    struct source *primary_physical = ctx->primary_source, *source;
     struct gdi_monitor monitor = {0};
     UINT modes_count;
     struct gpu *gpu;
@@ -2230,18 +2231,15 @@ static BOOL add_virtual_source( struct device_manager_ctx *ctx )
     assert( !list_empty( &gpus ) );
     gpu = LIST_ENTRY( list_tail( &gpus ), struct gpu, entry );
 
-    if (list_empty( &sources )) physical = NULL;
-    else physical = LIST_ENTRY( list_tail( &sources ), struct source, entry );
-
     if (!(source = calloc( 1, sizeof(*source) ))) return STATUS_NO_MEMORY;
     source->refcount = 1;
     source->state_flags = DISPLAY_DEVICE_ATTACHED_TO_DESKTOP | DISPLAY_DEVICE_VGA_COMPATIBLE;
 
-    if (ctx->has_primary && physical) physical->id = ctx->source_count;
+    if (primary_physical) primary_physical->id = ctx->source_count;
     else
     {
         source->state_flags |= DISPLAY_DEVICE_PRIMARY_DEVICE;
-        ctx->has_primary = TRUE;
+        ctx->primary_source = source_acquire( source );
     }
     source->gpu = gpu_acquire( gpu );
 
