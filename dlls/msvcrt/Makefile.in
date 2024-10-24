@@ -11,6 +11,7 @@ SOURCES = \
 	crt_gccmain.c \
 	crt_heap.c \
 	crt_main.c \
+	crt_thread.c \
 	crt_winmain.c \
 	crt_wmain.c \
 	crt_wwinmain.c \
