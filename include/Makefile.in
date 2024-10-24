@@ -557,6 +557,7 @@ SOURCES = \
 	msvcrt/unistd.h \
 	msvcrt/vadefs.h \
 	msvcrt/vcruntime_exception.h \
+	msvcrt/vcruntime_typeinfo.h \
 	msvcrt/wchar.h \
 	msvcrt/wctype.h \
 	mswsock.h \
