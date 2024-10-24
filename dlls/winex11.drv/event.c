@@ -1263,7 +1263,7 @@ static int get_window_xembed_info( Display *display, Window window )
 static void handle_wm_state_notify( HWND hwnd, XPropertyEvent *event, BOOL update_window )
 {
     struct x11drv_win_data *data;
-    UINT old_style, new_style, value = 0, state_cmd = 0;
+    UINT value = 0, state_cmd;
 
     if (!(data = get_win_data( hwnd ))) return;
     if (event->state == PropertyNewValue) value = get_window_wm_state( event->display, event->window );
@@ -1293,48 +1293,14 @@ static void handle_wm_state_notify( HWND hwnd, XPropertyEvent *event, BOOL updat
                 TRACE( "%p/%lx: new WM_STATE %d from %d\n",
                        data->hwnd, data->whole_window, new_state, old_state );
                 data->wm_state = new_state;
-                /* ignore the initial state transition out of withdrawn state */
-                /* metacity does Withdrawn->NormalState->IconicState when mapping an iconic window */
-                if (!old_state) goto done;
             }
         }
         break;
     }
 
-    if (!update_window || !data->managed || !(old_style & WS_VISIBLE)) goto done;
+    if (!update_window || !data->managed || !(old_style & WS_VISIBLE)) state_cmd = 0;
+    else state_cmd = window_update_client_state( data );
 
-    if ((old_style & WS_MINIMIZE) && !(new_style & WS_MINIMIZE))  /* restore window */
-    {
-        if ((old_style & WS_CAPTION) == WS_CAPTION && (new_style & WS_MAXIMIZE))
-        {
-            if ((old_style & WS_MAXIMIZEBOX) && !(old_style & WS_DISABLED))
-            {
-                TRACE( "window %p/%lx restoring and maximized\n", data->hwnd, data->whole_window );
-                state_cmd = SC_MAXIMIZE;
-            }
-            else TRACE( "window %p/%lx style %#x not restoring\n", data->hwnd, data->whole_window, old_style );
-        }
-        else
-        {
-            if (old_style & (WS_MINIMIZE | WS_MAXIMIZE))
-            {
-                TRACE( "window %p/%lx restoring\n", data->hwnd, data->whole_window );
-                if ((old_style & (WS_MINIMIZE | WS_VISIBLE)) == (WS_MINIMIZE | WS_VISIBLE)) state_cmd = MAKELONG(SC_RESTORE, 1);
-                else state_cmd = SC_RESTORE;
-            }
-            else TRACE( "window %p/%lx style %#x not restoring\n", data->hwnd, data->whole_window, old_style );
-        }
-    }
-    else if (!(old_style & WS_MINIMIZE) && (new_style & WS_MINIMIZE))
-    {
-        if ((old_style & WS_MINIMIZEBOX) && !(old_style & WS_DISABLED))
-        {
-            TRACE( "window %p/%lx minimizing\n", data->hwnd, data->whole_window );
-            state_cmd = SC_MINIMIZE;
-        }
-        else TRACE( "window %p/%lx style %#x not minimizing\n", data->hwnd, data->whole_window, old_style );
-    }
-done:
     release_win_data( data );
 
     if (state_cmd)

@@ -1485,6 +1485,51 @@ static void unmap_window( HWND hwnd )
     release_win_data( data );
 }
 
+UINT window_update_client_state( struct x11drv_win_data *data )
+{
+    UINT old_style, new_style;
+
+    old_style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE );
+    new_style = old_style & ~(WS_VISIBLE | WS_MINIMIZE | WS_MAXIMIZE);
+    if (data->current_state.wm_state == IconicState) new_style |= WS_MINIMIZE;
+    if (data->current_state.wm_state != WithdrawnState) new_style |= WS_VISIBLE;
+    if (data->current_state.net_wm_state & (1 << NET_WM_STATE_MAXIMIZED)) new_style |= WS_MAXIMIZE;
+
+    if ((old_style & WS_MINIMIZE) && !(new_style & WS_MINIMIZE))  /* restore window */
+    {
+        if ((old_style & WS_CAPTION) == WS_CAPTION && (new_style & WS_MAXIMIZE))
+        {
+            if ((old_style & WS_MAXIMIZEBOX) && !(old_style & WS_DISABLED))
+            {
+                TRACE( "window %p/%lx restoring and maximized\n", data->hwnd, data->whole_window );
+                return SC_MAXIMIZE;
+            }
+            TRACE( "window %p/%lx style %#x not restoring\n", data->hwnd, data->whole_window, old_style );
+        }
+        else
+        {
+            if (old_style & (WS_MINIMIZE | WS_MAXIMIZE))
+            {
+                TRACE( "window %p/%lx restoring\n", data->hwnd, data->whole_window );
+                if ((old_style & (WS_MINIMIZE | WS_VISIBLE)) == (WS_MINIMIZE | WS_VISIBLE)) return MAKELONG(SC_RESTORE, 1);
+                else return SC_RESTORE;
+            }
+            TRACE( "window %p/%lx style %#x not restoring\n", data->hwnd, data->whole_window, old_style );
+        }
+    }
+    else if (!(old_style & WS_MINIMIZE) && (new_style & WS_MINIMIZE))
+    {
+        if ((old_style & WS_MINIMIZEBOX) && !(old_style & WS_DISABLED))
+        {
+            TRACE( "window %p/%lx minimizing\n", data->hwnd, data->whole_window );
+            return SC_MINIMIZE;
+        }
+        TRACE( "window %p/%lx style %#x not minimizing\n", data->hwnd, data->whole_window, old_style );
+    }
+
+    return 0;
+}
+
 void window_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value )
 {
     UINT *pending = &data->pending_state.wm_state, *current = &data->current_state.wm_state;
