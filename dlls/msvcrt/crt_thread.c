@@ -54,6 +54,11 @@ static CRITICAL_SECTION_DEBUG init_thread_debug =
 static CRITICAL_SECTION init_thread_cs = { &init_thread_debug, -1, 0, 0, 0, 0 };
 static CONDITION_VARIABLE init_thread_cv;
 
+int _tls_index = 0;
+int _tls_array = 0;
+int _Init_global_epoch = INT_MIN;
+__thread int _Init_thread_epoch = INT_MIN;
+
 void _Init_thread_lock(void)
 {
     EnterCriticalSection( &init_thread_cs );
@@ -73,9 +78,6 @@ void _Init_thread_notify(void)
 {
     WakeAllConditionVariable( &init_thread_cv );
 }
-
-int _Init_global_epoch = INT_MIN;
-__thread int _Init_thread_epoch = INT_MIN;
 
 void _Init_thread_header( int *once )
 {
