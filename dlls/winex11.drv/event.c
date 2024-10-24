@@ -1204,45 +1204,16 @@ static int get_window_xembed_info( Display *display, Window window )
  *
  * Handle a PropertyNotify for WM_STATE.
  */
-static void handle_wm_state_notify( HWND hwnd, XPropertyEvent *event, BOOL update_window )
+static void handle_wm_state_notify( HWND hwnd, XPropertyEvent *event )
 {
     struct x11drv_win_data *data;
     UINT value = 0, state_cmd;
 
     if (!(data = get_win_data( hwnd ))) return;
     if (event->state == PropertyNewValue) value = get_window_wm_state( event->display, event->window );
-    if (update_window) window_wm_state_notify( data, event->serial, value );
+    window_wm_state_notify( data, event->serial, value );
 
-    /* Compute the necessary changes to transition from the current Win32
-     * window state (old_style), to the current X11 window state (new_style).
-     */
-    old_style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE );
-    new_style = old_style & ~(WS_VISIBLE | WS_MINIMIZE | WS_MAXIMIZE);
-    if (data->current_state.wm_state == IconicState) new_style |= WS_MINIMIZE;
-    if (data->current_state.wm_state != WithdrawnState) new_style |= WS_VISIBLE;
-    if (data->current_state.net_wm_state & (1 << NET_WM_STATE_MAXIMIZED)) new_style |= WS_MAXIMIZE;
-
-    switch(event->state)
-    {
-    case PropertyDelete:
-        TRACE( "%p/%lx: WM_STATE deleted from %d\n", data->hwnd, data->whole_window, data->wm_state );
-        data->wm_state = WithdrawnState;
-        break;
-    case PropertyNewValue:
-        {
-            int old_state = data->wm_state;
-            int new_state = get_window_wm_state( event->display, data->whole_window );
-            if (new_state != -1 && new_state != data->wm_state)
-            {
-                TRACE( "%p/%lx: new WM_STATE %d from %d\n",
-                       data->hwnd, data->whole_window, new_state, old_state );
-                data->wm_state = new_state;
-            }
-        }
-        break;
-    }
-
-    if (!update_window || !data->managed || !(old_style & WS_VISIBLE)) state_cmd = 0;
+    if (!data->managed || !(old_style & WS_VISIBLE)) state_cmd = 0;
     else if (data->wm_state_serial || data->net_wm_state_serial) state_cmd = 0;
     else state_cmd = window_update_client_state( data );
 
@@ -1274,7 +1245,6 @@ static void handle_net_wm_state_notify( HWND hwnd, XPropertyEvent *event )
     if (!(data = get_win_data( hwnd ))) return;
     if (event->state == PropertyNewValue) value = get_window_net_wm_state( event->display, event->window );
     window_net_wm_state_notify( data, event->serial, value );
-    release_win_data( data );
 
     if (!data->managed || data->pending_state.wm_state == WithdrawnState) state_cmd = 0;
     else if (data->wm_state_serial || data->net_wm_state_serial) state_cmd = 0;
@@ -1297,76 +1267,10 @@ static BOOL X11DRV_PropertyNotify( HWND hwnd, XEvent *xev )
     XPropertyEvent *event = &xev->xproperty;
 
     if (!hwnd) return FALSE;
-    if (event->atom == x11drv_atom(WM_STATE)) handle_wm_state_notify( hwnd, event, TRUE );
+    if (event->atom == x11drv_atom(WM_STATE)) handle_wm_state_notify( hwnd, event );
     if (event->atom == x11drv_atom(_XEMBED_INFO)) handle_xembed_info_notify( hwnd, event );
     if (event->atom == x11drv_atom(_NET_WM_STATE)) handle_net_wm_state_notify( hwnd, event );
     return TRUE;
-}
-
-
-/* event filter to wait for a WM_STATE change notification on a window */
-static Bool is_wm_state_notify( Display *display, XEvent *event, XPointer arg )
-{
-    if (event->xany.window != (Window)arg) return 0;
-    return (event->type == DestroyNotify ||
-            (event->type == PropertyNotify && event->xproperty.atom == x11drv_atom(WM_STATE)));
-}
-
-/***********************************************************************
- *           wait_for_withdrawn_state
- */
-void wait_for_withdrawn_state( HWND hwnd, BOOL set )
-{
-    Display *display = thread_display();
-    struct x11drv_win_data *data;
-    DWORD end = NtGetTickCount() + 2000;
-
-    TRACE( "waiting for window %p to become %swithdrawn\n", hwnd, set ? "" : "not " );
-
-    for (;;)
-    {
-        XEvent event;
-        Window window;
-        int count = 0;
-
-        if (!(data = get_win_data( hwnd ))) break;
-        if (!data->managed || data->embedded || data->display != display) break;
-        if (!(window = data->whole_window)) break;
-        if ((data->pending_state.wm_state == WithdrawnState) == !set)
-        {
-            TRACE( "window %p/%lx now %smapped\n", hwnd, window, (data->pending_state.wm_state != WithdrawnState) ? "" : "un" );
-            break;
-        }
-        if ((data->wm_state == WithdrawnState) != !set)
-        {
-            TRACE( "window %p/%lx state now %d\n", hwnd, window, data->wm_state );
-            break;
-        }
-        release_win_data( data );
-
-        while (XCheckIfEvent( display, &event, is_wm_state_notify, (char *)window ))
-        {
-            count++;
-            if (XFilterEvent( &event, None )) continue;  /* filtered, ignore it */
-            if (event.type == DestroyNotify) call_event_handler( display, &event );
-            else handle_wm_state_notify( hwnd, &event.xproperty, FALSE );
-        }
-
-        if (!count)
-        {
-            struct pollfd pfd;
-            int timeout = end - NtGetTickCount();
-
-            pfd.fd = ConnectionNumber(display);
-            pfd.events = POLLIN;
-            if (timeout <= 0 || poll( &pfd, 1, timeout ) != 1)
-            {
-                FIXME( "window %p/%lx wait timed out\n", hwnd, window );
-                return;
-            }
-        }
-    }
-    release_win_data( data );
 }
 
 

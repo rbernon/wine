@@ -638,6 +638,7 @@ struct x11drv_win_data
     unsigned long *icon_bits;
     unsigned int   icon_size;
 
+    struct window_state desired_state; /* window state tracking the desired / win32 state */
     struct window_state pending_state; /* window state tracking the pending / requested state */
     struct window_state current_state; /* window state tracking the current X11 state */
     unsigned long wm_state_serial;     /* serial of last pending WM_STATE request */
@@ -663,7 +664,6 @@ extern void window_configure_notify( struct x11drv_win_data *data, unsigned long
 extern UINT window_update_client_state( struct x11drv_win_data *data );
 extern UINT window_update_client_config( struct x11drv_win_data *data );
 
-extern void wait_for_withdrawn_state( HWND hwnd, BOOL set );
 extern Window init_clip_window(void);
 extern void update_user_time( Time time );
 extern UINT get_window_net_wm_state( Display *display, Window window );
