@@ -6143,90 +6143,6 @@ static void test_keyboard_layout(void)
     }
 }
 
-/* try to make sure pending X events have been processed before continuing */
-static void flush_events( BOOL remove_messages )
-{
-    MSG msg;
-    int diff = 4000;
-    int min_timeout = 2000;
-    DWORD time = GetTickCount() + diff;
-
-    while (diff > 0)
-    {
-        if (MsgWaitForMultipleObjects( 0, NULL, FALSE, min_timeout, QS_ALLINPUT ) == WAIT_TIMEOUT) break;
-        if (remove_messages)
-            while (PeekMessageA( &msg, 0, 0, 0, PM_REMOVE )) DispatchMessageA( &msg );
-        diff = time - GetTickCount();
-        min_timeout = 1000;
-    }
-}
-
-static void test_basic_window(void)
-{
-    HWND hwnd;
-
-    SetCursorPos( 150, 150 );
-
-    ok(0, "create popup\n");
-    hwnd = CreateWindowW( L"static", NULL, WS_POPUP,
-                          100, 100, 200, 200, NULL, NULL, NULL, NULL );
-    flush_events( TRUE );
-
-    ok(0, "show popup %p\n", hwnd);
-    ShowWindow( hwnd, SW_SHOW );
-    flush_events( TRUE );
-
-    ok(0, "hide popup %p\n", hwnd);
-    ShowWindow( hwnd, SW_HIDE );
-    flush_events( TRUE );
-
-    ok(0, "minimize popup %p\n", hwnd);
-    ShowWindow( hwnd, SW_MINIMIZE );
-    flush_events( TRUE );
-
-    ok(0, "maximize popup %p\n", hwnd);
-    ShowWindow( hwnd, SW_MAXIMIZE );
-    flush_events( TRUE );
-
-    ok(0, "minimize popup %p\n", hwnd);
-    ShowWindow( hwnd, SW_MINIMIZE );
-    flush_events( TRUE );
-
-    ok(0, "destroy popup %p\n", hwnd);
-    DestroyWindow( hwnd );
-    flush_events( TRUE );
-
-
-    ok(0, "create overlapped\n");
-    hwnd = CreateWindowW( L"static", NULL, WS_OVERLAPPEDWINDOW,
-                          100, 100, 200, 200, NULL, NULL, NULL, NULL );
-    flush_events( TRUE );
-
-    ok(0, "show overlapped %p\n", hwnd);
-    ShowWindow( hwnd, SW_SHOW );
-    flush_events( TRUE );
-
-    ok(0, "hide overlapped %p\n", hwnd);
-    ShowWindow( hwnd, SW_HIDE );
-    flush_events( TRUE );
-
-    ok(0, "minimize overlapped %p\n", hwnd);
-    ShowWindow( hwnd, SW_MINIMIZE );
-    flush_events( TRUE );
-
-    ok(0, "maximize overlapped %p\n", hwnd);
-    ShowWindow( hwnd, SW_MAXIMIZE );
-    flush_events( TRUE );
-
-    ok(0, "minimize overlapped %p\n", hwnd);
-    ShowWindow( hwnd, SW_MINIMIZE );
-    flush_events( TRUE );
-
-    ok(0, "destroy overlapped %p\n", hwnd);
-    DestroyWindow( hwnd );
-    flush_events( TRUE );
-}
-
 START_TEST(input)
 {
     char **argv;
@@ -6251,9 +6167,6 @@ START_TEST(input)
         return test_ClipCursor_desktop( argv );
     if (argc >= 3 && !strcmp( argv[2], "test_input_desktop" ))
         return test_input_desktop( argv );
-
-test_basic_window();
-return;
 
     run_in_desktop( argv, "test_input_desktop", 1 );
     test_keynames();
