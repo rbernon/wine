@@ -1036,7 +1036,7 @@ static BOOL X11DRV_MapNotify( HWND hwnd, XEvent *event )
 
     if (!(data = get_win_data( hwnd ))) return FALSE;
 
-    if (!data->managed && !data->embedded && data->pending_state.wm_state == NormalState)
+    if (!data->managed && !data->embedded && data->desired_state.wm_state == NormalState)
     {
         HWND hwndFocus = get_focus();
         if (hwndFocus && NtUserIsChild( hwnd, hwndFocus ))
@@ -1118,15 +1118,6 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
     pos = root_to_virtual_screen( pos.x, pos.y );
     SetRect( &rect, pos.x, pos.y, pos.x + event->width, pos.y + event->height );
     window_configure_notify( data, event->serial, &rect );
-
-    /* Compute the necessary changes to transition from the current Win32
-     * window state (old_style), to the current X11 window state (new_style).
-     */
-    old_style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE );
-    new_style = old_style & ~(WS_VISIBLE | WS_MINIMIZE | WS_MAXIMIZE);
-    if (data->current_state.wm_state == IconicState) new_style |= WS_MINIMIZE;
-    if (data->current_state.wm_state != WithdrawnState) new_style |= WS_VISIBLE;
-    if (data->current_state.net_wm_state & (1 << NET_WM_STATE_MAXIMIZED)) new_style |= WS_MAXIMIZE;
 
     if (!(old_style & WS_VISIBLE) || (old_style & WS_MINIMIZE)) config_cmd = 0;
     else if (!data->whole_window || !data->managed) config_cmd = 0;
@@ -1246,7 +1237,7 @@ static void handle_net_wm_state_notify( HWND hwnd, XPropertyEvent *event )
     if (event->state == PropertyNewValue) value = get_window_net_wm_state( event->display, event->window );
     window_net_wm_state_notify( data, event->serial, value );
 
-    if (!data->managed || data->pending_state.wm_state == WithdrawnState) state_cmd = 0;
+    if (!data->managed || data->desired_state.wm_state == WithdrawnState) state_cmd = 0;
     else if (data->wm_state_serial || data->net_wm_state_serial) state_cmd = 0;
     else state_cmd = window_update_client_state( data );
 
