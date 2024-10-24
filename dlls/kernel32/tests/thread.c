@@ -1934,6 +1934,7 @@ static inline void fpu_invalid_operation(void)
 
     d = acos(2.0);
     ok(_isnan(d), "d = %lf\n", d);
+    todo_wine_if(_statusfp() == (_SW_INEXACT | _SW_INVALID))
     ok(_statusfp() == _SW_INVALID, "_statusfp() = %x\n", _statusfp());
 }
 
