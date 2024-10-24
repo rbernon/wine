@@ -1641,6 +1641,7 @@ enable_mpg123
 enable_musl
 enable_oldnames
 enable_png
+enable_softintrin
 enable_strmbase
 enable_strmiids
 enable_tiff
@@ -23068,6 +23069,7 @@ wine_fn_config_makefile libs/mpg123 enable_mpg123
 wine_fn_config_makefile libs/musl enable_musl
 wine_fn_config_makefile libs/oldnames enable_oldnames
 wine_fn_config_makefile libs/png enable_png
+wine_fn_config_makefile libs/softintrin enable_softintrin
 wine_fn_config_makefile libs/strmbase enable_strmbase
 wine_fn_config_makefile libs/strmiids enable_strmiids
 wine_fn_config_makefile libs/tiff enable_tiff
