@@ -105,4 +105,9 @@ BOOL WINAPI DllMainCRTStartup( HINSTANCE inst, DWORD reason, void *reserved )
     return ret;
 }
 
+BOOL WINAPI _DllMainCRTStartup( HINSTANCE inst, DWORD reason, void *reserved )
+{
+    return DllMainCRTStartup( inst, reason, reserved );
+}
+
 #endif
