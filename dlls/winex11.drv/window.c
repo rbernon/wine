@@ -1446,6 +1446,9 @@ static void window_set_wm_state( struct x11drv_win_data *data, UINT new_state )
         break;
     }
 
+    /* override redirect windows won't receive WM_STATE property changes */
+    if (!data->managed) data->wm_state_serial = 0;
+
     XFlush( data->display );
 }
 
