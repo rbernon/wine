@@ -1613,7 +1613,7 @@ static void sync_window_position( struct x11drv_win_data *data, UINT swp_flags )
     DWORD ex_style = NtUserGetWindowLongW( data->hwnd, GWL_EXSTYLE );
     BOOL above = FALSE;
 
-    if (data->managed && data->iconic) return;
+    if (data->managed && (style & WS_MINIMIZE)) return;
 
     if (!(swp_flags & SWP_NOZORDER) || (swp_flags & SWP_SHOWWINDOW))
     {
@@ -2920,7 +2920,7 @@ UINT X11DRV_ShowWindow( HWND hwnd, INT cmd, RECT *rect, UINT swp )
         }
         goto done;
     }
-    if (!data->managed || !data->mapped || data->iconic) goto done;
+    if (!data->managed || !(style & WS_VISIBLE) || (style & WS_MINIMIZE)) goto done;
 
     /* only fetch the new rectangle if the ShowWindow was a result of a window manager event */
 

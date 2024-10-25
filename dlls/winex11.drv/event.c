@@ -1102,7 +1102,7 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
     if (data->current_state.wm_state != WithdrawnState) new_style |= WS_VISIBLE;
     if (data->current_state.net_wm_state & (1 << NET_WM_STATE_MAXIMIZED)) new_style |= WS_MAXIMIZE;
 
-    if (!data->mapped || data->iconic) goto done;
+    if (!(old_style & WS_VISIBLE) || (old_style & WS_MINIMIZE)) goto done;
     if (!data->whole_window || !data->managed) goto done;
     if (data->configure_serial && (long)(data->configure_serial - event->serial) > 0)
     {
@@ -1275,7 +1275,7 @@ static void handle_wm_state_notify( HWND hwnd, XPropertyEvent *event, BOOL updat
         break;
     }
 
-    if (!update_window || !data->managed || !data->mapped) goto done;
+    if (!update_window || !data->managed || !(old_style & WS_VISIBLE)) goto done;
 
     if ((old_style & WS_MINIMIZE) && !(new_style & WS_MINIMIZE))  /* restore window */
     {
