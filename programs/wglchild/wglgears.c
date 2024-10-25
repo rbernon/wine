@@ -48,6 +48,7 @@
 BOOL verbose = FALSE;
 static HWND vulkan_parent;
 static HWND vulkan_child;
+static HWND vulkan_child2;
 static HWND opengl_parent;
 static HWND opengl_child;
 static HWND gdi_child;
@@ -86,6 +87,31 @@ static void event_loop(void)
         while (PeekMessageW( &msg, NULL, 0, 0, PM_REMOVE ))
         {
             if (msg.message == WM_QUIT) goto done;
+            if (msg.message == WM_CHAR)
+            {
+                switch (msg.wParam)
+                {
+                case 'q': goto done;
+                case 'l':
+                    SetWindowLongW( msg.hwnd, GWL_EXSTYLE, GetWindowLongW( msg.hwnd, GWL_EXSTYLE ) & ~WS_EX_LAYERED );
+                    break;
+                case 'L':
+                    SetWindowLongW( msg.hwnd, GWL_EXSTYLE, GetWindowLongW( msg.hwnd, GWL_EXSTYLE ) | WS_EX_LAYERED );
+                    break;
+                case 'h':
+                    ShowWindow( msg.hwnd, SW_SHOW );
+                    break;
+                case 'H':
+                    ShowWindow( msg.hwnd, SW_HIDE );
+                    break;
+                case 'e':
+                    SetWindowPos( msg.hwnd, 0, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_FRAMECHANGED );
+                    break;
+                case 'E':
+                    SetWindowPos( msg.hwnd, 0, 0, 0, 110, 110, SWP_SHOWWINDOW | SWP_FRAMECHANGED );
+                    break;
+                }
+            }
             TranslateMessage( &msg );
             DispatchMessageW( &msg );
         }
@@ -94,6 +120,7 @@ static void event_loop(void)
         if (opengl_child) opengl_draw_frame( opengl_child );
         if (vulkan_parent) vulkan_draw_frame( vulkan_parent );
         if (vulkan_child) vulkan_draw_frame( vulkan_child );
+        if (vulkan_child2) vulkan_draw_frame( vulkan_child2 );
         if (gdi_layered) gdi_draw_layered( gdi_layered );
     }
 
@@ -150,7 +177,7 @@ static void parse_geometry( const char *str, RECT *rect )
 
 int main( int argc, char *argv[] )
 {
-    RECT geometry = {.right = 300, .bottom = 300};
+    RECT geometry = {.right = 300, .bottom = 300}, parent_geometry;
     BOOL use_srgb = FALSE, fullscreen = FALSE;
     INT i, samples = 0;
     HWND parent = 0;
@@ -196,40 +223,42 @@ int main( int argc, char *argv[] )
     opengl_init();
     vulkan_init();
 
-    InflateRect( &geometry, 200, 100 );
-    OffsetRect( &geometry, -geometry.left, -geometry.top );
+    parent_geometry = geometry;
+    InflateRect( &parent_geometry, 400, 50 );
+    OffsetRect( &parent_geometry, -parent_geometry.left, -parent_geometry.top );
 
 if (0)
 {
-    vulkan_parent = vulkan_create_window( L"Vulkan (parent)", &geometry, fullscreen );
+    vulkan_parent = vulkan_create_window( L"Vulkan (parent)", &parent_geometry, fullscreen );
     ShowWindow( vulkan_parent, SW_SHOW );
     parent = vulkan_parent;
+    OffsetRect( &parent_geometry, 0, parent_geometry.bottom - parent_geometry.top );
 }
 
-if (1)
+if (0)
 {
-    opengl_parent = opengl_create_window( L"OpenGL (parent)", &geometry, fullscreen, samples, use_srgb );
+    opengl_parent = opengl_create_window( L"OpenGL (parent)", &parent_geometry, fullscreen, samples, use_srgb );
     ShowWindow( opengl_parent, SW_SHOW );
     parent = opengl_parent;
+    OffsetRect( &parent_geometry, 0, parent_geometry.bottom - parent_geometry.top );
 }
 
 if (1)
 {
-    gdi_parent = gdi_create_window( L"GDI (parent)", &geometry, fullscreen, FALSE );
+    gdi_parent = gdi_create_window( L"GDI (parent)", &parent_geometry, fullscreen, FALSE );
     ShowWindow( gdi_parent, SW_SHOW );
     parent = gdi_parent;
+    OffsetRect( &parent_geometry, 0, parent_geometry.bottom - parent_geometry.top );
 }
-
-    InflateRect( &geometry, -200, -100 );
-    OffsetRect( &geometry, -geometry.left, -geometry.top );
 
 if (1)
 {
     opengl_child = opengl_create_window( L"OpenGL (child)", &geometry, fullscreen, samples, use_srgb );
     SetWindowLongW( opengl_child, GWL_STYLE, GetWindowLongW( opengl_child, GWL_STYLE ) | WS_CHILD );
     SetParent( opengl_child, parent );
+
     ShowWindow( opengl_child, SW_SHOW );
-    OffsetRect( &geometry, geometry.right, 0 );
+    OffsetRect( &geometry, geometry.right - geometry.left, 0 );
 }
 
 if (1)
@@ -237,60 +266,83 @@ if (1)
     gdi_child = gdi_create_window( L"GDI (child)", &geometry, fullscreen, FALSE );
     SetWindowLongW( gdi_child, GWL_STYLE, GetWindowLongW( gdi_child, GWL_STYLE ) | WS_CHILD );
     SetParent( gdi_child, parent );
+
     ShowWindow( gdi_child, SW_SHOW );
-    OffsetRect( &geometry, -geometry.left, geometry.bottom );
+    OffsetRect( &geometry, geometry.right - geometry.left, 0 );
 }
 
-if (0)
+if (1)
 {
     vulkan_child = vulkan_create_window( L"Vulkan (child)", &geometry, fullscreen );
     SetWindowLongW( vulkan_child, GWL_STYLE, GetWindowLongW( vulkan_child, GWL_STYLE ) | WS_CHILD );
     SetParent( vulkan_child, parent );
+
     ShowWindow( vulkan_child, SW_SHOW );
+    OffsetRect( &geometry, geometry.right - geometry.left, 0 );
 }
 
-if (1)
+    OffsetRect( &geometry, -geometry.left, parent_geometry.top - geometry.top );
+
+if (0)
+{
+    vulkan_child2 = vulkan_create_window( L"Vulkan (child 2)", &geometry, fullscreen );
+    SetWindowLongW( vulkan_child2, GWL_STYLE, GetWindowLongW( vulkan_child2, GWL_STYLE ) | WS_CHILD );
+    SetParent( vulkan_child2, parent );
+    ShowWindow( vulkan_child2, SW_SHOW );
+}
+
+if (0)
 {
     HRGN hrgn, tmp;
     gdi_region = gdi_create_window( L"GDI (region)", &geometry, fullscreen, FALSE );
-    ShowWindow( gdi_region, SW_SHOW );
 
     hrgn = CreateRectRgn( 10, 10, 100, 100 );
     tmp = CreateRectRgn( 150, 10, 500, 300 );
     CombineRgn( hrgn, hrgn, tmp, RGN_OR );
+    /* OffsetRgn( hrgn, geometry.left, geometry.top ); */
     SetWindowRgn( gdi_region, hrgn, TRUE );
     DeleteObject( tmp );
     DeleteObject( hrgn );
+
+    ShowWindow( gdi_region, SW_SHOW );
+    OffsetRect( &geometry, geometry.right - geometry.left, 0 );
 }
 
-if (1)
+if (0)
 {
     gdi_keyed = gdi_create_window( L"GDI (keyed)", &geometry, fullscreen, FALSE );
-    ShowWindow( gdi_keyed, SW_SHOW );
     SetWindowLongW( gdi_keyed, GWL_EXSTYLE, GetWindowLongW( gdi_keyed, GWL_EXSTYLE ) | WS_EX_LAYERED );
     SetLayeredWindowAttributes( gdi_keyed, 0, 0, LWA_COLORKEY );
+
+    ShowWindow( gdi_keyed, SW_SHOW );
+    OffsetRect( &geometry, geometry.right - geometry.left, 0 );
 }
 
-if (1)
+if (0)
 {
     gdi_alpha = gdi_create_window( L"GDI (alpha)", &geometry, fullscreen, FALSE );
-    ShowWindow( gdi_alpha, SW_SHOW );
     SetWindowLongW( gdi_alpha, GWL_EXSTYLE, GetWindowLongW( gdi_alpha, GWL_EXSTYLE ) | WS_EX_LAYERED );
     SetLayeredWindowAttributes( gdi_alpha, 0, 255 * 70 / 100, LWA_ALPHA );
+
+    ShowWindow( gdi_alpha, SW_SHOW );
+    OffsetRect( &geometry, geometry.right - geometry.left, 0 );
 }
 
-if (1)
+if (0)
 {
     HRGN hrgn, tmp;
     gdi_layered = gdi_create_window( L"GDI (layered)", &geometry, fullscreen, TRUE );
-    ShowWindow( gdi_layered, SW_SHOW );
 
     hrgn = CreateRectRgn( 10, 10, 100, 100 );
     tmp = CreateRectRgn( 150, 10, 500, 300 );
     CombineRgn( hrgn, hrgn, tmp, RGN_OR );
+    /* OffsetRgn( hrgn, geometry.left, geometry.top ); */
     SetWindowRgn( gdi_layered, hrgn, TRUE );
     DeleteObject( tmp );
     DeleteObject( hrgn );
+
+    ShowWindow( gdi_layered, SW_SHOW );
+    OffsetRect( &geometry, geometry.right - geometry.left, 0 );
 }
 
     if (verbose)
@@ -312,6 +364,7 @@ if (1)
     if (opengl_child) opengl_destroy_window( opengl_child );
     if (vulkan_parent) vulkan_destroy_window( vulkan_parent );
     if (vulkan_child) vulkan_destroy_window( vulkan_child );
+    if (vulkan_child2) vulkan_destroy_window( vulkan_child2 );
 
     return EXIT_SUCCESS;
 }
