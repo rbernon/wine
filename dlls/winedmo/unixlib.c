@@ -46,12 +46,19 @@ int64_t unix_seek_callback( void *opaque, int64_t offset, int whence )
     if (whence == AVSEEK_SIZE) return context->length;
     if (whence == SEEK_END) offset += context->length;
     if (whence == SEEK_CUR) offset += context->position;
+    if (offset > context->length) offset = context->length;
 
-    params.offset = offset;
-    status = KeUserDispatchCallback( &params.dispatch, sizeof(params), &ret_ptr, &ret_len );
-    if (status || ret_len != sizeof(UINT64)) return AVERROR( EINVAL );
-    offset = *(UINT64 *)ret_ptr;
+    for (;;)
+    {
+        /* seek stream to multiples of buffer capacity */
+        params.offset = offset % context->capacity;
+        status = KeUserDispatchCallback( &params.dispatch, sizeof(params), &ret_ptr, &ret_len );
+        if (status || ret_len != sizeof(UINT64)) return AVERROR( EINVAL );
+        if (*(UINT64 *)ret_ptr == params.offset) break;
+        offset = *(UINT64 *)ret_ptr;
+    }
 
+    if (offset / context->capacity != context->position / context->capacity) context->size = 0;
     context->position = offset;
     return offset;
 }
@@ -59,30 +66,37 @@ int64_t unix_seek_callback( void *opaque, int64_t offset, int whence )
 int unix_read_callback( void *opaque, uint8_t *buffer, int size )
 {
     struct stream_context *context = opaque;
-    int ret, status, total = 0;
-
-    TRACE( "opaque %p, buffer %p, size %#x\n", opaque, buffer, size );
+    int status, total = 0;
 
     if (!size) return AVERROR_EOF;
 
-    do
+    while (size)
     {
-        struct read_callback_params params = {.dispatch = {.callback = read_callback}, .context = (UINT_PTR)context};
-        void *ret_ptr;
-        ULONG ret_len;
+        int step, buffer_offset = context->position % context->capacity;
 
-        params.size = min( size, context->buffer_size );
-        status = KeUserDispatchCallback( &params.dispatch, sizeof(params), &ret_ptr, &ret_len );
-        if (status || ret_len != sizeof(ULONG)) return AVERROR( EINVAL );
-        if (!(ret = *(ULONG *)ret_ptr)) break;
-        memcpy( buffer, context->buffer, ret );
-        buffer += ret;
-        total += ret;
-        size -= ret;
-    } while (size && ret == context->buffer_size);
+        if (!context->size)
+        {
+            struct read_callback_params params = {.dispatch = {.callback = read_callback}, .context = (UINT_PTR)context};
+            void *ret_ptr;
+            ULONG ret_len;
+
+            params.size = context->capacity;
+            status = KeUserDispatchCallback( &params.dispatch, sizeof(params), &ret_ptr, &ret_len );
+            if (status || ret_len != sizeof(ULONG)) return AVERROR( EINVAL );
+            context->size = *(ULONG *)ret_ptr;
+        }
+
+        if (!(step = min( size, context->size - buffer_offset ))) break;
+        memcpy( buffer, context->buffer + buffer_offset, step );
+        buffer += step;
+        total += step;
+        size -= step;
+
+        context->position += step;
+        if (!(context->position % context->capacity)) context->size = 0;
+    }
 
     if (!total) return AVERROR_EOF;
-    context->position += total;
     return total;
 }
 
@@ -103,7 +117,7 @@ int unix_write_callback( void *opaque, const uint8_t *buffer, int size )
         void *ret_ptr;
         ULONG ret_len;
 
-        params.size = min( size, context->buffer_size );
+        params.size = min( size, context->size );
         memcpy( context->buffer, buffer, params.size );
         status = KeUserDispatchCallback( &params.dispatch, sizeof(params), &ret_ptr, &ret_len );
         if (status || ret_len != sizeof(ULONG)) return AVERROR( EINVAL );
@@ -111,7 +125,7 @@ int unix_write_callback( void *opaque, const uint8_t *buffer, int size )
         buffer += ret;
         total += ret;
         size -= ret;
-    } while (size && ret == context->buffer_size);
+    } while (size && ret == context->size);
 
     if (!total) return AVERROR_EOF;
     context->position += total;
