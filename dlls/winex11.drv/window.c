@@ -1531,7 +1531,7 @@ static UINT window_update_client_state( struct x11drv_win_data *data )
 
 static UINT window_update_client_config( struct x11drv_win_data *data )
 {
-    RECT old_rect = data->rects.window, new_rect = window_rect_from_visible( &data->rects, data->current_state.rect );
+    RECT tmp, old_rect = data->rects.window, new_rect = window_rect_from_visible( &data->rects, data->current_state.rect );
     UINT old_style, new_style, flags;
 
     old_style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE );
@@ -1557,9 +1557,10 @@ static UINT window_update_client_config( struct x11drv_win_data *data )
     flags = SWP_NOACTIVATE | SWP_NOZORDER;
     if (!data->whole_window) flags |= SWP_NOCOPYBITS;  /* we can't copy bits of foreign windows */
 
+    tmp = old_rect;
     if (old_rect.left == new_rect.left && old_rect.top == new_rect.top) flags |= SWP_NOMOVE;
-    else OffsetRect( &old_rect, new_rect.left - old_rect.left, new_rect.top - old_rect.top );
-    if (old_rect.right == new_rect.right && old_rect.bottom == new_rect.bottom) flags |= SWP_NOSIZE;
+    else OffsetRect( &tmp, new_rect.left - old_rect.left, new_rect.top - old_rect.top );
+    if (tmp.right == new_rect.right && tmp.bottom == new_rect.bottom) flags |= SWP_NOSIZE;
     else if (IsRectEmpty( &old_rect )) flags |= SWP_NOSIZE;
 
     if ((flags & (SWP_NOSIZE | SWP_NOMOVE)) == (SWP_NOSIZE | SWP_NOMOVE)) return 0;
