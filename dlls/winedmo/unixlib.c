@@ -163,7 +163,7 @@ static NTSTATUS process_attach( void *arg )
     TRACE( "  swscale version %s\n", debugstr_version(swscale_version()) );
 
     TRACE( "available demuxers:\n" );
-    for (opaque = NULL; (demuxer = av_demuxer_iterate( &opaque ));)
+    for (opaque = NULL; 0 && (demuxer = av_demuxer_iterate( &opaque ));)
     {
         TRACE( "  %s (%s)\n", demuxer->name, demuxer->long_name );
         if (demuxer->extensions) TRACE( "    extensions: %s\n", demuxer->extensions );
@@ -171,14 +171,14 @@ static NTSTATUS process_attach( void *arg )
     }
 
     TRACE( "available decoders:\n" );
-    for (opaque = NULL; (codec = av_codec_iterate( &opaque ));)
+    for (opaque = NULL; 0 && (codec = av_codec_iterate( &opaque ));)
     {
         if (!av_codec_is_decoder( codec )) continue;
         TRACE( "  %s (%s)\n", codec->name, codec->long_name );
     }
 
     TRACE( "available muxers:\n" );
-    for (opaque = NULL; (muxer = av_muxer_iterate( &opaque ));)
+    for (opaque = NULL; 0 && (muxer = av_muxer_iterate( &opaque ));)
     {
         TRACE( "  %s (%s)\n", muxer->name, muxer->long_name );
         if (muxer->extensions) TRACE( "    extensions: %s\n", muxer->extensions );
@@ -186,7 +186,7 @@ static NTSTATUS process_attach( void *arg )
     }
 
     TRACE( "available encoders:\n" );
-    for (opaque = NULL; (codec = av_codec_iterate( &opaque ));)
+    for (opaque = NULL; 0 && (codec = av_codec_iterate( &opaque ));)
     {
         if (!av_codec_is_encoder( codec )) continue;
         TRACE( "  %s (%s)\n", codec->name, codec->long_name );
