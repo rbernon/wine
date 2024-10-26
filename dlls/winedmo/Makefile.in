@@ -2,14 +2,13 @@ MODULE    = winedmo.dll
 UNIXLIB   = winedmo.so
 IMPORTLIB = winedmo
 IMPORTS   = mfuuid
-UNIX_CFLAGS  = $(VIDEOTOOLBOX_CFLAGS) $(FFMPEG_CFLAGS)
-UNIX_LIBS    = $(VIDEOTOOLBOX_LIBS) $(AUDIOTOOLBOX_LIBS) $(FFMPEG_LIBS) $(PTHREAD_LIBS) \
+UNIX_CFLAGS  = $(FFMPEG_CFLAGS)
+UNIX_LIBS    = $(FFMPEG_LIBS) $(PTHREAD_LIBS)
 
 SOURCES = \
 	main.c \
 	unix_audio.c \
 	unix_decoder.c \
-	unix_decoder_vt.c \
 	unix_encoder.c \
 	unix_demuxer.c \
 	unix_media_type.c \

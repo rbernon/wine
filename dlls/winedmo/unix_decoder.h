@@ -38,5 +38,3 @@ struct decoder
     unsigned draining : 1;
     unsigned flushing : 1;
 };
-
-extern int vt_decoder_create( const AVCodecParameters *par, struct decoder **out );
