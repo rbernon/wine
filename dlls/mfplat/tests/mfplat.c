@@ -105,54 +105,6 @@ DEFINE_MEDIATYPE_GUID(MEDIASUBTYPE_x264,MAKEFOURCC('x','2','6','4'));
 
 static BOOL is_win8_plus;
 
-#define dump_media_type(a) dump_attributes_(__LINE__, (IMFAttributes *)a)
-#define dump_attributes(a) dump_attributes_(__LINE__, a)
-extern void dump_attributes_(int line, IMFAttributes *attributes);
-extern void dump_properties(IPropertyStore *store);
-
-extern const char *debugstr_mf_guid(const GUID *guid);
-
-void dump_attributes_(int line, IMFAttributes *attributes)
-{
-    PROPVARIANT value;
-    char buffer[4096];
-    UINT32 count;
-    HRESULT hr;
-    GUID guid;
-    int i, j;
-
-    hr = IMFAttributes_GetCount(attributes, &count);
-    ok_(__FILE__, line)(hr == S_OK, "GetCount returned %#lx\n", hr);
-
-    for (i = 0; i < count; ++i)
-    {
-        PropVariantInit(&value);
-        hr = IMFAttributes_GetItemByIndex(attributes, i, &guid, &value);
-        ok_(__FILE__, line)(hr == S_OK, "GetItemByIndex returned %#lx\n", hr);
-        switch (value.vt)
-        {
-        default: sprintf(buffer, "{%s, .vt = %u, .value = %s},", debugstr_mf_guid(&guid), value.vt, buffer); break;
-        case VT_LPWSTR: sprintf(buffer, "ATTR_WSTR(%s, %s),", debugstr_mf_guid(&guid), debugstr_w(value.pwszVal)); break;
-        case VT_CLSID: sprintf(buffer, "ATTR_GUID(%s, %s),", debugstr_mf_guid(&guid), debugstr_mf_guid(value.puuid)); break;
-        case VT_UI4: sprintf(buffer, "ATTR_UINT32(%s, %lu),", debugstr_mf_guid(&guid), value.ulVal); break;
-        case VT_UI8: sprintf(buffer, "ATTR_RATIO(%s, %lu, %lu),", debugstr_mf_guid(&guid), value.uhVal.HighPart, value.uhVal.LowPart); break;
-        case VT_VECTOR | VT_UI1:
-        {
-            char *buf = buffer;
-            buf += sprintf(buf, "ATTR_BLOB(%s, {", debugstr_mf_guid(&guid));
-            for (j = 0; j < value.caub.cElems; ++j)
-                buf += sprintf(buf, "0x%02x,", value.caub.pElems[j]);
-            buf += sprintf(buf - (j ? 1 : 0), "}") - (j ? 1 : 0);
-            buf += sprintf(buf, ", %lu),", value.caub.cElems);
-            break;
-        }
-        }
-
-        ok_(__FILE__, line)(0, "%s\n", buffer);
-        PropVariantClear(&value);
-    }
-}
-
 #define EXPECT_REF(obj,ref) _expect_ref((IUnknown*)obj, ref, __LINE__)
 static void _expect_ref(IUnknown *obj, ULONG ref, int line)
 {
@@ -1100,29 +1052,6 @@ static void test_compressed_media_types(IMFSourceResolver *resolver)
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x12, 0x08, 0x56, 0xe5, 0x00,
     };
     static const BYTE wma2_data[] = {0, 0, 0, 0, 1, 0, 0, 0, 0, 0};
-    static const BYTE h264_sequence[] =
-    {
-        0x00,0x00,0x01,0x67,0x64,0x00,0x14,0xac,0xd9,0x41,0x41,0xfb,0x01,0x6a,0x0c,0x0c,
-        0x0d,0x4a,0x00,0x00,0x03,0x00,0x02,0x00,0x00,0x03,0x00,0x79,0x1e,0x28,0x53,0x2c,
-        0x00,0x00,0x01,0x68,0xeb,0xec,0xb2,0x2c,
-    };
-    static const BYTE h264_sample_desc[] =
-    {
-        0x00,0x00,0x00,0xd2,0x73,0x74,0x73,0x64,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,
-        0x00,0x00,0x00,0xc2,0x61,0x76,0x63,0x31,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,
-        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-        0x01,0x40,0x00,0xf0,0x00,0x48,0x00,0x00,0x00,0x48,0x00,0x00,0x00,0x00,0x00,0x00,
-        0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-        0x00,0x00,0x00,0x18,0xff,0xff,0x00,0x00,0x00,0x35,0x61,0x76,0x63,0x43,0x01,0x64,
-        0x00,0x14,0xff,0xe1,0x00,0x1d,0x67,0x64,0x00,0x14,0xac,0xd9,0x41,0x41,0xfb,0x01,
-        0x6a,0x0c,0x0c,0x0d,0x4a,0x00,0x00,0x03,0x00,0x02,0x00,0x00,0x03,0x00,0x79,0x1e,
-        0x28,0x53,0x2c,0x01,0x00,0x05,0x68,0xeb,0xec,0xb2,0x2c,0x00,0x00,0x00,0x14,0x62,
-        0x74,0x72,0x74,0x00,0x00,0x00,0x00,0x00,0x20,0x00,0x00,0x00,0x0e,0xc5,0x80,0x00,
-        0x00,0x00,0x13,0x63,0x6f,0x6c,0x72,0x6e,0x63,0x6c,0x78,0x00,0x06,0x00,0x06,0x00,
-        0x06,0x00,0x00,0x00,0x00,0x10,0x70,0x61,0x73,0x70,0x00,0x00,0x00,0x01,0x00,0x00,
-        0x00,0x01,
-    };
 
     static const struct
     {
@@ -1144,15 +1073,6 @@ static void test_compressed_media_types(IMFSourceResolver *resolver)
                 ATTR_RATIO(MF_MT_PIXEL_ASPECT_RATIO, 1, 1),
                 ATTR_UINT32(MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High, .todo = TRUE),
                 ATTR_UINT32(MF_MT_MPEG2_LEVEL, eAVEncH264VLevel2, .todo = TRUE),
-ATTR_UINT32(MF_MT_AVG_BITRATE, 968064),
-ATTR_UINT32(MF_PROGRESSIVE_CODING_CONTENT, 1),
-ATTR_UINT32(MF_MT_MPEG4_CURRENT_SAMPLE_ENTRY, 1),
-ATTR_UINT32(MF_NALU_LENGTH_SET, 1),
-ATTR_UINT32(MF_MT_VIDEO_ROTATION, 0),
-ATTR_UINT32(MF_MT_SAMPLE_SIZE, 1),
-ATTR_UINT32(MF_MT_INTERLACE_MODE, 7),
-ATTR_BLOB(MF_MT_MPEG4_SAMPLE_DESCRIPTION, h264_sample_desc, sizeof(h264_sample_desc)),
-ATTR_BLOB(MF_MT_MPEG_SEQUENCE_HEADER, h264_sequence, sizeof(h264_sequence)),
             },
         },
         {
@@ -1279,7 +1199,6 @@ ATTR_BLOB(MF_MT_MPEG_SEQUENCE_HEADER, h264_sequence, sizeof(h264_sequence)),
         hr = IMFMediaTypeHandler_GetCurrentMediaType(handler, &media_type);
         ok(hr == S_OK, "Got hr %#lx.\n", hr);
 
-dump_attributes((IMFAttributes *)media_type);
         check_media_type(media_type, tests[i].type, -1);
 
         IMFMediaType_Release(media_type);
