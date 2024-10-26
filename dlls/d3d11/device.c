@@ -4391,11 +4391,12 @@ static HRESULT STDMETHODCALLTYPE d3d11_device_CreateDeferredContext(ID3D11Device
     return S_OK;
 }
 
-static HRESULT STDMETHODCALLTYPE d3d11_device_OpenSharedResource(ID3D11Device3 *iface, HANDLE handle, REFIID iid,
+static HRESULT STDMETHODCALLTYPE d3d11_device_OpenSharedResource(ID3D11Device3 *iface, HANDLE resource, REFIID iid,
         void **out)
 {
-    FIXME("iface %p, handle %p, iid %s, out %p stub!\n", iface, handle, debugstr_guid(iid), out);
-    return ID3D11Resource_QueryInterface(handle, iid, out);
+    FIXME("iface %p, resource %p, iid %s, out %p stub!\n", iface, resource, debugstr_guid(iid), out);
+
+    return E_NOTIMPL;
 }
 
 static HRESULT STDMETHODCALLTYPE d3d11_device_CheckFormatSupport(ID3D11Device3 *iface, DXGI_FORMAT format,
