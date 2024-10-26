@@ -634,9 +634,6 @@ case $host_os in
     AC_SUBST(APPKIT_LIBS,"-framework AppKit")
     AC_SUBST(SECURITY_LIBS,"-framework Security -framework CoreFoundation")
     AC_SUBST(SYSTEMCONFIGURATION_LIBS,"-framework SystemConfiguration")
-    AC_SUBST(VIDEOTOOLBOX_LIBS,"-framework VideoToolbox -framework Security -framework CoreVideo -framework CoreMedia -framework Foundation")
-    AC_SUBST(VIDEOTOOLBOX_CFLAGS,"-DENABLE_VIDEO_TOOLBOX")
-    AC_SUBST(AUDIOTOOLBOX_LIBS,"-framework AudioToolbox")
 
     WINELOADER_LDFLAGS="-Wl,-segalign,0x1000,-pagezero_size,0x1000,-sectcreate,__TEXT,__info_plist,loader/wine_info.plist"
 

@@ -124,7 +124,6 @@ NTSTATUS decoder_create( const struct media_type *input_type, struct decoder **o
     if (!(status = codec_params_from_media_type( par, &sar, &fps, input_type )))
     {
         if (!ffmpeg_decoder_create( par, sar, fps, out )) status = STATUS_SUCCESS;
-        else if (!vt_decoder_create( par, sar, fps, out )) status = STATUS_SUCCESS;
         else status = STATUS_UNSUCCESSFUL;
     }
 
