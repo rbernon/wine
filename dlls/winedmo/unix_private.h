@@ -85,6 +85,12 @@ extern NTSTATUS decoder_destroy( struct decoder *decoder );
 extern NTSTATUS decoder_process_input( struct decoder *decoder, const struct sample *sample );
 extern NTSTATUS decoder_process_output( struct decoder *decoder, AVFrame *input_frame );
 extern NTSTATUS decoder_drain( struct decoder *decoder, BOOL discard );
+extern NTSTATUS decoder_context_create( const AVCodec *codec, const AVCodecParameters *par,
+                                        AVRational sar, AVRational fps, AVCodecContext **ctx );
+
+/* unix_decoder_av1.c */
+extern NTSTATUS av1_decoder_create( const struct media_type *input_type, const AVCodecParameters *par,
+                                    AVRational sar, AVRational fps, struct decoder **out );
 
 /* unix_demuxer.c */
 extern NTSTATUS demuxer_check( void * );

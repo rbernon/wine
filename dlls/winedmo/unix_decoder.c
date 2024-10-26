@@ -65,58 +65,71 @@ static const struct decoder_ops ffmpeg_decoder_ops =
     ffmpeg_decoder_flush,
 };
 
-static int context_create_from_parameters( const AVCodecParameters *par, AVRational sar, AVRational fps,
-                                           AVCodecContext **context )
+NTSTATUS decoder_context_create( const AVCodec *codec, const AVCodecParameters *par,
+                                 AVRational sar, AVRational fps, AVCodecContext **ctx )
 {
     static const AVRational USER_TIME_BASE_Q = {1, 10000000};
+    int ret;
+
+    if (!(*ctx = avcodec_alloc_context3( codec )))
+    {
+        ERR( "Failed to allocate decoder context\n" );
+        return STATUS_NO_MEMORY;
+    }
+    if ((ret = avcodec_parameters_to_context( *ctx, par )) < 0)
+    {
+        ERR( "Failed to initialize decoder context, ret %d\n", ret );
+        avcodec_free_context( ctx );
+        return STATUS_NOT_SUPPORTED;
+    }
+
+    (*ctx)->sample_aspect_ratio = sar;
+    (*ctx)->framerate = fps;
+    (*ctx)->pkt_timebase = USER_TIME_BASE_Q;
+
+    return 0;
+}
+
+static NTSTATUS decoder_context_open( const AVCodecParameters *par, AVRational sar, AVRational fps,
+                                      AVCodecContext **ctx )
+{
     const AVCodec *codec;
+    NTSTATUS status;
     int ret;
 
     if (!(codec = avcodec_find_decoder( par->codec_id )))
     {
         ERR( "Failed to find decoder\n" );
-        return -1;
-    }
-    if (!(*context = avcodec_alloc_context3( codec )))
-    {
-        ERR( "Failed to allocate decoder context\n" );
-        return -1;
-    }
-    if ((ret = avcodec_parameters_to_context( *context, par )) < 0)
-    {
-        ERR( "Failed to initialize decoder context, ret %d\n", ret );
-        avcodec_free_context( context );
-        return -1;
+        return STATUS_NOT_SUPPORTED;
     }
 
-    (*context)->sample_aspect_ratio = sar;
-    (*context)->framerate = fps;
-    (*context)->flags = AV_CODEC_FLAG_OUTPUT_CORRUPT;
-    (*context)->pkt_timebase = USER_TIME_BASE_Q;
-    (*context)->thread_type = FF_THREAD_FRAME;
-    (*context)->thread_count = 4;
+    if ((status = decoder_context_create( codec, par, sar, fps, ctx ))) return status;
+    (*ctx)->flags = AV_CODEC_FLAG_OUTPUT_CORRUPT;
+    (*ctx)->thread_type = FF_THREAD_FRAME;
+    (*ctx)->thread_count = 4;
 
-    if ((ret = avcodec_open2( *context, codec, NULL )) < 0)
+    if ((ret = avcodec_open2( *ctx, codec, NULL )) < 0)
     {
         ERR( "Failed to open decoder context, error %s\n", debugstr_averr(ret) );
-        avcodec_free_context( context );
+        avcodec_free_context( ctx );
+        return STATUS_NOT_SUPPORTED;
     }
 
     return 0;
 }
 
-static int ffmpeg_decoder_create( const AVCodecParameters *par, AVRational sar, AVRational fps, struct decoder **out )
+static NTSTATUS ffmpeg_decoder_create( const AVCodecParameters *par, AVRational sar, AVRational fps, struct decoder **out )
 {
     struct decoder *decoder;
-    int ret;
+    NTSTATUS status;
 
-    if (!(decoder = calloc( 1, sizeof(*decoder) ))) return -1;
+    if (!(decoder = calloc( 1, sizeof(*decoder) ))) return STATUS_NO_MEMORY;
     decoder->ops = &ffmpeg_decoder_ops;
 
-    if ((ret = context_create_from_parameters( par, sar, fps, &decoder->context ))) free( decoder );
+    if ((status = decoder_context_open( par, sar, fps, &decoder->context ))) free( decoder );
     else *out = decoder;
 
-    return ret;
+    return status;
 }
 
 NTSTATUS decoder_create( const struct media_type *input_type, struct decoder **out )
@@ -128,8 +141,8 @@ NTSTATUS decoder_create( const struct media_type *input_type, struct decoder **o
     if (!(par = avcodec_parameters_alloc())) return STATUS_NO_MEMORY;
     if (!(status = codec_params_from_media_type( par, &sar, &fps, input_type )))
     {
-        if (!ffmpeg_decoder_create( par, sar, fps, out )) status = STATUS_SUCCESS;
-        else status = STATUS_UNSUCCESSFUL;
+        status = ffmpeg_decoder_create( par, sar, fps, out );
+        if (status && par->codec_id == AV_CODEC_ID_AV1) status = av1_decoder_create( input_type, par, sar, fps, out );
     }
 
     avcodec_parameters_free( &par );
