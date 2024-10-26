@@ -478,8 +478,16 @@ failed:
 
 static HRESULT WINAPI wma_decoder_IMFTransform_GetInputCurrentType(IMFTransform *iface, DWORD id, IMFMediaType **type)
 {
-    FIXME("iface %p, id %lu, type %p stub!\n", iface, id, type);
-    return E_NOTIMPL;
+    struct wma_decoder *decoder = wma_decoder_from_IMFTransform(iface);
+
+    TRACE("iface %p, id %#lx, type %p.\n", iface, id, type);
+
+    if (id)
+        return MF_E_INVALIDSTREAMNUMBER;
+    if (IsEqualGUID(&decoder->input_type.majortype, &GUID_NULL))
+        return MF_E_TRANSFORM_TYPE_NOT_SET;
+
+    return MFCreateMediaTypeFromRepresentation(AM_MEDIA_TYPE_REPRESENTATION, &decoder->input_type, type);
 }
 
 static HRESULT WINAPI wma_decoder_IMFTransform_GetOutputCurrentType(IMFTransform *iface, DWORD id, IMFMediaType **out)
