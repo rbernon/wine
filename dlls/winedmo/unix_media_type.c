@@ -70,7 +70,7 @@ static inline const char *debugstr_area( const MFVideoArea *area )
 static NTSTATUS codec_params_add_extra_data( AVCodecParameters *params, const void *extra_data, UINT extra_data_size )
 {
     if (!extra_data_size) return STATUS_SUCCESS;
-    if (!(params->extradata = av_mallocz(extra_data_size + AV_INPUT_BUFFER_PADDING_SIZE))) return STATUS_NO_MEMORY;
+    if (!(params->extradata = av_mallocz( extra_data_size + AV_INPUT_BUFFER_PADDING_SIZE ))) return STATUS_NO_MEMORY;
     memcpy( params->extradata, extra_data, extra_data_size );
     params->extradata_size = extra_data_size;
     return STATUS_SUCCESS;
