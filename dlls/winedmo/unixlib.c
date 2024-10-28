@@ -147,7 +147,7 @@ static void vlog( void *ctx, int level, const char *fmt, va_list va_args )
 AVPacket *packet_from_sample( const struct sample *sample )
 {
     AVPacket *packet = av_packet_alloc();
-    av_new_packet( packet, sample->size + AV_INPUT_BUFFER_PADDING_SIZE );
+    av_new_packet( packet, sample->size );
     memcpy( packet->data, (void *)(UINT_PTR)sample->data, sample->size );
     packet->size = sample->size;
 
