@@ -213,14 +213,6 @@ static const struct IWMOutputMediaPropsVtbl output_props_vtbl =
     output_props_GetConnectionName,
 };
 
-static struct output_props *unsafe_impl_from_IWMOutputMediaProps(IWMOutputMediaProps *iface)
-{
-    if (!iface)
-        return NULL;
-    assert(iface->lpVtbl == &output_props_vtbl);
-    return impl_from_IWMOutputMediaProps(iface);
-}
-
 static HRESULT output_props_create(const AM_MEDIA_TYPE *mt, IWMOutputMediaProps **out)
 {
     struct output_props *object;
@@ -2352,40 +2344,47 @@ static HRESULT WINAPI reader_OpenStream(IWMSyncReader2 *iface, IStream *stream)
     return hr;
 }
 
-static HRESULT WINAPI reader_SetOutputProps(IWMSyncReader2 *iface, DWORD output, IWMOutputMediaProps *props_iface)
+static HRESULT WINAPI reader_SetOutputProps(IWMSyncReader2 *iface, DWORD output, IWMOutputMediaProps *props)
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
-    struct output_props *props = unsafe_impl_from_IWMOutputMediaProps(props_iface);
     struct wm_stream *stream;
     struct wg_format format;
     HRESULT hr;
+    DWORD size;
+    void *mt;
 
-    TRACE("reader %p, output %lu, props_iface %p.\n", reader, output, props_iface);
+    TRACE("reader %p, output %lu, props %p.\n", reader, output, props);
 
-    strmbase_dump_media_type(&props->mt);
-
-    if (!amt_to_wg_format(&props->mt, &format))
-    {
-        ERR("Failed to convert media type to winegstreamer format.\n");
-        return E_FAIL;
-    }
+    if (FAILED(hr = IWMOutputMediaProps_GetMediaType(props, NULL, &size)))
+        return hr;
+    if (!(mt = malloc(size)))
+        return E_OUTOFMEMORY;
+    if (FAILED(hr = IWMOutputMediaProps_GetMediaType(props, mt, &size)))
+        goto done;
+    strmbase_dump_media_type(mt);
 
     EnterCriticalSection(&reader->cs);
 
     if (!(stream = get_stream_by_output_number(reader, output)))
+        hr = E_INVALIDARG;
+    else if (!stream->decoder)
     {
-        LeaveCriticalSection(&reader->cs);
-        return E_INVALIDARG;
+        hr = E_INVALIDARG;
     }
-    else if (FAILED(hr = IMediaObject_SetOutputType(stream->decoder, 0, &props->mt, 0)))
+    else if (FAILED(hr = IMediaObject_SetOutputType(stream->decoder, 0, mt, 0)))
     {
         ERR("Failed to set the decoder output type, hr %#lx\n", hr);
+        hr = NS_E_INVALID_OUTPUT_FORMAT;
+    }
+    else if (!amt_to_wg_format(mt, &format))
+    {
+        ERR("Failed to convert media type to winegstreamer format.\n");
         hr = NS_E_INVALID_OUTPUT_FORMAT;
     }
     else
     {
         FreeMediaType(&stream->mt);
-        CopyMediaType(&stream->mt, &props->mt);
+        CopyMediaType(&stream->mt, mt);
         wg_parser_stream_enable(stream->wg_stream, &format);
 
         /* Re-decode any buffers that might have been generated with the old format.
@@ -2406,7 +2405,10 @@ static HRESULT WINAPI reader_SetOutputProps(IWMSyncReader2 *iface, DWORD output,
     }
 
     LeaveCriticalSection(&reader->cs);
-    return S_OK;
+
+done:
+    free(mt);
+    return hr;
 }
 
 static HRESULT WINAPI reader_SetOutputSetting(IWMSyncReader2 *iface, DWORD output,
