@@ -182,13 +182,13 @@ static BOOL host_window_filter_event( XEvent *event )
     switch (event->type)
     {
     case DestroyNotify:
-        ERR( "host window %p/%lx DestroyNotify\n", win, win->window );
+        TRACE( "host window %p/%lx DestroyNotify\n", win, win->window );
         win->destroyed = TRUE;
         break;
     case ReparentNotify:
     {
         XReparentEvent *reparent = (XReparentEvent *)event;
-        ERR( "host window %p/%lx ReparentNotify, parent %lx\n", win, win->window, reparent->parent );
+        TRACE( "host window %p/%lx ReparentNotify, parent %lx\n", win, win->window, reparent->parent );
         host_window_set_parent( win, reparent->parent );
         break;
     }
@@ -197,7 +197,7 @@ static BOOL host_window_filter_event( XEvent *event )
         XGravityEvent *gravity = (XGravityEvent *)event;
         OffsetRect( &win->rect, gravity->x - win->rect.left, gravity->y - win->rect.top );
         if (win->parent) win->rect = host_window_configure_child( win->parent, win->window, win->rect, FALSE );
-        ERR( "host window %p/%lx GravityNotify, rect %s\n", win, win->window, wine_dbgstr_rect(&win->rect) );
+        TRACE( "host window %p/%lx GravityNotify, rect %s\n", win, win->window, wine_dbgstr_rect(&win->rect) );
         break;
     }
     case ConfigureNotify:
@@ -205,7 +205,7 @@ static BOOL host_window_filter_event( XEvent *event )
         XConfigureEvent *configure = (XConfigureEvent *)event;
         SetRect( &win->rect, configure->x, configure->y, configure->x + configure->width, configure->y + configure->height );
         if (win->parent) win->rect = host_window_configure_child( win->parent, win->window, win->rect, configure->send_event );
-        ERR( "host window %p/%lx ConfigureNotify, rect %s\n", win, win->window, wine_dbgstr_rect(&win->rect) );
+        TRACE( "host window %p/%lx ConfigureNotify, rect %s\n", win, win->window, wine_dbgstr_rect(&win->rect) );
         break;
     }
     }
@@ -1098,7 +1098,7 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
     if (!data->whole_window || !data->managed) goto done;
     if (data->configure_serial && (long)(data->configure_serial - event->serial) > 0)
     {
-        ERR( "win %p/%lx event %d,%d,%dx%d ignoring old serial %lu/%lu\n",
+        TRACE( "win %p/%lx event %d,%d,%dx%d ignoring old serial %lu/%lu\n",
                hwnd, data->whole_window, event->x, event->y, event->width, event->height,
                event->serial, data->configure_serial );
         goto done;
@@ -1106,7 +1106,7 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
 
     rect = window_rect_from_visible( &data->rects, rect );
 
-    ERR( "win %p/%lx new X rect %d,%d,%dx%d (event %d,%d,%dx%d)\n",
+    TRACE( "win %p/%lx new X rect %d,%d,%dx%d (event %d,%d,%dx%d)\n",
            hwnd, data->whole_window, (int)rect.left, (int)rect.top,
            (int)(rect.right-rect.left), (int)(rect.bottom-rect.top),
            event->x, event->y, event->width, event->height );
@@ -1504,7 +1504,7 @@ static void handle_xembed_protocol( HWND hwnd, XClientMessageEvent *event )
             struct x11drv_win_data *data = get_win_data( hwnd );
             if (!data) break;
 
-            ERR( "win %p/%lx XEMBED_EMBEDDED_NOTIFY owner %lx\n", hwnd, event->window, event->data.l[3] );
+            TRACE( "win %p/%lx XEMBED_EMBEDDED_NOTIFY owner %lx\n", hwnd, event->window, event->data.l[3] );
             data->embedder = event->data.l[3];
 
             /* window has been marked as embedded before (e.g. systray) */
@@ -1521,27 +1521,27 @@ static void handle_xembed_protocol( HWND hwnd, XClientMessageEvent *event )
         break;
 
     case XEMBED_WINDOW_DEACTIVATE:
-        ERR( "win %p/%lx XEMBED_WINDOW_DEACTIVATE message\n", hwnd, event->window );
+        TRACE( "win %p/%lx XEMBED_WINDOW_DEACTIVATE message\n", hwnd, event->window );
         focus_out( event->display, NtUserGetAncestor( hwnd, GA_ROOT ) );
         break;
 
     case XEMBED_FOCUS_OUT:
-        ERR( "win %p/%lx XEMBED_FOCUS_OUT message\n", hwnd, event->window );
+        TRACE( "win %p/%lx XEMBED_FOCUS_OUT message\n", hwnd, event->window );
         focus_out( event->display, NtUserGetAncestor( hwnd, GA_ROOT ) );
         break;
 
     case XEMBED_MODALITY_ON:
-        ERR( "win %p/%lx XEMBED_MODALITY_ON message\n", hwnd, event->window );
+        TRACE( "win %p/%lx XEMBED_MODALITY_ON message\n", hwnd, event->window );
         NtUserEnableWindow( hwnd, FALSE );
         break;
 
     case XEMBED_MODALITY_OFF:
-        ERR( "win %p/%lx XEMBED_MODALITY_OFF message\n", hwnd, event->window );
+        TRACE( "win %p/%lx XEMBED_MODALITY_OFF message\n", hwnd, event->window );
         NtUserEnableWindow( hwnd, TRUE );
         break;
 
     default:
-        ERR( "win %p/%lx XEMBED message %lu(%lu)\n",
+        TRACE( "win %p/%lx XEMBED message %lu(%lu)\n",
                hwnd, event->window, event->data.l[1], event->data.l[2] );
         break;
     }

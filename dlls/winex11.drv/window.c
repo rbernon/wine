@@ -240,7 +240,7 @@ RECT host_window_configure_child( struct host_window *win, Window window, RECT r
 
 void host_window_set_parent( struct host_window *win, Window parent )
 {
-    ERR( "host window %p/%lx, parent %lx\n", win, win->window, parent );
+    TRACE( "host window %p/%lx, parent %lx\n", win, win->window, parent );
     host_window_reparent( &win->parent, parent, win->window );
 }
 
@@ -2312,7 +2312,7 @@ void release_win_data( struct x11drv_win_data *data )
 void set_window_parent( struct x11drv_win_data *data, Window parent )
 {
     if (!data->whole_window) return; /* only keep track of parent if we have a toplevel */
-    ERR( "window %p/%lx, parent %lx\n", data->hwnd, data->whole_window, parent );
+    TRACE( "window %p/%lx, parent %lx\n", data->hwnd, data->whole_window, parent );
     host_window_reparent( &data->parent, parent, data->whole_window );
     if (data->parent)
     {
@@ -2405,8 +2405,6 @@ BOOL X11DRV_SystrayDockRemove( HWND hwnd )
     struct x11drv_win_data *data;
     BOOL ret;
 
-    TRACE( "hwnd %p\n", hwnd );
-
     /* make sure we don't try to unmap it, it confuses some systray docks */
     if ((data = get_win_data( hwnd )))
     {
@@ -2478,7 +2476,7 @@ BOOL X11DRV_SystrayDockInsert( HWND hwnd, UINT cx, UINT cy, void *icon )
     NtUserSetWindowPos( hwnd, NULL, 0, 0, 0, 0, SWP_NOSIZE|SWP_NOZORDER );
     NtUserShowWindow( hwnd, SW_SHOWNA );
 
-    ERR_(systray)( "icon window %p/%lx\n", hwnd, window );
+    TRACE_(systray)( "icon window %p/%lx\n", hwnd, window );
 
     /* send the docking request message */
     ev.xclient.type = ClientMessage;
@@ -2780,7 +2778,7 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
     data->rects = *new_rects;
     data->is_fullscreen = fullscreen;
 
-    ERR( "win %p/%lx new_rects %s style %08x flags %08x\n", hwnd, data->whole_window,
+    TRACE( "win %p/%lx new_rects %s style %08x flags %08x\n", hwnd, data->whole_window,
            debugstr_window_rects(new_rects), new_style, swp_flags );
 
     XFlush( gdi_display );  /* make sure painting is done before we move the window */
