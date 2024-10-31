@@ -68,6 +68,24 @@ struct wm_reader
     WORD stream_count;
 };
 
+static HRESULT copy_wm_media_type(WM_MEDIA_TYPE *dst, DWORD *size, const AM_MEDIA_TYPE *src)
+{
+    const DWORD capacity = *size;
+
+    *size = sizeof(*dst) + src->cbFormat;
+    if (!dst)
+        return S_OK;
+    if (capacity < *size)
+        return ASF_E_BUFFERTOOSMALL;
+
+    strmbase_dump_media_type(src);
+    memcpy(dst, src, sizeof(*dst));
+    memcpy(dst + 1, src->pbFormat, src->cbFormat);
+    dst->pbFormat = (BYTE *)(dst + 1);
+
+    return S_OK;
+}
+
 static struct wm_stream *get_stream_by_output_number(struct wm_reader *reader, DWORD output)
 {
     if (output < reader->stream_count)
@@ -126,7 +144,10 @@ static ULONG WINAPI output_props_Release(IWMOutputMediaProps *iface)
     TRACE("%p decreasing refcount to %lu.\n", props, refcount);
 
     if (!refcount)
+    {
+        FreeMediaType(&props->mt);
         free(props);
+    }
 
     return refcount;
 }
@@ -144,27 +165,15 @@ static HRESULT WINAPI output_props_GetType(IWMOutputMediaProps *iface, GUID *maj
 static HRESULT WINAPI output_props_GetMediaType(IWMOutputMediaProps *iface, WM_MEDIA_TYPE *mt, DWORD *size)
 {
     const struct output_props *props = impl_from_IWMOutputMediaProps(iface);
-    const DWORD req_size = *size;
 
     TRACE("iface %p, mt %p, size %p.\n", iface, mt, size);
 
-    *size = sizeof(*mt) + props->mt.cbFormat;
-    if (!mt)
-        return S_OK;
-    if (req_size < *size)
-        return ASF_E_BUFFERTOOSMALL;
-
-    strmbase_dump_media_type(&props->mt);
-
-    memcpy(mt, &props->mt, sizeof(*mt));
-    memcpy(mt + 1, props->mt.pbFormat, props->mt.cbFormat);
-    mt->pbFormat = (BYTE *)(mt + 1);
-    return S_OK;
+    return copy_wm_media_type(mt, size, &props->mt);
 }
 
 static HRESULT WINAPI output_props_SetMediaType(IWMOutputMediaProps *iface, WM_MEDIA_TYPE *mt)
 {
-    const struct output_props *props = impl_from_IWMOutputMediaProps(iface);
+    struct output_props *props = impl_from_IWMOutputMediaProps(iface);
 
     TRACE("iface %p, mt %p.\n", iface, mt);
 
@@ -174,8 +183,8 @@ static HRESULT WINAPI output_props_SetMediaType(IWMOutputMediaProps *iface, WM_M
     if (!IsEqualGUID(&props->mt.majortype, &mt->majortype))
         return E_FAIL;
 
-    FreeMediaType((AM_MEDIA_TYPE *)&props->mt);
-    return CopyMediaType((AM_MEDIA_TYPE *)&props->mt, (AM_MEDIA_TYPE *)mt);
+    FreeMediaType(&props->mt);
+    return CopyMediaType(&props->mt, (AM_MEDIA_TYPE *)mt);
 }
 
 static HRESULT WINAPI output_props_GetStreamGroupName(IWMOutputMediaProps *iface, WCHAR *name, WORD *len)
