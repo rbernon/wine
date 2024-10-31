@@ -2008,8 +2008,10 @@ static HRESULT WINAPI reader_GetMaxOutputSampleSize(IWMSyncReader2 *iface, DWORD
 static HRESULT WINAPI reader_GetMaxStreamSampleSize(IWMSyncReader2 *iface, WORD stream_number, DWORD *size)
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
+    DWORD max_lookahead, alignment;
     struct wm_stream *stream;
     struct wg_format format;
+    HRESULT hr;
 
     TRACE("reader %p, stream_number %u, size %p.\n", reader, stream_number, size);
 
@@ -2021,8 +2023,18 @@ static HRESULT WINAPI reader_GetMaxStreamSampleSize(IWMSyncReader2 *iface, WORD 
         return E_INVALIDARG;
     }
 
-    amt_to_wg_format(&stream->mt, &format);
-    *size = wg_format_get_max_size(&format);
+    if (!stream->decoder)
+        hr = E_NOTIMPL;
+    else if (stream->read_compressed)
+        hr = IMediaObject_GetInputSizeInfo(stream->decoder, 0, size, &max_lookahead, &alignment);
+    else
+        hr = IMediaObject_GetOutputSizeInfo(stream->decoder, 0, size, &alignment);
+
+    if (FAILED(hr))
+    {
+        amt_to_wg_format(&stream->mt, &format);
+        *size = wg_format_get_max_size(&format);
+    }
 
     LeaveCriticalSection(&reader->cs);
     return S_OK;
