@@ -17,6 +17,7 @@
  */
 
 #include "gst_private.h"
+#include "dmoreg.h"
 #include "initguid.h"
 #include "wmsdk.h"
 
@@ -35,6 +36,7 @@ struct wm_stream
     DWORD current_buffer_offset;
 
     AM_MEDIA_TYPE mt;
+    IMediaObject *decoder;
     IWMReaderAllocatorEx *output_allocator;
     IWMReaderAllocatorEx *stream_allocator;
 };
@@ -1454,6 +1456,59 @@ static void destroy_stream(struct wm_reader *reader)
     }
 }
 
+static HRESULT stream_init_decoder(struct wm_stream *stream)
+{
+    DMO_PARTIAL_MEDIATYPE input_type = {0};
+    struct wg_format format;
+    IEnumDMO *enum_dmo;
+    AM_MEDIA_TYPE mt;
+    HRESULT hr;
+    GUID clsid;
+
+    wg_parser_stream_get_codec_format(stream->wg_stream, &format);
+    if (format.major_type == WG_MAJOR_TYPE_UNKNOWN)
+        return S_OK;
+    if (!amt_from_wg_format(&mt, &format, FALSE))
+        return E_OUTOFMEMORY;
+    strmbase_dump_media_type(&mt);
+    strmbase_dump_media_type(&stream->mt);
+
+    input_type.type = mt.majortype;
+    input_type.subtype = mt.subtype;
+    if (IsEqualGUID(&mt.majortype, &MEDIATYPE_Video))
+        hr = DMOEnum(&DMOCATEGORY_VIDEO_DECODER, 0, 1, &input_type, 0, NULL, &enum_dmo);
+    else if (IsEqualGUID(&mt.majortype, &MEDIATYPE_Audio))
+        hr = DMOEnum(&DMOCATEGORY_AUDIO_DECODER, 0, 1, &input_type, 0, NULL, &enum_dmo);
+    else
+    {
+        WARN("Ignoring unknown major type %s\n", debugstr_guid(&mt.majortype));
+        FreeMediaType(&mt);
+        return S_OK;
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        do
+        {
+            if ((hr = IEnumDMO_Next(enum_dmo, 1, &clsid, NULL, NULL)) != S_OK)
+                break;
+            hr = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER, &IID_IMediaObject, (void **)&stream->decoder);
+        } while (FAILED(hr));
+
+        IEnumDMO_Release(enum_dmo);
+    }
+
+    if (FAILED(hr) || !stream->decoder)
+        WARN("Failed to find or create a decoder, hr %#lx\n", hr);
+    else if (FAILED(hr = IMediaObject_SetInputType(stream->decoder, 0, &mt, 0)))
+        ERR("Failed to set the decoder input type, hr %#lx\n", hr);
+    else if (FAILED(hr = IMediaObject_SetOutputType(stream->decoder, 0, &stream->mt, 0)))
+        ERR("Failed to set the decoder output type, hr %#lx\n", hr);
+
+    FreeMediaType(&mt);
+    return hr;
+}
+
 static HRESULT init_stream(struct wm_reader *reader)
 {
     wg_parser_t wg_parser;
@@ -1523,6 +1578,8 @@ static HRESULT init_stream(struct wm_reader *reader)
         }
         wg_parser_stream_enable(stream->wg_stream, &format);
         amt_from_wg_format(&stream->mt, &format, true);
+
+        stream_init_decoder(stream);
     }
 
     /* We probably discarded events because streams weren't enabled yet.
@@ -1603,6 +1660,14 @@ static HRESULT reinit_stream(struct wm_reader *reader, bool read_compressed)
                 amt_to_wg_format(&stream->mt, &format);
             wg_parser_stream_enable(stream->wg_stream, &format);
         }
+
+        if (stream->decoder)
+        {
+            IMediaObject_Release(stream->decoder);
+            stream->decoder = NULL;
+        }
+
+        stream_init_decoder(stream);
     }
 
     /* We probably discarded events because streams weren't enabled yet.
@@ -1869,6 +1934,7 @@ static ULONG WINAPI reader_Release(IWMSyncReader2 *iface)
 static HRESULT WINAPI reader_Close(IWMSyncReader2 *iface)
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
+    UINT i;
 
     TRACE("reader %p.\n", reader);
 
@@ -1892,6 +1958,18 @@ static HRESULT WINAPI reader_Close(IWMSyncReader2 *iface)
     destroy_stream(reader);
     wg_parser_destroy(reader->wg_parser);
     reader->wg_parser = 0;
+
+    for (i = 0; i < reader->stream_count; ++i)
+    {
+        struct wm_stream *stream = &reader->streams[i];
+        if (stream->decoder)
+        {
+            IMediaObject_Release(stream->decoder);
+            stream->decoder = NULL;
+        }
+    }
+    free(reader->streams);
+    reader->streams = NULL;
 
     if (reader->source_stream)
         IStream_Release(reader->source_stream);
