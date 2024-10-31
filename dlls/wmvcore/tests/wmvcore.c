@@ -1167,7 +1167,7 @@ static void test_sync_reader_settings(void)
     IWMSyncReader_Release(reader);
 
     ok(stream.refcount == 1, "Got outstanding refcount %ld.\n", stream.refcount);
-    todo_wine ok(stream.input_tid_changes == 1, "Changed thread %ld times.\n", stream.input_tid_changes);
+    ok(stream.input_tid_changes == 1, "Changed thread %ld times.\n", stream.input_tid_changes);
     CloseHandle(stream.file);
     ret = DeleteFileW(filename);
     ok(ret, "Failed to delete %s, error %lu.\n", debugstr_w(filename), GetLastError());
@@ -1409,7 +1409,7 @@ static void test_sync_reader_streaming(void)
     ok(!ref, "Got outstanding refcount %ld.\n", ref);
 
     ok(stream.refcount == 1, "Got outstanding refcount %ld.\n", stream.refcount);
-    todo_wine ok(stream.input_tid_changes == 1, "Changed thread %ld times.\n", stream.input_tid_changes);
+    ok(stream.input_tid_changes == 1, "Changed thread %ld times.\n", stream.input_tid_changes);
     CloseHandle(stream.file);
     ret = DeleteFileW(filename);
     ok(ret, "Failed to delete %s, error %lu.\n", debugstr_w(filename), GetLastError());
@@ -1480,7 +1480,7 @@ static void test_stream_media_props(IWMStreamConfig *config,
     ok(IsEqualGUID(&mt->majortype, majortype), "Expected major type %s, got %s.\n",
             debugstr_guid(majortype), debugstr_guid(&mt->majortype));
     ok(IsEqualGUID(&mt->subtype, subtype), "Expected sub type %s, got %s.\n",
-            debugstr_guid(subtype), debugstr_guid(&mt->subtype));
+            debugstr_fourcc(subtype->Data1), debugstr_fourcc(mt->subtype.Data1));
     ok(IsEqualGUID(&mt->formattype, formattype), "Expected format type %s, got %s.\n",
             debugstr_guid(formattype), debugstr_guid(&mt->formattype));
 
@@ -1642,7 +1642,7 @@ static void test_sync_reader_types(void)
         else
         {
             ok(IsEqualGUID(&majortype, &MEDIATYPE_Video), "Got major type %s.\n", debugstr_guid(&majortype));
-            ok(IsEqualGUID(&mt->subtype, &MEDIASUBTYPE_RGB24), "Got subtype %s.\n", debugstr_guid(&mt->subtype));
+            ok(IsEqualGUID(&mt->subtype, &MEDIASUBTYPE_RGB24), "Got subtype %s.\n", debugstr_fourcc(mt->subtype.Data1));
             got_video = true;
             check_video_type(mt);
         }
@@ -1770,7 +1770,7 @@ static void test_sync_reader_types(void)
     ok(!ref, "Got outstanding refcount %ld.\n", ref);
 
     ok(stream.refcount == 1, "Got outstanding refcount %ld.\n", stream.refcount);
-    todo_wine ok(stream.input_tid_changes == 1, "Changed thread %ld times.\n", stream.input_tid_changes);
+    ok(stream.input_tid_changes == 1, "Changed thread %ld times.\n", stream.input_tid_changes);
     CloseHandle(stream.file);
     ret = DeleteFileW(filename);
     ok(ret, "Failed to delete %s, error %lu.\n", debugstr_w(filename), GetLastError());
@@ -1995,7 +1995,7 @@ static void test_sync_reader_compressed_output(void)
         {
             ok(stream_num == 1, "Got %lu\n", (DWORD)stream_num);
             ok(sample_time == next_video_time, "Expected %lu, got %lu\n", next_video_time, (DWORD)sample_time);
-            todo_wine ok(sample_duration == 10000, "Got %lu\n", (DWORD)sample_duration);
+            ok(sample_duration == 10000, "Got %lu\n", (DWORD)sample_duration);
 
             if (video_idx == 0)
                 ok(flags == (WM_SF_CLEANPOINT|WM_SF_DISCONTINUITY), "Got %lu\n", flags);
@@ -2011,12 +2011,12 @@ static void test_sync_reader_compressed_output(void)
         {
             ok(stream_num == 2, "Got %lu\n", (DWORD)stream_num);
             ok(sample_time == next_audio_time, "Expected %lu, got %lu\n", next_audio_time, (DWORD)sample_time);
-            todo_wine ok(sample_duration == 460000, "Got %lu\n", (DWORD)sample_duration);
+            ok(sample_duration == 460000, "Got %lu\n", (DWORD)sample_duration);
 
             if (audio_idx == 0)
-                todo_wine ok(flags == (WM_SF_CLEANPOINT|WM_SF_DISCONTINUITY), "Got %lu\n", flags);
+                ok(flags == (WM_SF_CLEANPOINT|WM_SF_DISCONTINUITY), "Got %lu\n", flags);
             else
-                todo_wine ok(flags == WM_SF_CLEANPOINT, "Got %lu\n", flags);
+                ok(flags == WM_SF_CLEANPOINT, "Got %lu\n", flags);
             ok(bytes_count == 743, "Got %lu\n", bytes_count);
 
             audio_idx++;
@@ -2438,10 +2438,7 @@ static HRESULT WINAPI callback_advanced_AllocateForStream(IWMReaderCallbackAdvan
     ok(callback->callback_tid != GetCurrentThreadId(), "got wrong thread\n");
     ok(callback->output_tid[stream_number - 1] != GetCurrentThreadId(), "got wrong thread\n");
     if (stream)
-    {
-        todo_wine
         ok(stream->input_tid == GetCurrentThreadId(), "got wrong thread\n");
-    }
 
     ok(callback->read_compressed, "AllocateForStream() should only be called when reading compressed samples.\n");
     ok(callback->allocated_compressed_samples,
@@ -2481,10 +2478,7 @@ static HRESULT WINAPI callback_advanced_AllocateForOutput(IWMReaderCallbackAdvan
     ok(callback->callback_tid != GetCurrentThreadId(), "got wrong thread\n");
     ok(callback->output_tid[output] != GetCurrentThreadId(), "got wrong thread\n");
     if (stream)
-    {
-        todo_wine
         ok(stream->input_tid == GetCurrentThreadId(), "got wrong thread\n");
-    }
 
     if (!callback->read_compressed)
     {
@@ -2825,7 +2819,7 @@ static void run_async_reader(IWMReader *reader, IWMReaderAdvanced2 *advanced, st
         {
             todo_wine_if(!callback->read_compressed)
             ok(callback->last_pts[1] == 2460000, "Got pts %I64d.\n", callback->last_pts[1]);
-            todo_wine
+            todo_wine_if(!callback->read_compressed)
             ok(callback->next_pts[1] == 2470000, "Got pts %I64d.\n", callback->next_pts[1]);
         }
 
@@ -2837,14 +2831,14 @@ static void run_async_reader(IWMReader *reader, IWMReaderAdvanced2 *advanced, st
         {
             todo_wine_if(!callback->read_compressed)
             ok(callback->last_pts[0] == 2780000, "Got pts %I64d.\n", callback->last_pts[0]);
-            todo_wine
+            todo_wine_if(!callback->read_compressed)
             ok(callback->next_pts[0] == 3240000, "Got pts %I64d.\n", callback->next_pts[0]);
         }
         if (callback->last_pts[1])
         {
             todo_wine_if(!callback->read_compressed)
             ok(callback->last_pts[1] == 2460000, "Got pts %I64d.\n", callback->last_pts[1]);
-            todo_wine
+            todo_wine_if(!callback->read_compressed)
             ok(callback->next_pts[1] == 2470000, "Got pts %I64d.\n", callback->next_pts[1]);
         }
 
@@ -2856,7 +2850,7 @@ static void run_async_reader(IWMReader *reader, IWMReaderAdvanced2 *advanced, st
         {
             todo_wine_if(!callback->read_compressed)
             ok(callback->last_pts[0] == 2780000, "Got pts %I64d.\n", callback->last_pts[0]);
-            todo_wine
+            todo_wine_if(!callback->read_compressed)
             ok(callback->next_pts[0] == 3240000, "Got pts %I64d.\n", callback->next_pts[0]);
         }
         if (callback->last_pts[1])
@@ -2876,10 +2870,8 @@ static void run_async_reader(IWMReader *reader, IWMReaderAdvanced2 *advanced, st
         ok(hr == S_OK, "Got hr %#lx.\n", hr);
         wait_ontime_callback(callback);
         ok(callback->last_pts[0] == 6500000, "Got pts %I64d.\n", callback->last_pts[0]);
-        todo_wine
         ok(callback->next_pts[0] == 6960000, "Got pts %I64d.\n", callback->next_pts[0]);
         ok(callback->last_pts[1] == 6460000, "Got pts %I64d.\n", callback->last_pts[1]);
-        todo_wine
         ok(callback->next_pts[1] == 6470000, "Got pts %I64d.\n", callback->next_pts[1]);
         ok(callback->sample_count > 0, "Got no samples.\n");
         callback->sample_count = 0;
@@ -2967,16 +2959,16 @@ static void run_async_reader(IWMReader *reader, IWMReaderAdvanced2 *advanced, st
     wait_ontime_callback(callback);
     if (callback->last_pts[0])
     {
-        todo_wine_if(callback->last_pts[0] == 19500000 || callback->last_pts[0] == 20060000)
+        todo_wine_if(!callback->read_compressed)
         ok(callback->last_pts[0] == 19960000, "Got pts %I64d.\n", callback->last_pts[0]);
-        todo_wine
+        todo_wine_if(!callback->read_compressed)
         ok(callback->next_pts[0] == 20420000, "Got pts %I64d.\n", callback->next_pts[0]);
     }
     if (callback->last_pts[1])
     {
         todo_wine_if(!callback->read_compressed)
         ok(callback->last_pts[1] == 20060000, "Got pts %I64d.\n", callback->last_pts[1]);
-        todo_wine
+        todo_wine_if(!callback->read_compressed)
         ok(callback->next_pts[1] == 20070000, "Got pts %I64d.\n", callback->next_pts[1]);
     }
     callback->last_pts[0] = 0;
