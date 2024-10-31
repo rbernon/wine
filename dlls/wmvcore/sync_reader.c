@@ -2409,8 +2409,21 @@ static HRESULT WINAPI reader_OpenStream(IWMSyncReader2 *iface, IStream *stream)
     NTSTATUS status;
     STATSTG stat;
     HRESULT hr;
+    HANDLE file;
 
     TRACE("reader %p, stream %p.\n", reader, stream);
+
+if (0)
+{
+BYTE buffer[4096];
+DWORD size;
+file = CreateFileW(L"output.bin", GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, CREATE_ALWAYS, 0, 0);
+while (SUCCEEDED(IStream_Read(stream, buffer, sizeof(buffer), &size)) && size)
+{
+WriteFile(file, buffer, size, &size, NULL);
+}
+CloseHandle(file);
+}
 
     stat.cbSize.QuadPart = canary_size;
     if (FAILED(hr = IStream_Stat(stream, &stat, STATFLAG_NONAME)))
