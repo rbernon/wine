@@ -30,14 +30,14 @@ HRESULT sync_reader_create(IUnknown *outer, void **out)
 {
     NTSTATUS status;
 
-    if ((status = winedmo_demuxer_check("video/x-ms-asf")))
+    if ((status = winedmo_demuxer_check("video/x-ms-asf")) || 1)
     {
         WARN("Unsupported demuxer, status %#lx.\n", status);
         return winegstreamer_create_wm_sync_reader(outer, out);
     }
 
     FIXME("stub!\n");
-    return S_OK;
+    return E_NOTIMPL;
 }
 
 HRESULT WINAPI WMCreateSyncReader(IUnknown *reserved, DWORD rights, IWMSyncReader **reader)
