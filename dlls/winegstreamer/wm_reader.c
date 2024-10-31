@@ -362,7 +362,8 @@ struct stream_config
     IWMMediaProps IWMMediaProps_iface;
     LONG refcount;
 
-    const struct wm_stream *stream;
+    UINT stream_index;
+    AM_MEDIA_TYPE mt;
 };
 
 static struct stream_config *impl_from_IWMStreamConfig(IWMStreamConfig *iface)
@@ -410,7 +411,7 @@ static ULONG WINAPI stream_config_Release(IWMStreamConfig *iface)
 
     if (!refcount)
     {
-        IWMProfile3_Release(&config->stream->reader->IWMProfile3_iface);
+        FreeMediaType(&config->mt);
         free(config);
     }
 
@@ -420,24 +421,10 @@ static ULONG WINAPI stream_config_Release(IWMStreamConfig *iface)
 static HRESULT WINAPI stream_config_GetStreamType(IWMStreamConfig *iface, GUID *type)
 {
     struct stream_config *config = impl_from_IWMStreamConfig(iface);
-    struct wm_reader *reader = config->stream->reader;
-    AM_MEDIA_TYPE mt;
 
     TRACE("config %p, type %p.\n", config, type);
 
-    EnterCriticalSection(&reader->cs);
-
-    if (!amt_from_wg_format(&mt, &config->stream->format, true))
-    {
-        LeaveCriticalSection(&reader->cs);
-        return E_OUTOFMEMORY;
-    }
-
-    *type = mt.majortype;
-    FreeMediaType(&mt);
-
-    LeaveCriticalSection(&reader->cs);
-
+    *type = config->mt.majortype;
     return S_OK;
 }
 
@@ -447,7 +434,7 @@ static HRESULT WINAPI stream_config_GetStreamNumber(IWMStreamConfig *iface, WORD
 
     TRACE("config %p, number %p.\n", config, number);
 
-    *number = config->stream->index + 1;
+    *number = config->stream_index + 1;
     return S_OK;
 }
 
@@ -555,38 +542,20 @@ static HRESULT WINAPI stream_props_GetType(IWMMediaProps *iface, GUID *major_typ
 static HRESULT WINAPI stream_props_GetMediaType(IWMMediaProps *iface, WM_MEDIA_TYPE *mt, DWORD *size)
 {
     struct stream_config *config = impl_from_IWMMediaProps(iface);
-    const struct wg_format *format;
-    struct wg_format codec_format;
-    const DWORD req_size = *size;
-    AM_MEDIA_TYPE stream_mt;
 
     TRACE("iface %p, mt %p, size %p.\n", iface, mt, size);
 
-    wg_parser_stream_get_codec_format(config->stream->wg_stream, &codec_format);
-    format = (codec_format.major_type != WG_MAJOR_TYPE_UNKNOWN) ? &codec_format : &config->stream->format;
-    if (!amt_from_wg_format(&stream_mt, format, true))
-        return E_OUTOFMEMORY;
-
-    *size = sizeof(stream_mt) + stream_mt.cbFormat;
-    if (mt && req_size >= *size)
-    {
-        strmbase_dump_media_type(&stream_mt);
-
-        memcpy(mt, &stream_mt, sizeof(*mt));
-        memcpy(mt + 1, stream_mt.pbFormat, stream_mt.cbFormat);
-        mt->pbFormat = (BYTE *)(mt + 1);
-    }
-    FreeMediaType(&stream_mt);
-
-    if (mt && req_size < *size)
-        return ASF_E_BUFFERTOOSMALL;
-    return S_OK;
+    return copy_wm_media_type(mt, size, &config->mt);
 }
 
 static HRESULT WINAPI stream_props_SetMediaType(IWMMediaProps *iface, WM_MEDIA_TYPE *mt)
 {
+    struct stream_config *config = impl_from_IWMMediaProps(iface);
+
     FIXME("iface %p, mt %p, stub!\n", iface, mt);
-    return E_NOTIMPL;
+
+    FreeMediaType(&config->mt);
+    return CopyMediaType(&config->mt, (AM_MEDIA_TYPE *)mt);
 }
 
 static const IWMMediaPropsVtbl stream_props_vtbl =
@@ -755,6 +724,8 @@ static HRESULT WINAPI profile_GetStreamCount(IWMProfile3 *iface, DWORD *count)
 static HRESULT WINAPI profile_GetStream(IWMProfile3 *iface, DWORD index, IWMStreamConfig **config)
 {
     struct wm_reader *reader = impl_from_IWMProfile3(iface);
+    const struct wg_format *format;
+    struct wg_format codec_format;
     struct stream_config *object;
 
     TRACE("reader %p, index %lu, config %p.\n", reader, index, config);
@@ -777,8 +748,12 @@ static HRESULT WINAPI profile_GetStream(IWMProfile3 *iface, DWORD index, IWMStre
     object->IWMStreamConfig_iface.lpVtbl = &stream_config_vtbl;
     object->IWMMediaProps_iface.lpVtbl = &stream_props_vtbl;
     object->refcount = 1;
-    object->stream = &reader->streams[index];
+    object->stream_index = index;
     IWMProfile3_AddRef(&reader->IWMProfile3_iface);
+
+    wg_parser_stream_get_codec_format(reader->streams[index].wg_stream, &codec_format);
+    format = (codec_format.major_type != WG_MAJOR_TYPE_UNKNOWN) ? &codec_format : &reader->streams[index].format;
+    amt_from_wg_format(&object->mt, format, true);
 
     LeaveCriticalSection(&reader->cs);
 
