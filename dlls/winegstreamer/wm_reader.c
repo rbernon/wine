@@ -26,7 +26,6 @@ struct wm_stream
 {
     struct wm_reader *reader;
     wg_parser_stream_t wg_stream;
-    struct wg_format format;
     WMT_STREAM_SELECTION selection;
     WORD index;
     bool eos;
@@ -35,6 +34,7 @@ struct wm_stream
     struct wg_parser_buffer current_buffer;
     DWORD current_buffer_offset;
 
+    AM_MEDIA_TYPE mt;
     IWMReaderAllocatorEx *output_allocator;
     IWMReaderAllocatorEx *stream_allocator;
 };
@@ -726,7 +726,6 @@ static HRESULT WINAPI profile_GetStreamCount(IWMProfile3 *iface, DWORD *count)
 static HRESULT WINAPI profile_GetStream(IWMProfile3 *iface, DWORD index, IWMStreamConfig **config)
 {
     struct wm_reader *reader = impl_from_IWMProfile3(iface);
-    const struct wg_format *format;
     struct wg_format codec_format;
     struct stream_config *object;
 
@@ -754,8 +753,10 @@ static HRESULT WINAPI profile_GetStream(IWMProfile3 *iface, DWORD index, IWMStre
     IWMProfile3_AddRef(&reader->IWMProfile3_iface);
 
     wg_parser_stream_get_codec_format(reader->streams[index].wg_stream, &codec_format);
-    format = (codec_format.major_type != WG_MAJOR_TYPE_UNKNOWN) ? &codec_format : &reader->streams[index].format;
-    amt_from_wg_format(&object->mt, format, true);
+    if (codec_format.major_type != WG_MAJOR_TYPE_UNKNOWN)
+        amt_from_wg_format(&object->mt, &codec_format, true);
+    else
+        CopyMediaType(&object->mt, &reader->streams[index].mt);
 
     LeaveCriticalSection(&reader->cs);
 
@@ -1488,13 +1489,15 @@ static HRESULT init_stream(struct wm_reader *reader)
     for (i = 0; i < reader->stream_count; ++i)
     {
         struct wm_stream *stream = &reader->streams[i];
+        struct wg_format format;
 
         stream->wg_stream = wg_parser_get_stream(reader->wg_parser, i);
         stream->reader = reader;
         stream->index = i;
         stream->selection = WMT_ON;
-        wg_parser_stream_get_current_format(stream->wg_stream, &stream->format);
-        if (stream->format.major_type == WG_MAJOR_TYPE_AUDIO)
+
+        wg_parser_stream_get_current_format(stream->wg_stream, &format);
+        if (format.major_type == WG_MAJOR_TYPE_AUDIO)
         {
             /* R.U.S.E enumerates available audio types, picks the first one it
              * likes, and then sets the wrong stream to that type. libav might
@@ -1502,9 +1505,9 @@ static HRESULT init_stream(struct wm_reader *reader)
              * the game incorrectly interpreting float data as integer.
              * Therefore just match native and always set our default format to
              * S16LE. */
-            stream->format.u.audio.format = WG_AUDIO_FORMAT_S16LE;
+            format.u.audio.format = WG_AUDIO_FORMAT_S16LE;
         }
-        else if (stream->format.major_type == WG_MAJOR_TYPE_VIDEO)
+        else if (format.major_type == WG_MAJOR_TYPE_VIDEO)
         {
             /* Call of Juarez: Bound in Blood breaks if I420 is enumerated.
              * Some native decoders output I420, but the msmpeg4v3 decoder
@@ -1512,13 +1515,14 @@ static HRESULT init_stream(struct wm_reader *reader)
              *
              * Shadowgrounds provides wmv3 video and assumes that the initial
              * video type will be BGR. */
-            stream->format.u.video.format = WG_VIDEO_FORMAT_BGR;
+            format.u.video.format = WG_VIDEO_FORMAT_BGR;
 
             /* API consumers expect RGB video to be bottom-up. */
-            if (stream->format.u.video.height > 0)
-                stream->format.u.video.height = -stream->format.u.video.height;
+            if (format.u.video.height > 0)
+                format.u.video.height = -format.u.video.height;
         }
-        wg_parser_stream_enable(stream->wg_stream, &stream->format);
+        wg_parser_stream_enable(stream->wg_stream, &format);
+        amt_from_wg_format(&stream->mt, &format, true);
     }
 
     /* We probably discarded events because streams weren't enabled yet.
@@ -1594,7 +1598,11 @@ static HRESULT reinit_stream(struct wm_reader *reader, bool read_compressed)
         stream->reader = reader;
         wg_parser_stream_get_current_format(stream->wg_stream, &format);
         if (stream->selection == WMT_ON)
-            wg_parser_stream_enable(stream->wg_stream, read_compressed ? &format : &stream->format);
+        {
+            if (!read_compressed)
+                amt_to_wg_format(&stream->mt, &format);
+            wg_parser_stream_enable(stream->wg_stream, &format);
+        }
     }
 
     /* We probably discarded events because streams weren't enabled yet.
@@ -1644,35 +1652,13 @@ static const enum wg_video_format video_formats[] =
     WG_VIDEO_FORMAT_RGB15,
 };
 
-static const char *get_major_type_string(enum wg_major_type type)
+static const char *debugstr_major(const GUID *major)
 {
-    switch (type)
-    {
-        case WG_MAJOR_TYPE_AUDIO:
-            return "audio";
-        case WG_MAJOR_TYPE_AUDIO_MPEG1:
-            return "mpeg1-audio";
-        case WG_MAJOR_TYPE_AUDIO_MPEG4:
-            return "mpeg4-audio";
-        case WG_MAJOR_TYPE_AUDIO_WMA:
-            return "wma";
-        case WG_MAJOR_TYPE_VIDEO:
-            return "video";
-        case WG_MAJOR_TYPE_VIDEO_CINEPAK:
-            return "cinepak";
-        case WG_MAJOR_TYPE_VIDEO_H264:
-            return "h264";
-        case WG_MAJOR_TYPE_VIDEO_WMV:
-            return "wmv";
-        case WG_MAJOR_TYPE_VIDEO_INDEO:
-            return "indeo";
-        case WG_MAJOR_TYPE_VIDEO_MPEG1:
-            return "mpeg1-video";
-        case WG_MAJOR_TYPE_UNKNOWN:
-            return "unknown";
-    }
-    assert(0);
-    return NULL;
+    if (IsEqualGUID(major, &MEDIATYPE_Video))
+        return "video";
+    if (IsEqualGUID(major, &MEDIATYPE_Audio))
+        return "audio";
+    return debugstr_guid(major);
 }
 
 static HRESULT wm_stream_allocate_sample(struct wm_stream *stream, DWORD size, INSSBuffer **sample)
@@ -1710,10 +1696,12 @@ static HRESULT wm_reader_read_stream_sample(struct wm_reader *reader, struct wg_
     if (!(stream = wm_reader_get_stream_by_stream_number(reader, buffer->stream + 1)))
         return E_INVALIDARG;
 
-    TRACE("Got buffer for '%s' stream %p.\n", get_major_type_string(stream->format.major_type), stream);
+    TRACE("Got buffer for '%s' stream %p.\n", debugstr_major(&stream->mt.majortype), stream);
 
     capacity = buffer->size - stream->current_buffer_offset;
-    if (stream->format.major_type == WG_MAJOR_TYPE_AUDIO)
+    if (IsEqualGUID(&stream->mt.majortype, &MEDIATYPE_Audio)
+            && (IsEqualGUID(&stream->mt.subtype, &MEDIASUBTYPE_PCM)
+            || IsEqualGUID(&stream->mt.subtype, &MEDIASUBTYPE_IEEE_FLOAT)))
         capacity = min(capacity, 16384);
 
     if (FAILED(hr = wm_stream_allocate_sample(stream, capacity, sample)))
@@ -1929,6 +1917,7 @@ static HRESULT WINAPI reader_GetMaxStreamSampleSize(IWMSyncReader2 *iface, WORD 
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     struct wm_stream *stream;
+    struct wg_format format;
 
     TRACE("reader %p, stream_number %u, size %p.\n", reader, stream_number, size);
 
@@ -1940,7 +1929,8 @@ static HRESULT WINAPI reader_GetMaxStreamSampleSize(IWMSyncReader2 *iface, WORD 
         return E_INVALIDARG;
     }
 
-    *size = wg_format_get_max_size(&stream->format);
+    amt_to_wg_format(&stream->mt, &format);
+    *size = wg_format_get_max_size(&format);
 
     LeaveCriticalSection(&reader->cs);
     return S_OK;
@@ -2142,8 +2132,6 @@ static HRESULT WINAPI reader_GetOutputProps(IWMSyncReader2 *iface,
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     struct wm_stream *stream;
-    struct wg_format format;
-    AM_MEDIA_TYPE mt;
     HRESULT hr;
 
     TRACE("reader %p, output %lu, props %p.\n", reader, output, props);
@@ -2156,13 +2144,8 @@ static HRESULT WINAPI reader_GetOutputProps(IWMSyncReader2 *iface,
         return E_INVALIDARG;
     }
 
-    format = stream->format;
+    hr = output_props_create(&stream->mt, props);
     LeaveCriticalSection(&reader->cs);
-
-    if (!amt_from_wg_format(&mt, &format, true))
-        return E_OUTOFMEMORY;
-    hr = output_props_create(&mt, props);
-    FreeMediaType(&mt);
 
     return hr;
 }
@@ -2398,7 +2381,8 @@ static HRESULT WINAPI reader_SetOutputProps(IWMSyncReader2 *iface, DWORD output,
         return hr;
     }
 
-    stream->format = format;
+    FreeMediaType(&stream->mt);
+    CopyMediaType(&stream->mt, &props->mt);
     wg_parser_stream_enable(stream->wg_stream, &format);
 
     /* Re-decode any buffers that might have been generated with the old format.
@@ -2538,19 +2522,21 @@ static HRESULT WINAPI reader_SetStreamsSelected(IWMSyncReader2 *iface,
         }
         else
         {
+            struct wg_format format;
+
             if (selections[i] != WMT_ON)
                 FIXME("Ignoring selection %#x for stream %u; treating as enabled.\n",
                         selections[i], stream_numbers[i]);
             TRACE("Enabling stream %u.\n", stream_numbers[i]);
             if (stream->read_compressed)
             {
-                struct wg_format format;
                 wg_parser_stream_get_current_format(stream->wg_stream, &format);
                 wg_parser_stream_enable(stream->wg_stream, &format);
             }
             else
             {
-                wg_parser_stream_enable(stream->wg_stream, &stream->format);
+                amt_to_wg_format(&stream->mt, &format);
+                wg_parser_stream_enable(stream->wg_stream, &format);
             }
         }
     }
