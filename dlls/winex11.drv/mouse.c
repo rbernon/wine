@@ -494,7 +494,7 @@ static void map_event_coords( HWND hwnd, Window window, Window event_root, int x
     struct x11drv_win_data *data;
     POINT pt = { input->mi.dx, input->mi.dy };
 
-    TRACE( "hwnd %p, window %lx, event_root %lx, x_root %d, y_root %d, input %p\n", hwnd, window, event_root,
+    ERR( "hwnd %p, window %lx, event_root %lx, x_root %d, y_root %d, input %p\n", hwnd, window, event_root,
            x_root, y_root, input );
 
     if (!hwnd)
@@ -522,7 +522,7 @@ static void map_event_coords( HWND hwnd, Window window, Window event_root, int x
         release_win_data( data );
     }
 
-    TRACE( "mapped %s to %s\n", wine_dbgstr_point( (POINT *)&input->mi.dx ), wine_dbgstr_point( &pt ) );
+    ERR( "mapped %s to %s\n", wine_dbgstr_point( (POINT *)&input->mi.dx ), wine_dbgstr_point( &pt ) );
 
     input->mi.dx = pt.x;
     input->mi.dy = pt.y;
