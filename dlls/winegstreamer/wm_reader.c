@@ -234,7 +234,7 @@ static HRESULT output_props_create(const AM_MEDIA_TYPE *mt, IWMOutputMediaProps 
     return S_OK;
 }
 
-struct buffer
+struct sample
 {
     INSSBuffer INSSBuffer_iface;
     LONG refcount;
@@ -243,19 +243,19 @@ struct buffer
     BYTE data[1];
 };
 
-static struct buffer *impl_from_INSSBuffer(INSSBuffer *iface)
+static struct sample *impl_from_INSSBuffer(INSSBuffer *iface)
 {
-    return CONTAINING_RECORD(iface, struct buffer, INSSBuffer_iface);
+    return CONTAINING_RECORD(iface, struct sample, INSSBuffer_iface);
 }
 
-static HRESULT WINAPI buffer_QueryInterface(INSSBuffer *iface, REFIID iid, void **out)
+static HRESULT WINAPI sample_QueryInterface(INSSBuffer *iface, REFIID iid, void **out)
 {
-    struct buffer *buffer = impl_from_INSSBuffer(iface);
+    struct sample *sample = impl_from_INSSBuffer(iface);
 
     TRACE("buffer %p, iid %s, out %p.\n", iface, debugstr_guid(iid), out);
 
     if (IsEqualGUID(iid, &IID_IUnknown) || IsEqualGUID(iid, &IID_INSSBuffer))
-        *out = &buffer->INSSBuffer_iface;
+        *out = &sample->INSSBuffer_iface;
     else
     {
         *out = NULL;
@@ -267,89 +267,89 @@ static HRESULT WINAPI buffer_QueryInterface(INSSBuffer *iface, REFIID iid, void 
     return S_OK;
 }
 
-static ULONG WINAPI buffer_AddRef(INSSBuffer *iface)
+static ULONG WINAPI sample_AddRef(INSSBuffer *iface)
 {
-    struct buffer *buffer = impl_from_INSSBuffer(iface);
-    ULONG refcount = InterlockedIncrement(&buffer->refcount);
+    struct sample *sample = impl_from_INSSBuffer(iface);
+    ULONG refcount = InterlockedIncrement(&sample->refcount);
 
-    TRACE("%p increasing refcount to %lu.\n", buffer, refcount);
+    TRACE("%p increasing refcount to %lu.\n", sample, refcount);
 
     return refcount;
 }
 
-static ULONG WINAPI buffer_Release(INSSBuffer *iface)
+static ULONG WINAPI sample_Release(INSSBuffer *iface)
 {
-    struct buffer *buffer = impl_from_INSSBuffer(iface);
-    ULONG refcount = InterlockedDecrement(&buffer->refcount);
+    struct sample *sample = impl_from_INSSBuffer(iface);
+    ULONG refcount = InterlockedDecrement(&sample->refcount);
 
-    TRACE("%p decreasing refcount to %lu.\n", buffer, refcount);
+    TRACE("%p decreasing refcount to %lu.\n", sample, refcount);
 
     if (!refcount)
-        free(buffer);
+        free(sample);
 
     return refcount;
 }
 
-static HRESULT WINAPI buffer_GetLength(INSSBuffer *iface, DWORD *size)
+static HRESULT WINAPI sample_GetLength(INSSBuffer *iface, DWORD *size)
 {
     FIXME("iface %p, size %p, stub!\n", iface, size);
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI buffer_SetLength(INSSBuffer *iface, DWORD size)
+static HRESULT WINAPI sample_SetLength(INSSBuffer *iface, DWORD size)
 {
-    struct buffer *buffer = impl_from_INSSBuffer(iface);
+    struct sample *sample = impl_from_INSSBuffer(iface);
 
-    TRACE("iface %p, size %lu.\n", buffer, size);
+    TRACE("iface %p, size %lu.\n", sample, size);
 
-    if (size > buffer->capacity)
+    if (size > sample->capacity)
         return E_INVALIDARG;
 
-    buffer->size = size;
+    sample->size = size;
     return S_OK;
 }
 
-static HRESULT WINAPI buffer_GetMaxLength(INSSBuffer *iface, DWORD *size)
+static HRESULT WINAPI sample_GetMaxLength(INSSBuffer *iface, DWORD *size)
 {
-    struct buffer *buffer = impl_from_INSSBuffer(iface);
+    struct sample *sample = impl_from_INSSBuffer(iface);
 
-    TRACE("buffer %p, size %p.\n", buffer, size);
+    TRACE("buffer %p, size %p.\n", sample, size);
 
-    *size = buffer->capacity;
+    *size = sample->capacity;
     return S_OK;
 }
 
-static HRESULT WINAPI buffer_GetBuffer(INSSBuffer *iface, BYTE **data)
+static HRESULT WINAPI sample_GetBuffer(INSSBuffer *iface, BYTE **data)
 {
-    struct buffer *buffer = impl_from_INSSBuffer(iface);
+    struct sample *sample = impl_from_INSSBuffer(iface);
 
-    TRACE("buffer %p, data %p.\n", buffer, data);
+    TRACE("buffer %p, data %p.\n", sample, data);
 
-    *data = buffer->data;
+    *data = sample->data;
     return S_OK;
 }
 
-static HRESULT WINAPI buffer_GetBufferAndLength(INSSBuffer *iface, BYTE **data, DWORD *size)
+static HRESULT WINAPI sample_GetBufferAndLength(INSSBuffer *iface, BYTE **data, DWORD *size)
 {
-    struct buffer *buffer = impl_from_INSSBuffer(iface);
+    struct sample *sample = impl_from_INSSBuffer(iface);
 
-    TRACE("buffer %p, data %p, size %p.\n", buffer, data, size);
+    TRACE("buffer %p, data %p, size %p.\n", sample, data, size);
 
-    *size = buffer->size;
-    *data = buffer->data;
+    *size = sample->size;
+    *data = sample->data;
     return S_OK;
 }
 
-static const INSSBufferVtbl buffer_vtbl =
+static const INSSBufferVtbl sample_vtbl =
 {
-    buffer_QueryInterface,
-    buffer_AddRef,
-    buffer_Release,
-    buffer_GetLength,
-    buffer_SetLength,
-    buffer_GetMaxLength,
-    buffer_GetBuffer,
-    buffer_GetBufferAndLength,
+    sample_QueryInterface,
+    sample_AddRef,
+    sample_Release,
+    sample_GetLength,
+    sample_SetLength,
+    sample_GetMaxLength,
+    sample_GetBuffer,
+    sample_GetBufferAndLength,
 };
 
 struct stream_config
@@ -1702,27 +1702,27 @@ static const char *debugstr_major(const GUID *major)
     return debugstr_guid(major);
 }
 
-static HRESULT wm_stream_allocate_sample(struct wm_stream *stream, DWORD size, INSSBuffer **sample)
+static HRESULT wm_stream_allocate_sample(struct wm_stream *stream, DWORD size, INSSBuffer **out)
 {
-    struct buffer *buffer;
+    struct sample *sample;
 
     if (!stream->read_compressed && stream->output_allocator)
         return IWMReaderAllocatorEx_AllocateForOutputEx(stream->output_allocator, stream->index,
-                size, sample, 0, 0, 0, NULL);
+                size, out, 0, 0, 0, NULL);
 
     if (stream->read_compressed && stream->stream_allocator)
         return IWMReaderAllocatorEx_AllocateForStreamEx(stream->stream_allocator, stream->index + 1,
-                size, sample, 0, 0, 0, NULL);
+                size, out, 0, 0, 0, NULL);
 
     /* FIXME: Should these be pooled? */
-    if (!(buffer = calloc(1, offsetof(struct buffer, data[size]))))
+    if (!(sample = calloc(1, offsetof(struct sample, data[size]))))
         return E_OUTOFMEMORY;
-    buffer->INSSBuffer_iface.lpVtbl = &buffer_vtbl;
-    buffer->refcount = 1;
-    buffer->capacity = size;
+    sample->INSSBuffer_iface.lpVtbl = &sample_vtbl;
+    sample->refcount = 1;
+    sample->capacity = size;
 
-    TRACE("Created buffer %p.\n", buffer);
-    *sample = &buffer->INSSBuffer_iface;
+    TRACE("Created sample %p.\n", sample);
+    *out = &sample->INSSBuffer_iface;
     return S_OK;
 }
 
