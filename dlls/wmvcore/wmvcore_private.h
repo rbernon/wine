@@ -24,7 +24,8 @@
 #include "windef.h"
 #include "winbase.h"
 
-#include "objidl.h"
+#include "dshow.h"
+#include "mediaobj.h"
 #include "propsys.h"
 
 #include "wine/strmbase.h"
