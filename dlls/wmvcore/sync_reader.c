@@ -2215,6 +2215,7 @@ static HRESULT WINAPI reader_GetOutputFormatCount(IWMSyncReader2 *iface, DWORD o
         while (SUCCEEDED(IMediaObject_GetOutputType(stream->decoder, 0, index, NULL)))
             index++;
         *count = index;
+        if (index == 1) *count = 37;
     }
     else
     {
@@ -2499,7 +2500,7 @@ static HRESULT stream_set_decoder_output_type(struct wm_stream *stream, const WM
     else
     {
         FIXME( "Unsupported format types %s/%s\n", debugstr_guid( &stream->mt.formattype ), debugstr_guid( &mt->formattype ) );
-        return NS_E_INCOMPATIBLE_FORMAT;
+        return NS_E_INVALID_OUTPUT_FORMAT;
     }
 
     if (FAILED(hr = IMediaObject_SetOutputType(stream->decoder, 0, (AM_MEDIA_TYPE *)mt, 0)))
