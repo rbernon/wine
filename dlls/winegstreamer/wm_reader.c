@@ -2100,8 +2100,6 @@ static HRESULT WINAPI reader_GetOutputFormat(IWMSyncReader2 *iface,
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     struct wm_stream *stream;
-    struct wg_format format;
-    AM_MEDIA_TYPE mt;
     HRESULT hr;
 
     TRACE("reader %p, output %lu, index %lu, props %p.\n", reader, output, index, props);
@@ -2114,52 +2112,28 @@ static HRESULT WINAPI reader_GetOutputFormat(IWMSyncReader2 *iface,
         return E_INVALIDARG;
     }
 
-    wg_parser_stream_get_current_format(stream->wg_stream, &format);
-
-    switch (format.major_type)
+    if (stream->decoder && !stream->read_compressed)
     {
-        case WG_MAJOR_TYPE_VIDEO:
-            if (index >= ARRAY_SIZE(video_formats))
-            {
-                LeaveCriticalSection(&reader->cs);
-                return NS_E_INVALID_OUTPUT_FORMAT;
-            }
-            format.u.video.format = video_formats[index];
-            /* API consumers expect RGB video to be bottom-up. */
-            if (format.u.video.height > 0 && wg_video_format_is_rgb(format.u.video.format))
-                format.u.video.height = -format.u.video.height;
-            break;
+        AM_MEDIA_TYPE mt;
 
-        case WG_MAJOR_TYPE_AUDIO:
-            if (index)
-            {
-                LeaveCriticalSection(&reader->cs);
-                return NS_E_INVALID_OUTPUT_FORMAT;
-            }
-            format.u.audio.format = WG_AUDIO_FORMAT_S16LE;
-            break;
-
-        case WG_MAJOR_TYPE_AUDIO_MPEG1:
-        case WG_MAJOR_TYPE_AUDIO_MPEG4:
-        case WG_MAJOR_TYPE_AUDIO_WMA:
-        case WG_MAJOR_TYPE_VIDEO_CINEPAK:
-        case WG_MAJOR_TYPE_VIDEO_H264:
-        case WG_MAJOR_TYPE_VIDEO_WMV:
-        case WG_MAJOR_TYPE_VIDEO_INDEO:
-        case WG_MAJOR_TYPE_VIDEO_MPEG1:
-            FIXME("Format %u not implemented!\n", format.major_type);
-            break;
-        case WG_MAJOR_TYPE_UNKNOWN:
-            break;
+        if (FAILED(hr = IMediaObject_GetOutputType(stream->decoder, 0, index, &mt)))
+            hr = NS_E_INVALID_OUTPUT_FORMAT;
+        else
+        {
+            hr = output_props_create(&mt, props);
+            FreeMediaType(&mt);
+        }
+    }
+    else if (!index)
+    {
+        hr = output_props_create(&stream->mt, props);
+    }
+    else
+    {
+        hr = NS_E_INVALID_OUTPUT_FORMAT;
     }
 
     LeaveCriticalSection(&reader->cs);
-
-    if (!amt_from_wg_format(&mt, &format, true))
-        return E_OUTOFMEMORY;
-    hr = output_props_create(&mt, props);
-    FreeMediaType(&mt);
-
     return hr;
 }
 
@@ -2167,7 +2141,6 @@ static HRESULT WINAPI reader_GetOutputFormatCount(IWMSyncReader2 *iface, DWORD o
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     struct wm_stream *stream;
-    struct wg_format format;
 
     TRACE("reader %p, output %lu, count %p.\n", reader, output, count);
 
@@ -2179,27 +2152,17 @@ static HRESULT WINAPI reader_GetOutputFormatCount(IWMSyncReader2 *iface, DWORD o
         return E_INVALIDARG;
     }
 
-    wg_parser_stream_get_current_format(stream->wg_stream, &format);
-    switch (format.major_type)
+    if (stream->decoder && !stream->read_compressed)
     {
-        case WG_MAJOR_TYPE_VIDEO:
-            *count = ARRAY_SIZE(video_formats);
-            break;
+        DWORD index = 0;
 
-        case WG_MAJOR_TYPE_AUDIO_MPEG1:
-        case WG_MAJOR_TYPE_AUDIO_MPEG4:
-        case WG_MAJOR_TYPE_AUDIO_WMA:
-        case WG_MAJOR_TYPE_VIDEO_CINEPAK:
-        case WG_MAJOR_TYPE_VIDEO_H264:
-        case WG_MAJOR_TYPE_VIDEO_WMV:
-        case WG_MAJOR_TYPE_VIDEO_INDEO:
-        case WG_MAJOR_TYPE_VIDEO_MPEG1:
-            FIXME("Format %u not implemented!\n", format.major_type);
-            /* fallthrough */
-        case WG_MAJOR_TYPE_AUDIO:
-        case WG_MAJOR_TYPE_UNKNOWN:
-            *count = 1;
-            break;
+        while (SUCCEEDED(IMediaObject_GetOutputType(stream->decoder, 0, index, NULL)))
+            index++;
+        *count = index;
+    }
+    else
+    {
+        *count = 1;
     }
 
     LeaveCriticalSection(&reader->cs);
