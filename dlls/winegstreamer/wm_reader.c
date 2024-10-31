@@ -219,23 +219,25 @@ static struct output_props *unsafe_impl_from_IWMOutputMediaProps(IWMOutputMediaP
     return impl_from_IWMOutputMediaProps(iface);
 }
 
-static IWMOutputMediaProps *output_props_create(const struct wg_format *format)
+static HRESULT output_props_create(const AM_MEDIA_TYPE *mt, IWMOutputMediaProps **out)
 {
     struct output_props *object;
+    HRESULT hr;
 
     if (!(object = calloc(1, sizeof(*object))))
-        return NULL;
-    object->IWMOutputMediaProps_iface.lpVtbl = &output_props_vtbl;
-    object->refcount = 1;
-
-    if (!amt_from_wg_format(&object->mt, format, true))
+        return E_OUTOFMEMORY;
+    if (FAILED(hr = CopyMediaType(&object->mt, mt)))
     {
         free(object);
-        return NULL;
+        return hr;
     }
 
+    object->IWMOutputMediaProps_iface.lpVtbl = &output_props_vtbl;
+    object->refcount = 1;
     TRACE("Created output properties %p.\n", object);
-    return &object->IWMOutputMediaProps_iface;
+
+    *out = &object->IWMOutputMediaProps_iface;
+    return S_OK;
 }
 
 struct buffer
@@ -2019,6 +2021,8 @@ static HRESULT WINAPI reader_GetOutputFormat(IWMSyncReader2 *iface,
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     struct wm_stream *stream;
     struct wg_format format;
+    AM_MEDIA_TYPE mt;
+    HRESULT hr;
 
     TRACE("reader %p, output %lu, index %lu, props %p.\n", reader, output, index, props);
 
@@ -2071,8 +2075,12 @@ static HRESULT WINAPI reader_GetOutputFormat(IWMSyncReader2 *iface,
 
     LeaveCriticalSection(&reader->cs);
 
-    *props = output_props_create(&format);
-    return *props ? S_OK : E_OUTOFMEMORY;
+    if (!amt_from_wg_format(&mt, &format, true))
+        return E_OUTOFMEMORY;
+    hr = output_props_create(&mt, props);
+    FreeMediaType(&mt);
+
+    return hr;
 }
 
 static HRESULT WINAPI reader_GetOutputFormatCount(IWMSyncReader2 *iface, DWORD output, DWORD *count)
@@ -2134,6 +2142,9 @@ static HRESULT WINAPI reader_GetOutputProps(IWMSyncReader2 *iface,
 {
     struct wm_reader *reader = impl_from_IWMSyncReader2(iface);
     struct wm_stream *stream;
+    struct wg_format format;
+    AM_MEDIA_TYPE mt;
+    HRESULT hr;
 
     TRACE("reader %p, output %lu, props %p.\n", reader, output, props);
 
@@ -2145,9 +2156,15 @@ static HRESULT WINAPI reader_GetOutputProps(IWMSyncReader2 *iface,
         return E_INVALIDARG;
     }
 
-    *props = output_props_create(&stream->format);
+    format = stream->format;
     LeaveCriticalSection(&reader->cs);
-    return *props ? S_OK : E_OUTOFMEMORY;
+
+    if (!amt_from_wg_format(&mt, &format, true))
+        return E_OUTOFMEMORY;
+    hr = output_props_create(&mt, props);
+    FreeMediaType(&mt);
+
+    return hr;
 }
 
 static HRESULT WINAPI reader_GetOutputSetting(IWMSyncReader2 *iface, DWORD output_num, const WCHAR *name,
