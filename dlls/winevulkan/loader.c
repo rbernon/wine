@@ -100,7 +100,7 @@ static BOOL is_available_device_function(VkDevice device, const char *name)
 
 static void *alloc_vk_object(size_t size)
 {
-    struct vulkan_client_object *object = calloc(1, size);
+    struct wine_vk_base *object = calloc(1, size);
     object->loader_magic = VULKAN_ICD_MAGIC_VALUE;
     return object;
 }
@@ -609,7 +609,7 @@ VkResult WINAPI vkCreateCommandPool(VkDevice device, const VkCommandPoolCreateIn
 
     if (!(cmd_pool = malloc(sizeof(*cmd_pool))))
         return VK_ERROR_OUT_OF_HOST_MEMORY;
-    cmd_pool->base.unix_handle = 0;
+    cmd_pool->unix_handle = 0;
     list_init(&cmd_pool->command_buffers);
 
     params.device = device;
@@ -619,7 +619,7 @@ VkResult WINAPI vkCreateCommandPool(VkDevice device, const VkCommandPoolCreateIn
     params.client_ptr = cmd_pool;
     status = UNIX_CALL(vkCreateCommandPool, &params);
     assert(!status);
-    if (!cmd_pool->base.unix_handle)
+    if (!cmd_pool->unix_handle)
         free(cmd_pool);
     return params.result;
 }

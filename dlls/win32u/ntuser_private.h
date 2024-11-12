@@ -244,8 +244,8 @@ extern int peek_message( MSG *msg, const struct peek_message_filter *filter );
 extern LRESULT system_tray_call( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, void *data );
 
 /* vulkan.c */
-extern PFN_vkGetDeviceProcAddr p_vkGetDeviceProcAddr;
-extern PFN_vkGetInstanceProcAddr p_vkGetInstanceProcAddr;
+extern void *(*p_vkGetDeviceProcAddr)(VkDevice, const char *);
+extern void *(*p_vkGetInstanceProcAddr)(VkInstance, const char *);
 
 extern BOOL vulkan_init(void);
 extern void vulkan_detach_surfaces( struct list *surfaces );
