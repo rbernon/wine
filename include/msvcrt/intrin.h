@@ -91,6 +91,10 @@ unsigned __int64 __getReg(int);
 #endif
 
 #if defined(_MSC_VER) && defined(__x86_64__)
+unsigned __int64 __shiftright128(unsigned __int64,unsigned __int64,unsigned char);
+#endif
+
+#if defined(_MSC_VER) && defined(__x86_64__)
 unsigned __int64 _umul128(unsigned __int64,unsigned __int64,unsigned __int64*);
 #endif
 

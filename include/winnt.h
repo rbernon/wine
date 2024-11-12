@@ -7439,6 +7439,18 @@ static FORCEINLINE void YieldProcessor(void)
 
 #ifdef __x86_64__
 
+#if defined(_MSC_VER) && !defined(__arm64ec__) && (!defined(__clang__) || __has_builtin(__shiftright128))
+#define ShiftRight128 __shiftright128
+DWORD64 __shiftright128(DWORD64,DWORD64,BYTE);
+#pragma intrinsic(__shiftright128)
+#elif !defined(__i386__)
+static FORCEINLINE DWORD64 ShiftRight128( DWORD64 lo, DWORD64 hi, BYTE shift )
+{
+    return ((unsigned __int128)hi << 64 | lo) >> shift;
+}
+#define __shiftright128 ShiftRight128
+#endif
+
 #if defined(_MSC_VER) && !defined(__arm64ec__) && (!defined(__clang__) || __has_builtin(_umul128))
 #define UnsignedMultiply128 _umul128
 DWORD64 _umul128(DWORD64,DWORD64,DWORD64*);
