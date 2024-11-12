@@ -28,6 +28,220 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(crypt);
 
+static void CRL_free(context_t *context)
+{
+    crl_t *crl = (crl_t*)context;
+
+    CryptMemFree(crl->ctx.pbCrlEncoded);
+    LocalFree(crl->ctx.pCrlInfo);
+}
+
+static const context_vtbl_t crl_vtbl;
+
+static char *copy_string(char *p, char **dst, const char *src)
+{
+    size_t size = strlen(src) + 1;
+
+    *dst = memcpy(p, src, size);
+    return p + size;
+}
+
+static char *copy_blob(char *p, DATA_BLOB *dst, const DATA_BLOB *src)
+{
+    size_t size = src->cbData;
+
+    dst->cbData = size;
+    dst->pbData = memcpy(p, src->pbData, size);
+    return p + size;
+}
+
+static char *copy_extension(char *p, CERT_EXTENSION *dst, const CERT_EXTENSION *src)
+{
+    p = copy_string(p, &dst->pszObjId, src->pszObjId);
+    dst->fCritical = src->fCritical;
+    return copy_blob(p, &dst->Value, &src->Value);
+}
+
+static CRL_INFO *clone_crl_info(const CRL_INFO *src)
+{
+    size_t size = sizeof(CRL_INFO);
+    CRL_INFO *dst;
+    DWORD i, j;
+    char *p;
+
+    if (src->SignatureAlgorithm.pszObjId)
+        size += strlen(src->SignatureAlgorithm.pszObjId) + 1;
+    size += src->SignatureAlgorithm.Parameters.cbData;
+    size += src->Issuer.cbData;
+    for (i = 0; i < src->cCRLEntry; ++i)
+    {
+        const CRL_ENTRY *entry = &src->rgCRLEntry[i];
+
+        size += sizeof(CRL_ENTRY);
+        size += entry->SerialNumber.cbData;
+        for (j = 0; j < entry->cExtension; ++j)
+        {
+            const CERT_EXTENSION *ext = &entry->rgExtension[j];
+
+            size += sizeof(CERT_EXTENSION);
+            size += strlen(ext->pszObjId) + 1;
+            size += ext->Value.cbData;
+        }
+    }
+
+    for (j = 0; j < src->cExtension; ++j)
+    {
+        const CERT_EXTENSION *ext = &src->rgExtension[j];
+
+        size += sizeof(CERT_EXTENSION);
+        size += strlen(ext->pszObjId) + 1;
+        size += ext->Value.cbData;
+    }
+
+    if (!(dst = LocalAlloc(LPTR, size)))
+        return NULL;
+    p = (char *)(dst + 1);
+
+    dst->dwVersion = src->dwVersion;
+    if (src->SignatureAlgorithm.pszObjId)
+        p = copy_string(p, &dst->SignatureAlgorithm.pszObjId, src->SignatureAlgorithm.pszObjId);
+    p = copy_blob(p, &dst->SignatureAlgorithm.Parameters, &src->SignatureAlgorithm.Parameters);
+    p = copy_blob(p, &dst->Issuer, &src->Issuer);
+    dst->ThisUpdate = src->ThisUpdate;
+    dst->NextUpdate = src->NextUpdate;
+
+    dst->cCRLEntry = src->cCRLEntry;
+    dst->rgCRLEntry = (CRL_ENTRY *)p;
+    p += src->cCRLEntry * sizeof(CRL_ENTRY);
+
+    dst->cExtension = src->cExtension;
+    dst->rgExtension = (CERT_EXTENSION *)p;
+    p += src->cExtension * sizeof(CERT_EXTENSION);
+
+    for (i = 0; i < src->cCRLEntry; ++i)
+    {
+        const CRL_ENTRY *src_entry = &src->rgCRLEntry[i];
+        CRL_ENTRY *dst_entry = &dst->rgCRLEntry[i];
+
+        p = copy_blob(p, &dst_entry->SerialNumber, &src_entry->SerialNumber);
+        dst_entry->RevocationDate = src_entry->RevocationDate;
+        dst_entry->cExtension = src_entry->cExtension;
+        dst_entry->rgExtension = (CERT_EXTENSION *)p;
+        p += src_entry->cExtension * sizeof(CERT_EXTENSION);
+
+        for (j = 0; j < src_entry->cExtension; ++j)
+            p = copy_extension(p, &dst_entry->rgExtension[j], &src_entry->rgExtension[j]);
+    }
+
+    for (j = 0; j < src->cExtension; ++j)
+        p = copy_extension(p, &dst->rgExtension[j], &src->rgExtension[j]);
+
+    assert(p - (char *)dst == size);
+    return dst;
+}
+
+static context_t *CRL_clone(context_t *context, WINECRYPT_CERTSTORE *store, BOOL use_link)
+{
+    crl_t *dst;
+
+    if(use_link) {
+        if (!(dst = (crl_t *)Context_CreateLinkContext(sizeof(CRL_CONTEXT), context, store)))
+            return NULL;
+    }else {
+        const crl_t *src = (const crl_t*)context;
+
+        if (!(dst = (crl_t *)Context_CreateDataContext(sizeof(CRL_CONTEXT), &crl_vtbl, store)))
+            return NULL;
+
+        Context_CopyProperties(&dst->ctx, &src->ctx);
+
+        dst->ctx.dwCertEncodingType = src->ctx.dwCertEncodingType;
+        dst->ctx.pbCrlEncoded = CryptMemAlloc(src->ctx.cbCrlEncoded);
+        memcpy(dst->ctx.pbCrlEncoded, src->ctx.pbCrlEncoded, src->ctx.cbCrlEncoded);
+        dst->ctx.cbCrlEncoded = src->ctx.cbCrlEncoded;
+
+        if (!(dst->ctx.pCrlInfo = clone_crl_info(src->ctx.pCrlInfo)))
+        {
+            CertFreeCRLContext(&dst->ctx);
+            return NULL;
+        }
+    }
+
+    dst->ctx.hCertStore = store;
+    return &dst->base;
+}
+
+static const context_vtbl_t crl_vtbl = {
+    CRL_free,
+    CRL_clone
+};
+
+PCCRL_CONTEXT WINAPI CertCreateCRLContext(DWORD dwCertEncodingType,
+ const BYTE* pbCrlEncoded, DWORD cbCrlEncoded)
+{
+    crl_t *crl = NULL;
+    BOOL ret;
+    PCRL_INFO crlInfo = NULL;
+    BYTE *data = NULL;
+    DWORD size = 0;
+
+    TRACE("(%08lx, %p, %ld)\n", dwCertEncodingType, pbCrlEncoded,
+     cbCrlEncoded);
+
+    if ((dwCertEncodingType & CERT_ENCODING_TYPE_MASK) != X509_ASN_ENCODING)
+    {
+        SetLastError(E_INVALIDARG);
+        return NULL;
+    }
+    ret = CryptDecodeObjectEx(dwCertEncodingType, X509_CERT_CRL_TO_BE_SIGNED,
+     pbCrlEncoded, cbCrlEncoded, CRYPT_DECODE_ALLOC_FLAG, NULL,
+     &crlInfo, &size);
+    if (!ret)
+        return NULL;
+
+    crl = (crl_t*)Context_CreateDataContext(sizeof(CRL_CONTEXT), &crl_vtbl, &empty_store);
+    if (!crl)
+        return NULL;
+
+    data = CryptMemAlloc(cbCrlEncoded);
+    if (!data)
+    {
+        Context_Release(&crl->base);
+        return NULL;
+    }
+
+    memcpy(data, pbCrlEncoded, cbCrlEncoded);
+    crl->ctx.dwCertEncodingType = dwCertEncodingType;
+    crl->ctx.pbCrlEncoded       = data;
+    crl->ctx.cbCrlEncoded       = cbCrlEncoded;
+    crl->ctx.pCrlInfo           = crlInfo;
+    crl->ctx.hCertStore         = &empty_store;
+
+    return &crl->ctx;
+}
+
+BOOL WINAPI CertAddEncodedCRLToStore(HCERTSTORE hCertStore,
+ DWORD dwCertEncodingType, const BYTE *pbCrlEncoded, DWORD cbCrlEncoded,
+ DWORD dwAddDisposition, PCCRL_CONTEXT *ppCrlContext)
+{
+    PCCRL_CONTEXT crl = CertCreateCRLContext(dwCertEncodingType,
+     pbCrlEncoded, cbCrlEncoded);
+    BOOL ret;
+
+    TRACE("(%p, %08lx, %p, %ld, %08lx, %p)\n", hCertStore, dwCertEncodingType,
+     pbCrlEncoded, cbCrlEncoded, dwAddDisposition, ppCrlContext);
+
+    if (crl)
+    {
+        ret = CertAddCRLContextToStore(hCertStore, crl, dwAddDisposition,
+         ppCrlContext);
+        CertFreeCRLContext(crl);
+    }
+    else
+        ret = FALSE;
+    return ret;
+}
+
 typedef BOOL (*CrlCompareFunc)(PCCRL_CONTEXT pCrlContext, DWORD dwType,
  DWORD dwFlags, const void *pvPara);
 
@@ -255,42 +469,278 @@ PCCRL_CONTEXT WINAPI CertGetCRLFromStore(HCERTSTORE hCertStore,
     return ret;
 }
 
-static BOOL compare_dist_point_name( const CRL_DIST_POINT_NAME *name1, const CRL_DIST_POINT_NAME *name2 )
+PCCRL_CONTEXT WINAPI CertDuplicateCRLContext(PCCRL_CONTEXT pCrlContext)
 {
-    DWORD i;
+    TRACE("(%p)\n", pCrlContext);
+    if (pCrlContext)
+        Context_AddRef(&crl_from_ptr(pCrlContext)->base);
+    return pCrlContext;
+}
 
-    if (name1->dwDistPointNameChoice != name2->dwDistPointNameChoice) return FALSE;
-    if (name1->dwDistPointNameChoice != CRL_DIST_POINT_FULL_NAME) return TRUE;
+BOOL WINAPI CertFreeCRLContext(PCCRL_CONTEXT pCrlContext)
+{
+    TRACE("(%p)\n", pCrlContext);
 
-    if (name1->u.FullName.cAltEntry != name2->u.FullName.cAltEntry) return FALSE;
-    for (i = 0; i < name1->u.FullName.cAltEntry; i++)
-    {
-        const CERT_ALT_NAME_ENTRY *entry1 = &name1->u.FullName.rgAltEntry[i];
-        const CERT_ALT_NAME_ENTRY *entry2 = &name2->u.FullName.rgAltEntry[i];
-
-        if (entry1->dwAltNameChoice != entry2->dwAltNameChoice) return FALSE;
-        switch (entry1->dwAltNameChoice)
-        {
-        case CERT_ALT_NAME_URL:
-            if (wcsicmp( entry1->u.pwszURL, entry2->u.pwszURL )) return FALSE;
-            break;
-        case CERT_ALT_NAME_DIRECTORY_NAME:
-            if (entry1->u.DirectoryName.cbData != entry2->u.DirectoryName.cbData) return FALSE;
-            if (memcmp( entry1->u.DirectoryName.pbData, entry2->u.DirectoryName.pbData,
-                        entry1->u.DirectoryName.cbData )) return FALSE;
-            break;
-        default:
-            FIXME( "unimplemented for type %ld\n", entry1->dwAltNameChoice );
-            return FALSE;
-        }
-    }
-
+    if (pCrlContext)
+        Context_Release(&crl_from_ptr(pCrlContext)->base);
     return TRUE;
 }
 
-static BOOL match_dist_point_with_issuing_dist_point( const CRL_DIST_POINT *dist, const CRL_ISSUING_DIST_POINT *idp )
+DWORD WINAPI CertEnumCRLContextProperties(PCCRL_CONTEXT pCRLContext,
+ DWORD dwPropId)
 {
-    const CRYPT_BIT_BLOB *dist_flags = &dist->ReasonFlags, *idp_flags = &idp->OnlySomeReasonFlags;
+    TRACE("(%p, %ld)\n", pCRLContext, dwPropId);
+
+    return ContextPropertyList_EnumPropIDs(crl_from_ptr(pCRLContext)->base.properties, dwPropId);
+}
+
+static BOOL CRLContext_SetProperty(crl_t *crl, DWORD dwPropId,
+                                   DWORD dwFlags, const void *pvData);
+
+static BOOL CRLContext_GetHashProp(crl_t *crl, DWORD dwPropId,
+ ALG_ID algID, const BYTE *toHash, DWORD toHashLen, void *pvData,
+ DWORD *pcbData)
+{
+    BOOL ret = CryptHashCertificate(0, algID, 0, toHash, toHashLen, pvData,
+     pcbData);
+    if (ret && pvData)
+    {
+        CRYPT_DATA_BLOB blob = { *pcbData, pvData };
+
+        ret = CRLContext_SetProperty(crl, dwPropId, 0, &blob);
+    }
+    return ret;
+}
+
+static BOOL CRLContext_GetProperty(crl_t *crl, DWORD dwPropId,
+                                   void *pvData, DWORD *pcbData)
+{
+    BOOL ret;
+    CRYPT_DATA_BLOB blob;
+
+    TRACE("(%p, %ld, %p, %p)\n", crl, dwPropId, pvData, pcbData);
+
+    if (crl->base.properties)
+        ret = ContextPropertyList_FindProperty(crl->base.properties, dwPropId, &blob);
+    else
+        ret = FALSE;
+    if (ret)
+    {
+        if (!pvData)
+            *pcbData = blob.cbData;
+        else if (*pcbData < blob.cbData)
+        {
+            SetLastError(ERROR_MORE_DATA);
+            *pcbData = blob.cbData;
+            ret = FALSE;
+        }
+        else
+        {
+            memcpy(pvData, blob.pbData, blob.cbData);
+            *pcbData = blob.cbData;
+        }
+    }
+    else
+    {
+        /* Implicit properties */
+        switch (dwPropId)
+        {
+        case CERT_SHA1_HASH_PROP_ID:
+            ret = CRLContext_GetHashProp(crl, dwPropId, CALG_SHA1,
+                                         crl->ctx.pbCrlEncoded, crl->ctx.cbCrlEncoded, pvData,
+             pcbData);
+            break;
+        case CERT_MD5_HASH_PROP_ID:
+            ret = CRLContext_GetHashProp(crl, dwPropId, CALG_MD5,
+                                         crl->ctx.pbCrlEncoded, crl->ctx.cbCrlEncoded, pvData,
+             pcbData);
+            break;
+        default:
+            SetLastError(CRYPT_E_NOT_FOUND);
+        }
+    }
+    TRACE("returning %d\n", ret);
+    return ret;
+}
+
+BOOL WINAPI CertGetCRLContextProperty(PCCRL_CONTEXT pCRLContext,
+ DWORD dwPropId, void *pvData, DWORD *pcbData)
+{
+    BOOL ret;
+
+    TRACE("(%p, %ld, %p, %p)\n", pCRLContext, dwPropId, pvData, pcbData);
+
+    switch (dwPropId)
+    {
+    case 0:
+    case CERT_CERT_PROP_ID:
+    case CERT_CRL_PROP_ID:
+    case CERT_CTL_PROP_ID:
+        SetLastError(E_INVALIDARG);
+        ret = FALSE;
+        break;
+    case CERT_ACCESS_STATE_PROP_ID:
+        if (!pvData)
+        {
+            *pcbData = sizeof(DWORD);
+            ret = TRUE;
+        }
+        else if (*pcbData < sizeof(DWORD))
+        {
+            SetLastError(ERROR_MORE_DATA);
+            *pcbData = sizeof(DWORD);
+            ret = FALSE;
+        }
+        else
+        {
+            ret = CertGetStoreProperty(pCRLContext->hCertStore, dwPropId, pvData, pcbData);
+        }
+        break;
+    default:
+        ret = CRLContext_GetProperty(crl_from_ptr(pCRLContext), dwPropId, pvData, pcbData);
+    }
+    return ret;
+}
+
+static BOOL CRLContext_SetProperty(crl_t *crl, DWORD dwPropId,
+ DWORD dwFlags, const void *pvData)
+{
+    BOOL ret;
+
+    TRACE("(%p, %ld, %08lx, %p)\n", crl, dwPropId, dwFlags, pvData);
+
+    if (!crl->base.properties)
+        ret = FALSE;
+    else if (!pvData)
+    {
+        ContextPropertyList_RemoveProperty(crl->base.properties, dwPropId);
+        ret = TRUE;
+    }
+    else
+    {
+        switch (dwPropId)
+        {
+        case CERT_AUTO_ENROLL_PROP_ID:
+        case CERT_CTL_USAGE_PROP_ID: /* same as CERT_ENHKEY_USAGE_PROP_ID */
+        case CERT_DESCRIPTION_PROP_ID:
+        case CERT_FRIENDLY_NAME_PROP_ID:
+        case CERT_HASH_PROP_ID:
+        case CERT_KEY_IDENTIFIER_PROP_ID:
+        case CERT_MD5_HASH_PROP_ID:
+        case CERT_NEXT_UPDATE_LOCATION_PROP_ID:
+        case CERT_PUBKEY_ALG_PARA_PROP_ID:
+        case CERT_PVK_FILE_PROP_ID:
+        case CERT_SIGNATURE_HASH_PROP_ID:
+        case CERT_ISSUER_PUBLIC_KEY_MD5_HASH_PROP_ID:
+        case CERT_SUBJECT_NAME_MD5_HASH_PROP_ID:
+        case CERT_SUBJECT_PUBLIC_KEY_MD5_HASH_PROP_ID:
+        case CERT_ENROLLMENT_PROP_ID:
+        case CERT_CROSS_CERT_DIST_POINTS_PROP_ID:
+        case CERT_RENEWAL_PROP_ID:
+        {
+            PCRYPT_DATA_BLOB blob = (PCRYPT_DATA_BLOB)pvData;
+
+            ret = ContextPropertyList_SetProperty(crl->base.properties, dwPropId,
+             blob->pbData, blob->cbData);
+            break;
+        }
+        case CERT_DATE_STAMP_PROP_ID:
+            ret = ContextPropertyList_SetProperty(crl->base.properties, dwPropId,
+             pvData, sizeof(FILETIME));
+            break;
+        default:
+            FIXME("%ld: stub\n", dwPropId);
+            ret = FALSE;
+        }
+    }
+    TRACE("returning %d\n", ret);
+    return ret;
+}
+
+BOOL WINAPI CertSetCRLContextProperty(PCCRL_CONTEXT pCRLContext,
+ DWORD dwPropId, DWORD dwFlags, const void *pvData)
+{
+    BOOL ret;
+
+    TRACE("(%p, %ld, %08lx, %p)\n", pCRLContext, dwPropId, dwFlags, pvData);
+
+    /* Handle special cases for "read-only"/invalid prop IDs.  Windows just
+     * crashes on most of these, I'll be safer.
+     */
+    switch (dwPropId)
+    {
+    case 0:
+    case CERT_ACCESS_STATE_PROP_ID:
+    case CERT_CERT_PROP_ID:
+    case CERT_CRL_PROP_ID:
+    case CERT_CTL_PROP_ID:
+        SetLastError(E_INVALIDARG);
+        return FALSE;
+    }
+    ret = CRLContext_SetProperty(crl_from_ptr(pCRLContext), dwPropId, dwFlags, pvData);
+    TRACE("returning %d\n", ret);
+    return ret;
+}
+
+static BOOL compare_dist_point_name(const CRL_DIST_POINT_NAME *name1,
+ const CRL_DIST_POINT_NAME *name2)
+{
+    BOOL match;
+
+    if (name1->dwDistPointNameChoice == name2->dwDistPointNameChoice)
+    {
+        match = TRUE;
+        if (name1->dwDistPointNameChoice == CRL_DIST_POINT_FULL_NAME)
+        {
+            if (name1->FullName.cAltEntry == name2->FullName.cAltEntry)
+            {
+                DWORD i;
+
+                for (i = 0; match && i < name1->FullName.cAltEntry; i++)
+                {
+                    const CERT_ALT_NAME_ENTRY *entry1 =
+                     &name1->FullName.rgAltEntry[i];
+                    const CERT_ALT_NAME_ENTRY *entry2 =
+                     &name2->FullName.rgAltEntry[i];
+
+                    if (entry1->dwAltNameChoice == entry2->dwAltNameChoice)
+                    {
+                        switch (entry1->dwAltNameChoice)
+                        {
+                        case CERT_ALT_NAME_URL:
+                            match = !wcsicmp(entry1->pwszURL,
+                             entry2->pwszURL);
+                            break;
+                        case CERT_ALT_NAME_DIRECTORY_NAME:
+                            match = (entry1->DirectoryName.cbData ==
+                             entry2->DirectoryName.cbData) &&
+                             !memcmp(entry1->DirectoryName.pbData,
+                             entry2->DirectoryName.pbData,
+                             entry1->DirectoryName.cbData);
+                            break;
+                        default:
+                            FIXME("unimplemented for type %ld\n",
+                             entry1->dwAltNameChoice);
+                            match = FALSE;
+                        }
+                    }
+                    else
+                        match = FALSE;
+                }
+            }
+            else
+                match = FALSE;
+        }
+    }
+    else
+        match = FALSE;
+    return match;
+}
+
+static BOOL match_dist_point_with_issuing_dist_point(
+ const CRL_DIST_POINT *distPoint, const CRL_ISSUING_DIST_POINT *idp)
+{
+    BOOL match;
 
     /* While RFC 5280, section 4.2.1.13 recommends against segmenting
      * CRL distribution points by reasons, it doesn't preclude doing so.
@@ -299,9 +749,27 @@ static BOOL match_dist_point_with_issuing_dist_point( const CRL_DIST_POINT *dist
      * some reasons, only match if the reasons covered also match the
      * reasons in the CRL distribution point.
      */
-    if (idp_flags->cbData && idp_flags->cbData != dist_flags->cbData) return FALSE;
-    if (memcmp( idp_flags->pbData, dist_flags->pbData, dist_flags->cbData )) return FALSE;
-    return compare_dist_point_name( &idp->DistPointName, &dist->DistPointName );
+    if (idp->OnlySomeReasonFlags.cbData)
+    {
+        if (idp->OnlySomeReasonFlags.cbData == distPoint->ReasonFlags.cbData)
+        {
+            DWORD i;
+
+            match = TRUE;
+            for (i = 0; match && i < distPoint->ReasonFlags.cbData; i++)
+                if (idp->OnlySomeReasonFlags.pbData[i] !=
+                 distPoint->ReasonFlags.pbData[i])
+                    match = FALSE;
+        }
+        else
+            match = FALSE;
+    }
+    else
+        match = TRUE;
+    if (match)
+        match = compare_dist_point_name(&idp->DistPointName,
+         &distPoint->DistPointName);
+    return match;
 }
 
 BOOL WINAPI CertIsValidCRLForCertificate(PCCERT_CONTEXT pCert,
@@ -361,45 +829,60 @@ BOOL WINAPI CertIsValidCRLForCertificate(PCCERT_CONTEXT pCert,
     return ret;
 }
 
-static CRL_ENTRY *find_certificate_in_crl( CERT_INFO *cert, const CRL_INFO *crl )
+static PCRL_ENTRY CRYPT_FindCertificateInCRL(PCERT_INFO cert, const CRL_INFO *crl)
 {
     DWORD i;
+    PCRL_ENTRY entry = NULL;
 
-    for (i = 0; i < crl->cCRLEntry; i++)
-        if (CertCompareIntegerBlob( &crl->rgCRLEntry[i].SerialNumber, &cert->SerialNumber ))
-            return &crl->rgCRLEntry[i];
-
-    return NULL;
+    for (i = 0; !entry && i < crl->cCRLEntry; i++)
+        if (CertCompareIntegerBlob(&crl->rgCRLEntry[i].SerialNumber,
+         &cert->SerialNumber))
+            entry = &crl->rgCRLEntry[i];
+    return entry;
 }
 
-BOOL WINAPI CertFindCertificateInCRL( const CERT_CONTEXT *cert, const CRL_CONTEXT *crl,
-                                      DWORD flags, void *reserved, CRL_ENTRY **entry )
+BOOL WINAPI CertFindCertificateInCRL(PCCERT_CONTEXT pCert,
+ PCCRL_CONTEXT pCrlContext, DWORD dwFlags, void *pvReserved,
+ PCRL_ENTRY *ppCrlEntry)
 {
-    TRACE( "cert %p, crl %p, flags %#lx, reserved %p, entry %p\n", cert, crl, flags, reserved, entry );
-    *entry = find_certificate_in_crl( cert->pCertInfo, crl->pCrlInfo );
+    TRACE("(%p, %p, %08lx, %p, %p)\n", pCert, pCrlContext, dwFlags, pvReserved,
+     ppCrlEntry);
+
+    *ppCrlEntry = CRYPT_FindCertificateInCRL(pCert->pCertInfo,
+     pCrlContext->pCrlInfo);
     return TRUE;
 }
 
-BOOL WINAPI CertVerifyCRLRevocation( DWORD encoding, CERT_INFO *cert, DWORD count, CRL_INFO **crls )
+BOOL WINAPI CertVerifyCRLRevocation(DWORD dwCertEncodingType,
+ PCERT_INFO pCertId, DWORD cCrlInfo, PCRL_INFO rgpCrlInfo[])
 {
-    TRACE( "encoding %#lx, cert %p, count %lu, crls %p\n", encoding, cert, count, crls );
-    while (count--) if (find_certificate_in_crl( cert, crls[count] )) return FALSE;
-    return TRUE;
+    DWORD i;
+    PCRL_ENTRY entry = NULL;
+
+    TRACE("(%08lx, %p, %ld, %p)\n", dwCertEncodingType, pCertId, cCrlInfo,
+     rgpCrlInfo);
+
+    for (i = 0; !entry && i < cCrlInfo; i++)
+        entry = CRYPT_FindCertificateInCRL(pCertId, rgpCrlInfo[i]);
+    return entry == NULL;
 }
 
-LONG WINAPI CertVerifyCRLTimeValidity( FILETIME *time, CRL_INFO *crl )
+LONG WINAPI CertVerifyCRLTimeValidity(LPFILETIME pTimeToVerify,
+ PCRL_INFO pCrlInfo)
 {
-    FILETIME tmp;
+    FILETIME fileTime;
     LONG ret;
 
-    TRACE( "time %p, crl %p\n", time, crl );
-
-    if (!time) GetSystemTimeAsFileTime( (time = &tmp) );
-    if ((ret = CompareFileTime( time, &crl->ThisUpdate )) >= 0)
+    if (!pTimeToVerify)
     {
-        ret = CompareFileTime( time, &crl->NextUpdate );
-        if (ret < 0) ret = 0;
+        GetSystemTimeAsFileTime(&fileTime);
+        pTimeToVerify = &fileTime;
     }
-
+    if ((ret = CompareFileTime(pTimeToVerify, &pCrlInfo->ThisUpdate)) >= 0)
+    {
+        ret = CompareFileTime(pTimeToVerify, &pCrlInfo->NextUpdate);
+        if (ret < 0)
+            ret = 0;
+    }
     return ret;
 }
