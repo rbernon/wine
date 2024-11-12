@@ -27,6 +27,7 @@
 #include "winbase.h"
 #include "winver.h"
 #include "imagehlp.h"
+#include "vcruntime_typeinfo.h"
 #include "wine/exception.h"
 #include "wine/debug.h"
 #include "msvcrt.h"
@@ -975,12 +976,6 @@ void* __cdecl __AdjustPointer(void *obj, const this_ptr_offsets *off)
 
 typedef struct
 {
-    char *name;
-    char mangled[1];
-} type_info140;
-
-typedef struct
-{
     SLIST_ENTRY entry;
     char name[1];
 } type_info_entry;
@@ -1000,7 +995,7 @@ static void CDECL type_info_entry_free(void *ptr)
 /******************************************************************
  *		__std_type_info_compare (UCRTBASE.@)
  */
-int CDECL __std_type_info_compare(const type_info140 *l, const type_info140 *r)
+int CDECL __std_type_info_compare(const struct __std_type_info_data *l, const struct __std_type_info_data *r)
 {
     int ret;
 
@@ -1013,7 +1008,7 @@ int CDECL __std_type_info_compare(const type_info140 *l, const type_info140 *r)
 /******************************************************************
  *		__std_type_info_name (UCRTBASE.@)
  */
-const char* CDECL __std_type_info_name(type_info140 *ti, SLIST_HEADER *header)
+const char* CDECL __std_type_info_name(struct __std_type_info_data *ti, SLIST_HEADER *header)
 {
       if (!ti->name)
       {
@@ -1060,7 +1055,7 @@ void CDECL __std_type_info_destroy_list(SLIST_HEADER *header)
 /******************************************************************
  *              __std_type_info_hash (UCRTBASE.@)
  */
-size_t CDECL __std_type_info_hash(const type_info140 *ti)
+size_t CDECL __std_type_info_hash(const struct __std_type_info_data *ti)
 {
     size_t hash, fnv_prime;
     const char *p;
