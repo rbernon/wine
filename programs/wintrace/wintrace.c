@@ -15,7 +15,6 @@
 #include <winuser.h>
 #include <winstring.h>
 #include <setupapi.h>
-#include <shellscalingapi.h>
 #include <ddk/hidsdi.h>
 
 #include <initguid.h>
@@ -42,8 +41,6 @@
 #include "wintrace_hooks.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(wintrace);
-
-WINUSERAPI LONG        WINAPI DisplayConfigSetDeviceInfo(DISPLAYCONFIG_DEVICE_INFO_HEADER *);
 
 static BOOL verbose;
 
@@ -886,12 +883,8 @@ static BOOL CALLBACK enum_monitor( HMONITOR handle, HDC hdc, RECT *rect, LPARAM 
     trace( "  - monitor: %s\n", wine_dbgstr_rect(&info.rcMonitor) );
     trace( "  - work: %s\n", wine_dbgstr_rect(&info.rcWork) );
 
-    GetDpiForMonitorInternal( handle, MDT_EFFECTIVE_DPI, &dpi_x, &dpi_y );
+    GetDpiForMonitorInternal( handle, 0, &dpi_x, &dpi_y );
     trace( "  - dpi: %d %d\n", dpi_x, dpi_y );
-    GetDpiForMonitorInternal( handle, MDT_ANGULAR_DPI, &dpi_x, &dpi_y );
-    trace( "  - ang dpi: %d %d\n", dpi_x, dpi_y );
-    GetDpiForMonitorInternal( handle, MDT_RAW_DPI, &dpi_x, &dpi_y );
-    trace( "  - raw dpi: %d %d\n", dpi_x, dpi_y );
 
     return TRUE;
 }
@@ -934,23 +927,13 @@ static void list_devmode( const WCHAR *device )
 static void set_display_settings(void)
 {
     DEVMODEW mode = {.dmSize = sizeof(DEVMODEW)};
-    DISPLAY_DEVICEW adapter = {sizeof(adapter)};
-    BOOL vertical;
-    UINT i;
 
-    for (i = 0; !i && EnumDisplayDevicesW( NULL, i, &adapter, 0 ); ++i)
-    {
-        EnumDisplaySettingsExW( adapter.DeviceName, ENUM_CURRENT_SETTINGS, &mode, 0 );
+    mode.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
+    mode.dmBitsPerPel = 32;
+    mode.dmPelsWidth = 800;
+    mode.dmPelsHeight = 600;
 
-        vertical = mode.dmDisplayOrientation & 1;
-        mode.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
-        mode.dmBitsPerPel = 32;
-        mode.dmPelsWidth = vertical ? 600 : 800;
-        mode.dmPelsHeight = vertical ? 800 : 600;
-
-        ChangeDisplaySettingsExW( adapter.DeviceName, &mode, 0, CDS_UPDATEREGISTRY | CDS_NORESET, NULL );
-    }
-
+    ChangeDisplaySettingsExW( L"\\\\.\\DISPLAY1", &mode, 0, CDS_UPDATEREGISTRY | CDS_NORESET, NULL );
     ChangeDisplaySettingsExW( NULL, NULL, NULL, 0, NULL );
 }
 
@@ -1194,187 +1177,10 @@ static void list_display(void)
            GetSystemMetrics( SM_CXVIRTUALSCREEN ), GetSystemMetrics( SM_CYVIRTUALSCREEN ) );
     trace( "monitors %u\n", GetSystemMetrics( SM_CMONITORS ) );
 
-{
-    HDC dc = GetDC( NULL );
-    UINT dpi_x = GetDeviceCaps( dc, LOGPIXELSX );
-    UINT dpi_y = GetDeviceCaps( dc, LOGPIXELSY );
-    UINT res_x = GetDeviceCaps( dc, HORZRES );
-    UINT res_y = GetDeviceCaps( dc, VERTRES );
-    trace( "res (%d,%d) dpi (%d,%d)\n", res_x, res_y, dpi_x, dpi_y );
-    DeleteDC( dc );
-}
-
-{
-    DWORD value, value_size;
-    LSTATUS status;
-
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop", L"Win8DpiScaling",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    trace( "status %d Win8DpiScaling %d\n", status, value );
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop", L"DpiScalingVer",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    trace( "status %d DpiScalingVer %d\n", status, value );
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop", L"DesktopDPIOverride",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    trace( "status %d DesktopDPIOverride %d\n", status, value );
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop", L"LogPixels",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    trace( "status %d LogPixels %d\n", status, value );
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop\\WindowMetrics", L"AppliedDPI",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    trace( "status %d AppliedDPI %d\n", status, value );
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop\\PerMonitorSettings\\NOEDID_80EE_BEEF_00000000_00020000_0^8EBF71A8F8FA6B5415313805363EA384", L"DpiValue",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    trace( "status %d DpiValue %d\n", status, value );
-}
-
-/*
-    get_scale_req.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_DPI_SCALE;
-    get_scale_req.header.size = sizeof(get_scale_req);
-    get_scale_req.header.adapterId = open_adapter_gdi_desc.AdapterLuid;
-    get_scale_req.header.id = open_adapter_gdi_desc.VidPnSourceId;
-    DisplayConfigGetDeviceInfo
-    DisplayConfigSetDeviceInfo
-*/
-
     trace( "system dpi %u\n", GetDpiForSystem() );
+    SetThreadDpiAwarenessContext( DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 );
 
     EnumDisplayMonitors( 0, NULL, enum_monitor, 0 );
-{
-    DPI_AWARENESS_CONTEXT old = SetThreadDpiAwarenessContext( DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE );
-    EnumDisplayMonitors( 0, NULL, enum_monitor, 0 );
-    SetThreadDpiAwarenessContext( old );
-}
-
-{
-    static char buffer[0x10000];
-    DISPLAYCONFIG_DEVICE_INFO_HEADER *req = (DISPLAYCONFIG_DEVICE_INFO_HEADER *)buffer;
-    D3DKMT_OPENADAPTERFROMGDIDISPLAYNAME desc = {.DeviceName = L"\\\\.\\DISPLAY1"};
-    NTSTATUS status;
-    LONG ret;
-
-    status = D3DKMTOpenAdapterFromGdiDisplayName( &desc );
-    if (status) trace( "status %#lx\n", status );
-
-    memset( buffer, 0xcd, sizeof(buffer) );
-    req->type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_DPI_SCALE;
-    req->size = 32;
-    req->adapterId = desc.AdapterLuid;
-    req->id = desc.VidPnSourceId;
-    ret = DisplayConfigGetDeviceInfo( req );
-    trace( "ret %d\n", ret );
-
-    memset( buffer, 0xcd, sizeof(buffer) );
-    req->type = DISPLAYCONFIG_DEVICE_INFO_SET_SOURCE_DPI_SCALE;
-    req->size = 24;
-    req->adapterId = desc.AdapterLuid;
-    req->id = desc.VidPnSourceId;
-    *(DWORD *)(req + 1) = 0;
-    ret = DisplayConfigSetDeviceInfo( req );
-    trace( "ret %d\n", ret );
-
-    for (i = -1; i >= -50; i--)
-    {
-        UINT size = -1;
-
-        do
-        {
-            memset( buffer, 0xcd, sizeof(buffer) );
-            req->type = i;
-            req->size = sizeof(*req) + ++size;
-            req->adapterId = desc.AdapterLuid;
-            req->id = desc.VidPnSourceId;
-            ret = DisplayConfigGetDeviceInfo( req );
-        } while (ret == ERROR_INVALID_PARAMETER && size < 1024);
-        if (ret == ERROR_INVALID_PARAMETER) continue;
-
-        do
-        {
-            const unsigned char *ptr = (void *)(req + 1), *end = ptr + size;
-            trace("ret %d i %d dump %p-%p (%x)\n", ret, i, (void *)ptr, (void *)end, (int)(end - ptr));
-            for (int i = 0, j; ptr + i < end;)
-            {
-                char buffer[256], *buf = buffer;
-                buf += sprintf(buf, "%08x ", i);
-                for (j = 0; j < 8 && ptr + i + j < end; ++j)
-                    buf += sprintf(buf, " %02x", ptr[i + j]);
-                for (; j < 8 && ptr + i + j >= end; ++j)
-                    buf += sprintf(buf, "   ");
-                buf += sprintf(buf, " ");
-                for (j = 8; j < 16 && ptr + i + j < end; ++j)
-                    buf += sprintf(buf, " %02x", ptr[i + j]);
-                for (; j < 16 && ptr + i + j >= end; ++j)
-                    buf += sprintf(buf, "   ");
-                buf += sprintf(buf, "  |");
-                for (j = 0; j < 16 && ptr + i < end; ++j, ++i)
-                    buf += sprintf(buf, "%c", ptr[i] >= ' ' && ptr[i] <= '~' ? ptr[i] : '.');
-                buf += sprintf(buf, "|");
-                trace("%s\n", buffer);
-            }
-        }
-        while(0);
-    }
-}
-
-    EnumDisplayMonitors( 0, NULL, enum_monitor, 0 );
-
-{
-    DPI_AWARENESS_CONTEXT old = SetThreadDpiAwarenessContext( DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE );
-    EnumDisplayMonitors( 0, NULL, enum_monitor, 0 );
-
-
-    trace( "primary (%d,%d)\n", GetSystemMetrics( SM_CXSCREEN ), GetSystemMetrics( SM_CYSCREEN ) );
-    trace( "virtual (%d,%d)-(%d,%d)\n", GetSystemMetrics( SM_XVIRTUALSCREEN ), GetSystemMetrics( SM_YVIRTUALSCREEN ),
-           GetSystemMetrics( SM_CXVIRTUALSCREEN ), GetSystemMetrics( SM_CYVIRTUALSCREEN ) );
-    trace( "monitors %u\n", GetSystemMetrics( SM_CMONITORS ) );
-
-{
-    HDC dc = GetDC( NULL );
-    UINT dpi_x = GetDeviceCaps( dc, LOGPIXELSX );
-    UINT dpi_y = GetDeviceCaps( dc, LOGPIXELSY );
-    UINT res_x = GetDeviceCaps( dc, HORZRES );
-    UINT res_y = GetDeviceCaps( dc, VERTRES );
-    trace( "res (%d,%d) dpi (%d,%d)\n", res_x, res_y, dpi_x, dpi_y );
-    DeleteDC( dc );
-}
-
-{
-    DWORD value, value_size;
-    LSTATUS status;
-
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop", L"Win8DpiScaling",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    trace( "status %d Win8DpiScaling %d\n", status, value );
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop", L"DpiScalingVer",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    trace( "status %d DpiScalingVer %d\n", status, value );
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop", L"DesktopDPIOverride",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    trace( "status %d DesktopDPIOverride %d\n", status, value );
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop", L"LogPixels",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    trace( "status %d LogPixels %d\n", status, value );
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop\\WindowMetrics", L"AppliedDPI",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    trace( "status %d AppliedDPI %d\n", status, value );
-    status = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop\\PerMonitorSettings\\NOEDID_80EE_BEEF_00000000_00020000_0^8EBF71A8F8FA6B5415313805363EA384", L"DpiValue",
-                          RRF_RT_REG_DWORD, NULL, (void *)&value, &value_size);
-    trace( "status %d DpiValue %d\n", status, value );
-}
-
-/*
-    get_scale_req.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_DPI_SCALE;
-    get_scale_req.header.size = sizeof(get_scale_req);
-    get_scale_req.header.adapterId = open_adapter_gdi_desc.AdapterLuid;
-    get_scale_req.header.id = open_adapter_gdi_desc.VidPnSourceId;
-    DisplayConfigGetDeviceInfo
-    DisplayConfigSetDeviceInfo
-*/
-
-    trace( "system dpi %u\n", GetDpiForSystem() );
-
-    SetThreadDpiAwarenessContext( old );
-}
 
     trace( "dxgi\n" );
     list_display_dxgi();
