@@ -214,3 +214,8 @@ BOOL WINAPI GetSystemRegistryQuota(PDWORD pdwQuotaAllowed, PDWORD pdwQuotaUsed)
 
     return TRUE;
 }
+
+BOOL WINAPI DllMainCRTStartup( HINSTANCE inst, DWORD reason, void *reserved )
+{
+    return DllMain( inst, reason, reserved );
+}
