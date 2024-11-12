@@ -3047,11 +3047,9 @@ static inline void check_for_driver_events(void)
 {
     if (get_user_thread_info()->last_driver_time != NtGetTickCount())
     {
-        UINT context = set_thread_dpi_awareness_context( NTUSER_DPI_PER_MONITOR_AWARE_V2 );
         flush_window_surfaces( FALSE );
         user_driver->pProcessEvents( QS_ALLINPUT );
         get_user_thread_info()->last_driver_time = NtGetTickCount();
-        set_thread_dpi_awareness_context( context );
     }
 }
 
@@ -3071,7 +3069,6 @@ static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, DW
     DWORD ret;
     void *ret_ptr;
     ULONG ret_len;
-    UINT context;
 
     if (!KeUserDispatchCallback( &params.dispatch, sizeof(params), &ret_ptr, &ret_len ) &&
         ret_len == sizeof(params.locks))
@@ -3080,7 +3077,6 @@ static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, DW
         params.restore = TRUE;
     }
 
-    context = set_thread_dpi_awareness_context( NTUSER_DPI_PER_MONITOR_AWARE_V2 );
     if (user_driver->pProcessEvents( mask )) ret = count - 1;
     else
     {
@@ -3093,7 +3089,6 @@ static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, DW
             ret = WAIT_FAILED;
         }
     }
-    set_thread_dpi_awareness_context( context );
 
     if (ret == WAIT_TIMEOUT && !count && !timeout) NtYieldExecution();
     if (ret == count - 1) get_user_thread_info()->last_driver_time = NtGetTickCount();
