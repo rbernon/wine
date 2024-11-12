@@ -428,8 +428,3 @@ NTSTATUS WINAPI BTCpuTurboThunkControl( ULONG enable )
     /* we don't have turbo thunks yet */
     return STATUS_SUCCESS;
 }
-
-BOOL WINAPI DllMainCRTStartup( HINSTANCE inst, DWORD reason, void *reserved )
-{
-    return DllMain( inst, reason, reserved );
-}
